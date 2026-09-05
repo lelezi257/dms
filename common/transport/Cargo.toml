@@ -14,5 +14,10 @@ prost = "0.14.1"
 thiserror = "2.0.16"
 tonic = { version = "0.14.6", features = ["tls-ring"] }
 
+[dev-dependencies]
+# 仅供真实 TCP socket 测试使用，复用工作区已锁定的库，不进入生产依赖。
+tokio = { version = "1.47.1", features = ["macros", "net", "rt"] }
+tokio-stream = { version = "0.1.17", features = ["net"] }
+
 [lints]
 workspace = true

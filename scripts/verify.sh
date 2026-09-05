@@ -13,8 +13,10 @@ cargo clippy --workspace --all-targets --locked -- -D warnings
 echo "== 3/8 unit tests =="
 cargo test --workspace --locked
 
-echo "== 4/8 external SDK consumer =="
-cargo check --manifest-path tests/sdk-consumer/Cargo.toml --locked
+echo "== 4/8 packaged SDK consumer =="
+# 从真实 SDK 包编译统一消费者；比源码 path 检查更完整，不需要独立测试工程。
+# 这里只构包并编译，候选仓下载及 TCP/SHM 运行由 scripts/release/accept.sh 验证。
+python3 "${SCRIPTS_DIR}/package_sdk.py"
 
 echo "== 5/8 deployed process checks =="
 "${SCRIPTS_DIR}/status.sh"

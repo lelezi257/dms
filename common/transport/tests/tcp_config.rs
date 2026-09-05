@@ -1,4 +1,4 @@
-//! 验证真实 accepted socket，而不只是验证 builder 保存了一个字段。
+//! 公共传输配置的集成测试：验证真实 accepted socket，不依赖 Node/Meta 业务。
 use dms_transport::GrpcConfig;
 use tokio::net::{TcpListener, TcpStream};
 use tokio_stream::StreamExt;

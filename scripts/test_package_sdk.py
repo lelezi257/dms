@@ -7,11 +7,34 @@ import tempfile
 import unittest
 import json
 from pathlib import Path
+from unittest.mock import patch
 
 import package_sdk
 
 
 class PackageSdkRewriteTests(unittest.TestCase):
+    def test_package_verification_uses_the_isolated_consumer_source(self) -> None:
+        # 编译检查与真实 TCP/SHM 验收必须使用同一份消费者，不维护两套 API 清单。
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            layout = package_sdk.PackageLayout(
+                root, root / "stage", root / "target", root / "sdk.crate", root / "evidence"
+            )
+            def simulate_command(command, **_):
+                if command[0] == "tar":
+                    (root / "consumer-check/vendor/dms-client-0.1.0").mkdir()
+
+            with patch.object(package_sdk, "run_checked", side_effect=simulate_command) as run, \
+                 patch.object(package_sdk, "write_cargo_directory_checksum"), \
+                 patch.object(package_sdk, "stabilize_lock_to_source_versions"), \
+                 patch.object(package_sdk, "verify_lock_uses_source_versions"):
+                package_sdk.verify_consumer(layout, "0.1.0")
+            self.assertEqual(
+                (root / "consumer-check/src/main.rs").read_bytes(),
+                (package_sdk.SOURCE_ROOT / "scripts/release/consumer.rs").read_bytes(),
+            )
+            self.assertEqual(run.call_args.args[0], ["cargo", "check", "--locked"])
+
     def test_dependency_crate_names_become_private_root_modules(self) -> None:
         text = "use dms_error::DmsError;\nlet _ = dms_tracing::current_exemplar();\n"
         rewritten = package_sdk.transform_text(text, owner_module=None)

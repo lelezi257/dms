@@ -702,18 +702,9 @@ dms-client = {{ path = "vendor/dms-client-{version}" }}
 """,
         encoding="utf-8",
     )
-    (src / "main.rs").write_text(
-        """use dms_client::{ClientOptions, DmsClient, DmsError, ErrorKind};
-
-fn main() {
-    let options = ClientOptions::default();
-    let _ = DmsClient::connect("http://127.0.0.1:25200", options);
-    let error = DmsError::client_invalid_argument("candidate package smoke");
-    assert_eq!(error.kind(), ErrorKind::InvalidArgument);
-}
-""",
-        encoding="utf-8",
-    )
+    # 与隔离安装 E2E 共用消费者：这里仅编译，连接/读写由 E2E 在真实服务上执行。
+    # 消费者包括 KV、Hash 与公开错误类型，避免另建源码 path 依赖测试工程。
+    shutil.copy2(SOURCE_ROOT / "scripts/release/consumer.rs", src / "main.rs")
     env = os.environ.copy()
     env["CARGO_TARGET_DIR"] = str(layout.target_dir / "consumer")
     stabilize_lock_to_source_versions(consumer, env, layout.evidence_dir, "08-consumer")

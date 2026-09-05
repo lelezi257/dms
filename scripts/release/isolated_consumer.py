@@ -110,7 +110,8 @@ def main():
               "sdk_dependency": f'dms-client={entry["vers"]} via sparse HTTP registry',
               "original_source_visible": False, "protoc_available": False,
               "sdk_source": sdk["source"], "other_dms_packages": leaked,
-              "tests": ["TCP/SHM", "10-byte/128-KiB", "SET/GET/SET_RANGE/DEL"],
+              "tests": ["TCP/SHM", "10-byte/128-KiB", "SET/GET/SET_RANGE/DEL",
+                        "HSET/HGET/DEL", "public DmsError/ErrorKind"],
               "third_party_cache": str(args.third_party_directory),
               "server_home": str(home),
               "processes": "left running for observability acceptance"}

@@ -423,6 +423,8 @@ dependencies = [
  "dms-protocol",
  "prost",
  "thiserror",
+ "tokio",
+ "tokio-stream",
  "tonic",
 ]
 

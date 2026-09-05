@@ -1,0 +1,18 @@
+[package]
+name = "dms-transport"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Internal Endpoint and Provider infrastructure linked into DMS SDK and server artifacts"
+publish = false
+
+[dependencies]
+dms-error = { path = "../error" }
+dms-protocol = { path = "../../protocol" }
+prost = "0.14.1"
+thiserror = "2.0.16"
+tonic = { version = "0.14.6", features = ["tls-ring"] }
+
+[lints]
+workspace = true

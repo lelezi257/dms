@@ -1,0 +1,21 @@
+/target/
+**/target/
+.idea/
+*.profraw
+.local/
+
+# 本地运行与构包输出；不使用 *.log，测试用日志 fixture 仍可纳入源码。
+/log/
+/artifacts/
+/evidence/
+
+# 本地凭据只通过宿主凭据管理器注入，不进入仓库。
+.env
+.env.local
+.env.*.local
+
+# 编辑器和文档工具缓存。
+.DS_Store
+._*
+__pycache__/
+*.py[cod]

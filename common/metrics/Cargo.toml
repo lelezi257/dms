@@ -1,0 +1,16 @@
+[package]
+name = "dms-metrics"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Shared Prometheus registry, encoding and typed RPC/error metrics for DMS"
+publish = false
+
+[dependencies]
+dms-error = { path = "../error" }
+prometheus = { version = "0.14.0", default-features = false }
+thiserror = "2.0.16"
+
+[lints]
+workspace = true

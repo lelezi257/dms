@@ -1,0 +1,230 @@
+# DMS language-neutral error-code catalog.
+#
+# Numeric layout: 0xCCSSRRRR
+#   CC   = stable component id
+#   SS   = stable subsystem id inside the component
+#   RRRR = stable reason id inside the subsystem
+#
+# Program code compares the full u32 value through generated/native constants.
+# The range layout is for humans, docs and catalog validation tools.
+
+[[error]]
+name = "CLIENT_ARGUMENT_INVALID"
+value = "0x01010001"
+kind = "InvalidArgument"
+component = "Client"
+subsystem = "Argument"
+description = "SDK caller supplied an invalid public API argument"
+
+[[error]]
+name = "CLIENT_CONNECTION_UNAVAILABLE"
+value = "0x01020001"
+kind = "Unavailable"
+component = "Client"
+subsystem = "Connection"
+description = "SDK cannot connect to the selected DMS node endpoint"
+
+[[error]]
+name = "CLIENT_PROTOCOL_INVALID_ERROR_DETAIL"
+value = "0x01030001"
+kind = "Internal"
+component = "Client"
+subsystem = "Protocol"
+description = "SDK received a malformed DMS ErrorDetail from a peer"
+
+[[error]]
+name = "CLIENT_PROTOCOL_VIOLATION"
+value = "0x01030002"
+kind = "Internal"
+component = "Client"
+subsystem = "Protocol"
+description = "SDK received a response that violates the versioned DMS contract"
+
+[[error]]
+name = "CLIENT_DEADLINE_EXCEEDED"
+value = "0x01020002"
+kind = "DeadlineExceeded"
+component = "Client"
+subsystem = "Connection"
+description = "SDK operation exceeded its configured deadline"
+
+[[error]]
+name = "CLIENT_PERMISSION_DENIED"
+value = "0x01040001"
+kind = "PermissionDenied"
+component = "Client"
+subsystem = "Permission"
+description = "SDK caller or local credential is not authorized for the operation"
+
+[[error]]
+name = "NODE_ARENA_CAPACITY_EXHAUSTED"
+value = "0x02010001"
+kind = "ResourceExhausted"
+component = "Node"
+subsystem = "Arena"
+description = "Node Host Arena cannot satisfy an allocation"
+
+[[error]]
+name = "NODE_ARENA_INVALID_REQUEST"
+value = "0x02010002"
+kind = "InvalidArgument"
+component = "Node"
+subsystem = "Arena"
+description = "Node Host Arena rejected an invalid staging or read request"
+
+[[error]]
+name = "NODE_ARENA_STALE_HANDLE"
+value = "0x02010003"
+kind = "Unavailable"
+component = "Node"
+subsystem = "Arena"
+description = "Node Host Arena region or allocation handle points at a released, expired, or otherwise stale identity"
+
+[[error]]
+name = "NODE_ARENA_SHM_UNAVAILABLE"
+value = "0x02010004"
+kind = "Unavailable"
+component = "Node"
+subsystem = "Arena"
+description = "Node Host Arena cannot provide a shared-memory region or fd grant"
+
+[[error]]
+name = "NODE_ARENA_ACCESS_DENIED"
+value = "0x02010005"
+kind = "PermissionDenied"
+component = "Node"
+subsystem = "Arena"
+description = "Node Host Arena rejected a session's access to a region or allocation"
+
+[[error]]
+name = "NODE_OBJECT_NOT_FOUND"
+value = "0x02020001"
+kind = "NotFound"
+component = "Node"
+subsystem = "Object"
+description = "Node cannot find the requested object, block, staging or transfer"
+
+[[error]]
+name = "NODE_VERSION_CONFLICT"
+value = "0x02020002"
+kind = "FailedPrecondition"
+component = "Node"
+subsystem = "Object"
+description = "Node rejected a mutation because the observed version is no longer current"
+
+[[error]]
+name = "NODE_SESSION_UNKNOWN"
+value = "0x02030001"
+kind = "Unauthenticated"
+component = "Node"
+subsystem = "Session"
+description = "Node does not recognize the supplied SDK session"
+
+[[error]]
+name = "NODE_TRANSFER_UNSUPPORTED"
+value = "0x02040001"
+kind = "Unimplemented"
+component = "Node"
+subsystem = "Transfer"
+description = "Node or SDK selected a transfer backend that is not implemented"
+
+[[error]]
+name = "NODE_TRANSFER_CORRUPT_DATA"
+value = "0x02040002"
+kind = "DataLoss"
+component = "Node"
+subsystem = "Transfer"
+description = "Node or SDK detected payload digest or descriptor corruption"
+
+[[error]]
+name = "NODE_TRANSFER_UNAVAILABLE"
+value = "0x02040003"
+kind = "Unavailable"
+component = "Node"
+subsystem = "Transfer"
+description = "Node could not reach a peer or selected data-transfer path"
+
+[[error]]
+name = "NODE_METADATA_UNAVAILABLE"
+value = "0x02050001"
+kind = "Unavailable"
+component = "Node"
+subsystem = "Metadata"
+description = "Node cannot reach Meta or Meta returned an unstructured transport failure"
+
+[[error]]
+name = "NODE_WORKER_INVALID_REQUEST"
+value = "0x02060001"
+kind = "InvalidArgument"
+component = "Node"
+subsystem = "Worker"
+description = "Node Worker rejected a malformed or invalid public Worker request"
+
+[[error]]
+name = "NODE_WORKER_UNAVAILABLE"
+value = "0x02060002"
+kind = "Unavailable"
+component = "Node"
+subsystem = "Worker"
+description = "Node Worker actor or mailbox is unavailable"
+
+[[error]]
+name = "META_CATALOG_INVALID_REQUEST"
+value = "0x03010001"
+kind = "InvalidArgument"
+component = "Meta"
+subsystem = "Catalog"
+description = "Meta rejected an invalid catalog request"
+
+[[error]]
+name = "META_CATALOG_NOT_FOUND"
+value = "0x03010002"
+kind = "NotFound"
+component = "Meta"
+subsystem = "Catalog"
+description = "Meta cannot resolve the requested object or operation"
+
+[[error]]
+name = "META_CATALOG_VERSION_CONFLICT"
+value = "0x03010003"
+kind = "Aborted"
+component = "Meta"
+subsystem = "Catalog"
+description = "Meta compare-and-publish validation failed"
+
+[[error]]
+name = "META_JOURNAL_APPEND_FAILED"
+value = "0x03020001"
+kind = "Unavailable"
+component = "Meta"
+subsystem = "Journal"
+description = "Meta failed to append a durable journal record"
+
+[[error]]
+name = "META_JOURNAL_CORRUPT"
+value = "0x03020002"
+kind = "DataLoss"
+component = "Meta"
+subsystem = "Journal"
+description = "Meta journal or snapshot content is corrupt and cannot be replayed safely"
+
+[[error]]
+name = "META_JOURNAL_UNAVAILABLE"
+value = "0x03020003"
+kind = "Unavailable"
+component = "Meta"
+subsystem = "Journal"
+description = "Meta journal backend is unavailable outside a specific append operation"
+
+[[error]]
+name = "META_SESSION_UNKNOWN"
+value = "0x03030001"
+kind = "FailedPrecondition"
+component = "Meta"
+subsystem = "Session"
+description = "Meta does not recognize the supplied node session"
+
+[[reserved]]
+name = "CLIENT_PROTOCOL_ERROR_DETAIL_STRING_CODE"
+value = "0x010300ff"
+reason = "Old spike used string codes in protobuf; never reuse for numeric catalog."

@@ -1,0 +1,22 @@
+vmType: vz
+os: Linux
+arch: aarch64
+
+images:
+  - location: https://cloud-images.ubuntu.com/releases/24.04/release/ubuntu-24.04-server-cloudimg-arm64.img
+    arch: aarch64
+
+cpus: 4
+memory: 8GiB
+disk: 40GiB
+
+mountType: virtiofs
+mounts:
+  # vm.sh 在首次创建实例时把 location 替换为当前项目的绝对路径。
+  - location: /tmp/dms-project-not-configured
+    mountPoint: /workspace/dms
+    writable: true
+
+containerd:
+  system: false
+  user: false

@@ -1,0 +1,5 @@
+[
+  {"targets":["host.docker.internal:19000"],"labels":{"job":"dms-node","instance":"dms-dev-node","component":"node"}},
+  {"targets":["host.docker.internal:19100"],"labels":{"job":"dms-meta","instance":"dms-dev-meta","component":"meta"}},
+  {"targets":["host.docker.internal:19400"],"labels":{"job":"dms-client","instance":"dms-dev-client","component":"client"}}
+]

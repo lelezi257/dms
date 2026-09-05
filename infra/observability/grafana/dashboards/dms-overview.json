@@ -1,0 +1,70 @@
+{
+  "annotations": {"list": []},
+  "editable": false,
+  "graphTooltip": 1,
+  "id": null,
+  "panels": [
+    {
+      "type": "timeseries",
+      "title": "Client operations / second",
+      "id": 1,
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+      "targets": [{"expr": "sum by (operation, result) (rate(dms_client_operations_total[1m]))", "legendFormat": "{{operation}} {{result}}", "refId": "A"}]
+    },
+    {
+      "type": "timeseries",
+      "title": "Client operation P99",
+      "id": 2,
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+      "targets": [{"expr": "histogram_quantile(0.99, sum by (le, operation) (rate(dms_client_operation_duration_seconds_bucket[5m])))", "legendFormat": "{{operation}}", "refId": "A"}]
+    },
+    {
+      "type": "timeseries",
+      "title": "Arena bytes by node",
+      "id": 3,
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+      "targets": [
+        {"expr": "dms_node_arena_allocated_bytes", "legendFormat": "{{instance}} allocated", "refId": "A"},
+        {"expr": "dms_node_arena_free_bytes", "legendFormat": "{{instance}} free", "refId": "B"}
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Meta watch lag / repairs",
+      "id": 4,
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+      "targets": [
+        {"expr": "dms_meta_watch_lag_events", "legendFormat": "{{instance}} watch lag", "refId": "A"},
+        {"expr": "dms_meta_repairs_pending", "legendFormat": "{{instance}} pending repairs", "refId": "B"}
+      ]
+    },
+    {
+      "type": "logs",
+      "title": "DMS process logs",
+      "id": 5,
+      "datasource": {"type": "loki", "uid": "dms-loki"},
+      "gridPos": {"h": 10, "w": 24, "x": 0, "y": 16},
+      "targets": [
+        {"expr": "{service_name=~\"dms-(node|meta)\"} | json", "refId": "A"}
+      ],
+      "options": {
+        "showTime": true,
+        "showLabels": true,
+        "wrapLogMessage": true,
+        "prettifyLogMessage": false,
+        "enableLogDetails": true,
+        "dedupStrategy": "none",
+        "sortOrder": "Descending"
+      }
+    }
+  ],
+  "refresh": "5s",
+  "schemaVersion": 41,
+  "tags": ["dms"],
+  "templating": {"list": []},
+  "time": {"from": "now-15m", "to": "now"},
+  "timezone": "browser",
+  "title": "DMS Overview",
+  "uid": "dms-overview",
+  "version": 1
+}

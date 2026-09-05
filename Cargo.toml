@@ -1,0 +1,26 @@
+[workspace]
+members = [
+    "benchmarks/dms-bench",
+    "common/error",
+    "common/logging",
+    "common/metrics",
+    "common/shm",
+    "common/tracing",
+    "common/transport",
+    "protocol",
+    "sdk/rust/dms-client",
+    "server",
+]
+resolver = "3"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.95.0"
+license = "Apache-2.0"
+
+[workspace.lints.rust]
+unsafe_code = "deny"
+
+[workspace.lints.clippy]
+all = "deny"

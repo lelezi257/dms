@@ -1,0 +1,32 @@
+[package]
+name = "dms-client"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Rust client SDK for the DMS near-compute distributed memory store"
+readme = "README.md"
+
+[dependencies]
+dms-error = { path = "../../../common/error" }
+dms-metrics = { path = "../../../common/metrics" }
+dms-protocol = { path = "../../../protocol" }
+dms-shm = { path = "../../../common/shm" }
+dms-tracing = { path = "../../../common/tracing" }
+dms-transport = { path = "../../../common/transport" }
+hyper-util = { version = "0.1.20", features = ["tokio"] }
+log = "0.4.28"
+tokio = { version = "1.47.1", features = ["net", "rt-multi-thread", "sync", "time"] }
+tokio-stream = "0.1.17"
+tonic = "0.14.6"
+tower = { version = "0.5.2", features = ["util"] }
+uuid = { version = "1.18.1", features = ["v4"] }
+
+[dev-dependencies]
+tracing = { version = "0.1.41", features = ["log"] }
+# Examples are host applications, so they may install a process subscriber.
+# The SDK library itself keeps `dms-tracing/runtime` disabled.
+dms-tracing = { path = "../../../common/tracing", features = ["runtime"] }
+
+[lints]
+workspace = true

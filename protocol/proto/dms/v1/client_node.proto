@@ -1,0 +1,379 @@
+syntax = "proto3";
+
+package dms.v1;
+
+import "dms/v1/types.proto";
+
+// Client -> Node 业务合同。普通请求使用 unary；Session 是客户端发起的双向长流，
+// 用于会话消息与缓存失效通知，不需要 Node 反向连接 Client。
+// 大 payload 通过独立传输能力或本地共享内存交付，业务语义与具体传输路径分离。
+service WorkerService {
+  rpc OpenSession(OpenSessionRequest) returns (OpenSessionResponse);
+  // One long-lived stream per Client session. The Client opens the stream, so
+  // the Node can push events without reverse-dialling the Client process.
+  rpc Session(stream ClientSessionMessage) returns (stream NodeSessionEvent);
+  rpc Heartbeat(HeartbeatRequest) returns (HeartbeatResponse);
+  rpc AllocateStaging(AllocateStagingRequest) returns (AllocateStagingResponse);
+  // Authorizes one Client session to map a Region that appeared in a SHM
+  // slice. The response carries only a one-shot capability; the memfd itself
+  // is delivered out-of-band by the local SCM_RIGHTS broker.
+  rpc AcquireRegion(AcquireRegionRequest) returns (AcquireRegionResponse);
+  rpc DeleteStaging(DeleteStagingRequest) returns (DeleteStagingResponse);
+  // Small values use one control RPC. Node still executes the same internal
+  // stage -> seal -> commit state machine, but no transfer ticket is exposed.
+  rpc SetInline(SetInlineRequest) returns (SetResponse);
+  rpc Set(SetRequest) returns (SetResponse);
+  rpc Delete(DeleteRequest) returns (DeleteResponse);
+  rpc Get(GetRequest) returns (GetResponse);
+  rpc MSet(MSetRequest) returns (MSetResponse);
+  rpc MGet(MGetRequest) returns (MGetResponse);
+  rpc SetRange(SetRangeRequest) returns (SetResponse);
+  rpc HSet(HSetRequest) returns (HSetResponse);
+  rpc HGet(HGetRequest) returns (HGetResponse);
+  rpc HMGet(HMGetRequest) returns (HMGetResponse);
+  rpc HGetAll(HGetAllRequest) returns (HGetAllResponse);
+  rpc HDelete(HDeleteRequest) returns (HSetResponse);
+  rpc HScan(HScanRequest) returns (HScanResponse);
+  rpc HWriteAt(HWriteAtRequest) returns (HWriteAtResponse);
+}
+
+message ClientSessionMessage {
+  uint64 session_id = 1;
+  oneof message {
+    SessionHeartbeat heartbeat = 2;
+    SessionEventAck event_ack = 3;
+  }
+}
+
+message SessionHeartbeat {
+  optional uint64 released_view_through = 1;
+}
+
+message SessionEventAck {
+  uint64 event_sequence = 1;
+}
+
+message NodeSessionEvent {
+  uint64 session_epoch = 1;
+  uint64 event_sequence = 2;
+  oneof event {
+    CurrentInvalidation current_invalidation = 3;
+  }
+}
+
+// gRPC fallback for bounded payload bytes. Shared-memory Endpoint providers do
+// not call these methods; they map the arena once through an internal FD broker
+// and return a receipt for the same physical pages.
+service WorkerPayloadService {
+  rpc Upload(UploadPayloadRequest) returns (UploadPayloadResponse);
+  rpc Download(DownloadPayloadRequest) returns (DownloadPayloadResponse);
+}
+
+message UploadPayloadRequest {
+  bytes transfer_id = 1;
+  bytes payload = 2;
+  bytes nonce = 3;
+}
+
+message UploadPayloadResponse {
+  TransferReceipt receipt = 1;
+}
+
+message DownloadPayloadRequest {
+  bytes transfer_id = 1;
+  bytes nonce = 2;
+}
+
+message DownloadPayloadResponse {
+  bytes payload = 1;
+  TransferReceipt receipt = 2;
+}
+
+message OpenSessionRequest {
+  uint32 min_version = 1;
+  uint32 max_version = 2;
+  bool shared_memory = 3;
+  bool zero_copy_read = 4;
+  bool zero_copy_write = 5;
+}
+
+message OpenSessionResponse {
+  uint32 service_version = 1;
+  uint64 session_id = 2;
+  uint64 initial_view_epoch = 3;
+  reserved 4, 5, 6;
+  reserved "arena_id", "arena_generation", "arena_length";
+  uint64 lease_generation = 7;
+  // Session 生命周期提示，不授予 owned Current 缓存资格；缓存只能使用下方 unary Heartbeat 的期限。
+  uint64 lease_ttl_millis = 8;
+  // Present only for a local UDS session that negotiated SHM. The path is
+  // stable for the session and therefore is not repeated in every slice.
+  ShmCapability shm = 9;
+}
+
+message ShmCapability {
+  string fd_broker_path = 1;
+}
+
+message HeartbeatRequest {
+  uint64 session_id = 1;
+  optional uint64 released_view_through = 2;
+}
+
+message HeartbeatResponse {
+  uint64 lease_generation = 1;
+  // owned Current 缓存资格，从 Client 发请求前计时；0 表示不可缓存。与 OpenSession TTL 分离。
+  uint64 lease_ttl_millis = 2;
+  optional uint64 released_view_through = 3;
+  repeated CurrentInvalidation current_invalidations = 4;
+  optional uint64 route_epoch = 5;
+}
+
+// Kept for wire compatibility with the earlier heartbeat design. New clients
+// receive invalidations through WorkerService.Session.
+message CurrentInvalidation {
+  Key key = 1;
+  uint64 minimum_version = 2;
+  uint64 route_epoch = 3;
+}
+
+message AllocateStagingRequest {
+  uint64 session_id = 1;
+  uint64 length = 2;
+  string purpose = 3;
+}
+
+message AllocateStagingResponse {
+  uint64 staging_id = 1;
+  PayloadTarget target = 2;
+}
+
+message AcquireRegionRequest {
+  uint64 session_id = 1;
+  uint64 region_id = 2;
+  reserved 3;
+  reserved "region_generation";
+}
+
+message AcquireRegionResponse {
+  uint64 region_id = 1;
+  reserved 2;
+  reserved "region_generation";
+  uint64 region_length = 3;
+  bytes fd_token = 4;
+}
+
+message DeleteStagingRequest {
+  uint64 session_id = 1;
+  uint64 staging_id = 2;
+}
+
+message DeleteStagingResponse {}
+
+message SetRequest {
+  uint64 session_id = 1;
+  Key key = 2;
+  StagedValue value = 3;
+  OperationId operation_id = 4;
+  string condition = 5;
+  string durability = 6;
+}
+
+message SetInlineRequest {
+  uint64 session_id = 1;
+  Key key = 2;
+  bytes value = 3;
+  OperationId operation_id = 4;
+  string condition = 5;
+  string durability = 6;
+}
+
+message SetResponse {
+  uint64 version = 1;
+  uint64 length = 2;
+}
+
+// Deletes the logical Current value by publishing a Tombstone version in
+// dms-meta. No payload allocation/upload is required for this operation.
+message DeleteRequest {
+  uint64 session_id = 1;
+  Key key = 2;
+  OperationId operation_id = 3;
+}
+
+message DeleteResponse {
+  // False means the key was already missing/tombstoned. Repeating DEL remains
+  // a successful, idempotent operation rather than a NotFound error.
+  bool deleted = 1;
+  // The authoritative version after processing DEL. It is zero only when the
+  // key has never existed and Meta therefore did not append a new Tombstone.
+  uint64 version = 2;
+}
+
+message GetRequest {
+  uint64 session_id = 1;
+  Key key = 2;
+  optional uint64 exact_version = 3;
+  optional ByteRange range = 4;
+}
+
+message ReadSegment {
+  PayloadTarget target = 1;
+  uint64 logical_offset = 2;
+}
+
+message GetResponse {
+  bool found = 1;
+  uint64 version = 2;
+  uint64 logical_length = 3;
+  repeated ReadSegment segments = 4;
+}
+
+message StagedKeyValue {
+  Key key = 1;
+  StagedValue value = 2;
+}
+
+message MSetRequest {
+  uint64 session_id = 1;
+  repeated StagedKeyValue entries = 2;
+  OperationId operation_id = 3;
+  string durability = 4;
+}
+
+message KeyVersion {
+  Key key = 1;
+  uint64 version = 2;
+}
+
+message MSetResponse {
+  repeated KeyVersion versions = 1;
+}
+
+message MGetRequest {
+  uint64 session_id = 1;
+  repeated Key keys = 2;
+}
+
+message MGetResponse {
+  repeated GetResponse items = 1;
+}
+
+message SetRangeRequest {
+  uint64 session_id = 1;
+  Key key = 2;
+  uint64 offset = 3;
+  StagedValue value = 4;
+  OperationId operation_id = 5;
+  optional uint64 expected_version = 6;
+  string durability = 7;
+}
+
+message StagedHashEntry {
+  HashField field = 1;
+  StagedValue value = 2;
+}
+
+message HSetRequest {
+  uint64 session_id = 1;
+  Key key = 2;
+  repeated StagedHashEntry entries = 3;
+  OperationId operation_id = 4;
+  string mode = 5;
+  optional uint64 expected_version = 6;
+  string durability = 7;
+}
+
+message HSetResponse {
+  uint64 hash_version = 1;
+  uint64 field_count = 2;
+}
+
+message HGetRequest {
+  uint64 session_id = 1;
+  Key key = 2;
+  HashField field = 3;
+  optional uint64 exact_hash_version = 4;
+}
+
+message HashValueRead {
+  HashField field = 1;
+  uint64 hash_version = 2;
+  uint64 value_version = 3;
+  uint64 logical_length = 4;
+  repeated ReadSegment segments = 5;
+  // Hash metadata is currently materialized by dms-node. Keeping the value
+  // inline makes the Worker RPC authoritative for H* semantics while the
+  // internal field-to-extent layout remains free to evolve without changing
+  // the public SDK contract.
+  bytes inline_value = 6;
+}
+
+message HGetResponse {
+  bool found = 1;
+  HashValueRead value = 2;
+}
+
+message HMGetRequest {
+  uint64 session_id = 1;
+  Key key = 2;
+  repeated HashField fields = 3;
+  optional uint64 exact_hash_version = 4;
+}
+
+message HMGetResponse {
+  optional uint64 hash_version = 1;
+  repeated HGetResponse values = 2;
+}
+
+message HGetAllRequest {
+  uint64 session_id = 1;
+  Key key = 2;
+  optional uint64 exact_hash_version = 3;
+}
+
+message HGetAllResponse {
+  optional uint64 hash_version = 1;
+  repeated HashValueRead entries = 2;
+}
+
+message HDeleteRequest {
+  uint64 session_id = 1;
+  Key key = 2;
+  repeated HashField fields = 3;
+  OperationId operation_id = 4;
+  optional uint64 expected_version = 5;
+  string durability = 6;
+}
+
+message HScanRequest {
+  uint64 session_id = 1;
+  Key key = 2;
+  uint64 cursor = 3;
+  uint32 limit = 4;
+  optional uint64 exact_hash_version = 5;
+}
+
+message HScanResponse {
+  optional uint64 hash_version = 1;
+  uint64 next_cursor = 2;
+  repeated HashValueRead entries = 3;
+}
+
+message HWriteAtRequest {
+  uint64 session_id = 1;
+  Key key = 2;
+  HashField field = 3;
+  uint64 offset = 4;
+  StagedValue value = 5;
+  OperationId operation_id = 6;
+  optional uint64 expected_hash_version = 7;
+  string durability = 8;
+}
+
+message HWriteAtResponse {
+  uint64 hash_version = 1;
+  uint64 value_version = 2;
+  uint64 length = 3;
+  uint64 field_count = 4;
+}

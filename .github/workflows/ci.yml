@@ -1,0 +1,39 @@
+name: DMS CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+# CI 只检查源码，不发布包、不推 tag，也不需要个人 Token。
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  source-check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      CARGO_INCREMENTAL: "0"
+      CARGO_TERM_COLOR: always
+      PYTHONDONTWRITEBYTECODE: "1"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential pkg-config protobuf-compiler python3
+      - name: Load pinned Rust toolchain
+        # rustup 从仓库的 rust-toolchain.toml 安装精确版本及 clippy/rustfmt。
+        run: rustup show active-toolchain
+      - name: Check source and tools
+        run: bash scripts/release/check.sh

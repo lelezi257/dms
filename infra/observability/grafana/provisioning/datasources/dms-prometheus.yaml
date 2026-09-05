@@ -1,0 +1,14 @@
+apiVersion: 1
+
+datasources:
+  - name: DMS Prometheus
+    uid: dms-prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: false
+    jsonData:
+      exemplarTraceIdDestinations:
+        - name: trace_id
+          datasourceUid: dms-tempo

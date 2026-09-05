@@ -1,0 +1,85 @@
+logging {
+  level = "info"
+}
+
+local.file_match "dms_logs" {
+  path_targets = [
+    {
+      "__path__" = "/var/log/dms/dms-node.log",
+      "job"      = "dms",
+      "host"     = sys.env("DMS_ALLOY_INSTANCE"),
+    },
+    {
+      "__path__" = "/var/log/dms/dms-meta.log",
+      "job"      = "dms",
+      "host"     = sys.env("DMS_ALLOY_INSTANCE"),
+    },
+  ]
+  sync_period = "2s"
+}
+
+loki.source.file "dms_logs" {
+  targets    = local.file_match.dms_logs.targets
+  forward_to = [loki.process.dms_logs.receiver]
+}
+
+loki.process "dms_logs" {
+  forward_to = [loki.write.dms.receiver]
+
+  stage.json {
+    expressions = {
+      service_name = "service_name",
+      instance     = "instance",
+      level        = "level",
+      event        = "event",
+    }
+  }
+
+  // Only bounded process fields become Loki labels. `event` remains inside
+  // the JSON body so adding business events cannot create unbounded streams.
+  stage.labels {
+    values = {
+      service_name = "",
+      instance     = "",
+      level        = "",
+    }
+  }
+}
+
+loki.write "dms" {
+  endpoint {
+    url = sys.env("DMS_LOKI_URL")
+  }
+}
+
+// Applications export OTLP to Alloy. Alloy batches spans and forwards them to
+// Tempo; the DMS process never needs Tempo-specific client code.
+otelcol.receiver.otlp "dms" {
+  grpc {
+    endpoint = "0.0.0.0:4317"
+  }
+
+  http {
+    endpoint = "0.0.0.0:4318"
+  }
+
+  output {
+    traces = [otelcol.processor.batch.dms.input]
+  }
+}
+
+otelcol.processor.batch "dms" {
+  output {
+    traces = [otelcol.exporter.otlp.tempo.input]
+  }
+}
+
+otelcol.exporter.otlp "tempo" {
+  client {
+    endpoint = "tempo:4317"
+
+    tls {
+      insecure = true
+    }
+  }
+}

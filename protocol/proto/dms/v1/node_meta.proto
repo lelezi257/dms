@@ -1,0 +1,374 @@
+syntax = "proto3";
+
+package dms.v1;
+
+import "dms/v1/types.proto";
+
+// Node 与 Meta 的进程合同：生命周期、版本、副本位置与可重放事件。
+// 用户 bytes 和 SHM 描述不进入 Meta；默认先写本地，随后一个 CommitVersion
+// 同时登记该次副本事实与发布版本。ReportReplicas 用于后台副本变化，不是每次写的前置 RPC。
+service MetadataService {
+  rpc OpenNodeSession(OpenNodeSessionRequest) returns (OpenNodeSessionResponse);
+  rpc Heartbeat(NodeHeartbeatRequest) returns (NodeHeartbeatResponse);
+  rpc ResolveObject(ResolveObjectRequest) returns (ResolveObjectResponse);
+  rpc ReportReplicas(ReportReplicasRequest) returns (ReportReplicasResponse);
+  rpc CommitVersion(CommitVersionRequest) returns (CommitVersionResponse);
+  rpc CommitBatch(CommitBatchRequest) returns (CommitBatchResponse);
+  rpc GetOperation(GetOperationRequest) returns (GetOperationResponse);
+  rpc PlanReplicas(PlanReplicasRequest) returns (PlanReplicasResponse);
+  // One resumable server stream per Node session. Ordinary metadata requests
+  // remain unary; events are produced by MetaState business transitions.
+  rpc WatchNodeEvents(WatchNodeEventsRequest) returns (stream NodeEvent);
+  rpc AcknowledgeNodeEvent(AcknowledgeNodeEventRequest) returns (AcknowledgeNodeEventResponse);
+}
+
+message RequestContext {
+  uint64 node_id = 1;
+  string principal = 2;
+  uint64 timeout_millis = 3;
+  // Trace 通过 gRPC metadata 传播；保留旧字段编号/名字防止被新字段误用。
+  reserved 4;
+  reserved "traceparent";
+}
+
+message NodeSessionIdentity {
+  bytes session_id = 1;
+  uint64 node_id = 2;
+  uint64 node_epoch = 3;
+}
+
+message NodeRegistration {
+  uint64 node_id = 1;
+  string control_endpoint = 2;
+  repeated string transport_capabilities = 3;
+  uint64 total_host_memory_bytes = 4;
+  string failure_domain = 5;
+}
+
+message OpenNodeSessionRequest {
+  RequestContext context = 1;
+  NodeRegistration registration = 2;
+}
+
+message OpenNodeSessionResponse {
+  NodeSessionIdentity session = 1;
+  uint64 heartbeat_interval_millis = 2;
+  uint64 lease_ttl_millis = 3;
+}
+
+message ResourceSummary {
+  uint64 total_host_memory_bytes = 1;
+  uint64 available_host_memory_bytes = 2;
+  uint64 staged_bytes = 3;
+  uint64 replica_bytes = 4;
+}
+
+message NodeHeartbeatRequest {
+  RequestContext context = 1;
+  NodeSessionIdentity session = 2;
+  ResourceSummary resources = 3;
+  uint64 catalog_watermark = 4;
+  uint64 event_cursor = 5;
+}
+
+message NodeHeartbeatResponse {
+  uint64 lease_ttl_millis = 1;
+  uint64 accepted_node_epoch = 2;
+  uint64 event_high_watermark = 3;
+}
+
+message ExtentRecord {
+  ByteRange logical = 1;
+  bytes block_id = 2;
+  uint64 block_offset = 3;
+  bytes digest = 4;
+}
+
+enum VersionKind {
+  VERSION_KIND_UNSPECIFIED = 0;
+  VERSION_KIND_VALUE = 1;
+  VERSION_KIND_TOMBSTONE = 2;
+}
+
+// Node-proposed logical content. It deliberately has no `version`: only
+// dms-meta is allowed to assign the next authoritative version.
+message VersionCandidate {
+  VersionKind kind = 1;
+  uint64 logical_length = 2;
+  repeated ExtentRecord extents = 3;
+  bytes digest = 4;
+}
+
+// Immutable byte layout after Meta has accepted a VersionCandidate.
+//
+// ObjectVersion is the Meta-owned identity (`version`). VersionLayout only
+// describes how that version is reconstructed from immutable Blocks.
+message VersionLayout {
+  uint64 version = 1;
+  uint64 logical_length = 2;
+  repeated ExtentRecord extents = 3;
+  bytes digest = 4;
+  VersionKind kind = 5;
+}
+
+enum DurabilityPolicy {
+  DURABILITY_POLICY_UNSPECIFIED = 0;
+  DURABILITY_POLICY_LOCAL_MEMORY = 1;
+  DURABILITY_POLICY_REPLICATED_MEMORY = 2;
+  DURABILITY_POLICY_LOCAL_DISK = 3;
+  DURABILITY_POLICY_OBJECT_STORE = 4;
+}
+
+message ReplicaLocation {
+  bytes block_id = 1;
+  uint64 node_id = 2;
+  uint64 node_epoch = 3;
+  string data_endpoint = 4;
+  bytes checksum = 5;
+  DurabilityPolicy durability = 6;
+  // Field 7 used to duplicate node_epoch as storage_generation. Reserve it so
+  // old wire data can never be reinterpreted as a different field.
+  reserved 7;
+  reserved "storage_generation";
+}
+
+message BlockReplicaSet {
+  bytes block_id = 1;
+  repeated ReplicaLocation replicas = 2;
+  // Full immutable Block length. One Version extent may reference only a
+  // slice of this Block, but peer pull validates and imports the whole Block.
+  uint64 length = 3;
+  // Commit-ready evidence for immutable extents reused by a later Version.
+  // Keeping the proof beside resolve avoids a second Meta round trip.
+  repeated ReplicaProof proofs = 4;
+}
+
+message CurrentLeaseGrant {
+  uint64 version = 1;
+  uint64 revision = 2;
+  uint64 lease_epoch = 3;
+  uint64 ttl_millis = 4;
+  uint64 leader_epoch = 5;
+}
+
+message ResolveObjectRequest {
+  RequestContext context = 1;
+  NodeSessionIdentity session = 2;
+  Key key = 3;
+  oneof selector {
+    bool current = 4;
+    uint64 exact_version = 5;
+  }
+  optional ByteRange range = 6;
+  bool cache_current = 7;
+}
+
+message ResolveObjectResponse {
+  VersionLayout layout = 1;
+  repeated BlockReplicaSet block_replicas = 2;
+  optional CurrentLeaseGrant current_lease = 3;
+}
+
+message ReplicaReport {
+  bytes block_id = 1;
+  uint64 length = 2;
+  bytes checksum = 3;
+  DurabilityPolicy durability = 4;
+  reserved 5;
+  reserved "storage_generation";
+}
+
+message ReportReplicasRequest {
+  RequestContext context = 1;
+  NodeSessionIdentity session = 2;
+  repeated ReplicaReport replicas = 3;
+  bytes operation_id = 4;
+  // Durable repair target for every reported Block. A read-through peer cache
+  // can establish two-copy memory durability; a repair report preserves the
+  // existing target instead of increasing it from historical locations.
+  uint32 desired_copies = 5;
+  // Non-empty only for a Meta-issued RepairReplica attempt. Meta validates the
+  // attempt against the current target node/epoch before publishing the copy,
+  // so a timed-out target cannot report a stale repair after reassignment.
+  bytes repair_id = 6;
+}
+
+message ReplicaReceipt {
+  bytes block_id = 1;
+  uint64 node_id = 2;
+  uint64 node_epoch = 3;
+  uint64 catalog_revision = 4;
+  bytes checksum = 5;
+}
+
+message ReportReplicasResponse {
+  repeated ReplicaReceipt accepted = 1;
+  repeated bytes rejected_block_ids = 2;
+  uint64 catalog_watermark = 3;
+}
+
+message ReplicaProof {
+  bytes block_id = 1;
+  uint64 node_id = 2;
+  uint64 node_epoch = 3;
+  uint64 catalog_revision = 4;
+  bytes checksum = 5;
+  DurabilityPolicy durability = 6;
+}
+
+message CommitVersionRequest {
+  RequestContext context = 1;
+  NodeSessionIdentity session = 2;
+  Key key = 3;
+  VersionCandidate candidate = 4;
+  string condition = 5;
+  optional uint64 expected_version = 6;
+  bytes operation_id = 7;
+  bytes operation_digest = 8;
+  DurabilityPolicy durability = 9;
+  uint32 required_memory_copies = 10;
+  repeated ReplicaProof replica_proofs = 11;
+  // Newly created local replicas may be registered atomically with the
+  // version commit. Existing replica locations continue to use proofs.
+  repeated ReplicaReport new_replicas = 12;
+}
+
+message CommitVersionResponse {
+  uint64 version = 1;
+  uint64 revision = 2;
+  uint64 commit_index = 3;
+  // False is used by DEL when Current was already missing/tombstoned and no
+  // additional logical transition was appended.
+  bool changed = 4;
+}
+
+message BatchCommitEntry {
+  Key key = 1;
+  VersionCandidate candidate = 2;
+  string condition = 3;
+  optional uint64 expected_version = 4;
+  bytes operation_id = 5;
+  bytes operation_digest = 6;
+  repeated ReplicaProof replica_proofs = 7;
+  repeated ReplicaReport new_replicas = 8;
+}
+
+// One request, one Meta actor decision and one journal record. Either every
+// entry becomes visible at the same commit index or none does.
+message CommitBatchRequest {
+  RequestContext context = 1;
+  NodeSessionIdentity session = 2;
+  repeated BatchCommitEntry entries = 3;
+  bytes batch_operation_id = 4;
+}
+
+message BatchCommitResult {
+  Key key = 1;
+  CommitVersionResponse result = 2;
+}
+
+message CommitBatchResponse {
+  repeated BatchCommitResult results = 1;
+  uint64 commit_index = 2;
+}
+
+message GetOperationRequest {
+  RequestContext context = 1;
+  NodeSessionIdentity session = 2;
+  bytes operation_id = 3;
+}
+
+message GetOperationResponse {
+  string state = 1;
+  optional CommitVersionResponse committed = 2;
+  reserved 3;
+  reserved "rejection";
+}
+
+message PlanReplicasRequest {
+  RequestContext context = 1;
+  NodeSessionIdentity session = 2;
+  bytes block_id = 3;
+  uint64 length = 4;
+  uint32 desired_copies = 5;
+  repeated uint64 existing_node_ids = 6;
+  DurabilityPolicy durability = 7;
+  repeated string required_transports = 8;
+}
+
+message PlacementTarget {
+  uint64 node_id = 1;
+  uint64 node_epoch = 2;
+  string data_endpoint = 3;
+  repeated string transports = 4;
+}
+
+message PlanReplicasResponse {
+  bytes plan_id = 1;
+  repeated PlacementTarget targets = 2;
+  uint64 expires_after_millis = 3;
+}
+
+message InvalidateCurrentEvent {
+  Key key = 1;
+  uint64 old_version = 2;
+  bytes transition_id = 3;
+  uint64 lease_epoch = 4;
+  uint64 revision = 5;
+  uint64 minimum_version = 6;
+}
+
+message RepairReplicaEvent {
+  bytes repair_id = 1;
+  bytes block_id = 2;
+  repeated ReplicaLocation sources = 3;
+  PlacementTarget target = 4;
+  uint64 expected_length = 5;
+  uint32 desired_copies = 6;
+}
+
+message EvictReplicaEvent {
+  bytes block_id = 1;
+  reserved 2;
+  reserved "storage_generation";
+}
+
+message FenceNodeEvent {
+  uint64 node_id = 1;
+  uint64 stale_node_epoch = 2;
+}
+
+message EventGap {
+  uint64 next_cursor = 1;
+}
+
+message NodeEvent {
+  bytes event_id = 1;
+  uint64 cursor = 2;
+  oneof event {
+    InvalidateCurrentEvent invalidate_current = 3;
+    RepairReplicaEvent repair_replica = 4;
+    EvictReplicaEvent evict_replica = 5;
+    FenceNodeEvent fence_node = 6;
+    EventGap gap = 7;
+  }
+}
+
+message WatchNodeEventsRequest {
+  RequestContext context = 1;
+  NodeSessionIdentity session = 2;
+  uint64 last_acked_cursor = 3;
+}
+
+message AcknowledgeNodeEventRequest {
+  RequestContext context = 1;
+  NodeSessionIdentity session = 2;
+  bytes event_id = 3;
+  uint64 cursor = 4;
+  // Only "applied" advances the durable cursor. Retryable failure is
+  // represented by no ACK, so Watch reconnect replays the event.
+  string result = 5;
+  optional string detail = 6;
+}
+
+message AcknowledgeNodeEventResponse {}

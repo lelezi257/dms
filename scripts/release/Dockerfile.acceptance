@@ -1,0 +1,17 @@
+FROM ubuntu:24.04
+
+COPY ubuntu.sources /etc/apt/sources.list.d/ubuntu.sources
+
+RUN apt-get update \
+  && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+    build-essential \
+    ca-certificates \
+    curl \
+    git \
+    pkg-config \
+    python3 \
+  && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /work
+
+CMD ["python3", "/input/isolated_consumer.py"]

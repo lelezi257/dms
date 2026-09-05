@@ -1,0 +1,18 @@
+[package]
+name = "dms-shm"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Internal Linux shared-memory and file-descriptor passing boundary for DMS"
+publish = false
+
+[dependencies]
+libc = "0.2.178"
+thiserror = "2.0.16"
+
+[lints.clippy]
+all = "deny"
+
+[lints.rust]
+unsafe_code = "allow"

@@ -1,0 +1,15 @@
+[package]
+name = "dms-bench"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Process-level benchmark runner for DMS client/server baselines"
+publish = false
+
+[dependencies]
+dms-client = { path = "../../sdk/rust/dms-client" }
+dms-tracing = { path = "../../common/tracing", features = ["runtime"] }
+
+[lints]
+workspace = true

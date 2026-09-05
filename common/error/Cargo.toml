@@ -1,0 +1,16 @@
+[package]
+name = "dms-error"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Native DMS error contract shared by SDK and server crates"
+publish = false
+
+[dependencies]
+
+[dev-dependencies]
+toml = "0.9.8"
+
+[lints]
+workspace = true

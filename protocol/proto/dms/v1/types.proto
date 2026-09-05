@@ -1,0 +1,120 @@
+syntax = "proto3";
+
+package dms.v1;
+
+message Key {
+  bytes value = 1;
+}
+
+message HashField {
+  bytes value = 1;
+}
+
+// One logical mutation identity, stable across transport retries.
+//
+// The UUID identifies one SDK process incarnation. The sequence is only
+// incremented for a new logical operation; retries reuse the same pair.
+message OperationId {
+  bytes client_instance_id = 1;
+  uint64 sequence = 2;
+}
+
+message ByteRange {
+  uint64 offset = 1;
+  uint64 length = 2;
+}
+
+enum ErrorKind {
+  ERROR_KIND_UNKNOWN = 0;
+  ERROR_KIND_INVALID_ARGUMENT = 1;
+  ERROR_KIND_NOT_FOUND = 2;
+  ERROR_KIND_ALREADY_EXISTS = 3;
+  ERROR_KIND_PERMISSION_DENIED = 4;
+  ERROR_KIND_RESOURCE_EXHAUSTED = 5;
+  ERROR_KIND_FAILED_PRECONDITION = 6;
+  ERROR_KIND_ABORTED = 7;
+  ERROR_KIND_UNIMPLEMENTED = 8;
+  ERROR_KIND_INTERNAL = 9;
+  ERROR_KIND_UNAVAILABLE = 10;
+  ERROR_KIND_DATA_LOSS = 11;
+  ERROR_KIND_UNAUTHENTICATED = 12;
+  ERROR_KIND_DEADLINE_EXCEEDED = 13;
+}
+
+// Wire-only DTO for carrying a native DmsError across process boundaries.
+// SDK and server code must convert at the edge instead of exposing this type as
+// a public language API.
+message ErrorDetail {
+  uint32 dms_code = 1;
+  ErrorKind kind = 2;
+  string message = 3;
+}
+
+message ShmDescriptor {
+  // Region is the memfd/mmap identity visible to the Client. A jemalloc arena,
+  // if introduced inside dms-node later, remains an allocator implementation
+  // detail and never appears on the wire.
+  uint64 region_id = 1;
+  reserved 2;
+  reserved "region_generation";
+  uint64 offset = 3;
+  uint64 length = 4;
+  uint64 allocation_id = 5;
+  // A write staging slice does not own a read view. Read targets set this
+  // field so the SDK can report the released-through watermark on Drop.
+  optional uint64 view_epoch = 6;
+  reserved 7, 8, 9;
+  reserved "fd_broker_path", "fd_token", "arena_length";
+  bytes transfer_id = 10;
+}
+
+// A destination prepared by dms-node for one bounded payload transfer.
+//
+// This is an internal Endpoint descriptor, not a transport choice exposed to
+// KV operation code. A local provider writes the shared mapping directly; the
+// universal fallback calls WorkerPayloadService; future peer providers may use
+// the opaque RDMA/UB descriptors.
+message PayloadTarget {
+  oneof target {
+    ShmDescriptor shm = 1;
+    GrpcTarget grpc = 2;
+    RdmaTarget rdma = 3;
+    UbTarget ub = 4;
+  }
+}
+
+message GrpcTarget {
+  bytes transfer_id = 1;
+  bytes nonce = 2;
+  uint64 length = 3;
+}
+
+// RDMA and UB descriptors are intentionally opaque at the common protocol
+// boundary. Their provider-specific registration fields evolve behind the
+// data-channel implementation without leaking into WorkerService semantics.
+message RdmaTarget {
+  bytes descriptor = 1;
+  bytes transfer_id = 2;
+  uint64 length = 3;
+}
+
+message UbTarget {
+  bytes descriptor = 1;
+  bytes transfer_id = 2;
+  uint64 length = 3;
+}
+
+// Proof that the data channel finished writing one previously issued target.
+// For SHM this identifies the staged mapping that the client has finished
+// writing; for remote providers it identifies a completed transfer ticket.
+message TransferReceipt {
+  bytes transfer_id = 1;
+  uint64 length = 2;
+  bytes digest = 3;
+  uint64 target_allocation_id = 4;
+}
+
+message StagedValue {
+  uint64 staging_id = 1;
+  TransferReceipt receipt = 2;
+}

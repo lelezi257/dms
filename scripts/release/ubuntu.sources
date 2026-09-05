@@ -1,0 +1,7 @@
+# 候选包验收容器使用的 Ubuntu arm64 镜像源；保留发行版签名校验。
+# 不修改宿主 VM 的 apt 配置，也不是服务运行依赖。
+Types: deb
+URIs: http://mirrors.huaweicloud.com/ubuntu-ports/
+Suites: noble noble-updates noble-security
+Components: main
+Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg

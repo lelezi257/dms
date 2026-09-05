@@ -1,0 +1,80 @@
+syntax = "proto3";
+
+package dms.v1;
+
+// Node -> peer Node uses the same protobuf + gRPC baseline as Client -> Node.
+// Probe is the R1 communication vertical slice: it verifies strong method
+// routing, the peer mailbox and response correlation without prematurely
+// introducing Block transfer semantics. RDMA/UB remain outside this slice.
+service PeerService {
+  rpc Probe(PeerProbeRequest) returns (PeerProbeResponse);
+  rpc PullBlock(PeerPullBlockRequest) returns (PeerPullBlockResponse);
+  rpc PrepareReplica(PeerPrepareReplicaRequest) returns (PeerReplicaStatusResponse);
+  rpc ActivateReplica(PeerActivateReplicaRequest) returns (PeerReplicaStatusResponse);
+  rpc AbortReplica(PeerAbortReplicaRequest) returns (PeerReplicaStatusResponse);
+  rpc GetReplicaStatus(PeerReplicaStatusRequest) returns (PeerReplicaStatusResponse);
+}
+
+message PeerProbeRequest {
+  string source_node_id = 1;
+  bytes nonce = 2;
+}
+
+message PeerProbeResponse {
+  string serving_node_id = 1;
+  bytes nonce = 2;
+}
+
+message PeerPullBlockRequest {
+  string source_node_id = 1;
+  bytes block_id = 2;
+  optional uint64 offset = 3;
+  optional uint64 length = 4;
+  optional uint64 expected_length = 5;
+  bytes expected_checksum = 6;
+  reserved 7;
+  reserved "expected_storage_generation";
+}
+
+message PeerPullBlockResponse {
+  string serving_node_id = 1;
+  bytes block_id = 2;
+  bytes payload = 3;
+  bytes checksum = 4;
+  uint64 length = 5;
+  reserved 6;
+  reserved "storage_generation";
+}
+
+message PeerPrepareReplicaRequest {
+  string source_node_id = 1;
+  string source_endpoint = 2;
+  bytes plan_id = 3;
+  bytes block_id = 4;
+  uint64 expected_length = 5;
+  bytes expected_checksum = 6;
+  reserved 7;
+  reserved "expected_storage_generation";
+}
+
+message PeerActivateReplicaRequest {
+  bytes plan_id = 1;
+}
+
+message PeerAbortReplicaRequest {
+  bytes plan_id = 1;
+}
+
+message PeerReplicaStatusRequest {
+  bytes plan_id = 1;
+}
+
+message PeerReplicaStatusResponse {
+  bytes plan_id = 1;
+  bytes block_id = 2;
+  string status = 3;
+  uint64 length = 4;
+  bytes checksum = 5;
+  reserved 6;
+  reserved "storage_generation";
+}

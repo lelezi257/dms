@@ -1,0 +1,87 @@
+services:
+  prometheus:
+    image: ${DMS_PROMETHEUS_IMAGE:-docker.m.daocloud.io/prom/prometheus:v3.5.0}
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --web.enable-lifecycle
+      - --enable-feature=exemplar-storage
+    ports:
+      - "${DMS_PROMETHEUS_PORT:-9090}:9090"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/file_sd:/etc/prometheus/file_sd:ro
+      - prometheus-data:/prometheus
+    restart: unless-stopped
+
+  loki:
+    image: ${DMS_LOKI_IMAGE:-docker.m.daocloud.io/grafana/loki:3.5.5}
+    command: -config.file=/etc/loki/config.yaml
+    ports:
+      - "${DMS_LOKI_PORT:-3100}:3100"
+    volumes:
+      - ./loki/loki.yaml:/etc/loki/config.yaml:ro
+      - loki-data:/loki
+    restart: unless-stopped
+
+  alloy:
+    image: ${DMS_ALLOY_IMAGE:-docker.m.daocloud.io/grafana/alloy:v1.10.0}
+    command:
+      - run
+      - --server.http.listen-addr=0.0.0.0:12345
+      - /etc/alloy/config.alloy
+    ports:
+      - "${DMS_ALLOY_PORT:-12345}:12345"
+      - "${DMS_OTLP_GRPC_PORT:-4317}:4317"
+      - "${DMS_OTLP_HTTP_PORT:-4318}:4318"
+    environment:
+      DMS_LOKI_URL: ${DMS_LOKI_URL:-http://loki:3100/loki/api/v1/push}
+      DMS_ALLOY_INSTANCE: ${DMS_ALLOY_INSTANCE:-dms-dev}
+    volumes:
+      - ./alloy/config.alloy:/etc/alloy/config.alloy:ro
+      - ${DMS_LOG_DIR:-/tmp/dms-local-dev/log}:/var/log/dms:ro
+      - alloy-data:/var/lib/alloy
+    restart: unless-stopped
+
+  tempo:
+    image: ${DMS_TEMPO_IMAGE:-docker.m.daocloud.io/grafana/tempo:2.8.2}
+    # 这是仅供开发/验收使用的本地观测栈。Docker 新建 named volume 时目录
+    # 归 root 所有，而 Tempo 官方镜像默认使用非 root 用户，首次启动会因
+    # 无法创建 /var/tempo/wal/blocks 而循环重启。使用 root 只作用于这个
+    # 隔离容器和专用 volume；生产部署应由平台预先设置持久卷权限。
+    user: "0:0"
+    command:
+      - -config.file=/etc/tempo/config.yaml
+    ports:
+      - "${DMS_TEMPO_PORT:-3200}:3200"
+    volumes:
+      - ./tempo/tempo.yaml:/etc/tempo/config.yaml:ro
+      - tempo-data:/var/tempo
+    restart: unless-stopped
+
+  grafana:
+    image: ${DMS_GRAFANA_IMAGE:-docker.m.daocloud.io/grafana/grafana:12.1.0}
+    ports:
+      - "${DMS_GRAFANA_PORT:-3000}:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: ${DMS_GRAFANA_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${DMS_GRAFANA_PASSWORD:-dms-dev}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      - prometheus
+      - loki
+      - tempo
+    restart: unless-stopped
+
+volumes:
+  prometheus-data:
+  loki-data:
+  alloy-data:
+  tempo-data:
+  grafana-data:

@@ -1619,6 +1619,114 @@ mod tests {
         set_get(&server.endpoint);
     }
 
+    // 显式关闭 SDK bytes cache，并把内联预算压到 1 byte，确保下面读取确实经过
+    // download_segments，而不是被小对象内联或写入方缓存绕过。
+    fn segment_reads_preserve_complete_bytes(
+        address: TestAddress,
+        shared_memory: bool,
+        length: usize,
+    ) {
+        let server = TestServer::start(address);
+        let client = DmsClient::connect(
+            &server.endpoint,
+            ClientOptions {
+                current_cache_bytes: Some(0),
+                inline_threshold_bytes: Some(1),
+                shared_memory: Some(shared_memory),
+                ..ClientOptions::default()
+            },
+        )
+        .expect("connect segment reader");
+        let original: Vec<u8> = (0..length).map(|index| (index % 251) as u8).collect();
+        let key = "segments/pattern";
+        let base = client.set(key, &original).expect("set single block");
+        assert_eq!(
+            client.get(key).expect("single block get").unwrap(),
+            original
+        );
+
+        let range = dms_client::ByteRange {
+            offset: 101,
+            len: 8193,
+        };
+        let read = |range| {
+            client
+                .get_with_options(
+                    key,
+                    GetOptions {
+                        version: ReadVersion::Current,
+                        range,
+                    },
+                )
+                .expect("range get")
+                .expect("present")
+                .bytes
+        };
+        assert_eq!(read(Some(range)), original[101..8294]);
+
+        // 中间 patch 使一个逻辑对象变成 base/patch/base 三段；既检查完整拼接，
+        // 也检查跨两个边界的范围读取，不能以只校验长度代替内容正确性。
+        // 大对象再覆盖“大首段被直接接管，后续仍需追加 patch”的路径；
+        // 小对象仍在前部 patch，验证普通多段读取。
+        let patch_offset = if length > 32 * 1024 * 1024 + 8 {
+            (32 * 1024 * 1024) as u64
+        } else {
+            4097
+        };
+        let patch = b"changed";
+        client
+            .set_range(key, patch_offset, patch)
+            .expect("patch middle");
+        let mut expected = original.clone();
+        expected[patch_offset as usize..patch_offset as usize + patch.len()].copy_from_slice(patch);
+        assert_eq!(read(None), expected);
+        assert_eq!(read(Some(range)), expected[101..8294]);
+        let patch_range = dms_client::ByteRange {
+            offset: patch_offset - 3,
+            len: patch.len() as u64 + 6,
+        };
+        assert_eq!(
+            read(Some(patch_range)),
+            expected[patch_range.offset as usize..(patch_range.offset + patch_range.len) as usize],
+        );
+        assert_eq!(
+            client
+                .get_with_options(
+                    key,
+                    GetOptions {
+                        version: ReadVersion::Exact(base.version),
+                        range: None
+                    }
+                )
+                .expect("old version")
+                .unwrap()
+                .bytes,
+            original,
+        );
+        let batch = client
+            .mget(&[key, "segments/missing"])
+            .expect("mget segments");
+        assert_eq!(batch[0].as_ref().unwrap().bytes, expected);
+        assert!(batch[1].is_none());
+    }
+
+    #[test]
+    fn segment_reads_preserve_complete_bytes_over_tcp() {
+        segment_reads_preserve_complete_bytes(TestAddress::Tcp, false, 128 * 1024);
+    }
+
+    #[test]
+    fn segment_reads_preserve_complete_bytes_over_shm() {
+        segment_reads_preserve_complete_bytes(TestAddress::Unix, true, 128 * 1024);
+    }
+
+    #[test]
+    fn large_segment_reads_preserve_complete_bytes_over_shm() {
+        // 锁住大块普通GET的完整bytes、patch、范围与历史读取行为。
+        // 此回归独立于具体复制策略，不能把返回View或命中缓存当作通过。
+        segment_reads_preserve_complete_bytes(TestAddress::Unix, true, 32 * 1024 * 1024 + 17);
+    }
+
     #[test]
     fn worker_get_wire_returns_inline_value_when_client_advertises_budget() {
         let server = TestServer::start(TestAddress::Tcp);

@@ -592,17 +592,14 @@ def stage_sdk_crate(layout: PackageLayout, generated_protocol: Path, version: st
     generated_destination = stage / "src" / "generated" / "dms.v1.rs"
     generated_destination.parent.mkdir(parents=True)
     shutil.copy2(generated_protocol, generated_destination)
+    # 机械保留协议模块中的共享限制，只替换构建期 include；不能让发布 SDK
+    # 丢失源码版本使用的协议常量，也不要求消费者安装 protoc。
+    protocol_source = (SOURCE_ROOT / "protocol/src/lib.rs").read_text(encoding="utf-8")
     protocol_module.write_text(
-        """//! Generated Rust view of the versioned DMS wire contract.
-//!
-//! The `.proto` files remain the language-neutral source of truth. In this
-//! packaged SDK crate the generated bindings are private implementation
-//! details, so SDK users do not need `prost`, `tonic` DTO imports, or `protoc`.
-
-pub mod v1 {
-    include!("generated/dms.v1.rs");
-}
-""",
+        protocol_source.replace(
+            'tonic::include_proto!("dms.v1");',
+            'include!("generated/dms.v1.rs");',
+        ),
         encoding="utf-8",
     )
 

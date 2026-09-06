@@ -13,6 +13,26 @@ import package_sdk
 
 
 class PackageSdkRewriteTests(unittest.TestCase):
+    def test_staged_protocol_preserves_source_constants_without_protoc(self) -> None:
+        # 消费者使用的内联上限必须和 workspace 一致；不能仅复制生成 DTO。
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            generated = root / "dms.v1.rs"
+            generated.write_text("// generated test fixture\n", encoding="utf-8")
+            layout = package_sdk.PackageLayout(
+                root, root / "stage", root / "target", root / "sdk.crate", root / "evidence"
+            )
+            layout.evidence_dir.mkdir()
+            package_sdk.stage_sdk_crate(layout, generated, "0.1.0")
+            protocol = (layout.stage_crate / "src/dms_protocol.rs").read_text()
+            original = (package_sdk.SOURCE_ROOT / "protocol/src/lib.rs").read_text()
+            self.assertEqual(protocol, original.replace(
+                'tonic::include_proto!("dms.v1");',
+                'include!("generated/dms.v1.rs");',
+            ))
+            self.assertIn("pub const MAX_INLINE_READ_BYTES", protocol)
+            self.assertNotIn("tonic::include_proto!", protocol)
+
     def test_package_verification_uses_the_isolated_consumer_source(self) -> None:
         # 编译检查与真实 TCP/SHM 验收必须使用同一份消费者，不维护两套 API 清单。
         with tempfile.TemporaryDirectory() as temp:

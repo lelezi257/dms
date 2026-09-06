@@ -215,6 +215,9 @@ message GetRequest {
   Key key = 2;
   optional uint64 exact_version = 3;
   optional ByteRange range = 4;
+  // Capability hint for small-object reads. Zero keeps the legacy ticket path.
+  // The Worker clamps non-zero values to the protocol safety limit.
+  uint64 max_inline_bytes = 5;
 }
 
 message ReadSegment {
@@ -227,6 +230,10 @@ message GetResponse {
   uint64 version = 2;
   uint64 logical_length = 3;
   repeated ReadSegment segments = 4;
+  // Present only when the request opted into inline reads and the selected
+  // read range fits the negotiated budget. It is mutually exclusive with
+  // segments for the same successful response.
+  optional bytes inline_value = 5;
 }
 
 message StagedKeyValue {

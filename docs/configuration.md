@@ -21,7 +21,7 @@ let client = DmsClient::connect("http://127.0.0.1:25200", ClientOptions {
 | --- | --- | --- |
 | `endpoint` | `DMS_ENDPOINT` | 必须提供；`connect(endpoint, ...)` 的地址为显式值 |
 | `timeout` | `DMS_TIMEOUT_MILLIS` | 30000 ms，正数 |
-| `inline_threshold_bytes` | `DMS_INLINE_THRESHOLD_BYTES` | 65536，正数；小 value 可在控制请求中内联 |
+| `inline_threshold_bytes` | `DMS_INLINE_THRESHOLD_BYTES` | 65536，正数；控制小 value 的 SET 请求内联，以及非 SHM 单 GET 响应内联预算；GET 另受协议 64 KiB 上限约束 |
 | `current_cache_bytes` | `DMS_CURRENT_CACHE_BYTES` | 64 MiB；0 关闭；不是进程 RSS 上限 |
 | `heartbeat_interval` | `DMS_HEARTBEAT_INTERVAL_MILLIS` | 10000 ms；缓存续租会按 Node 租约缩短 |
 | `session_channel_capacity` | `DMS_SESSION_CHANNEL_CAPACITY` | 64，正数 |

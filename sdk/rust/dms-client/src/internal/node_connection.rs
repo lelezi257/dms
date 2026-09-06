@@ -13,7 +13,7 @@ use std::{
 };
 
 // `as pb` 给生成代码起短别名，后续 `pb::SetRequest` 明确表示 wire DTO。
-use dms_protocol::v1 as pb;
+use dms_protocol::{MAX_INLINE_READ_BYTES, v1 as pb};
 use hyper_util::rt::TokioIo;
 use pb::worker_service_client::WorkerServiceClient;
 use tokio::net::UnixStream;
@@ -478,14 +478,17 @@ impl NodeConnection {
                     ReadVersion::Exact(version) => Some(version.0),
                 },
                 range: options.range.map(encode_range),
+                max_inline_bytes: 0,
             }),
         )
         .await
         .map_err(map_status)?
         .into_inner();
         if !response.found {
+            reject_inline_on_miss(&response)?;
             return Ok(None);
         }
+        reject_inline_value(&response)?;
         if response.segments.len() != 1 {
             return Err(DmsError::node_transfer_unsupported(
                 "shared-memory view currently supports exactly one read segment".to_string(),
@@ -601,6 +604,9 @@ impl NodeConnection {
                     ReadVersion::Exact(version) => Some(version.0),
                 },
                 range: options.range.map(encode_range),
+                // inline_threshold_bytes 同时控制 SET 小对象直写与 GET 小对象合并响应；
+                // SDK 仍按协议上限截断，避免配置误把过大 bytes 塞进控制响应。
+                max_inline_bytes: self.inline_read_budget() as u64,
             }),
         )
         .await
@@ -608,9 +614,21 @@ impl NodeConnection {
         .into_inner();
         // “key 不存在”是正常业务结果，因此返回 Ok(None)，不是 Err(NotFound)。
         if !response.found {
+            reject_inline_on_miss(&response)?;
             return Ok(None);
         }
         let expected_length = requested_read_length(response.logical_length, options.range)?;
+        if let Some(bytes) = take_inline_value(
+            response.inline_value,
+            &response.segments,
+            expected_length,
+            self.inline_read_budget(),
+        )? {
+            return Ok(Some(GetResult {
+                version: ObjectVersion(response.version),
+                bytes,
+            }));
+        }
         let bytes = self
             .download_segments(response.segments, expected_length)
             .await?;
@@ -643,6 +661,11 @@ impl NodeConnection {
             results.push(self.decode_get_response(item).await?);
         }
         Ok(results)
+    }
+
+    fn inline_read_budget(&self) -> usize {
+        self.inline_threshold_bytes
+            .min(usize::try_from(MAX_INLINE_READ_BYTES).unwrap_or(usize::MAX))
     }
 
     pub(crate) async fn set_range(
@@ -1068,8 +1091,10 @@ impl NodeConnection {
         response: pb::GetResponse,
     ) -> Result<Option<GetResult>, DmsError> {
         if !response.found {
+            reject_inline_on_miss(&response)?;
             return Ok(None);
         }
+        reject_inline_value(&response)?;
         let bytes = self
             .download_segments(response.segments, response.logical_length)
             .await?;
@@ -1130,6 +1155,56 @@ fn requested_read_length(logical_length: u64, range: Option<ByteRange>) -> Resul
         Some(range) => Ok(range.len),
         None => Ok(logical_length),
     }
+}
+
+fn take_inline_value(
+    inline_value: Option<Vec<u8>>,
+    segments: &[pb::ReadSegment],
+    expected_length: u64,
+    max_inline_bytes: usize,
+) -> Result<Option<Vec<u8>>, DmsError> {
+    let Some(bytes) = inline_value else {
+        return Ok(None);
+    };
+    if max_inline_bytes == 0 {
+        return Err(DmsError::client_protocol_violation(
+            "inline read response is not allowed for this request".to_string(),
+        ));
+    }
+    if !segments.is_empty() {
+        return Err(DmsError::client_protocol_violation(
+            "inline read response must not also carry read segments".to_string(),
+        ));
+    }
+    if bytes.len() as u64 != expected_length {
+        return Err(DmsError::client_protocol_violation(
+            "inline read response length does not match requested length".to_string(),
+        ));
+    }
+    if bytes.len() > max_inline_bytes {
+        return Err(DmsError::client_protocol_violation(
+            "inline read response exceeds requested budget".to_string(),
+        ));
+    }
+    Ok(Some(bytes))
+}
+
+fn reject_inline_value(response: &pb::GetResponse) -> Result<(), DmsError> {
+    if response.inline_value.is_some() {
+        return Err(DmsError::client_protocol_violation(
+            "inline read response is not allowed for this request".to_string(),
+        ));
+    }
+    Ok(())
+}
+
+fn reject_inline_on_miss(response: &pb::GetResponse) -> Result<(), DmsError> {
+    if response.inline_value.is_some() {
+        return Err(DmsError::client_protocol_violation(
+            "missing read response must not carry inline bytes".to_string(),
+        ));
+    }
+    Ok(())
 }
 
 fn read_target_length(target: &pb::PayloadTarget) -> Result<u64, DmsError> {
@@ -1515,6 +1590,65 @@ mod session_cache_tests {
                 })
             )
             .is_err()
+        );
+    }
+
+    #[test]
+    fn inline_read_response_is_used_only_when_the_request_allows_it() {
+        assert_eq!(
+            take_inline_value(Some(b"abc".to_vec()), &[], 3, 64)
+                .unwrap()
+                .unwrap(),
+            b"abc"
+        );
+        assert_eq!(
+            take_inline_value(Some(Vec::new()), &[], 0, 64)
+                .unwrap()
+                .unwrap(),
+            Vec::<u8>::new()
+        );
+        assert!(take_inline_value(None, &[], 3, 64).unwrap().is_none());
+
+        let segment = pb::ReadSegment {
+            logical_offset: 0,
+            target: Some(pb::PayloadTarget {
+                target: Some(pb::payload_target::Target::Grpc(pb::GrpcTarget {
+                    transfer_id: b"t".to_vec(),
+                    nonce: b"n".to_vec(),
+                    length: 3,
+                })),
+            }),
+        };
+        assert!(
+            take_inline_value(Some(b"abc".to_vec()), std::slice::from_ref(&segment), 3, 64)
+                .is_err()
+        );
+        assert!(take_inline_value(Some(b"abc".to_vec()), &[], 4, 64).is_err());
+        assert!(take_inline_value(Some(b"abc".to_vec()), &[], 3, 2).is_err());
+        assert!(take_inline_value(Some(b"abc".to_vec()), &[], 3, 0).is_err());
+    }
+
+    #[test]
+    fn inline_read_response_is_rejected_for_miss_view_and_mget_paths() {
+        let missing_with_bytes = pb::GetResponse {
+            found: false,
+            version: 0,
+            logical_length: 0,
+            segments: Vec::new(),
+            inline_value: Some(b"ghost".to_vec()),
+        };
+        assert!(reject_inline_on_miss(&missing_with_bytes).is_err());
+
+        let hit_with_bytes = pb::GetResponse {
+            found: true,
+            version: 9,
+            logical_length: 3,
+            segments: Vec::new(),
+            inline_value: Some(b"abc".to_vec()),
+        };
+        assert!(
+            reject_inline_value(&hit_with_bytes).is_err(),
+            "get_view and MGET keep their original segment/view path and pass zero inline budget"
         );
     }
 

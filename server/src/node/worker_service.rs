@@ -385,7 +385,13 @@ impl WorkerService for WorkerServiceHandler {
         let range = request.range.map(|range| (range.offset, range.length));
         match self
             .node
-            .get(request.session_id, key, request.exact_version, range)
+            .get_with_inline_limit(
+                request.session_id,
+                key,
+                request.exact_version,
+                range,
+                request.max_inline_bytes,
+            )
             .await
         {
             // 命中时返回 payload ticket；bytes 由后续 Download RPC 获取。
@@ -401,6 +407,7 @@ impl WorkerService for WorkerServiceHandler {
                     version: 0,
                     logical_length: 0,
                     segments: Vec::new(),
+                    inline_value: None,
                 }))
             }
             Err(error) => Err(self.map_worker_error(error)),
@@ -872,6 +879,7 @@ fn read_ticket_response(ticket: super::runtime::ReadTicket) -> pb::GetResponse {
         found: true,
         version: ticket.version,
         logical_length: ticket.logical_length,
+        inline_value: ticket.inline_value,
         segments: ticket
             .segments
             .into_iter()
@@ -889,6 +897,7 @@ fn missing_get_response() -> pb::GetResponse {
         version: 0,
         logical_length: 0,
         segments: Vec::new(),
+        inline_value: None,
     }
 }
 
@@ -1020,7 +1029,7 @@ mod tests {
     use dms_protocol::v1::{
         metadata_service_server::MetadataServiceServer,
         worker_payload_service_server::WorkerPayloadServiceServer,
-        worker_service_server::WorkerServiceServer,
+        worker_service_client::WorkerServiceClient, worker_service_server::WorkerServiceServer,
     };
     use dms_transport::{GrpcConfig, SecurityManager, TlsConfig, status_to_dms_error};
     use tokio::net::{TcpListener, UnixListener};
@@ -1608,6 +1617,68 @@ mod tests {
     fn same_business_methods_work_over_tcp() {
         let server = TestServer::start(TestAddress::Tcp);
         set_get(&server.endpoint);
+    }
+
+    #[test]
+    fn worker_get_wire_returns_inline_value_when_client_advertises_budget() {
+        let server = TestServer::start(TestAddress::Tcp);
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("test runtime");
+
+        runtime.block_on(async {
+            let mut client = WorkerServiceClient::connect(server.endpoint.clone())
+                .await
+                .expect("connect worker");
+            let session = client
+                .open_session(pb::OpenSessionRequest {
+                    min_version: 1,
+                    max_version: 1,
+                    shared_memory: false,
+                    zero_copy_read: false,
+                    zero_copy_write: false,
+                })
+                .await
+                .expect("open session")
+                .into_inner()
+                .session_id;
+
+            client
+                .set_inline(pb::SetInlineRequest {
+                    session_id: session,
+                    key: Some(pb::Key {
+                        value: b"wire/inline".to_vec(),
+                    }),
+                    value: b"hello".to_vec(),
+                    operation_id: Some(pb::OperationId {
+                        client_instance_id: vec![7; 16],
+                        sequence: 1,
+                    }),
+                    condition: "any".to_string(),
+                    durability: "local-memory".to_string(),
+                })
+                .await
+                .expect("set inline");
+
+            let response = client
+                .get(pb::GetRequest {
+                    session_id: session,
+                    key: Some(pb::Key {
+                        value: b"wire/inline".to_vec(),
+                    }),
+                    exact_version: None,
+                    range: None,
+                    max_inline_bytes: 64,
+                })
+                .await
+                .expect("get inline")
+                .into_inner();
+
+            assert!(response.found);
+            assert_eq!(response.inline_value.as_deref(), Some(b"hello".as_slice()));
+            assert!(response.segments.is_empty());
+        });
     }
 
     #[test]

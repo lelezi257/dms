@@ -416,7 +416,8 @@ pub struct ClientOptions {
     pub timeout: Option<Duration>,
     /// Reliability override used when an operation does not override it.
     pub default_durability: Option<DurabilityPolicy>,
-    /// Maximum value length that may be sent in one control RPC.
+    /// 小对象 SET 请求内联阈值，同时作为非 SHM 单 GET 响应的内联预算。
+    /// GET 预算另受协议 64 KiB 上限约束；不影响 SHM View 或 MGET。
     pub inline_threshold_bytes: Option<usize>,
     /// Session heartbeat interval；缓存续租还会按 Node 返回 TTL 缩短此间隔。
     pub heartbeat_interval: Option<Duration>,

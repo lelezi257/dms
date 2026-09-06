@@ -65,7 +65,9 @@ client.get("k")
 
 当前 Node 的“已有 Block”与“缓存权威 Current”不是一回事。没有有效 SDK 缓存命中时，读路径仍需 Meta 解析；不能把本地 bytes 命中理解为绕过版本判断。
 
-当前非 SHM 普通 GET 先返回读取计划/下载票据，再由 payload RPC 下载，不是小对象一条 RPC 的 GET 快路径。SHM 返回描述符，由 SDK 映射后读取。普通 `get` 最后生成 `Vec<u8>`；`get_view` 才保留只读映射，且当前只支持单个 SHM segment。
+非 SHM 单 GET 在请求中声明可接受的内联预算：实际读取长度不超过预算和协议 64 KiB 上限时，Node 直接在 GET 响应中返回 bytes，省去后续 Download RPC。这里仅省 Client→Node 的下载往返，Node→Meta 的版本解析不变。随机写后的多个 Extent 也按同一已解析版本拼接，不能混入其它版本。
+
+大对象、未声明预算的旧客户端仍收到读取计划/下载票据，再由 payload RPC 下载；新客户端收到旧服务端的票据也使用原下载路径。MGET 暂不启用内联，避免一批结果突破单响应预算。SHM 不走这条 owned bytes 快路径，仍返回描述符，由 SDK 映射后读取。普通 `get` 最后生成 `Vec<u8>`；`get_view` 才保留只读映射，且当前只支持单个 SHM segment。
 
 ## 随机写：只改 1 byte，为什么不是复制整个 value
 

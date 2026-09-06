@@ -121,6 +121,8 @@ pub(crate) struct ReadTicket {
     pub(crate) version: u64,
     /// 完整对象长度；range read 返回的 bytes 可能更短。
     pub(crate) logical_length: u64,
+    /// 非 SHM 小对象直接随控制响应返回；None 表示沿 segments 获取 payload。
+    pub(crate) inline_value: Option<Vec<u8>>,
     /// Ordered physical slices that reconstruct the requested logical range.
     /// A range overlay can therefore return old-prefix/new-patch/old-suffix
     /// without materializing another full-value buffer in dms-node.
@@ -751,6 +753,18 @@ impl NodeHandle {
         exact_version: Option<u64>,
         range: Option<(u64, u64)>,
     ) -> Result<ReadTicket, WorkerError> {
+        self.get_with_inline_limit(session_id, key, exact_version, range, 0)
+            .await
+    }
+
+    pub(crate) async fn get_with_inline_limit(
+        &self,
+        session_id: u64,
+        key: Vec<u8>,
+        exact_version: Option<u64>,
+        range: Option<(u64, u64)>,
+        max_inline_bytes: u64,
+    ) -> Result<ReadTicket, WorkerError> {
         let metadata = self
             .metadata
             .as_ref()
@@ -771,6 +785,7 @@ impl NodeHandle {
                 session_id,
                 resolved: resolved.clone(),
                 range,
+                max_inline_bytes,
                 reply: reply_tx,
             })
             .await?;
@@ -1196,6 +1211,7 @@ enum NodeCommand {
         session_id: u64,
         resolved: pb::ResolveObjectResponse,
         range: Option<(u64, u64)>,
+        max_inline_bytes: u64,
         reply: oneshot::Sender<Result<GetOutcome, WorkerError>>,
     },
     MaterializeResolved {
@@ -1547,9 +1563,15 @@ async fn run_node(
                     session_id,
                     resolved,
                     range,
+                    max_inline_bytes,
                     reply,
                 } => {
-                    let _ = reply.send(state.get_resolved(session_id, &resolved, range));
+                    let _ = reply.send(state.get_resolved(
+                        session_id,
+                        &resolved,
+                        range,
+                        max_inline_bytes,
+                    ));
                 }
                 NodeCommand::MaterializeResolved {
                     session_id,
@@ -2443,6 +2465,7 @@ impl NodeState {
         session_id: u64,
         resolved: &pb::ResolveObjectResponse,
         range: Option<(u64, u64)>,
+        max_inline_bytes: u64,
     ) -> Result<GetOutcome, WorkerError> {
         self.live_session(session_id)?;
         let layout = resolved.layout.as_ref().ok_or(WorkerError::NotFound)?;
@@ -2508,6 +2531,16 @@ impl NodeState {
             session.next_view_epoch += 1;
             (session.shared_memory, view_epoch)
         };
+        if let Some(inline_value) =
+            self.inline_read_value(requested.1, shared_memory, max_inline_bytes, &planned)?
+        {
+            return Ok(GetOutcome::Ready(ReadTicket {
+                version,
+                logical_length,
+                inline_value: Some(inline_value),
+                segments: Vec::new(),
+            }));
+        }
         let mut segments = Vec::with_capacity(planned.len());
         for (logical_offset, read) in planned {
             let payload_length = read.length;
@@ -2534,8 +2567,49 @@ impl NodeState {
         Ok(GetOutcome::Ready(ReadTicket {
             version,
             logical_length,
+            inline_value: None,
             segments,
         }))
+    }
+
+    /// 只拼接本次已解析版本、已裁剪范围的读票据；不重新按 Current 找版本。
+    /// 在创建下载票据前选择内联，避免制造无人消费的 DownloadTicket。
+    fn inline_read_value(
+        &self,
+        requested_length: u64,
+        shared_memory: bool,
+        max_inline_bytes: u64,
+        planned: &[(u64, ArenaReadTicket)],
+    ) -> Result<Option<Vec<u8>>, WorkerError> {
+        let inline_limit = max_inline_bytes.min(dms_protocol::MAX_INLINE_READ_BYTES);
+        if shared_memory || inline_limit == 0 || requested_length > inline_limit {
+            return Ok(None);
+        }
+        let capacity =
+            usize::try_from(requested_length).map_err(|_| WorkerError::ResourceExhausted)?;
+        let mut ordered = planned.to_vec();
+        ordered.sort_by_key(|(logical_offset, _)| *logical_offset);
+        let mut bytes = Vec::with_capacity(capacity);
+        let mut cursor = 0_u64;
+        for (logical_offset, read) in ordered {
+            if logical_offset != cursor {
+                return Err(WorkerError::InvalidArgument(
+                    "layout extents contain a gap or overlap",
+                ));
+            }
+            let part = self.arena.read_ticket(read).map_err(map_arena_error)?;
+            cursor = cursor
+                .checked_add(part.len() as u64)
+                .filter(|next| *next <= requested_length)
+                .ok_or(WorkerError::ResourceExhausted)?;
+            bytes.extend_from_slice(&part);
+        }
+        if cursor != requested_length {
+            return Err(WorkerError::InvalidArgument(
+                "layout extents do not cover requested range",
+            ));
+        }
+        Ok(Some(bytes))
     }
 
     fn materialize_resolved(
@@ -3252,6 +3326,41 @@ async fn pull_block_from_peer(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn test_extent(
+        logical_offset: u64,
+        length: u64,
+        block_id: &[u8],
+        block_offset: u64,
+    ) -> pb::ExtentRecord {
+        pb::ExtentRecord {
+            logical: Some(pb::ByteRange {
+                offset: logical_offset,
+                length,
+            }),
+            block_id: block_id.to_vec(),
+            block_offset,
+            digest: block_id.to_vec(),
+        }
+    }
+
+    fn resolved_value(
+        version: u64,
+        logical_length: u64,
+        extents: Vec<pb::ExtentRecord>,
+    ) -> pb::ResolveObjectResponse {
+        pb::ResolveObjectResponse {
+            layout: Some(pb::VersionLayout {
+                version,
+                logical_length,
+                extents,
+                digest: b"test-digest".to_vec(),
+                kind: pb::VersionKind::Value as i32,
+            }),
+            block_replicas: Vec::new(),
+            current_lease: None,
+        }
+    }
 
     #[test]
     fn only_confirmed_metadata_rejections_allow_block_retirement() {
@@ -4016,6 +4125,151 @@ mod tests {
             state.download(2),
             Err(WorkerError::UnknownTransfer)
         ));
+    }
+
+    #[test]
+    fn get_resolved_zero_inline_budget_keeps_legacy_download_ticket() {
+        let mut state = NodeState::new("node-a".into(), None, 4096, Duration::from_secs(30), None);
+        let session = state.open_session(false);
+        state
+            .arena
+            .commit_inline(b"block-1".to_vec(), b"abc".to_vec())
+            .expect("commit block");
+        let resolved = resolved_value(7, 3, vec![test_extent(0, 3, b"block-1", 0)]);
+
+        let ticket = match state
+            .get_resolved(session, &resolved, None, 0)
+            .expect("get resolved")
+        {
+            GetOutcome::Ready(ticket) => ticket,
+            GetOutcome::NeedsRemoteBlocks(_) => panic!("block is local"),
+        };
+
+        assert_eq!(ticket.inline_value, None);
+        assert_eq!(ticket.segments.len(), 1);
+        assert_eq!(state.downloads.len(), 1);
+    }
+
+    #[test]
+    fn get_resolved_small_non_shm_read_returns_inline_without_download_ticket() {
+        let mut state = NodeState::new("node-a".into(), None, 4096, Duration::from_secs(30), None);
+        let session = state.open_session(false);
+        state
+            .arena
+            .commit_inline(b"block-1".to_vec(), b"abc".to_vec())
+            .expect("commit block");
+        let resolved = resolved_value(8, 3, vec![test_extent(0, 3, b"block-1", 0)]);
+
+        let ticket = match state
+            .get_resolved(session, &resolved, None, 3)
+            .expect("get resolved")
+        {
+            GetOutcome::Ready(ticket) => ticket,
+            GetOutcome::NeedsRemoteBlocks(_) => panic!("block is local"),
+        };
+
+        assert_eq!(ticket.inline_value.as_deref(), Some(b"abc".as_slice()));
+        assert!(ticket.segments.is_empty());
+        assert!(state.downloads.is_empty());
+    }
+
+    #[test]
+    fn get_resolved_inline_budget_is_clamped_by_protocol_limit() {
+        let mut state = NodeState::new(
+            "node-a".into(),
+            None,
+            dms_protocol::MAX_INLINE_READ_BYTES + 4096,
+            Duration::from_secs(30),
+            None,
+        );
+        let session = state.open_session(false);
+        let value = vec![b'x'; dms_protocol::MAX_INLINE_READ_BYTES as usize + 1];
+        state
+            .arena
+            .commit_inline(b"large-block".to_vec(), value)
+            .expect("commit block");
+        let resolved = resolved_value(
+            9,
+            dms_protocol::MAX_INLINE_READ_BYTES + 1,
+            vec![test_extent(
+                0,
+                dms_protocol::MAX_INLINE_READ_BYTES + 1,
+                b"large-block",
+                0,
+            )],
+        );
+
+        let ticket = match state
+            .get_resolved(session, &resolved, None, u64::MAX)
+            .expect("get resolved")
+        {
+            GetOutcome::Ready(ticket) => ticket,
+            GetOutcome::NeedsRemoteBlocks(_) => panic!("block is local"),
+        };
+
+        assert_eq!(ticket.inline_value, None);
+        assert_eq!(ticket.segments.len(), 1);
+        assert_eq!(state.downloads.len(), 1);
+    }
+
+    #[test]
+    fn get_resolved_range_overlay_can_return_inline_from_bound_version() {
+        let mut state = NodeState::new("node-a".into(), None, 4096, Duration::from_secs(30), None);
+        let session = state.open_session(false);
+        state
+            .arena
+            .commit_inline(b"base".to_vec(), b"abcdef".to_vec())
+            .expect("commit base");
+        state
+            .arena
+            .commit_inline(b"patch".to_vec(), b"X".to_vec())
+            .expect("commit patch");
+        let resolved = resolved_value(
+            10,
+            6,
+            vec![
+                test_extent(0, 2, b"base", 0),
+                test_extent(2, 1, b"patch", 0),
+                test_extent(3, 3, b"base", 3),
+            ],
+        );
+
+        let ticket = match state
+            .get_resolved(session, &resolved, Some((1, 3)), 3)
+            .expect("get resolved")
+        {
+            GetOutcome::Ready(ticket) => ticket,
+            GetOutcome::NeedsRemoteBlocks(_) => panic!("blocks are local"),
+        };
+
+        assert_eq!(ticket.version, 10);
+        assert_eq!(ticket.logical_length, 6);
+        assert_eq!(ticket.inline_value.as_deref(), Some(b"bXd".as_slice()));
+        assert!(ticket.segments.is_empty());
+        assert!(state.downloads.is_empty());
+    }
+
+    #[test]
+    fn get_resolved_shm_session_ignores_inline_budget() {
+        let mut state = NodeState::new("node-a".into(), None, 4096, Duration::from_secs(30), None);
+        let session = state.open_session(true);
+        state
+            .arena
+            .commit_inline(b"block-1".to_vec(), b"abc".to_vec())
+            .expect("commit block");
+        let resolved = resolved_value(11, 3, vec![test_extent(0, 3, b"block-1", 0)]);
+
+        let ticket = match state
+            .get_resolved(session, &resolved, None, 3)
+            .expect("get resolved")
+        {
+            GetOutcome::Ready(ticket) => ticket,
+            GetOutcome::NeedsRemoteBlocks(_) => panic!("block is local"),
+        };
+
+        assert_eq!(ticket.inline_value, None);
+        assert_eq!(ticket.segments.len(), 1);
+        assert_eq!(state.downloads.len(), 1);
     }
 
     #[test]

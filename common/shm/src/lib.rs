@@ -775,6 +775,39 @@ mod tests {
 
     use super::*;
 
+    #[test]
+    fn large_owned_reads_preserve_unaligned_ranges_and_concurrent_readers() {
+        let threshold = 32 * 1024 * 1024;
+        let expected: Vec<u8> = (0..threshold + 17)
+            .map(|index| (index % 251) as u8)
+            .collect();
+        let mut region = SharedRegion::create("large-read-regression", expected.len()).unwrap();
+        region.write_at(0, &expected).unwrap();
+        for length in [0, 1, threshold - 1, threshold, threshold + 1] {
+            let mut owned = region.read_at(3, length).unwrap();
+            assert_eq!(owned, expected[3..3 + length]);
+            if let Some(first) = owned.first_mut() {
+                *first ^= 0xff;
+                // 普通read_at返回独立字节，不允许结果修改反向污染Region。
+                assert_eq!(region.read_at(3, 1).unwrap(), expected[3..4]);
+            }
+        }
+        std::thread::scope(|scope| {
+            for offset in 0..4 {
+                let region = &region;
+                let expected = &expected;
+                scope.spawn(move || {
+                    assert_eq!(
+                        region.read_at(offset, threshold + 1).unwrap(),
+                        expected[offset..offset + threshold + 1]
+                    );
+                });
+            }
+        });
+        assert!(region.read_at(expected.len(), 1).is_err());
+        assert!(region.read_at(usize::MAX, 2).is_err());
+    }
+
     fn socket_path(name: &str) -> PathBuf {
         std::env::temp_dir().join(format!(
             "dms-shm-{name}-{}-{}.sock",

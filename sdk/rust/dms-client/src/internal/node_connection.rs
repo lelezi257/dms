@@ -1134,7 +1134,14 @@ impl NodeConnection {
                 .ok_or_else(|| {
                     DmsError::client_protocol_violation("read length overflow".to_string())
                 })?;
-            bytes.extend_from_slice(&part);
+            // download 已经返回独立拥有的 Vec；大首段可直接成为结果，避免
+            // 再分配同样大小的 Vec 并复制一次。后续 Extent 仍按顺序追加，
+            // 不借用 SHM 页，也不改变普通 GET 的所有权或版本校验。
+            if bytes.is_empty() && part.len() >= 32 * 1024 * 1024 {
+                bytes = part;
+            } else {
+                bytes.extend_from_slice(&part);
+            }
         }
         Ok(bytes)
     }
@@ -1580,6 +1587,30 @@ mod session_cache_tests {
         assert!(validate_read_segments(&[segment(0, 2), segment(1, 4)], 6).is_err());
         assert!(validate_read_segments(&[segment(0, 2), segment(3, 3)], 6).is_err());
         assert!(validate_read_segments(&[], 1).is_err());
+        assert!(validate_read_segments(&[], 0).is_ok());
+        assert!(validate_read_segments(&[segment(1, 1)], 1).is_err());
+        assert!(validate_read_segments(&[segment(0, 1)], 2).is_err());
+        assert!(validate_read_segments(&[segment(0, u64::MAX), segment(u64::MAX, 1)], 0).is_err());
+        assert!(
+            validate_read_segments(
+                &[pb::ReadSegment {
+                    logical_offset: 0,
+                    target: None
+                }],
+                0
+            )
+            .is_err()
+        );
+        assert!(
+            validate_read_segments(
+                &[pb::ReadSegment {
+                    logical_offset: 0,
+                    target: Some(pb::PayloadTarget { target: None }),
+                }],
+                0
+            )
+            .is_err()
+        );
         assert!(requested_read_length(6, Some(ByteRange { offset: 2, len: 1 })).is_ok());
         assert!(
             requested_read_length(

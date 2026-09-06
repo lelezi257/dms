@@ -144,10 +144,19 @@ message BlockReplicaSet {
 }
 
 message CurrentLeaseGrant {
+  // Current object version covered by this lease.
   uint64 version = 1;
+  // Meta catalog view watermark used to order later invalidation events. This
+  // is not a per-version commit revision.
   uint64 revision = 2;
+  // Node incarnation that owns the lease. A reopened node receives a new epoch
+  // and must not reuse an old Current lease.
   uint64 lease_epoch = 3;
+  // Remaining Meta-observed node lease, rounded down in milliseconds. Zero
+  // means no lease should be granted, so valid grants always carry ttl > 0.
   uint64 ttl_millis = 4;
+  // Reserved for a future HA Meta leader epoch. Current single-owner Meta uses
+  // zero and does not claim leader fencing.
   uint64 leader_epoch = 5;
 }
 

@@ -17,6 +17,8 @@ pub const DEFAULT_ARENA_CAPACITY_BYTES: u64 = 1024 * 1024 * 1024;
 pub const DEFAULT_REGION_SIZE_BYTES: u64 = 64 * 1024 * 1024;
 pub const DEFAULT_STAGING_TTL_MILLIS: u64 = 30_000;
 pub const DEFAULT_CLIENT_CACHE_LEASE_TTL_MILLIS: u64 = 1_000;
+pub const DEFAULT_NODE_CURRENT_CACHE_BYTES: u64 = 8 * 1024 * 1024;
+pub const DEFAULT_NODE_CURRENT_CACHE_TTL_MILLIS: u64 = 1_000;
 pub const DEFAULT_META_CHECKPOINT_EVERY_RECORDS: u64 = 4_096;
 pub const DEFAULT_LOG_QUEUE_CAPACITY: usize = 10_240;
 pub const DEFAULT_LOG_MAX_FILE_SIZE_BYTES: u64 = 256 * 1024 * 1024;
@@ -97,6 +99,10 @@ pub struct NodeConfigFile {
     pub staging_ttl_millis: Option<u64>,
     /// Client Current 缓存资格上限；启动配置，不在线修改已发出的租约。
     pub client_cache_lease_ttl_millis: Option<u64>,
+    /// Node 本地 Current 布局缓存预算；只缓存 key->VersionLayout，不缓存 value bytes。
+    pub node_current_cache_bytes: Option<u64>,
+    /// Node 本地 Current 布局缓存 TTL；重启生效，且不延长 Meta 授权的可见性窗口。
+    pub node_current_cache_ttl_millis: Option<u64>,
     #[serde(default)]
     pub log: LoggingConfigFile,
     #[serde(default)]
@@ -188,6 +194,8 @@ pub struct NodeCliOverrides {
     pub region_size_bytes: Option<u64>,
     pub staging_ttl_millis: Option<u64>,
     pub client_cache_lease_ttl_millis: Option<u64>,
+    pub node_current_cache_bytes: Option<u64>,
+    pub node_current_cache_ttl_millis: Option<u64>,
     pub log: LoggingCliOverrides,
     pub tracing: TracingCliOverrides,
 }
@@ -214,6 +222,8 @@ pub struct ResolvedNodeConfig {
     pub region_size_bytes: u64,
     pub staging_ttl: Duration,
     pub client_cache_lease_ttl: Duration,
+    pub node_current_cache_bytes: u64,
+    pub node_current_cache_ttl: Duration,
     pub logging: LoggingConfig,
     pub tracing: TracingConfig,
 }
@@ -292,6 +302,24 @@ impl ResolvedNodeConfig {
                 reason: "must be at most 30000; actual grant is also capped by the upstream lease",
             });
         }
+        let node_current_cache_bytes =
+            pick(cli.node_current_cache_bytes, file.node_current_cache_bytes)
+                .unwrap_or(DEFAULT_NODE_CURRENT_CACHE_BYTES);
+        let node_current_cache_ttl_millis = pick(
+            cli.node_current_cache_ttl_millis,
+            file.node_current_cache_ttl_millis,
+        )
+        .unwrap_or(DEFAULT_NODE_CURRENT_CACHE_TTL_MILLIS);
+        validate_positive_u64(
+            "node_current_cache_ttl_millis",
+            node_current_cache_ttl_millis,
+        )?;
+        if node_current_cache_ttl_millis > 30_000 {
+            return Err(ConfigError::InvalidValue {
+                field: "node_current_cache_ttl_millis",
+                reason: "must be at most 30000",
+            });
+        }
         let logging = resolve_logging(file.log, cli.log)?;
         let tracing = resolve_tracing(file.tracing, cli.tracing)?;
         Ok(Self {
@@ -304,6 +332,8 @@ impl ResolvedNodeConfig {
             region_size_bytes,
             staging_ttl: Duration::from_millis(staging_ttl_millis),
             client_cache_lease_ttl: Duration::from_millis(cache_ttl),
+            node_current_cache_bytes,
+            node_current_cache_ttl: Duration::from_millis(node_current_cache_ttl_millis),
             logging,
             tracing,
         })
@@ -689,6 +719,57 @@ mod tests {
                     base.clone(),
                     NodeCliOverrides {
                         client_cache_lease_ttl_millis: Some(invalid),
+                        ..NodeCliOverrides::default()
+                    }
+                )
+                .is_err()
+            );
+        }
+    }
+
+    #[test]
+    fn node_current_cache_uses_default_file_cli_and_rejects_invalid_limits() {
+        let base = NodeConfigFile {
+            node_id: Some("test-node".into()),
+            worker_tcp_address: Some("127.0.0.1:19200".into()),
+            meta_endpoint: Some("http://127.0.0.1:19300".into()),
+            ..NodeConfigFile::default()
+        };
+        let resolve = |file, cli| ResolvedNodeConfig::from_sources(file, cli);
+        let defaults = resolve(base.clone(), NodeCliOverrides::default()).unwrap();
+        assert_eq!(
+            defaults.node_current_cache_bytes,
+            DEFAULT_NODE_CURRENT_CACHE_BYTES
+        );
+        assert_eq!(
+            defaults.node_current_cache_ttl,
+            Duration::from_millis(DEFAULT_NODE_CURRENT_CACHE_TTL_MILLIS)
+        );
+
+        let file = NodeConfigFile {
+            node_current_cache_bytes: Some(0),
+            node_current_cache_ttl_millis: Some(500),
+            ..base.clone()
+        };
+        let from_file = resolve(file.clone(), NodeCliOverrides::default()).unwrap();
+        assert_eq!(from_file.node_current_cache_bytes, 0);
+        assert_eq!(from_file.node_current_cache_ttl, Duration::from_millis(500));
+
+        let cli = NodeCliOverrides {
+            node_current_cache_bytes: Some(16 * 1024 * 1024),
+            node_current_cache_ttl_millis: Some(750),
+            ..NodeCliOverrides::default()
+        };
+        let from_cli = resolve(file, cli).unwrap();
+        assert_eq!(from_cli.node_current_cache_bytes, 16 * 1024 * 1024);
+        assert_eq!(from_cli.node_current_cache_ttl, Duration::from_millis(750));
+
+        for invalid in [0, 30_001] {
+            assert!(
+                resolve(
+                    base.clone(),
+                    NodeCliOverrides {
+                        node_current_cache_ttl_millis: Some(invalid),
                         ..NodeCliOverrides::default()
                     }
                 )

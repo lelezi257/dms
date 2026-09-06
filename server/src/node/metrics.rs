@@ -35,6 +35,8 @@ pub(crate) struct NodeMetrics {
     replica_bytes_total: IntCounterVec,
     replica_transfer_duration_seconds: HistogramVec,
     replica_checksum_failures_total: IntCounterVec,
+    current_cache_lookups_total: IntCounterVec,
+    current_cache_charged_bytes: IntGauge,
 }
 
 /// Node mailbox 中可出现的命令。枚举把 label 限制在代码审查可见的固定集合内。
@@ -55,6 +57,7 @@ pub(crate) enum NodeMailboxCommand {
     SetInline,
     SetRange,
     Delete,
+    GetCached,
     GetResolved,
     MaterializeResolved,
     ImportPeerBlock,
@@ -92,6 +95,7 @@ impl NodeMailboxCommand {
         Self::SetInline,
         Self::SetRange,
         Self::Delete,
+        Self::GetCached,
         Self::GetResolved,
         Self::MaterializeResolved,
         Self::ImportPeerBlock,
@@ -125,6 +129,7 @@ impl NodeMailboxCommand {
             Self::SetInline => "set_inline",
             Self::SetRange => "set_range",
             Self::Delete => "delete",
+            Self::GetCached => "get_cached",
             Self::GetResolved => "get_resolved",
             Self::MaterializeResolved => "materialize_resolved",
             Self::ImportPeerBlock => "import_peer_block",
@@ -362,6 +367,15 @@ impl NodeMetrics {
                 "Replica payload checksum failures.",
                 &["provider"],
             )?,
+            current_cache_lookups_total: counter_vec(
+                "dms_node_current_cache_lookups_total",
+                "Node Current layout cache lookups by result; this cache stores key layout, not value bytes.",
+                &["result"],
+            )?,
+            current_cache_charged_bytes: IntGauge::new(
+                "dms_node_current_cache_charged_bytes",
+                "Current layout cache budget charge. This is an accounting value, not process RSS.",
+            )?,
         };
         metrics.register_all(registry)?;
         metrics.initialize_bounded_series();
@@ -398,6 +412,10 @@ impl NodeMetrics {
         }
         self.replica_checksum_failures_total
             .with_label_values(&["grpc"]);
+        for result in ["hit", "miss"] {
+            self.current_cache_lookups_total
+                .with_label_values(&[result]);
+        }
     }
 
     fn register_all(&self, registry: &Registry) -> Result<(), MetricsError> {
@@ -423,6 +441,8 @@ impl NodeMetrics {
         register_collector(registry, &self.replica_bytes_total)?;
         register_collector(registry, &self.replica_transfer_duration_seconds)?;
         register_collector(registry, &self.replica_checksum_failures_total)?;
+        register_collector(registry, &self.current_cache_lookups_total)?;
+        register_collector(registry, &self.current_cache_charged_bytes)?;
         Ok(())
     }
 
@@ -512,6 +532,24 @@ impl NodeMetrics {
         self.replica_checksum_failures_total
             .with_label_values(&["grpc"])
             .inc();
+    }
+
+    /// 记录 Node 本地 Current 布局缓存命中结果。
+    ///
+    /// 这里的缓存只保存 key -> VersionLayout，不保存 value bytes 或 replica 地址；
+    /// 因此 hit 代表少访问一次 Meta，不代表跳过本地/远端 payload 读取。
+    pub(crate) fn record_current_cache_lookup(&self, hit: bool) {
+        let result = if hit { "hit" } else { "miss" };
+        self.current_cache_lookups_total
+            .with_label_values(&[result])
+            .inc();
+    }
+
+    /// 更新 Node Current 布局缓存预算占用。
+    ///
+    /// charge 来自 key、layout、extent 和固定条目开销估算，不等于 jemalloc/进程 RSS。
+    pub(crate) fn set_current_cache_charge(&self, bytes: u64) {
+        self.current_cache_charged_bytes.set(to_i64(bytes));
     }
 }
 
@@ -607,12 +645,18 @@ mod tests {
         let registry = registry();
         let metrics = NodeMetrics::register(&registry).expect("node metrics");
         metrics.set_arena_capacity(1024);
+        metrics.record_current_cache_lookup(true);
+        metrics.record_current_cache_lookup(false);
+        metrics.set_current_cache_charge(128);
         let mut guard = metrics.begin_replica_operation(ReplicaOperation::Pull);
         guard.success_with_payload(ReplicaDirection::Send, 3);
         drop(guard);
         let text = encode_text(&registry).expect("encode");
         assert!(text.contains("dms_node_arena_capacity_bytes 1024"));
         assert!(text.contains("dms_node_replica_operations_total"));
+        assert!(text.contains("dms_node_current_cache_lookups_total{result=\"hit\"} 1"));
+        assert!(text.contains("dms_node_current_cache_lookups_total{result=\"miss\"} 1"));
+        assert!(text.contains("dms_node_current_cache_charged_bytes 128"));
         assert!(!text.contains("dms_node_views"));
     }
 }

@@ -879,10 +879,12 @@ impl MetaState {
             .versions
             .get(&key.value)
             .ok_or(MetaRuntimeError::NotFound)?;
-        let layout = match request.selector {
-            Some(pb::resolve_object_request::Selector::ExactVersion(version)) => {
-                versions.get(&version)
-            }
+        let exact_version = match request.selector.as_ref() {
+            Some(pb::resolve_object_request::Selector::ExactVersion(version)) => Some(*version),
+            _ => None,
+        };
+        let layout = match exact_version {
+            Some(version) => versions.get(&version),
             _ => versions.last_key_value().map(|(_, value)| value),
         }
         .ok_or(MetaRuntimeError::NotFound)?;
@@ -930,10 +932,55 @@ impl MetaState {
                     .unwrap_or_default(),
             })
             .collect();
+        let current_lease = self.current_lease_grant(&request, layout);
         Ok(pb::ResolveObjectResponse {
             layout: Some(layout.clone()),
             block_replicas,
-            current_lease: None,
+            current_lease,
+        })
+    }
+
+    fn current_lease_grant(
+        &self,
+        request: &pb::ResolveObjectRequest,
+        layout: &pb::VersionLayout,
+    ) -> Option<pb::CurrentLeaseGrant> {
+        if !request.cache_current {
+            return None;
+        }
+        if matches!(
+            request.selector.as_ref(),
+            Some(pb::resolve_object_request::Selector::ExactVersion(_))
+        ) {
+            return None;
+        }
+        let requested = request.session.as_ref()?;
+        if self.retired_sessions.contains(&requested.node_id) {
+            return None;
+        }
+        let session = self.sessions.get(&requested.node_id)?;
+        if session.session_id != requested.session_id || session.node_epoch != requested.node_epoch
+        {
+            return None;
+        }
+        let deadline = session.last_heartbeat? + DEFAULT_NODE_LEASE_TTL;
+        let ttl_millis = deadline
+            .checked_duration_since(Instant::now())?
+            .as_millis()
+            .try_into()
+            .unwrap_or(u64::MAX);
+        if ttl_millis == 0 {
+            return None;
+        }
+        Some(pb::CurrentLeaseGrant {
+            version: layout.version,
+            // 这是 Meta 当前目录视图的水位，不是单个 Version 的 commit revision。
+            // 首版 Node 用本地失效 generation 围栏；保留此水位用于诊断，不冒充版本号。
+            revision: self.last_applied_index,
+            lease_epoch: session.node_epoch,
+            ttl_millis,
+            // 首版没有 HA Meta leader 租约，不能伪造 leader epoch。
+            leader_epoch: 0,
         })
     }
 
@@ -3840,6 +3887,148 @@ mod tests {
     }
 
     #[test]
+    fn resolve_current_cache_grants_lease_to_live_session() {
+        let mut state = MetaState::new(Box::<InMemoryJournal>::default());
+        let session = test_session(&mut state, 7);
+        state
+            .commit_version(value_commit_request_for(
+                session.clone(),
+                b"checkpoint/latest".to_vec(),
+                b"block-current-lease".to_vec(),
+                b"op-current-lease".to_vec(),
+                b"digest-current-lease".to_vec(),
+            ))
+            .expect("commit current value");
+
+        let resolved = state
+            .resolve_object(resolve_current_request(
+                session.clone(),
+                b"checkpoint/latest".to_vec(),
+                true,
+            ))
+            .expect("resolve current");
+        let lease = resolved
+            .current_lease
+            .expect("live current cache request should receive a lease");
+        assert_eq!(lease.version, 1);
+        assert_eq!(lease.revision, state.last_applied_index);
+        assert_eq!(lease.lease_epoch, session.node_epoch);
+        assert_eq!(lease.leader_epoch, 0);
+        assert!(lease.ttl_millis > 0);
+        assert!(lease.ttl_millis <= DEFAULT_NODE_LEASE_TTL.as_millis() as u64);
+    }
+
+    #[test]
+    fn resolve_current_lease_requires_current_selector_and_cache_request() {
+        let mut state = MetaState::new(Box::<InMemoryJournal>::default());
+        let session = test_session(&mut state, 7);
+        state
+            .commit_version(value_commit_request_for(
+                session.clone(),
+                b"checkpoint/latest".to_vec(),
+                b"block-current-lease-mode".to_vec(),
+                b"op-current-lease-mode".to_vec(),
+                b"digest-current-lease-mode".to_vec(),
+            ))
+            .expect("commit current value");
+
+        let no_cache = state
+            .resolve_object(resolve_current_request(
+                session.clone(),
+                b"checkpoint/latest".to_vec(),
+                false,
+            ))
+            .expect("resolve without cache request");
+        assert!(no_cache.current_lease.is_none());
+
+        let exact = state
+            .resolve_object(pb::ResolveObjectRequest {
+                context: None,
+                session: Some(session),
+                key: Some(pb::Key {
+                    value: b"checkpoint/latest".to_vec(),
+                }),
+                selector: Some(pb::resolve_object_request::Selector::ExactVersion(1)),
+                range: None,
+                cache_current: true,
+            })
+            .expect("resolve exact version");
+        assert!(exact.current_lease.is_none());
+    }
+
+    #[test]
+    fn resolve_current_lease_requires_live_non_retired_session() {
+        let mut state = MetaState::new(Box::<InMemoryJournal>::default());
+        let writer = test_session(&mut state, 7);
+        let expired = test_session(&mut state, 8);
+        let retired = test_session(&mut state, 9);
+        state
+            .commit_version(value_commit_request_for(
+                writer,
+                b"checkpoint/latest".to_vec(),
+                b"block-current-lease-live".to_vec(),
+                b"op-current-lease-live".to_vec(),
+                b"digest-current-lease-live".to_vec(),
+            ))
+            .expect("commit current value");
+
+        expire_session(&mut state, expired.node_id);
+        let expired_resolve = state
+            .resolve_object(resolve_current_request(
+                expired,
+                b"checkpoint/latest".to_vec(),
+                true,
+            ))
+            .expect("expired requester may resolve layout but cannot cache current");
+        assert!(expired_resolve.current_lease.is_none());
+
+        state.retired_sessions.insert(retired.node_id);
+        let retired_resolve = state
+            .resolve_object(resolve_current_request(
+                retired,
+                b"checkpoint/latest".to_vec(),
+                true,
+            ))
+            .expect("retired requester may resolve layout but cannot cache current");
+        assert!(retired_resolve.current_lease.is_none());
+    }
+
+    #[test]
+    fn resolve_current_lease_rejects_reopened_old_epoch_and_grants_new_epoch() {
+        let mut state = MetaState::new(Box::<InMemoryJournal>::default());
+        let old = test_session(&mut state, 7);
+        state
+            .commit_version(value_commit_request_for(
+                old.clone(),
+                b"checkpoint/latest".to_vec(),
+                b"block-before-reopen-lease".to_vec(),
+                b"op-before-reopen-lease".to_vec(),
+                b"digest-before-reopen-lease".to_vec(),
+            ))
+            .expect("commit first incarnation");
+
+        let current = test_session(&mut state, 7);
+        assert_eq!(current.node_epoch, old.node_epoch + 1);
+        assert!(matches!(
+            state.resolve_object(resolve_current_request(
+                old,
+                b"checkpoint/latest".to_vec(),
+                true,
+            )),
+            Err(MetaRuntimeError::UnknownSession)
+        ));
+
+        let current_resolve = state
+            .resolve_object(resolve_current_request(
+                current,
+                b"checkpoint/latest".to_vec(),
+                true,
+            ))
+            .expect("current incarnation may resolve");
+        assert!(current_resolve.current_lease.is_some());
+    }
+
+    #[test]
     fn plan_replicas_excludes_source_session_and_existing_replicas() {
         let mut state = MetaState::new(Box::<InMemoryJournal>::default());
         let source = test_session(&mut state, 1);
@@ -4480,6 +4669,21 @@ mod tests {
             session_id: grant.session_id,
             node_id: grant.node_id,
             node_epoch: grant.node_epoch,
+        }
+    }
+
+    fn resolve_current_request(
+        session: pb::NodeSessionIdentity,
+        key: Vec<u8>,
+        cache_current: bool,
+    ) -> pb::ResolveObjectRequest {
+        pb::ResolveObjectRequest {
+            context: None,
+            session: Some(session),
+            key: Some(pb::Key { value: key }),
+            selector: Some(pb::resolve_object_request::Selector::Current(true)),
+            range: None,
+            cache_current,
         }
     }
 

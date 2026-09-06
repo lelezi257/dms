@@ -8,10 +8,13 @@
 // 只有 Arena owner 承接可写 memfd 导出的跨进程互斥证明。
 #[allow(unsafe_code)]
 mod arena_manager;
+mod current_cache;
 mod kkv_operations;
 mod metadata_client;
 mod metrics;
 mod peer_service;
+#[cfg(test)]
+mod read_cache_tests;
 mod runtime;
 mod version_layout;
 mod worker_service;
@@ -66,6 +69,10 @@ pub struct NodeConfig {
     pub staging_ttl: Duration,
     /// 对 Client 授予的 Current 缓存租约上限；还会被 Meta 剩余租约裁短。
     pub client_cache_lease_ttl: Duration,
+    /// Node 缓存布局的收费预算；0 关闭，不包含 payload bytes。
+    pub node_current_cache_bytes: u64,
+    /// 单个布局的最长缓存时间；实际还受 Meta grant 截断。
+    pub node_current_cache_ttl: Duration,
     /// Shared handle used by the future online-config endpoint.
     pub log_level: LevelController,
     /// Process-owned trace runtime; SDKs deliberately do not install one.
@@ -174,6 +181,8 @@ async fn serve_workers(config: NodeConfig) -> Result<(), Box<dyn std::error::Err
             region_size_bytes: config.region_size_bytes,
             staging_ttl: config.staging_ttl,
             client_cache_lease_ttl: config.client_cache_lease_ttl,
+            node_current_cache_bytes: config.node_current_cache_bytes,
+            node_current_cache_ttl: config.node_current_cache_ttl,
             shared_fd_broker,
             log_level: config.log_level,
             trace_periodic_operations,
@@ -194,7 +203,8 @@ async fn serve_workers(config: NodeConfig) -> Result<(), Box<dyn std::error::Err
         .map_err(|error| format!("failed to establish Meta lease: {error:?}"))?;
     node.metadata_lease(
         Some(lease_started + Duration::from_millis(lease_ttl)),
-        Some(true),
+        // 缓存资格由实际 Watch 接收任务打开；这里只安装上游租约。
+        None,
     )
     .await
     .map_err(|error| format!("failed to install Meta lease: {error:?}"))?;
@@ -314,6 +324,10 @@ async fn consume_meta_events(
                         );
                     }
                     Some(node_event::Event::FenceNode(fence)) => {
+                        // epoch/fence 消息不能留下可再次命中的旧 Current 布局。
+                        if node.metadata_lease(None, Some(false)).await.is_err() {
+                            return;
+                        }
                         dms_logging::warn!(
                             "stale node epoch was fenced";
                             "event" => "node.session.fenced",
@@ -322,6 +336,10 @@ async fn consume_meta_events(
                         );
                     }
                     Some(node_event::Event::Gap(gap)) => {
+                        // 无法证明重放完整时关闭缓存；重建 Watch 后才重新申请资格。
+                        if node.metadata_lease(None, Some(false)).await.is_err() {
+                            return;
+                        }
                         dms_logging::warn!(
                             "Meta event stream reported a replay gap";
                             "event" => "node.meta_watch.gap",

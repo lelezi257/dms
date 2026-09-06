@@ -16,6 +16,7 @@ flowchart TB
     WORKER[WorkerService：SDK 请求边界] --> STATE[NodeState：唯一业务状态 owner]
     PEER[PeerService：节点请求边界] --> STATE
     STATE --> ARENA[ArenaManager：内存与 Block]
+    STATE --> NC[CurrentCache：有界版本布局缓存]
     STATE --> ALG[VersionLayout / KKV：布局与字段算法]
     STATE --> MC[MetadataClient：Meta 代理]
   end
@@ -34,7 +35,7 @@ flowchart TB
 | 进程 | 它拥有的状态 | 不负责什么 |
 | --- | --- | --- |
 | Application | SDK 会话、客户端缓存、mmap 映射的本地引用 | 不决定全局版本，不管理 Node 的物理分配器。 |
-| Node | Session、Staging、Block 的本地 Allocation、失效等待 | 不独自决定某 key 的全局 Current。 |
+| Node | Session、Staging、Block 的本地 Allocation、授权期内的 Current 布局、失效等待 | 不独自决定某 key 的全局 Current。 |
 | Meta | key 的版本布局、Block 位置、幂等结果、Node 租约与事件 | 不保存或转发用户 payload。 |
 
 ## SET：从 `set("k", b"abcdefghij")` 开始
@@ -58,14 +59,18 @@ FD 数而回收，完整 GC 的限制不变。
 ```text
 client.get("k")
   ├─ TCP Client Current 缓存有效 → 返回该版本的 owned bytes
-  └─ 未命中 / SHM → Node 向 Meta 解析 key 的版本布局和 Block 位置
-                    ├─ Block 在本地 → 读取 Arena
-                    └─ Block 不在本地 → 从 Peer 拉取，再组织读取结果
+  └─ 未命中 / SHM → Node 检查 Current 布局缓存
+                    ├─ 资格有效且 Block 全在本地 → 按该版本读取 Arena
+                    └─ 未命中 / 失效 / 缺块 → Meta 解析版本布局和 Block 位置
+                                           ├─ 本地 Block → 读取 Arena
+                                           └─ 远端 Block → Peer 拉取后读取
 ```
 
-当前 Node 的“已有 Block”与“缓存权威 Current”不是一回事。没有有效 SDK 缓存命中时，读路径仍需 Meta 解析；不能把本地 bytes 命中理解为绕过版本判断。
+Node 的“已有 Block”与“缓存权威 Current”不是一回事。只有 Meta 授予的剩余租约仍有效、Watch 连通且本地布局没有被失效时，Node 才能复用 Current。缓存只保存布局，不保存另一份 bytes 或 replica 地址；缺块重新查询 Meta。Exact 历史版本和不存在结果不进入这份缓存。
 
-非 SHM 单 GET 在请求中声明可接受的内联预算：实际读取长度不超过预算和协议 64 KiB 上限时，Node 直接在 GET 响应中返回 bytes，省去后续 Download RPC。这里仅省 Client→Node 的下载往返，Node→Meta 的版本解析不变。随机写后的多个 Extent 也按同一已解析版本拼接，不能混入其它版本。
+缓存截止时间从 resolve 请求开始计算，取 Meta 剩余租约与配置 TTL 的较小值；心跳不延长旧条目。失效事件先清 Node 布局、再等待 SDK ACK，最后 ACK Meta；本 Node 写完成也清理。失效/Watch 断连重建提升回填 generation，防止迟到的旧查询响应重新塞入缓存。旧 Meta 没有返回资格时自动保留逐次解析路径。配置与命中指标见[配置](configuration.md)。
+
+非 SHM 单 GET 在请求中声明可接受的内联预算：实际读取长度不超过预算和协议 64 KiB 上限时，Node 直接在 GET 响应中返回 bytes，省去后续 Download RPC。内联与 Node 布局缓存是独立优化：前者减少下载往返，后者减少重复权威解析。随机写后的多个 Extent 仍按同一版本拼接，不能混入其它版本。
 
 大对象、未声明预算的旧客户端仍收到读取计划/下载票据，再由 payload RPC 下载；新客户端收到旧服务端的票据也使用原下载路径。MGET 暂不启用内联，避免一批结果突破单响应预算。SHM 不走这条 owned bytes 快路径，仍返回描述符，由 SDK 映射后读取。普通 `get` 最后生成 `Vec<u8>`；`get_view` 才保留只读映射，且当前只支持单个 SHM segment。
 
@@ -97,6 +102,7 @@ Node 以读到的 base version 做 CAS 提交；如果期间有其它写入，�
 | 连接、会话、SET 分支 | [node_connection.rs](../sdk/rust/dms-client/src/internal/node_connection.rs) |
 | SHM / gRPC payload 与映射 | [transfer_engine.rs](../sdk/rust/dms-client/src/internal/transfer_engine.rs) |
 | Node 状态与进程组合 | [Node runtime](../server/src/node/runtime.rs) · [node.rs](../server/src/node.rs) |
+| Node 布局缓存、过期与失效围栏 | [current_cache.rs](../server/src/node/current_cache.rs) |
 | 物理分配与布局 | [arena_manager.rs](../server/src/node/arena_manager.rs) · [version_layout.rs](../server/src/node/version_layout.rs) |
 | KKV 字段表算法 | [kkv_operations.rs](../server/src/node/kkv_operations.rs) |
 | 元数据提交、恢复 | [Meta runtime](../server/src/meta/runtime.rs) · [local_wal_journal.rs](../server/src/meta/local_wal_journal.rs) |

@@ -28,6 +28,7 @@ use super::arena_manager::{
     ArenaError, ArenaManager, ArenaReadTicket, HostAllocationTarget, HostReceipt, HostRegionGrant,
     HostShmDescriptor, SharedFdBroker,
 };
+use super::current_cache::CurrentCache;
 use super::metadata_client::{BatchValueCommit, MetadataClient, digest};
 use super::metrics::{
     NodeMailboxCommand, NodeMetrics, ReplicaDirection, ReplicaOperation, SessionExpiration,
@@ -284,6 +285,8 @@ pub(crate) struct NodeTaskConfig {
     pub(crate) region_size_bytes: u64,
     pub(crate) staging_ttl: Duration,
     pub(crate) client_cache_lease_ttl: Duration,
+    pub(crate) node_current_cache_bytes: u64,
+    pub(crate) node_current_cache_ttl: Duration,
     pub(crate) shared_fd_broker: Option<SharedFdBroker>,
     pub(crate) log_level: LevelController,
     /// Opt-in switch for successful Heartbeat command spans.
@@ -316,6 +319,10 @@ impl NodeHandle {
                 region_size_bytes: crate::config::DEFAULT_REGION_SIZE_BYTES,
                 staging_ttl,
                 client_cache_lease_ttl: CLIENT_CACHE_LEASE_TTL,
+                node_current_cache_bytes: crate::config::DEFAULT_NODE_CURRENT_CACHE_BYTES,
+                node_current_cache_ttl: Duration::from_millis(
+                    crate::config::DEFAULT_NODE_CURRENT_CACHE_TTL_MILLIS,
+                ),
                 shared_fd_broker,
                 log_level: LevelController::new(slog::Level::Info),
                 trace_periodic_operations: false,
@@ -372,6 +379,10 @@ impl NodeHandle {
                 region_size_bytes: crate::config::DEFAULT_REGION_SIZE_BYTES,
                 staging_ttl: Duration::from_secs(30),
                 client_cache_lease_ttl: CLIENT_CACHE_LEASE_TTL,
+                node_current_cache_bytes: crate::config::DEFAULT_NODE_CURRENT_CACHE_BYTES,
+                node_current_cache_ttl: Duration::from_millis(
+                    crate::config::DEFAULT_NODE_CURRENT_CACHE_TTL_MILLIS,
+                ),
                 shared_fd_broker: None,
                 log_level: LevelController::new(slog::Level::Info),
                 trace_periodic_operations: false,
@@ -510,21 +521,6 @@ impl NodeHandle {
         self.submit(NodeCommand::MetadataLease {
             valid_until,
             watch_connected,
-            reply,
-        })
-        .await?;
-        receive(receiver).await
-    }
-
-    async fn register_cache_interest(
-        &self,
-        session_id: u64,
-        key: Vec<u8>,
-    ) -> Result<(), WorkerError> {
-        let (reply, receiver) = oneshot::channel();
-        self.submit(NodeCommand::RegisterCacheInterest {
-            session_id,
-            key,
             reply,
         })
         .await?;
@@ -769,12 +765,31 @@ impl NodeHandle {
             .metadata
             .as_ref()
             .ok_or(WorkerError::MetadataUnavailable)?;
-        if exact_version.is_none() && range.is_none() {
-            self.register_cache_interest(session_id, key.clone())
-                .await?;
-        }
+        // 命中、Client 兴趣登记和失效处理共用同一 owner 顺序。
+        // Exact 不缓存；Current 缺块仍回 Meta 更新位置，不能复用过期 replica 地址。
+        let node_epoch = metadata.node_epoch().await;
+        let refill_token = if exact_version.is_none() {
+            let (reply, rx) = oneshot::channel();
+            self.submit(NodeCommand::GetCached {
+                session_id,
+                key: key.clone(),
+                node_epoch,
+                range,
+                max_inline_bytes,
+                reply,
+            })
+            .await?;
+            let (token, cached) = receive(rx).await?;
+            if let Some(ticket) = cached {
+                return Ok(ticket);
+            }
+            token
+        } else {
+            None
+        };
+        let requested_at = Instant::now();
         let resolved = metadata
-            .resolve(key, exact_version)
+            .resolve(key.clone(), exact_version)
             .await
             .map_err(map_metadata_error)?;
         // Each pass imports every currently missing immutable Block outside
@@ -786,6 +801,8 @@ impl NodeHandle {
                 resolved: resolved.clone(),
                 range,
                 max_inline_bytes,
+                cache_refill: refill_token
+                    .map(|token| (token, key.clone(), requested_at, node_epoch)),
                 reply: reply_tx,
             })
             .await?;
@@ -1109,6 +1126,9 @@ async fn receive<T>(reply_rx: oneshot::Receiver<Result<T, WorkerError>>) -> Resu
 /// Node owner 能处理的全部强类型命令。
 ///
 /// enum 而不是 `AnyMessage + method_id`，因此每个分支的参数和返回类型都由编译器检查。
+// owner 返回：在途查询的回填围栏，以及可直接返回的读取票据（未命中时为空）。
+type CachedRead = (Option<u64>, Option<ReadTicket>);
+
 enum NodeCommand {
     OpenSession {
         shared_memory: bool,
@@ -1133,11 +1153,6 @@ enum NodeCommand {
     },
     CloseSession {
         session_id: u64,
-        reply: oneshot::Sender<Result<(), WorkerError>>,
-    },
-    RegisterCacheInterest {
-        session_id: u64,
-        key: Vec<u8>,
         reply: oneshot::Sender<Result<(), WorkerError>>,
     },
     Acknowledge {
@@ -1212,7 +1227,16 @@ enum NodeCommand {
         resolved: pb::ResolveObjectResponse,
         range: Option<(u64, u64)>,
         max_inline_bytes: u64,
+        cache_refill: Option<(u64, Vec<u8>, Instant, u64)>,
         reply: oneshot::Sender<Result<GetOutcome, WorkerError>>,
+    },
+    GetCached {
+        session_id: u64,
+        key: Vec<u8>,
+        node_epoch: u64,
+        range: Option<(u64, u64)>,
+        max_inline_bytes: u64,
+        reply: oneshot::Sender<Result<CachedRead, WorkerError>>,
     },
     MaterializeResolved {
         session_id: u64,
@@ -1309,7 +1333,6 @@ impl NodeCommand {
             Self::Heartbeat { .. } => NodeMailboxCommand::Heartbeat,
             Self::MetadataLease { .. } => NodeMailboxCommand::Heartbeat,
             Self::CloseSession { .. } => NodeMailboxCommand::CloseSession,
-            Self::RegisterCacheInterest { .. } => NodeMailboxCommand::Heartbeat,
             Self::Acknowledge { .. } => NodeMailboxCommand::Acknowledge,
             Self::AllocateStaging { .. } => NodeMailboxCommand::AllocateStaging,
             Self::AcquireRegion { .. } => NodeMailboxCommand::AcquireRegion,
@@ -1322,6 +1345,7 @@ impl NodeCommand {
             Self::SetRange { .. } => NodeMailboxCommand::SetRange,
             Self::Delete { .. } => NodeMailboxCommand::Delete,
             Self::GetResolved { .. } => NodeMailboxCommand::GetResolved,
+            Self::GetCached { .. } => NodeMailboxCommand::GetCached,
             Self::MaterializeResolved { .. } => NodeMailboxCommand::MaterializeResolved,
             Self::ImportPeerBlock { .. } => NodeMailboxCommand::ImportPeerBlock,
             Self::Download { .. } => NodeMailboxCommand::Download,
@@ -1436,19 +1460,15 @@ async fn run_node(
                         state.metadata_lease_until = until;
                     }
                     if let Some(connected) = watch_connected {
+                        // 即便重连前后都为 true，也撤销旧响应的回填资格。
+                        state.current_cache.clear();
+                        state.metrics.set_current_cache_charge(0);
                         state.metadata_watch_connected = connected;
                     }
                     let _ = reply.send(Ok(()));
                 }
                 NodeCommand::CloseSession { session_id, reply } => {
                     let _ = reply.send(state.close_session(session_id));
-                }
-                NodeCommand::RegisterCacheInterest {
-                    session_id,
-                    key,
-                    reply,
-                } => {
-                    let _ = reply.send(state.register_cache_interest(session_id, key));
                 }
                 NodeCommand::Acknowledge {
                     session_id,
@@ -1564,14 +1584,40 @@ async fn run_node(
                     resolved,
                     range,
                     max_inline_bytes,
+                    cache_refill,
                     reply,
                 } => {
-                    let _ = reply.send(state.get_resolved(
-                        session_id,
-                        &resolved,
-                        range,
-                        max_inline_bytes,
-                    ));
+                    let result = state.get_resolved(session_id, &resolved, range, max_inline_bytes);
+                    if matches!(&result, Ok(GetOutcome::Ready(_)))
+                        && state.metadata_watch_connected
+                        && Instant::now() < state.metadata_lease_until
+                        && let Some((token, key, requested_at, node_epoch)) = cache_refill
+                    {
+                        state.current_cache.insert(
+                            token,
+                            key,
+                            &resolved,
+                            requested_at,
+                            node_epoch,
+                            Instant::now(),
+                        );
+                        state
+                            .metrics
+                            .set_current_cache_charge(state.current_cache.charged());
+                    }
+                    let _ = reply.send(result);
+                }
+                NodeCommand::GetCached {
+                    session_id,
+                    key,
+                    node_epoch,
+                    range,
+                    max_inline_bytes,
+                    reply,
+                } => {
+                    let result =
+                        state.get_cached(session_id, &key, node_epoch, range, max_inline_bytes);
+                    let _ = reply.send(result);
                 }
                 NodeCommand::MaterializeResolved {
                     session_id,
@@ -1763,6 +1809,7 @@ struct NodeState {
     metadata_lease_until: Instant,
     metadata_watch_connected: bool,
     client_cache_lease_ttl: Duration,
+    current_cache: CurrentCache,
 }
 
 impl NodeState {
@@ -1784,6 +1831,10 @@ impl NodeState {
                 region_size_bytes: crate::config::DEFAULT_REGION_SIZE_BYTES,
                 staging_ttl,
                 client_cache_lease_ttl: CLIENT_CACHE_LEASE_TTL,
+                node_current_cache_bytes: crate::config::DEFAULT_NODE_CURRENT_CACHE_BYTES,
+                node_current_cache_ttl: Duration::from_millis(
+                    crate::config::DEFAULT_NODE_CURRENT_CACHE_TTL_MILLIS,
+                ),
                 shared_fd_broker,
                 log_level: LevelController::new(slog::Level::Info),
                 trace_periodic_operations: false,
@@ -1826,6 +1877,10 @@ impl NodeState {
             metadata_lease_until: Instant::now(),
             metadata_watch_connected: false,
             client_cache_lease_ttl: task_config.client_cache_lease_ttl,
+            current_cache: CurrentCache::new(
+                task_config.node_current_cache_bytes,
+                task_config.node_current_cache_ttl,
+            ),
         }
     }
 
@@ -2460,6 +2515,56 @@ impl NodeState {
         }))
     }
 
+    /// 有效 Current 布局 + 本地完整 Block 才能省去权威解析。
+    /// 缺块回 Meta，而不是把旧目录里的 Peer 地址继续当作有效位置。
+    fn get_cached(
+        &mut self,
+        session_id: u64,
+        key: &[u8],
+        node_epoch: u64,
+        range: Option<(u64, u64)>,
+        max_inline_bytes: u64,
+    ) -> Result<CachedRead, WorkerError> {
+        self.live_session(session_id)?;
+        if range.is_none() {
+            self.register_cache_interest(session_id, key.to_vec())?;
+        }
+        let now = Instant::now();
+        if !self.metadata_watch_connected || now >= self.metadata_lease_until {
+            self.current_cache.clear();
+            self.metrics.set_current_cache_charge(0);
+            self.metrics.record_current_cache_lookup(false);
+            return Ok((None, None));
+        }
+        let token = self.current_cache.token();
+        let layout = self.current_cache.get(key, node_epoch, now);
+        let ticket = if let Some(layout) = layout {
+            if layout
+                .extents
+                .iter()
+                .all(|extent| self.arena.open_read(&extent.block_id, None).is_ok())
+            {
+                // Arc 只在 owner 内借用，按请求生成独立票据，不缓存可写内存地址。
+                let resolved = pb::ResolveObjectResponse {
+                    layout: Some((*layout).clone()),
+                    ..Default::default()
+                };
+                match self.get_resolved(session_id, &resolved, range, max_inline_bytes)? {
+                    GetOutcome::Ready(ticket) => Some(ticket),
+                    GetOutcome::NeedsRemoteBlocks(_) => None,
+                }
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+        self.metrics.record_current_cache_lookup(ticket.is_some());
+        self.metrics
+            .set_current_cache_charge(self.current_cache.charged());
+        Ok((token, ticket))
+    }
+
     fn get_resolved(
         &mut self,
         session_id: u64,
@@ -2922,6 +3027,11 @@ impl NodeState {
     }
 
     fn broadcast_invalidation(&mut self, key: Vec<u8>, minimum_version: u64) -> Option<u64> {
+        // 先撤销本机布局及在途回填，再等待 Client ACK，最后才允许 ACK Meta。
+        // 本机写 completion 同样走这里：Meta barrier 排除了本次 source Node。
+        self.current_cache.invalidate(&key);
+        self.metrics
+            .set_current_cache_charge(self.current_cache.charged());
         self.expire_cache_leases();
         let mut waiting = HashMap::new();
         let mut failed_sessions = Vec::new();
@@ -3781,9 +3891,19 @@ mod tests {
         .unwrap();
         let ttl = node.renew_cache_lease(session, None).await.unwrap();
         assert!(ttl > 100 && ttl <= 200);
-        node.register_cache_interest(session, b"same-key".to_vec())
-            .await
-            .unwrap();
+        // Current 查询把兴趣登记与缓存判断合并为一次 owner 消息。
+        let (reply, cache_reply) = oneshot::channel();
+        node.submit(NodeCommand::GetCached {
+            session_id: session,
+            key: b"same-key".to_vec(),
+            node_epoch: 0,
+            range: None,
+            max_inline_bytes: 0,
+            reply,
+        })
+        .await
+        .unwrap();
+        receive(cache_reply).await.unwrap();
         drop(receiver);
         node.close_session(session).await.unwrap();
 

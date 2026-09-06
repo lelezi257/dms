@@ -22,7 +22,7 @@ Collector是“能提供一组指标数据”的对象；Registry是这些对象
 | 所有者 | 主要观察什么 | 定义/更新入口 |
 | --- | --- | --- |
 | Client | 用户操作次数/耗时/inflight、缓存、payload、会话、mapping | [Client metrics](../sdk/rust/dms-client/src/metrics.rs) |
-| Node | Arena分配/隔离字节、staging、FD、Peer传输、命令处理 | [Node metrics](../server/src/node/metrics.rs) |
+| Node | Arena分配/隔离字节、staging、FD、Peer传输、命令处理、Current布局缓存命中与计费 | [Node metrics](../server/src/node/metrics.rs) |
 | Meta | 当前状态量、提交/解析、journal/checkpoint、lease/watch | [Meta metrics](../server/src/meta/metrics.rs) |
 | RPC双端 | 实际Client调用、Server处理次数与耗时 | [RpcMetrics](../common/metrics/src/lib.rs) |
 | Trace runtime | 导出批次、错误、丢弃、队列 | [TraceRuntimeMetrics](../common/metrics/src/lib.rs) |

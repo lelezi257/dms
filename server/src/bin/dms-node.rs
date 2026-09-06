@@ -46,6 +46,12 @@ struct ServeArgs {
     /// Client Current 缓存租约上限（1..=30000 ms），重启生效。
     #[arg(long)]
     client_cache_lease_ttl_millis: Option<u64>,
+    /// Node 本地 Current 布局缓存预算（字节），0 表示关闭；只缓存布局，不缓存 value。
+    #[arg(long)]
+    node_current_cache_bytes: Option<u64>,
+    /// Node 本地 Current 布局缓存 TTL（1..=30000 ms），重启生效。
+    #[arg(long)]
+    node_current_cache_ttl_millis: Option<u64>,
     #[command(flatten)]
     log: LogArgs,
     #[command(flatten)]
@@ -154,6 +160,8 @@ fn serve(args: ServeArgs) -> Result<(), Box<dyn std::error::Error>> {
             region_size_bytes: args.region_size_bytes,
             staging_ttl_millis: args.staging_ttl_millis,
             client_cache_lease_ttl_millis: args.client_cache_lease_ttl_millis,
+            node_current_cache_bytes: args.node_current_cache_bytes,
+            node_current_cache_ttl_millis: args.node_current_cache_ttl_millis,
             log: args.log.into(),
             tracing: args.tracing.into(),
         },
@@ -173,6 +181,8 @@ fn serve(args: ServeArgs) -> Result<(), Box<dyn std::error::Error>> {
         region_size_bytes: resolved.region_size_bytes,
         staging_ttl: resolved.staging_ttl,
         client_cache_lease_ttl: resolved.client_cache_lease_ttl,
+        node_current_cache_bytes: resolved.node_current_cache_bytes,
+        node_current_cache_ttl: resolved.node_current_cache_ttl,
         log_level: logging_guard.level_controller(),
         tracing: resolved.tracing,
     });

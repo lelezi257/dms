@@ -18,6 +18,7 @@
 - 用户版本、Extent 映射、Block 身份、Region/Allocation 物理内存分层；具体概念见 [架构](docs/architecture.md)。新增抽象必须用一个实际用户 Case 证明价值。
 - 重试同一逻辑写保留 operation id；未知结果不等于未提交。禁止收到网络/Journal 错误就删除已可能被权威版本引用的 bytes。
 - Current cache 的回填与命中受 generation/版本/租约约束；断流不等于失效 ACK。不要用 sleep、轮询或提前清除义务伪造写后可见性。
+- Node 布局缓存只保存授权期内的 Current，截止时间从 resolve 请求开始计算，心跳不延长旧条目。失效先清 Node 再 ACK；本机写同样清理；缺块回 Meta，不复用旧 replica 地址。
 - SHM 只用于可信本地进程。导出过的可写 allocation 不能仅因 TTL 到期就复用；当前隔离策略的容量代价和 ViewEpoch 未完成回收必须保留说明。
 - WAL 的兼容记录/字段号不得随清理删掉；恢复、追加、截断失败要有确定状态，不能只改内存而忽略物理残尾。
 

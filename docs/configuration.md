@@ -49,6 +49,8 @@ arena_capacity_bytes = 1073741824
 region_size_bytes = 67108864
 staging_ttl_millis = 30000
 client_cache_lease_ttl_millis = 1000
+node_current_cache_bytes = 8388608
+node_current_cache_ttl_millis = 1000
 
 [log]
 level = "info"
@@ -78,6 +80,7 @@ sample_ratio = 0.01
 | Node 必需 | `node_id`、`meta_endpoint`；TCP/UDS listener 至少一个 |
 | Node 内存 | `arena_capacity_bytes=1 GiB`，`region_size_bytes=64 MiB`，`staging_ttl_millis=30000` |
 | Node 缓存租约 | `client_cache_lease_ttl_millis=1000`，范围 1..=30000；实际授予还受 Meta 剩余期限限制 |
+| Node Current 布局缓存 | `node_current_cache_bytes=8 MiB`，0关闭；`node_current_cache_ttl_millis=1000`，范围1..=30000；只缓存 key 对应的版本布局，不缓存 value bytes 或 replica 地址 |
 | Meta 必需 | `node_id`、`grpc_address` |
 | Meta journal | 不指定 `journal_dir` 则用内存后端；指定目录才使用 WAL/snapshot |
 | Meta checkpoint | `checkpoint_every_records=4096`，正数；CLI 为 `--checkpoint-every-records` |
@@ -98,6 +101,16 @@ Meta 使用同样的 `[log]`、`[tracing]` 配置。
 不会因为降低 snapshot 频率而跳过已确认写入的恢复记录。
 更大阈值减少全量复制/快照开销，但增加重启时重放的日志量；修改后重启生效。
 
+`node_current_cache_bytes` 控制 Node 侧 GET 热路径的 Current 布局缓存预算。
+它保存的是 key 到 `VersionLayout` 的解析结果，目的是在租约内减少
+Node→Meta 的重复解析；它不保存用户 value，也不能证明某个 Block 的 payload 一定仍在本地内存。
+`node_current_cache_ttl_millis` 是 Node 本地缓存 TTL 上限，实际可用时间还必须受 Meta 授权、
+失效事件和 Node epoch 约束。命中还要求布局的 Block 全部本地存在；缺块时重新查询 Meta，
+不复用可能过期的 replica 地址。旧 Meta 没有授予缓存资格时仍逐次查询。
+`node_current_cache_bytes=0` 表示关闭该缓存。
+对应指标为 `dms_node_current_cache_lookups_total{result="hit|miss"}` 和
+`dms_node_current_cache_charged_bytes`；后者是预算计费值，不是进程 RSS。
+
 完整可用 CLI 参数以当前二进制为准：
 
 ```bash
@@ -113,6 +126,7 @@ Meta 使用同样的 `[log]`、`[tracing]` 配置。
 | 日志 level | logging handle 支持修改；Node 配置命令已接入 | 尚无公开管理入口，重新启动时配置 |
 | listener / Meta endpoint / journal / Arena capacity / Region size | 标记为需要重启 | 重启；配置不能在线修改，运行中按已配置大小增加 Region |
 | Client cache lease TTL | 仅启动配置 | 重启；不得缩短已有缓存的回收义务 |
+| Node Current 布局缓存容量 / TTL | 仅启动配置 | 重启；不在线清空或扩展已有缓存预算 |
 | Meta checkpoint records | 仅启动配置 | 重启；不改变 journal 可靠性模式 |
 | tracing 开关、采样、exporter | 启动初始化 | 重启；没有自动热重载 |
 

@@ -44,6 +44,7 @@ pub(crate) enum ArenaError {
     RangeOutOfBounds,
     StaleHandle,
     RegionOverflow,
+    RegionCreateFailed,
     UnknownRegion,
     SharedMemoryUnavailable,
     RegionAccessDenied,
@@ -226,6 +227,8 @@ pub(crate) struct ArenaStats {
 /// stale receipts when a physical range is reused.
 pub(crate) struct ArenaManager {
     capacity_bytes: u64,
+    // Region 是批量向 OS 获取的 backing；Slot 才是每次 value/patch 的申请粒度。
+    region_size_bytes: u64,
     logical_bytes: u64,
     allocated_bytes: u64,
     resident_bytes: u64,
@@ -303,6 +306,7 @@ impl ArenaManager {
         metrics.set_arena_capacity(capacity_bytes);
         let arena = Self {
             capacity_bytes,
+            region_size_bytes: crate::config::DEFAULT_REGION_SIZE_BYTES,
             logical_bytes: 0,
             allocated_bytes: 0,
             resident_bytes: 0,
@@ -339,6 +343,11 @@ impl ArenaManager {
 
     pub(crate) fn enable_shared_region(&mut self, broker: SharedFdBroker) {
         self.shared_fd_broker = Some(broker);
+    }
+
+    /// 启动时设置扩容目标；不移动已经分配的 Region，不能改变既有 FD/mmap 身份。
+    pub(crate) fn set_region_size(&mut self, bytes: u64) {
+        self.region_size_bytes = bytes;
     }
 
     /// Bind a Session to its default RegionGroup before any allocation.
@@ -818,7 +827,7 @@ impl ArenaManager {
         group_id: u64,
         length: u64,
     ) -> Result<AllocationHandle, ArenaError> {
-        let aligned_length = align_64(length);
+        let aligned_length = length.checked_add(63).ok_or(ArenaError::RegionOverflow)? & !63;
         let allocation_id = self.next_allocation_id;
         for region in self
             .regions
@@ -854,18 +863,27 @@ impl ArenaManager {
                 });
             }
         }
-        let region_capacity = next_region_capacity(aligned_length)?;
         let (group_resident, group_capacity) = self
             .region_groups
             .get(&group_id)
             .map(|group| (group.resident_bytes, group.capacity_bytes))
             .ok_or(ArenaError::RegionAccessDenied)?;
-        if group_resident.saturating_add(region_capacity) > group_capacity
-            || self.resident_bytes.saturating_add(region_capacity) > self.capacity_bytes
-        {
+        let remaining = group_capacity
+            .saturating_sub(group_resident)
+            .min(self.capacity_bytes.saturating_sub(self.resident_bytes));
+        if aligned_length > remaining {
             self.record_failure("arena.allocate.exhausted");
             return Err(ArenaError::CapacityExhausted);
         }
+        // 小写共用一个大 Region；大于目标的写单独扩大 backing。预算尾部允许
+        // 小 Region，避免还有可用容量却因凑不够默认 Region 大小而拒绝写入。
+        // Region/Slot 都按 64B 对齐；OS 页大小不是用户的最小申请单元。
+        let preferred = self
+            .region_size_bytes
+            .checked_add(63)
+            .ok_or(ArenaError::RegionOverflow)?
+            & !63;
+        let region_capacity = aligned_length.max(preferred).min(remaining & !63);
         let region_len = usize::try_from(region_capacity).map_err(|_| {
             self.record_failure("arena.allocate.failed");
             ArenaError::RegionOverflow
@@ -874,15 +892,24 @@ impl ArenaManager {
         // backing 创建失败前不发布 id 或容量；故障后可在原预算内重试。
         #[cfg(test)]
         if std::mem::take(&mut self.fail_next_region_creation) {
-            return Err(ArenaError::RegionOverflow);
+            return Err(ArenaError::RegionCreateFailed);
         }
         let backing = if self.shared_fd_broker.is_some() {
             RegionBacking::Shared(
                 SharedRegion::create(&format!("dms-region-{region_id}"), region_len)
-                    .map_err(|_| ArenaError::RegionOverflow)?,
+                    .map_err(|error| {
+                        dms_logging::warn!("failed to create shared Region";
+                            "event" => "node.arena.region_create_failed", "error" => error.to_string());
+                        ArenaError::RegionCreateFailed
+                    })?,
             )
         } else {
-            RegionBacking::Private(vec![0; region_len])
+            let mut bytes = Vec::new();
+            bytes
+                .try_reserve_exact(region_len)
+                .map_err(|_| ArenaError::RegionCreateFailed)?;
+            bytes.resize(region_len, 0);
+            RegionBacking::Private(bytes)
         };
         self.next_region_id += 1;
         self.next_allocation_id += 1;
@@ -1098,18 +1125,6 @@ fn insert_free_slot(free: &mut Vec<FreeSlot>, slot: FreeSlot) {
     *free = coalesced;
 }
 
-fn align_64(length: u64) -> u64 {
-    length.saturating_add(63) & !63
-}
-
-fn next_region_capacity(length: u64) -> Result<u64, ArenaError> {
-    let minimum = 4096;
-    length
-        .max(minimum)
-        .checked_next_power_of_two()
-        .ok_or(ArenaError::RegionOverflow)
-}
-
 fn shm_token() -> Option<Vec<u8>> {
     let mut token = vec![0_u8; 32];
     File::open("/dev/urandom")
@@ -1127,10 +1142,49 @@ mod runtime_tests {
     use super::*;
 
     #[test]
+    fn small_allocations_share_a_large_region_and_reuse_safe_slots() {
+        let mut arena = ArenaManager::new(128 * 1024 * 1024, Duration::from_secs(30));
+        let first = arena.allocate(7, 1024).unwrap();
+        let first_handle = arena.staging[&first.staging_id].handle;
+        for _ in 0..1024 {
+            let allocation = arena.allocate(7, 1024).unwrap();
+            assert_eq!(
+                arena.staging[&allocation.staging_id].handle.region_id,
+                first_handle.region_id
+            );
+        }
+        assert_eq!(arena.regions.len(), 1);
+        assert_eq!(arena.stats().resident_bytes, 64 * 1024 * 1024);
+        arena.delete_staging(7, first.staging_id);
+        let reused = arena.allocate(7, 1024).unwrap();
+        let reused_handle = arena.staging[&reused.staging_id].handle;
+        assert_eq!(reused_handle.region_id, first_handle.region_id);
+        assert_eq!(reused_handle.offset, first_handle.offset);
+        assert_ne!(reused_handle.allocation_id, first_handle.allocation_id);
+    }
+
+    #[test]
+    fn region_growth_honors_config_large_values_and_budget_tail() {
+        let mut arena = ArenaManager::new(10 * 1024, Duration::from_secs(30));
+        arena.set_region_size(4096);
+        let first = arena.allocate(7, 5120).unwrap(); // 大于 Region 目标，不拆用户 allocation。
+        assert_eq!(arena.regions[0].len(), 5120);
+        arena.allocate(7, 4096).unwrap();
+        arena.allocate(7, 1024).unwrap(); // 最后 1KiB 预算仍能使用。
+        assert_eq!(arena.stats().resident_bytes, 10 * 1024);
+        assert_eq!(arena.regions.len(), 3);
+        assert_eq!(arena.allocate(7, 1), Err(ArenaError::CapacityExhausted));
+        arena.delete_staging(7, first.staging_id);
+        arena.allocate(7, 5120).unwrap();
+        assert_eq!(arena.regions.len(), 3); // 复用已安全释放的 Slot，不扩容。
+        assert_eq!(arena.allocate(7, u64::MAX), Err(ArenaError::RegionOverflow));
+    }
+
+    #[test]
     fn failed_region_creation_does_not_consume_capacity_or_identity() {
         let mut arena = ArenaManager::new(4096, Duration::from_secs(30));
         arena.fail_next_region_creation = true;
-        assert_eq!(arena.allocate(7, 1), Err(ArenaError::RegionOverflow));
+        assert_eq!(arena.allocate(7, 1), Err(ArenaError::RegionCreateFailed));
         assert_eq!(arena.stats().resident_bytes, 0);
         assert_eq!(
             arena.region_groups[&DEFAULT_REGION_GROUP_ID].resident_bytes,

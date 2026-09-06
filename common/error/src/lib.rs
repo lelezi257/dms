@@ -206,6 +206,13 @@ mod catalog_tests {
             subsystem: "Object",
         },
         ExpectedError {
+            name: "NODE_ARENA_ALLOCATION_FAILED",
+            code: crate::NODE_ARENA_ALLOCATION_FAILED,
+            kind: ErrorKind::ResourceExhausted,
+            component: "Node",
+            subsystem: "Arena",
+        },
+        ExpectedError {
             name: "NODE_VERSION_CONFLICT",
             code: crate::NODE_VERSION_CONFLICT,
             kind: ErrorKind::FailedPrecondition,

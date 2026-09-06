@@ -27,7 +27,7 @@ use super::metrics::{
 };
 
 const META_MAILBOX_CAPACITY: usize = 256;
-const DEFAULT_CHECKPOINT_RECORDS: u64 = 4;
+const DEFAULT_CHECKPOINT_RECORDS: u64 = crate::config::DEFAULT_META_CHECKPOINT_EVERY_RECORDS;
 const DEFAULT_RETAINED_VERSIONS_PER_KEY: usize = 64;
 const DEFAULT_OPERATION_RETENTION_RECORDS: u64 = 1024;
 const DEFAULT_NODE_LEASE_TTL: Duration = Duration::from_secs(30);
@@ -253,19 +253,25 @@ impl MetaHandle {
         journal: Box<dyn MetadataJournal>,
         metrics: MetaMetrics,
     ) -> Result<Self, MetaRuntimeError> {
-        Self::try_spawn_with_metrics_and_trace_policy(journal, metrics, false)
+        Self::try_spawn_with_runtime_policy(
+            journal,
+            MetaCheckpointPolicy::default(),
+            metrics,
+            false,
+        )
     }
 
-    /// Production constructor that applies the process tracing policy without
-    /// changing the domain-facing `MetaHandle` API.
-    pub(crate) fn try_spawn_with_metrics_and_trace_policy(
+    /// 接收进程已解析的 checkpoint 配置，不让状态 owner 再读 CLI/文件。
+    /// 保留策略暂时沿用内部默认值；提高快照间隔不改变 WAL 的追加可靠性。
+    pub(crate) fn try_spawn_with_runtime_policy(
         journal: Box<dyn MetadataJournal>,
+        checkpoint_policy: MetaCheckpointPolicy,
         metrics: MetaMetrics,
         trace_periodic_operations: bool,
     ) -> Result<Self, MetaRuntimeError> {
         Self::try_spawn_with_policies_and_metrics(
             journal,
-            MetaCheckpointPolicy::default(),
+            checkpoint_policy,
             MetaRetentionPolicy::default(),
             metrics,
             trace_periodic_operations,
@@ -2744,6 +2750,46 @@ mod tests {
     use super::*;
 
     #[test]
+    fn default_checkpoint_batches_records_without_losing_replayable_state() {
+        let policy = MetaCheckpointPolicy::default();
+        assert_eq!(policy.every_records, 4096);
+        assert!(!policy.should_checkpoint(4095, 0));
+        assert!(policy.should_checkpoint(4096, 0));
+        assert!(!policy.should_checkpoint(8191, 4096));
+
+        // 真实提交超过旧阈值 4：不再反复生成全量快照，但恢复资料不能消失。
+        let mut state = MetaState::new(Box::<InMemoryJournal>::default());
+        let session = test_session(&mut state, 7);
+        for index in 0..16 {
+            state
+                .commit_version(value_commit_request_for(
+                    session.clone(),
+                    format!("key-{index}").into_bytes(),
+                    format!("block-{index}").into_bytes(),
+                    format!("op-{index}").into_bytes(),
+                    format!("digest-{index}").into_bytes(),
+                ))
+                .unwrap();
+        }
+        assert!(state.journal.load_snapshot().unwrap().is_none());
+        assert_eq!(state.journal.load_after(0).unwrap().len(), 17);
+        let restored = MetaState::new(state.journal);
+        assert_eq!(restored.last_applied_index, 17);
+        for index in 0..16 {
+            assert!(
+                restored
+                    .versions
+                    .contains_key(format!("key-{index}").as_bytes())
+            );
+            assert!(
+                restored
+                    .operations
+                    .contains_key(format!("op-{index}").as_bytes())
+            );
+        }
+    }
+
+    #[test]
     #[ignore = "manual cardinality timing; run release with --ignored --nocapture"]
     fn meta_metrics_cardinality_growth_curve() {
         for count in [100_usize, 1_000, 10_000] {
@@ -3106,7 +3152,14 @@ mod tests {
 
     #[test]
     fn snapshot_and_tail_replay_reconstruct_current_and_operation_results() {
-        let mut state = MetaState::new(Box::<InMemoryJournal>::default());
+        let checkpoint_every_records = 4;
+        let mut state = MetaState::with_policies(
+            Box::<InMemoryJournal>::default(),
+            MetaCheckpointPolicy {
+                every_records: checkpoint_every_records,
+            },
+            MetaRetentionPolicy::default(),
+        );
         let grant = state
             .open_node_session(7, "http://127.0.0.1:19200".to_string())
             .expect("open node session");
@@ -3115,7 +3168,7 @@ mod tests {
             node_id: grant.node_id,
             node_epoch: grant.node_epoch,
         });
-        for index in 1..=DEFAULT_CHECKPOINT_RECORDS {
+        for index in 1..=checkpoint_every_records {
             let block_id = format!("b-{index}").into_bytes();
             let digest = vec![index as u8];
             state
@@ -3164,14 +3217,20 @@ mod tests {
             .load_snapshot()
             .expect("snapshot")
             .expect("saved");
-        assert_eq!(snapshot.last_applied_index, DEFAULT_CHECKPOINT_RECORDS);
+        assert_eq!(snapshot.last_applied_index, checkpoint_every_records);
 
-        let restored = MetaState::new(state.journal);
+        let restored = MetaState::with_policies(
+            state.journal,
+            MetaCheckpointPolicy {
+                every_records: checkpoint_every_records,
+            },
+            MetaRetentionPolicy::default(),
+        );
         assert!(restored.operations.contains_key(b"op-4".as_slice()));
         assert!(restored.versions.contains_key(b"k-4".as_slice()));
         // Session open is also journaled now. The checkpoint captured index 4,
         // then the fourth commit remained in the tail and replay advanced to 5.
-        assert_eq!(restored.last_applied_index, DEFAULT_CHECKPOINT_RECORDS + 1);
+        assert_eq!(restored.last_applied_index, checkpoint_every_records + 1);
     }
 
     #[test]

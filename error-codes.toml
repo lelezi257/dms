@@ -97,6 +97,14 @@ subsystem = "Arena"
 description = "Node Host Arena rejected a session's access to a region or allocation"
 
 [[error]]
+name = "NODE_ARENA_ALLOCATION_FAILED"
+value = "0x02010006"
+kind = "ResourceExhausted"
+component = "Node"
+subsystem = "Arena"
+description = "OS backing allocation or shared Region creation failed; check memory and FD limits"
+
+[[error]]
 name = "NODE_OBJECT_NOT_FOUND"
 value = "0x02020001"
 kind = "NotFound"

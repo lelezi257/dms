@@ -34,6 +34,8 @@ pub struct MetaConfig {
     pub grpc_address: String,
     /// Optional durable local WAL/checkpoint directory.
     pub journal_dir: Option<std::path::PathBuf>,
+    /// 两次全量元数据快照之间累计的 journal 记录数，不是 WAL 刷盘间隔。
+    pub checkpoint_every_records: u64,
     /// Process-owned trace runtime; disabled unless explicitly configured.
     pub tracing: dms_tracing::TracingConfig,
 }
@@ -75,8 +77,11 @@ async fn serve_process(config: MetaConfig) -> Result<(), Box<dyn std::error::Err
             as Box<dyn metadata_journal::MetadataJournal>,
     };
     let handler = MetadataServiceHandler::with_metrics(
-        MetaHandle::try_spawn_with_metrics_and_trace_policy(
+        MetaHandle::try_spawn_with_runtime_policy(
             journal,
+            runtime::MetaCheckpointPolicy {
+                every_records: config.checkpoint_every_records,
+            },
             meta_metrics,
             trace_periodic_operations,
         )?,

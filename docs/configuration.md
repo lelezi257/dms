@@ -46,6 +46,7 @@ health_address = "0.0.0.0:25000"
 worker_tcp_address = "127.0.0.1:25200"
 meta_endpoint = "http://127.0.0.1:25300"
 arena_capacity_bytes = 1073741824
+region_size_bytes = 67108864
 staging_ttl_millis = 30000
 client_cache_lease_ttl_millis = 1000
 
@@ -75,15 +76,29 @@ sample_ratio = 0.01
 | 范围 | 关键字段和默认 |
 | --- | --- |
 | Node 必需 | `node_id`、`meta_endpoint`；TCP/UDS listener 至少一个 |
-| Node 内存 | `arena_capacity_bytes=1 GiB`，`staging_ttl_millis=30000` |
+| Node 内存 | `arena_capacity_bytes=1 GiB`，`region_size_bytes=64 MiB`，`staging_ttl_millis=30000` |
 | Node 缓存租约 | `client_cache_lease_ttl_millis=1000`，范围 1..=30000；实际授予还受 Meta 剩余期限限制 |
 | Meta 必需 | `node_id`、`grpc_address` |
 | Meta journal | 不指定 `journal_dir` 则用内存后端；指定目录才使用 WAL/snapshot |
+| Meta checkpoint | `checkpoint_every_records=4096`，正数；CLI 为 `--checkpoint-every-records` |
 | status | 未指定 `health_address` 时为 `127.0.0.1:0`（随机空闲端口）；手工部署建议显式固定 |
 | 日志 | info、JSON、stderr；配置 path 才写文件；异步队列10240、DropAndReport、256 MiB滚动、14备份、7天老化 |
 | Trace | 默认关闭；启用后的默认采样0.01；周期成功请求默认不采集；队列4096、批次512、间隔5000ms、导出超时3000ms |
 
-Meta 使用同样的 `[log]`、`[tracing]` 配置。完整可用 CLI 参数以当前二进制为准：
+Meta 使用同样的 `[log]`、`[tracing]` 配置。
+
+`region_size_bytes` / `--region-size-bytes` 是新 Region 的扩容目标，不是一个 value 的大小。
+多个 Slot 共用同一 Region/FD；优先使用现有空闲范围，再向 OS 申请。申请大于目标时
+扩大该次 Region；预算尾部不足目标时按可用余额分配。参数至少 64 字节，向 64B 对齐，
+重启生效。`resident_bytes` 表示 backing 预留容量，不等同于已经触碰的物理页/RSS。
+已导出 Slot 的隔离仍占预算，大 Region 不代表完整 GC 已实现。
+
+`checkpoint_every_records` 控制累计多少条 journal 记录后生成一次全量 snapshot，
+不是 WAL 的刷盘间隔。WAL 模式仍然先可靠追加 journal、再 apply 状态，
+不会因为降低 snapshot 频率而跳过已确认写入的恢复记录。
+更大阈值减少全量复制/快照开销，但增加重启时重放的日志量；修改后重启生效。
+
+完整可用 CLI 参数以当前二进制为准：
 
 ```bash
 "$CARGO_TARGET_DIR/release/dms-node" serve --help
@@ -96,8 +111,9 @@ Meta 使用同样的 `[log]`、`[tracing]` 配置。完整可用 CLI 参数以�
 | --- | --- | --- |
 | Node staging TTL | `NodeHandle::apply_config_change` → NodeState；影响后续 allocation | 尚无公开管理 HTTP/RPC/CLI，重新启动时配置 |
 | 日志 level | logging handle 支持修改；Node 配置命令已接入 | 尚无公开管理入口，重新启动时配置 |
-| listener / Meta endpoint / journal / Arena capacity | 标记为需要重启 | 重启，不能原地扩容/换地址 |
+| listener / Meta endpoint / journal / Arena capacity / Region size | 标记为需要重启 | 重启；配置不能在线修改，运行中按已配置大小增加 Region |
 | Client cache lease TTL | 仅启动配置 | 重启；不得缩短已有缓存的回收义务 |
+| Meta checkpoint records | 仅启动配置 | 重启；不改变 journal 可靠性模式 |
 | tracing 开关、采样、exporter | 启动初始化 | 重启；没有自动热重载 |
 
 当前没有一个可供用户调用的通用 `/config` URL。定义了内部 controller 不等于已经支持在线运维。

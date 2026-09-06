@@ -7,7 +7,7 @@
 
 // Node actor 内的小型控制索引使用 HashMap；Payload bytes 只归 ArenaManager。
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     future::Future,
     path::PathBuf,
     pin::Pin,
@@ -37,8 +37,13 @@ use crate::config::{ConfigChange, ConfigError, OnlineConfigController};
 // 有界队列防止请求无限堆积；满载时 Sender::send().await 会施加背压。
 const NODE_MAILBOX_CAPACITY: usize = 256;
 // 测试构造器复用正式配置默认值；生产值随 NodeTaskConfig 一次性移入 owner。
+#[cfg(test)]
 const CLIENT_CACHE_LEASE_TTL: Duration =
     Duration::from_millis(crate::config::DEFAULT_CLIENT_CACHE_LEASE_TTL_MILLIS);
+// Node 只保存“这个 session 可能缓存了哪些 Current key”的一致性兴趣，
+// 不保存 Client 的数据。超过上限时退化为通配兴趣，直到租约过期。
+const CLIENT_CACHE_INTEREST_KEY_LIMIT: usize = 4096;
+const CLIENT_CACHE_INTEREST_BYTES_LIMIT: usize = 256 * 1024;
 
 // 准备和完成都只访问唯一 owner；中间 Future 只拥有不可变提交资料与 Meta client。
 // JoinSet 的数量上限与 mailbox 相同，饱和时拒绝新写，但 ACK/心跳仍可推进。
@@ -166,6 +171,16 @@ struct MSetOutcome {
     barrier_ids: Vec<u64>,
 }
 
+struct ValueCommitInput {
+    cache_session_id: Option<u64>,
+    key: Vec<u8>,
+    block_id: Vec<u8>,
+    length: u64,
+    checksum: Vec<u8>,
+    operation_id: Vec<u8>,
+    condition: String,
+}
+
 /// Node→Node Probe 的传输无关结果。
 pub(crate) struct PeerProbeResult {
     pub(crate) serving_node_id: String,
@@ -264,6 +279,7 @@ pub(crate) struct NodeHandle {
 /// common lifecycle: they are all moved once into the single `run_node` owner.
 pub(crate) struct NodeTaskConfig {
     pub(crate) arena_capacity_bytes: u64,
+    pub(crate) region_size_bytes: u64,
     pub(crate) staging_ttl: Duration,
     pub(crate) client_cache_lease_ttl: Duration,
     pub(crate) shared_fd_broker: Option<SharedFdBroker>,
@@ -295,6 +311,7 @@ impl NodeHandle {
             metadata,
             NodeTaskConfig {
                 arena_capacity_bytes,
+                region_size_bytes: crate::config::DEFAULT_REGION_SIZE_BYTES,
                 staging_ttl,
                 client_cache_lease_ttl: CLIENT_CACHE_LEASE_TTL,
                 shared_fd_broker,
@@ -350,6 +367,7 @@ impl NodeHandle {
             None,
             NodeTaskConfig {
                 arena_capacity_bytes: 256 * 1024 * 1024,
+                region_size_bytes: crate::config::DEFAULT_REGION_SIZE_BYTES,
                 staging_ttl: Duration::from_secs(30),
                 client_cache_lease_ttl: CLIENT_CACHE_LEASE_TTL,
                 shared_fd_broker: None,
@@ -490,6 +508,21 @@ impl NodeHandle {
         self.submit(NodeCommand::MetadataLease {
             valid_until,
             watch_connected,
+            reply,
+        })
+        .await?;
+        receive(receiver).await
+    }
+
+    async fn register_cache_interest(
+        &self,
+        session_id: u64,
+        key: Vec<u8>,
+    ) -> Result<(), WorkerError> {
+        let (reply, receiver) = oneshot::channel();
+        self.submit(NodeCommand::RegisterCacheInterest {
+            session_id,
+            key,
             reply,
         })
         .await?;
@@ -722,6 +755,10 @@ impl NodeHandle {
             .metadata
             .as_ref()
             .ok_or(WorkerError::MetadataUnavailable)?;
+        if exact_version.is_none() && range.is_none() {
+            self.register_cache_interest(session_id, key.clone())
+                .await?;
+        }
         let resolved = metadata
             .resolve(key, exact_version)
             .await
@@ -1083,6 +1120,11 @@ enum NodeCommand {
         session_id: u64,
         reply: oneshot::Sender<Result<(), WorkerError>>,
     },
+    RegisterCacheInterest {
+        session_id: u64,
+        key: Vec<u8>,
+        reply: oneshot::Sender<Result<(), WorkerError>>,
+    },
     Acknowledge {
         session_id: u64,
         sequence: u64,
@@ -1251,6 +1293,7 @@ impl NodeCommand {
             Self::Heartbeat { .. } => NodeMailboxCommand::Heartbeat,
             Self::MetadataLease { .. } => NodeMailboxCommand::Heartbeat,
             Self::CloseSession { .. } => NodeMailboxCommand::CloseSession,
+            Self::RegisterCacheInterest { .. } => NodeMailboxCommand::Heartbeat,
             Self::Acknowledge { .. } => NodeMailboxCommand::Acknowledge,
             Self::AllocateStaging { .. } => NodeMailboxCommand::AllocateStaging,
             Self::AcquireRegion { .. } => NodeMailboxCommand::AcquireRegion,
@@ -1294,21 +1337,13 @@ async fn run_node(
 ) {
     let trace_periodic_operations = task_config.trace_periodic_operations;
     // NodeState 是普通非线程安全结构，因为它从始至终只属于当前 Task。
-    let mut state = NodeState::with_metrics(
-        node_id,
-        metadata,
-        task_config.arena_capacity_bytes,
-        task_config.staging_ttl,
-        task_config.shared_fd_broker,
-        metrics.clone(),
-        task_config.log_level,
-    );
-    state.client_cache_lease_ttl = task_config.client_cache_lease_ttl;
+    let mut state = NodeState::with_metrics(node_id, metadata, task_config, metrics.clone());
     let mut maintenance = tokio::time::interval(Duration::from_secs(1));
     let mut writes = tokio::task::JoinSet::<ApplyWrite>::new();
     loop {
         // recv().await 在队列为空时挂起；maintenance tick 同样在这个唯一 owner
         // 内执行，因此回收不会引入第二个 Arena 状态入口。
+        let next_cache_expiry = state.next_cache_lease_expiry();
         let queued = tokio::select! {
             completed = writes.join_next(), if !writes.is_empty() => {
                 if let Some(Ok(apply)) = completed { apply(&mut state); }
@@ -1322,6 +1357,14 @@ async fn run_node(
             }
             _ = maintenance.tick() => {
                 state.tick();
+                continue;
+            }
+            _ = async {
+                if let Some(deadline) = next_cache_expiry {
+                    tokio::time::sleep_until(tokio::time::Instant::from_std(deadline)).await;
+                }
+            }, if next_cache_expiry.is_some() => {
+                state.expire_cache_leases();
                 continue;
             }
         };
@@ -1383,6 +1426,13 @@ async fn run_node(
                 }
                 NodeCommand::CloseSession { session_id, reply } => {
                     let _ = reply.send(state.close_session(session_id));
+                }
+                NodeCommand::RegisterCacheInterest {
+                    session_id,
+                    key,
+                    reply,
+                } => {
+                    let _ = reply.send(state.register_cache_interest(session_id, key));
                 }
                 NodeCommand::Acknowledge {
                     session_id,
@@ -1623,6 +1673,20 @@ struct Session {
     shared_memory: bool,
     /// 仅 unary renewal 回复授予缓存资格；单向 stream heartbeat 不延长此边界。
     cache_until: Option<Instant>,
+    /// Node 只对这些 key 的持有者发送失效并建立写入屏障。
+    ///
+    /// 这里记录的是“这个 session 可能缓存了该 key 的 Current 结果”，不是缓存
+    /// bytes 本身；真正的数据仍在 SDK 或 SHM mapping 中。这样 disconnected
+    /// reader 只会阻塞同 key 的后续写入，不会拖慢无关 key。
+    cached_current_keys: HashSet<Vec<u8>>,
+    /// Total retained bytes of `cached_current_keys`. The count limit prevents
+    /// many keys; this byte limit prevents few but very large keys from making
+    /// the consistency index unbounded.
+    cached_current_key_bytes: usize,
+    /// 单个 session 的 key interest 是有界的。超过上限时不继续增长 HashSet，
+    /// 而是退化为“本租约内可能缓存任意 Current key”。这会临时多等一些写，
+    /// 但边界明确：只持续到 cache_until。
+    cache_interest_all: bool,
     disconnected: bool,
 }
 
@@ -1693,26 +1757,32 @@ impl NodeState {
         Self::with_metrics(
             node_id,
             metadata,
-            arena_capacity_bytes,
-            staging_ttl,
-            shared_fd_broker,
+            NodeTaskConfig {
+                arena_capacity_bytes,
+                region_size_bytes: crate::config::DEFAULT_REGION_SIZE_BYTES,
+                staging_ttl,
+                client_cache_lease_ttl: CLIENT_CACHE_LEASE_TTL,
+                shared_fd_broker,
+                log_level: LevelController::new(slog::Level::Info),
+                trace_periodic_operations: false,
+            },
             metrics,
-            LevelController::new(slog::Level::Info),
         )
     }
 
     fn with_metrics(
         node_id: String,
         metadata: Option<MetadataClient>,
-        arena_capacity_bytes: u64,
-        staging_ttl: Duration,
-        shared_fd_broker: Option<SharedFdBroker>,
+        task_config: NodeTaskConfig,
         metrics: NodeMetrics,
-        log_level: LevelController,
     ) -> Self {
-        let mut arena =
-            ArenaManager::with_metrics(arena_capacity_bytes, staging_ttl, metrics.clone());
-        if let Some(broker) = shared_fd_broker {
+        let mut arena = ArenaManager::with_metrics(
+            task_config.arena_capacity_bytes,
+            task_config.staging_ttl,
+            metrics.clone(),
+        );
+        arena.set_region_size(task_config.region_size_bytes);
+        if let Some(broker) = task_config.shared_fd_broker {
             arena.enable_shared_region(broker);
         }
         // ID 从 1 开始，让 0 可保留为“未分配/无效”哨兵值。
@@ -1727,13 +1797,13 @@ impl NodeState {
             prepared_replicas: HashMap::new(),
             pending_blocks: HashMap::new(),
             arena,
-            config: OnlineConfigController::new(staging_ttl),
+            config: OnlineConfigController::new(task_config.staging_ttl),
             metadata,
             metrics,
-            log_level,
+            log_level: task_config.log_level,
             metadata_lease_until: Instant::now(),
             metadata_watch_connected: false,
-            client_cache_lease_ttl: CLIENT_CACHE_LEASE_TTL,
+            client_cache_lease_ttl: task_config.client_cache_lease_ttl,
         }
     }
 
@@ -1821,6 +1891,9 @@ impl NodeState {
                 released_view_through: 0,
                 shared_memory,
                 cache_until: None,
+                cached_current_keys: HashSet::new(),
+                cached_current_key_bytes: 0,
+                cache_interest_all: false,
                 disconnected: false,
             },
         );
@@ -1884,6 +1957,36 @@ impl NodeState {
             session.cache_until = Some(now + Duration::from_millis(ttl_millis));
         }
         Ok(ttl_millis)
+    }
+
+    fn register_cache_interest(
+        &mut self,
+        session_id: u64,
+        key: Vec<u8>,
+    ) -> Result<(), WorkerError> {
+        let session = self
+            .sessions
+            .get_mut(&session_id)
+            .filter(|session| !session.disconnected)
+            .ok_or(WorkerError::UnknownSession)?;
+        if session.cache_until.is_none() || session.cache_interest_all {
+            return Ok(());
+        }
+        if session.cached_current_keys.contains(&key) {
+            return Ok(());
+        }
+        let projected_key_bytes = session.cached_current_key_bytes.saturating_add(key.len());
+        if session.cached_current_keys.len() >= CLIENT_CACHE_INTEREST_KEY_LIMIT
+            || projected_key_bytes > CLIENT_CACHE_INTEREST_BYTES_LIMIT
+        {
+            session.cached_current_keys.clear();
+            session.cached_current_key_bytes = 0;
+            session.cache_interest_all = true;
+        } else {
+            session.cached_current_key_bytes = projected_key_bytes;
+            session.cached_current_keys.insert(key);
+        }
+        Ok(())
     }
 
     fn live_session(&self, session_id: u64) -> Result<&Session, WorkerError> {
@@ -1996,14 +2099,15 @@ impl NodeState {
             .commit_staging(session_id, staging_id, &receipt, block_id.clone())
             .map_err(map_arena_error)?;
         self.pending_blocks.insert(block_id.clone(), owns_block);
-        self.commit_block(
+        self.commit_block(ValueCommitInput {
+            cache_session_id: Some(session_id),
             key,
             block_id,
-            receipt.length,
-            receipt.digest,
+            length: receipt.length,
+            checksum: receipt.digest,
             operation_id,
             condition,
-        )
+        })
     }
 
     fn mset(
@@ -2079,6 +2183,7 @@ impl NodeState {
                     {
                         barrier_ids.push(barrier_id);
                     }
+                    state.register_cache_interest(session_id, key.clone())?;
                     versions.push(KeySetOutcome {
                         key,
                         version: result.version,
@@ -2187,7 +2292,8 @@ impl NodeState {
                     }
                 };
                 state.arena.mark_committed(&patch_block, committed.version);
-                let barrier_id = state.broadcast_invalidation(key, committed.version);
+                let barrier_id = state.broadcast_invalidation(key.clone(), committed.version);
+                state.register_cache_interest(session_id, key)?;
                 Ok(SetOutcome {
                     version: committed.version,
                     length: logical_length,
@@ -2219,18 +2325,30 @@ impl NodeState {
             .commit_inline(block_id.clone(), bytes)
             .map_err(map_arena_error)?;
         self.pending_blocks.insert(block_id.clone(), owns_block);
-        self.commit_block(key, block_id, length, checksum, operation_id, condition)
+        self.commit_block(ValueCommitInput {
+            cache_session_id: Some(session_id),
+            key,
+            block_id,
+            length,
+            checksum,
+            operation_id,
+            condition,
+        })
     }
 
     fn commit_block(
         &mut self,
-        key: Vec<u8>,
-        block_id: Vec<u8>,
-        length: u64,
-        checksum: Vec<u8>,
-        operation_id: Vec<u8>,
-        condition: String,
+        input: ValueCommitInput,
     ) -> Result<PreparedWrite<SetOutcome>, WorkerError> {
+        let ValueCommitInput {
+            cache_session_id,
+            key,
+            block_id,
+            length,
+            checksum,
+            operation_id,
+            condition,
+        } = input;
         let metadata = self
             .metadata
             .clone()
@@ -2260,7 +2378,10 @@ impl NodeState {
                     }
                 };
                 state.arena.mark_committed(&block_id, committed.version);
-                let barrier_id = state.broadcast_invalidation(key, committed.version);
+                let barrier_id = state.broadcast_invalidation(key.clone(), committed.version);
+                if let Some(session_id) = cache_session_id {
+                    state.register_cache_interest(session_id, key)?;
+                }
                 Ok(SetOutcome {
                     version: committed.version,
                     length,
@@ -2731,7 +2852,9 @@ impl NodeState {
         let mut waiting = HashMap::new();
         let mut failed_sessions = Vec::new();
         for (session_id, session) in &mut self.sessions {
-            if session.cache_until.is_none() {
+            if session.cache_until.is_none()
+                || (!session.cache_interest_all && !session.cached_current_keys.contains(&key))
+            {
                 continue;
             }
             let event_sequence = session.next_event_sequence;
@@ -2822,6 +2945,13 @@ impl NodeState {
         self.complete_barriers(completed);
     }
 
+    fn next_cache_lease_expiry(&self) -> Option<Instant> {
+        self.sessions
+            .values()
+            .filter_map(|session| session.cache_until)
+            .min()
+    }
+
     fn expire_cache_leases(&mut self) {
         let now = Instant::now();
         let expired = self
@@ -2830,6 +2960,9 @@ impl NodeState {
             .filter_map(|(id, session)| {
                 if session.cache_until.is_none_or(|until| until <= now) {
                     session.cache_until = None;
+                    session.cached_current_keys.clear();
+                    session.cached_current_key_bytes = 0;
+                    session.cache_interest_all = false;
                     Some(*id)
                 } else {
                     None
@@ -3047,6 +3180,11 @@ fn map_arena_error(error: ArenaError) -> WorkerError {
         ArenaError::StaleHandle | ArenaError::UnknownRegion => WorkerError::ArenaStaleHandle,
         ArenaError::SharedMemoryUnavailable => WorkerError::ArenaShmUnavailable,
         ArenaError::RegionAccessDenied => WorkerError::ArenaAccessDenied,
+        ArenaError::RegionCreateFailed => WorkerError::Stable(DmsError::new(
+            dms_error::NODE_ARENA_ALLOCATION_FAILED,
+            ErrorKind::ResourceExhausted,
+            "DMS Arena failed to allocate a backing region",
+        )),
         ArenaError::CapacityExhausted => WorkerError::ResourceExhausted,
         ArenaError::EmptyPayload => WorkerError::ArenaInvalidRequest,
         ArenaError::UnknownBlock => WorkerError::NotFound,
@@ -3310,6 +3448,12 @@ mod tests {
             Some(granted),
             "one-way heartbeat is not a cache grant"
         );
+        state
+            .sessions
+            .get_mut(&session)
+            .unwrap()
+            .cached_current_keys
+            .insert(b"key".to_vec());
         drop(receiver);
         let barrier = state.broadcast_invalidation(b"key".to_vec(), 2).unwrap();
         state.close_session(session).unwrap();
@@ -3319,6 +3463,66 @@ mod tests {
         state.expire_cache_leases();
         assert!(!state.barriers.contains_key(&barrier));
         assert!(!state.sessions.contains_key(&session));
+    }
+
+    #[test]
+    fn disconnected_cached_session_does_not_block_unrelated_key() {
+        let mut state = NodeState::new("n".into(), None, 4096, Duration::from_secs(30), None);
+        let session = state.open_session(false);
+        state.sessions.get_mut(&session).unwrap().cache_until =
+            Some(Instant::now() + Duration::from_secs(5));
+        state
+            .register_cache_interest(session, b"model/a".to_vec())
+            .unwrap();
+        state.close_session(session).unwrap();
+
+        assert_eq!(state.broadcast_invalidation(b"model/b".to_vec(), 2), None);
+        assert!(
+            state
+                .broadcast_invalidation(b"model/a".to_vec(), 2)
+                .is_some()
+        );
+    }
+
+    #[test]
+    fn acknowledgement_does_not_clear_current_cache_interest() {
+        let mut state = NodeState::new("n".into(), None, 4096, Duration::from_secs(30), None);
+        let session = state.open_session(false);
+        let (sender, mut receiver) = mpsc::channel(1);
+        state.attach_session(session, sender).unwrap();
+        state.sessions.get_mut(&session).unwrap().cache_until =
+            Some(Instant::now() + Duration::from_secs(5));
+        state
+            .register_cache_interest(session, b"model/a".to_vec())
+            .unwrap();
+
+        let barrier = state
+            .broadcast_invalidation(b"model/a".to_vec(), 2)
+            .unwrap();
+        let event = receiver.try_recv().unwrap();
+        let sequence = match event {
+            NodeEvent::InvalidateCurrent { event_sequence, .. } => event_sequence,
+        };
+        let (waiter, mut completion) = oneshot::channel();
+        state.attach_barrier_waiter(barrier, waiter);
+        state.acknowledge(session, sequence).unwrap();
+        completion.try_recv().unwrap().unwrap();
+
+        assert!(
+            state
+                .sessions
+                .get(&session)
+                .unwrap()
+                .cached_current_keys
+                .contains(b"model/a".as_slice()),
+            "ACK only completes the current barrier; the key remains protected until lease expiry"
+        );
+        assert!(
+            state
+                .broadcast_invalidation(b"model/a".to_vec(), 3)
+                .is_some(),
+            "a later same-key write still has to invalidate this session during the lease"
+        );
     }
 
     #[test]
@@ -3336,6 +3540,157 @@ mod tests {
         state.client_cache_lease_ttl = Duration::from_millis(20);
         let configured_ttl = state.heartbeat(session, None, true).unwrap();
         assert!(configured_ttl > 0 && configured_ttl <= 20);
+    }
+
+    #[test]
+    fn cache_interest_overflow_degrades_to_lease_bounded_wildcard() {
+        let mut state = NodeState::new("n".into(), None, 4096, Duration::from_secs(30), None);
+        let session = state.open_session(false);
+        state.sessions.get_mut(&session).unwrap().cache_until =
+            Some(Instant::now() + Duration::from_secs(5));
+
+        for index in 0..=CLIENT_CACHE_INTEREST_KEY_LIMIT {
+            state
+                .register_cache_interest(session, format!("key-{index}").into_bytes())
+                .unwrap();
+        }
+
+        let session_state = state.sessions.get(&session).unwrap();
+        assert!(session_state.cache_interest_all);
+        assert!(session_state.cached_current_keys.is_empty());
+        assert_eq!(session_state.cached_current_key_bytes, 0);
+        assert!(
+            state
+                .broadcast_invalidation(b"unseen-key".to_vec(), 2)
+                .is_some()
+        );
+
+        state.sessions.get_mut(&session).unwrap().cache_until = Some(Instant::now());
+        state.expire_cache_leases();
+        let session_state = state.sessions.get(&session).unwrap();
+        assert!(!session_state.cache_interest_all);
+        assert!(session_state.cached_current_keys.is_empty());
+        assert_eq!(session_state.cached_current_key_bytes, 0);
+        assert_eq!(
+            state.broadcast_invalidation(b"unseen-key".to_vec(), 3),
+            None
+        );
+    }
+
+    #[test]
+    fn cache_interest_large_keys_degrade_to_lease_bounded_wildcard() {
+        let mut state = NodeState::new("n".into(), None, 4096, Duration::from_secs(30), None);
+        let session = state.open_session(false);
+        state.sessions.get_mut(&session).unwrap().cache_until =
+            Some(Instant::now() + Duration::from_secs(5));
+
+        state
+            .register_cache_interest(session, vec![b'x'; CLIENT_CACHE_INTEREST_BYTES_LIMIT + 1])
+            .unwrap();
+
+        let session_state = state.sessions.get(&session).unwrap();
+        assert!(session_state.cache_interest_all);
+        assert!(session_state.cached_current_keys.is_empty());
+        assert_eq!(session_state.cached_current_key_bytes, 0);
+        assert!(
+            state
+                .broadcast_invalidation(b"unseen-key".to_vec(), 2)
+                .is_some()
+        );
+    }
+
+    #[test]
+    fn expired_interest_must_register_again_after_new_cache_lease() {
+        let mut state = NodeState::new("n".into(), None, 4096, Duration::from_secs(30), None);
+        let session = state.open_session(false);
+        let (sender, mut receiver) = mpsc::channel(1);
+        state.attach_session(session, sender).unwrap();
+        state.metadata_watch_connected = true;
+        state.metadata_lease_until = Instant::now() + Duration::from_secs(5);
+
+        assert!(state.heartbeat(session, None, true).unwrap() > 0);
+        state
+            .register_cache_interest(session, b"model/a".to_vec())
+            .unwrap();
+        assert!(
+            state
+                .broadcast_invalidation(b"model/a".to_vec(), 2)
+                .is_some(),
+            "the first lease protects the key registered by the in-flight GET"
+        );
+        let event = receiver.try_recv().unwrap();
+        let sequence = match event {
+            NodeEvent::InvalidateCurrent { event_sequence, .. } => event_sequence,
+        };
+        state.acknowledge(session, sequence).unwrap();
+
+        state.sessions.get_mut(&session).unwrap().cache_until = Some(Instant::now());
+        state.expire_cache_leases();
+        assert!(state.heartbeat(session, None, true).unwrap() > 0);
+        assert_eq!(
+            state.broadcast_invalidation(b"model/a".to_vec(), 3),
+            None,
+            "a renewed lease starts with an empty interest set; an old GET cannot keep Node waiting"
+        );
+
+        state
+            .register_cache_interest(session, b"model/a".to_vec())
+            .unwrap();
+        assert!(
+            state
+                .broadcast_invalidation(b"model/a".to_vec(), 4)
+                .is_some(),
+            "a fresh GET under the new lease must register interest again"
+        );
+    }
+
+    #[test]
+    fn next_cache_lease_expiry_uses_earliest_live_deadline() {
+        let mut state = NodeState::new("n".into(), None, 4096, Duration::from_secs(30), None);
+        let first = state.open_session(false);
+        let second = state.open_session(false);
+        let later = Instant::now() + Duration::from_secs(5);
+        let earlier = Instant::now() + Duration::from_millis(25);
+        state.sessions.get_mut(&first).unwrap().cache_until = Some(later);
+        state.sessions.get_mut(&second).unwrap().cache_until = Some(earlier);
+
+        assert_eq!(state.next_cache_lease_expiry(), Some(earlier));
+    }
+
+    #[tokio::test]
+    async fn owner_waits_for_same_key_lease_but_wakes_before_maintenance_tick() {
+        let node = NodeHandle::spawn_without_metadata("expiry-test".into());
+        let session = node.open_session(false).await.unwrap();
+        let (sender, receiver) = mpsc::channel(1);
+        node.attach_session(session, sender).await.unwrap();
+        // 缩短上游资格以授予 200ms 本地租约；不改变正式默认配置。
+        node.metadata_lease(
+            Some(Instant::now() + Duration::from_millis(200)),
+            Some(true),
+        )
+        .await
+        .unwrap();
+        let ttl = node.renew_cache_lease(session, None).await.unwrap();
+        assert!(ttl > 100 && ttl <= 200);
+        node.register_cache_interest(session, b"same-key".to_vec())
+            .await
+            .unwrap();
+        drop(receiver);
+        node.close_session(session).await.unwrap();
+
+        // 没有 ACK 的断连读者仍保护同 key，不能借优化提前放行。
+        let invalidation = node.invalidate_current(b"same-key".to_vec(), 2);
+        tokio::pin!(invalidation);
+        assert!(
+            tokio::time::timeout(Duration::from_millis(50), &mut invalidation)
+                .await
+                .is_err()
+        );
+        // 真正跑 owner 的 select/sleep_until；旧的 1s maintenance 实现会超时。
+        tokio::time::timeout(Duration::from_millis(600), &mut invalidation)
+            .await
+            .expect("lease expiry must not wait for the 1s maintenance tick")
+            .unwrap();
     }
 
     #[tokio::test]
@@ -3480,6 +3835,11 @@ mod tests {
                 dms_error::NODE_ARENA_INVALID_REQUEST,
                 ErrorKind::InvalidArgument,
             ),
+            (
+                ArenaError::RegionCreateFailed,
+                dms_error::NODE_ARENA_ALLOCATION_FAILED,
+                ErrorKind::ResourceExhausted,
+            ),
         ];
 
         for (arena_error, expected_code, expected_kind) in cases {
@@ -3547,6 +3907,9 @@ mod tests {
         let second = state.open_session(false);
         for session in state.sessions.values_mut() {
             session.cache_until = Some(Instant::now() + Duration::from_secs(5));
+            session
+                .cached_current_keys
+                .insert(b"checkpoint/latest".to_vec());
         }
         let (first_sender, mut first_events) = mpsc::channel(1);
         let (second_sender, mut second_events) = mpsc::channel(1);

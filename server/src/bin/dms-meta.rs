@@ -34,6 +34,9 @@ struct ServeArgs {
     grpc_address: Option<String>,
     #[arg(long)]
     journal_dir: Option<String>,
+    /// 全量元数据快照间隔：默认 4096 条 journal 记录，必须大于 0。
+    #[arg(long)]
+    checkpoint_every_records: Option<u64>,
     #[command(flatten)]
     log: LogArgs,
     #[command(flatten)]
@@ -137,6 +140,7 @@ fn serve(args: ServeArgs) -> Result<(), Box<dyn std::error::Error>> {
             health_address: args.health_address,
             grpc_address: args.grpc_address,
             journal_dir: args.journal_dir,
+            checkpoint_every_records: args.checkpoint_every_records,
             log: args.log.into(),
             tracing: args.tracing.into(),
         },
@@ -151,6 +155,7 @@ fn serve(args: ServeArgs) -> Result<(), Box<dyn std::error::Error>> {
         health_address: resolved.health_address,
         grpc_address: resolved.grpc_address,
         journal_dir: resolved.journal_dir.map(PathBuf::from),
+        checkpoint_every_records: resolved.checkpoint_every_records,
         tracing: resolved.tracing,
     });
     if let Err(error) = &result {

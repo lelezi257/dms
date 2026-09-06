@@ -42,6 +42,7 @@ pub const NODE_ARENA_INVALID_REQUEST: ErrorCode = ErrorCode::from_raw(0x0201_000
 pub const NODE_ARENA_STALE_HANDLE: ErrorCode = ErrorCode::from_raw(0x0201_0003);
 pub const NODE_ARENA_SHM_UNAVAILABLE: ErrorCode = ErrorCode::from_raw(0x0201_0004);
 pub const NODE_ARENA_ACCESS_DENIED: ErrorCode = ErrorCode::from_raw(0x0201_0005);
+pub const NODE_ARENA_ALLOCATION_FAILED: ErrorCode = ErrorCode::from_raw(0x0201_0006);
 pub const NODE_OBJECT_NOT_FOUND: ErrorCode = ErrorCode::from_raw(0x0202_0001);
 pub const NODE_VERSION_CONFLICT: ErrorCode = ErrorCode::from_raw(0x0202_0002);
 pub const NODE_SESSION_UNKNOWN: ErrorCode = ErrorCode::from_raw(0x0203_0001);
@@ -80,6 +81,7 @@ mod tests {
             NODE_ARENA_STALE_HANDLE,
             NODE_ARENA_SHM_UNAVAILABLE,
             NODE_ARENA_ACCESS_DENIED,
+            NODE_ARENA_ALLOCATION_FAILED,
             NODE_OBJECT_NOT_FOUND,
             NODE_VERSION_CONFLICT,
             NODE_SESSION_UNKNOWN,

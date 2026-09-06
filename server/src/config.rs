@@ -14,8 +14,10 @@ use serde::Deserialize;
 
 pub const DEFAULT_HEALTH_ADDRESS: &str = "127.0.0.1:0";
 pub const DEFAULT_ARENA_CAPACITY_BYTES: u64 = 1024 * 1024 * 1024;
+pub const DEFAULT_REGION_SIZE_BYTES: u64 = 64 * 1024 * 1024;
 pub const DEFAULT_STAGING_TTL_MILLIS: u64 = 30_000;
 pub const DEFAULT_CLIENT_CACHE_LEASE_TTL_MILLIS: u64 = 1_000;
+pub const DEFAULT_META_CHECKPOINT_EVERY_RECORDS: u64 = 4_096;
 pub const DEFAULT_LOG_QUEUE_CAPACITY: usize = 10_240;
 pub const DEFAULT_LOG_MAX_FILE_SIZE_BYTES: u64 = 256 * 1024 * 1024;
 pub const DEFAULT_LOG_MAX_BACKUPS: usize = 14;
@@ -40,6 +42,7 @@ pub enum ConfigChange {
     WorkerUdsPath(Option<String>),
     MetaEndpoint(Option<String>),
     ArenaCapacityBytes(u64),
+    RegionSizeBytes(u64),
     StagingTtl(Duration),
     LogLevel(slog::Level),
 }
@@ -55,7 +58,8 @@ impl ConfigChange {
             | Self::WorkerTcpAddress(_)
             | Self::WorkerUdsPath(_)
             | Self::MetaEndpoint(_)
-            | Self::ArenaCapacityBytes(_) => ConfigFieldCapability::RestartRequired,
+            | Self::ArenaCapacityBytes(_)
+            | Self::RegionSizeBytes(_) => ConfigFieldCapability::RestartRequired,
         }
     }
 }
@@ -89,6 +93,7 @@ pub struct NodeConfigFile {
     pub worker_uds_path: Option<String>,
     pub meta_endpoint: Option<String>,
     pub arena_capacity_bytes: Option<u64>,
+    pub region_size_bytes: Option<u64>,
     pub staging_ttl_millis: Option<u64>,
     /// Client Current 缓存资格上限；启动配置，不在线修改已发出的租约。
     pub client_cache_lease_ttl_millis: Option<u64>,
@@ -105,6 +110,8 @@ pub struct MetaConfigFile {
     pub health_address: Option<String>,
     pub grpc_address: Option<String>,
     pub journal_dir: Option<String>,
+    /// Meta WAL 每累计多少条新 record 做一次 snapshot 并截断前缀。
+    pub checkpoint_every_records: Option<u64>,
     #[serde(default)]
     pub log: LoggingConfigFile,
     #[serde(default)]
@@ -178,6 +185,7 @@ pub struct NodeCliOverrides {
     pub worker_uds_path: Option<String>,
     pub meta_endpoint: Option<String>,
     pub arena_capacity_bytes: Option<u64>,
+    pub region_size_bytes: Option<u64>,
     pub staging_ttl_millis: Option<u64>,
     pub client_cache_lease_ttl_millis: Option<u64>,
     pub log: LoggingCliOverrides,
@@ -190,6 +198,7 @@ pub struct MetaCliOverrides {
     pub health_address: Option<String>,
     pub grpc_address: Option<String>,
     pub journal_dir: Option<String>,
+    pub checkpoint_every_records: Option<u64>,
     pub log: LoggingCliOverrides,
     pub tracing: TracingCliOverrides,
 }
@@ -202,6 +211,7 @@ pub struct ResolvedNodeConfig {
     pub worker_uds_path: Option<String>,
     pub meta_endpoint: String,
     pub arena_capacity_bytes: u64,
+    pub region_size_bytes: u64,
     pub staging_ttl: Duration,
     pub client_cache_lease_ttl: Duration,
     pub logging: LoggingConfig,
@@ -214,6 +224,7 @@ pub struct ResolvedMetaConfig {
     pub health_address: String,
     pub grpc_address: String,
     pub journal_dir: Option<String>,
+    pub checkpoint_every_records: u64,
     pub logging: LoggingConfig,
     pub tracing: TracingConfig,
 }
@@ -258,6 +269,14 @@ impl ResolvedNodeConfig {
         let arena_capacity_bytes = pick(cli.arena_capacity_bytes, file.arena_capacity_bytes)
             .unwrap_or(DEFAULT_ARENA_CAPACITY_BYTES);
         validate_positive_u64("arena_capacity_bytes", arena_capacity_bytes)?;
+        let region_size_bytes = pick(cli.region_size_bytes, file.region_size_bytes)
+            .unwrap_or(DEFAULT_REGION_SIZE_BYTES);
+        if region_size_bytes < 64 || region_size_bytes.checked_add(63).is_none() {
+            return Err(ConfigError::InvalidValue {
+                field: "region_size_bytes",
+                reason: "must be at least 64 bytes and allow 64-byte alignment",
+            });
+        }
         let staging_ttl_millis = pick(cli.staging_ttl_millis, file.staging_ttl_millis)
             .unwrap_or(DEFAULT_STAGING_TTL_MILLIS);
         validate_positive_u64("staging_ttl_millis", staging_ttl_millis)?;
@@ -282,6 +301,7 @@ impl ResolvedNodeConfig {
             worker_uds_path,
             meta_endpoint,
             arena_capacity_bytes,
+            region_size_bytes,
             staging_ttl: Duration::from_millis(staging_ttl_millis),
             client_cache_lease_ttl: Duration::from_millis(cache_ttl),
             logging,
@@ -298,6 +318,10 @@ impl ResolvedMetaConfig {
             pick(cli.health_address, file.health_address).unwrap_or_else(default_health_address);
         let grpc_address = pick(cli.grpc_address, file.grpc_address)
             .ok_or(ConfigError::MissingRequired("grpc_address"))?;
+        let checkpoint_every_records =
+            pick(cli.checkpoint_every_records, file.checkpoint_every_records)
+                .unwrap_or(DEFAULT_META_CHECKPOINT_EVERY_RECORDS);
+        validate_positive_u64("checkpoint_every_records", checkpoint_every_records)?;
         let logging = resolve_logging(file.log, cli.log)?;
         let tracing = resolve_tracing(file.tracing, cli.tracing)?;
         Ok(Self {
@@ -305,6 +329,7 @@ impl ResolvedMetaConfig {
             health_address,
             grpc_address,
             journal_dir: pick(cli.journal_dir, file.journal_dir),
+            checkpoint_every_records,
             logging,
             tracing,
         })
@@ -539,6 +564,7 @@ fn change_name(change: &ConfigChange) -> &'static str {
         ConfigChange::WorkerUdsPath(_) => "worker_uds_path",
         ConfigChange::MetaEndpoint(_) => "meta_endpoint",
         ConfigChange::ArenaCapacityBytes(_) => "arena_capacity_bytes",
+        ConfigChange::RegionSizeBytes(_) => "region_size_bytes",
         ConfigChange::StagingTtl(_) => "staging_ttl",
         ConfigChange::LogLevel(_) => "log.level",
     }
@@ -576,6 +602,52 @@ mod tests {
         );
         assert_eq!(resolved.arena_capacity_bytes, 4096);
         assert_eq!(resolved.staging_ttl, Duration::from_millis(7000));
+        assert_eq!(resolved.region_size_bytes, DEFAULT_REGION_SIZE_BYTES);
+    }
+
+    #[test]
+    fn region_size_configuration_is_bounded_and_cli_overrides_file() {
+        let base = NodeConfigFile {
+            node_id: Some("node".into()),
+            worker_tcp_address: Some("127.0.0.1:19200".into()),
+            meta_endpoint: Some("http://127.0.0.1:19300".into()),
+            region_size_bytes: Some(4096),
+            ..NodeConfigFile::default()
+        };
+        assert_eq!(
+            ResolvedNodeConfig::from_sources(base.clone(), NodeCliOverrides::default())
+                .unwrap()
+                .region_size_bytes,
+            4096
+        );
+        assert_eq!(
+            ResolvedNodeConfig::from_sources(
+                base.clone(),
+                NodeCliOverrides {
+                    region_size_bytes: Some(8192),
+                    ..NodeCliOverrides::default()
+                }
+            )
+            .unwrap()
+            .region_size_bytes,
+            8192
+        );
+        for size in [0, 63, u64::MAX] {
+            assert!(
+                ResolvedNodeConfig::from_sources(
+                    base.clone(),
+                    NodeCliOverrides {
+                        region_size_bytes: Some(size),
+                        ..NodeCliOverrides::default()
+                    }
+                )
+                .is_err()
+            );
+        }
+        assert_eq!(
+            ConfigChange::RegionSizeBytes(8192).capability(),
+            ConfigFieldCapability::RestartRequired
+        );
     }
 
     #[test]
@@ -632,6 +704,7 @@ mod tests {
             node_id = "meta-file"
             grpc_address = "127.0.0.1:19300"
             journal_dir = "/tmp/dms-meta"
+            checkpoint_every_records = 128
             "#,
         )
         .expect("file config");
@@ -643,6 +716,54 @@ mod tests {
         assert_eq!(resolved.health_address, DEFAULT_HEALTH_ADDRESS);
         assert_eq!(resolved.grpc_address, "127.0.0.1:19300");
         assert_eq!(resolved.journal_dir.as_deref(), Some("/tmp/dms-meta"));
+        assert_eq!(resolved.checkpoint_every_records, 128);
+    }
+
+    #[test]
+    fn meta_checkpoint_records_use_default_file_cli_and_reject_zero() {
+        let base = MetaConfigFile {
+            node_id: Some("meta".into()),
+            grpc_address: Some("127.0.0.1:19300".into()),
+            ..MetaConfigFile::default()
+        };
+        assert_eq!(
+            ResolvedMetaConfig::from_sources(base.clone(), MetaCliOverrides::default())
+                .unwrap()
+                .checkpoint_every_records,
+            DEFAULT_META_CHECKPOINT_EVERY_RECORDS
+        );
+        let file = MetaConfigFile {
+            checkpoint_every_records: Some(256),
+            ..base.clone()
+        };
+        assert_eq!(
+            ResolvedMetaConfig::from_sources(file.clone(), MetaCliOverrides::default())
+                .unwrap()
+                .checkpoint_every_records,
+            256
+        );
+        assert_eq!(
+            ResolvedMetaConfig::from_sources(
+                file,
+                MetaCliOverrides {
+                    checkpoint_every_records: Some(512),
+                    ..MetaCliOverrides::default()
+                }
+            )
+            .unwrap()
+            .checkpoint_every_records,
+            512
+        );
+        assert!(
+            ResolvedMetaConfig::from_sources(
+                base,
+                MetaCliOverrides {
+                    checkpoint_every_records: Some(0),
+                    ..MetaCliOverrides::default()
+                }
+            )
+            .is_err()
+        );
     }
 
     #[test]

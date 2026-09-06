@@ -60,6 +60,8 @@ pub struct NodeConfig {
     pub meta_endpoint: String,
     /// Host-memory payload arena capacity for this Node process.
     pub arena_capacity_bytes: u64,
+    /// 每次向 OS 扩容的目标大小；多个 value 的 Slot 复用同一 Region。
+    pub region_size_bytes: u64,
     /// How long an uncommitted staging allocation may remain idle.
     pub staging_ttl: Duration,
     /// 对 Client 授予的 Current 缓存租约上限；还会被 Meta 剩余租约裁短。
@@ -169,6 +171,7 @@ async fn serve_workers(config: NodeConfig) -> Result<(), Box<dyn std::error::Err
         metadata.clone(),
         NodeTaskConfig {
             arena_capacity_bytes: config.arena_capacity_bytes,
+            region_size_bytes: config.region_size_bytes,
             staging_ttl: config.staging_ttl,
             client_cache_lease_ttl: config.client_cache_lease_ttl,
             shared_fd_broker,

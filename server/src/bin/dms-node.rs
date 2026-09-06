@@ -38,6 +38,9 @@ struct ServeArgs {
     meta_endpoint: Option<String>,
     #[arg(long)]
     arena_capacity_bytes: Option<u64>,
+    /// Region 批量扩容目标（字节），默认 64 MiB，重启生效。
+    #[arg(long)]
+    region_size_bytes: Option<u64>,
     #[arg(long)]
     staging_ttl_millis: Option<u64>,
     /// Client Current 缓存租约上限（1..=30000 ms），重启生效。
@@ -148,6 +151,7 @@ fn serve(args: ServeArgs) -> Result<(), Box<dyn std::error::Error>> {
             worker_uds_path: args.worker_uds_path,
             meta_endpoint: args.meta_endpoint,
             arena_capacity_bytes: args.arena_capacity_bytes,
+            region_size_bytes: args.region_size_bytes,
             staging_ttl_millis: args.staging_ttl_millis,
             client_cache_lease_ttl_millis: args.client_cache_lease_ttl_millis,
             log: args.log.into(),
@@ -166,6 +170,7 @@ fn serve(args: ServeArgs) -> Result<(), Box<dyn std::error::Error>> {
         worker_uds_path: resolved.worker_uds_path.map(PathBuf::from),
         meta_endpoint: resolved.meta_endpoint,
         arena_capacity_bytes: resolved.arena_capacity_bytes,
+        region_size_bytes: resolved.region_size_bytes,
         staging_ttl: resolved.staging_ttl,
         client_cache_lease_ttl: resolved.client_cache_lease_ttl,
         log_level: logging_guard.level_controller(),

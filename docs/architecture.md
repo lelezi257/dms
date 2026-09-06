@@ -47,6 +47,12 @@ flowchart TB
 
 SHM 写同样要有提交控制消息：Client 直接修改共享页不会自动通知 Node 已写完。首次遇到新 Region，SDK 经 FD Broker 取得 FD 并 mmap；后续复用映射，只需 Allocation 的 offset/length，不是每次 SET 都重新 mmap。
 
+Region 默认按 64 MiB 批量扩容（可配置），多个 value/patch 的 Slot 共用 backing。
+例如连续写 1 KiB 的 A、B，分别占同一 Region 的 `[0,1024)` 和 `[1024,2048)`；
+只需要一个 Region 身份，不能按一次写就创建一个 memfd。超大申请或预算尾部会调整
+当次 Region 大小。安全释放的 Slot 可复用；仍导出或已发布的旧 bytes 不能仅为降低
+FD 数而回收，完整 GC 的限制不变。
+
 ## GET：先确定版本，再取 bytes
 
 ```text

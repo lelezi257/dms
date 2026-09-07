@@ -823,8 +823,7 @@ impl NodeHandle {
                 GetOutcome::Ready(ticket) => return Ok(ticket),
                 GetOutcome::NeedsRemoteBlocks(specs) => {
                     for spec in specs {
-                        let payload = self.pull_peer_block(spec).await?;
-                        self.import_and_report_peer_block(metadata, b"cache-import/", payload)
+                        self.import_and_report_peer_block(metadata, b"cache-import/", spec)
                             .await?;
                     }
                 }
@@ -865,35 +864,13 @@ impl NodeHandle {
                 MaterializeOutcome::Ready { version, bytes } => return Ok((version, bytes)),
                 MaterializeOutcome::NeedsRemoteBlocks(specs) => {
                     for spec in specs {
-                        let payload = self.pull_peer_block(spec).await?;
-                        self.import_and_report_peer_block(
-                            metadata,
-                            b"materialize-import/",
-                            payload,
-                        )
-                        .await?;
+                        self.import_and_report_peer_block(metadata, b"materialize-import/", spec)
+                            .await?;
                     }
                 }
             }
         }
         Err(WorkerError::NotFound)
-    }
-
-    /// Execute the receiving half of a peer pull and account for it on the
-    /// destination Node. The PeerService handler records the matching `send`
-    /// bytes on the source Node, so both ends remain distinguishable without
-    /// adding node IDs to metric labels.
-    async fn pull_peer_block(&self, spec: PeerPullSpec) -> Result<PeerBlockResult, WorkerError> {
-        let mut metric = self.metrics.begin_replica_operation(ReplicaOperation::Pull);
-        match pull_block_from_peer(&self.node_id, spec, &self.rpc_metrics, &self.peer_channels)
-            .await
-        {
-            Ok(payload) => {
-                metric.success_with_payload(ReplicaDirection::Receive, payload.payload.len());
-                Ok(payload)
-            }
-            Err(error) => Err(error),
-        }
     }
 
     /// Installs an immutable peer Block locally, then publishes the local
@@ -904,8 +881,15 @@ impl NodeHandle {
         &self,
         metadata: &MetadataClient,
         operation_namespace: &[u8],
-        payload: PeerBlockResult,
+        spec: PeerPullSpec,
     ) -> Result<(), WorkerError> {
+        // 接收成功以“完整数据通过owner接纳”为边界；不能在网络收到响应时
+        // 提前记成功，否则延后的完整checksum拒绝会被错误统计为成功传输。
+        let mut metric = self.metrics.begin_replica_operation(ReplicaOperation::Pull);
+        let payload =
+            pull_block_from_peer(&self.node_id, spec, &self.rpc_metrics, &self.peer_channels)
+                .await?;
+        let received_bytes = payload.payload.len();
         let report_block_id = payload.block_id.clone();
         let report_checksum = payload.checksum.clone();
         let report_length = payload.length;
@@ -919,6 +903,9 @@ impl NodeHandle {
         })
         .await?;
         receive(reply_rx).await?;
+        metric.success_with_payload(ReplicaDirection::Receive, received_bytes);
+        // 该耗时包括拉取、完整校验和本地安装，不包括下面的Meta位置登记。
+        drop(metric);
 
         let mut report_operation = operation_namespace.to_vec();
         report_operation.extend_from_slice(&report_block_id);
@@ -2848,7 +2835,10 @@ impl NodeState {
         if length != bytes.len() as u64 {
             return Err(WorkerError::Conflict);
         }
+        // 完整 Block 在唯一 owner 接纳时校验一次。接收协程只负责范围/长度/
+        // 分段摘要；不能因为传输成功就跳过这里，也不能先登记副本再检查。
         if !checksum.is_empty() && digest(&bytes) != checksum {
+            self.metrics.record_replica_checksum_failure();
             return Err(WorkerError::Conflict);
         }
         self.arena
@@ -2864,11 +2854,11 @@ impl NodeState {
         checksum: Vec<u8>,
         length: u64,
     ) -> Result<ReplicaStateView, WorkerError> {
-        if plan_id.is_empty()
-            || block_id.is_empty()
-            || length != bytes.len() as u64
-            || (!checksum.is_empty() && digest(&bytes) != checksum)
-        {
+        if plan_id.is_empty() || block_id.is_empty() || length != bytes.len() as u64 {
+            return Err(WorkerError::Conflict);
+        }
+        if !checksum.is_empty() && digest(&bytes) != checksum {
+            self.metrics.record_replica_checksum_failure();
             return Err(WorkerError::Conflict);
         }
         let incoming = PreparedReplica {
@@ -3421,34 +3411,56 @@ async fn pull_block_from_peer(
         .map_err(|_| WorkerError::ResourceExhausted)?;
     let mut serving_node_id = String::new();
     let mut offset = 0;
+    // 先建好共享连接，避免第一批并发请求各自建立一个 Channel。
+    peer_channel_for(&spec.endpoint, peer_channels).await?;
     while offset < spec.expected_length {
-        let length = (spec.expected_length - offset).min(PEER_PULL_SEGMENT_BYTES);
-        let segment = pull_peer_segment(
-            source_node_id,
-            &spec,
-            rpc_metrics,
-            peer_channels,
-            Some(offset),
-            Some(length),
-            false,
-        )
-        .await?;
-        if segment.length != spec.expected_length || segment.payload.len() as u64 != length {
-            return Err(WorkerError::Conflict);
+        // 固定两段在途：每段仍是原来的2MiB unary协议，不扩大消息上限。
+        // try_join 按输入顺序返回，即使第二段先到也不会打乱Block布局；一段失败
+        // 会取消另一Future，整块尚未提交owner，因此不能发布不完整副本。
+        // 无spawn、无额外线程池；每个拉取最多暂存两段payload（4MiB）。
+        let spec_ref = &spec;
+        let fetch = |start: u64| async move {
+            if start >= spec_ref.expected_length {
+                return Ok(None);
+            }
+            let length = (spec_ref.expected_length - start).min(PEER_PULL_SEGMENT_BYTES);
+            pull_peer_segment(
+                source_node_id,
+                spec_ref,
+                rpc_metrics,
+                peer_channels,
+                Some(start),
+                Some(length),
+                false,
+            )
+            .await
+            .map(Some)
+        };
+        let second_offset = offset + (spec.expected_length - offset).min(PEER_PULL_SEGMENT_BYTES);
+        let (first, second) = tokio::try_join!(fetch(offset), fetch(second_offset))?;
+        for segment in [first, second].into_iter().flatten() {
+            let length = (spec.expected_length - offset).min(PEER_PULL_SEGMENT_BYTES);
+            if segment.length != spec.expected_length || segment.payload.len() as u64 != length {
+                return Err(WorkerError::Conflict);
+            }
+            if serving_node_id.is_empty() {
+                serving_node_id = segment.serving_node_id;
+            } else if serving_node_id != segment.serving_node_id {
+                return Err(WorkerError::Conflict);
+            }
+            payload.extend_from_slice(&segment.payload);
+            offset += length;
         }
-        if serving_node_id.is_empty() {
-            serving_node_id = segment.serving_node_id;
-        } else if serving_node_id != segment.serving_node_id {
-            return Err(WorkerError::Conflict);
-        }
-        payload.extend_from_slice(&segment.payload);
-        offset += length;
     }
 
-    let checksum = digest(&payload);
-    if !spec.expected_checksum.is_empty() && checksum != spec.expected_checksum {
-        return Err(WorkerError::Conflict);
-    }
+    // 有权威摘要时直接带到 ImportPeerBlock/PrepareReplica：两条入口都在
+    // owner 接纳前验证完整 owned bytes。这里再扫描一遍不会增加完整性保证。
+    // 老调用者未提供摘要时仍计算摘要，保留原有返回值和后续校验行为。
+    let checksum = if spec.expected_checksum.is_empty() {
+        digest(&payload)
+    } else {
+        spec.expected_checksum
+    };
     Ok(PeerBlockResult {
         serving_node_id,
         block_id: spec.block_id,
@@ -3509,7 +3521,11 @@ async fn pull_peer_segment(
         || (validate_whole_block
             && !spec.expected_checksum.is_empty()
             && response.checksum != spec.expected_checksum)
-        || (!response.checksum.is_empty() && digest(&response.payload) != response.checksum)
+        // 整块响应的实际 bytes 留给最终 owner 校验；上面仍验证与权威摘要
+        // 一致。分段响应则必须在这里校验，最终 owner 还会检查聚合整块摘要。
+        || (!validate_whole_block
+            && !response.checksum.is_empty()
+            && digest(&response.payload) != response.checksum)
     {
         return Err(WorkerError::Conflict);
     }
@@ -3580,8 +3596,40 @@ fn transfer_unavailable(message: String) -> WorkerError {
 }
 
 #[cfg(test)]
+#[path = "peer_integrity_tests.rs"]
+mod peer_integrity_tests;
+
+#[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn peer_import_validates_owned_bytes_before_publishing() {
+        let mut state = NodeState::new("n".into(), None, 4096, Duration::from_secs(30), None);
+        let bytes = b"peer-value".to_vec();
+        let checksum = digest(&bytes);
+        let mut corrupt = bytes.clone();
+        corrupt[0] ^= 1;
+        assert!(matches!(
+            state.import_peer_block(
+                b"bad".to_vec(),
+                corrupt,
+                checksum.clone(),
+                bytes.len() as u64
+            ),
+            Err(WorkerError::Conflict)
+        ));
+        assert!(state.arena.read_bytes(b"bad").is_none());
+        assert!(matches!(
+            state.import_peer_block(b"short".to_vec(), bytes.clone(), checksum.clone(), 1),
+            Err(WorkerError::Conflict)
+        ));
+        assert!(state.arena.read_bytes(b"short").is_none());
+        state
+            .import_peer_block(b"ok".to_vec(), bytes.clone(), checksum, bytes.len() as u64)
+            .unwrap();
+        assert_eq!(state.arena.read_bytes(b"ok"), Some(bytes));
+    }
 
     fn test_extent(
         logical_offset: u64,

@@ -2126,22 +2126,33 @@ impl MetaState {
             .entry(commit.key.clone())
             .or_default()
             .insert(commit.layout.version, commit.layout.clone());
+        // cursor 是 Meta watch/ACK 的全局时序号。即使首次发布不需要失效事件，
+        // 也保留一个 cursor gap，避免旧 Journal 回放时历史 ACK 误确认后续事件。
         let cursor = self.event_high_watermark + 1;
         self.event_high_watermark = cursor;
-        self.events.push(pb::NodeEvent {
-            event_id: cursor.to_be_bytes().to_vec(),
-            cursor,
-            event: Some(pb::node_event::Event::InvalidateCurrent(
-                pb::InvalidateCurrentEvent {
-                    key: Some(pb::Key { value: commit.key }),
-                    old_version,
-                    transition_id: sequence.to_be_bytes().to_vec(),
-                    lease_epoch: 0,
-                    revision: sequence,
-                    minimum_version: commit.layout.version,
-                },
-            )),
-        });
+        let visibility_cursor = if old_version == 0 {
+            // 从未存在过的 key 没有旧 Current 可撤销。当前系统也没有负缓存；
+            // 读 miss 不会被缓存成“未来仍不存在”。因此首次发布可以直接完成，
+            // 不需要把未读过该 key 的 Node 拉进前台 ACK 屏障。上面的 cursor gap
+            // 只用于兼容恢复，不会投递给 watcher。
+            None
+        } else {
+            self.events.push(pb::NodeEvent {
+                event_id: cursor.to_be_bytes().to_vec(),
+                cursor,
+                event: Some(pb::node_event::Event::InvalidateCurrent(
+                    pb::InvalidateCurrentEvent {
+                        key: Some(pb::Key { value: commit.key }),
+                        old_version,
+                        transition_id: sequence.to_be_bytes().to_vec(),
+                        lease_epoch: 0,
+                        revision: sequence,
+                        minimum_version: commit.layout.version,
+                    },
+                )),
+            });
+            Some(cursor)
+        };
         self.operations.insert(
             commit.operation_id,
             StoredOperation {
@@ -2152,10 +2163,12 @@ impl MetaState {
                     commit_index: sequence,
                     changed: true,
                 },
-                visibility_cursor: Some(cursor),
+                visibility_cursor,
             },
         );
-        self.pump_watchers();
+        if visibility_cursor.is_some() {
+            self.pump_watchers();
+        }
     }
 
     fn maybe_checkpoint(&mut self, sequence: u64) -> Result<(), MetaRuntimeError> {
@@ -2235,14 +2248,23 @@ impl MetaState {
             .values()
             .map(|repair| repair.issued_at.elapsed().as_secs_f64())
             .fold(0.0, f64::max);
+        // event_high_watermark 允许存在 cursor 空洞：例如首次发布新 key
+        // 会消耗 cursor 保持旧 Journal ACK 兼容，但不会生成 NodeEvent。
+        // lag 只统计真实保留的事件，否则新 key 热写会被误报为 watch 积压。
+        //
+        // events 按 cursor 单调追加。最大 lag 一定来自 ACK 最落后的会话，
+        // 因此只需 O(sessions) 找最小 ACK，再 O(log events) 二分事件起点。
         let max_lag = self
             .sessions
             .values()
-            .map(|session| {
-                self.event_high_watermark
-                    .saturating_sub(session.last_acked_cursor)
+            .map(|session| session.last_acked_cursor)
+            .min()
+            .map(|min_acked_cursor| {
+                let first_pending = self
+                    .events
+                    .partition_point(|event| event.cursor <= min_acked_cursor);
+                (self.events.len() - first_pending) as u64
             })
-            .max()
             .unwrap_or(0);
         self.metrics.set_state(MetaStateMetricsSnapshot {
             keys: self.versions.len(),
@@ -2923,6 +2945,7 @@ mod tests {
         let mut original = MetaState::new(Box::<InMemoryJournal>::default());
         test_session(&mut original, 7);
         let source = test_session(&mut original, 7);
+        seed_existing_key(&mut original, source.clone(), b"checkpoint/latest");
         assert!(original.prior_lease_deadlines.contains_key(&7));
         let mut journal = InMemoryJournal::default();
         journal.save_snapshot(original.snapshot()).unwrap();
@@ -2953,6 +2976,7 @@ mod tests {
         let mut state = MetaState::new(Box::<InMemoryJournal>::default());
         let writer = test_session(&mut state, 7);
         let reader = test_session(&mut state, 8);
+        seed_existing_key(&mut state, writer.clone(), b"checkpoint/latest");
         let (sender, receiver) = mpsc::channel(1);
         state
             .watch_node_events(
@@ -2980,7 +3004,7 @@ mod tests {
                 Some(Instant::now() - DEFAULT_NODE_LEASE_TTL - Duration::from_secs(1));
         }
         state.retire_expired_sessions().unwrap();
-        assert_eq!(response.await.unwrap().unwrap().version, 1);
+        assert_eq!(response.await.unwrap().unwrap().version, 2);
         assert!(state.events.is_empty());
         assert!(state.watchers.is_empty());
     }
@@ -2991,6 +3015,7 @@ mod tests {
         let writer = test_session(&mut state, 7);
         test_session(&mut state, 8);
         let reader = test_session(&mut state, 8);
+        seed_existing_key(&mut state, writer.clone(), b"checkpoint/latest");
         let dispatch = state
             .dispatch_commit_version(value_commit_request(writer, b"incarnation-lease".to_vec()))
             .unwrap();
@@ -3000,7 +3025,7 @@ mod tests {
         state
             .acknowledge_node_event(pb::AcknowledgeNodeEventRequest {
                 context: None,
-                session: Some(reader),
+                session: Some(reader.clone()),
                 event_id: event.event_id,
                 cursor: event.cursor,
                 result: "applied".into(),
@@ -3043,11 +3068,401 @@ mod tests {
     }
 
     #[test]
+    fn first_publish_new_key_skips_invalidation_and_ack_barrier() {
+        let mut state = MetaState::new(Box::<InMemoryJournal>::default());
+        let writer = test_session(&mut state, 7);
+        let reader = test_session(&mut state, 8);
+        let (sender, mut receiver) = mpsc::channel(1);
+        state
+            .watch_node_events(
+                pb::WatchNodeEventsRequest {
+                    context: None,
+                    session: Some(reader),
+                    last_acked_cursor: 0,
+                },
+                sender,
+            )
+            .expect("reader watch");
+
+        let dispatch = state
+            .dispatch_commit_version(value_commit_request_for(
+                writer,
+                b"new/key".to_vec(),
+                b"new-key-block".to_vec(),
+                b"new-key-op".to_vec(),
+                b"new-key-digest".to_vec(),
+            ))
+            .expect("new key commit");
+
+        assert_eq!(
+            dispatch.event_cursor, None,
+            "从未存在的 key 没有旧 Current cache，不需要发布失效事件"
+        );
+        assert!(
+            dispatch.waiting_nodes.is_empty(),
+            "首次发布不能把没有旧缓存的 Node 拉进前台 ACK 屏障"
+        );
+        assert!(state.events.is_empty());
+        assert_eq!(
+            state.event_high_watermark, 1,
+            "首次发布保留 cursor gap，避免旧 ACK 与后续事件 cursor 碰撞"
+        );
+        assert!(
+            receiver.try_recv().is_err(),
+            "watcher 不应收到新 key 失效事件"
+        );
+
+        let (reply, mut completion) = oneshot::channel();
+        state.register_pending_commit(dispatch, reply);
+        assert_eq!(
+            completion
+                .try_recv()
+                .expect("new key reply should complete immediately")
+                .expect("new key commit result")
+                .version,
+            1
+        );
+    }
+
+    #[test]
+    fn missing_resolve_does_not_create_negative_cache_obligation() {
+        let mut state = MetaState::new(Box::<InMemoryJournal>::default());
+        let writer = test_session(&mut state, 7);
+        let reader = test_session(&mut state, 8);
+
+        assert!(matches!(
+            state.resolve_object(resolve_current_request(
+                reader,
+                b"miss-then-create".to_vec(),
+                true,
+            )),
+            Err(MetaRuntimeError::NotFound)
+        ));
+
+        let dispatch = state
+            .dispatch_commit_version(value_commit_request_for(
+                writer,
+                b"miss-then-create".to_vec(),
+                b"miss-then-create-block".to_vec(),
+                b"miss-then-create-op".to_vec(),
+                b"miss-then-create-digest".to_vec(),
+            ))
+            .expect("first publish after miss");
+        assert_eq!(
+            dispatch.event_cursor, None,
+            "Resolve miss 当前不落负缓存，因此首次发布不需要撤销 reader 的旧视图"
+        );
+        assert!(dispatch.waiting_nodes.is_empty());
+        assert!(state.events.is_empty());
+        assert_eq!(state.event_high_watermark, 1);
+    }
+
+    #[test]
+    fn watch_lag_metrics_ignore_cursor_gaps_without_events() {
+        let registry = dms_metrics::registry();
+        let mut state = MetaState::try_new(
+            Box::<InMemoryJournal>::default(),
+            MetaCheckpointPolicy { every_records: 0 },
+            MetaRetentionPolicy::default(),
+            MetaMetrics::register(&registry).expect("metrics"),
+        )
+        .expect("meta state");
+        let writer = test_session(&mut state, 7);
+        let reader = test_session(&mut state, 8);
+
+        state
+            .dispatch_commit_version(value_commit_request_for(
+                writer,
+                b"new-key-only".to_vec(),
+                b"new-key-only-block".to_vec(),
+                b"new-key-only-op".to_vec(),
+                b"new-key-only-digest".to_vec(),
+            ))
+            .expect("first publish");
+        assert_eq!(state.event_high_watermark, 1);
+        assert!(state.events.is_empty());
+
+        state.refresh_metrics();
+        let text = dms_metrics::encode_text(&registry).expect("metrics text");
+        assert!(
+            text.contains("dms_meta_watch_lag_events 0\n"),
+            "reader {:?} has not ACKed cursor gap, but no real event is pending: {text}",
+            reader.session_id,
+        );
+    }
+
+    #[test]
+    fn mixed_batch_waits_for_existing_key_but_not_new_key_in_any_order() {
+        run_mixed_batch_waits_for_existing_key_but_not_new_key(false);
+        run_mixed_batch_waits_for_existing_key_but_not_new_key(true);
+    }
+
+    fn run_mixed_batch_waits_for_existing_key_but_not_new_key(new_key_first: bool) {
+        let mut state = MetaState::new(Box::<InMemoryJournal>::default());
+        let writer = test_session(&mut state, 7);
+        let reader = test_session(&mut state, 8);
+        seed_existing_key(&mut state, writer.clone(), b"old/key");
+        let (sender, mut receiver) = mpsc::channel(4);
+        state
+            .watch_node_events(
+                pb::WatchNodeEventsRequest {
+                    context: None,
+                    session: Some(reader.clone()),
+                    last_acked_cursor: 0,
+                },
+                sender,
+            )
+            .expect("reader watch");
+
+        let old_entry = batch_entry(b"old/key", b"old-key-block-v2", b"mixed-op-old", "any");
+        let new_entry = batch_entry(b"new/key", b"new-key-block-v1", b"mixed-op-new", "any");
+        let request = batch_request(
+            writer.clone(),
+            if new_key_first {
+                b"mixed-batch-op-new-first".to_vec()
+            } else {
+                b"mixed-batch-op-old-first".to_vec()
+            },
+            if new_key_first {
+                vec![new_entry, old_entry]
+            } else {
+                vec![old_entry, new_entry]
+            },
+        );
+        let operation_ids = request
+            .entries
+            .iter()
+            .map(|entry| entry.operation_id.clone())
+            .collect::<Vec<_>>();
+        let response = state.commit_batch(request).expect("mixed batch");
+        let response_commit_index = response.commit_index;
+
+        assert_eq!(state.events.len(), 1, "只有旧 key 覆盖写需要失效事件");
+        let old_visibility = state.operations[b"mixed-op-old".as_slice()].visibility_cursor;
+        assert_eq!(
+            old_visibility,
+            Some(if new_key_first { 3 } else { 2 }),
+            "batch 内首次发布新 key 只留下 cursor gap；旧 key 的真实事件位置随顺序变化"
+        );
+        assert_eq!(
+            state.operations[b"mixed-op-new".as_slice()].visibility_cursor,
+            None
+        );
+
+        let (reply, mut completion) = oneshot::channel();
+        state.register_pending_batch(writer.node_id, operation_ids, response, reply);
+        assert!(matches!(
+            completion.try_recv(),
+            Err(oneshot::error::TryRecvError::Empty)
+        ));
+
+        let event = receiver.try_recv().expect("old key invalidation");
+        state
+            .acknowledge_node_event(pb::AcknowledgeNodeEventRequest {
+                context: None,
+                session: Some(reader.clone()),
+                event_id: event.event_id,
+                cursor: event.cursor,
+                result: "applied".to_string(),
+                detail: None,
+            })
+            .expect("reader acknowledgement");
+        assert_eq!(
+            completion
+                .try_recv()
+                .expect("mixed batch should complete after old key ACK")
+                .expect("mixed batch result")
+                .commit_index,
+            response_commit_index
+        );
+    }
+
+    #[test]
+    fn recreate_after_delete_still_invalidates_previous_current() {
+        let mut state = MetaState::new(Box::<InMemoryJournal>::default());
+        let writer = test_session(&mut state, 7);
+        let reader = test_session(&mut state, 8);
+        let (sender, mut receiver) = mpsc::channel(4);
+        state
+            .watch_node_events(
+                pb::WatchNodeEventsRequest {
+                    context: None,
+                    session: Some(reader.clone()),
+                    last_acked_cursor: 0,
+                },
+                sender,
+            )
+            .expect("reader watch");
+        seed_existing_key(&mut state, writer.clone(), b"delete/recreate");
+
+        state
+            .commit_version(tombstone_request_for(
+                writer.clone(),
+                b"delete/recreate".to_vec(),
+                b"delete-recreate-del-op".to_vec(),
+                b"delete-recreate-del-digest".to_vec(),
+            ))
+            .expect("delete existing key");
+        assert_eq!(state.event_high_watermark, 2);
+        assert_eq!(receiver.try_recv().expect("delete invalidation").cursor, 2);
+
+        let dispatch = state
+            .dispatch_commit_version(value_commit_request_for(
+                writer,
+                b"delete/recreate".to_vec(),
+                b"delete-recreate-block".to_vec(),
+                b"delete-recreate-put-op".to_vec(),
+                b"delete-recreate-put-digest".to_vec(),
+            ))
+            .expect("recreate deleted key");
+        assert_eq!(dispatch.event_cursor, Some(3));
+        assert_eq!(dispatch.waiting_nodes, HashSet::from([reader.node_id]));
+        assert_eq!(
+            state.event_high_watermark, 3,
+            "删除墓碑之后重建仍有旧版本历史，不能按首次发布跳过失效"
+        );
+        let event = receiver.try_recv().expect("recreate invalidation");
+        assert_eq!(event.cursor, 3);
+        let invalidate = invalidate_event(&event);
+        assert_eq!(invalidate.old_version, 2);
+        assert_eq!(invalidate.minimum_version, 3);
+    }
+
+    #[test]
+    fn journal_replay_preserves_cursor_gap_event_and_ack() {
+        let mut before_restart = MetaState::new(Box::<InMemoryJournal>::default());
+        let writer = test_session(&mut before_restart, 7);
+        let reader = test_session(&mut before_restart, 8);
+        before_restart
+            .commit_version(value_commit_request_for(
+                writer.clone(),
+                b"journal/gap".to_vec(),
+                b"journal-gap-block-v1".to_vec(),
+                b"journal-gap-op-v1".to_vec(),
+                b"journal-gap-digest-v1".to_vec(),
+            ))
+            .expect("first publish");
+        assert_eq!(before_restart.event_high_watermark, 1);
+        assert!(before_restart.events.is_empty());
+
+        let dispatch = before_restart
+            .dispatch_commit_version(value_commit_request_for(
+                writer,
+                b"journal/gap".to_vec(),
+                b"journal-gap-block-v2".to_vec(),
+                b"journal-gap-op-v2".to_vec(),
+                b"journal-gap-digest-v2".to_vec(),
+            ))
+            .expect("overwrite");
+        assert_eq!(dispatch.event_cursor, Some(2));
+        assert_eq!(dispatch.waiting_nodes, HashSet::from([reader.node_id]));
+        let event = before_restart
+            .events
+            .last()
+            .expect("overwrite event")
+            .clone();
+        before_restart
+            .acknowledge_node_event(pb::AcknowledgeNodeEventRequest {
+                context: None,
+                session: Some(reader.clone()),
+                event_id: event.event_id,
+                cursor: event.cursor,
+                result: "applied".to_string(),
+                detail: None,
+            })
+            .expect("ack overwrite event");
+
+        let mut restored = MetaState::new(before_restart.journal);
+        assert_eq!(restored.event_high_watermark, 2);
+        assert_eq!(
+            restored
+                .sessions
+                .get(&8)
+                .expect("reader session")
+                .last_acked_cursor,
+            2,
+            "旧 Journal 没有事件决策字段；cursor gap 必须让历史 ACK 仍指向同一个真实事件"
+        );
+        let (sender, mut receiver) = mpsc::channel(1);
+        restored
+            .watch_node_events(
+                pb::WatchNodeEventsRequest {
+                    context: None,
+                    session: Some(reader),
+                    last_acked_cursor: 2,
+                },
+                sender,
+            )
+            .expect("reader watch after restore");
+        assert!(
+            receiver.try_recv().is_err(),
+            "已 ACK cursor 2 的 reader 重连时不应重放覆盖事件；事件物理保留只服务其它未 ACK 会话"
+        );
+        assert_eq!(
+            restored
+                .versions
+                .get(b"journal/gap".as_slice())
+                .and_then(|versions| versions.last_key_value())
+                .map(|(_, layout)| layout.version),
+            Some(2)
+        );
+    }
+
+    #[test]
+    fn snapshot_gap_and_tail_overwrite_replay_real_event() {
+        let mut before_restart = MetaState::new(Box::<InMemoryJournal>::default());
+        let writer = test_session(&mut before_restart, 7);
+        let reader = test_session(&mut before_restart, 8);
+        before_restart
+            .commit_version(value_commit_request_for(
+                writer.clone(),
+                b"snapshot/gap".to_vec(),
+                b"snapshot-gap-block-v1".to_vec(),
+                b"snapshot-gap-op-v1".to_vec(),
+                b"snapshot-gap-digest-v1".to_vec(),
+            ))
+            .expect("first publish");
+        assert_eq!(before_restart.event_high_watermark, 1);
+        let snapshot = before_restart.snapshot();
+        before_restart
+            .journal
+            .save_snapshot(snapshot)
+            .expect("save gap snapshot");
+
+        let writer_node_id = writer.node_id;
+        before_restart
+            .dispatch_commit_version(value_commit_request_for(
+                writer,
+                b"snapshot/gap".to_vec(),
+                b"snapshot-gap-block-v2".to_vec(),
+                b"snapshot-gap-op-v2".to_vec(),
+                b"snapshot-gap-digest-v2".to_vec(),
+            ))
+            .expect("tail overwrite");
+
+        let mut restored = MetaState::new(before_restart.journal);
+        assert_eq!(restored.event_high_watermark, 2);
+        assert_eq!(restored.events.len(), 1);
+        let event = restored.events.pop().expect("tail event");
+        assert_eq!(event.cursor, 2);
+        let invalidate = invalidate_event(&event);
+        assert_eq!(invalidate.key.as_ref().expect("key").value, b"snapshot/gap");
+        assert_eq!(invalidate.old_version, 1);
+        assert_eq!(invalidate.minimum_version, 2);
+        assert_eq!(
+            restored.waiting_visibility_nodes(writer_node_id, event.cursor),
+            HashSet::from([writer_node_id, reader.node_id]),
+            "恢复后真实事件仍可作为前台可见性屏障使用；重启恢复的 source incarnation 也需等待 lease fence"
+        );
+    }
+
+    #[test]
     fn watch_full_or_disconnected_keeps_visibility_obligation() {
         for disconnected in [false, true] {
             let mut state = MetaState::new(Box::<InMemoryJournal>::default());
             let writer = test_session(&mut state, 7);
             let reader = test_session(&mut state, 8);
+            seed_existing_key(&mut state, writer.clone(), b"checkpoint/latest");
             let (sender, receiver) = mpsc::channel(1);
             state
                 .watch_node_events(
@@ -3066,10 +3481,10 @@ mod tests {
                 let dispatch = state
                     .dispatch_commit_version(value_commit_request_for(
                         writer.clone(),
-                        vec![index],
-                        vec![index],
-                        vec![index],
-                        vec![index],
+                        b"checkpoint/latest".to_vec(),
+                        vec![index, b'v'],
+                        vec![index, b'o'],
+                        vec![index, b'd'],
                     ))
                     .unwrap();
                 assert!(
@@ -3092,11 +3507,21 @@ mod tests {
             node_id: 7,
             node_epoch: grant.node_epoch,
         };
-        for index in 0..5 {
+        handle
+            .commit_version(value_commit_request_for(
+                writer.clone(),
+                b"watch/replay".to_vec(),
+                b"watch/replay-seed-block".to_vec(),
+                b"watch/replay-seed-op".to_vec(),
+                b"watch/replay-seed-digest".to_vec(),
+            ))
+            .await
+            .unwrap();
+        for index in 1..=5 {
             handle
                 .commit_version(value_commit_request_for(
                     writer.clone(),
-                    vec![index],
+                    b"watch/replay".to_vec(),
                     vec![index],
                     vec![index],
                     vec![index],
@@ -3116,7 +3541,7 @@ mod tests {
             )
             .await
             .expect("replay registration must not synchronously fill entire channel");
-        for cursor in 1..=5 {
+        for cursor in 2..=6 {
             let event = tokio::time::timeout(Duration::from_secs(2), receiver.recv())
                 .await
                 .unwrap()
@@ -3366,6 +3791,7 @@ mod tests {
         );
         let writer = test_session(&mut state, 7);
         let reader = test_session(&mut state, 8);
+        seed_existing_key(&mut state, writer.clone(), b"checkpoint/latest");
 
         state
             .commit_version(value_commit_request_for(
@@ -3405,13 +3831,14 @@ mod tests {
             state.events.is_empty(),
             "event can be removed after all sessions ACK it"
         );
-        assert_eq!(state.event_high_watermark, 1);
+        assert_eq!(state.event_high_watermark, 2);
     }
 
     #[test]
     fn retry_result_does_not_advance_event_cursor_or_drop_replay() {
         let mut state = MetaState::new(Box::<InMemoryJournal>::default());
         let session = test_session(&mut state, 7);
+        seed_existing_key(&mut state, session.clone(), b"checkpoint/latest");
         state
             .commit_version(value_commit_request_for(
                 session.clone(),
@@ -3529,7 +3956,10 @@ mod tests {
         assert_eq!(stats.operation_count, 1);
         assert_eq!(stats.replica_block_count, 1);
         assert_eq!(stats.replica_location_count, 1);
-        assert_eq!(stats.event_high_watermark, 1);
+        assert_eq!(
+            stats.event_high_watermark, 1,
+            "首次发布新 key 不产生失效事件，但仍消耗 cursor 以兼容旧 Journal ACK"
+        );
     }
 
     #[test]
@@ -3543,6 +3973,7 @@ mod tests {
             node_id: grant.node_id,
             node_epoch: grant.node_epoch,
         };
+        seed_existing_key(&mut state, session.clone(), b"checkpoint/latest");
         let (first_sender, mut first_receiver) = mpsc::channel(4);
         state
             .watch_node_events(
@@ -3592,7 +4023,7 @@ mod tests {
             })
             .expect("commit value");
         let first = first_receiver.try_recv().expect("live watch event");
-        assert_eq!(first.cursor, 1);
+        assert_eq!(first.cursor, 2);
         drop(first_receiver);
 
         let (reconnect_sender, mut reconnect_receiver) = mpsc::channel(4);
@@ -3625,6 +4056,12 @@ mod tests {
             node_id: reader.node_id,
             node_epoch: reader.node_epoch,
         };
+        let writer_session = pb::NodeSessionIdentity {
+            session_id: writer.session_id,
+            node_id: writer.node_id,
+            node_epoch: writer.node_epoch,
+        };
+        seed_existing_key(&mut state, writer_session.clone(), b"checkpoint/latest");
         let (event_sender, mut event_receiver) = mpsc::channel(4);
         state
             .watch_node_events(
@@ -3639,11 +4076,7 @@ mod tests {
 
         let dispatch = state
             .dispatch_commit_version(value_commit_request(
-                pb::NodeSessionIdentity {
-                    session_id: writer.session_id,
-                    node_id: writer.node_id,
-                    node_epoch: writer.node_epoch,
-                },
+                writer_session,
                 b"client/op-remote-barrier".to_vec(),
             ))
             .expect("dispatch commit");
@@ -3670,7 +4103,7 @@ mod tests {
             .await
             .expect("commit reply sender")
             .expect("commit response");
-        assert_eq!(response.version, 1);
+        assert_eq!(response.version, 2);
     }
 
     #[tokio::test]
@@ -3678,6 +4111,7 @@ mod tests {
         let mut state = MetaState::new(Box::<InMemoryJournal>::default());
         let writer = test_session(&mut state, 7);
         let reader = test_session(&mut state, 8);
+        seed_existing_key(&mut state, writer.clone(), b"checkpoint/latest");
         let (event_sender, mut event_receiver) = mpsc::channel(4);
         state
             .watch_node_events(
@@ -3700,7 +4134,7 @@ mod tests {
         let retry = state
             .dispatch_commit_version(request)
             .expect("idempotent retry dispatch");
-        assert_eq!(retry.event_cursor, Some(1));
+        assert_eq!(retry.event_cursor, Some(2));
         assert_eq!(retry.waiting_nodes, HashSet::from([reader.node_id]));
         let (retry_reply, mut retry_completion) = oneshot::channel();
         state.register_pending_commit(retry, retry_reply);
@@ -3729,7 +4163,7 @@ mod tests {
                 .expect("first reply")
                 .expect("first result")
                 .version,
-            1
+            2
         );
         assert_eq!(
             retry_completion
@@ -3737,7 +4171,7 @@ mod tests {
                 .expect("retry reply")
                 .expect("retry result")
                 .version,
-            1
+            2
         );
     }
 
@@ -3746,6 +4180,7 @@ mod tests {
         let mut before_restart = MetaState::new(Box::<InMemoryJournal>::default());
         let writer = test_session(&mut before_restart, 7);
         let reader = test_session(&mut before_restart, 8);
+        seed_existing_key(&mut before_restart, writer.clone(), b"checkpoint/latest");
         let (original_sender, mut original_receiver) = mpsc::channel(4);
         before_restart
             .watch_node_events(
@@ -3763,7 +4198,7 @@ mod tests {
         let first = before_restart
             .dispatch_commit_version(request.clone())
             .expect("commit before restart");
-        assert_eq!(first.event_cursor, Some(1));
+        assert_eq!(first.event_cursor, Some(2));
         assert!(original_receiver.try_recv().is_ok());
 
         // A process restart drops pending oneshot replies and active Watch
@@ -3803,7 +4238,7 @@ mod tests {
         let retry = restored
             .dispatch_commit_version(request)
             .expect("idempotent retry after restore");
-        assert_eq!(retry.event_cursor, Some(1));
+        assert_eq!(retry.event_cursor, Some(2));
         assert_eq!(
             retry.waiting_nodes,
             HashSet::from([writer.node_id, reader.node_id])
@@ -3845,7 +4280,7 @@ mod tests {
                 .expect("retry reply")
                 .expect("retry result")
                 .version,
-            1
+            2
         );
     }
 
@@ -4661,6 +5096,60 @@ mod tests {
         }
     }
 
+    fn tombstone_request_for(
+        session: pb::NodeSessionIdentity,
+        key: Vec<u8>,
+        operation_id: Vec<u8>,
+        operation_digest: Vec<u8>,
+    ) -> pb::CommitVersionRequest {
+        pb::CommitVersionRequest {
+            context: None,
+            session: Some(session),
+            key: Some(pb::Key { value: key }),
+            candidate: Some(pb::VersionCandidate {
+                kind: pb::VersionKind::Tombstone as i32,
+                logical_length: 0,
+                extents: Vec::new(),
+                digest: Vec::new(),
+            }),
+            condition: "any".to_string(),
+            expected_version: None,
+            operation_id,
+            operation_digest,
+            durability: pb::DurabilityPolicy::LocalMemory as i32,
+            required_memory_copies: 0,
+            replica_proofs: Vec::new(),
+            new_replicas: Vec::new(),
+        }
+    }
+
+    fn seed_existing_key(state: &mut MetaState, session: pb::NodeSessionIdentity, key: &[u8]) {
+        let before_cursor = state.event_high_watermark;
+        let before_events = state.events.len();
+        let sequence = state.journal.last_index() + 1;
+        let mut unique = key.to_vec();
+        unique.extend_from_slice(&sequence.to_be_bytes());
+        state
+            .commit_version(value_commit_request_for(
+                session,
+                key.to_vec(),
+                [b"seed-block/".as_slice(), unique.as_slice()].concat(),
+                [b"seed-op/".as_slice(), unique.as_slice()].concat(),
+                [b"seed-digest/".as_slice(), unique.as_slice()].concat(),
+            ))
+            .expect("seed existing key");
+        assert_eq!(
+            state.event_high_watermark,
+            before_cursor + 1,
+            "测试种子是首次发布：不产生事件，但需要保留 cursor gap 兼容旧 Journal"
+        );
+        assert_eq!(
+            state.events.len(),
+            before_events,
+            "测试种子只建立旧版本，不应该污染待 ACK 事件队列"
+        );
+    }
+
     fn test_session(state: &mut MetaState, node_id: u64) -> pb::NodeSessionIdentity {
         let grant = state
             .open_node_session(node_id, format!("http://127.0.0.1:{}", 19000 + node_id))
@@ -4694,5 +5183,12 @@ mod tests {
             .expect("test session")
             .last_heartbeat =
             Some(Instant::now() - DEFAULT_NODE_LEASE_TTL - Duration::from_secs(1));
+    }
+
+    fn invalidate_event(event: &pb::NodeEvent) -> &pb::InvalidateCurrentEvent {
+        match event.event.as_ref().expect("node event payload") {
+            pb::node_event::Event::InvalidateCurrent(invalidation) => invalidation,
+            other => panic!("expected invalidation event, got {other:?}"),
+        }
     }
 }

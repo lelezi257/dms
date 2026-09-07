@@ -185,6 +185,16 @@ mod linux {
         pub fn read_at(&self, offset: usize, len: usize) -> Result<Vec<u8>, ShmError> {
             self.mapped.read_at(offset, len)
         }
+
+        /// 借用 Region 中的连续范围，不创建 payload 副本。
+        ///
+        /// # Safety
+        /// 与 MappedRegion::as_slice 相同：借用存活期间，此范围不得被任何
+        /// fd 副本、映射或其它进程写入/复用。尺寸封印不能代替读写互斥证明。
+        pub unsafe fn as_slice(&self, offset: usize, len: usize) -> Result<&[u8], ShmError> {
+            // SAFETY: 调用者承担与底层映射相同的只读生命周期合同。
+            unsafe { self.mapped.as_slice(offset, len) }
+        }
     }
 
     pub struct MappedRegion {

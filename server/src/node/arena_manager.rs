@@ -184,6 +184,22 @@ impl Region {
         }
     }
 
+    fn borrow_at(&self, offset: usize, len: usize) -> Result<&[u8], ArenaError> {
+        match &self.backing {
+            RegionBacking::Private(storage) => {
+                let end = offset.checked_add(len).ok_or(ArenaError::RegionOverflow)?;
+                storage.get(offset..end).ok_or(ArenaError::RangeOutOfBounds)
+            }
+            RegionBacking::Shared(region) => {
+                // SAFETY: Arena 是状态唯一 owner，借用只用于同步读取/校验。
+                // 可信 SDK 完成写入后才发 receipt（SHM 不依赖 staging 的 Sealed 状态）；
+                // 已发布 Block 不变，导出后退休的 allocation 不复用。
+                // 局部 &self 借用阻止本 owner 同时写入，调用处不让借用跨 await 或逃出 Arena。
+                unsafe { region.as_slice(offset, len) }.map_err(|_| ArenaError::RangeOutOfBounds)
+            }
+        }
+    }
+
     fn duplicate_fd(&self) -> Option<OwnedFd> {
         match &self.backing {
             RegionBacking::Private(_) => None,
@@ -483,12 +499,12 @@ impl ArenaManager {
         let current = self
             .slot_bytes_checked(staging.handle)
             .ok_or(ArenaError::StaleHandle)?;
-        if current.len() as u64 != receipt.length || digest(&current) != receipt.digest {
+        if current.len() as u64 != receipt.length || digest(current) != receipt.digest {
             return Err(ArenaError::ReceiptConflict);
         }
-        if self.blocks.contains_key(&block_id) {
-            let existing_matches = self.read_bytes(&block_id).is_some_and(|bytes| {
-                bytes.len() as u64 == receipt.length && digest(&bytes) == receipt.digest
+        if let Some(block) = self.blocks.get(&block_id) {
+            let existing_matches = self.slot_bytes_checked(block.handle).is_some_and(|bytes| {
+                bytes.len() as u64 == receipt.length && digest(bytes) == receipt.digest
             });
             let staging = self.staging.remove(&staging_id).expect("checked staging");
             self.transfer_index.remove(&staging.transfer_id);
@@ -535,9 +551,11 @@ impl ArenaManager {
         let bytes = self
             .slot_bytes_checked(staging.handle)
             .ok_or(ArenaError::StaleHandle)?;
-        if bytes.len() as u64 != receipt.length || digest(&bytes) != receipt.digest {
+        if bytes.len() as u64 != receipt.length || digest(bytes) != receipt.digest {
             return Err(ArenaError::ReceiptConflict);
         }
+        // 这个接口把 bytes 交出 Arena，必须在释放 staging 前创建必要的 owned 副本。
+        let bytes = bytes.to_vec();
         let staging = self.staging.remove(&staging_id).expect("checked staging");
         self.transfer_index.remove(&staging.transfer_id);
         self.release_handle(staging.handle);
@@ -554,9 +572,9 @@ impl ArenaManager {
         if length == 0 {
             return Err(ArenaError::EmptyPayload);
         }
-        if self.blocks.contains_key(&block_id) {
+        if let Some(block) = self.blocks.get(&block_id) {
             return self
-                .read_bytes(&block_id)
+                .slot_bytes_checked(block.handle)
                 .is_some_and(|existing| {
                     existing.len() as u64 == length && existing == bytes.as_slice()
                 })
@@ -589,6 +607,7 @@ impl ArenaManager {
         self.blocks
             .get(block_id)
             .and_then(|block| self.slot_bytes_checked(block.handle))
+            .map(<[u8]>::to_vec)
     }
 
     pub(crate) fn open_read(
@@ -952,20 +971,25 @@ impl ArenaManager {
         Ok(())
     }
 
-    fn slot_bytes_checked(&self, handle: AllocationHandle) -> Option<Vec<u8>> {
+    // 先验证 Allocation identity 和物理边界，再局部借用；不跨 await、不向 Arena 外暴露。
+    // 提交校验与幂等匹配只需读取，不为 digest 创建整块临时 Vec。
+    fn slot_bytes_checked(&self, handle: AllocationHandle) -> Option<&[u8]> {
         if self.live_allocations.get(&handle.allocation_id) != Some(&handle) {
             return None;
         }
         let region = self
             .regions
             .get(usize::try_from(handle.region_id.checked_sub(1)?).ok()?)?;
+        if region.id != handle.region_id {
+            return None;
+        }
         let start = usize::try_from(handle.offset).ok()?;
         let end = start.checked_add(usize::try_from(handle.length).ok()?)?;
         if end > region.len() {
             return None;
         }
         region
-            .read_at(start, usize::try_from(handle.length).ok()?)
+            .borrow_at(start, usize::try_from(handle.length).ok()?)
             .ok()
     }
 
@@ -1140,6 +1164,248 @@ fn digest(bytes: &[u8]) -> Vec<u8> {
 #[cfg(test)]
 mod runtime_tests {
     use super::*;
+
+    fn stage54_arena(shared: bool, label: &str) -> (ArenaManager, Option<PathBuf>) {
+        let mut arena = ArenaManager::new(4096, Duration::from_secs(30));
+        let path = shared.then(|| {
+            std::env::temp_dir().join(format!("dms-stage54-{label}-{}.sock", std::process::id()))
+        });
+        if let Some(path) = &path {
+            arena.enable_shared_region(SharedFdBroker::bind(path.clone()).unwrap());
+        }
+        (arena, path)
+    }
+
+    fn stage54_assert_slot_borrows_backing(shared: bool) {
+        let (mut arena, path) = stage54_arena(shared, "borrow");
+        arena
+            .commit_inline(b"padding".to_vec(), vec![9; 64])
+            .unwrap();
+        let allocation = arena.allocate(7, 129).unwrap();
+        let payload = vec![0x5a; 129];
+        arena.upload(allocation.transfer_id, &payload).unwrap();
+        let handle = arena.staging[&allocation.staging_id].handle;
+        assert_ne!(handle.offset, 0);
+        let first = arena.slot_bytes_checked(handle).unwrap();
+        let second = arena.slot_bytes_checked(handle).unwrap();
+        assert_eq!(first, payload.as_slice());
+        assert_eq!(second, payload.as_slice());
+        // 两份结果同时存活：旧实现的两个 Vec 不可能复用同一分配地址。
+        assert_eq!(
+            first.as_ptr(),
+            second.as_ptr(),
+            "checksum input must borrow its backing"
+        );
+        if let RegionBacking::Private(bytes) = &arena.regions[0].backing {
+            assert_eq!(first.as_ptr(), bytes[handle.offset as usize..].as_ptr());
+        }
+        if let Some(path) = path {
+            let _ = std::fs::remove_file(path);
+        }
+    }
+
+    #[test]
+    fn stage54_private_checksum_input_does_not_copy_payload() {
+        stage54_assert_slot_borrows_backing(false);
+    }
+
+    #[test]
+    fn stage54_shared_checksum_input_does_not_copy_payload() {
+        stage54_assert_slot_borrows_backing(true);
+    }
+
+    #[test]
+    fn stage54_slot_identity_and_bounds_are_checked_before_access() {
+        for shared in [false, true] {
+            let (mut arena, path) = stage54_arena(shared, "bounds");
+            let allocation = arena.allocate(7, 4).unwrap();
+            arena.upload(allocation.transfer_id, b"data").unwrap();
+            let handle = arena.staging[&allocation.staging_id].handle;
+            assert!(
+                arena
+                    .slot_bytes_checked(AllocationHandle {
+                        allocation_id: handle.allocation_id + 1,
+                        ..handle
+                    })
+                    .is_none()
+            );
+            for invalid in [
+                AllocationHandle {
+                    region_id: 0,
+                    ..handle
+                },
+                AllocationHandle {
+                    region_id: u64::MAX,
+                    ..handle
+                },
+                AllocationHandle {
+                    offset: u64::MAX,
+                    ..handle
+                },
+                AllocationHandle {
+                    length: u64::MAX,
+                    ..handle
+                },
+                AllocationHandle {
+                    offset: 4096,
+                    length: 1,
+                    ..handle
+                },
+            ] {
+                // 单独穿刺物理边界：即使测试注入同 identity 的异常 handle，也不得借用越界。
+                arena.live_allocations.insert(handle.allocation_id, invalid);
+                assert!(arena.slot_bytes_checked(invalid).is_none());
+            }
+            arena.live_allocations.insert(handle.allocation_id, handle);
+            arena.delete_staging(7, allocation.staging_id);
+            assert!(arena.slot_bytes_checked(handle).is_none());
+            if let Some(path) = path {
+                let _ = std::fs::remove_file(path);
+            }
+        }
+    }
+
+    #[test]
+    fn stage54_commit_rechecks_bytes_and_receipt_for_both_backings() {
+        for shared in [false, true] {
+            let (mut arena, path) = stage54_arena(shared, "corrupt");
+            let allocation = arena.allocate(7, 4).unwrap();
+            let receipt = arena.upload(allocation.transfer_id, b"data").unwrap();
+            let handle = arena.staging[&allocation.staging_id].handle;
+            let mut wrong_length = receipt.clone();
+            wrong_length.length += 1;
+            assert_eq!(
+                arena.commit_staging(7, allocation.staging_id, &wrong_length, b"block".to_vec()),
+                Err(ArenaError::ReceiptConflict)
+            );
+            arena.copy_into_slot(handle, b"evil").unwrap();
+            assert_eq!(
+                arena.commit_staging(7, allocation.staging_id, &receipt, b"block".to_vec()),
+                Err(ArenaError::ReceiptConflict)
+            );
+            assert!(arena.blocks.is_empty());
+            assert!(arena.staging.contains_key(&allocation.staging_id));
+            arena.copy_into_slot(handle, b"data").unwrap();
+            arena
+                .commit_staging(7, allocation.staging_id, &receipt, b"block".to_vec())
+                .unwrap();
+            assert_eq!(arena.read_bytes(b"block").unwrap(), b"data");
+            assert_eq!(
+                arena.commit_staging(7, allocation.staging_id, &receipt, b"other".to_vec()),
+                Err(ArenaError::UnknownStaging)
+            );
+            if let Some(path) = path {
+                let _ = std::fs::remove_file(path);
+            }
+        }
+    }
+
+    #[test]
+    fn stage54_duplicate_block_checks_bytes_and_keeps_owned_reads_independent() {
+        for shared in [false, true] {
+            let (mut arena, path) = stage54_arena(shared, "duplicate");
+            arena
+                .commit_inline(b"block".to_vec(), b"data".to_vec())
+                .unwrap();
+            for (payload, expected) in [
+                (b"data", Ok(())),
+                (b"evil", Err(ArenaError::ReceiptConflict)),
+            ] {
+                let allocation = arena.allocate(7, 4).unwrap();
+                let receipt = arena.upload(allocation.transfer_id, payload).unwrap();
+                assert_eq!(
+                    arena.commit_staging(7, allocation.staging_id, &receipt, b"block".to_vec()),
+                    expected
+                );
+                assert!(!arena.staging.contains_key(&allocation.staging_id));
+            }
+            assert_eq!(arena.stats().block_count, 1);
+            let mut owned = arena.read_bytes(b"block").unwrap();
+            owned[0] = b'X';
+            assert_eq!(arena.read_bytes(b"block").unwrap(), b"data");
+            assert!(
+                arena
+                    .commit_inline(b"block".to_vec(), b"data".to_vec())
+                    .is_ok()
+            );
+            assert_eq!(
+                arena.commit_inline(b"block".to_vec(), b"evil".to_vec()),
+                Err(ArenaError::ReceiptConflict)
+            );
+            if let Some(path) = path {
+                let _ = std::fs::remove_file(path);
+            }
+        }
+    }
+
+    #[test]
+    fn stage54_mmap_receipt_commits_while_staging_is_writable() {
+        let (mut arena, path) = stage54_arena(true, "mmap-receipt");
+        let payload = b"direct-shm";
+        let allocation = arena.allocate(7, payload.len() as u64).unwrap();
+        let descriptor = arena
+            .shm_descriptor_for_staging(7, allocation.staging_id)
+            .unwrap()
+            .unwrap();
+        let region = &arena.regions[usize::try_from(descriptor.region_id - 1).unwrap()];
+        let fd = region.duplicate_fd().unwrap();
+        // SAFETY: 测试独占此 staging 的写入；第二映射完成写入后才构造 receipt，
+        // 此后不再写入，Arena 的同步校验期间没有跨映射可变借用。
+        let mut mapping = unsafe { dms_shm::MappedRegion::map(fd, region.len()) }.unwrap();
+        mapping
+            .write_at(usize::try_from(descriptor.offset).unwrap(), payload)
+            .unwrap();
+        // 真实 SHM 写入不调用 upload，因此不能依赖网络路径设置的 Sealed 状态。
+        assert_eq!(
+            arena.staging[&allocation.staging_id].state,
+            HostStagingState::Writable
+        );
+        let receipt = HostReceipt {
+            transfer_id: allocation.transfer_id,
+            length: allocation.length,
+            digest: digest(payload),
+            allocation_id: allocation.allocation_id,
+        };
+        arena
+            .commit_staging(7, allocation.staging_id, &receipt, b"mmap-block".to_vec())
+            .unwrap();
+        assert_eq!(arena.read_bytes(b"mmap-block").unwrap(), payload);
+        drop(mapping);
+        if let Some(path) = path {
+            let _ = std::fs::remove_file(path);
+        }
+    }
+
+    #[test]
+    fn stage54_taken_owned_bytes_survive_slot_release_and_reuse() {
+        for shared in [false, true] {
+            let (mut arena, path) = stage54_arena(shared, "take-owned");
+            // 共享 backing 仍走未导出路径，释放后可安全复用；不削弱已导出范围的隔离。
+            let allocation = arena.allocate(7, 4).unwrap();
+            let receipt = arena.upload(allocation.transfer_id, b"old!").unwrap();
+            let old_handle = arena.staging[&allocation.staging_id].handle;
+            let owned = arena
+                .take_staging_bytes(7, allocation.staging_id, &receipt)
+                .unwrap();
+            assert!(!arena.staging.contains_key(&allocation.staging_id));
+            assert!(
+                !arena
+                    .live_allocations
+                    .contains_key(&old_handle.allocation_id)
+            );
+            let reused = arena.allocate(7, 4).unwrap();
+            let new_handle = arena.staging[&reused.staging_id].handle;
+            assert_eq!(new_handle.region_id, old_handle.region_id);
+            assert_eq!(new_handle.offset, old_handle.offset);
+            assert_ne!(new_handle.allocation_id, old_handle.allocation_id);
+            arena.upload(reused.transfer_id, b"new!").unwrap();
+            assert_eq!(arena.slot_bytes_checked(new_handle).unwrap(), b"new!");
+            assert_eq!(owned, b"old!");
+            if let Some(path) = path {
+                let _ = std::fs::remove_file(path);
+            }
+        }
+    }
 
     #[test]
     fn small_allocations_share_a_large_region_and_reuse_safe_slots() {

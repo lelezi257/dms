@@ -235,6 +235,18 @@ enum GetOutcome {
     NeedsRemoteBlocks(Vec<PeerPullSpec>),
 }
 
+enum CachedReadOutcome {
+    Miss,
+    Ready(ReadTicket),
+    NeedsExactRefresh {
+        version: u64,
+    },
+    NeedsRemoteBlocks {
+        resolved: pb::ResolveObjectResponse,
+        specs: Vec<PeerPullSpec>,
+    },
+}
+
 enum MaterializeOutcome {
     Ready { version: u64, bytes: Vec<u8> },
     NeedsRemoteBlocks(Vec<PeerPullSpec>),
@@ -779,7 +791,8 @@ impl NodeHandle {
             .as_ref()
             .ok_or(WorkerError::MetadataUnavailable)?;
         // 命中、Client 兴趣登记和失效处理共用同一 owner 顺序。
-        // Exact 不缓存；Current 缺块仍回 Meta 更新位置，不能复用过期 replica 地址。
+        // Exact 不缓存；Current 缺块优先使用同一次权威解析保存的位置提示。
+        // 位置提示失败时只按固定版本 Exact 刷新，不能混用更新后的 Current 布局。
         let node_epoch = metadata.node_epoch().await;
         let refill_token = if exact_version.is_none() {
             let (reply, rx) = oneshot::channel();
@@ -793,8 +806,74 @@ impl NodeHandle {
             })
             .await?;
             let (token, cached) = receive(rx).await?;
-            if let Some(ticket) = cached {
-                return Ok(ticket);
+            match cached {
+                CachedReadOutcome::Ready(ticket) => return Ok(ticket),
+                CachedReadOutcome::NeedsExactRefresh { version } => {
+                    return self
+                        .read_exact_version_after_cached_location_failure(
+                            metadata,
+                            session_id,
+                            key.clone(),
+                            version,
+                            range,
+                            max_inline_bytes,
+                        )
+                        .await;
+                }
+                CachedReadOutcome::NeedsRemoteBlocks { resolved, specs } => {
+                    let cached_version = resolved
+                        .layout
+                        .as_ref()
+                        .ok_or(WorkerError::NotFound)?
+                        .version;
+                    for spec in specs {
+                        let metric = self.metrics.begin_replica_operation(ReplicaOperation::Pull);
+                        let payload = match pull_block_from_peer(
+                            &self.node_id,
+                            spec,
+                            &self.rpc_metrics,
+                            &self.peer_channels,
+                        )
+                        .await
+                        {
+                            Ok(payload) => payload,
+                            Err(error) if can_refresh_cached_location(&error) => {
+                                // 只捕获 Peer 拉取阶段的位置失败。安装/登记失败不属于
+                                // 换地址重试，必须直接返回，不能被下面的本地读掩盖。
+                                drop(metric);
+                                return self
+                                    .read_exact_version_after_cached_location_failure(
+                                        metadata,
+                                        session_id,
+                                        key.clone(),
+                                        cached_version,
+                                        range,
+                                        max_inline_bytes,
+                                    )
+                                    .await;
+                            }
+                            Err(error) => return Err(error),
+                        };
+                        self.install_and_report_peer_block(
+                            metadata,
+                            b"cached-location-import/",
+                            payload,
+                            metric,
+                        )
+                        .await?;
+                    }
+                    return self
+                        .read_resolved_with_imports(
+                            metadata,
+                            session_id,
+                            resolved,
+                            range,
+                            max_inline_bytes,
+                            None,
+                        )
+                        .await;
+                }
+                CachedReadOutcome::Miss => {}
             }
             token
         } else {
@@ -805,6 +884,50 @@ impl NodeHandle {
             .resolve(key.clone(), exact_version)
             .await
             .map_err(map_metadata_error)?;
+        self.read_resolved_with_imports(
+            metadata,
+            session_id,
+            resolved,
+            range,
+            max_inline_bytes,
+            refill_token.map(|token| (token, key, requested_at, node_epoch)),
+        )
+        .await
+    }
+
+    async fn read_exact_version_after_cached_location_failure(
+        &self,
+        metadata: &MetadataClient,
+        session_id: u64,
+        key: Vec<u8>,
+        version: u64,
+        range: Option<(u64, u64)>,
+        max_inline_bytes: u64,
+    ) -> Result<ReadTicket, WorkerError> {
+        let resolved = metadata
+            .resolve(key, Some(version))
+            .await
+            .map_err(map_metadata_error)?;
+        self.read_resolved_with_imports(
+            metadata,
+            session_id,
+            resolved,
+            range,
+            max_inline_bytes,
+            None,
+        )
+        .await
+    }
+
+    async fn read_resolved_with_imports(
+        &self,
+        metadata: &MetadataClient,
+        session_id: u64,
+        resolved: pb::ResolveObjectResponse,
+        range: Option<(u64, u64)>,
+        max_inline_bytes: u64,
+        cache_refill: Option<(u64, Vec<u8>, Instant, u64)>,
+    ) -> Result<ReadTicket, WorkerError> {
         // Each pass imports every currently missing immutable Block outside
         // the Node actor. The second pass only builds local read tickets.
         for _ in 0..2 {
@@ -814,8 +937,7 @@ impl NodeHandle {
                 resolved: resolved.clone(),
                 range,
                 max_inline_bytes,
-                cache_refill: refill_token
-                    .map(|token| (token, key.clone(), requested_at, node_epoch)),
+                cache_refill: cache_refill.clone(),
                 reply: reply_tx,
             })
             .await?;
@@ -885,10 +1007,22 @@ impl NodeHandle {
     ) -> Result<(), WorkerError> {
         // 接收成功以“完整数据通过owner接纳”为边界；不能在网络收到响应时
         // 提前记成功，否则延后的完整checksum拒绝会被错误统计为成功传输。
-        let mut metric = self.metrics.begin_replica_operation(ReplicaOperation::Pull);
+        let metric = self.metrics.begin_replica_operation(ReplicaOperation::Pull);
         let payload =
             pull_block_from_peer(&self.node_id, spec, &self.rpc_metrics, &self.peer_channels)
                 .await?;
+        self.install_and_report_peer_block(metadata, operation_namespace, payload, metric)
+            .await
+    }
+
+    /// 缓存位置和权威位置的读共用接纳与登记逻辑；本函数的错误不能触发位置回退。
+    async fn install_and_report_peer_block(
+        &self,
+        metadata: &MetadataClient,
+        operation_namespace: &[u8],
+        payload: PeerBlockResult,
+        mut metric: super::metrics::ReplicaOperationGuard,
+    ) -> Result<(), WorkerError> {
         let received_bytes = payload.payload.len();
         let report_block_id = payload.block_id.clone();
         let report_checksum = payload.checksum.clone();
@@ -1130,7 +1264,7 @@ async fn receive<T>(reply_rx: oneshot::Receiver<Result<T, WorkerError>>) -> Resu
 ///
 /// enum 而不是 `AnyMessage + method_id`，因此每个分支的参数和返回类型都由编译器检查。
 // owner 返回：在途查询的回填围栏，以及可直接返回的读取票据（未命中时为空）。
-type CachedRead = (Option<u64>, Option<ReadTicket>);
+type CachedRead = (Option<u64>, CachedReadOutcome);
 
 enum NodeCommand {
     OpenSession {
@@ -2518,8 +2652,11 @@ impl NodeState {
         }))
     }
 
-    /// 有效 Current 布局 + 本地完整 Block 才能省去权威解析。
-    /// 缺块回 Meta，而不是把旧目录里的 Peer 地址继续当作有效位置。
+    /// 有效 Current 解析可省去权威 Current 查询。
+    ///
+    /// 如果本次范围的 Block 已在本地，直接返回票据；如果只缺 payload bytes，
+    /// 使用同一缓存项里的位置提示生成 peer 拉取计划。位置提示只随 layout 在同一
+    /// 租约、Watch 和 generation 内生效，失败后上层会按固定版本 Exact 回退。
     fn get_cached(
         &mut self,
         session_id: u64,
@@ -2537,35 +2674,46 @@ impl NodeState {
             self.current_cache.clear();
             self.metrics.set_current_cache_charge(0);
             self.metrics.record_current_cache_lookup(false);
-            return Ok((None, None));
+            return Ok((None, CachedReadOutcome::Miss));
         }
         let token = self.current_cache.token();
-        let layout = self.current_cache.get(key, node_epoch, now);
-        let ticket = if let Some(layout) = layout {
-            if layout
-                .extents
-                .iter()
-                .all(|extent| self.arena.open_read(&extent.block_id, None).is_ok())
-            {
-                // Arc 只在 owner 内借用，按请求生成独立票据，不缓存可写内存地址。
-                let resolved = pb::ResolveObjectResponse {
-                    layout: Some((*layout).clone()),
-                    ..Default::default()
-                };
-                match self.get_resolved(session_id, &resolved, range, max_inline_bytes)? {
-                    GetOutcome::Ready(ticket) => Some(ticket),
-                    GetOutcome::NeedsRemoteBlocks(_) => None,
+        let cached = self.current_cache.get(key, node_epoch, now);
+        let outcome = if let Some(cached) = cached {
+            // Arc 只在 owner 内借用，按请求生成独立票据，不缓存可写内存地址。
+            match self.get_resolved_parts(
+                session_id,
+                cached.layout.as_ref(),
+                cached.block_replicas.as_slice(),
+                range,
+                max_inline_bytes,
+            ) {
+                Ok(GetOutcome::Ready(ticket)) => CachedReadOutcome::Ready(ticket),
+                Ok(GetOutcome::NeedsRemoteBlocks(specs)) => CachedReadOutcome::NeedsRemoteBlocks {
+                    // 热命中本地 Block 时不复制 replica 列表；只有确实缺块、需要
+                    // 脱离 owner 异步拉取 peer 时，才把同一缓存项转换回可移动的
+                    // ResolveObjectResponse。
+                    resolved: pb::ResolveObjectResponse {
+                        layout: Some((*cached.layout).clone()),
+                        block_replicas: (*cached.block_replicas).clone(),
+                        current_lease: None,
+                    },
+                    specs,
+                },
+                Err(error) if can_refresh_cached_location(&error) => {
+                    CachedReadOutcome::NeedsExactRefresh {
+                        version: cached.layout.version,
+                    }
                 }
-            } else {
-                None
+                Err(error) => return Err(error),
             }
         } else {
-            None
+            CachedReadOutcome::Miss
         };
-        self.metrics.record_current_cache_lookup(ticket.is_some());
+        self.metrics
+            .record_current_cache_lookup(!matches!(outcome, CachedReadOutcome::Miss));
         self.metrics
             .set_current_cache_charge(self.current_cache.charged());
-        Ok((token, ticket))
+        Ok((token, outcome))
     }
 
     fn get_resolved(
@@ -2575,8 +2723,25 @@ impl NodeState {
         range: Option<(u64, u64)>,
         max_inline_bytes: u64,
     ) -> Result<GetOutcome, WorkerError> {
-        self.live_session(session_id)?;
         let layout = resolved.layout.as_ref().ok_or(WorkerError::NotFound)?;
+        self.get_resolved_parts(
+            session_id,
+            layout,
+            &resolved.block_replicas,
+            range,
+            max_inline_bytes,
+        )
+    }
+
+    fn get_resolved_parts(
+        &mut self,
+        session_id: u64,
+        layout: &pb::VersionLayout,
+        block_replicas: &[pb::BlockReplicaSet],
+        range: Option<(u64, u64)>,
+        max_inline_bytes: u64,
+    ) -> Result<GetOutcome, WorkerError> {
+        self.live_session(session_id)?;
         super::version_layout::validate(layout.logical_length, &layout.extents)?;
         let requested = range.unwrap_or((0, layout.logical_length));
         let request_end = requested
@@ -2616,7 +2781,7 @@ impl NodeState {
                         .iter()
                         .any(|item: &PeerPullSpec| item.block_id == extent.block_id)
                     {
-                        missing.push(self.describe_missing_block(resolved, extent)?);
+                        missing.push(self.describe_missing_block(block_replicas, extent)?);
                     }
                 }
                 Err(error) => return Err(map_arena_error(error)),
@@ -2744,7 +2909,8 @@ impl NodeState {
                         .iter()
                         .any(|item: &PeerPullSpec| item.block_id == extent.block_id)
                     {
-                        missing.push(self.describe_missing_block(resolved, extent)?);
+                        missing
+                            .push(self.describe_missing_block(&resolved.block_replicas, extent)?);
                     }
                 }
                 Err(error) => return Err(map_arena_error(error)),
@@ -2804,11 +2970,10 @@ impl NodeState {
 
     fn describe_missing_block(
         &self,
-        resolved: &pb::ResolveObjectResponse,
+        block_replicas: &[pb::BlockReplicaSet],
         extent: &pb::ExtentRecord,
     ) -> Result<PeerPullSpec, WorkerError> {
-        let replica_set = resolved
-            .block_replicas
+        let replica_set = block_replicas
             .iter()
             .find(|set| set.block_id == extent.block_id)
             .ok_or(WorkerError::NotFound)?;
@@ -3274,6 +3439,14 @@ fn map_metadata_error(error: DmsError) -> WorkerError {
     WorkerError::Stable(error)
 }
 
+fn can_refresh_cached_location(error: &WorkerError) -> bool {
+    match error {
+        WorkerError::NotFound | WorkerError::TransferUnavailable => true,
+        WorkerError::Stable(error) => error.code() == dms_error::NODE_TRANSFER_UNAVAILABLE,
+        _ => false,
+    }
+}
+
 fn is_definitive_metadata_rejection(error: &DmsError) -> bool {
     // 只有提交前的校验/CAS 拒绝能证明未发布。WAL append 或 checkpoint 错误
     // 可能发生在持久化或 apply 之后，未知错误也必须保留块，等待同 operation 重试。
@@ -3411,34 +3584,49 @@ async fn pull_block_from_peer(
         .map_err(|_| WorkerError::ResourceExhausted)?;
     let mut serving_node_id = String::new();
     let mut offset = 0;
-    // 先建好共享连接，避免第一批并发请求各自建立一个 Channel。
+    let mut next_request = 0;
+    let mut pulls = tokio::task::JoinSet::new();
+    let mut ready = std::collections::BTreeMap::new();
+    // 先建好共享连接，避免最初的并发请求各自建立一个 Channel。
     peer_channel_for(&spec.endpoint, peer_channels).await?;
     while offset < spec.expected_length {
-        // 固定两段在途：每段仍是原来的2MiB unary协议，不扩大消息上限。
-        // try_join 按输入顺序返回，即使第二段先到也不会打乱Block布局；一段失败
-        // 会取消另一Future，整块尚未提交owner，因此不能发布不完整副本。
-        // 无spawn、无额外线程池；每个拉取最多暂存两段payload（4MiB）。
-        let spec_ref = &spec;
-        let fetch = |start: u64| async move {
-            if start >= spec_ref.expected_length {
-                return Ok(None);
-            }
-            let length = (spec_ref.expected_length - start).min(PEER_PULL_SEGMENT_BYTES);
-            pull_peer_segment(
-                source_node_id,
-                spec_ref,
-                rpc_metrics,
-                peer_channels,
-                Some(start),
-                Some(length),
-                false,
-            )
+        // 窗口同时计算“请求未完成”和“已返回但尚不能按序追加”两种占用。
+        // 第一段先到可立即补第三段；第二段先到则占住窗口，不能无限积累结果。
+        // 每段仍为2MiB unary，额外分段bytes最多4MiB（不包括整块聚合Vec）。
+        while pulls.len() + ready.len() < 2 && next_request < spec.expected_length {
+            let start = next_request;
+            let length = (spec.expected_length - start).min(PEER_PULL_SEGMENT_BYTES);
+            next_request += length;
+            let source_node_id = source_node_id.to_owned();
+            let spec = spec.clone();
+            let rpc_metrics = rpc_metrics.clone();
+            let peer_channels = peer_channels.clone();
+            pulls.spawn(
+                async move {
+                    let segment = pull_peer_segment(
+                        &source_node_id,
+                        &spec,
+                        &rpc_metrics,
+                        &peer_channels,
+                        Some(start),
+                        Some(length),
+                        false,
+                    )
+                    .await?;
+                    Ok::<_, WorkerError>((start, segment))
+                }
+                .instrument(dms_tracing::tracing::Span::current()),
+            );
+        }
+        // JoinSet 在出错或父请求取消时 drop 会取消剩余拉取任务；已经返回的
+        // 分段和未发布的聚合Vec随函数释放。这里不会提前安装或登记副本。
+        let (start, segment) = pulls
+            .join_next()
             .await
-            .map(Some)
-        };
-        let second_offset = offset + (spec.expected_length - offset).min(PEER_PULL_SEGMENT_BYTES);
-        let (first, second) = tokio::try_join!(fetch(offset), fetch(second_offset))?;
-        for segment in [first, second].into_iter().flatten() {
+            .ok_or(WorkerError::TransferUnavailable)?
+            .map_err(|_| WorkerError::TransferUnavailable)??;
+        ready.insert(start, segment);
+        while let Some(segment) = ready.remove(&offset) {
             let length = (spec.expected_length - offset).min(PEER_PULL_SEGMENT_BYTES);
             if segment.length != spec.expected_length || segment.payload.len() as u64 != length {
                 return Err(WorkerError::Conflict);

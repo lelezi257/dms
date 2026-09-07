@@ -534,10 +534,11 @@ impl NodeMetrics {
             .inc();
     }
 
-    /// 记录 Node 本地 Current 布局缓存命中结果。
+    /// 记录 Node 本地 Current 解析缓存命中结果。
     ///
-    /// 这里的缓存只保存 key -> VersionLayout，不保存 value bytes 或 replica 地址；
-    /// 因此 hit 代表少访问一次 Meta，不代表跳过本地/远端 payload 读取。
+    /// 缓存保存有效 VersionLayout 和同次解析的位置提示，不保存 value bytes。
+    /// hit 表示版本授权命中，不保证 payload 已在本地；若旧位置失效，仍可能
+    /// 按固定版本访问 Meta 刷新位置，因此不能把 hit 直接等同于省掉的 RPC 数。
     pub(crate) fn record_current_cache_lookup(&self, hit: bool) {
         let result = if hit { "hit" } else { "miss" };
         self.current_cache_lookups_total
@@ -547,7 +548,7 @@ impl NodeMetrics {
 
     /// 更新 Node Current 布局缓存预算占用。
     ///
-    /// charge 来自 key、layout、extent 和固定条目开销估算，不等于 jemalloc/进程 RSS。
+    /// charge 来自 key、layout、extent、位置/证明和固定条目开销估算，不等于进程 RSS。
     pub(crate) fn set_current_cache_charge(&self, bytes: u64) {
         self.current_cache_charged_bytes.set(to_i64(bytes));
     }

@@ -1,7 +1,11 @@
-//! Node 私有的 Current 布局缓存；不保存 value，也不把旧 replica 地址当成存活证明。
+//! Node 私有的 Current 解析缓存；不保存 value，也不把旧 replica 地址当成存活证明。
 //!
 //! 所有方法只由 NodeState 调用。Meta 的剩余租约是上限，截止时间从请求开始算；
 //! 心跳不能延长已有条目。generation 防止失效 ACK 后迟到的 resolve 重新填回旧版。
+//!
+//! 这里缓存的是“同一次权威解析”的 layout 和位置提示。layout 决定本次 Current 是
+//! 哪个版本；位置提示只是在这个版本仍有效时，帮助缺块读直连 peer。位置提示本身
+//! 不具备版本权威性，Watch 断开、租约过期或 generation 失效后必须一起丢弃。
 use std::{
     collections::HashMap,
     sync::Arc,
@@ -12,9 +16,15 @@ use dms_protocol::v1 as pb;
 
 struct CachedLayout {
     layout: Arc<pb::VersionLayout>,
+    block_replicas: Arc<Vec<pb::BlockReplicaSet>>,
     node_epoch: u64,
     expires_at: Instant,
     charge: u64,
+}
+
+pub(super) struct CachedResolve {
+    pub(super) layout: Arc<pb::VersionLayout>,
+    pub(super) block_replicas: Arc<Vec<pb::BlockReplicaSet>>,
 }
 
 pub(super) struct CurrentCache {
@@ -67,7 +77,7 @@ impl CurrentCache {
         key: &[u8],
         node_epoch: u64,
         now: Instant,
-    ) -> Option<Arc<pb::VersionLayout>> {
+    ) -> Option<CachedResolve> {
         if self.generation == u64::MAX {
             return None;
         }
@@ -76,7 +86,10 @@ impl CurrentCache {
             self.remove(key);
             return None;
         }
-        Some(Arc::clone(&entry.layout))
+        Some(CachedResolve {
+            layout: Arc::clone(&entry.layout),
+            block_replicas: Arc::clone(&entry.block_replicas),
+        })
     }
 
     /// 无 grant（例如旧 Meta）只是不启用缓存，正常读取结果仍然可用。
@@ -124,6 +137,29 @@ impl CurrentCache {
                 .extents
                 .iter()
                 .map(|extent| 128 + extent.block_id.len() as u64 + extent.digest.len() as u64)
+                .sum::<u64>()
+            + resolved
+                .block_replicas
+                .iter()
+                .map(|set| {
+                    128 + set.block_id.len() as u64
+                        + set
+                            .replicas
+                            .iter()
+                            .map(|replica| {
+                                128 + replica.block_id.len() as u64
+                                    + replica.data_endpoint.len() as u64
+                                    + replica.checksum.len() as u64
+                            })
+                            .sum::<u64>()
+                        + set
+                            .proofs
+                            .iter()
+                            .map(|proof| {
+                                96 + proof.block_id.len() as u64 + proof.checksum.len() as u64
+                            })
+                            .sum::<u64>()
+                })
                 .sum::<u64>();
         if charge > self.budget {
             return false;
@@ -139,6 +175,7 @@ impl CurrentCache {
             key,
             CachedLayout {
                 layout: Arc::new(layout.clone()),
+                block_replicas: Arc::new(resolved.block_replicas.clone()),
                 node_epoch,
                 expires_at,
                 charge,
@@ -168,6 +205,38 @@ mod tests {
             ..Default::default()
         }
     }
+
+    fn response_with_replica(endpoint_len: usize) -> pb::ResolveObjectResponse {
+        let mut resolved = response(1);
+        if let Some(layout) = &mut resolved.layout {
+            layout.extents.push(pb::ExtentRecord {
+                logical: Some(pb::ByteRange {
+                    offset: 0,
+                    length: 1,
+                }),
+                block_id: b"block-1".to_vec(),
+                digest: b"checksum-1".to_vec(),
+                ..Default::default()
+            });
+        }
+        resolved.block_replicas.push(pb::BlockReplicaSet {
+            block_id: b"block-1".to_vec(),
+            length: 1,
+            replicas: vec![pb::ReplicaLocation {
+                block_id: b"block-1".to_vec(),
+                data_endpoint: "x".repeat(endpoint_len),
+                checksum: b"checksum-1".to_vec(),
+                ..Default::default()
+            }],
+            proofs: vec![pb::ReplicaProof {
+                block_id: b"block-1".to_vec(),
+                checksum: b"checksum-1".to_vec(),
+                ..Default::default()
+            }],
+        });
+        resolved
+    }
+
     #[test]
     fn invalidation_and_disconnect_reject_late_refill() {
         let mut cache = CurrentCache::new(4096, Duration::from_secs(1));
@@ -232,5 +301,35 @@ mod tests {
         cache.invalidate(b"c");
         assert!(cache.token().is_none());
         assert!(cache.get(b"c", 7, now).is_none());
+    }
+
+    #[test]
+    fn replica_locations_are_charged_against_the_same_budget() {
+        let now = Instant::now();
+        let token = 0;
+        let mut cache = CurrentCache::new(900, Duration::from_secs(1));
+        assert!(cache.insert(
+            token,
+            b"k".to_vec(),
+            &response_with_replica(16),
+            now,
+            7,
+            now
+        ));
+
+        let mut cache = CurrentCache::new(900, Duration::from_secs(1));
+        assert!(
+            !cache.insert(
+                token,
+                b"k".to_vec(),
+                &response_with_replica(2_000),
+                now,
+                7,
+                now
+            ),
+            "replica endpoint/proof bytes 是缓存条目的一部分，不能绕过总预算"
+        );
+        assert_eq!(cache.charged(), 0);
+        assert!(cache.get(b"k", 7, now).is_none());
     }
 }

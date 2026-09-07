@@ -60,13 +60,14 @@ FD 数而回收，完整 GC 的限制不变。
 client.get("k")
   ├─ TCP Client Current 缓存有效 → 返回该版本的 owned bytes
   └─ 未命中 / SHM → Node 检查 Current 布局缓存
-                    ├─ 资格有效且 Block 全在本地 → 按该版本读取 Arena
-                    └─ 未命中 / 失效 / 缺块 → Meta 解析版本布局和 Block 位置
+                    ├─ 资格有效且所需 Block 在本地 → 按该版本读取 Arena
+                    ├─ 资格有效但缺 bytes → 按同次解析的位置提示拉取
+                    └─ 未命中 / 失效 → Meta 解析版本布局和 Block 位置
                                            ├─ 本地 Block → 读取 Arena
                                            └─ 远端 Block → Peer 拉取后读取
 ```
 
-Node 的“已有 Block”与“缓存权威 Current”不是一回事。只有 Meta 授予的剩余租约仍有效、Watch 连通且本地布局没有被失效时，Node 才能复用 Current。缓存只保存布局，不保存另一份 bytes 或 replica 地址；缺块重新查询 Meta。Exact 历史版本和不存在结果不进入这份缓存。
+Node 的“已有 Block”与“缓存权威 Current”不是一回事。只有 Meta 授予的剩余租约仍有效、Watch 连通且本地布局没有被失效时，Node 才能复用 Current。缓存保存布局及同次解析的位置提示，不复制 value。范围读只检查所需 Block，不因其它范围缺块重复查询。位置失效时按这次固定版本有界刷新位置，不能重新取 Current 混拼新旧数据。Exact 历史版本和不存在结果不进入这份缓存。首次拉取安装后仍同步登记新增副本，不等于消除了所有 Meta RPC。
 
 缓存截止时间从 resolve 请求开始计算，取 Meta 剩余租约与配置 TTL 的较小值；心跳不延长旧条目。失效事件先清 Node 布局、再等待 SDK ACK，最后 ACK Meta；本 Node 写完成也清理。失效/Watch 断连重建提升回填 generation，防止迟到的旧查询响应重新塞入缓存。旧 Meta 没有返回资格时自动保留逐次解析路径。配置与命中指标见[配置](configuration.md)。
 

@@ -80,7 +80,7 @@ sample_ratio = 0.01
 | Node 必需 | `node_id`、`meta_endpoint`；TCP/UDS listener 至少一个 |
 | Node 内存 | `arena_capacity_bytes=1 GiB`，`region_size_bytes=64 MiB`，`staging_ttl_millis=30000` |
 | Node 缓存租约 | `client_cache_lease_ttl_millis=1000`，范围 1..=30000；实际授予还受 Meta 剩余期限限制 |
-| Node Current 布局缓存 | `node_current_cache_bytes=8 MiB`，0关闭；`node_current_cache_ttl_millis=1000`，范围1..=30000；只缓存 key 对应的版本布局，不缓存 value bytes 或 replica 地址 |
+| Node Current 元数据缓存 | `node_current_cache_bytes=8 MiB`，0关闭；`node_current_cache_ttl_millis=1000`，范围1..=30000；预算含版本布局及同次解析的位置提示，不缓存 value bytes |
 | Meta 必需 | `node_id`、`grpc_address` |
 | Meta journal | 不指定 `journal_dir` 则用内存后端；指定目录才使用 WAL/snapshot |
 | Meta checkpoint | `checkpoint_every_records=4096`，正数；CLI 为 `--checkpoint-every-records` |
@@ -102,11 +102,11 @@ Meta 使用同样的 `[log]`、`[tracing]` 配置。
 更大阈值减少全量复制/快照开销，但增加重启时重放的日志量；修改后重启生效。
 
 `node_current_cache_bytes` 控制 Node 侧 GET 热路径的 Current 布局缓存预算。
-它保存的是 key 到 `VersionLayout` 的解析结果，目的是在租约内减少
+它保存的是 key 到 `VersionLayout` 及 Block 位置提示的解析结果，目的是在租约内减少
 Node→Meta 的重复解析；它不保存用户 value，也不能证明某个 Block 的 payload 一定仍在本地内存。
 `node_current_cache_ttl_millis` 是 Node 本地缓存 TTL 上限，实际可用时间还必须受 Meta 授权、
-失效事件和 Node epoch 约束。命中还要求布局的 Block 全部本地存在；缺块时重新查询 Meta，
-不复用可能过期的 replica 地址。旧 Meta 没有授予缓存资格时仍逐次查询。
+失效事件和 Node epoch 约束。所需范围的 Block 在本地就直接读；缺块可以按有效位置提示拉取，
+提示不可用时按固定版本有界查询 Meta。地址本身不是存活证明。旧 Meta 没有授予缓存资格时仍逐次查询。
 `node_current_cache_bytes=0` 表示关闭该缓存。
 对应指标为 `dms_node_current_cache_lookups_total{result="hit|miss"}` 和
 `dms_node_current_cache_charged_bytes`；后者是预算计费值，不是进程 RSS。

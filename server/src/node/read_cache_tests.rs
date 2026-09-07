@@ -15,11 +15,12 @@ use std::{
     time::{Duration, Instant},
 };
 
-use dms_error::ErrorKind;
+use dms_error::{self, DmsError, ErrorKind};
 use dms_protocol::v1 as pb;
+use dms_transport::dms_error_to_status;
 use pb::{
     metadata_service_server::{MetadataService, MetadataServiceServer},
-    peer_service_server::PeerServiceServer,
+    peer_service_server::{PeerService, PeerServiceServer},
 };
 use tokio::{
     net::TcpListener,
@@ -44,9 +45,12 @@ use crate::meta::{metadata_service::MetadataServiceHandler, runtime::MetaHandle}
 struct CountingMetaService {
     inner: MetadataServiceHandler,
     resolve_count: Arc<AtomicUsize>,
+    resolve_queries: Arc<Mutex<Vec<Option<u64>>>>,
+    stale_location_once: Arc<AtomicBool>,
     resolve_delay: Arc<Mutex<Option<ResolveDelay>>>,
     watch_count: Arc<AtomicUsize>,
     reject_watch: Arc<AtomicBool>,
+    reject_reports: Arc<AtomicBool>,
     watch_drop: Arc<WatchDropControl>,
     ack_state: Arc<AckState>,
 }
@@ -204,7 +208,30 @@ impl MetadataService for CountingMetaService {
             .map(|key| key.value.clone())
             .unwrap_or_default();
         self.resolve_count.fetch_add(1, Ordering::Relaxed);
-        let response = self.inner.resolve_object(request).await;
+        let exact = match request.get_ref().selector.as_ref() {
+            Some(pb::resolve_object_request::Selector::ExactVersion(version)) => Some(*version),
+            _ => None,
+        };
+        self.resolve_queries.lock().unwrap().push(exact);
+        let mut response = self.inner.resolve_object(request).await;
+        if self.stale_location_once.swap(false, Ordering::AcqRel)
+            && let Ok(response) = &mut response
+        {
+            // 只损坏首个（原始）Block 的位置，patch 仍可正常首读。
+            // Exact 刷新返回真实 Meta 位置，验证客户端不会改查另一个 Current。
+            let resolved = response.get_mut();
+            let first_block = resolved.layout.as_ref().unwrap().extents[0]
+                .block_id
+                .clone();
+            let set = resolved
+                .block_replicas
+                .iter_mut()
+                .find(|set| set.block_id == first_block)
+                .unwrap();
+            for replica in &mut set.replicas {
+                replica.data_endpoint = "http://127.0.0.1:1".to_owned();
+            }
+        }
         let delay = self
             .resolve_delay
             .lock()
@@ -228,6 +255,13 @@ impl MetadataService for CountingMetaService {
         &self,
         request: Request<pb::ReportReplicasRequest>,
     ) -> Result<Response<pb::ReportReplicasResponse>, Status> {
+        if self.reject_reports.load(Ordering::Acquire) {
+            return Err(dms_error_to_status(DmsError::new(
+                dms_error::META_JOURNAL_UNAVAILABLE,
+                ErrorKind::Unavailable,
+                "test forced report failure",
+            )));
+        }
         self.inner.report_replicas(request).await
     }
 
@@ -305,9 +339,12 @@ impl MetadataService for CountingMetaService {
 struct CountingMetaServer {
     endpoint: String,
     resolve_count: Arc<AtomicUsize>,
+    resolve_queries: Arc<Mutex<Vec<Option<u64>>>>,
+    stale_location_once: Arc<AtomicBool>,
     resolve_delay: Arc<Mutex<Option<ResolveDelay>>>,
     watch_count: Arc<AtomicUsize>,
     reject_watch: Arc<AtomicBool>,
+    reject_reports: Arc<AtomicBool>,
     watch_drop: Arc<WatchDropControl>,
     ack_state: Arc<AckState>,
     shutdown: Option<oneshot::Sender<()>>,
@@ -321,9 +358,12 @@ impl CountingMetaServer {
             .expect("bind counting Meta");
         let endpoint = format!("http://{}", listener.local_addr().expect("Meta address"));
         let resolve_count = Arc::new(AtomicUsize::new(0));
+        let resolve_queries = Arc::new(Mutex::new(Vec::new()));
+        let stale_location_once = Arc::new(AtomicBool::new(false));
         let resolve_delay = Arc::new(Mutex::new(None));
         let watch_count = Arc::new(AtomicUsize::new(0));
         let reject_watch = Arc::new(AtomicBool::new(false));
+        let reject_reports = Arc::new(AtomicBool::new(false));
         let watch_drop = Arc::new(WatchDropControl {
             requested: AtomicBool::new(false),
             captured: Arc::new(Mutex::new(None)),
@@ -333,9 +373,12 @@ impl CountingMetaServer {
         let service = CountingMetaService {
             inner: MetadataServiceHandler::new(MetaHandle::spawn()),
             resolve_count: resolve_count.clone(),
+            resolve_queries: resolve_queries.clone(),
+            stale_location_once: stale_location_once.clone(),
             resolve_delay: resolve_delay.clone(),
             watch_count: watch_count.clone(),
             reject_watch: reject_watch.clone(),
+            reject_reports: reject_reports.clone(),
             watch_drop: watch_drop.clone(),
             ack_state: ack_state.clone(),
         };
@@ -352,9 +395,12 @@ impl CountingMetaServer {
         Self {
             endpoint,
             resolve_count,
+            resolve_queries,
+            stale_location_once,
             resolve_delay,
             watch_count,
             reject_watch,
+            reject_reports,
             watch_drop,
             ack_state,
             shutdown: Some(shutdown_tx),
@@ -391,6 +437,10 @@ impl CountingMetaServer {
 
     fn set_watch_rejected(&self, rejected: bool) {
         self.reject_watch.store(rejected, Ordering::Release);
+    }
+
+    fn set_report_rejected(&self, rejected: bool) {
+        self.reject_reports.store(rejected, Ordering::Release);
     }
 
     fn drop_current_watch(&self) -> oneshot::Receiver<()> {
@@ -445,6 +495,7 @@ struct TestNode {
     _watch_task: JoinHandle<()>,
     _heartbeat_task: JoinHandle<()>,
     _peer_task: Option<JoinHandle<()>>,
+    peer_pull_count: Option<Arc<AtomicUsize>>,
 }
 
 impl TestNode {
@@ -508,11 +559,18 @@ impl TestNode {
         ));
         let heartbeat_task =
             tokio::spawn(send_meta_heartbeats(metadata, node.clone(), acked_cursor));
+        let peer_pull_count = peer_listener
+            .as_ref()
+            .map(|_| Arc::new(AtomicUsize::new(0)));
         let peer_task = peer_listener.map(|(_, listener)| {
             let handler = PeerServiceHandler::new(node.clone());
+            let peer_pull_count = peer_pull_count.as_ref().expect("peer pull counter").clone();
             tokio::spawn(async move {
                 tonic::transport::Server::builder()
-                    .add_service(PeerServiceServer::new(handler))
+                    .add_service(PeerServiceServer::new(CountingPeerService {
+                        inner: handler,
+                        pull_count: peer_pull_count,
+                    }))
                     .serve_with_incoming(TcpListenerStream::new(listener))
                     .await
                     .expect("serve peer test server");
@@ -524,6 +582,7 @@ impl TestNode {
             _watch_task: watch_task,
             _heartbeat_task: heartbeat_task,
             _peer_task: peer_task,
+            peer_pull_count,
         }
     }
 
@@ -576,6 +635,71 @@ impl TestNode {
             .get_with_inline_limit(session_id, key.to_vec(), None, Some(range), 64 * 1024)
             .await
             .expect("get inline range")
+    }
+
+    fn reset_peer_pull_count(&self) {
+        if let Some(count) = &self.peer_pull_count {
+            count.store(0, Ordering::Relaxed);
+        }
+    }
+
+    fn peer_pull_count(&self) -> usize {
+        self.peer_pull_count
+            .as_ref()
+            .map(|count| count.load(Ordering::Relaxed))
+            .unwrap_or(0)
+    }
+}
+
+#[derive(Clone)]
+struct CountingPeerService {
+    inner: PeerServiceHandler,
+    pull_count: Arc<AtomicUsize>,
+}
+
+#[tonic::async_trait]
+impl PeerService for CountingPeerService {
+    async fn probe(
+        &self,
+        request: Request<pb::PeerProbeRequest>,
+    ) -> Result<Response<pb::PeerProbeResponse>, Status> {
+        self.inner.probe(request).await
+    }
+
+    async fn pull_block(
+        &self,
+        request: Request<pb::PeerPullBlockRequest>,
+    ) -> Result<Response<pb::PeerPullBlockResponse>, Status> {
+        self.pull_count.fetch_add(1, Ordering::Relaxed);
+        self.inner.pull_block(request).await
+    }
+
+    async fn prepare_replica(
+        &self,
+        request: Request<pb::PeerPrepareReplicaRequest>,
+    ) -> Result<Response<pb::PeerReplicaStatusResponse>, Status> {
+        self.inner.prepare_replica(request).await
+    }
+
+    async fn activate_replica(
+        &self,
+        request: Request<pb::PeerActivateReplicaRequest>,
+    ) -> Result<Response<pb::PeerReplicaStatusResponse>, Status> {
+        self.inner.activate_replica(request).await
+    }
+
+    async fn abort_replica(
+        &self,
+        request: Request<pb::PeerAbortReplicaRequest>,
+    ) -> Result<Response<pb::PeerReplicaStatusResponse>, Status> {
+        self.inner.abort_replica(request).await
+    }
+
+    async fn get_replica_status(
+        &self,
+        request: Request<pb::PeerReplicaStatusRequest>,
+    ) -> Result<Response<pb::PeerReplicaStatusResponse>, Status> {
+        self.inner.get_replica_status(request).await
     }
 }
 
@@ -851,6 +975,248 @@ async fn exact_reads_skip_current_cache_but_range_current_reads_reuse_it() {
         meta.resolve_count(),
         1,
         "Current range read 仍可复用同一份 Current layout cache"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn cached_range_hit_only_requires_blocks_that_intersect_requested_range() {
+    let meta = CountingMetaServer::start().await;
+    let reader_node = TestNode::start_with_peer_server(&meta.endpoint, 1).await;
+    let writer_node = TestNode::start_with_peer_server(&meta.endpoint, 2).await;
+    let writer = writer_node.open_write_session().await;
+    let key = b"node-cache/range-required-blocks";
+
+    let v1 = writer_node.set_inline(writer, key, b"abcdefgh", 50).await;
+    let v2 = set_range_with_node(
+        writer_node.node.clone(),
+        writer,
+        key.to_vec(),
+        4,
+        b"Z".to_vec(),
+        v1,
+        51,
+    )
+    .await;
+    assert_eq!(v2, v1 + 1);
+    let (reader, _events) = reader_node.open_cached_session().await;
+
+    writer_node.reset_peer_pull_count();
+    meta.reset_resolve_count();
+    let first_patch_read = reader_node.read_inline_range(reader, key, (4, 1)).await;
+    assert_eq!(first_patch_read.version, v2);
+    assert_eq!(
+        first_patch_read.inline_value.as_deref(),
+        Some(b"Z".as_slice())
+    );
+    assert_eq!(
+        writer_node.peer_pull_count(),
+        1,
+        "第一次 range 读只需拉取覆盖本次 range 的 patch Block"
+    );
+    assert_eq!(
+        meta.resolve_count(),
+        1,
+        "第一次 range 读需要一次 Current resolve 来获得版本和位置"
+    );
+
+    writer_node.reset_peer_pull_count();
+    meta.reset_resolve_count();
+    let cached_patch_read = reader_node.read_inline_range(reader, key, (4, 1)).await;
+    assert_eq!(cached_patch_read.version, v2);
+    assert_eq!(
+        cached_patch_read.inline_value.as_deref(),
+        Some(b"Z".as_slice())
+    );
+    assert_eq!(
+        writer_node.peer_pull_count(),
+        0,
+        "range 命中本地 patch Block 后，不应因为同版本旧前缀 Block 缺失而拉取 peer"
+    );
+    assert_eq!(
+        meta.resolve_count(),
+        0,
+        "range 只依赖 patch Block；旧前缀 Block 缺失不应迫使同一有效 Current 再次 resolve"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn cached_current_locations_pull_missing_peer_blocks_without_current_resolve() {
+    let meta = CountingMetaServer::start().await;
+    let reader_node = TestNode::start_with_peer_server(&meta.endpoint, 1).await;
+    let writer_node = TestNode::start_with_peer_server(&meta.endpoint, 2).await;
+    let writer = writer_node.open_write_session().await;
+    let key = b"node-cache/cached-peer-location";
+
+    let v1 = writer_node.set_inline(writer, key, b"abcdefgh", 60).await;
+    let v2 = set_range_with_node(
+        writer_node.node.clone(),
+        writer,
+        key.to_vec(),
+        4,
+        b"Z".to_vec(),
+        v1,
+        61,
+    )
+    .await;
+    assert_eq!(v2, v1 + 1);
+    let (reader, _events) = reader_node.open_cached_session().await;
+
+    let patch = reader_node.read_inline_range(reader, key, (4, 1)).await;
+    assert_eq!(patch.version, v2);
+    assert_eq!(patch.inline_value.as_deref(), Some(b"Z".as_slice()));
+
+    writer_node.reset_peer_pull_count();
+    meta.reset_resolve_count();
+    let full = reader_node.read_inline(reader, key).await;
+    assert_eq!(full.version, v2);
+    assert_eq!(full.inline_value.as_deref(), Some(b"abcdZfgh".as_slice()));
+    assert_eq!(
+        writer_node.peer_pull_count(),
+        1,
+        "缓存位置提示可以直接补齐缺失 base Block，且只补本次缺失 Block"
+    );
+    assert_eq!(
+        meta.resolve_count(),
+        0,
+        "缓存里已有同一 Current 版本的位置提示；补齐缺失旧 Block 不应重复 Resolve Current"
+    );
+
+    writer_node.reset_peer_pull_count();
+    meta.reset_resolve_count();
+    let local = reader_node.read_inline(reader, key).await;
+    assert_eq!(local.version, v2);
+    assert_eq!(local.inline_value.as_deref(), Some(b"abcdZfgh".as_slice()));
+    assert_eq!(
+        writer_node.peer_pull_count(),
+        0,
+        "缺失 Block 补齐后，本地命中不再访问 peer"
+    );
+    assert_eq!(
+        meta.resolve_count(),
+        0,
+        "Block 补齐后，本地命中仍保持 0 Meta Resolve"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn cached_location_read_does_not_hide_report_replica_failure() {
+    let meta = CountingMetaServer::start().await;
+    let reader_node = TestNode::start_with_peer_server(&meta.endpoint, 1).await;
+    let writer_node = TestNode::start_with_peer_server(&meta.endpoint, 2).await;
+    let writer = writer_node.open_write_session().await;
+    let key = b"node-cache/report-failure";
+
+    let v1 = writer_node.set_inline(writer, key, b"abcdefgh", 70).await;
+    let v2 = set_range_with_node(
+        writer_node.node.clone(),
+        writer,
+        key.to_vec(),
+        4,
+        b"Z".to_vec(),
+        v1,
+        71,
+    )
+    .await;
+    let (reader, _events) = reader_node.open_cached_session().await;
+
+    let patch = reader_node.read_inline_range(reader, key, (4, 1)).await;
+    assert_eq!(patch.version, v2);
+    assert_eq!(patch.inline_value.as_deref(), Some(b"Z".as_slice()));
+
+    writer_node.reset_peer_pull_count();
+    meta.reset_resolve_count();
+    meta.set_report_rejected(true);
+    let result = reader_node
+        .node
+        .get_with_inline_limit(reader, key.to_vec(), None, None, 64 * 1024)
+        .await;
+    meta.set_report_rejected(false);
+    assert_eq!(
+        writer_node.peer_pull_count(),
+        1,
+        "故障发生在 peer 数据拉取成功之后的 Meta report 阶段"
+    );
+    assert_eq!(
+        meta.resolve_count(),
+        0,
+        "缓存位置路径不应先回 Meta 重新解析 Current"
+    );
+    assert!(
+        matches!(result, Err(WorkerError::Stable(ref error)) if error.code() == dms_error::META_JOURNAL_UNAVAILABLE),
+        "Meta report 失败必须返回给调用者，不能被 Exact fallback 吞掉：{result:?}"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn cached_stale_location_refreshes_exact_version_once() {
+    let meta = CountingMetaServer::start().await;
+    let reader_node = TestNode::start_with_peer_server(&meta.endpoint, 1).await;
+    let writer_node = TestNode::start_with_peer_server(&meta.endpoint, 2).await;
+    let writer = writer_node.open_write_session().await;
+    let key = b"node-cache/stale-location";
+    let v1 = writer_node.set_inline(writer, key, b"abcdefgh", 80).await;
+    let v2 = set_range_with_node(
+        writer_node.node.clone(),
+        writer,
+        key.to_vec(),
+        4,
+        b"Z".to_vec(),
+        v1,
+        81,
+    )
+    .await;
+    let (reader, _events) = reader_node.open_cached_session().await;
+    meta.stale_location_once.store(true, Ordering::Release);
+    assert_eq!(
+        reader_node
+            .read_inline_range(reader, key, (4, 1))
+            .await
+            .version,
+        v2
+    );
+
+    meta.reset_resolve_count();
+    meta.resolve_queries.lock().unwrap().clear();
+    writer_node.reset_peer_pull_count();
+    let result = reader_node.read_inline(reader, key).await;
+    assert_eq!(result.version, v2);
+    assert_eq!(result.inline_value.as_deref(), Some(b"abcdZfgh".as_slice()));
+    assert_eq!(meta.resolve_count(), 1);
+    assert_eq!(*meta.resolve_queries.lock().unwrap(), vec![Some(v2)]);
+    assert_eq!(writer_node.peer_pull_count(), 1);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn expired_node_authority_rechecks_meta_even_with_all_bytes_local() {
+    let meta = CountingMetaServer::start().await;
+    let reader_node = TestNode::start_with_peer_server(&meta.endpoint, 1).await;
+    let writer_node = TestNode::start_with_peer_server(&meta.endpoint, 2).await;
+    let writer = writer_node.open_write_session().await;
+    let key = b"node-cache/expired-authority";
+    writer_node
+        .set_inline(writer, key, b"local-after-first-read", 90)
+        .await;
+    let (reader, _events) = reader_node.open_cached_session().await;
+    reader_node.read_inline(reader, key).await;
+    // 模拟本地已知的授权截止，不依赖 wall-clock sleep 的竞争窗口。
+    reader_node._heartbeat_task.abort();
+    reader_node
+        .node
+        .metadata_lease(Some(Instant::now() - Duration::from_secs(1)), None)
+        .await
+        .unwrap();
+    meta.reset_resolve_count();
+    writer_node.reset_peer_pull_count();
+    let result = reader_node.read_inline(reader, key).await;
+    assert_eq!(
+        result.inline_value.as_deref(),
+        Some(b"local-after-first-read".as_slice())
+    );
+    assert_eq!(meta.resolve_count(), 1, "本地 bytes 不能替代版本授权");
+    assert_eq!(
+        writer_node.peer_pull_count(),
+        0,
+        "只重新解析，不重复拉取已有 bytes"
     );
 }
 

@@ -275,6 +275,90 @@ async fn prepare_replica_reassembles_out_of_order_segments_and_validates_tail() 
     peer.stop().await;
 }
 
+/// 第二段尚未返回时，第一段已按序消费，应立即给第三段补位。
+#[tokio::test]
+async fn peer_pipeline_refills_after_first_segment_without_waiting_for_second() {
+    let payload = deterministic_bytes((PEER_PULL_SEGMENT_BYTES * 3 + 17) as usize);
+    let block_id = b"pipeline-refill".to_vec();
+    let (peer, gate, mut requests) =
+        FakePeer::new(block_id.clone(), payload.clone()).block_segment(PEER_PULL_SEGMENT_BYTES);
+    let peer = FakePeerServer::start(peer).await;
+    let target = NodeHandle::spawn_without_metadata("pipeline-target".into());
+    let spec = ReplicaPrepareSpec {
+        source_node_id: "pipeline-source".into(),
+        source_endpoint: peer.endpoint.clone(),
+        plan_id: b"pipeline-refill-plan".to_vec(),
+        block_id,
+        expected_length: payload.len() as u64,
+        expected_checksum: digest(&payload),
+    };
+    let pull = tokio::spawn(async move { target.prepare_replica(spec).await });
+    let third_seen = tokio::time::timeout(Duration::from_secs(3), async {
+        while let Some(offset) = requests.recv().await {
+            if offset == PEER_PULL_SEGMENT_BYTES * 2 {
+                return;
+            }
+        }
+        panic!("request channel closed before third segment");
+    })
+    .await;
+    // 即使红测试失败，也先释放门闩，让服务和拉取任务可正常结束。
+    gate.add_permits(1);
+    let result = tokio::time::timeout(Duration::from_secs(3), pull)
+        .await
+        .expect("pull terminates after gate release")
+        .expect("pull task does not panic");
+    peer.stop().await;
+    assert!(
+        third_seen.is_ok(),
+        "third segment waited for blocked second segment"
+    );
+    assert_eq!(result.expect("all segments verified").status, "prepared");
+}
+
+/// 第二段先到也占一个窗口位置；首段阻塞期间不得继续积累第三、第四段。
+#[tokio::test]
+async fn peer_pipeline_bounds_ready_and_inflight_segments_together() {
+    let payload = deterministic_bytes((PEER_PULL_SEGMENT_BYTES * 3 + 17) as usize);
+    let block_id = b"pipeline-bounded".to_vec();
+    let (peer, gate, mut requests) =
+        FakePeer::new(block_id.clone(), payload.clone()).block_segment(0);
+    let peer = FakePeerServer::start(peer).await;
+    let target = NodeHandle::spawn_without_metadata("bounded-target".into());
+    let spec = ReplicaPrepareSpec {
+        source_node_id: "bounded-source".into(),
+        source_endpoint: peer.endpoint.clone(),
+        plan_id: b"pipeline-bounded-plan".to_vec(),
+        block_id,
+        expected_length: payload.len() as u64,
+        expected_checksum: digest(&payload),
+    };
+    let pull = tokio::spawn(async move { target.prepare_replica(spec).await });
+    let mut initial = Vec::new();
+    for _ in 0..2 {
+        initial.push(
+            tokio::time::timeout(Duration::from_secs(3), requests.recv())
+                .await
+                .expect("initial two requests arrive")
+                .expect("request offset"),
+        );
+    }
+    initial.sort_unstable();
+    assert_eq!(initial, vec![0, PEER_PULL_SEGMENT_BYTES]);
+    let premature_third = tokio::time::timeout(Duration::from_millis(200), requests.recv()).await;
+    gate.add_permits(1);
+    let result = tokio::time::timeout(Duration::from_secs(3), pull)
+        .await
+        .expect("pull terminates after gate release")
+        .expect("pull task does not panic");
+    peer.stop().await;
+    assert!(
+        premature_third.is_err(),
+        "ready result was excluded from the two-slot limit"
+    );
+    assert_eq!(result.expect("all segments verified").status, "prepared");
+}
+
 struct CountingMetaServer {
     endpoint: String,
     report_count: Arc<AtomicUsize>,
@@ -414,6 +498,9 @@ struct FakePeer {
     corrupt_payload: bool,
     delay_first_segment: bool,
     requests: Arc<Mutex<BTreeMap<u64, u64>>>,
+    // 测试用门闩：精确阻塞某一分段，不依靠 sleep 猜测完成顺序。
+    blocked_segment: Option<(u64, Arc<tokio::sync::Semaphore>)>,
+    request_events: Option<tokio::sync::mpsc::UnboundedSender<u64>>,
 }
 
 impl FakePeer {
@@ -425,6 +512,8 @@ impl FakePeer {
             corrupt_payload: false,
             delay_first_segment: false,
             requests: Arc::new(Mutex::new(BTreeMap::new())),
+            blocked_segment: None,
+            request_events: None,
         }
     }
 
@@ -454,6 +543,21 @@ impl FakePeer {
             .map(|(offset, length)| (*offset, *length))
             .collect()
     }
+
+    fn block_segment(
+        mut self,
+        offset: u64,
+    ) -> (
+        Self,
+        Arc<tokio::sync::Semaphore>,
+        tokio::sync::mpsc::UnboundedReceiver<u64>,
+    ) {
+        let gate = Arc::new(tokio::sync::Semaphore::new(0));
+        let (events, receiver) = tokio::sync::mpsc::unbounded_channel();
+        self.blocked_segment = Some((offset, gate.clone()));
+        self.request_events = Some(events);
+        (self, gate, receiver)
+    }
 }
 
 #[tonic::async_trait]
@@ -482,6 +586,14 @@ impl PeerService for FakePeer {
             .lock()
             .expect("requests lock")
             .insert(offset, length);
+        if let Some(events) = &self.request_events {
+            let _ = events.send(offset);
+        }
+        if let Some((blocked_offset, gate)) = &self.blocked_segment
+            && *blocked_offset == offset
+        {
+            let _permit = gate.acquire().await.expect("test segment gate is open");
+        }
         if self.delay_first_segment && offset == 0 && request.length.is_some() {
             tokio::task::yield_now().await;
             tokio::task::yield_now().await;

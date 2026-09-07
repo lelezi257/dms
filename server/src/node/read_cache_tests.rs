@@ -759,8 +759,7 @@ async fn current_get_resolves_meta_once_then_reuses_node_layout_cache() {
     let node = TestNode::start(&meta.endpoint, 1).await;
     let writer = node.open_write_session().await;
     let key = b"node-cache/read-through";
-    let v1 = node.set_inline(writer, key, b"v1", 1).await;
-    meta.wait_for_invalidation_ack(1, key, v1).await;
+    node.set_inline(writer, key, b"v1", 1).await;
     let (session, _events) = node.open_cached_session().await;
 
     meta.reset_resolve_count();
@@ -784,7 +783,6 @@ async fn set_range_invalidates_node_layout_cache_before_next_current_read() {
     let writer = node.open_write_session().await;
     let key = b"node-cache/set-range";
     let v1 = node.set_inline(writer, key, b"abcd", 10).await;
-    meta.wait_for_invalidation_ack(1, key, v1).await;
     let first = node.read_inline(reader, key).await;
     assert_eq!(first.inline_value.as_deref(), Some(b"abcd".as_slice()));
 
@@ -824,7 +822,6 @@ async fn exact_reads_skip_current_cache_but_range_current_reads_reuse_it() {
     let writer = node.open_write_session().await;
     let key = b"node-cache/exact-range";
     let version = node.set_inline(writer, key, b"abcdef", 12).await;
-    meta.wait_for_invalidation_ack(1, key, version).await;
     let (reader, _events) = node.open_cached_session().await;
 
     meta.reset_resolve_count();
@@ -865,7 +862,6 @@ async fn mset_invalidates_cached_local_current_key() {
     let key = b"node-cache/mset-a";
     let other_key = b"node-cache/mset-b";
     let v1 = node.set_inline(writer, key, b"old-a", 13).await;
-    meta.wait_for_invalidation_ack(1, key, v1).await;
     let (reader, mut reader_events) = node.open_cached_session().await;
     let first = node.read_inline(reader, key).await;
     assert_eq!(first.version, v1);
@@ -885,9 +881,7 @@ async fn mset_invalidates_cached_local_current_key() {
     assert_eq!(versions.len(), 2);
     assert_eq!(versions[0].version, v1 + 1);
     meta.wait_for_invalidation_ack(1, key, v1 + 1).await;
-    // 回填 generation 是 Node 全局的；也要排空本批另一个 key 的合法失效。
-    meta.wait_for_invalidation_ack(1, other_key, versions[1].version)
-        .await;
+    // 另一个 key 是本批新建对象，不需要失效已有 Current cache，也不会等待前台 ACK。
 
     meta.reset_resolve_count();
     let second = node.read_inline(reader, key).await;
@@ -911,7 +905,6 @@ async fn delete_invalidates_cached_current_and_following_get_observes_not_found(
     let writer = node.open_write_session().await;
     let key = b"node-cache/delete";
     let v1 = node.set_inline(writer, key, b"live", 20).await;
-    meta.wait_for_invalidation_ack(1, key, v1).await;
     let first = node.read_inline(reader, key).await;
     assert_eq!(first.inline_value.as_deref(), Some(b"live".as_slice()));
 
@@ -947,7 +940,6 @@ async fn delayed_remote_resolve_cannot_refill_stale_current_cache() {
     let key = b"node-cache/two-node-stale-resolve";
 
     let v1 = writer_node.set_inline(writer, key, b"remote-v1", 30).await;
-    meta.wait_for_invalidation_ack(1, key, v1).await;
     let delay = meta.delay_next_resolve_for_key(key);
     let read_node = reader_node.node.clone();
     let read_key = key.to_vec();
@@ -1023,7 +1015,6 @@ async fn meta_watch_reconnect_restores_current_cache_after_stream_drop() {
     let v1 = writer_node
         .set_inline(writer, key, b"before-drop", 40)
         .await;
-    meta.wait_for_invalidation_ack(1, key, v1).await;
     let (reader, mut reader_events) = reader_node.open_cached_session().await;
     let first = reader_node.read_inline(reader, key).await;
     assert_eq!(

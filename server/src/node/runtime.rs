@@ -11,6 +11,7 @@ use std::{
     future::Future,
     path::PathBuf,
     pin::Pin,
+    sync::Arc,
     time::{Duration, Instant},
 };
 
@@ -21,8 +22,8 @@ use dms_transport::{GrpcConfig, SecurityManager, TlsConfig};
 // mpsc：多个 RPC Task 生产 command，一个 Node 状态 owner Task 消费。
 // oneshot：一个请求对应一个、且只发送一次的结果。
 use dms_tracing::Instrument as _;
-use tokio::sync::{mpsc, oneshot};
-use tonic::transport::Endpoint;
+use tokio::sync::{Mutex, mpsc, oneshot};
+use tonic::transport::{Channel, Endpoint};
 
 use super::arena_manager::{
     ArenaError, ArenaManager, ArenaReadTicket, HostAllocationTarget, HostReceipt, HostRegionGrant,
@@ -45,6 +46,10 @@ const CLIENT_CACHE_LEASE_TTL: Duration =
 // 不保存 Client 的数据。超过上限时退化为通配兴趣，直到租约过期。
 const CLIENT_CACHE_INTEREST_KEY_LIMIT: usize = 4096;
 const CLIENT_CACHE_INTEREST_BYTES_LIMIT: usize = 256 * 1024;
+// Peer gRPC 默认有 4MiB 解码上限。跨 Node 大对象拉取必须拆成有界分段，
+// 既避免单条消息无限放大，又保持 Node→Node 协议不变。
+const PEER_PULL_SEGMENT_BYTES: u64 = 2 * 1024 * 1024;
+const PEER_CHANNEL_CACHE_LIMIT: usize = 128;
 
 // 准备和完成都只访问唯一 owner；中间 Future 只拥有不可变提交资料与 Meta client。
 // JoinSet 的数量上限与 mailbox 相同，饱和时拒绝新写，但 ACK/心跳仍可推进。
@@ -274,6 +279,12 @@ pub(crate) struct NodeHandle {
     fd_broker_path: Option<PathBuf>,
     metrics: NodeMetrics,
     rpc_metrics: dms_metrics::RpcMetrics,
+    /// endpoint -> 已建立的 Peer gRPC Channel。
+    ///
+    /// Peer GET 缺块可能连续向同一个写入 Node 拉多个 Block；连接建立属于固定成本，
+    /// 放在这里复用。这里缓存 Channel 而不是 generated client：generated client 是
+    /// 某个 proto service 的 typed façade，按调用现场临时创建即可；Channel 才是连接资源。
+    peer_channels: Arc<Mutex<HashMap<String, Channel>>>,
 }
 
 /// Resources and policies owned by the Node state task.
@@ -361,6 +372,7 @@ impl NodeHandle {
             fd_broker_path,
             metrics,
             rpc_metrics,
+            peer_channels: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 
@@ -397,6 +409,7 @@ impl NodeHandle {
             fd_broker_path: None,
             metrics,
             rpc_metrics,
+            peer_channels: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 
@@ -872,7 +885,9 @@ impl NodeHandle {
     /// adding node IDs to metric labels.
     async fn pull_peer_block(&self, spec: PeerPullSpec) -> Result<PeerBlockResult, WorkerError> {
         let mut metric = self.metrics.begin_replica_operation(ReplicaOperation::Pull);
-        match pull_block_from_peer(&self.node_id, spec, &self.rpc_metrics).await {
+        match pull_block_from_peer(&self.node_id, spec, &self.rpc_metrics, &self.peer_channels)
+            .await
+        {
             Ok(payload) => {
                 metric.success_with_payload(ReplicaDirection::Receive, payload.payload.len());
                 Ok(payload)
@@ -1026,6 +1041,7 @@ impl NodeHandle {
                 expected_length: spec.expected_length,
             },
             &self.rpc_metrics,
+            &self.peer_channels,
         )
         .await?;
         let (reply_tx, reply_rx) = oneshot::channel();
@@ -1925,7 +1941,7 @@ impl NodeState {
                 "source node id and block id are required",
             ));
         }
-        let (ticket, _) = self
+        let (ticket, full_length) = self
             .arena
             .open_read(&block_id, range)
             .map_err(map_arena_error)?;
@@ -1935,7 +1951,7 @@ impl NodeState {
             serving_node_id: self.node_id.clone(),
             block_id,
             checksum,
-            length: ticket.handle.length,
+            length: full_length,
             payload,
         })
     }
@@ -3382,44 +3398,117 @@ async fn pull_block_from_peer(
     source_node_id: &str,
     spec: PeerPullSpec,
     rpc_metrics: &dms_metrics::RpcMetrics,
+    peer_channels: &Arc<Mutex<HashMap<String, Channel>>>,
 ) -> Result<PeerBlockResult, WorkerError> {
-    let endpoint = Endpoint::from_shared(spec.endpoint.clone())
-        .map_err(|_| WorkerError::TransferUnavailable)?;
-    let security =
-        SecurityManager::new(TlsConfig::Disabled).map_err(|_| WorkerError::TransferUnavailable)?;
-    let endpoint = security
-        .configure_client(GrpcConfig::default().configure_client(endpoint))
-        .map_err(|_| WorkerError::TransferUnavailable)?;
-    let channel = endpoint
-        .connect()
-        .await
-        .map_err(|_| WorkerError::TransferUnavailable)?;
-    let mut rpc = rpc_metrics.begin_client_call(dms_metrics::RpcCall::PEER_PULL_BLOCK);
-    let response =
-        pb::peer_service_client::PeerServiceClient::new(dms_tracing::traced_channel(channel))
+    if spec.expected_length <= PEER_PULL_SEGMENT_BYTES {
+        return pull_peer_segment(
+            source_node_id,
+            &spec,
+            rpc_metrics,
+            peer_channels,
+            None,
+            None,
+            true,
+        )
+        .await;
+    }
+
+    let capacity =
+        usize::try_from(spec.expected_length).map_err(|_| WorkerError::ResourceExhausted)?;
+    let mut payload = Vec::new();
+    payload
+        .try_reserve_exact(capacity)
+        .map_err(|_| WorkerError::ResourceExhausted)?;
+    let mut serving_node_id = String::new();
+    let mut offset = 0;
+    while offset < spec.expected_length {
+        let length = (spec.expected_length - offset).min(PEER_PULL_SEGMENT_BYTES);
+        let segment = pull_peer_segment(
+            source_node_id,
+            &spec,
+            rpc_metrics,
+            peer_channels,
+            Some(offset),
+            Some(length),
+            false,
+        )
+        .await?;
+        if segment.length != spec.expected_length || segment.payload.len() as u64 != length {
+            return Err(WorkerError::Conflict);
+        }
+        if serving_node_id.is_empty() {
+            serving_node_id = segment.serving_node_id;
+        } else if serving_node_id != segment.serving_node_id {
+            return Err(WorkerError::Conflict);
+        }
+        payload.extend_from_slice(&segment.payload);
+        offset += length;
+    }
+
+    let checksum = digest(&payload);
+    if !spec.expected_checksum.is_empty() && checksum != spec.expected_checksum {
+        return Err(WorkerError::Conflict);
+    }
+    Ok(PeerBlockResult {
+        serving_node_id,
+        block_id: spec.block_id,
+        payload,
+        checksum,
+        length: spec.expected_length,
+    })
+}
+
+async fn pull_peer_segment(
+    source_node_id: &str,
+    spec: &PeerPullSpec,
+    rpc_metrics: &dms_metrics::RpcMetrics,
+    peer_channels: &Arc<Mutex<HashMap<String, Channel>>>,
+    offset: Option<u64>,
+    length: Option<u64>,
+    validate_whole_block: bool,
+) -> Result<PeerBlockResult, WorkerError> {
+    let mut retry_after_cached_channel_failure = true;
+    let response = loop {
+        let channel = peer_channel_for(&spec.endpoint, peer_channels).await?;
+        let mut client =
+            pb::peer_service_client::PeerServiceClient::new(dms_tracing::traced_channel(channel));
+        let mut rpc = rpc_metrics.begin_client_call(dms_metrics::RpcCall::PEER_PULL_BLOCK);
+        match client
             .pull_block(pb::PeerPullBlockRequest {
                 source_node_id: source_node_id.to_string(),
                 block_id: spec.block_id.clone(),
-                offset: None,
-                length: None,
+                offset,
+                length,
                 expected_length: Some(spec.expected_length),
-                expected_checksum: spec.expected_checksum.clone(),
+                expected_checksum: if validate_whole_block {
+                    spec.expected_checksum.clone()
+                } else {
+                    Vec::new()
+                },
             })
             .await
-            .map_err(|status| match status.code() {
-                tonic::Code::NotFound => WorkerError::NotFound,
-                tonic::Code::InvalidArgument => {
-                    WorkerError::InvalidArgument("invalid peer request")
-                }
-                tonic::Code::FailedPrecondition | tonic::Code::Aborted => WorkerError::Conflict,
-                _ => WorkerError::TransferUnavailable,
-            })?
-            .into_inner();
-    rpc.success();
+        {
+            Ok(response) => {
+                rpc.success();
+                break response.into_inner();
+            }
+            Err(status)
+                if retry_after_cached_channel_failure && is_retryable_peer_status(&status) =>
+            {
+                peer_channels.lock().await.remove(&spec.endpoint);
+                retry_after_cached_channel_failure = false;
+                continue;
+            }
+            Err(status) => return Err(map_peer_pull_status(status)),
+        }
+    };
+    let expected_payload_length = length.unwrap_or(spec.expected_length);
     if response.block_id != spec.block_id
         || response.length != spec.expected_length
-        || response.payload.len() as u64 != response.length
-        || (!spec.expected_checksum.is_empty() && response.checksum != spec.expected_checksum)
+        || response.payload.len() as u64 != expected_payload_length
+        || (validate_whole_block
+            && !spec.expected_checksum.is_empty()
+            && response.checksum != spec.expected_checksum)
         || (!response.checksum.is_empty() && digest(&response.payload) != response.checksum)
     {
         return Err(WorkerError::Conflict);
@@ -3431,6 +3520,63 @@ async fn pull_block_from_peer(
         checksum: response.checksum,
         length: response.length,
     })
+}
+
+async fn peer_channel_for(
+    endpoint: &str,
+    peer_channels: &Arc<Mutex<HashMap<String, Channel>>>,
+) -> Result<Channel, WorkerError> {
+    if let Some(channel) = peer_channels.lock().await.get(endpoint).cloned() {
+        return Ok(channel);
+    }
+    let endpoint_uri = endpoint.to_string();
+    let endpoint = Endpoint::from_shared(endpoint_uri.clone())
+        .map_err(|_| WorkerError::TransferUnavailable)?;
+    let security =
+        SecurityManager::new(TlsConfig::Disabled).map_err(|_| WorkerError::TransferUnavailable)?;
+    let grpc = GrpcConfig::default();
+    let endpoint = security
+        .configure_client(grpc.configure_client(endpoint))
+        .map_err(|_| WorkerError::TransferUnavailable)?;
+    let channel = endpoint
+        .connect()
+        .await
+        .map_err(|status| transfer_unavailable(format!("peer connect failed: {status}")))?;
+    let mut channels = peer_channels.lock().await;
+    if let Some(existing) = channels.get(&endpoint_uri).cloned() {
+        return Ok(existing);
+    }
+    if channels.len() >= PEER_CHANNEL_CACHE_LIMIT
+        && let Some(evicted_endpoint) = channels.keys().next().cloned()
+    {
+        channels.remove(&evicted_endpoint);
+    }
+    channels.insert(endpoint_uri, channel.clone());
+    Ok(channel)
+}
+
+fn is_retryable_peer_status(status: &tonic::Status) -> bool {
+    matches!(
+        status.code(),
+        tonic::Code::Unavailable | tonic::Code::Unknown | tonic::Code::DeadlineExceeded
+    )
+}
+
+fn map_peer_pull_status(status: tonic::Status) -> WorkerError {
+    match status.code() {
+        tonic::Code::NotFound => WorkerError::NotFound,
+        tonic::Code::InvalidArgument => WorkerError::InvalidArgument("invalid peer request"),
+        tonic::Code::FailedPrecondition | tonic::Code::Aborted => WorkerError::Conflict,
+        _ => transfer_unavailable(format!("peer PullBlock failed: {status}")),
+    }
+}
+
+fn transfer_unavailable(message: String) -> WorkerError {
+    WorkerError::Stable(DmsError::new(
+        dms_error::NODE_TRANSFER_UNAVAILABLE,
+        ErrorKind::Unavailable,
+        message,
+    ))
 }
 
 #[cfg(test)]
@@ -3959,6 +4105,17 @@ mod tests {
             );
             let session = node.open_session(false).await.unwrap();
             nodes.push((node, session));
+        }
+        for (index, (node, session)) in nodes.iter().cloned().enumerate() {
+            node.set_inline(
+                session,
+                vec![index as u8],
+                b"old".to_vec(),
+                vec![0x80 + index as u8; 24],
+                "any".into(),
+            )
+            .await
+            .unwrap();
         }
         let mut writes = Vec::new();
         for (index, (node, session)) in nodes.iter().cloned().enumerate() {

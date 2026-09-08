@@ -86,19 +86,28 @@ require_not_less_samples() {
 
 for metric in \
   dms_client_operations_total \
-  dms_client_cache_lookups_total \
-  dms_client_cache_invalidations_total \
   dms_client_node_session_events_total \
+  dms_client_region_mapping_lookups_total \
+  dms_client_region_mappings \
   dms_client_payload_transfers_total \
   dms_errors_total \
   dms_rpc_client_requests_total; do
   require_metric "${TMP_DIR}/client.prom" "${metric}"
 done
 
+# 薄 SDK 已删除跨请求 value cache；保留的是 Region FD/mmap 复用。
+# 不能让已删除的业务指标以常零值继续存在，掩盖旧代码或旧候选包被部署。
+if grep -q '^# HELP dms_client_cache_' "${TMP_DIR}/client.prom"; then
+  echo "obsolete SDK value-cache metric family is still registered" >&2
+  exit 1
+fi
+
 for metric in \
   dms_node_mailbox_depth \
   dms_node_arena_capacity_bytes \
   dms_node_arena_allocations_total \
+  dms_node_current_cache_lookups_total \
+  dms_node_current_cache_charged_bytes \
   dms_rpc_server_requests_total; do
   require_metric "${TMP_DIR}/node.prom" "${metric}"
 done
@@ -112,21 +121,22 @@ for metric in \
   require_metric "${TMP_DIR}/meta.prom" "${metric}"
 done
 
-# 已实现的 67 个指标族：业务/RPC/错误、隔离内存容量和 Trace 导出自监控。
-# SHM 隔离字节由 S2 安全修复增加，不能为凑旧计数而删除真实指标。
-# The business/RPC/error set
-# plus all 6 Trace exporter self-monitoring families. The bounded queue_full
-# counter is materialized at zero so failures never change the public family
-# count. Count the union because common families intentionally appear in more
-# than one process registry.
+# 旧 67 族门禁漏计了后来新增的 Node Current 两族；本轮又删除 SDK cache 两族。
+# 当前业务/RPC/错误为 61 族，Trace 有 5 个预建族、1 个延迟产生的 export_batches。
+# Trace 关闭/尚未导出时共 66，导出过后共 67；不能为凑数给不存在的导出补假数据。
+# 多个进程共享的指标族按名称去重；实际路径的必需指标继续逐项校验。
 family_count="$({
   grep '^# HELP dms_' "${TMP_DIR}/client.prom"
   grep '^# HELP dms_' "${TMP_DIR}/node.prom"
   grep '^# HELP dms_' "${TMP_DIR}/meta.prom"
 } | awk '{print $3}' | sort -u | wc -l | tr -d ' ')"
 require_metric "${TMP_DIR}/node.prom" dms_node_arena_quarantined_bytes
-if [[ "${family_count}" != "67" ]]; then
-  echo "expected 67 unique DMS metric families, found ${family_count}" >&2
+expected_family_count=66
+if grep -q '^# HELP dms_trace_export_batches_total ' "${TMP_DIR}"/*.prom; then
+  expected_family_count=67
+fi
+if [[ "${family_count}" != "${expected_family_count}" ]]; then
+  echo "expected ${expected_family_count} unique DMS metric families, found ${family_count}" >&2
   exit 1
 fi
 
@@ -164,7 +174,7 @@ if [[ "${TOPOLOGY}" == "single" ]]; then
     'dms_rpc_client_requests_total{method="CommitVersion",result="ok",service="MetadataService"}'
 fi
 
-echo "Client/Node/Meta Metrics E2E passed: 67 metric families and real RPC/SHM samples"
+echo "Client/Node/Meta Metrics E2E passed: ${family_count} metric families and real RPC/SHM samples"
 
 if [[ "${TOPOLOGY}" == "three-node" ]]; then
   N1_ADDRESS="${1:?usage: verify_metrics.sh --topology three-node N1_IP N2_IP N3_IP}"

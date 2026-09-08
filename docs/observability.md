@@ -58,6 +58,8 @@ histogram_quantile(0.99, sum by (le) (rate(dms_client_operation_duration_seconds
 
 短命令退出后不再提供 SDK Registry；要持续抓取 Client 指标，应使用宿主 HTTP endpoint，例如 `metrics_host`。不能把多个节点的 p99 直接相加。
 
+薄 SDK 不再上报 value cache 命中/失效指标。看 Node 的 `dms_node_current_cache_lookups_total` 判断布局缓存命中，看 Peer 传输指标判断是否重新拉取数据；Client 的 Region mapping 指标只反映 FD/mmap 复用，不表示跳过 Node GET。
+
 日志：Grafana → Explore → `DMS Loki`，先查：
 
 ```logql

@@ -47,7 +47,7 @@ SDK不会自己暴露Metrics；宿主需注入Registry并持续提供HTTP。刚�
 4. 等数秒让服务端batch导出，再调用Tempo API；404不同于业务GET失败。
 5. 查看根名`dms.sdk_kv.set/get`，不要把其它旧Trace或周期诊断请求当成本次请求。
 
-Trace包含多个Span，所以不是每行一个请求。缓存命中可能没有Meta/Peer子Span；跨Node首次冷读才适合验证完整数据路径。
+Trace包含多个Span，所以不是每行一个请求。Node 布局/Block 命中可能没有Meta/Peer子Span，但薄 SDK 的普通 GET 仍访问 Node；跨Node首次冷读才适合验证完整数据路径。
 
 ## 5. 日志关联为空
 

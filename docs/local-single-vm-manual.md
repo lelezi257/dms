@@ -70,13 +70,13 @@ export DMS_ENDPOINT=http://127.0.0.1:25200
 
 预期：ready 请求成功；写入打印 `set ok` 和 version；读取打印 `get ok`；删除打印 `deleted=true`。GET 示例的第三个参数是**期望值**，会做字节比较，不是普通字符串打印命令。SET 成功后不需要 sleep 再 GET。
 
-每次执行 `sdk_kv` 都是新 Client 进程，不能用它证明同一 SDK 实例的缓存命中。验证同一进程的双 Client、range 和 batch：
+每次执行 `sdk_kv` 都是新 Client 进程。SDK 不缓存 value，数据复用由 Node 承载；证明没有重复 Peer 拉取还需比较 Node/Peer 指标，不能只看 GET 成功。验证同一进程的双 Client、range 和 batch：
 
 ```bash
 "$CARGO_TARGET_DIR/release/examples/sdk_api"
 ```
 
-预期最后输出 `set/get/del + range + batch APIs passed`。缓存断流/过期不能继续把旧值当 Current；其它 writer 成功提交可能需要等待缓存失效 ACK 或旧租约到期。
+预期最后输出 `set/get/del + range + batch APIs passed`。Node 缓存断流/过期不能继续把旧布局当 Current；其它 writer 成功提交仍需完成 Node 失效协调，混用旧 SDK 时还需履行旧客户端的缓存租约义务。
 
 ## 5. 只切换通道，再验证本地 SHM
 

@@ -1619,8 +1619,8 @@ mod tests {
         set_get(&server.endpoint);
     }
 
-    // 显式关闭 SDK bytes cache，并把内联预算压到 1 byte，确保下面读取确实经过
-    // download_segments，而不是被小对象内联或写入方缓存绕过。
+    // SDK 没有 value cache；把内联预算压到 1 byte，确保下面读取确实经过
+    // download_segments，而不是被小对象内联绕过。
     fn segment_reads_preserve_complete_bytes(
         address: TestAddress,
         shared_memory: bool,
@@ -1630,7 +1630,6 @@ mod tests {
         let client = DmsClient::connect(
             &server.endpoint,
             ClientOptions {
-                current_cache_bytes: Some(0),
                 inline_threshold_bytes: Some(1),
                 shared_memory: Some(shared_memory),
                 ..ClientOptions::default()
@@ -1871,7 +1870,7 @@ mod tests {
     }
 
     #[test]
-    fn node_stream_invalidates_another_clients_current_cache() {
+    fn thin_reader_observes_updates_without_a_private_value_cache() {
         let server = TestServer::start(TestAddress::Tcp);
         let reader_registry = registry();
         let writer =
@@ -1891,26 +1890,12 @@ mod tests {
             reader.get(key.clone()).expect("get v1"),
             Some(b"v1".to_vec())
         );
-        // 租约建立与首轮失效 ACK 独立推进；先以真实 cache hit 证明本测试已有旧缓存。
-        let cache_ready = Instant::now() + Duration::from_secs(2);
-        loop {
+        // 重复调用只能复用 Node 侧数据，SDK 不再缓存另一份 value。
+        for _ in 0..2 {
             assert_eq!(
-                reader.get(key.clone()).expect("populate leased cache"),
+                reader.get(key.clone()).expect("repeat get v1"),
                 Some(b"v1".to_vec())
             );
-            let text = encode_text(&reader_registry).expect("cache metrics");
-            if text.lines().any(|line| {
-                line.starts_with("dms_client_cache_")
-                    && line.contains("result=\"hit\"")
-                    && !line.ends_with(" 0")
-            }) {
-                break;
-            }
-            assert!(
-                Instant::now() < cache_ready,
-                "cache lease/hit did not become ready: {text}"
-            );
-            thread::sleep(Duration::from_millis(5));
         }
         writer.set(key.clone(), b"v2").expect("set v2");
 
@@ -1920,10 +1905,13 @@ mod tests {
             Some(b"v2".to_vec())
         );
 
+        writer.del(key.clone()).expect("delete");
+        assert!(reader.get(key).expect("first current after DEL").is_none());
+
         let metrics = encode_text(&reader_registry).expect("encode reader metrics");
         assert!(
-            metrics.contains("dms_client_cache_invalidations_total{result=\"evicted\"} 1"),
-            "the real invalidation path must drive the Client metric:\n{metrics}"
+            !metrics.contains("dms_client_cache_"),
+            "thin SDK must not register obsolete value cache metrics:\n{metrics}"
         );
     }
 
@@ -1969,6 +1957,21 @@ mod tests {
         assert_eq!(
             client.get("channel/shm-second").expect("read second"),
             Some(b"second".to_vec())
+        );
+        // 显式 View 仍指向旧版本；普通 GET 返回用户独立拥有的 Vec。
+        // 不能因为另一次普通 GET 完成，就让活动 View 指向被覆盖的 bytes。
+        client.set("channel/shm-explicit", b"new-value!!").unwrap();
+        for _ in 0..16 {
+            assert_eq!(
+                client.get("channel/shm-explicit").unwrap(),
+                Some(b"new-value!!".to_vec())
+            );
+            assert_eq!(view.as_slice().unwrap(), b"hello-shm!!");
+        }
+        drop(view);
+        assert_eq!(
+            client.get("channel/shm-explicit").unwrap(),
+            Some(b"new-value!!".to_vec())
         );
         assert_eq!(
             server

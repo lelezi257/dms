@@ -2798,11 +2798,9 @@ impl NodeState {
         let (shared_memory, view_epoch) = {
             let session = self
                 .sessions
-                .get_mut(&session_id)
+                .get(&session_id)
                 .ok_or(WorkerError::UnknownSession)?;
-            let view_epoch = session.next_view_epoch;
-            session.next_view_epoch += 1;
-            (session.shared_memory, view_epoch)
+            (session.shared_memory, session.next_view_epoch)
         };
         if let Some(inline_value) =
             self.inline_read_value(requested.1, shared_memory, max_inline_bytes, &planned)?
@@ -2836,6 +2834,20 @@ impl NodeState {
                 target,
                 payload_length,
             });
+        }
+        // 只有真正返回 SHM 借用才消耗序号。TCP/内联、空范围，以及构造票据
+        // 失败都不能制造 Client 永远收不到的 epoch 空洞。此段在唯一 owner 内。
+        if segments
+            .iter()
+            .any(|segment| matches!(segment.target, ReadTarget::Shm(_)))
+        {
+            let next = view_epoch
+                .checked_add(1)
+                .ok_or(WorkerError::InvalidArgument("view epoch exhausted"))?;
+            self.sessions
+                .get_mut(&session_id)
+                .ok_or(WorkerError::UnknownSession)?
+                .next_view_epoch = next;
         }
         Ok(GetOutcome::Ready(ReadTicket {
             version,
@@ -4783,6 +4795,84 @@ mod tests {
         assert_eq!(ticket.inline_value, None);
         assert_eq!(ticket.segments.len(), 1);
         assert_eq!(state.downloads.len(), 1);
+        // 协商 SHM 不等于真的借出了共享页；Private backing 回退下载不能消耗序号。
+        assert_eq!(state.sessions[&session].next_view_epoch, 1);
+    }
+
+    #[test]
+    fn copied_tcp_reads_do_not_consume_shared_view_epochs() {
+        let mut state = NodeState::new("node-a".into(), None, 4096, Duration::from_secs(30), None);
+        let session = state.open_session(false);
+        state
+            .arena
+            .commit_inline(b"block".to_vec(), b"abc".to_vec())
+            .unwrap();
+        let resolved = resolved_value(1, 3, vec![test_extent(0, 3, b"block", 0)]);
+        for inline_budget in [0, 3] {
+            state
+                .get_resolved(session, &resolved, None, inline_budget)
+                .unwrap();
+            assert_eq!(state.sessions[&session].next_view_epoch, 1);
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn only_successful_shared_read_tickets_consume_one_epoch() {
+        let unique = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let path = std::env::temp_dir().join(format!("s59-{}-{unique}.sock", std::process::id()));
+        let broker = SharedFdBroker::bind(path.clone()).unwrap();
+        let mut state = NodeState::new(
+            "node-a".into(),
+            None,
+            4096,
+            Duration::from_secs(30),
+            Some(broker),
+        );
+        let session = state.open_session(true);
+        state
+            .arena
+            .commit_inline(b"block".to_vec(), b"abcdef".to_vec())
+            .unwrap();
+        // 同次读有多个 Extent，但只是一份读借用，所有段共享同一 epoch。
+        let resolved = resolved_value(
+            1,
+            6,
+            vec![
+                test_extent(0, 3, b"block", 0),
+                test_extent(3, 3, b"block", 3),
+            ],
+        );
+        for expected in [1, 2] {
+            let GetOutcome::Ready(ticket) =
+                state.get_resolved(session, &resolved, None, 0).unwrap()
+            else {
+                panic!("local block must be ready")
+            };
+            assert_eq!(ticket.segments.len(), 2);
+            for segment in ticket.segments {
+                let ReadTarget::Shm(target) = segment.target else {
+                    panic!("expected SHM")
+                };
+                assert_eq!(target.view_epoch, Some(expected));
+            }
+            assert_eq!(state.sessions[&session].next_view_epoch, expected + 1);
+        }
+        // 无返回 bytes 或校验失败的读，不会留下 Client 无从释放的序号空洞。
+        state
+            .get_resolved(session, &resolved, Some((6, 0)), 0)
+            .unwrap();
+        assert!(
+            state
+                .get_resolved(session, &resolved, Some((7, 1)), 0)
+                .is_err()
+        );
+        assert_eq!(state.sessions[&session].next_view_epoch, 3);
+        drop(state);
+        let _ = std::fs::remove_file(path);
     }
 
     #[test]

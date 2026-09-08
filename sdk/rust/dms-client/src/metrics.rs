@@ -16,8 +16,6 @@ pub(crate) struct ClientMetrics {
     operations_total: IntCounterVec,
     operation_duration_seconds: HistogramVec,
     inflight_operations: IntGaugeVec,
-    cache_lookups_total: IntCounterVec,
-    cache_invalidations_total: IntCounterVec,
     node_connection_up: IntGauge,
     node_session_events_total: IntCounterVec,
     payload_transfers_total: IntCounterVec,
@@ -224,42 +222,6 @@ impl ClientOperation {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum CacheLookup {
-    Hit,
-    Miss,
-    Stale,
-}
-
-impl CacheLookup {
-    const ALL: [Self; 3] = [Self::Hit, Self::Miss, Self::Stale];
-
-    pub(crate) const fn label(self) -> &'static str {
-        match self {
-            Self::Hit => "hit",
-            Self::Miss => "miss",
-            Self::Stale => "stale",
-        }
-    }
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum CacheInvalidation {
-    Evicted,
-    Ignored,
-}
-
-impl CacheInvalidation {
-    const ALL: [Self; 2] = [Self::Evicted, Self::Ignored];
-
-    const fn label(self) -> &'static str {
-        match self {
-            Self::Evicted => "evicted",
-            Self::Ignored => "ignored",
-        }
-    }
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum NodeSessionEvent {
     Connected,
     Disconnected,
@@ -358,20 +320,6 @@ impl ClientMetrics {
                 ),
                 &["operation"],
             )?,
-            cache_lookups_total: IntCounterVec::new(
-                Opts::new(
-                    "dms_client_cache_lookups_total",
-                    "Current-value cache lookups.",
-                ),
-                &["result"],
-            )?,
-            cache_invalidations_total: IntCounterVec::new(
-                Opts::new(
-                    "dms_client_cache_invalidations_total",
-                    "Current-value invalidation and local capacity eviction events.",
-                ),
-                &["result"],
-            )?,
             node_connection_up: IntGauge::new(
                 "dms_client_node_connection_up",
                 "Number of usable Node sessions sharing this host registry.",
@@ -430,8 +378,6 @@ impl ClientMetrics {
         register_collector(registry, &metrics.operations_total)?;
         register_collector(registry, &metrics.operation_duration_seconds)?;
         register_collector(registry, &metrics.inflight_operations)?;
-        register_collector(registry, &metrics.cache_lookups_total)?;
-        register_collector(registry, &metrics.cache_invalidations_total)?;
         register_collector(registry, &metrics.node_connection_up)?;
         register_collector(registry, &metrics.node_session_events_total)?;
         register_collector(registry, &metrics.payload_transfers_total)?;
@@ -457,14 +403,6 @@ impl ClientMetrics {
                 self.operations_total
                     .with_label_values(&[operation, result]);
             }
-        }
-        for result in CacheLookup::ALL {
-            self.cache_lookups_total
-                .with_label_values(&[result.label()]);
-        }
-        for result in CacheInvalidation::ALL {
-            self.cache_invalidations_total
-                .with_label_values(&[result.label()]);
         }
         for event in NodeSessionEvent::ALL {
             self.node_session_events_total
@@ -509,24 +447,6 @@ impl ClientMetrics {
             result: "error",
             exemplar: dms_tracing::current_exemplar(),
         }
-    }
-
-    pub(crate) fn record_cache_lookup(&self, result: CacheLookup) {
-        self.cache_lookups_total
-            .with_label_values(&[result.label()])
-            .inc();
-    }
-
-    pub(crate) fn record_cache_invalidation(&self, result: CacheInvalidation) {
-        self.cache_invalidations_total
-            .with_label_values(&[result.label()])
-            .inc();
-    }
-
-    pub(crate) fn record_cache_capacity_evictions(&self, count: usize) {
-        self.cache_invalidations_total
-            .with_label_values(&[CacheInvalidation::Evicted.label()])
-            .inc_by(count as u64);
     }
 
     pub(crate) fn node_connection_guard(&self) -> NodeConnectionGuard {
@@ -806,14 +726,6 @@ mod tests {
         assert_eq!(metrics.region_mappings.get(), 1);
         drop(retained_view);
         assert_eq!(metrics.region_mappings.get(), 0);
-        metrics.record_cache_capacity_evictions(3);
-        assert_eq!(
-            metrics
-                .cache_invalidations_total
-                .with_label_values(&["evicted"])
-                .get(),
-            3
-        );
     }
 
     #[test]
@@ -826,12 +738,11 @@ mod tests {
         let mut transfer = metrics.begin_transfer(TransferDirection::Read, TransferProvider::Grpc);
         transfer.success(3);
         drop(transfer);
-        metrics.record_cache_invalidation(CacheInvalidation::Evicted);
         metrics.record_node_session_event(NodeSessionEvent::Connected);
         let text = encode_text(&registry).expect("encode");
         assert!(text.contains("dms_client_operations_total"));
         assert!(text.contains("dms_client_payload_bytes_total"));
-        assert!(text.contains("dms_client_cache_invalidations_total{result=\"evicted\"} 1"));
+        assert!(!text.contains("dms_client_cache_"));
         assert!(text.contains("dms_client_node_session_events_total{event=\"connected\"} 1"));
         assert!(!text.contains("dms_client_provider_fallbacks_total"));
     }

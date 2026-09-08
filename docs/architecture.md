@@ -8,7 +8,6 @@ SDK 是应用内的库，不是第四个后台服务。Peer Node 与接入 Node 
 flowchart TB
   subgraph APP[Application 进程]
     API[DmsClient：用户 API] --> IMPL[ClientImpl：调用编排]
-    IMPL --> CACHE[ClientCache：有租约的 Current 缓存]
     IMPL --> CONN[NodeConnection：会话与请求]
     CONN --> TRANS[TransferEngine：payload 与 Region 映射]
   end
@@ -34,7 +33,7 @@ flowchart TB
 
 | 进程 | 它拥有的状态 | 不负责什么 |
 | --- | --- | --- |
-| Application | SDK 会话、客户端缓存、mmap 映射的本地引用 | 不决定全局版本，不管理 Node 的物理分配器。 |
+| Application | SDK 会话、mmap 映射的本地引用 | 不决定全局版本，不管理 Node 的物理分配器，不跨请求缓存 value bytes。 |
 | Node | Session、Staging、Block 的本地 Allocation、授权期内的 Current 布局、失效等待 | 不独自决定某 key 的全局 Current。 |
 | Meta | key 的版本布局、Block 位置、幂等结果、Node 租约与事件 | 不保存或转发用户 payload。 |
 
@@ -58,22 +57,23 @@ FD 数而回收，完整 GC 的限制不变。
 
 ```text
 client.get("k")
-  ├─ TCP Client Current 缓存有效 → 返回该版本的 owned bytes
-  └─ 未命中 / SHM → Node 检查 Current 布局缓存
-                    ├─ 资格有效且所需 Block 在本地 → 按该版本读取 Arena
-                    ├─ 资格有效但缺 bytes → 按同次解析的位置提示拉取
-                    └─ 未命中 / 失效 → Meta 解析版本布局和 Block 位置
-                                           ├─ 本地 Block → 读取 Arena
-                                           └─ 远端 Block → Peer 拉取后读取
+  └─ Node 检查 Current 布局缓存
+      ├─ 资格有效且所需 Block 在本地 → 按该版本读取 Arena
+      ├─ 资格有效但缺 bytes → 按同次解析的位置提示拉取
+      └─ 未命中 / 失效 → Meta 解析版本布局和 Block 位置
+          ├─ 本地 Block → 读取 Arena
+          └─ 远端 Block → Peer 拉取后读取
 ```
 
-Node 的“已有 Block”与“缓存权威 Current”不是一回事。只有 Meta 授予的剩余租约仍有效、Watch 连通且本地布局没有被失效时，Node 才能复用 Current。缓存保存布局及同次解析的位置提示，不复制 value。范围读只检查所需 Block，不因其它范围缺块重复查询。位置失效时按这次固定版本有界刷新位置，不能重新取 Current 混拼新旧数据。Exact 历史版本和不存在结果不进入这份缓存。首次拉取安装后仍同步登记新增副本，不等于消除了所有 Meta RPC。
+SDK 是薄 Client：普通 `get` 每次都请求 Node，成功后只把本次返回转成 `Vec<u8>`，不跨请求保存 value bytes。Node 的“已有 Block”与“缓存权威 Current”不是一回事。只有 Meta 授予的剩余租约仍有效、Watch 连通且本地布局没有被失效时，Node 才能复用 Current。缓存保存布局及同次解析的位置提示，不复制 value。范围读只检查所需 Block，不因其它范围缺块重复查询。位置失效时按这次固定版本有界刷新位置，不能重新取 Current 混拼新旧数据。Exact 历史版本和不存在结果不进入这份缓存。首次拉取安装后仍同步登记新增副本，不等于消除了所有 Meta RPC。
 
-缓存截止时间从 resolve 请求开始计算，取 Meta 剩余租约与配置 TTL 的较小值；心跳不延长旧条目。失效事件先清 Node 布局、再等待 SDK ACK，最后 ACK Meta；本 Node 写完成也清理。失效/Watch 断连重建提升回填 generation，防止迟到的旧查询响应重新塞入缓存。旧 Meta 没有返回资格时自动保留逐次解析路径。配置与命中指标见[配置](configuration.md)。
+缓存截止时间从 resolve 请求开始计算，取 Meta 剩余租约与配置 TTL 的较小值；心跳不延长旧条目。失效事件先清 Node 布局，再完成仍持有缓存租约的旧 SDK 的 ACK/到期义务，最后 ACK Meta；新薄 SDK 不申请这份缓存租约，不新增 value 缓存等待者。本 Node 写完成也清理。失效/Watch 断连重建提升回填 generation，防止迟到的旧查询响应重新塞入缓存。旧 Meta 没有返回资格时自动保留逐次解析路径。配置与命中指标见[配置](configuration.md)。
 
 非 SHM 单 GET 在请求中声明可接受的内联预算：实际读取长度不超过预算和协议 64 KiB 上限时，Node 直接在 GET 响应中返回 bytes，省去后续 Download RPC。内联与 Node 布局缓存是独立优化：前者减少下载往返，后者减少重复权威解析。随机写后的多个 Extent 仍按同一版本拼接，不能混入其它版本。
 
 大对象、未声明预算的旧客户端仍收到读取计划/下载票据，再由 payload RPC 下载；新客户端收到旧服务端的票据也使用原下载路径。MGET 暂不启用内联，避免一批结果突破单响应预算。SHM 不走这条 owned bytes 快路径，仍返回描述符，由 SDK 映射后读取。普通 `get` 最后生成 `Vec<u8>`；`get_view` 才保留只读映射，且当前只支持单个 SHM segment。
+
+SHM 映射复用与数据缓存是两回事：`RegionMappingCache` 复用 FD/mmap，不维护 `key → value`。普通 `get` 在复制期间保护读取数据，复制完成或已知读取响应的处理失败后结束本次借用；`get_view` 的保护持续到用户释放 View。释放进度通过原 Session 心跳上报，不能因收到后续 View 的释放就跨过仍活动的 View。这里只完善使用保护的生命周期，不代表旧 Block 的完整 GC 已实现。
 
 ## 随机写：只改 1 byte，为什么不是复制整个 value
 

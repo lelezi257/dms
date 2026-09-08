@@ -15,6 +15,7 @@
 
 - `NodeState`、`MetaState` 各自是业务状态唯一写 owner。外部等待可离开 actor；状态更新回到 owner；在途工作有界，ACK/心跳不能被提交等待阻塞。
 - SDK 的公开输入保持简单；不要把 protobuf/tonic 类型、socket/FD、内部生命周期字段扩散到用户 API。跨进程序列化在 adapter 完成。
+- Client 保持薄：不跨请求缓存 owned value，普通 GET 请求 Node，由 Node 共享数据/布局。SDK 可复用连接和 Region mmap；普通复制 GET 完成或失败即释放已收到的共享读保护，显式 View 到用户释放才归还。不得把 mmap 索引与 value cache 混为一谈，也不得让旧兼容缓存配置重新启用缓存。
 - 用户版本、Extent 映射、Block 身份、Region/Allocation 物理内存分层；具体概念见 [架构](docs/architecture.md)。新增抽象必须用一个实际用户 Case 证明价值。
 - 重试同一逻辑写保留 operation id；未知结果不等于未提交。禁止收到网络/Journal 错误就删除已可能被权威版本引用的 bytes。
 - Current cache 的回填与命中受 generation/版本/租约约束；断流不等于失效 ACK。不要用 sleep、轮询或提前清除义务伪造写后可见性。

@@ -68,12 +68,6 @@ pub(crate) enum PayloadBuffer {
 }
 
 impl PayloadBuffer {
-    pub(crate) fn view_epoch(&self) -> Option<u64> {
-        match self {
-            Self::Shm { descriptor, .. } => descriptor.view_epoch,
-        }
-    }
-
     pub(crate) fn as_slice(&self) -> Result<&[u8], DmsError> {
         match self {
             Self::Shm {
@@ -256,8 +250,8 @@ impl TransferEngine {
         result
     }
 
-    /// Materializes one read target. SHM will later return a mapped CacheEntry;
-    /// the current public `Vec<u8>` API intentionally copies at this boundary.
+    /// 读取一个目标并交付 owned bytes；SHM 复用映射，但普通 GET 在此复制。
+    /// 读取保护由调用方覆盖整份响应，不由传输后端决定何时释放。
     pub(crate) async fn download(
         &self,
         session_id: u64,

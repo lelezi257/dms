@@ -29,7 +29,7 @@ let client = DmsClient::connect("http://127.0.0.1:25200", ClientOptions::default
 let client = DmsClient::connect_with_options(ClientOptions::default())?;
 ```
 
-当前 API 是同步阻塞接口，内部持有 Tokio runtime，不要直接在 Tokio 异步任务中调用；异步宿主应在专用同步线程或 `spawn_blocking` 中创建、使用和释放 Client。`DmsClient::clone()` 共享同一会话和缓存，不会创建一个新进程。
+当前 API 是同步阻塞接口，内部持有 Tokio runtime，不要直接在 Tokio 异步任务中调用；异步宿主应在专用同步线程或 `spawn_blocking` 中创建、使用和释放 Client。`DmsClient::clone()` 共享同一会话和 Region 映射管理，不会创建一个新进程，也不维护私有 value 缓存。
 
 本地地址使用 `unix:///绝对路径/worker.sock`，远程使用 `http://IP:port`。当前公开 `ClientTlsOptions` 仅有 `Disabled`；不要因为连接器识别 `https://` 字符串，就假设 SDK 已有可用 TLS/mTLS 配置入口。参数优先级为默认值 < 环境变量 < API，详见[配置](configuration.md)。
 

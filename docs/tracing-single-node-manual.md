@@ -40,7 +40,7 @@ export DMS_CLIENT_INSTANCE=manual-sdk
 - 也可选择Search，Service Name为`dms-client`，Span Name选择`dms.sdk_kv.set`或`dms.sdk_kv.get`，时间范围选最近15分钟，运行后点击表格中的ID。
 - 旧Trace和其它应用请求仍保存在Tempo，因此结果不一定只有两行。用实际ID定位这次操作最直接。
 
-SET根名应是`dms.sdk_kv.set`，GET是`dms.sdk_kv.get`。展开后看`dms.client.get`、Node处理、Meta解析、payload下载等子Span。不同Service的横条属于同一Trace，父子嵌套不能简单相加计算总耗时。缓存命中或SHM路径可能不经过全部远端步骤，这本身不是链路断裂。
+SET根名应是`dms.sdk_kv.set`，GET是`dms.sdk_kv.get`。展开后看`dms.client.get`、Node处理、Meta解析、payload下载等子Span。不同Service的横条属于同一Trace，父子嵌套不能简单相加计算总耗时。薄 SDK 的普通 GET 仍访问 Node；Node 布局/Block 命中或SHM路径可能不经过全部远端步骤，这本身不是链路断裂。
 
 ## 4. 不依赖界面，用 API 验证
 

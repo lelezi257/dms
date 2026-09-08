@@ -49,7 +49,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         ..ClientOptions::default()
     })?;
 
-    // Produce both a write and a cache-hit read before Prometheus first scrapes.
+    // 首次抓取前执行真实 SET/GET；GET 始终访问 Node，不在 SDK 缓存 value。
     client.set("metrics/example", b"visible-client-metrics")?;
     let _ = client.get("metrics/example")?;
     // 96 KiB 超过默认 inline 阈值，强制走 AllocateStaging→SHM upload→Set，

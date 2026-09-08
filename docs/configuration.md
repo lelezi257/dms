@@ -12,7 +12,6 @@ use std::time::Duration;
 
 let client = DmsClient::connect("http://127.0.0.1:25200", ClientOptions {
     timeout: Some(Duration::from_secs(5)),
-    current_cache_bytes: Some(32 * 1024 * 1024),
     ..ClientOptions::default()
 })?;
 ```
@@ -22,15 +21,15 @@ let client = DmsClient::connect("http://127.0.0.1:25200", ClientOptions {
 | `endpoint` | `DMS_ENDPOINT` | 必须提供；`connect(endpoint, ...)` 的地址为显式值 |
 | `timeout` | `DMS_TIMEOUT_MILLIS` | 30000 ms，正数 |
 | `inline_threshold_bytes` | `DMS_INLINE_THRESHOLD_BYTES` | 65536，正数；控制小 value 的 SET 请求内联，以及非 SHM 单 GET 响应内联预算；GET 另受协议 64 KiB 上限约束 |
-| `current_cache_bytes` | `DMS_CURRENT_CACHE_BYTES` | 64 MiB；0 关闭；不是进程 RSS 上限 |
-| `heartbeat_interval` | `DMS_HEARTBEAT_INTERVAL_MILLIS` | 10000 ms；缓存续租会按 Node 租约缩短 |
+| `current_cache_bytes` | `DMS_CURRENT_CACHE_BYTES` | 兼容旧配置；会校验为无符号整数，但不再影响运行行为 |
+| `heartbeat_interval` | `DMS_HEARTBEAT_INTERVAL_MILLIS` | 10000 ms，正数；维持 Session 并上报共享读释放水位，不再驱动 SDK value 缓存续租 |
 | `session_channel_capacity` | `DMS_SESSION_CHANNEL_CAPACITY` | 64，正数 |
 | `shared_memory` | `DMS_SHARED_MEMORY` | false；true 只在支持 SHM 的本地 UDS 会话生效 |
 | `default_durability` | `DMS_DEFAULT_DURABILITY` | `LocalMemory`；其它枚举存在不代表后端已实现 |
 | `tls` | `DMS_TLS_MODE` | 当前仅 `Disabled`；不是完整 TLS 用户配置 |
 | `metrics_registry` | 无 | 宿主注入；SDK 不打开 HTTP 端口 |
 
-SHM 模式不保留另一份 owned Current cache；TCP owned cache 需同时满足版本、generation 和租约条件。预算按 key、payload 与固定条目开销计费，超预算整批淘汰，不是 LRU。
+SDK 是薄 Client：普通 `get` 返回本次请求的 owned `Vec<u8>`，`get_view` 才让用户显式持有共享内存只读 View；SDK 不另外保留跨请求的 `key → value` 缓存。跨 Client/跨请求的数据复用放在 Node 的 Current 布局缓存和 Arena/Block 管理中。旧 `current_cache_bytes` 即使设为非零也不重新开启缓存，可从新配置中移除；连接、心跳和 mmap 复用不受该旧参数影响。
 
 SDK 不安装宿主日志后端或 Subscriber。示例程序读取 `DMS_TRACING_*` 是**宿主示例**的能力，不应当作 DmsClient 的通用环境配置。
 
@@ -79,7 +78,7 @@ sample_ratio = 0.01
 | --- | --- |
 | Node 必需 | `node_id`、`meta_endpoint`；TCP/UDS listener 至少一个 |
 | Node 内存 | `arena_capacity_bytes=1 GiB`，`region_size_bytes=64 MiB`，`staging_ttl_millis=30000` |
-| Node 缓存租约 | `client_cache_lease_ttl_millis=1000`，范围 1..=30000；实际授予还受 Meta 剩余期限限制 |
+| 旧 SDK 缓存租约兼容 | `client_cache_lease_ttl_millis=1000`，范围 1..=30000；仅服务仍申请 value 缓存租约的旧 SDK，授予还受 Meta 剩余期限限制；新薄 SDK 不申请 |
 | Node Current 元数据缓存 | `node_current_cache_bytes=8 MiB`，0关闭；`node_current_cache_ttl_millis=1000`，范围1..=30000；预算含版本布局及同次解析的位置提示，不缓存 value bytes |
 | Meta 必需 | `node_id`、`grpc_address` |
 | Meta journal | 不指定 `journal_dir` 则用内存后端；指定目录才使用 WAL/snapshot |
@@ -125,7 +124,7 @@ Node→Meta 的重复解析；它不保存用户 value，也不能证明某个 B
 | Node staging TTL | `NodeHandle::apply_config_change` → NodeState；影响后续 allocation | 尚无公开管理 HTTP/RPC/CLI，重新启动时配置 |
 | 日志 level | logging handle 支持修改；Node 配置命令已接入 | 尚无公开管理入口，重新启动时配置 |
 | listener / Meta endpoint / journal / Arena capacity / Region size | 标记为需要重启 | 重启；配置不能在线修改，运行中按已配置大小增加 Region |
-| Client cache lease TTL | 仅启动配置 | 重启；不得缩短已有缓存的回收义务 |
+| 旧 SDK cache lease TTL | 仅启动配置，保留旧协议兼容 | 重启；不得跳过已授予旧 SDK 的失效 ACK/到期义务 |
 | Node Current 布局缓存容量 / TTL | 仅启动配置 | 重启；不在线清空或扩展已有缓存预算 |
 | Meta checkpoint records | 仅启动配置 | 重启；不改变 journal 可靠性模式 |
 | tracing 开关、采样、exporter | 启动初始化 | 重启；没有自动热重载 |

@@ -15,12 +15,15 @@ use std::{
     time::{Duration, Instant},
 };
 
+use dms_client::{ClientOptions, DmsClient};
 use dms_error::{self, DmsError, ErrorKind};
 use dms_protocol::v1 as pb;
 use dms_transport::dms_error_to_status;
 use pb::{
     metadata_service_server::{MetadataService, MetadataServiceServer},
     peer_service_server::{PeerService, PeerServiceServer},
+    worker_payload_service_server::WorkerPayloadServiceServer,
+    worker_service_server::WorkerServiceServer,
 };
 use tokio::{
     net::TcpListener,
@@ -711,6 +714,161 @@ impl Drop for TestNode {
             peer_task.abort();
         }
     }
+}
+
+/// 在现有 TestNode 上暴露真实 SDK 入口；计数使用产品 RPC metrics，避免另写一套
+/// Worker fake 或把“第二个 Client 读成功”误当成“请求确实到了 Node”的证据。
+struct TestWorkerServer {
+    endpoint: String,
+    registry: dms_metrics::Registry,
+    task: JoinHandle<()>,
+}
+
+impl TestWorkerServer {
+    async fn start(node: &TestNode) -> Self {
+        let listener = TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind Worker server");
+        let endpoint = format!("http://{}", listener.local_addr().expect("Worker address"));
+        let registry = dms_metrics::registry();
+        let handler = WorkerServiceHandler::with_metrics(
+            node.node.clone(),
+            false,
+            dms_metrics::RpcMetrics::register(&registry).expect("Worker RPC metrics"),
+            dms_metrics::ErrorMetrics::register(&registry).expect("Worker error metrics"),
+        );
+        let task = tokio::spawn(async move {
+            tonic::transport::Server::builder()
+                .add_service(WorkerServiceServer::new(handler.clone()))
+                .add_service(WorkerPayloadServiceServer::new(handler))
+                .serve_with_incoming(TcpListenerStream::new(listener))
+                .await
+                .expect("serve Worker test server");
+        });
+        Self {
+            endpoint,
+            registry,
+            task,
+        }
+    }
+}
+
+impl Drop for TestWorkerServer {
+    fn drop(&mut self) {
+        self.task.abort();
+    }
+}
+
+fn completed_worker_calls(registry: &dms_metrics::Registry, method: &str) -> u64 {
+    let text = dms_metrics::encode_text(registry).expect("encode Worker metrics");
+    text.lines()
+        .filter(|line| {
+            line.starts_with("dms_rpc_server_requests_total{")
+                && line.contains("service=\"WorkerService\"")
+                && line.contains(&format!("method=\"{method}\""))
+        })
+        .map(|line| {
+            line.rsplit_once(' ')
+                .expect("metric value")
+                .1
+                .parse::<u64>()
+                .expect("integer counter")
+        })
+        .sum()
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn thin_clients_share_node_blocks_without_sdk_value_cache() {
+    let meta = CountingMetaServer::start().await;
+    let node_a = TestNode::start_with_peer_server(&meta.endpoint, 1).await;
+    let node_b = TestNode::start_with_peer_server(&meta.endpoint, 2).await;
+    let worker_a = TestWorkerServer::start(&node_a).await;
+    let worker_b = TestWorkerServer::start(&node_b).await;
+    let endpoint_a = worker_a.endpoint.clone();
+    let endpoint_b = worker_b.endpoint.clone();
+    let worker_metrics = worker_b.registry.clone();
+    let peer_pulls = node_a.peer_pull_count.as_ref().unwrap().clone();
+
+    // DmsClient 是同步 API，必须在 blocking 线程里创建/使用/释放自己的 Runtime。
+    // 两个独立 reader 分别使用默认配置和旧非零预算，均不能重新开启 SDK value cache。
+    tokio::task::spawn_blocking(move || {
+        let writer = DmsClient::connect(&endpoint_a, ClientOptions::default()).expect("writer");
+        let mut readers = Vec::new();
+        for old_budget in [None, Some(64 * 1024 * 1024)] {
+            let registry = dms_metrics::registry();
+            let client = DmsClient::connect(
+                &endpoint_b,
+                ClientOptions {
+                    current_cache_bytes: old_budget,
+                    metrics_registry: Some(registry.clone()),
+                    heartbeat_interval: Some(Duration::from_millis(1)),
+                    ..ClientOptions::default()
+                },
+            )
+            .expect("reader");
+            readers.push((client, registry));
+        }
+        let key = "thin-client/shared-peer-block";
+        writer.set(key, b"value-v1").expect("publish v1 on A");
+        let pulls_before = peer_pulls.load(Ordering::Relaxed);
+        let gets_before = completed_worker_calls(&worker_metrics, "Get");
+
+        assert_eq!(
+            readers[0].0.get(key).expect("first reader"),
+            Some(b"value-v1".to_vec())
+        );
+        let pulls_after_first = peer_pulls.load(Ordering::Relaxed);
+        assert_eq!(
+            pulls_after_first,
+            pulls_before + 1,
+            "B 首读从 A 拉取一个 Block"
+        );
+
+        // 同一 Client 重读和第二个 Client 首读都继续经过 B；value 已在 B，不能再拉 A。
+        for _ in 0..2 {
+            for (reader, _) in &readers {
+                assert_eq!(
+                    reader.get(key).expect("Node cache read"),
+                    Some(b"value-v1".to_vec())
+                );
+            }
+        }
+        assert_eq!(
+            completed_worker_calls(&worker_metrics, "Get"),
+            gets_before + 5
+        );
+        assert_eq!(peer_pulls.load(Ordering::Relaxed), pulls_after_first);
+
+        // 不轮询、不 sleep：同步写成功后，两 reader 的第一次读取都必须看到新值。
+        writer.set(key, b"value-v2").expect("publish v2 on A");
+        for (reader, _) in &readers {
+            assert_eq!(
+                reader.get(key).expect("first read after SET"),
+                Some(b"value-v2".to_vec())
+            );
+        }
+        assert_eq!(peer_pulls.load(Ordering::Relaxed), pulls_after_first + 1);
+        writer.del(key).expect("delete on A");
+        for (reader, registry) in &readers {
+            assert!(reader.get(key).expect("first read after DEL").is_none());
+            let metrics = dms_metrics::encode_text(registry).expect("SDK metrics");
+            assert!(
+                !metrics.contains("dms_client_cache_"),
+                "旧 value cache 指标不应再注册: {metrics}"
+            );
+        }
+        assert_eq!(
+            completed_worker_calls(&worker_metrics, "Get"),
+            gets_before + 9
+        );
+        assert_eq!(
+            completed_worker_calls(&worker_metrics, "Heartbeat"),
+            0,
+            "生命周期使用 Session stream，不应调用旧 value-cache unary Heartbeat"
+        );
+    })
+    .await
+    .expect("join SDK clients");
 }
 
 fn is_not_found(error: &WorkerError) -> bool {
@@ -1467,7 +1625,7 @@ async fn meta_watch_reconnect_restores_current_cache_after_stream_drop() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn worker_service_handler_keeps_the_node_cache_below_sdk_cache() {
+async fn worker_service_handler_reuses_node_current_layout_cache() {
     let meta = CountingMetaServer::start().await;
     let node = TestNode::start(&meta.endpoint, 1).await;
     let handler = WorkerServiceHandler::new(node.node.clone(), false);

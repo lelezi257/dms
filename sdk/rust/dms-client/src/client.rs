@@ -26,7 +26,7 @@ use crate::metrics::ClientOperation;
 #[derive(Clone)]
 pub struct DmsClient {
     // Pimpl 风格：公开类型很薄，内部模块和依赖不会暴露给 SDK 用户。
-    // Arc 使 `DmsClient::clone()` 只增加引用计数，不复制连接、Runtime 或缓存。
+    // Arc 使 `DmsClient::clone()` 只增加引用计数，不复制连接或 Runtime。
     client_impl: Arc<DmsClientImpl>,
 }
 
@@ -419,12 +419,14 @@ pub struct ClientOptions {
     /// 小对象 SET 请求内联阈值，同时作为非 SHM 单 GET 响应的内联预算。
     /// GET 预算另受协议 64 KiB 上限约束；不影响 SHM View 或 MGET。
     pub inline_threshold_bytes: Option<usize>,
-    /// Session heartbeat interval；缓存续租还会按 Node 返回 TTL 缩短此间隔。
+    /// Session heartbeat interval；也承载共享读 View 释放水位。
     pub heartbeat_interval: Option<Duration>,
     /// Bounded queue capacity for the session stream.
     pub session_channel_capacity: Option<usize>,
-    /// Current owned cache 预算，默认 64 MiB；0 关闭。按 key、payload 和固定条目
-    /// 开销计费，超预算整批淘汰；不是进程 RSS 限额。SHM 模式不保留 owned cache。
+    /// 兼容旧版本的 Current owned cache 配置入口。
+    ///
+    /// 薄 Client 版本不再跨请求保存 value bytes；字段和环境变量仍会被解析，以便
+    /// 旧配置文件/启动脚本不报错，但解析后的值不会影响运行行为。
     pub current_cache_bytes: Option<usize>,
     /// TLS mode for the gRPC transport baseline.
     pub tls: Option<ClientTlsOptions>,
@@ -454,7 +456,6 @@ pub(crate) struct ResolvedClientOptions {
     pub(crate) inline_threshold_bytes: usize,
     pub(crate) heartbeat_interval: Duration,
     pub(crate) session_channel_capacity: usize,
-    pub(crate) current_cache_bytes: usize,
     pub(crate) tls: ClientTlsOptions,
     pub(crate) shared_memory: bool,
     pub(crate) metrics_registry: Option<Registry>,
@@ -497,7 +498,7 @@ impl ClientOptions {
                 parse_positive_usize("DMS_SESSION_CHANNEL_CAPACITY", &value)?;
         }
         if let Some(value) = env("DMS_CURRENT_CACHE_BYTES") {
-            resolved.current_cache_bytes = value.parse::<usize>().map_err(|_| {
+            let _ignored_legacy_budget = value.parse::<usize>().map_err(|_| {
                 DmsError::client_invalid_argument(
                     "DMS_CURRENT_CACHE_BYTES must be an unsigned integer".to_string(),
                 )
@@ -550,9 +551,8 @@ impl ClientOptions {
         if let Some(tls) = self.tls {
             resolved.tls = tls;
         }
-        if let Some(budget) = self.current_cache_bytes {
-            resolved.current_cache_bytes = budget;
-        }
+        // 兼容旧 API：调用方仍可传入，但 SDK 不再保留跨请求 value cache。
+        let _ignored_legacy_budget = self.current_cache_bytes;
         if let Some(shared_memory) = self.shared_memory {
             resolved.shared_memory = shared_memory;
         }
@@ -577,7 +577,6 @@ impl ResolvedClientOptions {
             inline_threshold_bytes: 64 * 1024,
             heartbeat_interval: Duration::from_secs(10),
             session_channel_capacity: 64,
-            current_cache_bytes: 64 * 1024 * 1024,
             tls: ClientTlsOptions::Disabled,
             shared_memory: false,
             metrics_registry: None,
@@ -681,7 +680,6 @@ mod client_options_tests {
         assert_eq!(resolved.inline_threshold_bytes, 99);
         assert_eq!(resolved.heartbeat_interval, Duration::from_millis(11));
         assert_eq!(resolved.session_channel_capacity, 13);
-        assert_eq!(resolved.current_cache_bytes, 256);
         assert!(resolved.shared_memory);
     }
 
@@ -719,14 +717,15 @@ mod client_options_tests {
     }
 
     #[test]
-    fn cache_budget_accepts_zero_and_rejects_invalid_environment() {
+    fn legacy_cache_budget_is_accepted_but_ignored_and_rejects_invalid_environment() {
         let resolved = ClientOptions {
             endpoint: Some("http://node".to_string()),
+            current_cache_bytes: Some(1024),
             ..Default::default()
         }
         .resolve_with_env(|name| (name == "DMS_CURRENT_CACHE_BYTES").then(|| "0".to_string()))
         .unwrap();
-        assert_eq!(resolved.current_cache_bytes, 0);
+        assert_eq!(resolved.endpoint, "http://node");
         assert!(
             ClientOptions::default()
                 .resolve_with_env(

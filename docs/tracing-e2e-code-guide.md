@@ -43,6 +43,6 @@ Span结束后SDK交给配置好的batch exporter，可能稍后与其它Span一�
 
 Node/Meta默认Trace关闭；SDK不接管宿主Subscriber。默认关闭成功周期心跳Trace并保留Metrics。启用后用有界、具体操作名，不能把key/ID拼入Span名。
 
-未知TraceID、采样未中、exporter未flush、Tempo时间范围、缓存命中省略远端步骤，都可能导致“看不到预期Span”，应分别核查。历史固定Span数/吞吐数字不是当前协议合同，正确性看同一个真实请求的父子关系、服务身份和业务结果。
+未知TraceID、采样未中、exporter未flush、Tempo时间范围、Node 缓存命中省略 Meta/Peer 步骤，都可能导致“看不到预期Span”，应分别核查。薄 SDK 的普通 GET 不会因私有 value 缓存而跳过 Node。历史固定Span数/吞吐数字不是当前协议合同，正确性看同一个真实请求的父子关系、服务身份和业务结果。
 
 关键业务入口：[SDK示例](../sdk/rust/dms-client/examples/sdk_kv.rs)、[Client内部](../sdk/rust/dms-client/src/internal/client_impl.rs)、[Node状态机](../server/src/node/runtime.rs)、[Meta状态机](../server/src/meta/runtime.rs)。

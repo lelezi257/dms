@@ -3,13 +3,13 @@
 //! `connect_channel` 是唯一判断 `unix://` 与 `http(s)://` 的位置。连接建立后，
 //! `set/get` 都只看到同一种 Tonic `Channel`，因此业务逻辑不需要 transport 分支。
 
-// Arc 是线程安全引用计数指针：Session 后台 Task 与前台 Client 共享同一个缓存对象。
+// Session 后台 Task 与前台读操作共享释放水位，不共享跨请求 value 缓存。
 use std::{
-    collections::BTreeSet,
+    collections::BTreeMap,
     future::Future,
     path::PathBuf,
     sync::{Arc, Mutex},
-    time::{Duration, Instant},
+    time::Duration,
 };
 
 // `as pb` 给生成代码起短别名，后续 `pb::SetRequest` 明确表示 wire DTO。
@@ -37,10 +37,9 @@ use crate::{
     SetResult, WriteCondition,
 };
 
-use super::client_cache::ClientCache;
 use super::transfer_engine::{PayloadBuffer, TransferEngine};
 use crate::client::ResolvedClientOptions;
-use crate::metrics::{CacheInvalidation, ClientMetrics, NodeSessionEvent};
+use crate::metrics::{ClientMetrics, NodeSessionEvent};
 use dms_transport::{GrpcConfig, SecurityManager, TlsConfig, status_to_dms_error_with};
 
 pub(crate) struct NodeConnection {
@@ -64,7 +63,9 @@ pub(crate) struct ViewReleaseTracker {
 #[derive(Default)]
 struct ViewReleaseState {
     released_through: u64,
-    pending: BTreeSet<u64>,
+    // 已释放但尚不能推进水位的闭区间 start..=end。长持有 View 不能让
+    // 后面十万次普通 GET 留下十万个独立序号；连续完成合并为一个区间。
+    pending: BTreeMap<u64, u64>,
 }
 
 impl ViewReleaseTracker {
@@ -78,13 +79,28 @@ impl ViewReleaseTracker {
         if view_epoch <= state.released_through {
             return;
         }
-        state.pending.insert(view_epoch);
-        loop {
-            let next = state.released_through + 1;
-            if !state.pending.remove(&next) {
-                break;
+        let (mut start, mut end) = (view_epoch, view_epoch);
+        if let Some((&left_start, &left_end)) = state.pending.range(..=view_epoch).next_back() {
+            if view_epoch <= left_end {
+                return; // 同次多段响应或批读 guard 的重复释放。
             }
-            state.released_through += 1;
+            if left_end.checked_add(1) == Some(view_epoch) {
+                start = left_start;
+                state.pending.remove(&left_start);
+            }
+        }
+        if let Some((&right_start, &right_end)) = state.pending.range(view_epoch..).next()
+            && view_epoch.checked_add(1) == Some(right_start)
+        {
+            end = right_end;
+            state.pending.remove(&right_start);
+        }
+        state.pending.insert(start, end);
+        if let Some((&first, &last)) = state.pending.first_key_value()
+            && state.released_through.checked_add(1) == Some(first)
+        {
+            state.released_through = last;
+            state.pending.pop_first();
         }
     }
 
@@ -93,6 +109,38 @@ impl ViewReleaseTracker {
             return None;
         };
         (state.released_through > 0).then_some(state.released_through)
+    }
+
+    /// 响应到达后、校验或 mmap 前接管借用；失败也不能遗失已知的 epoch。
+    /// 同次读的多个 Extent 可共享一个 epoch，重复释放由 tracker 去重。
+    fn protect<'a>(
+        self: &Arc<Self>,
+        segments: impl Iterator<Item = &'a pb::ReadSegment>,
+    ) -> ReadProtection {
+        ReadProtection {
+            releases: Arc::clone(self),
+            epochs: segments
+                .filter_map(|segment| match segment.target.as_ref()?.target.as_ref()? {
+                    pb::payload_target::Target::Shm(target) => target.view_epoch,
+                    _ => None,
+                })
+                .collect(),
+        }
+    }
+}
+
+/// 一次响应里的共享读借用。普通 GET 复制完即 drop；显式 View 持有至用户 drop。
+/// 只报告收到且已不再使用的 epoch；丢失响应造成的序号空洞不能猜成已释放。
+struct ReadProtection {
+    releases: Arc<ViewReleaseTracker>,
+    epochs: Vec<u64>,
+}
+
+impl Drop for ReadProtection {
+    fn drop(&mut self) {
+        for &epoch in &self.epochs {
+            self.releases.mark_released(epoch);
+        }
     }
 }
 
@@ -121,33 +169,14 @@ impl SharedWriteInner {
 /// SDK 内部持有的 exact-version 共享读 view。
 pub(crate) struct SharedViewInner {
     version: ObjectVersion,
-    view_epoch: Option<u64>,
-    releases: Arc<ViewReleaseTracker>,
     buffer: PayloadBuffer,
+    _protection: ReadProtection,
 }
 
 /// 长连接 Task 自己消费的两个运行参数，避免把 SDK 的整份配置带进后台任务。
 struct SessionTaskOptions {
     heartbeat_interval: Duration,
     channel_capacity: usize,
-    cache_enabled: bool,
-}
-
-/// Stream 正常退出、panic 或 runtime 取消任务都必须撤销缓存资格。
-struct SessionCacheGuard(Arc<ClientCache>);
-
-impl Drop for SessionCacheGuard {
-    fn drop(&mut self) {
-        self.0.session_disconnected();
-    }
-}
-
-struct SessionRenewalGuard(tokio::task::JoinHandle<()>);
-
-impl Drop for SessionRenewalGuard {
-    fn drop(&mut self) {
-        self.0.abort();
-    }
 }
 
 impl SharedViewInner {
@@ -164,18 +193,9 @@ impl SharedViewInner {
     }
 }
 
-impl Drop for SharedViewInner {
-    fn drop(&mut self) {
-        if let Some(view_epoch) = self.view_epoch {
-            self.releases.mark_released(view_epoch);
-        }
-    }
-}
-
 impl NodeConnection {
     pub(crate) async fn connect(
         options: &ResolvedClientOptions,
-        cache: Arc<ClientCache>,
         metrics: Option<ClientMetrics>,
         rpc_metrics: Option<dms_metrics::RpcMetrics>,
     ) -> Result<Self, DmsError> {
@@ -210,16 +230,14 @@ impl NodeConnection {
         let session_id = session.session_id;
         let fd_broker_path = session.shm.map(|shm| shm.fd_broker_path);
         let view_releases = Arc::new(ViewReleaseTracker::default());
-        // 再建立长连接 stream：后台发送 heartbeat，并接收 cache invalidation。
+        // 长连接负责 Session 存活与 View 释放水位；不申请 SDK value 缓存租约。
         start_session_task(
             worker,
             session_id,
-            cache,
             Arc::clone(&view_releases),
             SessionTaskOptions {
                 heartbeat_interval: options.heartbeat_interval,
                 channel_capacity: options.session_channel_capacity,
-                cache_enabled: !options.shared_memory && options.current_cache_bytes > 0,
             },
             metrics.clone(),
             rpc_metrics.as_ref(),
@@ -484,6 +502,17 @@ impl NodeConnection {
         .await
         .map_err(map_status)?
         .into_inner();
+        self.decode_view_response(response, options.range).await
+    }
+
+    // 与普通响应解码一样：在任何可能失败的步骤前接管本次读取保护。
+    async fn decode_view_response(
+        &self,
+        response: pb::GetResponse,
+        range: Option<ByteRange>,
+    ) -> Result<Option<SharedViewInner>, DmsError> {
+        // 即使不是单段、协议校验失败或 FD 获取失败，也要释放整份响应的借用。
+        let protection = self.view_releases.protect(response.segments.iter());
         if !response.found {
             reject_inline_on_miss(&response)?;
             return Ok(None);
@@ -494,7 +523,7 @@ impl NodeConnection {
                 "shared-memory view currently supports exactly one read segment".to_string(),
             ));
         }
-        let expected_length = requested_read_length(response.logical_length, options.range)?;
+        let expected_length = requested_read_length(response.logical_length, range)?;
         validate_read_segments(&response.segments, expected_length)?;
         let segment = response.segments.into_iter().next().ok_or_else(|| {
             DmsError::client_protocol_violation("found response has no segment".to_string())
@@ -508,12 +537,10 @@ impl NodeConnection {
                 "shared view length does not match requested range",
             ));
         }
-        let view_epoch = buffer.view_epoch();
         Ok(Some(SharedViewInner {
             version: ObjectVersion(response.version),
-            view_epoch,
-            releases: Arc::clone(&self.view_releases),
             buffer,
+            _protection: protection,
         }))
     }
 
@@ -588,7 +615,7 @@ impl NodeConnection {
         key: &Key,
         options: GetOptions,
     ) -> Result<Option<GetResult>, DmsError> {
-        // Get 的控制请求先解析版本和 payload 位置，不在响应里直接塞业务 bytes。
+        // 小 TCP 值可以内联；其它情况由相同响应带回 payload 位置。
         let mut worker = self.worker.clone();
         let response = observe_rpc(
             self.rpc_metrics.as_ref(),
@@ -612,30 +639,8 @@ impl NodeConnection {
         .await
         .map_err(map_status)?
         .into_inner();
-        // “key 不存在”是正常业务结果，因此返回 Ok(None)，不是 Err(NotFound)。
-        if !response.found {
-            reject_inline_on_miss(&response)?;
-            return Ok(None);
-        }
-        let expected_length = requested_read_length(response.logical_length, options.range)?;
-        if let Some(bytes) = take_inline_value(
-            response.inline_value,
-            &response.segments,
-            expected_length,
-            self.inline_read_budget(),
-        )? {
-            return Ok(Some(GetResult {
-                version: ObjectVersion(response.version),
-                bytes,
-            }));
-        }
-        let bytes = self
-            .download_segments(response.segments, expected_length)
-            .await?;
-        Ok(Some(GetResult {
-            version: ObjectVersion(response.version),
-            bytes,
-        }))
+        self.decode_read_response(response, options.range, self.inline_read_budget())
+            .await
     }
 
     pub(crate) async fn mget(&self, keys: &[Key]) -> Result<Vec<Option<GetResult>>, DmsError> {
@@ -656,6 +661,18 @@ impl NodeConnection {
         .await
         .map_err(map_status)?
         .into_inner();
+        self.decode_mget_response(response).await
+    }
+
+    async fn decode_mget_response(
+        &self,
+        response: pb::MGetResponse,
+    ) -> Result<Vec<Option<GetResult>>, DmsError> {
+        // 前面的 item 失败时，后面的 item 尚未解码也已由 Node 发放借用。
+        // 整批保护直到处理结束，不能只在逐 item 成功后才记录释放。
+        let _batch_protection = self
+            .view_releases
+            .protect(response.items.iter().flat_map(|item| item.segments.iter()));
         let mut results = Vec::with_capacity(response.items.len());
         for item in response.items {
             results.push(self.decode_get_response(item).await?);
@@ -1090,13 +1107,36 @@ impl NodeConnection {
         &self,
         response: pb::GetResponse,
     ) -> Result<Option<GetResult>, DmsError> {
+        self.decode_read_response(response, None, 0).await
+    }
+
+    async fn decode_read_response(
+        &self,
+        response: pb::GetResponse,
+        range: Option<ByteRange>,
+        max_inline_bytes: usize,
+    ) -> Result<Option<GetResult>, DmsError> {
+        // 普通 GET 最终交付 owned Vec。复制、验证、映射失败及取消都通过 Drop
+        // 归还已收到的共享读 epoch；这里不保留跨请求 Buffer/value。
+        let _protection = self.view_releases.protect(response.segments.iter());
         if !response.found {
             reject_inline_on_miss(&response)?;
             return Ok(None);
         }
-        reject_inline_value(&response)?;
+        let expected_length = requested_read_length(response.logical_length, range)?;
+        if let Some(bytes) = take_inline_value(
+            response.inline_value,
+            &response.segments,
+            expected_length,
+            max_inline_bytes,
+        )? {
+            return Ok(Some(GetResult {
+                version: ObjectVersion(response.version),
+                bytes,
+            }));
+        }
         let bytes = self
-            .download_segments(response.segments, response.logical_length)
+            .download_segments(response.segments, expected_length)
             .await?;
         Ok(Some(GetResult {
             version: ObjectVersion(response.version),
@@ -1330,23 +1370,19 @@ async fn connect_channel(
 async fn start_session_task(
     mut worker: WorkerServiceClient<dms_tracing::TracedChannel>,
     session_id: u64,
-    cache: Arc<ClientCache>,
     view_releases: Arc<ViewReleaseTracker>,
     options: SessionTaskOptions,
     metrics: Option<ClientMetrics>,
     rpc_metrics: Option<&dms_metrics::RpcMetrics>,
 ) -> Result<(), DmsError> {
-    // 有界容量来自 SDK 配置：发送者过快时 `.send().await` 会等待，形成背压。
     let (outbound_sender, outbound_receiver) = mpsc::channel(options.channel_capacity);
-    // stream 建立前先放入第一条 heartbeat；Server 用它识别 session_id。
+    // 第一条心跳标识 session，后续心跳只维持生命周期并归还连续 View 水位。
     outbound_sender
         .send(heartbeat(session_id, view_releases.released_view_through()))
         .await
         .map_err(|_| {
             DmsError::client_connection_unavailable("DMS session stream is unavailable")
         })?;
-    // ReceiverStream 消费 outbound_receiver，并持续把消息发给 Node。
-    // 返回的 inbound 则是 Node→Client 的事件流，因此这是双向 stream。
     let mut inbound = observe_rpc(
         rpc_metrics,
         dms_metrics::RpcCall::WORKER_SESSION,
@@ -1355,121 +1391,47 @@ async fn start_session_task(
     .await
     .map_err(map_status)?
     .into_inner();
-    cache.session_connected();
-    let cache_guard = SessionCacheGuard(Arc::clone(&cache));
     let connection_guard = metrics.as_ref().map(ClientMetrics::node_connection_guard);
     if let Some(metrics) = &metrics {
         metrics.record_node_session_event(NodeSessionEvent::Connected);
     }
 
-    let renewal_cache = Arc::clone(&cache);
-    let renewal_releases = Arc::clone(&view_releases);
-    let renewal_rpc_metrics = rpc_metrics.cloned();
-    let renewal_interval = options.heartbeat_interval;
-    // unary 续租与 Session 事件消费独立推进，网络等待不堵住失效 ACK。
-    let renewal = options.cache_enabled.then(|| {
-        SessionRenewalGuard(tokio::spawn(async move {
-            loop {
-                let requested_at = Instant::now();
-                let response = observe_rpc(
-                    renewal_rpc_metrics.as_ref(),
-                    dms_metrics::RpcCall::WORKER_HEARTBEAT,
-                    worker.heartbeat(pb::HeartbeatRequest {
-                        session_id,
-                        released_view_through: renewal_releases.released_view_through(),
-                    }),
-                )
-                .await;
-                let pause = match response {
-                    Ok(response) => {
-                        let response = response.into_inner();
-                        // 兼容携带失效的 heartbeat 响应，先处理失效再开放缓存。
-                        for invalidation in response.current_invalidations {
-                            if let Some(key) = invalidation.key {
-                                renewal_cache.invalidate_current(
-                                    &key.value,
-                                    ObjectVersion(invalidation.minimum_version),
-                                );
-                            }
-                        }
-                        let ttl = Duration::from_millis(response.lease_ttl_millis);
-                        renewal_cache.renew_lease(requested_at, ttl);
-                        if ttl.is_zero() {
-                            renewal_interval
-                        } else {
-                            renewal_interval.min(ttl / 3).max(Duration::from_millis(1))
-                        }
-                    }
-                    Err(_) => {
-                        renewal_cache.revoke_lease();
-                        renewal_interval
-                    }
-                };
-                tokio::time::sleep(pause).await;
-            }
-        }))
-    });
-
-    // spawn 创建独立 Tokio Task。connect() 返回后它继续运行；没有创建专用 OS 线程。
+    // 不再启动 cache-only unary Heartbeat。新 SDK 不申请跨请求 value 缓存租约，
+    // 也不会被列入服务端失效等待者；服务端旧 SDK 的租约义务不受影响。
     tokio::spawn(async move {
-        let cache_guard = cache_guard;
-        let _renewal = renewal;
         let _connection_guard = connection_guard;
         let mut ticker = tokio::time::interval(options.heartbeat_interval);
         loop {
-            // select! 同时等待“需要发 heartbeat”和“Node 发来事件”，谁先就绪先处理谁。
             tokio::select! {
                 _ = ticker.tick() => {
                     if outbound_sender
                         .send(heartbeat(session_id, view_releases.released_view_through()))
-                        .await
-                        .is_err()
+                        .await.is_err()
                     {
                         break;
                     }
                 }
                 message = inbound.message() => {
-                    // Ok(None) 表示远端正常关闭 stream；Err 表示通信失败；两者都退出任务。
-                    let Ok(Some(event)) = message else {
-                        break;
-                    };
-                    // let-chain：必须同时是 invalidation 事件且其中携带 key 才执行失效。
-                    if let Some(pb::node_session_event::Event::CurrentInvalidation(invalidation)) = event.event
-                        && let Some(key) = invalidation.key
+                    let Ok(Some(event)) = message else { break };
+                    // 当前已无 SDK Current value 可失效，旧服务端仍可能发该事件。
+                    // 仅确认已知事件；未知事件不能假装处理完成并推进 ACK。
+                    if !matches!(event.event,
+                        Some(pb::node_session_event::Event::CurrentInvalidation(_)))
                     {
-                        let evicted = cache.invalidate_current(
-                            &key.value,
-                            ObjectVersion(invalidation.minimum_version),
-                        );
-                        if let Some(metrics) = &metrics {
-                            metrics.record_cache_invalidation(if evicted {
-                                CacheInvalidation::Evicted
-                            } else {
-                                CacheInvalidation::Ignored
-                            });
-                        }
+                        continue;
                     }
-                    // 处理完成后把 event_sequence 回 ACK，Node 可据此推进事件游标。
                     let ack = pb::ClientSessionMessage {
                         session_id,
                         message: Some(pb::client_session_message::Message::EventAck(
-                            pb::SessionEventAck {
-                                event_sequence: event.event_sequence,
-                            },
+                            pb::SessionEventAck { event_sequence: event.event_sequence },
                         )),
                     };
-                    if outbound_sender.send(ack).await.is_err() {
-                        break;
-                    }
+                    if outbound_sender.send(ack).await.is_err() { break; }
                 }
             }
         }
-        // A closed Session stream removes the coherence guarantee. Drop every
-        // Current entry before any reconnect/failover work is attempted.
-        drop(cache_guard);
-        log::warn!(
-            "DMS node session disconnected; Current cache was cleared (session_id={session_id})"
-        );
+        // 断流不是 View 已释放的证明。此处不跨过未收到/未归还的 epoch。
+        log::warn!("DMS node session disconnected (session_id={session_id})");
         if let Some(metrics) = &metrics {
             metrics.record_node_session_event(NodeSessionEvent::Disconnected);
         }
@@ -1566,8 +1528,137 @@ pub(super) fn map_status(status: tonic::Status) -> DmsError {
 }
 
 #[cfg(test)]
-mod session_cache_tests {
+mod read_lifecycle_tests {
     use super::*;
+
+    fn disconnected_node(releases: &Arc<ViewReleaseTracker>) -> NodeConnection {
+        let channel = Endpoint::from_static("http://127.0.0.1:1").connect_lazy();
+        NodeConnection {
+            worker: WorkerServiceClient::new(dms_tracing::traced_channel(channel.clone())),
+            transfer: TransferEngine::new(channel, 1, None, None, None),
+            rpc_metrics: None,
+            session_id: 1,
+            inline_threshold_bytes: 0,
+            view_releases: Arc::clone(releases),
+        }
+    }
+
+    fn shared_response(epoch: u64) -> pb::GetResponse {
+        pb::GetResponse {
+            found: true,
+            version: 1,
+            logical_length: 4,
+            segments: vec![pb::ReadSegment {
+                logical_offset: 0,
+                target: Some(pb::PayloadTarget {
+                    target: Some(pb::payload_target::Target::Shm(pb::ShmDescriptor {
+                        view_epoch: Some(epoch),
+                        length: 4,
+                        ..Default::default()
+                    })),
+                }),
+            }],
+            inline_value: None,
+        }
+    }
+
+    #[test]
+    fn failed_batch_releases_even_unvisited_read_responses() {
+        tokio::runtime::Runtime::new().unwrap().block_on(async {
+            let releases = Arc::new(ViewReleaseTracker::default());
+            let connection = disconnected_node(&releases);
+            // 第一项 mmap 失败；第二项从未开始解码，但两份借用都已收到。
+            let batch = pb::MGetResponse {
+                items: vec![shared_response(1), shared_response(2)],
+            };
+            assert!(connection.decode_mget_response(batch).await.is_err());
+            assert_eq!(releases.released_view_through(), Some(2));
+        });
+    }
+
+    #[test]
+    fn rejected_or_unmappable_explicit_view_releases_all_received_epochs() {
+        tokio::runtime::Runtime::new().unwrap().block_on(async {
+            let releases = Arc::new(ViewReleaseTracker::default());
+            let connection = disconnected_node(&releases);
+            let mut multi = shared_response(1);
+            multi.segments.extend(shared_response(1).segments);
+            assert!(connection.decode_view_response(multi, None).await.is_err());
+            assert_eq!(releases.released_view_through(), Some(1));
+            assert!(
+                connection
+                    .decode_view_response(shared_response(2), None)
+                    .await
+                    .is_err()
+            );
+            assert_eq!(releases.released_view_through(), Some(2));
+        });
+    }
+
+    #[test]
+    fn long_lived_view_compacts_completed_read_epochs() {
+        let releases = Arc::new(ViewReleaseTracker::default());
+        for epoch in 2..=100_000 {
+            releases.mark_released(epoch);
+        }
+        assert_eq!(releases.released_view_through(), None);
+        assert_eq!(releases.inner.lock().unwrap().pending.len(), 1);
+        releases.mark_released(1);
+        assert_eq!(releases.released_view_through(), Some(100_000));
+        assert!(releases.inner.lock().unwrap().pending.is_empty());
+    }
+
+    #[test]
+    fn compressed_releases_match_individual_sequence_reference() {
+        let releases = Arc::new(ViewReleaseTracker::default());
+        let mut reference = std::collections::BTreeSet::new();
+        let mut expected = 0;
+        // 多个间隙、桥接左右区间、重复释放均不越过尚未释放的序号。
+        for epoch in [3, 5, 4, 9, 7, 8, 2, 2, 6, 11, 1, 10, 13, 12] {
+            reference.insert(epoch);
+            while reference.remove(&(expected + 1)) {
+                expected += 1;
+            }
+            releases.mark_released(epoch);
+            assert_eq!(releases.released_view_through().unwrap_or(0), expected);
+        }
+    }
+
+    #[test]
+    fn failed_shm_read_releases_received_epoch() {
+        let runtime = tokio::runtime::Runtime::new().unwrap();
+        runtime.block_on(async {
+            let channel = Endpoint::from_static("http://127.0.0.1:1").connect_lazy();
+            let releases = Arc::new(ViewReleaseTracker::default());
+            let connection = NodeConnection {
+                worker: WorkerServiceClient::new(dms_tracing::traced_channel(channel.clone())),
+                transfer: TransferEngine::new(channel, 1, None, None, None),
+                rpc_metrics: None,
+                session_id: 1,
+                inline_threshold_bytes: 0,
+                view_releases: Arc::clone(&releases),
+            };
+            let response = pb::GetResponse {
+                found: true,
+                version: 1,
+                logical_length: 4,
+                segments: vec![pb::ReadSegment {
+                    logical_offset: 0,
+                    target: Some(pb::PayloadTarget {
+                        target: Some(pb::payload_target::Target::Shm(pb::ShmDescriptor {
+                            view_epoch: Some(1),
+                            length: 4,
+                            ..Default::default()
+                        })),
+                    }),
+                }],
+                inline_value: None,
+            };
+            // 没有 FD Broker，映射一定失败；收到的读取保护仍必须归还。
+            assert!(connection.decode_get_response(response).await.is_err());
+            assert_eq!(releases.released_view_through(), Some(1));
+        });
+    }
 
     #[test]
     fn range_response_checks_entire_layout_before_mapping_or_download() {
@@ -1684,27 +1775,31 @@ mod session_cache_tests {
     }
 
     #[test]
-    fn cancellation_before_session_task_is_polled_fences_cache() {
-        let cache = Arc::new(ClientCache::new(1024));
-        cache.session_connected();
-        cache.renew_lease(Instant::now(), Duration::from_secs(60));
-        let key = Key::new(b"cancelled-session".to_vec()).unwrap();
-        let token = cache.refill_token();
-        let guard = SessionCacheGuard(Arc::clone(&cache));
+    fn cancelled_read_and_out_of_order_release_do_not_skip_live_view() {
+        let releases = Arc::new(ViewReleaseTracker::default());
+        let segment = |epoch| pb::ReadSegment {
+            logical_offset: 0,
+            target: Some(pb::PayloadTarget {
+                target: Some(pb::payload_target::Target::Shm(pb::ShmDescriptor {
+                    view_epoch: Some(epoch),
+                    ..Default::default()
+                })),
+            }),
+        };
+        let live_view = releases.protect([segment(1)].iter());
+        let cancelled = releases.protect([segment(2), segment(2), segment(3)].iter());
         let task = async move {
-            let _guard = guard;
+            let _guard = cancelled;
             std::future::pending::<()>().await;
         };
         drop(task);
-        assert!(cache.refill_token().is_none());
-        cache.insert_current(
-            token,
-            &key,
-            super::super::client_cache::CachedValue {
-                version: ObjectVersion(1),
-                bytes: b"old".as_slice().into(),
-            },
-        );
-        assert!(cache.get_current(&key).is_none());
+        assert_eq!(releases.released_view_through(), None);
+        drop(live_view);
+        assert_eq!(releases.released_view_through(), Some(3));
+        // 模拟响应4未到达；不能因为5已释放就越过未知的4。
+        drop(releases.protect([segment(5)].iter()));
+        assert_eq!(releases.released_view_through(), Some(3));
+        drop(releases.protect([segment(4)].iter()));
+        assert_eq!(releases.released_view_through(), Some(5));
     }
 }

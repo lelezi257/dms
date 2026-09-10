@@ -2,7 +2,7 @@
 
 DMS 把计算节点的一部分内存用于保存和共享数据。应用通过 Rust SDK 使用 `set/get/del`、批量操作、随机写和两级键操作；Go SDK 提供接入所需的同语义子集。同节点可使用共享内存，跨节点通过网络获取数据。Meta 保存版本与位置，不转发用户 value。
 
-**当前版本为 0.1.0 开发预览，源码托管在 [GitHub 私有仓库](https://github.com/lelezi257/dms)。** 访问需要仓库权限；尚未发布 GitHub Release 或 crates.io 包。适合开发与功能验证，不作为生产持久存储。当前写入保证仅为本地内存，Node 重启可能丢失 value；正常旧版本回收已实现，但永久失联 Node 或未归还的共享写权仍可能阻塞释放，多 Meta 高可用尚未完成。先看[能力与限制](docs/product.md)。
+**当前版本为 0.1.0 开发预览，源码托管在 [GitHub](https://github.com/lelezi257/dms)。** 源码公开不等于正式发行；尚未发布 GitHub Release 或 crates.io 包。适合开发与功能验证，不作为生产持久存储。当前写入保证仅为本地内存，Node 重启可能丢失 value；正常旧版本回收已实现，但永久失联 Node 或未归还的共享写权仍可能阻塞释放，多 Meta 高可用尚未完成。先看[能力与限制](docs/product.md)。
 
 ## 从这里开始
 

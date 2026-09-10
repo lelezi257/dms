@@ -42,6 +42,6 @@ Node 有默认 8 MiB 的 Current 元数据缓存，保存布局与同次解析�
 - **回收不是删除后立即释放。** 当前候选已实现旧版本裁剪、排空在途读、回收通知和物理 allocation 释放；完整文件系统 GC 与故障验收仍以候选报告为准。活对象、保留版本及未归还的读写借用继续占用容量。旧 SDK 或丢失写权归还的 SHM allocation 保持隔离，不能因 TTL/断连复用；这类未归还资源仍可能耗尽容量。
 - **共享内存只适用于受信任本地应用。** 把 Region 的 FD 交给进程，不是只授权其中一个 offset 的强安全沙箱。当前不承诺恶意租户隔离。
 - **只有 Host memory、gRPC/TCP 与本地 SHM 实现。** RDMA/UB、设备内存、磁盘/对象存储分层、Python/C++ SDK 是扩展方向，不是当前可运行功能。
-- **候选制品不等于正式发布。** 提供源码与本地候选包，未上传公共仓库，未承诺稳定 ABI、跨版本滚动升级或千节点性能。候选安装入口见 [release-installation.md](release-installation.md)。
+- **候选制品不等于正式发布。** 公开源码与开发候选包不代表已发布 GitHub Release / crates.io 包，未承诺稳定 ABI、跨版本滚动升级或千节点性能。候选安装入口见 [release-installation.md](release-installation.md)。
 
 操作说明见[单 VM 教程](local-single-vm-manual.md)，实现分工见[架构](architecture.md)。

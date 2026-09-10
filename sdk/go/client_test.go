@@ -976,6 +976,11 @@ type fakeWorker struct {
 	writeReleaseAllocation uint64
 	writeReleaseToken      []byte
 	finishedReadThrough    uint64
+	sessionFunc            func(context.Context) (grpc.BidiStreamingClient[pb.ClientSessionMessage, pb.NodeSessionEvent], error)
+}
+
+func (w *fakeWorker) Session(ctx context.Context, _ ...grpc.CallOption) (grpc.BidiStreamingClient[pb.ClientSessionMessage, pb.NodeSessionEvent], error) {
+	return w.sessionFunc(ctx)
 }
 
 func (w *fakeWorker) SetInline(context.Context, *pb.SetInlineRequest, ...grpc.CallOption) (*pb.SetResponse, error) {
@@ -1106,6 +1111,8 @@ type fakePayload struct {
 	pb.WorkerPayloadServiceClient
 	downloads     map[string][]byte
 	uploadReceipt *pb.TransferReceipt
+	downloadCount int
+	lastDownload  []byte
 }
 
 func (p *fakePayload) Upload(context.Context, *pb.UploadPayloadRequest, ...grpc.CallOption) (*pb.UploadPayloadResponse, error) {
@@ -1114,5 +1121,316 @@ func (p *fakePayload) Upload(context.Context, *pb.UploadPayloadRequest, ...grpc.
 
 func (p *fakePayload) Download(_ context.Context, req *pb.DownloadPayloadRequest, _ ...grpc.CallOption) (*pb.DownloadPayloadResponse, error) {
 	value := p.downloads[string(req.TransferId)]
-	return &pb.DownloadPayloadResponse{Payload: append([]byte(nil), value...)}, nil
+	p.downloadCount++
+	p.lastDownload = append([]byte(nil), value...)
+	return &pb.DownloadPayloadResponse{Payload: p.lastDownload}, nil
+}
+
+func TestDecodeGetOwnsInlineAndSingleDownloadWithoutRecopy(t *testing.T) {
+	client := testClient(&fakeWorker{}, nil)
+	inline := []byte("owned-inline")
+	got, err := client.decodeGet(context.Background(), &pb.GetResponse{LogicalLength: uint64(len(inline)), InlineValue: inline}, nil, 1024, 0)
+	if err != nil || &got[0] != &inline[0] {
+		t.Fatalf("inline should transfer response ownership, err=%v", err)
+	}
+	for _, size := range []int{1, 4096, 512 << 10, 4 << 20} {
+		data := bytes.Repeat([]byte{7}, size)
+		segment := grpcSegment(0, data)
+		payload := &fakePayload{downloads: map[string][]byte{string(segment.Target.GetGrpc().TransferId): data}}
+		client.payload = payload
+		got, err := client.decodeGet(context.Background(), &pb.GetResponse{LogicalLength: uint64(size), Segments: []*pb.ReadSegment{segment}}, nil, 0, 0)
+		if err != nil || len(got) != size || &got[0] != &payload.lastDownload[0] {
+			t.Fatalf("single %d-byte segment copied again: err=%v", size, err)
+		}
+		got[0] = 9
+		if data[0] != 7 {
+			t.Fatal("returned bytes aliased source value")
+		}
+	}
+}
+
+func TestDecodeGetValidatesAllDescriptorsBeforeDownload(t *testing.T) {
+	payload := &fakePayload{downloads: map[string][]byte{"a": []byte("abc")}}
+	client := testClient(&fakeWorker{}, payload)
+	_, err := client.decodeGet(context.Background(), &pb.GetResponse{LogicalLength: 6, Segments: []*pb.ReadSegment{grpcSegment(0, []byte("abc")), grpcSegment(4, []byte("def"))}}, nil, 0, 0)
+	if err == nil || payload.downloadCount != 0 {
+		t.Fatalf("malformed whole plan must fail before payload I/O: downloads=%d err=%v", payload.downloadCount, err)
+	}
+	_, err = client.decodeGet(context.Background(), &pb.GetResponse{LogicalLength: 4, InlineValue: []byte("four")}, nil, 3, 0)
+	if err == nil {
+		t.Fatal("accepted inline response over caller budget")
+	}
+}
+
+func TestDecodeGetRejectsInvalidLaterTargetBeforeDownload(t *testing.T) {
+	for name, target := range map[string]*pb.PayloadTarget{
+		"nil-grpc":         {Target: &pb.PayloadTarget_Grpc{}},
+		"overflow-shm":     shmTarget(1, math.MaxUint64, 3, 1, nil),
+		"unsupported-rdma": {Target: &pb.PayloadTarget_Rdma{Rdma: &pb.RdmaTarget{Length: 3}}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			payload := &fakePayload{downloads: map[string][]byte{"a": []byte("abc")}}
+			client := testClient(&fakeWorker{}, payload)
+			_, err := client.decodeGet(context.Background(), &pb.GetResponse{LogicalLength: 6, Segments: []*pb.ReadSegment{
+				grpcSegment(0, []byte("abc")), {LogicalOffset: 3, Target: target},
+			}}, nil, 0, 0)
+			if err == nil || payload.downloadCount != 0 {
+				t.Fatalf("invalid target must fail before any payload I/O: downloads=%d err=%v", payload.downloadCount, err)
+			}
+		})
+	}
+}
+
+func TestReadRequestTrackerCompactsFinishedSuffix(t *testing.T) {
+	var tracker readRequestTracker
+	for id := uint64(2); id <= 100000; id++ {
+		tracker.complete(id)
+	}
+	if len(tracker.completed.pending) != 1 {
+		t.Fatalf("finished suffix stored as %d entries, want one interval", len(tracker.completed.pending))
+	}
+	if tracker.finishedReadRequestThrough() != nil {
+		t.Fatal("skipped unfinished first request")
+	}
+	tracker.complete(1)
+	if got := tracker.finishedReadRequestThrough(); got == nil || *got != 100000 {
+		t.Fatalf("watermark=%v", got)
+	}
+}
+
+type releaseTestStream struct {
+	grpc.ClientStream
+	ctx      context.Context
+	messages chan *pb.ClientSessionMessage
+	gate     <-chan struct{}
+	sendErr  error
+}
+
+func (s *releaseTestStream) Send(message *pb.ClientSessionMessage) error {
+	if s.sendErr != nil {
+		return s.sendErr
+	}
+	if s.gate != nil {
+		select {
+		case <-s.ctx.Done():
+			return s.ctx.Err()
+		case <-s.gate:
+		}
+	}
+	select {
+	case <-s.ctx.Done():
+		return s.ctx.Err()
+	case s.messages <- message:
+		return nil
+	}
+}
+func (s *releaseTestStream) Recv() (*pb.NodeSessionEvent, error) {
+	<-s.ctx.Done()
+	return nil, s.ctx.Err()
+}
+
+// gRPC CloseSend 只关闭发送方向，不承诺解除 Recv 的等待。
+func (s *releaseTestStream) CloseSend() error { return nil }
+
+func TestSharedReleaseUsesExistingStreamWithoutUnaryWait(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	stream := &releaseTestStream{messages: make(chan *pb.ClientSessionMessage, 8)}
+	worker := &fakeWorker{heartbeatBlock: true, sessionFunc: func(sessionCtx context.Context) (grpc.BidiStreamingClient[pb.ClientSessionMessage, pb.NodeSessionEvent], error) {
+		stream.ctx = sessionCtx
+		return stream, nil
+	}}
+	client := testClient(worker, nil)
+	client.ctx, client.cancel = ctx, cancel
+	client.timeout = 300 * time.Millisecond
+	client.readReleaseWake = make(chan struct{}, 1)
+	client.startSessionLoop(time.Hour)
+	defer func() { cancel(); client.streamWG.Wait() }()
+	done := make(chan struct{})
+	go func() { client.readRequests.complete(1); client.releaseViews(ctx, []uint64{1}); close(done) }()
+	select {
+	case <-done:
+	case <-time.After(100 * time.Millisecond):
+		t.Fatal("release waited for unary heartbeat")
+	}
+	waitReleaseWatermarks(t, stream.messages, 1, 1)
+}
+
+func waitReleaseWatermarks(t *testing.T, messages <-chan *pb.ClientSessionMessage, views, reads uint64) {
+	t.Helper()
+	timer := time.NewTimer(time.Second)
+	defer timer.Stop()
+	for {
+		select {
+		case message := <-messages:
+			h := message.GetHeartbeat()
+			if h != nil && h.GetReleasedViewThrough() == views && h.GetFinishedReadRequestThrough() == reads {
+				return
+			}
+		case <-timer.C:
+			t.Fatalf("did not send cumulative watermarks views=%d reads=%d", views, reads)
+		}
+	}
+}
+
+func TestSharedReleaseFailedSendCancelsReceiveBeforeReconnect(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	worker := &fakeWorker{sessionFunc: func(sessionCtx context.Context) (grpc.BidiStreamingClient[pb.ClientSessionMessage, pb.NodeSessionEvent], error) {
+		return &releaseTestStream{ctx: sessionCtx, sendErr: errors.New("broken stream")}, nil
+	}}
+	client := testClient(worker, nil)
+	client.ctx, client.cancel = ctx, cancel
+	finished := make(chan error, 1)
+	go func() { finished <- client.runSession(time.Hour) }()
+	select {
+	case err := <-finished:
+		if err == nil {
+			t.Fatal("lost stream failure")
+		}
+	case <-time.After(100 * time.Millisecond):
+		cancel()
+		<-finished
+		t.Fatal("failed Send left Recv waiting, preventing reconnect")
+	}
+}
+
+func TestSharedReleaseBlockedSenderCoalescesWithoutSkippingReaders(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	gate := make(chan struct{})
+	stream := &releaseTestStream{gate: gate, messages: make(chan *pb.ClientSessionMessage, 8)}
+	worker := &fakeWorker{sessionFunc: func(sessionCtx context.Context) (grpc.BidiStreamingClient[pb.ClientSessionMessage, pb.NodeSessionEvent], error) {
+		stream.ctx = sessionCtx
+		return stream, nil
+	}}
+	client := testClient(worker, nil)
+	client.ctx, client.cancel = ctx, cancel
+	client.readReleaseWake = make(chan struct{}, 1)
+	client.startSessionLoop(time.Hour)
+	defer func() { cancel(); client.streamWG.Wait() }()
+
+	// 最早的读仍在用 mmap。后续读全部结束也不能越过它回收旧 Block。
+	for id := uint64(2); id <= 1000; id++ {
+		client.readRequests.complete(id)
+		client.releaseViews(ctx, []uint64{id})
+	}
+	if client.viewReleases.releasedViewThrough() != nil || client.readRequests.finishedReadRequestThrough() != nil {
+		t.Fatal("release skipped unfinished first read")
+	}
+	if cap(client.readReleaseWake) != 1 || len(client.readReleaseWake) > 1 {
+		t.Fatal("release notifications are not bounded")
+	}
+	client.readRequests.complete(1)
+	client.releaseViews(ctx, []uint64{1})
+	close(gate)
+	waitReleaseWatermarks(t, stream.messages, 1000, 1000)
+	if err := client.Close(); err != nil {
+		t.Fatal(err)
+	}
+	worker.mu.Lock()
+	defer worker.mu.Unlock()
+	if worker.released != 1000 || worker.finishedReadThrough != 1000 {
+		t.Fatalf("Close did not send final watermarks: views=%d reads=%d", worker.released, worker.finishedReadThrough)
+	}
+}
+
+func TestSharedReleaseReconnectResendsAndCloseCancelsBlockedSender(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	broken := true
+	gate := make(chan struct{})
+	messages := make(chan *pb.ClientSessionMessage, 8)
+	worker := &fakeWorker{sessionFunc: func(sessionCtx context.Context) (grpc.BidiStreamingClient[pb.ClientSessionMessage, pb.NodeSessionEvent], error) {
+		if broken {
+			return &releaseTestStream{ctx: sessionCtx, sendErr: errors.New("broken stream")}, nil
+		}
+		return &releaseTestStream{ctx: sessionCtx, gate: gate, messages: messages}, nil
+	}}
+	client := testClient(worker, nil)
+	client.ctx, client.cancel = ctx, cancel
+	client.readReleaseWake = make(chan struct{}, 1)
+	client.readRequests.complete(1)
+	client.releaseViews(ctx, []uint64{1})
+	if err := client.runSession(time.Hour); err == nil {
+		t.Fatal("expected failed first connection")
+	}
+	// 模拟发送循环已取走合并信号，失败不能把安全义务也取走。
+	select {
+	case <-client.readReleaseWake:
+	default:
+	}
+	broken = false
+	client.startSessionLoop(time.Hour)
+	close(gate)
+	waitReleaseWatermarks(t, messages, 1, 1)
+	if err := client.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	// 新 Client 的 Stream.Send 永久背压；Close 必须取消阻塞的发送和接收。
+	ctx2, cancel2 := context.WithCancel(context.Background())
+	defer cancel2()
+	never := make(chan struct{})
+	worker2 := &fakeWorker{sessionFunc: func(sessionCtx context.Context) (grpc.BidiStreamingClient[pb.ClientSessionMessage, pb.NodeSessionEvent], error) {
+		return &releaseTestStream{ctx: sessionCtx, gate: never}, nil
+	}}
+	client2 := testClient(worker2, nil)
+	client2.ctx, client2.cancel = ctx2, cancel2
+	client2.readReleaseWake = make(chan struct{}, 1)
+	client2.startSessionLoop(time.Hour)
+	client2.readRequests.complete(1)
+	client2.releaseViews(ctx2, []uint64{1})
+	closed := make(chan struct{})
+	go func() { _ = client2.Close(); close(closed) }()
+	select {
+	case <-closed:
+	case <-time.After(time.Second):
+		cancel2()
+		t.Fatal("Close is blocked by stream backpressure")
+	}
+	worker2.mu.Lock()
+	defer worker2.mu.Unlock()
+	if worker2.released != 1 || worker2.finishedReadThrough != 1 {
+		t.Fatal("Close lost last read while stream was blocked")
+	}
+}
+
+func TestSharedGetOwnsBytesBeforeStreamRelease(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	stream := &releaseTestStream{messages: make(chan *pb.ClientSessionMessage, 8)}
+	epoch := uint64(1)
+	worker := &fakeWorker{
+		getLogicalLength: 6,
+		getSegments: []*pb.ReadSegment{{Target: &pb.PayloadTarget{Target: &pb.PayloadTarget_Shm{Shm: &pb.ShmDescriptor{
+			RegionId: 1, Length: 6, ViewEpoch: &epoch,
+		}}}}},
+		sessionFunc: func(sessionCtx context.Context) (grpc.BidiStreamingClient[pb.ClientSessionMessage, pb.NodeSessionEvent], error) {
+			stream.ctx = sessionCtx
+			return stream, nil
+		},
+	}
+	client := testClient(worker, nil)
+	client.ctx, client.cancel = ctx, cancel
+	client.readReleaseWake = make(chan struct{}, 1)
+	sharedBytes := []byte("abcdef")
+	client.regions[1] = &mappedRegion{id: 1, data: sharedBytes}
+	client.startSessionLoop(time.Hour)
+	defer func() { cancel(); client.streamWG.Wait() }()
+	got, found, err := client.Get(ctx, "k")
+	if err != nil || !found || string(got) != "abcdef" {
+		t.Fatalf("Get=%q found=%v err=%v", got, found, err)
+	}
+	waitReleaseWatermarks(t, stream.messages, 1, 1)
+	// 归还后 Node 可以复用原内存；调用者已经拥有副本，结果不能随之变化。
+	copy(sharedBytes, "uvwxyz")
+	if string(got) != "abcdef" {
+		t.Fatal("Get returned borrowed SHM bytes")
+	}
+	worker.mu.Lock()
+	defer worker.mu.Unlock()
+	if worker.released != 0 {
+		t.Fatal("normal streamed release still issued per-Get unary heartbeat")
+	}
 }

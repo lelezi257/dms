@@ -52,12 +52,13 @@ type Client struct {
 	streamWG  sync.WaitGroup
 	activeWG  sync.WaitGroup
 
-	mu           sync.Mutex
-	regions      map[uint64]*mappedRegion
-	lifecycleMu  sync.Mutex
-	closing      bool
-	viewReleases viewReleaseTracker
-	readRequests readRequestTracker
+	mu              sync.Mutex
+	regions         map[uint64]*mappedRegion
+	lifecycleMu     sync.Mutex
+	closing         bool
+	viewReleases    viewReleaseTracker
+	readRequests    readRequestTracker
+	readReleaseWake chan struct{}
 }
 
 // Connect 以显式 endpoint 建连；endpoint 覆盖环境变量和 ClientOptions.Endpoint。
@@ -88,15 +89,16 @@ func connect(ctx context.Context, endpoint string, options ClientOptions) (*Clie
 	}
 	clientCtx, clientCancel := context.WithCancel(context.Background())
 	c := &Client{
-		conn:      conn,
-		worker:    pb.NewWorkerServiceClient(conn),
-		payload:   pb.NewWorkerPayloadServiceClient(conn),
-		inlineMax: resolved.inlineThresholdBytes,
-		timeout:   resolved.timeout,
-		instance:  instance,
-		ctx:       clientCtx,
-		cancel:    clientCancel,
-		regions:   map[uint64]*mappedRegion{},
+		conn:            conn,
+		worker:          pb.NewWorkerServiceClient(conn),
+		payload:         pb.NewWorkerPayloadServiceClient(conn),
+		inlineMax:       resolved.inlineThresholdBytes,
+		timeout:         resolved.timeout,
+		instance:        instance,
+		ctx:             clientCtx,
+		cancel:          clientCancel,
+		regions:         map[uint64]*mappedRegion{},
+		readReleaseWake: make(chan struct{}, 1),
 	}
 	open, err := c.worker.OpenSession(callCtx, &pb.OpenSessionRequest{
 		MinVersion:                1,
@@ -461,9 +463,12 @@ func (c *Client) decodeGet(ctx context.Context, resp *pb.GetResponse, readRange 
 		if uint64(len(resp.InlineValue)) != expectedLength {
 			return nil, protocolError("inline read response length does not match requested length")
 		}
-		out := make([]byte, len(resp.InlineValue))
-		copy(out, resp.InlineValue)
-		return out, nil
+		if uint64(len(resp.InlineValue)) > maxInlineBytes {
+			return nil, protocolError("inline read response exceeds requested budget")
+		}
+		// gRPC 为本次响应解码出独立 bytes；直接交给调用者，不再次复制。
+		// 这里既不是跨请求缓存，也不借用 Node 的共享页。
+		return resp.InlineValue, nil
 	}
 	segments := append([]*pb.ReadSegment(nil), resp.Segments...)
 	for _, segment := range segments {
@@ -477,7 +482,6 @@ func (c *Client) decodeGet(ctx context.Context, resp *pb.GetResponse, readRange 
 	sort.Slice(segments, func(i, j int) bool {
 		return segments[i].LogicalOffset < segments[j].LogicalOffset
 	})
-	var out bytes.Buffer
 	var expectedOffset uint64
 	for _, segment := range segments {
 		if segment.LogicalOffset != expectedOffset {
@@ -487,6 +491,21 @@ func (c *Client) decodeGet(ctx context.Context, resp *pb.GetResponse, readRange 
 		if err != nil {
 			return nil, err
 		}
+		next, ok := checkedAdd(expectedOffset, length)
+		if !ok {
+			return nil, protocolError("read length overflow")
+		}
+		expectedOffset = next
+	}
+	if expectedOffset != expectedLength {
+		return nil, protocolError("read segments length differs from requested length")
+	}
+	// 完整校验布局后才取 payload，错误的后半段不能让前半段白白下载。
+	// 首段已拥有 bytes（SHM 路径已复制一次），直接接管；多 Extent 仍顺序追加。
+	// append 按需扩容，不相信远端长度预先申请无界内存，也不改变用户所有权。
+	var out []byte
+	for _, segment := range segments {
+		length, _ := readTargetLength(segment.Target) // 上面的完整预检已验证。
 		part, err := c.download(ctx, segment.Target)
 		if err != nil {
 			return nil, err
@@ -494,17 +513,13 @@ func (c *Client) decodeGet(ctx context.Context, resp *pb.GetResponse, readRange 
 		if uint64(len(part)) != length {
 			return nil, protocolError("read payload length differs from descriptor")
 		}
-		next, ok := checkedAdd(expectedOffset, length)
-		if !ok {
-			return nil, protocolError("read length overflow")
+		if len(out) == 0 {
+			out = part
+		} else {
+			out = append(out, part...)
 		}
-		expectedOffset = next
-		out.Write(part)
 	}
-	if expectedOffset != expectedLength {
-		return nil, protocolError("read segments length differs from requested length")
-	}
-	return out.Bytes(), nil
+	return out, nil
 }
 
 func requestedReadLength(logicalLength uint64, readRange *ByteRange) (uint64, error) {
@@ -544,7 +559,11 @@ func (c *Client) startSessionLoop(interval time.Duration) {
 }
 
 func (c *Client) runSession(interval time.Duration) error {
-	stream, err := c.worker.Session(c.ctx)
+	// 单次连接拥有独立取消范围：CloseSend 只半关闭，发送失败时必须取消
+	// 本次 Recv 才能进入重连；不能取消整个 Client 或丢弃累计归还水位。
+	streamCtx, cancelStream := context.WithCancel(c.ctx)
+	defer cancelStream()
+	stream, err := c.worker.Session(streamCtx)
 	if err != nil {
 		c.sendUnaryHeartbeat(c.ctx)
 		return err
@@ -558,6 +577,23 @@ func (c *Client) runSession(interval time.Duration) error {
 		defer wg.Done()
 		ticker := time.NewTicker(interval)
 		defer ticker.Stop()
+		// 首条消息标识 Session，同时重发重连前的累计完成水位。
+		// 唤醒只合并“需要发送”这个信号；安全义务保存在 tracker，不存队列里。
+		sendHeartbeat := func() error {
+			sendMu.Lock()
+			defer sendMu.Unlock()
+			return stream.Send(&pb.ClientSessionMessage{
+				SessionId: c.sessionID,
+				Message: &pb.ClientSessionMessage_Heartbeat{Heartbeat: &pb.SessionHeartbeat{
+					ReleasedViewThrough:        c.viewReleases.releasedViewThrough(),
+					FinishedReadRequestThrough: c.readRequests.finishedReadRequestThrough(),
+				}},
+			})
+		}
+		if err := sendHeartbeat(); err != nil {
+			errCh <- err
+			return
+		}
 		for {
 			select {
 			case <-c.ctx.Done():
@@ -566,19 +602,11 @@ func (c *Client) runSession(interval time.Duration) error {
 			case <-done:
 				return
 			case <-ticker.C:
-				sendMu.Lock()
-				if err := stream.Send(&pb.ClientSessionMessage{
-					SessionId: c.sessionID,
-					Message: &pb.ClientSessionMessage_Heartbeat{Heartbeat: &pb.SessionHeartbeat{
-						ReleasedViewThrough:        c.viewReleases.releasedViewThrough(),
-						FinishedReadRequestThrough: c.readRequests.finishedReadRequestThrough(),
-					}},
-				}); err != nil {
-					sendMu.Unlock()
-					errCh <- err
-					return
-				}
-				sendMu.Unlock()
+			case <-c.readReleaseWake:
+			}
+			if err := sendHeartbeat(); err != nil {
+				errCh <- err
+				return
 			}
 		}
 	}()
@@ -609,11 +637,13 @@ func (c *Client) runSession(interval time.Duration) error {
 	select {
 	case <-c.ctx.Done():
 		close(done)
+		cancelStream()
 		_ = stream.CloseSend()
 		wg.Wait()
 		return nil
 	case err := <-errCh:
 		close(done)
+		cancelStream()
 		_ = stream.CloseSend()
 		wg.Wait()
 		return err
@@ -626,13 +656,21 @@ func readTargetLength(target *pb.PayloadTarget) (uint64, error) {
 	}
 	switch t := target.GetTarget().(type) {
 	case *pb.PayloadTarget_Shm:
+		if t.Shm == nil {
+			return 0, protocolError("read segment has empty SHM descriptor")
+		}
+		if _, ok := checkedAdd(t.Shm.Offset, t.Shm.Length); !ok {
+			return 0, protocolError("SHM descriptor range overflows")
+		}
 		return t.Shm.Length, nil
 	case *pb.PayloadTarget_Grpc:
+		if t.Grpc == nil {
+			return 0, protocolError("read segment has empty gRPC descriptor")
+		}
 		return t.Grpc.Length, nil
-	case *pb.PayloadTarget_Rdma:
-		return t.Rdma.Length, nil
-	case *pb.PayloadTarget_Ub:
-		return t.Ub.Length, nil
+	case *pb.PayloadTarget_Rdma, *pb.PayloadTarget_Ub:
+		// 未实现的后端应在布局预检时失败，不能先下载其它片段再报错。
+		return 0, protocolError("unsupported payload target")
 	default:
 		return 0, protocolError("read segment has empty target")
 	}
@@ -724,10 +762,11 @@ func (t *viewReleaseTracker) releasedViewThrough() *uint64 {
 }
 
 type readRequestTracker struct {
-	mu              sync.Mutex
-	next            uint64
-	finishedThrough uint64
-	pending         map[uint64]struct{}
+	mu   sync.Mutex
+	next uint64
+	// 复用连续完成区间算法，但与 View 维护独立水位：二者生命周期不同。
+	// 较早请求挂起时，后面十万次完成只占一个区间，不保留十万个 map 项。
+	completed viewReleaseTracker
 }
 
 func (t *readRequestTracker) allocate() uint64 {
@@ -738,36 +777,11 @@ func (t *readRequestTracker) allocate() uint64 {
 }
 
 func (t *readRequestTracker) complete(id uint64) {
-	if id == 0 {
-		return
-	}
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	if id <= t.finishedThrough {
-		return
-	}
-	if t.pending == nil {
-		t.pending = map[uint64]struct{}{}
-	}
-	t.pending[id] = struct{}{}
-	for {
-		next := t.finishedThrough + 1
-		if _, ok := t.pending[next]; !ok {
-			return
-		}
-		delete(t.pending, next)
-		t.finishedThrough = next
-	}
+	t.completed.markReleased(id)
 }
 
 func (t *readRequestTracker) finishedReadRequestThrough() *uint64 {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	if t.finishedThrough == 0 {
-		return nil
-	}
-	value := t.finishedThrough
-	return &value
+	return t.completed.releasedViewThrough()
 }
 
 func (c *Client) sendUnaryHeartbeat(ctx context.Context) {
@@ -790,7 +804,17 @@ func (c *Client) releaseViews(ctx context.Context, epochs []uint64) {
 	for _, epoch := range epochs {
 		c.viewReleases.markReleased(epoch)
 	}
-	c.sendUnaryHeartbeat(ctx)
+	if c.readReleaseWake == nil {
+		// 未启动 Session 的内部测试/兼容调用继续同步归还；Connect 总会建立唤醒通道。
+		c.sendUnaryHeartbeat(ctx)
+		return
+	}
+	// 普通复制读已经结束，返回用户不必等待一个额外 Unary 往返。
+	// 容量为1，仅合并唤醒，不丢水位；发送失败由后续心跳/重连/Close再次发送。
+	select {
+	case c.readReleaseWake <- struct{}{}:
+	default:
+	}
 }
 
 func (c *Client) releaseWriteFromDescriptor(ctx context.Context, desc *pb.ShmDescriptor) error {

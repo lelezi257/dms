@@ -123,6 +123,8 @@ struct HostStaging {
 
 struct HostBlock {
     handle: AllocationHandle,
+    // 提交时从真实 bytes 计算/验证的不可变身份；随 Block 一起释放，不另设缓存表。
+    digest: Vec<u8>,
     committed_version: Option<u64>,
 }
 
@@ -544,6 +546,7 @@ impl ArenaManager {
             block_id,
             HostBlock {
                 handle: staging.handle,
+                digest: receipt.digest.clone(),
                 committed_version: None,
             },
         );
@@ -590,14 +593,30 @@ impl ArenaManager {
         Ok(bytes)
     }
 
+    #[cfg(test)]
     pub(crate) fn commit_inline(
         &mut self,
         block_id: Vec<u8>,
         bytes: Vec<u8>,
     ) -> Result<(), ArenaError> {
+        let checksum = digest(&bytes);
+        self.commit_inline_with_verified_digest(block_id, bytes, checksum)
+    }
+
+    /// Node owner 已在写入/peer 完整校验处计算真实摘要；随 owned bytes 一起移交，
+    /// 避免 Arena 为保存身份再次遍历整个 payload。调用者不得传 wire 上未验证的摘要。
+    pub(crate) fn commit_inline_with_verified_digest(
+        &mut self,
+        block_id: Vec<u8>,
+        bytes: Vec<u8>,
+        verified_digest: Vec<u8>,
+    ) -> Result<(), ArenaError> {
         let length = bytes.len() as u64;
         if length == 0 {
             return Err(ArenaError::EmptyPayload);
+        }
+        if verified_digest.is_empty() {
+            return Err(ArenaError::ReceiptConflict);
         }
         if let Some(block) = self.blocks.get(&block_id) {
             return self
@@ -617,6 +636,7 @@ impl ArenaManager {
             block_id,
             HostBlock {
                 handle,
+                digest: verified_digest,
                 committed_version: None,
             },
         );
@@ -682,6 +702,13 @@ impl ArenaManager {
         self.blocks
             .get(block_id)
             .map(|block| block.handle.allocation_id)
+    }
+
+    /// 借用 Block 的提交身份；不读取/复制 payload，也不重新计算 checksum。
+    pub(crate) fn block_length_and_digest(&self, block_id: &[u8]) -> Option<(u64, &[u8])> {
+        self.blocks
+            .get(block_id)
+            .map(|block| (block.handle.length, block.digest.as_slice()))
     }
 
     pub(crate) fn read_bytes(&self, block_id: &[u8]) -> Option<Vec<u8>> {
@@ -1357,6 +1384,51 @@ mod runtime_tests {
             arena.live_allocations.insert(handle.allocation_id, handle);
             arena.delete_staging(7, allocation.staging_id);
             assert!(arena.slot_bytes_checked(handle).is_none());
+            if let Some(path) = path {
+                let _ = std::fs::remove_file(path);
+            }
+        }
+    }
+
+    #[test]
+    fn committed_block_identity_reuses_verified_digest_and_retires_with_block() {
+        for shared in [false, true] {
+            let (mut arena, path) = stage54_arena(shared, "block-identity");
+            let checksum = digest(b"data");
+            let digest_pointer = checksum.as_ptr();
+            arena
+                .commit_inline_with_verified_digest(b"inline".to_vec(), b"data".to_vec(), checksum)
+                .unwrap();
+            let (length, stored) = arena.block_length_and_digest(b"inline").unwrap();
+            assert_eq!(length, 4);
+            assert_eq!(stored, digest(b"data"));
+            assert_eq!(
+                stored.as_ptr(),
+                digest_pointer,
+                "移动已有摘要，不重复分配/哈希 payload"
+            );
+            let allocation = arena.allocate(7, 4).unwrap();
+            let receipt = arena.upload(allocation.transfer_id, b"next").unwrap();
+            arena
+                .commit_staging(7, allocation.staging_id, &receipt, b"staged".to_vec())
+                .unwrap();
+            assert_eq!(
+                arena.block_length_and_digest(b"staged"),
+                Some((4, receipt.digest.as_slice()))
+            );
+            assert_eq!(
+                arena.commit_inline_with_verified_digest(
+                    b"empty-digest".to_vec(),
+                    b"data".to_vec(),
+                    Vec::new()
+                ),
+                Err(ArenaError::ReceiptConflict)
+            );
+            assert!(arena.block_length_and_digest(b"empty-digest").is_none());
+            arena.retire_block(b"inline");
+            arena.retire_block(b"staged");
+            assert!(arena.block_length_and_digest(b"inline").is_none());
+            assert!(arena.block_length_and_digest(b"staged").is_none());
             if let Some(path) = path {
                 let _ = std::fs::remove_file(path);
             }

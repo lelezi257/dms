@@ -47,6 +47,8 @@ use crate::meta::{metadata_service::MetadataServiceHandler, runtime::MetaHandle}
 #[derive(Clone)]
 struct CountingMetaService {
     inner: MetadataServiceHandler,
+    commit_requests: Arc<Mutex<Vec<Vec<u8>>>>,
+    drop_commit_response_once: Arc<AtomicBool>,
     resolve_count: Arc<AtomicUsize>,
     resolve_queries: Arc<Mutex<Vec<Option<u64>>>>,
     stale_location_once: Arc<AtomicBool>,
@@ -272,7 +274,16 @@ impl MetadataService for CountingMetaService {
         &self,
         request: Request<pb::CommitVersionRequest>,
     ) -> Result<Response<pb::CommitVersionResponse>, Status> {
-        self.inner.commit_version(request).await
+        self.commit_requests
+            .lock()
+            .unwrap()
+            .push(request.get_ref().operation_id.clone());
+        let response = self.inner.commit_version(request).await?;
+        // 已提交后故意丢失回复，模拟调用者不能判断是否成功，而不是提交前拒绝。
+        if self.drop_commit_response_once.swap(false, Ordering::AcqRel) {
+            return Err(Status::unavailable("test: committed response lost"));
+        }
+        Ok(response)
     }
 
     async fn commit_batch(
@@ -361,6 +372,9 @@ impl MetadataService for CountingMetaService {
 }
 
 struct CountingMetaServer {
+    handle: MetaHandle,
+    commit_requests: Arc<Mutex<Vec<Vec<u8>>>>,
+    drop_commit_response_once: Arc<AtomicBool>,
     endpoint: String,
     resolve_count: Arc<AtomicUsize>,
     resolve_queries: Arc<Mutex<Vec<Option<u64>>>>,
@@ -394,8 +408,13 @@ impl CountingMetaServer {
             waker: Mutex::new(None),
         });
         let ack_state = Arc::new(AckState::new());
+        let handle = MetaHandle::spawn();
+        let commit_requests = Arc::new(Mutex::new(Vec::new()));
+        let drop_commit_response_once = Arc::new(AtomicBool::new(false));
         let service = CountingMetaService {
-            inner: MetadataServiceHandler::new(MetaHandle::spawn()),
+            inner: MetadataServiceHandler::new(handle.clone()),
+            commit_requests: commit_requests.clone(),
+            drop_commit_response_once: drop_commit_response_once.clone(),
             resolve_count: resolve_count.clone(),
             resolve_queries: resolve_queries.clone(),
             stale_location_once: stale_location_once.clone(),
@@ -417,6 +436,9 @@ impl CountingMetaServer {
                 .expect("serve counting Meta");
         });
         Self {
+            handle,
+            commit_requests,
+            drop_commit_response_once,
             endpoint,
             resolve_count,
             resolve_queries,
@@ -520,6 +542,8 @@ struct TestNode {
     _heartbeat_task: JoinHandle<()>,
     _peer_task: Option<JoinHandle<()>>,
     peer_pull_count: Option<Arc<AtomicUsize>>,
+    peer_pull_delay_ms: Arc<AtomicU64>,
+    peer_max_active: Arc<AtomicUsize>,
 }
 
 impl TestNode {
@@ -586,14 +610,21 @@ impl TestNode {
         let peer_pull_count = peer_listener
             .as_ref()
             .map(|_| Arc::new(AtomicUsize::new(0)));
+        let peer_pull_delay_ms = Arc::new(AtomicU64::new(0));
+        let peer_max_active = Arc::new(AtomicUsize::new(0));
+        let max_active = peer_max_active.clone();
         let peer_task = peer_listener.map(|(_, listener)| {
             let handler = PeerServiceHandler::new(node.clone());
             let peer_pull_count = peer_pull_count.as_ref().expect("peer pull counter").clone();
+            let delay_ms = peer_pull_delay_ms.clone();
             tokio::spawn(async move {
                 tonic::transport::Server::builder()
                     .add_service(PeerServiceServer::new(CountingPeerService {
                         inner: handler,
                         pull_count: peer_pull_count,
+                        delay_ms,
+                        active: Arc::new(AtomicUsize::new(0)),
+                        max_active,
                     }))
                     .serve_with_incoming(TcpListenerStream::new(listener))
                     .await
@@ -607,6 +638,8 @@ impl TestNode {
             _heartbeat_task: heartbeat_task,
             _peer_task: peer_task,
             peer_pull_count,
+            peer_pull_delay_ms,
+            peer_max_active,
         }
     }
 
@@ -679,6 +712,17 @@ impl TestNode {
 struct CountingPeerService {
     inner: PeerServiceHandler,
     pull_count: Arc<AtomicUsize>,
+    delay_ms: Arc<AtomicU64>,
+    active: Arc<AtomicUsize>,
+    max_active: Arc<AtomicUsize>,
+}
+
+// 测量 handler 的真实重叠区间；取消 Future 时也要扣减，不能只在成功出口计数。
+struct ActivePeerCall(Arc<AtomicUsize>);
+impl Drop for ActivePeerCall {
+    fn drop(&mut self) {
+        self.0.fetch_sub(1, Ordering::AcqRel);
+    }
 }
 
 #[tonic::async_trait]
@@ -695,6 +739,14 @@ impl PeerService for CountingPeerService {
         request: Request<pb::PeerPullBlockRequest>,
     ) -> Result<Response<pb::PeerPullBlockResponse>, Status> {
         self.pull_count.fetch_add(1, Ordering::Relaxed);
+        let active = self.active.fetch_add(1, Ordering::AcqRel) + 1;
+        self.max_active.fetch_max(active, Ordering::AcqRel);
+        let _active = ActivePeerCall(self.active.clone());
+        // 测试专用的慢 Peer：扩大两个已到达请求的重叠窗口，不改变业务内容。
+        let delay_ms = self.delay_ms.load(Ordering::Relaxed);
+        if delay_ms > 0 {
+            tokio::time::sleep(Duration::from_millis(delay_ms)).await;
+        }
         self.inner.pull_block(request).await
     }
 
@@ -1326,6 +1378,356 @@ async fn cached_location_read_does_not_hide_report_replica_failure() {
     assert!(
         matches!(result, Err(WorkerError::Stable(ref error)) if error.code() == dms_error::META_JOURNAL_UNAVAILABLE),
         "Meta report 失败必须返回给调用者，不能被 Exact fallback 吞掉：{result:?}"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn concurrent_cold_half_reads_share_one_peer_import() {
+    let meta = CountingMetaServer::start().await;
+    let reader_node = TestNode::start_with_peer_server(&meta.endpoint, 1).await;
+    let writer_node = TestNode::start_with_peer_server(&meta.endpoint, 2).await;
+    let writer = writer_node.open_write_session().await;
+    let key = b"peer-flight/two-half-reads";
+    let value = (0..32768)
+        .map(|index| (index % 251) as u8)
+        .collect::<Vec<_>>();
+    let version = writer_node.set_inline(writer, key, &value, 701).await;
+    let reader = reader_node.open_write_session().await;
+    writer_node.peer_pull_delay_ms.store(100, Ordering::Relaxed);
+    writer_node.reset_peer_pull_count();
+
+    // 两次独立 Exact GET，各读同一个不可变 Block 的一半；不能只在单个
+    // layout 内去重，也不能把两个用户的读票据/生命周期合成一个。
+    let read = |offset| {
+        reader_node.node.get_with_inline_limit(
+            reader,
+            key.to_vec(),
+            Some(version),
+            Some((offset, 16384)),
+            65536,
+        )
+    };
+    let (left, right) = tokio::join!(read(0), read(16384));
+    assert_eq!(left.unwrap().inline_value.as_deref(), Some(&value[..16384]));
+    assert_eq!(
+        right.unwrap().inline_value.as_deref(),
+        Some(&value[16384..])
+    );
+    assert_eq!(
+        writer_node.peer_pull_count(),
+        1,
+        "同 Block 并发冷读应只搬一次 bytes"
+    );
+}
+
+/// 证据测试用系统 sha256sum 校验真实返回值，不把长度相同当成数据完整。
+#[cfg(target_os = "linux")]
+fn proof_sha256(bytes: &[u8]) -> String {
+    use std::io::Write;
+    use std::process::{Command, Stdio};
+    let mut child = Command::new("sha256sum")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+        .unwrap();
+    child.stdin.take().unwrap().write_all(bytes).unwrap();
+    let output = child.wait_with_output().unwrap();
+    assert!(output.status.success());
+    String::from_utf8(output.stdout)
+        .unwrap()
+        .split_whitespace()
+        .next()
+        .unwrap()
+        .to_owned()
+}
+
+#[cfg(target_os = "linux")]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn mechanism_proof_different_blocks_transfer_concurrently() {
+    let meta = CountingMetaServer::start().await;
+    let reader = TestNode::start_with_peer_server(&meta.endpoint, 1).await;
+    let writer = TestNode::start_with_peer_server(&meta.endpoint, 2).await;
+    let ws = writer.open_write_session().await;
+    let rs = reader.open_write_session().await;
+    let values = [vec![17; 32768], vec![93; 32768]];
+    let keys = [b"proof/block-a".as_slice(), b"proof/block-b".as_slice()];
+    let a = writer.set_inline(ws, keys[0], &values[0], 901).await;
+    let b = writer.set_inline(ws, keys[1], &values[1], 902).await;
+    writer.peer_pull_delay_ms.store(150, Ordering::Release);
+    let (left, right) = tokio::join!(
+        reader
+            .node
+            .get_with_inline_limit(rs, keys[0].to_vec(), Some(a), None, 65536),
+        reader
+            .node
+            .get_with_inline_limit(rs, keys[1].to_vec(), Some(b), None, 65536),
+    );
+    let returned = [
+        left.unwrap().inline_value.unwrap(),
+        right.unwrap().inline_value.unwrap(),
+    ];
+    let hashes = returned.each_ref().map(|value| proof_sha256(value));
+    let expected = values.each_ref().map(|value| proof_sha256(value));
+    assert_eq!(hashes, expected);
+    let max_active = writer.peer_max_active.load(Ordering::Acquire);
+    assert!(max_active >= 2, "不同 Block 不能被单 flight 队列串行化");
+    assert_eq!(writer.peer_pull_count(), keys.len());
+    println!(
+        "DMS_MECHANISM_PROOF {{\"mechanism\":\"different_blocks\",\"requested_blocks\":{},\"max_simultaneous_transfers\":{},\"pull_count\":{},\"all_sha_match\":{},\"sha256\":[\"{}\",\"{}\"],\"measurement\":\"real-peer-grpc-handler-overlap\"}}",
+        keys.len(),
+        max_active,
+        writer.peer_pull_count(),
+        hashes == expected,
+        hashes[0],
+        hashes[1]
+    );
+}
+
+#[cfg(target_os = "linux")]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn mechanism_proof_lost_commit_reply_retry_keeps_one_logical_version() {
+    let meta = CountingMetaServer::start().await;
+    let node = TestNode::start_with_peer_server(&meta.endpoint, 1).await;
+    let session = node.open_write_session().await;
+    let before = meta.handle.stats().await.unwrap();
+    let key = b"proof/retry";
+    let value = b"value-after-lost-commit-response";
+    let identity = operation_id(0x51, 903);
+    meta.drop_commit_response_once
+        .store(true, Ordering::Release);
+    let first = node
+        .node
+        .set_inline(
+            session,
+            key.to_vec(),
+            value.to_vec(),
+            identity.clone(),
+            "any".into(),
+        )
+        .await;
+    assert!(
+        first.is_err(),
+        "故障必须发生在 Meta 提交后、Node 收到回复前"
+    );
+    let result = node
+        .node
+        .set_inline(
+            session,
+            key.to_vec(),
+            value.to_vec(),
+            identity,
+            "any".into(),
+        )
+        .await
+        .unwrap();
+    let returned = node
+        .node
+        .get_with_inline_limit(session, key.to_vec(), Some(result.version), None, 65536)
+        .await
+        .unwrap()
+        .inline_value
+        .unwrap();
+    let expected_sha = proof_sha256(value);
+    let returned_sha = proof_sha256(&returned);
+    assert_eq!(expected_sha, returned_sha);
+    let after = meta.handle.stats().await.unwrap();
+    let logical_commits = after.version_count - before.version_count;
+    assert_eq!(logical_commits, 1);
+    assert_eq!(after.operation_count - before.operation_count, 1);
+    let requests = meta.commit_requests.lock().unwrap();
+    assert!(requests.len() >= 2);
+    let preserved = requests.windows(2).all(|pair| pair[0] == pair[1]);
+    assert!(preserved);
+    println!(
+        "DMS_MECHANISM_PROOF {{\"mechanism\":\"retry\",\"attempts\":{},\"operation_id_preserved\":{},\"logical_commits\":{},\"returned_sha_match\":{},\"sha256\":\"{}\",\"versions_before\":{},\"versions_after\":{},\"measurement\":\"real-meta-grpc-post-commit-response-loss\"}}",
+        requests.len(),
+        preserved,
+        logical_commits,
+        expected_sha == returned_sha,
+        returned_sha,
+        before.version_count,
+        after.version_count
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn concurrent_exact_and_materialized_reads_share_one_peer_import() {
+    let meta = CountingMetaServer::start().await;
+    let reader_node = TestNode::start_with_peer_server(&meta.endpoint, 1).await;
+    let writer_node = TestNode::start_with_peer_server(&meta.endpoint, 2).await;
+    let writer = writer_node.open_write_session().await;
+    let key = b"peer-flight/exact-and-materialized";
+    let value = vec![37; 32768];
+    let version = writer_node.set_inline(writer, key, &value, 702).await;
+    let reader = reader_node.open_write_session().await;
+    writer_node.peer_pull_delay_ms.store(100, Ordering::Relaxed);
+    let (range, materialized) = tokio::join!(
+        reader_node.node.get_with_inline_limit(
+            reader,
+            key.to_vec(),
+            Some(version),
+            Some((0, 16384)),
+            65536
+        ),
+        reader_node
+            .node
+            .get_materialized(reader, key.to_vec(), Some(version)),
+    );
+    assert_eq!(
+        range.unwrap().inline_value.as_deref(),
+        Some(&value[..16384])
+    );
+    assert_eq!(materialized.unwrap(), (version, value));
+    assert_eq!(writer_node.peer_pull_count(), 1);
+    assert_eq!(reader_node.node.debug_peer_imports().await, (0, 0, 0));
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn concurrent_cached_location_and_exact_reads_share_one_peer_import() {
+    let meta = CountingMetaServer::start().await;
+    let reader_node = TestNode::start_with_peer_server(&meta.endpoint, 1).await;
+    let writer_node = TestNode::start_with_peer_server(&meta.endpoint, 2).await;
+    let writer = writer_node.open_write_session().await;
+    let key = b"peer-flight/cached-location-and-exact";
+    let v1 = writer_node.set_inline(writer, key, b"abcdefgh", 706).await;
+    let v2 = set_range_with_node(
+        writer_node.node.clone(),
+        writer,
+        key.to_vec(),
+        4,
+        b"Z".to_vec(),
+        v1,
+        707,
+    )
+    .await;
+    let (reader, _events) = reader_node.open_cached_session().await;
+    // 只读取 patch，缓存 Current 布局及远端位置，但 base Block 仍未下载。
+    let patch = reader_node.read_inline_range(reader, key, (4, 1)).await;
+    assert_eq!(patch.inline_value.as_deref(), Some(b"Z".as_slice()));
+    writer_node.reset_peer_pull_count();
+    meta.reset_resolve_count();
+    writer_node.peer_pull_delay_ms.store(100, Ordering::Relaxed);
+    let (cached, exact) = tokio::join!(
+        reader_node
+            .node
+            .get_with_inline_limit(reader, key.to_vec(), None, Some((0, 4)), 65536),
+        reader_node
+            .node
+            .get_with_inline_limit(reader, key.to_vec(), Some(v2), Some((5, 3)), 65536),
+    );
+    assert_eq!(
+        cached.unwrap().inline_value.as_deref(),
+        Some(b"abcd".as_slice())
+    );
+    assert_eq!(
+        exact.unwrap().inline_value.as_deref(),
+        Some(b"fgh".as_slice())
+    );
+    assert_eq!(writer_node.peer_pull_count(), 1);
+    assert_eq!(meta.resolve_count(), 1, "只有 Exact 入口需要一次权威解析");
+    assert_eq!(reader_node.node.debug_peer_imports().await, (0, 0, 0));
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn concurrent_import_report_failure_is_returned_to_every_reader() {
+    let meta = CountingMetaServer::start().await;
+    let reader_node = TestNode::start_with_peer_server(&meta.endpoint, 1).await;
+    let writer_node = TestNode::start_with_peer_server(&meta.endpoint, 2).await;
+    let writer = writer_node.open_write_session().await;
+    let key = b"peer-flight/report-rejected";
+    let version = writer_node.set_inline(writer, key, b"abcdefgh", 703).await;
+    let reader = reader_node.open_write_session().await;
+    writer_node.peer_pull_delay_ms.store(100, Ordering::Relaxed);
+    meta.set_report_rejected(true);
+    let read = || {
+        reader_node
+            .node
+            .get_with_inline_limit(reader, key.to_vec(), Some(version), None, 65536)
+    };
+    let (first, second) = tokio::join!(read(), read());
+    assert!(first.is_err(), "不能因本地已安装 bytes 就忽略 Report 失败");
+    assert!(second.is_err(), "等待者必须看到同一轮 Report 失败");
+    assert_eq!(writer_node.peer_pull_count(), 1);
+    assert_eq!(reader_node.node.debug_peer_imports().await, (0, 0, 0));
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn cancelled_import_leader_does_not_cancel_other_readers() {
+    let meta = CountingMetaServer::start().await;
+    let reader_node = TestNode::start_with_peer_server(&meta.endpoint, 1).await;
+    let writer_node = TestNode::start_with_peer_server(&meta.endpoint, 2).await;
+    let writer = writer_node.open_write_session().await;
+    let key = b"peer-flight/cancel-leader";
+    let version = writer_node.set_inline(writer, key, b"abcdefgh", 704).await;
+    let reader = reader_node.open_write_session().await;
+    writer_node.peer_pull_delay_ms.store(150, Ordering::Relaxed);
+    let node = reader_node.node.clone();
+    let leader = tokio::spawn(async move {
+        node.get_with_inline_limit(reader, key.to_vec(), Some(version), None, 65536)
+            .await
+    });
+    tokio::time::timeout(Duration::from_secs(2), async {
+        while writer_node.peer_pull_count() == 0 {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .expect("leader reached peer");
+    let node = reader_node.node.clone();
+    let follower = tokio::spawn(async move {
+        node.get_with_inline_limit(reader, key.to_vec(), Some(version), Some((4, 4)), 65536)
+            .await
+    });
+    leader.abort();
+    assert!(leader.await.unwrap_err().is_cancelled());
+    let result = follower.await.unwrap().unwrap();
+    assert_eq!(result.inline_value.as_deref(), Some(b"efgh".as_slice()));
+    assert_eq!(writer_node.peer_pull_count(), 1);
+    assert_eq!(reader_node.node.debug_peer_imports().await, (0, 0, 0));
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn cancelled_all_import_waiters_leave_no_inflight_state() {
+    let meta = CountingMetaServer::start().await;
+    let reader_node = TestNode::start_with_peer_server(&meta.endpoint, 1).await;
+    let writer_node = TestNode::start_with_peer_server(&meta.endpoint, 2).await;
+    let writer = writer_node.open_write_session().await;
+    let key = b"peer-flight/cancel-all";
+    let version = writer_node.set_inline(writer, key, b"abcdefgh", 705).await;
+    let reader = reader_node.open_write_session().await;
+    writer_node.peer_pull_delay_ms.store(100, Ordering::Relaxed);
+    let node = reader_node.node.clone();
+    let request = tokio::spawn(async move {
+        node.get_with_inline_limit(reader, key.to_vec(), Some(version), None, 65536)
+            .await
+    });
+    tokio::time::timeout(Duration::from_secs(2), async {
+        while writer_node.peer_pull_count() == 0 {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .unwrap();
+    request.abort();
+    assert!(request.await.unwrap_err().is_cancelled());
+    tokio::time::timeout(Duration::from_secs(2), async {
+        while reader_node.node.debug_peer_imports().await != (0, 0, 0) {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .expect("detached bounded import finished and released scope pin");
+    assert_eq!(writer_node.peer_pull_count(), 1);
+    let result = reader_node
+        .node
+        .get_with_inline_limit(reader, key.to_vec(), Some(version), None, 65536)
+        .await
+        .unwrap();
+    assert_eq!(result.inline_value.as_deref(), Some(b"abcdefgh".as_slice()));
+    assert_eq!(
+        writer_node.peer_pull_count(),
+        1,
+        "已安装数据仍可复用，无独立客户端cache"
     );
 }
 

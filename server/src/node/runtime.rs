@@ -215,6 +215,43 @@ struct PeerPullSpec {
     expected_length: u64,
 }
 
+/// 一轮缺块导入只共享完成状态，不共享用户票据或大块 Vec。
+/// Peer 位置失败可以按固定版本刷新；owner 接纳/Meta 登记失败不能当位置失败重试。
+#[derive(Clone, Debug)]
+struct PeerImportFailure {
+    error: WorkerError,
+    location_failure: bool,
+}
+
+impl PeerImportFailure {
+    fn terminal(error: WorkerError) -> Self {
+        Self {
+            error,
+            location_failure: false,
+        }
+    }
+}
+
+struct PeerImportFlight {
+    // 仅标识本 Node 的一次内部网络任务，不替代 Meta 的幂等 operation id。
+    attempt: u64,
+    // 发起读取消后仍由 flight 持有此 GC pin，直到安装/Report 的任务真正结束。
+    read_scope_id: u64,
+    expected_length: u64,
+    expected_checksum: Vec<u8>,
+    task_id: Option<tokio::task::Id>,
+    waiters: Vec<oneshot::Sender<Result<(), PeerImportFailure>>>,
+}
+
+/// 已产生缺块计划但尚未入队 Ensure 的同批读，也必须看见 Import/Report 的终态失败。
+/// 仅保留到失败发生前的 read scopes 排空，不是跨请求的永久负缓存。
+struct PeerImportFailureFence {
+    cutoff_scope: u64,
+    failure: PeerImportFailure,
+}
+
+type PeerImportCompletion = (Vec<u8>, u64, Result<(), PeerImportFailure>);
+
 #[derive(Clone, Debug)]
 pub(crate) struct ReplicaPrepareSpec {
     pub(crate) source_node_id: String,
@@ -256,7 +293,7 @@ enum MaterializeOutcome {
     NeedsRemoteBlocks(Vec<PeerPullSpec>),
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub(crate) enum WorkerError {
     /// 请求内容不合法；静态字符串避免临时分配。
     InvalidArgument(&'static str),
@@ -415,6 +452,15 @@ pub(crate) struct NodeTaskConfig {
 }
 
 impl NodeHandle {
+    #[cfg(test)]
+    pub(crate) async fn debug_peer_imports(&self) -> (usize, usize, u64) {
+        let (reply, rx) = oneshot::channel();
+        self.submit(NodeCommand::DebugPeerImports { reply })
+            .await
+            .expect("debug peer imports");
+        rx.await.expect("debug peer imports reply")
+    }
+
     pub(crate) fn metrics(&self) -> NodeMetrics {
         self.metrics.clone()
     }
@@ -1144,20 +1190,14 @@ impl NodeHandle {
                         .ok_or(WorkerError::NotFound)?
                         .version;
                     for spec in specs {
-                        let metric = self.metrics.begin_replica_operation(ReplicaOperation::Pull);
-                        let payload = match pull_block_from_peer(
-                            &self.node_id,
-                            spec,
-                            &self.rpc_metrics,
-                            &self.peer_channels,
-                        )
-                        .await
-                        {
-                            Ok(payload) => payload,
-                            Err(error) if can_refresh_cached_location(&error) => {
+                        match self.ensure_peer_block(read_scope_id, spec).await {
+                            Ok(()) => {}
+                            Err(failure)
+                                if failure.location_failure
+                                    && can_refresh_cached_location(&failure.error) =>
+                            {
                                 // 只捕获 Peer 拉取阶段的位置失败。安装/登记失败不属于
                                 // 换地址重试，必须直接返回，不能被下面的本地读掩盖。
-                                drop(metric);
                                 return self
                                     .read_exact_version_after_cached_location_failure(
                                         metadata,
@@ -1171,20 +1211,11 @@ impl NodeHandle {
                                     )
                                     .await;
                             }
-                            Err(error) => return Err(error),
-                        };
-                        self.install_and_report_peer_block(
-                            metadata,
-                            b"cached-location-import/",
-                            read_scope_id,
-                            payload,
-                            metric,
-                        )
-                        .await?;
+                            Err(failure) => return Err(failure.error),
+                        }
                     }
                     return self
                         .read_resolved_with_imports(
-                            metadata,
                             session_id,
                             read_scope_id,
                             read_request_id,
@@ -1207,7 +1238,6 @@ impl NodeHandle {
             .await
             .map_err(map_metadata_error)?;
         self.read_resolved_with_imports(
-            metadata,
             session_id,
             read_scope_id,
             read_request_id,
@@ -1239,7 +1269,6 @@ impl NodeHandle {
             .await
             .map_err(map_metadata_error)?;
         self.read_resolved_with_imports(
-            metadata,
             session_id,
             read_scope_id,
             read_request_id,
@@ -1257,7 +1286,6 @@ impl NodeHandle {
     )]
     async fn read_resolved_with_imports(
         &self,
-        metadata: &MetadataClient,
         session_id: u64,
         read_scope_id: u64,
         read_request_id: u64,
@@ -1285,13 +1313,9 @@ impl NodeHandle {
                 GetOutcome::Ready(ticket) => return Ok(ticket),
                 GetOutcome::NeedsRemoteBlocks(specs) => {
                     for spec in specs {
-                        self.import_and_report_peer_block(
-                            metadata,
-                            b"cache-import/",
-                            read_scope_id,
-                            spec,
-                        )
-                        .await?;
+                        self.ensure_peer_block(read_scope_id, spec)
+                            .await
+                            .map_err(|failure| failure.error)?;
                     }
                 }
             }
@@ -1351,13 +1375,9 @@ impl NodeHandle {
                 MaterializeOutcome::Ready { version, bytes } => return Ok((version, bytes)),
                 MaterializeOutcome::NeedsRemoteBlocks(specs) => {
                     for spec in specs {
-                        self.import_and_report_peer_block(
-                            metadata,
-                            b"materialize-import/",
-                            read_scope_id,
-                            spec,
-                        )
-                        .await?;
+                        self.ensure_peer_block(read_scope_id, spec)
+                            .await
+                            .map_err(|failure| failure.error)?;
                     }
                 }
             }
@@ -1365,10 +1385,28 @@ impl NodeHandle {
         Err(WorkerError::NotFound)
     }
 
-    /// Installs an immutable peer Block locally, then publishes the local
-    /// replica identity to Meta. Both Client reads and internal materialized
-    /// reads use this exact state transition; keeping it in one place prevents
-    /// the two paths from drifting on idempotency or replica policy.
+    /// Current、Exact、内部 materialize 共用的 Node 级缺块导入入口。
+    /// 请求取消只丢弃自己的等待，owner 启动的有界任务仍负责完成 Import/Report。
+    async fn ensure_peer_block(
+        &self,
+        read_scope_id: u64,
+        spec: PeerPullSpec,
+    ) -> Result<(), PeerImportFailure> {
+        let (reply, rx) = oneshot::channel();
+        self.submit(NodeCommand::EnsurePeerBlock {
+            read_scope_id,
+            spec,
+            node: Box::new(self.clone()),
+            reply,
+        })
+        .await
+        .map_err(PeerImportFailure::terminal)?;
+        rx.await
+            .map_err(|_| PeerImportFailure::terminal(WorkerError::WorkerUnavailable))?
+    }
+
+    // 完整性测试直接检验一次未合并的导入；正式读入口一律使用 ensure_peer_block。
+    #[cfg(test)]
     async fn import_and_report_peer_block(
         &self,
         metadata: &MetadataClient,
@@ -1376,20 +1414,43 @@ impl NodeHandle {
         read_scope_id: u64,
         spec: PeerPullSpec,
     ) -> Result<(), WorkerError> {
+        self.pull_and_report_peer_block(metadata, operation_namespace, read_scope_id, spec, None)
+            .await
+            .map_err(|failure| failure.error)
+    }
+
+    /// Installs an immutable peer Block locally, then publishes the local
+    /// replica identity to Meta. Both Client reads and internal materialized
+    /// reads use this exact state transition; keeping it in one place prevents
+    /// the two paths from drifting on idempotency or replica policy.
+    async fn pull_and_report_peer_block(
+        &self,
+        metadata: &MetadataClient,
+        operation_namespace: &[u8],
+        read_scope_id: u64,
+        spec: PeerPullSpec,
+        import_attempt: Option<u64>,
+    ) -> Result<(), PeerImportFailure> {
         // 接收成功以“完整数据通过owner接纳”为边界；不能在网络收到响应时
         // 提前记成功，否则延后的完整checksum拒绝会被错误统计为成功传输。
         let metric = self.metrics.begin_replica_operation(ReplicaOperation::Pull);
         let payload =
             pull_block_from_peer(&self.node_id, spec, &self.rpc_metrics, &self.peer_channels)
-                .await?;
+                .await
+                .map_err(|error| PeerImportFailure {
+                    error,
+                    location_failure: true,
+                })?;
         self.install_and_report_peer_block(
             metadata,
             operation_namespace,
             read_scope_id,
             payload,
             metric,
+            import_attempt,
         )
         .await
+        .map_err(PeerImportFailure::terminal)
     }
 
     /// 缓存位置和权威位置的读共用接纳与登记逻辑；本函数的错误不能触发位置回退。
@@ -1400,6 +1461,7 @@ impl NodeHandle {
         read_scope_id: u64,
         payload: PeerBlockResult,
         mut metric: super::metrics::ReplicaOperationGuard,
+        import_attempt: Option<u64>,
     ) -> Result<(), WorkerError> {
         let received_bytes = payload.payload.len();
         let report_block_id = payload.block_id.clone();
@@ -1412,6 +1474,7 @@ impl NodeHandle {
             checksum: payload.checksum,
             length: payload.length,
             read_scope_id,
+            import_attempt,
             reply: reply_tx,
         })
         .await?;
@@ -1780,7 +1843,14 @@ enum NodeCommand {
         checksum: Vec<u8>,
         length: u64,
         read_scope_id: u64,
+        import_attempt: Option<u64>,
         reply: oneshot::Sender<Result<bool, WorkerError>>,
+    },
+    EnsurePeerBlock {
+        read_scope_id: u64,
+        spec: PeerPullSpec,
+        node: Box<NodeHandle>,
+        reply: oneshot::Sender<Result<(), PeerImportFailure>>,
     },
     Download {
         transfer_id: u64,
@@ -1866,6 +1936,10 @@ enum NodeCommand {
     DebugStagingTtl {
         reply: oneshot::Sender<Result<Duration, WorkerError>>,
     },
+    #[cfg(test)]
+    DebugPeerImports {
+        reply: oneshot::Sender<(usize, usize, u64)>,
+    },
 }
 
 struct QueuedNodeCommand {
@@ -1900,6 +1974,7 @@ impl NodeCommand {
             Self::GetCached { .. } => NodeMailboxCommand::GetCached,
             Self::MaterializeResolved { .. } => NodeMailboxCommand::MaterializeResolved,
             Self::ImportPeerBlock { .. } => NodeMailboxCommand::ImportPeerBlock,
+            Self::EnsurePeerBlock { .. } => NodeMailboxCommand::ImportPeerBlock,
             Self::Download { .. } => NodeMailboxCommand::Download,
             Self::PeerProbe { .. } => NodeMailboxCommand::PeerProbe,
             Self::PeerPullBlock { .. } => NodeMailboxCommand::PeerPullBlock,
@@ -1919,6 +1994,8 @@ impl NodeCommand {
             Self::ApplyConfigChange { .. } => NodeMailboxCommand::ApplyConfigChange,
             #[cfg(test)]
             Self::DebugStagingTtl { .. } => NodeMailboxCommand::DebugStagingTtl,
+            #[cfg(test)]
+            Self::DebugPeerImports { .. } => NodeMailboxCommand::GetCached,
         }
     }
 }
@@ -1936,11 +2013,23 @@ async fn run_node(
     let mut state = NodeState::with_metrics(node_id, metadata, task_config, metrics.clone());
     let mut maintenance = tokio::time::interval(Duration::from_secs(1));
     let mut writes = tokio::task::JoinSet::<ApplyWrite>::new();
+    // owner 保管表和任务集合；Future 只做网络等待，并通过原 Import 命令交回 bytes。
+    let mut peer_imports = tokio::task::JoinSet::<PeerImportCompletion>::new();
     loop {
         // recv().await 在队列为空时挂起；maintenance tick 同样在这个唯一 owner
         // 内执行，因此回收不会引入第二个 Arena 状态入口。
         let next_cache_expiry = state.next_cache_lease_expiry();
         let queued = tokio::select! {
+            completed = peer_imports.join_next_with_id(), if !peer_imports.is_empty() => {
+                match completed {
+                    Some(Ok((_, (block_id, attempt, result)))) => {
+                        state.complete_peer_import(&block_id, attempt, result);
+                    }
+                    Some(Err(error)) => state.fail_peer_import_task(error.id()),
+                    None => {}
+                }
+                continue;
+            }
             completed = writes.join_next(), if !writes.is_empty() => {
                 if let Some(Ok(apply)) = completed { apply(&mut state); }
                 continue;
@@ -1984,6 +2073,14 @@ async fn run_node(
         // match 会消费 command，使各分支直接取得其中字段的所有权。
         async {
             match command {
+                #[cfg(test)]
+                NodeCommand::DebugPeerImports { reply } => {
+                    let _ = reply.send((
+                        state.peer_imports.len(),
+                        state.peer_import_failures.len(),
+                        state.peer_import_bytes,
+                    ));
+                }
                 NodeCommand::OpenSession {
                     shared_memory,
                     supports_write_lease_release,
@@ -2233,14 +2330,61 @@ async fn run_node(
                         &resolved,
                     ));
                 }
+                NodeCommand::EnsurePeerBlock {
+                    read_scope_id,
+                    spec,
+                    node,
+                    reply,
+                } => {
+                    if let Some(attempt) = state.begin_peer_import(read_scope_id, &spec, reply) {
+                        let block_id = spec.block_id.clone();
+                        let task_block_id = block_id.clone();
+                        let task = peer_imports.spawn(
+                            async move {
+                                let result = match node.metadata.as_ref() {
+                                    Some(metadata) => {
+                                        node.pull_and_report_peer_block(
+                                            metadata,
+                                            b"cache-import/",
+                                            read_scope_id,
+                                            spec,
+                                            Some(attempt),
+                                        )
+                                        .await
+                                    }
+                                    None => Err(PeerImportFailure::terminal(
+                                        WorkerError::MetadataUnavailable,
+                                    )),
+                                };
+                                (task_block_id, attempt, result)
+                            }
+                            .instrument(dms_tracing::tracing::Span::current()),
+                        );
+                        state
+                            .peer_imports
+                            .get_mut(&block_id)
+                            .expect("new peer import")
+                            .task_id = Some(task.id());
+                    }
+                }
                 NodeCommand::ImportPeerBlock {
                     block_id,
                     bytes,
                     checksum,
                     length,
                     read_scope_id,
+                    import_attempt,
                     reply,
                 } => {
+                    // 任务已结束/取消时，迟到的安装命令不能越过已解除的 GC pin。
+                    // None 仅供直接检验原始导入的完整性测试使用。
+                    if let Some(attempt) = import_attempt
+                        && let Err(error) =
+                            state.validate_peer_import_attempt(&block_id, read_scope_id, attempt)
+                    {
+                        let _ = reply.send(Err(error));
+                        return;
+                    }
                     let _ = reply.send(state.import_peer_block(
                         read_scope_id,
                         block_id,
@@ -2442,6 +2586,13 @@ struct NodeState {
     sessions: HashMap<u64, Session>,
     barriers: HashMap<u64, InvalidationBarrier>,
     active_read_scopes: HashSet<u64>,
+    /// Block → 正在拉取/接纳/登记的一轮任务。保留 origin scope 的 GC 保护，
+    /// 即使最初调用者取消也不允许 Prepare 越过仍可能安装 bytes 的任务。
+    peer_imports: HashMap<Vec<u8>, PeerImportFlight>,
+    peer_import_failures: HashMap<Vec<u8>, PeerImportFailureFence>,
+    next_peer_import: u64,
+    peer_import_bytes: u64,
+    peer_import_byte_limit: u64,
     downloads: HashMap<u64, DownloadTicket>,
     pending_retirements: HashMap<Vec<u8>, PendingRetirement>,
     completed_retirements: VecDeque<Vec<u8>>,
@@ -2517,6 +2668,11 @@ impl NodeState {
             sessions: HashMap::new(),
             barriers: HashMap::new(),
             active_read_scopes: HashSet::new(),
+            peer_imports: HashMap::new(),
+            peer_import_failures: HashMap::new(),
+            next_peer_import: 1,
+            peer_import_bytes: 0,
+            peer_import_byte_limit: task_config.arena_capacity_bytes,
             downloads: HashMap::new(),
             pending_retirements: HashMap::new(),
             completed_retirements: VecDeque::new(),
@@ -3161,7 +3317,7 @@ impl NodeState {
         let length = bytes.len() as u64;
         let checksum = digest(&bytes);
         self.arena
-            .commit_inline(block_id.clone(), bytes)
+            .commit_inline_with_verified_digest(block_id.clone(), bytes, checksum.clone())
             .map_err(map_arena_error)?;
         self.pending_blocks.insert(block_id.clone(), owns_block);
         self.commit_block(ValueCommitInput {
@@ -3428,12 +3584,22 @@ impl NodeState {
             if self.retirement_blocks_new_reads(&extent.block_id, read_scope_id) {
                 return Err(WorkerError::NotFound);
             }
+            if let Some(failure) = self.peer_import_failure(&extent.block_id, read_scope_id) {
+                return Err(failure.error.clone());
+            }
             let block_offset = extent
                 .block_offset
                 .checked_add(start - logical.offset)
                 .ok_or(WorkerError::InvalidArgument("block range overflows u64"))?;
             let block_range = (block_offset, end - start);
-            match self.arena.open_read(&extent.block_id, Some(block_range)) {
+            // Import 已安装但 Report 仍在进行时，也必须等待同一轮结果；
+            // 不能因为本地暂时可见 bytes 就让并发请求掩盖登记失败。
+            let local = if self.peer_imports.contains_key(&extent.block_id) {
+                Err(ArenaError::UnknownBlock)
+            } else {
+                self.arena.open_read(&extent.block_id, Some(block_range))
+            };
+            match local {
                 Ok((read, _)) => planned.push((start - requested.0, read)),
                 Err(ArenaError::UnknownBlock) => {
                     if !missing
@@ -3593,10 +3759,18 @@ impl NodeState {
             if self.retirement_blocks_new_reads(&extent.block_id, read_scope_id) {
                 return Err(WorkerError::NotFound);
             }
-            match self.arena.open_read(
-                &extent.block_id,
-                Some((extent.block_offset, logical.length)),
-            ) {
+            if let Some(failure) = self.peer_import_failure(&extent.block_id, read_scope_id) {
+                return Err(failure.error.clone());
+            }
+            let local = if self.peer_imports.contains_key(&extent.block_id) {
+                Err(ArenaError::UnknownBlock)
+            } else {
+                self.arena.open_read(
+                    &extent.block_id,
+                    Some((extent.block_offset, logical.length)),
+                )
+            };
+            match local {
                 Ok((read, _)) => planned.push((logical.offset, read)),
                 Err(ArenaError::UnknownBlock) => {
                     if !missing
@@ -3693,6 +3867,164 @@ impl NodeState {
         })
     }
 
+    /// 返回 attempt 表示需要启动新任务；None 表示已回复或加入已有任务。
+    /// 此表不是另一个 value cache：只持有有界控制状态，bytes 始终归 Arena。
+    fn begin_peer_import(
+        &mut self,
+        read_scope_id: u64,
+        spec: &PeerPullSpec,
+        reply: oneshot::Sender<Result<(), PeerImportFailure>>,
+    ) -> Option<u64> {
+        if reply.is_closed() {
+            return None;
+        }
+        let reject = |reply: oneshot::Sender<_>, error| {
+            let _ = reply.send(Err(PeerImportFailure::terminal(error)));
+        };
+        if !self.active_read_scopes.contains(&read_scope_id)
+            || self.retirement_blocks_new_reads(&spec.block_id, read_scope_id)
+        {
+            reject(reply, WorkerError::NotFound);
+            return None;
+        }
+        if let Some(failure) = self.peer_import_failure(&spec.block_id, read_scope_id) {
+            let _ = reply.send(Err(failure.clone()));
+            return None;
+        }
+        if let Some(flight) = self.peer_imports.get_mut(&spec.block_id) {
+            if flight.expected_length != spec.expected_length
+                || flight.expected_checksum != spec.expected_checksum
+            {
+                reject(reply, WorkerError::Conflict);
+            } else {
+                flight.waiters.retain(|waiter| !waiter.is_closed());
+                if flight.waiters.len() >= NODE_MAILBOX_CAPACITY {
+                    reject(reply, WorkerError::ResourceExhausted);
+                } else {
+                    flight.waiters.push(reply);
+                }
+            }
+            return None;
+        }
+        // 两个缺块计划之间，另一轮可能已完成；在 owner 内重新检查避免重复搬运。
+        if let Some((length, checksum)) = self.arena.block_length_and_digest(&spec.block_id) {
+            if length == spec.expected_length
+                && (spec.expected_checksum.is_empty() || checksum == spec.expected_checksum)
+            {
+                let _ = reply.send(Ok(()));
+            } else {
+                reject(reply, WorkerError::Conflict);
+            }
+            return None;
+        }
+        let charged = self.peer_import_bytes.checked_add(spec.expected_length);
+        if self.peer_imports.len() + self.peer_import_failures.len() >= NODE_MAILBOX_CAPACITY
+            || charged.is_none_or(|bytes| bytes > self.peer_import_byte_limit)
+        {
+            reject(reply, WorkerError::ResourceExhausted);
+            return None;
+        }
+        let Some(next) = self.next_peer_import.checked_add(1) else {
+            reject(reply, WorkerError::ResourceExhausted);
+            return None;
+        };
+        let attempt = self.next_peer_import;
+        self.next_peer_import = next;
+        self.peer_import_bytes = charged.expect("checked peer import bytes");
+        self.peer_imports.insert(
+            spec.block_id.clone(),
+            PeerImportFlight {
+                attempt,
+                read_scope_id,
+                expected_length: spec.expected_length,
+                expected_checksum: spec.expected_checksum.clone(),
+                task_id: None,
+                waiters: vec![reply],
+            },
+        );
+        Some(attempt)
+    }
+
+    /// 安装和完成都校验批次身份，旧任务不能给新 flight 安装数据或释放它的 pin。
+    fn validate_peer_import_attempt(
+        &self,
+        block_id: &[u8],
+        read_scope_id: u64,
+        attempt: u64,
+    ) -> Result<(), WorkerError> {
+        match self.peer_imports.get(block_id) {
+            Some(flight) if flight.attempt == attempt && flight.read_scope_id == read_scope_id => {
+                Ok(())
+            }
+            _ => Err(WorkerError::Conflict),
+        }
+    }
+
+    fn complete_peer_import(
+        &mut self,
+        block_id: &[u8],
+        attempt: u64,
+        result: Result<(), PeerImportFailure>,
+    ) {
+        if self
+            .peer_imports
+            .get(block_id)
+            .is_none_or(|flight| flight.attempt != attempt)
+        {
+            return;
+        }
+        let flight = self
+            .peer_imports
+            .remove(block_id)
+            .expect("matching peer import");
+        self.peer_import_bytes -= flight.expected_length;
+        if let Err(failure) = &result
+            && !failure.location_failure
+        {
+            // Report 超时不等于 Meta 未登记，不能撤销可能已可达的 bytes。
+            // 但同批读不能因为 bytes 已安装就伪造成功：保留到这些 scope 排空。
+            // 新 scope 不受此 fence 影响；表与在途任务共用条目上限。
+            self.peer_import_failures.insert(
+                block_id.to_vec(),
+                PeerImportFailureFence {
+                    cutoff_scope: self.next_read_scope.saturating_sub(1),
+                    failure: failure.clone(),
+                },
+            );
+        }
+        for waiter in flight.waiters {
+            let _ = waiter.send(result.clone());
+        }
+        self.advance_retirements();
+    }
+
+    fn peer_import_failure(
+        &self,
+        block_id: &[u8],
+        read_scope_id: u64,
+    ) -> Option<&PeerImportFailure> {
+        self.peer_import_failures
+            .get(block_id)
+            .filter(|fence| read_scope_id <= fence.cutoff_scope)
+            .map(|fence| &fence.failure)
+    }
+
+    fn fail_peer_import_task(&mut self, task_id: tokio::task::Id) {
+        // 只在 panic/任务取消的异常路径扫描有界表；正常完成直接按 Block+attempt 查找。
+        let failed = self.peer_imports.iter().find_map(|(block_id, flight)| {
+            (flight.task_id == Some(task_id)).then_some((block_id.clone(), flight.attempt))
+        });
+        if let Some((block_id, attempt)) = failed {
+            self.complete_peer_import(
+                &block_id,
+                attempt,
+                Err(PeerImportFailure::terminal(
+                    WorkerError::TransferUnavailable,
+                )),
+            );
+        }
+    }
+
     fn import_peer_block(
         &mut self,
         read_scope_id: u64,
@@ -3710,12 +4042,13 @@ impl NodeState {
         }
         // 完整 Block 在唯一 owner 接纳时校验一次。接收协程只负责范围/长度/
         // 分段摘要；不能因为传输成功就跳过这里，也不能先登记副本再检查。
-        if !checksum.is_empty() && digest(&bytes) != checksum {
+        let verified_digest = digest(&bytes);
+        if !checksum.is_empty() && verified_digest != checksum {
             self.metrics.record_replica_checksum_failure();
             return Err(WorkerError::Conflict);
         }
         self.arena
-            .commit_inline(block_id, bytes)
+            .commit_inline_with_verified_digest(block_id, bytes, verified_digest)
             .map_err(map_arena_error)?;
         Ok(!retiring_for_old_scope)
     }
@@ -3792,8 +4125,19 @@ impl NodeState {
         match state {
             ReplicaTransferState::Prepared(prepared) => {
                 let owns_block = self.arena.read_bytes(&prepared.block_id).is_none();
+                // 兼容旧 peer 未携带摘要的情况：Arena 仍必须保存真实身份。
+                // 正常非空摘要在 prepare 已验证，此处不重复扫描 payload。
+                let verified_digest = if prepared.checksum.is_empty() {
+                    digest(&prepared.bytes)
+                } else {
+                    prepared.checksum.clone()
+                };
                 self.arena
-                    .commit_inline(prepared.block_id.clone(), prepared.bytes)
+                    .commit_inline_with_verified_digest(
+                        prepared.block_id.clone(),
+                        prepared.bytes,
+                        verified_digest,
+                    )
                     .map_err(map_arena_error)?;
                 let finished = FinishedReplica {
                     block_id: prepared.block_id,
@@ -4054,6 +4398,10 @@ impl NodeState {
             .active_read_scopes
             .iter()
             .any(|scope_id| *scope_id <= cutoff)
+            && !self
+                .peer_imports
+                .values()
+                .any(|flight| flight.read_scope_id <= cutoff)
     }
 
     #[cfg(test)]
@@ -4107,6 +4455,11 @@ impl NodeState {
     }
 
     fn advance_retirements(&mut self) {
+        self.peer_import_failures.retain(|_, fence| {
+            self.active_read_scopes
+                .iter()
+                .any(|scope| *scope <= fence.cutoff_scope)
+        });
         let ready_prepares = self
             .pending_retirements
             .iter()
@@ -4826,6 +5179,10 @@ fn transfer_unavailable(message: String) -> WorkerError {
 #[cfg(test)]
 #[path = "peer_integrity_tests.rs"]
 mod peer_integrity_tests;
+
+#[cfg(test)]
+#[path = "peer_import_tests.rs"]
+mod peer_import_tests;
 
 #[cfg(test)]
 mod tests {

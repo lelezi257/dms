@@ -1572,16 +1572,22 @@ impl NodeConnection {
                 .ok_or_else(|| {
                     DmsError::client_protocol_violation("read length overflow".to_string())
                 })?;
-            // download 已经返回独立拥有的 Vec；大首段可直接成为结果，避免
+            // download 已经返回独立拥有的 Vec；首段可直接成为结果，避免
             // 再分配同样大小的 Vec 并复制一次。后续 Extent 仍按顺序追加，
             // 不借用 SHM 页，也不改变普通 GET 的所有权或版本校验。
-            if bytes.is_empty() && part.len() >= 32 * 1024 * 1024 {
-                bytes = part;
-            } else {
-                bytes.extend_from_slice(&part);
-            }
+            append_downloaded_part(&mut bytes, part);
         }
         Ok(bytes)
+    }
+}
+
+fn append_downloaded_part(bytes: &mut Vec<u8>, part: Vec<u8>) {
+    // 所有尺寸都可以移动所有权；4MiB 文件块与小范围读不应落回重复复制。
+    // 后续片段仍按需扩容，不能为省复制而返回共享页或预留无界内存。
+    if bytes.is_empty() {
+        *bytes = part;
+    } else {
+        bytes.extend_from_slice(&part);
     }
 }
 
@@ -2048,6 +2054,20 @@ pub(super) fn map_status(status: tonic::Status) -> DmsError {
 #[cfg(test)]
 mod read_lifecycle_tests {
     use super::*;
+
+    #[test]
+    fn downloaded_owned_first_part_is_adopted_for_small_and_file_blocks() {
+        for length in [1, 4096, 512 * 1024, 4 * 1024 * 1024] {
+            let part = vec![7; length];
+            let original = part.as_ptr();
+            let mut output = Vec::new();
+            append_downloaded_part(&mut output, part);
+            assert_eq!(output.as_ptr(), original, "length={length}");
+            assert_eq!(output, vec![7; length]);
+            append_downloaded_part(&mut output, vec![8, 9]);
+            assert_eq!(&output[length..], &[8, 9]);
+        }
+    }
 
     fn disconnected_node(releases: &Arc<ViewReleaseTracker>) -> NodeConnection {
         let channel = Endpoint::from_static("http://127.0.0.1:1").connect_lazy();

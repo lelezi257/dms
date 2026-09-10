@@ -5,10 +5,13 @@
 
 // Session 后台 Task 与前台读操作共享释放水位，不共享跨请求 value 缓存。
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, VecDeque},
     future::Future,
     path::PathBuf,
-    sync::{Arc, Mutex},
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicU64, Ordering},
+    },
     time::Duration,
 };
 
@@ -28,13 +31,15 @@ use tonic::{
 // service_fn 把一个 async closure 变成 Tower Service，供 Tonic 自定义如何建连接。
 use tower::service_fn;
 
+use super::grpc_clients::worker_client;
+use crate::types::system_time_from_unix_millis;
 use crate::{
     ByteRange, ClientTlsOptions, DeleteResult, DmsError, DurabilityPolicy, GetOptions, GetResult,
     HashDeleteOptions, HashEntriesResult, HashField, HashGetOptions, HashMultiGetResult,
     HashRangeWriteOptions, HashRangeWriteResult, HashReadVersion, HashScanOptions, HashScanResult,
     HashSetResult, HashValue, HashVersion, HashWriteMode, HashWriteOptions, Key, KeyVersion,
-    MSetResult, ObjectVersion, OperationId, RangeWriteOptions, ReadVersion, ScanCursor, SetOptions,
-    SetResult, WriteCondition,
+    MSetResult, ObjectInfo, ObjectVersion, OperationId, RangeWriteOptions, ReadVersion, ScanCursor,
+    ScanOptions, ScanResult, SetOptions, SetResult, WriteCondition,
 };
 
 use super::transfer_engine::{PayloadBuffer, TransferEngine};
@@ -53,6 +58,9 @@ pub(crate) struct NodeConnection {
     session_id: u64,
     inline_threshold_bytes: usize,
     view_releases: Arc<ViewReleaseTracker>,
+    read_finishes: Arc<ReadRequestFinishTracker>,
+    next_read_request_id: AtomicU64,
+    write_releases: WriteLeaseReleaser,
 }
 
 #[derive(Default)]
@@ -116,9 +124,11 @@ impl ViewReleaseTracker {
     fn protect<'a>(
         self: &Arc<Self>,
         segments: impl Iterator<Item = &'a pb::ReadSegment>,
+        read: Option<ReadRequestGuard>,
     ) -> ReadProtection {
         ReadProtection {
             releases: Arc::clone(self),
+            read,
             epochs: segments
                 .filter_map(|segment| match segment.target.as_ref()?.target.as_ref()? {
                     pb::payload_target::Target::Shm(target) => target.view_epoch,
@@ -133,6 +143,7 @@ impl ViewReleaseTracker {
 /// 只报告收到且已不再使用的 epoch；丢失响应造成的序号空洞不能猜成已释放。
 struct ReadProtection {
     releases: Arc<ViewReleaseTracker>,
+    read: Option<ReadRequestGuard>,
     epochs: Vec<u64>,
 }
 
@@ -141,6 +152,82 @@ impl Drop for ReadProtection {
         for &epoch in &self.epochs {
             self.releases.mark_released(epoch);
         }
+        // 普通读在复制结束后、显式 View 在用户 drop 后，才推进“本次读请求完成”
+        // 水位；这样 Node 可以回收只服务于该请求的下载票据/临时读保护。
+        let _ = self.read.take();
+    }
+}
+
+#[derive(Default)]
+struct ReadRequestFinishTracker {
+    inner: Mutex<ReadRequestFinishState>,
+}
+
+#[derive(Default)]
+struct ReadRequestFinishState {
+    finished_through: u64,
+    pending: BTreeMap<u64, u64>,
+}
+
+impl ReadRequestFinishTracker {
+    fn mark_finished(&self, read_request_id: u64) {
+        if read_request_id == 0 {
+            return;
+        }
+        let Ok(mut state) = self.inner.lock() else {
+            return;
+        };
+        if read_request_id <= state.finished_through {
+            return;
+        }
+        let (mut start, mut end) = (read_request_id, read_request_id);
+        if let Some((&left_start, &left_end)) = state.pending.range(..=read_request_id).next_back()
+        {
+            if read_request_id <= left_end {
+                return;
+            }
+            if left_end.checked_add(1) == Some(read_request_id) {
+                start = left_start;
+                state.pending.remove(&left_start);
+            }
+        }
+        if let Some((&right_start, &right_end)) = state.pending.range(read_request_id..).next()
+            && read_request_id.checked_add(1) == Some(right_start)
+        {
+            end = right_end;
+            state.pending.remove(&right_start);
+        }
+        state.pending.insert(start, end);
+        if let Some((&first, &last)) = state.pending.first_key_value()
+            && state.finished_through.checked_add(1) == Some(first)
+        {
+            state.finished_through = last;
+            state.pending.pop_first();
+        }
+    }
+
+    fn finished_read_request_through(&self) -> Option<u64> {
+        let Ok(state) = self.inner.lock() else {
+            return None;
+        };
+        (state.finished_through > 0).then_some(state.finished_through)
+    }
+}
+
+struct ReadRequestGuard {
+    finishes: Arc<ReadRequestFinishTracker>,
+    read_request_id: u64,
+}
+
+impl ReadRequestGuard {
+    fn id(&self) -> u64 {
+        self.read_request_id
+    }
+}
+
+impl Drop for ReadRequestGuard {
+    fn drop(&mut self) {
+        self.finishes.mark_finished(self.read_request_id);
     }
 }
 
@@ -154,6 +241,7 @@ pub(crate) struct SharedWriteInner {
     options: SetOptions,
     default_durability: DurabilityPolicy,
     buffer: PayloadBuffer,
+    write_release: Option<WriteLeaseGuard>,
 }
 
 impl SharedWriteInner {
@@ -177,6 +265,155 @@ pub(crate) struct SharedViewInner {
 struct SessionTaskOptions {
     heartbeat_interval: Duration,
     channel_capacity: usize,
+    write_lease_release_supported: bool,
+}
+
+#[derive(Clone)]
+struct WriteLeaseReleaser {
+    session_id: u64,
+    supported: bool,
+    backlog: Arc<Mutex<WriteLeaseReleaseBacklog>>,
+}
+
+#[derive(Default)]
+struct WriteLeaseReleaseBacklog {
+    pending: VecDeque<pb::ReleasedWriteAllocation>,
+    capacity: usize,
+    quarantined: u64,
+}
+
+struct WriteLeaseGuard {
+    releaser: WriteLeaseReleaser,
+    release: Option<pb::ReleasedWriteAllocation>,
+}
+
+impl WriteLeaseReleaser {
+    #[cfg(test)]
+    fn disabled(session_id: u64) -> Self {
+        Self {
+            session_id,
+            supported: false,
+            backlog: Arc::new(Mutex::new(WriteLeaseReleaseBacklog::with_capacity(0))),
+        }
+    }
+
+    fn new(session_id: u64, supported: bool, backlog_capacity: usize) -> Self {
+        Self {
+            session_id,
+            supported,
+            backlog: Arc::new(Mutex::new(WriteLeaseReleaseBacklog::with_capacity(
+                backlog_capacity,
+            ))),
+        }
+    }
+
+    fn release(&self, release: Option<pb::ReleasedWriteAllocation>) {
+        let Some(release) = release else {
+            return;
+        };
+        self.release_many(vec![release]);
+    }
+
+    fn release_many(&self, releases: Vec<pb::ReleasedWriteAllocation>) {
+        if releases.is_empty() || !self.supported {
+            return;
+        }
+        // Drop 路径不能 await，也不能使用无界队列。这里先进入有界 backlog，
+        // 再由 Session 心跳或 Client 正常关闭时的 final Heartbeat 负责冲刷。
+        //
+        // 关键不变量：这些 token 对应“已暴露给 SDK 的可写 lease”。如果通知
+        // 丢失，Node 不能仅靠 TTL 把同一块内存安全复用给别的写。因此 SDK
+        // 宁可把超出 backlog 的 token 标为 quarantined（后续泄漏/告警），也
+        // 不声称它们已经安全归还。
+        self.enqueue_backlog(releases);
+    }
+
+    fn take_pending_batch(&self, max_items: usize) -> Vec<pb::ReleasedWriteAllocation> {
+        let Ok(mut state) = self.backlog.lock() else {
+            return Vec::new();
+        };
+        let batch_len = state.pending.len().min(max_items);
+        state.pending.drain(..batch_len).collect()
+    }
+
+    fn take_all_pending(&self) -> Vec<pb::ReleasedWriteAllocation> {
+        self.take_pending_batch(usize::MAX)
+    }
+
+    fn requeue_front(&self, batch: Vec<pb::ReleasedWriteAllocation>) {
+        let Ok(mut state) = self.backlog.lock() else {
+            return;
+        };
+        for release in batch.into_iter().rev() {
+            state.pending.push_front(release);
+        }
+    }
+
+    #[cfg(test)]
+    fn pending_len(&self) -> usize {
+        self.backlog
+            .lock()
+            .map(|state| state.pending.len())
+            .unwrap_or(0)
+    }
+
+    #[cfg(test)]
+    fn quarantined_count(&self) -> u64 {
+        self.backlog
+            .lock()
+            .map(|state| state.quarantined)
+            .unwrap_or(0)
+    }
+
+    fn enqueue_backlog(&self, releases: Vec<pb::ReleasedWriteAllocation>) {
+        let Ok(mut state) = self.backlog.lock() else {
+            return;
+        };
+        for release in releases {
+            if state.pending.len() < state.capacity {
+                state.pending.push_back(release);
+            } else {
+                state.quarantined = state.quarantined.saturating_add(1);
+                log::error!(
+                    "DMS SHM write lease release backlog is full; allocation quarantined \
+                     instead of relying on TTL reuse (session_id={}, quarantined={})",
+                    self.session_id,
+                    state.quarantined
+                );
+            }
+        }
+    }
+}
+
+impl WriteLeaseReleaseBacklog {
+    fn with_capacity(capacity: usize) -> Self {
+        Self {
+            capacity,
+            ..Self::default()
+        }
+    }
+}
+
+impl WriteLeaseGuard {
+    fn new(
+        releaser: WriteLeaseReleaser,
+        release: Option<pb::ReleasedWriteAllocation>,
+    ) -> Option<Self> {
+        release.map(|release| Self {
+            releaser,
+            release: Some(release),
+        })
+    }
+
+    fn consume(&mut self) {
+        self.release = None;
+    }
+}
+
+impl Drop for WriteLeaseGuard {
+    fn drop(&mut self) {
+        self.releaser.release(self.release.take());
+    }
 }
 
 impl SharedViewInner {
@@ -212,7 +449,7 @@ impl NodeConnection {
         // `&config`/`&security` 是只读借用；`.await?` 等待连接并向上传播错误。
         let channel = connect_channel(&options.endpoint, &config, &security).await?;
         // generated Client 是薄句柄，内部持有 clone 后的 Channel。
-        let mut worker = WorkerServiceClient::new(dms_tracing::traced_channel(channel.clone()));
+        let mut worker = worker_client(channel.clone(), &config);
         // 先通过 unary RPC 建立逻辑 Session，协商当前支持的能力。
         let session_result = observe_rpc(
             rpc_metrics.as_ref(),
@@ -223,6 +460,7 @@ impl NodeConnection {
                 shared_memory: options.shared_memory,
                 zero_copy_read: options.shared_memory,
                 zero_copy_write: options.shared_memory,
+                supports_write_lease_release: true,
             }),
         )
         .await;
@@ -230,14 +468,17 @@ impl NodeConnection {
         let session_id = session.session_id;
         let fd_broker_path = session.shm.map(|shm| shm.fd_broker_path);
         let view_releases = Arc::new(ViewReleaseTracker::default());
+        let read_finishes = Arc::new(ReadRequestFinishTracker::default());
         // 长连接负责 Session 存活与 View 释放水位；不申请 SDK value 缓存租约。
-        start_session_task(
+        let write_releases = start_session_task(
             worker,
             session_id,
             Arc::clone(&view_releases),
+            Arc::clone(&read_finishes),
             SessionTaskOptions {
                 heartbeat_interval: options.heartbeat_interval,
                 channel_capacity: options.session_channel_capacity,
+                write_lease_release_supported: session.write_lease_release_supported,
             },
             metrics.clone(),
             rpc_metrics.as_ref(),
@@ -245,11 +486,12 @@ impl NodeConnection {
         .await?;
         // 返回时 generated Client 本身可以丢弃；Channel 留在 NodeConnection 中复用。
         Ok(Self {
-            worker: WorkerServiceClient::new(dms_tracing::traced_channel(channel.clone())),
+            worker: worker_client(channel.clone(), &config),
             transfer: TransferEngine::new(
                 channel,
                 session_id,
                 fd_broker_path,
+                &config,
                 metrics.clone(),
                 rpc_metrics.clone(),
             ),
@@ -257,7 +499,18 @@ impl NodeConnection {
             session_id,
             inline_threshold_bytes: options.inline_threshold_bytes,
             view_releases,
+            read_finishes,
+            next_read_request_id: AtomicU64::new(1),
+            write_releases,
         })
+    }
+
+    fn begin_read_request(&self) -> ReadRequestGuard {
+        let read_request_id = self.next_read_request_id.fetch_add(1, Ordering::Relaxed);
+        ReadRequestGuard {
+            finishes: Arc::clone(&self.read_finishes),
+            read_request_id,
+        }
     }
 
     pub(crate) async fn set(
@@ -312,14 +565,18 @@ impl NodeConnection {
         let target = allocation.target.ok_or_else(|| {
             DmsError::client_protocol_violation("missing payload target".to_string())
         })?;
+        let upload_release = write_release_from_target(&target);
 
         // 第二步由统一传输边界选择 provider，业务层不识别 gRPC/SHM/RDMA/UB。
         let receipt = match self.transfer.upload(self.session_id, target, value).await {
             Ok(receipt) => receipt,
             Err(error) => {
+                self.write_releases.release(upload_release);
                 // Allocation succeeded but payload transfer did not. Release is
                 // idempotent, and failure to release must not hide the original
-                // transfer error; Session close/TTL remain the final safety net.
+                // transfer error. If release delivery is backpressured, the
+                // session backlog keeps or quarantines the token rather than
+                // pretending that Node can safely reuse it.
                 let _ = observe_rpc(
                     self.rpc_metrics.as_ref(),
                     dms_metrics::RpcCall::WORKER_DELETE_STAGING,
@@ -332,6 +589,7 @@ impl NodeConnection {
                 return Err(error);
             }
         };
+        let commit_release = write_release_from_receipt(&receipt);
 
         // 第三步 Set 只提交 key、staging_id 和上传回执；Node 原子地发布新版本。
         let response = match observe_rpc(
@@ -356,16 +614,10 @@ impl NodeConnection {
             Ok(response) => response.into_inner(),
             Err(status) => {
                 // Set may fail before or after consuming staging. Delete is a
-                // successful no-op in the latter case, so one cleanup path is safe.
-                let _ = observe_rpc(
-                    self.rpc_metrics.as_ref(),
-                    dms_metrics::RpcCall::WORKER_DELETE_STAGING,
-                    worker.delete_staging(pb::DeleteStagingRequest {
-                        session_id: self.session_id,
-                        staging_id: allocation.staging_id,
-                    }),
-                )
-                .await;
+                // possible unknown outcome, so never delete bytes here. Only
+                // return the SHM write lease; Node decides whether the staging
+                // was already consumed or should later be reclaimed.
+                self.write_releases.release(commit_release);
                 return Err(map_status(status));
             }
         };
@@ -405,9 +657,11 @@ impl NodeConnection {
         let target = allocation.target.ok_or_else(|| {
             DmsError::client_protocol_violation("missing payload target".to_string())
         })?;
+        let release = write_release_from_target(&target);
         let buffer = match self.transfer.map_target(self.session_id, target).await {
             Ok(buffer) => buffer,
             Err(error) => {
+                self.write_releases.release(release);
                 let _ = observe_rpc(
                     self.rpc_metrics.as_ref(),
                     dms_metrics::RpcCall::WORKER_DELETE_STAGING,
@@ -427,12 +681,13 @@ impl NodeConnection {
             options,
             default_durability,
             buffer,
+            write_release: WriteLeaseGuard::new(self.write_releases.clone(), release),
         })
     }
 
     pub(crate) async fn commit_shared(
         &self,
-        write: SharedWriteInner,
+        mut write: SharedWriteInner,
     ) -> Result<SetResult, DmsError> {
         let mut worker = self.worker.clone();
         let receipt = write.buffer.receipt()?;
@@ -459,18 +714,12 @@ impl NodeConnection {
         {
             Ok(response) => response.into_inner(),
             Err(status) => {
-                let _ = observe_rpc(
-                    self.rpc_metrics.as_ref(),
-                    dms_metrics::RpcCall::WORKER_DELETE_STAGING,
-                    worker.delete_staging(pb::DeleteStagingRequest {
-                        session_id: self.session_id,
-                        staging_id: write.staging_id,
-                    }),
-                )
-                .await;
                 return Err(map_status(status));
             }
         };
+        if let Some(release) = &mut write.write_release {
+            release.consume();
+        }
         Ok(SetResult {
             version: ObjectVersion(response.version),
             len: response.length,
@@ -483,6 +732,8 @@ impl NodeConnection {
         options: GetOptions,
     ) -> Result<Option<SharedViewInner>, DmsError> {
         let mut worker = self.worker.clone();
+        let read = self.begin_read_request();
+        let read_request_id = read.id();
         let response = observe_rpc(
             self.rpc_metrics.as_ref(),
             dms_metrics::RpcCall::WORKER_GET,
@@ -497,12 +748,14 @@ impl NodeConnection {
                 },
                 range: options.range.map(encode_range),
                 max_inline_bytes: 0,
+                read_request_id,
             }),
         )
         .await
         .map_err(map_status)?
         .into_inner();
-        self.decode_view_response(response, options.range).await
+        self.decode_view_response(response, options.range, Some(read))
+            .await
     }
 
     // 与普通响应解码一样：在任何可能失败的步骤前接管本次读取保护。
@@ -510,9 +763,10 @@ impl NodeConnection {
         &self,
         response: pb::GetResponse,
         range: Option<ByteRange>,
+        read: Option<ReadRequestGuard>,
     ) -> Result<Option<SharedViewInner>, DmsError> {
         // 即使不是单段、协议校验失败或 FD 获取失败，也要释放整份响应的借用。
-        let protection = self.view_releases.protect(response.segments.iter());
+        let protection = self.view_releases.protect(response.segments.iter(), read);
         if !response.found {
             reject_inline_on_miss(&response)?;
             return Ok(None);
@@ -561,6 +815,7 @@ impl NodeConnection {
             {
                 Ok(staged) => staged,
                 Err(error) => {
+                    self.release_staged_key_value_leases(&staged_entries);
                     self.delete_staging_many(&mut worker, &allocated_staging)
                         .await;
                     return Err(error);
@@ -574,6 +829,7 @@ impl NodeConnection {
                 value: Some(staged),
             });
         }
+        let commit_releases = staged_key_value_releases(&staged_entries);
         let response = match observe_rpc(
             self.rpc_metrics.as_ref(),
             dms_metrics::RpcCall::WORKER_MSET,
@@ -588,8 +844,7 @@ impl NodeConnection {
         {
             Ok(response) => response.into_inner(),
             Err(status) => {
-                self.delete_staging_many(&mut worker, &allocated_staging)
-                    .await;
+                self.write_releases.release_many(commit_releases);
                 return Err(map_status(status));
             }
         };
@@ -617,6 +872,8 @@ impl NodeConnection {
     ) -> Result<Option<GetResult>, DmsError> {
         // 小 TCP 值可以内联；其它情况由相同响应带回 payload 位置。
         let mut worker = self.worker.clone();
+        let read = self.begin_read_request();
+        let read_request_id = read.id();
         let response = observe_rpc(
             self.rpc_metrics.as_ref(),
             dms_metrics::RpcCall::WORKER_GET,
@@ -631,20 +888,81 @@ impl NodeConnection {
                     ReadVersion::Exact(version) => Some(version.0),
                 },
                 range: options.range.map(encode_range),
-                // inline_threshold_bytes 同时控制 SET 小对象直写与 GET 小对象合并响应；
-                // SDK 仍按协议上限截断，避免配置误把过大 bytes 塞进控制响应。
+                // GET 只允许“小对象读响应”随控制 RPC 返回；较大 value 继续走
+                // payload transfer。这里还受协议常量二次裁剪，避免配置误把过大
+                // bytes 塞进控制响应。
                 max_inline_bytes: self.inline_read_budget() as u64,
+                read_request_id,
             }),
         )
         .await
         .map_err(map_status)?
         .into_inner();
-        self.decode_read_response(response, options.range, self.inline_read_budget())
-            .await
+        self.decode_read_response(
+            response,
+            options.range,
+            self.inline_read_budget(),
+            Some(read),
+        )
+        .await
+    }
+
+    pub(crate) async fn stat(&self, key: &Key) -> Result<Option<ObjectInfo>, DmsError> {
+        let mut worker = self.worker.clone();
+        let response = observe_rpc(
+            self.rpc_metrics.as_ref(),
+            dms_metrics::RpcCall::WORKER_STAT,
+            worker.stat(pb::StatRequest {
+                session_id: self.session_id,
+                key: Some(pb::Key {
+                    value: key.as_bytes().to_vec(),
+                }),
+            }),
+        )
+        .await
+        .map_err(map_status)?
+        .into_inner();
+        if !response.found {
+            return Ok(None);
+        }
+        let info = response.info.ok_or_else(|| {
+            DmsError::client_protocol_violation("stat hit has no ObjectInfo".to_string())
+        })?;
+        decode_object_info(info).map(Some)
+    }
+
+    pub(crate) async fn scan(
+        &self,
+        prefix: &[u8],
+        options: ScanOptions,
+    ) -> Result<ScanResult, DmsError> {
+        let mut worker = self.worker.clone();
+        let response = observe_rpc(
+            self.rpc_metrics.as_ref(),
+            dms_metrics::RpcCall::WORKER_SCAN,
+            worker.scan(pb::ScanRequest {
+                session_id: self.session_id,
+                prefix: prefix.to_vec(),
+                options: Some(encode_scan_options(options)),
+            }),
+        )
+        .await
+        .map_err(map_status)?
+        .into_inner();
+        Ok(ScanResult {
+            items: response
+                .items
+                .into_iter()
+                .map(decode_object_info)
+                .collect::<Result<_, _>>()?,
+            next_cursor: (!response.next_cursor.is_empty()).then_some(response.next_cursor),
+        })
     }
 
     pub(crate) async fn mget(&self, keys: &[Key]) -> Result<Vec<Option<GetResult>>, DmsError> {
         let mut worker = self.worker.clone();
+        let read = self.begin_read_request();
+        let read_request_id = read.id();
         let response = observe_rpc(
             self.rpc_metrics.as_ref(),
             dms_metrics::RpcCall::WORKER_MGET,
@@ -656,23 +974,26 @@ impl NodeConnection {
                         value: key.as_bytes().to_vec(),
                     })
                     .collect(),
+                read_request_id,
             }),
         )
         .await
         .map_err(map_status)?
         .into_inner();
-        self.decode_mget_response(response).await
+        self.decode_mget_response(response, Some(read)).await
     }
 
     async fn decode_mget_response(
         &self,
         response: pb::MGetResponse,
+        read: Option<ReadRequestGuard>,
     ) -> Result<Vec<Option<GetResult>>, DmsError> {
         // 前面的 item 失败时，后面的 item 尚未解码也已由 Node 发放借用。
         // 整批保护直到处理结束，不能只在逐 item 成功后才记录释放。
-        let _batch_protection = self
-            .view_releases
-            .protect(response.items.iter().flat_map(|item| item.segments.iter()));
+        let _batch_protection = self.view_releases.protect(
+            response.items.iter().flat_map(|item| item.segments.iter()),
+            read,
+        );
         let mut results = Vec::with_capacity(response.items.len());
         for item in response.items {
             results.push(self.decode_get_response(item).await?);
@@ -696,6 +1017,7 @@ impl NodeConnection {
     ) -> Result<SetResult, DmsError> {
         let mut worker = self.worker.clone();
         let (staging_id, staged) = self.stage_value(&mut worker, data, "range-patch").await?;
+        let commit_release = write_release_from_staged_value(&staged);
         let response = match observe_rpc(
             self.rpc_metrics.as_ref(),
             dms_metrics::RpcCall::WORKER_SET_RANGE,
@@ -715,15 +1037,8 @@ impl NodeConnection {
         {
             Ok(response) => response.into_inner(),
             Err(status) => {
-                let _ = observe_rpc(
-                    self.rpc_metrics.as_ref(),
-                    dms_metrics::RpcCall::WORKER_DELETE_STAGING,
-                    worker.delete_staging(pb::DeleteStagingRequest {
-                        session_id: self.session_id,
-                        staging_id,
-                    }),
-                )
-                .await;
+                let _ = staging_id;
+                self.write_releases.release(commit_release);
                 return Err(map_status(status));
             }
         };
@@ -749,6 +1064,7 @@ impl NodeConnection {
                 match self.stage_value(&mut worker, bytes, "hash-field").await {
                     Ok(staged) => staged,
                     Err(error) => {
+                        self.release_staged_hash_entry_leases(&staged_entries);
                         self.delete_staging_many(&mut worker, &staging_ids).await;
                         return Err(error);
                     }
@@ -761,6 +1077,7 @@ impl NodeConnection {
                 value: Some(staged),
             });
         }
+        let commit_releases = staged_hash_entry_releases(&staged_entries);
         let response = match observe_rpc(
             self.rpc_metrics.as_ref(),
             dms_metrics::RpcCall::WORKER_HSET,
@@ -784,9 +1101,9 @@ impl NodeConnection {
         {
             Ok(response) => response.into_inner(),
             Err(status) => {
-                // Node 在成功 HSET 时会一次性 consume 所有 staging；失败时由
-                // Client 主动回收，避免等 Session TTL 才释放 Arena slot。
-                self.delete_staging_many(&mut worker, &staging_ids).await;
+                // HSET 可能在 Node 端已消费 staging 但响应丢失；此处只归还
+                // SHM 写 lease，不主动删除可能已发布的 bytes。
+                self.write_releases.release_many(commit_releases);
                 return Err(map_status(status));
             }
         };
@@ -803,6 +1120,8 @@ impl NodeConnection {
         options: HashGetOptions,
     ) -> Result<Option<HashValue>, DmsError> {
         let mut worker = self.worker.clone();
+        let read = self.begin_read_request();
+        let read_request_id = read.id();
         let response = observe_rpc(
             self.rpc_metrics.as_ref(),
             dms_metrics::RpcCall::WORKER_HGET,
@@ -815,11 +1134,13 @@ impl NodeConnection {
                     value: field.as_bytes().to_vec(),
                 }),
                 exact_hash_version: encode_hash_read_version(options.version),
+                read_request_id,
             }),
         )
         .await
         .map_err(map_status)?
         .into_inner();
+        drop(read);
         decode_hash_get(response)
     }
 
@@ -830,6 +1151,8 @@ impl NodeConnection {
         options: HashGetOptions,
     ) -> Result<HashMultiGetResult, DmsError> {
         let mut worker = self.worker.clone();
+        let read = self.begin_read_request();
+        let read_request_id = read.id();
         let response = observe_rpc(
             self.rpc_metrics.as_ref(),
             dms_metrics::RpcCall::WORKER_HMGET,
@@ -845,11 +1168,13 @@ impl NodeConnection {
                     })
                     .collect(),
                 exact_hash_version: encode_hash_read_version(options.version),
+                read_request_id,
             }),
         )
         .await
         .map_err(map_status)?
         .into_inner();
+        drop(read);
         Ok(HashMultiGetResult {
             version: response.hash_version.map(HashVersion),
             values: response
@@ -866,6 +1191,8 @@ impl NodeConnection {
         options: HashGetOptions,
     ) -> Result<HashEntriesResult, DmsError> {
         let mut worker = self.worker.clone();
+        let read = self.begin_read_request();
+        let read_request_id = read.id();
         let response = observe_rpc(
             self.rpc_metrics.as_ref(),
             dms_metrics::RpcCall::WORKER_HGET_ALL,
@@ -875,11 +1202,13 @@ impl NodeConnection {
                     value: key.as_bytes().to_vec(),
                 }),
                 exact_hash_version: encode_hash_read_version(options.version),
+                read_request_id,
             }),
         )
         .await
         .map_err(map_status)?
         .into_inner();
+        drop(read);
         Ok(HashEntriesResult {
             version: response.hash_version.map(HashVersion),
             entries: response
@@ -934,6 +1263,8 @@ impl NodeConnection {
         options: HashScanOptions,
     ) -> Result<HashScanResult, DmsError> {
         let mut worker = self.worker.clone();
+        let read = self.begin_read_request();
+        let read_request_id = read.id();
         let response = observe_rpc(
             self.rpc_metrics.as_ref(),
             dms_metrics::RpcCall::WORKER_HSCAN,
@@ -946,11 +1277,13 @@ impl NodeConnection {
                 limit: u32::try_from(options.limit)
                     .map_err(|_| DmsError::client_invalid_argument("HSCAN limit is too large"))?,
                 exact_hash_version: encode_hash_read_version(options.version),
+                read_request_id,
             }),
         )
         .await
         .map_err(map_status)?
         .into_inner();
+        drop(read);
         Ok(HashScanResult {
             version: response.hash_version.map(HashVersion),
             next_cursor: ScanCursor(response.next_cursor),
@@ -977,6 +1310,7 @@ impl NodeConnection {
         let (staging_id, staged) = self
             .stage_value(&mut worker, data, "hash-range-patch")
             .await?;
+        let commit_release = write_release_from_staged_value(&staged);
         let response = match observe_rpc(
             self.rpc_metrics.as_ref(),
             dms_metrics::RpcCall::WORKER_HWRITE_AT,
@@ -999,7 +1333,8 @@ impl NodeConnection {
         {
             Ok(response) => response.into_inner(),
             Err(status) => {
-                self.delete_staging_many(&mut worker, &[staging_id]).await;
+                let _ = staging_id;
+                self.write_releases.release(commit_release);
                 return Err(map_status(status));
             }
         };
@@ -1037,6 +1372,56 @@ impl NodeConnection {
         })
     }
 
+    pub(crate) async fn close(&self) -> Result<(), DmsError> {
+        let released_write_allocations = self.write_releases.take_all_pending();
+        let Some(request) = self.shutdown_heartbeat_request(released_write_allocations.clone())
+        else {
+            return Ok(());
+        };
+
+        let mut worker = self.worker.clone();
+        let result = tokio::time::timeout(
+            Duration::from_millis(250),
+            observe_rpc(
+                self.rpc_metrics.as_ref(),
+                dms_metrics::RpcCall::WORKER_HEARTBEAT,
+                worker.heartbeat(request),
+            ),
+        )
+        .await;
+        match result {
+            Ok(Ok(_)) => Ok(()),
+            Ok(Err(status)) => {
+                self.write_releases
+                    .requeue_front(released_write_allocations);
+                Err(map_status(status))
+            }
+            Err(_) => {
+                self.write_releases
+                    .requeue_front(released_write_allocations);
+                Err(DmsError::client_connection_unavailable(
+                    "timed out while flushing DMS session state during shutdown",
+                ))
+            }
+        }
+    }
+
+    fn shutdown_heartbeat_request(
+        &self,
+        released_write_allocations: Vec<pb::ReleasedWriteAllocation>,
+    ) -> Option<pb::HeartbeatRequest> {
+        let request = pb::HeartbeatRequest {
+            session_id: self.session_id,
+            released_view_through: self.view_releases.released_view_through(),
+            released_write_allocations,
+            finished_read_request_through: self.read_finishes.finished_read_request_through(),
+        };
+        (request.released_view_through.is_some()
+            || !request.released_write_allocations.is_empty()
+            || request.finished_read_request_through.is_some())
+        .then_some(request)
+    }
+
     async fn stage_value(
         &self,
         worker: &mut WorkerServiceClient<dms_tracing::TracedChannel>,
@@ -1058,9 +1443,11 @@ impl NodeConnection {
         let target = allocation.target.ok_or_else(|| {
             DmsError::client_protocol_violation("missing payload target".to_string())
         })?;
+        let upload_release = write_release_from_target(&target);
         let receipt = match self.transfer.upload(self.session_id, target, value).await {
             Ok(receipt) => receipt,
             Err(error) => {
+                self.write_releases.release(upload_release);
                 let _ = observe_rpc(
                     self.rpc_metrics.as_ref(),
                     dms_metrics::RpcCall::WORKER_DELETE_STAGING,
@@ -1103,11 +1490,21 @@ impl NodeConnection {
         }
     }
 
+    fn release_staged_key_value_leases(&self, entries: &[pb::StagedKeyValue]) {
+        self.write_releases
+            .release_many(staged_key_value_releases(entries));
+    }
+
+    fn release_staged_hash_entry_leases(&self, entries: &[pb::StagedHashEntry]) {
+        self.write_releases
+            .release_many(staged_hash_entry_releases(entries));
+    }
+
     async fn decode_get_response(
         &self,
         response: pb::GetResponse,
     ) -> Result<Option<GetResult>, DmsError> {
-        self.decode_read_response(response, None, 0).await
+        self.decode_read_response(response, None, 0, None).await
     }
 
     async fn decode_read_response(
@@ -1115,10 +1512,11 @@ impl NodeConnection {
         response: pb::GetResponse,
         range: Option<ByteRange>,
         max_inline_bytes: usize,
+        read: Option<ReadRequestGuard>,
     ) -> Result<Option<GetResult>, DmsError> {
         // 普通 GET 最终交付 owned Vec。复制、验证、映射失败及取消都通过 Drop
         // 归还已收到的共享读 epoch；这里不保留跨请求 Buffer/value。
-        let _protection = self.view_releases.protect(response.segments.iter());
+        let _protection = self.view_releases.protect(response.segments.iter(), read);
         if !response.found {
             reject_inline_on_miss(&response)?;
             return Ok(None);
@@ -1266,6 +1664,58 @@ fn read_target_length(target: &pb::PayloadTarget) -> Result<u64, DmsError> {
     }
 }
 
+fn write_release_from_target(target: &pb::PayloadTarget) -> Option<pb::ReleasedWriteAllocation> {
+    match target.target.as_ref() {
+        Some(pb::payload_target::Target::Shm(target)) if !target.release_token.is_empty() => {
+            Some(pb::ReleasedWriteAllocation {
+                allocation_id: target.allocation_id,
+                release_token: target.release_token.clone(),
+            })
+        }
+        _ => None,
+    }
+}
+
+fn write_release_from_receipt(
+    receipt: &pb::TransferReceipt,
+) -> Option<pb::ReleasedWriteAllocation> {
+    if receipt.release_token.is_empty() {
+        return None;
+    }
+    Some(pb::ReleasedWriteAllocation {
+        allocation_id: receipt.target_allocation_id,
+        release_token: receipt.release_token.clone(),
+    })
+}
+
+fn write_release_from_staged_value(value: &pb::StagedValue) -> Option<pb::ReleasedWriteAllocation> {
+    value.receipt.as_ref().and_then(write_release_from_receipt)
+}
+
+fn staged_key_value_releases(entries: &[pb::StagedKeyValue]) -> Vec<pb::ReleasedWriteAllocation> {
+    entries
+        .iter()
+        .filter_map(|entry| {
+            entry
+                .value
+                .as_ref()
+                .and_then(write_release_from_staged_value)
+        })
+        .collect()
+}
+
+fn staged_hash_entry_releases(entries: &[pb::StagedHashEntry]) -> Vec<pb::ReleasedWriteAllocation> {
+    entries
+        .iter()
+        .filter_map(|entry| {
+            entry
+                .value
+                .as_ref()
+                .and_then(write_release_from_staged_value)
+        })
+        .collect()
+}
+
 fn validate_read_segments(
     segments: &[pb::ReadSegment],
     expected_length: u64,
@@ -1371,14 +1821,25 @@ async fn start_session_task(
     mut worker: WorkerServiceClient<dms_tracing::TracedChannel>,
     session_id: u64,
     view_releases: Arc<ViewReleaseTracker>,
+    read_finishes: Arc<ReadRequestFinishTracker>,
     options: SessionTaskOptions,
     metrics: Option<ClientMetrics>,
     rpc_metrics: Option<&dms_metrics::RpcMetrics>,
-) -> Result<(), DmsError> {
+) -> Result<WriteLeaseReleaser, DmsError> {
     let (outbound_sender, outbound_receiver) = mpsc::channel(options.channel_capacity);
+    let write_releases = WriteLeaseReleaser::new(
+        session_id,
+        options.write_lease_release_supported,
+        options.channel_capacity.saturating_mul(16).max(64),
+    );
     // 第一条心跳标识 session，后续心跳只维持生命周期并归还连续 View 水位。
     outbound_sender
-        .send(heartbeat(session_id, view_releases.released_view_through()))
+        .send(heartbeat(
+            session_id,
+            view_releases.released_view_through(),
+            Vec::new(),
+            read_finishes.finished_read_request_through(),
+        ))
         .await
         .map_err(|_| {
             DmsError::client_connection_unavailable("DMS session stream is unavailable")
@@ -1398,14 +1859,23 @@ async fn start_session_task(
 
     // 不再启动 cache-only unary Heartbeat。新 SDK 不申请跨请求 value 缓存租约，
     // 也不会被列入服务端失效等待者；服务端旧 SDK 的租约义务不受影响。
+    let task_write_releases = write_releases.clone();
     tokio::spawn(async move {
         let _connection_guard = connection_guard;
         let mut ticker = tokio::time::interval(options.heartbeat_interval);
         loop {
             tokio::select! {
                 _ = ticker.tick() => {
+                    if !flush_write_release_backlog(&outbound_sender, &task_write_releases).await {
+                        break;
+                    }
                     if outbound_sender
-                        .send(heartbeat(session_id, view_releases.released_view_through()))
+                        .send(heartbeat(
+                            session_id,
+                            view_releases.released_view_through(),
+                            Vec::new(),
+                            read_finishes.finished_read_request_through(),
+                        ))
                         .await.is_err()
                     {
                         break;
@@ -1436,18 +1906,45 @@ async fn start_session_task(
             metrics.record_node_session_event(NodeSessionEvent::Disconnected);
         }
     });
-    Ok(())
+    Ok(write_releases)
 }
 
-fn heartbeat(session_id: u64, released_view_through: Option<u64>) -> pb::ClientSessionMessage {
+fn heartbeat(
+    session_id: u64,
+    released_view_through: Option<u64>,
+    released_write_allocations: Vec<pb::ReleasedWriteAllocation>,
+    finished_read_request_through: Option<u64>,
+) -> pb::ClientSessionMessage {
     // 纯构造函数：没有 I/O，只把领域参数编码成 protobuf DTO。
     pb::ClientSessionMessage {
         session_id,
         message: Some(pb::client_session_message::Message::Heartbeat(
             pb::SessionHeartbeat {
                 released_view_through,
+                released_write_allocations,
+                finished_read_request_through,
             },
         )),
+    }
+}
+
+async fn flush_write_release_backlog(
+    sender: &mpsc::Sender<pb::ClientSessionMessage>,
+    releaser: &WriteLeaseReleaser,
+) -> bool {
+    loop {
+        let releases = releaser.take_pending_batch(64);
+        if releases.is_empty() {
+            return true;
+        }
+        if sender
+            .send(heartbeat(releaser.session_id, None, releases.clone(), None))
+            .await
+            .is_err()
+        {
+            releaser.requeue_front(releases);
+            return false;
+        }
     }
 }
 
@@ -1491,6 +1988,14 @@ fn encode_hash_read_version(version: HashReadVersion) -> Option<u64> {
     }
 }
 
+fn encode_scan_options(options: ScanOptions) -> pb::ObjectScanOptions {
+    pb::ObjectScanOptions {
+        limit: options.limit,
+        start_after: options.start_after,
+        cursor: options.cursor.unwrap_or_default(),
+    }
+}
+
 fn decode_hash_get(response: pb::HGetResponse) -> Result<Option<HashValue>, DmsError> {
     if !response.found {
         return Ok(None);
@@ -1521,6 +2026,19 @@ fn decode_hash_value(value: pb::HashValueRead) -> Result<HashValue, DmsError> {
     })
 }
 
+fn decode_object_info(info: pb::ObjectInfo) -> Result<ObjectInfo, DmsError> {
+    let key = info
+        .key
+        .ok_or_else(|| DmsError::client_protocol_violation("ObjectInfo has no key".to_string()))?;
+    Ok(ObjectInfo {
+        key: key.value,
+        length: info.length,
+        modified_time: system_time_from_unix_millis(info.modified_time_unix_millis)
+            .map_err(|error| DmsError::client_protocol_violation(error.to_string()))?,
+        version: ObjectVersion(info.version),
+    })
+}
+
 pub(super) fn map_status(status: tonic::Status) -> DmsError {
     // DMS 对端会在 Status.details 放 ErrorDetail；普通代理/网络错误没有 detail，
     // 这时只能在 SDK 边界生成本地连接错误。
@@ -1533,13 +2051,17 @@ mod read_lifecycle_tests {
 
     fn disconnected_node(releases: &Arc<ViewReleaseTracker>) -> NodeConnection {
         let channel = Endpoint::from_static("http://127.0.0.1:1").connect_lazy();
+        let grpc_config = GrpcConfig::default();
         NodeConnection {
-            worker: WorkerServiceClient::new(dms_tracing::traced_channel(channel.clone())),
-            transfer: TransferEngine::new(channel, 1, None, None, None),
+            worker: worker_client(channel.clone(), &grpc_config),
+            transfer: TransferEngine::new(channel, 1, None, &grpc_config, None, None),
             rpc_metrics: None,
             session_id: 1,
             inline_threshold_bytes: 0,
             view_releases: Arc::clone(releases),
+            read_finishes: Arc::new(ReadRequestFinishTracker::default()),
+            next_read_request_id: AtomicU64::new(1),
+            write_releases: WriteLeaseReleaser::disabled(1),
         }
     }
 
@@ -1550,6 +2072,7 @@ mod read_lifecycle_tests {
             logical_length: 4,
             segments: vec![pb::ReadSegment {
                 logical_offset: 0,
+                read_request_id: 0,
                 target: Some(pb::PayloadTarget {
                     target: Some(pb::payload_target::Target::Shm(pb::ShmDescriptor {
                         view_epoch: Some(epoch),
@@ -1559,6 +2082,7 @@ mod read_lifecycle_tests {
                 }),
             }],
             inline_value: None,
+            read_request_id: 0,
         }
     }
 
@@ -1571,7 +2095,7 @@ mod read_lifecycle_tests {
             let batch = pb::MGetResponse {
                 items: vec![shared_response(1), shared_response(2)],
             };
-            assert!(connection.decode_mget_response(batch).await.is_err());
+            assert!(connection.decode_mget_response(batch, None).await.is_err());
             assert_eq!(releases.released_view_through(), Some(2));
         });
     }
@@ -1583,11 +2107,16 @@ mod read_lifecycle_tests {
             let connection = disconnected_node(&releases);
             let mut multi = shared_response(1);
             multi.segments.extend(shared_response(1).segments);
-            assert!(connection.decode_view_response(multi, None).await.is_err());
+            assert!(
+                connection
+                    .decode_view_response(multi, None, None)
+                    .await
+                    .is_err()
+            );
             assert_eq!(releases.released_view_through(), Some(1));
             assert!(
                 connection
-                    .decode_view_response(shared_response(2), None)
+                    .decode_view_response(shared_response(2), None, None)
                     .await
                     .is_err()
             );
@@ -1629,14 +2158,18 @@ mod read_lifecycle_tests {
         let runtime = tokio::runtime::Runtime::new().unwrap();
         runtime.block_on(async {
             let channel = Endpoint::from_static("http://127.0.0.1:1").connect_lazy();
+            let grpc_config = GrpcConfig::default();
             let releases = Arc::new(ViewReleaseTracker::default());
             let connection = NodeConnection {
-                worker: WorkerServiceClient::new(dms_tracing::traced_channel(channel.clone())),
-                transfer: TransferEngine::new(channel, 1, None, None, None),
+                worker: worker_client(channel.clone(), &grpc_config),
+                transfer: TransferEngine::new(channel, 1, None, &grpc_config, None, None),
                 rpc_metrics: None,
                 session_id: 1,
                 inline_threshold_bytes: 0,
                 view_releases: Arc::clone(&releases),
+                read_finishes: Arc::new(ReadRequestFinishTracker::default()),
+                next_read_request_id: AtomicU64::new(1),
+                write_releases: WriteLeaseReleaser::disabled(1),
             };
             let response = pb::GetResponse {
                 found: true,
@@ -1644,6 +2177,7 @@ mod read_lifecycle_tests {
                 logical_length: 4,
                 segments: vec![pb::ReadSegment {
                     logical_offset: 0,
+                    read_request_id: 0,
                     target: Some(pb::PayloadTarget {
                         target: Some(pb::payload_target::Target::Shm(pb::ShmDescriptor {
                             view_epoch: Some(1),
@@ -1653,6 +2187,7 @@ mod read_lifecycle_tests {
                     }),
                 }],
                 inline_value: None,
+                read_request_id: 0,
             };
             // 没有 FD Broker，映射一定失败；收到的读取保护仍必须归还。
             assert!(connection.decode_get_response(response).await.is_err());
@@ -1664,6 +2199,7 @@ mod read_lifecycle_tests {
     fn range_response_checks_entire_layout_before_mapping_or_download() {
         let segment = |offset, length| pb::ReadSegment {
             logical_offset: offset,
+            read_request_id: 0,
             target: Some(pb::PayloadTarget {
                 target: Some(pb::payload_target::Target::Grpc(pb::GrpcTarget {
                     transfer_id: vec![],
@@ -1686,6 +2222,7 @@ mod read_lifecycle_tests {
             validate_read_segments(
                 &[pb::ReadSegment {
                     logical_offset: 0,
+                    read_request_id: 0,
                     target: None
                 }],
                 0
@@ -1696,6 +2233,7 @@ mod read_lifecycle_tests {
             validate_read_segments(
                 &[pb::ReadSegment {
                     logical_offset: 0,
+                    read_request_id: 0,
                     target: Some(pb::PayloadTarget { target: None }),
                 }],
                 0
@@ -1733,6 +2271,7 @@ mod read_lifecycle_tests {
 
         let segment = pb::ReadSegment {
             logical_offset: 0,
+            read_request_id: 0,
             target: Some(pb::PayloadTarget {
                 target: Some(pb::payload_target::Target::Grpc(pb::GrpcTarget {
                     transfer_id: b"t".to_vec(),
@@ -1758,6 +2297,7 @@ mod read_lifecycle_tests {
             logical_length: 0,
             segments: Vec::new(),
             inline_value: Some(b"ghost".to_vec()),
+            read_request_id: 0,
         };
         assert!(reject_inline_on_miss(&missing_with_bytes).is_err());
 
@@ -1767,6 +2307,7 @@ mod read_lifecycle_tests {
             logical_length: 3,
             segments: Vec::new(),
             inline_value: Some(b"abc".to_vec()),
+            read_request_id: 0,
         };
         assert!(
             reject_inline_value(&hit_with_bytes).is_err(),
@@ -1779,6 +2320,7 @@ mod read_lifecycle_tests {
         let releases = Arc::new(ViewReleaseTracker::default());
         let segment = |epoch| pb::ReadSegment {
             logical_offset: 0,
+            read_request_id: 0,
             target: Some(pb::PayloadTarget {
                 target: Some(pb::payload_target::Target::Shm(pb::ShmDescriptor {
                     view_epoch: Some(epoch),
@@ -1786,8 +2328,8 @@ mod read_lifecycle_tests {
                 })),
             }),
         };
-        let live_view = releases.protect([segment(1)].iter());
-        let cancelled = releases.protect([segment(2), segment(2), segment(3)].iter());
+        let live_view = releases.protect([segment(1)].iter(), None);
+        let cancelled = releases.protect([segment(2), segment(2), segment(3)].iter(), None);
         let task = async move {
             let _guard = cancelled;
             std::future::pending::<()>().await;
@@ -1797,9 +2339,207 @@ mod read_lifecycle_tests {
         drop(live_view);
         assert_eq!(releases.released_view_through(), Some(3));
         // 模拟响应4未到达；不能因为5已释放就越过未知的4。
-        drop(releases.protect([segment(5)].iter()));
+        drop(releases.protect([segment(5)].iter(), None));
         assert_eq!(releases.released_view_through(), Some(3));
-        drop(releases.protect([segment(4)].iter()));
+        drop(releases.protect([segment(4)].iter(), None));
         assert_eq!(releases.released_view_through(), Some(5));
+    }
+
+    #[test]
+    fn read_request_finish_tracker_does_not_skip_live_request() {
+        let tracker = ReadRequestFinishTracker::default();
+        tracker.mark_finished(2);
+        tracker.mark_finished(4);
+        assert_eq!(tracker.finished_read_request_through(), None);
+        tracker.mark_finished(1);
+        assert_eq!(tracker.finished_read_request_through(), Some(2));
+        tracker.mark_finished(3);
+        assert_eq!(tracker.finished_read_request_through(), Some(4));
+    }
+
+    #[test]
+    fn explicit_view_keeps_read_request_live_until_view_drop() {
+        let releases = Arc::new(ViewReleaseTracker::default());
+        let finishes = Arc::new(ReadRequestFinishTracker::default());
+        let segment = pb::ReadSegment {
+            logical_offset: 0,
+            read_request_id: 1,
+            target: Some(pb::PayloadTarget {
+                target: Some(pb::payload_target::Target::Shm(pb::ShmDescriptor {
+                    view_epoch: Some(1),
+                    ..Default::default()
+                })),
+            }),
+        };
+        let protection = releases.protect(
+            [segment].iter(),
+            Some(ReadRequestGuard {
+                finishes: Arc::clone(&finishes),
+                read_request_id: 1,
+            }),
+        );
+
+        assert_eq!(finishes.finished_read_request_through(), None);
+        drop(protection);
+        assert_eq!(releases.released_view_through(), Some(1));
+        // 只有 View/ReadProtection drop 后，Node 才能收到 finished 水位。
+        assert_eq!(finishes.finished_read_request_through(), Some(1));
+    }
+
+    #[tokio::test]
+    async fn shutdown_heartbeat_reports_completed_short_read_without_live_view() {
+        let releases = Arc::new(ViewReleaseTracker::default());
+        let connection = disconnected_node(&releases);
+        let segment = pb::ReadSegment {
+            logical_offset: 0,
+            read_request_id: 1,
+            target: Some(pb::PayloadTarget {
+                target: Some(pb::payload_target::Target::Shm(pb::ShmDescriptor {
+                    view_epoch: Some(1),
+                    ..Default::default()
+                })),
+            }),
+        };
+        {
+            let read = connection.begin_read_request();
+            let _copied_read = releases.protect([segment].iter(), Some(read));
+        }
+
+        let request = connection
+            .shutdown_heartbeat_request(connection.write_releases.take_all_pending())
+            .expect("completed read should produce final heartbeat");
+        assert_eq!(request.released_view_through, Some(1));
+        assert_eq!(request.finished_read_request_through, Some(1));
+        assert!(request.released_write_allocations.is_empty());
+    }
+
+    #[tokio::test]
+    async fn shutdown_heartbeat_does_not_finish_live_explicit_view() {
+        let releases = Arc::new(ViewReleaseTracker::default());
+        let connection = disconnected_node(&releases);
+        let segment = pb::ReadSegment {
+            logical_offset: 0,
+            read_request_id: 1,
+            target: Some(pb::PayloadTarget {
+                target: Some(pb::payload_target::Target::Shm(pb::ShmDescriptor {
+                    view_epoch: Some(1),
+                    ..Default::default()
+                })),
+            }),
+        };
+        let read = connection.begin_read_request();
+        let _live_view = releases.protect([segment].iter(), Some(read));
+
+        assert!(
+            connection
+                .shutdown_heartbeat_request(connection.write_releases.take_all_pending())
+                .is_none(),
+            "live explicit view must not be reported as a completed read"
+        );
+    }
+
+    #[test]
+    fn write_release_is_extracted_only_from_shm_tokens() {
+        let shm = pb::PayloadTarget {
+            target: Some(pb::payload_target::Target::Shm(pb::ShmDescriptor {
+                allocation_id: 7,
+                release_token: b"lease-7".to_vec(),
+                ..Default::default()
+            })),
+        };
+        let release = write_release_from_target(&shm).expect("SHM token should be releasable");
+        assert_eq!(release.allocation_id, 7);
+        assert_eq!(release.release_token, b"lease-7");
+
+        let grpc = pb::PayloadTarget {
+            target: Some(pb::payload_target::Target::Grpc(pb::GrpcTarget {
+                transfer_id: b"t".to_vec(),
+                nonce: b"n".to_vec(),
+                length: 4,
+            })),
+        };
+        assert!(write_release_from_target(&grpc).is_none());
+        assert!(
+            write_release_from_receipt(&pb::TransferReceipt {
+                transfer_id: b"t".to_vec(),
+                length: 4,
+                digest: Vec::new(),
+                target_allocation_id: 0,
+                release_token: Vec::new(),
+            })
+            .is_none()
+        );
+    }
+
+    #[tokio::test]
+    async fn write_lease_guard_releases_on_drop_and_consumes_on_commit() {
+        let releaser = WriteLeaseReleaser::new(42, true, 8);
+        {
+            let _guard = WriteLeaseGuard::new(
+                releaser.clone(),
+                Some(pb::ReleasedWriteAllocation {
+                    allocation_id: 9,
+                    release_token: b"lease-9".to_vec(),
+                }),
+            );
+        }
+        assert_eq!(releaser.pending_len(), 1);
+
+        {
+            let mut guard = WriteLeaseGuard::new(
+                releaser.clone(),
+                Some(pb::ReleasedWriteAllocation {
+                    allocation_id: 10,
+                    release_token: b"lease-10".to_vec(),
+                }),
+            )
+            .expect("guard");
+            guard.consume();
+        }
+        assert_eq!(releaser.pending_len(), 1);
+    }
+
+    #[tokio::test]
+    async fn write_release_backlog_flushes_after_session_queue_was_full() {
+        let (sender, mut receiver) = mpsc::channel(1);
+        sender
+            .send(heartbeat(42, None, Vec::new(), None))
+            .await
+            .expect("prefill channel");
+        let releaser = WriteLeaseReleaser::new(42, true, 8);
+
+        releaser.release(Some(pb::ReleasedWriteAllocation {
+            allocation_id: 11,
+            release_token: b"lease-11".to_vec(),
+        }));
+        assert_eq!(releaser.pending_len(), 1);
+
+        let _prefilled = receiver.recv().await.expect("prefilled heartbeat");
+        assert!(flush_write_release_backlog(&sender, &releaser).await);
+        assert_eq!(releaser.pending_len(), 0);
+        let message = receiver.recv().await.expect("flushed release");
+        let Some(pb::client_session_message::Message::Heartbeat(heartbeat)) = message.message
+        else {
+            panic!("write release must be carried by heartbeat");
+        };
+        assert_eq!(heartbeat.released_write_allocations.len(), 1);
+        assert_eq!(heartbeat.released_write_allocations[0].allocation_id, 11);
+    }
+
+    #[tokio::test]
+    async fn write_release_overflow_is_quarantined_not_marked_released() {
+        let releaser = WriteLeaseReleaser::new(42, true, 1);
+        releaser.enqueue_backlog(vec![
+            pb::ReleasedWriteAllocation {
+                allocation_id: 1,
+                release_token: b"lease-1".to_vec(),
+            },
+            pb::ReleasedWriteAllocation {
+                allocation_id: 2,
+                release_token: b"lease-2".to_vec(),
+            },
+        ]);
+        assert_eq!(releaser.pending_len(), 1);
+        assert_eq!(releaser.quarantined_count(), 1);
     }
 }

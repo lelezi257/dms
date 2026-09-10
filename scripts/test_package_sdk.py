@@ -81,6 +81,36 @@ class PackageSdkRewriteTests(unittest.TestCase):
             self.assertEqual(layout.stage_crate.name, "dms-client-0.1.0")
             self.assertEqual(layout.crate_file.name, "dms-client-0.1.0.crate")
 
+    def test_build_package_accepts_explicit_evidence_root(self) -> None:
+        # 发布脚本默认 evidence 目录保留历史兼容；阶段化验证可显式指定新目录，
+        # 避免不同阶段的日志混写到同一个固定路径。
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            evidence = root / "stage64" / "rust-package-01"
+            layout = package_sdk.PackageLayout(
+                root / "package",
+                root / "package/stage",
+                root / "package/target",
+                root / "package/package/dms-client-0.1.0.crate",
+                evidence,
+            )
+
+            with (
+                patch.object(package_sdk, "workspace_version", return_value="0.1.0"),
+                patch.object(package_sdk, "unique_layout", return_value=layout) as unique_layout,
+                patch.object(package_sdk, "build_protocol_bindings", return_value=root / "dms.v1.rs"),
+                patch.object(package_sdk, "stage_sdk_crate") as stage_sdk_crate,
+                patch.object(package_sdk, "package_and_verify"),
+                patch.object(package_sdk, "verify_consumer"),
+                patch.object(package_sdk, "write_manifest"),
+            ):
+                result = package_sdk.build_package(evidence)
+
+            unique_layout.assert_called_once_with("0.1.0", evidence)
+            stage_sdk_crate.assert_called_once_with(layout, root / "dms.v1.rs", "0.1.0")
+            self.assertEqual(result.evidence_dir, evidence)
+            self.assertTrue(evidence.is_dir())
+
     def test_directory_source_checksum_is_written_for_unpacked_crate(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)

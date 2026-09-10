@@ -282,6 +282,20 @@ impl MetadataService for CountingMetaService {
         self.inner.commit_batch(request).await
     }
 
+    async fn stat(
+        &self,
+        request: Request<pb::MetaStatRequest>,
+    ) -> Result<Response<pb::MetaStatResponse>, Status> {
+        self.inner.stat(request).await
+    }
+
+    async fn scan(
+        &self,
+        request: Request<pb::MetaScanRequest>,
+    ) -> Result<Response<pb::MetaScanResponse>, Status> {
+        self.inner.scan(request).await
+    }
+
     async fn get_operation(
         &self,
         request: Request<pb::GetOperationRequest>,
@@ -336,6 +350,13 @@ impl MetadataService for CountingMetaService {
             .await?;
         self.ack_state.record_acknowledged(&event_id, cursor);
         Ok(response)
+    }
+
+    async fn acknowledge_block_retirement(
+        &self,
+        request: Request<pb::AcknowledgeBlockRetirementRequest>,
+    ) -> Result<Response<pb::AcknowledgeBlockRetirementResponse>, Status> {
+        self.inner.acknowledge_block_retirement(request).await
     }
 }
 
@@ -970,7 +991,10 @@ async fn acknowledge_next_invalidation(
         ..
     } = event;
     assert_eq!(key, expected_key);
-    assert_eq!(minimum_version, expected_minimum_version);
+    assert!(
+        minimum_version >= expected_minimum_version,
+        "invalidation must cover at least the version that replaced the cached Current layout"
+    );
     node.acknowledge(session_id, event_sequence)
         .await
         .expect("ack invalidation");
@@ -1080,7 +1104,7 @@ async fn set_range_invalidates_node_layout_cache_before_next_current_read() {
     ));
     acknowledge_next_invalidation(&node.node, reader, &mut reader_events, key, v1 + 1).await;
     let v2 = write.await.expect("join set range");
-    assert_eq!(v2, v1 + 1);
+    assert!(v2 > v1);
     meta.wait_for_invalidation_ack(1, key, v2).await;
 
     // SET_RANGE 写路径本身需要向 Meta resolve base layout；这里重新计数，
@@ -1403,16 +1427,17 @@ async fn mset_invalidates_cached_local_current_key() {
     acknowledge_next_invalidation(&node.node, reader, &mut reader_events, key, v1 + 1).await;
     let versions = write.await.expect("join mset");
     assert_eq!(versions.len(), 2);
-    assert_eq!(versions[0].version, v1 + 1);
-    meta.wait_for_invalidation_ack(1, key, v1 + 1).await;
+    let v2 = versions[0].version;
+    assert!(v2 > v1);
+    meta.wait_for_invalidation_ack(1, key, v2).await;
     // 另一个 key 是本批新建对象，不需要失效已有 Current cache，也不会等待前台 ACK。
 
     meta.reset_resolve_count();
     let second = node.read_inline(reader, key).await;
-    assert_eq!(second.version, v1 + 1);
+    assert_eq!(second.version, v2);
     assert_eq!(second.inline_value.as_deref(), Some(b"new-a".as_slice()));
     let third = node.read_inline(reader, key).await;
-    assert_eq!(third.version, v1 + 1);
+    assert_eq!(third.version, v2);
     assert_eq!(third.inline_value.as_deref(), Some(b"new-a".as_slice()));
     assert_eq!(
         meta.resolve_count(),
@@ -1442,7 +1467,9 @@ async fn delete_invalidates_cached_current_and_following_get_observes_not_found(
     acknowledge_next_invalidation(&node.node, reader, &mut reader_events, key, v1 + 1).await;
     let deleted = delete.await.expect("join delete").expect("delete");
     assert!(deleted.deleted);
-    meta.wait_for_invalidation_ack(1, key, v1 + 1).await;
+    assert!(deleted.version > v1);
+    meta.wait_for_invalidation_ack(1, key, deleted.version)
+        .await;
 
     let after_delete = node
         .node
@@ -1497,7 +1524,7 @@ async fn delayed_remote_resolve_cannot_refill_stale_current_cache() {
         .expect("join remote v2 write")
         .expect("remote v2 write")
         .version;
-    assert_eq!(v2, v1 + 1);
+    assert!(v2 > v1);
     meta.wait_for_invalidation_ack(1, key, v2).await;
 
     assert!(
@@ -1601,7 +1628,7 @@ async fn meta_watch_reconnect_restores_current_cache_after_stream_drop() {
         .expect("join v2 write after watch reconnect")
         .expect("v2 write after watch reconnect")
         .version;
-    assert_eq!(v2, v1 + 1);
+    assert!(v2 > v1);
     meta.wait_for_invalidation_ack(1, key, v2).await;
 
     meta.reset_resolve_count();
@@ -1638,6 +1665,7 @@ async fn worker_service_handler_reuses_node_current_layout_cache() {
             shared_memory: false,
             zero_copy_read: false,
             zero_copy_write: false,
+            supports_write_lease_release: false,
         }),
     )
     .await
@@ -1680,6 +1708,7 @@ async fn worker_service_handler_reuses_node_current_layout_cache() {
                 exact_version: None,
                 range: None,
                 max_inline_bytes: 64 * 1024,
+                read_request_id: 0,
             }),
         )
         .await

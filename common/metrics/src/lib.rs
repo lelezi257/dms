@@ -355,6 +355,8 @@ impl RpcCall {
     pub const WORKER_SET: Self = Self::new("WorkerService", "Set");
     pub const WORKER_DELETE: Self = Self::new("WorkerService", "Delete");
     pub const WORKER_GET: Self = Self::new("WorkerService", "Get");
+    pub const WORKER_STAT: Self = Self::new("WorkerService", "Stat");
+    pub const WORKER_SCAN: Self = Self::new("WorkerService", "Scan");
     pub const WORKER_MSET: Self = Self::new("WorkerService", "MSet");
     pub const WORKER_MGET: Self = Self::new("WorkerService", "MGet");
     pub const WORKER_SET_RANGE: Self = Self::new("WorkerService", "SetRange");
@@ -380,11 +382,15 @@ impl RpcCall {
     pub const META_REPORT_REPLICAS: Self = Self::new("MetadataService", "ReportReplicas");
     pub const META_COMMIT_VERSION: Self = Self::new("MetadataService", "CommitVersion");
     pub const META_COMMIT_BATCH: Self = Self::new("MetadataService", "CommitBatch");
+    pub const META_STAT: Self = Self::new("MetadataService", "Stat");
+    pub const META_SCAN: Self = Self::new("MetadataService", "Scan");
     pub const META_GET_OPERATION: Self = Self::new("MetadataService", "GetOperation");
     pub const META_PLAN_REPLICAS: Self = Self::new("MetadataService", "PlanReplicas");
     pub const META_WATCH_NODE_EVENTS: Self = Self::new("MetadataService", "WatchNodeEvents");
     pub const META_ACKNOWLEDGE_NODE_EVENT: Self =
         Self::new("MetadataService", "AcknowledgeNodeEvent");
+    pub const META_ACKNOWLEDGE_BLOCK_RETIREMENT: Self =
+        Self::new("MetadataService", "AcknowledgeBlockRetirement");
 }
 
 /// Five transport-boundary collectors shared by every gRPC relationship.

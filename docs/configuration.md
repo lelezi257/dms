@@ -93,7 +93,7 @@ Meta 使用同样的 `[log]`、`[tracing]` 配置。
 多个 Slot 共用同一 Region/FD；优先使用现有空闲范围，再向 OS 申请。申请大于目标时
 扩大该次 Region；预算尾部不足目标时按可用余额分配。参数至少 64 字节，向 64B 对齐，
 重启生效。`resident_bytes` 表示 backing 预留容量，不等同于已经触碰的物理页/RSS。
-已导出 Slot 的隔离仍占预算，大 Region 不代表完整 GC 已实现。
+尚未归还写权的 Slot 隔离仍占预算；大 Region 只优化扩容，不能代替旧版本引用检查、活动读排空和实际回收。
 
 `checkpoint_every_records` 控制累计多少条 journal 记录后生成一次全量 snapshot，
 不是 WAL 的刷盘间隔。WAL 模式仍然先可靠追加 journal、再 apply 状态，

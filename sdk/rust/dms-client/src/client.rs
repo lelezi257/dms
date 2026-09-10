@@ -12,7 +12,8 @@ use dms_metrics::Registry;
 
 use crate::{
     ByteRange, DurabilityPolicy, HashEntry, HashField, HashReadVersion, HashVersion, HashWriteMode,
-    Key, KvEntry, ObjectVersion, ReadVersion, ScanCursor, WriteCondition,
+    Key, KvEntry, MAX_KEY_LEN, ObjectInfo, ObjectVersion, ReadVersion, ScanCursor, ScanOptions,
+    ScanResult, WriteCondition,
 };
 
 use crate::internal::client_impl::DmsClientImpl;
@@ -88,6 +89,33 @@ impl DmsClient {
         })
     }
 
+    /// Reads object metadata without downloading value bytes.
+    ///
+    /// `Ok(None)` means the key is logically missing. Transport, timeout, or
+    /// protocol failures still return `Err(DmsError)`, matching [`Self::get`].
+    pub fn stat(&self, key: impl AsRef<[u8]>) -> Result<Option<ObjectInfo>, DmsError> {
+        self.client_impl.observe(ClientOperation::Stat, || {
+            self.client_impl.stat(valid_key(key)?)
+        })
+    }
+
+    /// Scans one bounded page of top-level object keys with the given prefix.
+    ///
+    /// The prefix may be empty to list the whole keyspace. `options.cursor` is
+    /// an opaque object-scan cursor and must not be mixed with [`ScanCursor`],
+    /// which belongs to Hash/KKV field scans.
+    pub fn scan(
+        &self,
+        prefix: impl AsRef<[u8]>,
+        options: ScanOptions,
+    ) -> Result<ScanResult, DmsError> {
+        self.client_impl.observe(ClientOperation::Scan, || {
+            let prefix = valid_scan_prefix(prefix.as_ref())?;
+            validate_scan_options(&options)?;
+            self.client_impl.scan(&prefix, options)
+        })
+    }
+
     /// Allocates a node-owned shared-memory write buffer for one future `SET`.
     ///
     /// This is the explicit zero-copy path. The caller writes directly into the
@@ -112,9 +140,11 @@ impl DmsClient {
         self.client_impl
             .observe(ClientOperation::AllocateWrite, || {
                 Ok(SharedWriteBuffer {
-                    inner: self
-                        .client_impl
-                        .allocate_write(valid_key(key)?, len, options)?,
+                    owned: OwnerHeldInner::new(
+                        self.client_impl
+                            .allocate_write(valid_key(key)?, len, options)?,
+                        Arc::clone(&self.client_impl),
+                    ),
                 })
             })
     }
@@ -124,9 +154,13 @@ impl DmsClient {
     /// The SDK computes the transfer receipt from the current mmap contents at
     /// commit time. After this call the buffer is consumed, so user code cannot
     /// accidentally mutate bytes behind a committed version.
-    pub fn commit_shared(&self, buffer: SharedWriteBuffer) -> Result<SetResult, DmsError> {
-        self.client_impl.observe(ClientOperation::CommitShared, || {
-            self.client_impl.commit_shared(buffer.inner)
+    pub fn commit_shared(&self, mut buffer: SharedWriteBuffer) -> Result<SetResult, DmsError> {
+        let owner = Arc::clone(buffer.owned.owner());
+        owner.observe(ClientOperation::CommitShared, || {
+            let inner = buffer
+                .owned
+                .take("shared write buffer was already consumed")?;
+            owner.commit_shared(inner)
         })
     }
 
@@ -149,7 +183,9 @@ impl DmsClient {
             Ok(self
                 .client_impl
                 .get_view(valid_key(key)?, options)?
-                .map(|inner| SharedValueView { inner }))
+                .map(|inner| SharedValueView {
+                    owned: OwnerHeldInner::new(inner, Arc::clone(&self.client_impl)),
+                }))
         })
     }
 
@@ -343,18 +379,22 @@ impl DmsClient {
 
 /// Writable bytes backed by a dms-node owned shared-memory slot.
 pub struct SharedWriteBuffer {
-    inner: crate::internal::node_connection::SharedWriteInner,
+    owned: OwnerHeldInner<crate::internal::node_connection::SharedWriteInner, Arc<DmsClientImpl>>,
 }
 
 impl SharedWriteBuffer {
     /// Mutable view over the staged bytes. User code fills this before commit.
     pub fn as_mut_slice(&mut self) -> Result<&mut [u8], DmsError> {
-        self.inner.as_mut_slice()
+        self.owned
+            .as_mut("shared write buffer was already consumed")?
+            .as_mut_slice()
     }
 
     /// Length reserved by `allocate_write`.
     pub fn len(&self) -> Result<usize, DmsError> {
-        self.inner.len()
+        self.owned
+            .as_ref("shared write buffer was already consumed")?
+            .len()
     }
 
     /// Whether this buffer contains zero bytes.
@@ -365,24 +405,30 @@ impl SharedWriteBuffer {
 
 /// Read-only bytes backed by a dms-node owned shared-memory slot.
 pub struct SharedValueView {
-    inner: crate::internal::node_connection::SharedViewInner,
+    owned: OwnerHeldInner<crate::internal::node_connection::SharedViewInner, Arc<DmsClientImpl>>,
 }
 
 impl SharedValueView {
     /// Version selected by the read operation.
     #[must_use]
     pub fn version(&self) -> ObjectVersion {
-        self.inner.version()
+        self.owned
+            .inner
+            .as_ref()
+            .expect("shared value view inner exists while view is alive")
+            .version()
     }
 
     /// Borrow the mapped bytes. The slice remains valid while this view lives.
     pub fn as_slice(&self) -> Result<&[u8], DmsError> {
-        self.inner.as_slice()
+        self.owned
+            .as_ref("shared value view was closed")?
+            .as_slice()
     }
 
     /// Number of mapped bytes exposed by this view.
     pub fn len(&self) -> Result<usize, DmsError> {
-        self.inner.len()
+        self.owned.as_ref("shared value view was closed")?.len()
     }
 
     /// Whether this view contains zero bytes.
@@ -391,9 +437,90 @@ impl SharedValueView {
     }
 }
 
+struct OwnerHeldInner<T, O> {
+    // inner 必须先于 owner 释放：Drop 时先释放共享内存 guard，再允许 owner 的
+    // DmsClientImpl::drop() 做 final heartbeat flush。
+    inner: Option<T>,
+    owner: O,
+}
+
+impl<T, O> OwnerHeldInner<T, O> {
+    fn new(inner: T, owner: O) -> Self {
+        Self {
+            inner: Some(inner),
+            owner,
+        }
+    }
+
+    fn owner(&self) -> &O {
+        &self.owner
+    }
+
+    fn as_ref(&self, consumed_message: &'static str) -> Result<&T, DmsError> {
+        self.inner
+            .as_ref()
+            .ok_or_else(|| DmsError::client_protocol_violation(consumed_message))
+    }
+
+    fn as_mut(&mut self, consumed_message: &'static str) -> Result<&mut T, DmsError> {
+        self.inner
+            .as_mut()
+            .ok_or_else(|| DmsError::client_protocol_violation(consumed_message))
+    }
+
+    fn take(&mut self, consumed_message: &'static str) -> Result<T, DmsError> {
+        self.inner
+            .take()
+            .ok_or_else(|| DmsError::client_protocol_violation(consumed_message))
+    }
+}
+
+impl<T, O> Drop for OwnerHeldInner<T, O> {
+    fn drop(&mut self) {
+        let _ = self.inner.take();
+    }
+}
+
 fn valid_key(value: impl AsRef<[u8]>) -> Result<Key, DmsError> {
     Key::new(value.as_ref().to_vec())
         .map_err(|error| DmsError::client_invalid_argument(error.to_string()))
+}
+
+fn valid_scan_prefix(value: &[u8]) -> Result<Vec<u8>, DmsError> {
+    if value.len() > MAX_KEY_LEN {
+        return Err(DmsError::client_invalid_argument(format!(
+            "DMS scan prefix length {} exceeds {MAX_KEY_LEN}",
+            value.len()
+        )));
+    }
+    Ok(value.to_vec())
+}
+
+fn validate_scan_options(options: &ScanOptions) -> Result<(), DmsError> {
+    if options.limit == 0 {
+        return Err(DmsError::client_invalid_argument(
+            "scan limit must be positive".to_string(),
+        ));
+    }
+    if let Some(start_after) = &options.start_after
+        && start_after.len() > MAX_KEY_LEN
+    {
+        return Err(DmsError::client_invalid_argument(format!(
+            "DMS scan start_after length {} exceeds {MAX_KEY_LEN}",
+            start_after.len()
+        )));
+    }
+    if options.start_after.is_some()
+        && options
+            .cursor
+            .as_deref()
+            .is_some_and(|cursor| !cursor.is_empty())
+    {
+        return Err(DmsError::client_invalid_argument(
+            "scan start_after and cursor are mutually exclusive".to_string(),
+        ));
+    }
+    Ok(())
 }
 
 fn valid_field(value: impl AsRef<[u8]>) -> Result<HashField, DmsError> {
@@ -416,8 +543,10 @@ pub struct ClientOptions {
     pub timeout: Option<Duration>,
     /// Reliability override used when an operation does not override it.
     pub default_durability: Option<DurabilityPolicy>,
-    /// 小对象 SET 请求内联阈值，同时作为非 SHM 单 GET 响应的内联预算。
-    /// GET 预算另受协议 64 KiB 上限约束；不影响 SHM View 或 MGET。
+    /// 小对象 SET 请求内联阈值。
+    ///
+    /// 这不是 gRPC 最大消息预算。较大的 JuiceFS block 仍应走 payload
+    /// transfer；否则本地 SHM 场景会被误导到普通 Worker RPC。
     pub inline_threshold_bytes: Option<usize>,
     /// Session heartbeat interval；也承载共享读 View 释放水位。
     pub heartbeat_interval: Option<Duration>,
@@ -643,6 +772,7 @@ fn parse_bool(name: &'static str, value: &str) -> Result<bool, DmsError> {
 #[cfg(test)]
 mod client_options_tests {
     use super::*;
+    use std::sync::Mutex;
 
     #[test]
     fn api_options_override_environment_and_builtin_defaults() {
@@ -708,6 +838,39 @@ mod client_options_tests {
     }
 
     #[test]
+    fn builtin_inline_threshold_keeps_small_object_policy() {
+        let resolved = ClientOptions {
+            endpoint: Some("http://node".to_string()),
+            ..Default::default()
+        }
+        .resolve_with_env(|_| None)
+        .expect("resolve");
+
+        assert_eq!(resolved.inline_threshold_bytes, 64 * 1024);
+    }
+
+    #[test]
+    fn scan_contract_accepts_empty_prefix_but_keeps_cursor_opaque() {
+        assert!(valid_scan_prefix(b"").is_ok());
+        assert!(validate_scan_options(&ScanOptions::default()).is_ok());
+        assert!(
+            validate_scan_options(&ScanOptions {
+                limit: 128,
+                start_after: Some(b"a".to_vec()),
+                cursor: Some("opaque-next-page".to_string()),
+            })
+            .is_err()
+        );
+        assert!(
+            validate_scan_options(&ScanOptions {
+                limit: 0,
+                ..Default::default()
+            })
+            .is_err()
+        );
+    }
+
+    #[test]
     fn invalid_environment_value_is_rejected() {
         let error = ClientOptions::default()
             .resolve_with_env(|name| (name == "DMS_TIMEOUT_MILLIS").then(|| "0".to_string()))
@@ -733,6 +896,119 @@ mod client_options_tests {
                 )
                 .is_err()
         );
+    }
+
+    #[test]
+    fn owner_held_inner_drops_inner_before_owner() {
+        struct DropProbe {
+            name: &'static str,
+            events: Arc<Mutex<Vec<&'static str>>>,
+        }
+
+        impl Drop for DropProbe {
+            fn drop(&mut self) {
+                self.events.lock().unwrap().push(self.name);
+            }
+        }
+
+        let events = Arc::new(Mutex::new(Vec::new()));
+        let owner = Arc::new(DropProbe {
+            name: "owner",
+            events: Arc::clone(&events),
+        });
+        let owned = OwnerHeldInner::new(
+            DropProbe {
+                name: "inner",
+                events: Arc::clone(&events),
+            },
+            Arc::clone(&owner),
+        );
+
+        // 模拟用户先 drop DmsClient，但 SharedValueView/SharedWriteBuffer 仍被持有：
+        // 公开容器里的 owner Arc 必须继续保住 DmsClientImpl，直到 inner 归还读/写租约。
+        drop(owner);
+        assert!(events.lock().unwrap().is_empty());
+
+        drop(owned);
+
+        assert_eq!(&*events.lock().unwrap(), &["inner", "owner"]);
+    }
+
+    #[test]
+    fn owner_held_inner_consumed_value_still_keeps_owner_until_wrapper_drop() {
+        struct DropProbe {
+            name: &'static str,
+            events: Arc<Mutex<Vec<&'static str>>>,
+        }
+
+        impl Drop for DropProbe {
+            fn drop(&mut self) {
+                self.events.lock().unwrap().push(self.name);
+            }
+        }
+
+        let events = Arc::new(Mutex::new(Vec::new()));
+        let owner = Arc::new(DropProbe {
+            name: "owner",
+            events: Arc::clone(&events),
+        });
+        let mut owned = OwnerHeldInner::new(
+            DropProbe {
+                name: "inner",
+                events: Arc::clone(&events),
+            },
+            Arc::clone(&owner),
+        );
+        drop(owner);
+
+        let inner = owned.take("already consumed").unwrap();
+        assert!(events.lock().unwrap().is_empty());
+        drop(inner);
+        assert_eq!(&*events.lock().unwrap(), &["inner"]);
+        drop(owned);
+        assert_eq!(&*events.lock().unwrap(), &["inner", "owner"]);
+    }
+
+    #[test]
+    fn owner_held_inner_consumed_value_reports_protocol_error_on_second_take() {
+        #[derive(Debug)]
+        struct DropProbe;
+
+        let mut owned = OwnerHeldInner::new(DropProbe, ());
+        let _inner = owned.take("already consumed").unwrap();
+        let error = owned.take("already consumed").unwrap_err();
+
+        assert_eq!(error.kind(), dms_error::ErrorKind::Internal);
+    }
+
+    #[test]
+    fn owner_held_inner_drops_inner_before_direct_owner() {
+        struct DropProbe {
+            name: &'static str,
+            events: Arc<Mutex<Vec<&'static str>>>,
+        }
+
+        impl Drop for DropProbe {
+            fn drop(&mut self) {
+                self.events.lock().unwrap().push(self.name);
+            }
+        }
+
+        let events = Arc::new(Mutex::new(Vec::new()));
+        {
+            let _owned = OwnerHeldInner::new(
+                DropProbe {
+                    name: "inner",
+                    events: Arc::clone(&events),
+                },
+                DropProbe {
+                    name: "owner",
+                    events: Arc::clone(&events),
+                },
+            );
+        }
+
+        assert_eq!(&*events.lock().unwrap(), &["inner", "owner"]);
     }
 }
 

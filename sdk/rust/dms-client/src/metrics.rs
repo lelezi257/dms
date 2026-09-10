@@ -33,6 +33,8 @@ pub(crate) struct ClientMetrics {
 pub(crate) enum ClientOperation {
     Set,
     Get,
+    Stat,
+    Scan,
     Delete,
     SetRange,
     MSet,
@@ -50,9 +52,11 @@ pub(crate) enum ClientOperation {
 }
 
 impl ClientOperation {
-    const ALL: [Self; 16] = [
+    const ALL: [Self; 18] = [
         Self::Set,
         Self::Get,
+        Self::Stat,
+        Self::Scan,
         Self::Delete,
         Self::SetRange,
         Self::MSet,
@@ -73,6 +77,8 @@ impl ClientOperation {
         match self {
             Self::Set => "set",
             Self::Get => "get",
+            Self::Stat => "stat",
+            Self::Scan => "scan",
             Self::Delete => "del",
             Self::SetRange => "set_range",
             Self::MSet => "mset",
@@ -114,6 +120,20 @@ impl ClientOperation {
             ),
             Self::Get => info_span!(
                 "dms.client.get",
+                otel.kind = "client",
+                result = field::Empty,
+                error.code = field::Empty,
+                error.kind = field::Empty
+            ),
+            Self::Stat => info_span!(
+                "dms.client.stat",
+                otel.kind = "client",
+                result = field::Empty,
+                error.code = field::Empty,
+                error.kind = field::Empty
+            ),
+            Self::Scan => info_span!(
+                "dms.client.scan",
                 otel.kind = "client",
                 result = field::Empty,
                 error.code = field::Empty,
@@ -650,8 +670,15 @@ mod tests {
         runtime.block_on(async {
             let channel =
                 tonic::transport::Endpoint::from_static("http://127.0.0.1:1").connect_lazy();
-            let engine =
-                crate::internal::transfer_engine::TransferEngine::new(channel, 1, None, None, None);
+            let grpc_config = dms_transport::GrpcConfig::default();
+            let engine = crate::internal::transfer_engine::TransferEngine::new(
+                channel,
+                1,
+                None,
+                &grpc_config,
+                None,
+                None,
+            );
             assert!(engine.upload(1, Default::default(), b"x").await.is_err());
             assert!(engine.download(1, Default::default()).await.is_err());
         });
@@ -729,7 +756,7 @@ mod tests {
     }
 
     #[test]
-    fn registers_the_twelve_client_contracts() {
+    fn registers_the_client_operation_contracts() {
         let registry = registry();
         let metrics = ClientMetrics::register(&registry).expect("client metrics");
         let mut guard = metrics.begin_operation(ClientOperation::Get);
@@ -741,6 +768,8 @@ mod tests {
         metrics.record_node_session_event(NodeSessionEvent::Connected);
         let text = encode_text(&registry).expect("encode");
         assert!(text.contains("dms_client_operations_total"));
+        assert!(text.contains("dms_client_inflight_operations{operation=\"stat\"} 0"));
+        assert!(text.contains("dms_client_inflight_operations{operation=\"scan\"} 0"));
         assert!(text.contains("dms_client_payload_bytes_total"));
         assert!(!text.contains("dms_client_cache_"));
         assert!(text.contains("dms_client_node_session_events_total{event=\"connected\"} 1"));

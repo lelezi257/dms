@@ -44,6 +44,8 @@ pub(crate) enum MetaOperation {
     ReportReplicas,
     CommitVersion,
     CommitBatch,
+    Stat,
+    Scan,
     GetOperation,
     PlanReplicas,
     WatchNodeEvents,
@@ -60,6 +62,8 @@ impl MetaOperation {
         Self::ReportReplicas,
         Self::CommitVersion,
         Self::CommitBatch,
+        Self::Stat,
+        Self::Scan,
         Self::GetOperation,
         Self::PlanReplicas,
         Self::WatchNodeEvents,
@@ -74,6 +78,8 @@ impl MetaOperation {
             Self::ReportReplicas => "report_replicas",
             Self::CommitVersion => "commit_version",
             Self::CommitBatch => "commit_batch",
+            Self::Stat => "stat",
+            Self::Scan => "scan",
             Self::GetOperation => "get_operation",
             Self::PlanReplicas => "plan_replicas",
             Self::WatchNodeEvents => "watch_node_events",
@@ -118,6 +124,10 @@ pub(crate) enum JournalRecordMetric {
     VersionsCommitted,
     OperationRemembered,
     NodeEventAcknowledged,
+    BlockRetirementPrepared,
+    BlockRetirementAcknowledged,
+    BlockRetirementFinalized,
+    BlockRetirementReleased,
 }
 
 impl JournalRecordMetric {
@@ -129,6 +139,10 @@ impl JournalRecordMetric {
         Self::VersionsCommitted,
         Self::OperationRemembered,
         Self::NodeEventAcknowledged,
+        Self::BlockRetirementPrepared,
+        Self::BlockRetirementAcknowledged,
+        Self::BlockRetirementFinalized,
+        Self::BlockRetirementReleased,
     ];
 
     pub(crate) const fn label(self) -> &'static str {
@@ -140,6 +154,10 @@ impl JournalRecordMetric {
             Self::VersionsCommitted => "versions_committed",
             Self::OperationRemembered => "operation_remembered",
             Self::NodeEventAcknowledged => "node_event_acknowledged",
+            Self::BlockRetirementPrepared => "block_retirement_prepared",
+            Self::BlockRetirementAcknowledged => "block_retirement_acknowledged",
+            Self::BlockRetirementFinalized => "block_retirement_finalized",
+            Self::BlockRetirementReleased => "block_retirement_released",
         }
     }
 }

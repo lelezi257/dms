@@ -782,9 +782,9 @@ and protocol implementation is relocated into the packaged crate.
     (layout.package_root / "package-files.txt").write_text(packaged_files, encoding="utf-8")
 
 
-def build_package() -> PackageLayout:
+def build_package(evidence_root: Path = DEFAULT_EVIDENCE_ROOT) -> PackageLayout:
     version = workspace_version()
-    layout = unique_layout(version)
+    layout = unique_layout(version, evidence_root)
     layout.evidence_dir.mkdir(parents=True, exist_ok=True)
     generated = build_protocol_bindings(SOURCE_ROOT, layout.target_dir, layout.evidence_dir)
     stage_sdk_crate(layout, generated, version)
@@ -797,11 +797,20 @@ def build_package() -> PackageLayout:
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--print-version", action="store_true", help="print the workspace SDK version and exit")
+    parser.add_argument(
+        "--evidence-dir",
+        type=Path,
+        default=DEFAULT_EVIDENCE_ROOT,
+        help=(
+            "directory for package-build logs and verification evidence "
+            f"(default: {DEFAULT_EVIDENCE_ROOT})"
+        ),
+    )
     args = parser.parse_args(argv)
     if args.print_version:
         print(workspace_version())
         return 0
-    layout = build_package()
+    layout = build_package(args.evidence_dir)
     print(f"SDK crate: {layout.crate_file}")
     print(f"Staging crate: {layout.stage_crate}")
     print(f"Evidence: {layout.evidence_dir}")

@@ -26,6 +26,6 @@ pub use dms_metrics::{
 };
 pub use types::{
     ByteRange, DurabilityPolicy, HashEntry, HashField, HashReadVersion, HashVersion, HashWriteMode,
-    InvalidHashField, InvalidKey, Key, KvEntry, MAX_HASH_FIELD_LEN, MAX_KEY_LEN, ObjectVersion,
-    OperationId, ReadVersion, ScanCursor, WriteCondition,
+    InvalidHashField, InvalidKey, Key, KvEntry, MAX_HASH_FIELD_LEN, MAX_KEY_LEN, ObjectInfo,
+    ObjectVersion, OperationId, ReadVersion, ScanCursor, ScanOptions, ScanResult, WriteCondition,
 };

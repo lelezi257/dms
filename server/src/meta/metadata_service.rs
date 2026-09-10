@@ -76,7 +76,11 @@ impl MetadataService for MetadataServiceHandler {
         // Handler 不直接改 Session Map，只异步提交给 Meta owner。
         let grant = self
             .meta
-            .open_node_session(registration.node_id, registration.control_endpoint)
+            .open_node_session(
+                registration.node_id,
+                registration.control_endpoint,
+                request.supports_commit_sequence,
+            )
             .await
             .map_err(|error| self.map_meta_error(error))?;
         // 将领域 Grant 编码为 generated response DTO。
@@ -89,6 +93,7 @@ impl MetadataService for MetadataServiceHandler {
             }),
             heartbeat_interval_millis: grant.heartbeat_interval_millis,
             lease_ttl_millis: grant.lease_ttl_millis,
+            minimum_commit_sequence: grant.minimum_commit_sequence,
         }))
     }
 
@@ -188,6 +193,38 @@ impl MetadataService for MetadataServiceHandler {
         Ok(Response::new(response))
     }
 
+    async fn stat(
+        &self,
+        request: Request<pb::MetaStatRequest>,
+    ) -> Result<Response<pb::MetaStatResponse>, Status> {
+        let mut rpc = self
+            .rpc_metrics
+            .begin_server_call(dms_metrics::RpcCall::META_STAT);
+        let response = self
+            .meta
+            .stat(request.into_inner())
+            .await
+            .map_err(|error| self.map_meta_error(error))?;
+        rpc.success();
+        Ok(Response::new(response))
+    }
+
+    async fn scan(
+        &self,
+        request: Request<pb::MetaScanRequest>,
+    ) -> Result<Response<pb::MetaScanResponse>, Status> {
+        let mut rpc = self
+            .rpc_metrics
+            .begin_server_call(dms_metrics::RpcCall::META_SCAN);
+        let response = self
+            .meta
+            .scan(request.into_inner())
+            .await
+            .map_err(|error| self.map_meta_error(error))?;
+        rpc.success();
+        Ok(Response::new(response))
+    }
+
     async fn get_operation(
         &self,
         request: Request<pb::GetOperationRequest>,
@@ -258,13 +295,31 @@ impl MetadataService for MetadataServiceHandler {
         rpc.success();
         Ok(Response::new(pb::AcknowledgeNodeEventResponse {}))
     }
+
+    async fn acknowledge_block_retirement(
+        &self,
+        request: Request<pb::AcknowledgeBlockRetirementRequest>,
+    ) -> Result<Response<pb::AcknowledgeBlockRetirementResponse>, Status> {
+        let mut rpc = self
+            .rpc_metrics
+            .begin_server_call(dms_metrics::RpcCall::META_ACKNOWLEDGE_NODE_EVENT);
+        let response = self
+            .meta
+            .acknowledge_block_retirement(request.into_inner())
+            .await
+            .map_err(|error| self.map_meta_error(error))?;
+        rpc.success();
+        Ok(Response::new(response))
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use dms_protocol::v1::{
-        NodeHeartbeatRequest, NodeRegistration, OpenNodeSessionRequest, RequestContext,
-        ResourceSummary, metadata_service_client::MetadataServiceClient,
+        ByteRange, CommitVersionRequest, DurabilityPolicy, ExtentRecord, Key, MetaScanRequest,
+        MetaStatRequest, NodeHeartbeatRequest, NodeRegistration, ObjectScanOptions,
+        OpenNodeSessionRequest, ReplicaReport, RequestContext, ResourceSummary, VersionCandidate,
+        VersionKind, metadata_service_client::MetadataServiceClient,
         metadata_service_server::MetadataServiceServer,
     };
     use dms_transport::{GrpcConfig, SecurityManager, TlsConfig};
@@ -320,6 +375,7 @@ mod tests {
                     total_host_memory_bytes: 1024,
                     failure_domain: "test".to_string(),
                 }),
+                supports_commit_sequence: true,
             })
             .await
             .expect("open node session")
@@ -347,6 +403,82 @@ mod tests {
         assert_eq!(heartbeat.accepted_node_epoch, session.node_epoch);
         // Node 上报 cursor=3 不能伪造 Meta 事件；当前尚无提交，因此权威高水位仍是 0。
         assert_eq!(heartbeat.event_high_watermark, 0);
+
+        client
+            .commit_version(CommitVersionRequest {
+                context: None,
+                session: Some(session.clone()),
+                key: Some(Key {
+                    value: b"grpc/stat-a".to_vec(),
+                }),
+                candidate: Some(VersionCandidate {
+                    kind: VersionKind::Value as i32,
+                    logical_length: 4,
+                    extents: vec![ExtentRecord {
+                        logical: Some(ByteRange {
+                            offset: 0,
+                            length: 4,
+                        }),
+                        block_id: b"grpc/block-a".to_vec(),
+                        block_offset: 0,
+                        digest: b"digest".to_vec(),
+                    }],
+                    digest: b"layout".to_vec(),
+                }),
+                condition: "any".to_string(),
+                expected_version: None,
+                operation_id: b"grpc/op-a".to_vec(),
+                operation_digest: b"grpc/op-a-digest".to_vec(),
+                durability: DurabilityPolicy::LocalMemory as i32,
+                required_memory_copies: 1,
+                replica_proofs: Vec::new(),
+                new_replicas: vec![ReplicaReport {
+                    block_id: b"grpc/block-a".to_vec(),
+                    length: 4,
+                    checksum: b"digest".to_vec(),
+                    durability: DurabilityPolicy::LocalMemory as i32,
+                }],
+                commit_sequence: 1,
+            })
+            .await
+            .expect("commit value over grpc");
+        let stat = client
+            .stat(MetaStatRequest {
+                context: None,
+                session: Some(session.clone()),
+                key: Some(Key {
+                    value: b"grpc/stat-a".to_vec(),
+                }),
+            })
+            .await
+            .expect("stat over grpc")
+            .into_inner();
+        assert!(stat.found);
+        let info = stat.info.expect("object info");
+        assert_eq!(info.key.expect("key").value, b"grpc/stat-a");
+        assert_eq!(info.length, 4);
+        assert!(info.modified_time_unix_millis > 0);
+        let scan = client
+            .scan(MetaScanRequest {
+                context: None,
+                session: Some(session),
+                prefix: Some(Key {
+                    value: b"grpc/".to_vec(),
+                }),
+                options: Some(ObjectScanOptions {
+                    limit: 10,
+                    start_after: None,
+                    cursor: String::new(),
+                }),
+            })
+            .await
+            .expect("scan over grpc")
+            .into_inner();
+        assert_eq!(scan.items.len(), 1);
+        assert_eq!(
+            scan.items[0].key.as_ref().expect("key").value,
+            b"grpc/stat-a"
+        );
         let _ = shutdown_tx.send(());
         server_task.await.expect("join meta server");
     }

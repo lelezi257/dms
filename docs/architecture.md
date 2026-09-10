@@ -51,7 +51,8 @@ Region 默认按 64 MiB 批量扩容（可配置），多个 value/patch 的 Slo
 例如连续写 1 KiB 的 A、B，分别占同一 Region 的 `[0,1024)` 和 `[1024,2048)`；
 只需要一个 Region 身份，不能按一次写就创建一个 memfd。超大申请或预算尾部会调整
 当次 Region 大小。安全释放的 Slot 可复用；仍导出或已发布的旧 bytes 不能仅为降低
-FD 数而回收，完整 GC 的限制不变。
+FD 数而回收。旧版本不再引用的 Block 还需完成 Prepare、排空、Final 与实际释放；
+永久失联 Node 或未归还的共享写权可能阻止这一过程，不能用 TTL 跳过保护。
 
 ## GET：先确定版本，再取 bytes
 
@@ -73,7 +74,7 @@ SDK 是薄 Client：普通 `get` 每次都请求 Node，成功后只把本次返
 
 大对象、未声明预算的旧客户端仍收到读取计划/下载票据，再由 payload RPC 下载；新客户端收到旧服务端的票据也使用原下载路径。MGET 暂不启用内联，避免一批结果突破单响应预算。SHM 不走这条 owned bytes 快路径，仍返回描述符，由 SDK 映射后读取。普通 `get` 最后生成 `Vec<u8>`；`get_view` 才保留只读映射，且当前只支持单个 SHM segment。
 
-SHM 映射复用与数据缓存是两回事：`RegionMappingCache` 复用 FD/mmap，不维护 `key → value`。普通 `get` 在复制期间保护读取数据，复制完成或已知读取响应的处理失败后结束本次借用；`get_view` 的保护持续到用户释放 View。释放进度通过原 Session 心跳上报，不能因收到后续 View 的释放就跨过仍活动的 View。这里只完善使用保护的生命周期，不代表旧 Block 的完整 GC 已实现。
+SHM 映射复用与数据缓存是两回事：`RegionMappingCache` 复用 FD/mmap，不维护 `key → value`。普通 `get` 在复制期间保护读取数据，复制完成或失败后结束本次借用；`get_view` 的保护持续到用户释放 View。释放进度通过 Session 生命周期消息上报，不能因收到后续 View 的释放就跨过仍活动的 View。Node 在发起元数据解析前登记读作用域，保护一直延续到读取完成或转交给下载票据/View；Meta 回收旧 Block 时必须先排空这些使用者，不能只看到逻辑删除就复用内存。
 
 ## 随机写：只改 1 byte，为什么不是复制整个 value
 

@@ -85,6 +85,7 @@ pub(crate) struct HostShmDescriptor {
     pub(crate) allocation_id: u64,
     pub(crate) view_epoch: Option<u64>,
     pub(crate) transfer_id: u64,
+    pub(crate) release_token: Vec<u8>,
 }
 
 /// One short-lived authorization for mapping a whole Region. It is issued
@@ -102,6 +103,13 @@ pub(crate) struct HostReceipt {
     pub(crate) length: u64,
     pub(crate) digest: Vec<u8>,
     pub(crate) allocation_id: u64,
+    pub(crate) release_token: Vec<u8>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct ReleasedWriteAllocation {
+    pub(crate) allocation_id: u64,
+    pub(crate) release_token: Vec<u8>,
 }
 
 struct HostStaging {
@@ -116,6 +124,11 @@ struct HostStaging {
 struct HostBlock {
     handle: AllocationHandle,
     committed_version: Option<u64>,
+}
+
+struct WriteExportLease {
+    session_id: u64,
+    release_token: Vec<u8>,
 }
 
 struct Region {
@@ -264,7 +277,7 @@ pub(crate) struct ArenaManager {
     blocks: HashMap<Vec<u8>, HostBlock>,
     // allocation id 索引同时验证旧 ticket，避免每次 range read 扫描对象表。
     live_allocations: HashMap<u64, AllocationHandle>,
-    exported_allocations: HashSet<u64>,
+    write_exports: HashMap<u64, WriteExportLease>,
     quarantined_bytes: u64,
     #[cfg(test)]
     fail_next_region_creation: bool,
@@ -344,7 +357,7 @@ impl ArenaManager {
             transfer_index: HashMap::new(),
             blocks: HashMap::new(),
             live_allocations: HashMap::new(),
-            exported_allocations: HashSet::new(),
+            write_exports: HashMap::new(),
             quarantined_bytes: 0,
             #[cfg(test)]
             fail_next_region_creation: false,
@@ -475,6 +488,7 @@ impl ArenaManager {
             length: bytes.len() as u64,
             digest: staging.digest.clone(),
             allocation_id: staging.handle.allocation_id,
+            release_token: Vec::new(),
         })
     }
 
@@ -496,12 +510,18 @@ impl ArenaManager {
         {
             return Err(ArenaError::ReceiptConflict);
         }
+        let staging_handle = staging.handle;
         let current = self
-            .slot_bytes_checked(staging.handle)
+            .slot_bytes_checked(staging_handle)
             .ok_or(ArenaError::StaleHandle)?;
         if current.len() as u64 != receipt.length || digest(current) != receipt.digest {
             return Err(ArenaError::ReceiptConflict);
         }
+        self.accept_receipt_release(
+            session_id,
+            staging_handle.allocation_id,
+            &receipt.release_token,
+        )?;
         if let Some(block) = self.blocks.get(&block_id) {
             let existing_matches = self.slot_bytes_checked(block.handle).is_some_and(|bytes| {
                 bytes.len() as u64 == receipt.length && digest(bytes) == receipt.digest
@@ -548,14 +568,21 @@ impl ArenaManager {
         {
             return Err(ArenaError::ReceiptConflict);
         }
+        let staging_handle = staging.handle;
         let bytes = self
-            .slot_bytes_checked(staging.handle)
+            .slot_bytes_checked(staging_handle)
             .ok_or(ArenaError::StaleHandle)?;
         if bytes.len() as u64 != receipt.length || digest(bytes) != receipt.digest {
             return Err(ArenaError::ReceiptConflict);
         }
-        // 这个接口把 bytes 交出 Arena，必须在释放 staging 前创建必要的 owned 副本。
+        // 这个接口把 bytes 交出 Arena，必须在释放 staging 前创建必要的 owned 副本；
+        // 之后才能可变更新写租约状态。
         let bytes = bytes.to_vec();
+        self.accept_receipt_release(
+            session_id,
+            staging_handle.allocation_id,
+            &receipt.release_token,
+        )?;
         let staging = self.staging.remove(&staging_id).expect("checked staging");
         self.transfer_index.remove(&staging.transfer_id);
         self.release_handle(staging.handle);
@@ -601,6 +628,60 @@ impl ArenaManager {
         if let Some(block) = self.blocks.get_mut(block_id) {
             block.committed_version = Some(version);
         }
+    }
+
+    pub(crate) fn release_write_allocation(
+        &mut self,
+        session_id: u64,
+        released: &ReleasedWriteAllocation,
+    ) -> Result<(), ArenaError> {
+        let Some(lease) = self.write_exports.get(&released.allocation_id) else {
+            // Duplicate/lost-response releases are idempotent. Allocation IDs are
+            // monotonic, so this cannot free a newer object occupying the same
+            // physical slot.
+            return Ok(());
+        };
+        if lease.session_id != session_id || lease.release_token != released.release_token {
+            return Err(ArenaError::ReceiptConflict);
+        }
+        self.write_exports.remove(&released.allocation_id);
+        Ok(())
+    }
+
+    fn accept_receipt_release(
+        &mut self,
+        session_id: u64,
+        allocation_id: u64,
+        release_token: &[u8],
+    ) -> Result<(), ArenaError> {
+        if release_token.is_empty() {
+            return Ok(());
+        }
+        self.release_write_allocation(
+            session_id,
+            &ReleasedWriteAllocation {
+                allocation_id,
+                release_token: release_token.to_vec(),
+            },
+        )
+    }
+
+    pub(crate) fn block_has_unreturned_write(&self, block_id: &[u8]) -> bool {
+        self.blocks
+            .get(block_id)
+            .is_some_and(|block| self.write_exports.contains_key(&block.handle.allocation_id))
+    }
+
+    pub(crate) fn session_has_unreturned_write(&self, session_id: u64) -> bool {
+        self.write_exports
+            .values()
+            .any(|lease| lease.session_id == session_id)
+    }
+
+    pub(crate) fn block_allocation_id(&self, block_id: &[u8]) -> Option<u64> {
+        self.blocks
+            .get(block_id)
+            .map(|block| block.handle.allocation_id)
     }
 
     pub(crate) fn read_bytes(&self, block_id: &[u8]) -> Option<Vec<u8>> {
@@ -683,7 +764,13 @@ impl ArenaManager {
             .checked_add(ticket.offset)
             .ok_or(ArenaError::RangeOutOfBounds)?;
         Ok(self
-            .shared_descriptor(session_id, ticket.handle, transfer_id, Some(view_epoch))
+            .shared_descriptor(
+                session_id,
+                ticket.handle,
+                transfer_id,
+                Some(view_epoch),
+                Vec::new(),
+            )
             .map(|mut descriptor| {
                 descriptor.offset = offset;
                 descriptor.length = ticket.length;
@@ -703,7 +790,17 @@ impl ArenaManager {
         if staging.session_id != session_id {
             return Err(ArenaError::UnknownStaging);
         }
-        Ok(self.shared_descriptor(session_id, staging.handle, staging.transfer_id, None))
+        let handle = staging.handle;
+        let transfer_id = staging.transfer_id;
+        let token = shm_token().ok_or(ArenaError::SharedMemoryUnavailable)?;
+        self.write_exports.insert(
+            handle.allocation_id,
+            WriteExportLease {
+                session_id,
+                release_token: token.clone(),
+            },
+        );
+        Ok(self.shared_descriptor(session_id, handle, transfer_id, None, token))
     }
 
     /// Issues the low-frequency capability used by an SDK cache miss.
@@ -999,6 +1096,7 @@ impl ArenaManager {
         handle: AllocationHandle,
         transfer_id: u64,
         view_epoch: Option<u64>,
+        release_token: Vec<u8>,
     ) -> Option<HostShmDescriptor> {
         self.shared_fd_broker.as_ref()?;
         self.regions
@@ -1008,7 +1106,6 @@ impl ArenaManager {
             .entry(session_id)
             .or_default()
             .insert(handle.region_id);
-        self.exported_allocations.insert(handle.allocation_id);
         Some(HostShmDescriptor {
             region_id: handle.region_id,
             offset: handle.offset,
@@ -1016,6 +1113,7 @@ impl ArenaManager {
             allocation_id: handle.allocation_id,
             view_epoch,
             transfer_id,
+            release_token,
         })
     }
 
@@ -1038,10 +1136,10 @@ impl ArenaManager {
     fn release_handle(&mut self, handle: AllocationHandle) {
         self.live_allocations.remove(&handle.allocation_id);
         self.logical_bytes = self.logical_bytes.saturating_sub(handle.length);
-        if self.exported_allocations.remove(&handle.allocation_id) {
-            // 取消、TTL 和 session 关闭都不能撤回另一个进程已有的 mmap。
-            // 保守隔离到 Node 退出；仍占 allocated/resident 预算，绝不回 free list。
-            // 不声称完整 GC：最坏情况显式容量耗尽，而不是旧写污染新对象。
+        if self.write_exports.remove(&handle.allocation_id).is_some() {
+            // 只有未归还的可写 SHM borrow 需要隔离。读 descriptor 由 View/Ticket
+            // 生命周期保护，不应永久占用 free-list；旧 SDK、丢消息或 token 缺失
+            // 都会留在此分支，宁可容量耗尽也不让旧写污染新 allocation。
             self.quarantined_bytes += handle.capacity;
             return;
         }
@@ -1365,6 +1463,7 @@ mod runtime_tests {
             length: allocation.length,
             digest: digest(payload),
             allocation_id: allocation.allocation_id,
+            release_token: descriptor.release_token.clone(),
         };
         arena
             .commit_staging(7, allocation.staging_id, &receipt, b"mmap-block".to_vec())
@@ -1486,7 +1585,7 @@ mod runtime_tests {
         assert_eq!(arena.allocate(7, 1), Err(ArenaError::CapacityExhausted));
         assert_eq!(arena.stats().resident_bytes, 4096);
         assert!(arena.live_allocations.is_empty());
-        assert!(arena.exported_allocations.is_empty());
+        assert!(arena.write_exports.is_empty());
         let text = dms_metrics::encode_text(&registry).unwrap();
         assert!(text.contains("dms_node_arena_quarantined_bytes 4096"));
         assert!(text.contains("dms_node_arena_allocated_bytes 4096"));
@@ -1514,6 +1613,84 @@ mod runtime_tests {
         assert_eq!(descriptor.length, 1);
         assert_eq!(descriptor.allocation_id, ticket.handle.allocation_id);
         assert_eq!(arena.read_ticket(ticket).unwrap(), b"c");
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn read_shm_descriptor_retirement_reuses_slot_without_quarantine() {
+        let path =
+            std::env::temp_dir().join(format!("dms-read-release-{}.sock", std::process::id()));
+        let mut arena = ArenaManager::new(128, Duration::from_secs(30));
+        arena.enable_shared_region(SharedFdBroker::bind(path.clone()).unwrap());
+        arena
+            .commit_inline(b"block".to_vec(), b"abcdef".to_vec())
+            .unwrap();
+        let (ticket, _) = arena.open_read(b"block", Some((0, 6))).unwrap();
+        let descriptor = arena
+            .shm_descriptor_for_read(7, ticket, 1, 1)
+            .unwrap()
+            .unwrap();
+        assert_eq!(descriptor.view_epoch, Some(1));
+
+        arena.retire_block(b"block");
+
+        assert_eq!(arena.stats().quarantined_bytes, 0);
+        assert_eq!(arena.stats().allocated_bytes, 0);
+        assert_eq!(arena.stats().free_slot_bytes, 64);
+        arena.allocate(7, 64).unwrap();
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn returned_write_export_reuses_capacity_for_many_cycles() {
+        let path =
+            std::env::temp_dir().join(format!("dms-write-release-{}.sock", std::process::id()));
+        let mut arena = ArenaManager::new(64, Duration::from_secs(30));
+        arena.enable_shared_region(SharedFdBroker::bind(path.clone()).unwrap());
+
+        for cycle in 0..100 {
+            let block_id = format!("block-{cycle}").into_bytes();
+            let allocation = arena.allocate(7, 1).unwrap();
+            let descriptor = arena
+                .shm_descriptor_for_staging(7, allocation.staging_id)
+                .unwrap()
+                .unwrap();
+            let mut receipt = arena.upload(allocation.transfer_id, b"x").unwrap();
+            receipt.release_token = descriptor.release_token;
+            arena
+                .commit_staging(7, allocation.staging_id, &receipt, block_id.clone())
+                .unwrap();
+            assert!(!arena.block_has_unreturned_write(&block_id));
+            arena.retire_block(&block_id);
+            assert_eq!(arena.stats().allocated_bytes, 0);
+            assert_eq!(arena.stats().quarantined_bytes, 0);
+        }
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn missing_write_release_token_keeps_retired_block_isolated() {
+        let path =
+            std::env::temp_dir().join(format!("dms-write-isolate-{}.sock", std::process::id()));
+        let mut arena = ArenaManager::new(64, Duration::from_secs(30));
+        arena.enable_shared_region(SharedFdBroker::bind(path.clone()).unwrap());
+        let allocation = arena.allocate(7, 1).unwrap();
+        arena
+            .shm_descriptor_for_staging(7, allocation.staging_id)
+            .unwrap()
+            .unwrap();
+        let receipt = arena.upload(allocation.transfer_id, b"x").unwrap();
+        arena
+            .commit_staging(7, allocation.staging_id, &receipt, b"block".to_vec())
+            .unwrap();
+        assert!(arena.block_has_unreturned_write(b"block"));
+
+        arena.retire_block(b"block");
+
+        assert_eq!(arena.stats().allocated_bytes, 64);
+        assert_eq!(arena.stats().quarantined_bytes, 64);
+        assert_eq!(arena.allocate(7, 1), Err(ArenaError::CapacityExhausted));
         let _ = std::fs::remove_file(path);
     }
 

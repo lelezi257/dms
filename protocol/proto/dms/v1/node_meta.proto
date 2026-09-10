@@ -14,12 +14,17 @@ service MetadataService {
   rpc ReportReplicas(ReportReplicasRequest) returns (ReportReplicasResponse);
   rpc CommitVersion(CommitVersionRequest) returns (CommitVersionResponse);
   rpc CommitBatch(CommitBatchRequest) returns (CommitBatchResponse);
+  rpc Stat(MetaStatRequest) returns (MetaStatResponse);
+  rpc Scan(MetaScanRequest) returns (MetaScanResponse);
   rpc GetOperation(GetOperationRequest) returns (GetOperationResponse);
   rpc PlanReplicas(PlanReplicasRequest) returns (PlanReplicasResponse);
   // One resumable server stream per Node session. Ordinary metadata requests
   // remain unary; events are produced by MetaState business transitions.
   rpc WatchNodeEvents(WatchNodeEventsRequest) returns (stream NodeEvent);
   rpc AcknowledgeNodeEvent(AcknowledgeNodeEventRequest) returns (AcknowledgeNodeEventResponse);
+  // Dedicated retirement ACK. Watch cursor ACK only means an event was
+  // received/scheduled; it never proves read drain or physical release.
+  rpc AcknowledgeBlockRetirement(AcknowledgeBlockRetirementRequest) returns (AcknowledgeBlockRetirementResponse);
 }
 
 message RequestContext {
@@ -48,12 +53,17 @@ message NodeRegistration {
 message OpenNodeSessionRequest {
   RequestContext context = 1;
   NodeRegistration registration = 2;
+  // New Nodes allocate a per-session-incarnation logical commit sequence once
+  // per logical commit and reuse it for RPC retries. Meta uses it as a
+  // bounded replay fence after operation results expire.
+  bool supports_commit_sequence = 3;
 }
 
 message OpenNodeSessionResponse {
   NodeSessionIdentity session = 1;
   uint64 heartbeat_interval_millis = 2;
   uint64 lease_ttl_millis = 3;
+  uint64 minimum_commit_sequence = 4;
 }
 
 message ResourceSummary {
@@ -240,6 +250,7 @@ message CommitVersionRequest {
   // Newly created local replicas may be registered atomically with the
   // version commit. Existing replica locations continue to use proofs.
   repeated ReplicaReport new_replicas = 12;
+  uint64 commit_sequence = 13;
 }
 
 message CommitVersionResponse {
@@ -269,6 +280,7 @@ message CommitBatchRequest {
   NodeSessionIdentity session = 2;
   repeated BatchCommitEntry entries = 3;
   bytes batch_operation_id = 4;
+  uint64 commit_sequence = 5;
 }
 
 message BatchCommitResult {
@@ -279,6 +291,29 @@ message BatchCommitResult {
 message CommitBatchResponse {
   repeated BatchCommitResult results = 1;
   uint64 commit_index = 2;
+}
+
+message MetaStatRequest {
+  RequestContext context = 1;
+  NodeSessionIdentity session = 2;
+  Key key = 3;
+}
+
+message MetaStatResponse {
+  bool found = 1;
+  ObjectInfo info = 2;
+}
+
+message MetaScanRequest {
+  RequestContext context = 1;
+  NodeSessionIdentity session = 2;
+  Key prefix = 3;
+  ObjectScanOptions options = 4;
+}
+
+message MetaScanResponse {
+  repeated ObjectInfo items = 1;
+  string next_cursor = 2;
 }
 
 message GetOperationRequest {
@@ -336,10 +371,30 @@ message RepairReplicaEvent {
   uint32 desired_copies = 6;
 }
 
+enum BlockRetirementPhase {
+  BLOCK_RETIREMENT_PHASE_UNSPECIFIED = 0;
+  BLOCK_RETIREMENT_PHASE_PREPARE = 1;
+  BLOCK_RETIREMENT_PHASE_FINAL = 2;
+}
+
+enum BlockRetirementAckKind {
+  BLOCK_RETIREMENT_ACK_KIND_UNSPECIFIED = 0;
+  BLOCK_RETIREMENT_ACK_KIND_PREPARED = 1;
+  BLOCK_RETIREMENT_ACK_KIND_RELEASED = 2;
+}
+
 message EvictReplicaEvent {
+  // Kept for old single-block consumers; new consumers use block_ids.
   bytes block_id = 1;
   reserved 2;
   reserved "storage_generation";
+  repeated bytes block_ids = 3;
+  bytes retirement_id = 4;
+  BlockRetirementPhase phase = 5;
+  uint64 participant_node_id = 6;
+  uint64 participant_node_epoch = 7;
+  uint64 stage_epoch = 8;
+  uint64 fence_version = 9;
 }
 
 message FenceNodeEvent {
@@ -381,3 +436,17 @@ message AcknowledgeNodeEventRequest {
 }
 
 message AcknowledgeNodeEventResponse {}
+
+message AcknowledgeBlockRetirementRequest {
+  RequestContext context = 1;
+  NodeSessionIdentity session = 2;
+  bytes retirement_id = 3;
+  BlockRetirementAckKind ack_kind = 4;
+  uint64 stage_epoch = 5;
+  repeated bytes block_ids = 6;
+  optional string detail = 7;
+}
+
+message AcknowledgeBlockRetirementResponse {
+  bool accepted = 1;
+}

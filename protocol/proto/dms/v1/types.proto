@@ -24,6 +24,19 @@ message ByteRange {
   uint64 length = 2;
 }
 
+message ObjectInfo {
+  Key key = 1;
+  uint64 length = 2;
+  int64 modified_time_unix_millis = 3;
+  uint64 version = 4;
+}
+
+message ObjectScanOptions {
+  uint32 limit = 1;
+  optional bytes start_after = 2;
+  string cursor = 3;
+}
+
 enum ErrorKind {
   ERROR_KIND_UNKNOWN = 0;
   ERROR_KIND_INVALID_ARGUMENT = 1;
@@ -66,6 +79,10 @@ message ShmDescriptor {
   reserved 7, 8, 9;
   reserved "fd_broker_path", "fd_token", "arena_length";
   bytes transfer_id = 10;
+  // Opaque per-allocation write-return token. SDK must echo it only after the
+  // writable SHM borrow is no longer reachable; stale tokens never authorize a
+  // different allocation because Node validates allocation_id and generation.
+  bytes release_token = 11;
 }
 
 // A destination prepared by dms-node for one bounded payload transfer.
@@ -112,6 +129,12 @@ message TransferReceipt {
   uint64 length = 2;
   bytes digest = 3;
   uint64 target_allocation_id = 4;
+  bytes release_token = 5;
+}
+
+message ReleasedWriteAllocation {
+  uint64 allocation_id = 1;
+  bytes release_token = 2;
 }
 
 message StagedValue {

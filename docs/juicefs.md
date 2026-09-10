@@ -38,6 +38,17 @@
 
 ## 2. 先准备环境
 
+源码接入基线在 [DMS分支](https://github.com/lelezi257/dms/tree/integration/juicefs-baseline) 与 [JuiceFS fork](https://github.com/lelezi257/juicefs-dms)。配套固定身份如下；没有正式Release下载包。
+
+| 组成 | 固定身份 |
+| --- | --- |
+| DMS服务与SDK代码基线 | `f4555eac23190ceef555b284366e4623c48fb72b` |
+| Go SDK | `v0.0.0-20260910013452-f4555eac2319` |
+| JuiceFS接入 | `42539ab68e3340baf02c817b5c08e2eb63095b1b` |
+| JuiceFS原版基线 | `0b90c7db5a929ae6adc5faad948d108efd2c99f9`，v1.4.1 |
+
+DMS后续仅文档修正不会改变上述服务代码基线；复现实验仍记录实际检出的完整提交，不以分支名代替固定身份。
+
 所有命令在 Linux VM 内执行。先按[单 VM 手册](local-single-vm-manual.md)准备编译环境，还需 FUSE3（含 `/dev/fuse`、`fusermount3`）和 `redis-server`。
 
 在 DMS 源码根执行；如果已有匹配的组件制品，可把 BIN 指向其解压目录，不重复编译：
@@ -52,7 +63,16 @@ export JFS_BIN="$REPO/.local/bin/juicefs"
 mkdir -p "$RUN/redis" "$RUN/mnt-a" "$RUN/mnt-b"
 ```
 
-将维护者提供的**含 DMS adapter 的 JuiceFS 候选二进制**放到 `$JFS_BIN`，先核对版本/摘要及其 Go SDK 候选版本。这里没有假定已存在公开下载地址或自动下载脚本。每个新终端都先设置上述变量，再运行下面相应命令；不要在一个后台长命令中隐藏全部服务。
+从公开fork构建**含DMS adapter**的二进制，不使用上游Release替代。以下在Linux另一个终端、DMS源码的同级目录执行，构建需要Go 1.25或兼容工具链和C编译器：
+
+```bash
+git clone https://github.com/lelezi257/juicefs-dms.git
+cd juicefs-dms
+git checkout --detach 42539ab68e3340baf02c817b5c08e2eb63095b1b
+GOPROXY=https://proxy.golang.org,direct go build -mod=readonly -o juicefs .
+```
+
+将本次生成的 `juicefs` 复制到前面设置的 `$JFS_BIN`，并记录 `sha256sum`；Go依赖由go.mod固定并从远端下载，不使用本地replace或候选proxy。每个新终端都先设置上述变量，再运行下面相应命令；不要在一个后台长命令中隐藏全部服务。
 
 使用新的运行目录和空 Redis 数据库；如果端口或数据库已有用户服务/数据，换一套隔离地址，不停止原服务、不执行 FLUSHDB。
 

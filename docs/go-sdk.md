@@ -1,10 +1,25 @@
 # Go SDK
 
-当前是未发布的候选 SDK：纯 Go，通过 gRPC 连接 Node；Linux 同机还可使用 UDS 和共享内存，不需要 Rust native extension 或 CGO。用户导入的是 `dms` 包，不是 protobuf 生成类型。
+当前是可从公开源码取得的开发预览 SDK，未发布正式语义版本：纯 Go，通过 gRPC 连接 Node；Linux 同机还可使用 UDS 和共享内存，不需要 Rust native extension 或 CGO。用户导入的是 `dms` 包，不是 protobuf 生成类型。
 
 本阶段提供对象子集 **Set、Get、Del、Stat、Scan**，以及条件写、指定版本/范围读的 Options；不表示已覆盖 Rust SDK 的全部方法，也不承诺 Go SDK 已具备 TLS、跨语言观测适配等能力。真实进程、故障和三 VM 性能验收状态以候选版本的验收记录为准，不能用接口存在代替通过。
 
-## 1. 安装当前候选
+## 1. 安装固定源码版本
+
+在Linux消费者项目中，使用Go 1.25或兼容工具链；不需要DMS源码目录、Rust或protoc。
+
+```bash
+mkdir dms-demo
+cd dms-demo
+go mod init example.com/dms-demo
+GOPROXY=https://proxy.golang.org,direct go get github.com/lelezi257/dms/sdk/go@v0.0.0-20260910013452-f4555eac2319
+```
+
+这个Go伪版本固定到DMS提交 `f4555eac23190ceef555b284366e4623c48fb72b`，不是正式v0.1.0 Release。配套JuiceFS与服务代码见[接入指南](juicefs.md)。无需设置GONOSUMDB；公开下载保留Go校验和验证。以下第2节程序可以直接放入本目录。
+
+### 开发者测试尚未提交的SDK
+
+只有需要验证本地改动时才用下面的候选proxy，不是上述公开版本的安装前提。
 
 先按[单 VM 手册](local-single-vm-manual.md)进入 Linux，在源码根准备环境。需要 Go 1.25 或兼容工具链，消费者不需要 protoc。
 
@@ -29,7 +44,7 @@ go mod init example.com/dms-demo
 go get "github.com/lelezi257/dms/sdk/go@$SDK_VERSION"
 ```
 
-这里 `go get` 从本地候选仓下载 SDK，公网代理只用于其它依赖；不是宣称该 SDK 版本已经公开发布。候选包来源和 SHA256 应由交付方核对。独立消费者可以拿到整个 proxy 目录后安装，不需要项目源码或 `replace`。正式发布后再更新公开安装入口。
+这里 `go get` 从本地候选仓下载未提交的 SDK，公网代理只用于其它依赖；不是宣称该候选版本已经公开发布。候选包来源和 SHA256 应由交付方核对。独立消费者可以拿到整个 proxy 目录后安装，不需要项目源码或 `replace`。不要把实验proxy设置带入公开版本的独立获取验收。
 
 ## 2. 最小读写程序
 

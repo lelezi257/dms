@@ -14,11 +14,12 @@ mod metrics;
 mod types;
 
 pub use client::{
-    ClientOptions, ClientTlsOptions, ConnectError, DeleteResult, DmsClient, GetOptions, GetResult,
-    HashDeleteOptions, HashEntriesResult, HashGetOptions, HashMultiGetResult,
-    HashRangeWriteOptions, HashRangeWriteResult, HashScanOptions, HashScanResult, HashSetResult,
-    HashValue, HashWriteOptions, KeyVersion, MSetOptions, MSetResult, RangeWriteOptions,
-    SetOptions, SetResult, SharedValueView, SharedWriteBuffer,
+    ClientOptions, ClientTlsOptions, ConnectError, DeleteResult, DmsClient, DmsValueReader,
+    GetIntoResult, GetOptions, GetResult, HashDeleteOptions, HashEntriesResult, HashGetOptions,
+    HashMultiGetResult, HashRangeWriteOptions, HashRangeWriteResult, HashScanOptions,
+    HashScanResult, HashSetResult, HashValue, HashWriteOptions, KeyVersion, MSetOptions,
+    MSetResult, RangeWriteOptions, ReadResult, SetOptions, SetResult, SharedValueView,
+    SharedWriteBuffer,
 };
 pub use dms_error::{DmsError, DmsResult, ErrorCode, ErrorKind};
 pub use dms_metrics::{

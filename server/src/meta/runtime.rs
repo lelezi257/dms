@@ -1598,6 +1598,7 @@ impl MetaState {
             .value
             .clone();
         let options = request.options.unwrap_or_default();
+        let delimiter = options.delimiter;
         if options.start_after.is_some() && !options.cursor.is_empty() {
             return Err(MetaRuntimeError::InvalidArgument(
                 "scan start_after and cursor are mutually exclusive".to_string(),
@@ -1618,41 +1619,81 @@ impl MetaState {
                     "scan cursor prefix mismatch".to_string(),
                 ));
             }
+            if cursor.delimiter != delimiter {
+                return Err(MetaRuntimeError::InvalidArgument(
+                    "scan cursor delimiter mismatch".to_string(),
+                ));
+            }
             Some(cursor.last_key)
         };
 
-        let range_start = match &start_after {
+        let mut range_start = match &start_after {
             Some(start_after) if start_after.as_slice() >= prefix.as_slice() => {
                 Bound::Excluded(start_after.clone())
             }
             _ => Bound::Included(prefix.clone()),
         };
         let mut items = Vec::new();
-        let mut last_key = None;
-        for key in self.live_keys.range((range_start, Bound::Unbounded)) {
+        let mut cursor_marker = None;
+        let mut next_range_start = None;
+        while items.len() < limit {
+            let Some(key) = self
+                .live_keys
+                .range((range_start.clone(), Bound::Unbounded))
+                .next()
+                .cloned()
+            else {
+                break;
+            };
             if !key.starts_with(&prefix) {
                 break;
             }
-            let Some(layout) = self.current_value_layout(key) else {
+            let Some(layout) = self.current_value_layout(&key) else {
+                range_start = Bound::Excluded(key.clone());
                 continue;
             };
+            if let Some(group_prefix) = scan_group_prefix(&prefix, &delimiter, &key) {
+                if start_after
+                    .as_ref()
+                    .is_some_and(|marker| group_prefix.as_slice() <= marker.as_slice())
+                {
+                    let Some(successor) = lexicographic_successor(&group_prefix) else {
+                        break;
+                    };
+                    range_start = Bound::Included(successor);
+                    continue;
+                }
+                cursor_marker = Some(group_prefix.clone());
+                items.push(Self::prefix_object_info(group_prefix.clone()));
+                next_range_start = lexicographic_successor(&group_prefix).map(Bound::Included);
+                if let Some(next_start) = next_range_start.clone() {
+                    range_start = next_start;
+                } else {
+                    break;
+                }
+                continue;
+            }
             items.push(self.object_info(key.clone(), layout));
-            last_key = Some(key.clone());
+            cursor_marker = Some(key.clone());
+            next_range_start = Some(Bound::Excluded(key.clone()));
+            range_start = Bound::Excluded(key);
             if items.len() == limit {
                 break;
             }
         }
         let next_cursor = if items.len() == limit {
-            let last_key = last_key.expect("non-empty page at limit");
+            let last_key = cursor_marker.expect("non-empty page at limit");
             // 只看当前页后面的下一个有序 key，避免跨过前缀区间后线性扫描所有后续 key。
-            let has_more = self
-                .live_keys
-                .range((Bound::Excluded(last_key.clone()), Bound::Unbounded))
-                .next()
-                .is_some_and(|key| key.starts_with(&prefix));
+            let has_more = next_range_start.is_some_and(|range_start| {
+                self.live_keys
+                    .range((range_start, Bound::Unbounded))
+                    .next()
+                    .is_some_and(|key| key.starts_with(&prefix))
+            });
             if has_more {
                 ScanCursor {
                     prefix,
+                    delimiter,
                     last_key,
                     expires_at_unix_millis: current_time_unix_millis() + SCAN_CURSOR_TTL_MILLIS,
                 }
@@ -1797,6 +1838,17 @@ impl MetaState {
                 .copied()
                 .unwrap_or_default(),
             version: layout.version,
+            is_prefix: false,
+        }
+    }
+
+    fn prefix_object_info(key: Vec<u8>) -> pb::ObjectInfo {
+        pb::ObjectInfo {
+            key: Some(pb::Key { value: key }),
+            length: 0,
+            modified_time_unix_millis: 0,
+            version: 0,
+            is_prefix: true,
         }
     }
 
@@ -3841,18 +3893,29 @@ fn event_id_with_suffix(stage_epoch: u64, node_id: u64) -> Vec<u8> {
 
 struct ScanCursor {
     prefix: Vec<u8>,
+    delimiter: Vec<u8>,
     last_key: Vec<u8>,
     expires_at_unix_millis: i64,
 }
 
 impl ScanCursor {
     fn encode(&self) -> String {
-        format!(
-            "v1:{}:{}:{}",
-            self.expires_at_unix_millis,
-            hex_encode(&self.prefix),
-            hex_encode(&self.last_key)
-        )
+        if self.delimiter.is_empty() {
+            format!(
+                "v1:{}:{}:{}",
+                self.expires_at_unix_millis,
+                hex_encode(&self.prefix),
+                hex_encode(&self.last_key)
+            )
+        } else {
+            format!(
+                "v2:{}:{}:{}:{}",
+                self.expires_at_unix_millis,
+                hex_encode(&self.prefix),
+                hex_encode(&self.delimiter),
+                hex_encode(&self.last_key)
+            )
+        }
     }
 
     fn decode(value: &str) -> Result<Self, MetaRuntimeError> {
@@ -3871,11 +3934,34 @@ impl ScanCursor {
             parts.next().map(hex_decode).transpose()?.ok_or_else(|| {
                 MetaRuntimeError::InvalidArgument("invalid scan cursor".to_string())
             })?;
-        let last_key =
-            parts.next().map(hex_decode).transpose()?.ok_or_else(|| {
-                MetaRuntimeError::InvalidArgument("invalid scan cursor".to_string())
-            })?;
-        if version != Some("v1") || parts.next().is_some() || last_key.is_empty() {
+        let (delimiter, last_key) = match version {
+            Some("v1") => {
+                let last_key = parts.next().map(hex_decode).transpose()?.ok_or_else(|| {
+                    MetaRuntimeError::InvalidArgument("invalid scan cursor".to_string())
+                })?;
+                (Vec::new(), last_key)
+            }
+            Some("v2") => {
+                let delimiter = parts.next().map(hex_decode).transpose()?.ok_or_else(|| {
+                    MetaRuntimeError::InvalidArgument("invalid scan cursor".to_string())
+                })?;
+                let last_key = parts.next().map(hex_decode).transpose()?.ok_or_else(|| {
+                    MetaRuntimeError::InvalidArgument("invalid scan cursor".to_string())
+                })?;
+                if delimiter.is_empty() {
+                    return Err(MetaRuntimeError::InvalidArgument(
+                        "invalid scan cursor".to_string(),
+                    ));
+                }
+                (delimiter, last_key)
+            }
+            _ => {
+                return Err(MetaRuntimeError::InvalidArgument(
+                    "invalid scan cursor".to_string(),
+                ));
+            }
+        };
+        if parts.next().is_some() || last_key.is_empty() {
             return Err(MetaRuntimeError::InvalidArgument(
                 "invalid scan cursor".to_string(),
             ));
@@ -3887,10 +3973,46 @@ impl ScanCursor {
         }
         Ok(Self {
             prefix,
+            delimiter,
             last_key,
             expires_at_unix_millis,
         })
     }
+}
+
+fn scan_group_prefix(prefix: &[u8], delimiter: &[u8], key: &[u8]) -> Option<Vec<u8>> {
+    if delimiter.is_empty() {
+        return None;
+    }
+    let suffix = key.strip_prefix(prefix)?;
+    let delimiter_index = find_subslice(suffix, delimiter)?;
+    let group_end = prefix
+        .len()
+        .checked_add(delimiter_index)?
+        .checked_add(delimiter.len())?;
+    Some(key[..group_end].to_vec())
+}
+
+fn find_subslice(haystack: &[u8], needle: &[u8]) -> Option<usize> {
+    if needle.is_empty() {
+        return None;
+    }
+    haystack
+        .windows(needle.len())
+        .position(|window| window == needle)
+}
+
+fn lexicographic_successor(value: &[u8]) -> Option<Vec<u8>> {
+    let mut successor = value.to_vec();
+    while let Some(last) = successor.last_mut() {
+        if *last == u8::MAX {
+            successor.pop();
+        } else {
+            *last = last.saturating_add(1);
+            return Some(successor);
+        }
+    }
+    None
 }
 
 fn hex_encode(bytes: &[u8]) -> String {
@@ -8364,6 +8486,7 @@ mod tests {
 
         let mismatched_cursor_last_key = ScanCursor {
             prefix: b"scan/".to_vec(),
+            delimiter: Vec::new(),
             last_key: b"wrong/key".to_vec(),
             expires_at_unix_millis: current_time_unix_millis() + SCAN_CURSOR_TTL_MILLIS,
         }
@@ -8411,6 +8534,244 @@ mod tests {
             )),
             Err(MetaRuntimeError::InvalidArgument(_))
         ));
+    }
+
+    #[test]
+    fn scan_groups_delimiter_prefixes_without_repeating_limit_one_pages() {
+        let mut state = MetaState::new(Box::<InMemoryJournal>::default());
+        let session = test_session(&mut state, 7);
+        for (index, key) in [
+            b"p/a".as_slice(),
+            b"p/dir/".as_slice(),
+            b"p/dir/child".as_slice(),
+            b"p/dir/grand/leaf".as_slice(),
+            b"p/dir2/file".as_slice(),
+            b"p/z".as_slice(),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            state
+                .commit_version(value_commit_request_for(
+                    session.clone(),
+                    key.to_vec(),
+                    [b"scan-delim-block/".as_slice(), key].concat(),
+                    format!("scan-delim-op-{index}").into_bytes(),
+                    format!("scan-delim-digest-{index}").into_bytes(),
+                ))
+                .expect("seed delimiter key");
+        }
+
+        let mut cursor = String::new();
+        let mut seen = Vec::new();
+        loop {
+            let page = state
+                .scan(meta_scan_request_with_delimiter(
+                    session.clone(),
+                    b"p/",
+                    None,
+                    &cursor,
+                    b"/",
+                    1,
+                ))
+                .expect("delimiter page");
+            assert_eq!(page.items.len(), 1);
+            let item = &page.items[0];
+            seen.push((
+                item.key.as_ref().expect("key").value.clone(),
+                item.is_prefix,
+            ));
+            if page.next_cursor.is_empty() {
+                break;
+            }
+            cursor = page.next_cursor;
+        }
+
+        assert_eq!(
+            seen,
+            vec![
+                (b"p/a".to_vec(), false),
+                (b"p/dir/".to_vec(), true),
+                (b"p/dir2/".to_vec(), true),
+                (b"p/z".to_vec(), false),
+            ]
+        );
+
+        let nested = state
+            .scan(meta_scan_request_with_delimiter(
+                session, b"p/dir/", None, "", b"/", 10,
+            ))
+            .expect("nested delimiter page");
+        let nested_items = nested
+            .items
+            .iter()
+            .map(|item| {
+                (
+                    item.key.as_ref().expect("key").value.clone(),
+                    item.is_prefix,
+                )
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            nested_items,
+            vec![
+                (b"p/dir/".to_vec(), false),
+                (b"p/dir/child".to_vec(), false),
+                (b"p/dir/grand/".to_vec(), true),
+            ]
+        );
+        assert!(nested.next_cursor.is_empty());
+    }
+
+    #[test]
+    fn scan_delimiter_cursor_binds_semantics_and_skips_marker_inside_group() {
+        let mut state = MetaState::new(Box::<InMemoryJournal>::default());
+        let session = test_session(&mut state, 7);
+        for (index, key) in [
+            b"p/dir/a".as_slice(),
+            b"p/dir/b".as_slice(),
+            b"p/next".as_slice(),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            state
+                .commit_version(value_commit_request_for(
+                    session.clone(),
+                    key.to_vec(),
+                    [b"scan-marker-block/".as_slice(), key].concat(),
+                    format!("scan-marker-op-{index}").into_bytes(),
+                    format!("scan-marker-digest-{index}").into_bytes(),
+                ))
+                .expect("seed marker key");
+        }
+
+        let marker_inside_group = state
+            .scan(meta_scan_request_with_delimiter(
+                session.clone(),
+                b"p/",
+                Some(b"p/dir/a".to_vec()),
+                "",
+                b"/",
+                10,
+            ))
+            .expect("marker inside group");
+        let keys = marker_inside_group
+            .items
+            .iter()
+            .map(|item| item.key.as_ref().expect("key").value.as_slice())
+            .collect::<Vec<_>>();
+        assert_eq!(keys, vec![b"p/next".as_slice()]);
+
+        let first = state
+            .scan(meta_scan_request_with_delimiter(
+                session.clone(),
+                b"p/",
+                None,
+                "",
+                b"/",
+                1,
+            ))
+            .expect("first grouped page");
+        assert_eq!(
+            first.items[0].key.as_ref().expect("key").value,
+            b"p/dir/".to_vec()
+        );
+        assert!(first.items[0].is_prefix);
+        assert!(!first.next_cursor.is_empty());
+
+        assert!(matches!(
+            state.scan(meta_scan_request_with_delimiter(
+                session.clone(),
+                b"p/",
+                None,
+                &first.next_cursor,
+                b"::",
+                1,
+            )),
+            Err(MetaRuntimeError::InvalidArgument(_))
+        ));
+        assert!(matches!(
+            state.scan(meta_scan_request_with_delimiter(
+                session,
+                b"wrong/",
+                None,
+                &first.next_cursor,
+                b"/",
+                1,
+            )),
+            Err(MetaRuntimeError::InvalidArgument(_))
+        ));
+    }
+
+    #[test]
+    fn scan_groups_multibyte_delimiter_and_all_ff_successor_boundary() {
+        let mut state = MetaState::new(Box::<InMemoryJournal>::default());
+        let session = test_session(&mut state, 7);
+        for (index, key) in [
+            b"m/a::x".as_slice(),
+            b"m/a::y".as_slice(),
+            b"m/b".as_slice(),
+            b"\xff/a".as_slice(),
+            b"\xff/b".as_slice(),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            state
+                .commit_version(value_commit_request_for(
+                    session.clone(),
+                    key.to_vec(),
+                    [b"scan-binary-block/".as_slice(), key].concat(),
+                    format!("scan-binary-op-{index}").into_bytes(),
+                    format!("scan-binary-digest-{index}").into_bytes(),
+                ))
+                .expect("seed binary key");
+        }
+
+        let multibyte = state
+            .scan(meta_scan_request_with_delimiter(
+                session.clone(),
+                b"m/",
+                None,
+                "",
+                b"::",
+                10,
+            ))
+            .expect("multibyte delimiter");
+        let multibyte_items = multibyte
+            .items
+            .iter()
+            .map(|item| {
+                (
+                    item.key.as_ref().expect("key").value.clone(),
+                    item.is_prefix,
+                )
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            multibyte_items,
+            vec![(b"m/a::".to_vec(), true), (b"m/b".to_vec(), false)]
+        );
+        assert!(multibyte.next_cursor.is_empty());
+
+        let all_ff = state
+            .scan(meta_scan_request_with_delimiter(
+                session,
+                b"",
+                Some(vec![0xfe]),
+                "",
+                b"\xff",
+                1,
+            ))
+            .expect("all-ff delimiter group");
+        assert_eq!(all_ff.items.len(), 1);
+        assert_eq!(
+            all_ff.items[0].key.as_ref().expect("key").value,
+            b"\xff".to_vec()
+        );
+        assert!(all_ff.items[0].is_prefix);
+        assert!(all_ff.next_cursor.is_empty());
     }
 
     #[test]
@@ -8627,6 +8988,30 @@ mod tests {
                 limit,
                 start_after,
                 cursor: cursor.to_string(),
+                delimiter: Vec::new(),
+            }),
+        }
+    }
+
+    fn meta_scan_request_with_delimiter(
+        session: pb::NodeSessionIdentity,
+        prefix: &[u8],
+        start_after: Option<Vec<u8>>,
+        cursor: &str,
+        delimiter: &[u8],
+        limit: u32,
+    ) -> pb::MetaScanRequest {
+        pb::MetaScanRequest {
+            context: None,
+            session: Some(session),
+            prefix: Some(pb::Key {
+                value: prefix.to_vec(),
+            }),
+            options: Some(pb::ObjectScanOptions {
+                limit,
+                start_after,
+                cursor: cursor.to_string(),
+                delimiter: delimiter.to_vec(),
             }),
         }
     }

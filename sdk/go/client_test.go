@@ -965,6 +965,9 @@ type fakeWorker struct {
 	allocateTarget         *pb.PayloadTarget
 	setErr                 error
 	setReceipt             *pb.TransferReceipt
+	setInlineValue         []byte
+	setInlineCount         int
+	allocateLength         uint64
 	deleteContexts         chan error
 	deleteBlock            bool
 	deleteCount            int
@@ -976,6 +979,8 @@ type fakeWorker struct {
 	writeReleaseAllocation uint64
 	writeReleaseToken      []byte
 	finishedReadThrough    uint64
+	getClampRange          bool
+	scanDelimiter          string
 	sessionFunc            func(context.Context) (grpc.BidiStreamingClient[pb.ClientSessionMessage, pb.NodeSessionEvent], error)
 }
 
@@ -983,11 +988,18 @@ func (w *fakeWorker) Session(ctx context.Context, _ ...grpc.CallOption) (grpc.Bi
 	return w.sessionFunc(ctx)
 }
 
-func (w *fakeWorker) SetInline(context.Context, *pb.SetInlineRequest, ...grpc.CallOption) (*pb.SetResponse, error) {
-	return &pb.SetResponse{Version: 3, Length: 3}, nil
+func (w *fakeWorker) SetInline(_ context.Context, req *pb.SetInlineRequest, _ ...grpc.CallOption) (*pb.SetResponse, error) {
+	w.mu.Lock()
+	w.setInlineCount++
+	w.setInlineValue = append([]byte(nil), req.Value...)
+	w.mu.Unlock()
+	return &pb.SetResponse{Version: 3, Length: uint64(len(req.Value))}, nil
 }
 
-func (w *fakeWorker) AllocateStaging(context.Context, *pb.AllocateStagingRequest, ...grpc.CallOption) (*pb.AllocateStagingResponse, error) {
+func (w *fakeWorker) AllocateStaging(_ context.Context, req *pb.AllocateStagingRequest, _ ...grpc.CallOption) (*pb.AllocateStagingResponse, error) {
+	w.mu.Lock()
+	w.allocateLength = req.Length
+	w.mu.Unlock()
 	target := w.allocateTarget
 	if target == nil {
 		target = &pb.PayloadTarget{}
@@ -1026,6 +1038,7 @@ func (w *fakeWorker) Get(ctx context.Context, req *pb.GetRequest, _ ...grpc.Call
 	}
 	w.mu.Lock()
 	defer w.mu.Unlock()
+	w.getClampRange = req.ClampRange
 	if !w.getFound && w.getValue == nil && w.getSegments == nil {
 		return &pb.GetResponse{Found: false, ReadRequestId: req.ReadRequestId}, nil
 	}
@@ -1078,6 +1091,7 @@ func (w *fakeWorker) Scan(_ context.Context, req *pb.ScanRequest, _ ...grpc.Call
 	if req.Options != nil {
 		w.scanLimit = req.Options.Limit
 		w.scanStartAfter = string(req.Options.StartAfter)
+		w.scanDelimiter = string(req.Options.Delimiter)
 	}
 	return &pb.ScanResponse{Items: w.scanItems, NextCursor: w.scanNextCursor}, nil
 }
@@ -1113,13 +1127,23 @@ type fakePayload struct {
 	uploadReceipt *pb.TransferReceipt
 	downloadCount int
 	lastDownload  []byte
+	uploadPayload []byte
+	downloadFunc  func(context.Context, *pb.DownloadPayloadRequest) (*pb.DownloadPayloadResponse, error)
 }
 
-func (p *fakePayload) Upload(context.Context, *pb.UploadPayloadRequest, ...grpc.CallOption) (*pb.UploadPayloadResponse, error) {
-	return &pb.UploadPayloadResponse{Receipt: p.uploadReceipt}, nil
+func (p *fakePayload) Upload(_ context.Context, req *pb.UploadPayloadRequest, _ ...grpc.CallOption) (*pb.UploadPayloadResponse, error) {
+	p.uploadPayload = append([]byte(nil), req.Payload...)
+	receipt := p.uploadReceipt
+	if receipt == nil {
+		receipt = &pb.TransferReceipt{TransferId: req.TransferId, Length: uint64(len(req.Payload))}
+	}
+	return &pb.UploadPayloadResponse{Receipt: receipt}, nil
 }
 
-func (p *fakePayload) Download(_ context.Context, req *pb.DownloadPayloadRequest, _ ...grpc.CallOption) (*pb.DownloadPayloadResponse, error) {
+func (p *fakePayload) Download(ctx context.Context, req *pb.DownloadPayloadRequest, _ ...grpc.CallOption) (*pb.DownloadPayloadResponse, error) {
+	if p.downloadFunc != nil {
+		return p.downloadFunc(ctx, req)
+	}
 	value := p.downloads[string(req.TransferId)]
 	p.downloadCount++
 	p.lastDownload = append([]byte(nil), value...)
@@ -1432,5 +1456,282 @@ func TestSharedGetOwnsBytesBeforeStreamRelease(t *testing.T) {
 	defer worker.mu.Unlock()
 	if worker.released != 0 {
 		t.Fatal("normal streamed release still issued per-Get unary heartbeat")
+	}
+}
+
+func TestGetIntoCopiesInlineAndForwardsClampRange(t *testing.T) {
+	worker := &fakeWorker{getValue: []byte("abcdef"), getVersion: 42}
+	client := testClient(worker, nil)
+	dst := bytes.Repeat([]byte{'?'}, 8)
+	result, found, err := client.GetInto(context.Background(), "k", dst, GetOptions{ClampRange: true})
+	if err != nil || !found || result.Version != 42 || result.Len != 6 {
+		t.Fatalf("GetInto result=%+v found=%v err=%v", result, found, err)
+	}
+	if string(dst) != "abcdef??" {
+		t.Fatalf("GetInto wrote wrong destination bytes: %q", dst)
+	}
+	if !worker.getClampRange {
+		t.Fatal("GetInto did not forward ClampRange to GetRequest")
+	}
+}
+
+func TestGetIntoRejectsSmallBufferAndCompletesRead(t *testing.T) {
+	epoch := uint64(1)
+	worker := &fakeWorker{
+		getSegments:      []*pb.ReadSegment{{LogicalOffset: 0, Target: &pb.PayloadTarget{Target: &pb.PayloadTarget_Shm{Shm: &pb.ShmDescriptor{RegionId: 1, Offset: 0, Length: 3, ViewEpoch: &epoch}}}}},
+		getVersion:       1,
+		getLogicalLength: 3,
+	}
+	client := testClient(worker, nil)
+	client.regions[1] = &mappedRegion{id: 1, data: []byte("abc")}
+
+	_, found, err := client.GetInto(context.Background(), "k", make([]byte, 2), GetOptions{})
+	if !found || !isKind(err, ErrorKindInvalidArgument) {
+		t.Fatalf("small destination should be invalid argument on found object, found=%v err=%v", found, err)
+	}
+	client.sendUnaryHeartbeat(context.Background())
+	if worker.finishedReadThrough != 1 || worker.released != 1 {
+		t.Fatalf("failed GetInto did not release read/view protection: read=%d view=%d", worker.finishedReadThrough, worker.released)
+	}
+}
+
+func TestGetIntoSharedMemoryCopiesDirectlyIntoCallerBuffer(t *testing.T) {
+	epoch := uint64(1)
+	worker := &fakeWorker{
+		getSegments:      []*pb.ReadSegment{{LogicalOffset: 0, Target: &pb.PayloadTarget{Target: &pb.PayloadTarget_Shm{Shm: &pb.ShmDescriptor{RegionId: 1, Offset: 1, Length: 4, ViewEpoch: &epoch}}}}},
+		getVersion:       7,
+		getLogicalLength: 4,
+	}
+	client := testClient(worker, nil)
+	shared := []byte("zabcdz")
+	client.regions[1] = &mappedRegion{id: 1, data: shared}
+	dst := []byte("????")
+	result, found, err := client.GetInto(context.Background(), "k", dst, GetOptions{})
+	if err != nil || !found || result.Len != 4 || string(dst) != "abcd" {
+		t.Fatalf("GetInto SHM result=%+v dst=%q found=%v err=%v", result, dst, found, err)
+	}
+	copy(shared[1:5], "wxyz")
+	if string(dst) != "abcd" {
+		t.Fatal("caller buffer unexpectedly aliases SHM after release")
+	}
+	if worker.released != 1 {
+		t.Fatalf("SHM view not released: %d", worker.released)
+	}
+}
+
+func TestGetReaderReadsSegmentsLazilyAndCloseReleases(t *testing.T) {
+	first := grpcSegment(0, []byte("abc"))
+	second := grpcSegment(3, []byte("def"))
+	worker := &fakeWorker{
+		getSegments:      []*pb.ReadSegment{first, second},
+		getVersion:       12,
+		getLogicalLength: 6,
+	}
+	payload := &fakePayload{downloads: map[string][]byte{"a": []byte("abc"), "b": []byte("def")}}
+	client := testClient(worker, payload)
+	result, found, err := client.GetReader(context.Background(), "k", GetOptions{})
+	if err != nil || !found || result.Version != 12 || result.Len != 6 {
+		t.Fatalf("GetReader result=%+v found=%v err=%v", result, found, err)
+	}
+	buf := make([]byte, 2)
+	n, err := result.Body.Read(buf)
+	if err != nil || n != 2 || string(buf) != "ab" {
+		t.Fatalf("first Reader read n=%d buf=%q err=%v", n, buf, err)
+	}
+	if payload.downloadCount != 1 {
+		t.Fatalf("Reader should download only current segment, count=%d", payload.downloadCount)
+	}
+	if err := result.Body.Close(); err != nil {
+		t.Fatal(err)
+	}
+	client.sendUnaryHeartbeat(context.Background())
+	if worker.finishedReadThrough != 1 {
+		t.Fatalf("Reader Close did not complete read request: %d", worker.finishedReadThrough)
+	}
+}
+
+func TestGetReaderContextCancelAndClientCloseReleaseIdleReader(t *testing.T) {
+	epoch := uint64(1)
+	worker := &fakeWorker{
+		getSegments:      []*pb.ReadSegment{{LogicalOffset: 0, Target: &pb.PayloadTarget{Target: &pb.PayloadTarget_Shm{Shm: &pb.ShmDescriptor{RegionId: 1, Offset: 0, Length: 6, ViewEpoch: &epoch}}}}},
+		getVersion:       1,
+		getLogicalLength: 6,
+	}
+	client := testClient(worker, nil)
+	client.regions[1] = &mappedRegion{id: 1, data: []byte("abcdef")}
+	ctx, cancel := context.WithCancel(context.Background())
+	result, found, err := client.GetReader(ctx, "k", GetOptions{})
+	if err != nil || !found {
+		t.Fatalf("GetReader found=%v err=%v", found, err)
+	}
+	cancel()
+	time.Sleep(20 * time.Millisecond)
+	if _, err := result.Body.Read(make([]byte, 1)); err == nil {
+		t.Fatal("canceled idle reader accepted Read")
+	}
+	client.sendUnaryHeartbeat(context.Background())
+	if worker.finishedReadThrough != 1 || worker.released != 1 {
+		t.Fatalf("context cancel did not release reader: read=%d view=%d", worker.finishedReadThrough, worker.released)
+	}
+
+	worker2 := &fakeWorker{
+		getSegments:      []*pb.ReadSegment{{LogicalOffset: 0, Target: &pb.PayloadTarget{Target: &pb.PayloadTarget_Shm{Shm: &pb.ShmDescriptor{RegionId: 1, Offset: 0, Length: 6, ViewEpoch: &epoch}}}}},
+		getVersion:       1,
+		getLogicalLength: 6,
+	}
+	client2 := testClient(worker2, nil)
+	client2.regions[1] = &mappedRegion{id: 1, data: []byte("abcdef")}
+	if _, found, err := client2.GetReader(context.Background(), "k", GetOptions{}); err != nil || !found {
+		t.Fatalf("second GetReader found=%v err=%v", found, err)
+	}
+	closed := make(chan error, 1)
+	go func() { closed <- client2.Close() }()
+	select {
+	case err := <-closed:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("Client.Close blocked on unclosed Reader")
+	}
+	if worker2.finishedReadThrough != 1 || worker2.released != 1 {
+		t.Fatalf("Client.Close lost reader release: read=%d view=%d", worker2.finishedReadThrough, worker2.released)
+	}
+}
+
+func TestClientCloseCancelsAndWaitsForOngoingReaderRead(t *testing.T) {
+	worker := &fakeWorker{
+		getSegments:      []*pb.ReadSegment{grpcSegment(0, []byte("abcdef"))},
+		getVersion:       1,
+		getLogicalLength: 6,
+	}
+	started := make(chan struct{})
+	payload := &fakePayload{downloadFunc: func(ctx context.Context, _ *pb.DownloadPayloadRequest) (*pb.DownloadPayloadResponse, error) {
+		close(started)
+		<-ctx.Done()
+		return nil, ctx.Err()
+	}}
+	client := testClient(worker, payload)
+	result, found, err := client.GetReader(context.Background(), "k", GetOptions{})
+	if err != nil || !found {
+		t.Fatalf("GetReader found=%v err=%v", found, err)
+	}
+	readDone := make(chan error, 1)
+	go func() {
+		_, err := result.Body.Read(make([]byte, 1))
+		readDone <- err
+	}()
+	<-started
+	closed := make(chan error, 1)
+	go func() { closed <- client.Close() }()
+	select {
+	case err := <-readDone:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("Reader read got %v, want context canceled", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("Client.Close did not cancel in-flight Reader read")
+	}
+	select {
+	case err := <-closed:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("Client.Close did not wait/return after Reader read exited")
+	}
+	if worker.finishedReadThrough != 1 {
+		t.Fatalf("Client.Close did not flush completed reader: %d", worker.finishedReadThrough)
+	}
+}
+
+func TestSetFromInlineExactLengthAndDoesNotReadPastLength(t *testing.T) {
+	worker := &fakeWorker{}
+	client := testClient(worker, nil)
+	src := strings.NewReader("abcdef")
+	result, err := client.SetFrom(context.Background(), "k", src, 3, SetOptions{})
+	if err != nil || result.Len != 3 || result.Version != 3 {
+		t.Fatalf("SetFrom inline result=%+v err=%v", result, err)
+	}
+	if string(worker.setInlineValue) != "abc" {
+		t.Fatalf("SetFrom inline sent %q", worker.setInlineValue)
+	}
+	remaining, _ := io.ReadAll(src)
+	if string(remaining) != "def" {
+		t.Fatalf("SetFrom read past declared length, remaining=%q", remaining)
+	}
+
+	if _, err := client.SetFrom(context.Background(), "k", strings.NewReader("ab"), 3, SetOptions{}); !isKind(err, ErrorKindInvalidArgument) {
+		t.Fatalf("short inline source should fail locally, got %v", err)
+	}
+	if worker.setInlineCount != 1 {
+		t.Fatalf("short inline source should not publish, SetInline count=%d", worker.setInlineCount)
+	}
+}
+
+func TestSetFromStagedSharedMemoryWritesDirectlyAndCleansShortSource(t *testing.T) {
+	token := []byte("release-token")
+	worker := &fakeWorker{allocateTarget: shmTarget(1, 0, 5, 77, token)}
+	client := testClient(worker, nil)
+	client.inlineMax = 1
+	client.writeLeaseReleaseSupported = true
+	staging := []byte("?????")
+	client.regions[1] = &mappedRegion{id: 1, data: staging}
+
+	result, err := client.SetFrom(context.Background(), "large", strings.NewReader("abcde-rest"), 5, SetOptions{})
+	if err != nil || result.Version != 5 || worker.allocateLength != 5 || string(staging) != "abcde" {
+		t.Fatalf("SetFrom SHM result=%+v staging=%q alloc=%d err=%v", result, staging, worker.allocateLength, err)
+	}
+	if worker.setReceipt == nil || worker.setReceipt.Length != 5 || worker.setReceipt.TargetAllocationId != 77 {
+		t.Fatalf("SetFrom SHM receipt mismatch: %+v", worker.setReceipt)
+	}
+
+	worker2 := &fakeWorker{allocateTarget: shmTarget(1, 0, 5, 88, token)}
+	client2 := testClient(worker2, nil)
+	client2.inlineMax = 1
+	client2.writeLeaseReleaseSupported = true
+	client2.regions[1] = &mappedRegion{id: 1, data: []byte("?????")}
+	if _, err := client2.SetFrom(context.Background(), "large", strings.NewReader("abc"), 5, SetOptions{}); !isKind(err, ErrorKindInvalidArgument) {
+		t.Fatalf("short SHM source should fail invalid argument, got %v", err)
+	}
+	if worker2.deleteCount != 1 || worker2.writeReleaseCount != 1 || worker2.writeReleaseAllocation != 88 {
+		t.Fatalf("short SHM source did not clean safely: delete=%d release=%d allocation=%d", worker2.deleteCount, worker2.writeReleaseCount, worker2.writeReleaseAllocation)
+	}
+}
+
+func TestSetFromTcpUsesUnaryProtocolBufferAndExactLength(t *testing.T) {
+	target := &pb.PayloadTarget{Target: &pb.PayloadTarget_Grpc{Grpc: &pb.GrpcTarget{
+		TransferId: []byte("upload"),
+		Length:     4,
+		Nonce:      []byte("nonce"),
+	}}}
+	worker := &fakeWorker{allocateTarget: target}
+	payload := &fakePayload{}
+	client := testClient(worker, payload)
+	client.inlineMax = 1
+
+	src := strings.NewReader("abcd-extra")
+	result, err := client.SetFrom(context.Background(), "large", src, 4, SetOptions{})
+	if err != nil || result.Version != 5 || string(payload.uploadPayload) != "abcd" {
+		t.Fatalf("SetFrom TCP result=%+v uploaded=%q err=%v", result, payload.uploadPayload, err)
+	}
+	remaining, _ := io.ReadAll(src)
+	if string(remaining) != "-extra" {
+		t.Fatalf("SetFrom TCP read past length, remaining=%q", remaining)
+	}
+}
+
+func TestScanDelimiterAndPrefixProjection(t *testing.T) {
+	modified := int64(123)
+	worker := &fakeWorker{
+		scanItems: []*pb.ObjectInfo{{Key: &pb.Key{Value: []byte("p/")}, ModifiedTimeUnixMillis: modified, IsPrefix: true}},
+	}
+	client := testClient(worker, nil)
+	result, err := client.Scan(context.Background(), "p", ScanOptions{Delimiter: "/"})
+	if err != nil || len(result.Items) != 1 || !result.Items[0].IsPrefix {
+		t.Fatalf("Scan result=%+v err=%v", result, err)
+	}
+	if worker.scanDelimiter != "/" {
+		t.Fatalf("Scan delimiter not forwarded: %q", worker.scanDelimiter)
 	}
 }

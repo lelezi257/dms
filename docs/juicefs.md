@@ -21,19 +21,21 @@
 
 | JuiceFS 对象操作 | Go SDK 调用 | 关键语义 |
 | --- | --- | --- |
-| Put | Set | 先读完本次对象再提交；Reader 失败不能提交半个对象 |
-| 完整 Get | Get | 缺失转换为对象不存在，网络错误仍是错误 |
-| 范围 Get | Stat + GetWithOptions | 先确定长度/版本，再读该固定版本范围，避免混用两版数据 |
+| Put | SetFrom | 普通已知长度 Reader 直接交给 SDK；短源失败不发布；未知长度输入仍有受限暂存 |
+| 完整 Get | GetReader | 固定一次版本，返回原生 Reader；缺失转换为对象不存在，网络错误仍是错误 |
+| 范围 Get | GetReader + ClampRange | Node 对同一版本裁剪，去掉前置 Stat；Read 不重复 Get |
 | Delete | Del | 对已缺失对象重复删除也成功 |
 | Head | Stat | 返回实际长度、稳定修改时间，不下载对象 |
-| List / ListAll | Scan 分页 | 使用不透明游标；失败不伪装成正常分页结束 |
+| List / ListAll | Scan 分页 | List 支持 delimiter；使用不透明游标，失败不伪装成正常分页结束 |
+
+上表描述当前未提交候选；下面固定公开基线尚不含新增 Reader 接口。验证当前候选需要按 [Go SDK](go-sdk.md) 的开发构包步骤提供与 fork go.mod 一致的候选 GOPROXY；公开发布前必须更新为可远端获取的固定 SDK 版本。
 
 阶段限制：
 
 - 默认文件块大小 4MiB。适配器单次后端 Put 上限 **8MiB**，不是文件大小上限；512MiB/1GiB 文件由多个对象组成。
-- Put 在适配器内暂存对象，默认最多 4 个并发 Put；`DMS_JUICEFS_MAX_INFLIGHT_PUTS` 可设 1～64，不代表整个进程 RSS 上限。
+- 默认最多 4 个并发 Put；`DMS_JUICEFS_MAX_INFLIGHT_PUTS` 可设 1～64，不代表整个进程 RSS 上限。普通 seekable Reader 不在 Adapter 整份暂存；未知长度输入保留受限暂存，TCP 也仍需协议缓冲。
 - 本阶段挂载显式使用 `--backup-meta 0`，暂不把可能较大的文件系统元数据备份对象写入 DMS。它不是关闭正常后台任务；**不要加 `--no-bgjob`**，删除和其它正常后台流程仍需运行。
-- 不声明 delimiter 列举、multipart 或其它未实现对象能力。TLS/可靠性边界与 [Go SDK](go-sdk.md) 相同。
+- 当前候选支持 delimiter 列举，不声明 multipart 或其它未实现对象能力。TLS/可靠性边界与 [Go SDK](go-sdk.md) 相同。
 - 以下演示禁用 JuiceFS 本地数据缓存，便于观察 DMS 路径；Node 缓存仍然存在。重挂载只清理文件系统客户端状态，不等于清掉 Node 缓存。
 
 ## 2. 先准备环境
@@ -228,7 +230,7 @@ curl -fsS http://127.0.0.1:25000/metrics \
   | grep -E '^dms_(rpc_server_requests_total|node_replica_bytes_total|node_arena_(allocated|logical|quarantined)_bytes)'
 ```
 
-在读文件前后各取一次，比较**增量**：A 的 `PeerService/PullBlock` 与发送 bytes 可以证明 B 是否实际拉取；B 重挂载再次读时，这两项不再增长才是 Node 数据复用的证据。范围读仍可能有 Stat、Get 和 Meta 请求；SHM 读还可能有首次 Region 映射与读保护归还，不能用“没有 Peer”推导“没有 RPC”。删除后 allocated/logical/quarantined 分别表示物理分配、逻辑活数据和仍隔离的容量，不要求进程 RSS 立即归零。
+在读文件前后各取一次，比较**增量**：A 的 `PeerService/PullBlock` 与发送 bytes 可以证明 B 是否实际拉取；B 重挂载再次读时，这两项不再增长才是 Node 数据复用的证据。当前候选 Adapter 范围读不再前置 Stat，但仍有 Get，布局未命中时仍可能访问 Meta；SHM 读还可能有首次 Region 映射与读保护归还，不能用“没有 Peer”推导“没有 RPC”。删除后 allocated/logical/quarantined 分别表示物理分配、逻辑活数据和仍隔离的容量，不要求进程 RSS 立即归零。
 
 组件失败先读本轮 `"$RUN/node.log"`、`"$RUN/meta.log"` 和前台挂载输出，保留数字错误码及上下文。需要集中查看时，沿用[观测总览](observability.md)、[三节点 Metrics 手册](metrics-three-node-manual.md)与[三节点 Trace 手册](tracing-three-node-manual.md)，将 targets、日志目录和 OTLP 地址替换为本轮实例，不复用或覆盖其它实验的配置。
 

@@ -1,6 +1,9 @@
 package dms
 
-import "time"
+import (
+	"io"
+	"time"
+)
 
 // ObjectVersion 对齐 Rust SDK 的 ObjectVersion。0 只作为 wire/零值存在，
 // 正常已提交对象版本由 Meta 分配。
@@ -61,6 +64,12 @@ type SetResult struct {
 	Len     uint64
 }
 
+// GetIntoResult 是 GetInto 的命中返回；Len 是本次选中范围长度。
+type GetIntoResult struct {
+	Version ObjectVersion
+	Len     uint64
+}
+
 // DeleteResult 区分“本次确实发布 tombstone”和“此前已经缺失”。
 type DeleteResult struct {
 	Deleted bool
@@ -73,6 +82,14 @@ type GetResult struct {
 	Bytes   []byte
 }
 
+// ReadResult 是 GetReader 的命中返回。Body 必须由调用方关闭；读到 EOF、Close、
+// 错误或请求上下文取消都会归还本次固定版本读保护。
+type ReadResult struct {
+	Version ObjectVersion
+	Len     uint64
+	Body    io.ReadCloser
+}
+
 // ByteRange 表示 [Offset, Offset+Len)。Len==0 是零长度范围，不表示读到尾。
 type ByteRange struct {
 	Offset uint64
@@ -80,9 +97,12 @@ type ByteRange struct {
 }
 
 // GetOptions 保留 Current/Exact 版本选择与可选 Range。Range==nil 表示完整对象。
+// ClampRange 默认 false，保持严格范围语义；显式 true 时由 Node 在同一已解析版本
+// 上裁剪越过尾部的范围，SDK 不先 Stat。
 type GetOptions struct {
-	Version ReadVersion
-	Range   *ByteRange
+	Version    ReadVersion
+	Range      *ByteRange
+	ClampRange bool
 }
 
 // ObjectInfo 是 Stat/Scan 的公共对象属性投影，不暴露 protobuf。
@@ -91,6 +111,7 @@ type ObjectInfo struct {
 	Len          uint64
 	ModifiedTime time.Time
 	Version      ObjectVersion
+	IsPrefix     bool
 }
 
 // ScanOptions.StartAfter 只用于第一页；Cursor 非空时必须只传 Cursor。
@@ -98,6 +119,7 @@ type ScanOptions struct {
 	Limit      uint32
 	StartAfter *string
 	Cursor     string
+	Delimiter  string
 }
 
 type ScanResult struct {

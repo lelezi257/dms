@@ -6,6 +6,7 @@
 // AtomicU64 生成无需 Mutex 的进程内 sequence。
 use std::{
     collections::HashSet,
+    io::Read,
     sync::atomic::{AtomicU64, Ordering},
 };
 
@@ -13,10 +14,10 @@ use tokio::runtime::{Builder, Runtime};
 use uuid::Uuid;
 
 use crate::client::{
-    ClientOptions, ConnectError, DeleteResult, GetOptions, GetResult, HashDeleteOptions,
-    HashEntriesResult, HashGetOptions, HashMultiGetResult, HashRangeWriteOptions,
-    HashRangeWriteResult, HashScanOptions, HashScanResult, HashSetResult, HashValue,
-    HashWriteOptions, MSetOptions, MSetResult, RangeWriteOptions, ResolvedClientOptions,
+    ClientOptions, ConnectError, DeleteResult, GetIntoResult, GetOptions, GetResult,
+    HashDeleteOptions, HashEntriesResult, HashGetOptions, HashMultiGetResult,
+    HashRangeWriteOptions, HashRangeWriteResult, HashScanOptions, HashScanResult, HashSetResult,
+    HashValue, HashWriteOptions, MSetOptions, MSetResult, RangeWriteOptions, ResolvedClientOptions,
     SetOptions, SetResult,
 };
 use crate::metrics::{ClientMetrics, ClientOperation};
@@ -25,7 +26,7 @@ use crate::{
     ScanResult,
 };
 
-use super::node_connection::{NodeConnection, SharedViewInner, SharedWriteInner};
+use super::node_connection::{NodeConnection, SharedViewInner, SharedWriteInner, ValueReaderInner};
 
 type SharedMetrics = (
     ClientMetrics,
@@ -163,10 +164,56 @@ impl DmsClientImpl {
         ))
     }
 
+    pub(crate) fn set_from<R: Read>(
+        &self,
+        key: Key,
+        src: R,
+        length: u64,
+        options: SetOptions,
+    ) -> Result<SetResult, DmsError> {
+        let operation_id = self.next_operation_id();
+        self.runtime.block_on(self.connection.set_from(
+            &key,
+            src,
+            length,
+            options,
+            self.options.default_durability,
+            operation_id,
+        ))
+    }
+
     pub(crate) fn get(&self, key: Key, options: GetOptions) -> Result<Option<GetResult>, DmsError> {
         // 薄 Client 原则：每次读取都到 Node，由 Node 复用本地 Current/Block。
         // SDK 只返回 owned Vec 或显式 SharedValueView，不再跨请求保存 value bytes。
         self.runtime.block_on(self.connection.get(&key, options))
+    }
+
+    pub(crate) fn get_into(
+        &self,
+        key: Key,
+        dst: &mut [u8],
+        options: GetOptions,
+    ) -> Result<Option<GetIntoResult>, DmsError> {
+        self.runtime
+            .block_on(self.connection.get_into(&key, dst, options))
+    }
+
+    pub(crate) fn get_reader(
+        &self,
+        key: Key,
+        options: GetOptions,
+    ) -> Result<Option<ValueReaderInner>, DmsError> {
+        self.runtime
+            .block_on(self.connection.get_reader(&key, options))
+    }
+
+    pub(crate) fn read_value_reader(
+        &self,
+        reader: &mut ValueReaderInner,
+        dst: &mut [u8],
+    ) -> Result<usize, DmsError> {
+        self.runtime
+            .block_on(self.connection.read_value_reader(reader, dst))
     }
 
     pub(crate) fn stat(&self, key: Key) -> Result<Option<ObjectInfo>, DmsError> {

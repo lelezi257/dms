@@ -7,6 +7,7 @@
 use std::{
     collections::{BTreeMap, VecDeque},
     future::Future,
+    io::Read,
     path::PathBuf,
     sync::{
         Arc, Mutex,
@@ -34,15 +35,16 @@ use tower::service_fn;
 use super::grpc_clients::worker_client;
 use crate::types::system_time_from_unix_millis;
 use crate::{
-    ByteRange, ClientTlsOptions, DeleteResult, DmsError, DurabilityPolicy, GetOptions, GetResult,
-    HashDeleteOptions, HashEntriesResult, HashField, HashGetOptions, HashMultiGetResult,
-    HashRangeWriteOptions, HashRangeWriteResult, HashReadVersion, HashScanOptions, HashScanResult,
-    HashSetResult, HashValue, HashVersion, HashWriteMode, HashWriteOptions, Key, KeyVersion,
-    MSetResult, ObjectInfo, ObjectVersion, OperationId, RangeWriteOptions, ReadVersion, ScanCursor,
-    ScanOptions, ScanResult, SetOptions, SetResult, WriteCondition,
+    ByteRange, ClientTlsOptions, DeleteResult, DmsError, DurabilityPolicy, GetIntoResult,
+    GetOptions, GetResult, HashDeleteOptions, HashEntriesResult, HashField, HashGetOptions,
+    HashMultiGetResult, HashRangeWriteOptions, HashRangeWriteResult, HashReadVersion,
+    HashScanOptions, HashScanResult, HashSetResult, HashValue, HashVersion, HashWriteMode,
+    HashWriteOptions, Key, KeyVersion, MSetResult, ObjectInfo, ObjectVersion, OperationId,
+    RangeWriteOptions, ReadVersion, ScanCursor, ScanOptions, ScanResult, SetOptions, SetResult,
+    WriteCondition,
 };
 
-use super::transfer_engine::{PayloadBuffer, TransferEngine};
+use super::transfer_engine::{PayloadBuffer, ReadPayload, TransferEngine};
 use crate::client::ResolvedClientOptions;
 use crate::metrics::{ClientMetrics, NodeSessionEvent};
 use dms_transport::{GrpcConfig, SecurityManager, TlsConfig, status_to_dms_error_with};
@@ -259,6 +261,40 @@ pub(crate) struct SharedViewInner {
     version: ObjectVersion,
     buffer: PayloadBuffer,
     _protection: ReadProtection,
+}
+
+/// SDK 内部持有的 fixed-version native reader。
+///
+/// 它持有 ReadProtection 直到 EOF、错误或用户提前 Drop。gRPC 分段按需下载当前
+/// segment；SHM 分段按需映射后直接复制到调用方 read buffer。
+pub(crate) struct ValueReaderInner {
+    version: ObjectVersion,
+    len: u64,
+    segments: Vec<pb::ReadSegment>,
+    current_segment: usize,
+    offset_in_segment: usize,
+    consumed: u64,
+    loaded: Option<LoadedReadSegment>,
+    protection: Option<ReadProtection>,
+}
+
+struct LoadedReadSegment {
+    index: usize,
+    payload: ReadPayload,
+}
+
+impl ValueReaderInner {
+    pub(crate) fn version(&self) -> ObjectVersion {
+        self.version
+    }
+
+    pub(crate) fn len(&self) -> u64 {
+        self.len
+    }
+
+    fn release_protection(&mut self) {
+        let _ = self.protection.take();
+    }
 }
 
 /// 长连接 Task 自己消费的两个运行参数，避免把 SDK 的整份配置带进后台任务。
@@ -628,6 +664,108 @@ impl NodeConnection {
         })
     }
 
+    pub(crate) async fn set_from<R: Read>(
+        &self,
+        key: &Key,
+        mut src: R,
+        length: u64,
+        options: SetOptions,
+        default_durability: DurabilityPolicy,
+        operation_id: OperationId,
+    ) -> Result<SetResult, DmsError> {
+        let len = usize::try_from(length).map_err(|_| {
+            DmsError::client_invalid_argument("SET_FROM length is too large for this platform")
+        })?;
+        let mut worker = self.worker.clone();
+        if len <= self.inline_threshold_bytes {
+            let value = read_exact_source(&mut src, len)?;
+            let response = observe_rpc(
+                self.rpc_metrics.as_ref(),
+                dms_metrics::RpcCall::WORKER_SET_INLINE,
+                worker.set_inline(pb::SetInlineRequest {
+                    session_id: self.session_id,
+                    key: Some(pb::Key {
+                        value: key.as_bytes().to_vec(),
+                    }),
+                    value,
+                    operation_id: Some(encode_operation_id(operation_id)),
+                    condition: encode_condition(options.condition),
+                    durability: encode_durability(options.durability.unwrap_or(default_durability)),
+                }),
+            )
+            .await
+            .map_err(map_status)?
+            .into_inner();
+            return Ok(SetResult {
+                version: ObjectVersion(response.version),
+                len: response.length,
+            });
+        }
+
+        let allocation = observe_rpc(
+            self.rpc_metrics.as_ref(),
+            dms_metrics::RpcCall::WORKER_ALLOCATE_STAGING,
+            worker.allocate_staging(pb::AllocateStagingRequest {
+                session_id: self.session_id,
+                length,
+                purpose: "reader-value".to_string(),
+            }),
+        )
+        .await
+        .map_err(map_status)?
+        .into_inner();
+        let target = allocation.target.ok_or_else(|| {
+            DmsError::client_protocol_violation("missing payload target".to_string())
+        })?;
+        let upload_release = write_release_from_target(&target);
+        let receipt = match self.upload_reader_to_target(target, &mut src, len).await {
+            Ok(receipt) => receipt,
+            Err(error) => {
+                self.write_releases.release(upload_release);
+                let _ = observe_rpc(
+                    self.rpc_metrics.as_ref(),
+                    dms_metrics::RpcCall::WORKER_DELETE_STAGING,
+                    worker.delete_staging(pb::DeleteStagingRequest {
+                        session_id: self.session_id,
+                        staging_id: allocation.staging_id,
+                    }),
+                )
+                .await;
+                return Err(error);
+            }
+        };
+        let commit_release = write_release_from_receipt(&receipt);
+        let response = match observe_rpc(
+            self.rpc_metrics.as_ref(),
+            dms_metrics::RpcCall::WORKER_SET,
+            worker.set(pb::SetRequest {
+                session_id: self.session_id,
+                key: Some(pb::Key {
+                    value: key.as_bytes().to_vec(),
+                }),
+                value: Some(pb::StagedValue {
+                    staging_id: allocation.staging_id,
+                    receipt: Some(receipt),
+                }),
+                operation_id: Some(encode_operation_id(operation_id)),
+                condition: encode_condition(options.condition),
+                durability: encode_durability(options.durability.unwrap_or(default_durability)),
+            }),
+        )
+        .await
+        {
+            Ok(response) => response.into_inner(),
+            Err(status) => {
+                self.write_releases.release(commit_release);
+                return Err(map_status(status));
+            }
+        };
+        Ok(SetResult {
+            version: ObjectVersion(response.version),
+            len: response.length,
+        })
+    }
+
     pub(crate) async fn allocate_write(
         &self,
         key: Key,
@@ -749,12 +887,13 @@ impl NodeConnection {
                 range: options.range.map(encode_range),
                 max_inline_bytes: 0,
                 read_request_id,
+                clamp_range: options.clamp_range,
             }),
         )
         .await
         .map_err(map_status)?
         .into_inner();
-        self.decode_view_response(response, options.range, Some(read))
+        self.decode_view_response(response, options.range, options.clamp_range, Some(read))
             .await
     }
 
@@ -763,6 +902,7 @@ impl NodeConnection {
         &self,
         response: pb::GetResponse,
         range: Option<ByteRange>,
+        clamp_range: bool,
         read: Option<ReadRequestGuard>,
     ) -> Result<Option<SharedViewInner>, DmsError> {
         // 即使不是单段、协议校验失败或 FD 获取失败，也要释放整份响应的借用。
@@ -777,7 +917,7 @@ impl NodeConnection {
                 "shared-memory view currently supports exactly one read segment".to_string(),
             ));
         }
-        let expected_length = requested_read_length(response.logical_length, range)?;
+        let expected_length = selected_read_length(response.logical_length, range, clamp_range)?;
         validate_read_segments(&response.segments, expected_length)?;
         let segment = response.segments.into_iter().next().ok_or_else(|| {
             DmsError::client_protocol_violation("found response has no segment".to_string())
@@ -893,6 +1033,7 @@ impl NodeConnection {
                 // bytes 塞进控制响应。
                 max_inline_bytes: self.inline_read_budget() as u64,
                 read_request_id,
+                clamp_range: options.clamp_range,
             }),
         )
         .await
@@ -901,10 +1042,85 @@ impl NodeConnection {
         self.decode_read_response(
             response,
             options.range,
+            options.clamp_range,
             self.inline_read_budget(),
             Some(read),
         )
         .await
+    }
+
+    pub(crate) async fn get_into(
+        &self,
+        key: &Key,
+        dst: &mut [u8],
+        options: GetOptions,
+    ) -> Result<Option<GetIntoResult>, DmsError> {
+        let mut worker = self.worker.clone();
+        let read = self.begin_read_request();
+        let read_request_id = read.id();
+        let response = observe_rpc(
+            self.rpc_metrics.as_ref(),
+            dms_metrics::RpcCall::WORKER_GET,
+            worker.get(pb::GetRequest {
+                session_id: self.session_id,
+                key: Some(pb::Key {
+                    value: key.as_bytes().to_vec(),
+                }),
+                exact_version: match options.version {
+                    ReadVersion::Current => None,
+                    ReadVersion::Exact(version) => Some(version.0),
+                },
+                range: options.range.map(encode_range),
+                max_inline_bytes: self.inline_read_budget() as u64,
+                read_request_id,
+                clamp_range: options.clamp_range,
+            }),
+        )
+        .await
+        .map_err(map_status)?
+        .into_inner();
+        self.decode_read_into_response(
+            response,
+            options.range,
+            options.clamp_range,
+            self.inline_read_budget(),
+            Some(read),
+            dst,
+        )
+        .await
+    }
+
+    pub(crate) async fn get_reader(
+        &self,
+        key: &Key,
+        options: GetOptions,
+    ) -> Result<Option<ValueReaderInner>, DmsError> {
+        let mut worker = self.worker.clone();
+        let read = self.begin_read_request();
+        let read_request_id = read.id();
+        let response = observe_rpc(
+            self.rpc_metrics.as_ref(),
+            dms_metrics::RpcCall::WORKER_GET,
+            worker.get(pb::GetRequest {
+                session_id: self.session_id,
+                key: Some(pb::Key {
+                    value: key.as_bytes().to_vec(),
+                }),
+                exact_version: match options.version {
+                    ReadVersion::Current => None,
+                    ReadVersion::Exact(version) => Some(version.0),
+                },
+                range: options.range.map(encode_range),
+                max_inline_bytes: 0,
+                read_request_id,
+                clamp_range: options.clamp_range,
+            }),
+        )
+        .await
+        .map_err(map_status)?
+        .into_inner();
+        self.decode_reader_response(response, options.range, options.clamp_range, Some(read))
+            .await
     }
 
     pub(crate) async fn stat(&self, key: &Key) -> Result<Option<ObjectInfo>, DmsError> {
@@ -1504,13 +1720,15 @@ impl NodeConnection {
         &self,
         response: pb::GetResponse,
     ) -> Result<Option<GetResult>, DmsError> {
-        self.decode_read_response(response, None, 0, None).await
+        self.decode_read_response(response, None, false, 0, None)
+            .await
     }
 
     async fn decode_read_response(
         &self,
         response: pb::GetResponse,
         range: Option<ByteRange>,
+        clamp_range: bool,
         max_inline_bytes: usize,
         read: Option<ReadRequestGuard>,
     ) -> Result<Option<GetResult>, DmsError> {
@@ -1521,7 +1739,7 @@ impl NodeConnection {
             reject_inline_on_miss(&response)?;
             return Ok(None);
         }
-        let expected_length = requested_read_length(response.logical_length, range)?;
+        let expected_length = selected_read_length(response.logical_length, range, clamp_range)?;
         if let Some(bytes) = take_inline_value(
             response.inline_value,
             &response.segments,
@@ -1579,6 +1797,245 @@ impl NodeConnection {
         }
         Ok(bytes)
     }
+
+    async fn decode_read_into_response(
+        &self,
+        response: pb::GetResponse,
+        range: Option<ByteRange>,
+        clamp_range: bool,
+        max_inline_bytes: usize,
+        read: Option<ReadRequestGuard>,
+        dst: &mut [u8],
+    ) -> Result<Option<GetIntoResult>, DmsError> {
+        let _protection = self.view_releases.protect(response.segments.iter(), read);
+        if !response.found {
+            reject_inline_on_miss(&response)?;
+            return Ok(None);
+        }
+        let expected_length = selected_read_length(response.logical_length, range, clamp_range)?;
+        let len = usize::try_from(expected_length).map_err(|_| {
+            DmsError::client_protocol_violation("read response length is too large")
+        })?;
+        if dst.len() < len {
+            return Err(DmsError::client_invalid_argument(format!(
+                "destination buffer length {} is smaller than selected DMS read length {}",
+                dst.len(),
+                expected_length
+            )));
+        }
+        if let Some(bytes) = take_inline_value(
+            response.inline_value,
+            &response.segments,
+            expected_length,
+            max_inline_bytes,
+        )? {
+            dst[..len].copy_from_slice(&bytes);
+            return Ok(Some(GetIntoResult {
+                version: ObjectVersion(response.version),
+                len: expected_length,
+            }));
+        }
+        self.copy_segments_into(response.segments, expected_length, &mut dst[..len])
+            .await?;
+        Ok(Some(GetIntoResult {
+            version: ObjectVersion(response.version),
+            len: expected_length,
+        }))
+    }
+
+    async fn decode_reader_response(
+        &self,
+        mut response: pb::GetResponse,
+        range: Option<ByteRange>,
+        clamp_range: bool,
+        read: Option<ReadRequestGuard>,
+    ) -> Result<Option<ValueReaderInner>, DmsError> {
+        let protection = self.view_releases.protect(response.segments.iter(), read);
+        if !response.found {
+            reject_inline_on_miss(&response)?;
+            return Ok(None);
+        }
+        reject_inline_value(&response)?;
+        let expected_length = selected_read_length(response.logical_length, range, clamp_range)?;
+        response
+            .segments
+            .sort_by_key(|segment| segment.logical_offset);
+        validate_read_segments(&response.segments, expected_length)?;
+        Ok(Some(ValueReaderInner {
+            version: ObjectVersion(response.version),
+            len: expected_length,
+            segments: response.segments,
+            current_segment: 0,
+            offset_in_segment: 0,
+            consumed: 0,
+            loaded: None,
+            protection: Some(protection),
+        }))
+    }
+
+    async fn copy_segments_into(
+        &self,
+        mut segments: Vec<pb::ReadSegment>,
+        expected_length: u64,
+        dst: &mut [u8],
+    ) -> Result<(), DmsError> {
+        segments.sort_by_key(|segment| segment.logical_offset);
+        validate_read_segments(&segments, expected_length)?;
+        let mut output_offset = 0usize;
+        for segment in segments {
+            let target = segment.target.ok_or_else(|| {
+                DmsError::client_protocol_violation("read segment has no target".to_string())
+            })?;
+            let declared_length = read_target_length(&target)?;
+            let payload = self.transfer.read_payload(self.session_id, target).await?;
+            if payload.len()? as u64 != declared_length {
+                return Err(DmsError::client_protocol_violation(
+                    "read payload length differs from descriptor",
+                ));
+            }
+            let part_len = usize::try_from(declared_length).map_err(|_| {
+                DmsError::client_protocol_violation("read segment length is too large")
+            })?;
+            let end = output_offset.checked_add(part_len).ok_or_else(|| {
+                DmsError::client_protocol_violation("read output offset overflow".to_string())
+            })?;
+            payload.copy_range_into(0, &mut dst[output_offset..end])?;
+            output_offset = end;
+        }
+        Ok(())
+    }
+
+    pub(crate) async fn read_value_reader(
+        &self,
+        reader: &mut ValueReaderInner,
+        dst: &mut [u8],
+    ) -> Result<usize, DmsError> {
+        if dst.is_empty() {
+            return Ok(0);
+        }
+        if reader.consumed == reader.len {
+            reader.release_protection();
+            return Ok(0);
+        }
+        let result = self.read_value_reader_once(reader, dst).await;
+        match &result {
+            Ok(_) if reader.consumed == reader.len => reader.release_protection(),
+            Err(_) => reader.release_protection(),
+            _ => {}
+        }
+        result
+    }
+
+    async fn read_value_reader_once(
+        &self,
+        reader: &mut ValueReaderInner,
+        dst: &mut [u8],
+    ) -> Result<usize, DmsError> {
+        let mut written = 0usize;
+        while written < dst.len()
+            && reader.consumed < reader.len
+            && reader.current_segment < reader.segments.len()
+        {
+            if reader
+                .loaded
+                .as_ref()
+                .is_none_or(|loaded| loaded.index != reader.current_segment)
+            {
+                let target = reader.segments[reader.current_segment]
+                    .target
+                    .clone()
+                    .ok_or_else(|| {
+                        DmsError::client_protocol_violation(
+                            "read segment has no target".to_string(),
+                        )
+                    })?;
+                let declared_length = read_target_length(&target)?;
+                let payload = self.transfer.read_payload(self.session_id, target).await?;
+                if payload.len()? as u64 != declared_length {
+                    return Err(DmsError::client_protocol_violation(
+                        "read payload length differs from descriptor",
+                    ));
+                }
+                reader.loaded = Some(LoadedReadSegment {
+                    index: reader.current_segment,
+                    payload,
+                });
+            }
+            let loaded = reader.loaded.as_ref().ok_or_else(|| {
+                DmsError::client_protocol_violation("reader segment was not loaded")
+            })?;
+            let available = loaded
+                .payload
+                .len()?
+                .checked_sub(reader.offset_in_segment)
+                .ok_or_else(|| {
+                    DmsError::client_protocol_violation("reader offset exceeds segment length")
+                })?;
+            if available == 0 {
+                reader.current_segment += 1;
+                reader.offset_in_segment = 0;
+                reader.loaded = None;
+                continue;
+            }
+            let to_copy = available.min(dst.len() - written);
+            loaded.payload.copy_range_into(
+                reader.offset_in_segment,
+                &mut dst[written..written + to_copy],
+            )?;
+            reader.offset_in_segment += to_copy;
+            reader.consumed = reader.consumed.checked_add(to_copy as u64).ok_or_else(|| {
+                DmsError::client_protocol_violation("reader consumed length overflow")
+            })?;
+            written += to_copy;
+            if reader.offset_in_segment == loaded.payload.len()? {
+                reader.current_segment += 1;
+                reader.offset_in_segment = 0;
+                reader.loaded = None;
+            }
+        }
+        Ok(written)
+    }
+
+    async fn upload_reader_to_target<R: Read>(
+        &self,
+        target: pb::PayloadTarget,
+        src: &mut R,
+        len: usize,
+    ) -> Result<pb::TransferReceipt, DmsError> {
+        match target.target.as_ref() {
+            Some(pb::payload_target::Target::Grpc(grpc)) if grpc.length != len as u64 => {
+                return Err(DmsError::client_protocol_violation(
+                    "payload target length does not match source length".to_string(),
+                ));
+            }
+            Some(pb::payload_target::Target::Shm(shm)) if shm.length != len as u64 => {
+                return Err(DmsError::client_protocol_violation(
+                    "SHM target length does not match source length".to_string(),
+                ));
+            }
+            _ => {}
+        }
+        match target.target.as_ref() {
+            Some(pb::payload_target::Target::Grpc(_)) => {
+                let value = read_exact_source(src, len)?;
+                self.transfer.upload(self.session_id, target, &value).await
+            }
+            Some(pb::payload_target::Target::Shm(_)) => {
+                let mut buffer = self.transfer.map_target(self.session_id, target).await?;
+                read_exact_into(src, buffer.as_mut_slice()?)?;
+                buffer.receipt()
+            }
+            Some(pb::payload_target::Target::Rdma(_)) => Err(DmsError::node_transfer_unsupported(
+                "RDMA provider is not enabled by this SDK build".to_string(),
+            )),
+            Some(pb::payload_target::Target::Ub(_)) => Err(DmsError::node_transfer_unsupported(
+                "UB provider is not enabled by this SDK build".to_string(),
+            )),
+            None => Err(DmsError::client_protocol_violation(
+                "empty payload target".to_string(),
+            )),
+        }
+    }
 }
 
 fn append_downloaded_part(bytes: &mut Vec<u8>, part: Vec<u8>) {
@@ -1591,8 +2048,37 @@ fn append_downloaded_part(bytes: &mut Vec<u8>, part: Vec<u8>) {
     }
 }
 
-fn requested_read_length(logical_length: u64, range: Option<ByteRange>) -> Result<u64, DmsError> {
+fn read_exact_source(src: &mut impl Read, len: usize) -> Result<Vec<u8>, DmsError> {
+    let mut value = vec![0; len];
+    read_exact_into(src, &mut value)?;
+    Ok(value)
+}
+
+fn read_exact_into(src: &mut impl Read, dst: &mut [u8]) -> Result<(), DmsError> {
+    src.read_exact(dst).map_err(|error| {
+        if error.kind() == std::io::ErrorKind::UnexpectedEof {
+            DmsError::client_invalid_argument(
+                "SET_FROM source ended before the declared length was read",
+            )
+        } else {
+            DmsError::client_invalid_argument(format!("failed to read SET_FROM source: {error}"))
+        }
+    })
+}
+
+fn selected_read_length(
+    logical_length: u64,
+    range: Option<ByteRange>,
+    clamp_range: bool,
+) -> Result<u64, DmsError> {
     match range {
+        Some(range) if range.offset.checked_add(range.len).is_none() => {
+            Err(DmsError::client_protocol_violation(
+                "read response logical length does not contain requested range",
+            ))
+        }
+        Some(range) if clamp_range && range.offset >= logical_length => Ok(0),
+        Some(range) if clamp_range => Ok(range.len.min(logical_length - range.offset)),
         Some(range)
             if range
                 .offset
@@ -1999,6 +2485,7 @@ fn encode_scan_options(options: ScanOptions) -> pb::ObjectScanOptions {
         limit: options.limit,
         start_after: options.start_after,
         cursor: options.cursor.unwrap_or_default(),
+        delimiter: options.delimiter,
     }
 }
 
@@ -2042,6 +2529,7 @@ fn decode_object_info(info: pb::ObjectInfo) -> Result<ObjectInfo, DmsError> {
         modified_time: system_time_from_unix_millis(info.modified_time_unix_millis)
             .map_err(|error| DmsError::client_protocol_violation(error.to_string()))?,
         version: ObjectVersion(info.version),
+        is_prefix: info.is_prefix,
     })
 }
 
@@ -2129,14 +2617,14 @@ mod read_lifecycle_tests {
             multi.segments.extend(shared_response(1).segments);
             assert!(
                 connection
-                    .decode_view_response(multi, None, None)
+                    .decode_view_response(multi, None, false, None)
                     .await
                     .is_err()
             );
             assert_eq!(releases.released_view_through(), Some(1));
             assert!(
                 connection
-                    .decode_view_response(shared_response(2), None, None)
+                    .decode_view_response(shared_response(2), None, false, None)
                     .await
                     .is_err()
             );
@@ -2260,14 +2748,38 @@ mod read_lifecycle_tests {
             )
             .is_err()
         );
-        assert!(requested_read_length(6, Some(ByteRange { offset: 2, len: 1 })).is_ok());
+        assert!(selected_read_length(6, Some(ByteRange { offset: 2, len: 1 }), false).is_ok());
         assert!(
-            requested_read_length(
+            selected_read_length(
                 6,
                 Some(ByteRange {
                     offset: u64::MAX,
                     len: 2
-                })
+                }),
+                false
+            )
+            .is_err()
+        );
+        assert_eq!(
+            selected_read_length(10, Some(ByteRange { offset: 8, len: 8 }), true).unwrap(),
+            2
+        );
+        assert_eq!(
+            selected_read_length(10, Some(ByteRange { offset: 10, len: 8 }), true).unwrap(),
+            0
+        );
+        assert_eq!(
+            selected_read_length(10, Some(ByteRange { offset: 99, len: 8 }), true).unwrap(),
+            0
+        );
+        assert!(
+            selected_read_length(
+                10,
+                Some(ByteRange {
+                    offset: u64::MAX,
+                    len: 8,
+                }),
+                true,
             )
             .is_err()
         );
@@ -2404,6 +2916,157 @@ mod read_lifecycle_tests {
         assert_eq!(releases.released_view_through(), Some(1));
         // 只有 View/ReadProtection drop 后，Node 才能收到 finished 水位。
         assert_eq!(finishes.finished_read_request_through(), Some(1));
+    }
+
+    #[test]
+    fn reader_keeps_read_request_live_until_reader_drop() {
+        tokio::runtime::Runtime::new().unwrap().block_on(async {
+            let releases = Arc::new(ViewReleaseTracker::default());
+            let connection = disconnected_node(&releases);
+            let read = connection.begin_read_request();
+            let finishes = Arc::clone(&read.finishes);
+
+            let reader = connection
+                .decode_reader_response(shared_response(1), None, false, Some(read))
+                .await
+                .expect("decode reader")
+                .expect("hit");
+            assert_eq!(reader.version(), ObjectVersion(1));
+            assert_eq!(reader.len(), 4);
+            assert_eq!(releases.released_view_through(), None);
+            assert_eq!(finishes.finished_read_request_through(), None);
+
+            drop(reader);
+            assert_eq!(releases.released_view_through(), Some(1));
+            assert_eq!(finishes.finished_read_request_through(), Some(1));
+        });
+    }
+
+    #[test]
+    fn reader_eof_releases_read_request_before_reader_drop() {
+        tokio::runtime::Runtime::new().unwrap().block_on(async {
+            let releases = Arc::new(ViewReleaseTracker::default());
+            let connection = disconnected_node(&releases);
+            let read = connection.begin_read_request();
+            let finishes = Arc::clone(&read.finishes);
+            let response = pb::GetResponse {
+                found: true,
+                version: 9,
+                logical_length: 0,
+                segments: Vec::new(),
+                inline_value: None,
+                read_request_id: read.id(),
+            };
+            let mut reader = connection
+                .decode_reader_response(response, None, false, Some(read))
+                .await
+                .expect("decode reader")
+                .expect("hit");
+
+            let mut dst = [0_u8; 8];
+            assert_eq!(
+                connection
+                    .read_value_reader(&mut reader, &mut dst)
+                    .await
+                    .expect("read EOF"),
+                0
+            );
+            assert_eq!(finishes.finished_read_request_through(), Some(1));
+
+            drop(reader);
+            assert_eq!(finishes.finished_read_request_through(), Some(1));
+        });
+    }
+
+    #[test]
+    fn get_into_rejects_small_buffer_before_copy_and_completes_read() {
+        tokio::runtime::Runtime::new().unwrap().block_on(async {
+            let releases = Arc::new(ViewReleaseTracker::default());
+            let connection = disconnected_node(&releases);
+            let read = connection.begin_read_request();
+            let finishes = Arc::clone(&read.finishes);
+            let response = pb::GetResponse {
+                found: true,
+                version: 7,
+                logical_length: 4,
+                segments: Vec::new(),
+                inline_value: Some(b"data".to_vec()),
+                read_request_id: read.id(),
+            };
+            let mut dst = [0_u8; 3];
+
+            let error = connection
+                .decode_read_into_response(response, None, false, 64, Some(read), &mut dst)
+                .await
+                .expect_err("small buffer should fail");
+            assert_eq!(error.kind(), dms_error::ErrorKind::InvalidArgument);
+            assert_eq!(dst, [0, 0, 0]);
+            assert_eq!(finishes.finished_read_request_through(), Some(1));
+        });
+    }
+
+    #[test]
+    fn get_into_accepts_clamped_tail_and_eof_inline_responses() {
+        tokio::runtime::Runtime::new().unwrap().block_on(async {
+            let releases = Arc::new(ViewReleaseTracker::default());
+            let connection = disconnected_node(&releases);
+            let mut dst = [0_u8; 8];
+            let tail = pb::GetResponse {
+                found: true,
+                version: 11,
+                logical_length: 10,
+                segments: Vec::new(),
+                inline_value: Some(b"ij".to_vec()),
+                read_request_id: 0,
+            };
+            let result = connection
+                .decode_read_into_response(
+                    tail,
+                    Some(ByteRange { offset: 8, len: 8 }),
+                    true,
+                    64,
+                    None,
+                    &mut dst,
+                )
+                .await
+                .expect("decode clamped tail")
+                .expect("hit");
+            assert_eq!(result.version, ObjectVersion(11));
+            assert_eq!(result.len, 2);
+            assert_eq!(&dst[..2], b"ij");
+            assert_eq!(&dst[2..], &[0; 6]);
+
+            let eof = pb::GetResponse {
+                found: true,
+                version: 12,
+                logical_length: 10,
+                segments: Vec::new(),
+                inline_value: Some(Vec::new()),
+                read_request_id: 0,
+            };
+            let result = connection
+                .decode_read_into_response(
+                    eof,
+                    Some(ByteRange { offset: 99, len: 8 }),
+                    true,
+                    64,
+                    None,
+                    &mut dst,
+                )
+                .await
+                .expect("decode clamped eof")
+                .expect("hit");
+            assert_eq!(result.version, ObjectVersion(12));
+            assert_eq!(result.len, 0);
+            assert_eq!(&dst[2..], &[0; 6]);
+        });
+    }
+
+    #[test]
+    fn set_from_short_source_is_invalid_argument() {
+        let mut source = std::io::Cursor::new(b"abc".to_vec());
+        let error = read_exact_source(&mut source, 4).expect_err("short source");
+        assert_eq!(error.kind(), dms_error::ErrorKind::InvalidArgument);
     }
 
     #[tokio::test]

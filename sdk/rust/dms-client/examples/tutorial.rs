@@ -37,6 +37,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             GetOptions {
                 version: ReadVersion::Exact(original.version),
                 range: Some(ByteRange { offset: 3, len: 4 }),
+                clamp_range: false,
             },
         )?
         .ok_or("historical value missing")?;

@@ -397,6 +397,7 @@ impl WorkerService for WorkerServiceHandler {
                 key,
                 request.exact_version,
                 range,
+                request.clamp_range,
                 request.max_inline_bytes,
                 request.read_request_id,
             )
@@ -533,6 +534,7 @@ impl WorkerService for WorkerServiceHandler {
                     key.value,
                     None,
                     None,
+                    false,
                     0,
                     request.read_request_id,
                 )
@@ -1582,6 +1584,7 @@ mod tests {
                     GetOptions {
                         version: ReadVersion::Exact(base.version),
                         range: None,
+                        clamp_range: false,
                     },
                 )
                 .expect("exact old version")
@@ -1772,6 +1775,7 @@ mod tests {
                     GetOptions {
                         version: ReadVersion::Current,
                         range,
+                        clamp_range: false,
                     },
                 )
                 .expect("range get")
@@ -1811,7 +1815,8 @@ mod tests {
                     key,
                     GetOptions {
                         version: ReadVersion::Exact(base.version),
-                        range: None
+                        range: None,
+                        clamp_range: false,
                     }
                 )
                 .expect("old version")
@@ -1894,6 +1899,7 @@ mod tests {
                     }),
                     exact_version: None,
                     range: None,
+                    clamp_range: false,
                     max_inline_bytes: 64,
                     read_request_id: 1,
                 })
@@ -1975,6 +1981,7 @@ mod tests {
                     }),
                     exact_version: None,
                     range: None,
+                    clamp_range: false,
                     max_inline_bytes: 64,
                     read_request_id: 1,
                 })
@@ -2010,6 +2017,7 @@ mod tests {
                     }),
                     exact_version: None,
                     range: None,
+                    clamp_range: false,
                     max_inline_bytes: 64,
                     read_request_id: 2,
                 })
@@ -2103,6 +2111,7 @@ mod tests {
                         limit: 10,
                         start_after: None,
                         cursor: String::new(),
+                        delimiter: Vec::new(),
                     }),
                 })
                 .await

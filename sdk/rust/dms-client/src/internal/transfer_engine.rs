@@ -69,6 +69,45 @@ pub(crate) enum PayloadBuffer {
     },
 }
 
+pub(crate) enum ReadPayload {
+    Grpc(Vec<u8>),
+    Shm(PayloadBuffer),
+}
+
+impl ReadPayload {
+    pub(crate) fn len(&self) -> Result<usize, DmsError> {
+        match self {
+            Self::Grpc(bytes) => Ok(bytes.len()),
+            Self::Shm(buffer) => Ok(buffer.as_slice()?.len()),
+        }
+    }
+
+    pub(crate) fn copy_range_into(&self, offset: usize, dst: &mut [u8]) -> Result<(), DmsError> {
+        let end = offset.checked_add(dst.len()).ok_or_else(|| {
+            DmsError::client_protocol_violation("read payload offset overflow".to_string())
+        })?;
+        match self {
+            Self::Grpc(bytes) => {
+                let source = bytes.get(offset..end).ok_or_else(|| {
+                    DmsError::client_protocol_violation(
+                        "read payload slice is outside gRPC response".to_string(),
+                    )
+                })?;
+                dst.copy_from_slice(source);
+            }
+            Self::Shm(buffer) => {
+                let source = buffer.as_slice()?.get(offset..end).ok_or_else(|| {
+                    DmsError::client_protocol_violation(
+                        "read payload slice is outside SHM descriptor".to_string(),
+                    )
+                })?;
+                dst.copy_from_slice(source);
+            }
+        }
+        Ok(())
+    }
+}
+
 impl PayloadBuffer {
     pub(crate) fn as_slice(&self) -> Result<&[u8], DmsError> {
         match self {
@@ -363,6 +402,64 @@ impl TransferEngine {
             )),
             Some(pb::payload_target::Target::Ub(_)) => Err(DmsError::node_transfer_unsupported(
                 "UB mapped provider is not enabled by this SDK build".to_string(),
+            )),
+            None => Err(DmsError::client_protocol_violation(
+                "empty payload target".to_string(),
+            )),
+        }
+    }
+
+    /// Materializes exactly one read segment target for owned-reader delivery.
+    ///
+    /// gRPC necessarily decodes this segment into an owned protocol buffer;
+    /// SHM keeps the mmap-backed buffer so callers can copy directly into their
+    /// destination without an intermediate whole-value Vec.
+    pub(crate) async fn read_payload(
+        &self,
+        session_id: u64,
+        target: pb::PayloadTarget,
+    ) -> Result<ReadPayload, DmsError> {
+        match target.target {
+            Some(pb::payload_target::Target::Grpc(target)) => {
+                let declared_length = target.length;
+                let mut client = self.grpc.clone();
+                let mut rpc = self.rpc_metrics.as_ref().map(|metrics| {
+                    metrics.begin_client_call(dms_metrics::RpcCall::PAYLOAD_DOWNLOAD)
+                });
+                let response = client
+                    .download(pb::DownloadPayloadRequest {
+                        transfer_id: target.transfer_id,
+                        nonce: target.nonce,
+                    })
+                    .await;
+                if response.is_ok()
+                    && let Some(rpc) = &mut rpc
+                {
+                    rpc.success();
+                }
+                let bytes = response
+                    .map_err(super::node_connection::map_status)?
+                    .into_inner()
+                    .payload;
+                if bytes.len() as u64 != declared_length {
+                    return Err(DmsError::node_transfer_corrupt_data("DMS data is corrupt"));
+                }
+                Ok(ReadPayload::Grpc(bytes))
+            }
+            Some(pb::payload_target::Target::Shm(target)) => self
+                .map_target(
+                    session_id,
+                    pb::PayloadTarget {
+                        target: Some(pb::payload_target::Target::Shm(target)),
+                    },
+                )
+                .await
+                .map(ReadPayload::Shm),
+            Some(pb::payload_target::Target::Rdma(_)) => Err(DmsError::node_transfer_unsupported(
+                "RDMA provider is not enabled by this SDK build".to_string(),
+            )),
+            Some(pb::payload_target::Target::Ub(_)) => Err(DmsError::node_transfer_unsupported(
+                "UB provider is not enabled by this SDK build".to_string(),
             )),
             None => Err(DmsError::client_protocol_violation(
                 "empty payload target".to_string(),

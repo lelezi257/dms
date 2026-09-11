@@ -305,8 +305,10 @@ type ObjectInfo struct {
 	Length                 uint64                 `protobuf:"varint,2,opt,name=length,proto3" json:"length,omitempty"`
 	ModifiedTimeUnixMillis int64                  `protobuf:"varint,3,opt,name=modified_time_unix_millis,json=modifiedTimeUnixMillis,proto3" json:"modified_time_unix_millis,omitempty"`
 	Version                uint64                 `protobuf:"varint,4,opt,name=version,proto3" json:"version,omitempty"`
-	unknownFields          protoimpl.UnknownFields
-	sizeCache              protoimpl.SizeCache
+	// A grouped scan prefix, not a stored object. Other attributes are zero.
+	IsPrefix      bool `protobuf:"varint,5,opt,name=is_prefix,json=isPrefix,proto3" json:"is_prefix,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *ObjectInfo) Reset() {
@@ -367,11 +369,20 @@ func (x *ObjectInfo) GetVersion() uint64 {
 	return 0
 }
 
+func (x *ObjectInfo) GetIsPrefix() bool {
+	if x != nil {
+		return x.IsPrefix
+	}
+	return false
+}
+
 type ObjectScanOptions struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Limit         uint32                 `protobuf:"varint,1,opt,name=limit,proto3" json:"limit,omitempty"`
-	StartAfter    []byte                 `protobuf:"bytes,2,opt,name=start_after,json=startAfter,proto3,oneof" json:"start_after,omitempty"`
-	Cursor        string                 `protobuf:"bytes,3,opt,name=cursor,proto3" json:"cursor,omitempty"`
+	state      protoimpl.MessageState `protogen:"open.v1"`
+	Limit      uint32                 `protobuf:"varint,1,opt,name=limit,proto3" json:"limit,omitempty"`
+	StartAfter []byte                 `protobuf:"bytes,2,opt,name=start_after,json=startAfter,proto3,oneof" json:"start_after,omitempty"`
+	Cursor     string                 `protobuf:"bytes,3,opt,name=cursor,proto3" json:"cursor,omitempty"`
+	// Empty preserves flat scans; grouped entries count toward the page limit.
+	Delimiter     []byte `protobuf:"bytes,4,opt,name=delimiter,proto3" json:"delimiter,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -425,6 +436,13 @@ func (x *ObjectScanOptions) GetCursor() string {
 		return x.Cursor
 	}
 	return ""
+}
+
+func (x *ObjectScanOptions) GetDelimiter() []byte {
+	if x != nil {
+		return x.Delimiter
+	}
+	return nil
 }
 
 // Wire-only DTO for carrying a native DmsError across process boundaries.
@@ -1090,18 +1108,20 @@ const file_dms_v1_types_proto_rawDesc = "" +
 	"\bsequence\x18\x02 \x01(\x04R\bsequence\";\n" +
 	"\tByteRange\x12\x16\n" +
 	"\x06offset\x18\x01 \x01(\x04R\x06offset\x12\x16\n" +
-	"\x06length\x18\x02 \x01(\x04R\x06length\"\x98\x01\n" +
+	"\x06length\x18\x02 \x01(\x04R\x06length\"\xb5\x01\n" +
 	"\n" +
 	"ObjectInfo\x12\x1d\n" +
 	"\x03key\x18\x01 \x01(\v2\v.dms.v1.KeyR\x03key\x12\x16\n" +
 	"\x06length\x18\x02 \x01(\x04R\x06length\x129\n" +
 	"\x19modified_time_unix_millis\x18\x03 \x01(\x03R\x16modifiedTimeUnixMillis\x12\x18\n" +
-	"\aversion\x18\x04 \x01(\x04R\aversion\"w\n" +
+	"\aversion\x18\x04 \x01(\x04R\aversion\x12\x1b\n" +
+	"\tis_prefix\x18\x05 \x01(\bR\bisPrefix\"\x95\x01\n" +
 	"\x11ObjectScanOptions\x12\x14\n" +
 	"\x05limit\x18\x01 \x01(\rR\x05limit\x12$\n" +
 	"\vstart_after\x18\x02 \x01(\fH\x00R\n" +
 	"startAfter\x88\x01\x01\x12\x16\n" +
-	"\x06cursor\x18\x03 \x01(\tR\x06cursorB\x0e\n" +
+	"\x06cursor\x18\x03 \x01(\tR\x06cursor\x12\x1c\n" +
+	"\tdelimiter\x18\x04 \x01(\fR\tdelimiterB\x0e\n" +
 	"\f_start_after\"i\n" +
 	"\vErrorDetail\x12\x19\n" +
 	"\bdms_code\x18\x01 \x01(\rR\admsCode\x12%\n" +

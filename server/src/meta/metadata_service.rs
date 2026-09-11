@@ -469,6 +469,7 @@ mod tests {
                     limit: 10,
                     start_after: None,
                     cursor: String::new(),
+                    delimiter: Vec::new(),
                 }),
             })
             .await

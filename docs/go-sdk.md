@@ -2,7 +2,38 @@
 
 当前是可从公开源码取得的开发预览 SDK，未发布正式语义版本：纯 Go，通过 gRPC 连接 Node；Linux 同机还可使用 UDS 和共享内存，不需要 Rust native extension 或 CGO。用户导入的是 `dms` 包，不是 protobuf 生成类型。
 
-本阶段提供对象子集 **Set、Get、Del、Stat、Scan**，以及条件写、指定版本/范围读的 Options；不表示已覆盖 Rust SDK 的全部方法，也不承诺 Go SDK 已具备 TLS、跨语言观测适配等能力。真实进程、故障和三 VM 性能验收状态以候选版本的验收记录为准，不能用接口存在代替通过。
+本阶段提供对象子集 **Set、Get、Del、Stat、Scan**，以及条件写、指定版本/范围读的 Options；本地候选还增加 **SetFrom、GetInto、GetReader**，使用这些新接口应按下文构建候选包，不能假定旧公开伪版本已经包含。不表示已覆盖 Rust SDK 的全部方法，也不承诺 Go SDK 已具备 TLS、跨语言观测适配等能力。
+
+## 候选新增：用户内存与 Reader
+
+| 方法 | 使用场景 | 数据/生命周期 |
+| --- | --- | --- |
+| `GetInto(ctx, key, dst, options)` | 用户已准备 `[]byte` | 返回 `GetIntoResult{Version, Len}, found, err`；容量不足报错且不写越界 |
+| `GetReader(ctx, key, options)` | 用户稍后才通过 `Read(dst)` 提供内存 | 返回 `ReadResult{Version, Len, Body}, found, err`；一次 Get 固定版本，不因每次 Read 再查 Current |
+| `SetFrom(ctx, key, src, length, options)` | 已有 `io.Reader`，避免调用方先 ReadAll | 精确消费 length，短源失败不发布，超过 length 的部分不消费；返回原 `SetResult` |
+
+`Get/Set` 保留：Get 返回 owned bytes；Set 已接收用户 bytes，所以没有额外的 SetInto。
+
+```go
+result, found, err := client.GetReader(ctx, "demo/key", dms.GetOptions{})
+if err != nil { return err }
+if !found { return fmt.Errorf("对象不存在") }
+defer result.Body.Close() // 提前退出也释放；读到 EOF 会自动释放本次保护
+buffer := make([]byte, 4096)
+for {
+    n, err := result.Body.Read(buffer)
+    // 先消费 buffer[:n]，再处理 err；最后一次可能同时返回数据与 EOF。
+    consume(buffer[:n])
+    if err == io.EOF { break }
+    if err != nil { return err }
+}
+```
+
+上例是业务函数片段，`consume` 由应用实现。传入的 ctx/default timeout 也覆盖后续 Reader 消费；不要无限保留未读完的 Body。Client.Close 会取消并关闭尚存 Reader 后才释放 mmap。
+
+范围仍默认严格。显式 `GetOptions{Range: &dms.ByteRange{Offset: off, Len: n}, ClampRange: true}` 才裁剪尾部；offset 到/超过 EOF 返回空结果，溢出仍报错，Len=0 表示空范围。Node 在同一已解析版本上处理，不需要调用者先 Stat。
+
+SHM 的 Read/GetInto 从共享映射复制到 dst，SetFrom 直接写 staging；TCP 仍有 protobuf payload 缓冲，不能把 Reader 理解成网络零拷贝或一个新双向流协议。Scan 可指定 Delimiter；`ObjectInfo.IsPrefix` 区分合成目录前缀与真实对象，游标绑定 prefix/delimiter，分页不承诺全局快照。
 
 ## 1. 安装固定源码版本
 

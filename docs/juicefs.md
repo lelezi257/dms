@@ -28,7 +28,7 @@
 | Head | Stat | 返回实际长度、稳定修改时间，不下载对象 |
 | List / ListAll | Scan 分页 | List 支持 delimiter；使用不透明游标，失败不伪装成正常分页结束 |
 
-上表描述当前未提交候选；下面固定公开基线尚不含新增 Reader 接口。验证当前候选需要按 [Go SDK](go-sdk.md) 的开发构包步骤提供与 fork go.mod 一致的候选 GOPROXY；公开发布前必须更新为可远端获取的固定 SDK 版本。
+上表描述本次公开 review 候选，尚未合并或发布 Release。配套 fork 的 go.mod 固定到可远端下载的 SDK 伪版本，不需要本地 proxy 或 replace。SHM 热读已减少控制往返，但非 SHM 大对象写入及跨 Node 首读仍有待核实的性能退化。
 
 阶段限制：
 
@@ -44,9 +44,9 @@
 
 | 组成 | 固定身份 |
 | --- | --- |
-| DMS服务与SDK代码基线 | `f4555eac23190ceef555b284366e4623c48fb72b` |
-| Go SDK | `v0.0.0-20260910013452-f4555eac2319` |
-| JuiceFS接入 | `42539ab68e3340baf02c817b5c08e2eb63095b1b` |
+| DMS服务与SDK review 候选 | `e8f2a180e1027ea4f9a5fc676a7a377b7f1f38e5` |
+| Go SDK | `v0.0.0-20260911134601-e8f2a180e102` |
+| JuiceFS接入 review 分支 | `review/adapter-basic-api`；验证时记录实际 commit |
 | JuiceFS原版基线 | `0b90c7db5a929ae6adc5faad948d108efd2c99f9`，v1.4.1 |
 
 DMS后续仅文档修正不会改变上述服务代码基线；复现实验仍记录实际检出的完整提交，不以分支名代替固定身份。
@@ -70,7 +70,8 @@ mkdir -p "$RUN/redis" "$RUN/mnt-a" "$RUN/mnt-b"
 ```bash
 git clone https://github.com/lelezi257/juicefs-dms.git
 cd juicefs-dms
-git checkout --detach 42539ab68e3340baf02c817b5c08e2eb63095b1b
+git switch review/adapter-basic-api
+git rev-parse HEAD
 GOPROXY=https://proxy.golang.org,direct go build -mod=readonly -o juicefs .
 ```
 

@@ -21,19 +21,21 @@
 
 | JuiceFS 对象操作 | Go SDK 调用 | 关键语义 |
 | --- | --- | --- |
-| Put | Set | 先读完本次对象再提交；Reader 失败不能提交半个对象 |
-| 完整 Get | Get | 缺失转换为对象不存在，网络错误仍是错误 |
-| 范围 Get | Stat + GetWithOptions | 先确定长度/版本，再读该固定版本范围，避免混用两版数据 |
+| Put | SetFrom | 普通已知长度 Reader 直接交给 SDK；短源失败不发布；未知长度输入仍有受限暂存 |
+| 完整 Get | GetReader | 固定一次版本，返回原生 Reader；缺失转换为对象不存在，网络错误仍是错误 |
+| 范围 Get | GetReader + ClampRange | Node 对同一版本裁剪，去掉前置 Stat；Read 不重复 Get |
 | Delete | Del | 对已缺失对象重复删除也成功 |
 | Head | Stat | 返回实际长度、稳定修改时间，不下载对象 |
-| List / ListAll | Scan 分页 | 使用不透明游标；失败不伪装成正常分页结束 |
+| List / ListAll | Scan 分页 | List 支持 delimiter；使用不透明游标，失败不伪装成正常分页结束 |
+
+上表描述本次公开 review 候选，尚未合并或发布 Release。配套 fork 的 go.mod 固定到可远端下载的 SDK 伪版本，不需要本地 proxy 或 replace。SHM 热读已减少控制往返，但非 SHM 大对象写入及跨 Node 首读仍有待核实的性能退化。
 
 阶段限制：
 
 - 默认文件块大小 4MiB。适配器单次后端 Put 上限 **8MiB**，不是文件大小上限；512MiB/1GiB 文件由多个对象组成。
-- Put 在适配器内暂存对象，默认最多 4 个并发 Put；`DMS_JUICEFS_MAX_INFLIGHT_PUTS` 可设 1～64，不代表整个进程 RSS 上限。
+- 默认最多 4 个并发 Put；`DMS_JUICEFS_MAX_INFLIGHT_PUTS` 可设 1～64，不代表整个进程 RSS 上限。普通 seekable Reader 不在 Adapter 整份暂存；未知长度输入保留受限暂存，TCP 也仍需协议缓冲。
 - 本阶段挂载显式使用 `--backup-meta 0`，暂不把可能较大的文件系统元数据备份对象写入 DMS。它不是关闭正常后台任务；**不要加 `--no-bgjob`**，删除和其它正常后台流程仍需运行。
-- 不声明 delimiter 列举、multipart 或其它未实现对象能力。TLS/可靠性边界与 [Go SDK](go-sdk.md) 相同。
+- 当前候选支持 delimiter 列举，不声明 multipart 或其它未实现对象能力。TLS/可靠性边界与 [Go SDK](go-sdk.md) 相同。
 - 以下演示禁用 JuiceFS 本地数据缓存，便于观察 DMS 路径；Node 缓存仍然存在。重挂载只清理文件系统客户端状态，不等于清掉 Node 缓存。
 
 ## 2. 先准备环境
@@ -42,9 +44,9 @@
 
 | 组成 | 固定身份 |
 | --- | --- |
-| DMS服务与SDK代码基线 | `f4555eac23190ceef555b284366e4623c48fb72b` |
-| Go SDK | `v0.0.0-20260910013452-f4555eac2319` |
-| JuiceFS接入 | `42539ab68e3340baf02c817b5c08e2eb63095b1b` |
+| DMS服务与SDK review 候选 | `e8f2a180e1027ea4f9a5fc676a7a377b7f1f38e5` |
+| Go SDK | `v0.0.0-20260911134601-e8f2a180e102` |
+| JuiceFS接入 review 分支 | `review/adapter-basic-api`；验证时记录实际 commit |
 | JuiceFS原版基线 | `0b90c7db5a929ae6adc5faad948d108efd2c99f9`，v1.4.1 |
 
 DMS后续仅文档修正不会改变上述服务代码基线；复现实验仍记录实际检出的完整提交，不以分支名代替固定身份。
@@ -68,7 +70,8 @@ mkdir -p "$RUN/redis" "$RUN/mnt-a" "$RUN/mnt-b"
 ```bash
 git clone https://github.com/lelezi257/juicefs-dms.git
 cd juicefs-dms
-git checkout --detach 42539ab68e3340baf02c817b5c08e2eb63095b1b
+git switch review/adapter-basic-api
+git rev-parse HEAD
 GOPROXY=https://proxy.golang.org,direct go build -mod=readonly -o juicefs .
 ```
 
@@ -228,7 +231,7 @@ curl -fsS http://127.0.0.1:25000/metrics \
   | grep -E '^dms_(rpc_server_requests_total|node_replica_bytes_total|node_arena_(allocated|logical|quarantined)_bytes)'
 ```
 
-在读文件前后各取一次，比较**增量**：A 的 `PeerService/PullBlock` 与发送 bytes 可以证明 B 是否实际拉取；B 重挂载再次读时，这两项不再增长才是 Node 数据复用的证据。范围读仍可能有 Stat、Get 和 Meta 请求；SHM 读还可能有首次 Region 映射与读保护归还，不能用“没有 Peer”推导“没有 RPC”。删除后 allocated/logical/quarantined 分别表示物理分配、逻辑活数据和仍隔离的容量，不要求进程 RSS 立即归零。
+在读文件前后各取一次，比较**增量**：A 的 `PeerService/PullBlock` 与发送 bytes 可以证明 B 是否实际拉取；B 重挂载再次读时，这两项不再增长才是 Node 数据复用的证据。当前候选 Adapter 范围读不再前置 Stat，但仍有 Get，布局未命中时仍可能访问 Meta；SHM 读还可能有首次 Region 映射与读保护归还，不能用“没有 Peer”推导“没有 RPC”。删除后 allocated/logical/quarantined 分别表示物理分配、逻辑活数据和仍隔离的容量，不要求进程 RSS 立即归零。
 
 组件失败先读本轮 `"$RUN/node.log"`、`"$RUN/meta.log"` 和前台挂载输出，保留数字错误码及上下文。需要集中查看时，沿用[观测总览](observability.md)、[三节点 Metrics 手册](metrics-three-node-manual.md)与[三节点 Trace 手册](tracing-three-node-manual.md)，将 targets、日志目录和 OTLP 地址替换为本轮实例，不复用或覆盖其它实验的配置。
 

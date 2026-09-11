@@ -5,7 +5,12 @@
 //! Merge 保留未出现字段，Replace 以本次字段集合发布完整的新 Hash 版本。
 
 // fmt 用于错误 Display；Arc 让 DmsClient clone 后共享同一个实现；Duration 表示超时。
-use std::{fmt, sync::Arc, time::Duration};
+use std::{
+    fmt,
+    io::{self, Read},
+    sync::Arc,
+    time::Duration,
+};
 
 use dms_error::DmsError;
 use dms_metrics::Registry;
@@ -78,6 +83,33 @@ impl DmsClient {
         })
     }
 
+    /// Creates or replaces one value by consuming exactly `length` bytes.
+    ///
+    /// The SDK does not read beyond `length`. A short source fails without
+    /// publishing a new object version.
+    pub fn set_from<R: Read>(
+        &self,
+        key: impl AsRef<[u8]>,
+        src: R,
+        length: u64,
+    ) -> Result<SetResult, DmsError> {
+        self.set_from_with_options(key, src, length, SetOptions::default())
+    }
+
+    /// Creates or replaces one value from a native reader with explicit options.
+    pub fn set_from_with_options<R: Read>(
+        &self,
+        key: impl AsRef<[u8]>,
+        src: R,
+        length: u64,
+        options: SetOptions,
+    ) -> Result<SetResult, DmsError> {
+        self.client_impl.observe(ClientOperation::Set, || {
+            self.client_impl
+                .set_from(valid_key(key)?, src, length, options)
+        })
+    }
+
     /// Reads the complete current value, returning `None` for a missing key.
     pub fn get(&self, key: impl AsRef<[u8]>) -> Result<Option<Vec<u8>>, DmsError> {
         // 第一个 `?` 传播 DmsError；Option::map 只在命中时取出 bytes。
@@ -86,6 +118,59 @@ impl DmsClient {
                 .client_impl
                 .get(valid_key(key)?, GetOptions::default())?
                 .map(|result| result.bytes))
+        })
+    }
+
+    /// Reads the selected value directly into a caller-owned buffer.
+    ///
+    /// The call binds Current once, returns the selected version and byte count,
+    /// and fails before payload transfer when `dst` cannot hold the selected
+    /// range. Missing keys still return `Ok(None)`.
+    pub fn get_into(
+        &self,
+        key: impl AsRef<[u8]>,
+        dst: &mut [u8],
+    ) -> Result<Option<GetIntoResult>, DmsError> {
+        self.get_into_with_options(key, dst, GetOptions::default())
+    }
+
+    /// Reads an exact version and/or byte range into a caller-owned buffer.
+    pub fn get_into_with_options(
+        &self,
+        key: impl AsRef<[u8]>,
+        dst: &mut [u8],
+        options: GetOptions,
+    ) -> Result<Option<GetIntoResult>, DmsError> {
+        self.client_impl.observe(ClientOperation::Get, || {
+            self.client_impl.get_into(valid_key(key)?, dst, options)
+        })
+    }
+
+    /// Opens the selected value as a native blocking reader.
+    ///
+    /// The returned reader is fixed to one selected object version and range.
+    /// Dropping it before EOF releases the SDK read protection for that request.
+    pub fn get_reader(&self, key: impl AsRef<[u8]>) -> Result<Option<ReadResult>, DmsError> {
+        self.get_reader_with_options(key, GetOptions::default())
+    }
+
+    /// Opens an exact version and/or byte range as a native blocking reader.
+    pub fn get_reader_with_options(
+        &self,
+        key: impl AsRef<[u8]>,
+        options: GetOptions,
+    ) -> Result<Option<ReadResult>, DmsError> {
+        self.client_impl.observe(ClientOperation::Get, || {
+            Ok(self
+                .client_impl
+                .get_reader(valid_key(key)?, options)?
+                .map(|inner| ReadResult {
+                    version: inner.version(),
+                    len: inner.len(),
+                    body: DmsValueReader {
+                        owned: OwnerHeldInner::new(inner, Arc::clone(&self.client_impl)),
+                    },
+                }))
         })
     }
 
@@ -437,6 +522,69 @@ impl SharedValueView {
     }
 }
 
+/// Result of a `get_into` call.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct GetIntoResult {
+    /// Immutable version copied into the caller buffer.
+    pub version: ObjectVersion,
+    /// Number of selected bytes copied into the caller buffer.
+    pub len: u64,
+}
+
+/// Result of opening one object as a native reader.
+pub struct ReadResult {
+    /// Immutable version selected by the initial GET request.
+    pub version: ObjectVersion,
+    /// Number of selected bytes exposed by `body`.
+    pub len: u64,
+    /// Native blocking reader over the selected bytes.
+    pub body: DmsValueReader,
+}
+
+/// Native blocking reader over one fixed-version DMS read response.
+pub struct DmsValueReader {
+    owned: OwnerHeldInner<crate::internal::node_connection::ValueReaderInner, Arc<DmsClientImpl>>,
+}
+
+impl DmsValueReader {
+    /// Version selected by the initial GET request.
+    #[must_use]
+    pub fn version(&self) -> ObjectVersion {
+        self.owned
+            .inner
+            .as_ref()
+            .expect("DMS value reader inner exists while reader is alive")
+            .version()
+    }
+
+    /// Total selected length exposed by this reader.
+    #[must_use]
+    pub fn len(&self) -> u64 {
+        self.owned
+            .inner
+            .as_ref()
+            .expect("DMS value reader inner exists while reader is alive")
+            .len()
+    }
+
+    /// Whether this reader exposes zero bytes.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+}
+
+impl Read for DmsValueReader {
+    fn read(&mut self, dst: &mut [u8]) -> io::Result<usize> {
+        let owner = Arc::clone(self.owned.owner());
+        let inner = self
+            .owned
+            .as_mut("DMS value reader was closed")
+            .map_err(dms_error_to_io)?;
+        owner.read_value_reader(inner, dst).map_err(dms_error_to_io)
+    }
+}
+
 struct OwnerHeldInner<T, O> {
     // inner 必须先于 owner 释放：Drop 时先释放共享内存 guard，再允许 owner 的
     // DmsClientImpl::drop() 做 final heartbeat flush。
@@ -481,6 +629,10 @@ impl<T, O> Drop for OwnerHeldInner<T, O> {
     }
 }
 
+fn dms_error_to_io(error: DmsError) -> io::Error {
+    io::Error::other(error)
+}
+
 fn valid_key(value: impl AsRef<[u8]>) -> Result<Key, DmsError> {
     Key::new(value.as_ref().to_vec())
         .map_err(|error| DmsError::client_invalid_argument(error.to_string()))
@@ -519,6 +671,12 @@ fn validate_scan_options(options: &ScanOptions) -> Result<(), DmsError> {
         return Err(DmsError::client_invalid_argument(
             "scan start_after and cursor are mutually exclusive".to_string(),
         ));
+    }
+    if options.delimiter.len() > MAX_KEY_LEN {
+        return Err(DmsError::client_invalid_argument(format!(
+            "DMS scan delimiter length {} exceeds {MAX_KEY_LEN}",
+            options.delimiter.len()
+        )));
     }
     Ok(())
 }
@@ -858,6 +1016,7 @@ mod client_options_tests {
                 limit: 128,
                 start_after: Some(b"a".to_vec()),
                 cursor: Some("opaque-next-page".to_string()),
+                delimiter: Vec::new(),
             })
             .is_err()
         );
@@ -1037,6 +1196,12 @@ pub struct GetOptions {
     pub version: ReadVersion,
     /// Optional half-open byte range.
     pub range: Option<ByteRange>,
+    /// Clip a requested range to EOF on the same resolved version.
+    ///
+    /// The default `false` preserves strict range validation. A zero-length
+    /// range remains empty, and offsets at or beyond EOF become empty only when
+    /// this option is explicitly enabled by the caller.
+    pub clamp_range: bool,
 }
 
 impl Default for GetOptions {
@@ -1044,6 +1209,7 @@ impl Default for GetOptions {
         Self {
             version: ReadVersion::Current,
             range: None,
+            clamp_range: false,
         }
     }
 }

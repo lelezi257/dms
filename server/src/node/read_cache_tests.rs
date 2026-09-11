@@ -2109,6 +2109,7 @@ async fn worker_service_handler_reuses_node_current_layout_cache() {
                 key: Some(key.clone()),
                 exact_version: None,
                 range: None,
+                clamp_range: false,
                 max_inline_bytes: 64 * 1024,
                 read_request_id: 0,
             }),

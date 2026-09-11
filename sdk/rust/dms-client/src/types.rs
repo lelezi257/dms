@@ -114,6 +114,8 @@ pub struct ObjectInfo {
     pub modified_time: SystemTime,
     /// Current immutable version selected by this stat result.
     pub version: ObjectVersion,
+    /// Whether this scan item represents a grouped prefix instead of a stored object.
+    pub is_prefix: bool,
 }
 
 /// Monotonic version of an entire Hash/KKV field map.
@@ -165,6 +167,8 @@ pub struct ScanOptions {
     pub start_after: Option<Vec<u8>>,
     /// Opaque cursor returned by the previous `scan()` page.
     pub cursor: Option<String>,
+    /// Optional delimiter for grouped scans. Empty keeps flat object scans.
+    pub delimiter: Vec<u8>,
 }
 
 impl Default for ScanOptions {
@@ -173,6 +177,7 @@ impl Default for ScanOptions {
             limit: 128,
             start_after: None,
             cursor: None,
+            delimiter: Vec::new(),
         }
     }
 }
@@ -361,6 +366,7 @@ mod object_metadata_tests {
             limit: 64,
             start_after: Some(b"file/a".to_vec()),
             cursor: None,
+            delimiter: Vec::new(),
         };
         assert_eq!(options.limit, 64);
         assert_eq!(options.start_after.as_deref(), Some(&b"file/a"[..]));
@@ -375,6 +381,7 @@ mod object_metadata_tests {
             length: 7,
             modified_time,
             version: ObjectVersion(3),
+            is_prefix: false,
         };
         assert_eq!(
             info.modified_time,

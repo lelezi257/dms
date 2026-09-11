@@ -1595,8 +1595,12 @@ type GetRequest struct {
 	// The Worker clamps non-zero values to the protocol safety limit.
 	MaxInlineBytes uint64 `protobuf:"varint,5,opt,name=max_inline_bytes,json=maxInlineBytes,proto3" json:"max_inline_bytes,omitempty"`
 	ReadRequestId  uint64 `protobuf:"varint,6,opt,name=read_request_id,json=readRequestId,proto3" json:"read_request_id,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	// Opt-in tail clipping on the SAME resolved version. Default false preserves
+	// strict SDK ranges. A zero length remains empty; offsets at/beyond EOF clip
+	// to an empty read. This avoids a separate Stat/Exact-Get round trip.
+	ClampRange    bool `protobuf:"varint,7,opt,name=clamp_range,json=clampRange,proto3" json:"clamp_range,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *GetRequest) Reset() {
@@ -1669,6 +1673,13 @@ func (x *GetRequest) GetReadRequestId() uint64 {
 		return x.ReadRequestId
 	}
 	return 0
+}
+
+func (x *GetRequest) GetClampRange() bool {
+	if x != nil {
+		return x.ClampRange
+	}
+	return false
 }
 
 type ReadSegment struct {
@@ -3637,7 +3648,7 @@ const file_dms_v1_client_node_proto_rawDesc = "" +
 	"\foperation_id\x18\x03 \x01(\v2\x13.dms.v1.OperationIdR\voperationId\"D\n" +
 	"\x0eDeleteResponse\x12\x18\n" +
 	"\adeleted\x18\x01 \x01(\bR\adeleted\x12\x18\n" +
-	"\aversion\x18\x02 \x01(\x04R\aversion\"\x90\x02\n" +
+	"\aversion\x18\x02 \x01(\x04R\aversion\"\xb1\x02\n" +
 	"\n" +
 	"GetRequest\x12\x1d\n" +
 	"\n" +
@@ -3646,7 +3657,9 @@ const file_dms_v1_client_node_proto_rawDesc = "" +
 	"\rexact_version\x18\x03 \x01(\x04H\x00R\fexactVersion\x88\x01\x01\x12,\n" +
 	"\x05range\x18\x04 \x01(\v2\x11.dms.v1.ByteRangeH\x01R\x05range\x88\x01\x01\x12(\n" +
 	"\x10max_inline_bytes\x18\x05 \x01(\x04R\x0emaxInlineBytes\x12&\n" +
-	"\x0fread_request_id\x18\x06 \x01(\x04R\rreadRequestIdB\x10\n" +
+	"\x0fread_request_id\x18\x06 \x01(\x04R\rreadRequestId\x12\x1f\n" +
+	"\vclamp_range\x18\a \x01(\bR\n" +
+	"clampRangeB\x10\n" +
 	"\x0e_exact_versionB\b\n" +
 	"\x06_range\"\x8b\x01\n" +
 	"\vReadSegment\x12-\n" +

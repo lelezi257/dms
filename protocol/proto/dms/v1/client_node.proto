@@ -227,6 +227,10 @@ message GetRequest {
   // The Worker clamps non-zero values to the protocol safety limit.
   uint64 max_inline_bytes = 5;
   uint64 read_request_id = 6;
+  // Opt-in tail clipping on the SAME resolved version. Default false preserves
+  // strict SDK ranges. A zero length remains empty; offsets at/beyond EOF clip
+  // to an empty read. This avoids a separate Stat/Exact-Get round trip.
+  bool clamp_range = 7;
 }
 
 message ReadSegment {

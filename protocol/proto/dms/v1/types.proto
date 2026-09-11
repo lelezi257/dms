@@ -29,12 +29,16 @@ message ObjectInfo {
   uint64 length = 2;
   int64 modified_time_unix_millis = 3;
   uint64 version = 4;
+  // A grouped scan prefix, not a stored object. Other attributes are zero.
+  bool is_prefix = 5;
 }
 
 message ObjectScanOptions {
   uint32 limit = 1;
   optional bytes start_after = 2;
   string cursor = 3;
+  // Empty preserves flat scans; grouped entries count toward the page limit.
+  bytes delimiter = 4;
 }
 
 enum ErrorKind {

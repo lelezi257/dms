@@ -59,6 +59,8 @@ type Client struct {
 	viewReleases    viewReleaseTracker
 	readRequests    readRequestTracker
 	readReleaseWake chan struct{}
+	readers         map[*objectReader]struct{}
+	readerWG        sync.WaitGroup
 }
 
 // Connect 以显式 endpoint 建连；endpoint 覆盖环境变量和 ClientOptions.Endpoint。
@@ -160,6 +162,10 @@ func (c *Client) Close() error {
 		c.closed.Store(true)
 		c.lifecycleMu.Unlock()
 		c.activeWG.Wait()
+		for _, reader := range c.snapshotReaders() {
+			_ = reader.closeAndWait()
+		}
+		c.readerWG.Wait()
 		c.sendUnaryHeartbeat(context.Background())
 		c.cancel()
 		c.streamWG.Wait()
@@ -212,6 +218,67 @@ func (c *Client) SetWithOptions(ctx context.Context, key string, value []byte, o
 		return SetResult{Version: ObjectVersion(resp.Version), Len: resp.Length}, nil
 	}
 	return c.setStaged(callCtx, key, value, options)
+}
+
+func (c *Client) SetFrom(ctx context.Context, key string, src io.Reader, length uint64, options SetOptions) (SetResult, error) {
+	done, err := c.beginCall(key)
+	if err != nil {
+		return SetResult{}, err
+	}
+	defer done()
+	if src == nil {
+		return SetResult{}, invalidArgument("SetFrom source must be non-nil")
+	}
+	if options.Durability == "" {
+		options.Durability = DurabilityLocalMemory
+	}
+	if _, err := parseDurability("SetOptions.Durability", string(options.Durability)); err != nil {
+		return SetResult{}, err
+	}
+	callCtx, cancel := boundedContext(ctx, c.timeout)
+	defer cancel()
+	if length <= c.inlineMax {
+		value, err := readExactBytes(src, length)
+		if err != nil {
+			return SetResult{}, err
+		}
+		resp, err := c.worker.SetInline(callCtx, &pb.SetInlineRequest{
+			SessionId:   c.sessionID,
+			Key:         &pb.Key{Value: []byte(key)},
+			Value:       value,
+			OperationId: c.nextOperation(),
+			Condition:   options.Condition.wire(),
+			Durability:  string(options.Durability),
+		})
+		if err != nil {
+			return SetResult{}, asDmsError(err)
+		}
+		return SetResult{Version: ObjectVersion(resp.Version), Len: resp.Length}, nil
+	}
+	alloc, err := c.worker.AllocateStaging(callCtx, &pb.AllocateStagingRequest{
+		SessionId: c.sessionID,
+		Length:    length,
+		Purpose:   "go-sdk-set-from",
+	})
+	if err != nil {
+		return SetResult{}, asDmsError(err)
+	}
+	receipt, err := c.uploadFrom(callCtx, alloc.Target, src, length)
+	if err != nil {
+		return SetResult{}, setFailureWithCleanup(err, c.deleteStagingAfterUploadFailure(ctx, alloc.StagingId))
+	}
+	resp, err := c.worker.Set(callCtx, &pb.SetRequest{
+		SessionId:   c.sessionID,
+		Key:         &pb.Key{Value: []byte(key)},
+		Value:       &pb.StagedValue{StagingId: alloc.StagingId, Receipt: receipt},
+		OperationId: c.nextOperation(),
+		Condition:   options.Condition.wire(),
+		Durability:  string(options.Durability),
+	})
+	if err != nil {
+		return SetResult{}, setFailureWithCleanup(err, c.releaseWriteFromReceipt(ctx, receipt))
+	}
+	return SetResult{Version: ObjectVersion(resp.Version), Len: resp.Length}, nil
 }
 
 func (c *Client) setStaged(ctx context.Context, key string, value []byte, options SetOptions) (SetResult, error) {
@@ -294,18 +361,69 @@ func (c *Client) Get(ctx context.Context, key string) ([]byte, bool, error) {
 }
 
 func (c *Client) GetWithOptions(ctx context.Context, key string, options GetOptions) (GetResult, bool, error) {
-	done, err := c.beginCall(key)
+	plan, found, err := c.startRead(ctx, key, options)
 	if err != nil {
 		return GetResult{}, false, err
 	}
+	if !found {
+		return GetResult{}, false, nil
+	}
+	defer plan.finish()
+	out, err := c.decodeReadPlan(plan)
+	if err != nil {
+		return GetResult{}, false, asDmsError(err)
+	}
+	return GetResult{Version: plan.version, Bytes: out}, true, nil
+}
+
+func (c *Client) GetInto(ctx context.Context, key string, dst []byte, options GetOptions) (GetIntoResult, bool, error) {
+	plan, found, err := c.startRead(ctx, key, options)
+	if err != nil {
+		return GetIntoResult{}, false, err
+	}
+	if !found {
+		return GetIntoResult{}, false, nil
+	}
+	defer plan.finish()
+	if uint64(len(dst)) < plan.length {
+		return GetIntoResult{}, true, invalidArgument("GetInto destination buffer is smaller than selected read length")
+	}
+	if err := c.readPlanInto(plan, dst[:int(plan.length)]); err != nil {
+		return GetIntoResult{}, true, asDmsError(err)
+	}
+	return GetIntoResult{Version: plan.version, Len: plan.length}, true, nil
+}
+
+func (c *Client) GetReader(ctx context.Context, key string, options GetOptions) (ReadResult, bool, error) {
+	plan, found, err := c.startRead(ctx, key, options)
+	if err != nil {
+		return ReadResult{}, false, err
+	}
+	if !found {
+		return ReadResult{}, false, nil
+	}
+	reader := newObjectReader(plan)
+	if err := c.registerReader(reader); err != nil {
+		plan.finish()
+		return ReadResult{}, false, err
+	}
+	reader.armCancel()
+	return ReadResult{Version: plan.version, Len: plan.length, Body: reader}, true, nil
+}
+
+func (c *Client) startRead(ctx context.Context, key string, options GetOptions) (*readPlan, bool, error) {
+	done, err := c.beginCall(key)
+	if err != nil {
+		return nil, false, err
+	}
 	defer done()
 	callCtx, cancel := boundedContext(ctx, c.timeout)
-	defer cancel()
 	readRequestID := c.readRequests.allocate()
-	readRequestCompleted := false
+	completed := false
 	defer func() {
-		if !readRequestCompleted {
+		if !completed {
 			c.readRequests.complete(readRequestID)
+			cancel()
 		}
 	}()
 	req := &pb.GetRequest{
@@ -313,6 +431,7 @@ func (c *Client) GetWithOptions(ctx context.Context, key string, options GetOpti
 		Key:            &pb.Key{Value: []byte(key)},
 		MaxInlineBytes: c.inlineMax,
 		ReadRequestId:  readRequestID,
+		ClampRange:     options.ClampRange,
 	}
 	if options.Version.exact != nil {
 		exact := uint64(*options.Version.exact)
@@ -323,28 +442,25 @@ func (c *Client) GetWithOptions(ctx context.Context, key string, options GetOpti
 	}
 	resp, err := c.worker.Get(callCtx, req)
 	if err != nil {
-		return GetResult{}, false, asDmsError(err)
+		return nil, false, asDmsError(err)
 	}
 	if resp == nil {
-		return GetResult{}, false, asDmsError(protocolError("Get response is empty"))
+		return nil, false, asDmsError(protocolError("Get response is empty"))
 	}
 	if resp.ReadRequestId != readRequestID {
-		return GetResult{}, false, asDmsError(protocolError("Get response read request id mismatch"))
+		return nil, false, asDmsError(protocolError("Get response read request id mismatch"))
 	}
 	if !resp.Found {
-		return GetResult{}, false, nil
+		return nil, false, nil
 	}
 	releaseEpochs := readViewEpochs(resp.Segments)
-	defer func() {
-		c.readRequests.complete(readRequestID)
-		readRequestCompleted = true
-		c.releaseViews(context.WithoutCancel(ctx), releaseEpochs)
-	}()
-	out, err := c.decodeGet(callCtx, resp, options.Range, c.inlineMax, readRequestID)
+	plan, err := c.newReadPlan(callCtx, cancel, resp, options.Range, options.ClampRange, c.inlineMax, readRequestID)
 	if err != nil {
-		return GetResult{}, false, asDmsError(err)
+		c.releaseViews(context.WithoutCancel(callCtx), releaseEpochs)
+		return nil, false, asDmsError(err)
 	}
-	return GetResult{Version: ObjectVersion(resp.Version), Bytes: out}, true, nil
+	completed = true
+	return plan, true, nil
 }
 
 func (c *Client) Del(ctx context.Context, key string) (DeleteResult, error) {
@@ -403,8 +519,9 @@ func (c *Client) Scan(ctx context.Context, prefix string, options ScanOptions) (
 	callCtx, cancel := boundedContext(ctx, c.timeout)
 	defer cancel()
 	wireOptions := &pb.ObjectScanOptions{
-		Limit:  options.Limit,
-		Cursor: options.Cursor,
+		Limit:     options.Limit,
+		Cursor:    options.Cursor,
+		Delimiter: []byte(options.Delimiter),
 	}
 	if options.StartAfter != nil {
 		wireOptions.StartAfter = []byte(*options.StartAfter)
@@ -448,10 +565,32 @@ func (c *Client) beginClientCall() (func(), error) {
 	return c.activeWG.Done, nil
 }
 
-func (c *Client) decodeGet(ctx context.Context, resp *pb.GetResponse, readRange *ByteRange, maxInlineBytes uint64, readRequestID uint64) ([]byte, error) {
-	expectedLength, err := requestedReadLength(resp.LogicalLength, readRange)
+type readPlan struct {
+	client        *Client
+	ctx           context.Context
+	cancel        context.CancelFunc
+	version       ObjectVersion
+	length        uint64
+	inlineValue   []byte
+	segments      []*pb.ReadSegment
+	releaseEpochs []uint64
+	readRequestID uint64
+	finishOnce    sync.Once
+}
+
+func (c *Client) newReadPlan(ctx context.Context, cancel context.CancelFunc, resp *pb.GetResponse, readRange *ByteRange, clampRange bool, maxInlineBytes uint64, readRequestID uint64) (*readPlan, error) {
+	expectedLength, err := selectedReadLength(resp.LogicalLength, readRange, clampRange)
 	if err != nil {
 		return nil, err
+	}
+	plan := &readPlan{
+		client:        c,
+		ctx:           ctx,
+		cancel:        cancel,
+		version:       ObjectVersion(resp.Version),
+		length:        expectedLength,
+		releaseEpochs: readViewEpochs(resp.Segments),
+		readRequestID: readRequestID,
 	}
 	if resp.InlineValue != nil {
 		if maxInlineBytes == 0 {
@@ -461,14 +600,13 @@ func (c *Client) decodeGet(ctx context.Context, resp *pb.GetResponse, readRange 
 			return nil, protocolError("inline read response must not also carry read segments")
 		}
 		if uint64(len(resp.InlineValue)) != expectedLength {
-			return nil, protocolError("inline read response length does not match requested length")
+			return nil, protocolError("inline read response length does not match selected length")
 		}
 		if uint64(len(resp.InlineValue)) > maxInlineBytes {
 			return nil, protocolError("inline read response exceeds requested budget")
 		}
-		// gRPC 为本次响应解码出独立 bytes；直接交给调用者，不再次复制。
-		// 这里既不是跨请求缓存，也不借用 Node 的共享页。
-		return resp.InlineValue, nil
+		plan.inlineValue = resp.InlineValue
+		return plan, nil
 	}
 	segments := append([]*pb.ReadSegment(nil), resp.Segments...)
 	for _, segment := range segments {
@@ -498,15 +636,46 @@ func (c *Client) decodeGet(ctx context.Context, resp *pb.GetResponse, readRange 
 		expectedOffset = next
 	}
 	if expectedOffset != expectedLength {
-		return nil, protocolError("read segments length differs from requested length")
+		return nil, protocolError("read segments length differs from selected length")
+	}
+	plan.segments = segments
+	return plan, nil
+}
+
+func (p *readPlan) finish() {
+	if p == nil {
+		return
+	}
+	p.finishOnce.Do(func() {
+		p.client.readRequests.complete(p.readRequestID)
+		p.client.releaseViews(context.WithoutCancel(p.ctx), p.releaseEpochs)
+		p.cancel()
+	})
+}
+
+func (c *Client) decodeGet(ctx context.Context, resp *pb.GetResponse, readRange *ByteRange, maxInlineBytes uint64, readRequestID uint64) ([]byte, error) {
+	readCtx, cancel := context.WithCancel(ctx)
+	plan, err := c.newReadPlan(readCtx, cancel, resp, readRange, false, maxInlineBytes, readRequestID)
+	if err != nil {
+		return nil, err
+	}
+	defer cancel()
+	return c.decodeReadPlan(plan)
+}
+
+func (c *Client) decodeReadPlan(plan *readPlan) ([]byte, error) {
+	if plan.inlineValue != nil {
+		// gRPC 为本次响应解码出独立 bytes；直接交给调用者，不再次复制。
+		// 这里既不是跨请求缓存，也不借用 Node 的共享页。
+		return plan.inlineValue, nil
 	}
 	// 完整校验布局后才取 payload，错误的后半段不能让前半段白白下载。
 	// 首段已拥有 bytes（SHM 路径已复制一次），直接接管；多 Extent 仍顺序追加。
 	// append 按需扩容，不相信远端长度预先申请无界内存，也不改变用户所有权。
 	var out []byte
-	for _, segment := range segments {
+	for _, segment := range plan.segments {
 		length, _ := readTargetLength(segment.Target) // 上面的完整预检已验证。
-		part, err := c.download(ctx, segment.Target)
+		part, err := c.download(plan.ctx, segment.Target)
 		if err != nil {
 			return nil, err
 		}
@@ -522,9 +691,73 @@ func (c *Client) decodeGet(ctx context.Context, resp *pb.GetResponse, readRange 
 	return out, nil
 }
 
-func requestedReadLength(logicalLength uint64, readRange *ByteRange) (uint64, error) {
+func (c *Client) readPlanInto(plan *readPlan, dst []byte) error {
+	if plan.inlineValue != nil {
+		copy(dst, plan.inlineValue)
+		return nil
+	}
+	var written uint64
+	for _, segment := range plan.segments {
+		n, err := c.readSegmentInto(plan.ctx, segment.Target, dst[int(written):])
+		if err != nil {
+			return err
+		}
+		written += n
+	}
+	if written != plan.length {
+		return protocolError("read payload length differs from descriptor")
+	}
+	return nil
+}
+
+func (c *Client) readSegmentInto(ctx context.Context, target *pb.PayloadTarget, dst []byte) (uint64, error) {
+	if target == nil {
+		return 0, protocolError("download target is empty")
+	}
+	switch t := target.GetTarget().(type) {
+	case *pb.PayloadTarget_Shm:
+		region, err := c.mappingFor(ctx, t.Shm)
+		if err != nil {
+			return 0, err
+		}
+		if err := copyOutInto(dst, region.data, t.Shm.Offset, t.Shm.Length); err != nil {
+			return 0, err
+		}
+		return t.Shm.Length, nil
+	case *pb.PayloadTarget_Grpc:
+		resp, err := c.payload.Download(ctx, &pb.DownloadPayloadRequest{
+			TransferId: t.Grpc.TransferId,
+			Nonce:      t.Grpc.Nonce,
+		})
+		if err != nil {
+			return 0, err
+		}
+		if resp == nil {
+			return 0, protocolError("download response is empty")
+		}
+		if uint64(len(resp.Payload)) != t.Grpc.Length {
+			return 0, protocolError("read payload length differs from descriptor")
+		}
+		copy(dst, resp.Payload)
+		return t.Grpc.Length, nil
+	default:
+		return 0, protocolError("unsupported payload target")
+	}
+}
+
+func selectedReadLength(logicalLength uint64, readRange *ByteRange, clampRange bool) (uint64, error) {
 	if readRange == nil {
 		return logicalLength, nil
+	}
+	if clampRange {
+		if readRange.Offset >= logicalLength {
+			return 0, nil
+		}
+		available := logicalLength - readRange.Offset
+		if readRange.Len > available {
+			return available, nil
+		}
+		return readRange.Len, nil
 	}
 	end, ok := checkedAdd(readRange.Offset, readRange.Len)
 	if !ok || end > logicalLength {
@@ -703,6 +936,7 @@ func objectInfoFromWire(info *pb.ObjectInfo) (ObjectInfo, error) {
 		Len:          info.Length,
 		ModifiedTime: time.UnixMilli(info.ModifiedTimeUnixMillis),
 		Version:      ObjectVersion(info.Version),
+		IsPrefix:     info.IsPrefix,
 	}, nil
 }
 
@@ -817,6 +1051,214 @@ func (c *Client) releaseViews(ctx context.Context, epochs []uint64) {
 	}
 }
 
+func (c *Client) registerReader(reader *objectReader) error {
+	if c == nil || reader == nil {
+		return invalidArgument("DMS client is closed")
+	}
+	c.lifecycleMu.Lock()
+	defer c.lifecycleMu.Unlock()
+	if c.closing || c.closed.Load() {
+		return invalidArgument("DMS client is closed")
+	}
+	if c.readers == nil {
+		c.readers = map[*objectReader]struct{}{}
+	}
+	c.readers[reader] = struct{}{}
+	c.readerWG.Add(1)
+	return nil
+}
+
+func (c *Client) unregisterReader(reader *objectReader) {
+	if c == nil || reader == nil {
+		return
+	}
+	c.lifecycleMu.Lock()
+	if c.readers != nil {
+		delete(c.readers, reader)
+	}
+	c.lifecycleMu.Unlock()
+	c.readerWG.Done()
+}
+
+func (c *Client) snapshotReaders() []*objectReader {
+	c.lifecycleMu.Lock()
+	defer c.lifecycleMu.Unlock()
+	readers := make([]*objectReader, 0, len(c.readers))
+	for reader := range c.readers {
+		readers = append(readers, reader)
+	}
+	return readers
+}
+
+type objectReader struct {
+	plan *readPlan
+
+	closeMu sync.Mutex
+	closed  bool
+	readWG  sync.WaitGroup
+
+	inlineReader *bytes.Reader
+	segmentIndex int
+	segmentBytes []byte
+	segmentPos   int
+
+	cancelStop func() bool
+	doneOnce   sync.Once
+}
+
+func newObjectReader(plan *readPlan) *objectReader {
+	reader := &objectReader{plan: plan}
+	if plan.inlineValue != nil {
+		reader.inlineReader = bytes.NewReader(plan.inlineValue)
+	}
+	return reader
+}
+
+func (r *objectReader) armCancel() {
+	r.cancelStop = context.AfterFunc(r.plan.ctx, func() {
+		_ = r.closeAndWait()
+	})
+}
+
+func (r *objectReader) Read(p []byte) (int, error) {
+	if r == nil || r.plan == nil {
+		return 0, io.ErrClosedPipe
+	}
+	r.closeMu.Lock()
+	if r.closed {
+		r.closeMu.Unlock()
+		return 0, io.ErrClosedPipe
+	}
+	r.readWG.Add(1)
+	r.closeMu.Unlock()
+
+	n, err := r.readUnlocked(p)
+	r.readWG.Done()
+	if err == io.EOF {
+		_ = r.closeNoWait()
+	}
+	return n, err
+}
+
+func (r *objectReader) readUnlocked(p []byte) (int, error) {
+	if len(p) == 0 {
+		return 0, nil
+	}
+	if err := r.plan.ctx.Err(); err != nil {
+		return 0, err
+	}
+	if r.inlineReader != nil {
+		return r.inlineReader.Read(p)
+	}
+	total := 0
+	for total < len(p) {
+		if len(r.segmentBytes) > r.segmentPos {
+			n := copy(p[total:], r.segmentBytes[r.segmentPos:])
+			r.segmentPos += n
+			total += n
+			if r.segmentPos == len(r.segmentBytes) {
+				r.segmentBytes = nil
+				r.segmentPos = 0
+				r.segmentIndex++
+			}
+			continue
+		}
+		if r.segmentIndex >= len(r.plan.segments) {
+			if total > 0 {
+				return total, nil
+			}
+			return 0, io.EOF
+		}
+		segment := r.plan.segments[r.segmentIndex]
+		switch target := segment.Target.GetTarget().(type) {
+		case *pb.PayloadTarget_Shm:
+			region, err := r.plan.client.mappingFor(r.plan.ctx, target.Shm)
+			if err != nil {
+				_ = r.closeNoWait()
+				return total, err
+			}
+			remaining, err := shmSlice(region.data, target.Shm.Offset, target.Shm.Length)
+			if err != nil {
+				_ = r.closeNoWait()
+				return total, err
+			}
+			if r.segmentPos > 0 {
+				remaining = remaining[r.segmentPos:]
+			}
+			n := copy(p[total:], remaining)
+			total += n
+			r.segmentPos += n
+			if uint64(r.segmentPos) == target.Shm.Length {
+				r.segmentPos = 0
+				r.segmentIndex++
+			}
+		case *pb.PayloadTarget_Grpc:
+			resp, err := r.plan.client.payload.Download(r.plan.ctx, &pb.DownloadPayloadRequest{
+				TransferId: target.Grpc.TransferId,
+				Nonce:      target.Grpc.Nonce,
+			})
+			if err != nil {
+				_ = r.closeNoWait()
+				return total, err
+			}
+			if resp == nil {
+				_ = r.closeNoWait()
+				return total, protocolError("download response is empty")
+			}
+			if uint64(len(resp.Payload)) != target.Grpc.Length {
+				_ = r.closeNoWait()
+				return total, protocolError("read payload length differs from descriptor")
+			}
+			r.segmentBytes = resp.Payload
+			r.segmentPos = 0
+		default:
+			_ = r.closeNoWait()
+			return total, protocolError("unsupported payload target")
+		}
+	}
+	return total, nil
+}
+
+func (r *objectReader) Close() error {
+	return r.closeAndWait()
+}
+
+func (r *objectReader) closeNoWait() error {
+	return r.close(false)
+}
+
+func (r *objectReader) closeAndWait() error {
+	return r.close(true)
+}
+
+func (r *objectReader) close(wait bool) error {
+	if r == nil || r.plan == nil {
+		return nil
+	}
+	r.closeMu.Lock()
+	alreadyClosed := r.closed
+	r.closed = true
+	r.closeMu.Unlock()
+	if alreadyClosed {
+		if wait {
+			r.readWG.Wait()
+		}
+		return nil
+	}
+	if r.cancelStop != nil {
+		r.cancelStop()
+	}
+	r.plan.cancel()
+	if wait {
+		r.readWG.Wait()
+	}
+	r.doneOnce.Do(func() {
+		r.plan.finish()
+		r.plan.client.unregisterReader(r)
+	})
+	return nil
+}
+
 func (c *Client) releaseWriteFromDescriptor(ctx context.Context, desc *pb.ShmDescriptor) error {
 	if desc == nil {
 		return nil
@@ -905,6 +1347,59 @@ func (c *Client) upload(ctx context.Context, target *pb.PayloadTarget, value []b
 			ReleaseToken:       append([]byte(nil), t.Shm.ReleaseToken...),
 		}, nil
 	case *pb.PayloadTarget_Grpc:
+		resp, err := c.payload.Upload(ctx, &pb.UploadPayloadRequest{
+			TransferId: t.Grpc.TransferId,
+			Payload:    value,
+			Nonce:      t.Grpc.Nonce,
+		})
+		if err != nil {
+			return nil, err
+		}
+		if resp == nil || resp.Receipt == nil {
+			return nil, protocolError("upload response is missing receipt")
+		}
+		return resp.Receipt, nil
+	default:
+		return nil, protocolError("unsupported payload target")
+	}
+}
+
+func (c *Client) uploadFrom(ctx context.Context, target *pb.PayloadTarget, src io.Reader, length uint64) (*pb.TransferReceipt, error) {
+	if target == nil {
+		return nil, protocolError("upload target is empty")
+	}
+	switch t := target.GetTarget().(type) {
+	case *pb.PayloadTarget_Shm:
+		region, err := c.mappingFor(ctx, t.Shm)
+		if err != nil {
+			return nil, setFailureWithCleanup(err, c.releaseWriteFromDescriptor(ctx, t.Shm))
+		}
+		dst, err := shmSlice(region.data, t.Shm.Offset, length)
+		if err != nil {
+			return nil, setFailureWithCleanup(err, c.releaseWriteFromDescriptor(ctx, t.Shm))
+		}
+		if length != t.Shm.Length {
+			return nil, setFailureWithCleanup(protocolError("SHM staging length differs from requested SetFrom length"), c.releaseWriteFromDescriptor(ctx, t.Shm))
+		}
+		if err := readFullInto(src, dst); err != nil {
+			return nil, setFailureWithCleanup(err, c.releaseWriteFromDescriptor(ctx, t.Shm))
+		}
+		sum := fnv1a(dst)
+		return &pb.TransferReceipt{
+			TransferId:         t.Shm.TransferId,
+			Length:             length,
+			Digest:             sum[:],
+			TargetAllocationId: t.Shm.AllocationId,
+			ReleaseToken:       append([]byte(nil), t.Shm.ReleaseToken...),
+		}, nil
+	case *pb.PayloadTarget_Grpc:
+		// Current wire is unary protobuf bytes. SetFrom consumes exactly length
+		// without reading past it, but TCP must buffer those bytes for the single
+		// UploadPayloadRequest; this is protocol-required buffering, not a value cache.
+		value, err := readExactBytes(src, length)
+		if err != nil {
+			return nil, err
+		}
 		resp, err := c.payload.Upload(ctx, &pb.UploadPayloadRequest{
 			TransferId: t.Grpc.TransferId,
 			Payload:    value,
@@ -1069,13 +1564,59 @@ func copyInto(data []byte, offset uint64, value []byte) error {
 }
 
 func copyOut(data []byte, offset, length uint64) ([]byte, error) {
+	if _, err := shmSlice(data, offset, length); err != nil {
+		return nil, err
+	}
+	out := make([]byte, int(length))
+	_ = copyOutInto(out, data, offset, length)
+	return out, nil
+}
+
+func copyOutInto(dst, data []byte, offset, length uint64) error {
+	src, err := shmSlice(data, offset, length)
+	if err != nil {
+		return err
+	}
+	if uint64(len(dst)) < length {
+		return protocolError("destination buffer is smaller than SHM segment")
+	}
+	copy(dst[:int(length)], src)
+	return nil
+}
+
+func shmSlice(data []byte, offset, length uint64) ([]byte, error) {
 	regionLength := uint64(len(data))
 	if offset > regionLength || length > regionLength-offset {
 		return nil, protocolError(fmt.Sprintf("shm read out of range: offset=%d len=%d region=%d", offset, length, len(data)))
 	}
-	out := make([]byte, int(length))
-	copy(out, data[offset:offset+length])
-	return out, nil
+	if length > uint64(int(^uint(0)>>1)) {
+		return nil, protocolError("SHM slice length exceeds platform limit")
+	}
+	return data[int(offset):int(offset+length)], nil
+}
+
+func readExactBytes(src io.Reader, length uint64) ([]byte, error) {
+	if length > uint64(int(^uint(0)>>1)) {
+		return nil, invalidArgument("SetFrom length exceeds platform limit")
+	}
+	value := make([]byte, int(length))
+	if err := readFullInto(src, value); err != nil {
+		return nil, err
+	}
+	return value, nil
+}
+
+func readFullInto(src io.Reader, dst []byte) error {
+	if len(dst) == 0 {
+		return nil
+	}
+	if _, err := io.ReadFull(src, dst); err != nil {
+		if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
+			return invalidArgument("SetFrom source ended before requested length")
+		}
+		return wrapDmsError(CLIENT_CONNECTION_UNAVAILABLE, ErrorKindUnavailable, "SetFrom source read failed: "+err.Error(), err)
+	}
+	return nil
 }
 
 func fnv1a(data []byte) []byte {

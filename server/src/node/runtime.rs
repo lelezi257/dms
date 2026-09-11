@@ -1096,18 +1096,24 @@ impl NodeHandle {
             key,
             exact_version,
             range,
+            false,
             max_inline_bytes,
             0,
         )
         .await
     }
 
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "wire GET entrypoint keeps the opt-in range policy explicit beside the existing request identity and inline budget"
+    )]
     pub(crate) async fn get_with_inline_limit_for_request(
         &self,
         session_id: u64,
         key: Vec<u8>,
         exact_version: Option<u64>,
         range: Option<(u64, u64)>,
+        clamp_range: bool,
         max_inline_bytes: u64,
         read_request_id: u64,
     ) -> Result<ReadTicket, WorkerError> {
@@ -1120,6 +1126,7 @@ impl NodeHandle {
                 key,
                 exact_version,
                 range,
+                clamp_range,
                 max_inline_bytes,
             )
             .await;
@@ -1143,6 +1150,7 @@ impl NodeHandle {
         key: Vec<u8>,
         exact_version: Option<u64>,
         range: Option<(u64, u64)>,
+        clamp_range: bool,
         max_inline_bytes: u64,
     ) -> Result<ReadTicket, WorkerError> {
         let metadata = self
@@ -1162,6 +1170,7 @@ impl NodeHandle {
                 key: key.clone(),
                 node_epoch,
                 range,
+                clamp_range,
                 max_inline_bytes,
                 reply,
             })
@@ -1179,6 +1188,7 @@ impl NodeHandle {
                             key.clone(),
                             version,
                             range,
+                            clamp_range,
                             max_inline_bytes,
                         )
                         .await;
@@ -1207,6 +1217,7 @@ impl NodeHandle {
                                         key.clone(),
                                         cached_version,
                                         range,
+                                        clamp_range,
                                         max_inline_bytes,
                                     )
                                     .await;
@@ -1221,6 +1232,7 @@ impl NodeHandle {
                             read_request_id,
                             resolved,
                             range,
+                            clamp_range,
                             max_inline_bytes,
                             None,
                         )
@@ -1243,6 +1255,7 @@ impl NodeHandle {
             read_request_id,
             resolved,
             range,
+            clamp_range,
             max_inline_bytes,
             refill_token.map(|token| (token, key, requested_at, node_epoch)),
         )
@@ -1262,6 +1275,7 @@ impl NodeHandle {
         key: Vec<u8>,
         version: u64,
         range: Option<(u64, u64)>,
+        clamp_range: bool,
         max_inline_bytes: u64,
     ) -> Result<ReadTicket, WorkerError> {
         let resolved = metadata
@@ -1274,6 +1288,7 @@ impl NodeHandle {
             read_request_id,
             resolved,
             range,
+            clamp_range,
             max_inline_bytes,
             None,
         )
@@ -1291,6 +1306,7 @@ impl NodeHandle {
         read_request_id: u64,
         resolved: pb::ResolveObjectResponse,
         range: Option<(u64, u64)>,
+        clamp_range: bool,
         max_inline_bytes: u64,
         cache_refill: Option<(u64, Vec<u8>, Instant, u64)>,
     ) -> Result<ReadTicket, WorkerError> {
@@ -1304,6 +1320,7 @@ impl NodeHandle {
                 read_request_id,
                 resolved: resolved.clone(),
                 range,
+                clamp_range,
                 max_inline_bytes,
                 cache_refill: cache_refill.clone(),
                 reply: reply_tx,
@@ -1817,6 +1834,7 @@ enum NodeCommand {
         read_request_id: u64,
         resolved: pb::ResolveObjectResponse,
         range: Option<(u64, u64)>,
+        clamp_range: bool,
         max_inline_bytes: u64,
         cache_refill: Option<(u64, Vec<u8>, Instant, u64)>,
         reply: oneshot::Sender<Result<GetOutcome, WorkerError>>,
@@ -1828,6 +1846,7 @@ enum NodeCommand {
         key: Vec<u8>,
         node_epoch: u64,
         range: Option<(u64, u64)>,
+        clamp_range: bool,
         max_inline_bytes: u64,
         reply: oneshot::Sender<Result<CachedRead, WorkerError>>,
     },
@@ -2253,6 +2272,7 @@ async fn run_node(
                     read_request_id,
                     resolved,
                     range,
+                    clamp_range,
                     max_inline_bytes,
                     cache_refill,
                     reply,
@@ -2267,6 +2287,7 @@ async fn run_node(
                         read_request_id,
                         &resolved,
                         range,
+                        clamp_range,
                         max_inline_bytes,
                     );
                     if matches!(&result, Ok(GetOutcome::Ready(_)))
@@ -2296,6 +2317,7 @@ async fn run_node(
                     key,
                     node_epoch,
                     range,
+                    clamp_range,
                     max_inline_bytes,
                     reply,
                 } => {
@@ -2310,6 +2332,7 @@ async fn run_node(
                         &key,
                         node_epoch,
                         range,
+                        clamp_range,
                         max_inline_bytes,
                     );
                     let _ = reply.send(result);
@@ -3450,6 +3473,7 @@ impl NodeState {
         key: &[u8],
         node_epoch: u64,
         range: Option<(u64, u64)>,
+        clamp_range: bool,
         max_inline_bytes: u64,
     ) -> Result<CachedRead, WorkerError> {
         self.live_session(session_id)?;
@@ -3475,6 +3499,7 @@ impl NodeState {
                 cached.layout.as_ref(),
                 cached.block_replicas.as_slice(),
                 range,
+                clamp_range,
                 max_inline_bytes,
             ) {
                 Ok(GetOutcome::Ready(ticket)) => CachedReadOutcome::Ready(ticket),
@@ -3514,9 +3539,21 @@ impl NodeState {
         range: Option<(u64, u64)>,
         max_inline_bytes: u64,
     ) -> Result<GetOutcome, WorkerError> {
-        self.get_resolved_for_request(session_id, u64::MAX, 0, resolved, range, max_inline_bytes)
+        self.get_resolved_for_request(
+            session_id,
+            u64::MAX,
+            0,
+            resolved,
+            range,
+            false,
+            max_inline_bytes,
+        )
     }
 
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "resolved read planning keeps request identity, range policy, and inline budget explicit for tests and actor calls"
+    )]
     fn get_resolved_for_request(
         &mut self,
         session_id: u64,
@@ -3524,6 +3561,7 @@ impl NodeState {
         read_request_id: u64,
         resolved: &pb::ResolveObjectResponse,
         range: Option<(u64, u64)>,
+        clamp_range: bool,
         max_inline_bytes: u64,
     ) -> Result<GetOutcome, WorkerError> {
         let layout = resolved.layout.as_ref().ok_or(WorkerError::NotFound)?;
@@ -3534,6 +3572,7 @@ impl NodeState {
             layout,
             &resolved.block_replicas,
             range,
+            clamp_range,
             max_inline_bytes,
         )
     }
@@ -3550,21 +3589,17 @@ impl NodeState {
         layout: &pb::VersionLayout,
         block_replicas: &[pb::BlockReplicaSet],
         range: Option<(u64, u64)>,
+        clamp_range: bool,
         max_inline_bytes: u64,
     ) -> Result<GetOutcome, WorkerError> {
         self.live_session(session_id)?;
         self.reject_finished_read_request(session_id, read_request_id)?;
         super::version_layout::validate(layout.logical_length, &layout.extents)?;
-        let requested = range.unwrap_or((0, layout.logical_length));
+        let requested = Self::normalize_read_range(range, layout.logical_length, clamp_range)?;
         let request_end = requested
             .0
             .checked_add(requested.1)
             .ok_or(WorkerError::InvalidArgument("read range overflows u64"))?;
-        if request_end > layout.logical_length {
-            return Err(WorkerError::InvalidArgument(
-                "read range extends beyond current value",
-            ));
-        }
 
         let mut missing = Vec::new();
         let mut planned = Vec::new();
@@ -3699,6 +3734,32 @@ impl NodeState {
             inline_value: None,
             segments,
         }))
+    }
+
+    /// 先验证调用方请求的 u64 范围本身，再按 opt-in 策略裁剪到同一已解析版本。
+    fn normalize_read_range(
+        range: Option<(u64, u64)>,
+        logical_length: u64,
+        clamp_range: bool,
+    ) -> Result<(u64, u64), WorkerError> {
+        let Some((offset, length)) = range else {
+            return Ok((0, logical_length));
+        };
+        let request_end = offset
+            .checked_add(length)
+            .ok_or(WorkerError::InvalidArgument("read range overflows u64"))?;
+        if !clamp_range {
+            if request_end > logical_length {
+                return Err(WorkerError::InvalidArgument(
+                    "read range extends beyond current value",
+                ));
+            }
+            return Ok((offset, length));
+        }
+        if offset >= logical_length {
+            return Ok((logical_length, 0));
+        }
+        Ok((offset, request_end.min(logical_length) - offset))
     }
 
     /// 只拼接本次已解析版本、已裁剪范围的读票据；不重新按 Current 找版本。
@@ -5378,6 +5439,22 @@ mod tests {
         }
     }
 
+    fn replica_set(block_id: &[u8], length: u64) -> pb::BlockReplicaSet {
+        pb::BlockReplicaSet {
+            block_id: block_id.to_vec(),
+            replicas: vec![pb::ReplicaLocation {
+                block_id: block_id.to_vec(),
+                node_id: 2,
+                node_epoch: 1,
+                data_endpoint: "http://127.0.0.1:25299".to_string(),
+                checksum: block_id.to_vec(),
+                durability: pb::DurabilityPolicy::LocalMemory as i32,
+            }],
+            length,
+            proofs: Vec::new(),
+        }
+    }
+
     #[test]
     fn only_confirmed_metadata_rejections_allow_block_retirement() {
         for code in [
@@ -5806,6 +5883,7 @@ mod tests {
             key: b"same-key".to_vec(),
             node_epoch: 0,
             range: None,
+            clamp_range: false,
             max_inline_bytes: 0,
             reply,
         })
@@ -6294,6 +6372,241 @@ mod tests {
     }
 
     #[test]
+    fn strict_read_range_past_end_stays_invalid() {
+        let mut state = NodeState::new("node-a".into(), None, 4096, Duration::from_secs(30), None);
+        let session = state.open_session(false);
+        state
+            .arena
+            .commit_inline(b"block".to_vec(), b"abc".to_vec())
+            .expect("commit block");
+        let resolved = resolved_value(12, 3, vec![test_extent(0, 3, b"block", 0)]);
+
+        assert!(matches!(
+            state.get_resolved(session, &resolved, Some((2, 2)), 64),
+            Err(WorkerError::InvalidArgument(
+                "read range extends beyond current value"
+            ))
+        ));
+    }
+
+    #[test]
+    fn clamp_range_past_end_returns_empty_without_download_ticket() {
+        let mut state = NodeState::new("node-a".into(), None, 4096, Duration::from_secs(30), None);
+        let session = state.open_session(false);
+        state
+            .arena
+            .commit_inline(b"block".to_vec(), b"abc".to_vec())
+            .expect("commit block");
+        let resolved = resolved_value(13, 3, vec![test_extent(0, 3, b"block", 0)]);
+
+        let ticket = match state
+            .get_resolved_for_request(session, u64::MAX, 1, &resolved, Some((3, 9)), true, 64)
+            .expect("clamped get")
+        {
+            GetOutcome::Ready(ticket) => ticket,
+            GetOutcome::NeedsRemoteBlocks(_) => panic!("empty range must not need peer blocks"),
+        };
+
+        assert_eq!(ticket.version, 13);
+        assert_eq!(ticket.logical_length, 3);
+        assert_eq!(ticket.inline_value.as_deref(), Some([].as_slice()));
+        assert!(ticket.segments.is_empty());
+        assert!(state.downloads.is_empty());
+    }
+
+    #[test]
+    fn clamp_range_preserves_zero_length_as_empty() {
+        let mut state = NodeState::new("node-a".into(), None, 4096, Duration::from_secs(30), None);
+        let session = state.open_session(false);
+        state
+            .arena
+            .commit_inline(b"block".to_vec(), b"abc".to_vec())
+            .expect("commit block");
+        let resolved = resolved_value(14, 3, vec![test_extent(0, 3, b"block", 0)]);
+
+        let ticket = match state
+            .get_resolved_for_request(session, u64::MAX, 2, &resolved, Some((1, 0)), true, 64)
+            .expect("zero-length get")
+        {
+            GetOutcome::Ready(ticket) => ticket,
+            GetOutcome::NeedsRemoteBlocks(_) => panic!("empty range must not need peer blocks"),
+        };
+
+        assert_eq!(ticket.inline_value.as_deref(), Some([].as_slice()));
+        assert!(ticket.segments.is_empty());
+        assert!(state.downloads.is_empty());
+    }
+
+    #[test]
+    fn clamp_range_clips_tail_across_multiple_extents() {
+        let mut state = NodeState::new("node-a".into(), None, 4096, Duration::from_secs(30), None);
+        let session = state.open_session(false);
+        state
+            .arena
+            .commit_inline(b"left".to_vec(), b"abc".to_vec())
+            .expect("commit left");
+        state
+            .arena
+            .commit_inline(b"right".to_vec(), b"def".to_vec())
+            .expect("commit right");
+        let resolved = resolved_value(
+            14,
+            6,
+            vec![
+                test_extent(0, 3, b"left", 0),
+                test_extent(3, 3, b"right", 0),
+            ],
+        );
+
+        let ticket = match state
+            .get_resolved_for_request(session, u64::MAX, 2, &resolved, Some((2, 99)), true, 64)
+            .expect("clamped get")
+        {
+            GetOutcome::Ready(ticket) => ticket,
+            GetOutcome::NeedsRemoteBlocks(_) => panic!("blocks are local"),
+        };
+
+        assert_eq!(ticket.inline_value.as_deref(), Some(b"cdef".as_slice()));
+        assert!(ticket.segments.is_empty());
+    }
+
+    #[test]
+    fn clamp_range_keeps_overflow_invalid_before_tail_clip() {
+        let mut state = NodeState::new("node-a".into(), None, 4096, Duration::from_secs(30), None);
+        let session = state.open_session(false);
+        state
+            .arena
+            .commit_inline(b"block".to_vec(), b"abc".to_vec())
+            .expect("commit block");
+        let resolved = resolved_value(15, 3, vec![test_extent(0, 3, b"block", 0)]);
+
+        assert!(matches!(
+            state.get_resolved_for_request(
+                session,
+                u64::MAX,
+                3,
+                &resolved,
+                Some((u64::MAX, 1)),
+                true,
+                64
+            ),
+            Err(WorkerError::InvalidArgument("read range overflows u64"))
+        ));
+    }
+
+    #[test]
+    fn clamp_range_still_rejects_invalid_layout_gap() {
+        let mut state = NodeState::new("node-a".into(), None, 4096, Duration::from_secs(30), None);
+        let session = state.open_session(false);
+        state
+            .arena
+            .commit_inline(b"left".to_vec(), b"ab".to_vec())
+            .expect("commit left");
+        state
+            .arena
+            .commit_inline(b"right".to_vec(), b"d".to_vec())
+            .expect("commit right");
+        let resolved = resolved_value(
+            16,
+            4,
+            vec![
+                test_extent(0, 2, b"left", 0),
+                test_extent(3, 1, b"right", 0),
+            ],
+        );
+
+        assert!(matches!(
+            state.get_resolved_for_request(
+                session,
+                u64::MAX,
+                4,
+                &resolved,
+                Some((1, 99)),
+                true,
+                64
+            ),
+            Err(WorkerError::InvalidArgument(
+                "version layout contains a gap, overlap, or empty extent"
+            ))
+        ));
+    }
+
+    #[test]
+    fn clamp_range_peer_fallback_uses_clipped_resolved_version() {
+        let mut state = NodeState::new("node-a".into(), None, 4096, Duration::from_secs(30), None);
+        let session = state.open_session(false);
+        state
+            .arena
+            .commit_inline(b"left".to_vec(), b"abc".to_vec())
+            .expect("commit left");
+        let mut resolved = resolved_value(
+            17,
+            6,
+            vec![
+                test_extent(0, 3, b"left", 0),
+                test_extent(3, 3, b"remote", 0),
+            ],
+        );
+        resolved.block_replicas = vec![replica_set(b"remote", 3)];
+
+        let specs = match state
+            .get_resolved_for_request(session, u64::MAX, 5, &resolved, Some((4, 99)), true, 64)
+            .expect("clamped missing-block get")
+        {
+            GetOutcome::Ready(_) => panic!("remote extent is missing"),
+            GetOutcome::NeedsRemoteBlocks(specs) => specs,
+        };
+
+        assert_eq!(specs.len(), 1);
+        assert_eq!(specs[0].block_id, b"remote".to_vec());
+        assert_eq!(specs[0].expected_length, 3);
+    }
+
+    #[test]
+    fn current_cache_clamped_range_reuses_layout_without_full_interest() {
+        let mut state = NodeState::new("node-a".into(), None, 4096, Duration::from_secs(30), None);
+        let session = state.open_session(false);
+        state.metadata_watch_connected = true;
+        state.metadata_lease_until = Instant::now() + Duration::from_secs(30);
+        state
+            .arena
+            .commit_inline(b"block".to_vec(), b"abc".to_vec())
+            .expect("commit block");
+        let mut resolved = resolved_value(18, 3, vec![test_extent(0, 3, b"block", 0)]);
+        resolved.current_lease = Some(pb::CurrentLeaseGrant {
+            version: 18,
+            lease_epoch: 0,
+            leader_epoch: 0,
+            revision: 0,
+            ttl_millis: 30_000,
+        });
+        let now = Instant::now();
+        assert!(state.current_cache.insert(
+            state.current_cache.token().expect("cache token"),
+            b"key".to_vec(),
+            &resolved,
+            now,
+            0,
+            now
+        ));
+
+        let (_token, outcome) = state
+            .get_cached(session, u64::MAX, 6, b"key", 0, Some((1, 99)), true, 64)
+            .expect("cached read");
+        let CachedReadOutcome::Ready(ticket) = outcome else {
+            panic!("cached layout should satisfy clamped local range");
+        };
+
+        assert_eq!(ticket.version, 18);
+        assert_eq!(ticket.inline_value.as_deref(), Some(b"bc".as_slice()));
+        assert!(
+            !state.sessions[&session]
+                .cached_current_keys
+                .contains(b"key".as_slice())
+        );
+    }
+
+    #[test]
     fn get_resolved_shm_session_ignores_inline_budget() {
         let mut state = NodeState::new("node-a".into(), None, 4096, Duration::from_secs(30), None);
         let session = state.open_session(true);
@@ -6347,7 +6660,7 @@ mod tests {
 
         assert!(matches!(
             state
-                .get_resolved_for_request(session, u64::MAX, 7, &resolved, None, 0)
+                .get_resolved_for_request(session, u64::MAX, 7, &resolved, None, false, 0)
                 .unwrap(),
             GetOutcome::Ready(_)
         ));
@@ -6379,7 +6692,7 @@ mod tests {
             .unwrap();
 
         assert!(matches!(
-            state.get_resolved_for_request(session, u64::MAX, 7, &resolved, None, 0),
+            state.get_resolved_for_request(session, u64::MAX, 7, &resolved, None, false, 0),
             Err(WorkerError::InvalidArgument(_))
         ));
         assert!(state.downloads.is_empty());
@@ -6405,7 +6718,7 @@ mod tests {
         let resolved = resolved_value(1, 3, vec![test_extent(0, 3, b"block", 0)]);
         assert!(matches!(
             state
-                .get_resolved_for_request(session, u64::MAX, 11, &resolved, None, 0)
+                .get_resolved_for_request(session, u64::MAX, 11, &resolved, None, false, 0)
                 .unwrap(),
             GetOutcome::Ready(_)
         ));
@@ -6456,7 +6769,7 @@ mod tests {
         assert!(prepare_rx.try_recv().is_err());
         let new_scope = state.begin_read_scope(session).unwrap();
         assert!(matches!(
-            state.get_resolved_for_request(session, new_scope, 1, &resolved, None, 0),
+            state.get_resolved_for_request(session, new_scope, 1, &resolved, None, false, 0),
             Err(WorkerError::NotFound)
         ));
 
@@ -6476,7 +6789,7 @@ mod tests {
             .unwrap();
         let resolved = resolved_value(1, 3, vec![test_extent(0, 3, b"block", 0)]);
         let ticket = match state
-            .get_resolved_for_request(session, u64::MAX, 9, &resolved, None, 0)
+            .get_resolved_for_request(session, u64::MAX, 9, &resolved, None, false, 0)
             .unwrap()
         {
             GetOutcome::Ready(ticket) => ticket,

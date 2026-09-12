@@ -17,7 +17,7 @@ dms-transport = { path = "../../../common/transport" }
 hyper-util = { version = "0.1.20", features = ["tokio"] }
 log = "0.4.28"
 tokio = { version = "1.47.1", features = ["net", "rt-multi-thread", "sync", "time"] }
-tokio-stream = "0.1.17"
+tokio-stream = { version = "0.1.17", features = ["net"] }
 tonic = "0.14.6"
 tower = { version = "0.5.2", features = ["util"] }
 uuid = { version = "1.18.1", features = ["v4"] }

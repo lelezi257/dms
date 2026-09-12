@@ -3,7 +3,14 @@
 //! 这里负责 protobuf DTO 和连接细节；Node actor 只调用 `resolve/commit/watch/ack`
 //! 这些当前真实业务动作。`Channel` 可安全 clone，并共享底层 HTTP/2 连接。
 
-use std::{future::Future, sync::Arc, time::Duration};
+use std::{
+    future::Future,
+    sync::{
+        Arc,
+        atomic::{AtomicU64, Ordering},
+    },
+    time::Duration,
+};
 
 use dms_error::{DmsError, ErrorKind};
 use dms_protocol::v1 as pb;
@@ -24,6 +31,9 @@ pub(crate) struct BatchValueCommit {
 pub(crate) struct MetadataClient {
     client: GrpcMetadataClient<dms_tracing::TracedChannel>,
     session: Arc<RwLock<pb::NodeSessionIdentity>>,
+    // 每个逻辑提交仅分配一次，克隆连接与 RPC 重试共享计数器。它不是用户
+    // operation_id 的替代；仅让 Meta 在历史幂等结果裁剪后拒绝旧 wire 请求。
+    next_commit_sequence: Arc<AtomicU64>,
     node_id: u64,
     data_endpoint: String,
     rpc_metrics: Option<dms_metrics::RpcMetrics>,
@@ -69,12 +79,13 @@ impl MetadataClient {
                 format!("failed to connect Meta endpoint: {error}"),
             )
         })?;
-        let mut client = GrpcMetadataClient::new(dms_tracing::traced_channel(channel.clone()));
-        let session =
+        let mut client = metadata_client(channel.clone());
+        let (session, minimum_sequence) =
             Self::open_session(&mut client, node_id, &data_endpoint, rpc_metrics.as_ref()).await?;
         Ok(Self {
-            client: GrpcMetadataClient::new(dms_tracing::traced_channel(channel)),
+            client: metadata_client(channel),
             session: Arc::new(RwLock::new(session)),
+            next_commit_sequence: Arc::new(AtomicU64::new(minimum_sequence.max(1))),
             node_id,
             data_endpoint,
             rpc_metrics,
@@ -86,11 +97,12 @@ impl MetadataClient {
         node_id: u64,
         data_endpoint: &str,
         rpc_metrics: Option<&dms_metrics::RpcMetrics>,
-    ) -> Result<pb::NodeSessionIdentity, DmsError> {
+    ) -> Result<(pb::NodeSessionIdentity, u64), DmsError> {
         let result = observe_rpc(
             rpc_metrics,
             dms_metrics::RpcCall::META_OPEN_NODE_SESSION,
             client.open_node_session(pb::OpenNodeSessionRequest {
+                supports_commit_sequence: true,
                 context: Some(context(node_id)),
                 registration: Some(pb::NodeRegistration {
                     node_id,
@@ -103,13 +115,14 @@ impl MetadataClient {
         )
         .await;
         let opened = result.map_err(map_status)?.into_inner();
-        opened.session.ok_or_else(|| {
+        let identity = opened.session.ok_or_else(|| {
             DmsError::new(
                 dms_error::NODE_METADATA_UNAVAILABLE,
                 ErrorKind::Unavailable,
                 "Meta OpenNodeSession response is missing session identity",
             )
-        })
+        })?;
+        Ok((identity, opened.minimum_commit_sequence))
     }
 
     async fn current_session(&self) -> pb::NodeSessionIdentity {
@@ -167,13 +180,16 @@ impl MetadataClient {
 
     async fn reopen_session(&self) -> Result<pb::NodeSessionIdentity, DmsError> {
         let mut client = self.client();
-        let session = Self::open_session(
+        let (session, minimum_sequence) = Self::open_session(
             &mut client,
             self.node_id,
             &self.data_endpoint,
             self.rpc_metrics.as_ref(),
         )
         .await?;
+        // 不重置计数器；并发克隆也不能把已发出的 sequence 再次分配出去。
+        self.next_commit_sequence
+            .fetch_max(minimum_sequence.max(1), Ordering::Relaxed);
         dms_logging::info!(
             "Meta session reopened";
             "event" => "node.meta_session.reopened",
@@ -233,6 +249,75 @@ impl MetadataClient {
         result
     }
 
+    pub(crate) async fn stat(&self, key: Vec<u8>) -> Result<pb::MetaStatResponse, DmsError> {
+        let mut session = self.current_session().await;
+        let make_request = |session: pb::NodeSessionIdentity| pb::MetaStatRequest {
+            context: Some(context(self.node_id)),
+            session: Some(session),
+            key: Some(pb::Key { value: key.clone() }),
+        };
+        let mut client = self.client();
+        let mut result = observe_rpc(
+            self.rpc_metrics.as_ref(),
+            dms_metrics::RpcCall::META_STAT,
+            client.stat(make_request(session.clone())),
+        )
+        .await
+        .map(|response| response.into_inner())
+        .map_err(map_status);
+        if result.as_ref().is_err_and(is_reopenable_session_error) {
+            session = self.reopen_session().await?;
+            let mut client = self.client();
+            result = observe_rpc(
+                self.rpc_metrics.as_ref(),
+                dms_metrics::RpcCall::META_STAT,
+                client.stat(make_request(session)),
+            )
+            .await
+            .map(|response| response.into_inner())
+            .map_err(map_status);
+        }
+        result
+    }
+
+    pub(crate) async fn scan(
+        &self,
+        prefix: Vec<u8>,
+        options: Option<pb::ObjectScanOptions>,
+    ) -> Result<pb::MetaScanResponse, DmsError> {
+        let mut session = self.current_session().await;
+        let make_request = |session: pb::NodeSessionIdentity| pb::MetaScanRequest {
+            context: Some(context(self.node_id)),
+            session: Some(session),
+            prefix: Some(pb::Key {
+                value: prefix.clone(),
+            }),
+            options: options.clone(),
+        };
+        let mut client = self.client();
+        let mut result = observe_rpc(
+            self.rpc_metrics.as_ref(),
+            dms_metrics::RpcCall::META_SCAN,
+            client.scan(make_request(session.clone())),
+        )
+        .await
+        .map(|response| response.into_inner())
+        .map_err(map_status);
+        if result.as_ref().is_err_and(is_reopenable_session_error) {
+            session = self.reopen_session().await?;
+            let mut client = self.client();
+            result = observe_rpc(
+                self.rpc_metrics.as_ref(),
+                dms_metrics::RpcCall::META_SCAN,
+                client.scan(make_request(session)),
+            )
+            .await
+            .map(|response| response.into_inner())
+            .map_err(map_status);
+        }
+        result
+    }
+
     pub(crate) async fn commit_value(
         &self,
         key: Vec<u8>,
@@ -242,6 +327,23 @@ impl MetadataClient {
         operation_id: Vec<u8>,
         condition: String,
     ) -> Result<pb::CommitVersionResponse, DmsError> {
+        if length == 0 {
+            return self
+                .commit(
+                    key,
+                    operation_id,
+                    pb::VersionCandidate {
+                        kind: pb::VersionKind::Value as i32,
+                        logical_length: 0,
+                        extents: Vec::new(),
+                        digest: digest(&[]),
+                    },
+                    Vec::new(),
+                    Vec::new(),
+                    condition,
+                )
+                .await;
+        }
         self.commit(
             key,
             operation_id,
@@ -296,6 +398,7 @@ impl MetadataClient {
         values: Vec<BatchValueCommit>,
         batch_operation_id: Vec<u8>,
     ) -> Result<pb::CommitBatchResponse, DmsError> {
+        let commit_sequence = allocate_commit_sequence(&self.next_commit_sequence)?;
         let mut session = self.current_session().await;
         let make_request = |session: pb::NodeSessionIdentity| {
             let entries = values
@@ -338,6 +441,7 @@ impl MetadataClient {
                 })
                 .collect();
             pb::CommitBatchRequest {
+                commit_sequence,
                 context: Some(context(self.node_id)),
                 session: Some(session),
                 entries,
@@ -452,12 +556,14 @@ impl MetadataClient {
         let mut operation_digest = digest(&key);
         operation_digest.extend_from_slice(&candidate.digest);
         operation_digest.push(candidate.kind as u8);
+        let commit_sequence = allocate_commit_sequence(&self.next_commit_sequence)?;
         let mut session = self.current_session().await;
         let mut client = self.client();
         let mut result = observe_rpc(
             self.rpc_metrics.as_ref(),
             dms_metrics::RpcCall::META_COMMIT_VERSION,
             client.commit_version(pb::CommitVersionRequest {
+                commit_sequence,
                 context: Some(context(self.node_id)),
                 session: Some(session.clone()),
                 key: Some(pb::Key { value: key.clone() }),
@@ -482,6 +588,7 @@ impl MetadataClient {
                 self.rpc_metrics.as_ref(),
                 dms_metrics::RpcCall::META_COMMIT_VERSION,
                 client.commit_version(pb::CommitVersionRequest {
+                    commit_sequence,
                     context: Some(context(self.node_id)),
                     session: Some(session),
                     key: Some(pb::Key { value: key }),
@@ -580,9 +687,95 @@ impl MetadataClient {
         result
     }
 
+    pub(crate) async fn acknowledge_block_retirement(
+        &self,
+        event: &pb::EvictReplicaEvent,
+        ack_kind: pb::BlockRetirementAckKind,
+        detail: Option<String>,
+    ) -> Result<(), DmsError> {
+        let mut session = self.current_session().await;
+        let make_request =
+            |session: pb::NodeSessionIdentity| pb::AcknowledgeBlockRetirementRequest {
+                context: Some(context(self.node_id)),
+                session: Some(session),
+                retirement_id: event.retirement_id.clone(),
+                ack_kind: ack_kind as i32,
+                stage_epoch: event.stage_epoch,
+                block_ids: retirement_block_ids(event),
+                detail: detail.clone(),
+            };
+        let mut client = self.client.clone();
+        let mut result = observe_rpc(
+            self.rpc_metrics.as_ref(),
+            dms_metrics::RpcCall::META_ACKNOWLEDGE_BLOCK_RETIREMENT,
+            client.acknowledge_block_retirement(make_request(session.clone())),
+        )
+        .await
+        .and_then(|response| {
+            response
+                .into_inner()
+                .accepted
+                .then_some(())
+                .ok_or_else(|| Status::failed_precondition("retirement ack rejected"))
+        })
+        .map_err(map_status);
+        if result.as_ref().is_err_and(is_reopenable_session_error) {
+            session = self.reopen_session().await?;
+            let mut client = self.client.clone();
+            result = observe_rpc(
+                self.rpc_metrics.as_ref(),
+                dms_metrics::RpcCall::META_ACKNOWLEDGE_BLOCK_RETIREMENT,
+                client.acknowledge_block_retirement(make_request(session)),
+            )
+            .await
+            .and_then(|response| {
+                response
+                    .into_inner()
+                    .accepted
+                    .then_some(())
+                    .ok_or_else(|| Status::failed_precondition("retirement ack rejected"))
+            })
+            .map_err(map_status);
+        }
+        result
+    }
+
     fn client(&self) -> GrpcMetadataClient<dms_tracing::TracedChannel> {
         self.client.clone()
     }
+}
+
+pub(crate) fn retirement_block_ids(event: &pb::EvictReplicaEvent) -> Vec<Vec<u8>> {
+    if event.block_ids.is_empty() {
+        (!event.block_id.is_empty())
+            .then(|| event.block_id.clone())
+            .into_iter()
+            .collect()
+    } else {
+        event.block_ids.clone()
+    }
+}
+
+fn allocate_commit_sequence(next: &AtomicU64) -> Result<u64, DmsError> {
+    next.fetch_update(Ordering::Relaxed, Ordering::Relaxed, |value| {
+        value.checked_add(1)
+    })
+    .map_err(|_| {
+        DmsError::new(
+            dms_error::NODE_METADATA_UNAVAILABLE,
+            ErrorKind::ResourceExhausted,
+            "Node commit sequence exhausted; refusing sequence reuse",
+        )
+    })
+}
+
+fn metadata_client(
+    channel: tonic::transport::Channel,
+) -> GrpcMetadataClient<dms_tracing::TracedChannel> {
+    let config = GrpcConfig::default();
+    GrpcMetadataClient::new(dms_tracing::traced_channel(channel))
+        .max_encoding_message_size(config.max_encoding_message_bytes)
+        .max_decoding_message_size(config.max_decoding_message_bytes)
 }
 
 /// 统计一次真实的 Node→Meta 网络尝试；Session 失效后的重试会单独计数。
@@ -636,6 +829,17 @@ mod tests {
     use dms_transport::dms_error_to_status;
 
     #[test]
+    fn commit_sequence_is_shared_and_never_wraps() {
+        let next = Arc::new(AtomicU64::new(1));
+        let clone = next.clone();
+        assert_eq!(allocate_commit_sequence(&next).unwrap(), 1);
+        assert_eq!(allocate_commit_sequence(&clone).unwrap(), 2);
+        next.store(u64::MAX, Ordering::Relaxed);
+        assert!(allocate_commit_sequence(&next).is_err());
+        assert_eq!(next.load(Ordering::Relaxed), u64::MAX);
+    }
+
+    #[test]
     fn structured_meta_status_preserves_original_meta_code() {
         let original = DmsError::new(
             dms_error::META_CATALOG_VERSION_CONFLICT,
@@ -663,12 +867,13 @@ mod tests {
         // Session，但 Meta 当前已经退出”的写路径。
         let channel = Endpoint::from_static("http://127.0.0.1:1").connect_lazy();
         let client = MetadataClient {
-            client: GrpcMetadataClient::new(dms_tracing::traced_channel(channel)),
+            client: metadata_client(channel),
             session: Arc::new(RwLock::new(pb::NodeSessionIdentity {
                 session_id: b"stale-session".to_vec(),
                 node_id: 9,
                 node_epoch: 1,
             })),
+            next_commit_sequence: Arc::new(AtomicU64::new(1)),
             node_id: 9,
             data_endpoint: "http://127.0.0.1:0".to_string(),
             rpc_metrics: None,

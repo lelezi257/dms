@@ -6,7 +6,10 @@
 //! future file-system client may use encoded inode or extent identifiers rather
 //! than UTF-8 paths.
 
-use std::fmt;
+use std::{
+    fmt,
+    time::{Duration, SystemTime, UNIX_EPOCH},
+};
 
 /// Maximum key length accepted by the first version of the public contract.
 ///
@@ -96,6 +99,25 @@ impl fmt::Debug for HashField {
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct ObjectVersion(pub u64);
 
+/// Metadata of one top-level object without reading its bytes.
+///
+/// `stat()` returns this structure for file-system style `Head` calls. The key
+/// remains binary bytes, not UTF-8 text, so a future filesystem adapter can use
+/// encoded chunk names directly.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ObjectInfo {
+    /// Original top-level key.
+    pub key: Vec<u8>,
+    /// Logical object length in bytes.
+    pub length: u64,
+    /// Commit timestamp recorded by Meta and converted to Rust's native time.
+    pub modified_time: SystemTime,
+    /// Current immutable version selected by this stat result.
+    pub version: ObjectVersion,
+    /// Whether this scan item represents a grouped prefix instead of a stored object.
+    pub is_prefix: bool,
+}
+
 /// Monotonic version of an entire Hash/KKV field map.
 ///
 /// Multiple fields published by one `HSET` share this version.
@@ -131,6 +153,67 @@ impl OperationId {
 /// implementation detail of the selected immutable Hash field-map version.
 #[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
 pub struct ScanCursor(pub u64);
+
+/// Controls one top-level prefix scan page.
+///
+/// This is intentionally separate from [`ScanCursor`], which belongs to Hash
+/// field scans. The `cursor` string here is an opaque service cursor for global
+/// object listing; SDK callers must not parse or combine it with Hash cursors.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ScanOptions {
+    /// Maximum number of objects requested in this page.
+    pub limit: u32,
+    /// Optional first-page marker. Returned items are strictly greater than it.
+    pub start_after: Option<Vec<u8>>,
+    /// Opaque cursor returned by the previous `scan()` page.
+    pub cursor: Option<String>,
+    /// Optional delimiter for grouped scans. Empty keeps flat object scans.
+    pub delimiter: Vec<u8>,
+}
+
+impl Default for ScanOptions {
+    fn default() -> Self {
+        Self {
+            limit: 128,
+            start_after: None,
+            cursor: None,
+            delimiter: Vec::new(),
+        }
+    }
+}
+
+/// One top-level prefix scan page.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ScanResult {
+    /// Objects returned in byte-order for the requested prefix/page.
+    pub items: Vec<ObjectInfo>,
+    /// Cursor for the next page. `None` means the scan is complete.
+    pub next_cursor: Option<String>,
+}
+
+pub(crate) fn system_time_from_unix_millis(millis: i64) -> Result<SystemTime, TimeConversionError> {
+    if millis >= 0 {
+        return Ok(UNIX_EPOCH + Duration::from_millis(millis as u64));
+    }
+    UNIX_EPOCH
+        .checked_sub(Duration::from_millis(millis.unsigned_abs()))
+        .ok_or(TimeConversionError { millis })
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct TimeConversionError {
+    millis: i64,
+}
+
+impl fmt::Display for TimeConversionError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            formatter,
+            "DMS object modified time {}ms is outside SystemTime range",
+            self.millis
+        )
+    }
+}
 
 /// Reliability condition that must be met before a write is acknowledged.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -270,6 +353,53 @@ impl fmt::Display for InvalidHashField {
 }
 
 impl std::error::Error for InvalidHashField {}
+
+#[cfg(test)]
+mod object_metadata_tests {
+    use std::time::{Duration, UNIX_EPOCH};
+
+    use super::*;
+
+    #[test]
+    fn object_scan_options_use_an_independent_opaque_cursor() {
+        let options = ScanOptions {
+            limit: 64,
+            start_after: Some(b"file/a".to_vec()),
+            cursor: None,
+            delimiter: Vec::new(),
+        };
+        assert_eq!(options.limit, 64);
+        assert_eq!(options.start_after.as_deref(), Some(&b"file/a"[..]));
+        assert_ne!(format!("{:?}", ScanCursor(1)), format!("{:?}", options));
+    }
+
+    #[test]
+    fn object_info_keeps_native_system_time() {
+        let modified_time = system_time_from_unix_millis(1_500).expect("positive millis");
+        let info = ObjectInfo {
+            key: b"chunk/1".to_vec(),
+            length: 7,
+            modified_time,
+            version: ObjectVersion(3),
+            is_prefix: false,
+        };
+        assert_eq!(
+            info.modified_time,
+            UNIX_EPOCH + Duration::from_millis(1_500)
+        );
+        assert_eq!(info.key, b"chunk/1");
+        assert_eq!(info.version, ObjectVersion(3));
+    }
+
+    #[test]
+    fn unix_millis_can_represent_times_before_epoch_when_platform_allows_it() {
+        let modified_time = system_time_from_unix_millis(-1).expect("negative millis");
+        assert_eq!(
+            UNIX_EPOCH.duration_since(modified_time).unwrap(),
+            Duration::from_millis(1)
+        );
+    }
+}
 
 #[cfg(test)]
 mod tests {

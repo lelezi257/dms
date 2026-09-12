@@ -31,6 +31,29 @@ let client = DmsClient::connect_with_options(ClientOptions::default())?;
 
 当前 API 是同步阻塞接口，内部持有 Tokio runtime，不要直接在 Tokio 异步任务中调用；异步宿主应在专用同步线程或 `spawn_blocking` 中创建、使用和释放 Client。`DmsClient::clone()` 共享同一会话和 Region 映射管理，不会创建一个新进程，也不维护私有 value 缓存。
 
+### 候选新增：用户 buffer 与 Reader
+
+以下是当前候选源码能力，不代表之前发布的包已包含。`get/set` 不变，`set` 已接受用户 `&[u8]`，无需 set_into。
+
+| 接口 | 作用与返回 |
+| --- | --- |
+| `get_into(key, &mut dst)` | 复制到用户内存；`Result<Option<GetIntoResult>, DmsError>`，结果含 version/len，容量不足报错 |
+| `get_reader(key)` | `Result<Option<ReadResult>, DmsError>`，含 version/len/body；body 是实现 `std::io::Read` 的 `DmsValueReader` |
+| `set_from(key, &mut source, length)` | 从 `std::io::Read` 精确消费 length；短源不发布，超出部分不消费；返回 SetResult |
+
+三者都提供 `_with_options` 对应版本。Reader 的一次 Get 固定版本，后续 Read 不重新 Get；SHM 直接复制到调用方 buffer，TCP 按需取当前分段并持有该段缓冲。到 EOF、错误或 Drop 会释放本次读取保护；Reader 持有必需的会话/映射生命期，不要求用户管理 FD。
+
+```rust
+use std::io::Read;
+if let Some(mut result) = client.get_reader("k")? {
+    let mut buffer = [0u8; 4096];
+    let n = result.body.read(&mut buffer)?;
+    // 消费 buffer[..n]；可继续 read，提前离开此作用域则 Drop 释放保护。
+}
+```
+
+`GetOptions::clamp_range` 默认为 false，旧范围越界规则不变；显式 true 才允许在同一版本裁剪尾部/返回 EOF 空范围，整数溢出仍拒绝。SetFrom 的 SHM 路径直接填 staging；TCP unary 路径仍需协议 payload 缓冲，不保证流式网络零拷贝。ScanOptions 的 delimiter 用于目录分组，ObjectInfo.is_prefix 标识合成前缀；扫描不是跨页快照。
+
 本地地址使用 `unix:///绝对路径/worker.sock`，远程使用 `http://IP:port`。当前公开 `ClientTlsOptions` 仅有 `Disabled`；不要因为连接器识别 `https://` 字符串，就假设 SDK 已有可用 TLS/mTLS 配置入口。参数优先级为默认值 < 环境变量 < API，详见[配置](configuration.md)。
 
 ## 1. 基础 KV：成功、缺失、失败是三回事

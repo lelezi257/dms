@@ -87,6 +87,7 @@ async fn import_rejects_corrupt_payload_when_peer_echoes_expected_checksum() {
         .import_and_report_peer_block(
             node.metadata.as_ref().expect("node metadata"),
             b"integrity-test/",
+            u64::MAX,
             PeerPullSpec {
                 endpoint: peer.endpoint.clone(),
                 block_id: block_id.clone(),
@@ -164,6 +165,7 @@ async fn import_rejects_corrupt_payload_when_only_peer_checksum_is_present() {
         .import_and_report_peer_block(
             node.metadata.as_ref().expect("node metadata"),
             b"integrity-test/",
+            u64::MAX,
             PeerPullSpec {
                 endpoint: peer.endpoint.clone(),
                 block_id: block_id.clone(),
@@ -209,6 +211,7 @@ async fn import_and_report_peer_block_preserves_double_empty_checksum_compatibil
     node.import_and_report_peer_block(
         node.metadata.as_ref().expect("node metadata"),
         b"integrity-test/",
+        u64::MAX,
         PeerPullSpec {
             endpoint: peer.endpoint.clone(),
             block_id: block_id.clone(),
@@ -461,6 +464,20 @@ impl MetadataService for CountingMetaService {
         self.inner.commit_batch(request).await
     }
 
+    async fn stat(
+        &self,
+        request: Request<pb::MetaStatRequest>,
+    ) -> Result<Response<pb::MetaStatResponse>, Status> {
+        self.inner.stat(request).await
+    }
+
+    async fn scan(
+        &self,
+        request: Request<pb::MetaScanRequest>,
+    ) -> Result<Response<pb::MetaScanResponse>, Status> {
+        self.inner.scan(request).await
+    }
+
     async fn get_operation(
         &self,
         request: Request<pb::GetOperationRequest>,
@@ -480,6 +497,13 @@ impl MetadataService for CountingMetaService {
         request: Request<pb::AcknowledgeNodeEventRequest>,
     ) -> Result<Response<pb::AcknowledgeNodeEventResponse>, Status> {
         self.inner.acknowledge_node_event(request).await
+    }
+
+    async fn acknowledge_block_retirement(
+        &self,
+        request: Request<pb::AcknowledgeBlockRetirementRequest>,
+    ) -> Result<Response<pb::AcknowledgeBlockRetirementResponse>, Status> {
+        self.inner.acknowledge_block_retirement(request).await
     }
 
     async fn watch_node_events(

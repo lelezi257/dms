@@ -25,6 +25,8 @@ service WorkerService {
   rpc Set(SetRequest) returns (SetResponse);
   rpc Delete(DeleteRequest) returns (DeleteResponse);
   rpc Get(GetRequest) returns (GetResponse);
+  rpc Stat(StatRequest) returns (StatResponse);
+  rpc Scan(ScanRequest) returns (ScanResponse);
   rpc MSet(MSetRequest) returns (MSetResponse);
   rpc MGet(MGetRequest) returns (MGetResponse);
   rpc SetRange(SetRangeRequest) returns (SetResponse);
@@ -47,6 +49,8 @@ message ClientSessionMessage {
 
 message SessionHeartbeat {
   optional uint64 released_view_through = 1;
+  repeated ReleasedWriteAllocation released_write_allocations = 2;
+  optional uint64 finished_read_request_through = 3;
 }
 
 message SessionEventAck {
@@ -95,6 +99,7 @@ message OpenSessionRequest {
   bool shared_memory = 3;
   bool zero_copy_read = 4;
   bool zero_copy_write = 5;
+  bool supports_write_lease_release = 6;
 }
 
 message OpenSessionResponse {
@@ -109,6 +114,7 @@ message OpenSessionResponse {
   // Present only for a local UDS session that negotiated SHM. The path is
   // stable for the session and therefore is not repeated in every slice.
   ShmCapability shm = 9;
+  bool write_lease_release_supported = 10;
 }
 
 message ShmCapability {
@@ -118,6 +124,8 @@ message ShmCapability {
 message HeartbeatRequest {
   uint64 session_id = 1;
   optional uint64 released_view_through = 2;
+  repeated ReleasedWriteAllocation released_write_allocations = 6;
+  optional uint64 finished_read_request_through = 7;
 }
 
 message HeartbeatResponse {
@@ -218,11 +226,17 @@ message GetRequest {
   // Capability hint for small-object reads. Zero keeps the legacy ticket path.
   // The Worker clamps non-zero values to the protocol safety limit.
   uint64 max_inline_bytes = 5;
+  uint64 read_request_id = 6;
+  // Opt-in tail clipping on the SAME resolved version. Default false preserves
+  // strict SDK ranges. A zero length remains empty; offsets at/beyond EOF clip
+  // to an empty read. This avoids a separate Stat/Exact-Get round trip.
+  bool clamp_range = 7;
 }
 
 message ReadSegment {
   PayloadTarget target = 1;
   uint64 logical_offset = 2;
+  uint64 read_request_id = 3;
 }
 
 message GetResponse {
@@ -234,6 +248,28 @@ message GetResponse {
   // read range fits the negotiated budget. It is mutually exclusive with
   // segments for the same successful response.
   optional bytes inline_value = 5;
+  uint64 read_request_id = 6;
+}
+
+message StatRequest {
+  uint64 session_id = 1;
+  Key key = 2;
+}
+
+message StatResponse {
+  bool found = 1;
+  ObjectInfo info = 2;
+}
+
+message ScanRequest {
+  uint64 session_id = 1;
+  bytes prefix = 2;
+  ObjectScanOptions options = 3;
+}
+
+message ScanResponse {
+  repeated ObjectInfo items = 1;
+  string next_cursor = 2;
 }
 
 message StagedKeyValue {
@@ -260,6 +296,7 @@ message MSetResponse {
 message MGetRequest {
   uint64 session_id = 1;
   repeated Key keys = 2;
+  uint64 read_request_id = 6;
 }
 
 message MGetResponse {
@@ -301,6 +338,7 @@ message HGetRequest {
   Key key = 2;
   HashField field = 3;
   optional uint64 exact_hash_version = 4;
+  uint64 read_request_id = 6;
 }
 
 message HashValueRead {
@@ -326,6 +364,7 @@ message HMGetRequest {
   Key key = 2;
   repeated HashField fields = 3;
   optional uint64 exact_hash_version = 4;
+  uint64 read_request_id = 6;
 }
 
 message HMGetResponse {
@@ -337,6 +376,7 @@ message HGetAllRequest {
   uint64 session_id = 1;
   Key key = 2;
   optional uint64 exact_hash_version = 3;
+  uint64 read_request_id = 6;
 }
 
 message HGetAllResponse {
@@ -359,6 +399,7 @@ message HScanRequest {
   uint64 cursor = 3;
   uint32 limit = 4;
   optional uint64 exact_hash_version = 5;
+  uint64 read_request_id = 6;
 }
 
 message HScanResponse {

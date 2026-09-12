@@ -2,7 +2,7 @@
 
 DMS 的 Rust 同步 SDK。应用可连接本地 UDS 或远端 TCP Node，使用普通字节 KV、批量、Hash/KKV、范围读写及显式共享内存 API。
 
-**当前是未发布的开发预览源码。** 不应直接用 `dms-client = "0.1"` 假设公共仓库已有包。本 crate 仍依赖工作区中的内部库；完整构包与独立安装尚未完成验收。
+**当前没有公开发布的 SDK 版本。** 不应直接用 `dms-client = "0.1"` 假设公共仓库已有包。源码开发仍使用工作区内部依赖；正式构包脚本会把私有实现与预生成协议纳入单个候选 `.crate`，消费者只声明 `dms-client`。候选包已完成独立安装和真实 Node 调用验证，安装方式见[候选仓库安装](../../../docs/release-installation.md)；这不代表整个产品已完成验收或获准公开发布。
 
 ```rust
 use dms_client::{ClientOptions, DmsClient};

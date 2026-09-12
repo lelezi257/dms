@@ -37,6 +37,10 @@ pub struct GrpcConfig {
     pub max_concurrent_streams: u32,
     /// Tonic 在一条连接上接受的并发请求上限，提供进程内背压。
     pub concurrency_limit_per_connection: usize,
+    /// 单条 protobuf 消息最大编码字节数；显式有界，避免大对象路径变成无限内存承诺。
+    pub max_encoding_message_bytes: usize,
+    /// 单条 protobuf 消息最大解码字节数；与编码上限一致覆盖双端收发。
+    pub max_decoding_message_bytes: usize,
 }
 
 impl Default for GrpcConfig {
@@ -54,6 +58,8 @@ impl Default for GrpcConfig {
             initial_stream_window_size: 2 * 1024 * 1024,
             max_concurrent_streams: 1024,
             concurrency_limit_per_connection: 1024,
+            max_encoding_message_bytes: 16 * 1024 * 1024,
+            max_decoding_message_bytes: 16 * 1024 * 1024,
         }
     }
 }

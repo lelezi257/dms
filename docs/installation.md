@@ -4,7 +4,7 @@
 
 ## 1. 准备 Linux 环境
 
-有仓库权限的开发者可先取得源码（Git 凭据使用本地凭据管理器，不写进 URL）：
+先取得源码；需要 Git 凭据时使用本地凭据管理器，不写进 URL：
 
 ```bash
 git clone https://github.com/lelezi257/dms.git source

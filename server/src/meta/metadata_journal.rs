@@ -12,9 +12,44 @@ use super::metrics::JournalRecordMetric;
 pub(crate) struct VersionCommitRecord {
     pub(crate) key: Vec<u8>,
     pub(crate) layout: pb::VersionLayout,
+    pub(crate) modified_time_unix_millis: i64,
     pub(crate) new_replicas: Vec<(pb::ReplicaLocation, u64)>,
     pub(crate) operation_id: Vec<u8>,
     pub(crate) operation_digest: Vec<u8>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct CommitSequenceRecord {
+    pub(crate) node_id: u64,
+    pub(crate) node_epoch: u64,
+    pub(crate) commit_sequence: u64,
+    pub(crate) operation_id: Vec<u8>,
+    pub(crate) operation_digest: Vec<u8>,
+    pub(crate) commit_index: u64,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct BlockRetirementParticipant {
+    pub(crate) node_id: u64,
+    pub(crate) node_epoch: u64,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct BlockRetirementRecord {
+    pub(crate) retirement_id: Vec<u8>,
+    pub(crate) block_ids: Vec<Vec<u8>>,
+    pub(crate) participants: Vec<BlockRetirementParticipant>,
+    pub(crate) prepare_stage_epoch: u64,
+    pub(crate) final_stage_epoch: u64,
+    pub(crate) fence_version: u64,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct SnapshotBlockRetirement {
+    pub(crate) record: BlockRetirementRecord,
+    pub(crate) prepared: Vec<BlockRetirementParticipant>,
+    pub(crate) released: Vec<BlockRetirementParticipant>,
+    pub(crate) final_sent: bool,
 }
 
 /// 已经由 Meta 状态机决定、可以按顺序重放的记录。
@@ -27,6 +62,8 @@ pub(crate) enum JournalRecord {
         session_id: Vec<u8>,
         control_endpoint: String,
         next_session: u64,
+        supports_commit_sequence: bool,
+        commit_sequence_floor: u64,
     },
     /// 一个 Node 已经持有某个 Block 的物理事实。
     ReplicaAccepted {
@@ -46,23 +83,49 @@ pub(crate) enum JournalRecord {
     VersionCommitted {
         key: Vec<u8>,
         layout: pb::VersionLayout,
+        modified_time_unix_millis: i64,
         /// Replica facts created by the same logical commit. Keeping them in
         /// one journal record prevents recovery from observing half a write.
         new_replicas: Vec<(pb::ReplicaLocation, u64)>,
         operation_id: Vec<u8>,
         operation_digest: Vec<u8>,
+        commit_sequence: Option<CommitSequenceRecord>,
     },
     /// Multiple key transitions accepted atomically by one Meta actor turn and
     /// persisted as one WAL record.
-    VersionsCommitted { commits: Vec<VersionCommitRecord> },
+    VersionsCommitted {
+        commits: Vec<VersionCommitRecord>,
+        commit_sequence: Option<CommitSequenceRecord>,
+    },
     /// 一个没有改变 Version 的操作结果也必须可恢复，例如重复 DEL 缺失 key。
     OperationRemembered {
         operation_id: Vec<u8>,
         operation_digest: Vec<u8>,
         result: pb::CommitVersionResponse,
+        commit_sequence: Option<CommitSequenceRecord>,
     },
     /// Node 已经处理到某个 Meta event cursor。
     NodeEventAcknowledged { node_id: u64, cursor: u64 },
+    /// 一个可回收 Block 批次已进入 durable Prepare 阶段。
+    BlockRetirementPrepared { record: BlockRetirementRecord },
+    /// Node 对 Prepare/Final 的专用排空或释放 ACK。
+    BlockRetirementAcknowledged {
+        retirement_id: Vec<u8>,
+        participant: BlockRetirementParticipant,
+        ack_kind: pb::BlockRetirementAckKind,
+        stage_epoch: u64,
+    },
+    /// 所有参与者已 drain，Final Evict 已 durable 发布。
+    BlockRetirementFinalized {
+        retirement_id: Vec<u8>,
+        stage_epoch: u64,
+    },
+    /// 所有副本 Node 已释放，Meta 才能删除 replica facts。
+    BlockRetirementReleased {
+        retirement_id: Vec<u8>,
+        block_ids: Vec<Vec<u8>>,
+        stage_epoch: u64,
+    },
 }
 
 impl JournalRecord {
@@ -79,6 +142,12 @@ impl JournalRecord {
             Self::VersionsCommitted { .. } => JournalRecordMetric::VersionsCommitted,
             Self::OperationRemembered { .. } => JournalRecordMetric::OperationRemembered,
             Self::NodeEventAcknowledged { .. } => JournalRecordMetric::NodeEventAcknowledged,
+            Self::BlockRetirementPrepared { .. } => JournalRecordMetric::BlockRetirementPrepared,
+            Self::BlockRetirementAcknowledged { .. } => {
+                JournalRecordMetric::BlockRetirementAcknowledged
+            }
+            Self::BlockRetirementFinalized { .. } => JournalRecordMetric::BlockRetirementFinalized,
+            Self::BlockRetirementReleased { .. } => JournalRecordMetric::BlockRetirementReleased,
         }
     }
 }
@@ -118,17 +187,25 @@ pub(crate) struct SnapshotSession {
     pub(crate) node_epoch: u64,
     pub(crate) control_endpoint: String,
     pub(crate) last_acked_cursor: u64,
+    pub(crate) supports_commit_sequence: bool,
+    pub(crate) commit_sequence_floor: u64,
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct MetaSnapshot {
     pub(crate) last_applied_index: u64,
+    pub(crate) version_floor: u64,
     pub(crate) next_session: u64,
     pub(crate) node_epochs: Vec<(u64, u64)>,
+    pub(crate) node_commit_sequence_floors: Vec<(u64, u64)>,
     pub(crate) sessions: Vec<SnapshotSession>,
     pub(crate) replicas: Vec<SnapshotReplica>,
     pub(crate) desired_replica_counts: Vec<(Vec<u8>, u32)>,
     pub(crate) versions: Vec<(Vec<u8>, Vec<pb::VersionLayout>)>,
+    pub(crate) version_modified_times: Vec<(Vec<u8>, u64, i64)>,
+    pub(crate) block_retirements: Vec<SnapshotBlockRetirement>,
+    pub(crate) retired_block_fences: Vec<(Vec<u8>, u64)>,
+    pub(crate) commit_sequences: Vec<CommitSequenceRecord>,
     pub(crate) operations: Vec<SnapshotOperation>,
     pub(crate) replica_operations: Vec<SnapshotReplicaOperation>,
     pub(crate) event_high_watermark: u64,

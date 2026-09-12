@@ -6,6 +6,7 @@
 // AtomicU64 生成无需 Mutex 的进程内 sequence。
 use std::{
     collections::HashSet,
+    io::Read,
     sync::atomic::{AtomicU64, Ordering},
 };
 
@@ -13,16 +14,19 @@ use tokio::runtime::{Builder, Runtime};
 use uuid::Uuid;
 
 use crate::client::{
-    ClientOptions, ConnectError, DeleteResult, GetOptions, GetResult, HashDeleteOptions,
-    HashEntriesResult, HashGetOptions, HashMultiGetResult, HashRangeWriteOptions,
-    HashRangeWriteResult, HashScanOptions, HashScanResult, HashSetResult, HashValue,
-    HashWriteOptions, MSetOptions, MSetResult, RangeWriteOptions, ResolvedClientOptions,
+    ClientOptions, ConnectError, DeleteResult, GetIntoResult, GetOptions, GetResult,
+    HashDeleteOptions, HashEntriesResult, HashGetOptions, HashMultiGetResult,
+    HashRangeWriteOptions, HashRangeWriteResult, HashScanOptions, HashScanResult, HashSetResult,
+    HashValue, HashWriteOptions, MSetOptions, MSetResult, RangeWriteOptions, ResolvedClientOptions,
     SetOptions, SetResult,
 };
 use crate::metrics::{ClientMetrics, ClientOperation};
-use crate::{DmsError, HashEntry, HashField, Key, KvEntry, OperationId, ScanCursor};
+use crate::{
+    DmsError, HashEntry, HashField, Key, KvEntry, ObjectInfo, OperationId, ScanCursor, ScanOptions,
+    ScanResult,
+};
 
-use super::node_connection::{NodeConnection, SharedViewInner, SharedWriteInner};
+use super::node_connection::{NodeConnection, SharedViewInner, SharedWriteInner, ValueReaderInner};
 
 type SharedMetrics = (
     ClientMetrics,
@@ -160,10 +164,64 @@ impl DmsClientImpl {
         ))
     }
 
+    pub(crate) fn set_from<R: Read>(
+        &self,
+        key: Key,
+        src: R,
+        length: u64,
+        options: SetOptions,
+    ) -> Result<SetResult, DmsError> {
+        let operation_id = self.next_operation_id();
+        self.runtime.block_on(self.connection.set_from(
+            &key,
+            src,
+            length,
+            options,
+            self.options.default_durability,
+            operation_id,
+        ))
+    }
+
     pub(crate) fn get(&self, key: Key, options: GetOptions) -> Result<Option<GetResult>, DmsError> {
         // 薄 Client 原则：每次读取都到 Node，由 Node 复用本地 Current/Block。
         // SDK 只返回 owned Vec 或显式 SharedValueView，不再跨请求保存 value bytes。
         self.runtime.block_on(self.connection.get(&key, options))
+    }
+
+    pub(crate) fn get_into(
+        &self,
+        key: Key,
+        dst: &mut [u8],
+        options: GetOptions,
+    ) -> Result<Option<GetIntoResult>, DmsError> {
+        self.runtime
+            .block_on(self.connection.get_into(&key, dst, options))
+    }
+
+    pub(crate) fn get_reader(
+        &self,
+        key: Key,
+        options: GetOptions,
+    ) -> Result<Option<ValueReaderInner>, DmsError> {
+        self.runtime
+            .block_on(self.connection.get_reader(&key, options))
+    }
+
+    pub(crate) fn read_value_reader(
+        &self,
+        reader: &mut ValueReaderInner,
+        dst: &mut [u8],
+    ) -> Result<usize, DmsError> {
+        self.runtime
+            .block_on(self.connection.read_value_reader(reader, dst))
+    }
+
+    pub(crate) fn stat(&self, key: Key) -> Result<Option<ObjectInfo>, DmsError> {
+        self.runtime.block_on(self.connection.stat(&key))
+    }
+
+    pub(crate) fn scan(&self, prefix: &[u8], options: ScanOptions) -> Result<ScanResult, DmsError> {
+        self.runtime.block_on(self.connection.scan(prefix, options))
     }
 
     pub(crate) fn allocate_write(
@@ -375,6 +433,22 @@ impl DmsClientImpl {
             self.client_instance_id,
             self.next_operation_id.fetch_add(1, Ordering::Relaxed),
         )
+    }
+}
+
+impl Drop for DmsClientImpl {
+    fn drop(&mut self) {
+        // 正常关闭时给 Node 一次有界 final heartbeat：把已完成普通读的
+        // finished_read_request_through、已释放 View 水位，以及未冲刷的 SHM 写
+        // lease token 发出去。它只发生在 Client 实例销毁时，不给每次 GET 增加
+        // RPC；仍被用户持有的 SharedValueView 不会提前进入完成水位。
+        //
+        // 当前 Rust SDK 是同步 API + 私有 Tokio Runtime：和现有 set/get 一样，
+        // Drop 也假定不在另一个 Tokio Runtime 的执行上下文里阻塞调用。这个
+        // 使用限制先记录在这里，后续如要支持 async SDK 再单独扩展架构。
+        if let Err(error) = self.runtime.block_on(self.connection.close()) {
+            log::warn!("DMS client shutdown flush did not complete: {error}");
+        }
     }
 }
 

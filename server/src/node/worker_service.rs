@@ -17,7 +17,7 @@ use tokio::sync::mpsc;
 use tokio_stream::{Stream, StreamExt, wrappers::ReceiverStream};
 use tonic::{Request, Response, Status};
 
-use super::arena_manager::{HostAllocationTarget, HostShmDescriptor};
+use super::arena_manager::{HostAllocationTarget, HostShmDescriptor, ReleasedWriteAllocation};
 use super::kkv_operations::{KkvOperations, KkvValue};
 use super::runtime::{NodeEvent, NodeHandle, ReadTarget, SetRangeInput, WorkerError};
 
@@ -92,10 +92,11 @@ impl WorkerService for WorkerServiceHandler {
             && request.shared_memory
             && request.zero_copy_read
             && request.zero_copy_write;
+        let write_lease_release_supported = shared_memory && request.supports_write_lease_release;
         // 真正 session_id 由 Node 状态 owner 串行分配。
         let session_id = self
             .node
-            .open_session(shared_memory)
+            .open_session_with_write_release(shared_memory, write_lease_release_supported)
             .await
             .map_err(|error| self.map_worker_error(error))?;
         // Response::new 把 protobuf body 包装成 Tonic Response，后者还可携带 metadata。
@@ -112,6 +113,7 @@ impl WorkerService for WorkerServiceHandler {
                 .map(|path| pb::ShmCapability {
                     fd_broker_path: path.display().to_string(),
                 }),
+            write_lease_release_supported,
         }))
     }
 
@@ -184,9 +186,13 @@ impl WorkerService for WorkerServiceHandler {
         // get_ref 只借用 Request body；此方法不需要取得 DTO 所有权。
         let lease_ttl_millis = self
             .node
-            .renew_cache_lease(
+            .renew_cache_lease_with_write_releases(
                 request.get_ref().session_id,
                 request.get_ref().released_view_through,
+                decode_released_write_allocations(
+                    request.get_ref().released_write_allocations.as_slice(),
+                ),
+                request.get_ref().finished_read_request_through,
             )
             .await
             .map_err(map_worker_error)?;
@@ -328,6 +334,7 @@ impl WorkerService for WorkerServiceHandler {
                     length: receipt.length,
                     digest: receipt.digest,
                     allocation_id: receipt.target_allocation_id,
+                    release_token: receipt.release_token,
                 },
                 decode_operation_id(request.operation_id)?,
                 request.condition,
@@ -385,12 +392,14 @@ impl WorkerService for WorkerServiceHandler {
         let range = request.range.map(|range| (range.offset, range.length));
         match self
             .node
-            .get_with_inline_limit(
+            .get_with_inline_limit_for_request(
                 request.session_id,
                 key,
                 request.exact_version,
                 range,
+                request.clamp_range,
                 request.max_inline_bytes,
+                request.read_request_id,
             )
             .await
         {
@@ -408,10 +417,58 @@ impl WorkerService for WorkerServiceHandler {
                     logical_length: 0,
                     segments: Vec::new(),
                     inline_value: None,
+                    read_request_id: request.read_request_id,
                 }))
             }
             Err(error) => Err(self.map_worker_error(error)),
         }
+    }
+
+    async fn stat(
+        &self,
+        request: Request<pb::StatRequest>,
+    ) -> Result<Response<pb::StatResponse>, Status> {
+        let mut rpc = self
+            .rpc_metrics
+            .begin_server_call(dms_metrics::RpcCall::WORKER_STAT);
+        let request = request.into_inner();
+        let key = request
+            .key
+            .ok_or_else(|| node_invalid_argument("missing key"))?
+            .value;
+        let response = self
+            .node
+            .stat(request.session_id, key)
+            .await
+            .map_err(|error| self.map_worker_error(error))?;
+        rpc.success();
+        Ok(Response::new(pb::StatResponse {
+            found: response.found,
+            info: response.info,
+        }))
+    }
+
+    async fn scan(
+        &self,
+        request: Request<pb::ScanRequest>,
+    ) -> Result<Response<pb::ScanResponse>, Status> {
+        let mut rpc = self
+            .rpc_metrics
+            .begin_server_call(dms_metrics::RpcCall::WORKER_SCAN);
+        let request = request.into_inner();
+        let options = request
+            .options
+            .ok_or_else(|| node_invalid_argument("missing scan options"))?;
+        let response = self
+            .node
+            .scan(request.session_id, request.prefix, Some(options))
+            .await
+            .map_err(|error| self.map_worker_error(error))?;
+        rpc.success();
+        Ok(Response::new(pb::ScanResponse {
+            items: response.items,
+            next_cursor: response.next_cursor,
+        }))
     }
 
     async fn m_set(
@@ -472,7 +529,15 @@ impl WorkerService for WorkerServiceHandler {
         for key in request.keys {
             match self
                 .node
-                .get(request.session_id, key.value, None, None)
+                .get_with_inline_limit_for_request(
+                    request.session_id,
+                    key.value,
+                    None,
+                    None,
+                    false,
+                    0,
+                    request.read_request_id,
+                )
                 .await
             {
                 Ok(ticket) => items.push(read_ticket_response(ticket)),
@@ -755,6 +820,7 @@ impl WorkerPayloadService for WorkerServiceHandler {
                 length: receipt.length,
                 digest: receipt.digest,
                 target_allocation_id: receipt.allocation_id,
+                release_token: receipt.release_token,
             }),
         }))
     }
@@ -783,6 +849,7 @@ impl WorkerPayloadService for WorkerServiceHandler {
                 digest: Vec::new(),
                 // Download 不提交 staging；0 表示此回执没有 Allocation 身份。
                 target_allocation_id: 0,
+                release_token: Vec::new(),
             }),
         }))
     }
@@ -795,7 +862,12 @@ async fn handle_client_session_message(
     // oneof `message` 生成 Option<enum>；match 同时处理两种合法消息和空消息。
     match message.message {
         Some(pb::client_session_message::Message::Heartbeat(heartbeat)) => node
-            .heartbeat(message.session_id, heartbeat.released_view_through)
+            .heartbeat_with_write_releases(
+                message.session_id,
+                heartbeat.released_view_through,
+                decode_released_write_allocations(heartbeat.released_write_allocations.as_slice()),
+                heartbeat.finished_read_request_through,
+            )
             .await
             .map_err(map_worker_error),
         Some(pb::client_session_message::Message::EventAck(ack)) => node
@@ -870,6 +942,7 @@ fn shm_target(descriptor: HostShmDescriptor) -> pb::PayloadTarget {
             allocation_id: descriptor.allocation_id,
             view_epoch: descriptor.view_epoch,
             transfer_id: encode_id(descriptor.transfer_id),
+            release_token: descriptor.release_token,
         })),
     }
 }
@@ -886,8 +959,10 @@ fn read_ticket_response(ticket: super::runtime::ReadTicket) -> pb::GetResponse {
             .map(|segment| pb::ReadSegment {
                 target: Some(encode_read_target(segment.target, segment.payload_length)),
                 logical_offset: segment.logical_offset,
+                read_request_id: ticket.read_request_id,
             })
             .collect(),
+        read_request_id: ticket.read_request_id,
     }
 }
 
@@ -898,6 +973,7 @@ fn missing_get_response() -> pb::GetResponse {
         logical_length: 0,
         segments: Vec::new(),
         inline_value: None,
+        read_request_id: 0,
     }
 }
 
@@ -914,8 +990,21 @@ fn decode_staged_value(
             length: receipt.length,
             digest: receipt.digest,
             allocation_id: receipt.target_allocation_id,
+            release_token: receipt.release_token,
         },
     ))
+}
+
+fn decode_released_write_allocations(
+    released: &[pb::ReleasedWriteAllocation],
+) -> Vec<ReleasedWriteAllocation> {
+    released
+        .iter()
+        .map(|item| ReleasedWriteAllocation {
+            allocation_id: item.allocation_id,
+            release_token: item.release_token.clone(),
+        })
+        .collect()
 }
 
 /// The wire contract already reserves future durability policies, but the
@@ -1110,6 +1199,7 @@ mod tests {
                 }),
                 heartbeat_interval_millis: 1_000,
                 lease_ttl_millis: 30_000,
+                minimum_commit_sequence: 1,
             }))
         }
 
@@ -1168,6 +1258,26 @@ mod tests {
             )))
         }
 
+        async fn stat(
+            &self,
+            _request: tonic::Request<pb::MetaStatRequest>,
+        ) -> Result<tonic::Response<pb::MetaStatResponse>, Status> {
+            Ok(tonic::Response::new(pb::MetaStatResponse {
+                found: false,
+                info: None,
+            }))
+        }
+
+        async fn scan(
+            &self,
+            _request: tonic::Request<pb::MetaScanRequest>,
+        ) -> Result<tonic::Response<pb::MetaScanResponse>, Status> {
+            Ok(tonic::Response::new(pb::MetaScanResponse {
+                items: Vec::new(),
+                next_cursor: String::new(),
+            }))
+        }
+
         async fn get_operation(
             &self,
             _request: tonic::Request<pb::GetOperationRequest>,
@@ -1204,6 +1314,15 @@ mod tests {
             _request: tonic::Request<pb::AcknowledgeNodeEventRequest>,
         ) -> Result<tonic::Response<pb::AcknowledgeNodeEventResponse>, Status> {
             Ok(tonic::Response::new(pb::AcknowledgeNodeEventResponse {}))
+        }
+
+        async fn acknowledge_block_retirement(
+            &self,
+            _request: tonic::Request<pb::AcknowledgeBlockRetirementRequest>,
+        ) -> Result<tonic::Response<pb::AcknowledgeBlockRetirementResponse>, Status> {
+            Ok(tonic::Response::new(
+                pb::AcknowledgeBlockRetirementResponse { accepted: true },
+            ))
         }
     }
 
@@ -1438,7 +1557,7 @@ mod tests {
         let client = DmsClient::connect(endpoint, ClientOptions::default()).expect("connect");
         let key = Key::new("channel/basic").expect("key");
         let result = client.set(key.clone(), b"hello-dms").expect("set");
-        assert_eq!(result.version, ObjectVersion(1));
+        assert!(result.version > ObjectVersion(0));
         assert_eq!(client.get(key).expect("get"), Some(b"hello-dms".to_vec()));
 
         let range_key = b"range/object";
@@ -1465,6 +1584,7 @@ mod tests {
                     GetOptions {
                         version: ReadVersion::Exact(base.version),
                         range: None,
+                        clamp_range: false,
                     },
                 )
                 .expect("exact old version")
@@ -1655,6 +1775,7 @@ mod tests {
                     GetOptions {
                         version: ReadVersion::Current,
                         range,
+                        clamp_range: false,
                     },
                 )
                 .expect("range get")
@@ -1694,7 +1815,8 @@ mod tests {
                     key,
                     GetOptions {
                         version: ReadVersion::Exact(base.version),
-                        range: None
+                        range: None,
+                        clamp_range: false,
                     }
                 )
                 .expect("old version")
@@ -1745,6 +1867,7 @@ mod tests {
                     shared_memory: false,
                     zero_copy_read: false,
                     zero_copy_write: false,
+                    supports_write_lease_release: false,
                 })
                 .await
                 .expect("open session")
@@ -1776,7 +1899,9 @@ mod tests {
                     }),
                     exact_version: None,
                     range: None,
+                    clamp_range: false,
                     max_inline_bytes: 64,
+                    read_request_id: 1,
                 })
                 .await
                 .expect("get inline")
@@ -1785,6 +1910,223 @@ mod tests {
             assert!(response.found);
             assert_eq!(response.inline_value.as_deref(), Some(b"hello".as_slice()));
             assert!(response.segments.is_empty());
+        });
+    }
+
+    #[test]
+    fn worker_wire_preserves_empty_value_as_present() {
+        let server = TestServer::start(TestAddress::Tcp);
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("test runtime");
+
+        runtime.block_on(async {
+            let mut client = WorkerServiceClient::connect(server.endpoint.clone())
+                .await
+                .expect("connect worker");
+            let session = client
+                .open_session(pb::OpenSessionRequest {
+                    min_version: 1,
+                    max_version: 1,
+                    shared_memory: false,
+                    zero_copy_read: false,
+                    zero_copy_write: false,
+                    supports_write_lease_release: false,
+                })
+                .await
+                .expect("open session")
+                .into_inner()
+                .session_id;
+
+            let set = client
+                .set_inline(pb::SetInlineRequest {
+                    session_id: session,
+                    key: Some(pb::Key {
+                        value: b"wire/empty".to_vec(),
+                    }),
+                    value: Vec::new(),
+                    operation_id: Some(pb::OperationId {
+                        client_instance_id: vec![8; 16],
+                        sequence: 1,
+                    }),
+                    condition: "any".to_string(),
+                    durability: "local-memory".to_string(),
+                })
+                .await
+                .expect("set empty value")
+                .into_inner();
+            assert_eq!(set.length, 0);
+
+            let stat = client
+                .stat(pb::StatRequest {
+                    session_id: session,
+                    key: Some(pb::Key {
+                        value: b"wire/empty".to_vec(),
+                    }),
+                })
+                .await
+                .expect("stat empty value")
+                .into_inner();
+            assert!(stat.found);
+            let info = stat.info.expect("empty value still has object metadata");
+            assert_eq!(info.length, 0);
+            assert_eq!(info.version, set.version);
+
+            let get = client
+                .get(pb::GetRequest {
+                    session_id: session,
+                    key: Some(pb::Key {
+                        value: b"wire/empty".to_vec(),
+                    }),
+                    exact_version: None,
+                    range: None,
+                    clamp_range: false,
+                    max_inline_bytes: 64,
+                    read_request_id: 1,
+                })
+                .await
+                .expect("get empty value")
+                .into_inner();
+            assert!(get.found);
+            assert_eq!(get.version, set.version);
+            assert_eq!(get.logical_length, 0);
+            assert_eq!(get.inline_value.as_deref(), Some([].as_slice()));
+            assert!(get.segments.is_empty());
+
+            let deleted = client
+                .delete(pb::DeleteRequest {
+                    session_id: session,
+                    key: Some(pb::Key {
+                        value: b"wire/empty".to_vec(),
+                    }),
+                    operation_id: Some(pb::OperationId {
+                        client_instance_id: vec![8; 16],
+                        sequence: 2,
+                    }),
+                })
+                .await
+                .expect("delete empty value")
+                .into_inner();
+            assert!(deleted.deleted);
+            let missing = client
+                .get(pb::GetRequest {
+                    session_id: session,
+                    key: Some(pb::Key {
+                        value: b"wire/empty".to_vec(),
+                    }),
+                    exact_version: None,
+                    range: None,
+                    clamp_range: false,
+                    max_inline_bytes: 64,
+                    read_request_id: 2,
+                })
+                .await
+                .expect("get after tombstone")
+                .into_inner();
+            assert!(!missing.found, "tombstone must remain distinct from len=0");
+        });
+    }
+
+    #[test]
+    fn worker_stat_and_scan_forward_authoritative_meta_results() {
+        let server = TestServer::start(TestAddress::Tcp);
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("test runtime");
+
+        runtime.block_on(async {
+            let mut client = WorkerServiceClient::connect(server.endpoint.clone())
+                .await
+                .expect("connect worker");
+            let session = client
+                .open_session(pb::OpenSessionRequest {
+                    min_version: 1,
+                    max_version: 1,
+                    shared_memory: false,
+                    zero_copy_read: false,
+                    zero_copy_write: false,
+                    supports_write_lease_release: false,
+                })
+                .await
+                .expect("open session")
+                .into_inner()
+                .session_id;
+
+            for (sequence, key, value) in [
+                (1, b"scan-node/a".as_slice(), b"A".as_slice()),
+                (2, b"scan-node/b".as_slice(), b"BB".as_slice()),
+                (3, b"scan-node/deleted".as_slice(), b"gone".as_slice()),
+            ] {
+                client
+                    .set_inline(pb::SetInlineRequest {
+                        session_id: session,
+                        key: Some(pb::Key {
+                            value: key.to_vec(),
+                        }),
+                        value: value.to_vec(),
+                        operation_id: Some(pb::OperationId {
+                            client_instance_id: vec![9; 16],
+                            sequence,
+                        }),
+                        condition: "any".to_string(),
+                        durability: "local-memory".to_string(),
+                    })
+                    .await
+                    .expect("seed scan key");
+            }
+            client
+                .delete(pb::DeleteRequest {
+                    session_id: session,
+                    key: Some(pb::Key {
+                        value: b"scan-node/deleted".to_vec(),
+                    }),
+                    operation_id: Some(pb::OperationId {
+                        client_instance_id: vec![9; 16],
+                        sequence: 4,
+                    }),
+                })
+                .await
+                .expect("delete scan key");
+
+            let stat = client
+                .stat(pb::StatRequest {
+                    session_id: session,
+                    key: Some(pb::Key {
+                        value: b"scan-node/b".to_vec(),
+                    }),
+                })
+                .await
+                .expect("stat through node")
+                .into_inner();
+            assert!(stat.found);
+            assert_eq!(stat.info.as_ref().unwrap().length, 2);
+
+            let scan = client
+                .scan(pb::ScanRequest {
+                    session_id: session,
+                    prefix: b"scan-node/".to_vec(),
+                    options: Some(pb::ObjectScanOptions {
+                        limit: 10,
+                        start_after: None,
+                        cursor: String::new(),
+                        delimiter: Vec::new(),
+                    }),
+                })
+                .await
+                .expect("scan through node")
+                .into_inner();
+            let keys = scan
+                .items
+                .iter()
+                .map(|item| item.key.as_ref().unwrap().value.as_slice())
+                .collect::<Vec<_>>();
+            assert_eq!(
+                keys,
+                vec![b"scan-node/a".as_slice(), b"scan-node/b".as_slice()]
+            );
+            assert!(scan.next_cursor.is_empty());
         });
     }
 
@@ -1935,13 +2277,13 @@ mod tests {
             .expect("write slice")
             .copy_from_slice(b"hello-shm!!");
         let result = client.commit_shared(buffer).expect("commit shared");
-        assert_eq!(result.version, ObjectVersion(1));
+        assert!(result.version > ObjectVersion(0));
 
         let view = client
             .get_view("channel/shm-explicit")
             .expect("get view")
             .expect("present");
-        assert_eq!(view.version(), ObjectVersion(1));
+        assert_eq!(view.version(), result.version);
         assert_eq!(view.as_slice().expect("view bytes"), b"hello-shm!!");
 
         // A second allocation stays in the same Region. The SDK sees a cache

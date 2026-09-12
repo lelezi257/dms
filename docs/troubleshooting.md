@@ -28,7 +28,7 @@ tail -n 50 .local/manual/log/dms-meta.log
 - SET返回成功后无需sleep才能读取；但SET本身可能等缓存失效ACK/旧租约到期。当前部分写入尾延迟仍可能明显大于中位数。
 - 超时不总等于服务端没有提交。保留同一逻辑请求的operation ID进行安全重试；不要把所有失败都当成“可删除新Block”。
 - Meta恢复journal不代表value恢复。LocalMemory写依赖Node内存；Node重启后元数据可能还在但唯一payload已丢失。
-- SHM容量耗尽可能来自已导出allocation的隔离。它是当前保守生命周期边界，不是改TTL就可以强制复用；完整GC未完成。
+- SHM 容量耗尽可能来自未归还写权的 allocation 隔离。新 SDK 已支持正常归还与旧 Block 回收，但旧 SDK、丢失归还消息或永久失联 Node 仍可能阻塞释放；不能修改 TTL 强制复用仍可被访问的内存。
 - `NODE_ARENA_CAPACITY_EXHAUSTED (0x02010001)` 表示配置的 Arena/Group 预算不足；`NODE_ARENA_ALLOCATION_FAILED (0x02010006)` 表示 OS backing 创建失败。后者先看 Node 日志和该进程的 `/proc/<pid>/limits`、FD 数量、系统内存，不要误判为 key/value 参数错误。默认大 Region 降低 FD 增长，但不替代长期回收。
 
 ## 3. Metrics没有数据

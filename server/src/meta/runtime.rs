@@ -5,9 +5,10 @@
 //! 首版无需全局锁。
 
 use std::{
-    collections::{BTreeMap, HashMap, HashSet},
+    collections::{BTreeMap, BTreeSet, HashMap, HashSet},
     fmt,
-    time::{Duration, Instant},
+    ops::Bound,
+    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
 use dms_error::{DmsError, ErrorKind};
@@ -18,8 +19,9 @@ use tokio::sync::{mpsc, oneshot};
 #[cfg(test)]
 use super::in_memory_journal::InMemoryJournal;
 use super::metadata_journal::{
-    JournalError, JournalRecord, MetaSnapshot, MetadataJournal, SnapshotOperation, SnapshotReplica,
-    SnapshotReplicaOperation, SnapshotSession, VersionCommitRecord,
+    BlockRetirementParticipant, BlockRetirementRecord, CommitSequenceRecord, JournalError,
+    JournalRecord, MetaSnapshot, MetadataJournal, SnapshotBlockRetirement, SnapshotOperation,
+    SnapshotReplica, SnapshotReplicaOperation, SnapshotSession, VersionCommitRecord,
 };
 use super::metrics::{
     CommitOutcome, MetaMetrics, MetaOperation, MetaStateMetricsSnapshot, RepairTransition,
@@ -32,6 +34,14 @@ const DEFAULT_RETAINED_VERSIONS_PER_KEY: usize = 64;
 const DEFAULT_OPERATION_RETENTION_RECORDS: u64 = 1024;
 const DEFAULT_NODE_LEASE_TTL: Duration = Duration::from_secs(30);
 const DEFAULT_REPAIR_ATTEMPT_TTL: Duration = Duration::from_secs(30);
+const DEFAULT_SCAN_LIMIT: usize = 128;
+const MAX_SCAN_LIMIT: usize = 1024;
+const MAX_SCAN_CURSOR_LENGTH: usize = 64 * 1024;
+const SCAN_CURSOR_TTL_MILLIS: i64 = 5 * 60 * 1000;
+const MAX_RETIREMENT_BLOCKS_PER_BATCH: usize = 128;
+const MAX_PENDING_BLOCK_RETIREMENTS: usize = 1024;
+const MAX_RETIRED_BLOCK_FENCES: usize = 4096;
+const GC_RETRY_INTERVAL: Duration = Duration::from_secs(1);
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum MetaRuntimeError {
@@ -166,7 +176,7 @@ impl Default for MetaRetentionPolicy {
             operation_result_retention_records: DEFAULT_OPERATION_RETENTION_RECORDS,
             replica_operation_retention_records: DEFAULT_OPERATION_RETENTION_RECORDS,
             event_retention_requires_all_session_acks: true,
-            drop_unreferenced_replicas: false,
+            drop_unreferenced_replicas: true,
         }
     }
 }
@@ -217,6 +227,7 @@ pub(crate) struct NodeSessionGrant {
     pub(crate) node_epoch: u64,
     pub(crate) heartbeat_interval_millis: u64,
     pub(crate) lease_ttl_millis: u64,
+    pub(crate) minimum_commit_sequence: u64,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -326,6 +337,7 @@ impl MetaHandle {
         &self,
         node_id: u64,
         control_endpoint: String,
+        supports_commit_sequence: bool,
     ) -> Result<NodeSessionGrant, MetaRuntimeError> {
         let (reply, receive) = oneshot::channel();
         self.complete(
@@ -333,6 +345,7 @@ impl MetaHandle {
             MetaCommand::OpenNodeSession {
                 node_id,
                 control_endpoint,
+                supports_commit_sequence,
                 reply,
             },
             receive,
@@ -423,6 +436,32 @@ impl MetaHandle {
         .await
     }
 
+    pub(crate) async fn stat(
+        &self,
+        request: pb::MetaStatRequest,
+    ) -> Result<pb::MetaStatResponse, MetaRuntimeError> {
+        let (reply, receive) = oneshot::channel();
+        self.complete(
+            MetaOperation::Stat,
+            MetaCommand::Stat { request, reply },
+            receive,
+        )
+        .await
+    }
+
+    pub(crate) async fn scan(
+        &self,
+        request: pb::MetaScanRequest,
+    ) -> Result<pb::MetaScanResponse, MetaRuntimeError> {
+        let (reply, receive) = oneshot::channel();
+        self.complete(
+            MetaOperation::Scan,
+            MetaCommand::Scan { request, reply },
+            receive,
+        )
+        .await
+    }
+
     pub(crate) async fn get_operation(
         &self,
         request: pb::GetOperationRequest,
@@ -480,6 +519,19 @@ impl MetaHandle {
         .await
     }
 
+    pub(crate) async fn acknowledge_block_retirement(
+        &self,
+        request: pb::AcknowledgeBlockRetirementRequest,
+    ) -> Result<pb::AcknowledgeBlockRetirementResponse, MetaRuntimeError> {
+        let (reply, receive) = oneshot::channel();
+        self.complete(
+            MetaOperation::AcknowledgeNodeEvent,
+            MetaCommand::AcknowledgeBlockRetirement { request, reply },
+            receive,
+        )
+        .await
+    }
+
     #[cfg(test)]
     pub(crate) async fn stats(&self) -> Result<MetaStats, MetaRuntimeError> {
         let (reply, receive) = oneshot::channel();
@@ -529,6 +581,7 @@ enum MetaCommand {
     OpenNodeSession {
         node_id: u64,
         control_endpoint: String,
+        supports_commit_sequence: bool,
         reply: oneshot::Sender<Result<NodeSessionGrant, MetaRuntimeError>>,
     },
     Heartbeat {
@@ -554,6 +607,14 @@ enum MetaCommand {
         request: pb::CommitBatchRequest,
         reply: oneshot::Sender<Result<pb::CommitBatchResponse, MetaRuntimeError>>,
     },
+    Stat {
+        request: pb::MetaStatRequest,
+        reply: oneshot::Sender<Result<pb::MetaStatResponse, MetaRuntimeError>>,
+    },
+    Scan {
+        request: pb::MetaScanRequest,
+        reply: oneshot::Sender<Result<pb::MetaScanResponse, MetaRuntimeError>>,
+    },
     GetOperation {
         request: pb::GetOperationRequest,
         reply: oneshot::Sender<Result<pb::GetOperationResponse, MetaRuntimeError>>,
@@ -570,6 +631,10 @@ enum MetaCommand {
     AcknowledgeNodeEvent {
         request: pb::AcknowledgeNodeEventRequest,
         reply: oneshot::Sender<Result<(), MetaRuntimeError>>,
+    },
+    AcknowledgeBlockRetirement {
+        request: pb::AcknowledgeBlockRetirementRequest,
+        reply: oneshot::Sender<Result<pb::AcknowledgeBlockRetirementResponse, MetaRuntimeError>>,
     },
     #[cfg(test)]
     Stats {
@@ -594,10 +659,13 @@ impl MetaCommand {
             Self::ReportReplicas { .. } => MetaOperation::ReportReplicas,
             Self::CommitVersion { .. } => MetaOperation::CommitVersion,
             Self::CommitBatch { .. } => MetaOperation::CommitBatch,
+            Self::Stat { .. } => MetaOperation::Stat,
+            Self::Scan { .. } => MetaOperation::Scan,
             Self::GetOperation { .. } => MetaOperation::GetOperation,
             Self::PlanReplicas { .. } => MetaOperation::PlanReplicas,
             Self::WatchNodeEvents { .. } => MetaOperation::WatchNodeEvents,
             Self::AcknowledgeNodeEvent { .. } => MetaOperation::AcknowledgeNodeEvent,
+            Self::AcknowledgeBlockRetirement { .. } => MetaOperation::AcknowledgeNodeEvent,
             #[cfg(test)]
             Self::Stats { .. } => MetaOperation::Stats,
         }
@@ -611,12 +679,17 @@ struct NodeSession {
     control_endpoint: String,
     last_acked_cursor: u64,
     last_heartbeat: Option<Instant>,
+    supports_commit_sequence: bool,
+    commit_sequence_floor: u64,
+    commit_sequences: HashMap<u64, CommitSequenceRecord>,
 }
 
 struct NodeWatcher {
     sender: mpsc::Sender<pb::NodeEvent>,
     delivered_cursor: u64,
     replay_through: u64,
+    next_gc_retry_at: Option<Instant>,
+    last_gc_retry_cursor: u64,
     disconnected: bool,
 }
 
@@ -632,6 +705,7 @@ struct StoredReplica {
 struct StoredOperation {
     digest: Vec<u8>,
     result: pb::CommitVersionResponse,
+    commit_sequence: Option<CommitSequenceRecord>,
     /// Invalidation event that must be acknowledged before this operation may
     /// be returned as fully visible. `None` means the visibility barrier ended.
     visibility_cursor: Option<u64>,
@@ -660,6 +734,14 @@ struct PendingRepair {
     issued_at: Instant,
 }
 
+#[derive(Clone)]
+struct PendingRetirement {
+    record: BlockRetirementRecord,
+    prepared: HashSet<(u64, u64)>,
+    released: HashSet<(u64, u64)>,
+    final_sent: bool,
+}
+
 enum PendingResponse {
     Single(pb::CommitVersionResponse),
     Batch(pb::CommitBatchResponse),
@@ -677,6 +759,7 @@ struct MetaState {
     prior_lease_deadlines: HashMap<u64, Instant>,
     next_session: u64,
     node_epochs: HashMap<u64, u64>,
+    node_commit_sequence_floors: HashMap<u64, u64>,
     sessions: HashMap<u64, NodeSession>,
     replicas: HashMap<Vec<u8>, Vec<StoredReplica>>,
     /// Explicit policy target per immutable Block. This must not be derived
@@ -684,6 +767,12 @@ struct MetaState {
     /// a two-copy policy to three, four, ... after successive failures.
     desired_replica_counts: HashMap<Vec<u8>, u32>,
     versions: HashMap<Vec<u8>, BTreeMap<u64, pb::VersionLayout>>,
+    version_floor: u64,
+    version_modified_times: HashMap<(Vec<u8>, u64), i64>,
+    pending_retirements: HashMap<Vec<u8>, PendingRetirement>,
+    retired_block_fences: HashMap<Vec<u8>, u64>,
+    /// 当前可见 VALUE key 的二进制有序索引；Scan 只走这里分页，不每页全量排序。
+    live_keys: BTreeSet<Vec<u8>>,
     operations: HashMap<Vec<u8>, StoredOperation>,
     replica_operations: HashMap<Vec<u8>, pb::ReportReplicasResponse>,
     events: Vec<pb::NodeEvent>,
@@ -699,6 +788,7 @@ struct MetaState {
     journal: Box<dyn MetadataJournal>,
     last_applied_index: u64,
     last_checkpoint_index: u64,
+    retention_boundary_dirty: bool,
     checkpoint_policy: MetaCheckpointPolicy,
     retention_policy: MetaRetentionPolicy,
     metrics: MetaMetrics,
@@ -743,10 +833,16 @@ impl MetaState {
         let mut state = Self {
             next_session: 1,
             node_epochs: HashMap::new(),
+            node_commit_sequence_floors: HashMap::new(),
             sessions: HashMap::new(),
             replicas: HashMap::new(),
             desired_replica_counts: HashMap::new(),
             versions: HashMap::new(),
+            version_floor: 0,
+            version_modified_times: HashMap::new(),
+            pending_retirements: HashMap::new(),
+            retired_block_fences: HashMap::new(),
+            live_keys: BTreeSet::new(),
             operations: HashMap::new(),
             replica_operations: HashMap::new(),
             events: Vec::new(),
@@ -760,6 +856,7 @@ impl MetaState {
             journal,
             last_applied_index: 0,
             last_checkpoint_index: replay_after,
+            retention_boundary_dirty: false,
             checkpoint_policy,
             retention_policy,
             metrics: metrics.clone(),
@@ -805,6 +902,7 @@ impl MetaState {
         &mut self,
         node_id: u64,
         control_endpoint: String,
+        supports_commit_sequence: bool,
     ) -> Result<NodeSessionGrant, MetaRuntimeError> {
         if node_id == 0 || control_endpoint.is_empty() {
             return Err(MetaRuntimeError::InvalidArgument(
@@ -815,12 +913,29 @@ impl MetaState {
         let next_epoch = *node_epoch + 1;
         let session_id = self.next_session.to_be_bytes().to_vec();
         let next_session = self.next_session + 1;
+        let global_floor = *self.node_commit_sequence_floors.get(&node_id).unwrap_or(&0);
+        let commit_sequence_floor = self.sessions.get(&node_id).map_or(global_floor, |session| {
+            // 新 incarnation 不继承旧 session_id，但必须继承同一 Node 已经进入
+            // Meta 的 commit_sequence 上界；否则 operation 结果裁剪前的乱序窗口
+            // 会在 reopen 后被旧 Commit(new_replicas) 重放。
+            let seen_max = session
+                .commit_sequences
+                .keys()
+                .copied()
+                .max()
+                .unwrap_or(session.commit_sequence_floor);
+            global_floor
+                .max(session.commit_sequence_floor)
+                .max(seen_max)
+        });
         let record = JournalRecord::NodeSessionOpened {
             node_id,
             node_epoch: next_epoch,
             session_id: session_id.clone(),
             control_endpoint,
             next_session,
+            supports_commit_sequence,
+            commit_sequence_floor,
         };
         let sequence = self.append_record(record.clone())?;
         self.apply_record(sequence, record);
@@ -835,6 +950,7 @@ impl MetaState {
             node_epoch: session.node_epoch,
             heartbeat_interval_millis: 10_000,
             lease_ttl_millis: 30_000,
+            minimum_commit_sequence: session.commit_sequence_floor + 1,
         })
     }
 
@@ -1025,7 +1141,11 @@ impl MetaState {
         let operation_id = request.operation_id;
         let mut accepted_locations = Vec::new();
         for report in request.replicas {
-            if report.block_id.is_empty() || report.length == 0 {
+            if report.block_id.is_empty()
+                || report.length == 0
+                || self.retired_block_fences.contains_key(&report.block_id)
+                || !self.block_referenced_by_retained_versions(&report.block_id)
+            {
                 rejected.push(report.block_id);
                 continue;
             }
@@ -1128,6 +1248,12 @@ impl MetaState {
                 })
             };
         }
+        let commit_sequence = self.validate_commit_sequence(
+            session,
+            request.commit_sequence,
+            &request.operation_id,
+            &request.operation_digest,
+        )?;
         let candidate = request.candidate.ok_or_else(|| {
             MetaRuntimeError::InvalidArgument("missing version candidate".to_string())
         })?;
@@ -1153,6 +1279,7 @@ impl MetaState {
                 operation_id: request.operation_id,
                 operation_digest: request.operation_digest,
                 result,
+                commit_sequence,
             };
             let sequence = self.append_record(record.clone())?;
             self.apply_record(sequence, record);
@@ -1162,6 +1289,7 @@ impl MetaState {
 
         if candidate.kind == pb::VersionKind::Value as i32 {
             for extent in &candidate.extents {
+                self.reject_retired_block(&extent.block_id)?;
                 let proof = request
                     .replica_proofs
                     .iter()
@@ -1180,7 +1308,9 @@ impl MetaState {
                         })
                     })
                 });
-                if !known && new_replica.is_none() {
+                let known_and_live =
+                    known && self.block_referenced_by_retained_versions(&extent.block_id);
+                if !known_and_live && new_replica.is_none() {
                     return Err(MetaRuntimeError::InvalidArgument(
                         "every extent requires an existing proof or new replica report".to_string(),
                     ));
@@ -1198,6 +1328,7 @@ impl MetaState {
             .new_replicas
             .into_iter()
             .map(|report| {
+                self.reject_retired_block(&report.block_id)?;
                 if report.block_id.is_empty() || report.length == 0 {
                     return Err(MetaRuntimeError::InvalidArgument(
                         "new replica requires block id and length".to_string(),
@@ -1218,7 +1349,7 @@ impl MetaState {
             .collect::<Result<Vec<_>, _>>()?;
 
         let layout = pb::VersionLayout {
-            version: current_version + 1,
+            version: self.next_object_version(current_version),
             logical_length: candidate.logical_length,
             extents: candidate.extents,
             digest: candidate.digest,
@@ -1227,9 +1358,11 @@ impl MetaState {
         let record = JournalRecord::VersionCommitted {
             key,
             layout: layout.clone(),
+            modified_time_unix_millis: current_time_unix_millis(),
             new_replicas,
             operation_id: request.operation_id,
             operation_digest: request.operation_digest,
+            commit_sequence,
         };
         let sequence = self.append_record(record.clone())?;
         self.apply_record(sequence, record);
@@ -1305,6 +1438,13 @@ impl MetaState {
                 commit_index,
             });
         }
+        let batch_digest = batch_commit_sequence_digest(&request.entries);
+        let commit_sequence = self.validate_commit_sequence(
+            &session,
+            request.commit_sequence,
+            &request.batch_operation_id,
+            &batch_digest,
+        )?;
 
         let endpoint = self
             .sessions
@@ -1329,6 +1469,7 @@ impl MetaState {
                 .and_then(|versions| versions.last_key_value().map(|(_, value)| value));
             validate_condition(&entry.condition, entry.expected_version, current)?;
             for extent in &candidate.extents {
+                self.reject_retired_block(&extent.block_id)?;
                 let known = entry.replica_proofs.iter().any(|proof| {
                     proof.block_id == extent.block_id
                         && self.replicas.get(&extent.block_id).is_some_and(|replicas| {
@@ -1344,7 +1485,9 @@ impl MetaState {
                     .new_replicas
                     .iter()
                     .any(|report| report.block_id == extent.block_id);
-                if !known && !is_new {
+                let known_and_live =
+                    known && self.block_referenced_by_retained_versions(&extent.block_id);
+                if !known_and_live && !is_new {
                     return Err(MetaRuntimeError::InvalidArgument(
                         "every batch extent requires a proof or new replica".to_string(),
                     ));
@@ -1354,6 +1497,7 @@ impl MetaState {
                 .new_replicas
                 .into_iter()
                 .map(|report| {
+                    self.reject_retired_block(&report.block_id)?;
                     if report.block_id.is_empty() || report.length == 0 {
                         return Err(MetaRuntimeError::InvalidArgument(
                             "new replica requires block id and length".to_string(),
@@ -1372,9 +1516,11 @@ impl MetaState {
                     ))
                 })
                 .collect::<Result<Vec<_>, _>>()?;
-            let next_version = current.map_or(1, |layout| layout.version + 1);
+            let current_version = current.map_or(0, |layout| layout.version);
+            let next_version = self.next_object_version(current_version);
             commits.push(VersionCommitRecord {
                 key,
+                modified_time_unix_millis: current_time_unix_millis(),
                 layout: pb::VersionLayout {
                     version: next_version,
                     logical_length: candidate.logical_length,
@@ -1390,6 +1536,7 @@ impl MetaState {
 
         let record = JournalRecord::VersionsCommitted {
             commits: commits.clone(),
+            commit_sequence,
         };
         let sequence = self.append_record(record.clone())?;
         self.apply_record(sequence, record);
@@ -1409,6 +1556,300 @@ impl MetaState {
                 .collect(),
             commit_index: sequence,
         })
+    }
+
+    fn stat(&self, request: pb::MetaStatRequest) -> Result<pb::MetaStatResponse, MetaRuntimeError> {
+        let session = request
+            .session
+            .as_ref()
+            .ok_or_else(|| MetaRuntimeError::InvalidArgument("missing node session".to_string()))?;
+        self.verify_session(session)?;
+        let key = request
+            .key
+            .as_ref()
+            .ok_or_else(|| MetaRuntimeError::InvalidArgument("missing key".to_string()))?;
+        if key.value.is_empty() {
+            return Err(MetaRuntimeError::InvalidArgument(
+                "stat key must be non-empty".to_string(),
+            ));
+        }
+        Ok(match self.current_value_layout(&key.value) {
+            Some(layout) => pb::MetaStatResponse {
+                found: true,
+                info: Some(self.object_info(key.value.clone(), layout)),
+            },
+            None => pb::MetaStatResponse {
+                found: false,
+                info: None,
+            },
+        })
+    }
+
+    fn scan(&self, request: pb::MetaScanRequest) -> Result<pb::MetaScanResponse, MetaRuntimeError> {
+        let session = request
+            .session
+            .as_ref()
+            .ok_or_else(|| MetaRuntimeError::InvalidArgument("missing node session".to_string()))?;
+        self.verify_session(session)?;
+        let prefix = request
+            .prefix
+            .as_ref()
+            .ok_or_else(|| MetaRuntimeError::InvalidArgument("missing scan prefix".to_string()))?
+            .value
+            .clone();
+        let options = request.options.unwrap_or_default();
+        let delimiter = options.delimiter;
+        if options.start_after.is_some() && !options.cursor.is_empty() {
+            return Err(MetaRuntimeError::InvalidArgument(
+                "scan start_after and cursor are mutually exclusive".to_string(),
+            ));
+        }
+        let limit = scan_limit(options.limit);
+        let start_after = if options.cursor.is_empty() {
+            options.start_after
+        } else {
+            let cursor = ScanCursor::decode(&options.cursor)?;
+            if cursor.expires_at_unix_millis < current_time_unix_millis() {
+                return Err(MetaRuntimeError::InvalidArgument(
+                    "scan cursor expired".to_string(),
+                ));
+            }
+            if cursor.prefix != prefix {
+                return Err(MetaRuntimeError::InvalidArgument(
+                    "scan cursor prefix mismatch".to_string(),
+                ));
+            }
+            if cursor.delimiter != delimiter {
+                return Err(MetaRuntimeError::InvalidArgument(
+                    "scan cursor delimiter mismatch".to_string(),
+                ));
+            }
+            Some(cursor.last_key)
+        };
+
+        let mut range_start = match &start_after {
+            Some(start_after) if start_after.as_slice() >= prefix.as_slice() => {
+                Bound::Excluded(start_after.clone())
+            }
+            _ => Bound::Included(prefix.clone()),
+        };
+        let mut items = Vec::new();
+        let mut cursor_marker = None;
+        let mut next_range_start = None;
+        while items.len() < limit {
+            let Some(key) = self
+                .live_keys
+                .range((range_start.clone(), Bound::Unbounded))
+                .next()
+                .cloned()
+            else {
+                break;
+            };
+            if !key.starts_with(&prefix) {
+                break;
+            }
+            let Some(layout) = self.current_value_layout(&key) else {
+                range_start = Bound::Excluded(key.clone());
+                continue;
+            };
+            if let Some(group_prefix) = scan_group_prefix(&prefix, &delimiter, &key) {
+                if start_after
+                    .as_ref()
+                    .is_some_and(|marker| group_prefix.as_slice() <= marker.as_slice())
+                {
+                    let Some(successor) = lexicographic_successor(&group_prefix) else {
+                        break;
+                    };
+                    range_start = Bound::Included(successor);
+                    continue;
+                }
+                cursor_marker = Some(group_prefix.clone());
+                items.push(Self::prefix_object_info(group_prefix.clone()));
+                next_range_start = lexicographic_successor(&group_prefix).map(Bound::Included);
+                if let Some(next_start) = next_range_start.clone() {
+                    range_start = next_start;
+                } else {
+                    break;
+                }
+                continue;
+            }
+            items.push(self.object_info(key.clone(), layout));
+            cursor_marker = Some(key.clone());
+            next_range_start = Some(Bound::Excluded(key.clone()));
+            range_start = Bound::Excluded(key);
+            if items.len() == limit {
+                break;
+            }
+        }
+        let next_cursor = if items.len() == limit {
+            let last_key = cursor_marker.expect("non-empty page at limit");
+            // 只看当前页后面的下一个有序 key，避免跨过前缀区间后线性扫描所有后续 key。
+            let has_more = next_range_start.is_some_and(|range_start| {
+                self.live_keys
+                    .range((range_start, Bound::Unbounded))
+                    .next()
+                    .is_some_and(|key| key.starts_with(&prefix))
+            });
+            if has_more {
+                ScanCursor {
+                    prefix,
+                    delimiter,
+                    last_key,
+                    expires_at_unix_millis: current_time_unix_millis() + SCAN_CURSOR_TTL_MILLIS,
+                }
+                .encode()
+            } else {
+                String::new()
+            }
+        } else {
+            String::new()
+        };
+        Ok(pb::MetaScanResponse { items, next_cursor })
+    }
+
+    fn reject_retired_block(&self, block_id: &[u8]) -> Result<(), MetaRuntimeError> {
+        if self.retired_block_fences.contains_key(block_id) {
+            return Err(MetaRuntimeError::Conflict {
+                expected: None,
+                actual: 0,
+            });
+        }
+        Ok(())
+    }
+
+    fn next_object_version(&self, current_version: u64) -> u64 {
+        (self.journal.last_index() + 1)
+            .max(current_version + 1)
+            .max(self.version_floor + 1)
+    }
+
+    fn block_referenced_by_retained_versions(&self, block_id: &[u8]) -> bool {
+        self.versions
+            .values()
+            .flat_map(|versions| versions.values())
+            .flat_map(|layout| layout.extents.iter())
+            .any(|extent| extent.block_id == block_id)
+    }
+
+    fn validate_commit_sequence(
+        &self,
+        session: &pb::NodeSessionIdentity,
+        commit_sequence: u64,
+        operation_id: &[u8],
+        operation_digest: &[u8],
+    ) -> Result<Option<CommitSequenceRecord>, MetaRuntimeError> {
+        let session_state = self
+            .sessions
+            .get(&session.node_id)
+            .ok_or(MetaRuntimeError::UnknownSession)?;
+        if !session_state.supports_commit_sequence {
+            return if commit_sequence == 0 {
+                Ok(None)
+            } else {
+                Err(MetaRuntimeError::InvalidArgument(
+                    "commit sequence requires negotiated session support".to_string(),
+                ))
+            };
+        }
+        if commit_sequence == 0 {
+            return Err(MetaRuntimeError::InvalidArgument(
+                "commit sequence is required for this session".to_string(),
+            ));
+        }
+        if commit_sequence <= session_state.commit_sequence_floor {
+            return Err(MetaRuntimeError::Conflict {
+                expected: Some(session_state.commit_sequence_floor + 1),
+                actual: commit_sequence,
+            });
+        }
+        if let Some(previous) = session_state.commit_sequences.get(&commit_sequence) {
+            if previous.operation_id == operation_id
+                && previous.operation_digest == operation_digest
+            {
+                return Err(MetaRuntimeError::Conflict {
+                    expected: None,
+                    actual: commit_sequence,
+                });
+            }
+            return Err(MetaRuntimeError::Conflict {
+                expected: Some(previous.commit_sequence),
+                actual: commit_sequence,
+            });
+        }
+        Ok(Some(CommitSequenceRecord {
+            node_id: session.node_id,
+            node_epoch: session.node_epoch,
+            commit_sequence,
+            operation_id: operation_id.to_vec(),
+            operation_digest: operation_digest.to_vec(),
+            commit_index: self.journal.last_index() + 1,
+        }))
+    }
+
+    fn remember_commit_sequence(&mut self, record: CommitSequenceRecord) {
+        let node_floor = self
+            .node_commit_sequence_floors
+            .entry(record.node_id)
+            .or_default();
+        if let Some(session) = self.sessions.get_mut(&record.node_id)
+            && session.node_epoch == record.node_epoch
+        {
+            session
+                .commit_sequences
+                .insert(record.commit_sequence, record.clone());
+            if session.commit_sequence_floor > *node_floor {
+                *node_floor = session.commit_sequence_floor;
+            }
+        }
+    }
+
+    fn advance_commit_sequence_floor(&mut self, record: &CommitSequenceRecord) {
+        let floor = self
+            .node_commit_sequence_floors
+            .entry(record.node_id)
+            .or_default();
+        *floor = (*floor).max(record.commit_sequence);
+        if let Some(session) = self.sessions.get_mut(&record.node_id)
+            && session.node_epoch == record.node_epoch
+        {
+            session.commit_sequences.remove(&record.commit_sequence);
+            session.commit_sequence_floor =
+                session.commit_sequence_floor.max(record.commit_sequence);
+        }
+    }
+
+    fn current_value_layout(&self, key: &[u8]) -> Option<&pb::VersionLayout> {
+        let layout = self
+            .versions
+            .get(key)?
+            .last_key_value()
+            .map(|(_, layout)| layout)?;
+        (layout.kind == pb::VersionKind::Value as i32).then_some(layout)
+    }
+
+    fn object_info(&self, key: Vec<u8>, layout: &pb::VersionLayout) -> pb::ObjectInfo {
+        pb::ObjectInfo {
+            key: Some(pb::Key { value: key.clone() }),
+            length: layout.logical_length,
+            // 旧 WAL/snapshot 没有 mtime 辅助记录时使用 0，明确表示兼容默认值。
+            modified_time_unix_millis: self
+                .version_modified_times
+                .get(&(key, layout.version))
+                .copied()
+                .unwrap_or_default(),
+            version: layout.version,
+            is_prefix: false,
+        }
+    }
+
+    fn prefix_object_info(key: Vec<u8>) -> pb::ObjectInfo {
+        pb::ObjectInfo {
+            key: Some(pb::Key { value: key }),
+            length: 0,
+            modified_time_unix_millis: 0,
+            version: 0,
+            is_prefix: true,
+        }
     }
 
     fn dispatch_commit_version(
@@ -1598,6 +2039,8 @@ impl MetaState {
                 sender,
                 delivered_cursor: replay_after,
                 replay_through: self.event_high_watermark,
+                next_gc_retry_at: Some(Instant::now() + GC_RETRY_INTERVAL),
+                last_gc_retry_cursor: replay_after,
                 disconnected: false,
             },
         );
@@ -1608,6 +2051,7 @@ impl MetaState {
     }
 
     fn pump_watchers(&mut self) {
+        let now = Instant::now();
         for (node_id, watcher) in &mut self.watchers {
             if watcher.disconnected {
                 continue;
@@ -1615,6 +2059,7 @@ impl MetaState {
             let start = self
                 .events
                 .partition_point(|event| event.cursor <= watcher.delivered_cursor);
+            let mut delivered_fresh = false;
             for event in &self.events[start..] {
                 if !event_targets_node(event, *node_id) {
                     watcher.delivered_cursor = event.cursor;
@@ -1623,6 +2068,7 @@ impl MetaState {
                 match watcher.sender.try_send(event.clone()) {
                     Ok(()) => {
                         watcher.delivered_cursor = event.cursor;
+                        delivered_fresh = true;
                         self.metrics.record_watch_event(
                             event_metric_type(event),
                             if event.cursor <= watcher.replay_through {
@@ -1640,6 +2086,49 @@ impl MetaState {
                             .record_watch_event(event_metric_type(&event), WatchDelivery::Dropped);
                         break;
                     }
+                }
+            }
+            if watcher.disconnected {
+                continue;
+            }
+            if delivered_fresh {
+                // Fresh watch traffic has priority, but it must not keep
+                // postponing an already due GC retry forever under a hot
+                // writer. Only initialize an empty timer; preserve due timers
+                // so spare stream capacity can carry one GC-only retry below.
+                watcher
+                    .next_gc_retry_at
+                    .get_or_insert(now + GC_RETRY_INTERVAL);
+            }
+            if watcher
+                .next_gc_retry_at
+                .is_some_and(|retry_at| retry_at > now)
+            {
+                continue;
+            }
+            let Some(event) = outstanding_retirement_retry_event(
+                &self.events,
+                &self.pending_retirements,
+                *node_id,
+                watcher.delivered_cursor,
+                watcher.last_gc_retry_cursor,
+            )
+            .cloned() else {
+                watcher.next_gc_retry_at = None;
+                continue;
+            };
+            watcher.next_gc_retry_at = Some(now + GC_RETRY_INTERVAL);
+            match watcher.sender.try_send(event.clone()) {
+                Ok(()) => {
+                    watcher.last_gc_retry_cursor = event.cursor;
+                    self.metrics
+                        .record_watch_event(event_metric_type(&event), WatchDelivery::Replayed);
+                }
+                Err(mpsc::error::TrySendError::Full(_)) => {}
+                Err(mpsc::error::TrySendError::Closed(event)) => {
+                    watcher.disconnected = true;
+                    self.metrics
+                        .record_watch_event(event_metric_type(&event), WatchDelivery::Dropped);
                 }
             }
         }
@@ -1697,15 +2186,28 @@ impl MetaState {
                     })
             })
             .flatten();
+        let acknowledged_cursor =
+            self.cursor_before_outstanding_retirement(session.node_id, request.cursor);
+        if self
+            .sessions
+            .get(&session.node_id)
+            .expect("verified session")
+            .last_acked_cursor
+            >= acknowledged_cursor
+        {
+            return Ok(());
+        }
         let record = JournalRecord::NodeEventAcknowledged {
             node_id: session.node_id,
-            cursor: request.cursor,
+            cursor: acknowledged_cursor,
         };
         let sequence = self.append_record(record.clone())?;
         self.apply_record(sequence, record);
         self.maybe_checkpoint(sequence)?;
-        self.advance_pending_commits(session.node_id, request.cursor);
-        if let Some(block_id) = applied_repair {
+        self.advance_pending_commits(session.node_id, acknowledged_cursor);
+        if acknowledged_cursor == request.cursor
+            && let Some(block_id) = applied_repair
+        {
             self.pending_repairs.remove(&block_id);
             self.metrics
                 .record_repair_transition(RepairTransition::Completed);
@@ -1745,6 +2247,51 @@ impl MetaState {
                 },
             );
             self.events.push(event);
+        }
+    }
+
+    fn cursor_before_outstanding_retirement(&self, node_id: u64, requested_cursor: u64) -> u64 {
+        cursor_before_outstanding_retirement_in(
+            &self.events,
+            &self.pending_retirements,
+            node_id,
+            requested_cursor,
+        )
+    }
+
+    fn advance_retirement_ack_cursor(
+        &mut self,
+        participant: &BlockRetirementParticipant,
+        retirement_id: &[u8],
+        ack_kind: pb::BlockRetirementAckKind,
+    ) {
+        let phase = match ack_kind {
+            pb::BlockRetirementAckKind::Prepared => pb::BlockRetirementPhase::Prepare,
+            pb::BlockRetirementAckKind::Released => pb::BlockRetirementPhase::Final,
+            pb::BlockRetirementAckKind::Unspecified => return,
+        };
+        let Some(cursor) = self
+            .events
+            .iter()
+            .find(|event| match &event.event {
+                Some(pb::node_event::Event::EvictReplica(evict)) => {
+                    evict.retirement_id == retirement_id
+                        && evict.participant_node_id == participant.node_id
+                        && evict.participant_node_epoch == participant.node_epoch
+                        && pb::BlockRetirementPhase::try_from(evict.phase).ok() == Some(phase)
+                }
+                _ => false,
+            })
+            .map(|event| event.cursor)
+        else {
+            return;
+        };
+        let acknowledged_cursor =
+            self.cursor_before_outstanding_retirement(participant.node_id, cursor);
+        if let Some(session) = self.sessions.get_mut(&participant.node_id)
+            && session.node_epoch == participant.node_epoch
+        {
+            session.last_acked_cursor = session.last_acked_cursor.max(acknowledged_cursor);
         }
     }
 
@@ -1978,6 +2525,8 @@ impl MetaState {
                 session_id,
                 control_endpoint,
                 next_session,
+                supports_commit_sequence,
+                commit_sequence_floor,
             } => {
                 if let Some(previous) = self.sessions.get(&node_id) {
                     let until = previous
@@ -2004,8 +2553,13 @@ impl MetaState {
                             .get(&node_id)
                             .map_or(0, |session| session.last_acked_cursor),
                         last_heartbeat: Some(Instant::now()),
+                        supports_commit_sequence,
+                        commit_sequence_floor,
+                        commit_sequences: HashMap::new(),
                     },
                 );
+                self.node_commit_sequence_floors
+                    .insert(node_id, commit_sequence_floor);
             }
             JournalRecord::ReplicaAccepted {
                 location,
@@ -2062,49 +2616,98 @@ impl MetaState {
             JournalRecord::VersionCommitted {
                 key,
                 layout,
+                modified_time_unix_millis,
                 new_replicas,
                 operation_id,
                 operation_digest,
+                commit_sequence,
             } => {
                 self.apply_version_commit(
                     sequence,
                     VersionCommitRecord {
                         key,
                         layout,
+                        modified_time_unix_millis,
                         new_replicas,
                         operation_id,
                         operation_digest,
                     },
+                    commit_sequence.as_ref(),
                 );
             }
-            JournalRecord::VersionsCommitted { commits } => {
+            JournalRecord::VersionsCommitted {
+                commits,
+                commit_sequence,
+            } => {
                 for commit in commits {
-                    self.apply_version_commit(sequence, commit);
+                    self.apply_version_commit(sequence, commit, commit_sequence.as_ref());
                 }
             }
             JournalRecord::OperationRemembered {
                 operation_id,
                 operation_digest,
                 result,
+                commit_sequence,
             } => {
+                if let Some(record) = commit_sequence.clone() {
+                    self.remember_commit_sequence(record);
+                }
                 self.operations.insert(
                     operation_id,
                     StoredOperation {
                         digest: operation_digest,
                         result,
+                        commit_sequence,
                         visibility_cursor: None,
                     },
                 );
             }
             JournalRecord::NodeEventAcknowledged { node_id, cursor } => {
+                let acknowledged_cursor =
+                    self.cursor_before_outstanding_retirement(node_id, cursor);
                 if let Some(session) = self.sessions.get_mut(&node_id) {
-                    session.last_acked_cursor = session.last_acked_cursor.max(cursor);
+                    session.last_acked_cursor = session.last_acked_cursor.max(acknowledged_cursor);
                 }
+            }
+            JournalRecord::BlockRetirementPrepared { record } => {
+                self.apply_retirement_prepared(record);
+            }
+            JournalRecord::BlockRetirementAcknowledged {
+                retirement_id,
+                participant,
+                ack_kind,
+                stage_epoch,
+            } => {
+                self.apply_retirement_ack(
+                    &retirement_id,
+                    participant.clone(),
+                    ack_kind,
+                    stage_epoch,
+                );
+                self.advance_retirement_ack_cursor(&participant, &retirement_id, ack_kind);
+            }
+            JournalRecord::BlockRetirementFinalized {
+                retirement_id,
+                stage_epoch,
+            } => {
+                self.apply_retirement_finalized(&retirement_id, stage_epoch);
+            }
+            JournalRecord::BlockRetirementReleased {
+                retirement_id,
+                block_ids,
+                stage_epoch,
+            } => {
+                self.apply_retirement_released(&retirement_id, &block_ids, stage_epoch);
             }
         }
     }
 
-    fn apply_version_commit(&mut self, sequence: u64, commit: VersionCommitRecord) {
+    fn apply_version_commit(
+        &mut self,
+        sequence: u64,
+        commit: VersionCommitRecord,
+        commit_sequence: Option<&CommitSequenceRecord>,
+    ) {
         for (location, length) in commit.new_replicas {
             self.desired_replica_counts
                 .entry(location.block_id.clone())
@@ -2126,6 +2729,15 @@ impl MetaState {
             .entry(commit.key.clone())
             .or_default()
             .insert(commit.layout.version, commit.layout.clone());
+        self.version_modified_times.insert(
+            (commit.key.clone(), commit.layout.version),
+            commit.modified_time_unix_millis,
+        );
+        if commit.layout.kind == pb::VersionKind::Value as i32 {
+            self.live_keys.insert(commit.key.clone());
+        } else if commit.layout.kind == pb::VersionKind::Tombstone as i32 {
+            self.live_keys.remove(&commit.key);
+        }
         // cursor 是 Meta watch/ACK 的全局时序号。即使首次发布不需要失效事件，
         // 也保留一个 cursor gap，避免旧 Journal 回放时历史 ACK 误确认后续事件。
         let cursor = self.event_high_watermark + 1;
@@ -2153,6 +2765,10 @@ impl MetaState {
             });
             Some(cursor)
         };
+        let commit_sequence = commit_sequence.cloned();
+        if let Some(record) = commit_sequence.clone() {
+            self.remember_commit_sequence(record);
+        }
         self.operations.insert(
             commit.operation_id,
             StoredOperation {
@@ -2163,6 +2779,7 @@ impl MetaState {
                     commit_index: sequence,
                     changed: true,
                 },
+                commit_sequence,
                 visibility_cursor,
             },
         );
@@ -2180,15 +2797,34 @@ impl MetaState {
         }
         let mut checkpoint_metric = self.metrics.begin_checkpoint();
         self.enforce_retention();
+        let checkpoint_index = self.last_applied_index;
         let snapshot = self.snapshot();
         self.journal
             .save_snapshot(snapshot)
             .map_err(map_journal_error)?;
         self.journal
-            .truncate_prefix(sequence)
+            .truncate_prefix(checkpoint_index)
             .map_err(map_journal_error)?;
-        self.last_checkpoint_index = sequence;
+        self.last_checkpoint_index = checkpoint_index;
+        self.retention_boundary_dirty = false;
         checkpoint_metric.success();
+        Ok(())
+    }
+
+    fn checkpoint_retention_boundary(&mut self) -> Result<(), MetaRuntimeError> {
+        if !self.retention_boundary_dirty {
+            return Ok(());
+        }
+        let checkpoint_index = self.last_applied_index;
+        let snapshot = self.snapshot();
+        self.journal
+            .save_snapshot(snapshot)
+            .map_err(map_journal_error)?;
+        self.journal
+            .truncate_prefix(checkpoint_index)
+            .map_err(map_journal_error)?;
+        self.last_checkpoint_index = checkpoint_index;
+        self.retention_boundary_dirty = false;
         Ok(())
     }
 
@@ -2318,8 +2954,10 @@ impl MetaState {
             .collect::<Vec<_>>();
         for node_id in expired {
             // Client 的租约从不超过 Node 的 Meta 租约，因此到此时已无有效旧 Current。
-            // 记录退休水位后才解除等待；重放不会把已退休会话重新钉住旧历史。
-            let cursor = self.event_high_watermark;
+            // 但 GC retirement duty 只能由专用 ACK 完成；过期/断连不能被当作
+            // Drain/Release 证明，因此普通水位必须停在最早欠账之前。
+            let cursor =
+                self.cursor_before_outstanding_retirement(node_id, self.event_high_watermark);
             let record = JournalRecord::NodeEventAcknowledged { node_id, cursor };
             let sequence = self.append_record(record.clone())?;
             self.apply_record(sequence, record);
@@ -2332,36 +2970,113 @@ impl MetaState {
     }
 
     fn enforce_retention(&mut self) {
-        self.retain_versions();
-        self.retain_operations();
+        let pruned_versions = self.retain_versions();
+        let advanced_commit_sequence_floor = self.retain_operations();
+        if pruned_versions || advanced_commit_sequence_floor {
+            self.retention_boundary_dirty = true;
+        }
         self.retain_events();
+        if let Err(error) = self.checkpoint_retention_boundary() {
+            dms_logging::warn!(
+                "retention checkpoint failed; physical block retirement paused";
+                "error" => format!("{error:?}")
+            );
+            return;
+        }
         self.retain_replicas_referenced_by_versions();
+        self.advance_retirements();
+        self.retain_retired_block_fences();
     }
 
-    fn retain_versions(&mut self) {
+    fn retain_versions(&mut self) -> bool {
         let keep = self.retention_policy.keep_versions_per_key.max(1);
-        for versions in self.versions.values_mut() {
+        let current_index = self.last_applied_index;
+        let tombstone_window = self
+            .retention_policy
+            .operation_result_retention_records
+            .max(1);
+        let mut version_floor = self.version_floor;
+        let mut purge_keys = Vec::new();
+        let mut changed = false;
+        for (key, versions) in self.versions.iter_mut() {
+            if versions
+                .last_key_value()
+                .is_some_and(|(_, layout)| layout.kind == pb::VersionKind::Tombstone as i32)
+            {
+                // 删除后的 key 只保留最后 tombstone 作为逻辑 Current/version fence。
+                // 旧 VALUE 版本的 Exact selector 受保留策略约束，不是永久 pin；
+                // 已经开始的读/显式 View 由 Node drain ACK 保护。
+                while versions.len() > 1 {
+                    let Some(oldest) = versions.first_key_value().map(|(version, _)| *version)
+                    else {
+                        break;
+                    };
+                    versions.remove(&oldest);
+                    version_floor = version_floor.max(oldest);
+                    changed = true;
+                }
+                if let Some((&tombstone_version, _)) = versions.last_key_value()
+                    && current_index.saturating_sub(tombstone_version) > tombstone_window
+                {
+                    // tombstone 也只是有限历史 fence。全局 version_floor 单调保存
+                    // 已裁掉的最高版本，key churn 下 Meta 不需要永久每 key 墓碑。
+                    version_floor = version_floor.max(tombstone_version);
+                    purge_keys.push(key.clone());
+                    changed = true;
+                }
+                continue;
+            }
             while versions.len() > keep {
                 let Some(oldest) = versions.first_key_value().map(|(version, _)| *version) else {
                     break;
                 };
                 versions.remove(&oldest);
+                version_floor = version_floor.max(oldest);
+                changed = true;
             }
         }
+        self.version_floor = version_floor;
+        for key in purge_keys {
+            self.versions.remove(&key);
+            self.live_keys.remove(&key);
+        }
+        let retained = self
+            .versions
+            .iter()
+            .flat_map(|(key, versions)| {
+                versions
+                    .keys()
+                    .map(|version| (key.clone(), *version))
+                    .collect::<Vec<_>>()
+            })
+            .collect::<HashSet<_>>();
+        self.version_modified_times
+            .retain(|identity, _| retained.contains(identity));
+        changed
     }
 
-    fn retain_operations(&mut self) {
+    fn retain_operations(&mut self) -> bool {
         let current_index = self.last_applied_index;
         let operation_window = self.retention_policy.operation_result_retention_records;
+        let mut expired_commit_sequences = Vec::new();
         self.operations.retain(|_, operation| {
-            operation.visibility_cursor.is_some()
-                || current_index.saturating_sub(operation.result.commit_index) <= operation_window
+            let retain = operation.visibility_cursor.is_some()
+                || current_index.saturating_sub(operation.result.commit_index) <= operation_window;
+            if !retain && let Some(record) = &operation.commit_sequence {
+                expired_commit_sequences.push(record.clone());
+            }
+            retain
         });
+        let advanced_commit_sequence_floor = !expired_commit_sequences.is_empty();
+        for record in expired_commit_sequences {
+            self.advance_commit_sequence_floor(&record);
+        }
 
         let replica_window = self.retention_policy.replica_operation_retention_records;
         self.replica_operations.retain(|_, result| {
             current_index.saturating_sub(result.catalog_watermark) <= replica_window
         });
+        advanced_commit_sequence_floor
     }
 
     fn retain_events(&mut self) {
@@ -2378,12 +3093,31 @@ impl MetaState {
             .map(|(_, session)| session.last_acked_cursor)
             .min()
             .unwrap_or(self.event_high_watermark);
-        self.events
-            .retain(|event| event.cursor > acked_by_all_sessions);
+        let pending_retirements = self.pending_retirements.clone();
+        self.events.retain(|event| {
+            event.cursor > acked_by_all_sessions
+                || retirement_event_outstanding_in(&pending_retirements, event)
+        });
     }
 
     fn retain_replicas_referenced_by_versions(&mut self) {
         if !self.retention_policy.drop_unreferenced_replicas {
+            return;
+        }
+        if self.sessions.iter().any(|(node_id, session)| {
+            !self.retired_sessions.contains(node_id) && !session.supports_commit_sequence
+        }) {
+            dms_logging::warn!(
+                "block retirement paused until all live sessions support commit sequence"
+            );
+            return;
+        }
+        if self.pending_retirements.len() >= MAX_PENDING_BLOCK_RETIREMENTS {
+            dms_logging::warn!(
+                "block retirement backlog full";
+                "pending" => self.pending_retirements.len(),
+                "limit" => MAX_PENDING_BLOCK_RETIREMENTS
+            );
             return;
         }
         let referenced_blocks = self
@@ -2393,8 +3127,330 @@ impl MetaState {
             .flat_map(|layout| layout.extents.iter())
             .map(|extent| extent.block_id.clone())
             .collect::<HashSet<_>>();
-        self.replicas
-            .retain(|block_id, _| referenced_blocks.contains(block_id));
+        let already_pending = self
+            .pending_retirements
+            .values()
+            .flat_map(|retirement| retirement.record.block_ids.iter().cloned())
+            .collect::<HashSet<_>>();
+        let candidates = self
+            .replicas
+            .keys()
+            .filter(|block_id| {
+                !referenced_blocks.contains(*block_id)
+                    && !already_pending.contains(*block_id)
+                    && !self.retired_block_fences.contains_key(*block_id)
+            })
+            .take(MAX_RETIREMENT_BLOCKS_PER_BATCH)
+            .cloned()
+            .collect::<Vec<_>>();
+        if candidates.is_empty() {
+            return;
+        }
+        if let Err(error) = self.prepare_block_retirement(candidates) {
+            dms_logging::warn!("block retirement prepare failed"; "error" => format!("{error:?}"));
+        }
+    }
+
+    fn retain_retired_block_fences(&mut self) {
+        if self.retired_block_fences.len() <= MAX_RETIRED_BLOCK_FENCES {
+            return;
+        }
+        let mut fences = self
+            .retired_block_fences
+            .iter()
+            .map(|(block_id, fence_version)| (block_id.clone(), *fence_version))
+            .collect::<Vec<_>>();
+        fences.sort_by(|left, right| {
+            right
+                .1
+                .cmp(&left.1)
+                .then_with(|| left.0.as_slice().cmp(right.0.as_slice()))
+        });
+        let retained = fences
+            .into_iter()
+            .take(MAX_RETIRED_BLOCK_FENCES)
+            .map(|(block_id, _)| block_id)
+            .collect::<HashSet<_>>();
+        // 退休 fence 是迟到 report/commit 的有限窗口，不是无界 retiredBlockSet。
+        // 超出窗口的更旧内容 ID 不再占用内存；操作幂等仍由 operation retention 控制。
+        self.retired_block_fences
+            .retain(|block_id, _| retained.contains(block_id));
+    }
+
+    fn prepare_block_retirement(
+        &mut self,
+        block_ids: Vec<Vec<u8>>,
+    ) -> Result<(), MetaRuntimeError> {
+        let participants = self.retirement_participants(&block_ids);
+        let stage_epoch = self.journal.last_index() + 1;
+        let record = BlockRetirementRecord {
+            retirement_id: retirement_id(stage_epoch, &block_ids),
+            block_ids,
+            participants,
+            prepare_stage_epoch: stage_epoch,
+            final_stage_epoch: 0,
+            fence_version: stage_epoch,
+        };
+        let journal = JournalRecord::BlockRetirementPrepared { record };
+        let sequence = self.append_record(journal.clone())?;
+        self.apply_record(sequence, journal);
+        Ok(())
+    }
+
+    fn retirement_participants(&self, block_ids: &[Vec<u8>]) -> Vec<BlockRetirementParticipant> {
+        let mut participants = self
+            .sessions
+            .iter()
+            // 已注册 session 即使租约过期/retired，也可能在过期前或过期后
+            // Resolve 过旧 layout 并持有 Node 本地 read scope。TTL 不能证明
+            // drain；阶段 1 选择保守等待专用 GC ACK。
+            .map(|(node_id, session)| (*node_id, session.node_epoch))
+            .collect::<BTreeSet<_>>();
+        for block_id in block_ids {
+            if let Some(replicas) = self.replicas.get(block_id) {
+                for replica in replicas {
+                    participants.insert((replica.location.node_id, replica.location.node_epoch));
+                }
+            }
+        }
+        participants
+            .into_iter()
+            .map(|(node_id, node_epoch)| BlockRetirementParticipant {
+                node_id,
+                node_epoch,
+            })
+            .collect()
+    }
+
+    fn apply_retirement_prepared(&mut self, record: BlockRetirementRecord) {
+        self.emit_retirement_events(
+            &record,
+            pb::BlockRetirementPhase::Prepare,
+            record.prepare_stage_epoch,
+        );
+        self.pending_retirements.insert(
+            record.retirement_id.clone(),
+            PendingRetirement {
+                record,
+                prepared: HashSet::new(),
+                released: HashSet::new(),
+                final_sent: false,
+            },
+        );
+        self.pump_watchers();
+    }
+
+    fn apply_retirement_ack(
+        &mut self,
+        retirement_id: &[u8],
+        participant: BlockRetirementParticipant,
+        ack_kind: pb::BlockRetirementAckKind,
+        stage_epoch: u64,
+    ) {
+        let Some(retirement) = self.pending_retirements.get_mut(retirement_id) else {
+            return;
+        };
+        if !retirement.record.participants.contains(&participant) {
+            return;
+        }
+        match ack_kind {
+            pb::BlockRetirementAckKind::Prepared
+                if stage_epoch == retirement.record.prepare_stage_epoch =>
+            {
+                retirement
+                    .prepared
+                    .insert((participant.node_id, participant.node_epoch));
+            }
+            pb::BlockRetirementAckKind::Released
+                if retirement.final_sent && stage_epoch == retirement.record.final_stage_epoch =>
+            {
+                retirement
+                    .released
+                    .insert((participant.node_id, participant.node_epoch));
+            }
+            _ => {}
+        }
+    }
+
+    fn apply_retirement_finalized(&mut self, retirement_id: &[u8], stage_epoch: u64) {
+        let Some(mut record) = self
+            .pending_retirements
+            .get(retirement_id)
+            .map(|pending| pending.record.clone())
+        else {
+            return;
+        };
+        record.final_stage_epoch = stage_epoch;
+        self.emit_retirement_events(&record, pb::BlockRetirementPhase::Final, stage_epoch);
+        if let Some(retirement) = self.pending_retirements.get_mut(retirement_id) {
+            retirement.record.final_stage_epoch = stage_epoch;
+            retirement.final_sent = true;
+        }
+        self.pump_watchers();
+    }
+
+    fn apply_retirement_released(
+        &mut self,
+        retirement_id: &[u8],
+        block_ids: &[Vec<u8>],
+        stage_epoch: u64,
+    ) {
+        for block_id in block_ids {
+            self.replicas.remove(block_id);
+            self.desired_replica_counts.remove(block_id);
+            self.pending_repairs.remove(block_id);
+            self.retired_block_fences
+                .entry(block_id.clone())
+                .or_insert(stage_epoch);
+        }
+        self.pending_retirements.remove(retirement_id);
+        self.retain_retired_block_fences();
+    }
+
+    fn emit_retirement_events(
+        &mut self,
+        record: &BlockRetirementRecord,
+        phase: pb::BlockRetirementPhase,
+        stage_epoch: u64,
+    ) {
+        for participant in &record.participants {
+            let cursor = self.event_high_watermark + 1;
+            self.event_high_watermark = cursor;
+            self.events.push(pb::NodeEvent {
+                event_id: event_id_with_suffix(stage_epoch, participant.node_id),
+                cursor,
+                event: Some(pb::node_event::Event::EvictReplica(pb::EvictReplicaEvent {
+                    block_id: record.block_ids.first().cloned().unwrap_or_default(),
+                    block_ids: record.block_ids.clone(),
+                    retirement_id: record.retirement_id.clone(),
+                    phase: phase as i32,
+                    participant_node_id: participant.node_id,
+                    participant_node_epoch: participant.node_epoch,
+                    stage_epoch,
+                    fence_version: record.fence_version,
+                })),
+            });
+        }
+    }
+
+    fn acknowledge_block_retirement(
+        &mut self,
+        request: pb::AcknowledgeBlockRetirementRequest,
+    ) -> Result<pb::AcknowledgeBlockRetirementResponse, MetaRuntimeError> {
+        let session = request
+            .session
+            .as_ref()
+            .ok_or_else(|| MetaRuntimeError::InvalidArgument("missing node session".to_string()))?;
+        self.verify_session(session)?;
+        let ack_kind = pb::BlockRetirementAckKind::try_from(request.ack_kind).map_err(|_| {
+            MetaRuntimeError::InvalidArgument("invalid retirement ack kind".to_string())
+        })?;
+        if ack_kind == pb::BlockRetirementAckKind::Unspecified || request.retirement_id.is_empty() {
+            return Err(MetaRuntimeError::InvalidArgument(
+                "retirement ack requires id and kind".to_string(),
+            ));
+        }
+        let Some(retirement) = self.pending_retirements.get(&request.retirement_id) else {
+            if !request.block_ids.is_empty()
+                && request
+                    .block_ids
+                    .iter()
+                    .all(|block_id| self.retired_block_fences.contains_key(block_id))
+            {
+                return Ok(pb::AcknowledgeBlockRetirementResponse { accepted: true });
+            }
+            return Err(MetaRuntimeError::NotFound);
+        };
+        if request.block_ids != retirement.record.block_ids {
+            return Err(MetaRuntimeError::InvalidArgument(
+                "retirement ack block set mismatch".to_string(),
+            ));
+        }
+        let participant = BlockRetirementParticipant {
+            node_id: session.node_id,
+            node_epoch: session.node_epoch,
+        };
+        if !retirement.record.participants.contains(&participant) {
+            return Err(MetaRuntimeError::Conflict {
+                expected: None,
+                actual: session.node_epoch,
+            });
+        }
+        let expected_stage = match ack_kind {
+            pb::BlockRetirementAckKind::Prepared => retirement.record.prepare_stage_epoch,
+            pb::BlockRetirementAckKind::Released => retirement.record.final_stage_epoch,
+            pb::BlockRetirementAckKind::Unspecified => unreachable!(),
+        };
+        if request.stage_epoch != expected_stage || expected_stage == 0 {
+            return Err(MetaRuntimeError::Conflict {
+                expected: Some(expected_stage),
+                actual: request.stage_epoch,
+            });
+        }
+        let record = JournalRecord::BlockRetirementAcknowledged {
+            retirement_id: request.retirement_id.clone(),
+            participant,
+            ack_kind,
+            stage_epoch: request.stage_epoch,
+        };
+        let sequence = self.append_record(record.clone())?;
+        self.apply_record(sequence, record);
+        self.advance_retirement_after_ack(&request.retirement_id)?;
+        let retirement_released = !self
+            .pending_retirements
+            .contains_key(&request.retirement_id);
+        let checkpoint = self.maybe_checkpoint(self.last_applied_index);
+        if retirement_released {
+            // Release ACK 是对外的“Meta 已忘记 replica facts”边界；
+            // 同步刷新，避免真实 F4 policy 立即采样到上一轮陈旧 gauge。
+            self.refresh_metrics();
+        }
+        checkpoint?;
+        Ok(pb::AcknowledgeBlockRetirementResponse { accepted: true })
+    }
+
+    fn advance_retirement_after_ack(
+        &mut self,
+        retirement_id: &[u8],
+    ) -> Result<(), MetaRuntimeError> {
+        let Some(retirement) = self.pending_retirements.get(retirement_id).cloned() else {
+            return Ok(());
+        };
+        let participant_count = retirement.record.participants.len();
+        if !retirement.final_sent && retirement.prepared.len() == participant_count {
+            let stage_epoch = self.journal.last_index() + 1;
+            let record = JournalRecord::BlockRetirementFinalized {
+                retirement_id: retirement_id.to_vec(),
+                stage_epoch,
+            };
+            let sequence = self.append_record(record.clone())?;
+            self.apply_record(sequence, record);
+        }
+        let Some(retirement) = self.pending_retirements.get(retirement_id).cloned() else {
+            return Ok(());
+        };
+        if retirement.final_sent && retirement.released.len() == participant_count {
+            let record = JournalRecord::BlockRetirementReleased {
+                retirement_id: retirement_id.to_vec(),
+                block_ids: retirement.record.block_ids.clone(),
+                stage_epoch: self.journal.last_index() + 1,
+            };
+            let sequence = self.append_record(record.clone())?;
+            self.apply_record(sequence, record);
+        }
+        Ok(())
+    }
+
+    fn advance_retirements(&mut self) {
+        let ids = self.pending_retirements.keys().cloned().collect::<Vec<_>>();
+        for retirement_id in ids {
+            if let Err(error) = self.advance_retirement_after_ack(&retirement_id) {
+                dms_logging::warn!(
+                    "block retirement advance failed";
+                    "error" => format!("{error:?}")
+                );
+            }
+        }
     }
 
     #[cfg(test)]
@@ -2447,13 +3503,24 @@ impl MetaState {
                 result: operation.result,
             })
             .collect();
+        let commit_sequences = self
+            .sessions
+            .values()
+            .flat_map(|session| session.commit_sequences.values().cloned())
+            .collect();
         MetaSnapshot {
             last_applied_index: self.last_applied_index,
+            version_floor: self.version_floor,
             next_session: self.next_session,
             node_epochs: self
                 .node_epochs
                 .iter()
                 .map(|(node_id, epoch)| (*node_id, *epoch))
+                .collect(),
+            node_commit_sequence_floors: self
+                .node_commit_sequence_floors
+                .iter()
+                .map(|(node_id, floor)| (*node_id, *floor))
                 .collect(),
             sessions: self
                 .sessions
@@ -2464,6 +3531,8 @@ impl MetaState {
                     node_epoch: session.node_epoch,
                     control_endpoint: session.control_endpoint.clone(),
                     last_acked_cursor: session.last_acked_cursor,
+                    supports_commit_sequence: session.supports_commit_sequence,
+                    commit_sequence_floor: session.commit_sequence_floor,
                 })
                 .collect(),
             replicas,
@@ -2473,6 +3542,41 @@ impl MetaState {
                 .map(|(block_id, copies)| (block_id.clone(), *copies))
                 .collect(),
             versions,
+            version_modified_times: self
+                .version_modified_times
+                .iter()
+                .map(|((key, version), modified_time)| (key.clone(), *version, *modified_time))
+                .collect(),
+            block_retirements: self
+                .pending_retirements
+                .values()
+                .map(|retirement| SnapshotBlockRetirement {
+                    record: retirement.record.clone(),
+                    prepared: retirement
+                        .prepared
+                        .iter()
+                        .map(|(node_id, node_epoch)| BlockRetirementParticipant {
+                            node_id: *node_id,
+                            node_epoch: *node_epoch,
+                        })
+                        .collect(),
+                    released: retirement
+                        .released
+                        .iter()
+                        .map(|(node_id, node_epoch)| BlockRetirementParticipant {
+                            node_id: *node_id,
+                            node_epoch: *node_epoch,
+                        })
+                        .collect(),
+                    final_sent: retirement.final_sent,
+                })
+                .collect(),
+            retired_block_fences: self
+                .retired_block_fences
+                .iter()
+                .map(|(block_id, fence_version)| (block_id.clone(), *fence_version))
+                .collect(),
+            commit_sequences,
             operations,
             replica_operations: self
                 .replica_operations
@@ -2489,8 +3593,11 @@ impl MetaState {
 
     fn restore_snapshot(&mut self, snapshot: MetaSnapshot) {
         self.last_applied_index = snapshot.last_applied_index;
+        self.version_floor = snapshot.version_floor;
         self.next_session = snapshot.next_session;
         self.node_epochs = snapshot.node_epochs.into_iter().collect();
+        self.node_commit_sequence_floors =
+            snapshot.node_commit_sequence_floors.into_iter().collect();
         self.sessions = snapshot
             .sessions
             .into_iter()
@@ -2503,10 +3610,19 @@ impl MetaState {
                         control_endpoint: session.control_endpoint,
                         last_acked_cursor: session.last_acked_cursor,
                         last_heartbeat: None,
+                        supports_commit_sequence: session.supports_commit_sequence,
+                        commit_sequence_floor: session.commit_sequence_floor,
+                        commit_sequences: HashMap::new(),
                     },
                 )
             })
             .collect();
+        for (node_id, session) in &self.sessions {
+            self.node_commit_sequence_floors
+                .entry(*node_id)
+                .and_modify(|floor| *floor = (*floor).max(session.commit_sequence_floor))
+                .or_insert(session.commit_sequence_floor);
+        }
         for node_id in self.sessions.keys() {
             self.prior_lease_deadlines
                 .insert(*node_id, self.recovery_lease_until);
@@ -2523,23 +3639,82 @@ impl MetaState {
         }
         self.desired_replica_counts = snapshot.desired_replica_counts.into_iter().collect();
         for (key, layouts) in snapshot.versions {
-            self.versions.insert(
-                key,
-                layouts
-                    .into_iter()
-                    .map(|layout| (layout.version, layout))
-                    .collect(),
-            );
+            let by_version = layouts
+                .into_iter()
+                .map(|layout| (layout.version, layout))
+                .collect::<BTreeMap<_, _>>();
+            if by_version
+                .last_key_value()
+                .is_some_and(|(_, layout)| layout.kind == pb::VersionKind::Value as i32)
+            {
+                self.live_keys.insert(key.clone());
+            }
+            self.versions.insert(key, by_version);
         }
+        self.version_modified_times = snapshot
+            .version_modified_times
+            .into_iter()
+            .map(|(key, version, modified_time)| ((key, version), modified_time))
+            .collect();
+        self.version_floor = self.version_floor.max(
+            self.versions
+                .values()
+                .flat_map(|versions| versions.keys())
+                .copied()
+                .max()
+                .unwrap_or(0),
+        );
+        self.pending_retirements = snapshot
+            .block_retirements
+            .into_iter()
+            .map(|retirement| {
+                (
+                    retirement.record.retirement_id.clone(),
+                    PendingRetirement {
+                        record: retirement.record,
+                        prepared: retirement
+                            .prepared
+                            .into_iter()
+                            .map(|participant| (participant.node_id, participant.node_epoch))
+                            .collect(),
+                        released: retirement
+                            .released
+                            .into_iter()
+                            .map(|participant| (participant.node_id, participant.node_epoch))
+                            .collect(),
+                        final_sent: retirement.final_sent,
+                    },
+                )
+            })
+            .collect();
+        self.retired_block_fences = snapshot.retired_block_fences.into_iter().collect();
+        for record in snapshot.commit_sequences {
+            self.remember_commit_sequence(record);
+        }
+        let commit_sequence_by_operation = self
+            .sessions
+            .values()
+            .flat_map(|session| session.commit_sequences.values())
+            .map(|record| {
+                (
+                    (record.operation_id.clone(), record.operation_digest.clone()),
+                    record.clone(),
+                )
+            })
+            .collect::<HashMap<_, _>>();
         self.operations = snapshot
             .operations
             .into_iter()
             .map(|operation| {
+                let commit_sequence = commit_sequence_by_operation
+                    .get(&(operation.operation_id.clone(), operation.digest.clone()))
+                    .cloned();
                 (
                     operation.operation_id,
                     StoredOperation {
                         digest: operation.digest,
                         result: operation.result,
+                        commit_sequence,
                         visibility_cursor: None,
                     },
                 )
@@ -2614,14 +3789,334 @@ fn validate_condition(
     })
 }
 
+fn scan_limit(limit: u32) -> usize {
+    match limit {
+        0 => DEFAULT_SCAN_LIMIT,
+        value => (value as usize).min(MAX_SCAN_LIMIT),
+    }
+}
+
+fn batch_commit_sequence_digest(entries: &[pb::BatchCommitEntry]) -> Vec<u8> {
+    fn put_bytes(out: &mut Vec<u8>, value: &[u8]) {
+        out.extend_from_slice(&(value.len() as u64).to_be_bytes());
+        out.extend_from_slice(value);
+    }
+
+    fn put_optional_u64(out: &mut Vec<u8>, value: Option<u64>) {
+        match value {
+            Some(value) => {
+                out.push(1);
+                out.extend_from_slice(&value.to_be_bytes());
+            }
+            None => out.push(0),
+        }
+    }
+
+    let mut digest = b"dms-meta-batch-commit-sequence-v1".to_vec();
+    digest.extend_from_slice(&(entries.len() as u64).to_be_bytes());
+    for entry in entries {
+        if let Some(key) = &entry.key {
+            put_bytes(&mut digest, &key.value);
+        } else {
+            put_bytes(&mut digest, &[]);
+        }
+        put_bytes(&mut digest, entry.condition.as_bytes());
+        put_optional_u64(&mut digest, entry.expected_version);
+        put_bytes(&mut digest, &entry.operation_id);
+        put_bytes(&mut digest, &entry.operation_digest);
+        if let Some(candidate) = &entry.candidate {
+            digest.extend_from_slice(&(candidate.kind as u64).to_be_bytes());
+            digest.extend_from_slice(&candidate.logical_length.to_be_bytes());
+            put_bytes(&mut digest, &candidate.digest);
+            digest.extend_from_slice(&(candidate.extents.len() as u64).to_be_bytes());
+            for extent in &candidate.extents {
+                if let Some(range) = &extent.logical {
+                    digest.push(1);
+                    digest.extend_from_slice(&range.offset.to_be_bytes());
+                    digest.extend_from_slice(&range.length.to_be_bytes());
+                } else {
+                    digest.push(0);
+                }
+                put_bytes(&mut digest, &extent.block_id);
+                digest.extend_from_slice(&extent.block_offset.to_be_bytes());
+                put_bytes(&mut digest, &extent.digest);
+            }
+        } else {
+            digest.extend_from_slice(&0_u64.to_be_bytes());
+            digest.extend_from_slice(&0_u64.to_be_bytes());
+            put_bytes(&mut digest, &[]);
+            digest.extend_from_slice(&0_u64.to_be_bytes());
+        }
+        digest.extend_from_slice(&(entry.replica_proofs.len() as u64).to_be_bytes());
+        for proof in &entry.replica_proofs {
+            put_bytes(&mut digest, &proof.block_id);
+            digest.extend_from_slice(&proof.node_id.to_be_bytes());
+            digest.extend_from_slice(&proof.node_epoch.to_be_bytes());
+            digest.extend_from_slice(&proof.catalog_revision.to_be_bytes());
+            put_bytes(&mut digest, &proof.checksum);
+            digest.extend_from_slice(&(proof.durability as u64).to_be_bytes());
+        }
+        digest.extend_from_slice(&(entry.new_replicas.len() as u64).to_be_bytes());
+        for replica in &entry.new_replicas {
+            put_bytes(&mut digest, &replica.block_id);
+            digest.extend_from_slice(&replica.length.to_be_bytes());
+            put_bytes(&mut digest, &replica.checksum);
+            digest.extend_from_slice(&(replica.durability as u64).to_be_bytes());
+        }
+    }
+    digest
+}
+
+fn current_time_unix_millis() -> i64 {
+    let millis = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis();
+    i64::try_from(millis).unwrap_or(i64::MAX)
+}
+
+fn retirement_id(stage_epoch: u64, block_ids: &[Vec<u8>]) -> Vec<u8> {
+    let mut id = b"retire:".to_vec();
+    id.extend_from_slice(&stage_epoch.to_be_bytes());
+    for block_id in block_ids {
+        id.extend_from_slice(&(block_id.len() as u64).to_be_bytes());
+        id.extend_from_slice(block_id);
+    }
+    id
+}
+
+fn event_id_with_suffix(stage_epoch: u64, node_id: u64) -> Vec<u8> {
+    let mut id = stage_epoch.to_be_bytes().to_vec();
+    id.extend_from_slice(&node_id.to_be_bytes());
+    id
+}
+
+struct ScanCursor {
+    prefix: Vec<u8>,
+    delimiter: Vec<u8>,
+    last_key: Vec<u8>,
+    expires_at_unix_millis: i64,
+}
+
+impl ScanCursor {
+    fn encode(&self) -> String {
+        if self.delimiter.is_empty() {
+            format!(
+                "v1:{}:{}:{}",
+                self.expires_at_unix_millis,
+                hex_encode(&self.prefix),
+                hex_encode(&self.last_key)
+            )
+        } else {
+            format!(
+                "v2:{}:{}:{}:{}",
+                self.expires_at_unix_millis,
+                hex_encode(&self.prefix),
+                hex_encode(&self.delimiter),
+                hex_encode(&self.last_key)
+            )
+        }
+    }
+
+    fn decode(value: &str) -> Result<Self, MetaRuntimeError> {
+        if value.len() > MAX_SCAN_CURSOR_LENGTH {
+            return Err(MetaRuntimeError::InvalidArgument(
+                "invalid scan cursor".to_string(),
+            ));
+        }
+        let mut parts = value.split(':');
+        let version = parts.next();
+        let expires_at_unix_millis = parts
+            .next()
+            .and_then(|part| part.parse::<i64>().ok())
+            .ok_or_else(|| MetaRuntimeError::InvalidArgument("invalid scan cursor".to_string()))?;
+        let prefix =
+            parts.next().map(hex_decode).transpose()?.ok_or_else(|| {
+                MetaRuntimeError::InvalidArgument("invalid scan cursor".to_string())
+            })?;
+        let (delimiter, last_key) = match version {
+            Some("v1") => {
+                let last_key = parts.next().map(hex_decode).transpose()?.ok_or_else(|| {
+                    MetaRuntimeError::InvalidArgument("invalid scan cursor".to_string())
+                })?;
+                (Vec::new(), last_key)
+            }
+            Some("v2") => {
+                let delimiter = parts.next().map(hex_decode).transpose()?.ok_or_else(|| {
+                    MetaRuntimeError::InvalidArgument("invalid scan cursor".to_string())
+                })?;
+                let last_key = parts.next().map(hex_decode).transpose()?.ok_or_else(|| {
+                    MetaRuntimeError::InvalidArgument("invalid scan cursor".to_string())
+                })?;
+                if delimiter.is_empty() {
+                    return Err(MetaRuntimeError::InvalidArgument(
+                        "invalid scan cursor".to_string(),
+                    ));
+                }
+                (delimiter, last_key)
+            }
+            _ => {
+                return Err(MetaRuntimeError::InvalidArgument(
+                    "invalid scan cursor".to_string(),
+                ));
+            }
+        };
+        if parts.next().is_some() || last_key.is_empty() {
+            return Err(MetaRuntimeError::InvalidArgument(
+                "invalid scan cursor".to_string(),
+            ));
+        }
+        if !last_key.starts_with(&prefix) {
+            return Err(MetaRuntimeError::InvalidArgument(
+                "invalid scan cursor".to_string(),
+            ));
+        }
+        Ok(Self {
+            prefix,
+            delimiter,
+            last_key,
+            expires_at_unix_millis,
+        })
+    }
+}
+
+fn scan_group_prefix(prefix: &[u8], delimiter: &[u8], key: &[u8]) -> Option<Vec<u8>> {
+    if delimiter.is_empty() {
+        return None;
+    }
+    let suffix = key.strip_prefix(prefix)?;
+    let delimiter_index = find_subslice(suffix, delimiter)?;
+    let group_end = prefix
+        .len()
+        .checked_add(delimiter_index)?
+        .checked_add(delimiter.len())?;
+    Some(key[..group_end].to_vec())
+}
+
+fn find_subslice(haystack: &[u8], needle: &[u8]) -> Option<usize> {
+    if needle.is_empty() {
+        return None;
+    }
+    haystack
+        .windows(needle.len())
+        .position(|window| window == needle)
+}
+
+fn lexicographic_successor(value: &[u8]) -> Option<Vec<u8>> {
+    let mut successor = value.to_vec();
+    while let Some(last) = successor.last_mut() {
+        if *last == u8::MAX {
+            successor.pop();
+        } else {
+            *last = last.saturating_add(1);
+            return Some(successor);
+        }
+    }
+    None
+}
+
+fn hex_encode(bytes: &[u8]) -> String {
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    let mut out = String::with_capacity(bytes.len() * 2);
+    for byte in bytes {
+        out.push(HEX[(byte >> 4) as usize] as char);
+        out.push(HEX[(byte & 0x0f) as usize] as char);
+    }
+    out
+}
+
+fn hex_decode(value: &str) -> Result<Vec<u8>, MetaRuntimeError> {
+    if !value.len().is_multiple_of(2) {
+        return Err(MetaRuntimeError::InvalidArgument(
+            "invalid scan cursor".to_string(),
+        ));
+    }
+    let mut out = Vec::with_capacity(value.len() / 2);
+    for chunk in value.as_bytes().chunks_exact(2) {
+        let high = hex_nibble(chunk[0])?;
+        let low = hex_nibble(chunk[1])?;
+        out.push((high << 4) | low);
+    }
+    Ok(out)
+}
+
+fn hex_nibble(byte: u8) -> Result<u8, MetaRuntimeError> {
+    match byte {
+        b'0'..=b'9' => Ok(byte - b'0'),
+        b'a'..=b'f' => Ok(byte - b'a' + 10),
+        b'A'..=b'F' => Ok(byte - b'A' + 10),
+        _ => Err(MetaRuntimeError::InvalidArgument(
+            "invalid scan cursor".to_string(),
+        )),
+    }
+}
+
 fn event_targets_node(event: &pb::NodeEvent, node_id: u64) -> bool {
     match &event.event {
         Some(pb::node_event::Event::RepairReplica(repair)) => repair
             .target
             .as_ref()
             .is_some_and(|target| target.node_id == node_id),
+        Some(pb::node_event::Event::EvictReplica(evict)) if evict.participant_node_id != 0 => {
+            evict.participant_node_id == node_id
+        }
         _ => true,
     }
+}
+
+fn retirement_event_outstanding_in(
+    pending_retirements: &HashMap<Vec<u8>, PendingRetirement>,
+    event: &pb::NodeEvent,
+) -> bool {
+    let Some(pb::node_event::Event::EvictReplica(evict)) = &event.event else {
+        return false;
+    };
+    let Some(retirement) = pending_retirements.get(&evict.retirement_id) else {
+        return false;
+    };
+    let participant = (evict.participant_node_id, evict.participant_node_epoch);
+    match pb::BlockRetirementPhase::try_from(evict.phase) {
+        Ok(pb::BlockRetirementPhase::Prepare) => !retirement.prepared.contains(&participant),
+        Ok(pb::BlockRetirementPhase::Final) => !retirement.released.contains(&participant),
+        _ => false,
+    }
+}
+
+fn cursor_before_outstanding_retirement_in(
+    events: &[pb::NodeEvent],
+    pending_retirements: &HashMap<Vec<u8>, PendingRetirement>,
+    node_id: u64,
+    requested_cursor: u64,
+) -> u64 {
+    events
+        .iter()
+        .filter(|event| event.cursor <= requested_cursor)
+        .find(|event| {
+            if !event_targets_node(event, node_id) {
+                return false;
+            }
+            retirement_event_outstanding_in(pending_retirements, event)
+        })
+        .map_or(requested_cursor, |event| event.cursor.saturating_sub(1))
+}
+
+fn outstanding_retirement_retry_event<'a>(
+    events: &'a [pb::NodeEvent],
+    pending_retirements: &HashMap<Vec<u8>, PendingRetirement>,
+    node_id: u64,
+    delivered_cursor: u64,
+    last_gc_retry_cursor: u64,
+) -> Option<&'a pb::NodeEvent> {
+    let eligible = |event: &&pb::NodeEvent| {
+        event.cursor <= delivered_cursor
+            && event_targets_node(event, node_id)
+            && retirement_event_outstanding_in(pending_retirements, event)
+    };
+    events
+        .iter()
+        .filter(|event| event.cursor > last_gc_retry_cursor)
+        .find(eligible)
+        .or_else(|| events.iter().find(eligible))
 }
 
 fn event_metric_type(event: &pb::NodeEvent) -> WatchEventType {
@@ -2656,6 +4151,7 @@ async fn run_meta(
                 if let Err(error) = state.retire_expired_sessions() {
                     dms_logging::warn!("session retirement journal failed"; "error" => format!("{error:?}"));
                 }
+                state.enforce_retention();
                 state.refresh_metrics(); continue;
             }
             _ = watch_tick.tick() => { state.pump_watchers(); continue; }
@@ -2682,9 +4178,14 @@ async fn run_meta(
                 MetaCommand::OpenNodeSession {
                     node_id,
                     control_endpoint,
+                    supports_commit_sequence,
                     reply,
                 } => {
-                    let _ = reply.send(state.open_node_session(node_id, control_endpoint));
+                    let _ = reply.send(state.open_node_session(
+                        node_id,
+                        control_endpoint,
+                        supports_commit_sequence,
+                    ));
                 }
                 MetaCommand::Heartbeat {
                     session_id,
@@ -2744,6 +4245,12 @@ async fn run_meta(
                         }
                     }
                 }
+                MetaCommand::Stat { request, reply } => {
+                    let _ = reply.send(state.stat(request));
+                }
+                MetaCommand::Scan { request, reply } => {
+                    let _ = reply.send(state.scan(request));
+                }
                 MetaCommand::GetOperation { request, reply } => {
                     let _ = reply.send(state.get_operation(request));
                 }
@@ -2759,6 +4266,9 @@ async fn run_meta(
                 }
                 MetaCommand::AcknowledgeNodeEvent { request, reply } => {
                     let _ = reply.send(state.acknowledge_node_event(request));
+                }
+                MetaCommand::AcknowledgeBlockRetirement { request, reply } => {
+                    let _ = reply.send(state.acknowledge_block_retirement(request));
                 }
                 #[cfg(test)]
                 MetaCommand::Stats { reply } => {
@@ -2816,7 +4326,57 @@ pub(crate) fn failing_checkpoint_handle_for_test() -> MetaHandle {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::{
+        Arc, Mutex,
+        atomic::{AtomicU64, Ordering},
+    };
+
+    use super::super::metadata_journal::JournalEntry;
     use super::*;
+
+    #[derive(Clone, Default)]
+    struct SharedFailingSnapshotJournal {
+        inner: Arc<Mutex<InMemoryJournal>>,
+        fail_snapshot: bool,
+    }
+
+    impl MetadataJournal for SharedFailingSnapshotJournal {
+        fn append(&mut self, record: JournalRecord) -> Result<u64, JournalError> {
+            self.inner.lock().expect("journal lock").append(record)
+        }
+
+        fn load_after(&self, sequence: u64) -> Result<Vec<JournalEntry>, JournalError> {
+            self.inner
+                .lock()
+                .expect("journal lock")
+                .load_after(sequence)
+        }
+
+        fn load_snapshot(&self) -> Result<Option<MetaSnapshot>, JournalError> {
+            self.inner.lock().expect("journal lock").load_snapshot()
+        }
+
+        fn save_snapshot(&mut self, snapshot: MetaSnapshot) -> Result<(), JournalError> {
+            if self.fail_snapshot && snapshot.last_applied_index > 0 {
+                return Err(JournalError::Unavailable("injected snapshot failure"));
+            }
+            self.inner
+                .lock()
+                .expect("journal lock")
+                .save_snapshot(snapshot)
+        }
+
+        fn truncate_prefix(&mut self, sequence: u64) -> Result<(), JournalError> {
+            self.inner
+                .lock()
+                .expect("journal lock")
+                .truncate_prefix(sequence)
+        }
+
+        fn last_index(&self) -> u64 {
+            self.inner.lock().expect("journal lock").last_index()
+        }
+    }
 
     #[test]
     fn default_checkpoint_batches_records_without_losing_replayable_state() {
@@ -3003,8 +4563,14 @@ mod tests {
             session.last_heartbeat =
                 Some(Instant::now() - DEFAULT_NODE_LEASE_TTL - Duration::from_secs(1));
         }
+        let expected_version = state
+            .operations
+            .get(b"lease-retire".as_slice())
+            .expect("pending operation")
+            .result
+            .version;
         state.retire_expired_sessions().unwrap();
-        assert_eq!(response.await.unwrap().unwrap().version, 2);
+        assert_eq!(response.await.unwrap().unwrap().version, expected_version);
         assert!(state.events.is_empty());
         assert!(state.watchers.is_empty());
     }
@@ -3045,7 +4611,7 @@ mod tests {
     async fn same_key_concurrent_cas_has_exactly_one_winner() {
         let handle = MetaHandle::spawn();
         let grant = handle
-            .open_node_session(7, "http://127.0.0.1:19007".into())
+            .open_node_session(7, "http://127.0.0.1:19007".into(), true)
             .await
             .unwrap();
         let session = pb::NodeSessionIdentity {
@@ -3113,14 +4679,14 @@ mod tests {
         );
 
         let (reply, mut completion) = oneshot::channel();
+        let expected_response = dispatch.response;
         state.register_pending_commit(dispatch, reply);
         assert_eq!(
             completion
                 .try_recv()
                 .expect("new key reply should complete immediately")
-                .expect("new key commit result")
-                .version,
-            1
+                .expect("new key commit result"),
+            expected_response
         );
     }
 
@@ -3293,9 +4859,9 @@ mod tests {
                 sender,
             )
             .expect("reader watch");
-        seed_existing_key(&mut state, writer.clone(), b"delete/recreate");
+        let seed = seed_existing_key(&mut state, writer.clone(), b"delete/recreate");
 
-        state
+        let deleted = state
             .commit_version(tombstone_request_for(
                 writer.clone(),
                 b"delete/recreate".to_vec(),
@@ -3324,8 +4890,9 @@ mod tests {
         let event = receiver.try_recv().expect("recreate invalidation");
         assert_eq!(event.cursor, 3);
         let invalidate = invalidate_event(&event);
-        assert_eq!(invalidate.old_version, 2);
-        assert_eq!(invalidate.minimum_version, 3);
+        assert_eq!(invalidate.old_version, deleted.version);
+        assert_eq!(invalidate.old_version, seed.version + 1);
+        assert_eq!(invalidate.minimum_version, dispatch.response.version);
     }
 
     #[test]
@@ -3333,7 +4900,7 @@ mod tests {
         let mut before_restart = MetaState::new(Box::<InMemoryJournal>::default());
         let writer = test_session(&mut before_restart, 7);
         let reader = test_session(&mut before_restart, 8);
-        before_restart
+        let _first = before_restart
             .commit_version(value_commit_request_for(
                 writer.clone(),
                 b"journal/gap".to_vec(),
@@ -3404,7 +4971,7 @@ mod tests {
                 .get(b"journal/gap".as_slice())
                 .and_then(|versions| versions.last_key_value())
                 .map(|(_, layout)| layout.version),
-            Some(2)
+            Some(dispatch.response.version)
         );
     }
 
@@ -3413,7 +4980,7 @@ mod tests {
         let mut before_restart = MetaState::new(Box::<InMemoryJournal>::default());
         let writer = test_session(&mut before_restart, 7);
         let reader = test_session(&mut before_restart, 8);
-        before_restart
+        let first_publish = before_restart
             .commit_version(value_commit_request_for(
                 writer.clone(),
                 b"snapshot/gap".to_vec(),
@@ -3430,7 +4997,7 @@ mod tests {
             .expect("save gap snapshot");
 
         let writer_node_id = writer.node_id;
-        before_restart
+        let dispatch = before_restart
             .dispatch_commit_version(value_commit_request_for(
                 writer,
                 b"snapshot/gap".to_vec(),
@@ -3447,8 +5014,8 @@ mod tests {
         assert_eq!(event.cursor, 2);
         let invalidate = invalidate_event(&event);
         assert_eq!(invalidate.key.as_ref().expect("key").value, b"snapshot/gap");
-        assert_eq!(invalidate.old_version, 1);
-        assert_eq!(invalidate.minimum_version, 2);
+        assert_eq!(invalidate.old_version, first_publish.version);
+        assert_eq!(invalidate.minimum_version, dispatch.response.version);
         assert_eq!(
             restored.waiting_visibility_nodes(writer_node_id, event.cursor),
             HashSet::from([writer_node_id, reader.node_id]),
@@ -3499,7 +5066,7 @@ mod tests {
     async fn watch_replay_larger_than_channel_capacity_progresses() {
         let handle = MetaHandle::spawn();
         let grant = handle
-            .open_node_session(7, "http://127.0.0.1:19200".into())
+            .open_node_session(7, "http://127.0.0.1:19200".into(), true)
             .await
             .unwrap();
         let writer = pb::NodeSessionIdentity {
@@ -3612,9 +5179,11 @@ mod tests {
                     digest: Vec::new(),
                     kind: pb::VersionKind::Tombstone as i32,
                 },
+                modified_time_unix_millis: 0,
                 new_replicas: Vec::new(),
                 operation_id: b"op-1".to_vec(),
                 operation_digest: b"digest-1".to_vec(),
+                commit_sequence: None,
             })
             .expect("append");
         let state = MetaState::new(Box::new(journal));
@@ -3633,7 +5202,7 @@ mod tests {
             MetaRetentionPolicy::default(),
         );
         let grant = state
-            .open_node_session(7, "http://127.0.0.1:19200".to_string())
+            .open_node_session(7, "http://127.0.0.1:19200".to_string(), true)
             .expect("open node session");
         let session = Some(pb::NodeSessionIdentity {
             session_id: grant.session_id,
@@ -3677,6 +5246,7 @@ mod tests {
                         checksum: digest,
                         durability: pb::DurabilityPolicy::LocalMemory as i32,
                     }],
+                    commit_sequence: next_test_commit_sequence(),
                 })
                 .expect("commit");
         }
@@ -3709,7 +5279,7 @@ mod tests {
     fn same_operation_id_returns_the_original_result() {
         let mut state = MetaState::new(Box::<InMemoryJournal>::default());
         let grant = state
-            .open_node_session(7, "http://127.0.0.1:19200".to_string())
+            .open_node_session(7, "http://127.0.0.1:19200".to_string(), true)
             .expect("open node session");
         let request = pb::CommitVersionRequest {
             context: None,
@@ -3735,6 +5305,7 @@ mod tests {
             required_memory_copies: 0,
             replica_proofs: Vec::new(),
             new_replicas: Vec::new(),
+            commit_sequence: next_test_commit_sequence(),
         };
 
         let first = state.commit_version(request.clone()).expect("first DEL");
@@ -3742,6 +5313,114 @@ mod tests {
 
         assert_eq!(first, retry);
         assert!(!first.changed);
+    }
+
+    #[test]
+    fn reopen_session_returns_commit_sequence_above_seen_window() {
+        let mut state = MetaState::new(Box::<InMemoryJournal>::default());
+        let first_grant = state
+            .open_node_session(7, "http://127.0.0.1:19200".to_string(), true)
+            .expect("first session");
+        let first_session = pb::NodeSessionIdentity {
+            session_id: first_grant.session_id,
+            node_id: first_grant.node_id,
+            node_epoch: first_grant.node_epoch,
+        };
+        let request = value_commit_request_for(
+            first_session,
+            b"commit-seq/reopen".to_vec(),
+            b"commit-seq/reopen-block".to_vec(),
+            b"commit-seq/reopen-op".to_vec(),
+            b"commit-seq/reopen-digest".to_vec(),
+        );
+        let seen_sequence = request.commit_sequence;
+        state.commit_version(request).expect("first commit");
+
+        let reopened = state
+            .open_node_session(7, "http://127.0.0.1:19200".to_string(), true)
+            .expect("reopen session");
+        assert!(
+            reopened.minimum_commit_sequence > seen_sequence,
+            "new incarnation must not let an already seen logical commit sequence replay"
+        );
+        let reopened_session = pb::NodeSessionIdentity {
+            session_id: reopened.session_id,
+            node_id: reopened.node_id,
+            node_epoch: reopened.node_epoch,
+        };
+        let mut stale = value_commit_request_for(
+            reopened_session,
+            b"commit-seq/reopen-stale".to_vec(),
+            b"commit-seq/reopen-stale-block".to_vec(),
+            b"commit-seq/reopen-stale-op".to_vec(),
+            b"commit-seq/reopen-stale-digest".to_vec(),
+        );
+        stale.commit_sequence = seen_sequence;
+        assert!(matches!(
+            state.commit_version(stale),
+            Err(MetaRuntimeError::Conflict { .. })
+        ));
+    }
+
+    #[test]
+    fn commit_sequence_allows_bounded_out_of_order_before_reopen() {
+        let mut state = MetaState::new(Box::<InMemoryJournal>::default());
+        let grant = state
+            .open_node_session(7, "http://127.0.0.1:19200".to_string(), true)
+            .expect("session");
+        let session = pb::NodeSessionIdentity {
+            session_id: grant.session_id,
+            node_id: grant.node_id,
+            node_epoch: grant.node_epoch,
+        };
+        let mut second = value_commit_request_for(
+            session.clone(),
+            b"commit-seq/out-of-order-2".to_vec(),
+            b"commit-seq/out-of-order-block-2".to_vec(),
+            b"commit-seq/out-of-order-op-2".to_vec(),
+            b"commit-seq/out-of-order-digest-2".to_vec(),
+        );
+        second.commit_sequence = 2;
+        state
+            .commit_version(second)
+            .expect("seq 2 may arrive first");
+
+        let mut first = value_commit_request_for(
+            session.clone(),
+            b"commit-seq/out-of-order-1".to_vec(),
+            b"commit-seq/out-of-order-block-1".to_vec(),
+            b"commit-seq/out-of-order-op-1".to_vec(),
+            b"commit-seq/out-of-order-digest-1".to_vec(),
+        );
+        first.commit_sequence = 1;
+        state
+            .commit_version(first)
+            .expect("seq 1 remains valid inside active replay window");
+
+        let reopened = state
+            .open_node_session(7, "http://127.0.0.1:19200".to_string(), true)
+            .expect("reopen session");
+        assert_eq!(
+            reopened.minimum_commit_sequence, 3,
+            "reopen folds active seen max into the new incarnation floor"
+        );
+        let reopened_session = pb::NodeSessionIdentity {
+            session_id: reopened.session_id,
+            node_id: reopened.node_id,
+            node_epoch: reopened.node_epoch,
+        };
+        let mut old = value_commit_request_for(
+            reopened_session,
+            b"commit-seq/out-of-order-old".to_vec(),
+            b"commit-seq/out-of-order-old-block".to_vec(),
+            b"commit-seq/out-of-order-old-op".to_vec(),
+            b"commit-seq/out-of-order-old-digest".to_vec(),
+        );
+        old.commit_sequence = 1;
+        assert!(matches!(
+            state.commit_version(old),
+            Err(MetaRuntimeError::Conflict { .. })
+        ));
     }
 
     #[test]
@@ -3776,10 +5455,1669 @@ mod tests {
             .versions
             .get(b"checkpoint/latest".as_slice())
             .expect("retained versions");
-        assert_eq!(versions.keys().copied().collect::<Vec<_>>(), vec![2, 3]);
-        assert!(!state.replicas.contains_key(b"block-1".as_slice()));
+        assert_eq!(versions.len(), 2);
+        assert!(
+            state.replicas.contains_key(b"block-1".as_slice()),
+            "未完成两阶段 retirement 前不能先删除 Meta replica facts"
+        );
+        assert_eq!(state.pending_retirements.len(), 1);
         assert!(state.replicas.contains_key(b"block-2".as_slice()));
         assert!(state.replicas.contains_key(b"block-3".as_slice()));
+    }
+
+    #[test]
+    fn deleted_key_trims_old_value_without_waiting_for_sixty_four_overwrites() {
+        let mut state = MetaState::with_policies(
+            Box::<InMemoryJournal>::default(),
+            MetaCheckpointPolicy::default(),
+            MetaRetentionPolicy {
+                drop_unreferenced_replicas: true,
+                ..MetaRetentionPolicy::default()
+            },
+        );
+        let session = test_session(&mut state, 7);
+        state
+            .commit_version(value_commit_request_for(
+                session.clone(),
+                b"retire/deleted".to_vec(),
+                b"retire/deleted-block".to_vec(),
+                b"retire/deleted-op-put".to_vec(),
+                b"retire/deleted-digest-put".to_vec(),
+            ))
+            .expect("put");
+        state
+            .commit_version(tombstone_request_for(
+                session,
+                b"retire/deleted".to_vec(),
+                b"retire/deleted-op-del".to_vec(),
+                b"retire/deleted-digest-del".to_vec(),
+            ))
+            .expect("delete");
+
+        state.enforce_retention();
+        let versions = state
+            .versions
+            .get(b"retire/deleted".as_slice())
+            .expect("tombstone current");
+        assert_eq!(versions.len(), 1);
+        assert_eq!(
+            versions.last_key_value().expect("last tombstone").1.kind,
+            pb::VersionKind::Tombstone as i32
+        );
+        assert_eq!(state.pending_retirements.len(), 1);
+        assert!(
+            state
+                .replicas
+                .contains_key(b"retire/deleted-block".as_slice())
+        );
+    }
+
+    #[test]
+    fn default_retention_enables_retirement_for_deleted_values() {
+        let mut state = MetaState::new(Box::<InMemoryJournal>::default());
+        let session = test_session(&mut state, 7);
+        state
+            .commit_version(value_commit_request_for(
+                session.clone(),
+                b"retire/default-delete".to_vec(),
+                b"retire/default-delete-block".to_vec(),
+                b"retire/default-delete-op-put".to_vec(),
+                b"retire/default-delete-digest-put".to_vec(),
+            ))
+            .expect("put");
+        state
+            .commit_version(tombstone_request_for(
+                session,
+                b"retire/default-delete".to_vec(),
+                b"retire/default-delete-op-del".to_vec(),
+                b"retire/default-delete-digest-del".to_vec(),
+            ))
+            .expect("delete");
+
+        state.enforce_retention();
+        assert_eq!(
+            state
+                .versions
+                .get(b"retire/default-delete".as_slice())
+                .expect("retained tombstone")
+                .len(),
+            1
+        );
+        let retirement = state
+            .pending_retirements
+            .values()
+            .next()
+            .expect("default policy schedules retirement");
+        assert_eq!(
+            retirement.record.block_ids,
+            vec![b"retire/default-delete-block".to_vec()]
+        );
+    }
+
+    #[test]
+    fn tombstone_is_finitely_retained_and_recreate_version_uses_global_floor() {
+        let mut state = MetaState::with_policies(
+            Box::<InMemoryJournal>::default(),
+            MetaCheckpointPolicy::default(),
+            MetaRetentionPolicy {
+                operation_result_retention_records: 1,
+                drop_unreferenced_replicas: true,
+                ..MetaRetentionPolicy::default()
+            },
+        );
+        let session = test_session(&mut state, 7);
+        let put = state
+            .commit_version(value_commit_request_for(
+                session.clone(),
+                b"churn/recreate".to_vec(),
+                b"churn/recreate-old".to_vec(),
+                b"churn/recreate-put".to_vec(),
+                b"churn/recreate-put-digest".to_vec(),
+            ))
+            .expect("put");
+        let delete = state
+            .commit_version(tombstone_request_for(
+                session.clone(),
+                b"churn/recreate".to_vec(),
+                b"churn/recreate-del".to_vec(),
+                b"churn/recreate-del-digest".to_vec(),
+            ))
+            .expect("delete");
+        state.complete_operation_visibility(&[
+            b"churn/recreate-put".to_vec(),
+            b"churn/recreate-del".to_vec(),
+        ]);
+        state
+            .commit_version(value_commit_request_for(
+                session.clone(),
+                b"churn/advance".to_vec(),
+                b"churn/advance-block".to_vec(),
+                b"churn/advance-put".to_vec(),
+                b"churn/advance-digest".to_vec(),
+            ))
+            .expect("advance retention clock");
+        state.complete_operation_visibility(&[b"churn/advance-put".to_vec()]);
+        state
+            .commit_version(value_commit_request_for(
+                session.clone(),
+                b"churn/advance-2".to_vec(),
+                b"churn/advance-block-2".to_vec(),
+                b"churn/advance-put-2".to_vec(),
+                b"churn/advance-digest-2".to_vec(),
+            ))
+            .expect("advance retention clock past tombstone window");
+        state.complete_operation_visibility(&[b"churn/advance-put-2".to_vec()]);
+        state.enforce_retention();
+        assert!(
+            !state.versions.contains_key(b"churn/recreate".as_slice()),
+            "有限窗口后不永久保留每 key tombstone"
+        );
+        assert!(state.version_floor >= delete.version);
+        assert!(delete.version > put.version);
+
+        let recreated = state
+            .commit_version(value_commit_request_for(
+                session,
+                b"churn/recreate".to_vec(),
+                b"churn/recreate-new".to_vec(),
+                b"churn/recreate-new-op".to_vec(),
+                b"churn/recreate-new-digest".to_vec(),
+            ))
+            .expect("recreate after tombstone purge");
+        assert!(recreated.version > delete.version);
+    }
+
+    #[test]
+    fn block_retirement_requires_prepare_and_release_acks_before_meta_forgets_replicas() {
+        let mut state = MetaState::with_policies(
+            Box::<InMemoryJournal>::default(),
+            MetaCheckpointPolicy::default(),
+            MetaRetentionPolicy {
+                keep_versions_per_key: 1,
+                drop_unreferenced_replicas: true,
+                ..MetaRetentionPolicy::default()
+            },
+        );
+        let writer = test_session(&mut state, 7);
+        let reader = test_session(&mut state, 8);
+        state
+            .commit_version(value_commit_request_for(
+                writer.clone(),
+                b"retire/key".to_vec(),
+                b"retire/block-old".to_vec(),
+                b"retire/op-old".to_vec(),
+                b"retire/digest-old".to_vec(),
+            ))
+            .expect("old version");
+        state
+            .commit_version(value_commit_request_for(
+                writer.clone(),
+                b"retire/key".to_vec(),
+                b"retire/block-new".to_vec(),
+                b"retire/op-new".to_vec(),
+                b"retire/digest-new".to_vec(),
+            ))
+            .expect("new version");
+
+        state.enforce_retention();
+        assert!(state.replicas.contains_key(b"retire/block-old".as_slice()));
+        let retirement = state
+            .pending_retirements
+            .values()
+            .next()
+            .expect("pending retirement")
+            .clone();
+        assert_eq!(
+            retirement.record.block_ids,
+            vec![b"retire/block-old".to_vec()]
+        );
+        assert_eq!(retirement.record.participants.len(), 2);
+        assert!(state.events.iter().any(|event| matches!(
+            &event.event,
+            Some(pb::node_event::Event::EvictReplica(evict))
+                if evict.phase == pb::BlockRetirementPhase::Prepare as i32
+                    && evict.participant_node_id == reader.node_id
+        )));
+
+        state
+            .acknowledge_block_retirement(retirement_ack_request(
+                writer.clone(),
+                &retirement.record,
+                pb::BlockRetirementAckKind::Prepared,
+                retirement.record.prepare_stage_epoch,
+            ))
+            .expect("writer prepared");
+        assert!(
+            !state
+                .pending_retirements
+                .get(&retirement.record.retirement_id)
+                .expect("still pending")
+                .final_sent
+        );
+        state
+            .acknowledge_block_retirement(retirement_ack_request(
+                reader.clone(),
+                &retirement.record,
+                pb::BlockRetirementAckKind::Prepared,
+                retirement.record.prepare_stage_epoch,
+            ))
+            .expect("reader prepared");
+        let finalized = state
+            .pending_retirements
+            .get(&retirement.record.retirement_id)
+            .expect("final pending")
+            .clone();
+        assert!(finalized.final_sent);
+        assert!(state.replicas.contains_key(b"retire/block-old".as_slice()));
+
+        for session in [writer, reader] {
+            state
+                .acknowledge_block_retirement(retirement_ack_request(
+                    session,
+                    &finalized.record,
+                    pb::BlockRetirementAckKind::Released,
+                    finalized.record.final_stage_epoch,
+                ))
+                .expect("released");
+        }
+        assert!(!state.replicas.contains_key(b"retire/block-old".as_slice()));
+        assert!(
+            state
+                .retired_block_fences
+                .contains_key(b"retire/block-old".as_slice())
+        );
+    }
+
+    #[test]
+    fn release_ack_refreshes_retired_replica_metrics_immediately() {
+        let registry = dms_metrics::registry();
+        let metrics = MetaMetrics::register(&registry).expect("metrics");
+        let mut state = MetaState::try_new(
+            Box::<InMemoryJournal>::default(),
+            MetaCheckpointPolicy::default(),
+            MetaRetentionPolicy::default(),
+            metrics,
+        )
+        .expect("state");
+        let session = test_session(&mut state, 7);
+
+        state
+            .commit_version(value_commit_request_for(
+                session.clone(),
+                b"retire/metrics".to_vec(),
+                b"retire/metrics-block".to_vec(),
+                b"retire/metrics-op-put".to_vec(),
+                b"retire/metrics-digest-put".to_vec(),
+            ))
+            .expect("put");
+        state
+            .commit_version(tombstone_request_for(
+                session.clone(),
+                b"retire/metrics".to_vec(),
+                b"retire/metrics-op-del".to_vec(),
+                b"retire/metrics-digest-del".to_vec(),
+            ))
+            .expect("delete");
+        state.enforce_retention();
+        state.refresh_metrics();
+        let before = dms_metrics::encode_text(&registry).expect("encode before");
+        assert!(
+            before.contains("dms_meta_state_items{type=\"replicas\"} 1\n"),
+            "test setup must expose one retained replica before Release ACK: {before}"
+        );
+        assert!(
+            before.contains("dms_meta_blocks{state=\"healthy\"} 1\n"),
+            "test setup must expose one healthy retained block before Release ACK: {before}"
+        );
+
+        let retirement = state
+            .pending_retirements
+            .values()
+            .next()
+            .expect("pending retirement")
+            .clone();
+        state
+            .acknowledge_block_retirement(retirement_ack_request(
+                session.clone(),
+                &retirement.record,
+                pb::BlockRetirementAckKind::Prepared,
+                retirement.record.prepare_stage_epoch,
+            ))
+            .expect("prepared");
+        let finalized = state
+            .pending_retirements
+            .get(&retirement.record.retirement_id)
+            .expect("final pending")
+            .clone();
+        state
+            .acknowledge_block_retirement(retirement_ack_request(
+                session,
+                &finalized.record,
+                pb::BlockRetirementAckKind::Released,
+                finalized.record.final_stage_epoch,
+            ))
+            .expect("released");
+
+        assert!(
+            !state
+                .replicas
+                .contains_key(b"retire/metrics-block".as_slice())
+        );
+        let after = dms_metrics::encode_text(&registry).expect("encode after");
+        assert!(
+            after.contains("dms_meta_state_items{type=\"replicas\"} 0\n"),
+            "Release ACK must synchronously publish retired replica count: {after}"
+        );
+        assert!(
+            after.contains("dms_meta_blocks{state=\"healthy\"} 0\n"),
+            "Release ACK must synchronously publish retired block health: {after}"
+        );
+    }
+
+    #[test]
+    fn retired_non_replica_reader_still_participates_in_block_retirement() {
+        for expire_before_resolve in [false, true] {
+            let mut state = MetaState::with_policies(
+                Box::<InMemoryJournal>::default(),
+                MetaCheckpointPolicy::default(),
+                MetaRetentionPolicy {
+                    keep_versions_per_key: 1,
+                    drop_unreferenced_replicas: true,
+                    ..MetaRetentionPolicy::default()
+                },
+            );
+            let writer = test_session(&mut state, 7);
+            let reader = test_session(&mut state, 8);
+            let old = state
+                .commit_version(value_commit_request_for(
+                    writer.clone(),
+                    b"retire/non-replica-reader".to_vec(),
+                    b"retire/non-replica-reader-old".to_vec(),
+                    b"retire/non-replica-reader-op-old".to_vec(),
+                    b"retire/non-replica-reader-digest-old".to_vec(),
+                ))
+                .expect("old value");
+            if expire_before_resolve {
+                expire_session(&mut state, reader.node_id);
+                state.retire_expired_sessions().expect("retire reader");
+                assert!(state.retired_sessions.contains(&reader.node_id));
+            }
+
+            let resolved = state
+                .resolve_object(pb::ResolveObjectRequest {
+                    context: None,
+                    session: Some(reader.clone()),
+                    key: Some(pb::Key {
+                        value: b"retire/non-replica-reader".to_vec(),
+                    }),
+                    selector: Some(pb::resolve_object_request::Selector::ExactVersion(
+                        old.version,
+                    )),
+                    range: None,
+                    cache_current: false,
+                })
+                .expect("reader may hold an exact read layout without owning a replica");
+            assert_eq!(
+                resolved.layout.expect("layout").version,
+                old.version,
+                "reader holds the old version layout in scenario expire_before_resolve={expire_before_resolve}"
+            );
+            assert!(
+                resolved.block_replicas.iter().all(|block| {
+                    block
+                        .replicas
+                        .iter()
+                        .all(|replica| replica.node_id != reader.node_id)
+                }),
+                "reader is a layout holder, not a replica owner"
+            );
+            if !expire_before_resolve {
+                expire_session(&mut state, reader.node_id);
+                state.retire_expired_sessions().expect("retire reader");
+                assert!(state.retired_sessions.contains(&reader.node_id));
+            }
+
+            state
+                .commit_version(value_commit_request_for(
+                    writer.clone(),
+                    b"retire/non-replica-reader".to_vec(),
+                    b"retire/non-replica-reader-new".to_vec(),
+                    b"retire/non-replica-reader-op-new".to_vec(),
+                    b"retire/non-replica-reader-digest-new".to_vec(),
+                ))
+                .expect("new value");
+            state.enforce_retention();
+            let retirement = state
+                .pending_retirements
+                .values()
+                .next()
+                .expect("pending retirement")
+                .clone();
+            assert!(
+                retirement
+                    .record
+                    .participants
+                    .iter()
+                    .any(|participant| participant.node_id == reader.node_id
+                        && participant.node_epoch == reader.node_epoch),
+                "expired/retired layout holder must participate in scenario expire_before_resolve={expire_before_resolve}"
+            );
+
+            state
+                .acknowledge_block_retirement(retirement_ack_request(
+                    writer.clone(),
+                    &retirement.record,
+                    pb::BlockRetirementAckKind::Prepared,
+                    retirement.record.prepare_stage_epoch,
+                ))
+                .expect("writer prepared");
+            let pending = state
+                .pending_retirements
+                .get(&retirement.record.retirement_id)
+                .expect("still pending without reader drain")
+                .clone();
+            assert!(
+                !pending.final_sent,
+                "must not Final before retired reader sends Prepare ACK in scenario expire_before_resolve={expire_before_resolve}"
+            );
+            assert!(
+                state
+                    .replicas
+                    .contains_key(b"retire/non-replica-reader-old".as_slice())
+            );
+
+            state
+                .acknowledge_block_retirement(retirement_ack_request(
+                    reader.clone(),
+                    &pending.record,
+                    pb::BlockRetirementAckKind::Prepared,
+                    pending.record.prepare_stage_epoch,
+                ))
+                .expect("reader prepared");
+            let finalized = state
+                .pending_retirements
+                .get(&pending.record.retirement_id)
+                .expect("final pending")
+                .clone();
+            assert!(finalized.final_sent);
+            for participant in [writer.clone(), reader.clone()] {
+                state
+                    .acknowledge_block_retirement(retirement_ack_request(
+                        participant,
+                        &finalized.record,
+                        pb::BlockRetirementAckKind::Released,
+                        finalized.record.final_stage_epoch,
+                    ))
+                    .expect("released");
+            }
+            assert!(
+                state
+                    .retired_block_fences
+                    .contains_key(b"retire/non-replica-reader-old".as_slice())
+            );
+            let late_report = state
+                .report_replicas(pb::ReportReplicasRequest {
+                    context: None,
+                    session: Some(reader),
+                    replicas: vec![pb::ReplicaReport {
+                        block_id: b"retire/non-replica-reader-old".to_vec(),
+                        length: 4,
+                        checksum: b"digest".to_vec(),
+                        durability: pb::DurabilityPolicy::LocalMemory as i32,
+                    }],
+                    desired_copies: 1,
+                    repair_id: Vec::new(),
+                    operation_id: format!(
+                        "retire/non-replica-reader-late-report-{expire_before_resolve}"
+                    )
+                    .into_bytes(),
+                })
+                .expect("late report rejected by fence, not transport/session");
+            assert!(late_report.accepted.is_empty());
+            assert_eq!(
+                late_report.rejected_block_ids,
+                vec![b"retire/non-replica-reader-old".to_vec()]
+            );
+        }
+    }
+
+    #[test]
+    fn block_retirement_survives_snapshot_and_rejects_late_resurrection() {
+        let mut state = MetaState::with_policies(
+            Box::<InMemoryJournal>::default(),
+            MetaCheckpointPolicy::default(),
+            MetaRetentionPolicy {
+                keep_versions_per_key: 1,
+                drop_unreferenced_replicas: true,
+                ..MetaRetentionPolicy::default()
+            },
+        );
+        let writer = test_session(&mut state, 7);
+        state
+            .commit_version(value_commit_request_for(
+                writer.clone(),
+                b"retire/replay".to_vec(),
+                b"retire/replay-old".to_vec(),
+                b"retire/replay-op-old".to_vec(),
+                b"retire/replay-digest-old".to_vec(),
+            ))
+            .expect("old version");
+        state
+            .commit_version(value_commit_request_for(
+                writer.clone(),
+                b"retire/replay".to_vec(),
+                b"retire/replay-new".to_vec(),
+                b"retire/replay-op-new".to_vec(),
+                b"retire/replay-digest-new".to_vec(),
+            ))
+            .expect("new version");
+        state.enforce_retention();
+        let retirement = state
+            .pending_retirements
+            .values()
+            .next()
+            .expect("pending")
+            .record
+            .clone();
+
+        let mut journal = InMemoryJournal::default();
+        journal.save_snapshot(state.snapshot()).expect("snapshot");
+        let mut restored = MetaState::with_policies(
+            Box::new(journal),
+            MetaCheckpointPolicy::default(),
+            MetaRetentionPolicy {
+                keep_versions_per_key: 1,
+                drop_unreferenced_replicas: true,
+                ..MetaRetentionPolicy::default()
+            },
+        );
+        restored
+            .acknowledge_block_retirement(retirement_ack_request(
+                writer.clone(),
+                &retirement,
+                pb::BlockRetirementAckKind::Prepared,
+                retirement.prepare_stage_epoch,
+            ))
+            .expect("prepared after restore");
+        let finalized = restored
+            .pending_retirements
+            .get(&retirement.retirement_id)
+            .expect("finalized")
+            .record
+            .clone();
+        restored
+            .acknowledge_block_retirement(retirement_ack_request(
+                writer.clone(),
+                &finalized,
+                pb::BlockRetirementAckKind::Released,
+                finalized.final_stage_epoch,
+            ))
+            .expect("released after restore");
+        assert!(
+            restored
+                .retired_block_fences
+                .contains_key(b"retire/replay-old".as_slice())
+        );
+        assert!(
+            restored
+                .acknowledge_block_retirement(retirement_ack_request(
+                    writer.clone(),
+                    &finalized,
+                    pb::BlockRetirementAckKind::Released,
+                    finalized.final_stage_epoch,
+                ))
+                .expect("released ack retry is idempotent")
+                .accepted
+        );
+
+        let late_report = restored
+            .report_replicas(pb::ReportReplicasRequest {
+                context: None,
+                session: Some(writer.clone()),
+                replicas: vec![pb::ReplicaReport {
+                    block_id: b"retire/replay-old".to_vec(),
+                    length: 1,
+                    checksum: b"late".to_vec(),
+                    durability: pb::DurabilityPolicy::LocalMemory as i32,
+                }],
+                operation_id: b"late-report".to_vec(),
+                desired_copies: 1,
+                repair_id: Vec::new(),
+            })
+            .expect("late report rejected in response");
+        assert_eq!(late_report.accepted.len(), 0);
+        assert_eq!(
+            late_report.rejected_block_ids,
+            vec![b"retire/replay-old".to_vec()]
+        );
+        assert!(matches!(
+            restored.commit_version(value_commit_request_for(
+                writer,
+                b"retire/replay2".to_vec(),
+                b"retire/replay-old".to_vec(),
+                b"retire/replay2-op".to_vec(),
+                b"retire/replay2-digest".to_vec(),
+            )),
+            Err(MetaRuntimeError::Conflict { .. })
+        ));
+    }
+
+    #[test]
+    fn retirement_watch_ack_without_gc_ack_replays_after_snapshot_restore() {
+        let mut state = MetaState::with_policies(
+            Box::<InMemoryJournal>::default(),
+            MetaCheckpointPolicy::default(),
+            MetaRetentionPolicy {
+                keep_versions_per_key: 1,
+                drop_unreferenced_replicas: true,
+                ..MetaRetentionPolicy::default()
+            },
+        );
+        let writer = test_session(&mut state, 7);
+        state
+            .commit_version(value_commit_request_for(
+                writer.clone(),
+                b"retire/replay-duty".to_vec(),
+                b"retire/replay-duty-old".to_vec(),
+                b"retire/replay-duty-op-old".to_vec(),
+                b"retire/replay-duty-digest-old".to_vec(),
+            ))
+            .expect("old version");
+        state
+            .commit_version(value_commit_request_for(
+                writer.clone(),
+                b"retire/replay-duty".to_vec(),
+                b"retire/replay-duty-new".to_vec(),
+                b"retire/replay-duty-op-new".to_vec(),
+                b"retire/replay-duty-digest-new".to_vec(),
+            ))
+            .expect("new version");
+        state.enforce_retention();
+
+        let event = state
+            .events
+            .iter()
+            .find(|event| {
+                matches!(
+                    &event.event,
+                    Some(pb::node_event::Event::EvictReplica(evict))
+                        if evict.phase == pb::BlockRetirementPhase::Prepare as i32
+                            && evict.participant_node_id == writer.node_id
+                )
+            })
+            .expect("prepare duty event")
+            .clone();
+        let (live_sender, mut live_receiver) = mpsc::channel(4);
+        state
+            .watch_node_events(
+                pb::WatchNodeEventsRequest {
+                    context: None,
+                    session: Some(writer.clone()),
+                    last_acked_cursor: 0,
+                },
+                live_sender,
+            )
+            .expect("healthy watch stream");
+        assert!(
+            std::iter::from_fn(|| live_receiver.try_recv().ok())
+                .any(|received| received.cursor == event.cursor),
+            "first stream pass delivers retirement duty"
+        );
+        state
+            .acknowledge_node_event(pb::AcknowledgeNodeEventRequest {
+                context: None,
+                session: Some(writer.clone()),
+                event_id: event.event_id.clone(),
+                cursor: event.cursor,
+                result: "applied".to_string(),
+                detail: None,
+            })
+            .expect("ordinary watch ack");
+        let session = state.sessions.get(&writer.node_id).expect("session");
+        assert!(
+            session.last_acked_cursor < event.cursor,
+            "ordinary Watch ACK must not prove retirement drain/release duty"
+        );
+
+        state.retain_events();
+        assert!(
+            state.events.iter().any(|item| item.cursor == event.cursor),
+            "outstanding retirement duty cannot be pruned by ordinary cursor ACK"
+        );
+        state
+            .watchers
+            .get_mut(&writer.node_id)
+            .expect("watcher")
+            .next_gc_retry_at = Some(Instant::now() - GC_RETRY_INTERVAL);
+        state.pump_watchers();
+        assert!(
+            std::iter::from_fn(|| live_receiver.try_recv().ok())
+                .any(|received| received.cursor == event.cursor),
+            "same healthy stream redelivers outstanding duty after bounded retry interval"
+        );
+
+        let mut journal = InMemoryJournal::default();
+        journal.save_snapshot(state.snapshot()).expect("snapshot");
+        let mut restored = MetaState::with_policies(
+            Box::new(journal),
+            MetaCheckpointPolicy::default(),
+            MetaRetentionPolicy {
+                keep_versions_per_key: 1,
+                drop_unreferenced_replicas: true,
+                ..MetaRetentionPolicy::default()
+            },
+        );
+        let (sender, mut receiver) = mpsc::channel(1);
+        restored
+            .watch_node_events(
+                pb::WatchNodeEventsRequest {
+                    context: None,
+                    session: Some(writer),
+                    last_acked_cursor: event.cursor,
+                },
+                sender,
+            )
+            .expect("watch reconnect");
+        let replayed = receiver.try_recv().expect("replayed retirement duty");
+        assert_eq!(replayed.cursor, event.cursor);
+    }
+
+    #[test]
+    fn capacity_one_gc_retry_does_not_starve_fresh_invalidation_or_flood_ticks() {
+        let mut state = MetaState::with_policies(
+            Box::<InMemoryJournal>::default(),
+            MetaCheckpointPolicy::default(),
+            MetaRetentionPolicy {
+                keep_versions_per_key: 1,
+                drop_unreferenced_replicas: true,
+                ..MetaRetentionPolicy::default()
+            },
+        );
+        let writer = test_session(&mut state, 7);
+        state
+            .commit_version(value_commit_request_for(
+                writer.clone(),
+                b"retire/fairness".to_vec(),
+                b"retire/fairness-old".to_vec(),
+                b"retire/fairness-op-old".to_vec(),
+                b"retire/fairness-digest-old".to_vec(),
+            ))
+            .expect("old version");
+        state
+            .commit_version(value_commit_request_for(
+                writer.clone(),
+                b"retire/fairness".to_vec(),
+                b"retire/fairness-new".to_vec(),
+                b"retire/fairness-op-new".to_vec(),
+                b"retire/fairness-digest-new".to_vec(),
+            ))
+            .expect("new version");
+        state.enforce_retention();
+        let gc_cursor = state
+            .events
+            .iter()
+            .find(|event| {
+                matches!(
+                    &event.event,
+                    Some(pb::node_event::Event::EvictReplica(evict))
+                        if evict.phase == pb::BlockRetirementPhase::Prepare as i32
+                            && evict.participant_node_id == writer.node_id
+                )
+            })
+            .expect("prepare duty")
+            .cursor;
+
+        let (sender, mut receiver) = mpsc::channel(1);
+        state
+            .watch_node_events(
+                pb::WatchNodeEventsRequest {
+                    context: None,
+                    session: Some(writer.clone()),
+                    last_acked_cursor: 0,
+                },
+                sender,
+            )
+            .expect("watch");
+        loop {
+            let event = receiver.try_recv().expect("event before gc duty");
+            if event.cursor == gc_cursor {
+                break;
+            }
+            state.pump_watchers();
+        }
+
+        state.event_high_watermark += 1;
+        let fresh_cursor = state.event_high_watermark;
+        state.events.push(pb::NodeEvent {
+            event_id: b"fresh-after-gc-debt".to_vec(),
+            cursor: fresh_cursor,
+            event: Some(pb::node_event::Event::InvalidateCurrent(
+                pb::InvalidateCurrentEvent {
+                    key: Some(pb::Key {
+                        value: b"retire/fairness-fresh".to_vec(),
+                    }),
+                    old_version: 1,
+                    transition_id: b"fresh-transition".to_vec(),
+                    lease_epoch: 0,
+                    revision: fresh_cursor,
+                    minimum_version: fresh_cursor,
+                },
+            )),
+        });
+
+        state.pump_watchers();
+        let fresh = receiver
+            .try_recv()
+            .expect("fresh invalidation must not starve behind GC retry");
+        assert_eq!(fresh.cursor, fresh_cursor);
+        assert!(matches!(
+            fresh.event,
+            Some(pb::node_event::Event::InvalidateCurrent(_))
+        ));
+
+        for _ in 0..5 {
+            state.pump_watchers();
+        }
+        assert!(
+            receiver.try_recv().is_err(),
+            "GC retry is rate limited and does not resend every pump tick"
+        );
+    }
+
+    #[test]
+    fn due_gc_retry_survives_continuous_fresh_traffic_when_capacity_is_available() {
+        let mut state = MetaState::with_policies(
+            Box::<InMemoryJournal>::default(),
+            MetaCheckpointPolicy::default(),
+            MetaRetentionPolicy {
+                keep_versions_per_key: 1,
+                drop_unreferenced_replicas: true,
+                ..MetaRetentionPolicy::default()
+            },
+        );
+        let writer = test_session(&mut state, 7);
+        state
+            .commit_version(value_commit_request_for(
+                writer.clone(),
+                b"retire/fresh-spare".to_vec(),
+                b"retire/fresh-spare-old".to_vec(),
+                b"retire/fresh-spare-op-old".to_vec(),
+                b"retire/fresh-spare-digest-old".to_vec(),
+            ))
+            .expect("old version");
+        state
+            .commit_version(value_commit_request_for(
+                writer.clone(),
+                b"retire/fresh-spare".to_vec(),
+                b"retire/fresh-spare-new".to_vec(),
+                b"retire/fresh-spare-op-new".to_vec(),
+                b"retire/fresh-spare-digest-new".to_vec(),
+            ))
+            .expect("new version");
+        state.enforce_retention();
+        let gc_cursor = state
+            .events
+            .iter()
+            .find(|event| {
+                matches!(
+                    &event.event,
+                    Some(pb::node_event::Event::EvictReplica(evict))
+                        if evict.phase == pb::BlockRetirementPhase::Prepare as i32
+                            && evict.participant_node_id == writer.node_id
+                )
+            })
+            .expect("prepare duty")
+            .cursor;
+
+        let (sender, mut receiver) = mpsc::channel(8);
+        state
+            .watch_node_events(
+                pb::WatchNodeEventsRequest {
+                    context: None,
+                    session: Some(writer.clone()),
+                    last_acked_cursor: 0,
+                },
+                sender,
+            )
+            .expect("watch");
+        while receiver.try_recv().is_ok() {}
+
+        state
+            .watchers
+            .get_mut(&writer.node_id)
+            .expect("watcher")
+            .next_gc_retry_at = Some(Instant::now() - GC_RETRY_INTERVAL);
+        state.event_high_watermark += 1;
+        let fresh_cursor = state.event_high_watermark;
+        state.events.push(pb::NodeEvent {
+            event_id: b"fresh-spare-after-due-gc".to_vec(),
+            cursor: fresh_cursor,
+            event: Some(pb::node_event::Event::InvalidateCurrent(
+                pb::InvalidateCurrentEvent {
+                    key: Some(pb::Key {
+                        value: b"retire/fresh-spare-later".to_vec(),
+                    }),
+                    old_version: 1,
+                    transition_id: b"fresh-spare-transition".to_vec(),
+                    lease_epoch: 0,
+                    revision: fresh_cursor,
+                    minimum_version: fresh_cursor,
+                },
+            )),
+        });
+
+        state.pump_watchers();
+        let first = receiver.try_recv().expect("fresh event");
+        let second = receiver.try_recv().expect("due gc retry");
+        assert_eq!(first.cursor, fresh_cursor, "fresh remains first");
+        assert_eq!(
+            second.cursor, gc_cursor,
+            "due GC retry is not postponed by fresh traffic when capacity remains"
+        );
+        assert!(
+            receiver.try_recv().is_err(),
+            "one pump sends at most one GC-only retry"
+        );
+    }
+
+    #[test]
+    fn gc_retry_rotates_across_multiple_outstanding_duties() {
+        let mut state = MetaState::with_policies(
+            Box::<InMemoryJournal>::default(),
+            MetaCheckpointPolicy::default(),
+            MetaRetentionPolicy {
+                keep_versions_per_key: 1,
+                drop_unreferenced_replicas: true,
+                ..MetaRetentionPolicy::default()
+            },
+        );
+        let writer = test_session(&mut state, 7);
+        for key in [b"retire/rotate-a".as_slice(), b"retire/rotate-b".as_slice()] {
+            state
+                .commit_version(value_commit_request_for(
+                    writer.clone(),
+                    key.to_vec(),
+                    [key, b"-old"].concat(),
+                    [key, b"-op-old"].concat(),
+                    [key, b"-digest-old"].concat(),
+                ))
+                .expect("old value");
+            state
+                .commit_version(value_commit_request_for(
+                    writer.clone(),
+                    key.to_vec(),
+                    [key, b"-new"].concat(),
+                    [key, b"-op-new"].concat(),
+                    [key, b"-digest-new"].concat(),
+                ))
+                .expect("new value");
+            state.enforce_retention();
+        }
+        let mut gc_cursors = state
+            .events
+            .iter()
+            .filter(|event| {
+                matches!(
+                    &event.event,
+                    Some(pb::node_event::Event::EvictReplica(evict))
+                        if evict.phase == pb::BlockRetirementPhase::Prepare as i32
+                            && evict.participant_node_id == writer.node_id
+                )
+            })
+            .map(|event| event.cursor)
+            .collect::<Vec<_>>();
+        gc_cursors.sort_unstable();
+        assert_eq!(gc_cursors.len(), 2);
+
+        let (sender, mut receiver) = mpsc::channel(16);
+        state
+            .watch_node_events(
+                pb::WatchNodeEventsRequest {
+                    context: None,
+                    session: Some(writer.clone()),
+                    last_acked_cursor: 0,
+                },
+                sender,
+            )
+            .expect("watch");
+        while receiver.try_recv().is_ok() {}
+
+        for expected in &gc_cursors {
+            state
+                .watchers
+                .get_mut(&writer.node_id)
+                .expect("watcher")
+                .next_gc_retry_at = Some(Instant::now() - GC_RETRY_INTERVAL);
+            state.pump_watchers();
+            let retried = receiver.try_recv().expect("rotated gc retry");
+            assert_eq!(retried.cursor, *expected);
+        }
+    }
+
+    #[test]
+    fn retention_snapshot_failure_pauses_physical_retirement_decision() {
+        let journal = SharedFailingSnapshotJournal {
+            fail_snapshot: true,
+            ..SharedFailingSnapshotJournal::default()
+        };
+        let shared = journal.inner.clone();
+        let mut state = MetaState::with_policies(
+            Box::new(journal),
+            MetaCheckpointPolicy::default(),
+            MetaRetentionPolicy {
+                keep_versions_per_key: 1,
+                drop_unreferenced_replicas: true,
+                ..MetaRetentionPolicy::default()
+            },
+        );
+        let writer = test_session(&mut state, 7);
+        state
+            .commit_version(value_commit_request_for(
+                writer.clone(),
+                b"retire/snapshot-fail".to_vec(),
+                b"retire/snapshot-fail-old".to_vec(),
+                b"retire/snapshot-fail-op-old".to_vec(),
+                b"retire/snapshot-fail-digest-old".to_vec(),
+            ))
+            .expect("old version");
+        state
+            .commit_version(value_commit_request_for(
+                writer,
+                b"retire/snapshot-fail".to_vec(),
+                b"retire/snapshot-fail-new".to_vec(),
+                b"retire/snapshot-fail-op-new".to_vec(),
+                b"retire/snapshot-fail-digest-new".to_vec(),
+            ))
+            .expect("new version");
+
+        state.enforce_retention();
+        assert!(
+            state.pending_retirements.is_empty(),
+            "snapshot failure must pause Prepared WAL emission"
+        );
+        assert!(
+            state
+                .replicas
+                .contains_key(b"retire/snapshot-fail-old".as_slice()),
+            "without a durable prune boundary Meta cannot retire the old block"
+        );
+        assert!(
+            state
+                .journal
+                .load_after(0)
+                .expect("journal replay")
+                .iter()
+                .all(|entry| !matches!(
+                    entry.record,
+                    JournalRecord::BlockRetirementPrepared { .. }
+                )),
+            "crash replay must not infer an all-gone retirement from volatile pruning"
+        );
+
+        let restored = MetaState::with_policies(
+            Box::new(SharedFailingSnapshotJournal {
+                inner: shared,
+                fail_snapshot: true,
+            }),
+            MetaCheckpointPolicy::default(),
+            MetaRetentionPolicy {
+                keep_versions_per_key: 1,
+                drop_unreferenced_replicas: true,
+                ..MetaRetentionPolicy::default()
+            },
+        );
+        assert!(
+            restored
+                .replicas
+                .contains_key(b"retire/snapshot-fail-old".as_slice()),
+            "replay after the failed boundary still references data until a later durable pass"
+        );
+        assert!(restored.pending_retirements.is_empty());
+    }
+
+    #[test]
+    fn tightened_retention_after_snapshot_persists_prune_before_prepare() {
+        let mut baseline = MetaState::with_policies(
+            Box::<InMemoryJournal>::default(),
+            MetaCheckpointPolicy::default(),
+            MetaRetentionPolicy {
+                keep_versions_per_key: 64,
+                drop_unreferenced_replicas: false,
+                ..MetaRetentionPolicy::default()
+            },
+        );
+        let writer = test_session(&mut baseline, 7);
+        let old = baseline
+            .commit_version(value_commit_request_for(
+                writer.clone(),
+                b"retire/tighten".to_vec(),
+                b"retire/tighten-old".to_vec(),
+                b"retire/tighten-op-old".to_vec(),
+                b"retire/tighten-digest-old".to_vec(),
+            ))
+            .expect("old value");
+        baseline
+            .commit_version(value_commit_request_for(
+                writer.clone(),
+                b"retire/tighten".to_vec(),
+                b"retire/tighten-new".to_vec(),
+                b"retire/tighten-op-new".to_vec(),
+                b"retire/tighten-digest-new".to_vec(),
+            ))
+            .expect("new value");
+        baseline
+            .journal
+            .save_snapshot(baseline.snapshot())
+            .expect("snapshot with old policy");
+        baseline
+            .journal
+            .truncate_prefix(baseline.last_applied_index)
+            .expect("truncate at snapshot");
+
+        let tightened = MetaState::with_policies(
+            baseline.journal,
+            MetaCheckpointPolicy::default(),
+            MetaRetentionPolicy {
+                keep_versions_per_key: 1,
+                drop_unreferenced_replicas: true,
+                ..MetaRetentionPolicy::default()
+            },
+        );
+        assert_eq!(
+            tightened
+                .journal
+                .load_snapshot()
+                .expect("tightened snapshot")
+                .expect("snapshot exists")
+                .versions
+                .into_iter()
+                .find(|(key, _)| key == b"retire/tighten")
+                .expect("key snapshot")
+                .1
+                .len(),
+            1,
+            "same-index retention prune must be snapshotted before Prepared can be durable"
+        );
+        assert_eq!(tightened.pending_retirements.len(), 1);
+
+        let widened = MetaState::with_policies(
+            tightened.journal,
+            MetaCheckpointPolicy::default(),
+            MetaRetentionPolicy {
+                keep_versions_per_key: 64,
+                drop_unreferenced_replicas: true,
+                ..MetaRetentionPolicy::default()
+            },
+        );
+        assert!(matches!(
+            widened.resolve_object(pb::ResolveObjectRequest {
+                context: None,
+                session: Some(writer),
+                key: Some(pb::Key {
+                    value: b"retire/tighten".to_vec(),
+                }),
+                selector: Some(pb::resolve_object_request::Selector::ExactVersion(
+                    old.version,
+                )),
+                range: None,
+                cache_current: false,
+            }),
+            Err(MetaRuntimeError::NotFound)
+        ));
+        assert_eq!(widened.pending_retirements.len(), 1);
+    }
+
+    #[test]
+    fn later_retirement_ack_cannot_advance_cursor_past_earlier_gc_debt() {
+        let mut state = MetaState::with_policies(
+            Box::<InMemoryJournal>::default(),
+            MetaCheckpointPolicy::default(),
+            MetaRetentionPolicy {
+                keep_versions_per_key: 1,
+                drop_unreferenced_replicas: true,
+                ..MetaRetentionPolicy::default()
+            },
+        );
+        let writer = test_session(&mut state, 7);
+        for key in [b"retire/order-a".as_slice(), b"retire/order-b".as_slice()] {
+            state
+                .commit_version(value_commit_request_for(
+                    writer.clone(),
+                    key.to_vec(),
+                    [key, b"-old"].concat(),
+                    [key, b"-op-old"].concat(),
+                    [key, b"-digest-old"].concat(),
+                ))
+                .expect("old value");
+            state
+                .commit_version(value_commit_request_for(
+                    writer.clone(),
+                    key.to_vec(),
+                    [key, b"-new"].concat(),
+                    [key, b"-op-new"].concat(),
+                    [key, b"-digest-new"].concat(),
+                ))
+                .expect("new value");
+            state.enforce_retention();
+        }
+
+        let retirements = state
+            .pending_retirements
+            .values()
+            .map(|pending| pending.record.clone())
+            .collect::<Vec<_>>();
+        assert_eq!(retirements.len(), 2);
+        let mut duties = retirements
+            .iter()
+            .map(|record| {
+                let cursor = state
+                    .events
+                    .iter()
+                    .find(|event| {
+                        matches!(
+                            &event.event,
+                            Some(pb::node_event::Event::EvictReplica(evict))
+                                if evict.retirement_id == record.retirement_id
+                                    && evict.participant_node_id == writer.node_id
+                                    && evict.phase == pb::BlockRetirementPhase::Prepare as i32
+                        )
+                    })
+                    .expect("prepare event")
+                    .cursor;
+                (cursor, record.clone())
+            })
+            .collect::<Vec<_>>();
+        duties.sort_by_key(|(cursor, _)| *cursor);
+        let first_cursor = duties[0].0;
+        let second = duties[1].1.clone();
+
+        state
+            .acknowledge_block_retirement(retirement_ack_request(
+                writer.clone(),
+                &second,
+                pb::BlockRetirementAckKind::Prepared,
+                second.prepare_stage_epoch,
+            ))
+            .expect("later prepare ack");
+        assert!(
+            state
+                .sessions
+                .get(&writer.node_id)
+                .expect("session")
+                .last_acked_cursor
+                < first_cursor,
+            "later dedicated ACK cannot skip an earlier outstanding retirement duty"
+        );
+        assert!(
+            state
+                .events
+                .iter()
+                .any(|event| event.cursor == first_cursor),
+            "earlier GC duty remains replayable"
+        );
+    }
+
+    #[test]
+    fn expired_session_does_not_ack_past_outstanding_retirement_duty() {
+        let mut state = MetaState::with_policies(
+            Box::<InMemoryJournal>::default(),
+            MetaCheckpointPolicy::default(),
+            MetaRetentionPolicy {
+                keep_versions_per_key: 1,
+                drop_unreferenced_replicas: true,
+                ..MetaRetentionPolicy::default()
+            },
+        );
+        let writer = test_session(&mut state, 7);
+        state
+            .commit_version(value_commit_request_for(
+                writer.clone(),
+                b"retire/expire-duty".to_vec(),
+                b"retire/expire-duty-old".to_vec(),
+                b"retire/expire-duty-op-old".to_vec(),
+                b"retire/expire-duty-digest-old".to_vec(),
+            ))
+            .expect("old value");
+        state
+            .commit_version(value_commit_request_for(
+                writer.clone(),
+                b"retire/expire-duty".to_vec(),
+                b"retire/expire-duty-new".to_vec(),
+                b"retire/expire-duty-op-new".to_vec(),
+                b"retire/expire-duty-digest-new".to_vec(),
+            ))
+            .expect("new value");
+        state.enforce_retention();
+        let event = state
+            .events
+            .iter()
+            .find(|event| {
+                matches!(
+                    &event.event,
+                    Some(pb::node_event::Event::EvictReplica(evict))
+                        if evict.phase == pb::BlockRetirementPhase::Prepare as i32
+                            && evict.participant_node_id == writer.node_id
+                )
+            })
+            .expect("prepare duty")
+            .clone();
+        state
+            .sessions
+            .get_mut(&writer.node_id)
+            .expect("session")
+            .last_heartbeat =
+            Some(Instant::now() - DEFAULT_NODE_LEASE_TTL - Duration::from_secs(1));
+
+        state.retire_expired_sessions().expect("retire expired");
+        assert!(state.retired_sessions.contains(&writer.node_id));
+        assert!(
+            state
+                .sessions
+                .get(&writer.node_id)
+                .expect("session retained for replay")
+                .last_acked_cursor
+                < event.cursor,
+            "lease expiry cannot prove GC drain/release"
+        );
+        assert!(
+            state.events.iter().any(|item| item.cursor == event.cursor),
+            "expired session GC duty remains durable/replayable"
+        );
+
+        let mut journal = InMemoryJournal::default();
+        journal.save_snapshot(state.snapshot()).expect("snapshot");
+        let mut restored = MetaState::with_policies(
+            Box::new(journal),
+            MetaCheckpointPolicy::default(),
+            MetaRetentionPolicy {
+                keep_versions_per_key: 1,
+                drop_unreferenced_replicas: true,
+                ..MetaRetentionPolicy::default()
+            },
+        );
+        let (sender, mut receiver) = mpsc::channel(1);
+        restored
+            .watch_node_events(
+                pb::WatchNodeEventsRequest {
+                    context: None,
+                    session: Some(writer),
+                    last_acked_cursor: event.cursor,
+                },
+                sender,
+            )
+            .expect("watch after restore");
+        assert_eq!(
+            receiver.try_recv().expect("replayed after restore").cursor,
+            event.cursor
+        );
+    }
+
+    #[test]
+    fn journal_index_versions_never_reuse_or_rewind_old_snapshot_versions() {
+        let mut journal = InMemoryJournal::default();
+        journal
+            .save_snapshot(MetaSnapshot {
+                last_applied_index: 10,
+                version_floor: 0,
+                next_session: 1,
+                node_epochs: vec![(7, 1)],
+                node_commit_sequence_floors: Vec::new(),
+                sessions: vec![SnapshotSession {
+                    node_id: 7,
+                    session_id: b"manual-session".to_vec(),
+                    node_epoch: 1,
+                    control_endpoint: "http://127.0.0.1:19007".to_string(),
+                    last_acked_cursor: 0,
+                    supports_commit_sequence: true,
+                    commit_sequence_floor: 0,
+                }],
+                replicas: Vec::new(),
+                desired_replica_counts: Vec::new(),
+                versions: vec![(
+                    b"compat/high".to_vec(),
+                    vec![pb::VersionLayout {
+                        version: 100,
+                        logical_length: 0,
+                        extents: Vec::new(),
+                        digest: b"old".to_vec(),
+                        kind: pb::VersionKind::Tombstone as i32,
+                    }],
+                )],
+                version_modified_times: Vec::new(),
+                block_retirements: Vec::new(),
+                retired_block_fences: Vec::new(),
+                commit_sequences: Vec::new(),
+                operations: Vec::new(),
+                replica_operations: Vec::new(),
+                event_high_watermark: 0,
+                events: Vec::new(),
+            })
+            .expect("manual snapshot");
+        let mut restored = MetaState::new(Box::new(journal));
+        let session = pb::NodeSessionIdentity {
+            session_id: b"manual-session".to_vec(),
+            node_id: 7,
+            node_epoch: 1,
+        };
+        let response = restored
+            .commit_version(value_commit_request_for(
+                session,
+                b"compat/high".to_vec(),
+                b"compat/high-block".to_vec(),
+                b"compat/high-op".to_vec(),
+                b"compat/high-digest".to_vec(),
+            ))
+            .expect("commit after high old version");
+        assert_eq!(response.version, 101);
+        assert!(response.commit_index > 10);
+    }
+
+    #[test]
+    fn expired_operation_retry_cannot_resurrect_retired_block() {
+        let mut state = MetaState::with_policies(
+            Box::<InMemoryJournal>::default(),
+            MetaCheckpointPolicy::default(),
+            MetaRetentionPolicy {
+                keep_versions_per_key: 1,
+                operation_result_retention_records: 0,
+                drop_unreferenced_replicas: true,
+                ..MetaRetentionPolicy::default()
+            },
+        );
+        let writer = test_session(&mut state, 7);
+        let old_request = value_commit_request_for(
+            writer.clone(),
+            b"retire/expired-op".to_vec(),
+            b"retire/expired-op-old".to_vec(),
+            b"retire/expired-op-old-id".to_vec(),
+            b"retire/expired-op-old-digest".to_vec(),
+        );
+        state
+            .commit_version(old_request.clone())
+            .expect("old value");
+        state
+            .commit_version(value_commit_request_for(
+                writer.clone(),
+                b"retire/expired-op".to_vec(),
+                b"retire/expired-op-new".to_vec(),
+                b"retire/expired-op-new-id".to_vec(),
+                b"retire/expired-op-new-digest".to_vec(),
+            ))
+            .expect("new value");
+        state.enforce_retention();
+        let retirement = state
+            .pending_retirements
+            .values()
+            .next()
+            .expect("pending retirement")
+            .record
+            .clone();
+        state
+            .acknowledge_block_retirement(retirement_ack_request(
+                writer.clone(),
+                &retirement,
+                pb::BlockRetirementAckKind::Prepared,
+                retirement.prepare_stage_epoch,
+            ))
+            .expect("prepared");
+        let finalized = state
+            .pending_retirements
+            .get(&retirement.retirement_id)
+            .expect("finalized")
+            .record
+            .clone();
+        state
+            .acknowledge_block_retirement(retirement_ack_request(
+                writer,
+                &finalized,
+                pb::BlockRetirementAckKind::Released,
+                finalized.final_stage_epoch,
+            ))
+            .expect("released");
+        state.enforce_retention();
+        assert!(
+            !state
+                .operations
+                .contains_key(b"retire/expired-op-old-id".as_slice())
+        );
+        assert!(
+            state
+                .retired_block_fences
+                .contains_key(b"retire/expired-op-old".as_slice())
+        );
+        for index in 0..MAX_RETIRED_BLOCK_FENCES {
+            state.retired_block_fences.insert(
+                format!("retire/expired-op-newer-fence-{index:05}").into_bytes(),
+                finalized.final_stage_epoch + index as u64 + 2,
+            );
+        }
+        state.retain_retired_block_fences();
+        assert!(
+            !state
+                .retired_block_fences
+                .contains_key(b"retire/expired-op-old".as_slice()),
+            "bounded retired fence is intentionally evicted in this regression"
+        );
+        assert!(matches!(
+            state.commit_version(old_request),
+            Err(MetaRuntimeError::Conflict { .. })
+        ));
+    }
+
+    #[test]
+    fn retired_block_fence_window_is_bounded() {
+        let mut state = MetaState::new(Box::<InMemoryJournal>::default());
+        for index in 0..(MAX_RETIRED_BLOCK_FENCES + 2) {
+            state.retired_block_fences.insert(
+                format!("retired/fence-{index:05}").into_bytes(),
+                index as u64,
+            );
+        }
+        state.retain_retired_block_fences();
+        assert_eq!(state.retired_block_fences.len(), MAX_RETIRED_BLOCK_FENCES);
+        assert!(
+            !state
+                .retired_block_fences
+                .contains_key(b"retired/fence-00000".as_slice())
+        );
+        assert!(
+            state.retired_block_fences.contains_key(
+                format!("retired/fence-{:05}", MAX_RETIRED_BLOCK_FENCES + 1).as_bytes()
+            )
+        );
+    }
+
+    #[test]
+    fn admission_rejects_retired_block_after_fence_window_eviction() {
+        let mut state = MetaState::new(Box::<InMemoryJournal>::default());
+        let writer = test_session(&mut state, 7);
+        let stale_block = b"retired/fence-evicted-block".to_vec();
+        state.retired_block_fences.insert(stale_block.clone(), 1);
+        for index in 0..MAX_RETIRED_BLOCK_FENCES {
+            state.retired_block_fences.insert(
+                format!("retired/newer-fence-{index:05}").into_bytes(),
+                (index + 2) as u64,
+            );
+        }
+        state.retain_retired_block_fences();
+        assert!(
+            !state.retired_block_fences.contains_key(&stale_block),
+            "test setup must evict the old bounded fence"
+        );
+
+        let late_report = state
+            .report_replicas(pb::ReportReplicasRequest {
+                context: None,
+                session: Some(writer.clone()),
+                replicas: vec![pb::ReplicaReport {
+                    block_id: stale_block.clone(),
+                    length: 4,
+                    checksum: b"digest".to_vec(),
+                    durability: pb::DurabilityPolicy::LocalMemory as i32,
+                }],
+                operation_id: b"retired/fence-evicted-report".to_vec(),
+                desired_copies: 1,
+                repair_id: Vec::new(),
+            })
+            .expect("late report is a rejected response");
+        assert!(late_report.accepted.is_empty());
+        assert_eq!(late_report.rejected_block_ids, vec![stale_block.clone()]);
+
+        state.replicas.insert(
+            stale_block.clone(),
+            vec![StoredReplica {
+                location: pb::ReplicaLocation {
+                    block_id: stale_block.clone(),
+                    node_id: writer.node_id,
+                    node_epoch: writer.node_epoch,
+                    data_endpoint: "http://127.0.0.1:19007".to_string(),
+                    checksum: b"digest".to_vec(),
+                    durability: pb::DurabilityPolicy::LocalMemory as i32,
+                },
+                catalog_revision: 9,
+                length: 4,
+            }],
+        );
+        assert!(matches!(
+            state.commit_version(pb::CommitVersionRequest {
+                context: None,
+                session: Some(writer),
+                key: Some(pb::Key {
+                    value: b"retired/fence-evicted-key".to_vec(),
+                }),
+                candidate: Some(pb::VersionCandidate {
+                    kind: pb::VersionKind::Value as i32,
+                    logical_length: 4,
+                    extents: vec![pb::ExtentRecord {
+                        logical: Some(pb::ByteRange {
+                            offset: 0,
+                            length: 4,
+                        }),
+                        block_id: stale_block.clone(),
+                        block_offset: 0,
+                        digest: b"digest".to_vec(),
+                    }],
+                    digest: b"layout".to_vec(),
+                }),
+                condition: "any".to_string(),
+                expected_version: None,
+                operation_id: b"retired/fence-evicted-commit".to_vec(),
+                operation_digest: b"retired/fence-evicted-digest".to_vec(),
+                durability: pb::DurabilityPolicy::LocalMemory as i32,
+                required_memory_copies: 1,
+                replica_proofs: vec![pb::ReplicaProof {
+                    block_id: stale_block,
+                    node_id: 7,
+                    node_epoch: 1,
+                    catalog_revision: 9,
+                    checksum: b"digest".to_vec(),
+                    durability: pb::DurabilityPolicy::LocalMemory as i32,
+                }],
+                new_replicas: Vec::new(),
+                commit_sequence: next_test_commit_sequence(),
+            }),
+            Err(MetaRuntimeError::InvalidArgument(_))
+        ));
     }
 
     #[test]
@@ -3930,7 +7268,7 @@ mod tests {
         )
         .expect("spawn meta");
         let grant = handle
-            .open_node_session(7, "http://127.0.0.1:19200".to_string())
+            .open_node_session(7, "http://127.0.0.1:19200".to_string(), true)
             .await
             .expect("session");
         let session = pb::NodeSessionIdentity {
@@ -3966,7 +7304,7 @@ mod tests {
     fn unacknowledged_watch_event_is_replayed_after_reconnect() {
         let mut state = MetaState::new(Box::<InMemoryJournal>::default());
         let grant = state
-            .open_node_session(7, "http://127.0.0.1:19200".to_string())
+            .open_node_session(7, "http://127.0.0.1:19200".to_string(), true)
             .expect("open node session");
         let session = pb::NodeSessionIdentity {
             session_id: grant.session_id,
@@ -4020,6 +7358,7 @@ mod tests {
                     checksum: b"digest".to_vec(),
                     durability: pb::DurabilityPolicy::LocalMemory as i32,
                 }],
+                commit_sequence: next_test_commit_sequence(),
             })
             .expect("commit value");
         let first = first_receiver.try_recv().expect("live watch event");
@@ -4046,10 +7385,10 @@ mod tests {
     async fn commit_reply_waits_for_remote_node_watch_ack() {
         let mut state = MetaState::new(Box::<InMemoryJournal>::default());
         let writer = state
-            .open_node_session(7, "http://127.0.0.1:19200".to_string())
+            .open_node_session(7, "http://127.0.0.1:19200".to_string(), true)
             .expect("writer session");
         let reader = state
-            .open_node_session(8, "http://127.0.0.1:19201".to_string())
+            .open_node_session(8, "http://127.0.0.1:19201".to_string(), true)
             .expect("reader session");
         let reader_session = pb::NodeSessionIdentity {
             session_id: reader.session_id,
@@ -4081,6 +7420,7 @@ mod tests {
             ))
             .expect("dispatch commit");
         assert_eq!(dispatch.waiting_nodes, HashSet::from([reader.node_id]));
+        let expected_version = dispatch.response.version;
         let (reply, mut completion) = oneshot::channel();
         state.register_pending_commit(dispatch, reply);
         assert!(matches!(
@@ -4103,7 +7443,7 @@ mod tests {
             .await
             .expect("commit reply sender")
             .expect("commit response");
-        assert_eq!(response.version, 2);
+        assert_eq!(response.version, expected_version);
     }
 
     #[tokio::test]
@@ -4128,6 +7468,7 @@ mod tests {
         let first = state
             .dispatch_commit_version(request.clone())
             .expect("first dispatch");
+        let expected_version = first.response.version;
         let (first_reply, mut first_completion) = oneshot::channel();
         state.register_pending_commit(first, first_reply);
 
@@ -4163,7 +7504,7 @@ mod tests {
                 .expect("first reply")
                 .expect("first result")
                 .version,
-            2
+            expected_version
         );
         assert_eq!(
             retry_completion
@@ -4171,7 +7512,7 @@ mod tests {
                 .expect("retry reply")
                 .expect("retry result")
                 .version,
-            2
+            expected_version
         );
     }
 
@@ -4198,6 +7539,7 @@ mod tests {
         let first = before_restart
             .dispatch_commit_version(request.clone())
             .expect("commit before restart");
+        let expected_version = first.response.version;
         assert_eq!(first.event_cursor, Some(2));
         assert!(original_receiver.try_recv().is_ok());
 
@@ -4280,7 +7622,7 @@ mod tests {
                 .expect("retry reply")
                 .expect("retry result")
                 .version,
-            2
+            expected_version
         );
     }
 
@@ -4325,7 +7667,7 @@ mod tests {
     fn resolve_current_cache_grants_lease_to_live_session() {
         let mut state = MetaState::new(Box::<InMemoryJournal>::default());
         let session = test_session(&mut state, 7);
-        state
+        let committed = state
             .commit_version(value_commit_request_for(
                 session.clone(),
                 b"checkpoint/latest".to_vec(),
@@ -4345,7 +7687,7 @@ mod tests {
         let lease = resolved
             .current_lease
             .expect("live current cache request should receive a lease");
-        assert_eq!(lease.version, 1);
+        assert_eq!(lease.version, committed.version);
         assert_eq!(lease.revision, state.last_applied_index);
         assert_eq!(lease.lease_epoch, session.node_epoch);
         assert_eq!(lease.leader_epoch, 0);
@@ -4357,7 +7699,7 @@ mod tests {
     fn resolve_current_lease_requires_current_selector_and_cache_request() {
         let mut state = MetaState::new(Box::<InMemoryJournal>::default());
         let session = test_session(&mut state, 7);
-        state
+        let committed = state
             .commit_version(value_commit_request_for(
                 session.clone(),
                 b"checkpoint/latest".to_vec(),
@@ -4383,7 +7725,9 @@ mod tests {
                 key: Some(pb::Key {
                     value: b"checkpoint/latest".to_vec(),
                 }),
-                selector: Some(pb::resolve_object_request::Selector::ExactVersion(1)),
+                selector: Some(pb::resolve_object_request::Selector::ExactVersion(
+                    committed.version,
+                )),
                 range: None,
                 cache_current: true,
             })
@@ -4579,7 +7923,17 @@ mod tests {
     #[test]
     fn replica_report_records_the_verified_session_node_epoch() {
         let mut state = MetaState::new(Box::<InMemoryJournal>::default());
+        let writer = test_session(&mut state, 6);
         let session = test_session(&mut state, 7);
+        state
+            .commit_version(value_commit_request_for(
+                writer,
+                b"session-owned-key".to_vec(),
+                b"session-owned-block".to_vec(),
+                b"session-owned-commit".to_vec(),
+                b"session-owned-digest".to_vec(),
+            ))
+            .expect("publish referenced block");
         let response = state
             .report_replicas(pb::ReportReplicasRequest {
                 context: None,
@@ -4601,7 +7955,11 @@ mod tests {
         let location = state
             .replicas
             .get(b"session-owned-block".as_slice())
-            .and_then(|replicas| replicas.first())
+            .and_then(|replicas| {
+                replicas
+                    .iter()
+                    .find(|replica| replica.location.node_id == session.node_id)
+            })
             .expect("reported replica location");
         assert_eq!(location.location.node_id, session.node_id);
         assert_eq!(location.location.node_epoch, session.node_epoch);
@@ -4895,7 +8253,7 @@ mod tests {
     fn commit_batch_is_all_or_nothing_and_retry_is_idempotent() {
         let mut state = MetaState::new(Box::<InMemoryJournal>::default());
         let session = test_session(&mut state, 7);
-        state
+        let seed = state
             .commit_version(value_commit_request_for(
                 session.clone(),
                 b"batch/a".to_vec(),
@@ -4924,7 +8282,12 @@ mod tests {
             session,
             b"batch-2".to_vec(),
             vec![
-                batch_entry(b"batch/a", b"batch/a-v2", b"batch/op-a2", "if-version:1"),
+                batch_entry(
+                    b"batch/a",
+                    b"batch/a-v2",
+                    b"batch/op-a2",
+                    &format!("if-version:{}", seed.version),
+                ),
                 batch_entry(b"batch/b", b"batch/b-v1", b"batch/op-b2", "any"),
             ],
         );
@@ -4937,6 +8300,478 @@ mod tests {
         }));
         assert_eq!(state.versions[b"batch/a".as_slice()].len(), 2);
         assert_eq!(state.versions[b"batch/b".as_slice()].len(), 1);
+    }
+
+    #[test]
+    fn stat_reports_logical_current_metadata_without_replica_liveness_probe() {
+        let mut state = MetaState::new(Box::<InMemoryJournal>::default());
+        let session = test_session(&mut state, 7);
+        let committed = state
+            .commit_version(value_commit_request_for(
+                session.clone(),
+                b"stat/live".to_vec(),
+                b"stat/block".to_vec(),
+                b"stat/op".to_vec(),
+                b"stat/digest".to_vec(),
+            ))
+            .expect("commit value");
+        let first = state
+            .stat(meta_stat_request(session.clone(), b"stat/live"))
+            .expect("stat")
+            .info
+            .expect("info");
+        assert_eq!(first.key.as_ref().unwrap().value, b"stat/live");
+        assert_eq!(first.length, 4);
+        assert_eq!(first.version, committed.version);
+        assert!(first.modified_time_unix_millis > 0);
+
+        expire_session(&mut state, 7);
+        let offline = state
+            .stat(meta_stat_request(session.clone(), b"stat/live"))
+            .expect("stat does not prove replica reachability")
+            .info
+            .expect("info");
+        assert_eq!(offline, first);
+
+        state
+            .commit_version(tombstone_request_for(
+                session.clone(),
+                b"stat/live".to_vec(),
+                b"stat/delete".to_vec(),
+                b"stat/delete-digest".to_vec(),
+            ))
+            .expect("delete");
+        let missing = state
+            .stat(meta_stat_request(session, b"stat/live"))
+            .expect("tombstone is logical miss");
+        assert!(!missing.found);
+        assert!(missing.info.is_none());
+    }
+
+    #[test]
+    fn idempotent_retry_and_snapshot_restore_preserve_modified_time() {
+        let mut state = MetaState::new(Box::<InMemoryJournal>::default());
+        let session = test_session(&mut state, 7);
+        let request = value_commit_request_for(
+            session.clone(),
+            b"mtime/stable".to_vec(),
+            b"mtime/block".to_vec(),
+            b"mtime/op".to_vec(),
+            b"mtime/digest".to_vec(),
+        );
+        state.commit_version(request.clone()).expect("commit");
+        let first = state
+            .stat(meta_stat_request(session.clone(), b"mtime/stable"))
+            .unwrap()
+            .info
+            .unwrap()
+            .modified_time_unix_millis;
+        std::thread::sleep(Duration::from_millis(2));
+        state.commit_version(request).expect("idempotent retry");
+        let retry = state
+            .stat(meta_stat_request(session.clone(), b"mtime/stable"))
+            .unwrap()
+            .info
+            .unwrap()
+            .modified_time_unix_millis;
+        assert_eq!(retry, first);
+
+        let mut journal = InMemoryJournal::default();
+        journal.save_snapshot(state.snapshot()).unwrap();
+        let restored = MetaState::new(Box::new(journal));
+        let restored_mtime = restored
+            .stat(meta_stat_request(session, b"mtime/stable"))
+            .unwrap()
+            .info
+            .unwrap()
+            .modified_time_unix_millis;
+        assert_eq!(restored_mtime, first);
+    }
+
+    #[test]
+    fn scan_uses_binary_prefix_order_with_bounded_cursor_pages() {
+        let mut state = MetaState::new(Box::<InMemoryJournal>::default());
+        let session = test_session(&mut state, 7);
+        for (index, key) in [
+            b"scan/\x00".as_slice(),
+            b"scan/a".as_slice(),
+            b"scan/a/child".as_slice(),
+            b"scan/b".as_slice(),
+            b"scan/\xff".as_slice(),
+            b"other/z".as_slice(),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            state
+                .commit_version(value_commit_request_for(
+                    session.clone(),
+                    key.to_vec(),
+                    [b"scan-block/".as_slice(), key].concat(),
+                    format!("scan-op-{index}").into_bytes(),
+                    format!("scan-digest-{index}").into_bytes(),
+                ))
+                .expect("seed key");
+        }
+        state
+            .commit_version(tombstone_request_for(
+                session.clone(),
+                b"scan/a/child".to_vec(),
+                b"scan/delete".to_vec(),
+                b"scan/delete-digest".to_vec(),
+            ))
+            .expect("delete");
+
+        let marker_before_prefix = state
+            .scan(meta_scan_request(
+                session.clone(),
+                b"scan/",
+                Some(b"other/z".to_vec()),
+                "",
+                2,
+            ))
+            .expect("marker before prefix");
+        let keys = marker_before_prefix
+            .items
+            .iter()
+            .map(|item| item.key.as_ref().unwrap().value.as_slice())
+            .collect::<Vec<_>>();
+        assert_eq!(keys, vec![b"scan/\x00".as_slice(), b"scan/a".as_slice()]);
+
+        let first = state
+            .scan(meta_scan_request(
+                session.clone(),
+                b"scan/",
+                Some(b"scan/\x00".to_vec()),
+                "",
+                2,
+            ))
+            .expect("first page");
+        let keys = first
+            .items
+            .iter()
+            .map(|item| item.key.as_ref().unwrap().value.as_slice())
+            .collect::<Vec<_>>();
+        assert_eq!(keys, vec![b"scan/a".as_slice(), b"scan/b".as_slice()]);
+        assert!(!first.next_cursor.is_empty());
+
+        let second = state
+            .scan(meta_scan_request(
+                session.clone(),
+                b"scan/",
+                None,
+                &first.next_cursor,
+                2,
+            ))
+            .expect("second page");
+        let keys = second
+            .items
+            .iter()
+            .map(|item| item.key.as_ref().unwrap().value.as_slice())
+            .collect::<Vec<_>>();
+        assert_eq!(keys, vec![b"scan/\xff".as_slice()]);
+        assert!(second.next_cursor.is_empty());
+
+        let marker_after_prefix = state
+            .scan(meta_scan_request(
+                session.clone(),
+                b"scan/",
+                Some(b"scan0".to_vec()),
+                "",
+                2,
+            ))
+            .expect("marker after prefix");
+        assert!(marker_after_prefix.items.is_empty());
+        assert!(marker_after_prefix.next_cursor.is_empty());
+
+        let mismatched_cursor_last_key = ScanCursor {
+            prefix: b"scan/".to_vec(),
+            delimiter: Vec::new(),
+            last_key: b"wrong/key".to_vec(),
+            expires_at_unix_millis: current_time_unix_millis() + SCAN_CURSOR_TTL_MILLIS,
+        }
+        .encode();
+        assert!(matches!(
+            state.scan(meta_scan_request(
+                session.clone(),
+                b"scan/",
+                None,
+                &mismatched_cursor_last_key,
+                2,
+            )),
+            Err(MetaRuntimeError::InvalidArgument(_))
+        ));
+
+        let oversized_cursor = "x".repeat(MAX_SCAN_CURSOR_LENGTH + 1);
+        assert!(matches!(
+            state.scan(meta_scan_request(
+                session.clone(),
+                b"scan/",
+                None,
+                &oversized_cursor,
+                2,
+            )),
+            Err(MetaRuntimeError::InvalidArgument(_))
+        ));
+
+        assert!(matches!(
+            state.scan(meta_scan_request(
+                session.clone(),
+                b"scan/",
+                Some(b"scan/a".to_vec()),
+                &first.next_cursor,
+                2,
+            )),
+            Err(MetaRuntimeError::InvalidArgument(_))
+        ));
+        assert!(matches!(
+            state.scan(meta_scan_request(
+                session,
+                b"wrong/",
+                None,
+                &first.next_cursor,
+                2
+            )),
+            Err(MetaRuntimeError::InvalidArgument(_))
+        ));
+    }
+
+    #[test]
+    fn scan_groups_delimiter_prefixes_without_repeating_limit_one_pages() {
+        let mut state = MetaState::new(Box::<InMemoryJournal>::default());
+        let session = test_session(&mut state, 7);
+        for (index, key) in [
+            b"p/a".as_slice(),
+            b"p/dir/".as_slice(),
+            b"p/dir/child".as_slice(),
+            b"p/dir/grand/leaf".as_slice(),
+            b"p/dir2/file".as_slice(),
+            b"p/z".as_slice(),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            state
+                .commit_version(value_commit_request_for(
+                    session.clone(),
+                    key.to_vec(),
+                    [b"scan-delim-block/".as_slice(), key].concat(),
+                    format!("scan-delim-op-{index}").into_bytes(),
+                    format!("scan-delim-digest-{index}").into_bytes(),
+                ))
+                .expect("seed delimiter key");
+        }
+
+        let mut cursor = String::new();
+        let mut seen = Vec::new();
+        loop {
+            let page = state
+                .scan(meta_scan_request_with_delimiter(
+                    session.clone(),
+                    b"p/",
+                    None,
+                    &cursor,
+                    b"/",
+                    1,
+                ))
+                .expect("delimiter page");
+            assert_eq!(page.items.len(), 1);
+            let item = &page.items[0];
+            seen.push((
+                item.key.as_ref().expect("key").value.clone(),
+                item.is_prefix,
+            ));
+            if page.next_cursor.is_empty() {
+                break;
+            }
+            cursor = page.next_cursor;
+        }
+
+        assert_eq!(
+            seen,
+            vec![
+                (b"p/a".to_vec(), false),
+                (b"p/dir/".to_vec(), true),
+                (b"p/dir2/".to_vec(), true),
+                (b"p/z".to_vec(), false),
+            ]
+        );
+
+        let nested = state
+            .scan(meta_scan_request_with_delimiter(
+                session, b"p/dir/", None, "", b"/", 10,
+            ))
+            .expect("nested delimiter page");
+        let nested_items = nested
+            .items
+            .iter()
+            .map(|item| {
+                (
+                    item.key.as_ref().expect("key").value.clone(),
+                    item.is_prefix,
+                )
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            nested_items,
+            vec![
+                (b"p/dir/".to_vec(), false),
+                (b"p/dir/child".to_vec(), false),
+                (b"p/dir/grand/".to_vec(), true),
+            ]
+        );
+        assert!(nested.next_cursor.is_empty());
+    }
+
+    #[test]
+    fn scan_delimiter_cursor_binds_semantics_and_skips_marker_inside_group() {
+        let mut state = MetaState::new(Box::<InMemoryJournal>::default());
+        let session = test_session(&mut state, 7);
+        for (index, key) in [
+            b"p/dir/a".as_slice(),
+            b"p/dir/b".as_slice(),
+            b"p/next".as_slice(),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            state
+                .commit_version(value_commit_request_for(
+                    session.clone(),
+                    key.to_vec(),
+                    [b"scan-marker-block/".as_slice(), key].concat(),
+                    format!("scan-marker-op-{index}").into_bytes(),
+                    format!("scan-marker-digest-{index}").into_bytes(),
+                ))
+                .expect("seed marker key");
+        }
+
+        let marker_inside_group = state
+            .scan(meta_scan_request_with_delimiter(
+                session.clone(),
+                b"p/",
+                Some(b"p/dir/a".to_vec()),
+                "",
+                b"/",
+                10,
+            ))
+            .expect("marker inside group");
+        let keys = marker_inside_group
+            .items
+            .iter()
+            .map(|item| item.key.as_ref().expect("key").value.as_slice())
+            .collect::<Vec<_>>();
+        assert_eq!(keys, vec![b"p/next".as_slice()]);
+
+        let first = state
+            .scan(meta_scan_request_with_delimiter(
+                session.clone(),
+                b"p/",
+                None,
+                "",
+                b"/",
+                1,
+            ))
+            .expect("first grouped page");
+        assert_eq!(
+            first.items[0].key.as_ref().expect("key").value,
+            b"p/dir/".to_vec()
+        );
+        assert!(first.items[0].is_prefix);
+        assert!(!first.next_cursor.is_empty());
+
+        assert!(matches!(
+            state.scan(meta_scan_request_with_delimiter(
+                session.clone(),
+                b"p/",
+                None,
+                &first.next_cursor,
+                b"::",
+                1,
+            )),
+            Err(MetaRuntimeError::InvalidArgument(_))
+        ));
+        assert!(matches!(
+            state.scan(meta_scan_request_with_delimiter(
+                session,
+                b"wrong/",
+                None,
+                &first.next_cursor,
+                b"/",
+                1,
+            )),
+            Err(MetaRuntimeError::InvalidArgument(_))
+        ));
+    }
+
+    #[test]
+    fn scan_groups_multibyte_delimiter_and_all_ff_successor_boundary() {
+        let mut state = MetaState::new(Box::<InMemoryJournal>::default());
+        let session = test_session(&mut state, 7);
+        for (index, key) in [
+            b"m/a::x".as_slice(),
+            b"m/a::y".as_slice(),
+            b"m/b".as_slice(),
+            b"\xff/a".as_slice(),
+            b"\xff/b".as_slice(),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            state
+                .commit_version(value_commit_request_for(
+                    session.clone(),
+                    key.to_vec(),
+                    [b"scan-binary-block/".as_slice(), key].concat(),
+                    format!("scan-binary-op-{index}").into_bytes(),
+                    format!("scan-binary-digest-{index}").into_bytes(),
+                ))
+                .expect("seed binary key");
+        }
+
+        let multibyte = state
+            .scan(meta_scan_request_with_delimiter(
+                session.clone(),
+                b"m/",
+                None,
+                "",
+                b"::",
+                10,
+            ))
+            .expect("multibyte delimiter");
+        let multibyte_items = multibyte
+            .items
+            .iter()
+            .map(|item| {
+                (
+                    item.key.as_ref().expect("key").value.clone(),
+                    item.is_prefix,
+                )
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            multibyte_items,
+            vec![(b"m/a::".to_vec(), true), (b"m/b".to_vec(), false)]
+        );
+        assert!(multibyte.next_cursor.is_empty());
+
+        let all_ff = state
+            .scan(meta_scan_request_with_delimiter(
+                session,
+                b"",
+                Some(vec![0xfe]),
+                "",
+                b"\xff",
+                1,
+            ))
+            .expect("all-ff delimiter group");
+        assert_eq!(all_ff.items.len(), 1);
+        assert_eq!(
+            all_ff.items[0].key.as_ref().expect("key").value,
+            b"\xff".to_vec()
+        );
+        assert!(all_ff.items[0].is_prefix);
+        assert!(all_ff.next_cursor.is_empty());
     }
 
     #[test]
@@ -5014,6 +8849,7 @@ mod tests {
             session: Some(session),
             entries,
             batch_operation_id,
+            commit_sequence: next_test_commit_sequence(),
         }
     }
 
@@ -5093,6 +8929,7 @@ mod tests {
                 checksum: b"digest".to_vec(),
                 durability: pb::DurabilityPolicy::LocalMemory as i32,
             }],
+            commit_sequence: next_test_commit_sequence(),
         }
     }
 
@@ -5120,16 +8957,93 @@ mod tests {
             required_memory_copies: 0,
             replica_proofs: Vec::new(),
             new_replicas: Vec::new(),
+            commit_sequence: next_test_commit_sequence(),
         }
     }
 
-    fn seed_existing_key(state: &mut MetaState, session: pb::NodeSessionIdentity, key: &[u8]) {
+    fn meta_stat_request(session: pb::NodeSessionIdentity, key: &[u8]) -> pb::MetaStatRequest {
+        pb::MetaStatRequest {
+            context: None,
+            session: Some(session),
+            key: Some(pb::Key {
+                value: key.to_vec(),
+            }),
+        }
+    }
+
+    fn meta_scan_request(
+        session: pb::NodeSessionIdentity,
+        prefix: &[u8],
+        start_after: Option<Vec<u8>>,
+        cursor: &str,
+        limit: u32,
+    ) -> pb::MetaScanRequest {
+        pb::MetaScanRequest {
+            context: None,
+            session: Some(session),
+            prefix: Some(pb::Key {
+                value: prefix.to_vec(),
+            }),
+            options: Some(pb::ObjectScanOptions {
+                limit,
+                start_after,
+                cursor: cursor.to_string(),
+                delimiter: Vec::new(),
+            }),
+        }
+    }
+
+    fn meta_scan_request_with_delimiter(
+        session: pb::NodeSessionIdentity,
+        prefix: &[u8],
+        start_after: Option<Vec<u8>>,
+        cursor: &str,
+        delimiter: &[u8],
+        limit: u32,
+    ) -> pb::MetaScanRequest {
+        pb::MetaScanRequest {
+            context: None,
+            session: Some(session),
+            prefix: Some(pb::Key {
+                value: prefix.to_vec(),
+            }),
+            options: Some(pb::ObjectScanOptions {
+                limit,
+                start_after,
+                cursor: cursor.to_string(),
+                delimiter: delimiter.to_vec(),
+            }),
+        }
+    }
+
+    fn retirement_ack_request(
+        session: pb::NodeSessionIdentity,
+        record: &BlockRetirementRecord,
+        ack_kind: pb::BlockRetirementAckKind,
+        stage_epoch: u64,
+    ) -> pb::AcknowledgeBlockRetirementRequest {
+        pb::AcknowledgeBlockRetirementRequest {
+            context: None,
+            session: Some(session),
+            retirement_id: record.retirement_id.clone(),
+            ack_kind: ack_kind as i32,
+            stage_epoch,
+            block_ids: record.block_ids.clone(),
+            detail: None,
+        }
+    }
+
+    fn seed_existing_key(
+        state: &mut MetaState,
+        session: pb::NodeSessionIdentity,
+        key: &[u8],
+    ) -> pb::CommitVersionResponse {
         let before_cursor = state.event_high_watermark;
         let before_events = state.events.len();
         let sequence = state.journal.last_index() + 1;
         let mut unique = key.to_vec();
         unique.extend_from_slice(&sequence.to_be_bytes());
-        state
+        let response = state
             .commit_version(value_commit_request_for(
                 session,
                 key.to_vec(),
@@ -5148,17 +9062,27 @@ mod tests {
             before_events,
             "测试种子只建立旧版本，不应该污染待 ACK 事件队列"
         );
+        response
     }
 
     fn test_session(state: &mut MetaState, node_id: u64) -> pb::NodeSessionIdentity {
         let grant = state
-            .open_node_session(node_id, format!("http://127.0.0.1:{}", 19000 + node_id))
+            .open_node_session(
+                node_id,
+                format!("http://127.0.0.1:{}", 19000 + node_id),
+                true,
+            )
             .expect("open session");
         pb::NodeSessionIdentity {
             session_id: grant.session_id,
             node_id: grant.node_id,
             node_epoch: grant.node_epoch,
         }
+    }
+
+    fn next_test_commit_sequence() -> u64 {
+        static NEXT: AtomicU64 = AtomicU64::new(1);
+        NEXT.fetch_add(1, Ordering::Relaxed)
     }
 
     fn resolve_current_request(

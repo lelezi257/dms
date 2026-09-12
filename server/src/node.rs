@@ -20,6 +20,7 @@ mod version_layout;
 mod worker_service;
 
 use std::{
+    collections::HashSet,
     io,
     path::PathBuf,
     sync::{
@@ -42,11 +43,14 @@ use tokio_stream::wrappers::UnixListenerStream;
 use crate::health::{Readiness, ReadinessState, serve_status};
 use crate::{ComponentKind, NodeId};
 use arena_manager::SharedFdBroker;
-use metadata_client::MetadataClient;
+use metadata_client::{MetadataClient, retirement_block_ids};
 use metrics::NodeMetrics;
 use peer_service::PeerServiceHandler;
 use runtime::{NodeHandle, NodeTaskConfig, ReplicaPrepareSpec};
 use worker_service::WorkerServiceHandler;
+
+type RetirementPhaseKey = (Vec<u8>, i32);
+const RETIREMENT_PHASE_ACK_ATTEMPTS: usize = 5;
 
 /// Minimal configuration required to start the data-node process shell.
 #[derive(Clone, Debug)]
@@ -263,6 +267,7 @@ async fn consume_meta_events(
 ) {
     let mut last_acked_cursor = 0;
     let mut reconnect_delay = std::time::Duration::from_millis(100);
+    let active_retirement_phases = Arc::new(tokio::sync::Mutex::new(HashSet::new()));
     loop {
         let mut stream = match initial_stream.take() {
             Some(stream) => stream,
@@ -322,6 +327,13 @@ async fn consume_meta_events(
                             "event" => "node.replica.evict_requested",
                             "block_id" => hex(&evict.block_id),
                         );
+                        apply_retirement_event(
+                            metadata.clone(),
+                            node.clone(),
+                            evict.clone(),
+                            active_retirement_phases.clone(),
+                        )
+                        .await;
                     }
                     Some(node_event::Event::FenceNode(fence)) => {
                         // epoch/fence 消息不能留下可再次命中的旧 Current 布局。
@@ -423,6 +435,91 @@ async fn apply_repair_event(
         "desired_copies" => repair.desired_copies,
     );
     Ok(())
+}
+
+async fn apply_retirement_event(
+    metadata: MetadataClient,
+    node: NodeHandle,
+    evict: dms_protocol::v1::EvictReplicaEvent,
+    active_phases: Arc<tokio::sync::Mutex<HashSet<RetirementPhaseKey>>>,
+) {
+    let phase_key = (evict.retirement_id.clone(), evict.phase);
+    {
+        let mut active = active_phases.lock().await;
+        if !active.insert(phase_key.clone()) {
+            dms_logging::info!(
+                "duplicate block retirement phase is already pending";
+                "event" => "node.retirement.phase_duplicate",
+                "phase" => evict.phase,
+                "retirement_id" => hex(&evict.retirement_id),
+            );
+            return;
+        }
+    }
+    tokio::spawn(async move {
+        let phase = dms_protocol::v1::BlockRetirementPhase::try_from(evict.phase)
+            .unwrap_or(dms_protocol::v1::BlockRetirementPhase::Unspecified);
+        let block_ids = retirement_block_ids(&evict);
+        let retirement_id = evict.retirement_id.clone();
+        let result = match phase {
+            dms_protocol::v1::BlockRetirementPhase::Prepare => node
+                .prepare_block_retirement(retirement_id, block_ids)
+                .await
+                .map(|_| dms_protocol::v1::BlockRetirementAckKind::Prepared),
+            dms_protocol::v1::BlockRetirementPhase::Final => node
+                .finalize_block_retirement(retirement_id, block_ids)
+                .await
+                .map(|_| dms_protocol::v1::BlockRetirementAckKind::Released),
+            dms_protocol::v1::BlockRetirementPhase::Unspecified => Err(
+                runtime::WorkerError::InvalidArgument("retirement phase is missing"),
+            ),
+        };
+        match result {
+            Ok(ack_kind) => {
+                let mut delay = Duration::from_millis(100);
+                let mut acknowledged = false;
+                let mut last_error = None;
+                for attempt in 1..=RETIREMENT_PHASE_ACK_ATTEMPTS {
+                    match metadata
+                        .acknowledge_block_retirement(&evict, ack_kind, None)
+                        .await
+                    {
+                        Ok(()) => {
+                            acknowledged = true;
+                            break;
+                        }
+                        Err(error) => {
+                            last_error = Some(error);
+                            if attempt < RETIREMENT_PHASE_ACK_ATTEMPTS {
+                                tokio::time::sleep(delay).await;
+                                delay = (delay * 2).min(Duration::from_secs(2));
+                            }
+                        }
+                    }
+                }
+                if !acknowledged {
+                    let error = last_error
+                        .map(|error| error.to_string())
+                        .unwrap_or_else(|| "unknown error".to_string());
+                    dms_logging::warn!(
+                        "block retirement phase ack failed after bounded retries";
+                        "event" => "node.retirement.ack_failed",
+                        "attempts" => RETIREMENT_PHASE_ACK_ATTEMPTS,
+                        "error" => error,
+                    );
+                }
+            }
+            Err(error) => {
+                dms_logging::warn!(
+                    "block retirement phase did not complete";
+                    "event" => "node.retirement.phase_incomplete",
+                    "phase" => format!("{phase:?}"),
+                    "error" => format!("{error:?}"),
+                );
+            }
+        }
+        active_phases.lock().await.remove(&phase_key);
+    });
 }
 
 async fn send_meta_heartbeats(
@@ -552,17 +649,27 @@ async fn serve_worker_tcp(
         WorkerServiceHandler::with_metrics(node.clone(), false, rpc_metrics.clone(), error_metrics);
     let peer_handler = PeerServiceHandler::with_metrics(node, rpc_metrics);
     let security = SecurityManager::new(TlsConfig::Disabled)?;
-    let server = GrpcConfig::default().configure_server(tonic::transport::Server::builder());
+    let grpc_config = GrpcConfig::default();
+    let server = grpc_config.configure_server(tonic::transport::Server::builder());
     // 一个 TCP/HTTP2 Server 注册三份 generated Service：控制、payload、peer。
     security
         .configure_server(server)?
         .layer(dms_tracing::GrpcServerTraceLayer::new(
             trace_periodic_operations,
         ))
-        .add_service(WorkerServiceServer::new(worker_handler.clone()))
-        .add_service(WorkerPayloadServiceServer::new(worker_handler))
-        .add_service(PeerServiceServer::new(peer_handler))
-        .serve_with_incoming(GrpcConfig::default().configure_tcp_incoming(listener.into()))
+        .add_service(configure_worker_service(
+            WorkerServiceServer::new(worker_handler.clone()),
+            &grpc_config,
+        ))
+        .add_service(configure_worker_payload_service(
+            WorkerPayloadServiceServer::new(worker_handler),
+            &grpc_config,
+        ))
+        .add_service(configure_peer_service(
+            PeerServiceServer::new(peer_handler),
+            &grpc_config,
+        ))
+        .serve_with_incoming(grpc_config.configure_tcp_incoming(listener.into()))
         .await?;
     Ok(())
 }
@@ -576,18 +683,52 @@ async fn serve_worker_uds(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let handler = WorkerServiceHandler::with_metrics(node, true, rpc_metrics, error_metrics);
     let security = SecurityManager::new(TlsConfig::Disabled)?;
-    let server = GrpcConfig::default().configure_server(tonic::transport::Server::builder());
+    let grpc_config = GrpcConfig::default();
+    let server = grpc_config.configure_server(tonic::transport::Server::builder());
     // UDS 只面向本机 Client，因此不注册 PeerService；业务 Worker API 与 TCP 相同。
     security
         .configure_server(server)?
         .layer(dms_tracing::GrpcServerTraceLayer::new(
             trace_periodic_operations,
         ))
-        .add_service(WorkerServiceServer::new(handler.clone()))
-        .add_service(WorkerPayloadServiceServer::new(handler))
+        .add_service(configure_worker_service(
+            WorkerServiceServer::new(handler.clone()),
+            &grpc_config,
+        ))
+        .add_service(configure_worker_payload_service(
+            WorkerPayloadServiceServer::new(handler),
+            &grpc_config,
+        ))
         .serve_with_incoming(UnixListenerStream::new(listener))
         .await?;
     Ok(())
+}
+
+fn configure_worker_service(
+    service: WorkerServiceServer<WorkerServiceHandler>,
+    config: &GrpcConfig,
+) -> WorkerServiceServer<WorkerServiceHandler> {
+    service
+        .max_encoding_message_size(config.max_encoding_message_bytes)
+        .max_decoding_message_size(config.max_decoding_message_bytes)
+}
+
+fn configure_worker_payload_service(
+    service: WorkerPayloadServiceServer<WorkerServiceHandler>,
+    config: &GrpcConfig,
+) -> WorkerPayloadServiceServer<WorkerServiceHandler> {
+    service
+        .max_encoding_message_size(config.max_encoding_message_bytes)
+        .max_decoding_message_size(config.max_decoding_message_bytes)
+}
+
+fn configure_peer_service(
+    service: PeerServiceServer<PeerServiceHandler>,
+    config: &GrpcConfig,
+) -> PeerServiceServer<PeerServiceHandler> {
+    service
+        .max_encoding_message_size(config.max_encoding_message_bytes)
+        .max_decoding_message_size(config.max_decoding_message_bytes)
 }
 
 fn bind_worker_uds(path: &PathBuf) -> io::Result<UnixListener> {

@@ -90,9 +90,11 @@ mod tests {
                     digest: Vec::new(),
                     kind: pb::VersionKind::Tombstone as i32,
                 },
+                modified_time_unix_millis: 0,
                 new_replicas: Vec::new(),
                 operation_id: b"op-1".to_vec(),
                 operation_digest: b"digest-1".to_vec(),
+                commit_sequence: None,
             })
             .expect("append");
 
@@ -114,20 +116,28 @@ mod tests {
                     digest: Vec::new(),
                     kind: pb::VersionKind::Tombstone as i32,
                 },
+                modified_time_unix_millis: 0,
                 new_replicas: Vec::new(),
                 operation_id: b"op-1".to_vec(),
                 operation_digest: b"digest-1".to_vec(),
+                commit_sequence: None,
             })
             .expect("append first");
         journal
             .save_snapshot(MetaSnapshot {
                 last_applied_index: first,
+                version_floor: 0,
                 next_session: 1,
                 node_epochs: Vec::new(),
+                node_commit_sequence_floors: Vec::new(),
                 sessions: Vec::new(),
                 replicas: Vec::new(),
                 desired_replica_counts: Vec::new(),
                 versions: Vec::new(),
+                version_modified_times: Vec::new(),
+                block_retirements: Vec::new(),
+                retired_block_fences: Vec::new(),
+                commit_sequences: Vec::new(),
                 operations: Vec::new(),
                 replica_operations: Vec::new(),
                 event_high_watermark: 0,
@@ -148,9 +158,11 @@ mod tests {
                         digest: Vec::new(),
                         kind: pb::VersionKind::Tombstone as i32,
                     },
+                    modified_time_unix_millis: 0,
                     new_replicas: Vec::new(),
                     operation_id: b"op-2".to_vec(),
                     operation_digest: b"digest-2".to_vec(),
+                    commit_sequence: None,
                 })
                 .expect("append second"),
             2

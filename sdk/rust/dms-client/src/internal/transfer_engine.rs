@@ -21,10 +21,12 @@ use pb::worker_payload_service_client::WorkerPayloadServiceClient;
 use pb::worker_service_client::WorkerServiceClient;
 use tonic::transport::Channel;
 
+use super::grpc_clients::{worker_client, worker_payload_client};
 use crate::DmsError;
 use crate::metrics::{
     ClientMetrics, RegionMappingGuard, RegionMappingLookup, TransferDirection, TransferProvider,
 };
+use dms_transport::GrpcConfig;
 
 #[derive(Clone)]
 pub(crate) struct TransferEngine {
@@ -67,6 +69,45 @@ pub(crate) enum PayloadBuffer {
     },
 }
 
+pub(crate) enum ReadPayload {
+    Grpc(Vec<u8>),
+    Shm(PayloadBuffer),
+}
+
+impl ReadPayload {
+    pub(crate) fn len(&self) -> Result<usize, DmsError> {
+        match self {
+            Self::Grpc(bytes) => Ok(bytes.len()),
+            Self::Shm(buffer) => Ok(buffer.as_slice()?.len()),
+        }
+    }
+
+    pub(crate) fn copy_range_into(&self, offset: usize, dst: &mut [u8]) -> Result<(), DmsError> {
+        let end = offset.checked_add(dst.len()).ok_or_else(|| {
+            DmsError::client_protocol_violation("read payload offset overflow".to_string())
+        })?;
+        match self {
+            Self::Grpc(bytes) => {
+                let source = bytes.get(offset..end).ok_or_else(|| {
+                    DmsError::client_protocol_violation(
+                        "read payload slice is outside gRPC response".to_string(),
+                    )
+                })?;
+                dst.copy_from_slice(source);
+            }
+            Self::Shm(buffer) => {
+                let source = buffer.as_slice()?.get(offset..end).ok_or_else(|| {
+                    DmsError::client_protocol_violation(
+                        "read payload slice is outside SHM descriptor".to_string(),
+                    )
+                })?;
+                dst.copy_from_slice(source);
+            }
+        }
+        Ok(())
+    }
+}
+
 impl PayloadBuffer {
     pub(crate) fn as_slice(&self) -> Result<&[u8], DmsError> {
         match self {
@@ -95,6 +136,7 @@ impl PayloadBuffer {
                     length: descriptor.length,
                     digest: digest(bytes),
                     target_allocation_id: descriptor.allocation_id,
+                    release_token: descriptor.release_token.clone(),
                 })
             }
         }
@@ -106,12 +148,13 @@ impl TransferEngine {
         channel: Channel,
         session_id: u64,
         fd_broker_path: Option<String>,
+        grpc_config: &GrpcConfig,
         metrics: Option<ClientMetrics>,
         rpc_metrics: Option<dms_metrics::RpcMetrics>,
     ) -> Self {
         Self {
-            grpc: WorkerPayloadServiceClient::new(dms_tracing::traced_channel(channel.clone())),
-            worker: WorkerServiceClient::new(dms_tracing::traced_channel(channel)),
+            grpc: worker_payload_client(channel.clone(), grpc_config),
+            worker: worker_client(channel, grpc_config),
             session_id,
             fd_broker_path: fd_broker_path.map(PathBuf::from),
             mappings: Arc::new(RegionMappingCache::default()),
@@ -366,6 +409,64 @@ impl TransferEngine {
         }
     }
 
+    /// Materializes exactly one read segment target for owned-reader delivery.
+    ///
+    /// gRPC necessarily decodes this segment into an owned protocol buffer;
+    /// SHM keeps the mmap-backed buffer so callers can copy directly into their
+    /// destination without an intermediate whole-value Vec.
+    pub(crate) async fn read_payload(
+        &self,
+        session_id: u64,
+        target: pb::PayloadTarget,
+    ) -> Result<ReadPayload, DmsError> {
+        match target.target {
+            Some(pb::payload_target::Target::Grpc(target)) => {
+                let declared_length = target.length;
+                let mut client = self.grpc.clone();
+                let mut rpc = self.rpc_metrics.as_ref().map(|metrics| {
+                    metrics.begin_client_call(dms_metrics::RpcCall::PAYLOAD_DOWNLOAD)
+                });
+                let response = client
+                    .download(pb::DownloadPayloadRequest {
+                        transfer_id: target.transfer_id,
+                        nonce: target.nonce,
+                    })
+                    .await;
+                if response.is_ok()
+                    && let Some(rpc) = &mut rpc
+                {
+                    rpc.success();
+                }
+                let bytes = response
+                    .map_err(super::node_connection::map_status)?
+                    .into_inner()
+                    .payload;
+                if bytes.len() as u64 != declared_length {
+                    return Err(DmsError::node_transfer_corrupt_data("DMS data is corrupt"));
+                }
+                Ok(ReadPayload::Grpc(bytes))
+            }
+            Some(pb::payload_target::Target::Shm(target)) => self
+                .map_target(
+                    session_id,
+                    pb::PayloadTarget {
+                        target: Some(pb::payload_target::Target::Shm(target)),
+                    },
+                )
+                .await
+                .map(ReadPayload::Shm),
+            Some(pb::payload_target::Target::Rdma(_)) => Err(DmsError::node_transfer_unsupported(
+                "RDMA provider is not enabled by this SDK build".to_string(),
+            )),
+            Some(pb::payload_target::Target::Ub(_)) => Err(DmsError::node_transfer_unsupported(
+                "UB provider is not enabled by this SDK build".to_string(),
+            )),
+            None => Err(DmsError::client_protocol_violation(
+                "empty payload target".to_string(),
+            )),
+        }
+    }
+
     async fn upload_shm(
         &self,
         session_id: u64,
@@ -399,6 +500,7 @@ impl TransferEngine {
             length: target.length,
             digest: digest(value),
             target_allocation_id: target.allocation_id,
+            release_token: target.release_token,
         })
     }
 
@@ -609,6 +711,76 @@ fn is_recoverable_provider_failure(error: &DmsError) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use pb::worker_payload_service_server::{WorkerPayloadService, WorkerPayloadServiceServer};
+    use tokio::net::TcpListener;
+    use tokio_stream::wrappers::TcpListenerStream;
+    use tonic::transport::Server;
+    use tonic::{Request, Response, Status};
+
+    #[derive(Clone)]
+    struct MockPayloadService {
+        payload: Arc<Vec<u8>>,
+    }
+
+    #[tonic::async_trait]
+    impl WorkerPayloadService for MockPayloadService {
+        async fn upload(
+            &self,
+            request: Request<pb::UploadPayloadRequest>,
+        ) -> Result<Response<pb::UploadPayloadResponse>, Status> {
+            let request = request.into_inner();
+            Ok(Response::new(pb::UploadPayloadResponse {
+                receipt: Some(pb::TransferReceipt {
+                    transfer_id: request.transfer_id,
+                    length: request.payload.len() as u64,
+                    digest: digest(&request.payload),
+                    target_allocation_id: 0,
+                    release_token: Vec::new(),
+                }),
+            }))
+        }
+
+        async fn download(
+            &self,
+            request: Request<pb::DownloadPayloadRequest>,
+        ) -> Result<Response<pb::DownloadPayloadResponse>, Status> {
+            let request = request.into_inner();
+            Ok(Response::new(pb::DownloadPayloadResponse {
+                payload: self.payload.as_ref().clone(),
+                receipt: Some(pb::TransferReceipt {
+                    transfer_id: request.transfer_id,
+                    length: self.payload.len() as u64,
+                    digest: digest(&self.payload),
+                    target_allocation_id: 0,
+                    release_token: Vec::new(),
+                }),
+            }))
+        }
+    }
+
+    async fn mock_payload_channel(payload: Vec<u8>, grpc_config: &GrpcConfig) -> Channel {
+        let listener = TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind mock payload server");
+        let address = listener.local_addr().expect("mock payload address");
+        let incoming = TcpListenerStream::new(listener);
+        let service = WorkerPayloadServiceServer::new(MockPayloadService {
+            payload: Arc::new(payload),
+        })
+        .max_encoding_message_size(grpc_config.max_encoding_message_bytes)
+        .max_decoding_message_size(grpc_config.max_decoding_message_bytes);
+        tokio::spawn(async move {
+            Server::builder()
+                .add_service(service)
+                .serve_with_incoming(incoming)
+                .await
+                .expect("mock payload server");
+        });
+        let endpoint = grpc_config.configure_client(
+            Channel::from_shared(format!("http://{address}")).expect("mock payload endpoint"),
+        );
+        endpoint.connect().await.expect("connect mock payload")
+    }
 
     #[test]
     fn immutable_shm_view_cannot_be_borrowed_as_a_write_buffer() {
@@ -623,6 +795,7 @@ mod tests {
                 allocation_id: 1,
                 view_epoch: Some(1),
                 transfer_id: Vec::new(),
+                release_token: Vec::new(),
             },
             mapping: Arc::new(CachedMapping {
                 region: mapping,
@@ -631,6 +804,35 @@ mod tests {
         };
         assert!(buffer.as_mut_slice().is_err());
         assert_eq!(buffer.as_slice().unwrap(), &[0; 4]);
+    }
+
+    #[test]
+    fn shm_receipt_echoes_write_release_token() {
+        let region = dms_shm::SharedRegion::create("dms-sdk-write-lease-receipt", 4096).unwrap();
+        // SAFETY: 测试独占 backing，写入区域位于 region 范围内。
+        let mut mapping =
+            unsafe { MappedRegion::map(region.duplicate_fd().unwrap(), 4096) }.unwrap();
+        mapping.write_at(128, b"hello").unwrap();
+        let buffer = PayloadBuffer::Shm {
+            descriptor: pb::ShmDescriptor {
+                region_id: 1,
+                offset: 128,
+                length: 5,
+                allocation_id: 11,
+                transfer_id: b"transfer-11".to_vec(),
+                release_token: b"lease-11".to_vec(),
+                ..Default::default()
+            },
+            mapping: Arc::new(CachedMapping {
+                region: mapping,
+                _metric: None,
+            }),
+        };
+
+        let receipt = buffer.receipt().expect("SHM receipt");
+        assert_eq!(receipt.transfer_id, b"transfer-11");
+        assert_eq!(receipt.target_allocation_id, 11);
+        assert_eq!(receipt.release_token, b"lease-11");
     }
 
     #[test]
@@ -690,7 +892,8 @@ mod tests {
     #[tokio::test]
     async fn empty_candidate_plan_is_protocol_error() {
         let channel = Channel::from_static("http://127.0.0.1:1").connect_lazy();
-        let engine = TransferEngine::new(channel, 7, None, None, None);
+        let grpc_config = GrpcConfig::default();
+        let engine = TransferEngine::new(channel, 7, None, &grpc_config, None, None);
         let error = engine
             .upload_candidates(7, Vec::new(), b"data")
             .await
@@ -701,11 +904,41 @@ mod tests {
     #[tokio::test]
     async fn all_recoverable_candidates_fail_with_terminal_transfer_error() {
         let channel = Channel::from_static("http://127.0.0.1:1").connect_lazy();
-        let engine = TransferEngine::new(channel, 7, None, None, None);
+        let grpc_config = GrpcConfig::default();
+        let engine = TransferEngine::new(channel, 7, None, &grpc_config, None, None);
         let error = engine
             .upload_candidates(7, vec![unsupported_target()], b"data")
             .await
             .expect_err("unsupported provider fails after all candidates");
         assert_eq!(error.code(), dms_error::NODE_TRANSFER_UNSUPPORTED);
+    }
+
+    #[tokio::test]
+    async fn grpc_payload_client_transfers_four_mib_with_configured_message_budget() {
+        let grpc_config = GrpcConfig::default();
+        let bytes = vec![7_u8; 4 * 1024 * 1024];
+        let channel = mock_payload_channel(bytes.clone(), &grpc_config).await;
+        let engine = TransferEngine::new(channel, 7, None, &grpc_config, None, None);
+        let target = pb::PayloadTarget {
+            target: Some(pb::payload_target::Target::Grpc(pb::GrpcTarget {
+                transfer_id: b"payload-4m".to_vec(),
+                nonce: b"nonce".to_vec(),
+                length: bytes.len() as u64,
+            })),
+        };
+
+        let receipt = engine
+            .upload(7, target.clone(), &bytes)
+            .await
+            .expect("4MiB payload upload");
+        assert_eq!(receipt.length, bytes.len() as u64);
+
+        let downloaded = engine
+            .download(7, target)
+            .await
+            .expect("4MiB payload download");
+        assert_eq!(downloaded.len(), bytes.len());
+        assert_eq!(downloaded[0], 7);
+        assert_eq!(downloaded[downloaded.len() - 1], 7);
     }
 }

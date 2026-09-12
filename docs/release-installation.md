@@ -2,7 +2,7 @@
 
 本页针对本地生成的 **0.1.0 候选包**，不是公共仓库下载承诺。SDK 为 `dms-client-0.1.0.crate`，服务为 `dms-server-0.1.0-linux-aarch64.tar.gz`。不需要单独部署或安装 DMS common 包。
 
-当前验收目标是 Linux aarch64 / Ubuntu 24.04；其它平台未据此获得支持承诺。仅本地内存可靠性，Node 重启可能丢失 value；元数据 WAL 不会恢复 value。完整 GC、多 Meta HA、RDMA/UB、L2 不在本候选版本承诺内。
+当前验收目标是 Linux aarch64 / Ubuntu 24.04；其它平台未据此获得支持承诺。仅本地内存可靠性，Node 重启可能丢失 value；元数据 WAL 不会恢复 value。正常删除与旧版本回收已有实现，但永久失联 Node 或未归还的共享写权仍可能阻塞释放。多 Meta HA、RDMA/UB、L2 不在本候选版本承诺内。
 
 ## 1. 先进入 Linux，再执行安装
 

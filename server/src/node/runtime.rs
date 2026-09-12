@@ -7,7 +7,7 @@
 
 // Node actor 内的小型控制索引使用 HashMap；Payload bytes 只归 ArenaManager。
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{HashMap, HashSet, VecDeque},
     future::Future,
     path::PathBuf,
     pin::Pin,
@@ -27,7 +27,7 @@ use tonic::transport::{Channel, Endpoint};
 
 use super::arena_manager::{
     ArenaError, ArenaManager, ArenaReadTicket, HostAllocationTarget, HostReceipt, HostRegionGrant,
-    HostShmDescriptor, SharedFdBroker,
+    HostShmDescriptor, ReleasedWriteAllocation, SharedFdBroker,
 };
 use super::current_cache::CurrentCache;
 use super::metadata_client::{BatchValueCommit, MetadataClient, digest};
@@ -50,6 +50,8 @@ const CLIENT_CACHE_INTEREST_BYTES_LIMIT: usize = 256 * 1024;
 // 既避免单条消息无限放大，又保持 Node→Node 协议不变。
 const PEER_PULL_SEGMENT_BYTES: u64 = 2 * 1024 * 1024;
 const PEER_CHANNEL_CACHE_LIMIT: usize = 128;
+const COMPLETED_RETIREMENT_CACHE_LIMIT: usize = 1024;
+const RETIREMENT_PHASE_WAITER_LIMIT: usize = 16;
 
 // 准备和完成都只访问唯一 owner；中间 Future 只拥有不可变提交资料与 Meta client。
 // JoinSet 的数量上限与 mailbox 相同，饱和时拒绝新写，但 ACK/心跳仍可推进。
@@ -86,10 +88,11 @@ fn launch_write<T: Send + 'static>(
     }
 }
 
-/// Monotonic identity of one zero-copy read borrow within a Client session.
+/// 单个 Client session 内共享读借用的单调序号。
 ///
-/// TODO(view-epoch-reclaim): use the minimum released epoch of live sessions
-/// to retire old immutable Blocks after a Version is no longer reachable.
+/// `active_views` 将它关联到实际 allocation；连续归还水位推进后才能解除
+/// 相应保护。`retirement_can_release` 检查仍活动的借用，阻止 GC 复用旧 bytes。
+/// 不以 session 断连或后续 View 先完成代替这次借用已经归还。
 type ViewEpoch = u64;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -123,6 +126,7 @@ pub(crate) struct DeleteOutcome {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct ReadTicket {
+    pub(crate) read_request_id: u64,
     /// 本次读取命中的对象版本。
     pub(crate) version: u64,
     /// 完整对象长度；range read 返回的 bytes 可能更短。
@@ -211,6 +215,43 @@ struct PeerPullSpec {
     expected_length: u64,
 }
 
+/// 一轮缺块导入只共享完成状态，不共享用户票据或大块 Vec。
+/// Peer 位置失败可以按固定版本刷新；owner 接纳/Meta 登记失败不能当位置失败重试。
+#[derive(Clone, Debug)]
+struct PeerImportFailure {
+    error: WorkerError,
+    location_failure: bool,
+}
+
+impl PeerImportFailure {
+    fn terminal(error: WorkerError) -> Self {
+        Self {
+            error,
+            location_failure: false,
+        }
+    }
+}
+
+struct PeerImportFlight {
+    // 仅标识本 Node 的一次内部网络任务，不替代 Meta 的幂等 operation id。
+    attempt: u64,
+    // 发起读取消后仍由 flight 持有此 GC pin，直到安装/Report 的任务真正结束。
+    read_scope_id: u64,
+    expected_length: u64,
+    expected_checksum: Vec<u8>,
+    task_id: Option<tokio::task::Id>,
+    waiters: Vec<oneshot::Sender<Result<(), PeerImportFailure>>>,
+}
+
+/// 已产生缺块计划但尚未入队 Ensure 的同批读，也必须看见 Import/Report 的终态失败。
+/// 仅保留到失败发生前的 read scopes 排空，不是跨请求的永久负缓存。
+struct PeerImportFailureFence {
+    cutoff_scope: u64,
+    failure: PeerImportFailure,
+}
+
+type PeerImportCompletion = (Vec<u8>, u64, Result<(), PeerImportFailure>);
+
 #[derive(Clone, Debug)]
 pub(crate) struct ReplicaPrepareSpec {
     pub(crate) source_node_id: String,
@@ -252,7 +293,7 @@ enum MaterializeOutcome {
     NeedsRemoteBlocks(Vec<PeerPullSpec>),
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub(crate) enum WorkerError {
     /// 请求内容不合法；静态字符串避免临时分配。
     InvalidArgument(&'static str),
@@ -275,7 +316,101 @@ pub(crate) enum WorkerError {
 #[derive(Clone, Copy)]
 struct DownloadTicket {
     read: ArenaReadTicket,
+    session_id: u64,
+    read_request_id: u64,
     expires_at: Instant,
+}
+
+#[derive(Clone, Debug)]
+struct ActiveReadView {
+    read_request_id: u64,
+    allocation_ids: Vec<u64>,
+}
+
+struct PendingRetirement {
+    block_ids: Vec<Vec<u8>>,
+    cutoff_scope: u64,
+    prepared: bool,
+    final_requested: bool,
+    released: bool,
+    prepare_waiters: Vec<oneshot::Sender<Result<(), WorkerError>>>,
+    final_waiters: Vec<oneshot::Sender<Result<(), WorkerError>>>,
+}
+
+struct ReadScopeGuard {
+    node: NodeHandle,
+    scope_id: Option<u64>,
+}
+
+struct ReadScopeLease {
+    node: NodeHandle,
+    scope_id: Option<u64>,
+}
+
+impl ReadScopeLease {
+    fn new(node: NodeHandle, scope_id: u64) -> Self {
+        Self {
+            node,
+            scope_id: Some(scope_id),
+        }
+    }
+
+    fn into_guard(mut self) -> ReadScopeGuard {
+        ReadScopeGuard {
+            node: self.node.clone(),
+            scope_id: self.scope_id.take(),
+        }
+    }
+}
+
+impl Drop for ReadScopeLease {
+    fn drop(&mut self) {
+        if let Some(scope_id) = self.scope_id.take() {
+            let node = self.node.clone();
+            // BeginReadScope 的 reply 可能已经成功写入 oneshot，但调用方 Future
+            // 在 poll 出结果前被取消；lease 自身承接这段 handoff 窗口的归还义务。
+            if let Ok(handle) = tokio::runtime::Handle::try_current() {
+                handle.spawn(async move {
+                    let _ = node.finish_read_scope(scope_id).await;
+                });
+            } else {
+                node.finish_read_scope_best_effort(scope_id);
+            }
+        }
+    }
+}
+
+impl ReadScopeGuard {
+    async fn begin(node: &NodeHandle, session_id: u64) -> Result<Self, WorkerError> {
+        Ok(node.begin_read_scope(session_id).await?.into_guard())
+    }
+
+    fn id(&self) -> u64 {
+        self.scope_id.expect("read scope is active")
+    }
+
+    async fn finish(mut self) -> Result<(), WorkerError> {
+        let scope_id = self.scope_id.expect("read scope is active");
+        self.node.finish_read_scope(scope_id).await?;
+        self.scope_id.take();
+        Ok(())
+    }
+}
+
+impl Drop for ReadScopeGuard {
+    fn drop(&mut self) {
+        if let Some(scope_id) = self.scope_id.take() {
+            let node = self.node.clone();
+            // 取消 Future 时也必须释放 scope，否则 Prepare 会被永久卡住。
+            if let Ok(handle) = tokio::runtime::Handle::try_current() {
+                handle.spawn(async move {
+                    let _ = node.finish_read_scope(scope_id).await;
+                });
+            } else {
+                node.finish_read_scope_best_effort(scope_id);
+            }
+        }
+    }
 }
 
 /// Worker/Peer gRPC Handler 共用、可 clone 的 Node 任务提交句柄。
@@ -317,6 +452,15 @@ pub(crate) struct NodeTaskConfig {
 }
 
 impl NodeHandle {
+    #[cfg(test)]
+    pub(crate) async fn debug_peer_imports(&self) -> (usize, usize, u64) {
+        let (reply, rx) = oneshot::channel();
+        self.submit(NodeCommand::DebugPeerImports { reply })
+            .await
+            .expect("debug peer imports");
+        rx.await.expect("debug peer imports reply")
+    }
+
     pub(crate) fn metrics(&self) -> NodeMetrics {
         self.metrics.clone()
     }
@@ -456,12 +600,23 @@ impl NodeHandle {
         receive(reply_rx).await
     }
 
+    #[cfg(test)]
     pub(crate) async fn open_session(&self, shared_memory: bool) -> Result<u64, WorkerError> {
+        self.open_session_with_write_release(shared_memory, false)
+            .await
+    }
+
+    pub(crate) async fn open_session_with_write_release(
+        &self,
+        shared_memory: bool,
+        supports_write_lease_release: bool,
+    ) -> Result<u64, WorkerError> {
         // oneshot 两端类型由 Command 的 reply 字段和 receive() 返回值共同推导。
         let (reply_tx, reply_rx) = oneshot::channel();
         // 只把 Sender 移进 command；Receiver 仍留在当前 RPC Task。
         self.submit(NodeCommand::OpenSession {
             shared_memory,
+            supports_write_lease_release,
             reply: reply_tx,
         })
         .await?;
@@ -504,6 +659,7 @@ impl NodeHandle {
         receive(reply_rx).await
     }
 
+    #[cfg(test)]
     pub(crate) async fn heartbeat(
         &self,
         session_id: u64,
@@ -514,6 +670,8 @@ impl NodeHandle {
         self.submit(NodeCommand::Heartbeat {
             session_id,
             released_view_through,
+            released_write_allocations: Vec::new(),
+            finished_read_request_through: None,
             renew_cache: false,
             reply: reply_tx,
         })
@@ -521,15 +679,54 @@ impl NodeHandle {
         receive(reply_rx).await.map(|_| ())
     }
 
+    pub(crate) async fn heartbeat_with_write_releases(
+        &self,
+        session_id: u64,
+        released_view_through: Option<u64>,
+        released_write_allocations: Vec<ReleasedWriteAllocation>,
+        finished_read_request_through: Option<u64>,
+    ) -> Result<(), WorkerError> {
+        let (reply_tx, reply_rx) = oneshot::channel();
+        self.submit(NodeCommand::Heartbeat {
+            session_id,
+            released_view_through,
+            released_write_allocations,
+            finished_read_request_through,
+            renew_cache: false,
+            reply: reply_tx,
+        })
+        .await?;
+        receive(reply_rx).await.map(|_| ())
+    }
+
+    #[cfg(test)]
     pub(crate) async fn renew_cache_lease(
         &self,
         session_id: u64,
         released_view_through: Option<u64>,
     ) -> Result<u64, WorkerError> {
+        self.renew_cache_lease_with_write_releases(
+            session_id,
+            released_view_through,
+            Vec::new(),
+            None,
+        )
+        .await
+    }
+
+    pub(crate) async fn renew_cache_lease_with_write_releases(
+        &self,
+        session_id: u64,
+        released_view_through: Option<u64>,
+        released_write_allocations: Vec<ReleasedWriteAllocation>,
+        finished_read_request_through: Option<u64>,
+    ) -> Result<u64, WorkerError> {
         let (reply, receiver) = oneshot::channel();
         self.submit(NodeCommand::Heartbeat {
             session_id,
             released_view_through,
+            released_write_allocations,
+            finished_read_request_through,
             renew_cache: true,
             reply,
         })
@@ -560,6 +757,112 @@ impl NodeHandle {
         })
         .await?;
         receive(reply_rx).await
+    }
+
+    pub(crate) async fn prepare_block_retirement(
+        &self,
+        retirement_id: Vec<u8>,
+        block_ids: Vec<Vec<u8>>,
+    ) -> Result<(), WorkerError> {
+        let (reply, receiver) = oneshot::channel();
+        self.submit(NodeCommand::PrepareBlockRetirement {
+            retirement_id,
+            block_ids,
+            reply,
+        })
+        .await?;
+        receive(receiver).await
+    }
+
+    pub(crate) async fn finalize_block_retirement(
+        &self,
+        retirement_id: Vec<u8>,
+        block_ids: Vec<Vec<u8>>,
+    ) -> Result<(), WorkerError> {
+        let (reply, receiver) = oneshot::channel();
+        self.submit(NodeCommand::FinalizeBlockRetirement {
+            retirement_id,
+            block_ids,
+            reply,
+        })
+        .await?;
+        receive(receiver).await
+    }
+
+    pub(crate) async fn validate_session(&self, session_id: u64) -> Result<(), WorkerError> {
+        let (reply_tx, reply_rx) = oneshot::channel();
+        self.submit(NodeCommand::ValidateSession {
+            session_id,
+            reply: reply_tx,
+        })
+        .await?;
+        receive(reply_rx).await
+    }
+
+    async fn begin_read_scope(&self, session_id: u64) -> Result<ReadScopeLease, WorkerError> {
+        let (reply, receiver) = oneshot::channel();
+        self.submit(NodeCommand::BeginReadScope {
+            session_id,
+            cleanup_node: Box::new(self.clone()),
+            reply,
+        })
+        .await?;
+        receive(receiver).await
+    }
+
+    async fn finish_read_scope(&self, scope_id: u64) -> Result<(), WorkerError> {
+        let (reply, receiver) = oneshot::channel();
+        self.submit(NodeCommand::FinishReadScope { scope_id, reply })
+            .await?;
+        receive(receiver).await
+    }
+
+    fn finish_read_scope_best_effort(&self, scope_id: u64) {
+        let (reply, _receiver) = oneshot::channel();
+        let command = NodeCommand::FinishReadScope { scope_id, reply };
+        let name = command.metric();
+        let queued = QueuedNodeCommand {
+            name,
+            enqueued_at: Instant::now(),
+            trace_context: dms_tracing::capture_current_context(),
+            command,
+        };
+        if self.command_tx.try_send(queued).is_err() {
+            self.metrics.mailbox_send_failed();
+        }
+    }
+
+    pub(crate) async fn stat(
+        &self,
+        session_id: u64,
+        key: Vec<u8>,
+    ) -> Result<pb::MetaStatResponse, WorkerError> {
+        if key.is_empty() {
+            return Err(WorkerError::InvalidArgument("key must not be empty"));
+        }
+        let metadata = self
+            .metadata
+            .as_ref()
+            .ok_or(WorkerError::MetadataUnavailable)?;
+        self.validate_session(session_id).await?;
+        metadata.stat(key).await.map_err(map_metadata_error)
+    }
+
+    pub(crate) async fn scan(
+        &self,
+        session_id: u64,
+        prefix: Vec<u8>,
+        options: Option<pb::ObjectScanOptions>,
+    ) -> Result<pb::MetaScanResponse, WorkerError> {
+        let metadata = self
+            .metadata
+            .as_ref()
+            .ok_or(WorkerError::MetadataUnavailable)?;
+        self.validate_session(session_id).await?;
+        metadata
+            .scan(prefix, options)
+            .await
+            .map_err(map_metadata_error)
     }
 
     pub(crate) async fn acknowledge(
@@ -767,6 +1070,7 @@ impl NodeHandle {
         receive(reply_rx).await
     }
 
+    #[allow(dead_code)]
     pub(crate) async fn get(
         &self,
         session_id: u64,
@@ -778,12 +1082,75 @@ impl NodeHandle {
             .await
     }
 
+    #[allow(dead_code)]
     pub(crate) async fn get_with_inline_limit(
         &self,
         session_id: u64,
         key: Vec<u8>,
         exact_version: Option<u64>,
         range: Option<(u64, u64)>,
+        max_inline_bytes: u64,
+    ) -> Result<ReadTicket, WorkerError> {
+        self.get_with_inline_limit_for_request(
+            session_id,
+            key,
+            exact_version,
+            range,
+            false,
+            max_inline_bytes,
+            0,
+        )
+        .await
+    }
+
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "wire GET entrypoint keeps the opt-in range policy explicit beside the existing request identity and inline budget"
+    )]
+    pub(crate) async fn get_with_inline_limit_for_request(
+        &self,
+        session_id: u64,
+        key: Vec<u8>,
+        exact_version: Option<u64>,
+        range: Option<(u64, u64)>,
+        clamp_range: bool,
+        max_inline_bytes: u64,
+        read_request_id: u64,
+    ) -> Result<ReadTicket, WorkerError> {
+        let scope = ReadScopeGuard::begin(self, session_id).await?;
+        let result = self
+            .get_with_inline_limit_scoped(
+                session_id,
+                scope.id(),
+                read_request_id,
+                key,
+                exact_version,
+                range,
+                clamp_range,
+                max_inline_bytes,
+            )
+            .await;
+        let finish = scope.finish().await;
+        match (result, finish) {
+            (Ok(ticket), Ok(())) => Ok(ticket),
+            (Err(error), _) => Err(error),
+            (Ok(_), Err(error)) => Err(error),
+        }
+    }
+
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "read path keeps session, scope, request id, range, and inline budget explicit across the existing wire contract"
+    )]
+    async fn get_with_inline_limit_scoped(
+        &self,
+        session_id: u64,
+        read_scope_id: u64,
+        read_request_id: u64,
+        key: Vec<u8>,
+        exact_version: Option<u64>,
+        range: Option<(u64, u64)>,
+        clamp_range: bool,
         max_inline_bytes: u64,
     ) -> Result<ReadTicket, WorkerError> {
         let metadata = self
@@ -798,9 +1165,12 @@ impl NodeHandle {
             let (reply, rx) = oneshot::channel();
             self.submit(NodeCommand::GetCached {
                 session_id,
+                read_scope_id,
+                read_request_id,
                 key: key.clone(),
                 node_epoch,
                 range,
+                clamp_range,
                 max_inline_bytes,
                 reply,
             })
@@ -813,9 +1183,12 @@ impl NodeHandle {
                         .read_exact_version_after_cached_location_failure(
                             metadata,
                             session_id,
+                            read_scope_id,
+                            read_request_id,
                             key.clone(),
                             version,
                             range,
+                            clamp_range,
                             max_inline_bytes,
                         )
                         .await;
@@ -827,47 +1200,39 @@ impl NodeHandle {
                         .ok_or(WorkerError::NotFound)?
                         .version;
                     for spec in specs {
-                        let metric = self.metrics.begin_replica_operation(ReplicaOperation::Pull);
-                        let payload = match pull_block_from_peer(
-                            &self.node_id,
-                            spec,
-                            &self.rpc_metrics,
-                            &self.peer_channels,
-                        )
-                        .await
-                        {
-                            Ok(payload) => payload,
-                            Err(error) if can_refresh_cached_location(&error) => {
+                        match self.ensure_peer_block(read_scope_id, spec).await {
+                            Ok(()) => {}
+                            Err(failure)
+                                if failure.location_failure
+                                    && can_refresh_cached_location(&failure.error) =>
+                            {
                                 // 只捕获 Peer 拉取阶段的位置失败。安装/登记失败不属于
                                 // 换地址重试，必须直接返回，不能被下面的本地读掩盖。
-                                drop(metric);
                                 return self
                                     .read_exact_version_after_cached_location_failure(
                                         metadata,
                                         session_id,
+                                        read_scope_id,
+                                        read_request_id,
                                         key.clone(),
                                         cached_version,
                                         range,
+                                        clamp_range,
                                         max_inline_bytes,
                                     )
                                     .await;
                             }
-                            Err(error) => return Err(error),
-                        };
-                        self.install_and_report_peer_block(
-                            metadata,
-                            b"cached-location-import/",
-                            payload,
-                            metric,
-                        )
-                        .await?;
+                            Err(failure) => return Err(failure.error),
+                        }
                     }
                     return self
                         .read_resolved_with_imports(
-                            metadata,
                             session_id,
+                            read_scope_id,
+                            read_request_id,
                             resolved,
                             range,
+                            clamp_range,
                             max_inline_bytes,
                             None,
                         )
@@ -885,23 +1250,32 @@ impl NodeHandle {
             .await
             .map_err(map_metadata_error)?;
         self.read_resolved_with_imports(
-            metadata,
             session_id,
+            read_scope_id,
+            read_request_id,
             resolved,
             range,
+            clamp_range,
             max_inline_bytes,
             refill_token.map(|token| (token, key, requested_at, node_epoch)),
         )
         .await
     }
 
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "retry path must carry the original read identity, range, and budget without hiding contract fields"
+    )]
     async fn read_exact_version_after_cached_location_failure(
         &self,
         metadata: &MetadataClient,
         session_id: u64,
+        read_scope_id: u64,
+        read_request_id: u64,
         key: Vec<u8>,
         version: u64,
         range: Option<(u64, u64)>,
+        clamp_range: bool,
         max_inline_bytes: u64,
     ) -> Result<ReadTicket, WorkerError> {
         let resolved = metadata
@@ -909,22 +1283,30 @@ impl NodeHandle {
             .await
             .map_err(map_metadata_error)?;
         self.read_resolved_with_imports(
-            metadata,
             session_id,
+            read_scope_id,
+            read_request_id,
             resolved,
             range,
+            clamp_range,
             max_inline_bytes,
             None,
         )
         .await
     }
 
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "import loop deliberately threads independent read identity, range, budget, and cache-refill authority"
+    )]
     async fn read_resolved_with_imports(
         &self,
-        metadata: &MetadataClient,
         session_id: u64,
+        read_scope_id: u64,
+        read_request_id: u64,
         resolved: pb::ResolveObjectResponse,
         range: Option<(u64, u64)>,
+        clamp_range: bool,
         max_inline_bytes: u64,
         cache_refill: Option<(u64, Vec<u8>, Instant, u64)>,
     ) -> Result<ReadTicket, WorkerError> {
@@ -934,8 +1316,11 @@ impl NodeHandle {
             let (reply_tx, reply_rx) = oneshot::channel();
             self.submit(NodeCommand::GetResolved {
                 session_id,
+                read_scope_id,
+                read_request_id,
                 resolved: resolved.clone(),
                 range,
+                clamp_range,
                 max_inline_bytes,
                 cache_refill: cache_refill.clone(),
                 reply: reply_tx,
@@ -945,8 +1330,9 @@ impl NodeHandle {
                 GetOutcome::Ready(ticket) => return Ok(ticket),
                 GetOutcome::NeedsRemoteBlocks(specs) => {
                     for spec in specs {
-                        self.import_and_report_peer_block(metadata, b"cache-import/", spec)
-                            .await?;
+                        self.ensure_peer_block(read_scope_id, spec)
+                            .await
+                            .map_err(|failure| failure.error)?;
                     }
                 }
             }
@@ -966,6 +1352,25 @@ impl NodeHandle {
         key: Vec<u8>,
         exact_version: Option<u64>,
     ) -> Result<(u64, Vec<u8>), WorkerError> {
+        let scope = ReadScopeGuard::begin(self, session_id).await?;
+        let result = self
+            .get_materialized_scoped(session_id, scope.id(), key, exact_version)
+            .await;
+        let finish = scope.finish().await;
+        match (result, finish) {
+            (Ok(value), Ok(())) => Ok(value),
+            (Err(error), _) => Err(error),
+            (Ok(_), Err(error)) => Err(error),
+        }
+    }
+
+    async fn get_materialized_scoped(
+        &self,
+        session_id: u64,
+        read_scope_id: u64,
+        key: Vec<u8>,
+        exact_version: Option<u64>,
+    ) -> Result<(u64, Vec<u8>), WorkerError> {
         let metadata = self
             .metadata
             .as_ref()
@@ -978,6 +1383,7 @@ impl NodeHandle {
             let (reply_tx, reply_rx) = oneshot::channel();
             self.submit(NodeCommand::MaterializeResolved {
                 session_id,
+                read_scope_id,
                 resolved: resolved.clone(),
                 reply: reply_tx,
             })
@@ -986,8 +1392,9 @@ impl NodeHandle {
                 MaterializeOutcome::Ready { version, bytes } => return Ok((version, bytes)),
                 MaterializeOutcome::NeedsRemoteBlocks(specs) => {
                     for spec in specs {
-                        self.import_and_report_peer_block(metadata, b"materialize-import/", spec)
-                            .await?;
+                        self.ensure_peer_block(read_scope_id, spec)
+                            .await
+                            .map_err(|failure| failure.error)?;
                     }
                 }
             }
@@ -995,24 +1402,72 @@ impl NodeHandle {
         Err(WorkerError::NotFound)
     }
 
-    /// Installs an immutable peer Block locally, then publishes the local
-    /// replica identity to Meta. Both Client reads and internal materialized
-    /// reads use this exact state transition; keeping it in one place prevents
-    /// the two paths from drifting on idempotency or replica policy.
+    /// Current、Exact、内部 materialize 共用的 Node 级缺块导入入口。
+    /// 请求取消只丢弃自己的等待，owner 启动的有界任务仍负责完成 Import/Report。
+    async fn ensure_peer_block(
+        &self,
+        read_scope_id: u64,
+        spec: PeerPullSpec,
+    ) -> Result<(), PeerImportFailure> {
+        let (reply, rx) = oneshot::channel();
+        self.submit(NodeCommand::EnsurePeerBlock {
+            read_scope_id,
+            spec,
+            node: Box::new(self.clone()),
+            reply,
+        })
+        .await
+        .map_err(PeerImportFailure::terminal)?;
+        rx.await
+            .map_err(|_| PeerImportFailure::terminal(WorkerError::WorkerUnavailable))?
+    }
+
+    // 完整性测试直接检验一次未合并的导入；正式读入口一律使用 ensure_peer_block。
+    #[cfg(test)]
     async fn import_and_report_peer_block(
         &self,
         metadata: &MetadataClient,
         operation_namespace: &[u8],
+        read_scope_id: u64,
         spec: PeerPullSpec,
     ) -> Result<(), WorkerError> {
+        self.pull_and_report_peer_block(metadata, operation_namespace, read_scope_id, spec, None)
+            .await
+            .map_err(|failure| failure.error)
+    }
+
+    /// Installs an immutable peer Block locally, then publishes the local
+    /// replica identity to Meta. Both Client reads and internal materialized
+    /// reads use this exact state transition; keeping it in one place prevents
+    /// the two paths from drifting on idempotency or replica policy.
+    async fn pull_and_report_peer_block(
+        &self,
+        metadata: &MetadataClient,
+        operation_namespace: &[u8],
+        read_scope_id: u64,
+        spec: PeerPullSpec,
+        import_attempt: Option<u64>,
+    ) -> Result<(), PeerImportFailure> {
         // 接收成功以“完整数据通过owner接纳”为边界；不能在网络收到响应时
         // 提前记成功，否则延后的完整checksum拒绝会被错误统计为成功传输。
         let metric = self.metrics.begin_replica_operation(ReplicaOperation::Pull);
         let payload =
             pull_block_from_peer(&self.node_id, spec, &self.rpc_metrics, &self.peer_channels)
-                .await?;
-        self.install_and_report_peer_block(metadata, operation_namespace, payload, metric)
-            .await
+                .await
+                .map_err(|error| PeerImportFailure {
+                    error,
+                    location_failure: true,
+                })?;
+        self.install_and_report_peer_block(
+            metadata,
+            operation_namespace,
+            read_scope_id,
+            payload,
+            metric,
+            import_attempt,
+        )
+        .await
+        .map_err(PeerImportFailure::terminal)
     }
 
     /// 缓存位置和权威位置的读共用接纳与登记逻辑；本函数的错误不能触发位置回退。
@@ -1020,8 +1475,10 @@ impl NodeHandle {
         &self,
         metadata: &MetadataClient,
         operation_namespace: &[u8],
+        read_scope_id: u64,
         payload: PeerBlockResult,
         mut metric: super::metrics::ReplicaOperationGuard,
+        import_attempt: Option<u64>,
     ) -> Result<(), WorkerError> {
         let received_bytes = payload.payload.len();
         let report_block_id = payload.block_id.clone();
@@ -1033,13 +1490,18 @@ impl NodeHandle {
             bytes: payload.payload,
             checksum: payload.checksum,
             length: payload.length,
+            read_scope_id,
+            import_attempt,
             reply: reply_tx,
         })
         .await?;
-        receive(reply_rx).await?;
+        let report_replica = receive(reply_rx).await?;
         metric.success_with_payload(ReplicaDirection::Receive, received_bytes);
         // 该耗时包括拉取、完整校验和本地安装，不包括下面的Meta位置登记。
         drop(metric);
+        if !report_replica {
+            return Ok(());
+        }
 
         let mut report_operation = operation_namespace.to_vec();
         report_operation.extend_from_slice(&report_block_id);
@@ -1269,6 +1731,7 @@ type CachedRead = (Option<u64>, CachedReadOutcome);
 enum NodeCommand {
     OpenSession {
         shared_memory: bool,
+        supports_write_lease_release: bool,
         reply: oneshot::Sender<Result<u64, WorkerError>>,
     },
     AttachSession {
@@ -1280,6 +1743,8 @@ enum NodeCommand {
     Heartbeat {
         session_id: u64,
         released_view_through: Option<u64>,
+        released_write_allocations: Vec<ReleasedWriteAllocation>,
+        finished_read_request_through: Option<u64>,
         renew_cache: bool,
         reply: oneshot::Sender<Result<u64, WorkerError>>,
     },
@@ -1289,6 +1754,10 @@ enum NodeCommand {
         reply: oneshot::Sender<Result<(), WorkerError>>,
     },
     CloseSession {
+        session_id: u64,
+        reply: oneshot::Sender<Result<(), WorkerError>>,
+    },
+    ValidateSession {
         session_id: u64,
         reply: oneshot::Sender<Result<(), WorkerError>>,
     },
@@ -1361,22 +1830,29 @@ enum NodeCommand {
     },
     GetResolved {
         session_id: u64,
+        read_scope_id: u64,
+        read_request_id: u64,
         resolved: pb::ResolveObjectResponse,
         range: Option<(u64, u64)>,
+        clamp_range: bool,
         max_inline_bytes: u64,
         cache_refill: Option<(u64, Vec<u8>, Instant, u64)>,
         reply: oneshot::Sender<Result<GetOutcome, WorkerError>>,
     },
     GetCached {
         session_id: u64,
+        read_scope_id: u64,
+        read_request_id: u64,
         key: Vec<u8>,
         node_epoch: u64,
         range: Option<(u64, u64)>,
+        clamp_range: bool,
         max_inline_bytes: u64,
         reply: oneshot::Sender<Result<CachedRead, WorkerError>>,
     },
     MaterializeResolved {
         session_id: u64,
+        read_scope_id: u64,
         resolved: pb::ResolveObjectResponse,
         reply: oneshot::Sender<Result<MaterializeOutcome, WorkerError>>,
     },
@@ -1385,7 +1861,15 @@ enum NodeCommand {
         bytes: Vec<u8>,
         checksum: Vec<u8>,
         length: u64,
-        reply: oneshot::Sender<Result<(), WorkerError>>,
+        read_scope_id: u64,
+        import_attempt: Option<u64>,
+        reply: oneshot::Sender<Result<bool, WorkerError>>,
+    },
+    EnsurePeerBlock {
+        read_scope_id: u64,
+        spec: PeerPullSpec,
+        node: Box<NodeHandle>,
+        reply: oneshot::Sender<Result<(), PeerImportFailure>>,
     },
     Download {
         transfer_id: u64,
@@ -1439,6 +1923,25 @@ enum NodeCommand {
         minimum_version: u64,
         reply: oneshot::Sender<Result<(), WorkerError>>,
     },
+    PrepareBlockRetirement {
+        retirement_id: Vec<u8>,
+        block_ids: Vec<Vec<u8>>,
+        reply: oneshot::Sender<Result<(), WorkerError>>,
+    },
+    FinalizeBlockRetirement {
+        retirement_id: Vec<u8>,
+        block_ids: Vec<Vec<u8>>,
+        reply: oneshot::Sender<Result<(), WorkerError>>,
+    },
+    BeginReadScope {
+        session_id: u64,
+        cleanup_node: Box<NodeHandle>,
+        reply: oneshot::Sender<Result<ReadScopeLease, WorkerError>>,
+    },
+    FinishReadScope {
+        scope_id: u64,
+        reply: oneshot::Sender<Result<(), WorkerError>>,
+    },
     WaitInvalidation {
         barrier_id: u64,
         reply: oneshot::Sender<Result<(), WorkerError>>,
@@ -1451,6 +1954,10 @@ enum NodeCommand {
     #[cfg(test)]
     DebugStagingTtl {
         reply: oneshot::Sender<Result<Duration, WorkerError>>,
+    },
+    #[cfg(test)]
+    DebugPeerImports {
+        reply: oneshot::Sender<(usize, usize, u64)>,
     },
 }
 
@@ -1470,6 +1977,7 @@ impl NodeCommand {
             Self::Heartbeat { .. } => NodeMailboxCommand::Heartbeat,
             Self::MetadataLease { .. } => NodeMailboxCommand::Heartbeat,
             Self::CloseSession { .. } => NodeMailboxCommand::CloseSession,
+            Self::ValidateSession { .. } => NodeMailboxCommand::ValidateSession,
             Self::Acknowledge { .. } => NodeMailboxCommand::Acknowledge,
             Self::AllocateStaging { .. } => NodeMailboxCommand::AllocateStaging,
             Self::AcquireRegion { .. } => NodeMailboxCommand::AcquireRegion,
@@ -1485,6 +1993,7 @@ impl NodeCommand {
             Self::GetCached { .. } => NodeMailboxCommand::GetCached,
             Self::MaterializeResolved { .. } => NodeMailboxCommand::MaterializeResolved,
             Self::ImportPeerBlock { .. } => NodeMailboxCommand::ImportPeerBlock,
+            Self::EnsurePeerBlock { .. } => NodeMailboxCommand::ImportPeerBlock,
             Self::Download { .. } => NodeMailboxCommand::Download,
             Self::PeerProbe { .. } => NodeMailboxCommand::PeerProbe,
             Self::PeerPullBlock { .. } => NodeMailboxCommand::PeerPullBlock,
@@ -1496,10 +2005,16 @@ impl NodeCommand {
             #[cfg(test)]
             Self::DebugCommitForPeerTest { .. } => NodeMailboxCommand::DebugCommitForPeerTest,
             Self::InvalidateCurrent { .. } => NodeMailboxCommand::InvalidateCurrent,
+            Self::PrepareBlockRetirement { .. } => NodeMailboxCommand::InvalidateCurrent,
+            Self::FinalizeBlockRetirement { .. } => NodeMailboxCommand::InvalidateCurrent,
+            Self::BeginReadScope { .. } => NodeMailboxCommand::GetCached,
+            Self::FinishReadScope { .. } => NodeMailboxCommand::GetCached,
             Self::WaitInvalidation { .. } => NodeMailboxCommand::WaitInvalidation,
             Self::ApplyConfigChange { .. } => NodeMailboxCommand::ApplyConfigChange,
             #[cfg(test)]
             Self::DebugStagingTtl { .. } => NodeMailboxCommand::DebugStagingTtl,
+            #[cfg(test)]
+            Self::DebugPeerImports { .. } => NodeMailboxCommand::GetCached,
         }
     }
 }
@@ -1517,11 +2032,23 @@ async fn run_node(
     let mut state = NodeState::with_metrics(node_id, metadata, task_config, metrics.clone());
     let mut maintenance = tokio::time::interval(Duration::from_secs(1));
     let mut writes = tokio::task::JoinSet::<ApplyWrite>::new();
+    // owner 保管表和任务集合；Future 只做网络等待，并通过原 Import 命令交回 bytes。
+    let mut peer_imports = tokio::task::JoinSet::<PeerImportCompletion>::new();
     loop {
         // recv().await 在队列为空时挂起；maintenance tick 同样在这个唯一 owner
         // 内执行，因此回收不会引入第二个 Arena 状态入口。
         let next_cache_expiry = state.next_cache_lease_expiry();
         let queued = tokio::select! {
+            completed = peer_imports.join_next_with_id(), if !peer_imports.is_empty() => {
+                match completed {
+                    Some(Ok((_, (block_id, attempt, result)))) => {
+                        state.complete_peer_import(&block_id, attempt, result);
+                    }
+                    Some(Err(error)) => state.fail_peer_import_task(error.id()),
+                    None => {}
+                }
+                continue;
+            }
             completed = writes.join_next(), if !writes.is_empty() => {
                 if let Some(Ok(apply)) = completed { apply(&mut state); }
                 continue;
@@ -1565,12 +2092,24 @@ async fn run_node(
         // match 会消费 command，使各分支直接取得其中字段的所有权。
         async {
             match command {
+                #[cfg(test)]
+                NodeCommand::DebugPeerImports { reply } => {
+                    let _ = reply.send((
+                        state.peer_imports.len(),
+                        state.peer_import_failures.len(),
+                        state.peer_import_bytes,
+                    ));
+                }
                 NodeCommand::OpenSession {
                     shared_memory,
+                    supports_write_lease_release,
                     reply,
                 } => {
                     // Client 可能已经取消 RPC，此时 send 返回 Err；业务已经执行，所以忽略它。
-                    let _ = reply.send(Ok(state.open_session(shared_memory)));
+                    let _ = reply.send(Ok(state.open_session_with_write_release(
+                        shared_memory,
+                        supports_write_lease_release,
+                    )));
                 }
                 NodeCommand::AttachSession {
                     session_id,
@@ -1582,11 +2121,18 @@ async fn run_node(
                 NodeCommand::Heartbeat {
                     session_id,
                     released_view_through,
+                    released_write_allocations,
+                    finished_read_request_through,
                     renew_cache,
                     reply,
                 } => {
-                    let _ =
-                        reply.send(state.heartbeat(session_id, released_view_through, renew_cache));
+                    let _ = reply.send(state.heartbeat_inner(
+                        session_id,
+                        released_view_through,
+                        released_write_allocations,
+                        finished_read_request_through,
+                        renew_cache,
+                    ));
                 }
                 NodeCommand::MetadataLease {
                     valid_until,
@@ -1606,6 +2152,9 @@ async fn run_node(
                 }
                 NodeCommand::CloseSession { session_id, reply } => {
                     let _ = reply.send(state.close_session(session_id));
+                }
+                NodeCommand::ValidateSession { session_id, reply } => {
+                    let _ = reply.send(state.live_session(session_id).map(|_| ()));
                 }
                 NodeCommand::Acknowledge {
                     session_id,
@@ -1641,12 +2190,13 @@ async fn run_node(
                     receipt,
                     reply,
                 } => {
-                    let _ = reply.send(
+                    let _ = reply.send((|| {
+                        let receipt = state.receipt_for_session(session_id, receipt)?;
                         state
                             .arena
                             .take_staging_bytes(session_id, staging_id, &receipt)
-                            .map_err(map_arena_error),
-                    );
+                            .map_err(map_arena_error)
+                    })());
                 }
                 NodeCommand::Upload {
                     transfer_id,
@@ -1718,16 +2268,32 @@ async fn run_node(
                 }
                 NodeCommand::GetResolved {
                     session_id,
+                    read_scope_id,
+                    read_request_id,
                     resolved,
                     range,
+                    clamp_range,
                     max_inline_bytes,
                     cache_refill,
                     reply,
                 } => {
-                    let result = state.get_resolved(session_id, &resolved, range, max_inline_bytes);
+                    if reply.is_closed() {
+                        state.finish_read_scope(read_scope_id);
+                        return;
+                    }
+                    let result = state.get_resolved_for_request(
+                        session_id,
+                        read_scope_id,
+                        read_request_id,
+                        &resolved,
+                        range,
+                        clamp_range,
+                        max_inline_bytes,
+                    );
                     if matches!(&result, Ok(GetOutcome::Ready(_)))
                         && state.metadata_watch_connected
                         && Instant::now() < state.metadata_lease_until
+                        && !state.layout_contains_retiring_block(&resolved)
                         && let Some((token, key, requested_at, node_epoch)) = cache_refill
                     {
                         state.current_cache.insert(
@@ -1746,31 +2312,109 @@ async fn run_node(
                 }
                 NodeCommand::GetCached {
                     session_id,
+                    read_scope_id,
+                    read_request_id,
                     key,
                     node_epoch,
                     range,
+                    clamp_range,
                     max_inline_bytes,
                     reply,
                 } => {
-                    let result =
-                        state.get_cached(session_id, &key, node_epoch, range, max_inline_bytes);
+                    if reply.is_closed() {
+                        state.finish_read_scope(read_scope_id);
+                        return;
+                    }
+                    let result = state.get_cached(
+                        session_id,
+                        read_scope_id,
+                        read_request_id,
+                        &key,
+                        node_epoch,
+                        range,
+                        clamp_range,
+                        max_inline_bytes,
+                    );
                     let _ = reply.send(result);
                 }
                 NodeCommand::MaterializeResolved {
                     session_id,
+                    read_scope_id,
                     resolved,
                     reply,
                 } => {
-                    let _ = reply.send(state.materialize_resolved(session_id, &resolved));
+                    if reply.is_closed() {
+                        state.finish_read_scope(read_scope_id);
+                        return;
+                    }
+                    let _ = reply.send(state.materialize_resolved(
+                        session_id,
+                        read_scope_id,
+                        &resolved,
+                    ));
+                }
+                NodeCommand::EnsurePeerBlock {
+                    read_scope_id,
+                    spec,
+                    node,
+                    reply,
+                } => {
+                    if let Some(attempt) = state.begin_peer_import(read_scope_id, &spec, reply) {
+                        let block_id = spec.block_id.clone();
+                        let task_block_id = block_id.clone();
+                        let task = peer_imports.spawn(
+                            async move {
+                                let result = match node.metadata.as_ref() {
+                                    Some(metadata) => {
+                                        node.pull_and_report_peer_block(
+                                            metadata,
+                                            b"cache-import/",
+                                            read_scope_id,
+                                            spec,
+                                            Some(attempt),
+                                        )
+                                        .await
+                                    }
+                                    None => Err(PeerImportFailure::terminal(
+                                        WorkerError::MetadataUnavailable,
+                                    )),
+                                };
+                                (task_block_id, attempt, result)
+                            }
+                            .instrument(dms_tracing::tracing::Span::current()),
+                        );
+                        state
+                            .peer_imports
+                            .get_mut(&block_id)
+                            .expect("new peer import")
+                            .task_id = Some(task.id());
+                    }
                 }
                 NodeCommand::ImportPeerBlock {
                     block_id,
                     bytes,
                     checksum,
                     length,
+                    read_scope_id,
+                    import_attempt,
                     reply,
                 } => {
-                    let _ = reply.send(state.import_peer_block(block_id, bytes, checksum, length));
+                    // 任务已结束/取消时，迟到的安装命令不能越过已解除的 GC pin。
+                    // None 仅供直接检验原始导入的完整性测试使用。
+                    if let Some(attempt) = import_attempt
+                        && let Err(error) =
+                            state.validate_peer_import_attempt(&block_id, read_scope_id, attempt)
+                    {
+                        let _ = reply.send(Err(error));
+                        return;
+                    }
+                    let _ = reply.send(state.import_peer_block(
+                        read_scope_id,
+                        block_id,
+                        bytes,
+                        checksum,
+                        length,
+                    ));
                 }
                 NodeCommand::Download { transfer_id, reply } => {
                     let _ = reply.send(state.download(transfer_id));
@@ -1836,6 +2480,31 @@ async fn run_node(
                         let _ = reply.send(Ok(()));
                     }
                 }
+                NodeCommand::PrepareBlockRetirement {
+                    retirement_id,
+                    block_ids,
+                    reply,
+                } => {
+                    state.register_prepare_retirement(retirement_id, block_ids, reply);
+                }
+                NodeCommand::FinalizeBlockRetirement {
+                    retirement_id,
+                    block_ids,
+                    reply,
+                } => {
+                    state.register_final_retirement(retirement_id, block_ids, reply);
+                }
+                NodeCommand::BeginReadScope {
+                    session_id,
+                    cleanup_node,
+                    reply,
+                } => {
+                    state.begin_read_scope_reply(session_id, *cleanup_node, reply);
+                }
+                NodeCommand::FinishReadScope { scope_id, reply } => {
+                    state.finish_read_scope(scope_id);
+                    let _ = reply.send(Ok(()));
+                }
                 NodeCommand::WaitInvalidation { barrier_id, reply } => {
                     state.attach_barrier_waiter(barrier_id, reply);
                 }
@@ -1871,11 +2540,16 @@ struct Session {
     /// 分配给共享读 view 的下一个单调 epoch。
     next_view_epoch: ViewEpoch,
     /// Client 已通过 heartbeat 释放的连续最大 view epoch。
-    /// TODO(view-epoch-reclaim): 把每个 ViewEpoch 绑定到其 Block，并在 Meta
-    /// retention 已解除逻辑引用后，用全局最小 released watermark 驱动物理回收。
+    /// View 只能连续归还，不能越过 Node 已授予的最大 epoch。
     released_view_through: ViewEpoch,
+    /// SDK 已确认结束的连续最大内部读请求；用于回收响应丢失/取消的票据。
+    finished_read_request_through: u64,
+    /// 已授予但还没由 Client watermark 归还的 SHM read view。
+    active_views: HashMap<ViewEpoch, ActiveReadView>,
     /// 该 session 是否协商使用本机共享内存 payload target。
     shared_memory: bool,
+    /// 新 SDK 显式 opt-in 后，写 SHM allocation 才能凭 token 回到 free-list。
+    write_lease_release_supported: bool,
     /// 仅 unary renewal 回复授予缓存资格；单向 stream heartbeat 不延长此边界。
     cache_until: Option<Instant>,
     /// Node 只对这些 key 的持有者发送失效并建立写入屏障。
@@ -1931,9 +2605,21 @@ struct NodeState {
     next_session: u64,
     next_transfer: u64,
     next_barrier: u64,
+    next_read_scope: u64,
     sessions: HashMap<u64, Session>,
     barriers: HashMap<u64, InvalidationBarrier>,
+    active_read_scopes: HashSet<u64>,
+    /// Block → 正在拉取/接纳/登记的一轮任务。保留 origin scope 的 GC 保护，
+    /// 即使最初调用者取消也不允许 Prepare 越过仍可能安装 bytes 的任务。
+    peer_imports: HashMap<Vec<u8>, PeerImportFlight>,
+    peer_import_failures: HashMap<Vec<u8>, PeerImportFailureFence>,
+    next_peer_import: u64,
+    peer_import_bytes: u64,
+    peer_import_byte_limit: u64,
     downloads: HashMap<u64, DownloadTicket>,
+    pending_retirements: HashMap<Vec<u8>, PendingRetirement>,
+    completed_retirements: VecDeque<Vec<u8>>,
+    retiring_blocks: HashSet<Vec<u8>>,
     prepared_replicas: HashMap<Vec<u8>, ReplicaTransferState>,
     /// block_id → 本次 prepare 是否新建；拒绝重入，失败只能回收自己新建的 Block。
     pending_blocks: HashMap<Vec<u8>, bool>,
@@ -2001,9 +2687,19 @@ impl NodeState {
             next_session: 1,
             next_transfer: 1,
             next_barrier: 1,
+            next_read_scope: 1,
             sessions: HashMap::new(),
             barriers: HashMap::new(),
+            active_read_scopes: HashSet::new(),
+            peer_imports: HashMap::new(),
+            peer_import_failures: HashMap::new(),
+            next_peer_import: 1,
+            peer_import_bytes: 0,
+            peer_import_byte_limit: task_config.arena_capacity_bytes,
             downloads: HashMap::new(),
+            pending_retirements: HashMap::new(),
+            completed_retirements: VecDeque::new(),
+            retiring_blocks: HashSet::new(),
             prepared_replicas: HashMap::new(),
             pending_blocks: HashMap::new(),
             arena,
@@ -2090,7 +2786,16 @@ impl NodeState {
             .map_err(map_arena_error)
     }
 
+    #[cfg(test)]
     fn open_session(&mut self, shared_memory: bool) -> u64 {
+        self.open_session_with_write_release(shared_memory, false)
+    }
+
+    fn open_session_with_write_release(
+        &mut self,
+        shared_memory: bool,
+        supports_write_lease_release: bool,
+    ) -> u64 {
         // 先取当前 ID，再推进计数器；`&mut self` 保证此过程由 owner 串行执行。
         let id = self.next_session;
         self.next_session += 1;
@@ -2103,7 +2808,10 @@ impl NodeState {
                 last_ack: 0,
                 next_view_epoch: 1,
                 released_view_through: 0,
+                finished_read_request_through: 0,
+                active_views: HashMap::new(),
                 shared_memory,
+                write_lease_release_supported: shared_memory && supports_write_lease_release,
                 cache_until: None,
                 cached_current_keys: HashSet::new(),
                 cached_current_key_bytes: 0,
@@ -2134,26 +2842,92 @@ impl NodeState {
         Ok(())
     }
 
+    #[cfg(test)]
     fn heartbeat(
         &mut self,
         session_id: u64,
         released_view_through: Option<u64>,
         renew_cache: bool,
     ) -> Result<u64, WorkerError> {
+        self.heartbeat_inner(
+            session_id,
+            released_view_through,
+            Vec::new(),
+            None,
+            renew_cache,
+        )
+    }
+
+    fn heartbeat_inner(
+        &mut self,
+        session_id: u64,
+        released_view_through: Option<u64>,
+        released_write_allocations: Vec<ReleasedWriteAllocation>,
+        finished_read_request_through: Option<u64>,
+        renew_cache: bool,
+    ) -> Result<u64, WorkerError> {
+        let cleanup_only = released_view_through.is_some()
+            || !released_write_allocations.is_empty()
+            || finished_read_request_through.is_some();
+        let write_lease_release_supported = {
+            let session = self
+                .sessions
+                .get_mut(&session_id)
+                .ok_or(WorkerError::UnknownSession)?;
+            if session.disconnected && !cleanup_only {
+                return Err(WorkerError::UnknownSession);
+            }
+            if let Some(released) = released_view_through {
+                let max_granted = session.next_view_epoch.saturating_sub(1);
+                if released > max_granted {
+                    return Err(WorkerError::InvalidArgument(
+                        "released view watermark exceeds granted views",
+                    ));
+                }
+                session.released_view_through = session.released_view_through.max(released);
+                session
+                    .active_views
+                    .retain(|view_epoch, _| *view_epoch > session.released_view_through);
+            }
+            if let Some(finished) = finished_read_request_through {
+                session.finished_read_request_through =
+                    session.finished_read_request_through.max(finished);
+                let finished = session.finished_read_request_through;
+                // finished 只清理“该 request 已结束但响应可能丢失”的借用；
+                // SDK 已交付给用户的 View 仍必须等 released_view_through。
+                session
+                    .active_views
+                    .retain(|_, view| view.read_request_id == 0 || view.read_request_id > finished);
+            }
+            session.write_lease_release_supported
+        };
+        if let Some(finished) = finished_read_request_through {
+            self.downloads.retain(|_, ticket| {
+                ticket.session_id != session_id
+                    || ticket.read_request_id == 0
+                    || ticket.read_request_id > finished
+            });
+        }
+        if !released_write_allocations.is_empty() && !write_lease_release_supported {
+            return Err(WorkerError::InvalidArgument(
+                "write lease release was not negotiated",
+            ));
+        }
+        for released in released_write_allocations {
+            self.arena
+                .release_write_allocation(session_id, &released)
+                .map_err(map_arena_error)?;
+        }
+        self.advance_retirements();
+        if !renew_cache {
+            return Ok(0);
+        }
         let session = self
             .sessions
             .get_mut(&session_id)
             .ok_or(WorkerError::UnknownSession)?;
-        if session.disconnected {
-            return Err(WorkerError::UnknownSession);
-        }
-        if let Some(released) = released_view_through {
-            session.released_view_through = session.released_view_through.max(released);
-        }
-        if !renew_cache {
-            return Ok(0);
-        }
-        if !self.metadata_watch_connected
+        if session.disconnected
+            || !self.metadata_watch_connected
             || session.last_ack < session.next_event_sequence.saturating_sub(1)
             || session.sender.as_ref().is_none_or(mpsc::Sender::is_closed)
         {
@@ -2286,6 +3060,20 @@ impl NodeState {
             .map_err(map_arena_error)
     }
 
+    fn receipt_for_session(
+        &self,
+        session_id: u64,
+        mut receipt: HostReceipt,
+    ) -> Result<HostReceipt, WorkerError> {
+        let session = self.live_session(session_id)?;
+        if !session.write_lease_release_supported {
+            // B 批安全边界：旧 SDK/未协商 session 即便回传了字段，也不能把
+            // “Set 成功”伪装成可写 mmap 已归还；Arena 会继续隔离未知写者。
+            receipt.release_token.clear();
+        }
+        Ok(receipt)
+    }
+
     fn delete_staging(&mut self, session_id: u64, staging_id: u64) -> Result<(), WorkerError> {
         self.live_session(session_id)?;
         // Cancellation is deliberately idempotent: an already consumed or
@@ -2307,6 +3095,7 @@ impl NodeState {
             return Err(WorkerError::InvalidArgument("key must not be empty"));
         }
         self.live_session(session_id)?;
+        let receipt = self.receipt_for_session(session_id, receipt)?;
         let block_id = block_identity(&self.node_id, &operation_id);
         let owns_block = self.check_block_preparation(&block_id)?;
         self.arena
@@ -2341,6 +3130,7 @@ impl NodeState {
         let mut values = Vec::with_capacity(entries.len());
         let mut committed_blocks: Vec<Vec<u8>> = Vec::with_capacity(entries.len());
         for (index, (key, staging_id, receipt)) in entries.into_iter().enumerate() {
+            let receipt = self.receipt_for_session(session_id, receipt)?;
             let entry_operation = derive_batch_operation_id(&operation_id, index)?;
             let block_id = block_identity(&self.node_id, &entry_operation);
             let owns_block = match self.check_block_preparation(&block_id) {
@@ -2450,6 +3240,7 @@ impl NodeState {
         // Vec is created: the new layout overlays one immutable patch Block
         // on the immutable base extents.
         let patch_block = block_identity(&self.node_id, &operation_id);
+        let receipt = self.receipt_for_session(session_id, receipt)?;
         let owns_block = self.check_block_preparation(&patch_block)?;
         let extents = super::version_layout::overlay(
             &layout.extents,
@@ -2525,18 +3316,31 @@ impl NodeState {
         operation_id: Vec<u8>,
         condition: String,
     ) -> Result<PreparedWrite<SetOutcome>, WorkerError> {
-        if key.is_empty() || bytes.is_empty() || operation_id.len() != 24 {
+        if key.is_empty() || operation_id.len() != 24 {
             return Err(WorkerError::InvalidArgument(
-                "key, value and operation identity are required",
+                "key and operation identity are required",
             ));
         }
         self.live_session(session_id)?;
         let block_id = block_identity(&self.node_id, &operation_id);
+        if bytes.is_empty() {
+            // 空 value 是真实 VALUE 版本，不是 Tombstone；不能为区分语义而分配
+            // 一个假 payload Block。Meta 的 kind/length 是逻辑存在性的权威。
+            return self.commit_block(ValueCommitInput {
+                cache_session_id: Some(session_id),
+                key,
+                block_id,
+                length: 0,
+                checksum: digest(&[]),
+                operation_id,
+                condition,
+            });
+        }
         let owns_block = self.check_block_preparation(&block_id)?;
         let length = bytes.len() as u64;
         let checksum = digest(&bytes);
         self.arena
-            .commit_inline(block_id.clone(), bytes)
+            .commit_inline_with_verified_digest(block_id.clone(), bytes, checksum.clone())
             .map_err(map_arena_error)?;
         self.pending_blocks.insert(block_id.clone(), owns_block);
         self.commit_block(ValueCommitInput {
@@ -2657,15 +3461,23 @@ impl NodeState {
     /// 如果本次范围的 Block 已在本地，直接返回票据；如果只缺 payload bytes，
     /// 使用同一缓存项里的位置提示生成 peer 拉取计划。位置提示只随 layout 在同一
     /// 租约、Watch 和 generation 内生效，失败后上层会按固定版本 Exact 回退。
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "cached read lookup keeps session/scope/request/range/budget separate to preserve cancellation and cache contracts"
+    )]
     fn get_cached(
         &mut self,
         session_id: u64,
+        read_scope_id: u64,
+        read_request_id: u64,
         key: &[u8],
         node_epoch: u64,
         range: Option<(u64, u64)>,
+        clamp_range: bool,
         max_inline_bytes: u64,
     ) -> Result<CachedRead, WorkerError> {
         self.live_session(session_id)?;
+        self.reject_finished_read_request(session_id, read_request_id)?;
         if range.is_none() {
             self.register_cache_interest(session_id, key.to_vec())?;
         }
@@ -2682,9 +3494,12 @@ impl NodeState {
             // Arc 只在 owner 内借用，按请求生成独立票据，不缓存可写内存地址。
             match self.get_resolved_parts(
                 session_id,
+                read_scope_id,
+                read_request_id,
                 cached.layout.as_ref(),
                 cached.block_replicas.as_slice(),
                 range,
+                clamp_range,
                 max_inline_bytes,
             ) {
                 Ok(GetOutcome::Ready(ticket)) => CachedReadOutcome::Ready(ticket),
@@ -2716,6 +3531,7 @@ impl NodeState {
         Ok((token, outcome))
     }
 
+    #[cfg(test)]
     fn get_resolved(
         &mut self,
         session_id: u64,
@@ -2723,36 +3539,67 @@ impl NodeState {
         range: Option<(u64, u64)>,
         max_inline_bytes: u64,
     ) -> Result<GetOutcome, WorkerError> {
-        let layout = resolved.layout.as_ref().ok_or(WorkerError::NotFound)?;
-        self.get_resolved_parts(
+        self.get_resolved_for_request(
             session_id,
-            layout,
-            &resolved.block_replicas,
+            u64::MAX,
+            0,
+            resolved,
             range,
+            false,
             max_inline_bytes,
         )
     }
 
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "resolved read planning keeps request identity, range policy, and inline budget explicit for tests and actor calls"
+    )]
+    fn get_resolved_for_request(
+        &mut self,
+        session_id: u64,
+        read_scope_id: u64,
+        read_request_id: u64,
+        resolved: &pb::ResolveObjectResponse,
+        range: Option<(u64, u64)>,
+        clamp_range: bool,
+        max_inline_bytes: u64,
+    ) -> Result<GetOutcome, WorkerError> {
+        let layout = resolved.layout.as_ref().ok_or(WorkerError::NotFound)?;
+        self.get_resolved_parts(
+            session_id,
+            read_scope_id,
+            read_request_id,
+            layout,
+            &resolved.block_replicas,
+            range,
+            clamp_range,
+            max_inline_bytes,
+        )
+    }
+
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "ticket construction needs explicit session, scope, request id, range, and inline budget for bounded read semantics"
+    )]
     fn get_resolved_parts(
         &mut self,
         session_id: u64,
+        read_scope_id: u64,
+        read_request_id: u64,
         layout: &pb::VersionLayout,
         block_replicas: &[pb::BlockReplicaSet],
         range: Option<(u64, u64)>,
+        clamp_range: bool,
         max_inline_bytes: u64,
     ) -> Result<GetOutcome, WorkerError> {
         self.live_session(session_id)?;
+        self.reject_finished_read_request(session_id, read_request_id)?;
         super::version_layout::validate(layout.logical_length, &layout.extents)?;
-        let requested = range.unwrap_or((0, layout.logical_length));
+        let requested = Self::normalize_read_range(range, layout.logical_length, clamp_range)?;
         let request_end = requested
             .0
             .checked_add(requested.1)
             .ok_or(WorkerError::InvalidArgument("read range overflows u64"))?;
-        if request_end > layout.logical_length {
-            return Err(WorkerError::InvalidArgument(
-                "read range extends beyond current value",
-            ));
-        }
 
         let mut missing = Vec::new();
         let mut planned = Vec::new();
@@ -2769,12 +3616,25 @@ impl NodeState {
             if start >= end {
                 continue;
             }
+            if self.retirement_blocks_new_reads(&extent.block_id, read_scope_id) {
+                return Err(WorkerError::NotFound);
+            }
+            if let Some(failure) = self.peer_import_failure(&extent.block_id, read_scope_id) {
+                return Err(failure.error.clone());
+            }
             let block_offset = extent
                 .block_offset
                 .checked_add(start - logical.offset)
                 .ok_or(WorkerError::InvalidArgument("block range overflows u64"))?;
             let block_range = (block_offset, end - start);
-            match self.arena.open_read(&extent.block_id, Some(block_range)) {
+            // Import 已安装但 Report 仍在进行时，也必须等待同一轮结果；
+            // 不能因为本地暂时可见 bytes 就让并发请求掩盖登记失败。
+            let local = if self.peer_imports.contains_key(&extent.block_id) {
+                Err(ArenaError::UnknownBlock)
+            } else {
+                self.arena.open_read(&extent.block_id, Some(block_range))
+            };
+            match local {
                 Ok((read, _)) => planned.push((start - requested.0, read)),
                 Err(ArenaError::UnknownBlock) => {
                     if !missing
@@ -2806,6 +3666,7 @@ impl NodeState {
             self.inline_read_value(requested.1, shared_memory, max_inline_bytes, &planned)?
         {
             return Ok(GetOutcome::Ready(ReadTicket {
+                read_request_id,
                 version,
                 logical_length,
                 inline_value: Some(inline_value),
@@ -2813,6 +3674,7 @@ impl NodeState {
             }));
         }
         let mut segments = Vec::with_capacity(planned.len());
+        let mut view_allocations = Vec::new();
         for (logical_offset, read) in planned {
             let payload_length = read.length;
             let target = if shared_memory {
@@ -2823,11 +3685,19 @@ impl NodeState {
                     .shm_descriptor_for_read(session_id, read, transfer_id, view_epoch)
                     .map_err(map_arena_error)?
                 {
-                    Some(descriptor) => ReadTarget::Shm(descriptor),
-                    None => self.grpc_download_target_with_id(read, transfer_id),
+                    Some(descriptor) => {
+                        view_allocations.push(descriptor.allocation_id);
+                        ReadTarget::Shm(descriptor)
+                    }
+                    None => self.grpc_download_target_with_id(
+                        session_id,
+                        read,
+                        transfer_id,
+                        read_request_id,
+                    ),
                 }
             } else {
-                self.grpc_download_target(read)
+                self.grpc_download_target(session_id, read, read_request_id)
             };
             segments.push(ReadTicketSegment {
                 logical_offset,
@@ -2844,17 +3714,52 @@ impl NodeState {
             let next = view_epoch
                 .checked_add(1)
                 .ok_or(WorkerError::InvalidArgument("view epoch exhausted"))?;
-            self.sessions
+            let session = self
+                .sessions
                 .get_mut(&session_id)
-                .ok_or(WorkerError::UnknownSession)?
-                .next_view_epoch = next;
+                .ok_or(WorkerError::UnknownSession)?;
+            session.active_views.insert(
+                view_epoch,
+                ActiveReadView {
+                    read_request_id,
+                    allocation_ids: view_allocations,
+                },
+            );
+            session.next_view_epoch = next;
         }
         Ok(GetOutcome::Ready(ReadTicket {
+            read_request_id,
             version,
             logical_length,
             inline_value: None,
             segments,
         }))
+    }
+
+    /// 先验证调用方请求的 u64 范围本身，再按 opt-in 策略裁剪到同一已解析版本。
+    fn normalize_read_range(
+        range: Option<(u64, u64)>,
+        logical_length: u64,
+        clamp_range: bool,
+    ) -> Result<(u64, u64), WorkerError> {
+        let Some((offset, length)) = range else {
+            return Ok((0, logical_length));
+        };
+        let request_end = offset
+            .checked_add(length)
+            .ok_or(WorkerError::InvalidArgument("read range overflows u64"))?;
+        if !clamp_range {
+            if request_end > logical_length {
+                return Err(WorkerError::InvalidArgument(
+                    "read range extends beyond current value",
+                ));
+            }
+            return Ok((offset, length));
+        }
+        if offset >= logical_length {
+            return Ok((logical_length, 0));
+        }
+        Ok((offset, request_end.min(logical_length) - offset))
     }
 
     /// 只拼接本次已解析版本、已裁剪范围的读票据；不重新按 Current 找版本。
@@ -2900,6 +3805,7 @@ impl NodeState {
     fn materialize_resolved(
         &mut self,
         session_id: u64,
+        read_scope_id: u64,
         resolved: &pb::ResolveObjectResponse,
     ) -> Result<MaterializeOutcome, WorkerError> {
         self.live_session(session_id)?;
@@ -2911,10 +3817,21 @@ impl NodeState {
             let logical = extent.logical.as_ref().ok_or(WorkerError::InvalidArgument(
                 "extent logical range is missing",
             ))?;
-            match self.arena.open_read(
-                &extent.block_id,
-                Some((extent.block_offset, logical.length)),
-            ) {
+            if self.retirement_blocks_new_reads(&extent.block_id, read_scope_id) {
+                return Err(WorkerError::NotFound);
+            }
+            if let Some(failure) = self.peer_import_failure(&extent.block_id, read_scope_id) {
+                return Err(failure.error.clone());
+            }
+            let local = if self.peer_imports.contains_key(&extent.block_id) {
+                Err(ArenaError::UnknownBlock)
+            } else {
+                self.arena.open_read(
+                    &extent.block_id,
+                    Some((extent.block_offset, logical.length)),
+                )
+            };
+            match local {
                 Ok((read, _)) => planned.push((logical.offset, read)),
                 Err(ArenaError::UnknownBlock) => {
                     if !missing
@@ -2959,21 +3876,30 @@ impl NodeState {
         })
     }
 
-    fn grpc_download_target(&mut self, read: ArenaReadTicket) -> ReadTarget {
+    fn grpc_download_target(
+        &mut self,
+        session_id: u64,
+        read: ArenaReadTicket,
+        read_request_id: u64,
+    ) -> ReadTarget {
         let transfer_id = self.next_transfer;
         self.next_transfer += 1;
-        self.grpc_download_target_with_id(read, transfer_id)
+        self.grpc_download_target_with_id(session_id, read, transfer_id, read_request_id)
     }
 
     fn grpc_download_target_with_id(
         &mut self,
+        session_id: u64,
         read: ArenaReadTicket,
         transfer_id: u64,
+        read_request_id: u64,
     ) -> ReadTarget {
         self.downloads.insert(
             transfer_id,
             DownloadTicket {
                 read,
+                session_id,
+                read_request_id,
                 expires_at: Instant::now() + Duration::from_secs(30),
             },
         );
@@ -3002,25 +3928,190 @@ impl NodeState {
         })
     }
 
+    /// 返回 attempt 表示需要启动新任务；None 表示已回复或加入已有任务。
+    /// 此表不是另一个 value cache：只持有有界控制状态，bytes 始终归 Arena。
+    fn begin_peer_import(
+        &mut self,
+        read_scope_id: u64,
+        spec: &PeerPullSpec,
+        reply: oneshot::Sender<Result<(), PeerImportFailure>>,
+    ) -> Option<u64> {
+        if reply.is_closed() {
+            return None;
+        }
+        let reject = |reply: oneshot::Sender<_>, error| {
+            let _ = reply.send(Err(PeerImportFailure::terminal(error)));
+        };
+        if !self.active_read_scopes.contains(&read_scope_id)
+            || self.retirement_blocks_new_reads(&spec.block_id, read_scope_id)
+        {
+            reject(reply, WorkerError::NotFound);
+            return None;
+        }
+        if let Some(failure) = self.peer_import_failure(&spec.block_id, read_scope_id) {
+            let _ = reply.send(Err(failure.clone()));
+            return None;
+        }
+        if let Some(flight) = self.peer_imports.get_mut(&spec.block_id) {
+            if flight.expected_length != spec.expected_length
+                || flight.expected_checksum != spec.expected_checksum
+            {
+                reject(reply, WorkerError::Conflict);
+            } else {
+                flight.waiters.retain(|waiter| !waiter.is_closed());
+                if flight.waiters.len() >= NODE_MAILBOX_CAPACITY {
+                    reject(reply, WorkerError::ResourceExhausted);
+                } else {
+                    flight.waiters.push(reply);
+                }
+            }
+            return None;
+        }
+        // 两个缺块计划之间，另一轮可能已完成；在 owner 内重新检查避免重复搬运。
+        if let Some((length, checksum)) = self.arena.block_length_and_digest(&spec.block_id) {
+            if length == spec.expected_length
+                && (spec.expected_checksum.is_empty() || checksum == spec.expected_checksum)
+            {
+                let _ = reply.send(Ok(()));
+            } else {
+                reject(reply, WorkerError::Conflict);
+            }
+            return None;
+        }
+        let charged = self.peer_import_bytes.checked_add(spec.expected_length);
+        if self.peer_imports.len() + self.peer_import_failures.len() >= NODE_MAILBOX_CAPACITY
+            || charged.is_none_or(|bytes| bytes > self.peer_import_byte_limit)
+        {
+            reject(reply, WorkerError::ResourceExhausted);
+            return None;
+        }
+        let Some(next) = self.next_peer_import.checked_add(1) else {
+            reject(reply, WorkerError::ResourceExhausted);
+            return None;
+        };
+        let attempt = self.next_peer_import;
+        self.next_peer_import = next;
+        self.peer_import_bytes = charged.expect("checked peer import bytes");
+        self.peer_imports.insert(
+            spec.block_id.clone(),
+            PeerImportFlight {
+                attempt,
+                read_scope_id,
+                expected_length: spec.expected_length,
+                expected_checksum: spec.expected_checksum.clone(),
+                task_id: None,
+                waiters: vec![reply],
+            },
+        );
+        Some(attempt)
+    }
+
+    /// 安装和完成都校验批次身份，旧任务不能给新 flight 安装数据或释放它的 pin。
+    fn validate_peer_import_attempt(
+        &self,
+        block_id: &[u8],
+        read_scope_id: u64,
+        attempt: u64,
+    ) -> Result<(), WorkerError> {
+        match self.peer_imports.get(block_id) {
+            Some(flight) if flight.attempt == attempt && flight.read_scope_id == read_scope_id => {
+                Ok(())
+            }
+            _ => Err(WorkerError::Conflict),
+        }
+    }
+
+    fn complete_peer_import(
+        &mut self,
+        block_id: &[u8],
+        attempt: u64,
+        result: Result<(), PeerImportFailure>,
+    ) {
+        if self
+            .peer_imports
+            .get(block_id)
+            .is_none_or(|flight| flight.attempt != attempt)
+        {
+            return;
+        }
+        let flight = self
+            .peer_imports
+            .remove(block_id)
+            .expect("matching peer import");
+        self.peer_import_bytes -= flight.expected_length;
+        if let Err(failure) = &result
+            && !failure.location_failure
+        {
+            // Report 超时不等于 Meta 未登记，不能撤销可能已可达的 bytes。
+            // 但同批读不能因为 bytes 已安装就伪造成功：保留到这些 scope 排空。
+            // 新 scope 不受此 fence 影响；表与在途任务共用条目上限。
+            self.peer_import_failures.insert(
+                block_id.to_vec(),
+                PeerImportFailureFence {
+                    cutoff_scope: self.next_read_scope.saturating_sub(1),
+                    failure: failure.clone(),
+                },
+            );
+        }
+        for waiter in flight.waiters {
+            let _ = waiter.send(result.clone());
+        }
+        self.advance_retirements();
+    }
+
+    fn peer_import_failure(
+        &self,
+        block_id: &[u8],
+        read_scope_id: u64,
+    ) -> Option<&PeerImportFailure> {
+        self.peer_import_failures
+            .get(block_id)
+            .filter(|fence| read_scope_id <= fence.cutoff_scope)
+            .map(|fence| &fence.failure)
+    }
+
+    fn fail_peer_import_task(&mut self, task_id: tokio::task::Id) {
+        // 只在 panic/任务取消的异常路径扫描有界表；正常完成直接按 Block+attempt 查找。
+        let failed = self.peer_imports.iter().find_map(|(block_id, flight)| {
+            (flight.task_id == Some(task_id)).then_some((block_id.clone(), flight.attempt))
+        });
+        if let Some((block_id, attempt)) = failed {
+            self.complete_peer_import(
+                &block_id,
+                attempt,
+                Err(PeerImportFailure::terminal(
+                    WorkerError::TransferUnavailable,
+                )),
+            );
+        }
+    }
+
     fn import_peer_block(
         &mut self,
+        read_scope_id: u64,
         block_id: Vec<u8>,
         bytes: Vec<u8>,
         checksum: Vec<u8>,
         length: u64,
-    ) -> Result<(), WorkerError> {
+    ) -> Result<bool, WorkerError> {
         if length != bytes.len() as u64 {
+            return Err(WorkerError::Conflict);
+        }
+        let retiring_for_old_scope = self.retiring_blocks.contains(&block_id);
+        if retiring_for_old_scope && self.retirement_blocks_new_reads(&block_id, read_scope_id) {
             return Err(WorkerError::Conflict);
         }
         // 完整 Block 在唯一 owner 接纳时校验一次。接收协程只负责范围/长度/
         // 分段摘要；不能因为传输成功就跳过这里，也不能先登记副本再检查。
-        if !checksum.is_empty() && digest(&bytes) != checksum {
+        let verified_digest = digest(&bytes);
+        if !checksum.is_empty() && verified_digest != checksum {
             self.metrics.record_replica_checksum_failure();
             return Err(WorkerError::Conflict);
         }
         self.arena
-            .commit_inline(block_id, bytes)
-            .map_err(map_arena_error)
+            .commit_inline_with_verified_digest(block_id, bytes, verified_digest)
+            .map_err(map_arena_error)?;
+        Ok(!retiring_for_old_scope)
     }
 
     fn prepare_replica(
@@ -3095,8 +4186,19 @@ impl NodeState {
         match state {
             ReplicaTransferState::Prepared(prepared) => {
                 let owns_block = self.arena.read_bytes(&prepared.block_id).is_none();
+                // 兼容旧 peer 未携带摘要的情况：Arena 仍必须保存真实身份。
+                // 正常非空摘要在 prepare 已验证，此处不重复扫描 payload。
+                let verified_digest = if prepared.checksum.is_empty() {
+                    digest(&prepared.bytes)
+                } else {
+                    prepared.checksum.clone()
+                };
                 self.arena
-                    .commit_inline(prepared.block_id.clone(), prepared.bytes)
+                    .commit_inline_with_verified_digest(
+                        prepared.block_id.clone(),
+                        prepared.bytes,
+                        verified_digest,
+                    )
                     .map_err(map_arena_error)?;
                 let finished = FinishedReplica {
                     block_id: prepared.block_id,
@@ -3207,6 +4309,320 @@ impl NodeState {
                 ))
             }
         }
+    }
+
+    fn begin_read_scope(&mut self, session_id: u64) -> Result<u64, WorkerError> {
+        self.live_session(session_id)?;
+        let scope_id = self.next_read_scope;
+        self.next_read_scope = self
+            .next_read_scope
+            .checked_add(1)
+            .ok_or(WorkerError::InvalidArgument("read scope id exhausted"))?;
+        self.active_read_scopes.insert(scope_id);
+        Ok(scope_id)
+    }
+
+    fn begin_read_scope_reply(
+        &mut self,
+        session_id: u64,
+        cleanup_node: NodeHandle,
+        reply: oneshot::Sender<Result<ReadScopeLease, WorkerError>>,
+    ) {
+        match self.begin_read_scope(session_id) {
+            Ok(scope_id) => {
+                if reply
+                    .send(Ok(ReadScopeLease::new(cleanup_node, scope_id)))
+                    .is_err()
+                {
+                    // Caller was cancelled after scope allocation but before
+                    // receiving the id; undo immediately so Prepare cannot
+                    // wait forever on an unobservable scope.
+                    self.finish_read_scope(scope_id);
+                }
+            }
+            Err(error) => {
+                let _ = reply.send(Err(error));
+            }
+        }
+    }
+
+    fn finish_read_scope(&mut self, scope_id: u64) {
+        self.active_read_scopes.remove(&scope_id);
+        self.advance_retirements();
+    }
+
+    #[cfg(test)]
+    fn prepare_block_retirement(&mut self, block_ids: Vec<Vec<u8>>) -> Result<u64, WorkerError> {
+        self.current_cache.clear();
+        self.metrics.set_current_cache_charge(0);
+        for block_id in block_ids {
+            self.retiring_blocks.insert(block_id);
+        }
+        Ok(self.next_read_scope.saturating_sub(1))
+    }
+
+    fn register_prepare_retirement(
+        &mut self,
+        retirement_id: Vec<u8>,
+        block_ids: Vec<Vec<u8>>,
+        reply: oneshot::Sender<Result<(), WorkerError>>,
+    ) {
+        if retirement_id.is_empty() || block_ids.is_empty() {
+            let _ = reply.send(Err(WorkerError::InvalidArgument(
+                "retirement id and blocks are required",
+            )));
+            return;
+        }
+        if self.completed_retirement(&retirement_id) {
+            let _ = reply.send(Ok(()));
+            return;
+        }
+        // Prepare 是 Meta 对旧物理位置的 cut：先撤销本机 Current cache，并把
+        // block 放入 retiring set。cutoff 前已开始的 scope 可走完；之后的新读
+        // 不能再从旧 cached/resolved layout 新建借用。
+        self.current_cache.clear();
+        self.metrics.set_current_cache_charge(0);
+        for block_id in &block_ids {
+            self.retiring_blocks.insert(block_id.clone());
+        }
+        let entry = self
+            .pending_retirements
+            .entry(retirement_id)
+            .or_insert_with(|| PendingRetirement {
+                block_ids: block_ids.clone(),
+                cutoff_scope: self.next_read_scope.saturating_sub(1),
+                prepared: false,
+                final_requested: false,
+                released: false,
+                prepare_waiters: Vec::new(),
+                final_waiters: Vec::new(),
+            });
+        if entry.block_ids != block_ids {
+            let _ = reply.send(Err(WorkerError::Conflict));
+            return;
+        }
+        if entry.prepared {
+            let _ = reply.send(Ok(()));
+        } else if entry.prepare_waiters.len() >= RETIREMENT_PHASE_WAITER_LIMIT {
+            let _ = reply.send(Err(WorkerError::ResourceExhausted));
+        } else {
+            entry.prepare_waiters.push(reply);
+            self.advance_retirements();
+        }
+    }
+
+    fn register_final_retirement(
+        &mut self,
+        retirement_id: Vec<u8>,
+        block_ids: Vec<Vec<u8>>,
+        reply: oneshot::Sender<Result<(), WorkerError>>,
+    ) {
+        if retirement_id.is_empty() || block_ids.is_empty() {
+            let _ = reply.send(Err(WorkerError::InvalidArgument(
+                "retirement id and blocks are required",
+            )));
+            return;
+        }
+        if self.completed_retirement(&retirement_id) {
+            let _ = reply.send(Ok(()));
+            return;
+        }
+        let entry = self
+            .pending_retirements
+            .entry(retirement_id)
+            .or_insert_with(|| PendingRetirement {
+                block_ids: block_ids.clone(),
+                cutoff_scope: self.next_read_scope.saturating_sub(1),
+                prepared: false,
+                final_requested: false,
+                released: false,
+                prepare_waiters: Vec::new(),
+                final_waiters: Vec::new(),
+            });
+        if entry.block_ids != block_ids {
+            let _ = reply.send(Err(WorkerError::Conflict));
+            return;
+        }
+        if entry.released {
+            let _ = reply.send(Ok(()));
+        } else if entry.final_waiters.len() >= RETIREMENT_PHASE_WAITER_LIMIT {
+            let _ = reply.send(Err(WorkerError::ResourceExhausted));
+        } else {
+            entry.final_requested = true;
+            entry.final_waiters.push(reply);
+            self.advance_retirements();
+        }
+    }
+
+    fn read_scopes_drained(&self, cutoff: u64) -> bool {
+        !self
+            .active_read_scopes
+            .iter()
+            .any(|scope_id| *scope_id <= cutoff)
+            && !self
+                .peer_imports
+                .values()
+                .any(|flight| flight.read_scope_id <= cutoff)
+    }
+
+    #[cfg(test)]
+    fn try_finalize_block_retirement(
+        &mut self,
+        block_ids: Vec<Vec<u8>>,
+    ) -> Result<bool, WorkerError> {
+        if !self.retirement_can_release(&block_ids)? {
+            return Ok(false);
+        }
+        for block_id in &block_ids {
+            self.arena.retire_block(block_id);
+            self.retiring_blocks.remove(block_id);
+        }
+        Ok(true)
+    }
+
+    fn retirement_can_release(&self, block_ids: &[Vec<u8>]) -> Result<bool, WorkerError> {
+        let mut allocation_ids = Vec::with_capacity(block_ids.len());
+        for block_id in block_ids {
+            if let Some(allocation_id) = self.arena.block_allocation_id(block_id) {
+                allocation_ids.push(allocation_id);
+            }
+        }
+        if allocation_ids.is_empty() {
+            return Ok(true);
+        }
+        for allocation_id in &allocation_ids {
+            if self
+                .downloads
+                .values()
+                .any(|ticket| ticket.read.handle.allocation_id == *allocation_id)
+            {
+                return Ok(false);
+            }
+            if self.sessions.values().any(|session| {
+                session
+                    .active_views
+                    .values()
+                    .any(|views| views.allocation_ids.contains(allocation_id))
+            }) {
+                return Ok(false);
+            }
+        }
+        for block_id in block_ids {
+            if self.arena.block_has_unreturned_write(block_id) {
+                return Ok(false);
+            }
+        }
+        Ok(true)
+    }
+
+    fn advance_retirements(&mut self) {
+        self.peer_import_failures.retain(|_, fence| {
+            self.active_read_scopes
+                .iter()
+                .any(|scope| *scope <= fence.cutoff_scope)
+        });
+        let ready_prepares = self
+            .pending_retirements
+            .iter()
+            .filter_map(|(id, pending)| {
+                (!pending.prepared && self.read_scopes_drained(pending.cutoff_scope))
+                    .then_some(id.clone())
+            })
+            .collect::<Vec<_>>();
+        for id in ready_prepares {
+            if let Some(pending) = self.pending_retirements.get_mut(&id) {
+                pending.prepared = true;
+                for waiter in pending.prepare_waiters.drain(..) {
+                    let _ = waiter.send(Ok(()));
+                }
+            }
+        }
+
+        let ready_finals = self
+            .pending_retirements
+            .iter()
+            .filter_map(|(id, pending)| {
+                (pending.prepared
+                    && pending.final_requested
+                    && !pending.released
+                    && self
+                        .retirement_can_release(&pending.block_ids)
+                        .unwrap_or(false))
+                .then_some(id.clone())
+            })
+            .collect::<Vec<_>>();
+        for id in ready_finals {
+            let Some(mut pending) = self.pending_retirements.remove(&id) else {
+                continue;
+            };
+            pending.released = true;
+            for block_id in &pending.block_ids {
+                self.arena.retire_block(block_id);
+                self.retiring_blocks.remove(block_id);
+            }
+            for waiter in pending.prepare_waiters.drain(..) {
+                let _ = waiter.send(Ok(()));
+            }
+            for waiter in pending.final_waiters.drain(..) {
+                let _ = waiter.send(Ok(()));
+            }
+            self.remember_completed_retirement(id);
+        }
+    }
+
+    fn completed_retirement(&self, retirement_id: &[u8]) -> bool {
+        self.completed_retirements
+            .iter()
+            .any(|completed| completed.as_slice() == retirement_id)
+    }
+
+    fn remember_completed_retirement(&mut self, retirement_id: Vec<u8>) {
+        if self.completed_retirement(&retirement_id) {
+            return;
+        }
+        self.completed_retirements.push_back(retirement_id);
+        while self.completed_retirements.len() > COMPLETED_RETIREMENT_CACHE_LIMIT {
+            self.completed_retirements.pop_front();
+        }
+    }
+
+    fn reject_finished_read_request(
+        &self,
+        session_id: u64,
+        read_request_id: u64,
+    ) -> Result<(), WorkerError> {
+        if read_request_id == 0 {
+            return Ok(());
+        }
+        let session = self.live_session(session_id)?;
+        if read_request_id <= session.finished_read_request_through {
+            return Err(WorkerError::InvalidArgument(
+                "read request has already finished",
+            ));
+        }
+        Ok(())
+    }
+
+    fn retirement_blocks_new_reads(&self, block_id: &[u8], read_scope_id: u64) -> bool {
+        if !self.retiring_blocks.contains(block_id) {
+            return false;
+        }
+        !self.pending_retirements.values().any(|pending| {
+            pending
+                .block_ids
+                .iter()
+                .any(|pending_block| pending_block.as_slice() == block_id)
+                && read_scope_id <= pending.cutoff_scope
+        })
+    }
+
+    fn layout_contains_retiring_block(&self, resolved: &pb::ResolveObjectResponse) -> bool {
+        resolved.layout.as_ref().is_some_and(|layout| {
+            layout
+                .extents
+                .iter()
+                .any(|extent| self.retiring_blocks.contains(&extent.block_id))
+        })
     }
 
     fn broadcast_invalidation(&mut self, key: Vec<u8>, minimum_version: u64) -> Option<u64> {
@@ -3342,11 +4758,23 @@ impl NodeState {
                 .sessions
                 .get(&id)
                 .is_some_and(|session| session.disconnected)
+                && !self.session_has_retained_obligations(id)
             {
                 self.sessions.remove(&id);
             }
         }
         self.metrics.set_sessions(self.sessions.len());
+    }
+
+    fn session_has_retained_obligations(&self, session_id: u64) -> bool {
+        self.sessions
+            .get(&session_id)
+            .is_some_and(|session| !session.active_views.is_empty())
+            || self
+                .downloads
+                .values()
+                .any(|ticket| ticket.session_id == session_id)
+            || self.arena.session_has_unreturned_write(session_id)
     }
 
     fn complete_barriers(&mut self, barrier_ids: Vec<u64>) {
@@ -3368,7 +4796,12 @@ impl NodeState {
         if Instant::now() > ticket.expires_at {
             return Err(WorkerError::UnknownTransfer);
         }
-        self.arena.read_ticket(ticket.read).map_err(map_arena_error)
+        let bytes = self
+            .arena
+            .read_ticket(ticket.read)
+            .map_err(map_arena_error)?;
+        self.advance_retirements();
+        Ok(bytes)
     }
 
     fn tick(&mut self) {
@@ -3376,6 +4809,7 @@ impl NodeState {
         self.arena.tick();
         let now = Instant::now();
         self.downloads.retain(|_, ticket| ticket.expires_at > now);
+        self.advance_retirements();
         // Prepared bytes are not readable and must not live forever if the
         // coordinator or source disappears between prepare and activate.
         let expired_plan_ids = self
@@ -3682,8 +5116,7 @@ async fn pull_peer_segment(
     let mut retry_after_cached_channel_failure = true;
     let response = loop {
         let channel = peer_channel_for(&spec.endpoint, peer_channels).await?;
-        let mut client =
-            pb::peer_service_client::PeerServiceClient::new(dms_tracing::traced_channel(channel));
+        let mut client = peer_client(channel);
         let mut rpc = rpc_metrics.begin_client_call(dms_metrics::RpcCall::PEER_PULL_BLOCK);
         match client
             .pull_block(pb::PeerPullBlockRequest {
@@ -3771,6 +5204,15 @@ async fn peer_channel_for(
     Ok(channel)
 }
 
+fn peer_client(
+    channel: Channel,
+) -> pb::peer_service_client::PeerServiceClient<dms_tracing::TracedChannel> {
+    let config = GrpcConfig::default();
+    pb::peer_service_client::PeerServiceClient::new(dms_tracing::traced_channel(channel))
+        .max_encoding_message_size(config.max_encoding_message_bytes)
+        .max_decoding_message_size(config.max_decoding_message_bytes)
+}
+
 fn is_retryable_peer_status(status: &tonic::Status) -> bool {
     matches!(
         status.code(),
@@ -3800,6 +5242,10 @@ fn transfer_unavailable(message: String) -> WorkerError {
 mod peer_integrity_tests;
 
 #[cfg(test)]
+#[path = "peer_import_tests.rs"]
+mod peer_import_tests;
+
+#[cfg(test)]
 mod tests {
     use super::*;
 
@@ -3812,6 +5258,7 @@ mod tests {
         corrupt[0] ^= 1;
         assert!(matches!(
             state.import_peer_block(
+                u64::MAX,
                 b"bad".to_vec(),
                 corrupt,
                 checksum.clone(),
@@ -3821,14 +5268,140 @@ mod tests {
         ));
         assert!(state.arena.read_bytes(b"bad").is_none());
         assert!(matches!(
-            state.import_peer_block(b"short".to_vec(), bytes.clone(), checksum.clone(), 1),
+            state.import_peer_block(
+                u64::MAX,
+                b"short".to_vec(),
+                bytes.clone(),
+                checksum.clone(),
+                1
+            ),
             Err(WorkerError::Conflict)
         ));
         assert!(state.arena.read_bytes(b"short").is_none());
         state
-            .import_peer_block(b"ok".to_vec(), bytes.clone(), checksum, bytes.len() as u64)
+            .import_peer_block(
+                u64::MAX,
+                b"ok".to_vec(),
+                bytes.clone(),
+                checksum,
+                bytes.len() as u64,
+            )
             .unwrap();
         assert_eq!(state.arena.read_bytes(b"ok"), Some(bytes));
+    }
+
+    #[test]
+    fn retiring_peer_import_allows_cutoff_scope_without_republishing() {
+        let mut state = NodeState::new("node-a".into(), None, 4096, Duration::from_secs(30), None);
+        let session = state.open_session(false);
+        let old_scope = state.begin_read_scope(session).unwrap();
+        let (prepare_tx, mut prepare_rx) = oneshot::channel();
+        state.register_prepare_retirement(
+            b"retire-peer-import".to_vec(),
+            vec![b"block".to_vec()],
+            prepare_tx,
+        );
+        assert!(prepare_rx.try_recv().is_err());
+
+        let bytes = b"peer-value".to_vec();
+        let checksum = digest(&bytes);
+        assert!(
+            !state
+                .import_peer_block(
+                    old_scope,
+                    b"block".to_vec(),
+                    bytes.clone(),
+                    checksum.clone(),
+                    bytes.len() as u64,
+                )
+                .unwrap(),
+            "old read scope may complete but must not re-publish a retiring block"
+        );
+        assert_eq!(state.arena.read_bytes(b"block"), Some(bytes.clone()));
+        let new_scope = state.begin_read_scope(session).unwrap();
+        assert!(matches!(
+            state.import_peer_block(
+                new_scope,
+                b"block".to_vec(),
+                bytes,
+                checksum,
+                b"peer-value".len() as u64,
+            ),
+            Err(WorkerError::Conflict)
+        ));
+
+        state.finish_read_scope(old_scope);
+        assert_eq!(prepare_rx.try_recv().unwrap().unwrap(), ());
+    }
+
+    #[tokio::test]
+    async fn cancelled_begin_read_scope_reply_does_not_leak_scope() {
+        let mut state = NodeState::new("node-a".into(), None, 4096, Duration::from_secs(30), None);
+        let session = state.open_session(false);
+        let (reply, receiver) = oneshot::channel();
+        drop(receiver);
+
+        let node = NodeHandle::spawn_without_metadata("cleanup-node".into());
+        state.begin_read_scope_reply(session, node, reply);
+
+        assert!(state.active_read_scopes.is_empty());
+    }
+
+    #[tokio::test]
+    async fn unclaimed_successful_begin_read_scope_reply_does_not_leak_scope() {
+        let node = NodeHandle::spawn_without_metadata("node-a".into());
+        let session = node.open_session(false).await.expect("open session");
+        let (reply, receiver) = oneshot::channel();
+        node.submit(NodeCommand::BeginReadScope {
+            session_id: session,
+            cleanup_node: Box::new(node.clone()),
+            reply,
+        })
+        .await
+        .expect("submit begin scope");
+        node.validate_session(session)
+            .await
+            .expect("begin reply has been sent before this command");
+
+        drop(receiver);
+
+        let (reply, receiver) = oneshot::channel();
+        node.submit(NodeCommand::PrepareBlockRetirement {
+            retirement_id: b"unclaimed-scope".to_vec(),
+            block_ids: vec![b"block".to_vec()],
+            reply,
+        })
+        .await
+        .expect("submit prepare");
+        tokio::time::timeout(Duration::from_secs(3), receive(receiver))
+            .await
+            .expect("unclaimed successful begin reply must drop its lease")
+            .expect("prepare after unclaimed begin reply");
+    }
+
+    #[tokio::test]
+    async fn dropped_read_scope_guard_finishes_scope() {
+        let node = NodeHandle::spawn_without_metadata("node-a".into());
+        let session = node.open_session(false).await.expect("open session");
+        let guard = ReadScopeGuard::begin(&node, session)
+            .await
+            .expect("begin read scope");
+        let scope_id = guard.id();
+
+        drop(guard);
+
+        let (reply, receiver) = oneshot::channel();
+        node.submit(NodeCommand::PrepareBlockRetirement {
+            retirement_id: b"drop-scope".to_vec(),
+            block_ids: vec![b"block".to_vec()],
+            reply,
+        })
+        .await
+        .expect("submit prepare");
+        tokio::time::timeout(Duration::from_secs(3), receive(receiver))
+            .await
+            .unwrap_or_else(|_| panic!("dropped read scope {scope_id} did not finish"))
+            .expect("prepare after dropped scope");
     }
 
     fn test_extent(
@@ -3863,6 +5436,22 @@ mod tests {
             }),
             block_replicas: Vec::new(),
             current_lease: None,
+        }
+    }
+
+    fn replica_set(block_id: &[u8], length: u64) -> pb::BlockReplicaSet {
+        pb::BlockReplicaSet {
+            block_id: block_id.to_vec(),
+            replicas: vec![pb::ReplicaLocation {
+                block_id: block_id.to_vec(),
+                node_id: 2,
+                node_epoch: 1,
+                data_endpoint: "http://127.0.0.1:25299".to_string(),
+                checksum: block_id.to_vec(),
+                durability: pb::DurabilityPolicy::LocalMemory as i32,
+            }],
+            length,
+            proofs: Vec::new(),
         }
     }
 
@@ -3957,15 +5546,15 @@ mod tests {
             worker_error_to_dms(error).code(),
             dms_error::META_JOURNAL_UNAVAILABLE
         );
-        assert_eq!(
+        assert!(
             metadata
                 .resolve(b"key".to_vec(), None)
                 .await
                 .unwrap()
                 .layout
                 .unwrap()
-                .version,
-            1
+                .version
+                > 0
         );
         assert_eq!(
             state.arena.read_bytes(&block_identity("n", &operation)),
@@ -4289,9 +5878,12 @@ mod tests {
         let (reply, cache_reply) = oneshot::channel();
         node.submit(NodeCommand::GetCached {
             session_id: session,
+            read_scope_id: u64::MAX,
+            read_request_id: 0,
             key: b"same-key".to_vec(),
             node_epoch: 0,
             range: None,
+            clamp_range: false,
             max_inline_bytes: 0,
             reply,
         })
@@ -4617,6 +6209,7 @@ mod tests {
             Duration::from_secs(30),
             None,
         );
+        let session = state.open_session(false);
         state
             .arena
             .commit_inline(b"block-1".to_vec(), b"abcdef".to_vec())
@@ -4630,6 +6223,8 @@ mod tests {
             1,
             DownloadTicket {
                 read,
+                session_id: session,
+                read_request_id: 0,
                 expires_at: Instant::now() + Duration::from_secs(30),
             },
         );
@@ -4643,6 +6238,8 @@ mod tests {
             2,
             DownloadTicket {
                 read,
+                session_id: session,
+                read_request_id: 0,
                 expires_at: Instant::now() - Duration::from_secs(1),
             },
         );
@@ -4775,6 +6372,241 @@ mod tests {
     }
 
     #[test]
+    fn strict_read_range_past_end_stays_invalid() {
+        let mut state = NodeState::new("node-a".into(), None, 4096, Duration::from_secs(30), None);
+        let session = state.open_session(false);
+        state
+            .arena
+            .commit_inline(b"block".to_vec(), b"abc".to_vec())
+            .expect("commit block");
+        let resolved = resolved_value(12, 3, vec![test_extent(0, 3, b"block", 0)]);
+
+        assert!(matches!(
+            state.get_resolved(session, &resolved, Some((2, 2)), 64),
+            Err(WorkerError::InvalidArgument(
+                "read range extends beyond current value"
+            ))
+        ));
+    }
+
+    #[test]
+    fn clamp_range_past_end_returns_empty_without_download_ticket() {
+        let mut state = NodeState::new("node-a".into(), None, 4096, Duration::from_secs(30), None);
+        let session = state.open_session(false);
+        state
+            .arena
+            .commit_inline(b"block".to_vec(), b"abc".to_vec())
+            .expect("commit block");
+        let resolved = resolved_value(13, 3, vec![test_extent(0, 3, b"block", 0)]);
+
+        let ticket = match state
+            .get_resolved_for_request(session, u64::MAX, 1, &resolved, Some((3, 9)), true, 64)
+            .expect("clamped get")
+        {
+            GetOutcome::Ready(ticket) => ticket,
+            GetOutcome::NeedsRemoteBlocks(_) => panic!("empty range must not need peer blocks"),
+        };
+
+        assert_eq!(ticket.version, 13);
+        assert_eq!(ticket.logical_length, 3);
+        assert_eq!(ticket.inline_value.as_deref(), Some([].as_slice()));
+        assert!(ticket.segments.is_empty());
+        assert!(state.downloads.is_empty());
+    }
+
+    #[test]
+    fn clamp_range_preserves_zero_length_as_empty() {
+        let mut state = NodeState::new("node-a".into(), None, 4096, Duration::from_secs(30), None);
+        let session = state.open_session(false);
+        state
+            .arena
+            .commit_inline(b"block".to_vec(), b"abc".to_vec())
+            .expect("commit block");
+        let resolved = resolved_value(14, 3, vec![test_extent(0, 3, b"block", 0)]);
+
+        let ticket = match state
+            .get_resolved_for_request(session, u64::MAX, 2, &resolved, Some((1, 0)), true, 64)
+            .expect("zero-length get")
+        {
+            GetOutcome::Ready(ticket) => ticket,
+            GetOutcome::NeedsRemoteBlocks(_) => panic!("empty range must not need peer blocks"),
+        };
+
+        assert_eq!(ticket.inline_value.as_deref(), Some([].as_slice()));
+        assert!(ticket.segments.is_empty());
+        assert!(state.downloads.is_empty());
+    }
+
+    #[test]
+    fn clamp_range_clips_tail_across_multiple_extents() {
+        let mut state = NodeState::new("node-a".into(), None, 4096, Duration::from_secs(30), None);
+        let session = state.open_session(false);
+        state
+            .arena
+            .commit_inline(b"left".to_vec(), b"abc".to_vec())
+            .expect("commit left");
+        state
+            .arena
+            .commit_inline(b"right".to_vec(), b"def".to_vec())
+            .expect("commit right");
+        let resolved = resolved_value(
+            14,
+            6,
+            vec![
+                test_extent(0, 3, b"left", 0),
+                test_extent(3, 3, b"right", 0),
+            ],
+        );
+
+        let ticket = match state
+            .get_resolved_for_request(session, u64::MAX, 2, &resolved, Some((2, 99)), true, 64)
+            .expect("clamped get")
+        {
+            GetOutcome::Ready(ticket) => ticket,
+            GetOutcome::NeedsRemoteBlocks(_) => panic!("blocks are local"),
+        };
+
+        assert_eq!(ticket.inline_value.as_deref(), Some(b"cdef".as_slice()));
+        assert!(ticket.segments.is_empty());
+    }
+
+    #[test]
+    fn clamp_range_keeps_overflow_invalid_before_tail_clip() {
+        let mut state = NodeState::new("node-a".into(), None, 4096, Duration::from_secs(30), None);
+        let session = state.open_session(false);
+        state
+            .arena
+            .commit_inline(b"block".to_vec(), b"abc".to_vec())
+            .expect("commit block");
+        let resolved = resolved_value(15, 3, vec![test_extent(0, 3, b"block", 0)]);
+
+        assert!(matches!(
+            state.get_resolved_for_request(
+                session,
+                u64::MAX,
+                3,
+                &resolved,
+                Some((u64::MAX, 1)),
+                true,
+                64
+            ),
+            Err(WorkerError::InvalidArgument("read range overflows u64"))
+        ));
+    }
+
+    #[test]
+    fn clamp_range_still_rejects_invalid_layout_gap() {
+        let mut state = NodeState::new("node-a".into(), None, 4096, Duration::from_secs(30), None);
+        let session = state.open_session(false);
+        state
+            .arena
+            .commit_inline(b"left".to_vec(), b"ab".to_vec())
+            .expect("commit left");
+        state
+            .arena
+            .commit_inline(b"right".to_vec(), b"d".to_vec())
+            .expect("commit right");
+        let resolved = resolved_value(
+            16,
+            4,
+            vec![
+                test_extent(0, 2, b"left", 0),
+                test_extent(3, 1, b"right", 0),
+            ],
+        );
+
+        assert!(matches!(
+            state.get_resolved_for_request(
+                session,
+                u64::MAX,
+                4,
+                &resolved,
+                Some((1, 99)),
+                true,
+                64
+            ),
+            Err(WorkerError::InvalidArgument(
+                "version layout contains a gap, overlap, or empty extent"
+            ))
+        ));
+    }
+
+    #[test]
+    fn clamp_range_peer_fallback_uses_clipped_resolved_version() {
+        let mut state = NodeState::new("node-a".into(), None, 4096, Duration::from_secs(30), None);
+        let session = state.open_session(false);
+        state
+            .arena
+            .commit_inline(b"left".to_vec(), b"abc".to_vec())
+            .expect("commit left");
+        let mut resolved = resolved_value(
+            17,
+            6,
+            vec![
+                test_extent(0, 3, b"left", 0),
+                test_extent(3, 3, b"remote", 0),
+            ],
+        );
+        resolved.block_replicas = vec![replica_set(b"remote", 3)];
+
+        let specs = match state
+            .get_resolved_for_request(session, u64::MAX, 5, &resolved, Some((4, 99)), true, 64)
+            .expect("clamped missing-block get")
+        {
+            GetOutcome::Ready(_) => panic!("remote extent is missing"),
+            GetOutcome::NeedsRemoteBlocks(specs) => specs,
+        };
+
+        assert_eq!(specs.len(), 1);
+        assert_eq!(specs[0].block_id, b"remote".to_vec());
+        assert_eq!(specs[0].expected_length, 3);
+    }
+
+    #[test]
+    fn current_cache_clamped_range_reuses_layout_without_full_interest() {
+        let mut state = NodeState::new("node-a".into(), None, 4096, Duration::from_secs(30), None);
+        let session = state.open_session(false);
+        state.metadata_watch_connected = true;
+        state.metadata_lease_until = Instant::now() + Duration::from_secs(30);
+        state
+            .arena
+            .commit_inline(b"block".to_vec(), b"abc".to_vec())
+            .expect("commit block");
+        let mut resolved = resolved_value(18, 3, vec![test_extent(0, 3, b"block", 0)]);
+        resolved.current_lease = Some(pb::CurrentLeaseGrant {
+            version: 18,
+            lease_epoch: 0,
+            leader_epoch: 0,
+            revision: 0,
+            ttl_millis: 30_000,
+        });
+        let now = Instant::now();
+        assert!(state.current_cache.insert(
+            state.current_cache.token().expect("cache token"),
+            b"key".to_vec(),
+            &resolved,
+            now,
+            0,
+            now
+        ));
+
+        let (_token, outcome) = state
+            .get_cached(session, u64::MAX, 6, b"key", 0, Some((1, 99)), true, 64)
+            .expect("cached read");
+        let CachedReadOutcome::Ready(ticket) = outcome else {
+            panic!("cached layout should satisfy clamped local range");
+        };
+
+        assert_eq!(ticket.version, 18);
+        assert_eq!(ticket.inline_value.as_deref(), Some(b"bc".as_slice()));
+        assert!(
+            !state.sessions[&session]
+                .cached_current_keys
+                .contains(b"key".as_slice())
+        );
+    }
+
+    #[test]
     fn get_resolved_shm_session_ignores_inline_budget() {
         let mut state = NodeState::new("node-a".into(), None, 4096, Duration::from_secs(30), None);
         let session = state.open_session(true);
@@ -4814,6 +6646,371 @@ mod tests {
                 .unwrap();
             assert_eq!(state.sessions[&session].next_view_epoch, 1);
         }
+    }
+
+    #[test]
+    fn finished_read_request_releases_lost_tcp_ticket_without_view_epoch() {
+        let mut state = NodeState::new("node-a".into(), None, 4096, Duration::from_secs(30), None);
+        let session = state.open_session(false);
+        state
+            .arena
+            .commit_inline(b"block".to_vec(), b"abc".to_vec())
+            .unwrap();
+        let resolved = resolved_value(1, 3, vec![test_extent(0, 3, b"block", 0)]);
+
+        assert!(matches!(
+            state
+                .get_resolved_for_request(session, u64::MAX, 7, &resolved, None, false, 0)
+                .unwrap(),
+            GetOutcome::Ready(_)
+        ));
+        assert_eq!(state.downloads.len(), 1);
+
+        state
+            .heartbeat_inner(session, None, Vec::new(), Some(7), false)
+            .unwrap();
+
+        assert!(state.downloads.is_empty());
+        assert!(
+            state
+                .try_finalize_block_retirement(vec![b"block".to_vec()])
+                .unwrap()
+        );
+    }
+
+    #[test]
+    fn cancel_first_read_request_refuses_late_ticket_creation() {
+        let mut state = NodeState::new("node-a".into(), None, 4096, Duration::from_secs(30), None);
+        let session = state.open_session(false);
+        state
+            .arena
+            .commit_inline(b"block".to_vec(), b"abc".to_vec())
+            .unwrap();
+        let resolved = resolved_value(1, 3, vec![test_extent(0, 3, b"block", 0)]);
+        state
+            .heartbeat_inner(session, None, Vec::new(), Some(7), false)
+            .unwrap();
+
+        assert!(matches!(
+            state.get_resolved_for_request(session, u64::MAX, 7, &resolved, None, false, 0),
+            Err(WorkerError::InvalidArgument(_))
+        ));
+        assert!(state.downloads.is_empty());
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn finished_read_request_releases_lost_shm_view_without_epoch_watermark() {
+        let path = std::env::temp_dir().join(format!("dms-lost-view-{}.sock", std::process::id()));
+        let broker = SharedFdBroker::bind(path.clone()).unwrap();
+        let mut state = NodeState::new(
+            "node-a".into(),
+            None,
+            4096,
+            Duration::from_secs(30),
+            Some(broker),
+        );
+        let session = state.open_session(true);
+        state
+            .arena
+            .commit_inline(b"block".to_vec(), b"abc".to_vec())
+            .unwrap();
+        let resolved = resolved_value(1, 3, vec![test_extent(0, 3, b"block", 0)]);
+        assert!(matches!(
+            state
+                .get_resolved_for_request(session, u64::MAX, 11, &resolved, None, false, 0)
+                .unwrap(),
+            GetOutcome::Ready(_)
+        ));
+        assert_eq!(state.sessions[&session].next_view_epoch, 2);
+        assert_eq!(state.sessions[&session].released_view_through, 0);
+        assert_eq!(state.sessions[&session].active_views.len(), 1);
+
+        state
+            .heartbeat_inner(session, None, Vec::new(), Some(11), false)
+            .unwrap();
+
+        assert!(state.sessions[&session].active_views.is_empty());
+        assert_eq!(state.sessions[&session].released_view_through, 0);
+        assert!(
+            state
+                .try_finalize_block_retirement(vec![b"block".to_vec()])
+                .unwrap()
+        );
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn heartbeat_rejects_view_watermark_beyond_granted_epoch() {
+        let mut state = NodeState::new("node-a".into(), None, 4096, Duration::from_secs(30), None);
+        let session = state.open_session(true);
+
+        assert!(state.heartbeat(session, Some(1), false).is_err());
+        assert_eq!(state.sessions[&session].released_view_through, 0);
+    }
+
+    #[test]
+    fn retirement_prepare_is_event_driven_and_blocks_new_cached_borrows() {
+        let mut state = NodeState::new("node-a".into(), None, 4096, Duration::from_secs(30), None);
+        let session = state.open_session(false);
+        state
+            .arena
+            .commit_inline(b"block".to_vec(), b"abc".to_vec())
+            .unwrap();
+        let resolved = resolved_value(1, 3, vec![test_extent(0, 3, b"block", 0)]);
+        let old_scope = state.begin_read_scope(session).unwrap();
+        let (prepare_tx, mut prepare_rx) = oneshot::channel();
+
+        state.register_prepare_retirement(
+            b"retire-1".to_vec(),
+            vec![b"block".to_vec()],
+            prepare_tx,
+        );
+        assert!(prepare_rx.try_recv().is_err());
+        let new_scope = state.begin_read_scope(session).unwrap();
+        assert!(matches!(
+            state.get_resolved_for_request(session, new_scope, 1, &resolved, None, false, 0),
+            Err(WorkerError::NotFound)
+        ));
+
+        state.finish_read_scope(old_scope);
+
+        assert_eq!(prepare_rx.try_recv().unwrap().unwrap(), ());
+        assert!(state.arena.block_allocation_id(b"block").is_some());
+    }
+
+    #[test]
+    fn retirement_final_completes_from_release_event_without_polling() {
+        let mut state = NodeState::new("node-a".into(), None, 4096, Duration::from_secs(30), None);
+        let session = state.open_session(false);
+        state
+            .arena
+            .commit_inline(b"block".to_vec(), b"abc".to_vec())
+            .unwrap();
+        let resolved = resolved_value(1, 3, vec![test_extent(0, 3, b"block", 0)]);
+        let ticket = match state
+            .get_resolved_for_request(session, u64::MAX, 9, &resolved, None, false, 0)
+            .unwrap()
+        {
+            GetOutcome::Ready(ticket) => ticket,
+            GetOutcome::NeedsRemoteBlocks(_) => panic!("local block must be ready"),
+        };
+        let transfer_id = match &ticket.segments[0].target {
+            ReadTarget::Grpc { transfer_id } => *transfer_id,
+            ReadTarget::Shm(_) => panic!("expected TCP ticket"),
+        };
+        let (prepare_tx, mut prepare_rx) = oneshot::channel();
+        state.register_prepare_retirement(
+            b"retire-1".to_vec(),
+            vec![b"block".to_vec()],
+            prepare_tx,
+        );
+        assert_eq!(prepare_rx.try_recv().unwrap().unwrap(), ());
+        let (final_tx, mut final_rx) = oneshot::channel();
+        state.register_final_retirement(b"retire-1".to_vec(), vec![b"block".to_vec()], final_tx);
+        assert!(final_rx.try_recv().is_err());
+
+        assert_eq!(state.download(transfer_id).unwrap(), b"abc");
+
+        assert_eq!(final_rx.try_recv().unwrap().unwrap(), ());
+        assert!(state.arena.block_allocation_id(b"block").is_none());
+
+        let (replay_tx, mut replay_rx) = oneshot::channel();
+        state.register_final_retirement(b"retire-1".to_vec(), vec![b"block".to_vec()], replay_tx);
+        assert_eq!(replay_rx.try_recv().unwrap().unwrap(), ());
+    }
+
+    #[test]
+    fn prepare_retirement_waits_only_cutoff_read_scopes() {
+        let mut state = NodeState::new("node-a".into(), None, 4096, Duration::from_secs(30), None);
+        let session = state.open_session(false);
+        let old_scope = state.begin_read_scope(session).unwrap();
+
+        let cutoff = state
+            .prepare_block_retirement(vec![b"block".to_vec()])
+            .unwrap();
+        let later_scope = state.begin_read_scope(session).unwrap();
+        assert!(!state.read_scopes_drained(cutoff));
+
+        state.finish_read_scope(old_scope);
+
+        assert!(state.read_scopes_drained(cutoff));
+        assert!(state.active_read_scopes.contains(&later_scope));
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn final_retirement_waits_for_read_view_release() {
+        let unique = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let path = std::env::temp_dir().join(format!(
+            "dms-final-view-{}-{unique}.sock",
+            std::process::id()
+        ));
+        let broker = SharedFdBroker::bind(path.clone()).unwrap();
+        let mut state = NodeState::new(
+            "node-a".into(),
+            None,
+            4096,
+            Duration::from_secs(30),
+            Some(broker),
+        );
+        let session = state.open_session(true);
+        state
+            .arena
+            .commit_inline(b"block".to_vec(), b"abc".to_vec())
+            .unwrap();
+        let resolved = resolved_value(1, 3, vec![test_extent(0, 3, b"block", 0)]);
+        assert!(matches!(
+            state.get_resolved(session, &resolved, None, 0).unwrap(),
+            GetOutcome::Ready(_)
+        ));
+
+        assert!(
+            !state
+                .try_finalize_block_retirement(vec![b"block".to_vec()])
+                .unwrap()
+        );
+        state.heartbeat(session, Some(1), false).unwrap();
+        assert!(
+            state
+                .try_finalize_block_retirement(vec![b"block".to_vec()])
+                .unwrap()
+        );
+        assert!(state.arena.block_allocation_id(b"block").is_none());
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn disconnected_read_view_keeps_retirement_blocked_until_release() {
+        let unique = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let path = std::env::temp_dir().join(format!(
+            "dms-disconnected-view-{}-{unique}.sock",
+            std::process::id()
+        ));
+        let broker = SharedFdBroker::bind(path.clone()).unwrap();
+        let mut state = NodeState::new(
+            "node-a".into(),
+            None,
+            4096,
+            Duration::from_secs(30),
+            Some(broker),
+        );
+        let session = state.open_session(true);
+        state
+            .arena
+            .commit_inline(b"block".to_vec(), b"abc".to_vec())
+            .unwrap();
+        let resolved = resolved_value(1, 3, vec![test_extent(0, 3, b"block", 0)]);
+        assert!(matches!(
+            state.get_resolved(session, &resolved, None, 0).unwrap(),
+            GetOutcome::Ready(_)
+        ));
+        let (prepare_tx, mut prepare_rx) = oneshot::channel();
+        state.register_prepare_retirement(
+            b"retire-disconnected".to_vec(),
+            vec![b"block".to_vec()],
+            prepare_tx,
+        );
+        assert_eq!(prepare_rx.try_recv().unwrap().unwrap(), ());
+
+        state.close_session(session).unwrap();
+        assert!(state.sessions.contains_key(&session));
+        let (final_tx, mut final_rx) = oneshot::channel();
+        state.register_final_retirement(
+            b"retire-disconnected".to_vec(),
+            vec![b"block".to_vec()],
+            final_tx,
+        );
+        assert!(final_rx.try_recv().is_err());
+        assert!(state.arena.block_allocation_id(b"block").is_some());
+
+        state.heartbeat(session, Some(1), false).unwrap();
+
+        assert_eq!(final_rx.try_recv().unwrap().unwrap(), ());
+        assert!(state.arena.block_allocation_id(b"block").is_none());
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn final_retirement_waits_for_tcp_download_ticket() {
+        let mut state = NodeState::new("node-a".into(), None, 4096, Duration::from_secs(30), None);
+        let session = state.open_session(false);
+        state
+            .arena
+            .commit_inline(b"block".to_vec(), b"abc".to_vec())
+            .unwrap();
+        let resolved = resolved_value(1, 3, vec![test_extent(0, 3, b"block", 0)]);
+        let ticket = match state.get_resolved(session, &resolved, None, 0).unwrap() {
+            GetOutcome::Ready(ticket) => ticket,
+            GetOutcome::NeedsRemoteBlocks(_) => panic!("local block must be ready"),
+        };
+        let transfer_id = match &ticket.segments[0].target {
+            ReadTarget::Grpc { transfer_id } => *transfer_id,
+            ReadTarget::Shm(_) => panic!("expected TCP ticket"),
+        };
+
+        assert!(
+            !state
+                .try_finalize_block_retirement(vec![b"block".to_vec()])
+                .unwrap()
+        );
+        assert_eq!(state.download(transfer_id).unwrap(), b"abc");
+        assert!(
+            state
+                .try_finalize_block_retirement(vec![b"block".to_vec()])
+                .unwrap()
+        );
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn final_retirement_waits_for_write_release_token() {
+        let path =
+            std::env::temp_dir().join(format!("dms-final-write-{}.sock", std::process::id()));
+        let broker = SharedFdBroker::bind(path.clone()).unwrap();
+        let mut state = NodeState::new(
+            "node-a".into(),
+            None,
+            4096,
+            Duration::from_secs(30),
+            Some(broker),
+        );
+        let session = state.open_session_with_write_release(true, true);
+        let allocation = state.allocate_staging(session, 1).unwrap();
+        let release = match &allocation.target {
+            HostAllocationTarget::Shm(descriptor) => ReleasedWriteAllocation {
+                allocation_id: descriptor.allocation_id,
+                release_token: descriptor.release_token.clone(),
+            },
+            HostAllocationTarget::Grpc => panic!("expected SHM staging"),
+        };
+        let receipt = state.upload(allocation.transfer_id, b"x".to_vec()).unwrap();
+        state
+            .arena
+            .commit_staging(session, allocation.staging_id, &receipt, b"block".to_vec())
+            .unwrap();
+
+        assert!(
+            !state
+                .try_finalize_block_retirement(vec![b"block".to_vec()])
+                .unwrap()
+        );
+        state
+            .heartbeat_inner(session, None, vec![release], None, false)
+            .unwrap();
+        assert!(
+            state
+                .try_finalize_block_retirement(vec![b"block".to_vec()])
+                .unwrap()
+        );
+        let _ = std::fs::remove_file(path);
     }
 
     #[cfg(target_os = "linux")]

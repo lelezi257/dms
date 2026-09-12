@@ -48,4 +48,6 @@
 
 按 [skills 导航](skills/README.md) 选择轻量方法；普通小修不强制走全套阶段。已明确授权范围内连续执行，已约定的人工门禁仍需停下提交结果。
 
+`main` 是唯一长期开发分支。改动从 `main` 拉短期分支，经 PR 合入 `main` 后删除短期分支；不要再建立长期 `integration/*` 或保留已合入的 `review/*`、`perf/*` 分支。实验身份用 commit SHA 和证据账本固定，不用长期分支充当版本归档。
+
 阶段正文只有一份 Markdown，HTML 自动生成并验证，规则见 [产物契约](skills/dms-review-artifact/references/artifact-contract.md)。不新增 review.md 复制真实设计。完成后记录变更、证据、残余风险、下一入口；发布和不可逆操作必须有单独授权。

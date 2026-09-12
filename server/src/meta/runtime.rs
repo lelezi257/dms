@@ -388,6 +388,19 @@ impl MetaHandle {
         .await
     }
 
+    pub(crate) async fn resolve_objects(
+        &self,
+        request: pb::ResolveObjectsRequest,
+    ) -> Result<pb::ResolveObjectsResponse, MetaRuntimeError> {
+        let (reply, receive) = oneshot::channel();
+        self.complete(
+            MetaOperation::ResolveObject,
+            MetaCommand::ResolveObjects { request, reply },
+            receive,
+        )
+        .await
+    }
+
     pub(crate) async fn report_replicas(
         &self,
         request: pb::ReportReplicasRequest,
@@ -595,6 +608,10 @@ enum MetaCommand {
         request: pb::ResolveObjectRequest,
         reply: oneshot::Sender<Result<pb::ResolveObjectResponse, MetaRuntimeError>>,
     },
+    ResolveObjects {
+        request: pb::ResolveObjectsRequest,
+        reply: oneshot::Sender<Result<pb::ResolveObjectsResponse, MetaRuntimeError>>,
+    },
     ReportReplicas {
         request: pb::ReportReplicasRequest,
         reply: oneshot::Sender<Result<pb::ReportReplicasResponse, MetaRuntimeError>>,
@@ -656,6 +673,7 @@ impl MetaCommand {
             Self::OpenNodeSession { .. } => MetaOperation::OpenNodeSession,
             Self::Heartbeat { .. } => MetaOperation::Heartbeat,
             Self::ResolveObject { .. } => MetaOperation::ResolveObject,
+            Self::ResolveObjects { .. } => MetaOperation::ResolveObject,
             Self::ReportReplicas { .. } => MetaOperation::ReportReplicas,
             Self::CommitVersion { .. } => MetaOperation::CommitVersion,
             Self::CommitBatch { .. } => MetaOperation::CommitBatch,
@@ -1054,6 +1072,30 @@ impl MetaState {
             block_replicas,
             current_lease,
         })
+    }
+
+    fn resolve_objects(
+        &self,
+        request: pb::ResolveObjectsRequest,
+    ) -> Result<pb::ResolveObjectsResponse, MetaRuntimeError> {
+        if request.requests.is_empty() {
+            return Err(MetaRuntimeError::InvalidArgument(
+                "ResolveObjects requests are empty".to_string(),
+            ));
+        }
+        let mut results = Vec::with_capacity(request.requests.len());
+        for request in request.requests {
+            match self.resolve_object(request) {
+                Ok(response) => results.push(pb::ResolveObjectResult {
+                    response: Some(response),
+                }),
+                Err(MetaRuntimeError::NotFound) => {
+                    results.push(pb::ResolveObjectResult { response: None });
+                }
+                Err(error) => return Err(error),
+            }
+        }
+        Ok(pb::ResolveObjectsResponse { results })
     }
 
     fn current_lease_grant(
@@ -4199,6 +4241,9 @@ async fn run_meta(
                 }
                 MetaCommand::ResolveObject { request, reply } => {
                     let _ = reply.send(state.resolve_object(request));
+                }
+                MetaCommand::ResolveObjects { request, reply } => {
+                    let _ = reply.send(state.resolve_objects(request));
                 }
                 MetaCommand::ReportReplicas { request, reply } => {
                     let _ = reply.send(state.report_replicas(request));
@@ -7963,6 +8008,62 @@ mod tests {
             .expect("reported replica location");
         assert_eq!(location.location.node_id, session.node_id);
         assert_eq!(location.location.node_epoch, session.node_epoch);
+    }
+
+    #[test]
+    fn replica_report_batch_publishes_multiple_blocks_with_one_journal_record() {
+        let mut state = MetaState::new(Box::<InMemoryJournal>::default());
+        let writer = test_session(&mut state, 6);
+        let reader = test_session(&mut state, 7);
+        for index in 0..2 {
+            state
+                .commit_version(value_commit_request_for(
+                    writer.clone(),
+                    format!("batch-key-{index}").into_bytes(),
+                    format!("batch-block-{index}").into_bytes(),
+                    format!("batch-commit-{index}").into_bytes(),
+                    format!("batch-digest-{index}").into_bytes(),
+                ))
+                .expect("publish referenced block");
+        }
+        let before_report = state.journal.last_index();
+
+        let response = state
+            .report_replicas(pb::ReportReplicasRequest {
+                context: None,
+                session: Some(reader.clone()),
+                replicas: (0..2)
+                    .map(|index| pb::ReplicaReport {
+                        block_id: format!("batch-block-{index}").into_bytes(),
+                        length: 4,
+                        checksum: format!("batch-digest-{index}").into_bytes(),
+                        durability: pb::DurabilityPolicy::ReplicatedMemory as i32,
+                    })
+                    .collect(),
+                operation_id: b"replica-report-batch".to_vec(),
+                desired_copies: 2,
+                repair_id: Vec::new(),
+            })
+            .expect("batch report");
+
+        assert_eq!(response.accepted.len(), 2);
+        assert!(response.rejected_block_ids.is_empty());
+        assert_eq!(
+            state.journal.last_index(),
+            before_report + 1,
+            "one batch must append one atomic journal record"
+        );
+        for index in 0..2 {
+            let block_id = format!("batch-block-{index}").into_bytes();
+            assert!(
+                state
+                    .replicas
+                    .get(block_id.as_slice())
+                    .is_some_and(|replicas| replicas
+                        .iter()
+                        .any(|replica| replica.location.node_id == reader.node_id))
+            );
+        }
     }
 
     #[test]

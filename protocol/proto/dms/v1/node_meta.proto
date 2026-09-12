@@ -11,6 +11,9 @@ service MetadataService {
   rpc OpenNodeSession(OpenNodeSessionRequest) returns (OpenNodeSessionResponse);
   rpc Heartbeat(NodeHeartbeatRequest) returns (NodeHeartbeatResponse);
   rpc ResolveObject(ResolveObjectRequest) returns (ResolveObjectResponse);
+  // Node 内部把同一调度时刻已经排队的独立解析合并成一次 RPC。每个查询仍有
+  // 独立结果；单个 key 不存在不会让同批其他查询失败。
+  rpc ResolveObjects(ResolveObjectsRequest) returns (ResolveObjectsResponse);
   rpc ReportReplicas(ReportReplicasRequest) returns (ReportReplicasResponse);
   rpc CommitVersion(CommitVersionRequest) returns (CommitVersionResponse);
   rpc CommitBatch(CommitBatchRequest) returns (CommitBatchResponse);
@@ -186,6 +189,20 @@ message ResolveObjectResponse {
   VersionLayout layout = 1;
   repeated BlockReplicaSet block_replicas = 2;
   optional CurrentLeaseGrant current_lease = 3;
+}
+
+message ResolveObjectsRequest {
+  repeated ResolveObjectRequest requests = 1;
+}
+
+message ResolveObjectResult {
+  // 不存在时 response 缺失；协议或 Session 错误仍作为整个 RPC 的 Status 返回。
+  optional ResolveObjectResponse response = 1;
+}
+
+message ResolveObjectsResponse {
+  // 与 requests 严格按下标一一对应。
+  repeated ResolveObjectResult results = 1;
 }
 
 message ReplicaReport {

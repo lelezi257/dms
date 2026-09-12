@@ -145,6 +145,22 @@ impl MetadataService for MetadataServiceHandler {
         Ok(Response::new(response))
     }
 
+    async fn resolve_objects(
+        &self,
+        request: Request<pb::ResolveObjectsRequest>,
+    ) -> Result<Response<pb::ResolveObjectsResponse>, Status> {
+        let mut rpc = self
+            .rpc_metrics
+            .begin_server_call(dms_metrics::RpcCall::META_RESOLVE_OBJECTS);
+        let response = self
+            .meta
+            .resolve_objects(request.into_inner())
+            .await
+            .map_err(|error| self.map_meta_error(error))?;
+        rpc.success();
+        Ok(Response::new(response))
+    }
+
     async fn report_replicas(
         &self,
         request: Request<pb::ReportReplicasRequest>,

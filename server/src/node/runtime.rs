@@ -6322,37 +6322,33 @@ mod tests {
                 .await
             }));
         }
-        // 先确认双方提交都已到达 Meta，再检查 owner 未被回复等待堵住。
+        // 每个写只向另一个 Node 投递失效；写入 Node 已在本机提交路径更新
+        // Current，不再接收自己的 Watch 事件。先确认双方提交均到达 Meta，
+        // 再检查 owner 未被等待远端 ACK 的 Future 堵住。
         let mut events = Vec::new();
         for (_, stream) in &mut streams {
-            let first = tokio::time::timeout(Duration::from_secs(2), stream.message())
+            let event = tokio::time::timeout(Duration::from_secs(2), stream.message())
                 .await
                 .unwrap()
                 .unwrap()
                 .unwrap();
-            let second = tokio::time::timeout(Duration::from_secs(2), stream.message())
-                .await
-                .unwrap()
-                .unwrap()
-                .unwrap();
-            events.push([first, second]);
+            events.push(event);
         }
         for (index, (node, session)) in nodes.iter().enumerate() {
             tokio::time::timeout(Duration::from_millis(250), node.heartbeat(*session, None))
                 .await
                 .expect("outbound commit must not block heartbeat")
                 .unwrap();
-            for event in &events[index] {
-                if let Some(pb::node_event::Event::InvalidateCurrent(value)) = &event.event {
-                    node.invalidate_current(
-                        value.key.as_ref().unwrap().value.clone(),
-                        value.minimum_version,
-                    )
-                    .await
-                    .unwrap();
-                }
-                streams[index].0.acknowledge_event(event).await.unwrap();
+            let event = &events[index];
+            if let Some(pb::node_event::Event::InvalidateCurrent(value)) = &event.event {
+                node.invalidate_current(
+                    value.key.as_ref().unwrap().value.clone(),
+                    value.minimum_version,
+                )
+                .await
+                .unwrap();
             }
+            streams[index].0.acknowledge_event(event).await.unwrap();
         }
         for write in writes {
             tokio::time::timeout(Duration::from_secs(2), write)

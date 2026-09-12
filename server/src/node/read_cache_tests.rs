@@ -1196,7 +1196,8 @@ async fn set_range_invalidates_node_layout_cache_before_next_current_read() {
     acknowledge_next_invalidation(&node.node, reader, &mut reader_events, key, v1 + 1).await;
     let v2 = write.await.expect("join set range");
     assert!(v2 > v1);
-    meta.wait_for_invalidation_ack(1, key, v2).await;
+    // 同一 Node 内的 Client barrier 已在上面确认。写入 Node 会在提交路径直接
+    // 更新本机 Current，不再等待一条发给自己的 Meta Watch 事件。
 
     // SET_RANGE 写路径本身需要向 Meta resolve base layout；这里重新计数，
     // 只验证后续 Current 读是否“第一次 resolve、第二次命中 Node cache”。
@@ -1890,7 +1891,6 @@ async fn mset_invalidates_cached_local_current_key() {
     assert_eq!(versions.len(), 2);
     let v2 = versions[0].version;
     assert!(v2 > v1);
-    meta.wait_for_invalidation_ack(1, key, v2).await;
     // 另一个 key 是本批新建对象，不需要失效已有 Current cache，也不会等待前台 ACK。
 
     meta.reset_resolve_count();
@@ -1929,8 +1929,6 @@ async fn delete_invalidates_cached_current_and_following_get_observes_not_found(
     let deleted = delete.await.expect("join delete").expect("delete");
     assert!(deleted.deleted);
     assert!(deleted.version > v1);
-    meta.wait_for_invalidation_ack(1, key, deleted.version)
-        .await;
 
     let after_delete = node
         .node

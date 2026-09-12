@@ -27,3 +27,4 @@
 - 1 MiB SHM SET 的 AllocateStaging 和 Set 是“取得 Slot”与“宣布写完”两个语义，不应仅为减少 RPC 强行合并。
 - 完整不可变 Block 可复用提交摘要；区间 payload 必须重新校验。
 - jemalloc 不替代 Region 内 Slot 管理；allocator 只有被分段证据证明为主成本时才进入优化优先级。
+- 高频覆盖写的失效合同是“远端目标 Node ACK 后才回复写成功”；写入 Node 已在本机提交路径更新 Current，不应再接收并 ACK 自己产生的失效事件。Watch lag、重放和事件回收都必须按真实目标 Node 计算，不能只改投递。

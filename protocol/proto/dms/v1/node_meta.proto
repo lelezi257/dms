@@ -377,6 +377,10 @@ message InvalidateCurrentEvent {
   uint64 lease_epoch = 4;
   uint64 revision = 5;
   uint64 minimum_version = 6;
+  // 发起本次 Current 切换的 Node。该 Node 会在提交完成路径中直接更新本机状态，
+  // 不需要再通过 Watch 收到并 ACK 自己产生的失效事件。0 表示旧版本发送方未知，
+  // 此时保持向所有 Node 投递的兼容行为。
+  uint64 source_node_id = 7;
 }
 
 message RepairReplicaEvent {

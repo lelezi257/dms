@@ -2750,6 +2750,18 @@ impl MetaState {
         commit: VersionCommitRecord,
         commit_sequence: Option<&CommitSequenceRecord>,
     ) {
+        // commit sequence 记录真正发起提交的 Node，应优先作为来源；旧 WAL 没有
+        // sequence 时才从新副本推断。两者都缺失则保留 0 并继续广播，以兼容
+        // 历史记录并优先保证失效正确性。
+        let source_node_id = commit_sequence
+            .map(|record| record.node_id)
+            .or_else(|| {
+                commit
+                    .new_replicas
+                    .first()
+                    .map(|(location, _)| location.node_id)
+            })
+            .unwrap_or_default();
         for (location, length) in commit.new_replicas {
             self.desired_replica_counts
                 .entry(location.block_id.clone())
@@ -2802,6 +2814,7 @@ impl MetaState {
                         lease_epoch: 0,
                         revision: sequence,
                         minimum_version: commit.layout.version,
+                        source_node_id,
                     },
                 )),
             });
@@ -2928,21 +2941,23 @@ impl MetaState {
             .fold(0.0, f64::max);
         // event_high_watermark 允许存在 cursor 空洞：例如首次发布新 key
         // 会消耗 cursor 保持旧 Journal ACK 兼容，但不会生成 NodeEvent。
-        // lag 只统计真实保留的事件，否则新 key 热写会被误报为 watch 积压。
-        //
-        // events 按 cursor 单调追加。最大 lag 一定来自 ACK 最落后的会话，
-        // 因此只需 O(sessions) 找最小 ACK，再 O(log events) 二分事件起点。
+        // lag 只统计该 Node 真正需要处理、且位于其 ACK 游标之后的保留事件。
+        // 例如写入 Node 不需要处理自己产生的 Current 失效，不能把这些事件
+        // 误报成 backlog；它以后 ACK 更大的目标事件时仍会自然跨过这些游标。
         let max_lag = self
             .sessions
-            .values()
-            .map(|session| session.last_acked_cursor)
-            .min()
-            .map(|min_acked_cursor| {
-                let first_pending = self
-                    .events
-                    .partition_point(|event| event.cursor <= min_acked_cursor);
-                (self.events.len() - first_pending) as u64
+            .iter()
+            .filter(|(node_id, _)| !self.retired_sessions.contains(node_id))
+            .map(|(node_id, session)| {
+                self.events
+                    .iter()
+                    .filter(|event| {
+                        event.cursor > session.last_acked_cursor
+                            && event_targets_node(event, *node_id)
+                    })
+                    .count() as u64
             })
+            .max()
             .unwrap_or(0);
         self.metrics.set_state(MetaStateMetricsSnapshot {
             keys: self.versions.len(),
@@ -3128,17 +3143,15 @@ impl MetaState {
         {
             return;
         }
-        let acked_by_all_sessions = self
-            .sessions
-            .iter()
-            .filter(|(node_id, _)| !self.retired_sessions.contains(node_id))
-            .map(|(_, session)| session.last_acked_cursor)
-            .min()
-            .unwrap_or(self.event_high_watermark);
+        let sessions = &self.sessions;
+        let retired_sessions = &self.retired_sessions;
         let pending_retirements = self.pending_retirements.clone();
         self.events.retain(|event| {
-            event.cursor > acked_by_all_sessions
-                || retirement_event_outstanding_in(&pending_retirements, event)
+            sessions.iter().any(|(node_id, session)| {
+                !retired_sessions.contains(node_id)
+                    && event_targets_node(event, *node_id)
+                    && event.cursor > session.last_acked_cursor
+            }) || retirement_event_outstanding_in(&pending_retirements, event)
         });
     }
 
@@ -4095,6 +4108,11 @@ fn hex_nibble(byte: u8) -> Result<u8, MetaRuntimeError> {
 
 fn event_targets_node(event: &pb::NodeEvent, node_id: u64) -> bool {
     match &event.event {
+        Some(pb::node_event::Event::InvalidateCurrent(invalidate)) => {
+            // source_node_id=0 来自旧协议或旧 WAL，必须继续广播，不能因无法识别
+            // 写入方而漏掉远端缓存失效。
+            invalidate.source_node_id == 0 || invalidate.source_node_id != node_id
+        }
         Some(pb::node_event::Event::RepairReplica(repair)) => repair
             .target
             .as_ref()
@@ -5141,12 +5159,23 @@ mod tests {
                 .await
                 .unwrap();
         }
+        // 历史写入完成后才加入的新 Node 仍需从自己的 ACK 游标重放全部目标事件。
+        // 写入 Node 自己不是这些失效事件的目标。
+        let reader_grant = handle
+            .open_node_session(8, "http://127.0.0.1:19201".into(), true)
+            .await
+            .unwrap();
+        let reader = pb::NodeSessionIdentity {
+            session_id: reader_grant.session_id,
+            node_id: 8,
+            node_epoch: reader_grant.node_epoch,
+        };
         let (sender, mut receiver) = mpsc::channel(1);
         handle
             .watch_node_events(
                 pb::WatchNodeEventsRequest {
                     context: None,
-                    session: Some(writer),
+                    session: Some(reader),
                     last_acked_cursor: 0,
                 },
                 sender,
@@ -6346,6 +6375,7 @@ mod tests {
                     lease_epoch: 0,
                     revision: fresh_cursor,
                     minimum_version: fresh_cursor,
+                    source_node_id: 0,
                 },
             )),
         });
@@ -6447,6 +6477,7 @@ mod tests {
                     lease_epoch: 0,
                     revision: fresh_cursor,
                     minimum_version: fresh_cursor,
+                    source_node_id: 0,
                 },
             )),
         });
@@ -7166,7 +7197,7 @@ mod tests {
     }
 
     #[test]
-    fn event_gc_waits_until_every_session_acknowledges_cursor() {
+    fn event_gc_waits_until_every_target_session_acknowledges_cursor() {
         let mut state = MetaState::with_policies(
             Box::<InMemoryJournal>::default(),
             MetaCheckpointPolicy { every_records: 1 },
@@ -7175,6 +7206,17 @@ mod tests {
         let writer = test_session(&mut state, 7);
         let reader = test_session(&mut state, 8);
         seed_existing_key(&mut state, writer.clone(), b"checkpoint/latest");
+        let (writer_sender, mut writer_receiver) = mpsc::channel(1);
+        state
+            .watch_node_events(
+                pb::WatchNodeEventsRequest {
+                    context: None,
+                    session: Some(writer.clone()),
+                    last_acked_cursor: 0,
+                },
+                writer_sender,
+            )
+            .expect("writer watch");
 
         state
             .commit_version(value_commit_request_for(
@@ -7188,17 +7230,12 @@ mod tests {
         assert_eq!(state.events.len(), 1);
 
         let event = state.events[0].clone();
-        state
-            .acknowledge_node_event(pb::AcknowledgeNodeEventRequest {
-                context: None,
-                session: Some(writer),
-                event_id: event.event_id.clone(),
-                cursor: event.cursor,
-                result: "applied".to_string(),
-                detail: None,
-            })
-            .expect("writer ack");
-        assert_eq!(state.events.len(), 1, "reader has not ACKed yet");
+        assert_eq!(invalidate_event(&event).source_node_id, writer.node_id);
+        assert!(
+            writer_receiver.try_recv().is_err(),
+            "source Node already updates its local Current on commit and must not receive its own invalidation"
+        );
+        assert_eq!(state.events.len(), 1, "target reader has not ACKed yet");
 
         state
             .acknowledge_node_event(pb::AcknowledgeNodeEventRequest {
@@ -7212,7 +7249,7 @@ mod tests {
             .expect("reader ack");
         assert!(
             state.events.is_empty(),
-            "event can be removed after all sessions ACK it"
+            "event can be removed after every target session ACKs it"
         );
         assert_eq!(state.event_high_watermark, 2);
     }
@@ -7220,11 +7257,12 @@ mod tests {
     #[test]
     fn retry_result_does_not_advance_event_cursor_or_drop_replay() {
         let mut state = MetaState::new(Box::<InMemoryJournal>::default());
-        let session = test_session(&mut state, 7);
-        seed_existing_key(&mut state, session.clone(), b"checkpoint/latest");
+        let writer = test_session(&mut state, 7);
+        let reader = test_session(&mut state, 8);
+        seed_existing_key(&mut state, writer.clone(), b"checkpoint/latest");
         state
             .commit_version(value_commit_request_for(
-                session.clone(),
+                writer,
                 b"checkpoint/latest".to_vec(),
                 b"block-event-retry".to_vec(),
                 b"op-event-retry".to_vec(),
@@ -7236,7 +7274,7 @@ mod tests {
         let error = state
             .acknowledge_node_event(pb::AcknowledgeNodeEventRequest {
                 context: None,
-                session: Some(session.clone()),
+                session: Some(reader.clone()),
                 event_id: event.event_id.clone(),
                 cursor: event.cursor,
                 result: "retry".to_string(),
@@ -7247,7 +7285,7 @@ mod tests {
         assert_eq!(
             state
                 .sessions
-                .get(&session.node_id)
+                .get(&reader.node_id)
                 .expect("session")
                 .last_acked_cursor,
             0
@@ -7258,7 +7296,7 @@ mod tests {
             .watch_node_events(
                 pb::WatchNodeEventsRequest {
                     context: None,
-                    session: Some(session),
+                    session: Some(reader),
                     last_acked_cursor: 0,
                 },
                 sender,
@@ -7351,18 +7389,19 @@ mod tests {
         let grant = state
             .open_node_session(7, "http://127.0.0.1:19200".to_string(), true)
             .expect("open node session");
-        let session = pb::NodeSessionIdentity {
+        let writer = pb::NodeSessionIdentity {
             session_id: grant.session_id,
             node_id: grant.node_id,
             node_epoch: grant.node_epoch,
         };
-        seed_existing_key(&mut state, session.clone(), b"checkpoint/latest");
+        let reader = test_session(&mut state, 8);
+        seed_existing_key(&mut state, writer.clone(), b"checkpoint/latest");
         let (first_sender, mut first_receiver) = mpsc::channel(4);
         state
             .watch_node_events(
                 pb::WatchNodeEventsRequest {
                     context: None,
-                    session: Some(session.clone()),
+                    session: Some(reader.clone()),
                     last_acked_cursor: 0,
                 },
                 first_sender,
@@ -7372,7 +7411,7 @@ mod tests {
         state
             .commit_version(pb::CommitVersionRequest {
                 context: None,
-                session: Some(session.clone()),
+                session: Some(writer),
                 key: Some(pb::Key {
                     value: b"checkpoint/latest".to_vec(),
                 }),
@@ -7415,7 +7454,7 @@ mod tests {
             .watch_node_events(
                 pb::WatchNodeEventsRequest {
                     context: None,
-                    session: Some(session),
+                    session: Some(reader),
                     last_acked_cursor: 0,
                 },
                 reconnect_sender,
@@ -7446,6 +7485,17 @@ mod tests {
             node_epoch: writer.node_epoch,
         };
         seed_existing_key(&mut state, writer_session.clone(), b"checkpoint/latest");
+        let (writer_event_sender, mut writer_event_receiver) = mpsc::channel(4);
+        state
+            .watch_node_events(
+                pb::WatchNodeEventsRequest {
+                    context: None,
+                    session: Some(writer_session.clone()),
+                    last_acked_cursor: 0,
+                },
+                writer_event_sender,
+            )
+            .expect("writer watch");
         let (event_sender, mut event_receiver) = mpsc::channel(4);
         state
             .watch_node_events(
@@ -7472,8 +7522,13 @@ mod tests {
             completion.try_recv(),
             Err(tokio::sync::oneshot::error::TryRecvError::Empty)
         ));
+        assert!(
+            writer_event_receiver.try_recv().is_err(),
+            "writer does not need a Watch round trip for its own committed Current"
+        );
 
         let event = event_receiver.try_recv().expect("remote invalidation");
+        assert_eq!(invalidate_event(&event).source_node_id, writer.node_id);
         state
             .acknowledge_node_event(pb::AcknowledgeNodeEventRequest {
                 context: None,

@@ -55,9 +55,20 @@ impl CurrentCache {
     }
 
     /// 全局代数只限制在途回填；单 key 失效不清理其它已缓存 key。
-    pub(super) fn invalidate(&mut self, key: &[u8]) {
+    ///
+    /// 已经缓存到 `minimum_version` 或更高版本时，不必删除这份仍然正确的
+    /// Current 布局。典型场景是本 Node 完成写入并先回填了新版本，随后收到
+    /// Meta 对同一次提交的事件。generation 仍然推进，用来拒绝事件发生前启动的
+    /// 旧 resolve 回填；只有确实落后的条目才删除。
+    pub(super) fn invalidate_before(&mut self, key: &[u8], minimum_version: u64) {
         self.generation = self.generation.saturating_add(1);
-        self.remove(key);
+        if self
+            .entries
+            .get(key)
+            .is_some_and(|entry| entry.layout.version < minimum_version)
+        {
+            self.remove(key);
+        }
     }
 
     pub(super) fn clear(&mut self) {
@@ -242,13 +253,27 @@ mod tests {
         let mut cache = CurrentCache::new(4096, Duration::from_secs(1));
         let now = Instant::now();
         let old = cache.token().unwrap();
-        cache.invalidate(b"k");
+        cache.invalidate_before(b"k", 2);
         assert!(!cache.insert(old, b"k".to_vec(), &response(1), now, 7, now));
         let token = cache.token().unwrap();
         assert!(cache.insert(token, b"k".to_vec(), &response(2), now, 7, now));
         cache.clear();
         assert!(cache.get(b"k", 7, now).is_none());
         assert!(!cache.insert(token, b"k".to_vec(), &response(2), now, 7, now));
+    }
+
+    #[test]
+    fn invalidation_keeps_an_already_current_or_newer_layout() {
+        let mut cache = CurrentCache::new(4096, Duration::from_secs(1));
+        let now = Instant::now();
+        let token = cache.token().unwrap();
+        assert!(cache.insert(token, b"k".to_vec(), &response(2), now, 7, now));
+
+        cache.invalidate_before(b"k", 2);
+        assert_eq!(cache.get(b"k", 7, now).unwrap().layout.version, 2);
+
+        cache.invalidate_before(b"k", 3);
+        assert!(cache.get(b"k", 7, now).is_none());
     }
     #[test]
     fn deadline_is_from_request_start_and_epoch_is_checked() {
@@ -278,6 +303,7 @@ mod tests {
         assert!(cache.insert(token, b"k".to_vec(), &response(1), start, 7, start));
         assert!(cache.get(b"k", 8, start).is_none());
     }
+
     #[test]
     fn bounded_budget_no_grant_disabled_and_older_versions() {
         let now = Instant::now();
@@ -298,7 +324,7 @@ mod tests {
                 .is_none()
         );
         cache.generation = u64::MAX - 1;
-        cache.invalidate(b"c");
+        cache.invalidate_before(b"c", 2);
         assert!(cache.token().is_none());
         assert!(cache.get(b"c", 7, now).is_none());
     }

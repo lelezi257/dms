@@ -1283,7 +1283,7 @@ fn shm_token() -> Option<Vec<u8>> {
 }
 
 fn digest(bytes: &[u8]) -> Vec<u8> {
-    dms_transport::checksum::fnv1a_bytes(bytes).to_vec()
+    dms_transport::checksum::stable_digest_bytes(bytes).to_vec()
 }
 
 #[cfg(test)]

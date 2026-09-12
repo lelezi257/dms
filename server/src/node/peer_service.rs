@@ -253,7 +253,7 @@ mod tests {
 
     use super::PeerServiceHandler;
     use crate::meta::{metadata_service::MetadataServiceHandler, runtime::MetaHandle};
-    use crate::node::metadata_client::MetadataClient;
+    use crate::node::metadata_client::{MetadataClient, digest};
     use crate::node::runtime::NodeHandle;
 
     struct CountingIncoming {
@@ -444,6 +444,7 @@ mod tests {
 
         assert_eq!(response.serving_node_id, "node-b");
         assert_eq!(response.payload, b"peer-bytes");
+        assert_eq!(response.checksum, digest(b"peer-bytes"));
 
         let ranged = client
             .pull_block(PeerPullBlockRequest {
@@ -461,6 +462,7 @@ mod tests {
         // 这样 target 做大块分段拉取时，仍能确认源端 Block 身份没有被截短。
         assert_eq!(ranged.length, 10);
         assert_eq!(ranged.payload, b"er-b");
+        assert_eq!(ranged.checksum, digest(b"er-b"));
         let _ = shutdown_tx.send(());
         server_task.await.expect("join peer server");
     }

@@ -6,6 +6,7 @@
 | --- | --- | --- |
 | [dms-delivery](dms-delivery/SKILL.md) | 需求、设计、穿刺、开发、测试或发布准备 | 只加载当前阶段，交付可验证的小批次，避免漏掉环境与验收 |
 | [dms-review-artifact](dms-review-artifact/SKILL.md) | 输出供人工审阅的 Markdown/HTML，或修改已审阅方案 | 同源生成、链接可追溯、小轮次突出修改，不维护两份内容 |
+| [dms-performance](dms-performance/SKILL.md) | 复现基线、白盒归因、性能优化或回归判断 | 固定环境与调用图，用组成下界和机器 evaluator 收口，避免重复猜测 |
 
 ## 怎么让 AI 使用
 

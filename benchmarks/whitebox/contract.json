@@ -1,0 +1,139 @@
+{
+  "schema": "dms.whitebox-contract.v1",
+  "description": "基础数据路径的固定 Case、前台调用图和 payload 内存账本。修改这些数字必须先证明语义变化，不能用实现现状倒推最小值。",
+  "sizes_bytes": [4096, 1048576],
+  "thresholds": {
+    "max_p50_regression_ratio": 1.10,
+    "max_unattributed_fraction": 0.10,
+    "local_hot_max_lower_bound_ratio": 1.50,
+    "architecture_penalty_max_lower_bound_ratio": 1.25
+  },
+  "cases": [
+    {
+      "id": "sdk.local_hot_get.4096",
+      "path_class": "local_hot",
+      "foreground_calls": ["Client->local Node:Get"],
+      "minimum_rpc": 1,
+      "minimum_payload_copies": 1,
+      "minimum_payload_allocations": 0,
+      "reason": "调用者只有 key；Node 用 Current cache 确认版本并保护本地 bytes，然后从 SHM 复制到用户 buffer。"
+    },
+    {
+      "id": "sdk.local_hot_get.1048576",
+      "path_class": "local_hot",
+      "foreground_calls": ["Client->local Node:Get"],
+      "minimum_rpc": 1,
+      "minimum_payload_copies": 1,
+      "minimum_payload_allocations": 0,
+      "reason": "与 4 KiB 相同；对象变大只增加必要的 SHM 到用户 buffer 复制。"
+    },
+    {
+      "id": "sdk.local_set.4096",
+      "path_class": "architecture_penalty",
+      "foreground_calls": ["Client->local Node:SetInline", "local Node->Meta:CommitVersion"],
+      "minimum_rpc": 2,
+      "minimum_payload_copies": 2,
+      "minimum_payload_allocations": 1,
+      "reason": "小对象随 SetInline 发送；Meta 提交负责发布全局 Current，不能省略。"
+    },
+    {
+      "id": "sdk.local_set.1048576",
+      "path_class": "advantaged",
+      "foreground_calls": ["Client->local Node:AllocateStaging", "Client->local Node:Set", "local Node->Meta:CommitVersion"],
+      "minimum_rpc": 3,
+      "minimum_payload_copies": 1,
+      "minimum_payload_allocations": 1,
+      "reason": "SHM 写先取得 Node 管理的 Slot，再 seal；payload 不经过 Upload RPC。"
+    },
+    {
+      "id": "sdk.peer_first_get.4096",
+      "path_class": "architecture_penalty",
+      "foreground_calls": ["Client->reader Node:Get", "reader Node->Meta:ResolveObject", "reader Node->owner Node:PullBlock"],
+      "minimum_rpc": 3,
+      "minimum_payload_copies": 3,
+      "minimum_payload_allocations": 2,
+      "reason": "reader Node 首次没有位置和 bytes；副本登记在后台完成，不计入用户等待路径。"
+    },
+    {
+      "id": "sdk.peer_first_get.1048576",
+      "path_class": "architecture_penalty",
+      "foreground_calls": ["Client->reader Node:Get", "reader Node->Meta:ResolveObject", "reader Node->owner Node:PullBlock"],
+      "minimum_rpc": 3,
+      "minimum_payload_copies": 3,
+      "minimum_payload_allocations": 2,
+      "reason": "与 4 KiB 相同；大对象主要增加 Peer payload 传输成本。"
+    },
+    {
+      "id": "sdk.peer_hot_get.4096",
+      "path_class": "advantaged",
+      "foreground_calls": ["Client->reader Node:Get"],
+      "minimum_rpc": 1,
+      "minimum_payload_copies": 1,
+      "minimum_payload_allocations": 0,
+      "reason": "首读已在 reader Node 安装 Current 和本地副本；后续只走本地读取。"
+    },
+    {
+      "id": "sdk.peer_hot_get.1048576",
+      "path_class": "advantaged",
+      "foreground_calls": ["Client->reader Node:Get"],
+      "minimum_rpc": 1,
+      "minimum_payload_copies": 1,
+      "minimum_payload_allocations": 0,
+      "reason": "与 4 KiB 相同；大对象收益来自不再跨 Node 搬运 payload。"
+    },
+    {
+      "id": "juicefs.create.4096",
+      "path_class": "advantaged",
+      "foreground_calls": ["Client->local Node:SetInline", "local Node->Meta:CommitVersion"],
+      "minimum_rpc": 2,
+      "minimum_payload_copies": 2,
+      "minimum_payload_allocations": 1,
+      "reason": "Adapter 直接把已知长度 Reader 交给 SDK，没有额外 Stat/Get。"
+    },
+    {
+      "id": "juicefs.create.1048576",
+      "path_class": "advantaged",
+      "foreground_calls": ["Client->local Node:AllocateStaging", "Client->local Node:Set", "local Node->Meta:CommitVersion"],
+      "minimum_rpc": 3,
+      "minimum_payload_copies": 1,
+      "minimum_payload_allocations": 1,
+      "reason": "Adapter 复用 SDK 的 SHM 大对象写路径，不额外 ReadAll。"
+    },
+    {
+      "id": "juicefs.read.4096",
+      "path_class": "advantaged",
+      "foreground_calls": ["JuiceFS range #1->local Node:Get"],
+      "minimum_rpc": 1,
+      "minimum_payload_copies": 1,
+      "minimum_payload_allocations": 0,
+      "reason": "Adapter 只建立 Reader；单个 4 KiB 范围读没有预先 Stat。"
+    },
+    {
+      "id": "juicefs.read.1048576",
+      "path_class": "advantaged",
+      "foreground_calls": ["JuiceFS range #1->local Node:Get", "JuiceFS range #2->local Node:Get"],
+      "minimum_rpc": 2,
+      "minimum_payload_copies": 1,
+      "minimum_payload_allocations": 0,
+      "reason": "固定挂载参数下，Chunk 层把 1 MiB 顺序读拆成两个并行范围读；两种对象后端调用图一致。"
+    },
+    {
+      "id": "juicefs.overwrite.4096",
+      "path_class": "advantaged",
+      "foreground_calls": ["Client->local Node:SetInline", "local Node->Meta:CommitVersion"],
+      "minimum_rpc": 2,
+      "minimum_payload_copies": 2,
+      "minimum_payload_allocations": 1,
+      "reason": "固定 Case 覆盖 4 KiB，JuiceFS 发布一个新的小 Slice 对象。"
+    },
+    {
+      "id": "juicefs.overwrite.1048576",
+      "path_class": "advantaged",
+      "foreground_calls": ["Client->local Node:SetInline", "local Node->Meta:CommitVersion"],
+      "minimum_rpc": 2,
+      "minimum_payload_copies": 2,
+      "minimum_payload_allocations": 1,
+      "reason": "文件大小为 1 MiB，但固定 Case 只覆盖 4 KiB，DMS 接收的仍是一个小 Slice。"
+    }
+  ]
+}

@@ -12,6 +12,6 @@
 6. [观测](observability.md)：日志、Metrics、Trace 及图形界面。
 7. [排障](troubleshooting.md)：从症状定位连接、内存、数据和观测问题。
 
-开发者再读[架构](architecture.md)、[贡献指南](contributing.md)、[源码规则](../AGENTS.md)和[项目 Skills](../skills/README.md)。
+开发者再读[架构](architecture.md)、[贡献指南](contributing.md)、[白盒性能基线](performance/whitebox-baseline.md)、[源码规则](../AGENTS.md)和[项目 Skills](../skills/README.md)。
 
 已有的专门操作手册保留在本目录；以本导航及对应专题入口为当前阅读顺序，不能从某次实验成功推导出生产高可用或完整持久化能力。

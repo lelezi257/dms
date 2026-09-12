@@ -1,0 +1,39 @@
+{
+  "schema": "dms.whitebox-result.v1",
+  "profile": {
+    "id": "lima-aarch64-3vm-2026-09-12",
+    "measured_at": "2026-09-12",
+    "platform": "Linux aarch64 Lima VMs on one macOS host",
+    "topology": {
+      "writer_node": "n1",
+      "reader_and_client": "n2",
+      "metadata_and_comparator": "n3"
+    },
+    "transports": {
+      "client_to_local_node": "UDS control + SHM payload",
+      "node_to_node": "gRPC over TCP",
+      "node_to_meta": "gRPC over TCP"
+    },
+    "source": {
+      "dms_candidate": "d0852777f44284aaabfae84b2c15dc686da99248",
+      "juicefs": "245401406b64758fdc47482e7a306718dd5e9b91"
+    },
+    "comparison_rule": "只有 profile.id 与基线一致时才允许硬门禁；跨环境结果只能作为趋势证据。"
+  },
+  "cases": [
+    {"id":"sdk.local_hot_get.4096","correctness":true,"samples":100,"p50_ns":92798.0,"lower_bound_p50_ns":90589.0,"comparator_p50_ns":96176.5,"rpc":1,"payload_copies":1,"payload_allocations":0,"unattributed_fraction":0.0},
+    {"id":"sdk.local_hot_get.1048576","correctness":true,"samples":100,"p50_ns":121764.5,"lower_bound_p50_ns":98192.0,"comparator_p50_ns":1126127.5,"rpc":1,"payload_copies":1,"payload_allocations":0,"unattributed_fraction":0.0},
+    {"id":"sdk.local_set.4096","correctness":true,"samples":100,"p50_ns":245467.0,"lower_bound_p50_ns":229455.0,"comparator_p50_ns":100327.5,"rpc":2,"payload_copies":2,"payload_allocations":1,"unattributed_fraction":0.0,"architecture_penalty":{"reason":"数据由本地 Node 接纳后，还要通过独立 Meta 发布全局 Current。","following_hot_read_p50_ns":92798.0}},
+    {"id":"sdk.local_set.1048576","correctness":true,"samples":100,"p50_ns":696498.0,"lower_bound_p50_ns":429893.0,"comparator_p50_ns":1160726.0,"rpc":3,"payload_copies":1,"payload_allocations":1,"unattributed_fraction":0.0},
+    {"id":"sdk.peer_first_get.4096","correctness":true,"samples":100,"p50_ns":440753.0,"lower_bound_p50_ns":409307.0,"comparator_p50_ns":96176.5,"rpc":3,"payload_copies":3,"payload_allocations":2,"unattributed_fraction":0.0,"architecture_penalty":{"reason":"首次访问先解析 owner，再直拉并建立本地副本。","following_hot_read_p50_ns":90610.0}},
+    {"id":"sdk.peer_first_get.1048576","correctness":true,"samples":100,"p50_ns":2507012.0,"lower_bound_p50_ns":2354868.5,"comparator_p50_ns":1126127.5,"rpc":3,"payload_copies":3,"payload_allocations":2,"unattributed_fraction":0.0,"architecture_penalty":{"reason":"首次访问先解析 owner，再直拉并建立本地副本。","following_hot_read_p50_ns":129622.0}},
+    {"id":"sdk.peer_hot_get.4096","correctness":true,"samples":100,"p50_ns":90610.0,"lower_bound_p50_ns":90589.0,"comparator_p50_ns":96176.5,"rpc":1,"payload_copies":1,"payload_allocations":0,"unattributed_fraction":0.0},
+    {"id":"sdk.peer_hot_get.1048576","correctness":true,"samples":100,"p50_ns":129622.0,"lower_bound_p50_ns":98192.0,"comparator_p50_ns":1126127.5,"rpc":1,"payload_copies":1,"payload_allocations":0,"unattributed_fraction":0.0},
+    {"id":"juicefs.create.4096","correctness":true,"samples":100,"p50_ns":2761053.5,"lower_bound_p50_ns":1503260.25,"comparator_p50_ns":3568021.0,"rpc":2,"payload_copies":2,"payload_allocations":1,"unattributed_fraction":0.0},
+    {"id":"juicefs.create.1048576","correctness":true,"samples":100,"p50_ns":5561313.5,"lower_bound_p50_ns":3128905.75,"comparator_p50_ns":14832659.5,"rpc":3,"payload_copies":1,"payload_allocations":1,"unattributed_fraction":0.0},
+    {"id":"juicefs.read.4096","correctness":true,"samples":200,"p50_ns":1750448.0,"lower_bound_p50_ns":921623.0,"comparator_p50_ns":2240328.0,"rpc":1,"payload_copies":1,"payload_allocations":0,"unattributed_fraction":0.0},
+    {"id":"juicefs.read.1048576","correctness":true,"samples":200,"p50_ns":2349717.0,"lower_bound_p50_ns":1296623.0,"comparator_p50_ns":9761535.5,"rpc":2,"payload_copies":1,"payload_allocations":0,"unattributed_fraction":0.0},
+    {"id":"juicefs.overwrite.4096","correctness":true,"samples":100,"p50_ns":1831998.0,"lower_bound_p50_ns":1038732.5,"comparator_p50_ns":2902763.5,"rpc":2,"payload_copies":2,"payload_allocations":1,"unattributed_fraction":0.0},
+    {"id":"juicefs.overwrite.1048576","correctness":true,"samples":100,"p50_ns":1866496.0,"lower_bound_p50_ns":1055981.5,"comparator_p50_ns":3371487.5,"rpc":2,"payload_copies":2,"payload_allocations":1,"unattributed_fraction":0.0}
+  ]
+}

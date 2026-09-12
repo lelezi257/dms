@@ -7,7 +7,7 @@
 //! 哪个版本；位置提示只是在这个版本仍有效时，帮助缺块读直连 peer。位置提示本身
 //! 不具备版本权威性，Watch 断开、租约过期或 generation 失效后必须一起丢弃。
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     sync::Arc,
     time::{Duration, Instant},
 };
@@ -75,6 +75,33 @@ impl CurrentCache {
         self.generation = self.generation.saturating_add(1);
         self.entries.clear();
         self.charged = 0;
+    }
+
+    /// 撤销引用待回收 Block 的 Current 布局，同时保留无关 key。
+    ///
+    /// Block 回收是物理生命周期事件，不等于所有 key 的目录视图都失效。过去在
+    /// 任意 Prepare 到来时清空整张表，会让已经接管到本 Node 的其它对象在下一轮
+    /// 热读时重新逐个访问 Meta。这里仍推进全局 generation，以拒绝事件发生前
+    /// 启动、事件后才返回的旧 resolve；但只删除真正引用这些 Block 的条目。
+    pub(super) fn invalidate_blocks(&mut self, block_ids: &[Vec<u8>]) {
+        self.generation = self.generation.saturating_add(1);
+        if block_ids.is_empty() || self.entries.is_empty() {
+            return;
+        }
+        let retired = block_ids.iter().map(Vec::as_slice).collect::<HashSet<_>>();
+        let mut released = 0_u64;
+        self.entries.retain(|_, entry| {
+            let keep = !entry
+                .layout
+                .extents
+                .iter()
+                .any(|extent| retired.contains(extent.block_id.as_slice()));
+            if !keep {
+                released += entry.charge;
+            }
+            keep
+        });
+        self.charged -= released;
     }
 
     fn remove(&mut self, key: &[u8]) {
@@ -357,5 +384,36 @@ mod tests {
         );
         assert_eq!(cache.charged(), 0);
         assert!(cache.get(b"k", 7, now).is_none());
+    }
+
+    #[test]
+    fn retiring_one_block_keeps_unrelated_current_entries() {
+        let now = Instant::now();
+        let mut cache = CurrentCache::new(4096, Duration::from_secs(1));
+        let token = cache.token().unwrap();
+        let mut first = response_with_replica(16);
+        first.layout.as_mut().unwrap().extents[0].block_id = b"old-block".to_vec();
+        first.block_replicas[0].block_id = b"old-block".to_vec();
+        first.block_replicas[0].replicas[0].block_id = b"old-block".to_vec();
+        first.block_replicas[0].proofs[0].block_id = b"old-block".to_vec();
+        let mut second = response_with_replica(16);
+        second.layout.as_mut().unwrap().extents[0].block_id = b"live-block".to_vec();
+        second.block_replicas[0].block_id = b"live-block".to_vec();
+        second.block_replicas[0].replicas[0].block_id = b"live-block".to_vec();
+        second.block_replicas[0].proofs[0].block_id = b"live-block".to_vec();
+
+        assert!(cache.insert(token, b"old-key".to_vec(), &first, now, 7, now));
+        assert!(cache.insert(token, b"live-key".to_vec(), &second, now, 7, now));
+        let charged_before = cache.charged();
+
+        cache.invalidate_blocks(&[b"old-block".to_vec()]);
+
+        assert!(cache.get(b"old-key", 7, now).is_none());
+        assert!(cache.get(b"live-key", 7, now).is_some());
+        assert!(cache.charged() < charged_before);
+        assert!(
+            cache.token().unwrap() > token,
+            "retirement must fence late refills"
+        );
     }
 }

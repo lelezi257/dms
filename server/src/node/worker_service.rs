@@ -1225,6 +1225,20 @@ mod tests {
             )))
         }
 
+        async fn resolve_objects(
+            &self,
+            request: tonic::Request<pb::ResolveObjectsRequest>,
+        ) -> Result<tonic::Response<pb::ResolveObjectsResponse>, Status> {
+            Ok(tonic::Response::new(pb::ResolveObjectsResponse {
+                results: request
+                    .into_inner()
+                    .requests
+                    .into_iter()
+                    .map(|_| pb::ResolveObjectResult { response: None })
+                    .collect(),
+            }))
+        }
+
         async fn report_replicas(
             &self,
             _request: tonic::Request<pb::ReportReplicasRequest>,

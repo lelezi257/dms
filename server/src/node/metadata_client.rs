@@ -16,8 +16,27 @@ use dms_error::{DmsError, ErrorKind};
 use dms_protocol::v1 as pb;
 use dms_transport::{GrpcConfig, SecurityManager, TlsConfig, status_to_dms_error_with};
 use pb::metadata_service_client::MetadataServiceClient as GrpcMetadataClient;
-use tokio::sync::{Mutex, MutexGuard, RwLock};
+use tokio::sync::{Mutex, MutexGuard, RwLock, mpsc, oneshot};
 use tonic::{Response, Status, transport::Endpoint};
+
+const METADATA_RESOLVE_BATCH_MAX: usize = 64;
+
+struct ResolveJob {
+    key: Vec<u8>,
+    exact_version: Option<u64>,
+    reply: oneshot::Sender<Result<pb::ResolveObjectResponse, DmsError>>,
+}
+
+/// 解析批处理任务只持有发 RPC 所需的共享状态，不持有发送端，避免后台任务和
+/// 自己消费的 channel 形成生命周期环。它不是新的业务模块。
+struct ResolveBatchRpc {
+    client: GrpcMetadataClient<dms_tracing::TracedChannel>,
+    session: Arc<RwLock<pb::NodeSessionIdentity>>,
+    next_commit_sequence: Arc<AtomicU64>,
+    node_id: u64,
+    data_endpoint: String,
+    rpc_metrics: Option<dms_metrics::RpcMetrics>,
+}
 
 pub(crate) struct BatchValueCommit {
     pub(crate) key: Vec<u8>,
@@ -42,6 +61,7 @@ pub(crate) struct MetadataClient {
     node_id: u64,
     data_endpoint: String,
     rpc_metrics: Option<dms_metrics::RpcMetrics>,
+    resolve_tx: mpsc::Sender<ResolveJob>,
 }
 
 /// 当前 Node 在 Meta 中登记的副本身份。
@@ -98,14 +118,30 @@ impl MetadataClient {
         let mut client = metadata_client(channel.clone());
         let (session, minimum_sequence) =
             Self::open_session(&mut client, node_id, &data_endpoint, rpc_metrics.as_ref()).await?;
+        let client = metadata_client(channel);
+        let session = Arc::new(RwLock::new(session));
+        let next_commit_sequence = Arc::new(AtomicU64::new(minimum_sequence.max(1)));
+        let (resolve_tx, resolve_rx) = mpsc::channel(METADATA_RESOLVE_BATCH_MAX * 4);
+        tokio::spawn(run_resolve_batcher(
+            ResolveBatchRpc {
+                client: client.clone(),
+                session: Arc::clone(&session),
+                next_commit_sequence: Arc::clone(&next_commit_sequence),
+                node_id,
+                data_endpoint: data_endpoint.clone(),
+                rpc_metrics: rpc_metrics.clone(),
+            },
+            resolve_rx,
+        ));
         Ok(Self {
-            client: metadata_client(channel),
-            session: Arc::new(RwLock::new(session)),
-            next_commit_sequence: Arc::new(AtomicU64::new(minimum_sequence.max(1))),
+            client,
+            session,
+            next_commit_sequence,
             commit_gate: Arc::new(Mutex::new(())),
             node_id,
             data_endpoint,
             rpc_metrics,
+            resolve_tx,
         })
     }
 
@@ -231,48 +267,18 @@ impl MetadataClient {
         key: Vec<u8>,
         exact_version: Option<u64>,
     ) -> Result<pb::ResolveObjectResponse, DmsError> {
-        let selector = exact_version
-            .map(pb::resolve_object_request::Selector::ExactVersion)
-            .unwrap_or(pb::resolve_object_request::Selector::Current(true));
-        let mut session = self.current_session().await;
-        let mut client = self.client();
-        let mut result = observe_rpc(
-            self.rpc_metrics.as_ref(),
-            dms_metrics::RpcCall::META_RESOLVE_OBJECT,
-            client.resolve_object(pb::ResolveObjectRequest {
-                context: Some(context(self.node_id)),
-                session: Some(session.clone()),
-                key: Some(pb::Key { value: key.clone() }),
-                selector: Some(selector),
-                range: None,
-                cache_current: true,
-            }),
-        )
-        .await
-        .map(|response| response.into_inner())
-        .map_err(map_status);
-        if result.as_ref().is_err_and(is_reopenable_session_error) {
-            session = self.reopen_session().await?;
-            let mut client = self.client();
-            result = observe_rpc(
-                self.rpc_metrics.as_ref(),
-                dms_metrics::RpcCall::META_RESOLVE_OBJECT,
-                client.resolve_object(pb::ResolveObjectRequest {
-                    context: Some(context(self.node_id)),
-                    session: Some(session),
-                    key: Some(pb::Key { value: key }),
-                    selector: exact_version
-                        .map(pb::resolve_object_request::Selector::ExactVersion)
-                        .or(Some(pb::resolve_object_request::Selector::Current(true))),
-                    range: None,
-                    cache_current: true,
-                }),
-            )
+        let (reply, receive) = oneshot::channel();
+        self.resolve_tx
+            .send(ResolveJob {
+                key,
+                exact_version,
+                reply,
+            })
             .await
-            .map(|response| response.into_inner())
-            .map_err(map_status);
-        }
-        result
+            .map_err(|_| metadata_unavailable("Meta resolve batcher stopped"))?;
+        receive
+            .await
+            .map_err(|_| metadata_unavailable("Meta resolve batcher dropped its reply"))?
     }
 
     pub(crate) async fn stat(&self, key: Vec<u8>) -> Result<pb::MetaStatResponse, DmsError> {
@@ -510,16 +516,37 @@ impl MetadataClient {
         desired_copies: u32,
         repair_id: Vec<u8>,
     ) -> Result<(), DmsError> {
+        self.report_replicas(
+            vec![pb::ReplicaReport {
+                block_id,
+                length,
+                checksum,
+                durability: pb::DurabilityPolicy::ReplicatedMemory as i32,
+            }],
+            operation_id,
+            desired_copies,
+            repair_id,
+        )
+        .await
+    }
+
+    /// 一次登记多个已经落到本 Node 的不可变 Block。
+    ///
+    /// `ReportReplicasRequest` 的 wire 合同原本就允许 `repeated replicas`。普通
+    /// Peer 首读由后台 reporter 把队列里已经就绪的 Block 合成一批，避免每个
+    /// 小 Block 单独做一次 Meta RPC；repair 仍可通过 `report_replica` 发送单项。
+    pub(crate) async fn report_replicas(
+        &self,
+        replicas: Vec<pb::ReplicaReport>,
+        operation_id: Vec<u8>,
+        desired_copies: u32,
+        repair_id: Vec<u8>,
+    ) -> Result<(), DmsError> {
         let mut session = self.current_session().await;
         let make_request = |session: pb::NodeSessionIdentity| pb::ReportReplicasRequest {
             context: Some(context(self.node_id)),
             session: Some(session.clone()),
-            replicas: vec![pb::ReplicaReport {
-                block_id: block_id.clone(),
-                length,
-                checksum: checksum.clone(),
-                durability: pb::DurabilityPolicy::ReplicatedMemory as i32,
-            }],
+            replicas: replicas.clone(),
             operation_id: operation_id.clone(),
             desired_copies: desired_copies.max(1),
             repair_id: repair_id.clone(),
@@ -779,6 +806,142 @@ impl MetadataClient {
     }
 }
 
+async fn run_resolve_batcher(mut rpc: ResolveBatchRpc, mut receive: mpsc::Receiver<ResolveJob>) {
+    while let Some(first) = receive.recv().await {
+        // 单请求立即发送；仅吸收此刻已经排队的并发请求，不设置聚合定时器。
+        let mut jobs = Vec::with_capacity(METADATA_RESOLVE_BATCH_MAX);
+        jobs.push(first);
+        while jobs.len() < METADATA_RESOLVE_BATCH_MAX {
+            match receive.try_recv() {
+                Ok(job) => jobs.push(job),
+                Err(_) => break,
+            }
+        }
+        let result = rpc.resolve(&jobs).await;
+        deliver_resolve_results(jobs, result);
+    }
+}
+
+impl ResolveBatchRpc {
+    async fn resolve(
+        &mut self,
+        jobs: &[ResolveJob],
+    ) -> Result<Vec<pb::ResolveObjectResult>, DmsError> {
+        let mut session = self.session.read().await.clone();
+        let mut result = self.resolve_once(jobs, session.clone()).await;
+        if result.as_ref().is_err_and(is_reopenable_session_error) {
+            session = self.reopen_session().await?;
+            result = self.resolve_once(jobs, session).await;
+        }
+        result
+    }
+
+    async fn resolve_once(
+        &mut self,
+        jobs: &[ResolveJob],
+        session: pb::NodeSessionIdentity,
+    ) -> Result<Vec<pb::ResolveObjectResult>, DmsError> {
+        let request = pb::ResolveObjectsRequest {
+            requests: jobs
+                .iter()
+                .map(|job| resolve_request(self.node_id, session.clone(), job))
+                .collect(),
+        };
+        observe_rpc(
+            self.rpc_metrics.as_ref(),
+            dms_metrics::RpcCall::META_RESOLVE_OBJECTS,
+            self.client.resolve_objects(request),
+        )
+        .await
+        .map(|response| response.into_inner().results)
+        .map_err(map_status)
+    }
+
+    async fn reopen_session(&mut self) -> Result<pb::NodeSessionIdentity, DmsError> {
+        let (session, minimum_sequence) = MetadataClient::open_session(
+            &mut self.client,
+            self.node_id,
+            &self.data_endpoint,
+            self.rpc_metrics.as_ref(),
+        )
+        .await?;
+        self.next_commit_sequence
+            .fetch_max(minimum_sequence.max(1), Ordering::Relaxed);
+        dms_logging::info!(
+            "Meta session reopened by resolve batcher";
+            "event" => "node.meta_session.reopened",
+            "node_id" => self.node_id,
+            "node_epoch" => session.node_epoch,
+        );
+        *self.session.write().await = session.clone();
+        Ok(session)
+    }
+}
+
+fn resolve_request(
+    node_id: u64,
+    session: pb::NodeSessionIdentity,
+    job: &ResolveJob,
+) -> pb::ResolveObjectRequest {
+    pb::ResolveObjectRequest {
+        context: Some(context(node_id)),
+        session: Some(session),
+        key: Some(pb::Key {
+            value: job.key.clone(),
+        }),
+        selector: Some(
+            job.exact_version
+                .map(pb::resolve_object_request::Selector::ExactVersion)
+                .unwrap_or(pb::resolve_object_request::Selector::Current(true)),
+        ),
+        range: None,
+        cache_current: true,
+    }
+}
+
+fn deliver_resolve_results(
+    jobs: Vec<ResolveJob>,
+    result: Result<Vec<pb::ResolveObjectResult>, DmsError>,
+) {
+    match result {
+        Ok(results) if results.len() == jobs.len() => {
+            for (job, result) in jobs.into_iter().zip(results) {
+                let result = result.response.ok_or_else(|| {
+                    DmsError::new(
+                        dms_error::META_CATALOG_NOT_FOUND,
+                        ErrorKind::NotFound,
+                        "metadata object was not found",
+                    )
+                });
+                let _ = job.reply.send(result);
+            }
+        }
+        Ok(results) => {
+            let error = metadata_unavailable(format!(
+                "ResolveObjects returned {} results for {} requests",
+                results.len(),
+                jobs.len()
+            ));
+            for job in jobs {
+                let _ = job.reply.send(Err(error.clone()));
+            }
+        }
+        Err(error) => {
+            for job in jobs {
+                let _ = job.reply.send(Err(error.clone()));
+            }
+        }
+    }
+}
+
+fn metadata_unavailable(message: impl Into<String>) -> DmsError {
+    DmsError::new(
+        dms_error::NODE_METADATA_UNAVAILABLE,
+        ErrorKind::Unavailable,
+        message,
+    )
+}
+
 pub(crate) fn retirement_block_ids(event: &pb::EvictReplicaEvent) -> Vec<Vec<u8>> {
     if event.block_ids.is_empty() {
         (!event.block_id.is_empty())
@@ -888,6 +1051,7 @@ mod tests {
             node_id: 9,
             data_endpoint: "http://127.0.0.1:0".to_string(),
             rpc_metrics: None,
+            resolve_tx: mpsc::channel(1).0,
         };
 
         let held = client.commit_gate.lock().await;
@@ -943,6 +1107,7 @@ mod tests {
             node_id: 9,
             data_endpoint: "http://127.0.0.1:0".to_string(),
             rpc_metrics: None,
+            resolve_tx: mpsc::channel(1).0,
         };
         let result = tokio::time::timeout(
             Duration::from_secs(2),

@@ -379,6 +379,7 @@ impl RpcCall {
     pub const META_OPEN_NODE_SESSION: Self = Self::new("MetadataService", "OpenNodeSession");
     pub const META_HEARTBEAT: Self = Self::new("MetadataService", "Heartbeat");
     pub const META_RESOLVE_OBJECT: Self = Self::new("MetadataService", "ResolveObject");
+    pub const META_RESOLVE_OBJECTS: Self = Self::new("MetadataService", "ResolveObjects");
     pub const META_REPORT_REPLICAS: Self = Self::new("MetadataService", "ReportReplicas");
     pub const META_COMMIT_VERSION: Self = Self::new("MetadataService", "CommitVersion");
     pub const META_COMMIT_BATCH: Self = Self::new("MetadataService", "CommitBatch");

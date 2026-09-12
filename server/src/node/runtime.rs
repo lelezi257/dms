@@ -54,6 +54,10 @@ const COMPLETED_RETIREMENT_CACHE_LIMIT: usize = 1024;
 const RETIREMENT_PHASE_WAITER_LIMIT: usize = 16;
 const REPLICA_REPORT_RETRY_INITIAL: Duration = Duration::from_millis(10);
 const REPLICA_REPORT_RETRY_MAX: Duration = Duration::from_secs(1);
+// 副本登记不位于前台读取路径：允许用一个很短的有界窗口合并同一波 Peer
+// 接管产生的报告。Resolve 等前台控制请求仍然不等待凑批。
+const REPLICA_REPORT_COALESCE_WINDOW: Duration = Duration::from_millis(5);
+const REPLICA_REPORT_BATCH_MAX: usize = 64;
 
 // 准备和完成都只访问唯一 owner；中间 Future 只拥有不可变提交资料与 Meta client。
 // JoinSet 的数量上限与 mailbox 相同，饱和时拒绝新写，但 ACK/心跳仍可推进。
@@ -264,6 +268,30 @@ struct ReplicaReportJob {
     length: u64,
     checksum: Vec<u8>,
     operation_id: Vec<u8>,
+}
+
+/// 后台 reporter 的一次 Meta 请求。批内成员与 operation_id 在重试期间固定，
+/// 所以响应丢失后重发仍由 Meta 的幂等表折叠为同一次操作。
+#[derive(Clone, Debug)]
+struct ReplicaReportBatch {
+    jobs: Vec<ReplicaReportJob>,
+    operation_id: Vec<u8>,
+}
+
+impl ReplicaReportBatch {
+    fn new(jobs: Vec<ReplicaReportJob>) -> Self {
+        debug_assert!(!jobs.is_empty());
+        let mut identity = b"dms:replica-report-batch:v1".to_vec();
+        for job in &jobs {
+            // 长度前缀让不同的 operation_id 序列不会因为简单拼接而产生歧义。
+            identity.extend_from_slice(&(job.operation_id.len() as u64).to_be_bytes());
+            identity.extend_from_slice(&job.operation_id);
+        }
+        Self {
+            operation_id: digest(&identity),
+            jobs,
+        }
+    }
 }
 
 /// 一次 Peer 导入在本地安装阶段所需的上下文。
@@ -2571,17 +2599,21 @@ async fn run_node(
 
 /// 串行消费有界副本登记队列；一个故障中的 Meta 不会产生无限后台 Task。
 ///
-/// ReportReplicas 的 operation_id 在所有重试间保持不变。Meta 已退休的 Block
-/// 会作为 rejected 返回并被视为终态成功，因此迟到任务不会复活旧副本。
+/// 第一项到达后只对这种“不阻塞用户回复”的后台事实等待最多 5 ms，再吸收
+/// 队列中已经就绪的其它项，最多组成 64 项请求。这样连续 Peer 接管不会用数百
+/// 个小 RPC 与前台 Resolve 争用 Meta；单个报告最迟只延后一个有界窗口。批次的
+/// operation_id 在所有重试间保持不变。Meta 已退休的 Block 会作为 rejected
+/// 返回并被视为终态成功，因此迟到任务不会复活旧副本。
 async fn run_replica_reporter(
     metadata: MetadataClient,
     mut jobs: mpsc::Receiver<ReplicaReportJob>,
 ) {
-    while let Some(job) = jobs.recv().await {
+    while let Some(first) = jobs.recv().await {
+        let batch = collect_replica_report_batch(first, &mut jobs).await;
         let mut retry_delay = REPLICA_REPORT_RETRY_INITIAL;
         let mut failures = 0_u64;
         loop {
-            match report_replica(&metadata, job.clone()).await {
+            match report_replica_batch(&metadata, &batch).await {
                 Ok(()) => break,
                 Err(error) => {
                     failures += 1;
@@ -2601,6 +2633,50 @@ async fn run_replica_reporter(
             }
         }
     }
+}
+
+/// 在后台登记专用的有界窗口结束后吸收已经排队的报告。等待只发生在异步副本
+/// 登记 Task，不发生在用户 GET Future；`try_recv` 本身不会继续挂起凑批。
+async fn collect_replica_report_batch(
+    first: ReplicaReportJob,
+    jobs: &mut mpsc::Receiver<ReplicaReportJob>,
+) -> ReplicaReportBatch {
+    tokio::time::sleep(REPLICA_REPORT_COALESCE_WINDOW).await;
+    let mut batch = Vec::with_capacity(REPLICA_REPORT_BATCH_MAX);
+    batch.push(first);
+    while batch.len() < REPLICA_REPORT_BATCH_MAX {
+        match jobs.try_recv() {
+            Ok(job) => batch.push(job),
+            Err(mpsc::error::TryRecvError::Empty | mpsc::error::TryRecvError::Disconnected) => {
+                break;
+            }
+        }
+    }
+    ReplicaReportBatch::new(batch)
+}
+
+async fn report_replica_batch(
+    metadata: &MetadataClient,
+    batch: &ReplicaReportBatch,
+) -> Result<(), WorkerError> {
+    metadata
+        .report_replicas(
+            batch
+                .jobs
+                .iter()
+                .map(|job| pb::ReplicaReport {
+                    block_id: job.block_id.clone(),
+                    length: job.length,
+                    checksum: job.checksum.clone(),
+                    durability: pb::DurabilityPolicy::ReplicatedMemory as i32,
+                })
+                .collect(),
+            batch.operation_id.clone(),
+            2,
+            Vec::new(),
+        )
+        .await
+        .map_err(map_metadata_error)
 }
 
 async fn report_replica(
@@ -4502,8 +4578,9 @@ impl NodeState {
 
     #[cfg(test)]
     fn prepare_block_retirement(&mut self, block_ids: Vec<Vec<u8>>) -> Result<u64, WorkerError> {
-        self.current_cache.clear();
-        self.metrics.set_current_cache_charge(0);
+        self.current_cache.invalidate_blocks(&block_ids);
+        self.metrics
+            .set_current_cache_charge(self.current_cache.charged());
         for block_id in block_ids {
             self.retiring_blocks.insert(block_id);
         }
@@ -4526,11 +4603,13 @@ impl NodeState {
             let _ = reply.send(Ok(()));
             return;
         }
-        // Prepare 是 Meta 对旧物理位置的 cut：先撤销本机 Current cache，并把
-        // block 放入 retiring set。cutoff 前已开始的 scope 可走完；之后的新读
-        // 不能再从旧 cached/resolved layout 新建借用。
-        self.current_cache.clear();
-        self.metrics.set_current_cache_charge(0);
+        // Prepare 是 Meta 对旧物理位置的 cut：先撤销引用这些 Block 的 Current
+        // 布局，并把 block 放入 retiring set。无关 key 的有效缓存继续保留；全局
+        // generation 已由 invalidate_blocks 推进，事件前启动的迟到 resolve 仍不能
+        // 回填。cutoff 前已开始的 scope 可走完，之后的新读不能再借用待回收 Block。
+        self.current_cache.invalidate_blocks(&block_ids);
+        self.metrics
+            .set_current_cache_charge(self.current_cache.charged());
         for block_id in &block_ids {
             self.retiring_blocks.insert(block_id.clone());
         }
@@ -5487,6 +5566,40 @@ mod peer_import_tests;
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn replica_report_job(index: u64) -> ReplicaReportJob {
+        ReplicaReportJob {
+            block_id: format!("block-{index}").into_bytes(),
+            length: index + 1,
+            checksum: format!("checksum-{index}").into_bytes(),
+            operation_id: format!("operation-{index}").into_bytes(),
+        }
+    }
+
+    #[tokio::test]
+    async fn replica_report_batch_drains_only_ready_items_up_to_limit() {
+        let (sender, mut receiver) = mpsc::channel(REPLICA_REPORT_BATCH_MAX + 2);
+        for index in 0..(REPLICA_REPORT_BATCH_MAX + 2) {
+            sender
+                .send(replica_report_job(index as u64))
+                .await
+                .expect("report queue accepts test job");
+        }
+
+        let first = receiver.recv().await.expect("first report");
+        let batch = collect_replica_report_batch(first, &mut receiver).await;
+
+        assert_eq!(batch.jobs.len(), REPLICA_REPORT_BATCH_MAX);
+        assert_eq!(
+            receiver.len(),
+            2,
+            "overflow remains queued for the next batch"
+        );
+        assert_eq!(
+            batch.operation_id,
+            ReplicaReportBatch::new(batch.jobs.clone()).operation_id
+        );
+    }
 
     #[test]
     fn peer_import_validates_owned_bytes_before_publishing() {

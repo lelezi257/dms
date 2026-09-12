@@ -257,6 +257,25 @@ impl MetadataService for CountingMetaService {
         response
     }
 
+    async fn resolve_objects(
+        &self,
+        request: Request<pb::ResolveObjectsRequest>,
+    ) -> Result<Response<pb::ResolveObjectsResponse>, Status> {
+        let mut results = Vec::with_capacity(request.get_ref().requests.len());
+        for request in request.into_inner().requests {
+            match self.resolve_object(Request::new(request)).await {
+                Ok(response) => results.push(pb::ResolveObjectResult {
+                    response: Some(response.into_inner()),
+                }),
+                Err(status) if status.code() == tonic::Code::NotFound => {
+                    results.push(pb::ResolveObjectResult { response: None });
+                }
+                Err(status) => return Err(status),
+            }
+        }
+        Ok(Response::new(pb::ResolveObjectsResponse { results }))
+    }
+
     async fn report_replicas(
         &self,
         request: Request<pb::ReportReplicasRequest>,

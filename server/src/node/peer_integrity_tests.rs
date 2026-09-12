@@ -442,6 +442,13 @@ impl MetadataService for CountingMetaService {
         self.inner.resolve_object(request).await
     }
 
+    async fn resolve_objects(
+        &self,
+        request: Request<pb::ResolveObjectsRequest>,
+    ) -> Result<Response<pb::ResolveObjectsResponse>, Status> {
+        self.inner.resolve_objects(request).await
+    }
+
     async fn report_replicas(
         &self,
         request: Request<pb::ReportReplicasRequest>,

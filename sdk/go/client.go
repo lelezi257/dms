@@ -1338,7 +1338,7 @@ func (c *Client) upload(ctx context.Context, target *pb.PayloadTarget, value []b
 		if err := copyInto(region.data, t.Shm.Offset, value); err != nil {
 			return nil, setFailureWithCleanup(err, c.releaseWriteFromDescriptor(ctx, t.Shm))
 		}
-		sum := fnv1a(value)
+		sum := stableDigestBytes(value)
 		return &pb.TransferReceipt{
 			TransferId:         t.Shm.TransferId,
 			Length:             uint64(len(value)),
@@ -1384,7 +1384,7 @@ func (c *Client) uploadFrom(ctx context.Context, target *pb.PayloadTarget, src i
 		if err := readFullInto(src, dst); err != nil {
 			return nil, setFailureWithCleanup(err, c.releaseWriteFromDescriptor(ctx, t.Shm))
 		}
-		sum := fnv1a(dst)
+		sum := stableDigestBytes(dst)
 		return &pb.TransferReceipt{
 			TransferId:         t.Shm.TransferId,
 			Length:             length,
@@ -1617,15 +1617,4 @@ func readFullInto(src io.Reader, dst []byte) error {
 		return wrapDmsError(CLIENT_CONNECTION_UNAVAILABLE, ErrorKindUnavailable, "SetFrom source read failed: "+err.Error(), err)
 	}
 	return nil
-}
-
-func fnv1a(data []byte) []byte {
-	var hash uint64 = 0xcbf29ce484222325
-	for _, b := range data {
-		hash ^= uint64(b)
-		hash *= 0x00000100000001b3
-	}
-	out := make([]byte, 8)
-	binary.BigEndian.PutUint64(out, hash)
-	return out
 }

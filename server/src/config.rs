@@ -18,7 +18,10 @@ pub const DEFAULT_REGION_SIZE_BYTES: u64 = 64 * 1024 * 1024;
 pub const DEFAULT_STAGING_TTL_MILLIS: u64 = 30_000;
 pub const DEFAULT_CLIENT_CACHE_LEASE_TTL_MILLIS: u64 = 1_000;
 pub const DEFAULT_NODE_CURRENT_CACHE_BYTES: u64 = 8 * 1024 * 1024;
-pub const DEFAULT_NODE_CURRENT_CACHE_TTL_MILLIS: u64 = 1_000;
+// Current 布局由 Meta Watch 主动失效，TTL 是断流/漏事件之外的最后安全上限。
+// 1 秒会让正常的“写一批再读一批”完全退化成逐次 Resolve；默认值因此与
+// Meta 首版节点租约上限对齐，实际条目仍受每次授权的剩余期限约束。
+pub const DEFAULT_NODE_CURRENT_CACHE_TTL_MILLIS: u64 = 30_000;
 pub const DEFAULT_META_CHECKPOINT_EVERY_RECORDS: u64 = 4_096;
 pub const DEFAULT_LOG_QUEUE_CAPACITY: usize = 10_240;
 pub const DEFAULT_LOG_MAX_FILE_SIZE_BYTES: u64 = 256 * 1024 * 1024;

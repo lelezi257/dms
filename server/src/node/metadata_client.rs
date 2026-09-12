@@ -16,7 +16,7 @@ use dms_error::{DmsError, ErrorKind};
 use dms_protocol::v1 as pb;
 use dms_transport::{GrpcConfig, SecurityManager, TlsConfig, status_to_dms_error_with};
 use pb::metadata_service_client::MetadataServiceClient as GrpcMetadataClient;
-use tokio::sync::RwLock;
+use tokio::sync::{Mutex, MutexGuard, RwLock};
 use tonic::{Response, Status, transport::Endpoint};
 
 pub(crate) struct BatchValueCommit {
@@ -34,9 +34,25 @@ pub(crate) struct MetadataClient {
     // 每个逻辑提交仅分配一次，克隆连接与 RPC 重试共享计数器。它不是用户
     // operation_id 的替代；仅让 Meta 在历史幂等结果裁剪后拒绝旧 wire 请求。
     next_commit_sequence: Arc<AtomicU64>,
+    // Meta 使用每个 Node 单调递增的 commit_sequence 拒绝旧请求。HTTP/2 允许
+    // 并发 RPC 乱序抵达，因此必须在 Node 出口保持“分配序号 + 完成提交”的顺序；
+    // 否则较大的序号先提交后，仍在途的较小序号会被误判为重放。锁只覆盖
+    // commit_version/commit_batch，不串行化 resolve、watch、heartbeat 或数据面。
+    commit_gate: Arc<Mutex<()>>,
     node_id: u64,
     data_endpoint: String,
     rpc_metrics: Option<dms_metrics::RpcMetrics>,
+}
+
+/// 当前 Node 在 Meta 中登记的副本身份。
+///
+/// 这是 Node 内部把“刚提交成功的本地 Block”写入 Current 布局缓存时所需的
+/// 最小信息，不是新的协议或公开抽象。Node session 重建后 epoch 会改变，因此
+/// 必须从当前 session 读取，不能只保存启动时的值。
+pub(crate) struct LocalReplicaIdentity {
+    pub(crate) node_id: u64,
+    pub(crate) node_epoch: u64,
+    pub(crate) data_endpoint: String,
 }
 
 impl MetadataClient {
@@ -86,6 +102,7 @@ impl MetadataClient {
             client: metadata_client(channel),
             session: Arc::new(RwLock::new(session)),
             next_commit_sequence: Arc::new(AtomicU64::new(minimum_sequence.max(1))),
+            commit_gate: Arc::new(Mutex::new(())),
             node_id,
             data_endpoint,
             rpc_metrics,
@@ -133,6 +150,15 @@ impl MetadataClient {
     /// identity for in-memory replicas; there is no duplicate storage epoch.
     pub(crate) async fn node_epoch(&self) -> u64 {
         self.current_session().await.node_epoch
+    }
+
+    pub(crate) async fn local_replica_identity(&self) -> LocalReplicaIdentity {
+        let session = self.current_session().await;
+        LocalReplicaIdentity {
+            node_id: session.node_id,
+            node_epoch: session.node_epoch,
+            data_endpoint: self.data_endpoint.clone(),
+        }
     }
 
     /// 返回本次续租的有效毫秒数；调用方以发请求前的 Instant 计算保守截止时间，
@@ -398,7 +424,7 @@ impl MetadataClient {
         values: Vec<BatchValueCommit>,
         batch_operation_id: Vec<u8>,
     ) -> Result<pb::CommitBatchResponse, DmsError> {
-        let commit_sequence = allocate_commit_sequence(&self.next_commit_sequence)?;
+        let (_commit_guard, commit_sequence) = self.begin_commit().await?;
         let mut session = self.current_session().await;
         let make_request = |session: pb::NodeSessionIdentity| {
             let entries = values
@@ -556,7 +582,7 @@ impl MetadataClient {
         let mut operation_digest = digest(&key);
         operation_digest.extend_from_slice(&candidate.digest);
         operation_digest.push(candidate.kind as u8);
-        let commit_sequence = allocate_commit_sequence(&self.next_commit_sequence)?;
+        let (_commit_guard, commit_sequence) = self.begin_commit().await?;
         let mut session = self.current_session().await;
         let mut client = self.client();
         let mut result = observe_rpc(
@@ -608,6 +634,14 @@ impl MetadataClient {
             .map_err(map_status);
         }
         result
+    }
+
+    async fn begin_commit(&self) -> Result<(MutexGuard<'_, ()>, u64), DmsError> {
+        // 先取得门闩、再分配序号。若反过来，等待锁的两个调用仍可能把较大
+        // sequence 先发出去，无法保证 Meta 看到的顺序。
+        let guard = self.commit_gate.lock().await;
+        let sequence = allocate_commit_sequence(&self.next_commit_sequence)?;
+        Ok((guard, sequence))
     }
 
     pub(crate) async fn watch_events(
@@ -806,7 +840,7 @@ fn context(node_id: u64) -> pb::RequestContext {
 }
 
 pub(crate) fn digest(bytes: &[u8]) -> Vec<u8> {
-    dms_transport::checksum::fnv1a_bytes(bytes).to_vec()
+    dms_transport::checksum::stable_digest_bytes(bytes).to_vec()
 }
 
 fn is_reopenable_session_error(error: &DmsError) -> bool {
@@ -837,6 +871,37 @@ mod tests {
         next.store(u64::MAX, Ordering::Relaxed);
         assert!(allocate_commit_sequence(&next).is_err());
         assert_eq!(next.load(Ordering::Relaxed), u64::MAX);
+    }
+
+    #[tokio::test]
+    async fn commit_sequence_is_allocated_only_after_commit_gate() {
+        let channel = Endpoint::from_static("http://127.0.0.1:1").connect_lazy();
+        let client = MetadataClient {
+            client: metadata_client(channel),
+            session: Arc::new(RwLock::new(pb::NodeSessionIdentity {
+                session_id: b"test-session".to_vec(),
+                node_id: 9,
+                node_epoch: 1,
+            })),
+            next_commit_sequence: Arc::new(AtomicU64::new(1)),
+            commit_gate: Arc::new(Mutex::new(())),
+            node_id: 9,
+            data_endpoint: "http://127.0.0.1:0".to_string(),
+            rpc_metrics: None,
+        };
+
+        let held = client.commit_gate.lock().await;
+        let waiting_client = client.clone();
+        let waiting = tokio::spawn(async move {
+            let (_guard, sequence) = waiting_client.begin_commit().await.unwrap();
+            sequence
+        });
+        tokio::task::yield_now().await;
+        assert_eq!(client.next_commit_sequence.load(Ordering::Relaxed), 1);
+
+        drop(held);
+        assert_eq!(waiting.await.unwrap(), 1);
+        assert_eq!(client.next_commit_sequence.load(Ordering::Relaxed), 2);
     }
 
     #[test]
@@ -874,6 +939,7 @@ mod tests {
                 node_epoch: 1,
             })),
             next_commit_sequence: Arc::new(AtomicU64::new(1)),
+            commit_gate: Arc::new(Mutex::new(())),
             node_id: 9,
             data_endpoint: "http://127.0.0.1:0".to_string(),
             rpc_metrics: None,

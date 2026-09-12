@@ -49,7 +49,7 @@ region_size_bytes = 67108864
 staging_ttl_millis = 30000
 client_cache_lease_ttl_millis = 1000
 node_current_cache_bytes = 8388608
-node_current_cache_ttl_millis = 1000
+node_current_cache_ttl_millis = 30000
 
 [log]
 level = "info"
@@ -79,7 +79,7 @@ sample_ratio = 0.01
 | Node 必需 | `node_id`、`meta_endpoint`；TCP/UDS listener 至少一个 |
 | Node 内存 | `arena_capacity_bytes=1 GiB`，`region_size_bytes=64 MiB`，`staging_ttl_millis=30000` |
 | 旧 SDK 缓存租约兼容 | `client_cache_lease_ttl_millis=1000`，范围 1..=30000；仅服务仍申请 value 缓存租约的旧 SDK，授予还受 Meta 剩余期限限制；新薄 SDK 不申请 |
-| Node Current 元数据缓存 | `node_current_cache_bytes=8 MiB`，0关闭；`node_current_cache_ttl_millis=1000`，范围1..=30000；预算含版本布局及同次解析的位置提示，不缓存 value bytes |
+| Node Current 元数据缓存 | `node_current_cache_bytes=8 MiB`，0关闭；`node_current_cache_ttl_millis=30000`，范围1..=30000；预算含版本布局及同次解析的位置提示，不缓存 value bytes |
 | Meta 必需 | `node_id`、`grpc_address` |
 | Meta journal | 不指定 `journal_dir` 则用内存后端；指定目录才使用 WAL/snapshot |
 | Meta checkpoint | `checkpoint_every_records=4096`，正数；CLI 为 `--checkpoint-every-records` |

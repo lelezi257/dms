@@ -700,7 +700,7 @@ fn shm_mut_slice<'a>(
 }
 
 fn digest(bytes: &[u8]) -> Vec<u8> {
-    dms_transport::checksum::fnv1a_bytes(bytes).to_vec()
+    dms_transport::checksum::stable_digest_bytes(bytes).to_vec()
 }
 
 fn is_recoverable_provider_failure(error: &DmsError) -> bool {

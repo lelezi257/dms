@@ -30,7 +30,7 @@ use super::arena_manager::{
     HostShmDescriptor, ReleasedWriteAllocation, SharedFdBroker,
 };
 use super::current_cache::CurrentCache;
-use super::metadata_client::{BatchValueCommit, MetadataClient, digest};
+use super::metadata_client::{BatchValueCommit, LocalReplicaIdentity, MetadataClient, digest};
 use super::metrics::{
     NodeMailboxCommand, NodeMetrics, ReplicaDirection, ReplicaOperation, SessionExpiration,
 };
@@ -52,6 +52,8 @@ const PEER_PULL_SEGMENT_BYTES: u64 = 2 * 1024 * 1024;
 const PEER_CHANNEL_CACHE_LIMIT: usize = 128;
 const COMPLETED_RETIREMENT_CACHE_LIMIT: usize = 1024;
 const RETIREMENT_PHASE_WAITER_LIMIT: usize = 16;
+const REPLICA_REPORT_RETRY_INITIAL: Duration = Duration::from_millis(10);
+const REPLICA_REPORT_RETRY_MAX: Duration = Duration::from_secs(1);
 
 // 准备和完成都只访问唯一 owner；中间 Future 只拥有不可变提交资料与 Meta client。
 // JoinSet 的数量上限与 mailbox 相同，饱和时拒绝新写，但 ACK/心跳仍可推进。
@@ -251,6 +253,30 @@ struct PeerImportFailureFence {
 }
 
 type PeerImportCompletion = (Vec<u8>, u64, Result<(), PeerImportFailure>);
+
+/// Peer Block 已通过完整性校验并安装到本地 Arena 后，需要异步登记到 Meta 的事实。
+///
+/// 这个结构只包含可重试的幂等请求资料，不持有用户读票据或 payload bytes。
+/// 有界 reporter 队列负责背压，固定 operation_id 负责跨重试去重。
+#[derive(Clone, Debug)]
+struct ReplicaReportJob {
+    block_id: Vec<u8>,
+    length: u64,
+    checksum: Vec<u8>,
+    operation_id: Vec<u8>,
+}
+
+/// 一次 Peer 导入在本地安装阶段所需的上下文。
+///
+/// 这些字段始终成组从导入任务传到 Arena 接纳与 Meta 登记阶段。把它们放在
+/// 一个内部结构中，可以让函数签名表达“导入上下文”而不是暴露一串易错参数；
+/// 该结构不跨进程，也不是新的公开抽象。
+struct PeerImportContext<'a> {
+    operation_namespace: &'a [u8],
+    read_scope_id: u64,
+    import_attempt: Option<u64>,
+    replica_report_tx: Option<mpsc::Sender<ReplicaReportJob>>,
+}
 
 #[derive(Clone, Debug)]
 pub(crate) struct ReplicaPrepareSpec {
@@ -1431,9 +1457,18 @@ impl NodeHandle {
         read_scope_id: u64,
         spec: PeerPullSpec,
     ) -> Result<(), WorkerError> {
-        self.pull_and_report_peer_block(metadata, operation_namespace, read_scope_id, spec, None)
-            .await
-            .map_err(|failure| failure.error)
+        self.pull_and_report_peer_block(
+            metadata,
+            spec,
+            PeerImportContext {
+                operation_namespace,
+                read_scope_id,
+                import_attempt: None,
+                replica_report_tx: None,
+            },
+        )
+        .await
+        .map_err(|failure| failure.error)
     }
 
     /// Installs an immutable peer Block locally, then publishes the local
@@ -1443,10 +1478,8 @@ impl NodeHandle {
     async fn pull_and_report_peer_block(
         &self,
         metadata: &MetadataClient,
-        operation_namespace: &[u8],
-        read_scope_id: u64,
         spec: PeerPullSpec,
-        import_attempt: Option<u64>,
+        context: PeerImportContext<'_>,
     ) -> Result<(), PeerImportFailure> {
         // 接收成功以“完整数据通过owner接纳”为边界；不能在网络收到响应时
         // 提前记成功，否则延后的完整checksum拒绝会被错误统计为成功传输。
@@ -1458,27 +1491,18 @@ impl NodeHandle {
                     error,
                     location_failure: true,
                 })?;
-        self.install_and_report_peer_block(
-            metadata,
-            operation_namespace,
-            read_scope_id,
-            payload,
-            metric,
-            import_attempt,
-        )
-        .await
-        .map_err(PeerImportFailure::terminal)
+        self.install_and_report_peer_block(metadata, payload, metric, context)
+            .await
+            .map_err(PeerImportFailure::terminal)
     }
 
     /// 缓存位置和权威位置的读共用接纳与登记逻辑；本函数的错误不能触发位置回退。
     async fn install_and_report_peer_block(
         &self,
         metadata: &MetadataClient,
-        operation_namespace: &[u8],
-        read_scope_id: u64,
         payload: PeerBlockResult,
         mut metric: super::metrics::ReplicaOperationGuard,
-        import_attempt: Option<u64>,
+        context: PeerImportContext<'_>,
     ) -> Result<(), WorkerError> {
         let received_bytes = payload.payload.len();
         let report_block_id = payload.block_id.clone();
@@ -1490,36 +1514,41 @@ impl NodeHandle {
             bytes: payload.payload,
             checksum: payload.checksum,
             length: payload.length,
-            read_scope_id,
-            import_attempt,
+            read_scope_id: context.read_scope_id,
+            import_attempt: context.import_attempt,
             reply: reply_tx,
         })
         .await?;
-        let report_replica = receive(reply_rx).await?;
+        let needs_report = receive(reply_rx).await?;
         metric.success_with_payload(ReplicaDirection::Receive, received_bytes);
         // 该耗时包括拉取、完整校验和本地安装，不包括下面的Meta位置登记。
         drop(metric);
-        if !report_replica {
+        if !needs_report {
             return Ok(());
         }
 
-        let mut report_operation = operation_namespace.to_vec();
+        let mut report_operation = context.operation_namespace.to_vec();
         report_operation.extend_from_slice(&report_block_id);
         // Report belongs to this Node incarnation. Including node_epoch keeps
         // a restart from hitting an idempotency result created by an old Node.
         report_operation.extend_from_slice(&metadata.node_epoch().await.to_be_bytes());
-        metadata
-            .report_replica(
-                report_block_id,
-                report_length,
-                report_checksum,
-                digest(&report_operation),
-                2,
-                Vec::new(),
-            )
-            .await
-            .map_err(map_metadata_error)?;
-        Ok(())
+        let job = ReplicaReportJob {
+            block_id: report_block_id,
+            length: report_length,
+            checksum: report_checksum,
+            operation_id: digest(&report_operation),
+        };
+        if let Some(replica_report_tx) = context.replica_report_tx {
+            // 正常读只等待任务进入有界队列，不等待 Meta WAL 持久化。队列满时
+            // send().await 形成明确背压，避免 Meta 故障期间无限积累任务。
+            replica_report_tx
+                .send(job)
+                .await
+                .map_err(|_| WorkerError::WorkerUnavailable)
+        } else {
+            // 直接完整性测试仍同步执行登记，便于精确验证错误传播。
+            report_replica(metadata, job).await
+        }
     }
 
     pub(crate) async fn set_range(&self, input: SetRangeInput) -> Result<SetOutcome, WorkerError> {
@@ -2028,6 +2057,10 @@ async fn run_node(
     mut command_rx: mpsc::Receiver<QueuedNodeCommand>,
 ) {
     let trace_periodic_operations = task_config.trace_periodic_operations;
+    let (replica_report_tx, replica_report_rx) = mpsc::channel(NODE_MAILBOX_CAPACITY);
+    let replica_reporter = metadata
+        .clone()
+        .map(|metadata| tokio::spawn(run_replica_reporter(metadata, replica_report_rx)));
     // NodeState 是普通非线程安全结构，因为它从始至终只属于当前 Task。
     let mut state = NodeState::with_metrics(node_id, metadata, task_config, metrics.clone());
     let mut maintenance = tokio::time::interval(Duration::from_secs(1));
@@ -2362,16 +2395,20 @@ async fn run_node(
                     if let Some(attempt) = state.begin_peer_import(read_scope_id, &spec, reply) {
                         let block_id = spec.block_id.clone();
                         let task_block_id = block_id.clone();
+                        let replica_report_tx = replica_report_tx.clone();
                         let task = peer_imports.spawn(
                             async move {
                                 let result = match node.metadata.as_ref() {
                                     Some(metadata) => {
                                         node.pull_and_report_peer_block(
                                             metadata,
-                                            b"cache-import/",
-                                            read_scope_id,
                                             spec,
-                                            Some(attempt),
+                                            PeerImportContext {
+                                                operation_namespace: b"cache-import/",
+                                                read_scope_id,
+                                                import_attempt: Some(attempt),
+                                                replica_report_tx: Some(replica_report_tx),
+                                            },
                                         )
                                         .await
                                     }
@@ -2525,6 +2562,62 @@ async fn run_node(
         .instrument(span)
         .await;
     }
+    // Node owner 消失后不允许 reporter 独立存活；进程下次启动会以新 epoch
+    // 重新建立可达性事实。未处理队列保持进程内有界，不伪装成持久任务。
+    if let Some(replica_reporter) = replica_reporter {
+        replica_reporter.abort();
+    }
+}
+
+/// 串行消费有界副本登记队列；一个故障中的 Meta 不会产生无限后台 Task。
+///
+/// ReportReplicas 的 operation_id 在所有重试间保持不变。Meta 已退休的 Block
+/// 会作为 rejected 返回并被视为终态成功，因此迟到任务不会复活旧副本。
+async fn run_replica_reporter(
+    metadata: MetadataClient,
+    mut jobs: mpsc::Receiver<ReplicaReportJob>,
+) {
+    while let Some(job) = jobs.recv().await {
+        let mut retry_delay = REPLICA_REPORT_RETRY_INITIAL;
+        let mut failures = 0_u64;
+        loop {
+            match report_replica(&metadata, job.clone()).await {
+                Ok(()) => break,
+                Err(error) => {
+                    failures += 1;
+                    // 只记录首失败和 2 的幂次，避免持续故障淹没日志；RPC
+                    // metrics 仍逐次记录成功/失败和耗时。
+                    if failures.is_power_of_two() {
+                        dms_logging::warn!(
+                            "background replica report failed; retrying";
+                            "event" => "node.replica_report.retry",
+                            "attempt" => failures,
+                            "error" => format!("{error:?}"),
+                        );
+                    }
+                    tokio::time::sleep(retry_delay).await;
+                    retry_delay = (retry_delay * 2).min(REPLICA_REPORT_RETRY_MAX);
+                }
+            }
+        }
+    }
+}
+
+async fn report_replica(
+    metadata: &MetadataClient,
+    job: ReplicaReportJob,
+) -> Result<(), WorkerError> {
+    metadata
+        .report_replica(
+            job.block_id,
+            job.length,
+            job.checksum,
+            job.operation_id,
+            2,
+            Vec::new(),
+        )
+        .await
+        .map_err(map_metadata_error)
 }
 
 /// 一个 Client 与 Node 之间的逻辑会话状态。
@@ -2758,12 +2851,24 @@ impl NodeState {
                 "source node id and block id are required",
             ));
         }
+        // 完整 Block 在提交时已经计算并保存过 digest。Block 发布后不可变，
+        // 因此 Peer 整块读取直接复用这份身份，不再为每次拉取扫描全部 bytes。
+        // 区间读取返回的是不同的 payload，仍必须为该区间单独计算 checksum。
+        let committed_checksum = range.is_none().then(|| {
+            self.arena
+                .block_length_and_digest(&block_id)
+                .map(|(_, digest)| digest.to_vec())
+                .ok_or(WorkerError::NotFound)
+        });
         let (ticket, full_length) = self
             .arena
             .open_read(&block_id, range)
             .map_err(map_arena_error)?;
         let payload = self.arena.read_ticket(ticket).map_err(map_arena_error)?;
-        let checksum = digest(&payload);
+        let checksum = match committed_checksum {
+            Some(checksum) => checksum?,
+            None => digest(&payload),
+        };
         Ok(PeerBlockResult {
             serving_node_id: self.node_id.clone(),
             block_id,
@@ -3371,6 +3476,14 @@ impl NodeState {
             .metadata
             .clone()
             .ok_or(WorkerError::MetadataUnavailable)?;
+        // 这次提交发生前取得 cache token。若提交期间收到更高版本事件、Watch
+        // 重连或租约失效，generation 会变化，完成阶段的回填会被安全拒绝。
+        let cache_refill = self
+            .current_cache
+            .token()
+            .map(|token| (token, Instant::now()));
+        let cache_block_id = block_id.clone();
+        let cache_checksum = checksum.clone();
         Ok(Box::pin(async move {
             let committed = metadata
                 .commit_value(
@@ -3382,6 +3495,11 @@ impl NodeState {
                     condition,
                 )
                 .await;
+            let local_identity = if committed.is_ok() {
+                Some(metadata.local_replica_identity().await)
+            } else {
+                None
+            };
             Box::new(move |state: &mut NodeState| {
                 state.finish_block_preparation(
                     &block_id,
@@ -3397,6 +3515,30 @@ impl NodeState {
                 };
                 state.arena.mark_committed(&block_id, committed.version);
                 let barrier_id = state.broadcast_invalidation(key.clone(), committed.version);
+                if let (Some((token_before_commit, requested_at)), Some(local_identity)) =
+                    (cache_refill, local_identity)
+                {
+                    // 上面的本地失效恰好推进一次 generation。提交期间若还发生过
+                    // 其它失效、Watch 重连或租约清理，当前 token 就不会等于
+                    // `token_before_commit + 1`，此时宁可放弃回填并让下次 GET
+                    // 权威解析，也不能把已经落后的版本放回 Current cache。
+                    if let Some(refill_token) = token_before_commit
+                        .checked_add(1)
+                        .filter(|expected| state.current_cache.token() == Some(*expected))
+                    {
+                        state.cache_committed_value(
+                            refill_token,
+                            requested_at,
+                            key.clone(),
+                            cache_block_id,
+                            length,
+                            cache_checksum,
+                            committed.version,
+                            committed.revision,
+                            local_identity,
+                        );
+                    }
+                }
                 if let Some(session_id) = cache_session_id {
                     state.register_cache_interest(session_id, key)?;
                 }
@@ -3489,7 +3631,14 @@ impl NodeState {
             return Ok((None, CachedReadOutcome::Miss));
         }
         let token = self.current_cache.token();
+        let charged_before_lookup = self.current_cache.charged();
         let cached = self.current_cache.get(key, node_epoch, now);
+        if self.current_cache.charged() != charged_before_lookup {
+            // get() 会顺手淘汰过期或旧 epoch 条目；Gauge 必须同步反映真实预算，
+            // 否则现场会误判成“条目仍在但 key 不匹配”。
+            self.metrics
+                .set_current_cache_charge(self.current_cache.charged());
+        }
         let outcome = if let Some(cached) = cached {
             // Arc 只在 owner 内借用，按请求生成独立票据，不缓存可写内存地址。
             match self.get_resolved_parts(
@@ -4628,7 +4777,7 @@ impl NodeState {
     fn broadcast_invalidation(&mut self, key: Vec<u8>, minimum_version: u64) -> Option<u64> {
         // 先撤销本机布局及在途回填，再等待 Client ACK，最后才允许 ACK Meta。
         // 本机写 completion 同样走这里：Meta barrier 排除了本次 source Node。
-        self.current_cache.invalidate(&key);
+        self.current_cache.invalidate_before(&key, minimum_version);
         self.metrics
             .set_current_cache_charge(self.current_cache.charged());
         self.expire_cache_leases();
@@ -4678,6 +4827,96 @@ impl NodeState {
             },
         );
         Some(barrier_id)
+    }
+
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "write-through cache refill needs the committed layout and the Meta-assigned local replica identity"
+    )]
+    fn cache_committed_value(
+        &mut self,
+        token: u64,
+        requested_at: Instant,
+        key: Vec<u8>,
+        block_id: Vec<u8>,
+        length: u64,
+        checksum: Vec<u8>,
+        version: u64,
+        revision: u64,
+        local_identity: LocalReplicaIdentity,
+    ) {
+        let now = Instant::now();
+        if !self.metadata_watch_connected || now >= self.metadata_lease_until {
+            return;
+        }
+        let ttl_millis = self
+            .metadata_lease_until
+            .saturating_duration_since(requested_at)
+            .as_millis()
+            .min(u128::from(u64::MAX)) as u64;
+        if ttl_millis == 0 {
+            return;
+        }
+        let LocalReplicaIdentity {
+            node_id,
+            node_epoch,
+            data_endpoint,
+        } = local_identity;
+
+        let (extents, block_replicas) = if length == 0 {
+            (Vec::new(), Vec::new())
+        } else {
+            let location = pb::ReplicaLocation {
+                block_id: block_id.clone(),
+                node_id,
+                node_epoch,
+                data_endpoint,
+                checksum: checksum.clone(),
+                durability: pb::DurabilityPolicy::LocalMemory as i32,
+            };
+            (
+                vec![pb::ExtentRecord {
+                    logical: Some(pb::ByteRange { offset: 0, length }),
+                    block_id: block_id.clone(),
+                    block_offset: 0,
+                    digest: checksum.clone(),
+                }],
+                vec![pb::BlockReplicaSet {
+                    block_id: block_id.clone(),
+                    replicas: vec![location.clone()],
+                    length,
+                    proofs: vec![pb::ReplicaProof {
+                        block_id,
+                        node_id: location.node_id,
+                        node_epoch: location.node_epoch,
+                        catalog_revision: revision,
+                        checksum: checksum.clone(),
+                        durability: location.durability,
+                    }],
+                }],
+            )
+        };
+        let resolved = pb::ResolveObjectResponse {
+            layout: Some(pb::VersionLayout {
+                version,
+                logical_length: length,
+                extents,
+                digest: checksum,
+                kind: pb::VersionKind::Value as i32,
+            }),
+            block_replicas,
+            current_lease: Some(pb::CurrentLeaseGrant {
+                version,
+                revision,
+                lease_epoch: node_epoch,
+                ttl_millis,
+                leader_epoch: 0,
+            }),
+        };
+        self.current_cache
+            .insert(token, key, &resolved, requested_at, node_epoch, now);
+        self.metrics
+            .set_current_cache_charge(self.current_cache.charged());
     }
 
     fn attach_barrier_waiter(

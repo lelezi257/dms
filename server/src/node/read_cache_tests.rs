@@ -56,6 +56,7 @@ struct CountingMetaService {
     watch_count: Arc<AtomicUsize>,
     reject_watch: Arc<AtomicBool>,
     reject_reports: Arc<AtomicBool>,
+    report_count: Arc<AtomicUsize>,
     watch_drop: Arc<WatchDropControl>,
     ack_state: Arc<AckState>,
 }
@@ -260,6 +261,7 @@ impl MetadataService for CountingMetaService {
         &self,
         request: Request<pb::ReportReplicasRequest>,
     ) -> Result<Response<pb::ReportReplicasResponse>, Status> {
+        self.report_count.fetch_add(1, Ordering::AcqRel);
         if self.reject_reports.load(Ordering::Acquire) {
             return Err(dms_error_to_status(DmsError::new(
                 dms_error::META_JOURNAL_UNAVAILABLE,
@@ -383,6 +385,7 @@ struct CountingMetaServer {
     watch_count: Arc<AtomicUsize>,
     reject_watch: Arc<AtomicBool>,
     reject_reports: Arc<AtomicBool>,
+    report_count: Arc<AtomicUsize>,
     watch_drop: Arc<WatchDropControl>,
     ack_state: Arc<AckState>,
     shutdown: Option<oneshot::Sender<()>>,
@@ -402,6 +405,7 @@ impl CountingMetaServer {
         let watch_count = Arc::new(AtomicUsize::new(0));
         let reject_watch = Arc::new(AtomicBool::new(false));
         let reject_reports = Arc::new(AtomicBool::new(false));
+        let report_count = Arc::new(AtomicUsize::new(0));
         let watch_drop = Arc::new(WatchDropControl {
             requested: AtomicBool::new(false),
             captured: Arc::new(Mutex::new(None)),
@@ -422,6 +426,7 @@ impl CountingMetaServer {
             watch_count: watch_count.clone(),
             reject_watch: reject_watch.clone(),
             reject_reports: reject_reports.clone(),
+            report_count: report_count.clone(),
             watch_drop: watch_drop.clone(),
             ack_state: ack_state.clone(),
         };
@@ -447,6 +452,7 @@ impl CountingMetaServer {
             watch_count,
             reject_watch,
             reject_reports,
+            report_count,
             watch_drop,
             ack_state,
             shutdown: Some(shutdown_tx),
@@ -487,6 +493,20 @@ impl CountingMetaServer {
 
     fn set_report_rejected(&self, rejected: bool) {
         self.reject_reports.store(rejected, Ordering::Release);
+    }
+
+    fn reset_report_count(&self) {
+        self.report_count.store(0, Ordering::Release);
+    }
+
+    async fn wait_for_report_count_at_least(&self, expected: usize) {
+        tokio::time::timeout(Duration::from_secs(3), async {
+            while self.report_count.load(Ordering::Acquire) < expected {
+                tokio::time::sleep(Duration::from_millis(5)).await;
+            }
+        })
+        .await
+        .expect("background replica report did not make progress");
     }
 
     fn drop_current_watch(&self) -> oneshot::Receiver<()> {
@@ -1112,7 +1132,7 @@ async fn mset_with_node(
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn current_get_resolves_meta_once_then_reuses_node_layout_cache() {
+async fn local_commit_primes_node_layout_cache_for_current_get() {
     let meta = CountingMetaServer::start().await;
     let node = TestNode::start(&meta.endpoint, 1).await;
     let writer = node.open_write_session().await;
@@ -1128,8 +1148,8 @@ async fn current_get_resolves_meta_once_then_reuses_node_layout_cache() {
 
     assert_eq!(
         meta.resolve_count(),
-        1,
-        "首次 Current GET 可读取 Meta，第二次同 key 应命中 Node Current layout cache"
+        0,
+        "本 Node 刚完成的提交应直接回填 Current layout cache，后续 GET 不应再次访问 Meta"
     );
 }
 
@@ -1207,8 +1227,8 @@ async fn exact_reads_skip_current_cache_but_range_current_reads_reuse_it() {
     assert_eq!(range_b.inline_value.as_deref(), Some(b"bcd".as_slice()));
     assert_eq!(
         meta.resolve_count(),
-        1,
-        "Current range read 仍可复用同一份 Current layout cache"
+        0,
+        "ExactVersion 读不污染写提交回填的 Current cache，Current range read 可直接复用"
     );
 }
 
@@ -1333,7 +1353,7 @@ async fn cached_current_locations_pull_missing_peer_blocks_without_current_resol
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn cached_location_read_does_not_hide_report_replica_failure() {
+async fn cached_location_read_retries_replica_report_outside_foreground_get() {
     let meta = CountingMetaServer::start().await;
     let reader_node = TestNode::start_with_peer_server(&meta.endpoint, 1).await;
     let writer_node = TestNode::start_with_peer_server(&meta.endpoint, 2).await;
@@ -1359,25 +1379,35 @@ async fn cached_location_read_does_not_hide_report_replica_failure() {
 
     writer_node.reset_peer_pull_count();
     meta.reset_resolve_count();
+    meta.reset_report_count();
     meta.set_report_rejected(true);
     let result = reader_node
         .node
         .get_with_inline_limit(reader, key.to_vec(), None, None, 64 * 1024)
-        .await;
-    meta.set_report_rejected(false);
+        .await
+        .expect("validated and installed bytes must not wait for replica discovery");
+    assert_eq!(result.inline_value.as_deref(), Some(b"abcdZfgh".as_slice()));
     assert_eq!(
         writer_node.peer_pull_count(),
         1,
-        "故障发生在 peer 数据拉取成功之后的 Meta report 阶段"
+        "前台只拉取一次缺失的 base Block"
     );
     assert_eq!(
         meta.resolve_count(),
         0,
         "缓存位置路径不应先回 Meta 重新解析 Current"
     );
-    assert!(
-        matches!(result, Err(WorkerError::Stable(ref error)) if error.code() == dms_error::META_JOURNAL_UNAVAILABLE),
-        "Meta report 失败必须返回给调用者，不能被 Exact fallback 吞掉：{result:?}"
+    meta.wait_for_report_count_at_least(1).await;
+    meta.set_report_rejected(false);
+    meta.wait_for_report_count_at_least(2).await;
+
+    writer_node.reset_peer_pull_count();
+    let local = reader_node.read_inline(reader, key).await;
+    assert_eq!(local.inline_value.as_deref(), Some(b"abcdZfgh".as_slice()));
+    assert_eq!(
+        writer_node.peer_pull_count(),
+        0,
+        "安装后的 Block 可直接复用"
     );
 }
 
@@ -1629,7 +1659,7 @@ async fn concurrent_cached_location_and_exact_reads_share_one_peer_import() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn concurrent_import_report_failure_is_returned_to_every_reader() {
+async fn concurrent_import_shares_one_pull_while_report_retries_in_background() {
     let meta = CountingMetaServer::start().await;
     let reader_node = TestNode::start_with_peer_server(&meta.endpoint, 1).await;
     let writer_node = TestNode::start_with_peer_server(&meta.endpoint, 2).await;
@@ -1638,6 +1668,7 @@ async fn concurrent_import_report_failure_is_returned_to_every_reader() {
     let version = writer_node.set_inline(writer, key, b"abcdefgh", 703).await;
     let reader = reader_node.open_write_session().await;
     writer_node.peer_pull_delay_ms.store(100, Ordering::Relaxed);
+    meta.reset_report_count();
     meta.set_report_rejected(true);
     let read = || {
         reader_node
@@ -1645,10 +1676,19 @@ async fn concurrent_import_report_failure_is_returned_to_every_reader() {
             .get_with_inline_limit(reader, key.to_vec(), Some(version), None, 65536)
     };
     let (first, second) = tokio::join!(read(), read());
-    assert!(first.is_err(), "不能因本地已安装 bytes 就忽略 Report 失败");
-    assert!(second.is_err(), "等待者必须看到同一轮 Report 失败");
+    assert_eq!(
+        first.unwrap().inline_value.as_deref(),
+        Some(b"abcdefgh".as_slice())
+    );
+    assert_eq!(
+        second.unwrap().inline_value.as_deref(),
+        Some(b"abcdefgh".as_slice())
+    );
     assert_eq!(writer_node.peer_pull_count(), 1);
     assert_eq!(reader_node.node.debug_peer_imports().await, (0, 0, 0));
+    meta.wait_for_report_count_at_least(1).await;
+    meta.set_report_rejected(false);
+    meta.wait_for_report_count_at_least(2).await;
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -2122,5 +2162,9 @@ async fn worker_service_handler_reuses_node_current_layout_cache() {
             Some(b"from-worker".as_slice())
         );
     }
-    assert_eq!(meta.resolve_count(), 1);
+    assert_eq!(
+        meta.resolve_count(),
+        0,
+        "WorkerService 写成功后应回填 Node Current layout cache"
+    );
 }

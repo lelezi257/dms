@@ -220,6 +220,13 @@ mod catalog_tests {
             subsystem: "Object",
         },
         ExpectedError {
+            name: "NODE_OBJECT_UNAVAILABLE",
+            code: crate::NODE_OBJECT_UNAVAILABLE,
+            kind: ErrorKind::Unavailable,
+            component: "Node",
+            subsystem: "Object",
+        },
+        ExpectedError {
             name: "NODE_SESSION_UNKNOWN",
             code: crate::NODE_SESSION_UNKNOWN,
             kind: ErrorKind::Unauthenticated,

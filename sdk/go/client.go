@@ -35,8 +35,12 @@ type Client struct {
 	worker  pb.WorkerServiceClient
 	payload pb.WorkerPayloadServiceClient
 
+	sessionMu                  sync.RWMutex
+	reopenMu                   sync.Mutex
 	sessionID                  uint64
+	sessionGeneration          uint64
 	fdPath                     string
+	sharedMemory               bool
 	inlineMax                  uint64
 	timeout                    time.Duration
 	writeLeaseReleaseSupported bool
@@ -44,13 +48,15 @@ type Client struct {
 	instance []byte
 	nextSeq  atomic.Uint64
 
-	ctx       context.Context
-	cancel    context.CancelFunc
-	closeOnce sync.Once
-	closeErr  error
-	closed    atomic.Bool
-	streamWG  sync.WaitGroup
-	activeWG  sync.WaitGroup
+	ctx          context.Context
+	cancel       context.CancelFunc
+	closeOnce    sync.Once
+	closeErr     error
+	closed       atomic.Bool
+	streamWG     sync.WaitGroup
+	activeWG     sync.WaitGroup
+	streamMu     sync.Mutex
+	streamCancel context.CancelFunc
 
 	mu              sync.Mutex
 	regions         map[uint64]*mappedRegion
@@ -96,32 +102,110 @@ func connect(ctx context.Context, endpoint string, options ClientOptions) (*Clie
 		payload:         pb.NewWorkerPayloadServiceClient(conn),
 		inlineMax:       resolved.inlineThresholdBytes,
 		timeout:         resolved.timeout,
+		sharedMemory:    resolved.sharedMemory,
 		instance:        instance,
 		ctx:             clientCtx,
 		cancel:          clientCancel,
 		regions:         map[uint64]*mappedRegion{},
 		readReleaseWake: make(chan struct{}, 1),
 	}
-	open, err := c.worker.OpenSession(callCtx, &pb.OpenSessionRequest{
-		MinVersion:                1,
-		MaxVersion:                1,
-		SharedMemory:              resolved.sharedMemory,
-		ZeroCopyRead:              resolved.sharedMemory,
-		ZeroCopyWrite:             resolved.sharedMemory,
-		SupportsWriteLeaseRelease: true,
-	})
+	open, err := c.worker.OpenSession(callCtx, c.openSessionRequest())
 	if err != nil {
 		_ = conn.Close()
 		clientCancel()
 		return nil, &ConnectError{Err: asNative(err)}
 	}
-	c.sessionID = open.SessionId
-	c.writeLeaseReleaseSupported = open.WriteLeaseReleaseSupported
-	if open.Shm != nil {
-		c.fdPath = open.Shm.FdBrokerPath
-	}
+	c.installSession(open)
 	c.startSessionLoop(resolved.heartbeatInterval)
 	return c, nil
+}
+
+type sessionSnapshot struct {
+	id                         uint64
+	generation                 uint64
+	fdPath                     string
+	writeLeaseReleaseSupported bool
+}
+
+func (c *Client) openSessionRequest() *pb.OpenSessionRequest {
+	shared := c.sharedMemory
+	return &pb.OpenSessionRequest{
+		MinVersion:                1,
+		MaxVersion:                1,
+		SharedMemory:              shared,
+		ZeroCopyRead:              shared,
+		ZeroCopyWrite:             shared,
+		SupportsWriteLeaseRelease: true,
+	}
+}
+
+func (c *Client) currentSession() sessionSnapshot {
+	c.sessionMu.RLock()
+	defer c.sessionMu.RUnlock()
+	return sessionSnapshot{
+		id:                         c.sessionID,
+		generation:                 c.sessionGeneration,
+		fdPath:                     c.fdPath,
+		writeLeaseReleaseSupported: c.writeLeaseReleaseSupported,
+	}
+}
+
+func (c *Client) installSession(open *pb.OpenSessionResponse) {
+	fdPath := ""
+	if open != nil && open.Shm != nil {
+		fdPath = open.Shm.FdBrokerPath
+	}
+	c.sessionMu.Lock()
+	c.sessionID = open.GetSessionId()
+	c.sessionGeneration++
+	c.fdPath = fdPath
+	c.writeLeaseReleaseSupported = open.GetWriteLeaseReleaseSupported()
+	c.sessionMu.Unlock()
+}
+
+func (c *Client) reopenSession(ctx context.Context, stale sessionSnapshot) error {
+	c.reopenMu.Lock()
+	defer c.reopenMu.Unlock()
+	if current := c.currentSession(); current.generation != stale.generation {
+		return nil
+	}
+	callCtx, cancel := boundedContext(ctx, c.timeout)
+	defer cancel()
+	open, err := c.worker.OpenSession(callCtx, c.openSessionRequest())
+	if err != nil {
+		return asDmsError(err)
+	}
+	c.installSession(open)
+	// Session generation 是 mmap/Reader 的安全边界。切到新 Session 后，旧 Reader
+	// 不允许再继续借用旧 Region；先关闭并等待它们退出，再 unmap，避免读过程中释放内存。
+	for _, reader := range c.snapshotReaders() {
+		_ = reader.closeAndWait()
+	}
+	c.readerWG.Wait()
+	c.dropMappedRegions()
+	c.cancelSessionStream()
+	return nil
+}
+
+func (c *Client) dropMappedRegions() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for id, region := range c.regions {
+		_ = unix.Munmap(region.data)
+		if region.file != nil {
+			_ = region.file.Close()
+		}
+		delete(c.regions, id)
+	}
+}
+
+func (c *Client) cancelSessionStream() {
+	c.streamMu.Lock()
+	cancel := c.streamCancel
+	c.streamMu.Unlock()
+	if cancel != nil {
+		cancel()
+	}
 }
 
 func dial(ctx context.Context, endpoint string) (*grpc.ClientConn, error) {
@@ -203,21 +287,32 @@ func (c *Client) SetWithOptions(ctx context.Context, key string, value []byte, o
 	}
 	callCtx, cancel := boundedContext(ctx, c.timeout)
 	defer cancel()
+	operationID := c.nextOperation()
 	if uint64(len(value)) <= c.inlineMax {
-		resp, err := c.worker.SetInline(callCtx, &pb.SetInlineRequest{
-			SessionId:   c.sessionID,
-			Key:         &pb.Key{Value: []byte(key)},
-			Value:       value,
-			OperationId: c.nextOperation(),
-			Condition:   options.Condition.wire(),
-			Durability:  string(options.Durability),
-		})
-		if err != nil {
+		for attempt := 0; attempt < 2; attempt++ {
+			session := c.currentSession()
+			resp, err := c.worker.SetInline(callCtx, &pb.SetInlineRequest{
+				SessionId:   session.id,
+				Key:         &pb.Key{Value: []byte(key)},
+				Value:       value,
+				OperationId: operationID,
+				Condition:   options.Condition.wire(),
+				Durability:  string(options.Durability),
+			})
+			if err == nil {
+				return SetResult{Version: ObjectVersion(resp.Version), Len: resp.Length}, nil
+			}
+			if attempt == 0 && isSessionUnknown(err) {
+				if reopenErr := c.reopenSession(callCtx, session); reopenErr != nil {
+					return SetResult{}, reopenErr
+				}
+				continue
+			}
 			return SetResult{}, asDmsError(err)
 		}
-		return SetResult{Version: ObjectVersion(resp.Version), Len: resp.Length}, nil
+		return SetResult{}, asDmsError(protocolError("SetInline retry exhausted"))
 	}
-	return c.setStaged(callCtx, key, value, options)
+	return c.setStaged(callCtx, key, value, options, operationID)
 }
 
 func (c *Client) SetFrom(ctx context.Context, key string, src io.Reader, length uint64, options SetOptions) (SetResult, error) {
@@ -237,85 +332,152 @@ func (c *Client) SetFrom(ctx context.Context, key string, src io.Reader, length 
 	}
 	callCtx, cancel := boundedContext(ctx, c.timeout)
 	defer cancel()
+	operationID := c.nextOperation()
 	if length <= c.inlineMax {
 		value, err := readExactBytes(src, length)
 		if err != nil {
 			return SetResult{}, err
 		}
-		resp, err := c.worker.SetInline(callCtx, &pb.SetInlineRequest{
-			SessionId:   c.sessionID,
+		for attempt := 0; attempt < 2; attempt++ {
+			session := c.currentSession()
+			resp, err := c.worker.SetInline(callCtx, &pb.SetInlineRequest{
+				SessionId:   session.id,
+				Key:         &pb.Key{Value: []byte(key)},
+				Value:       value,
+				OperationId: operationID,
+				Condition:   options.Condition.wire(),
+				Durability:  string(options.Durability),
+			})
+			if err == nil {
+				return SetResult{Version: ObjectVersion(resp.Version), Len: resp.Length}, nil
+			}
+			if attempt == 0 && isSessionUnknown(err) {
+				if reopenErr := c.reopenSession(callCtx, session); reopenErr != nil {
+					return SetResult{}, reopenErr
+				}
+				continue
+			}
+			return SetResult{}, asDmsError(err)
+		}
+		return SetResult{}, asDmsError(protocolError("SetFrom inline retry exhausted"))
+	}
+	for attempt := 0; attempt < 2; attempt++ {
+		session := c.currentSession()
+		alloc, err := c.worker.AllocateStaging(callCtx, &pb.AllocateStagingRequest{
+			SessionId: session.id,
+			Length:    length,
+			Purpose:   "go-sdk-set-from",
+		})
+		if err != nil {
+			if attempt == 0 && isSessionUnknown(err) {
+				if reopenErr := c.reopenSession(callCtx, session); reopenErr != nil {
+					return SetResult{}, reopenErr
+				}
+				continue
+			}
+			return SetResult{}, asDmsError(err)
+		}
+		receipt, consumed, err := c.uploadFrom(callCtx, session, alloc.Target, src, length)
+		if err != nil {
+			cleanupErr := c.deleteStagingForSession(ctx, session, alloc.StagingId)
+			if attempt == 0 && !consumed && isSessionUnknown(err) {
+				if reopenErr := c.reopenSession(callCtx, session); reopenErr != nil {
+					return SetResult{}, setFailureWithCleanup(reopenErr, cleanupErr)
+				}
+				continue
+			}
+			if consumed && isSessionUnknown(err) {
+				return SetResult{}, setFailureWithCleanup(notReplayableAfterReaderConsumed(err), cleanupErr)
+			}
+			return SetResult{}, setFailureWithCleanup(err, cleanupErr)
+		}
+		resp, err := c.worker.Set(callCtx, &pb.SetRequest{
+			SessionId:   session.id,
 			Key:         &pb.Key{Value: []byte(key)},
-			Value:       value,
-			OperationId: c.nextOperation(),
+			Value:       &pb.StagedValue{StagingId: alloc.StagingId, Receipt: receipt},
+			OperationId: operationID,
 			Condition:   options.Condition.wire(),
 			Durability:  string(options.Durability),
 		})
-		if err != nil {
-			return SetResult{}, asDmsError(err)
+		if err == nil {
+			return SetResult{Version: ObjectVersion(resp.Version), Len: resp.Length}, nil
 		}
-		return SetResult{Version: ObjectVersion(resp.Version), Len: resp.Length}, nil
+		cleanupErr := c.releaseWriteFromReceiptForSession(ctx, session, receipt)
+		if attempt == 0 && isSessionUnknown(err) {
+			cleanupErr = errors.Join(cleanupErr, c.deleteStagingForSession(ctx, session, alloc.StagingId))
+			if consumed {
+				return SetResult{}, setFailureWithCleanup(notReplayableAfterReaderConsumed(err), cleanupErr)
+			}
+			if reopenErr := c.reopenSession(callCtx, session); reopenErr != nil {
+				return SetResult{}, setFailureWithCleanup(reopenErr, cleanupErr)
+			}
+			continue
+		}
+		return SetResult{}, setFailureWithCleanup(err, cleanupErr)
 	}
-	alloc, err := c.worker.AllocateStaging(callCtx, &pb.AllocateStagingRequest{
-		SessionId: c.sessionID,
-		Length:    length,
-		Purpose:   "go-sdk-set-from",
-	})
-	if err != nil {
-		return SetResult{}, asDmsError(err)
-	}
-	receipt, err := c.uploadFrom(callCtx, alloc.Target, src, length)
-	if err != nil {
-		return SetResult{}, setFailureWithCleanup(err, c.deleteStagingAfterUploadFailure(ctx, alloc.StagingId))
-	}
-	resp, err := c.worker.Set(callCtx, &pb.SetRequest{
-		SessionId:   c.sessionID,
-		Key:         &pb.Key{Value: []byte(key)},
-		Value:       &pb.StagedValue{StagingId: alloc.StagingId, Receipt: receipt},
-		OperationId: c.nextOperation(),
-		Condition:   options.Condition.wire(),
-		Durability:  string(options.Durability),
-	})
-	if err != nil {
-		return SetResult{}, setFailureWithCleanup(err, c.releaseWriteFromReceipt(ctx, receipt))
-	}
-	return SetResult{Version: ObjectVersion(resp.Version), Len: resp.Length}, nil
+	return SetResult{}, asDmsError(protocolError("SetFrom staged retry exhausted"))
 }
 
-func (c *Client) setStaged(ctx context.Context, key string, value []byte, options SetOptions) (SetResult, error) {
-	alloc, err := c.worker.AllocateStaging(ctx, &pb.AllocateStagingRequest{
-		SessionId: c.sessionID,
-		Length:    uint64(len(value)),
-		Purpose:   "go-sdk-set",
-	})
-	if err != nil {
-		return SetResult{}, asDmsError(err)
+func (c *Client) setStaged(ctx context.Context, key string, value []byte, options SetOptions, operationID *pb.OperationId) (SetResult, error) {
+	for attempt := 0; attempt < 2; attempt++ {
+		session := c.currentSession()
+		alloc, err := c.worker.AllocateStaging(ctx, &pb.AllocateStagingRequest{
+			SessionId: session.id,
+			Length:    uint64(len(value)),
+			Purpose:   "go-sdk-set",
+		})
+		if err != nil {
+			if attempt == 0 && isSessionUnknown(err) {
+				if reopenErr := c.reopenSession(ctx, session); reopenErr != nil {
+					return SetResult{}, reopenErr
+				}
+				continue
+			}
+			return SetResult{}, asDmsError(err)
+		}
+		receipt, err := c.uploadForSession(ctx, session, alloc.Target, value)
+		if err != nil {
+			// upload 失败发生在 Set 提交前，此时 staging 尚未被权威版本引用，可以做 best-effort 清理。
+			// 清理不能继承调用方已取消的 ctx，否则会直接跳过；也不能无限等待，否则 Close 会被
+			// activeWG 卡住。因此使用 SDK timeout 给 detached cleanup 明确边界。
+			return SetResult{}, setFailureWithCleanup(err, c.deleteStagingForSession(ctx, session, alloc.StagingId))
+		}
+		resp, err := c.worker.Set(ctx, &pb.SetRequest{
+			SessionId:   session.id,
+			Key:         &pb.Key{Value: []byte(key)},
+			Value:       &pb.StagedValue{StagingId: alloc.StagingId, Receipt: receipt},
+			OperationId: operationID,
+			Condition:   options.Condition.wire(),
+			Durability:  string(options.Durability),
+		})
+		if err == nil {
+			return SetResult{Version: ObjectVersion(resp.Version), Len: resp.Length}, nil
+		}
+		cleanupErr := c.releaseWriteFromReceiptForSession(ctx, session, receipt)
+		if attempt == 0 && isSessionUnknown(err) {
+			cleanupErr = errors.Join(cleanupErr, c.deleteStagingForSession(ctx, session, alloc.StagingId))
+			// Set 到达 Node 前后都可能遇到旧 Session 失效。这里仅对“明确 Session
+			// unknown”做一次重试：payload 来自调用者 []byte，仍可重放；operation id
+			// 保持不变，避免 Node/Meta 看到两个不同写意图。
+			if reopenErr := c.reopenSession(ctx, session); reopenErr != nil {
+				return SetResult{}, setFailureWithCleanup(reopenErr, cleanupErr)
+			}
+			continue
+		}
+		return SetResult{}, setFailureWithCleanup(err, cleanupErr)
 	}
-	receipt, err := c.upload(ctx, alloc.Target, value)
-	if err != nil {
-		// upload 失败发生在 Set 提交前，此时 staging 尚未被权威版本引用，可以做 best-effort 清理。
-		// 清理不能继承调用方已取消的 ctx，否则会直接跳过；也不能无限等待，否则 Close 会被
-		// activeWG 卡住。因此使用 SDK timeout 给 detached cleanup 明确边界。
-		return SetResult{}, setFailureWithCleanup(err, c.deleteStagingAfterUploadFailure(ctx, alloc.StagingId))
-	}
-	resp, err := c.worker.Set(ctx, &pb.SetRequest{
-		SessionId:   c.sessionID,
-		Key:         &pb.Key{Value: []byte(key)},
-		Value:       &pb.StagedValue{StagingId: alloc.StagingId, Receipt: receipt},
-		OperationId: c.nextOperation(),
-		Condition:   options.Condition.wire(),
-		Durability:  string(options.Durability),
-	})
-	if err != nil {
-		return SetResult{}, setFailureWithCleanup(err, c.releaseWriteFromReceipt(ctx, receipt))
-	}
-	return SetResult{Version: ObjectVersion(resp.Version), Len: resp.Length}, nil
+	return SetResult{}, asDmsError(protocolError("Set staged retry exhausted"))
 }
 
 func (c *Client) deleteStagingAfterUploadFailure(ctx context.Context, stagingID uint64) error {
+	return c.deleteStagingForSession(ctx, c.currentSession(), stagingID)
+}
+
+func (c *Client) deleteStagingForSession(ctx context.Context, session sessionSnapshot, stagingID uint64) error {
 	cleanupCtx, cleanupCancel := boundedContext(context.WithoutCancel(ctx), c.timeout)
 	defer cleanupCancel()
 	_, err := c.worker.DeleteStaging(cleanupCtx, &pb.DeleteStagingRequest{
-		SessionId: c.sessionID,
+		SessionId: session.id,
 		StagingId: stagingID,
 	})
 	return cleanupFailure("delete staging after failed upload", err)
@@ -353,6 +515,14 @@ func cleanupFailure(action string, err error) error {
 		Message: "safe quarantine cleanup failed: " + action + ": " + mapped.Message,
 		Cause:   err,
 	}
+}
+
+func staleSessionGenerationError(message string) error {
+	return newDmsError(NODE_SESSION_UNKNOWN, ErrorKindUnauthenticated, message)
+}
+
+func notReplayableAfterReaderConsumed(err error) error {
+	return wrapDmsError(CLIENT_CONNECTION_UNAVAILABLE, ErrorKindAborted, "SetFrom source has been consumed and cannot be replayed after session recovery", err)
 }
 
 func (c *Client) Get(ctx context.Context, key string) ([]byte, bool, error) {
@@ -427,7 +597,6 @@ func (c *Client) startRead(ctx context.Context, key string, options GetOptions) 
 		}
 	}()
 	req := &pb.GetRequest{
-		SessionId:      c.sessionID,
 		Key:            &pb.Key{Value: []byte(key)},
 		MaxInlineBytes: c.inlineMax,
 		ReadRequestId:  readRequestID,
@@ -440,8 +609,21 @@ func (c *Client) startRead(ctx context.Context, key string, options GetOptions) 
 	if options.Range != nil {
 		req.Range = &pb.ByteRange{Offset: options.Range.Offset, Length: options.Range.Len}
 	}
-	resp, err := c.worker.Get(callCtx, req)
-	if err != nil {
+	var resp *pb.GetResponse
+	session := c.currentSession()
+	for attempt := 0; attempt < 2; attempt++ {
+		req.SessionId = session.id
+		resp, err = c.worker.Get(callCtx, req)
+		if err == nil {
+			break
+		}
+		if attempt == 0 && isSessionUnknown(err) {
+			if reopenErr := c.reopenSession(callCtx, session); reopenErr != nil {
+				return nil, false, reopenErr
+			}
+			session = c.currentSession()
+			continue
+		}
 		return nil, false, asDmsError(err)
 	}
 	if resp == nil {
@@ -454,7 +636,7 @@ func (c *Client) startRead(ctx context.Context, key string, options GetOptions) 
 		return nil, false, nil
 	}
 	releaseEpochs := readViewEpochs(resp.Segments)
-	plan, err := c.newReadPlan(callCtx, cancel, resp, options.Range, options.ClampRange, c.inlineMax, readRequestID)
+	plan, err := c.newReadPlan(callCtx, cancel, resp, options.Range, options.ClampRange, c.inlineMax, readRequestID, session)
 	if err != nil {
 		c.releaseViews(context.WithoutCancel(callCtx), releaseEpochs)
 		return nil, false, asDmsError(err)
@@ -471,15 +653,26 @@ func (c *Client) Del(ctx context.Context, key string) (DeleteResult, error) {
 	defer done()
 	callCtx, cancel := boundedContext(ctx, c.timeout)
 	defer cancel()
-	resp, err := c.worker.Delete(callCtx, &pb.DeleteRequest{
-		SessionId:   c.sessionID,
-		Key:         &pb.Key{Value: []byte(key)},
-		OperationId: c.nextOperation(),
-	})
-	if err != nil {
+	operationID := c.nextOperation()
+	for attempt := 0; attempt < 2; attempt++ {
+		session := c.currentSession()
+		resp, err := c.worker.Delete(callCtx, &pb.DeleteRequest{
+			SessionId:   session.id,
+			Key:         &pb.Key{Value: []byte(key)},
+			OperationId: operationID,
+		})
+		if err == nil {
+			return DeleteResult{Deleted: resp.Deleted, Version: ObjectVersion(resp.Version)}, nil
+		}
+		if attempt == 0 && isSessionUnknown(err) {
+			if reopenErr := c.reopenSession(callCtx, session); reopenErr != nil {
+				return DeleteResult{}, reopenErr
+			}
+			continue
+		}
 		return DeleteResult{}, asDmsError(err)
 	}
-	return DeleteResult{Deleted: resp.Deleted, Version: ObjectVersion(resp.Version)}, nil
+	return DeleteResult{}, asDmsError(protocolError("Delete retry exhausted"))
 }
 
 func (c *Client) Stat(ctx context.Context, key string) (ObjectInfo, bool, error) {
@@ -490,11 +683,22 @@ func (c *Client) Stat(ctx context.Context, key string) (ObjectInfo, bool, error)
 	defer done()
 	callCtx, cancel := boundedContext(ctx, c.timeout)
 	defer cancel()
-	resp, err := c.worker.Stat(callCtx, &pb.StatRequest{
-		SessionId: c.sessionID,
-		Key:       &pb.Key{Value: []byte(key)},
-	})
-	if err != nil {
+	var resp *pb.StatResponse
+	for attempt := 0; attempt < 2; attempt++ {
+		session := c.currentSession()
+		resp, err = c.worker.Stat(callCtx, &pb.StatRequest{
+			SessionId: session.id,
+			Key:       &pb.Key{Value: []byte(key)},
+		})
+		if err == nil {
+			break
+		}
+		if attempt == 0 && isSessionUnknown(err) {
+			if reopenErr := c.reopenSession(callCtx, session); reopenErr != nil {
+				return ObjectInfo{}, false, reopenErr
+			}
+			continue
+		}
 		return ObjectInfo{}, false, asDmsError(err)
 	}
 	if !resp.Found {
@@ -526,12 +730,23 @@ func (c *Client) Scan(ctx context.Context, prefix string, options ScanOptions) (
 	if options.StartAfter != nil {
 		wireOptions.StartAfter = []byte(*options.StartAfter)
 	}
-	resp, err := c.worker.Scan(callCtx, &pb.ScanRequest{
-		SessionId: c.sessionID,
-		Prefix:    []byte(prefix),
-		Options:   wireOptions,
-	})
-	if err != nil {
+	var resp *pb.ScanResponse
+	for attempt := 0; attempt < 2; attempt++ {
+		session := c.currentSession()
+		resp, err = c.worker.Scan(callCtx, &pb.ScanRequest{
+			SessionId: session.id,
+			Prefix:    []byte(prefix),
+			Options:   wireOptions,
+		})
+		if err == nil {
+			break
+		}
+		if attempt == 0 && isSessionUnknown(err) {
+			if reopenErr := c.reopenSession(callCtx, session); reopenErr != nil {
+				return ScanResult{}, reopenErr
+			}
+			continue
+		}
 		return ScanResult{}, asDmsError(err)
 	}
 	items := make([]ObjectInfo, 0, len(resp.Items))
@@ -575,10 +790,11 @@ type readPlan struct {
 	segments      []*pb.ReadSegment
 	releaseEpochs []uint64
 	readRequestID uint64
+	session       sessionSnapshot
 	finishOnce    sync.Once
 }
 
-func (c *Client) newReadPlan(ctx context.Context, cancel context.CancelFunc, resp *pb.GetResponse, readRange *ByteRange, clampRange bool, maxInlineBytes uint64, readRequestID uint64) (*readPlan, error) {
+func (c *Client) newReadPlan(ctx context.Context, cancel context.CancelFunc, resp *pb.GetResponse, readRange *ByteRange, clampRange bool, maxInlineBytes uint64, readRequestID uint64, session sessionSnapshot) (*readPlan, error) {
 	expectedLength, err := selectedReadLength(resp.LogicalLength, readRange, clampRange)
 	if err != nil {
 		return nil, err
@@ -591,6 +807,7 @@ func (c *Client) newReadPlan(ctx context.Context, cancel context.CancelFunc, res
 		length:        expectedLength,
 		releaseEpochs: readViewEpochs(resp.Segments),
 		readRequestID: readRequestID,
+		session:       session,
 	}
 	if resp.InlineValue != nil {
 		if maxInlineBytes == 0 {
@@ -655,7 +872,7 @@ func (p *readPlan) finish() {
 
 func (c *Client) decodeGet(ctx context.Context, resp *pb.GetResponse, readRange *ByteRange, maxInlineBytes uint64, readRequestID uint64) ([]byte, error) {
 	readCtx, cancel := context.WithCancel(ctx)
-	plan, err := c.newReadPlan(readCtx, cancel, resp, readRange, false, maxInlineBytes, readRequestID)
+	plan, err := c.newReadPlan(readCtx, cancel, resp, readRange, false, maxInlineBytes, readRequestID, c.currentSession())
 	if err != nil {
 		return nil, err
 	}
@@ -675,7 +892,7 @@ func (c *Client) decodeReadPlan(plan *readPlan) ([]byte, error) {
 	var out []byte
 	for _, segment := range plan.segments {
 		length, _ := readTargetLength(segment.Target) // 上面的完整预检已验证。
-		part, err := c.download(plan.ctx, segment.Target)
+		part, err := c.downloadForSession(plan.ctx, plan.session, segment.Target)
 		if err != nil {
 			return nil, err
 		}
@@ -698,7 +915,7 @@ func (c *Client) readPlanInto(plan *readPlan, dst []byte) error {
 	}
 	var written uint64
 	for _, segment := range plan.segments {
-		n, err := c.readSegmentInto(plan.ctx, segment.Target, dst[int(written):])
+		n, err := c.readSegmentInto(plan.ctx, plan.session, segment.Target, dst[int(written):])
 		if err != nil {
 			return err
 		}
@@ -710,13 +927,13 @@ func (c *Client) readPlanInto(plan *readPlan, dst []byte) error {
 	return nil
 }
 
-func (c *Client) readSegmentInto(ctx context.Context, target *pb.PayloadTarget, dst []byte) (uint64, error) {
+func (c *Client) readSegmentInto(ctx context.Context, session sessionSnapshot, target *pb.PayloadTarget, dst []byte) (uint64, error) {
 	if target == nil {
 		return 0, protocolError("download target is empty")
 	}
 	switch t := target.GetTarget().(type) {
 	case *pb.PayloadTarget_Shm:
-		region, err := c.mappingFor(ctx, t.Shm)
+		region, err := c.mappingForSession(ctx, session, t.Shm)
 		if err != nil {
 			return 0, err
 		}
@@ -777,8 +994,27 @@ func (c *Client) startSessionLoop(interval time.Duration) {
 			if c.ctx.Err() != nil {
 				return
 			}
-			if c.runSession(interval) == nil {
+			stale := c.currentSession()
+			err := c.runSession(interval)
+			if err == nil {
 				return
+			}
+			if c.ctx.Err() != nil {
+				return
+			}
+			// 前台请求可能已经完成了 singleflight Session 重建，并通过
+			// cancelSessionStream 终止旧流。此时直接用新代次重建 stream，不必
+			// 等待心跳间隔；也不能再用旧代次重复 OpenSession。
+			if c.currentSession().generation != stale.generation {
+				continue
+			}
+			// TCP 断开本身不能证明 Node 丢失了 Session；先保留旧 Session 重连。
+			// 只有新 Node 明确返回 NODE_SESSION_UNKNOWN，才完整执行
+			// OpenSession、关闭旧 Reader、撤销旧 mmap，再建立新 Session stream。
+			if isSessionUnknown(err) {
+				if reopenErr := c.reopenSession(c.ctx, stale); reopenErr == nil {
+					continue
+				}
 			}
 			timer := time.NewTimer(interval)
 			select {
@@ -796,6 +1032,14 @@ func (c *Client) runSession(interval time.Duration) error {
 	// 本次 Recv 才能进入重连；不能取消整个 Client 或丢弃累计归还水位。
 	streamCtx, cancelStream := context.WithCancel(c.ctx)
 	defer cancelStream()
+	c.streamMu.Lock()
+	c.streamCancel = cancelStream
+	c.streamMu.Unlock()
+	defer func() {
+		c.streamMu.Lock()
+		c.streamCancel = nil
+		c.streamMu.Unlock()
+	}()
 	stream, err := c.worker.Session(streamCtx)
 	if err != nil {
 		c.sendUnaryHeartbeat(c.ctx)
@@ -815,8 +1059,9 @@ func (c *Client) runSession(interval time.Duration) error {
 		sendHeartbeat := func() error {
 			sendMu.Lock()
 			defer sendMu.Unlock()
+			session := c.currentSession()
 			return stream.Send(&pb.ClientSessionMessage{
-				SessionId: c.sessionID,
+				SessionId: session.id,
 				Message: &pb.ClientSessionMessage_Heartbeat{Heartbeat: &pb.SessionHeartbeat{
 					ReleasedViewThrough:        c.viewReleases.releasedViewThrough(),
 					FinishedReadRequestThrough: c.readRequests.finishedReadRequestThrough(),
@@ -853,8 +1098,9 @@ func (c *Client) runSession(interval time.Duration) error {
 			}
 			if event.EventSequence > 0 {
 				sendMu.Lock()
+				session := c.currentSession()
 				if err := stream.Send(&pb.ClientSessionMessage{
-					SessionId: c.sessionID,
+					SessionId: session.id,
 					Message: &pb.ClientSessionMessage_EventAck{EventAck: &pb.SessionEventAck{
 						EventSequence: event.EventSequence,
 					}},
@@ -1024,8 +1270,9 @@ func (c *Client) sendUnaryHeartbeat(ctx context.Context) {
 	}
 	hctx, cancel := boundedContext(ctx, c.timeout)
 	defer cancel()
+	session := c.currentSession()
 	_, _ = c.worker.Heartbeat(hctx, &pb.HeartbeatRequest{
-		SessionId:                  c.sessionID,
+		SessionId:                  session.id,
 		ReleasedViewThrough:        c.viewReleases.releasedViewThrough(),
 		FinishedReadRequestThrough: c.readRequests.finishedReadRequestThrough(),
 	})
@@ -1147,6 +1394,10 @@ func (r *objectReader) readUnlocked(p []byte) (int, error) {
 	if err := r.plan.ctx.Err(); err != nil {
 		return 0, err
 	}
+	if r.plan.client.currentSession().generation != r.plan.session.generation {
+		_ = r.closeNoWait()
+		return 0, protocolError("reader belongs to a previous DMS session generation")
+	}
 	if r.inlineReader != nil {
 		return r.inlineReader.Read(p)
 	}
@@ -1172,7 +1423,7 @@ func (r *objectReader) readUnlocked(p []byte) (int, error) {
 		segment := r.plan.segments[r.segmentIndex]
 		switch target := segment.Target.GetTarget().(type) {
 		case *pb.PayloadTarget_Shm:
-			region, err := r.plan.client.mappingFor(r.plan.ctx, target.Shm)
+			region, err := r.plan.client.mappingForSession(r.plan.ctx, r.plan.session, target.Shm)
 			if err != nil {
 				_ = r.closeNoWait()
 				return total, err
@@ -1263,18 +1514,35 @@ func (c *Client) releaseWriteFromDescriptor(ctx context.Context, desc *pb.ShmDes
 	if desc == nil {
 		return nil
 	}
-	return c.releaseWriteAllocation(ctx, desc.AllocationId, desc.ReleaseToken)
+	return c.releaseWriteAllocation(ctx, c.currentSession(), desc.AllocationId, desc.ReleaseToken)
 }
 
 func (c *Client) releaseWriteFromReceipt(ctx context.Context, receipt *pb.TransferReceipt) error {
 	if receipt == nil {
 		return nil
 	}
-	return c.releaseWriteAllocation(ctx, receipt.TargetAllocationId, receipt.ReleaseToken)
+	return c.releaseWriteAllocation(ctx, c.currentSession(), receipt.TargetAllocationId, receipt.ReleaseToken)
 }
 
-func (c *Client) releaseWriteAllocation(ctx context.Context, allocationID uint64, token []byte) error {
-	if c == nil || !c.writeLeaseReleaseSupported || allocationID == 0 || len(token) == 0 {
+func (c *Client) releaseWriteFromReceiptForSession(ctx context.Context, session sessionSnapshot, receipt *pb.TransferReceipt) error {
+	if receipt == nil {
+		return nil
+	}
+	return c.releaseWriteAllocation(ctx, session, receipt.TargetAllocationId, receipt.ReleaseToken)
+}
+
+func (c *Client) releaseWriteFromDescriptorForSession(ctx context.Context, session sessionSnapshot, desc *pb.ShmDescriptor) error {
+	if desc == nil {
+		return nil
+	}
+	return c.releaseWriteAllocation(ctx, session, desc.AllocationId, desc.ReleaseToken)
+}
+
+func (c *Client) releaseWriteAllocation(ctx context.Context, session sessionSnapshot, allocationID uint64, token []byte) error {
+	if c == nil {
+		return nil
+	}
+	if !session.writeLeaseReleaseSupported || allocationID == 0 || len(token) == 0 {
 		return nil
 	}
 	// 写租约释放只说明 SDK 已经退出本次共享写借用，不证明提交成功与否。
@@ -1287,7 +1555,7 @@ func (c *Client) releaseWriteAllocation(ctx context.Context, allocationID uint64
 	hctx, cancel := boundedContext(context.WithoutCancel(ctx), c.timeout)
 	defer cancel()
 	_, err := c.worker.Heartbeat(hctx, &pb.HeartbeatRequest{
-		SessionId:                  c.sessionID,
+		SessionId:                  session.id,
 		ReleasedWriteAllocations:   []*pb.ReleasedWriteAllocation{release},
 		FinishedReadRequestThrough: c.readRequests.finishedReadRequestThrough(),
 	})
@@ -1326,17 +1594,21 @@ type mappedRegion struct {
 }
 
 func (c *Client) upload(ctx context.Context, target *pb.PayloadTarget, value []byte) (*pb.TransferReceipt, error) {
+	return c.uploadForSession(ctx, c.currentSession(), target, value)
+}
+
+func (c *Client) uploadForSession(ctx context.Context, session sessionSnapshot, target *pb.PayloadTarget, value []byte) (*pb.TransferReceipt, error) {
 	if target == nil {
 		return nil, protocolError("upload target is empty")
 	}
 	switch t := target.GetTarget().(type) {
 	case *pb.PayloadTarget_Shm:
-		region, err := c.mappingFor(ctx, t.Shm)
+		region, err := c.mappingForSession(ctx, session, t.Shm)
 		if err != nil {
-			return nil, setFailureWithCleanup(err, c.releaseWriteFromDescriptor(ctx, t.Shm))
+			return nil, setFailureWithCleanup(err, c.releaseWriteFromDescriptorForSession(ctx, session, t.Shm))
 		}
 		if err := copyInto(region.data, t.Shm.Offset, value); err != nil {
-			return nil, setFailureWithCleanup(err, c.releaseWriteFromDescriptor(ctx, t.Shm))
+			return nil, setFailureWithCleanup(err, c.releaseWriteFromDescriptorForSession(ctx, session, t.Shm))
 		}
 		sum := stableDigestBytes(value)
 		return &pb.TransferReceipt{
@@ -1364,25 +1636,25 @@ func (c *Client) upload(ctx context.Context, target *pb.PayloadTarget, value []b
 	}
 }
 
-func (c *Client) uploadFrom(ctx context.Context, target *pb.PayloadTarget, src io.Reader, length uint64) (*pb.TransferReceipt, error) {
+func (c *Client) uploadFrom(ctx context.Context, session sessionSnapshot, target *pb.PayloadTarget, src io.Reader, length uint64) (*pb.TransferReceipt, bool, error) {
 	if target == nil {
-		return nil, protocolError("upload target is empty")
+		return nil, false, protocolError("upload target is empty")
 	}
 	switch t := target.GetTarget().(type) {
 	case *pb.PayloadTarget_Shm:
-		region, err := c.mappingFor(ctx, t.Shm)
+		region, err := c.mappingForSession(ctx, session, t.Shm)
 		if err != nil {
-			return nil, setFailureWithCleanup(err, c.releaseWriteFromDescriptor(ctx, t.Shm))
+			return nil, false, setFailureWithCleanup(err, c.releaseWriteFromDescriptorForSession(ctx, session, t.Shm))
 		}
 		dst, err := shmSlice(region.data, t.Shm.Offset, length)
 		if err != nil {
-			return nil, setFailureWithCleanup(err, c.releaseWriteFromDescriptor(ctx, t.Shm))
+			return nil, false, setFailureWithCleanup(err, c.releaseWriteFromDescriptorForSession(ctx, session, t.Shm))
 		}
 		if length != t.Shm.Length {
-			return nil, setFailureWithCleanup(protocolError("SHM staging length differs from requested SetFrom length"), c.releaseWriteFromDescriptor(ctx, t.Shm))
+			return nil, false, setFailureWithCleanup(protocolError("SHM staging length differs from requested SetFrom length"), c.releaseWriteFromDescriptorForSession(ctx, session, t.Shm))
 		}
 		if err := readFullInto(src, dst); err != nil {
-			return nil, setFailureWithCleanup(err, c.releaseWriteFromDescriptor(ctx, t.Shm))
+			return nil, true, setFailureWithCleanup(err, c.releaseWriteFromDescriptorForSession(ctx, session, t.Shm))
 		}
 		sum := stableDigestBytes(dst)
 		return &pb.TransferReceipt{
@@ -1391,14 +1663,14 @@ func (c *Client) uploadFrom(ctx context.Context, target *pb.PayloadTarget, src i
 			Digest:             sum[:],
 			TargetAllocationId: t.Shm.AllocationId,
 			ReleaseToken:       append([]byte(nil), t.Shm.ReleaseToken...),
-		}, nil
+		}, true, nil
 	case *pb.PayloadTarget_Grpc:
 		// Current wire is unary protobuf bytes. SetFrom consumes exactly length
 		// without reading past it, but TCP must buffer those bytes for the single
 		// UploadPayloadRequest; this is protocol-required buffering, not a value cache.
 		value, err := readExactBytes(src, length)
 		if err != nil {
-			return nil, err
+			return nil, true, err
 		}
 		resp, err := c.payload.Upload(ctx, &pb.UploadPayloadRequest{
 			TransferId: t.Grpc.TransferId,
@@ -1406,24 +1678,28 @@ func (c *Client) uploadFrom(ctx context.Context, target *pb.PayloadTarget, src i
 			Nonce:      t.Grpc.Nonce,
 		})
 		if err != nil {
-			return nil, err
+			return nil, true, err
 		}
 		if resp == nil || resp.Receipt == nil {
-			return nil, protocolError("upload response is missing receipt")
+			return nil, true, protocolError("upload response is missing receipt")
 		}
-		return resp.Receipt, nil
+		return resp.Receipt, true, nil
 	default:
-		return nil, protocolError("unsupported payload target")
+		return nil, false, protocolError("unsupported payload target")
 	}
 }
 
 func (c *Client) download(ctx context.Context, target *pb.PayloadTarget) ([]byte, error) {
+	return c.downloadForSession(ctx, c.currentSession(), target)
+}
+
+func (c *Client) downloadForSession(ctx context.Context, session sessionSnapshot, target *pb.PayloadTarget) ([]byte, error) {
 	if target == nil {
 		return nil, protocolError("download target is empty")
 	}
 	switch t := target.GetTarget().(type) {
 	case *pb.PayloadTarget_Shm:
-		region, err := c.mappingFor(ctx, t.Shm)
+		region, err := c.mappingForSession(ctx, session, t.Shm)
 		if err != nil {
 			return nil, err
 		}
@@ -1443,24 +1719,34 @@ func (c *Client) download(ctx context.Context, target *pb.PayloadTarget) ([]byte
 }
 
 func (c *Client) mappingFor(ctx context.Context, desc *pb.ShmDescriptor) (*mappedRegion, error) {
+	return c.mappingForSession(ctx, c.currentSession(), desc)
+}
+
+func (c *Client) mappingForSession(ctx context.Context, session sessionSnapshot, desc *pb.ShmDescriptor) (*mappedRegion, error) {
 	if desc == nil {
 		return nil, protocolError("SHM descriptor is empty")
 	}
 	c.mu.Lock()
 	if region := c.regions[desc.RegionId]; region != nil {
 		c.mu.Unlock()
+		if c.currentSession().generation != session.generation {
+			return nil, staleSessionGenerationError("SHM Region mapping belongs to a previous DMS session generation")
+		}
 		return region, nil
 	}
 	c.mu.Unlock()
-	if c.fdPath == "" {
+	if session.fdPath == "" {
 		return nil, protocolError("SHM descriptor received without fd broker path")
 	}
 	resp, err := c.worker.AcquireRegion(ctx, &pb.AcquireRegionRequest{
-		SessionId: c.sessionID,
+		SessionId: session.id,
 		RegionId:  desc.RegionId,
 	})
 	if err != nil {
 		return nil, err
+	}
+	if c.currentSession().generation != session.generation {
+		return nil, staleSessionGenerationError("DMS session changed while acquiring SHM Region")
 	}
 	if resp.RegionId != desc.RegionId || resp.RegionLength == 0 {
 		return nil, protocolError("AcquireRegion returned a mismatched descriptor")
@@ -1472,9 +1758,13 @@ func (c *Client) mappingFor(ctx context.Context, desc *pb.ShmDescriptor) (*mappe
 	if resp.RegionLength > maxInt {
 		return nil, protocolError("SHM Region length is too large")
 	}
-	fd, err := requestFd(ctx, c.fdPath, c.sessionID, resp.RegionId, resp.FdToken)
+	fd, err := requestFd(ctx, session.fdPath, session.id, resp.RegionId, resp.FdToken)
 	if err != nil {
 		return nil, err
+	}
+	if c.currentSession().generation != session.generation {
+		_ = unix.Close(fd)
+		return nil, staleSessionGenerationError("DMS session changed while requesting SHM fd")
 	}
 	file := os.NewFile(uintptr(fd), "dms-shm-"+strconv.FormatUint(resp.RegionId, 10))
 	data, err := unix.Mmap(int(file.Fd()), 0, int(resp.RegionLength), unix.PROT_READ|unix.PROT_WRITE, unix.MAP_SHARED)
@@ -1482,13 +1772,26 @@ func (c *Client) mappingFor(ctx context.Context, desc *pb.ShmDescriptor) (*mappe
 		_ = file.Close()
 		return nil, err
 	}
+	if c.currentSession().generation != session.generation {
+		_ = unix.Munmap(data)
+		_ = file.Close()
+		return nil, staleSessionGenerationError("DMS session changed while mapping SHM Region")
+	}
 	region := &mappedRegion{id: resp.RegionId, data: data, file: file}
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if existing := c.regions[resp.RegionId]; existing != nil {
 		_ = unix.Munmap(region.data)
 		_ = region.file.Close()
+		if c.currentSession().generation != session.generation {
+			return nil, staleSessionGenerationError("DMS session changed while installing SHM Region")
+		}
 		return existing, nil
+	}
+	if c.currentSession().generation != session.generation {
+		_ = unix.Munmap(region.data)
+		_ = region.file.Close()
+		return nil, staleSessionGenerationError("DMS session changed before caching SHM Region")
 	}
 	c.regions[resp.RegionId] = region
 	return region, nil

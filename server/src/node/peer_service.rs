@@ -4,9 +4,19 @@
 //! Client 请求共享同一个 [`NodeHandle`]、mailbox 和 `NodeState`，因此不会形成
 //! 第二份 Arena/Object/Replica 状态。
 
+#[cfg(feature = "reliability-faults")]
+use std::path::PathBuf;
+#[cfg(any(test, feature = "reliability-faults"))]
+use std::sync::{
+    Arc,
+    atomic::{AtomicBool, Ordering},
+};
+
 use dms_protocol::v1 as pb;
 use dms_transport::dms_error_to_status;
 use pb::peer_service_server::PeerService;
+#[cfg(test)]
+use tokio::sync::Notify;
 use tonic::{Request, Response, Status};
 
 use super::metrics::{NodeMetrics, ReplicaDirection, ReplicaOperation};
@@ -19,6 +29,9 @@ pub(crate) struct PeerServiceHandler {
     node: NodeHandle,
     metrics: NodeMetrics,
     rpc_metrics: dms_metrics::RpcMetrics,
+    // 默认 None。可靠性控制器显式传入 gate 后，才会在匹配的 PullBlock 响应前暂停一次。
+    #[cfg(any(test, feature = "reliability-faults"))]
+    peer_pull_fault_gate: Option<PeerPullFaultGate>,
 }
 
 impl PeerServiceHandler {
@@ -36,7 +49,247 @@ impl PeerServiceHandler {
             node,
             metrics,
             rpc_metrics,
+            #[cfg(any(test, feature = "reliability-faults"))]
+            peer_pull_fault_gate: None,
         }
+    }
+
+    #[cfg(any(test, feature = "reliability-faults"))]
+    pub(crate) fn with_peer_pull_fault_gate(mut self, gate: PeerPullFaultGate) -> Self {
+        self.peer_pull_fault_gate = Some(gate);
+        self
+    }
+}
+
+/// Peer PullBlock 的一次性故障注入门。
+///
+/// 它不是业务协议，也不改变 Peer proto：R6 控制器需要一个稳定位置来杀掉源端
+/// Node，验证目标端是否能清理 in-flight import、failure fence 和下载票据。生产
+/// Handler 不传 gate，`pull_block` 只多一次 `Option` 分支，且不会分配/等待。
+#[cfg(any(test, feature = "reliability-faults"))]
+#[derive(Clone)]
+pub(crate) struct PeerPullFaultGate {
+    inner: Arc<PeerPullFaultGateInner>,
+}
+
+#[cfg(any(test, feature = "reliability-faults"))]
+struct PeerPullFaultGateInner {
+    block_id: Vec<u8>,
+    offset: Option<u64>,
+    fired: AtomicBool,
+    #[cfg(test)]
+    test_mode: bool,
+    #[cfg(test)]
+    reached: Notify,
+    #[cfg(test)]
+    release: Notify,
+    #[cfg(feature = "reliability-faults")]
+    receipt_path: Option<PathBuf>,
+    #[cfg(feature = "reliability-faults")]
+    release_path: Option<PathBuf>,
+}
+
+#[cfg(any(test, feature = "reliability-faults"))]
+impl PeerPullFaultGate {
+    #[cfg(test)]
+    fn once(block_id: impl Into<Vec<u8>>, offset: Option<u64>) -> Self {
+        Self {
+            inner: Arc::new(PeerPullFaultGateInner {
+                block_id: block_id.into(),
+                offset,
+                fired: AtomicBool::new(false),
+                test_mode: true,
+                reached: Notify::new(),
+                release: Notify::new(),
+                #[cfg(feature = "reliability-faults")]
+                receipt_path: None,
+                #[cfg(feature = "reliability-faults")]
+                release_path: None,
+            }),
+        }
+    }
+
+    #[cfg(feature = "reliability-faults")]
+    pub(crate) fn from_config(config: PeerPullFaultConfig) -> Self {
+        Self {
+            inner: Arc::new(PeerPullFaultGateInner {
+                block_id: config.block_id,
+                offset: config.offset,
+                fired: AtomicBool::new(false),
+                #[cfg(test)]
+                test_mode: false,
+                #[cfg(test)]
+                reached: Notify::new(),
+                #[cfg(test)]
+                release: Notify::new(),
+                receipt_path: Some(config.receipt_path),
+                release_path: config.release_path,
+            }),
+        }
+    }
+
+    #[cfg(feature = "reliability-faults")]
+    pub(crate) fn from_env() -> Result<Option<Self>, String> {
+        PeerPullFaultConfig::from_vars(|name| std::env::var(name).ok()).map(|config| {
+            config.map(|config| {
+                dms_logging::warn!(
+                    "peer pull reliability fault gate enabled";
+                    "event" => "node.reliability.peer_pull_fault.enabled",
+                    "offset" => config.offset.map(|offset| offset.to_string()).unwrap_or_else(|| "full".to_string()),
+                    "receipt_path" => config.receipt_path.display().to_string(),
+                    "release_path" => config
+                        .release_path
+                        .as_ref()
+                        .map(|path| path.display().to_string())
+                        .unwrap_or_else(|| "<none>".to_string()),
+                );
+                Self::from_config(config)
+            })
+        })
+    }
+
+    async fn pause_if_matched(
+        &self,
+        block_id: &[u8],
+        range: Option<(u64, u64)>,
+        metrics: &NodeMetrics,
+    ) {
+        let offset = range.map(|(offset, _)| offset);
+        if self.inner.block_id != block_id || self.inner.offset != offset {
+            return;
+        }
+        if self.inner.fired.swap(true, Ordering::AcqRel) {
+            return;
+        }
+        metrics.record_peer_pull_fault_injection();
+        #[cfg(feature = "reliability-faults")]
+        self.write_receipt(block_id, offset);
+        #[cfg(test)]
+        self.inner.reached.notify_waiters();
+        #[cfg(test)]
+        if self.inner.test_mode {
+            self.inner.release.notified().await;
+            return;
+        }
+        #[cfg(feature = "reliability-faults")]
+        self.wait_for_release_file().await;
+        #[cfg(not(feature = "reliability-faults"))]
+        self.inner.release.notified().await;
+    }
+
+    #[cfg(test)]
+    async fn wait_until_reached(&self) {
+        while !self.inner.fired.load(Ordering::Acquire) {
+            self.inner.reached.notified().await;
+        }
+    }
+
+    #[cfg(test)]
+    fn release(&self) {
+        self.inner.release.notify_waiters();
+    }
+
+    #[cfg(feature = "reliability-faults")]
+    fn write_receipt(&self, block_id: &[u8], offset: Option<u64>) {
+        let Some(path) = self.inner.receipt_path.as_ref() else {
+            return;
+        };
+        if let Some(parent) = path.parent()
+            && let Err(error) = std::fs::create_dir_all(parent)
+        {
+            dms_logging::error!(
+                "failed to create peer pull fault receipt directory";
+                "event" => "node.reliability.peer_pull_fault.receipt_failed",
+                "path" => parent.display().to_string(),
+                "error" => error.to_string(),
+            );
+            return;
+        }
+        let release_path = self
+            .inner
+            .release_path
+            .as_ref()
+            .map(|path| path.display().to_string())
+            .unwrap_or_default();
+        let contents = format!(
+            "{{\"event\":\"peer_pull_fault_gate_reached\",\"pid\":{},\"block_id_hex\":\"{}\",\"offset\":{},\"release\":\"{}\"}}\n",
+            std::process::id(),
+            hex_bytes(block_id),
+            offset
+                .map(|value| value.to_string())
+                .unwrap_or_else(|| "null".to_string()),
+            json_escape(&release_path),
+        );
+        let mut temporary = path.to_path_buf();
+        temporary.set_extension(format!("tmp.{}", std::process::id()));
+        if let Err(error) = std::fs::write(&temporary, contents.as_bytes())
+            .and_then(|()| std::fs::rename(&temporary, path))
+        {
+            dms_logging::error!(
+                "failed to write peer pull fault receipt";
+                "event" => "node.reliability.peer_pull_fault.receipt_failed",
+                "path" => path.display().to_string(),
+                "error" => error.to_string(),
+            );
+        }
+    }
+
+    #[cfg(feature = "reliability-faults")]
+    async fn wait_for_release_file(&self) {
+        let Some(path) = self.inner.release_path.as_ref() else {
+            std::future::pending::<()>().await;
+            return;
+        };
+        loop {
+            if path.exists() {
+                return;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        }
+    }
+}
+
+/// `reliability-faults` 专用配置。正式构建不会编译本类型。
+#[cfg(feature = "reliability-faults")]
+#[derive(Debug)]
+pub(crate) struct PeerPullFaultConfig {
+    block_id: Vec<u8>,
+    offset: Option<u64>,
+    receipt_path: PathBuf,
+    release_path: Option<PathBuf>,
+}
+
+#[cfg(feature = "reliability-faults")]
+impl PeerPullFaultConfig {
+    const BLOCK_ID_ENV: &'static str = "DMS_RELIABILITY_PEER_PULL_BLOCK_ID";
+    const OFFSET_ENV: &'static str = "DMS_RELIABILITY_PEER_PULL_OFFSET";
+    const RECEIPT_PATH_ENV: &'static str = "DMS_RELIABILITY_PEER_PULL_RECEIPT_PATH";
+    const RELEASE_PATH_ENV: &'static str = "DMS_RELIABILITY_PEER_PULL_RELEASE_PATH";
+
+    fn from_vars(get: impl Fn(&str) -> Option<String>) -> Result<Option<Self>, String> {
+        let Some(block_id) = get(Self::BLOCK_ID_ENV) else {
+            return Ok(None);
+        };
+        let Some(receipt_path) = get(Self::RECEIPT_PATH_ENV) else {
+            return Err(format!(
+                "{} requires {}",
+                Self::BLOCK_ID_ENV,
+                Self::RECEIPT_PATH_ENV
+            ));
+        };
+        let offset = get(Self::OFFSET_ENV)
+            .map(|value| {
+                value
+                    .parse::<u64>()
+                    .map_err(|_| format!("{} must be a u64", Self::OFFSET_ENV))
+            })
+            .transpose()?;
+        Ok(Some(Self {
+            block_id: parse_block_id(&block_id)?,
+            offset,
+            receipt_path: PathBuf::from(receipt_path),
+            release_path: get(Self::RELEASE_PATH_ENV).map(PathBuf::from),
+        }))
     }
 }
 
@@ -103,6 +356,11 @@ impl PeerService for PeerServiceHandler {
                 dms_error::ErrorKind::DataLoss,
                 "peer block does not match expected length/checksum",
             )));
+        }
+        #[cfg(any(test, feature = "reliability-faults"))]
+        if let Some(gate) = &self.peer_pull_fault_gate {
+            gate.pause_if_matched(&result.block_id, range, &self.metrics)
+                .await;
         }
         metric.success_with_payload(ReplicaDirection::Send, result.payload.len());
         rpc.success();
@@ -226,6 +484,39 @@ fn node_invalid_argument(message: impl Into<String>) -> Status {
     ))
 }
 
+#[cfg(feature = "reliability-faults")]
+fn parse_block_id(value: &str) -> Result<Vec<u8>, String> {
+    let Some(hex) = value.strip_prefix("hex:") else {
+        return Ok(value.as_bytes().to_vec());
+    };
+    if hex.len() % 2 != 0 {
+        return Err("hex block id must contain an even number of digits".to_string());
+    }
+    let mut bytes = Vec::with_capacity(hex.len() / 2);
+    for index in (0..hex.len()).step_by(2) {
+        let byte = u8::from_str_radix(&hex[index..index + 2], 16)
+            .map_err(|_| "hex block id contains a non-hex digit".to_string())?;
+        bytes.push(byte);
+    }
+    Ok(bytes)
+}
+
+#[cfg(feature = "reliability-faults")]
+fn hex_bytes(bytes: &[u8]) -> String {
+    const DIGITS: &[u8; 16] = b"0123456789abcdef";
+    let mut output = String::with_capacity(bytes.len() * 2);
+    for byte in bytes {
+        output.push(DIGITS[(byte >> 4) as usize] as char);
+        output.push(DIGITS[(byte & 0x0f) as usize] as char);
+    }
+    output
+}
+
+#[cfg(feature = "reliability-faults")]
+fn json_escape(value: &str) -> String {
+    value.replace('\\', "\\\\").replace('"', "\\\"")
+}
+
 #[cfg(test)]
 mod tests {
     use std::{
@@ -247,11 +538,16 @@ mod tests {
         net::{TcpListener, TcpStream},
         sync::oneshot,
         task::JoinHandle,
+        time::{Duration, timeout},
     };
     use tokio_stream::{Stream, wrappers::TcpListenerStream};
     use tonic::transport::Endpoint;
 
-    use super::PeerServiceHandler;
+    #[cfg(feature = "reliability-faults")]
+    use super::PeerPullFaultConfig;
+    #[cfg(feature = "reliability-faults")]
+    use super::json_escape;
+    use super::{PeerPullFaultGate, PeerServiceHandler};
     use crate::meta::{metadata_service::MetadataServiceHandler, runtime::MetaHandle};
     use crate::node::metadata_client::{MetadataClient, digest};
     use crate::node::runtime::NodeHandle;
@@ -465,6 +761,107 @@ mod tests {
         assert_eq!(ranged.checksum, digest(b"er-b"));
         let _ = shutdown_tx.send(());
         server_task.await.expect("join peer server");
+    }
+
+    #[tokio::test]
+    async fn peer_pull_fault_gate_pauses_once_before_response() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind peer");
+        let address = listener.local_addr().expect("peer address");
+        let node = NodeHandle::spawn_without_metadata("node-b".to_string());
+        let block_id = b"fault-gated-block".to_vec();
+        commit_test_block(&node, block_id.clone(), b"fault-payload".to_vec()).await;
+
+        let gate = PeerPullFaultGate::once(block_id.clone(), Some(0));
+        let peer = PeerServiceHandler::new(node).with_peer_pull_fault_gate(gate.clone());
+        let (shutdown_tx, shutdown_rx) = oneshot::channel();
+        let server_task = tokio::spawn(async move {
+            tonic::transport::Server::builder()
+                .add_service(PeerServiceServer::new(peer))
+                .serve_with_incoming_shutdown(TcpListenerStream::new(listener), async {
+                    let _ = shutdown_rx.await;
+                })
+                .await
+                .expect("peer server");
+        });
+
+        let endpoint = Endpoint::from_shared(format!("http://{address}")).expect("peer endpoint");
+        let mut client = PeerServiceClient::connect(endpoint)
+            .await
+            .expect("connect peer");
+        let request = PeerPullBlockRequest {
+            source_node_id: "node-a".to_string(),
+            block_id,
+            offset: Some(0),
+            length: Some(5),
+            expected_length: Some(13),
+            expected_checksum: digest(b"fault"),
+        };
+        let pull = tokio::spawn(async move { client.pull_block(request).await });
+
+        timeout(Duration::from_secs(1), gate.wait_until_reached())
+            .await
+            .expect("fault gate reached");
+        assert!(
+            !pull.is_finished(),
+            "PullBlock must wait at the explicit R6 gate before returning payload"
+        );
+
+        gate.release();
+        let response = timeout(Duration::from_secs(1), pull)
+            .await
+            .expect("pull released")
+            .expect("join pull")
+            .expect("pull response")
+            .into_inner();
+        assert_eq!(response.payload, b"fault");
+
+        let _ = shutdown_tx.send(());
+        server_task.await.expect("join peer server");
+    }
+
+    #[cfg(feature = "reliability-faults")]
+    #[test]
+    fn peer_pull_fault_config_parses_env_contract() {
+        let config = PeerPullFaultConfig::from_vars(|name| match name {
+            PeerPullFaultConfig::BLOCK_ID_ENV => Some("hex:6661756c74".to_string()),
+            PeerPullFaultConfig::OFFSET_ENV => Some("7".to_string()),
+            PeerPullFaultConfig::RECEIPT_PATH_ENV => Some("/tmp/dms-receipt.json".to_string()),
+            PeerPullFaultConfig::RELEASE_PATH_ENV => Some("/tmp/dms-release".to_string()),
+            _ => None,
+        })
+        .expect("parse")
+        .expect("enabled");
+
+        assert_eq!(config.block_id, b"fault");
+        assert_eq!(config.offset, Some(7));
+        assert_eq!(
+            config.receipt_path,
+            std::path::PathBuf::from("/tmp/dms-receipt.json")
+        );
+        assert_eq!(
+            config.release_path,
+            Some(std::path::PathBuf::from("/tmp/dms-release"))
+        );
+    }
+
+    #[cfg(feature = "reliability-faults")]
+    #[test]
+    fn peer_pull_fault_config_requires_receipt_when_enabled() {
+        let error = PeerPullFaultConfig::from_vars(|name| match name {
+            PeerPullFaultConfig::BLOCK_ID_ENV => Some("fault".to_string()),
+            _ => None,
+        })
+        .expect_err("receipt path is mandatory");
+        assert!(error.contains(PeerPullFaultConfig::RECEIPT_PATH_ENV));
+    }
+
+    #[cfg(feature = "reliability-faults")]
+    #[test]
+    fn peer_pull_fault_receipt_escapes_json_string_fields() {
+        assert_eq!(
+            json_escape(r#"/tmp/dms/"release"\flag"#),
+            r#"/tmp/dms/\"release\"\\flag"#
+        );
     }
 
     #[tokio::test]

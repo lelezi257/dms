@@ -4,12 +4,14 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"math"
 	"net"
 	"os"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -117,6 +119,309 @@ func TestSetGetDelUseNativeResultsAndThreeState(t *testing.T) {
 	_, found, err = client.Get(context.Background(), "missing")
 	if err != nil || found {
 		t.Fatalf("missing Get found=%v err=%v", found, err)
+	}
+}
+
+func TestGetReopensSessionOnUnknownSession(t *testing.T) {
+	worker := &fakeWorker{
+		openSessionIDs: []uint64{2},
+		getFunc: func(_ context.Context, req *pb.GetRequest) (*pb.GetResponse, error) {
+			if req.SessionId == 1 {
+				return nil, unknownSessionStatus()
+			}
+			if req.SessionId != 2 {
+				return nil, status.Errorf(codes.Internal, "unexpected session %d", req.SessionId)
+			}
+			return inlineGetResponse(req.ReadRequestId, []byte("after-reopen")), nil
+		},
+	}
+	client := testClient(worker, nil)
+	got, found, err := client.Get(context.Background(), "k")
+	if err != nil || !found || string(got) != "after-reopen" {
+		t.Fatalf("Get after reopen got=%q found=%v err=%v", got, found, err)
+	}
+	if worker.openSessionCount != 1 || client.currentSession().id != 2 || client.currentSession().generation != 1 {
+		t.Fatalf("session was not reopened once: opens=%d current=%+v", worker.openSessionCount, client.currentSession())
+	}
+	client.sendUnaryHeartbeat(context.Background())
+	if worker.finishedReadThrough != 1 {
+		t.Fatalf("reopened Get did not preserve read watermark, got %d", worker.finishedReadThrough)
+	}
+}
+
+func TestSetInlineReopensSessionAndKeepsOperationId(t *testing.T) {
+	worker := &fakeWorker{openSessionIDs: []uint64{2}}
+	worker.setInlineFunc = func(_ context.Context, req *pb.SetInlineRequest) (*pb.SetResponse, error) {
+		worker.mu.Lock()
+		defer worker.mu.Unlock()
+		worker.setInlineSessionIDs = append(worker.setInlineSessionIDs, req.SessionId)
+		if req.OperationId != nil {
+			worker.setInlineOperations = append(worker.setInlineOperations, proto.Clone(req.OperationId).(*pb.OperationId))
+		}
+		if req.SessionId == 1 {
+			return nil, unknownSessionStatus()
+		}
+		return &pb.SetResponse{Version: 9, Length: uint64(len(req.Value))}, nil
+	}
+	client := testClient(worker, nil)
+	result, err := client.Set(context.Background(), "k", []byte("value"))
+	if err != nil || result.Version != 9 {
+		t.Fatalf("Set after reopen result=%+v err=%v", result, err)
+	}
+	if worker.openSessionCount != 1 {
+		t.Fatalf("expected one reopen, got %d", worker.openSessionCount)
+	}
+	if got := worker.setInlineSessionIDs; len(got) != 2 || got[0] != 1 || got[1] != 2 {
+		t.Fatalf("SetInline sessions=%v", got)
+	}
+	if len(worker.setInlineOperations) != 2 ||
+		!bytes.Equal(worker.setInlineOperations[0].ClientInstanceId, worker.setInlineOperations[1].ClientInstanceId) ||
+		worker.setInlineOperations[0].Sequence != worker.setInlineOperations[1].Sequence {
+		t.Fatalf("retry did not reuse operation id: %+v", worker.setInlineOperations)
+	}
+}
+
+func TestStagedSetAllocateUnknownReopensBeforeUploading(t *testing.T) {
+	worker := &fakeWorker{openSessionIDs: []uint64{2}}
+	worker.allocateFunc = func(_ context.Context, req *pb.AllocateStagingRequest) (*pb.AllocateStagingResponse, error) {
+		worker.mu.Lock()
+		worker.allocateSessionIDs = append(worker.allocateSessionIDs, req.SessionId)
+		worker.mu.Unlock()
+		if req.SessionId == 1 {
+			return nil, unknownSessionStatus()
+		}
+		return &pb.AllocateStagingResponse{
+			StagingId: 100,
+			Target:    grpcTarget("alloc-retry", 5),
+		}, nil
+	}
+	payload := &fakePayload{}
+	client := testClient(worker, payload)
+	client.inlineMax = 1
+
+	result, err := client.Set(context.Background(), "k", []byte("value"))
+	if err != nil || result.Version != 5 {
+		t.Fatalf("staged Set after allocate reopen result=%+v err=%v", result, err)
+	}
+	if worker.openSessionCount != 1 {
+		t.Fatalf("expected one reopen, got %d", worker.openSessionCount)
+	}
+	if got := worker.allocateSessionIDs; len(got) != 2 || got[0] != 1 || got[1] != 2 {
+		t.Fatalf("AllocateStaging sessions=%v", got)
+	}
+	if payload.uploadCount != 1 {
+		t.Fatalf("payload must be uploaded only after successful allocate, got %d", payload.uploadCount)
+	}
+}
+
+func TestStagedSetSetUnknownReopensAndReplaysSameOperation(t *testing.T) {
+	worker := &fakeWorker{openSessionIDs: []uint64{2}}
+	worker.allocateFunc = func(_ context.Context, req *pb.AllocateStagingRequest) (*pb.AllocateStagingResponse, error) {
+		worker.mu.Lock()
+		worker.allocateSessionIDs = append(worker.allocateSessionIDs, req.SessionId)
+		worker.mu.Unlock()
+		return &pb.AllocateStagingResponse{
+			StagingId: req.SessionId + 100,
+			Target:    grpcTarget(fmt.Sprintf("set-retry-%d", req.SessionId), 5),
+		}, nil
+	}
+	worker.setFunc = func(_ context.Context, req *pb.SetRequest) (*pb.SetResponse, error) {
+		worker.mu.Lock()
+		worker.setSessionIDs = append(worker.setSessionIDs, req.SessionId)
+		worker.setStagingIDs = append(worker.setStagingIDs, req.Value.StagingId)
+		worker.setOperations = append(worker.setOperations, proto.Clone(req.OperationId).(*pb.OperationId))
+		worker.mu.Unlock()
+		if req.SessionId == 1 {
+			return nil, unknownSessionStatus()
+		}
+		return &pb.SetResponse{Version: 22, Length: 5}, nil
+	}
+	payload := &fakePayload{}
+	client := testClient(worker, payload)
+	client.inlineMax = 1
+
+	result, err := client.Set(context.Background(), "k", []byte("value"))
+	if err != nil || result.Version != 22 {
+		t.Fatalf("staged Set retry result=%+v err=%v", result, err)
+	}
+	if payload.uploadCount != 2 {
+		t.Fatalf("replayable []byte payload should upload once per session, got %d", payload.uploadCount)
+	}
+	if got := worker.deleteSessionIDs; len(got) != 1 || got[0] != 1 {
+		t.Fatalf("Set unknown after upload should delete old-session staging once: sessions=%v", got)
+	}
+	if got := worker.setSessionIDs; len(got) != 2 || got[0] != 1 || got[1] != 2 {
+		t.Fatalf("Set sessions=%v", got)
+	}
+	if got := worker.setStagingIDs; len(got) != 2 || got[0] != 101 || got[1] != 102 {
+		t.Fatalf("Set staging IDs=%v", got)
+	}
+	if len(worker.setOperations) != 2 ||
+		!bytes.Equal(worker.setOperations[0].ClientInstanceId, worker.setOperations[1].ClientInstanceId) ||
+		worker.setOperations[0].Sequence != worker.setOperations[1].Sequence {
+		t.Fatalf("staged retry did not reuse operation id: %+v", worker.setOperations)
+	}
+}
+
+func TestStagedSetUnavailableDoesNotReplayPayload(t *testing.T) {
+	worker := &fakeWorker{
+		allocateTarget: grpcTarget("unavailable", 5),
+		setErr:         status.Error(codes.Unavailable, "commit result is uncertain"),
+	}
+	payload := &fakePayload{}
+	client := testClient(worker, payload)
+	client.inlineMax = 1
+
+	_, err := client.Set(context.Background(), "k", []byte("value"))
+	if !isKind(err, ErrorKindUnavailable) {
+		t.Fatalf("Set should return unavailable without replay, got %v", err)
+	}
+	if worker.openSessionCount != 0 {
+		t.Fatalf("uncertain Set result must not reopen/replay, opens=%d", worker.openSessionCount)
+	}
+	if payload.uploadCount != 1 {
+		t.Fatalf("payload should not be uploaded twice on uncertain Set, got %d", payload.uploadCount)
+	}
+}
+
+func TestSetFromAllocateUnknownReopensBeforeReaderConsumed(t *testing.T) {
+	reader := &countingReader{data: []byte("stream-value")}
+	worker := &fakeWorker{openSessionIDs: []uint64{2}}
+	worker.allocateFunc = func(_ context.Context, req *pb.AllocateStagingRequest) (*pb.AllocateStagingResponse, error) {
+		worker.mu.Lock()
+		worker.allocateSessionIDs = append(worker.allocateSessionIDs, req.SessionId)
+		worker.mu.Unlock()
+		if req.SessionId == 1 {
+			return nil, unknownSessionStatus()
+		}
+		return &pb.AllocateStagingResponse{
+			StagingId: 200,
+			Target:    grpcTarget("set-from-allocate-retry", uint64(len(reader.data))),
+		}, nil
+	}
+	payload := &fakePayload{}
+	client := testClient(worker, payload)
+	client.inlineMax = 1
+
+	result, err := client.SetFrom(context.Background(), "k", reader, uint64(len(reader.data)), SetOptions{})
+	if err != nil || result.Version != 5 {
+		t.Fatalf("SetFrom after allocate reopen result=%+v err=%v", result, err)
+	}
+	if reader.readCalls == 0 || payload.uploadCount != 1 {
+		t.Fatalf("reader should be consumed once after successful allocate, reads=%d uploads=%d", reader.readCalls, payload.uploadCount)
+	}
+	if got := worker.allocateSessionIDs; len(got) != 2 || got[0] != 1 || got[1] != 2 {
+		t.Fatalf("AllocateStaging sessions=%v", got)
+	}
+}
+
+func TestSetFromConsumedReaderSessionUnknownIsNotReplayed(t *testing.T) {
+	data := []byte("stream-value")
+	reader := &countingReader{data: data}
+	worker := &fakeWorker{
+		openSessionIDs: []uint64{2},
+		allocateTarget: grpcTarget("set-from-consumed", uint64(len(data))),
+		setErr:         unknownSessionStatus(),
+		deleteContexts: make(chan error, 1),
+		heartbeatBlock: false,
+	}
+	payload := &fakePayload{}
+	client := testClient(worker, payload)
+	client.inlineMax = 1
+
+	_, err := client.SetFrom(context.Background(), "k", reader, uint64(len(data)), SetOptions{})
+	if !isKind(err, ErrorKindAborted) {
+		t.Fatalf("consumed SetFrom should return non-replayable aborted error, got %v", err)
+	}
+	if worker.openSessionCount != 0 {
+		t.Fatalf("consumed reader must not trigger reopen/replay, opens=%d", worker.openSessionCount)
+	}
+	if payload.uploadCount != 1 || reader.readCalls == 0 {
+		t.Fatalf("reader/upload accounting mismatch reads=%d uploads=%d", reader.readCalls, payload.uploadCount)
+	}
+}
+
+func TestMappingForRejectsSessionChangeAfterAcquire(t *testing.T) {
+	worker := &fakeWorker{openSessionIDs: []uint64{2}}
+	client := testClient(worker, nil)
+	client.fdPath = "/unused"
+	worker.acquireFunc = func(_ context.Context, req *pb.AcquireRegionRequest) (*pb.AcquireRegionResponse, error) {
+		if req.SessionId != 1 {
+			return nil, status.Errorf(codes.Internal, "unexpected session %d", req.SessionId)
+		}
+		client.installSession(&pb.OpenSessionResponse{SessionId: 2, Shm: &pb.ShmCapability{FdBrokerPath: "/new"}})
+		return &pb.AcquireRegionResponse{RegionId: 7, RegionLength: 4096, FdToken: []byte("token")}, nil
+	}
+	_, err := client.mappingFor(context.Background(), &pb.ShmDescriptor{RegionId: 7, Offset: 0, Length: 1})
+	if !isSessionUnknown(err) {
+		t.Fatalf("mapping must fail recoverably when generation changes after AcquireRegion, got %v", err)
+	}
+}
+
+func TestConcurrentGetUnknownSessionReopenSingleFlight(t *testing.T) {
+	firstReady := make(chan struct{})
+	releaseFirst := make(chan struct{})
+	var firstOnce sync.Once
+	worker := &fakeWorker{openSessionIDs: []uint64{2}}
+	worker.getFunc = func(ctx context.Context, req *pb.GetRequest) (*pb.GetResponse, error) {
+		if req.SessionId == 1 {
+			firstOnce.Do(func() {
+				close(firstReady)
+				<-releaseFirst
+			})
+			return nil, unknownSessionStatus()
+		}
+		if req.SessionId != 2 {
+			return nil, status.Errorf(codes.Internal, "unexpected session %d", req.SessionId)
+		}
+		return inlineGetResponse(req.ReadRequestId, []byte("ok")), nil
+	}
+	client := testClient(worker, nil)
+
+	errs := make(chan error, 2)
+	go func() {
+		_, _, err := client.Get(context.Background(), "k1")
+		errs <- err
+	}()
+	<-firstReady
+	go func() {
+		_, _, err := client.Get(context.Background(), "k2")
+		errs <- err
+	}()
+	close(releaseFirst)
+	for i := 0; i < 2; i++ {
+		if err := <-errs; err != nil {
+			t.Fatal(err)
+		}
+	}
+	if worker.openSessionCount != 1 {
+		t.Fatalf("concurrent session unknown should single-flight reopen, opens=%d", worker.openSessionCount)
+	}
+}
+
+func TestReaderRejectsUseAfterSessionGenerationChanges(t *testing.T) {
+	worker := &fakeWorker{
+		openSessionIDs:   []uint64{2},
+		getSegments:      []*pb.ReadSegment{grpcSegment(0, []byte("abcdef"))},
+		getVersion:       1,
+		getLogicalLength: 6,
+	}
+	payload := &fakePayload{downloads: map[string][]byte{"a": []byte("abcdef")}}
+	client := testClient(worker, payload)
+	result, found, err := client.GetReader(context.Background(), "k", GetOptions{})
+	if err != nil || !found {
+		t.Fatalf("GetReader found=%v err=%v", found, err)
+	}
+	if err := client.reopenSession(context.Background(), client.currentSession()); err != nil {
+		t.Fatal(err)
+	}
+	_, err = result.Body.Read(make([]byte, 1))
+	if !errors.Is(err, io.ErrClosedPipe) {
+		t.Fatalf("old reader should reject cross-generation use, got %v", err)
+	}
+	client.sendUnaryHeartbeat(context.Background())
+	if worker.finishedReadThrough != 1 {
+		t.Fatalf("old reader close did not release read request, got %d", worker.finishedReadThrough)
 	}
 }
 
@@ -518,6 +823,62 @@ func TestRequestFdReceivesCloseOnExecDescriptor(t *testing.T) {
 	}
 }
 
+func TestMappingForRejectsSessionChangeAfterFdReceive(t *testing.T) {
+	dir := t.TempDir()
+	path := dir + "/broker.sock"
+	listener, err := net.Listen("unix", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer listener.Close()
+
+	sourceFD, err := unix.MemfdCreate("dms-go-sdk-fd-generation-test", unix.MFD_CLOEXEC)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer unix.Close(sourceFD)
+
+	worker := &fakeWorker{
+		acquireResp: &pb.AcquireRegionResponse{RegionId: 7, RegionLength: 4096, FdToken: []byte("token")},
+	}
+	client := testClient(worker, nil)
+	client.fdPath = path
+
+	serverDone := make(chan error, 1)
+	go func() {
+		conn, err := listener.Accept()
+		if err != nil {
+			serverDone <- err
+			return
+		}
+		defer conn.Close()
+		unixConn := conn.(*net.UnixConn)
+		header := make([]byte, 4+8+8+4+len("token"))
+		if _, err := io.ReadFull(unixConn, header); err != nil {
+			serverDone <- err
+			return
+		}
+		if _, err := unixConn.Write([]byte{1}); err != nil {
+			serverDone <- err
+			return
+		}
+		client.installSession(&pb.OpenSessionResponse{SessionId: 2, Shm: &pb.ShmCapability{FdBrokerPath: path}})
+		_, _, err = unixConn.WriteMsgUnix([]byte{0}, unix.UnixRights(sourceFD), nil)
+		serverDone <- err
+	}()
+
+	_, err = client.mappingFor(context.Background(), &pb.ShmDescriptor{RegionId: 7, Offset: 0, Length: 1})
+	if !isSessionUnknown(err) {
+		t.Fatalf("mapping must fail recoverably when generation changes after fd receive, got %v", err)
+	}
+	if err := <-serverDone; err != nil {
+		t.Fatal(err)
+	}
+	if len(client.regions) != 0 {
+		t.Fatal("stale fd must not be cached as a Region mapping")
+	}
+}
+
 func TestSharedReadReleasesEpochAfterWholeCopy(t *testing.T) {
 	data := []byte("abcdef")
 	firstEpoch := uint64(1)
@@ -898,6 +1259,13 @@ func shmTarget(regionID, offset, length, allocationID uint64, releaseToken []byt
 	}}}
 }
 
+func grpcTarget(id string, length uint64) *pb.PayloadTarget {
+	return &pb.PayloadTarget{Target: &pb.PayloadTarget_Grpc{Grpc: &pb.GrpcTarget{
+		TransferId: []byte(id),
+		Length:     length,
+	}}}
+}
+
 func grpcSegment(offset uint64, payload []byte) *pb.ReadSegment {
 	id := []byte("a")
 	if offset != 0 {
@@ -912,6 +1280,22 @@ func grpcSegment(offset uint64, payload []byte) *pb.ReadSegment {
 	}
 }
 
+type countingReader struct {
+	data      []byte
+	offset    int
+	readCalls int
+}
+
+func (r *countingReader) Read(p []byte) (int, error) {
+	r.readCalls++
+	if r.offset >= len(r.data) {
+		return 0, io.EOF
+	}
+	n := copy(p, r.data[r.offset:])
+	r.offset += n
+	return n, nil
+}
+
 func inlineGetResponse(readRequestID uint64, value []byte) *pb.GetResponse {
 	return &pb.GetResponse{
 		Found:         true,
@@ -920,6 +1304,18 @@ func inlineGetResponse(readRequestID uint64, value []byte) *pb.GetResponse {
 		InlineValue:   append([]byte(nil), value...),
 		ReadRequestId: readRequestID,
 	}
+}
+
+func unknownSessionStatus() error {
+	withDetail, err := status.New(codes.Unauthenticated, "unknown session").WithDetails(&pb.ErrorDetail{
+		DmsCode: uint32(NODE_SESSION_UNKNOWN),
+		Kind:    pb.ErrorKind_ERROR_KIND_UNAUTHENTICATED,
+		Message: "unknown session",
+	})
+	if err != nil {
+		panic(err)
+	}
+	return withDetail.Err()
 }
 
 func testClient(worker *fakeWorker, payload *fakePayload) *Client {
@@ -946,6 +1342,8 @@ func isKind(err error, kind ErrorKind) bool {
 type fakeWorker struct {
 	pb.WorkerServiceClient
 	mu                     sync.Mutex
+	openSessionIDs         []uint64
+	openSessionCount       int
 	getValue               []byte
 	getFound               bool
 	getVersion             uint64
@@ -963,16 +1361,27 @@ type fakeWorker struct {
 	scanLimit              uint32
 	scanStartAfter         string
 	allocateTarget         *pb.PayloadTarget
+	allocateFunc           func(context.Context, *pb.AllocateStagingRequest) (*pb.AllocateStagingResponse, error)
+	allocateSessionIDs     []uint64
 	setErr                 error
 	setReceipt             *pb.TransferReceipt
+	setFunc                func(context.Context, *pb.SetRequest) (*pb.SetResponse, error)
+	setSessionIDs          []uint64
+	setOperations          []*pb.OperationId
+	setStagingIDs          []uint64
 	setInlineValue         []byte
 	setInlineCount         int
+	setInlineFunc          func(context.Context, *pb.SetInlineRequest) (*pb.SetResponse, error)
+	setInlineSessionIDs    []uint64
+	setInlineOperations    []*pb.OperationId
 	allocateLength         uint64
 	deleteContexts         chan error
 	deleteBlock            bool
 	deleteCount            int
 	deleteStagingID        uint64
+	deleteSessionIDs       []uint64
 	acquireResp            *pb.AcquireRegionResponse
+	acquireFunc            func(context.Context, *pb.AcquireRegionRequest) (*pb.AcquireRegionResponse, error)
 	heartbeatContexts      chan error
 	heartbeatBlock         bool
 	writeReleaseCount      int
@@ -984,11 +1393,25 @@ type fakeWorker struct {
 	sessionFunc            func(context.Context) (grpc.BidiStreamingClient[pb.ClientSessionMessage, pb.NodeSessionEvent], error)
 }
 
+func (w *fakeWorker) OpenSession(context.Context, *pb.OpenSessionRequest, ...grpc.CallOption) (*pb.OpenSessionResponse, error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.openSessionCount++
+	sessionID := uint64(w.openSessionCount + 1)
+	if len(w.openSessionIDs) >= w.openSessionCount {
+		sessionID = w.openSessionIDs[w.openSessionCount-1]
+	}
+	return &pb.OpenSessionResponse{SessionId: sessionID, WriteLeaseReleaseSupported: true}, nil
+}
+
 func (w *fakeWorker) Session(ctx context.Context, _ ...grpc.CallOption) (grpc.BidiStreamingClient[pb.ClientSessionMessage, pb.NodeSessionEvent], error) {
 	return w.sessionFunc(ctx)
 }
 
-func (w *fakeWorker) SetInline(_ context.Context, req *pb.SetInlineRequest, _ ...grpc.CallOption) (*pb.SetResponse, error) {
+func (w *fakeWorker) SetInline(ctx context.Context, req *pb.SetInlineRequest, _ ...grpc.CallOption) (*pb.SetResponse, error) {
+	if w.setInlineFunc != nil {
+		return w.setInlineFunc(ctx, req)
+	}
 	w.mu.Lock()
 	w.setInlineCount++
 	w.setInlineValue = append([]byte(nil), req.Value...)
@@ -996,9 +1419,13 @@ func (w *fakeWorker) SetInline(_ context.Context, req *pb.SetInlineRequest, _ ..
 	return &pb.SetResponse{Version: 3, Length: uint64(len(req.Value))}, nil
 }
 
-func (w *fakeWorker) AllocateStaging(_ context.Context, req *pb.AllocateStagingRequest, _ ...grpc.CallOption) (*pb.AllocateStagingResponse, error) {
+func (w *fakeWorker) AllocateStaging(ctx context.Context, req *pb.AllocateStagingRequest, _ ...grpc.CallOption) (*pb.AllocateStagingResponse, error) {
+	if w.allocateFunc != nil {
+		return w.allocateFunc(ctx, req)
+	}
 	w.mu.Lock()
 	w.allocateLength = req.Length
+	w.allocateSessionIDs = append(w.allocateSessionIDs, req.SessionId)
 	w.mu.Unlock()
 	target := w.allocateTarget
 	if target == nil {
@@ -1007,10 +1434,18 @@ func (w *fakeWorker) AllocateStaging(_ context.Context, req *pb.AllocateStagingR
 	return &pb.AllocateStagingResponse{StagingId: 99, Target: target}, nil
 }
 
-func (w *fakeWorker) Set(_ context.Context, req *pb.SetRequest, _ ...grpc.CallOption) (*pb.SetResponse, error) {
+func (w *fakeWorker) Set(ctx context.Context, req *pb.SetRequest, _ ...grpc.CallOption) (*pb.SetResponse, error) {
+	if w.setFunc != nil {
+		return w.setFunc(ctx, req)
+	}
 	if req != nil && req.Value != nil && req.Value.Receipt != nil {
 		w.mu.Lock()
 		w.setReceipt = req.Value.Receipt
+		w.setSessionIDs = append(w.setSessionIDs, req.SessionId)
+		if req.OperationId != nil {
+			w.setOperations = append(w.setOperations, proto.Clone(req.OperationId).(*pb.OperationId))
+		}
+		w.setStagingIDs = append(w.setStagingIDs, req.Value.StagingId)
 		w.mu.Unlock()
 	}
 	if w.setErr != nil {
@@ -1019,7 +1454,10 @@ func (w *fakeWorker) Set(_ context.Context, req *pb.SetRequest, _ ...grpc.CallOp
 	return &pb.SetResponse{Version: 5, Length: 3}, nil
 }
 
-func (w *fakeWorker) AcquireRegion(context.Context, *pb.AcquireRegionRequest, ...grpc.CallOption) (*pb.AcquireRegionResponse, error) {
+func (w *fakeWorker) AcquireRegion(ctx context.Context, req *pb.AcquireRegionRequest, _ ...grpc.CallOption) (*pb.AcquireRegionResponse, error) {
+	if w.acquireFunc != nil {
+		return w.acquireFunc(ctx, req)
+	}
 	if w.acquireResp != nil {
 		return w.acquireResp, nil
 	}
@@ -1071,6 +1509,7 @@ func (w *fakeWorker) DeleteStaging(ctx context.Context, req *pb.DeleteStagingReq
 	w.mu.Lock()
 	w.deleteCount++
 	w.deleteStagingID = req.StagingId
+	w.deleteSessionIDs = append(w.deleteSessionIDs, req.SessionId)
 	w.mu.Unlock()
 	if w.deleteBlock {
 		<-ctx.Done()
@@ -1126,12 +1565,14 @@ type fakePayload struct {
 	downloads     map[string][]byte
 	uploadReceipt *pb.TransferReceipt
 	downloadCount int
+	uploadCount   int
 	lastDownload  []byte
 	uploadPayload []byte
 	downloadFunc  func(context.Context, *pb.DownloadPayloadRequest) (*pb.DownloadPayloadResponse, error)
 }
 
 func (p *fakePayload) Upload(_ context.Context, req *pb.UploadPayloadRequest, _ ...grpc.CallOption) (*pb.UploadPayloadResponse, error) {
+	p.uploadCount++
 	p.uploadPayload = append([]byte(nil), req.Payload...)
 	receipt := p.uploadReceipt
 	if receipt == nil {
@@ -1255,6 +1696,51 @@ func (s *releaseTestStream) Recv() (*pb.NodeSessionEvent, error) {
 
 // gRPC CloseSend 只关闭发送方向，不承诺解除 Recv 的等待。
 func (s *releaseTestStream) CloseSend() error { return nil }
+
+type unknownSessionStream struct {
+	grpc.ClientStream
+}
+
+func (*unknownSessionStream) Send(*pb.ClientSessionMessage) error { return nil }
+
+func (*unknownSessionStream) Recv() (*pb.NodeSessionEvent, error) {
+	return nil, unknownSessionStatus()
+}
+
+func (*unknownSessionStream) CloseSend() error { return nil }
+
+func TestSessionLoopReopensWholeSessionAfterNodeForgetsSession(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	var streamCount atomic.Int32
+	worker := &fakeWorker{openSessionIDs: []uint64{2}}
+	worker.sessionFunc = func(sessionCtx context.Context) (grpc.BidiStreamingClient[pb.ClientSessionMessage, pb.NodeSessionEvent], error) {
+		if streamCount.Add(1) == 1 {
+			return &unknownSessionStream{}, nil
+		}
+		return &releaseTestStream{ctx: sessionCtx, messages: make(chan *pb.ClientSessionMessage, 2)}, nil
+	}
+	client := testClient(worker, nil)
+	client.ctx, client.cancel = ctx, cancel
+	client.readReleaseWake = make(chan struct{}, 1)
+	client.startSessionLoop(time.Hour)
+	defer func() {
+		cancel()
+		client.streamWG.Wait()
+	}()
+
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		if session := client.currentSession(); session.id == 2 && session.generation == 1 {
+			if worker.openSessionCount != 1 {
+				t.Fatalf("whole Session reopened %d times, want one", worker.openSessionCount)
+			}
+			return
+		}
+		time.Sleep(time.Millisecond)
+	}
+	t.Fatalf("Session loop did not replace unknown Session: current=%+v opens=%d", client.currentSession(), worker.openSessionCount)
+}
 
 func TestSharedReleaseUsesExistingStreamWithoutUnaryWait(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())

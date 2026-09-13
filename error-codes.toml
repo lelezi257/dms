@@ -121,6 +121,14 @@ subsystem = "Object"
 description = "Node rejected a mutation because the observed version is no longer current"
 
 [[error]]
+name = "NODE_OBJECT_UNAVAILABLE"
+value = "0x02020003"
+kind = "Unavailable"
+component = "Node"
+subsystem = "Object"
+description = "Node resolved an object version, but no live replica can serve the required block"
+
+[[error]]
 name = "NODE_SESSION_UNKNOWN"
 value = "0x02030001"
 kind = "Unauthenticated"

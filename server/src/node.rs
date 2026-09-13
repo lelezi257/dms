@@ -111,6 +111,9 @@ async fn serve_workers(config: NodeConfig) -> Result<(), Box<dyn std::error::Err
         Some(trace_metrics),
     )?;
     let trace_periodic_operations = config.tracing.periodic_operations;
+    #[cfg(feature = "reliability-faults")]
+    let peer_pull_fault_gate = peer_service::PeerPullFaultGate::from_env()
+        .map_err(|error| format!("invalid peer pull reliability fault config: {error}"))?;
     let health_listener = TokioTcpListener::bind(&config.health_address).await?;
     let health_address = health_listener.local_addr()?;
 
@@ -247,6 +250,8 @@ async fn serve_workers(config: NodeConfig) -> Result<(), Box<dyn std::error::Err
         rpc_metrics,
         error_metrics,
         trace_periodic_operations,
+        #[cfg(feature = "reliability-faults")]
+        peer_pull_fault_gate,
     );
     tokio::pin!(status);
     tokio::pin!(workers);
@@ -270,10 +275,11 @@ async fn consume_meta_events(
     let mut reconnect_delay = std::time::Duration::from_millis(100);
     let active_retirement_phases = Arc::new(tokio::sync::Mutex::new(HashSet::new()));
     loop {
+        let request_cursor = last_acked_cursor;
         let mut stream = match initial_stream.take() {
             Some(stream) => stream,
             None => {
-                let Ok(stream) = metadata.watch_events(last_acked_cursor).await else {
+                let Ok(stream) = metadata.watch_events(request_cursor).await else {
                     tokio::time::sleep(reconnect_delay).await;
                     reconnect_delay = (reconnect_delay * 2).min(std::time::Duration::from_secs(5));
                     continue;
@@ -285,6 +291,8 @@ async fn consume_meta_events(
             "Meta event watch established";
             "event" => "node.meta_watch.connected",
             "last_acked_cursor" => last_acked_cursor,
+            "request_cursor" => request_cursor,
+            "event_cursor" => acked_cursor.load(Ordering::Relaxed),
         );
         reconnect_delay = std::time::Duration::from_millis(100);
         if node.metadata_lease(None, Some(true)).await.is_err() {
@@ -293,8 +301,29 @@ async fn consume_meta_events(
         loop {
             let event = match stream.message().await {
                 Ok(Some(event)) => event,
-                Ok(None) | Err(_) => break,
+                Ok(None) => {
+                    dms_logging::info!(
+                        "Meta event watch closed by server";
+                        "event" => "node.meta_watch.disconnected",
+                        "last_acked_cursor" => last_acked_cursor,
+                        "request_cursor" => request_cursor,
+                        "event_cursor" => acked_cursor.load(Ordering::Relaxed),
+                    );
+                    break;
+                }
+                Err(error) => {
+                    dms_logging::warn!(
+                        "Meta event watch failed";
+                        "event" => "node.meta_watch.disconnected",
+                        "last_acked_cursor" => last_acked_cursor,
+                        "request_cursor" => request_cursor,
+                        "event_cursor" => acked_cursor.load(Ordering::Relaxed),
+                        "error" => error.to_string(),
+                    );
+                    break;
+                }
             };
+            let event_cursor = event.cursor;
             // Apply first, ACK second. A reconnect therefore safely replays an
             // event whose response was lost after the idempotent application.
             {
@@ -362,11 +391,29 @@ async fn consume_meta_events(
                     None => {}
                 }
             }
-            if metadata.acknowledge_event(&event).await.is_err() {
+            if let Err(error) = metadata.acknowledge_event(&event).await {
+                // ACK 与 Watch 读取使用同一条逻辑事件通道。ACK 失败后必须丢弃
+                // 当前 stream，并从最后一个已确认 cursor 重连重放；显式记录这一
+                // 断点，避免现场只看到后续 reconnect，却不知道为什么重放。
+                dms_logging::warn!(
+                    "Meta event acknowledgement failed; reconnecting watch";
+                    "event" => "node.meta_watch.disconnected",
+                    "last_acked_cursor" => last_acked_cursor,
+                    "request_cursor" => request_cursor,
+                    "event_cursor" => event_cursor,
+                    "error" => error.to_string(),
+                );
                 break;
             }
-            last_acked_cursor = last_acked_cursor.max(event.cursor);
+            last_acked_cursor = last_acked_cursor.max(event_cursor);
             acked_cursor.store(last_acked_cursor, Ordering::Relaxed);
+            dms_logging::info!(
+                "Meta event acknowledged";
+                "event" => "node.meta_watch.acknowledged",
+                "last_acked_cursor" => last_acked_cursor,
+                "request_cursor" => request_cursor,
+                "event_cursor" => event_cursor,
+            );
         }
         // 只停止新缓存租约；已授出的租约仍由 Node/Meta 等待其真实到期。
         if node.metadata_lease(None, Some(false)).await.is_err() {
@@ -433,6 +480,10 @@ async fn apply_repair_event(
         "replica repair applied";
         "event" => "node.repair.completed",
         "block_id" => hex(&repair.block_id),
+        "source_node_id" => source.node_id,
+        "source_node_epoch" => source.node_epoch,
+        "target_node_id" => target.node_id,
+        "target_node_epoch" => target.node_epoch,
         "desired_copies" => repair.desired_copies,
     );
     Ok(())
@@ -593,6 +644,9 @@ async fn serve_bound_workers(
     rpc_metrics: dms_metrics::RpcMetrics,
     error_metrics: dms_metrics::ErrorMetrics,
     trace_periodic_operations: bool,
+    #[cfg(feature = "reliability-faults")] peer_pull_fault_gate: Option<
+        peer_service::PeerPullFaultGate,
+    >,
 ) -> Result<(), Box<dyn std::error::Error>> {
     match (tcp_listener, uds_listener) {
         (Some(tcp), Some(uds)) => {
@@ -603,6 +657,8 @@ async fn serve_bound_workers(
                     rpc_metrics.clone(),
                     error_metrics.clone(),
                     trace_periodic_operations,
+                    #[cfg(feature = "reliability-faults")]
+                    peer_pull_fault_gate.clone(),
                 ),
                 serve_worker_uds(
                     uds,
@@ -620,6 +676,8 @@ async fn serve_bound_workers(
                 rpc_metrics,
                 error_metrics,
                 trace_periodic_operations,
+                #[cfg(feature = "reliability-faults")]
+                peer_pull_fault_gate,
             )
             .await?
         }
@@ -644,10 +702,22 @@ async fn serve_worker_tcp(
     rpc_metrics: dms_metrics::RpcMetrics,
     error_metrics: dms_metrics::ErrorMetrics,
     trace_periodic_operations: bool,
+    #[cfg(feature = "reliability-faults")] peer_pull_fault_gate: Option<
+        peer_service::PeerPullFaultGate,
+    >,
 ) -> Result<(), Box<dyn std::error::Error>> {
     // Handler 只组合 Handle；不创建另一份 Worker/Peer 状态。
     let worker_handler =
         WorkerServiceHandler::with_metrics(node.clone(), false, rpc_metrics.clone(), error_metrics);
+    #[cfg(feature = "reliability-faults")]
+    let peer_handler = {
+        let mut peer_handler = PeerServiceHandler::with_metrics(node, rpc_metrics);
+        if let Some(gate) = peer_pull_fault_gate {
+            peer_handler = peer_handler.with_peer_pull_fault_gate(gate);
+        }
+        peer_handler
+    };
+    #[cfg(not(feature = "reliability-faults"))]
     let peer_handler = PeerServiceHandler::with_metrics(node, rpc_metrics);
     let security = SecurityManager::new(TlsConfig::Disabled)?;
     let grpc_config = GrpcConfig::default();

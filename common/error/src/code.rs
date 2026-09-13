@@ -45,6 +45,7 @@ pub const NODE_ARENA_ACCESS_DENIED: ErrorCode = ErrorCode::from_raw(0x0201_0005)
 pub const NODE_ARENA_ALLOCATION_FAILED: ErrorCode = ErrorCode::from_raw(0x0201_0006);
 pub const NODE_OBJECT_NOT_FOUND: ErrorCode = ErrorCode::from_raw(0x0202_0001);
 pub const NODE_VERSION_CONFLICT: ErrorCode = ErrorCode::from_raw(0x0202_0002);
+pub const NODE_OBJECT_UNAVAILABLE: ErrorCode = ErrorCode::from_raw(0x0202_0003);
 pub const NODE_SESSION_UNKNOWN: ErrorCode = ErrorCode::from_raw(0x0203_0001);
 pub const NODE_TRANSFER_UNSUPPORTED: ErrorCode = ErrorCode::from_raw(0x0204_0001);
 pub const NODE_TRANSFER_CORRUPT_DATA: ErrorCode = ErrorCode::from_raw(0x0204_0002);
@@ -84,6 +85,7 @@ mod tests {
             NODE_ARENA_ALLOCATION_FAILED,
             NODE_OBJECT_NOT_FOUND,
             NODE_VERSION_CONFLICT,
+            NODE_OBJECT_UNAVAILABLE,
             NODE_SESSION_UNKNOWN,
             NODE_TRANSFER_UNSUPPORTED,
             NODE_TRANSFER_CORRUPT_DATA,

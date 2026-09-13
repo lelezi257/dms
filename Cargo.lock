@@ -380,6 +380,7 @@ dependencies = [
  "dms-transport",
  "prost",
  "serde",
+ "serde_json",
  "slog",
  "slog-global",
  "thiserror",
@@ -422,10 +423,12 @@ dependencies = [
  "dms-error",
  "dms-protocol",
  "prost",
+ "prost-types",
  "thiserror",
  "tokio",
  "tokio-stream",
  "tonic",
+ "tonic-types",
 ]
 
 [[package]]

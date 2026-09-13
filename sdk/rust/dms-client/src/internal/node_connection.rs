@@ -49,6 +49,7 @@ use crate::client::ResolvedClientOptions;
 use crate::metrics::{ClientMetrics, NodeSessionEvent};
 use dms_transport::{GrpcConfig, SecurityManager, TlsConfig, status_to_dms_error_with};
 
+#[derive(Clone)]
 pub(crate) struct NodeConnection {
     // generated typed Client 是控制面代理；并发调用 clone 此轻量句柄。
     worker: WorkerServiceClient<dms_tracing::TracedChannel>,
@@ -61,7 +62,7 @@ pub(crate) struct NodeConnection {
     inline_threshold_bytes: usize,
     view_releases: Arc<ViewReleaseTracker>,
     read_finishes: Arc<ReadRequestFinishTracker>,
-    next_read_request_id: AtomicU64,
+    next_read_request_id: Arc<AtomicU64>,
     write_releases: WriteLeaseReleaser,
 }
 
@@ -238,6 +239,7 @@ impl Drop for ReadRequestGuard {
 /// 公开的 `SharedWriteBuffer` 只委托给它，不暴露 protobuf descriptor 或 mmap 对象。
 pub(crate) struct SharedWriteInner {
     pub(crate) key: Key,
+    session_id: u64,
     staging_id: u64,
     operation_id: OperationId,
     options: SetOptions,
@@ -268,6 +270,7 @@ pub(crate) struct SharedViewInner {
 /// 它持有 ReadProtection 直到 EOF、错误或用户提前 Drop。gRPC 分段按需下载当前
 /// segment；SHM 分段按需映射后直接复制到调用方 read buffer。
 pub(crate) struct ValueReaderInner {
+    session_id: u64,
     version: ObjectVersion,
     len: u64,
     segments: Vec<pb::ReadSegment>,
@@ -276,6 +279,17 @@ pub(crate) struct ValueReaderInner {
     consumed: u64,
     loaded: Option<LoadedReadSegment>,
     protection: Option<ReadProtection>,
+}
+
+/// `get_into()` 的两阶段计划：先通过控制面确认版本和 payload 位置，
+/// 再把 bytes 拷贝进用户 buffer。这样 session 断开只在“尚未写用户 buffer”
+/// 的第一阶段重试；第二阶段一旦部分写入，错误就直接返回。
+pub(crate) struct GetIntoPlan {
+    response: pb::GetResponse,
+    range: Option<ByteRange>,
+    clamp_range: bool,
+    max_inline_bytes: usize,
+    read: Option<ReadRequestGuard>,
 }
 
 struct LoadedReadSegment {
@@ -536,9 +550,13 @@ impl NodeConnection {
             inline_threshold_bytes: options.inline_threshold_bytes,
             view_releases,
             read_finishes,
-            next_read_request_id: AtomicU64::new(1),
+            next_read_request_id: Arc::new(AtomicU64::new(1)),
             write_releases,
         })
+    }
+
+    pub(crate) fn session_id(&self) -> u64 {
+        self.session_id
     }
 
     fn begin_read_request(&self) -> ReadRequestGuard {
@@ -814,6 +832,7 @@ impl NodeConnection {
         };
         Ok(SharedWriteInner {
             key,
+            session_id: self.session_id,
             staging_id: allocation.staging_id,
             operation_id,
             options,
@@ -827,6 +846,11 @@ impl NodeConnection {
         &self,
         mut write: SharedWriteInner,
     ) -> Result<SetResult, DmsError> {
+        if write.session_id != self.session_id {
+            return Err(stale_session_error(
+                "shared write buffer belongs to an old DMS session",
+            ));
+        }
         let mut worker = self.worker.clone();
         let receipt = write.buffer.receipt()?;
         let response = match observe_rpc(
@@ -1049,12 +1073,11 @@ impl NodeConnection {
         .await
     }
 
-    pub(crate) async fn get_into(
+    pub(crate) async fn get_into_plan(
         &self,
         key: &Key,
-        dst: &mut [u8],
         options: GetOptions,
-    ) -> Result<Option<GetIntoResult>, DmsError> {
+    ) -> Result<Option<GetIntoPlan>, DmsError> {
         let mut worker = self.worker.clone();
         let read = self.begin_read_request();
         let read_request_id = read.id();
@@ -1079,15 +1102,34 @@ impl NodeConnection {
         .await
         .map_err(map_status)?
         .into_inner();
-        self.decode_read_into_response(
+        if !response.found {
+            reject_inline_on_miss(&response)?;
+            return Ok(None);
+        }
+        Ok(Some(GetIntoPlan {
             response,
-            options.range,
-            options.clamp_range,
-            self.inline_read_budget(),
-            Some(read),
+            range: options.range,
+            clamp_range: options.clamp_range,
+            max_inline_bytes: self.inline_read_budget(),
+            read: Some(read),
+        }))
+    }
+
+    pub(crate) async fn copy_get_into_plan(
+        &self,
+        plan: GetIntoPlan,
+        dst: &mut [u8],
+    ) -> Result<GetIntoResult, DmsError> {
+        self.decode_read_into_response(
+            plan.response,
+            plan.range,
+            plan.clamp_range,
+            plan.max_inline_bytes,
+            plan.read,
             dst,
         )
-        .await
+        .await?
+        .ok_or_else(|| DmsError::client_protocol_violation("GET_INTO plan lost found response"))
     }
 
     pub(crate) async fn get_reader(
@@ -1862,6 +1904,7 @@ impl NodeConnection {
             .sort_by_key(|segment| segment.logical_offset);
         validate_read_segments(&response.segments, expected_length)?;
         Ok(Some(ValueReaderInner {
+            session_id: self.session_id,
             version: ObjectVersion(response.version),
             len: expected_length,
             segments: response.segments,
@@ -1910,6 +1953,12 @@ impl NodeConnection {
         reader: &mut ValueReaderInner,
         dst: &mut [u8],
     ) -> Result<usize, DmsError> {
+        if reader.session_id != self.session_id {
+            reader.release_protection();
+            return Err(stale_session_error(
+                "value reader belongs to an old DMS session",
+            ));
+        }
         if dst.is_empty() {
             return Ok(0);
         }
@@ -2539,6 +2588,14 @@ pub(super) fn map_status(status: tonic::Status) -> DmsError {
     status_to_dms_error_with(status, DmsError::client_connection_unavailable)
 }
 
+fn stale_session_error(message: impl Into<String>) -> DmsError {
+    DmsError::new(
+        dms_error::NODE_SESSION_UNKNOWN,
+        dms_error::ErrorKind::Unauthenticated,
+        message,
+    )
+}
+
 #[cfg(test)]
 mod read_lifecycle_tests {
     use super::*;
@@ -2568,7 +2625,7 @@ mod read_lifecycle_tests {
             inline_threshold_bytes: 0,
             view_releases: Arc::clone(releases),
             read_finishes: Arc::new(ReadRequestFinishTracker::default()),
-            next_read_request_id: AtomicU64::new(1),
+            next_read_request_id: Arc::new(AtomicU64::new(1)),
             write_releases: WriteLeaseReleaser::disabled(1),
         }
     }
@@ -2676,7 +2733,7 @@ mod read_lifecycle_tests {
                 inline_threshold_bytes: 0,
                 view_releases: Arc::clone(&releases),
                 read_finishes: Arc::new(ReadRequestFinishTracker::default()),
-                next_read_request_id: AtomicU64::new(1),
+                next_read_request_id: Arc::new(AtomicU64::new(1)),
                 write_releases: WriteLeaseReleaser::disabled(1),
             };
             let response = pb::GetResponse {
@@ -3067,6 +3124,31 @@ mod read_lifecycle_tests {
         let mut source = std::io::Cursor::new(b"abc".to_vec());
         let error = read_exact_source(&mut source, 4).expect_err("short source");
         assert_eq!(error.kind(), dms_error::ErrorKind::InvalidArgument);
+    }
+
+    #[tokio::test]
+    async fn reader_from_old_session_is_fenced_on_new_connection() {
+        let releases = Arc::new(ViewReleaseTracker::default());
+        let connection = disconnected_node(&releases);
+        let mut reader = ValueReaderInner {
+            session_id: connection.session_id() + 1,
+            version: ObjectVersion(1),
+            len: 4,
+            segments: Vec::new(),
+            current_segment: 0,
+            offset_in_segment: 0,
+            consumed: 0,
+            loaded: None,
+            protection: Some(releases.protect([].iter(), None)),
+        };
+
+        let error = connection
+            .read_value_reader(&mut reader, &mut [0_u8; 4])
+            .await
+            .expect_err("reader from a previous session must not use the new connection");
+        assert_eq!(error.code(), dms_error::NODE_SESSION_UNKNOWN);
+        assert_eq!(error.kind(), dms_error::ErrorKind::Unauthenticated);
+        assert!(reader.protection.is_none());
     }
 
     #[tokio::test]

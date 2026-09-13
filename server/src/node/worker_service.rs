@@ -99,6 +99,14 @@ impl WorkerService for WorkerServiceHandler {
             .open_session_with_write_release(shared_memory, write_lease_release_supported)
             .await
             .map_err(|error| self.map_worker_error(error))?;
+        // 低频身份事件：controller 可以仅靠结构化日志确认本次 SDK 连接拿到的
+        // session_id，以及它是否真的启用了本地共享内存数据面。
+        dms_logging::info!(
+            "client session opened";
+            "event" => "node.session.opened",
+            "session_id" => session_id,
+            "shared_memory" => shared_memory,
+        );
         // Response::new 把 protobuf body 包装成 Tonic Response，后者还可携带 metadata。
         rpc.success();
         Ok(Response::new(pb::OpenSessionResponse {

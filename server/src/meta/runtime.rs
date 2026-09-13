@@ -5332,51 +5332,27 @@ mod tests {
 
     #[tokio::test]
     async fn watch_replay_larger_than_channel_capacity_progresses() {
-        let handle = MetaHandle::spawn();
-        let grant = handle
-            .open_node_session(7, "http://127.0.0.1:19200".into(), true)
-            .await
-            .unwrap();
-        let writer = pb::NodeSessionIdentity {
-            session_id: grant.session_id,
-            node_id: 7,
-            node_epoch: grant.node_epoch,
-        };
-        handle
-            .commit_version(value_commit_request_for(
-                writer.clone(),
-                b"watch/replay".to_vec(),
-                b"watch/replay-seed-block".to_vec(),
-                b"watch/replay-seed-op".to_vec(),
-                b"watch/replay-seed-digest".to_vec(),
-            ))
-            .await
-            .unwrap();
+        let mut state = MetaState::new(Box::<InMemoryJournal>::default());
+        let writer = test_session(&mut state, 7);
+        // Reader 已经持有有效 session，代表它可能缓存旧版本；断线期间产生的
+        // invalidation 才是重连后必须重放的事件。写完后才加入的新 Node 没有旧缓存，
+        // 不应依赖历史 invalidation，这也避免让事件保留策略影响本测试。
+        let reader = test_session(&mut state, 8);
+        seed_existing_key(&mut state, writer.clone(), b"watch/replay");
         for index in 1..=5 {
-            handle
-                .commit_version(value_commit_request_for(
+            let dispatch = state
+                .dispatch_commit_version(value_commit_request_for(
                     writer.clone(),
                     b"watch/replay".to_vec(),
                     vec![index],
                     vec![index],
                     vec![index],
                 ))
-                .await
                 .unwrap();
+            assert!(dispatch.waiting_nodes.contains(&reader.node_id));
         }
-        // 历史写入完成后才加入的新 Node 仍需从自己的 ACK 游标重放全部目标事件。
-        // 写入 Node 自己不是这些失效事件的目标。
-        let reader_grant = handle
-            .open_node_session(8, "http://127.0.0.1:19201".into(), true)
-            .await
-            .unwrap();
-        let reader = pb::NodeSessionIdentity {
-            session_id: reader_grant.session_id,
-            node_id: 8,
-            node_epoch: reader_grant.node_epoch,
-        };
         let (sender, mut receiver) = mpsc::channel(1);
-        handle
+        state
             .watch_node_events(
                 pb::WatchNodeEventsRequest {
                     context: None,
@@ -5385,7 +5361,6 @@ mod tests {
                 },
                 sender,
             )
-            .await
             .expect("replay registration must not synchronously fill entire channel");
         for cursor in 2..=6 {
             let event = tokio::time::timeout(Duration::from_secs(2), receiver.recv())
@@ -5393,6 +5368,9 @@ mod tests {
                 .unwrap()
                 .unwrap();
             assert_eq!(event.cursor, cursor);
+            // channel 容量只有 1；消费一个事件后显式推进一次投递，验证 backlog
+            // 可以在有界队列上逐步清空，而不是依赖 actor 定时器的调度快慢。
+            state.pump_watchers();
         }
     }
 

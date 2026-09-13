@@ -212,7 +212,6 @@ pub(crate) struct MetaSnapshot {
     pub(crate) events: Vec<pb::NodeEvent>,
 }
 
-#[allow(dead_code)]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum JournalError {
     Unavailable(&'static str),

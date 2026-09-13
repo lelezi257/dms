@@ -15,6 +15,7 @@ mod metrics;
 mod peer_service;
 #[cfg(test)]
 mod read_cache_tests;
+mod replica_reporter;
 mod runtime;
 mod version_layout;
 mod worker_service;

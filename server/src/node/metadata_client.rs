@@ -808,18 +808,32 @@ impl MetadataClient {
 
 async fn run_resolve_batcher(mut rpc: ResolveBatchRpc, mut receive: mpsc::Receiver<ResolveJob>) {
     while let Some(first) = receive.recv().await {
-        // 单请求立即发送；仅吸收此刻已经排队的并发请求，不设置聚合定时器。
-        let mut jobs = Vec::with_capacity(METADATA_RESOLVE_BATCH_MAX);
-        jobs.push(first);
-        while jobs.len() < METADATA_RESOLVE_BATCH_MAX {
-            match receive.try_recv() {
-                Ok(job) => jobs.push(job),
-                Err(_) => break,
-            }
-        }
+        let jobs = collect_ready_resolve_jobs(first, &mut receive);
         let result = rpc.resolve(&jobs).await;
         deliver_resolve_results(jobs, result);
     }
+}
+
+/// 为一次 Resolve RPC 收集“调用时已经就绪”的请求。
+///
+/// 这个函数刻意不是 `async`，也没有定时器：第一项到达后立即形成批次，只用
+/// `try_recv` 吸收同一调度波次中已经排队的请求。这样并发小对象能共享控制 RPC，
+/// 单个请求却不会为了凑批增加固定延迟。
+fn collect_ready_resolve_jobs(
+    first: ResolveJob,
+    receive: &mut mpsc::Receiver<ResolveJob>,
+) -> Vec<ResolveJob> {
+    let mut jobs = Vec::with_capacity(METADATA_RESOLVE_BATCH_MAX);
+    jobs.push(first);
+    while jobs.len() < METADATA_RESOLVE_BATCH_MAX {
+        match receive.try_recv() {
+            Ok(job) => jobs.push(job),
+            Err(mpsc::error::TryRecvError::Empty | mpsc::error::TryRecvError::Disconnected) => {
+                break;
+            }
+        }
+    }
+    jobs
 }
 
 impl ResolveBatchRpc {
@@ -1024,6 +1038,30 @@ fn map_status(status: tonic::Status) -> DmsError {
 mod tests {
     use super::*;
     use dms_transport::dms_error_to_status;
+
+    fn resolve_job(index: u64) -> ResolveJob {
+        let (reply, _receive) = oneshot::channel();
+        ResolveJob {
+            key: format!("key-{index}").into_bytes(),
+            exact_version: None,
+            reply,
+        }
+    }
+
+    #[test]
+    fn resolve_batch_absorbs_only_ready_jobs_without_waiting() {
+        let (sender, mut receiver) = mpsc::channel(METADATA_RESOLVE_BATCH_MAX + 2);
+        for index in 1..=(METADATA_RESOLVE_BATCH_MAX + 2) {
+            sender
+                .try_send(resolve_job(index as u64))
+                .expect("test resolve queue has capacity");
+        }
+
+        let batch = collect_ready_resolve_jobs(resolve_job(0), &mut receiver);
+
+        assert_eq!(batch.len(), METADATA_RESOLVE_BATCH_MAX);
+        assert_eq!(receiver.len(), 3, "overflow waits for the next RPC batch");
+    }
 
     #[test]
     fn commit_sequence_is_shared_and_never_wraps() {

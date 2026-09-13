@@ -715,7 +715,6 @@ struct NodeWatcher {
 struct StoredReplica {
     location: pb::ReplicaLocation,
     catalog_revision: u64,
-    #[allow(dead_code)]
     length: u64,
 }
 

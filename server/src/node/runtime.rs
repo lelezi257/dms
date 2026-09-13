@@ -6,13 +6,19 @@
 //! 只挂起当前协程，不阻塞 Tokio 工作线程。
 
 // Node actor 内的小型控制索引使用 HashMap；Payload bytes 只归 ArenaManager。
+#[cfg(feature = "reliability-faults")]
+use std::io::Write;
 use std::{
     collections::{HashMap, HashSet, VecDeque},
     future::Future,
+    hash::{Hash, Hasher},
     path::PathBuf,
     pin::Pin,
-    sync::Arc,
-    time::{Duration, Instant},
+    sync::{
+        Arc,
+        atomic::{AtomicU64, Ordering},
+    },
+    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
 use dms_error::{DmsError, ErrorKind};
@@ -32,8 +38,10 @@ use super::arena_manager::{
 use super::current_cache::CurrentCache;
 use super::metadata_client::{BatchValueCommit, LocalReplicaIdentity, MetadataClient, digest};
 use super::metrics::{
-    NodeMailboxCommand, NodeMetrics, ReplicaDirection, ReplicaOperation, SessionExpiration,
+    CurrentCacheResetReason, NodeMailboxCommand, NodeMetrics, PeerImportMetricsSnapshot,
+    ReplicaDirection, ReplicaOperation, SessionExpiration,
 };
+use super::replica_reporter::{self, ReplicaReportJob};
 use crate::config::{ConfigChange, ConfigError, OnlineConfigController};
 
 // 有界队列防止请求无限堆积；满载时 Sender::send().await 会施加背压。
@@ -52,18 +60,97 @@ const PEER_PULL_SEGMENT_BYTES: u64 = 2 * 1024 * 1024;
 const PEER_CHANNEL_CACHE_LIMIT: usize = 128;
 const COMPLETED_RETIREMENT_CACHE_LIMIT: usize = 1024;
 const RETIREMENT_PHASE_WAITER_LIMIT: usize = 16;
-const REPLICA_REPORT_RETRY_INITIAL: Duration = Duration::from_millis(10);
-const REPLICA_REPORT_RETRY_MAX: Duration = Duration::from_secs(1);
-// 副本登记不位于前台读取路径：允许用一个很短的有界窗口合并同一波 Peer
-// 接管产生的报告。Resolve 等前台控制请求仍然不等待凑批。
-const REPLICA_REPORT_COALESCE_WINDOW: Duration = Duration::from_millis(5);
-const REPLICA_REPORT_BATCH_MAX: usize = 64;
+#[cfg(feature = "reliability-faults")]
+const SOURCE_SELECTION_RECEIPT_ENV: &str = "DMS_RELIABILITY_SOURCE_SELECTION_RECEIPT";
+#[cfg(all(feature = "reliability-faults", test))]
+static SOURCE_SELECTION_RECEIPT_PATH_FOR_TEST: std::sync::Mutex<Option<PathBuf>> =
+    std::sync::Mutex::new(None);
 
 // 准备和完成都只访问唯一 owner；中间 Future 只拥有不可变提交资料与 Meta client。
 // JoinSet 的数量上限与 mailbox 相同，饱和时拒绝新写，但 ACK/心跳仍可推进。
 type WriteCompletion<T> = Box<dyn FnOnce(&mut NodeState) -> Result<T, WorkerError> + Send>;
 type PreparedWrite<T> = Pin<Box<dyn Future<Output = WriteCompletion<T>> + Send>>;
 type ApplyWrite = Box<dyn FnOnce(&mut NodeState) + Send>;
+
+// session_id 的 0 值保留给协议哨兵；起点限制在低半区，保证一次 Node 进程内
+// 有足够大的单调递增空间，不会因为启动种子靠近 u64::MAX 而很快溢出。
+const SESSION_ID_START_SPACE: u64 = 1u64 << 63;
+static NODE_SESSION_INCARNATION_NONCE: AtomicU64 = AtomicU64::new(1);
+
+fn node_session_start(node_id: &str) -> u64 {
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    node_id.hash(&mut hasher);
+    std::process::id().hash(&mut hasher);
+    NODE_SESSION_INCARNATION_NONCE
+        .fetch_add(1, Ordering::Relaxed)
+        .hash(&mut hasher);
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_nanos()
+        .hash(&mut hasher);
+    normalize_session_start(hasher.finish())
+}
+
+fn normalize_session_start(raw: u64) -> u64 {
+    // 映射到 1..=2^63，避免 0，同时远离 u64::MAX 溢出边界。
+    raw % SESSION_ID_START_SPACE + 1
+}
+
+#[cfg(feature = "reliability-faults")]
+fn record_source_selection_receipt(
+    block_id: &[u8],
+    source: &PeerPullSource,
+) -> Result<(), WorkerError> {
+    let Some(path) = source_selection_receipt_path() else {
+        return Ok(());
+    };
+
+    // 这是 reliability-faults 下的私有观测证据：只记录“实际选中的远端来源”，
+    // 让外部故障控制器可以严格核对 dead epoch 没有被选择。默认 feature 关闭时
+    // 这段代码不会编译进产物，也不会给正常热路径增加分支或 I/O。
+    let line = format!(
+        "block_id={} node_id={} node_epoch={}\n",
+        bytes_to_lower_hex(block_id),
+        source.node_id,
+        source.node_epoch
+    );
+    std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(path)
+        .and_then(|mut file| file.write_all(line.as_bytes()))
+        .map_err(|_| WorkerError::WorkerUnavailable)
+}
+
+#[cfg(feature = "reliability-faults")]
+fn source_selection_receipt_path() -> Option<PathBuf> {
+    #[cfg(test)]
+    if let Some(path) = SOURCE_SELECTION_RECEIPT_PATH_FOR_TEST
+        .lock()
+        .expect("source selection receipt path lock")
+        .clone()
+    {
+        return Some(path);
+    }
+
+    let path = std::env::var_os(SOURCE_SELECTION_RECEIPT_ENV)?;
+    if path.as_os_str().is_empty() {
+        return None;
+    }
+    Some(PathBuf::from(path))
+}
+
+#[cfg(feature = "reliability-faults")]
+fn bytes_to_lower_hex(bytes: &[u8]) -> String {
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    let mut output = String::with_capacity(bytes.len() * 2);
+    for byte in bytes {
+        output.push(HEX[(byte >> 4) as usize] as char);
+        output.push(HEX[(byte & 0x0f) as usize] as char);
+    }
+    output
+}
 
 fn launch_write<T: Send + 'static>(
     state: &mut NodeState,
@@ -214,11 +301,67 @@ pub(crate) struct PeerBlockResult {
 }
 
 #[derive(Clone, Debug)]
-struct PeerPullSpec {
+#[cfg_attr(not(feature = "reliability-faults"), allow(dead_code))]
+struct PeerPullSource {
+    node_id: u64,
+    node_epoch: u64,
     endpoint: String,
+}
+
+#[derive(Clone, Debug)]
+struct PeerPullSpec {
+    // Meta 已按当前租约过滤出可用位置，但“租约仍有效”不等于进程此刻一定
+    // 可连接。保留同一 Block 的全部候选，让一次读能在请求内切换来源；这里
+    // 不改变集群成员状态，也不会因为一次连接失败就宣告某个 Node 死亡。
+    sources: Vec<PeerPullSource>,
     block_id: Vec<u8>,
     expected_checksum: Vec<u8>,
     expected_length: u64,
+}
+
+impl PeerPullSpec {
+    fn single_source(
+        endpoint: String,
+        block_id: Vec<u8>,
+        expected_checksum: Vec<u8>,
+        expected_length: u64,
+    ) -> Self {
+        Self {
+            // Repair 计划当前只携带 endpoint；0 表示该内部调用没有附带可用于
+            // 诊断的 Meta Node 身份，不参与协议或来源选择。
+            sources: vec![PeerPullSource {
+                node_id: 0,
+                node_epoch: 0,
+                endpoint,
+            }],
+            block_id,
+            expected_checksum,
+            expected_length,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+struct PeerSegmentRequest {
+    offset: Option<u64>,
+    length: Option<u64>,
+    validate_whole_block: bool,
+}
+
+impl PeerSegmentRequest {
+    const WHOLE_BLOCK: Self = Self {
+        offset: None,
+        length: None,
+        validate_whole_block: true,
+    };
+
+    fn segment(offset: u64, length: u64) -> Self {
+        Self {
+            offset: Some(offset),
+            length: Some(length),
+            validate_whole_block: false,
+        }
+    }
 }
 
 /// 一轮缺块导入只共享完成状态，不共享用户票据或大块 Vec。
@@ -257,42 +400,6 @@ struct PeerImportFailureFence {
 }
 
 type PeerImportCompletion = (Vec<u8>, u64, Result<(), PeerImportFailure>);
-
-/// Peer Block 已通过完整性校验并安装到本地 Arena 后，需要异步登记到 Meta 的事实。
-///
-/// 这个结构只包含可重试的幂等请求资料，不持有用户读票据或 payload bytes。
-/// 有界 reporter 队列负责背压，固定 operation_id 负责跨重试去重。
-#[derive(Clone, Debug)]
-struct ReplicaReportJob {
-    block_id: Vec<u8>,
-    length: u64,
-    checksum: Vec<u8>,
-    operation_id: Vec<u8>,
-}
-
-/// 后台 reporter 的一次 Meta 请求。批内成员与 operation_id 在重试期间固定，
-/// 所以响应丢失后重发仍由 Meta 的幂等表折叠为同一次操作。
-#[derive(Clone, Debug)]
-struct ReplicaReportBatch {
-    jobs: Vec<ReplicaReportJob>,
-    operation_id: Vec<u8>,
-}
-
-impl ReplicaReportBatch {
-    fn new(jobs: Vec<ReplicaReportJob>) -> Self {
-        debug_assert!(!jobs.is_empty());
-        let mut identity = b"dms:replica-report-batch:v1".to_vec();
-        for job in &jobs {
-            // 长度前缀让不同的 operation_id 序列不会因为简单拼接而产生歧义。
-            identity.extend_from_slice(&(job.operation_id.len() as u64).to_be_bytes());
-            identity.extend_from_slice(&job.operation_id);
-        }
-        Self {
-            operation_id: digest(&identity),
-            jobs,
-        }
-    }
-}
 
 /// 一次 Peer 导入在本地安装阶段所需的上下文。
 ///
@@ -355,6 +462,7 @@ pub(crate) enum WorkerError {
     UnknownStaging,
     UnknownTransfer,
     NotFound,
+    NoLiveReplica,
     Conflict,
     ResourceExhausted,
     WorkerUnavailable,
@@ -1124,7 +1232,8 @@ impl NodeHandle {
         receive(reply_rx).await
     }
 
-    #[allow(dead_code)]
+    /// 旧的直接读取测试入口；生产 Worker 使用带 request id 的完整入口。
+    #[cfg(test)]
     pub(crate) async fn get(
         &self,
         session_id: u64,
@@ -1136,7 +1245,8 @@ impl NodeHandle {
             .await
     }
 
-    #[allow(dead_code)]
+    /// 测试可在不构造 protobuf Handler 的情况下指定 inline 上限。
+    #[cfg(test)]
     pub(crate) async fn get_with_inline_limit(
         &self,
         session_id: u64,
@@ -1512,13 +1622,18 @@ impl NodeHandle {
         // 接收成功以“完整数据通过owner接纳”为边界；不能在网络收到响应时
         // 提前记成功，否则延后的完整checksum拒绝会被错误统计为成功传输。
         let metric = self.metrics.begin_replica_operation(ReplicaOperation::Pull);
-        let payload =
-            pull_block_from_peer(&self.node_id, spec, &self.rpc_metrics, &self.peer_channels)
-                .await
-                .map_err(|error| PeerImportFailure {
-                    error,
-                    location_failure: true,
-                })?;
+        let payload = pull_block_from_peers(
+            &self.node_id,
+            spec,
+            &self.rpc_metrics,
+            &self.peer_channels,
+            &self.metrics,
+        )
+        .await
+        .map_err(|error| PeerImportFailure {
+            error,
+            location_failure: true,
+        })?;
         self.install_and_report_peer_block(metadata, payload, metric, context)
             .await
             .map_err(PeerImportFailure::terminal)
@@ -1560,12 +1675,12 @@ impl NodeHandle {
         // Report belongs to this Node incarnation. Including node_epoch keeps
         // a restart from hitting an idempotency result created by an old Node.
         report_operation.extend_from_slice(&metadata.node_epoch().await.to_be_bytes());
-        let job = ReplicaReportJob {
-            block_id: report_block_id,
-            length: report_length,
-            checksum: report_checksum,
-            operation_id: digest(&report_operation),
-        };
+        let job = ReplicaReportJob::new(
+            report_block_id,
+            report_length,
+            report_checksum,
+            digest(&report_operation),
+        );
         if let Some(replica_report_tx) = context.replica_report_tx {
             // 正常读只等待任务进入有界队列，不等待 Meta WAL 持久化。队列满时
             // send().await 形成明确背压，避免 Meta 故障期间无限积累任务。
@@ -1575,7 +1690,9 @@ impl NodeHandle {
                 .map_err(|_| WorkerError::WorkerUnavailable)
         } else {
             // 直接完整性测试仍同步执行登记，便于精确验证错误传播。
-            report_replica(metadata, job).await
+            replica_reporter::report_now(metadata, job)
+                .await
+                .map_err(map_metadata_error)
         }
     }
 
@@ -1672,16 +1789,17 @@ impl NodeHandle {
                 "plan id, source endpoint and block id are required",
             ));
         }
-        let payload = pull_block_from_peer(
+        let payload = pull_block_from_peers(
             &spec.source_node_id,
-            PeerPullSpec {
-                endpoint: spec.source_endpoint.clone(),
-                block_id: spec.block_id.clone(),
-                expected_checksum: spec.expected_checksum.clone(),
-                expected_length: spec.expected_length,
-            },
+            PeerPullSpec::single_source(
+                spec.source_endpoint.clone(),
+                spec.block_id.clone(),
+                spec.expected_checksum.clone(),
+                spec.expected_length,
+            ),
             &self.rpc_metrics,
             &self.peer_channels,
+            &self.metrics,
         )
         .await?;
         let (reply_tx, reply_rx) = oneshot::channel();
@@ -2088,7 +2206,7 @@ async fn run_node(
     let (replica_report_tx, replica_report_rx) = mpsc::channel(NODE_MAILBOX_CAPACITY);
     let replica_reporter = metadata
         .clone()
-        .map(|metadata| tokio::spawn(run_replica_reporter(metadata, replica_report_rx)));
+        .map(|metadata| tokio::spawn(replica_reporter::run(metadata, replica_report_rx)));
     // NodeState 是普通非线程安全结构，因为它从始至终只属于当前 Task。
     let mut state = NodeState::with_metrics(node_id, metadata, task_config, metrics.clone());
     let mut maintenance = tokio::time::interval(Duration::from_secs(1));
@@ -2167,10 +2285,10 @@ async fn run_node(
                     reply,
                 } => {
                     // Client 可能已经取消 RPC，此时 send 返回 Err；业务已经执行，所以忽略它。
-                    let _ = reply.send(Ok(state.open_session_with_write_release(
+                    let _ = reply.send(state.open_session_with_write_release(
                         shared_memory,
                         supports_write_lease_release,
-                    )));
+                    ));
                 }
                 NodeCommand::AttachSession {
                     session_id,
@@ -2204,10 +2322,7 @@ async fn run_node(
                         state.metadata_lease_until = until;
                     }
                     if let Some(connected) = watch_connected {
-                        // 即便重连前后都为 true，也撤销旧响应的回填资格。
-                        state.current_cache.clear();
-                        state.metrics.set_current_cache_charge(0);
-                        state.metadata_watch_connected = connected;
+                        state.reset_current_cache_for_watch(connected);
                     }
                     let _ = reply.send(Ok(()));
                 }
@@ -2597,105 +2712,6 @@ async fn run_node(
     }
 }
 
-/// 串行消费有界副本登记队列；一个故障中的 Meta 不会产生无限后台 Task。
-///
-/// 第一项到达后只对这种“不阻塞用户回复”的后台事实等待最多 5 ms，再吸收
-/// 队列中已经就绪的其它项，最多组成 64 项请求。这样连续 Peer 接管不会用数百
-/// 个小 RPC 与前台 Resolve 争用 Meta；单个报告最迟只延后一个有界窗口。批次的
-/// operation_id 在所有重试间保持不变。Meta 已退休的 Block 会作为 rejected
-/// 返回并被视为终态成功，因此迟到任务不会复活旧副本。
-async fn run_replica_reporter(
-    metadata: MetadataClient,
-    mut jobs: mpsc::Receiver<ReplicaReportJob>,
-) {
-    while let Some(first) = jobs.recv().await {
-        let batch = collect_replica_report_batch(first, &mut jobs).await;
-        let mut retry_delay = REPLICA_REPORT_RETRY_INITIAL;
-        let mut failures = 0_u64;
-        loop {
-            match report_replica_batch(&metadata, &batch).await {
-                Ok(()) => break,
-                Err(error) => {
-                    failures += 1;
-                    // 只记录首失败和 2 的幂次，避免持续故障淹没日志；RPC
-                    // metrics 仍逐次记录成功/失败和耗时。
-                    if failures.is_power_of_two() {
-                        dms_logging::warn!(
-                            "background replica report failed; retrying";
-                            "event" => "node.replica_report.retry",
-                            "attempt" => failures,
-                            "error" => format!("{error:?}"),
-                        );
-                    }
-                    tokio::time::sleep(retry_delay).await;
-                    retry_delay = (retry_delay * 2).min(REPLICA_REPORT_RETRY_MAX);
-                }
-            }
-        }
-    }
-}
-
-/// 在后台登记专用的有界窗口结束后吸收已经排队的报告。等待只发生在异步副本
-/// 登记 Task，不发生在用户 GET Future；`try_recv` 本身不会继续挂起凑批。
-async fn collect_replica_report_batch(
-    first: ReplicaReportJob,
-    jobs: &mut mpsc::Receiver<ReplicaReportJob>,
-) -> ReplicaReportBatch {
-    tokio::time::sleep(REPLICA_REPORT_COALESCE_WINDOW).await;
-    let mut batch = Vec::with_capacity(REPLICA_REPORT_BATCH_MAX);
-    batch.push(first);
-    while batch.len() < REPLICA_REPORT_BATCH_MAX {
-        match jobs.try_recv() {
-            Ok(job) => batch.push(job),
-            Err(mpsc::error::TryRecvError::Empty | mpsc::error::TryRecvError::Disconnected) => {
-                break;
-            }
-        }
-    }
-    ReplicaReportBatch::new(batch)
-}
-
-async fn report_replica_batch(
-    metadata: &MetadataClient,
-    batch: &ReplicaReportBatch,
-) -> Result<(), WorkerError> {
-    metadata
-        .report_replicas(
-            batch
-                .jobs
-                .iter()
-                .map(|job| pb::ReplicaReport {
-                    block_id: job.block_id.clone(),
-                    length: job.length,
-                    checksum: job.checksum.clone(),
-                    durability: pb::DurabilityPolicy::ReplicatedMemory as i32,
-                })
-                .collect(),
-            batch.operation_id.clone(),
-            2,
-            Vec::new(),
-        )
-        .await
-        .map_err(map_metadata_error)
-}
-
-async fn report_replica(
-    metadata: &MetadataClient,
-    job: ReplicaReportJob,
-) -> Result<(), WorkerError> {
-    metadata
-        .report_replica(
-            job.block_id,
-            job.length,
-            job.checksum,
-            job.operation_id,
-            2,
-            Vec::new(),
-        )
-        .await
-        .map_err(map_metadata_error)
-}
-
 /// 一个 Client 与 Node 之间的逻辑会话状态。
 struct Session {
     /// Client session incarnation；旧 stream/ACK 不能作用于重开的 session。
@@ -2850,10 +2866,12 @@ impl NodeState {
         if let Some(broker) = task_config.shared_fd_broker {
             arena.enable_shared_region(broker);
         }
-        // ID 从 1 开始，让 0 可保留为“未分配/无效”哨兵值。
+        // session_id 对外仍是 u64，但每次 Node 进程启动都会选择一个新的非零起点。
+        // 这样即使 Node 重启，旧 Client 持有的 session_id 也不容易误撞新 incarnation。
+        let next_session = node_session_start(&node_id);
         Self {
             node_id,
-            next_session: 1,
+            next_session,
             next_transfer: 1,
             next_barrier: 1,
             next_read_scope: 1,
@@ -2886,6 +2904,16 @@ impl NodeState {
         }
     }
 
+    #[cfg(test)]
+    fn set_next_session_start_for_test(&mut self, raw: u64) {
+        self.next_session = normalize_session_start(raw);
+    }
+
+    #[cfg(test)]
+    fn force_next_session_for_test(&mut self, value: u64) {
+        self.next_session = value;
+    }
+
     fn apply_config_change(&mut self, change: ConfigChange) -> Result<u64, ConfigError> {
         let requested_log_level = match &change {
             ConfigChange::LogLevel(level) => Some(*level),
@@ -2897,6 +2925,25 @@ impl NodeState {
             self.log_level.set(level);
         }
         Ok(version)
+    }
+
+    fn reset_current_cache_for_watch(&mut self, connected: bool) {
+        // Meta watch 是 Current cache 的一致性前提。断线时立即撤销 Node 本地
+        // Current cache，并关闭后续新 grant；重连时也要撤销断线期间可能返回的
+        // 旧响应，等待 last_ack 追上 replay 后再续租。
+        //
+        // 注意：这里不能清已经发给 Client 且尚未过期的 cache_until/interests。
+        // Node 无法同步收回 Client 侧 TTL 内的旧资格；这些旧 grant 仍需按 TTL
+        // 或 ACK 屏障自然结束，才能避免写入过早放行。
+        let reason = if connected {
+            CurrentCacheResetReason::WatchReconnected
+        } else {
+            CurrentCacheResetReason::WatchDisconnected
+        };
+        self.current_cache.clear();
+        self.metrics.set_current_cache_charge(0);
+        self.metadata_watch_connected = connected;
+        self.metrics.record_current_cache_reset(reason);
     }
 
     fn probe(
@@ -2970,16 +3017,17 @@ impl NodeState {
     #[cfg(test)]
     fn open_session(&mut self, shared_memory: bool) -> u64 {
         self.open_session_with_write_release(shared_memory, false)
+            .expect("test session id should be available")
     }
 
     fn open_session_with_write_release(
         &mut self,
         shared_memory: bool,
         supports_write_lease_release: bool,
-    ) -> u64 {
+    ) -> Result<u64, WorkerError> {
         // 先取当前 ID，再推进计数器；`&mut self` 保证此过程由 owner 串行执行。
-        let id = self.next_session;
-        self.next_session += 1;
+        // 如果理论上的 2^64 空间耗尽，返回资源耗尽，不能回绕成 0 或复用旧 session。
+        let id = self.next_session_id()?;
         self.sessions.insert(
             id,
             Session {
@@ -3004,7 +3052,20 @@ impl NodeState {
         // needs the same RegionGroup authorization as a staging-backed write.
         self.arena.register_session(id);
         self.metrics.set_sessions(self.sessions.len());
-        id
+        Ok(id)
+    }
+
+    fn next_session_id(&mut self) -> Result<u64, WorkerError> {
+        if self.next_session == 0 {
+            // 0 是协议哨兵，真实生产不会走到这里；保留修正逻辑便于抵御测试注入或坏状态。
+            self.next_session = normalize_session_start(0);
+        }
+        let id = self.next_session;
+        if id == u64::MAX {
+            return Err(WorkerError::ResourceExhausted);
+        }
+        self.next_session = id.checked_add(1).ok_or(WorkerError::ResourceExhausted)?;
+        Ok(id)
     }
 
     fn attach_session(
@@ -4128,6 +4189,7 @@ impl NodeState {
                 expires_at: Instant::now() + Duration::from_secs(30),
             },
         );
+        self.refresh_peer_import_metrics();
         ReadTarget::Grpc { transfer_id }
     }
 
@@ -4140,13 +4202,21 @@ impl NodeState {
             .iter()
             .find(|set| set.block_id == extent.block_id)
             .ok_or(WorkerError::NotFound)?;
-        let replica = replica_set
+        let sources = replica_set
             .replicas
             .iter()
-            .find(|replica| replica.data_endpoint.starts_with("http://"))
-            .ok_or(WorkerError::NotFound)?;
+            .filter(|replica| replica.data_endpoint.starts_with("http://"))
+            .map(|replica| PeerPullSource {
+                node_id: replica.node_id,
+                node_epoch: replica.node_epoch,
+                endpoint: replica.data_endpoint.clone(),
+            })
+            .collect::<Vec<_>>();
+        if sources.is_empty() {
+            return Err(WorkerError::NoLiveReplica);
+        }
         Ok(PeerPullSpec {
-            endpoint: replica.data_endpoint.clone(),
+            sources,
             block_id: extent.block_id.clone(),
             expected_checksum: extent.digest.clone(),
             expected_length: replica_set.length,
@@ -4228,6 +4298,7 @@ impl NodeState {
                 waiters: vec![reply],
             },
         );
+        self.refresh_peer_import_metrics();
         Some(attempt)
     }
 
@@ -4796,6 +4867,7 @@ impl NodeState {
             }
             self.remember_completed_retirement(id);
         }
+        self.refresh_peer_import_metrics();
     }
 
     fn completed_retirement(&self, retirement_id: &[u8]) -> bool {
@@ -5111,6 +5183,7 @@ impl NodeState {
             .downloads
             .remove(&transfer_id)
             .ok_or(WorkerError::UnknownTransfer)?;
+        self.refresh_peer_import_metrics();
         if Instant::now() > ticket.expires_at {
             return Err(WorkerError::UnknownTransfer);
         }
@@ -5155,6 +5228,16 @@ impl NodeState {
                 }),
             );
         }
+    }
+
+    fn refresh_peer_import_metrics(&self) {
+        self.metrics
+            .set_peer_import_state(PeerImportMetricsSnapshot {
+                inflight: self.peer_imports.len(),
+                reserved_bytes: self.peer_import_bytes,
+                failure_fences: self.peer_import_failures.len(),
+                download_tickets: self.downloads.len(),
+            });
     }
 }
 
@@ -5244,6 +5327,11 @@ pub(crate) fn worker_error_to_dms(error: WorkerError) -> DmsError {
                 "DMS resource not found",
             )
         }
+        WorkerError::NoLiveReplica => DmsError::new(
+            dms_error::NODE_OBJECT_UNAVAILABLE,
+            ErrorKind::Unavailable,
+            "DMS object version exists, but no live replica can serve the required block",
+        ),
         WorkerError::Conflict => DmsError::new(
             dms_error::NODE_VERSION_CONFLICT,
             ErrorKind::FailedPrecondition,
@@ -5321,21 +5409,50 @@ fn map_arena_error(error: ArenaError) -> WorkerError {
     }
 }
 
-async fn pull_block_from_peer(
+async fn pull_block_from_peers(
     source_node_id: &str,
     spec: PeerPullSpec,
+    rpc_metrics: &dms_metrics::RpcMetrics,
+    peer_channels: &Arc<Mutex<HashMap<String, Channel>>>,
+    metrics: &NodeMetrics,
+) -> Result<PeerBlockResult, WorkerError> {
+    let mut last_error = WorkerError::NoLiveReplica;
+    for (index, source) in spec.sources.iter().enumerate() {
+        match pull_block_from_peer_source(source_node_id, &spec, source, rpc_metrics, peer_channels)
+            .await
+        {
+            Ok(payload) => {
+                #[cfg(feature = "reliability-faults")]
+                record_source_selection_receipt(&spec.block_id, source)?;
+                return Ok(payload);
+            }
+            Err(error) if index + 1 < spec.sources.len() && can_try_next_peer_source(&error) => {
+                // 只记录请求内真正发生的来源切换。Node 的全局存活判断仍由
+                // Meta lease/heartbeat 负责，避免瞬时网络错误污染成员状态。
+                metrics.record_peer_source_failover();
+                last_error = error;
+            }
+            Err(error) => return Err(error),
+        }
+    }
+    Err(last_error)
+}
+
+async fn pull_block_from_peer_source(
+    source_node_id: &str,
+    spec: &PeerPullSpec,
+    source: &PeerPullSource,
     rpc_metrics: &dms_metrics::RpcMetrics,
     peer_channels: &Arc<Mutex<HashMap<String, Channel>>>,
 ) -> Result<PeerBlockResult, WorkerError> {
     if spec.expected_length <= PEER_PULL_SEGMENT_BYTES {
         return pull_peer_segment(
             source_node_id,
-            &spec,
+            spec,
+            source,
             rpc_metrics,
             peer_channels,
-            None,
-            None,
-            true,
+            PeerSegmentRequest::WHOLE_BLOCK,
         )
         .await;
     }
@@ -5352,7 +5469,7 @@ async fn pull_block_from_peer(
     let mut pulls = tokio::task::JoinSet::new();
     let mut ready = std::collections::BTreeMap::new();
     // 先建好共享连接，避免最初的并发请求各自建立一个 Channel。
-    peer_channel_for(&spec.endpoint, peer_channels).await?;
+    peer_channel_for(&source.endpoint, peer_channels).await?;
     while offset < spec.expected_length {
         // 窗口同时计算“请求未完成”和“已返回但尚不能按序追加”两种占用。
         // 第一段先到可立即补第三段；第二段先到则占住窗口，不能无限积累结果。
@@ -5363,6 +5480,7 @@ async fn pull_block_from_peer(
             next_request += length;
             let source_node_id = source_node_id.to_owned();
             let spec = spec.clone();
+            let source = source.clone();
             let rpc_metrics = rpc_metrics.clone();
             let peer_channels = peer_channels.clone();
             pulls.spawn(
@@ -5370,11 +5488,10 @@ async fn pull_block_from_peer(
                     let segment = pull_peer_segment(
                         &source_node_id,
                         &spec,
+                        &source,
                         &rpc_metrics,
                         &peer_channels,
-                        Some(start),
-                        Some(length),
-                        false,
+                        PeerSegmentRequest::segment(start, length),
                     )
                     .await?;
                     Ok::<_, WorkerError>((start, segment))
@@ -5411,11 +5528,11 @@ async fn pull_block_from_peer(
     let checksum = if spec.expected_checksum.is_empty() {
         digest(&payload)
     } else {
-        spec.expected_checksum
+        spec.expected_checksum.clone()
     };
     Ok(PeerBlockResult {
         serving_node_id,
-        block_id: spec.block_id,
+        block_id: spec.block_id.clone(),
         payload,
         checksum,
         length: spec.expected_length,
@@ -5425,25 +5542,24 @@ async fn pull_block_from_peer(
 async fn pull_peer_segment(
     source_node_id: &str,
     spec: &PeerPullSpec,
+    source: &PeerPullSource,
     rpc_metrics: &dms_metrics::RpcMetrics,
     peer_channels: &Arc<Mutex<HashMap<String, Channel>>>,
-    offset: Option<u64>,
-    length: Option<u64>,
-    validate_whole_block: bool,
+    segment: PeerSegmentRequest,
 ) -> Result<PeerBlockResult, WorkerError> {
     let mut retry_after_cached_channel_failure = true;
     let response = loop {
-        let channel = peer_channel_for(&spec.endpoint, peer_channels).await?;
+        let channel = peer_channel_for(&source.endpoint, peer_channels).await?;
         let mut client = peer_client(channel);
         let mut rpc = rpc_metrics.begin_client_call(dms_metrics::RpcCall::PEER_PULL_BLOCK);
         match client
             .pull_block(pb::PeerPullBlockRequest {
                 source_node_id: source_node_id.to_string(),
                 block_id: spec.block_id.clone(),
-                offset,
-                length,
+                offset: segment.offset,
+                length: segment.length,
                 expected_length: Some(spec.expected_length),
-                expected_checksum: if validate_whole_block {
+                expected_checksum: if segment.validate_whole_block {
                     spec.expected_checksum.clone()
                 } else {
                     Vec::new()
@@ -5458,23 +5574,23 @@ async fn pull_peer_segment(
             Err(status)
                 if retry_after_cached_channel_failure && is_retryable_peer_status(&status) =>
             {
-                peer_channels.lock().await.remove(&spec.endpoint);
+                peer_channels.lock().await.remove(&source.endpoint);
                 retry_after_cached_channel_failure = false;
                 continue;
             }
             Err(status) => return Err(map_peer_pull_status(status)),
         }
     };
-    let expected_payload_length = length.unwrap_or(spec.expected_length);
+    let expected_payload_length = segment.length.unwrap_or(spec.expected_length);
     if response.block_id != spec.block_id
         || response.length != spec.expected_length
         || response.payload.len() as u64 != expected_payload_length
-        || (validate_whole_block
+        || (segment.validate_whole_block
             && !spec.expected_checksum.is_empty()
             && response.checksum != spec.expected_checksum)
         // 整块响应的实际 bytes 留给最终 owner 校验；上面仍验证与权威摘要
         // 一致。分段响应则必须在这里校验，最终 owner 还会检查聚合整块摘要。
-        || (!validate_whole_block
+        || (!segment.validate_whole_block
             && !response.checksum.is_empty()
             && digest(&response.payload) != response.checksum)
     {
@@ -5547,6 +5663,22 @@ fn map_peer_pull_status(status: tonic::Status) -> WorkerError {
     }
 }
 
+fn can_try_next_peer_source(error: &WorkerError) -> bool {
+    // 这些错误只说明“当前候选位置不能提供所需的不可变 Block”。其它候选
+    // 仍可能有效。参数错误和本地资源不足对所有来源都相同，不能盲目换源。
+    matches!(
+        error,
+        WorkerError::NotFound | WorkerError::TransferUnavailable | WorkerError::Conflict
+    ) || matches!(
+        error,
+        WorkerError::Stable(stable)
+            if matches!(
+                stable.kind(),
+                ErrorKind::Unavailable | ErrorKind::NotFound | ErrorKind::DataLoss
+            )
+    )
+}
+
 fn transfer_unavailable(message: String) -> WorkerError {
     WorkerError::Stable(DmsError::new(
         dms_error::NODE_TRANSFER_UNAVAILABLE,
@@ -5567,38 +5699,163 @@ mod peer_import_tests;
 mod tests {
     use super::*;
 
-    fn replica_report_job(index: u64) -> ReplicaReportJob {
-        ReplicaReportJob {
-            block_id: format!("block-{index}").into_bytes(),
-            length: index + 1,
-            checksum: format!("checksum-{index}").into_bytes(),
-            operation_id: format!("operation-{index}").into_bytes(),
+    #[cfg(feature = "reliability-faults")]
+    struct SourceSelectionReceiptPathGuard {
+        previous: Option<PathBuf>,
+    }
+
+    #[cfg(feature = "reliability-faults")]
+    impl SourceSelectionReceiptPathGuard {
+        fn set(path: &std::path::Path) -> Self {
+            let mut guard = SOURCE_SELECTION_RECEIPT_PATH_FOR_TEST
+                .lock()
+                .expect("source selection receipt path lock");
+            let previous = guard.replace(path.to_path_buf());
+            Self { previous }
         }
     }
 
-    #[tokio::test]
-    async fn replica_report_batch_drains_only_ready_items_up_to_limit() {
-        let (sender, mut receiver) = mpsc::channel(REPLICA_REPORT_BATCH_MAX + 2);
-        for index in 0..(REPLICA_REPORT_BATCH_MAX + 2) {
-            sender
-                .send(replica_report_job(index as u64))
-                .await
-                .expect("report queue accepts test job");
+    #[cfg(feature = "reliability-faults")]
+    impl Drop for SourceSelectionReceiptPathGuard {
+        fn drop(&mut self) {
+            *SOURCE_SELECTION_RECEIPT_PATH_FOR_TEST
+                .lock()
+                .expect("source selection receipt path lock") = self.previous.take();
         }
+    }
 
-        let first = receiver.recv().await.expect("first report");
-        let batch = collect_replica_report_batch(first, &mut receiver).await;
+    #[test]
+    fn session_start_differs_across_injected_incarnations() {
+        let mut first = NodeState::new("node-a".into(), None, 4096, Duration::from_secs(30), None);
+        let mut second = NodeState::new("node-a".into(), None, 4096, Duration::from_secs(30), None);
+        first.set_next_session_start_for_test(0x1111_2222_3333_4444);
+        second.set_next_session_start_for_test(0x5555_6666_7777_8888);
 
-        assert_eq!(batch.jobs.len(), REPLICA_REPORT_BATCH_MAX);
-        assert_eq!(
-            receiver.len(),
-            2,
-            "overflow remains queued for the next batch"
+        let first_session = first.open_session(false);
+        let second_session = second.open_session(false);
+
+        assert_ne!(
+            first_session, second_session,
+            "不同 Node incarnation 的首个 session_id 不应复用"
         );
-        assert_eq!(
-            batch.operation_id,
-            ReplicaReportBatch::new(batch.jobs.clone()).operation_id
+        assert_ne!(first_session, 0);
+        assert_ne!(second_session, 0);
+    }
+
+    #[test]
+    fn session_ids_are_monotonic_inside_one_incarnation() {
+        let mut state = NodeState::new("node-a".into(), None, 4096, Duration::from_secs(30), None);
+        state.set_next_session_start_for_test(0x2222_3333_4444_5555);
+
+        let first = state.open_session(false);
+        let second = state.open_session(false);
+
+        assert_eq!(second, first + 1);
+    }
+
+    #[test]
+    fn session_id_start_normalizes_zero_and_overflow_boundary() {
+        assert_eq!(normalize_session_start(0), 1);
+        let near_overflow = normalize_session_start(u64::MAX);
+        assert_ne!(near_overflow, 0);
+        assert!(
+            near_overflow <= SESSION_ID_START_SPACE,
+            "启动起点必须远离 u64::MAX，避免新进程刚启动就接近溢出"
         );
+
+        let mut state = NodeState::new("node-a".into(), None, 4096, Duration::from_secs(30), None);
+        state.force_next_session_for_test(0);
+        assert_eq!(state.open_session(false), 1);
+
+        state.force_next_session_for_test(u64::MAX);
+        assert!(matches!(
+            state.open_session_with_write_release(false, false),
+            Err(WorkerError::ResourceExhausted)
+        ));
+    }
+
+    #[test]
+    fn peer_import_metrics_return_to_baseline_after_state_changes() {
+        let registry = dms_metrics::registry();
+        let metrics = NodeMetrics::register(&registry).expect("node metrics");
+        let mut state = NodeState::with_metrics(
+            "node-a".into(),
+            None,
+            NodeTaskConfig {
+                arena_capacity_bytes: 4096,
+                region_size_bytes: crate::config::DEFAULT_REGION_SIZE_BYTES,
+                staging_ttl: Duration::from_secs(30),
+                client_cache_lease_ttl: CLIENT_CACHE_LEASE_TTL,
+                node_current_cache_bytes: crate::config::DEFAULT_NODE_CURRENT_CACHE_BYTES,
+                node_current_cache_ttl: Duration::from_millis(
+                    crate::config::DEFAULT_NODE_CURRENT_CACHE_TTL_MILLIS,
+                ),
+                shared_fd_broker: None,
+                log_level: LevelController::new(slog::Level::Info),
+                trace_periodic_operations: false,
+            },
+            metrics,
+        );
+        let session = state.open_session(false);
+        let scope = state.begin_read_scope(session).unwrap();
+        let spec = PeerPullSpec::single_source(
+            "http://127.0.0.1:19999".to_string(),
+            b"remote-block".to_vec(),
+            digest(b"payload"),
+            b"payload".len() as u64,
+        );
+        let (reply, _rx) = oneshot::channel();
+
+        assert_eq!(state.begin_peer_import(scope, &spec, reply), Some(1));
+        assert_peer_import_metrics(&registry, 1, b"payload".len() as u64, 0, 0);
+
+        state.complete_peer_import(
+            &spec.block_id,
+            1,
+            Err(PeerImportFailure::terminal(
+                WorkerError::TransferUnavailable,
+            )),
+        );
+        assert_peer_import_metrics(&registry, 0, 0, 1, 0);
+
+        state.finish_read_scope(scope);
+        assert_peer_import_metrics(&registry, 0, 0, 0, 0);
+
+        state
+            .arena
+            .commit_inline(b"local-block".to_vec(), b"local".to_vec())
+            .unwrap();
+        let (ticket, _) = state.arena.open_read(b"local-block", None).unwrap();
+        let target = state.grpc_download_target(session, ticket, 0);
+        let transfer_id = match target {
+            ReadTarget::Grpc { transfer_id } => transfer_id,
+            ReadTarget::Shm(_) => panic!("test uses non-SHM download ticket"),
+        };
+        assert_peer_import_metrics(&registry, 0, 0, 0, 1);
+
+        assert_eq!(state.download(transfer_id).unwrap(), b"local".to_vec());
+        assert_peer_import_metrics(&registry, 0, 0, 0, 0);
+    }
+
+    fn assert_peer_import_metrics(
+        registry: &dms_metrics::Registry,
+        inflight: usize,
+        reserved_bytes: u64,
+        failure_fences: usize,
+        download_tickets: usize,
+    ) {
+        let text = dms_metrics::encode_text(registry).expect("encode metrics");
+        for expected in [
+            format!("dms_node_peer_import_inflight {inflight}"),
+            format!("dms_node_peer_import_reserved_bytes {reserved_bytes}"),
+            format!("dms_node_peer_import_failure_fences {failure_fences}"),
+            format!("dms_node_download_tickets {download_tickets}"),
+        ] {
+            assert!(
+                text.contains(&expected),
+                "missing metric line `{expected}` in:\n{text}"
+            );
+        }
     }
 
     #[test]
@@ -5807,6 +6064,77 @@ mod tests {
         }
     }
 
+    #[cfg(feature = "reliability-faults")]
+    #[test]
+    fn missing_block_keeps_all_http_candidates_and_receipt_records_successful_source() {
+        let receipt_path = std::env::temp_dir().join(format!(
+            "dms-source-selection-{}-{}.log",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("system clock")
+                .as_nanos()
+        ));
+        let _path_guard = SourceSelectionReceiptPathGuard::set(&receipt_path);
+
+        let state = NodeState::new("node-a".into(), None, 4096, Duration::from_secs(30), None);
+        let extent = test_extent(0, 4, b"remote-block", 0);
+        let replicas = vec![pb::BlockReplicaSet {
+            block_id: b"remote-block".to_vec(),
+            replicas: vec![
+                pb::ReplicaLocation {
+                    block_id: b"remote-block".to_vec(),
+                    node_id: 10,
+                    node_epoch: 99,
+                    data_endpoint: "uds://dead-replica".to_string(),
+                    checksum: b"remote-block".to_vec(),
+                    durability: pb::DurabilityPolicy::LocalMemory as i32,
+                },
+                pb::ReplicaLocation {
+                    block_id: b"remote-block".to_vec(),
+                    node_id: 11,
+                    node_epoch: 100,
+                    data_endpoint: "http://127.0.0.1:25299".to_string(),
+                    checksum: b"remote-block".to_vec(),
+                    durability: pb::DurabilityPolicy::LocalMemory as i32,
+                },
+                pb::ReplicaLocation {
+                    block_id: b"remote-block".to_vec(),
+                    node_id: 12,
+                    node_epoch: 101,
+                    data_endpoint: "http://127.0.0.1:25300".to_string(),
+                    checksum: b"remote-block".to_vec(),
+                    durability: pb::DurabilityPolicy::LocalMemory as i32,
+                },
+            ],
+            length: 4,
+            proofs: Vec::new(),
+        }];
+
+        let spec = state
+            .describe_missing_block(&replicas, &extent)
+            .expect("select remote replica");
+        assert_eq!(spec.sources.len(), 2);
+        assert_eq!(spec.sources[0].endpoint, "http://127.0.0.1:25299");
+        assert_eq!(spec.sources[1].endpoint, "http://127.0.0.1:25300");
+
+        // 收据只在某个候选实际返回并通过校验后记录，失败的候选不会被写成
+        // “已选中来源”。网络级切换由下面的异步完整性测试覆盖。
+        record_source_selection_receipt(&spec.block_id, &spec.sources[1])
+            .expect("record successful source");
+
+        let receipt = std::fs::read_to_string(&receipt_path).expect("read receipt");
+        assert_eq!(
+            receipt,
+            "block_id=72656d6f74652d626c6f636b node_id=12 node_epoch=101\n"
+        );
+        assert!(
+            !receipt.contains("node_id=10") && !receipt.contains("node_id=11"),
+            "receipt must only contain the actually selected replica"
+        );
+        let _ = std::fs::remove_file(receipt_path);
+    }
+
     #[test]
     fn only_confirmed_metadata_rejections_allow_block_retirement() {
         for code in [
@@ -5858,7 +6186,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn checkpoint_failure_after_commit_preserves_published_block() {
+    async fn checkpoint_failure_after_apply_is_retried_internally_without_extra_version() {
         let meta = crate::meta::runtime::failing_checkpoint_handle_for_test();
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let endpoint = format!("http://{}", listener.local_addr().unwrap());
@@ -5893,26 +6221,41 @@ mod tests {
                 "any".into(),
             )
             .unwrap();
-        let error = prepared.await(&mut state).unwrap_err();
-        assert_eq!(
-            worker_error_to_dms(error).code(),
-            dms_error::META_JOURNAL_UNAVAILABLE
-        );
-        assert!(
-            metadata
-                .resolve(b"key".to_vec(), None)
-                .await
-                .unwrap()
-                .layout
-                .unwrap()
-                .version
-                > 0
-        );
+        let first_outcome = prepared.await(&mut state)
+            .expect("checkpoint failure after apply is internally retried with the same operation");
+        let retry = state
+            .commit_bytes(
+                session,
+                b"key".to_vec(),
+                b"published".to_vec(),
+                operation.clone(),
+                "any".into(),
+            )
+            .unwrap();
+        let retry_outcome = retry.await(&mut state)
+            .expect("explicit same-operation retry returns remembered result");
+        assert_eq!(retry_outcome.version, first_outcome.version);
+        assert_eq!(retry_outcome.length, b"published".len() as u64);
+
+        let current = metadata
+            .resolve(b"key".to_vec(), None)
+            .await
+            .unwrap()
+            .layout
+            .unwrap();
+        assert_eq!(current.version, first_outcome.version);
+        assert_eq!(current.logical_length, b"published".len() as u64);
+        let missing_next = metadata
+            .resolve(b"key".to_vec(), Some(first_outcome.version + 1))
+            .await
+            .unwrap_err();
+        assert_eq!(missing_next.code(), dms_error::META_CATALOG_NOT_FOUND);
         assert_eq!(
             state.arena.read_bytes(&block_identity("n", &operation)),
             Some(b"published".to_vec()),
             "published metadata still references this block"
         );
+        assert!(state.pending_blocks.is_empty());
         server.abort();
     }
 
@@ -6094,6 +6437,81 @@ mod tests {
         state.client_cache_lease_ttl = Duration::from_millis(20);
         let configured_ttl = state.heartbeat(session, None, true).unwrap();
         assert!(configured_ttl > 0 && configured_ttl <= 20);
+    }
+
+    #[test]
+    fn metadata_watch_reset_clears_node_current_cache() {
+        let mut state = NodeState::new("n".into(), None, 4096, Duration::from_secs(30), None);
+        let token = state.current_cache.token().unwrap();
+        let now = Instant::now();
+        let mut resolved = resolved_value(7, 4, vec![test_extent(0, 4, b"block-a", 0)]);
+        resolved.current_lease = Some(pb::CurrentLeaseGrant {
+            version: 7,
+            revision: 1,
+            lease_epoch: 42,
+            ttl_millis: 5_000,
+            leader_epoch: 0,
+        });
+
+        assert!(
+            state
+                .current_cache
+                .insert(token, b"key-a".to_vec(), &resolved, now, 42, now)
+        );
+        assert!(state.current_cache.charged() > 0);
+
+        state.reset_current_cache_for_watch(false);
+
+        assert_eq!(state.current_cache.charged(), 0);
+        assert!(
+            state
+                .current_cache
+                .get(b"key-a", 42, Instant::now())
+                .is_none(),
+            "Meta watch 断线后不能继续命中 Node 本地 Current cache"
+        );
+    }
+
+    #[test]
+    fn metadata_watch_reconnect_requires_replayed_events_to_be_acked_before_new_grant() {
+        let mut state = NodeState::new("n".into(), None, 4096, Duration::from_secs(30), None);
+        let session = state.open_session(false);
+        let (sender, mut receiver) = mpsc::channel(1);
+        state.attach_session(session, sender).unwrap();
+        state.metadata_lease_until = Instant::now() + Duration::from_secs(5);
+        state.reset_current_cache_for_watch(true);
+        assert!(state.heartbeat(session, None, true).unwrap() > 0);
+        state
+            .register_cache_interest(session, b"model/a".to_vec())
+            .unwrap();
+
+        let barrier = state
+            .broadcast_invalidation(b"model/a".to_vec(), 2)
+            .expect("registered cache interest must create invalidation barrier");
+        let event = receiver.try_recv().unwrap();
+        let sequence = match event {
+            NodeEvent::InvalidateCurrent { event_sequence, .. } => event_sequence,
+        };
+
+        // 断线期间不发新 grant；重连后也必须等 Client ACK 已 replay 的事件。
+        state.sessions.get_mut(&session).unwrap().cache_until = None;
+        state.reset_current_cache_for_watch(false);
+        assert_eq!(state.heartbeat(session, None, true).unwrap(), 0);
+        state.reset_current_cache_for_watch(true);
+        assert_eq!(
+            state.heartbeat(session, None, true).unwrap(),
+            0,
+            "last_ack 未追上 replay 游标前，重连也不能恢复 cache grant"
+        );
+
+        let (waiter, mut completion) = oneshot::channel();
+        state.attach_barrier_waiter(barrier, waiter);
+        state.acknowledge(session, sequence).unwrap();
+        completion.try_recv().unwrap().unwrap();
+        assert!(
+            state.heartbeat(session, None, true).unwrap() > 0,
+            "Client ACK replay 后才恢复新的 cache grant"
+        );
     }
 
     #[test]
@@ -6446,10 +6864,12 @@ mod tests {
         let node = NodeHandle::spawn_without_metadata("node-a".to_string());
         let first = node.open_session(false).await.expect("first session");
         let second = node.open_session(false).await.expect("second session");
-        assert_eq!((first, second), (1, 2));
+        assert_ne!(first, 0);
+        assert_ne!(second, 0);
+        assert_eq!(second, first + 1);
         node.heartbeat(second, None)
             .await
-            .expect("second heartbeat");
+            .expect("heartbeat must use the actual second session id");
     }
 
     #[tokio::test]
@@ -6911,6 +7331,39 @@ mod tests {
     }
 
     #[test]
+    fn resolved_version_without_live_replica_is_unavailable_not_not_found() {
+        let mut state = NodeState::new("node-a".into(), None, 4096, Duration::from_secs(30), None);
+        let session = state.open_session(false);
+        let mut resolved = resolved_value(18, 4, vec![test_extent(0, 4, b"lost-block", 0)]);
+        resolved.block_replicas = vec![pb::BlockReplicaSet {
+            block_id: b"lost-block".to_vec(),
+            replicas: Vec::new(),
+            length: 4,
+            proofs: Vec::new(),
+        }];
+
+        let error = match state.get_resolved_for_request(
+            session,
+            u64::MAX,
+            6,
+            &resolved,
+            None,
+            false,
+            64,
+        ) {
+            Ok(_) => panic!("version exists but no live replica can serve it"),
+            Err(error) => error,
+        };
+        assert!(
+            !is_not_found_result(&error),
+            "R5 must not be translated into found=false"
+        );
+        let public = worker_error_to_dms(error);
+        assert_eq!(public.code(), dms_error::NODE_OBJECT_UNAVAILABLE);
+        assert_eq!(public.kind(), ErrorKind::Unavailable);
+    }
+
+    #[test]
     fn current_cache_clamped_range_reuses_layout_without_full_interest() {
         let mut state = NodeState::new("node-a".into(), None, 4096, Duration::from_secs(30), None);
         let session = state.open_session(false);
@@ -7330,7 +7783,9 @@ mod tests {
             Duration::from_secs(30),
             Some(broker),
         );
-        let session = state.open_session_with_write_release(true, true);
+        let session = state
+            .open_session_with_write_release(true, true)
+            .expect("open SHM session with release support");
         let allocation = state.allocate_staging(session, 1).unwrap();
         let release = match &allocation.target {
             HostAllocationTarget::Shm(descriptor) => ReleasedWriteAllocation {

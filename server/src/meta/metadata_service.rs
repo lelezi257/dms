@@ -5,6 +5,11 @@
 //! [`MetaHandle`] 后的 Meta actor。
 
 use std::pin::Pin;
+#[cfg(any(test, feature = "reliability-faults"))]
+use std::sync::{
+    Arc,
+    atomic::{AtomicBool, AtomicU64, Ordering},
+};
 
 use dms_protocol::v1 as pb;
 use dms_transport::dms_error_to_status;
@@ -15,12 +20,62 @@ use tonic::{Request, Response, Status};
 
 use super::runtime::{MetaHandle, MetaRuntimeError};
 
+#[cfg(feature = "reliability-faults")]
+const DROP_COMMIT_RESPONSE_ONCE_ENV: &str = "DMS_META_FAULT_DROP_COMMIT_RESPONSE_ONCE";
+
 #[derive(Clone)]
 pub(crate) struct MetadataServiceHandler {
     // Handle 是向 Meta owner 投递命令的轻量 Sender。
     meta: MetaHandle,
     rpc_metrics: dms_metrics::RpcMetrics,
     error_metrics: dms_metrics::ErrorMetrics,
+    #[cfg(any(test, feature = "reliability-faults"))]
+    // 可靠性专项故障点：让 Meta owner 已经完成 commit 后，在 gRPC 回包前丢失响应。
+    // 正式无 feature 构建不包含该字段；feature 构建默认也关闭，需测试显式 arm。
+    commit_response_fault: CommitResponseFault,
+}
+
+#[cfg(any(test, feature = "reliability-faults"))]
+#[derive(Clone, Default)]
+struct CommitResponseFault {
+    drop_once: Arc<AtomicBool>,
+    next_receipt: Arc<AtomicU64>,
+}
+
+#[cfg(any(test, feature = "reliability-faults"))]
+impl CommitResponseFault {
+    fn from_runtime_config() -> Self {
+        let fault = Self::default();
+        #[cfg(feature = "reliability-faults")]
+        if env_flag_enabled(DROP_COMMIT_RESPONSE_ONCE_ENV) {
+            fault.arm();
+        }
+        fault
+    }
+
+    fn arm(&self) {
+        self.drop_once.store(true, Ordering::Release);
+    }
+
+    fn take_receipt(&self) -> Option<String> {
+        if !self.drop_once.swap(false, Ordering::AcqRel) {
+            return None;
+        }
+        let sequence = self.next_receipt.fetch_add(1, Ordering::AcqRel) + 1;
+        Some(format!("meta-commit-response-drop-{sequence}"))
+    }
+}
+
+#[cfg(feature = "reliability-faults")]
+fn env_flag_enabled(name: &str) -> bool {
+    std::env::var(name)
+        .map(|value| env_flag_value_enabled(&value))
+        .unwrap_or(false)
+}
+
+#[cfg(feature = "reliability-faults")]
+fn env_flag_value_enabled(value: &str) -> bool {
+    matches!(value, "1" | "true" | "TRUE" | "yes" | "YES" | "on" | "ON")
 }
 
 impl MetadataServiceHandler {
@@ -43,7 +98,14 @@ impl MetadataServiceHandler {
             meta,
             rpc_metrics,
             error_metrics,
+            #[cfg(any(test, feature = "reliability-faults"))]
+            commit_response_fault: CommitResponseFault::from_runtime_config(),
         }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn drop_next_commit_response_for_test(&self) {
+        self.commit_response_fault.arm();
     }
 
     fn map_meta_error(&self, error: MetaRuntimeError) -> Status {
@@ -189,6 +251,20 @@ impl MetadataService for MetadataServiceHandler {
             .commit_version(request.into_inner())
             .await
             .map_err(|error| self.map_meta_error(error))?;
+        #[cfg(any(test, feature = "reliability-faults"))]
+        if let Some(receipt) = self.commit_response_fault.take_receipt() {
+            // 这里必须放在 `meta.commit_version()` 成功之后，才能模拟真正的
+            // “结果未知”：Meta 已经持久化并应用，但 Node 只看到 transport 失败。
+            dms_logging::warn!(
+                "Injected reliability fault after durable Meta commit";
+                "event" => "meta.commit_response_drop.injected",
+                "fault" => "drop_commit_response_once",
+                "receipt" => receipt.clone(),
+            );
+            return Err(Status::unavailable(format!(
+                "reliability fault: committed response lost after durable apply; receipt={receipt}",
+            )));
+        }
         rpc.success();
         Ok(Response::new(response))
     }
@@ -343,8 +419,48 @@ mod tests {
     use tokio_stream::wrappers::TcpListenerStream;
     use tonic::transport::Endpoint;
 
+    #[cfg(any(test, feature = "reliability-faults"))]
+    use super::CommitResponseFault;
     use super::MetadataServiceHandler;
+    #[cfg(feature = "reliability-faults")]
+    use super::env_flag_value_enabled;
     use crate::meta::runtime::MetaHandle;
+
+    #[test]
+    fn reliability_fault_hook_is_one_shot() {
+        let fault = CommitResponseFault::default();
+
+        assert_eq!(fault.take_receipt(), None);
+        fault.arm();
+
+        let receipt = fault.take_receipt().expect("armed fault receipt");
+        assert!(receipt.starts_with("meta-commit-response-drop-"));
+        assert_eq!(fault.take_receipt(), None);
+    }
+
+    #[cfg(not(feature = "reliability-faults"))]
+    #[test]
+    fn reliability_fault_feature_is_disabled_by_default() {
+        // 默认测试构建可以用内存 hook 做回归验证，但正式二进制不带
+        // reliability-faults feature 时不会读取环境变量、也不会编入生产故障开关。
+        //
+        // 这个测试函数本身只在 `not(feature = "reliability-faults")` 下编译；
+        // Cargo feature 标记为空，就证明默认构建路径不依赖专用 feature。
+        let feature_marker = option_env!("CARGO_FEATURE_RELIABILITY_FAULTS");
+        assert!(std::hint::black_box(feature_marker).is_none());
+    }
+
+    #[cfg(feature = "reliability-faults")]
+    #[test]
+    fn reliability_fault_env_requires_explicit_opt_in_value() {
+        assert!(env_flag_value_enabled("1"));
+        assert!(env_flag_value_enabled("true"));
+        assert!(env_flag_value_enabled("yes"));
+        assert!(env_flag_value_enabled("on"));
+        assert!(!env_flag_value_enabled(""));
+        assert!(!env_flag_value_enabled("0"));
+        assert!(!env_flag_value_enabled("false"));
+    }
 
     #[tokio::test]
     async fn node_to_meta_session_crosses_grpc_mailbox_and_oneshot() {

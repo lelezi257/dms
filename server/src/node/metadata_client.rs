@@ -20,6 +20,15 @@ use tokio::sync::{Mutex, MutexGuard, RwLock, mpsc, oneshot};
 use tonic::{Response, Status, transport::Endpoint};
 
 const METADATA_RESOLVE_BATCH_MAX: usize = 64;
+const METADATA_COMMIT_MAX_ATTEMPTS: usize = 3;
+// 普通控制请求需要尽快发现 Meta 断线，尤其是 Watch ACK：若 ACK 长时间挂起，
+// Node 就无法及时重建 Watch 并从已确认 cursor 继续补发事件。
+const METADATA_CONTROL_REQUEST_TIMEOUT: Duration = Duration::from_secs(5);
+// Meta 重启后必须等恢复前发出的最长 Node lease 自然到期，才能确认旧缓存不再
+// 可见。Meta 的首版 lease 是 30 秒，因此 Commit 不能沿用普通控制请求的 5 秒
+// 截止时间；否则安全屏障尚未满足，提交者会先把一次仍可能成功的写判成超时。
+// 这里多留 5 秒给调度与响应传输，成功路径不会因此增加延迟。
+const METADATA_COMMIT_REQUEST_TIMEOUT: Duration = Duration::from_secs(35);
 
 struct ResolveJob {
     key: Vec<u8>,
@@ -93,7 +102,14 @@ impl MetadataClient {
                 format!("invalid Meta endpoint: {error}"),
             )
         })?;
-        let endpoint = GrpcConfig::default().configure_client(endpoint);
+        let grpc_config = GrpcConfig {
+            // Channel 的外层 timeout 取最长业务请求预算；普通控制 RPC 再由
+            // `observe_control_rpc` 收紧到 5 秒。这样所有 generated clients 仍
+            // 共享同一条 HTTP/2 连接，不为两类超时复制 Channel/连接池。
+            request_timeout: METADATA_COMMIT_REQUEST_TIMEOUT,
+            ..GrpcConfig::default()
+        };
+        let endpoint = grpc_config.configure_client(endpoint);
         let security = SecurityManager::new(TlsConfig::Disabled).map_err(|error| {
             DmsError::new(
                 dms_error::NODE_METADATA_UNAVAILABLE,
@@ -151,7 +167,7 @@ impl MetadataClient {
         data_endpoint: &str,
         rpc_metrics: Option<&dms_metrics::RpcMetrics>,
     ) -> Result<(pb::NodeSessionIdentity, u64), DmsError> {
-        let result = observe_rpc(
+        let result = observe_control_rpc(
             rpc_metrics,
             dms_metrics::RpcCall::META_OPEN_NODE_SESSION,
             client.open_node_session(pb::OpenNodeSessionRequest {
@@ -214,7 +230,7 @@ impl MetadataClient {
             event_cursor,
         };
         let mut client = self.client();
-        let mut result = observe_rpc(
+        let mut result = observe_control_rpc(
             self.rpc_metrics.as_ref(),
             dms_metrics::RpcCall::META_HEARTBEAT,
             client.heartbeat(request.clone()),
@@ -225,7 +241,7 @@ impl MetadataClient {
         if result.as_ref().is_err_and(is_reopenable_session_error) {
             session = self.reopen_session().await?;
             let mut client = self.client();
-            result = observe_rpc(
+            result = observe_control_rpc(
                 self.rpc_metrics.as_ref(),
                 dms_metrics::RpcCall::META_HEARTBEAT,
                 client.heartbeat(pb::NodeHeartbeatRequest {
@@ -289,7 +305,7 @@ impl MetadataClient {
             key: Some(pb::Key { value: key.clone() }),
         };
         let mut client = self.client();
-        let mut result = observe_rpc(
+        let mut result = observe_control_rpc(
             self.rpc_metrics.as_ref(),
             dms_metrics::RpcCall::META_STAT,
             client.stat(make_request(session.clone())),
@@ -300,7 +316,7 @@ impl MetadataClient {
         if result.as_ref().is_err_and(is_reopenable_session_error) {
             session = self.reopen_session().await?;
             let mut client = self.client();
-            result = observe_rpc(
+            result = observe_control_rpc(
                 self.rpc_metrics.as_ref(),
                 dms_metrics::RpcCall::META_STAT,
                 client.stat(make_request(session)),
@@ -327,7 +343,7 @@ impl MetadataClient {
             options: options.clone(),
         };
         let mut client = self.client();
-        let mut result = observe_rpc(
+        let mut result = observe_control_rpc(
             self.rpc_metrics.as_ref(),
             dms_metrics::RpcCall::META_SCAN,
             client.scan(make_request(session.clone())),
@@ -338,7 +354,7 @@ impl MetadataClient {
         if result.as_ref().is_err_and(is_reopenable_session_error) {
             session = self.reopen_session().await?;
             let mut client = self.client();
-            result = observe_rpc(
+            result = observe_control_rpc(
                 self.rpc_metrics.as_ref(),
                 dms_metrics::RpcCall::META_SCAN,
                 client.scan(make_request(session)),
@@ -552,7 +568,7 @@ impl MetadataClient {
             repair_id: repair_id.clone(),
         };
         let mut client = self.client();
-        let mut result = observe_rpc(
+        let mut result = observe_control_rpc(
             self.rpc_metrics.as_ref(),
             dms_metrics::RpcCall::META_REPORT_REPLICAS,
             client.report_replicas(make_request(session.clone())),
@@ -563,7 +579,7 @@ impl MetadataClient {
         if result.as_ref().is_err_and(is_reopenable_session_error) {
             session = self.reopen_session().await?;
             let mut client = self.client();
-            result = observe_rpc(
+            result = observe_control_rpc(
                 self.rpc_metrics.as_ref(),
                 dms_metrics::RpcCall::META_REPORT_REPLICAS,
                 client.report_replicas(make_request(session)),
@@ -611,56 +627,64 @@ impl MetadataClient {
         operation_digest.push(candidate.kind as u8);
         let (_commit_guard, commit_sequence) = self.begin_commit().await?;
         let mut session = self.current_session().await;
-        let mut client = self.client();
-        let mut result = observe_rpc(
-            self.rpc_metrics.as_ref(),
-            dms_metrics::RpcCall::META_COMMIT_VERSION,
-            client.commit_version(pb::CommitVersionRequest {
-                commit_sequence,
-                context: Some(context(self.node_id)),
-                session: Some(session.clone()),
-                key: Some(pb::Key { value: key.clone() }),
-                candidate: Some(candidate.clone()),
-                condition: condition.clone(),
-                expected_version: None,
-                operation_id: operation_id.clone(),
-                operation_digest: operation_digest.clone(),
-                durability: pb::DurabilityPolicy::LocalMemory as i32,
-                required_memory_copies: 1,
-                replica_proofs: replica_proofs.clone(),
-                new_replicas: new_replicas.clone(),
-            }),
-        )
-        .await
-        .map(|response| response.into_inner())
-        .map_err(map_status);
-        if result.as_ref().is_err_and(is_reopenable_session_error) {
-            session = self.reopen_session().await?;
+
+        for attempt in 1..=METADATA_COMMIT_MAX_ATTEMPTS {
             let mut client = self.client();
-            result = observe_rpc(
+            let result = observe_rpc(
                 self.rpc_metrics.as_ref(),
                 dms_metrics::RpcCall::META_COMMIT_VERSION,
                 client.commit_version(pb::CommitVersionRequest {
                     commit_sequence,
                     context: Some(context(self.node_id)),
-                    session: Some(session),
-                    key: Some(pb::Key { value: key }),
-                    candidate: Some(candidate),
-                    condition,
+                    session: Some(session.clone()),
+                    key: Some(pb::Key { value: key.clone() }),
+                    candidate: Some(candidate.clone()),
+                    condition: condition.clone(),
                     expected_version: None,
-                    operation_id,
-                    operation_digest,
+                    operation_id: operation_id.clone(),
+                    operation_digest: operation_digest.clone(),
                     durability: pb::DurabilityPolicy::LocalMemory as i32,
                     required_memory_copies: 1,
-                    replica_proofs,
-                    new_replicas,
+                    replica_proofs: replica_proofs.clone(),
+                    new_replicas: new_replicas.clone(),
                 }),
             )
             .await
             .map(|response| response.into_inner())
             .map_err(map_status);
+
+            match result {
+                Ok(response) => return Ok(response),
+                Err(error)
+                    if attempt < METADATA_COMMIT_MAX_ATTEMPTS
+                        && is_reopenable_session_error(&error) =>
+                {
+                    session = self.reopen_session().await?;
+                }
+                Err(error)
+                    if attempt < METADATA_COMMIT_MAX_ATTEMPTS
+                        && is_uncertain_commit_result_error(&error) =>
+                {
+                    // Unavailable/DeadlineExceeded 表示 Node 不知道 Meta 是否已经在
+                    // journal/apply 后丢了回复。重发必须复用完全相同的 request；
+                    // Meta 通过 operation_id/digest 和 commit_sequence 做幂等收敛。
+                    dms_logging::warn!(
+                        "Meta commit response is uncertain; retrying same operation";
+                        "event" => "node.meta_commit.uncertain_retry",
+                        "node_id" => self.node_id,
+                        "attempt" => attempt,
+                        "max_attempts" => METADATA_COMMIT_MAX_ATTEMPTS,
+                        "error_code" => error.code().raw(),
+                        "error_kind" => format!("{:?}", error.kind()),
+                    );
+                }
+                Err(error) => return Err(error),
+            }
         }
-        result
+
+        Err(metadata_unavailable(
+            "Meta commit retry loop exhausted without a terminal result",
+        ))
     }
 
     async fn begin_commit(&self) -> Result<(MutexGuard<'_, ()>, u64), DmsError> {
@@ -677,7 +701,7 @@ impl MetadataClient {
     ) -> Result<tonic::Streaming<pb::NodeEvent>, DmsError> {
         let mut session = self.current_session().await;
         let mut client = self.client.clone();
-        let mut result = observe_rpc(
+        let mut result = observe_control_rpc(
             self.rpc_metrics.as_ref(),
             dms_metrics::RpcCall::META_WATCH_NODE_EVENTS,
             client.watch_node_events(pb::WatchNodeEventsRequest {
@@ -692,7 +716,7 @@ impl MetadataClient {
         if result.as_ref().is_err_and(is_reopenable_session_error) {
             session = self.reopen_session().await?;
             let mut client = self.client.clone();
-            result = observe_rpc(
+            result = observe_control_rpc(
                 self.rpc_metrics.as_ref(),
                 dms_metrics::RpcCall::META_WATCH_NODE_EVENTS,
                 client.watch_node_events(pb::WatchNodeEventsRequest {
@@ -711,7 +735,7 @@ impl MetadataClient {
     pub(crate) async fn acknowledge_event(&self, event: &pb::NodeEvent) -> Result<(), DmsError> {
         let mut session = self.current_session().await;
         let mut client = self.client.clone();
-        let mut result = observe_rpc(
+        let mut result = observe_control_rpc(
             self.rpc_metrics.as_ref(),
             dms_metrics::RpcCall::META_ACKNOWLEDGE_NODE_EVENT,
             client.acknowledge_node_event(pb::AcknowledgeNodeEventRequest {
@@ -729,7 +753,7 @@ impl MetadataClient {
         if result.as_ref().is_err_and(is_reopenable_session_error) {
             session = self.reopen_session().await?;
             let mut client = self.client.clone();
-            result = observe_rpc(
+            result = observe_control_rpc(
                 self.rpc_metrics.as_ref(),
                 dms_metrics::RpcCall::META_ACKNOWLEDGE_NODE_EVENT,
                 client.acknowledge_node_event(pb::AcknowledgeNodeEventRequest {
@@ -766,7 +790,7 @@ impl MetadataClient {
                 detail: detail.clone(),
             };
         let mut client = self.client.clone();
-        let mut result = observe_rpc(
+        let mut result = observe_control_rpc(
             self.rpc_metrics.as_ref(),
             dms_metrics::RpcCall::META_ACKNOWLEDGE_BLOCK_RETIREMENT,
             client.acknowledge_block_retirement(make_request(session.clone())),
@@ -783,7 +807,7 @@ impl MetadataClient {
         if result.as_ref().is_err_and(is_reopenable_session_error) {
             session = self.reopen_session().await?;
             let mut client = self.client.clone();
-            result = observe_rpc(
+            result = observe_control_rpc(
                 self.rpc_metrics.as_ref(),
                 dms_metrics::RpcCall::META_ACKNOWLEDGE_BLOCK_RETIREMENT,
                 client.acknowledge_block_retirement(make_request(session)),
@@ -808,18 +832,32 @@ impl MetadataClient {
 
 async fn run_resolve_batcher(mut rpc: ResolveBatchRpc, mut receive: mpsc::Receiver<ResolveJob>) {
     while let Some(first) = receive.recv().await {
-        // 单请求立即发送；仅吸收此刻已经排队的并发请求，不设置聚合定时器。
-        let mut jobs = Vec::with_capacity(METADATA_RESOLVE_BATCH_MAX);
-        jobs.push(first);
-        while jobs.len() < METADATA_RESOLVE_BATCH_MAX {
-            match receive.try_recv() {
-                Ok(job) => jobs.push(job),
-                Err(_) => break,
-            }
-        }
+        let jobs = collect_ready_resolve_jobs(first, &mut receive);
         let result = rpc.resolve(&jobs).await;
         deliver_resolve_results(jobs, result);
     }
+}
+
+/// 为一次 Resolve RPC 收集“调用时已经就绪”的请求。
+///
+/// 这个函数刻意不是 `async`，也没有定时器：第一项到达后立即形成批次，只用
+/// `try_recv` 吸收同一调度波次中已经排队的请求。这样并发小对象能共享控制 RPC，
+/// 单个请求却不会为了凑批增加固定延迟。
+fn collect_ready_resolve_jobs(
+    first: ResolveJob,
+    receive: &mut mpsc::Receiver<ResolveJob>,
+) -> Vec<ResolveJob> {
+    let mut jobs = Vec::with_capacity(METADATA_RESOLVE_BATCH_MAX);
+    jobs.push(first);
+    while jobs.len() < METADATA_RESOLVE_BATCH_MAX {
+        match receive.try_recv() {
+            Ok(job) => jobs.push(job),
+            Err(mpsc::error::TryRecvError::Empty | mpsc::error::TryRecvError::Disconnected) => {
+                break;
+            }
+        }
+    }
+    jobs
 }
 
 impl ResolveBatchRpc {
@@ -847,7 +885,7 @@ impl ResolveBatchRpc {
                 .map(|job| resolve_request(self.node_id, session.clone(), job))
                 .collect(),
         };
-        observe_rpc(
+        observe_control_rpc(
             self.rpc_metrics.as_ref(),
             dms_metrics::RpcCall::META_RESOLVE_OBJECTS,
             self.client.resolve_objects(request),
@@ -994,6 +1032,28 @@ where
     result
 }
 
+/// 执行一次需要快速故障发现的普通 Node→Meta 控制 RPC。
+///
+/// gRPC `Channel` 的外层超时必须允许 Commit 等待恢复租约，但 Heartbeat、Resolve、
+/// Watch 建连和 ACK 不能继承 35 秒预算。这里仅包住一次 unary 请求（或 server
+/// stream 返回响应头之前的 Future）；拿到 Watch stream 后，后续事件等待不受 5 秒
+/// 限制。超时会作为标准 DeadlineExceeded 进入现有错误映射与指标统计。
+async fn observe_control_rpc<T, F>(
+    metrics: Option<&dms_metrics::RpcMetrics>,
+    call: dms_metrics::RpcCall,
+    future: F,
+) -> Result<Response<T>, Status>
+where
+    F: Future<Output = Result<Response<T>, Status>>,
+{
+    tokio::time::timeout(
+        METADATA_CONTROL_REQUEST_TIMEOUT,
+        observe_rpc(metrics, call, future),
+    )
+    .await
+    .map_err(|_| Status::deadline_exceeded("Meta control RPC deadline exceeded"))?
+}
+
 fn context(node_id: u64) -> pb::RequestContext {
     pb::RequestContext {
         node_id,
@@ -1010,6 +1070,13 @@ fn is_reopenable_session_error(error: &DmsError) -> bool {
     error.code() == dms_error::META_SESSION_UNKNOWN
 }
 
+fn is_uncertain_commit_result_error(error: &DmsError) -> bool {
+    matches!(
+        error.kind(),
+        ErrorKind::Unavailable | ErrorKind::DeadlineExceeded
+    )
+}
+
 fn map_status(status: tonic::Status) -> DmsError {
     status_to_dms_error_with(status, |message| {
         DmsError::new(
@@ -1024,6 +1091,30 @@ fn map_status(status: tonic::Status) -> DmsError {
 mod tests {
     use super::*;
     use dms_transport::dms_error_to_status;
+
+    fn resolve_job(index: u64) -> ResolveJob {
+        let (reply, _receive) = oneshot::channel();
+        ResolveJob {
+            key: format!("key-{index}").into_bytes(),
+            exact_version: None,
+            reply,
+        }
+    }
+
+    #[test]
+    fn resolve_batch_absorbs_only_ready_jobs_without_waiting() {
+        let (sender, mut receiver) = mpsc::channel(METADATA_RESOLVE_BATCH_MAX + 2);
+        for index in 1..=(METADATA_RESOLVE_BATCH_MAX + 2) {
+            sender
+                .try_send(resolve_job(index as u64))
+                .expect("test resolve queue has capacity");
+        }
+
+        let batch = collect_ready_resolve_jobs(resolve_job(0), &mut receiver);
+
+        assert_eq!(batch.len(), METADATA_RESOLVE_BATCH_MAX);
+        assert_eq!(receiver.len(), 3, "overflow waits for the next RPC batch");
+    }
 
     #[test]
     fn commit_sequence_is_shared_and_never_wraps() {

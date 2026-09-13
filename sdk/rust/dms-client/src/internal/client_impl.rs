@@ -6,11 +6,15 @@
 // AtomicU64 生成无需 Mutex 的进程内 sequence。
 use std::{
     collections::HashSet,
-    io::Read,
-    sync::atomic::{AtomicU64, Ordering},
+    io::{self, Read},
+    sync::{
+        RwLock,
+        atomic::{AtomicU64, Ordering},
+    },
 };
 
 use tokio::runtime::{Builder, Runtime};
+use tokio::sync::Mutex as AsyncMutex;
 use uuid::Uuid;
 
 use crate::client::{
@@ -50,8 +54,12 @@ fn shared_metrics(
 pub(crate) struct DmsClientImpl {
     // SDK 自己拥有 runtime，公开 API 无需要求用户处于 Tokio 环境。
     runtime: Runtime,
-    // 当前只连接一个 Node；后续 NodeManager 会管理本地和远端多个连接。
-    connection: NodeConnection,
+    // 当前只连接一个 Node。这里用可替换的连接快照承载 Session 换代：
+    // 前台请求先 clone 当前快照，失败确认是 Session 级故障后再原子替换。
+    connection: RwLock<NodeConnection>,
+    // Session 故障恢复必须单飞：同一代 Session 断开时，只允许一个前台请求
+    // 真正执行 OpenSession；其他并发请求等待它完成后复用新连接。
+    reconnect_gate: AsyncMutex<()>,
     // 保存连接级默认超时和 durability。
     options: ResolvedClientOptions,
     // 每个 SDK 实例启动时只生成一次；与 sequence 组成跨 Client 唯一的 OperationId。
@@ -61,6 +69,7 @@ pub(crate) struct DmsClientImpl {
     // None means the embedding application did not inject a Registry. Keeping
     // this optional avoids a hidden global exporter and any label work when disabled.
     metrics: Option<ClientMetrics>,
+    rpc_metrics: Option<dms_metrics::RpcMetrics>,
     error_metrics: Option<dms_metrics::ErrorMetrics>,
 }
 
@@ -99,18 +108,80 @@ impl DmsClientImpl {
             .block_on(NodeConnection::connect(
                 &resolved_options,
                 client_metrics.clone(),
-                rpc_metrics,
+                rpc_metrics.clone(),
             ))
             .map_err(ConnectError)?;
         Ok(Self {
             runtime,
-            connection,
+            connection: RwLock::new(connection),
+            reconnect_gate: AsyncMutex::new(()),
             options: resolved_options,
             client_instance_id: *Uuid::new_v4().as_bytes(),
             next_operation_id: AtomicU64::new(1),
             metrics: client_metrics,
+            rpc_metrics,
             error_metrics,
         })
+    }
+
+    fn current_connection(&self) -> Result<NodeConnection, DmsError> {
+        self.connection
+            .read()
+            .map_err(|_| {
+                DmsError::client_protocol_violation("DMS client connection lock is poisoned")
+            })
+            .map(|connection| connection.clone())
+    }
+
+    async fn reconnect_after(&self, failed_session_id: u64) -> Result<NodeConnection, DmsError> {
+        if let Ok(connection) = self.current_connection()
+            && connection.session_id() != failed_session_id
+        {
+            return Ok(connection);
+        }
+
+        let _singleflight = self.reconnect_gate.lock().await;
+        if let Ok(connection) = self.current_connection()
+            && connection.session_id() != failed_session_id
+        {
+            return Ok(connection);
+        }
+
+        let new_connection = NodeConnection::connect(
+            &self.options,
+            self.metrics.clone(),
+            self.rpc_metrics.clone(),
+        )
+        .await?;
+        let mut guard = self.connection.write().map_err(|_| {
+            DmsError::client_protocol_violation("DMS client connection lock is poisoned")
+        })?;
+        if guard.session_id() == failed_session_id {
+            *guard = new_connection.clone();
+            Ok(new_connection)
+        } else {
+            Ok(guard.clone())
+        }
+    }
+
+    async fn run_with_session_recovery<T, Fut>(
+        &self,
+        should_reopen: fn(&DmsError) -> bool,
+        mut call: impl FnMut(NodeConnection) -> Fut,
+    ) -> Result<T, DmsError>
+    where
+        Fut: std::future::Future<Output = Result<T, DmsError>>,
+    {
+        let first = self.current_connection()?;
+        let failed_session_id = first.session_id();
+        match call(first).await {
+            Ok(value) => Ok(value),
+            Err(error) if should_reopen(&error) => {
+                let second = self.reconnect_after(failed_session_id).await?;
+                call(second).await
+            }
+            Err(error) => Err(error),
+        }
     }
 
     /// Wraps one public SDK contract with the same count/latency/inflight semantics.
@@ -155,12 +226,22 @@ impl DmsClientImpl {
         // Relaxed 足以保证 ID 不重复；这里不依赖该原子操作与其他内存的先后顺序。
         let operation_id = self.next_operation_id();
         // 同步 API 在这里等待完整 Allocate→Upload→Set 异步链结束。
-        self.runtime.block_on(self.connection.set(
-            &key,
-            value,
-            options,
-            self.options.default_durability,
-            operation_id,
+        self.runtime.block_on(self.run_with_session_recovery(
+            should_reopen_idempotent_write,
+            |connection| {
+                let key = key.clone();
+                async move {
+                    connection
+                        .set(
+                            &key,
+                            value,
+                            options,
+                            self.options.default_durability,
+                            operation_id,
+                        )
+                        .await
+                }
+            },
         ))
     }
 
@@ -172,20 +253,52 @@ impl DmsClientImpl {
         options: SetOptions,
     ) -> Result<SetResult, DmsError> {
         let operation_id = self.next_operation_id();
-        self.runtime.block_on(self.connection.set_from(
-            &key,
-            src,
-            length,
-            options,
-            self.options.default_durability,
-            operation_id,
-        ))
+        self.runtime.block_on(async {
+            let mut src = CountingReader::new(src);
+            let first = self.current_connection()?;
+            let failed_session_id = first.session_id();
+            match first
+                .set_from(
+                    &key,
+                    &mut src,
+                    length,
+                    options,
+                    self.options.default_durability,
+                    operation_id,
+                )
+                .await
+            {
+                Ok(result) => Ok(result),
+                Err(error) if should_reopen_idempotent_write(&error) && src.bytes_read() == 0 => {
+                    let second = self.reconnect_after(failed_session_id).await?;
+                    second
+                        .set_from(
+                            &key,
+                            &mut src,
+                            length,
+                            options,
+                            self.options.default_durability,
+                            operation_id,
+                        )
+                        .await
+                }
+                Err(error) if should_reopen_idempotent_write(&error) => {
+                    Err(set_from_reader_consumed_error(src.bytes_read(), error))
+                }
+                Err(error) => Err(error),
+            }
+        })
     }
 
     pub(crate) fn get(&self, key: Key, options: GetOptions) -> Result<Option<GetResult>, DmsError> {
         // 薄 Client 原则：每次读取都到 Node，由 Node 复用本地 Current/Block。
         // SDK 只返回 owned Vec 或显式 SharedValueView，不再跨请求保存 value bytes。
-        self.runtime.block_on(self.connection.get(&key, options))
+        self.runtime.block_on(
+            self.run_with_session_recovery(should_reopen_read, |connection| {
+                let key = key.clone();
+                async move { connection.get(&key, options).await }
+            }),
+        )
     }
 
     pub(crate) fn get_into(
@@ -194,8 +307,21 @@ impl DmsClientImpl {
         dst: &mut [u8],
         options: GetOptions,
     ) -> Result<Option<GetIntoResult>, DmsError> {
-        self.runtime
-            .block_on(self.connection.get_into(&key, dst, options))
+        self.runtime.block_on(async {
+            let (connection, plan) = self
+                .run_with_session_recovery(should_reopen_read, |connection| {
+                    let key = key.clone();
+                    async move {
+                        let plan = connection.get_into_plan(&key, options).await?;
+                        Ok::<_, DmsError>((connection, plan))
+                    }
+                })
+                .await?;
+            match plan {
+                Some(plan) => connection.copy_get_into_plan(plan, dst).await.map(Some),
+                None => Ok(None),
+            }
+        })
     }
 
     pub(crate) fn get_reader(
@@ -203,8 +329,12 @@ impl DmsClientImpl {
         key: Key,
         options: GetOptions,
     ) -> Result<Option<ValueReaderInner>, DmsError> {
-        self.runtime
-            .block_on(self.connection.get_reader(&key, options))
+        self.runtime.block_on(
+            self.run_with_session_recovery(should_reopen_read, |connection| {
+                let key = key.clone();
+                async move { connection.get_reader(&key, options).await }
+            }),
+        )
     }
 
     pub(crate) fn read_value_reader(
@@ -212,16 +342,28 @@ impl DmsClientImpl {
         reader: &mut ValueReaderInner,
         dst: &mut [u8],
     ) -> Result<usize, DmsError> {
-        self.runtime
-            .block_on(self.connection.read_value_reader(reader, dst))
+        self.runtime.block_on(async {
+            let connection = self.current_connection()?;
+            connection.read_value_reader(reader, dst).await
+        })
     }
 
     pub(crate) fn stat(&self, key: Key) -> Result<Option<ObjectInfo>, DmsError> {
-        self.runtime.block_on(self.connection.stat(&key))
+        self.runtime.block_on(
+            self.run_with_session_recovery(should_reopen_read, |connection| {
+                let key = key.clone();
+                async move { connection.stat(&key).await }
+            }),
+        )
     }
 
     pub(crate) fn scan(&self, prefix: &[u8], options: ScanOptions) -> Result<ScanResult, DmsError> {
-        self.runtime.block_on(self.connection.scan(prefix, options))
+        self.runtime.block_on(
+            self.run_with_session_recovery(should_reopen_read, |connection| {
+                let options = options.clone();
+                async move { connection.scan(prefix, options).await }
+            }),
+        )
     }
 
     pub(crate) fn allocate_write(
@@ -231,17 +373,25 @@ impl DmsClientImpl {
         options: SetOptions,
     ) -> Result<SharedWriteInner, DmsError> {
         let operation_id = self.next_operation_id();
-        self.runtime.block_on(self.connection.allocate_write(
-            key,
-            len,
-            options,
-            self.options.default_durability,
-            operation_id,
-        ))
+        self.runtime.block_on(async {
+            let connection = self.current_connection()?;
+            connection
+                .allocate_write(
+                    key,
+                    len,
+                    options,
+                    self.options.default_durability,
+                    operation_id,
+                )
+                .await
+        })
     }
 
     pub(crate) fn commit_shared(&self, write: SharedWriteInner) -> Result<SetResult, DmsError> {
-        self.runtime.block_on(self.connection.commit_shared(write))
+        self.runtime.block_on(async {
+            let connection = self.current_connection()?;
+            connection.commit_shared(write).await
+        })
     }
 
     pub(crate) fn get_view(
@@ -249,14 +399,23 @@ impl DmsClientImpl {
         key: Key,
         options: GetOptions,
     ) -> Result<Option<SharedViewInner>, DmsError> {
-        self.runtime
-            .block_on(self.connection.get_view(&key, options))
+        self.runtime.block_on(
+            self.run_with_session_recovery(should_reopen_read, |connection| {
+                let key = key.clone();
+                async move { connection.get_view(&key, options).await }
+            }),
+        )
     }
 
     pub(crate) fn del(&self, key: Key) -> Result<DeleteResult, DmsError> {
         let operation_id = self.next_operation_id();
-        self.runtime
-            .block_on(self.connection.del(&key, operation_id))
+        self.runtime.block_on(self.run_with_session_recovery(
+            should_reopen_idempotent_write,
+            |connection| {
+                let key = key.clone();
+                async move { connection.del(&key, operation_id).await }
+            },
+        ))
     }
 
     pub(crate) fn mset(
@@ -271,11 +430,18 @@ impl DmsClientImpl {
         }
         reject_duplicate_keys(entries.iter().map(|entry| entry.key.as_bytes()))?;
         let operation_id = self.next_operation_id();
-        self.runtime.block_on(self.connection.mset(
-            entries,
-            options,
-            self.options.default_durability,
-            operation_id,
+        self.runtime.block_on(self.run_with_session_recovery(
+            should_reopen_idempotent_write,
+            |connection| async move {
+                connection
+                    .mset(
+                        entries,
+                        options,
+                        self.options.default_durability,
+                        operation_id,
+                    )
+                    .await
+            },
         ))
     }
 
@@ -285,7 +451,11 @@ impl DmsClientImpl {
                 "MGET keys are empty".to_string(),
             ));
         }
-        self.runtime.block_on(self.connection.mget(keys))
+        self.runtime.block_on(
+            self.run_with_session_recovery(should_reopen_read, |connection| async move {
+                connection.mget(keys).await
+            }),
+        )
     }
 
     pub(crate) fn set_range(
@@ -301,13 +471,23 @@ impl DmsClientImpl {
             ));
         }
         let operation_id = self.next_operation_id();
-        self.runtime.block_on(self.connection.set_range(
-            &key,
-            offset,
-            data,
-            options,
-            self.options.default_durability,
-            operation_id,
+        self.runtime.block_on(self.run_with_session_recovery(
+            should_reopen_idempotent_write,
+            |connection| {
+                let key = key.clone();
+                async move {
+                    connection
+                        .set_range(
+                            &key,
+                            offset,
+                            data,
+                            options,
+                            self.options.default_durability,
+                            operation_id,
+                        )
+                        .await
+                }
+            },
         ))
     }
 
@@ -328,12 +508,23 @@ impl DmsClientImpl {
             .iter()
             .map(|entry| (entry.field.clone(), entry.value.clone()))
             .collect::<Vec<_>>();
-        self.runtime.block_on(self.connection.hset(
-            &key,
-            &entries,
-            options,
-            self.options.default_durability,
-            operation_id,
+        self.runtime.block_on(self.run_with_session_recovery(
+            should_reopen_idempotent_write,
+            |connection| {
+                let key = key.clone();
+                let entries = entries.clone();
+                async move {
+                    connection
+                        .hset(
+                            &key,
+                            &entries,
+                            options,
+                            self.options.default_durability,
+                            operation_id,
+                        )
+                        .await
+                }
+            },
         ))
     }
 
@@ -343,8 +534,13 @@ impl DmsClientImpl {
         field: HashField,
         options: HashGetOptions,
     ) -> Result<Option<HashValue>, DmsError> {
-        self.runtime
-            .block_on(self.connection.hget(&key, &field, options))
+        self.runtime.block_on(
+            self.run_with_session_recovery(should_reopen_read, |connection| {
+                let key = key.clone();
+                let field = field.clone();
+                async move { connection.hget(&key, &field, options).await }
+            }),
+        )
     }
 
     pub(crate) fn hmget(
@@ -353,8 +549,12 @@ impl DmsClientImpl {
         fields: &[HashField],
         options: HashGetOptions,
     ) -> Result<HashMultiGetResult, DmsError> {
-        self.runtime
-            .block_on(self.connection.hmget(&key, fields, options))
+        self.runtime.block_on(
+            self.run_with_session_recovery(should_reopen_read, |connection| {
+                let key = key.clone();
+                async move { connection.hmget(&key, fields, options).await }
+            }),
+        )
     }
 
     pub(crate) fn hgetall(
@@ -362,8 +562,12 @@ impl DmsClientImpl {
         key: Key,
         options: HashGetOptions,
     ) -> Result<HashEntriesResult, DmsError> {
-        self.runtime
-            .block_on(self.connection.hget_all(&key, options))
+        self.runtime.block_on(
+            self.run_with_session_recovery(should_reopen_read, |connection| {
+                let key = key.clone();
+                async move { connection.hget_all(&key, options).await }
+            }),
+        )
     }
 
     pub(crate) fn hdel(
@@ -379,12 +583,22 @@ impl DmsClientImpl {
         }
         reject_duplicate_keys(fields.iter().map(HashField::as_bytes))?;
         let operation_id = self.next_operation_id();
-        self.runtime.block_on(self.connection.hdelete(
-            &key,
-            fields,
-            options,
-            self.options.default_durability,
-            operation_id,
+        self.runtime.block_on(self.run_with_session_recovery(
+            should_reopen_idempotent_write,
+            |connection| {
+                let key = key.clone();
+                async move {
+                    connection
+                        .hdelete(
+                            &key,
+                            fields,
+                            options,
+                            self.options.default_durability,
+                            operation_id,
+                        )
+                        .await
+                }
+            },
         ))
     }
 
@@ -399,8 +613,12 @@ impl DmsClientImpl {
                 "HSCAN limit must be positive".to_string(),
             ));
         }
-        self.runtime
-            .block_on(self.connection.hscan(&key, cursor, options))
+        self.runtime.block_on(
+            self.run_with_session_recovery(should_reopen_read, |connection| {
+                let key = key.clone();
+                async move { connection.hscan(&key, cursor, options).await }
+            }),
+        )
     }
 
     pub(crate) fn hwrite_at(
@@ -417,14 +635,25 @@ impl DmsClientImpl {
             ));
         }
         let operation_id = self.next_operation_id();
-        self.runtime.block_on(self.connection.hwrite_at(
-            &key,
-            &field,
-            offset,
-            data,
-            options,
-            self.options.default_durability,
-            operation_id,
+        self.runtime.block_on(self.run_with_session_recovery(
+            should_reopen_idempotent_write,
+            |connection| {
+                let key = key.clone();
+                let field = field.clone();
+                async move {
+                    connection
+                        .hwrite_at(
+                            &key,
+                            &field,
+                            offset,
+                            data,
+                            options,
+                            self.options.default_durability,
+                            operation_id,
+                        )
+                        .await
+                }
+            },
         ))
     }
 
@@ -446,9 +675,60 @@ impl Drop for DmsClientImpl {
         // 当前 Rust SDK 是同步 API + 私有 Tokio Runtime：和现有 set/get 一样，
         // Drop 也假定不在另一个 Tokio Runtime 的执行上下文里阻塞调用。这个
         // 使用限制先记录在这里，后续如要支持 async SDK 再单独扩展架构。
-        if let Err(error) = self.runtime.block_on(self.connection.close()) {
+        let connection = match self.current_connection() {
+            Ok(connection) => connection,
+            Err(error) => {
+                log::warn!("DMS client shutdown could not read current connection: {error}");
+                return;
+            }
+        };
+        if let Err(error) = self.runtime.block_on(connection.close()) {
             log::warn!("DMS client shutdown flush did not complete: {error}");
         }
+    }
+}
+
+fn should_reopen_read(error: &DmsError) -> bool {
+    error.code() == dms_error::NODE_SESSION_UNKNOWN
+        || error.code() == dms_error::CLIENT_CONNECTION_UNAVAILABLE
+}
+
+fn should_reopen_idempotent_write(error: &DmsError) -> bool {
+    // 写请求只有在调用点确认输入可重放、且同一个 OperationId 会被复用时，
+    // 才能把连接级 unknown outcome 交给服务端幂等表处理。
+    error.code() == dms_error::NODE_SESSION_UNKNOWN
+        || error.code() == dms_error::CLIENT_CONNECTION_UNAVAILABLE
+}
+
+fn set_from_reader_consumed_error(bytes_read: u64, original: DmsError) -> DmsError {
+    DmsError::client_connection_unavailable(format!(
+        "SET_FROM cannot be retried after reading {bytes_read} bytes from the caller's Reader; original error: {original}"
+    ))
+}
+
+struct CountingReader<R> {
+    inner: R,
+    bytes_read: u64,
+}
+
+impl<R> CountingReader<R> {
+    fn new(inner: R) -> Self {
+        Self {
+            inner,
+            bytes_read: 0,
+        }
+    }
+
+    fn bytes_read(&self) -> u64 {
+        self.bytes_read
+    }
+}
+
+impl<R: Read> Read for CountingReader<R> {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        let read = self.inner.read(buf)?;
+        self.bytes_read = self.bytes_read.saturating_add(read as u64);
+        Ok(read)
     }
 }
 
@@ -466,6 +746,53 @@ fn reject_duplicate_keys<'a>(keys: impl Iterator<Item = &'a [u8]>) -> Result<(),
 
 #[cfg(test)]
 mod thin_client_tests {
+    use std::io::Read;
+
+    use crate::DmsError;
+
+    #[test]
+    fn session_recovery_strategies_keep_business_errors_terminal() {
+        let session_unknown = DmsError::new(
+            dms_error::NODE_SESSION_UNKNOWN,
+            dms_error::ErrorKind::Unauthenticated,
+            "session lost",
+        );
+        let connection_lost = DmsError::client_connection_unavailable("transport closed");
+        let invalid_argument = DmsError::client_invalid_argument("bad key");
+
+        assert!(super::should_reopen_read(&session_unknown));
+        assert!(super::should_reopen_read(&connection_lost));
+        assert!(!super::should_reopen_read(&invalid_argument));
+
+        // 写响应丢失属于 unknown outcome；只有已确认可重放且复用 OperationId
+        // 的写路径才会选用这个策略，普通业务错误不能被重试掩盖。
+        assert!(super::should_reopen_idempotent_write(&session_unknown));
+        assert!(super::should_reopen_idempotent_write(&connection_lost));
+        assert!(!super::should_reopen_idempotent_write(&invalid_argument));
+    }
+
+    #[test]
+    fn set_from_retry_knows_whether_reader_was_consumed() {
+        let mut reader = super::CountingReader::new(std::io::Cursor::new(b"abcdef".to_vec()));
+        let mut buf = [0_u8; 3];
+
+        assert_eq!(reader.bytes_read(), 0);
+        reader.read_exact(&mut buf).unwrap();
+        assert_eq!(reader.bytes_read(), 3);
+
+        let error = super::set_from_reader_consumed_error(
+            reader.bytes_read(),
+            DmsError::client_connection_unavailable("lost response"),
+        );
+        assert_eq!(error.code(), dms_error::CLIENT_CONNECTION_UNAVAILABLE);
+        assert!(
+            error
+                .message()
+                .contains("cannot be retried after reading 3 bytes"),
+            "{error}"
+        );
+    }
+
     #[test]
     fn independent_clients_share_registry_handles_after_drop_and_reconnect() {
         let registry = dms_metrics::registry();

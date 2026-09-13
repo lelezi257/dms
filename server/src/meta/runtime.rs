@@ -715,7 +715,6 @@ struct NodeWatcher {
 struct StoredReplica {
     location: pb::ReplicaLocation,
     catalog_revision: u64,
-    #[allow(dead_code)]
     length: u64,
 }
 
@@ -733,13 +732,20 @@ struct CommitDispatch {
     operation_ids: Vec<Vec<u8>>,
     response: pb::CommitVersionResponse,
     event_cursor: Option<u64>,
+    /// 当前失效事件必须由这些 Node 的 Watch ACK 证明已处理。
     waiting_nodes: HashSet<u64>,
+    /// Meta 恢复/Node 换代前已经发出去的本地缓存租约，需要等真实租约到期。
+    /// 它和 Watch ACK 是两类独立条件：ACK 不能缩短旧 lease，lease 到期也不能代替 ACK。
+    waiting_prior_lease_nodes: HashSet<u64>,
 }
 
 struct PendingCommit {
     operation_ids: Vec<Vec<u8>>,
     response: PendingResponse,
+    /// 当前失效事件 ACK 尚未满足的 Node。
     waiting_nodes: HashSet<u64>,
+    /// 恢复前旧租约尚未自然到期的 Node。
+    waiting_prior_lease_nodes: HashSet<u64>,
     reply: PendingReply,
 }
 
@@ -894,9 +900,11 @@ impl MetaState {
             session.last_heartbeat = None;
             // 快照仅保存当前 incarnation，旧 incarnation 的缓存租约不可从快照排除。
             // 对所有恢复节点（包括本次写入源）重建完整保守窗口，ACK 不能提前缩短它。
-            state
-                .prior_lease_deadlines
-                .insert(*node_id, state.recovery_lease_until);
+            if !state.prior_lease_deadlines.contains_key(node_id) {
+                state
+                    .prior_lease_deadlines
+                    .insert(*node_id, state.recovery_lease_until);
+            }
         }
         state.rebuild_pending_repairs();
         state.enforce_retention();
@@ -914,6 +922,16 @@ impl MetaState {
             return Err(MetaRuntimeError::UnknownSession);
         }
         Ok(())
+    }
+
+    fn remember_prior_lease(&mut self, node_id: u64, until: Instant) {
+        // prior_lease_deadlines 只表达“旧缓存租约还可能存在到什么时候”。
+        // 它不是心跳活性状态：同 incarnation heartbeat 只能证明 Node 还活着，
+        // 不能证明 Meta 恢复前已经发给 Client 的旧 Current cache 全部失效。
+        self.prior_lease_deadlines
+            .entry(node_id)
+            .and_modify(|old| *old = (*old).max(until))
+            .or_insert(until);
     }
 
     fn open_node_session(
@@ -980,7 +998,7 @@ impl MetaState {
         _event_cursor: u64,
     ) -> Result<HeartbeatGrant, MetaRuntimeError> {
         self.verify_session(&pb::NodeSessionIdentity {
-            session_id,
+            session_id: session_id.clone(),
             node_id,
             node_epoch,
         })?;
@@ -1909,14 +1927,15 @@ impl MetaState {
             .operations
             .get(&operation_id)
             .and_then(|operation| operation.visibility_cursor);
-        let waiting_nodes = event_cursor
-            .map(|cursor| self.waiting_visibility_nodes(source_node, cursor))
+        let (waiting_nodes, waiting_prior_lease_nodes) = event_cursor
+            .map(|cursor| self.visibility_barrier_nodes(source_node, cursor))
             .unwrap_or_default();
         Ok(CommitDispatch {
             operation_ids: vec![operation_id],
             response,
             event_cursor,
             waiting_nodes,
+            waiting_prior_lease_nodes,
         })
     }
 
@@ -1929,7 +1948,7 @@ impl MetaState {
             let _ = reply.send(Ok(dispatch.response));
             return;
         };
-        if dispatch.waiting_nodes.is_empty() {
+        if dispatch.waiting_nodes.is_empty() && dispatch.waiting_prior_lease_nodes.is_empty() {
             self.complete_operation_visibility(&dispatch.operation_ids);
             let _ = reply.send(Ok(dispatch.response));
             return;
@@ -1941,6 +1960,7 @@ impl MetaState {
                 operation_ids: dispatch.operation_ids,
                 response: PendingResponse::Single(dispatch.response),
                 waiting_nodes: dispatch.waiting_nodes,
+                waiting_prior_lease_nodes: dispatch.waiting_prior_lease_nodes,
                 reply: PendingReply::Single(reply),
             });
     }
@@ -1964,8 +1984,9 @@ impl MetaState {
             let _ = reply.send(Ok(response));
             return;
         };
-        let waiting_nodes = self.waiting_visibility_nodes(source_node, cursor);
-        if waiting_nodes.is_empty() {
+        let (waiting_nodes, waiting_prior_lease_nodes) =
+            self.visibility_barrier_nodes(source_node, cursor);
+        if waiting_nodes.is_empty() && waiting_prior_lease_nodes.is_empty() {
             self.complete_operation_visibility(&operation_ids);
             let _ = reply.send(Ok(response));
             return;
@@ -1977,6 +1998,7 @@ impl MetaState {
                 operation_ids,
                 response: PendingResponse::Batch(response),
                 waiting_nodes,
+                waiting_prior_lease_nodes,
                 reply: PendingReply::Batch(reply),
             });
     }
@@ -2246,7 +2268,7 @@ impl MetaState {
         let sequence = self.append_record(record.clone())?;
         self.apply_record(sequence, record);
         self.maybe_checkpoint(sequence)?;
-        self.advance_pending_commits(session.node_id, acknowledged_cursor);
+        self.advance_pending_commits_for_ack(session.node_id, acknowledged_cursor);
         if acknowledged_cursor == request.cursor
             && let Some(block_id) = applied_repair
         {
@@ -2481,14 +2503,7 @@ impl MetaState {
         }
     }
 
-    fn advance_pending_commits(&mut self, node_id: u64, acknowledged_cursor: u64) {
-        if self
-            .prior_lease_deadlines
-            .get(&node_id)
-            .is_some_and(|until| *until > Instant::now())
-        {
-            return;
-        }
+    fn advance_pending_commits_for_ack(&mut self, node_id: u64, acknowledged_cursor: u64) {
         let cursors = self
             .pending_commits
             .range(..=acknowledged_cursor)
@@ -2501,53 +2516,78 @@ impl MetaState {
             for commit in pending.iter_mut() {
                 commit.waiting_nodes.remove(&node_id);
             }
-            let mut unresolved = Vec::new();
-            for commit in self.pending_commits.remove(&cursor).unwrap_or_default() {
-                if commit.waiting_nodes.is_empty() {
-                    self.complete_operation_visibility(&commit.operation_ids);
-                    match (commit.reply, commit.response) {
-                        (PendingReply::Single(reply), PendingResponse::Single(response)) => {
-                            let _ = reply.send(Ok(response));
-                        }
-                        (PendingReply::Batch(reply), PendingResponse::Batch(response)) => {
-                            let _ = reply.send(Ok(response));
-                        }
-                        _ => unreachable!("pending response/reply kinds must match"),
+            self.complete_ready_pending_commits(cursor);
+        }
+    }
+
+    fn advance_pending_commits_for_prior_lease(&mut self, node_id: u64) {
+        let cursors = self.pending_commits.keys().copied().collect::<Vec<_>>();
+        for cursor in cursors {
+            let Some(pending) = self.pending_commits.get_mut(&cursor) else {
+                continue;
+            };
+            for commit in pending.iter_mut() {
+                commit.waiting_prior_lease_nodes.remove(&node_id);
+            }
+            self.complete_ready_pending_commits(cursor);
+        }
+    }
+
+    fn complete_ready_pending_commits(&mut self, cursor: u64) {
+        let mut unresolved = Vec::new();
+        for commit in self.pending_commits.remove(&cursor).unwrap_or_default() {
+            if commit.waiting_nodes.is_empty() && commit.waiting_prior_lease_nodes.is_empty() {
+                self.complete_operation_visibility(&commit.operation_ids);
+                match (commit.reply, commit.response) {
+                    (PendingReply::Single(reply), PendingResponse::Single(response)) => {
+                        let _ = reply.send(Ok(response));
                     }
-                } else {
-                    unresolved.push(commit);
+                    (PendingReply::Batch(reply), PendingResponse::Batch(response)) => {
+                        let _ = reply.send(Ok(response));
+                    }
+                    _ => unreachable!("pending response/reply kinds must match"),
                 }
+            } else {
+                unresolved.push(commit);
             }
-            if !unresolved.is_empty() {
-                self.pending_commits.insert(cursor, unresolved);
-            }
+        }
+        if !unresolved.is_empty() {
+            self.pending_commits.insert(cursor, unresolved);
         }
     }
 
     /// 投递失败不构成缓存撤销证明：断流 watcher 仍然参与 visibility barrier。
-    /// source Node 在 Meta 回复后执行本机 Client barrier，因此不能在此等待自己。
-    fn waiting_visibility_nodes(&self, source_node: u64, cursor: u64) -> HashSet<u64> {
-        self.sessions
+    /// source Node 在 Meta 回复后执行本机 Client barrier，因此不需要等待自己的
+    /// 当前 Watch ACK；但 Meta 恢复前已经发出的旧 lease 仍要等真实到期。
+    fn visibility_barrier_nodes(
+        &self,
+        source_node: u64,
+        cursor: u64,
+    ) -> (HashSet<u64>, HashSet<u64>) {
+        let now = Instant::now();
+        let active_nodes = self
+            .sessions
             .keys()
-            .filter(|node_id| !self.retired_sessions.contains(node_id))
+            .filter(|node_id| !self.retired_sessions.contains(node_id));
+        let waiting_nodes = active_nodes
+            .clone()
+            .filter(|node_id| **node_id != source_node)
             .filter(|node_id| {
-                **node_id != source_node
-                    || self
-                        .prior_lease_deadlines
-                        .get(node_id)
-                        .is_some_and(|until| *until > Instant::now())
-            })
-            .filter(|node_id| {
-                self.sessions.get(node_id).is_some_and(|session| {
-                    session.last_acked_cursor < cursor
-                        || self
-                            .prior_lease_deadlines
-                            .get(node_id)
-                            .is_some_and(|until| *until > Instant::now())
-                })
+                self.sessions
+                    .get(node_id)
+                    .is_some_and(|session| session.last_acked_cursor < cursor)
             })
             .copied()
-            .collect()
+            .collect();
+        let waiting_prior_lease_nodes = active_nodes
+            .filter(|node_id| {
+                self.prior_lease_deadlines
+                    .get(node_id)
+                    .is_some_and(|until| *until > now)
+            })
+            .copied()
+            .collect();
+        (waiting_nodes, waiting_prior_lease_nodes)
     }
 
     fn complete_operation_visibility(&mut self, operation_ids: &[Vec<u8>]) {
@@ -2576,10 +2616,7 @@ impl MetaState {
                         .map_or(self.recovery_lease_until, |started| {
                             started + DEFAULT_NODE_LEASE_TTL
                         });
-                    self.prior_lease_deadlines
-                        .entry(node_id)
-                        .and_modify(|old| *old = (*old).max(until))
-                        .or_insert(until);
+                    self.remember_prior_lease(node_id, until);
                 }
                 self.retired_sessions.remove(&node_id);
                 self.node_epochs.insert(node_id, node_epoch);
@@ -2922,10 +2959,14 @@ impl MetaState {
             .count();
         let (mut healthy, mut under_replicated, mut unavailable) = (0_usize, 0_usize, 0_usize);
         for (block_id, desired) in &self.desired_replica_counts {
-            let available = self
-                .replicas
-                .get(block_id)
-                .map_or(0, |replicas| replicas.len());
+            // Replica catalog 保留历史事实用于恢复/修复，但健康指标只统计
+            // 当前 lease 内可达的 Node incarnation，避免失联副本误报健康。
+            let available = self.replicas.get(block_id).map_or(0, |replicas| {
+                replicas
+                    .iter()
+                    .filter(|replica| self.is_live_replica(replica))
+                    .count()
+            });
             if available == 0 {
                 unavailable += 1;
             } else if available < *desired as usize {
@@ -2962,7 +3003,7 @@ impl MetaState {
         self.metrics.set_state(MetaStateMetricsSnapshot {
             keys: self.versions.len(),
             versions: self.versions.values().map(BTreeMap::len).sum(),
-            replicas: self.replicas.values().map(Vec::len).sum(),
+            replicas: self.live_replica_location_count(),
             operations: self.operations.len(),
             sessions: self.sessions.len(),
             events: self.events.len(),
@@ -2991,11 +3032,7 @@ impl MetaState {
             .collect::<Vec<_>>();
         for node in prior_expired {
             self.prior_lease_deadlines.remove(&node);
-            let cursor = self
-                .sessions
-                .get(&node)
-                .map_or(0, |session| session.last_acked_cursor);
-            self.advance_pending_commits(node, cursor);
+            self.advance_pending_commits_for_prior_lease(node);
         }
         let expired = self
             .sessions
@@ -3020,7 +3057,7 @@ impl MetaState {
             self.apply_record(sequence, record);
             self.retired_sessions.insert(node_id);
             self.watchers.remove(&node_id);
-            self.advance_pending_commits(node_id, cursor);
+            self.advance_pending_commits_for_ack(node_id, cursor);
         }
         self.retain_events();
         Ok(())
@@ -3518,9 +3555,29 @@ impl MetaState {
             replica_operation_count: self.replica_operations.len(),
             event_count: self.events.len(),
             event_high_watermark: self.event_high_watermark,
-            replica_block_count: self.replicas.len(),
-            replica_location_count: self.replicas.values().map(Vec::len).sum(),
+            replica_block_count: self.live_replica_block_count(),
+            replica_location_count: self.live_replica_location_count(),
         }
+    }
+
+    #[cfg(test)]
+    fn live_replica_block_count(&self) -> usize {
+        self.replicas
+            .values()
+            .filter(|replicas| replicas.iter().any(|replica| self.is_live_replica(replica)))
+            .count()
+    }
+
+    fn live_replica_location_count(&self) -> usize {
+        self.replicas
+            .values()
+            .map(|replicas| {
+                replicas
+                    .iter()
+                    .filter(|replica| self.is_live_replica(replica))
+                    .count()
+            })
+            .sum()
     }
 
     fn snapshot(&self) -> MetaSnapshot {
@@ -3678,9 +3735,9 @@ impl MetaState {
                 .and_modify(|floor| *floor = (*floor).max(session.commit_sequence_floor))
                 .or_insert(session.commit_sequence_floor);
         }
-        for node_id in self.sessions.keys() {
-            self.prior_lease_deadlines
-                .insert(*node_id, self.recovery_lease_until);
+        let restored_nodes = self.sessions.keys().copied().collect::<Vec<_>>();
+        for node_id in restored_nodes {
+            self.remember_prior_lease(node_id, self.recovery_lease_until);
         }
         for replica in snapshot.replicas {
             self.replicas
@@ -4577,7 +4634,11 @@ mod tests {
             .dispatch_commit_version(value_commit_request(source, b"restored-source".to_vec()))
             .unwrap();
         assert!(
-            dispatch.waiting_nodes.contains(&7),
+            !dispatch.waiting_nodes.contains(&7),
+            "source 只跳过本次 Watch ACK，不能把旧 lease 混进 ACK 集合"
+        );
+        assert!(
+            dispatch.waiting_prior_lease_nodes.contains(&7),
             "source exclusion cannot erase recovered old cache leases"
         );
         let (reply, mut completion) = oneshot::channel();
@@ -4592,6 +4653,147 @@ mod tests {
         }
         restored.retire_expired_sessions().unwrap();
         assert!(completion.try_recv().unwrap().is_ok());
+    }
+
+    #[test]
+    fn same_incarnation_heartbeat_after_restore_waits_for_prior_lease_not_source_ack() {
+        let mut original = MetaState::new(Box::<InMemoryJournal>::default());
+        let writer = test_session(&mut original, 7);
+        seed_existing_key(&mut original, writer.clone(), b"checkpoint/latest");
+
+        let mut restored = MetaState::new(original.journal);
+        assert!(restored.prior_lease_deadlines.contains_key(&writer.node_id));
+        restored
+            .heartbeat(
+                writer.session_id.clone(),
+                writer.node_id,
+                writer.node_epoch,
+                0,
+            )
+            .expect("same incarnation heartbeat");
+        assert!(
+            restored.prior_lease_deadlines.contains_key(&writer.node_id),
+            "同 incarnation heartbeat 只证明 Node 活着，不能证明恢复前 Client cache 租约已失效"
+        );
+
+        let dispatch = restored
+            .dispatch_commit_version(value_commit_request(
+                writer.clone(),
+                b"same-incarnation-after-restore".to_vec(),
+            ))
+            .unwrap();
+        assert!(dispatch.waiting_nodes.is_empty());
+        assert_eq!(
+            dispatch.waiting_prior_lease_nodes,
+            HashSet::from([writer.node_id])
+        );
+        let expected_version = dispatch.response.version;
+        let (reply, mut completion) = oneshot::channel();
+        restored.register_pending_commit(dispatch, reply);
+        assert!(matches!(
+            completion.try_recv(),
+            Err(oneshot::error::TryRecvError::Empty)
+        ));
+        for until in restored.prior_lease_deadlines.values_mut() {
+            *until = Instant::now();
+        }
+        restored.retire_expired_sessions().unwrap();
+        assert_eq!(
+            completion.try_recv().unwrap().unwrap().version,
+            expected_version
+        );
+    }
+
+    #[tokio::test]
+    async fn remote_ack_before_prior_lease_expiry_does_not_complete_commit() {
+        let mut original = MetaState::new(Box::<InMemoryJournal>::default());
+        let writer = test_session(&mut original, 7);
+        let reader = test_session(&mut original, 8);
+        seed_existing_key(&mut original, writer.clone(), b"checkpoint/latest");
+
+        let mut restored = MetaState::new(original.journal);
+        let dispatch = restored
+            .dispatch_commit_version(value_commit_request(
+                writer,
+                b"remote-ack-before-prior-lease".to_vec(),
+            ))
+            .unwrap();
+        assert_eq!(dispatch.waiting_nodes, HashSet::from([reader.node_id]));
+        assert_eq!(dispatch.waiting_prior_lease_nodes, HashSet::from([7, 8]));
+        let expected_version = dispatch.response.version;
+        let event = restored.events.last().expect("invalidation").clone();
+        let (reply, mut completion) = oneshot::channel();
+        restored.register_pending_commit(dispatch, reply);
+
+        restored
+            .acknowledge_node_event(pb::AcknowledgeNodeEventRequest {
+                context: None,
+                session: Some(reader),
+                event_id: event.event_id,
+                cursor: event.cursor,
+                result: "applied".to_string(),
+                detail: None,
+            })
+            .expect("remote ack");
+        assert!(
+            matches!(
+                completion.try_recv(),
+                Err(oneshot::error::TryRecvError::Empty)
+            ),
+            "远端 ACK 只满足 Watch 义务，不能提前跳过恢复前旧 lease"
+        );
+
+        for until in restored.prior_lease_deadlines.values_mut() {
+            *until = Instant::now();
+        }
+        restored.retire_expired_sessions().unwrap();
+        assert_eq!(completion.await.unwrap().unwrap().version, expected_version);
+    }
+
+    #[tokio::test]
+    async fn prior_lease_expiry_before_remote_ack_does_not_complete_commit() {
+        let mut original = MetaState::new(Box::<InMemoryJournal>::default());
+        let writer = test_session(&mut original, 7);
+        let reader = test_session(&mut original, 8);
+        seed_existing_key(&mut original, writer.clone(), b"checkpoint/latest");
+
+        let mut restored = MetaState::new(original.journal);
+        let dispatch = restored
+            .dispatch_commit_version(value_commit_request(
+                writer,
+                b"prior-lease-before-remote-ack".to_vec(),
+            ))
+            .unwrap();
+        assert_eq!(dispatch.waiting_nodes, HashSet::from([reader.node_id]));
+        assert_eq!(dispatch.waiting_prior_lease_nodes, HashSet::from([7, 8]));
+        let expected_version = dispatch.response.version;
+        let event = restored.events.last().expect("invalidation").clone();
+        let (reply, mut completion) = oneshot::channel();
+        restored.register_pending_commit(dispatch, reply);
+
+        for until in restored.prior_lease_deadlines.values_mut() {
+            *until = Instant::now();
+        }
+        restored.retire_expired_sessions().unwrap();
+        assert!(
+            matches!(
+                completion.try_recv(),
+                Err(oneshot::error::TryRecvError::Empty)
+            ),
+            "旧 lease 到期只满足恢复 fence，不能代替远端 Watch ACK"
+        );
+
+        restored
+            .acknowledge_node_event(pb::AcknowledgeNodeEventRequest {
+                context: None,
+                session: Some(reader),
+                event_id: event.event_id,
+                cursor: event.cursor,
+                result: "applied".to_string(),
+                detail: None,
+            })
+            .expect("remote ack");
+        assert_eq!(completion.await.unwrap().unwrap().version, expected_version);
     }
 
     #[tokio::test]
@@ -5079,10 +5281,13 @@ mod tests {
         assert_eq!(invalidate.key.as_ref().expect("key").value, b"snapshot/gap");
         assert_eq!(invalidate.old_version, first_publish.version);
         assert_eq!(invalidate.minimum_version, dispatch.response.version);
+        let (waiting_nodes, waiting_prior_lease_nodes) =
+            restored.visibility_barrier_nodes(writer_node_id, event.cursor);
+        assert_eq!(waiting_nodes, HashSet::from([reader.node_id]));
         assert_eq!(
-            restored.waiting_visibility_nodes(writer_node_id, event.cursor),
+            waiting_prior_lease_nodes,
             HashSet::from([writer_node_id, reader.node_id]),
-            "恢复后真实事件仍可作为前台可见性屏障使用；重启恢复的 source incarnation 也需等待 lease fence"
+            "恢复后真实事件仍可作为前台可见性屏障使用；source 不等自己的 ACK，但恢复前 lease fence 仍需保留"
         );
     }
 
@@ -5127,51 +5332,27 @@ mod tests {
 
     #[tokio::test]
     async fn watch_replay_larger_than_channel_capacity_progresses() {
-        let handle = MetaHandle::spawn();
-        let grant = handle
-            .open_node_session(7, "http://127.0.0.1:19200".into(), true)
-            .await
-            .unwrap();
-        let writer = pb::NodeSessionIdentity {
-            session_id: grant.session_id,
-            node_id: 7,
-            node_epoch: grant.node_epoch,
-        };
-        handle
-            .commit_version(value_commit_request_for(
-                writer.clone(),
-                b"watch/replay".to_vec(),
-                b"watch/replay-seed-block".to_vec(),
-                b"watch/replay-seed-op".to_vec(),
-                b"watch/replay-seed-digest".to_vec(),
-            ))
-            .await
-            .unwrap();
+        let mut state = MetaState::new(Box::<InMemoryJournal>::default());
+        let writer = test_session(&mut state, 7);
+        // Reader 已经持有有效 session，代表它可能缓存旧版本；断线期间产生的
+        // invalidation 才是重连后必须重放的事件。写完后才加入的新 Node 没有旧缓存，
+        // 不应依赖历史 invalidation，这也避免让事件保留策略影响本测试。
+        let reader = test_session(&mut state, 8);
+        seed_existing_key(&mut state, writer.clone(), b"watch/replay");
         for index in 1..=5 {
-            handle
-                .commit_version(value_commit_request_for(
+            let dispatch = state
+                .dispatch_commit_version(value_commit_request_for(
                     writer.clone(),
                     b"watch/replay".to_vec(),
                     vec![index],
                     vec![index],
                     vec![index],
                 ))
-                .await
                 .unwrap();
+            assert!(dispatch.waiting_nodes.contains(&reader.node_id));
         }
-        // 历史写入完成后才加入的新 Node 仍需从自己的 ACK 游标重放全部目标事件。
-        // 写入 Node 自己不是这些失效事件的目标。
-        let reader_grant = handle
-            .open_node_session(8, "http://127.0.0.1:19201".into(), true)
-            .await
-            .unwrap();
-        let reader = pb::NodeSessionIdentity {
-            session_id: reader_grant.session_id,
-            node_id: 8,
-            node_epoch: reader_grant.node_epoch,
-        };
         let (sender, mut receiver) = mpsc::channel(1);
-        handle
+        state
             .watch_node_events(
                 pb::WatchNodeEventsRequest {
                     context: None,
@@ -5180,7 +5361,6 @@ mod tests {
                 },
                 sender,
             )
-            .await
             .expect("replay registration must not synchronously fill entire channel");
         for cursor in 2..=6 {
             let event = tokio::time::timeout(Duration::from_secs(2), receiver.recv())
@@ -5188,6 +5368,9 @@ mod tests {
                 .unwrap()
                 .unwrap();
             assert_eq!(event.cursor, cursor);
+            // channel 容量只有 1；消费一个事件后显式推进一次投递，验证 backlog
+            // 可以在有界队列上逐步清空，而不是依赖 actor 定时器的调度快慢。
+            state.pump_watchers();
         }
     }
 
@@ -7681,8 +7864,9 @@ mod tests {
             .dispatch_commit_version(request)
             .expect("idempotent retry after restore");
         assert_eq!(retry.event_cursor, Some(2));
+        assert_eq!(retry.waiting_nodes, HashSet::from([reader.node_id]));
         assert_eq!(
-            retry.waiting_nodes,
+            retry.waiting_prior_lease_nodes,
             HashSet::from([writer.node_id, reader.node_id])
         );
         let (retry_reply, mut retry_completion) = oneshot::channel();
@@ -7703,19 +7887,19 @@ mod tests {
                 detail: None,
             })
             .expect("replayed event acknowledgement");
-        assert!(matches!(
-            retry_completion.try_recv(),
-            Err(oneshot::error::TryRecvError::Empty)
-        ));
-        restored
-            .sessions
-            .get_mut(&writer.node_id)
-            .unwrap()
-            .last_acked_cursor = replay.cursor;
+        assert!(
+            matches!(
+                retry_completion.try_recv(),
+                Err(tokio::sync::oneshot::error::TryRecvError::Empty)
+            ),
+            "恢复后的 Watch ACK 不能替代恢复前旧 lease fence"
+        );
         for until in restored.prior_lease_deadlines.values_mut() {
             *until = Instant::now();
         }
-        restored.retire_expired_sessions().unwrap();
+        restored
+            .retire_expired_sessions()
+            .expect("expire restored prior leases");
         assert_eq!(
             retry_completion
                 .await
@@ -8018,6 +8202,65 @@ mod tests {
 
         assert_eq!(plan.targets.len(), 1);
         assert_eq!(plan.targets[0].node_id, live.node_id);
+    }
+
+    #[test]
+    fn replica_metrics_count_live_replicas_only() {
+        let registry = dms_metrics::registry();
+        let metrics = MetaMetrics::register(&registry).expect("metrics");
+        let mut state = MetaState::try_new(
+            Box::<InMemoryJournal>::default(),
+            MetaCheckpointPolicy::default(),
+            MetaRetentionPolicy::default(),
+            metrics,
+        )
+        .expect("state");
+        let owner = test_session(&mut state, 7);
+        state
+            .commit_version(value_commit_request_for(
+                owner.clone(),
+                b"live-metric-key".to_vec(),
+                b"live-metric-block".to_vec(),
+                b"live-metric-op".to_vec(),
+                b"live-metric-digest".to_vec(),
+            ))
+            .expect("commit");
+
+        state.refresh_metrics();
+        let before = state.stats();
+        assert_eq!(before.replica_block_count, 1);
+        assert_eq!(before.replica_location_count, 1);
+        let before_text = dms_metrics::encode_text(&registry).expect("encode before");
+        assert!(
+            before_text.contains("dms_meta_state_items{type=\"replicas\"} 1\n"),
+            "live replica must be counted before lease expiry: {before_text}"
+        );
+        assert!(
+            before_text.contains("dms_meta_blocks{state=\"healthy\"} 1\n"),
+            "live replica must satisfy the desired copy count: {before_text}"
+        );
+
+        expire_session(&mut state, owner.node_id);
+        state.refresh_metrics();
+        let after = state.stats();
+        assert_eq!(
+            after.replica_block_count, 0,
+            "stored catalog facts remain, but no block has a live replica"
+        );
+        assert_eq!(after.replica_location_count, 0);
+        let after_text = dms_metrics::encode_text(&registry).expect("encode after");
+        assert!(
+            after_text.contains("dms_meta_state_items{type=\"replicas\"} 0\n"),
+            "Prometheus replica gauge must use live locations only: {after_text}"
+        );
+        assert!(
+            after_text.contains("dms_meta_blocks{state=\"healthy\"} 0\n"),
+            "expired replica must not remain healthy: {after_text}"
+        );
+        assert!(
+            after_text.contains("dms_meta_blocks{state=\"unavailable\"} 1\n"),
+            "desired block with zero live replicas must be unavailable: {after_text}"
+        );
     }
 
     #[test]

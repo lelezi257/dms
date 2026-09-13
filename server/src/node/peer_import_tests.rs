@@ -10,12 +10,12 @@ fn setup() -> (NodeState, u64, PeerPullSpec) {
         None,
     );
     let session = state.open_session(false);
-    let spec = PeerPullSpec {
-        endpoint: "http://127.0.0.1:1".into(),
-        block_id: b"shared-block".to_vec(),
-        expected_checksum: digest(b"abcdefgh"),
-        expected_length: 8,
-    };
+    let spec = PeerPullSpec::single_source(
+        "http://127.0.0.1:1".into(),
+        b"shared-block".to_vec(),
+        digest(b"abcdefgh"),
+        8,
+    );
     (state, session, spec)
 }
 
@@ -351,7 +351,7 @@ fn peer_import_location_failure_allows_same_scope_exact_retry_and_stale_completi
             .is_err()
     );
     let mut refreshed = spec.clone();
-    refreshed.endpoint = "http://127.0.0.1:2".into();
+    refreshed.sources[0].endpoint = "http://127.0.0.1:2".into();
     let (tx2, mut rx2) = oneshot::channel();
     let attempt2 = state.begin_peer_import(scope, &refreshed, tx2).unwrap();
     assert_ne!(attempt1, attempt2);

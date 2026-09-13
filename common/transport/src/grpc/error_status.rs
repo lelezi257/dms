@@ -6,7 +6,11 @@
 use dms_error::{DmsError, ErrorCode, ErrorKind};
 use dms_protocol::v1 as pb;
 use prost::Message;
+use prost_types::Any;
 use tonic::{Code, Status};
+use tonic_types::pb::Status as RichStatus;
+
+const DMS_ERROR_DETAIL_TYPE_URL: &str = "type.googleapis.com/dms.v1.ErrorDetail";
 
 /// Encodes a terminal DMS error into a whole-call gRPC failure.
 #[must_use]
@@ -16,10 +20,22 @@ pub fn dms_error_to_status(error: DmsError) -> Status {
         kind: wire_kind(error.kind()).into(),
         message: error.message().to_string(),
     };
+    // grpc-status-details-bin 的标准内容不是任意业务 message，而是
+    // google.rpc.Status；业务 ErrorDetail 必须放进其中的 Any。这样 Rust、Go、
+    // Python 等 gRPC 实现都能按同一 Richer Error Model 解码，而不是只有 tonic
+    // 客户端能读懂一段私有 bytes。
+    let rich = RichStatus {
+        code: grpc_code(error.kind()) as i32,
+        message: error.message().to_string(),
+        details: vec![Any {
+            type_url: DMS_ERROR_DETAIL_TYPE_URL.to_string(),
+            value: detail.encode_to_vec(),
+        }],
+    };
     Status::with_details(
         grpc_code(error.kind()),
         error.message().to_string(),
-        detail.encode_to_vec().into(),
+        rich.encode_to_vec().into(),
     )
 }
 
@@ -42,16 +58,33 @@ pub fn status_to_dms_error_with(
     if details.is_empty() {
         return fallback(format!("{}: {}", status.code(), status.message()));
     }
-    match pb::ErrorDetail::decode(details) {
+    match decode_error_detail(details) {
         Ok(detail) => DmsError::new(
             ErrorCode::from_raw(detail.dms_code),
             native_kind(detail.kind()),
             detail.message,
         ),
-        Err(error) => DmsError::client_invalid_error_detail(format!(
-            "invalid DMS ErrorDetail from peer: {error}"
-        )),
+        Err(error) => DmsError::client_invalid_error_detail(error),
     }
+}
+
+fn decode_error_detail(details: &[u8]) -> Result<pb::ErrorDetail, String> {
+    if let Ok(rich) = RichStatus::decode(details) {
+        if let Some(detail) = rich
+            .details
+            .into_iter()
+            .find(|detail| detail.type_url == DMS_ERROR_DETAIL_TYPE_URL)
+        {
+            return pb::ErrorDetail::decode(detail.value.as_slice())
+                .map_err(|error| format!("invalid DMS ErrorDetail in google.rpc.Status: {error}"));
+        }
+        return Err("google.rpc.Status does not contain dms.v1.ErrorDetail".to_string());
+    }
+
+    // 兼容 0.1.0 早期 Rust 节点直接放入 grpc-status-details-bin 的裸
+    // ErrorDetail。新服务端不再产生此格式，但滚动升级期间旧节点仍可被读取。
+    pb::ErrorDetail::decode(details)
+        .map_err(|error| format!("invalid DMS ErrorDetail from peer: {error}"))
 }
 
 fn grpc_code(kind: ErrorKind) -> Code {
@@ -124,8 +157,31 @@ mod tests {
             ErrorKind::ResourceExhausted,
             "requested=11 available=4",
         );
-        let decoded = status_to_dms_error(dms_error_to_status(original.clone()));
+        let status = dms_error_to_status(original.clone());
+        let rich = RichStatus::decode(status.details()).expect("google.rpc.Status envelope");
+        assert_eq!(rich.details.len(), 1);
+        assert_eq!(rich.details[0].type_url, DMS_ERROR_DETAIL_TYPE_URL);
+        let decoded = status_to_dms_error(status);
         assert_eq!(decoded, original);
+    }
+
+    #[test]
+    fn legacy_bare_error_detail_remains_readable_during_upgrade() {
+        let detail = pb::ErrorDetail {
+            dms_code: NODE_ARENA_CAPACITY_EXHAUSTED.raw(),
+            kind: pb::ErrorKind::ResourceExhausted.into(),
+            message: "legacy".to_string(),
+        };
+        let status = Status::with_details(
+            Code::ResourceExhausted,
+            "legacy",
+            detail.encode_to_vec().into(),
+        );
+
+        let decoded = status_to_dms_error(status);
+
+        assert_eq!(decoded.code(), NODE_ARENA_CAPACITY_EXHAUSTED);
+        assert_eq!(decoded.message(), "legacy");
     }
 
     #[test]

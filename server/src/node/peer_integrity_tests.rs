@@ -88,12 +88,12 @@ async fn import_rejects_corrupt_payload_when_peer_echoes_expected_checksum() {
             node.metadata.as_ref().expect("node metadata"),
             b"integrity-test/",
             u64::MAX,
-            PeerPullSpec {
-                endpoint: peer.endpoint.clone(),
-                block_id: block_id.clone(),
-                expected_checksum: checksum,
+            PeerPullSpec::single_source(
+                peer.endpoint.clone(),
+                block_id.clone(),
+                checksum,
                 expected_length,
-            },
+            ),
         )
         .await;
 
@@ -166,12 +166,12 @@ async fn import_rejects_corrupt_payload_when_only_peer_checksum_is_present() {
             node.metadata.as_ref().expect("node metadata"),
             b"integrity-test/",
             u64::MAX,
-            PeerPullSpec {
-                endpoint: peer.endpoint.clone(),
-                block_id: block_id.clone(),
-                expected_checksum: Vec::new(),
+            PeerPullSpec::single_source(
+                peer.endpoint.clone(),
+                block_id.clone(),
+                Vec::new(),
                 expected_length,
-            },
+            ),
         )
         .await;
 
@@ -212,17 +212,75 @@ async fn import_and_report_peer_block_preserves_double_empty_checksum_compatibil
         node.metadata.as_ref().expect("node metadata"),
         b"integrity-test/",
         u64::MAX,
-        PeerPullSpec {
-            endpoint: peer.endpoint.clone(),
-            block_id: block_id.clone(),
-            expected_checksum: Vec::new(),
-            expected_length: original.len() as u64,
-        },
+        PeerPullSpec::single_source(
+            peer.endpoint.clone(),
+            block_id.clone(),
+            Vec::new(),
+            original.len() as u64,
+        ),
     )
     .await
     .expect("double-empty checksum keeps the pre-existing compatibility path");
 
     assert_eq!(meta.report_count(), 1);
+
+    peer.stop().await;
+    meta.stop().await;
+}
+
+#[tokio::test]
+async fn import_switches_to_second_replica_when_first_source_is_unreachable() {
+    let meta = CountingMetaServer::start().await;
+    let payload = b"surviving replica bytes".to_vec();
+    let block_id = b"peer-source-failover".to_vec();
+    let checksum = digest(&payload);
+    let peer = FakePeerServer::start(FakePeer::new(block_id.clone(), payload.clone())).await;
+    let registry = dms_metrics::registry();
+    let node = spawn_node_with_registry(&meta.endpoint, "failover-target", 44, &registry).await;
+    let spec = PeerPullSpec {
+        sources: vec![
+            PeerPullSource {
+                node_id: 10,
+                node_epoch: 1,
+                // 本地保留端口没有服务，connect 会立即返回拒绝，稳定模拟
+                // “Meta lease 尚有效、但来源进程已退出”的窗口。
+                endpoint: "http://127.0.0.1:1".to_string(),
+            },
+            PeerPullSource {
+                node_id: 11,
+                node_epoch: 2,
+                endpoint: peer.endpoint.clone(),
+            },
+        ],
+        block_id: block_id.clone(),
+        expected_checksum: checksum,
+        expected_length: payload.len() as u64,
+    };
+
+    tokio::time::timeout(
+        Duration::from_secs(3),
+        node.import_and_report_peer_block(
+            node.metadata.as_ref().expect("node metadata"),
+            b"failover-test/",
+            u64::MAX,
+            spec,
+        ),
+    )
+    .await
+    .expect("source failover is bounded")
+    .expect("second replica supplies the block");
+
+    let imported = node
+        .pull_block("verifier".into(), block_id, None)
+        .await
+        .expect("imported block is readable");
+    assert_eq!(imported.payload, payload);
+    assert_eq!(meta.report_count(), 1);
+    let metrics = dms_metrics::encode_text(&registry).expect("node metrics");
+    assert_eq!(
+        counter_value(&metrics, "dms_node_peer_source_failovers_total", &[]),
+        1.0
+    );
 
     peer.stop().await;
     meta.stop().await;

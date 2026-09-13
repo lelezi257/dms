@@ -35,7 +35,14 @@ pub(crate) struct NodeMetrics {
     replica_bytes_total: IntCounterVec,
     replica_transfer_duration_seconds: HistogramVec,
     replica_checksum_failures_total: IntCounterVec,
+    peer_import_inflight: IntGauge,
+    peer_import_reserved_bytes: IntGauge,
+    peer_import_failure_fences: IntGauge,
+    download_tickets: IntGauge,
+    peer_pull_fault_injections_total: IntCounter,
+    peer_source_failovers_total: IntCounter,
     current_cache_lookups_total: IntCounterVec,
+    current_cache_resets_total: IntCounterVec,
     current_cache_charged_bytes: IntGauge,
 }
 
@@ -175,6 +182,21 @@ impl SessionExpiration {
 }
 
 #[derive(Clone, Copy)]
+pub(crate) enum CurrentCacheResetReason {
+    WatchDisconnected,
+    WatchReconnected,
+}
+
+impl CurrentCacheResetReason {
+    const fn label(self) -> &'static str {
+        match self {
+            Self::WatchDisconnected => "watch_disconnected",
+            Self::WatchReconnected => "watch_reconnected",
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
 pub(crate) enum StagingReclaimReason {
     Cancel,
     Expired,
@@ -265,6 +287,19 @@ pub(crate) struct ArenaMetricsSnapshot {
     pub(crate) staging_allocations: usize,
     pub(crate) regions: usize,
     pub(crate) oldest_staging_age_seconds: f64,
+}
+
+/// Peer 导入相关 owner 状态的一次采样。
+///
+/// 这些值属于 Node 内部可靠性控制面，不按 key/block 打 label，避免把对象数量
+/// 放大成 Prometheus 时间序列数量。后续 runtime 接线时只需要在 owner 状态变化
+/// 后调用一次 `set_peer_import_state`。
+#[allow(dead_code)]
+pub(crate) struct PeerImportMetricsSnapshot {
+    pub(crate) inflight: usize,
+    pub(crate) reserved_bytes: u64,
+    pub(crate) failure_fences: usize,
+    pub(crate) download_tickets: usize,
 }
 
 impl NodeMetrics {
@@ -370,10 +405,39 @@ impl NodeMetrics {
                 "Replica payload checksum failures.",
                 &["provider"],
             )?,
+            peer_import_inflight: IntGauge::new(
+                "dms_node_peer_import_inflight",
+                "Peer Block import attempts currently owned by this Node.",
+            )?,
+            peer_import_reserved_bytes: IntGauge::new(
+                "dms_node_peer_import_reserved_bytes",
+                "Expected bytes reserved by in-flight peer imports.",
+            )?,
+            peer_import_failure_fences: IntGauge::new(
+                "dms_node_peer_import_failure_fences",
+                "Recent peer import failure fences retained to wake delayed readers safely.",
+            )?,
+            download_tickets: IntGauge::new(
+                "dms_node_download_tickets",
+                "One-shot payload download tickets currently held by this Node.",
+            )?,
+            peer_pull_fault_injections_total: IntCounter::new(
+                "dms_node_peer_pull_fault_injections_total",
+                "Explicit reliability-test peer pull gates that were triggered.",
+            )?,
+            peer_source_failovers_total: IntCounter::new(
+                "dms_node_peer_source_failovers_total",
+                "Peer Block pulls that switched to another replica source within one request.",
+            )?,
             current_cache_lookups_total: counter_vec(
                 "dms_node_current_cache_lookups_total",
                 "Node Current layout cache lookups by result; this cache stores key layout, not value bytes.",
                 &["result"],
+            )?,
+            current_cache_resets_total: counter_vec(
+                "dms_node_current_cache_resets_total",
+                "Low-frequency Current layout cache resets caused by metadata watch state changes.",
+                &["reason"],
             )?,
             current_cache_charged_bytes: IntGauge::new(
                 "dms_node_current_cache_charged_bytes",
@@ -419,6 +483,9 @@ impl NodeMetrics {
             self.current_cache_lookups_total
                 .with_label_values(&[result]);
         }
+        for reason in ["watch_disconnected", "watch_reconnected"] {
+            self.current_cache_resets_total.with_label_values(&[reason]);
+        }
     }
 
     fn register_all(&self, registry: &Registry) -> Result<(), MetricsError> {
@@ -444,7 +511,14 @@ impl NodeMetrics {
         register_collector(registry, &self.replica_bytes_total)?;
         register_collector(registry, &self.replica_transfer_duration_seconds)?;
         register_collector(registry, &self.replica_checksum_failures_total)?;
+        register_collector(registry, &self.peer_import_inflight)?;
+        register_collector(registry, &self.peer_import_reserved_bytes)?;
+        register_collector(registry, &self.peer_import_failure_fences)?;
+        register_collector(registry, &self.download_tickets)?;
+        register_collector(registry, &self.peer_pull_fault_injections_total)?;
+        register_collector(registry, &self.peer_source_failovers_total)?;
         register_collector(registry, &self.current_cache_lookups_total)?;
+        register_collector(registry, &self.current_cache_resets_total)?;
         register_collector(registry, &self.current_cache_charged_bytes)?;
         Ok(())
     }
@@ -537,6 +611,36 @@ impl NodeMetrics {
             .inc();
     }
 
+    /// 更新 Peer 导入控制面的容量/清理状态。
+    ///
+    /// R6 故障验证需要看见“拉取中、失败 fence、下载票据”是否最终归零；这些
+    /// Gauge 后续由 Node owner 在状态变化点统一维护，避免测试脚本扫描内部结构。
+    #[allow(dead_code)]
+    pub(crate) fn set_peer_import_state(&self, snapshot: PeerImportMetricsSnapshot) {
+        self.peer_import_inflight
+            .set(to_i64(snapshot.inflight as u64));
+        self.peer_import_reserved_bytes
+            .set(to_i64(snapshot.reserved_bytes));
+        self.peer_import_failure_fences
+            .set(to_i64(snapshot.failure_fences as u64));
+        self.download_tickets
+            .set(to_i64(snapshot.download_tickets as u64));
+    }
+
+    /// 只在显式可靠性测试 gate 命中时增加；生产默认没有 gate，因此热路径为 0。
+    #[cfg_attr(not(feature = "reliability-faults"), allow(dead_code))]
+    pub(crate) fn record_peer_pull_fault_injection(&self) {
+        self.peer_pull_fault_injections_total.inc();
+    }
+
+    /// 一次 Peer 拉取在当前候选不可用后，切换到下一候选时记录一次。
+    ///
+    /// 计数器不带 endpoint、node_id 或 block_id 标签，避免节点数和对象数进入
+    /// Prometheus 时序维度；具体来源只在故障测试收据和诊断日志中出现。
+    pub(crate) fn record_peer_source_failover(&self) {
+        self.peer_source_failovers_total.inc();
+    }
+
     /// 记录 Node 本地 Current 解析缓存命中结果。
     ///
     /// 缓存保存有效 VersionLayout 和同次解析的位置提示，不保存 value bytes。
@@ -546,6 +650,16 @@ impl NodeMetrics {
         let result = if hit { "hit" } else { "miss" };
         self.current_cache_lookups_total
             .with_label_values(&[result])
+            .inc();
+    }
+
+    /// 记录因 Meta watch 状态变化而撤销本地 Current cache/grant 的次数。
+    ///
+    /// 这个计数只在 watch 断线或重连时增加，不在 GET/SET 热路径上运行；用于
+    /// 验证“断线期间不继续信任旧 Current，重连 replay 后再恢复”的可靠性语义。
+    pub(crate) fn record_current_cache_reset(&self, reason: CurrentCacheResetReason) {
+        self.current_cache_resets_total
+            .with_label_values(&[reason.label()])
             .inc();
     }
 
@@ -651,7 +765,17 @@ mod tests {
         metrics.set_arena_capacity(1024);
         metrics.record_current_cache_lookup(true);
         metrics.record_current_cache_lookup(false);
+        metrics.record_current_cache_reset(CurrentCacheResetReason::WatchDisconnected);
+        metrics.record_current_cache_reset(CurrentCacheResetReason::WatchReconnected);
         metrics.set_current_cache_charge(128);
+        metrics.set_peer_import_state(PeerImportMetricsSnapshot {
+            inflight: 2,
+            reserved_bytes: 4096,
+            failure_fences: 1,
+            download_tickets: 3,
+        });
+        metrics.record_peer_pull_fault_injection();
+        metrics.record_peer_source_failover();
         let mut guard = metrics.begin_replica_operation(ReplicaOperation::Pull);
         guard.success_with_payload(ReplicaDirection::Send, 3);
         drop(guard);
@@ -660,7 +784,19 @@ mod tests {
         assert!(text.contains("dms_node_replica_operations_total"));
         assert!(text.contains("dms_node_current_cache_lookups_total{result=\"hit\"} 1"));
         assert!(text.contains("dms_node_current_cache_lookups_total{result=\"miss\"} 1"));
+        assert!(
+            text.contains("dms_node_current_cache_resets_total{reason=\"watch_disconnected\"} 1")
+        );
+        assert!(
+            text.contains("dms_node_current_cache_resets_total{reason=\"watch_reconnected\"} 1")
+        );
         assert!(text.contains("dms_node_current_cache_charged_bytes 128"));
+        assert!(text.contains("dms_node_peer_import_inflight 2"));
+        assert!(text.contains("dms_node_peer_import_reserved_bytes 4096"));
+        assert!(text.contains("dms_node_peer_import_failure_fences 1"));
+        assert!(text.contains("dms_node_download_tickets 3"));
+        assert!(text.contains("dms_node_peer_pull_fault_injections_total 1"));
+        assert!(text.contains("dms_node_peer_source_failovers_total 1"));
         assert!(!text.contains("dms_node_views"));
     }
 }

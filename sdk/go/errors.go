@@ -42,6 +42,7 @@ const (
 	CLIENT_PROTOCOL_VIOLATION            ErrorCode = 0x01030002
 	CLIENT_PERMISSION_DENIED             ErrorCode = 0x01040001
 	NODE_TRANSFER_UNSUPPORTED            ErrorCode = 0x02040001
+	NODE_SESSION_UNKNOWN                 ErrorCode = 0x02030001
 )
 
 // DmsError 是 Go SDK 的原生错误载体。服务端 ErrorDetail 可在协议边界还原为
@@ -135,6 +136,11 @@ func asDmsError(err error) error {
 		return wrapDmsError(CLIENT_DEADLINE_EXCEEDED, ErrorKindDeadlineExceeded, st.Message(), err)
 	}
 	return wrapDmsError(CLIENT_CONNECTION_UNAVAILABLE, grpcKind(st.Code()), st.Message(), err)
+}
+
+func isSessionUnknown(err error) bool {
+	var dmsErr *DmsError
+	return errors.As(asDmsError(err), &dmsErr) && dmsErr.Code == NODE_SESSION_UNKNOWN
 }
 
 func nativeKind(kind pb.ErrorKind) ErrorKind {

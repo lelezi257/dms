@@ -48,7 +48,6 @@ use crate::meta::{metadata_service::MetadataServiceHandler, runtime::MetaHandle}
 struct CountingMetaService {
     inner: MetadataServiceHandler,
     commit_requests: Arc<Mutex<Vec<Vec<u8>>>>,
-    drop_commit_response_once: Arc<AtomicBool>,
     resolve_count: Arc<AtomicUsize>,
     resolve_queries: Arc<Mutex<Vec<Option<u64>>>>,
     stale_location_once: Arc<AtomicBool>,
@@ -299,12 +298,7 @@ impl MetadataService for CountingMetaService {
             .lock()
             .unwrap()
             .push(request.get_ref().operation_id.clone());
-        let response = self.inner.commit_version(request).await?;
-        // 已提交后故意丢失回复，模拟调用者不能判断是否成功，而不是提交前拒绝。
-        if self.drop_commit_response_once.swap(false, Ordering::AcqRel) {
-            return Err(Status::unavailable("test: committed response lost"));
-        }
-        Ok(response)
+        self.inner.commit_version(request).await
     }
 
     async fn commit_batch(
@@ -395,7 +389,7 @@ impl MetadataService for CountingMetaService {
 struct CountingMetaServer {
     handle: MetaHandle,
     commit_requests: Arc<Mutex<Vec<Vec<u8>>>>,
-    drop_commit_response_once: Arc<AtomicBool>,
+    handler: MetadataServiceHandler,
     endpoint: String,
     resolve_count: Arc<AtomicUsize>,
     resolve_queries: Arc<Mutex<Vec<Option<u64>>>>,
@@ -433,11 +427,10 @@ impl CountingMetaServer {
         let ack_state = Arc::new(AckState::new());
         let handle = MetaHandle::spawn();
         let commit_requests = Arc::new(Mutex::new(Vec::new()));
-        let drop_commit_response_once = Arc::new(AtomicBool::new(false));
+        let handler = MetadataServiceHandler::new(handle.clone());
         let service = CountingMetaService {
-            inner: MetadataServiceHandler::new(handle.clone()),
+            inner: handler.clone(),
             commit_requests: commit_requests.clone(),
-            drop_commit_response_once: drop_commit_response_once.clone(),
             resolve_count: resolve_count.clone(),
             resolve_queries: resolve_queries.clone(),
             stale_location_once: stale_location_once.clone(),
@@ -462,7 +455,7 @@ impl CountingMetaServer {
         Self {
             handle,
             commit_requests,
-            drop_commit_response_once,
+            handler,
             endpoint,
             resolve_count,
             resolve_queries,
@@ -481,6 +474,10 @@ impl CountingMetaServer {
 
     fn reset_resolve_count(&self) {
         self.resolve_count.store(0, Ordering::Relaxed);
+    }
+
+    fn drop_next_commit_response(&self) {
+        self.handler.drop_next_commit_response_for_test();
     }
 
     fn resolve_count(&self) -> usize {
@@ -1543,29 +1540,14 @@ async fn mechanism_proof_lost_commit_reply_retry_keeps_one_logical_version() {
     let key = b"proof/retry";
     let value = b"value-after-lost-commit-response";
     let identity = operation_id(0x51, 903);
-    meta.drop_commit_response_once
-        .store(true, Ordering::Release);
-    let first = node
-        .node
-        .set_inline(
-            session,
-            key.to_vec(),
-            value.to_vec(),
-            identity.clone(),
-            "any".into(),
-        )
-        .await;
-    assert!(
-        first.is_err(),
-        "故障必须发生在 Meta 提交后、Node 收到回复前"
-    );
+    meta.drop_next_commit_response();
     let result = node
         .node
         .set_inline(
             session,
             key.to_vec(),
             value.to_vec(),
-            identity,
+            identity.clone(),
             "any".into(),
         )
         .await

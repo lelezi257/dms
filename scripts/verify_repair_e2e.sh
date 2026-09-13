@@ -10,6 +10,7 @@ EXAMPLE="${BIN_DIR}/examples/sdk_kv"
 META_JOURNAL_DIR="${ROOT}/meta-journal"
 RUN_DIR="${ROOT}/run"
 LOG_DIR="${ROOT}/log"
+REPAIR_COMPLETED_EVENT='"event":"node.repair.completed"'
 
 META_HEALTH="127.0.0.1:19410"
 META_GRPC="127.0.0.1:19420"
@@ -95,7 +96,8 @@ DMS_ENDPOINT="http://${NODE2_WORKER}" "${EXAMPLE}" get "${KEY}" "${VALUE}"
 stop_pid_file "${RUN_DIR}/node1.pid"
 echo "等待 node1 的 30s lease 过期，并由 Meta 定向修复到 node3..."
 deadline=$((SECONDS + 45))
-until grep -q "dms-node repair applied" "${LOG_DIR}/node3.log"; do
+# 日志正文可以调整，repair E2E 只依赖稳定结构化事件字段。
+until grep -q "${REPAIR_COMPLETED_EVENT}" "${LOG_DIR}/node3.log"; do
   if (( SECONDS >= deadline )); then
     echo "repair timeout" >&2
     tail -n 80 "${LOG_DIR}/meta.log" >&2 || true

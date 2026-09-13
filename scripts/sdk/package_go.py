@@ -15,6 +15,13 @@ SOURCE = Path(__file__).resolve().parents[2]
 MODULE = "github.com/lelezi257/dms/sdk/go"
 
 
+def should_package_file(path: Path) -> bool:
+    """判断 SDK 源文件是否进入 Go module proxy；排除 macOS AppleDouble 资源叉。"""
+    if any(part.startswith("._") for part in path.parts):
+        return False
+    return path.suffix == ".go" or path.name in ("go.mod", "go.sum", "README.md")
+
+
 def package(output: Path) -> dict:
     if platform.system() != "Linux":
         raise RuntimeError("run packaging inside Linux")
@@ -22,7 +29,7 @@ def package(output: Path) -> dict:
     files = {
         str(path.relative_to(sdk)): path.read_bytes()
         for path in sorted(sdk.rglob("*"))
-        if path.is_file() and (path.suffix == ".go" or path.name in ("go.mod", "go.sum", "README.md"))
+        if path.is_file() and should_package_file(path.relative_to(sdk))
     }
     files["LICENSE"] = (SOURCE / "LICENSE").read_bytes()
     if not any(name.endswith("_grpc.pb.go") for name in files):
@@ -30,7 +37,10 @@ def package(output: Path) -> dict:
     digest = hashlib.sha256()
     for name, data in sorted(files.items()):
         digest.update(name.encode() + b"\0" + data + b"\0")
-    version = "v0.1.0-dev." + digest.hexdigest()[:16]
+    # Go module 的版本会进入消费者 go.sum。候选包必须带源码摘要，避免
+    # 内容变化但版本不变时被 Go 校验缓存拒绝；同时使用 rc 前缀，和正式
+    # 0.1.0 发布语义区分开。
+    version = "v0.1.0-rc." + digest.hexdigest()[:16]
     target = output.resolve() / MODULE / "@v"
     target.mkdir(parents=True, exist_ok=True)
     archive = target / (version + ".zip")

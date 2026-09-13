@@ -1,16 +1,19 @@
 # Go SDK
 
-当前是可从公开源码取得的开发预览 SDK，未发布正式语义版本：纯 Go，通过 gRPC 连接 Node；Linux 同机还可使用 UDS 和共享内存，不需要 Rust native extension 或 CGO。用户导入的是 `dms` 包，不是 protobuf 生成类型。
+0.1.0 提供纯 Go SDK，通过 gRPC 连接 Node；Linux 同机还可使用 UDS 和共享内存，不需要 Rust native extension 或 CGO。用户导入的是 `dms` 包，不是 protobuf 生成类型。
 
-本阶段提供对象子集 **Set、Get、Del、Stat、Scan**，以及条件写、指定版本/范围读的 Options；本页固定的公开 review 候选还包含 **SetFrom、GetInto、GetReader**。不表示已覆盖 Rust SDK 的全部方法，也不承诺 Go SDK 已具备 TLS、跨语言观测适配等能力。
+当前源码实现覆盖第一批文件后端接入所需接口：**Set/Get/Del/Stat/Scan/GetInto/GetReader/SetFrom/SetRange/MSet/MGet/HSet/HGet/HMGet/HGetAll/HDel/HScan/HWriteAt**。0.1.0 不承诺覆盖 Rust SDK 的全部高级方法，也不承诺 TLS、RDMA、UB 或跨语言观测适配已经可用。
 
-## 候选新增：用户内存与 Reader
+## 1. 当前接口矩阵
 
-| 方法 | 使用场景 | 数据/生命周期 |
+| 类别 | 方法 | 语义 |
 | --- | --- | --- |
-| `GetInto(ctx, key, dst, options)` | 用户已准备 `[]byte` | 返回 `GetIntoResult{Version, Len}, found, err`；容量不足报错且不写越界 |
-| `GetReader(ctx, key, options)` | 用户稍后才通过 `Read(dst)` 提供内存 | 返回 `ReadResult{Version, Len, Body}, found, err`；一次 Get 固定版本，不因每次 Read 再查 Current |
-| `SetFrom(ctx, key, src, length, options)` | 已有 `io.Reader`，避免调用方先 ReadAll | 精确消费 length，短源失败不发布，超过 length 的部分不消费；返回原 `SetResult` |
+| 基础对象 | `Set` / `SetWithOptions` / `Get` / `GetWithOptions` / `Del` / `Stat` / `Scan` | 完整对象写读删、属性查询、前缀分页。 |
+| 用户内存与 Reader | `GetInto` / `GetReader` / `SetFrom` | 让调用者提供目标 buffer 或 `io.Reader`，减少 adapter 层额外整对象拷贝；不是新增网络流式协议。 |
+| 随机写 | `SetRange` / `SetRangeWithOptions` | 覆盖已有对象的 `[offset, offset+len(data))`；不能扩展长度。 |
+| 批量对象 | `MSet` / `MGet` | 多 key 一次请求；`MSet` 原子发布，`MGet` 按输入顺序返回，缺失项为 nil。 |
+| Hash/KKV | `HSet` / `HGet` / `HMGet` / `HGetAll` / `HDel` / `HScan` / `HWriteAt` | 一个主 key 下多个 field 的二级 key/value；支持 Merge/Replace、分页和字段内随机写。 |
+| 传输/安全 | TCP、UDS+SHM；`TLSDisabled` | 明文 gRPC 和同机共享内存可用；TLS/RDMA/UB 显式返回不支持。 |
 
 `Get/Set` 保留：Get 返回 owned bytes；Set 已接收用户 bytes，所以没有额外的 SetInto。
 
@@ -35,22 +38,24 @@ for {
 
 SHM 的 Read/GetInto 从共享映射复制到 dst，SetFrom 直接写 staging；TCP 仍有 protobuf payload 缓冲，不能把 Reader 理解成网络零拷贝或一个新双向流协议。Scan 可指定 Delimiter；`ObjectInfo.IsPrefix` 区分合成目录前缀与真实对象，游标绑定 prefix/delimiter，分页不承诺全局快照。
 
-## 1. 安装固定源码版本
+## 2. 安装
 
-在Linux消费者项目中，使用Go 1.25或兼容工具链；不需要DMS源码目录、Rust或protoc。
+在 Linux 消费者项目中，使用 Go 1.25 或兼容工具链；不需要 DMS 源码目录、Rust 或 protoc。
+
+正式版本使用 Go 子模块 tag：
 
 ```bash
 mkdir dms-demo
 cd dms-demo
 go mod init example.com/dms-demo
-GOPROXY=https://proxy.golang.org,direct go get github.com/lelezi257/dms/sdk/go@v0.0.0-20260911134601-e8f2a180e102
+go get github.com/lelezi257/dms/sdk/go@v0.1.0
 ```
 
-这个 Go 伪版本固定到 DMS review 提交 `e8f2a180e1027ea4f9a5fc676a7a377b7f1f38e5`，不是正式 v0.1.0 Release，也不代表已合并。配套 JuiceFS 与服务代码见[接入指南](juicefs.md)。无需设置 GONOSUMDB；公开下载保留 Go 校验和验证。以下第2节程序可以直接放入本目录。当前非 SHM 大对象写入及跨 Node 首读仍有待核实的性能退化，不能作为全路径性能达标版本。
+这条命令走 Go 的正常模块下载和校验。它只代表 `sdk/go/v0.1.0` 的内容，不包含任何机器上的未提交改动。
 
-### 开发者测试尚未提交的SDK
+### 本地或未提交 RC
 
-只有需要验证本地改动时才用下面的候选proxy，不是上述公开版本的安装前提。
+只有需要验证本地改动或候选包时才用下面的 module proxy。它是 artifact，不是公共发布。
 
 先按[单 VM 手册](local-single-vm-manual.md)进入 Linux，在源码根准备环境。需要 Go 1.25 或兼容工具链，消费者不需要 protoc。
 
@@ -77,9 +82,9 @@ go get "github.com/lelezi257/dms/sdk/go@$SDK_VERSION"
 
 这里 `go get` 从本地候选仓下载未提交的 SDK，公网代理只用于其它依赖；不是宣称该候选版本已经公开发布。候选包来源和 SHA256 应由交付方核对。独立消费者可以拿到整个 proxy 目录后安装，不需要项目源码或 `replace`。不要把实验proxy设置带入公开版本的独立获取验收。
 
-## 2. 最小读写程序
+## 3. 最小读写程序
 
-先启动真实 Node/Meta，见[单 VM 手册](local-single-vm-manual.md)或 [JuiceFS 接入](juicefs.md)。将下面保存为消费者目录的 `main.go`，endpoint 使用实际 Node 地址：
+先启动真实 Node/Meta，见[单 VM 手册](local-single-vm-manual.md)。将下面保存为消费者目录的 `main.go`，endpoint 使用实际 Node 地址：
 
 ```go
 package main
@@ -144,7 +149,7 @@ CGO_ENABLED=0 go run .
 
 `ctx` 控制本次连接/请求的等待，不是 Client 的生命周期开关。长期复用 Client，退出时 `Close()`：停止心跳、释放连接和 mmap；已开始的调用仍需结束，不应每个 Set 都重新连接。
 
-## 3. 返回值先看什么
+## 4. 返回值先看什么
 
 | API | 成功时返回 | 缺失与失败 |
 | --- | --- | --- |
@@ -154,6 +159,8 @@ CGO_ENABLED=0 go run .
 | `Del(ctx, key)` | `DeleteResult{Deleted, Version}` | 已缺失时 `Deleted=false, err=nil`，不是网络失败 |
 | `Stat(ctx, key)` | `ObjectInfo{Key, Len, ModifiedTime, Version}, true, nil` | 缺失 `found=false`；读取属性不下载 value |
 | `Scan(ctx, prefix, options)` | `ScanResult{Items, NextCursor}` | 下一页游标为空才表示结束；错误不能当结束 |
+| `MGet(ctx, keys)` | `[]*GetResult` | 元素为 nil 表示对应 key 缺失；整批失败才返回 error |
+| `HGet(ctx, key, field)` | `HashValue, true, nil` | 字段或主 key 缺失为 `found=false` |
 
 这与 Rust 的结果语义对应：`Ok(Some(value))` → `found=true`；`Ok(None)` → `found=false`；`Err(error)` → 非 nil error。必须先判断 `err`，再判断 `found`，不能通过 message 匹配“找不到”。`Stat.ModifiedTime` 来自对象元数据，反复 Stat 不会生成新的修改时间。
 
@@ -177,6 +184,51 @@ if err != nil { return err }
 
 `Range=nil` 读完整对象；`Len=0` 是零长度，不是“读到结尾”。条件写由 Node/Meta 执行，不用客户端 Get+Set 模拟 CAS。
 
+写接口的 `Durability` 若留空，就使用 `ClientOptions.DefaultDurability`；两者都没设置时为 `local-memory`。当前只支持 `local-memory`，其它可靠性值会报错，不会静默降级。
+
+### 随机写与批量
+
+```go
+_, err = client.SetRange(ctx, "demo/key", 2, []byte("XY"))
+if err != nil { return err }
+
+versions, err := client.MSet(ctx, []dms.KVEntry{
+    {Key: "demo/a", Value: []byte("A")},
+    {Key: "demo/b", Value: []byte("B")},
+}, dms.MSetOptions{})
+_ = versions
+if err != nil { return err }
+
+items, err := client.MGet(ctx, []string{"demo/a", "demo/missing"})
+if err != nil { return err }
+if items[1] == nil { fmt.Println("第二个 key 不存在") }
+```
+
+`SetRange` 只修改已有对象内部范围；`MSet` 拒绝空批次和重复 key；`MGet` 不是跨 key 快照。
+
+### Hash/KKV
+
+```go
+written, err := client.HSet(ctx, "job/1", []dms.HashEntry{
+    {Field: "model", Value: []byte("A")},
+    {Field: "config", Value: []byte("B")},
+}, dms.HashWriteOptions{}) // 默认 Merge
+if err != nil { return err }
+
+value, found, err := client.HGet(ctx, "job/1", "model")
+if err != nil { return err }
+if found { fmt.Println(value.HashVersion, value.ValueVersion, string(value.Bytes)) }
+
+page, err := client.HScan(ctx, "job/1", 0, dms.HashScanOptions{
+    Version: dms.HashReadExact(written.Version),
+    Limit: 100,
+})
+_ = page
+if err != nil { return err }
+```
+
+Hash/KKV 是 `主 key -> field -> bytes`。`HSet` 默认 Merge，显式 `HashWriteReplace` 才删除本次未提交的字段；`HWriteAt` 修改某个 field value 内的一段 bytes，不是修改普通对象。
+
 ### 分页列举
 
 ```go
@@ -194,7 +246,7 @@ for {
 
 游标不解析、不自行拼接；后续页保持相同 prefix。`StartAfter` 只用于第一页，不能与 Cursor 同时设置。静态集合分页和并发修改下的快照是不同保证，不把当前接口解释为全局事务快照。
 
-## 4. TCP 与同机 SHM
+## 5. TCP 与同机 SHM
 
 普通调用不变，分支只在连接配置和内部传输实现：
 
@@ -204,7 +256,7 @@ export DMS_ENDPOINT=http://127.0.0.1:25200
 export DMS_SHARED_MEMORY=false
 
 # 或者同机 UDS + SHM；必须是 Node 实际监听的路径。
-export DMS_ENDPOINT="unix://$REPO/.local/juicefs-demo/worker.sock"
+export DMS_ENDPOINT="unix://$REPO/.local/dms-run/worker.sock"
 export DMS_SHARED_MEMORY=true
 ```
 
@@ -214,9 +266,9 @@ SHM 需要 Linux、同机可信进程及 socket 访问权限。SDK 内部通过 
 
 配置优先级为 **默认值 < 环境变量 < 显式 API**；`Connect` 非空 endpoint 参数优先于 Options.Endpoint。常用默认值：请求超时 30s、心跳 10s、内联阈值 64KiB、SharedMemory=false。环境变量包括 `DMS_TIMEOUT_MILLIS`、`DMS_HEARTBEAT_INTERVAL_MILLIS`、`DMS_INLINE_THRESHOLD_BYTES`；完整字段见 [types.go](../sdk/go/types.go)。没有隐式默认 endpoint。
 
-本阶段 Go SDK 仅支持 `local-memory` 和明文 gRPC，TLS 配置会明确拒绝，不能用于不可信公网。写入成功代表当前内存策略下提交成功，不代表掉电后恢复。
+本阶段 Go SDK 仅支持 `local-memory` 和明文 gRPC，TLS 配置会明确拒绝，RDMA/UB provider 也会明确返回不支持，不能用于不可信公网。写入成功代表当前内存策略下提交成功，不代表掉电后恢复。
 
-## 5. 阅读源码
+## 6. 阅读源码
 
 - [client.go](../sdk/go/client.go)：公开 API、会话与关闭。
 - [types.go](../sdk/go/types.go)：原生参数/返回结构。

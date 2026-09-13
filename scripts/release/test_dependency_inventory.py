@@ -24,7 +24,7 @@ class InventoryTests(unittest.TestCase):
         }
 
     def collect(self):
-        return inventory.collect({"packages": [self.package]}, self.root / "out", "lock-hash")
+        return inventory.collect({"packages": [self.package]}, self.root / "out", "lock-hash", curated=[])
 
     def test_expression_and_original_bytes_preserved(self):
         content = b"Synthetic license fixture\r\nNot a rights declaration\r\n"
@@ -92,6 +92,51 @@ class InventoryTests(unittest.TestCase):
         (self.crate / "LICENSE").write_text("license")
         report = self.collect()
         self.assertEqual(inventory.prepare_output(self.root / "out"), {report["packages"][0]["files"][0]["path"]})
+
+    def test_exact_curated_source_fills_missing_root_license(self):
+        content = b"Reviewed upstream license\n"
+        curated = [{
+            "name": "sample",
+            "version": "1.0.0",
+            "source": "registry+example",
+            "reference": "https://example.invalid/commit/abc",
+            "materials": [{
+                "source_path": "LICENSE",
+                "url": "https://example.invalid/LICENSE",
+                "sha256": hashlib.sha256(content).hexdigest(),
+            }],
+        }]
+        report = inventory.collect(
+            {"packages": [self.package]},
+            self.root / "out",
+            "lock-hash",
+            curated=curated,
+            fetcher=lambda _url: content,
+        )
+        item = report["packages"][0]
+        self.assertEqual(item["issues"], [])
+        self.assertTrue(item["files"][0]["curated"])
+        self.assertEqual(item["source_review"]["status"], "exact-source-reviewed")
+
+    def test_curated_source_rejects_checksum_mismatch(self):
+        curated = [{
+            "name": "sample",
+            "version": "1.0.0",
+            "source": "registry+example",
+            "materials": [{
+                "source_path": "LICENSE",
+                "url": "https://example.invalid/LICENSE",
+                "sha256": "0" * 64,
+            }],
+        }]
+        report = inventory.collect(
+            {"packages": [self.package]},
+            self.root / "out",
+            "lock-hash",
+            curated=curated,
+            fetcher=lambda _url: b"unexpected",
+        )
+        self.assertIn("checksum mismatch", "; ".join(report["packages"][0]["issues"]))
 
 
 if __name__ == "__main__":

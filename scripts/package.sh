@@ -26,10 +26,10 @@ if [[ -n "${DMS_SERVER_VERSION:-}" && "${DMS_SERVER_VERSION}" != "${WORKSPACE_VE
 fi
 VERSION="${WORKSPACE_VERSION}"
 PACKAGE_NAME="dms-server-${VERSION}-linux-${ARCH}"
-OUTPUT_ROOT="$(cd "${1:-${DMS_SOURCE_DIR}/artifacts/s4-candidate}" 2>/dev/null || true)"
+OUTPUT_ROOT="$(cd "${1:-${DMS_SOURCE_DIR}/artifacts/release}" 2>/dev/null || true)"
 if [[ -z "${OUTPUT_ROOT}" ]]; then
-  mkdir -p "${1:-${DMS_SOURCE_DIR}/artifacts/s4-candidate}"
-  OUTPUT_ROOT="$(cd "${1:-${DMS_SOURCE_DIR}/artifacts/s4-candidate}" && pwd -P)"
+  mkdir -p "${1:-${DMS_SOURCE_DIR}/artifacts/release}"
+  OUTPUT_ROOT="$(cd "${1:-${DMS_SOURCE_DIR}/artifacts/release}" && pwd -P)"
 fi
 BUILD_ID="${DMS_PACKAGE_BUILD_ID:-$(date -u +%Y%m%dT%H%M%SZ)-$$}"
 if [[ ! "${BUILD_ID}" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ || "${BUILD_ID}" == *..* ]]; then
@@ -56,7 +56,7 @@ for name in "${!artifacts[@]}"; do
 done
 
 if [[ -e "${OUTPUT_DIR}" ]]; then
-  echo "候选包输出目录已存在，拒绝覆盖：${OUTPUT_DIR}" >&2
+  echo "发布包输出目录已存在，拒绝覆盖：${OUTPUT_DIR}" >&2
   exit 2
 fi
 
@@ -105,7 +105,8 @@ for legal in LICENSE NOTICE CHANGELOG.md; do
   if [[ -f "${DMS_SOURCE_DIR}/${legal}" ]]; then
     install -m 0644 "${DMS_SOURCE_DIR}/${legal}" "${STAGE_DIR}/${legal}"
   else
-    echo "候选包未包含 ${legal}：源文件尚未提供，S4 法务/发布元信息仍需主流程确认" >&2
+    echo "正式运行包缺少必需文件 ${legal}，拒绝构包" >&2
+    exit 2
   fi
 done
 
@@ -116,7 +117,8 @@ if [[ -d "${THIRD_PARTY_DIR}" ]]; then
     install -m 0644 "${THIRD_PARTY_DIR}/${path}" "${STAGE_DIR}/THIRD-PARTY-LICENSES/${path}"
   done < <(cd "${THIRD_PARTY_DIR}" && find . -type f -printf '%P\n' | LC_ALL=C sort)
 else
-  echo "候选包未包含 THIRD-PARTY-LICENSES/：第三方许可清单由 S4 主流程生成后通过 DMS_THIRD_PARTY_DIR 指定" >&2
+  echo "正式运行包缺少 THIRD-PARTY-LICENSES/；请先生成清单并设置 DMS_THIRD_PARTY_DIR" >&2
+  exit 2
 fi
 
 (
@@ -128,8 +130,55 @@ fi
     echo "arch=${ARCH}"
     echo "built_at_utc=${BUILT_AT_UTC}"
     echo "source=Linux Cargo release artifacts"
-    echo "legal_status=候选包；LICENSE/NOTICE/CHANGELOG 以源树现有文件为准，缺失不在脚本中编造主体"
+    echo "legal_status=工程许可材料已随包收集；不替代法律审批"
   } >PACKAGE-METADATA
+  python3 - "${PACKAGE_NAME}" "${VERSION}" "${ARCH}" "${BUILT_AT_UTC}" <<'PY'
+import hashlib
+import json
+import sys
+from pathlib import Path
+
+package_name, version, arch, built_at = sys.argv[1:5]
+
+def file_record(path: Path) -> dict:
+    data = path.read_bytes()
+    return {
+        "path": path.as_posix(),
+        "bytes": len(data),
+        "sha256": hashlib.sha256(data).hexdigest(),
+    }
+
+# 这份清单描述“包内有什么”，供安装脚本、验收证据或 Release 草稿引用；
+# 它不声明已发布远端版本，也不替代外层归档 .sha256。
+manifest = {
+    "schema_version": 1,
+    "package": "dms-server",
+    "name": package_name,
+    "version": version,
+    "arch": arch,
+    "built_at_utc": built_at,
+    "remote_publish": False,
+    "binaries": [file_record(path) for path in sorted(Path("bin").iterdir()) if path.is_file()],
+    "runtime_entrypoints": [
+        "scripts/cluster.sh",
+        "scripts/metrics-targets.sh",
+        "scripts/observability.sh",
+        "scripts/verify_metrics.sh",
+        "scripts/verify_logs.sh",
+        "scripts/verify_tracing.sh",
+    ],
+    "docs": ["docs/release-installation.md"],
+    "limitations": [
+        "local-memory durability only",
+        "single Meta process; no multi-Meta HA",
+        "Linux host memory with TCP/gRPC and local UDS/SHM only",
+    ],
+}
+Path("SERVER-PACKAGE-MANIFEST.json").write_text(
+    json.dumps(manifest, indent=2, ensure_ascii=False) + "\n",
+    encoding="utf-8",
+)
+PY
   find . -type f ! -name SHA256SUMS ! -name MANIFEST.txt -printf '%P\n' | LC_ALL=C sort >MANIFEST.txt
   xargs -r sha256sum <MANIFEST.txt >SHA256SUMS
 )

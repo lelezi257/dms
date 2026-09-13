@@ -34,10 +34,17 @@ pub(crate) struct TransferEngine {
     worker: WorkerServiceClient<dms_tracing::TracedChannel>,
     session_id: u64,
     fd_broker_path: Option<PathBuf>,
+    grpc_max_upload_bytes: usize,
+    grpc_max_download_bytes: usize,
     mappings: Arc<RegionMappingCache>,
     metrics: Option<ClientMetrics>,
     rpc_metrics: Option<dms_metrics::RpcMetrics>,
 }
+
+// SDK 侧采用和 Node 一致的首版安全消息预算。它低于默认 Tonic message 上限，
+// 目的是在 protobuf 编码/解码失败前返回稳定 DMS 错误码。SHM 只传 descriptor，
+// payload bytes 走 mmap，不受这个 gRPC 单消息预算约束。
+const DMS_GRPC_PAYLOAD_SAFE_BYTES: usize = 8 * 1024 * 1024;
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 struct RegionMappingKey {
@@ -157,6 +164,12 @@ impl TransferEngine {
             worker: worker_client(channel, grpc_config),
             session_id,
             fd_broker_path: fd_broker_path.map(PathBuf::from),
+            grpc_max_upload_bytes: grpc_config
+                .max_encoding_message_bytes
+                .min(DMS_GRPC_PAYLOAD_SAFE_BYTES),
+            grpc_max_download_bytes: grpc_config
+                .max_decoding_message_bytes
+                .min(DMS_GRPC_PAYLOAD_SAFE_BYTES),
             mappings: Arc::new(RegionMappingCache::default()),
             metrics,
             rpc_metrics,
@@ -235,6 +248,7 @@ impl TransferEngine {
                             "payload target length does not match value".to_string(),
                         ));
                     }
+                    validate_grpc_payload_bytes(value.len(), self.grpc_max_upload_bytes, "upload")?;
                     let mut client = self.grpc.clone();
                     let mut rpc = self.rpc_metrics.as_ref().map(|metrics| {
                         metrics.begin_client_call(dms_metrics::RpcCall::PAYLOAD_UPLOAD)
@@ -324,6 +338,18 @@ impl TransferEngine {
         let result = async move {
             match target.target {
                 Some(pb::payload_target::Target::Grpc(target)) => {
+                    let declared_length = usize::try_from(target.length).map_err(|_| {
+                        grpc_payload_too_large(
+                            "download",
+                            target.length,
+                            self.grpc_max_download_bytes,
+                        )
+                    })?;
+                    validate_grpc_payload_bytes(
+                        declared_length,
+                        self.grpc_max_download_bytes,
+                        "download",
+                    )?;
                     let mut client = self.grpc.clone();
                     let mut rpc = self.rpc_metrics.as_ref().map(|metrics| {
                         metrics.begin_client_call(dms_metrics::RpcCall::PAYLOAD_DOWNLOAD)
@@ -422,6 +448,14 @@ impl TransferEngine {
         match target.target {
             Some(pb::payload_target::Target::Grpc(target)) => {
                 let declared_length = target.length;
+                let declared_length_usize = usize::try_from(declared_length).map_err(|_| {
+                    grpc_payload_too_large("read", declared_length, self.grpc_max_download_bytes)
+                })?;
+                validate_grpc_payload_bytes(
+                    declared_length_usize,
+                    self.grpc_max_download_bytes,
+                    "read",
+                )?;
                 let mut client = self.grpc.clone();
                 let mut rpc = self.rpc_metrics.as_ref().map(|metrics| {
                     metrics.begin_client_call(dms_metrics::RpcCall::PAYLOAD_DOWNLOAD)
@@ -655,6 +689,25 @@ fn payload_length(target: &pb::PayloadTarget) -> u64 {
         Some(pb::payload_target::Target::Ub(target)) => target.length,
         None => 0,
     }
+}
+
+fn validate_grpc_payload_bytes(
+    length: usize,
+    limit: usize,
+    operation: &'static str,
+) -> Result<(), DmsError> {
+    if length > limit {
+        return Err(grpc_payload_too_large(operation, length as u64, limit));
+    }
+    Ok(())
+}
+
+fn grpc_payload_too_large(operation: &'static str, length: u64, limit: usize) -> DmsError {
+    DmsError::new(
+        dms_error::NODE_ARENA_CAPACITY_EXHAUSTED,
+        dms_error::ErrorKind::ResourceExhausted,
+        format!("DMS gRPC payload {operation} is too large: {length} bytes exceeds {limit} bytes"),
+    )
 }
 
 fn shm_offset(target: &pb::ShmDescriptor) -> Result<usize, DmsError> {
@@ -911,6 +964,58 @@ mod tests {
             .await
             .expect_err("unsupported provider fails after all candidates");
         assert_eq!(error.code(), dms_error::NODE_TRANSFER_UNSUPPORTED);
+    }
+
+    #[tokio::test]
+    async fn grpc_upload_rejects_oversized_payload_before_rpc() {
+        let channel = Channel::from_static("http://127.0.0.1:1").connect_lazy();
+        let grpc_config = GrpcConfig {
+            max_encoding_message_bytes: 4,
+            max_decoding_message_bytes: 4,
+            ..GrpcConfig::default()
+        };
+        let engine = TransferEngine::new(channel, 7, None, &grpc_config, None, None);
+        let target = pb::PayloadTarget {
+            target: Some(pb::payload_target::Target::Grpc(pb::GrpcTarget {
+                transfer_id: b"too-large".to_vec(),
+                nonce: Vec::new(),
+                length: 5,
+            })),
+        };
+
+        let error = engine
+            .upload(7, target, b"12345")
+            .await
+            .expect_err("SDK should reject before touching the lazy channel");
+
+        assert_eq!(error.code(), dms_error::NODE_ARENA_CAPACITY_EXHAUSTED);
+        assert_eq!(error.kind(), dms_error::ErrorKind::ResourceExhausted);
+    }
+
+    #[tokio::test]
+    async fn grpc_download_rejects_oversized_payload_before_rpc() {
+        let channel = Channel::from_static("http://127.0.0.1:1").connect_lazy();
+        let grpc_config = GrpcConfig {
+            max_encoding_message_bytes: 4,
+            max_decoding_message_bytes: 4,
+            ..GrpcConfig::default()
+        };
+        let engine = TransferEngine::new(channel, 7, None, &grpc_config, None, None);
+        let target = pb::PayloadTarget {
+            target: Some(pb::payload_target::Target::Grpc(pb::GrpcTarget {
+                transfer_id: b"too-large".to_vec(),
+                nonce: Vec::new(),
+                length: 5,
+            })),
+        };
+
+        let error = engine
+            .download(7, target)
+            .await
+            .expect_err("SDK should reject before touching the lazy channel");
+
+        assert_eq!(error.code(), dms_error::NODE_ARENA_CAPACITY_EXHAUSTED);
+        assert_eq!(error.kind(), dms_error::ErrorKind::ResourceExhausted);
     }
 
     #[tokio::test]

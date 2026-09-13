@@ -58,7 +58,7 @@ cargo doc -p dms-client --no-deps --locked
 
 GitHub 的 [DMS CI](https://github.com/lelezi257/dms/actions/workflows/ci.yml) 在 main 推送、PR 和手工触发时运行：Ubuntu 24.04 + `rust-toolchain.toml` 指定的工具链，执行同一个 `scripts/release/check.sh`（fmt、Clippy、workspace tests/doctests、Python 工具测试）。工作流只有源码读取权限，不上传制品、创建 tag 或发布版本；本地也可在 Linux 源码根执行该脚本。
 
-CI 的源码门禁不能替代候选包隔离安装、三节点或性能验收。当前尚未发布 GitHub Release / crates.io 包，发布验收另行推进。
+CI 的源码门禁不能替代发布包隔离安装、三节点或性能验收。GitHub Release 与 crates.io 是两条独立发布渠道；0.1.0 不发布 crates.io。
 
 ## 5. 人工与 AI 的接力
 

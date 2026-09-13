@@ -1,0 +1,125 @@
+{
+  "schema_version": 1,
+  "packages": [
+    {
+      "name": "opentelemetry",
+      "version": "0.32.0",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "reference": "https://github.com/open-telemetry/opentelemetry-rust/commit/ec289cb3c6f8260951699c51df968560943c1451",
+      "materials": [
+        {
+          "source_path": "LICENSE",
+          "url": "https://raw.githubusercontent.com/open-telemetry/opentelemetry-rust/ec289cb3c6f8260951699c51df968560943c1451/LICENSE",
+          "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
+        }
+      ]
+    },
+    {
+      "name": "opentelemetry-otlp",
+      "version": "0.32.0",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "reference": "https://github.com/open-telemetry/opentelemetry-rust/commit/ec289cb3c6f8260951699c51df968560943c1451",
+      "materials": [
+        {
+          "source_path": "LICENSE",
+          "url": "https://raw.githubusercontent.com/open-telemetry/opentelemetry-rust/ec289cb3c6f8260951699c51df968560943c1451/LICENSE",
+          "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
+        }
+      ]
+    },
+    {
+      "name": "opentelemetry_sdk",
+      "version": "0.32.1",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "reference": "https://github.com/open-telemetry/opentelemetry-rust/commit/284a37d93b3856e1975c2807ba3af1421ebd9b52",
+      "materials": [
+        {
+          "source_path": "LICENSE",
+          "url": "https://raw.githubusercontent.com/open-telemetry/opentelemetry-rust/284a37d93b3856e1975c2807ba3af1421ebd9b52/LICENSE",
+          "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
+        }
+      ]
+    },
+    {
+      "name": "r-efi",
+      "version": "5.3.0",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "reference": "https://github.com/r-efi/r-efi/commit/97b55bed1c2c91dcbf787674849f05337ff80b33",
+      "materials": [
+        {
+          "source_path": "AUTHORS",
+          "package_path": "AUTHORS",
+          "url": "https://raw.githubusercontent.com/r-efi/r-efi/97b55bed1c2c91dcbf787674849f05337ff80b33/AUTHORS",
+          "sha256": "ff92bed461f50338dd703a9ba9aee496a425957873df1d91192776e4bdf5dda7"
+        }
+      ]
+    },
+    {
+      "name": "r-efi",
+      "version": "6.0.0",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "reference": "https://github.com/r-efi/r-efi/commit/7e1b0322d31d625f81a5656096330934f9cd835d",
+      "materials": [
+        {
+          "source_path": "AUTHORS",
+          "package_path": "AUTHORS",
+          "url": "https://raw.githubusercontent.com/r-efi/r-efi/7e1b0322d31d625f81a5656096330934f9cd835d/AUTHORS",
+          "sha256": "d027e91dbc9cdbb2f1190068e498bd6b61cff022b6a032b191021ba658d96111"
+        }
+      ]
+    },
+    {
+      "name": "slog-global",
+      "version": "0.1.0",
+      "source": "git+https://github.com/tikv/slog-global.git?rev=d592f88e4dbba5eb439998463054f1a44fbf17b9#d592f88e4dbba5eb439998463054f1a44fbf17b9",
+      "reference": "https://github.com/tikv/slog-global/commit/d592f88e4dbba5eb439998463054f1a44fbf17b9",
+      "materials": [
+        {
+          "source_path": "LICENSE",
+          "package_path": "LICENSE",
+          "url": "https://raw.githubusercontent.com/tikv/slog-global/d592f88e4dbba5eb439998463054f1a44fbf17b9/LICENSE",
+          "sha256": "ae8b7577b18eacbc3eac632b6151427d76498e38edb7a9e6e1d3467a688d899c"
+        }
+      ]
+    },
+    {
+      "name": "tonic-prost",
+      "version": "0.14.6",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "reference": "https://github.com/grpc/grpc-rust/commit/6cb6056b5a748bc5a29bd48f4602dbc4e552bb7d",
+      "materials": [
+        {
+          "source_path": "LICENSE",
+          "url": "https://raw.githubusercontent.com/grpc/grpc-rust/6cb6056b5a748bc5a29bd48f4602dbc4e552bb7d/LICENSE",
+          "sha256": "e24a56698aa6feaf3a02272b3624f9dc255d982970c5ed97ac4525a95056a5b3"
+        }
+      ]
+    },
+    {
+      "name": "tonic-prost-build",
+      "version": "0.14.6",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "reference": "https://github.com/grpc/grpc-rust/commit/6cb6056b5a748bc5a29bd48f4602dbc4e552bb7d",
+      "materials": [
+        {
+          "source_path": "LICENSE",
+          "url": "https://raw.githubusercontent.com/grpc/grpc-rust/6cb6056b5a748bc5a29bd48f4602dbc4e552bb7d/LICENSE",
+          "sha256": "e24a56698aa6feaf3a02272b3624f9dc255d982970c5ed97ac4525a95056a5b3"
+        }
+      ]
+    },
+    {
+      "name": "valuable",
+      "version": "0.1.1",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "reference": "https://github.com/tokio-rs/valuable/commit/9efc29b6e58cef28f6566a47aa7e142a55fead77",
+      "materials": [
+        {
+          "source_path": "LICENSE",
+          "url": "https://raw.githubusercontent.com/tokio-rs/valuable/9efc29b6e58cef28f6566a47aa7e142a55fead77/LICENSE",
+          "sha256": "ed60d479b8fd1f64e9cbc3de449a16a53ac1b3d1b6aeb9bf9d190a8e93061b44"
+        }
+      ]
+    }
+  ]
+}

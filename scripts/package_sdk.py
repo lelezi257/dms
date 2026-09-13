@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build a single-crate Rust SDK candidate package.
+"""Build the standalone single-crate Rust SDK release package.
 
 The source workspace intentionally keeps shared implementation in private
 `common/*` and `protocol` crates.  This release-prep tool creates a disposable
@@ -259,7 +259,11 @@ def stabilize_lock_to_source_versions(
     )
     update_log = evidence_dir / f"{log_prefix}-lock-version-pins.log"
     updates: list[str] = []
-    for _ in range(20):
+    # `cargo update` 会重新求解依赖图。固定一个包后，Cargo 可能同时把其它包
+    # 从候选版本收敛回 source Cargo.lock 中已有的版本。因此每次真实修改 lock
+    # 之后都必须重新扫描 drift，不能继续消费修改前的旧错误列表；否则会尝试
+    # pin 一个已经不存在的 `name@version`，在离线构包时误报失败。
+    for _ in range(200):
         errors, _ = collect_lock_version_drift(manifest_dir / "Cargo.lock")
         if not errors:
             break
@@ -283,8 +287,14 @@ def stabilize_lock_to_source_versions(
                 )
                 updates.append(f"{name}@{bad_version} -> {target}")
                 progressed = True
+                break
+            if progressed:
+                break
         if not progressed:
             raise RuntimeError(f"lock drift remained but no update was possible: {errors}")
+    else:
+        errors, _ = collect_lock_version_drift(manifest_dir / "Cargo.lock")
+        raise RuntimeError(f"lock drift did not stabilize after 200 updates: {errors}")
     update_log.write_text("\n".join(updates) + ("\n" if updates else "no pins needed\n"), encoding="utf-8")
 
 
@@ -383,8 +393,14 @@ def transform_text(text: str, *, owner_module: str | None) -> str:
     return text
 
 
+def is_packaging_noise(path: Path) -> bool:
+    return path.name.startswith("._") or path.name == ".DS_Store"
+
+
 def copy_transformed_tree(source: Path, destination: Path, *, owner_module: str | None) -> None:
     for path in source.rglob("*"):
+        if is_packaging_noise(path):
+            continue
         relative = path.relative_to(source)
         target = destination / relative
         if path.is_dir():
@@ -421,11 +437,13 @@ opentelemetry = {{ version = "0.32.0", default-features = false, features = ["tr
 opentelemetry_sdk = {{ version = "0.32.0", default-features = false, features = ["trace"] }}
 prometheus = {{ version = "0.14.0", default-features = false }}
 prost = "0.14.1"
+prost-types = "0.14.1"
 thiserror = "2.0.16"
 tokio = {{ version = "1.47.1", features = ["net", "rt-multi-thread", "sync", "time"] }}
 tokio-stream = "0.1.17"
 tonic = {{ version = "0.14.6", features = ["tls-ring"] }}
 tonic-prost = "0.14.6"
+tonic-types = "0.14.6"
 tower = {{ version = "0.5.2", features = ["util"] }}
 tracing = {{ version = "0.1.41", features = ["log"] }}
 tracing-opentelemetry = {{ version = "0.33.0", default-features = false }}
@@ -451,31 +469,22 @@ def write_package_readme(stage_crate: Path, version: str) -> None:
 
 Rust SDK for DMS applications.
 
-This package is a local {version} release candidate. It contains the private
+This package is the standalone DMS {version} SDK archive. It contains the private
 DMS common/protocol implementation as crate-internal modules.
 
-For the current candidate build, use the maintainer-provided local sparse
-registry instead of a public registry lookup. The maintainer starts that
-registry with `candidate_registry.py` on `localhost:26880`.
+The crate is published as a GitHub Release asset, not to crates.io. Online Cargo
+consumers should pin the source tag:
 
 `Cargo.toml`:
 
 ```toml
 [dependencies]
-dms-client = {{ version = "{version}", registry = "dms-candidate" }}
+dms-client = {{ git = "https://github.com/lelezi257/dms.git", tag = "v{version}" }}
 ```
 
-`.cargo/config.toml`:
-
-```toml
-[registries.dms-candidate]
-index = "sparse+http://127.0.0.1:26880/"
-```
-
-After the SDK is publicly published, applications can use the plain dependency
-form `dms-client = "{version}"`. Do not use that bare form for this local
-candidate unless your Cargo registry configuration deliberately maps it to the
-candidate package.
+For air-gapped verification, maintainers may expose the downloaded `.crate`
+through the supplied local sparse-registry helper. The bare dependency form
+`dms-client = "{version}"` is reserved for a future Cargo registry publication.
 
 ```rust
 use dms_client::{{ClientOptions, DmsClient}};
@@ -655,8 +664,12 @@ def package_and_verify(layout: PackageLayout) -> None:
         env=env,
         log_path=layout.evidence_dir / "05-staging-test.log",
     )
+    # RC 打包验证必须只使用前面已经稳定好的本地 Cargo.lock 和本机缓存。
+    # `cargo package` 默认会刷新 crates.io index；在发布候选包生成阶段这会把
+    # “代码是否可打包”变成“公网此刻是否可访问”。这里显式离线，保证失败只来自
+    # 依赖缓存缺失或包本身问题，日志也更容易定界。
     run_checked(
-        ["cargo", "package", "--manifest-path", str(layout.stage_crate / "Cargo.toml"), "--locked"],
+        ["cargo", "package", "--manifest-path", str(layout.stage_crate / "Cargo.toml"), "--locked", "--offline"],
         cwd=layout.stage_crate,
         env=env,
         log_path=layout.evidence_dir / "06-cargo-package.log",
@@ -752,6 +765,7 @@ def write_manifest(layout: PackageLayout, version: str) -> None:
         "staging_crate": staging_path,
         "evidence": evidence_path,
         "remote_publish": False,
+        "publish_target": "github-release-asset",
         "consumer_dependency": f'dms-client = "{version}"',
         "internalized_crates": sorted(INTERNAL_CRATES),
         "pre_generated_protocol": "src/generated/dms.v1.rs",
@@ -764,7 +778,7 @@ def write_manifest(layout: PackageLayout, version: str) -> None:
         encoding="utf-8",
     )
     (layout.package_root / "README.md").write_text(
-        f"""# dms-client SDK package candidate
+        f"""# dms-client SDK release package
 
 - package: `{layout.crate_file.name}`
 - version: `{version}`
@@ -773,9 +787,10 @@ def write_manifest(layout: PackageLayout, version: str) -> None:
 - evidence: `{layout.evidence_dir}`
 - machine manifest: `{layout.package_root / "sdk-package-manifest.json"}`
 
-This is a local release candidate only. It was not uploaded to a remote registry.
-SDK consumers should depend on `dms-client = "{version}"`; the private common
-and protocol implementation is relocated into the packaged crate.
+This directory is produced before upload, so `remote_publish` remains false in
+the build manifest. The formal GitHub Release manifest records the uploaded
+asset. Online SDK consumers pin the repository tag `v{version}`; the private
+common and protocol implementation is relocated into the packaged crate.
 """,
         encoding="utf-8",
     )

@@ -23,7 +23,7 @@
 
 key 与 field 是二进制安全的 1～1024 字节；普通方法直接接收字符串或字节，不必先构造 Key。普通 SET 支持空 value；GET 命中的空字节与 key 不存在是不同结果。Hash 操作适合有界字段集，当前字段表编码包含字段值，不能当成超大数据集的低成本索引。
 
-Go SDK 当前提供 Connect/Set/Get/Del/Stat/Scan 及必要选项，不等于已实现 Rust SDK 的全部高级方法。文件系统接入仅通过 JuiceFS 对象后端适配器，目录、inode、文件布局仍由文件系统管理；详见 [接入与部署](juicefs.md)。
+Go SDK 当前是纯 Go 开发预览，提供 `Connect`、`Set/Get/Del/Stat/Scan`、`GetInto/GetReader/SetFrom`、`SetRange`、`MSet/MGet`、`HSet/HGet/HMGet/HGetAll/HDel/HScan/HWriteAt` 及必要选项；不等于已实现 Rust SDK 的全部高级方法。文件系统接入只使用对象后端语义，目录、inode、文件布局仍由上层文件系统管理。
 
 ## 一致性与缓存
 
@@ -42,6 +42,6 @@ Node 有默认 8 MiB 的 Current 元数据缓存，保存布局与同次解析�
 - **回收不是删除后立即释放。** 当前候选已实现旧版本裁剪、排空在途读、回收通知和物理 allocation 释放；完整文件系统 GC 与故障验收仍以候选报告为准。活对象、保留版本及未归还的读写借用继续占用容量。旧 SDK 或丢失写权归还的 SHM allocation 保持隔离，不能因 TTL/断连复用；这类未归还资源仍可能耗尽容量。
 - **共享内存只适用于受信任本地应用。** 把 Region 的 FD 交给进程，不是只授权其中一个 offset 的强安全沙箱。当前不承诺恶意租户隔离。
 - **只有 Host memory、gRPC/TCP 与本地 SHM 实现。** RDMA/UB、设备内存、磁盘/对象存储分层、Python/C++ SDK 是扩展方向，不是当前可运行功能。
-- **候选制品不等于正式发布。** 公开源码与开发候选包不代表已发布 GitHub Release / crates.io 包，未承诺稳定 ABI、跨版本滚动升级或千节点性能。候选安装入口见 [release-installation.md](release-installation.md)。
+- **GitHub Release 不等于 crates.io 发布。** 0.1.0 提供 GitHub 源码 tag、Rust SDK 资产、Go module tag 和 Linux 服务包；不承诺稳定 ABI、跨版本滚动升级或千节点性能。安装入口见 [release-installation.md](release-installation.md)。
 
 操作说明见[单 VM 教程](local-single-vm-manual.md)，实现分工见[架构](architecture.md)。

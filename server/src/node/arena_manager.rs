@@ -376,6 +376,10 @@ impl ArenaManager {
         self.shared_fd_broker = Some(broker);
     }
 
+    pub(crate) fn shared_region_enabled(&self) -> bool {
+        self.shared_fd_broker.is_some()
+    }
+
     /// 启动时设置扩容目标；不移动已经分配的 Region，不能改变既有 FD/mmap 身份。
     pub(crate) fn set_region_size(&mut self, bytes: u64) {
         self.region_size_bytes = bytes;

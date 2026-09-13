@@ -9,6 +9,13 @@ import (
 // 正常已提交对象版本由 Meta 分配。
 type ObjectVersion uint64
 
+const (
+	// MaxKeyLen 与服务端公开合同一致；Go string 可以承载任意 bytes，长度按字节计算。
+	MaxKeyLen = 1024
+	// MaxHashFieldLen 限制 Hash/KKV 的二级 key，避免无界字段进入协议和索引。
+	MaxHashFieldLen = 1024
+)
+
 // DurabilityPolicy 当前只支持 LocalMemory；其它值保留为未来能力，显式传入会报错。
 type DurabilityPolicy string
 
@@ -125,6 +132,122 @@ type ScanOptions struct {
 type ScanResult struct {
 	Items      []ObjectInfo
 	NextCursor string
+}
+
+// KVEntry 是 MSet 的一个独立顶层对象。一次 MSet 中所有对象原子可见。
+type KVEntry struct {
+	Key   string
+	Value []byte
+}
+
+type MSetOptions struct {
+	Durability DurabilityPolicy
+}
+
+type KeyVersion struct {
+	Key     string
+	Version ObjectVersion
+}
+
+type MSetResult struct {
+	Versions []KeyVersion
+}
+
+type RangeWriteOptions struct {
+	ExpectedVersion *ObjectVersion
+	Durability      DurabilityPolicy
+}
+
+// HashVersion 是整个 Hash/KKV 字段集合的版本；一次 HSet/HDel 只产生一个该版本。
+type HashVersion uint64
+
+type HashEntry struct {
+	Field string
+	Value []byte
+}
+
+type HashWriteMode string
+
+const (
+	// HashWriteMerge 保留本次请求没有出现的字段，对应通常的 HSET 语义。
+	HashWriteMerge HashWriteMode = "merge"
+	// HashWriteReplace 只保留本次提交的字段，用于发布完整字段集合。
+	HashWriteReplace HashWriteMode = "replace"
+)
+
+type HashWriteOptions struct {
+	Mode            HashWriteMode
+	ExpectedVersion *HashVersion
+	Durability      DurabilityPolicy
+}
+
+type HashDeleteOptions struct {
+	ExpectedVersion *HashVersion
+	Durability      DurabilityPolicy
+}
+
+type HashReadVersion struct {
+	exact *HashVersion
+}
+
+func HashReadCurrent() HashReadVersion {
+	return HashReadVersion{}
+}
+
+func HashReadExact(version HashVersion) HashReadVersion {
+	return HashReadVersion{exact: &version}
+}
+
+type HashGetOptions struct {
+	Version HashReadVersion
+}
+
+type ScanCursor uint64
+
+type HashScanOptions struct {
+	Version HashReadVersion
+	Limit   uint32
+}
+
+type HashRangeWriteOptions struct {
+	ExpectedVersion *HashVersion
+	Durability      DurabilityPolicy
+}
+
+type HashSetResult struct {
+	Version    HashVersion
+	FieldCount uint64
+}
+
+type HashValue struct {
+	Field        string
+	HashVersion  HashVersion
+	ValueVersion ObjectVersion
+	Bytes        []byte
+}
+
+// HashMultiGetResult.Values 与输入字段顺序一一对应；nil 表示该字段不存在。
+type HashMultiGetResult struct {
+	Version *HashVersion
+	Values  []*HashValue
+}
+
+type HashEntriesResult struct {
+	Version *HashVersion
+	Entries []HashValue
+}
+
+type HashScanResult struct {
+	Version    *HashVersion
+	NextCursor ScanCursor
+	Entries    []HashValue
+}
+
+type HashRangeWriteResult struct {
+	HashVersion  HashVersion
+	ValueVersion ObjectVersion
+	Len          uint64
+	FieldCount   uint64
 }
 
 type ReadVersion struct {

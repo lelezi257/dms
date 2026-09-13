@@ -43,6 +43,7 @@ type Client struct {
 	sharedMemory               bool
 	inlineMax                  uint64
 	timeout                    time.Duration
+	defaultDurability          DurabilityPolicy
 	writeLeaseReleaseSupported bool
 
 	instance []byte
@@ -97,17 +98,18 @@ func connect(ctx context.Context, endpoint string, options ClientOptions) (*Clie
 	}
 	clientCtx, clientCancel := context.WithCancel(context.Background())
 	c := &Client{
-		conn:            conn,
-		worker:          pb.NewWorkerServiceClient(conn),
-		payload:         pb.NewWorkerPayloadServiceClient(conn),
-		inlineMax:       resolved.inlineThresholdBytes,
-		timeout:         resolved.timeout,
-		sharedMemory:    resolved.sharedMemory,
-		instance:        instance,
-		ctx:             clientCtx,
-		cancel:          clientCancel,
-		regions:         map[uint64]*mappedRegion{},
-		readReleaseWake: make(chan struct{}, 1),
+		conn:              conn,
+		worker:            pb.NewWorkerServiceClient(conn),
+		payload:           pb.NewWorkerPayloadServiceClient(conn),
+		inlineMax:         resolved.inlineThresholdBytes,
+		timeout:           resolved.timeout,
+		defaultDurability: resolved.defaultDurability,
+		sharedMemory:      resolved.sharedMemory,
+		instance:          instance,
+		ctx:               clientCtx,
+		cancel:            clientCancel,
+		regions:           map[uint64]*mappedRegion{},
+		readReleaseWake:   make(chan struct{}, 1),
 	}
 	open, err := c.worker.OpenSession(callCtx, c.openSessionRequest())
 	if err != nil {
@@ -212,6 +214,10 @@ func dial(ctx context.Context, endpoint string) (*grpc.ClientConn, error) {
 	opts := []grpc.DialOption{
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithBlock(),
+		// DMS endpoint 是 SDK 到 dms-node 的内部控制通道，不能继承宿主应用的
+		// HTTP_PROXY/HTTPS_PROXY。若这里走到公司代理或本机调试代理，近计算内网
+		// 地址会出现看似网络可达、但 OpenSession 长时间超时的误判。
+		grpc.WithNoProxy(),
 		grpc.WithDefaultCallOptions(
 			grpc.MaxCallRecvMsgSize(defaultMaxMessageBytes),
 			grpc.MaxCallSendMsgSize(defaultMaxMessageBytes),
@@ -227,7 +233,7 @@ func dial(ctx context.Context, endpoint string) (*grpc.ClientConn, error) {
 	target := strings.TrimPrefix(endpoint, "tcp://")
 	if parsed, err := url.Parse(target); err == nil && (parsed.Scheme == "http" || parsed.Scheme == "https") {
 		if parsed.Scheme == "https" {
-			return nil, invalidArgument("https endpoint requires TLS support, which is not implemented")
+			return nil, unimplemented("https endpoint requires TLS support, which is not implemented")
 		}
 		target = parsed.Host
 	}
@@ -279,10 +285,8 @@ func (c *Client) SetWithOptions(ctx context.Context, key string, value []byte, o
 		return SetResult{}, err
 	}
 	defer done()
-	if options.Durability == "" {
-		options.Durability = DurabilityLocalMemory
-	}
-	if _, err := parseDurability("SetOptions.Durability", string(options.Durability)); err != nil {
+	options.Durability, err = c.resolveDurability("SetOptions.Durability", options.Durability)
+	if err != nil {
 		return SetResult{}, err
 	}
 	callCtx, cancel := boundedContext(ctx, c.timeout)
@@ -324,10 +328,8 @@ func (c *Client) SetFrom(ctx context.Context, key string, src io.Reader, length 
 	if src == nil {
 		return SetResult{}, invalidArgument("SetFrom source must be non-nil")
 	}
-	if options.Durability == "" {
-		options.Durability = DurabilityLocalMemory
-	}
-	if _, err := parseDurability("SetOptions.Durability", string(options.Durability)); err != nil {
+	options.Durability, err = c.resolveDurability("SetOptions.Durability", options.Durability)
+	if err != nil {
 		return SetResult{}, err
 	}
 	callCtx, cancel := boundedContext(ctx, c.timeout)
@@ -467,10 +469,6 @@ func (c *Client) setStaged(ctx context.Context, key string, value []byte, option
 		return SetResult{}, setFailureWithCleanup(err, cleanupErr)
 	}
 	return SetResult{}, asDmsError(protocolError("Set staged retry exhausted"))
-}
-
-func (c *Client) deleteStagingAfterUploadFailure(ctx context.Context, stagingID uint64) error {
-	return c.deleteStagingForSession(ctx, c.currentSession(), stagingID)
 }
 
 func (c *Client) deleteStagingForSession(ctx context.Context, session sessionSnapshot, stagingID uint64) error {
@@ -720,6 +718,17 @@ func (c *Client) Scan(ctx context.Context, prefix string, options ScanOptions) (
 	if options.StartAfter != nil && options.Cursor != "" {
 		return ScanResult{}, invalidArgument("ScanOptions.StartAfter and Cursor are mutually exclusive")
 	}
+	if err := validateOptionalKeyPart("scan prefix", prefix); err != nil {
+		return ScanResult{}, err
+	}
+	if options.StartAfter != nil {
+		if err := validateOptionalKeyPart("ScanOptions.StartAfter", *options.StartAfter); err != nil {
+			return ScanResult{}, err
+		}
+	}
+	if err := validateOptionalKeyPart("ScanOptions.Delimiter", options.Delimiter); err != nil {
+		return ScanResult{}, err
+	}
 	callCtx, cancel := boundedContext(ctx, c.timeout)
 	defer cancel()
 	wireOptions := &pb.ObjectScanOptions{
@@ -761,10 +770,43 @@ func (c *Client) Scan(ctx context.Context, prefix string, options ScanOptions) (
 }
 
 func (c *Client) beginCall(key string) (func(), error) {
-	if key == "" {
-		return nil, invalidArgument("key must be non-empty")
+	if err := validateKey(key); err != nil {
+		return nil, err
 	}
 	return c.beginClientCall()
+}
+
+func (c *Client) resolveDurability(name string, override DurabilityPolicy) (DurabilityPolicy, error) {
+	value := override
+	if value == "" {
+		value = c.defaultDurability
+	}
+	// 手工构造的测试 Client 以及零值内部 Client 也遵守产品默认值。
+	if value == "" {
+		value = DurabilityLocalMemory
+	}
+	return parseDurability(name, string(value))
+}
+
+func validateKey(key string) error {
+	if len(key) == 0 || len(key) > MaxKeyLen {
+		return invalidArgument(fmt.Sprintf("key length %d is outside 1..=%d", len(key), MaxKeyLen))
+	}
+	return nil
+}
+
+func validateHashField(field string) error {
+	if len(field) == 0 || len(field) > MaxHashFieldLen {
+		return invalidArgument(fmt.Sprintf("Hash field length %d is outside 1..=%d", len(field), MaxHashFieldLen))
+	}
+	return nil
+}
+
+func validateOptionalKeyPart(name, value string) error {
+	if len(value) > MaxKeyLen {
+		return invalidArgument(fmt.Sprintf("%s length %d exceeds %d", name, len(value), MaxKeyLen))
+	}
+	return nil
 }
 
 func (c *Client) beginClientCall() (func(), error) {
@@ -957,8 +999,12 @@ func (c *Client) readSegmentInto(ctx context.Context, session sessionSnapshot, t
 		}
 		copy(dst, resp.Payload)
 		return t.Grpc.Length, nil
+	case *pb.PayloadTarget_Rdma:
+		return 0, unimplemented("RDMA payload provider is not enabled by the Go SDK")
+	case *pb.PayloadTarget_Ub:
+		return 0, unimplemented("UB payload provider is not enabled by the Go SDK")
 	default:
-		return 0, protocolError("unsupported payload target")
+		return 0, protocolError("payload target is empty")
 	}
 }
 
@@ -1147,9 +1193,11 @@ func readTargetLength(target *pb.PayloadTarget) (uint64, error) {
 			return 0, protocolError("read segment has empty gRPC descriptor")
 		}
 		return t.Grpc.Length, nil
-	case *pb.PayloadTarget_Rdma, *pb.PayloadTarget_Ub:
-		// 未实现的后端应在布局预检时失败，不能先下载其它片段再报错。
-		return 0, protocolError("unsupported payload target")
+	case *pb.PayloadTarget_Rdma:
+		// 未实现的后端应在布局预检时稳定返回 Unimplemented，不能伪装成协议损坏。
+		return 0, unimplemented("RDMA payload provider is not enabled by the Go SDK")
+	case *pb.PayloadTarget_Ub:
+		return 0, unimplemented("UB payload provider is not enabled by the Go SDK")
 	default:
 		return 0, protocolError("read segment has empty target")
 	}
@@ -1462,9 +1510,15 @@ func (r *objectReader) readUnlocked(p []byte) (int, error) {
 			}
 			r.segmentBytes = resp.Payload
 			r.segmentPos = 0
+		case *pb.PayloadTarget_Rdma:
+			_ = r.closeNoWait()
+			return total, unimplemented("RDMA payload provider is not enabled by the Go SDK")
+		case *pb.PayloadTarget_Ub:
+			_ = r.closeNoWait()
+			return total, unimplemented("UB payload provider is not enabled by the Go SDK")
 		default:
 			_ = r.closeNoWait()
-			return total, protocolError("unsupported payload target")
+			return total, protocolError("payload target is empty")
 		}
 	}
 	return total, nil
@@ -1631,8 +1685,12 @@ func (c *Client) uploadForSession(ctx context.Context, session sessionSnapshot, 
 			return nil, protocolError("upload response is missing receipt")
 		}
 		return resp.Receipt, nil
+	case *pb.PayloadTarget_Rdma:
+		return nil, unimplemented("RDMA payload provider is not enabled by the Go SDK")
+	case *pb.PayloadTarget_Ub:
+		return nil, unimplemented("UB payload provider is not enabled by the Go SDK")
 	default:
-		return nil, protocolError("unsupported payload target")
+		return nil, protocolError("payload target is empty")
 	}
 }
 
@@ -1684,8 +1742,12 @@ func (c *Client) uploadFrom(ctx context.Context, session sessionSnapshot, target
 			return nil, true, protocolError("upload response is missing receipt")
 		}
 		return resp.Receipt, true, nil
+	case *pb.PayloadTarget_Rdma:
+		return nil, false, unimplemented("RDMA payload provider is not enabled by the Go SDK")
+	case *pb.PayloadTarget_Ub:
+		return nil, false, unimplemented("UB payload provider is not enabled by the Go SDK")
 	default:
-		return nil, false, protocolError("unsupported payload target")
+		return nil, false, protocolError("payload target is empty")
 	}
 }
 
@@ -1713,8 +1775,12 @@ func (c *Client) downloadForSession(ctx context.Context, session sessionSnapshot
 			return nil, err
 		}
 		return resp.Payload, nil
+	case *pb.PayloadTarget_Rdma:
+		return nil, unimplemented("RDMA payload provider is not enabled by the Go SDK")
+	case *pb.PayloadTarget_Ub:
+		return nil, unimplemented("UB payload provider is not enabled by the Go SDK")
 	default:
-		return nil, protocolError("unsupported payload target")
+		return nil, protocolError("payload target is empty")
 	}
 }
 

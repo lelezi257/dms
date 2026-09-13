@@ -129,7 +129,7 @@ func resolveOptions(explicitEndpoint string, options ClientOptions) (resolvedOpt
 		return resolvedOptions{}, invalidArgument("DMS endpoint is required")
 	}
 	if resolved.tls != TLSDisabled {
-		return resolvedOptions{}, invalidArgument("only disabled TLS is supported by the Go SDK")
+		return resolvedOptions{}, unimplemented("TLS is not implemented by the Go SDK")
 	}
 	return resolved, nil
 }
@@ -199,7 +199,7 @@ func parseTLS(name, value string) (ClientTLSOptions, error) {
 	case TLSDisabled:
 		return TLSDisabled, nil
 	default:
-		return "", invalidArgument(name + " must be disabled")
+		return "", unimplemented(name + " requests TLS, which is not implemented by the Go SDK")
 	}
 }
 

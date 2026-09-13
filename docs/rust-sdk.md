@@ -12,14 +12,14 @@ cargo run --locked -p dms-client --example tutorial
 
 成功输出 `DMS tutorial passed`，同时逐项断言 SET/GET、版本读、随机写、批量、Hash Merge/Replace、分页和删除。示例会覆盖 `tutorial/` 前缀下列出的演示 key，末尾删除它们，请勿在这些 key 保存业务数据；删除并不保证立刻回收所有内存。完整代码见 [tutorial.rs](../sdk/rust/dms-client/examples/tutorial.rs)。
 
-接入自己的程序有两种入口：候选包消费者使用 [候选仓库安装](release-installation.md)，共同开发 SDK 时使用下面的源码依赖。**当前没有公共仓库发布版本。** 以下路径需换成实际源码位置：
+接入自己的程序有两种入口：0.1.0 用户固定 Git tag 或使用 [GitHub Release 资产](release-installation.md)，共同开发 SDK 时使用下面的源码路径依赖。当前尚未发布 crates.io 包。
 
 ```toml
 [dependencies]
 dms-client = { path = "/你的源码目录/sdk/rust/dms-client" }
 ```
 
-路径依赖允许 Cargo 同时解析工作区内部依赖；不能只复制 SDK 源码目录作为发布包。候选 `.crate` 已将私有实现和预生成协议纳入一个包，消费者只声明 `dms-client`。两种方式的公共 API 相同，应用不直接依赖 generated protobuf API。
+路径依赖允许 Cargo 同时解析工作区内部依赖；不能只复制 SDK 源码目录作为发布包。发布 `.crate` 已将私有实现和预生成协议纳入一个包，消费者只声明 `dms-client`。两种方式的公共 API 相同，应用不直接依赖 generated protobuf API。
 
 ## 连接与线程
 
@@ -31,9 +31,9 @@ let client = DmsClient::connect_with_options(ClientOptions::default())?;
 
 当前 API 是同步阻塞接口，内部持有 Tokio runtime，不要直接在 Tokio 异步任务中调用；异步宿主应在专用同步线程或 `spawn_blocking` 中创建、使用和释放 Client。`DmsClient::clone()` 共享同一会话和 Region 映射管理，不会创建一个新进程，也不维护私有 value 缓存。
 
-### 候选新增：用户 buffer 与 Reader
+### 用户 buffer 与 Reader
 
-以下是当前候选源码能力，不代表之前发布的包已包含。`get/set` 不变，`set` 已接受用户 `&[u8]`，无需 set_into。
+以下能力从 0.1.0 起提供。`get/set` 不变，`set` 已接受用户 `&[u8]`，无需 set_into。
 
 | 接口 | 作用与返回 |
 | --- | --- |

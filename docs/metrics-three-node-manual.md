@@ -23,15 +23,17 @@ export CARGO_INCREMENTAL=0
 ./scripts/package.sh
 ```
 
-输出是 `artifacts/dms-linux-aarch64.tar.gz`（x86_64 构建对应后缀为x86_64）。这是**本地实验组件包**，不是已发布0.1制品或SDK。用自己的文件传输工具复制到每台运行VM；同架构且系统运行依赖兼容，不跨架构使用。
+输出位于版本化候选目录，例如 `artifacts/s4-candidate/dms-server-0.1.0-linux-aarch64-<build-id>/dms-server-0.1.0-linux-aarch64.tar.gz`（x86_64 构建对应后缀为 `x86_64`）。脚本最后会打印准确路径和 companion `.sha256`。这是**本地实验组件包**，不是已经上传远端的发布包或 Rust SDK。用自己的文件传输工具复制 tar 与 `.sha256` 到每台运行 VM；同架构且系统运行依赖兼容，不跨架构使用。
 
 每台 VM 中解压到新的实验目录，避免覆盖已有部署：
 
 ```bash
 mkdir -p ~/dms-manual
-tar -xzf /tmp/dms-linux-aarch64.tar.gz -C ~/dms-manual --strip-components=1
+sha256sum -c /tmp/dms-server-0.1.0-linux-aarch64.tar.gz.sha256
+tar -xzf /tmp/dms-server-0.1.0-linux-aarch64.tar.gz -C ~/dms-manual --strip-components=1
 cd ~/dms-manual
 sha256sum -c SHA256SUMS
+python3 -m json.tool SERVER-PACKAGE-MANIFEST.json | head
 cp config/dms.env.example config/dms.env
 ```
 

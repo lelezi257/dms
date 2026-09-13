@@ -81,6 +81,75 @@ func TestOptionsRejectOverflowAndAllowZeroInline(t *testing.T) {
 	}
 }
 
+func TestDialIgnoresHostHTTPProxy(t *testing.T) {
+	targetIP := nonLoopbackIPv4ForTest(t)
+	proxyListener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer proxyListener.Close()
+	var proxyHits atomic.Int32
+	proxyDone := make(chan struct{})
+	go func() {
+		defer close(proxyDone)
+		conn, err := proxyListener.Accept()
+		if err != nil {
+			return
+		}
+		proxyHits.Add(1)
+		_ = conn.Close()
+	}()
+
+	serverListener, err := net.Listen("tcp", net.JoinHostPort(targetIP, "0"))
+	if err != nil {
+		t.Fatalf("listen gRPC target on %s: %v", targetIP, err)
+	}
+	server := grpc.NewServer()
+	go func() {
+		_ = server.Serve(serverListener)
+	}()
+	defer server.Stop()
+
+	t.Setenv("HTTP_PROXY", "http://"+proxyListener.Addr().String())
+	t.Setenv("HTTPS_PROXY", "http://"+proxyListener.Addr().String())
+	t.Setenv("NO_PROXY", "")
+	t.Setenv("no_proxy", "")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	conn, err := dial(ctx, "http://"+serverListener.Addr().String())
+	if err != nil {
+		t.Fatalf("dial should bypass host HTTP proxy and reach DMS endpoint: %v", err)
+	}
+	_ = conn.Close()
+	_ = proxyListener.Close()
+	<-proxyDone
+	if proxyHits.Load() != 0 {
+		t.Fatal("DMS gRPC dial must not use HTTP_PROXY/HTTPS_PROXY")
+	}
+}
+
+func nonLoopbackIPv4ForTest(t *testing.T) string {
+	t.Helper()
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, addr := range addrs {
+		ipNet, ok := addr.(*net.IPNet)
+		if !ok {
+			continue
+		}
+		ip := ipNet.IP.To4()
+		if ip == nil || ip.IsLoopback() {
+			continue
+		}
+		return ip.String()
+	}
+	t.Skip("no non-loopback IPv4 address available for proxy bypass test")
+	return ""
+}
+
 func TestPublicReadAndWriteConstructors(t *testing.T) {
 	if ReadCurrent().exact != nil {
 		t.Fatal("current read must not carry exact version")
@@ -1391,6 +1460,16 @@ type fakeWorker struct {
 	getClampRange          bool
 	scanDelimiter          string
 	sessionFunc            func(context.Context) (grpc.BidiStreamingClient[pb.ClientSessionMessage, pb.NodeSessionEvent], error)
+	msetRequest            *pb.MSetRequest
+	mgetResponse           *pb.MGetResponse
+	setRangeRequest        *pb.SetRangeRequest
+	hsetRequest            *pb.HSetRequest
+	hgetResponse           *pb.HGetResponse
+	hmgetResponse          *pb.HMGetResponse
+	hgetAllResponse        *pb.HGetAllResponse
+	hdeleteRequest         *pb.HDeleteRequest
+	hscanRequest           *pb.HScanRequest
+	hwriteAtRequest        *pb.HWriteAtRequest
 }
 
 func (w *fakeWorker) OpenSession(context.Context, *pb.OpenSessionRequest, ...grpc.CallOption) (*pb.OpenSessionResponse, error) {
@@ -1503,6 +1582,74 @@ func (w *fakeWorker) Get(ctx context.Context, req *pb.GetRequest, _ ...grpc.Call
 
 func (w *fakeWorker) Delete(context.Context, *pb.DeleteRequest, ...grpc.CallOption) (*pb.DeleteResponse, error) {
 	return &pb.DeleteResponse{Deleted: true, Version: 4}, nil
+}
+
+func (w *fakeWorker) MSet(_ context.Context, req *pb.MSetRequest, _ ...grpc.CallOption) (*pb.MSetResponse, error) {
+	w.msetRequest = proto.Clone(req).(*pb.MSetRequest)
+	versions := make([]*pb.KeyVersion, 0, len(req.Entries))
+	for index, entry := range req.Entries {
+		versions = append(versions, &pb.KeyVersion{Key: entry.Key, Version: uint64(index + 10)})
+	}
+	return &pb.MSetResponse{Versions: versions}, nil
+}
+
+func (w *fakeWorker) MGet(_ context.Context, req *pb.MGetRequest, _ ...grpc.CallOption) (*pb.MGetResponse, error) {
+	if w.mgetResponse != nil {
+		response := proto.Clone(w.mgetResponse).(*pb.MGetResponse)
+		for _, item := range response.Items {
+			if item != nil {
+				item.ReadRequestId = req.ReadRequestId
+			}
+		}
+		return response, nil
+	}
+	return &pb.MGetResponse{}, nil
+}
+
+func (w *fakeWorker) SetRange(_ context.Context, req *pb.SetRangeRequest, _ ...grpc.CallOption) (*pb.SetResponse, error) {
+	w.setRangeRequest = proto.Clone(req).(*pb.SetRangeRequest)
+	return &pb.SetResponse{Version: 20, Length: req.Offset + req.Value.Receipt.Length}, nil
+}
+
+func (w *fakeWorker) HSet(_ context.Context, req *pb.HSetRequest, _ ...grpc.CallOption) (*pb.HSetResponse, error) {
+	w.hsetRequest = proto.Clone(req).(*pb.HSetRequest)
+	return &pb.HSetResponse{HashVersion: 30, FieldCount: uint64(len(req.Entries))}, nil
+}
+
+func (w *fakeWorker) HGet(_ context.Context, _ *pb.HGetRequest, _ ...grpc.CallOption) (*pb.HGetResponse, error) {
+	if w.hgetResponse != nil {
+		return proto.Clone(w.hgetResponse).(*pb.HGetResponse), nil
+	}
+	return &pb.HGetResponse{}, nil
+}
+
+func (w *fakeWorker) HMGet(_ context.Context, _ *pb.HMGetRequest, _ ...grpc.CallOption) (*pb.HMGetResponse, error) {
+	if w.hmgetResponse != nil {
+		return proto.Clone(w.hmgetResponse).(*pb.HMGetResponse), nil
+	}
+	return &pb.HMGetResponse{}, nil
+}
+
+func (w *fakeWorker) HGetAll(_ context.Context, _ *pb.HGetAllRequest, _ ...grpc.CallOption) (*pb.HGetAllResponse, error) {
+	if w.hgetAllResponse != nil {
+		return proto.Clone(w.hgetAllResponse).(*pb.HGetAllResponse), nil
+	}
+	return &pb.HGetAllResponse{}, nil
+}
+
+func (w *fakeWorker) HDelete(_ context.Context, req *pb.HDeleteRequest, _ ...grpc.CallOption) (*pb.HSetResponse, error) {
+	w.hdeleteRequest = proto.Clone(req).(*pb.HDeleteRequest)
+	return &pb.HSetResponse{HashVersion: 31, FieldCount: 1}, nil
+}
+
+func (w *fakeWorker) HScan(_ context.Context, req *pb.HScanRequest, _ ...grpc.CallOption) (*pb.HScanResponse, error) {
+	w.hscanRequest = proto.Clone(req).(*pb.HScanRequest)
+	return &pb.HScanResponse{HashVersion: uint64Ptr(32), NextCursor: 0}, nil
+}
+
+func (w *fakeWorker) HWriteAt(_ context.Context, req *pb.HWriteAtRequest, _ ...grpc.CallOption) (*pb.HWriteAtResponse, error) {
+	w.hwriteAtRequest = proto.Clone(req).(*pb.HWriteAtRequest)
+	return &pb.HWriteAtResponse{HashVersion: 33, ValueVersion: 34, Length: req.Offset + req.Value.Receipt.Length, FieldCount: 2}, nil
 }
 
 func (w *fakeWorker) DeleteStaging(ctx context.Context, req *pb.DeleteStagingRequest, _ ...grpc.CallOption) (*pb.DeleteStagingResponse, error) {

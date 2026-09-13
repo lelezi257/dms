@@ -16,4 +16,4 @@ python3 -m unittest discover -s scripts -p 'test_package_sdk.py'
 python3 -m unittest discover -s scripts/docs -p 'test_*.py'
 python3 -m unittest discover -s scripts/performance -p 'test_*.py'
 python3 scripts/performance/evaluate_whitebox.py >/dev/null
-echo "源码门禁通过；还需候选包与隔离安装验收，不能将此结果当成已发布。"
+echo "源码门禁通过；还需从干净 tag 构建发布包并完成远端下载复验，不能仅凭本结果宣称已发布。"

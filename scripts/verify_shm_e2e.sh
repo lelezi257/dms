@@ -88,10 +88,48 @@ DMS_ENDPOINT="unix://${WORKER_UDS_PATH}" \
 # The example writes and then opens a read view in the same Region. The first
 # slice causes one AcquireRegion + SCM_RIGHTS delivery; the read must reuse the
 # SDK mmap cache rather than requesting a second fd.
-FD_GRANTS="$(grep -c 'name=arena.region.fd_grant delta=1' "${LOG_DIR}/dms-node.log" || true)"
-if [[ "${FD_GRANTS}" != "1" ]]; then
-  echo "expected exactly one Region fd grant, got ${FD_GRANTS}" >&2
-  exit 1
-fi
+#
+# FD grant is a metric, not a normal log line: Node logs are intentionally kept
+# at lifecycle/error granularity, while per-path counters are exported through
+# Prometheus text format on the status endpoint.
+NODE_METRICS="${LOG_DIR}/dms-node.prom"
+curl --fail --silent --show-error "http://${NODE_HEALTH_ADDRESS}/metrics" >"${NODE_METRICS}"
 
-echo "shm e2e passed fd_grants=${FD_GRANTS} work_dir=${WORK_DIR}"
+sample_value() {
+  local file="$1"
+  local sample="$2"
+  awk -v sample="${sample}" '
+    index($0, sample " ") == 1 { print $NF; found = 1; exit }
+    END { if (!found) exit 1 }
+  ' "${file}"
+}
+
+require_sample_equals() {
+  local file="$1"
+  local sample="$2"
+  local expected="$3"
+  local value
+  if ! value="$(sample_value "${file}" "${sample}")"; then
+    echo "missing metric sample ${sample} in ${file}" >&2
+    exit 1
+  fi
+  if [[ "${value}" != "${expected}" ]]; then
+    echo "expected ${sample}=${expected}, got ${value}" >&2
+    exit 1
+  fi
+}
+
+require_sample_equals "${NODE_METRICS}" \
+  'dms_node_shm_fd_grants_total{result="issued"}' \
+  1
+require_sample_equals "${NODE_METRICS}" \
+  'dms_node_shm_fd_grants_total{result="claimed"}' \
+  1
+require_sample_equals "${NODE_METRICS}" \
+  'dms_rpc_server_requests_total{method="AcquireRegion",result="ok",service="WorkerService"}' \
+  1
+require_sample_equals "${NODE_METRICS}" \
+  'dms_node_shm_fd_grants_total{result="error"}' \
+  0
+
+echo "shm e2e passed fd_grants=1 work_dir=${WORK_DIR}"

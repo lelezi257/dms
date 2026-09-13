@@ -118,7 +118,8 @@ echo "== stop writer; reader must keep serving imported local block =="
 stop_pid_file "${RUN_DIR}/writer.pid"
 DMS_ENDPOINT="http://${READER_WORKER}" "${EXAMPLE}" get "${KEY}" "${VALUE}"
 
-grep -q "dms-node meta watch established" "${LOG_DIR}/reader.log"
+# 日志正文可以调整，脚本只断言稳定结构化事件字段，避免被文案改动误伤。
+grep -q '"event":"node.meta_watch.connected"' "${LOG_DIR}/reader.log"
 
 echo "two-node P3 E2E ok"
 echo "logs: ${LOG_DIR}"

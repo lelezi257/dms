@@ -54,6 +54,20 @@ const CLIENT_CACHE_LEASE_TTL: Duration =
 // 不保存 Client 的数据。超过上限时退化为通配兴趣，直到租约过期。
 const CLIENT_CACHE_INTEREST_KEY_LIMIT: usize = 4096;
 const CLIENT_CACHE_INTEREST_BYTES_LIMIT: usize = 256 * 1024;
+// Node 是用户输入的权威边界。SDK 可以做友好预检，但所有 key/field、批量和
+// gRPC payload 上限必须在 Node 再检查一次，防止其它语言 SDK 或手写 client
+// 绕过限制后把内存 owner 推入不可控分配。
+pub(crate) const USER_KEY_BYTES_MAX: usize = 1024;
+pub(crate) const USER_FIELD_BYTES_MAX: usize = 1024;
+pub(crate) const BATCH_MAX_ITEMS: usize = 1024;
+pub(crate) const BATCH_MAX_PAYLOAD_BYTES: u64 = 8 * 1024 * 1024;
+pub(crate) const HASH_MAX_FIELDS_PER_OPERATION: usize = 1024;
+pub(crate) const HASH_MAX_ENCODED_BYTES: usize = 8 * 1024 * 1024;
+pub(crate) const HSCAN_MAX_LIMIT: u32 = 1024;
+// 该值低于默认 Tonic message 上限，使 Rust SDK 和 Node handler 都能在真正
+// gRPC 编解码失败前返回带 DMS 数字错误码的 ResourceExhausted。SHM 走 mmap，
+// 不受这条单条 protobuf 消息预算约束。
+pub(crate) const GRPC_PAYLOAD_SAFE_BYTES: u64 = 8 * 1024 * 1024;
 // Peer gRPC 默认有 4MiB 解码上限。跨 Node 大对象拉取必须拆成有界分段，
 // 既避免单条消息无限放大，又保持 Node→Node 协议不变。
 const PEER_PULL_SEGMENT_BYTES: u64 = 2 * 1024 * 1024;
@@ -150,6 +164,66 @@ fn bytes_to_lower_hex(bytes: &[u8]) -> String {
         output.push(HEX[(byte & 0x0f) as usize] as char);
     }
     output
+}
+
+pub(crate) fn validate_user_key(key: &[u8]) -> Result<(), WorkerError> {
+    if key.is_empty() {
+        return Err(WorkerError::InvalidArgument("key must not be empty"));
+    }
+    if key.len() > USER_KEY_BYTES_MAX {
+        return Err(WorkerError::InvalidArgument(
+            "key length exceeds 1024 bytes",
+        ));
+    }
+    Ok(())
+}
+
+pub(crate) fn validate_user_field(field: &[u8]) -> Result<(), WorkerError> {
+    if field.is_empty() {
+        return Err(WorkerError::InvalidArgument("field must not be empty"));
+    }
+    if field.len() > USER_FIELD_BYTES_MAX {
+        return Err(WorkerError::InvalidArgument(
+            "field length exceeds 1024 bytes",
+        ));
+    }
+    Ok(())
+}
+
+fn validate_operation_id(operation_id: &[u8]) -> Result<(), WorkerError> {
+    if operation_id.len() != 24 {
+        return Err(WorkerError::InvalidArgument(
+            "operation identity is required",
+        ));
+    }
+    Ok(())
+}
+
+pub(crate) fn validate_grpc_payload_bytes(length: u64) -> Result<(), WorkerError> {
+    if length > GRPC_PAYLOAD_SAFE_BYTES {
+        return Err(WorkerError::ResourceExhausted);
+    }
+    Ok(())
+}
+
+fn validate_batch_write(entries: &[(Vec<u8>, u64, HostReceipt)]) -> Result<(), WorkerError> {
+    if entries.is_empty() {
+        return Err(WorkerError::InvalidArgument("MSet entries are empty"));
+    }
+    if entries.len() > BATCH_MAX_ITEMS {
+        return Err(WorkerError::ResourceExhausted);
+    }
+    let mut total = 0_u64;
+    for (key, _, receipt) in entries {
+        validate_user_key(key)?;
+        total = total
+            .checked_add(receipt.length)
+            .ok_or(WorkerError::ResourceExhausted)?;
+        if total > BATCH_MAX_PAYLOAD_BYTES {
+            return Err(WorkerError::ResourceExhausted);
+        }
+    }
+    Ok(())
 }
 
 fn launch_write<T: Send + 'static>(
@@ -999,9 +1073,7 @@ impl NodeHandle {
         session_id: u64,
         key: Vec<u8>,
     ) -> Result<pb::MetaStatResponse, WorkerError> {
-        if key.is_empty() {
-            return Err(WorkerError::InvalidArgument("key must not be empty"));
-        }
+        validate_user_key(&key)?;
         let metadata = self
             .metadata
             .as_ref()
@@ -1281,6 +1353,7 @@ impl NodeHandle {
         max_inline_bytes: u64,
         read_request_id: u64,
     ) -> Result<ReadTicket, WorkerError> {
+        validate_user_key(&key)?;
         let scope = ReadScopeGuard::begin(self, session_id).await?;
         let result = self
             .get_with_inline_limit_scoped(
@@ -1516,6 +1589,7 @@ impl NodeHandle {
         key: Vec<u8>,
         exact_version: Option<u64>,
     ) -> Result<(u64, Vec<u8>), WorkerError> {
+        validate_user_key(&key)?;
         let scope = ReadScopeGuard::begin(self, session_id).await?;
         let result = self
             .get_materialized_scoped(session_id, scope.id(), key, exact_version)
@@ -1697,6 +1771,7 @@ impl NodeHandle {
     }
 
     pub(crate) async fn set_range(&self, input: SetRangeInput) -> Result<SetOutcome, WorkerError> {
+        validate_user_key(&input.key)?;
         let resolved = self
             .metadata
             .as_ref()
@@ -3263,6 +3338,12 @@ impl NodeState {
             return Err(WorkerError::InvalidArgument("value must not be empty"));
         }
         let shared_memory = self.live_session(session_id)?.shared_memory;
+        let can_use_shared_memory = shared_memory && self.arena.shared_region_enabled();
+        if !can_use_shared_memory {
+            // TCP/gRPC payload 必须受单条 protobuf 消息预算保护；本地 SHM session
+            // 返回 offset/length，真正 bytes 走 mmap，不受该上限影响。
+            validate_grpc_payload_bytes(length)?;
+        }
         let mut allocation = self
             .arena
             .allocate(session_id, length)
@@ -3297,6 +3378,7 @@ impl NodeState {
     }
 
     fn upload(&mut self, transfer_id: u64, bytes: Vec<u8>) -> Result<HostReceipt, WorkerError> {
+        validate_grpc_payload_bytes(bytes.len() as u64)?;
         self.arena
             .upload(transfer_id, &bytes)
             .map_err(map_arena_error)
@@ -3333,9 +3415,8 @@ impl NodeState {
         operation_id: Vec<u8>,
         condition: String,
     ) -> Result<PreparedWrite<SetOutcome>, WorkerError> {
-        if key.is_empty() {
-            return Err(WorkerError::InvalidArgument("key must not be empty"));
-        }
+        validate_user_key(&key)?;
+        validate_operation_id(&operation_id)?;
         self.live_session(session_id)?;
         let receipt = self.receipt_for_session(session_id, receipt)?;
         let block_id = block_identity(&self.node_id, &operation_id);
@@ -3361,9 +3442,8 @@ impl NodeState {
         entries: Vec<(Vec<u8>, u64, HostReceipt)>,
         operation_id: Vec<u8>,
     ) -> Result<PreparedWrite<MSetOutcome>, WorkerError> {
-        if entries.is_empty() {
-            return Err(WorkerError::InvalidArgument("MSet entries are empty"));
-        }
+        validate_batch_write(&entries)?;
+        validate_operation_id(&operation_id)?;
         self.live_session(session_id)?;
         let metadata = self
             .metadata
@@ -3457,11 +3537,8 @@ impl NodeState {
             operation_id,
             expected_version: _,
         } = input;
-        if key.is_empty() || operation_id.len() != 24 {
-            return Err(WorkerError::InvalidArgument(
-                "key and operation identity are required",
-            ));
-        }
+        validate_user_key(&key)?;
+        validate_operation_id(&operation_id)?;
         self.live_session(session_id)?;
         let metadata = self
             .metadata
@@ -3558,11 +3635,9 @@ impl NodeState {
         operation_id: Vec<u8>,
         condition: String,
     ) -> Result<PreparedWrite<SetOutcome>, WorkerError> {
-        if key.is_empty() || operation_id.len() != 24 {
-            return Err(WorkerError::InvalidArgument(
-                "key and operation identity are required",
-            ));
-        }
+        validate_user_key(&key)?;
+        validate_operation_id(&operation_id)?;
+        validate_grpc_payload_bytes(bytes.len() as u64)?;
         self.live_session(session_id)?;
         let block_id = block_identity(&self.node_id, &operation_id);
         if bytes.is_empty() {
@@ -3710,9 +3785,8 @@ impl NodeState {
         key: Vec<u8>,
         operation_id: Vec<u8>,
     ) -> Result<PreparedWrite<DeleteOutcome>, WorkerError> {
-        if key.is_empty() {
-            return Err(WorkerError::InvalidArgument("key must not be empty"));
-        }
+        validate_user_key(&key)?;
+        validate_operation_id(&operation_id)?;
         self.live_session(session_id)?;
         let metadata = self
             .metadata
@@ -3755,6 +3829,7 @@ impl NodeState {
         clamp_range: bool,
         max_inline_bytes: u64,
     ) -> Result<CachedRead, WorkerError> {
+        validate_user_key(key)?;
         self.live_session(session_id)?;
         self.reject_finished_read_request(session_id, read_request_id)?;
         if range.is_none() {
@@ -3975,14 +4050,18 @@ impl NodeState {
                         view_allocations.push(descriptor.allocation_id);
                         ReadTarget::Shm(descriptor)
                     }
-                    None => self.grpc_download_target_with_id(
-                        session_id,
-                        read,
-                        transfer_id,
-                        read_request_id,
-                    ),
+                    None => {
+                        validate_grpc_payload_bytes(payload_length)?;
+                        self.grpc_download_target_with_id(
+                            session_id,
+                            read,
+                            transfer_id,
+                            read_request_id,
+                        )
+                    }
                 }
             } else {
+                validate_grpc_payload_bytes(payload_length)?;
                 self.grpc_download_target(session_id, read, read_request_id)
             };
             segments.push(ReadTicketSegment {
@@ -5191,6 +5270,7 @@ impl NodeState {
             .arena
             .read_ticket(ticket.read)
             .map_err(map_arena_error)?;
+        validate_grpc_payload_bytes(bytes.len() as u64)?;
         self.advance_retirements();
         Ok(bytes)
     }
@@ -6856,6 +6936,78 @@ mod tests {
         let transfer = worker_error_to_dms(WorkerError::TransferUnavailable);
         assert_eq!(transfer.code(), dms_error::NODE_TRANSFER_UNAVAILABLE);
         assert_eq!(transfer.kind(), ErrorKind::Unavailable);
+    }
+
+    #[test]
+    fn node_boundary_rejects_oversized_key_and_batch_before_write() {
+        assert!(matches!(
+            validate_user_key(&vec![b'k'; USER_KEY_BYTES_MAX + 1]),
+            Err(WorkerError::InvalidArgument(_))
+        ));
+
+        let receipt = HostReceipt {
+            transfer_id: 1,
+            length: 1,
+            digest: vec![0; 32],
+            allocation_id: 1,
+            release_token: Vec::new(),
+        };
+        let entries = (0..=BATCH_MAX_ITEMS)
+            .map(|index| {
+                (
+                    format!("k-{index}").into_bytes(),
+                    index as u64 + 1,
+                    receipt.clone(),
+                )
+            })
+            .collect::<Vec<_>>();
+
+        assert!(matches!(
+            validate_batch_write(&entries),
+            Err(WorkerError::ResourceExhausted)
+        ));
+    }
+
+    #[test]
+    fn tcp_staging_rejects_payload_above_grpc_safe_budget_before_arena_allocation() {
+        let mut state = NodeState::new(
+            "node-a".to_string(),
+            None,
+            GRPC_PAYLOAD_SAFE_BYTES + 4096,
+            Duration::from_secs(30),
+            None,
+        );
+        let session = state.open_session(false);
+
+        let error = state
+            .allocate_staging(session, GRPC_PAYLOAD_SAFE_BYTES + 1)
+            .expect_err("TCP/gRPC staging is bounded before Arena allocation");
+
+        assert!(matches!(error, WorkerError::ResourceExhausted));
+        assert_eq!(state.arena.stats().allocated_bytes, 0);
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn shm_staging_can_exceed_grpc_safe_budget() {
+        let path =
+            std::env::temp_dir().join(format!("dms-g003-shm-budget-{}.sock", std::process::id()));
+        let broker = SharedFdBroker::bind(path.clone()).expect("bind fd broker");
+        let mut state = NodeState::new(
+            "node-a".to_string(),
+            None,
+            GRPC_PAYLOAD_SAFE_BYTES + 4096,
+            Duration::from_secs(30),
+            Some(broker),
+        );
+        let session = state.open_session(true);
+
+        let allocation = state
+            .allocate_staging(session, GRPC_PAYLOAD_SAFE_BYTES + 1)
+            .expect("SHM staging uses mmap bytes, not one gRPC message");
+
+        assert!(matches!(allocation.target, HostAllocationTarget::Shm(_)));
+        let _ = std::fs::remove_file(path);
     }
 
     #[tokio::test]

@@ -9,7 +9,10 @@ use std::collections::{BTreeMap, HashSet};
 use dms_error::ErrorKind;
 
 use super::arena_manager::HostReceipt;
-use super::runtime::{NodeHandle, WorkerError};
+use super::runtime::{
+    HASH_MAX_ENCODED_BYTES, HASH_MAX_FIELDS_PER_OPERATION, HSCAN_MAX_LIMIT, NodeHandle,
+    WorkerError, validate_user_field, validate_user_key,
+};
 
 const KKV_MAGIC: &[u8; 4] = b"DMSH";
 const KKV_FORMAT_VERSION: u8 = 1;
@@ -144,12 +147,11 @@ impl KkvOperations {
         key: Vec<u8>,
         exact_version: Option<u64>,
     ) -> Result<(Option<u64>, Vec<KkvValue>), WorkerError> {
-        if key.is_empty() {
-            return Err(WorkerError::InvalidArgument("key must not be empty"));
-        }
+        validate_user_key(&key)?;
         let Some(hash) = self.load_optional(session_id, key, exact_version).await? else {
             return Ok((None, Vec::new()));
         };
+        validate_hash_field_count(hash.fields.len())?;
         let values = materialize_entries(&hash);
         Ok((Some(hash.version), values))
     }
@@ -195,20 +197,36 @@ impl KkvOperations {
         limit: u32,
         exact_version: Option<u64>,
     ) -> Result<(Option<u64>, u64, Vec<KkvValue>), WorkerError> {
-        if limit == 0 {
-            return Err(WorkerError::InvalidArgument("HSCAN limit must be positive"));
-        }
+        validate_key_and_fields(&key, std::iter::empty::<&[u8]>())?;
+        let limit = validate_hscan_limit(limit)?;
         let Some(hash) = self.load_optional(session_id, key, exact_version).await? else {
             return Ok((None, 0, Vec::new()));
         };
-        let all = materialize_entries(&hash);
         let start = usize::try_from(cursor).map_err(|_| WorkerError::ResourceExhausted)?;
-        if start >= all.len() {
+        if start >= hash.fields.len() {
             return Ok((Some(hash.version), 0, Vec::new()));
         }
-        let end = start.saturating_add(limit as usize).min(all.len());
-        let next = if end == all.len() { 0 } else { end as u64 };
-        Ok((Some(hash.version), next, all[start..end].to_vec()))
+        let values = hash
+            .fields
+            .iter()
+            .skip(start)
+            .take(limit)
+            .map(|(field, bytes)| KkvValue {
+                field: field.clone(),
+                hash_version: hash.version,
+                value_version: hash.version,
+                bytes: bytes.clone(),
+            })
+            .collect::<Vec<_>>();
+        let end = start
+            .checked_add(values.len())
+            .ok_or(WorkerError::ResourceExhausted)?;
+        let next = if end >= hash.fields.len() {
+            0
+        } else {
+            end as u64
+        };
+        Ok((Some(hash.version), next, values))
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -309,13 +327,14 @@ fn validate_key_and_fields<'a>(
     key: &[u8],
     fields: impl Iterator<Item = &'a [u8]>,
 ) -> Result<(), WorkerError> {
-    if key.is_empty() {
-        return Err(WorkerError::InvalidArgument("key must not be empty"));
-    }
+    validate_user_key(key)?;
     let mut seen = HashSet::new();
+    let mut count = 0_usize;
     for field in fields {
-        if field.is_empty() {
-            return Err(WorkerError::InvalidArgument("field must not be empty"));
+        validate_user_field(field)?;
+        count = count.checked_add(1).ok_or(WorkerError::ResourceExhausted)?;
+        if count > HASH_MAX_FIELDS_PER_OPERATION {
+            return Err(WorkerError::ResourceExhausted);
         }
         if !seen.insert(field.to_vec()) {
             return Err(WorkerError::InvalidArgument("duplicate Hash field"));
@@ -332,7 +351,9 @@ fn write_condition(base: Option<&KkvFieldMap>, expected: Option<u64>) -> String 
 }
 
 fn encode_field_map(fields: &BTreeMap<Vec<u8>, Vec<u8>>) -> Result<Vec<u8>, WorkerError> {
-    let mut out = Vec::new();
+    validate_hash_field_count(fields.len())?;
+    let encoded_len = encoded_field_map_len(fields)?;
+    let mut out = Vec::with_capacity(encoded_len);
     out.extend_from_slice(KKV_MAGIC);
     out.push(KKV_FORMAT_VERSION);
     let count = u32::try_from(fields.len()).map_err(|_| WorkerError::ResourceExhausted)?;
@@ -349,6 +370,9 @@ fn encode_field_map(fields: &BTreeMap<Vec<u8>, Vec<u8>>) -> Result<Vec<u8>, Work
 }
 
 fn decode_field_map(bytes: &[u8]) -> Result<BTreeMap<Vec<u8>, Vec<u8>>, WorkerError> {
+    if bytes.len() > HASH_MAX_ENCODED_BYTES {
+        return Err(WorkerError::ResourceExhausted);
+    }
     if bytes.len() < 9 || &bytes[..4] != KKV_MAGIC || bytes[4] != KKV_FORMAT_VERSION {
         return Err(WorkerError::InvalidArgument(
             "object is not a DMS KKV field map",
@@ -356,10 +380,12 @@ fn decode_field_map(bytes: &[u8]) -> Result<BTreeMap<Vec<u8>, Vec<u8>>, WorkerEr
     }
     let mut cursor = 5;
     let count = read_u32(bytes, &mut cursor)?;
+    validate_hash_field_count(count as usize)?;
     let mut fields = BTreeMap::new();
     for _ in 0..count {
         let field_len = read_u32(bytes, &mut cursor)? as usize;
         let field = read_bytes(bytes, &mut cursor, field_len)?.to_vec();
+        validate_user_field(&field)?;
         let value_len = usize::try_from(read_u64(bytes, &mut cursor)?)
             .map_err(|_| WorkerError::ResourceExhausted)?;
         let value = read_bytes(bytes, &mut cursor, value_len)?.to_vec();
@@ -375,6 +401,42 @@ fn decode_field_map(bytes: &[u8]) -> Result<BTreeMap<Vec<u8>, Vec<u8>>, WorkerEr
         ));
     }
     Ok(fields)
+}
+
+fn validate_hash_field_count(count: usize) -> Result<(), WorkerError> {
+    if count > HASH_MAX_FIELDS_PER_OPERATION {
+        return Err(WorkerError::ResourceExhausted);
+    }
+    Ok(())
+}
+
+fn validate_hscan_limit(limit: u32) -> Result<usize, WorkerError> {
+    if limit == 0 {
+        return Err(WorkerError::InvalidArgument("HSCAN limit must be positive"));
+    }
+    if limit > HSCAN_MAX_LIMIT {
+        return Err(WorkerError::ResourceExhausted);
+    }
+    usize::try_from(limit).map_err(|_| WorkerError::ResourceExhausted)
+}
+
+fn encoded_field_map_len(fields: &BTreeMap<Vec<u8>, Vec<u8>>) -> Result<usize, WorkerError> {
+    // 首版 Hash/KKV 是“整个字段映射作为一个不可变对象提交”。这里先算预算，
+    // 再申请 Vec，避免超大 Hash 在编码阶段才把 Node 内存打满。
+    let mut len = 9_usize;
+    for (field, value) in fields {
+        validate_user_field(field)?;
+        len = len
+            .checked_add(4)
+            .and_then(|len| len.checked_add(field.len()))
+            .and_then(|len| len.checked_add(8))
+            .and_then(|len| len.checked_add(value.len()))
+            .ok_or(WorkerError::ResourceExhausted)?;
+        if len > HASH_MAX_ENCODED_BYTES {
+            return Err(WorkerError::ResourceExhausted);
+        }
+    }
+    Ok(len)
 }
 
 fn read_u32(bytes: &[u8], cursor: &mut usize) -> Result<u32, WorkerError> {
@@ -432,6 +494,55 @@ mod tests {
         assert!(matches!(
             decode_field_map(b"ordinary value"),
             Err(WorkerError::InvalidArgument(_))
+        ));
+    }
+
+    #[test]
+    fn key_and_field_validation_enforces_node_boundary() {
+        assert!(matches!(
+            validate_key_and_fields(&[], std::iter::empty::<&[u8]>()),
+            Err(WorkerError::InvalidArgument(_))
+        ));
+        assert!(matches!(
+            validate_key_and_fields(
+                &vec![b'k'; super::super::runtime::USER_KEY_BYTES_MAX + 1],
+                std::iter::empty::<&[u8]>()
+            ),
+            Err(WorkerError::InvalidArgument(_))
+        ));
+        assert!(matches!(
+            validate_key_and_fields(b"k", std::iter::once(&[][..])),
+            Err(WorkerError::InvalidArgument(_))
+        ));
+        assert!(matches!(
+            validate_key_and_fields(
+                b"k",
+                std::iter::once(&vec![b'f'; super::super::runtime::USER_FIELD_BYTES_MAX + 1][..])
+            ),
+            Err(WorkerError::InvalidArgument(_))
+        ));
+    }
+
+    #[test]
+    fn hscan_limit_and_hash_budget_fail_before_materializing_page() {
+        assert!(matches!(
+            validate_hscan_limit(0),
+            Err(WorkerError::InvalidArgument(_))
+        ));
+        assert!(matches!(
+            validate_hscan_limit(HSCAN_MAX_LIMIT + 1),
+            Err(WorkerError::ResourceExhausted)
+        ));
+        assert!(matches!(
+            validate_hash_field_count(HASH_MAX_FIELDS_PER_OPERATION + 1),
+            Err(WorkerError::ResourceExhausted)
+        ));
+
+        let mut fields = BTreeMap::new();
+        fields.insert(vec![b'f'], vec![0; HASH_MAX_ENCODED_BYTES]);
+        assert!(matches!(
+            encode_field_map(&fields),
+            Err(WorkerError::ResourceExhausted)
         ));
     }
 }

@@ -8,19 +8,97 @@ from pathlib import Path
 import re
 import subprocess
 import sys
+import urllib.request
 
 
 LICENSE_NAME = re.compile(r"^(licen[cs]e|copying|copyright|notice|unlicense)(?:$|[._-])", re.I)
+CURATED_SOURCES = Path(__file__).with_name("license_sources.json")
 
 
 def digest(data):
     return hashlib.sha256(data).hexdigest()
 
 
+def load_curated_sources(path=CURATED_SOURCES):
+    """加载精确到 package/version/source 的补充许可来源。
+
+    某些 crates.io 包不会把仓库根目录的 LICENSE 一并打入 .crate。这里不
+    根据包名猜许可证，而是只接受仓库内审阅过的精确映射，并在下载后校验
+    SHA-256。这样既能补齐二进制分发材料，也不会把网络上的任意内容混入包。
+    """
+    data = json.loads(Path(path).read_text(encoding="utf-8"))
+    if data.get("schema_version") != 1:
+        raise ValueError("license_sources.json 的 schema_version 不受支持")
+    return data.get("packages", [])
+
+
+def matching_curated_source(package, curated):
+    for item in curated:
+        if (
+            item.get("name") == package["name"]
+            and item.get("version") == package["version"]
+            and item.get("source") == package.get("source")
+        ):
+            return item
+    return None
+
+
+def fetch_url(url):
+    if not url.startswith("https://"):
+        raise ValueError(f"补充许可只允许 HTTPS 来源: {url}")
+    with urllib.request.urlopen(url, timeout=30) as response:
+        return response.read()
+
+
+def curated_license_files(package, root, output, folder, item, offline=False, fetcher=fetch_url):
+    """复制或下载已经审阅的补充许可，并逐字节校验来源。"""
+    files = []
+    issues = []
+    for material in item.get("materials", []):
+        source_path = material["source_path"]
+        package_path = material.get("package_path")
+        if package_path:
+            candidate = root / package_path
+            if not candidate.is_file() or candidate.is_symlink() or not candidate.resolve().is_relative_to(root):
+                issues.append(f"curated package file unavailable: {package_path}")
+                continue
+            data = candidate.read_bytes()
+        elif offline:
+            issues.append(f"curated license requires network in offline mode: {source_path}")
+            continue
+        else:
+            try:
+                data = fetcher(material["url"])
+            except Exception as error:
+                issues.append(f"curated license download failed: {source_path}: {error}")
+                continue
+        actual = digest(data)
+        if actual != material["sha256"]:
+            issues.append(f"curated license checksum mismatch: {source_path}")
+            continue
+        destination = output / "texts" / folder / source_path
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        if destination.is_symlink():
+            raise ValueError(f"refusing output symlink: {destination}")
+        destination.write_bytes(data)
+        files.append({
+            "source_path": source_path,
+            "path": destination.relative_to(output).as_posix(),
+            "sha256": actual,
+            "bytes": len(data),
+            "origin_url": material.get("url"),
+            "curated": True,
+        })
+    return files, issues
+
+
 def prepare_output(output):
     """重跑只能替换本工具已登记的文件，拒绝链接和混入的用户文件。"""
-    if output.is_symlink() or output.resolve() != output:
-        raise ValueError("output 不得经过符号链接")
+    # 只拒绝输出目录本身是链接。macOS 的 /var 等系统父目录本来就是链接，
+    # 不能因此把安全的临时目录误判为非法；后续仍以 canonical root 做越界检查。
+    if output.is_symlink():
+        raise ValueError("output 不得是符号链接")
+    resolved_output = output.resolve()
     if not output.exists() or not any(output.iterdir()):
         return set()
     marker = output / "inventory.json"
@@ -32,7 +110,7 @@ def prepare_output(output):
     owned = {item["path"] for package in previous["packages"] for item in package["files"]}
     for relative in owned:
         path = output / relative
-        if not relative.startswith("texts/") or not path.resolve().is_relative_to(output):
+        if not relative.startswith("texts/") or not path.resolve().is_relative_to(resolved_output):
             raise ValueError("已有清单包含非法输出路径")
     for path in output.rglob("*"):
         if path.is_symlink():
@@ -68,8 +146,9 @@ def license_paths(package, root):
     return accepted, problems
 
 
-def collect(metadata, output, lock_hash):
+def collect(metadata, output, lock_hash, curated=None, offline=False, fetcher=fetch_url):
     output.mkdir(parents=True, exist_ok=True)
+    curated = load_curated_sources() if curated is None else curated
     records = []
     for package in sorted(metadata["packages"], key=lambda item: (item["name"], item["version"], item["id"])):
         source = package.get("source")
@@ -85,7 +164,8 @@ def collect(metadata, output, lock_hash):
         # 保持 SPDX 的 AND/OR/括号原样，不替用户选择许可分支。
         if not record["license_expression"] and not record["license_file"]:
             record["issues"].append("manifest declares neither license nor license_file")
-        if not source.startswith("registry+"):
+        curated_source = matching_curated_source(package, curated)
+        if not source.startswith("registry+") and not curated_source:
             record["issues"].append("non-registry dependency requires separate source review")
         manifest = Path(package["manifest_path"]).resolve()
         root = manifest.parent
@@ -95,8 +175,6 @@ def collect(metadata, output, lock_hash):
             record["manifest_sha256"] = digest(manifest.read_bytes())
             candidates, problems = license_paths(package, root)
             record["issues"].extend(problems)
-            if not candidates:
-                record["issues"].append("no license/notice text file found in downloaded package")
             # source hash 区分同名同版本的不同 registry，不使用机器绝对路径。
             folder = f"{package['name']}-{package['version']}-{digest(source.encode())[:12]}"
             for path in candidates:
@@ -114,6 +192,19 @@ def collect(metadata, output, lock_hash):
                     "path": destination.relative_to(output).as_posix(),
                     "sha256": digest(data), "bytes": len(data),
                 })
+            if not candidates and curated_source:
+                files, issues = curated_license_files(
+                    package, root, output, folder, curated_source, offline=offline, fetcher=fetcher
+                )
+                record["files"].extend(files)
+                record["issues"].extend(issues)
+            if not record["files"]:
+                record["issues"].append("no license/notice text file found in downloaded package")
+            if curated_source:
+                record["source_review"] = {
+                    "status": "exact-source-reviewed",
+                    "reference": curated_source.get("reference"),
+                }
         records.append(record)
     report = {
         "schema_version": 1,
@@ -162,7 +253,7 @@ def main():
     result = subprocess.run(command, check=True, stdout=subprocess.PIPE)
     metadata = json.loads(result.stdout)
     lock = Path(metadata["workspace_root"]) / "Cargo.lock"
-    report = collect(metadata, output, digest(lock.read_bytes()))
+    report = collect(metadata, output, digest(lock.read_bytes()), offline=args.offline)
     current_files = {item["path"] for package in report["packages"] for item in package["files"]}
     # 只删除旧清单中已核对的生成文件，避免依赖移除后留下过时许可附件。
     for relative in sorted(previous_files - current_files):

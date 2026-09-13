@@ -108,6 +108,10 @@ for metric in \
   dms_node_arena_allocations_total \
   dms_node_current_cache_lookups_total \
   dms_node_current_cache_charged_bytes \
+  dms_node_current_cache_resets_total \
+  dms_node_peer_import_inflight \
+  dms_node_peer_import_reserved_bytes \
+  dms_node_peer_import_failure_fences \
   dms_rpc_server_requests_total; do
   require_metric "${TMP_DIR}/node.prom" "${metric}"
 done
@@ -116,24 +120,29 @@ for metric in \
   dms_meta_operations_total \
   dms_meta_commits_total \
   dms_meta_journal_appends_total \
+  dms_meta_repairs_pending \
+  dms_meta_repair_attempts_total \
+  dms_meta_repair_oldest_age_seconds \
   dms_meta_state_items \
   dms_rpc_server_requests_total; do
   require_metric "${TMP_DIR}/meta.prom" "${metric}"
 done
 
-# 旧 67 族门禁漏计了后来新增的 Node Current 两族；本轮又删除 SDK cache 两族。
-# 当前业务/RPC/错误为 61 族，Trace 有 5 个预建族、1 个延迟产生的 export_batches。
-# Trace 关闭/尚未导出时共 66，导出过后共 67；不能为凑数给不存在的导出补假数据。
-# 多个进程共享的指标族按名称去重；实际路径的必需指标继续逐项校验。
+# 当前运行时唯一指标族为 73：旧 66 族门禁之外，新增了真实业务使用的
+# Node peer_import 3 族、Meta repair 3 族、Node current_cache_resets 1 族。
+# Trace exporter 只有在实际导出过 batch 后才动态出现 export_batches 族，
+# 因此 Trace 关闭/尚未导出时共 73，导出过后共 74。
+# 这个总数是发布候选的硬门禁：少了说明新路径未注册或部署了旧包；
+# 多了说明有冗余/临时指标泄漏。多进程共享的指标族按名称去重。
 family_count="$({
   grep '^# HELP dms_' "${TMP_DIR}/client.prom"
   grep '^# HELP dms_' "${TMP_DIR}/node.prom"
   grep '^# HELP dms_' "${TMP_DIR}/meta.prom"
 } | awk '{print $3}' | sort -u | wc -l | tr -d ' ')"
 require_metric "${TMP_DIR}/node.prom" dms_node_arena_quarantined_bytes
-expected_family_count=66
+expected_family_count=73
 if grep -q '^# HELP dms_trace_export_batches_total ' "${TMP_DIR}"/*.prom; then
-  expected_family_count=67
+  expected_family_count=74
 fi
 if [[ "${family_count}" != "${expected_family_count}" ]]; then
   echo "expected ${expected_family_count} unique DMS metric families, found ${family_count}" >&2

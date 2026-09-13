@@ -7,6 +7,7 @@ source "${SCRIPTS_DIR}/_common.sh"
 KEY="${1:-meta/recovery-key}"
 VALUE="${2:-durable-v1}"
 ENDPOINT="unix://${DMS_WORKER_UDS}"
+META_WATCH_CONNECTED_EVENT='"event":"node.meta_watch.connected"'
 
 if [[ ! -x "${CARGO_TARGET_DIR}/release/examples/sdk_kv" ]]; then
   echo "缺少 sdk_kv example，请先执行 ./scripts/build.sh" >&2
@@ -21,7 +22,8 @@ if [[ ! -s "${DMS_META_JOURNAL_DIR}/meta.wal" && ! -s "${DMS_META_JOURNAL_DIR}/m
   exit 1
 fi
 
-watch_count_before="$(grep -c -- "dms-node meta watch established" "${DMS_LOG_DIR}/dms-node.log" 2>/dev/null || true)"
+# 日志正文可能随中文/英文文案调整；这里断言稳定结构化 event 字段。
+watch_count_before="$(grep -c -- "${META_WATCH_CONNECTED_EVENT}" "${DMS_LOG_DIR}/dms-node.log" 2>/dev/null || true)"
 
 echo "== Meta recovery: restart only dms-meta, keep dms-node alive =="
 stop_process dms-meta
@@ -49,14 +51,14 @@ done
   --expect-node "meta-${DMS_NODE_ID}"
 
 for _ in 1 2 3 4 5 6 7 8 9 10; do
-  watch_count_after="$(grep -c -- "dms-node meta watch established" "${DMS_LOG_DIR}/dms-node.log" 2>/dev/null || true)"
+  watch_count_after="$(grep -c -- "${META_WATCH_CONNECTED_EVENT}" "${DMS_LOG_DIR}/dms-node.log" 2>/dev/null || true)"
   if (( watch_count_after > watch_count_before )); then
     break
   fi
   sleep 0.2
 done
 
-watch_count_after="$(grep -c -- "dms-node meta watch established" "${DMS_LOG_DIR}/dms-node.log" 2>/dev/null || true)"
+watch_count_after="$(grep -c -- "${META_WATCH_CONNECTED_EVENT}" "${DMS_LOG_DIR}/dms-node.log" 2>/dev/null || true)"
 if (( watch_count_after <= watch_count_before )); then
   echo "dms-node did not re-establish the Meta watch stream after Meta restart" >&2
   echo "watch_count_before=${watch_count_before} watch_count_after=${watch_count_after}" >&2

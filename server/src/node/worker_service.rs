@@ -550,7 +550,7 @@ impl WorkerService for WorkerServiceHandler {
             {
                 Ok(ticket) => items.push(read_ticket_response(ticket)),
                 Err(error) if super::runtime::is_not_found_result(&error) => {
-                    items.push(missing_get_response());
+                    items.push(missing_get_response(request.read_request_id));
                 }
                 Err(error) => return Err(map_worker_error(error)),
             }
@@ -974,14 +974,14 @@ fn read_ticket_response(ticket: super::runtime::ReadTicket) -> pb::GetResponse {
     }
 }
 
-fn missing_get_response() -> pb::GetResponse {
+fn missing_get_response(read_request_id: u64) -> pb::GetResponse {
     pb::GetResponse {
         found: false,
         version: 0,
         logical_length: 0,
         segments: Vec::new(),
         inline_value: None,
-        read_request_id: 0,
+        read_request_id,
     }
 }
 
@@ -1932,6 +1932,112 @@ mod tests {
             assert!(response.found);
             assert_eq!(response.inline_value.as_deref(), Some(b"hello".as_slice()));
             assert!(response.segments.is_empty());
+        });
+    }
+
+    #[test]
+    fn worker_mget_wire_preserves_read_request_id_for_hits_and_misses() {
+        let server = TestServer::start(TestAddress::Tcp);
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("test runtime");
+
+        runtime.block_on(async {
+            let mut client = WorkerServiceClient::connect(server.endpoint.clone())
+                .await
+                .expect("connect worker");
+            let session = client
+                .open_session(pb::OpenSessionRequest {
+                    min_version: 1,
+                    max_version: 1,
+                    shared_memory: false,
+                    zero_copy_read: false,
+                    zero_copy_write: false,
+                    supports_write_lease_release: false,
+                })
+                .await
+                .expect("open session")
+                .into_inner()
+                .session_id;
+
+            client
+                .set_inline(pb::SetInlineRequest {
+                    session_id: session,
+                    key: Some(pb::Key {
+                        value: b"wire/mget/a".to_vec(),
+                    }),
+                    value: b"A".to_vec(),
+                    operation_id: Some(pb::OperationId {
+                        client_instance_id: vec![9; 16],
+                        sequence: 1,
+                    }),
+                    condition: "any".to_string(),
+                    durability: "local-memory".to_string(),
+                })
+                .await
+                .expect("set first key");
+            client
+                .set_inline(pb::SetInlineRequest {
+                    session_id: session,
+                    key: Some(pb::Key {
+                        value: b"wire/mget/b".to_vec(),
+                    }),
+                    value: b"B".to_vec(),
+                    operation_id: Some(pb::OperationId {
+                        client_instance_id: vec![9; 16],
+                        sequence: 2,
+                    }),
+                    condition: "any".to_string(),
+                    durability: "local-memory".to_string(),
+                })
+                .await
+                .expect("set second key");
+
+            let response = client
+                .m_get(pb::MGetRequest {
+                    session_id: session,
+                    keys: vec![
+                        pb::Key {
+                            value: b"wire/mget/a".to_vec(),
+                        },
+                        pb::Key {
+                            value: b"wire/mget/missing".to_vec(),
+                        },
+                        pb::Key {
+                            value: b"wire/mget/a".to_vec(),
+                        },
+                        pb::Key {
+                            value: b"wire/mget/b".to_vec(),
+                        },
+                    ],
+                    read_request_id: 77,
+                })
+                .await
+                .expect("mget wire response")
+                .into_inner();
+
+            assert_eq!(response.items.len(), 4);
+            let found = response
+                .items
+                .iter()
+                .map(|item| item.found)
+                .collect::<Vec<_>>();
+            assert_eq!(found, vec![true, false, true, true]);
+            assert!(
+                response.items.iter().all(|item| item.read_request_id == 77),
+                "every MGET item, including misses, belongs to the same read request"
+            );
+            assert_eq!(response.items[0].version, response.items[2].version);
+            assert_ne!(response.items[0].version, response.items[3].version);
+            for item in response.items.iter().filter(|item| item.found) {
+                assert!(
+                    item.segments
+                        .iter()
+                        .all(|segment| segment.read_request_id == 77),
+                    "hit segments must also carry the batch read request id"
+                );
+            }
         });
     }
 

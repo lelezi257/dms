@@ -774,6 +774,44 @@ impl ArenaManager {
         region.read_at(offset, length)
     }
 
+    pub(crate) fn read_ticket_into(
+        &self,
+        ticket: ArenaReadTicket,
+        output: &mut [u8],
+    ) -> Result<usize, ArenaError> {
+        if self.live_allocations.get(&ticket.handle.allocation_id) != Some(&ticket.handle) {
+            return Err(ArenaError::StaleHandle);
+        }
+        ticket
+            .offset
+            .checked_add(ticket.length)
+            .filter(|end| *end <= ticket.handle.length)
+            .ok_or(ArenaError::RangeOutOfBounds)?;
+        let offset = ticket
+            .handle
+            .offset
+            .checked_add(ticket.offset)
+            .and_then(|offset| usize::try_from(offset).ok())
+            .ok_or(ArenaError::RangeOutOfBounds)?;
+        let length = usize::try_from(ticket.length).map_err(|_| ArenaError::RangeOutOfBounds)?;
+        if output.len() < length {
+            return Err(ArenaError::RangeOutOfBounds);
+        }
+        let region_index = ticket
+            .handle
+            .region_id
+            .checked_sub(1)
+            .and_then(|index| usize::try_from(index).ok())
+            .ok_or(ArenaError::StaleHandle)?;
+        let region = self
+            .regions
+            .get(region_index)
+            .ok_or(ArenaError::StaleHandle)?;
+        let source = region.borrow_at(offset, length)?;
+        output[..length].copy_from_slice(source);
+        Ok(length)
+    }
+
     pub(crate) fn shm_descriptor_for_read(
         &mut self,
         session_id: u64,

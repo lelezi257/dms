@@ -1,0 +1,47 @@
+{
+  "schema": "dms.unified-node-runtime-result-summary.v1",
+  "measured_at": "2026-09-13",
+  "profile": "Linux aarch64 Lima VM, 4 CPU, 8 GiB",
+  "workload": "12-file real FUSE workload covering single-node write/read and cross-node first read",
+  "comparison": "external filesystem process + SDK + WorkerService versus dms-node built-in FUSE + DataCoreHandle",
+  "acceptance": {
+    "passed": true,
+    "checks_passed": 12,
+    "checks_total": 12,
+    "checks": [
+      {"name": "local_create_4k_p50", "external_us": 1284.271, "builtin_us": 870.959, "passed": true},
+      {"name": "local_create_4k_p95", "external_us": 2675.124, "builtin_us": 1048.796, "passed": true},
+      {"name": "local_read_4k_p50", "external_us": 705.343, "builtin_us": 310.887, "passed": true},
+      {"name": "local_read_4k_p95", "external_us": 1117.047, "builtin_us": 363.541, "passed": true},
+      {"name": "cross_read_4k_p50", "external_us": 1522.044, "builtin_us": 1318.460, "passed": true},
+      {"name": "cross_read_4k_p95", "external_us": 1769.634, "builtin_us": 1594.712, "passed": true},
+      {"name": "local_create_64k_p50", "external_us": 1413.567, "builtin_us": 961.886, "passed": true},
+      {"name": "local_create_64k_p95", "external_us": 1997.920, "builtin_us": 1018.346, "passed": true},
+      {"name": "local_read_64k_p50", "external_us": 859.896, "builtin_us": 310.719, "passed": true},
+      {"name": "local_read_64k_p95", "external_us": 1010.057, "builtin_us": 370.180, "passed": true},
+      {"name": "cross_read_64k_p50", "external_us": 1740.677, "builtin_us": 1686.052, "passed": true},
+      {"name": "cross_read_64k_p95", "external_us": 2269.662, "builtin_us": 2117.667, "passed": true}
+    ]
+  },
+  "path_evidence": {
+    "builtin_single_node_entry_worker_rpc": 0,
+    "external_single_node_worker_rpc": 1139,
+    "builtin_cross_node_peer_pull_count": 130,
+    "external_cross_node_peer_pull_count": 130,
+    "builtin_cross_node_peer_pull_bytes": 12820480,
+    "external_cross_node_peer_pull_bytes": 12820480,
+    "builtin_second_current_meta_resolve": 0,
+    "builtin_second_current_peer_pull_bytes": 0
+  },
+  "archived_raw_evidence": {
+    "included_in_source_repository": false,
+    "candidate_json_sha256": "62978feecc9d200aee91cf2493c9378636c745b5e939fcfbd4c6b7a77a72ecab",
+    "report_html_sha256": "54ef2c588e8957834345d5dd3cd3190b9a79b8ed6a0896c57270a229adea96aa",
+    "note": "源码仓只保留可审阅摘要、合同、评价器和复现脚本；原始日志、metrics 与逐轮样本保存在实验工作区，不进入产品源码发布件。"
+  },
+  "limitations": [
+    "该结果证明穿刺路径与当次性能门禁，不替代后续 Filesystem 完整功能验收。",
+    "当次同步测试树没有 Git 元数据，因此不能把本摘要当成发布制品身份收据。",
+    "1 MiB 仅作为信息样本，不属于这 12 项门禁。"
+  ]
+}

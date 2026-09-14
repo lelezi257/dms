@@ -320,6 +320,25 @@ pub(crate) enum ReadTarget {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct DataCoreReadIntoResult {
+    pub(crate) version: u64,
+    pub(crate) logical_length: u64,
+    pub(crate) bytes: Vec<u8>,
+    pub(crate) bytes_read: usize,
+}
+
+/// DataCore 一次读尝试的结果。
+///
+/// `BufferTooSmall` 不是容量耗尽：它表示调用方在解析目标版本前只能按旧长度
+/// 预分配。返回本次已经解析出的固定版本和所需长度后，DataCore 可以只重试该
+/// 版本，避免 Current 在两次请求间继续变化导致读到混合快照。
+pub(crate) enum DataCoreReadAttempt {
+    Ready(DataCoreReadIntoResult),
+    NotFound,
+    BufferTooSmall { version: u64, required: usize },
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct StagingAllocation {
     pub(crate) staging_id: u64,
     pub(crate) transfer_id: u64,
@@ -528,6 +547,36 @@ enum MaterializeOutcome {
     NeedsRemoteBlocks(Vec<PeerPullSpec>),
 }
 
+enum DataCoreMaterializeOutcome {
+    Ready(DataCoreReadIntoResult),
+    BufferTooSmall {
+        version: u64,
+        required: usize,
+    },
+    NeedsRemoteBlocks {
+        specs: Vec<PeerPullSpec>,
+        output: Vec<u8>,
+    },
+    NotFound,
+}
+
+enum DataCoreCachedReadOutcome {
+    Miss {
+        output: Vec<u8>,
+    },
+    Ready(DataCoreReadIntoResult),
+    BufferTooSmall {
+        version: u64,
+        required: usize,
+    },
+    NeedsRemoteBlocks {
+        resolved: pb::ResolveObjectResponse,
+        specs: Vec<PeerPullSpec>,
+        output: Vec<u8>,
+    },
+    NotFound,
+}
+
 #[derive(Clone, Debug)]
 pub(crate) enum WorkerError {
     /// 请求内容不合法；静态字符串避免临时分配。
@@ -547,6 +596,23 @@ pub(crate) enum WorkerError {
     ArenaShmUnavailable,
     ArenaAccessDenied,
     Stable(DmsError),
+}
+
+impl WorkerError {
+    /// 是否为对象版本条件冲突。Meta 在提交边界返回稳定 DMS 错误码，Node 内部
+    /// 也可能在更早阶段直接发现冲突；上层重试策略不应依赖错误来自哪一层。
+    #[cfg_attr(
+        not(any(test, feature = "fuse")),
+        allow(dead_code, reason = "文件层 CAS 重试由可选 FUSE 支持使用")
+    )]
+    pub(crate) fn is_version_conflict(&self) -> bool {
+        matches!(self, Self::Conflict)
+            || matches!(
+                self,
+                Self::Stable(error)
+                    if error.code() == dms_error::META_CATALOG_VERSION_CONFLICT
+            )
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -1046,6 +1112,16 @@ impl NodeHandle {
         receive(receiver).await
     }
 
+    async fn begin_data_core_read_scope(&self) -> Result<ReadScopeLease, WorkerError> {
+        let (reply, receiver) = oneshot::channel();
+        self.submit(NodeCommand::BeginDataCoreReadScope {
+            cleanup_node: Box::new(self.clone()),
+            reply,
+        })
+        .await?;
+        receive(receiver).await
+    }
+
     async fn finish_read_scope(&self, scope_id: u64) -> Result<(), WorkerError> {
         let (reply, receiver) = oneshot::channel();
         self.submit(NodeCommand::FinishReadScope { scope_id, reply })
@@ -1080,6 +1156,93 @@ impl NodeHandle {
             .ok_or(WorkerError::MetadataUnavailable)?;
         self.validate_session(session_id).await?;
         metadata.stat(key).await.map_err(map_metadata_error)
+    }
+
+    pub(crate) async fn data_core_stat(
+        &self,
+        key: Vec<u8>,
+    ) -> Result<pb::MetaStatResponse, WorkerError> {
+        validate_user_key(&key)?;
+        let metadata = self
+            .metadata
+            .as_ref()
+            .ok_or(WorkerError::MetadataUnavailable)?;
+        metadata.stat(key).await.map_err(map_metadata_error)
+    }
+
+    pub(crate) async fn data_core_set_inline(
+        &self,
+        key: Vec<u8>,
+        bytes: Vec<u8>,
+        operation_id: Vec<u8>,
+        condition: String,
+    ) -> Result<SetOutcome, WorkerError> {
+        let (reply_tx, reply_rx) = oneshot::channel();
+        self.submit(NodeCommand::DataCoreSetInline {
+            key,
+            bytes,
+            operation_id,
+            condition,
+            reply: reply_tx,
+        })
+        .await?;
+        let outcome = receive(reply_rx).await?;
+        if let Some(barrier_id) = outcome.barrier_id {
+            self.wait_invalidation(barrier_id).await?;
+        }
+        Ok(outcome)
+    }
+
+    pub(crate) async fn data_core_set_range_inline(
+        &self,
+        key: Vec<u8>,
+        offset: u64,
+        bytes: Vec<u8>,
+        operation_id: Vec<u8>,
+        expected_version: Option<u64>,
+    ) -> Result<SetOutcome, WorkerError> {
+        validate_user_key(&key)?;
+        let resolved = self
+            .metadata
+            .as_ref()
+            .ok_or(WorkerError::MetadataUnavailable)?
+            .resolve(key.clone(), expected_version)
+            .await
+            .map_err(map_metadata_error)?;
+        let (reply_tx, reply_rx) = oneshot::channel();
+        self.submit(NodeCommand::DataCoreSetRangeInline {
+            key,
+            offset,
+            bytes,
+            operation_id,
+            resolved,
+            reply: reply_tx,
+        })
+        .await?;
+        let outcome = receive(reply_rx).await?;
+        if let Some(barrier_id) = outcome.barrier_id {
+            self.wait_invalidation(barrier_id).await?;
+        }
+        Ok(outcome)
+    }
+
+    pub(crate) async fn data_core_delete(
+        &self,
+        key: Vec<u8>,
+        operation_id: Vec<u8>,
+    ) -> Result<DeleteOutcome, WorkerError> {
+        let (reply_tx, reply_rx) = oneshot::channel();
+        self.submit(NodeCommand::DataCoreDelete {
+            key,
+            operation_id,
+            reply: reply_tx,
+        })
+        .await?;
+        let outcome = receive(reply_rx).await?;
+        if let Some(barrier_id) = outcome.barrier_id {
+            self.wait_invalidation(barrier_id).await?;
+        }
+        Ok(outcome)
     }
 
     pub(crate) async fn scan(
@@ -1602,6 +1765,27 @@ impl NodeHandle {
         }
     }
 
+    pub(crate) async fn data_core_read_into(
+        &self,
+        key: Vec<u8>,
+        exact_version: Option<u64>,
+        range: Option<(u64, u64)>,
+        clamp_range: bool,
+        output: Vec<u8>,
+    ) -> Result<DataCoreReadAttempt, WorkerError> {
+        validate_user_key(&key)?;
+        let scope = self.begin_data_core_read_scope().await?.into_guard();
+        let result = self
+            .data_core_read_into_scoped(scope.id(), key, exact_version, range, clamp_range, output)
+            .await;
+        let finish = scope.finish().await;
+        match (result, finish) {
+            (Ok(value), Ok(())) => Ok(value),
+            (Err(error), _) => Err(error),
+            (Ok(_), Err(error)) => Err(error),
+        }
+    }
+
     async fn get_materialized_scoped(
         &self,
         session_id: u64,
@@ -1634,6 +1818,134 @@ impl NodeHandle {
                             .await
                             .map_err(|failure| failure.error)?;
                     }
+                }
+            }
+        }
+        Err(WorkerError::NotFound)
+    }
+
+    async fn data_core_read_into_scoped(
+        &self,
+        read_scope_id: u64,
+        key: Vec<u8>,
+        exact_version: Option<u64>,
+        range: Option<(u64, u64)>,
+        clamp_range: bool,
+        mut output: Vec<u8>,
+    ) -> Result<DataCoreReadAttempt, WorkerError> {
+        let metadata = self
+            .metadata
+            .as_ref()
+            .ok_or(WorkerError::MetadataUnavailable)?;
+        let node_epoch = metadata.node_epoch().await;
+        let (reply_tx, reply_rx) = oneshot::channel();
+        self.submit(NodeCommand::DataCoreGetCached {
+            read_scope_id,
+            key: key.clone(),
+            node_epoch,
+            exact_version,
+            range,
+            clamp_range,
+            output,
+            reply: reply_tx,
+        })
+        .await?;
+        let (refill_token, cached) = receive(reply_rx).await?;
+        match cached {
+            DataCoreCachedReadOutcome::Ready(result) => {
+                return Ok(DataCoreReadAttempt::Ready(result));
+            }
+            DataCoreCachedReadOutcome::BufferTooSmall { version, required } => {
+                return Ok(DataCoreReadAttempt::BufferTooSmall { version, required });
+            }
+            DataCoreCachedReadOutcome::NeedsRemoteBlocks {
+                resolved,
+                specs,
+                output: returned,
+            } => {
+                output = returned;
+                for spec in specs {
+                    self.ensure_peer_block(read_scope_id, spec)
+                        .await
+                        .map_err(|failure| failure.error)?;
+                }
+                return self
+                    .data_core_read_resolved_into(
+                        read_scope_id,
+                        resolved,
+                        range,
+                        clamp_range,
+                        output,
+                        None,
+                    )
+                    .await;
+            }
+            DataCoreCachedReadOutcome::NotFound => return Ok(DataCoreReadAttempt::NotFound),
+            DataCoreCachedReadOutcome::Miss { output: returned } => {
+                output = returned;
+            }
+        }
+        let requested_at = Instant::now();
+        let resolved = metadata
+            .resolve(key.clone(), exact_version)
+            .await
+            .map_err(map_metadata_error)?;
+        let cache_refill = exact_version
+            .is_none()
+            .then(|| refill_token.map(|token| (token, key, requested_at, node_epoch)))
+            .flatten();
+        self.data_core_read_resolved_into(
+            read_scope_id,
+            resolved,
+            range,
+            clamp_range,
+            output,
+            cache_refill,
+        )
+        .await
+    }
+
+    async fn data_core_read_resolved_into(
+        &self,
+        read_scope_id: u64,
+        resolved: pb::ResolveObjectResponse,
+        range: Option<(u64, u64)>,
+        clamp_range: bool,
+        mut output: Vec<u8>,
+        cache_refill: Option<(u64, Vec<u8>, Instant, u64)>,
+    ) -> Result<DataCoreReadAttempt, WorkerError> {
+        for _ in 0..2 {
+            let (reply_tx, reply_rx) = oneshot::channel();
+            self.submit(NodeCommand::DataCoreMaterializeInto {
+                read_scope_id,
+                resolved: resolved.clone(),
+                range,
+                clamp_range,
+                output,
+                cache_refill: cache_refill.clone(),
+                reply: reply_tx,
+            })
+            .await?;
+            match receive(reply_rx).await? {
+                DataCoreMaterializeOutcome::Ready(result) => {
+                    return Ok(DataCoreReadAttempt::Ready(result));
+                }
+                DataCoreMaterializeOutcome::BufferTooSmall { version, required } => {
+                    return Ok(DataCoreReadAttempt::BufferTooSmall { version, required });
+                }
+                DataCoreMaterializeOutcome::NeedsRemoteBlocks {
+                    specs,
+                    output: returned,
+                } => {
+                    output = returned;
+                    for spec in specs {
+                        self.ensure_peer_block(read_scope_id, spec)
+                            .await
+                            .map_err(|failure| failure.error)?;
+                    }
+                }
+                DataCoreMaterializeOutcome::NotFound => {
+                    return Ok(DataCoreReadAttempt::NotFound);
                 }
             }
         }
@@ -1977,6 +2289,7 @@ async fn receive<T>(reply_rx: oneshot::Receiver<Result<T, WorkerError>>) -> Resu
 /// enum 而不是 `AnyMessage + method_id`，因此每个分支的参数和返回类型都由编译器检查。
 // owner 返回：在途查询的回填围栏，以及可直接返回的读取票据（未命中时为空）。
 type CachedRead = (Option<u64>, CachedReadOutcome);
+type DataCoreCachedRead = (Option<u64>, DataCoreCachedReadOutcome);
 
 enum NodeCommand {
     OpenSession {
@@ -2067,6 +2380,21 @@ enum NodeCommand {
         condition: String,
         reply: oneshot::Sender<Result<SetOutcome, WorkerError>>,
     },
+    DataCoreSetInline {
+        key: Vec<u8>,
+        bytes: Vec<u8>,
+        operation_id: Vec<u8>,
+        condition: String,
+        reply: oneshot::Sender<Result<SetOutcome, WorkerError>>,
+    },
+    DataCoreSetRangeInline {
+        key: Vec<u8>,
+        offset: u64,
+        bytes: Vec<u8>,
+        operation_id: Vec<u8>,
+        resolved: pb::ResolveObjectResponse,
+        reply: oneshot::Sender<Result<SetOutcome, WorkerError>>,
+    },
     SetRange {
         input: SetRangeInput,
         resolved: pb::ResolveObjectResponse,
@@ -2074,6 +2402,11 @@ enum NodeCommand {
     },
     Delete {
         session_id: u64,
+        key: Vec<u8>,
+        operation_id: Vec<u8>,
+        reply: oneshot::Sender<Result<DeleteOutcome, WorkerError>>,
+    },
+    DataCoreDelete {
         key: Vec<u8>,
         operation_id: Vec<u8>,
         reply: oneshot::Sender<Result<DeleteOutcome, WorkerError>>,
@@ -2105,6 +2438,25 @@ enum NodeCommand {
         read_scope_id: u64,
         resolved: pb::ResolveObjectResponse,
         reply: oneshot::Sender<Result<MaterializeOutcome, WorkerError>>,
+    },
+    DataCoreMaterializeInto {
+        read_scope_id: u64,
+        resolved: pb::ResolveObjectResponse,
+        range: Option<(u64, u64)>,
+        clamp_range: bool,
+        output: Vec<u8>,
+        cache_refill: Option<(u64, Vec<u8>, Instant, u64)>,
+        reply: oneshot::Sender<Result<DataCoreMaterializeOutcome, WorkerError>>,
+    },
+    DataCoreGetCached {
+        read_scope_id: u64,
+        key: Vec<u8>,
+        node_epoch: u64,
+        exact_version: Option<u64>,
+        range: Option<(u64, u64)>,
+        clamp_range: bool,
+        output: Vec<u8>,
+        reply: oneshot::Sender<Result<DataCoreCachedRead, WorkerError>>,
     },
     ImportPeerBlock {
         block_id: Vec<u8>,
@@ -2188,6 +2540,10 @@ enum NodeCommand {
         cleanup_node: Box<NodeHandle>,
         reply: oneshot::Sender<Result<ReadScopeLease, WorkerError>>,
     },
+    BeginDataCoreReadScope {
+        cleanup_node: Box<NodeHandle>,
+        reply: oneshot::Sender<Result<ReadScopeLease, WorkerError>>,
+    },
     FinishReadScope {
         scope_id: u64,
         reply: oneshot::Sender<Result<(), WorkerError>>,
@@ -2237,11 +2593,16 @@ impl NodeCommand {
             Self::Set { .. } => NodeMailboxCommand::Set,
             Self::MSet { .. } => NodeMailboxCommand::MSet,
             Self::SetInline { .. } => NodeMailboxCommand::SetInline,
+            Self::DataCoreSetInline { .. } => NodeMailboxCommand::SetInline,
             Self::SetRange { .. } => NodeMailboxCommand::SetRange,
+            Self::DataCoreSetRangeInline { .. } => NodeMailboxCommand::SetRange,
             Self::Delete { .. } => NodeMailboxCommand::Delete,
+            Self::DataCoreDelete { .. } => NodeMailboxCommand::Delete,
             Self::GetResolved { .. } => NodeMailboxCommand::GetResolved,
             Self::GetCached { .. } => NodeMailboxCommand::GetCached,
             Self::MaterializeResolved { .. } => NodeMailboxCommand::MaterializeResolved,
+            Self::DataCoreMaterializeInto { .. } => NodeMailboxCommand::MaterializeResolved,
+            Self::DataCoreGetCached { .. } => NodeMailboxCommand::GetCached,
             Self::ImportPeerBlock { .. } => NodeMailboxCommand::ImportPeerBlock,
             Self::EnsurePeerBlock { .. } => NodeMailboxCommand::ImportPeerBlock,
             Self::Download { .. } => NodeMailboxCommand::Download,
@@ -2258,6 +2619,7 @@ impl NodeCommand {
             Self::PrepareBlockRetirement { .. } => NodeMailboxCommand::InvalidateCurrent,
             Self::FinalizeBlockRetirement { .. } => NodeMailboxCommand::InvalidateCurrent,
             Self::BeginReadScope { .. } => NodeMailboxCommand::GetCached,
+            Self::BeginDataCoreReadScope { .. } => NodeMailboxCommand::GetCached,
             Self::FinishReadScope { .. } => NodeMailboxCommand::GetCached,
             Self::WaitInvalidation { .. } => NodeMailboxCommand::WaitInvalidation,
             Self::ApplyConfigChange { .. } => NodeMailboxCommand::ApplyConfigChange,
@@ -2498,6 +2860,17 @@ async fn run_node(
                         state.commit_bytes(session_id, key, bytes, operation_id, condition)
                     });
                 }
+                NodeCommand::DataCoreSetInline {
+                    key,
+                    bytes,
+                    operation_id,
+                    condition,
+                    reply,
+                } => {
+                    launch_write(&mut state, &mut writes, reply, |state| {
+                        state.commit_bytes_for_data_core(key, bytes, operation_id, condition)
+                    });
+                }
                 NodeCommand::SetRange {
                     input,
                     resolved,
@@ -2505,6 +2878,24 @@ async fn run_node(
                 } => {
                     launch_write(&mut state, &mut writes, reply, |state| {
                         state.set_range(input, resolved)
+                    });
+                }
+                NodeCommand::DataCoreSetRangeInline {
+                    key,
+                    offset,
+                    bytes,
+                    operation_id,
+                    resolved,
+                    reply,
+                } => {
+                    launch_write(&mut state, &mut writes, reply, |state| {
+                        state.set_range_inline_for_data_core(
+                            key,
+                            offset,
+                            bytes,
+                            operation_id,
+                            resolved,
+                        )
                     });
                 }
                 NodeCommand::Delete {
@@ -2515,6 +2906,15 @@ async fn run_node(
                 } => {
                     launch_write(&mut state, &mut writes, reply, |state| {
                         state.delete(session_id, key, operation_id)
+                    });
+                }
+                NodeCommand::DataCoreDelete {
+                    key,
+                    operation_id,
+                    reply,
+                } => {
+                    launch_write(&mut state, &mut writes, reply, |state| {
+                        state.delete_for_data_core(key, operation_id)
                     });
                 }
                 NodeCommand::GetResolved {
@@ -2603,6 +3003,53 @@ async fn run_node(
                         read_scope_id,
                         &resolved,
                     ));
+                }
+                NodeCommand::DataCoreMaterializeInto {
+                    read_scope_id,
+                    resolved,
+                    range,
+                    clamp_range,
+                    output,
+                    cache_refill,
+                    reply,
+                } => {
+                    if reply.is_closed() {
+                        state.finish_read_scope(read_scope_id);
+                        return;
+                    }
+                    let _ = reply.send(state.materialize_resolved_into_for_data_core(
+                        read_scope_id,
+                        &resolved,
+                        range,
+                        clamp_range,
+                        output,
+                        cache_refill,
+                    ));
+                }
+                NodeCommand::DataCoreGetCached {
+                    read_scope_id,
+                    key,
+                    node_epoch,
+                    exact_version,
+                    range,
+                    clamp_range,
+                    output,
+                    reply,
+                } => {
+                    if reply.is_closed() {
+                        state.finish_read_scope(read_scope_id);
+                        return;
+                    }
+                    let result = state.get_cached_for_data_core(
+                        read_scope_id,
+                        &key,
+                        node_epoch,
+                        exact_version,
+                        range,
+                        clamp_range,
+                        output,
+                    );
+                    let _ = reply.send(result);
                 }
                 NodeCommand::EnsurePeerBlock {
                     read_scope_id,
@@ -2755,6 +3202,12 @@ async fn run_node(
                     reply,
                 } => {
                     state.begin_read_scope_reply(session_id, *cleanup_node, reply);
+                }
+                NodeCommand::BeginDataCoreReadScope {
+                    cleanup_node,
+                    reply,
+                } => {
+                    state.begin_data_core_read_scope_reply(*cleanup_node, reply);
                 }
                 NodeCommand::FinishReadScope { scope_id, reply } => {
                     state.finish_read_scope(scope_id);
@@ -3627,6 +4080,109 @@ impl NodeState {
         }))
     }
 
+    fn set_range_inline_for_data_core(
+        &mut self,
+        key: Vec<u8>,
+        offset: u64,
+        bytes: Vec<u8>,
+        operation_id: Vec<u8>,
+        resolved: pb::ResolveObjectResponse,
+    ) -> Result<PreparedWrite<SetOutcome>, WorkerError> {
+        validate_user_key(&key)?;
+        validate_operation_id(&operation_id)?;
+        let metadata = self
+            .metadata
+            .clone()
+            .ok_or(WorkerError::MetadataUnavailable)?;
+        let layout = resolved.layout.as_ref().ok_or(WorkerError::NotFound)?;
+        let base_version = layout.version;
+        let patch_length = bytes.len() as u64;
+        let patch_end = offset
+            .checked_add(patch_length)
+            .ok_or(WorkerError::InvalidArgument("range write overflows u64"))?;
+        if patch_end > layout.logical_length {
+            return Err(WorkerError::InvalidArgument(
+                "range write extends beyond current value",
+            ));
+        }
+
+        // 进程内文件子系统已经把 patch bytes 交给 Node owner。这里直接把 patch
+        // 封成新的 immutable Block，再用 Extent overlay 描述新版本；不读取、不复制
+        // base value。
+        let patch_block = block_identity(&self.node_id, &operation_id);
+        let owns_block = self.check_block_preparation(&patch_block)?;
+        let patch_digest = digest(&bytes);
+        let extents = super::version_layout::overlay(
+            &layout.extents,
+            layout.logical_length,
+            offset,
+            patch_length,
+            &patch_block,
+            &patch_digest,
+        )?;
+        let candidate_digest = super::version_layout::digest(layout.logical_length, &extents);
+        if patch_length > 0 {
+            self.arena
+                .commit_inline_with_verified_digest(
+                    patch_block.clone(),
+                    bytes,
+                    patch_digest.clone(),
+                )
+                .map_err(map_arena_error)?;
+            self.pending_blocks.insert(patch_block.clone(), owns_block);
+        }
+        let replica_proofs = resolved
+            .block_replicas
+            .iter()
+            .filter(|set| set.block_id != patch_block)
+            .filter_map(|set| set.proofs.first().cloned())
+            .collect();
+        let logical_length = layout.logical_length;
+        Ok(Box::pin(async move {
+            let committed = metadata
+                .commit_layout(
+                    key.clone(),
+                    operation_id,
+                    pb::VersionCandidate {
+                        kind: pb::VersionKind::Value as i32,
+                        logical_length,
+                        extents,
+                        digest: candidate_digest,
+                    },
+                    replica_proofs,
+                    vec![pb::ReplicaReport {
+                        block_id: patch_block.clone(),
+                        length: patch_length,
+                        checksum: patch_digest,
+                        durability: pb::DurabilityPolicy::LocalMemory as i32,
+                    }],
+                    format!("if-version:{base_version}"),
+                )
+                .await;
+            Box::new(move |state: &mut NodeState| {
+                state.finish_block_preparation(
+                    &patch_block,
+                    committed
+                        .as_ref()
+                        .is_err_and(is_definitive_metadata_rejection),
+                );
+                let committed = match committed {
+                    Ok(committed) => committed,
+                    Err(error) => {
+                        return Err(map_metadata_error(error));
+                    }
+                };
+                state.arena.mark_committed(&patch_block, committed.version);
+                let barrier_id = state.broadcast_invalidation(key, committed.version);
+                Ok(SetOutcome {
+                    version: committed.version,
+                    length: logical_length,
+                    barrier_id,
+                })
+            }) as WriteCompletion<SetOutcome>
+        }))
+    }
+
     fn commit_bytes(
         &mut self,
         session_id: u64,
@@ -3669,6 +4225,76 @@ impl NodeState {
             operation_id,
             condition,
         })
+    }
+
+    fn commit_bytes_for_data_core(
+        &mut self,
+        key: Vec<u8>,
+        bytes: Vec<u8>,
+        operation_id: Vec<u8>,
+        condition: String,
+    ) -> Result<PreparedWrite<SetOutcome>, WorkerError> {
+        validate_user_key(&key)?;
+        validate_operation_id(&operation_id)?;
+        // DataCore 是进程内入口，不经过 gRPC wire，因此不能继承 8 MiB 的单消息限制。
+        // 对象是否能够接纳由 Arena/Region 容量统一判断；跨进程 Worker 请求仍在各自
+        // 的 gRPC handler 边界执行 `validate_grpc_payload_bytes`。
+        let block_id = block_identity(&self.node_id, &operation_id);
+        if bytes.is_empty() {
+            return self.commit_block(ValueCommitInput {
+                cache_session_id: None,
+                key,
+                block_id,
+                length: 0,
+                checksum: digest(&[]),
+                operation_id,
+                condition,
+            });
+        }
+        let owns_block = self.check_block_preparation(&block_id)?;
+        let length = bytes.len() as u64;
+        let checksum = digest(&bytes);
+        self.arena
+            .commit_inline_with_verified_digest(block_id.clone(), bytes, checksum.clone())
+            .map_err(map_arena_error)?;
+        self.pending_blocks.insert(block_id.clone(), owns_block);
+        self.commit_block(ValueCommitInput {
+            cache_session_id: None,
+            key,
+            block_id,
+            length,
+            checksum,
+            operation_id,
+            condition,
+        })
+    }
+
+    fn delete_for_data_core(
+        &mut self,
+        key: Vec<u8>,
+        operation_id: Vec<u8>,
+    ) -> Result<PreparedWrite<DeleteOutcome>, WorkerError> {
+        validate_user_key(&key)?;
+        validate_operation_id(&operation_id)?;
+        let metadata = self
+            .metadata
+            .clone()
+            .ok_or(WorkerError::MetadataUnavailable)?;
+        Ok(Box::pin(async move {
+            let committed = metadata.commit_delete(key.clone(), operation_id).await;
+            Box::new(move |state: &mut NodeState| {
+                let committed = committed.map_err(map_metadata_error)?;
+                let barrier_id = committed
+                    .changed
+                    .then(|| state.broadcast_invalidation(key, committed.version))
+                    .flatten();
+                Ok(DeleteOutcome {
+                    deleted: committed.changed,
+                    version: committed.version,
+                    barrier_id,
+                })
+            }) as WriteCompletion<DeleteOutcome>
+        }))
     }
 
     fn commit_block(
@@ -3887,6 +4513,84 @@ impl NodeState {
         };
         self.metrics
             .record_current_cache_lookup(!matches!(outcome, CachedReadOutcome::Miss));
+        self.metrics
+            .set_current_cache_charge(self.current_cache.charged());
+        Ok((token, outcome))
+    }
+
+    /// DataCore/进程内子系统复用 Node CurrentCache，但不创建 KV Session。
+    ///
+    /// 这条路径只依赖 Node 与 Meta 之间的 Watch/Lease：Watch 断开或租约过期时
+    /// 直接 miss 并清理缓存；ExactVersion 只有在当前缓存版本刚好相等时机会性
+    /// 复用，否则仍由上层向 Meta 做固定版本解析。这里不登记 Client cache
+    /// interest，因为进程内子系统的缓存一致性由同一个 Node owner 维护。
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "DataCore cache lookup carries range/output ownership explicitly to avoid hidden session state"
+    )]
+    fn get_cached_for_data_core(
+        &mut self,
+        read_scope_id: u64,
+        key: &[u8],
+        node_epoch: u64,
+        exact_version: Option<u64>,
+        range: Option<(u64, u64)>,
+        clamp_range: bool,
+        output: Vec<u8>,
+    ) -> Result<DataCoreCachedRead, WorkerError> {
+        validate_user_key(key)?;
+        let now = Instant::now();
+        if !self.metadata_watch_connected || now >= self.metadata_lease_until {
+            self.current_cache.clear();
+            self.metrics.set_current_cache_charge(0);
+            self.metrics.record_current_cache_lookup(false);
+            return Ok((None, DataCoreCachedReadOutcome::Miss { output }));
+        }
+        let token = self.current_cache.token();
+        let charged_before_lookup = self.current_cache.charged();
+        let cached = self.current_cache.get(key, node_epoch, now);
+        if self.current_cache.charged() != charged_before_lookup {
+            self.metrics
+                .set_current_cache_charge(self.current_cache.charged());
+        }
+        let outcome = if let Some(cached) = cached
+            .filter(|cached| exact_version.is_none_or(|version| cached.layout.version == version))
+        {
+            let resolved = pb::ResolveObjectResponse {
+                layout: Some((*cached.layout).clone()),
+                block_replicas: (*cached.block_replicas).clone(),
+                current_lease: None,
+            };
+            match self.materialize_resolved_into_for_data_core(
+                read_scope_id,
+                &resolved,
+                range,
+                clamp_range,
+                output,
+                None,
+            )? {
+                DataCoreMaterializeOutcome::Ready(result) => {
+                    DataCoreCachedReadOutcome::Ready(result)
+                }
+                DataCoreMaterializeOutcome::BufferTooSmall { version, required } => {
+                    DataCoreCachedReadOutcome::BufferTooSmall { version, required }
+                }
+                DataCoreMaterializeOutcome::NeedsRemoteBlocks { specs, output } => {
+                    DataCoreCachedReadOutcome::NeedsRemoteBlocks {
+                        resolved,
+                        specs,
+                        output,
+                    }
+                }
+                DataCoreMaterializeOutcome::NotFound => DataCoreCachedReadOutcome::NotFound,
+            }
+        } else {
+            DataCoreCachedReadOutcome::Miss { output }
+        };
+        self.metrics.record_current_cache_lookup(!matches!(
+            outcome,
+            DataCoreCachedReadOutcome::Miss { .. }
+        ));
         self.metrics
             .set_current_cache_charge(self.current_cache.charged());
         Ok((token, outcome))
@@ -4239,6 +4943,131 @@ impl NodeState {
             version: layout.version,
             bytes,
         })
+    }
+
+    fn materialize_resolved_into_for_data_core(
+        &mut self,
+        read_scope_id: u64,
+        resolved: &pb::ResolveObjectResponse,
+        range: Option<(u64, u64)>,
+        clamp_range: bool,
+        mut output: Vec<u8>,
+        cache_refill: Option<(u64, Vec<u8>, Instant, u64)>,
+    ) -> Result<DataCoreMaterializeOutcome, WorkerError> {
+        let Some(layout) = resolved.layout.as_ref() else {
+            return Ok(DataCoreMaterializeOutcome::NotFound);
+        };
+        super::version_layout::validate(layout.logical_length, &layout.extents)?;
+        let requested = Self::normalize_read_range(range, layout.logical_length, clamp_range)?;
+        let required = usize::try_from(requested.1).map_err(|_| WorkerError::ResourceExhausted)?;
+        if required > output.len() {
+            return Ok(DataCoreMaterializeOutcome::BufferTooSmall {
+                version: layout.version,
+                required,
+            });
+        }
+        let request_end = requested
+            .0
+            .checked_add(requested.1)
+            .ok_or(WorkerError::InvalidArgument("read range overflows u64"))?;
+        let mut missing = Vec::new();
+        let mut planned = Vec::new();
+        for extent in &layout.extents {
+            let logical = extent.logical.as_ref().ok_or(WorkerError::InvalidArgument(
+                "extent logical range is missing",
+            ))?;
+            let extent_end = logical
+                .offset
+                .checked_add(logical.length)
+                .ok_or(WorkerError::InvalidArgument("extent range overflows u64"))?;
+            let start = requested.0.max(logical.offset);
+            let end = request_end.min(extent_end);
+            if start >= end {
+                continue;
+            }
+            if self.retirement_blocks_new_reads(&extent.block_id, read_scope_id) {
+                return Err(WorkerError::NotFound);
+            }
+            if let Some(failure) = self.peer_import_failure(&extent.block_id, read_scope_id) {
+                return Err(failure.error.clone());
+            }
+            let block_offset = extent
+                .block_offset
+                .checked_add(start - logical.offset)
+                .ok_or(WorkerError::InvalidArgument("block range overflows u64"))?;
+            let block_range = (block_offset, end - start);
+            let local = if self.peer_imports.contains_key(&extent.block_id) {
+                Err(ArenaError::UnknownBlock)
+            } else {
+                self.arena.open_read(&extent.block_id, Some(block_range))
+            };
+            match local {
+                Ok((read, _)) => planned.push((start - requested.0, read)),
+                Err(ArenaError::UnknownBlock) => {
+                    if !missing
+                        .iter()
+                        .any(|item: &PeerPullSpec| item.block_id == extent.block_id)
+                    {
+                        missing
+                            .push(self.describe_missing_block(&resolved.block_replicas, extent)?);
+                    }
+                }
+                Err(error) => return Err(map_arena_error(error)),
+            }
+        }
+        if !missing.is_empty() {
+            return Ok(DataCoreMaterializeOutcome::NeedsRemoteBlocks {
+                specs: missing,
+                output,
+            });
+        }
+        if requested.1 > 0 && planned.is_empty() {
+            return Ok(DataCoreMaterializeOutcome::NotFound);
+        }
+        planned.sort_by_key(|(offset, _)| *offset);
+        let mut cursor = 0_u64;
+        for (offset, ticket) in planned {
+            if offset != cursor {
+                return Err(WorkerError::InvalidArgument(
+                    "layout extents contain a gap or overlap",
+                ));
+            }
+            let start = usize::try_from(cursor).map_err(|_| WorkerError::ResourceExhausted)?;
+            let written = self
+                .arena
+                .read_ticket_into(ticket, &mut output[start..])
+                .map_err(map_arena_error)?;
+            cursor = cursor
+                .checked_add(written as u64)
+                .ok_or(WorkerError::ResourceExhausted)?;
+        }
+        if cursor != requested.1 {
+            return Err(WorkerError::InvalidArgument(
+                "layout extents do not cover requested range",
+            ));
+        }
+        if self.metadata_watch_connected
+            && Instant::now() < self.metadata_lease_until
+            && !self.layout_contains_retiring_block(resolved)
+            && let Some((token, key, requested_at, node_epoch)) = cache_refill
+        {
+            self.current_cache.insert(
+                token,
+                key,
+                resolved,
+                requested_at,
+                node_epoch,
+                Instant::now(),
+            );
+            self.metrics
+                .set_current_cache_charge(self.current_cache.charged());
+        }
+        Ok(DataCoreMaterializeOutcome::Ready(DataCoreReadIntoResult {
+            version: layout.version,
+            logical_length: layout.logical_length,
+            bytes: output,
+            bytes_read: usize::try_from(cursor).map_err(|_| WorkerError::ResourceExhausted)?,
+        }))
     }
 
     fn grpc_download_target(
@@ -4688,6 +5517,10 @@ impl NodeState {
 
     fn begin_read_scope(&mut self, session_id: u64) -> Result<u64, WorkerError> {
         self.live_session(session_id)?;
+        self.begin_read_scope_unchecked()
+    }
+
+    fn begin_read_scope_unchecked(&mut self) -> Result<u64, WorkerError> {
         let scope_id = self.next_read_scope;
         self.next_read_scope = self
             .next_read_scope
@@ -4712,6 +5545,26 @@ impl NodeState {
                     // Caller was cancelled after scope allocation but before
                     // receiving the id; undo immediately so Prepare cannot
                     // wait forever on an unobservable scope.
+                    self.finish_read_scope(scope_id);
+                }
+            }
+            Err(error) => {
+                let _ = reply.send(Err(error));
+            }
+        }
+    }
+
+    fn begin_data_core_read_scope_reply(
+        &mut self,
+        cleanup_node: NodeHandle,
+        reply: oneshot::Sender<Result<ReadScopeLease, WorkerError>>,
+    ) {
+        match self.begin_read_scope_unchecked() {
+            Ok(scope_id) => {
+                if reply
+                    .send(Ok(ReadScopeLease::new(cleanup_node, scope_id)))
+                    .is_err()
+                {
                     self.finish_read_scope(scope_id);
                 }
             }

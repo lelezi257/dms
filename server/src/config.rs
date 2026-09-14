@@ -106,6 +106,9 @@ pub struct NodeConfigFile {
     pub node_current_cache_bytes: Option<u64>,
     /// Node 本地 Current 布局缓存 TTL；重启生效，且不延长 Meta 授权的可见性窗口。
     pub node_current_cache_ttl_millis: Option<u64>,
+    /// 真实 Linux FUSE 穿刺挂载点。只在 `fuse` feature 下生效；不配置不启用。
+    #[cfg(all(target_os = "linux", feature = "fuse"))]
+    pub fuse_mountpoint: Option<String>,
     #[serde(default)]
     pub log: LoggingConfigFile,
     #[serde(default)]
@@ -199,6 +202,8 @@ pub struct NodeCliOverrides {
     pub client_cache_lease_ttl_millis: Option<u64>,
     pub node_current_cache_bytes: Option<u64>,
     pub node_current_cache_ttl_millis: Option<u64>,
+    #[cfg(all(target_os = "linux", feature = "fuse"))]
+    pub fuse_mountpoint: Option<String>,
     pub log: LoggingCliOverrides,
     pub tracing: TracingCliOverrides,
 }
@@ -227,6 +232,8 @@ pub struct ResolvedNodeConfig {
     pub client_cache_lease_ttl: Duration,
     pub node_current_cache_bytes: u64,
     pub node_current_cache_ttl: Duration,
+    #[cfg(all(target_os = "linux", feature = "fuse"))]
+    pub fuse_mountpoint: Option<String>,
     pub logging: LoggingConfig,
     pub tracing: TracingConfig,
 }
@@ -337,6 +344,8 @@ impl ResolvedNodeConfig {
             client_cache_lease_ttl: Duration::from_millis(cache_ttl),
             node_current_cache_bytes,
             node_current_cache_ttl: Duration::from_millis(node_current_cache_ttl_millis),
+            #[cfg(all(target_os = "linux", feature = "fuse"))]
+            fuse_mountpoint: pick(cli.fuse_mountpoint, file.fuse_mountpoint),
             logging,
             tracing,
         })

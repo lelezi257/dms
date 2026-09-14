@@ -36,6 +36,9 @@ use tonic::{Request, Response, Status};
 use super::{
     arena_manager::HostReceipt,
     consume_meta_events,
+    data_core::{ByteRange, DataCoreHandle, ObjectKey, ReadOptions, VersionSelector},
+    filesystem::FileOperations,
+    image::ImageReader,
     metadata_client::MetadataClient,
     peer_service::PeerServiceHandler,
     runtime::{NodeEvent, NodeHandle, ReadTicket, SetRangeInput, WorkerError},
@@ -49,6 +52,7 @@ struct CountingMetaService {
     inner: MetadataServiceHandler,
     commit_requests: Arc<Mutex<Vec<Vec<u8>>>>,
     resolve_count: Arc<AtomicUsize>,
+    stat_count: Arc<AtomicUsize>,
     resolve_queries: Arc<Mutex<Vec<Option<u64>>>>,
     stale_location_once: Arc<AtomicBool>,
     resolve_delay: Arc<Mutex<Option<ResolveDelay>>>,
@@ -312,6 +316,7 @@ impl MetadataService for CountingMetaService {
         &self,
         request: Request<pb::MetaStatRequest>,
     ) -> Result<Response<pb::MetaStatResponse>, Status> {
+        self.stat_count.fetch_add(1, Ordering::Relaxed);
         self.inner.stat(request).await
     }
 
@@ -392,6 +397,7 @@ struct CountingMetaServer {
     handler: MetadataServiceHandler,
     endpoint: String,
     resolve_count: Arc<AtomicUsize>,
+    stat_count: Arc<AtomicUsize>,
     resolve_queries: Arc<Mutex<Vec<Option<u64>>>>,
     stale_location_once: Arc<AtomicBool>,
     resolve_delay: Arc<Mutex<Option<ResolveDelay>>>,
@@ -412,6 +418,7 @@ impl CountingMetaServer {
             .expect("bind counting Meta");
         let endpoint = format!("http://{}", listener.local_addr().expect("Meta address"));
         let resolve_count = Arc::new(AtomicUsize::new(0));
+        let stat_count = Arc::new(AtomicUsize::new(0));
         let resolve_queries = Arc::new(Mutex::new(Vec::new()));
         let stale_location_once = Arc::new(AtomicBool::new(false));
         let resolve_delay = Arc::new(Mutex::new(None));
@@ -432,6 +439,7 @@ impl CountingMetaServer {
             inner: handler.clone(),
             commit_requests: commit_requests.clone(),
             resolve_count: resolve_count.clone(),
+            stat_count: stat_count.clone(),
             resolve_queries: resolve_queries.clone(),
             stale_location_once: stale_location_once.clone(),
             resolve_delay: resolve_delay.clone(),
@@ -458,6 +466,7 @@ impl CountingMetaServer {
             handler,
             endpoint,
             resolve_count,
+            stat_count,
             resolve_queries,
             stale_location_once,
             resolve_delay,
@@ -476,12 +485,25 @@ impl CountingMetaServer {
         self.resolve_count.store(0, Ordering::Relaxed);
     }
 
+    fn reset_stat_count(&self) {
+        self.stat_count.store(0, Ordering::Relaxed);
+    }
+
+    fn reset_meta_read_counts(&self) {
+        self.reset_resolve_count();
+        self.reset_stat_count();
+    }
+
     fn drop_next_commit_response(&self) {
         self.handler.drop_next_commit_response_for_test();
     }
 
     fn resolve_count(&self) -> usize {
         self.resolve_count.load(Ordering::Relaxed)
+    }
+
+    fn stat_count(&self) -> usize {
+        self.stat_count.load(Ordering::Relaxed)
     }
 
     fn delay_next_resolve_for_key(&self, key: &[u8]) -> ResolveDelayHandle {
@@ -1170,6 +1192,435 @@ async fn local_commit_primes_node_layout_cache_for_current_get() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn data_core_file_and_image_paths_share_one_object_state() {
+    let meta = CountingMetaServer::start().await;
+    let node = TestNode::start(&meta.endpoint, 1).await;
+    let core = DataCoreHandle::new(node.node.clone());
+    let fs = FileOperations::new(core.clone());
+    let image = ImageReader::new(core.clone());
+
+    core.put(
+        ObjectKey::new(b"fs:/shared/object".to_vec()).expect("valid object key"),
+        b"abcdef".to_vec(),
+    )
+    .await
+    .expect("in-process object put through DataCore");
+    let range = fs
+        .read("/shared/object", 1, 3)
+        .await
+        .expect("FS read through DataCore")
+        .expect("object exists");
+    assert_eq!(range.bytes, b"bcd");
+
+    let layer = image
+        .open_layer(b"fs:/shared/object".to_vec())
+        .await
+        .expect("Image open through DataCore")
+        .expect("layer exists");
+    let mut output = [0_u8; 2];
+    let read = image
+        .read_exact_at(&layer, 2, &mut output)
+        .await
+        .expect("Image read_exact_at")
+        .expect("layer still exists");
+    assert_eq!(read, 2);
+    assert_eq!(&output, b"cd");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn data_core_write_is_not_limited_by_grpc_single_message_size() {
+    let meta = CountingMetaServer::start().await;
+    let node = TestNode::start(&meta.endpoint, 1).await;
+    let core = DataCoreHandle::new(node.node.clone());
+    let key = ObjectKey::new(b"core/larger-than-grpc-message".to_vec()).unwrap();
+    let bytes = vec![0x5a; (super::runtime::GRPC_PAYLOAD_SAFE_BYTES + 1) as usize];
+
+    core.put(key.clone(), bytes.clone())
+        .await
+        .expect("进程内 DataCore 写入只受 Arena 容量约束，不受 gRPC 单消息限制");
+    let read = core
+        .read(key, ReadOptions::default())
+        .await
+        .expect("read DataCore object")
+        .expect("object exists");
+    assert_eq!(read.bytes, bytes);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn filesystem_random_write_uses_core_range_semantics() {
+    let meta = CountingMetaServer::start().await;
+    let node = TestNode::start(&meta.endpoint, 1).await;
+    let fs = FileOperations::new(DataCoreHandle::new(node.node.clone()));
+
+    fs.create("/cases/random-write")
+        .await
+        .expect("create empty file");
+    let initial = fs
+        .write("/cases/random-write", 0, b"abcdef")
+        .await
+        .expect("write initial value");
+    let patched = fs
+        .write_range("/cases/random-write", 2, b"ZZ")
+        .await
+        .expect("range patch");
+    assert!(
+        patched.version > initial.version,
+        "range write must publish a new immutable object version"
+    );
+    let inspector = MetadataClient::connect(
+        &meta.endpoint,
+        91,
+        "http://127.0.0.1:20991".to_string(),
+        None,
+    )
+    .await
+    .expect("connect Meta inspector");
+    let layout = inspector
+        .resolve(b"fs:/cases/random-write".to_vec(), Some(patched.version))
+        .await
+        .expect("resolve patched layout")
+        .layout
+        .expect("patched layout");
+    assert_eq!(
+        layout.extents.len(),
+        3,
+        "DataCore range write must commit an Extent overlay, not materialize and replace the full object"
+    );
+
+    let read = fs
+        .read("/cases/random-write", 0, 64)
+        .await
+        .expect("read patched file")
+        .expect("file exists");
+    assert_eq!(read.bytes, b"abZZef");
+    assert_eq!(read.logical_length, 6);
+
+    fs.delete("/cases/random-write")
+        .await
+        .expect("delete file object");
+    assert!(
+        fs.stat("/cases/random-write")
+            .await
+            .expect("stat deleted file")
+            .is_none()
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn filesystem_create_is_if_absent_and_preserves_existing_object() {
+    let meta = CountingMetaServer::start().await;
+    let node = TestNode::start(&meta.endpoint, 1).await;
+    let core = DataCoreHandle::new(node.node.clone());
+    let key = ObjectKey::new(b"fs:/cases/existing".to_vec()).unwrap();
+    core.put(key.clone(), b"keep-me".to_vec())
+        .await
+        .expect("seed existing object");
+
+    let fs = FileOperations::new(core.clone());
+    assert!(
+        fs.create("/cases/existing")
+            .await
+            .is_err_and(|error| error.is_version_conflict())
+    );
+    let read = core
+        .read(key, ReadOptions::default())
+        .await
+        .expect("read existing object")
+        .expect("object remains present");
+    assert_eq!(read.bytes, b"keep-me");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn data_core_exact_full_read_retries_with_resolved_version_length() {
+    let meta = CountingMetaServer::start().await;
+    let node = TestNode::start(&meta.endpoint, 1).await;
+    let core = DataCoreHandle::new(node.node.clone());
+    let key = ObjectKey::new(b"core/exact-longer-than-current".to_vec()).unwrap();
+    let first = core
+        .put(key.clone(), b"long-version".to_vec())
+        .await
+        .expect("put long first version");
+    core.put(key.clone(), b"x".to_vec())
+        .await
+        .expect("replace with shorter current version");
+
+    // 全量读最初按 Current 的 1 byte 预分配，但 Exact 目标需要 12 bytes。
+    // Node 返回目标版本的 required length，DataCore 固定该版本扩容后重试；
+    // 这不能被误报为 ENOSPC。
+    let read = core
+        .read(
+            key,
+            ReadOptions {
+                version: VersionSelector::Exact(first.version),
+                range: None,
+                clamp_range: false,
+            },
+        )
+        .await
+        .expect("read exact old version")
+        .expect("exact version exists");
+    assert_eq!(read.version, first.version);
+    assert_eq!(read.bytes, b"long-version");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn concurrent_filesystem_extensions_preserve_both_writes() {
+    let meta = CountingMetaServer::start().await;
+    let node = TestNode::start(&meta.endpoint, 1).await;
+    let fs = FileOperations::new(DataCoreHandle::new(node.node.clone()));
+    fs.create("/cases/concurrent-extend")
+        .await
+        .expect("create file");
+    fs.write("/cases/concurrent-extend", 0, b"ab")
+        .await
+        .expect("seed file");
+
+    let left = fs.write("/cases/concurrent-extend", 2, b"X");
+    let right = fs.write("/cases/concurrent-extend", 3, b"Y");
+    let (left, right) = tokio::join!(left, right);
+    left.expect("first extension eventually commits");
+    right.expect("second extension retries on version conflict");
+
+    let read = fs
+        .read("/cases/concurrent-extend", 0, 16)
+        .await
+        .expect("read file")
+        .expect("file exists");
+    assert_eq!(read.bytes, b"abXY");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn filesystem_truncate_shrinks_and_zero_extends() {
+    let meta = CountingMetaServer::start().await;
+    let node = TestNode::start(&meta.endpoint, 1).await;
+    let fs = FileOperations::new(DataCoreHandle::new(node.node.clone()));
+    fs.create("/cases/truncate").await.expect("create file");
+    fs.write("/cases/truncate", 0, b"abcdef")
+        .await
+        .expect("write file");
+
+    fs.truncate("/cases/truncate", 3)
+        .await
+        .expect("shrink file");
+    let shrunk = fs.read("/cases/truncate", 0, 16).await.unwrap().unwrap();
+    assert_eq!(shrunk.bytes, b"abc");
+
+    fs.truncate("/cases/truncate", 5)
+        .await
+        .expect("extend file with zeroes");
+    let extended = fs.read("/cases/truncate", 0, 16).await.unwrap().unwrap();
+    assert_eq!(extended.bytes, b"abc\0\0");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn image_second_lazy_range_read_reuses_node_peer_cache() {
+    let meta = CountingMetaServer::start().await;
+    let reader_node = TestNode::start_with_peer_server(&meta.endpoint, 1).await;
+    let writer_node = TestNode::start_with_peer_server(&meta.endpoint, 2).await;
+    let writer = writer_node.open_write_session().await;
+    let key = b"image/lazy-layer";
+    writer_node
+        .set_inline(writer, key, b"0123456789abcdef", 710)
+        .await;
+
+    let image = ImageReader::new(DataCoreHandle::new(reader_node.node.clone()));
+    let layer = image
+        .open_layer(key.to_vec())
+        .await
+        .expect("open remote image layer")
+        .expect("layer exists");
+    assert_eq!(ImageReader::layer_length(&layer), 16);
+
+    writer_node.reset_peer_pull_count();
+    meta.reset_resolve_count();
+    let first = image
+        .read_at(&layer, 4, 4)
+        .await
+        .expect("first lazy range read")
+        .expect("range exists");
+    assert_eq!(first.bytes, b"4567");
+    assert_eq!(
+        meta.resolve_count(),
+        1,
+        "固定版本第一次 lazy read 仍需向 Meta resolve 该版本的布局"
+    );
+    assert_eq!(
+        writer_node.peer_pull_count(),
+        1,
+        "第一次读取远端 layer range 需要一次 peer payload"
+    );
+
+    writer_node.reset_peer_pull_count();
+    meta.reset_resolve_count();
+    let second = image
+        .read_at(&layer, 4, 4)
+        .await
+        .expect("second lazy range read")
+        .expect("range exists");
+    assert_eq!(second.bytes, b"4567");
+    assert_eq!(
+        meta.resolve_count(),
+        1,
+        "当前尚未新增 Exact layout cache；第二次固定版本读取仍会 resolve，后续若要优化应复用 NodeState 内同一份解析缓存"
+    );
+    assert_eq!(
+        writer_node.peer_pull_count(),
+        0,
+        "同一固定版本的相同 range 第二次应复用 Node 已安装 Block"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn data_core_current_cache_is_shared_with_filesystem_without_meta_or_peer_on_second_read() {
+    let meta = CountingMetaServer::start().await;
+    let reader_node = TestNode::start_with_peer_server(&meta.endpoint, 1).await;
+    let writer_node = TestNode::start_with_peer_server(&meta.endpoint, 2).await;
+    let writer = writer_node.open_write_session().await;
+    let key = b"fs:/cache/shared-current";
+    writer_node
+        .set_inline(writer, key, b"0123456789abcdef", 711)
+        .await;
+
+    let core = DataCoreHandle::new(reader_node.node.clone());
+    writer_node.reset_peer_pull_count();
+    meta.reset_meta_read_counts();
+    let first = core
+        .read(
+            ObjectKey::new(key.to_vec()).expect("object key"),
+            ReadOptions::current_range(ByteRange::new(4, 4).expect("range")),
+        )
+        .await
+        .expect("first DataCore current read")
+        .expect("object exists");
+    assert_eq!(first.bytes, b"4567");
+    assert_eq!(
+        meta.resolve_count(),
+        1,
+        "首次 DataCore Current miss 必须向 Meta resolve，并把同一 Node CurrentCache 安全回填"
+    );
+    assert_eq!(
+        meta.stat_count(),
+        0,
+        "带 range 的 DataCore read 不应为了预分配返回 buffer 额外 stat Meta"
+    );
+    assert_eq!(
+        writer_node.peer_pull_count(),
+        1,
+        "首次跨节点 Current 读缺本地 Block，需要一次 peer payload"
+    );
+
+    let fs = FileOperations::new(core);
+    writer_node.reset_peer_pull_count();
+    meta.reset_meta_read_counts();
+    let second = fs
+        .read("/cache/shared-current", 4, 4)
+        .await
+        .expect("second Filesystem current read")
+        .expect("object exists");
+    assert_eq!(second.bytes, b"4567");
+    assert_eq!(
+        meta.resolve_count(),
+        0,
+        "Filesystem 与 DataCore 共享同一 NodeState CurrentCache；第二次 Current 热读不再访问 Meta"
+    );
+    assert_eq!(
+        meta.stat_count(),
+        0,
+        "Filesystem range read 的完整热路径不应再为了 capacity 访问 Meta stat"
+    );
+    assert_eq!(
+        writer_node.peer_pull_count(),
+        0,
+        "首次 DataCore 读已把远端 Block 安装到本 Node；Filesystem 热读不再走 peer payload"
+    );
+}
+
+#[test]
+fn data_core_and_process_local_subsystems_do_not_depend_on_wire_or_sdk_crates() {
+    let files = [
+        ("data_core.rs", include_str!("data_core.rs")),
+        ("filesystem/mod.rs", include_str!("filesystem/mod.rs")),
+        ("image/mod.rs", include_str!("image/mod.rs")),
+    ];
+    for (name, source) in files {
+        for forbidden in [
+            "use dms_client",
+            "use tonic",
+            "use dms_protocol",
+            "dms_protocol::",
+            "pb::",
+        ] {
+            assert!(
+                !source.contains(forbidden),
+                "{name} must stay a process-local object/subsystem module and not depend on {forbidden}"
+            );
+        }
+    }
+}
+
+#[test]
+fn worker_and_process_local_object_boundaries_remain_siblings() {
+    let data_core = include_str!("data_core.rs");
+    let worker_service = include_str!("worker_service.rs");
+
+    assert!(
+        !data_core.contains("session_id:") && !data_core.contains("from_session("),
+        "DataCoreHandle 只服务进程内子系统，不能重新承接 Worker session"
+    );
+    assert!(
+        !worker_service.contains("use super::data_core")
+            && !worker_service.contains("DataCoreHandle::"),
+        "WorkerService 应直接适配 NodeHandle，不能借道进程内 DataCoreHandle"
+    );
+}
+
+#[test]
+fn data_core_owned_read_does_not_bounce_through_read_into() {
+    let source = include_str!("data_core.rs");
+    let read_start = source
+        .find("    pub(crate) async fn read(")
+        .expect("DataCoreHandle::read exists");
+    let read_into_start = source
+        .find("    pub(crate) async fn read_into(")
+        .expect("DataCoreHandle::read_into exists");
+    let read_body = &source[read_start..read_into_start];
+    assert!(
+        !read_body.contains("self.read_into("),
+        "owned read must submit one owned Vec to Node owner directly instead of allocating A, delegating to read_into, allocating B, then copying B back into A"
+    );
+    assert!(
+        read_body.contains(".data_core_read_into("),
+        "owned read should still reuse the same Node owner materialization path as read_into"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn data_core_read_into_uses_caller_buffer_contract() {
+    let meta = CountingMetaServer::start().await;
+    let node = TestNode::start(&meta.endpoint, 1).await;
+    let core = DataCoreHandle::new(node.node.clone());
+    core.put(
+        ObjectKey::new(b"core/read-into".to_vec()).unwrap(),
+        b"payload".to_vec(),
+    )
+    .await
+    .expect("put object");
+
+    let mut target = [0_u8; 4];
+    let meta = core
+        .read_into(
+            ObjectKey::new(b"core/read-into".to_vec()).unwrap(),
+            ReadOptions::current_range(ByteRange::new(3, 4).unwrap()),
+            &mut target,
+        )
+        .await
+        .expect("read into caller buffer")
+        .expect("object exists");
+    assert_eq!(meta.bytes_read, 4);
+    assert_eq!(&target, b"load");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn set_range_invalidates_node_layout_cache_before_next_current_read() {
     let meta = CountingMetaServer::start().await;
     let node = TestNode::start(&meta.endpoint, 1).await;
@@ -1464,6 +1915,52 @@ async fn concurrent_cold_half_reads_share_one_peer_import() {
         writer_node.peer_pull_count(),
         1,
         "同 Block 并发冷读应只搬一次 bytes"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn concurrent_filesystem_and_image_cold_reads_share_one_peer_import() {
+    let meta = CountingMetaServer::start().await;
+    let reader_node = TestNode::start_with_peer_server(&meta.endpoint, 1).await;
+    let writer_node = TestNode::start_with_peer_server(&meta.endpoint, 2).await;
+    let writer = writer_node.open_write_session().await;
+    let key = b"fs:/shared/block-flight";
+    let value = (0..32768)
+        .map(|index| (index % 251) as u8)
+        .collect::<Vec<_>>();
+    writer_node.set_inline(writer, key, &value, 712).await;
+
+    let core = DataCoreHandle::new(reader_node.node.clone());
+    let fs = FileOperations::new(core.clone());
+    let image = ImageReader::new(core);
+    let layer = image
+        .open_layer(key.to_vec())
+        .await
+        .expect("open image layer")
+        .expect("remote layer exists");
+
+    writer_node.peer_pull_delay_ms.store(100, Ordering::Relaxed);
+    writer_node.reset_peer_pull_count();
+    meta.reset_meta_read_counts();
+
+    // 文件与镜像两个子系统同时读同一个远端 Block 的不同 range。它们分别走
+    // DataCore Current/Exact 入口，但缺块安装都回到同一个 NodeState::peer_imports，
+    // 因而只能有一个真正的 Node→Node payload pull。
+    let fs_read = fs.read("/shared/block-flight", 0, 16_384);
+    let image_read = image.read_at(&layer, 16_384, 16_384);
+    let (fs_result, image_result) = tokio::join!(fs_read, image_read);
+    let fs_result = fs_result
+        .expect("filesystem read")
+        .expect("filesystem object exists");
+    let image_result = image_result
+        .expect("image read")
+        .expect("image object exists");
+    assert_eq!(fs_result.bytes, value[..16_384]);
+    assert_eq!(image_result.bytes, value[16_384..]);
+    assert_eq!(
+        writer_node.peer_pull_count(),
+        1,
+        "跨子系统的同 Block 并发冷读必须复用 NodeState.peer_imports singleflight"
     );
 }
 

@@ -9,6 +9,9 @@
 #[allow(unsafe_code)]
 mod arena_manager;
 mod current_cache;
+mod data_core;
+mod filesystem;
+mod image;
 mod kkv_operations;
 mod metadata_client;
 mod metrics;
@@ -82,6 +85,9 @@ pub struct NodeConfig {
     pub log_level: LevelController,
     /// Process-owned trace runtime; SDKs deliberately do not install one.
     pub tracing: dms_tracing::TracingConfig,
+    /// Optional Linux FUSE mountpoint. When absent, dms-node keeps the pure KV runtime shape.
+    #[cfg(all(target_os = "linux", feature = "fuse"))]
+    pub fuse_mountpoint: Option<PathBuf>,
 }
 
 /// Starts the data-node process shell and blocks until it is stopped.
@@ -224,6 +230,21 @@ async fn serve_workers(config: NodeConfig) -> Result<(), Box<dyn std::error::Err
         event_cursor.clone(),
     ));
     let heartbeat_task = tokio::spawn(send_meta_heartbeats(metadata, node.clone(), event_cursor));
+    #[cfg(all(target_os = "linux", feature = "fuse"))]
+    // FUSE 和 Worker TCP/UDS 一样都是对外入口，必须等 Meta Watch、租约和后台
+    // heartbeat/watch 任务都就绪后再挂载。否则内核已经能把文件读写请求打进来，
+    // 但 Node 还没有失效通知通道，会破坏“开放入口前先建立可见性/失效通道”的不变量。
+    let _fuse_session = match config.fuse_mountpoint.clone() {
+        Some(mountpoint) => {
+            let core = data_core::DataCoreHandle::new(node.clone());
+            Some(filesystem::fuse::start(
+                mountpoint.clone(),
+                core,
+                tokio::runtime::Handle::current(),
+            )?)
+        }
+        None => None,
+    };
 
     readiness.set(Readiness::Ready);
     dms_logging::info!(

@@ -290,6 +290,8 @@ impl WorkerService for WorkerServiceHandler {
             .ok_or_else(|| node_invalid_argument("missing key"))?
             .value;
         let operation_id = decode_operation_id(request.operation_id)?;
+        // WorkerService 是外部 KV 合同边界，session 校验和错误语义留在该路径；
+        // 不借道只面向进程内子系统的 DataCoreHandle。
         let result = self
             .node
             .set_inline(

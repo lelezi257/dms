@@ -52,6 +52,10 @@ struct ServeArgs {
     /// Node 本地 Current 布局缓存 TTL（1..=30000 ms），重启生效。
     #[arg(long)]
     node_current_cache_ttl_millis: Option<u64>,
+    /// Linux FUSE 穿刺挂载点；只在 fuse feature 构建中可用，不配置不启用。
+    #[cfg(all(target_os = "linux", feature = "fuse"))]
+    #[arg(long)]
+    fuse_mountpoint: Option<String>,
     #[command(flatten)]
     log: LogArgs,
     #[command(flatten)]
@@ -162,6 +166,8 @@ fn serve(args: ServeArgs) -> Result<(), Box<dyn std::error::Error>> {
             client_cache_lease_ttl_millis: args.client_cache_lease_ttl_millis,
             node_current_cache_bytes: args.node_current_cache_bytes,
             node_current_cache_ttl_millis: args.node_current_cache_ttl_millis,
+            #[cfg(all(target_os = "linux", feature = "fuse"))]
+            fuse_mountpoint: args.fuse_mountpoint,
             log: args.log.into(),
             tracing: args.tracing.into(),
         },
@@ -185,6 +191,8 @@ fn serve(args: ServeArgs) -> Result<(), Box<dyn std::error::Error>> {
         node_current_cache_ttl: resolved.node_current_cache_ttl,
         log_level: logging_guard.level_controller(),
         tracing: resolved.tracing,
+        #[cfg(all(target_os = "linux", feature = "fuse"))]
+        fuse_mountpoint: resolved.fuse_mountpoint.map(PathBuf::from),
     });
     if let Err(error) = &result {
         dms_logging::error!(

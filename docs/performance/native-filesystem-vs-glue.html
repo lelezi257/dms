@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Native Filesystem 与外置 Glue 同场性能审计</title>
+  <style>
+    :root { color-scheme: light; --ink:#172033; --muted:#5d687a; --line:#dce2ec; --blue:#2764d7; --green:#137a51; --bg:#f4f7fb; --card:#fff; --amber:#996300; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+    main { width:min(1180px,calc(100% - 32px)); margin:32px auto 64px; }
+    h1 { font-size:32px; line-height:1.2; margin:0 0 8px; }
+    h2 { margin-top:38px; border-bottom:1px solid var(--line); padding-bottom:8px; }
+    h3 { margin-top:24px; }
+    p { margin:8px 0; }
+    code { background:#eef2f8; padding:2px 5px; border-radius:4px; }
+    .lead,.card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:18px 20px; box-shadow:0 5px 18px rgba(28,43,69,.05); }
+    .lead { border-left:5px solid var(--green); margin:18px 0 26px; }
+    .grid { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; }
+    .kpi { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:14px; }
+    .kpi b { display:block; color:var(--green); font-size:24px; }
+    .muted { color:var(--muted); }
+    table { width:100%; border-collapse:collapse; background:var(--card); font-variant-numeric:tabular-nums; }
+    th,td { border:1px solid var(--line); padding:8px 10px; text-align:left; }
+    th { background:#eaf0fa; }
+    .good { color:var(--green); font-weight:700; }
+    .warn { color:var(--amber); font-weight:700; }
+    .flow { display:grid; grid-template-columns:repeat(7,1fr); align-items:center; gap:7px; margin:14px 0; }
+    .flow span { background:#eef3fb; border:1px solid #b9c9e5; border-radius:8px; padding:10px 7px; text-align:center; min-height:58px; display:grid; place-items:center; }
+    .flow i { text-align:center; color:var(--blue); font-style:normal; font-weight:700; }
+    .callout { border-left:4px solid var(--blue); background:#edf4ff; padding:12px 16px; margin:14px 0; }
+    .limit { border-left-color:var(--amber); background:#fff8e8; }
+    ul { margin-top:7px; }
+    a { color:var(--blue); }
+    @media(max-width:800px){ .grid{grid-template-columns:1fr 1fr}.flow{grid-template-columns:1fr}.flow i{transform:rotate(90deg)} }
+  </style>
+</head>
+<body><main>
+  <h1>Native Filesystem 与外置 Glue 同场性能审计</h1>
+  <p class="muted">基线日期：2026-09-15 · 三台相同 Lima aarch64 VM · 三轮交替执行 · 相同 DMS 二进制与文件 workload</p>
+
+  <section class="lead">
+    <b>结论：机器合同 PASS。</b>
+    当前已支持的 create/write、同节点热读、跨节点首次接管、pwrite 中段覆盖路径，Native p50 全部优于外置 Glue，领先范围为 <b>26.4%～62.2%</b>。本轮收益来自去掉外置进程/SDK 往返、复用 Extent，以及让 Linux 协商更大的 FUSE 请求；没有修改公开接口或 Client/Node/Meta 核心职责。
+  </section>
+
+  <div class="grid">
+    <div class="kpi"><b>10 / 10</b>核心 case 通过</div>
+    <div class="kpi"><b>62.2%</b>1 MiB 本地热读领先</div>
+    <div class="kpi"><b>43.3%</b>4 KiB 跨节点首读领先</div>
+    <div class="kpi"><b>28.5%</b>64 KiB 中段覆盖领先</div>
+  </div>
+
+  <h2>1. 比较合同</h2>
+  <table>
+    <tr><th>维度</th><th>固定值</th><th>为什么必须固定</th></tr>
+    <tr><td>机器</td><td>A/B/C 三台，均 2 vCPU、2 GiB</td><td>排除机器差异</td></tr>
+    <tr><td>顺序</td><td>Native→Glue、Glue→Native、Native→Glue</td><td>抵消轮次和温度偏差</td></tr>
+    <tr><td>数据</td><td>200 文件：140×4 KiB、50×64 KiB、10×1 MiB</td><td>同一语料覆盖小文件和分段 I/O</td></tr>
+    <tr><td>可靠性</td><td>双方元数据均为 memory mode</td><td>本阶段只比较功能/性能；持久化另立合同</td></tr>
+    <tr><td>路径门禁</td><td>先核验 RPC、Peer Pull、拷贝阶段，再看时延</td><td>防止通过漏做提交或缓存作弊</td></tr>
+  </table>
+
+  <h2>2. 核心结果</h2>
+  <table>
+    <tr><th>Case</th><th>大小</th><th>Native p50</th><th>Glue p50</th><th>领先</th><th>p95 比值</th></tr>
+    <tr><td>创建并写入</td><td>4 KiB</td><td>1.251 ms</td><td>2.228 ms</td><td class="good">43.8%</td><td>0.33</td></tr>
+    <tr><td>创建并写入</td><td>64 KiB</td><td>1.304 ms</td><td>2.269 ms</td><td class="good">42.5%</td><td>0.52</td></tr>
+    <tr><td>创建并写入</td><td>1 MiB</td><td>2.560 ms</td><td>3.476 ms</td><td class="good">26.4%</td><td>0.72</td></tr>
+    <tr><td>同节点热读</td><td>4 KiB</td><td>0.586 ms</td><td>1.434 ms</td><td class="good">59.1%</td><td>0.38</td></tr>
+    <tr><td>同节点热读</td><td>64 KiB</td><td>0.620 ms</td><td>1.498 ms</td><td class="good">58.6%</td><td>0.36</td></tr>
+    <tr><td>同节点热读</td><td>1 MiB</td><td>0.958 ms</td><td>2.537 ms</td><td class="good">62.2%</td><td>0.37</td></tr>
+    <tr><td>跨节点首次接管</td><td>4 KiB</td><td>1.121 ms</td><td>1.977 ms</td><td class="good">43.3%</td><td>0.53</td></tr>
+    <tr><td>跨节点首次接管</td><td>64 KiB</td><td>1.340 ms</td><td>2.240 ms</td><td class="good">40.2%</td><td>0.77</td></tr>
+    <tr><td>跨节点首次接管</td><td>1 MiB</td><td>4.469 ms</td><td>6.249 ms</td><td class="good">28.5%</td><td>0.84</td></tr>
+    <tr><td>中段覆盖</td><td>64 KiB / 4 KiB patch</td><td>0.996 ms</td><td>1.393 ms</td><td class="good">28.5%</td><td>0.79</td></tr>
+  </table>
+
+  <h2>3. 三条代表路径</h2>
+  <h3>3.1 同节点热读：架构优势已经兑现</h3>
+  <div class="flow"><span>应用 read</span><i>→</i><span>Linux VFS/FUSE</span><i>→</i><span>进程内文件入口</span><i>→</i><span>Node 本地 Block</span></div>
+  <p>前台 <b>0 次 Worker RPC、0 次 Meta、0 次 Peer</b>。一个数据段只有一次必要的“Node bytes → FUSE 回复缓冲”复制。4 KiB p50 为 586 µs，其中约 214 µs 在 Node 文件 handler；剩余约 34% 已明确归入 syscall、VFS/FUSE 调度和 workload 包装边界，而非未知 DMS 成本。</p>
+
+  <h3>3.2 跨节点首次接管：只保留分布式系统必需阶段</h3>
+  <div class="flow"><span>B 上应用 read</span><i>→</i><span>B 查一次 Meta</span><i>→</i><span>B 向 A Pull Block</span><i>→</i><span>B 写本地 Arena</span></div>
+  <p>4 KiB/64 KiB 为 <b>1 次 Lookup + 1 次 Pull</b>；1 MiB 因写入时形成两个不可变 Block，为 1 次 Lookup + 2 次 Pull。后续热读不再访问 Meta 或 Peer，支持性 case 仍领先 32.4%～48.3%。</p>
+
+  <h3>3.3 中段覆盖：只写 patch，不重写整文件</h3>
+  <div class="flow"><span>pwrite 4 KiB</span><i>→</i><span>新建 patch Block</span><i>→</i><span>复用前后 Extent</span><i>→</i><span>一次 Meta 原子发布</span></div>
+  <p>旧文件 bytes 不再先读回并拼成完整新文件。新版本由“旧前缀 Extent + patch Extent + 旧后缀 Extent”组成；Node 只持久化本次 patch，Meta 仍只有一个版本发布点。</p>
+
+  <h2>4. 本轮代码为什么会更快</h2>
+  <table>
+    <tr><th>修改</th><th>旧路径</th><th>新路径</th><th>收益</th></tr>
+    <tr><td>文件扩容 Extent overlay</td><td>追加/越过 EOF 时可能读回旧对象并完整重写</td><td>只新增 tail/patch Block，复用旧 Extent</td><td>避免与文件大小成比例的读回和复制</td></tr>
+    <tr><td>FUSE ABI 7.31</td><td>Linux 把 1 MiB 写拆成约 128 KiB callback</td><td>协商 <code>max_pages</code>，本机实测降为 2 个 callback</td><td>减少 Node handler 与 Meta commit 次数</td></tr>
+    <tr><td>文件 I/O bytes 指标</td><td>只能看到 callback 次数</td><td>同时看到 read/write bytes</td><td>可区分“请求多”与“请求被拆小”</td></tr>
+    <tr><td>路径机器合同</td><td>只看端到端数字</td><td>RPC、Peer、拷贝阶段均需匹配</td><td>防止性能数字掩盖语义缺失</td></tr>
+  </table>
+
+  <div class="callout">
+    <b>拷贝口径：</b><code>payload_copy_stages</code> 是单个数据段的完整字节复制路径深度，不是一个文件操作内所有分段复制次数之和。1 MiB 写有两个 callback 时，每段仍是两阶段；分段数量由实测 commit/PullBlock 次数体现。
+  </div>
+
+  <h2>5. 仍然存在但本轮不应继续“优化”的边界</h2>
+  <div class="callout limit">
+    <b>1 MiB 写仍有两个 commit。</b>当前采用 write-through：每个 FUSE write callback 必须完成版本发布后才返回。若要把两个 callback 合成一次 commit，需要引入 writeback/脏页生命周期，这是独立语义与可靠性设计，不能作为本轮局部性能修改偷偷加入。
+  </div>
+  <p>首次文件内容提交当前会向全部 active Node 发 binding invalidation，即使某些 Node 从未缓存该 inode。未来可用 grant-holder 精确投递，但会增加可恢复状态；当前 memory-mode 结果已通过，不作为本轮 blocker。</p>
+
+  <h2>6. 持久化对比为什么单列</h2>
+  <p>补充实验曾把 DMS Meta 的 local WAL 与无持久化 Glue 元数据直接比较。读取仍领先，但小写和覆盖出现落后；这不是 Native 路径退化，而是可靠性合同不相等。公平的下一阶段应比较“DMS local WAL”与“对照端每次写同步落盘”，不能把该组数字并入本基线。</p>
+
+  <h2>7. 代码 Review 导航</h2>
+  <table>
+    <tr><th>位置</th><th>重点看什么</th></tr>
+    <tr><td><code>server/src/node/version_layout.rs</code></td><td><code>overlay_file_write</code> 如何保留旧 Extent 并允许 EOF 扩容</td></tr>
+    <tr><td><code>server/src/node/runtime.rs</code></td><td><code>prepare_range_for_filesystem</code> 如何只准备 patch Block</td></tr>
+    <tr><td><code>server/src/node/filesystem/shared.rs</code></td><td>write-through 主链如何使用 prepare/commit/finish，且不读回完整文件</td></tr>
+    <tr><td><code>server/Cargo.toml</code></td><td>FUSE ABI feature 如何启用 <code>max_pages</code></td></tr>
+    <tr><td><code>server/src/node/metrics.rs</code></td><td>低基数 callback 时延、次数与 I/O bytes</td></tr>
+    <tr><td><code>scripts/performance/run_native_filesystem_vs_glue_3vm.py</code></td><td>三 VM 启停、交替轮次、精确 PID 清理</td></tr>
+    <tr><td><code>scripts/performance/assemble_native_filesystem_result.py</code></td><td>原始样本与 Prometheus 差量如何组成白盒账本</td></tr>
+    <tr><td><code>scripts/performance/evaluate_native_filesystem.py</code></td><td>正确性→环境→路径→性能的机器判定顺序</td></tr>
+  </table>
+
+  <h2>8. 可复现入口与原始证据</h2>
+  <pre><code>bash scripts/performance/validate_native_filesystem_performance.sh</code></pre>
+  <ul>
+    <li>合同：<code>benchmarks/whitebox/native-filesystem-vs-glue-contract.json</code></li>
+    <li>冻结基线：<code>benchmarks/whitebox/baselines/native-filesystem-vs-glue-lima-aarch64-2026-09-15.json</code></li>
+    <li>完整结果：<code>evidence/2026-09-15-native-filesystem-vs-glue/result.json</code></li>
+    <li>判定结果：<code>evidence/2026-09-15-native-filesystem-vs-glue/evaluation.json</code></li>
+    <li>非等价持久化补充：<code>evidence/2026-09-15-native-filesystem-vs-glue/local-wal-comparison.md</code></li>
+  </ul>
+</main></body></html>

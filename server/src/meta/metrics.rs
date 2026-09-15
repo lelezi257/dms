@@ -50,6 +50,13 @@ pub(crate) enum MetaOperation {
     PlanReplicas,
     WatchNodeEvents,
     AcknowledgeNodeEvent,
+    FilesystemLookup,
+    FilesystemGetInode,
+    FilesystemCreateInode,
+    FilesystemReadDirectory,
+    FilesystemRenameEntry,
+    FilesystemRemoveEntry,
+    FilesystemCommitVersion,
     #[cfg(test)]
     Stats,
 }
@@ -68,6 +75,13 @@ impl MetaOperation {
         Self::PlanReplicas,
         Self::WatchNodeEvents,
         Self::AcknowledgeNodeEvent,
+        Self::FilesystemLookup,
+        Self::FilesystemGetInode,
+        Self::FilesystemCreateInode,
+        Self::FilesystemReadDirectory,
+        Self::FilesystemRenameEntry,
+        Self::FilesystemRemoveEntry,
+        Self::FilesystemCommitVersion,
     ];
 
     pub(crate) const fn label(self) -> &'static str {
@@ -84,6 +98,13 @@ impl MetaOperation {
             Self::PlanReplicas => "plan_replicas",
             Self::WatchNodeEvents => "watch_node_events",
             Self::AcknowledgeNodeEvent => "acknowledge_node_event",
+            Self::FilesystemLookup => "filesystem_lookup",
+            Self::FilesystemGetInode => "filesystem_get_inode",
+            Self::FilesystemCreateInode => "filesystem_create_inode",
+            Self::FilesystemReadDirectory => "filesystem_read_directory",
+            Self::FilesystemRenameEntry => "filesystem_rename_entry",
+            Self::FilesystemRemoveEntry => "filesystem_remove_entry",
+            Self::FilesystemCommitVersion => "filesystem_commit_version",
             #[cfg(test)]
             Self::Stats => "stats",
         }
@@ -128,6 +149,9 @@ pub(crate) enum JournalRecordMetric {
     BlockRetirementAcknowledged,
     BlockRetirementFinalized,
     BlockRetirementReleased,
+    FilesystemInodeCreated,
+    FilesystemVersionCommitted,
+    FilesystemNamespaceMutated,
 }
 
 impl JournalRecordMetric {
@@ -143,6 +167,9 @@ impl JournalRecordMetric {
         Self::BlockRetirementAcknowledged,
         Self::BlockRetirementFinalized,
         Self::BlockRetirementReleased,
+        Self::FilesystemInodeCreated,
+        Self::FilesystemVersionCommitted,
+        Self::FilesystemNamespaceMutated,
     ];
 
     pub(crate) const fn label(self) -> &'static str {
@@ -158,6 +185,9 @@ impl JournalRecordMetric {
             Self::BlockRetirementAcknowledged => "block_retirement_acknowledged",
             Self::BlockRetirementFinalized => "block_retirement_finalized",
             Self::BlockRetirementReleased => "block_retirement_released",
+            Self::FilesystemInodeCreated => "filesystem_inode_created",
+            Self::FilesystemVersionCommitted => "filesystem_version_committed",
+            Self::FilesystemNamespaceMutated => "filesystem_namespace_mutated",
         }
     }
 }
@@ -169,6 +199,7 @@ pub(crate) enum WatchEventType {
     Eviction,
     Fence,
     Gap,
+    FilesystemInvalidation,
     Empty,
 }
 
@@ -179,6 +210,7 @@ impl WatchEventType {
         Self::Eviction,
         Self::Fence,
         Self::Gap,
+        Self::FilesystemInvalidation,
         Self::Empty,
     ];
 
@@ -189,6 +221,7 @@ impl WatchEventType {
             Self::Eviction => "eviction",
             Self::Fence => "fence",
             Self::Gap => "gap",
+            Self::FilesystemInvalidation => "filesystem_invalidation",
             Self::Empty => "empty",
         }
     }

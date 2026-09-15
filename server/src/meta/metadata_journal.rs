@@ -6,6 +6,8 @@
 
 use dms_protocol::v1 as pb;
 
+use crate::filesystem::{DentrySnapshot, InodeId, InodeSnapshot, NamespaceMutationResult};
+
 use super::metrics::JournalRecordMetric;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -16,6 +18,45 @@ pub(crate) struct VersionCommitRecord {
     pub(crate) new_replicas: Vec<(pb::ReplicaLocation, u64)>,
     pub(crate) operation_id: Vec<u8>,
     pub(crate) operation_digest: Vec<u8>,
+}
+
+/// 文件创建的一次完整 namespace 变更。
+///
+/// inode、dentry 与分配器水位必须共用一条记录，否则恢复后可能重用已经发布的 inode。
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct FilesystemInodeCreatedRecord {
+    pub(crate) inode: InodeSnapshot,
+    pub(crate) dentry: DentrySnapshot,
+    pub(crate) next_inode: InodeId,
+    pub(crate) grant_generation: u64,
+}
+
+/// 文件内容版本的一次原子发布。
+///
+/// `object` 是原有 DataCore 版本状态转换，`inode` 是同一时刻可见的精确绑定；两者
+/// 只能一起被 journal 接受和恢复。
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct FilesystemVersionCommitRecord {
+    pub(crate) object: VersionCommitRecord,
+    pub(crate) inode: InodeSnapshot,
+    pub(crate) revoked_grant_generation: u64,
+    pub(crate) new_grant_generation: u64,
+}
+
+/// create/mkdir/rename/unlink/rmdir 的一次 Meta 权威 namespace 变更。
+///
+/// 这条记录保存的是 Meta actor 已经决定的最终状态 delta：哪些 inode 被更新、
+/// 哪些 dentry 被新增/替换、哪些 dentry 被删除，以及 inode 分配器的新水位。
+/// 重放时不重新做 lookup/CAS，避免恢复路径和在线路径得出不同结果。
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct FilesystemNamespaceMutationRecord {
+    pub(crate) operation_id: Vec<u8>,
+    pub(crate) operation_digest: Vec<u8>,
+    pub(crate) result: NamespaceMutationResult,
+    pub(crate) upsert_inodes: Vec<InodeSnapshot>,
+    pub(crate) upsert_dentries: Vec<DentrySnapshot>,
+    pub(crate) remove_dentries: Vec<DentrySnapshot>,
+    pub(crate) next_inode: InodeId,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -126,6 +167,20 @@ pub(crate) enum JournalRecord {
         block_ids: Vec<Vec<u8>>,
         stage_epoch: u64,
     },
+    /// 一个 inode 与父目录名字同时成为可见状态。
+    FilesystemInodeCreated {
+        record: FilesystemInodeCreatedRecord,
+    },
+    /// 对象版本、inode 精确绑定和缓存撤销由同一记录发布。
+    FilesystemVersionCommitted {
+        record: FilesystemVersionCommitRecord,
+        commit_sequence: Option<CommitSequenceRecord>,
+    },
+    /// 目录树名字空间的一次原子变更，覆盖 create/mkdir/rename/unlink/rmdir。
+    FilesystemNamespaceMutated {
+        record: FilesystemNamespaceMutationRecord,
+        commit_sequence: Option<CommitSequenceRecord>,
+    },
 }
 
 impl JournalRecord {
@@ -148,6 +203,13 @@ impl JournalRecord {
             }
             Self::BlockRetirementFinalized { .. } => JournalRecordMetric::BlockRetirementFinalized,
             Self::BlockRetirementReleased { .. } => JournalRecordMetric::BlockRetirementReleased,
+            Self::FilesystemInodeCreated { .. } => JournalRecordMetric::FilesystemInodeCreated,
+            Self::FilesystemVersionCommitted { .. } => {
+                JournalRecordMetric::FilesystemVersionCommitted
+            }
+            Self::FilesystemNamespaceMutated { .. } => {
+                JournalRecordMetric::FilesystemNamespaceMutated
+            }
         }
     }
 }
@@ -180,6 +242,13 @@ pub(crate) struct SnapshotReplicaOperation {
     pub(crate) result: pb::ReportReplicasResponse,
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct SnapshotFilesystemNamespaceOperation {
+    pub(crate) operation_id: Vec<u8>,
+    pub(crate) digest: Vec<u8>,
+    pub(crate) result: NamespaceMutationResult,
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct SnapshotSession {
     pub(crate) node_id: u64,
@@ -210,6 +279,11 @@ pub(crate) struct MetaSnapshot {
     pub(crate) replica_operations: Vec<SnapshotReplicaOperation>,
     pub(crate) event_high_watermark: u64,
     pub(crate) events: Vec<pb::NodeEvent>,
+    pub(crate) filesystem_next_inode: InodeId,
+    pub(crate) filesystem_inodes: Vec<InodeSnapshot>,
+    pub(crate) filesystem_dentries: Vec<DentrySnapshot>,
+    pub(crate) filesystem_grant_generations: Vec<(InodeId, u64)>,
+    pub(crate) filesystem_namespace_operations: Vec<SnapshotFilesystemNamespaceOperation>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]

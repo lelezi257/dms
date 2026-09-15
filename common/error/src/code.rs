@@ -61,6 +61,11 @@ pub const META_JOURNAL_APPEND_FAILED: ErrorCode = ErrorCode::from_raw(0x0302_000
 pub const META_JOURNAL_CORRUPT: ErrorCode = ErrorCode::from_raw(0x0302_0002);
 pub const META_JOURNAL_UNAVAILABLE: ErrorCode = ErrorCode::from_raw(0x0302_0003);
 pub const META_SESSION_UNKNOWN: ErrorCode = ErrorCode::from_raw(0x0303_0001);
+pub const META_FILESYSTEM_ALREADY_EXISTS: ErrorCode = ErrorCode::from_raw(0x0304_0001);
+pub const META_FILESYSTEM_NOT_DIRECTORY: ErrorCode = ErrorCode::from_raw(0x0304_0002);
+pub const META_FILESYSTEM_IS_DIRECTORY: ErrorCode = ErrorCode::from_raw(0x0304_0003);
+pub const META_FILESYSTEM_DIRECTORY_NOT_EMPTY: ErrorCode = ErrorCode::from_raw(0x0304_0004);
+pub const META_FILESYSTEM_STALE_REVISION: ErrorCode = ErrorCode::from_raw(0x0304_0005);
 
 #[cfg(test)]
 mod tests {
@@ -100,6 +105,11 @@ mod tests {
             META_JOURNAL_CORRUPT,
             META_JOURNAL_UNAVAILABLE,
             META_SESSION_UNKNOWN,
+            META_FILESYSTEM_ALREADY_EXISTS,
+            META_FILESYSTEM_NOT_DIRECTORY,
+            META_FILESYSTEM_IS_DIRECTORY,
+            META_FILESYSTEM_DIRECTORY_NOT_EMPTY,
+            META_FILESYSTEM_STALE_REVISION,
         ];
         let unique = codes.iter().map(|code| code.raw()).collect::<HashSet<_>>();
         assert_eq!(unique.len(), codes.len());

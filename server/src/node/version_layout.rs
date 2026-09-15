@@ -64,6 +64,67 @@ pub(crate) fn overlay(
         ));
     }
 
+    overlay_with_length(
+        base,
+        logical_length,
+        patch_start,
+        patch_length,
+        patch_block,
+        patch_digest,
+    )
+}
+
+/// 构造文件写的 Extent overlay，并允许写入从当前 EOF 继续向后扩展。
+///
+/// 普通 KV `SET_RANGE` 不能改变 value 长度；文件 `write(2)` 可以覆盖旧范围并
+/// 越过 EOF。未覆盖的旧 Extent 继续复用，新写入只形成一个 immutable Block，
+/// 不能为了扩容把整个旧文件读回并重新提交。
+pub(crate) fn overlay_file_write(
+    base: &[pb::ExtentRecord],
+    logical_length: u64,
+    patch_start: u64,
+    patch_length: u64,
+    patch_block: &[u8],
+    patch_digest: &[u8],
+) -> Result<Vec<pb::ExtentRecord>, WorkerError> {
+    validate(logical_length, base)?;
+    if patch_length == 0 {
+        return Err(WorkerError::InvalidArgument(
+            "file write patch must not be empty",
+        ));
+    }
+    if patch_start > logical_length {
+        return Err(WorkerError::InvalidArgument(
+            "file write patch starts beyond EOF",
+        ));
+    }
+    let patch_end = patch_start
+        .checked_add(patch_length)
+        .ok_or(WorkerError::InvalidArgument(
+            "file write patch overflows u64",
+        ))?;
+    overlay_with_length(
+        base,
+        logical_length.max(patch_end),
+        patch_start,
+        patch_length,
+        patch_block,
+        patch_digest,
+    )
+}
+
+fn overlay_with_length(
+    base: &[pb::ExtentRecord],
+    next_logical_length: u64,
+    patch_start: u64,
+    patch_length: u64,
+    patch_block: &[u8],
+    patch_digest: &[u8],
+) -> Result<Vec<pb::ExtentRecord>, WorkerError> {
+    let patch_end = patch_start
+        .checked_add(patch_length)
+        .ok_or(WorkerError::InvalidArgument("range patch overflows u64"))?;
+
     let mut next = Vec::with_capacity(base.len() + 2);
     for extent in base {
         let logical = extent.logical.as_ref().expect("layout was validated above");
@@ -108,7 +169,7 @@ pub(crate) fn overlay(
         digest: patch_digest.to_vec(),
     });
     next.sort_by_key(|extent| extent.logical.as_ref().map_or(0, |range| range.offset));
-    validate(logical_length, &next)?;
+    validate(next_logical_length, &next)?;
     Ok(next)
 }
 
@@ -170,5 +231,47 @@ mod tests {
     fn rejects_gap_and_out_of_range_patch() {
         assert!(validate(3, &[extent(1, 2, b"base", 0)]).is_err());
         assert!(overlay(&[extent(0, 3, b"base", 0)], 3, 3, 1, b"patch", b"p").is_err());
+    }
+
+    #[test]
+    fn file_append_reuses_base_and_adds_one_extent() {
+        let next = overlay_file_write(&[extent(0, 3, b"base", 0)], 3, 3, 2, b"tail", b"t")
+            .expect("append at EOF");
+        assert_eq!(
+            next,
+            vec![
+                extent(0, 3, b"base", 0),
+                pb::ExtentRecord {
+                    logical: Some(pb::ByteRange {
+                        offset: 3,
+                        length: 2,
+                    }),
+                    block_id: b"tail".to_vec(),
+                    block_offset: 0,
+                    digest: b"t".to_vec(),
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn file_write_can_replace_suffix_and_extend() {
+        let next = overlay_file_write(&[extent(0, 6, b"base", 0)], 6, 4, 4, b"tail", b"t")
+            .expect("replace suffix and extend");
+        assert_eq!(
+            next,
+            vec![
+                extent(0, 4, b"base", 0),
+                pb::ExtentRecord {
+                    logical: Some(pb::ByteRange {
+                        offset: 4,
+                        length: 4,
+                    }),
+                    block_id: b"tail".to_vec(),
+                    block_offset: 0,
+                    digest: b"t".to_vec(),
+                },
+            ]
+        );
     }
 }

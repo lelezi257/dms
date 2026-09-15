@@ -1,0 +1,209 @@
+syntax = "proto3";
+
+package dms.v1;
+
+import "dms/v1/types.proto";
+import "dms/v1/node_meta.proto";
+
+// Node 内置 Filesystem 使用的独立元数据服务。
+//
+// 它与对象 MetadataService 运行在同一个 dms-meta 进程、共享同一个 MetaState，
+// 但不把 inode/dentry 语义混入对象版本 API。首条共享文件主链只需要 lookup、
+// create、resolve 和原子文件版本提交；后续 POSIX 操作在同一 service 内扩展。
+service FilesystemMetadataService {
+  rpc LookupFilesystemEntry(FilesystemLookupRequest) returns (FilesystemResolveResponse);
+  rpc GetFilesystemInode(FilesystemGetInodeRequest) returns (FilesystemResolveResponse);
+  rpc CreateFilesystemInode(FilesystemCreateInodeRequest) returns (FilesystemResolveResponse);
+  rpc ReadFilesystemDirectory(FilesystemReadDirectoryRequest) returns (FilesystemReadDirectoryResponse);
+  rpc RenameFilesystemEntry(FilesystemRenameRequest) returns (FilesystemNamespaceMutationResponse);
+  rpc RemoveFilesystemEntry(FilesystemRemoveRequest) returns (FilesystemNamespaceMutationResponse);
+  rpc CommitFilesystemVersion(FilesystemCommitVersionRequest) returns (FilesystemCommitVersionResponse);
+}
+
+enum FilesystemInodeKind {
+  FILESYSTEM_INODE_KIND_UNSPECIFIED = 0;
+  FILESYSTEM_INODE_KIND_REGULAR_FILE = 1;
+  FILESYSTEM_INODE_KIND_DIRECTORY = 2;
+  FILESYSTEM_INODE_KIND_SYMBOLIC_LINK = 3;
+}
+
+message FilesystemContentBinding {
+  bytes object_key = 1;
+  uint64 exact_version = 2;
+}
+
+message FilesystemInodeAttributes {
+  uint64 inode = 1;
+  FilesystemInodeKind kind = 2;
+  uint32 mode = 3;
+  uint32 uid = 4;
+  uint32 gid = 5;
+  uint32 link_count = 6;
+  uint64 size = 7;
+  int64 atime_unix_nanos = 8;
+  int64 mtime_unix_nanos = 9;
+  int64 ctime_unix_nanos = 10;
+}
+
+message FilesystemInodeSnapshot {
+  uint64 revision = 1;
+  FilesystemInodeAttributes attributes = 2;
+  optional FilesystemContentBinding content = 3;
+}
+
+message FilesystemDentrySnapshot {
+  uint64 parent = 1;
+  bytes name = 2;
+  uint64 inode = 3;
+  uint64 directory_revision = 4;
+}
+
+message FilesystemCacheGrant {
+  uint64 generation = 1;
+  uint64 lease_millis = 2;
+}
+
+// 对一个目录 namespace 快照的短期缓存授权。directory_revision 也是目录 inode
+// revision；generation 用于抵御乱序 revoke，lease 用于 Watch 断流后的有界失效。
+message FilesystemDirectoryGrant {
+  uint64 directory_revision = 1;
+  FilesystemCacheGrant cache = 2;
+}
+
+message FilesystemResolvedInode {
+  FilesystemInodeSnapshot inode = 1;
+  FilesystemCacheGrant grant = 2;
+  // 普通文件带回精确版本的完整读取计划。Node 在 grant 有效期内缓存该计划，
+  // 热读不需要再调用对象 ResolveObject。
+  optional ResolveObjectResponse object = 3;
+}
+
+message FilesystemLookupRequest {
+  RequestContext context = 1;
+  NodeSessionIdentity session = 2;
+  uint64 parent = 3;
+  bytes name = 4;
+}
+
+message FilesystemGetInodeRequest {
+  RequestContext context = 1;
+  NodeSessionIdentity session = 2;
+  uint64 inode = 3;
+}
+
+message FilesystemCreateInodeRequest {
+  RequestContext context = 1;
+  NodeSessionIdentity session = 2;
+  bytes operation_id = 3;
+  uint64 parent = 4;
+  bytes name = 5;
+  FilesystemInodeKind kind = 6;
+  uint32 mode = 7;
+  uint32 uid = 8;
+  uint32 gid = 9;
+  optional uint64 expected_parent_revision = 10;
+  bytes operation_digest = 11;
+  uint64 commit_sequence = 12;
+}
+
+message FilesystemResolveResponse {
+  bool found = 1;
+  optional FilesystemResolvedInode resolved = 2;
+  optional FilesystemDentrySnapshot dentry = 3;
+  optional FilesystemDirectoryGrant directory_grant = 4;
+}
+
+message FilesystemDirectoryEntry {
+  FilesystemDentrySnapshot dentry = 1;
+  FilesystemInodeAttributes attributes = 2;
+}
+
+// cursor 是上一页最后一个名字，不是数组下标。后续页必须携带首屏返回的 revision；
+// 若目录已变化，Meta 返回冲突，Node 从第一页重新读取，避免重复或漏项。
+message FilesystemReadDirectoryRequest {
+  RequestContext context = 1;
+  NodeSessionIdentity session = 2;
+  uint64 directory = 3;
+  bytes cursor = 4;
+  uint32 limit = 5;
+  optional uint64 expected_directory_revision = 6;
+}
+
+message FilesystemReadDirectoryResponse {
+  FilesystemDirectoryGrant directory_grant = 1;
+  repeated FilesystemDirectoryEntry entries = 2;
+  bytes next_cursor = 3;
+  bool has_more = 4;
+  // root 的 parent 仍为 root；FUSE 用它生成 `..`，不在本地猜测目录关系。
+  uint64 parent = 5;
+}
+
+message FilesystemRenameRequest {
+  RequestContext context = 1;
+  NodeSessionIdentity session = 2;
+  bytes operation_id = 3;
+  bytes operation_digest = 4;
+  uint64 source_parent = 5;
+  bytes source_name = 6;
+  uint64 target_parent = 7;
+  bytes target_name = 8;
+  optional uint64 expected_source_revision = 9;
+  optional uint64 expected_target_revision = 10;
+  uint64 commit_sequence = 11;
+  bool replace_existing = 12;
+}
+
+enum FilesystemRemoveKind {
+  FILESYSTEM_REMOVE_KIND_UNSPECIFIED = 0;
+  FILESYSTEM_REMOVE_KIND_FILE = 1;
+  FILESYSTEM_REMOVE_KIND_DIRECTORY = 2;
+}
+
+message FilesystemRemoveRequest {
+  RequestContext context = 1;
+  NodeSessionIdentity session = 2;
+  bytes operation_id = 3;
+  bytes operation_digest = 4;
+  uint64 parent = 5;
+  bytes name = 6;
+  FilesystemRemoveKind kind = 7;
+  optional uint64 expected_parent_revision = 8;
+  uint64 commit_sequence = 9;
+}
+
+message FilesystemDirectoryVersion {
+  uint64 inode = 1;
+  uint64 revision = 2;
+  uint64 grant_generation = 3;
+}
+
+message FilesystemNamespaceMutationResponse {
+  optional FilesystemDentrySnapshot dentry = 1;
+  optional FilesystemInodeSnapshot inode = 2;
+  repeated FilesystemDirectoryVersion changed_directories = 3;
+  uint64 invalidation_cursor = 4;
+  uint64 commit_index = 5;
+}
+
+message FilesystemCommitVersionRequest {
+  RequestContext context = 1;
+  NodeSessionIdentity session = 2;
+  bytes operation_id = 3;
+  bytes operation_digest = 4;
+  uint64 inode = 5;
+  uint64 expected_inode_revision = 6;
+  bytes object_key = 7;
+  optional uint64 expected_object_version = 8;
+  VersionCandidate candidate = 9;
+  repeated ReplicaProof replica_proofs = 10;
+  repeated ReplicaReport new_replicas = 11;
+  uint64 new_size = 12;
+  int64 mtime_unix_nanos = 13;
+  uint64 commit_sequence = 14;
+}
+
+message FilesystemCommitVersionResponse {
+  FilesystemResolvedInode resolved = 1;
+  uint64 invalidation_cursor = 2;
+  uint64 commit_index = 3;
+}

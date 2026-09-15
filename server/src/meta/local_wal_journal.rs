@@ -13,10 +13,17 @@ use crc32fast::Hasher;
 use dms_protocol::v1 as pb;
 use prost::Message;
 
+use crate::filesystem::{
+    dentry_from_proto, dentry_to_proto, inode_from_proto, inode_to_proto,
+    namespace_result_from_proto, namespace_result_to_proto,
+};
+
 use super::metadata_journal::{
-    BlockRetirementParticipant, BlockRetirementRecord, CommitSequenceRecord, JournalEntry,
-    JournalError, JournalRecord, MetaSnapshot, MetadataJournal, SnapshotBlockRetirement,
-    SnapshotOperation, SnapshotReplica, SnapshotReplicaOperation, SnapshotSession,
+    BlockRetirementParticipant, BlockRetirementRecord, CommitSequenceRecord,
+    FilesystemInodeCreatedRecord, FilesystemNamespaceMutationRecord, FilesystemVersionCommitRecord,
+    JournalEntry, JournalError, JournalRecord, MetaSnapshot, MetadataJournal,
+    SnapshotBlockRetirement, SnapshotFilesystemNamespaceOperation, SnapshotOperation,
+    SnapshotReplica, SnapshotReplicaOperation, SnapshotSession, VersionCommitRecord,
 };
 
 const WAL_MAGIC: &[u8; 4] = b"DMSJ";
@@ -37,6 +44,9 @@ const RECORD_BLOCK_RETIREMENT_PREPARED: u8 = 10;
 const RECORD_BLOCK_RETIREMENT_ACKNOWLEDGED: u8 = 11;
 const RECORD_BLOCK_RETIREMENT_FINALIZED: u8 = 12;
 const RECORD_BLOCK_RETIREMENT_RELEASED: u8 = 13;
+const RECORD_FILESYSTEM_INODE_CREATED: u8 = 14;
+const RECORD_FILESYSTEM_VERSION_COMMITTED: u8 = 15;
+const RECORD_FILESYSTEM_NAMESPACE_MUTATED: u8 = 16;
 
 /// One durable, single-process WAL directory.
 pub(crate) struct LocalWalJournal {
@@ -500,6 +510,32 @@ fn encode_record(record: &JournalRecord) -> Result<Vec<u8>, JournalError> {
             }
             put_u64(&mut out, *stage_epoch);
         }
+        JournalRecord::FilesystemInodeCreated { record } => {
+            put_u8(&mut out, RECORD_FILESYSTEM_INODE_CREATED);
+            put_message(&mut out, &inode_to_proto(&record.inode))?;
+            put_message(&mut out, &dentry_to_proto(&record.dentry))?;
+            put_u64(&mut out, record.next_inode);
+            put_u64(&mut out, record.grant_generation);
+        }
+        JournalRecord::FilesystemVersionCommitted {
+            record,
+            commit_sequence,
+        } => {
+            put_u8(&mut out, RECORD_FILESYSTEM_VERSION_COMMITTED);
+            put_version_commit(&mut out, &record.object)?;
+            put_message(&mut out, &inode_to_proto(&record.inode))?;
+            put_u64(&mut out, record.revoked_grant_generation);
+            put_u64(&mut out, record.new_grant_generation);
+            put_optional_commit_sequence(&mut out, commit_sequence)?;
+        }
+        JournalRecord::FilesystemNamespaceMutated {
+            record,
+            commit_sequence,
+        } => {
+            put_u8(&mut out, RECORD_FILESYSTEM_NAMESPACE_MUTATED);
+            put_filesystem_namespace_mutation(&mut out, record)?;
+            put_optional_commit_sequence(&mut out, commit_sequence)?;
+        }
     }
     Ok(out)
 }
@@ -635,6 +671,30 @@ fn decode_record(bytes: &[u8]) -> Result<JournalRecord, JournalError> {
                 stage_epoch: input.u64()?,
             })
         }
+        RECORD_FILESYSTEM_INODE_CREATED => Ok(JournalRecord::FilesystemInodeCreated {
+            record: FilesystemInodeCreatedRecord {
+                inode: decode_inode(input.message()?)?,
+                dentry: dentry_from_proto(input.message()?),
+                next_inode: input.u64()?,
+                grant_generation: input.u64()?,
+            },
+        }),
+        RECORD_FILESYSTEM_VERSION_COMMITTED => {
+            let object = input.version_commit()?;
+            Ok(JournalRecord::FilesystemVersionCommitted {
+                record: FilesystemVersionCommitRecord {
+                    object,
+                    inode: decode_inode(input.message()?)?,
+                    revoked_grant_generation: input.u64()?,
+                    new_grant_generation: input.u64()?,
+                },
+                commit_sequence: input.optional_commit_sequence()?,
+            })
+        }
+        RECORD_FILESYSTEM_NAMESPACE_MUTATED => Ok(JournalRecord::FilesystemNamespaceMutated {
+            record: input.filesystem_namespace_mutation()?,
+            commit_sequence: input.optional_commit_sequence()?,
+        }),
         _ => Err(JournalError::InvalidSnapshot("unknown journal record kind")),
     }
 }
@@ -740,6 +800,33 @@ fn encode_snapshot(snapshot: &MetaSnapshot) -> Result<Vec<u8>, JournalError> {
     put_u32(&mut out, len_u32(snapshot.commit_sequences.len())?);
     for record in &snapshot.commit_sequences {
         put_commit_sequence(&mut out, record)?;
+    }
+    // Filesystem fields are appended so snapshots produced before this feature remain readable.
+    put_u64(&mut out, snapshot.filesystem_next_inode);
+    put_u32(&mut out, len_u32(snapshot.filesystem_inodes.len())?);
+    for inode in &snapshot.filesystem_inodes {
+        put_message(&mut out, &inode_to_proto(inode))?;
+    }
+    put_u32(&mut out, len_u32(snapshot.filesystem_dentries.len())?);
+    for dentry in &snapshot.filesystem_dentries {
+        put_message(&mut out, &dentry_to_proto(dentry))?;
+    }
+    put_u32(
+        &mut out,
+        len_u32(snapshot.filesystem_grant_generations.len())?,
+    );
+    for (inode, generation) in &snapshot.filesystem_grant_generations {
+        put_u64(&mut out, *inode);
+        put_u64(&mut out, *generation);
+    }
+    put_u32(
+        &mut out,
+        len_u32(snapshot.filesystem_namespace_operations.len())?,
+    );
+    for operation in &snapshot.filesystem_namespace_operations {
+        put_bytes(&mut out, &operation.operation_id)?;
+        put_bytes(&mut out, &operation.digest)?;
+        put_message(&mut out, &namespace_result_to_proto(&operation.result))?;
     }
     Ok(out)
 }
@@ -885,6 +972,47 @@ fn decode_snapshot(bytes: &[u8]) -> Result<MetaSnapshot, JournalError> {
             .map(|_| input.commit_sequence())
             .collect::<Result<Vec<_>, JournalError>>()?
     };
+    let filesystem_next_inode = if input.remaining() == 0 {
+        2
+    } else {
+        input.u64()?.max(2)
+    };
+    let filesystem_inodes = if input.remaining() == 0 {
+        Vec::new()
+    } else {
+        (0..input.u32()?)
+            .map(|_| decode_inode(input.message()?))
+            .collect::<Result<Vec<_>, JournalError>>()?
+    };
+    let filesystem_dentries = if input.remaining() == 0 {
+        Vec::new()
+    } else {
+        (0..input.u32()?)
+            .map(|_| Ok(dentry_from_proto(input.message()?)))
+            .collect::<Result<Vec<_>, JournalError>>()?
+    };
+    let filesystem_grant_generations = if input.remaining() == 0 {
+        Vec::new()
+    } else {
+        (0..input.u32()?)
+            .map(|_| Ok((input.u64()?, input.u64()?)))
+            .collect::<Result<Vec<_>, JournalError>>()?
+    };
+    let filesystem_namespace_operations = if input.remaining() == 0 {
+        Vec::new()
+    } else {
+        (0..input.u32()?)
+            .map(|_| {
+                Ok(SnapshotFilesystemNamespaceOperation {
+                    operation_id: input.bytes()?,
+                    digest: input.bytes()?,
+                    result: namespace_result_from_proto(input.message()?).map_err(|_| {
+                        JournalError::InvalidSnapshot("invalid filesystem namespace operation")
+                    })?,
+                })
+            })
+            .collect::<Result<Vec<_>, JournalError>>()?
+    };
     Ok(MetaSnapshot {
         last_applied_index,
         version_floor,
@@ -903,7 +1031,19 @@ fn decode_snapshot(bytes: &[u8]) -> Result<MetaSnapshot, JournalError> {
         replica_operations,
         event_high_watermark,
         events,
+        filesystem_next_inode,
+        filesystem_inodes,
+        filesystem_dentries,
+        filesystem_grant_generations,
+        filesystem_namespace_operations,
     })
+}
+
+fn decode_inode(
+    inode: pb::FilesystemInodeSnapshot,
+) -> Result<crate::filesystem::InodeSnapshot, JournalError> {
+    inode_from_proto(inode)
+        .map_err(|_| JournalError::InvalidSnapshot("invalid filesystem inode snapshot"))
 }
 
 fn put_u8(out: &mut Vec<u8>, value: u8) {
@@ -962,6 +1102,42 @@ fn put_commit_sequence(
     put_bytes(out, &record.operation_id)?;
     put_bytes(out, &record.operation_digest)?;
     put_u64(out, record.commit_index);
+    Ok(())
+}
+
+fn put_version_commit(out: &mut Vec<u8>, commit: &VersionCommitRecord) -> Result<(), JournalError> {
+    put_bytes(out, &commit.key)?;
+    put_message(out, &commit.layout)?;
+    put_i64(out, commit.modified_time_unix_millis);
+    put_u32(out, len_u32(commit.new_replicas.len())?);
+    for (location, length) in &commit.new_replicas {
+        put_message(out, location)?;
+        put_u64(out, *length);
+    }
+    put_bytes(out, &commit.operation_id)?;
+    put_bytes(out, &commit.operation_digest)
+}
+
+fn put_filesystem_namespace_mutation(
+    out: &mut Vec<u8>,
+    record: &FilesystemNamespaceMutationRecord,
+) -> Result<(), JournalError> {
+    put_bytes(out, &record.operation_id)?;
+    put_bytes(out, &record.operation_digest)?;
+    put_message(out, &namespace_result_to_proto(&record.result))?;
+    put_u32(out, len_u32(record.upsert_inodes.len())?);
+    for inode in &record.upsert_inodes {
+        put_message(out, &inode_to_proto(inode))?;
+    }
+    put_u32(out, len_u32(record.upsert_dentries.len())?);
+    for dentry in &record.upsert_dentries {
+        put_message(out, &dentry_to_proto(dentry))?;
+    }
+    put_u32(out, len_u32(record.remove_dentries.len())?);
+    for dentry in &record.remove_dentries {
+        put_message(out, &dentry_to_proto(dentry))?;
+    }
+    put_u64(out, record.next_inode);
     Ok(())
 }
 
@@ -1074,6 +1250,50 @@ impl<'a> Cursor<'a> {
         })
     }
 
+    fn version_commit(&mut self) -> Result<VersionCommitRecord, JournalError> {
+        let key = self.bytes()?;
+        let layout = self.message()?;
+        let modified_time_unix_millis = self.i64()?;
+        let new_replicas = (0..self.u32()?)
+            .map(|_| Ok((self.message()?, self.u64()?)))
+            .collect::<Result<Vec<_>, JournalError>>()?;
+        Ok(VersionCommitRecord {
+            key,
+            layout,
+            modified_time_unix_millis,
+            new_replicas,
+            operation_id: self.bytes()?,
+            operation_digest: self.bytes()?,
+        })
+    }
+
+    fn filesystem_namespace_mutation(
+        &mut self,
+    ) -> Result<FilesystemNamespaceMutationRecord, JournalError> {
+        let operation_id = self.bytes()?;
+        let operation_digest = self.bytes()?;
+        let result = namespace_result_from_proto(self.message()?)
+            .map_err(|_| JournalError::InvalidSnapshot("invalid filesystem namespace result"))?;
+        let upsert_inodes = (0..self.u32()?)
+            .map(|_| decode_inode(self.message()?))
+            .collect::<Result<Vec<_>, JournalError>>()?;
+        let upsert_dentries = (0..self.u32()?)
+            .map(|_| Ok(dentry_from_proto(self.message()?)))
+            .collect::<Result<Vec<_>, JournalError>>()?;
+        let remove_dentries = (0..self.u32()?)
+            .map(|_| Ok(dentry_from_proto(self.message()?)))
+            .collect::<Result<Vec<_>, JournalError>>()?;
+        Ok(FilesystemNamespaceMutationRecord {
+            operation_id,
+            operation_digest,
+            result,
+            upsert_inodes,
+            upsert_dentries,
+            remove_dentries,
+            next_inode: self.u64()?,
+        })
+    }
+
     fn retirement_record(&mut self) -> Result<BlockRetirementRecord, JournalError> {
         let retirement_id = self.bytes()?;
         let block_ids = (0..self.u32()?)
@@ -1166,6 +1386,11 @@ mod tests {
                 replica_operations: Vec::new(),
                 event_high_watermark: 0,
                 events: Vec::new(),
+                filesystem_next_inode: 2,
+                filesystem_inodes: Vec::new(),
+                filesystem_dentries: Vec::new(),
+                filesystem_grant_generations: Vec::new(),
+                filesystem_namespace_operations: Vec::new(),
             })
             .expect("snapshot");
         journal.truncate_prefix(first).expect("truncate");

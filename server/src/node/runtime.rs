@@ -36,6 +36,11 @@ use super::arena_manager::{
     HostShmDescriptor, ReleasedWriteAllocation, SharedFdBroker,
 };
 use super::current_cache::CurrentCache;
+use super::filesystem::{
+    binding_cache::BindingCache,
+    dentry_cache::{DentryCache, DentryLookup},
+    open_handles::OpenHandleTable,
+};
 use super::metadata_client::{BatchValueCommit, LocalReplicaIdentity, MetadataClient, digest};
 use super::metrics::{
     CurrentCacheResetReason, NodeMailboxCommand, NodeMetrics, PeerImportMetricsSnapshot,
@@ -43,6 +48,15 @@ use super::metrics::{
 };
 use super::replica_reporter::{self, ReplicaReportJob};
 use crate::config::{ConfigChange, ConfigError, OnlineConfigController};
+use crate::filesystem::{
+    DentrySnapshot, DirectoryEntry, DirectoryPage, FileHandleId, InodeId, PreparedObjectVersion,
+    ResolvedInode, ResolvedObject,
+};
+
+/// Node 目录缓存命中时返回的目录身份和有序子项快照。
+///
+/// 单独命名这个组合，避免 command 回信类型把 actor 协议主体淹没在嵌套泛型里。
+type CachedDirectorySnapshot = (InodeId, Vec<DirectoryEntry>);
 
 // 有界队列防止请求无限堆积；满载时 Sender::send().await 会施加背压。
 const NODE_MAILBOX_CAPACITY: usize = 256;
@@ -601,10 +615,7 @@ pub(crate) enum WorkerError {
 impl WorkerError {
     /// 是否为对象版本条件冲突。Meta 在提交边界返回稳定 DMS 错误码，Node 内部
     /// 也可能在更早阶段直接发现冲突；上层重试策略不应依赖错误来自哪一层。
-    #[cfg_attr(
-        not(any(test, feature = "fuse")),
-        allow(dead_code, reason = "文件层 CAS 重试由可选 FUSE 支持使用")
-    )]
+    #[cfg(test)]
     pub(crate) fn is_version_conflict(&self) -> bool {
         matches!(self, Self::Conflict)
             || matches!(
@@ -765,6 +776,141 @@ impl NodeHandle {
 
     pub(crate) fn metrics(&self) -> NodeMetrics {
         self.metrics.clone()
+    }
+
+    /// 返回复用同一 Meta HTTP/2 Channel 与 Node session 的文件元数据客户端。
+    /// 这里只 clone 轻量句柄，不建立第二条连接。
+    pub(crate) fn filesystem_metadata_client(
+        &self,
+    ) -> Result<super::filesystem::meta_client::FilesystemMetaGrpcClient, WorkerError> {
+        self.metadata
+            .clone()
+            .map(super::filesystem::meta_client::FilesystemMetaGrpcClient::new)
+            .ok_or(WorkerError::MetadataUnavailable)
+    }
+
+    pub(crate) async fn filesystem_cached_binding(
+        &self,
+        inode: InodeId,
+    ) -> Result<Option<ResolvedInode>, WorkerError> {
+        let (reply, receiver) = oneshot::channel();
+        self.submit(NodeCommand::FilesystemGetBinding { inode, reply })
+            .await?;
+        receive(receiver).await
+    }
+
+    pub(crate) async fn filesystem_cache_binding(
+        &self,
+        resolved: ResolvedInode,
+    ) -> Result<(), WorkerError> {
+        let (reply, receiver) = oneshot::channel();
+        self.submit(NodeCommand::FilesystemCacheBinding { resolved, reply })
+            .await?;
+        receive(receiver).await
+    }
+
+    pub(crate) async fn filesystem_cached_dentry(
+        &self,
+        parent: InodeId,
+        name: Vec<u8>,
+    ) -> Result<DentryLookup, WorkerError> {
+        let (reply, receiver) = oneshot::channel();
+        self.submit(NodeCommand::FilesystemGetDentry {
+            parent,
+            name,
+            reply,
+        })
+        .await?;
+        receive(receiver).await
+    }
+
+    pub(crate) async fn filesystem_cache_positive_dentry(
+        &self,
+        dentry: DentrySnapshot,
+        grant: crate::filesystem::DirectoryGrant,
+    ) -> Result<(), WorkerError> {
+        let (reply, receiver) = oneshot::channel();
+        self.submit(NodeCommand::FilesystemCachePositiveDentry {
+            dentry,
+            grant,
+            reply,
+        })
+        .await?;
+        receive(receiver).await
+    }
+
+    pub(crate) async fn filesystem_cache_negative_dentry(
+        &self,
+        parent: InodeId,
+        name: Vec<u8>,
+        grant: crate::filesystem::DirectoryGrant,
+    ) -> Result<(), WorkerError> {
+        let (reply, receiver) = oneshot::channel();
+        self.submit(NodeCommand::FilesystemCacheNegativeDentry {
+            parent,
+            name,
+            grant,
+            reply,
+        })
+        .await?;
+        receive(receiver).await
+    }
+
+    pub(crate) async fn filesystem_cached_directory(
+        &self,
+        directory: InodeId,
+    ) -> Result<Option<CachedDirectorySnapshot>, WorkerError> {
+        let (reply, receiver) = oneshot::channel();
+        self.submit(NodeCommand::FilesystemGetDirectory { directory, reply })
+            .await?;
+        receive(receiver).await
+    }
+
+    pub(crate) async fn filesystem_cache_directory(
+        &self,
+        page: DirectoryPage,
+    ) -> Result<(), WorkerError> {
+        let (reply, receiver) = oneshot::channel();
+        self.submit(NodeCommand::FilesystemCacheDirectory { page, reply })
+            .await?;
+        receive(receiver).await
+    }
+
+    pub(crate) async fn filesystem_open_handle(
+        &self,
+        inode: InodeId,
+        flags: i32,
+        lock_owner: Option<u64>,
+    ) -> Result<super::filesystem::open_handles::OpenHandle, WorkerError> {
+        let (reply, receiver) = oneshot::channel();
+        self.submit(NodeCommand::FilesystemOpenHandle {
+            inode,
+            flags,
+            lock_owner,
+            reply,
+        })
+        .await?;
+        receive(receiver).await
+    }
+
+    pub(crate) async fn filesystem_get_handle(
+        &self,
+        handle: FileHandleId,
+    ) -> Result<Option<super::filesystem::open_handles::OpenHandle>, WorkerError> {
+        let (reply, receiver) = oneshot::channel();
+        self.submit(NodeCommand::FilesystemGetHandle { handle, reply })
+            .await?;
+        receive(receiver).await
+    }
+
+    pub(crate) async fn filesystem_close_handle(
+        &self,
+        handle: FileHandleId,
+    ) -> Result<Option<super::filesystem::open_handles::OpenHandle>, WorkerError> {
+        let (reply, receiver) = oneshot::channel();
+        self.submit(NodeCommand::FilesystemCloseHandle { handle, reply })
+            .await?;
+        receive(receiver).await
     }
 
     /// 启动唯一的状态 owner Task，并返回它的提交句柄。
@@ -1193,6 +1339,69 @@ impl NodeHandle {
         Ok(outcome)
     }
 
+    /// 只在本地 Arena 中准备一个完整对象候选；不会访问 Meta，也不会修改 Current。
+    pub(crate) async fn data_core_prepare_inline(
+        &self,
+        key: Vec<u8>,
+        bytes: Vec<u8>,
+        operation_id: Vec<u8>,
+        expected_version: Option<u64>,
+    ) -> Result<PreparedObjectVersion, WorkerError> {
+        let (reply, receiver) = oneshot::channel();
+        self.submit(NodeCommand::DataCorePrepareInline {
+            key,
+            bytes,
+            operation_id,
+            expected_version,
+            reply,
+        })
+        .await?;
+        receive(receiver).await
+    }
+
+    /// 在已解析的精确版本上准备文件 Extent overlay；允许覆盖或从 EOF 扩容，且不会
+    /// 先发布第二个 Object Current。普通 KV `SET_RANGE` 仍保持不改变 value 长度。
+    pub(crate) async fn data_core_prepare_range(
+        &self,
+        key: Vec<u8>,
+        offset: u64,
+        bytes: Vec<u8>,
+        operation_id: Vec<u8>,
+        resolved: ResolvedObject,
+    ) -> Result<PreparedObjectVersion, WorkerError> {
+        let (reply, receiver) = oneshot::channel();
+        self.submit(NodeCommand::DataCorePrepareRange {
+            key,
+            offset,
+            bytes,
+            operation_id,
+            resolved: resolved.into_proto(),
+            reply,
+        })
+        .await?;
+        receive(receiver).await
+    }
+
+    /// 完成两阶段文件写。`version` 只在 Meta 已原子发布时存在；确定性 CAS/参数拒绝
+    /// 才允许回收新块，未知提交结果必须保留，以便同 operation 重试。
+    pub(crate) async fn data_core_finish_prepared(
+        &self,
+        prepared: PreparedObjectVersion,
+        version: Option<u64>,
+        rejected: bool,
+    ) -> Result<(), WorkerError> {
+        let (reply, receiver) = oneshot::channel();
+        self.submit(NodeCommand::DataCoreFinishPrepared {
+            prepared,
+            version,
+            rejected,
+            reply,
+        })
+        .await?;
+        receive(receiver).await
+    }
+
+    #[cfg(test)]
     pub(crate) async fn data_core_set_range_inline(
         &self,
         key: Vec<u8>,
@@ -1226,6 +1435,7 @@ impl NodeHandle {
         Ok(outcome)
     }
 
+    #[cfg(test)]
     pub(crate) async fn data_core_delete(
         &self,
         key: Vec<u8>,
@@ -1451,6 +1661,24 @@ impl NodeHandle {
         self.submit(NodeCommand::InvalidateCurrent {
             key,
             minimum_version,
+            reply: reply_tx,
+        })
+        .await?;
+        receive(reply_rx).await
+    }
+
+    /// Meta Watch 在 ACK 前撤销文件绑定授权。重复事件保持幂等：条目已经不存在时也成功。
+    pub(crate) async fn invalidate_filesystem_binding(
+        &self,
+        inode: u64,
+        through_generation: u64,
+        minimum_inode_revision: u64,
+    ) -> Result<(), WorkerError> {
+        let (reply_tx, reply_rx) = oneshot::channel();
+        self.submit(NodeCommand::InvalidateFilesystemBinding {
+            inode,
+            through_generation,
+            minimum_inode_revision,
             reply: reply_tx,
         })
         .await?;
@@ -1777,6 +2005,33 @@ impl NodeHandle {
         let scope = self.begin_data_core_read_scope().await?.into_guard();
         let result = self
             .data_core_read_into_scoped(scope.id(), key, exact_version, range, clamp_range, output)
+            .await;
+        let finish = scope.finish().await;
+        match (result, finish) {
+            (Ok(value), Ok(())) => Ok(value),
+            (Err(error), _) => Err(error),
+            (Ok(_), Err(error)) => Err(error),
+        }
+    }
+
+    /// 使用 Filesystem binding 中已经取得的精确读取计划，跳过对象 ResolveObject。
+    pub(crate) async fn data_core_read_pre_resolved_into(
+        &self,
+        resolved: ResolvedObject,
+        range: Option<(u64, u64)>,
+        clamp_range: bool,
+        output: Vec<u8>,
+    ) -> Result<DataCoreReadAttempt, WorkerError> {
+        let scope = self.begin_data_core_read_scope().await?.into_guard();
+        let result = self
+            .data_core_read_resolved_into(
+                scope.id(),
+                resolved.into_proto(),
+                range,
+                clamp_range,
+                output,
+                None,
+            )
             .await;
         let finish = scope.finish().await;
         match (result, finish) {
@@ -2387,6 +2642,28 @@ enum NodeCommand {
         condition: String,
         reply: oneshot::Sender<Result<SetOutcome, WorkerError>>,
     },
+    DataCorePrepareInline {
+        key: Vec<u8>,
+        bytes: Vec<u8>,
+        operation_id: Vec<u8>,
+        expected_version: Option<u64>,
+        reply: oneshot::Sender<Result<PreparedObjectVersion, WorkerError>>,
+    },
+    DataCorePrepareRange {
+        key: Vec<u8>,
+        offset: u64,
+        bytes: Vec<u8>,
+        operation_id: Vec<u8>,
+        resolved: pb::ResolveObjectResponse,
+        reply: oneshot::Sender<Result<PreparedObjectVersion, WorkerError>>,
+    },
+    DataCoreFinishPrepared {
+        prepared: PreparedObjectVersion,
+        version: Option<u64>,
+        rejected: bool,
+        reply: oneshot::Sender<Result<(), WorkerError>>,
+    },
+    #[cfg(test)]
     DataCoreSetRangeInline {
         key: Vec<u8>,
         offset: u64,
@@ -2406,6 +2683,7 @@ enum NodeCommand {
         operation_id: Vec<u8>,
         reply: oneshot::Sender<Result<DeleteOutcome, WorkerError>>,
     },
+    #[cfg(test)]
     DataCoreDelete {
         key: Vec<u8>,
         operation_id: Vec<u8>,
@@ -2525,6 +2803,62 @@ enum NodeCommand {
         minimum_version: u64,
         reply: oneshot::Sender<Result<(), WorkerError>>,
     },
+    InvalidateFilesystemBinding {
+        inode: u64,
+        through_generation: u64,
+        minimum_inode_revision: u64,
+        reply: oneshot::Sender<Result<(), WorkerError>>,
+    },
+    FilesystemGetBinding {
+        inode: InodeId,
+        reply: oneshot::Sender<Result<Option<ResolvedInode>, WorkerError>>,
+    },
+    FilesystemCacheBinding {
+        resolved: ResolvedInode,
+        reply: oneshot::Sender<Result<(), WorkerError>>,
+    },
+    FilesystemGetDentry {
+        parent: InodeId,
+        name: Vec<u8>,
+        reply: oneshot::Sender<Result<DentryLookup, WorkerError>>,
+    },
+    FilesystemCachePositiveDentry {
+        dentry: DentrySnapshot,
+        grant: crate::filesystem::DirectoryGrant,
+        reply: oneshot::Sender<Result<(), WorkerError>>,
+    },
+    FilesystemCacheNegativeDentry {
+        parent: InodeId,
+        name: Vec<u8>,
+        grant: crate::filesystem::DirectoryGrant,
+        reply: oneshot::Sender<Result<(), WorkerError>>,
+    },
+    FilesystemGetDirectory {
+        directory: InodeId,
+        reply: oneshot::Sender<Result<Option<CachedDirectorySnapshot>, WorkerError>>,
+    },
+    FilesystemCacheDirectory {
+        page: DirectoryPage,
+        reply: oneshot::Sender<Result<(), WorkerError>>,
+    },
+    FilesystemOpenHandle {
+        inode: InodeId,
+        flags: i32,
+        lock_owner: Option<u64>,
+        reply: oneshot::Sender<Result<super::filesystem::open_handles::OpenHandle, WorkerError>>,
+    },
+    FilesystemGetHandle {
+        handle: FileHandleId,
+        reply: oneshot::Sender<
+            Result<Option<super::filesystem::open_handles::OpenHandle>, WorkerError>,
+        >,
+    },
+    FilesystemCloseHandle {
+        handle: FileHandleId,
+        reply: oneshot::Sender<
+            Result<Option<super::filesystem::open_handles::OpenHandle>, WorkerError>,
+        >,
+    },
     PrepareBlockRetirement {
         retirement_id: Vec<u8>,
         block_ids: Vec<Vec<u8>>,
@@ -2594,9 +2928,14 @@ impl NodeCommand {
             Self::MSet { .. } => NodeMailboxCommand::MSet,
             Self::SetInline { .. } => NodeMailboxCommand::SetInline,
             Self::DataCoreSetInline { .. } => NodeMailboxCommand::SetInline,
+            Self::DataCorePrepareInline { .. } => NodeMailboxCommand::SetInline,
+            Self::DataCorePrepareRange { .. } => NodeMailboxCommand::SetRange,
+            Self::DataCoreFinishPrepared { .. } => NodeMailboxCommand::SetInline,
             Self::SetRange { .. } => NodeMailboxCommand::SetRange,
+            #[cfg(test)]
             Self::DataCoreSetRangeInline { .. } => NodeMailboxCommand::SetRange,
             Self::Delete { .. } => NodeMailboxCommand::Delete,
+            #[cfg(test)]
             Self::DataCoreDelete { .. } => NodeMailboxCommand::Delete,
             Self::GetResolved { .. } => NodeMailboxCommand::GetResolved,
             Self::GetCached { .. } => NodeMailboxCommand::GetCached,
@@ -2616,6 +2955,17 @@ impl NodeCommand {
             #[cfg(test)]
             Self::DebugCommitForPeerTest { .. } => NodeMailboxCommand::DebugCommitForPeerTest,
             Self::InvalidateCurrent { .. } => NodeMailboxCommand::InvalidateCurrent,
+            Self::InvalidateFilesystemBinding { .. } => NodeMailboxCommand::InvalidateCurrent,
+            Self::FilesystemGetBinding { .. }
+            | Self::FilesystemCacheBinding { .. }
+            | Self::FilesystemGetDentry { .. }
+            | Self::FilesystemCachePositiveDentry { .. }
+            | Self::FilesystemCacheNegativeDentry { .. }
+            | Self::FilesystemGetDirectory { .. }
+            | Self::FilesystemCacheDirectory { .. } => NodeMailboxCommand::GetCached,
+            Self::FilesystemOpenHandle { .. }
+            | Self::FilesystemGetHandle { .. }
+            | Self::FilesystemCloseHandle { .. } => NodeMailboxCommand::GetCached,
             Self::PrepareBlockRetirement { .. } => NodeMailboxCommand::InvalidateCurrent,
             Self::FinalizeBlockRetirement { .. } => NodeMailboxCommand::InvalidateCurrent,
             Self::BeginReadScope { .. } => NodeMailboxCommand::GetCached,
@@ -2871,6 +3221,45 @@ async fn run_node(
                         state.commit_bytes_for_data_core(key, bytes, operation_id, condition)
                     });
                 }
+                NodeCommand::DataCorePrepareInline {
+                    key,
+                    bytes,
+                    operation_id,
+                    expected_version,
+                    reply,
+                } => {
+                    let _ = reply.send(state.prepare_bytes_for_filesystem(
+                        key,
+                        bytes,
+                        operation_id,
+                        expected_version,
+                    ));
+                }
+                NodeCommand::DataCorePrepareRange {
+                    key,
+                    offset,
+                    bytes,
+                    operation_id,
+                    resolved,
+                    reply,
+                } => {
+                    let _ = reply.send(state.prepare_range_for_filesystem(
+                        key,
+                        offset,
+                        bytes,
+                        operation_id,
+                        resolved,
+                    ));
+                }
+                NodeCommand::DataCoreFinishPrepared {
+                    prepared,
+                    version,
+                    rejected,
+                    reply,
+                } => {
+                    let _ = reply
+                        .send(state.finish_filesystem_preparation(prepared, version, rejected));
+                }
                 NodeCommand::SetRange {
                     input,
                     resolved,
@@ -2880,6 +3269,7 @@ async fn run_node(
                         state.set_range(input, resolved)
                     });
                 }
+                #[cfg(test)]
                 NodeCommand::DataCoreSetRangeInline {
                     key,
                     offset,
@@ -2908,6 +3298,7 @@ async fn run_node(
                         state.delete(session_id, key, operation_id)
                     });
                 }
+                #[cfg(test)]
                 NodeCommand::DataCoreDelete {
                     key,
                     operation_id,
@@ -3182,6 +3573,90 @@ async fn run_node(
                         let _ = reply.send(Ok(()));
                     }
                 }
+                NodeCommand::InvalidateFilesystemBinding {
+                    inode,
+                    through_generation,
+                    minimum_inode_revision,
+                    reply,
+                } => {
+                    state.filesystem_bindings.revoke(inode, through_generation);
+                    state.filesystem_dentries.revoke_directory(
+                        inode,
+                        through_generation,
+                        minimum_inode_revision,
+                    );
+                    let _ = reply.send(Ok(()));
+                }
+                NodeCommand::FilesystemGetBinding { inode, reply } => {
+                    let resolved = state
+                        .filesystem_bindings
+                        .get_authorized(inode, Instant::now())
+                        .cloned();
+                    let _ = reply.send(Ok(resolved));
+                }
+                NodeCommand::FilesystemCacheBinding { resolved, reply } => {
+                    state.filesystem_bindings.insert(resolved, Instant::now());
+                    let _ = reply.send(Ok(()));
+                }
+                NodeCommand::FilesystemGetDentry {
+                    parent,
+                    name,
+                    reply,
+                } => {
+                    let dentry = state
+                        .filesystem_dentries
+                        .lookup(parent, &name, Instant::now());
+                    let _ = reply.send(Ok(dentry));
+                }
+                NodeCommand::FilesystemCachePositiveDentry {
+                    dentry,
+                    grant,
+                    reply,
+                } => {
+                    state
+                        .filesystem_dentries
+                        .insert_positive(dentry, grant, Instant::now());
+                    let _ = reply.send(Ok(()));
+                }
+                NodeCommand::FilesystemCacheNegativeDentry {
+                    parent,
+                    name,
+                    grant,
+                    reply,
+                } => {
+                    state
+                        .filesystem_dentries
+                        .insert_negative(parent, name, grant, Instant::now());
+                    let _ = reply.send(Ok(()));
+                }
+                NodeCommand::FilesystemGetDirectory { directory, reply } => {
+                    let entries = state
+                        .filesystem_dentries
+                        .directory(directory, Instant::now());
+                    let _ = reply.send(Ok(entries));
+                }
+                NodeCommand::FilesystemCacheDirectory { page, reply } => {
+                    state
+                        .filesystem_dentries
+                        .insert_directory(page, Instant::now());
+                    let _ = reply.send(Ok(()));
+                }
+                NodeCommand::FilesystemOpenHandle {
+                    inode,
+                    flags,
+                    lock_owner,
+                    reply,
+                } => {
+                    let handle = state.filesystem_handles.open(inode, flags, lock_owner);
+                    let _ = reply.send(Ok(handle));
+                }
+                NodeCommand::FilesystemGetHandle { handle, reply } => {
+                    let opened = state.filesystem_handles.get(handle).cloned();
+                    let _ = reply.send(Ok(opened));
+                }
+                NodeCommand::FilesystemCloseHandle { handle, reply } => {
+                    let _ = reply.send(Ok(state.filesystem_handles.close(handle)));
+                }
                 NodeCommand::PrepareBlockRetirement {
                     retirement_id,
                     block_ids,
@@ -3346,6 +3821,12 @@ struct NodeState {
     metadata_watch_connected: bool,
     client_cache_lease_ttl: Duration,
     current_cache: CurrentCache,
+    /// 文件 inode→Exact ObjectVersion 的本地授权索引；只由 Node owner 修改。
+    filesystem_bindings: BindingCache,
+    /// 文件 path component→inode 的正向提示；当前只缓存 create/lookup 成功结果。
+    filesystem_dentries: DentryCache,
+    /// FUSE open() 生命周期属于本 Node，不进入 Meta，也不复制 DataCore 状态。
+    filesystem_handles: OpenHandleTable,
 }
 
 impl NodeState {
@@ -3429,6 +3910,9 @@ impl NodeState {
                 task_config.node_current_cache_bytes,
                 task_config.node_current_cache_ttl,
             ),
+            filesystem_bindings: BindingCache::default(),
+            filesystem_dentries: DentryCache::default(),
+            filesystem_handles: OpenHandleTable::default(),
         }
     }
 
@@ -3469,6 +3953,8 @@ impl NodeState {
             CurrentCacheResetReason::WatchDisconnected
         };
         self.current_cache.clear();
+        self.filesystem_bindings.clear();
+        self.filesystem_dentries.clear();
         self.metrics.set_current_cache_charge(0);
         self.metadata_watch_connected = connected;
         self.metrics.record_current_cache_reset(reason);
@@ -4080,6 +4566,7 @@ impl NodeState {
         }))
     }
 
+    #[cfg(test)]
     fn set_range_inline_for_data_core(
         &mut self,
         key: Vec<u8>,
@@ -4269,6 +4756,160 @@ impl NodeState {
         })
     }
 
+    /// 为 Filesystem 的单一 Meta 发布点准备完整 value。
+    ///
+    /// 与普通 DataCore `put` 的关键差异是这里不调用 `commit_value`：Block 已经是
+    /// immutable，但 Object Current 仍未变化。候选随后与 inode revision/attrs 一起
+    /// 作为一条 Filesystem journal 记录提交。
+    fn prepare_bytes_for_filesystem(
+        &mut self,
+        key: Vec<u8>,
+        bytes: Vec<u8>,
+        operation_id: Vec<u8>,
+        expected_version: Option<u64>,
+    ) -> Result<PreparedObjectVersion, WorkerError> {
+        validate_user_key(&key)?;
+        validate_operation_id(&operation_id)?;
+        if self.metadata.is_none() {
+            return Err(WorkerError::MetadataUnavailable);
+        }
+        let length = bytes.len() as u64;
+        let checksum = digest(&bytes);
+        let block_id = block_identity(&self.node_id, &operation_id);
+        let (extents, new_replicas) = if length == 0 {
+            (Vec::new(), Vec::new())
+        } else {
+            let owns_block = self.check_block_preparation(&block_id)?;
+            self.arena
+                .commit_inline_with_verified_digest(block_id.clone(), bytes, checksum.clone())
+                .map_err(map_arena_error)?;
+            self.pending_blocks.insert(block_id.clone(), owns_block);
+            (
+                vec![pb::ExtentRecord {
+                    logical: Some(pb::ByteRange { offset: 0, length }),
+                    block_id: block_id.clone(),
+                    block_offset: 0,
+                    digest: checksum.clone(),
+                }],
+                vec![pb::ReplicaReport {
+                    block_id,
+                    length,
+                    checksum: checksum.clone(),
+                    durability: pb::DurabilityPolicy::LocalMemory as i32,
+                }],
+            )
+        };
+        Ok(PreparedObjectVersion {
+            object_key: key,
+            expected_object_version: expected_version,
+            candidate: pb::VersionCandidate {
+                kind: pb::VersionKind::Value as i32,
+                logical_length: length,
+                digest: super::version_layout::digest(length, &extents),
+                extents,
+            },
+            replica_proofs: Vec::new(),
+            new_replicas,
+        })
+    }
+
+    /// 为文件覆盖或扩容准备一个 patch Block 和 Extent overlay。
+    ///
+    /// `offset` 不得越过当前 EOF；稀疏写由文件层把 EOF 到写入位置之间的零填充
+    /// 合并进 `bytes`，再从 EOF 调用这里。base bytes 始终保持 immutable，普通追加
+    /// 也只新增 tail Block，不能退化成“读回旧文件再完整提交”。
+    fn prepare_range_for_filesystem(
+        &mut self,
+        key: Vec<u8>,
+        offset: u64,
+        bytes: Vec<u8>,
+        operation_id: Vec<u8>,
+        resolved: pb::ResolveObjectResponse,
+    ) -> Result<PreparedObjectVersion, WorkerError> {
+        validate_user_key(&key)?;
+        validate_operation_id(&operation_id)?;
+        if self.metadata.is_none() {
+            return Err(WorkerError::MetadataUnavailable);
+        }
+        let layout = resolved.layout.as_ref().ok_or(WorkerError::NotFound)?;
+        let patch_length = bytes.len() as u64;
+        let patch_end = offset
+            .checked_add(patch_length)
+            .ok_or(WorkerError::InvalidArgument("range write overflows u64"))?;
+        let patch_block = block_identity(&self.node_id, &operation_id);
+        let patch_digest = digest(&bytes);
+        let extents = super::version_layout::overlay_file_write(
+            &layout.extents,
+            layout.logical_length,
+            offset,
+            patch_length,
+            &patch_block,
+            &patch_digest,
+        )?;
+        if patch_length > 0 {
+            let owns_block = self.check_block_preparation(&patch_block)?;
+            self.arena
+                .commit_inline_with_verified_digest(
+                    patch_block.clone(),
+                    bytes,
+                    patch_digest.clone(),
+                )
+                .map_err(map_arena_error)?;
+            self.pending_blocks.insert(patch_block.clone(), owns_block);
+        }
+        let replica_proofs = resolved
+            .block_replicas
+            .iter()
+            .filter(|set| set.block_id != patch_block)
+            .filter_map(|set| set.proofs.first().cloned())
+            .collect();
+        let new_replicas = (patch_length > 0)
+            .then_some(pb::ReplicaReport {
+                block_id: patch_block,
+                length: patch_length,
+                checksum: patch_digest,
+                durability: pb::DurabilityPolicy::LocalMemory as i32,
+            })
+            .into_iter()
+            .collect();
+        Ok(PreparedObjectVersion {
+            object_key: key,
+            expected_object_version: Some(layout.version),
+            candidate: pb::VersionCandidate {
+                kind: pb::VersionKind::Value as i32,
+                logical_length: layout.logical_length.max(patch_end),
+                digest: super::version_layout::digest(
+                    layout.logical_length.max(patch_end),
+                    &extents,
+                ),
+                extents,
+            },
+            replica_proofs,
+            new_replicas,
+        })
+    }
+
+    fn finish_filesystem_preparation(
+        &mut self,
+        prepared: PreparedObjectVersion,
+        version: Option<u64>,
+        rejected: bool,
+    ) -> Result<(), WorkerError> {
+        for replica in &prepared.new_replicas {
+            self.finish_block_preparation(&replica.block_id, rejected);
+            if let Some(version) = version {
+                self.arena.mark_committed(&replica.block_id, version);
+            }
+        }
+        if let Some(version) = version {
+            // Meta 的 object + inode 提交不会通过普通 KV 写路径回填本地 Current。
+            // 先撤销旧对象解析；文件热读随后使用同一提交返回的 ResolvedInode 回填。
+            self.broadcast_invalidation(prepared.object_key, version);
+        }
+        Ok(())
+    }
+
+    #[cfg(test)]
     fn delete_for_data_core(
         &mut self,
         key: Vec<u8>,
@@ -7402,6 +8043,81 @@ mod tests {
                 .get(b"key-a", 42, Instant::now())
                 .is_none(),
             "Meta watch 断线后不能继续命中 Node 本地 Current cache"
+        );
+    }
+
+    #[test]
+    fn metadata_watch_reset_clears_filesystem_grant_caches() {
+        let mut state = NodeState::new("n".into(), None, 4096, Duration::from_secs(30), None);
+        let now = Instant::now();
+        let grant = crate::filesystem::CacheGrant {
+            generation: 3,
+            lease_millis: 5_000,
+        };
+        let attrs = crate::filesystem::InodeAttributes {
+            inode: 9,
+            kind: crate::filesystem::InodeKind::RegularFile,
+            mode: 0o644,
+            uid: 0,
+            gid: 0,
+            link_count: 1,
+            size: 0,
+            atime_unix_nanos: 0,
+            mtime_unix_nanos: 0,
+            ctime_unix_nanos: 0,
+        };
+        state.filesystem_bindings.insert(
+            crate::filesystem::ResolvedInode {
+                granted: crate::filesystem::GrantedInode {
+                    inode: crate::filesystem::InodeSnapshot {
+                        revision: 2,
+                        attributes: attrs.clone(),
+                        content: None,
+                    },
+                    grant,
+                },
+                object: None,
+            },
+            now,
+        );
+        state.filesystem_dentries.insert_directory(
+            crate::filesystem::DirectoryPage {
+                directory: crate::filesystem::ROOT_INODE,
+                parent: crate::filesystem::ROOT_INODE,
+                grant: crate::filesystem::DirectoryGrant {
+                    directory_revision: 2,
+                    grant,
+                },
+                entries: vec![crate::filesystem::DirectoryEntry {
+                    dentry: crate::filesystem::DentrySnapshot {
+                        parent: crate::filesystem::ROOT_INODE,
+                        name: b"a.txt".to_vec(),
+                        inode: 9,
+                        directory_revision: 2,
+                    },
+                    attributes: attrs,
+                }],
+                next_cursor: None,
+            },
+            now,
+        );
+
+        assert!(state.filesystem_bindings.get_authorized(9, now).is_some());
+        assert!(
+            state
+                .filesystem_dentries
+                .directory(crate::filesystem::ROOT_INODE, now)
+                .is_some()
+        );
+
+        state.reset_current_cache_for_watch(false);
+
+        assert!(state.filesystem_bindings.get_authorized(9, now).is_none());
+        assert!(
+            state
+                .filesystem_dentries
+                .directory(crate::filesystem::ROOT_INODE, now)
+                .is_none()
         );
     }
 

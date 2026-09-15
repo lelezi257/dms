@@ -142,6 +142,11 @@ mod tests {
                 replica_operations: Vec::new(),
                 event_high_watermark: 0,
                 events: Vec::new(),
+                filesystem_next_inode: 2,
+                filesystem_inodes: Vec::new(),
+                filesystem_dentries: Vec::new(),
+                filesystem_grant_generations: Vec::new(),
+                filesystem_namespace_operations: Vec::new(),
             })
             .expect("snapshot");
         journal.truncate_prefix(first).expect("truncate");

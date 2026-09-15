@@ -1,26 +1,41 @@
-//! 内核无关的文件语义壳。
+//! Node 进程内的文件语义入口。
 //!
-//! 这里故意不引入内核挂载依赖。未来真正的文件入口只负责把自身的文件标识
-//! 转成这里的 path 和 byte range，再由本模块调用 DataCore。
+//! 这里故意不引入内核挂载依赖。最终文件系统使用 inode、OpenHandle 和
+//! FileContentBinding 表达文件身份，再把文件内容操作转换成 DataCore 的对象与
+//! byte range 操作。
+//!
+//! 生产入口是 [`SharedFileOperations`]。文件末尾的 `FileOperations` 仅保留为
+//! `cfg(test)` 回归夹具，用来证明历史 DataCore range/CAS 行为；它不会进入发布二进制，
+//! 也不是第二套文件命名空间。
 
+pub(super) mod binding_cache;
+pub(super) mod dentry_cache;
 #[cfg(all(target_os = "linux", feature = "fuse"))]
 pub(crate) mod fuse;
+pub(super) mod meta_client;
+pub(super) mod open_handles;
+mod shared;
 
+#[cfg(any(test, all(target_os = "linux", feature = "fuse")))]
+pub(crate) use shared::SharedFileOperations;
+
+#[cfg(test)]
 use super::data_core::{
     ByteRange, DataCoreHandle, ObjectDelete, ObjectKey, ObjectRead, ObjectStat, ObjectWrite,
     RangeWrite, ReadOptions, VersionSelector,
 };
+#[cfg(test)]
 use super::runtime::WorkerError;
+#[cfg(test)]
+use crate::filesystem::FileRange;
 
+#[cfg(test)]
 #[derive(Clone)]
 pub(crate) struct FileOperations {
     core: DataCoreHandle,
 }
 
-#[cfg_attr(
-    not(any(test, feature = "fuse")),
-    allow(dead_code, reason = "文件语义层由可选 FUSE 支持和回归测试使用")
-)]
+#[cfg(test)]
 impl FileOperations {
     pub(crate) fn new(core: DataCoreHandle) -> Self {
         Self { core }
@@ -55,11 +70,8 @@ impl FileOperations {
         bytes: &[u8],
     ) -> Result<ObjectWrite, WorkerError> {
         let key = path_key(path)?;
-        let end = offset
-            .checked_add(bytes.len() as u64)
-            .ok_or(WorkerError::InvalidArgument(
-                "file write range overflows u64",
-            ))?;
+        let range = file_range(offset, bytes.len() as u64)?;
+        let end = range.end();
         for _ in 0..3 {
             let Some(stat) = self.core.stat(key.clone()).await? else {
                 if offset != 0 {
@@ -221,10 +233,11 @@ impl FileOperations {
         offset: u64,
         length: u64,
     ) -> Result<Option<ObjectRead>, WorkerError> {
+        let range = file_range(offset, length)?;
         self.core
             .read(
                 path_key(path)?,
-                ReadOptions::current_range(ByteRange::new(offset, length)?),
+                ReadOptions::current_range(ByteRange::new(range.offset, range.length)?),
             )
             .await
     }
@@ -241,6 +254,13 @@ impl FileOperations {
     }
 }
 
+#[cfg(test)]
 fn path_key(path: impl AsRef<str>) -> Result<ObjectKey, WorkerError> {
     ObjectKey::new(format!("fs:{}", path.as_ref()))
+}
+
+#[cfg(test)]
+fn file_range(offset: u64, length: u64) -> Result<FileRange, WorkerError> {
+    FileRange::new(offset, length)
+        .map_err(|_| WorkerError::InvalidArgument("file read or write range overflows u64"))
 }

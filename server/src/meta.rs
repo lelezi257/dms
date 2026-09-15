@@ -5,6 +5,7 @@
 //! stores supply declared fencing/log capabilities only.
 
 #![forbid(unsafe_code)]
+pub(crate) mod filesystem;
 mod in_memory_journal;
 mod local_wal_journal;
 mod metadata_journal;
@@ -12,12 +13,16 @@ pub(crate) mod metadata_service;
 mod metrics;
 pub(crate) mod runtime;
 
-use dms_protocol::v1::metadata_service_server::MetadataServiceServer;
+use dms_protocol::v1::{
+    filesystem_metadata_service_server::FilesystemMetadataServiceServer,
+    metadata_service_server::MetadataServiceServer,
+};
 use dms_transport::{GrpcConfig, SecurityManager, TlsConfig};
 use tokio::net::TcpListener as TokioTcpListener;
 
 use crate::health::{Readiness, ReadinessState, serve_status};
 use crate::{ComponentKind, NodeId};
+use filesystem::service::FilesystemMetadataServiceHandler;
 use local_wal_journal::LocalWalJournal;
 use metadata_service::MetadataServiceHandler;
 use metrics::MetaMetrics;
@@ -76,18 +81,21 @@ async fn serve_process(config: MetaConfig) -> Result<(), Box<dyn std::error::Err
         None => Box::<in_memory_journal::InMemoryJournal>::default()
             as Box<dyn metadata_journal::MetadataJournal>,
     };
+    let meta = MetaHandle::try_spawn_with_runtime_policy(
+        journal,
+        runtime::MetaCheckpointPolicy {
+            every_records: config.checkpoint_every_records,
+        },
+        meta_metrics,
+        trace_periodic_operations,
+    )?;
     let handler = MetadataServiceHandler::with_metrics(
-        MetaHandle::try_spawn_with_runtime_policy(
-            journal,
-            runtime::MetaCheckpointPolicy {
-                every_records: config.checkpoint_every_records,
-            },
-            meta_metrics,
-            trace_periodic_operations,
-        )?,
-        rpc_metrics,
-        error_metrics,
+        meta.clone(),
+        rpc_metrics.clone(),
+        error_metrics.clone(),
     );
+    let filesystem_handler =
+        FilesystemMetadataServiceHandler::new(meta, rpc_metrics, error_metrics);
     readiness.set(Readiness::Ready);
     dms_logging::info!(
         "dms-meta is ready";
@@ -105,7 +113,12 @@ async fn serve_process(config: MetaConfig) -> Result<(), Box<dyn std::error::Err
         readiness.clone(),
         registry,
     );
-    let grpc = serve_grpc(grpc_listener, handler, trace_periodic_operations);
+    let grpc = serve_grpc(
+        grpc_listener,
+        handler,
+        filesystem_handler,
+        trace_periodic_operations,
+    );
     tokio::pin!(status);
     tokio::pin!(grpc);
     let result = tokio::select! {
@@ -119,17 +132,20 @@ async fn serve_process(config: MetaConfig) -> Result<(), Box<dyn std::error::Err
 async fn serve_grpc(
     listener: TokioTcpListener,
     handler: MetadataServiceHandler,
+    filesystem_handler: FilesystemMetadataServiceHandler,
     trace_periodic_operations: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let security = SecurityManager::new(TlsConfig::Disabled)?;
     let server = GrpcConfig::default().configure_server(tonic::transport::Server::builder());
-    // R1 只注册 MetadataService；generated router 根据 RPC path 调用对应方法。
+    // 两个 service 共用同一 listener、TLS 配置与 trace layer；各自 handler 只做 DTO
+    // 转换，最终命令都进入同一个 MetaState owner。
     security
         .configure_server(server)?
         .layer(dms_tracing::GrpcServerTraceLayer::new(
             trace_periodic_operations,
         ))
         .add_service(MetadataServiceServer::new(handler))
+        .add_service(FilesystemMetadataServiceServer::new(filesystem_handler))
         .serve_with_incoming(GrpcConfig::default().configure_tcp_incoming(listener.into()))
         .await?;
     Ok(())

@@ -1,0 +1,350 @@
+//! Filesystem 领域值与 protobuf DTO 的唯一转换边界。
+//!
+//! FUSE、共享文件服务和 `DataCoreHandle` 只看到 [`ResolvedObject`] 这一不透明读取计划，
+//! 不依赖 generated protobuf 类型。Node runtime 与 Meta adapter 在真正跨进程的位置才
+//! 取出 wire 值；因此不会为了文件入口再复制一套 Extent/Block 数据结构或算法。
+
+use dms_protocol::v1 as pb;
+
+use super::model::{
+    CacheGrant, DentrySnapshot, DirectoryEntry, DirectoryGrant, DirectoryPage, DirectoryVersion,
+    FileContentBinding, FileContractError, GrantedInode, InodeAttributes, InodeId, InodeKind,
+    InodeSnapshot, NamespaceMutationResult, RemoveKind, ResolvedInode,
+};
+
+/// Meta 已经授权的精确对象读取计划。
+///
+/// 内部继续复用既有对象协议，避免复制布局；不透明包装阻止 wire 类型越过
+/// Filesystem/DataCore 的进程内合同。
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct ResolvedObject(pb::ResolveObjectResponse);
+
+impl ResolvedObject {
+    pub(crate) fn from_proto(value: pb::ResolveObjectResponse) -> Self {
+        Self(value)
+    }
+
+    pub(crate) fn into_proto(self) -> pb::ResolveObjectResponse {
+        self.0
+    }
+}
+
+/// DataCore 已经准备完成、但尚未成为 Object Current 的对象版本候选。
+///
+/// 这些字段由 Node runtime 产生、由 Node→Meta adapter 序列化。文件业务不读取或
+/// 重写 Extent；Meta 在同一条 journal 记录中为候选分配版本并发布 inode binding。
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct PreparedObjectVersion {
+    pub(crate) object_key: Vec<u8>,
+    pub(crate) expected_object_version: Option<u64>,
+    pub(crate) candidate: pb::VersionCandidate,
+    pub(crate) replica_proofs: Vec<pb::ReplicaProof>,
+    pub(crate) new_replicas: Vec<pb::ReplicaReport>,
+}
+
+impl InodeKind {
+    pub(crate) const fn to_proto(self) -> i32 {
+        match self {
+            Self::RegularFile => pb::FilesystemInodeKind::RegularFile as i32,
+            Self::Directory => pb::FilesystemInodeKind::Directory as i32,
+            Self::SymbolicLink => pb::FilesystemInodeKind::SymbolicLink as i32,
+        }
+    }
+
+    pub(crate) fn from_proto(value: i32) -> Result<Self, FileContractError> {
+        match pb::FilesystemInodeKind::try_from(value) {
+            Ok(pb::FilesystemInodeKind::RegularFile) => Ok(Self::RegularFile),
+            Ok(pb::FilesystemInodeKind::Directory) => Ok(Self::Directory),
+            Ok(pb::FilesystemInodeKind::SymbolicLink) => Ok(Self::SymbolicLink),
+            _ => Err(FileContractError::InvalidInodeKind),
+        }
+    }
+}
+
+pub(crate) fn inode_to_proto(inode: &InodeSnapshot) -> pb::FilesystemInodeSnapshot {
+    let attributes = &inode.attributes;
+    pb::FilesystemInodeSnapshot {
+        revision: inode.revision,
+        attributes: Some(pb::FilesystemInodeAttributes {
+            inode: attributes.inode,
+            kind: attributes.kind.to_proto(),
+            mode: attributes.mode,
+            uid: attributes.uid,
+            gid: attributes.gid,
+            link_count: attributes.link_count,
+            size: attributes.size,
+            atime_unix_nanos: attributes.atime_unix_nanos,
+            mtime_unix_nanos: attributes.mtime_unix_nanos,
+            ctime_unix_nanos: attributes.ctime_unix_nanos,
+        }),
+        content: inode
+            .content
+            .as_ref()
+            .map(|content| pb::FilesystemContentBinding {
+                object_key: content.object_key.clone(),
+                exact_version: content.exact_version,
+            }),
+    }
+}
+
+pub(crate) fn inode_from_proto(
+    inode: pb::FilesystemInodeSnapshot,
+) -> Result<InodeSnapshot, FileContractError> {
+    let attributes = inode
+        .attributes
+        .ok_or(FileContractError::MissingInodeAttributes)?;
+    Ok(InodeSnapshot {
+        revision: inode.revision,
+        attributes: InodeAttributes {
+            inode: attributes.inode,
+            kind: InodeKind::from_proto(attributes.kind)?,
+            mode: attributes.mode,
+            uid: attributes.uid,
+            gid: attributes.gid,
+            link_count: attributes.link_count,
+            size: attributes.size,
+            atime_unix_nanos: attributes.atime_unix_nanos,
+            mtime_unix_nanos: attributes.mtime_unix_nanos,
+            ctime_unix_nanos: attributes.ctime_unix_nanos,
+        },
+        content: inode.content.map(|content| FileContentBinding {
+            object_key: content.object_key,
+            exact_version: content.exact_version,
+        }),
+    })
+}
+
+pub(crate) fn dentry_to_proto(dentry: &DentrySnapshot) -> pb::FilesystemDentrySnapshot {
+    pb::FilesystemDentrySnapshot {
+        parent: dentry.parent,
+        name: dentry.name.clone(),
+        inode: dentry.inode,
+        directory_revision: dentry.directory_revision,
+    }
+}
+
+pub(crate) fn dentry_from_proto(dentry: pb::FilesystemDentrySnapshot) -> DentrySnapshot {
+    DentrySnapshot {
+        parent: dentry.parent,
+        name: dentry.name,
+        inode: dentry.inode,
+        directory_revision: dentry.directory_revision,
+    }
+}
+
+pub(crate) fn directory_grant_to_proto(grant: DirectoryGrant) -> pb::FilesystemDirectoryGrant {
+    pb::FilesystemDirectoryGrant {
+        directory_revision: grant.directory_revision,
+        cache: Some(pb::FilesystemCacheGrant {
+            generation: grant.grant.generation,
+            lease_millis: grant.grant.lease_millis,
+        }),
+    }
+}
+
+pub(crate) fn directory_grant_from_proto(
+    grant: pb::FilesystemDirectoryGrant,
+) -> Result<DirectoryGrant, FileContractError> {
+    let cache = grant.cache.ok_or(FileContractError::MissingResolvedInode)?;
+    Ok(DirectoryGrant {
+        directory_revision: grant.directory_revision,
+        grant: CacheGrant {
+            generation: cache.generation,
+            lease_millis: cache.lease_millis,
+        },
+    })
+}
+
+pub(crate) fn directory_entry_to_proto(entry: &DirectoryEntry) -> pb::FilesystemDirectoryEntry {
+    pb::FilesystemDirectoryEntry {
+        dentry: Some(dentry_to_proto(&entry.dentry)),
+        attributes: Some(inode_attributes_to_proto(&entry.attributes)),
+    }
+}
+
+pub(crate) fn directory_entry_from_proto(
+    entry: pb::FilesystemDirectoryEntry,
+) -> Result<DirectoryEntry, FileContractError> {
+    Ok(DirectoryEntry {
+        dentry: dentry_from_proto(
+            entry
+                .dentry
+                .ok_or(FileContractError::MissingResolvedInode)?,
+        ),
+        attributes: inode_attributes_from_proto(
+            entry
+                .attributes
+                .ok_or(FileContractError::MissingInodeAttributes)?,
+        )?,
+    })
+}
+
+pub(crate) fn directory_page_from_proto(
+    directory: InodeId,
+    page: pb::FilesystemReadDirectoryResponse,
+) -> Result<DirectoryPage, FileContractError> {
+    Ok(DirectoryPage {
+        directory,
+        parent: page.parent,
+        grant: directory_grant_from_proto(
+            page.directory_grant
+                .ok_or(FileContractError::MissingResolvedInode)?,
+        )?,
+        entries: page
+            .entries
+            .into_iter()
+            .map(directory_entry_from_proto)
+            .collect::<Result<_, _>>()?,
+        next_cursor: page.has_more.then_some(page.next_cursor),
+    })
+}
+
+pub(crate) fn namespace_result_to_proto(
+    result: &NamespaceMutationResult,
+) -> pb::FilesystemNamespaceMutationResponse {
+    pb::FilesystemNamespaceMutationResponse {
+        dentry: result.dentry.as_ref().map(dentry_to_proto),
+        inode: result.inode.as_ref().map(inode_to_proto),
+        changed_directories: result
+            .changed_directories
+            .iter()
+            .map(|directory| pb::FilesystemDirectoryVersion {
+                inode: directory.inode,
+                revision: directory.revision,
+                grant_generation: directory.grant_generation,
+            })
+            .collect(),
+        invalidation_cursor: result.invalidation_cursor,
+        commit_index: result.commit_index,
+    }
+}
+
+pub(crate) fn namespace_result_from_proto(
+    result: pb::FilesystemNamespaceMutationResponse,
+) -> Result<NamespaceMutationResult, FileContractError> {
+    Ok(NamespaceMutationResult {
+        dentry: result.dentry.map(dentry_from_proto),
+        inode: result.inode.map(inode_from_proto).transpose()?,
+        changed_directories: result
+            .changed_directories
+            .into_iter()
+            .map(|directory| DirectoryVersion {
+                inode: directory.inode,
+                revision: directory.revision,
+                grant_generation: directory.grant_generation,
+            })
+            .collect(),
+        invalidation_cursor: result.invalidation_cursor,
+        commit_index: result.commit_index,
+    })
+}
+
+impl RemoveKind {
+    pub(crate) const fn to_proto(self) -> i32 {
+        match self {
+            Self::File => pb::FilesystemRemoveKind::File as i32,
+            Self::Directory => pb::FilesystemRemoveKind::Directory as i32,
+        }
+    }
+}
+
+fn inode_attributes_to_proto(attributes: &InodeAttributes) -> pb::FilesystemInodeAttributes {
+    pb::FilesystemInodeAttributes {
+        inode: attributes.inode,
+        kind: attributes.kind.to_proto(),
+        mode: attributes.mode,
+        uid: attributes.uid,
+        gid: attributes.gid,
+        link_count: attributes.link_count,
+        size: attributes.size,
+        atime_unix_nanos: attributes.atime_unix_nanos,
+        mtime_unix_nanos: attributes.mtime_unix_nanos,
+        ctime_unix_nanos: attributes.ctime_unix_nanos,
+    }
+}
+
+fn inode_attributes_from_proto(
+    attributes: pb::FilesystemInodeAttributes,
+) -> Result<InodeAttributes, FileContractError> {
+    Ok(InodeAttributes {
+        inode: attributes.inode,
+        kind: InodeKind::from_proto(attributes.kind)?,
+        mode: attributes.mode,
+        uid: attributes.uid,
+        gid: attributes.gid,
+        link_count: attributes.link_count,
+        size: attributes.size,
+        atime_unix_nanos: attributes.atime_unix_nanos,
+        mtime_unix_nanos: attributes.mtime_unix_nanos,
+        ctime_unix_nanos: attributes.ctime_unix_nanos,
+    })
+}
+
+pub(crate) fn resolved_to_proto(resolved: &ResolvedInode) -> pb::FilesystemResolvedInode {
+    pb::FilesystemResolvedInode {
+        inode: Some(inode_to_proto(&resolved.granted.inode)),
+        grant: Some(pb::FilesystemCacheGrant {
+            generation: resolved.granted.grant.generation,
+            lease_millis: resolved.granted.grant.lease_millis,
+        }),
+        object: resolved.object.clone().map(ResolvedObject::into_proto),
+    }
+}
+
+pub(crate) fn resolved_from_proto(
+    resolved: pb::FilesystemResolvedInode,
+) -> Result<ResolvedInode, FileContractError> {
+    let inode = inode_from_proto(
+        resolved
+            .inode
+            .ok_or(FileContractError::MissingResolvedInode)?,
+    )?;
+    let grant = resolved
+        .grant
+        .ok_or(FileContractError::MissingResolvedInode)?;
+    Ok(ResolvedInode {
+        granted: GrantedInode {
+            inode,
+            grant: CacheGrant {
+                generation: grant.generation,
+                lease_millis: grant.lease_millis,
+            },
+        },
+        object: resolved.object.map(ResolvedObject::from_proto),
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::filesystem::CommitFileVersionRequest;
+
+    #[test]
+    fn one_file_commit_carries_data_and_inode_changes_together() {
+        let request = CommitFileVersionRequest {
+            operation_id: b"client-1:9".to_vec(),
+            inode: 100,
+            expected_inode_revision: 12,
+            prepared: PreparedObjectVersion {
+                object_key: b"fs/content/100".to_vec(),
+                expected_object_version: Some(7),
+                candidate: pb::VersionCandidate {
+                    logical_length: 8,
+                    extents: Vec::new(),
+                    digest: Vec::new(),
+                    kind: pb::VersionKind::Value as i32,
+                },
+                replica_proofs: Vec::new(),
+                new_replicas: Vec::new(),
+            },
+            new_size: 8,
+            mtime_unix_nanos: 99,
+        };
+
+        // 文件层不能先提交 DataCore Current，再用另一次请求更新 inode。一个请求同时
+        // 带着对象候选、inode CAS、size 和 mtime，供 Meta 写成一条 journal 记录。
+        assert_eq!(request.inode, 100);
+        assert_eq!(request.prepared.expected_object_version, Some(7));
+        assert_eq!(request.new_size, request.prepared.candidate.logical_length);
+    }
+}

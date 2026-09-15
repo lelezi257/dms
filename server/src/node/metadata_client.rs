@@ -15,6 +15,7 @@ use std::{
 use dms_error::{DmsError, ErrorKind};
 use dms_protocol::v1 as pb;
 use dms_transport::{GrpcConfig, SecurityManager, TlsConfig, status_to_dms_error_with};
+use pb::filesystem_metadata_service_client::FilesystemMetadataServiceClient as GrpcFilesystemMetadataClient;
 use pb::metadata_service_client::MetadataServiceClient as GrpcMetadataClient;
 use tokio::sync::{Mutex, MutexGuard, RwLock, mpsc, oneshot};
 use tonic::{Response, Status, transport::Endpoint};
@@ -58,6 +59,7 @@ pub(crate) struct BatchValueCommit {
 #[derive(Clone)]
 pub(crate) struct MetadataClient {
     client: GrpcMetadataClient<dms_tracing::TracedChannel>,
+    filesystem_client: GrpcFilesystemMetadataClient<dms_tracing::TracedChannel>,
     session: Arc<RwLock<pb::NodeSessionIdentity>>,
     // 每个逻辑提交仅分配一次，克隆连接与 RPC 重试共享计数器。它不是用户
     // operation_id 的替代；仅让 Meta 在历史幂等结果裁剪后拒绝旧 wire 请求。
@@ -134,7 +136,8 @@ impl MetadataClient {
         let mut client = metadata_client(channel.clone());
         let (session, minimum_sequence) =
             Self::open_session(&mut client, node_id, &data_endpoint, rpc_metrics.as_ref()).await?;
-        let client = metadata_client(channel);
+        let client = metadata_client(channel.clone());
+        let filesystem_client = filesystem_metadata_client(channel);
         let session = Arc::new(RwLock::new(session));
         let next_commit_sequence = Arc::new(AtomicU64::new(minimum_sequence.max(1)));
         let (resolve_tx, resolve_rx) = mpsc::channel(METADATA_RESOLVE_BATCH_MAX * 4);
@@ -151,6 +154,7 @@ impl MetadataClient {
         ));
         Ok(Self {
             client,
+            filesystem_client,
             session,
             next_commit_sequence,
             commit_gate: Arc::new(Mutex::new(())),
@@ -295,6 +299,268 @@ impl MetadataClient {
         receive
             .await
             .map_err(|_| metadata_unavailable("Meta resolve batcher dropped its reply"))?
+    }
+
+    pub(crate) async fn filesystem_lookup(
+        &self,
+        parent: u64,
+        name: Vec<u8>,
+    ) -> Result<pb::FilesystemResolveResponse, DmsError> {
+        let mut session = self.current_session().await;
+        let make_request = |session: pb::NodeSessionIdentity| pb::FilesystemLookupRequest {
+            context: Some(context(self.node_id)),
+            session: Some(session),
+            parent,
+            name: name.clone(),
+        };
+        let mut client = self.filesystem_client();
+        let mut result = observe_control_rpc(
+            self.rpc_metrics.as_ref(),
+            dms_metrics::RpcCall::FILESYSTEM_LOOKUP,
+            client.lookup_filesystem_entry(make_request(session.clone())),
+        )
+        .await
+        .map(|response| response.into_inner())
+        .map_err(map_status);
+        if result.as_ref().is_err_and(is_reopenable_session_error) {
+            session = self.reopen_session().await?;
+            let mut client = self.filesystem_client();
+            result = observe_control_rpc(
+                self.rpc_metrics.as_ref(),
+                dms_metrics::RpcCall::FILESYSTEM_LOOKUP,
+                client.lookup_filesystem_entry(make_request(session)),
+            )
+            .await
+            .map(|response| response.into_inner())
+            .map_err(map_status);
+        }
+        result
+    }
+
+    pub(crate) async fn filesystem_get_inode(
+        &self,
+        inode: u64,
+    ) -> Result<pb::FilesystemResolveResponse, DmsError> {
+        let mut session = self.current_session().await;
+        let make_request = |session: pb::NodeSessionIdentity| pb::FilesystemGetInodeRequest {
+            context: Some(context(self.node_id)),
+            session: Some(session),
+            inode,
+        };
+        let mut client = self.filesystem_client();
+        let mut result = observe_control_rpc(
+            self.rpc_metrics.as_ref(),
+            dms_metrics::RpcCall::FILESYSTEM_GET_INODE,
+            client.get_filesystem_inode(make_request(session.clone())),
+        )
+        .await
+        .map(|response| response.into_inner())
+        .map_err(map_status);
+        if result.as_ref().is_err_and(is_reopenable_session_error) {
+            session = self.reopen_session().await?;
+            let mut client = self.filesystem_client();
+            result = observe_control_rpc(
+                self.rpc_metrics.as_ref(),
+                dms_metrics::RpcCall::FILESYSTEM_GET_INODE,
+                client.get_filesystem_inode(make_request(session)),
+            )
+            .await
+            .map(|response| response.into_inner())
+            .map_err(map_status);
+        }
+        result
+    }
+
+    pub(crate) async fn filesystem_create_inode(
+        &self,
+        mut request: pb::FilesystemCreateInodeRequest,
+    ) -> Result<pb::FilesystemResolveResponse, DmsError> {
+        let (_commit_guard, commit_sequence) = self.begin_commit().await?;
+        request.context = Some(context(self.node_id));
+        request.commit_sequence = commit_sequence;
+        let mut session = self.current_session().await;
+        for attempt in 1..=METADATA_COMMIT_MAX_ATTEMPTS {
+            request.session = Some(session.clone());
+            let mut client = self.filesystem_client();
+            let result = observe_rpc(
+                self.rpc_metrics.as_ref(),
+                dms_metrics::RpcCall::FILESYSTEM_CREATE_INODE,
+                client.create_filesystem_inode(request.clone()),
+            )
+            .await
+            .map(|response| response.into_inner())
+            .map_err(map_status);
+            match result {
+                Ok(response) => return Ok(response),
+                Err(error)
+                    if attempt < METADATA_COMMIT_MAX_ATTEMPTS
+                        && is_reopenable_session_error(&error) =>
+                {
+                    session = self.reopen_session().await?;
+                }
+                Err(error)
+                    if attempt < METADATA_COMMIT_MAX_ATTEMPTS
+                        && is_uncertain_commit_result_error(&error) => {}
+                Err(error) => return Err(error),
+            }
+        }
+        Err(metadata_unavailable(
+            "Meta filesystem create retry loop exhausted",
+        ))
+    }
+
+    pub(crate) async fn filesystem_read_directory(
+        &self,
+        directory: u64,
+        cursor: Vec<u8>,
+        limit: u32,
+        expected_directory_revision: Option<u64>,
+    ) -> Result<pb::FilesystemReadDirectoryResponse, DmsError> {
+        let mut session = self.current_session().await;
+        let make_request = |session: pb::NodeSessionIdentity| pb::FilesystemReadDirectoryRequest {
+            context: Some(context(self.node_id)),
+            session: Some(session),
+            directory,
+            cursor: cursor.clone(),
+            limit,
+            expected_directory_revision,
+        };
+        let mut client = self.filesystem_client();
+        let mut result = observe_control_rpc(
+            self.rpc_metrics.as_ref(),
+            dms_metrics::RpcCall::FILESYSTEM_READ_DIRECTORY,
+            client.read_filesystem_directory(make_request(session.clone())),
+        )
+        .await
+        .map(|response| response.into_inner())
+        .map_err(map_status);
+        if result.as_ref().is_err_and(is_reopenable_session_error) {
+            session = self.reopen_session().await?;
+            let mut client = self.filesystem_client();
+            result = observe_control_rpc(
+                self.rpc_metrics.as_ref(),
+                dms_metrics::RpcCall::FILESYSTEM_READ_DIRECTORY,
+                client.read_filesystem_directory(make_request(session)),
+            )
+            .await
+            .map(|response| response.into_inner())
+            .map_err(map_status);
+        }
+        result
+    }
+
+    pub(crate) async fn filesystem_rename_entry(
+        &self,
+        mut request: pb::FilesystemRenameRequest,
+    ) -> Result<pb::FilesystemNamespaceMutationResponse, DmsError> {
+        let (_commit_guard, commit_sequence) = self.begin_commit().await?;
+        request.context = Some(context(self.node_id));
+        request.commit_sequence = commit_sequence;
+        let mut session = self.current_session().await;
+        for attempt in 1..=METADATA_COMMIT_MAX_ATTEMPTS {
+            request.session = Some(session.clone());
+            let mut client = self.filesystem_client();
+            let result = observe_rpc(
+                self.rpc_metrics.as_ref(),
+                dms_metrics::RpcCall::FILESYSTEM_RENAME,
+                client.rename_filesystem_entry(request.clone()),
+            )
+            .await
+            .map(|response| response.into_inner())
+            .map_err(map_status);
+            match result {
+                Ok(response) => return Ok(response),
+                Err(error)
+                    if attempt < METADATA_COMMIT_MAX_ATTEMPTS
+                        && is_reopenable_session_error(&error) =>
+                {
+                    session = self.reopen_session().await?;
+                }
+                Err(error)
+                    if attempt < METADATA_COMMIT_MAX_ATTEMPTS
+                        && is_uncertain_commit_result_error(&error) => {}
+                Err(error) => return Err(error),
+            }
+        }
+        Err(metadata_unavailable(
+            "Meta filesystem rename retry loop exhausted",
+        ))
+    }
+
+    pub(crate) async fn filesystem_remove_entry(
+        &self,
+        mut request: pb::FilesystemRemoveRequest,
+    ) -> Result<pb::FilesystemNamespaceMutationResponse, DmsError> {
+        let (_commit_guard, commit_sequence) = self.begin_commit().await?;
+        request.context = Some(context(self.node_id));
+        request.commit_sequence = commit_sequence;
+        let mut session = self.current_session().await;
+        for attempt in 1..=METADATA_COMMIT_MAX_ATTEMPTS {
+            request.session = Some(session.clone());
+            let mut client = self.filesystem_client();
+            let result = observe_rpc(
+                self.rpc_metrics.as_ref(),
+                dms_metrics::RpcCall::FILESYSTEM_REMOVE,
+                client.remove_filesystem_entry(request.clone()),
+            )
+            .await
+            .map(|response| response.into_inner())
+            .map_err(map_status);
+            match result {
+                Ok(response) => return Ok(response),
+                Err(error)
+                    if attempt < METADATA_COMMIT_MAX_ATTEMPTS
+                        && is_reopenable_session_error(&error) =>
+                {
+                    session = self.reopen_session().await?;
+                }
+                Err(error)
+                    if attempt < METADATA_COMMIT_MAX_ATTEMPTS
+                        && is_uncertain_commit_result_error(&error) => {}
+                Err(error) => return Err(error),
+            }
+        }
+        Err(metadata_unavailable(
+            "Meta filesystem remove retry loop exhausted",
+        ))
+    }
+
+    pub(crate) async fn filesystem_commit_version(
+        &self,
+        mut request: pb::FilesystemCommitVersionRequest,
+    ) -> Result<pb::FilesystemCommitVersionResponse, DmsError> {
+        let (_commit_guard, commit_sequence) = self.begin_commit().await?;
+        request.context = Some(context(self.node_id));
+        request.commit_sequence = commit_sequence;
+        let mut session = self.current_session().await;
+        for attempt in 1..=METADATA_COMMIT_MAX_ATTEMPTS {
+            request.session = Some(session.clone());
+            let mut client = self.filesystem_client();
+            let result = observe_rpc(
+                self.rpc_metrics.as_ref(),
+                dms_metrics::RpcCall::FILESYSTEM_COMMIT_VERSION,
+                client.commit_filesystem_version(request.clone()),
+            )
+            .await
+            .map(|response| response.into_inner())
+            .map_err(map_status);
+            match result {
+                Ok(response) => return Ok(response),
+                Err(error)
+                    if attempt < METADATA_COMMIT_MAX_ATTEMPTS
+                        && is_reopenable_session_error(&error) =>
+                {
+                    session = self.reopen_session().await?;
+                }
+                Err(error)
+                    if attempt < METADATA_COMMIT_MAX_ATTEMPTS
+                        && is_uncertain_commit_result_error(&error) => {}
+                Err(error) => return Err(error),
+            }
+        }
+        Err(metadata_unavailable(
+            "Meta filesystem commit retry loop exhausted",
+        ))
     }
 
     pub(crate) async fn stat(&self, key: Vec<u8>) -> Result<pb::MetaStatResponse, DmsError> {
@@ -828,6 +1094,10 @@ impl MetadataClient {
     fn client(&self) -> GrpcMetadataClient<dms_tracing::TracedChannel> {
         self.client.clone()
     }
+
+    fn filesystem_client(&self) -> GrpcFilesystemMetadataClient<dms_tracing::TracedChannel> {
+        self.filesystem_client.clone()
+    }
 }
 
 async fn run_resolve_batcher(mut rpc: ResolveBatchRpc, mut receive: mpsc::Receiver<ResolveJob>) {
@@ -1013,6 +1283,15 @@ fn metadata_client(
         .max_decoding_message_size(config.max_decoding_message_bytes)
 }
 
+fn filesystem_metadata_client(
+    channel: tonic::transport::Channel,
+) -> GrpcFilesystemMetadataClient<dms_tracing::TracedChannel> {
+    let config = GrpcConfig::default();
+    GrpcFilesystemMetadataClient::new(dms_tracing::traced_channel(channel))
+        .max_encoding_message_size(config.max_encoding_message_bytes)
+        .max_decoding_message_size(config.max_decoding_message_bytes)
+}
+
 /// 统计一次真实的 Node→Meta 网络尝试；Session 失效后的重试会单独计数。
 async fn observe_rpc<T, F>(
     metrics: Option<&dms_metrics::RpcMetrics>,
@@ -1131,7 +1410,8 @@ mod tests {
     async fn commit_sequence_is_allocated_only_after_commit_gate() {
         let channel = Endpoint::from_static("http://127.0.0.1:1").connect_lazy();
         let client = MetadataClient {
-            client: metadata_client(channel),
+            client: metadata_client(channel.clone()),
+            filesystem_client: filesystem_metadata_client(channel),
             session: Arc::new(RwLock::new(pb::NodeSessionIdentity {
                 session_id: b"test-session".to_vec(),
                 node_id: 9,
@@ -1187,7 +1467,8 @@ mod tests {
         // Session，但 Meta 当前已经退出”的写路径。
         let channel = Endpoint::from_static("http://127.0.0.1:1").connect_lazy();
         let client = MetadataClient {
-            client: metadata_client(channel),
+            client: metadata_client(channel.clone()),
+            filesystem_client: filesystem_metadata_client(channel),
             session: Arc::new(RwLock::new(pb::NodeSessionIdentity {
                 session_id: b"stale-session".to_vec(),
                 node_id: 9,

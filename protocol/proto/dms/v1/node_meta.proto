@@ -427,6 +427,15 @@ message EventGap {
   uint64 next_cursor = 1;
 }
 
+// Filesystem 与对象 Current 共用同一条 Node Watch stream；Node 必须先删除
+// inode binding grant，再 ACK 该事件。
+message InvalidateFilesystemBindingEvent {
+  uint64 inode = 1;
+  uint64 through_generation = 2;
+  uint64 minimum_inode_revision = 3;
+  uint64 source_node_id = 4;
+}
+
 message NodeEvent {
   bytes event_id = 1;
   uint64 cursor = 2;
@@ -436,6 +445,7 @@ message NodeEvent {
     EvictReplicaEvent evict_replica = 5;
     FenceNodeEvent fence_node = 6;
     EventGap gap = 7;
+    InvalidateFilesystemBindingEvent invalidate_filesystem_binding = 8;
   }
 }
 

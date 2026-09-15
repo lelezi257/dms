@@ -25,7 +25,9 @@ dms-protocol = { path = "../protocol" }
 dms-shm = { path = "../common/shm" }
 dms-tracing = { path = "../common/tracing", features = ["runtime"] }
 dms-transport = { path = "../common/transport" }
-fuser = { version = "0.16.0", optional = true }
+# abi-7-28+ 才会在 INIT 中协商 max_pages。没有它时 Linux 会把大 I/O 固定拆成
+# 约 128 KiB callback，write-through 因而对 1 MiB 写执行多次 Meta commit。
+fuser = { version = "0.16.0", optional = true, features = ["abi-7-31"] }
 libc = { version = "0.2", optional = true }
 prost = "0.14.1"
 serde = { version = "1.0.228", features = ["derive"] }

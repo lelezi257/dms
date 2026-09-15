@@ -1,0 +1,31 @@
+{
+  "run_id": "nativefs-example-YYYYMMDD",
+  "vms": {
+    "A": "g003-n1",
+    "B": "g003-n2",
+    "C": "g003-n3"
+  },
+  "ips": {
+    "A": "192.168.104.8",
+    "B": "192.168.104.9",
+    "C": "192.168.104.10"
+  },
+  "ports": {
+    "worker": 29277,
+    "node_health": 29178,
+    "meta": 29377,
+    "meta_health": 29177,
+    "redis": 26377
+  },
+  "artifacts": {
+    "dms_node": "/absolute/path/to/dms-node",
+    "dms_meta": "/absolute/path/to/dms-meta",
+    "juicefs": "/absolute/path/to/juicefs"
+  },
+  "rounds": 3,
+  "metadata_mode": "memory",
+  "redis_mode": "memory",
+  "arena_capacity_bytes": 1073741824,
+  "region_size_bytes": 67108864,
+  "node_current_cache_bytes": 67108864
+}

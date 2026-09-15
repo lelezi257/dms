@@ -8,6 +8,7 @@
 
 pub mod config;
 mod error;
+mod filesystem;
 pub mod health;
 mod identity;
 pub mod meta;

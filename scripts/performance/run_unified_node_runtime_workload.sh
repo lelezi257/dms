@@ -85,7 +85,7 @@ INFO
 META_PID=$!
 
 for _ in $(seq 1 80); do
-  if curl -fsS "http://$META_HEALTH/health" >/dev/null 2>&1; then
+  if curl -fsS "http://$META_HEALTH/readyz" >/dev/null 2>&1; then
     break
   fi
   sleep 0.1
@@ -102,7 +102,7 @@ done
 NODE_PID=$!
 
 for _ in $(seq 1 100); do
-  if mountpoint -q "$FUSE_MNT" && curl -fsS "http://$NODE_HEALTH/health" >/dev/null 2>&1; then
+  if mountpoint -q "$FUSE_MNT" && curl -fsS "http://$NODE_HEALTH/readyz" >/dev/null 2>&1; then
     break
   fi
   sleep 0.1

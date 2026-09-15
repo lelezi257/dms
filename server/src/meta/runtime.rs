@@ -16,12 +16,21 @@ use dms_protocol::v1 as pb;
 use dms_tracing::Instrument as _;
 use tokio::sync::{mpsc, oneshot};
 
+use crate::filesystem::{
+    CacheGrant, DentrySnapshot, DirectoryGrant, FileContentBinding, InodeAttributes, InodeKind,
+    InodeSnapshot, NamespaceMutationResult, ROOT_INODE, RemoveKind, ResolvedInode, dentry_to_proto,
+    directory_entry_to_proto, directory_grant_to_proto, namespace_result_to_proto,
+    resolved_to_proto,
+};
+
+use super::filesystem::FilesystemCatalog;
 #[cfg(test)]
 use super::in_memory_journal::InMemoryJournal;
 use super::metadata_journal::{
-    BlockRetirementParticipant, BlockRetirementRecord, CommitSequenceRecord, JournalError,
-    JournalRecord, MetaSnapshot, MetadataJournal, SnapshotBlockRetirement, SnapshotOperation,
-    SnapshotReplica, SnapshotReplicaOperation, SnapshotSession, VersionCommitRecord,
+    BlockRetirementParticipant, BlockRetirementRecord, CommitSequenceRecord,
+    FilesystemNamespaceMutationRecord, FilesystemVersionCommitRecord, JournalError, JournalRecord,
+    MetaSnapshot, MetadataJournal, SnapshotBlockRetirement, SnapshotOperation, SnapshotReplica,
+    SnapshotReplicaOperation, SnapshotSession, VersionCommitRecord,
 };
 use super::metrics::{
     CommitOutcome, MetaMetrics, MetaOperation, MetaStateMetricsSnapshot, RepairTransition,
@@ -42,6 +51,7 @@ const MAX_RETIREMENT_BLOCKS_PER_BATCH: usize = 128;
 const MAX_PENDING_BLOCK_RETIREMENTS: usize = 1024;
 const MAX_RETIRED_BLOCK_FENCES: usize = 4096;
 const GC_RETRY_INTERVAL: Duration = Duration::from_secs(1);
+const FILESYSTEM_BINDING_LEASE_MILLIS: u64 = 30_000;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum MetaRuntimeError {
@@ -49,6 +59,11 @@ pub(crate) enum MetaRuntimeError {
     UnknownSession,
     NotFound,
     Conflict { expected: Option<u64>, actual: u64 },
+    AlreadyExists,
+    NotDirectory,
+    IsDirectory,
+    DirectoryNotEmpty,
+    StaleRevision { expected: Option<u64>, actual: u64 },
     Unavailable,
     JournalAppendFailed(String),
     JournalCorrupt(String),
@@ -67,6 +82,16 @@ impl fmt::Display for MetaRuntimeError {
                 write!(
                     formatter,
                     "metadata version conflict: expected {expected:?}, actual {actual}"
+                )
+            }
+            Self::AlreadyExists => formatter.write_str("filesystem entry already exists"),
+            Self::NotDirectory => formatter.write_str("filesystem inode is not a directory"),
+            Self::IsDirectory => formatter.write_str("filesystem inode is a directory"),
+            Self::DirectoryNotEmpty => formatter.write_str("filesystem directory is not empty"),
+            Self::StaleRevision { expected, actual } => {
+                write!(
+                    formatter,
+                    "stale filesystem directory revision: expected {expected:?}, actual {actual}"
                 )
             }
             Self::Unavailable => formatter.write_str("metadata runtime unavailable"),
@@ -107,6 +132,31 @@ impl MetaRuntimeError {
                 dms_error::META_CATALOG_VERSION_CONFLICT,
                 ErrorKind::Aborted,
                 format!("metadata version conflict: expected={expected:?} actual={actual}"),
+            ),
+            Self::AlreadyExists => DmsError::new(
+                dms_error::META_FILESYSTEM_ALREADY_EXISTS,
+                ErrorKind::AlreadyExists,
+                "filesystem entry already exists",
+            ),
+            Self::NotDirectory => DmsError::new(
+                dms_error::META_FILESYSTEM_NOT_DIRECTORY,
+                ErrorKind::FailedPrecondition,
+                "filesystem inode is not a directory",
+            ),
+            Self::IsDirectory => DmsError::new(
+                dms_error::META_FILESYSTEM_IS_DIRECTORY,
+                ErrorKind::FailedPrecondition,
+                "filesystem inode is a directory",
+            ),
+            Self::DirectoryNotEmpty => DmsError::new(
+                dms_error::META_FILESYSTEM_DIRECTORY_NOT_EMPTY,
+                ErrorKind::FailedPrecondition,
+                "filesystem directory is not empty",
+            ),
+            Self::StaleRevision { expected, actual } => DmsError::new(
+                dms_error::META_FILESYSTEM_STALE_REVISION,
+                ErrorKind::Aborted,
+                format!("stale filesystem revision: expected={expected:?} actual={actual}"),
             ),
             Self::Unavailable => DmsError::new(
                 dms_error::META_JOURNAL_UNAVAILABLE,
@@ -545,6 +595,97 @@ impl MetaHandle {
         .await
     }
 
+    pub(crate) async fn filesystem_lookup(
+        &self,
+        request: pb::FilesystemLookupRequest,
+    ) -> Result<pb::FilesystemResolveResponse, MetaRuntimeError> {
+        let (reply, receive) = oneshot::channel();
+        self.complete(
+            MetaOperation::FilesystemLookup,
+            MetaCommand::FilesystemLookup { request, reply },
+            receive,
+        )
+        .await
+    }
+
+    pub(crate) async fn filesystem_get_inode(
+        &self,
+        request: pb::FilesystemGetInodeRequest,
+    ) -> Result<pb::FilesystemResolveResponse, MetaRuntimeError> {
+        let (reply, receive) = oneshot::channel();
+        self.complete(
+            MetaOperation::FilesystemGetInode,
+            MetaCommand::FilesystemGetInode { request, reply },
+            receive,
+        )
+        .await
+    }
+
+    pub(crate) async fn filesystem_create_inode(
+        &self,
+        request: pb::FilesystemCreateInodeRequest,
+    ) -> Result<pb::FilesystemResolveResponse, MetaRuntimeError> {
+        let (reply, receive) = oneshot::channel();
+        self.complete(
+            MetaOperation::FilesystemCreateInode,
+            MetaCommand::FilesystemCreateInode { request, reply },
+            receive,
+        )
+        .await
+    }
+
+    pub(crate) async fn filesystem_read_directory(
+        &self,
+        request: pb::FilesystemReadDirectoryRequest,
+    ) -> Result<pb::FilesystemReadDirectoryResponse, MetaRuntimeError> {
+        let (reply, receive) = oneshot::channel();
+        self.complete(
+            MetaOperation::FilesystemReadDirectory,
+            MetaCommand::FilesystemReadDirectory { request, reply },
+            receive,
+        )
+        .await
+    }
+
+    pub(crate) async fn filesystem_rename_entry(
+        &self,
+        request: pb::FilesystemRenameRequest,
+    ) -> Result<pb::FilesystemNamespaceMutationResponse, MetaRuntimeError> {
+        let (reply, receive) = oneshot::channel();
+        self.complete(
+            MetaOperation::FilesystemRenameEntry,
+            MetaCommand::FilesystemRenameEntry { request, reply },
+            receive,
+        )
+        .await
+    }
+
+    pub(crate) async fn filesystem_remove_entry(
+        &self,
+        request: pb::FilesystemRemoveRequest,
+    ) -> Result<pb::FilesystemNamespaceMutationResponse, MetaRuntimeError> {
+        let (reply, receive) = oneshot::channel();
+        self.complete(
+            MetaOperation::FilesystemRemoveEntry,
+            MetaCommand::FilesystemRemoveEntry { request, reply },
+            receive,
+        )
+        .await
+    }
+
+    pub(crate) async fn filesystem_commit_version(
+        &self,
+        request: pb::FilesystemCommitVersionRequest,
+    ) -> Result<pb::FilesystemCommitVersionResponse, MetaRuntimeError> {
+        let (reply, receive) = oneshot::channel();
+        self.complete(
+            MetaOperation::FilesystemCommitVersion,
+            MetaCommand::FilesystemCommitVersion { request, reply },
+            receive,
+        )
+        .await
+    }
+
     #[cfg(test)]
     pub(crate) async fn stats(&self) -> Result<MetaStats, MetaRuntimeError> {
         let (reply, receive) = oneshot::channel();
@@ -653,6 +794,34 @@ enum MetaCommand {
         request: pb::AcknowledgeBlockRetirementRequest,
         reply: oneshot::Sender<Result<pb::AcknowledgeBlockRetirementResponse, MetaRuntimeError>>,
     },
+    FilesystemLookup {
+        request: pb::FilesystemLookupRequest,
+        reply: oneshot::Sender<Result<pb::FilesystemResolveResponse, MetaRuntimeError>>,
+    },
+    FilesystemGetInode {
+        request: pb::FilesystemGetInodeRequest,
+        reply: oneshot::Sender<Result<pb::FilesystemResolveResponse, MetaRuntimeError>>,
+    },
+    FilesystemCreateInode {
+        request: pb::FilesystemCreateInodeRequest,
+        reply: oneshot::Sender<Result<pb::FilesystemResolveResponse, MetaRuntimeError>>,
+    },
+    FilesystemReadDirectory {
+        request: pb::FilesystemReadDirectoryRequest,
+        reply: oneshot::Sender<Result<pb::FilesystemReadDirectoryResponse, MetaRuntimeError>>,
+    },
+    FilesystemRenameEntry {
+        request: pb::FilesystemRenameRequest,
+        reply: oneshot::Sender<Result<pb::FilesystemNamespaceMutationResponse, MetaRuntimeError>>,
+    },
+    FilesystemRemoveEntry {
+        request: pb::FilesystemRemoveRequest,
+        reply: oneshot::Sender<Result<pb::FilesystemNamespaceMutationResponse, MetaRuntimeError>>,
+    },
+    FilesystemCommitVersion {
+        request: pb::FilesystemCommitVersionRequest,
+        reply: oneshot::Sender<Result<pb::FilesystemCommitVersionResponse, MetaRuntimeError>>,
+    },
     #[cfg(test)]
     Stats {
         reply: oneshot::Sender<Result<MetaStats, MetaRuntimeError>>,
@@ -684,6 +853,13 @@ impl MetaCommand {
             Self::WatchNodeEvents { .. } => MetaOperation::WatchNodeEvents,
             Self::AcknowledgeNodeEvent { .. } => MetaOperation::AcknowledgeNodeEvent,
             Self::AcknowledgeBlockRetirement { .. } => MetaOperation::AcknowledgeNodeEvent,
+            Self::FilesystemLookup { .. } => MetaOperation::FilesystemLookup,
+            Self::FilesystemGetInode { .. } => MetaOperation::FilesystemGetInode,
+            Self::FilesystemCreateInode { .. } => MetaOperation::FilesystemCreateInode,
+            Self::FilesystemReadDirectory { .. } => MetaOperation::FilesystemReadDirectory,
+            Self::FilesystemRenameEntry { .. } => MetaOperation::FilesystemRenameEntry,
+            Self::FilesystemRemoveEntry { .. } => MetaOperation::FilesystemRemoveEntry,
+            Self::FilesystemCommitVersion { .. } => MetaOperation::FilesystemCommitVersion,
             #[cfg(test)]
             Self::Stats { .. } => MetaOperation::Stats,
         }
@@ -728,6 +904,12 @@ struct StoredOperation {
     visibility_cursor: Option<u64>,
 }
 
+#[derive(Clone)]
+struct StoredFilesystemNamespaceOperation {
+    digest: Vec<u8>,
+    result: NamespaceMutationResult,
+}
+
 struct CommitDispatch {
     operation_ids: Vec<Vec<u8>>,
     response: pb::CommitVersionResponse,
@@ -736,6 +918,14 @@ struct CommitDispatch {
     waiting_nodes: HashSet<u64>,
     /// Meta 恢复/Node 换代前已经发出去的本地缓存租约，需要等真实租约到期。
     /// 它和 Watch ACK 是两类独立条件：ACK 不能缩短旧 lease，lease 到期也不能代替 ACK。
+    waiting_prior_lease_nodes: HashSet<u64>,
+}
+
+struct FilesystemCommitDispatch {
+    operation_id: Vec<u8>,
+    response: pb::FilesystemCommitVersionResponse,
+    event_cursor: Option<u64>,
+    waiting_nodes: HashSet<u64>,
     waiting_prior_lease_nodes: HashSet<u64>,
 }
 
@@ -769,11 +959,13 @@ struct PendingRetirement {
 enum PendingResponse {
     Single(pb::CommitVersionResponse),
     Batch(pb::CommitBatchResponse),
+    Filesystem(Box<pb::FilesystemCommitVersionResponse>),
 }
 
 enum PendingReply {
     Single(oneshot::Sender<Result<pb::CommitVersionResponse, MetaRuntimeError>>),
     Batch(oneshot::Sender<Result<pb::CommitBatchResponse, MetaRuntimeError>>),
+    Filesystem(oneshot::Sender<Result<pb::FilesystemCommitVersionResponse, MetaRuntimeError>>),
 }
 
 struct MetaState {
@@ -798,6 +990,7 @@ struct MetaState {
     /// 当前可见 VALUE key 的二进制有序索引；Scan 只走这里分页，不每页全量排序。
     live_keys: BTreeSet<Vec<u8>>,
     operations: HashMap<Vec<u8>, StoredOperation>,
+    filesystem_namespace_operations: HashMap<Vec<u8>, StoredFilesystemNamespaceOperation>,
     replica_operations: HashMap<Vec<u8>, pb::ReportReplicasResponse>,
     events: Vec<pb::NodeEvent>,
     event_high_watermark: u64,
@@ -809,6 +1002,7 @@ struct MetaState {
     /// forever. The state can be rebuilt from retained repair events after a
     /// snapshot restore; the replica catalog remains authoritative.
     pending_repairs: HashMap<Vec<u8>, PendingRepair>,
+    filesystem: FilesystemCatalog,
     journal: Box<dyn MetadataJournal>,
     last_applied_index: u64,
     last_checkpoint_index: u64,
@@ -868,6 +1062,7 @@ impl MetaState {
             retired_block_fences: HashMap::new(),
             live_keys: BTreeSet::new(),
             operations: HashMap::new(),
+            filesystem_namespace_operations: HashMap::new(),
             replica_operations: HashMap::new(),
             events: Vec::new(),
             event_high_watermark: 0,
@@ -877,6 +1072,7 @@ impl MetaState {
             prior_lease_deadlines: HashMap::new(),
             pending_commits: BTreeMap::new(),
             pending_repairs: HashMap::new(),
+            filesystem: FilesystemCatalog::default(),
             journal,
             last_applied_index: 0,
             last_checkpoint_index: replay_after,
@@ -1114,6 +1310,620 @@ impl MetaState {
             }
         }
         Ok(pb::ResolveObjectsResponse { results })
+    }
+
+    fn filesystem_lookup(
+        &self,
+        request: pb::FilesystemLookupRequest,
+    ) -> Result<pb::FilesystemResolveResponse, MetaRuntimeError> {
+        let session = request
+            .session
+            .as_ref()
+            .ok_or_else(|| MetaRuntimeError::InvalidArgument("missing node session".to_string()))?;
+        self.verify_session(session)?;
+        if request.name.is_empty() || request.name.contains(&b'/') {
+            return Err(MetaRuntimeError::InvalidArgument(
+                "filesystem lookup requires one non-empty path component".to_string(),
+            ));
+        }
+        let directory_grant = Some(self.filesystem_directory_grant(request.parent)?);
+        let Some(dentry) = self.filesystem.lookup(request.parent, &request.name) else {
+            return Ok(pb::FilesystemResolveResponse {
+                found: false,
+                resolved: None,
+                dentry: None,
+                directory_grant,
+            });
+        };
+        let resolved = self.filesystem_resolved_inode(session, dentry.inode)?;
+        Ok(pb::FilesystemResolveResponse {
+            found: true,
+            resolved: Some(resolved_to_proto(&resolved)),
+            dentry: Some(dentry_to_proto(dentry)),
+            directory_grant,
+        })
+    }
+
+    fn filesystem_get_inode(
+        &self,
+        request: pb::FilesystemGetInodeRequest,
+    ) -> Result<pb::FilesystemResolveResponse, MetaRuntimeError> {
+        let session = request
+            .session
+            .as_ref()
+            .ok_or_else(|| MetaRuntimeError::InvalidArgument("missing node session".to_string()))?;
+        self.verify_session(session)?;
+        let Some(_) = self.filesystem.inode(request.inode) else {
+            return Ok(pb::FilesystemResolveResponse {
+                found: false,
+                resolved: None,
+                dentry: None,
+                directory_grant: None,
+            });
+        };
+        let resolved = self.filesystem_resolved_inode(session, request.inode)?;
+        Ok(pb::FilesystemResolveResponse {
+            found: true,
+            resolved: Some(resolved_to_proto(&resolved)),
+            dentry: None,
+            directory_grant: None,
+        })
+    }
+
+    fn filesystem_resolved_inode(
+        &self,
+        session: &pb::NodeSessionIdentity,
+        inode: u64,
+    ) -> Result<ResolvedInode, MetaRuntimeError> {
+        let granted = self
+            .filesystem
+            .granted(inode, FILESYSTEM_BINDING_LEASE_MILLIS)
+            .ok_or(MetaRuntimeError::NotFound)?;
+        let object = match granted.inode.content.as_ref() {
+            Some(binding) => Some(self.resolve_object(pb::ResolveObjectRequest {
+                context: None,
+                session: Some(session.clone()),
+                key: Some(pb::Key {
+                    value: binding.object_key.clone(),
+                }),
+                selector: Some(pb::resolve_object_request::Selector::ExactVersion(
+                    binding.exact_version,
+                )),
+                range: None,
+                cache_current: false,
+            })?),
+            None => None,
+        };
+        Ok(ResolvedInode {
+            granted,
+            object: object.map(crate::filesystem::ResolvedObject::from_proto),
+        })
+    }
+
+    fn validate_namespace_operation(
+        &self,
+        operation_id: &[u8],
+        operation_digest: &[u8],
+    ) -> Result<(), MetaRuntimeError> {
+        if operation_id.is_empty() || operation_digest.is_empty() {
+            return Err(MetaRuntimeError::InvalidArgument(
+                "filesystem namespace operation identity is required".to_string(),
+            ));
+        }
+        Ok(())
+    }
+
+    fn previous_filesystem_namespace_operation(
+        &self,
+        operation_id: &[u8],
+        operation_digest: &[u8],
+    ) -> Result<Option<&NamespaceMutationResult>, MetaRuntimeError> {
+        let Some(previous) = self.filesystem_namespace_operations.get(operation_id) else {
+            return Ok(None);
+        };
+        if previous.digest == operation_digest {
+            return Ok(Some(&previous.result));
+        }
+        Err(MetaRuntimeError::Conflict {
+            expected: None,
+            actual: previous.result.commit_index,
+        })
+    }
+
+    fn filesystem_create_response_from_namespace(
+        &self,
+        session: &pb::NodeSessionIdentity,
+        result: &NamespaceMutationResult,
+    ) -> Result<pb::FilesystemResolveResponse, MetaRuntimeError> {
+        let inode = result
+            .inode
+            .as_ref()
+            .ok_or(MetaRuntimeError::NotFound)?
+            .attributes
+            .inode;
+        let resolved = self.filesystem_resolved_inode(session, inode)?;
+        Ok(pb::FilesystemResolveResponse {
+            found: true,
+            resolved: Some(resolved_to_proto(&resolved)),
+            dentry: result.dentry.as_ref().map(dentry_to_proto),
+            directory_grant: result
+                .dentry
+                .as_ref()
+                .map(|dentry| self.filesystem_directory_grant(dentry.parent))
+                .transpose()?,
+        })
+    }
+
+    fn filesystem_directory_grant(
+        &self,
+        directory: u64,
+    ) -> Result<pb::FilesystemDirectoryGrant, MetaRuntimeError> {
+        let inode = self.filesystem_directory(directory)?;
+        Ok(directory_grant_to_proto(DirectoryGrant {
+            directory_revision: inode.revision,
+            grant: CacheGrant {
+                generation: self.filesystem.grant_generation(directory),
+                lease_millis: FILESYSTEM_BINDING_LEASE_MILLIS,
+            },
+        }))
+    }
+
+    fn filesystem_directory(&self, inode: u64) -> Result<InodeSnapshot, MetaRuntimeError> {
+        let directory = self
+            .filesystem
+            .inode(inode)
+            .cloned()
+            .ok_or(MetaRuntimeError::NotFound)?;
+        if directory.attributes.kind != InodeKind::Directory {
+            return Err(MetaRuntimeError::NotDirectory);
+        }
+        Ok(directory)
+    }
+
+    fn check_expected_revision(
+        &self,
+        expected: Option<u64>,
+        actual: u64,
+    ) -> Result<(), MetaRuntimeError> {
+        if expected.is_some_and(|expected| expected != actual) {
+            return Err(MetaRuntimeError::StaleRevision { expected, actual });
+        }
+        Ok(())
+    }
+
+    fn changed_directory(&self, inode: u64, revision: u64) -> crate::filesystem::DirectoryVersion {
+        crate::filesystem::DirectoryVersion {
+            inode,
+            revision,
+            grant_generation: self.filesystem.grant_generation(inode).saturating_add(1),
+        }
+    }
+
+    fn next_filesystem_invalidation_cursor(&self, changed_directory_count: usize) -> u64 {
+        self.event_high_watermark + changed_directory_count as u64
+    }
+
+    fn filesystem_create_inode(
+        &mut self,
+        request: pb::FilesystemCreateInodeRequest,
+    ) -> Result<pb::FilesystemResolveResponse, MetaRuntimeError> {
+        let session = request
+            .session
+            .clone()
+            .ok_or_else(|| MetaRuntimeError::InvalidArgument("missing node session".to_string()))?;
+        self.verify_session(&session)?;
+        self.validate_namespace_operation(&request.operation_id, &request.operation_digest)?;
+        validate_path_component(&request.name, "create")?;
+        if let Some(previous) = self.previous_filesystem_namespace_operation(
+            &request.operation_id,
+            &request.operation_digest,
+        )? {
+            return self.filesystem_create_response_from_namespace(&session, previous);
+        }
+
+        let parent = self.filesystem_directory(request.parent)?;
+        self.check_expected_revision(request.expected_parent_revision, parent.revision)?;
+        if self
+            .filesystem
+            .lookup(request.parent, &request.name)
+            .is_some()
+        {
+            return Err(MetaRuntimeError::AlreadyExists);
+        }
+        let kind = InodeKind::from_proto(request.kind)
+            .map_err(|_| MetaRuntimeError::InvalidArgument("invalid inode kind".to_string()))?;
+        let commit_sequence = self.validate_commit_sequence(
+            &session,
+            request.commit_sequence,
+            &request.operation_id,
+            &request.operation_digest,
+        )?;
+        let sequence = self.journal.last_index() + 1;
+        let (inode_id, next_inode) = self
+            .filesystem
+            .allocate_inode()
+            .ok_or(MetaRuntimeError::Unavailable)?;
+        let now = current_time_unix_nanos();
+        let mut parent_inode = parent.clone();
+        parent_inode.revision = sequence;
+        parent_inode.attributes.mtime_unix_nanos = now;
+        parent_inode.attributes.ctime_unix_nanos = now;
+        if kind == InodeKind::Directory {
+            parent_inode.attributes.link_count =
+                parent_inode.attributes.link_count.saturating_add(1);
+        }
+        let inode = InodeSnapshot {
+            revision: sequence,
+            attributes: InodeAttributes {
+                inode: inode_id,
+                kind,
+                mode: request.mode,
+                uid: request.uid,
+                gid: request.gid,
+                link_count: if kind == InodeKind::Directory { 2 } else { 1 },
+                size: 0,
+                atime_unix_nanos: now,
+                mtime_unix_nanos: now,
+                ctime_unix_nanos: now,
+            },
+            content: None,
+        };
+        let dentry = DentrySnapshot {
+            parent: request.parent,
+            name: request.name,
+            inode: inode_id,
+            directory_revision: sequence,
+        };
+        let result = NamespaceMutationResult {
+            dentry: Some(dentry.clone()),
+            inode: Some(inode.clone()),
+            changed_directories: vec![self.changed_directory(request.parent, sequence)],
+            invalidation_cursor: self.next_filesystem_invalidation_cursor(1),
+            commit_index: sequence,
+        };
+        let record = JournalRecord::FilesystemNamespaceMutated {
+            record: FilesystemNamespaceMutationRecord {
+                operation_id: request.operation_id,
+                operation_digest: request.operation_digest,
+                result: result.clone(),
+                upsert_inodes: vec![parent_inode, inode.clone()],
+                upsert_dentries: vec![dentry.clone()],
+                remove_dentries: Vec::new(),
+                next_inode,
+            },
+            commit_sequence,
+        };
+        let sequence = self.append_record(record.clone())?;
+        self.apply_record(sequence, record);
+        self.maybe_checkpoint(sequence)?;
+        self.filesystem_create_response_from_namespace(&session, &result)
+    }
+
+    fn filesystem_read_directory(
+        &self,
+        request: pb::FilesystemReadDirectoryRequest,
+    ) -> Result<pb::FilesystemReadDirectoryResponse, MetaRuntimeError> {
+        let session = request
+            .session
+            .as_ref()
+            .ok_or_else(|| MetaRuntimeError::InvalidArgument("missing node session".to_string()))?;
+        self.verify_session(session)?;
+        let directory = self.filesystem_directory(request.directory)?;
+        self.check_expected_revision(request.expected_directory_revision, directory.revision)?;
+        let limit = if request.limit == 0 {
+            DEFAULT_SCAN_LIMIT
+        } else {
+            (request.limit as usize).min(MAX_SCAN_LIMIT)
+        };
+        let Some(page) = self.filesystem.read_directory(
+            request.directory,
+            &request.cursor,
+            limit,
+            FILESYSTEM_BINDING_LEASE_MILLIS,
+        ) else {
+            return Err(MetaRuntimeError::NotDirectory);
+        };
+        let has_more = page.next_cursor.is_some();
+        Ok(pb::FilesystemReadDirectoryResponse {
+            directory_grant: Some(directory_grant_to_proto(page.grant)),
+            entries: page.entries.iter().map(directory_entry_to_proto).collect(),
+            has_more,
+            next_cursor: page.next_cursor.unwrap_or_default(),
+            parent: page.parent,
+        })
+    }
+
+    fn filesystem_rename_entry(
+        &mut self,
+        request: pb::FilesystemRenameRequest,
+    ) -> Result<pb::FilesystemNamespaceMutationResponse, MetaRuntimeError> {
+        let session = request
+            .session
+            .clone()
+            .ok_or_else(|| MetaRuntimeError::InvalidArgument("missing node session".to_string()))?;
+        self.verify_session(&session)?;
+        self.validate_namespace_operation(&request.operation_id, &request.operation_digest)?;
+        validate_path_component(&request.source_name, "rename source")?;
+        validate_path_component(&request.target_name, "rename target")?;
+        if let Some(previous) = self.previous_filesystem_namespace_operation(
+            &request.operation_id,
+            &request.operation_digest,
+        )? {
+            return Ok(namespace_result_to_proto(previous));
+        }
+        if request.source_parent == request.target_parent
+            && request.source_name == request.target_name
+        {
+            let source_parent = self.filesystem_directory(request.source_parent)?;
+            self.check_expected_revision(request.expected_source_revision, source_parent.revision)?;
+            self.check_expected_revision(request.expected_target_revision, source_parent.revision)?;
+            let dentry = self
+                .filesystem
+                .lookup(request.source_parent, &request.source_name)
+                .cloned()
+                .ok_or(MetaRuntimeError::NotFound)?;
+            let inode = self
+                .filesystem
+                .inode(dentry.inode)
+                .cloned()
+                .ok_or(MetaRuntimeError::NotFound)?;
+            let commit_sequence = self.validate_commit_sequence(
+                &session,
+                request.commit_sequence,
+                &request.operation_id,
+                &request.operation_digest,
+            )?;
+            let sequence = self.journal.last_index() + 1;
+            let result = NamespaceMutationResult {
+                dentry: Some(dentry),
+                inode: Some(inode),
+                changed_directories: Vec::new(),
+                invalidation_cursor: 0,
+                commit_index: sequence,
+            };
+            let record = JournalRecord::FilesystemNamespaceMutated {
+                record: FilesystemNamespaceMutationRecord {
+                    operation_id: request.operation_id,
+                    operation_digest: request.operation_digest,
+                    result: result.clone(),
+                    upsert_inodes: Vec::new(),
+                    upsert_dentries: Vec::new(),
+                    remove_dentries: Vec::new(),
+                    next_inode: self.filesystem.next_inode_hint(),
+                },
+                commit_sequence,
+            };
+            let sequence = self.append_record(record.clone())?;
+            self.apply_record(sequence, record);
+            self.maybe_checkpoint(sequence)?;
+            return Ok(namespace_result_to_proto(&result));
+        }
+        let source_parent = self.filesystem_directory(request.source_parent)?;
+        let target_parent = self.filesystem_directory(request.target_parent)?;
+        self.check_expected_revision(request.expected_source_revision, source_parent.revision)?;
+        self.check_expected_revision(request.expected_target_revision, target_parent.revision)?;
+        let source_dentry = self
+            .filesystem
+            .lookup(request.source_parent, &request.source_name)
+            .cloned()
+            .ok_or(MetaRuntimeError::NotFound)?;
+        let moved_inode = self
+            .filesystem
+            .inode(source_dentry.inode)
+            .cloned()
+            .ok_or(MetaRuntimeError::NotFound)?;
+        if moved_inode.attributes.inode == ROOT_INODE {
+            return Err(MetaRuntimeError::InvalidArgument(
+                "cannot rename root".to_string(),
+            ));
+        }
+        if moved_inode.attributes.kind == InodeKind::Directory
+            && self
+                .filesystem
+                .is_directory_descendant_of(request.target_parent, moved_inode.attributes.inode)
+        {
+            return Err(MetaRuntimeError::InvalidArgument(
+                "cannot move a directory into itself or its descendant".to_string(),
+            ));
+        }
+        let replaced = self
+            .filesystem
+            .lookup(request.target_parent, &request.target_name)
+            .cloned();
+        if replaced.is_some() && !request.replace_existing {
+            return Err(MetaRuntimeError::AlreadyExists);
+        }
+        let replaced_inode = match replaced.as_ref() {
+            Some(dentry) => Some(
+                self.filesystem
+                    .inode(dentry.inode)
+                    .cloned()
+                    .ok_or(MetaRuntimeError::NotFound)?,
+            ),
+            None => None,
+        };
+        if let Some(inode) = replaced_inode.as_ref() {
+            match (moved_inode.attributes.kind, inode.attributes.kind) {
+                (InodeKind::Directory, InodeKind::Directory)
+                    if !self.filesystem.directory_is_empty(inode.attributes.inode) =>
+                {
+                    return Err(MetaRuntimeError::DirectoryNotEmpty);
+                }
+                (InodeKind::Directory, InodeKind::Directory) => {}
+                (InodeKind::Directory, _) => return Err(MetaRuntimeError::NotDirectory),
+                (_, InodeKind::Directory) => return Err(MetaRuntimeError::IsDirectory),
+                _ => {}
+            }
+        }
+        let commit_sequence = self.validate_commit_sequence(
+            &session,
+            request.commit_sequence,
+            &request.operation_id,
+            &request.operation_digest,
+        )?;
+        let sequence = self.journal.last_index() + 1;
+        let now = current_time_unix_nanos();
+        let mut upsert_inodes = Vec::new();
+        let mut source_parent_inode = source_parent.clone();
+        source_parent_inode.revision = sequence;
+        source_parent_inode.attributes.mtime_unix_nanos = now;
+        source_parent_inode.attributes.ctime_unix_nanos = now;
+        if moved_inode.attributes.kind == InodeKind::Directory {
+            source_parent_inode.attributes.link_count =
+                source_parent_inode.attributes.link_count.saturating_sub(1);
+        }
+        let mut changed_directories = vec![self.changed_directory(request.source_parent, sequence)];
+        if request.source_parent == request.target_parent {
+            upsert_inodes.push(source_parent_inode);
+        } else {
+            let mut target_parent_inode = target_parent.clone();
+            target_parent_inode.revision = sequence;
+            target_parent_inode.attributes.mtime_unix_nanos = now;
+            target_parent_inode.attributes.ctime_unix_nanos = now;
+            if moved_inode.attributes.kind == InodeKind::Directory {
+                target_parent_inode.attributes.link_count =
+                    target_parent_inode.attributes.link_count.saturating_add(1);
+            }
+            if replaced_inode
+                .as_ref()
+                .is_some_and(|inode| inode.attributes.kind == InodeKind::Directory)
+            {
+                target_parent_inode.attributes.link_count =
+                    target_parent_inode.attributes.link_count.saturating_sub(1);
+            }
+            upsert_inodes.push(source_parent_inode);
+            upsert_inodes.push(target_parent_inode);
+            changed_directories.push(self.changed_directory(request.target_parent, sequence));
+        }
+        if let Some(mut inode) = replaced_inode {
+            inode.revision = sequence;
+            inode.attributes.link_count = 0;
+            inode.attributes.ctime_unix_nanos = now;
+            upsert_inodes.push(inode);
+        }
+        let new_dentry = DentrySnapshot {
+            parent: request.target_parent,
+            name: request.target_name,
+            inode: source_dentry.inode,
+            directory_revision: sequence,
+        };
+        let mut remove_dentries = vec![source_dentry];
+        if let Some(replaced) = replaced {
+            remove_dentries.push(replaced);
+        }
+        let result = NamespaceMutationResult {
+            dentry: Some(new_dentry.clone()),
+            inode: Some(moved_inode),
+            changed_directories,
+            invalidation_cursor: self.next_filesystem_invalidation_cursor(
+                if request.source_parent == request.target_parent {
+                    1
+                } else {
+                    2
+                },
+            ),
+            commit_index: sequence,
+        };
+        let record = JournalRecord::FilesystemNamespaceMutated {
+            record: FilesystemNamespaceMutationRecord {
+                operation_id: request.operation_id,
+                operation_digest: request.operation_digest,
+                result: result.clone(),
+                upsert_inodes,
+                upsert_dentries: vec![new_dentry],
+                remove_dentries,
+                next_inode: self.filesystem.next_inode_hint(),
+            },
+            commit_sequence,
+        };
+        let sequence = self.append_record(record.clone())?;
+        self.apply_record(sequence, record);
+        self.maybe_checkpoint(sequence)?;
+        Ok(namespace_result_to_proto(&result))
+    }
+
+    fn filesystem_remove_entry(
+        &mut self,
+        request: pb::FilesystemRemoveRequest,
+    ) -> Result<pb::FilesystemNamespaceMutationResponse, MetaRuntimeError> {
+        let session = request
+            .session
+            .clone()
+            .ok_or_else(|| MetaRuntimeError::InvalidArgument("missing node session".to_string()))?;
+        self.verify_session(&session)?;
+        self.validate_namespace_operation(&request.operation_id, &request.operation_digest)?;
+        validate_path_component(&request.name, "remove")?;
+        if let Some(previous) = self.previous_filesystem_namespace_operation(
+            &request.operation_id,
+            &request.operation_digest,
+        )? {
+            return Ok(namespace_result_to_proto(previous));
+        }
+        let parent = self.filesystem_directory(request.parent)?;
+        self.check_expected_revision(request.expected_parent_revision, parent.revision)?;
+        let dentry = self
+            .filesystem
+            .lookup(request.parent, &request.name)
+            .cloned()
+            .ok_or(MetaRuntimeError::NotFound)?;
+        let mut inode = self
+            .filesystem
+            .inode(dentry.inode)
+            .cloned()
+            .ok_or(MetaRuntimeError::NotFound)?;
+        let kind = filesystem_remove_kind(request.kind)?;
+        match (kind, inode.attributes.kind) {
+            (RemoveKind::File, InodeKind::Directory) => return Err(MetaRuntimeError::IsDirectory),
+            (RemoveKind::Directory, InodeKind::Directory) => {
+                if !self.filesystem.directory_is_empty(inode.attributes.inode) {
+                    return Err(MetaRuntimeError::DirectoryNotEmpty);
+                }
+            }
+            (RemoveKind::Directory, _) => return Err(MetaRuntimeError::NotDirectory),
+            (RemoveKind::File, _) => {}
+        }
+        let commit_sequence = self.validate_commit_sequence(
+            &session,
+            request.commit_sequence,
+            &request.operation_id,
+            &request.operation_digest,
+        )?;
+        let sequence = self.journal.last_index() + 1;
+        let now = current_time_unix_nanos();
+        let mut parent_inode = parent.clone();
+        parent_inode.revision = sequence;
+        parent_inode.attributes.mtime_unix_nanos = now;
+        parent_inode.attributes.ctime_unix_nanos = now;
+        if inode.attributes.kind == InodeKind::Directory {
+            parent_inode.attributes.link_count =
+                parent_inode.attributes.link_count.saturating_sub(1);
+        }
+        inode.revision = sequence;
+        inode.attributes.link_count = 0;
+        inode.attributes.ctime_unix_nanos = now;
+        let result = NamespaceMutationResult {
+            dentry: None,
+            inode: Some(inode.clone()),
+            changed_directories: vec![self.changed_directory(request.parent, sequence)],
+            invalidation_cursor: self.next_filesystem_invalidation_cursor(1),
+            commit_index: sequence,
+        };
+        let record = JournalRecord::FilesystemNamespaceMutated {
+            record: FilesystemNamespaceMutationRecord {
+                operation_id: request.operation_id,
+                operation_digest: request.operation_digest,
+                result: result.clone(),
+                upsert_inodes: vec![parent_inode, inode],
+                upsert_dentries: Vec::new(),
+                remove_dentries: vec![dentry],
+                next_inode: self.filesystem.next_inode_hint(),
+            },
+            commit_sequence,
+        };
+        let sequence = self.append_record(record.clone())?;
+        self.apply_record(sequence, record);
+        self.maybe_checkpoint(sequence)?;
+        Ok(namespace_result_to_proto(&result))
     }
 
     fn current_lease_grant(
@@ -1432,6 +2242,197 @@ impl MetaState {
             revision: sequence,
             commit_index: sequence,
             changed: true,
+        })
+    }
+
+    fn filesystem_commit_version(
+        &mut self,
+        request: pb::FilesystemCommitVersionRequest,
+    ) -> Result<pb::FilesystemCommitVersionResponse, MetaRuntimeError> {
+        let session = request
+            .session
+            .clone()
+            .ok_or_else(|| MetaRuntimeError::InvalidArgument("missing node session".to_string()))?;
+        self.verify_session(&session)?;
+        if request.operation_id.is_empty()
+            || request.operation_digest.is_empty()
+            || request.object_key.is_empty()
+        {
+            return Err(MetaRuntimeError::InvalidArgument(
+                "filesystem commit requires object and operation identity".to_string(),
+            ));
+        }
+        if request.object_key != filesystem_object_key(request.inode) {
+            return Err(MetaRuntimeError::InvalidArgument(
+                "filesystem object key does not match inode".to_string(),
+            ));
+        }
+        if let Some(previous) = self.operations.get(&request.operation_id) {
+            if previous.digest != request.operation_digest {
+                return Err(MetaRuntimeError::Conflict {
+                    expected: None,
+                    actual: previous.result.version,
+                });
+            }
+            let resolved = self.filesystem_resolved_inode(&session, request.inode)?;
+            return Ok(pb::FilesystemCommitVersionResponse {
+                resolved: Some(resolved_to_proto(&resolved)),
+                invalidation_cursor: previous.visibility_cursor.unwrap_or_default(),
+                commit_index: previous.result.commit_index,
+            });
+        }
+        let current_inode = self
+            .filesystem
+            .inode(request.inode)
+            .cloned()
+            .ok_or(MetaRuntimeError::NotFound)?;
+        if current_inode.attributes.kind != InodeKind::RegularFile {
+            return Err(MetaRuntimeError::InvalidArgument(
+                "only regular files have DataCore content versions".to_string(),
+            ));
+        }
+        if current_inode.revision != request.expected_inode_revision {
+            return Err(MetaRuntimeError::Conflict {
+                expected: Some(request.expected_inode_revision),
+                actual: current_inode.revision,
+            });
+        }
+        let bound_version = current_inode
+            .content
+            .as_ref()
+            .map(|binding| binding.exact_version);
+        if bound_version != request.expected_object_version {
+            return Err(MetaRuntimeError::Conflict {
+                expected: request.expected_object_version,
+                actual: bound_version.unwrap_or_default(),
+            });
+        }
+        let current_object_version = self
+            .versions
+            .get(&request.object_key)
+            .and_then(|versions| versions.last_key_value().map(|(_, layout)| layout.version));
+        if current_object_version != request.expected_object_version {
+            return Err(MetaRuntimeError::Conflict {
+                expected: request.expected_object_version,
+                actual: current_object_version.unwrap_or_default(),
+            });
+        }
+        let candidate = request.candidate.ok_or_else(|| {
+            MetaRuntimeError::InvalidArgument("missing filesystem version candidate".to_string())
+        })?;
+        if candidate.kind != pb::VersionKind::Value as i32
+            || candidate.logical_length != request.new_size
+        {
+            return Err(MetaRuntimeError::InvalidArgument(
+                "filesystem candidate must be a value whose length equals inode size".to_string(),
+            ));
+        }
+        for extent in &candidate.extents {
+            self.reject_retired_block(&extent.block_id)?;
+            let known = request.replica_proofs.iter().any(|proof| {
+                proof.block_id == extent.block_id
+                    && self.replicas.get(&extent.block_id).is_some_and(|replicas| {
+                        replicas.iter().any(|replica| {
+                            replica.location.node_id == proof.node_id
+                                && replica.location.node_epoch == proof.node_epoch
+                                && replica.catalog_revision == proof.catalog_revision
+                                && replica.location.checksum == proof.checksum
+                        })
+                    })
+                    && self.block_referenced_by_retained_versions(&extent.block_id)
+            });
+            let new_replica = request
+                .new_replicas
+                .iter()
+                .any(|report| report.block_id == extent.block_id);
+            if !known && !new_replica {
+                return Err(MetaRuntimeError::InvalidArgument(
+                    "every filesystem extent requires a proof or new replica".to_string(),
+                ));
+            }
+        }
+        let commit_sequence = self.validate_commit_sequence(
+            &session,
+            request.commit_sequence,
+            &request.operation_id,
+            &request.operation_digest,
+        )?;
+        let endpoint = self
+            .sessions
+            .get(&session.node_id)
+            .expect("verified session")
+            .control_endpoint
+            .clone();
+        let new_replicas = request
+            .new_replicas
+            .into_iter()
+            .map(|report| {
+                if report.block_id.is_empty() || report.length == 0 {
+                    return Err(MetaRuntimeError::InvalidArgument(
+                        "new filesystem replica requires block id and length".to_string(),
+                    ));
+                }
+                Ok((
+                    pb::ReplicaLocation {
+                        block_id: report.block_id,
+                        node_id: session.node_id,
+                        node_epoch: session.node_epoch,
+                        data_endpoint: endpoint.clone(),
+                        checksum: report.checksum,
+                        durability: report.durability,
+                    },
+                    report.length,
+                ))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let version = self.next_object_version(current_object_version.unwrap_or_default());
+        let layout = pb::VersionLayout {
+            version,
+            logical_length: candidate.logical_length,
+            extents: candidate.extents,
+            digest: candidate.digest,
+            kind: candidate.kind,
+        };
+        let mut inode = current_inode;
+        inode.revision = self.journal.last_index() + 1;
+        inode.attributes.size = request.new_size;
+        inode.attributes.mtime_unix_nanos = request.mtime_unix_nanos;
+        inode.attributes.ctime_unix_nanos = request.mtime_unix_nanos;
+        inode.content = Some(FileContentBinding {
+            object_key: request.object_key.clone(),
+            exact_version: version,
+        });
+        let revoked_grant_generation = self.filesystem.grant_generation(request.inode);
+        let new_grant_generation = revoked_grant_generation.saturating_add(1);
+        let record = JournalRecord::FilesystemVersionCommitted {
+            record: FilesystemVersionCommitRecord {
+                object: VersionCommitRecord {
+                    key: request.object_key,
+                    layout,
+                    modified_time_unix_millis: request.mtime_unix_nanos / 1_000_000,
+                    new_replicas,
+                    operation_id: request.operation_id.clone(),
+                    operation_digest: request.operation_digest,
+                },
+                inode,
+                revoked_grant_generation,
+                new_grant_generation,
+            },
+            commit_sequence,
+        };
+        let sequence = self.append_record(record.clone())?;
+        self.apply_record(sequence, record);
+        self.maybe_checkpoint(sequence)?;
+        let resolved = self.filesystem_resolved_inode(&session, request.inode)?;
+        let invalidation_cursor = self
+            .operations
+            .get(&request.operation_id)
+            .and_then(|operation| operation.visibility_cursor)
+            .unwrap_or_default();
+        Ok(pb::FilesystemCommitVersionResponse {
+            resolved: Some(resolved_to_proto(&resolved)),
+            invalidation_cursor,
+            commit_index: sequence,
         })
     }
 
@@ -1939,6 +2940,33 @@ impl MetaState {
         })
     }
 
+    fn dispatch_filesystem_commit_version(
+        &mut self,
+        request: pb::FilesystemCommitVersionRequest,
+    ) -> Result<FilesystemCommitDispatch, MetaRuntimeError> {
+        let source_node = request
+            .session
+            .as_ref()
+            .ok_or_else(|| MetaRuntimeError::InvalidArgument("missing node session".to_string()))?
+            .node_id;
+        let operation_id = request.operation_id.clone();
+        let response = self.filesystem_commit_version(request)?;
+        let event_cursor = self
+            .operations
+            .get(&operation_id)
+            .and_then(|operation| operation.visibility_cursor);
+        let (waiting_nodes, waiting_prior_lease_nodes) = event_cursor
+            .map(|cursor| self.visibility_barrier_nodes(source_node, cursor))
+            .unwrap_or_default();
+        Ok(FilesystemCommitDispatch {
+            operation_id,
+            response,
+            event_cursor,
+            waiting_nodes,
+            waiting_prior_lease_nodes,
+        })
+    }
+
     fn register_pending_commit(
         &mut self,
         dispatch: CommitDispatch,
@@ -2000,6 +3028,32 @@ impl MetaState {
                 waiting_nodes,
                 waiting_prior_lease_nodes,
                 reply: PendingReply::Batch(reply),
+            });
+    }
+
+    fn register_pending_filesystem_commit(
+        &mut self,
+        dispatch: FilesystemCommitDispatch,
+        reply: oneshot::Sender<Result<pb::FilesystemCommitVersionResponse, MetaRuntimeError>>,
+    ) {
+        let Some(cursor) = dispatch.event_cursor else {
+            let _ = reply.send(Ok(dispatch.response));
+            return;
+        };
+        if dispatch.waiting_nodes.is_empty() && dispatch.waiting_prior_lease_nodes.is_empty() {
+            self.complete_operation_visibility(std::slice::from_ref(&dispatch.operation_id));
+            let _ = reply.send(Ok(dispatch.response));
+            return;
+        }
+        self.pending_commits
+            .entry(cursor)
+            .or_default()
+            .push(PendingCommit {
+                operation_ids: vec![dispatch.operation_id],
+                response: PendingResponse::Filesystem(Box::new(dispatch.response)),
+                waiting_nodes: dispatch.waiting_nodes,
+                waiting_prior_lease_nodes: dispatch.waiting_prior_lease_nodes,
+                reply: PendingReply::Filesystem(reply),
             });
     }
 
@@ -2545,6 +3599,9 @@ impl MetaState {
                     (PendingReply::Batch(reply), PendingResponse::Batch(response)) => {
                         let _ = reply.send(Ok(response));
                     }
+                    (PendingReply::Filesystem(reply), PendingResponse::Filesystem(response)) => {
+                        let _ = reply.send(Ok(*response));
+                    }
                     _ => unreachable!("pending response/reply kinds must match"),
                 }
             } else {
@@ -2777,6 +3834,105 @@ impl MetaState {
                 stage_epoch,
             } => {
                 self.apply_retirement_released(&retirement_id, &block_ids, stage_epoch);
+            }
+            JournalRecord::FilesystemInodeCreated { record } => {
+                self.filesystem.apply_inode_created(
+                    record.inode,
+                    record.dentry,
+                    record.next_inode,
+                    record.grant_generation,
+                );
+            }
+            JournalRecord::FilesystemVersionCommitted {
+                record,
+                commit_sequence,
+            } => {
+                let source_node_id = commit_sequence
+                    .as_ref()
+                    .map(|record| record.node_id)
+                    .or_else(|| {
+                        record
+                            .object
+                            .new_replicas
+                            .first()
+                            .map(|(location, _)| location.node_id)
+                    })
+                    .unwrap_or_default();
+                let operation_id = record.object.operation_id.clone();
+                let inode_id = record.inode.attributes.inode;
+                let inode_revision = record.inode.revision;
+                let revoked_generation = record.revoked_grant_generation;
+                self.apply_version_commit(sequence, record.object, commit_sequence.as_ref());
+                self.filesystem
+                    .apply_inode_version(record.inode, record.new_grant_generation);
+
+                // FileContentBinding 是 inode cache 的授权对象，不能只依赖对象 Current
+                // 失效。单独事件仍来自同一 journal 记录，因此没有第二个发布点。
+                let cursor = self.event_high_watermark + 1;
+                self.event_high_watermark = cursor;
+                self.events.push(pb::NodeEvent {
+                    event_id: cursor.to_be_bytes().to_vec(),
+                    cursor,
+                    event: Some(pb::node_event::Event::InvalidateFilesystemBinding(
+                        pb::InvalidateFilesystemBindingEvent {
+                            inode: inode_id,
+                            through_generation: revoked_generation,
+                            minimum_inode_revision: inode_revision,
+                            source_node_id,
+                        },
+                    )),
+                });
+                if let Some(operation) = self.operations.get_mut(&operation_id) {
+                    operation.visibility_cursor = Some(cursor);
+                }
+                self.pump_watchers();
+            }
+            JournalRecord::FilesystemNamespaceMutated {
+                record,
+                commit_sequence,
+            } => {
+                let source_node_id = commit_sequence
+                    .as_ref()
+                    .map(|record| record.node_id)
+                    .unwrap_or_default();
+                if let Some(record) = commit_sequence {
+                    self.remember_commit_sequence(record);
+                }
+                self.filesystem.apply_namespace_mutation(
+                    record.upsert_inodes,
+                    record.upsert_dentries,
+                    record.remove_dentries,
+                    record.result.changed_directories.clone(),
+                    record.next_inode,
+                );
+                let mut emitted_event = false;
+                for directory in &record.result.changed_directories {
+                    let cursor = self.event_high_watermark + 1;
+                    self.event_high_watermark = cursor;
+                    emitted_event = true;
+                    self.events.push(pb::NodeEvent {
+                        event_id: cursor.to_be_bytes().to_vec(),
+                        cursor,
+                        event: Some(pb::node_event::Event::InvalidateFilesystemBinding(
+                            pb::InvalidateFilesystemBindingEvent {
+                                inode: directory.inode,
+                                through_generation: directory.grant_generation.saturating_sub(1),
+                                minimum_inode_revision: directory.revision,
+                                source_node_id,
+                            },
+                        )),
+                    });
+                }
+                self.filesystem_namespace_operations.insert(
+                    record.operation_id,
+                    StoredFilesystemNamespaceOperation {
+                        digest: record.operation_digest,
+                        result: record.result,
+                    },
+                );
+                if emitted_event {
+                    self.pump_watchers();
+                }
             }
         }
     }
@@ -3620,6 +4776,12 @@ impl MetaState {
             .values()
             .flat_map(|session| session.commit_sequences.values().cloned())
             .collect();
+        let (
+            filesystem_next_inode,
+            filesystem_inodes,
+            filesystem_dentries,
+            filesystem_grant_generations,
+        ) = self.filesystem.snapshot();
         MetaSnapshot {
             last_applied_index: self.last_applied_index,
             version_floor: self.version_floor,
@@ -3700,10 +4862,31 @@ impl MetaState {
                 .collect(),
             event_high_watermark: self.event_high_watermark,
             events: self.events.clone(),
+            filesystem_next_inode,
+            filesystem_inodes,
+            filesystem_dentries,
+            filesystem_grant_generations,
+            filesystem_namespace_operations: self
+                .filesystem_namespace_operations
+                .iter()
+                .map(|(operation_id, operation)| {
+                    super::metadata_journal::SnapshotFilesystemNamespaceOperation {
+                        operation_id: operation_id.clone(),
+                        digest: operation.digest.clone(),
+                        result: operation.result.clone(),
+                    }
+                })
+                .collect(),
         }
     }
 
     fn restore_snapshot(&mut self, snapshot: MetaSnapshot) {
+        self.filesystem = FilesystemCatalog::restored(
+            snapshot.filesystem_next_inode,
+            snapshot.filesystem_inodes.clone(),
+            snapshot.filesystem_dentries.clone(),
+            snapshot.filesystem_grant_generations.clone(),
+        );
         self.last_applied_index = snapshot.last_applied_index;
         self.version_floor = snapshot.version_floor;
         self.next_session = snapshot.next_session;
@@ -3837,6 +5020,19 @@ impl MetaState {
             .into_iter()
             .map(|operation| (operation.operation_id, operation.result))
             .collect();
+        self.filesystem_namespace_operations = snapshot
+            .filesystem_namespace_operations
+            .into_iter()
+            .map(|operation| {
+                (
+                    operation.operation_id,
+                    StoredFilesystemNamespaceOperation {
+                        digest: operation.digest,
+                        result: operation.result,
+                    },
+                )
+            })
+            .collect();
         self.event_high_watermark = snapshot.event_high_watermark;
         self.events = snapshot.events;
         self.event_high_watermark = self.event_high_watermark.max(
@@ -3899,6 +5095,25 @@ fn validate_condition(
         expected: expected_version,
         actual,
     })
+}
+
+fn validate_path_component(name: &[u8], operation: &str) -> Result<(), MetaRuntimeError> {
+    if name.is_empty() || name.contains(&b'/') {
+        return Err(MetaRuntimeError::InvalidArgument(format!(
+            "filesystem {operation} requires one non-empty path component"
+        )));
+    }
+    Ok(())
+}
+
+fn filesystem_remove_kind(kind: i32) -> Result<RemoveKind, MetaRuntimeError> {
+    match pb::FilesystemRemoveKind::try_from(kind) {
+        Ok(pb::FilesystemRemoveKind::File) => Ok(RemoveKind::File),
+        Ok(pb::FilesystemRemoveKind::Directory) => Ok(RemoveKind::Directory),
+        _ => Err(MetaRuntimeError::InvalidArgument(
+            "invalid filesystem remove kind".to_string(),
+        )),
+    }
 }
 
 fn scan_limit(limit: u32) -> usize {
@@ -3985,6 +5200,18 @@ fn current_time_unix_millis() -> i64 {
         .unwrap_or_default()
         .as_millis();
     i64::try_from(millis).unwrap_or(i64::MAX)
+}
+
+fn current_time_unix_nanos() -> i64 {
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_nanos();
+    i64::try_from(nanos).unwrap_or(i64::MAX)
+}
+
+fn filesystem_object_key(inode: u64) -> Vec<u8> {
+    format!("fs/content/{inode}").into_bytes()
 }
 
 fn retirement_id(stage_epoch: u64, block_ids: &[Vec<u8>]) -> Vec<u8> {
@@ -4177,6 +5404,9 @@ fn event_targets_node(event: &pb::NodeEvent, node_id: u64) -> bool {
         Some(pb::node_event::Event::EvictReplica(evict)) if evict.participant_node_id != 0 => {
             evict.participant_node_id == node_id
         }
+        Some(pb::node_event::Event::InvalidateFilesystemBinding(invalidate)) => {
+            invalidate.source_node_id == 0 || invalidate.source_node_id != node_id
+        }
         _ => true,
     }
 }
@@ -4243,6 +5473,9 @@ fn event_metric_type(event: &pb::NodeEvent) -> WatchEventType {
         Some(pb::node_event::Event::EvictReplica(_)) => WatchEventType::Eviction,
         Some(pb::node_event::Event::FenceNode(_)) => WatchEventType::Fence,
         Some(pb::node_event::Event::Gap(_)) => WatchEventType::Gap,
+        Some(pb::node_event::Event::InvalidateFilesystemBinding(_)) => {
+            WatchEventType::FilesystemInvalidation
+        }
         None => WatchEventType::Empty,
     }
 }
@@ -4390,6 +5623,38 @@ async fn run_meta(
                 MetaCommand::AcknowledgeBlockRetirement { request, reply } => {
                     let _ = reply.send(state.acknowledge_block_retirement(request));
                 }
+                MetaCommand::FilesystemLookup { request, reply } => {
+                    let _ = reply.send(state.filesystem_lookup(request));
+                }
+                MetaCommand::FilesystemGetInode { request, reply } => {
+                    let _ = reply.send(state.filesystem_get_inode(request));
+                }
+                MetaCommand::FilesystemCreateInode { request, reply } => {
+                    let _ = reply.send(state.filesystem_create_inode(request));
+                }
+                MetaCommand::FilesystemReadDirectory { request, reply } => {
+                    let _ = reply.send(state.filesystem_read_directory(request));
+                }
+                MetaCommand::FilesystemRenameEntry { request, reply } => {
+                    let _ = reply.send(state.filesystem_rename_entry(request));
+                }
+                MetaCommand::FilesystemRemoveEntry { request, reply } => {
+                    let _ = reply.send(state.filesystem_remove_entry(request));
+                }
+                MetaCommand::FilesystemCommitVersion { request, reply } => {
+                    if state.pending_commits.values().map(Vec::len).sum::<usize>()
+                        >= META_MAILBOX_CAPACITY
+                    {
+                        let _ = reply.send(Err(MetaRuntimeError::Unavailable));
+                        return;
+                    }
+                    match state.dispatch_filesystem_commit_version(request) {
+                        Ok(dispatch) => state.register_pending_filesystem_commit(dispatch, reply),
+                        Err(error) => {
+                            let _ = reply.send(Err(error));
+                        }
+                    }
+                }
                 #[cfg(test)]
                 MetaCommand::Stats { reply } => {
                     let _ = reply.send(Ok(state.stats()));
@@ -4446,11 +5711,13 @@ pub(crate) fn failing_checkpoint_handle_for_test() -> MetaHandle {
 
 #[cfg(test)]
 mod tests {
+    use std::fs;
     use std::sync::{
         Arc, Mutex,
-        atomic::{AtomicU64, Ordering},
+        atomic::{AtomicBool, AtomicU64, Ordering},
     };
 
+    use super::super::local_wal_journal::LocalWalJournal;
     use super::super::metadata_journal::JournalEntry;
     use super::*;
 
@@ -4496,6 +5763,621 @@ mod tests {
         fn last_index(&self) -> u64 {
             self.inner.lock().expect("journal lock").last_index()
         }
+    }
+
+    #[derive(Clone, Default)]
+    struct SharedFailingAppendJournal {
+        inner: Arc<Mutex<InMemoryJournal>>,
+        fail_append: Arc<AtomicBool>,
+    }
+
+    impl MetadataJournal for SharedFailingAppendJournal {
+        fn append(&mut self, record: JournalRecord) -> Result<u64, JournalError> {
+            if self.fail_append.load(Ordering::Relaxed) {
+                return Err(JournalError::Unavailable("injected append failure"));
+            }
+            self.inner.lock().expect("journal lock").append(record)
+        }
+
+        fn load_after(&self, sequence: u64) -> Result<Vec<JournalEntry>, JournalError> {
+            self.inner
+                .lock()
+                .expect("journal lock")
+                .load_after(sequence)
+        }
+
+        fn load_snapshot(&self) -> Result<Option<MetaSnapshot>, JournalError> {
+            self.inner.lock().expect("journal lock").load_snapshot()
+        }
+
+        fn save_snapshot(&mut self, snapshot: MetaSnapshot) -> Result<(), JournalError> {
+            self.inner
+                .lock()
+                .expect("journal lock")
+                .save_snapshot(snapshot)
+        }
+
+        fn truncate_prefix(&mut self, sequence: u64) -> Result<(), JournalError> {
+            self.inner
+                .lock()
+                .expect("journal lock")
+                .truncate_prefix(sequence)
+        }
+
+        fn last_index(&self) -> u64 {
+            self.inner.lock().expect("journal lock").last_index()
+        }
+    }
+
+    #[test]
+    fn filesystem_append_failure_keeps_object_and_inode_unpublished() {
+        let journal = SharedFailingAppendJournal::default();
+        let fail_append = Arc::clone(&journal.fail_append);
+        let mut state = MetaState::new(Box::new(journal));
+        let session = test_session(&mut state, 41);
+        let inode = create_test_file(&mut state, session.clone(), b"atomic.bin");
+        let key = filesystem_object_key(inode.attributes.inode);
+        let before_index = state.journal.last_index();
+
+        fail_append.store(true, Ordering::Relaxed);
+        let result = state.filesystem_commit_version(filesystem_commit_request_for(
+            session,
+            &inode,
+            b"atomic-block-v1",
+            b"atomic-op-v1",
+        ));
+
+        assert!(matches!(
+            result,
+            Err(MetaRuntimeError::JournalAppendFailed(_))
+        ));
+        assert_eq!(state.journal.last_index(), before_index);
+        assert!(!state.versions.contains_key(&key));
+        let after = state
+            .filesystem
+            .inode(inode.attributes.inode)
+            .expect("inode remains visible");
+        assert_eq!(after.revision, inode.revision);
+        assert!(after.content.is_none());
+    }
+
+    #[test]
+    fn filesystem_commit_replays_object_and_inode_together() {
+        let mut state = MetaState::new(Box::<InMemoryJournal>::default());
+        let session = test_session(&mut state, 42);
+        let inode = create_test_file(&mut state, session.clone(), b"replay.bin");
+        let committed = state
+            .filesystem_commit_version(filesystem_commit_request_for(
+                session,
+                &inode,
+                b"replay-block-v1",
+                b"replay-op-v1",
+            ))
+            .expect("filesystem commit");
+        let resolved = committed.resolved.expect("resolved commit result");
+        let committed_inode = resolved.inode.expect("committed inode");
+        let binding = committed_inode.content.expect("content binding");
+
+        let restored = MetaState::new(state.journal);
+        let restored_inode = restored
+            .filesystem
+            .inode(inode.attributes.inode)
+            .expect("restored inode");
+        assert_eq!(restored_inode.revision, committed_inode.revision);
+        assert_eq!(
+            restored_inode.content.as_ref().unwrap().exact_version,
+            binding.exact_version
+        );
+        assert_eq!(
+            restored
+                .versions
+                .get(&binding.object_key)
+                .and_then(|versions| versions.get(&binding.exact_version))
+                .map(|layout| layout.logical_length),
+            Some(4)
+        );
+    }
+
+    #[test]
+    fn filesystem_commit_survives_real_local_wal_reopen() {
+        let directory = std::env::temp_dir().join(format!(
+            "dms-filesystem-meta-restart-{}",
+            uuid::Uuid::new_v4()
+        ));
+        let (inode_id, exact_version, inode_revision) = {
+            let journal = LocalWalJournal::open(&directory).expect("open local WAL");
+            let mut state = MetaState::new(Box::new(journal));
+            let session = test_session(&mut state, 44);
+            let inode = create_test_file(&mut state, session.clone(), b"restart.bin");
+            let committed = state
+                .filesystem_commit_version(filesystem_commit_request_for(
+                    session,
+                    &inode,
+                    b"restart-block-v1",
+                    b"restart-op-v1",
+                ))
+                .expect("commit before restart");
+            let committed = committed.resolved.expect("resolved commit");
+            let inode = committed.inode.expect("committed inode");
+            (
+                inode.attributes.as_ref().expect("attributes").inode,
+                inode
+                    .content
+                    .as_ref()
+                    .expect("content binding")
+                    .exact_version,
+                inode.revision,
+            )
+        };
+
+        let journal = LocalWalJournal::open(&directory).expect("reopen local WAL");
+        let restored = MetaState::new(Box::new(journal));
+        let inode = restored
+            .filesystem
+            .inode(inode_id)
+            .expect("inode restored after process-style reopen");
+        assert_eq!(inode.revision, inode_revision);
+        let binding = inode.content.as_ref().expect("binding restored");
+        assert_eq!(binding.exact_version, exact_version);
+        assert!(
+            restored
+                .versions
+                .get(&binding.object_key)
+                .is_some_and(|versions| versions.contains_key(&exact_version)),
+            "the same WAL record must restore both inode binding and object version"
+        );
+        fs::remove_dir_all(directory).expect("remove test WAL");
+    }
+
+    #[test]
+    fn filesystem_commit_rejects_stale_inode_revision() {
+        let mut state = MetaState::new(Box::<InMemoryJournal>::default());
+        let session = test_session(&mut state, 43);
+        let inode = create_test_file(&mut state, session.clone(), b"cas.bin");
+        state
+            .filesystem_commit_version(filesystem_commit_request_for(
+                session.clone(),
+                &inode,
+                b"cas-block-v1",
+                b"cas-op-v1",
+            ))
+            .expect("first commit");
+
+        let stale = state.filesystem_commit_version(filesystem_commit_request_for(
+            session,
+            &inode,
+            b"cas-block-v2",
+            b"cas-op-v2",
+        ));
+        assert!(matches!(stale, Err(MetaRuntimeError::Conflict { .. })));
+    }
+
+    #[test]
+    fn filesystem_namespace_create_readdir_rename_remove_replays() {
+        let mut state = MetaState::new(Box::<InMemoryJournal>::default());
+        let session = test_session(&mut state, 45);
+        let directory = state
+            .filesystem_create_inode(filesystem_create_request_for(
+                session.clone(),
+                ROOT_INODE,
+                b"dir",
+                pb::FilesystemInodeKind::Directory,
+                b"mkdir-dir",
+            ))
+            .expect("mkdir")
+            .resolved
+            .expect("directory resolution")
+            .inode
+            .expect("directory inode");
+        let directory_inode = directory
+            .attributes
+            .as_ref()
+            .expect("directory attrs")
+            .inode;
+        let file = state
+            .filesystem_create_inode(filesystem_create_request_for(
+                session.clone(),
+                directory_inode,
+                b"file.txt",
+                pb::FilesystemInodeKind::RegularFile,
+                b"create-nested-file",
+            ))
+            .expect("create nested file")
+            .resolved
+            .expect("file resolution")
+            .inode
+            .expect("file inode");
+        let file_inode = file.attributes.as_ref().expect("file attrs").inode;
+
+        let listing = state
+            .filesystem_read_directory(pb::FilesystemReadDirectoryRequest {
+                context: None,
+                session: Some(session.clone()),
+                directory: directory_inode,
+                cursor: Vec::new(),
+                limit: 16,
+                expected_directory_revision: None,
+            })
+            .expect("readdir");
+        assert_eq!(listing.entries.len(), 1);
+        assert_eq!(
+            listing.entries[0]
+                .dentry
+                .as_ref()
+                .expect("listed dentry")
+                .name,
+            b"file.txt"
+        );
+
+        let rename = state
+            .filesystem_rename_entry(pb::FilesystemRenameRequest {
+                context: None,
+                session: Some(session.clone()),
+                operation_id: b"rename-file".to_vec(),
+                operation_digest: b"rename-file-digest".to_vec(),
+                source_parent: directory_inode,
+                source_name: b"file.txt".to_vec(),
+                target_parent: ROOT_INODE,
+                target_name: b"renamed.txt".to_vec(),
+                expected_source_revision: None,
+                expected_target_revision: None,
+                commit_sequence: next_test_commit_sequence(),
+                replace_existing: false,
+            })
+            .expect("rename");
+        assert_eq!(rename.changed_directories.len(), 2);
+        assert_eq!(
+            state.events.len(),
+            4,
+            "mkdir/create/rename invalidates one directory per changed parent"
+        );
+        assert!(
+            state
+                .filesystem
+                .lookup(directory_inode, b"file.txt")
+                .is_none()
+        );
+        assert!(
+            state
+                .filesystem
+                .lookup(ROOT_INODE, b"renamed.txt")
+                .is_some()
+        );
+
+        let removed = state
+            .filesystem_remove_entry(pb::FilesystemRemoveRequest {
+                context: None,
+                session: Some(session.clone()),
+                operation_id: b"remove-file".to_vec(),
+                operation_digest: b"remove-file-digest".to_vec(),
+                parent: ROOT_INODE,
+                name: b"renamed.txt".to_vec(),
+                kind: pb::FilesystemRemoveKind::File as i32,
+                expected_parent_revision: None,
+                commit_sequence: next_test_commit_sequence(),
+            })
+            .expect("unlink");
+        assert_eq!(
+            removed
+                .inode
+                .expect("removed inode")
+                .attributes
+                .unwrap()
+                .link_count,
+            0
+        );
+        assert!(
+            state
+                .filesystem
+                .lookup(ROOT_INODE, b"renamed.txt")
+                .is_none()
+        );
+        assert_eq!(
+            state
+                .filesystem
+                .inode(file_inode)
+                .expect("orphan inode retained")
+                .attributes
+                .link_count,
+            0,
+            "unlink/rmdir only detaches namespace; block/inode GC is a later policy"
+        );
+
+        let restored = MetaState::new(state.journal);
+        assert!(
+            restored
+                .filesystem
+                .lookup(ROOT_INODE, b"renamed.txt")
+                .is_none()
+        );
+        assert!(
+            restored
+                .filesystem
+                .lookup(directory_inode, b"file.txt")
+                .is_none()
+        );
+        assert_eq!(
+            restored
+                .filesystem
+                .inode(file_inode)
+                .expect("orphan replayed")
+                .attributes
+                .link_count,
+            0
+        );
+        assert_eq!(
+            restored.filesystem_namespace_operations.len(),
+            4,
+            "namespace operation idempotency table must survive replay"
+        );
+    }
+
+    #[test]
+    fn filesystem_namespace_operation_is_idempotent_by_digest() {
+        let mut state = MetaState::new(Box::<InMemoryJournal>::default());
+        let session = test_session(&mut state, 46);
+        let mut request = filesystem_create_request_for(
+            session,
+            ROOT_INODE,
+            b"idem",
+            pb::FilesystemInodeKind::RegularFile,
+            b"idem-create",
+        );
+        let first = state
+            .filesystem_create_inode(request.clone())
+            .expect("first create")
+            .resolved
+            .expect("first resolution")
+            .inode
+            .expect("first inode")
+            .attributes
+            .expect("first attrs")
+            .inode;
+        let retry = state
+            .filesystem_create_inode(request.clone())
+            .expect("same id and digest retry")
+            .resolved
+            .expect("retry resolution")
+            .inode
+            .expect("retry inode")
+            .attributes
+            .expect("retry attrs")
+            .inode;
+        assert_eq!(first, retry);
+
+        request.operation_digest = b"same-id-different-digest".to_vec();
+        let conflict = state.filesystem_create_inode(request);
+        assert!(matches!(conflict, Err(MetaRuntimeError::Conflict { .. })));
+    }
+
+    #[test]
+    fn filesystem_remove_rejects_non_empty_directory() {
+        let mut state = MetaState::new(Box::<InMemoryJournal>::default());
+        let session = test_session(&mut state, 47);
+        let directory = state
+            .filesystem_create_inode(filesystem_create_request_for(
+                session.clone(),
+                ROOT_INODE,
+                b"parent",
+                pb::FilesystemInodeKind::Directory,
+                b"mkdir-parent",
+            ))
+            .expect("mkdir")
+            .resolved
+            .expect("directory resolution")
+            .inode
+            .expect("directory inode");
+        let directory_inode = directory.attributes.as_ref().expect("attrs").inode;
+        state
+            .filesystem_create_inode(filesystem_create_request_for(
+                session.clone(),
+                directory_inode,
+                b"child",
+                pb::FilesystemInodeKind::RegularFile,
+                b"create-child",
+            ))
+            .expect("create child");
+
+        let result = state.filesystem_remove_entry(pb::FilesystemRemoveRequest {
+            context: None,
+            session: Some(session),
+            operation_id: b"rmdir-parent".to_vec(),
+            operation_digest: b"rmdir-parent-digest".to_vec(),
+            parent: ROOT_INODE,
+            name: b"parent".to_vec(),
+            kind: pb::FilesystemRemoveKind::Directory as i32,
+            expected_parent_revision: None,
+            commit_sequence: next_test_commit_sequence(),
+        });
+        assert!(matches!(result, Err(MetaRuntimeError::DirectoryNotEmpty)));
+    }
+
+    #[test]
+    fn filesystem_rename_rejects_directory_cycles_before_journal_append() {
+        let mut state = MetaState::new(Box::<InMemoryJournal>::default());
+        let session = test_session(&mut state, 48);
+        let parent = state
+            .filesystem_create_inode(filesystem_create_request_for(
+                session.clone(),
+                ROOT_INODE,
+                b"parent",
+                pb::FilesystemInodeKind::Directory,
+                b"mkdir-cycle-parent",
+            ))
+            .expect("create parent")
+            .resolved
+            .expect("parent resolution")
+            .inode
+            .expect("parent inode")
+            .attributes
+            .expect("parent attrs")
+            .inode;
+        let child = state
+            .filesystem_create_inode(filesystem_create_request_for(
+                session.clone(),
+                parent,
+                b"child",
+                pb::FilesystemInodeKind::Directory,
+                b"mkdir-cycle-child",
+            ))
+            .expect("create child")
+            .resolved
+            .expect("child resolution")
+            .inode
+            .expect("child inode")
+            .attributes
+            .expect("child attrs")
+            .inode;
+        let journal_index = state.journal.last_index();
+
+        let result = state.filesystem_rename_entry(pb::FilesystemRenameRequest {
+            context: None,
+            session: Some(session),
+            operation_id: b"rename-cycle".to_vec(),
+            operation_digest: b"rename-cycle-digest".to_vec(),
+            source_parent: ROOT_INODE,
+            source_name: b"parent".to_vec(),
+            target_parent: child,
+            target_name: b"parent".to_vec(),
+            expected_source_revision: None,
+            expected_target_revision: None,
+            commit_sequence: next_test_commit_sequence(),
+            replace_existing: false,
+        });
+
+        assert!(matches!(result, Err(MetaRuntimeError::InvalidArgument(_))));
+        assert_eq!(state.journal.last_index(), journal_index);
+        assert!(state.filesystem.lookup(ROOT_INODE, b"parent").is_some());
+        assert!(state.filesystem.lookup(parent, b"child").is_some());
+        let restored = MetaState::new(state.journal);
+        assert!(restored.filesystem.lookup(ROOT_INODE, b"parent").is_some());
+        assert!(restored.filesystem.lookup(parent, b"child").is_some());
+    }
+
+    #[test]
+    fn filesystem_rename_enforces_replace_type_matrix_and_replays_directory_replace() {
+        let mut state = MetaState::new(Box::<InMemoryJournal>::default());
+        let session = test_session(&mut state, 49);
+        state
+            .filesystem_create_inode(filesystem_create_request_for(
+                session.clone(),
+                ROOT_INODE,
+                b"source-file",
+                pb::FilesystemInodeKind::RegularFile,
+                b"create-source-file",
+            ))
+            .expect("create source file");
+        state
+            .filesystem_create_inode(filesystem_create_request_for(
+                session.clone(),
+                ROOT_INODE,
+                b"target-dir",
+                pb::FilesystemInodeKind::Directory,
+                b"create-target-dir",
+            ))
+            .expect("create target dir");
+        let file_over_directory = state.filesystem_rename_entry(pb::FilesystemRenameRequest {
+            context: None,
+            session: Some(session.clone()),
+            operation_id: b"file-over-dir".to_vec(),
+            operation_digest: b"file-over-dir-digest".to_vec(),
+            source_parent: ROOT_INODE,
+            source_name: b"source-file".to_vec(),
+            target_parent: ROOT_INODE,
+            target_name: b"target-dir".to_vec(),
+            expected_source_revision: None,
+            expected_target_revision: None,
+            commit_sequence: next_test_commit_sequence(),
+            replace_existing: true,
+        });
+        assert!(matches!(
+            file_over_directory,
+            Err(MetaRuntimeError::IsDirectory)
+        ));
+
+        state
+            .filesystem_create_inode(filesystem_create_request_for(
+                session.clone(),
+                ROOT_INODE,
+                b"source-dir",
+                pb::FilesystemInodeKind::Directory,
+                b"create-source-dir",
+            ))
+            .expect("create source dir");
+        state
+            .filesystem_create_inode(filesystem_create_request_for(
+                session.clone(),
+                ROOT_INODE,
+                b"target-file",
+                pb::FilesystemInodeKind::RegularFile,
+                b"create-target-file",
+            ))
+            .expect("create target file");
+        let directory_over_file = state.filesystem_rename_entry(pb::FilesystemRenameRequest {
+            context: None,
+            session: Some(session.clone()),
+            operation_id: b"dir-over-file".to_vec(),
+            operation_digest: b"dir-over-file-digest".to_vec(),
+            source_parent: ROOT_INODE,
+            source_name: b"source-dir".to_vec(),
+            target_parent: ROOT_INODE,
+            target_name: b"target-file".to_vec(),
+            expected_source_revision: None,
+            expected_target_revision: None,
+            commit_sequence: next_test_commit_sequence(),
+            replace_existing: true,
+        });
+        assert!(matches!(
+            directory_over_file,
+            Err(MetaRuntimeError::NotDirectory)
+        ));
+
+        state
+            .filesystem_create_inode(filesystem_create_request_for(
+                session.clone(),
+                ROOT_INODE,
+                b"empty-replacement",
+                pb::FilesystemInodeKind::Directory,
+                b"create-empty-replacement",
+            ))
+            .expect("create empty replacement directory");
+        state
+            .filesystem_rename_entry(pb::FilesystemRenameRequest {
+                context: None,
+                session: Some(session),
+                operation_id: b"dir-over-empty-dir".to_vec(),
+                operation_digest: b"dir-over-empty-dir-digest".to_vec(),
+                source_parent: ROOT_INODE,
+                source_name: b"source-dir".to_vec(),
+                target_parent: ROOT_INODE,
+                target_name: b"empty-replacement".to_vec(),
+                expected_source_revision: None,
+                expected_target_revision: None,
+                commit_sequence: next_test_commit_sequence(),
+                replace_existing: true,
+            })
+            .expect("directory may replace an empty directory");
+
+        assert!(state.filesystem.lookup(ROOT_INODE, b"source-dir").is_none());
+        assert!(
+            state
+                .filesystem
+                .lookup(ROOT_INODE, b"empty-replacement")
+                .is_some()
+        );
+        let restored = MetaState::new(state.journal);
+        assert!(
+            restored
+                .filesystem
+                .lookup(ROOT_INODE, b"source-dir")
+                .is_none()
+        );
+        assert!(
+            restored
+                .filesystem
+                .lookup(ROOT_INODE, b"empty-replacement")
+                .is_some()
+        );
     }
 
     #[test]
@@ -7150,6 +9032,11 @@ mod tests {
                 replica_operations: Vec::new(),
                 event_high_watermark: 0,
                 events: Vec::new(),
+                filesystem_next_inode: 2,
+                filesystem_inodes: Vec::new(),
+                filesystem_dentries: Vec::new(),
+                filesystem_grant_generations: Vec::new(),
+                filesystem_namespace_operations: Vec::new(),
             })
             .expect("manual snapshot");
         let mut restored = MetaState::new(Box::new(journal));
@@ -9287,6 +11174,99 @@ mod tests {
                 checksum: b"digest".to_vec(),
                 durability: pb::DurabilityPolicy::LocalMemory as i32,
             }],
+        }
+    }
+
+    fn create_test_file(
+        state: &mut MetaState,
+        session: pb::NodeSessionIdentity,
+        name: &[u8],
+    ) -> InodeSnapshot {
+        let response = state
+            .filesystem_create_inode(filesystem_create_request_for(
+                session,
+                crate::filesystem::ROOT_INODE,
+                name,
+                pb::FilesystemInodeKind::RegularFile,
+                &[b"create/".as_slice(), name].concat(),
+            ))
+            .expect("create test file");
+        crate::filesystem::inode_from_proto(
+            response
+                .resolved
+                .expect("created inode resolution")
+                .inode
+                .expect("created inode"),
+        )
+        .expect("valid created inode")
+    }
+
+    fn filesystem_create_request_for(
+        session: pb::NodeSessionIdentity,
+        parent: u64,
+        name: &[u8],
+        kind: pb::FilesystemInodeKind,
+        operation_id: &[u8],
+    ) -> pb::FilesystemCreateInodeRequest {
+        pb::FilesystemCreateInodeRequest {
+            context: None,
+            session: Some(session),
+            operation_id: operation_id.to_vec(),
+            parent,
+            name: name.to_vec(),
+            kind: kind as i32,
+            mode: if kind == pb::FilesystemInodeKind::Directory {
+                0o755
+            } else {
+                0o644
+            },
+            uid: 1000,
+            gid: 1000,
+            expected_parent_revision: None,
+            operation_digest: [operation_id, b"-digest"].concat(),
+            commit_sequence: next_test_commit_sequence(),
+        }
+    }
+
+    fn filesystem_commit_request_for(
+        session: pb::NodeSessionIdentity,
+        inode: &InodeSnapshot,
+        block_id: &[u8],
+        operation_id: &[u8],
+    ) -> pb::FilesystemCommitVersionRequest {
+        pb::FilesystemCommitVersionRequest {
+            context: None,
+            session: Some(session),
+            operation_id: operation_id.to_vec(),
+            operation_digest: [operation_id, b"-digest"].concat(),
+            inode: inode.attributes.inode,
+            expected_inode_revision: inode.revision,
+            object_key: filesystem_object_key(inode.attributes.inode),
+            expected_object_version: inode.content.as_ref().map(|binding| binding.exact_version),
+            candidate: Some(pb::VersionCandidate {
+                kind: pb::VersionKind::Value as i32,
+                logical_length: 4,
+                extents: vec![pb::ExtentRecord {
+                    logical: Some(pb::ByteRange {
+                        offset: 0,
+                        length: 4,
+                    }),
+                    block_id: block_id.to_vec(),
+                    block_offset: 0,
+                    digest: b"digest".to_vec(),
+                }],
+                digest: b"layout".to_vec(),
+            }),
+            replica_proofs: Vec::new(),
+            new_replicas: vec![pb::ReplicaReport {
+                block_id: block_id.to_vec(),
+                length: 4,
+                checksum: b"digest".to_vec(),
+                durability: pb::DurabilityPolicy::LocalMemory as i32,
+            }],
+            new_size: 4,
+            mtime_unix_nanos: 1,
+            commit_sequence: next_test_commit_sequence(),
         }
     }
 

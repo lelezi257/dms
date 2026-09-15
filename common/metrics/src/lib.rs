@@ -392,6 +392,20 @@ impl RpcCall {
         Self::new("MetadataService", "AcknowledgeNodeEvent");
     pub const META_ACKNOWLEDGE_BLOCK_RETIREMENT: Self =
         Self::new("MetadataService", "AcknowledgeBlockRetirement");
+    pub const FILESYSTEM_LOOKUP: Self =
+        Self::new("FilesystemMetadataService", "LookupFilesystemEntry");
+    pub const FILESYSTEM_GET_INODE: Self =
+        Self::new("FilesystemMetadataService", "GetFilesystemInode");
+    pub const FILESYSTEM_CREATE_INODE: Self =
+        Self::new("FilesystemMetadataService", "CreateFilesystemInode");
+    pub const FILESYSTEM_READ_DIRECTORY: Self =
+        Self::new("FilesystemMetadataService", "ReadFilesystemDirectory");
+    pub const FILESYSTEM_RENAME: Self =
+        Self::new("FilesystemMetadataService", "RenameFilesystemEntry");
+    pub const FILESYSTEM_REMOVE: Self =
+        Self::new("FilesystemMetadataService", "RemoveFilesystemEntry");
+    pub const FILESYSTEM_COMMIT_VERSION: Self =
+        Self::new("FilesystemMetadataService", "CommitFilesystemVersion");
 }
 
 /// Five transport-boundary collectors shared by every gRPC relationship.

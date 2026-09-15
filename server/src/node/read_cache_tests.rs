@@ -20,6 +20,7 @@ use dms_error::{self, DmsError, ErrorKind};
 use dms_protocol::v1 as pb;
 use dms_transport::dms_error_to_status;
 use pb::{
+    filesystem_metadata_service_server::FilesystemMetadataServiceServer,
     metadata_service_server::{MetadataService, MetadataServiceServer},
     peer_service_server::{PeerService, PeerServiceServer},
     worker_payload_service_server::WorkerPayloadServiceServer,
@@ -37,7 +38,7 @@ use super::{
     arena_manager::HostReceipt,
     consume_meta_events,
     data_core::{ByteRange, DataCoreHandle, ObjectKey, ReadOptions, VersionSelector},
-    filesystem::FileOperations,
+    filesystem::{FileOperations, SharedFileOperations},
     image::ImageReader,
     metadata_client::MetadataClient,
     peer_service::PeerServiceHandler,
@@ -45,7 +46,10 @@ use super::{
     send_meta_heartbeats,
     worker_service::WorkerServiceHandler,
 };
-use crate::meta::{metadata_service::MetadataServiceHandler, runtime::MetaHandle};
+use crate::meta::{
+    filesystem::service::FilesystemMetadataServiceHandler,
+    metadata_service::MetadataServiceHandler, runtime::MetaHandle,
+};
 
 #[derive(Clone)]
 struct CountingMetaService {
@@ -435,6 +439,12 @@ impl CountingMetaServer {
         let handle = MetaHandle::spawn();
         let commit_requests = Arc::new(Mutex::new(Vec::new()));
         let handler = MetadataServiceHandler::new(handle.clone());
+        let registry = dms_metrics::registry();
+        let filesystem_handler = FilesystemMetadataServiceHandler::new(
+            handle.clone(),
+            dms_metrics::RpcMetrics::register(&registry).expect("filesystem RPC metrics"),
+            dms_metrics::ErrorMetrics::register(&registry).expect("filesystem error metrics"),
+        );
         let service = CountingMetaService {
             inner: handler.clone(),
             commit_requests: commit_requests.clone(),
@@ -454,6 +464,7 @@ impl CountingMetaServer {
         let task = tokio::spawn(async move {
             tonic::transport::Server::builder()
                 .add_service(MetadataServiceServer::new(service))
+                .add_service(FilesystemMetadataServiceServer::new(filesystem_handler))
                 .serve_with_incoming_shutdown(TcpListenerStream::new(listener), async {
                     let _ = shutdown_rx.await;
                 })
@@ -1533,6 +1544,77 @@ async fn data_core_current_cache_is_shared_with_filesystem_without_meta_or_peer_
         0,
         "首次 DataCore 读已把远端 Block 安装到本 Node；Filesystem 热读不再走 peer payload"
     );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn shared_filesystem_write_peer_read_revoke_and_patch_are_one_version_chain() {
+    let meta = CountingMetaServer::start().await;
+    let writer_node = TestNode::start_with_peer_server(&meta.endpoint, 1).await;
+    let reader_node = TestNode::start_with_peer_server(&meta.endpoint, 2).await;
+    let writer_fs = SharedFileOperations::new(writer_node.node.clone()).expect("writer FS");
+    let reader_fs = SharedFileOperations::new(reader_node.node.clone()).expect("reader FS");
+
+    let writer = writer_fs
+        .create_and_open(b"shared.txt", 0o644, 2)
+        .await
+        .expect("create and open on Node A");
+    let first_version = writer_fs
+        .write(writer.id, 0, b"abcdef")
+        .await
+        .expect("initial write-through commit");
+    assert_eq!(first_version.length, 6);
+
+    let looked_up = reader_fs
+        .lookup(crate::filesystem::ROOT_INODE, b"shared.txt")
+        .await
+        .expect("lookup from Node B")
+        .expect("shared file exists");
+    let reader = reader_fs
+        .open(looked_up.granted.inode.attributes.inode, 0)
+        .await
+        .expect("open on Node B");
+
+    writer_node.reset_peer_pull_count();
+    let cold = reader_fs
+        .read(reader.id, 0, 6)
+        .await
+        .expect("Node B first read")
+        .expect("file content");
+    assert_eq!(cold.bytes, b"abcdef");
+    assert_eq!(writer_node.peer_pull_count(), 1, "首读只拉一次 payload");
+
+    let hot = reader_fs
+        .read(reader.id, 0, 6)
+        .await
+        .expect("Node B hot read")
+        .expect("file content");
+    assert_eq!(hot.bytes, b"abcdef");
+    assert_eq!(
+        writer_node.peer_pull_count(),
+        1,
+        "binding 与 Block 均命中时不再访问 Peer payload"
+    );
+
+    let patched = writer_fs
+        .write(writer.id, 2, b"ZZ")
+        .await
+        .expect("Node A range write waits for Node B revoke ACK");
+    assert!(patched.version > first_version.version);
+
+    let refreshed = reader_fs
+        .read(reader.id, 0, 6)
+        .await
+        .expect("Node B read after revoke")
+        .expect("file content");
+    assert_eq!(refreshed.bytes, b"abZZef");
+    assert_eq!(
+        writer_node.peer_pull_count(),
+        2,
+        "旧 base Block 已在 Node B；新版本只需拉取一个 patch Block"
+    );
+
+    writer_fs.close(writer.id).await.expect("close writer");
+    reader_fs.close(reader.id).await.expect("close reader");
 }
 
 #[test]

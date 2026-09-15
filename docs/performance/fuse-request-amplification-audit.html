@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Native Filesystem FUSE 请求放大审计</title>
+  <style>
+    :root{color-scheme:light;--ink:#182033;--muted:#647084;--line:#dce3ee;--blue:#2864d7;--green:#137a51;--amber:#9a6300;--bg:#f4f7fb;--card:#fff}
+    *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+    main{width:min(1200px,calc(100% - 32px));margin:32px auto 64px} h1{font-size:32px;line-height:1.2;margin:0 0 8px}
+    h2{margin-top:36px;border-bottom:1px solid var(--line);padding-bottom:8px} h3{margin-top:24px}.muted{color:var(--muted)}
+    .lead,.card,.callout{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px 20px}.lead{border-left:5px solid var(--green);margin:18px 0 24px}
+    .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.kpi{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px}.kpi b{display:block;color:var(--green);font-size:23px}
+    table{width:100%;border-collapse:collapse;background:var(--card);font-variant-numeric:tabular-nums}th,td{border:1px solid var(--line);padding:8px 10px;text-align:left;vertical-align:top}th{background:#eaf0fa}
+    code{background:#edf2f8;padding:2px 5px;border-radius:4px}.flow{display:grid;grid-template-columns:repeat(9,1fr);gap:7px;align-items:center;margin:14px 0}.flow span{background:#eef3fb;border:1px solid #b9c9e5;border-radius:8px;padding:9px 6px;text-align:center;min-height:58px;display:grid;place-items:center}.flow i{text-align:center;color:var(--blue);font-style:normal;font-weight:700}
+    .warn{border-left:4px solid var(--amber);background:#fff8e8;margin:14px 0}.good{color:var(--green);font-weight:700}.decision{border-left:4px solid var(--blue);background:#edf4ff;margin:14px 0}a{color:var(--blue)}
+    @media(max-width:850px){.grid{grid-template-columns:1fr 1fr}.flow{grid-template-columns:1fr}.flow i{transform:rotate(90deg)}}
+  </style>
+</head>
+<body><main>
+  <h1>Native Filesystem FUSE 请求放大审计</h1>
+  <p class="muted">2026-09-15 · 5 轮交替 · 三台相同 Lima aarch64 VM · Native 与外置 Glue 同场</p>
+
+  <section class="lead">
+    <b>结论：两个机器验收器均 PASS。</b>
+    当前已覆盖 lookup、getattr、open/close、readdir、完整写、热读、跨节点首读和 pwrite。
+    没有发现可在保持公开接口、一致性和 write-through 语义下删除的 P0/P1 RPC 或完整字节复制；
+    同节点热路径为 0 Meta、0 Peer，跨节点首读只保留一次位置解析和每个缺失 Block 一次 Pull。
+  </section>
+
+  <div class="grid">
+    <div class="kpi"><b>19</b>个行为/尺寸 Case</div>
+    <div class="kpi"><b>16</b>个历史性能 Case 无回归</div>
+    <div class="kpi"><b>0 / 0</b>热读 Meta / Peer RPC</div>
+    <div class="kpi"><b>22.4%～65.7%</b>核心 p50 领先 Glue</div>
+  </div>
+
+  <h2>1. 这次把什么举一反三了</h2>
+  <p>之前只知道“大请求分段数减少后会变快”。现在不再靠某个配置名判断，而是对每个用户操作建立统一账本：</p>
+  <div class="flow"><span>POSIX 操作</span><i>→</i><span>FUSE callback</span><i>→</i><span>文件业务操作</span><i>→</i><span>DataCore</span><i>→</i><span>Meta / Peer</span></div>
+  <p>每层同时记录次数；read/write 和 DataCore 额外记录字节。验收器按 Case 冻结允许上限，后续无论 FUSE ABI、内核、actor 或缓存如何改，只要产生额外 callback、RPC、Block Pull 或整段复制就会失败。</p>
+
+  <h2>2. 代表性实测账本</h2>
+  <table>
+    <tr><th>用户操作</th><th>Native p50 / p95</th><th>FUSE callback</th><th>DataCore</th><th>Meta</th><th>Peer</th><th>判断</th></tr>
+    <tr><td><code>stat(4 KiB)</code></td><td>124.9 / 147.5 µs</td><td>lookup 1 + getattr 1</td><td>0</td><td>0</td><td>0</td><td class="good">纯元数据本地命中</td></tr>
+    <tr><td><code>open + close</code></td><td>152.4 / 205.1 µs</td><td>lookup 1 + open 1 + flush 1 + release 1</td><td>0</td><td>0</td><td>0</td><td class="good">没有偷读 payload</td></tr>
+    <tr><td><code>readdir(200 项)</code></td><td>212.4 / 247.8 µs</td><td>root getattr 1 + readdir 4</td><td>0</td><td>0</td><td>0</td><td>4 次来自内核回复缓冲分页</td></tr>
+    <tr><td><code>read(4 KiB)</code> 热</td><td>466.3 / 533.7 µs</td><td>lookup 1 + getattr 2 + open 1 + read 2</td><td>read_resolved 1；4 KiB</td><td>0</td><td>0</td><td class="good">一次数据读取，无中心访问</td></tr>
+    <tr><td><code>read(1 MiB)</code> 热</td><td>780.2 / 937.6 µs</td><td>read 3</td><td>read_resolved 2；总计 1 MiB</td><td>0</td><td>0</td><td>EOF 探测不进入 DataCore</td></tr>
+    <tr><td>Peer 首读 4 KiB</td><td>921.8 / 1152.6 µs</td><td>与热读相同</td><td>read_resolved 1</td><td>lookup 1</td><td>Pull 1</td><td class="good">分布式必需最小路径</td></tr>
+    <tr><td><code>pwrite</code> 4 KiB patch</td><td>850.1 / 1089.3 µs</td><td>write 1</td><td>prepare_range 1 + finish 1</td><td>commit 1</td><td>0</td><td class="good">不读回、不重写 64 KiB</td></tr>
+  </table>
+
+  <h2>3. 哪些看似放大，但现在不能局部删除</h2>
+  <section class="callout warn">
+    <b>1 MiB 写 = 2 次 FUSE write + 2 次 commit。</b>
+    当前内核把该写请求拆成两段；我们选择 write-through，所以每个 callback 发布成功后才能返回。
+    若强行只 commit 一次，就已经变成 writeback，需要新增脏页、flush/fsync、失败恢复和空间回收语义，不能伪装成局部性能优化。
+  </section>
+  <section class="callout warn">
+    <b>TTL=0 与 DIRECT_IO 暂时保留。</b>
+    Node 已通过 watch 撤销自己的 binding/cache，但尚未把失效事件闭环到内核 FUSE cache。
+    在具备 notifier 前启用较长 entry/attr/page cache 会改变跨客户端可见性，不是安全优化。
+  </section>
+  <section class="callout warn">
+    <b>readdir 每页重新收集/排序是 P2，不在当前临时语义上扩建缓存。</b>
+    当前目录只列出本 Node 已发现的 dentry，并非最终权威共享 namespace。应在 Meta 目录分页合同完成时一次解决分页、排序和缓存，当前增加第二套目录快照只会形成待删除状态。
+  </section>
+
+  <h2>4. max_pages 类问题的最终结论</h2>
+  <p><code>fuser 0.16 + abi-7-31</code> 已默认协商 <code>ASYNC_READ</code>、<code>BIG_WRITES</code>，并在内核支持时请求 <code>MAX_PAGES</code>；默认接收缓冲允许 16 MiB。当前不缺另一个手写的 <code>max_pages</code> 开关。</p>
+  <p>真正应长期保留的是“实测分段账本”：例如 1 MiB 热读是 3 次 FUSE read，但只有 2 次 DataCore read 且总字节恰好 1 MiB，因此第三次是 EOF 探测；如果未来变成 8 次 DataCore 或 8 次 commit，机器合同会直接失败。</p>
+
+  <h2>5. 本轮实际修改</h2>
+  <table>
+    <tr><th>修改</th><th>解决的问题</th></tr>
+    <tr><td>新增原始 FUSE callback 和 DataCore typed metrics</td><td>不再把“内核调用次数”和“业务处理次数”混为一谈。</td></tr>
+    <tr><td>workload 新增 metadata-hot、open-close、readdir</td><td>补齐过去只测 read/write、看不到元数据操作放大的缺口。</td></tr>
+    <tr><td>汇总器生成逐 Case amplification ledger</td><td>统一统计 FUSE、文件层、DataCore、Meta、Peer 和边界字节。</td></tr>
+    <tr><td>删除 workload 快照后的 resolve/mkdir</td><td>消除每 phase 固定 3 次 root getattr 的测量污染。</td></tr>
+    <tr><td>readdir 正确性改为业务文件集合包含关系</td><td>允许后端管理项存在，双方仍验证完全相同的 200 个业务文件。</td></tr>
+    <tr><td>机器合同覆盖 19 个 Case</td><td>同时守住请求上限、历史 p50/p95 和 Native-vs-Glue 结果。</td></tr>
+  </table>
+
+  <h2>6. 代码 Review 导航</h2>
+  <table>
+    <tr><th>文件</th><th>重点</th></tr>
+    <tr><td><code>server/src/node/metrics.rs</code></td><td><code>FuseCallback</code>、<code>DataCoreOperation</code> 和低基数记录入口。</td></tr>
+    <tr><td><code>server/src/node/filesystem/fuse.rs</code></td><td>每个真实 FUSE callback 的计数位置；read/write 成功后才记字节。</td></tr>
+    <tr><td><code>server/src/node/data_core.rs</code></td><td>DataCore 的 read/prepare/finish 边界计数。</td></tr>
+    <tr><td><code>scripts/performance/native_filesystem_workload.py</code></td><td>POSIX 操作定义与不污染计数边界的启动方式。</td></tr>
+    <tr><td><code>scripts/performance/assemble_native_filesystem_result.py</code></td><td>Prometheus 差值如何变成逐用户操作账本。</td></tr>
+    <tr><td><code>benchmarks/whitebox/fuse-request-amplification-contract.json</code></td><td>19 个 Case 的机器上限与原因。</td></tr>
+    <tr><td><code>scripts/performance/evaluate_fuse_request_amplification.py</code></td><td>账本完整性、放大上限和历史回归判定。</td></tr>
+  </table>
+
+  <h2>7. 验收证据与后续边界</h2>
+  <p>当前结果：<code>native-filesystem-vs-glue-evaluation = PASS</code>，<code>fuse-request-amplification-evaluation = PASS</code>。核心十项 Native p50 比 Glue 快 22.4%～65.7%；所有冻结 Native p50/p95 均未回归 5%。</p>
+  <section class="callout decision">
+    <b>下一阶段不是继续改单操作。</b>在完整 POSIX 功能推进到目录权威分页、unlink/rename/truncate、并发 I/O 时，复用同一账本扩展合同；并发前先单独测 fuser 单 session dispatch + callback 内 block_on 是否形成队头阻塞，再决定执行模型，不能仅凭代码形态重构。
+  </section>
+</main></body>
+</html>

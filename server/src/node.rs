@@ -235,14 +235,11 @@ async fn serve_workers(config: NodeConfig) -> Result<(), Box<dyn std::error::Err
     // heartbeat/watch 任务都就绪后再挂载。否则内核已经能把文件读写请求打进来，
     // 但 Node 还没有失效通知通道，会破坏“开放入口前先建立可见性/失效通道”的不变量。
     let _fuse_session = match config.fuse_mountpoint.clone() {
-        Some(mountpoint) => {
-            let core = data_core::DataCoreHandle::new(node.clone());
-            Some(filesystem::fuse::start(
-                mountpoint.clone(),
-                core,
-                tokio::runtime::Handle::current(),
-            )?)
-        }
+        Some(mountpoint) => Some(filesystem::fuse::start(
+            mountpoint.clone(),
+            node.clone(),
+            tokio::runtime::Handle::current(),
+        )?),
         None => None,
     };
 
@@ -359,6 +356,19 @@ async fn consume_meta_events(
                             break;
                         }
                     }
+                    Some(node_event::Event::InvalidateFilesystemBinding(invalidation))
+                        if node
+                            .invalidate_filesystem_binding(
+                                invalidation.inode,
+                                invalidation.through_generation,
+                                invalidation.minimum_inode_revision,
+                            )
+                            .await
+                            .is_err() =>
+                    {
+                        break;
+                    }
+                    Some(node_event::Event::InvalidateFilesystemBinding(_)) => {}
                     Some(node_event::Event::RepairReplica(repair)) => {
                         if let Err(error) = apply_repair_event(&metadata, &node, repair).await {
                             dms_logging::error!(

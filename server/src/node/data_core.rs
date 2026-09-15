@@ -16,7 +16,9 @@ use std::sync::{
 
 use uuid::Uuid;
 
+use super::metrics::DataCoreOperation;
 use super::runtime::{DataCoreReadAttempt, NodeHandle, WorkerError};
+use crate::filesystem::{PreparedObjectVersion, ResolvedObject};
 
 static DATA_CORE_INSTANCE_ID: OnceLock<[u8; 16]> = OnceLock::new();
 static DATA_CORE_SEQUENCE: AtomicU64 = AtomicU64::new(1);
@@ -86,10 +88,7 @@ pub(crate) struct ReadOptions {
 }
 
 impl ReadOptions {
-    #[cfg_attr(
-        not(any(test, feature = "fuse")),
-        allow(dead_code, reason = "文件 range 合同由 FUSE 支持和回归测试使用")
-    )]
+    #[cfg(test)]
     pub(crate) fn current_range(range: ByteRange) -> Self {
         Self {
             version: VersionSelector::Current,
@@ -124,6 +123,7 @@ pub(crate) struct ObjectWrite {
 }
 
 /// 删除结果需要保留“本次是否真的删除了一个存在对象”。
+#[cfg(test)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct ObjectDelete {
     pub(crate) deleted: bool,
@@ -131,6 +131,7 @@ pub(crate) struct ObjectDelete {
 }
 
 /// 同一对象版本上的 range patch。扩容/稀疏文件语义由文件子系统先转换。
+#[cfg(test)]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct RangeWrite {
     pub(crate) offset: u64,
@@ -164,6 +165,10 @@ impl DataCoreHandle {
     )]
     pub(crate) fn new(node: NodeHandle) -> Self {
         Self { node }
+    }
+
+    pub(crate) fn new_operation_id(&self) -> Vec<u8> {
+        next_operation_id()
     }
 
     pub(crate) async fn stat(&self, key: ObjectKey) -> Result<Option<ObjectStat>, WorkerError> {
@@ -284,6 +289,41 @@ impl DataCoreHandle {
         }))
     }
 
+    /// 使用上层已授权的精确版本计划读取，避免 inode binding 命中后再次访问 Meta。
+    pub(crate) async fn read_resolved(
+        &self,
+        resolved: ResolvedObject,
+        range: ByteRange,
+    ) -> Result<Option<ObjectRead>, WorkerError> {
+        let metrics = self.node.metrics();
+        metrics.record_data_core_operation(DataCoreOperation::ReadResolved);
+        let capacity = usize::try_from(range.length).map_err(|_| WorkerError::ResourceExhausted)?;
+        let result = self
+            .node
+            .data_core_read_pre_resolved_into(
+                resolved,
+                Some((range.offset, range.length)),
+                true,
+                vec![0; capacity],
+            )
+            .await?;
+        let result = match result {
+            DataCoreReadAttempt::Ready(result) => result,
+            DataCoreReadAttempt::NotFound => return Ok(None),
+            DataCoreReadAttempt::BufferTooSmall { .. } => {
+                return Err(WorkerError::ResourceExhausted);
+            }
+        };
+        let mut bytes = result.bytes;
+        bytes.truncate(result.bytes_read);
+        metrics.record_data_core_bytes(DataCoreOperation::ReadResolved, bytes.len());
+        Ok(Some(ObjectRead {
+            version: result.version,
+            logical_length: result.logical_length,
+            bytes,
+        }))
+    }
+
     #[allow(dead_code, reason = "由跨子系统回归测试使用")]
     pub(crate) async fn put(
         &self,
@@ -298,10 +338,7 @@ impl DataCoreHandle {
     ///
     /// 文件扩容必须先读取旧 value 再构造新 value；把读到的版本带回提交，可以防止
     /// 并发写在“读旧值”和“提交新值”之间成功后又被本次扩容静默覆盖。
-    #[cfg_attr(
-        not(any(test, feature = "fuse")),
-        allow(dead_code, reason = "文件扩容和 truncate 的版本 CAS 由 FUSE 支持使用")
-    )]
+    #[cfg(test)]
     pub(crate) async fn put_if_version(
         &self,
         key: ObjectKey,
@@ -318,6 +355,7 @@ impl DataCoreHandle {
     }
 
     /// 仅在对象不存在时创建完整 value。
+    #[cfg(test)]
     pub(crate) async fn put_if_absent(
         &self,
         key: ObjectKey,
@@ -344,6 +382,52 @@ impl DataCoreHandle {
         })
     }
 
+    pub(crate) async fn prepare_put(
+        &self,
+        key: ObjectKey,
+        bytes: Vec<u8>,
+        operation_id: Vec<u8>,
+        expected_version: Option<u64>,
+    ) -> Result<PreparedObjectVersion, WorkerError> {
+        let metrics = self.node.metrics();
+        metrics.record_data_core_operation(DataCoreOperation::PreparePut);
+        metrics.record_data_core_bytes(DataCoreOperation::PreparePut, bytes.len());
+        self.node
+            .data_core_prepare_inline(key.into_bytes(), bytes, operation_id, expected_version)
+            .await
+    }
+
+    pub(crate) async fn prepare_range(
+        &self,
+        key: ObjectKey,
+        offset: u64,
+        bytes: Vec<u8>,
+        operation_id: Vec<u8>,
+        resolved: ResolvedObject,
+    ) -> Result<PreparedObjectVersion, WorkerError> {
+        let metrics = self.node.metrics();
+        metrics.record_data_core_operation(DataCoreOperation::PrepareRange);
+        metrics.record_data_core_bytes(DataCoreOperation::PrepareRange, bytes.len());
+        self.node
+            .data_core_prepare_range(key.into_bytes(), offset, bytes, operation_id, resolved)
+            .await
+    }
+
+    pub(crate) async fn finish_prepared(
+        &self,
+        prepared: PreparedObjectVersion,
+        version: Option<u64>,
+        rejected: bool,
+    ) -> Result<(), WorkerError> {
+        self.node
+            .metrics()
+            .record_data_core_operation(DataCoreOperation::FinishPrepared);
+        self.node
+            .data_core_finish_prepared(prepared, version, rejected)
+            .await
+    }
+
+    #[cfg(test)]
     pub(crate) async fn write_range(
         &self,
         key: ObjectKey,
@@ -365,14 +449,12 @@ impl DataCoreHandle {
         })
     }
 
-    #[cfg_attr(
-        not(any(test, feature = "fuse")),
-        allow(dead_code, reason = "对象删除由可选 FUSE 支持和回归测试使用")
-    )]
+    #[cfg(test)]
     pub(crate) async fn delete(&self, key: ObjectKey) -> Result<ObjectDelete, WorkerError> {
         self.delete_with_operation(key, next_operation_id()).await
     }
 
+    #[cfg(test)]
     pub(crate) async fn delete_with_operation(
         &self,
         key: ObjectKey,

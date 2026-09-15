@@ -1,7 +1,9 @@
 {
   "schema": "dms.filesystem.namespace-workload.v1",
-  "rounds": 20,
+  "deployment": "three-vm",
+  "requested_rounds": 20,
   "passed_rounds": 20,
+  "recovery_round": 19,
   "round_results": [
     {
       "round": 0,
@@ -9,8 +11,7 @@
         {
           "operation": "mkdir_create_read",
           "directory_wait_attempts": 1,
-          "read_wait_attempts": 1,
-          "bytes": 26
+          "read_wait_attempts": 1
         },
         {
           "operation": "rename",
@@ -26,15 +27,14 @@
         {
           "operation": "recovery_anchor",
           "wait_attempts": 1,
-          "path": "/stable/round-000/anchor.txt",
-          "bytes": 25
+          "path": "/tmp/dms-filesystem-namespace-m1-1789483062/mnt/stable/round-000/anchor.txt"
         },
         {
           "operation": "unlink_regular_file",
           "wait_attempts": 1
         }
       ],
-      "elapsed_ms": 566.955693
+      "elapsed_ms": 1424.55125
     },
     {
       "round": 1,
@@ -42,8 +42,7 @@
         {
           "operation": "mkdir_create_read",
           "directory_wait_attempts": 1,
-          "read_wait_attempts": 1,
-          "bytes": 26
+          "read_wait_attempts": 1
         },
         {
           "operation": "rename",
@@ -59,15 +58,14 @@
         {
           "operation": "recovery_anchor",
           "wait_attempts": 1,
-          "path": "/stable/round-001/anchor.txt",
-          "bytes": 25
+          "path": "/tmp/dms-filesystem-namespace-m1-1789483062/mnt/stable/round-001/anchor.txt"
         },
         {
           "operation": "unlink_regular_file",
           "wait_attempts": 1
         }
       ],
-      "elapsed_ms": 90.688686
+      "elapsed_ms": 788.750166
     },
     {
       "round": 2,
@@ -75,8 +73,7 @@
         {
           "operation": "mkdir_create_read",
           "directory_wait_attempts": 1,
-          "read_wait_attempts": 1,
-          "bytes": 26
+          "read_wait_attempts": 1
         },
         {
           "operation": "rename",
@@ -92,15 +89,14 @@
         {
           "operation": "recovery_anchor",
           "wait_attempts": 1,
-          "path": "/stable/round-002/anchor.txt",
-          "bytes": 25
+          "path": "/tmp/dms-filesystem-namespace-m1-1789483062/mnt/stable/round-002/anchor.txt"
         },
         {
           "operation": "unlink_regular_file",
           "wait_attempts": 1
         }
       ],
-      "elapsed_ms": 91.119481
+      "elapsed_ms": 772.336834
     },
     {
       "round": 3,
@@ -108,8 +104,7 @@
         {
           "operation": "mkdir_create_read",
           "directory_wait_attempts": 1,
-          "read_wait_attempts": 1,
-          "bytes": 26
+          "read_wait_attempts": 1
         },
         {
           "operation": "rename",
@@ -125,15 +120,14 @@
         {
           "operation": "recovery_anchor",
           "wait_attempts": 1,
-          "path": "/stable/round-003/anchor.txt",
-          "bytes": 25
+          "path": "/tmp/dms-filesystem-namespace-m1-1789483062/mnt/stable/round-003/anchor.txt"
         },
         {
           "operation": "unlink_regular_file",
           "wait_attempts": 1
         }
       ],
-      "elapsed_ms": 89.442314
+      "elapsed_ms": 795.075541
     },
     {
       "round": 4,
@@ -141,8 +135,7 @@
         {
           "operation": "mkdir_create_read",
           "directory_wait_attempts": 1,
-          "read_wait_attempts": 1,
-          "bytes": 26
+          "read_wait_attempts": 1
         },
         {
           "operation": "rename",
@@ -158,15 +151,14 @@
         {
           "operation": "recovery_anchor",
           "wait_attempts": 1,
-          "path": "/stable/round-004/anchor.txt",
-          "bytes": 25
+          "path": "/tmp/dms-filesystem-namespace-m1-1789483062/mnt/stable/round-004/anchor.txt"
         },
         {
           "operation": "unlink_regular_file",
           "wait_attempts": 1
         }
       ],
-      "elapsed_ms": 92.153764
+      "elapsed_ms": 771.592209
     },
     {
       "round": 5,
@@ -174,8 +166,7 @@
         {
           "operation": "mkdir_create_read",
           "directory_wait_attempts": 1,
-          "read_wait_attempts": 1,
-          "bytes": 26
+          "read_wait_attempts": 1
         },
         {
           "operation": "rename",
@@ -191,15 +182,14 @@
         {
           "operation": "recovery_anchor",
           "wait_attempts": 1,
-          "path": "/stable/round-005/anchor.txt",
-          "bytes": 25
+          "path": "/tmp/dms-filesystem-namespace-m1-1789483062/mnt/stable/round-005/anchor.txt"
         },
         {
           "operation": "unlink_regular_file",
           "wait_attempts": 1
         }
       ],
-      "elapsed_ms": 97.186719
+      "elapsed_ms": 841.297834
     },
     {
       "round": 6,
@@ -207,8 +197,7 @@
         {
           "operation": "mkdir_create_read",
           "directory_wait_attempts": 1,
-          "read_wait_attempts": 1,
-          "bytes": 26
+          "read_wait_attempts": 1
         },
         {
           "operation": "rename",
@@ -224,15 +213,14 @@
         {
           "operation": "recovery_anchor",
           "wait_attempts": 1,
-          "path": "/stable/round-006/anchor.txt",
-          "bytes": 25
+          "path": "/tmp/dms-filesystem-namespace-m1-1789483062/mnt/stable/round-006/anchor.txt"
         },
         {
           "operation": "unlink_regular_file",
           "wait_attempts": 1
         }
       ],
-      "elapsed_ms": 89.276618
+      "elapsed_ms": 768.619709
     },
     {
       "round": 7,
@@ -240,8 +228,7 @@
         {
           "operation": "mkdir_create_read",
           "directory_wait_attempts": 1,
-          "read_wait_attempts": 1,
-          "bytes": 26
+          "read_wait_attempts": 1
         },
         {
           "operation": "rename",
@@ -257,15 +244,14 @@
         {
           "operation": "recovery_anchor",
           "wait_attempts": 1,
-          "path": "/stable/round-007/anchor.txt",
-          "bytes": 25
+          "path": "/tmp/dms-filesystem-namespace-m1-1789483062/mnt/stable/round-007/anchor.txt"
         },
         {
           "operation": "unlink_regular_file",
           "wait_attempts": 1
         }
       ],
-      "elapsed_ms": 92.934735
+      "elapsed_ms": 763.629333
     },
     {
       "round": 8,
@@ -273,8 +259,7 @@
         {
           "operation": "mkdir_create_read",
           "directory_wait_attempts": 1,
-          "read_wait_attempts": 1,
-          "bytes": 26
+          "read_wait_attempts": 1
         },
         {
           "operation": "rename",
@@ -290,15 +275,14 @@
         {
           "operation": "recovery_anchor",
           "wait_attempts": 1,
-          "path": "/stable/round-008/anchor.txt",
-          "bytes": 25
+          "path": "/tmp/dms-filesystem-namespace-m1-1789483062/mnt/stable/round-008/anchor.txt"
         },
         {
           "operation": "unlink_regular_file",
           "wait_attempts": 1
         }
       ],
-      "elapsed_ms": 98.122685
+      "elapsed_ms": 761.5765
     },
     {
       "round": 9,
@@ -306,8 +290,7 @@
         {
           "operation": "mkdir_create_read",
           "directory_wait_attempts": 1,
-          "read_wait_attempts": 1,
-          "bytes": 26
+          "read_wait_attempts": 1
         },
         {
           "operation": "rename",
@@ -323,15 +306,14 @@
         {
           "operation": "recovery_anchor",
           "wait_attempts": 1,
-          "path": "/stable/round-009/anchor.txt",
-          "bytes": 25
+          "path": "/tmp/dms-filesystem-namespace-m1-1789483062/mnt/stable/round-009/anchor.txt"
         },
         {
           "operation": "unlink_regular_file",
           "wait_attempts": 1
         }
       ],
-      "elapsed_ms": 91.695568
+      "elapsed_ms": 763.051833
     },
     {
       "round": 10,
@@ -339,8 +321,7 @@
         {
           "operation": "mkdir_create_read",
           "directory_wait_attempts": 1,
-          "read_wait_attempts": 1,
-          "bytes": 27
+          "read_wait_attempts": 1
         },
         {
           "operation": "rename",
@@ -356,15 +337,14 @@
         {
           "operation": "recovery_anchor",
           "wait_attempts": 1,
-          "path": "/stable/round-010/anchor.txt",
-          "bytes": 26
+          "path": "/tmp/dms-filesystem-namespace-m1-1789483062/mnt/stable/round-010/anchor.txt"
         },
         {
           "operation": "unlink_regular_file",
           "wait_attempts": 1
         }
       ],
-      "elapsed_ms": 93.800531
+      "elapsed_ms": 775.760416
     },
     {
       "round": 11,
@@ -372,8 +352,7 @@
         {
           "operation": "mkdir_create_read",
           "directory_wait_attempts": 1,
-          "read_wait_attempts": 1,
-          "bytes": 27
+          "read_wait_attempts": 1
         },
         {
           "operation": "rename",
@@ -389,15 +368,14 @@
         {
           "operation": "recovery_anchor",
           "wait_attempts": 1,
-          "path": "/stable/round-011/anchor.txt",
-          "bytes": 26
+          "path": "/tmp/dms-filesystem-namespace-m1-1789483062/mnt/stable/round-011/anchor.txt"
         },
         {
           "operation": "unlink_regular_file",
           "wait_attempts": 1
         }
       ],
-      "elapsed_ms": 94.345701
+      "elapsed_ms": 761.758208
     },
     {
       "round": 12,
@@ -405,8 +383,7 @@
         {
           "operation": "mkdir_create_read",
           "directory_wait_attempts": 1,
-          "read_wait_attempts": 1,
-          "bytes": 27
+          "read_wait_attempts": 1
         },
         {
           "operation": "rename",
@@ -422,15 +399,14 @@
         {
           "operation": "recovery_anchor",
           "wait_attempts": 1,
-          "path": "/stable/round-012/anchor.txt",
-          "bytes": 26
+          "path": "/tmp/dms-filesystem-namespace-m1-1789483062/mnt/stable/round-012/anchor.txt"
         },
         {
           "operation": "unlink_regular_file",
           "wait_attempts": 1
         }
       ],
-      "elapsed_ms": 97.815311
+      "elapsed_ms": 770.914875
     },
     {
       "round": 13,
@@ -438,8 +414,7 @@
         {
           "operation": "mkdir_create_read",
           "directory_wait_attempts": 1,
-          "read_wait_attempts": 1,
-          "bytes": 27
+          "read_wait_attempts": 1
         },
         {
           "operation": "rename",
@@ -455,15 +430,14 @@
         {
           "operation": "recovery_anchor",
           "wait_attempts": 1,
-          "path": "/stable/round-013/anchor.txt",
-          "bytes": 26
+          "path": "/tmp/dms-filesystem-namespace-m1-1789483062/mnt/stable/round-013/anchor.txt"
         },
         {
           "operation": "unlink_regular_file",
           "wait_attempts": 1
         }
       ],
-      "elapsed_ms": 92.689016
+      "elapsed_ms": 759.632084
     },
     {
       "round": 14,
@@ -471,8 +445,7 @@
         {
           "operation": "mkdir_create_read",
           "directory_wait_attempts": 1,
-          "read_wait_attempts": 1,
-          "bytes": 27
+          "read_wait_attempts": 1
         },
         {
           "operation": "rename",
@@ -488,15 +461,14 @@
         {
           "operation": "recovery_anchor",
           "wait_attempts": 1,
-          "path": "/stable/round-014/anchor.txt",
-          "bytes": 26
+          "path": "/tmp/dms-filesystem-namespace-m1-1789483062/mnt/stable/round-014/anchor.txt"
         },
         {
           "operation": "unlink_regular_file",
           "wait_attempts": 1
         }
       ],
-      "elapsed_ms": 94.331221
+      "elapsed_ms": 756.39975
     },
     {
       "round": 15,
@@ -504,8 +476,7 @@
         {
           "operation": "mkdir_create_read",
           "directory_wait_attempts": 1,
-          "read_wait_attempts": 1,
-          "bytes": 27
+          "read_wait_attempts": 1
         },
         {
           "operation": "rename",
@@ -521,15 +492,14 @@
         {
           "operation": "recovery_anchor",
           "wait_attempts": 1,
-          "path": "/stable/round-015/anchor.txt",
-          "bytes": 26
+          "path": "/tmp/dms-filesystem-namespace-m1-1789483062/mnt/stable/round-015/anchor.txt"
         },
         {
           "operation": "unlink_regular_file",
           "wait_attempts": 1
         }
       ],
-      "elapsed_ms": 89.488518
+      "elapsed_ms": 759.570375
     },
     {
       "round": 16,
@@ -537,8 +507,7 @@
         {
           "operation": "mkdir_create_read",
           "directory_wait_attempts": 1,
-          "read_wait_attempts": 1,
-          "bytes": 27
+          "read_wait_attempts": 1
         },
         {
           "operation": "rename",
@@ -554,15 +523,14 @@
         {
           "operation": "recovery_anchor",
           "wait_attempts": 1,
-          "path": "/stable/round-016/anchor.txt",
-          "bytes": 26
+          "path": "/tmp/dms-filesystem-namespace-m1-1789483062/mnt/stable/round-016/anchor.txt"
         },
         {
           "operation": "unlink_regular_file",
           "wait_attempts": 1
         }
       ],
-      "elapsed_ms": 90.579449
+      "elapsed_ms": 758.188958
     },
     {
       "round": 17,
@@ -570,8 +538,7 @@
         {
           "operation": "mkdir_create_read",
           "directory_wait_attempts": 1,
-          "read_wait_attempts": 1,
-          "bytes": 27
+          "read_wait_attempts": 1
         },
         {
           "operation": "rename",
@@ -587,15 +554,14 @@
         {
           "operation": "recovery_anchor",
           "wait_attempts": 1,
-          "path": "/stable/round-017/anchor.txt",
-          "bytes": 26
+          "path": "/tmp/dms-filesystem-namespace-m1-1789483062/mnt/stable/round-017/anchor.txt"
         },
         {
           "operation": "unlink_regular_file",
           "wait_attempts": 1
         }
       ],
-      "elapsed_ms": 91.961924
+      "elapsed_ms": 769.761042
     },
     {
       "round": 18,
@@ -603,8 +569,7 @@
         {
           "operation": "mkdir_create_read",
           "directory_wait_attempts": 1,
-          "read_wait_attempts": 1,
-          "bytes": 27
+          "read_wait_attempts": 1
         },
         {
           "operation": "rename",
@@ -620,15 +585,14 @@
         {
           "operation": "recovery_anchor",
           "wait_attempts": 1,
-          "path": "/stable/round-018/anchor.txt",
-          "bytes": 26
+          "path": "/tmp/dms-filesystem-namespace-m1-1789483062/mnt/stable/round-018/anchor.txt"
         },
         {
           "operation": "unlink_regular_file",
           "wait_attempts": 1
         }
       ],
-      "elapsed_ms": 89.058259
+      "elapsed_ms": 763.283416
     },
     {
       "round": 19,
@@ -636,8 +600,7 @@
         {
           "operation": "mkdir_create_read",
           "directory_wait_attempts": 1,
-          "read_wait_attempts": 1,
-          "bytes": 27
+          "read_wait_attempts": 1
         },
         {
           "operation": "rename",
@@ -653,21 +616,19 @@
         {
           "operation": "recovery_anchor",
           "wait_attempts": 1,
-          "path": "/stable/round-019/anchor.txt",
-          "bytes": 26
+          "path": "/tmp/dms-filesystem-namespace-m1-1789483062/mnt/stable/round-019/anchor.txt"
         },
         {
           "operation": "unlink_regular_file",
           "wait_attempts": 1
         }
       ],
-      "elapsed_ms": 93.551283
+      "elapsed_ms": 768.300334
     }
   ],
   "paged_directory": {
     "operation": "paged_readdir",
     "entry_count": 300,
     "wait_attempts": 1
-  },
-  "recovery_round": 19
+  }
 }

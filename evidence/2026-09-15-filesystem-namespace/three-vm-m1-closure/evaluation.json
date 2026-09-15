@@ -229,5 +229,5 @@
     "entry_count": 300,
     "wait_attempts": 1
   },
-  "result_dir": "/tmp/dms-m1-namespace-full"
+  "result_dir": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/source/evidence/2026-09-15-filesystem-namespace/three-vm-m1-closure"
 }

@@ -67,6 +67,22 @@ def evaluate(contract: dict[str, Any], result_dir: Path) -> dict[str, Any]:
         if missing:
             errors.append(f"round {item.get('round')}: missing checks {missing}")
         rows.append({"round": item.get("round"), "operations": sorted(operations)})
+        for check in item.get("checks", []):
+            for field in ("wait_attempts", "directory_wait_attempts", "read_wait_attempts"):
+                attempts = check.get(field)
+                if attempts is not None and attempts != 1:
+                    errors.append(
+                        f"round {item.get('round')} {check.get('operation')}: "
+                        f"namespace was not visible on first check ({field}={attempts})"
+                    )
+
+    paged = workload.get("paged_directory", {})
+    if paged.get("operation") != "paged_readdir":
+        errors.append("missing paged_readdir check")
+    if int(paged.get("entry_count", 0)) <= 256:
+        errors.append("paged_readdir did not exceed the 256-entry Node page limit")
+    if paged.get("wait_attempts") != 1:
+        errors.append("paged directory was not completely visible on first check")
 
     if recovery.get("schema") != "dms.filesystem.namespace-recovery.v1":
         errors.append("invalid recovery schema")
@@ -91,6 +107,7 @@ def evaluate(contract: dict[str, Any], result_dir: Path) -> dict[str, Any]:
         "status": "PASS" if not errors else "FAIL",
         "errors": errors,
         "rows": rows,
+        "paged_directory": paged,
         "result_dir": str(result_dir),
     }
 

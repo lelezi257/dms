@@ -24,6 +24,11 @@ class EvaluateFilesystemNamespaceTests(unittest.TestCase):
                         "schema": "dms.filesystem.namespace-workload.v1",
                         "passed_rounds": 1,
                         "recovery_round": 0,
+                        "paged_directory": {
+                            "operation": "paged_readdir",
+                            "entry_count": 300,
+                            "wait_attempts": 1,
+                        },
                         "round_results": [
                             {
                                 "round": 0,
@@ -43,6 +48,43 @@ class EvaluateFilesystemNamespaceTests(unittest.TestCase):
             (root / "meta.prom").write_text("dms_meta_operations_total 1\n", encoding="utf-8")
             report = evaluator.evaluate(contract, root)
             self.assertEqual(report["status"], "PASS")
+
+    def test_evaluator_rejects_eventual_namespace_visibility(self) -> None:
+        contract = {"schema": "dms.filesystem.namespace-contract.v1", "minimum_rounds": 1}
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            checks = [{"operation": operation} for operation in evaluator.REQUIRED_OPERATIONS]
+            checks[0]["wait_attempts"] = 2
+            (root / "namespace-workload.json").write_text(
+                json.dumps(
+                    {
+                        "schema": "dms.filesystem.namespace-workload.v1",
+                        "passed_rounds": 1,
+                        "recovery_round": 0,
+                        "paged_directory": {
+                            "operation": "paged_readdir",
+                            "entry_count": 300,
+                            "wait_attempts": 1,
+                        },
+                        "round_results": [{"round": 0, "checks": checks}],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            (root / "namespace-recovery.json").write_text(
+                json.dumps({"schema": "dms.filesystem.namespace-recovery.v1", "round": 0}),
+                encoding="utf-8",
+            )
+            for filename, metric in (
+                ("node-a.prom", "dms_node_filesystem_operations_total"),
+                ("node-b.prom", "dms_node_filesystem_operations_total"),
+                ("meta.prom", "dms_meta_operations_total"),
+            ):
+                (root / filename).write_text(f"{metric} 1\n", encoding="utf-8")
+
+            report = evaluator.evaluate(contract, root)
+            self.assertEqual(report["status"], "FAIL")
+            self.assertTrue(any("not visible on first check" in error for error in report["errors"]))
 
     def test_evaluator_fails_when_round_check_is_missing(self) -> None:
         contract = {"schema": "dms.filesystem.namespace-contract.v1", "minimum_rounds": 1}

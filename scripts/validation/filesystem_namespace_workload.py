@@ -33,10 +33,11 @@ def deterministic_payload(round_id: int, suffix: str) -> bytes:
 
 
 def wait_until(name: str, deadline_seconds: float, check: Callable[[], bool]) -> int:
-    """轮询直到跨节点异步可见。
+    """执行跨节点可见性断言，并保留有限重试用于输出故障证据。
 
-    FUSE/Meta Watch 传播不是 Python 语言语义的一部分；这里显式等待，是为了把系统
-    “最终在租约/失效边界内收敛”这件事转成稳定 E2E，不用固定 sleep 掩盖慢路径。
+    M1 合同要求 namespace mutation 返回时远端 Node 已处理 revoke，因此正常结果必须
+    第一次检查就成功。循环不是放宽语义；判定器会拒绝 attempts > 1，并用后续尝试
+    区分“短暂迟到”与“完全不可用”，便于失败诊断。
     """
 
     deadline = time.monotonic() + deadline_seconds
@@ -232,6 +233,27 @@ def cleanup_round(mount_a: Path, mount_b: Path, round_id: int) -> dict[str, obje
     return {"operation": "unlink_regular_file", "wait_attempts": attempts}
 
 
+def verify_paged_directory(mount_a: Path, mount_b: Path, entry_count: int = 300) -> dict[str, object]:
+    """用超过 Node 单页上限的目录证明 FUSE 依赖真实 cursor 分页。"""
+
+    directory_a = mount_a / "paged-directory"
+    directory_b = mount_b / "paged-directory"
+    directory_a.mkdir()
+    expected = {f"entry-{index:04d}" for index in range(entry_count)}
+    for name in sorted(expected):
+        (directory_a / name).touch()
+    attempts = wait_until(
+        "B enumerates every paged directory entry",
+        10,
+        lambda: names(directory_b) == expected,
+    )
+    return {
+        "operation": "paged_readdir",
+        "entry_count": entry_count,
+        "wait_attempts": attempts,
+    }
+
+
 def run_round(mount_a: Path, mount_b: Path, round_id: int) -> dict[str, object]:
     started = time.perf_counter_ns()
     checks = [
@@ -285,11 +307,13 @@ def main() -> int:
             if not mount.is_dir():
                 raise FileNotFoundError(mount)
         rounds = [run_round(args.mount_a, args.mount_b, round_id) for round_id in range(args.rounds)]
+        paged_directory = verify_paged_directory(args.mount_a, args.mount_b)
         result = {
             "schema": "dms.filesystem.namespace-workload.v1",
             "rounds": args.rounds,
             "passed_rounds": len(rounds),
             "round_results": rounds,
+            "paged_directory": paged_directory,
             "recovery_round": args.rounds - 1,
         }
 

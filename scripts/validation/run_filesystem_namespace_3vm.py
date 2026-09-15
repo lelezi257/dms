@@ -59,6 +59,7 @@ class Harness:
         self.mount = {role: f"{self.remote}/mnt" for role in ("A", "B")}
         self.output = args.output.resolve()
         self.round_results: list[dict[str, Any]] = []
+        self.paged_directory: dict[str, Any] = {}
 
     def shell(self, role: str, script: str, *, capture: bool = False, check: bool = True) -> subprocess.CompletedProcess[str]:
         return command(
@@ -321,6 +322,35 @@ class Harness:
             }
         )
 
+    def verify_paged_directory(self, entry_count: int = 300) -> None:
+        """跨 VM 枚举超过 Node 单页上限的目录，证明 cursor 分页不是单机特例。"""
+
+        path_a = f"{self.mount['A']}/paged-directory"
+        path_b = f"{self.mount['B']}/paged-directory"
+        self.python(
+            "A",
+            "from pathlib import Path; "
+            f"p=Path({path_a!r}); p.mkdir(); "
+            f"[(p / f'entry-{{index:04d}}').touch() for index in range({entry_count})]",
+        )
+        expected = {f"entry-{index:04d}" for index in range(entry_count)}
+        check = (
+            "from pathlib import Path; import sys; "
+            f"p=Path({path_b!r}); expected={expected!r}; "
+            "actual={entry.name for entry in p.iterdir()} if p.is_dir() else set(); "
+            "sys.exit(0 if actual == expected else 1)"
+        )
+        attempts = self.wait(
+            "B",
+            "complete paged directory",
+            "python3 -c " + shlex.quote(check),
+        )
+        self.paged_directory = {
+            "operation": "paged_readdir",
+            "entry_count": entry_count,
+            "wait_attempts": attempts,
+        }
+
     def snapshot_metrics(self) -> None:
         for role, url, filename in (
             ("A", f"http://{self.ips['A']}:{self.args.node_health_port}/metrics", "node-a.prom"),
@@ -399,6 +429,7 @@ class Harness:
             self.start_node("B", "node-b.log")
             for round_id in range(self.args.rounds):
                 self.run_round(round_id)
+            self.verify_paged_directory()
             workload = {
                 "schema": "dms.filesystem.namespace-workload.v1",
                 "deployment": "three-vm",
@@ -406,6 +437,7 @@ class Harness:
                 "passed_rounds": len(self.round_results),
                 "recovery_round": self.args.rounds - 1,
                 "round_results": self.round_results,
+                "paged_directory": self.paged_directory,
             }
             (self.output / "namespace-workload.json").write_text(json.dumps(workload, ensure_ascii=False, indent=2) + "\n")
             self.snapshot_metrics()

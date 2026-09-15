@@ -63,9 +63,11 @@
     Node 已通过 watch 撤销自己的 binding/cache，但尚未把失效事件闭环到内核 FUSE cache。
     在具备 notifier 前启用较长 entry/attr/page cache 会改变跨客户端可见性，不是安全优化。
   </section>
-  <section class="callout warn">
-    <b>readdir 每页重新收集/排序是 P2，不在当前临时语义上扩建缓存。</b>
-    当前目录只列出本 Node 已发现的 dentry，并非最终权威共享 namespace。应在 Meta 目录分页合同完成时一次解决分页、排序和缓存，当前增加第二套目录快照只会形成待删除状态。
+  <section class="callout decision">
+    <b>readdir 权威分页已收口。</b>
+    Meta 使用 <code>BTreeMap(parent,name)</code> 从 cursor 起只返回一页；Node 以
+    <code>(directory,cursor)</code> 为键缓存页；FUSE handle 仅保存 cookie→cursor，不收集或排序完整目录。
+    300 个目录项的单 VM/三 VM 用例已跨越 256 项单页上限。
   </section>
 
   <h2>4. max_pages 类问题的最终结论</h2>
@@ -98,7 +100,7 @@
   <h2>7. 验收证据与后续边界</h2>
   <p>当前结果：<code>native-filesystem-vs-glue-evaluation = PASS</code>，<code>fuse-request-amplification-evaluation = PASS</code>。核心十项 Native p50 比 Glue 快 22.4%～65.7%；所有冻结 Native p50/p95 均未回归 5%。</p>
   <section class="callout decision">
-    <b>下一阶段不是继续改单操作。</b>在完整 POSIX 功能推进到目录权威分页、unlink/rename/truncate、并发 I/O 时，复用同一账本扩展合同；并发前先单独测 fuser 单 session dispatch + callback 内 block_on 是否形成队头阻塞，再决定执行模型，不能仅凭代码形态重构。
+    <b>下一阶段不是继续改单操作。</b>目录权威分页与 unlink/rename 已完成；后续在 truncate、并发 I/O 与更完整 POSIX 能力上复用同一账本扩展合同。并发前先单独测 fuser 单 session dispatch + callback 内 block_on 是否形成队头阻塞，再决定执行模型，不能仅凭代码形态重构。
   </section>
 </main></body>
 </html>

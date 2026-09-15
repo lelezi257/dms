@@ -141,11 +141,11 @@ F -->> K: 热读完成，不访问 Meta，不产生 Peer payload
 
 | 缓存 | key → value | 是否权威 | 失效规则 | 解决的问题 |
 | :--- | :--- | :--- | :--- | :--- |
-| DentryCache | `(parent inode, name) → DentrySnapshot` | 否，只有正缓存 | 当前首版在 namespace 变更能力加入时必须按目录 revision/revoke 扩展；不做 negative cache | 重复 `open(path)` 不再逐次向 Meta lookup |
+| DentryCache | lookup：`(parent inode, name) → DentrySnapshot`；readdir：`(directory inode, cursor) → DirectoryPage` | 否，只有正缓存 | Meta 在 namespace mutation 持久化后发送目录 revoke；Node 删除该目录的 lookup/page 缓存并 ACK，Meta 再返回变更请求；断流时由 lease expiry 兜底 | 重复 `open(path)` 不再逐次向 Meta lookup；`readdir` 只取当前页，不在 Node 聚合完整目录 |
 | BindingCache | `inode → ResolvedInode + exact object plan + grant` | 否，受 grant 约束 | Watch 到达后先删除，再 ACK；断流由 lease 到期兜底 | 同一 inode 的 read/getattr 不再访问 Meta 或重新 ResolveObject |
 | Node Block | `block_id → 本地不可变 bytes` | 数据副本 | 版本不原地修改；由既有副本与回收协议管理 | 热读不再拉 Peer payload，多入口复用同一份 bytes |
 
-DentryCache 不保存“不存在”的结果，避免在首版尚未具备完整目录失效协议时制造长期假阴性。BindingCache 保存的是 **Exact Version**，不是无条件相信 Current；这让主动失效和租约到期具有清晰边界。
+DentryCache 不保存“不存在”的结果，避免 negative cache 扩大一致性义务。目录页按 `(directory, cursor)` 独立缓存；目录 revoke 会清理该目录所有页，不会保留旧目录快照。BindingCache 保存的是 **Exact Version**，不是无条件相信 Current；这让主动失效和租约到期具有清晰边界。
 
 ## 6. pwrite、失效与重新读取
 
@@ -254,14 +254,13 @@ env CARGO_TARGET_DIR=/tmp/dms-filesystem-target \
 
 ## 13. 首版明确没有实现的范围
 
-这是一条完整且真实的纵向主链，不是“完整 POSIX 已完成”。当前支持根目录普通文件的 lookup、getattr、create、open、read、write/pwrite、release；目录列举只反映当前 FUSE 进程已观察到的 dentry，不是权威、可恢复的产品语义。
+这是一条完整且真实的纵向主链，不是“完整 POSIX 已完成”。当前除 lookup、getattr、create、open、read、write/pwrite、release 外，已支持权威且可恢复的 mkdir、readdir、rename、unlink 和 rmdir。`readdir` 由 Meta 有序索引返回一页，Node 按页缓存，FUSE handle 只保存 cookie 到 Meta cursor 的映射。
 
 当前未实现：
 
-- rename、link、unlink、mkdir/rmdir、symlink/readlink；
+- link、symlink/readlink；
 - truncate、`O_TRUNC`、稀疏文件完整规则；
 - 权限检查、锁、xattr、ACL、配额；
-- 权威 readdir、目录分页与目录变更失效；
 - write-back、dirty page、flush/fsync 持久化语义；
 - Meta 高可用和完整故障矩阵。
 

@@ -59,6 +59,11 @@
         <td>覆盖 POSIX 目录基础约束；unlink-open 最终回收仍是后续阶段</td>
       </tr>
       <tr>
+        <td>A 创建 300 项目录，B 一次完整枚举</td>
+        <td>Meta 按有序 cursor 取页，Node 按页缓存，FUSE cookie 继续下一页</td>
+        <td>目录项数量超过 256 的单页上限，能够识别“内部仍偷偷聚合完整目录”的实现</td>
+      </tr>
+      <tr>
         <td>Meta 与 B 重启后再读锚点文件</td>
         <td>journal/checkpoint/replay 恢复 namespace 与文件绑定</td>
         <td>证明不是只靠进程内缓存通过</td>
@@ -85,7 +90,7 @@
       </tr>
       <tr>
         <td><code>scripts/validation/filesystem_namespace_workload.py</code></td>
-        <td>纯 POSIX workload：mkdir/create/read/rename/类型与环保护/unlink/rmdir/recovery</td>
+        <td>纯 POSIX workload：mkdir/create/read/rename/类型与环保护/unlink/rmdir/分页/recovery</td>
         <td>是否只表达用户语义，没有调用 DMS 内部 API</td>
       </tr>
       <tr>
@@ -149,17 +154,58 @@ result.txt</code></pre>
     2026-09-15 的单 VM 双 Node 和三 VM 分布式结果均为 <span class="ok">PASS</span>：每组
     20 轮，每轮均覆盖 mkdir/create/read/readdir/rename/unlink/rmdir，以及 rename 的目录环、
     文件覆盖目录、目录覆盖文件三类拒绝路径；随后重启 Meta 与 Node B，最后一轮锚点文件仍可按原路径读取。
+    本轮新增的单 VM证据还验证了 300 个目录项跨页完整返回，所有远端可见性检查均在第一次执行时成功。
   </p>
 
   <p>
     机器证据位于 <code>evidence/2026-09-15-filesystem-namespace/</code>，其中
-    <code>three-vm-reviewed-final/profile.json</code> 固定部署角色和二进制 SHA256。验证过程中修复了
+    <code>three-vm-m1-closure/profile.json</code> 固定部署角色和二进制 SHA256。验证过程中修复了
     Meta <code>DirectoryNotEmpty</code> 在 FUSE 边界被降级为 <code>EIO</code>、目录可移入自身子树，
     以及 rename 缺少文件/目录替换矩阵三类问题；现在用户可得到稳定的
     <code>ENOTEMPTY</code>/<code>EINVAL</code>/<code>EISDIR</code>/<code>ENOTDIR</code>。
   </p>
 
-  <h2>5. 后续实现需要对齐的代码入口</h2>
+  <h2>5. 本轮五个收口点如何落到代码</h2>
+
+  <table>
+    <thead>
+      <tr><th>问题</th><th>最终规则</th><th>代码位置</th><th>验证</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>变更 RPC 已返回，远端 Node 仍可能持有旧目录缓存</td>
+        <td>Meta 先持久化并发布事件；受影响 Node 完成 revoke 并 ACK 后，才回复 mkdir/rename/unlink。Watch 断开时等旧租约过期，不能把投递失败当作已失效。</td>
+        <td><code>server/src/meta/runtime.rs</code> 的 <code>FilesystemNamespaceDispatch</code>、pending reply 与 visibility completion</td>
+        <td>ACK 前 reply pending；ACK 后完成；断流后等 lease expiry；快照恢复后的相同 OperationId 不能绕过屏障</td>
+      </tr>
+      <tr>
+        <td>readdir 名义分页、内部却全目录扫描和聚合</td>
+        <td>Meta 使用 <code>BTreeMap(parent,name)</code> 从 cursor 起取一页；Node 缓存键是 <code>(directory,cursor)</code>；FUSE handle 只保存 cookie→cursor，不保存完整目录。</td>
+        <td><code>server/src/meta/filesystem/mod.rs</code>、<code>server/src/node/filesystem/dentry_cache.rs</code>、<code>fuse.rs</code></td>
+        <td>有序分页单测；两个 mount 上枚举 300 项且无遗漏、无重复</td>
+      </tr>
+      <tr>
+        <td>普通 POSIX 调用是否应机械携带客户端 CAS revision</td>
+        <td>不需要。Meta 单 owner 在一个 actor turn 内串行完成检查、journal 和 apply；同名并发 create 只有一个成功。<code>expected_revision</code> 只保留给明确的条件接口与稳定分页。</td>
+        <td><code>server/src/meta/runtime.rs</code> 的 namespace command 分支</td>
+        <td>并发同名 create 测试固定“一成功、一 AlreadyExists”</td>
+      </tr>
+      <tr>
+        <td>崩溃和断流边界没有证明</td>
+        <td>WAL append 失败时内存目录树不前进；append 后尚未回复时，操作结果和可见性 cursor 一起恢复；checkpoint 与 WAL tail 恢复成同一棵目录树。</td>
+        <td><code>server/src/meta/runtime.rs</code> 的 journal/restore/visibility tests</td>
+        <td>append failure、Watch disconnect、ACK/lease restart fence、checkpoint+tail 四组测试</td>
+      </tr>
+      <tr>
+        <td>目录越大，读一页仍扫描全部 dentry</td>
+        <td>权威 dentry 改为有序索引；目录为空检查走同一索引；inode→parent 使用反向索引，避免为 <code>..</code> 和 rename 环检查反扫目录表。</td>
+        <td><code>server/src/meta/filesystem/mod.rs</code> 的 <code>dentries</code> 与 <code>parents</code></td>
+        <td>cursor 页边界、恢复后 parent/namespace 行为与完整 E2E</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>6. 后续实现需要对齐的代码入口</h2>
 
   <table>
     <thead>
@@ -169,7 +215,7 @@ result.txt</code></pre>
       <tr>
         <td>FUSE</td>
         <td><code>server/src/node/filesystem/fuse.rs</code></td>
-        <td>callback 只做参数翻译，不能拥有权威目录树</td>
+        <td>callback 只做参数翻译；目录 handle 只保存稳定 cookie，不拥有权威目录树或完整目录快照</td>
       </tr>
       <tr>
         <td>Node 文件入口</td>
@@ -184,7 +230,7 @@ result.txt</code></pre>
       <tr>
         <td>Meta 权威状态</td>
         <td><code>server/src/meta/filesystem/mod.rs</code></td>
-        <td>所有 namespace mutation 在 Meta owner 内完成 CAS、revision、idempotency</td>
+        <td>所有 namespace mutation 在 Meta owner 内原子完成校验、revision、idempotency；普通 POSIX 调用不把 CAS 负担推给 FUSE</td>
       </tr>
       <tr>
         <td>Meta journal</td>
@@ -194,7 +240,7 @@ result.txt</code></pre>
       <tr>
         <td>Watch 失效</td>
         <td><code>protocol/proto/dms/v1/node_meta.proto</code> 与 <code>server/src/node.rs</code></td>
-        <td>目录级 revoke 先删除 Node dentry/readdir cache，再 ACK</td>
+        <td>目录级 revoke 先删除 Node dentry/目录页 cache，再 ACK；Meta 在 ACK 或旧租约过期前不回复 mutation</td>
       </tr>
     </tbody>
   </table>

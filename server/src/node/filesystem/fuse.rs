@@ -7,6 +7,7 @@
 #![cfg(all(target_os = "linux", feature = "fuse"))]
 
 use std::{
+    collections::HashMap,
     ffi::OsStr,
     os::unix::ffi::OsStrExt,
     path::{Path, PathBuf},
@@ -60,6 +61,21 @@ struct DmsFuse {
     files: SharedFileOperations,
     runtime: Handle,
     metrics: NodeMetrics,
+    next_directory_handle: u64,
+    directory_handles: HashMap<u64, DirectoryHandle>,
+}
+
+/// 一次 `opendir` 到 `releasedir` 的枚举位置。
+///
+/// 这里只保存 FUSE cookie 到 Meta name-cursor 的小型映射，不保存完整目录内容。
+/// 目录页本身由 Node 的授权缓存管理；revision 保证一次枚举不会跨 namespace 版本。
+struct DirectoryHandle {
+    inode: u64,
+    parent: Option<u64>,
+    revision: Option<u64>,
+    positions: HashMap<i64, Option<Vec<u8>>>,
+    cookies: HashMap<Vec<u8>, i64>,
+    next_cookie: i64,
 }
 
 impl DmsFuse {
@@ -68,11 +84,35 @@ impl DmsFuse {
             files,
             runtime,
             metrics,
+            next_directory_handle: 1,
+            directory_handles: HashMap::new(),
         }
+    }
+
+    fn allocate_directory_handle(&mut self, inode: u64) -> u64 {
+        let handle = self.next_directory_handle;
+        self.next_directory_handle = self.next_directory_handle.saturating_add(1).max(1);
+        self.directory_handles.insert(
+            handle,
+            DirectoryHandle {
+                inode,
+                parent: None,
+                revision: None,
+                positions: HashMap::from([(0, None), (1, None), (2, None)]),
+                cookies: HashMap::new(),
+                next_cookie: 3,
+            },
+        );
+        handle
     }
 }
 
 impl Filesystem for DmsFuse {
+    fn opendir(&mut self, _req: &Request, ino: u64, _flags: i32, reply: ReplyOpen) {
+        let handle = self.allocate_directory_handle(ino);
+        reply.opened(handle, 0);
+    }
+
     fn lookup(&mut self, _req: &Request, parent: u64, name: &OsStr, reply: ReplyEntry) {
         self.metrics.record_fuse_callback(FuseCallback::Lookup);
         let name = name.as_bytes();
@@ -105,7 +145,7 @@ impl Filesystem for DmsFuse {
         &mut self,
         _req: &Request,
         ino: u64,
-        _fh: u64,
+        fh: u64,
         offset: i64,
         mut reply: ReplyDirectory,
     ) {
@@ -114,40 +154,79 @@ impl Filesystem for DmsFuse {
             reply.error(libc::EINVAL);
             return;
         }
+        let Some(handle) = self.directory_handles.get(&fh) else {
+            reply.error(libc::EBADF);
+            return;
+        };
+        if handle.inode != ino {
+            reply.error(libc::EINVAL);
+            return;
+        }
+        let Some(cursor) = handle.positions.get(&offset).cloned() else {
+            reply.error(libc::EINVAL);
+            return;
+        };
+        let expected_revision = handle.revision;
         let span = filesystem_span("dms.filesystem.readdir", Some(ino));
-        let (parent, directory_entries) = match self
-            .runtime
-            .block_on(self.files.read_directory(ino).instrument(span))
-        {
+        let page = match self.runtime.block_on(
+            self.files
+                .read_directory_page(ino, cursor, expected_revision)
+                .instrument(span),
+        ) {
             Ok(result) => result,
             Err(error) => {
                 reply.error(worker_to_errno(error));
                 return;
             }
         };
-        let mut entries = vec![
-            (ino, FileType::Directory, b".".to_vec()),
-            (parent, FileType::Directory, b"..".to_vec()),
-        ];
-        entries.extend(directory_entries.into_iter().map(|entry| {
-            (
-                entry.attributes.inode,
-                file_type(entry.attributes.kind),
-                entry.dentry.name,
+        let handle = self
+            .directory_handles
+            .get_mut(&fh)
+            .expect("directory handle was checked above");
+        handle.parent = Some(page.parent);
+        handle.revision = Some(page.grant.directory_revision);
+
+        if offset == 0 && reply.add(ino, 1, FileType::Directory, OsStr::from_bytes(b".")) {
+            reply.ok();
+            return;
+        }
+        if offset <= 1
+            && reply.add(
+                page.parent,
+                2,
+                FileType::Directory,
+                OsStr::from_bytes(b".."),
             )
-        }));
-        for (index, (entry_ino, kind, name)) in
-            entries.into_iter().enumerate().skip(offset as usize)
         {
+            reply.ok();
+            return;
+        }
+        for entry in page.entries {
+            let name = entry.dentry.name;
+            let cookie = handle
+                .cookies
+                .get(&name)
+                .copied()
+                .unwrap_or(handle.next_cookie);
             if reply.add(
-                entry_ino,
-                (index + 1) as i64,
-                kind,
+                entry.attributes.inode,
+                cookie,
+                file_type(entry.attributes.kind),
                 OsStr::from_bytes(&name),
             ) {
                 break;
             }
+            if !handle.cookies.contains_key(&name) {
+                handle.cookies.insert(name.clone(), cookie);
+                handle.positions.insert(cookie, Some(name));
+                handle.next_cookie = handle.next_cookie.saturating_add(1);
+            }
         }
+        reply.ok();
+    }
+
+    fn releasedir(&mut self, _req: &Request, _ino: u64, fh: u64, _flags: i32, reply: ReplyEmpty) {
+        self.directory_handles.remove(&fh);
         reply.ok();
     }
 

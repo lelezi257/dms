@@ -19,8 +19,8 @@ use super::open_handles::OpenHandle;
 #[cfg(test)]
 use crate::filesystem::ROOT_INODE;
 use crate::filesystem::{
-    CommitFileVersionRequest, DirectoryEntry, DirectoryPage, InodeId, InodeKind,
-    NamespaceMutationResult, RemoveEntryRequest, RemoveKind, RenameEntryRequest, ResolvedInode,
+    CommitFileVersionRequest, DirectoryPage, InodeId, InodeKind, NamespaceMutationResult,
+    RemoveEntryRequest, RemoveKind, RenameEntryRequest, ResolvedInode,
 };
 use crate::node::metadata_client::digest;
 
@@ -172,59 +172,45 @@ impl SharedFileOperations {
         Ok(resolved.resolved)
     }
 
-    /// 读取 Meta 权威目录页。Node 只缓存完整目录页；分页期间若目录 revision 变化，
-    /// Meta 会拒绝旧游标，调用方重新发起本次 readdir 即可。
-    pub(crate) async fn read_directory(
+    /// 读取一页 Meta 权威目录数据。
+    ///
+    /// `cursor` 是上一页最后一个名字；`expected_revision` 固定一次目录枚举看到的
+    /// namespace 版本。Node 对每一页独立缓存，既不扫描 Meta 全表，也不在本地聚合完整目录。
+    pub(crate) async fn read_directory_page(
         &self,
         directory: InodeId,
-    ) -> Result<(InodeId, Vec<DirectoryEntry>), WorkerError> {
+        cursor: Option<Vec<u8>>,
+        expected_revision: Option<u64>,
+    ) -> Result<DirectoryPage, WorkerError> {
         let mut metric = self
             .metrics
             .begin_filesystem_operation(FilesystemOperation::Readdir);
-        if let Some(cached) = self.node.filesystem_cached_directory(directory).await? {
+        if let Some(cached) = self
+            .node
+            .filesystem_cached_directory_page(directory, cursor.clone(), expected_revision)
+            .await?
+        {
             self.metrics.record_filesystem_dentry_cache_lookup(true);
             metric.success();
             return Ok(cached);
         }
         self.metrics.record_filesystem_dentry_cache_lookup(false);
 
-        let first_page = self
+        let page = self
             .metadata
-            .read_directory(directory, None, DIRECTORY_PAGE_LIMIT, None)
+            .read_directory(
+                directory,
+                cursor.clone(),
+                DIRECTORY_PAGE_LIMIT,
+                expected_revision,
+            )
             .await
             .map_err(WorkerError::Stable)?;
-        let mut cursor = first_page.next_cursor.clone();
-        let expected_revision = Some(first_page.grant.directory_revision);
-        let parent = first_page.parent;
-        let grant = first_page.grant;
-        let mut entries = first_page.entries;
-        while cursor.is_some() {
-            let page = self
-                .metadata
-                .read_directory(
-                    directory,
-                    cursor.take(),
-                    DIRECTORY_PAGE_LIMIT,
-                    expected_revision,
-                )
-                .await
-                .map_err(WorkerError::Stable)?;
-            entries.extend(page.entries);
-            match page.next_cursor {
-                Some(next) => cursor = Some(next),
-                None => break,
-            }
-        }
-        let page = DirectoryPage {
-            directory,
-            parent,
-            grant,
-            entries: entries.clone(),
-            next_cursor: None,
-        };
-        self.node.filesystem_cache_directory(page).await?;
+        self.node
+            .filesystem_cache_directory_page(cursor, page.clone())
+            .await?;
         metric.success();
-        Ok((parent, entries))
+        Ok(page)
     }
 
     pub(crate) async fn rename(

@@ -7,7 +7,7 @@
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
-use crate::filesystem::{DentrySnapshot, DirectoryEntry, DirectoryGrant, DirectoryPage, InodeId};
+use crate::filesystem::{DentrySnapshot, DirectoryGrant, DirectoryPage, InodeId};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum DentryLookup {
@@ -25,18 +25,16 @@ struct DentryCacheEntry {
 }
 
 #[derive(Clone, Debug)]
-struct DirectoryCacheEntry {
-    parent: InodeId,
-    entries: Vec<DirectoryEntry>,
-    revision: u64,
-    grant_generation: u64,
+struct DirectoryPageCacheEntry {
+    page: DirectoryPage,
     valid_until: Instant,
 }
 
 #[derive(Default)]
 pub(crate) struct DentryCache {
     entries: HashMap<(InodeId, Vec<u8>), DentryCacheEntry>,
-    directories: HashMap<InodeId, DirectoryCacheEntry>,
+    /// 按“目录 + 本页起始 cursor”缓存独立页，避免把大目录聚合成一份完整 Vec。
+    directory_pages: HashMap<(InodeId, Vec<u8>), DirectoryPageCacheEntry>,
 }
 
 impl DentryCache {
@@ -72,7 +70,12 @@ impl DentryCache {
         self.entries.insert((parent, name), entry);
     }
 
-    pub(crate) fn insert_directory(&mut self, page: DirectoryPage, received_at: Instant) {
+    pub(crate) fn insert_directory_page(
+        &mut self,
+        cursor: Option<Vec<u8>>,
+        page: DirectoryPage,
+        received_at: Instant,
+    ) {
         let valid_until = grant_deadline(page.grant, received_at);
         for entry in &page.entries {
             self.entries.insert(
@@ -85,15 +88,9 @@ impl DentryCache {
                 },
             );
         }
-        self.directories.insert(
-            page.directory,
-            DirectoryCacheEntry {
-                parent: page.parent,
-                entries: page.entries,
-                revision: page.grant.directory_revision,
-                grant_generation: page.grant.grant.generation,
-                valid_until,
-            },
+        self.directory_pages.insert(
+            (page.directory, cursor.unwrap_or_default()),
+            DirectoryPageCacheEntry { page, valid_until },
         );
     }
 
@@ -118,22 +115,27 @@ impl DentryCache {
         }
     }
 
-    pub(crate) fn directory(
+    pub(crate) fn directory_page(
         &mut self,
         directory: InodeId,
+        cursor: Option<&[u8]>,
+        expected_revision: Option<u64>,
         now: Instant,
-    ) -> Option<(InodeId, Vec<DirectoryEntry>)> {
+    ) -> Option<DirectoryPage> {
+        let key = (directory, cursor.unwrap_or_default().to_vec());
         let expired = self
-            .directories
-            .get(&directory)
+            .directory_pages
+            .get(&key)
             .is_some_and(|entry| now >= entry.valid_until);
         if expired {
-            self.remove_directory(directory);
+            self.directory_pages.remove(&key);
             return None;
         }
-        self.directories
-            .get(&directory)
-            .map(|entry| (entry.parent, entry.entries.clone()))
+        self.directory_pages.get(&key).and_then(|entry| {
+            expected_revision
+                .is_none_or(|revision| revision == entry.page.grant.directory_revision)
+                .then(|| entry.page.clone())
+        })
     }
 
     /// 删除某个目录 grant 下派生出的 lookup/readdir 缓存。
@@ -146,12 +148,11 @@ impl DentryCache {
         through_generation: u64,
         minimum_revision: u64,
     ) {
-        let remove_directory = self.directories.get(&directory).is_some_and(|entry| {
-            entry.grant_generation <= through_generation || entry.revision <= minimum_revision
+        self.directory_pages.retain(|(parent, _), entry| {
+            *parent != directory
+                || (entry.page.grant.grant.generation > through_generation
+                    && entry.page.grant.directory_revision > minimum_revision)
         });
-        if remove_directory {
-            self.directories.remove(&directory);
-        }
         self.entries.retain(|(parent, _), entry| {
             *parent != directory
                 || (entry.grant_generation > through_generation
@@ -161,12 +162,7 @@ impl DentryCache {
 
     pub(crate) fn clear(&mut self) {
         self.entries.clear();
-        self.directories.clear();
-    }
-
-    fn remove_directory(&mut self, directory: InodeId) {
-        self.directories.remove(&directory);
-        self.entries.retain(|(parent, _), _| *parent != directory);
+        self.directory_pages.clear();
     }
 }
 
@@ -239,10 +235,11 @@ mod tests {
     }
 
     #[test]
-    fn complete_directory_cache_can_be_revoked_as_one_unit() {
+    fn directory_pages_are_cached_independently_and_revoked_as_one_unit() {
         let now = Instant::now();
         let mut cache = DentryCache::default();
-        cache.insert_directory(
+        cache.insert_directory_page(
+            None,
             DirectoryPage {
                 directory: 1,
                 parent: 1,
@@ -257,7 +254,9 @@ mod tests {
         );
 
         assert_eq!(
-            cache.directory(1, now).map(|(_, entries)| entries.len()),
+            cache
+                .directory_page(1, None, Some(11), now)
+                .map(|page| page.entries.len()),
             Some(1)
         );
         assert!(matches!(
@@ -266,7 +265,31 @@ mod tests {
         ));
 
         cache.revoke_directory(1, 5, 11);
-        assert!(cache.directory(1, now).is_none());
+        assert!(cache.directory_page(1, None, Some(11), now).is_none());
         assert_eq!(cache.lookup(1, b"a", now), DentryLookup::Unknown);
+    }
+
+    #[test]
+    fn directory_page_cache_binds_cursor_and_revision() {
+        let now = Instant::now();
+        let mut cache = DentryCache::default();
+        cache.insert_directory_page(
+            Some(b"a".to_vec()),
+            DirectoryPage {
+                directory: 1,
+                parent: 1,
+                grant: grant(12, 6, 1_000),
+                entries: vec![DirectoryEntry {
+                    dentry: dentry(1, b"b", 3, 12),
+                    attributes: attrs(3, InodeKind::RegularFile),
+                }],
+                next_cursor: Some(b"b".to_vec()),
+            },
+            now,
+        );
+
+        assert!(cache.directory_page(1, Some(b"a"), Some(12), now).is_some());
+        assert!(cache.directory_page(1, None, Some(12), now).is_none());
+        assert!(cache.directory_page(1, Some(b"a"), Some(11), now).is_none());
     }
 }

@@ -49,14 +49,9 @@ use super::metrics::{
 use super::replica_reporter::{self, ReplicaReportJob};
 use crate::config::{ConfigChange, ConfigError, OnlineConfigController};
 use crate::filesystem::{
-    DentrySnapshot, DirectoryEntry, DirectoryPage, FileHandleId, InodeId, PreparedObjectVersion,
-    ResolvedInode, ResolvedObject,
+    DentrySnapshot, DirectoryPage, FileHandleId, InodeId, PreparedObjectVersion, ResolvedInode,
+    ResolvedObject,
 };
-
-/// Node 目录缓存命中时返回的目录身份和有序子项快照。
-///
-/// 单独命名这个组合，避免 command 回信类型把 actor 协议主体淹没在嵌套泛型里。
-type CachedDirectorySnapshot = (InodeId, Vec<DirectoryEntry>);
 
 // 有界队列防止请求无限堆积；满载时 Sender::send().await 会施加背压。
 const NODE_MAILBOX_CAPACITY: usize = 256;
@@ -856,23 +851,35 @@ impl NodeHandle {
         receive(receiver).await
     }
 
-    pub(crate) async fn filesystem_cached_directory(
+    pub(crate) async fn filesystem_cached_directory_page(
         &self,
         directory: InodeId,
-    ) -> Result<Option<CachedDirectorySnapshot>, WorkerError> {
+        cursor: Option<Vec<u8>>,
+        expected_revision: Option<u64>,
+    ) -> Result<Option<DirectoryPage>, WorkerError> {
         let (reply, receiver) = oneshot::channel();
-        self.submit(NodeCommand::FilesystemGetDirectory { directory, reply })
-            .await?;
+        self.submit(NodeCommand::FilesystemGetDirectoryPage {
+            directory,
+            cursor,
+            expected_revision,
+            reply,
+        })
+        .await?;
         receive(receiver).await
     }
 
-    pub(crate) async fn filesystem_cache_directory(
+    pub(crate) async fn filesystem_cache_directory_page(
         &self,
+        cursor: Option<Vec<u8>>,
         page: DirectoryPage,
     ) -> Result<(), WorkerError> {
         let (reply, receiver) = oneshot::channel();
-        self.submit(NodeCommand::FilesystemCacheDirectory { page, reply })
-            .await?;
+        self.submit(NodeCommand::FilesystemCacheDirectoryPage {
+            cursor,
+            page,
+            reply,
+        })
+        .await?;
         receive(receiver).await
     }
 
@@ -2833,11 +2840,14 @@ enum NodeCommand {
         grant: crate::filesystem::DirectoryGrant,
         reply: oneshot::Sender<Result<(), WorkerError>>,
     },
-    FilesystemGetDirectory {
+    FilesystemGetDirectoryPage {
         directory: InodeId,
-        reply: oneshot::Sender<Result<Option<CachedDirectorySnapshot>, WorkerError>>,
+        cursor: Option<Vec<u8>>,
+        expected_revision: Option<u64>,
+        reply: oneshot::Sender<Result<Option<DirectoryPage>, WorkerError>>,
     },
-    FilesystemCacheDirectory {
+    FilesystemCacheDirectoryPage {
+        cursor: Option<Vec<u8>>,
         page: DirectoryPage,
         reply: oneshot::Sender<Result<(), WorkerError>>,
     },
@@ -2961,8 +2971,8 @@ impl NodeCommand {
             | Self::FilesystemGetDentry { .. }
             | Self::FilesystemCachePositiveDentry { .. }
             | Self::FilesystemCacheNegativeDentry { .. }
-            | Self::FilesystemGetDirectory { .. }
-            | Self::FilesystemCacheDirectory { .. } => NodeMailboxCommand::GetCached,
+            | Self::FilesystemGetDirectoryPage { .. }
+            | Self::FilesystemCacheDirectoryPage { .. } => NodeMailboxCommand::GetCached,
             Self::FilesystemOpenHandle { .. }
             | Self::FilesystemGetHandle { .. }
             | Self::FilesystemCloseHandle { .. } => NodeMailboxCommand::GetCached,
@@ -3629,16 +3639,28 @@ async fn run_node(
                         .insert_negative(parent, name, grant, Instant::now());
                     let _ = reply.send(Ok(()));
                 }
-                NodeCommand::FilesystemGetDirectory { directory, reply } => {
-                    let entries = state
-                        .filesystem_dentries
-                        .directory(directory, Instant::now());
-                    let _ = reply.send(Ok(entries));
+                NodeCommand::FilesystemGetDirectoryPage {
+                    directory,
+                    cursor,
+                    expected_revision,
+                    reply,
+                } => {
+                    let page = state.filesystem_dentries.directory_page(
+                        directory,
+                        cursor.as_deref(),
+                        expected_revision,
+                        Instant::now(),
+                    );
+                    let _ = reply.send(Ok(page));
                 }
-                NodeCommand::FilesystemCacheDirectory { page, reply } => {
+                NodeCommand::FilesystemCacheDirectoryPage {
+                    cursor,
+                    page,
+                    reply,
+                } => {
                     state
                         .filesystem_dentries
-                        .insert_directory(page, Instant::now());
+                        .insert_directory_page(cursor, page, Instant::now());
                     let _ = reply.send(Ok(()));
                 }
                 NodeCommand::FilesystemOpenHandle {
@@ -8080,7 +8102,8 @@ mod tests {
             },
             now,
         );
-        state.filesystem_dentries.insert_directory(
+        state.filesystem_dentries.insert_directory_page(
+            None,
             crate::filesystem::DirectoryPage {
                 directory: crate::filesystem::ROOT_INODE,
                 parent: crate::filesystem::ROOT_INODE,
@@ -8106,7 +8129,7 @@ mod tests {
         assert!(
             state
                 .filesystem_dentries
-                .directory(crate::filesystem::ROOT_INODE, now)
+                .directory_page(crate::filesystem::ROOT_INODE, None, Some(2), now)
                 .is_some()
         );
 
@@ -8116,7 +8139,7 @@ mod tests {
         assert!(
             state
                 .filesystem_dentries
-                .directory(crate::filesystem::ROOT_INODE, now)
+                .directory_page(crate::filesystem::ROOT_INODE, None, Some(2), now)
                 .is_none()
         );
     }

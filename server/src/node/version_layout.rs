@@ -215,6 +215,62 @@ pub(crate) fn truncate_file(
     compact_and_validate(next_logical_length, next)
 }
 
+/// 把文件现有范围替换为 sparse HOLE，同时保持文件长度不变。
+///
+/// Linux `FALLOC_FL_PUNCH_HOLE | FALLOC_FL_KEEP_SIZE` 允许请求尾部越过 EOF；只有
+/// 与 `[0, logical_length)` 的交集参与布局更新。被覆盖 DATA Extent 的未修改前后缀
+/// 继续引用原 immutable Block，不读回、不复制 payload；HOLE 不创建零 Block。
+pub(crate) fn punch_hole_file(
+    base: &[pb::ExtentRecord],
+    logical_length: u64,
+    offset: u64,
+    length: u64,
+) -> Result<Vec<pb::ExtentRecord>, WorkerError> {
+    validate(logical_length, base)?;
+    if length == 0 {
+        return Err(WorkerError::InvalidArgument(
+            "hole punch range must not be empty",
+        ));
+    }
+    let requested_end = offset
+        .checked_add(length)
+        .ok_or(WorkerError::InvalidArgument(
+            "hole punch range overflows u64",
+        ))?;
+    if offset >= logical_length {
+        return Ok(base.to_vec());
+    }
+    let punch_end = requested_end.min(logical_length);
+    let mut next = Vec::with_capacity(base.len() + 2);
+    for extent in base {
+        let logical = extent.logical.as_ref().expect("layout was validated above");
+        let extent_end = logical.offset + logical.length;
+        if extent_end <= offset || logical.offset >= punch_end {
+            next.push(extent.clone());
+            continue;
+        }
+        if logical.offset < offset {
+            next.push(slice_extent(
+                extent,
+                logical.offset,
+                offset - logical.offset,
+                0,
+            )?);
+        }
+        if extent_end > punch_end {
+            next.push(slice_extent(
+                extent,
+                punch_end,
+                extent_end - punch_end,
+                punch_end - logical.offset,
+            )?);
+        }
+    }
+    next.push(hole_extent(offset, punch_end - offset));
+    next.sort_by_key(|extent| extent.logical.as_ref().map_or(0, |range| range.offset));
+    compact_and_validate(logical_length, next)
+}
+
 fn overlay_with_length(
     base: &[pb::ExtentRecord],
     base_logical_length: u64,
@@ -456,6 +512,37 @@ mod tests {
                 patch_extent(3, 2, b"data", b"d"),
                 hole_extent(5, 3),
             ]
+        );
+    }
+
+    #[test]
+    fn punch_hole_reuses_data_block_prefix_and_suffix() {
+        let next =
+            punch_hole_file(&[extent(0, 8, b"base", 2)], 8, 3, 2).expect("punch middle range");
+        assert_eq!(
+            next,
+            vec![
+                extent(0, 3, b"base", 2),
+                hole_extent(3, 2),
+                extent(5, 3, b"base", 7),
+            ]
+        );
+    }
+
+    #[test]
+    fn punch_hole_clips_at_eof_and_keeps_file_size() {
+        let next =
+            punch_hole_file(&[extent(0, 8, b"base", 0)], 8, 6, 8).expect("punch through eof");
+        assert_eq!(next, vec![extent(0, 6, b"base", 0), hole_extent(6, 2)]);
+        validate(8, &next).expect("file size remains unchanged");
+    }
+
+    #[test]
+    fn punch_hole_past_eof_is_a_layout_noop() {
+        let base = vec![extent(0, 8, b"base", 0)];
+        assert_eq!(
+            punch_hole_file(&base, 8, 12, 4).expect("range past eof"),
+            base
         );
     }
 

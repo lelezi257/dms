@@ -7,6 +7,7 @@
 
 mod acl;
 mod model;
+pub(crate) mod space_sync;
 mod wire;
 
 pub(crate) use acl::*;

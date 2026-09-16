@@ -18,11 +18,12 @@ use tokio::sync::{mpsc, oneshot};
 
 use crate::filesystem::{
     ACL_ACCESS_NAME, ACL_DEFAULT_NAME, AttributePatch, CacheGrant, DentrySnapshot, DirectoryGrant,
-    FileContentBinding, FilesystemCaller, InodeAttributes, InodeKind, InodeSnapshot, InodeVersion,
-    NamespaceMutationResult, ROOT_INODE, RemoveKind, ResolvedInode, TimeUpdate, XattrSetMode,
-    XattrUpdate, access_acl_after_chmod, attribute_patch_from_proto, caller_from_proto,
-    dentry_to_proto, directory_entry_to_proto, directory_grant_to_proto, inherit_default_acl,
-    inode_to_proto, namespace_result_to_proto, resolved_to_proto, validate_acl_xattr,
+    FileContentBinding, FileSpaceReservation, FilesystemCaller, InodeAttributes, InodeKind,
+    InodeSnapshot, InodeVersion, NamespaceMutationResult, ROOT_INODE, RemoveKind, ResolvedInode,
+    TimeUpdate, XattrSetMode, XattrUpdate, access_acl_after_chmod, attribute_patch_from_proto,
+    caller_from_proto, dentry_to_proto, directory_entry_to_proto, directory_grant_to_proto,
+    inherit_default_acl, inode_to_proto, namespace_result_to_proto, resolved_to_proto,
+    validate_acl_xattr,
 };
 
 use super::filesystem::FilesystemCatalog;
@@ -1834,10 +1835,19 @@ impl MetaState {
         session: &pb::NodeSessionIdentity,
         inode: u64,
     ) -> Result<ResolvedInode, MetaRuntimeError> {
-        let granted = self
+        let mut granted = self
             .filesystem
             .granted(inode, FILESYSTEM_BINDING_LEASE_MILLIS)
             .ok_or(MetaRuntimeError::NotFound)?;
+        // local-memory reservation 只在 owner incarnation 存活时有效。解析结果不把
+        // 已过期承诺交给 Node；下一次文件 mutation 会把清理后的快照写入 journal。
+        granted.inode.reservations.retain(|reservation| {
+            self.sessions
+                .get(&reservation.node_id)
+                .is_some_and(|owner| {
+                    owner.node_epoch == reservation.node_epoch && self.is_live_session(owner)
+                })
+        });
         let object = match granted.inode.content.as_ref() {
             Some(binding) => Some(self.resolve_object(pb::ResolveObjectRequest {
                 context: None,
@@ -2173,6 +2183,7 @@ impl MetaState {
                 ctime_unix_nanos: now,
             },
             content: None,
+            reservations: Vec::new(),
         };
         let dentry = DentrySnapshot {
             parent: request.parent,
@@ -2364,6 +2375,7 @@ impl MetaState {
                 object_key: request.object_key.clone(),
                 exact_version: 1,
             }),
+            reservations: Vec::new(),
         };
         let dentry = DentrySnapshot {
             parent: request.parent,
@@ -3513,6 +3525,19 @@ impl MetaState {
         };
         let now = current_time_unix_nanos();
         let mut inode = current_inode;
+        inode.reservations.retain(|reservation| {
+            self.sessions
+                .get(&reservation.node_id)
+                .is_some_and(|owner| {
+                    owner.node_epoch == reservation.node_epoch && self.is_live_session(owner)
+                })
+        });
+        apply_filesystem_reservation_changes(
+            &mut inode.reservations,
+            &session,
+            &request.reservation_reductions,
+            &request.reservation_additions,
+        )?;
         let mut xattr_updates = Vec::new();
         if let Some(mode) = attribute_patch.mode
             && let Some(access_acl) = self.filesystem.xattr(request.inode, ACL_ACCESS_NAME)
@@ -7410,6 +7435,106 @@ fn current_time_unix_nanos() -> i64 {
     i64::try_from(nanos).unwrap_or(i64::MAX)
 }
 
+/// 在 Meta 单一 owner turn 内更新 inode 的 reservation 关联。
+///
+/// reduction 必须完整命中当前 session 所拥有的范围，否则 Node 的 Arena 账本与
+/// journal 会分叉。范围拆分只改变容量关联，不创建 DATA/HOLE Extent。
+fn apply_filesystem_reservation_changes(
+    reservations: &mut Vec<FileSpaceReservation>,
+    session: &pb::NodeSessionIdentity,
+    reductions: &[pb::FilesystemReservationRange],
+    additions: &[pb::FilesystemReservationRange],
+) -> Result<(), MetaRuntimeError> {
+    for reduction in reductions {
+        validate_reservation_range(reduction)?;
+        let reduction_end = reduction
+            .offset
+            .checked_add(reduction.length)
+            .expect("validated reservation range");
+        let mut covered = 0_u64;
+        let mut next = Vec::with_capacity(reservations.len() + 1);
+        for reservation in reservations.drain(..) {
+            let end = reservation
+                .offset
+                .checked_add(reservation.length)
+                .ok_or_else(|| {
+                    MetaRuntimeError::InvalidArgument(
+                        "stored filesystem reservation range overflows".to_string(),
+                    )
+                })?;
+            let same_owner = reservation.reservation_id == reduction.reservation_id
+                && reservation.node_id == session.node_id
+                && reservation.node_epoch == session.node_epoch;
+            let overlap_start = reservation.offset.max(reduction.offset);
+            let overlap_end = end.min(reduction_end);
+            if !same_owner || overlap_start >= overlap_end {
+                next.push(reservation);
+                continue;
+            }
+            covered = covered.saturating_add(overlap_end - overlap_start);
+            if reservation.offset < overlap_start {
+                next.push(FileSpaceReservation {
+                    length: overlap_start - reservation.offset,
+                    ..reservation.clone()
+                });
+            }
+            if overlap_end < end {
+                next.push(FileSpaceReservation {
+                    offset: overlap_end,
+                    length: end - overlap_end,
+                    ..reservation
+                });
+            }
+        }
+        *reservations = next;
+        if covered != reduction.length {
+            return Err(MetaRuntimeError::InvalidArgument(
+                "filesystem reservation reduction is not fully owned by this node session"
+                    .to_string(),
+            ));
+        }
+    }
+
+    for addition in additions {
+        validate_reservation_range(addition)?;
+        let end = addition
+            .offset
+            .checked_add(addition.length)
+            .expect("validated reservation range");
+        if reservations.iter().any(|reservation| {
+            let existing_end = reservation.offset.saturating_add(reservation.length);
+            reservation.offset < end && addition.offset < existing_end
+        }) {
+            return Err(MetaRuntimeError::InvalidArgument(
+                "filesystem reservations must not overlap".to_string(),
+            ));
+        }
+        reservations.push(FileSpaceReservation {
+            reservation_id: addition.reservation_id.clone(),
+            node_id: session.node_id,
+            node_epoch: session.node_epoch,
+            offset: addition.offset,
+            length: addition.length,
+        });
+    }
+    reservations.sort_by_key(|reservation| reservation.offset);
+    Ok(())
+}
+
+fn validate_reservation_range(
+    range: &pb::FilesystemReservationRange,
+) -> Result<(), MetaRuntimeError> {
+    if range.reservation_id.is_empty()
+        || range.length == 0
+        || range.offset.checked_add(range.length).is_none()
+    {
+        return Err(MetaRuntimeError::InvalidArgument(
+            "filesystem reservation requires identity and a non-empty valid range".to_string(),
+        ));
+    }
+    Ok(())
+}
+
 /// Meta 是 POSIX 属性修改的最终授权点。Node 只转发由内核提供的 caller，不能
 /// 因为本地缓存命中而绕过此检查。首版没有 supplementary groups，因此普通用户
 /// 只能把 gid 保持为自己当前的主组；更完整的 group/capability 语义以后扩展 caller。
@@ -8482,13 +8607,17 @@ mod tests {
         let mut state = MetaState::new(Box::<InMemoryJournal>::default());
         let session = test_session(&mut state, 42);
         let inode = create_test_file(&mut state, session.clone(), b"replay.bin");
+        let mut request =
+            filesystem_commit_request_for(session, &inode, b"replay-block-v1", b"replay-op-v1");
+        request
+            .reservation_additions
+            .push(pb::FilesystemReservationRange {
+                reservation_id: b"replay-reservation-v1".to_vec(),
+                offset: 4,
+                length: 128,
+            });
         let committed = state
-            .filesystem_commit_version(filesystem_commit_request_for(
-                session,
-                &inode,
-                b"replay-block-v1",
-                b"replay-op-v1",
-            ))
+            .filesystem_commit_version(request)
             .expect("filesystem commit");
         let resolved = committed.resolved.expect("resolved commit result");
         let committed_inode = resolved.inode.expect("committed inode");
@@ -8512,6 +8641,83 @@ mod tests {
                 .map(|layout| layout.logical_length),
             Some(4)
         );
+        assert_eq!(restored_inode.reservations.len(), 1);
+        assert_eq!(
+            restored_inode.reservations[0],
+            FileSpaceReservation {
+                reservation_id: b"replay-reservation-v1".to_vec(),
+                node_id: 42,
+                node_epoch: 1,
+                offset: 4,
+                length: 128,
+            }
+        );
+    }
+
+    #[test]
+    fn filesystem_reservation_reduction_splits_only_the_owned_range() {
+        let session = pb::NodeSessionIdentity {
+            session_id: b"session-7".to_vec(),
+            node_id: 42,
+            node_epoch: 3,
+        };
+        let mut reservations = vec![FileSpaceReservation {
+            reservation_id: b"reservation".to_vec(),
+            node_id: 42,
+            node_epoch: 3,
+            offset: 0,
+            length: 100,
+        }];
+
+        apply_filesystem_reservation_changes(
+            &mut reservations,
+            &session,
+            &[pb::FilesystemReservationRange {
+                reservation_id: b"reservation".to_vec(),
+                offset: 40,
+                length: 20,
+            }],
+            &[],
+        )
+        .expect("reduce middle of reservation");
+
+        assert_eq!(
+            reservations,
+            vec![
+                FileSpaceReservation {
+                    reservation_id: b"reservation".to_vec(),
+                    node_id: 42,
+                    node_epoch: 3,
+                    offset: 0,
+                    length: 40,
+                },
+                FileSpaceReservation {
+                    reservation_id: b"reservation".to_vec(),
+                    node_id: 42,
+                    node_epoch: 3,
+                    offset: 60,
+                    length: 40,
+                },
+            ]
+        );
+
+        let stale_session = pb::NodeSessionIdentity {
+            node_epoch: 4,
+            ..session
+        };
+        assert!(matches!(
+            apply_filesystem_reservation_changes(
+                &mut reservations,
+                &stale_session,
+                &[pb::FilesystemReservationRange {
+                    reservation_id: b"reservation".to_vec(),
+                    offset: 0,
+                    length: 1,
+                }],
+                &[],
+            ),
+            Err(MetaRuntimeError::InvalidArgument(_))
+        ));
     }
 
     #[test]
@@ -15641,6 +15847,8 @@ mod tests {
             commit_sequence: next_test_commit_sequence(),
             caller: None,
             attribute_patch: None,
+            reservation_additions: Vec::new(),
+            reservation_reductions: Vec::new(),
         }
     }
 

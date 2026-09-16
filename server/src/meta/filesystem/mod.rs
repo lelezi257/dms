@@ -390,6 +390,7 @@ fn root_inode() -> InodeSnapshot {
             ctime_unix_nanos: 0,
         },
         content: None,
+        reservations: Vec::new(),
     }
 }
 
@@ -427,6 +428,7 @@ mod tests {
                 object_key: b"fs/content/100".to_vec(),
                 exact_version: 7,
             }),
+            reservations: Vec::new(),
         };
         let dentry = DentrySnapshot {
             parent: ROOT_INODE,
@@ -466,6 +468,7 @@ mod tests {
                 ctime_unix_nanos: 0,
             },
             content: None,
+            reservations: Vec::new(),
         });
         let dentries =
             [b"e", b"a", b"d", b"b", b"c"]

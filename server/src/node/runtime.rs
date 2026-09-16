@@ -33,7 +33,7 @@ use tonic::transport::{Channel, Endpoint};
 
 use super::arena_manager::{
     ArenaError, ArenaManager, ArenaReadTicket, HostAllocationTarget, HostReceipt, HostRegionGrant,
-    HostShmDescriptor, ReleasedWriteAllocation, SharedFdBroker,
+    HostShmDescriptor, ReleasedWriteAllocation, ReservationConsumption, SharedFdBroker,
 };
 use super::current_cache::CurrentCache;
 use super::filesystem::{
@@ -1593,6 +1593,75 @@ impl NodeHandle {
         receive(receiver).await
     }
 
+    pub(crate) async fn data_core_prepare_punch_hole(
+        &self,
+        key: Vec<u8>,
+        offset: u64,
+        length: u64,
+        operation_id: Vec<u8>,
+        resolved: ResolvedObject,
+    ) -> Result<PreparedObjectVersion, WorkerError> {
+        let (reply, receiver) = oneshot::channel();
+        self.submit(NodeCommand::DataCorePreparePunchHole {
+            key,
+            offset,
+            length,
+            operation_id,
+            resolved: resolved.into_proto(),
+            reply,
+        })
+        .await?;
+        receive(receiver).await
+    }
+
+    pub(crate) async fn data_core_reserve_file_space(
+        &self,
+        reservation_id: Vec<u8>,
+        length: u64,
+    ) -> Result<(), WorkerError> {
+        let (reply, receiver) = oneshot::channel();
+        self.submit(NodeCommand::DataCoreReserveFileSpace {
+            reservation_id,
+            length,
+            reply,
+        })
+        .await?;
+        receive(receiver).await
+    }
+
+    pub(crate) async fn data_core_consume_file_space(
+        &self,
+        ranges: Vec<(Vec<u8>, u64)>,
+    ) -> Result<Vec<ReservationConsumption>, WorkerError> {
+        let (reply, receiver) = oneshot::channel();
+        self.submit(NodeCommand::DataCoreConsumeFileSpace { ranges, reply })
+            .await?;
+        receive(receiver).await
+    }
+
+    pub(crate) async fn data_core_restore_file_space(
+        &self,
+        consumptions: Vec<ReservationConsumption>,
+    ) -> Result<(), WorkerError> {
+        let (reply, receiver) = oneshot::channel();
+        self.submit(NodeCommand::DataCoreRestoreFileSpace {
+            consumptions,
+            reply,
+        })
+        .await?;
+        receive(receiver).await
+    }
+
+    pub(crate) async fn data_core_release_file_space(
+        &self,
+        ranges: Vec<(Vec<u8>, u64)>,
+    ) -> Result<(), WorkerError> {
+        let (reply, receiver) = oneshot::channel();
+        self.submit(NodeCommand::DataCoreReleaseFileSpace { ranges, reply })
+            .await?;
+        receive(receiver).await
+    }
+
     /// 完成两阶段文件写。`version` 只在 Meta 已原子发布时存在；确定性 CAS/参数拒绝
     /// 才允许回收新块，未知提交结果必须保留，以便同 operation 重试。
     pub(crate) async fn data_core_finish_prepared(
@@ -2880,6 +2949,31 @@ enum NodeCommand {
         resolved: pb::ResolveObjectResponse,
         reply: oneshot::Sender<Result<PreparedObjectVersion, WorkerError>>,
     },
+    DataCorePreparePunchHole {
+        key: Vec<u8>,
+        offset: u64,
+        length: u64,
+        operation_id: Vec<u8>,
+        resolved: pb::ResolveObjectResponse,
+        reply: oneshot::Sender<Result<PreparedObjectVersion, WorkerError>>,
+    },
+    DataCoreReserveFileSpace {
+        reservation_id: Vec<u8>,
+        length: u64,
+        reply: oneshot::Sender<Result<(), WorkerError>>,
+    },
+    DataCoreConsumeFileSpace {
+        ranges: Vec<(Vec<u8>, u64)>,
+        reply: oneshot::Sender<Result<Vec<ReservationConsumption>, WorkerError>>,
+    },
+    DataCoreRestoreFileSpace {
+        consumptions: Vec<ReservationConsumption>,
+        reply: oneshot::Sender<Result<(), WorkerError>>,
+    },
+    DataCoreReleaseFileSpace {
+        ranges: Vec<(Vec<u8>, u64)>,
+        reply: oneshot::Sender<Result<(), WorkerError>>,
+    },
     DataCoreFinishPrepared {
         prepared: PreparedObjectVersion,
         version: Option<u64>,
@@ -3193,6 +3287,11 @@ impl NodeCommand {
             Self::DataCorePrepareRange { .. } => NodeMailboxCommand::SetRange,
             Self::DataCorePrepareSparse { .. } => NodeMailboxCommand::SetRange,
             Self::DataCorePrepareTruncate { .. } => NodeMailboxCommand::SetRange,
+            Self::DataCorePreparePunchHole { .. } => NodeMailboxCommand::SetRange,
+            Self::DataCoreReserveFileSpace { .. }
+            | Self::DataCoreConsumeFileSpace { .. }
+            | Self::DataCoreRestoreFileSpace { .. }
+            | Self::DataCoreReleaseFileSpace { .. } => NodeMailboxCommand::SetRange,
             Self::DataCoreFinishPrepared { .. } => NodeMailboxCommand::SetInline,
             Self::SetRange { .. } => NodeMailboxCommand::SetRange,
             #[cfg(test)]
@@ -3542,6 +3641,76 @@ async fn run_node(
                         operation_id,
                         resolved,
                     ));
+                }
+                NodeCommand::DataCorePreparePunchHole {
+                    key,
+                    offset,
+                    length,
+                    operation_id,
+                    resolved,
+                    reply,
+                } => {
+                    let _ = reply.send(state.prepare_punch_hole_for_filesystem(
+                        key,
+                        offset,
+                        length,
+                        operation_id,
+                        resolved,
+                    ));
+                }
+                NodeCommand::DataCoreReserveFileSpace {
+                    reservation_id,
+                    length,
+                    reply,
+                } => {
+                    let _ = reply.send(
+                        state
+                            .arena
+                            .reserve_file_space(reservation_id, length)
+                            .map_err(map_arena_error),
+                    );
+                }
+                NodeCommand::DataCoreConsumeFileSpace { ranges, reply } => {
+                    let mut consumed = Vec::with_capacity(ranges.len());
+                    let mut failure = None;
+                    for (reservation_id, length) in ranges {
+                        match state.arena.consume_file_space(&reservation_id, length) {
+                            Ok(receipt) => consumed.push(receipt),
+                            Err(error) => {
+                                failure = Some(map_arena_error(error));
+                                break;
+                            }
+                        }
+                    }
+                    if let Some(error) = failure {
+                        for receipt in &consumed {
+                            let _ = state.arena.restore_file_space(receipt);
+                        }
+                        let _ = reply.send(Err(error));
+                    } else {
+                        let _ = reply.send(Ok(consumed));
+                    }
+                }
+                NodeCommand::DataCoreRestoreFileSpace {
+                    consumptions,
+                    reply,
+                } => {
+                    let result = consumptions.iter().try_for_each(|consumption| {
+                        state
+                            .arena
+                            .restore_file_space(consumption)
+                            .map_err(map_arena_error)
+                    });
+                    let _ = reply.send(result);
+                }
+                NodeCommand::DataCoreReleaseFileSpace { ranges, reply } => {
+                    let result = ranges.iter().try_for_each(|(reservation_id, length)| {
+                        state
+                            .arena
+                            .release_file_space(reservation_id, *length)
+                            .map_err(map_arena_error)
+                    });
+                    let _ = reply.send(result);
                 }
                 NodeCommand::DataCoreFinishPrepared {
                     prepared,
@@ -5546,6 +5715,55 @@ impl NodeState {
                 kind: pb::VersionKind::Value as i32,
                 logical_length: new_length,
                 digest: super::version_layout::digest(new_length, &extents),
+                extents,
+            },
+            replica_proofs,
+            new_replicas: Vec::new(),
+        })
+    }
+
+    /// 为文件打洞准备保持 logical length 不变的新布局。
+    ///
+    /// 未打洞的 Extent 继续引用原 Block；目标范围变成 HOLE，因此本阶段不触碰
+    /// Arena，也不会伪造全零副本。旧 Block 何时可回收仍由既有版本生命周期决定。
+    fn prepare_punch_hole_for_filesystem(
+        &mut self,
+        key: Vec<u8>,
+        offset: u64,
+        length: u64,
+        operation_id: Vec<u8>,
+        resolved: pb::ResolveObjectResponse,
+    ) -> Result<PreparedObjectVersion, WorkerError> {
+        validate_user_key(&key)?;
+        validate_operation_id(&operation_id)?;
+        if self.metadata.is_none() {
+            return Err(WorkerError::MetadataUnavailable);
+        }
+        let layout = resolved.layout.as_ref().ok_or(WorkerError::NotFound)?;
+        let extents = super::version_layout::punch_hole_file(
+            &layout.extents,
+            layout.logical_length,
+            offset,
+            length,
+        )?;
+        let referenced_blocks = extents
+            .iter()
+            .filter(|extent| !super::version_layout::is_hole(extent))
+            .map(|extent| extent.block_id.clone())
+            .collect::<HashSet<_>>();
+        let replica_proofs = resolved
+            .block_replicas
+            .iter()
+            .filter(|set| referenced_blocks.contains(&set.block_id))
+            .filter_map(|set| set.proofs.first().cloned())
+            .collect();
+        Ok(PreparedObjectVersion {
+            object_key: key,
+            expected_object_version: Some(layout.version),
+            candidate: pb::VersionCandidate {
+                kind: pb::VersionKind::Value as i32,
+                logical_length: layout.logical_length,
+                digest: super::version_layout::digest(layout.logical_length, &extents),
                 extents,
             },
             replica_proofs,
@@ -7726,7 +7944,9 @@ fn map_arena_error(error: ArenaError) -> WorkerError {
     match error {
         ArenaError::UnknownTransfer => WorkerError::UnknownTransfer,
         ArenaError::UnknownStaging => WorkerError::UnknownStaging,
-        ArenaError::StagingNotWritable | ArenaError::ReceiptConflict => WorkerError::Conflict,
+        ArenaError::StagingNotWritable
+        | ArenaError::ReceiptConflict
+        | ArenaError::ReservationConflict => WorkerError::Conflict,
         ArenaError::StaleHandle | ArenaError::UnknownRegion => WorkerError::ArenaStaleHandle,
         ArenaError::SharedMemoryUnavailable => WorkerError::ArenaShmUnavailable,
         ArenaError::RegionAccessDenied => WorkerError::ArenaAccessDenied,
@@ -7737,7 +7957,7 @@ fn map_arena_error(error: ArenaError) -> WorkerError {
         )),
         ArenaError::CapacityExhausted => WorkerError::ResourceExhausted,
         ArenaError::EmptyPayload => WorkerError::ArenaInvalidRequest,
-        ArenaError::UnknownBlock => WorkerError::NotFound,
+        ArenaError::UnknownBlock | ArenaError::UnknownReservation => WorkerError::NotFound,
         ArenaError::LengthMismatch | ArenaError::RangeOutOfBounds | ArenaError::RegionOverflow => {
             WorkerError::ArenaInvalidRequest
         }
@@ -8920,6 +9140,7 @@ mod tests {
                         revision: 2,
                         attributes: attrs.clone(),
                         content: None,
+                        reservations: Vec::new(),
                     },
                     grant,
                 },

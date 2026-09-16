@@ -135,6 +135,11 @@ impl FilesystemMetaGrpcClient {
     pub(crate) fn new(metadata: MetadataClient) -> Self {
         Self { metadata }
     }
+
+    pub(crate) async fn local_node_identity(&self) -> (u64, u64) {
+        let identity = self.metadata.local_replica_identity().await;
+        (identity.node_id, identity.node_epoch)
+    }
 }
 
 impl FilesystemMetaClient for FilesystemMetaGrpcClient {
@@ -397,6 +402,33 @@ impl FilesystemMetaClient for FilesystemMetaGrpcClient {
             operation_digest.extend_from_slice(&caller.pid.to_be_bytes());
         }
         append_attribute_patch_digest(&mut operation_digest, request.attribute_patch);
+        for change in request
+            .reservation_additions
+            .iter()
+            .chain(&request.reservation_reductions)
+        {
+            operation_digest.extend_from_slice(&change.reservation_id);
+            operation_digest.extend_from_slice(&change.offset.to_be_bytes());
+            operation_digest.extend_from_slice(&change.length.to_be_bytes());
+        }
+        let reservation_additions = request
+            .reservation_additions
+            .into_iter()
+            .map(|change| pb::FilesystemReservationRange {
+                reservation_id: change.reservation_id,
+                offset: change.offset,
+                length: change.length,
+            })
+            .collect();
+        let reservation_reductions = request
+            .reservation_reductions
+            .into_iter()
+            .map(|change| pb::FilesystemReservationRange {
+                reservation_id: change.reservation_id,
+                offset: change.offset,
+                length: change.length,
+            })
+            .collect();
         let response = self
             .metadata
             .filesystem_commit_version(pb::FilesystemCommitVersionRequest {
@@ -417,6 +449,8 @@ impl FilesystemMetaClient for FilesystemMetaGrpcClient {
                 caller: request.caller.map(caller_to_proto),
                 attribute_patch: (!request.attribute_patch.is_empty())
                     .then(|| attribute_patch_to_proto(request.attribute_patch)),
+                reservation_additions,
+                reservation_reductions,
             })
             .await?;
         let resolved = response.resolved.ok_or_else(missing_filesystem_response)?;

@@ -204,6 +204,27 @@ pub(crate) struct InodeSnapshot {
     pub(crate) attributes: InodeAttributes,
     /// 目录没有内容对象；普通文件和符号链接在首次发布后拥有精确版本绑定。
     pub(crate) content: Option<FileContentBinding>,
+    /// 尚未物化为 DATA Block 的容量保证。它不参与读布局；只有写入、打洞、
+    /// truncate 与 Node incarnation 回收会修改它。
+    pub(crate) reservations: Vec<FileSpaceReservation>,
+}
+
+/// 一段由特定 Node incarnation 在 Arena 中兑现的文件空间预留。
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct FileSpaceReservation {
+    pub(crate) reservation_id: Vec<u8>,
+    pub(crate) node_id: u64,
+    pub(crate) node_epoch: u64,
+    pub(crate) offset: u64,
+    pub(crate) length: u64,
+}
+
+/// 文件版本提交对 reservation 做的一段增加或扣减。
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct ReservationRangeChange {
+    pub(crate) reservation_id: Vec<u8>,
+    pub(crate) offset: u64,
+    pub(crate) length: u64,
 }
 
 /// 父目录中的一个名字到 inode 的映射。
@@ -386,6 +407,8 @@ pub(crate) struct CommitFileVersionRequest {
     /// 必须成对出现，由 Meta 在同一个 actor turn 内完成权限检查和原子发布。
     pub(crate) caller: Option<FilesystemCaller>,
     pub(crate) attribute_patch: AttributePatch,
+    pub(crate) reservation_additions: Vec<ReservationRangeChange>,
+    pub(crate) reservation_reductions: Vec<ReservationRangeChange>,
 }
 
 #[derive(Clone, Debug, PartialEq)]

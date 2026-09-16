@@ -9,6 +9,7 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use dms_error::DmsError;
 
 use super::super::{
+    arena_manager::ReservationConsumption,
     data_core::{ByteRange, DataCoreHandle, ObjectKey, ObjectRead, ObjectWrite},
     metrics::{FilesystemOperation, NodeMetrics},
     runtime::{NodeHandle, WorkerError},
@@ -16,12 +17,13 @@ use super::super::{
 use super::dentry_cache::DentryLookup;
 use super::meta_client::{CreateInodeRequest, FilesystemMetaClient, FilesystemMetaGrpcClient};
 use super::open_handles::OpenHandle;
+use crate::filesystem::space_sync::{FileSpaceMutation, FileSpaceMutationRequest, FileSyncMode};
 use crate::filesystem::{
     AttributePatch, CommitFileVersionRequest, CreateSymlinkRequest, DirectoryPage,
     FilesystemCaller, FilesystemStats, InodeId, InodeKind, LinkEntryRequest,
     NamespaceMutationResult, PreparedObjectVersion, ROOT_INODE, RemoveEntryRequest, RemoveKind,
-    RemoveXattrRequest, RenameEntryRequest, ResolvedInode, SetAttributesRequest, SetXattrRequest,
-    TimeUpdate, XattrSetMode,
+    RemoveXattrRequest, RenameEntryRequest, ReservationRangeChange, ResolvedInode,
+    SetAttributesRequest, SetXattrRequest, TimeUpdate, XattrSetMode,
 };
 use crate::node::metadata_client::digest;
 
@@ -53,6 +55,11 @@ struct PreparedFileCommit {
     new_size: u64,
     caller: Option<FilesystemCaller>,
     attribute_patch: AttributePatch,
+    reservation_additions: Vec<ReservationRangeChange>,
+    reservation_reductions: Vec<ReservationRangeChange>,
+    arena_added: Vec<(Vec<u8>, u64)>,
+    arena_consumed: Vec<ReservationConsumption>,
+    arena_release_after_commit: Vec<(Vec<u8>, u64)>,
 }
 
 impl SharedFileOperations {
@@ -642,8 +649,21 @@ impl SharedFileOperations {
             let write_end = actual_offset.checked_add(bytes.len() as u64).ok_or(
                 WorkerError::InvalidArgument("file write range overflows u64"),
             )?;
+            let local_identity = self.metadata.local_node_identity().await;
+            // Reservation 的物理容量由声明它的 Node 持有。本节点不能在同一逻辑
+            // 范围重新分配一份 DATA，否则 Meta 看见的是一个承诺，集群却实际扣了
+            // 两份容量。首版先返回稳定冲突；后续若支持 reservation owner 路由，
+            // 只替换这里的调度策略，不改变 Arena/Meta 的合同。
+            reject_remote_reservation_overlap(inode, actual_offset, write_end, local_identity)?;
+            let reservation_reductions =
+                reservation_reductions_for_range(inode, actual_offset, write_end, local_identity)?;
+            let arena_ranges = reservation_reductions
+                .iter()
+                .map(|change| (change.reservation_id.clone(), change.length))
+                .collect();
+            let arena_consumed = self.core.consume_file_space(arena_ranges).await?;
             let operation_id = self.core.new_operation_id();
-            let prepared = self
+            let prepared = match self
                 .prepare_file_write(
                     opened.inode,
                     &current,
@@ -651,7 +671,14 @@ impl SharedFileOperations {
                     bytes,
                     operation_id.clone(),
                 )
-                .await?;
+                .await
+            {
+                Ok(prepared) => prepared,
+                Err(error) => {
+                    self.core.restore_file_space(arena_consumed).await?;
+                    return Err(error);
+                }
+            };
             match self
                 .commit_prepared_file_version(PreparedFileCommit {
                     inode: opened.inode,
@@ -661,6 +688,11 @@ impl SharedFileOperations {
                     new_size: inode_size.max(write_end),
                     caller: None,
                     attribute_patch: AttributePatch::default(),
+                    reservation_additions: Vec::new(),
+                    reservation_reductions,
+                    arena_added: Vec::new(),
+                    arena_consumed,
+                    arena_release_after_commit: Vec::new(),
                 })
                 .await
             {
@@ -678,6 +710,12 @@ impl SharedFileOperations {
                     };
                     self.metrics
                         .record_filesystem_io_bytes(FilesystemOperation::Write, bytes.len());
+                    if let Some(mode) = sync_mode_for_open_flags(opened.flags) {
+                        // 当前 write-through 已经满足 local-memory + Meta WAL 屏障，
+                        // 这里仍显式经过统一 sync 入口。将来 durability 变强时，只需
+                        // 扩展该入口，不会让 O_SYNC/O_DSYNC 悄悄绕过新屏障。
+                        self.sync(handle, mode).await?;
+                    }
                     metric.success();
                     return Ok(result);
                 }
@@ -691,6 +729,247 @@ impl SharedFileOperations {
                     // 只有确定性 CAS 冲突才会走到这里；下一轮重新解析 authoritative
                     // inode/EOF，并为新的候选版本生成新的 operation。未知提交结果由
                     // MetadataClient 复用同一 request/operation 重试，不能在这里重选 EOF。
+                    tokio::task::yield_now().await;
+                }
+                Err(error) => return Err(error),
+            }
+        }
+    }
+
+    /// 处理已经由 FUSE adapter 解码完成的空间操作。
+    ///
+    /// 打洞通过 DataCore Extent overlay 和现有 Meta 原子版本提交完成；预留空间还要
+    /// 进入 Arena reservation 生命周期，不能在这里用零 Block 或单纯扩展 HOLE 冒充。
+    pub(crate) async fn mutate_space(
+        &self,
+        handle: u64,
+        request: FileSpaceMutationRequest,
+    ) -> Result<(), WorkerError> {
+        let mut metric = self
+            .metrics
+            .begin_filesystem_operation(FilesystemOperation::Fallocate);
+        match request.mutation() {
+            FileSpaceMutation::PunchHole => {
+                self.punch_hole(handle, request.range().offset(), request.range().length())
+                    .await?;
+            }
+            FileSpaceMutation::Preallocate { keep_size } => {
+                self.preallocate(
+                    handle,
+                    request.range().offset(),
+                    request.range().length(),
+                    keep_size,
+                )
+                .await?;
+            }
+        }
+        metric.success();
+        Ok(())
+    }
+
+    async fn preallocate(
+        &self,
+        handle: u64,
+        offset: u64,
+        length: u64,
+        keep_size: bool,
+    ) -> Result<(), WorkerError> {
+        let end = offset
+            .checked_add(length)
+            .ok_or(WorkerError::InvalidArgument(
+                "fallocate range overflows u64",
+            ))?;
+        let retry_until = Instant::now() + FILESYSTEM_CAS_RETRY_BUDGET;
+        let mut attempts = 0;
+        loop {
+            attempts += 1;
+            let opened = self.opened(handle).await?;
+            let current = self.resolve_inode(opened.inode).await?;
+            let snapshot = &current.granted.inode;
+            if snapshot.attributes.kind != InodeKind::RegularFile {
+                return Err(WorkerError::InvalidArgument(
+                    "only regular files support preallocation",
+                ));
+            }
+            let missing = unreserved_file_ranges(&current, offset, end)?;
+            let new_size = if keep_size {
+                snapshot.attributes.size
+            } else {
+                snapshot.attributes.size.max(end)
+            };
+            if missing.is_empty() && new_size == snapshot.attributes.size {
+                return Ok(());
+            }
+            let operation_id = self.core.new_operation_id();
+            let reserved_length = missing.iter().map(|(_, length)| *length).sum::<u64>();
+            if reserved_length > 0 {
+                self.core
+                    .reserve_file_space(operation_id.clone(), reserved_length)
+                    .await?;
+            }
+            let prepared = match self
+                .prepare_file_truncate(opened.inode, &current, new_size, operation_id.clone())
+                .await
+            {
+                Ok(prepared) => prepared,
+                Err(error) => {
+                    if reserved_length > 0 {
+                        self.core
+                            .release_file_space(vec![(operation_id.clone(), reserved_length)])
+                            .await?;
+                    }
+                    return Err(error);
+                }
+            };
+            let additions = missing
+                .into_iter()
+                .map(|(offset, length)| ReservationRangeChange {
+                    reservation_id: operation_id.clone(),
+                    offset,
+                    length,
+                })
+                .collect();
+            let result = self
+                .commit_prepared_file_version(PreparedFileCommit {
+                    inode: opened.inode,
+                    expected_inode_revision: snapshot.revision,
+                    operation_id: operation_id.clone(),
+                    prepared,
+                    new_size,
+                    caller: None,
+                    attribute_patch: AttributePatch::default(),
+                    reservation_additions: additions,
+                    reservation_reductions: Vec::new(),
+                    arena_added: (reserved_length > 0)
+                        .then_some((operation_id, reserved_length))
+                        .into_iter()
+                        .collect(),
+                    arena_consumed: Vec::new(),
+                    arena_release_after_commit: Vec::new(),
+                })
+                .await;
+            match result {
+                Ok(_) => return Ok(()),
+                Err(error) if filesystem_version_conflict(&error) => {
+                    self.invalidate_resolved_binding(&current).await?;
+                    if attempts >= FILESYSTEM_CAS_RETRY_MIN_ATTEMPTS
+                        && Instant::now() >= retry_until
+                    {
+                        return Err(error);
+                    }
+                    tokio::task::yield_now().await;
+                }
+                Err(error) => return Err(error),
+            }
+        }
+    }
+
+    /// `flush(2)` 只报告当前 open handle 已知的延迟写错误。
+    ///
+    /// M1.5 仍是 write-through：每个 write 在 Meta WAL 同步 append 和 inode/object
+    /// 原子发布成功后才返回，因此当前没有单独 dirty queue。即便如此，仍保留这个
+    /// 业务入口，避免 FUSE 层自己猜测语义，也为以后 writeback 的 per-handle 错误留边界。
+    pub(crate) async fn flush(&self, handle: u64) -> Result<(), WorkerError> {
+        let mut metric = self
+            .metrics
+            .begin_filesystem_operation(FilesystemOperation::Flush);
+        self.opened(handle).await?;
+        metric.success();
+        Ok(())
+    }
+
+    /// 等待该 handle 之前的内容/元数据提交越过当前持久性边界。
+    ///
+    /// Meta 本地 WAL 的 append 在返回前执行 `sync_data`；Node 使用 local-memory
+    /// durability，payload 不承诺进程重启后恢复。因此这里无需再创建第二套 durability
+    /// 枚举或额外 RPC，只验证 handle 生命周期并明确完成当前 write-through 屏障。
+    pub(crate) async fn sync(&self, handle: u64, _mode: FileSyncMode) -> Result<(), WorkerError> {
+        let mut metric = self
+            .metrics
+            .begin_filesystem_operation(FilesystemOperation::Sync);
+        self.opened(handle).await?;
+        metric.success();
+        Ok(())
+    }
+
+    /// 验证目录 handle，并确认此前 namespace mutation 已越过 Meta WAL 边界。
+    ///
+    /// 目录 handle 的 cookie/迭代位置仍由 FUSE adapter 持有，因此这里接收 inode，
+    /// 不复制第二张目录 handle 表。调用前由 adapter 校验 `fh -> inode` 关系。
+    pub(crate) async fn sync_directory(&self, inode: InodeId) -> Result<(), WorkerError> {
+        let mut metric = self
+            .metrics
+            .begin_filesystem_operation(FilesystemOperation::Sync);
+        let resolved = self.resolve_inode(inode).await?;
+        if resolved.granted.inode.attributes.kind != InodeKind::Directory {
+            return Err(WorkerError::InvalidArgument(
+                "fsyncdir requires a directory inode",
+            ));
+        }
+        metric.success();
+        Ok(())
+    }
+
+    async fn punch_hole(&self, handle: u64, offset: u64, length: u64) -> Result<(), WorkerError> {
+        let retry_until = Instant::now() + FILESYSTEM_CAS_RETRY_BUDGET;
+        let mut attempts = 0;
+        loop {
+            attempts += 1;
+            let opened = self.opened(handle).await?;
+            let current = self.resolve_inode(opened.inode).await?;
+            let snapshot = &current.granted.inode;
+            if snapshot.attributes.kind != InodeKind::RegularFile {
+                return Err(WorkerError::InvalidArgument(
+                    "only regular files support hole punching",
+                ));
+            }
+            if offset >= snapshot.attributes.size {
+                return Ok(());
+            }
+            let punch_end = offset.saturating_add(length).min(snapshot.attributes.size);
+            let local_identity = self.metadata.local_node_identity().await;
+            let reservation_reductions =
+                reservation_reductions_for_range(snapshot, offset, punch_end, local_identity)?;
+            reject_remote_reservation_overlap(snapshot, offset, punch_end, local_identity)?;
+            let releases = reservation_reductions
+                .iter()
+                .map(|change| (change.reservation_id.clone(), change.length))
+                .collect();
+            let object = current
+                .object
+                .clone()
+                .ok_or(WorkerError::MetadataUnavailable)?;
+            let operation_id = self.core.new_operation_id();
+            let object_key = ObjectKey::new(content_key(opened.inode))?;
+            let prepared = self
+                .core
+                .prepare_punch_hole(object_key, offset, length, operation_id.clone(), object)
+                .await?;
+            match self
+                .commit_prepared_file_version(PreparedFileCommit {
+                    inode: opened.inode,
+                    expected_inode_revision: snapshot.revision,
+                    operation_id,
+                    prepared,
+                    new_size: snapshot.attributes.size,
+                    caller: None,
+                    attribute_patch: AttributePatch::default(),
+                    reservation_additions: Vec::new(),
+                    reservation_reductions,
+                    arena_added: Vec::new(),
+                    arena_consumed: Vec::new(),
+                    arena_release_after_commit: releases,
+                })
+                .await
+            {
+                Ok(_) => return Ok(()),
+                Err(error) if filesystem_version_conflict(&error) => {
+                    self.invalidate_resolved_binding(&current).await?;
+                    if attempts >= FILESYSTEM_CAS_RETRY_MIN_ATTEMPTS
+                        && Instant::now() >= retry_until
+                    {
+                        return Err(error);
+                    }
                     tokio::task::yield_now().await;
                 }
                 Err(error) => return Err(error),
@@ -741,6 +1020,17 @@ impl SharedFileOperations {
             }
 
             let operation_id = self.core.new_operation_id();
+            let local_identity = self.metadata.local_node_identity().await;
+            let reservation_reductions = if size < inode_size {
+                reject_remote_reservation_overlap(snapshot, size, u64::MAX, local_identity)?;
+                reservation_reductions_for_range(snapshot, size, u64::MAX, local_identity)?
+            } else {
+                Vec::new()
+            };
+            let releases = reservation_reductions
+                .iter()
+                .map(|change| (change.reservation_id.clone(), change.length))
+                .collect();
             let prepared = self
                 .prepare_file_truncate(inode, &current, size, operation_id.clone())
                 .await?;
@@ -753,6 +1043,11 @@ impl SharedFileOperations {
                     new_size: size,
                     caller,
                     attribute_patch: patch,
+                    reservation_additions: Vec::new(),
+                    reservation_reductions,
+                    arena_added: Vec::new(),
+                    arena_consumed: Vec::new(),
+                    arena_release_after_commit: releases,
                 })
                 .await
             {
@@ -1217,6 +1512,11 @@ impl SharedFileOperations {
             new_size,
             caller,
             attribute_patch,
+            reservation_additions,
+            reservation_reductions,
+            arena_added,
+            arena_consumed,
+            arena_release_after_commit,
         } = request;
         let commit = self
             .metadata
@@ -1229,6 +1529,8 @@ impl SharedFileOperations {
                 mtime_unix_nanos: unix_nanos(),
                 caller,
                 attribute_patch,
+                reservation_additions,
+                reservation_reductions,
             })
             .await;
         match commit {
@@ -1244,6 +1546,9 @@ impl SharedFileOperations {
                 self.core
                     .finish_prepared(prepared, Some(version), false)
                     .await?;
+                self.core
+                    .release_file_space(arena_release_after_commit)
+                    .await?;
                 self.node
                     .filesystem_cache_binding(committed.resolved.clone())
                     .await?;
@@ -1252,6 +1557,14 @@ impl SharedFileOperations {
             Err(error) => {
                 let rejected = definitive_rejection(&error);
                 self.core.finish_prepared(prepared, None, rejected).await?;
+                if rejected {
+                    if !arena_added.is_empty() {
+                        self.core.release_file_space(arena_added).await?;
+                    }
+                    if !arena_consumed.is_empty() {
+                        self.core.restore_file_space(arena_consumed).await?;
+                    }
+                }
                 Err(WorkerError::Stable(error))
             }
         }
@@ -1317,6 +1630,110 @@ impl SharedFileOperations {
     }
 }
 
+fn unreserved_file_ranges(
+    current: &ResolvedInode,
+    start: u64,
+    end: u64,
+) -> Result<Vec<(u64, u64)>, WorkerError> {
+    let mut occupied = current
+        .granted
+        .inode
+        .reservations
+        .iter()
+        .filter_map(|reservation| {
+            let reservation_end = reservation.offset.checked_add(reservation.length)?;
+            let overlap_start = start.max(reservation.offset);
+            let overlap_end = end.min(reservation_end);
+            (overlap_start < overlap_end).then_some((overlap_start, overlap_end))
+        })
+        .collect::<Vec<_>>();
+    if let Some(object) = current.object.clone()
+        && let Some(layout) = object.into_proto().layout
+    {
+        for extent in layout.extents {
+            if super::super::version_layout::is_hole(&extent) {
+                continue;
+            }
+            let logical = extent.logical.ok_or(WorkerError::InvalidArgument(
+                "filesystem extent is missing a logical range",
+            ))?;
+            let extent_end =
+                logical
+                    .offset
+                    .checked_add(logical.length)
+                    .ok_or(WorkerError::InvalidArgument(
+                        "filesystem extent range overflows u64",
+                    ))?;
+            let overlap_start = start.max(logical.offset);
+            let overlap_end = end.min(extent_end);
+            if overlap_start < overlap_end {
+                occupied.push((overlap_start, overlap_end));
+            }
+        }
+    }
+    occupied.sort_by_key(|range| range.0);
+    let mut missing = Vec::new();
+    let mut cursor = start;
+    for (occupied_start, occupied_end) in occupied {
+        if cursor < occupied_start {
+            missing.push((cursor, occupied_start - cursor));
+        }
+        cursor = cursor.max(occupied_end);
+        if cursor >= end {
+            break;
+        }
+    }
+    if cursor < end {
+        missing.push((cursor, end - cursor));
+    }
+    Ok(missing)
+}
+
+fn reservation_reductions_for_range(
+    inode: &crate::filesystem::InodeSnapshot,
+    start: u64,
+    end: u64,
+    local_identity: (u64, u64),
+) -> Result<Vec<ReservationRangeChange>, WorkerError> {
+    let mut reductions = Vec::new();
+    for reservation in &inode.reservations {
+        if (reservation.node_id, reservation.node_epoch) != local_identity {
+            continue;
+        }
+        let reservation_end = reservation.offset.checked_add(reservation.length).ok_or(
+            WorkerError::InvalidArgument("filesystem reservation range overflows u64"),
+        )?;
+        let overlap_start = start.max(reservation.offset);
+        let overlap_end = end.min(reservation_end);
+        if overlap_start < overlap_end {
+            reductions.push(ReservationRangeChange {
+                reservation_id: reservation.reservation_id.clone(),
+                offset: overlap_start,
+                length: overlap_end - overlap_start,
+            });
+        }
+    }
+    Ok(reductions)
+}
+
+fn reject_remote_reservation_overlap(
+    inode: &crate::filesystem::InodeSnapshot,
+    start: u64,
+    end: u64,
+    local_identity: (u64, u64),
+) -> Result<(), WorkerError> {
+    let remote_overlap = inode.reservations.iter().any(|reservation| {
+        let reservation_end = reservation.offset.saturating_add(reservation.length);
+        (reservation.node_id, reservation.node_epoch) != local_identity
+            && start < reservation_end
+            && reservation.offset < end
+    });
+    if remote_overlap {
+        return Err(WorkerError::Conflict);
+    }
+    Ok(())
+}
+
 fn content_key(inode: InodeId) -> Vec<u8> {
     format!("fs/content/{inode}").into_bytes()
 }
@@ -1353,6 +1770,16 @@ fn definitive_rejection(error: &DmsError) -> bool {
         error.code(),
         dms_error::META_CATALOG_INVALID_REQUEST | dms_error::META_CATALOG_VERSION_CONFLICT
     )
+}
+
+fn sync_mode_for_open_flags(flags: i32) -> Option<FileSyncMode> {
+    if flags & libc::O_SYNC == libc::O_SYNC {
+        Some(FileSyncMode::DataAndMetadata)
+    } else if flags & libc::O_DSYNC != 0 {
+        Some(FileSyncMode::DataOnly)
+    } else {
+        None
+    }
 }
 
 fn filesystem_version_conflict(error: &WorkerError) -> bool {
@@ -1461,10 +1888,24 @@ fn remove_kind_digest(kind: RemoveKind) -> u64 {
 
 #[cfg(test)]
 mod tests {
-    use super::content_key;
+    use super::{content_key, sync_mode_for_open_flags};
+    use crate::filesystem::space_sync::FileSyncMode;
 
     #[test]
     fn inode_content_key_is_stable_and_namespace_private() {
         assert_eq!(content_key(42), b"fs/content/42");
+    }
+
+    #[test]
+    fn sync_open_flags_reuse_the_shared_sync_contract() {
+        assert_eq!(sync_mode_for_open_flags(0), None);
+        assert_eq!(
+            sync_mode_for_open_flags(libc::O_DSYNC),
+            Some(FileSyncMode::DataOnly)
+        );
+        assert_eq!(
+            sync_mode_for_open_flags(libc::O_SYNC),
+            Some(FileSyncMode::DataAndMetadata)
+        );
     }
 }

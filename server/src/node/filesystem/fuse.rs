@@ -24,6 +24,9 @@ use fuser::{
 use tokio::runtime::Handle;
 
 use super::SharedFileOperations;
+use crate::filesystem::space_sync::{
+    FileSpaceMutation, FileSpaceMutationRequest, FileSyncMode, SpaceRange,
+};
 use crate::filesystem::{
     AttributePatch, FilesystemCaller, InodeAttributes, InodeKind, TimeUpdate, XattrSetMode,
 };
@@ -473,6 +476,32 @@ impl Filesystem for DmsFuse {
         reply.ok();
     }
 
+    fn fsyncdir(&mut self, _req: &Request, ino: u64, fh: u64, _datasync: bool, reply: ReplyEmpty) {
+        self.metrics.record_fuse_callback(FuseCallback::Fsyncdir);
+        match self.directory_handles.get(&fh) {
+            Some(handle) if handle.inode == ino => {
+                let span = filesystem_span("dms.filesystem.sync_directory", Some(ino));
+                match self
+                    .runtime
+                    .block_on(self.files.sync_directory(handle.inode).instrument(span))
+                {
+                    Ok(()) => reply.ok(),
+                    Err(error) => {
+                        let errno = worker_to_errno(error);
+                        dms_logging::warn!(
+                            "FUSE directory sync failed";
+                            "event" => "node.fuse.fsyncdir_failed",
+                            "inode" => ino,
+                            "errno" => errno,
+                        );
+                        reply.error(errno);
+                    }
+                }
+            }
+            _ => reply.error(libc::EBADF),
+        }
+    }
+
     fn readlink(&mut self, _req: &Request, ino: u64, reply: ReplyData) {
         self.metrics.record_fuse_callback(FuseCallback::Readlink);
         let span = filesystem_span("dms.filesystem.readlink", Some(ino));
@@ -731,16 +760,89 @@ impl Filesystem for DmsFuse {
         }
     }
 
-    fn flush(&mut self, _req: &Request, _ino: u64, _fh: u64, _owner: u64, reply: ReplyEmpty) {
+    fn flush(&mut self, _req: &Request, ino: u64, fh: u64, _owner: u64, reply: ReplyEmpty) {
         self.metrics.record_fuse_callback(FuseCallback::Flush);
-        // write-through 的每个 write callback 已经完成 Meta 原子发布。
-        reply.ok();
+        let span = filesystem_span("dms.filesystem.flush", Some(ino));
+        match self.runtime.block_on(self.files.flush(fh).instrument(span)) {
+            Ok(()) => reply.ok(),
+            Err(error) => {
+                let errno = worker_to_errno(error);
+                dms_logging::warn!(
+                    "FUSE flush failed";
+                    "event" => "node.fuse.flush_failed",
+                    "inode" => ino,
+                    "errno" => errno,
+                );
+                reply.error(errno);
+            }
+        }
     }
 
-    fn fsync(&mut self, _req: &Request, _ino: u64, _fh: u64, _datasync: bool, reply: ReplyEmpty) {
+    fn fsync(&mut self, _req: &Request, ino: u64, fh: u64, datasync: bool, reply: ReplyEmpty) {
         self.metrics.record_fuse_callback(FuseCallback::Fsync);
-        // 当前持久性边界与 write 相同；没有尚未发布的本地 dirty buffer。
-        reply.ok();
+        let mode = if datasync {
+            FileSyncMode::DataOnly
+        } else {
+            FileSyncMode::DataAndMetadata
+        };
+        let span = filesystem_span("dms.filesystem.sync", Some(ino));
+        match self
+            .runtime
+            .block_on(self.files.sync(fh, mode).instrument(span))
+        {
+            Ok(()) => reply.ok(),
+            Err(error) => {
+                let errno = worker_to_errno(error);
+                dms_logging::warn!(
+                    "FUSE file sync failed";
+                    "event" => "node.fuse.fsync_failed",
+                    "inode" => ino,
+                    "data_only" => datasync,
+                    "errno" => errno,
+                );
+                reply.error(errno);
+            }
+        }
+    }
+
+    fn fallocate(
+        &mut self,
+        _req: &Request,
+        ino: u64,
+        fh: u64,
+        offset: i64,
+        length: i64,
+        mode: i32,
+        reply: ReplyEmpty,
+    ) {
+        self.metrics.record_fuse_callback(FuseCallback::Fallocate);
+        let request = match decode_fallocate(offset, length, mode) {
+            Ok(request) => request,
+            Err(errno) => {
+                reply.error(errno);
+                return;
+            }
+        };
+        let span = filesystem_span("dms.filesystem.fallocate", Some(ino));
+        match self
+            .runtime
+            .block_on(self.files.mutate_space(fh, request).instrument(span))
+        {
+            Ok(()) => reply.ok(),
+            Err(error) => {
+                let errno = worker_to_errno(error);
+                dms_logging::warn!(
+                    "FUSE fallocate failed";
+                    "event" => "node.fuse.fallocate_failed",
+                    "inode" => ino,
+                    "offset" => offset,
+                    "length" => length,
+                    "mode" => mode,
+                    "errno" => errno,
+                );
+                reply.error(errno);
+            }
+        }
     }
 
     fn release(
@@ -889,6 +991,21 @@ fn worker_to_errno(error: WorkerError) -> i32 {
     }
 }
 
+fn decode_fallocate(offset: i64, length: i64, mode: i32) -> Result<FileSpaceMutationRequest, i32> {
+    let offset = u64::try_from(offset).map_err(|_| libc::EINVAL)?;
+    let length = u64::try_from(length).map_err(|_| libc::EINVAL)?;
+    let range = SpaceRange::new(offset, length).map_err(|_| libc::EINVAL)?;
+    let mutation = match mode {
+        0 => FileSpaceMutation::Preallocate { keep_size: false },
+        libc::FALLOC_FL_KEEP_SIZE => FileSpaceMutation::Preallocate { keep_size: true },
+        value if value == libc::FALLOC_FL_PUNCH_HOLE | libc::FALLOC_FL_KEEP_SIZE => {
+            FileSpaceMutation::PunchHole
+        }
+        _ => return Err(libc::EOPNOTSUPP),
+    };
+    Ok(FileSpaceMutationRequest::new(range, mutation))
+}
+
 /// 把跨 Meta 边界保留下来的稳定错误语义翻译成 POSIX errno。
 ///
 /// 精确的文件系统错误优先按数字错误码映射；其它错误再按公共 `ErrorKind` 降级。
@@ -1000,5 +1117,46 @@ mod tests {
             )),
             libc::EAGAIN,
         );
+    }
+
+    #[test]
+    fn fallocate_modes_are_decoded_without_inventing_extra_semantics() {
+        assert_eq!(
+            decode_fallocate(8, 16, 0).expect("mode 0"),
+            FileSpaceMutationRequest::new(
+                SpaceRange::new(8, 16).expect("range"),
+                FileSpaceMutation::Preallocate { keep_size: false },
+            )
+        );
+        assert_eq!(
+            decode_fallocate(8, 16, libc::FALLOC_FL_KEEP_SIZE).expect("keep size"),
+            FileSpaceMutationRequest::new(
+                SpaceRange::new(8, 16).expect("range"),
+                FileSpaceMutation::Preallocate { keep_size: true },
+            )
+        );
+        assert_eq!(
+            decode_fallocate(
+                8,
+                16,
+                libc::FALLOC_FL_PUNCH_HOLE | libc::FALLOC_FL_KEEP_SIZE,
+            )
+            .expect("punch hole"),
+            FileSpaceMutationRequest::new(
+                SpaceRange::new(8, 16).expect("range"),
+                FileSpaceMutation::PunchHole,
+            )
+        );
+    }
+
+    #[test]
+    fn fallocate_rejects_invalid_ranges_and_unsupported_flags() {
+        assert_eq!(decode_fallocate(-1, 16, 0), Err(libc::EINVAL));
+        assert_eq!(decode_fallocate(0, 0, 0), Err(libc::EINVAL));
+        assert_eq!(
+            decode_fallocate(0, 16, libc::FALLOC_FL_ZERO_RANGE),
+            Err(libc::EOPNOTSUPP)
+        );
+        assert!(decode_fallocate(i64::MAX, i64::MAX, 0).is_ok());
     }
 }

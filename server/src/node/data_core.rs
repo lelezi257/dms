@@ -16,6 +16,7 @@ use std::sync::{
 
 use uuid::Uuid;
 
+use super::arena_manager::ReservationConsumption;
 use super::metrics::DataCoreOperation;
 use super::runtime::{DataCoreReadAttempt, NodeHandle, WorkerError};
 use crate::filesystem::{PreparedObjectVersion, ResolvedObject};
@@ -434,6 +435,55 @@ impl DataCoreHandle {
         self.node
             .data_core_prepare_truncate(key.into_bytes(), new_length, operation_id, resolved)
             .await
+    }
+
+    /// 为 `PUNCH_HOLE|KEEP_SIZE` 准备只改变 Extent 布局的候选版本。
+    ///
+    /// 该调用不会申请零 Block；DataCore 只把目标逻辑范围改写为 HOLE。
+    pub(crate) async fn prepare_punch_hole(
+        &self,
+        key: ObjectKey,
+        offset: u64,
+        length: u64,
+        operation_id: Vec<u8>,
+        resolved: ResolvedObject,
+    ) -> Result<PreparedObjectVersion, WorkerError> {
+        let metrics = self.node.metrics();
+        metrics.record_data_core_operation(DataCoreOperation::PreparePunchHole);
+        self.node
+            .data_core_prepare_punch_hole(key.into_bytes(), offset, length, operation_id, resolved)
+            .await
+    }
+
+    pub(crate) async fn reserve_file_space(
+        &self,
+        reservation_id: Vec<u8>,
+        length: u64,
+    ) -> Result<(), WorkerError> {
+        self.node
+            .data_core_reserve_file_space(reservation_id, length)
+            .await
+    }
+
+    pub(crate) async fn consume_file_space(
+        &self,
+        ranges: Vec<(Vec<u8>, u64)>,
+    ) -> Result<Vec<ReservationConsumption>, WorkerError> {
+        self.node.data_core_consume_file_space(ranges).await
+    }
+
+    pub(crate) async fn restore_file_space(
+        &self,
+        consumptions: Vec<ReservationConsumption>,
+    ) -> Result<(), WorkerError> {
+        self.node.data_core_restore_file_space(consumptions).await
+    }
+
+    pub(crate) async fn release_file_space(
+        &self,
+        ranges: Vec<(Vec<u8>, u64)>,
+    ) -> Result<(), WorkerError> {
+        self.node.data_core_release_file_space(ranges).await
     }
 
     pub(crate) async fn finish_prepared(

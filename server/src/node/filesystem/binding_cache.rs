@@ -98,6 +98,7 @@ mod tests {
                         object_key: b"fs/content/100".to_vec(),
                         exact_version: 3,
                     }),
+                    reservations: Vec::new(),
                 },
                 grant: CacheGrant {
                     generation,

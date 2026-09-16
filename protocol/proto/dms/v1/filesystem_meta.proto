@@ -95,6 +95,25 @@ message FilesystemInodeSnapshot {
   uint64 revision = 1;
   FilesystemInodeAttributes attributes = 2;
   optional FilesystemContentBinding content = 3;
+  // 预留只描述未来 DATA 的容量保证，不是可读 Extent。Node incarnation 是
+  // local-memory reservation 的 fencing 身份；Node 重启后旧预留不能继续兑现。
+  repeated FilesystemSpaceReservation reservations = 4;
+}
+
+message FilesystemSpaceReservation {
+  bytes reservation_id = 1;
+  uint64 node_id = 2;
+  uint64 node_epoch = 3;
+  uint64 offset = 4;
+  uint64 length = 5;
+}
+
+// CommitFilesystemVersion 中 reservation 的范围增量。owner 不由调用方填写，
+// Meta 从已经校验的 NodeSessionIdentity 取得，避免伪造其它 Node 的容量承诺。
+message FilesystemReservationRange {
+  bytes reservation_id = 1;
+  uint64 offset = 2;
+  uint64 length = 3;
 }
 
 message FilesystemDentrySnapshot {
@@ -415,6 +434,8 @@ message FilesystemCommitVersionRequest {
   // 不能在内容版本之后再发第二次属性 mutation。
   optional FilesystemCallerIdentity caller = 15;
   optional FilesystemAttributePatch attribute_patch = 16;
+  repeated FilesystemReservationRange reservation_additions = 17;
+  repeated FilesystemReservationRange reservation_reductions = 18;
 }
 
 message FilesystemCommitVersionResponse {

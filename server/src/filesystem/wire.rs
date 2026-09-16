@@ -9,9 +9,9 @@ use dms_protocol::v1 as pb;
 use super::model::{
     AttributeMutationResult, AttributePatch, CacheGrant, DentrySnapshot, DirectoryEntry,
     DirectoryGrant, DirectoryPage, DirectoryVersion, FileContentBinding, FileContractError,
-    FilesystemCaller, FilesystemStats, GrantedInode, InodeAttributes, InodeId, InodeKind,
-    InodeSnapshot, InodeVersion, NamespaceMutationResult, RemoveKind, ResolvedInode, TimeUpdate,
-    XattrSetMode,
+    FileSpaceReservation, FilesystemCaller, FilesystemStats, GrantedInode, InodeAttributes,
+    InodeId, InodeKind, InodeSnapshot, InodeVersion, NamespaceMutationResult, RemoveKind,
+    ResolvedInode, TimeUpdate, XattrSetMode,
 };
 
 /// Meta 已经授权的精确对象读取计划。
@@ -119,6 +119,17 @@ pub(crate) fn inode_to_proto(inode: &InodeSnapshot) -> pb::FilesystemInodeSnapsh
                 object_key: content.object_key.clone(),
                 exact_version: content.exact_version,
             }),
+        reservations: inode
+            .reservations
+            .iter()
+            .map(|reservation| pb::FilesystemSpaceReservation {
+                reservation_id: reservation.reservation_id.clone(),
+                node_id: reservation.node_id,
+                node_epoch: reservation.node_epoch,
+                offset: reservation.offset,
+                length: reservation.length,
+            })
+            .collect(),
     }
 }
 
@@ -146,6 +157,17 @@ pub(crate) fn inode_from_proto(
             object_key: content.object_key,
             exact_version: content.exact_version,
         }),
+        reservations: inode
+            .reservations
+            .into_iter()
+            .map(|reservation| FileSpaceReservation {
+                reservation_id: reservation.reservation_id,
+                node_id: reservation.node_id,
+                node_epoch: reservation.node_epoch,
+                offset: reservation.offset,
+                length: reservation.length,
+            })
+            .collect(),
     })
 }
 
@@ -476,6 +498,8 @@ mod tests {
             mtime_unix_nanos: 99,
             caller: None,
             attribute_patch: AttributePatch::default(),
+            reservation_additions: Vec::new(),
+            reservation_reductions: Vec::new(),
         };
 
         // 文件层不能先提交 DataCore Current，再用另一次请求更新 inode。一个请求同时

@@ -48,6 +48,7 @@ use super::{
     send_meta_heartbeats, version_layout,
     worker_service::WorkerServiceHandler,
 };
+use crate::filesystem::space_sync::{FileSpaceMutation, FileSpaceMutationRequest, SpaceRange};
 use crate::meta::{
     filesystem::service::FilesystemMetadataServiceHandler,
     metadata_service::MetadataServiceHandler, runtime::MetaHandle,
@@ -2121,6 +2122,61 @@ async fn shared_filesystem_append_reuses_operation_when_commit_result_is_unknown
 
     fs.close(appender.id).await.expect("close appender");
     fs.close(base.id).await.expect("close base handle");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn shared_filesystem_preallocation_reuses_one_reservation_when_commit_result_is_unknown() {
+    let meta = CountingMetaServer::start().await;
+    let node = TestNode::start(&meta.endpoint, 1).await;
+    let fs = SharedFileOperations::new(node.node.clone()).expect("shared FS");
+    let opened = fs
+        .create_and_open(b"preallocate-unknown-result.txt", 0o644, libc::O_RDWR)
+        .await
+        .expect("create preallocation file");
+
+    meta.filesystem_commit_requests
+        .lock()
+        .expect("filesystem commit requests")
+        .clear();
+    meta.drop_next_filesystem_commit_response();
+    fs.mutate_space(
+        opened.id,
+        FileSpaceMutationRequest::new(
+            SpaceRange::new(0, 4096).expect("valid reservation range"),
+            FileSpaceMutation::Preallocate { keep_size: true },
+        ),
+    )
+    .await
+    .expect("preallocation retries unknown commit result");
+
+    let resolved = fs
+        .lookup(
+            crate::filesystem::ROOT_INODE,
+            b"preallocate-unknown-result.txt",
+        )
+        .await
+        .expect("resolve preallocated inode")
+        .expect("preallocated inode exists");
+    assert_eq!(
+        resolved.granted.inode.attributes.size, 0,
+        "KEEP_SIZE must preserve EOF"
+    );
+    assert_eq!(resolved.granted.inode.reservations.len(), 1);
+    assert_eq!(resolved.granted.inode.reservations[0].offset, 0);
+    assert_eq!(resolved.granted.inode.reservations[0].length, 4096);
+
+    {
+        let requests = meta
+            .filesystem_commit_requests
+            .lock()
+            .expect("filesystem commit requests");
+        assert!(requests.len() >= 2, "测试必须真实触发提交后响应丢失和重试");
+        assert!(
+            requests.windows(2).all(|pair| pair[0] == pair[1]),
+            "未知提交结果重试必须复用同一个 operation id，不能再次占用 Arena 容量"
+        );
+    }
+    fs.close(opened.id).await.expect("close preallocation file");
 }
 
 #[test]

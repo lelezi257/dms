@@ -21,6 +21,8 @@ pub(crate) struct NodeMetrics {
     arena_allocated_bytes: IntGauge,
     arena_quarantined_bytes: IntGauge,
     arena_logical_bytes: IntGauge,
+    arena_reserved_bytes: IntGauge,
+    arena_reservations: IntGauge,
     arena_free_bytes: IntGauge,
     arena_fragmentation_ratio: Gauge,
     arena_allocations_total: IntCounterVec,
@@ -106,6 +108,9 @@ pub(crate) enum FilesystemOperation {
     Open,
     Read,
     Write,
+    Fallocate,
+    Flush,
+    Sync,
     Truncate,
     Setattr,
     Getxattr,
@@ -132,6 +137,9 @@ impl FilesystemOperation {
         Self::Open,
         Self::Read,
         Self::Write,
+        Self::Fallocate,
+        Self::Flush,
+        Self::Sync,
         Self::Truncate,
         Self::Setattr,
         Self::Getxattr,
@@ -158,6 +166,9 @@ impl FilesystemOperation {
             Self::Open => "open",
             Self::Read => "read",
             Self::Write => "write",
+            Self::Fallocate => "fallocate",
+            Self::Flush => "flush",
+            Self::Sync => "sync",
             Self::Truncate => "truncate",
             Self::Setattr => "setattr",
             Self::Getxattr => "getxattr",
@@ -202,6 +213,8 @@ pub(crate) enum FuseCallback {
     Write,
     Flush,
     Fsync,
+    Fsyncdir,
+    Fallocate,
     Release,
 }
 
@@ -233,6 +246,8 @@ impl FuseCallback {
         Self::Write,
         Self::Flush,
         Self::Fsync,
+        Self::Fsyncdir,
+        Self::Fallocate,
         Self::Release,
     ];
 
@@ -264,6 +279,8 @@ impl FuseCallback {
             Self::Write => "write",
             Self::Flush => "flush",
             Self::Fsync => "fsync",
+            Self::Fsyncdir => "fsyncdir",
+            Self::Fallocate => "fallocate",
             Self::Release => "release",
         }
     }
@@ -279,6 +296,7 @@ pub(crate) enum DataCoreOperation {
     PrepareRange,
     PrepareSparse,
     PrepareTruncate,
+    PreparePunchHole,
     FinishPrepared,
 }
 
@@ -288,6 +306,7 @@ impl DataCoreOperation {
         Self::PrepareRange,
         Self::PrepareSparse,
         Self::PrepareTruncate,
+        Self::PreparePunchHole,
         Self::FinishPrepared,
     ];
 
@@ -297,6 +316,7 @@ impl DataCoreOperation {
             Self::PrepareRange => "prepare_range",
             Self::PrepareSparse => "prepare_sparse",
             Self::PrepareTruncate => "prepare_truncate",
+            Self::PreparePunchHole => "prepare_punch_hole",
             Self::FinishPrepared => "finish_prepared",
         }
     }
@@ -538,6 +558,8 @@ pub(crate) struct ArenaMetricsSnapshot {
     pub(crate) allocated_bytes: u64,
     pub(crate) quarantined_bytes: u64,
     pub(crate) logical_bytes: u64,
+    pub(crate) reserved_bytes: u64,
+    pub(crate) reservations: usize,
     pub(crate) free_bytes: u64,
     pub(crate) fragmentation_ratio: f64,
     pub(crate) staging_allocations: usize,
@@ -594,6 +616,14 @@ impl NodeMetrics {
             arena_logical_bytes: IntGauge::new(
                 "dms_node_arena_logical_bytes",
                 "Logical payload bytes held by staging and blocks.",
+            )?,
+            arena_reserved_bytes: IntGauge::new(
+                "dms_node_arena_reserved_bytes",
+                "Aligned Arena capacity promised to filesystem reservations but not yet DATA.",
+            )?,
+            arena_reservations: IntGauge::new(
+                "dms_node_arena_reservations",
+                "Live filesystem capacity reservations owned by this Node incarnation.",
             )?,
             arena_free_bytes: IntGauge::new(
                 "dms_node_arena_free_bytes",
@@ -843,6 +873,8 @@ impl NodeMetrics {
         register_collector(registry, &self.arena_allocated_bytes)?;
         register_collector(registry, &self.arena_quarantined_bytes)?;
         register_collector(registry, &self.arena_logical_bytes)?;
+        register_collector(registry, &self.arena_reserved_bytes)?;
+        register_collector(registry, &self.arena_reservations)?;
         register_collector(registry, &self.arena_free_bytes)?;
         register_collector(registry, &self.arena_fragmentation_ratio)?;
         register_collector(registry, &self.arena_allocations_total)?;
@@ -923,6 +955,10 @@ impl NodeMetrics {
         self.arena_quarantined_bytes
             .set(to_i64(snapshot.quarantined_bytes));
         self.arena_logical_bytes.set(to_i64(snapshot.logical_bytes));
+        self.arena_reserved_bytes
+            .set(to_i64(snapshot.reserved_bytes));
+        self.arena_reservations
+            .set(to_i64(snapshot.reservations as u64));
         self.arena_free_bytes.set(to_i64(snapshot.free_bytes));
         self.arena_fragmentation_ratio
             .set(snapshot.fragmentation_ratio);

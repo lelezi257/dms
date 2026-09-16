@@ -1,0 +1,41 @@
+{
+  "schema": "dms.filesystem.space-sync-contract.v1",
+  "scope": "Native Filesystem fallocate and sync vertical slice",
+  "required_operations": [
+    "preallocate_extend",
+    "preallocate_keep_size",
+    "write_consumes_reservation",
+    "punch_hole",
+    "sync_callbacks",
+    "sync_open_flags",
+    "capacity_exhaustion"
+  ],
+  "required_user_semantics": [
+    "fallocate mode 0 reserves capacity, extends EOF and reads unwritten bytes as zero",
+    "FALLOC_FL_KEEP_SIZE reserves capacity without changing EOF",
+    "a write inside a local reservation consumes reserved capacity and is immediately visible from another Node",
+    "FALLOC_FL_PUNCH_HOLE with KEEP_SIZE preserves EOF and reads the punched range as zero",
+    "flush, fdatasync, fsync and directory fsync complete through SharedFileOperations",
+    "O_SYNC and O_DSYNC writes are visible from another Node when write returns",
+    "reservation admission failure returns ENOSPC without changing file size or leaking reserved bytes",
+    "Meta restart preserves reservation identity without reserving capacity twice",
+    "a restarted reservation owner fences its old reservation so another live Node can write the range"
+  ],
+  "required_observability": [
+    "typed FUSE callback counters for fallocate, flush, fsync and fsyncdir",
+    "Arena reserved bytes and reservation gauges",
+    "filesystem operation counters for fallocate, flush and sync",
+    "Meta filesystem commit request delta",
+    "per-operation syscall latency evidence"
+  ],
+  "request_amplification_limits": {
+    "sync_only_meta_commits": 0
+  },
+  "non_goals": [
+    "writeback cache",
+    "durability stronger than the configured local-memory payload boundary",
+    "ZERO_RANGE, COLLAPSE_RANGE, INSERT_RANGE or UNSHARE_RANGE",
+    "quota accounting",
+    "Meta high availability"
+  ]
+}

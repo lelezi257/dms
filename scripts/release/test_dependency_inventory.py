@@ -204,6 +204,26 @@ class InventoryTests(unittest.TestCase):
         )
         self.assertIn("checksum mismatch", "; ".join(report["packages"][0]["issues"]))
 
+    def test_catalog_covers_winapi_target_stub_license_materials(self):
+        """Cargo 的 Windows import-library stub 漏装原文时仍须有精确、双许可证据。"""
+        entries = {
+            (item["name"], item["version"]): item
+            for item in inventory.load_curated_sources()
+        }
+        for name, subdirectory in (
+            ("winapi-i686-pc-windows-gnu", "i686"),
+            ("winapi-x86_64-pc-windows-gnu", "x86_64"),
+        ):
+            item = entries[(name, "0.4.0")]
+            self.assertEqual(item["source"], inventory.CRATES_IO_SOURCE)
+            self.assertTrue(item["reference"].endswith("796a8e6c2971dc2ff1bcff166e6671284f9b5b6b"))
+            self.assertEqual(
+                {material["source_path"] for material in item["materials"]},
+                {"LICENSE-APACHE", "LICENSE-MIT"},
+            )
+            self.assertTrue(all(f"/{subdirectory}/" in material["url"] for material in item["materials"]))
+            self.assertTrue(all(len(material["sha256"]) == 64 for material in item["materials"]))
+
 
 if __name__ == "__main__":
     unittest.main()

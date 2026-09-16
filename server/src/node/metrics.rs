@@ -53,6 +53,38 @@ pub(crate) struct NodeMetrics {
     data_core_bytes_total: IntCounterVec,
     filesystem_dentry_cache_lookups_total: IntCounterVec,
     filesystem_binding_cache_lookups_total: IntCounterVec,
+    filesystem_inode_references: IntGauge,
+    filesystem_inode_reference_transitions_total: IntCounterVec,
+}
+
+/// Node 本地 inode 引用状态机的低基数迁移。
+///
+/// inode、路径、handle 不进入 label。该指标只回答“是否建立/复用/释放引用”，
+/// 精确对象身份留给按需 debug 日志，避免对象数量放大 Prometheus 时序。
+#[derive(Clone, Copy)]
+pub(crate) enum FilesystemInodeReferenceTransition {
+    Acquire,
+    Retain,
+    ReleasePartial,
+    ReleaseFinal,
+}
+
+impl FilesystemInodeReferenceTransition {
+    const LIVE: &'static [Self] = &[
+        Self::Acquire,
+        Self::Retain,
+        Self::ReleasePartial,
+        Self::ReleaseFinal,
+    ];
+
+    const fn label(self) -> &'static str {
+        match self {
+            Self::Acquire => "acquire",
+            Self::Retain => "retain",
+            Self::ReleasePartial => "release_partial",
+            Self::ReleaseFinal => "release_final",
+        }
+    }
 }
 
 /// Node 进程内 Filesystem API 的固定操作集合。
@@ -64,6 +96,9 @@ pub(crate) enum FilesystemOperation {
     Getattr,
     Create,
     Mkdir,
+    Link,
+    Symlink,
+    Readlink,
     Readdir,
     Rename,
     Unlink,
@@ -81,6 +116,9 @@ impl FilesystemOperation {
         Self::Getattr,
         Self::Create,
         Self::Mkdir,
+        Self::Link,
+        Self::Symlink,
+        Self::Readlink,
         Self::Readdir,
         Self::Rename,
         Self::Unlink,
@@ -98,6 +136,9 @@ impl FilesystemOperation {
             Self::Getattr => "getattr",
             Self::Create => "create",
             Self::Mkdir => "mkdir",
+            Self::Link => "link",
+            Self::Symlink => "symlink",
+            Self::Readlink => "readlink",
             Self::Readdir => "readdir",
             Self::Rename => "rename",
             Self::Unlink => "unlink",
@@ -117,10 +158,17 @@ impl FilesystemOperation {
 /// create 和 open 两个操作。两组计数并列后，才看得出放大来自内核边界还是业务层。
 #[derive(Clone, Copy)]
 pub(crate) enum FuseCallback {
+    Opendir,
+    Releasedir,
+    Forget,
+    BatchForget,
     Lookup,
     Getattr,
+    Readlink,
     Readdir,
     Mkdir,
+    Link,
+    Symlink,
     Rename,
     Unlink,
     Rmdir,
@@ -136,10 +184,17 @@ pub(crate) enum FuseCallback {
 
 impl FuseCallback {
     const LIVE: &'static [Self] = &[
+        Self::Opendir,
+        Self::Releasedir,
+        Self::Forget,
+        Self::BatchForget,
         Self::Lookup,
         Self::Getattr,
+        Self::Readlink,
         Self::Readdir,
         Self::Mkdir,
+        Self::Link,
+        Self::Symlink,
         Self::Rename,
         Self::Unlink,
         Self::Rmdir,
@@ -155,10 +210,17 @@ impl FuseCallback {
 
     const fn label(self) -> &'static str {
         match self {
+            Self::Opendir => "opendir",
+            Self::Releasedir => "releasedir",
+            Self::Forget => "forget",
+            Self::BatchForget => "batch_forget",
             Self::Lookup => "lookup",
             Self::Getattr => "getattr",
+            Self::Readlink => "readlink",
             Self::Readdir => "readdir",
             Self::Mkdir => "mkdir",
+            Self::Link => "link",
+            Self::Symlink => "symlink",
             Self::Rename => "rename",
             Self::Unlink => "unlink",
             Self::Rmdir => "rmdir",
@@ -649,6 +711,15 @@ impl NodeMetrics {
                 "Filesystem inode binding cache lookups by result.",
                 &["result"],
             )?,
+            filesystem_inode_references: IntGauge::new(
+                "dms_node_filesystem_inode_references",
+                "Distinct non-root inodes protected by local FUSE/open references.",
+            )?,
+            filesystem_inode_reference_transitions_total: counter_vec(
+                "dms_node_filesystem_inode_reference_transitions_total",
+                "Local inode reference state transitions by bounded transition type.",
+                &["transition"],
+            )?,
         };
         metrics.register_all(registry)?;
         metrics.initialize_bounded_series();
@@ -724,6 +795,10 @@ impl NodeMetrics {
             self.filesystem_binding_cache_lookups_total
                 .with_label_values(&[result]);
         }
+        for transition in FilesystemInodeReferenceTransition::LIVE {
+            self.filesystem_inode_reference_transitions_total
+                .with_label_values(&[transition.label()]);
+        }
     }
 
     fn register_all(&self, registry: &Registry) -> Result<(), MetricsError> {
@@ -767,6 +842,8 @@ impl NodeMetrics {
         register_collector(registry, &self.data_core_bytes_total)?;
         register_collector(registry, &self.filesystem_dentry_cache_lookups_total)?;
         register_collector(registry, &self.filesystem_binding_cache_lookups_total)?;
+        register_collector(registry, &self.filesystem_inode_references)?;
+        register_collector(registry, &self.filesystem_inode_reference_transitions_total)?;
         Ok(())
     }
 
@@ -932,6 +1009,20 @@ impl NodeMetrics {
     pub(crate) fn record_filesystem_binding_cache_lookup(&self, hit: bool) {
         self.filesystem_binding_cache_lookups_total
             .with_label_values(&[if hit { "hit" } else { "miss" }])
+            .inc();
+    }
+
+    pub(crate) fn set_filesystem_inode_references(&self, references: usize) {
+        self.filesystem_inode_references
+            .set(to_i64(references as u64));
+    }
+
+    pub(crate) fn record_filesystem_inode_reference_transition(
+        &self,
+        transition: FilesystemInodeReferenceTransition,
+    ) {
+        self.filesystem_inode_reference_transitions_total
+            .with_label_values(&[transition.label()])
             .inc();
     }
 

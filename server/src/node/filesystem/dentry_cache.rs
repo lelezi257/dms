@@ -151,12 +151,40 @@ impl DentryCache {
         self.directory_pages.retain(|(parent, _), entry| {
             *parent != directory
                 || (entry.page.grant.grant.generation > through_generation
-                    && entry.page.grant.directory_revision > minimum_revision)
+                    && entry.page.grant.directory_revision >= minimum_revision)
         });
         self.entries.retain(|(parent, _), entry| {
             *parent != directory
                 || (entry.grant_generation > through_generation
-                    && entry.directory_revision > minimum_revision)
+                    && entry.directory_revision >= minimum_revision)
+        });
+    }
+
+    /// 应用本 Node 已成功提交的精确目录变更。
+    ///
+    /// 本地写入方知道具体改了哪些名字，因此不需要像远端 invalidation 一样清空整个
+    /// 目录缓存。未被点名的正/负 dentry 仍然成立，只把它们推进到新 revision；目录页
+    /// 因为排序集合已经变化，仍须整体删除。deadline 不延长，Watch 断线后的安全上界
+    /// 仍由原 grant 决定。
+    pub(crate) fn apply_local_mutation(
+        &mut self,
+        directory: InodeId,
+        directory_revision: u64,
+        grant_generation: u64,
+        removed_names: &[Vec<u8>],
+    ) {
+        self.directory_pages
+            .retain(|(parent, _), _| *parent != directory);
+        self.entries.retain(|(parent, name), entry| {
+            if *parent != directory {
+                return true;
+            }
+            if removed_names.iter().any(|removed| removed == name) {
+                return false;
+            }
+            entry.directory_revision = directory_revision;
+            entry.grant_generation = grant_generation;
+            true
         });
     }
 
@@ -291,5 +319,44 @@ mod tests {
         assert!(cache.directory_page(1, Some(b"a"), Some(12), now).is_some());
         assert!(cache.directory_page(1, None, Some(12), now).is_none());
         assert!(cache.directory_page(1, Some(b"a"), Some(11), now).is_none());
+    }
+
+    #[test]
+    fn revoke_from_same_commit_keeps_response_grant() {
+        let started = Instant::now();
+        let mut cache = DentryCache::default();
+        cache.insert_positive(dentry(1, b"fresh", 9, 12), grant(12, 6, 1_000), started);
+
+        // 同一次 namespace commit 的事件只撤销旧 generation；响应携带的新 grant
+        // 与 minimum revision 相等，已经代表该 commit，不能被迟到的本事件误删。
+        cache.revoke_directory(1, 5, 12);
+
+        assert_eq!(
+            cache.lookup(1, b"fresh", started + Duration::from_millis(1)),
+            DentryLookup::Hit(dentry(1, b"fresh", 9, 12))
+        );
+    }
+
+    #[test]
+    fn local_mutation_preserves_unaffected_names_without_extending_lease() {
+        let started = Instant::now();
+        let mut cache = DentryCache::default();
+        cache.insert_positive(dentry(1, b"old", 8, 11), grant(11, 5, 100), started);
+        cache.insert_negative(1, b"new".to_vec(), grant(11, 5, 100), started);
+
+        cache.apply_local_mutation(1, 12, 6, &[b"new".to_vec()]);
+
+        assert_eq!(
+            cache.lookup(1, b"old", started + Duration::from_millis(99)),
+            DentryLookup::Hit(dentry(1, b"old", 8, 11))
+        );
+        assert_eq!(
+            cache.lookup(1, b"new", started + Duration::from_millis(1)),
+            DentryLookup::Unknown
+        );
+        assert_eq!(
+            cache.lookup(1, b"old", started + Duration::from_millis(100)),
+            DentryLookup::Unknown
+        );
     }
 }

@@ -39,18 +39,19 @@ use super::current_cache::CurrentCache;
 use super::filesystem::{
     binding_cache::BindingCache,
     dentry_cache::{DentryCache, DentryLookup},
-    open_handles::OpenHandleTable,
+    meta_client::ResolvedDentry,
+    open_handles::{OpenHandle, OpenHandleTable},
 };
 use super::metadata_client::{BatchValueCommit, LocalReplicaIdentity, MetadataClient, digest};
 use super::metrics::{
-    CurrentCacheResetReason, NodeMailboxCommand, NodeMetrics, PeerImportMetricsSnapshot,
-    ReplicaDirection, ReplicaOperation, SessionExpiration,
+    CurrentCacheResetReason, FilesystemInodeReferenceTransition, NodeMailboxCommand, NodeMetrics,
+    PeerImportMetricsSnapshot, ReplicaDirection, ReplicaOperation, SessionExpiration,
 };
 use super::replica_reporter::{self, ReplicaReportJob};
 use crate::config::{ConfigChange, ConfigError, OnlineConfigController};
 use crate::filesystem::{
-    DentrySnapshot, DirectoryPage, FileHandleId, InodeId, PreparedObjectVersion, ResolvedInode,
-    ResolvedObject,
+    DirectoryPage, DirectoryVersion, FileHandleId, InodeId, InodeVersion, PreparedObjectVersion,
+    ROOT_INODE, ResolvedInode, ResolvedObject,
 };
 
 // 有界队列防止请求无限堆积；满载时 Sender::send().await 会施加背压。
@@ -83,6 +84,8 @@ const PEER_PULL_SEGMENT_BYTES: u64 = 2 * 1024 * 1024;
 const PEER_CHANNEL_CACHE_LIMIT: usize = 128;
 const COMPLETED_RETIREMENT_CACHE_LIMIT: usize = 1024;
 const RETIREMENT_PHASE_WAITER_LIMIT: usize = 16;
+type FilesystemOpenReferenceResult = (OpenHandle, Option<u64>);
+type FilesystemCloseReferenceResult = Option<(OpenHandle, Option<(u64, bool)>)>;
 #[cfg(feature = "reliability-faults")]
 const SOURCE_SELECTION_RECEIPT_ENV: &str = "DMS_RELIABILITY_SOURCE_SELECTION_RECEIPT";
 #[cfg(all(feature = "reliability-faults", test))]
@@ -99,6 +102,10 @@ type ApplyWrite = Box<dyn FnOnce(&mut NodeState) + Send>;
 // 有足够大的单调递增空间，不会因为启动种子靠近 u64::MAX 而很快溢出。
 const SESSION_ID_START_SPACE: u64 = 1u64 << 63;
 static NODE_SESSION_INCARNATION_NONCE: AtomicU64 = AtomicU64::new(1);
+// reference generation 只负责为一次 Node 进程中的引用周期生成 fencing token；它不
+// 读取 inode 表，也不决定引用是否存活。使用原子序列可让出站 Meta 请求直接取得 token，
+// 真正的引用安装、计数和释放仍然只能进入 NodeState owner。
+static FILESYSTEM_REFERENCE_GENERATION: AtomicU64 = AtomicU64::new(1);
 
 fn node_session_start(node_id: &str) -> u64 {
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
@@ -118,6 +125,15 @@ fn node_session_start(node_id: &str) -> u64 {
 fn normalize_session_start(raw: u64) -> u64 {
     // 映射到 1..=2^63，避免 0，同时远离 u64::MAX 溢出边界。
     raw % SESSION_ID_START_SPACE + 1
+}
+
+fn next_filesystem_reference_generation() -> u64 {
+    loop {
+        let generation = FILESYSTEM_REFERENCE_GENERATION.fetch_add(1, Ordering::Relaxed);
+        if generation != 0 {
+            return generation;
+        }
+    }
 }
 
 #[cfg(feature = "reliability-faults")]
@@ -839,21 +855,6 @@ impl NodeHandle {
         receive(receiver).await
     }
 
-    pub(crate) async fn filesystem_cache_positive_dentry(
-        &self,
-        dentry: DentrySnapshot,
-        grant: crate::filesystem::DirectoryGrant,
-    ) -> Result<(), WorkerError> {
-        let (reply, receiver) = oneshot::channel();
-        self.submit(NodeCommand::FilesystemCachePositiveDentry {
-            dentry,
-            grant,
-            reply,
-        })
-        .await?;
-        receive(receiver).await
-    }
-
     pub(crate) async fn filesystem_cache_negative_dentry(
         &self,
         parent: InodeId,
@@ -865,6 +866,51 @@ impl NodeHandle {
             parent,
             name,
             grant,
+            reply,
+        })
+        .await?;
+        receive(receiver).await
+    }
+
+    pub(crate) async fn filesystem_apply_local_namespace_mutation(
+        &self,
+        changed_directories: Vec<DirectoryVersion>,
+        changed_inodes: Vec<InodeVersion>,
+        removed_dentries: Vec<(InodeId, Vec<u8>)>,
+    ) -> Result<(), WorkerError> {
+        let (reply, receiver) = oneshot::channel();
+        self.submit(NodeCommand::FilesystemApplyLocalNamespaceMutation {
+            changed_directories,
+            changed_inodes,
+            removed_dentries,
+            reply,
+        })
+        .await?;
+        receive(receiver).await
+    }
+
+    /// 把一次 Meta 返回的完整目录项在同一个 Node owner turn 中落入本地状态。
+    ///
+    /// dentry、inode binding 与 entry reference 来自同一份权威响应，拆成多条
+    /// mailbox 命令既没有一致性收益，还会放大 create/lookup 的本地排队开销。
+    /// `apply_directory_mutation` 只在本 Node 发起 create/symlink 时为 true；普通
+    /// lookup 不得把远端响应误当成本地 namespace mutation。
+    pub(crate) async fn filesystem_install_resolved_dentry(
+        &self,
+        resolved: ResolvedDentry,
+        apply_directory_mutation: bool,
+    ) -> Result<(), WorkerError> {
+        let inode = resolved.resolved.granted.inode.attributes.inode;
+        if inode != ROOT_INODE
+            && (resolved.entry_reference_generation == 0
+                || resolved.entry_reference_lease_millis == 0)
+        {
+            return Err(WorkerError::MetadataUnavailable);
+        }
+        let (reply, receiver) = oneshot::channel();
+        self.submit(NodeCommand::FilesystemInstallResolvedDentry {
+            resolved,
+            apply_directory_mutation,
             reply,
         })
         .await?;
@@ -903,14 +949,19 @@ impl NodeHandle {
         receive(receiver).await
     }
 
-    pub(crate) async fn filesystem_open_handle(
+    /// 在同一个 Node actor turn 内建立 open handle 并增加 inode 引用。
+    ///
+    /// handle 与引用属于同一份 NodeState；把两个动作拆成两条 mailbox 命令既会制造
+    /// 不必要的排队，也会留下中间态。返回的 generation 仅在本地引用从 0→1 时存在，
+    /// 调用方随后用它向 Meta 建立租约。
+    pub(crate) async fn filesystem_open_handle_with_reference(
         &self,
         inode: InodeId,
         flags: i32,
         lock_owner: Option<u64>,
-    ) -> Result<super::filesystem::open_handles::OpenHandle, WorkerError> {
+    ) -> Result<FilesystemOpenReferenceResult, WorkerError> {
         let (reply, receiver) = oneshot::channel();
-        self.submit(NodeCommand::FilesystemOpenHandle {
+        self.submit(NodeCommand::FilesystemOpenHandleWithReference {
             inode,
             flags,
             lock_owner,
@@ -930,12 +981,107 @@ impl NodeHandle {
         receive(receiver).await
     }
 
-    pub(crate) async fn filesystem_close_handle(
+    /// 在同一个 Node actor turn 内关闭 handle 并归还它持有的一份 inode 引用。
+    pub(crate) async fn filesystem_close_handle_with_reference(
         &self,
         handle: FileHandleId,
-    ) -> Result<Option<super::filesystem::open_handles::OpenHandle>, WorkerError> {
+    ) -> Result<FilesystemCloseReferenceResult, WorkerError> {
         let (reply, receiver) = oneshot::channel();
-        self.submit(NodeCommand::FilesystemCloseHandle { handle, reply })
+        self.submit(NodeCommand::FilesystemCloseHandleWithReference { handle, reply })
+            .await?;
+        receive(receiver).await
+    }
+
+    pub(crate) async fn filesystem_acquire_inode_reference_local(
+        &self,
+        inode: InodeId,
+    ) -> Result<Option<u64>, WorkerError> {
+        let (reply, receiver) = oneshot::channel();
+        self.submit(NodeCommand::FilesystemAcquireInodeReference { inode, reply })
+            .await?;
+        receive(receiver).await
+    }
+
+    pub(crate) async fn filesystem_release_inode_reference_local(
+        &self,
+        inode: InodeId,
+        count: u64,
+    ) -> Result<Option<(u64, bool)>, WorkerError> {
+        let (reply, receiver) = oneshot::channel();
+        self.submit(NodeCommand::FilesystemReleaseInodeReference {
+            inode,
+            count,
+            reply,
+        })
+        .await?;
+        receive(receiver).await
+    }
+
+    /// 标记本 Node 已知该 inode 失去最后一个目录项。
+    ///
+    /// 普通 close 只需停止心跳续租，不能为每个文件再向 Meta 发送 release RPC；
+    /// orphan 则需要尽快通知 Meta，避免只能等待租约自然到期才回收。
+    pub(crate) async fn filesystem_mark_inode_orphan(
+        &self,
+        inode: InodeId,
+    ) -> Result<(), WorkerError> {
+        let (reply, receiver) = oneshot::channel();
+        self.submit(NodeCommand::FilesystemMarkInodeOrphan { inode, reply })
+            .await?;
+        receive(receiver).await
+    }
+
+    pub(crate) fn filesystem_reserve_inode_reference_generation(&self) -> u64 {
+        next_filesystem_reference_generation()
+    }
+
+    pub(crate) async fn filesystem_install_inode_reference(
+        &self,
+        inode: InodeId,
+        generation: u64,
+        lease_millis: u64,
+    ) -> Result<(), WorkerError> {
+        let (reply, receiver) = oneshot::channel();
+        self.submit(NodeCommand::FilesystemInstallInodeReference {
+            inode,
+            generation,
+            lease_millis,
+            reply,
+        })
+        .await?;
+        receive(receiver).await
+    }
+
+    pub(crate) async fn filesystem_inode_reference_snapshot(
+        &self,
+    ) -> Result<Vec<(InodeId, u64)>, WorkerError> {
+        let (reply, receiver) = oneshot::channel();
+        self.submit(NodeCommand::FilesystemInodeReferenceSnapshot { reply })
+            .await?;
+        receive(receiver).await
+    }
+
+    pub(crate) async fn filesystem_renew_inode_reference_leases(
+        &self,
+        references: Vec<(InodeId, u64)>,
+        lease_millis: u64,
+    ) -> Result<(), WorkerError> {
+        let (reply, receiver) = oneshot::channel();
+        self.submit(NodeCommand::FilesystemRenewInodeReferenceLeases {
+            references,
+            lease_millis,
+            reply,
+        })
+        .await?;
+        receive(receiver).await
+    }
+
+    pub(crate) async fn filesystem_has_live_inode_reference(
+        &self,
+        inode: InodeId,
+    ) -> Result<bool, WorkerError> {
+        let (reply, receiver) = oneshot::channel();
+        self.submit(NodeCommand::FilesystemHasLiveInodeReference { inode, reply })
             .await?;
         receive(receiver).await
     }
@@ -2889,15 +3035,21 @@ enum NodeCommand {
         name: Vec<u8>,
         reply: oneshot::Sender<Result<DentryLookup, WorkerError>>,
     },
-    FilesystemCachePositiveDentry {
-        dentry: DentrySnapshot,
-        grant: crate::filesystem::DirectoryGrant,
-        reply: oneshot::Sender<Result<(), WorkerError>>,
-    },
     FilesystemCacheNegativeDentry {
         parent: InodeId,
         name: Vec<u8>,
         grant: crate::filesystem::DirectoryGrant,
+        reply: oneshot::Sender<Result<(), WorkerError>>,
+    },
+    FilesystemApplyLocalNamespaceMutation {
+        changed_directories: Vec<DirectoryVersion>,
+        changed_inodes: Vec<InodeVersion>,
+        removed_dentries: Vec<(InodeId, Vec<u8>)>,
+        reply: oneshot::Sender<Result<(), WorkerError>>,
+    },
+    FilesystemInstallResolvedDentry {
+        resolved: ResolvedDentry,
+        apply_directory_mutation: bool,
         reply: oneshot::Sender<Result<(), WorkerError>>,
     },
     FilesystemGetDirectoryPage {
@@ -2911,11 +3063,11 @@ enum NodeCommand {
         page: DirectoryPage,
         reply: oneshot::Sender<Result<(), WorkerError>>,
     },
-    FilesystemOpenHandle {
+    FilesystemOpenHandleWithReference {
         inode: InodeId,
         flags: i32,
         lock_owner: Option<u64>,
-        reply: oneshot::Sender<Result<super::filesystem::open_handles::OpenHandle, WorkerError>>,
+        reply: oneshot::Sender<Result<FilesystemOpenReferenceResult, WorkerError>>,
     },
     FilesystemGetHandle {
         handle: FileHandleId,
@@ -2923,11 +3075,40 @@ enum NodeCommand {
             Result<Option<super::filesystem::open_handles::OpenHandle>, WorkerError>,
         >,
     },
-    FilesystemCloseHandle {
+    FilesystemCloseHandleWithReference {
         handle: FileHandleId,
-        reply: oneshot::Sender<
-            Result<Option<super::filesystem::open_handles::OpenHandle>, WorkerError>,
-        >,
+        reply: oneshot::Sender<Result<FilesystemCloseReferenceResult, WorkerError>>,
+    },
+    FilesystemAcquireInodeReference {
+        inode: InodeId,
+        reply: oneshot::Sender<Result<Option<u64>, WorkerError>>,
+    },
+    FilesystemReleaseInodeReference {
+        inode: InodeId,
+        count: u64,
+        reply: oneshot::Sender<Result<Option<(u64, bool)>, WorkerError>>,
+    },
+    FilesystemMarkInodeOrphan {
+        inode: InodeId,
+        reply: oneshot::Sender<Result<(), WorkerError>>,
+    },
+    FilesystemInstallInodeReference {
+        inode: InodeId,
+        generation: u64,
+        lease_millis: u64,
+        reply: oneshot::Sender<Result<(), WorkerError>>,
+    },
+    FilesystemInodeReferenceSnapshot {
+        reply: oneshot::Sender<Result<Vec<(InodeId, u64)>, WorkerError>>,
+    },
+    FilesystemRenewInodeReferenceLeases {
+        references: Vec<(InodeId, u64)>,
+        lease_millis: u64,
+        reply: oneshot::Sender<Result<(), WorkerError>>,
+    },
+    FilesystemHasLiveInodeReference {
+        inode: InodeId,
+        reply: oneshot::Sender<Result<bool, WorkerError>>,
     },
     PrepareBlockRetirement {
         retirement_id: Vec<u8>,
@@ -3030,13 +3211,21 @@ impl NodeCommand {
             Self::FilesystemGetBinding { .. }
             | Self::FilesystemCacheBinding { .. }
             | Self::FilesystemGetDentry { .. }
-            | Self::FilesystemCachePositiveDentry { .. }
             | Self::FilesystemCacheNegativeDentry { .. }
+            | Self::FilesystemApplyLocalNamespaceMutation { .. }
+            | Self::FilesystemInstallResolvedDentry { .. }
             | Self::FilesystemGetDirectoryPage { .. }
             | Self::FilesystemCacheDirectoryPage { .. } => NodeMailboxCommand::GetCached,
-            Self::FilesystemOpenHandle { .. }
+            Self::FilesystemOpenHandleWithReference { .. }
             | Self::FilesystemGetHandle { .. }
-            | Self::FilesystemCloseHandle { .. } => NodeMailboxCommand::GetCached,
+            | Self::FilesystemCloseHandleWithReference { .. }
+            | Self::FilesystemAcquireInodeReference { .. }
+            | Self::FilesystemReleaseInodeReference { .. }
+            | Self::FilesystemMarkInodeOrphan { .. }
+            | Self::FilesystemInstallInodeReference { .. }
+            | Self::FilesystemInodeReferenceSnapshot { .. }
+            | Self::FilesystemRenewInodeReferenceLeases { .. }
+            | Self::FilesystemHasLiveInodeReference { .. } => NodeMailboxCommand::GetCached,
             Self::PrepareBlockRetirement { .. } => NodeMailboxCommand::InvalidateCurrent,
             Self::FinalizeBlockRetirement { .. } => NodeMailboxCommand::InvalidateCurrent,
             Self::BeginReadScope { .. } => NodeMailboxCommand::GetCached,
@@ -3697,16 +3886,6 @@ async fn run_node(
                         .lookup(parent, &name, Instant::now());
                     let _ = reply.send(Ok(dentry));
                 }
-                NodeCommand::FilesystemCachePositiveDentry {
-                    dentry,
-                    grant,
-                    reply,
-                } => {
-                    state
-                        .filesystem_dentries
-                        .insert_positive(dentry, grant, Instant::now());
-                    let _ = reply.send(Ok(()));
-                }
                 NodeCommand::FilesystemCacheNegativeDentry {
                     parent,
                     name,
@@ -3716,6 +3895,69 @@ async fn run_node(
                     state
                         .filesystem_dentries
                         .insert_negative(parent, name, grant, Instant::now());
+                    let _ = reply.send(Ok(()));
+                }
+                NodeCommand::FilesystemApplyLocalNamespaceMutation {
+                    changed_directories,
+                    changed_inodes,
+                    removed_dentries,
+                    reply,
+                } => {
+                    for directory in changed_directories {
+                        state
+                            .filesystem_bindings
+                            .revoke(directory.inode, directory.grant_generation);
+                        let removed_names = removed_dentries
+                            .iter()
+                            .filter_map(|(parent, name)| {
+                                (*parent == directory.inode).then_some(name.clone())
+                            })
+                            .collect::<Vec<_>>();
+                        state.filesystem_dentries.apply_local_mutation(
+                            directory.inode,
+                            directory.revision,
+                            directory.grant_generation,
+                            &removed_names,
+                        );
+                    }
+                    for inode in changed_inodes {
+                        state
+                            .filesystem_bindings
+                            .revoke(inode.inode, inode.grant_generation);
+                    }
+                    let _ = reply.send(Ok(()));
+                }
+                NodeCommand::FilesystemInstallResolvedDentry {
+                    resolved,
+                    apply_directory_mutation,
+                    reply,
+                } => {
+                    if apply_directory_mutation {
+                        state.filesystem_bindings.revoke(
+                            resolved.dentry.parent,
+                            resolved.directory_grant.grant.generation,
+                        );
+                        state.filesystem_dentries.apply_local_mutation(
+                            resolved.dentry.parent,
+                            resolved.directory_grant.directory_revision,
+                            resolved.directory_grant.grant.generation,
+                            std::slice::from_ref(&resolved.dentry.name),
+                        );
+                    }
+                    state.filesystem_dentries.insert_positive(
+                        resolved.dentry,
+                        resolved.directory_grant,
+                        Instant::now(),
+                    );
+                    let inode = resolved.resolved.granted.inode.attributes.inode;
+                    state
+                        .filesystem_bindings
+                        .insert(resolved.resolved, Instant::now());
+                    state.install_filesystem_inode_reference(
+                        inode,
+                        resolved.entry_reference_generation,
+                        resolved.entry_reference_lease_millis,
+                    );
                     let _ = reply.send(Ok(()));
                 }
                 NodeCommand::FilesystemGetDirectoryPage {
@@ -3742,21 +3984,66 @@ async fn run_node(
                         .insert_directory_page(cursor, page, Instant::now());
                     let _ = reply.send(Ok(()));
                 }
-                NodeCommand::FilesystemOpenHandle {
+                NodeCommand::FilesystemOpenHandleWithReference {
                     inode,
                     flags,
                     lock_owner,
                     reply,
                 } => {
+                    let generation = state.acquire_filesystem_inode_reference_local(inode);
                     let handle = state.filesystem_handles.open(inode, flags, lock_owner);
-                    let _ = reply.send(Ok(handle));
+                    let _ = reply.send(Ok((handle, generation)));
                 }
                 NodeCommand::FilesystemGetHandle { handle, reply } => {
                     let opened = state.filesystem_handles.get(handle).cloned();
                     let _ = reply.send(Ok(opened));
                 }
-                NodeCommand::FilesystemCloseHandle { handle, reply } => {
-                    let _ = reply.send(Ok(state.filesystem_handles.close(handle)));
+                NodeCommand::FilesystemCloseHandleWithReference { handle, reply } => {
+                    let closed = state.filesystem_handles.close(handle).map(|opened| {
+                        let released =
+                            state.release_filesystem_inode_reference_local(opened.inode, 1);
+                        (opened, released)
+                    });
+                    let _ = reply.send(Ok(closed));
+                }
+                NodeCommand::FilesystemAcquireInodeReference { inode, reply } => {
+                    let generation = state.acquire_filesystem_inode_reference_local(inode);
+                    let _ = reply.send(Ok(generation));
+                }
+                NodeCommand::FilesystemReleaseInodeReference {
+                    inode,
+                    count,
+                    reply,
+                } => {
+                    let generation = state.release_filesystem_inode_reference_local(inode, count);
+                    let _ = reply.send(Ok(generation));
+                }
+                NodeCommand::FilesystemMarkInodeOrphan { inode, reply } => {
+                    state.mark_filesystem_inode_orphan(inode);
+                    let _ = reply.send(Ok(()));
+                }
+                NodeCommand::FilesystemInstallInodeReference {
+                    inode,
+                    generation,
+                    lease_millis,
+                    reply,
+                } => {
+                    state.install_filesystem_inode_reference(inode, generation, lease_millis);
+                    let _ = reply.send(Ok(()));
+                }
+                NodeCommand::FilesystemInodeReferenceSnapshot { reply } => {
+                    let _ = reply.send(Ok(state.filesystem_inode_reference_snapshot()));
+                }
+                NodeCommand::FilesystemRenewInodeReferenceLeases {
+                    references,
+                    lease_millis,
+                    reply,
+                } => {
+                    state.renew_filesystem_inode_reference_leases(&references, lease_millis);
+                    let _ = reply.send(Ok(()));
+                }
+                NodeCommand::FilesystemHasLiveInodeReference { inode, reply } => {
+                    let _ = reply.send(Ok(state.has_live_filesystem_inode_reference(inode)));
                 }
                 NodeCommand::PrepareBlockRetirement {
                     retirement_id,
@@ -3928,6 +4215,21 @@ struct NodeState {
     filesystem_dentries: DentryCache,
     /// FUSE open() 生命周期属于本 Node，不进入 Meta，也不复制 DataCore 状态。
     filesystem_handles: OpenHandleTable,
+    /// 本 Node 内 open/lookup/opendir 对 inode 的本地引用计数。
+    ///
+    /// Meta 只需要知道“这个 node epoch 是否仍持有引用”，不保存精确 count。
+    /// 因此只有本表从 0→1 时建立 Meta lease；普通 N→0 停止 heartbeat 续租即可，
+    /// 已知 orphan 的 N→0 才立即发送 Meta release 以加速回收。
+    filesystem_inode_references: HashMap<InodeId, LocalFilesystemInodeReference>,
+}
+
+#[derive(Clone, Debug)]
+struct LocalFilesystemInodeReference {
+    count: u64,
+    generation: u64,
+    lease_until: Instant,
+    /// 该 Node 已观察到 link_count 变为 0；最后一个本地引用释放时可立即通知 Meta。
+    eager_meta_release: bool,
 }
 
 impl NodeState {
@@ -4014,6 +4316,7 @@ impl NodeState {
             filesystem_bindings: BindingCache::default(),
             filesystem_dentries: DentryCache::default(),
             filesystem_handles: OpenHandleTable::default(),
+            filesystem_inode_references: HashMap::new(),
         }
     }
 
@@ -4038,6 +4341,180 @@ impl NodeState {
             self.log_level.set(level);
         }
         Ok(version)
+    }
+
+    fn acquire_filesystem_inode_reference_local(&mut self, inode: InodeId) -> Option<u64> {
+        if inode == ROOT_INODE {
+            return None;
+        }
+        if let Some(reference) = self.filesystem_inode_references.get_mut(&inode) {
+            reference.count = reference.count.saturating_add(1);
+            self.metrics.record_filesystem_inode_reference_transition(
+                FilesystemInodeReferenceTransition::Retain,
+            );
+            dms_logging::debug!(
+                "retained local filesystem inode reference";
+                "event" => "node.filesystem.reference.retained",
+                "inode" => inode,
+                "generation" => reference.generation,
+                "count" => reference.count,
+            );
+            return None;
+        }
+        let generation = next_filesystem_reference_generation();
+        self.filesystem_inode_references.insert(
+            inode,
+            LocalFilesystemInodeReference {
+                count: 1,
+                generation,
+                lease_until: Instant::now(),
+                eager_meta_release: false,
+            },
+        );
+        self.metrics
+            .set_filesystem_inode_references(self.filesystem_inode_references.len());
+        self.metrics.record_filesystem_inode_reference_transition(
+            FilesystemInodeReferenceTransition::Acquire,
+        );
+        dms_logging::debug!(
+            "acquired local filesystem inode reference";
+            "event" => "node.filesystem.reference.acquired",
+            "inode" => inode,
+            "generation" => generation,
+            "count" => 1_u64,
+        );
+        Some(generation)
+    }
+
+    fn install_filesystem_inode_reference(
+        &mut self,
+        inode: InodeId,
+        generation: u64,
+        lease_millis: u64,
+    ) {
+        if inode == ROOT_INODE || generation == 0 {
+            return;
+        }
+        let lease_until = Instant::now() + Duration::from_millis(lease_millis);
+        match self.filesystem_inode_references.get_mut(&inode) {
+            Some(reference) => {
+                reference.count = reference.count.saturating_add(1);
+                if generation >= reference.generation {
+                    reference.generation = generation;
+                    reference.lease_until = lease_until;
+                }
+                self.metrics.record_filesystem_inode_reference_transition(
+                    FilesystemInodeReferenceTransition::Retain,
+                );
+                dms_logging::debug!(
+                    "retained installed filesystem inode reference";
+                    "event" => "node.filesystem.reference.retained",
+                    "inode" => inode,
+                    "generation" => reference.generation,
+                    "count" => reference.count,
+                );
+            }
+            None => {
+                self.filesystem_inode_references.insert(
+                    inode,
+                    LocalFilesystemInodeReference {
+                        count: 1,
+                        generation,
+                        lease_until,
+                        eager_meta_release: false,
+                    },
+                );
+                self.metrics
+                    .set_filesystem_inode_references(self.filesystem_inode_references.len());
+                self.metrics.record_filesystem_inode_reference_transition(
+                    FilesystemInodeReferenceTransition::Acquire,
+                );
+                dms_logging::debug!(
+                    "installed local filesystem inode reference";
+                    "event" => "node.filesystem.reference.acquired",
+                    "inode" => inode,
+                    "generation" => generation,
+                    "count" => 1_u64,
+                );
+            }
+        }
+    }
+
+    fn filesystem_inode_reference_snapshot(&self) -> Vec<(InodeId, u64)> {
+        self.filesystem_inode_references
+            .iter()
+            .map(|(inode, reference)| (*inode, reference.generation))
+            .collect()
+    }
+
+    fn renew_filesystem_inode_reference_leases(
+        &mut self,
+        references: &[(InodeId, u64)],
+        lease_millis: u64,
+    ) {
+        let lease_until = Instant::now() + Duration::from_millis(lease_millis);
+        for (inode, generation) in references {
+            if let Some(reference) = self.filesystem_inode_references.get_mut(inode)
+                && reference.generation == *generation
+            {
+                reference.lease_until = lease_until;
+            }
+        }
+    }
+
+    fn has_live_filesystem_inode_reference(&self, inode: InodeId) -> bool {
+        inode == ROOT_INODE
+            || self
+                .filesystem_inode_references
+                .get(&inode)
+                .is_some_and(|reference| reference.lease_until > Instant::now())
+    }
+
+    fn mark_filesystem_inode_orphan(&mut self, inode: InodeId) {
+        if let Some(reference) = self.filesystem_inode_references.get_mut(&inode) {
+            reference.eager_meta_release = true;
+        }
+    }
+
+    fn release_filesystem_inode_reference_local(
+        &mut self,
+        inode: InodeId,
+        count: u64,
+    ) -> Option<(u64, bool)> {
+        if inode == ROOT_INODE || count == 0 {
+            return None;
+        }
+        let reference = self.filesystem_inode_references.get_mut(&inode)?;
+        if reference.count > count {
+            reference.count -= count;
+            self.metrics.record_filesystem_inode_reference_transition(
+                FilesystemInodeReferenceTransition::ReleasePartial,
+            );
+            dms_logging::debug!(
+                "released part of local filesystem inode reference";
+                "event" => "node.filesystem.reference.released",
+                "inode" => inode,
+                "generation" => reference.generation,
+                "count" => reference.count,
+            );
+            return None;
+        }
+        let generation = reference.generation;
+        let eager_meta_release = reference.eager_meta_release;
+        self.filesystem_inode_references.remove(&inode);
+        self.metrics
+            .set_filesystem_inode_references(self.filesystem_inode_references.len());
+        self.metrics.record_filesystem_inode_reference_transition(
+            FilesystemInodeReferenceTransition::ReleaseFinal,
+        );
+        dms_logging::debug!(
+            "released final local filesystem inode reference";
+            "event" => "node.filesystem.reference.released_final",
+            "inode" => inode,
+            "generation" => generation,
+            "count" => 0_u64,
+        );
+        Some((generation, eager_meta_release))
     }
 
     fn reset_current_cache_for_watch(&mut self, connected: bool) {
@@ -7680,6 +8157,77 @@ mod tests {
 
         assert_eq!(state.download(transfer_id).unwrap(), b"local".to_vec());
         assert_peer_import_metrics(&registry, 0, 0, 0, 0);
+    }
+
+    #[test]
+    fn filesystem_inode_reference_lifecycle_updates_state_and_metrics() {
+        let registry = dms_metrics::registry();
+        let metrics = NodeMetrics::register(&registry).expect("node metrics");
+        let mut state = NodeState::with_metrics(
+            "node-a".into(),
+            None,
+            NodeTaskConfig {
+                arena_capacity_bytes: 4096,
+                region_size_bytes: crate::config::DEFAULT_REGION_SIZE_BYTES,
+                staging_ttl: Duration::from_secs(30),
+                client_cache_lease_ttl: CLIENT_CACHE_LEASE_TTL,
+                node_current_cache_bytes: crate::config::DEFAULT_NODE_CURRENT_CACHE_BYTES,
+                node_current_cache_ttl: Duration::from_millis(
+                    crate::config::DEFAULT_NODE_CURRENT_CACHE_TTL_MILLIS,
+                ),
+                shared_fd_broker: None,
+                log_level: LevelController::new(slog::Level::Info),
+                trace_periodic_operations: false,
+            },
+            metrics,
+        );
+        let inode = 42;
+
+        let generation = state
+            .acquire_filesystem_inode_reference_local(inode)
+            .expect("first local holder establishes a Meta generation");
+        assert_eq!(state.acquire_filesystem_inode_reference_local(inode), None);
+        assert_eq!(
+            state
+                .filesystem_inode_references
+                .get(&inode)
+                .map(|reference| (reference.count, reference.generation)),
+            Some((2, generation))
+        );
+
+        assert_eq!(
+            state.release_filesystem_inode_reference_local(inode, 1),
+            None
+        );
+        assert_eq!(
+            state.release_filesystem_inode_reference_local(inode, 1),
+            Some((generation, false))
+        );
+        assert!(!state.filesystem_inode_references.contains_key(&inode));
+
+        let orphan_generation = state
+            .acquire_filesystem_inode_reference_local(inode)
+            .expect("new local holder establishes a new generation");
+        state.mark_filesystem_inode_orphan(inode);
+        assert_eq!(
+            state.release_filesystem_inode_reference_local(inode, 1),
+            Some((orphan_generation, true)),
+            "已知 orphan 的最后一个引用必须要求立即通知 Meta"
+        );
+
+        let text = dms_metrics::encode_text(&registry).expect("encode metrics");
+        for expected in [
+            "dms_node_filesystem_inode_references 0",
+            "dms_node_filesystem_inode_reference_transitions_total{transition=\"acquire\"} 2",
+            "dms_node_filesystem_inode_reference_transitions_total{transition=\"retain\"} 1",
+            "dms_node_filesystem_inode_reference_transitions_total{transition=\"release_partial\"} 1",
+            "dms_node_filesystem_inode_reference_transitions_total{transition=\"release_final\"} 2",
+        ] {
+            assert!(
+                text.contains(expected),
+                "missing metric: {expected}\n{text}"
+            );
+        }
     }
 
     fn assert_peer_import_metrics(

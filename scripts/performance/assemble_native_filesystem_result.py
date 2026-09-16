@@ -149,8 +149,9 @@ def assemble(root: Path) -> dict[str, Any]:
     rounds = sorted(path for path in root.glob("round-*") if path.is_dir())
     cases = discover_cases(root)
     backend_results: dict[str, Any] = {}
+    measured_backends = tuple(profile.get("arms", ("native", "glue")))
 
-    for backend in ("native", "glue"):
+    for backend in measured_backends:
         case_results: dict[str, Any] = {}
         backend_correctness = True
         for case_id in cases:
@@ -164,6 +165,9 @@ def assemble(root: Path) -> dict[str, Any]:
                 "filesystem_meta_create": 0.0,
                 "filesystem_meta_lookup": 0.0,
                 "filesystem_meta_commit": 0.0,
+                "filesystem_meta_reference_acquire": 0.0,
+                "filesystem_meta_reference_renew": 0.0,
+                "filesystem_meta_reference_release": 0.0,
                 "peer_pull": 0.0,
             }
             rpc_time = {key: 0.0 for key in totals}
@@ -174,6 +178,10 @@ def assemble(root: Path) -> dict[str, Any]:
             fuse_callbacks = {
                 operation: 0.0
                 for operation in (
+                    "opendir",
+                    "releasedir",
+                    "forget",
+                    "batch_forget",
                     "lookup",
                     "getattr",
                     "readdir",
@@ -247,6 +255,18 @@ def assemble(root: Path) -> dict[str, Any]:
                     "filesystem_meta_create": ("FilesystemMetadataService", "CreateFilesystemInode"),
                     "filesystem_meta_lookup": ("FilesystemMetadataService", "LookupFilesystemEntry"),
                     "filesystem_meta_commit": ("FilesystemMetadataService", "CommitFilesystemVersion"),
+                    "filesystem_meta_reference_acquire": (
+                        "FilesystemMetadataService",
+                        "AcquireFilesystemInodeReference",
+                    ),
+                    "filesystem_meta_reference_renew": (
+                        "FilesystemMetadataService",
+                        "RenewFilesystemInodeReferences",
+                    ),
+                    "filesystem_meta_reference_release": (
+                        "FilesystemMetadataService",
+                        "ReleaseFilesystemInodeReference",
+                    ),
                     "peer_pull": ("PeerService", "PullBlock"),
                 }
                 for key, (service, method) in calls.items():
@@ -291,6 +311,9 @@ def assemble(root: Path) -> dict[str, Any]:
                     "create": totals["filesystem_meta_create"],
                     "lookup": totals["filesystem_meta_lookup"],
                     "commit": totals["filesystem_meta_commit"],
+                    "reference_acquire": totals["filesystem_meta_reference_acquire"],
+                    "reference_renew": totals["filesystem_meta_reference_renew"],
+                    "reference_release": totals["filesystem_meta_reference_release"],
                 },
                 "peer_rpc": {"pull_block": totals["peer_pull"]},
                 "bytes": {
@@ -354,7 +377,11 @@ def assemble(root: Path) -> dict[str, Any]:
     return {
         "schema": "dms.native-filesystem-vs-glue-result.v1",
         "run_id": profile["run_id"],
-        "same_environment": True,
+        # 只有两个 backend 都在本次 harness 中交替测量，才允许声称“同环境对照”。
+        # 仅复测 Native 时仍可用于冻结 Native 基线回归和请求放大门禁，但不能伪装成
+        # 一次新的 Native/Glue 对比。
+        "same_environment": set(measured_backends) == {"native", "glue"},
+        "measured_backends": list(measured_backends),
         "environment": profile,
         "workload": {
             "file_count": 200,

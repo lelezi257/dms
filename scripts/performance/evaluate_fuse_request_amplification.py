@@ -38,7 +38,8 @@ def evaluate(
     for name, result in (("baseline", baseline), ("candidate", candidate)):
         if result.get("schema") != "dms.native-filesystem-vs-glue-result.v1":
             errors.append(f"{name}: invalid result schema")
-    if candidate.get("same_environment") is not True:
+    measured_backends = set(candidate.get("measured_backends", ("native", "glue")))
+    if "glue" in measured_backends and candidate.get("same_environment") is not True:
         errors.append("candidate: native and glue were not measured in the same environment")
 
     thresholds = contract.get("thresholds", {})

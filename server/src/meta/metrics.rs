@@ -53,7 +53,12 @@ pub(crate) enum MetaOperation {
     FilesystemLookup,
     FilesystemGetInode,
     FilesystemCreateInode,
+    FilesystemCreateSymlink,
     FilesystemReadDirectory,
+    FilesystemLinkEntry,
+    FilesystemAcquireInodeReference,
+    FilesystemRenewInodeReferences,
+    FilesystemReleaseInodeReference,
     FilesystemRenameEntry,
     FilesystemRemoveEntry,
     FilesystemCommitVersion,
@@ -78,7 +83,12 @@ impl MetaOperation {
         Self::FilesystemLookup,
         Self::FilesystemGetInode,
         Self::FilesystemCreateInode,
+        Self::FilesystemCreateSymlink,
         Self::FilesystemReadDirectory,
+        Self::FilesystemLinkEntry,
+        Self::FilesystemAcquireInodeReference,
+        Self::FilesystemRenewInodeReferences,
+        Self::FilesystemReleaseInodeReference,
         Self::FilesystemRenameEntry,
         Self::FilesystemRemoveEntry,
         Self::FilesystemCommitVersion,
@@ -101,7 +111,12 @@ impl MetaOperation {
             Self::FilesystemLookup => "filesystem_lookup",
             Self::FilesystemGetInode => "filesystem_get_inode",
             Self::FilesystemCreateInode => "filesystem_create_inode",
+            Self::FilesystemCreateSymlink => "filesystem_create_symlink",
             Self::FilesystemReadDirectory => "filesystem_read_directory",
+            Self::FilesystemLinkEntry => "filesystem_link_entry",
+            Self::FilesystemAcquireInodeReference => "filesystem_acquire_inode_reference",
+            Self::FilesystemRenewInodeReferences => "filesystem_renew_inode_references",
+            Self::FilesystemReleaseInodeReference => "filesystem_release_inode_reference",
             Self::FilesystemRenameEntry => "filesystem_rename_entry",
             Self::FilesystemRemoveEntry => "filesystem_remove_entry",
             Self::FilesystemCommitVersion => "filesystem_commit_version",
@@ -152,6 +167,8 @@ pub(crate) enum JournalRecordMetric {
     FilesystemInodeCreated,
     FilesystemVersionCommitted,
     FilesystemNamespaceMutated,
+    FilesystemSymlinkCreated,
+    FilesystemOrphanReaped,
 }
 
 impl JournalRecordMetric {
@@ -170,6 +187,8 @@ impl JournalRecordMetric {
         Self::FilesystemInodeCreated,
         Self::FilesystemVersionCommitted,
         Self::FilesystemNamespaceMutated,
+        Self::FilesystemSymlinkCreated,
+        Self::FilesystemOrphanReaped,
     ];
 
     pub(crate) const fn label(self) -> &'static str {
@@ -188,6 +207,8 @@ impl JournalRecordMetric {
             Self::FilesystemInodeCreated => "filesystem_inode_created",
             Self::FilesystemVersionCommitted => "filesystem_version_committed",
             Self::FilesystemNamespaceMutated => "filesystem_namespace_mutated",
+            Self::FilesystemSymlinkCreated => "filesystem_symlink_created",
+            Self::FilesystemOrphanReaped => "filesystem_orphan_reaped",
         }
     }
 }

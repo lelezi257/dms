@@ -59,6 +59,27 @@ pub(crate) struct FilesystemNamespaceMutationRecord {
     pub(crate) next_inode: InodeId,
 }
 
+/// 符号链接创建的单条权威记录。
+///
+/// symlink target 仍是 DataCore exact ObjectVersion；同时 dentry/inode/content binding
+/// 必须一条 WAL 原子发布，禁止先让 path 可见再单独提交 target。
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct FilesystemSymlinkCreatedRecord {
+    pub(crate) namespace: FilesystemNamespaceMutationRecord,
+    pub(crate) version: VersionCommitRecord,
+    pub(crate) new_grant_generation: u64,
+}
+
+/// 一个已经脱离 namespace 且不再被任何 Node 引用的 inode 被持久回收。
+///
+/// `object_tombstone` 与 inode 删除共用一条 WAL 记录：恢复时不会出现 inode 已消失但
+/// DataCore Current 仍指向旧内容，或对象已删除但 inode 又被快照恢复的半完成状态。
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct FilesystemOrphanReapedRecord {
+    pub(crate) inode: InodeId,
+    pub(crate) object_tombstone: Option<VersionCommitRecord>,
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct CommitSequenceRecord {
     pub(crate) node_id: u64,
@@ -181,6 +202,15 @@ pub(crate) enum JournalRecord {
         record: FilesystemNamespaceMutationRecord,
         commit_sequence: Option<CommitSequenceRecord>,
     },
+    /// symlink 的名字、inode binding 与 target 对象版本一次性发布。
+    FilesystemSymlinkCreated {
+        record: FilesystemSymlinkCreatedRecord,
+        commit_sequence: Option<CommitSequenceRecord>,
+    },
+    /// link_count=0、引用租约已消失且恢复保护窗口已结束的 inode 被回收。
+    FilesystemOrphanReaped {
+        record: FilesystemOrphanReapedRecord,
+    },
 }
 
 impl JournalRecord {
@@ -210,6 +240,8 @@ impl JournalRecord {
             Self::FilesystemNamespaceMutated { .. } => {
                 JournalRecordMetric::FilesystemNamespaceMutated
             }
+            Self::FilesystemSymlinkCreated { .. } => JournalRecordMetric::FilesystemSymlinkCreated,
+            Self::FilesystemOrphanReaped { .. } => JournalRecordMetric::FilesystemOrphanReaped,
         }
     }
 }

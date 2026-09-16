@@ -20,11 +20,12 @@ use crate::filesystem::{
 
 use super::metadata_journal::{
     BlockRetirementParticipant, BlockRetirementRecord, CommitSequenceRecord,
-    FilesystemInodeCreatedRecord, FilesystemNamespaceMutationRecord, FilesystemVersionCommitRecord,
-    JournalEntry, JournalError, JournalRecord, MetaSnapshot, MetadataJournal,
-    SnapshotBlockRetirement, SnapshotFilesystemNamespaceOperation,
-    SnapshotFilesystemOperationVisibility, SnapshotFilesystemVersionOperation, SnapshotOperation,
-    SnapshotReplica, SnapshotReplicaOperation, SnapshotSession, VersionCommitRecord,
+    FilesystemInodeCreatedRecord, FilesystemNamespaceMutationRecord, FilesystemOrphanReapedRecord,
+    FilesystemSymlinkCreatedRecord, FilesystemVersionCommitRecord, JournalEntry, JournalError,
+    JournalRecord, MetaSnapshot, MetadataJournal, SnapshotBlockRetirement,
+    SnapshotFilesystemNamespaceOperation, SnapshotFilesystemOperationVisibility,
+    SnapshotFilesystemVersionOperation, SnapshotOperation, SnapshotReplica,
+    SnapshotReplicaOperation, SnapshotSession, VersionCommitRecord,
 };
 
 const WAL_MAGIC: &[u8; 4] = b"DMSJ";
@@ -48,6 +49,8 @@ const RECORD_BLOCK_RETIREMENT_RELEASED: u8 = 13;
 const RECORD_FILESYSTEM_INODE_CREATED: u8 = 14;
 const RECORD_FILESYSTEM_VERSION_COMMITTED: u8 = 15;
 const RECORD_FILESYSTEM_NAMESPACE_MUTATED: u8 = 16;
+const RECORD_FILESYSTEM_SYMLINK_CREATED: u8 = 17;
+const RECORD_FILESYSTEM_ORPHAN_REAPED: u8 = 18;
 
 /// One durable, single-process WAL directory.
 pub(crate) struct LocalWalJournal {
@@ -537,6 +540,24 @@ fn encode_record(record: &JournalRecord) -> Result<Vec<u8>, JournalError> {
             put_filesystem_namespace_mutation(&mut out, record)?;
             put_optional_commit_sequence(&mut out, commit_sequence)?;
         }
+        JournalRecord::FilesystemSymlinkCreated {
+            record,
+            commit_sequence,
+        } => {
+            put_u8(&mut out, RECORD_FILESYSTEM_SYMLINK_CREATED);
+            put_filesystem_namespace_mutation(&mut out, &record.namespace)?;
+            put_version_commit(&mut out, &record.version)?;
+            put_u64(&mut out, record.new_grant_generation);
+            put_optional_commit_sequence(&mut out, commit_sequence)?;
+        }
+        JournalRecord::FilesystemOrphanReaped { record } => {
+            put_u8(&mut out, RECORD_FILESYSTEM_ORPHAN_REAPED);
+            put_u64(&mut out, record.inode);
+            put_bool(&mut out, record.object_tombstone.is_some());
+            if let Some(tombstone) = &record.object_tombstone {
+                put_version_commit(&mut out, tombstone)?;
+            }
+        }
     }
     Ok(out)
 }
@@ -696,6 +717,24 @@ fn decode_record(bytes: &[u8]) -> Result<JournalRecord, JournalError> {
             record: input.filesystem_namespace_mutation()?,
             commit_sequence: input.optional_commit_sequence()?,
         }),
+        RECORD_FILESYSTEM_SYMLINK_CREATED => Ok(JournalRecord::FilesystemSymlinkCreated {
+            record: FilesystemSymlinkCreatedRecord {
+                namespace: input.filesystem_namespace_mutation()?,
+                version: input.version_commit()?,
+                new_grant_generation: input.u64()?,
+            },
+            commit_sequence: input.optional_commit_sequence()?,
+        }),
+        RECORD_FILESYSTEM_ORPHAN_REAPED => {
+            let inode = input.u64()?;
+            let object_tombstone = input.bool()?.then(|| input.version_commit()).transpose()?;
+            Ok(JournalRecord::FilesystemOrphanReaped {
+                record: FilesystemOrphanReapedRecord {
+                    inode,
+                    object_tombstone,
+                },
+            })
+        }
         _ => Err(JournalError::InvalidSnapshot("unknown journal record kind")),
     }
 }

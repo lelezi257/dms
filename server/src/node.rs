@@ -226,6 +226,7 @@ async fn serve_workers(config: NodeConfig) -> Result<(), Box<dyn std::error::Err
     let watch_task = tokio::spawn(consume_meta_events(
         metadata.clone(),
         node.clone(),
+        numeric_node_id,
         Some(initial_watch),
         event_cursor.clone(),
     ));
@@ -286,6 +287,7 @@ async fn serve_workers(config: NodeConfig) -> Result<(), Box<dyn std::error::Err
 async fn consume_meta_events(
     metadata: MetadataClient,
     node: NodeHandle,
+    local_node_id: u64,
     mut initial_stream: Option<tonic::Streaming<dms_protocol::v1::NodeEvent>>,
     acked_cursor: Arc<AtomicU64>,
 ) {
@@ -357,7 +359,10 @@ async fn consume_meta_events(
                         }
                     }
                     Some(node_event::Event::InvalidateFilesystemBinding(invalidation))
-                        if node
+                        if should_apply_filesystem_invalidation(
+                            local_node_id,
+                            invalidation.source_node_id,
+                        ) && node
                             .invalidate_filesystem_binding(
                                 invalidation.inode,
                                 invalidation.through_generation,
@@ -451,6 +456,13 @@ async fn consume_meta_events(
             return;
         }
     }
+}
+
+fn should_apply_filesystem_invalidation(local_node_id: u64, source_node_id: u64) -> bool {
+    // 本 Node 的 namespace 提交已经用响应中的精确名字和 revision 更新本地缓存；
+    // 再应用广播事件只会把刚安装的新 grant 清掉。空 source 来自旧 journal，必须按
+    // 远端事件处理，保证滚动升级期间不会漏失效。
+    source_node_id == 0 || source_node_id != local_node_id
 }
 
 async fn apply_repair_event(
@@ -623,6 +635,46 @@ async fn send_meta_heartbeats(
                     .is_err()
                 {
                     return;
+                }
+                let references = match node.filesystem_inode_reference_snapshot().await {
+                    Ok(references) => references,
+                    Err(_) => return,
+                };
+                if !references.is_empty() {
+                    let wire_references = references
+                        .iter()
+                        .map(|(inode, reference_generation)| {
+                            dms_protocol::v1::FilesystemInodeReferenceLease {
+                                inode: *inode,
+                                reference_generation: *reference_generation,
+                            }
+                        })
+                        .collect();
+                    match metadata
+                        .filesystem_renew_inode_references(wire_references)
+                        .await
+                    {
+                        Ok(response) => {
+                            if node
+                                .filesystem_renew_inode_reference_leases(
+                                    references,
+                                    response.lease_millis,
+                                )
+                                .await
+                                .is_err()
+                            {
+                                return;
+                            }
+                        }
+                        Err(error) => {
+                            dms_logging::warn!(
+                                "filesystem inode reference renewal failed";
+                                "event" => "node.filesystem.reference.renew_failed",
+                                "reference_count" => references.len(),
+                                "error" => error.to_string(),
+                            );
+                        }
+                    }
                 }
             }
             Err(error) => {
@@ -842,4 +894,20 @@ fn bind_worker_uds(path: &PathBuf) -> io::Result<UnixListener> {
         Err(error) => return Err(error),
     }
     UnixListener::bind(path)
+}
+
+#[cfg(test)]
+mod invalidation_source_tests {
+    use super::should_apply_filesystem_invalidation;
+
+    #[test]
+    fn local_filesystem_invalidation_does_not_revoke_directly_updated_cache() {
+        assert!(!should_apply_filesystem_invalidation(17, 17));
+    }
+
+    #[test]
+    fn remote_and_legacy_filesystem_invalidations_are_applied() {
+        assert!(should_apply_filesystem_invalidation(17, 23));
+        assert!(should_apply_filesystem_invalidation(17, 0));
+    }
 }

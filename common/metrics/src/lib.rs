@@ -398,8 +398,23 @@ impl RpcCall {
         Self::new("FilesystemMetadataService", "GetFilesystemInode");
     pub const FILESYSTEM_CREATE_INODE: Self =
         Self::new("FilesystemMetadataService", "CreateFilesystemInode");
+    pub const FILESYSTEM_CREATE_SYMLINK: Self =
+        Self::new("FilesystemMetadataService", "CreateFilesystemSymlink");
     pub const FILESYSTEM_READ_DIRECTORY: Self =
         Self::new("FilesystemMetadataService", "ReadFilesystemDirectory");
+    pub const FILESYSTEM_LINK: Self = Self::new("FilesystemMetadataService", "LinkFilesystemEntry");
+    pub const FILESYSTEM_ACQUIRE_INODE_REFERENCE: Self = Self::new(
+        "FilesystemMetadataService",
+        "AcquireFilesystemInodeReference",
+    );
+    pub const FILESYSTEM_RENEW_INODE_REFERENCES: Self = Self::new(
+        "FilesystemMetadataService",
+        "RenewFilesystemInodeReferences",
+    );
+    pub const FILESYSTEM_RELEASE_INODE_REFERENCE: Self = Self::new(
+        "FilesystemMetadataService",
+        "ReleaseFilesystemInodeReference",
+    );
     pub const FILESYSTEM_RENAME: Self =
         Self::new("FilesystemMetadataService", "RenameFilesystemEntry");
     pub const FILESYSTEM_REMOVE: Self =

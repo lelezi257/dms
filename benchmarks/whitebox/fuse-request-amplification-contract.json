@@ -3,6 +3,7 @@
   "description": "一个 POSIX 用户操作最多允许产生多少 FUSE、文件层、DataCore、Meta 和 Peer 动作。pwrite 在 FUSE 协议中仍记为 write callback。延迟回归只与同环境冻结 Native 基线比较，不用 Glue 的变化掩盖自身退化。",
   "thresholds": {
     "minimum_samples_per_case": 30,
+    "minimum_independent_pairs": 2,
     "max_native_p50_regression_ratio": 1.05,
     "max_native_p95_regression_ratio": 1.05
   },
@@ -15,10 +16,10 @@
     "bytes"
   ],
   "required_operation_labels": {
-    "fuse_callbacks": ["lookup", "getattr", "readdir", "open", "create", "read", "write", "flush", "fsync", "release"],
+    "fuse_callbacks": ["opendir", "releasedir", "forget", "batch_forget", "lookup", "getattr", "readdir", "open", "create", "read", "write", "flush", "fsync", "release"],
     "filesystem_operations": ["lookup", "getattr", "create", "open", "read", "write", "close"],
     "data_core_operations": ["read_resolved", "prepare_put", "prepare_range", "finish_prepared"],
-    "meta_rpc": ["create", "lookup", "commit"],
+    "meta_rpc": ["create", "lookup", "commit", "reference_acquire", "reference_renew", "reference_release"],
     "peer_rpc": ["pull_block"]
   },
   "cases": [
@@ -46,10 +47,10 @@
     },
     {
       "id": "readdir.root",
-      "rationale": "200 个业务目录项由内核请求缓冲分页为 4 次 readdir callback；这是 ReplyDirectory 容量合同，不访问 DataCore、Meta 或 Peer。当前只审计放大，不宣称完整共享目录语义。",
+      "rationale": "200 个业务目录项由内核请求缓冲分页为 4 次 readdir callback；M1.3 显式维护目录 handle 生命周期，因此一次 scandir 还有一对 opendir/releasedir，TTL=0 时内核校验一次根目录属性。全部只命中 Node 本地状态，不访问 DataCore、Meta 或 Peer。",
       "maximum_per_user_operation": {
-        "fuse_callbacks": {"readdir": 4},
-        "filesystem_operations": {"lookup": 0, "getattr": 0, "create": 0, "open": 0, "read": 0, "write": 0, "close": 0},
+        "fuse_callbacks": {"opendir": 1, "releasedir": 1, "readdir": 4},
+        "filesystem_operations": {"lookup": 0, "getattr": 1, "create": 0, "open": 0, "read": 0, "write": 0, "close": 0},
         "data_core_operations": {"read_resolved": 0, "prepare_put": 0, "prepare_range": 0, "finish_prepared": 0},
         "meta_rpc": {"create": 0, "lookup": 0, "commit": 0},
         "peer_rpc": {"pull_block": 0}

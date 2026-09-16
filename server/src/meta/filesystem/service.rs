@@ -88,6 +88,22 @@ impl FilesystemMetadataService for FilesystemMetadataServiceHandler {
         Ok(Response::new(response))
     }
 
+    async fn create_filesystem_symlink(
+        &self,
+        request: Request<pb::FilesystemCreateSymlinkRequest>,
+    ) -> Result<Response<pb::FilesystemResolveResponse>, Status> {
+        let mut rpc = self
+            .rpc_metrics
+            .begin_server_call(dms_metrics::RpcCall::FILESYSTEM_CREATE_SYMLINK);
+        let response = self
+            .meta
+            .filesystem_create_symlink(request.into_inner())
+            .await
+            .map_err(|error| self.map_error(error))?;
+        rpc.success();
+        Ok(Response::new(response))
+    }
+
     async fn read_filesystem_directory(
         &self,
         request: Request<pb::FilesystemReadDirectoryRequest>,
@@ -98,6 +114,70 @@ impl FilesystemMetadataService for FilesystemMetadataServiceHandler {
         let response = self
             .meta
             .filesystem_read_directory(request.into_inner())
+            .await
+            .map_err(|error| self.map_error(error))?;
+        rpc.success();
+        Ok(Response::new(response))
+    }
+
+    async fn link_filesystem_entry(
+        &self,
+        request: Request<pb::FilesystemLinkRequest>,
+    ) -> Result<Response<pb::FilesystemNamespaceMutationResponse>, Status> {
+        let mut rpc = self
+            .rpc_metrics
+            .begin_server_call(dms_metrics::RpcCall::FILESYSTEM_LINK);
+        let response = self
+            .meta
+            .filesystem_link_entry(request.into_inner())
+            .await
+            .map_err(|error| self.map_error(error))?;
+        rpc.success();
+        Ok(Response::new(response))
+    }
+
+    async fn acquire_filesystem_inode_reference(
+        &self,
+        request: Request<pb::FilesystemInodeReferenceRequest>,
+    ) -> Result<Response<pb::FilesystemInodeReferenceResponse>, Status> {
+        let mut rpc = self
+            .rpc_metrics
+            .begin_server_call(dms_metrics::RpcCall::FILESYSTEM_ACQUIRE_INODE_REFERENCE);
+        let response = self
+            .meta
+            .filesystem_acquire_inode_reference(request.into_inner())
+            .await
+            .map_err(|error| self.map_error(error))?;
+        rpc.success();
+        Ok(Response::new(response))
+    }
+
+    async fn release_filesystem_inode_reference(
+        &self,
+        request: Request<pb::FilesystemInodeReferenceRequest>,
+    ) -> Result<Response<pb::FilesystemInodeReferenceResponse>, Status> {
+        let mut rpc = self
+            .rpc_metrics
+            .begin_server_call(dms_metrics::RpcCall::FILESYSTEM_RELEASE_INODE_REFERENCE);
+        let response = self
+            .meta
+            .filesystem_release_inode_reference(request.into_inner())
+            .await
+            .map_err(|error| self.map_error(error))?;
+        rpc.success();
+        Ok(Response::new(response))
+    }
+
+    async fn renew_filesystem_inode_references(
+        &self,
+        request: Request<pb::FilesystemRenewInodeReferencesRequest>,
+    ) -> Result<Response<pb::FilesystemInodeReferenceResponse>, Status> {
+        let mut rpc = self
+            .rpc_metrics
+            .begin_server_call(dms_metrics::RpcCall::FILESYSTEM_RENEW_INODE_REFERENCES);
+        let response = self
+            .meta
+            .filesystem_renew_inode_references(request.into_inner())
             .await
             .map_err(|error| self.map_error(error))?;
         rpc.success();

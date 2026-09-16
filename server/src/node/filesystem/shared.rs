@@ -16,11 +16,10 @@ use super::super::{
 use super::dentry_cache::DentryLookup;
 use super::meta_client::{CreateInodeRequest, FilesystemMetaClient, FilesystemMetaGrpcClient};
 use super::open_handles::OpenHandle;
-#[cfg(test)]
-use crate::filesystem::ROOT_INODE;
 use crate::filesystem::{
-    CommitFileVersionRequest, DirectoryPage, InodeId, InodeKind, NamespaceMutationResult,
-    PreparedObjectVersion, RemoveEntryRequest, RemoveKind, RenameEntryRequest, ResolvedInode,
+    CommitFileVersionRequest, CreateSymlinkRequest, DirectoryPage, InodeId, InodeKind,
+    LinkEntryRequest, NamespaceMutationResult, PreparedObjectVersion, ROOT_INODE,
+    RemoveEntryRequest, RemoveKind, RenameEntryRequest, ResolvedInode,
 };
 use crate::node::metadata_client::digest;
 
@@ -68,6 +67,7 @@ impl SharedFileOperations {
             DentryLookup::Hit(dentry) => {
                 self.metrics.record_filesystem_dentry_cache_lookup(true);
                 let resolved = self.resolve_inode(dentry.inode).await?;
+                self.acquire_inode_reference(dentry.inode).await?;
                 metric.success();
                 return Ok(Some(resolved));
             }
@@ -81,9 +81,10 @@ impl SharedFileOperations {
             }
         }
 
+        let reference_generation = self.node.filesystem_reserve_inode_reference_generation();
         let lookup = self
             .metadata
-            .lookup(parent, name)
+            .lookup(parent, name, reference_generation)
             .await
             .map_err(WorkerError::Stable)?;
         let Some(resolved) = lookup.resolved else {
@@ -95,14 +96,12 @@ impl SharedFileOperations {
             metric.success();
             return Ok(None);
         };
+        let result = resolved.resolved.clone();
         self.node
-            .filesystem_cache_positive_dentry(resolved.dentry.clone(), resolved.directory_grant)
-            .await?;
-        self.node
-            .filesystem_cache_binding(resolved.resolved.clone())
+            .filesystem_install_resolved_dentry(resolved, false)
             .await?;
         metric.success();
-        Ok(Some(resolved.resolved))
+        Ok(Some(result))
     }
 
     pub(crate) async fn create(
@@ -129,6 +128,145 @@ impl SharedFileOperations {
             .await
     }
 
+    pub(crate) async fn link(
+        &self,
+        source_inode: InodeId,
+        target_parent: InodeId,
+        target_name: &[u8],
+    ) -> Result<crate::filesystem::InodeSnapshot, WorkerError> {
+        let mut metric = self
+            .metrics
+            .begin_filesystem_operation(FilesystemOperation::Link);
+        let operation_id = self.core.new_operation_id();
+        let reference_generation = self.node.filesystem_reserve_inode_reference_generation();
+        let response = self
+            .metadata
+            .link_entry(LinkEntryRequest {
+                operation_digest: namespace_digest(
+                    &operation_id,
+                    &[target_name],
+                    &[source_inode, target_parent],
+                ),
+                operation_id,
+                commit_sequence: 0,
+                source_inode,
+                target_parent,
+                target_name: target_name.to_vec(),
+                expected_target_revision: None,
+                reference_generation,
+            })
+            .await
+            .map_err(WorkerError::Stable)?;
+        let inode = response
+            .inode
+            .clone()
+            .ok_or(WorkerError::MetadataUnavailable)?;
+        self.install_entry_reference(
+            inode.attributes.inode,
+            response.entry_reference_generation,
+            response.entry_reference_lease_millis,
+        )
+        .await?;
+        self.apply_namespace_mutation(response, vec![(target_parent, target_name.to_vec())])
+            .await?;
+        metric.success();
+        Ok(inode)
+    }
+
+    pub(crate) async fn symlink(
+        &self,
+        parent: InodeId,
+        name: &[u8],
+        target: &[u8],
+        uid: u32,
+        gid: u32,
+    ) -> Result<ResolvedInode, WorkerError> {
+        if target.is_empty() {
+            return Err(WorkerError::InvalidArgument("symlink target is empty"));
+        }
+        let mut metric = self
+            .metrics
+            .begin_filesystem_operation(FilesystemOperation::Symlink);
+        let operation_id = self.core.new_operation_id();
+        let reference_generation = self.node.filesystem_reserve_inode_reference_generation();
+        let prepared = self
+            .core
+            .prepare_sparse(
+                ObjectKey::new(symlink_content_key(&operation_id))?,
+                target.len() as u64,
+                0,
+                target.to_vec(),
+                operation_id.clone(),
+                None,
+            )
+            .await?;
+        let created = self
+            .metadata
+            .create_symlink(CreateSymlinkRequest {
+                operation_digest: namespace_digest(&operation_id, &[name, target], &[parent]),
+                operation_id: operation_id.clone(),
+                commit_sequence: 0,
+                parent,
+                name: name.to_vec(),
+                uid,
+                gid,
+                expected_parent_revision: None,
+                prepared: prepared.clone(),
+                target_size: target.len() as u64,
+                mtime_unix_nanos: unix_nanos(),
+                reference_generation,
+            })
+            .await
+            .map_err(WorkerError::Stable);
+        match created {
+            Ok(created) => {
+                let version = created
+                    .resolved
+                    .granted
+                    .inode
+                    .content
+                    .as_ref()
+                    .map(|binding| binding.exact_version)
+                    .ok_or(WorkerError::MetadataUnavailable)?;
+                self.core
+                    .finish_prepared(prepared, Some(version), false)
+                    .await?;
+                let result = created.resolved.clone();
+                self.node
+                    .filesystem_install_resolved_dentry(created, true)
+                    .await?;
+                metric.success();
+                Ok(result)
+            }
+            Err(error) => {
+                let rejected = filesystem_version_conflict(&error);
+                let _ = self.core.finish_prepared(prepared, None, rejected).await;
+                Err(error)
+            }
+        }
+    }
+
+    pub(crate) async fn readlink(&self, inode: InodeId) -> Result<Vec<u8>, WorkerError> {
+        let mut metric = self
+            .metrics
+            .begin_filesystem_operation(FilesystemOperation::Readlink);
+        let resolved = self.resolve_inode(inode).await?;
+        let snapshot = &resolved.granted.inode;
+        if snapshot.attributes.kind != InodeKind::SymbolicLink {
+            return Err(WorkerError::InvalidArgument("inode is not a symbolic link"));
+        }
+        let Some(object) = resolved.object else {
+            return Err(WorkerError::NotFound);
+        };
+        let read = self
+            .core
+            .read_resolved(object, ByteRange::new(0, snapshot.attributes.size)?)
+            .await?
+            .ok_or(WorkerError::NotFound)?;
+        metric.success();
+        Ok(read.bytes)
+    }
+
     async fn create_kind(
         &self,
         parent: InodeId,
@@ -144,6 +282,7 @@ impl SharedFileOperations {
             InodeKind::SymbolicLink => FilesystemOperation::Create,
         };
         let mut metric = self.metrics.begin_filesystem_operation(operation);
+        let reference_generation = self.node.filesystem_reserve_inode_reference_generation();
         let resolved = self
             .metadata
             .create_inode(CreateInodeRequest {
@@ -154,24 +293,16 @@ impl SharedFileOperations {
                 mode,
                 uid,
                 gid,
+                reference_generation,
             })
             .await
             .map_err(WorkerError::Stable)?;
+        let result = resolved.resolved.clone();
         self.node
-            .invalidate_filesystem_binding(
-                parent,
-                resolved.directory_grant.grant.generation,
-                resolved.directory_grant.directory_revision,
-            )
-            .await?;
-        self.node
-            .filesystem_cache_positive_dentry(resolved.dentry.clone(), resolved.directory_grant)
-            .await?;
-        self.node
-            .filesystem_cache_binding(resolved.resolved.clone())
+            .filesystem_install_resolved_dentry(resolved, true)
             .await?;
         metric.success();
-        Ok(resolved.resolved)
+        Ok(result)
     }
 
     /// 读取一页 Meta 权威目录数据。
@@ -247,7 +378,14 @@ impl SharedFileOperations {
             })
             .await
             .map_err(WorkerError::Stable)?;
-        self.apply_namespace_mutation(response).await?;
+        self.apply_namespace_mutation(
+            response,
+            vec![
+                (source_parent, source_name.to_vec()),
+                (target_parent, target_name.to_vec()),
+            ],
+        )
+        .await?;
         metric.success();
         Ok(())
     }
@@ -293,7 +431,16 @@ impl SharedFileOperations {
             })
             .await
             .map_err(WorkerError::Stable)?;
-        self.apply_namespace_mutation(response).await?;
+        let orphaned_inode = response
+            .inode
+            .as_ref()
+            .filter(|inode| inode.attributes.link_count == 0)
+            .map(|inode| inode.attributes.inode);
+        self.apply_namespace_mutation(response, vec![(parent, name.to_vec())])
+            .await?;
+        if let Some(inode) = orphaned_inode {
+            self.node.filesystem_mark_inode_orphan(inode).await?;
+        }
         metric.success();
         Ok(())
     }
@@ -311,7 +458,43 @@ impl SharedFileOperations {
             // 首次 binding grant。O_TRUNC 已在 truncate 内完成同一次解析，不能重复访问 Meta。
             self.resolve_inode(inode).await?;
         }
-        let opened = self.node.filesystem_open_handle(inode, flags, None).await?;
+        let (opened, generation) = self
+            .node
+            .filesystem_open_handle_with_reference(inode, flags, None)
+            .await?;
+        if let Some(generation) = generation {
+            let lease_millis = match self
+                .metadata
+                .acquire_inode_reference(inode, generation)
+                .await
+            {
+                Ok(lease_millis) => lease_millis,
+                Err(error) => {
+                    // 首次 open 的 Meta 租约失败时，handle 不能泄漏。close 与本地引用
+                    // 归还仍在同一 actor turn 内完成；Meta 从未接受本次引用，无需 release。
+                    let _ = self
+                        .node
+                        .filesystem_close_handle_with_reference(opened.id)
+                        .await;
+                    return Err(WorkerError::Stable(error));
+                }
+            };
+            if let Err(error) = self
+                .node
+                .filesystem_renew_inode_reference_leases(vec![(inode, generation)], lease_millis)
+                .await
+            {
+                let _ = self
+                    .node
+                    .filesystem_close_handle_with_reference(opened.id)
+                    .await;
+                let _ = self
+                    .metadata
+                    .release_inode_reference(inode, generation)
+                    .await;
+                return Err(error);
+            }
+        }
         metric.success();
         Ok(opened)
     }
@@ -335,8 +518,7 @@ impl SharedFileOperations {
         flags: i32,
     ) -> Result<OpenHandle, WorkerError> {
         let created = self.create(ROOT_INODE, name, mode, 0, 0).await?;
-        self.node
-            .filesystem_open_handle(created.granted.inode.attributes.inode, flags, None)
+        self.open(created.granted.inode.attributes.inode, flags)
             .await
     }
 
@@ -344,11 +526,13 @@ impl SharedFileOperations {
         let mut metric = self
             .metrics
             .begin_filesystem_operation(FilesystemOperation::Close);
-        self.node
-            .filesystem_close_handle(handle)
+        let (opened, released) = self
+            .node
+            .filesystem_close_handle_with_reference(handle)
             .await?
-            .map(|_| ())
             .ok_or(WorkerError::NotFound)?;
+        self.release_completed_reference(opened.inode, released)
+            .await;
         metric.success();
         Ok(())
     }
@@ -559,10 +743,30 @@ impl SharedFileOperations {
         bytes: &[u8],
         operation_id: Vec<u8>,
     ) -> Result<PreparedObjectVersion, WorkerError> {
+        self.prepare_content_write(
+            inode,
+            current,
+            offset,
+            bytes,
+            operation_id,
+            InodeKind::RegularFile,
+        )
+        .await
+    }
+
+    async fn prepare_content_write(
+        &self,
+        inode: InodeId,
+        current: &ResolvedInode,
+        offset: u64,
+        bytes: &[u8],
+        operation_id: Vec<u8>,
+        expected_kind: InodeKind,
+    ) -> Result<PreparedObjectVersion, WorkerError> {
         let snapshot = &current.granted.inode;
-        if snapshot.attributes.kind != InodeKind::RegularFile {
+        if snapshot.attributes.kind != expected_kind {
             return Err(WorkerError::InvalidArgument(
-                "only regular files can be written",
+                "inode kind does not accept this write path",
             ));
         }
         let write_end =
@@ -597,6 +801,95 @@ impl SharedFileOperations {
                     None,
                 )
                 .await
+        }
+    }
+
+    pub(crate) async fn acquire_inode_reference(&self, inode: InodeId) -> Result<(), WorkerError> {
+        let Some(generation) = self
+            .node
+            .filesystem_acquire_inode_reference_local(inode)
+            .await?
+        else {
+            return Ok(());
+        };
+        let lease_millis = match self
+            .metadata
+            .acquire_inode_reference(inode, generation)
+            .await
+        {
+            Ok(lease_millis) => lease_millis,
+            Err(error) => {
+                let _ = self
+                    .node
+                    .filesystem_release_inode_reference_local(inode, 1)
+                    .await;
+                return Err(WorkerError::Stable(error));
+            }
+        };
+        self.node
+            .filesystem_renew_inode_reference_leases(vec![(inode, generation)], lease_millis)
+            .await?;
+        Ok(())
+    }
+
+    async fn install_entry_reference(
+        &self,
+        inode: InodeId,
+        generation: u64,
+        lease_millis: u64,
+    ) -> Result<(), WorkerError> {
+        if inode == ROOT_INODE {
+            return Ok(());
+        }
+        if generation == 0 || lease_millis == 0 {
+            return Err(WorkerError::MetadataUnavailable);
+        }
+        self.node
+            .filesystem_install_inode_reference(inode, generation, lease_millis)
+            .await
+    }
+
+    pub(crate) async fn release_inode_reference(&self, inode: InodeId, count: u64) {
+        let released = match self
+            .node
+            .filesystem_release_inode_reference_local(inode, count)
+            .await
+        {
+            Ok(generation) => generation,
+            Err(error) => {
+                dms_logging::warn!(
+                    "failed to release local filesystem inode reference";
+                    "event" => "node.filesystem.reference.local_release_failed",
+                    "inode" => inode,
+                    "error" => format!("{error:?}"),
+                );
+                None
+            }
+        };
+        self.release_completed_reference(inode, released).await;
+    }
+
+    async fn release_completed_reference(&self, inode: InodeId, released: Option<(u64, bool)>) {
+        let Some((generation, eager_meta_release)) = released else {
+            return;
+        };
+        // 普通有名文件关闭后不再逐次向 Meta 发送 release RPC：Node 停止在 heartbeat
+        // 中续租，Meta 会在 lease 到期后清理记录。这样创建/关闭小文件不会把 release
+        // 请求排在后续 create 前面。只有已失去最后一个目录项的 orphan 才同步 release，
+        // 让 durable reap 无需等待完整租约窗口；请求失败时租约到期仍是安全兜底。
+        if eager_meta_release
+            && let Err(error) = self
+                .metadata
+                .release_inode_reference(inode, generation)
+                .await
+        {
+            dms_logging::warn!(
+                "failed to release Meta filesystem orphan reference";
+                "event" => "node.filesystem.reference.meta_release_failed",
+                "inode" => inode,
+                "generation" => generation,
+                "error" => error.to_string(),
+            );
         }
     }
 
@@ -688,40 +981,66 @@ impl SharedFileOperations {
     }
 
     async fn resolve_inode(&self, inode: InodeId) -> Result<ResolvedInode, WorkerError> {
-        if let Some(cached) = self.node.filesystem_cached_binding(inode).await? {
+        let resolved = if let Some(cached) = self.node.filesystem_cached_binding(inode).await? {
             self.metrics.record_filesystem_binding_cache_lookup(true);
-            return Ok(cached);
+            cached
+        } else {
+            self.metrics.record_filesystem_binding_cache_lookup(false);
+            let resolved = self
+                .metadata
+                .resolve_inode(inode)
+                .await
+                .map_err(WorkerError::Stable)?
+                .ok_or(WorkerError::NotFound)?;
+            self.node.filesystem_cache_binding(resolved.clone()).await?;
+            resolved
+        };
+        // unlink 后的 open handle 只在 Node 持有的引用租约内继续可用。Watch/Meta
+        // 断开超过 TTL 后，必须在本地 fence 掉旧 orphan，不能靠缓存无限续命。
+        if resolved.granted.inode.attributes.link_count == 0
+            && !self.node.filesystem_has_live_inode_reference(inode).await?
+        {
+            return Err(WorkerError::NotFound);
         }
-        self.metrics.record_filesystem_binding_cache_lookup(false);
-        let resolved = self
-            .metadata
-            .resolve_inode(inode)
-            .await
-            .map_err(WorkerError::Stable)?
-            .ok_or(WorkerError::NotFound)?;
-        self.node.filesystem_cache_binding(resolved.clone()).await?;
         Ok(resolved)
     }
 
     async fn apply_namespace_mutation(
         &self,
         result: NamespaceMutationResult,
+        removed_dentries: Vec<(InodeId, Vec<u8>)>,
     ) -> Result<(), WorkerError> {
-        for directory in result.changed_directories {
-            self.node
-                .invalidate_filesystem_binding(
-                    directory.inode,
-                    directory.grant_generation,
-                    directory.revision,
-                )
-                .await?;
-        }
-        Ok(())
+        self.node
+            .filesystem_apply_local_namespace_mutation(
+                result.changed_directories,
+                result.changed_inodes,
+                removed_dentries,
+            )
+            .await
     }
 }
 
 fn content_key(inode: InodeId) -> Vec<u8> {
     format!("fs/content/{inode}").into_bytes()
+}
+
+fn symlink_content_key(operation_id: &[u8]) -> Vec<u8> {
+    // inode 由 Meta 在同一条 symlink journal 记录里分配；Node 准备 target bytes 时
+    // 还不知道 inode，因此使用 operation-scoped key，最终 inode binding 精确指向该
+    // DataCore 版本，仍保持单一 commit authority。
+    let mut key = b"fs/symlink/".to_vec();
+    key.extend_from_slice(&hex_encode(operation_id));
+    key
+}
+
+fn hex_encode(bytes: &[u8]) -> Vec<u8> {
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    let mut encoded = Vec::with_capacity(bytes.len() * 2);
+    for byte in bytes {
+        encoded.push(HEX[(byte >> 4) as usize]);
+        encoded.push(HEX[(byte & 0x0f) as usize]);
+    }
+    encoded
 }
 
 fn unix_nanos() -> i64 {

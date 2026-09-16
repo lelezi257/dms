@@ -427,11 +427,46 @@ impl FilesystemMetadataService for CountingFilesystemMetaService {
         self.inner.create_filesystem_inode(request).await
     }
 
+    async fn create_filesystem_symlink(
+        &self,
+        request: Request<pb::FilesystemCreateSymlinkRequest>,
+    ) -> Result<Response<pb::FilesystemResolveResponse>, Status> {
+        self.inner.create_filesystem_symlink(request).await
+    }
+
     async fn read_filesystem_directory(
         &self,
         request: Request<pb::FilesystemReadDirectoryRequest>,
     ) -> Result<Response<pb::FilesystemReadDirectoryResponse>, Status> {
         self.inner.read_filesystem_directory(request).await
+    }
+
+    async fn link_filesystem_entry(
+        &self,
+        request: Request<pb::FilesystemLinkRequest>,
+    ) -> Result<Response<pb::FilesystemNamespaceMutationResponse>, Status> {
+        self.inner.link_filesystem_entry(request).await
+    }
+
+    async fn acquire_filesystem_inode_reference(
+        &self,
+        request: Request<pb::FilesystemInodeReferenceRequest>,
+    ) -> Result<Response<pb::FilesystemInodeReferenceResponse>, Status> {
+        self.inner.acquire_filesystem_inode_reference(request).await
+    }
+
+    async fn release_filesystem_inode_reference(
+        &self,
+        request: Request<pb::FilesystemInodeReferenceRequest>,
+    ) -> Result<Response<pb::FilesystemInodeReferenceResponse>, Status> {
+        self.inner.release_filesystem_inode_reference(request).await
+    }
+
+    async fn renew_filesystem_inode_references(
+        &self,
+        request: Request<pb::FilesystemRenewInodeReferencesRequest>,
+    ) -> Result<Response<pb::FilesystemInodeReferenceResponse>, Status> {
+        self.inner.renew_filesystem_inode_references(request).await
     }
 
     async fn rename_filesystem_entry(
@@ -759,6 +794,7 @@ impl TestNode {
         let watch_task = tokio::spawn(consume_meta_events(
             metadata.clone(),
             node.clone(),
+            node_id,
             Some(initial_watch),
             acked_cursor.clone(),
         ));

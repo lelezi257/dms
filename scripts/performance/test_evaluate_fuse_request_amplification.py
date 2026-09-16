@@ -61,6 +61,22 @@ class FuseRequestAmplificationEvaluatorTest(unittest.TestCase):
         result = evaluator.evaluate(CONTRACT, baseline, candidate)
         self.assertEqual("PASS", result["status"], result["errors"])
 
+    def test_native_only_regression_run_does_not_claim_backend_comparison(self):
+        candidate = make_result()
+        candidate["same_environment"] = False
+        candidate["measured_backends"] = ["native"]
+        baseline = make_result()
+        result = evaluator.evaluate(CONTRACT, baseline, candidate)
+        self.assertEqual("PASS", result["status"], result["errors"])
+
+    def test_two_backend_run_still_requires_same_environment(self):
+        candidate = make_result()
+        candidate["same_environment"] = False
+        candidate["measured_backends"] = ["native", "glue"]
+        result = evaluator.evaluate(CONTRACT, make_result(), candidate)
+        self.assertEqual("FAIL", result["status"])
+        self.assertTrue(any("same environment" in error for error in result["errors"]))
+
     def test_missing_boundary_label_fails(self):
         candidate = make_result()
         del candidate["backends"]["native"]["cases"]["metadata_hot.4096"][

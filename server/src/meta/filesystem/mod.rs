@@ -33,9 +33,11 @@ pub(crate) struct FilesystemCatalog {
     /// `(parent inode, raw name bytes)` 的有序索引。
     /// lookup 仍是 O(log n)；readdir 可直接从 cursor 开始顺序取一页，不再全表扫描和排序。
     dentries: BTreeMap<DentryKey, DentrySnapshot>,
-    /// 当前不支持 hard link，因此每个非 root inode 只有一个 namespace parent。
-    /// readdir 返回 `..` 与 rename 环检查走这个反向索引，不能反扫完整 dentry 表。
-    parents: HashMap<InodeId, InodeId>,
+    /// 仅目录 inode 的父目录索引。
+    ///
+    /// regular/symlink 允许多个 dentry，因此不能再维护“一 inode 一个 parent”的反向索引。
+    /// `..` 与目录 rename 环检查只对目录有意义，仍可用这个索引 O(depth) 完成。
+    directory_parents: HashMap<InodeId, InodeId>,
     grant_generations: HashMap<InodeId, u64>,
 }
 
@@ -52,22 +54,27 @@ impl FilesystemCatalog {
         dentries: impl IntoIterator<Item = DentrySnapshot>,
         grant_generations: impl IntoIterator<Item = (InodeId, u64)>,
     ) -> Self {
+        let inodes = inodes
+            .into_iter()
+            .map(|inode| (inode.attributes.inode, inode))
+            .collect::<HashMap<_, _>>();
         let dentries = dentries
             .into_iter()
             .map(|dentry| ((dentry.parent, dentry.name.clone()), dentry))
             .collect::<BTreeMap<_, _>>();
-        let parents = dentries
+        let directory_parents = dentries
             .values()
-            .map(|dentry| (dentry.inode, dentry.parent))
+            .filter_map(|dentry| {
+                let inode = inodes.get(&dentry.inode)?;
+                (inode.attributes.kind == InodeKind::Directory)
+                    .then_some((dentry.inode, dentry.parent))
+            })
             .collect();
         let mut catalog = Self {
             next_inode,
-            inodes: inodes
-                .into_iter()
-                .map(|inode| (inode.attributes.inode, inode))
-                .collect(),
+            inodes,
             dentries,
-            parents,
+            directory_parents,
             grant_generations: grant_generations.into_iter().collect(),
         };
         // 旧快照没有 Filesystem 字段；恢复时必须补回固定 root，而不是产生一个
@@ -202,7 +209,9 @@ impl FilesystemCatalog {
             .insert(inode.attributes.inode, grant_generation);
         self.dentries
             .insert((dentry.parent, dentry.name.clone()), dentry.clone());
-        self.parents.insert(dentry.inode, dentry.parent);
+        if inode.attributes.kind == InodeKind::Directory {
+            self.directory_parents.insert(dentry.inode, dentry.parent);
+        }
         self.inodes.insert(inode.attributes.inode, inode);
     }
 
@@ -218,12 +227,19 @@ impl FilesystemCatalog {
         upsert_dentries: impl IntoIterator<Item = DentrySnapshot>,
         remove_dentries: impl IntoIterator<Item = DentrySnapshot>,
         changed_directories: impl IntoIterator<Item = DirectoryVersion>,
+        changed_inodes: impl IntoIterator<Item = crate::filesystem::InodeVersion>,
         next_inode: InodeId,
     ) {
         self.next_inode = self.next_inode.max(next_inode);
         for dentry in remove_dentries {
             self.dentries.remove(&(dentry.parent, dentry.name.clone()));
-            self.parents.remove(&dentry.inode);
+            if self
+                .inodes
+                .get(&dentry.inode)
+                .is_some_and(|inode| inode.attributes.kind == InodeKind::Directory)
+            {
+                self.directory_parents.remove(&dentry.inode);
+            }
         }
         for inode in upsert_inodes {
             self.grant_generations
@@ -232,7 +248,13 @@ impl FilesystemCatalog {
             self.inodes.insert(inode.attributes.inode, inode);
         }
         for dentry in upsert_dentries {
-            self.parents.insert(dentry.inode, dentry.parent);
+            if self
+                .inodes
+                .get(&dentry.inode)
+                .is_some_and(|inode| inode.attributes.kind == InodeKind::Directory)
+            {
+                self.directory_parents.insert(dentry.inode, dentry.parent);
+            }
             self.dentries
                 .insert((dentry.parent, dentry.name.clone()), dentry);
         }
@@ -240,6 +262,38 @@ impl FilesystemCatalog {
             self.grant_generations
                 .insert(directory.inode, directory.grant_generation);
         }
+        for inode in changed_inodes {
+            self.grant_generations
+                .insert(inode.inode, inode.grant_generation);
+        }
+    }
+
+    /// 返回当前 durable catalog 中等待生命周期回收的 inode。
+    ///
+    /// namespace mutation 只把 link_count 降为 0；真正删除必须由 Meta owner 在确认
+    /// 所有 Node 引用租约都结束后决定。这里不做时间或租约判断，避免把生命周期策略
+    /// 下沉到纯 catalog 容器。
+    pub(crate) fn orphan_candidates(&self) -> Vec<InodeSnapshot> {
+        let mut candidates = self
+            .inodes
+            .values()
+            .filter(|inode| {
+                inode.attributes.inode != ROOT_INODE && inode.attributes.link_count == 0
+            })
+            .cloned()
+            .collect::<Vec<_>>();
+        candidates.sort_by_key(|inode| inode.attributes.inode);
+        candidates
+    }
+
+    /// 应用已经 journal 化的 orphan 回收决定。
+    pub(crate) fn apply_orphan_reaped(&mut self, inode: InodeId) {
+        if inode == ROOT_INODE {
+            return;
+        }
+        self.inodes.remove(&inode);
+        self.grant_generations.remove(&inode);
+        self.directory_parents.remove(&inode);
     }
 
     pub(crate) fn snapshot(&self) -> FilesystemCatalogSnapshot {
@@ -260,7 +314,7 @@ impl FilesystemCatalog {
         if inode == ROOT_INODE {
             return Some(ROOT_INODE);
         }
-        self.parents.get(&inode).copied()
+        self.directory_parents.get(&inode).copied()
     }
 }
 

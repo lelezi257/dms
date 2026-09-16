@@ -12,10 +12,11 @@ use dms_error::{DmsError, ErrorKind};
 use dms_protocol::v1 as pb;
 
 use crate::filesystem::{
-    CommitFileVersionRequest, CommitFileVersionResult, DentrySnapshot, DirectoryGrant,
-    DirectoryPage, InodeId, InodeKind, NamespaceMutationResult, RemoveEntryRequest,
-    RenameEntryRequest, ResolvedInode, dentry_from_proto, directory_grant_from_proto,
-    directory_page_from_proto, namespace_result_from_proto, resolved_from_proto,
+    CommitFileVersionRequest, CommitFileVersionResult, CreateSymlinkRequest, DentrySnapshot,
+    DirectoryGrant, DirectoryPage, InodeId, InodeKind, LinkEntryRequest, NamespaceMutationResult,
+    RemoveEntryRequest, RenameEntryRequest, ResolvedInode, dentry_from_proto,
+    directory_grant_from_proto, directory_page_from_proto, namespace_result_from_proto,
+    resolved_from_proto,
 };
 use crate::node::metadata_client::{MetadataClient, digest};
 
@@ -28,14 +29,18 @@ pub(crate) struct CreateInodeRequest {
     pub(crate) mode: u32,
     pub(crate) uid: u32,
     pub(crate) gid: u32,
+    pub(crate) reference_generation: u64,
 }
 
 /// 一次名字解析的两个不可拆结果：dentry 给出 path→inode，resolved 给出同一时刻的
 /// inode→精确对象版本。Node 分别写入 DentryCache 与 BindingCache。
+#[derive(Clone)]
 pub(crate) struct ResolvedDentry {
     pub(crate) dentry: DentrySnapshot,
     pub(crate) resolved: ResolvedInode,
     pub(crate) directory_grant: DirectoryGrant,
+    pub(crate) entry_reference_lease_millis: u64,
+    pub(crate) entry_reference_generation: u64,
 }
 
 pub(crate) struct LookupDentry {
@@ -48,11 +53,18 @@ pub(crate) struct LookupDentry {
 /// `open` 不是远端接口：Node 在本地创建 `OpenHandle`。只有 binding cache 未命中时，
 /// `resolve_inode` 才访问 Meta 并取得 `CacheGrant`。
 pub(crate) trait FilesystemMetaClient: Send + Sync {
-    async fn lookup(&self, parent: InodeId, name: &[u8]) -> DmsResult<LookupDentry>;
+    async fn lookup(
+        &self,
+        parent: InodeId,
+        name: &[u8],
+        reference_generation: u64,
+    ) -> DmsResult<LookupDentry>;
 
     async fn get_inode(&self, inode: InodeId) -> DmsResult<Option<ResolvedInode>>;
 
     async fn create_inode(&self, request: CreateInodeRequest) -> DmsResult<ResolvedDentry>;
+
+    async fn create_symlink(&self, request: CreateSymlinkRequest) -> DmsResult<ResolvedDentry>;
 
     async fn read_directory(
         &self,
@@ -61,6 +73,12 @@ pub(crate) trait FilesystemMetaClient: Send + Sync {
         limit: u32,
         expected_directory_revision: Option<u64>,
     ) -> DmsResult<DirectoryPage>;
+
+    async fn link_entry(&self, request: LinkEntryRequest) -> DmsResult<NamespaceMutationResult>;
+
+    async fn acquire_inode_reference(&self, inode: InodeId, generation: u64) -> DmsResult<u64>;
+
+    async fn release_inode_reference(&self, inode: InodeId, generation: u64) -> DmsResult<()>;
 
     async fn rename_entry(&self, request: RenameEntryRequest)
     -> DmsResult<NamespaceMutationResult>;
@@ -92,10 +110,15 @@ impl FilesystemMetaGrpcClient {
 }
 
 impl FilesystemMetaClient for FilesystemMetaGrpcClient {
-    async fn lookup(&self, parent: InodeId, name: &[u8]) -> DmsResult<LookupDentry> {
+    async fn lookup(
+        &self,
+        parent: InodeId,
+        name: &[u8],
+        reference_generation: u64,
+    ) -> DmsResult<LookupDentry> {
         let response = self
             .metadata
-            .filesystem_lookup(parent, name.to_vec())
+            .filesystem_lookup(parent, name.to_vec(), reference_generation)
             .await?;
         let directory_grant = response
             .directory_grant
@@ -112,6 +135,8 @@ impl FilesystemMetaClient for FilesystemMetaGrpcClient {
                     dentry: dentry_from_proto(dentry),
                     resolved: resolved_from_proto(resolved).map_err(invalid_filesystem_response)?,
                     directory_grant,
+                    entry_reference_lease_millis: response.entry_reference_lease_millis,
+                    entry_reference_generation: response.entry_reference_generation,
                 })
             })
             .transpose()?;
@@ -159,6 +184,7 @@ impl FilesystemMetaClient for FilesystemMetaGrpcClient {
                 expected_parent_revision: None,
                 operation_digest,
                 commit_sequence: 0,
+                reference_generation: request.reference_generation,
             })
             .await?;
         let dentry = response.dentry.ok_or_else(missing_filesystem_response)?;
@@ -172,6 +198,47 @@ impl FilesystemMetaClient for FilesystemMetaGrpcClient {
                 .and_then(|grant| {
                     directory_grant_from_proto(grant).map_err(invalid_filesystem_response)
                 })?,
+            entry_reference_lease_millis: response.entry_reference_lease_millis,
+            entry_reference_generation: response.entry_reference_generation,
+        })
+    }
+
+    async fn create_symlink(&self, request: CreateSymlinkRequest) -> DmsResult<ResolvedDentry> {
+        let response = self
+            .metadata
+            .filesystem_create_symlink(pb::FilesystemCreateSymlinkRequest {
+                context: None,
+                session: None,
+                operation_id: request.operation_id,
+                operation_digest: request.operation_digest,
+                parent: request.parent,
+                name: request.name,
+                uid: request.uid,
+                gid: request.gid,
+                expected_parent_revision: request.expected_parent_revision,
+                commit_sequence: request.commit_sequence,
+                object_key: request.prepared.object_key,
+                candidate: Some(request.prepared.candidate),
+                replica_proofs: request.prepared.replica_proofs,
+                new_replicas: request.prepared.new_replicas,
+                target_size: request.target_size,
+                mtime_unix_nanos: request.mtime_unix_nanos,
+                reference_generation: request.reference_generation,
+            })
+            .await?;
+        let dentry = response.dentry.ok_or_else(missing_filesystem_response)?;
+        let resolved = response.resolved.ok_or_else(missing_filesystem_response)?;
+        Ok(ResolvedDentry {
+            dentry: dentry_from_proto(dentry),
+            resolved: resolved_from_proto(resolved).map_err(invalid_filesystem_response)?,
+            directory_grant: response
+                .directory_grant
+                .ok_or_else(missing_filesystem_response)
+                .and_then(|grant| {
+                    directory_grant_from_proto(grant).map_err(invalid_filesystem_response)
+                })?,
+            entry_reference_lease_millis: response.entry_reference_lease_millis,
+            entry_reference_generation: response.entry_reference_generation,
         })
     }
 
@@ -192,6 +259,49 @@ impl FilesystemMetaClient for FilesystemMetaGrpcClient {
             )
             .await?;
         directory_page_from_proto(directory, response).map_err(invalid_filesystem_response)
+    }
+
+    async fn link_entry(&self, request: LinkEntryRequest) -> DmsResult<NamespaceMutationResult> {
+        let response = self
+            .metadata
+            .filesystem_link_entry(pb::FilesystemLinkRequest {
+                context: None,
+                session: None,
+                operation_id: request.operation_id,
+                operation_digest: request.operation_digest,
+                source_inode: request.source_inode,
+                target_parent: request.target_parent,
+                target_name: request.target_name,
+                expected_target_revision: request.expected_target_revision,
+                commit_sequence: request.commit_sequence,
+                reference_generation: request.reference_generation,
+            })
+            .await?;
+        namespace_result_from_proto(response).map_err(invalid_filesystem_response)
+    }
+
+    async fn acquire_inode_reference(&self, inode: InodeId, generation: u64) -> DmsResult<u64> {
+        self.metadata
+            .filesystem_acquire_inode_reference(pb::FilesystemInodeReferenceRequest {
+                context: None,
+                session: None,
+                inode,
+                reference_generation: generation,
+            })
+            .await
+            .map(|response| response.lease_millis)
+    }
+
+    async fn release_inode_reference(&self, inode: InodeId, generation: u64) -> DmsResult<()> {
+        self.metadata
+            .filesystem_release_inode_reference(pb::FilesystemInodeReferenceRequest {
+                context: None,
+                session: None,
+                inode,
+                reference_generation: generation,
+            })
+            .await
+            .map(|_| ())
     }
 
     async fn rename_entry(

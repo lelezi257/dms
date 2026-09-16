@@ -9,7 +9,7 @@ use dms_protocol::v1 as pb;
 use super::model::{
     CacheGrant, DentrySnapshot, DirectoryEntry, DirectoryGrant, DirectoryPage, DirectoryVersion,
     FileContentBinding, FileContractError, GrantedInode, InodeAttributes, InodeId, InodeKind,
-    InodeSnapshot, NamespaceMutationResult, RemoveKind, ResolvedInode,
+    InodeSnapshot, InodeVersion, NamespaceMutationResult, RemoveKind, ResolvedInode,
 };
 
 /// Meta 已经授权的精确对象读取计划。
@@ -216,6 +216,17 @@ pub(crate) fn namespace_result_to_proto(
             .collect(),
         invalidation_cursor: result.invalidation_cursor,
         commit_index: result.commit_index,
+        changed_inodes: result
+            .changed_inodes
+            .iter()
+            .map(|inode| pb::FilesystemDirectoryVersion {
+                inode: inode.inode,
+                revision: inode.revision,
+                grant_generation: inode.grant_generation,
+            })
+            .collect(),
+        entry_reference_lease_millis: result.entry_reference_lease_millis,
+        entry_reference_generation: result.entry_reference_generation,
     }
 }
 
@@ -234,8 +245,19 @@ pub(crate) fn namespace_result_from_proto(
                 grant_generation: directory.grant_generation,
             })
             .collect(),
+        changed_inodes: result
+            .changed_inodes
+            .into_iter()
+            .map(|inode| InodeVersion {
+                inode: inode.inode,
+                revision: inode.revision,
+                grant_generation: inode.grant_generation,
+            })
+            .collect(),
         invalidation_cursor: result.invalidation_cursor,
         commit_index: result.commit_index,
+        entry_reference_lease_millis: result.entry_reference_lease_millis,
+        entry_reference_generation: result.entry_reference_generation,
     })
 }
 

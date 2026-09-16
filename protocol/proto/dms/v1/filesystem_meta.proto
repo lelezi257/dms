@@ -14,7 +14,12 @@ service FilesystemMetadataService {
   rpc LookupFilesystemEntry(FilesystemLookupRequest) returns (FilesystemResolveResponse);
   rpc GetFilesystemInode(FilesystemGetInodeRequest) returns (FilesystemResolveResponse);
   rpc CreateFilesystemInode(FilesystemCreateInodeRequest) returns (FilesystemResolveResponse);
+  rpc CreateFilesystemSymlink(FilesystemCreateSymlinkRequest) returns (FilesystemResolveResponse);
   rpc ReadFilesystemDirectory(FilesystemReadDirectoryRequest) returns (FilesystemReadDirectoryResponse);
+  rpc LinkFilesystemEntry(FilesystemLinkRequest) returns (FilesystemNamespaceMutationResponse);
+  rpc AcquireFilesystemInodeReference(FilesystemInodeReferenceRequest) returns (FilesystemInodeReferenceResponse);
+  rpc RenewFilesystemInodeReferences(FilesystemRenewInodeReferencesRequest) returns (FilesystemInodeReferenceResponse);
+  rpc ReleaseFilesystemInodeReference(FilesystemInodeReferenceRequest) returns (FilesystemInodeReferenceResponse);
   rpc RenameFilesystemEntry(FilesystemRenameRequest) returns (FilesystemNamespaceMutationResponse);
   rpc RemoveFilesystemEntry(FilesystemRemoveRequest) returns (FilesystemNamespaceMutationResponse);
   rpc CommitFilesystemVersion(FilesystemCommitVersionRequest) returns (FilesystemCommitVersionResponse);
@@ -83,6 +88,9 @@ message FilesystemLookupRequest {
   NodeSessionIdentity session = 2;
   uint64 parent = 3;
   bytes name = 4;
+  // lookup 命中会给 FUSE 返回 entry，并隐含 nlookup=1。Meta 必须在同一 actor
+  // turn 建立保护，不能等 Node 再发第二个 acquire。
+  uint64 reference_generation = 5;
 }
 
 message FilesystemGetInodeRequest {
@@ -104,6 +112,30 @@ message FilesystemCreateInodeRequest {
   optional uint64 expected_parent_revision = 10;
   bytes operation_digest = 11;
   uint64 commit_sequence = 12;
+  // FUSE create/mkdir/symlink/link 成功返回 entry 时，内核隐含 nlookup=1。
+  // 该引用必须和 namespace mutation 在同一个 Meta actor turn 中建立，避免
+  // path 可见后、单独 acquire 前被 orphan reaper 观察到无引用。
+  uint64 reference_generation = 13;
+}
+
+message FilesystemCreateSymlinkRequest {
+  RequestContext context = 1;
+  NodeSessionIdentity session = 2;
+  bytes operation_id = 3;
+  bytes operation_digest = 4;
+  uint64 parent = 5;
+  bytes name = 6;
+  uint32 uid = 7;
+  uint32 gid = 8;
+  optional uint64 expected_parent_revision = 9;
+  uint64 commit_sequence = 10;
+  bytes object_key = 11;
+  VersionCandidate candidate = 12;
+  repeated ReplicaProof replica_proofs = 13;
+  repeated ReplicaReport new_replicas = 14;
+  uint64 target_size = 15;
+  int64 mtime_unix_nanos = 16;
+  uint64 reference_generation = 17;
 }
 
 message FilesystemResolveResponse {
@@ -111,6 +143,8 @@ message FilesystemResolveResponse {
   optional FilesystemResolvedInode resolved = 2;
   optional FilesystemDentrySnapshot dentry = 3;
   optional FilesystemDirectoryGrant directory_grant = 4;
+  uint64 entry_reference_lease_millis = 5;
+  uint64 entry_reference_generation = 6;
 }
 
 message FilesystemDirectoryEntry {
@@ -153,6 +187,45 @@ message FilesystemRenameRequest {
   bool replace_existing = 12;
 }
 
+message FilesystemLinkRequest {
+  RequestContext context = 1;
+  NodeSessionIdentity session = 2;
+  bytes operation_id = 3;
+  bytes operation_digest = 4;
+  uint64 source_inode = 5;
+  uint64 target_parent = 6;
+  bytes target_name = 7;
+  optional uint64 expected_target_revision = 8;
+  uint64 commit_sequence = 9;
+  uint64 reference_generation = 10;
+}
+
+message FilesystemInodeReferenceRequest {
+  RequestContext context = 1;
+  NodeSessionIdentity session = 2;
+  uint64 inode = 3;
+  // Node 本地 0->1 acquire 时递增；release 只释放同一 generation，避免迟到
+  // release 删除后续重新 acquire 的保护。
+  uint64 reference_generation = 4;
+}
+
+message FilesystemInodeReferenceLease {
+  uint64 inode = 1;
+  uint64 reference_generation = 2;
+}
+
+message FilesystemRenewInodeReferencesRequest {
+  RequestContext context = 1;
+  NodeSessionIdentity session = 2;
+  // Node 本地只在 0->1 持有时向 Meta 建立租约；续租时批量上报当前仍活跃的
+  // `(inode, generation)`，Meta 只延长匹配 generation 的条目。
+  repeated FilesystemInodeReferenceLease references = 3;
+}
+
+message FilesystemInodeReferenceResponse {
+  uint64 lease_millis = 1;
+}
+
 enum FilesystemRemoveKind {
   FILESYSTEM_REMOVE_KIND_UNSPECIFIED = 0;
   FILESYSTEM_REMOVE_KIND_FILE = 1;
@@ -183,6 +256,9 @@ message FilesystemNamespaceMutationResponse {
   repeated FilesystemDirectoryVersion changed_directories = 3;
   uint64 invalidation_cursor = 4;
   uint64 commit_index = 5;
+  repeated FilesystemDirectoryVersion changed_inodes = 6;
+  uint64 entry_reference_lease_millis = 7;
+  uint64 entry_reference_generation = 8;
 }
 
 message FilesystemCommitVersionRequest {

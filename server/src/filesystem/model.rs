@@ -138,6 +138,34 @@ pub(crate) struct RenameEntryRequest {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct LinkEntryRequest {
+    pub(crate) operation_id: Vec<u8>,
+    pub(crate) operation_digest: Vec<u8>,
+    pub(crate) commit_sequence: u64,
+    pub(crate) source_inode: InodeId,
+    pub(crate) target_parent: InodeId,
+    pub(crate) target_name: Vec<u8>,
+    pub(crate) expected_target_revision: Option<DirectoryRevision>,
+    pub(crate) reference_generation: u64,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct CreateSymlinkRequest {
+    pub(crate) operation_id: Vec<u8>,
+    pub(crate) operation_digest: Vec<u8>,
+    pub(crate) commit_sequence: u64,
+    pub(crate) parent: InodeId,
+    pub(crate) name: Vec<u8>,
+    pub(crate) uid: u32,
+    pub(crate) gid: u32,
+    pub(crate) expected_parent_revision: Option<DirectoryRevision>,
+    pub(crate) prepared: super::wire::PreparedObjectVersion,
+    pub(crate) target_size: u64,
+    pub(crate) mtime_unix_nanos: i64,
+    pub(crate) reference_generation: u64,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct RemoveEntryRequest {
     pub(crate) operation_id: Vec<u8>,
     pub(crate) operation_digest: Vec<u8>,
@@ -156,6 +184,18 @@ pub(crate) struct DirectoryVersion {
     pub(crate) grant_generation: u64,
 }
 
+/// inode 属性或内容 binding 的新水位。
+///
+/// 目录失效只说明“某个父目录的名字集合变了”；hardlink/unlink/rename replace 还会改变
+/// 被引用 inode 的 `link_count` 或内容授权。Node 必须单独按 inode 清 binding cache，
+/// 否则热 `getattr`/read 可能继续看到旧 nlink。
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct InodeVersion {
+    pub(crate) inode: InodeId,
+    pub(crate) revision: InodeRevision,
+    pub(crate) grant_generation: u64,
+}
+
 /// create/mkdir/rename/unlink/rmdir 的统一结果形状。
 ///
 /// `inode` 是被创建、移动或移除名字所指向的 inode 快照。unlink/rmdir 后 inode
@@ -165,8 +205,13 @@ pub(crate) struct NamespaceMutationResult {
     pub(crate) dentry: Option<DentrySnapshot>,
     pub(crate) inode: Option<InodeSnapshot>,
     pub(crate) changed_directories: Vec<DirectoryVersion>,
+    pub(crate) changed_inodes: Vec<InodeVersion>,
     pub(crate) invalidation_cursor: u64,
     pub(crate) commit_index: u64,
+    /// 返回 entry 的 mutation 在 Meta 同一 actor turn 中建立的 nlookup=1 租约。
+    /// 非 entry-returning mutation 保持 0。
+    pub(crate) entry_reference_lease_millis: u64,
+    pub(crate) entry_reference_generation: u64,
 }
 
 /// Meta 对某个 inode 内容绑定授予的短期缓存资格。

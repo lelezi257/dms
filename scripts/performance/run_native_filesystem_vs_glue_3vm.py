@@ -395,12 +395,20 @@ class Harness:
 
     def execute(self) -> None:
         alternating_orders = (("native", "glue"), ("glue", "native"))
+        selected_arms = tuple(self.profile.get("arms", ("native", "glue")))
+        unknown_arms = set(selected_arms) - {"native", "glue"}
+        if not selected_arms or unknown_arms:
+            raise RuntimeError(f"arms must be a non-empty subset of native/glue: {selected_arms}")
         rounds = int(self.profile.get("rounds", 3))
         if rounds < 1:
             raise RuntimeError("rounds must be positive")
         try:
             for round_id in range(rounds):
-                order = alternating_orders[round_id % len(alternating_orders)]
+                order = tuple(
+                    arm
+                    for arm in alternating_orders[round_id % len(alternating_orders)]
+                    if arm in selected_arms
+                )
                 for arm in order:
                     try:
                         self.start(round_id, arm)

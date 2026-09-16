@@ -19,7 +19,7 @@ use dms_tracing::Instrument as _;
 use fuser::{
     BackgroundSession, FileAttr, FileType, Filesystem, MountOption, ReplyAttr, ReplyCreate,
     ReplyData, ReplyDirectory, ReplyEmpty, ReplyEntry, ReplyIoctl, ReplyOpen, ReplyWrite, Request,
-    TimeOrNow,
+    TimeOrNow, fuse_forget_one,
 };
 use tokio::runtime::Handle;
 
@@ -110,6 +110,15 @@ impl DmsFuse {
 
 impl Filesystem for DmsFuse {
     fn opendir(&mut self, _req: &Request, ino: u64, _flags: i32, reply: ReplyOpen) {
+        self.metrics.record_fuse_callback(FuseCallback::Opendir);
+        let span = filesystem_span("dms.filesystem.opendir", Some(ino));
+        if let Err(error) = self
+            .runtime
+            .block_on(self.files.acquire_inode_reference(ino).instrument(span))
+        {
+            reply.error(worker_to_errno(error));
+            return;
+        }
         let handle = self.allocate_directory_handle(ino);
         reply.opened(handle, 0);
     }
@@ -127,6 +136,22 @@ impl Filesystem for DmsFuse {
             }
             Ok(None) => reply.error(libc::ENOENT),
             Err(error) => reply.error(worker_to_errno(error)),
+        }
+    }
+
+    fn forget(&mut self, _req: &Request, ino: u64, nlookup: u64) {
+        self.metrics.record_fuse_callback(FuseCallback::Forget);
+        self.runtime
+            .block_on(self.files.release_inode_reference(ino, nlookup));
+    }
+
+    fn batch_forget(&mut self, _req: &Request, nodes: &[fuse_forget_one]) {
+        self.metrics.record_fuse_callback(FuseCallback::BatchForget);
+        for node in nodes {
+            self.runtime.block_on(
+                self.files
+                    .release_inode_reference(node.nodeid, node.nlookup),
+            );
         }
     }
 
@@ -264,8 +289,24 @@ impl Filesystem for DmsFuse {
     }
 
     fn releasedir(&mut self, _req: &Request, _ino: u64, fh: u64, _flags: i32, reply: ReplyEmpty) {
-        self.directory_handles.remove(&fh);
+        self.metrics.record_fuse_callback(FuseCallback::Releasedir);
+        if let Some(handle) = self.directory_handles.remove(&fh) {
+            self.runtime
+                .block_on(self.files.release_inode_reference(handle.inode, 1));
+        }
         reply.ok();
+    }
+
+    fn readlink(&mut self, _req: &Request, ino: u64, reply: ReplyData) {
+        self.metrics.record_fuse_callback(FuseCallback::Readlink);
+        let span = filesystem_span("dms.filesystem.readlink", Some(ino));
+        match self
+            .runtime
+            .block_on(self.files.readlink(ino).instrument(span))
+        {
+            Ok(target) => reply.data(&target),
+            Err(error) => reply.error(worker_to_errno(error)),
+        }
     }
 
     fn open(&mut self, _req: &Request, ino: u64, flags: i32, reply: ReplyOpen) {
@@ -367,6 +408,32 @@ impl Filesystem for DmsFuse {
         }
     }
 
+    fn symlink(
+        &mut self,
+        req: &Request,
+        parent: u64,
+        link_name: &OsStr,
+        target: &Path,
+        reply: ReplyEntry,
+    ) {
+        self.metrics.record_fuse_callback(FuseCallback::Symlink);
+        let span = filesystem_span("dms.filesystem.symlink", Some(parent));
+        match self.runtime.block_on(
+            self.files
+                .symlink(
+                    parent,
+                    link_name.as_bytes(),
+                    target.as_os_str().as_bytes(),
+                    req.uid(),
+                    req.gid(),
+                )
+                .instrument(span),
+        ) {
+            Ok(created) => reply.entry(&TTL, &file_attr(&created.granted.inode.attributes), 0),
+            Err(error) => reply.error(worker_to_errno(error)),
+        }
+    }
+
     fn rename(
         &mut self,
         _req: &Request,
@@ -389,6 +456,27 @@ impl Filesystem for DmsFuse {
                 .instrument(span),
         ) {
             Ok(()) => reply.ok(),
+            Err(error) => reply.error(worker_to_errno(error)),
+        }
+    }
+
+    fn link(
+        &mut self,
+        _req: &Request,
+        ino: u64,
+        newparent: u64,
+        newname: &OsStr,
+        reply: ReplyEntry,
+    ) {
+        self.metrics.record_fuse_callback(FuseCallback::Link);
+        let span = filesystem_span("dms.filesystem.link", Some(ino));
+        let result = self.runtime.block_on(
+            self.files
+                .link(ino, newparent, newname.as_bytes())
+                .instrument(span),
+        );
+        match result {
+            Ok(inode) => reply.entry(&TTL, &file_attr(&inode.attributes), 0),
             Err(error) => reply.error(worker_to_errno(error)),
         }
     }

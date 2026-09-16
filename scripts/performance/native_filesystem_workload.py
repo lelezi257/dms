@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import Callable
 
 
-FILES_BY_SIZE = {4096: 140, 65536: 50, 1048576: 10}
+FILES_BY_SIZE = {4096: 140, 65536: 50, 1048576: 30}
 MIDDLE_OFFSET = 32 * 1024
 MIDDLE_LENGTH = 4 * 1024
 

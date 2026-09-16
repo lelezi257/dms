@@ -165,6 +165,11 @@ M1.7 性能现在分成两个独立门禁：
    `benchmarks/whitebox/fuse-request-amplification-contract.json`。它只看 FUSE/DataCore/Meta/Peer
    请求次数、字节复制阶段和正确性，不重复判断延迟。
 
+发布性能验收固定使用四轮对称交替顺序：Native→Glue、Glue→Native、Native→Glue、Glue→Native，
+保证双方获得相同次数的先跑与后跑机会。每轮语料为 220 个文件：140×4 KiB、50×64 KiB、
+30×1 MiB；评价器要求每个关键 case 至少 100 个样本。该调整只消除执行顺序与小样本对 p95
+的统计偏差，所有领先或回归比例阈值保持不变。
+
 最新同场证据位于 `evidence/m1/g004-performance-safe-id-20260917-r1`：本地热读领先
 44.5%～54.7%，跨节点首读领先 11.5%～29.7%；create 4 KiB/64 KiB 分别慢 10.96%/4.64%，
 1 MiB create 快 2.97%；64 KiB 中段覆盖慢 9.1%，均符合分类合同。M1.7 三 VM 总验收

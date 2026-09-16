@@ -22,11 +22,12 @@ CONTRACT = json.loads(
 
 
 def passing_result() -> dict:
+    minimum_samples = CONTRACT["thresholds"]["minimum_samples_per_case"]
     cases = {}
     for rule in CONTRACT["cases"]:
         cases[rule["id"]] = {
             "correctness": True,
-            "samples": 30,
+            "samples": minimum_samples,
             "p50_us": 80.0,
             "p95_us": 100.0,
             "unattributed_fraction": 0.05,
@@ -35,7 +36,7 @@ def passing_result() -> dict:
     glue_cases = {
         case_id: {
             "correctness": True,
-            "samples": 30,
+            "samples": minimum_samples,
             "p50_us": 100.0,
             "p95_us": 100.0,
         }

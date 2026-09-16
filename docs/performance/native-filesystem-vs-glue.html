@@ -57,11 +57,15 @@
   <table>
     <tr><th>维度</th><th>固定值</th><th>为什么必须固定</th></tr>
     <tr><td>机器</td><td>A/B/C 三台，均 2 vCPU、2 GiB</td><td>排除机器差异</td></tr>
-    <tr><td>顺序</td><td>Native→Glue、Glue→Native、Native→Glue</td><td>抵消轮次和温度偏差</td></tr>
-    <tr><td>数据</td><td>200 文件：140×4 KiB、50×64 KiB、10×1 MiB</td><td>同一语料覆盖小文件和分段 I/O</td></tr>
+    <tr><td>顺序</td><td>Native→Glue、Glue→Native、Native→Glue、Glue→Native</td><td>双方获得相同次数的先跑与后跑机会</td></tr>
+    <tr><td>数据</td><td>220 文件：140×4 KiB、50×64 KiB、30×1 MiB</td><td>同一语料覆盖小文件和分段 I/O；每个关键 case 至少 100 个样本</td></tr>
     <tr><td>可靠性</td><td>双方元数据均为 memory mode</td><td>本阶段只比较功能/性能；持久化另立合同</td></tr>
     <tr><td>路径门禁</td><td>RPC 放大由独立 evaluator 判定，再看分类性能</td><td>防止通过漏做提交或缓存作弊，也避免把路径事实混进旧历史 baseline</td></tr>
   </table>
+
+  <div class="callout">
+    <b>Release 统计合同：</b>最终 M1.7 验收采用四轮对称交替和扩大后的 1 MiB 样本集，消除三轮顺序不对称及单个冷抖动支配 p95 的问题；领先与回归阈值保持不变。本页下方数值仍是历史 discovery 证据，最终 release 数值以总验收报告为准。
+  </div>
 
   <h2>2. 核心结果</h2>
   <table>

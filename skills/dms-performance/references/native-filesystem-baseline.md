@@ -40,6 +40,10 @@ write-through 语义下的请求边界。若希望合并，必须先设计 write
 - 本地热读为 0 Meta/Peer；4 KiB 只进入 1 次 DataCore，1 MiB 进入 2 次。
 - 跨节点首读只允许 1 次 Meta Lookup，并按缺失 Block 数 Pull；后续热读均为 0。
 - 200 个目录项在当前内核回复缓冲下稳定产生 4 次 readdir callback，但不进入 DataCore、Meta 或 Peer。
+
+> 本节记录 2026-09-15 的历史冻结基线，不能直接充当 M1.7 release 证据。M1.7 最终门禁使用
+> 四轮对称交替顺序，每轮 220 个文件（其中 30 个 1 MiB 文件），并要求每个关键 case 至少
+> 100 个样本；性能比例阈值没有放宽。
 - workload 初始化的 resolve/mkdir 会产生固定 root getattr，必须位于 Metrics 快照之外。
 
 机器入口：

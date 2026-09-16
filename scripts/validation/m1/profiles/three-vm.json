@@ -69,12 +69,12 @@
       "expected_evidence": ["{case_dir}/artifact/result.txt", "{case_dir}/artifact/evaluation.json"]
     },
     "whitebox-path-gate": {
-      "argv": ["python3", "scripts/validation/run_m1_performance.py", "--purpose", "{purpose}", "--dms-node", "{dms_node}", "--dms-meta", "{dms_meta}", "--juicefs-source", "{juicefs_source}", "--builder-vm", "dms-dev", "--shared-host-root", "{shared_host_root}", "--shared-vm-root", "{shared_vm_root}", "--go-binary", "{go_binary}", "--go-mod-cache", "{go_mod_cache}", "--go-cache", "{go_cache}", "--output", "{run_dir}/performance", "--run-id", "perf-{run_nonce}", "--rounds", "3", "--vm-a", "{vm_a}", "--vm-b", "{vm_b}", "--vm-c", "{vm_c}", "--ip-a", "{ip_a}", "--ip-b", "{ip_b}", "--ip-c", "{ip_c}"],
+      "argv": ["python3", "scripts/validation/run_m1_performance.py", "--purpose", "{purpose}", "--dms-node", "{dms_node}", "--dms-meta", "{dms_meta}", "--juicefs-source", "{juicefs_source}", "--builder-vm", "dms-dev", "--shared-host-root", "{shared_host_root}", "--shared-vm-root", "{shared_vm_root}", "--go-binary", "{go_binary}", "--go-mod-cache", "{go_mod_cache}", "--go-cache", "{go_cache}", "--output", "{run_dir}/performance", "--run-id", "perf-{run_nonce}", "--rounds", "4", "--vm-a", "{vm_a}", "--vm-b", "{vm_b}", "--vm-c", "{vm_c}", "--ip-a", "{ip_a}", "--ip-b", "{ip_b}", "--ip-c", "{ip_c}"],
       "timeout_seconds": 10800,
       "expected_evidence": ["{run_dir}/performance/result.json", "{run_dir}/performance/amplification-evaluation.json"]
     },
     "performance-regression": {
-      "argv": ["python3", "scripts/validation/run_m1_performance.py", "--reuse-existing", "--purpose", "{purpose}", "--output", "{run_dir}/performance", "--rounds", "3"],
+      "argv": ["python3", "scripts/validation/run_m1_performance.py", "--reuse-existing", "--purpose", "{purpose}", "--output", "{run_dir}/performance", "--rounds", "4"],
       "timeout_seconds": 60,
       "expected_evidence": ["{run_dir}/performance/result.json", "{run_dir}/performance/performance-evaluation.json"]
     },

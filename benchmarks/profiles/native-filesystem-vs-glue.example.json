@@ -22,7 +22,7 @@
     "dms_meta": "/absolute/path/to/dms-meta",
     "juicefs": "/absolute/path/to/juicefs"
   },
-  "rounds": 3,
+  "rounds": 4,
   "metadata_mode": "memory",
   "redis_mode": "memory",
   "arena_capacity_bytes": 1073741824,

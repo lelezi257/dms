@@ -2,11 +2,11 @@
   "schema": "dms.native-filesystem-vs-glue-contract.v1",
   "description": "在同一组 Linux VM、同一份 DMS 构建、同一文件语料和相同非持久化元数据模式下，对比进程内 Native Filesystem 与外置 Glue。先验证路径合同，再按架构预期比较时延：Native 本地热读与 Peer 首读必须领先；首版同步 write-through mutation 必须保持可解释的接近区间，不能用异步返回伪造领先。持久化模式另立可靠性性能合同。payload_copy_stages 表示任意一个数据段从调用入口到稳定存储或用户缓冲区经历的应用层完整字节复制阶段数，不表示一个逻辑文件操作内所有分段复制次数的总和。",
   "workload": {
-    "file_count": 200,
+    "file_count": 220,
     "files_by_size": {
       "4096": 140,
       "65536": 50,
-      "1048576": 10
+      "1048576": 30
     },
     "middle_overwrite": {
       "source_size": 65536,
@@ -15,7 +15,7 @@
     }
   },
   "thresholds": {
-    "minimum_samples_per_case": 30,
+    "minimum_samples_per_case": 100,
     "minimum_p50_improvement_by_class": {
       "local_hot": 0.15,
       "peer_first_read": 0.05

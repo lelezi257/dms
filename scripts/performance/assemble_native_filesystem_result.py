@@ -384,8 +384,8 @@ def assemble(root: Path) -> dict[str, Any]:
         "measured_backends": list(measured_backends),
         "environment": profile,
         "workload": {
-            "file_count": 200,
-            "files_by_size": {"4096": 140, "65536": 50, "1048576": 10},
+            "file_count": 220,
+            "files_by_size": {"4096": 140, "65536": 50, "1048576": 30},
             "rounds": len(rounds),
         },
         "backends": backend_results,

@@ -189,6 +189,7 @@ impl MetadataService for MetadataServiceHandler {
             lease_ttl_millis: grant.lease_ttl_millis,
             accepted_node_epoch: grant.accepted_node_epoch,
             event_high_watermark: grant.event_high_watermark,
+            filesystem_lock_reclaim_required: grant.filesystem_lock_reclaim_required,
         }))
     }
 

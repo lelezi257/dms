@@ -16,6 +16,7 @@ use crate::filesystem::{
     GrantedInode, InodeAttributes, InodeId, InodeKind, InodeSnapshot, ROOT_INODE, XattrUpdate,
 };
 
+pub(crate) mod locks;
 pub(crate) mod service;
 
 type DentryKey = (InodeId, Vec<u8>);

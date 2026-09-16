@@ -1224,6 +1224,7 @@ mod tests {
                 lease_ttl_millis: 30_000,
                 accepted_node_epoch: 1,
                 event_high_watermark: 0,
+                filesystem_lock_reclaim_required: false,
             }))
         }
 
@@ -1443,6 +1444,7 @@ mod tests {
                         1,
                         "http://127.0.0.1:0".to_string(),
                         None,
+                        false,
                     )
                     .await
                     .expect("register test node");

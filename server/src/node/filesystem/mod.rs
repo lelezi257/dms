@@ -12,6 +12,7 @@ pub(super) mod binding_cache;
 pub(super) mod dentry_cache;
 #[cfg(all(target_os = "linux", feature = "fuse"))]
 pub(crate) mod fuse;
+pub(crate) mod kernel_cache;
 pub(super) mod meta_client;
 pub(super) mod open_handles;
 mod shared;

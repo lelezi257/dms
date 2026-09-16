@@ -24,3 +24,10 @@ unsafe_code = "deny"
 
 [workspace.lints.clippy]
 all = "deny"
+
+[patch.crates-io]
+# fuser 0.16 parses FUSE_INTERRUPT but hard-codes ENOSYS instead of exposing it to
+# Filesystem implementations. DMS needs that callback to cancel distributed F_SETLKW
+# waiters without leaving a ghost lock request in Meta. The vendored patch only adds
+# this missing callback and can be removed when upstream exposes equivalent support.
+fuser = { path = "third_party/fuser" }

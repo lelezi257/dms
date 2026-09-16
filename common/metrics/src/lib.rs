@@ -432,6 +432,16 @@ impl RpcCall {
     pub const FILESYSTEM_STAT: Self = Self::new("FilesystemMetadataService", "StatFilesystem");
     pub const FILESYSTEM_COMMIT_VERSION: Self =
         Self::new("FilesystemMetadataService", "CommitFilesystemVersion");
+    pub const FILESYSTEM_TEST_LOCK: Self =
+        Self::new("FilesystemMetadataService", "TestFilesystemLock");
+    pub const FILESYSTEM_SET_LOCK: Self =
+        Self::new("FilesystemMetadataService", "SetFilesystemLock");
+    pub const FILESYSTEM_CANCEL_LOCK_WAIT: Self =
+        Self::new("FilesystemMetadataService", "CancelFilesystemLockWait");
+    pub const FILESYSTEM_RELEASE_LOCK_OWNER: Self =
+        Self::new("FilesystemMetadataService", "ReleaseFilesystemLockOwner");
+    pub const FILESYSTEM_RECLAIM_LOCKS: Self =
+        Self::new("FilesystemMetadataService", "ReclaimFilesystemLocks");
 }
 
 /// Five transport-boundary collectors shared by every gRPC relationship.

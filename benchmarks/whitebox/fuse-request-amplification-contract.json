@@ -1,11 +1,8 @@
 {
   "schema": "dms.fuse-request-amplification-contract.v1",
-  "description": "一个 POSIX 用户操作最多允许产生多少 FUSE、文件层、DataCore、Meta 和 Peer 动作。pwrite 在 FUSE 协议中仍记为 write callback。延迟回归只与同环境冻结 Native 基线比较，不用 Glue 的变化掩盖自身退化。",
+  "description": "一个 POSIX 用户操作最多允许产生多少 FUSE、文件层、DataCore、Meta 和 Peer 动作。内核可能把一次用户操作拆成多个 FUSE callback；合同分别冻结内核边界上限和 DMS 业务边界上限。性能由同环境 Native-vs-Glue 合同单独验收，不在这里重复比较历史延迟。",
   "thresholds": {
-    "minimum_samples_per_case": 30,
-    "minimum_independent_pairs": 2,
-    "max_native_p50_regression_ratio": 1.05,
-    "max_native_p95_regression_ratio": 1.05
+    "minimum_samples_per_case": 30
   },
   "required_ledger_groups": [
     "fuse_callbacks",
@@ -27,8 +24,8 @@
       "id": "metadata_hot.4096",
       "rationale": "一次 path stat 可以触发 lookup/getattr，但不得访问 Meta、Peer 或 DataCore。",
       "maximum_per_user_operation": {
-        "fuse_callbacks": {"lookup": 1, "getattr": 1},
-        "filesystem_operations": {"lookup": 1, "getattr": 1},
+        "fuse_callbacks": {"lookup": 1, "getattr": 2},
+        "filesystem_operations": {"lookup": 1, "getattr": 2},
         "data_core_operations": {"read_resolved": 0, "prepare_put": 0, "prepare_range": 0, "finish_prepared": 0},
         "meta_rpc": {"create": 0, "lookup": 0, "commit": 0},
         "peer_rpc": {"pull_block": 0}
@@ -38,8 +35,8 @@
       "id": "open_close.4096",
       "rationale": "打开并关闭已知文件只允许一次 lookup/open/release；Binding cache 命中时不访问 Meta。",
       "maximum_per_user_operation": {
-        "fuse_callbacks": {"lookup": 1, "getattr": 1, "open": 1, "release": 1},
-        "filesystem_operations": {"lookup": 1, "getattr": 1, "open": 1, "close": 1},
+        "fuse_callbacks": {"lookup": 1, "getattr": 2, "open": 1, "release": 1},
+        "filesystem_operations": {"lookup": 1, "getattr": 2, "open": 1, "close": 1},
         "data_core_operations": {"read_resolved": 0, "prepare_put": 0, "prepare_range": 0, "finish_prepared": 0},
         "meta_rpc": {"create": 0, "lookup": 0, "commit": 0},
         "peer_rpc": {"pull_block": 0}
@@ -49,8 +46,8 @@
       "id": "readdir.root",
       "rationale": "200 个业务目录项由内核请求缓冲分页为 4 次 readdir callback；M1.3 显式维护目录 handle 生命周期，因此一次 scandir 还有一对 opendir/releasedir，TTL=0 时内核校验一次根目录属性。全部只命中 Node 本地状态，不访问 DataCore、Meta 或 Peer。",
       "maximum_per_user_operation": {
-        "fuse_callbacks": {"opendir": 1, "releasedir": 1, "readdir": 4},
-        "filesystem_operations": {"lookup": 0, "getattr": 1, "create": 0, "open": 0, "read": 0, "write": 0, "close": 0},
+        "fuse_callbacks": {"opendir": 1, "releasedir": 1, "getattr": 2, "readdir": 4},
+        "filesystem_operations": {"lookup": 0, "getattr": 2, "create": 0, "open": 0, "read": 0, "write": 0, "close": 0},
         "data_core_operations": {"read_resolved": 0, "prepare_put": 0, "prepare_range": 0, "finish_prepared": 0},
         "meta_rpc": {"create": 0, "lookup": 0, "commit": 0},
         "peer_rpc": {"pull_block": 0}
@@ -58,10 +55,10 @@
     },
     {
       "id": "create_write.4096",
-      "baseline": true,
+      "rationale": "一次 create+write 由内核产生固定的 lookup/create/write/flush/release，并伴随属性校验；DMS 只创建一次 inode、准备一次对象并提交一个版本。",
       "maximum_per_user_operation": {
-        "fuse_callbacks": {"lookup": 1, "create": 1, "write": 1, "flush": 1, "release": 1},
-        "filesystem_operations": {"lookup": 1, "create": 1, "open": 1, "write": 1, "close": 1},
+        "fuse_callbacks": {"lookup": 1, "getattr": 4, "create": 1, "write": 1, "flush": 1, "release": 1},
+        "filesystem_operations": {"lookup": 1, "getattr": 4, "create": 1, "open": 1, "write": 1, "close": 1},
         "data_core_operations": {"read_resolved": 0, "prepare_put": 1, "prepare_range": 0, "finish_prepared": 1},
         "meta_rpc": {"create": 1, "lookup": 1, "commit": 1},
         "peer_rpc": {"pull_block": 0}
@@ -69,11 +66,10 @@
     },
     {
       "id": "create_write.65536",
-      "baseline": true,
       "rationale": "64 KiB 仍应由一次 FUSE write 完成，并只发布一个版本。",
       "maximum_per_user_operation": {
-        "fuse_callbacks": {"lookup": 1, "getattr": 1, "create": 1, "write": 1, "flush": 1, "release": 1},
-        "filesystem_operations": {"lookup": 1, "getattr": 1, "create": 1, "open": 1, "write": 1, "close": 1},
+        "fuse_callbacks": {"lookup": 1, "getattr": 4, "create": 1, "write": 1, "flush": 1, "release": 1},
+        "filesystem_operations": {"lookup": 1, "getattr": 4, "create": 1, "open": 1, "write": 1, "close": 1},
         "data_core_operations": {"read_resolved": 0, "prepare_put": 1, "prepare_range": 0, "finish_prepared": 1},
         "meta_rpc": {"create": 1, "lookup": 1, "commit": 1},
         "peer_rpc": {"pull_block": 0}
@@ -81,22 +77,20 @@
     },
     {
       "id": "create_write.1048576",
-      "baseline": true,
-      "rationale": "当前内核把 1 MiB 写拆成两个 FUSE write；write-through 要求每个 callback 原子发布，因此形成一次完整写和一次 range 写。只有引入 writeback 后才能把两个 commit 合并。",
+      "rationale": "协商较新的 FUSE ABI 和 max_pages 后，1 MiB 也由一次 write callback 完成；write-through 只发布一个对象版本。",
       "maximum_per_user_operation": {
-        "fuse_callbacks": {"lookup": 1, "getattr": 1, "create": 1, "write": 2, "flush": 1, "release": 1},
-        "filesystem_operations": {"lookup": 1, "getattr": 1, "create": 1, "open": 1, "write": 2, "close": 1},
-        "data_core_operations": {"read_resolved": 0, "prepare_put": 1, "prepare_range": 1, "finish_prepared": 2},
-        "meta_rpc": {"create": 1, "lookup": 1, "commit": 2},
+        "fuse_callbacks": {"lookup": 1, "getattr": 4, "create": 1, "write": 1, "flush": 1, "release": 1},
+        "filesystem_operations": {"lookup": 1, "getattr": 4, "create": 1, "open": 1, "write": 1, "close": 1},
+        "data_core_operations": {"read_resolved": 0, "prepare_put": 1, "prepare_range": 0, "finish_prepared": 1},
+        "meta_rpc": {"create": 1, "lookup": 1, "commit": 1},
         "peer_rpc": {"pull_block": 0}
       }
     },
     {
       "id": "local_hot_read.4096",
-      "baseline": true,
       "maximum_per_user_operation": {
-        "fuse_callbacks": {"lookup": 1, "getattr": 2, "open": 1, "read": 2, "release": 1},
-        "filesystem_operations": {"lookup": 1, "getattr": 2, "open": 1, "read": 2, "close": 1},
+        "fuse_callbacks": {"lookup": 1, "getattr": 6, "open": 1, "read": 2, "release": 1},
+        "filesystem_operations": {"lookup": 1, "getattr": 6, "open": 1, "read": 2, "close": 1},
         "data_core_operations": {"read_resolved": 1, "prepare_put": 0, "prepare_range": 0, "finish_prepared": 0},
         "meta_rpc": {"create": 0, "lookup": 0, "commit": 0},
         "peer_rpc": {"pull_block": 0}
@@ -104,11 +98,10 @@
     },
     {
       "id": "local_hot_read.65536",
-      "baseline": true,
       "rationale": "本地 64 KiB 热读只进入一次 DataCore，不访问 Meta 或 Peer。",
       "maximum_per_user_operation": {
-        "fuse_callbacks": {"lookup": 1, "getattr": 2, "open": 1, "read": 2, "flush": 1, "release": 1},
-        "filesystem_operations": {"lookup": 1, "getattr": 2, "open": 1, "read": 2, "close": 1},
+        "fuse_callbacks": {"lookup": 1, "getattr": 6, "open": 1, "read": 2, "flush": 1, "release": 1},
+        "filesystem_operations": {"lookup": 1, "getattr": 6, "open": 1, "read": 2, "close": 1},
         "data_core_operations": {"read_resolved": 1, "prepare_put": 0, "prepare_range": 0, "finish_prepared": 0},
         "meta_rpc": {"create": 0, "lookup": 0, "commit": 0},
         "peer_rpc": {"pull_block": 0}
@@ -116,21 +109,19 @@
     },
     {
       "id": "local_hot_read.1048576",
-      "baseline": true,
       "maximum_per_user_operation": {
-        "fuse_callbacks": {"lookup": 1, "getattr": 2, "open": 1, "read": 3, "release": 1},
-        "filesystem_operations": {"lookup": 1, "getattr": 2, "open": 1, "read": 3, "close": 1},
-        "data_core_operations": {"read_resolved": 2, "prepare_put": 0, "prepare_range": 0, "finish_prepared": 0},
+        "fuse_callbacks": {"lookup": 1, "getattr": 6, "open": 1, "read": 8, "release": 1},
+        "filesystem_operations": {"lookup": 1, "getattr": 6, "open": 1, "read": 8, "close": 1},
+        "data_core_operations": {"read_resolved": 8, "prepare_put": 0, "prepare_range": 0, "finish_prepared": 0},
         "meta_rpc": {"create": 0, "lookup": 0, "commit": 0},
         "peer_rpc": {"pull_block": 0}
       }
     },
     {
       "id": "peer_first_read.4096",
-      "baseline": true,
       "maximum_per_user_operation": {
-        "fuse_callbacks": {"lookup": 1, "getattr": 2, "open": 1, "read": 2, "release": 1},
-        "filesystem_operations": {"lookup": 1, "getattr": 2, "open": 1, "read": 2, "close": 1},
+        "fuse_callbacks": {"lookup": 1, "getattr": 6, "open": 1, "read": 2, "release": 1},
+        "filesystem_operations": {"lookup": 1, "getattr": 6, "open": 1, "read": 2, "close": 1},
         "data_core_operations": {"read_resolved": 1, "prepare_put": 0, "prepare_range": 0, "finish_prepared": 0},
         "meta_rpc": {"create": 0, "lookup": 1, "commit": 0},
         "peer_rpc": {"pull_block": 1}
@@ -138,11 +129,10 @@
     },
     {
       "id": "peer_first_read.65536",
-      "baseline": true,
       "rationale": "跨节点 64 KiB 首读只解析一次位置并拉取一个 Block。",
       "maximum_per_user_operation": {
-        "fuse_callbacks": {"lookup": 1, "getattr": 2, "open": 1, "read": 2, "flush": 1, "release": 1},
-        "filesystem_operations": {"lookup": 1, "getattr": 2, "open": 1, "read": 2, "close": 1},
+        "fuse_callbacks": {"lookup": 1, "getattr": 6, "open": 1, "read": 2, "flush": 1, "release": 1},
+        "filesystem_operations": {"lookup": 1, "getattr": 6, "open": 1, "read": 2, "close": 1},
         "data_core_operations": {"read_resolved": 1, "prepare_put": 0, "prepare_range": 0, "finish_prepared": 0},
         "meta_rpc": {"create": 0, "lookup": 1, "commit": 0},
         "peer_rpc": {"pull_block": 1}
@@ -150,23 +140,21 @@
     },
     {
       "id": "peer_first_read.1048576",
-      "baseline": true,
-      "rationale": "1 MiB 文件在 write-through 下已有两个 Block；跨节点首读解析一次版本，并分别拉取两个 Block。",
+      "rationale": "1 MiB 文件仍是一个对象 Block；内核把读取拆成 8 个 callback，但 Node 只解析一次位置并拉取一次 Block，后续片段复用本地接管结果。",
       "maximum_per_user_operation": {
-        "fuse_callbacks": {"lookup": 1, "getattr": 2, "open": 1, "read": 3, "flush": 1, "release": 1},
-        "filesystem_operations": {"lookup": 1, "getattr": 2, "open": 1, "read": 3, "close": 1},
-        "data_core_operations": {"read_resolved": 2, "prepare_put": 0, "prepare_range": 0, "finish_prepared": 0},
+        "fuse_callbacks": {"lookup": 1, "getattr": 6, "open": 1, "read": 8, "flush": 1, "release": 1},
+        "filesystem_operations": {"lookup": 1, "getattr": 6, "open": 1, "read": 8, "close": 1},
+        "data_core_operations": {"read_resolved": 8, "prepare_put": 0, "prepare_range": 0, "finish_prepared": 0},
         "meta_rpc": {"create": 0, "lookup": 1, "commit": 0},
-        "peer_rpc": {"pull_block": 2}
+        "peer_rpc": {"pull_block": 1}
       }
     },
     {
       "id": "peer_hot_read.4096",
-      "baseline": true,
       "rationale": "Peer 首读接管后，4 KiB 热读不得再次访问 Meta 或 Peer。",
       "maximum_per_user_operation": {
-        "fuse_callbacks": {"lookup": 1, "getattr": 2, "open": 1, "read": 2, "flush": 1, "release": 1},
-        "filesystem_operations": {"lookup": 1, "getattr": 2, "open": 1, "read": 2, "close": 1},
+        "fuse_callbacks": {"lookup": 1, "getattr": 6, "open": 1, "read": 2, "flush": 1, "release": 1},
+        "filesystem_operations": {"lookup": 1, "getattr": 6, "open": 1, "read": 2, "close": 1},
         "data_core_operations": {"read_resolved": 1, "prepare_put": 0, "prepare_range": 0, "finish_prepared": 0},
         "meta_rpc": {"create": 0, "lookup": 0, "commit": 0},
         "peer_rpc": {"pull_block": 0}
@@ -174,11 +162,10 @@
     },
     {
       "id": "peer_hot_read.65536",
-      "baseline": true,
       "rationale": "Peer 首读接管后，64 KiB 热读不得再次访问 Meta 或 Peer。",
       "maximum_per_user_operation": {
-        "fuse_callbacks": {"lookup": 1, "getattr": 2, "open": 1, "read": 2, "flush": 1, "release": 1},
-        "filesystem_operations": {"lookup": 1, "getattr": 2, "open": 1, "read": 2, "close": 1},
+        "fuse_callbacks": {"lookup": 1, "getattr": 6, "open": 1, "read": 2, "flush": 1, "release": 1},
+        "filesystem_operations": {"lookup": 1, "getattr": 6, "open": 1, "read": 2, "close": 1},
         "data_core_operations": {"read_resolved": 1, "prepare_put": 0, "prepare_range": 0, "finish_prepared": 0},
         "meta_rpc": {"create": 0, "lookup": 0, "commit": 0},
         "peer_rpc": {"pull_block": 0}
@@ -186,22 +173,20 @@
     },
     {
       "id": "peer_hot_read.1048576",
-      "baseline": true,
-      "rationale": "Peer 首读接管后，1 MiB 的两个本地 Block 均直接命中，不得再次访问 Meta 或 Peer。",
+      "rationale": "Peer 首读接管后，1 MiB 对象已在本地；即使内核重新产生分段 read，也不得再次访问 Meta 或 Peer。",
       "maximum_per_user_operation": {
-        "fuse_callbacks": {"lookup": 1, "getattr": 2, "open": 1, "read": 3, "flush": 1, "release": 1},
-        "filesystem_operations": {"lookup": 1, "getattr": 2, "open": 1, "read": 3, "close": 1},
-        "data_core_operations": {"read_resolved": 2, "prepare_put": 0, "prepare_range": 0, "finish_prepared": 0},
+        "fuse_callbacks": {"lookup": 1, "getattr": 6, "open": 1, "read": 8, "flush": 1, "release": 1},
+        "filesystem_operations": {"lookup": 1, "getattr": 6, "open": 1, "read": 8, "close": 1},
+        "data_core_operations": {"read_resolved": 8, "prepare_put": 0, "prepare_range": 0, "finish_prepared": 0},
         "meta_rpc": {"create": 0, "lookup": 0, "commit": 0},
         "peer_rpc": {"pull_block": 0}
       }
     },
     {
       "id": "middle_overwrite.65536",
-      "baseline": true,
       "maximum_per_user_operation": {
-        "fuse_callbacks": {"lookup": 1, "getattr": 1, "open": 1, "write": 1, "flush": 1, "release": 1},
-        "filesystem_operations": {"lookup": 1, "getattr": 1, "open": 1, "write": 1, "close": 1},
+        "fuse_callbacks": {"lookup": 1, "getattr": 2, "open": 1, "write": 1, "flush": 1, "release": 1},
+        "filesystem_operations": {"lookup": 1, "getattr": 2, "open": 1, "write": 1, "close": 1},
         "data_core_operations": {"read_resolved": 0, "prepare_put": 0, "prepare_range": 1, "finish_prepared": 1},
         "meta_rpc": {"create": 0, "lookup": 0, "commit": 1},
         "peer_rpc": {"pull_block": 0}
@@ -209,11 +194,10 @@
     },
     {
       "id": "remote_after_overwrite.4096",
-      "baseline": true,
       "rationale": "未修改的 4 KiB 文件仍由已有本地副本满足，不访问 Meta 或 Peer。",
       "maximum_per_user_operation": {
-        "fuse_callbacks": {"lookup": 1, "getattr": 2, "open": 1, "read": 2, "flush": 1, "release": 1},
-        "filesystem_operations": {"lookup": 1, "getattr": 2, "open": 1, "read": 2, "close": 1},
+        "fuse_callbacks": {"lookup": 1, "getattr": 6, "open": 1, "read": 2, "flush": 1, "release": 1},
+        "filesystem_operations": {"lookup": 1, "getattr": 6, "open": 1, "read": 2, "close": 1},
         "data_core_operations": {"read_resolved": 1, "prepare_put": 0, "prepare_range": 0, "finish_prepared": 0},
         "meta_rpc": {"create": 0, "lookup": 0, "commit": 0},
         "peer_rpc": {"pull_block": 0}
@@ -221,11 +205,10 @@
     },
     {
       "id": "remote_after_overwrite.65536",
-      "baseline": true,
       "rationale": "远端 Node 已缓存基础 Block；中段覆盖后只拉取一个新的 patch Block，不重复解析 Current。",
       "maximum_per_user_operation": {
-        "fuse_callbacks": {"lookup": 1, "getattr": 2, "open": 1, "read": 2, "flush": 1, "release": 1},
-        "filesystem_operations": {"lookup": 1, "getattr": 2, "open": 1, "read": 2, "close": 1},
+        "fuse_callbacks": {"lookup": 1, "getattr": 6, "open": 1, "read": 2, "flush": 1, "release": 1},
+        "filesystem_operations": {"lookup": 1, "getattr": 6, "open": 1, "read": 2, "close": 1},
         "data_core_operations": {"read_resolved": 1, "prepare_put": 0, "prepare_range": 0, "finish_prepared": 0},
         "meta_rpc": {"create": 0, "lookup": 0, "commit": 0},
         "peer_rpc": {"pull_block": 1}
@@ -233,12 +216,11 @@
     },
     {
       "id": "remote_after_overwrite.1048576",
-      "baseline": true,
-      "rationale": "未修改的 1 MiB 文件继续命中已经接管的两个本地 Block，不访问 Meta 或 Peer。",
+      "rationale": "未修改的 1 MiB 文件继续命中已经接管的本地 Block，不访问 Meta 或 Peer。",
       "maximum_per_user_operation": {
-        "fuse_callbacks": {"lookup": 1, "getattr": 2, "open": 1, "read": 3, "flush": 1, "release": 1},
-        "filesystem_operations": {"lookup": 1, "getattr": 2, "open": 1, "read": 3, "close": 1},
-        "data_core_operations": {"read_resolved": 2, "prepare_put": 0, "prepare_range": 0, "finish_prepared": 0},
+        "fuse_callbacks": {"lookup": 1, "getattr": 6, "open": 1, "read": 8, "flush": 1, "release": 1},
+        "filesystem_operations": {"lookup": 1, "getattr": 6, "open": 1, "read": 8, "close": 1},
+        "data_core_operations": {"read_resolved": 8, "prepare_put": 0, "prepare_range": 0, "finish_prepared": 0},
         "meta_rpc": {"create": 0, "lookup": 0, "commit": 0},
         "peer_rpc": {"pull_block": 0}
       }

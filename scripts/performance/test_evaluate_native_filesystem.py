@@ -96,9 +96,29 @@ class NativeFilesystemEvaluatorTest(unittest.TestCase):
         self.assertEqual("FAIL", result["status"])
         self.assertTrue(any("below 5.000%" in error for error in result["errors"]))
 
-    def test_p95_regression_above_five_percent_fails(self):
+    def test_create_p95_regression_above_twenty_percent_fails(self):
         candidate = passing_result()
-        candidate["backends"]["native"]["cases"]["create_write.4096"]["p95_us"] = 106.0
+        candidate["backends"]["native"]["cases"]["create_write.4096"]["p95_us"] = 121.0
+        result = evaluate_native_filesystem.evaluate(CONTRACT, candidate)
+        self.assertEqual("FAIL", result["status"])
+        self.assertTrue(any("p95 ratio" in error for error in result["errors"]))
+
+    def test_synchronous_create_cannot_regress_more_than_fifteen_percent(self):
+        candidate = passing_result()
+        candidate["backends"]["native"]["cases"]["create_write.4096"]["p50_us"] = 116.0
+        result = evaluate_native_filesystem.evaluate(CONTRACT, candidate)
+        self.assertEqual("FAIL", result["status"])
+        self.assertTrue(any("p50 ratio" in error for error in result["errors"]))
+
+    def test_synchronous_overwrite_uses_same_fifteen_percent_tail_bound(self):
+        candidate = passing_result()
+        overwrite = candidate["backends"]["native"]["cases"]["middle_overwrite.65536"]
+        overwrite["p95_us"] = 114.9
+        self.assertEqual(
+            "PASS",
+            evaluate_native_filesystem.evaluate(CONTRACT, candidate)["status"],
+        )
+        overwrite["p95_us"] = 115.1
         result = evaluate_native_filesystem.evaluate(CONTRACT, candidate)
         self.assertEqual("FAIL", result["status"])
         self.assertTrue(any("p95 ratio" in error for error in result["errors"]))

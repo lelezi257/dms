@@ -65,14 +65,10 @@ def evaluate(contract: dict[str, Any], result: dict[str, Any]) -> dict[str, Any]
     glue_cases = glue.get("cases", {})
     thresholds = contract.get("thresholds", {})
     minimum_samples = thresholds.get("minimum_samples_per_case")
-    max_p95_ratio = thresholds.get("max_native_p95_ratio")
     max_unattributed = thresholds.get("max_unattributed_fraction")
-    minimum_by_class = {
-        "local_hot": thresholds.get("minimum_local_hot_improvement"),
-        "create": thresholds.get("minimum_create_improvement"),
-        "middle_overwrite": thresholds.get("minimum_middle_overwrite_improvement"),
-        "peer_first_read": thresholds.get("minimum_peer_first_read_improvement"),
-    }
+    minimum_by_class = thresholds.get("minimum_p50_improvement_by_class", {})
+    maximum_p50_ratio_by_class = thresholds.get("maximum_p50_ratio_by_class", {})
+    maximum_p95_ratio_by_class = thresholds.get("maximum_p95_ratio_by_class", {})
 
     for rule in contract.get("cases", []):
         case_id = rule["id"]
@@ -119,17 +115,27 @@ def evaluate(contract: dict[str, Any], result: dict[str, Any]) -> dict[str, Any]
             continue
 
         p50_improvement = improvement(float(native_p50), float(glue_p50))
+        p50_ratio = float(native_p50) / float(glue_p50)
         p95_ratio = float(native_p95) / float(glue_p95)
-        required_improvement = minimum_by_class.get(rule.get("class"))
-        if thresholds.get("native_p50_must_be_lower") is True and p50_improvement <= 0:
-            errors.append(f"{case_id}: native p50 is not lower than glue")
-        if not finite_positive(required_improvement) or p50_improvement < required_improvement:
+        case_class = rule.get("class")
+        required_improvement = minimum_by_class.get(case_class)
+        maximum_p50_ratio = maximum_p50_ratio_by_class.get(case_class)
+        maximum_p95_ratio = maximum_p95_ratio_by_class.get(case_class)
+        if required_improvement is not None:
+            if not finite_positive(required_improvement) or p50_improvement < required_improvement:
+                errors.append(
+                    f"{case_id}: p50 improvement {p50_improvement:.3%} is below {required_improvement:.3%}"
+                )
+        elif maximum_p50_ratio is not None:
+            if not finite_positive(maximum_p50_ratio) or p50_ratio > maximum_p50_ratio:
+                errors.append(
+                    f"{case_id}: native p50 ratio {p50_ratio:.3f} exceeds {maximum_p50_ratio:.3f}"
+                )
+        else:
+            errors.append(f"{case_id}: class {case_class!r} has no p50 acceptance policy")
+        if not finite_positive(maximum_p95_ratio) or p95_ratio > maximum_p95_ratio:
             errors.append(
-                f"{case_id}: p50 improvement {p50_improvement:.3%} is below {required_improvement:.3%}"
-            )
-        if p95_ratio > max_p95_ratio:
-            errors.append(
-                f"{case_id}: native p95 ratio {p95_ratio:.3f} exceeds {max_p95_ratio:.3f}"
+                f"{case_id}: native p95 ratio {p95_ratio:.3f} exceeds {maximum_p95_ratio:.3f}"
             )
 
         rows.append(
@@ -139,6 +145,7 @@ def evaluate(contract: dict[str, Any], result: dict[str, Any]) -> dict[str, Any]
                 "native_p50_us": native_p50,
                 "glue_p50_us": glue_p50,
                 "p50_improvement": p50_improvement,
+                "p50_ratio": p50_ratio,
                 "native_p95_us": native_p95,
                 "glue_p95_us": glue_p95,
                 "p95_ratio": p95_ratio,

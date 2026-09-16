@@ -13,6 +13,118 @@ use super::model::{
     InodeId, InodeKind, InodeSnapshot, InodeVersion, NamespaceMutationResult, RemoveKind,
     ResolvedInode, TimeUpdate, XattrSetMode,
 };
+use super::{
+    FileLockContractError, FileLockMode, FileLockOutcome, FileLockOwner, FileLockRange,
+    FileLockRequest, GrantedFileLock,
+};
+
+impl FileLockMode {
+    pub(crate) const fn to_proto(self) -> i32 {
+        match self {
+            Self::Shared => pb::FilesystemLockMode::Shared as i32,
+            Self::Exclusive => pb::FilesystemLockMode::Exclusive as i32,
+            Self::Unlock => pb::FilesystemLockMode::Unlock as i32,
+        }
+    }
+
+    pub(crate) fn from_proto(value: i32) -> Result<Self, FileLockContractError> {
+        match pb::FilesystemLockMode::try_from(value) {
+            Ok(pb::FilesystemLockMode::Shared) => Ok(Self::Shared),
+            Ok(pb::FilesystemLockMode::Exclusive) => Ok(Self::Exclusive),
+            Ok(pb::FilesystemLockMode::Unlock) => Ok(Self::Unlock),
+            _ => Err(FileLockContractError::InvalidMode),
+        }
+    }
+}
+
+pub(crate) fn lock_request_from_proto(
+    request: &pb::FilesystemLockRequest,
+    session: &pb::NodeSessionIdentity,
+) -> Result<FileLockRequest, FileLockContractError> {
+    let range = request
+        .range
+        .as_ref()
+        .ok_or(FileLockContractError::InvalidRange)?;
+    Ok(FileLockRequest {
+        request_id: request.request_id,
+        inode: request.inode,
+        owner: FileLockOwner {
+            node_id: session.node_id,
+            node_epoch: session.node_epoch,
+            lock_owner: request.lock_owner,
+        },
+        range: FileLockRange::new(range.start, range.end_inclusive)?,
+        mode: FileLockMode::from_proto(request.mode)?,
+        pid: request.pid,
+        wait: request.wait,
+    })
+}
+
+pub(crate) fn granted_lock_to_proto(
+    inode: InodeId,
+    lock: GrantedFileLock,
+) -> pb::FilesystemGrantedLock {
+    pb::FilesystemGrantedLock {
+        inode,
+        owner: Some(pb::FilesystemLockOwner {
+            node_id: lock.owner.node_id,
+            node_epoch: lock.owner.node_epoch,
+            lock_owner: lock.owner.lock_owner,
+        }),
+        range: Some(pb::FilesystemLockRange {
+            start: lock.range.start,
+            end_inclusive: lock.range.end_inclusive,
+        }),
+        mode: lock.mode.to_proto(),
+        pid: lock.pid,
+    }
+}
+
+pub(crate) fn granted_lock_from_proto(
+    lock: pb::FilesystemGrantedLock,
+    session: &pb::NodeSessionIdentity,
+) -> Result<(InodeId, GrantedFileLock), FileLockContractError> {
+    let owner = lock.owner.ok_or(FileLockContractError::InvalidMode)?;
+    let range = lock.range.ok_or(FileLockContractError::InvalidRange)?;
+    if owner.node_id != session.node_id || owner.node_epoch != session.node_epoch {
+        return Err(FileLockContractError::InvalidMode);
+    }
+    Ok((
+        lock.inode,
+        GrantedFileLock {
+            owner: FileLockOwner {
+                node_id: owner.node_id,
+                node_epoch: owner.node_epoch,
+                lock_owner: owner.lock_owner,
+            },
+            range: FileLockRange::new(range.start, range.end_inclusive)?,
+            mode: FileLockMode::from_proto(lock.mode)?,
+            pid: lock.pid,
+        },
+    ))
+}
+
+pub(crate) fn lock_outcome_to_proto(
+    inode: InodeId,
+    outcome: FileLockOutcome,
+    owner_revision: u64,
+) -> pb::FilesystemLockResponse {
+    let (status, conflict) = match outcome {
+        FileLockOutcome::Acquired => (pb::FilesystemLockStatus::Acquired, None),
+        FileLockOutcome::Released => (pb::FilesystemLockStatus::Released, None),
+        FileLockOutcome::Conflict(lock) => (
+            pb::FilesystemLockStatus::Conflict,
+            Some(granted_lock_to_proto(inode, lock)),
+        ),
+        FileLockOutcome::Interrupted => (pb::FilesystemLockStatus::Interrupted, None),
+        FileLockOutcome::RecoveryPending => (pb::FilesystemLockStatus::RecoveryPending, None),
+    };
+    pb::FilesystemLockResponse {
+        status: status as i32,
+        conflict,
+        owner_revision,
+    }
+}
 
 /// Meta 已经授权的精确对象读取计划。
 ///

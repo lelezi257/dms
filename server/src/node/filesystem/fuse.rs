@@ -11,6 +11,7 @@ use std::{
     ffi::OsStr,
     os::unix::ffi::OsStrExt,
     path::{Path, PathBuf},
+    sync::{Arc, Mutex},
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
@@ -18,24 +19,31 @@ use dms_error::{DmsError, ErrorKind};
 use dms_tracing::Instrument as _;
 use fuser::{
     BackgroundSession, FileAttr, FileType, Filesystem, KernelConfig, MountOption, ReplyAttr,
-    ReplyCreate, ReplyData, ReplyDirectory, ReplyEmpty, ReplyEntry, ReplyIoctl, ReplyOpen,
-    ReplyStatfs, ReplyWrite, ReplyXattr, Request, TimeOrNow, consts, fuse_forget_one,
+    ReplyCreate, ReplyData, ReplyDirectory, ReplyEmpty, ReplyEntry, ReplyIoctl, ReplyLock,
+    ReplyOpen, ReplyStatfs, ReplyWrite, ReplyXattr, Request, Session, TimeOrNow, consts,
+    fuse_forget_one,
 };
 use tokio::runtime::Handle;
 
 use super::SharedFileOperations;
+use super::kernel_cache::KernelCacheInvalidator;
+use super::meta_client::NodeFileLockRequest;
 use crate::filesystem::space_sync::{
     FileSpaceMutation, FileSpaceMutationRequest, FileSyncMode, SpaceRange,
 };
 use crate::filesystem::{
-    AttributePatch, FilesystemCaller, InodeAttributes, InodeKind, TimeUpdate, XattrSetMode,
+    AttributePatch, FileLockMode, FileLockOutcome, FileLockRange, FilesystemCaller,
+    InodeAttributes, InodeKind, TimeUpdate, XattrSetMode,
 };
 use crate::node::metrics::{FuseCallback, NodeMetrics};
 use crate::node::runtime::{NodeHandle, WorkerError};
 
 const TTL: Duration = Duration::from_secs(0);
 const BLOCK_SIZE: u32 = 4096;
-const FOPEN_DIRECT_IO: u32 = 1 << 0;
+// 常规文件必须允许 Linux kernel page cache 跨 open 保留，否则 mmap/read 的热路径
+// 会退化成每次重新进入 FUSE read。这里不能使用 DIRECT_IO，也不能启用 writeback；
+// 远端写入发布后由 Meta Watch → Node cache invalidate → FUSE notifier 显式失效。
+const REGULAR_FILE_OPEN_FLAGS: u32 = consts::FOPEN_KEEP_CACHE;
 
 /// 挂载后台 FUSE session。
 ///
@@ -45,6 +53,7 @@ pub(crate) fn start(
     mountpoint: PathBuf,
     node: NodeHandle,
     runtime: Handle,
+    kernel_cache: KernelCacheInvalidator,
 ) -> Result<BackgroundSession, Box<dyn std::error::Error>> {
     ensure_mountpoint(&mountpoint)?;
     let metrics = node.metrics();
@@ -56,10 +65,19 @@ pub(crate) fn start(
         // 常规读写权限由内核使用 getattr 返回的 uid/gid/mode 快速判断；Node/Meta
         // 仍会校验 chmod/chown/utimens，避免未来 Native API 绕开 FUSE 权限边界。
         MountOption::DefaultPermissions,
+        // Linux FUSE 默认只允许挂载进程的 uid 访问，这会让 inode 的 uid/gid/mode
+        // 语义失去意义。共享文件系统必须允许其它本机用户进入，再由
+        // default_permissions 与 Meta mutation authorization 执行真正的 POSIX 授权。
+        // 部署环境需要在 /etc/fuse.conf 启用 user_allow_other。
+        MountOption::AllowOther,
         // 首版不因普通 read 产生 metadata write amplification。显式 utimens 仍生效。
         MountOption::NoAtime,
     ];
-    fuser::spawn_mount2(fs, &mountpoint, &options).map_err(Into::into)
+    let session = Session::new(fs, &mountpoint, &options)?;
+    // 必须在后台 session 开始接收请求前安装 notifier。Meta Watch 只有在
+    // Node/FUSE cache 都成功失效后才 ACK；若这里还没安装，Watch 会断流重放。
+    kernel_cache.install(session.notifier());
+    BackgroundSession::new(session).map_err(Into::into)
 }
 
 fn ensure_mountpoint(path: &Path) -> Result<(), Box<dyn std::error::Error>> {
@@ -76,6 +94,52 @@ struct DmsFuse {
     metrics: NodeMetrics,
     next_directory_handle: u64,
     directory_handles: HashMap<u64, DirectoryHandle>,
+    /// FUSE unique id → Node 内部分配的 Meta mutation sequence。只记录仍在等待的
+    /// F_SETLKW；FUSE_INTERRUPT 用 kernel unique 做相关性查找，但取消 Meta waiter
+    /// 时必须使用内部 sequence，不能把不单调的 FUSE unique 传给 Meta floor/window。
+    pending_lock_waits: Arc<Mutex<HashMap<u64, PendingLockWait>>>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct PendingLockWait {
+    lock_owner: u64,
+    mutation_sequence: u64,
+}
+
+fn remember_pending_lock_wait(
+    pending_lock_waits: &Arc<Mutex<HashMap<u64, PendingLockWait>>>,
+    kernel_unique: u64,
+    pending: PendingLockWait,
+) {
+    pending_lock_waits
+        .lock()
+        .expect("pending lock wait registry")
+        .insert(kernel_unique, pending);
+}
+
+fn get_pending_lock_wait(
+    pending_lock_waits: &Arc<Mutex<HashMap<u64, PendingLockWait>>>,
+    kernel_unique: u64,
+) -> Option<PendingLockWait> {
+    pending_lock_waits
+        .lock()
+        .expect("pending lock wait registry")
+        .get(&kernel_unique)
+        .copied()
+}
+
+fn forget_pending_lock_wait(
+    pending_lock_waits: &Arc<Mutex<HashMap<u64, PendingLockWait>>>,
+    kernel_unique: u64,
+) {
+    pending_lock_waits
+        .lock()
+        .expect("pending lock wait registry")
+        .remove(&kernel_unique);
+}
+
+fn flush_lock_owner(lock_owner: u64) -> Option<u64> {
+    (lock_owner != 0).then_some(lock_owner)
 }
 
 /// 一次 `opendir` 到 `releasedir` 的枚举位置。
@@ -99,6 +163,7 @@ impl DmsFuse {
             metrics,
             next_directory_handle: 1,
             directory_handles: HashMap::new(),
+            pending_lock_waits: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 
@@ -127,7 +192,9 @@ impl Filesystem for DmsFuse {
         // 实际 open/read/write 仍只按 mode 位判断。内核不支持时拒绝挂载，避免提供
         // 看似成功、实际不生效的安全语义。
         config
-            .add_capabilities(consts::FUSE_POSIX_ACL)
+            .add_capabilities(
+                consts::FUSE_POSIX_ACL | consts::FUSE_POSIX_LOCKS | consts::FUSE_FLOCK_LOCKS,
+            )
             .map_err(|_| libc::ENOTSUP)
     }
 
@@ -521,7 +588,7 @@ impl Filesystem for DmsFuse {
             .runtime
             .block_on(self.files.open(ino, flags).instrument(span))
         {
-            Ok(opened) => reply.opened(opened.id, FOPEN_DIRECT_IO),
+            Ok(opened) => reply.opened(opened.id, REGULAR_FILE_OPEN_FLAGS),
             Err(error) => reply.error(worker_to_errno(error)),
         }
     }
@@ -560,7 +627,7 @@ impl Filesystem for DmsFuse {
                     &file_attr(&created.granted.inode.attributes),
                     0,
                     opened.id,
-                    FOPEN_DIRECT_IO,
+                    REGULAR_FILE_OPEN_FLAGS,
                 );
             }
             Err(error) => reply.error(worker_to_errno(error)),
@@ -760,10 +827,18 @@ impl Filesystem for DmsFuse {
         }
     }
 
-    fn flush(&mut self, _req: &Request, ino: u64, fh: u64, _owner: u64, reply: ReplyEmpty) {
+    fn flush(&mut self, _req: &Request, ino: u64, fh: u64, owner: u64, reply: ReplyEmpty) {
         self.metrics.record_fuse_callback(FuseCallback::Flush);
         let span = filesystem_span("dms.filesystem.flush", Some(ino));
-        match self.runtime.block_on(self.files.flush(fh).instrument(span)) {
+        match self.runtime.block_on(
+            async {
+                if let Some(lock_owner) = flush_lock_owner(owner) {
+                    self.files.release_lock_owner(lock_owner).await?;
+                }
+                self.files.flush(fh).await
+            }
+            .instrument(span),
+        ) {
             Ok(()) => reply.ok(),
             Err(error) => {
                 let errno = worker_to_errno(error);
@@ -845,19 +920,192 @@ impl Filesystem for DmsFuse {
         }
     }
 
+    fn getlk(
+        &mut self,
+        _req: &Request<'_>,
+        ino: u64,
+        _fh: u64,
+        lock_owner: u64,
+        start: u64,
+        end: u64,
+        typ: i32,
+        pid: u32,
+        reply: ReplyLock,
+    ) {
+        self.metrics.record_fuse_callback(FuseCallback::Getlk);
+        let Ok((range, mode)) = decode_file_lock(start, end, typ) else {
+            reply.error(libc::EINVAL);
+            return;
+        };
+        if mode == FileLockMode::Unlock {
+            reply.error(libc::EINVAL);
+            return;
+        }
+
+        let span = filesystem_span("dms.filesystem.getlk", Some(ino));
+        match self.runtime.block_on(
+            self.files
+                .test_lock(ino, lock_owner, range, mode, pid)
+                .instrument(span),
+        ) {
+            Ok(FileLockOutcome::Acquired) => reply.locked(start, end, libc::F_UNLCK, 0),
+            Ok(FileLockOutcome::Conflict(lock)) => reply.locked(
+                lock.range.start,
+                lock.range.end_inclusive,
+                encode_file_lock_mode(lock.mode),
+                lock.pid,
+            ),
+            Ok(FileLockOutcome::RecoveryPending) => reply.error(libc::EAGAIN),
+            Ok(FileLockOutcome::Interrupted) => reply.error(libc::EINTR),
+            Ok(FileLockOutcome::Released) => reply.error(libc::EIO),
+            Err(error) => reply.error(worker_to_errno(error)),
+        }
+    }
+
+    fn setlk(
+        &mut self,
+        req: &Request<'_>,
+        ino: u64,
+        _fh: u64,
+        lock_owner: u64,
+        start: u64,
+        end: u64,
+        typ: i32,
+        pid: u32,
+        sleep: bool,
+        reply: ReplyEmpty,
+    ) {
+        self.metrics.record_fuse_callback(FuseCallback::Setlk);
+        let Ok((range, mode)) = decode_file_lock(start, end, typ) else {
+            reply.error(libc::EINVAL);
+            return;
+        };
+
+        let files = self.files.clone();
+        let pending_lock_waits = self.pending_lock_waits.clone();
+        let span = filesystem_span("dms.filesystem.setlk", Some(ino));
+        let kernel_unique = req.unique();
+        let mutation_sequence = match files.allocate_lock_mutation_sequence() {
+            Ok(sequence) => sequence,
+            Err(error) => {
+                reply.error(worker_to_errno(error));
+                return;
+            }
+        };
+        if sleep {
+            remember_pending_lock_wait(
+                &pending_lock_waits,
+                kernel_unique,
+                PendingLockWait {
+                    lock_owner,
+                    mutation_sequence,
+                },
+            );
+        }
+        // F_SETLKW 可以等待另一个 Node 释放锁。FUSE dispatch 线程绝不能在这里
+        // block_on，否则同一挂载上的 unlock/release 也无法被处理，形成自锁。
+        self.runtime.spawn(
+            async move {
+                let result = files
+                    .set_lock(NodeFileLockRequest {
+                        mutation_sequence,
+                        inode: ino,
+                        lock_owner,
+                        range,
+                        mode,
+                        pid,
+                        wait: sleep,
+                    })
+                    .await;
+                if sleep {
+                    forget_pending_lock_wait(&pending_lock_waits, kernel_unique);
+                }
+                match result {
+                    Ok(FileLockOutcome::Acquired | FileLockOutcome::Released) => reply.ok(),
+                    Ok(FileLockOutcome::Conflict(_)) => reply.error(libc::EAGAIN),
+                    Ok(FileLockOutcome::RecoveryPending) => reply.error(libc::EAGAIN),
+                    Ok(FileLockOutcome::Interrupted) => reply.error(libc::EINTR),
+                    Err(error) => {
+                        let errno = worker_to_errno(error.clone());
+                        dms_logging::warn!(
+                            "blocking FUSE lock request failed";
+                            "event" => "node.fuse.setlk_failed",
+                            "kernel_unique" => kernel_unique,
+                            "mutation_sequence" => mutation_sequence,
+                            "lock_owner" => lock_owner,
+                            "errno" => errno,
+                            "error" => format!("{error:?}"),
+                        );
+                        reply.error(errno);
+                    }
+                }
+            }
+            .instrument(span),
+        );
+    }
+
+    fn interrupt(&mut self, _req: &Request<'_>, unique: u64, reply: ReplyEmpty) {
+        self.metrics.record_fuse_callback(FuseCallback::Interrupt);
+        dms_logging::debug!(
+            "received FUSE interrupt";
+            "event" => "node.fuse.interrupt_received",
+            "kernel_unique" => unique,
+        );
+        let Some(pending) = get_pending_lock_wait(&self.pending_lock_waits, unique) else {
+            // 与内核 FUSE_INTERRUPT 合同一致：原请求可能尚未进入 callback，或已经
+            // 完成。EAGAIN 让内核按竞态结果重试或忽略，而不是误取消其它请求。
+            dms_logging::debug!(
+                "FUSE interrupt did not match a pending lock";
+                "event" => "node.fuse.interrupt_not_found",
+                "kernel_unique" => unique,
+            );
+            reply.error(libc::EAGAIN);
+            return;
+        };
+        let files = self.files.clone();
+        self.runtime.spawn(async move {
+            match files
+                .cancel_lock_wait(pending.mutation_sequence, pending.lock_owner)
+                .await
+            {
+                Ok(true) => {
+                    dms_logging::debug!(
+                        "cancelled pending lock after FUSE interrupt";
+                        "event" => "node.fuse.interrupt_cancelled",
+                        "kernel_unique" => unique,
+                        "mutation_sequence" => pending.mutation_sequence,
+                        "lock_owner" => pending.lock_owner,
+                    );
+                    reply.ok()
+                }
+                Ok(false) => reply.error(libc::EAGAIN),
+                Err(error) => reply.error(worker_to_errno(error)),
+            }
+        });
+    }
+
     fn release(
         &mut self,
         _req: &Request,
         _ino: u64,
         fh: u64,
         _flags: i32,
-        _lock_owner: Option<u64>,
+        lock_owner: Option<u64>,
         _flush: bool,
         reply: ReplyEmpty,
     ) {
         self.metrics.record_fuse_callback(FuseCallback::Release);
         let span = filesystem_span("dms.filesystem.close", Some(_ino));
-        match self.runtime.block_on(self.files.close(fh).instrument(span)) {
+        let result = self.runtime.block_on(
+            async {
+                if let Some(lock_owner) = lock_owner {
+                    self.files.release_lock_owner(lock_owner).await?;
+                }
+                self.files.close(fh).await
+            }
+            .instrument(span),
+        );
+        match result {
             Ok(()) => reply.ok(),
             Err(error) => reply.error(worker_to_errno(error)),
         }
@@ -1006,6 +1254,25 @@ fn decode_fallocate(offset: i64, length: i64, mode: i32) -> Result<FileSpaceMuta
     Ok(FileSpaceMutationRequest::new(range, mutation))
 }
 
+fn decode_file_lock(start: u64, end: u64, typ: i32) -> Result<(FileLockRange, FileLockMode), i32> {
+    let mode = match typ {
+        libc::F_RDLCK => FileLockMode::Shared,
+        libc::F_WRLCK => FileLockMode::Exclusive,
+        libc::F_UNLCK => FileLockMode::Unlock,
+        _ => return Err(libc::EINVAL),
+    };
+    let range = FileLockRange::new(start, end).map_err(|_| libc::EINVAL)?;
+    Ok((range, mode))
+}
+
+fn encode_file_lock_mode(mode: FileLockMode) -> i32 {
+    match mode {
+        FileLockMode::Shared => libc::F_RDLCK,
+        FileLockMode::Exclusive => libc::F_WRLCK,
+        FileLockMode::Unlock => libc::F_UNLCK,
+    }
+}
+
 /// 把跨 Meta 边界保留下来的稳定错误语义翻译成 POSIX errno。
 ///
 /// 精确的文件系统错误优先按数字错误码映射；其它错误再按公共 `ErrorKind` 降级。
@@ -1043,6 +1310,43 @@ mod tests {
 
     fn stable_error(code: dms_error::ErrorCode, kind: ErrorKind) -> WorkerError {
         WorkerError::Stable(DmsError::new(code, kind, "test error"))
+    }
+
+    #[test]
+    fn regular_file_open_flags_keep_cache_without_direct_io() {
+        assert_ne!(REGULAR_FILE_OPEN_FLAGS & consts::FOPEN_KEEP_CACHE, 0);
+        assert_eq!(REGULAR_FILE_OPEN_FLAGS & consts::FOPEN_DIRECT_IO, 0);
+    }
+
+    #[test]
+    fn pending_lock_interrupt_maps_kernel_unique_to_meta_sequence() {
+        let pending_lock_waits = Arc::new(Mutex::new(HashMap::new()));
+        remember_pending_lock_wait(
+            &pending_lock_waits,
+            9_000,
+            PendingLockWait {
+                lock_owner: 7,
+                mutation_sequence: 2,
+            },
+        );
+
+        assert_eq!(
+            get_pending_lock_wait(&pending_lock_waits, 9_000),
+            Some(PendingLockWait {
+                lock_owner: 7,
+                mutation_sequence: 2,
+            })
+        );
+        assert_eq!(get_pending_lock_wait(&pending_lock_waits, 2), None);
+
+        forget_pending_lock_wait(&pending_lock_waits, 9_000);
+        assert_eq!(get_pending_lock_wait(&pending_lock_waits, 9_000), None);
+    }
+
+    #[test]
+    fn flush_releases_nonzero_lock_owner_and_ignores_zero_owner() {
+        assert_eq!(flush_lock_owner(0), None);
+        assert_eq!(flush_lock_owner(42), Some(42));
     }
 
     #[test]

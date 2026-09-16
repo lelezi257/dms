@@ -882,7 +882,7 @@ mod tests {
             .expect("bind writer peer");
         let writer_endpoint = format!("http://{}", peer_listener.local_addr().expect("peer addr"));
         let writer_metadata =
-            MetadataClient::connect(&meta_endpoint, 1, writer_endpoint.clone(), None)
+            MetadataClient::connect(&meta_endpoint, 1, writer_endpoint.clone(), None, false)
                 .await
                 .expect("writer meta");
         let writer = NodeHandle::spawn(
@@ -913,10 +913,15 @@ mod tests {
             .await
             .expect("writer set");
 
-        let reader_metadata =
-            MetadataClient::connect(&meta_endpoint, 2, "http://127.0.0.1:0".to_string(), None)
-                .await
-                .expect("reader meta");
+        let reader_metadata = MetadataClient::connect(
+            &meta_endpoint,
+            2,
+            "http://127.0.0.1:0".to_string(),
+            None,
+            false,
+        )
+        .await
+        .expect("reader meta");
         let reader = NodeHandle::spawn(
             "reader-node".to_string(),
             reader_metadata,

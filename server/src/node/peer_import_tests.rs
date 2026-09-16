@@ -537,9 +537,10 @@ async fn peer_import_owner_shutdown_cancels_child_without_waiting_for_network() 
             .await
             .unwrap();
     });
-    let metadata = MetadataClient::connect(&endpoint, 7, "http://127.0.0.1:19007".into(), None)
-        .await
-        .unwrap();
+    let metadata =
+        MetadataClient::connect(&endpoint, 7, "http://127.0.0.1:19007".into(), None, false)
+            .await
+            .unwrap();
     let registry = dms_metrics::registry();
     let metrics = NodeMetrics::register(&registry).unwrap();
     let rpc_metrics = dms_metrics::RpcMetrics::register(&registry).unwrap();

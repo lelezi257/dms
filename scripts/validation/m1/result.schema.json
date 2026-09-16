@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "dms.m1.acceptance-result.v1",
+  "title": "DMS M1 acceptance result",
+  "type": "object",
+  "required": ["schema", "purpose", "tier", "topology", "source", "environment", "cases"],
+  "properties": {
+    "schema": {"const": "dms.m1.acceptance-result.v1"},
+    "purpose": {"enum": ["discovery", "release"]},
+    "tier": {"enum": ["fast", "full"]},
+    "topology": {"enum": ["single-vm", "three-vm"]},
+    "source": {
+      "type": "object",
+      "required": ["commit", "dirty"],
+      "properties": {
+        "commit": {"type": "string", "minLength": 7},
+        "branch": {"type": "string"},
+        "dirty": {"type": "boolean"}
+      }
+    },
+    "environment": {
+      "type": "object",
+      "required": ["kernel", "arch", "profile"],
+      "properties": {
+        "kernel": {"type": "string", "minLength": 1},
+        "arch": {"type": "string", "minLength": 1},
+        "profile": {"type": "string", "minLength": 1}
+      }
+    },
+    "cases": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "status", "evidence"],
+        "properties": {
+          "id": {"type": "string", "minLength": 1},
+          "status": {"enum": ["PASS", "FAIL", "SKIP"]},
+          "duration_ms": {"type": "number", "minimum": 0},
+          "message": {"type": "string"},
+          "evidence": {"type": "array", "items": {"type": "string", "minLength": 1}}
+        }
+      }
+    }
+  }
+}

@@ -57,6 +57,7 @@ pub(crate) struct NodeMetrics {
     filesystem_binding_cache_lookups_total: IntCounterVec,
     filesystem_inode_references: IntGauge,
     filesystem_inode_reference_transitions_total: IntCounterVec,
+    filesystem_kernel_invalidations_total: IntCounterVec,
 }
 
 /// Node 本地 inode 引用状态机的低基数迁移。
@@ -118,6 +119,8 @@ pub(crate) enum FilesystemOperation {
     Setxattr,
     Removexattr,
     Statfs,
+    GetLock,
+    SetLock,
     Close,
 }
 
@@ -147,6 +150,8 @@ impl FilesystemOperation {
         Self::Setxattr,
         Self::Removexattr,
         Self::Statfs,
+        Self::GetLock,
+        Self::SetLock,
         Self::Close,
     ];
 
@@ -176,6 +181,8 @@ impl FilesystemOperation {
             Self::Setxattr => "setxattr",
             Self::Removexattr => "removexattr",
             Self::Statfs => "statfs",
+            Self::GetLock => "get_lock",
+            Self::SetLock => "set_lock",
             Self::Close => "close",
         }
     }
@@ -215,6 +222,9 @@ pub(crate) enum FuseCallback {
     Fsync,
     Fsyncdir,
     Fallocate,
+    Getlk,
+    Setlk,
+    Interrupt,
     Release,
 }
 
@@ -248,6 +258,9 @@ impl FuseCallback {
         Self::Fsync,
         Self::Fsyncdir,
         Self::Fallocate,
+        Self::Getlk,
+        Self::Setlk,
+        Self::Interrupt,
         Self::Release,
     ];
 
@@ -281,7 +294,33 @@ impl FuseCallback {
             Self::Fsync => "fsync",
             Self::Fsyncdir => "fsyncdir",
             Self::Fallocate => "fallocate",
+            Self::Getlk => "getlk",
+            Self::Setlk => "setlk",
+            Self::Interrupt => "interrupt",
             Self::Release => "release",
+        }
+    }
+}
+
+/// FUSE kernel page cache invalidation 的固定结果集合。
+///
+/// 只记录远端 Watch 触发的 kernel invalidation，不记录本地成功读写热路径。
+/// skipped 表示当前进程没有配置 FUSE mount 或当前构建没有 FUSE 能力。
+#[derive(Clone, Copy)]
+pub(crate) enum FilesystemKernelInvalidationResult {
+    Ok,
+    Skipped,
+    Error,
+}
+
+impl FilesystemKernelInvalidationResult {
+    const LIVE: &'static [Self] = &[Self::Ok, Self::Skipped, Self::Error];
+
+    const fn label(self) -> &'static str {
+        match self {
+            Self::Ok => "ok",
+            Self::Skipped => "skipped",
+            Self::Error => "error",
         }
     }
 }
@@ -783,6 +822,11 @@ impl NodeMetrics {
                 "Local inode reference state transitions by bounded transition type.",
                 &["transition"],
             )?,
+            filesystem_kernel_invalidations_total: counter_vec(
+                "dms_node_filesystem_kernel_invalidations_total",
+                "Remote filesystem invalidation events delivered to the Linux kernel page cache.",
+                &["result"],
+            )?,
         };
         metrics.register_all(registry)?;
         metrics.initialize_bounded_series();
@@ -862,6 +906,10 @@ impl NodeMetrics {
             self.filesystem_inode_reference_transitions_total
                 .with_label_values(&[transition.label()]);
         }
+        for result in FilesystemKernelInvalidationResult::LIVE {
+            self.filesystem_kernel_invalidations_total
+                .with_label_values(&[result.label()]);
+        }
     }
 
     fn register_all(&self, registry: &Registry) -> Result<(), MetricsError> {
@@ -909,6 +957,7 @@ impl NodeMetrics {
         register_collector(registry, &self.filesystem_binding_cache_lookups_total)?;
         register_collector(registry, &self.filesystem_inode_references)?;
         register_collector(registry, &self.filesystem_inode_reference_transitions_total)?;
+        register_collector(registry, &self.filesystem_kernel_invalidations_total)?;
         Ok(())
     }
 
@@ -1092,6 +1141,15 @@ impl NodeMetrics {
     ) {
         self.filesystem_inode_reference_transitions_total
             .with_label_values(&[transition.label()])
+            .inc();
+    }
+
+    pub(crate) fn record_filesystem_kernel_invalidation(
+        &self,
+        result: FilesystemKernelInvalidationResult,
+    ) {
+        self.filesystem_kernel_invalidations_total
+            .with_label_values(&[result.label()])
             .inc();
     }
 
@@ -1279,6 +1337,9 @@ mod tests {
         metrics.record_filesystem_dentry_cache_lookup(false);
         metrics.record_filesystem_binding_cache_lookup(true);
         metrics.record_filesystem_binding_cache_lookup(false);
+        metrics.record_filesystem_kernel_invalidation(FilesystemKernelInvalidationResult::Ok);
+        metrics.record_filesystem_kernel_invalidation(FilesystemKernelInvalidationResult::Skipped);
+        metrics.record_filesystem_kernel_invalidation(FilesystemKernelInvalidationResult::Error);
         let mut guard = metrics.begin_replica_operation(ReplicaOperation::Pull);
         guard.success_with_payload(ReplicaDirection::Send, 3);
         drop(guard);
@@ -1310,6 +1371,13 @@ mod tests {
         assert!(text.contains("dms_node_filesystem_binding_cache_lookups_total{result=\"hit\"} 1"));
         assert!(
             text.contains("dms_node_filesystem_binding_cache_lookups_total{result=\"miss\"} 1")
+        );
+        assert!(text.contains("dms_node_filesystem_kernel_invalidations_total{result=\"ok\"} 1"));
+        assert!(
+            text.contains("dms_node_filesystem_kernel_invalidations_total{result=\"skipped\"} 1")
+        );
+        assert!(
+            text.contains("dms_node_filesystem_kernel_invalidations_total{result=\"error\"} 1")
         );
         assert!(!text.contains("dms_node_views"));
     }

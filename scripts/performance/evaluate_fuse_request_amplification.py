@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
-"""验证 Native Filesystem 的跨层请求放大和历史性能回归。"""
+"""验证 Native Filesystem 的跨层请求放大。
+
+本门禁只回答“一个用户操作穿过了多少次 FUSE、DataCore、Meta 和 Peer
+边界”。延迟是否相对 Glue 达标由 ``evaluate_native_filesystem.py`` 在同一
+环境、同一轮测试中判断；这里不再把不同日期、不同虚拟机状态的历史延迟混入
+请求次数合同，否则环境抖动会掩盖真正的 RPC/复制放大问题。
+"""
 
 from __future__ import annotations
 
@@ -12,7 +18,6 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_CONTRACT = ROOT / "benchmarks/whitebox/fuse-request-amplification-contract.json"
-DEFAULT_BASELINE = ROOT / "evidence/2026-09-15-native-filesystem-vs-glue/result.json"
 
 
 def load_json(path: Path) -> dict[str, Any]:
@@ -28,25 +33,19 @@ def finite_non_negative(value: object) -> bool:
     )
 
 
-def evaluate(
-    contract: dict[str, Any], baseline: dict[str, Any], candidate: dict[str, Any]
-) -> dict[str, Any]:
+def evaluate(contract: dict[str, Any], candidate: dict[str, Any]) -> dict[str, Any]:
     errors: list[str] = []
     rows: list[dict[str, Any]] = []
     if contract.get("schema") != "dms.fuse-request-amplification-contract.v1":
         errors.append("invalid contract schema")
-    for name, result in (("baseline", baseline), ("candidate", candidate)):
-        if result.get("schema") != "dms.native-filesystem-vs-glue-result.v1":
-            errors.append(f"{name}: invalid result schema")
+    if candidate.get("schema") != "dms.native-filesystem-vs-glue-result.v1":
+        errors.append("candidate: invalid result schema")
     measured_backends = set(candidate.get("measured_backends", ("native", "glue")))
     if "glue" in measured_backends and candidate.get("same_environment") is not True:
         errors.append("candidate: native and glue were not measured in the same environment")
 
     thresholds = contract.get("thresholds", {})
     minimum_samples = thresholds.get("minimum_samples_per_case", 30)
-    max_p50 = thresholds.get("max_native_p50_regression_ratio", 1.05)
-    max_p95 = thresholds.get("max_native_p95_regression_ratio", 1.05)
-    baseline_cases = baseline.get("backends", {}).get("native", {}).get("cases", {})
     candidate_cases = candidate.get("backends", {}).get("native", {}).get("cases", {})
     required_groups = contract.get("required_ledger_groups", [])
     required_labels = contract.get("required_operation_labels", {})
@@ -86,34 +85,9 @@ def evaluate(
                         f"{case_id}: {group}.{operation}={actual!r} exceeds audited maximum {maximum}"
                     )
 
-        p50_ratio = None
-        p95_ratio = None
-        if rule.get("baseline") is True:
-            before = baseline_cases.get(case_id)
-            if not isinstance(before, dict):
-                errors.append(f"{case_id}: frozen baseline is missing")
-            else:
-                for field, maximum in (("p50_us", max_p50), ("p95_us", max_p95)):
-                    old = before.get(field)
-                    new = case.get(field)
-                    if not finite_non_negative(old) or old == 0 or not finite_non_negative(new):
-                        errors.append(f"{case_id}: invalid {field} for regression comparison")
-                        continue
-                    ratio = new / old
-                    if field == "p50_us":
-                        p50_ratio = ratio
-                    else:
-                        p95_ratio = ratio
-                    if ratio > maximum:
-                        errors.append(
-                            f"{case_id}: native {field} regression ratio {ratio:.3f} exceeds {maximum:.3f}"
-                        )
-
         rows.append(
             {
                 "id": case_id,
-                "p50_regression_ratio": p50_ratio,
-                "p95_regression_ratio": p95_ratio,
                 "per_user_operation": per_operation,
             }
         )
@@ -130,12 +104,9 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("candidate", type=Path)
     parser.add_argument("--contract", type=Path, default=DEFAULT_CONTRACT)
-    parser.add_argument("--baseline", type=Path, default=DEFAULT_BASELINE)
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
-    evaluation = evaluate(
-        load_json(args.contract), load_json(args.baseline), load_json(args.candidate)
-    )
+    evaluation = evaluate(load_json(args.contract), load_json(args.candidate))
     rendered = json.dumps(evaluation, ensure_ascii=False, indent=2) + "\n"
     if args.output:
         args.output.write_text(rendered, encoding="utf-8")

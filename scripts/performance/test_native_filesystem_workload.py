@@ -4,6 +4,7 @@ import tempfile
 from pathlib import Path
 import sys
 import unittest
+from unittest import mock
 
 
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -73,6 +74,66 @@ class NativeFilesystemWorkloadTest(unittest.TestCase):
     def test_harness_case_ids_are_stable_and_filterable(self):
         self.assertEqual("local_hot_read.4096", harness.workload_case_id("local-hot", 4096))
         self.assertEqual("readdir.root", harness.workload_case_id("readdir", None))
+
+    def test_harness_removes_only_its_remote_workspace(self):
+        instance = harness.Harness.__new__(harness.Harness)
+        instance.remote_base = "/tmp/dms-acceptance-run-1"
+        instance.shell = mock.Mock()
+
+        instance.cleanup_remote_workspace()
+
+        self.assertEqual(3, instance.shell.call_count)
+        for role, call in zip(("A", "B", "C"), instance.shell.call_args_list, strict=True):
+            self.assertEqual(role, call.args[0])
+            self.assertEqual("rm -rf -- /tmp/dms-acceptance-run-1", call.args[1])
+
+    def test_harness_collects_remote_logs_before_cleanup(self):
+        instance = harness.Harness.__new__(harness.Harness)
+        instance.remote_base = "/tmp/dms-acceptance-run-1"
+        instance.output = Path("/tmp/controller-evidence")
+        instance.shell = mock.Mock(
+            side_effect=[
+                mock.Mock(stdout="/tmp/dms-acceptance-run-1/a/service.log\n"),
+                mock.Mock(stdout=""),
+                mock.Mock(stdout=""),
+            ]
+        )
+        instance.copy_from = mock.Mock()
+
+        instance.collect_remote_logs()
+
+        instance.copy_from.assert_called_once_with(
+            "A",
+            "/tmp/dms-acceptance-run-1/a/service.log",
+            Path("/tmp/controller-evidence/remote-logs/a/a/service.log"),
+        )
+
+    def test_harness_records_log_collection_warning(self):
+        with tempfile.TemporaryDirectory() as raw:
+            instance = harness.Harness.__new__(harness.Harness)
+            instance.remote_base = "/tmp/dms-acceptance-run-1"
+            instance.output = Path(raw)
+            instance.shell = mock.Mock(side_effect=RuntimeError("ssh failed"))
+            instance.copy_from = mock.Mock()
+
+            instance.collect_remote_logs()
+
+            warnings = (Path(raw) / "cleanup-warnings.json").read_text(encoding="utf-8")
+            self.assertIn("list_remote_logs", warnings)
+            self.assertIn("ssh failed", warnings)
+
+    def test_harness_records_remote_cleanup_warning(self):
+        with tempfile.TemporaryDirectory() as raw:
+            instance = harness.Harness.__new__(harness.Harness)
+            instance.remote_base = "/tmp/dms-acceptance-run-1"
+            instance.output = Path(raw)
+            instance.shell = mock.Mock(side_effect=[None, RuntimeError("rm failed"), None])
+
+            instance.cleanup_remote_workspace()
+
+            warnings = (Path(raw) / "cleanup-warnings.json").read_text(encoding="utf-8")
+            self.assertIn("cleanup_remote_workspace", warnings)
+            self.assertIn("rm failed", warnings)
 
 
 if __name__ == "__main__":

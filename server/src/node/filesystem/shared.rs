@@ -15,15 +15,17 @@ use super::super::{
     runtime::{NodeHandle, WorkerError},
 };
 use super::dentry_cache::DentryLookup;
-use super::meta_client::{CreateInodeRequest, FilesystemMetaClient, FilesystemMetaGrpcClient};
+use super::meta_client::{
+    CreateInodeRequest, FilesystemMetaClient, FilesystemMetaGrpcClient, NodeFileLockRequest,
+};
 use super::open_handles::OpenHandle;
 use crate::filesystem::space_sync::{FileSpaceMutation, FileSpaceMutationRequest, FileSyncMode};
 use crate::filesystem::{
-    AttributePatch, CommitFileVersionRequest, CreateSymlinkRequest, DirectoryPage,
-    FilesystemCaller, FilesystemStats, InodeId, InodeKind, LinkEntryRequest,
-    NamespaceMutationResult, PreparedObjectVersion, ROOT_INODE, RemoveEntryRequest, RemoveKind,
-    RemoveXattrRequest, RenameEntryRequest, ReservationRangeChange, ResolvedInode,
-    SetAttributesRequest, SetXattrRequest, TimeUpdate, XattrSetMode,
+    AttributePatch, CommitFileVersionRequest, CreateSymlinkRequest, DirectoryPage, FileLockMode,
+    FileLockOutcome, FileLockRange, FilesystemCaller, FilesystemStats, InodeId, InodeKind,
+    LinkEntryRequest, NamespaceMutationResult, PreparedObjectVersion, ROOT_INODE,
+    RemoveEntryRequest, RemoveKind, RemoveXattrRequest, RenameEntryRequest, ReservationRangeChange,
+    ResolvedInode, SetAttributesRequest, SetXattrRequest, TimeUpdate, XattrSetMode,
 };
 use crate::node::metadata_client::digest;
 
@@ -558,6 +560,75 @@ impl SharedFileOperations {
             .await;
         metric.success();
         Ok(())
+    }
+
+    pub(crate) async fn test_lock(
+        &self,
+        inode: InodeId,
+        lock_owner: u64,
+        range: FileLockRange,
+        mode: FileLockMode,
+        pid: u32,
+    ) -> Result<FileLockOutcome, WorkerError> {
+        let mut metric = self
+            .metrics
+            .begin_filesystem_operation(FilesystemOperation::GetLock);
+        let result = self
+            .metadata
+            .test_lock(NodeFileLockRequest {
+                mutation_sequence: self.allocate_lock_mutation_sequence()?,
+                inode,
+                lock_owner,
+                range,
+                mode,
+                pid,
+                wait: false,
+            })
+            .await
+            .map_err(WorkerError::Stable)?;
+        metric.success();
+        Ok(result)
+    }
+
+    pub(crate) fn allocate_lock_mutation_sequence(&self) -> Result<u64, WorkerError> {
+        self.metadata
+            .allocate_lock_mutation_sequence()
+            .map_err(WorkerError::Stable)
+    }
+
+    pub(crate) async fn set_lock(
+        &self,
+        request: NodeFileLockRequest,
+    ) -> Result<FileLockOutcome, WorkerError> {
+        let mut metric = self
+            .metrics
+            .begin_filesystem_operation(FilesystemOperation::SetLock);
+        let result = self
+            .metadata
+            .set_lock(request)
+            .await
+            .map_err(WorkerError::Stable)?;
+        metric.success();
+        Ok(result)
+    }
+
+    pub(crate) async fn cancel_lock_wait(
+        &self,
+        request_id: u64,
+        lock_owner: u64,
+    ) -> Result<bool, WorkerError> {
+        self.metadata
+            .cancel_lock_wait(request_id, lock_owner)
+            .await
+            .map_err(WorkerError::Stable)
+    }
+
+    pub(crate) async fn release_lock_owner(&self, lock_owner: u64) -> Result<u64, WorkerError> {
+        let mutation_sequence = self.allocate_lock_mutation_sequence()?;
+        self.metadata
+            .release_lock_owner(mutation_sequence, lock_owner)
+            .await
+            .map_err(WorkerError::Stable)
     }
 
     /// 按 open handle 读取。binding cache 命中时不会访问 Meta；缺少本地 Block 时仍走

@@ -68,6 +68,11 @@ pub(crate) enum MetaOperation {
     FilesystemRemoveXattr,
     FilesystemStat,
     FilesystemCommitVersion,
+    FilesystemTestLock,
+    FilesystemSetLock,
+    FilesystemCancelLockWait,
+    FilesystemReleaseLockOwner,
+    FilesystemReclaimLocks,
     #[cfg(test)]
     Stats,
 }
@@ -104,6 +109,11 @@ impl MetaOperation {
         Self::FilesystemRemoveXattr,
         Self::FilesystemStat,
         Self::FilesystemCommitVersion,
+        Self::FilesystemTestLock,
+        Self::FilesystemSetLock,
+        Self::FilesystemCancelLockWait,
+        Self::FilesystemReleaseLockOwner,
+        Self::FilesystemReclaimLocks,
     ];
 
     pub(crate) const fn label(self) -> &'static str {
@@ -138,6 +148,11 @@ impl MetaOperation {
             Self::FilesystemRemoveXattr => "filesystem_remove_xattr",
             Self::FilesystemStat => "filesystem_stat",
             Self::FilesystemCommitVersion => "filesystem_commit_version",
+            Self::FilesystemTestLock => "filesystem_test_lock",
+            Self::FilesystemSetLock => "filesystem_set_lock",
+            Self::FilesystemCancelLockWait => "filesystem_cancel_lock_wait",
+            Self::FilesystemReleaseLockOwner => "filesystem_release_lock_owner",
+            Self::FilesystemReclaimLocks => "filesystem_reclaim_locks",
             #[cfg(test)]
             Self::Stats => "stats",
         }

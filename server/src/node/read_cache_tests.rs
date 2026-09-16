@@ -40,7 +40,7 @@ use super::{
     arena_manager::HostReceipt,
     consume_meta_events,
     data_core::{ByteRange, DataCoreHandle, ObjectKey, ReadOptions, VersionSelector},
-    filesystem::{FileOperations, SharedFileOperations},
+    filesystem::{FileOperations, SharedFileOperations, kernel_cache::KernelCacheInvalidator},
     image::ImageReader,
     metadata_client::MetadataClient,
     peer_service::PeerServiceHandler,
@@ -544,6 +544,41 @@ impl FilesystemMetadataService for CountingFilesystemMetaService {
         }
         Ok(response)
     }
+
+    async fn test_filesystem_lock(
+        &self,
+        request: Request<pb::FilesystemLockRequest>,
+    ) -> Result<Response<pb::FilesystemLockResponse>, Status> {
+        self.inner.test_filesystem_lock(request).await
+    }
+
+    async fn set_filesystem_lock(
+        &self,
+        request: Request<pb::FilesystemLockRequest>,
+    ) -> Result<Response<pb::FilesystemLockResponse>, Status> {
+        self.inner.set_filesystem_lock(request).await
+    }
+
+    async fn cancel_filesystem_lock_wait(
+        &self,
+        request: Request<pb::FilesystemCancelLockWaitRequest>,
+    ) -> Result<Response<pb::FilesystemLockMutationResponse>, Status> {
+        self.inner.cancel_filesystem_lock_wait(request).await
+    }
+
+    async fn release_filesystem_lock_owner(
+        &self,
+        request: Request<pb::FilesystemReleaseLockOwnerRequest>,
+    ) -> Result<Response<pb::FilesystemLockMutationResponse>, Status> {
+        self.inner.release_filesystem_lock_owner(request).await
+    }
+
+    async fn reclaim_filesystem_locks(
+        &self,
+        request: Request<pb::FilesystemReclaimLocksRequest>,
+    ) -> Result<Response<pb::FilesystemLockMutationResponse>, Status> {
+        self.inner.reclaim_filesystem_locks(request).await
+    }
 }
 
 struct CountingMetaServer {
@@ -803,9 +838,10 @@ impl TestNode {
             .as_ref()
             .map(|(endpoint, _)| endpoint.clone())
             .unwrap_or_else(|| format!("http://127.0.0.1:{}", 19_200 + node_id));
-        let metadata = MetadataClient::connect(meta_endpoint, node_id, advertised_endpoint, None)
-            .await
-            .expect("connect Meta");
+        let metadata =
+            MetadataClient::connect(meta_endpoint, node_id, advertised_endpoint, None, false)
+                .await
+                .expect("connect Meta");
         let registry = dms_metrics::registry();
         let node = NodeHandle::spawn_with_metrics(
             format!("test-node-{node_id}"),
@@ -843,6 +879,7 @@ impl TestNode {
             node_id,
             Some(initial_watch),
             acked_cursor.clone(),
+            KernelCacheInvalidator::disabled(node.metrics()),
         ));
         let heartbeat_task =
             tokio::spawn(send_meta_heartbeats(metadata, node.clone(), acked_cursor));
@@ -1467,6 +1504,7 @@ async fn filesystem_random_write_uses_core_range_semantics() {
         91,
         "http://127.0.0.1:20991".to_string(),
         None,
+        false,
     )
     .await
     .expect("connect Meta inspector");

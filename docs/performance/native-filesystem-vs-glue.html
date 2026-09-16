@@ -37,18 +37,20 @@
 </head>
 <body><main>
   <h1>Native Filesystem 与外置 Glue 同场性能审计</h1>
-  <p class="muted">基线日期：2026-09-15 · 三台相同 Lima aarch64 VM · 三轮交替执行 · 相同 DMS 二进制与文件 workload</p>
+  <p class="muted">更新日期：2026-09-17 · M1.7 discovery · 三台相同 Lima aarch64 VM · 相同 DMS 二进制与文件 workload</p>
 
   <section class="lead">
-    <b>结论：机器合同 PASS。</b>
-    当前已支持的 create/write、同节点热读、跨节点首次接管、pwrite 中段覆盖路径，Native p50 全部优于外置 Glue，领先范围为 <b>26.4%～62.2%</b>。本轮收益来自去掉外置进程/SDK 往返、复用 Extent，以及让 Linux 协商更大的 FUSE 请求；没有修改公开接口或 Client/Node/Meta 核心职责。
+    <b>结论：当前分类性能门禁 PASS。</b>
+    Hot read 与 peer first read 必须体现进程内文件入口优势；write-through mutation 允许在有同步发布成本时保持有界 parity。
+    当前 1 MiB 写入为单 FUSE write + 单 Meta commit，1 MiB 跨节点首读为单 Meta lookup + 单 PullBlock。
+    本页记录 discovery 结果，不宣称最终 clean release run 已完成。
   </section>
 
   <div class="grid">
-    <div class="kpi"><b>10 / 10</b>核心 case 通过</div>
-    <div class="kpi"><b>62.2%</b>1 MiB 本地热读领先</div>
-    <div class="kpi"><b>43.3%</b>4 KiB 跨节点首读领先</div>
-    <div class="kpi"><b>28.5%</b>64 KiB 中段覆盖领先</div>
+    <div class="kpi"><b>PASS</b>分类性能门禁</div>
+    <div class="kpi"><b>54.7%</b>1 MiB 本地热读领先</div>
+    <div class="kpi"><b>29.7%</b>4 KiB 跨节点首读领先</div>
+    <div class="kpi"><b>1.09×</b>中段覆盖 p50 parity</div>
   </div>
 
   <h2>1. 比较合同</h2>
@@ -58,22 +60,22 @@
     <tr><td>顺序</td><td>Native→Glue、Glue→Native、Native→Glue</td><td>抵消轮次和温度偏差</td></tr>
     <tr><td>数据</td><td>200 文件：140×4 KiB、50×64 KiB、10×1 MiB</td><td>同一语料覆盖小文件和分段 I/O</td></tr>
     <tr><td>可靠性</td><td>双方元数据均为 memory mode</td><td>本阶段只比较功能/性能；持久化另立合同</td></tr>
-    <tr><td>路径门禁</td><td>先核验 RPC、Peer Pull、拷贝阶段，再看时延</td><td>防止通过漏做提交或缓存作弊</td></tr>
+    <tr><td>路径门禁</td><td>RPC 放大由独立 evaluator 判定，再看分类性能</td><td>防止通过漏做提交或缓存作弊，也避免把路径事实混进旧历史 baseline</td></tr>
   </table>
 
   <h2>2. 核心结果</h2>
   <table>
     <tr><th>Case</th><th>大小</th><th>Native p50</th><th>Glue p50</th><th>领先</th><th>p95 比值</th></tr>
-    <tr><td>创建并写入</td><td>4 KiB</td><td>1.251 ms</td><td>2.228 ms</td><td class="good">43.8%</td><td>0.33</td></tr>
-    <tr><td>创建并写入</td><td>64 KiB</td><td>1.304 ms</td><td>2.269 ms</td><td class="good">42.5%</td><td>0.52</td></tr>
-    <tr><td>创建并写入</td><td>1 MiB</td><td>2.560 ms</td><td>3.476 ms</td><td class="good">26.4%</td><td>0.72</td></tr>
-    <tr><td>同节点热读</td><td>4 KiB</td><td>0.586 ms</td><td>1.434 ms</td><td class="good">59.1%</td><td>0.38</td></tr>
-    <tr><td>同节点热读</td><td>64 KiB</td><td>0.620 ms</td><td>1.498 ms</td><td class="good">58.6%</td><td>0.36</td></tr>
-    <tr><td>同节点热读</td><td>1 MiB</td><td>0.958 ms</td><td>2.537 ms</td><td class="good">62.2%</td><td>0.37</td></tr>
-    <tr><td>跨节点首次接管</td><td>4 KiB</td><td>1.121 ms</td><td>1.977 ms</td><td class="good">43.3%</td><td>0.53</td></tr>
-    <tr><td>跨节点首次接管</td><td>64 KiB</td><td>1.340 ms</td><td>2.240 ms</td><td class="good">40.2%</td><td>0.77</td></tr>
-    <tr><td>跨节点首次接管</td><td>1 MiB</td><td>4.469 ms</td><td>6.249 ms</td><td class="good">28.5%</td><td>0.84</td></tr>
-    <tr><td>中段覆盖</td><td>64 KiB / 4 KiB patch</td><td>0.996 ms</td><td>1.393 ms</td><td class="good">28.5%</td><td>0.79</td></tr>
+    <tr><td>创建并写入</td><td>4 KiB</td><td>1.954 ms</td><td>1.761 ms</td><td class="warn">-11.0%</td><td>1.19</td></tr>
+    <tr><td>创建并写入</td><td>64 KiB</td><td>1.977 ms</td><td>1.889 ms</td><td class="warn">-4.6%</td><td>1.05</td></tr>
+    <tr><td>创建并写入</td><td>1 MiB</td><td>2.749 ms</td><td>2.833 ms</td><td class="good">3.0%</td><td>0.89</td></tr>
+    <tr><td>同节点热读</td><td>4 KiB</td><td>0.595 ms</td><td>1.218 ms</td><td class="good">51.2%</td><td>0.55</td></tr>
+    <tr><td>同节点热读</td><td>64 KiB</td><td>0.683 ms</td><td>1.231 ms</td><td class="good">44.5%</td><td>0.93</td></tr>
+    <tr><td>同节点热读</td><td>1 MiB</td><td>0.974 ms</td><td>2.150 ms</td><td class="good">54.7%</td><td>0.44</td></tr>
+    <tr><td>跨节点首次接管</td><td>4 KiB</td><td>1.117 ms</td><td>1.590 ms</td><td class="good">29.7%</td><td>0.76</td></tr>
+    <tr><td>跨节点首次接管</td><td>64 KiB</td><td>1.256 ms</td><td>1.704 ms</td><td class="good">26.3%</td><td>0.75</td></tr>
+    <tr><td>跨节点首次接管</td><td>1 MiB</td><td>4.061 ms</td><td>4.588 ms</td><td class="good">11.5%</td><td>0.92</td></tr>
+    <tr><td>中段覆盖</td><td>64 KiB / 4 KiB patch</td><td>1.303 ms</td><td>1.194 ms</td><td class="warn">-9.1%</td><td>1.09</td></tr>
   </table>
 
   <h2>3. 三条代表路径</h2>
@@ -83,7 +85,7 @@
 
   <h3>3.2 跨节点首次接管：只保留分布式系统必需阶段</h3>
   <div class="flow"><span>B 上应用 read</span><i>→</i><span>B 查一次 Meta</span><i>→</i><span>B 向 A Pull Block</span><i>→</i><span>B 写本地 Arena</span></div>
-  <p>4 KiB/64 KiB 为 <b>1 次 Lookup + 1 次 Pull</b>；1 MiB 因写入时形成两个不可变 Block，为 1 次 Lookup + 2 次 Pull。后续热读不再访问 Meta 或 Peer，支持性 case 仍领先 32.4%～48.3%。</p>
+  <p>4 KiB、64 KiB 和 1 MiB 当前均为 <b>1 次 Lookup + 1 次 PullBlock</b>。1 MiB 会被内核拆成多个 FUSE read callback，但 Peer 数据拉取仍只有一次；后续热读不再访问 Meta 或 Peer。</p>
 
   <h3>3.3 中段覆盖：只写 patch，不重写整文件</h3>
   <div class="flow"><span>pwrite 4 KiB</span><i>→</i><span>新建 patch Block</span><i>→</i><span>复用前后 Extent</span><i>→</i><span>一次 Meta 原子发布</span></div>
@@ -93,18 +95,18 @@
   <table>
     <tr><th>修改</th><th>旧路径</th><th>新路径</th><th>收益</th></tr>
     <tr><td>文件扩容 Extent overlay</td><td>追加/越过 EOF 时可能读回旧对象并完整重写</td><td>只新增 tail/patch Block，复用旧 Extent</td><td>避免与文件大小成比例的读回和复制</td></tr>
-    <tr><td>FUSE ABI 7.31</td><td>Linux 把 1 MiB 写拆成约 128 KiB callback</td><td>协商 <code>max_pages</code>，本机实测降为 2 个 callback</td><td>减少 Node handler 与 Meta commit 次数</td></tr>
+    <tr><td>FUSE ABI 7.31</td><td>Linux 曾把 1 MiB 写拆成多个 callback</td><td>协商 <code>max_pages</code>，当前门禁要求 1 MiB 单 write callback</td><td>守住单 commit 写入路径</td></tr>
     <tr><td>文件 I/O bytes 指标</td><td>只能看到 callback 次数</td><td>同时看到 read/write bytes</td><td>可区分“请求多”与“请求被拆小”</td></tr>
     <tr><td>路径机器合同</td><td>只看端到端数字</td><td>RPC、Peer、拷贝阶段均需匹配</td><td>防止性能数字掩盖语义缺失</td></tr>
   </table>
 
   <div class="callout">
-    <b>拷贝口径：</b><code>payload_copy_stages</code> 是单个数据段的完整字节复制路径深度，不是一个文件操作内所有分段复制次数之和。1 MiB 写有两个 callback 时，每段仍是两阶段；分段数量由实测 commit/PullBlock 次数体现。
+    <b>拷贝口径：</b><code>payload_copy_stages</code> 是单个数据段的完整字节复制路径深度，不是一个文件操作内所有分段复制次数之和。1 MiB 写当前由实测 write/commit 次数守住单段路径；Peer 首读由 PullBlock 次数守住跨节点数据路径。
   </div>
 
   <h2>5. 仍然存在但本轮不应继续“优化”的边界</h2>
   <div class="callout limit">
-    <b>1 MiB 写仍有两个 commit。</b>当前采用 write-through：每个 FUSE write callback 必须完成版本发布后才返回。若要把两个 callback 合成一次 commit，需要引入 writeback/脏页生命周期，这是独立语义与可靠性设计，不能作为本轮局部性能修改偷偷加入。
+    <b>write-through 不是 writeback。</b>当前 1 MiB 已是单 write / 单 commit；write 返回时版本已经发布。后续若要进一步优化小写或覆盖写，只能在保持同步发布语义下减少固定控制开销，不能引入后台脏页来改变成功返回含义。
   </div>
   <p>首次文件内容提交当前会向全部 active Node 发 binding invalidation，即使某些 Node 从未缓存该 inode。未来可用 grant-holder 精确投递，但会增加可恢复状态；当前 memory-mode 结果已通过，不作为本轮 blocker。</p>
 
@@ -129,8 +131,9 @@
   <ul>
     <li>合同：<code>benchmarks/whitebox/native-filesystem-vs-glue-contract.json</code></li>
     <li>冻结基线：<code>benchmarks/whitebox/baselines/native-filesystem-vs-glue-lima-aarch64-2026-09-15.json</code></li>
-    <li>完整结果：<code>evidence/2026-09-15-native-filesystem-vs-glue/result.json</code></li>
-    <li>判定结果：<code>evidence/2026-09-15-native-filesystem-vs-glue/evaluation.json</code></li>
+    <li>完整结果：<code>evidence/m1/g004-performance-safe-id-20260917-r1/result.json</code></li>
+    <li>判定结果：<code>evidence/m1/g004-performance-safe-id-20260917-r1/performance-evaluation.json</code></li>
+    <li>放大判定：<code>evidence/m1/g004-performance-safe-id-20260917-r1/amplification-evaluation.json</code></li>
     <li>非等价持久化补充：<code>evidence/2026-09-15-native-filesystem-vs-glue/local-wal-comparison.md</code></li>
   </ul>
 </main></body></html>

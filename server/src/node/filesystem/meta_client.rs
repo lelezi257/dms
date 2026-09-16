@@ -13,8 +13,9 @@ use dms_protocol::v1 as pb;
 
 use crate::filesystem::{
     AttributeMutationResult, AttributePatch, CommitFileVersionRequest, CommitFileVersionResult,
-    CreateSymlinkRequest, DentrySnapshot, DirectoryGrant, DirectoryPage, FilesystemCaller,
-    FilesystemStats, InodeId, InodeKind, LinkEntryRequest, NamespaceMutationResult,
+    CreateSymlinkRequest, DentrySnapshot, DirectoryGrant, DirectoryPage, FileLockMode,
+    FileLockOutcome, FileLockOwner, FileLockRange, FilesystemCaller, FilesystemStats,
+    GrantedFileLock, InodeId, InodeKind, LinkEntryRequest, NamespaceMutationResult,
     RemoveEntryRequest, RemoveXattrRequest, RenameEntryRequest, ResolvedInode,
     SetAttributesRequest, SetXattrRequest, TimeUpdate, attribute_patch_to_proto,
     attribute_result_from_proto, caller_to_proto, dentry_from_proto, directory_grant_from_proto,
@@ -49,6 +50,19 @@ pub(crate) struct ResolvedDentry {
 pub(crate) struct LookupDentry {
     pub(crate) resolved: Option<ResolvedDentry>,
     pub(crate) directory_grant: Option<DirectoryGrant>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct NodeFileLockRequest {
+    /// Node session 内部分配的全局严格单调 mutation sequence。FUSE `unique`
+    /// 只作为内核相关性 ID，不允许直接进入 Meta 幂等窗口。
+    pub(crate) mutation_sequence: u64,
+    pub(crate) inode: InodeId,
+    pub(crate) lock_owner: u64,
+    pub(crate) range: FileLockRange,
+    pub(crate) mode: FileLockMode,
+    pub(crate) pid: u32,
+    pub(crate) wait: bool,
 }
 
 /// Node 文件模块唯一的 Node→Meta 业务接口。
@@ -120,6 +134,14 @@ pub(crate) trait FilesystemMetaClient: Send + Sync {
     -> DmsResult<AttributeMutationResult>;
 
     async fn stat_filesystem(&self) -> DmsResult<FilesystemStats>;
+
+    async fn test_lock(&self, request: NodeFileLockRequest) -> DmsResult<FileLockOutcome>;
+
+    async fn set_lock(&self, request: NodeFileLockRequest) -> DmsResult<FileLockOutcome>;
+
+    async fn cancel_lock_wait(&self, request_id: u64, lock_owner: u64) -> DmsResult<bool>;
+
+    async fn release_lock_owner(&self, mutation_sequence: u64, lock_owner: u64) -> DmsResult<u64>;
 }
 
 /// 复用 Node 已建立的 Meta HTTP/2 Channel、Session 和 commit sequence。
@@ -139,6 +161,10 @@ impl FilesystemMetaGrpcClient {
     pub(crate) async fn local_node_identity(&self) -> (u64, u64) {
         let identity = self.metadata.local_replica_identity().await;
         (identity.node_id, identity.node_epoch)
+    }
+
+    pub(crate) fn allocate_lock_mutation_sequence(&self) -> DmsResult<u64> {
+        self.metadata.allocate_filesystem_lock_mutation_sequence()
     }
 }
 
@@ -551,6 +577,95 @@ impl FilesystemMetaClient for FilesystemMetaGrpcClient {
             .filesystem_stat()
             .await
             .map(filesystem_stats_from_proto)
+    }
+
+    async fn test_lock(&self, request: NodeFileLockRequest) -> DmsResult<FileLockOutcome> {
+        let inode = request.inode;
+        self.metadata
+            .filesystem_test_lock(lock_request_to_proto(request))
+            .await
+            .and_then(|response| lock_outcome_from_proto(inode, response))
+    }
+
+    async fn set_lock(&self, request: NodeFileLockRequest) -> DmsResult<FileLockOutcome> {
+        let inode = request.inode;
+        self.metadata
+            .filesystem_set_lock(lock_request_to_proto(request))
+            .await
+            .and_then(|response| lock_outcome_from_proto(inode, response))
+    }
+
+    async fn cancel_lock_wait(&self, request_id: u64, lock_owner: u64) -> DmsResult<bool> {
+        self.metadata
+            .filesystem_cancel_lock_wait(request_id, lock_owner)
+            .await
+            .map(|affected| affected != 0)
+    }
+
+    async fn release_lock_owner(&self, mutation_sequence: u64, lock_owner: u64) -> DmsResult<u64> {
+        self.metadata
+            .filesystem_release_lock_owner(mutation_sequence, lock_owner)
+            .await
+    }
+}
+
+fn lock_request_to_proto(request: NodeFileLockRequest) -> pb::FilesystemLockRequest {
+    pb::FilesystemLockRequest {
+        context: None,
+        session: None,
+        request_id: request.mutation_sequence,
+        inode: request.inode,
+        lock_owner: request.lock_owner,
+        range: Some(pb::FilesystemLockRange {
+            start: request.range.start,
+            end_inclusive: request.range.end_inclusive,
+        }),
+        mode: request.mode.to_proto(),
+        pid: request.pid,
+        wait: request.wait,
+    }
+}
+
+fn lock_outcome_from_proto(
+    inode: InodeId,
+    response: pb::FilesystemLockResponse,
+) -> DmsResult<FileLockOutcome> {
+    match pb::FilesystemLockStatus::try_from(response.status) {
+        Ok(pb::FilesystemLockStatus::Acquired) => Ok(FileLockOutcome::Acquired),
+        Ok(pb::FilesystemLockStatus::Released) => Ok(FileLockOutcome::Released),
+        Ok(pb::FilesystemLockStatus::Interrupted) => Ok(FileLockOutcome::Interrupted),
+        Ok(pb::FilesystemLockStatus::RecoveryPending) => Ok(FileLockOutcome::RecoveryPending),
+        Ok(pb::FilesystemLockStatus::Conflict) => {
+            let conflict = response.conflict.ok_or_else(missing_filesystem_response)?;
+            let owner = conflict.owner.ok_or_else(missing_filesystem_response)?;
+            let range = conflict.range.ok_or_else(missing_filesystem_response)?;
+            if conflict.inode != inode {
+                return Err(missing_filesystem_response());
+            }
+            Ok(FileLockOutcome::Conflict(GrantedFileLock {
+                owner: FileLockOwner {
+                    node_id: owner.node_id,
+                    node_epoch: owner.node_epoch,
+                    lock_owner: owner.lock_owner,
+                },
+                range: FileLockRange::new(range.start, range.end_inclusive).map_err(|error| {
+                    DmsError::new(
+                        dms_error::NODE_METADATA_UNAVAILABLE,
+                        ErrorKind::Unavailable,
+                        format!("invalid Meta lock range: {error:?}"),
+                    )
+                })?,
+                mode: FileLockMode::from_proto(conflict.mode).map_err(|error| {
+                    DmsError::new(
+                        dms_error::NODE_METADATA_UNAVAILABLE,
+                        ErrorKind::Unavailable,
+                        format!("invalid Meta lock mode: {error:?}"),
+                    )
+                })?,
+                pid: conflict.pid,
+            }))
+        }
+        _ => Err(missing_filesystem_response()),
     }
 }
 

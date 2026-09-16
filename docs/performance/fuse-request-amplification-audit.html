@@ -19,44 +19,44 @@
 </head>
 <body><main>
   <h1>Native Filesystem FUSE 请求放大审计</h1>
-  <p class="muted">2026-09-15 · 5 轮交替 · 三台相同 Lima aarch64 VM · Native 与外置 Glue 同场</p>
+  <p class="muted">2026-09-17 · M1.7 discovery · 三台相同 Lima aarch64 VM · 当前分类性能门禁与独立 RPC 放大门禁</p>
 
   <section class="lead">
-    <b>结论：两个机器验收器均 PASS。</b>
-    当前已覆盖 lookup、getattr、open/close、readdir、完整写、热读、跨节点首读和 pwrite。
-    没有发现可在保持公开接口、一致性和 write-through 语义下删除的 P0/P1 RPC 或完整字节复制；
-    同节点热路径为 0 Meta、0 Peer，跨节点首读只保留一次位置解析和每个缺失 Block 一次 Pull。
+    <b>结论：当前 M1.7 discovery 门禁 PASS。</b>
+    现行门禁已经拆成两类：性能分类门禁只判断各类场景是否达到合同，RPC 放大门禁只判断 FUSE/DataCore/Meta/Peer
+    次数和字节是否越界。1 MiB 写入当前是 1 次 FUSE write + 1 次 Meta commit；1 MiB 跨节点首读当前是
+    1 次 Meta lookup + 1 次 PullBlock。本文不是最终 clean release 结果。
   </section>
 
   <div class="grid">
-    <div class="kpi"><b>19</b>个行为/尺寸 Case</div>
-    <div class="kpi"><b>16</b>个历史性能 Case 无回归</div>
+    <div class="kpi"><b>独立</b>性能 / 放大两类门禁</div>
+    <div class="kpi"><b>1 / 1</b>1 MiB write / commit</div>
     <div class="kpi"><b>0 / 0</b>热读 Meta / Peer RPC</div>
-    <div class="kpi"><b>22.4%～65.7%</b>核心 p50 领先 Glue</div>
+    <div class="kpi"><b>1</b>Peer 首读 PullBlock</div>
   </div>
 
-  <h2>1. 这次把什么举一反三了</h2>
-  <p>之前只知道“大请求分段数减少后会变快”。现在不再靠某个配置名判断，而是对每个用户操作建立统一账本：</p>
+  <h2>1. 当前门禁检查什么</h2>
+  <p>不再把“端到端时延”和“路径是否放大”混成一个历史 baseline。每个用户操作先生成统一账本：</p>
   <div class="flow"><span>POSIX 操作</span><i>→</i><span>FUSE callback</span><i>→</i><span>文件业务操作</span><i>→</i><span>DataCore</span><i>→</i><span>Meta / Peer</span></div>
-  <p>每层同时记录次数；read/write 和 DataCore 额外记录字节。验收器按 Case 冻结允许上限，后续无论 FUSE ABI、内核、actor 或缓存如何改，只要产生额外 callback、RPC、Block Pull 或整段复制就会失败。</p>
+  <p>每层同时记录次数；read/write 和 DataCore 额外记录字节。RPC 放大验收器只看账本是否超过合同上限；性能验收器另行按 create、hot read、peer first read、overwrite 等类别判定，不再复用旧的 5% 历史回归口径。</p>
 
   <h2>2. 代表性实测账本</h2>
   <table>
-    <tr><th>用户操作</th><th>Native p50 / p95</th><th>FUSE callback</th><th>DataCore</th><th>Meta</th><th>Peer</th><th>判断</th></tr>
-    <tr><td><code>stat(4 KiB)</code></td><td>124.9 / 147.5 µs</td><td>lookup 1 + getattr 1</td><td>0</td><td>0</td><td>0</td><td class="good">纯元数据本地命中</td></tr>
-    <tr><td><code>open + close</code></td><td>152.4 / 205.1 µs</td><td>lookup 1 + open 1 + flush 1 + release 1</td><td>0</td><td>0</td><td>0</td><td class="good">没有偷读 payload</td></tr>
-    <tr><td><code>readdir(200 项)</code></td><td>212.4 / 247.8 µs</td><td>root getattr 1 + readdir 4</td><td>0</td><td>0</td><td>0</td><td>4 次来自内核回复缓冲分页</td></tr>
-    <tr><td><code>read(4 KiB)</code> 热</td><td>466.3 / 533.7 µs</td><td>lookup 1 + getattr 2 + open 1 + read 2</td><td>read_resolved 1；4 KiB</td><td>0</td><td>0</td><td class="good">一次数据读取，无中心访问</td></tr>
-    <tr><td><code>read(1 MiB)</code> 热</td><td>780.2 / 937.6 µs</td><td>read 3</td><td>read_resolved 2；总计 1 MiB</td><td>0</td><td>0</td><td>EOF 探测不进入 DataCore</td></tr>
-    <tr><td>Peer 首读 4 KiB</td><td>921.8 / 1152.6 µs</td><td>与热读相同</td><td>read_resolved 1</td><td>lookup 1</td><td>Pull 1</td><td class="good">分布式必需最小路径</td></tr>
-    <tr><td><code>pwrite</code> 4 KiB patch</td><td>850.1 / 1089.3 µs</td><td>write 1</td><td>prepare_range 1 + finish 1</td><td>commit 1</td><td>0</td><td class="good">不读回、不重写 64 KiB</td></tr>
+    <tr><th>用户操作</th><th>FUSE callback</th><th>DataCore</th><th>Meta</th><th>Peer</th><th>判断</th></tr>
+    <tr><td><code>stat(4 KiB)</code></td><td>lookup 1 + getattr 2</td><td>0</td><td>0</td><td>0</td><td class="good">纯元数据本地命中</td></tr>
+    <tr><td><code>open + close</code></td><td>lookup 1 + getattr 2 + open 1 + flush 1 + release 1</td><td>0</td><td>0</td><td>0</td><td class="good">没有偷读 payload</td></tr>
+    <tr><td><code>readdir(200 项)</code></td><td>opendir 1 + getattr 2 + readdir 4 + releasedir 1</td><td>0</td><td>0</td><td>0</td><td>4 次来自内核回复缓冲分页</td></tr>
+    <tr><td><code>create/write(1 MiB)</code></td><td>write 1</td><td>finish_prepared 1</td><td>create 1 + lookup 1 + commit 1</td><td>0</td><td class="good">单 write / 单 commit</td></tr>
+    <tr><td><code>read(1 MiB)</code> 本地热读</td><td>read 由内核页缓存命中时可为 0</td><td>0</td><td>0</td><td>0</td><td class="good">cached mmap/page cache 命中不访问中心</td></tr>
+    <tr><td>Peer 首读 1 MiB</td><td>read 8</td><td>read_resolved 8；总计 1 MiB</td><td>lookup 1</td><td>Pull 1</td><td class="good">只按缺失 Block 拉取一次</td></tr>
+    <tr><td><code>pwrite</code> 4 KiB patch</td><td>write 1</td><td>prepare_range 1 + finish_prepared 1</td><td>commit 1</td><td>0</td><td class="good">不读回、不重写 64 KiB</td></tr>
   </table>
 
   <h2>3. 哪些看似放大，但现在不能局部删除</h2>
   <section class="callout warn">
-    <b>1 MiB 写 = 2 次 FUSE write + 2 次 commit。</b>
-    当前内核把该写请求拆成两段；我们选择 write-through，所以每个 callback 发布成功后才能返回。
-    若强行只 commit 一次，就已经变成 writeback，需要新增脏页、flush/fsync、失败恢复和空间回收语义，不能伪装成局部性能优化。
+    <b>1 MiB 写当前必须保持 1 次 write + 1 次 commit。</b>
+    这是现行 RPC 放大合同；未来如果内核、FUSE provider 或写路径调整导致 1 MiB 再次被拆成多个前台 commit，放大门禁会失败。
+    DMS 仍采用 write-through：write 返回时版本已经发布；这不等于启用 writeback。
   </section>
   <section class="callout warn">
     <b>TTL=0 与 DIRECT_IO 暂时保留。</b>
@@ -72,7 +72,7 @@
 
   <h2>4. max_pages 类问题的最终结论</h2>
   <p><code>fuser 0.16 + abi-7-31</code> 已默认协商 <code>ASYNC_READ</code>、<code>BIG_WRITES</code>，并在内核支持时请求 <code>MAX_PAGES</code>；默认接收缓冲允许 16 MiB。当前不缺另一个手写的 <code>max_pages</code> 开关。</p>
-  <p>真正应长期保留的是“实测分段账本”：例如 1 MiB 热读是 3 次 FUSE read，但只有 2 次 DataCore read 且总字节恰好 1 MiB，因此第三次是 EOF 探测；如果未来变成 8 次 DataCore 或 8 次 commit，机器合同会直接失败。</p>
+  <p>真正应长期保留的是“实测分段账本”：例如 1 MiB peer 首读可以被内核拆成多个 FUSE read callback，但 DataCore 读取总字节必须等于 1 MiB，Peer PullBlock 必须保持 1 次；如果未来变成多个 PullBlock 或多个前台 commit，机器合同会直接失败。</p>
 
   <h2>5. 本轮实际修改</h2>
   <table>
@@ -82,7 +82,7 @@
     <tr><td>汇总器生成逐 Case amplification ledger</td><td>统一统计 FUSE、文件层、DataCore、Meta、Peer 和边界字节。</td></tr>
     <tr><td>删除 workload 快照后的 resolve/mkdir</td><td>消除每 phase 固定 3 次 root getattr 的测量污染。</td></tr>
     <tr><td>readdir 正确性改为业务文件集合包含关系</td><td>允许后端管理项存在，双方仍验证完全相同的 200 个业务文件。</td></tr>
-    <tr><td>机器合同覆盖 19 个 Case</td><td>同时守住请求上限、历史 p50/p95 和 Native-vs-Glue 结果。</td></tr>
+    <tr><td>机器合同拆成性能分类门禁与 RPC 放大门禁</td><td>性能波动和路径放大分开判定，避免用旧 5% 历史 baseline 掩盖当前路径事实。</td></tr>
   </table>
 
   <h2>6. 代码 Review 导航</h2>
@@ -93,12 +93,12 @@
     <tr><td><code>server/src/node/data_core.rs</code></td><td>DataCore 的 read/prepare/finish 边界计数。</td></tr>
     <tr><td><code>scripts/performance/native_filesystem_workload.py</code></td><td>POSIX 操作定义与不污染计数边界的启动方式。</td></tr>
     <tr><td><code>scripts/performance/assemble_native_filesystem_result.py</code></td><td>Prometheus 差值如何变成逐用户操作账本。</td></tr>
-    <tr><td><code>benchmarks/whitebox/fuse-request-amplification-contract.json</code></td><td>19 个 Case 的机器上限与原因。</td></tr>
-    <tr><td><code>scripts/performance/evaluate_fuse_request_amplification.py</code></td><td>账本完整性、放大上限和历史回归判定。</td></tr>
+    <tr><td><code>benchmarks/whitebox/fuse-request-amplification-contract.json</code></td><td>各 Case 的 FUSE/DataCore/Meta/Peer 上限与原因。</td></tr>
+    <tr><td><code>scripts/performance/evaluate_fuse_request_amplification.py</code></td><td>账本完整性和放大上限判定；不再判定性能历史回归。</td></tr>
   </table>
 
   <h2>7. 验收证据与后续边界</h2>
-  <p>当前结果：<code>native-filesystem-vs-glue-evaluation = PASS</code>，<code>fuse-request-amplification-evaluation = PASS</code>。核心十项 Native p50 比 Glue 快 22.4%～65.7%；所有冻结 Native p50/p95 均未回归 5%。</p>
+  <p>当前结果：<code>performance-evaluation = PASS</code>，<code>amplification-evaluation = PASS</code>。证据目录为 <code>evidence/m1/g004-performance-safe-id-20260917-r1/</code>。这是一轮 M1.7 discovery 证据，不是最终 clean release run。</p>
   <section class="callout decision">
     <b>下一阶段不是继续改单操作。</b>目录权威分页与 unlink/rename 已完成；后续在 truncate、并发 I/O 与更完整 POSIX 能力上复用同一账本扩展合同。并发前先单独测 fuser 单 session dispatch + callback 内 block_on 是否形成队头阻塞，再决定执行模型，不能仅凭代码形态重构。
   </section>

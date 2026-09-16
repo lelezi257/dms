@@ -6,10 +6,12 @@
 //! 携带现有 `VersionLayout`，不会建立第二套文件数据布局。
 
 mod acl;
+mod locks;
 mod model;
 pub(crate) mod space_sync;
 mod wire;
 
 pub(crate) use acl::*;
+pub(crate) use locks::*;
 pub(crate) use model::*;
 pub(crate) use wire::*;

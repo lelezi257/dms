@@ -327,4 +327,84 @@ impl FilesystemMetadataService for FilesystemMetadataServiceHandler {
         rpc.success();
         Ok(Response::new(response))
     }
+
+    async fn test_filesystem_lock(
+        &self,
+        request: Request<pb::FilesystemLockRequest>,
+    ) -> Result<Response<pb::FilesystemLockResponse>, Status> {
+        let mut rpc = self
+            .rpc_metrics
+            .begin_server_call(dms_metrics::RpcCall::FILESYSTEM_TEST_LOCK);
+        let response = self
+            .meta
+            .filesystem_test_lock(request.into_inner())
+            .await
+            .map_err(|error| self.map_error(error))?;
+        rpc.success();
+        Ok(Response::new(response))
+    }
+
+    async fn set_filesystem_lock(
+        &self,
+        request: Request<pb::FilesystemLockRequest>,
+    ) -> Result<Response<pb::FilesystemLockResponse>, Status> {
+        let mut rpc = self
+            .rpc_metrics
+            .begin_server_call(dms_metrics::RpcCall::FILESYSTEM_SET_LOCK);
+        let response = self
+            .meta
+            .filesystem_set_lock(request.into_inner())
+            .await
+            .map_err(|error| self.map_error(error))?;
+        rpc.success();
+        Ok(Response::new(response))
+    }
+
+    async fn cancel_filesystem_lock_wait(
+        &self,
+        request: Request<pb::FilesystemCancelLockWaitRequest>,
+    ) -> Result<Response<pb::FilesystemLockMutationResponse>, Status> {
+        let mut rpc = self
+            .rpc_metrics
+            .begin_server_call(dms_metrics::RpcCall::FILESYSTEM_CANCEL_LOCK_WAIT);
+        let response = self
+            .meta
+            .filesystem_cancel_lock_wait(request.into_inner())
+            .await
+            .map_err(|error| self.map_error(error))?;
+        rpc.success();
+        Ok(Response::new(response))
+    }
+
+    async fn release_filesystem_lock_owner(
+        &self,
+        request: Request<pb::FilesystemReleaseLockOwnerRequest>,
+    ) -> Result<Response<pb::FilesystemLockMutationResponse>, Status> {
+        let mut rpc = self
+            .rpc_metrics
+            .begin_server_call(dms_metrics::RpcCall::FILESYSTEM_RELEASE_LOCK_OWNER);
+        let response = self
+            .meta
+            .filesystem_release_lock_owner(request.into_inner())
+            .await
+            .map_err(|error| self.map_error(error))?;
+        rpc.success();
+        Ok(Response::new(response))
+    }
+
+    async fn reclaim_filesystem_locks(
+        &self,
+        request: Request<pb::FilesystemReclaimLocksRequest>,
+    ) -> Result<Response<pb::FilesystemLockMutationResponse>, Status> {
+        let mut rpc = self
+            .rpc_metrics
+            .begin_server_call(dms_metrics::RpcCall::FILESYSTEM_RECLAIM_LOCKS);
+        let response = self
+            .meta
+            .filesystem_reclaim_locks(request.into_inner())
+            .await
+            .map_err(|error| self.map_error(error))?;
+        rpc.success();
+        Ok(Response::new(response))
+    }
 }

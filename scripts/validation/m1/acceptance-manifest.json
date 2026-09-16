@@ -1,0 +1,604 @@
+{
+  "schema": "dms.m1.acceptance-manifest.v1",
+  "milestone": "M1 Shared POSIX Foundation",
+  "policy": {
+    "release_requires_clean_source": true,
+    "release_allows_skips": false,
+    "release_allows_planned_cases": false,
+    "unexpected_case_is_failure": true
+  },
+  "requirements": [
+    {
+      "id": "M1-NS",
+      "stage": "M1.1",
+      "claim": "多节点共享同一棵权威目录树，并保持 namespace mutation 的原子性、幂等性和返回后可见性。"
+    },
+    {
+      "id": "M1-SIZE",
+      "stage": "M1.2",
+      "claim": "文件尺寸、稀疏区间、追加和中段覆盖通过同一版本提交合同发布。"
+    },
+    {
+      "id": "M1-LIFE",
+      "stage": "M1.3",
+      "claim": "hard link、symlink、unlink-open、FORGET 与 inode/object 回收遵守稳定文件身份和引用生命周期。"
+    },
+    {
+      "id": "M1-ATTR",
+      "stage": "M1.4",
+      "claim": "属性、权限、xattr、ACL 与容量查询由同一个 Meta FilesystemCatalog 权威管理。"
+    },
+    {
+      "id": "M1-SPACE",
+      "stage": "M1.5",
+      "claim": "空间预留、打洞、同步调用和同步打开标志遵守 write-through 与唯一 Arena owner 合同。"
+    },
+    {
+      "id": "M1-LOCK",
+      "stage": "M1.6a",
+      "claim": "fcntl/flock 跨节点冲突、等待、中断和故障回收由 Meta 唯一锁 owner 线性化。"
+    },
+    {
+      "id": "M1-MMAP",
+      "stage": "M1.6b",
+      "claim": "cached mmap 复用 Linux page cache，并保持 write-through、远端失效和越 EOF 行为。"
+    },
+    {
+      "id": "M1-DIST",
+      "stage": "M1.7",
+      "claim": "跨节点缓存、Watch、Peer pull 和重启恢复不能产生旧读、双 Current 或混合版本。"
+    },
+    {
+      "id": "M1-INTEGRITY",
+      "stage": "M1.7",
+      "claim": "随机写、截断、打洞和 mmap workload 完成后逐字节校验正确。"
+    },
+    {
+      "id": "M1-PERF",
+      "stage": "M1.7",
+      "claim": "Native Filesystem 保持冻结的 RPC、复制、资源和性能路径合同。"
+    },
+    {
+      "id": "M1-DELIVERY",
+      "stage": "M1.7",
+      "claim": "全新 Linux 环境能够构建、部署、挂载、观测和运行单 VM/三 VM 验收。"
+    }
+  ],
+  "cases": [
+    {
+      "id": "namespace-single-vm",
+      "requirement_ids": [
+        "M1-NS"
+      ],
+      "title": "单 VM 双 Node namespace 与重启恢复",
+      "category": "posix",
+      "implementation_status": "implemented",
+      "tiers": [
+        "fast",
+        "full"
+      ],
+      "topologies": [
+        "single-vm"
+      ],
+      "executor": "scripts/validation/run_filesystem_namespace_e2e.sh",
+      "expected": "共享目录 mutation、真分页、跨挂载可见与 Meta/Node 重启恢复全部通过。",
+      "invariants": [
+        "single_meta_namespace_owner",
+        "no_visibility_ack_before_remote_revoke"
+      ]
+    },
+    {
+      "id": "namespace-three-vm",
+      "requirement_ids": [
+        "M1-NS",
+        "M1-DIST"
+      ],
+      "title": "三 VM namespace 一致性",
+      "category": "distributed",
+      "implementation_status": "implemented",
+      "tiers": [
+        "full"
+      ],
+      "topologies": [
+        "three-vm"
+      ],
+      "executor": "scripts/validation/run_filesystem_namespace_3vm.py",
+      "expected": "独立 Meta 与两个 Node 上同名并发、rename/unlink/readdir 和恢复结果一致。",
+      "invariants": [
+        "one_winner_for_same_name_create",
+        "directory_revision_monotonic"
+      ]
+    },
+    {
+      "id": "size-single-vm",
+      "requirement_ids": [
+        "M1-SIZE"
+      ],
+      "title": "单 VM 文件尺寸与稀疏语义",
+      "category": "posix",
+      "implementation_status": "implemented",
+      "tiers": [
+        "fast",
+        "full"
+      ],
+      "topologies": [
+        "single-vm"
+      ],
+      "executor": "scripts/validation/run_filesystem_size_semantics_e2e.sh",
+      "expected": "truncate、O_TRUNC、越 EOF pwrite、并发 append 和 sparse hole 字节正确。",
+      "invariants": [
+        "one_filesystem_commit_per_write_through_callback",
+        "hole_has_no_block"
+      ]
+    },
+    {
+      "id": "size-three-vm",
+      "requirement_ids": [
+        "M1-SIZE",
+        "M1-DIST"
+      ],
+      "title": "三 VM 文件尺寸跨节点可见",
+      "category": "distributed",
+      "implementation_status": "implemented",
+      "tiers": [
+        "full"
+      ],
+      "topologies": [
+        "three-vm"
+      ],
+      "executor": "scripts/validation/run_filesystem_size_semantics_3vm.py",
+      "expected": "另一 Node 第一次读取就得到同一精确版本，重启后布局不混拼。",
+      "invariants": [
+        "exact_version_binding",
+        "no_mixed_version_layout"
+      ]
+    },
+    {
+      "id": "identity-single-vm",
+      "requirement_ids": [
+        "M1-LIFE"
+      ],
+      "title": "单 VM 文件身份与生命周期",
+      "category": "posix",
+      "implementation_status": "implemented",
+      "tiers": [
+        "fast",
+        "full"
+      ],
+      "topologies": [
+        "single-vm"
+      ],
+      "executor": "scripts/validation/run_filesystem_identity_lifecycle_e2e.sh",
+      "expected": "hard link、symlink、unlink-open、FORGET 和最终回收均符合引用生命周期。",
+      "invariants": [
+        "link_count_zero_is_not_immediate_reclaim",
+        "generation_fences_late_release"
+      ]
+    },
+    {
+      "id": "identity-three-vm",
+      "requirement_ids": [
+        "M1-LIFE",
+        "M1-DIST"
+      ],
+      "title": "三 VM orphan 安全回收",
+      "category": "fault",
+      "implementation_status": "implemented",
+      "tiers": [
+        "full"
+      ],
+      "topologies": [
+        "three-vm"
+      ],
+      "executor": "scripts/validation/run_filesystem_identity_lifecycle_3vm.py",
+      "expected": "恢复保护窗口与 Node epoch fencing 后才回收 durable orphan。",
+      "invariants": [
+        "no_reclaim_while_remote_reference_may_exist"
+      ]
+    },
+    {
+      "id": "attributes-single-vm",
+      "requirement_ids": [
+        "M1-ATTR"
+      ],
+      "title": "单 VM 属性权限 xattr ACL 与 statfs",
+      "category": "posix",
+      "implementation_status": "implemented",
+      "tiers": [
+        "fast",
+        "full"
+      ],
+      "topologies": [
+        "single-vm"
+      ],
+      "executor": "scripts/validation/run_filesystem_attributes_e2e.sh",
+      "expected": "chmod/chown/utimens、user xattr、ACL 和容量查询遵守已冻结语义。",
+      "invariants": [
+        "one_inode_revision_for_attrs_and_xattrs",
+        "statfs_uses_live_arena_reports"
+      ]
+    },
+    {
+      "id": "attributes-three-vm",
+      "requirement_ids": [
+        "M1-ATTR",
+        "M1-DIST"
+      ],
+      "title": "三 VM 属性缓存失效与恢复",
+      "category": "distributed",
+      "implementation_status": "implemented",
+      "tiers": [
+        "full"
+      ],
+      "topologies": [
+        "three-vm"
+      ],
+      "executor": "scripts/validation/run_filesystem_attributes_3vm.py",
+      "expected": "远端属性修改返回后旧缓存已撤销，重启恢复不分裂 attrs/content。",
+      "invariants": [
+        "attrs_and_content_commit_atomically_when_combined"
+      ]
+    },
+    {
+      "id": "space-sync-single-vm",
+      "requirement_ids": [
+        "M1-SPACE"
+      ],
+      "title": "单 VM 空间预留与同步合同",
+      "category": "posix",
+      "implementation_status": "implemented",
+      "tiers": [
+        "fast",
+        "full"
+      ],
+      "topologies": [
+        "single-vm"
+      ],
+      "executor": "scripts/validation/run_filesystem_space_sync_e2e.sh",
+      "expected": "fallocate、punch、flush/fsync/fdatasync/fsyncdir、O_SYNC/O_DSYNC 和 ENOSPC 正确。",
+      "invariants": [
+        "reservation_has_single_arena_owner",
+        "sync_only_adds_no_meta_commit"
+      ]
+    },
+    {
+      "id": "space-sync-three-vm",
+      "requirement_ids": [
+        "M1-SPACE",
+        "M1-DIST"
+      ],
+      "title": "三 VM reservation fencing 与恢复",
+      "category": "fault",
+      "implementation_status": "implemented",
+      "tiers": [
+        "full"
+      ],
+      "topologies": [
+        "three-vm"
+      ],
+      "executor": "scripts/validation/run_filesystem_space_sync_3vm.py",
+      "expected": "未知提交、Meta 重启和 owner 重启不重复计费或误兑现旧 reservation。",
+      "invariants": [
+        "operation_id_survives_unknown_commit",
+        "node_epoch_fences_old_reservation"
+      ]
+    },
+    {
+      "id": "lock-single-vm",
+      "requirement_ids": [
+        "M1-LOCK"
+      ],
+      "title": "单 VM 跨挂载 fcntl/flock",
+      "category": "posix",
+      "implementation_status": "implemented",
+      "tiers": [
+        "fast",
+        "full"
+      ],
+      "topologies": [
+        "single-vm"
+      ],
+      "executor": "scripts/validation/run_filesystem_lock_e2e.sh",
+      "expected": "byte-range lock、flock、阻塞/非阻塞等待与信号中断符合 Linux 语义。",
+      "invariants": [
+        "single_meta_lock_owner",
+        "interrupted_waiter_is_removed"
+      ]
+    },
+    {
+      "id": "lock-three-vm-fault",
+      "requirement_ids": [
+        "M1-LOCK",
+        "M1-DIST"
+      ],
+      "title": "三 VM 锁冲突与 owner 故障回收",
+      "category": "fault",
+      "implementation_status": "implemented",
+      "tiers": [
+        "full"
+      ],
+      "topologies": [
+        "three-vm"
+      ],
+      "executor": "scripts/validation/run_filesystem_lock_3vm.py",
+      "expected": "跨 Node 冲突线性化，断连不会立即释放，epoch/lease fencing 后安全回收。",
+      "invariants": [
+        "disconnect_is_not_unlock",
+        "old_epoch_cannot_release_new_lock"
+      ]
+    },
+    {
+      "id": "mmap-single-vm",
+      "requirement_ids": [
+        "M1-MMAP"
+      ],
+      "title": "单 VM cached mmap 语义",
+      "category": "posix",
+      "implementation_status": "implemented",
+      "tiers": [
+        "fast",
+        "full"
+      ],
+      "topologies": [
+        "single-vm"
+      ],
+      "executor": "scripts/validation/run_filesystem_mmap_e2e.sh",
+      "expected": "MAP_SHARED/MAP_PRIVATE、msync、truncate、punch、越 EOF SIGBUS 正确；远端覆盖用 mapped visibility、kernel invalidation 和 Meta watch delta 证明。",
+      "invariants": [
+        "linux_page_cache_is_the_only_mmap_cache",
+        "no_private_mmap_block_model"
+      ]
+    },
+    {
+      "id": "mmap-three-vm-invalidation",
+      "requirement_ids": [
+        "M1-MMAP",
+        "M1-DIST"
+      ],
+      "title": "三 VM mmap 远端失效",
+      "category": "distributed",
+      "implementation_status": "implemented",
+      "tiers": [
+        "full"
+      ],
+      "topologies": [
+        "three-vm"
+      ],
+      "executor": "scripts/validation/run_filesystem_mmap_3vm.py",
+      "expected": "远端 mutation 在 Node cache 与 kernel page cache 都失效后才 ACK；证据必须包含 Node B kernel invalidation delta 与 Meta watch event delta。",
+      "invariants": [
+        "watch_ack_after_kernel_cache_invalidation",
+        "no_stale_page_after_success"
+      ]
+    },
+    {
+      "id": "posix-pjdfstest-supported",
+      "requirement_ids": [
+        "M1-NS",
+        "M1-SIZE",
+        "M1-LIFE",
+        "M1-ATTR",
+        "M1-SPACE",
+        "M1-LOCK",
+        "M1-MMAP"
+      ],
+      "title": "受支持 pjdfstest 清单",
+      "category": "posix",
+      "implementation_status": "implemented",
+      "tiers": [
+        "full"
+      ],
+      "topologies": [
+        "single-vm"
+      ],
+      "executor": "scripts/validation/run_m1_pjdfstest.py",
+      "expected": "声明支持的 POSIX syscall case 零失败、零意外跳过。",
+      "invariants": [
+        "only_manifest_cases_are_claimed"
+      ]
+    },
+    {
+      "id": "fstests-generic-supported",
+      "requirement_ids": [
+        "M1-NS",
+        "M1-SIZE",
+        "M1-LIFE",
+        "M1-ATTR",
+        "M1-SPACE",
+        "M1-LOCK",
+        "M1-MMAP"
+      ],
+      "title": "受支持 fstests generic 回归清单",
+      "category": "posix",
+      "implementation_status": "implemented",
+      "tiers": [
+        "full"
+      ],
+      "topologies": [
+        "single-vm"
+      ],
+      "executor": "scripts/validation/run_m1_fstests.py",
+      "expected": "冻结子集零失败；未纳入项不被伪装成 DMS 通过。",
+      "invariants": [
+        "curated_subset_is_version_pinned"
+      ]
+    },
+    {
+      "id": "fio-integrity",
+      "requirement_ids": [
+        "M1-INTEGRITY"
+      ],
+      "title": "fio 写后校验与随机范围 workload",
+      "category": "integrity",
+      "implementation_status": "implemented",
+      "tiers": [
+        "full"
+      ],
+      "topologies": [
+        "single-vm",
+        "three-vm"
+      ],
+      "executor": "scripts/validation/run_m1_fio.py",
+      "expected": "4 KiB 顺序写、1 MiB 随机写与 512 MiB 顺序大对象的 fio verify，以及 truncate、punch、mmap 后逐字节/哈希校验正确；缺少 fio 是环境失败，不允许跳过。",
+      "invariants": [
+        "zero_data_corruption"
+      ]
+    },
+    {
+      "id": "agent-workspace-stress",
+      "requirement_ids": [
+        "M1-NS",
+        "M1-SIZE",
+        "M1-LIFE",
+        "M1-DIST",
+        "M1-INTEGRITY"
+      ],
+      "title": "Agent workspace 小文件混合压力",
+      "category": "stress",
+      "implementation_status": "implemented",
+      "tiers": [
+        "full"
+      ],
+      "topologies": [
+        "three-vm"
+      ],
+      "executor": "scripts/validation/run_m1_agent_workspace.py",
+      "expected": "以小文件为主的 create/read/overwrite/rename/delete 可按随机种子重放且最终模型一致。",
+      "invariants": [
+        "replayable_seed",
+        "reference_model_matches_filesystem",
+        "cross_node_visibility_after_each_mutation",
+        "request_amplification_summary_recorded"
+      ]
+    },
+    {
+      "id": "fault-transition-matrix",
+      "requirement_ids": [
+        "M1-DIST",
+        "M1-INTEGRITY"
+      ],
+      "title": "关键状态转换故障矩阵",
+      "category": "fault",
+      "implementation_status": "implemented",
+      "tiers": [
+        "full"
+      ],
+      "topologies": [
+        "three-vm"
+      ],
+      "executor": "scripts/validation/run_m1_fault_matrix.py",
+      "expected": "提交、失效、Peer pull、锁等待和 mmap 回写中的故障均得到文档化且可重放的结果。",
+      "invariants": [
+        "no_double_current",
+        "no_leaked_reservation_lock_waiter_or_reference"
+      ]
+    },
+    {
+      "id": "whitebox-path-gate",
+      "requirement_ids": [
+        "M1-PERF"
+      ],
+      "title": "FUSE/DataCore/Meta/Peer 请求放大门禁",
+      "category": "performance",
+      "implementation_status": "implemented",
+      "tiers": [
+        "fast",
+        "full"
+      ],
+      "topologies": [
+        "three-vm"
+      ],
+      "executor": "scripts/performance/validate_fuse_request_amplification.sh",
+      "expected": "本地热读 0 Meta/Peer，跨节点首读只保留必要 lookup/Pull，metadata-only 不进入 DataCore。",
+      "invariants": [
+        "no_worker_rpc_for_in_process_filesystem",
+        "no_meta_or_peer_on_local_hot_read"
+      ]
+    },
+    {
+      "id": "performance-regression",
+      "requirement_ids": [
+        "M1-PERF"
+      ],
+      "title": "Native Filesystem 冻结性能回归",
+      "category": "performance",
+      "implementation_status": "implemented",
+      "tiers": [
+        "full"
+      ],
+      "topologies": [
+        "three-vm"
+      ],
+      "executor": "scripts/performance/validate_native_filesystem_performance.sh",
+      "expected": "按冻结分类性能合同评价：本地热读和跨节点首读必须领先，写入/覆盖按 write-through 突变成本保持有界同级，不再使用全局 5% 门槛。",
+      "invariants": [
+        "same_profile_before_comparison",
+        "minimum_three_runs"
+      ]
+    },
+    {
+      "id": "resource-return-to-baseline",
+      "requirement_ids": [
+        "M1-PERF",
+        "M1-DIST"
+      ],
+      "title": "资源回落与长期运行",
+      "category": "resource",
+      "implementation_status": "implemented",
+      "tiers": [
+        "full"
+      ],
+      "topologies": [
+        "single-vm",
+        "three-vm"
+      ],
+      "executor": "scripts/validation/run_m1_resource_soak.py",
+      "expected": "FD、线程、slot、reservation、lock、waiter、open/nlookup 在清理后回落，无单调泄漏。",
+      "invariants": [
+        "bounded_resources_after_cleanup"
+      ]
+    },
+    {
+      "id": "release-check",
+      "requirement_ids": [
+        "M1-DELIVERY"
+      ],
+      "title": "Linux 全量构建测试与发布检查",
+      "category": "delivery",
+      "implementation_status": "implemented",
+      "tiers": [
+        "fast",
+        "full"
+      ],
+      "topologies": [
+        "single-vm"
+      ],
+      "executor": "scripts/release/check.sh",
+      "expected": "fmt、Clippy、workspace tests、文档与发布脚本测试全部通过。",
+      "invariants": [
+        "locked_toolchain_and_dependencies"
+      ]
+    },
+    {
+      "id": "clean-install-single-and-three-vm",
+      "requirement_ids": [
+        "M1-DELIVERY"
+      ],
+      "title": "干净制品安装与单/三 VM 手工路径",
+      "category": "delivery",
+      "implementation_status": "implemented",
+      "tiers": [
+        "full"
+      ],
+      "topologies": [
+        "single-vm",
+        "three-vm"
+      ],
+      "executor": "scripts/validation/run_m1_clean_delivery.py",
+      "expected": "无源码消费者、服务制品、挂载、观测、卸载与重启均按用户文档成功。",
+      "invariants": [
+        "release_artifacts_do_not_depend_on_source_tree"
+      ]
+    }
+  ]
+}

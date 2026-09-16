@@ -1765,6 +1765,7 @@ mod runtime_tests {
             .commit_staging(7, allocation.staging_id, &receipt, b"mmap-block".to_vec())
             .unwrap();
         assert_eq!(arena.read_bytes(b"mmap-block").unwrap(), payload);
+        #[allow(clippy::drop_non_drop)]
         drop(mapping);
         if let Some(path) = path {
             let _ = std::fs::remove_file(path);

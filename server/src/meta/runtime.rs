@@ -18,15 +18,22 @@ use tokio::sync::{mpsc, oneshot};
 
 use crate::filesystem::{
     ACL_ACCESS_NAME, ACL_DEFAULT_NAME, AttributePatch, CacheGrant, DentrySnapshot, DirectoryGrant,
-    FileContentBinding, FileSpaceReservation, FilesystemCaller, InodeAttributes, InodeKind,
-    InodeSnapshot, InodeVersion, NamespaceMutationResult, ROOT_INODE, RemoveKind, ResolvedInode,
-    TimeUpdate, XattrSetMode, XattrUpdate, access_acl_after_chmod, attribute_patch_from_proto,
-    caller_from_proto, dentry_to_proto, directory_entry_to_proto, directory_grant_to_proto,
-    inherit_default_acl, inode_to_proto, namespace_result_to_proto, resolved_to_proto,
+    FileContentBinding, FileLockOutcome, FileLockOwner, FileSpaceReservation, FilesystemCaller,
+    InodeAttributes, InodeKind, InodeSnapshot, InodeVersion, NamespaceMutationResult, ROOT_INODE,
+    RemoveKind, ResolvedInode, TimeUpdate, XattrSetMode, XattrUpdate, access_acl_after_chmod,
+    attribute_patch_from_proto, caller_from_proto, dentry_to_proto, directory_entry_to_proto,
+    directory_grant_to_proto, granted_lock_from_proto, inherit_default_acl, inode_to_proto,
+    lock_outcome_to_proto, lock_request_from_proto, namespace_result_to_proto, resolved_to_proto,
     validate_acl_xattr,
 };
 
-use super::filesystem::FilesystemCatalog;
+use super::filesystem::{
+    FilesystemCatalog,
+    locks::{
+        FileLockMutation, FilesystemLockTable, ReleaseLockOwnerResult, ReleaseLockReceipt,
+        SetLockResult,
+    },
+};
 #[cfg(test)]
 use super::in_memory_journal::InMemoryJournal;
 use super::metadata_journal::{
@@ -344,6 +351,7 @@ pub(crate) struct HeartbeatGrant {
     pub(crate) lease_ttl_millis: u64,
     pub(crate) accepted_node_epoch: u64,
     pub(crate) event_high_watermark: u64,
+    pub(crate) filesystem_lock_reclaim_required: bool,
 }
 
 /// gRPC Handler 可 clone 的轻量提交句柄。
@@ -931,6 +939,102 @@ impl MetaHandle {
         .await
     }
 
+    pub(crate) async fn filesystem_test_lock(
+        &self,
+        request: pb::FilesystemLockRequest,
+    ) -> Result<pb::FilesystemLockResponse, MetaRuntimeError> {
+        let inode = request.inode;
+        let (reply, receive) = oneshot::channel();
+        let outcome = self
+            .complete(
+                MetaOperation::FilesystemTestLock,
+                MetaCommand::FilesystemTestLock { request, reply },
+                receive,
+            )
+            .await?;
+        Ok(lock_outcome_to_proto(inode, outcome, 0))
+    }
+
+    pub(crate) async fn filesystem_set_lock(
+        &self,
+        request: pb::FilesystemLockRequest,
+    ) -> Result<pb::FilesystemLockResponse, MetaRuntimeError> {
+        let inode = request.inode;
+        let (reply, receive) = oneshot::channel();
+        let dispatch = self
+            .complete(
+                MetaOperation::FilesystemSetLock,
+                MetaCommand::FilesystemSetLock { request, reply },
+                receive,
+            )
+            .await?;
+        let mutation = match dispatch {
+            FileLockDispatch::Ready(mutation) => mutation,
+            FileLockDispatch::Waiting(receiver) => {
+                receiver.await.map_err(|_| MetaRuntimeError::Unavailable)?
+            }
+        };
+        Ok(lock_outcome_to_proto(
+            inode,
+            mutation.outcome,
+            mutation.owner_revision,
+        ))
+    }
+
+    pub(crate) async fn filesystem_cancel_lock_wait(
+        &self,
+        request: pb::FilesystemCancelLockWaitRequest,
+    ) -> Result<pb::FilesystemLockMutationResponse, MetaRuntimeError> {
+        let (reply, receive) = oneshot::channel();
+        let affected = self
+            .complete(
+                MetaOperation::FilesystemCancelLockWait,
+                MetaCommand::FilesystemCancelLockWait { request, reply },
+                receive,
+            )
+            .await?;
+        Ok(pb::FilesystemLockMutationResponse {
+            affected,
+            owner_revision: 0,
+        })
+    }
+
+    pub(crate) async fn filesystem_release_lock_owner(
+        &self,
+        request: pb::FilesystemReleaseLockOwnerRequest,
+    ) -> Result<pb::FilesystemLockMutationResponse, MetaRuntimeError> {
+        let (reply, receive) = oneshot::channel();
+        let receipt = self
+            .complete(
+                MetaOperation::FilesystemReleaseLockOwner,
+                MetaCommand::FilesystemReleaseLockOwner { request, reply },
+                receive,
+            )
+            .await?;
+        Ok(pb::FilesystemLockMutationResponse {
+            affected: receipt.released as u64,
+            owner_revision: receipt.owner_revision,
+        })
+    }
+
+    pub(crate) async fn filesystem_reclaim_locks(
+        &self,
+        request: pb::FilesystemReclaimLocksRequest,
+    ) -> Result<pb::FilesystemLockMutationResponse, MetaRuntimeError> {
+        let (reply, receive) = oneshot::channel();
+        let affected = self
+            .complete(
+                MetaOperation::FilesystemReclaimLocks,
+                MetaCommand::FilesystemReclaimLocks { request, reply },
+                receive,
+            )
+            .await?;
+        Ok(pb::FilesystemLockMutationResponse {
+            affected,
+            owner_revision: 0,
+        })
+    }
+
     #[cfg(test)]
     pub(crate) async fn stats(&self) -> Result<MetaStats, MetaRuntimeError> {
         let (reply, receive) = oneshot::channel();
@@ -974,6 +1078,13 @@ async fn receive_reply<T>(
     receiver: oneshot::Receiver<Result<T, MetaRuntimeError>>,
 ) -> Result<T, MetaRuntimeError> {
     receiver.await.map_err(|_| MetaRuntimeError::Unavailable)?
+}
+
+/// `F_SETLKW` 的两阶段 actor 结果。Meta actor 只登记 waiter 并立即返回 Receiver；
+/// 真正等待发生在 gRPC Handler 对应的 task，绝不占住唯一状态 owner。
+enum FileLockDispatch {
+    Ready(FileLockMutation),
+    Waiting(oneshot::Receiver<FileLockMutation>),
 }
 
 enum MetaCommand {
@@ -1118,6 +1229,26 @@ enum MetaCommand {
         request: pb::FilesystemStatRequest,
         reply: oneshot::Sender<Result<pb::FilesystemStatResponse, MetaRuntimeError>>,
     },
+    FilesystemTestLock {
+        request: pb::FilesystemLockRequest,
+        reply: oneshot::Sender<Result<FileLockOutcome, MetaRuntimeError>>,
+    },
+    FilesystemSetLock {
+        request: pb::FilesystemLockRequest,
+        reply: oneshot::Sender<Result<FileLockDispatch, MetaRuntimeError>>,
+    },
+    FilesystemCancelLockWait {
+        request: pb::FilesystemCancelLockWaitRequest,
+        reply: oneshot::Sender<Result<u64, MetaRuntimeError>>,
+    },
+    FilesystemReleaseLockOwner {
+        request: pb::FilesystemReleaseLockOwnerRequest,
+        reply: oneshot::Sender<Result<ReleaseLockReceipt, MetaRuntimeError>>,
+    },
+    FilesystemReclaimLocks {
+        request: pb::FilesystemReclaimLocksRequest,
+        reply: oneshot::Sender<Result<u64, MetaRuntimeError>>,
+    },
     #[cfg(test)]
     Stats {
         reply: oneshot::Sender<Result<MetaStats, MetaRuntimeError>>,
@@ -1175,6 +1306,11 @@ impl MetaCommand {
             Self::FilesystemSetXattr { .. } => MetaOperation::FilesystemSetXattr,
             Self::FilesystemRemoveXattr { .. } => MetaOperation::FilesystemRemoveXattr,
             Self::FilesystemStat { .. } => MetaOperation::FilesystemStat,
+            Self::FilesystemTestLock { .. } => MetaOperation::FilesystemTestLock,
+            Self::FilesystemSetLock { .. } => MetaOperation::FilesystemSetLock,
+            Self::FilesystemCancelLockWait { .. } => MetaOperation::FilesystemCancelLockWait,
+            Self::FilesystemReleaseLockOwner { .. } => MetaOperation::FilesystemReleaseLockOwner,
+            Self::FilesystemReclaimLocks { .. } => MetaOperation::FilesystemReclaimLocks,
             #[cfg(test)]
             Self::Stats { .. } => MetaOperation::Stats,
         }
@@ -1376,6 +1512,9 @@ struct MetaState {
     /// snapshot restore; the replica catalog remains authoritative.
     pending_repairs: HashMap<Vec<u8>, PendingRepair>,
     filesystem: FilesystemCatalog,
+    /// POSIX 锁是 Meta 权威的易失协调状态；它与 namespace 共用同一个 actor，
+    /// 但不写入内容 WAL。Meta 重启时由存活 Node 在旧租约窗口内重报。
+    filesystem_locks: FilesystemLockTable,
     /// 仅在 Node 资源快照实际变化时推进；statfs 使用它标识同一容量视图。
     capacity_revision: u64,
     filesystem_max_inodes: u64,
@@ -1474,6 +1613,7 @@ impl MetaState {
             pending_commits: BTreeMap::new(),
             pending_repairs: HashMap::new(),
             filesystem: FilesystemCatalog::default(),
+            filesystem_locks: FilesystemLockTable::default(),
             capacity_revision: 0,
             filesystem_max_inodes,
             journal,
@@ -1505,6 +1645,9 @@ impl MetaState {
                     .insert(*node_id, state.recovery_lease_until);
             }
         }
+        state
+            .filesystem_locks
+            .begin_recovery(state.recovery_lease_until, state.sessions.keys().copied());
         state.rebuild_pending_repairs();
         state.enforce_retention();
         metrics.record_recovery(recovery_records, recovery_started.elapsed());
@@ -1543,6 +1686,15 @@ impl MetaState {
             return Err(MetaRuntimeError::InvalidArgument(
                 "node id and control endpoint are required".to_string(),
             ));
+        }
+        // 同一 Node 打开新 incarnation 时，旧进程即使稍后发来 unlock 也不能影响
+        // 新锁；在同一个 actor turn 内先建立恢复屏障，再按精确 epoch 清理旧锁。
+        // 新 session 必须重报完整锁镜像（可以为空）后，其他 Node 才能继续取锁。
+        if let Some(previous) = self.sessions.get(&node_id) {
+            self.filesystem_locks
+                .begin_node_recovery(node_id, Instant::now() + DEFAULT_NODE_LEASE_TTL);
+            self.filesystem_locks
+                .release_node_epoch(node_id, previous.node_epoch);
         }
         let node_epoch = self.node_epochs.entry(node_id).or_default();
         let next_epoch = *node_epoch + 1;
@@ -1611,10 +1763,17 @@ impl MetaState {
         }
         self.retired_sessions.remove(&node_id);
         self.schedule_repairs();
+        // 文件锁本身是易失协调状态，不写 WAL。Meta 恢复后保留原 session 语义，
+        // 但通过 heartbeat 明确要求各 Node 重报完整本地锁镜像；正常运行期该位为
+        // false，不增加额外 RPC。
+        let filesystem_lock_reclaim_required = self
+            .filesystem_locks
+            .reclaim_required(node_id, Instant::now());
         Ok(HeartbeatGrant {
             lease_ttl_millis: 30_000,
             accepted_node_epoch: node_epoch,
             event_high_watermark: self.event_high_watermark,
+            filesystem_lock_reclaim_required,
         })
     }
 
@@ -1756,6 +1915,141 @@ impl MetaState {
             }
         }
         Ok(pb::ResolveObjectsResponse { results })
+    }
+
+    fn filesystem_lock_request(
+        &self,
+        request: &pb::FilesystemLockRequest,
+    ) -> Result<crate::filesystem::FileLockRequest, MetaRuntimeError> {
+        let session = request
+            .session
+            .as_ref()
+            .ok_or_else(|| MetaRuntimeError::InvalidArgument("missing node session".to_string()))?;
+        self.verify_session(session)?;
+        if request.request_id == 0 || request.inode == 0 || request.lock_owner == 0 {
+            return Err(MetaRuntimeError::InvalidArgument(
+                "lock request id, inode and owner must be non-zero".to_string(),
+            ));
+        }
+        lock_request_from_proto(request, session).map_err(|error| {
+            MetaRuntimeError::InvalidArgument(format!("invalid filesystem lock: {error:?}"))
+        })
+    }
+
+    fn filesystem_test_lock(
+        &mut self,
+        request: pb::FilesystemLockRequest,
+    ) -> Result<FileLockOutcome, MetaRuntimeError> {
+        let request = self.filesystem_lock_request(&request)?;
+        Ok(self.filesystem_locks.test(request, Instant::now()))
+    }
+
+    fn filesystem_set_lock(
+        &mut self,
+        request: pb::FilesystemLockRequest,
+    ) -> Result<FileLockDispatch, MetaRuntimeError> {
+        let request = self.filesystem_lock_request(&request)?;
+        let (reply, receive) = oneshot::channel();
+        match self
+            .filesystem_locks
+            .set(request, request.wait.then_some(reply), Instant::now())
+        {
+            SetLockResult::Ready(outcome) => Ok(FileLockDispatch::Ready(outcome)),
+            SetLockResult::Waiting => Ok(FileLockDispatch::Waiting(receive)),
+            SetLockResult::QueueFull | SetLockResult::ReplyQueueFull => {
+                Err(MetaRuntimeError::Unavailable)
+            }
+            SetLockResult::StaleRequestId => Err(MetaRuntimeError::InvalidArgument(
+                "filesystem lock request_id is outside the retry window".to_string(),
+            )),
+            SetLockResult::RequestMismatch => Err(MetaRuntimeError::InvalidArgument(
+                "filesystem lock request_id was reused with a different request".to_string(),
+            )),
+        }
+    }
+
+    fn filesystem_cancel_lock_wait(
+        &mut self,
+        request: pb::FilesystemCancelLockWaitRequest,
+    ) -> Result<u64, MetaRuntimeError> {
+        let session = request
+            .session
+            .as_ref()
+            .ok_or_else(|| MetaRuntimeError::InvalidArgument("missing node session".to_string()))?;
+        self.verify_session(session)?;
+        let owner = FileLockOwner {
+            node_id: session.node_id,
+            node_epoch: session.node_epoch,
+            lock_owner: request.lock_owner,
+        };
+        Ok(u64::from(
+            self.filesystem_locks.cancel(request.request_id, owner),
+        ))
+    }
+
+    fn filesystem_release_lock_owner(
+        &mut self,
+        request: pb::FilesystemReleaseLockOwnerRequest,
+    ) -> Result<ReleaseLockReceipt, MetaRuntimeError> {
+        let session = request
+            .session
+            .as_ref()
+            .ok_or_else(|| MetaRuntimeError::InvalidArgument("missing node session".to_string()))?;
+        self.verify_session(session)?;
+        if request.request_id == 0 || request.lock_owner == 0 {
+            return Err(MetaRuntimeError::InvalidArgument(
+                "lock release request id and owner must be non-zero".to_string(),
+            ));
+        }
+        let owner = FileLockOwner {
+            node_id: session.node_id,
+            node_epoch: session.node_epoch,
+            lock_owner: request.lock_owner,
+        };
+        match self
+            .filesystem_locks
+            .release_owner(owner, request.request_id)
+        {
+            ReleaseLockOwnerResult::Released(receipt) => Ok(receipt),
+            ReleaseLockOwnerResult::QueueFull => Err(MetaRuntimeError::Unavailable),
+            ReleaseLockOwnerResult::StaleRequestId => Err(MetaRuntimeError::InvalidArgument(
+                "filesystem lock release request_id is outside the retry window".to_string(),
+            )),
+        }
+    }
+
+    fn filesystem_reclaim_locks(
+        &mut self,
+        request: pb::FilesystemReclaimLocksRequest,
+    ) -> Result<u64, MetaRuntimeError> {
+        let session = request
+            .session
+            .as_ref()
+            .ok_or_else(|| MetaRuntimeError::InvalidArgument("missing node session".to_string()))?;
+        self.verify_session(session)?;
+        let mut locks = Vec::with_capacity(request.locks.len());
+        for lock in request.locks {
+            locks.push(granted_lock_from_proto(lock, session).map_err(|error| {
+                MetaRuntimeError::InvalidArgument(format!("invalid reclaimed lock: {error:?}"))
+            })?);
+        }
+        let affected = locks.len() as u64;
+        // 同一个 Node 的重报是一个完整快照：先丢弃该 incarnation 可能残留的旧表项，
+        // 再安装全部条目，最后一次性解除恢复屏障。
+        self.filesystem_locks
+            .release_node_epoch(session.node_id, session.node_epoch);
+        for (inode, lock) in locks {
+            self.filesystem_locks.reclaim_entry(inode, lock);
+        }
+        self.filesystem_locks.finish_reclaim(session.node_id);
+        dms_logging::debug!(
+            "filesystem lock snapshot reclaimed";
+            "event" => "meta.filesystem_lock.reclaimed",
+            "node_id" => session.node_id,
+            "node_epoch" => session.node_epoch,
+            "lock_count" => affected,
+        );
+        Ok(affected)
     }
 
     fn filesystem_lookup(
@@ -6201,6 +6495,10 @@ impl MetaState {
             self.apply_record(sequence, record);
             self.retired_sessions.insert(node_id);
             self.watchers.remove(&node_id);
+            if let Some(session) = self.sessions.get(&node_id) {
+                self.filesystem_locks
+                    .release_node_epoch(node_id, session.node_epoch);
+            }
             self.advance_pending_commits_for_ack(node_id, cursor);
         }
         self.retain_events();
@@ -8384,6 +8682,21 @@ async fn run_meta(
                 }
                 MetaCommand::FilesystemStat { request, reply } => {
                     let _ = reply.send(state.filesystem_stat(request));
+                }
+                MetaCommand::FilesystemTestLock { request, reply } => {
+                    let _ = reply.send(state.filesystem_test_lock(request));
+                }
+                MetaCommand::FilesystemSetLock { request, reply } => {
+                    let _ = reply.send(state.filesystem_set_lock(request));
+                }
+                MetaCommand::FilesystemCancelLockWait { request, reply } => {
+                    let _ = reply.send(state.filesystem_cancel_lock_wait(request));
+                }
+                MetaCommand::FilesystemReleaseLockOwner { request, reply } => {
+                    let _ = reply.send(state.filesystem_release_lock_owner(request));
+                }
+                MetaCommand::FilesystemReclaimLocks { request, reply } => {
+                    let _ = reply.send(state.filesystem_reclaim_locks(request));
                 }
                 #[cfg(test)]
                 MetaCommand::Stats { reply } => {
@@ -15520,7 +15833,7 @@ mod tests {
             .expect("resolve layout while session is suspect");
         assert!(suspect_resolve.block_replicas[0].replicas.is_empty());
 
-        restored
+        let recovery_heartbeat = restored
             .heartbeat(
                 session.session_id.clone(),
                 session.node_id,
@@ -15528,6 +15841,29 @@ mod tests {
                 0,
             )
             .expect("same epoch heartbeat revives session");
+        assert!(
+            recovery_heartbeat.filesystem_lock_reclaim_required,
+            "Meta 恢复后必须要求仍使用原 session 的 Node 重报完整锁镜像"
+        );
+        restored
+            .filesystem_reclaim_locks(pb::FilesystemReclaimLocksRequest {
+                context: None,
+                session: Some(session.clone()),
+                locks: Vec::new(),
+            })
+            .expect("empty lock snapshot finishes recovery");
+        assert!(
+            !restored
+                .heartbeat(
+                    session.session_id.clone(),
+                    session.node_id,
+                    session.node_epoch,
+                    0,
+                )
+                .expect("heartbeat after reclaim")
+                .filesystem_lock_reclaim_required,
+            "同一轮完整快照只能被要求一次"
+        );
         let live_resolve = restored
             .resolve_object(pb::ResolveObjectRequest {
                 context: None,
@@ -15993,6 +16329,361 @@ mod tests {
             block_ids: record.block_ids.clone(),
             detail: None,
         }
+    }
+
+    fn lock_request_for(
+        session: pb::NodeSessionIdentity,
+        request_id: u64,
+        inode: u64,
+        lock_owner: u64,
+        mode: pb::FilesystemLockMode,
+        wait: bool,
+    ) -> pb::FilesystemLockRequest {
+        lock_request_range_for(
+            session,
+            request_id,
+            inode,
+            lock_owner,
+            (0, u64::MAX),
+            mode,
+            wait,
+        )
+    }
+
+    fn lock_request_range_for(
+        session: pb::NodeSessionIdentity,
+        request_id: u64,
+        inode: u64,
+        lock_owner: u64,
+        range: (u64, u64),
+        mode: pb::FilesystemLockMode,
+        wait: bool,
+    ) -> pb::FilesystemLockRequest {
+        pb::FilesystemLockRequest {
+            context: None,
+            session: Some(session),
+            request_id,
+            inode,
+            lock_owner,
+            range: Some(pb::FilesystemLockRange {
+                start: range.0,
+                end_inclusive: range.1,
+            }),
+            mode: mode as i32,
+            pid: lock_owner as u32,
+            wait,
+        }
+    }
+
+    fn release_lock_owner_request(
+        session: pb::NodeSessionIdentity,
+        request_id: u64,
+        lock_owner: u64,
+    ) -> pb::FilesystemReleaseLockOwnerRequest {
+        pb::FilesystemReleaseLockOwnerRequest {
+            context: None,
+            session: Some(session),
+            lock_owner,
+            request_id,
+        }
+    }
+
+    #[tokio::test]
+    async fn filesystem_lock_actor_serializes_cross_node_wait_and_wakeup() {
+        let handle = MetaHandle::spawn();
+        let first_grant = handle
+            .open_node_session(101, "http://127.0.0.1:19101".to_string(), true)
+            .await
+            .expect("first node session");
+        let second_grant = handle
+            .open_node_session(102, "http://127.0.0.1:19102".to_string(), true)
+            .await
+            .expect("second node session");
+        let first = pb::NodeSessionIdentity {
+            session_id: first_grant.session_id,
+            node_id: first_grant.node_id,
+            node_epoch: first_grant.node_epoch,
+        };
+        let second = pb::NodeSessionIdentity {
+            session_id: second_grant.session_id,
+            node_id: second_grant.node_id,
+            node_epoch: second_grant.node_epoch,
+        };
+
+        let acquired = handle
+            .filesystem_set_lock(lock_request_for(
+                first.clone(),
+                1,
+                77,
+                11,
+                pb::FilesystemLockMode::Exclusive,
+                false,
+            ))
+            .await
+            .expect("first lock");
+        assert_eq!(acquired.status, pb::FilesystemLockStatus::Acquired as i32);
+
+        let waiting_handle = handle.clone();
+        let waiting = tokio::spawn(async move {
+            waiting_handle
+                .filesystem_set_lock(lock_request_for(
+                    second,
+                    2,
+                    77,
+                    22,
+                    pb::FilesystemLockMode::Exclusive,
+                    true,
+                ))
+                .await
+        });
+        tokio::task::yield_now().await;
+        assert!(!waiting.is_finished(), "conflicting F_SETLKW must wait");
+
+        let released = handle
+            .filesystem_set_lock(lock_request_for(
+                first,
+                3,
+                77,
+                11,
+                pb::FilesystemLockMode::Unlock,
+                false,
+            ))
+            .await
+            .expect("unlock");
+        assert_eq!(released.status, pb::FilesystemLockStatus::Released as i32);
+        let acquired = waiting
+            .await
+            .expect("wait task")
+            .expect("waiting lock result");
+        assert_eq!(acquired.status, pb::FilesystemLockStatus::Acquired as i32);
+    }
+
+    #[tokio::test]
+    async fn filesystem_lock_release_fence_orders_late_set_by_owner_at_actor_boundary() {
+        let handle = MetaHandle::spawn();
+        let grant = handle
+            .open_node_session(131, "http://127.0.0.1:19131".to_string(), true)
+            .await
+            .expect("node session");
+        let session = pb::NodeSessionIdentity {
+            session_id: grant.session_id,
+            node_id: grant.node_id,
+            node_epoch: grant.node_epoch,
+        };
+
+        handle
+            .filesystem_release_lock_owner(release_lock_owner_request(session.clone(), 10, 7))
+            .await
+            .expect("release owner");
+
+        let late_same_owner = handle
+            .filesystem_set_lock(lock_request_for(
+                session.clone(),
+                9,
+                77,
+                7,
+                pb::FilesystemLockMode::Exclusive,
+                false,
+            ))
+            .await;
+        assert!(
+            matches!(late_same_owner, Err(MetaRuntimeError::InvalidArgument(message)) if message.contains("outside the retry window")),
+            "same owner set with seq <= release fence must not recreate a ghost lock"
+        );
+
+        let independent_owner = handle
+            .filesystem_set_lock(lock_request_for(
+                session,
+                5,
+                77,
+                8,
+                pb::FilesystemLockMode::Exclusive,
+                false,
+            ))
+            .await
+            .expect("different owner is not fenced by owner release");
+        assert_eq!(
+            independent_owner.status,
+            pb::FilesystemLockStatus::Acquired as i32
+        );
+    }
+
+    #[tokio::test]
+    async fn filesystem_lock_session_reopen_fences_until_complete_reclaim() {
+        let handle = MetaHandle::spawn();
+        let old_grant = handle
+            .open_node_session(111, "http://127.0.0.1:19111".to_string(), true)
+            .await
+            .expect("old node session");
+        let peer_grant = handle
+            .open_node_session(112, "http://127.0.0.1:19112".to_string(), true)
+            .await
+            .expect("peer session");
+        let old = pb::NodeSessionIdentity {
+            session_id: old_grant.session_id,
+            node_id: old_grant.node_id,
+            node_epoch: old_grant.node_epoch,
+        };
+        let peer = pb::NodeSessionIdentity {
+            session_id: peer_grant.session_id,
+            node_id: peer_grant.node_id,
+            node_epoch: peer_grant.node_epoch,
+        };
+        handle
+            .filesystem_set_lock(lock_request_for(
+                old,
+                1,
+                88,
+                33,
+                pb::FilesystemLockMode::Exclusive,
+                false,
+            ))
+            .await
+            .expect("old lock");
+
+        let new_grant = handle
+            .open_node_session(111, "http://127.0.0.1:19111".to_string(), true)
+            .await
+            .expect("new node session");
+        let new_session = pb::NodeSessionIdentity {
+            session_id: new_grant.session_id,
+            node_id: new_grant.node_id,
+            node_epoch: new_grant.node_epoch,
+        };
+        let fenced = handle
+            .filesystem_test_lock(lock_request_for(
+                peer.clone(),
+                2,
+                88,
+                44,
+                pb::FilesystemLockMode::Exclusive,
+                false,
+            ))
+            .await
+            .expect("fenced peer test");
+        assert_eq!(
+            fenced.status,
+            pb::FilesystemLockStatus::RecoveryPending as i32
+        );
+
+        handle
+            .filesystem_reclaim_locks(pb::FilesystemReclaimLocksRequest {
+                context: None,
+                session: Some(new_session.clone()),
+                locks: vec![pb::FilesystemGrantedLock {
+                    inode: 88,
+                    owner: Some(pb::FilesystemLockOwner {
+                        node_id: new_session.node_id,
+                        node_epoch: new_session.node_epoch,
+                        lock_owner: 33,
+                    }),
+                    range: Some(pb::FilesystemLockRange {
+                        start: 0,
+                        end_inclusive: u64::MAX,
+                    }),
+                    mode: pb::FilesystemLockMode::Exclusive as i32,
+                    pid: 33,
+                }],
+            })
+            .await
+            .expect("reclaim lock snapshot");
+        let conflict = handle
+            .filesystem_test_lock(lock_request_for(
+                peer,
+                3,
+                88,
+                44,
+                pb::FilesystemLockMode::Exclusive,
+                false,
+            ))
+            .await
+            .expect("peer conflict after reclaim");
+        assert_eq!(conflict.status, pb::FilesystemLockStatus::Conflict as i32);
+    }
+
+    #[tokio::test]
+    async fn filesystem_lock_request_id_retry_is_idempotent_at_actor_boundary() {
+        let handle = MetaHandle::spawn();
+        let owner_grant = handle
+            .open_node_session(121, "http://127.0.0.1:19121".to_string(), true)
+            .await
+            .expect("owner session");
+        let peer_grant = handle
+            .open_node_session(122, "http://127.0.0.1:19122".to_string(), true)
+            .await
+            .expect("peer session");
+        let owner = pb::NodeSessionIdentity {
+            session_id: owner_grant.session_id,
+            node_id: owner_grant.node_id,
+            node_epoch: owner_grant.node_epoch,
+        };
+        let peer = pb::NodeSessionIdentity {
+            session_id: peer_grant.session_id,
+            node_id: peer_grant.node_id,
+            node_epoch: peer_grant.node_epoch,
+        };
+
+        let first = handle
+            .filesystem_set_lock(lock_request_range_for(
+                owner.clone(),
+                700,
+                99,
+                1,
+                (0, 9),
+                pb::FilesystemLockMode::Exclusive,
+                false,
+            ))
+            .await
+            .expect("first acquire");
+        assert_eq!(first.status, pb::FilesystemLockStatus::Acquired as i32);
+
+        let retry = handle
+            .filesystem_set_lock(lock_request_range_for(
+                owner.clone(),
+                700,
+                99,
+                1,
+                (0, 9),
+                pb::FilesystemLockMode::Exclusive,
+                false,
+            ))
+            .await
+            .expect("idempotent retry");
+        assert_eq!(retry.status, pb::FilesystemLockStatus::Acquired as i32);
+
+        let mismatched_retry = handle
+            .filesystem_set_lock(lock_request_range_for(
+                owner,
+                700,
+                99,
+                1,
+                (10, 19),
+                pb::FilesystemLockMode::Exclusive,
+                false,
+            ))
+            .await;
+        assert!(
+            matches!(mismatched_retry, Err(MetaRuntimeError::InvalidArgument(message)) if message.contains("different request")),
+            "same request_id with a different payload must be rejected"
+        );
+
+        let peer_probe = handle
+            .filesystem_test_lock(lock_request_range_for(
+                peer,
+                701,
+                99,
+                2,
+                (10, 19),
+                pb::FilesystemLockMode::Exclusive,
+                false,
+            ))
+            .await
+            .expect("peer probe");
+        assert_eq!(
+            peer_probe.status,
+            pb::FilesystemLockStatus::Acquired as i32,
+            "同一 request_id 的重试只能查询第一次锁结果，不能留下第二个 range 的 ghost lock"
+        );
     }
 
     fn seed_existing_key(

@@ -393,6 +393,66 @@ class Harness:
         )
         time.sleep(1)
 
+    def cleanup_remote_workspace(self) -> None:
+        """删除本轮已经回收到控制端的远端临时文件。
+
+        每轮的进程和挂载由 ``cleanup`` 精确停止；整个性能验收完成后，二进制、
+        workload 和各轮生成的数据均已复制到 ``self.output``，继续留在小容量验收
+        VM 上只会让后续无关用例因磁盘耗尽而失败。
+        """
+
+        warnings: list[dict[str, str]] = []
+        for role in ("A", "B", "C"):
+            try:
+                self.shell(role, f"rm -rf -- {shlex.quote(self.remote_base)}")
+            except Exception as error:  # noqa: BLE001 - cleanup failure must be visible evidence.
+                warnings.append({"role": role, "action": "cleanup_remote_workspace", "error": str(error)})
+        self.write_cleanup_warnings(warnings)
+
+    def write_cleanup_warnings(self, warnings: list[dict[str, str]]) -> None:
+        if not warnings:
+            return
+        path = self.output / "cleanup-warnings.json"
+        existing: list[dict[str, str]] = []
+        if path.is_file():
+            existing = json.loads(path.read_text(encoding="utf-8"))
+        path.write_text(
+            json.dumps(existing + warnings, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
+
+    def collect_remote_logs(self) -> None:
+        """在删除远端工作目录前回收日志；诊断失败不能覆盖原始异常。"""
+
+        destination_root = self.output / "remote-logs"
+        warnings: list[dict[str, str]] = []
+        for role in ("A", "B", "C"):
+            try:
+                result = self.shell(
+                    role,
+                    f"test ! -d {shlex.quote(self.remote_base)} || "
+                    f"find {shlex.quote(self.remote_base)} -type f -name '*.log' -print",
+                    capture=True,
+                )
+            except Exception as error:  # noqa: BLE001 - preserve main failure but keep evidence.
+                warnings.append({"role": role, "action": "list_remote_logs", "error": str(error)})
+                continue
+            for remote_path in filter(None, result.stdout.splitlines()):
+                relative = Path(remote_path).relative_to(self.remote_base)
+                try:
+                    self.copy_from(role, remote_path, destination_root / role.lower() / relative)
+                except Exception as error:  # noqa: BLE001 - preserve main failure but keep evidence.
+                    warnings.append(
+                        {
+                            "role": role,
+                            "action": "copy_remote_log",
+                            "path": remote_path,
+                            "error": str(error),
+                        }
+                    )
+                    continue
+        self.write_cleanup_warnings(warnings)
+
     def execute(self) -> None:
         alternating_orders = (("native", "glue"), ("glue", "native"))
         selected_arms = tuple(self.profile.get("arms", ("native", "glue")))
@@ -403,6 +463,8 @@ class Harness:
         if rounds < 1:
             raise RuntimeError("rounds must be positive")
         try:
+            # prepare 也会在远端创建目录，因此必须纳入同一个 finally 生命周期。
+            self.prepare()
             for round_id in range(rounds):
                 order = tuple(
                     arm
@@ -417,9 +479,8 @@ class Harness:
                         # start() 中途失败时也必须按精确 PID 和挂载点收口。
                         self.cleanup(round_id, arm)
         finally:
-            for role in ("A", "B", "C"):
-                # 这里只删除本 harness 自己创建、且所有受管进程已按 PID 停止的目录。
-                self.shell(role, f"test -d {shlex.quote(self.remote_base)} && true")
+            self.collect_remote_logs()
+            self.cleanup_remote_workspace()
 
 
 def main() -> int:
@@ -429,7 +490,6 @@ def main() -> int:
     args = parser.parse_args()
     profile = json.loads(args.profile.read_text(encoding="utf-8"))
     harness = Harness(profile, args.output.resolve())
-    harness.prepare()
     harness.execute()
     print(json.dumps({"ok": True, "output": str(harness.output)}, ensure_ascii=False))
     return 0

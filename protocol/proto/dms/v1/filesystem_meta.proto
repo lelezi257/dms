@@ -33,6 +33,97 @@ service FilesystemMetadataService {
   rpc RemoveFilesystemXattr(FilesystemRemoveXattrRequest) returns (FilesystemAttributeMutationResponse);
   rpc StatFilesystem(FilesystemStatRequest) returns (FilesystemStatResponse);
   rpc CommitFilesystemVersion(FilesystemCommitVersionRequest) returns (FilesystemCommitVersionResponse);
+  // POSIX byte-range lock 与 flock 共用同一张 Meta 权威区间表。阻塞等待不会占住
+  // Meta actor：actor 只登记 waiter，冲突锁释放后再完成原 RPC。
+  rpc TestFilesystemLock(FilesystemLockRequest) returns (FilesystemLockResponse);
+  rpc SetFilesystemLock(FilesystemLockRequest) returns (FilesystemLockResponse);
+  rpc CancelFilesystemLockWait(FilesystemCancelLockWaitRequest) returns (FilesystemLockMutationResponse);
+  rpc ReleaseFilesystemLockOwner(FilesystemReleaseLockOwnerRequest) returns (FilesystemLockMutationResponse);
+  // Meta 重启后，仍在原 Node incarnation 中运行的挂载在旧租约窗口内重报锁。
+  rpc ReclaimFilesystemLocks(FilesystemReclaimLocksRequest) returns (FilesystemLockMutationResponse);
+}
+
+enum FilesystemLockMode {
+  FILESYSTEM_LOCK_MODE_UNSPECIFIED = 0;
+  FILESYSTEM_LOCK_MODE_SHARED = 1;
+  FILESYSTEM_LOCK_MODE_EXCLUSIVE = 2;
+  FILESYSTEM_LOCK_MODE_UNLOCK = 3;
+}
+
+enum FilesystemLockStatus {
+  FILESYSTEM_LOCK_STATUS_UNSPECIFIED = 0;
+  FILESYSTEM_LOCK_STATUS_ACQUIRED = 1;
+  FILESYSTEM_LOCK_STATUS_RELEASED = 2;
+  FILESYSTEM_LOCK_STATUS_CONFLICT = 3;
+  FILESYSTEM_LOCK_STATUS_INTERRUPTED = 4;
+  FILESYSTEM_LOCK_STATUS_RECOVERY_PENDING = 5;
+}
+
+message FilesystemLockRange {
+  uint64 start = 1;
+  // inclusive；uint64 最大值表示直到 EOF。
+  uint64 end_inclusive = 2;
+}
+
+message FilesystemLockOwner {
+  uint64 node_id = 1;
+  uint64 node_epoch = 2;
+  uint64 lock_owner = 3;
+}
+
+message FilesystemGrantedLock {
+  uint64 inode = 1;
+  FilesystemLockOwner owner = 2;
+  FilesystemLockRange range = 3;
+  FilesystemLockMode mode = 4;
+  uint32 pid = 5;
+}
+
+message FilesystemLockRequest {
+  RequestContext context = 1;
+  NodeSessionIdentity session = 2;
+  uint64 request_id = 3;
+  uint64 inode = 4;
+  uint64 lock_owner = 5;
+  FilesystemLockRange range = 6;
+  FilesystemLockMode mode = 7;
+  uint32 pid = 8;
+  bool wait = 9;
+}
+
+message FilesystemLockResponse {
+  FilesystemLockStatus status = 1;
+  optional FilesystemGrantedLock conflict = 2;
+  // Meta lock table 的实际应用顺序。Node 本地 mirror 用它处理 Set/Release
+  // 响应乱序；0 表示本响应不改变本地锁镜像。
+  uint64 owner_revision = 3;
+}
+
+message FilesystemCancelLockWaitRequest {
+  RequestContext context = 1;
+  NodeSessionIdentity session = 2;
+  uint64 request_id = 3;
+  uint64 lock_owner = 4;
+}
+
+message FilesystemReleaseLockOwnerRequest {
+  RequestContext context = 1;
+  NodeSessionIdentity session = 2;
+  uint64 lock_owner = 3;
+  uint64 request_id = 4;
+}
+
+message FilesystemReclaimLocksRequest {
+  RequestContext context = 1;
+  NodeSessionIdentity session = 2;
+  repeated FilesystemGrantedLock locks = 3;
+}
+
+message FilesystemLockMutationResponse {
+  uint64 affected = 1;
+  // 仅 ReleaseFilesystemLockOwner 设置；表示这次 release 在 Meta lock table
+  // 中的实际应用顺序。
+  uint64 owner_revision = 2;
 }
 
 enum FilesystemInodeKind {

@@ -8841,9 +8841,10 @@ mod tests {
                 .await
                 .unwrap();
         });
-        let metadata = MetadataClient::connect(&endpoint, 7, "http://127.0.0.1:19007".into(), None)
-            .await
-            .unwrap();
+        let metadata =
+            MetadataClient::connect(&endpoint, 7, "http://127.0.0.1:19007".into(), None, false)
+                .await
+                .unwrap();
         let mut state = NodeState::new(
             "n".into(),
             Some(metadata.clone()),
@@ -8916,9 +8917,10 @@ mod tests {
                 .await
                 .unwrap();
         });
-        let metadata = MetadataClient::connect(&endpoint, 7, "http://127.0.0.1:19007".into(), None)
-            .await
-            .unwrap();
+        let metadata =
+            MetadataClient::connect(&endpoint, 7, "http://127.0.0.1:19007".into(), None, false)
+                .await
+                .unwrap();
         let mut state = NodeState::new(
             "n".into(),
             Some(metadata),
@@ -9420,6 +9422,7 @@ mod tests {
                 id,
                 format!("http://127.0.0.1:{}", 19000 + id),
                 None,
+                false,
             )
             .await
             .unwrap();

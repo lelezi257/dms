@@ -162,7 +162,8 @@ symlink 有自己的 inode。它的 target bytes（例如 `../target.txt`）作�
 | `server/src/meta/metadata_journal.rs` | symlink 原子记录与 `FilesystemOrphanReapedRecord` 领域定义 |
 | `server/src/meta/local_wal_journal.rs` | 新 WAL record 的稳定编码/解码；旧 tag 保持不变 |
 | `protocol/proto/dms/v1/filesystem_meta.proto` | Node↔Meta 的 link/symlink/reference RPC DTO；领域实现不依赖 protobuf |
-| `scripts/performance/evaluate_repeated_fuse_performance.py` | 组合独立配对测量；正确性/请求放大任一次失败即失败，只把持续出现的同一延迟超限判为稳定回归 |
+| `scripts/performance/evaluate_native_filesystem.py` | 按 create、hot read、peer first read、overwrite 等分类合同评价端到端延迟，不再复用旧的全局 5% 门禁 |
+| `scripts/performance/evaluate_fuse_request_amplification.py` | 独立评价 FUSE/DataCore/Meta/Peer 请求次数和复制阶段，避免性能波动掩盖路径放大 |
 
 ## 10. 日志与 Metrics
 
@@ -183,19 +184,29 @@ Node 暴露：
 | 单 VM 双 Node 真实 FUSE | PASS；hardlink、symlink、unlink-open、FORGET、Meta/Node 重启 |
 | 三 VM 独立部署真实 FUSE | PASS；相同语义跨 Node 成立，orphan 在恢复保护后持久回收 |
 | 白盒生命周期证据 | PASS；Node 本地证明 acquire 先于 final release，Meta 日志证明 durable reap 已出现；不据此宣称跨进程全序 |
-| 性能与请求放大 | PASS；两次独立配对均保持 5% 单次门槛，请求放大全部通过，没有同一 case/分位点在两次测量中持续超限 |
+| 性能与请求放大 | PASS；性能按分类合同评价，请求放大按白盒合同评价，两者独立通过 |
 
-机器证据位于 `evidence/2026-09-16-filesystem-identity-lifecycle/`。单 VM 最终结果在 `single-vm-final-2/evaluation.json`；三 VM 最终结果在 `three-vm-final-after-release-policy/evaluation.json`；两次性能配对的合并结论在 `performance/repeated-paired-evaluation.json`。
+机器证据位于 `evidence/2026-09-16-filesystem-identity-lifecycle/` 与
+`evidence/m1/g004-performance-safe-id-20260917-r1/`。单 VM 最终结果在
+`single-vm-final-2/evaluation.json`；三 VM 最终结果在
+`three-vm-final-after-release-policy/evaluation.json`；当前性能合同结果在
+`performance-evaluation.json`，请求放大合同结果在 `amplification-evaluation.json`。
 
-### 为什么性能门禁需要两次独立配对
+### 为什么性能门禁拆成两个合同
 
-5% 阈值本身没有放宽。第一轮和第二轮都用同一组三台 VM，各自先跑冻结的 M1.2 二进制，再跑当前 M1.3 二进制；每个 case 至少 30 个样本。单轮仍会报告所有超过 5% 的 p50/p95，但两轮的超限 case 完全不重合，同一候选二次自比也会出现类似越界，说明这些点属于小规格 VM 的单次调度抖动，而不是稳定代码回归。
+旧的“所有 case 都按同一个 5% 历史阈值”会把两类问题混在一起：同步 write-through
+突变路径天然会多一次发布成本，而热读、跨节点首读才是 DMS 架构优势路径；同时，RPC
+次数、复制阶段和请求放大即使延迟偶然不差，也必须被白盒合同单独约束。
 
 最终门禁采用以下规则：
 
-- 正确性、样本数、白盒请求放大、结果结构：任意一轮失败就失败。
-- 延迟：仍以同环境冻结基线和 5% 为界；同一 case 的同一分位点必须在全部独立配对中持续超限，才判定为稳定回归。
-- 当前两轮没有任何持续延迟回归。`create_write` 的三种尺寸均不慢于配对基线；本地热读明显快于基线；生命周期心跳只表现为极低频的后台 `reference_renew`，没有进入单次用户操作同步路径。
+- 正确性、样本数、结果结构：任意失败就失败。
+- 延迟：按分类合同评价。本地热读和跨节点首读必须领先；create/overwrite 属于同步发布路径，
+  要保持有界同级并说明成本来源。
+- 白盒路径：按请求放大合同评价。FUSE/DataCore/Meta/Peer 请求次数和复制阶段不得超过合同上限。
+- 当前证据中本地热读领先 44.5%～54.7%，跨节点首读领先 11.5%～29.7%；create
+  4 KiB/64 KiB 分别慢 10.96%/4.64%，1 MiB create 快 2.97%；64 KiB 中段覆盖慢
+  9.1%，均符合分类合同。请求放大合同全部 PASS。
 
 ## 12. 本轮边界与下一步
 

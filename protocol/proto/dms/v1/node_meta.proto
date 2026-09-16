@@ -88,6 +88,10 @@ message NodeHeartbeatResponse {
   uint64 lease_ttl_millis = 1;
   uint64 accepted_node_epoch = 2;
   uint64 event_high_watermark = 3;
+  // Meta restart drops the volatile POSIX lock table. A restored Node session
+  // remains valid for replicas and leases, but must replay its complete local
+  // lock snapshot (including an empty snapshot) before lock traffic resumes.
+  bool filesystem_lock_reclaim_required = 4;
 }
 
 message ExtentRecord {

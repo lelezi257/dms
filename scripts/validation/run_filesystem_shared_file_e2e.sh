@@ -101,6 +101,10 @@ NODE_B_PID="$STARTED_NODE_PID"
 wait_mount "$MOUNT_A" "$NODE_A_HEALTH"
 wait_mount "$MOUNT_B" "$NODE_B_HEALTH"
 
+${CC:-cc} -std=c11 -Wall -Wextra -Werror \
+  scripts/validation/filesystem_lock_interrupt_helper.c \
+  -o "$RUN_DIR/filesystem-lock-interrupt-helper"
+
 python3 - "$MOUNT_A" "$MOUNT_B" "$OUT_DIR/latency.json" <<'PY'
 import json
 import os
@@ -167,6 +171,18 @@ if [[ -z "$META_LOOKUPS" || "$META_LOOKUPS" -gt 2 ]]; then
   echo "hot path unexpectedly called Meta filesystem lookup $META_LOOKUPS times" >&2
   exit 1
 fi
+
+python3 scripts/validation/filesystem_lock_workload.py \
+  --mount-a "$MOUNT_A" \
+  --mount-b "$MOUNT_B" \
+  --interrupt-helper "$RUN_DIR/filesystem-lock-interrupt-helper" \
+  --output "$OUT_DIR/distributed-locks.json"
+
+# 最终证据包含 shared-file 与 distributed-lock 两部分；上面的热路径断言使用
+# 锁测试前的快照，避免其它独立 workload 的 pathname lookup 污染它。
+curl -fsS "http://$NODE_A_HEALTH/metrics" >"$OUT_DIR/node-a.prom"
+curl -fsS "http://$NODE_B_HEALTH/metrics" >"$OUT_DIR/node-b.prom"
+curl -fsS "http://$META_HEALTH/metrics" >"$OUT_DIR/meta.prom"
 
 # 模拟 Meta 进程重启。A 保留 payload；B 随后重启以清空本地 binding/payload cache，
 # 它必须依靠恢复后的 Meta namespace 找到文件，再从 A 拉取不可变 Block。

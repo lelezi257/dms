@@ -326,6 +326,19 @@ pub(crate) struct ReadTicketSegment {
 pub(crate) enum ReadTarget {
     Grpc { transfer_id: u64 },
     Shm(HostShmDescriptor),
+    Zero { length: u64 },
+}
+
+#[derive(Clone, Debug)]
+enum PlannedReadPart {
+    Block {
+        logical_offset: u64,
+        read: ArenaReadTicket,
+    },
+    Zero {
+        logical_offset: u64,
+        length: u64,
+    },
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -554,6 +567,13 @@ enum CachedReadOutcome {
 enum MaterializeOutcome {
     Ready { version: u64, bytes: Vec<u8> },
     NeedsRemoteBlocks(Vec<PeerPullSpec>),
+}
+
+fn planned_read_part_offset(part: &PlannedReadPart) -> u64 {
+    match part {
+        PlannedReadPart::Zero { logical_offset, .. }
+        | PlannedReadPart::Block { logical_offset, .. } => *logical_offset,
+    }
 }
 
 enum DataCoreMaterializeOutcome {
@@ -1346,26 +1366,6 @@ impl NodeHandle {
         Ok(outcome)
     }
 
-    /// 只在本地 Arena 中准备一个完整对象候选；不会访问 Meta，也不会修改 Current。
-    pub(crate) async fn data_core_prepare_inline(
-        &self,
-        key: Vec<u8>,
-        bytes: Vec<u8>,
-        operation_id: Vec<u8>,
-        expected_version: Option<u64>,
-    ) -> Result<PreparedObjectVersion, WorkerError> {
-        let (reply, receiver) = oneshot::channel();
-        self.submit(NodeCommand::DataCorePrepareInline {
-            key,
-            bytes,
-            operation_id,
-            expected_version,
-            reply,
-        })
-        .await?;
-        receive(receiver).await
-    }
-
     /// 在已解析的精确版本上准备文件 Extent overlay；允许覆盖或从 EOF 扩容，且不会
     /// 先发布第二个 Object Current。普通 KV `SET_RANGE` 仍保持不改变 value 长度。
     pub(crate) async fn data_core_prepare_range(
@@ -1381,6 +1381,57 @@ impl NodeHandle {
             key,
             offset,
             bytes,
+            operation_id,
+            resolved: resolved.into_proto(),
+            reply,
+        })
+        .await?;
+        receive(receiver).await
+    }
+
+    /// 为文件稀疏写准备候选版本。
+    ///
+    /// 这是文件语义专用入口，不改变普通 KV `SET_RANGE` 合同。`bytes` 只保存用户实际
+    /// 写入的数据；`offset` 前后的空洞由 VersionLayout sparse hole 表达，不申请全零
+    /// Block，也不会向 Meta 上报零副本。
+    pub(crate) async fn data_core_prepare_sparse(
+        &self,
+        key: Vec<u8>,
+        logical_length: u64,
+        offset: u64,
+        bytes: Vec<u8>,
+        operation_id: Vec<u8>,
+        expected_version: Option<u64>,
+    ) -> Result<PreparedObjectVersion, WorkerError> {
+        let (reply, receiver) = oneshot::channel();
+        self.submit(NodeCommand::DataCorePrepareSparse {
+            key,
+            logical_length,
+            offset,
+            bytes,
+            operation_id,
+            expected_version,
+            reply,
+        })
+        .await?;
+        receive(receiver).await
+    }
+
+    /// 为文件 truncate 准备一个只改变 Extent 布局的候选版本。
+    ///
+    /// 缩短文件不产生新 Block，不应退化成“读完整文件再重新写入”；扩展文件只追加
+    /// HOLE Extent，读路径本地填零，不物化全零 Block。
+    pub(crate) async fn data_core_prepare_truncate(
+        &self,
+        key: Vec<u8>,
+        new_length: u64,
+        operation_id: Vec<u8>,
+        resolved: ResolvedObject,
+    ) -> Result<PreparedObjectVersion, WorkerError> {
+        let (reply, receiver) = oneshot::channel();
+        self.submit(NodeCommand::DataCorePrepareTruncate {
+            key,
+            new_length,
             operation_id,
             resolved: resolved.into_proto(),
             reply,
@@ -2649,17 +2700,26 @@ enum NodeCommand {
         condition: String,
         reply: oneshot::Sender<Result<SetOutcome, WorkerError>>,
     },
-    DataCorePrepareInline {
+    DataCorePrepareRange {
         key: Vec<u8>,
+        offset: u64,
+        bytes: Vec<u8>,
+        operation_id: Vec<u8>,
+        resolved: pb::ResolveObjectResponse,
+        reply: oneshot::Sender<Result<PreparedObjectVersion, WorkerError>>,
+    },
+    DataCorePrepareSparse {
+        key: Vec<u8>,
+        logical_length: u64,
+        offset: u64,
         bytes: Vec<u8>,
         operation_id: Vec<u8>,
         expected_version: Option<u64>,
         reply: oneshot::Sender<Result<PreparedObjectVersion, WorkerError>>,
     },
-    DataCorePrepareRange {
+    DataCorePrepareTruncate {
         key: Vec<u8>,
-        offset: u64,
-        bytes: Vec<u8>,
+        new_length: u64,
         operation_id: Vec<u8>,
         resolved: pb::ResolveObjectResponse,
         reply: oneshot::Sender<Result<PreparedObjectVersion, WorkerError>>,
@@ -2938,8 +2998,9 @@ impl NodeCommand {
             Self::MSet { .. } => NodeMailboxCommand::MSet,
             Self::SetInline { .. } => NodeMailboxCommand::SetInline,
             Self::DataCoreSetInline { .. } => NodeMailboxCommand::SetInline,
-            Self::DataCorePrepareInline { .. } => NodeMailboxCommand::SetInline,
             Self::DataCorePrepareRange { .. } => NodeMailboxCommand::SetRange,
+            Self::DataCorePrepareSparse { .. } => NodeMailboxCommand::SetRange,
+            Self::DataCorePrepareTruncate { .. } => NodeMailboxCommand::SetRange,
             Self::DataCoreFinishPrepared { .. } => NodeMailboxCommand::SetInline,
             Self::SetRange { .. } => NodeMailboxCommand::SetRange,
             #[cfg(test)]
@@ -3231,20 +3292,6 @@ async fn run_node(
                         state.commit_bytes_for_data_core(key, bytes, operation_id, condition)
                     });
                 }
-                NodeCommand::DataCorePrepareInline {
-                    key,
-                    bytes,
-                    operation_id,
-                    expected_version,
-                    reply,
-                } => {
-                    let _ = reply.send(state.prepare_bytes_for_filesystem(
-                        key,
-                        bytes,
-                        operation_id,
-                        expected_version,
-                    ));
-                }
                 NodeCommand::DataCorePrepareRange {
                     key,
                     offset,
@@ -3257,6 +3304,38 @@ async fn run_node(
                         key,
                         offset,
                         bytes,
+                        operation_id,
+                        resolved,
+                    ));
+                }
+                NodeCommand::DataCorePrepareSparse {
+                    key,
+                    logical_length,
+                    offset,
+                    bytes,
+                    operation_id,
+                    expected_version,
+                    reply,
+                } => {
+                    let _ = reply.send(state.prepare_sparse_for_filesystem(
+                        key,
+                        logical_length,
+                        offset,
+                        bytes,
+                        operation_id,
+                        expected_version,
+                    ));
+                }
+                NodeCommand::DataCorePrepareTruncate {
+                    key,
+                    new_length,
+                    operation_id,
+                    resolved,
+                    reply,
+                } => {
+                    let _ = reply.send(state.prepare_truncate_for_filesystem(
+                        key,
+                        new_length,
                         operation_id,
                         resolved,
                     ));
@@ -4539,6 +4618,7 @@ impl NodeState {
             .block_replicas
             .iter()
             .filter(|set| set.block_id != patch_block)
+            .filter(|set| !set.block_id.is_empty())
             .filter_map(|set| set.proofs.first().cloned())
             .collect();
         let logical_length = layout.logical_length;
@@ -4778,68 +4858,10 @@ impl NodeState {
         })
     }
 
-    /// 为 Filesystem 的单一 Meta 发布点准备完整 value。
-    ///
-    /// 与普通 DataCore `put` 的关键差异是这里不调用 `commit_value`：Block 已经是
-    /// immutable，但 Object Current 仍未变化。候选随后与 inode revision/attrs 一起
-    /// 作为一条 Filesystem journal 记录提交。
-    fn prepare_bytes_for_filesystem(
-        &mut self,
-        key: Vec<u8>,
-        bytes: Vec<u8>,
-        operation_id: Vec<u8>,
-        expected_version: Option<u64>,
-    ) -> Result<PreparedObjectVersion, WorkerError> {
-        validate_user_key(&key)?;
-        validate_operation_id(&operation_id)?;
-        if self.metadata.is_none() {
-            return Err(WorkerError::MetadataUnavailable);
-        }
-        let length = bytes.len() as u64;
-        let checksum = digest(&bytes);
-        let block_id = block_identity(&self.node_id, &operation_id);
-        let (extents, new_replicas) = if length == 0 {
-            (Vec::new(), Vec::new())
-        } else {
-            let owns_block = self.check_block_preparation(&block_id)?;
-            self.arena
-                .commit_inline_with_verified_digest(block_id.clone(), bytes, checksum.clone())
-                .map_err(map_arena_error)?;
-            self.pending_blocks.insert(block_id.clone(), owns_block);
-            (
-                vec![pb::ExtentRecord {
-                    logical: Some(pb::ByteRange { offset: 0, length }),
-                    block_id: block_id.clone(),
-                    block_offset: 0,
-                    digest: checksum.clone(),
-                }],
-                vec![pb::ReplicaReport {
-                    block_id,
-                    length,
-                    checksum: checksum.clone(),
-                    durability: pb::DurabilityPolicy::LocalMemory as i32,
-                }],
-            )
-        };
-        Ok(PreparedObjectVersion {
-            object_key: key,
-            expected_object_version: expected_version,
-            candidate: pb::VersionCandidate {
-                kind: pb::VersionKind::Value as i32,
-                logical_length: length,
-                digest: super::version_layout::digest(length, &extents),
-                extents,
-            },
-            replica_proofs: Vec::new(),
-            new_replicas,
-        })
-    }
-
     /// 为文件覆盖或扩容准备一个 patch Block 和 Extent overlay。
     ///
-    /// `offset` 不得越过当前 EOF；稀疏写由文件层把 EOF 到写入位置之间的零填充
-    /// 合并进 `bytes`，再从 EOF 调用这里。base bytes 始终保持 immutable，普通追加
-    /// 也只新增 tail Block，不能退化成“读回旧文件再完整提交”。
+    /// `offset` 可以越过当前 EOF；中间范围由 HOLE Extent 表达。base bytes 始终保持
+    /// immutable，普通追加也只新增 tail Block，不能退化成“读回旧文件再完整提交”。
     fn prepare_range_for_filesystem(
         &mut self,
         key: Vec<u8>,
@@ -4908,6 +4930,135 @@ impl NodeState {
             },
             replica_proofs,
             new_replicas,
+        })
+    }
+
+    /// 为首次稀疏写或纯扩容准备候选布局。
+    ///
+    /// 该入口只在文件层使用。它不会把 `[0, logical_length)` 物化为一整块 bytes：
+    /// 用户实际写入的数据形成一个 Block，其余范围是 sparse hole。Meta 提交后读
+    /// 路径遇到 hole 直接填零。
+    fn prepare_sparse_for_filesystem(
+        &mut self,
+        key: Vec<u8>,
+        logical_length: u64,
+        offset: u64,
+        bytes: Vec<u8>,
+        operation_id: Vec<u8>,
+        expected_version: Option<u64>,
+    ) -> Result<PreparedObjectVersion, WorkerError> {
+        validate_user_key(&key)?;
+        validate_operation_id(&operation_id)?;
+        if self.metadata.is_none() {
+            return Err(WorkerError::MetadataUnavailable);
+        }
+        let patch_length = bytes.len() as u64;
+        let patch_end = offset
+            .checked_add(patch_length)
+            .ok_or(WorkerError::InvalidArgument("sparse write overflows u64"))?;
+        if patch_end > logical_length {
+            return Err(WorkerError::InvalidArgument(
+                "sparse write extends beyond declared file length",
+            ));
+        }
+
+        let mut new_replicas = Vec::new();
+        let mut extents = if patch_length == 0 {
+            super::version_layout::truncate_file(&[], 0, logical_length)?
+        } else {
+            let patch_block = block_identity(&self.node_id, &operation_id);
+            let patch_digest = digest(&bytes);
+            let owns_block = self.check_block_preparation(&patch_block)?;
+            self.arena
+                .commit_inline_with_verified_digest(
+                    patch_block.clone(),
+                    bytes,
+                    patch_digest.clone(),
+                )
+                .map_err(map_arena_error)?;
+            self.pending_blocks.insert(patch_block.clone(), owns_block);
+            new_replicas.push(pb::ReplicaReport {
+                block_id: patch_block.clone(),
+                length: patch_length,
+                checksum: patch_digest.clone(),
+                durability: pb::DurabilityPolicy::LocalMemory as i32,
+            });
+            super::version_layout::overlay_file_write(
+                &[],
+                0,
+                offset,
+                patch_length,
+                &patch_block,
+                &patch_digest,
+            )?
+        };
+        let covered = extents
+            .last()
+            .and_then(|extent| extent.logical.as_ref())
+            .and_then(|range| range.offset.checked_add(range.length))
+            .unwrap_or_default();
+        if covered < logical_length {
+            extents = super::version_layout::truncate_file(&extents, covered, logical_length)?;
+        }
+        Ok(PreparedObjectVersion {
+            object_key: key,
+            expected_object_version: expected_version,
+            candidate: pb::VersionCandidate {
+                kind: pb::VersionKind::Value as i32,
+                logical_length,
+                digest: super::version_layout::digest(logical_length, &extents),
+                extents,
+            },
+            replica_proofs: Vec::new(),
+            new_replicas,
+        })
+    }
+
+    /// 为文件缩短准备新的布局候选。
+    ///
+    /// 这里不接收 payload bytes，也不向 Arena 申请新 Block；它只把现有精确版本的
+    /// Extent 前缀裁剪到 `new_length`。Meta 提交时仍会校验每个保留 Block 的 proof，
+    /// 确认这些 bytes 已经在可达副本中存在。
+    fn prepare_truncate_for_filesystem(
+        &mut self,
+        key: Vec<u8>,
+        new_length: u64,
+        operation_id: Vec<u8>,
+        resolved: pb::ResolveObjectResponse,
+    ) -> Result<PreparedObjectVersion, WorkerError> {
+        validate_user_key(&key)?;
+        validate_operation_id(&operation_id)?;
+        if self.metadata.is_none() {
+            return Err(WorkerError::MetadataUnavailable);
+        }
+        let layout = resolved.layout.as_ref().ok_or(WorkerError::NotFound)?;
+        let extents = super::version_layout::truncate_file(
+            &layout.extents,
+            layout.logical_length,
+            new_length,
+        )?;
+        let referenced_blocks = extents
+            .iter()
+            .filter(|extent| !super::version_layout::is_hole(extent))
+            .map(|extent| extent.block_id.clone())
+            .collect::<HashSet<_>>();
+        let replica_proofs = resolved
+            .block_replicas
+            .iter()
+            .filter(|set| referenced_blocks.contains(&set.block_id))
+            .filter_map(|set| set.proofs.first().cloned())
+            .collect();
+        Ok(PreparedObjectVersion {
+            object_key: key,
+            expected_object_version: Some(layout.version),
+            candidate: pb::VersionCandidate {
+                kind: pb::VersionKind::Value as i32,
+                logical_length: new_length,
+                digest: super::version_layout::digest(new_length, &extents),
+                extents,
+            },
+            replica_proofs,
+            new_replicas: Vec::new(),
         })
     }
 
@@ -5344,6 +5495,13 @@ impl NodeState {
             if start >= end {
                 continue;
             }
+            if super::version_layout::is_hole(extent) {
+                planned.push(PlannedReadPart::Zero {
+                    logical_offset: start - requested.0,
+                    length: end - start,
+                });
+                continue;
+            }
             if self.retirement_blocks_new_reads(&extent.block_id, read_scope_id) {
                 return Err(WorkerError::NotFound);
             }
@@ -5363,7 +5521,10 @@ impl NodeState {
                 self.arena.open_read(&extent.block_id, Some(block_range))
             };
             match local {
-                Ok((read, _)) => planned.push((start - requested.0, read)),
+                Ok((read, _)) => planned.push(PlannedReadPart::Block {
+                    logical_offset: start - requested.0,
+                    read,
+                }),
                 Err(ArenaError::UnknownBlock) => {
                     if !missing
                         .iter()
@@ -5403,39 +5564,54 @@ impl NodeState {
         }
         let mut segments = Vec::with_capacity(planned.len());
         let mut view_allocations = Vec::new();
-        for (logical_offset, read) in planned {
-            let payload_length = read.length;
-            let target = if shared_memory {
-                let transfer_id = self.next_transfer;
-                self.next_transfer += 1;
-                match self
-                    .arena
-                    .shm_descriptor_for_read(session_id, read, transfer_id, view_epoch)
-                    .map_err(map_arena_error)?
-                {
-                    Some(descriptor) => {
-                        view_allocations.push(descriptor.allocation_id);
-                        ReadTarget::Shm(descriptor)
-                    }
-                    None => {
+        for part in planned {
+            match part {
+                PlannedReadPart::Zero {
+                    logical_offset,
+                    length,
+                } => segments.push(ReadTicketSegment {
+                    logical_offset,
+                    target: ReadTarget::Zero { length },
+                    payload_length: length,
+                }),
+                PlannedReadPart::Block {
+                    logical_offset,
+                    read,
+                } => {
+                    let payload_length = read.length;
+                    let target = if shared_memory {
+                        let transfer_id = self.next_transfer;
+                        self.next_transfer += 1;
+                        match self
+                            .arena
+                            .shm_descriptor_for_read(session_id, read, transfer_id, view_epoch)
+                            .map_err(map_arena_error)?
+                        {
+                            Some(descriptor) => {
+                                view_allocations.push(descriptor.allocation_id);
+                                ReadTarget::Shm(descriptor)
+                            }
+                            None => {
+                                validate_grpc_payload_bytes(payload_length)?;
+                                self.grpc_download_target_with_id(
+                                    session_id,
+                                    read,
+                                    transfer_id,
+                                    read_request_id,
+                                )
+                            }
+                        }
+                    } else {
                         validate_grpc_payload_bytes(payload_length)?;
-                        self.grpc_download_target_with_id(
-                            session_id,
-                            read,
-                            transfer_id,
-                            read_request_id,
-                        )
-                    }
+                        self.grpc_download_target(session_id, read, read_request_id)
+                    };
+                    segments.push(ReadTicketSegment {
+                        logical_offset,
+                        target,
+                        payload_length,
+                    });
                 }
-            } else {
-                validate_grpc_payload_bytes(payload_length)?;
-                self.grpc_download_target(session_id, read, read_request_id)
-            };
-            segments.push(ReadTicketSegment {
-                logical_offset,
-                target,
-                payload_length,
-            });
+            }
         }
         // 只有真正返回 SHM 借用才消耗序号。TCP/内联、空范围，以及构造票据
         // 失败都不能制造 Client 永远收不到的 epoch 空洞。此段在唯一 owner 内。
@@ -5501,7 +5677,7 @@ impl NodeState {
         requested_length: u64,
         shared_memory: bool,
         max_inline_bytes: u64,
-        planned: &[(u64, ArenaReadTicket)],
+        planned: &[PlannedReadPart],
     ) -> Result<Option<Vec<u8>>, WorkerError> {
         let inline_limit = max_inline_bytes.min(dms_protocol::MAX_INLINE_READ_BYTES);
         if shared_memory || inline_limit == 0 || requested_length > inline_limit {
@@ -5510,21 +5686,43 @@ impl NodeState {
         let capacity =
             usize::try_from(requested_length).map_err(|_| WorkerError::ResourceExhausted)?;
         let mut ordered = planned.to_vec();
-        ordered.sort_by_key(|(logical_offset, _)| *logical_offset);
+        ordered.sort_by_key(|part| match part {
+            PlannedReadPart::Block { logical_offset, .. }
+            | PlannedReadPart::Zero { logical_offset, .. } => *logical_offset,
+        });
         let mut bytes = Vec::with_capacity(capacity);
         let mut cursor = 0_u64;
-        for (logical_offset, read) in ordered {
+        for part in ordered {
+            let (logical_offset, length) = match &part {
+                PlannedReadPart::Block {
+                    logical_offset,
+                    read,
+                } => (*logical_offset, read.length),
+                PlannedReadPart::Zero {
+                    logical_offset,
+                    length,
+                } => (*logical_offset, *length),
+            };
             if logical_offset != cursor {
                 return Err(WorkerError::InvalidArgument(
                     "layout extents contain a gap or overlap",
                 ));
             }
-            let part = self.arena.read_ticket(read).map_err(map_arena_error)?;
             cursor = cursor
-                .checked_add(part.len() as u64)
+                .checked_add(length)
                 .filter(|next| *next <= requested_length)
                 .ok_or(WorkerError::ResourceExhausted)?;
-            bytes.extend_from_slice(&part);
+            match part {
+                PlannedReadPart::Block { read, .. } => {
+                    let part = self.arena.read_ticket(read).map_err(map_arena_error)?;
+                    bytes.extend_from_slice(&part);
+                }
+                PlannedReadPart::Zero { length, .. } => {
+                    let zero_len =
+                        usize::try_from(length).map_err(|_| WorkerError::ResourceExhausted)?;
+                    bytes.resize(bytes.len() + zero_len, 0);
+                }
+            }
         }
         if cursor != requested_length {
             return Err(WorkerError::InvalidArgument(
@@ -5549,6 +5747,13 @@ impl NodeState {
             let logical = extent.logical.as_ref().ok_or(WorkerError::InvalidArgument(
                 "extent logical range is missing",
             ))?;
+            if super::version_layout::is_hole(extent) {
+                planned.push(PlannedReadPart::Zero {
+                    logical_offset: logical.offset,
+                    length: logical.length,
+                });
+                continue;
+            }
             if self.retirement_blocks_new_reads(&extent.block_id, read_scope_id) {
                 return Err(WorkerError::NotFound);
             }
@@ -5564,7 +5769,10 @@ impl NodeState {
                 )
             };
             match local {
-                Ok((read, _)) => planned.push((logical.offset, read)),
+                Ok((read, _)) => planned.push(PlannedReadPart::Block {
+                    logical_offset: logical.offset,
+                    read,
+                }),
                 Err(ArenaError::UnknownBlock) => {
                     if !missing
                         .iter()
@@ -5580,22 +5788,35 @@ impl NodeState {
         if !missing.is_empty() {
             return Ok(MaterializeOutcome::NeedsRemoteBlocks(missing));
         }
-        planned.sort_by_key(|(offset, _)| *offset);
+        planned.sort_by_key(planned_read_part_offset);
         let capacity =
             usize::try_from(layout.logical_length).map_err(|_| WorkerError::ResourceExhausted)?;
         let mut bytes = Vec::with_capacity(capacity);
         let mut expected_offset = 0_u64;
-        for (offset, ticket) in planned {
+        for part in planned {
+            let offset = planned_read_part_offset(&part);
             if offset != expected_offset {
                 return Err(WorkerError::InvalidArgument(
                     "layout extents contain a gap or overlap",
                 ));
             }
-            let part = self.arena.read_ticket(ticket).map_err(map_arena_error)?;
-            expected_offset = expected_offset
-                .checked_add(part.len() as u64)
-                .ok_or(WorkerError::ResourceExhausted)?;
-            bytes.extend_from_slice(&part);
+            match part {
+                PlannedReadPart::Zero { length, .. } => {
+                    let zero_len =
+                        usize::try_from(length).map_err(|_| WorkerError::ResourceExhausted)?;
+                    expected_offset = expected_offset
+                        .checked_add(length)
+                        .ok_or(WorkerError::ResourceExhausted)?;
+                    bytes.resize(bytes.len() + zero_len, 0);
+                }
+                PlannedReadPart::Block { read, .. } => {
+                    let part = self.arena.read_ticket(read).map_err(map_arena_error)?;
+                    expected_offset = expected_offset
+                        .checked_add(part.len() as u64)
+                        .ok_or(WorkerError::ResourceExhausted)?;
+                    bytes.extend_from_slice(&part);
+                }
+            }
         }
         if expected_offset != layout.logical_length {
             return Err(WorkerError::InvalidArgument(
@@ -5648,6 +5869,13 @@ impl NodeState {
             if start >= end {
                 continue;
             }
+            if super::version_layout::is_hole(extent) {
+                planned.push(PlannedReadPart::Zero {
+                    logical_offset: start - requested.0,
+                    length: end - start,
+                });
+                continue;
+            }
             if self.retirement_blocks_new_reads(&extent.block_id, read_scope_id) {
                 return Err(WorkerError::NotFound);
             }
@@ -5665,7 +5893,10 @@ impl NodeState {
                 self.arena.open_read(&extent.block_id, Some(block_range))
             };
             match local {
-                Ok((read, _)) => planned.push((start - requested.0, read)),
+                Ok((read, _)) => planned.push(PlannedReadPart::Block {
+                    logical_offset: start - requested.0,
+                    read,
+                }),
                 Err(ArenaError::UnknownBlock) => {
                     if !missing
                         .iter()
@@ -5687,22 +5918,38 @@ impl NodeState {
         if requested.1 > 0 && planned.is_empty() {
             return Ok(DataCoreMaterializeOutcome::NotFound);
         }
-        planned.sort_by_key(|(offset, _)| *offset);
+        planned.sort_by_key(planned_read_part_offset);
         let mut cursor = 0_u64;
-        for (offset, ticket) in planned {
+        for part in planned {
+            let offset = planned_read_part_offset(&part);
             if offset != cursor {
                 return Err(WorkerError::InvalidArgument(
                     "layout extents contain a gap or overlap",
                 ));
             }
             let start = usize::try_from(cursor).map_err(|_| WorkerError::ResourceExhausted)?;
-            let written = self
-                .arena
-                .read_ticket_into(ticket, &mut output[start..])
-                .map_err(map_arena_error)?;
-            cursor = cursor
-                .checked_add(written as u64)
-                .ok_or(WorkerError::ResourceExhausted)?;
+            match part {
+                PlannedReadPart::Zero { length, .. } => {
+                    let length_usize =
+                        usize::try_from(length).map_err(|_| WorkerError::ResourceExhausted)?;
+                    let end = start
+                        .checked_add(length_usize)
+                        .ok_or(WorkerError::ResourceExhausted)?;
+                    output[start..end].fill(0);
+                    cursor = cursor
+                        .checked_add(length)
+                        .ok_or(WorkerError::ResourceExhausted)?;
+                }
+                PlannedReadPart::Block { read, .. } => {
+                    let written = self
+                        .arena
+                        .read_ticket_into(read, &mut output[start..])
+                        .map_err(map_arena_error)?;
+                    cursor = cursor
+                        .checked_add(written as u64)
+                        .ok_or(WorkerError::ResourceExhausted)?;
+                }
+            }
         }
         if cursor != requested.1 {
             return Err(WorkerError::InvalidArgument(
@@ -6626,6 +6873,7 @@ impl NodeState {
                     block_id: block_id.clone(),
                     block_offset: 0,
                     digest: checksum.clone(),
+                    kind: pb::ExtentKind::Data as i32,
                 }],
                 vec![pb::BlockReplicaSet {
                     block_id: block_id.clone(),
@@ -7426,6 +7674,7 @@ mod tests {
         let transfer_id = match target {
             ReadTarget::Grpc { transfer_id } => transfer_id,
             ReadTarget::Shm(_) => panic!("test uses non-SHM download ticket"),
+            ReadTarget::Zero { .. } => panic!("test uses non-zero download ticket"),
         };
         assert_peer_import_metrics(&registry, 0, 0, 0, 1);
 
@@ -7623,6 +7872,20 @@ mod tests {
             block_id: block_id.to_vec(),
             block_offset,
             digest: block_id.to_vec(),
+            kind: pb::ExtentKind::Data as i32,
+        }
+    }
+
+    fn test_hole_extent(logical_offset: u64, length: u64) -> pb::ExtentRecord {
+        pb::ExtentRecord {
+            logical: Some(pb::ByteRange {
+                offset: logical_offset,
+                length,
+            }),
+            block_id: Vec::new(),
+            block_offset: 0,
+            digest: Vec::new(),
+            kind: pb::ExtentKind::Hole as i32,
         }
     }
 
@@ -8808,6 +9071,72 @@ mod tests {
     }
 
     #[test]
+    fn get_resolved_inline_materializes_sparse_hole_as_zero_bytes() {
+        let mut state = NodeState::new("node-a".into(), None, 4096, Duration::from_secs(30), None);
+        let session = state.open_session(false);
+        state
+            .arena
+            .commit_inline(b"block-1".to_vec(), b"abc".to_vec())
+            .expect("commit block");
+        let resolved = resolved_value(
+            9,
+            6,
+            vec![
+                test_hole_extent(0, 2),
+                test_extent(2, 3, b"block-1", 0),
+                test_hole_extent(5, 1),
+            ],
+        );
+
+        let ticket = match state
+            .get_resolved(session, &resolved, None, 6)
+            .expect("get resolved")
+        {
+            GetOutcome::Ready(ticket) => ticket,
+            GetOutcome::NeedsRemoteBlocks(_) => panic!("block is local"),
+        };
+
+        assert_eq!(
+            ticket.inline_value.as_deref(),
+            Some(b"\0\0abc\0".as_slice())
+        );
+        assert!(ticket.segments.is_empty());
+        assert!(state.downloads.is_empty());
+    }
+
+    #[test]
+    fn get_resolved_non_inline_returns_zero_segments_without_download_tickets() {
+        let mut state = NodeState::new("node-a".into(), None, 4096, Duration::from_secs(30), None);
+        let session = state.open_session(false);
+        state
+            .arena
+            .commit_inline(b"block-1".to_vec(), b"abc".to_vec())
+            .expect("commit block");
+        let resolved = resolved_value(
+            10,
+            5,
+            vec![test_hole_extent(0, 2), test_extent(2, 3, b"block-1", 0)],
+        );
+
+        let ticket = match state
+            .get_resolved(session, &resolved, None, 0)
+            .expect("get resolved")
+        {
+            GetOutcome::Ready(ticket) => ticket,
+            GetOutcome::NeedsRemoteBlocks(_) => panic!("block is local"),
+        };
+
+        assert_eq!(ticket.inline_value, None);
+        assert_eq!(ticket.segments.len(), 2);
+        assert!(matches!(
+            ticket.segments[0].target,
+            ReadTarget::Zero { length: 2 }
+        ));
+        assert!(matches!(ticket.segments[1].target, ReadTarget::Grpc { .. }));
+        assert_eq!(state.downloads.len(), 1);
+    }
+
+    #[test]
     fn get_resolved_inline_budget_is_clamped_by_protocol_limit() {
         let mut state = NodeState::new(
             "node-a".into(),
@@ -9343,6 +9672,7 @@ mod tests {
         let transfer_id = match &ticket.segments[0].target {
             ReadTarget::Grpc { transfer_id } => *transfer_id,
             ReadTarget::Shm(_) => panic!("expected TCP ticket"),
+            ReadTarget::Zero { .. } => panic!("expected data ticket"),
         };
         let (prepare_tx, mut prepare_rx) = oneshot::channel();
         state.register_prepare_retirement(
@@ -9499,6 +9829,7 @@ mod tests {
         let transfer_id = match &ticket.segments[0].target {
             ReadTarget::Grpc { transfer_id } => *transfer_id,
             ReadTarget::Shm(_) => panic!("expected TCP ticket"),
+            ReadTarget::Zero { .. } => panic!("expected data ticket"),
         };
 
         assert!(

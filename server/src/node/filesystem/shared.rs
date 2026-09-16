@@ -4,7 +4,7 @@
 //! `VersionCandidate/Extent/Block` 表达，namespace 与对象 Current 只由 Meta 的一条
 //! Filesystem journal 记录原子发布。
 
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use dms_error::DmsError;
 
@@ -20,11 +20,13 @@ use super::open_handles::OpenHandle;
 use crate::filesystem::ROOT_INODE;
 use crate::filesystem::{
     CommitFileVersionRequest, DirectoryPage, InodeId, InodeKind, NamespaceMutationResult,
-    RemoveEntryRequest, RemoveKind, RenameEntryRequest, ResolvedInode,
+    PreparedObjectVersion, RemoveEntryRequest, RemoveKind, RenameEntryRequest, ResolvedInode,
 };
 use crate::node::metadata_client::digest;
 
 const DIRECTORY_PAGE_LIMIT: u32 = 1_024;
+const FILESYSTEM_CAS_RETRY_MIN_ATTEMPTS: usize = 3;
+const FILESYSTEM_CAS_RETRY_BUDGET: Duration = Duration::from_secs(2);
 
 /// FUSE 与未来其它本地文件入口共用的进程内文件服务。
 ///
@@ -300,8 +302,15 @@ impl SharedFileOperations {
         let mut metric = self
             .metrics
             .begin_filesystem_operation(FilesystemOperation::Open);
-        // open handle 是本 Node 生命周期；先确认 inode 存在并取得首次 binding grant。
-        self.resolve_inode(inode).await?;
+        if flags & libc::O_TRUNC != 0 {
+            // O_TRUNC 是 open(2) 的一部分：只有 truncate 原子发布成功，才创建本地
+            // open handle。这样不会留下一个看似打开成功、内容却仍是旧版本的句柄。
+            self.truncate(inode, 0).await?;
+        } else {
+            // open handle 是本 Node 生命周期；普通 open 只需确认 inode 存在并取得
+            // 首次 binding grant。O_TRUNC 已在 truncate 内完成同一次解析，不能重复访问 Meta。
+            self.resolve_inode(inode).await?;
+        }
         let opened = self.node.filesystem_open_handle(inode, flags, None).await?;
         metric.success();
         Ok(opened)
@@ -404,65 +413,231 @@ impl SharedFileOperations {
         let mut metric = self
             .metrics
             .begin_filesystem_operation(FilesystemOperation::Write);
-        let opened = self.opened(handle).await?;
-        let current = self.resolve_inode(opened.inode).await?;
-        let inode = &current.granted.inode;
+        let retry_until = Instant::now() + FILESYSTEM_CAS_RETRY_BUDGET;
+        let mut attempts = 0;
+        loop {
+            attempts += 1;
+            let opened = self.opened(handle).await?;
+            let current = self.resolve_inode(opened.inode).await?;
+            let inode = &current.granted.inode;
+            let inode_revision = inode.revision;
+            let inode_size = inode.attributes.size;
+            if bytes.is_empty() {
+                metric.success();
+                return Ok(ObjectWrite {
+                    version: inode
+                        .content
+                        .as_ref()
+                        .map_or(0, |binding| binding.exact_version),
+                    length: inode.attributes.size,
+                });
+            }
+            let actual_offset = if opened.flags & libc::O_APPEND != 0 {
+                // O_APPEND 的语义不是使用内核传来的 offset，而是以本次解析到的当前
+                // EOF 为准。若并发写抢先提交，Meta CAS 会拒绝，下一轮重新解析 EOF。
+                inode_size
+            } else {
+                offset
+            };
+            let write_end = actual_offset.checked_add(bytes.len() as u64).ok_or(
+                WorkerError::InvalidArgument("file write range overflows u64"),
+            )?;
+            let operation_id = self.core.new_operation_id();
+            let prepared = self
+                .prepare_file_write(
+                    opened.inode,
+                    &current,
+                    actual_offset,
+                    bytes,
+                    operation_id.clone(),
+                )
+                .await?;
+            match self
+                .commit_prepared_file_version(
+                    opened.inode,
+                    inode_revision,
+                    operation_id,
+                    prepared,
+                    inode_size.max(write_end),
+                )
+                .await
+            {
+                Ok(committed) => {
+                    let version = committed
+                        .granted
+                        .inode
+                        .content
+                        .as_ref()
+                        .map(|binding| binding.exact_version)
+                        .ok_or(WorkerError::MetadataUnavailable)?;
+                    let result = ObjectWrite {
+                        version,
+                        length: committed.granted.inode.attributes.size,
+                    };
+                    self.metrics
+                        .record_filesystem_io_bytes(FilesystemOperation::Write, bytes.len());
+                    metric.success();
+                    return Ok(result);
+                }
+                Err(error) if filesystem_version_conflict(&error) => {
+                    self.invalidate_resolved_binding(&current).await?;
+                    if attempts >= FILESYSTEM_CAS_RETRY_MIN_ATTEMPTS
+                        && Instant::now() >= retry_until
+                    {
+                        return Err(error);
+                    }
+                    // 只有确定性 CAS 冲突才会走到这里；下一轮重新解析 authoritative
+                    // inode/EOF，并为新的候选版本生成新的 operation。未知提交结果由
+                    // MetadataClient 复用同一 request/operation 重试，不能在这里重选 EOF。
+                    tokio::task::yield_now().await;
+                }
+                Err(error) => return Err(error),
+            }
+        }
+    }
+
+    /// 调整普通文件大小。缩短走布局裁剪，扩展追加 sparse hole；两者最终都通过同一条
+    /// Meta filesystem commit 原子发布 size、mtime 和 exact content binding，且不会为
+    /// 空洞物化零 Block。
+    pub(crate) async fn truncate(
+        &self,
+        inode: InodeId,
+        size: u64,
+    ) -> Result<ResolvedInode, WorkerError> {
+        let mut metric = self
+            .metrics
+            .begin_filesystem_operation(FilesystemOperation::Truncate);
+        let retry_until = Instant::now() + FILESYSTEM_CAS_RETRY_BUDGET;
+        let mut attempts = 0;
+        loop {
+            attempts += 1;
+            let current = self.resolve_inode(inode).await?;
+            let snapshot = &current.granted.inode;
+            let inode_revision = snapshot.revision;
+            let inode_size = snapshot.attributes.size;
+            if snapshot.attributes.kind != InodeKind::RegularFile {
+                return Err(WorkerError::InvalidArgument(
+                    "only regular files can be truncated",
+                ));
+            }
+            if inode_size == size {
+                metric.success();
+                return Ok(current);
+            }
+
+            let operation_id = self.core.new_operation_id();
+            let prepared = self
+                .prepare_file_truncate(inode, &current, size, operation_id.clone())
+                .await?;
+            match self
+                .commit_prepared_file_version(inode, inode_revision, operation_id, prepared, size)
+                .await
+            {
+                Ok(committed) => {
+                    metric.success();
+                    return Ok(committed);
+                }
+                Err(error) if filesystem_version_conflict(&error) => {
+                    self.invalidate_resolved_binding(&current).await?;
+                    if attempts >= FILESYSTEM_CAS_RETRY_MIN_ATTEMPTS
+                        && Instant::now() >= retry_until
+                    {
+                        return Err(error);
+                    }
+                    tokio::task::yield_now().await;
+                }
+                Err(error) => return Err(error),
+            }
+        }
+    }
+
+    async fn prepare_file_write(
+        &self,
+        inode: InodeId,
+        current: &ResolvedInode,
+        offset: u64,
+        bytes: &[u8],
+        operation_id: Vec<u8>,
+    ) -> Result<PreparedObjectVersion, WorkerError> {
+        let snapshot = &current.granted.inode;
+        if snapshot.attributes.kind != InodeKind::RegularFile {
+            return Err(WorkerError::InvalidArgument(
+                "only regular files can be written",
+            ));
+        }
         let write_end =
             offset
                 .checked_add(bytes.len() as u64)
                 .ok_or(WorkerError::InvalidArgument(
                     "file write range overflows u64",
                 ))?;
-        let operation_id = self.core.new_operation_id();
-        let object_key = ObjectKey::new(content_key(opened.inode))?;
+        let object_key = ObjectKey::new(content_key(inode))?;
 
-        let prepared = if inode.content.is_some() {
+        if snapshot.content.is_some() {
             let object = current
                 .object
                 .clone()
                 .ok_or(WorkerError::MetadataUnavailable)?;
-            // FUSE 可能把一次大 write(2) 拆成多个 callback。旧实现每次扩容都读回
-            // 已写前缀并完整 prepare，累计拷贝量随 callback 数近似 O(n²)。现在保留
-            // 旧 Extent，只把本次 bytes 作为一个新 Block；稀疏区只物化必要的零尾部。
-            let (patch_offset, patch_bytes) = if offset <= inode.attributes.size {
-                (offset, bytes.to_vec())
-            } else {
-                let tail_len = usize::try_from(write_end - inode.attributes.size)
-                    .map_err(|_| WorkerError::ResourceExhausted)?;
-                let data_offset = usize::try_from(offset - inode.attributes.size)
-                    .map_err(|_| WorkerError::ResourceExhausted)?;
-                let mut tail = vec![0; tail_len];
-                tail[data_offset..data_offset + bytes.len()].copy_from_slice(bytes);
-                (inode.attributes.size, tail)
-            };
+            // FUSE 可能把一次大 write(2) 拆成多个 callback。这里保留旧 Extent，
+            // 只把本次 bytes 作为新 Block；若 offset 越过 EOF，中间空洞由
+            // DataCore sparse hole 表达，不能合成一大段全零 tail Block。
             self.core
-                .prepare_range(
-                    object_key,
-                    patch_offset,
-                    patch_bytes,
-                    operation_id.clone(),
-                    object,
-                )
-                .await?
+                .prepare_range(object_key, offset, bytes.to_vec(), operation_id, object)
+                .await
         } else {
-            if offset != 0 {
-                return Err(WorkerError::InvalidArgument(
-                    "first write cannot create a sparse file",
-                ));
-            }
+            // 首次写也可以从非零 offset 开始。DataCore 只提交用户数据 Block；
+            // `[0, offset)` 是 sparse hole，读时补零，不消耗 Arena/网络。
             self.core
-                .prepare_put(object_key, bytes.to_vec(), operation_id.clone(), None)
-                .await?
-        };
+                .prepare_sparse(
+                    object_key,
+                    write_end,
+                    offset,
+                    bytes.to_vec(),
+                    operation_id,
+                    None,
+                )
+                .await
+        }
+    }
 
+    async fn prepare_file_truncate(
+        &self,
+        inode: InodeId,
+        current: &ResolvedInode,
+        size: u64,
+        operation_id: Vec<u8>,
+    ) -> Result<PreparedObjectVersion, WorkerError> {
+        let object_key = ObjectKey::new(content_key(inode))?;
+        match &current.object {
+            Some(object) => {
+                self.core
+                    .prepare_truncate(object_key, size, operation_id, object.clone())
+                    .await
+            }
+            None => {
+                self.core
+                    .prepare_sparse(object_key, size, 0, Vec::new(), operation_id, None)
+                    .await
+            }
+        }
+    }
+
+    async fn commit_prepared_file_version(
+        &self,
+        inode: InodeId,
+        expected_inode_revision: u64,
+        operation_id: Vec<u8>,
+        prepared: PreparedObjectVersion,
+        new_size: u64,
+    ) -> Result<ResolvedInode, WorkerError> {
         let commit = self
             .metadata
             .commit_file_version(CommitFileVersionRequest {
                 operation_id,
-                inode: opened.inode,
-                expected_inode_revision: inode.revision,
+                inode,
+                expected_inode_revision,
                 prepared: prepared.clone(),
-                new_size: inode.attributes.size.max(write_end),
+                new_size,
                 mtime_unix_nanos: unix_nanos(),
             })
             .await;
@@ -482,14 +657,7 @@ impl SharedFileOperations {
                 self.node
                     .filesystem_cache_binding(committed.resolved.clone())
                     .await?;
-                let result = ObjectWrite {
-                    version,
-                    length: committed.resolved.granted.inode.attributes.size,
-                };
-                self.metrics
-                    .record_filesystem_io_bytes(FilesystemOperation::Write, bytes.len());
-                metric.success();
-                Ok(result)
+                Ok(committed.resolved)
             }
             Err(error) => {
                 let rejected = definitive_rejection(&error);
@@ -497,6 +665,19 @@ impl SharedFileOperations {
                 Err(WorkerError::Stable(error))
             }
         }
+    }
+
+    async fn invalidate_resolved_binding(
+        &self,
+        resolved: &ResolvedInode,
+    ) -> Result<(), WorkerError> {
+        self.node
+            .invalidate_filesystem_binding(
+                resolved.granted.inode.attributes.inode,
+                resolved.granted.grant.generation,
+                resolved.granted.inode.revision,
+            )
+            .await
     }
 
     async fn opened(&self, handle: u64) -> Result<OpenHandle, WorkerError> {
@@ -556,6 +737,15 @@ fn definitive_rejection(error: &DmsError) -> bool {
         error.code(),
         dms_error::META_CATALOG_INVALID_REQUEST | dms_error::META_CATALOG_VERSION_CONFLICT
     )
+}
+
+fn filesystem_version_conflict(error: &WorkerError) -> bool {
+    matches!(error, WorkerError::Conflict)
+        || matches!(
+            error,
+            WorkerError::Stable(stable)
+                if stable.code() == dms_error::META_CATALOG_VERSION_CONFLICT
+        )
 }
 
 fn namespace_digest(operation_id: &[u8], names: &[&[u8]], numbers: &[u64]) -> Vec<u8> {

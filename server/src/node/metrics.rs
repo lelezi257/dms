@@ -71,6 +71,7 @@ pub(crate) enum FilesystemOperation {
     Open,
     Read,
     Write,
+    Truncate,
     Close,
 }
 
@@ -87,6 +88,7 @@ impl FilesystemOperation {
         Self::Open,
         Self::Read,
         Self::Write,
+        Self::Truncate,
         Self::Close,
     ];
 
@@ -103,6 +105,7 @@ impl FilesystemOperation {
             Self::Open => "open",
             Self::Read => "read",
             Self::Write => "write",
+            Self::Truncate => "truncate",
             Self::Close => "close",
         }
     }
@@ -123,6 +126,7 @@ pub(crate) enum FuseCallback {
     Rmdir,
     Open,
     Create,
+    Setattr,
     Read,
     Write,
     Flush,
@@ -141,6 +145,7 @@ impl FuseCallback {
         Self::Rmdir,
         Self::Open,
         Self::Create,
+        Self::Setattr,
         Self::Read,
         Self::Write,
         Self::Flush,
@@ -159,6 +164,7 @@ impl FuseCallback {
             Self::Rmdir => "rmdir",
             Self::Open => "open",
             Self::Create => "create",
+            Self::Setattr => "setattr",
             Self::Read => "read",
             Self::Write => "write",
             Self::Flush => "flush",
@@ -175,24 +181,27 @@ impl FuseCallback {
 #[derive(Clone, Copy)]
 pub(crate) enum DataCoreOperation {
     ReadResolved,
-    PreparePut,
     PrepareRange,
+    PrepareSparse,
+    PrepareTruncate,
     FinishPrepared,
 }
 
 impl DataCoreOperation {
     const LIVE: &'static [Self] = &[
         Self::ReadResolved,
-        Self::PreparePut,
         Self::PrepareRange,
+        Self::PrepareSparse,
+        Self::PrepareTruncate,
         Self::FinishPrepared,
     ];
 
     const fn label(self) -> &'static str {
         match self {
             Self::ReadResolved => "read_resolved",
-            Self::PreparePut => "prepare_put",
             Self::PrepareRange => "prepare_range",
+            Self::PrepareSparse => "prepare_sparse",
+            Self::PrepareTruncate => "prepare_truncate",
             Self::FinishPrepared => "finish_prepared",
         }
     }

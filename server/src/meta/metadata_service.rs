@@ -408,10 +408,10 @@ impl MetadataService for MetadataServiceHandler {
 #[cfg(test)]
 mod tests {
     use dms_protocol::v1::{
-        ByteRange, CommitVersionRequest, DurabilityPolicy, ExtentRecord, Key, MetaScanRequest,
-        MetaStatRequest, NodeHeartbeatRequest, NodeRegistration, ObjectScanOptions,
-        OpenNodeSessionRequest, ReplicaReport, RequestContext, ResourceSummary, VersionCandidate,
-        VersionKind, metadata_service_client::MetadataServiceClient,
+        ByteRange, CommitVersionRequest, DurabilityPolicy, ExtentKind, ExtentRecord, Key,
+        MetaScanRequest, MetaStatRequest, NodeHeartbeatRequest, NodeRegistration,
+        ObjectScanOptions, OpenNodeSessionRequest, ReplicaReport, RequestContext, ResourceSummary,
+        VersionCandidate, VersionKind, metadata_service_client::MetadataServiceClient,
         metadata_service_server::MetadataServiceServer,
     };
     use dms_transport::{GrpcConfig, SecurityManager, TlsConfig};
@@ -554,6 +554,7 @@ mod tests {
                         block_id: b"grpc/block-a".to_vec(),
                         block_offset: 0,
                         digest: b"digest".to_vec(),
+                        kind: ExtentKind::Data as i32,
                     }],
                     digest: b"layout".to_vec(),
                 }),

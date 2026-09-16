@@ -79,6 +79,7 @@ pub(crate) enum PayloadBuffer {
 pub(crate) enum ReadPayload {
     Grpc(Vec<u8>),
     Shm(PayloadBuffer),
+    Zero(usize),
 }
 
 impl ReadPayload {
@@ -86,6 +87,7 @@ impl ReadPayload {
         match self {
             Self::Grpc(bytes) => Ok(bytes.len()),
             Self::Shm(buffer) => Ok(buffer.as_slice()?.len()),
+            Self::Zero(length) => Ok(*length),
         }
     }
 
@@ -109,6 +111,14 @@ impl ReadPayload {
                     )
                 })?;
                 dst.copy_from_slice(source);
+            }
+            Self::Zero(length) => {
+                if end > *length {
+                    return Err(DmsError::client_protocol_violation(
+                        "read payload slice is outside zero segment".to_string(),
+                    ));
+                }
+                dst.fill(0);
             }
         }
         Ok(())
@@ -288,6 +298,11 @@ impl TransferEngine {
                         "UB provider is not enabled by this SDK build".to_string(),
                     ))
                 }
+                Some(pb::payload_target::Target::Zero(_)) => {
+                    Err(DmsError::node_transfer_unsupported(
+                        "zero payload target is read-only".to_string(),
+                    ))
+                }
                 None => Err(DmsError::client_protocol_violation(
                     "empty payload target".to_string(),
                 )),
@@ -377,6 +392,12 @@ impl TransferEngine {
                 Some(pb::payload_target::Target::Shm(target)) => {
                     self.download_shm(session_id, target).await
                 }
+                Some(pb::payload_target::Target::Zero(target)) => {
+                    let length = usize::try_from(target.length).map_err(|_| {
+                        DmsError::client_protocol_violation("zero segment length is too large")
+                    })?;
+                    Ok(vec![0; length])
+                }
                 Some(pb::payload_target::Target::Rdma(_)) => {
                     Err(DmsError::node_transfer_unsupported(
                         "RDMA provider is not enabled by this SDK build".to_string(),
@@ -428,6 +449,9 @@ impl TransferEngine {
             )),
             Some(pb::payload_target::Target::Ub(_)) => Err(DmsError::node_transfer_unsupported(
                 "UB mapped provider is not enabled by this SDK build".to_string(),
+            )),
+            Some(pb::payload_target::Target::Zero(_)) => Err(DmsError::node_transfer_unsupported(
+                "zero payload target cannot be mapped".to_string(),
             )),
             None => Err(DmsError::client_protocol_violation(
                 "empty payload target".to_string(),
@@ -489,6 +513,12 @@ impl TransferEngine {
                 )
                 .await
                 .map(ReadPayload::Shm),
+            Some(pb::payload_target::Target::Zero(target)) => {
+                let length = usize::try_from(target.length).map_err(|_| {
+                    DmsError::client_protocol_violation("zero segment length is too large")
+                })?;
+                Ok(ReadPayload::Zero(length))
+            }
             Some(pb::payload_target::Target::Rdma(_)) => Err(DmsError::node_transfer_unsupported(
                 "RDMA provider is not enabled by this SDK build".to_string(),
             )),
@@ -677,6 +707,7 @@ fn provider_name(target: &pb::PayloadTarget) -> TransferProvider {
         Some(pb::payload_target::Target::Shm(_)) => TransferProvider::Shm,
         Some(pb::payload_target::Target::Rdma(_)) => TransferProvider::Rdma,
         Some(pb::payload_target::Target::Ub(_)) => TransferProvider::Ub,
+        Some(pb::payload_target::Target::Zero(_)) => TransferProvider::Zero,
         None => TransferProvider::Unknown,
     }
 }
@@ -687,6 +718,7 @@ fn payload_length(target: &pb::PayloadTarget) -> u64 {
         Some(pb::payload_target::Target::Shm(target)) => target.length,
         Some(pb::payload_target::Target::Rdma(target)) => target.length,
         Some(pb::payload_target::Target::Ub(target)) => target.length,
+        Some(pb::payload_target::Target::Zero(target)) => target.length,
         None => 0,
     }
 }

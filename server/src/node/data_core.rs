@@ -382,21 +382,6 @@ impl DataCoreHandle {
         })
     }
 
-    pub(crate) async fn prepare_put(
-        &self,
-        key: ObjectKey,
-        bytes: Vec<u8>,
-        operation_id: Vec<u8>,
-        expected_version: Option<u64>,
-    ) -> Result<PreparedObjectVersion, WorkerError> {
-        let metrics = self.node.metrics();
-        metrics.record_data_core_operation(DataCoreOperation::PreparePut);
-        metrics.record_data_core_bytes(DataCoreOperation::PreparePut, bytes.len());
-        self.node
-            .data_core_prepare_inline(key.into_bytes(), bytes, operation_id, expected_version)
-            .await
-    }
-
     pub(crate) async fn prepare_range(
         &self,
         key: ObjectKey,
@@ -410,6 +395,44 @@ impl DataCoreHandle {
         metrics.record_data_core_bytes(DataCoreOperation::PrepareRange, bytes.len());
         self.node
             .data_core_prepare_range(key.into_bytes(), offset, bytes, operation_id, resolved)
+            .await
+    }
+
+    pub(crate) async fn prepare_sparse(
+        &self,
+        key: ObjectKey,
+        logical_length: u64,
+        offset: u64,
+        bytes: Vec<u8>,
+        operation_id: Vec<u8>,
+        expected_version: Option<u64>,
+    ) -> Result<PreparedObjectVersion, WorkerError> {
+        let metrics = self.node.metrics();
+        metrics.record_data_core_operation(DataCoreOperation::PrepareSparse);
+        metrics.record_data_core_bytes(DataCoreOperation::PrepareSparse, bytes.len());
+        self.node
+            .data_core_prepare_sparse(
+                key.into_bytes(),
+                logical_length,
+                offset,
+                bytes,
+                operation_id,
+                expected_version,
+            )
+            .await
+    }
+
+    pub(crate) async fn prepare_truncate(
+        &self,
+        key: ObjectKey,
+        new_length: u64,
+        operation_id: Vec<u8>,
+        resolved: ResolvedObject,
+    ) -> Result<PreparedObjectVersion, WorkerError> {
+        let metrics = self.node.metrics();
+        metrics.record_data_core_operation(DataCoreOperation::PrepareTruncate);
+        self.node
+            .data_core_prepare_truncate(key.into_bytes(), new_length, operation_id, resolved)
             .await
     }
 

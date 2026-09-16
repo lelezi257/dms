@@ -19,6 +19,7 @@ use dms_tracing::Instrument as _;
 use fuser::{
     BackgroundSession, FileAttr, FileType, Filesystem, MountOption, ReplyAttr, ReplyCreate,
     ReplyData, ReplyDirectory, ReplyEmpty, ReplyEntry, ReplyIoctl, ReplyOpen, ReplyWrite, Request,
+    TimeOrNow,
 };
 use tokio::runtime::Handle;
 
@@ -141,6 +142,43 @@ impl Filesystem for DmsFuse {
         }
     }
 
+    fn setattr(
+        &mut self,
+        _req: &Request,
+        ino: u64,
+        mode: Option<u32>,
+        uid: Option<u32>,
+        gid: Option<u32>,
+        size: Option<u64>,
+        _atime: Option<TimeOrNow>,
+        _mtime: Option<TimeOrNow>,
+        _ctime: Option<SystemTime>,
+        _fh: Option<u64>,
+        _crtime: Option<SystemTime>,
+        _chgtime: Option<SystemTime>,
+        _bkuptime: Option<SystemTime>,
+        flags: Option<u32>,
+        reply: ReplyAttr,
+    ) {
+        self.metrics.record_fuse_callback(FuseCallback::Setattr);
+        if mode.is_some() || uid.is_some() || gid.is_some() || flags.is_some() {
+            reply.error(libc::ENOSYS);
+            return;
+        }
+        let Some(size) = size else {
+            reply.error(libc::ENOSYS);
+            return;
+        };
+        let span = filesystem_span("dms.filesystem.truncate", Some(ino));
+        match self
+            .runtime
+            .block_on(self.files.truncate(ino, size).instrument(span))
+        {
+            Ok(resolved) => reply.attr(&TTL, &file_attr(&resolved.granted.inode.attributes)),
+            Err(error) => reply.error(worker_to_errno(error)),
+        }
+    }
+
     fn readdir(
         &mut self,
         _req: &Request,
@@ -232,12 +270,6 @@ impl Filesystem for DmsFuse {
 
     fn open(&mut self, _req: &Request, ino: u64, flags: i32, reply: ReplyOpen) {
         self.metrics.record_fuse_callback(FuseCallback::Open);
-        if flags & libc::O_TRUNC != 0 {
-            // truncate 将在完整 POSIX 阶段使用相同原子发布机制接入；本纵向切片不能
-            // 静默忽略 O_TRUNC，否则会把旧内容当成新空文件返回成功。
-            reply.error(libc::ENOSYS);
-            return;
-        }
         let span = filesystem_span("dms.filesystem.open", Some(ino));
         match self
             .runtime

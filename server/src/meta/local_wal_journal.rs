@@ -22,7 +22,8 @@ use super::metadata_journal::{
     BlockRetirementParticipant, BlockRetirementRecord, CommitSequenceRecord,
     FilesystemInodeCreatedRecord, FilesystemNamespaceMutationRecord, FilesystemVersionCommitRecord,
     JournalEntry, JournalError, JournalRecord, MetaSnapshot, MetadataJournal,
-    SnapshotBlockRetirement, SnapshotFilesystemNamespaceOperation, SnapshotOperation,
+    SnapshotBlockRetirement, SnapshotFilesystemNamespaceOperation,
+    SnapshotFilesystemOperationVisibility, SnapshotFilesystemVersionOperation, SnapshotOperation,
     SnapshotReplica, SnapshotReplicaOperation, SnapshotSession, VersionCommitRecord,
 };
 
@@ -828,6 +829,29 @@ fn encode_snapshot(snapshot: &MetaSnapshot) -> Result<Vec<u8>, JournalError> {
         put_bytes(&mut out, &operation.digest)?;
         put_message(&mut out, &namespace_result_to_proto(&operation.result))?;
     }
+    put_u32(
+        &mut out,
+        len_u32(snapshot.filesystem_version_operations.len())?,
+    );
+    for operation in &snapshot.filesystem_version_operations {
+        put_bytes(&mut out, &operation.operation_id)?;
+        put_bytes(&mut out, &operation.digest)?;
+        put_message(&mut out, &operation.response)?;
+    }
+    let visibility = snapshot
+        .filesystem_operation_visibility
+        .as_ref()
+        .expect("new snapshots must declare filesystem operation visibility");
+    put_u32(&mut out, len_u32(visibility.namespace.len())?);
+    for (operation_id, cursor) in &visibility.namespace {
+        put_bytes(&mut out, operation_id)?;
+        put_u64(&mut out, *cursor);
+    }
+    put_u32(&mut out, len_u32(visibility.versions.len())?);
+    for (operation_id, cursor) in &visibility.versions {
+        put_bytes(&mut out, operation_id)?;
+        put_u64(&mut out, *cursor);
+    }
     Ok(out)
 }
 
@@ -1013,6 +1037,38 @@ fn decode_snapshot(bytes: &[u8]) -> Result<MetaSnapshot, JournalError> {
             })
             .collect::<Result<Vec<_>, JournalError>>()?
     };
+    let filesystem_version_operations = if input.remaining() == 0 {
+        Vec::new()
+    } else {
+        (0..input.u32()?)
+            .map(|_| {
+                Ok(SnapshotFilesystemVersionOperation {
+                    operation_id: input.bytes()?,
+                    digest: input.bytes()?,
+                    response: input.message()?,
+                })
+            })
+            .collect::<Result<Vec<_>, JournalError>>()?
+    };
+    let filesystem_operation_visibility = if input.remaining() == 0 {
+        None
+    } else {
+        let namespace = (0..input.u32()?)
+            .map(|_| Ok((input.bytes()?, input.u64()?)))
+            .collect::<Result<Vec<_>, JournalError>>()?;
+        let versions = (0..input.u32()?)
+            .map(|_| Ok((input.bytes()?, input.u64()?)))
+            .collect::<Result<Vec<_>, JournalError>>()?;
+        Some(SnapshotFilesystemOperationVisibility {
+            namespace,
+            versions,
+        })
+    };
+    if input.remaining() != 0 {
+        return Err(JournalError::InvalidSnapshot(
+            "unexpected trailing filesystem snapshot bytes",
+        ));
+    }
     Ok(MetaSnapshot {
         last_applied_index,
         version_floor,
@@ -1036,6 +1092,8 @@ fn decode_snapshot(bytes: &[u8]) -> Result<MetaSnapshot, JournalError> {
         filesystem_dentries,
         filesystem_grant_generations,
         filesystem_namespace_operations,
+        filesystem_version_operations,
+        filesystem_operation_visibility,
     })
 }
 
@@ -1391,6 +1449,11 @@ mod tests {
                 filesystem_dentries: Vec::new(),
                 filesystem_grant_generations: Vec::new(),
                 filesystem_namespace_operations: Vec::new(),
+                filesystem_version_operations: Vec::new(),
+                filesystem_operation_visibility: Some(SnapshotFilesystemOperationVisibility {
+                    namespace: vec![(b"namespace-op".to_vec(), 7)],
+                    versions: vec![(b"version-op".to_vec(), 9)],
+                }),
             })
             .expect("snapshot");
         journal.truncate_prefix(first).expect("truncate");
@@ -1408,6 +1471,13 @@ mod tests {
         assert_eq!(
             snapshot.desired_replica_counts,
             vec![(b"block-a".to_vec(), 2)]
+        );
+        assert_eq!(
+            snapshot.filesystem_operation_visibility,
+            Some(SnapshotFilesystemOperationVisibility {
+                namespace: vec![(b"namespace-op".to_vec(), 7)],
+                versions: vec![(b"version-op".to_vec(), 9)],
+            })
         );
         assert_eq!(restored.load_after(first).expect("tail").len(), 1);
         assert_eq!(restored.last_index(), second);

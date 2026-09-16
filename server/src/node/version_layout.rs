@@ -1,15 +1,54 @@
-//! Immutable value-layout algorithms used by the real Node runtime.
+//! Node 使用的不可变 value 布局算法。
 //!
-//! A `VersionLayout` describes one logical value as ordered Extents. Each
-//! Extent maps a logical range to a range in an immutable Block. This module is
-//! deliberately stateless: it owns calculation, not payload bytes or metadata.
+//! `VersionLayout` 用有序 Extent 描述一个逻辑 value。DATA Extent 把逻辑范围映射到
+//! immutable Block 的一段；HOLE Extent 表达 sparse 零区间，但没有 Block、副本、
+//! Allocation、摘要或传输。本模块只负责无状态布局计算，不持有 payload bytes 或元数据。
 
 use dms_protocol::v1 as pb;
 
 use super::metadata_client::digest as digest_bytes;
 use super::runtime::WorkerError;
 
-/// Verifies that Extents cover exactly `[0, logical_length)` in order.
+/// Sparse 文件洞的显式协议语义。
+///
+/// 旧消息没有 `kind` 字段，因此 `UNSPECIFIED` 仍按 DATA 解释；只有明确标记为
+/// `HOLE` 的 Extent 才能省略 Block。这样读/校验/Meta proof 不再依赖
+/// “block_id 为空”这种隐式哨兵。
+pub(crate) fn is_hole(extent: &pb::ExtentRecord) -> bool {
+    extent.kind == pb::ExtentKind::Hole as i32
+}
+
+fn is_data_kind(kind: i32) -> bool {
+    kind == pb::ExtentKind::Unspecified as i32 || kind == pb::ExtentKind::Data as i32
+}
+
+fn data_extent(
+    offset: u64,
+    length: u64,
+    block_id: Vec<u8>,
+    block_offset: u64,
+    digest: Vec<u8>,
+) -> pb::ExtentRecord {
+    pb::ExtentRecord {
+        logical: Some(pb::ByteRange { offset, length }),
+        block_id,
+        block_offset,
+        digest,
+        kind: pb::ExtentKind::Data as i32,
+    }
+}
+
+fn hole_extent(offset: u64, length: u64) -> pb::ExtentRecord {
+    pb::ExtentRecord {
+        logical: Some(pb::ByteRange { offset, length }),
+        block_id: Vec::new(),
+        block_offset: 0,
+        digest: Vec::new(),
+        kind: pb::ExtentKind::Hole as i32,
+    }
+}
+
+/// 校验 Extent 是否按顺序完整覆盖 `[0, logical_length)`。
 pub(crate) fn validate(
     logical_length: u64,
     extents: &[pb::ExtentRecord],
@@ -27,6 +66,27 @@ pub(crate) fn validate(
         cursor = cursor
             .checked_add(logical.length)
             .ok_or(WorkerError::InvalidArgument("extent range overflows u64"))?;
+        if is_hole(extent) {
+            if extent.block_offset != 0 {
+                return Err(WorkerError::InvalidArgument(
+                    "sparse hole must not point into a block",
+                ));
+            }
+            if !extent.block_id.is_empty() || !extent.digest.is_empty() {
+                return Err(WorkerError::InvalidArgument(
+                    "sparse hole must not carry block identity or digest",
+                ));
+            }
+            continue;
+        }
+        if !is_data_kind(extent.kind) {
+            return Err(WorkerError::InvalidArgument("unknown extent kind"));
+        }
+        if extent.block_id.is_empty() {
+            return Err(WorkerError::InvalidArgument(
+                "data extent requires a block identity",
+            ));
+        }
         extent
             .block_offset
             .checked_add(logical.length)
@@ -40,7 +100,7 @@ pub(crate) fn validate(
     Ok(())
 }
 
-/// Builds a `SET_RANGE` layout without copying unchanged base bytes.
+/// 构造 `SET_RANGE` 布局，不复制未修改的 base bytes。
 pub(crate) fn overlay(
     base: &[pb::ExtentRecord],
     logical_length: u64,
@@ -67,6 +127,7 @@ pub(crate) fn overlay(
     overlay_with_length(
         base,
         logical_length,
+        logical_length,
         patch_start,
         patch_length,
         patch_block,
@@ -74,11 +135,12 @@ pub(crate) fn overlay(
     )
 }
 
-/// 构造文件写的 Extent overlay，并允许写入从当前 EOF 继续向后扩展。
+/// 构造文件写的 Extent overlay，并允许写入从当前 EOF 之外继续向后扩展。
 ///
 /// 普通 KV `SET_RANGE` 不能改变 value 长度；文件 `write(2)` 可以覆盖旧范围并
 /// 越过 EOF。未覆盖的旧 Extent 继续复用，新写入只形成一个 immutable Block，
-/// 不能为了扩容把整个旧文件读回并重新提交。
+/// 不能为了扩容把整个旧文件读回并重新提交。若写入起点超过 EOF，中间空洞用
+/// sparse hole Extent 表示，读路径填零，但不会分配或传输零 Block。
 pub(crate) fn overlay_file_write(
     base: &[pb::ExtentRecord],
     logical_length: u64,
@@ -93,11 +155,6 @@ pub(crate) fn overlay_file_write(
             "file write patch must not be empty",
         ));
     }
-    if patch_start > logical_length {
-        return Err(WorkerError::InvalidArgument(
-            "file write patch starts beyond EOF",
-        ));
-    }
     let patch_end = patch_start
         .checked_add(patch_length)
         .ok_or(WorkerError::InvalidArgument(
@@ -105,6 +162,7 @@ pub(crate) fn overlay_file_write(
         ))?;
     overlay_with_length(
         base,
+        logical_length,
         logical_length.max(patch_end),
         patch_start,
         patch_length,
@@ -113,8 +171,53 @@ pub(crate) fn overlay_file_write(
     )
 }
 
+/// 构造文件 truncate 的新 Extent 布局。
+///
+/// 缩短文件只改变逻辑视图：保留仍被新文件引用的 Extent 前缀，必要时裁剪最后一个
+/// Extent 的逻辑长度；不会读回或复制 Block bytes。扩展文件只追加 sparse hole，
+/// 读路径按 POSIX 语义返回零，不分配全零 Block。
+pub(crate) fn truncate_file(
+    base: &[pb::ExtentRecord],
+    logical_length: u64,
+    next_logical_length: u64,
+) -> Result<Vec<pb::ExtentRecord>, WorkerError> {
+    validate(logical_length, base)?;
+    if next_logical_length == logical_length {
+        return Ok(base.to_vec());
+    }
+    if next_logical_length > logical_length {
+        let mut next = base.to_vec();
+        next.push(hole_extent(
+            logical_length,
+            next_logical_length - logical_length,
+        ));
+        return compact_and_validate(next_logical_length, next);
+    }
+
+    let mut next = Vec::new();
+    for extent in base {
+        let logical = extent.logical.as_ref().expect("layout was validated above");
+        if logical.offset >= next_logical_length {
+            break;
+        }
+        let kept_end = logical
+            .offset
+            .checked_add(logical.length)
+            .ok_or(WorkerError::InvalidArgument("extent range overflows u64"))?
+            .min(next_logical_length);
+        next.push(slice_extent(
+            extent,
+            logical.offset,
+            kept_end - logical.offset,
+            0,
+        )?);
+    }
+    compact_and_validate(next_logical_length, next)
+}
+
 fn overlay_with_length(
     base: &[pb::ExtentRecord],
+    base_logical_length: u64,
     next_logical_length: u64,
     patch_start: u64,
     patch_length: u64,
@@ -125,7 +228,7 @@ fn overlay_with_length(
         .checked_add(patch_length)
         .ok_or(WorkerError::InvalidArgument("range patch overflows u64"))?;
 
-    let mut next = Vec::with_capacity(base.len() + 2);
+    let mut next = Vec::with_capacity(base.len() + 3);
     for extent in base {
         let logical = extent.logical.as_ref().expect("layout was validated above");
         let extent_end = logical.offset + logical.length;
@@ -134,46 +237,105 @@ fn overlay_with_length(
             continue;
         }
         if logical.offset < patch_start {
-            next.push(pb::ExtentRecord {
-                logical: Some(pb::ByteRange {
-                    offset: logical.offset,
-                    length: patch_start - logical.offset,
-                }),
-                block_id: extent.block_id.clone(),
-                block_offset: extent.block_offset,
-                digest: extent.digest.clone(),
-            });
+            next.push(slice_extent(
+                extent,
+                logical.offset,
+                patch_start - logical.offset,
+                0,
+            )?);
         }
         if extent_end > patch_end {
-            next.push(pb::ExtentRecord {
-                logical: Some(pb::ByteRange {
-                    offset: patch_end,
-                    length: extent_end - patch_end,
-                }),
-                block_id: extent.block_id.clone(),
-                block_offset: extent
-                    .block_offset
-                    .checked_add(patch_end - logical.offset)
-                    .ok_or(WorkerError::InvalidArgument("block range overflows u64"))?,
-                digest: extent.digest.clone(),
-            });
+            next.push(slice_extent(
+                extent,
+                patch_end,
+                extent_end - patch_end,
+                patch_end - logical.offset,
+            )?);
         }
     }
-    next.push(pb::ExtentRecord {
-        logical: Some(pb::ByteRange {
-            offset: patch_start,
-            length: patch_length,
-        }),
-        block_id: patch_block.to_vec(),
-        block_offset: 0,
-        digest: patch_digest.to_vec(),
-    });
+    next.push(data_extent(
+        patch_start,
+        patch_length,
+        patch_block.to_vec(),
+        0,
+        patch_digest.to_vec(),
+    ));
+    if patch_start > base_logical_length {
+        next.push(hole_extent(
+            base_logical_length,
+            patch_start - base_logical_length,
+        ));
+    }
     next.sort_by_key(|extent| extent.logical.as_ref().map_or(0, |range| range.offset));
-    validate(next_logical_length, &next)?;
-    Ok(next)
+    compact_and_validate(next_logical_length, next)
 }
 
-/// Names the layout metadata; each immutable Block keeps its own payload digest.
+fn slice_extent(
+    extent: &pb::ExtentRecord,
+    logical_offset: u64,
+    logical_length: u64,
+    block_delta: u64,
+) -> Result<pb::ExtentRecord, WorkerError> {
+    if is_hole(extent) {
+        return Ok(hole_extent(logical_offset, logical_length));
+    }
+    Ok(data_extent(
+        logical_offset,
+        logical_length,
+        extent.block_id.clone(),
+        extent
+            .block_offset
+            .checked_add(block_delta)
+            .ok_or(WorkerError::InvalidArgument("block range overflows u64"))?,
+        extent.digest.clone(),
+    ))
+}
+
+fn compact_and_validate(
+    logical_length: u64,
+    extents: Vec<pb::ExtentRecord>,
+) -> Result<Vec<pb::ExtentRecord>, WorkerError> {
+    let mut compacted: Vec<pb::ExtentRecord> = Vec::with_capacity(extents.len());
+    for extent in extents {
+        if let Some(previous) = compacted.last_mut() {
+            let can_merge_holes = is_hole(previous) && is_hole(&extent) && {
+                let previous_logical = previous
+                    .logical
+                    .as_ref()
+                    .expect("previous extent was produced with logical range");
+                let logical = extent
+                    .logical
+                    .as_ref()
+                    .expect("new extent was produced with logical range");
+                previous_logical
+                    .offset
+                    .checked_add(previous_logical.length)
+                    .is_some_and(|end| end == logical.offset)
+            };
+            if can_merge_holes {
+                let additional = extent
+                    .logical
+                    .as_ref()
+                    .expect("new extent was produced with logical range")
+                    .length;
+                let previous_logical = previous
+                    .logical
+                    .as_mut()
+                    .expect("previous extent was produced with logical range");
+                previous_logical.length = previous_logical
+                    .length
+                    .checked_add(additional)
+                    .ok_or(WorkerError::InvalidArgument("extent range overflows u64"))?;
+                continue;
+            }
+        }
+        compacted.push(extent);
+    }
+    validate(logical_length, &compacted)?;
+    Ok(compacted)
+}
+
+/// 计算布局元数据摘要；每个 immutable Block 仍保留自己的 payload 摘要。
 pub(crate) fn digest(logical_length: u64, extents: &[pb::ExtentRecord]) -> Vec<u8> {
     let mut bytes = logical_length.to_be_bytes().to_vec();
     for extent in extents {
@@ -181,6 +343,8 @@ pub(crate) fn digest(logical_length: u64, extents: &[pb::ExtentRecord]) -> Vec<u
             bytes.extend_from_slice(&logical.offset.to_be_bytes());
             bytes.extend_from_slice(&logical.length.to_be_bytes());
         }
+        let effective_kind = if is_hole(extent) { 2_u8 } else { 1_u8 };
+        bytes.push(effective_kind);
         bytes.extend_from_slice(&(extent.block_id.len() as u64).to_be_bytes());
         bytes.extend_from_slice(&extent.block_id);
         bytes.extend_from_slice(&extent.block_offset.to_be_bytes());
@@ -194,15 +358,11 @@ mod tests {
     use super::*;
 
     fn extent(start: u64, length: u64, block: &[u8], block_offset: u64) -> pb::ExtentRecord {
-        pb::ExtentRecord {
-            logical: Some(pb::ByteRange {
-                offset: start,
-                length,
-            }),
-            block_id: block.to_vec(),
-            block_offset,
-            digest: block.to_vec(),
-        }
+        data_extent(start, length, block.to_vec(), block_offset, block.to_vec())
+    }
+
+    fn patch_extent(start: u64, length: u64, block: &[u8], digest: &[u8]) -> pb::ExtentRecord {
+        data_extent(start, length, block.to_vec(), 0, digest.to_vec())
     }
 
     #[test]
@@ -213,15 +373,7 @@ mod tests {
             next,
             vec![
                 extent(0, 2, b"base", 0),
-                pb::ExtentRecord {
-                    logical: Some(pb::ByteRange {
-                        offset: 2,
-                        length: 1,
-                    }),
-                    block_id: b"patch".to_vec(),
-                    block_offset: 0,
-                    digest: b"p".to_vec(),
-                },
+                patch_extent(2, 1, b"patch", b"p"),
                 extent(3, 3, b"base", 3),
             ]
         );
@@ -239,18 +391,7 @@ mod tests {
             .expect("append at EOF");
         assert_eq!(
             next,
-            vec![
-                extent(0, 3, b"base", 0),
-                pb::ExtentRecord {
-                    logical: Some(pb::ByteRange {
-                        offset: 3,
-                        length: 2,
-                    }),
-                    block_id: b"tail".to_vec(),
-                    block_offset: 0,
-                    digest: b"t".to_vec(),
-                },
-            ]
+            vec![extent(0, 3, b"base", 0), patch_extent(3, 2, b"tail", b"t"),]
         );
     }
 
@@ -260,18 +401,89 @@ mod tests {
             .expect("replace suffix and extend");
         assert_eq!(
             next,
+            vec![extent(0, 4, b"base", 0), patch_extent(4, 4, b"tail", b"t"),]
+        );
+    }
+
+    #[test]
+    fn truncate_file_clips_suffix_without_copying_blocks() {
+        let next = truncate_file(&[extent(0, 8, b"base", 2)], 8, 5).expect("truncate suffix");
+        assert_eq!(next, vec![extent(0, 5, b"base", 2)]);
+    }
+
+    #[test]
+    fn truncate_file_keeps_only_referenced_extents() {
+        let next = truncate_file(&[extent(0, 4, b"left", 0), extent(4, 4, b"right", 0)], 8, 4)
+            .expect("truncate to extent boundary");
+        assert_eq!(next, vec![extent(0, 4, b"left", 0)]);
+    }
+
+    #[test]
+    fn truncate_file_allows_empty_layout() {
+        let next = truncate_file(&[extent(0, 8, b"base", 0)], 8, 0).expect("truncate empty");
+        assert!(next.is_empty());
+        validate(0, &next).expect("empty file layout is valid");
+    }
+
+    #[test]
+    fn file_write_beyond_eof_uses_sparse_hole_without_zero_block() {
+        let next = overlay_file_write(&[extent(0, 3, b"base", 0)], 3, 5, 2, b"data", b"d")
+            .expect("sparse pwrite");
+        assert_eq!(
+            next,
             vec![
-                extent(0, 4, b"base", 0),
-                pb::ExtentRecord {
-                    logical: Some(pb::ByteRange {
-                        offset: 4,
-                        length: 4,
-                    }),
-                    block_id: b"tail".to_vec(),
-                    block_offset: 0,
-                    digest: b"t".to_vec(),
-                },
+                extent(0, 3, b"base", 0),
+                hole_extent(3, 2),
+                patch_extent(5, 2, b"data", b"d"),
             ]
         );
+    }
+
+    #[test]
+    fn truncate_grow_extends_with_sparse_hole() {
+        let next = truncate_file(&[extent(0, 3, b"base", 0)], 3, 6).expect("sparse grow");
+        assert_eq!(next, vec![extent(0, 3, b"base", 0), hole_extent(3, 3)]);
+    }
+
+    #[test]
+    fn patch_can_replace_the_middle_of_a_sparse_hole() {
+        let next = overlay_file_write(&[hole_extent(0, 8)], 8, 3, 2, b"data", b"d")
+            .expect("write inside hole");
+        assert_eq!(
+            next,
+            vec![
+                hole_extent(0, 3),
+                patch_extent(3, 2, b"data", b"d"),
+                hole_extent(5, 3),
+            ]
+        );
+    }
+
+    #[test]
+    fn explicit_hole_is_not_encoded_as_empty_data() {
+        let hole = hole_extent(0, 4);
+        assert!(is_hole(&hole));
+        validate(4, std::slice::from_ref(&hole)).expect("explicit hole is valid");
+
+        let legacy_data = pb::ExtentRecord {
+            logical: Some(pb::ByteRange {
+                offset: 0,
+                length: 4,
+            }),
+            block_id: b"old".to_vec(),
+            block_offset: 0,
+            digest: b"old".to_vec(),
+            // 旧协议没有 kind 字段；proto3 默认 0 必须继续按 DATA 处理。
+            kind: pb::ExtentKind::Unspecified as i32,
+        };
+        assert!(!is_hole(&legacy_data));
+        validate(4, &[legacy_data]).expect("legacy data extent remains compatible");
+
+        let invalid = pb::ExtentRecord {
+            block_id: b"bad".to_vec(),
+            digest: b"bad".to_vec(),
+            ..hole
+        };
+        assert!(validate(4, &[invalid]).is_err());
     }
 }

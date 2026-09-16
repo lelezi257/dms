@@ -20,7 +20,9 @@ use dms_error::{self, DmsError, ErrorKind};
 use dms_protocol::v1 as pb;
 use dms_transport::dms_error_to_status;
 use pb::{
-    filesystem_metadata_service_server::FilesystemMetadataServiceServer,
+    filesystem_metadata_service_server::{
+        FilesystemMetadataService, FilesystemMetadataServiceServer,
+    },
     metadata_service_server::{MetadataService, MetadataServiceServer},
     peer_service_server::{PeerService, PeerServiceServer},
     worker_payload_service_server::WorkerPayloadServiceServer,
@@ -43,7 +45,7 @@ use super::{
     metadata_client::MetadataClient,
     peer_service::PeerServiceHandler,
     runtime::{NodeEvent, NodeHandle, ReadTicket, SetRangeInput, WorkerError},
-    send_meta_heartbeats,
+    send_meta_heartbeats, version_layout,
     worker_service::WorkerServiceHandler,
 };
 use crate::meta::{
@@ -66,6 +68,13 @@ struct CountingMetaService {
     report_count: Arc<AtomicUsize>,
     watch_drop: Arc<WatchDropControl>,
     ack_state: Arc<AckState>,
+}
+
+#[derive(Clone)]
+struct CountingFilesystemMetaService {
+    inner: FilesystemMetadataServiceHandler,
+    commit_requests: Arc<Mutex<Vec<Vec<u8>>>>,
+    drop_next_commit_response: Arc<AtomicBool>,
 }
 
 #[derive(Clone)]
@@ -395,9 +404,75 @@ impl MetadataService for CountingMetaService {
     }
 }
 
+#[tonic::async_trait]
+impl FilesystemMetadataService for CountingFilesystemMetaService {
+    async fn lookup_filesystem_entry(
+        &self,
+        request: Request<pb::FilesystemLookupRequest>,
+    ) -> Result<Response<pb::FilesystemResolveResponse>, Status> {
+        self.inner.lookup_filesystem_entry(request).await
+    }
+
+    async fn get_filesystem_inode(
+        &self,
+        request: Request<pb::FilesystemGetInodeRequest>,
+    ) -> Result<Response<pb::FilesystemResolveResponse>, Status> {
+        self.inner.get_filesystem_inode(request).await
+    }
+
+    async fn create_filesystem_inode(
+        &self,
+        request: Request<pb::FilesystemCreateInodeRequest>,
+    ) -> Result<Response<pb::FilesystemResolveResponse>, Status> {
+        self.inner.create_filesystem_inode(request).await
+    }
+
+    async fn read_filesystem_directory(
+        &self,
+        request: Request<pb::FilesystemReadDirectoryRequest>,
+    ) -> Result<Response<pb::FilesystemReadDirectoryResponse>, Status> {
+        self.inner.read_filesystem_directory(request).await
+    }
+
+    async fn rename_filesystem_entry(
+        &self,
+        request: Request<pb::FilesystemRenameRequest>,
+    ) -> Result<Response<pb::FilesystemNamespaceMutationResponse>, Status> {
+        self.inner.rename_filesystem_entry(request).await
+    }
+
+    async fn remove_filesystem_entry(
+        &self,
+        request: Request<pb::FilesystemRemoveRequest>,
+    ) -> Result<Response<pb::FilesystemNamespaceMutationResponse>, Status> {
+        self.inner.remove_filesystem_entry(request).await
+    }
+
+    async fn commit_filesystem_version(
+        &self,
+        request: Request<pb::FilesystemCommitVersionRequest>,
+    ) -> Result<Response<pb::FilesystemCommitVersionResponse>, Status> {
+        self.commit_requests
+            .lock()
+            .expect("filesystem commit requests")
+            .push(request.get_ref().operation_id.clone());
+        let response = self.inner.commit_filesystem_version(request).await?;
+        if self.drop_next_commit_response.swap(false, Ordering::AcqRel) {
+            // 模拟“Meta 已提交成功，但响应在回到 Node 前丢失”。这类未知结果
+            // 必须复用同一个 operation/request 重试，不能重新选择 O_APPEND 的 EOF。
+            return Err(Status::unavailable(
+                "test forced filesystem commit response loss",
+            ));
+        }
+        Ok(response)
+    }
+}
+
 struct CountingMetaServer {
     handle: MetaHandle,
     commit_requests: Arc<Mutex<Vec<Vec<u8>>>>,
+    filesystem_commit_requests: Arc<Mutex<Vec<Vec<u8>>>>,
+    drop_next_filesystem_commit_response: Arc<AtomicBool>,
     handler: MetadataServiceHandler,
     endpoint: String,
     resolve_count: Arc<AtomicUsize>,
@@ -438,13 +513,19 @@ impl CountingMetaServer {
         let ack_state = Arc::new(AckState::new());
         let handle = MetaHandle::spawn();
         let commit_requests = Arc::new(Mutex::new(Vec::new()));
+        let filesystem_commit_requests = Arc::new(Mutex::new(Vec::new()));
+        let drop_next_filesystem_commit_response = Arc::new(AtomicBool::new(false));
         let handler = MetadataServiceHandler::new(handle.clone());
         let registry = dms_metrics::registry();
-        let filesystem_handler = FilesystemMetadataServiceHandler::new(
-            handle.clone(),
-            dms_metrics::RpcMetrics::register(&registry).expect("filesystem RPC metrics"),
-            dms_metrics::ErrorMetrics::register(&registry).expect("filesystem error metrics"),
-        );
+        let filesystem_handler = CountingFilesystemMetaService {
+            inner: FilesystemMetadataServiceHandler::new(
+                handle.clone(),
+                dms_metrics::RpcMetrics::register(&registry).expect("filesystem RPC metrics"),
+                dms_metrics::ErrorMetrics::register(&registry).expect("filesystem error metrics"),
+            ),
+            commit_requests: filesystem_commit_requests.clone(),
+            drop_next_commit_response: drop_next_filesystem_commit_response.clone(),
+        };
         let service = CountingMetaService {
             inner: handler.clone(),
             commit_requests: commit_requests.clone(),
@@ -474,6 +555,8 @@ impl CountingMetaServer {
         Self {
             handle,
             commit_requests,
+            filesystem_commit_requests,
+            drop_next_filesystem_commit_response,
             handler,
             endpoint,
             resolve_count,
@@ -507,6 +590,11 @@ impl CountingMetaServer {
 
     fn drop_next_commit_response(&self) {
         self.handler.drop_next_commit_response_for_test();
+    }
+
+    fn drop_next_filesystem_commit_response(&self) {
+        self.drop_next_filesystem_commit_response
+            .store(true, Ordering::Release);
     }
 
     fn resolve_count(&self) -> usize {
@@ -1094,6 +1182,20 @@ fn operation_id(prefix: u8, sequence: u64) -> Vec<u8> {
     id
 }
 
+async fn resolve_filesystem_content_layout(
+    meta: &CountingMetaServer,
+    inode: u64,
+    version: u64,
+) -> pb::ResolveObjectResponse {
+    meta.handle
+        .debug_resolve_object_without_session(
+            format!("fs/content/{inode}").into_bytes(),
+            Some(version),
+        )
+        .await
+        .expect("resolve filesystem content layout")
+}
+
 async fn acknowledge_next_invalidation(
     node: &NodeHandle,
     session_id: u64,
@@ -1615,6 +1717,329 @@ async fn shared_filesystem_write_peer_read_revoke_and_patch_are_one_version_chai
 
     writer_fs.close(writer.id).await.expect("close writer");
     reader_fs.close(reader.id).await.expect("close reader");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn shared_filesystem_sparse_pwrite_and_truncate_do_not_publish_zero_blocks() {
+    let meta = CountingMetaServer::start().await;
+    let node = TestNode::start(&meta.endpoint, 1).await;
+    let fs = SharedFileOperations::new(node.node.clone()).expect("shared FS");
+    let opened = fs
+        .create_and_open(b"sparse.bin", 0o644, libc::O_RDWR)
+        .await
+        .expect("create sparse file");
+
+    let written = fs
+        .write(opened.id, 5, b"xy")
+        .await
+        .expect("pwrite beyond EOF");
+    assert_eq!(written.length, 7);
+    let pwrite_read = fs
+        .read(opened.id, 0, 7)
+        .await
+        .expect("read sparse pwrite")
+        .expect("sparse content exists");
+    assert_eq!(pwrite_read.bytes, b"\0\0\0\0\0xy");
+
+    let pwrite_layout = resolve_filesystem_content_layout(&meta, opened.inode, written.version)
+        .await
+        .layout
+        .expect("pwrite layout");
+    assert_eq!(
+        pwrite_layout.extents.len(),
+        2,
+        "越过 EOF 的 pwrite 只能产生 hole + 用户数据 Block，不能分配零 Block"
+    );
+    assert!(
+        version_layout::is_hole(&pwrite_layout.extents[0]),
+        "第一个 Extent 必须是逻辑零洞"
+    );
+    assert!(
+        !version_layout::is_hole(&pwrite_layout.extents[1]),
+        "第二个 Extent 才是用户写入的数据 Block"
+    );
+    let pwrite_resolved =
+        resolve_filesystem_content_layout(&meta, opened.inode, written.version).await;
+    assert_eq!(
+        pwrite_resolved.block_replicas.len(),
+        1,
+        "Meta resolve 不应为 sparse hole 返回空 block replica 集"
+    );
+
+    let grown = fs.truncate(opened.inode, 10).await.expect("truncate grow");
+    let grow_version = grown
+        .granted
+        .inode
+        .content
+        .as_ref()
+        .expect("grown content binding")
+        .exact_version;
+    let grow_read = fs
+        .read(opened.id, 0, 10)
+        .await
+        .expect("read grown sparse file")
+        .expect("grown content exists");
+    assert_eq!(grow_read.bytes, b"\0\0\0\0\0xy\0\0\0");
+    let grow_resolved = resolve_filesystem_content_layout(&meta, opened.inode, grow_version).await;
+    let grow_layout = grow_resolved.layout.as_ref().expect("grow layout");
+    assert_eq!(
+        grow_resolved.block_replicas.len(),
+        1,
+        "truncate grow 只追加逻辑 hole，不新增零 Block replica"
+    );
+    assert!(
+        grow_layout.extents.iter().any(version_layout::is_hole),
+        "扩容后的布局必须显式保留逻辑零洞"
+    );
+
+    let shrunk = fs.truncate(opened.inode, 4).await.expect("truncate shrink");
+    let shrink_version = shrunk
+        .granted
+        .inode
+        .content
+        .as_ref()
+        .expect("shrunk content binding")
+        .exact_version;
+    let shrink_read = fs
+        .read(opened.id, 0, 4)
+        .await
+        .expect("read shrunk sparse file")
+        .expect("shrunk content exists");
+    assert_eq!(shrink_read.bytes, b"\0\0\0\0");
+    let shrink_resolved =
+        resolve_filesystem_content_layout(&meta, opened.inode, shrink_version).await;
+    let shrink_layout = shrink_resolved.layout.as_ref().expect("shrink layout");
+    assert_eq!(
+        shrink_layout.extents.len(),
+        1,
+        "shrink 只裁剪仍可见的 Extent 前缀，不复制已被截掉的数据 Block"
+    );
+    assert!(
+        version_layout::is_hole(&shrink_layout.extents[0]),
+        "截断到原 hole 内时，新版本只剩逻辑零洞"
+    );
+    assert!(
+        shrink_resolved.block_replicas.is_empty(),
+        "只包含 hole 的文件版本不需要任何 Block replica"
+    );
+
+    fs.close(opened.id).await.expect("close sparse file");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn shared_filesystem_open_trunc_publishes_empty_version_before_handle_returns() {
+    let meta = CountingMetaServer::start().await;
+    let node = TestNode::start(&meta.endpoint, 1).await;
+    let fs = SharedFileOperations::new(node.node.clone()).expect("shared FS");
+    let opened = fs
+        .create_and_open(b"open-trunc.txt", 0o644, libc::O_RDWR)
+        .await
+        .expect("create file");
+    let initial = fs
+        .write(opened.id, 0, b"abcdef")
+        .await
+        .expect("initial content");
+    assert_eq!(initial.length, 6);
+    fs.close(opened.id).await.expect("close initial handle");
+
+    let trunc_handle = fs
+        .open(opened.inode, libc::O_RDWR | libc::O_TRUNC)
+        .await
+        .expect("open with O_TRUNC");
+    let inode = fs
+        .get_inode(opened.inode)
+        .await
+        .expect("get inode after O_TRUNC");
+    assert_eq!(
+        inode.granted.inode.attributes.size, 0,
+        "O_TRUNC open 返回前必须已经原子发布 size=0"
+    );
+    let version = inode
+        .granted
+        .inode
+        .content
+        .as_ref()
+        .expect("empty content binding")
+        .exact_version;
+    assert!(
+        version > initial.version,
+        "O_TRUNC 必须发布一个新的空文件版本，而不是只改本地 handle"
+    );
+    let empty = fs
+        .read(trunc_handle.id, 0, 64)
+        .await
+        .expect("read after O_TRUNC")
+        .expect("empty file read returns metadata");
+    assert!(empty.bytes.is_empty());
+    assert_eq!(empty.logical_length, 0);
+    let resolved = resolve_filesystem_content_layout(&meta, opened.inode, version).await;
+    let layout = resolved.layout.expect("empty version layout");
+    assert!(layout.extents.is_empty());
+    assert!(resolved.block_replicas.is_empty());
+
+    fs.close(trunc_handle.id)
+        .await
+        .expect("close O_TRUNC handle");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn shared_filesystem_append_uses_authoritative_eof_and_retries_on_conflict() {
+    let meta = CountingMetaServer::start().await;
+    let node = TestNode::start(&meta.endpoint, 1).await;
+    let fs = SharedFileOperations::new(node.node.clone()).expect("shared FS");
+    let base = fs
+        .create_and_open(b"append.txt", 0o644, libc::O_RDWR)
+        .await
+        .expect("create append file");
+    fs.write(base.id, 0, b"base").await.expect("base content");
+    let appender = fs
+        .open(base.inode, libc::O_WRONLY | libc::O_APPEND)
+        .await
+        .expect("open appender");
+
+    let appended = fs
+        .write(appender.id, 0, b"-tail")
+        .await
+        .expect("append ignores caller offset");
+    assert_eq!(appended.length, 9);
+    let content = fs
+        .read(base.id, 0, 32)
+        .await
+        .expect("read append content")
+        .expect("append content exists");
+    assert_eq!(
+        content.bytes, b"base-tail",
+        "O_APPEND 不能信任 caller offset=0，必须以权威 EOF 追加"
+    );
+
+    let first = fs.clone();
+    let second = fs.clone();
+    let first_handle = appender.id;
+    let second_handle = appender.id;
+    let (first, second) = tokio::join!(
+        async move { first.write(first_handle, 0, b"-A").await },
+        async move { second.write(second_handle, 0, b"-B").await },
+    );
+    first.expect("first concurrent append should eventually commit");
+    second.expect("second concurrent append should retry after CAS conflict and commit");
+    let final_read = fs
+        .read(base.id, 0, 64)
+        .await
+        .expect("read final append content")
+        .expect("final content exists");
+    assert!(
+        final_read.bytes == b"base-tail-A-B" || final_read.bytes == b"base-tail-B-A",
+        "并发 O_APPEND 必须形成两个完整追加段，不能互相覆盖或使用旧 offset"
+    );
+
+    fs.close(appender.id).await.expect("close appender");
+    fs.close(base.id).await.expect("close base handle");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn shared_filesystem_append_survives_sixteen_concurrent_writers() {
+    let meta = CountingMetaServer::start().await;
+    let node = TestNode::start(&meta.endpoint, 1).await;
+    let fs = SharedFileOperations::new(node.node.clone()).expect("shared FS");
+    let base = fs
+        .create_and_open(b"append-16.txt", 0o644, libc::O_RDWR)
+        .await
+        .expect("create append file");
+    fs.write(base.id, 0, b"base").await.expect("base content");
+    let appender = fs
+        .open(base.inode, libc::O_WRONLY | libc::O_APPEND)
+        .await
+        .expect("open shared appender");
+
+    let mut tasks = Vec::new();
+    for index in 0..16 {
+        let writer = fs.clone();
+        let handle = appender.id;
+        let chunk = format!("-{index:02}").into_bytes();
+        tasks.push(tokio::spawn(async move {
+            writer.write(handle, 0, &chunk).await.map(|_| chunk)
+        }));
+    }
+
+    let mut expected_chunks = Vec::new();
+    for task in tasks {
+        let chunk = task.await.expect("append writer task should finish");
+        expected_chunks.push(chunk.expect("append writer should retry conflicts and commit"));
+    }
+
+    let final_read = fs
+        .read(base.id, 0, 128)
+        .await
+        .expect("read final append content")
+        .expect("final content exists");
+    assert_eq!(final_read.bytes.len(), b"base".len() + 16 * 3);
+    assert!(
+        final_read.bytes.starts_with(b"base"),
+        "O_APPEND 并发写只能追加，不能覆盖已有内容"
+    );
+    for chunk in expected_chunks {
+        let matches = final_read
+            .bytes
+            .windows(chunk.len())
+            .filter(|window| *window == chunk.as_slice())
+            .count();
+        assert_eq!(matches, 1, "每个并发 writer 的追加片段必须恰好发布一次");
+    }
+
+    fs.close(appender.id).await.expect("close appender");
+    fs.close(base.id).await.expect("close base handle");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn shared_filesystem_append_reuses_operation_when_commit_result_is_unknown() {
+    let meta = CountingMetaServer::start().await;
+    let node = TestNode::start(&meta.endpoint, 1).await;
+    let fs = SharedFileOperations::new(node.node.clone()).expect("shared FS");
+    let base = fs
+        .create_and_open(b"append-unknown-result.txt", 0o644, libc::O_RDWR)
+        .await
+        .expect("create append file");
+    fs.write(base.id, 0, b"base").await.expect("base content");
+    let appender = fs
+        .open(base.inode, libc::O_WRONLY | libc::O_APPEND)
+        .await
+        .expect("open appender");
+
+    meta.filesystem_commit_requests
+        .lock()
+        .expect("filesystem commit requests")
+        .clear();
+    meta.drop_next_filesystem_commit_response();
+    let appended = fs
+        .write(appender.id, 0, b"-tail")
+        .await
+        .expect("append retries unknown commit result");
+    assert_eq!(appended.length, 9);
+
+    let content = fs
+        .read(base.id, 0, 32)
+        .await
+        .expect("read append content")
+        .expect("append content exists");
+    assert_eq!(
+        content.bytes, b"base-tail",
+        "未知提交结果只能复用同一个 operation 重试，不能重新选 EOF 后重复追加"
+    );
+
+    {
+        let requests = meta
+            .filesystem_commit_requests
+            .lock()
+            .expect("filesystem commit requests");
+        assert!(requests.len() >= 2, "测试必须真实触发提交后响应丢失和重试");
+        assert!(
+            requests.windows(2).all(|pair| pair[0] == pair[1]),
+            "未知提交结果重试必须复用同一个 operation id"
+        );
+    }
+
+    fs.close(appender.id).await.expect("close appender");
+    fs.close(base.id).await.expect("close base handle");
 }
 
 #[test]

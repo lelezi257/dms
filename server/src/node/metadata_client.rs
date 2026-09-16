@@ -669,6 +669,7 @@ impl MetadataClient {
                     block_id: block_id.clone(),
                     block_offset: 0,
                     digest: checksum.clone(),
+                    kind: pb::ExtentKind::Data as i32,
                 }],
                 digest: checksum.clone(),
             },
@@ -729,6 +730,7 @@ impl MetadataClient {
                             block_id: value.block_id.clone(),
                             block_offset: 0,
                             digest: value.checksum.clone(),
+                            kind: pb::ExtentKind::Data as i32,
                         }],
                         digest: value.checksum.clone(),
                     };

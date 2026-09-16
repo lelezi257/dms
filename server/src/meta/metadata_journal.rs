@@ -249,6 +249,24 @@ pub(crate) struct SnapshotFilesystemNamespaceOperation {
     pub(crate) result: NamespaceMutationResult,
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct SnapshotFilesystemVersionOperation {
+    pub(crate) operation_id: Vec<u8>,
+    pub(crate) digest: Vec<u8>,
+    pub(crate) response: pb::FilesystemCommitVersionResponse,
+}
+
+/// Snapshot 中尚未完成的 Filesystem 可见性屏障。
+///
+/// 该字段作为 snapshot 尾部扩展单独编码，避免改变旧版 operation entry 的二进制布局。
+/// `None` 表示读取的是尚无此尾部的旧 snapshot；`Some(empty)` 则明确表示新版
+/// snapshot 创建时没有待确认的 Filesystem 操作。
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct SnapshotFilesystemOperationVisibility {
+    pub(crate) namespace: Vec<(Vec<u8>, u64)>,
+    pub(crate) versions: Vec<(Vec<u8>, u64)>,
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct SnapshotSession {
     pub(crate) node_id: u64,
@@ -284,6 +302,8 @@ pub(crate) struct MetaSnapshot {
     pub(crate) filesystem_dentries: Vec<DentrySnapshot>,
     pub(crate) filesystem_grant_generations: Vec<(InodeId, u64)>,
     pub(crate) filesystem_namespace_operations: Vec<SnapshotFilesystemNamespaceOperation>,
+    pub(crate) filesystem_version_operations: Vec<SnapshotFilesystemVersionOperation>,
+    pub(crate) filesystem_operation_visibility: Option<SnapshotFilesystemOperationVisibility>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]

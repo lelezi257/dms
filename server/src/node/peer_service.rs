@@ -937,6 +937,9 @@ mod tests {
             crate::node::runtime::ReadTarget::Shm(_) => {
                 panic!("peer test should use gRPC read target")
             }
+            crate::node::runtime::ReadTarget::Zero { length } => {
+                vec![0; usize::try_from(length).expect("zero segment length")]
+            }
         };
 
         assert_eq!(payload, b"from-writer-node");

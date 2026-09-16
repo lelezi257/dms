@@ -19,7 +19,7 @@ use tokio::sync::{mpsc, oneshot};
 use crate::filesystem::{
     CacheGrant, DentrySnapshot, DirectoryGrant, FileContentBinding, InodeAttributes, InodeKind,
     InodeSnapshot, NamespaceMutationResult, ROOT_INODE, RemoveKind, ResolvedInode, dentry_to_proto,
-    directory_entry_to_proto, directory_grant_to_proto, namespace_result_to_proto,
+    directory_entry_to_proto, directory_grant_to_proto, inode_to_proto, namespace_result_to_proto,
     resolved_to_proto,
 };
 
@@ -29,7 +29,8 @@ use super::in_memory_journal::InMemoryJournal;
 use super::metadata_journal::{
     BlockRetirementParticipant, BlockRetirementRecord, CommitSequenceRecord,
     FilesystemNamespaceMutationRecord, FilesystemVersionCommitRecord, JournalError, JournalRecord,
-    MetaSnapshot, MetadataJournal, SnapshotBlockRetirement, SnapshotOperation, SnapshotReplica,
+    MetaSnapshot, MetadataJournal, SnapshotBlockRetirement, SnapshotFilesystemOperationVisibility,
+    SnapshotFilesystemVersionOperation, SnapshotOperation, SnapshotReplica,
     SnapshotReplicaOperation, SnapshotSession, VersionCommitRecord,
 };
 use super::metrics::{
@@ -451,6 +452,25 @@ impl MetaHandle {
         .await
     }
 
+    #[cfg(test)]
+    pub(crate) async fn debug_resolve_object_without_session(
+        &self,
+        key: Vec<u8>,
+        exact_version: Option<u64>,
+    ) -> Result<pb::ResolveObjectResponse, MetaRuntimeError> {
+        let (reply, receive) = oneshot::channel();
+        self.complete(
+            MetaOperation::ResolveObject,
+            MetaCommand::DebugResolveObjectWithoutSession {
+                key,
+                exact_version,
+                reply,
+            },
+            receive,
+        )
+        .await
+    }
+
     pub(crate) async fn report_replicas(
         &self,
         request: pb::ReportReplicasRequest,
@@ -753,6 +773,12 @@ enum MetaCommand {
         request: pb::ResolveObjectsRequest,
         reply: oneshot::Sender<Result<pb::ResolveObjectsResponse, MetaRuntimeError>>,
     },
+    #[cfg(test)]
+    DebugResolveObjectWithoutSession {
+        key: Vec<u8>,
+        exact_version: Option<u64>,
+        reply: oneshot::Sender<Result<pb::ResolveObjectResponse, MetaRuntimeError>>,
+    },
     ReportReplicas {
         request: pb::ReportReplicasRequest,
         reply: oneshot::Sender<Result<pb::ReportReplicasResponse, MetaRuntimeError>>,
@@ -843,6 +869,8 @@ impl MetaCommand {
             Self::Heartbeat { .. } => MetaOperation::Heartbeat,
             Self::ResolveObject { .. } => MetaOperation::ResolveObject,
             Self::ResolveObjects { .. } => MetaOperation::ResolveObject,
+            #[cfg(test)]
+            Self::DebugResolveObjectWithoutSession { .. } => MetaOperation::ResolveObject,
             Self::ReportReplicas { .. } => MetaOperation::ReportReplicas,
             Self::CommitVersion { .. } => MetaOperation::CommitVersion,
             Self::CommitBatch { .. } => MetaOperation::CommitBatch,
@@ -910,6 +938,17 @@ struct StoredFilesystemNamespaceOperation {
     result: NamespaceMutationResult,
     /// Namespace 失效事件在所有受影响 Node 可见前保持 Some。
     /// 同一个 OperationId 重试时仍必须重新进入可见性屏障，不能因为 WAL 已提交就提前返回。
+    visibility_cursor: Option<u64>,
+}
+
+#[derive(Clone)]
+struct StoredFilesystemVersionOperation {
+    digest: Vec<u8>,
+    /// 原始文件 commit 响应。OperationId 重试必须返回这次提交当时的 inode 绑定，
+    /// 不能重新读取 current inode，否则 op1 响应丢失、op2 成功后 op1 重试会错返 op2。
+    response: pb::FilesystemCommitVersionResponse,
+    /// 文件内容绑定失效事件在受影响 Node 可见前保持 Some。
+    /// 精确响应与该 cursor 必须一起保存、恢复和回收。
     visibility_cursor: Option<u64>,
 }
 
@@ -1008,6 +1047,7 @@ struct MetaState {
     live_keys: BTreeSet<Vec<u8>>,
     operations: HashMap<Vec<u8>, StoredOperation>,
     filesystem_namespace_operations: HashMap<Vec<u8>, StoredFilesystemNamespaceOperation>,
+    filesystem_version_operations: HashMap<Vec<u8>, StoredFilesystemVersionOperation>,
     replica_operations: HashMap<Vec<u8>, pb::ReportReplicasResponse>,
     events: Vec<pb::NodeEvent>,
     event_high_watermark: u64,
@@ -1080,6 +1120,7 @@ impl MetaState {
             live_keys: BTreeSet::new(),
             operations: HashMap::new(),
             filesystem_namespace_operations: HashMap::new(),
+            filesystem_version_operations: HashMap::new(),
             replica_operations: HashMap::new(),
             events: Vec::new(),
             event_high_watermark: 0,
@@ -1256,9 +1297,42 @@ impl MetaState {
         if layout.kind == pb::VersionKind::Tombstone as i32 {
             return Err(MetaRuntimeError::NotFound);
         }
-        let block_replicas = layout
+        let block_replicas = self.block_replicas_for_layout(layout);
+        let current_lease = self.current_lease_grant(&request, layout);
+        Ok(pb::ResolveObjectResponse {
+            layout: Some(layout.clone()),
+            block_replicas,
+            current_lease,
+        })
+    }
+
+    #[cfg(test)]
+    fn debug_resolve_object_without_session(
+        &self,
+        key: Vec<u8>,
+        exact_version: Option<u64>,
+    ) -> Result<pb::ResolveObjectResponse, MetaRuntimeError> {
+        let versions = self.versions.get(&key).ok_or(MetaRuntimeError::NotFound)?;
+        let layout = match exact_version {
+            Some(version) => versions.get(&version),
+            _ => versions.last_key_value().map(|(_, value)| value),
+        }
+        .ok_or(MetaRuntimeError::NotFound)?;
+        if layout.kind == pb::VersionKind::Tombstone as i32 {
+            return Err(MetaRuntimeError::NotFound);
+        }
+        Ok(pb::ResolveObjectResponse {
+            layout: Some(layout.clone()),
+            block_replicas: self.block_replicas_for_layout(layout),
+            current_lease: None,
+        })
+    }
+
+    fn block_replicas_for_layout(&self, layout: &pb::VersionLayout) -> Vec<pb::BlockReplicaSet> {
+        layout
             .extents
             .iter()
+            .filter(|extent| !is_filesystem_sparse_hole(extent))
             .map(|extent| pb::BlockReplicaSet {
                 block_id: extent.block_id.clone(),
                 replicas: self
@@ -1296,13 +1370,7 @@ impl MetaState {
                     })
                     .unwrap_or_default(),
             })
-            .collect();
-        let current_lease = self.current_lease_grant(&request, layout);
-        Ok(pb::ResolveObjectResponse {
-            layout: Some(layout.clone()),
-            block_replicas,
-            current_lease,
-        })
+            .collect()
     }
 
     fn resolve_objects(
@@ -1415,6 +1483,37 @@ impl MetaState {
             granted,
             object: object.map(crate::filesystem::ResolvedObject::from_proto),
         })
+    }
+
+    fn filesystem_commit_response_for_inode(
+        &self,
+        inode: &InodeSnapshot,
+        invalidation_cursor: u64,
+        commit_index: u64,
+    ) -> pb::FilesystemCommitVersionResponse {
+        let object = inode.content.as_ref().and_then(|binding| {
+            let layout = self
+                .versions
+                .get(&binding.object_key)?
+                .get(&binding.exact_version)?;
+            Some(pb::ResolveObjectResponse {
+                layout: Some(layout.clone()),
+                block_replicas: self.block_replicas_for_layout(layout),
+                current_lease: None,
+            })
+        });
+        pb::FilesystemCommitVersionResponse {
+            resolved: Some(pb::FilesystemResolvedInode {
+                inode: Some(inode_to_proto(inode)),
+                grant: Some(pb::FilesystemCacheGrant {
+                    generation: self.filesystem.grant_generation(inode.attributes.inode),
+                    lease_millis: FILESYSTEM_BINDING_LEASE_MILLIS,
+                }),
+                object,
+            }),
+            invalidation_cursor,
+            commit_index,
+        }
     }
 
     fn validate_namespace_operation(
@@ -2284,19 +2383,17 @@ impl MetaState {
                 "filesystem object key does not match inode".to_string(),
             ));
         }
-        if let Some(previous) = self.operations.get(&request.operation_id) {
+        if let Some(previous) = self
+            .filesystem_version_operations
+            .get(&request.operation_id)
+        {
             if previous.digest != request.operation_digest {
                 return Err(MetaRuntimeError::Conflict {
                     expected: None,
-                    actual: previous.result.version,
+                    actual: previous.response.commit_index,
                 });
             }
-            let resolved = self.filesystem_resolved_inode(&session, request.inode)?;
-            return Ok(pb::FilesystemCommitVersionResponse {
-                resolved: Some(resolved_to_proto(&resolved)),
-                invalidation_cursor: previous.visibility_cursor.unwrap_or_default(),
-                commit_index: previous.result.commit_index,
-            });
+            return Ok(previous.response.clone());
         }
         let current_inode = self
             .filesystem
@@ -2344,27 +2441,57 @@ impl MetaState {
                 "filesystem candidate must be a value whose length equals inode size".to_string(),
             ));
         }
+        let referenced_blocks = validate_filesystem_candidate_layout(&candidate)?;
         for extent in &candidate.extents {
+            if is_filesystem_sparse_hole(extent) {
+                continue;
+            }
             self.reject_retired_block(&extent.block_id)?;
+            let required_end = extent
+                .block_offset
+                .checked_add(
+                    extent
+                        .logical
+                        .as_ref()
+                        .expect("validated logical range")
+                        .length,
+                )
+                .expect("validated block range");
             let known = request.replica_proofs.iter().any(|proof| {
                 proof.block_id == extent.block_id
+                    && proof.checksum == extent.digest
                     && self.replicas.get(&extent.block_id).is_some_and(|replicas| {
                         replicas.iter().any(|replica| {
                             replica.location.node_id == proof.node_id
                                 && replica.location.node_epoch == proof.node_epoch
                                 && replica.catalog_revision == proof.catalog_revision
                                 && replica.location.checksum == proof.checksum
+                                && replica.length >= required_end
                         })
                     })
                     && self.block_referenced_by_retained_versions(&extent.block_id)
             });
-            let new_replica = request
-                .new_replicas
-                .iter()
-                .any(|report| report.block_id == extent.block_id);
+            let new_replica = request.new_replicas.iter().any(|report| {
+                report.block_id == extent.block_id
+                    && report.checksum == extent.digest
+                    && report.length >= required_end
+            });
             if !known && !new_replica {
                 return Err(MetaRuntimeError::InvalidArgument(
-                    "every filesystem extent requires a proof or new replica".to_string(),
+                    "every filesystem data extent requires a matching complete replica".to_string(),
+                ));
+            }
+        }
+        let mut reported_blocks = HashSet::new();
+        for report in &request.new_replicas {
+            if !referenced_blocks.contains(&report.block_id) {
+                return Err(MetaRuntimeError::InvalidArgument(
+                    "new filesystem replica is not referenced by the candidate layout".to_string(),
+                ));
+            }
+            if !reported_blocks.insert(report.block_id.clone()) {
+                return Err(MetaRuntimeError::InvalidArgument(
+                    "new filesystem replica is reported more than once".to_string(),
                 ));
             }
         }
@@ -2429,7 +2556,7 @@ impl MetaState {
                     modified_time_unix_millis: request.mtime_unix_nanos / 1_000_000,
                     new_replicas,
                     operation_id: request.operation_id.clone(),
-                    operation_digest: request.operation_digest,
+                    operation_digest: request.operation_digest.clone(),
                 },
                 inode,
                 revoked_grant_generation,
@@ -2440,17 +2567,13 @@ impl MetaState {
         let sequence = self.append_record(record.clone())?;
         self.apply_record(sequence, record);
         self.maybe_checkpoint(sequence)?;
-        let resolved = self.filesystem_resolved_inode(&session, request.inode)?;
-        let invalidation_cursor = self
-            .operations
+        let response = self
+            .filesystem_version_operations
             .get(&request.operation_id)
-            .and_then(|operation| operation.visibility_cursor)
-            .unwrap_or_default();
-        Ok(pb::FilesystemCommitVersionResponse {
-            resolved: Some(resolved_to_proto(&resolved)),
-            invalidation_cursor,
-            commit_index: sequence,
-        })
+            .expect("applied filesystem commit must store its idempotency response")
+            .response
+            .clone();
+        Ok(response)
     }
 
     fn commit_batch(
@@ -2969,7 +3092,7 @@ impl MetaState {
         let operation_id = request.operation_id.clone();
         let response = self.filesystem_commit_version(request)?;
         let event_cursor = self
-            .operations
+            .filesystem_version_operations
             .get(&operation_id)
             .and_then(|operation| operation.visibility_cursor);
         let (waiting_nodes, waiting_prior_lease_nodes) = event_cursor
@@ -3758,6 +3881,9 @@ impl MetaState {
             if let Some(operation) = self.filesystem_namespace_operations.get_mut(operation_id) {
                 operation.visibility_cursor = None;
             }
+            if let Some(operation) = self.filesystem_version_operations.get_mut(operation_id) {
+                operation.visibility_cursor = None;
+            }
         }
     }
 
@@ -3965,8 +4091,10 @@ impl MetaState {
                     })
                     .unwrap_or_default();
                 let operation_id = record.object.operation_id.clone();
+                let operation_digest = record.object.operation_digest.clone();
                 let inode_id = record.inode.attributes.inode;
                 let inode_revision = record.inode.revision;
+                let committed_inode = record.inode.clone();
                 let revoked_generation = record.revoked_grant_generation;
                 self.apply_version_commit(sequence, record.object, commit_sequence.as_ref());
                 self.filesystem
@@ -3991,6 +4119,16 @@ impl MetaState {
                 if let Some(operation) = self.operations.get_mut(&operation_id) {
                     operation.visibility_cursor = Some(cursor);
                 }
+                let response =
+                    self.filesystem_commit_response_for_inode(&committed_inode, cursor, sequence);
+                self.filesystem_version_operations.insert(
+                    operation_id,
+                    StoredFilesystemVersionOperation {
+                        digest: operation_digest,
+                        response,
+                        visibility_cursor: Some(cursor),
+                    },
+                );
                 self.pump_watchers();
             }
             JournalRecord::FilesystemNamespaceMutated {
@@ -4430,11 +4568,29 @@ impl MetaState {
             self.advance_commit_sequence_floor(&record);
         }
 
+        let filesystem_operations_before = self.filesystem_version_operations.len();
+        self.filesystem_version_operations.retain(|_, operation| {
+            operation.visibility_cursor.is_some()
+                || current_index.saturating_sub(operation.response.commit_index) <= operation_window
+        });
+        let pruned_filesystem_operations =
+            self.filesystem_version_operations.len() != filesystem_operations_before;
+
+        let namespace_operations_before = self.filesystem_namespace_operations.len();
+        self.filesystem_namespace_operations.retain(|_, operation| {
+            operation.visibility_cursor.is_some()
+                || current_index.saturating_sub(operation.result.commit_index) <= operation_window
+        });
+        let pruned_namespace_operations =
+            self.filesystem_namespace_operations.len() != namespace_operations_before;
+
         let replica_window = self.retention_policy.replica_operation_retention_records;
         self.replica_operations.retain(|_, result| {
             current_index.saturating_sub(result.catalog_watermark) <= replica_window
         });
         advanced_commit_sequence_floor
+            || pruned_filesystem_operations
+            || pruned_namespace_operations
     }
 
     fn retain_events(&mut self) {
@@ -4985,10 +5141,42 @@ impl MetaState {
                     }
                 })
                 .collect(),
+            filesystem_version_operations: self
+                .filesystem_version_operations
+                .iter()
+                .map(
+                    |(operation_id, operation)| SnapshotFilesystemVersionOperation {
+                        operation_id: operation_id.clone(),
+                        digest: operation.digest.clone(),
+                        response: operation.response.clone(),
+                    },
+                )
+                .collect(),
+            filesystem_operation_visibility: Some(SnapshotFilesystemOperationVisibility {
+                namespace: self
+                    .filesystem_namespace_operations
+                    .iter()
+                    .filter_map(|(operation_id, operation)| {
+                        operation
+                            .visibility_cursor
+                            .map(|cursor| (operation_id.clone(), cursor))
+                    })
+                    .collect(),
+                versions: self
+                    .filesystem_version_operations
+                    .iter()
+                    .filter_map(|(operation_id, operation)| {
+                        operation
+                            .visibility_cursor
+                            .map(|cursor| (operation_id.clone(), cursor))
+                    })
+                    .collect(),
+            }),
         }
     }
 
     fn restore_snapshot(&mut self, snapshot: MetaSnapshot) {
+        let filesystem_operation_visibility = snapshot.filesystem_operation_visibility.clone();
         self.filesystem = FilesystemCatalog::restored(
             snapshot.filesystem_next_inode,
             snapshot.filesystem_inodes.clone(),
@@ -5142,6 +5330,20 @@ impl MetaState {
                 )
             })
             .collect();
+        self.filesystem_version_operations = snapshot
+            .filesystem_version_operations
+            .into_iter()
+            .map(|operation| {
+                (
+                    operation.operation_id,
+                    StoredFilesystemVersionOperation {
+                        digest: operation.digest,
+                        response: operation.response,
+                        visibility_cursor: None,
+                    },
+                )
+            })
+            .collect();
         self.event_high_watermark = snapshot.event_high_watermark;
         self.events = snapshot.events;
         self.event_high_watermark = self.event_high_watermark.max(
@@ -5180,21 +5382,40 @@ impl MetaState {
                 .get(&operation.result.commit_index)
                 .copied();
         }
-        // Namespace mutation 的 result 记录了本次连续失效事件的末 cursor。
-        // 只有该 cursor 范围内仍存在未 GC 的事件，恢复后的同 OperationId 重试才需
-        // 重新进入屏障；已完成且事件已清理的操作不能被无条件再等待一个租约窗口。
         let retained_event_cursors = self
             .events
             .iter()
             .map(|event| event.cursor)
             .collect::<HashSet<_>>();
-        for operation in self.filesystem_namespace_operations.values_mut() {
-            let count = operation.result.changed_directories.len() as u64;
-            let last = operation.result.invalidation_cursor;
-            let first = last.saturating_sub(count.saturating_sub(1));
-            operation.visibility_cursor = (count != 0
-                && (first..=last).any(|cursor| retained_event_cursors.contains(&cursor)))
-            .then_some(last);
+        if let Some(visibility) = filesystem_operation_visibility {
+            // 新 snapshot 明确记录未完成的屏障。空列表表示 ACK 已完成，不能再根据
+            // 仍在保留窗口内的旧事件把该操作误判成 pending。
+            for (operation_id, cursor) in visibility.namespace {
+                if let Some(operation) = self.filesystem_namespace_operations.get_mut(&operation_id)
+                {
+                    operation.visibility_cursor = Some(cursor);
+                }
+            }
+            for (operation_id, cursor) in visibility.versions {
+                if let Some(operation) = self.filesystem_version_operations.get_mut(&operation_id) {
+                    operation.visibility_cursor = Some(cursor);
+                }
+            }
+        } else {
+            // 兼容旧 snapshot：旧格式没有显式 pending 状态，只能由仍保留的事件保守恢复。
+            for operation in self.filesystem_namespace_operations.values_mut() {
+                let count = operation.result.changed_directories.len() as u64;
+                let last = operation.result.invalidation_cursor;
+                let first = last.saturating_sub(count.saturating_sub(1));
+                operation.visibility_cursor = (count != 0
+                    && (first..=last).any(|cursor| retained_event_cursors.contains(&cursor)))
+                .then_some(last);
+            }
+            for operation in self.filesystem_version_operations.values_mut() {
+                let cursor = operation.response.invalidation_cursor;
+                operation.visibility_cursor =
+                    retained_event_cursors.contains(&cursor).then_some(cursor);
+            }
         }
     }
 }
@@ -5337,6 +5558,110 @@ fn current_time_unix_nanos() -> i64 {
 
 fn filesystem_object_key(inode: u64) -> Vec<u8> {
     format!("fs/content/{inode}").into_bytes()
+}
+
+/// Meta 是文件大小与 VersionLayout 的最终提交权威，不能信任 Node 提交的派生布局。
+/// 这里验证完整覆盖、稀疏洞约束和规范摘要；失败时整条 inode/object 原子提交不落 WAL。
+fn validate_filesystem_candidate_layout(
+    candidate: &pb::VersionCandidate,
+) -> Result<HashSet<Vec<u8>>, MetaRuntimeError> {
+    let mut cursor = 0_u64;
+    let mut referenced_blocks = HashSet::new();
+    for extent in &candidate.extents {
+        let logical = extent.logical.as_ref().ok_or_else(|| {
+            MetaRuntimeError::InvalidArgument(
+                "filesystem extent requires a logical range".to_string(),
+            )
+        })?;
+        if logical.length == 0 {
+            return Err(MetaRuntimeError::InvalidArgument(
+                "filesystem extent length must be positive".to_string(),
+            ));
+        }
+        if logical.offset != cursor {
+            return Err(MetaRuntimeError::InvalidArgument(
+                "filesystem extents must be ordered and contiguous".to_string(),
+            ));
+        }
+        cursor = cursor.checked_add(logical.length).ok_or_else(|| {
+            MetaRuntimeError::InvalidArgument(
+                "filesystem logical extent range overflows u64".to_string(),
+            )
+        })?;
+        if cursor > candidate.logical_length {
+            return Err(MetaRuntimeError::InvalidArgument(
+                "filesystem extent exceeds the logical file size".to_string(),
+            ));
+        }
+
+        if is_filesystem_sparse_hole(extent) {
+            if extent.block_offset != 0 || !extent.block_id.is_empty() || !extent.digest.is_empty()
+            {
+                return Err(MetaRuntimeError::InvalidArgument(
+                    "filesystem hole extent must not reference a block".to_string(),
+                ));
+            }
+        } else if is_filesystem_data_extent(extent) {
+            if extent.block_id.is_empty() || extent.digest.is_empty() {
+                return Err(MetaRuntimeError::InvalidArgument(
+                    "filesystem data extent requires block identity and digest".to_string(),
+                ));
+            }
+            extent
+                .block_offset
+                .checked_add(logical.length)
+                .ok_or_else(|| {
+                    MetaRuntimeError::InvalidArgument(
+                        "filesystem block extent range overflows u64".to_string(),
+                    )
+                })?;
+            referenced_blocks.insert(extent.block_id.clone());
+        } else {
+            return Err(MetaRuntimeError::InvalidArgument(
+                "filesystem extent kind is not supported".to_string(),
+            ));
+        }
+    }
+    if cursor != candidate.logical_length {
+        return Err(MetaRuntimeError::InvalidArgument(
+            "filesystem extents must cover the complete logical file".to_string(),
+        ));
+    }
+    if candidate.digest != filesystem_layout_digest(candidate.logical_length, &candidate.extents) {
+        return Err(MetaRuntimeError::InvalidArgument(
+            "filesystem layout digest does not match its extents".to_string(),
+        ));
+    }
+    Ok(referenced_blocks)
+}
+
+/// VersionLayout 的跨进程规范摘要。`Unspecified` 仅作为旧 DATA 编码兼容。
+fn filesystem_layout_digest(logical_length: u64, extents: &[pb::ExtentRecord]) -> Vec<u8> {
+    let mut bytes = logical_length.to_be_bytes().to_vec();
+    for extent in extents {
+        if let Some(logical) = &extent.logical {
+            bytes.extend_from_slice(&logical.offset.to_be_bytes());
+            bytes.extend_from_slice(&logical.length.to_be_bytes());
+        }
+        bytes.push(if is_filesystem_sparse_hole(extent) {
+            2_u8
+        } else {
+            1_u8
+        });
+        bytes.extend_from_slice(&(extent.block_id.len() as u64).to_be_bytes());
+        bytes.extend_from_slice(&extent.block_id);
+        bytes.extend_from_slice(&extent.block_offset.to_be_bytes());
+        bytes.extend_from_slice(&extent.digest);
+    }
+    digest(&bytes)
+}
+
+fn is_filesystem_sparse_hole(extent: &pb::ExtentRecord) -> bool {
+    extent.kind == pb::ExtentKind::Hole as i32
+}
+
+fn is_filesystem_data_extent(extent: &pb::ExtentRecord) -> bool {
+    extent.kind == pb::ExtentKind::Unspecified as i32 || extent.kind == pb::ExtentKind::Data as i32
 }
 
 fn retirement_id(stage_epoch: u64, block_ids: &[Vec<u8>]) -> Vec<u8> {
@@ -5677,6 +6002,15 @@ async fn run_meta(
                 }
                 MetaCommand::ResolveObjects { request, reply } => {
                     let _ = reply.send(state.resolve_objects(request));
+                }
+                #[cfg(test)]
+                MetaCommand::DebugResolveObjectWithoutSession {
+                    key,
+                    exact_version,
+                    reply,
+                } => {
+                    let _ =
+                        reply.send(state.debug_resolve_object_without_session(key, exact_version));
                 }
                 MetaCommand::ReportReplicas { request, reply } => {
                     let _ = reply.send(state.report_replicas(request));
@@ -6101,6 +6435,161 @@ mod tests {
                 .map(|layout| layout.logical_length),
             Some(4)
         );
+    }
+
+    #[test]
+    fn filesystem_commit_idempotency_returns_original_result_after_later_commit() {
+        let mut state = MetaState::new(Box::<InMemoryJournal>::default());
+        let session = test_session(&mut state, 46);
+        let inode = create_test_file(&mut state, session.clone(), b"idempotent.bin");
+        let first_request = filesystem_commit_request_for(
+            session.clone(),
+            &inode,
+            b"idempotent-block-v1",
+            b"fs-op-v1",
+        );
+        let first_response = state
+            .filesystem_commit_version(first_request.clone())
+            .expect("first filesystem commit");
+        let first_index = first_response.commit_index;
+        let first_inode = crate::filesystem::inode_from_proto(
+            first_response
+                .resolved
+                .as_ref()
+                .expect("first resolved")
+                .inode
+                .clone()
+                .expect("first inode"),
+        )
+        .expect("first inode proto");
+
+        let second_response = state
+            .filesystem_commit_version(filesystem_commit_request_for(
+                session,
+                &first_inode,
+                b"idempotent-block-v2",
+                b"fs-op-v2",
+            ))
+            .expect("second filesystem commit");
+        assert_ne!(second_response.commit_index, first_index);
+
+        let retried_first = state
+            .filesystem_commit_version(first_request)
+            .expect("idempotent retry after a later commit");
+        assert_eq!(
+            retried_first.commit_index, first_index,
+            "同一 operation 重试必须返回原始提交结果，不能读取当前 inode 后错返后续提交"
+        );
+        assert_eq!(retried_first, first_response);
+    }
+
+    #[test]
+    fn filesystem_visibility_and_exact_response_restore_as_one_lifecycle() {
+        let mut state = MetaState::new(Box::<InMemoryJournal>::default());
+        let writer = test_session(&mut state, 47);
+        let reader = test_session(&mut state, 48);
+        let inode = create_test_file(&mut state, writer.clone(), b"visibility.bin");
+        let request = filesystem_commit_request_for(
+            writer,
+            &inode,
+            b"visibility-block-v1",
+            b"visibility-op-v1",
+        );
+        let first = state
+            .dispatch_filesystem_commit_version(request.clone())
+            .expect("first filesystem dispatch");
+        let cursor = first.event_cursor.expect("filesystem invalidation cursor");
+        assert!(first.waiting_nodes.contains(&reader.node_id));
+
+        let mut restored = MetaState::new(Box::<InMemoryJournal>::default());
+        restored.restore_snapshot(state.snapshot());
+        let retry = restored
+            .dispatch_filesystem_commit_version(request.clone())
+            .expect("retry after pending snapshot restore");
+        assert_eq!(retry.response, first.response);
+        assert_eq!(retry.event_cursor, Some(cursor));
+        assert!(retry.waiting_nodes.contains(&reader.node_id));
+
+        restored.complete_operation_visibility(std::slice::from_ref(&request.operation_id));
+        let mut restored_after_ack = MetaState::new(Box::<InMemoryJournal>::default());
+        restored_after_ack.restore_snapshot(restored.snapshot());
+        let completed_retry = restored_after_ack
+            .dispatch_filesystem_commit_version(request)
+            .expect("retry after completed snapshot restore");
+        assert_eq!(completed_retry.response, first.response);
+        assert_eq!(completed_retry.event_cursor, None);
+        assert!(completed_retry.waiting_nodes.is_empty());
+        assert!(completed_retry.waiting_prior_lease_nodes.is_empty());
+    }
+
+    #[test]
+    fn filesystem_commit_rejects_malformed_or_unowned_layout() {
+        let mut state = MetaState::new(Box::<InMemoryJournal>::default());
+        let session = test_session(&mut state, 49);
+        let inode = create_test_file(&mut state, session.clone(), b"validate-layout.bin");
+
+        let mut gap =
+            filesystem_commit_request_for(session.clone(), &inode, b"gap-block", b"gap-operation");
+        let gap_candidate = gap.candidate.as_mut().expect("candidate");
+        gap_candidate.extents[0]
+            .logical
+            .as_mut()
+            .expect("range")
+            .offset = 1;
+        gap_candidate.digest =
+            filesystem_layout_digest(gap_candidate.logical_length, &gap_candidate.extents);
+        assert!(matches!(
+            state.filesystem_commit_version(gap),
+            Err(MetaRuntimeError::InvalidArgument(_))
+        ));
+
+        let mut forged_digest = filesystem_commit_request_for(
+            session.clone(),
+            &inode,
+            b"digest-block",
+            b"digest-operation",
+        );
+        forged_digest.candidate.as_mut().expect("candidate").digest = b"forged".to_vec();
+        assert!(matches!(
+            state.filesystem_commit_version(forged_digest),
+            Err(MetaRuntimeError::InvalidArgument(_))
+        ));
+
+        let mut zero_length = filesystem_commit_request_for(
+            session.clone(),
+            &inode,
+            b"zero-block",
+            b"zero-operation",
+        );
+        let zero_candidate = zero_length.candidate.as_mut().expect("candidate");
+        zero_candidate.extents[0]
+            .logical
+            .as_mut()
+            .expect("range")
+            .length = 0;
+        zero_candidate.digest =
+            filesystem_layout_digest(zero_candidate.logical_length, &zero_candidate.extents);
+        assert!(matches!(
+            state.filesystem_commit_version(zero_length),
+            Err(MetaRuntimeError::InvalidArgument(_))
+        ));
+
+        let mut extra_replica = filesystem_commit_request_for(
+            session,
+            &inode,
+            b"owned-block",
+            b"extra-replica-operation",
+        );
+        extra_replica.new_replicas.push(pb::ReplicaReport {
+            block_id: b"not-in-layout".to_vec(),
+            length: 4,
+            checksum: b"digest".to_vec(),
+            durability: pb::DurabilityPolicy::LocalMemory as i32,
+        });
+        assert!(matches!(
+            state.filesystem_commit_version(extra_replica),
+            Err(MetaRuntimeError::InvalidArgument(_))
+        ));
     }
 
     #[test]
@@ -7863,6 +8352,7 @@ mod tests {
                             block_id: block_id.clone(),
                             block_offset: 0,
                             digest: digest.clone(),
+                            kind: pb::ExtentKind::Data as i32,
                         }],
                         digest: digest.clone(),
                     }),
@@ -9531,6 +10021,11 @@ mod tests {
                 filesystem_dentries: Vec::new(),
                 filesystem_grant_generations: Vec::new(),
                 filesystem_namespace_operations: Vec::new(),
+                filesystem_version_operations: Vec::new(),
+                filesystem_operation_visibility: Some(SnapshotFilesystemOperationVisibility {
+                    namespace: Vec::new(),
+                    versions: Vec::new(),
+                }),
             })
             .expect("manual snapshot");
         let mut restored = MetaState::new(Box::new(journal));
@@ -9736,6 +10231,7 @@ mod tests {
                         block_id: stale_block.clone(),
                         block_offset: 0,
                         digest: b"digest".to_vec(),
+                        kind: pb::ExtentKind::Data as i32,
                     }],
                     digest: b"layout".to_vec(),
                 }),
@@ -9906,6 +10402,151 @@ mod tests {
         assert!(state.operations.contains_key(b"op-3".as_slice()));
     }
 
+    #[test]
+    fn filesystem_operation_retention_uses_explicit_commit_index_window() {
+        let mut state = MetaState::with_policies(
+            Box::<InMemoryJournal>::default(),
+            MetaCheckpointPolicy { every_records: 1 },
+            MetaRetentionPolicy {
+                keep_versions_per_key: 64,
+                operation_result_retention_records: 1,
+                replica_operation_retention_records: 1,
+                event_retention_requires_all_session_acks: true,
+                drop_unreferenced_replicas: false,
+            },
+        );
+        let session = test_session(&mut state, 8);
+        let mut inode = create_test_file(&mut state, session.clone(), b"retained-operations.bin");
+
+        for index in 1..=3 {
+            let operation_id = format!("fs-op-{index}");
+            let block_id = format!("fs-block-{index}");
+            let response = state
+                .filesystem_commit_version(filesystem_commit_request_for(
+                    session.clone(),
+                    &inode,
+                    block_id.as_bytes(),
+                    operation_id.as_bytes(),
+                ))
+                .expect("filesystem commit");
+            state.complete_operation_visibility(&[operation_id.as_bytes().to_vec()]);
+            inode = crate::filesystem::inode_from_proto(
+                response
+                    .resolved
+                    .expect("resolved filesystem commit")
+                    .inode
+                    .expect("committed inode"),
+            )
+            .expect("valid committed inode");
+        }
+
+        assert!(
+            !state
+                .filesystem_version_operations
+                .contains_key(b"fs-op-1".as_slice())
+        );
+        assert!(
+            state
+                .filesystem_version_operations
+                .contains_key(b"fs-op-2".as_slice())
+        );
+        assert!(
+            state
+                .filesystem_version_operations
+                .contains_key(b"fs-op-3".as_slice())
+        );
+    }
+
+    #[test]
+    fn filesystem_operation_retention_never_prunes_pending_visibility() {
+        let mut state = MetaState::with_policies(
+            Box::<InMemoryJournal>::default(),
+            MetaCheckpointPolicy { every_records: 0 },
+            MetaRetentionPolicy {
+                keep_versions_per_key: 64,
+                operation_result_retention_records: 0,
+                replica_operation_retention_records: 0,
+                event_retention_requires_all_session_acks: true,
+                drop_unreferenced_replicas: false,
+            },
+        );
+        let writer = test_session(&mut state, 50);
+        let _reader = test_session(&mut state, 51);
+        let inode = create_test_file(&mut state, writer.clone(), b"pending-retention.bin");
+        let operation_id = b"pending-retention-operation".to_vec();
+        let dispatch = state
+            .dispatch_filesystem_commit_version(filesystem_commit_request_for(
+                writer,
+                &inode,
+                b"pending-retention-block",
+                &operation_id,
+            ))
+            .expect("filesystem commit");
+        assert!(dispatch.event_cursor.is_some());
+
+        state.last_applied_index = dispatch.response.commit_index.saturating_add(10);
+        state.retain_operations();
+        assert!(
+            state
+                .filesystem_version_operations
+                .contains_key(&operation_id)
+        );
+
+        state.complete_operation_visibility(std::slice::from_ref(&operation_id));
+        state.retain_operations();
+        assert!(
+            !state
+                .filesystem_version_operations
+                .contains_key(&operation_id)
+        );
+    }
+
+    #[test]
+    fn filesystem_namespace_operation_retention_uses_explicit_commit_index_window() {
+        let mut state = MetaState::with_policies(
+            Box::<InMemoryJournal>::default(),
+            MetaCheckpointPolicy { every_records: 1 },
+            MetaRetentionPolicy {
+                keep_versions_per_key: 64,
+                operation_result_retention_records: 1,
+                replica_operation_retention_records: 1,
+                event_retention_requires_all_session_acks: true,
+                drop_unreferenced_replicas: false,
+            },
+        );
+        let session = test_session(&mut state, 9);
+
+        for index in 1..=3 {
+            let operation_id = format!("namespace-op-{index}");
+            state
+                .filesystem_create_inode(filesystem_create_request_for(
+                    session.clone(),
+                    ROOT_INODE,
+                    format!("file-{index}").as_bytes(),
+                    pb::FilesystemInodeKind::RegularFile,
+                    operation_id.as_bytes(),
+                ))
+                .expect("filesystem namespace operation");
+            state.complete_operation_visibility(&[operation_id.into_bytes()]);
+        }
+
+        assert!(
+            !state
+                .filesystem_namespace_operations
+                .contains_key(b"namespace-op-1".as_slice())
+        );
+        assert!(
+            state
+                .filesystem_namespace_operations
+                .contains_key(b"namespace-op-2".as_slice())
+        );
+        assert!(
+            state
+                .filesystem_namespace_operations
+                .contains_key(b"namespace-op-3".as_slice())
+        );
+    }
+
     #[tokio::test]
     async fn stats_report_journal_snapshot_and_catalog_retention_counts() {
         let handle = MetaHandle::try_spawn_with_policies(
@@ -9990,6 +10631,7 @@ mod tests {
                         block_id: b"block-1".to_vec(),
                         block_offset: 0,
                         digest: b"digest".to_vec(),
+                        kind: pb::ExtentKind::Data as i32,
                     }],
                     digest: b"layout".to_vec(),
                 }),
@@ -11654,6 +12296,7 @@ mod tests {
                     block_id: block_id.to_vec(),
                     block_offset: 0,
                     digest: b"digest".to_vec(),
+                    kind: pb::ExtentKind::Data as i32,
                 }],
                 digest: b"layout".to_vec(),
             }),
@@ -11728,6 +12371,17 @@ mod tests {
         block_id: &[u8],
         operation_id: &[u8],
     ) -> pb::FilesystemCommitVersionRequest {
+        let logical_length = 4;
+        let extents = vec![pb::ExtentRecord {
+            logical: Some(pb::ByteRange {
+                offset: 0,
+                length: logical_length,
+            }),
+            block_id: block_id.to_vec(),
+            block_offset: 0,
+            digest: b"digest".to_vec(),
+            kind: pb::ExtentKind::Data as i32,
+        }];
         pb::FilesystemCommitVersionRequest {
             context: None,
             session: Some(session),
@@ -11739,17 +12393,9 @@ mod tests {
             expected_object_version: inode.content.as_ref().map(|binding| binding.exact_version),
             candidate: Some(pb::VersionCandidate {
                 kind: pb::VersionKind::Value as i32,
-                logical_length: 4,
-                extents: vec![pb::ExtentRecord {
-                    logical: Some(pb::ByteRange {
-                        offset: 0,
-                        length: 4,
-                    }),
-                    block_id: block_id.to_vec(),
-                    block_offset: 0,
-                    digest: b"digest".to_vec(),
-                }],
-                digest: b"layout".to_vec(),
+                logical_length,
+                digest: filesystem_layout_digest(logical_length, &extents),
+                extents,
             }),
             replica_proofs: Vec::new(),
             new_replicas: vec![pb::ReplicaReport {
@@ -11786,6 +12432,7 @@ mod tests {
                     block_id: block_id.clone(),
                     block_offset: 0,
                     digest: b"digest".to_vec(),
+                    kind: pb::ExtentKind::Data as i32,
                 }],
                 digest: b"layout".to_vec(),
             }),

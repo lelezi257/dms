@@ -95,6 +95,13 @@ message ExtentRecord {
   bytes block_id = 2;
   uint64 block_offset = 3;
   bytes digest = 4;
+  ExtentKind kind = 5;
+}
+
+enum ExtentKind {
+  EXTENT_KIND_UNSPECIFIED = 0;
+  EXTENT_KIND_DATA = 1;
+  EXTENT_KIND_HOLE = 2;
 }
 
 enum VersionKind {

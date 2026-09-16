@@ -940,6 +940,9 @@ fn encode_read_target(target: ReadTarget, length: u64) -> pb::PayloadTarget {
             debug_assert_eq!(descriptor.length, length);
             shm_target(descriptor)
         }
+        ReadTarget::Zero { length } => pb::PayloadTarget {
+            target: Some(pb::payload_target::Target::Zero(pb::ZeroTarget { length })),
+        },
     }
 }
 

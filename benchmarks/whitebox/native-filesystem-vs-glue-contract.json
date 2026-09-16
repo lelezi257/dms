@@ -16,19 +16,22 @@
   },
   "thresholds": {
     "minimum_samples_per_case": 100,
+    "minimum_paired_rounds": 6,
     "minimum_p50_improvement_by_class": {
       "local_hot": 0.15,
       "peer_first_read": 0.05
     },
-    "maximum_p50_ratio_by_class": {
-      "create": 1.15,
-      "middle_overwrite": 1.15
+    "maximum_p50_overhead_us_by_class": {
+      "create": 400,
+      "middle_overwrite": 250
     },
     "maximum_p95_ratio_by_class": {
       "local_hot": 1.05,
-      "peer_first_read": 1.05,
-      "create": 1.20,
-      "middle_overwrite": 1.15
+      "peer_first_read": 1.05
+    },
+    "maximum_p95_overhead_us_by_class": {
+      "create": 500,
+      "middle_overwrite": 300
     },
     "max_unattributed_fraction": 0.10
   },

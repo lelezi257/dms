@@ -4,7 +4,7 @@
 这个入口把原先分散的四步收敛成一个可审计流程：先在同一组三台 VM 上交替运行
 Native Filesystem 与 JuiceFS+DMS Glue，再汇总原始样本，最后分别执行端到端性能门禁
 和 FUSE/DataCore/Meta/Peer 请求放大门禁。第二个总验收 case 可以使用
-``--reuse-existing`` 复核同一份证据，避免重复运行四轮对称基准。
+``--reuse-existing`` 复核同一份证据，避免重复运行六轮对称基准。
 """
 
 from __future__ import annotations
@@ -86,7 +86,7 @@ def build_profile(args: argparse.Namespace, juicefs: Path) -> dict:
     return {
         "run_id": args.run_id,
         "description": (
-            "M1.7 同环境四轮对称验收：Native Filesystem 与 JuiceFS+DMS Glue "
+            "M1.7 同环境六轮对称验收：Native Filesystem 与 JuiceFS+DMS Glue "
             "交替执行，并记录端到端延迟、RPC、复制与资源路径。"
         ),
         "source_head": current_source_head(),
@@ -251,8 +251,8 @@ def validate_existing(
 def validate_round_count(rounds: int) -> None:
     """保证两个 backend 获得相同次数的先跑与后跑机会。"""
 
-    if rounds < 4:
-        raise RuntimeError("M1 performance acceptance requires at least four rounds")
+    if rounds < 6:
+        raise RuntimeError("M1 performance acceptance requires at least six rounds")
     if rounds % 2 != 0:
         raise RuntimeError("M1 performance acceptance requires an even number of rounds")
 
@@ -275,7 +275,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--allow-stale-evidence", action="store_true")
     parser.add_argument("--purpose", choices=("discovery", "release"), default="discovery")
     parser.add_argument("--run-id", default=dt.datetime.now(dt.timezone.utc).strftime("m1-perf-%Y%m%dT%H%M%SZ"))
-    parser.add_argument("--rounds", type=int, default=4)
+    parser.add_argument("--rounds", type=int, default=6)
     parser.add_argument("--vm-a", default="g003-n1")
     parser.add_argument("--vm-b", default="g003-n2")
     parser.add_argument("--vm-c", default="g003-n3")

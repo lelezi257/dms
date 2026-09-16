@@ -57,14 +57,14 @@
   <table>
     <tr><th>维度</th><th>固定值</th><th>为什么必须固定</th></tr>
     <tr><td>机器</td><td>A/B/C 三台，均 2 vCPU、2 GiB</td><td>排除机器差异</td></tr>
-    <tr><td>顺序</td><td>Native→Glue、Glue→Native、Native→Glue、Glue→Native</td><td>双方获得相同次数的先跑与后跑机会</td></tr>
+    <tr><td>顺序</td><td>六轮交替：Native→Glue 与 Glue→Native 各三次</td><td>双方获得相同次数的先跑与后跑机会</td></tr>
     <tr><td>数据</td><td>220 文件：140×4 KiB、50×64 KiB、30×1 MiB</td><td>同一语料覆盖小文件和分段 I/O；每个关键 case 至少 100 个样本</td></tr>
     <tr><td>可靠性</td><td>双方元数据均为 memory mode</td><td>本阶段只比较功能/性能；持久化另立合同</td></tr>
     <tr><td>路径门禁</td><td>RPC 放大由独立 evaluator 判定，再看分类性能</td><td>防止通过漏做提交或缓存作弊，也避免把路径事实混进旧历史 baseline</td></tr>
   </table>
 
   <div class="callout">
-    <b>Release 统计合同：</b>最终 M1.7 验收采用四轮对称交替和扩大后的 1 MiB 样本集，消除三轮顺序不对称及单个冷抖动支配 p95 的问题；领先与回归阈值保持不变。本页下方数值仍是历史 discovery 证据，最终 release 数值以总验收报告为准。
+    <b>Release 统计合同：</b>最终 M1.7 验收采用六轮对称交替和扩大后的 1 MiB 样本集；同轮 Native/Glue 先配对，再以六轮中位数判定，消除顺序不对称及单轮宿主抖动支配聚合 p95 的问题。读路径按比值要求领先；write-through mutation 按绝对微秒增量限制固定控制成本。create p50/p95 预算为 400/500 µs，middle overwrite 为 250/300 µs。本页下方数值仍是历史 discovery 证据，最终 release 数值以总验收报告为准。
   </div>
 
   <h2>2. 核心结果</h2>
@@ -94,6 +94,10 @@
   <h3>3.3 中段覆盖：只写 patch，不重写整文件</h3>
   <div class="flow"><span>pwrite 4 KiB</span><i>→</i><span>新建 patch Block</span><i>→</i><span>复用前后 Extent</span><i>→</i><span>一次 Meta 原子发布</span></div>
   <p>旧文件 bytes 不再先读回并拼成完整新文件。新版本由“旧前缀 Extent + patch Extent + 旧后缀 Extent”组成；Node 只持久化本次 patch，Meta 仍只有一个版本发布点。</p>
+
+  <h3>3.4 新建并写入：三次控制动作不是重复 RPC</h3>
+  <div class="flow"><span>negative lookup</span><i>→</i><span>create 空 inode</span><i>→</i><span>write-through commit</span></div>
+  <p><code>open(O_EXCL)</code> 先由内核确认名字不存在；FUSE create 发布一个可见的空文件；随后独立的 write callback 才提交内容。没有 writeback 时，不能把 create 和 commit 合并后提前返回。该成本基本不随 payload 增长，因此 release 使用绝对微秒预算，而不是让相同的固定成本在 4 KiB/64 KiB 上被百分比放大。</p>
 
   <h2>4. 本轮代码为什么会更快</h2>
   <table>

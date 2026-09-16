@@ -157,6 +157,7 @@ def assemble(root: Path) -> dict[str, Any]:
         for case_id in cases:
             case_correctness = True
             latencies: list[float] = []
+            round_summaries: list[dict[str, int | float | str]] = []
             total_workload_seconds = 0.0
             total_handler_seconds = 0.0
             total_cpu_ticks = 0
@@ -213,6 +214,14 @@ def assemble(root: Path) -> dict[str, Any]:
                 case_correctness = case_correctness and bool(workload.get("correctness"))
                 current = [float(sample["latency_us"]) for sample in workload["samples"]]
                 latencies.extend(current)
+                round_summaries.append(
+                    {
+                        "round": round_path.name,
+                        "samples": len(current),
+                        "p50_us": percentile(current, 0.50),
+                        "p95_us": percentile(current, 0.95),
+                    }
+                )
                 total_workload_seconds += sum(current) / 1_000_000.0
                 total_operations += len(current)
 
@@ -344,6 +353,10 @@ def assemble(root: Path) -> dict[str, Any]:
                 "p95_us": percentile(latencies, 0.95),
                 "p99_us": percentile(latencies, 0.99),
                 "mean_us": sum(latencies) / len(latencies),
+                # 发布门禁使用 Native/Glue 同轮配对后的中位差异，避免某一轮宿主
+                # 调度抖动污染另一轮；读路径看比值，mutation 看绝对增量。
+                # 聚合分位数仍保留给报告展示。
+                "rounds": round_summaries,
                 "path_ledger": path_ledger,
                 "path_evidence": {
                     "measured_rpc_totals": totals,

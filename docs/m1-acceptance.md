@@ -159,16 +159,18 @@ M1.7 性能现在分成两个独立门禁：
 
 1. `performance-regression` 使用
    `benchmarks/whitebox/native-filesystem-vs-glue-contract.json`。本地热读与跨节点首读必须领先；
-   同步 write-through 的 create/overwrite 属于突变路径，只要求在解释清楚的有界比例内，不再套用
-   单一全局 5% 阈值。
+   同步 write-through 的 create/overwrite 属于突变路径，按固定控制路径的绝对微秒增量评价：create
+   的配对中位 p50/p95 最多增加 400/500 µs，middle overwrite 最多增加 250/300 µs。
+   不用百分比把同一份固定成本在小文件上不成比例地放大。
 2. `whitebox-path-gate` 使用
    `benchmarks/whitebox/fuse-request-amplification-contract.json`。它只看 FUSE/DataCore/Meta/Peer
    请求次数、字节复制阶段和正确性，不重复判断延迟。
 
-发布性能验收固定使用四轮对称交替顺序：Native→Glue、Glue→Native、Native→Glue、Glue→Native，
-保证双方获得相同次数的先跑与后跑机会。每轮语料为 220 个文件：140×4 KiB、50×64 KiB、
-30×1 MiB；评价器要求每个关键 case 至少 100 个样本。该调整只消除执行顺序与小样本对 p95
-的统计偏差，所有领先或回归比例阈值保持不变。
+发布性能验收固定使用六轮对称交替顺序：Native→Glue 与 Glue→Native 各三次，保证双方获得相同
+次数的先跑与后跑机会。每轮语料为 220 个文件：140×4 KiB、50×64 KiB、30×1 MiB；评价器
+要求每个关键 case 至少 100 个样本。时延门禁先在同一轮内计算 Native/Glue 配对差异，再以六轮
+中位数判定；读路径使用配对比值并继续要求领先，mutation 使用配对绝对增量并限制固定控制成本。
+聚合 p50/p95 继续作为报告数据，但不允许单轮宿主调度抖动决定发布结果。
 
 最新同场证据位于 `evidence/m1/g004-performance-safe-id-20260917-r1`：本地热读领先
 44.5%～54.7%，跨节点首读领先 11.5%～29.7%；create 4 KiB/64 KiB 分别慢 10.96%/4.64%，

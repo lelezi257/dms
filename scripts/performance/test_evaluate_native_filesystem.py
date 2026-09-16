@@ -23,6 +23,7 @@ CONTRACT = json.loads(
 
 def passing_result() -> dict:
     minimum_samples = CONTRACT["thresholds"]["minimum_samples_per_case"]
+    minimum_rounds = CONTRACT["thresholds"]["minimum_paired_rounds"]
     cases = {}
     for rule in CONTRACT["cases"]:
         cases[rule["id"]] = {
@@ -32,6 +33,15 @@ def passing_result() -> dict:
             "p95_us": 100.0,
             "unattributed_fraction": 0.05,
             "path_ledger": copy.deepcopy(rule["native_path"]),
+            "rounds": [
+                {
+                    "round": f"round-{round_id}",
+                    "samples": minimum_samples,
+                    "p50_us": 80.0,
+                    "p95_us": 100.0,
+                }
+                for round_id in range(minimum_rounds)
+            ],
         }
     glue_cases = {
         case_id: {
@@ -39,6 +49,15 @@ def passing_result() -> dict:
             "samples": minimum_samples,
             "p50_us": 100.0,
             "p95_us": 100.0,
+            "rounds": [
+                {
+                    "round": f"round-{round_id}",
+                    "samples": minimum_samples,
+                    "p50_us": 100.0,
+                    "p95_us": 100.0,
+                }
+                for round_id in range(minimum_rounds)
+            ],
         }
         for case_id in cases
     }
@@ -92,37 +111,50 @@ class NativeFilesystemEvaluatorTest(unittest.TestCase):
 
     def test_class_specific_improvement_is_enforced(self):
         candidate = passing_result()
-        candidate["backends"]["native"]["cases"]["peer_first_read.4096"]["p50_us"] = 96.0
+        case = candidate["backends"]["native"]["cases"]["peer_first_read.4096"]
+        case["p50_us"] = 96.0
+        for row in case["rounds"]:
+            row["p50_us"] = 96.0
         result = evaluate_native_filesystem.evaluate(CONTRACT, candidate)
         self.assertEqual("FAIL", result["status"])
         self.assertTrue(any("below 5.000%" in error for error in result["errors"]))
 
-    def test_create_p95_regression_above_twenty_percent_fails(self):
+    def test_create_p95_fixed_overhead_above_budget_fails(self):
         candidate = passing_result()
-        candidate["backends"]["native"]["cases"]["create_write.4096"]["p95_us"] = 121.0
+        case = candidate["backends"]["native"]["cases"]["create_write.4096"]
+        case["p95_us"] = 601.0
+        for row in case["rounds"]:
+            row["p95_us"] = 601.0
         result = evaluate_native_filesystem.evaluate(CONTRACT, candidate)
         self.assertEqual("FAIL", result["status"])
-        self.assertTrue(any("p95 ratio" in error for error in result["errors"]))
+        self.assertTrue(any("p95 overhead" in error for error in result["errors"]))
 
-    def test_synchronous_create_cannot_regress_more_than_fifteen_percent(self):
+    def test_synchronous_create_fixed_overhead_is_bounded(self):
         candidate = passing_result()
-        candidate["backends"]["native"]["cases"]["create_write.4096"]["p50_us"] = 116.0
+        case = candidate["backends"]["native"]["cases"]["create_write.4096"]
+        case["p50_us"] = 501.0
+        for row in case["rounds"]:
+            row["p50_us"] = 501.0
         result = evaluate_native_filesystem.evaluate(CONTRACT, candidate)
         self.assertEqual("FAIL", result["status"])
-        self.assertTrue(any("p50 ratio" in error for error in result["errors"]))
+        self.assertTrue(any("p50 overhead" in error for error in result["errors"]))
 
-    def test_synchronous_overwrite_uses_same_fifteen_percent_tail_bound(self):
+    def test_synchronous_overwrite_uses_absolute_tail_budget(self):
         candidate = passing_result()
         overwrite = candidate["backends"]["native"]["cases"]["middle_overwrite.65536"]
-        overwrite["p95_us"] = 114.9
+        overwrite["p95_us"] = 399.9
+        for row in overwrite["rounds"]:
+            row["p95_us"] = 399.9
         self.assertEqual(
             "PASS",
             evaluate_native_filesystem.evaluate(CONTRACT, candidate)["status"],
         )
-        overwrite["p95_us"] = 115.1
+        overwrite["p95_us"] = 400.1
+        for row in overwrite["rounds"]:
+            row["p95_us"] = 400.1
         result = evaluate_native_filesystem.evaluate(CONTRACT, candidate)
         self.assertEqual("FAIL", result["status"])
-        self.assertTrue(any("p95 ratio" in error for error in result["errors"]))
+        self.assertTrue(any("p95 overhead" in error for error in result["errors"]))
 
     def test_unattributed_time_above_ten_percent_fails(self):
         candidate = passing_result()
@@ -132,6 +164,22 @@ class NativeFilesystemEvaluatorTest(unittest.TestCase):
         result = evaluate_native_filesystem.evaluate(CONTRACT, candidate)
         self.assertEqual("FAIL", result["status"])
         self.assertTrue(any("unattributed_fraction" in error for error in result["errors"]))
+
+    def test_one_noisy_round_does_not_define_the_release_tail(self):
+        candidate = passing_result()
+        case = candidate["backends"]["native"]["cases"]["create_write.4096"]
+        case["rounds"][0]["p95_us"] = 500.0
+        result = evaluate_native_filesystem.evaluate(CONTRACT, candidate)
+        self.assertEqual("PASS", result["status"], result["errors"])
+
+    def test_majority_round_tail_regression_fails(self):
+        candidate = passing_result()
+        case = candidate["backends"]["native"]["cases"]["create_write.4096"]
+        for row in case["rounds"][:4]:
+            row["p95_us"] = 700.0
+        result = evaluate_native_filesystem.evaluate(CONTRACT, candidate)
+        self.assertEqual("FAIL", result["status"])
+        self.assertTrue(any("p95 overhead" in error for error in result["errors"]))
 
 
 if __name__ == "__main__":

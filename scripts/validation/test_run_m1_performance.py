@@ -85,7 +85,7 @@ class M1PerformanceTest(unittest.TestCase):
         result = {
             "schema": "dms.native-filesystem-vs-glue-result.v1",
             "same_environment": True,
-            "workload": {"rounds": 4},
+            "workload": {"rounds": 6},
             "environment": environment,
         }
         (output / "result.json").write_text(json.dumps(result), encoding="utf-8")
@@ -103,37 +103,37 @@ class M1PerformanceTest(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "juicefs-provenance"):
                 module.prepare_juicefs(args, root / "output")
 
-    def test_existing_result_requires_same_environment_four_rounds_and_two_passes(self) -> None:
+    def test_existing_result_requires_same_environment_six_rounds_and_two_passes(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory)
             self.write_result(output)
-            module.validate_existing(output, 4)
+            module.validate_existing(output, 6)
 
             value = json.loads((output / "result.json").read_text(encoding="utf-8"))
             value["same_environment"] = False
             (output / "result.json").write_text(json.dumps(value), encoding="utf-8")
             with self.assertRaisesRegex(RuntimeError, "same run"):
-                module.validate_existing(output, 4)
+                module.validate_existing(output, 6)
 
     def test_existing_result_rejects_stale_source_head_by_default(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory)
             self.write_result(output, source_head="old-head")
             with self.assertRaisesRegex(RuntimeError, "current HEAD"):
-                module.validate_existing(output, 4)
+                module.validate_existing(output, 6)
 
     def test_existing_result_rejects_missing_freshness_fields_by_default(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory)
             self.write_result(output, include_hashes=False)
             with self.assertRaisesRegex(RuntimeError, "artifact paths or hashes"):
-                module.validate_existing(output, 4)
+                module.validate_existing(output, 6)
 
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory)
             self.write_result(output, include_provenance=False)
             with self.assertRaisesRegex(RuntimeError, "artifact_provenance"):
-                module.validate_existing(output, 4)
+                module.validate_existing(output, 6)
 
     def test_existing_result_rejects_artifact_hash_drift_by_default(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -141,23 +141,23 @@ class M1PerformanceTest(unittest.TestCase):
             self.write_result(output)
             (output / "dms-node").write_bytes(b"changed")
             with self.assertRaisesRegex(RuntimeError, "artifact hash changed: dms_node"):
-                module.validate_existing(output, 4)
+                module.validate_existing(output, 6)
 
     def test_stale_evidence_requires_explicit_discovery_boundary(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory)
             self.write_result(output, source_head="old-head", include_hashes=False, include_provenance=False)
-            module.validate_existing(output, 4, allow_stale_evidence=True, purpose="discovery")
+            module.validate_existing(output, 6, allow_stale_evidence=True, purpose="discovery")
             with self.assertRaisesRegex(RuntimeError, "release"):
-                module.validate_existing(output, 4, allow_stale_evidence=True, purpose="release")
+                module.validate_existing(output, 6, allow_stale_evidence=True, purpose="release")
 
     def test_release_rounds_are_balanced(self) -> None:
-        module.validate_round_count(4)
         module.validate_round_count(6)
-        with self.assertRaisesRegex(RuntimeError, "at least four"):
-            module.validate_round_count(2)
+        module.validate_round_count(8)
+        with self.assertRaisesRegex(RuntimeError, "at least six"):
+            module.validate_round_count(4)
         with self.assertRaisesRegex(RuntimeError, "even number"):
-            module.validate_round_count(5)
+            module.validate_round_count(7)
 
 
 if __name__ == "__main__":

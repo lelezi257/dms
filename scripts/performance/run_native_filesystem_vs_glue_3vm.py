@@ -459,7 +459,7 @@ class Harness:
         unknown_arms = set(selected_arms) - {"native", "glue"}
         if not selected_arms or unknown_arms:
             raise RuntimeError(f"arms must be a non-empty subset of native/glue: {selected_arms}")
-        rounds = int(self.profile.get("rounds", 4))
+        rounds = int(self.profile.get("rounds", 6))
         if rounds < 1:
             raise RuntimeError("rounds must be positive")
         try:

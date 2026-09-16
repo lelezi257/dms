@@ -69,6 +69,134 @@ pub(crate) struct InodeAttributes {
     pub(crate) ctime_unix_nanos: i64,
 }
 
+/// 发起 POSIX 属性修改的调用者身份。
+///
+/// Node 从可信 FUSE `Request` 读取它，Meta 在唯一 actor turn 中完成最终权限判断。
+/// `pid` 当前只用于诊断与后续审计预留，不参与首版 owner/root 判定。
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct FilesystemCaller {
+    pub(crate) uid: u32,
+    pub(crate) gid: u32,
+    pub(crate) pid: u32,
+}
+
+/// `utimens` 对单个时间字段的三态更新。
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum TimeUpdate {
+    Omit,
+    Now,
+    Exact(i64),
+}
+
+/// 一次 inode 属性修改。
+///
+/// `ctime` 不由调用者设置；Meta 在同一条权威提交中自动更新。`size` 不属于本结构，
+/// 它必须与内容版本通过 [`CommitFileVersionRequest`] 原子发布。
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct AttributePatch {
+    pub(crate) mode: Option<u32>,
+    pub(crate) uid: Option<u32>,
+    pub(crate) gid: Option<u32>,
+    pub(crate) atime: TimeUpdate,
+    pub(crate) mtime: TimeUpdate,
+}
+
+impl Default for AttributePatch {
+    fn default() -> Self {
+        Self {
+            mode: None,
+            uid: None,
+            gid: None,
+            atime: TimeUpdate::Omit,
+            mtime: TimeUpdate::Omit,
+        }
+    }
+}
+
+impl AttributePatch {
+    pub(crate) const fn is_empty(self) -> bool {
+        self.mode.is_none()
+            && self.uid.is_none()
+            && self.gid.is_none()
+            && matches!(self.atime, TimeUpdate::Omit)
+            && matches!(self.mtime, TimeUpdate::Omit)
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct SetAttributesRequest {
+    pub(crate) operation_id: Vec<u8>,
+    pub(crate) operation_digest: Vec<u8>,
+    pub(crate) commit_sequence: u64,
+    pub(crate) inode: InodeId,
+    pub(crate) expected_inode_revision: InodeRevision,
+    pub(crate) caller: FilesystemCaller,
+    pub(crate) patch: AttributePatch,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct AttributeMutationResult {
+    pub(crate) resolved: ResolvedInode,
+    pub(crate) invalidation_cursor: u64,
+    pub(crate) commit_index: u64,
+}
+
+/// xattr set 的存在性约束，对应 Linux `XATTR_CREATE/XATTR_REPLACE`。
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum XattrSetMode {
+    Upsert,
+    CreateOnly,
+    ReplaceOnly,
+}
+
+/// 一次 xattr 写入的领域请求。Node 在本地生成 operation id，并用 inode revision
+/// 做 CAS；Meta 在单个 owner turn 内完成权限校验、ACL 联动和 WAL 提交。
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct SetXattrRequest {
+    pub(crate) operation_id: Vec<u8>,
+    pub(crate) operation_digest: Vec<u8>,
+    pub(crate) inode: InodeId,
+    pub(crate) expected_inode_revision: InodeRevision,
+    pub(crate) caller: FilesystemCaller,
+    pub(crate) name: Vec<u8>,
+    pub(crate) value: Vec<u8>,
+    pub(crate) mode: XattrSetMode,
+}
+
+/// 一次 xattr 删除的领域请求。删除不存在属性由 Meta 返回稳定的 NotFound 错误，
+/// FUSE 边界再映射为 `ENODATA`。
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct RemoveXattrRequest {
+    pub(crate) operation_id: Vec<u8>,
+    pub(crate) operation_digest: Vec<u8>,
+    pub(crate) inode: InodeId,
+    pub(crate) expected_inode_revision: InodeRevision,
+    pub(crate) caller: FilesystemCaller,
+    pub(crate) name: Vec<u8>,
+}
+
+/// 一次持久化的 xattr delta。`None` 表示删除；它与 inode revision/grant 更新
+/// 位于同一条 WAL 记录中，恢复时不会出现属性已经变化但 xattr 尚未变化的中间态。
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct XattrUpdate {
+    pub(crate) inode: InodeId,
+    pub(crate) name: Vec<u8>,
+    pub(crate) value: Option<Vec<u8>>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct FilesystemStats {
+    pub(crate) block_size: u64,
+    pub(crate) total_blocks: u64,
+    pub(crate) free_blocks: u64,
+    pub(crate) available_blocks: u64,
+    pub(crate) total_inodes: u64,
+    pub(crate) free_inodes: u64,
+    pub(crate) max_name_length: u32,
+    pub(crate) reporting_nodes: u32,
+    pub(crate) capacity_revision: u64,
+}
+
 /// 一次一致的 inode 读取结果。
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct InodeSnapshot {
@@ -254,6 +382,10 @@ pub(crate) struct CommitFileVersionRequest {
     pub(crate) prepared: super::wire::PreparedObjectVersion,
     pub(crate) new_size: u64,
     pub(crate) mtime_unix_nanos: i64,
+    /// 只有内容提交同时携带 chmod/chown/utimens 时才存在。调用者身份与 patch
+    /// 必须成对出现，由 Meta 在同一个 actor turn 内完成权限检查和原子发布。
+    pub(crate) caller: Option<FilesystemCaller>,
+    pub(crate) attribute_patch: AttributePatch,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -271,6 +403,8 @@ pub(crate) enum FileContractError {
     MissingInodeAttributes,
     MissingResolvedInode,
     InvalidInodeKind,
+    InvalidAttributePatch,
+    InvalidXattrSetMode,
 }
 
 #[cfg(test)]

@@ -205,7 +205,9 @@ Meta 在一个 actor turn 内完成校验、journal append、apply 和响应缓�
 - commit 需要等待相关可见性屏障后才向写入方返回；断流由 session lease 兜底。
 - Meta WAL/checkpoint replay 会把 filesystem version operation 的精确响应和待完成的 visibility cursor 作为同一个生命周期恢复；重启后重试既不会拿到错误结果，也不会跳过尚未完成的失效屏障。ACK/lease 收敛后两份状态一起清除，超过显式保留窗口后再由统一 retention 回收。
 
-当前仍是 write-through；没有实现 write-back、dirty page、unlink-open 回收、hard link、symlink、权限、xattr、锁或多 Meta 高可用。
+当前仍是 write-through；M1.3 当时尚未实现的 unlink-open 回收、hard link、symlink 已由
+文件身份阶段补齐，权限、xattr/ACL 与集群 statfs 已由 M1.4 补齐。write-back、dirty
+page、文件锁和多 Meta 高可用仍未实现。
 
 ## 9. 代码阅读顺序
 

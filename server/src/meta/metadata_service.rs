@@ -180,6 +180,7 @@ impl MetadataService for MetadataServiceHandler {
                 session.node_id,
                 session.node_epoch,
                 request.event_cursor,
+                request.resources,
             )
             .await
             .map_err(|error| self.map_meta_error(error))?;

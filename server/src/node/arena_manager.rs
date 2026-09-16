@@ -998,6 +998,27 @@ impl ArenaManager {
         }
     }
 
+    /// 生成上报给 Meta 的 Arena 容量快照。
+    ///
+    /// 这里读取唯一内存 owner 的真实 allocation 表，而不是从 Prometheus 指标反推；
+    /// `available` 表示仍可新增物理 allocation 的容量，已释放 Slot 已从
+    /// `allocated_bytes` 中扣除，因此可直接被后续申请复用。
+    pub(crate) fn resource_summary(&self) -> dms_protocol::v1::ResourceSummary {
+        let staged_bytes = self.staging.values().fold(0_u64, |sum, staging| {
+            sum.saturating_add(staging.handle.length)
+        });
+        let replica_bytes = self
+            .blocks
+            .values()
+            .fold(0_u64, |sum, block| sum.saturating_add(block.handle.length));
+        dms_protocol::v1::ResourceSummary {
+            total_host_memory_bytes: self.capacity_bytes,
+            available_host_memory_bytes: self.capacity_bytes.saturating_sub(self.allocated_bytes),
+            staged_bytes,
+            replica_bytes,
+        }
+    }
+
     pub(crate) fn set_staging_ttl(&mut self, staging_ttl: Duration) {
         self.staging_ttl = staging_ttl;
     }
@@ -1640,6 +1661,28 @@ mod runtime_tests {
         assert_eq!(reused_handle.region_id, first_handle.region_id);
         assert_eq!(reused_handle.offset, first_handle.offset);
         assert_ne!(reused_handle.allocation_id, first_handle.allocation_id);
+    }
+
+    #[test]
+    fn resource_summary_reports_allocator_owned_capacity_and_live_bytes() {
+        let mut arena = ArenaManager::new(4096, Duration::from_secs(30));
+        let allocation = arena.allocate(7, 100).expect("allocate staging");
+        let staged = arena.resource_summary();
+        assert_eq!(staged.total_host_memory_bytes, 4096);
+        assert_eq!(staged.available_host_memory_bytes, 4096 - 128);
+        assert_eq!(staged.staged_bytes, 100);
+        assert_eq!(staged.replica_bytes, 0);
+
+        let receipt = arena
+            .upload(allocation.transfer_id, &[7; 100])
+            .expect("upload staging");
+        arena
+            .commit_staging(7, allocation.staging_id, &receipt, b"block".to_vec())
+            .expect("seal block");
+        let committed = arena.resource_summary();
+        assert_eq!(committed.available_host_memory_bytes, 4096 - 128);
+        assert_eq!(committed.staged_bytes, 0);
+        assert_eq!(committed.replica_bytes, 100);
     }
 
     #[test]

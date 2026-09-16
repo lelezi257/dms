@@ -6,7 +6,9 @@
 
 use dms_protocol::v1 as pb;
 
-use crate::filesystem::{DentrySnapshot, InodeId, InodeSnapshot, NamespaceMutationResult};
+use crate::filesystem::{
+    DentrySnapshot, InodeId, InodeSnapshot, NamespaceMutationResult, XattrUpdate,
+};
 
 use super::metrics::JournalRecordMetric;
 
@@ -41,6 +43,33 @@ pub(crate) struct FilesystemVersionCommitRecord {
     pub(crate) inode: InodeSnapshot,
     pub(crate) revoked_grant_generation: u64,
     pub(crate) new_grant_generation: u64,
+    pub(crate) xattr_updates: Vec<XattrUpdate>,
+}
+
+/// chmod/chown/utimens 的一次权威 inode 属性提交。
+///
+/// 记录保存 Meta 已经完成权限检查和 `NOW` 求值后的最终 inode；恢复时只重放结果，
+/// 不重新读取墙钟或重新判权，因此幂等重试与崩溃恢复看到同一份属性快照。
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct FilesystemAttributesUpdatedRecord {
+    pub(crate) operation_id: Vec<u8>,
+    pub(crate) operation_digest: Vec<u8>,
+    pub(crate) inode: InodeSnapshot,
+    pub(crate) revoked_grant_generation: u64,
+    pub(crate) new_grant_generation: u64,
+    pub(crate) xattr_updates: Vec<XattrUpdate>,
+}
+
+/// setxattr/removexattr 的一次完整提交；inode revision、grant 和 xattr delta
+/// 必须一起重放。
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct FilesystemXattrUpdatedRecord {
+    pub(crate) operation_id: Vec<u8>,
+    pub(crate) operation_digest: Vec<u8>,
+    pub(crate) inode: InodeSnapshot,
+    pub(crate) revoked_grant_generation: u64,
+    pub(crate) new_grant_generation: u64,
+    pub(crate) update: XattrUpdate,
 }
 
 /// create/mkdir/rename/unlink/rmdir 的一次 Meta 权威 namespace 变更。
@@ -57,6 +86,7 @@ pub(crate) struct FilesystemNamespaceMutationRecord {
     pub(crate) upsert_dentries: Vec<DentrySnapshot>,
     pub(crate) remove_dentries: Vec<DentrySnapshot>,
     pub(crate) next_inode: InodeId,
+    pub(crate) xattr_updates: Vec<XattrUpdate>,
 }
 
 /// 符号链接创建的单条权威记录。
@@ -197,6 +227,15 @@ pub(crate) enum JournalRecord {
         record: FilesystemVersionCommitRecord,
         commit_sequence: Option<CommitSequenceRecord>,
     },
+    /// inode 属性和对应缓存撤销由同一条记录发布。
+    FilesystemAttributesUpdated {
+        record: FilesystemAttributesUpdatedRecord,
+        commit_sequence: Option<CommitSequenceRecord>,
+    },
+    FilesystemXattrUpdated {
+        record: FilesystemXattrUpdatedRecord,
+        commit_sequence: Option<CommitSequenceRecord>,
+    },
     /// 目录树名字空间的一次原子变更，覆盖 create/mkdir/rename/unlink/rmdir。
     FilesystemNamespaceMutated {
         record: FilesystemNamespaceMutationRecord,
@@ -237,6 +276,10 @@ impl JournalRecord {
             Self::FilesystemVersionCommitted { .. } => {
                 JournalRecordMetric::FilesystemVersionCommitted
             }
+            Self::FilesystemAttributesUpdated { .. } => {
+                JournalRecordMetric::FilesystemAttributesUpdated
+            }
+            Self::FilesystemXattrUpdated { .. } => JournalRecordMetric::FilesystemAttributesUpdated,
             Self::FilesystemNamespaceMutated { .. } => {
                 JournalRecordMetric::FilesystemNamespaceMutated
             }
@@ -288,6 +331,13 @@ pub(crate) struct SnapshotFilesystemVersionOperation {
     pub(crate) response: pb::FilesystemCommitVersionResponse,
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct SnapshotFilesystemAttributeOperation {
+    pub(crate) operation_id: Vec<u8>,
+    pub(crate) digest: Vec<u8>,
+    pub(crate) response: pb::FilesystemAttributeMutationResponse,
+}
+
 /// Snapshot 中尚未完成的 Filesystem 可见性屏障。
 ///
 /// 该字段作为 snapshot 尾部扩展单独编码，避免改变旧版 operation entry 的二进制布局。
@@ -297,6 +347,7 @@ pub(crate) struct SnapshotFilesystemVersionOperation {
 pub(crate) struct SnapshotFilesystemOperationVisibility {
     pub(crate) namespace: Vec<(Vec<u8>, u64)>,
     pub(crate) versions: Vec<(Vec<u8>, u64)>,
+    pub(crate) attributes: Vec<(Vec<u8>, u64)>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -333,8 +384,10 @@ pub(crate) struct MetaSnapshot {
     pub(crate) filesystem_inodes: Vec<InodeSnapshot>,
     pub(crate) filesystem_dentries: Vec<DentrySnapshot>,
     pub(crate) filesystem_grant_generations: Vec<(InodeId, u64)>,
+    pub(crate) filesystem_xattrs: Vec<(InodeId, Vec<u8>, Vec<u8>)>,
     pub(crate) filesystem_namespace_operations: Vec<SnapshotFilesystemNamespaceOperation>,
     pub(crate) filesystem_version_operations: Vec<SnapshotFilesystemVersionOperation>,
+    pub(crate) filesystem_attribute_operations: Vec<SnapshotFilesystemAttributeOperation>,
     pub(crate) filesystem_operation_visibility: Option<SnapshotFilesystemOperationVisibility>,
 }
 

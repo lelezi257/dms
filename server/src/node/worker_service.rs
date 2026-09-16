@@ -1472,7 +1472,10 @@ mod tests {
                     let event_node = node.clone();
                     let mut stream = metadata.watch_events(0).await.expect("open Meta watch");
                     let lease_started = Instant::now();
-                    let lease_ttl = metadata.heartbeat(0).await.expect("Meta cache lease");
+                    let lease_ttl = metadata
+                        .heartbeat(0, pb::ResourceSummary::default())
+                        .await
+                        .expect("Meta cache lease");
                     node.metadata_lease(
                         Some(lease_started + Duration::from_millis(lease_ttl)),
                         Some(true),

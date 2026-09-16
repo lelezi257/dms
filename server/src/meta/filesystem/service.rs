@@ -216,6 +216,102 @@ impl FilesystemMetadataService for FilesystemMetadataServiceHandler {
         Ok(Response::new(response))
     }
 
+    async fn set_filesystem_attributes(
+        &self,
+        request: Request<pb::FilesystemSetAttributesRequest>,
+    ) -> Result<Response<pb::FilesystemAttributeMutationResponse>, Status> {
+        let mut rpc = self
+            .rpc_metrics
+            .begin_server_call(dms_metrics::RpcCall::FILESYSTEM_SET_ATTRIBUTES);
+        let response = self
+            .meta
+            .filesystem_set_attributes(request.into_inner())
+            .await
+            .map_err(|error| self.map_error(error))?;
+        rpc.success();
+        Ok(Response::new(response))
+    }
+
+    async fn get_filesystem_xattr(
+        &self,
+        request: Request<pb::FilesystemGetXattrRequest>,
+    ) -> Result<Response<pb::FilesystemGetXattrResponse>, Status> {
+        let mut rpc = self
+            .rpc_metrics
+            .begin_server_call(dms_metrics::RpcCall::FILESYSTEM_GET_XATTR);
+        let response = self
+            .meta
+            .filesystem_get_xattr(request.into_inner())
+            .await
+            .map_err(|error| self.map_error(error))?;
+        rpc.success();
+        Ok(Response::new(response))
+    }
+
+    async fn list_filesystem_xattrs(
+        &self,
+        request: Request<pb::FilesystemListXattrsRequest>,
+    ) -> Result<Response<pb::FilesystemListXattrsResponse>, Status> {
+        let mut rpc = self
+            .rpc_metrics
+            .begin_server_call(dms_metrics::RpcCall::FILESYSTEM_LIST_XATTRS);
+        let response = self
+            .meta
+            .filesystem_list_xattrs(request.into_inner())
+            .await
+            .map_err(|error| self.map_error(error))?;
+        rpc.success();
+        Ok(Response::new(response))
+    }
+
+    async fn set_filesystem_xattr(
+        &self,
+        request: Request<pb::FilesystemSetXattrRequest>,
+    ) -> Result<Response<pb::FilesystemAttributeMutationResponse>, Status> {
+        let mut rpc = self
+            .rpc_metrics
+            .begin_server_call(dms_metrics::RpcCall::FILESYSTEM_SET_XATTR);
+        let response = self
+            .meta
+            .filesystem_set_xattr(request.into_inner())
+            .await
+            .map_err(|error| self.map_error(error))?;
+        rpc.success();
+        Ok(Response::new(response))
+    }
+
+    async fn remove_filesystem_xattr(
+        &self,
+        request: Request<pb::FilesystemRemoveXattrRequest>,
+    ) -> Result<Response<pb::FilesystemAttributeMutationResponse>, Status> {
+        let mut rpc = self
+            .rpc_metrics
+            .begin_server_call(dms_metrics::RpcCall::FILESYSTEM_REMOVE_XATTR);
+        let response = self
+            .meta
+            .filesystem_remove_xattr(request.into_inner())
+            .await
+            .map_err(|error| self.map_error(error))?;
+        rpc.success();
+        Ok(Response::new(response))
+    }
+
+    async fn stat_filesystem(
+        &self,
+        request: Request<pb::FilesystemStatRequest>,
+    ) -> Result<Response<pb::FilesystemStatResponse>, Status> {
+        let mut rpc = self
+            .rpc_metrics
+            .begin_server_call(dms_metrics::RpcCall::FILESYSTEM_STAT);
+        let response = self
+            .meta
+            .filesystem_stat(request.into_inner())
+            .await
+            .map_err(|error| self.map_error(error))?;
+        rpc.success();
+        Ok(Response::new(response))
+    }
+
     async fn commit_filesystem_version(
         &self,
         request: Request<pb::FilesystemCommitVersionRequest>,

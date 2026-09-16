@@ -359,6 +359,48 @@ mod catalog_tests {
             component: "Meta",
             subsystem: "Filesystem",
         },
+        ExpectedError {
+            name: "META_FILESYSTEM_PERMISSION_DENIED",
+            code: crate::META_FILESYSTEM_PERMISSION_DENIED,
+            kind: ErrorKind::PermissionDenied,
+            component: "Meta",
+            subsystem: "Filesystem",
+        },
+        ExpectedError {
+            name: "META_FILESYSTEM_XATTR_NOT_FOUND",
+            code: crate::META_FILESYSTEM_XATTR_NOT_FOUND,
+            kind: ErrorKind::NotFound,
+            component: "Meta",
+            subsystem: "Filesystem",
+        },
+        ExpectedError {
+            name: "META_FILESYSTEM_XATTR_ALREADY_EXISTS",
+            code: crate::META_FILESYSTEM_XATTR_ALREADY_EXISTS,
+            kind: ErrorKind::AlreadyExists,
+            component: "Meta",
+            subsystem: "Filesystem",
+        },
+        ExpectedError {
+            name: "META_FILESYSTEM_XATTR_UNSUPPORTED",
+            code: crate::META_FILESYSTEM_XATTR_UNSUPPORTED,
+            kind: ErrorKind::Unimplemented,
+            component: "Meta",
+            subsystem: "Filesystem",
+        },
+        ExpectedError {
+            name: "META_FILESYSTEM_XATTR_TOO_LARGE",
+            code: crate::META_FILESYSTEM_XATTR_TOO_LARGE,
+            kind: ErrorKind::ResourceExhausted,
+            component: "Meta",
+            subsystem: "Filesystem",
+        },
+        ExpectedError {
+            name: "META_FILESYSTEM_CAPACITY_UNAVAILABLE",
+            code: crate::META_FILESYSTEM_CAPACITY_UNAVAILABLE,
+            kind: ErrorKind::Unavailable,
+            component: "Meta",
+            subsystem: "Filesystem",
+        },
     ];
 
     fn parse_code(entry: &toml::Value, field: &str) -> u32 {

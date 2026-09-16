@@ -12,10 +12,13 @@ use dms_error::{DmsError, ErrorKind};
 use dms_protocol::v1 as pb;
 
 use crate::filesystem::{
-    CommitFileVersionRequest, CommitFileVersionResult, CreateSymlinkRequest, DentrySnapshot,
-    DirectoryGrant, DirectoryPage, InodeId, InodeKind, LinkEntryRequest, NamespaceMutationResult,
-    RemoveEntryRequest, RenameEntryRequest, ResolvedInode, dentry_from_proto,
-    directory_grant_from_proto, directory_page_from_proto, namespace_result_from_proto,
+    AttributeMutationResult, AttributePatch, CommitFileVersionRequest, CommitFileVersionResult,
+    CreateSymlinkRequest, DentrySnapshot, DirectoryGrant, DirectoryPage, FilesystemCaller,
+    FilesystemStats, InodeId, InodeKind, LinkEntryRequest, NamespaceMutationResult,
+    RemoveEntryRequest, RemoveXattrRequest, RenameEntryRequest, ResolvedInode,
+    SetAttributesRequest, SetXattrRequest, TimeUpdate, attribute_patch_to_proto,
+    attribute_result_from_proto, caller_to_proto, dentry_from_proto, directory_grant_from_proto,
+    directory_page_from_proto, filesystem_stats_from_proto, namespace_result_from_proto,
     resolved_from_proto,
 };
 use crate::node::metadata_client::{MetadataClient, digest};
@@ -92,6 +95,31 @@ pub(crate) trait FilesystemMetaClient: Send + Sync {
         &self,
         request: CommitFileVersionRequest,
     ) -> DmsResult<CommitFileVersionResult>;
+
+    async fn set_attributes(
+        &self,
+        request: SetAttributesRequest,
+    ) -> DmsResult<crate::filesystem::AttributeMutationResult>;
+
+    async fn get_xattr(
+        &self,
+        inode: InodeId,
+        name: &[u8],
+        caller: FilesystemCaller,
+    ) -> DmsResult<Option<Vec<u8>>>;
+
+    async fn list_xattrs(
+        &self,
+        inode: InodeId,
+        caller: FilesystemCaller,
+    ) -> DmsResult<Vec<Vec<u8>>>;
+
+    async fn set_xattr(&self, request: SetXattrRequest) -> DmsResult<AttributeMutationResult>;
+
+    async fn remove_xattr(&self, request: RemoveXattrRequest)
+    -> DmsResult<AttributeMutationResult>;
+
+    async fn stat_filesystem(&self) -> DmsResult<FilesystemStats>;
 }
 
 /// 复用 Node 已建立的 Meta HTTP/2 Channel、Session 和 commit sequence。
@@ -361,6 +389,14 @@ impl FilesystemMetaClient for FilesystemMetaGrpcClient {
         operation_digest.extend_from_slice(&request.inode.to_be_bytes());
         operation_digest.extend_from_slice(&request.expected_inode_revision.to_be_bytes());
         operation_digest.extend_from_slice(&request.prepared.candidate.digest);
+        operation_digest.extend_from_slice(&request.new_size.to_be_bytes());
+        operation_digest.extend_from_slice(&request.mtime_unix_nanos.to_be_bytes());
+        if let Some(caller) = request.caller {
+            operation_digest.extend_from_slice(&caller.uid.to_be_bytes());
+            operation_digest.extend_from_slice(&caller.gid.to_be_bytes());
+            operation_digest.extend_from_slice(&caller.pid.to_be_bytes());
+        }
+        append_attribute_patch_digest(&mut operation_digest, request.attribute_patch);
         let response = self
             .metadata
             .filesystem_commit_version(pb::FilesystemCommitVersionRequest {
@@ -378,6 +414,9 @@ impl FilesystemMetaClient for FilesystemMetaGrpcClient {
                 new_size: request.new_size,
                 mtime_unix_nanos: request.mtime_unix_nanos,
                 commit_sequence: 0,
+                caller: request.caller.map(caller_to_proto),
+                attribute_patch: (!request.attribute_patch.is_empty())
+                    .then(|| attribute_patch_to_proto(request.attribute_patch)),
             })
             .await?;
         let resolved = response.resolved.ok_or_else(missing_filesystem_response)?;
@@ -385,6 +424,118 @@ impl FilesystemMetaClient for FilesystemMetaGrpcClient {
             resolved: resolved_from_proto(resolved).map_err(invalid_filesystem_response)?,
             invalidation_cursor: response.invalidation_cursor,
         })
+    }
+
+    async fn set_attributes(
+        &self,
+        request: SetAttributesRequest,
+    ) -> DmsResult<crate::filesystem::AttributeMutationResult> {
+        let response = self
+            .metadata
+            .filesystem_set_attributes(pb::FilesystemSetAttributesRequest {
+                context: None,
+                session: None,
+                operation_id: request.operation_id,
+                operation_digest: request.operation_digest,
+                inode: request.inode,
+                expected_inode_revision: request.expected_inode_revision,
+                caller: Some(caller_to_proto(request.caller)),
+                patch: Some(attribute_patch_to_proto(request.patch)),
+                commit_sequence: request.commit_sequence,
+            })
+            .await?;
+        attribute_result_from_proto(response).map_err(invalid_filesystem_response)
+    }
+
+    async fn get_xattr(
+        &self,
+        inode: InodeId,
+        name: &[u8],
+        caller: FilesystemCaller,
+    ) -> DmsResult<Option<Vec<u8>>> {
+        let response = self
+            .metadata
+            .filesystem_get_xattr(inode, name.to_vec(), caller_to_proto(caller))
+            .await?;
+        Ok(response.found.then_some(response.value))
+    }
+
+    async fn list_xattrs(
+        &self,
+        inode: InodeId,
+        caller: FilesystemCaller,
+    ) -> DmsResult<Vec<Vec<u8>>> {
+        self.metadata
+            .filesystem_list_xattrs(inode, caller_to_proto(caller))
+            .await
+            .map(|response| response.names)
+    }
+
+    async fn set_xattr(&self, request: SetXattrRequest) -> DmsResult<AttributeMutationResult> {
+        let response = self
+            .metadata
+            .filesystem_set_xattr(pb::FilesystemSetXattrRequest {
+                context: None,
+                session: None,
+                operation_id: request.operation_id,
+                operation_digest: request.operation_digest,
+                inode: request.inode,
+                expected_inode_revision: request.expected_inode_revision,
+                caller: Some(caller_to_proto(request.caller)),
+                name: request.name,
+                value: request.value,
+                mode: request.mode.to_proto(),
+                commit_sequence: 0,
+            })
+            .await?;
+        attribute_result_from_proto(response).map_err(invalid_filesystem_response)
+    }
+
+    async fn remove_xattr(
+        &self,
+        request: RemoveXattrRequest,
+    ) -> DmsResult<AttributeMutationResult> {
+        let response = self
+            .metadata
+            .filesystem_remove_xattr(pb::FilesystemRemoveXattrRequest {
+                context: None,
+                session: None,
+                operation_id: request.operation_id,
+                operation_digest: request.operation_digest,
+                inode: request.inode,
+                expected_inode_revision: request.expected_inode_revision,
+                caller: Some(caller_to_proto(request.caller)),
+                name: request.name,
+                commit_sequence: 0,
+            })
+            .await?;
+        attribute_result_from_proto(response).map_err(invalid_filesystem_response)
+    }
+
+    async fn stat_filesystem(&self) -> DmsResult<FilesystemStats> {
+        self.metadata
+            .filesystem_stat()
+            .await
+            .map(filesystem_stats_from_proto)
+    }
+}
+
+fn append_attribute_patch_digest(digest: &mut Vec<u8>, patch: AttributePatch) {
+    digest.extend_from_slice(&patch.mode.unwrap_or(u32::MAX).to_be_bytes());
+    digest.extend_from_slice(&patch.uid.unwrap_or(u32::MAX).to_be_bytes());
+    digest.extend_from_slice(&patch.gid.unwrap_or(u32::MAX).to_be_bytes());
+    append_time_update_digest(digest, patch.atime);
+    append_time_update_digest(digest, patch.mtime);
+}
+
+fn append_time_update_digest(digest: &mut Vec<u8>, update: TimeUpdate) {
+    match update {
+        TimeUpdate::Omit => digest.push(1),
+        TimeUpdate::Now => digest.push(2),
+        TimeUpdate::Exact(nanos) => {
+            digest.push(3);
+            digest.extend_from_slice(&nanos.to_be_bytes());
+        }
     }
 }
 

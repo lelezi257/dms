@@ -280,6 +280,54 @@ component = "Meta"
 subsystem = "Filesystem"
 description = "A namespace mutation or directory page used a stale directory revision"
 
+[[error]]
+name = "META_FILESYSTEM_PERMISSION_DENIED"
+value = "0x03040006"
+kind = "PermissionDenied"
+component = "Meta"
+subsystem = "Filesystem"
+description = "The POSIX caller is not authorized to mutate the requested inode attributes"
+
+[[error]]
+name = "META_FILESYSTEM_XATTR_NOT_FOUND"
+value = "0x03040007"
+kind = "NotFound"
+component = "Meta"
+subsystem = "Filesystem"
+description = "The requested filesystem extended attribute does not exist"
+
+[[error]]
+name = "META_FILESYSTEM_XATTR_ALREADY_EXISTS"
+value = "0x03040008"
+kind = "AlreadyExists"
+component = "Meta"
+subsystem = "Filesystem"
+description = "An XATTR_CREATE mutation addressed an existing extended attribute"
+
+[[error]]
+name = "META_FILESYSTEM_XATTR_UNSUPPORTED"
+value = "0x03040009"
+kind = "Unimplemented"
+component = "Meta"
+subsystem = "Filesystem"
+description = "The extended attribute namespace or ACL form is not supported"
+
+[[error]]
+name = "META_FILESYSTEM_XATTR_TOO_LARGE"
+value = "0x0304000a"
+kind = "ResourceExhausted"
+component = "Meta"
+subsystem = "Filesystem"
+description = "The extended attribute exceeds the configured per-value or per-inode limit"
+
+[[error]]
+name = "META_FILESYSTEM_CAPACITY_UNAVAILABLE"
+value = "0x0304000b"
+kind = "Unavailable"
+component = "Meta"
+subsystem = "Filesystem"
+description = "Filesystem capacity is incomplete because a live Node has not reported Arena resources"
+
 [[reserved]]
 name = "CLIENT_PROTOCOL_ERROR_DETAIL_STRING_CODE"
 value = "0x010300ff"

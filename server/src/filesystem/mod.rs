@@ -5,8 +5,10 @@
 //! `VersionLayout/Extent/Block` 仍由既有 DataCore/Meta 对象模型定义；这里仅在提交时
 //! 携带现有 `VersionLayout`，不会建立第二套文件数据布局。
 
+mod acl;
 mod model;
 mod wire;
 
+pub(crate) use acl::*;
 pub(crate) use model::*;
 pub(crate) use wire::*;

@@ -17,14 +17,16 @@ use std::{
 use dms_error::{DmsError, ErrorKind};
 use dms_tracing::Instrument as _;
 use fuser::{
-    BackgroundSession, FileAttr, FileType, Filesystem, MountOption, ReplyAttr, ReplyCreate,
-    ReplyData, ReplyDirectory, ReplyEmpty, ReplyEntry, ReplyIoctl, ReplyOpen, ReplyWrite, Request,
-    TimeOrNow, fuse_forget_one,
+    BackgroundSession, FileAttr, FileType, Filesystem, KernelConfig, MountOption, ReplyAttr,
+    ReplyCreate, ReplyData, ReplyDirectory, ReplyEmpty, ReplyEntry, ReplyIoctl, ReplyOpen,
+    ReplyStatfs, ReplyWrite, ReplyXattr, Request, TimeOrNow, consts, fuse_forget_one,
 };
 use tokio::runtime::Handle;
 
 use super::SharedFileOperations;
-use crate::filesystem::{InodeAttributes, InodeKind};
+use crate::filesystem::{
+    AttributePatch, FilesystemCaller, InodeAttributes, InodeKind, TimeUpdate, XattrSetMode,
+};
 use crate::node::metrics::{FuseCallback, NodeMetrics};
 use crate::node::runtime::{NodeHandle, WorkerError};
 
@@ -46,7 +48,14 @@ pub(crate) fn start(
     let files = SharedFileOperations::new(node)
         .map_err(|error| format!("failed to initialize shared file operations: {error:?}"))?;
     let fs = DmsFuse::new(files, runtime, metrics);
-    let options = vec![MountOption::FSName("dms-node".to_string())];
+    let options = vec![
+        MountOption::FSName("dms-node".to_string()),
+        // 常规读写权限由内核使用 getattr 返回的 uid/gid/mode 快速判断；Node/Meta
+        // 仍会校验 chmod/chown/utimens，避免未来 Native API 绕开 FUSE 权限边界。
+        MountOption::DefaultPermissions,
+        // 首版不因普通 read 产生 metadata write amplification。显式 utimens 仍生效。
+        MountOption::NoAtime,
+    ];
     fuser::spawn_mount2(fs, &mountpoint, &options).map_err(Into::into)
 }
 
@@ -109,6 +118,16 @@ impl DmsFuse {
 }
 
 impl Filesystem for DmsFuse {
+    fn init(&mut self, _req: &Request<'_>, config: &mut KernelConfig) -> Result<(), libc::c_int> {
+        // 仅实现 getxattr/setxattr 还不足以让 Linux 把 POSIX ACL 用于权限判定。
+        // 必须在 FUSE INIT 阶段声明该能力；否则命名用户/组 ACL 可能只是被保存，
+        // 实际 open/read/write 仍只按 mode 位判断。内核不支持时拒绝挂载，避免提供
+        // 看似成功、实际不生效的安全语义。
+        config
+            .add_capabilities(consts::FUSE_POSIX_ACL)
+            .map_err(|_| libc::ENOTSUP)
+    }
+
     fn opendir(&mut self, _req: &Request, ino: u64, _flags: i32, reply: ReplyOpen) {
         self.metrics.record_fuse_callback(FuseCallback::Opendir);
         let span = filesystem_span("dms.filesystem.opendir", Some(ino));
@@ -169,14 +188,14 @@ impl Filesystem for DmsFuse {
 
     fn setattr(
         &mut self,
-        _req: &Request,
+        req: &Request,
         ino: u64,
         mode: Option<u32>,
         uid: Option<u32>,
         gid: Option<u32>,
         size: Option<u64>,
-        _atime: Option<TimeOrNow>,
-        _mtime: Option<TimeOrNow>,
+        atime: Option<TimeOrNow>,
+        mtime: Option<TimeOrNow>,
         _ctime: Option<SystemTime>,
         _fh: Option<u64>,
         _crtime: Option<SystemTime>,
@@ -186,20 +205,177 @@ impl Filesystem for DmsFuse {
         reply: ReplyAttr,
     ) {
         self.metrics.record_fuse_callback(FuseCallback::Setattr);
-        if mode.is_some() || uid.is_some() || gid.is_some() || flags.is_some() {
+        if flags.is_some() {
             reply.error(libc::ENOSYS);
             return;
         }
-        let Some(size) = size else {
-            reply.error(libc::ENOSYS);
-            return;
+        let patch = match attribute_patch(mode, uid, gid, atime, mtime) {
+            Ok(patch) => patch,
+            Err(errno) => {
+                reply.error(errno);
+                return;
+            }
         };
-        let span = filesystem_span("dms.filesystem.truncate", Some(ino));
+
+        let result = if let Some(size) = size {
+            let span = filesystem_span("dms.filesystem.truncate", Some(ino));
+            self.runtime.block_on(
+                self.files
+                    .truncate_with_attributes(
+                        ino,
+                        size,
+                        (!patch.is_empty()).then_some(FilesystemCaller {
+                            uid: req.uid(),
+                            gid: req.gid(),
+                            pid: req.pid(),
+                        }),
+                        patch,
+                    )
+                    .instrument(span),
+            )
+        } else if !patch.is_empty() {
+            let span = filesystem_span("dms.filesystem.setattr", Some(ino));
+            self.runtime.block_on(
+                self.files
+                    .set_attributes(
+                        ino,
+                        FilesystemCaller {
+                            uid: req.uid(),
+                            gid: req.gid(),
+                            pid: req.pid(),
+                        },
+                        patch,
+                    )
+                    .instrument(span),
+            )
+        } else {
+            let span = filesystem_span("dms.filesystem.getattr", Some(ino));
+            self.runtime
+                .block_on(self.files.get_inode(ino).instrument(span))
+        };
+        match result {
+            Ok(resolved) => reply.attr(&TTL, &file_attr(&resolved.granted.inode.attributes)),
+            Err(error) => reply.error(worker_to_errno(error)),
+        }
+    }
+
+    fn getxattr(&mut self, req: &Request, ino: u64, name: &OsStr, size: u32, reply: ReplyXattr) {
+        self.metrics.record_fuse_callback(FuseCallback::Getxattr);
+        let span = filesystem_span("dms.filesystem.getxattr", Some(ino));
+        match self.runtime.block_on(
+            self.files
+                .get_xattr(ino, caller(req), name.as_bytes())
+                .instrument(span),
+        ) {
+            Ok(Some(value)) => reply_xattr_bytes(reply, size, &value),
+            Ok(None) => reply.error(libc::ENODATA),
+            Err(error) => reply.error(worker_to_errno(error)),
+        }
+    }
+
+    fn listxattr(&mut self, req: &Request, ino: u64, size: u32, reply: ReplyXattr) {
+        self.metrics.record_fuse_callback(FuseCallback::Listxattr);
+        let span = filesystem_span("dms.filesystem.listxattr", Some(ino));
         match self
             .runtime
-            .block_on(self.files.truncate(ino, size).instrument(span))
+            .block_on(self.files.list_xattrs(ino, caller(req)).instrument(span))
         {
-            Ok(resolved) => reply.attr(&TTL, &file_attr(&resolved.granted.inode.attributes)),
+            Ok(names) => {
+                let encoded_size = names
+                    .iter()
+                    .try_fold(0usize, |total, name| total.checked_add(name.len() + 1));
+                let Some(encoded_size) = encoded_size else {
+                    reply.error(libc::EOVERFLOW);
+                    return;
+                };
+                let mut encoded = Vec::with_capacity(encoded_size);
+                for name in names {
+                    encoded.extend_from_slice(&name);
+                    encoded.push(0);
+                }
+                reply_xattr_bytes(reply, size, &encoded);
+            }
+            Err(error) => reply.error(worker_to_errno(error)),
+        }
+    }
+
+    fn setxattr(
+        &mut self,
+        req: &Request,
+        ino: u64,
+        name: &OsStr,
+        value: &[u8],
+        flags: i32,
+        position: u32,
+        reply: ReplyEmpty,
+    ) {
+        self.metrics.record_fuse_callback(FuseCallback::Setxattr);
+        if position != 0 {
+            reply.error(libc::EINVAL);
+            return;
+        }
+        let mode = match flags {
+            0 => XattrSetMode::Upsert,
+            libc::XATTR_CREATE => XattrSetMode::CreateOnly,
+            libc::XATTR_REPLACE => XattrSetMode::ReplaceOnly,
+            _ => {
+                reply.error(libc::EINVAL);
+                return;
+            }
+        };
+        let span = filesystem_span("dms.filesystem.setxattr", Some(ino));
+        match self.runtime.block_on(
+            self.files
+                .set_xattr(
+                    ino,
+                    caller(req),
+                    name.as_bytes().to_vec(),
+                    value.to_vec(),
+                    mode,
+                )
+                .instrument(span),
+        ) {
+            Ok(_) => reply.ok(),
+            Err(error) => reply.error(worker_to_errno(error)),
+        }
+    }
+
+    fn removexattr(&mut self, req: &Request, ino: u64, name: &OsStr, reply: ReplyEmpty) {
+        self.metrics.record_fuse_callback(FuseCallback::Removexattr);
+        let span = filesystem_span("dms.filesystem.removexattr", Some(ino));
+        match self.runtime.block_on(
+            self.files
+                .remove_xattr(ino, caller(req), name.as_bytes().to_vec())
+                .instrument(span),
+        ) {
+            Ok(_) => reply.ok(),
+            Err(error) => reply.error(worker_to_errno(error)),
+        }
+    }
+
+    fn statfs(&mut self, _req: &Request, _ino: u64, reply: ReplyStatfs) {
+        self.metrics.record_fuse_callback(FuseCallback::Statfs);
+        let span = filesystem_span("dms.filesystem.statfs", None);
+        match self
+            .runtime
+            .block_on(self.files.stat_filesystem().instrument(span))
+        {
+            Ok(stats) => {
+                let Ok(block_size) = u32::try_from(stats.block_size) else {
+                    reply.error(libc::EOVERFLOW);
+                    return;
+                };
+                reply.statfs(
+                    stats.total_blocks,
+                    stats.free_blocks,
+                    stats.available_blocks,
+                    stats.total_inodes,
+                    stats.free_inodes,
+                    block_size,
+                    stats.max_name_length,
+                    block_size,
+                );
+            }
             Err(error) => reply.error(worker_to_errno(error)),
         }
     }
@@ -612,6 +788,28 @@ fn filesystem_span(operation: &'static str, inode: Option<u64>) -> dms_tracing::
     )
 }
 
+fn caller(request: &Request<'_>) -> FilesystemCaller {
+    FilesystemCaller {
+        uid: request.uid(),
+        gid: request.gid(),
+        pid: request.pid(),
+    }
+}
+
+fn reply_xattr_bytes(reply: ReplyXattr, requested_size: u32, value: &[u8]) {
+    let Ok(required_size) = u32::try_from(value.len()) else {
+        reply.error(libc::EOVERFLOW);
+        return;
+    };
+    if requested_size == 0 {
+        reply.size(required_size);
+    } else if requested_size < required_size {
+        reply.error(libc::ERANGE);
+    } else {
+        reply.data(value);
+    }
+}
+
 fn file_attr(attributes: &InodeAttributes) -> FileAttr {
     FileAttr {
         ino: attributes.inode,
@@ -644,6 +842,37 @@ fn system_time(unix_nanos: i64) -> SystemTime {
     UNIX_EPOCH + Duration::from_nanos(unix_nanos.max(0) as u64)
 }
 
+fn attribute_patch(
+    mode: Option<u32>,
+    uid: Option<u32>,
+    gid: Option<u32>,
+    atime: Option<TimeOrNow>,
+    mtime: Option<TimeOrNow>,
+) -> Result<AttributePatch, i32> {
+    Ok(AttributePatch {
+        mode,
+        uid,
+        gid,
+        atime: time_update(atime)?,
+        mtime: time_update(mtime)?,
+    })
+}
+
+fn time_update(value: Option<TimeOrNow>) -> Result<TimeUpdate, i32> {
+    match value {
+        None => Ok(TimeUpdate::Omit),
+        Some(TimeOrNow::Now) => Ok(TimeUpdate::Now),
+        Some(TimeOrNow::SpecificTime(value)) => value
+            .duration_since(UNIX_EPOCH)
+            .map_err(|_| libc::EINVAL)
+            .and_then(|duration| {
+                i64::try_from(duration.as_nanos())
+                    .map(TimeUpdate::Exact)
+                    .map_err(|_| libc::EOVERFLOW)
+            }),
+    }
+}
+
 fn worker_to_errno(error: WorkerError) -> i32 {
     match error {
         WorkerError::InvalidArgument(_) | WorkerError::ArenaInvalidRequest => libc::EINVAL,
@@ -671,6 +900,12 @@ fn stable_error_to_errno(error: &DmsError) -> i32 {
         dms_error::META_FILESYSTEM_IS_DIRECTORY => libc::EISDIR,
         dms_error::META_FILESYSTEM_DIRECTORY_NOT_EMPTY => libc::ENOTEMPTY,
         dms_error::META_FILESYSTEM_STALE_REVISION => libc::ESTALE,
+        dms_error::META_FILESYSTEM_PERMISSION_DENIED => libc::EPERM,
+        dms_error::META_FILESYSTEM_XATTR_NOT_FOUND => libc::ENODATA,
+        dms_error::META_FILESYSTEM_XATTR_ALREADY_EXISTS => libc::EEXIST,
+        dms_error::META_FILESYSTEM_XATTR_UNSUPPORTED => libc::EOPNOTSUPP,
+        dms_error::META_FILESYSTEM_XATTR_TOO_LARGE => libc::E2BIG,
+        dms_error::META_FILESYSTEM_CAPACITY_UNAVAILABLE => libc::EAGAIN,
         _ => match error.kind() {
             ErrorKind::InvalidArgument => libc::EINVAL,
             ErrorKind::NotFound => libc::ENOENT,
@@ -729,6 +964,41 @@ mod tests {
                 ErrorKind::Aborted,
             )),
             libc::ESTALE,
+        );
+        assert_eq!(
+            worker_to_errno(stable_error(
+                dms_error::META_FILESYSTEM_XATTR_NOT_FOUND,
+                ErrorKind::NotFound,
+            )),
+            libc::ENODATA,
+        );
+        assert_eq!(
+            worker_to_errno(stable_error(
+                dms_error::META_FILESYSTEM_XATTR_ALREADY_EXISTS,
+                ErrorKind::AlreadyExists,
+            )),
+            libc::EEXIST,
+        );
+        assert_eq!(
+            worker_to_errno(stable_error(
+                dms_error::META_FILESYSTEM_XATTR_UNSUPPORTED,
+                ErrorKind::Unimplemented,
+            )),
+            libc::EOPNOTSUPP,
+        );
+        assert_eq!(
+            worker_to_errno(stable_error(
+                dms_error::META_FILESYSTEM_XATTR_TOO_LARGE,
+                ErrorKind::ResourceExhausted,
+            )),
+            libc::E2BIG,
+        );
+        assert_eq!(
+            worker_to_errno(stable_error(
+                dms_error::META_FILESYSTEM_CAPACITY_UNAVAILABLE,
+                ErrorKind::Unavailable,
+            )),
+            libc::EAGAIN,
         );
     }
 }

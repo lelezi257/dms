@@ -219,17 +219,16 @@ impl MetadataClient {
 
     /// 返回本次续租的有效毫秒数；调用方以发请求前的 Instant 计算保守截止时间，
     /// 不能以收到响应的时间再加 TTL，否则网络延迟会让 Node 比 Meta 更晚过期。
-    pub(crate) async fn heartbeat(&self, event_cursor: u64) -> Result<u64, DmsError> {
+    pub(crate) async fn heartbeat(
+        &self,
+        event_cursor: u64,
+        resources: pb::ResourceSummary,
+    ) -> Result<u64, DmsError> {
         let mut session = self.current_session().await;
         let request = pb::NodeHeartbeatRequest {
             context: Some(context(self.node_id)),
             session: Some(session.clone()),
-            resources: Some(pb::ResourceSummary {
-                total_host_memory_bytes: 0,
-                available_host_memory_bytes: 0,
-                staged_bytes: 0,
-                replica_bytes: 0,
-            }),
+            resources: Some(resources),
             catalog_watermark: 0,
             event_cursor,
         };
@@ -746,6 +745,224 @@ impl MetadataClient {
         Err(metadata_unavailable(
             "Meta filesystem commit retry loop exhausted",
         ))
+    }
+
+    pub(crate) async fn filesystem_set_attributes(
+        &self,
+        mut request: pb::FilesystemSetAttributesRequest,
+    ) -> Result<pb::FilesystemAttributeMutationResponse, DmsError> {
+        let (_commit_guard, commit_sequence) = self.begin_commit().await?;
+        request.context = Some(context(self.node_id));
+        request.commit_sequence = commit_sequence;
+        let mut session = self.current_session().await;
+        for attempt in 1..=METADATA_COMMIT_MAX_ATTEMPTS {
+            request.session = Some(session.clone());
+            let mut client = self.filesystem_client();
+            let result = observe_rpc(
+                self.rpc_metrics.as_ref(),
+                dms_metrics::RpcCall::FILESYSTEM_SET_ATTRIBUTES,
+                client.set_filesystem_attributes(request.clone()),
+            )
+            .await
+            .map(|response| response.into_inner())
+            .map_err(map_status);
+            match result {
+                Ok(response) => return Ok(response),
+                Err(error)
+                    if attempt < METADATA_COMMIT_MAX_ATTEMPTS
+                        && is_reopenable_session_error(&error) =>
+                {
+                    session = self.reopen_session().await?;
+                }
+                Err(error)
+                    if attempt < METADATA_COMMIT_MAX_ATTEMPTS
+                        && is_uncertain_commit_result_error(&error) => {}
+                Err(error) => return Err(error),
+            }
+        }
+        Err(metadata_unavailable(
+            "Meta filesystem attribute retry loop exhausted",
+        ))
+    }
+
+    pub(crate) async fn filesystem_get_xattr(
+        &self,
+        inode: u64,
+        name: Vec<u8>,
+        caller: pb::FilesystemCallerIdentity,
+    ) -> Result<pb::FilesystemGetXattrResponse, DmsError> {
+        let mut session = self.current_session().await;
+        let make_request = |session: pb::NodeSessionIdentity| pb::FilesystemGetXattrRequest {
+            context: Some(context(self.node_id)),
+            session: Some(session),
+            inode,
+            name: name.clone(),
+            caller: Some(caller),
+        };
+        let mut client = self.filesystem_client();
+        let mut result = observe_control_rpc(
+            self.rpc_metrics.as_ref(),
+            dms_metrics::RpcCall::FILESYSTEM_GET_XATTR,
+            client.get_filesystem_xattr(make_request(session.clone())),
+        )
+        .await
+        .map(|response| response.into_inner())
+        .map_err(map_status);
+        if result.as_ref().is_err_and(is_reopenable_session_error) {
+            session = self.reopen_session().await?;
+            let mut client = self.filesystem_client();
+            result = observe_control_rpc(
+                self.rpc_metrics.as_ref(),
+                dms_metrics::RpcCall::FILESYSTEM_GET_XATTR,
+                client.get_filesystem_xattr(make_request(session)),
+            )
+            .await
+            .map(|response| response.into_inner())
+            .map_err(map_status);
+        }
+        result
+    }
+
+    pub(crate) async fn filesystem_list_xattrs(
+        &self,
+        inode: u64,
+        caller: pb::FilesystemCallerIdentity,
+    ) -> Result<pb::FilesystemListXattrsResponse, DmsError> {
+        let mut session = self.current_session().await;
+        let make_request = |session: pb::NodeSessionIdentity| pb::FilesystemListXattrsRequest {
+            context: Some(context(self.node_id)),
+            session: Some(session),
+            inode,
+            caller: Some(caller),
+        };
+        let mut client = self.filesystem_client();
+        let mut result = observe_control_rpc(
+            self.rpc_metrics.as_ref(),
+            dms_metrics::RpcCall::FILESYSTEM_LIST_XATTRS,
+            client.list_filesystem_xattrs(make_request(session.clone())),
+        )
+        .await
+        .map(|response| response.into_inner())
+        .map_err(map_status);
+        if result.as_ref().is_err_and(is_reopenable_session_error) {
+            session = self.reopen_session().await?;
+            let mut client = self.filesystem_client();
+            result = observe_control_rpc(
+                self.rpc_metrics.as_ref(),
+                dms_metrics::RpcCall::FILESYSTEM_LIST_XATTRS,
+                client.list_filesystem_xattrs(make_request(session)),
+            )
+            .await
+            .map(|response| response.into_inner())
+            .map_err(map_status);
+        }
+        result
+    }
+
+    pub(crate) async fn filesystem_set_xattr(
+        &self,
+        mut request: pb::FilesystemSetXattrRequest,
+    ) -> Result<pb::FilesystemAttributeMutationResponse, DmsError> {
+        let (_commit_guard, commit_sequence) = self.begin_commit().await?;
+        request.context = Some(context(self.node_id));
+        request.commit_sequence = commit_sequence;
+        let mut session = self.current_session().await;
+        for attempt in 1..=METADATA_COMMIT_MAX_ATTEMPTS {
+            request.session = Some(session.clone());
+            let mut client = self.filesystem_client();
+            let result = observe_rpc(
+                self.rpc_metrics.as_ref(),
+                dms_metrics::RpcCall::FILESYSTEM_SET_XATTR,
+                client.set_filesystem_xattr(request.clone()),
+            )
+            .await
+            .map(|response| response.into_inner())
+            .map_err(map_status);
+            match result {
+                Ok(response) => return Ok(response),
+                Err(error)
+                    if attempt < METADATA_COMMIT_MAX_ATTEMPTS
+                        && is_reopenable_session_error(&error) =>
+                {
+                    session = self.reopen_session().await?;
+                }
+                Err(error)
+                    if attempt < METADATA_COMMIT_MAX_ATTEMPTS
+                        && is_uncertain_commit_result_error(&error) => {}
+                Err(error) => return Err(error),
+            }
+        }
+        Err(metadata_unavailable(
+            "Meta filesystem setxattr retry loop exhausted",
+        ))
+    }
+
+    pub(crate) async fn filesystem_remove_xattr(
+        &self,
+        mut request: pb::FilesystemRemoveXattrRequest,
+    ) -> Result<pb::FilesystemAttributeMutationResponse, DmsError> {
+        let (_commit_guard, commit_sequence) = self.begin_commit().await?;
+        request.context = Some(context(self.node_id));
+        request.commit_sequence = commit_sequence;
+        let mut session = self.current_session().await;
+        for attempt in 1..=METADATA_COMMIT_MAX_ATTEMPTS {
+            request.session = Some(session.clone());
+            let mut client = self.filesystem_client();
+            let result = observe_rpc(
+                self.rpc_metrics.as_ref(),
+                dms_metrics::RpcCall::FILESYSTEM_REMOVE_XATTR,
+                client.remove_filesystem_xattr(request.clone()),
+            )
+            .await
+            .map(|response| response.into_inner())
+            .map_err(map_status);
+            match result {
+                Ok(response) => return Ok(response),
+                Err(error)
+                    if attempt < METADATA_COMMIT_MAX_ATTEMPTS
+                        && is_reopenable_session_error(&error) =>
+                {
+                    session = self.reopen_session().await?;
+                }
+                Err(error)
+                    if attempt < METADATA_COMMIT_MAX_ATTEMPTS
+                        && is_uncertain_commit_result_error(&error) => {}
+                Err(error) => return Err(error),
+            }
+        }
+        Err(metadata_unavailable(
+            "Meta filesystem removexattr retry loop exhausted",
+        ))
+    }
+
+    pub(crate) async fn filesystem_stat(&self) -> Result<pb::FilesystemStatResponse, DmsError> {
+        let mut session = self.current_session().await;
+        let make_request = |session: pb::NodeSessionIdentity| pb::FilesystemStatRequest {
+            context: Some(context(self.node_id)),
+            session: Some(session),
+        };
+        let mut client = self.filesystem_client();
+        let mut result = observe_control_rpc(
+            self.rpc_metrics.as_ref(),
+            dms_metrics::RpcCall::FILESYSTEM_STAT,
+            client.stat_filesystem(make_request(session.clone())),
+        )
+        .await
+        .map(|response| response.into_inner())
+        .map_err(map_status);
+        if result.as_ref().is_err_and(is_reopenable_session_error) {
+            session = self.reopen_session().await?;
+            let mut client = self.filesystem_client();
+            result = observe_control_rpc(
+                self.rpc_metrics.as_ref(),
+                dms_metrics::RpcCall::FILESYSTEM_STAT,
+                client.stat_filesystem(make_request(session)),
+            )
+            .await
+            .map(|response| response.into_inner())
+            .map_err(map_status);
+        }
+        result
     }
 
     pub(crate) async fn stat(&self, key: Vec<u8>) -> Result<pb::MetaStatResponse, DmsError> {

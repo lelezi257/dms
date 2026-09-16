@@ -66,6 +66,12 @@ pub const META_FILESYSTEM_NOT_DIRECTORY: ErrorCode = ErrorCode::from_raw(0x0304_
 pub const META_FILESYSTEM_IS_DIRECTORY: ErrorCode = ErrorCode::from_raw(0x0304_0003);
 pub const META_FILESYSTEM_DIRECTORY_NOT_EMPTY: ErrorCode = ErrorCode::from_raw(0x0304_0004);
 pub const META_FILESYSTEM_STALE_REVISION: ErrorCode = ErrorCode::from_raw(0x0304_0005);
+pub const META_FILESYSTEM_PERMISSION_DENIED: ErrorCode = ErrorCode::from_raw(0x0304_0006);
+pub const META_FILESYSTEM_XATTR_NOT_FOUND: ErrorCode = ErrorCode::from_raw(0x0304_0007);
+pub const META_FILESYSTEM_XATTR_ALREADY_EXISTS: ErrorCode = ErrorCode::from_raw(0x0304_0008);
+pub const META_FILESYSTEM_XATTR_UNSUPPORTED: ErrorCode = ErrorCode::from_raw(0x0304_0009);
+pub const META_FILESYSTEM_XATTR_TOO_LARGE: ErrorCode = ErrorCode::from_raw(0x0304_000A);
+pub const META_FILESYSTEM_CAPACITY_UNAVAILABLE: ErrorCode = ErrorCode::from_raw(0x0304_000B);
 
 #[cfg(test)]
 mod tests {
@@ -110,6 +116,12 @@ mod tests {
             META_FILESYSTEM_IS_DIRECTORY,
             META_FILESYSTEM_DIRECTORY_NOT_EMPTY,
             META_FILESYSTEM_STALE_REVISION,
+            META_FILESYSTEM_PERMISSION_DENIED,
+            META_FILESYSTEM_XATTR_NOT_FOUND,
+            META_FILESYSTEM_XATTR_ALREADY_EXISTS,
+            META_FILESYSTEM_XATTR_UNSUPPORTED,
+            META_FILESYSTEM_XATTR_TOO_LARGE,
+            META_FILESYSTEM_CAPACITY_UNAVAILABLE,
         ];
         let unique = codes.iter().map(|code| code.raw()).collect::<HashSet<_>>();
         assert_eq!(unique.len(), codes.len());

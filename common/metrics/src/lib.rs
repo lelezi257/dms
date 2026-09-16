@@ -419,6 +419,17 @@ impl RpcCall {
         Self::new("FilesystemMetadataService", "RenameFilesystemEntry");
     pub const FILESYSTEM_REMOVE: Self =
         Self::new("FilesystemMetadataService", "RemoveFilesystemEntry");
+    pub const FILESYSTEM_SET_ATTRIBUTES: Self =
+        Self::new("FilesystemMetadataService", "SetFilesystemAttributes");
+    pub const FILESYSTEM_GET_XATTR: Self =
+        Self::new("FilesystemMetadataService", "GetFilesystemXattr");
+    pub const FILESYSTEM_LIST_XATTRS: Self =
+        Self::new("FilesystemMetadataService", "ListFilesystemXattrs");
+    pub const FILESYSTEM_SET_XATTR: Self =
+        Self::new("FilesystemMetadataService", "SetFilesystemXattr");
+    pub const FILESYSTEM_REMOVE_XATTR: Self =
+        Self::new("FilesystemMetadataService", "RemoveFilesystemXattr");
+    pub const FILESYSTEM_STAT: Self = Self::new("FilesystemMetadataService", "StatFilesystem");
     pub const FILESYSTEM_COMMIT_VERSION: Self =
         Self::new("FilesystemMetadataService", "CommitFilesystemVersion");
 }

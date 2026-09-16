@@ -13,7 +13,7 @@ use std::{
 
 use crate::filesystem::{
     CacheGrant, DentrySnapshot, DirectoryEntry, DirectoryGrant, DirectoryPage, DirectoryVersion,
-    GrantedInode, InodeAttributes, InodeId, InodeKind, InodeSnapshot, ROOT_INODE,
+    GrantedInode, InodeAttributes, InodeId, InodeKind, InodeSnapshot, ROOT_INODE, XattrUpdate,
 };
 
 pub(crate) mod service;
@@ -24,6 +24,7 @@ type FilesystemCatalogSnapshot = (
     Vec<InodeSnapshot>,
     Vec<DentrySnapshot>,
     Vec<(InodeId, u64)>,
+    Vec<(InodeId, Vec<u8>, Vec<u8>)>,
 );
 
 #[derive(Clone)]
@@ -39,11 +40,13 @@ pub(crate) struct FilesystemCatalog {
     /// `..` 与目录 rename 环检查只对目录有意义，仍可用这个索引 O(depth) 完成。
     directory_parents: HashMap<InodeId, InodeId>,
     grant_generations: HashMap<InodeId, u64>,
+    /// xattr 与 inode namespace 共用一个 Meta owner；ACL 也只占用这里两个受约束名称。
+    xattrs: BTreeMap<(InodeId, Vec<u8>), Vec<u8>>,
 }
 
 impl Default for FilesystemCatalog {
     fn default() -> Self {
-        Self::restored(2, [], [], [])
+        Self::restored(2, [], [], [], [])
     }
 }
 
@@ -53,6 +56,7 @@ impl FilesystemCatalog {
         inodes: impl IntoIterator<Item = InodeSnapshot>,
         dentries: impl IntoIterator<Item = DentrySnapshot>,
         grant_generations: impl IntoIterator<Item = (InodeId, u64)>,
+        xattrs: impl IntoIterator<Item = (InodeId, Vec<u8>, Vec<u8>)>,
     ) -> Self {
         let inodes = inodes
             .into_iter()
@@ -76,6 +80,10 @@ impl FilesystemCatalog {
             dentries,
             directory_parents,
             grant_generations: grant_generations.into_iter().collect(),
+            xattrs: xattrs
+                .into_iter()
+                .map(|(inode, name, value)| ((inode, name), value))
+                .collect(),
         };
         // 旧快照没有 Filesystem 字段；恢复时必须补回固定 root，而不是产生一个
         // 看似成功但所有 lookup/create 都从 NotFound 开始的空 namespace。
@@ -83,6 +91,43 @@ impl FilesystemCatalog {
         catalog.grant_generations.entry(ROOT_INODE).or_insert(1);
         catalog.next_inode = catalog.next_inode.max(2);
         catalog
+    }
+
+    pub(crate) fn xattr(&self, inode: InodeId, name: &[u8]) -> Option<&[u8]> {
+        self.xattrs.get(&(inode, name.to_vec())).map(Vec::as_slice)
+    }
+
+    pub(crate) fn list_xattrs(&self, inode: InodeId) -> Vec<Vec<u8>> {
+        self.xattrs
+            .range((Bound::Included((inode, Vec::new())), Bound::Unbounded))
+            .take_while(|((entry_inode, _), _)| *entry_inode == inode)
+            .map(|((_, name), _)| name.clone())
+            .collect()
+    }
+
+    pub(crate) fn xattr_usage(&self, inode: InodeId) -> (usize, usize) {
+        let entries = self
+            .xattrs
+            .range((Bound::Included((inode, Vec::new())), Bound::Unbounded))
+            .take_while(|((entry_inode, _), _)| *entry_inode == inode);
+        entries.fold((0, 0), |(count, bytes), ((_, name), value)| {
+            (count + 1, bytes + name.len() + value.len())
+        })
+    }
+
+    pub(crate) fn apply_xattr_updates(&mut self, updates: impl IntoIterator<Item = XattrUpdate>) {
+        for update in updates {
+            let key = (update.inode, update.name);
+            if let Some(value) = update.value {
+                self.xattrs.insert(key, value);
+            } else {
+                self.xattrs.remove(&key);
+            }
+        }
+    }
+
+    pub(crate) fn inode_count(&self) -> usize {
+        self.inodes.len()
     }
 
     pub(crate) fn inode(&self, inode: InodeId) -> Option<&InodeSnapshot> {
@@ -294,6 +339,8 @@ impl FilesystemCatalog {
         self.inodes.remove(&inode);
         self.grant_generations.remove(&inode);
         self.directory_parents.remove(&inode);
+        self.xattrs
+            .retain(|(entry_inode, _), _| *entry_inode != inode);
     }
 
     pub(crate) fn snapshot(&self) -> FilesystemCatalogSnapshot {
@@ -304,6 +351,10 @@ impl FilesystemCatalog {
             self.grant_generations
                 .iter()
                 .map(|(inode, generation)| (*inode, *generation))
+                .collect(),
+            self.xattrs
+                .iter()
+                .map(|((inode, name), value)| (*inode, name.clone(), value.clone()))
                 .collect(),
         )
     }
@@ -324,7 +375,12 @@ fn root_inode() -> InodeSnapshot {
         attributes: InodeAttributes {
             inode: ROOT_INODE,
             kind: InodeKind::Directory,
-            mode: 0o755,
+            // 首版只有一棵共享 namespace，还没有 workspace root 的显式创建/授权
+            // 接口。启用 FUSE `default_permissions` 后，若固定为 root:root 0755，普通
+            // 挂载用户将无法在根目录创建任何内容。这里采用与 /tmp 相同的 01777：
+            // 所有用户可创建，sticky bit 仍阻止普通用户删除他人的目录项。未来引入
+            // workspace root 时，由创建请求持久化实际 owner/mode，不能继续硬编码。
+            mode: 0o1777,
             uid: 0,
             gid: 0,
             link_count: 2,
@@ -341,6 +397,15 @@ fn root_inode() -> InodeSnapshot {
 mod tests {
     use super::*;
     use crate::filesystem::{FileContentBinding, InodeAttributes, InodeKind, ROOT_INODE};
+
+    #[test]
+    fn default_root_allows_non_root_mount_users_without_disabling_kernel_permissions() {
+        let catalog = FilesystemCatalog::default();
+        let root = catalog.inode(ROOT_INODE).expect("default root inode");
+        assert_eq!(root.attributes.uid, 0);
+        assert_eq!(root.attributes.gid, 0);
+        assert_eq!(root.attributes.mode, 0o1777);
+    }
 
     #[test]
     fn catalog_shape_keeps_namespace_and_exact_content_binding_together() {
@@ -369,7 +434,7 @@ mod tests {
             inode: 100,
             directory_revision: 3,
         };
-        let catalog = FilesystemCatalog::restored(101, [inode], [dentry], [(100, 4)]);
+        let catalog = FilesystemCatalog::restored(101, [inode], [dentry], [(100, 4)], []);
 
         let found = catalog.lookup(ROOT_INODE, b"a.txt").expect("dentry");
         assert_eq!(found.inode, 100);
@@ -412,7 +477,7 @@ mod tests {
                     inode: index as u64 + 2,
                     directory_revision: 9,
                 });
-        let catalog = FilesystemCatalog::restored(7, inodes, dentries, [(ROOT_INODE, 3)]);
+        let catalog = FilesystemCatalog::restored(7, inodes, dentries, [(ROOT_INODE, 3)], []);
 
         let first = catalog
             .read_directory(ROOT_INODE, b"", 2, 1_000)

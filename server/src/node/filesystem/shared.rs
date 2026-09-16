@@ -17,9 +17,11 @@ use super::dentry_cache::DentryLookup;
 use super::meta_client::{CreateInodeRequest, FilesystemMetaClient, FilesystemMetaGrpcClient};
 use super::open_handles::OpenHandle;
 use crate::filesystem::{
-    CommitFileVersionRequest, CreateSymlinkRequest, DirectoryPage, InodeId, InodeKind,
-    LinkEntryRequest, NamespaceMutationResult, PreparedObjectVersion, ROOT_INODE,
-    RemoveEntryRequest, RemoveKind, RenameEntryRequest, ResolvedInode,
+    AttributePatch, CommitFileVersionRequest, CreateSymlinkRequest, DirectoryPage,
+    FilesystemCaller, FilesystemStats, InodeId, InodeKind, LinkEntryRequest,
+    NamespaceMutationResult, PreparedObjectVersion, ROOT_INODE, RemoveEntryRequest, RemoveKind,
+    RemoveXattrRequest, RenameEntryRequest, ResolvedInode, SetAttributesRequest, SetXattrRequest,
+    TimeUpdate, XattrSetMode,
 };
 use crate::node::metadata_client::digest;
 
@@ -37,6 +39,20 @@ pub(crate) struct SharedFileOperations {
     core: DataCoreHandle,
     metadata: FilesystemMetaGrpcClient,
     metrics: NodeMetrics,
+}
+
+/// Node 已经准备好、等待 Meta 原子发布的一次文件版本提交。
+///
+/// 把内容候选、inode CAS 条件和可选属性补丁放在同一个内部请求中，避免调用点
+/// 漏传其中一部分，也直观对应 Meta 的单次 `CommitFilesystemVersion` 合同。
+struct PreparedFileCommit {
+    inode: InodeId,
+    expected_inode_revision: u64,
+    operation_id: Vec<u8>,
+    prepared: PreparedObjectVersion,
+    new_size: u64,
+    caller: Option<FilesystemCaller>,
+    attribute_patch: AttributePatch,
 }
 
 impl SharedFileOperations {
@@ -637,13 +653,15 @@ impl SharedFileOperations {
                 )
                 .await?;
             match self
-                .commit_prepared_file_version(
-                    opened.inode,
-                    inode_revision,
+                .commit_prepared_file_version(PreparedFileCommit {
+                    inode: opened.inode,
+                    expected_inode_revision: inode_revision,
                     operation_id,
                     prepared,
-                    inode_size.max(write_end),
-                )
+                    new_size: inode_size.max(write_end),
+                    caller: None,
+                    attribute_patch: AttributePatch::default(),
+                })
                 .await
             {
                 Ok(committed) => {
@@ -688,6 +706,19 @@ impl SharedFileOperations {
         inode: InodeId,
         size: u64,
     ) -> Result<ResolvedInode, WorkerError> {
+        self.truncate_with_attributes(inode, size, None, AttributePatch::default())
+            .await
+    }
+
+    /// 一次 FUSE setattr 同时修改 size 与其它属性时走这条路径。内容候选与最终
+    /// inode 属性共用一次 Meta CAS/journal，不暴露“size 已更新但 attrs 仍旧”的中间态。
+    pub(crate) async fn truncate_with_attributes(
+        &self,
+        inode: InodeId,
+        size: u64,
+        caller: Option<FilesystemCaller>,
+        patch: AttributePatch,
+    ) -> Result<ResolvedInode, WorkerError> {
         let mut metric = self
             .metrics
             .begin_filesystem_operation(FilesystemOperation::Truncate);
@@ -704,7 +735,7 @@ impl SharedFileOperations {
                     "only regular files can be truncated",
                 ));
             }
-            if inode_size == size {
+            if inode_size == size && patch.is_empty() {
                 metric.success();
                 return Ok(current);
             }
@@ -714,7 +745,15 @@ impl SharedFileOperations {
                 .prepare_file_truncate(inode, &current, size, operation_id.clone())
                 .await?;
             match self
-                .commit_prepared_file_version(inode, inode_revision, operation_id, prepared, size)
+                .commit_prepared_file_version(PreparedFileCommit {
+                    inode,
+                    expected_inode_revision: inode_revision,
+                    operation_id,
+                    prepared,
+                    new_size: size,
+                    caller,
+                    attribute_patch: patch,
+                })
                 .await
             {
                 Ok(committed) => {
@@ -733,6 +772,257 @@ impl SharedFileOperations {
                 Err(error) => return Err(error),
             }
         }
+    }
+
+    /// 修改不涉及文件内容的 inode 属性。
+    ///
+    /// Node 只负责从可信本地入口传递调用者身份、执行 revision CAS 并维护本地
+    /// binding cache；最终权限判断、时间解析、ctime 生成和 journal 提交都在 Meta
+    /// 的唯一 owner turn 中完成。确定性 revision 冲突会重新读取后重试，未知提交
+    /// 结果则由 `MetadataClient` 使用同一个 operation id 重试。
+    pub(crate) async fn set_attributes(
+        &self,
+        inode: InodeId,
+        caller: FilesystemCaller,
+        patch: AttributePatch,
+    ) -> Result<ResolvedInode, WorkerError> {
+        let mut metric = self
+            .metrics
+            .begin_filesystem_operation(FilesystemOperation::Setattr);
+        let retry_until = Instant::now() + FILESYSTEM_CAS_RETRY_BUDGET;
+        let mut attempts = 0;
+        loop {
+            attempts += 1;
+            let current = self.resolve_inode(inode).await?;
+            if patch.is_empty() {
+                metric.success();
+                return Ok(current);
+            }
+
+            let operation_id = self.core.new_operation_id();
+            let operation_digest = attribute_digest(
+                &operation_id,
+                inode,
+                current.granted.inode.revision,
+                caller,
+                patch,
+            );
+            match self
+                .metadata
+                .set_attributes(SetAttributesRequest {
+                    operation_id,
+                    operation_digest,
+                    commit_sequence: 0,
+                    inode,
+                    expected_inode_revision: current.granted.inode.revision,
+                    caller,
+                    patch,
+                })
+                .await
+            {
+                Ok(result) => {
+                    self.node
+                        .filesystem_cache_binding(result.resolved.clone())
+                        .await?;
+                    metric.success();
+                    return Ok(result.resolved);
+                }
+                Err(error) => {
+                    let error = WorkerError::Stable(error);
+                    if filesystem_version_conflict(&error) {
+                        self.invalidate_resolved_binding(&current).await?;
+                        if attempts >= FILESYSTEM_CAS_RETRY_MIN_ATTEMPTS
+                            && Instant::now() >= retry_until
+                        {
+                            return Err(error);
+                        }
+                        tokio::task::yield_now().await;
+                    } else {
+                        return Err(error);
+                    }
+                }
+            }
+        }
+    }
+
+    /// 按需读取一个扩展属性。首版不在 Node 建立长期 xattr cache：属性通常很小且
+    /// 修改频率低，直接由 Meta 做权限校验与 revision 读取，避免再引入一套失效协议。
+    pub(crate) async fn get_xattr(
+        &self,
+        inode: InodeId,
+        caller: FilesystemCaller,
+        name: &[u8],
+    ) -> Result<Option<Vec<u8>>, WorkerError> {
+        let mut metric = self
+            .metrics
+            .begin_filesystem_operation(FilesystemOperation::Getxattr);
+        let result = self
+            .metadata
+            .get_xattr(inode, name, caller)
+            .await
+            .map_err(WorkerError::Stable)?;
+        metric.success();
+        Ok(result)
+    }
+
+    /// 返回当前 inode 的 xattr 名字集合；wire 与 FUSE 的 NUL 编码留在各自 adapter。
+    pub(crate) async fn list_xattrs(
+        &self,
+        inode: InodeId,
+        caller: FilesystemCaller,
+    ) -> Result<Vec<Vec<u8>>, WorkerError> {
+        let mut metric = self
+            .metrics
+            .begin_filesystem_operation(FilesystemOperation::Listxattr);
+        let result = self
+            .metadata
+            .list_xattrs(inode, caller)
+            .await
+            .map_err(WorkerError::Stable)?;
+        metric.success();
+        Ok(result)
+    }
+
+    /// 写入一个 xattr。revision 冲突与 setattr 使用同一有界 CAS 重试规则；不确定
+    /// 提交由 MetadataClient 使用同一 operation id 查询/重试，不能生成第二次写。
+    pub(crate) async fn set_xattr(
+        &self,
+        inode: InodeId,
+        caller: FilesystemCaller,
+        name: Vec<u8>,
+        value: Vec<u8>,
+        mode: XattrSetMode,
+    ) -> Result<ResolvedInode, WorkerError> {
+        let mut metric = self
+            .metrics
+            .begin_filesystem_operation(FilesystemOperation::Setxattr);
+        let retry_until = Instant::now() + FILESYSTEM_CAS_RETRY_BUDGET;
+        let mut attempts = 0;
+        loop {
+            attempts += 1;
+            let current = self.resolve_inode(inode).await?;
+            let operation_id = self.core.new_operation_id();
+            let operation_digest = xattr_digest(
+                &operation_id,
+                inode,
+                current.granted.inode.revision,
+                caller,
+                &name,
+                Some(&value),
+                Some(mode),
+            );
+            match self
+                .metadata
+                .set_xattr(SetXattrRequest {
+                    operation_id,
+                    operation_digest,
+                    inode,
+                    expected_inode_revision: current.granted.inode.revision,
+                    caller,
+                    name: name.clone(),
+                    value: value.clone(),
+                    mode,
+                })
+                .await
+            {
+                Ok(result) => {
+                    self.node
+                        .filesystem_cache_binding(result.resolved.clone())
+                        .await?;
+                    metric.success();
+                    return Ok(result.resolved);
+                }
+                Err(error) => {
+                    let error = WorkerError::Stable(error);
+                    if filesystem_version_conflict(&error) {
+                        self.invalidate_resolved_binding(&current).await?;
+                        if attempts >= FILESYSTEM_CAS_RETRY_MIN_ATTEMPTS
+                            && Instant::now() >= retry_until
+                        {
+                            return Err(error);
+                        }
+                        tokio::task::yield_now().await;
+                    } else {
+                        return Err(error);
+                    }
+                }
+            }
+        }
+    }
+
+    pub(crate) async fn remove_xattr(
+        &self,
+        inode: InodeId,
+        caller: FilesystemCaller,
+        name: Vec<u8>,
+    ) -> Result<ResolvedInode, WorkerError> {
+        let mut metric = self
+            .metrics
+            .begin_filesystem_operation(FilesystemOperation::Removexattr);
+        let retry_until = Instant::now() + FILESYSTEM_CAS_RETRY_BUDGET;
+        let mut attempts = 0;
+        loop {
+            attempts += 1;
+            let current = self.resolve_inode(inode).await?;
+            let operation_id = self.core.new_operation_id();
+            let operation_digest = xattr_digest(
+                &operation_id,
+                inode,
+                current.granted.inode.revision,
+                caller,
+                &name,
+                None,
+                None,
+            );
+            match self
+                .metadata
+                .remove_xattr(RemoveXattrRequest {
+                    operation_id,
+                    operation_digest,
+                    inode,
+                    expected_inode_revision: current.granted.inode.revision,
+                    caller,
+                    name: name.clone(),
+                })
+                .await
+            {
+                Ok(result) => {
+                    self.node
+                        .filesystem_cache_binding(result.resolved.clone())
+                        .await?;
+                    metric.success();
+                    return Ok(result.resolved);
+                }
+                Err(error) => {
+                    let error = WorkerError::Stable(error);
+                    if filesystem_version_conflict(&error) {
+                        self.invalidate_resolved_binding(&current).await?;
+                        if attempts >= FILESYSTEM_CAS_RETRY_MIN_ATTEMPTS
+                            && Instant::now() >= retry_until
+                        {
+                            return Err(error);
+                        }
+                        tokio::task::yield_now().await;
+                    } else {
+                        return Err(error);
+                    }
+                }
+            }
+        }
+    }
+
+    /// 返回 Meta 对当前仍有租约且已上报资源的 Node 聚合出的文件系统容量。
+    pub(crate) async fn stat_filesystem(&self) -> Result<FilesystemStats, WorkerError> {
+        let mut metric = self
+            .metrics
+            .begin_filesystem_operation(FilesystemOperation::Statfs);
+        let result = self
+            .metadata
+            .stat_filesystem()
+            .await
+            .map_err(WorkerError::Stable)?;
+        metric.success();
+        Ok(result)
     }
 
     async fn prepare_file_write(
@@ -917,12 +1207,17 @@ impl SharedFileOperations {
 
     async fn commit_prepared_file_version(
         &self,
-        inode: InodeId,
-        expected_inode_revision: u64,
-        operation_id: Vec<u8>,
-        prepared: PreparedObjectVersion,
-        new_size: u64,
+        request: PreparedFileCommit,
     ) -> Result<ResolvedInode, WorkerError> {
+        let PreparedFileCommit {
+            inode,
+            expected_inode_revision,
+            operation_id,
+            prepared,
+            new_size,
+            caller,
+            attribute_patch,
+        } = request;
         let commit = self
             .metadata
             .commit_file_version(CommitFileVersionRequest {
@@ -932,6 +1227,8 @@ impl SharedFileOperations {
                 prepared: prepared.clone(),
                 new_size,
                 mtime_unix_nanos: unix_nanos(),
+                caller,
+                attribute_patch,
             })
             .await;
         match commit {
@@ -1065,6 +1362,82 @@ fn filesystem_version_conflict(error: &WorkerError) -> bool {
             WorkerError::Stable(stable)
                 if stable.code() == dms_error::META_CATALOG_VERSION_CONFLICT
         )
+}
+
+fn attribute_digest(
+    operation_id: &[u8],
+    inode: InodeId,
+    expected_revision: u64,
+    caller: FilesystemCaller,
+    patch: AttributePatch,
+) -> Vec<u8> {
+    let mut value = digest(operation_id);
+    value.extend_from_slice(&inode.to_be_bytes());
+    value.extend_from_slice(&expected_revision.to_be_bytes());
+    value.extend_from_slice(&caller.uid.to_be_bytes());
+    value.extend_from_slice(&caller.gid.to_be_bytes());
+    value.extend_from_slice(&caller.pid.to_be_bytes());
+    encode_optional_u32(&mut value, patch.mode);
+    encode_optional_u32(&mut value, patch.uid);
+    encode_optional_u32(&mut value, patch.gid);
+    encode_time_update(&mut value, patch.atime);
+    encode_time_update(&mut value, patch.mtime);
+    value
+}
+
+fn xattr_digest(
+    operation_id: &[u8],
+    inode: InodeId,
+    expected_revision: u64,
+    caller: FilesystemCaller,
+    name: &[u8],
+    value: Option<&[u8]>,
+    mode: Option<XattrSetMode>,
+) -> Vec<u8> {
+    let mut output = digest(operation_id);
+    output.extend_from_slice(&inode.to_be_bytes());
+    output.extend_from_slice(&expected_revision.to_be_bytes());
+    output.extend_from_slice(&caller.uid.to_be_bytes());
+    output.extend_from_slice(&caller.gid.to_be_bytes());
+    output.extend_from_slice(&caller.pid.to_be_bytes());
+    output.extend_from_slice(&(name.len() as u64).to_be_bytes());
+    output.extend_from_slice(name);
+    match value {
+        Some(value) => {
+            output.push(1);
+            output.extend_from_slice(&(value.len() as u64).to_be_bytes());
+            output.extend_from_slice(value);
+        }
+        None => output.push(0),
+    }
+    output.push(match mode {
+        None => 0,
+        Some(XattrSetMode::Upsert) => 1,
+        Some(XattrSetMode::CreateOnly) => 2,
+        Some(XattrSetMode::ReplaceOnly) => 3,
+    });
+    output
+}
+
+fn encode_optional_u32(output: &mut Vec<u8>, value: Option<u32>) {
+    match value {
+        Some(value) => {
+            output.push(1);
+            output.extend_from_slice(&value.to_be_bytes());
+        }
+        None => output.push(0),
+    }
+}
+
+fn encode_time_update(output: &mut Vec<u8>, update: TimeUpdate) {
+    match update {
+        TimeUpdate::Omit => output.push(0),
+        TimeUpdate::Now => output.push(1),
+        TimeUpdate::Exact(value) => {
+            output.push(2);
+            output.extend_from_slice(&value.to_be_bytes());
+        }
+    }
 }
 
 fn namespace_digest(operation_id: &[u8], names: &[&[u8]], numbers: &[u64]) -> Vec<u8> {

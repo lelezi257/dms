@@ -1061,6 +1061,13 @@ impl NodeHandle {
         receive(receiver).await
     }
 
+    /// 从 Node 唯一 Arena owner 读取资源快照，供周期心跳上报给 Meta。
+    pub(crate) async fn resource_summary(&self) -> Result<pb::ResourceSummary, WorkerError> {
+        let (reply, receiver) = oneshot::channel();
+        self.submit(NodeCommand::ResourceSummary { reply }).await?;
+        receive(receiver).await
+    }
+
     pub(crate) async fn filesystem_renew_inode_reference_leases(
         &self,
         references: Vec<(InodeId, u64)>,
@@ -2775,6 +2782,9 @@ enum NodeCommand {
         watch_connected: Option<bool>,
         reply: oneshot::Sender<Result<(), WorkerError>>,
     },
+    ResourceSummary {
+        reply: oneshot::Sender<Result<pb::ResourceSummary, WorkerError>>,
+    },
     CloseSession {
         session_id: u64,
         reply: oneshot::Sender<Result<(), WorkerError>>,
@@ -3167,6 +3177,7 @@ impl NodeCommand {
             Self::AttachSession { .. } => NodeMailboxCommand::AttachSession,
             Self::Heartbeat { .. } => NodeMailboxCommand::Heartbeat,
             Self::MetadataLease { .. } => NodeMailboxCommand::Heartbeat,
+            Self::ResourceSummary { .. } => NodeMailboxCommand::Heartbeat,
             Self::CloseSession { .. } => NodeMailboxCommand::CloseSession,
             Self::ValidateSession { .. } => NodeMailboxCommand::ValidateSession,
             Self::Acknowledge { .. } => NodeMailboxCommand::Acknowledge,
@@ -3372,6 +3383,9 @@ async fn run_node(
                         state.reset_current_cache_for_watch(connected);
                     }
                     let _ = reply.send(Ok(()));
+                }
+                NodeCommand::ResourceSummary { reply } => {
+                    let _ = reply.send(Ok(state.arena.resource_summary()));
                 }
                 NodeCommand::CloseSession { session_id, reply } => {
                     let _ = reply.send(state.close_session(session_id));

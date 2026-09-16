@@ -37,6 +37,9 @@ struct ServeArgs {
     /// 全量元数据快照间隔：默认 4096 条 journal 记录，必须大于 0。
     #[arg(long)]
     checkpoint_every_records: Option<u64>,
+    /// `statfs` 报告的逻辑 inode 总量上限，默认 1000000。
+    #[arg(long)]
+    filesystem_max_inodes: Option<u64>,
     #[command(flatten)]
     log: LogArgs,
     #[command(flatten)]
@@ -141,6 +144,7 @@ fn serve(args: ServeArgs) -> Result<(), Box<dyn std::error::Error>> {
             grpc_address: args.grpc_address,
             journal_dir: args.journal_dir,
             checkpoint_every_records: args.checkpoint_every_records,
+            filesystem_max_inodes: args.filesystem_max_inodes,
             log: args.log.into(),
             tracing: args.tracing.into(),
         },
@@ -156,6 +160,7 @@ fn serve(args: ServeArgs) -> Result<(), Box<dyn std::error::Error>> {
         grpc_address: resolved.grpc_address,
         journal_dir: resolved.journal_dir.map(PathBuf::from),
         checkpoint_every_records: resolved.checkpoint_every_records,
+        filesystem_max_inodes: resolved.filesystem_max_inodes,
         tracing: resolved.tracing,
     });
     if let Err(error) = &result {

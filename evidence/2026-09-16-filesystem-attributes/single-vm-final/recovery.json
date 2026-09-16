@@ -1,0 +1,25 @@
+{
+  "schema": "dms.filesystem.attributes-permissions-capacity-recovery.v1",
+  "inode": 2,
+  "uid": 501,
+  "gid": 1000,
+  "mode": 416,
+  "atime_ns": 1700000000123456789,
+  "mtime_ns": 1700000001987654321,
+  "ctime_ns": 1789550477677066748,
+  "user_xattr": "m1.4-replaced",
+  "access_acl_hex": "0200000001000600ffffffff02000400f601000004000000ffffffff10000400ffffffff20000000ffffffff",
+  "default_acl_hex": "0200000001000700ffffffff04000500ffffffff20000000ffffffff",
+  "child_mode": 416,
+  "child_access_acl_hex": "0200000001000600ffffffff04000400ffffffff20000000ffffffff",
+  "statfs": {
+    "f_bsize": 4096,
+    "f_frsize": 4096,
+    "f_blocks": 131072,
+    "f_bfree": 131072,
+    "f_bavail": 131072,
+    "f_files": 10000,
+    "f_ffree": 9996,
+    "f_namemax": 255
+  }
+}

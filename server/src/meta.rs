@@ -41,6 +41,8 @@ pub struct MetaConfig {
     pub journal_dir: Option<std::path::PathBuf>,
     /// 两次全量元数据快照之间累计的 journal 记录数，不是 WAL 刷盘间隔。
     pub checkpoint_every_records: u64,
+    /// `statfs` 使用的逻辑 inode 上限，必须由启动配置解析后传入 Meta owner。
+    pub filesystem_max_inodes: u64,
     /// Process-owned trace runtime; disabled unless explicitly configured.
     pub tracing: dms_tracing::TracingConfig,
 }
@@ -81,13 +83,14 @@ async fn serve_process(config: MetaConfig) -> Result<(), Box<dyn std::error::Err
         None => Box::<in_memory_journal::InMemoryJournal>::default()
             as Box<dyn metadata_journal::MetadataJournal>,
     };
-    let meta = MetaHandle::try_spawn_with_runtime_policy(
+    let meta = MetaHandle::try_spawn_with_filesystem_policy(
         journal,
         runtime::MetaCheckpointPolicy {
             every_records: config.checkpoint_every_records,
         },
         meta_metrics,
         trace_periodic_operations,
+        config.filesystem_max_inodes,
     )?;
     let handler = MetadataServiceHandler::with_metrics(
         meta.clone(),

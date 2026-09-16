@@ -256,11 +256,11 @@ env CARGO_TARGET_DIR=/tmp/dms-filesystem-target \
 
 这是一条完整且真实的纵向主链，不是“完整 POSIX 已完成”。当前除 lookup、getattr、create、open、read、write/pwrite、release 外，已支持权威且可恢复的 mkdir、readdir、rename、unlink 和 rmdir。`readdir` 由 Meta 有序索引返回一页，Node 按页缓存，FUSE handle 只保存 cookie 到 Meta cursor 的映射。
 
-当前未实现：
+当前仍未实现：
 
 - link、symlink/readlink；
 - truncate、`O_TRUNC`、稀疏文件完整规则；
-- 权限检查、锁、xattr、ACL、配额；
+- 文件锁、配额；属性授权、xattr、ACL 与集群 statfs 已由 M1.4 补齐；
 - write-back、dirty page、flush/fsync 持久化语义；
 - Meta 高可用和完整故障矩阵。
 

@@ -211,8 +211,12 @@ async fn serve_workers(config: NodeConfig) -> Result<(), Box<dyn std::error::Err
         .await
         .map_err(|error| format!("failed to establish Meta watch: {error:?}"))?;
     let lease_started = std::time::Instant::now();
+    let initial_resources = node
+        .resource_summary()
+        .await
+        .map_err(|error| format!("failed to read initial Arena resources: {error:?}"))?;
     let lease_ttl = metadata
-        .heartbeat(0)
+        .heartbeat(0, initial_resources)
         .await
         .map_err(|error| format!("failed to establish Meta lease: {error:?}"))?;
     node.metadata_lease(
@@ -627,7 +631,11 @@ async fn send_meta_heartbeats(
         interval.tick().await;
         let event_cursor = acked_cursor.load(Ordering::Relaxed);
         let started = std::time::Instant::now();
-        match metadata.heartbeat(event_cursor).await {
+        let resources = match node.resource_summary().await {
+            Ok(resources) => resources,
+            Err(_) => return,
+        };
+        match metadata.heartbeat(event_cursor, resources).await {
             Ok(ttl) => {
                 if node
                     .metadata_lease(Some(started + Duration::from_millis(ttl)), None)

@@ -7,9 +7,11 @@
 use dms_protocol::v1 as pb;
 
 use super::model::{
-    CacheGrant, DentrySnapshot, DirectoryEntry, DirectoryGrant, DirectoryPage, DirectoryVersion,
-    FileContentBinding, FileContractError, GrantedInode, InodeAttributes, InodeId, InodeKind,
-    InodeSnapshot, InodeVersion, NamespaceMutationResult, RemoveKind, ResolvedInode,
+    AttributeMutationResult, AttributePatch, CacheGrant, DentrySnapshot, DirectoryEntry,
+    DirectoryGrant, DirectoryPage, DirectoryVersion, FileContentBinding, FileContractError,
+    FilesystemCaller, FilesystemStats, GrantedInode, InodeAttributes, InodeId, InodeKind,
+    InodeSnapshot, InodeVersion, NamespaceMutationResult, RemoveKind, ResolvedInode, TimeUpdate,
+    XattrSetMode,
 };
 
 /// Meta 已经授权的精确对象读取计划。
@@ -26,6 +28,39 @@ impl ResolvedObject {
 
     pub(crate) fn into_proto(self) -> pb::ResolveObjectResponse {
         self.0
+    }
+}
+
+impl XattrSetMode {
+    pub(crate) const fn to_proto(self) -> i32 {
+        match self {
+            Self::Upsert => pb::FilesystemXattrSetMode::Upsert as i32,
+            Self::CreateOnly => pb::FilesystemXattrSetMode::CreateOnly as i32,
+            Self::ReplaceOnly => pb::FilesystemXattrSetMode::ReplaceOnly as i32,
+        }
+    }
+
+    pub(crate) fn from_proto(value: i32) -> Result<Self, FileContractError> {
+        match pb::FilesystemXattrSetMode::try_from(value) {
+            Ok(pb::FilesystemXattrSetMode::Upsert) => Ok(Self::Upsert),
+            Ok(pb::FilesystemXattrSetMode::CreateOnly) => Ok(Self::CreateOnly),
+            Ok(pb::FilesystemXattrSetMode::ReplaceOnly) => Ok(Self::ReplaceOnly),
+            _ => Err(FileContractError::InvalidXattrSetMode),
+        }
+    }
+}
+
+pub(crate) fn filesystem_stats_from_proto(value: pb::FilesystemStatResponse) -> FilesystemStats {
+    FilesystemStats {
+        block_size: value.block_size,
+        total_blocks: value.total_blocks,
+        free_blocks: value.free_blocks,
+        available_blocks: value.available_blocks,
+        total_inodes: value.total_inodes,
+        free_inodes: value.free_inodes,
+        max_name_length: value.max_name_length,
+        reporting_nodes: value.reporting_nodes,
+        capacity_revision: value.capacity_revision,
     }
 }
 
@@ -111,6 +146,84 @@ pub(crate) fn inode_from_proto(
             object_key: content.object_key,
             exact_version: content.exact_version,
         }),
+    })
+}
+
+pub(crate) fn caller_to_proto(caller: FilesystemCaller) -> pb::FilesystemCallerIdentity {
+    pb::FilesystemCallerIdentity {
+        uid: caller.uid,
+        gid: caller.gid,
+        pid: caller.pid,
+    }
+}
+
+pub(crate) fn caller_from_proto(caller: pb::FilesystemCallerIdentity) -> FilesystemCaller {
+    FilesystemCaller {
+        uid: caller.uid,
+        gid: caller.gid,
+        pid: caller.pid,
+    }
+}
+
+fn time_update_to_proto(update: TimeUpdate) -> pb::FilesystemTimeUpdate {
+    let (kind, exact_unix_nanos) = match update {
+        TimeUpdate::Omit => (pb::FilesystemTimeUpdateKind::Omit, 0),
+        TimeUpdate::Now => (pb::FilesystemTimeUpdateKind::Now, 0),
+        TimeUpdate::Exact(value) => (pb::FilesystemTimeUpdateKind::Exact, value),
+    };
+    pb::FilesystemTimeUpdate {
+        kind: kind as i32,
+        exact_unix_nanos,
+    }
+}
+
+fn time_update_from_proto(
+    update: Option<pb::FilesystemTimeUpdate>,
+) -> Result<TimeUpdate, FileContractError> {
+    let Some(update) = update else {
+        return Ok(TimeUpdate::Omit);
+    };
+    match pb::FilesystemTimeUpdateKind::try_from(update.kind) {
+        Ok(pb::FilesystemTimeUpdateKind::Omit) => Ok(TimeUpdate::Omit),
+        Ok(pb::FilesystemTimeUpdateKind::Now) => Ok(TimeUpdate::Now),
+        Ok(pb::FilesystemTimeUpdateKind::Exact) => Ok(TimeUpdate::Exact(update.exact_unix_nanos)),
+        _ => Err(FileContractError::InvalidAttributePatch),
+    }
+}
+
+pub(crate) fn attribute_patch_to_proto(patch: AttributePatch) -> pb::FilesystemAttributePatch {
+    pb::FilesystemAttributePatch {
+        mode: patch.mode,
+        uid: patch.uid,
+        gid: patch.gid,
+        atime: Some(time_update_to_proto(patch.atime)),
+        mtime: Some(time_update_to_proto(patch.mtime)),
+    }
+}
+
+pub(crate) fn attribute_patch_from_proto(
+    patch: pb::FilesystemAttributePatch,
+) -> Result<AttributePatch, FileContractError> {
+    Ok(AttributePatch {
+        mode: patch.mode,
+        uid: patch.uid,
+        gid: patch.gid,
+        atime: time_update_from_proto(patch.atime)?,
+        mtime: time_update_from_proto(patch.mtime)?,
+    })
+}
+
+pub(crate) fn attribute_result_from_proto(
+    response: pb::FilesystemAttributeMutationResponse,
+) -> Result<AttributeMutationResult, FileContractError> {
+    Ok(AttributeMutationResult {
+        resolved: resolved_from_proto(
+            response
+                .resolved
+                .ok_or(FileContractError::MissingResolvedInode)?,
+        )?,
+        invalidation_cursor: response.invalidation_cursor,
+        commit_index: response.commit_index,
     })
 }
 
@@ -361,6 +474,8 @@ mod tests {
             },
             new_size: 8,
             mtime_unix_nanos: 99,
+            caller: None,
+            attribute_patch: AttributePatch::default(),
         };
 
         // 文件层不能先提交 DataCore Current，再用另一次请求更新 inode。一个请求同时

@@ -483,6 +483,48 @@ impl FilesystemMetadataService for CountingFilesystemMetaService {
         self.inner.remove_filesystem_entry(request).await
     }
 
+    async fn set_filesystem_attributes(
+        &self,
+        request: Request<pb::FilesystemSetAttributesRequest>,
+    ) -> Result<Response<pb::FilesystemAttributeMutationResponse>, Status> {
+        self.inner.set_filesystem_attributes(request).await
+    }
+
+    async fn get_filesystem_xattr(
+        &self,
+        request: Request<pb::FilesystemGetXattrRequest>,
+    ) -> Result<Response<pb::FilesystemGetXattrResponse>, Status> {
+        self.inner.get_filesystem_xattr(request).await
+    }
+
+    async fn list_filesystem_xattrs(
+        &self,
+        request: Request<pb::FilesystemListXattrsRequest>,
+    ) -> Result<Response<pb::FilesystemListXattrsResponse>, Status> {
+        self.inner.list_filesystem_xattrs(request).await
+    }
+
+    async fn set_filesystem_xattr(
+        &self,
+        request: Request<pb::FilesystemSetXattrRequest>,
+    ) -> Result<Response<pb::FilesystemAttributeMutationResponse>, Status> {
+        self.inner.set_filesystem_xattr(request).await
+    }
+
+    async fn remove_filesystem_xattr(
+        &self,
+        request: Request<pb::FilesystemRemoveXattrRequest>,
+    ) -> Result<Response<pb::FilesystemAttributeMutationResponse>, Status> {
+        self.inner.remove_filesystem_xattr(request).await
+    }
+
+    async fn stat_filesystem(
+        &self,
+        request: Request<pb::FilesystemStatRequest>,
+    ) -> Result<Response<pb::FilesystemStatResponse>, Status> {
+        self.inner.stat_filesystem(request).await
+    }
+
     async fn commit_filesystem_version(
         &self,
         request: Request<pb::FilesystemCommitVersionRequest>,
@@ -786,7 +828,10 @@ impl TestNode {
         );
         let initial_watch = metadata.watch_events(0).await.expect("open Meta watch");
         let lease_started = Instant::now();
-        let lease_ttl = metadata.heartbeat(0).await.expect("Meta heartbeat");
+        let lease_ttl = metadata
+            .heartbeat(0, pb::ResourceSummary::default())
+            .await
+            .expect("Meta heartbeat");
         node.metadata_lease(Some(lease_started + Duration::from_millis(lease_ttl)), None)
             .await
             .expect("install Meta lease");

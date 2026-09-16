@@ -9,8 +9,10 @@ fi
 cd "${SOURCE_DIR}"
 export PYTHONDONTWRITEBYTECODE=1
 cargo fmt --all -- --check
-cargo clippy --workspace --all-targets --locked -- -D warnings
-cargo test --workspace --locked
+# Native Filesystem 的 Node 入口受 `fuse` feature 控制；发布门禁必须把可交付入口
+# 一并编译，否则默认 feature 会把实际由 FUSE 使用的领域 API 误判成 dead code。
+cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
+cargo test --workspace --all-features --locked
 python3 -m unittest discover -s scripts/release -p 'test_*.py'
 python3 -m unittest discover -s scripts -p 'test_package_sdk.py'
 python3 -m unittest discover -s scripts/docs -p 'test_*.py'

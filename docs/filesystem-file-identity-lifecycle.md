@@ -199,6 +199,9 @@ Node 暴露：
 
 ## 12. 本轮边界与下一步
 
-当前仍是 write-through，没有 dirty page 或后台 writeback；M1.3 也不实现 chmod/chown、xattr/ACL、statfs、fallocate、fsync 合同、文件锁和 mmap。这些分别属于后续 Roadmap 阶段。
+当前仍是 write-through，没有 dirty page 或后台 writeback；chmod/chown、xattr/ACL 与
+集群 statfs 已由 M1.4 补齐。fallocate、fsync 合同、文件锁和 mmap 仍属于后续 Roadmap
+阶段。
 
-下一阶段是 M1.4 属性权限与容量查询。继续遵守本轮冻结的不变量：不能绕过 Meta authority，不能复制 NodeState/MetaState，不能创建第二套 Extent/Block 模型，也不能为了 FUSE 改坏公开 KV 接口。
+M1.4 已按同一不变量完成：没有绕过 Meta authority，没有复制 NodeState/MetaState，
+没有创建第二套 Extent/Block 模型，也没有为了 FUSE 改坏公开 KV 接口。

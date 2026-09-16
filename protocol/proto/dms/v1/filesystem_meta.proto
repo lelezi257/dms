@@ -22,6 +22,16 @@ service FilesystemMetadataService {
   rpc ReleaseFilesystemInodeReference(FilesystemInodeReferenceRequest) returns (FilesystemInodeReferenceResponse);
   rpc RenameFilesystemEntry(FilesystemRenameRequest) returns (FilesystemNamespaceMutationResponse);
   rpc RemoveFilesystemEntry(FilesystemRemoveRequest) returns (FilesystemNamespaceMutationResponse);
+  // M1.4 属性纵向切片：Meta 在同一条 WAL 中完成授权、属性更新、revision
+  // 推进与失效事件发布。
+  rpc SetFilesystemAttributes(FilesystemSetAttributesRequest) returns (FilesystemAttributeMutationResponse);
+  // xattr/ACL 与集群容量同样由 Meta 权威状态提供；Node/FUSE 只做领域值和
+  // wire/errno 的边界转换，不保存第二份 xattr 或容量状态。
+  rpc GetFilesystemXattr(FilesystemGetXattrRequest) returns (FilesystemGetXattrResponse);
+  rpc ListFilesystemXattrs(FilesystemListXattrsRequest) returns (FilesystemListXattrsResponse);
+  rpc SetFilesystemXattr(FilesystemSetXattrRequest) returns (FilesystemAttributeMutationResponse);
+  rpc RemoveFilesystemXattr(FilesystemRemoveXattrRequest) returns (FilesystemAttributeMutationResponse);
+  rpc StatFilesystem(FilesystemStatRequest) returns (FilesystemStatResponse);
   rpc CommitFilesystemVersion(FilesystemCommitVersionRequest) returns (FilesystemCommitVersionResponse);
 }
 
@@ -48,6 +58,37 @@ message FilesystemInodeAttributes {
   int64 atime_unix_nanos = 8;
   int64 mtime_unix_nanos = 9;
   int64 ctime_unix_nanos = 10;
+}
+
+// 由可信 Node 从 FUSE Request 提取的 POSIX 调用者身份。
+// principal 字符串不能替代 uid/gid 权限判断；capability/group 扩展后续增加新字段。
+message FilesystemCallerIdentity {
+  uint32 uid = 1;
+  uint32 gid = 2;
+  uint32 pid = 3;
+}
+
+enum FilesystemTimeUpdateKind {
+  FILESYSTEM_TIME_UPDATE_KIND_UNSPECIFIED = 0;
+  FILESYSTEM_TIME_UPDATE_KIND_OMIT = 1;
+  FILESYSTEM_TIME_UPDATE_KIND_NOW = 2;
+  FILESYSTEM_TIME_UPDATE_KIND_EXACT = 3;
+}
+
+message FilesystemTimeUpdate {
+  FilesystemTimeUpdateKind kind = 1;
+  // 仅 EXACT 使用。NOW 必须在 Meta actor turn 中解析，保证重试与其它 attrs
+  // 共用一次权威提交。
+  int64 exact_unix_nanos = 2;
+}
+
+// ctime 不在 patch 中；它始终由 Meta mutation 自动生成。
+message FilesystemAttributePatch {
+  optional uint32 mode = 1;
+  optional uint32 uid = 2;
+  optional uint32 gid = 3;
+  optional FilesystemTimeUpdate atime = 4;
+  optional FilesystemTimeUpdate mtime = 5;
 }
 
 message FilesystemInodeSnapshot {
@@ -261,6 +302,100 @@ message FilesystemNamespaceMutationResponse {
   uint64 entry_reference_generation = 8;
 }
 
+message FilesystemSetAttributesRequest {
+  RequestContext context = 1;
+  NodeSessionIdentity session = 2;
+  bytes operation_id = 3;
+  bytes operation_digest = 4;
+  uint64 inode = 5;
+  uint64 expected_inode_revision = 6;
+  FilesystemCallerIdentity caller = 7;
+  FilesystemAttributePatch patch = 8;
+  uint64 commit_sequence = 9;
+}
+
+message FilesystemAttributeMutationResponse {
+  FilesystemResolvedInode resolved = 1;
+  uint64 invalidation_cursor = 2;
+  uint64 commit_index = 3;
+}
+
+enum FilesystemXattrSetMode {
+  FILESYSTEM_XATTR_SET_MODE_UNSPECIFIED = 0;
+  FILESYSTEM_XATTR_SET_MODE_UPSERT = 1;
+  FILESYSTEM_XATTR_SET_MODE_CREATE_ONLY = 2;
+  FILESYSTEM_XATTR_SET_MODE_REPLACE_ONLY = 3;
+}
+
+message FilesystemGetXattrRequest {
+  RequestContext context = 1;
+  NodeSessionIdentity session = 2;
+  uint64 inode = 3;
+  bytes name = 4;
+  FilesystemCallerIdentity caller = 5;
+}
+
+message FilesystemGetXattrResponse {
+  bool found = 1;
+  bytes value = 2;
+  uint64 inode_revision = 3;
+}
+
+message FilesystemListXattrsRequest {
+  RequestContext context = 1;
+  NodeSessionIdentity session = 2;
+  uint64 inode = 3;
+  FilesystemCallerIdentity caller = 4;
+}
+
+message FilesystemListXattrsResponse {
+  repeated bytes names = 1;
+  uint64 inode_revision = 2;
+}
+
+message FilesystemSetXattrRequest {
+  RequestContext context = 1;
+  NodeSessionIdentity session = 2;
+  bytes operation_id = 3;
+  bytes operation_digest = 4;
+  uint64 inode = 5;
+  uint64 expected_inode_revision = 6;
+  FilesystemCallerIdentity caller = 7;
+  bytes name = 8;
+  bytes value = 9;
+  FilesystemXattrSetMode mode = 10;
+  uint64 commit_sequence = 11;
+}
+
+message FilesystemRemoveXattrRequest {
+  RequestContext context = 1;
+  NodeSessionIdentity session = 2;
+  bytes operation_id = 3;
+  bytes operation_digest = 4;
+  uint64 inode = 5;
+  uint64 expected_inode_revision = 6;
+  FilesystemCallerIdentity caller = 7;
+  bytes name = 8;
+  uint64 commit_sequence = 9;
+}
+
+message FilesystemStatRequest {
+  RequestContext context = 1;
+  NodeSessionIdentity session = 2;
+}
+
+message FilesystemStatResponse {
+  uint64 block_size = 1;
+  uint64 total_blocks = 2;
+  uint64 free_blocks = 3;
+  uint64 available_blocks = 4;
+  uint64 total_inodes = 5;
+  uint64 free_inodes = 6;
+  uint32 max_name_length = 7;
+  uint32 reporting_nodes = 8;
+  uint64 capacity_revision = 9;
+}
+
 message FilesystemCommitVersionRequest {
   RequestContext context = 1;
   NodeSessionIdentity session = 2;
@@ -276,6 +411,10 @@ message FilesystemCommitVersionRequest {
   uint64 new_size = 12;
   int64 mtime_unix_nanos = 13;
   uint64 commit_sequence = 14;
+  // size 与 chmod/chown/utimens 同时出现时必须由一次 commit 原子发布，
+  // 不能在内容版本之后再发第二次属性 mutation。
+  optional FilesystemCallerIdentity caller = 15;
+  optional FilesystemAttributePatch attribute_patch = 16;
 }
 
 message FilesystemCommitVersionResponse {

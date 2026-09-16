@@ -14,15 +14,17 @@ use dms_protocol::v1 as pb;
 use prost::Message;
 
 use crate::filesystem::{
-    dentry_from_proto, dentry_to_proto, inode_from_proto, inode_to_proto,
+    XattrUpdate, dentry_from_proto, dentry_to_proto, inode_from_proto, inode_to_proto,
     namespace_result_from_proto, namespace_result_to_proto,
 };
 
 use super::metadata_journal::{
     BlockRetirementParticipant, BlockRetirementRecord, CommitSequenceRecord,
-    FilesystemInodeCreatedRecord, FilesystemNamespaceMutationRecord, FilesystemOrphanReapedRecord,
-    FilesystemSymlinkCreatedRecord, FilesystemVersionCommitRecord, JournalEntry, JournalError,
-    JournalRecord, MetaSnapshot, MetadataJournal, SnapshotBlockRetirement,
+    FilesystemAttributesUpdatedRecord, FilesystemInodeCreatedRecord,
+    FilesystemNamespaceMutationRecord, FilesystemOrphanReapedRecord,
+    FilesystemSymlinkCreatedRecord, FilesystemVersionCommitRecord, FilesystemXattrUpdatedRecord,
+    JournalEntry, JournalError, JournalRecord, MetaSnapshot, MetadataJournal,
+    SnapshotBlockRetirement, SnapshotFilesystemAttributeOperation,
     SnapshotFilesystemNamespaceOperation, SnapshotFilesystemOperationVisibility,
     SnapshotFilesystemVersionOperation, SnapshotOperation, SnapshotReplica,
     SnapshotReplicaOperation, SnapshotSession, VersionCommitRecord,
@@ -51,6 +53,12 @@ const RECORD_FILESYSTEM_VERSION_COMMITTED: u8 = 15;
 const RECORD_FILESYSTEM_NAMESPACE_MUTATED: u8 = 16;
 const RECORD_FILESYSTEM_SYMLINK_CREATED: u8 = 17;
 const RECORD_FILESYSTEM_ORPHAN_REAPED: u8 = 18;
+const RECORD_FILESYSTEM_ATTRIBUTES_UPDATED: u8 = 19;
+const RECORD_FILESYSTEM_VERSION_COMMITTED_V2: u8 = 20;
+const RECORD_FILESYSTEM_ATTRIBUTES_UPDATED_V2: u8 = 21;
+const RECORD_FILESYSTEM_NAMESPACE_MUTATED_V2: u8 = 22;
+const RECORD_FILESYSTEM_SYMLINK_CREATED_V2: u8 = 23;
+const RECORD_FILESYSTEM_XATTR_UPDATED: u8 = 24;
 
 /// One durable, single-process WAL directory.
 pub(crate) struct LocalWalJournal {
@@ -525,18 +533,45 @@ fn encode_record(record: &JournalRecord) -> Result<Vec<u8>, JournalError> {
             record,
             commit_sequence,
         } => {
-            put_u8(&mut out, RECORD_FILESYSTEM_VERSION_COMMITTED);
+            put_u8(&mut out, RECORD_FILESYSTEM_VERSION_COMMITTED_V2);
             put_version_commit(&mut out, &record.object)?;
             put_message(&mut out, &inode_to_proto(&record.inode))?;
             put_u64(&mut out, record.revoked_grant_generation);
             put_u64(&mut out, record.new_grant_generation);
+            put_xattr_updates(&mut out, &record.xattr_updates)?;
+            put_optional_commit_sequence(&mut out, commit_sequence)?;
+        }
+        JournalRecord::FilesystemAttributesUpdated {
+            record,
+            commit_sequence,
+        } => {
+            put_u8(&mut out, RECORD_FILESYSTEM_ATTRIBUTES_UPDATED_V2);
+            put_bytes(&mut out, &record.operation_id)?;
+            put_bytes(&mut out, &record.operation_digest)?;
+            put_message(&mut out, &inode_to_proto(&record.inode))?;
+            put_u64(&mut out, record.revoked_grant_generation);
+            put_u64(&mut out, record.new_grant_generation);
+            put_xattr_updates(&mut out, &record.xattr_updates)?;
+            put_optional_commit_sequence(&mut out, commit_sequence)?;
+        }
+        JournalRecord::FilesystemXattrUpdated {
+            record,
+            commit_sequence,
+        } => {
+            put_u8(&mut out, RECORD_FILESYSTEM_XATTR_UPDATED);
+            put_bytes(&mut out, &record.operation_id)?;
+            put_bytes(&mut out, &record.operation_digest)?;
+            put_message(&mut out, &inode_to_proto(&record.inode))?;
+            put_u64(&mut out, record.revoked_grant_generation);
+            put_u64(&mut out, record.new_grant_generation);
+            put_xattr_update(&mut out, &record.update)?;
             put_optional_commit_sequence(&mut out, commit_sequence)?;
         }
         JournalRecord::FilesystemNamespaceMutated {
             record,
             commit_sequence,
         } => {
-            put_u8(&mut out, RECORD_FILESYSTEM_NAMESPACE_MUTATED);
+            put_u8(&mut out, RECORD_FILESYSTEM_NAMESPACE_MUTATED_V2);
             put_filesystem_namespace_mutation(&mut out, record)?;
             put_optional_commit_sequence(&mut out, commit_sequence)?;
         }
@@ -544,7 +579,7 @@ fn encode_record(record: &JournalRecord) -> Result<Vec<u8>, JournalError> {
             record,
             commit_sequence,
         } => {
-            put_u8(&mut out, RECORD_FILESYSTEM_SYMLINK_CREATED);
+            put_u8(&mut out, RECORD_FILESYSTEM_SYMLINK_CREATED_V2);
             put_filesystem_namespace_mutation(&mut out, &record.namespace)?;
             put_version_commit(&mut out, &record.version)?;
             put_u64(&mut out, record.new_grant_generation);
@@ -701,30 +736,81 @@ fn decode_record(bytes: &[u8]) -> Result<JournalRecord, JournalError> {
                 grant_generation: input.u64()?,
             },
         }),
-        RECORD_FILESYSTEM_VERSION_COMMITTED => {
+        RECORD_FILESYSTEM_VERSION_COMMITTED | RECORD_FILESYSTEM_VERSION_COMMITTED_V2 => {
             let object = input.version_commit()?;
+            let inode = decode_inode(input.message()?)?;
+            let revoked_grant_generation = input.u64()?;
+            let new_grant_generation = input.u64()?;
+            let xattr_updates = if kind == RECORD_FILESYSTEM_VERSION_COMMITTED_V2 {
+                input.xattr_updates()?
+            } else {
+                Vec::new()
+            };
             Ok(JournalRecord::FilesystemVersionCommitted {
                 record: FilesystemVersionCommitRecord {
                     object,
-                    inode: decode_inode(input.message()?)?,
-                    revoked_grant_generation: input.u64()?,
+                    inode,
+                    revoked_grant_generation,
+                    new_grant_generation,
+                    xattr_updates,
+                },
+                commit_sequence: input.optional_commit_sequence()?,
+            })
+        }
+        RECORD_FILESYSTEM_ATTRIBUTES_UPDATED | RECORD_FILESYSTEM_ATTRIBUTES_UPDATED_V2 => {
+            let operation_id = input.bytes()?;
+            let operation_digest = input.bytes()?;
+            let inode = decode_inode(input.message()?)?;
+            let revoked_grant_generation = input.u64()?;
+            let new_grant_generation = input.u64()?;
+            let xattr_updates = if kind == RECORD_FILESYSTEM_ATTRIBUTES_UPDATED_V2 {
+                input.xattr_updates()?
+            } else {
+                Vec::new()
+            };
+            Ok(JournalRecord::FilesystemAttributesUpdated {
+                record: FilesystemAttributesUpdatedRecord {
+                    operation_id,
+                    operation_digest,
+                    inode,
+                    revoked_grant_generation,
+                    new_grant_generation,
+                    xattr_updates,
+                },
+                commit_sequence: input.optional_commit_sequence()?,
+            })
+        }
+        RECORD_FILESYSTEM_XATTR_UPDATED => Ok(JournalRecord::FilesystemXattrUpdated {
+            record: FilesystemXattrUpdatedRecord {
+                operation_id: input.bytes()?,
+                operation_digest: input.bytes()?,
+                inode: decode_inode(input.message()?)?,
+                revoked_grant_generation: input.u64()?,
+                new_grant_generation: input.u64()?,
+                update: input.xattr_update()?,
+            },
+            commit_sequence: input.optional_commit_sequence()?,
+        }),
+        RECORD_FILESYSTEM_NAMESPACE_MUTATED | RECORD_FILESYSTEM_NAMESPACE_MUTATED_V2 => {
+            Ok(JournalRecord::FilesystemNamespaceMutated {
+                record: input.filesystem_namespace_mutation(
+                    kind == RECORD_FILESYSTEM_NAMESPACE_MUTATED_V2,
+                )?,
+                commit_sequence: input.optional_commit_sequence()?,
+            })
+        }
+        RECORD_FILESYSTEM_SYMLINK_CREATED | RECORD_FILESYSTEM_SYMLINK_CREATED_V2 => {
+            Ok(JournalRecord::FilesystemSymlinkCreated {
+                record: FilesystemSymlinkCreatedRecord {
+                    namespace: input.filesystem_namespace_mutation(
+                        kind == RECORD_FILESYSTEM_SYMLINK_CREATED_V2,
+                    )?,
+                    version: input.version_commit()?,
                     new_grant_generation: input.u64()?,
                 },
                 commit_sequence: input.optional_commit_sequence()?,
             })
         }
-        RECORD_FILESYSTEM_NAMESPACE_MUTATED => Ok(JournalRecord::FilesystemNamespaceMutated {
-            record: input.filesystem_namespace_mutation()?,
-            commit_sequence: input.optional_commit_sequence()?,
-        }),
-        RECORD_FILESYSTEM_SYMLINK_CREATED => Ok(JournalRecord::FilesystemSymlinkCreated {
-            record: FilesystemSymlinkCreatedRecord {
-                namespace: input.filesystem_namespace_mutation()?,
-                version: input.version_commit()?,
-                new_grant_generation: input.u64()?,
-            },
-            commit_sequence: input.optional_commit_sequence()?,
-        }),
         RECORD_FILESYSTEM_ORPHAN_REAPED => {
             let inode = input.u64()?;
             let object_tombstone = input.bool()?.then(|| input.version_commit()).transpose()?;
@@ -890,6 +976,28 @@ fn encode_snapshot(snapshot: &MetaSnapshot) -> Result<Vec<u8>, JournalError> {
     for (operation_id, cursor) in &visibility.versions {
         put_bytes(&mut out, operation_id)?;
         put_u64(&mut out, *cursor);
+    }
+    // M1.4 作为 snapshot 尾部扩展追加；旧 snapshot 在这里自然 EOF，新 decoder
+    // 使用空集合恢复，避免改写前面已经发布的二进制布局。
+    put_u32(
+        &mut out,
+        len_u32(snapshot.filesystem_attribute_operations.len())?,
+    );
+    for operation in &snapshot.filesystem_attribute_operations {
+        put_bytes(&mut out, &operation.operation_id)?;
+        put_bytes(&mut out, &operation.digest)?;
+        put_message(&mut out, &operation.response)?;
+    }
+    put_u32(&mut out, len_u32(visibility.attributes.len())?);
+    for (operation_id, cursor) in &visibility.attributes {
+        put_bytes(&mut out, operation_id)?;
+        put_u64(&mut out, *cursor);
+    }
+    put_u32(&mut out, len_u32(snapshot.filesystem_xattrs.len())?);
+    for (inode, name, value) in &snapshot.filesystem_xattrs {
+        put_u64(&mut out, *inode);
+        put_bytes(&mut out, name)?;
+        put_bytes(&mut out, value)?;
     }
     Ok(out)
 }
@@ -1089,7 +1197,7 @@ fn decode_snapshot(bytes: &[u8]) -> Result<MetaSnapshot, JournalError> {
             })
             .collect::<Result<Vec<_>, JournalError>>()?
     };
-    let filesystem_operation_visibility = if input.remaining() == 0 {
+    let mut filesystem_operation_visibility = if input.remaining() == 0 {
         None
     } else {
         let namespace = (0..input.u32()?)
@@ -1101,7 +1209,38 @@ fn decode_snapshot(bytes: &[u8]) -> Result<MetaSnapshot, JournalError> {
         Some(SnapshotFilesystemOperationVisibility {
             namespace,
             versions,
+            attributes: Vec::new(),
         })
+    };
+    let filesystem_attribute_operations = if input.remaining() == 0 {
+        Vec::new()
+    } else {
+        (0..input.u32()?)
+            .map(|_| {
+                Ok(SnapshotFilesystemAttributeOperation {
+                    operation_id: input.bytes()?,
+                    digest: input.bytes()?,
+                    response: input.message()?,
+                })
+            })
+            .collect::<Result<Vec<_>, JournalError>>()?
+    };
+    let filesystem_attribute_visibility = if input.remaining() == 0 {
+        Vec::new()
+    } else {
+        (0..input.u32()?)
+            .map(|_| Ok((input.bytes()?, input.u64()?)))
+            .collect::<Result<Vec<_>, JournalError>>()?
+    };
+    if let Some(visibility) = filesystem_operation_visibility.as_mut() {
+        visibility.attributes = filesystem_attribute_visibility;
+    }
+    let filesystem_xattrs = if input.remaining() == 0 {
+        Vec::new()
+    } else {
+        (0..input.u32()?)
+            .map(|_| Ok((input.u64()?, input.bytes()?, input.bytes()?)))
+            .collect::<Result<Vec<_>, JournalError>>()?
     };
     if input.remaining() != 0 {
         return Err(JournalError::InvalidSnapshot(
@@ -1130,8 +1269,10 @@ fn decode_snapshot(bytes: &[u8]) -> Result<MetaSnapshot, JournalError> {
         filesystem_inodes,
         filesystem_dentries,
         filesystem_grant_generations,
+        filesystem_xattrs,
         filesystem_namespace_operations,
         filesystem_version_operations,
+        filesystem_attribute_operations,
         filesystem_operation_visibility,
     })
 }
@@ -1235,6 +1376,25 @@ fn put_filesystem_namespace_mutation(
         put_message(out, &dentry_to_proto(dentry))?;
     }
     put_u64(out, record.next_inode);
+    put_xattr_updates(out, &record.xattr_updates)?;
+    Ok(())
+}
+
+fn put_xattr_update(out: &mut Vec<u8>, update: &XattrUpdate) -> Result<(), JournalError> {
+    put_u64(out, update.inode);
+    put_bytes(out, &update.name)?;
+    put_bool(out, update.value.is_some());
+    if let Some(value) = &update.value {
+        put_bytes(out, value)?;
+    }
+    Ok(())
+}
+
+fn put_xattr_updates(out: &mut Vec<u8>, updates: &[XattrUpdate]) -> Result<(), JournalError> {
+    put_u32(out, len_u32(updates.len())?);
+    for update in updates {
+        put_xattr_update(out, update)?;
+    }
     Ok(())
 }
 
@@ -1366,6 +1526,7 @@ impl<'a> Cursor<'a> {
 
     fn filesystem_namespace_mutation(
         &mut self,
+        has_xattrs: bool,
     ) -> Result<FilesystemNamespaceMutationRecord, JournalError> {
         let operation_id = self.bytes()?;
         let operation_digest = self.bytes()?;
@@ -1380,6 +1541,12 @@ impl<'a> Cursor<'a> {
         let remove_dentries = (0..self.u32()?)
             .map(|_| Ok(dentry_from_proto(self.message()?)))
             .collect::<Result<Vec<_>, JournalError>>()?;
+        let next_inode = self.u64()?;
+        let xattr_updates = if has_xattrs {
+            self.xattr_updates()?
+        } else {
+            Vec::new()
+        };
         Ok(FilesystemNamespaceMutationRecord {
             operation_id,
             operation_digest,
@@ -1387,8 +1554,21 @@ impl<'a> Cursor<'a> {
             upsert_inodes,
             upsert_dentries,
             remove_dentries,
-            next_inode: self.u64()?,
+            next_inode,
+            xattr_updates,
         })
+    }
+
+    fn xattr_update(&mut self) -> Result<XattrUpdate, JournalError> {
+        Ok(XattrUpdate {
+            inode: self.u64()?,
+            name: self.bytes()?,
+            value: self.bool()?.then(|| self.bytes()).transpose()?,
+        })
+    }
+
+    fn xattr_updates(&mut self) -> Result<Vec<XattrUpdate>, JournalError> {
+        (0..self.u32()?).map(|_| self.xattr_update()).collect()
     }
 
     fn retirement_record(&mut self) -> Result<BlockRetirementRecord, JournalError> {
@@ -1487,11 +1667,14 @@ mod tests {
                 filesystem_inodes: Vec::new(),
                 filesystem_dentries: Vec::new(),
                 filesystem_grant_generations: Vec::new(),
+                filesystem_xattrs: Vec::new(),
                 filesystem_namespace_operations: Vec::new(),
                 filesystem_version_operations: Vec::new(),
+                filesystem_attribute_operations: Vec::new(),
                 filesystem_operation_visibility: Some(SnapshotFilesystemOperationVisibility {
                     namespace: vec![(b"namespace-op".to_vec(), 7)],
                     versions: vec![(b"version-op".to_vec(), 9)],
+                    attributes: Vec::new(),
                 }),
             })
             .expect("snapshot");
@@ -1516,6 +1699,7 @@ mod tests {
             Some(SnapshotFilesystemOperationVisibility {
                 namespace: vec![(b"namespace-op".to_vec(), 7)],
                 versions: vec![(b"version-op".to_vec(), 9)],
+                attributes: Vec::new(),
             })
         );
         assert_eq!(restored.load_after(first).expect("tail").len(), 1);

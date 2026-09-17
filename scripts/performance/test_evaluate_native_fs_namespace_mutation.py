@@ -25,11 +25,25 @@ def merge(*values: dict[str, float]) -> dict[str, float]:
     return result
 
 
-def case(samples: int, p50: float, whitebox=None) -> dict:
+def operation_duration(operation: str, seconds: float) -> dict[str, float]:
+    return {
+        f"A:dms_node_filesystem_operation_duration_seconds_sum{{operation={operation}}}": seconds
+    }
+
+
+def rpc_duration(method: str, seconds: float) -> dict[str, float]:
+    return {
+        f"A:dms_rpc_client_duration_seconds_sum{{method={method},service=FilesystemMetadataService}}": seconds
+    }
+
+
+def case(samples: int, p50: float, whitebox=None, mean=None) -> dict:
     return {
         "samples": samples,
         "p50_us": p50,
+        "mean_us": p50 if mean is None else mean,
         "p95_us": p50 * 1.2,
+        "correctness": True,
         "whitebox": whitebox or {},
     }
 
@@ -125,6 +139,71 @@ class NamespaceMutationEvaluatorTest(unittest.TestCase):
         self.assertEqual(evaluation["status"], "FAIL")
         self.assertTrue(any("P0 target" in error for error in evaluation["errors"]))
         self.assertTrue(any("workspace.stat" in error and "GetFilesystemInode" in error for error in evaluation["errors"]))
+
+    def test_accepts_slow_mutation_with_complete_segmented_proof(self):
+        one = result("one")
+        two = result("two")
+        for payload in (one, two):
+            patch = payload["lanes"]["memory"]["backends"]["dms"]["cases"]["workspace.patch"]
+            patch["p50_us"] = 900.0
+            patch["mean_us"] = 920.0
+            patch["whitebox"].update(
+                merge(
+                    operation_duration("open", 0.005),
+                    operation_duration("write", 0.065),
+                    operation_duration("sync", 0.005),
+                    operation_duration("flush", 0.005),
+                    operation_duration("close", 0.005),
+                    operation_duration("getxattr", 0.0001),
+                )
+            )
+        evaluation = MODULE.evaluate(self.contract, [one, two])
+        self.assertEqual(evaluation["status"], "PASS", evaluation["errors"])
+        self.assertGreaterEqual(
+            evaluation["segmented_proofs"]["one/workspace.patch"]["coverage_fraction"],
+            0.85,
+        )
+
+    def test_rejects_slow_mutation_with_low_coverage(self):
+        one = result("one")
+        patch = one["lanes"]["memory"]["backends"]["dms"]["cases"]["workspace.patch"]
+        patch["p50_us"] = 900.0
+        patch["mean_us"] = 920.0
+        patch["whitebox"].update(
+            merge(
+                operation_duration("open", 0.001),
+                operation_duration("write", 0.001),
+                operation_duration("sync", 0.001),
+                operation_duration("flush", 0.001),
+                operation_duration("close", 0.001),
+                operation_duration("getxattr", 0.0001),
+            )
+        )
+        evaluation = MODULE.evaluate(self.contract, [one, result("two")])
+        self.assertEqual(evaluation["status"], "FAIL")
+        self.assertTrue(any("segmented proof coverage" in error for error in evaluation["errors"]))
+
+    def test_segmented_proof_does_not_override_rpc_contract(self):
+        one = result("one")
+        two = result("two")
+        for payload in (one, two):
+            patch = payload["lanes"]["memory"]["backends"]["dms"]["cases"]["workspace.patch"]
+            patch["p50_us"] = 900.0
+            patch["mean_us"] = 920.0
+            patch["whitebox"].update(
+                merge(
+                    operation_duration("open", 0.005),
+                    operation_duration("write", 0.065),
+                    operation_duration("sync", 0.005),
+                    operation_duration("flush", 0.005),
+                    operation_duration("close", 0.005),
+                    operation_duration("getxattr", 0.0001),
+                    metric("ResolveObject", 100),
+                )
+            )
+        evaluation = MODULE.evaluate(self.contract, [one, two])
+        self.assertEqual(evaluation["status"], "FAIL")
+        self.assertTrue(any("forbidden foreground RPC ResolveObject" in error for error in evaluation["errors"]))
 
 
 if __name__ == "__main__":

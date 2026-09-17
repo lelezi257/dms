@@ -1,6 +1,6 @@
 # DMS Native Filesystem 性能优化 Roadmap
 
-> 状态：**P1 已完成，P2 是下一项**。本 Roadmap 从三 VM 白盒基线出发，目标不是无限追逐更高数字，而是先消除实现放大、兑现架构优势，再为可靠性和 Agent Workspace 建立持续门禁。
+> 状态：**P2 已完成，P3 是下一项**。本 Roadmap 从三 VM 白盒基线出发，目标不是无限追逐更高数字，而是先消除实现放大、兑现架构优势，再为可靠性和 Agent Workspace 建立持续门禁。
 
 GitHub 跟踪入口：[性能 Roadmap #32](https://github.com/lelezi257/dms/issues/32)。源码中的本文是稳定决策正文，Issue 只维护执行状态和阶段证据。
 
@@ -74,8 +74,8 @@ GitHub 跟踪入口：[性能 Roadmap #32](https://github.com/lelezi257/dms/issu
 | --- | --- | --- | --- |
 | P0 | 冻结可复现基线与判定器 | 已完成 | 所有阶段基础 |
 | P1 | 恢复小文件稳定热路径 0 Meta/Peer 合同 | 已完成 | Preview 热读阻塞项已解除 |
-| P2 | 收敛 namespace 与 mutation 固定成本 | 立即执行 | Agent 小文件体验 |
-| P3 | 分离并优化 write-through 写路径 | P2 后 | POSIX 写与同步语义 |
+| P2 | 收敛 namespace 与 mutation 固定成本 | 已完成 | Agent 小文件体验 |
+| P3 | 分离并优化 write-through 写路径 | 立即执行 | POSIX 写与同步语义 |
 | P4 | 收敛跨节点首次读取控制放大 | P3 后 | P2P 架构优势 |
 | P5 | 验证并发、Actor、内存与背压上限 | P4 后 | 单机/多客户端扩展性 |
 | P6 | 建立可靠性性能包络 | M2 实现时 | 多副本、持久层、真实 fsync |
@@ -88,8 +88,8 @@ P1～P5 串行执行。只有上一阶段的根因、代码和机器证据收口
 
 - [x] P0：冻结可复现基线与判定器（#30 / PR #31）。
 - [x] P1：恢复小文件稳定热路径 0 Meta/Peer 合同（commit `095b8ca`，双轮 evaluator `PASS`）。
-- [ ] P2：收敛 namespace 与 mutation 固定成本；这是下一项且唯一激活项。
-- [ ] P3：建立等语义 write-through lane 并优化单次提交。
+- [x] P2：收敛 namespace 与 mutation 固定成本（#35；双轮 evaluator `PASS`）。
+- [ ] P3：建立等语义 write-through lane 并优化单次提交；这是下一项且唯一激活项。
 - [ ] P4：收敛跨节点首次读取的 Pull/Report 控制放大。
 - [ ] P5：验证并发、Actor、内存、gRPC 与背压上限。
 - [ ] P6：随 M2 建立可靠性性能包络。
@@ -188,6 +188,16 @@ P1～P5 串行执行。只有上一阶段的根因、代码和机器证据收口
 ### 退出条件
 
 RPC 次数达到理论最小合同，剩余耗时能由一次本地 FUSE/Node 处理、必要 Meta authority 和数据提交的分段账本解释。
+
+### 完成证据（2026-09-17）
+
+- 稳定 `stat` 不访问 Meta 或 Peer，两次独立运行 p50 分别为 2.875 µs、2.792 µs。
+- `create` 只保留一次 negative lookup、一次 namespace create 和一次随后到达的 write-through commit；无重复 inode/xattr/resolve。
+- `patch` 只保留一次 write-through commit；远端真实 holder 的一次 revoke ACK 是强一致可见性屏障，无关 Node 不再收到事件或阻塞提交。
+- `create/delete` 只保留 create、write-through commit、unlink 和孤儿 inode 的 reference release；普通 close 不访问 Meta。
+- 三项 mutation 的同轮分段账本分别覆盖端到端 mean 的 86.6%～87.7%；剩余 12.3%～13.4% 明确归属 kernel↔FUSE 调度与 syscall 外壳，不存在未解释的重复 RPC。
+- 纯延迟门槛没有伪装成达标：DMS 仍比 memory lane 对端慢约 34%～71%。P2 的结论是“固定 RPC 合同和实现放大已收敛”，gRPC/Actor 单跳效率与 write-through 屏障继续由 P3/P5 处理。
+- 完整结果与源码/二进制身份见 [P2 namespace mutation 报告](native-filesystem-p2-namespace-mutation.md)；机器合同为 [`native-fs-namespace-mutation-contract.json`](../../benchmarks/whitebox/native-fs-namespace-mutation-contract.json)，精简机器基线为 [`native-fs-namespace-mutation-lima-aarch64-2026-09-17.json`](../../benchmarks/whitebox/baselines/native-fs-namespace-mutation-lima-aarch64-2026-09-17.json)。
 
 ## 8. P3：write-through 写路径
 

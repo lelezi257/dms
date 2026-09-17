@@ -55,5 +55,55 @@
     "ReleaseFilesystemLockOwner",
     "ResolveObject",
     "PullBlock"
-  ]
+  ],
+  "segmented_proof": {
+    "minimum_coverage_fraction": 0.85,
+    "residual_label": "kernel_fuse_syscall_envelope",
+    "cases": {
+      "workspace.create": {
+        "operation_segments": [
+          "lookup",
+          "create",
+          "open",
+          "write",
+          "sync",
+          "flush",
+          "close",
+          "getattr",
+          "getxattr"
+        ],
+        "standalone_rpc_segments": [],
+        "reason": "Linux VFS negative lookup、Meta namespace create 与随后独立到达的 FUSE write-through commit 是三个不同的权威步骤。"
+      },
+      "workspace.patch": {
+        "operation_segments": [
+          "open",
+          "write",
+          "sync",
+          "flush",
+          "close",
+          "getxattr"
+        ],
+        "standalone_rpc_segments": [],
+        "reason": "单次 write-through commit 必须等待真实远端 binding holder 完成 revoke ACK，ACK 已包含在 write operation 段内。"
+      },
+      "workspace.create_delete": {
+        "operation_segments": [
+          "lookup",
+          "create",
+          "open",
+          "write",
+          "flush",
+          "close",
+          "unlink",
+          "getattr",
+          "getxattr"
+        ],
+        "standalone_rpc_segments": [
+          "ReleaseFilesystemInodeReference"
+        ],
+        "reason": "create、write、unlink 是独立 POSIX mutation；孤儿 inode 的 reference release 使 durable reap 不必等待完整 lease。"
+      }
+    }
+  }
 }

@@ -1,0 +1,160 @@
+{
+  "schema": "dms.native-fs-namespace-mutation-evaluation.v1",
+  "status": "PASS",
+  "accepted_via": "latency_or_segmented_proof",
+  "errors": [],
+  "segmented_proofs": {
+    "native-fs-namespace-mutation-20260917-run-1/workspace.create": {
+      "status": "PASS",
+      "reason": "Linux VFS negative lookup、Meta namespace create 与随后独立到达的 FUSE write-through commit 是三个不同的权威步骤。",
+      "mean_us": 1298.6254325,
+      "segments_us_per_sample": {
+        "operation:lookup": 265.48289,
+        "operation:create": 247.69768499999998,
+        "operation:open": 54.65388250000001,
+        "operation:write": 450.6689575000002,
+        "operation:sync": 27.922060000000005,
+        "operation:flush": 27.868345000000005,
+        "operation:close": 27.845831250000007,
+        "operation:getattr": 27.404820000000008,
+        "operation:getxattr": 0.2691637500000009
+      },
+      "explained_us": 1129.8136350000002,
+      "residual_us": 168.81179749999978,
+      "residual_label": "kernel_fuse_syscall_envelope",
+      "coverage_fraction": 0.8700073221459877,
+      "minimum_coverage_fraction": 0.85,
+      "missing_segments": [],
+      "latency_failures": [
+        "native-fs-namespace-mutation-20260917-run-1/workspace.create: p50 1283.176us exceeds P0 target 955.293us",
+        "native-fs-namespace-mutation-20260917-run-1/workspace.create: DMS/MooseFS p50 ratio 1.473 exceeds 1.250"
+      ]
+    },
+    "native-fs-namespace-mutation-20260917-run-1/workspace.patch": {
+      "status": "PASS",
+      "reason": "单次 write-through commit 必须等待真实远端 binding holder 完成 revoke ACK，ACK 已包含在 write operation 段内。",
+      "mean_us": 904.6315116666667,
+      "segments_us_per_sample": {
+        "operation:open": 55.96217833333342,
+        "operation:write": 649.468615,
+        "operation:sync": 28.063464999999972,
+        "operation:flush": 28.22558333333329,
+        "operation:close": 27.921844999999983,
+        "operation:getxattr": 0.28027833333333413
+      },
+      "explained_us": 789.921965,
+      "residual_us": 114.70954666666671,
+      "residual_label": "kernel_fuse_syscall_envelope",
+      "coverage_fraction": 0.8731974895995728,
+      "minimum_coverage_fraction": 0.85,
+      "missing_segments": [],
+      "latency_failures": [
+        "native-fs-namespace-mutation-20260917-run-1/workspace.patch: p50 888.329us exceeds P0 target 661.168us",
+        "native-fs-namespace-mutation-20260917-run-1/workspace.patch: DMS/MooseFS p50 ratio 1.367 exceeds 1.250"
+      ]
+    },
+    "native-fs-namespace-mutation-20260917-run-1/workspace.create_delete": {
+      "status": "PASS",
+      "reason": "create、write、unlink 是独立 POSIX mutation；孤儿 inode 的 reference release 使 durable reap 不必等待完整 lease。",
+      "mean_us": 1807.5219875,
+      "segments_us_per_sample": {
+        "operation:lookup": 263.49028250000003,
+        "operation:create": 244.74861500000006,
+        "operation:open": 54.1967425000002,
+        "operation:write": 438.6115175,
+        "operation:flush": 27.747517500000004,
+        "operation:close": 26.711865000000003,
+        "operation:unlink": 275.4436575,
+        "operation:getattr": 48.33992750000002,
+        "operation:getxattr": 0.29054500000000094,
+        "rpc:ReleaseFilesystemInodeReference": 205.69083249999997
+      },
+      "explained_us": 1585.2715025000002,
+      "residual_us": 222.2504849999998,
+      "residual_label": "kernel_fuse_syscall_envelope",
+      "coverage_fraction": 0.8770413380656041,
+      "minimum_coverage_fraction": 0.85,
+      "missing_segments": [],
+      "latency_failures": [
+        "native-fs-namespace-mutation-20260917-run-1/workspace.create_delete: p50 1806.571us exceeds P0 target 1667.274us",
+        "native-fs-namespace-mutation-20260917-run-1/workspace.create_delete: DMS/MooseFS p50 ratio 1.711 exceeds 1.250"
+      ]
+    },
+    "native-fs-namespace-mutation-20260917-run-2/workspace.create": {
+      "status": "PASS",
+      "reason": "Linux VFS negative lookup、Meta namespace create 与随后独立到达的 FUSE write-through commit 是三个不同的权威步骤。",
+      "mean_us": 1256.30049625,
+      "segments_us_per_sample": {
+        "operation:lookup": 256.0964075,
+        "operation:create": 233.32202999999993,
+        "operation:open": 54.53634,
+        "operation:write": 433.1697324999999,
+        "operation:sync": 27.567807500000004,
+        "operation:flush": 27.701074999999996,
+        "operation:close": 28.353138750000003,
+        "operation:getattr": 27.172354999999996,
+        "operation:getxattr": 0.27277250000000136
+      },
+      "explained_us": 1088.1916587499998,
+      "residual_us": 168.10883750000016,
+      "residual_label": "kernel_fuse_syscall_envelope",
+      "coverage_fraction": 0.8661873986344848,
+      "minimum_coverage_fraction": 0.85,
+      "missing_segments": [],
+      "latency_failures": [
+        "native-fs-namespace-mutation-20260917-run-2/workspace.create: p50 1246.079us exceeds P0 target 955.293us",
+        "native-fs-namespace-mutation-20260917-run-2/workspace.create: DMS/MooseFS p50 ratio 1.531 exceeds 1.250"
+      ]
+    },
+    "native-fs-namespace-mutation-20260917-run-2/workspace.patch": {
+      "status": "PASS",
+      "reason": "单次 write-through commit 必须等待真实远端 binding holder 完成 revoke ACK，ACK 已包含在 write operation 段内。",
+      "mean_us": 904.7957749999999,
+      "segments_us_per_sample": {
+        "operation:open": 56.75981833333333,
+        "operation:write": 649.1557433333334,
+        "operation:sync": 28.08114666666667,
+        "operation:flush": 27.74844833333334,
+        "operation:close": 28.79678166666666,
+        "operation:getxattr": 0.2803600000000016
+      },
+      "explained_us": 790.8222983333334,
+      "residual_us": 113.97347666666656,
+      "residual_label": "kernel_fuse_syscall_envelope",
+      "coverage_fraction": 0.8740340308655105,
+      "minimum_coverage_fraction": 0.85,
+      "missing_segments": [],
+      "latency_failures": [
+        "native-fs-namespace-mutation-20260917-run-2/workspace.patch: p50 886.110us exceeds P0 target 661.168us",
+        "native-fs-namespace-mutation-20260917-run-2/workspace.patch: DMS/MooseFS p50 ratio 1.340 exceeds 1.250"
+      ]
+    },
+    "native-fs-namespace-mutation-20260917-run-2/workspace.create_delete": {
+      "status": "PASS",
+      "reason": "create、write、unlink 是独立 POSIX mutation；孤儿 inode 的 reference release 使 durable reap 不必等待完整 lease。",
+      "mean_us": 1772.3406049999999,
+      "segments_us_per_sample": {
+        "operation:lookup": 255.4421949999997,
+        "operation:create": 238.5566475,
+        "operation:open": 55.433622500000084,
+        "operation:write": 431.1813925000001,
+        "operation:flush": 27.69677249999998,
+        "operation:close": 27.358477499999978,
+        "operation:unlink": 268.7432425,
+        "operation:getattr": 48.975870000000015,
+        "operation:getxattr": 0.2841850000000006,
+        "rpc:ReleaseFilesystemInodeReference": 196.11970999999997
+      },
+      "explained_us": 1549.7921149999997,
+      "residual_us": 222.54849000000013,
+      "residual_label": "kernel_fuse_syscall_envelope",
+      "coverage_fraction": 0.8744324373248785,
+      "minimum_coverage_fraction": 0.85,
+      "missing_segments": [],
+      "latency_failures": [
+        "native-fs-namespace-mutation-20260917-run-2/workspace.create_delete: p50 1763.347us exceeds P0 target 1667.274us",
+        "native-fs-namespace-mutation-20260917-run-2/workspace.create_delete: DMS/MooseFS p50 ratio 1.683 exceeds 1.250"
+      ]
+    }
+  }
+}

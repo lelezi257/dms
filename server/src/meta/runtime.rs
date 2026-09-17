@@ -4963,7 +4963,6 @@ impl MetaState {
         };
         if dispatch.waiting_nodes.is_empty() && dispatch.waiting_prior_lease_nodes.is_empty() {
             self.complete_operation_visibility(&dispatch.operation_ids);
-            self.filesystem_event_targets.remove(&cursor);
             let _ = reply.send(Ok(dispatch.response));
             return;
         }
@@ -5002,7 +5001,6 @@ impl MetaState {
             self.visibility_barrier_nodes(source_node, cursor);
         if waiting_nodes.is_empty() && waiting_prior_lease_nodes.is_empty() {
             self.complete_operation_visibility(&operation_ids);
-            self.filesystem_event_targets.remove(&cursor);
             let _ = reply.send(Ok(response));
             return;
         }
@@ -5029,7 +5027,6 @@ impl MetaState {
         };
         if dispatch.waiting_nodes.is_empty() && dispatch.waiting_prior_lease_nodes.is_empty() {
             self.complete_operation_visibility(std::slice::from_ref(&dispatch.operation_id));
-            self.filesystem_event_targets.remove(&cursor);
             let _ = reply.send(Ok(dispatch.response));
             return;
         }
@@ -5056,7 +5053,6 @@ impl MetaState {
         };
         if dispatch.waiting_nodes.is_empty() && dispatch.waiting_prior_lease_nodes.is_empty() {
             self.complete_operation_visibility(std::slice::from_ref(&dispatch.operation_id));
-            self.filesystem_event_targets.remove(&cursor);
             let _ = reply.send(Ok(dispatch.response));
             return;
         }
@@ -5105,7 +5101,6 @@ impl MetaState {
         };
         if dispatch.waiting_nodes.is_empty() && dispatch.waiting_prior_lease_nodes.is_empty() {
             self.complete_operation_visibility(std::slice::from_ref(&dispatch.operation_id));
-            self.filesystem_event_targets.remove(&cursor);
             let _ = reply.send(Ok(dispatch.response));
             return;
         }
@@ -5132,7 +5127,6 @@ impl MetaState {
         };
         if dispatch.waiting_nodes.is_empty() && dispatch.waiting_prior_lease_nodes.is_empty() {
             self.complete_operation_visibility(std::slice::from_ref(&dispatch.operation_id));
-            self.filesystem_event_targets.remove(&cursor);
             let _ = reply.send(Ok(dispatch.response));
             return;
         }
@@ -5261,6 +5255,7 @@ impl MetaState {
 
     fn pump_watchers(&mut self) {
         let now = Instant::now();
+        let filesystem_event_targets = &self.filesystem_event_targets;
         for (node_id, watcher) in &mut self.watchers {
             if watcher.disconnected {
                 continue;
@@ -5270,7 +5265,11 @@ impl MetaState {
                 .partition_point(|event| event.cursor <= watcher.delivered_cursor);
             let mut delivered_fresh = false;
             for event in &self.events[start..] {
-                if !event_targets_node(event, *node_id) {
+                if !event_targets_node_with_filesystem_holders(
+                    event,
+                    *node_id,
+                    filesystem_event_targets,
+                ) {
                     watcher.delivered_cursor = event.cursor;
                     continue;
                 }
@@ -5719,8 +5718,6 @@ impl MetaState {
         }
         if !unresolved.is_empty() {
             self.pending_commits.insert(cursor, unresolved);
-        } else {
-            self.filesystem_event_targets.remove(&cursor);
         }
     }
 
@@ -6596,7 +6593,11 @@ impl MetaState {
                     .iter()
                     .filter(|event| {
                         event.cursor > session.last_acked_cursor
-                            && event_targets_node(event, *node_id)
+                            && event_targets_node_with_filesystem_holders(
+                                event,
+                                *node_id,
+                                &self.filesystem_event_targets,
+                            )
                     })
                     .count() as u64
             })
@@ -6896,13 +6897,25 @@ impl MetaState {
         let sessions = &self.sessions;
         let retired_sessions = &self.retired_sessions;
         let pending_retirements = self.pending_retirements.clone();
+        let filesystem_event_targets = &self.filesystem_event_targets;
         self.events.retain(|event| {
             sessions.iter().any(|(node_id, session)| {
                 !retired_sessions.contains(node_id)
-                    && event_targets_node(event, *node_id)
+                    && event_targets_node_with_filesystem_holders(
+                        event,
+                        *node_id,
+                        filesystem_event_targets,
+                    )
                     && event.cursor > session.last_acked_cursor
             }) || retirement_event_outstanding_in(&pending_retirements, event)
         });
+        let retained_cursors = self
+            .events
+            .iter()
+            .map(|event| event.cursor)
+            .collect::<HashSet<_>>();
+        self.filesystem_event_targets
+            .retain(|cursor, _| retained_cursors.contains(cursor));
     }
 
     fn retain_replicas_referenced_by_versions(&mut self) {
@@ -8453,6 +8466,28 @@ fn event_targets_node(event: &pb::NodeEvent, node_id: u64) -> bool {
         Some(pb::node_event::Event::InvalidateFilesystemBinding(invalidate)) => {
             invalidate.source_node_id == 0 || invalidate.source_node_id != node_id
         }
+        _ => true,
+    }
+}
+
+/// 判断保留事件是否应该投递给指定 Node。
+///
+/// 普通事件沿用协议本身的目标规则。在线产生的 filesystem 失效事件额外记录了
+/// mutation 前真正持有 inode/directory grant 的 Node 集合，因此只向这些 Node
+/// 投递。Meta 恢复后这份瞬时索引无法从旧 WAL 精确重建；缺少索引时必须退回
+/// `event_targets_node` 的保守广播，直到旧 lease 到期，不能为了性能削弱恢复语义。
+fn event_targets_node_with_filesystem_holders(
+    event: &pb::NodeEvent,
+    node_id: u64,
+    filesystem_event_targets: &HashMap<u64, HashSet<u64>>,
+) -> bool {
+    if !event_targets_node(event, node_id) {
+        return false;
+    }
+    match &event.event {
+        Some(pb::node_event::Event::InvalidateFilesystemBinding(_)) => filesystem_event_targets
+            .get(&event.cursor)
+            .is_none_or(|targets| targets.contains(&node_id)),
         _ => true,
     }
 }
@@ -10722,6 +10757,17 @@ mod tests {
                 sender,
             )
             .expect("reader watch");
+        let (idle_sender, mut idle_events) = mpsc::channel(4);
+        state
+            .watch_node_events(
+                pb::WatchNodeEventsRequest {
+                    context: None,
+                    session: Some(idle.clone()),
+                    last_acked_cursor: 0,
+                },
+                idle_sender,
+            )
+            .expect("idle watch");
 
         let request = filesystem_create_request_for(
             writer.clone(),
@@ -10746,6 +10792,10 @@ mod tests {
         ));
 
         let event = events.try_recv().expect("directory revoke event");
+        assert!(
+            idle_events.try_recv().is_err(),
+            "未持有目录 grant 的活跃 Node 不应收到 filesystem 失效事件"
+        );
         state
             .acknowledge_node_event(pb::AcknowledgeNodeEventRequest {
                 context: None,

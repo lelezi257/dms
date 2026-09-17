@@ -303,6 +303,18 @@ message FilesystemResolveResponse {
   // create/symlink 同时修改父目录属性与授权水位。把更新后的目录 binding 随同
   // 权威响应返回，Node 可以原子替换本地缓存，避免随后 getattr 再访问 Meta。
   repeated FilesystemResolvedInode refreshed_directories = 7;
+  // lookup miss 可以顺带返回同一目录中有界的后续条目。这些条目用于
+  // Node 的 dentry/binding、payload 和短期 reference reservation 预取。reservation
+  // 不是 FUSE nlookup：只有内核真正 lookup 该条目时，Node 才把它升级成活跃引用。
+  // 未被使用的 reservation 不续租，由 Meta 自动过期。
+  repeated FilesystemResolvedDentry prefetched_entries = 8;
+}
+
+message FilesystemResolvedDentry {
+  FilesystemDentrySnapshot dentry = 1;
+  FilesystemResolvedInode resolved = 2;
+  uint64 entry_reference_lease_millis = 3;
+  uint64 entry_reference_generation = 4;
 }
 
 message FilesystemDirectoryEntry {

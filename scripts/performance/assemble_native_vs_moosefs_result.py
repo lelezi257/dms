@@ -423,6 +423,21 @@ def compact_rpc_rows(whitebox: dict[str, float]) -> list[tuple[str, float, float
     return [(method, counts[method], durations.get(method, 0.0)) for method in sorted(counts)]
 
 
+def load_p4_contract_receipt(path: Path) -> dict[str, Any]:
+    """读取由命名合同测试生成的回执，拒绝手写或不完整的证明。"""
+
+    receipt = json.loads(path.read_text(encoding="utf-8"))
+    if receipt.get("schema") != "dms.native-fs-peer-first-contract-receipt.v1":
+        raise ValueError(f"invalid P4 contract receipt: {path}")
+    return {
+        "foreground_synchronous_report_replicas": receipt[
+            "foreground_synchronous_report_replicas"
+        ],
+        "fault_contracts": receipt["fault_contracts"],
+        "mechanism_contracts": receipt.get("mechanism_contracts", {}),
+    }
+
+
 def assemble(root: Path) -> dict[str, Any]:
     profile = json.loads((root / "profile.json").read_text(encoding="utf-8"))
     lanes: dict[str, Any] = {}
@@ -461,6 +476,9 @@ def assemble(root: Path) -> dict[str, Any]:
         "same_environment": True,
         "lanes": lanes,
     }
+    p4_receipt = root / "p4-contracts.json"
+    if p4_receipt.is_file():
+        result["p4_contracts"] = load_p4_contract_receipt(p4_receipt)
     result["preview_verdict"] = preview_verdict(lanes["memory"])
     result["analysis"] = architecture_analysis(lanes["memory"])
     return result

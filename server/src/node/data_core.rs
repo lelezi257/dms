@@ -325,6 +325,19 @@ impl DataCoreHandle {
         }))
     }
 
+    /// 把上层在同一次权威解析中顺带得到的多个精确版本交给 Node owner
+    /// 合并预取。该入口不建立第二份缓存，也不把预取失败转成文件语义
+    /// 失败；真正的 read 仍会按原路径重试、校验 checksum 并执行 source fallback。
+    pub(crate) async fn prefetch_resolved(
+        &self,
+        objects: Vec<ResolvedObject>,
+    ) -> Result<(), WorkerError> {
+        if objects.is_empty() {
+            return Ok(());
+        }
+        self.node.data_core_prefetch_resolved(objects).await
+    }
+
     #[allow(dead_code, reason = "由跨子系统回归测试使用")]
     pub(crate) async fn put(
         &self,

@@ -78,9 +78,18 @@ pub(crate) const HSCAN_MAX_LIMIT: u32 = 1024;
 // gRPC 编解码失败前返回带 DMS 数字错误码的 ResourceExhausted。SHM 走 mmap，
 // 不受这条单条 protobuf 消息预算约束。
 pub(crate) const GRPC_PAYLOAD_SAFE_BYTES: u64 = 8 * 1024 * 1024;
-// Peer gRPC 默认有 4MiB 解码上限。跨 Node 大对象拉取必须拆成有界分段，
-// 既避免单条消息无限放大，又保持 Node→Node 协议不变。
+// Peer gRPC 默认有 4MiB 解码上限。单 Block 回退与 PullBlocks 正常流都使用
+// 2MiB 有界分段，避免单条消息随对象大小增长。
 const PEER_PULL_SEGMENT_BYTES: u64 = 2 * 1024 * 1024;
+// Filesystem 的第一次顺序读通常会继续消费同一 Exact Version。对不超过工作负载
+// 上限的文件，在 offset=0 首次缺块时一次接管完整布局，避免每个 FUSE read 回调
+// 都建立一条 Peer RPC。Image/普通 KV range read 不使用该策略，仍保持真正按需。
+const FILESYSTEM_PEER_PREFETCH_BYTES_MAX: u64 = 512 * 1024 * 1024;
+/// 目录 lookup 顺带预取只服务小文件窗口。上限足以覆盖 Agent workspace
+/// 的一批相邻文件，同时避免一次 lookup 因目录中的大对象占满 Arena 导入预算。
+const FILESYSTEM_DIRECTORY_PREFETCH_BYTES_MAX: u64 = 8 * 1024 * 1024;
+const FILESYSTEM_DIRECTORY_PREFETCH_BLOCKS_MAX: usize = 256;
+const PEER_PULL_PLAN_BLOCKS_MAX: usize = 1024;
 const PEER_CHANNEL_CACHE_LIMIT: usize = 128;
 const COMPLETED_RETIREMENT_CACHE_LIMIT: usize = 1024;
 const RETIREMENT_PHASE_WAITER_LIMIT: usize = 16;
@@ -357,6 +366,32 @@ enum PlannedReadPart {
     },
 }
 
+#[derive(Clone, Debug)]
+enum DataCorePlannedReadPart {
+    Block {
+        logical_offset: u64,
+        read: ArenaReadTicket,
+    },
+    Remote {
+        logical_offset: u64,
+        block_id: Vec<u8>,
+        block_offset: u64,
+        length: u64,
+    },
+    Zero {
+        logical_offset: u64,
+        length: u64,
+    },
+}
+
+#[derive(Clone, Debug)]
+struct RemoteReadPart {
+    logical_offset: u64,
+    block_id: Vec<u8>,
+    block_offset: u64,
+    length: u64,
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct DataCoreReadIntoResult {
     pub(crate) version: u64,
@@ -426,7 +461,7 @@ pub(crate) struct PeerProbeResult {
 pub(crate) struct PeerBlockResult {
     pub(crate) serving_node_id: String,
     pub(crate) block_id: Vec<u8>,
-    pub(crate) payload: Vec<u8>,
+    pub(crate) payload: prost::bytes::Bytes,
     pub(crate) checksum: Vec<u8>,
     pub(crate) length: u64,
 }
@@ -520,7 +555,7 @@ struct PeerImportFlight {
     expected_length: u64,
     expected_checksum: Vec<u8>,
     task_id: Option<tokio::task::Id>,
-    waiters: Vec<oneshot::Sender<Result<(), PeerImportFailure>>>,
+    waiters: Vec<PeerImportReply>,
 }
 
 /// 已产生缺块计划但尚未入队 Ensure 的同批读，也必须看见 Import/Report 的终态失败。
@@ -531,6 +566,31 @@ struct PeerImportFailureFence {
 }
 
 type PeerImportCompletion = (Vec<u8>, u64, Result<(), PeerImportFailure>);
+/// 同一 Block 的等待方只接收已校验的 immutable bytes；`None` 表示 owner
+/// 在请求入队前已经完成安装，调用方下一轮直接从 Arena 读取。
+type PeerImportReply = oneshot::Sender<Result<Option<prost::bytes::Bytes>, PeerImportFailure>>;
+type PeerImportRequest = (PeerPullSpec, PeerImportReply);
+/// PullBlocks 流内一个 Block 的安装终态，以及它是否产生后台副本登记。
+type PeerInstallOutcome = (Vec<u8>, u64, Result<(), PeerImportFailure>, bool);
+
+#[derive(Clone, Debug)]
+struct PeerImportWork {
+    spec: PeerPullSpec,
+    attempt: u64,
+}
+
+/// PullBlocks 接收协程已经把一个完整 Block 交给 Node owner，但 owner 还未回信。
+/// 队列上限固定为 2，只允许“接收下一块”与“安装上一块”重叠，不聚合整文件。
+struct PendingPeerInstall {
+    block_id: Vec<u8>,
+    attempt: Option<u64>,
+    receiver: oneshot::Receiver<Result<bool, WorkerError>>,
+    metric: super::metrics::ReplicaOperationGuard,
+    received_bytes: usize,
+    report_length: u64,
+    report_checksum: Vec<u8>,
+    report_operation: Vec<u8>,
+}
 
 /// 一次 Peer 导入在本地安装阶段所需的上下文。
 ///
@@ -592,6 +652,14 @@ fn planned_read_part_offset(part: &PlannedReadPart) -> u64 {
     }
 }
 
+fn data_core_planned_read_part_offset(part: &DataCorePlannedReadPart) -> u64 {
+    match part {
+        DataCorePlannedReadPart::Zero { logical_offset, .. }
+        | DataCorePlannedReadPart::Block { logical_offset, .. }
+        | DataCorePlannedReadPart::Remote { logical_offset, .. } => *logical_offset,
+    }
+}
+
 enum DataCoreMaterializeOutcome {
     Ready(DataCoreReadIntoResult),
     BufferTooSmall {
@@ -600,6 +668,17 @@ enum DataCoreMaterializeOutcome {
     },
     NeedsRemoteBlocks {
         specs: Vec<PeerPullSpec>,
+        // Filesystem 顺序首读可以把整个 Exact Version 加入同一条预取流，
+        // 但本次 FUSE 回调只等待覆盖当前 range 的 Block。其余 Block 在同一
+        // PullBlocks 流中继续后台接管，避免“先下载完整文件、再返回第一页”。
+        required_blocks: HashSet<Vec<u8>>,
+        // 首次物化已经把本地 Block 与 hole 写进 output。远端 Block 安装成功后，
+        // 当前读可直接从同一份已校验 bytes 补齐这些区间，无需再次进入 owner
+        // 从 Arena 读取；Arena 仍是后续请求的唯一持久内存 owner。
+        remote_parts: Vec<RemoteReadPart>,
+        version: u64,
+        logical_length: u64,
+        bytes_read: usize,
         output: Vec<u8>,
     },
     NotFound,
@@ -2109,31 +2188,29 @@ impl NodeHandle {
                         .as_ref()
                         .ok_or(WorkerError::NotFound)?
                         .version;
-                    for spec in specs {
-                        match self.ensure_peer_block(read_scope_id, spec).await {
-                            Ok(()) => {}
-                            Err(failure)
-                                if failure.location_failure
-                                    && can_refresh_cached_location(&failure.error) =>
-                            {
-                                // 只捕获 Peer 拉取阶段的位置失败。安装/登记失败不属于
-                                // 换地址重试，必须直接返回，不能被下面的本地读掩盖。
-                                return self
-                                    .read_exact_version_after_cached_location_failure(
-                                        metadata,
-                                        session_id,
-                                        read_scope_id,
-                                        read_request_id,
-                                        key.clone(),
-                                        cached_version,
-                                        range,
-                                        clamp_range,
-                                        max_inline_bytes,
-                                    )
-                                    .await;
-                            }
-                            Err(failure) => return Err(failure.error),
+                    match self.ensure_peer_blocks(read_scope_id, specs).await {
+                        Ok(()) => {}
+                        Err(failure)
+                            if failure.location_failure
+                                && can_refresh_cached_location(&failure.error) =>
+                        {
+                            // 只捕获 Peer 拉取阶段的位置失败。安装/登记失败不属于
+                            // 换地址重试，必须直接返回，不能被下面的本地读掩盖。
+                            return self
+                                .read_exact_version_after_cached_location_failure(
+                                    metadata,
+                                    session_id,
+                                    read_scope_id,
+                                    read_request_id,
+                                    key.clone(),
+                                    cached_version,
+                                    range,
+                                    clamp_range,
+                                    max_inline_bytes,
+                                )
+                                .await;
                         }
+                        Err(failure) => return Err(failure.error),
                     }
                     return self
                         .read_resolved_with_imports(
@@ -2239,11 +2316,9 @@ impl NodeHandle {
             match receive(reply_rx).await? {
                 GetOutcome::Ready(ticket) => return Ok(ticket),
                 GetOutcome::NeedsRemoteBlocks(specs) => {
-                    for spec in specs {
-                        self.ensure_peer_block(read_scope_id, spec)
-                            .await
-                            .map_err(|failure| failure.error)?;
-                    }
+                    self.ensure_peer_blocks(read_scope_id, specs)
+                        .await
+                        .map_err(|failure| failure.error)?;
                 }
             }
         }
@@ -2313,6 +2388,7 @@ impl NodeHandle {
                 clamp_range,
                 output,
                 None,
+                true,
             )
             .await;
         let finish = scope.finish().await;
@@ -2320,6 +2396,38 @@ impl NodeHandle {
             (Ok(value), Ok(())) => Ok(value),
             (Err(error), _) => Err(error),
             (Ok(_), Err(error)) => Err(error),
+        }
+    }
+
+    /// 为同一目录解析窗口中的多个 Exact Version 合并一次 Peer 预取。
+    ///
+    /// 解析计划必须回到唯一 NodeState owner，因为只有它能安全判断 Arena
+    /// 已命中、正在 singleflight 导入、退役 fence 和字节预算。
+    pub(crate) async fn data_core_prefetch_resolved(
+        &self,
+        objects: Vec<ResolvedObject>,
+    ) -> Result<(), WorkerError> {
+        let scope = self.begin_data_core_read_scope().await?.into_guard();
+        let (reply, receiver) = oneshot::channel();
+        self.submit(NodeCommand::PlanFilesystemPeerPrefetch {
+            read_scope_id: scope.id(),
+            resolved: objects
+                .into_iter()
+                .map(ResolvedObject::into_proto)
+                .collect(),
+            reply,
+        })
+        .await?;
+        let specs = receive(receiver).await?;
+        let result = self
+            .ensure_peer_blocks(scope.id(), specs)
+            .await
+            .map_err(|failure| failure.error);
+        let finish = scope.finish().await;
+        match (result, finish) {
+            (Ok(()), Ok(())) => Ok(()),
+            (Err(error), _) => Err(error),
+            (Ok(()), Err(error)) => Err(error),
         }
     }
 
@@ -2350,11 +2458,9 @@ impl NodeHandle {
             match receive(reply_rx).await? {
                 MaterializeOutcome::Ready { version, bytes } => return Ok((version, bytes)),
                 MaterializeOutcome::NeedsRemoteBlocks(specs) => {
-                    for spec in specs {
-                        self.ensure_peer_block(read_scope_id, spec)
-                            .await
-                            .map_err(|failure| failure.error)?;
-                    }
+                    self.ensure_peer_blocks(read_scope_id, specs)
+                        .await
+                        .map_err(|failure| failure.error)?;
                 }
             }
         }
@@ -2401,11 +2507,9 @@ impl NodeHandle {
                 output: returned,
             } => {
                 output = returned;
-                for spec in specs {
-                    self.ensure_peer_block(read_scope_id, spec)
-                        .await
-                        .map_err(|failure| failure.error)?;
-                }
+                self.ensure_peer_blocks(read_scope_id, specs)
+                    .await
+                    .map_err(|failure| failure.error)?;
                 return self
                     .data_core_read_resolved_into(
                         read_scope_id,
@@ -2414,6 +2518,7 @@ impl NodeHandle {
                         clamp_range,
                         output,
                         None,
+                        false,
                     )
                     .await;
             }
@@ -2438,10 +2543,15 @@ impl NodeHandle {
             clamp_range,
             output,
             cache_refill,
+            false,
         )
         .await
     }
 
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "resolved-read loop deliberately carries independent read-scope, exact layout, range, caller buffer, cache-refill authority, and full-layout prefetch policy"
+    )]
     async fn data_core_read_resolved_into(
         &self,
         read_scope_id: u64,
@@ -2450,6 +2560,7 @@ impl NodeHandle {
         clamp_range: bool,
         mut output: Vec<u8>,
         cache_refill: Option<(u64, Vec<u8>, Instant, u64)>,
+        prefetch_full_layout: bool,
     ) -> Result<DataCoreReadAttempt, WorkerError> {
         for _ in 0..2 {
             let (reply_tx, reply_rx) = oneshot::channel();
@@ -2460,6 +2571,7 @@ impl NodeHandle {
                 clamp_range,
                 output,
                 cache_refill: cache_refill.clone(),
+                prefetch_full_layout,
                 reply: reply_tx,
             })
             .await?;
@@ -2472,13 +2584,32 @@ impl NodeHandle {
                 }
                 DataCoreMaterializeOutcome::NeedsRemoteBlocks {
                     specs,
+                    required_blocks,
+                    remote_parts,
+                    version,
+                    logical_length,
+                    bytes_read,
                     output: returned,
                 } => {
                     output = returned;
-                    for spec in specs {
-                        self.ensure_peer_block(read_scope_id, spec)
-                            .await
-                            .map_err(|failure| failure.error)?;
+                    let imported = self
+                        .ensure_peer_blocks_waiting_for(read_scope_id, specs, &required_blocks)
+                        .await
+                        .map_err(|failure| failure.error)?;
+                    // Filesystem 的 Exact Version 已经固定，且 owner 在唤醒 waiter 前
+                    // 已完成 checksum、fence 与 Arena 安装。当前回调直接用同一份
+                    // immutable Bytes 补齐远端区间，避免为了读取刚安装的数据再次
+                    // 排队进入 actor。若 owner 发现块在入队前已存在，会返回 None，
+                    // 继续下一轮从 Arena 读取即可。
+                    if prefetch_full_layout
+                        && Self::fill_imported_parts(&mut output, &remote_parts, &imported)?
+                    {
+                        return Ok(DataCoreReadAttempt::Ready(DataCoreReadIntoResult {
+                            version,
+                            logical_length,
+                            bytes_read,
+                            bytes: output,
+                        }));
                     }
                 }
                 DataCoreMaterializeOutcome::NotFound => {
@@ -2489,27 +2620,100 @@ impl NodeHandle {
         Err(WorkerError::NotFound)
     }
 
+    fn fill_imported_parts(
+        output: &mut [u8],
+        parts: &[RemoteReadPart],
+        imported: &HashMap<Vec<u8>, prost::bytes::Bytes>,
+    ) -> Result<bool, WorkerError> {
+        for part in parts {
+            let Some(bytes) = imported.get(&part.block_id) else {
+                return Ok(false);
+            };
+            let source_start =
+                usize::try_from(part.block_offset).map_err(|_| WorkerError::ResourceExhausted)?;
+            let length =
+                usize::try_from(part.length).map_err(|_| WorkerError::ResourceExhausted)?;
+            let source_end = source_start
+                .checked_add(length)
+                .ok_or(WorkerError::ResourceExhausted)?;
+            let target_start =
+                usize::try_from(part.logical_offset).map_err(|_| WorkerError::ResourceExhausted)?;
+            let target_end = target_start
+                .checked_add(length)
+                .ok_or(WorkerError::ResourceExhausted)?;
+            let source = bytes
+                .get(source_start..source_end)
+                .ok_or(WorkerError::Conflict)?;
+            let target = output
+                .get_mut(target_start..target_end)
+                .ok_or(WorkerError::Conflict)?;
+            target.copy_from_slice(source);
+        }
+        Ok(true)
+    }
+
     /// Current、Exact、内部 materialize 共用的 Node 级缺块导入入口。
     /// 请求取消只丢弃自己的等待，owner 启动的有界任务仍负责完成 Import/Report。
-    async fn ensure_peer_block(
+    async fn ensure_peer_blocks(
         &self,
         read_scope_id: u64,
-        spec: PeerPullSpec,
+        specs: Vec<PeerPullSpec>,
     ) -> Result<(), PeerImportFailure> {
-        let (reply, rx) = oneshot::channel();
-        self.submit(NodeCommand::EnsurePeerBlock {
+        let required_blocks = specs
+            .iter()
+            .map(|spec| spec.block_id.clone())
+            .collect::<HashSet<_>>();
+        self.ensure_peer_blocks_waiting_for(read_scope_id, specs, &required_blocks)
+            .await
+            .map(|_| ())
+    }
+
+    /// 把完整预取计划一次交给 owner，但只等待当前调用真正依赖的 Block。
+    ///
+    /// 非 required receiver 在本函数返回时被丢弃；这只表示当前调用不再等待，
+    /// 不会取消 owner 已启动的 PullBlocks 任务。后续读若追上后台预取，会加入
+    /// 同一个 flight 等待，避免重复建立 Peer RPC。
+    async fn ensure_peer_blocks_waiting_for(
+        &self,
+        read_scope_id: u64,
+        specs: Vec<PeerPullSpec>,
+        required_blocks: &HashSet<Vec<u8>>,
+    ) -> Result<HashMap<Vec<u8>, prost::bytes::Bytes>, PeerImportFailure> {
+        if specs.is_empty() {
+            return Ok(HashMap::new());
+        }
+        let mut receivers = Vec::with_capacity(specs.len());
+        let requests = specs
+            .into_iter()
+            .map(|spec| {
+                let (reply, receiver) = oneshot::channel();
+                receivers.push((spec.block_id.clone(), receiver));
+                (spec, reply)
+            })
+            .collect();
+        self.submit(NodeCommand::EnsurePeerBlocks {
             read_scope_id,
-            spec,
+            requests,
             node: Box::new(self.clone()),
-            reply,
         })
         .await
         .map_err(PeerImportFailure::terminal)?;
-        rx.await
-            .map_err(|_| PeerImportFailure::terminal(WorkerError::WorkerUnavailable))?
+        let mut imported = HashMap::with_capacity(required_blocks.len());
+        for (block_id, receiver) in receivers {
+            if !required_blocks.contains(&block_id) {
+                continue;
+            }
+            if let Some(bytes) = receiver
+                .await
+                .map_err(|_| PeerImportFailure::terminal(WorkerError::WorkerUnavailable))??
+            {
+                imported.insert(block_id, bytes);
+            }
+        }
+        Ok(imported)
     }
 
-    // 完整性测试直接检验一次未合并的导入；正式读入口一律使用 ensure_peer_block。
+    // 完整性测试直接检验一次未合并的导入；正式读入口一律使用批量入口。
     #[cfg(test)]
     async fn import_and_report_peer_block(
         &self,
@@ -2562,49 +2766,315 @@ impl NodeHandle {
             .map_err(PeerImportFailure::terminal)
     }
 
+    /// 将同一次 Exact Version 读取计划中的缺块合并为一条 server-streaming RPC。
+    ///
+    /// 流仍按 Block 边界逐个校验并交回 Node owner 安装，不会在接收端聚合整个
+    /// 文件。若公共来源在中途失效，仅对尚未完成的 Block 回退到原有逐块来源
+    /// 切换路径；已经安装的 Block 不重复搬运。
+    async fn pull_and_report_peer_blocks(
+        &self,
+        metadata: &MetadataClient,
+        read_scope_id: u64,
+        work: Vec<PeerImportWork>,
+        replica_report_tx: mpsc::Sender<ReplicaReportJob>,
+    ) -> Vec<PeerImportCompletion> {
+        // 单个小 Block 没有“把 RPC 数与 Block 数解耦”的收益。继续复用 unary
+        // PullBlock 可以省去 server-stream 建立和首帧状态机成本；多 Block（尤其
+        // Filesystem 512 MiB 预取）才进入 PullBlocks。large-peer-first 的旧
+        // PullBlock 计数因此仍为 0，workspace 小文件则避免为一个 Block 建流。
+        if work.len() == 1 {
+            let item = work.into_iter().next().expect("one peer import item");
+            let block_id = item.spec.block_id.clone();
+            let result = self
+                .pull_and_report_peer_block(
+                    metadata,
+                    item.spec,
+                    PeerImportContext {
+                        operation_namespace: b"cache-import/",
+                        read_scope_id,
+                        import_attempt: Some(item.attempt),
+                        replica_report_tx: Some(replica_report_tx),
+                    },
+                )
+                .await;
+            return vec![(block_id, item.attempt, result)];
+        }
+        let mut completed = if let Some(source) = common_peer_source(&work) {
+            self.pull_peer_plan_from_source(
+                metadata,
+                read_scope_id,
+                &work,
+                &source,
+                replica_report_tx.clone(),
+            )
+            .await
+        } else {
+            Vec::new()
+        };
+        let finished = completed
+            .iter()
+            .map(|(block_id, _, _)| block_id.clone())
+            .collect::<HashSet<_>>();
+        for item in work {
+            if finished.contains(&item.spec.block_id) {
+                continue;
+            }
+            let block_id = item.spec.block_id.clone();
+            let result = self
+                .pull_and_report_peer_block(
+                    metadata,
+                    item.spec,
+                    PeerImportContext {
+                        operation_namespace: b"cache-import/",
+                        read_scope_id,
+                        import_attempt: Some(item.attempt),
+                        replica_report_tx: Some(replica_report_tx.clone()),
+                    },
+                )
+                .await;
+            completed.push((block_id, item.attempt, result));
+        }
+        completed
+    }
+
+    async fn pull_peer_plan_from_source(
+        &self,
+        metadata: &MetadataClient,
+        read_scope_id: u64,
+        work: &[PeerImportWork],
+        source: &PeerPullSource,
+        replica_report_tx: mpsc::Sender<ReplicaReportJob>,
+    ) -> Vec<PeerImportCompletion> {
+        let channel = match peer_channel_for(&source.endpoint, &self.peer_channels).await {
+            Ok(channel) => channel,
+            Err(_) => return Vec::new(),
+        };
+        let mut client = peer_client(channel);
+        let mut rpc = self
+            .rpc_metrics
+            .begin_client_call(dms_metrics::RpcCall::PEER_PULL_BLOCKS);
+        let request = pb::PeerPullBlocksRequest {
+            source_node_id: self.node_id.clone(),
+            blocks: work
+                .iter()
+                .map(|item| pb::PeerPullBlockSpec {
+                    block_id: item.spec.block_id.clone(),
+                    expected_length: item.spec.expected_length,
+                    expected_checksum: item.spec.expected_checksum.clone(),
+                })
+                .collect(),
+        };
+        let mut stream = match client.pull_blocks(request).await {
+            Ok(response) => response.into_inner(),
+            Err(status) => {
+                if is_retryable_peer_status(&status) {
+                    self.peer_channels.lock().await.remove(&source.endpoint);
+                }
+                return Vec::new();
+            }
+        };
+
+        let mut completed = Vec::with_capacity(work.len());
+        let mut index = 0_usize;
+        let mut payload = Vec::new();
+        let mut serving_node_id = String::new();
+        let mut checksum = Vec::new();
+        let mut installed = Vec::with_capacity(work.len());
+        let mut pending_installs = VecDeque::with_capacity(2);
+        let mut pending_reports = Vec::new();
+        let mut metric = self.metrics.begin_replica_operation(ReplicaOperation::Pull);
+        let mut stream_complete = false;
+        while index < work.len() {
+            let chunk = match stream.message().await {
+                Ok(Some(chunk)) => chunk,
+                Ok(None) | Err(_) => break,
+            };
+            let item = &work[index];
+            if chunk.block_id != item.spec.block_id
+                || chunk.block_length != item.spec.expected_length
+                || chunk.block_offset != payload.len() as u64
+                || chunk.payload.is_empty()
+                || (!item.spec.expected_checksum.is_empty()
+                    && chunk.checksum != item.spec.expected_checksum)
+                || (!checksum.is_empty() && chunk.checksum != checksum)
+            {
+                break;
+            }
+            if payload.is_empty() {
+                let Ok(capacity) = usize::try_from(item.spec.expected_length) else {
+                    break;
+                };
+                if payload.try_reserve_exact(capacity).is_err() {
+                    break;
+                }
+                serving_node_id = chunk.serving_node_id.clone();
+                checksum = chunk.checksum.clone();
+            } else if serving_node_id != chunk.serving_node_id {
+                break;
+            }
+            // 常见 Block 小于单条 chunk 上限。Prost 的 Bytes 可以直接借用解码帧，
+            // 完整单 chunk 不再先复制进临时 Vec；跨 chunk 的大 Block 才组装 Vec。
+            let complete_payload =
+                if payload.is_empty() && chunk.block_offset == 0 && chunk.end_of_block {
+                    Some(chunk.payload)
+                } else {
+                    payload.extend_from_slice(&chunk.payload);
+                    chunk
+                        .end_of_block
+                        .then(|| prost::bytes::Bytes::from(std::mem::take(&mut payload)))
+                };
+            let Some(complete_payload) = complete_payload else {
+                continue;
+            };
+            if complete_payload.len() as u64 != item.spec.expected_length {
+                break;
+            }
+            let verified = digest(&complete_payload);
+            if (!item.spec.expected_checksum.is_empty() && verified != item.spec.expected_checksum)
+                || (!checksum.is_empty() && verified != checksum)
+            {
+                self.metrics.record_replica_checksum_failure();
+                break;
+            }
+            let block_id = item.spec.block_id.clone();
+            let result = self
+                .begin_peer_install(
+                    PeerBlockResult {
+                        serving_node_id: std::mem::take(&mut serving_node_id),
+                        block_id: block_id.clone(),
+                        payload: complete_payload,
+                        checksum: if checksum.is_empty() {
+                            verified
+                        } else {
+                            std::mem::take(&mut checksum)
+                        },
+                        length: item.spec.expected_length,
+                    },
+                    metric,
+                    b"cache-import/",
+                    read_scope_id,
+                    Some(item.attempt),
+                )
+                .await
+                .map_err(PeerImportFailure::terminal);
+            index += 1;
+            match result {
+                Ok(pending) => pending_installs.push_back(pending),
+                Err(error) => {
+                    installed.push((block_id, item.attempt, Err(error), false));
+                    break;
+                }
+            }
+
+            // 一个 Block 在 owner 复制/校验时，继续从 HTTP/2 流接收下一个 Block。
+            // 两项上限把额外内存固定为至多一个 Block，同时消除网络与 Arena 接纳
+            // 完全串行造成的吞吐损失。
+            if pending_installs.len() >= 2 {
+                let pending = pending_installs.pop_front().expect("two pending installs");
+                let failed = self
+                    .finish_peer_plan_install(
+                        metadata,
+                        pending,
+                        source,
+                        &mut pending_reports,
+                        &mut installed,
+                    )
+                    .await;
+                if failed {
+                    break;
+                }
+            }
+            if index == work.len() {
+                stream_complete = true;
+                break;
+            }
+            checksum.clear();
+            metric = self.metrics.begin_replica_operation(ReplicaOperation::Pull);
+        }
+
+        while let Some(pending) = pending_installs.pop_front() {
+            self.finish_peer_plan_install(
+                metadata,
+                pending,
+                source,
+                &mut pending_reports,
+                &mut installed,
+            )
+            .await;
+        }
+        if stream_complete && installed.iter().all(|(_, _, result, _)| result.is_ok()) {
+            rpc.success();
+        }
+        if !pending_reports.is_empty()
+            && replica_report_tx
+                .send(ReplicaReportJob::combine(pending_reports))
+                .await
+                .is_err()
+        {
+            // bytes 已通过 owner 接纳，前台 reader 也可能已经返回；后台位置登记
+            // 通道关闭不能再倒转已完成读取。Node 停止时 Meta 依靠 lease 过期移除位置。
+            dms_logging::warn!(
+                "replica report queue closed after peer plan installation";
+                "event" => "node.peer.report_queue_closed",
+            );
+        }
+        completed.extend(
+            installed
+                .into_iter()
+                .map(|(block_id, attempt, result, _)| (block_id, attempt, result)),
+        );
+        completed
+    }
+
+    /// 完成一个已入队的 owner 安装，并把副本登记事实留给计划级合并。
+    async fn finish_peer_plan_install(
+        &self,
+        metadata: &MetadataClient,
+        pending: PendingPeerInstall,
+        _source: &PeerPullSource,
+        pending_reports: &mut Vec<ReplicaReportJob>,
+        installed: &mut Vec<PeerInstallOutcome>,
+    ) -> bool {
+        let block_id = pending.block_id.clone();
+        let attempt = pending.attempt.expect("peer plan install has an attempt");
+        let result = self
+            .finish_peer_install(metadata, pending)
+            .await
+            .map_err(PeerImportFailure::terminal);
+        #[cfg(feature = "reliability-faults")]
+        if result.is_ok() {
+            let _ = record_source_selection_receipt(&block_id, _source);
+        }
+        let failed = result.is_err();
+        match result {
+            Ok(report) => {
+                let needs_report = report.is_some();
+                pending_reports.extend(report);
+                installed.push((block_id, attempt, Ok(()), needs_report));
+            }
+            Err(error) => installed.push((block_id, attempt, Err(error), false)),
+        }
+        failed
+    }
+
     /// 缓存位置和权威位置的读共用接纳与登记逻辑；本函数的错误不能触发位置回退。
     async fn install_and_report_peer_block(
         &self,
         metadata: &MetadataClient,
         payload: PeerBlockResult,
-        mut metric: super::metrics::ReplicaOperationGuard,
+        metric: super::metrics::ReplicaOperationGuard,
         context: PeerImportContext<'_>,
     ) -> Result<(), WorkerError> {
-        let received_bytes = payload.payload.len();
-        let report_block_id = payload.block_id.clone();
-        let report_checksum = payload.checksum.clone();
-        let report_length = payload.length;
-        let (reply_tx, reply_rx) = oneshot::channel();
-        self.submit(NodeCommand::ImportPeerBlock {
-            block_id: payload.block_id,
-            bytes: payload.payload,
-            checksum: payload.checksum,
-            length: payload.length,
-            read_scope_id: context.read_scope_id,
-            import_attempt: context.import_attempt,
-            reply: reply_tx,
-        })
-        .await?;
-        let needs_report = receive(reply_rx).await?;
-        metric.success_with_payload(ReplicaDirection::Receive, received_bytes);
-        // 该耗时包括拉取、完整校验和本地安装，不包括下面的Meta位置登记。
-        drop(metric);
-        if !needs_report {
+        // `install_peer_block` 消费上下文；先保留 Sender，确保安装完成后仍能把
+        // 控制面登记任务交给后台 Reporter。Sender 的 clone 只增加引用计数。
+        let replica_report_tx = context.replica_report_tx.clone();
+        let Some(job) = self
+            .install_peer_block(metadata, payload, metric, context)
+            .await?
+        else {
             return Ok(());
-        }
-
-        let mut report_operation = context.operation_namespace.to_vec();
-        report_operation.extend_from_slice(&report_block_id);
-        // Report belongs to this Node incarnation. Including node_epoch keeps
-        // a restart from hitting an idempotency result created by an old Node.
-        report_operation.extend_from_slice(&metadata.node_epoch().await.to_be_bytes());
-        let job = ReplicaReportJob::new(
-            report_block_id,
-            report_length,
-            report_checksum,
-            digest(&report_operation),
-        );
-        if let Some(replica_report_tx) = context.replica_report_tx {
+        };
+        if let Some(replica_report_tx) = replica_report_tx {
             // 正常读只等待任务进入有界队列，不等待 Meta WAL 持久化。队列满时
             // send().await 形成明确背压，避免 Meta 故障期间无限积累任务。
             replica_report_tx
@@ -2617,6 +3087,94 @@ impl NodeHandle {
                 .await
                 .map_err(map_metadata_error)
         }
+    }
+
+    /// 完整校验并安装一个 Block，返回需要异步登记的控制面事实。调用方可以把同一
+    /// PullBlocks 计划的多个事实合并后再入队；payload bytes 从不进入 Reporter。
+    async fn install_peer_block(
+        &self,
+        metadata: &MetadataClient,
+        payload: PeerBlockResult,
+        metric: super::metrics::ReplicaOperationGuard,
+        context: PeerImportContext<'_>,
+    ) -> Result<Option<ReplicaReportJob>, WorkerError> {
+        let pending = self
+            .begin_peer_install(
+                payload,
+                metric,
+                context.operation_namespace,
+                context.read_scope_id,
+                context.import_attempt,
+            )
+            .await?;
+        self.finish_peer_install(metadata, pending).await
+    }
+
+    /// 把完整 Block 投递给 Node owner，但不等待 owner 完成复制。PullBlocks 正常路径
+    /// 借此用一个固定为 2 的小流水线重叠“接收下一块”和“安装上一块”。
+    async fn begin_peer_install(
+        &self,
+        payload: PeerBlockResult,
+        metric: super::metrics::ReplicaOperationGuard,
+        operation_namespace: &[u8],
+        read_scope_id: u64,
+        import_attempt: Option<u64>,
+    ) -> Result<PendingPeerInstall, WorkerError> {
+        let received_bytes = payload.payload.len();
+        let report_block_id = payload.block_id.clone();
+        let report_checksum = payload.checksum.clone();
+        let report_length = payload.length;
+        let (reply_tx, reply_rx) = oneshot::channel();
+        self.submit(NodeCommand::ImportPeerBlock {
+            block_id: payload.block_id,
+            bytes: payload.payload,
+            checksum: payload.checksum,
+            length: payload.length,
+            read_scope_id,
+            import_attempt,
+            reply: reply_tx,
+        })
+        .await?;
+        let mut report_operation = operation_namespace.to_vec();
+        report_operation.extend_from_slice(&report_block_id);
+        Ok(PendingPeerInstall {
+            block_id: report_block_id,
+            attempt: import_attempt,
+            receiver: reply_rx,
+            metric,
+            received_bytes,
+            report_length,
+            report_checksum,
+            report_operation,
+        })
+    }
+
+    async fn finish_peer_install(
+        &self,
+        metadata: &MetadataClient,
+        mut pending: PendingPeerInstall,
+    ) -> Result<Option<ReplicaReportJob>, WorkerError> {
+        let needs_report = receive(pending.receiver).await?;
+        pending
+            .metric
+            .success_with_payload(ReplicaDirection::Receive, pending.received_bytes);
+        // 该耗时包括拉取、完整校验和本地安装，不包括下面的 Meta 位置登记。
+        drop(pending.metric);
+        if !needs_report {
+            return Ok(None);
+        }
+
+        // Report belongs to this Node incarnation. Including node_epoch keeps
+        // a restart from hitting an idempotency result created by an old Node.
+        pending
+            .report_operation
+            .extend_from_slice(&metadata.node_epoch().await.to_be_bytes());
+        Ok(Some(ReplicaReportJob::new(
+            pending.block_id,
+            pending.report_length,
+            pending.report_checksum,
+            digest(&pending.report_operation),
+        )))
     }
 
     pub(crate) async fn set_range(&self, input: SetRangeInput) -> Result<SetOutcome, WorkerError> {
@@ -2730,7 +3288,9 @@ impl NodeHandle {
         self.submit(NodeCommand::PrepareReplica {
             plan_id: spec.plan_id,
             block_id: payload.block_id,
-            bytes: payload.payload,
+            // 主动复制流程当前把 prepared bytes 保存在 NodeState 的 owned Vec；
+            // P4 只优化读取接管路径，这里保留明确转换，避免改变副本状态机。
+            bytes: payload.payload.to_vec(),
             checksum: payload.checksum,
             length: payload.length,
             reply: reply_tx,
@@ -3043,7 +3603,14 @@ enum NodeCommand {
         clamp_range: bool,
         output: Vec<u8>,
         cache_refill: Option<(u64, Vec<u8>, Instant, u64)>,
+        /// Filesystem 已持有 Exact Version，offset=0 冷读可接管完整有界布局。
+        prefetch_full_layout: bool,
         reply: oneshot::Sender<Result<DataCoreMaterializeOutcome, WorkerError>>,
+    },
+    PlanFilesystemPeerPrefetch {
+        read_scope_id: u64,
+        resolved: Vec<pb::ResolveObjectResponse>,
+        reply: oneshot::Sender<Result<Vec<PeerPullSpec>, WorkerError>>,
     },
     DataCoreGetCached {
         read_scope_id: u64,
@@ -3057,18 +3624,17 @@ enum NodeCommand {
     },
     ImportPeerBlock {
         block_id: Vec<u8>,
-        bytes: Vec<u8>,
+        bytes: prost::bytes::Bytes,
         checksum: Vec<u8>,
         length: u64,
         read_scope_id: u64,
         import_attempt: Option<u64>,
         reply: oneshot::Sender<Result<bool, WorkerError>>,
     },
-    EnsurePeerBlock {
+    EnsurePeerBlocks {
         read_scope_id: u64,
-        spec: PeerPullSpec,
+        requests: Vec<PeerImportRequest>,
         node: Box<NodeHandle>,
-        reply: oneshot::Sender<Result<(), PeerImportFailure>>,
     },
     Download {
         transfer_id: u64,
@@ -3306,9 +3872,10 @@ impl NodeCommand {
             Self::GetCached { .. } => NodeMailboxCommand::GetCached,
             Self::MaterializeResolved { .. } => NodeMailboxCommand::MaterializeResolved,
             Self::DataCoreMaterializeInto { .. } => NodeMailboxCommand::MaterializeResolved,
+            Self::PlanFilesystemPeerPrefetch { .. } => NodeMailboxCommand::MaterializeResolved,
             Self::DataCoreGetCached { .. } => NodeMailboxCommand::GetCached,
             Self::ImportPeerBlock { .. } => NodeMailboxCommand::ImportPeerBlock,
-            Self::EnsurePeerBlock { .. } => NodeMailboxCommand::ImportPeerBlock,
+            Self::EnsurePeerBlocks { .. } => NodeMailboxCommand::ImportPeerBlock,
             Self::Download { .. } => NodeMailboxCommand::Download,
             Self::PeerProbe { .. } => NodeMailboxCommand::PeerProbe,
             Self::PeerPullBlock { .. } => NodeMailboxCommand::PeerPullBlock,
@@ -3372,7 +3939,7 @@ async fn run_node(
     let mut maintenance = tokio::time::interval(Duration::from_secs(1));
     let mut writes = tokio::task::JoinSet::<ApplyWrite>::new();
     // owner 保管表和任务集合；Future 只做网络等待，并通过原 Import 命令交回 bytes。
-    let mut peer_imports = tokio::task::JoinSet::<PeerImportCompletion>::new();
+    let mut peer_imports = tokio::task::JoinSet::<Vec<PeerImportCompletion>>::new();
     loop {
         // recv().await 在队列为空时挂起；maintenance tick 同样在这个唯一 owner
         // 内执行，因此回收不会引入第二个 Arena 状态入口。
@@ -3380,8 +3947,14 @@ async fn run_node(
         let queued = tokio::select! {
             completed = peer_imports.join_next_with_id(), if !peer_imports.is_empty() => {
                 match completed {
-                    Some(Ok((_, (block_id, attempt, result)))) => {
-                        state.complete_peer_import(&block_id, attempt, result);
+                    Some(Ok((_, completed))) => {
+                        for (block_id, attempt, result) in completed {
+                            state.complete_peer_import(
+                                &block_id,
+                                attempt,
+                                result.map(|()| None),
+                            );
+                        }
                     }
                     Some(Err(error)) => state.fail_peer_import_task(error.id()),
                     None => {}
@@ -3866,6 +4439,7 @@ async fn run_node(
                     clamp_range,
                     output,
                     cache_refill,
+                    prefetch_full_layout,
                     reply,
                 } => {
                     if reply.is_closed() {
@@ -3879,7 +4453,20 @@ async fn run_node(
                         clamp_range,
                         output,
                         cache_refill,
+                        prefetch_full_layout,
                     ));
+                }
+                NodeCommand::PlanFilesystemPeerPrefetch {
+                    read_scope_id,
+                    resolved,
+                    reply,
+                } => {
+                    if reply.is_closed() {
+                        state.finish_read_scope(read_scope_id);
+                        return;
+                    }
+                    let _ = reply
+                        .send(state.plan_filesystem_directory_prefetch(read_scope_id, &resolved));
                 }
                 NodeCommand::DataCoreGetCached {
                     read_scope_id,
@@ -3906,45 +4493,59 @@ async fn run_node(
                     );
                     let _ = reply.send(result);
                 }
-                NodeCommand::EnsurePeerBlock {
+                NodeCommand::EnsurePeerBlocks {
                     read_scope_id,
-                    spec,
+                    requests,
                     node,
-                    reply,
                 } => {
-                    if let Some(attempt) = state.begin_peer_import(read_scope_id, &spec, reply) {
-                        let block_id = spec.block_id.clone();
-                        let task_block_id = block_id.clone();
+                    let mut work = Vec::new();
+                    for (spec, reply) in requests {
+                        if let Some(attempt) = state.begin_peer_import(read_scope_id, &spec, reply)
+                        {
+                            work.push(PeerImportWork { spec, attempt });
+                        }
+                    }
+                    if !work.is_empty() {
+                        let block_ids = work
+                            .iter()
+                            .map(|item| item.spec.block_id.clone())
+                            .collect::<Vec<_>>();
                         let replica_report_tx = replica_report_tx.clone();
                         let task = peer_imports.spawn(
                             async move {
-                                let result = match node.metadata.as_ref() {
+                                match node.metadata.as_ref() {
                                     Some(metadata) => {
-                                        node.pull_and_report_peer_block(
+                                        node.pull_and_report_peer_blocks(
                                             metadata,
-                                            spec,
-                                            PeerImportContext {
-                                                operation_namespace: b"cache-import/",
-                                                read_scope_id,
-                                                import_attempt: Some(attempt),
-                                                replica_report_tx: Some(replica_report_tx),
-                                            },
+                                            read_scope_id,
+                                            work,
+                                            replica_report_tx,
                                         )
                                         .await
                                     }
-                                    None => Err(PeerImportFailure::terminal(
-                                        WorkerError::MetadataUnavailable,
-                                    )),
-                                };
-                                (task_block_id, attempt, result)
+                                    None => work
+                                        .into_iter()
+                                        .map(|item| {
+                                            (
+                                                item.spec.block_id,
+                                                item.attempt,
+                                                Err(PeerImportFailure::terminal(
+                                                    WorkerError::MetadataUnavailable,
+                                                )),
+                                            )
+                                        })
+                                        .collect(),
+                                }
                             }
                             .instrument(dms_tracing::tracing::Span::current()),
                         );
-                        state
-                            .peer_imports
-                            .get_mut(&block_id)
-                            .expect("new peer import")
-                            .task_id = Some(task.id());
+                        for block_id in block_ids {
+                            state
+                                .peer_imports
+                                .get_mut(&block_id)
+                                .expect("new peer import")
+                                .task_id = Some(task.id());
+                        }
                     }
                 }
                 NodeCommand::ImportPeerBlock {
@@ -3965,13 +4566,26 @@ async fn run_node(
                         let _ = reply.send(Err(error));
                         return;
                     }
-                    let _ = reply.send(state.import_peer_block(
-                        read_scope_id,
-                        block_id,
-                        bytes,
-                        checksum,
-                        length,
-                    ));
+                    let completion_block_id = block_id.clone();
+                    // Bytes::clone 只增加引用计数。Arena 仍接管一份实际拷贝；成功后
+                    // 把这份已经过 owner 校验的不可变接收缓冲交给当前等待读，省去
+                    // 立即从 Arena 再复制一次的往返。
+                    let imported_bytes = bytes.clone();
+                    let result =
+                        state.import_peer_block(read_scope_id, block_id, bytes, checksum, length);
+                    // 一条 PullBlocks 流可能持续搬运数百个 Block。每个 Block 一旦
+                    // 通过 owner 的完整性校验并进入 Arena，就立即完成自己的 flight，
+                    // 让覆盖当前 FUSE range 的读先返回；无需等待整条流结束。
+                    if result.is_ok()
+                        && let Some(attempt) = import_attempt
+                    {
+                        state.complete_peer_import(
+                            &completion_block_id,
+                            attempt,
+                            Ok(Some(imported_bytes)),
+                        );
+                    }
+                    let _ = reply.send(result);
                 }
                 NodeCommand::Download { transfer_id, reply } => {
                     let _ = reply.send(state.download(transfer_id));
@@ -4124,35 +4738,59 @@ async fn run_node(
                     apply_directory_mutation,
                     reply,
                 } => {
-                    let refreshed_directories = resolved.refreshed_directories.clone();
+                    let ResolvedDentry {
+                        dentry,
+                        resolved,
+                        directory_grant,
+                        refreshed_directories,
+                        entry_reference_lease_millis,
+                        entry_reference_generation,
+                        prefetched_entries,
+                    } = resolved;
                     if apply_directory_mutation {
-                        state.filesystem_bindings.revoke(
-                            resolved.dentry.parent,
-                            resolved.directory_grant.grant.generation,
-                        );
+                        state
+                            .filesystem_bindings
+                            .revoke(dentry.parent, directory_grant.grant.generation);
                         state.filesystem_dentries.apply_local_mutation(
-                            resolved.dentry.parent,
-                            resolved.directory_grant.directory_revision,
-                            resolved.directory_grant.grant.generation,
-                            std::slice::from_ref(&resolved.dentry.name),
+                            dentry.parent,
+                            directory_grant.directory_revision,
+                            directory_grant.grant.generation,
+                            std::slice::from_ref(&dentry.name),
                         );
                     }
                     state.filesystem_dentries.insert_positive(
-                        resolved.dentry,
-                        resolved.directory_grant,
+                        dentry,
+                        directory_grant,
                         Instant::now(),
                     );
-                    let inode = resolved.resolved.granted.inode.attributes.inode;
-                    state
-                        .filesystem_bindings
-                        .insert(resolved.resolved, Instant::now());
+                    let inode = resolved.granted.inode.attributes.inode;
+                    state.filesystem_bindings.insert(resolved, Instant::now());
+                    // 顺带条目和主条目来自同一个 Meta actor turn，共用同一份
+                    // DirectoryGrant。它们同时安装 count=0 的短期 reference
+                    // reservation；内核真正 lookup 时才在本地升级为 nlookup。
+                    for prefetched in prefetched_entries {
+                        let inode = prefetched.resolved.granted.inode.attributes.inode;
+                        state.filesystem_dentries.insert_positive(
+                            prefetched.dentry,
+                            directory_grant,
+                            Instant::now(),
+                        );
+                        state
+                            .filesystem_bindings
+                            .insert(prefetched.resolved, Instant::now());
+                        state.install_filesystem_inode_reference_reservation(
+                            inode,
+                            prefetched.entry_reference_generation,
+                            prefetched.entry_reference_lease_millis,
+                        );
+                    }
                     for directory in refreshed_directories {
                         state.filesystem_bindings.insert(directory, Instant::now());
                     }
                     state.install_filesystem_inode_reference(
                         inode,
-                        resolved.entry_reference_generation,
-                        resolved.entry_reference_lease_millis,
+                        entry_reference_generation,
+                        entry_reference_lease_millis,
                     );
                     let _ = reply.send(Ok(()));
                 }
@@ -4543,19 +5181,28 @@ impl NodeState {
         if inode == ROOT_INODE {
             return None;
         }
+        let now = Instant::now();
         if let Some(reference) = self.filesystem_inode_references.get_mut(&inode) {
-            reference.count = reference.count.saturating_add(1);
-            self.metrics.record_filesystem_inode_reference_transition(
-                FilesystemInodeReferenceTransition::Retain,
-            );
-            dms_logging::debug!(
-                "retained local filesystem inode reference";
-                "event" => "node.filesystem.reference.retained",
-                "inode" => inode,
-                "generation" => reference.generation,
-                "count" => reference.count,
-            );
-            return None;
+            if reference.count != 0 || reference.lease_until > now {
+                // count=0 表示目录预取留下的短期 reservation。
+                // 内核真正 lookup 时在 owner turn 内升级为活跃引用，
+                // 不再单独访问 Meta。
+                reference.count = reference.count.saturating_add(1);
+                self.metrics.record_filesystem_inode_reference_transition(
+                    FilesystemInodeReferenceTransition::Retain,
+                );
+                dms_logging::debug!(
+                    "retained local filesystem inode reference";
+                    "event" => "node.filesystem.reference.retained",
+                    "inode" => inode,
+                    "generation" => reference.generation,
+                    "count" => reference.count,
+                );
+                return None;
+            }
+            // 未使用的 reservation 已过期；本次 lookup 必须重新建立
+            // Meta 保护，不能把过期 generation 当成活跃引用。
+            self.filesystem_inode_references.remove(&inode);
         }
         let generation = next_filesystem_reference_generation();
         self.filesystem_inode_references.insert(
@@ -4580,6 +5227,40 @@ impl NodeState {
             "count" => 1_u64,
         );
         Some(generation)
+    }
+
+    fn install_filesystem_inode_reference_reservation(
+        &mut self,
+        inode: InodeId,
+        generation: u64,
+        lease_millis: u64,
+    ) {
+        if inode == ROOT_INODE || generation == 0 || lease_millis == 0 {
+            return;
+        }
+        let lease_until = Instant::now() + Duration::from_millis(lease_millis);
+        match self.filesystem_inode_references.get_mut(&inode) {
+            Some(reference) if reference.count != 0 => {
+                // 活跃 nlookup 由 heartbeat 续租，预取不改变其计数、世代或 TTL。
+            }
+            Some(reference) => {
+                reference.generation = generation;
+                reference.lease_until = reference.lease_until.max(lease_until);
+            }
+            None => {
+                self.filesystem_inode_references.insert(
+                    inode,
+                    LocalFilesystemInodeReference {
+                        count: 0,
+                        generation,
+                        lease_until,
+                        eager_meta_release: false,
+                    },
+                );
+                self.metrics
+                    .set_filesystem_inode_references(self.filesystem_inode_references.len());
+            }
+        }
     }
 
     fn install_filesystem_inode_reference(
@@ -4639,6 +5320,9 @@ impl NodeState {
     fn filesystem_inode_reference_snapshot(&self) -> Vec<(InodeId, u64)> {
         self.filesystem_inode_references
             .iter()
+            // count=0 是未被内核使用的短期预留，不得通过 heartbeat
+            // 把它变成长期引用。
+            .filter(|(_, reference)| reference.count != 0)
             .map(|(inode, reference)| (*inode, reference.generation))
             .collect()
     }
@@ -4785,7 +5469,7 @@ impl NodeState {
             block_id,
             checksum,
             length: full_length,
-            payload,
+            payload: payload.into(),
         })
     }
 
@@ -6104,6 +6788,7 @@ impl NodeState {
                 clamp_range,
                 output,
                 None,
+                false,
             )? {
                 DataCoreMaterializeOutcome::Ready(result) => {
                     DataCoreCachedReadOutcome::Ready(result)
@@ -6111,7 +6796,7 @@ impl NodeState {
                 DataCoreMaterializeOutcome::BufferTooSmall { version, required } => {
                     DataCoreCachedReadOutcome::BufferTooSmall { version, required }
                 }
-                DataCoreMaterializeOutcome::NeedsRemoteBlocks { specs, output } => {
+                DataCoreMaterializeOutcome::NeedsRemoteBlocks { specs, output, .. } => {
                     DataCoreCachedReadOutcome::NeedsRemoteBlocks {
                         resolved,
                         specs,
@@ -6551,6 +7236,10 @@ impl NodeState {
         })
     }
 
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "owner-side materialization deliberately receives independent read-scope, exact layout, range, caller buffer, cache-refill authority, and full-layout prefetch policy"
+    )]
     fn materialize_resolved_into_for_data_core(
         &mut self,
         read_scope_id: u64,
@@ -6559,6 +7248,7 @@ impl NodeState {
         clamp_range: bool,
         mut output: Vec<u8>,
         cache_refill: Option<(u64, Vec<u8>, Instant, u64)>,
+        prefetch_full_layout: bool,
     ) -> Result<DataCoreMaterializeOutcome, WorkerError> {
         let Some(layout) = resolved.layout.as_ref() else {
             return Ok(DataCoreMaterializeOutcome::NotFound);
@@ -6592,7 +7282,7 @@ impl NodeState {
                 continue;
             }
             if super::version_layout::is_hole(extent) {
-                planned.push(PlannedReadPart::Zero {
+                planned.push(DataCorePlannedReadPart::Zero {
                     logical_offset: start - requested.0,
                     length: end - start,
                 });
@@ -6615,7 +7305,7 @@ impl NodeState {
                 self.arena.open_read(&extent.block_id, Some(block_range))
             };
             match local {
-                Ok((read, _)) => planned.push(PlannedReadPart::Block {
+                Ok((read, _)) => planned.push(DataCorePlannedReadPart::Block {
                     logical_offset: start - requested.0,
                     read,
                 }),
@@ -6627,23 +7317,24 @@ impl NodeState {
                         missing
                             .push(self.describe_missing_block(&resolved.block_replicas, extent)?);
                     }
+                    planned.push(DataCorePlannedReadPart::Remote {
+                        logical_offset: start - requested.0,
+                        block_id: extent.block_id.clone(),
+                        block_offset,
+                        length: end - start,
+                    });
                 }
                 Err(error) => return Err(map_arena_error(error)),
             }
         }
-        if !missing.is_empty() {
-            return Ok(DataCoreMaterializeOutcome::NeedsRemoteBlocks {
-                specs: missing,
-                output,
-            });
-        }
         if requested.1 > 0 && planned.is_empty() {
             return Ok(DataCoreMaterializeOutcome::NotFound);
         }
-        planned.sort_by_key(planned_read_part_offset);
+        planned.sort_by_key(data_core_planned_read_part_offset);
         let mut cursor = 0_u64;
+        let mut remote_parts = Vec::new();
         for part in planned {
-            let offset = planned_read_part_offset(&part);
+            let offset = data_core_planned_read_part_offset(&part);
             if offset != cursor {
                 return Err(WorkerError::InvalidArgument(
                     "layout extents contain a gap or overlap",
@@ -6651,7 +7342,7 @@ impl NodeState {
             }
             let start = usize::try_from(cursor).map_err(|_| WorkerError::ResourceExhausted)?;
             match part {
-                PlannedReadPart::Zero { length, .. } => {
+                DataCorePlannedReadPart::Zero { length, .. } => {
                     let length_usize =
                         usize::try_from(length).map_err(|_| WorkerError::ResourceExhausted)?;
                     let end = start
@@ -6662,7 +7353,7 @@ impl NodeState {
                         .checked_add(length)
                         .ok_or(WorkerError::ResourceExhausted)?;
                 }
-                PlannedReadPart::Block { read, .. } => {
+                DataCorePlannedReadPart::Block { read, .. } => {
                     let written = self
                         .arena
                         .read_ticket_into(read, &mut output[start..])
@@ -6671,12 +7362,52 @@ impl NodeState {
                         .checked_add(written as u64)
                         .ok_or(WorkerError::ResourceExhausted)?;
                 }
+                DataCorePlannedReadPart::Remote {
+                    logical_offset,
+                    block_id,
+                    block_offset,
+                    length,
+                } => {
+                    remote_parts.push(RemoteReadPart {
+                        logical_offset,
+                        block_id,
+                        block_offset,
+                        length,
+                    });
+                    cursor = cursor
+                        .checked_add(length)
+                        .ok_or(WorkerError::ResourceExhausted)?;
+                }
             }
         }
         if cursor != requested.1 {
             return Err(WorkerError::InvalidArgument(
                 "layout extents do not cover requested range",
             ));
+        }
+        if !missing.is_empty() {
+            let required_blocks = missing
+                .iter()
+                .map(|spec| spec.block_id.clone())
+                .collect::<HashSet<_>>();
+            if prefetch_full_layout {
+                missing = self.expand_filesystem_peer_prefetch(
+                    read_scope_id,
+                    layout,
+                    &resolved.block_replicas,
+                    requested,
+                    missing,
+                );
+            }
+            return Ok(DataCoreMaterializeOutcome::NeedsRemoteBlocks {
+                specs: missing,
+                required_blocks,
+                remote_parts,
+                version: layout.version,
+                logical_length: layout.logical_length,
+                bytes_read: required,
+                output,
+            });
         }
         if self.metadata_watch_connected
             && Instant::now() < self.metadata_lease_until
@@ -6700,6 +7431,138 @@ impl NodeState {
             bytes: output,
             bytes_read: usize::try_from(cursor).map_err(|_| WorkerError::ResourceExhausted)?,
         }))
+    }
+
+    /// 把 Filesystem 的 offset=0 冷读从“每个 FUSE read 回调补一个 Block”提升为
+    /// “一次接管这个 Exact Version 的完整有界布局”。这里只扩展接管计划，不改变
+    /// 当前 read 返回的 range；后续回调直接读取 Arena 中已经校验过的 immutable Block。
+    ///
+    /// 预取是机会性的：布局过大、Block 过多、预算不足或任一非请求 Block 当前无法
+    /// 安全解析时，退回原请求真正需要的缺块，避免让一个小 range 因预取失败而失败。
+    fn expand_filesystem_peer_prefetch(
+        &self,
+        read_scope_id: u64,
+        layout: &pb::VersionLayout,
+        block_replicas: &[pb::BlockReplicaSet],
+        requested: (u64, u64),
+        requested_missing: Vec<PeerPullSpec>,
+    ) -> Vec<PeerPullSpec> {
+        if requested.0 != 0
+            || requested.1 == 0
+            || requested.1 >= layout.logical_length
+            || layout.logical_length > FILESYSTEM_PEER_PREFETCH_BYTES_MAX
+            || layout.extents.len() > PEER_PULL_PLAN_BLOCKS_MAX
+        {
+            return requested_missing;
+        }
+
+        let available_budget = self
+            .peer_import_byte_limit
+            .saturating_sub(self.peer_import_bytes);
+        let mut planned_bytes = 0_u64;
+        let mut seen = HashSet::new();
+        let mut planned = Vec::new();
+        for extent in &layout.extents {
+            if super::version_layout::is_hole(extent) || !seen.insert(extent.block_id.clone()) {
+                continue;
+            }
+            if self
+                .arena
+                .block_length_and_digest(&extent.block_id)
+                .is_some()
+            {
+                continue;
+            }
+            if self.retirement_blocks_new_reads(&extent.block_id, read_scope_id)
+                || self.peer_import_failures.contains_key(&extent.block_id)
+            {
+                return requested_missing;
+            }
+            let Ok(spec) = self.describe_missing_block(block_replicas, extent) else {
+                return requested_missing;
+            };
+            if !self.peer_imports.contains_key(&extent.block_id) {
+                let Some(next) = planned_bytes.checked_add(spec.expected_length) else {
+                    return requested_missing;
+                };
+                planned_bytes = next;
+                if planned_bytes > available_budget {
+                    return requested_missing;
+                }
+            }
+            planned.push(spec);
+            if planned.len() > PEER_PULL_PLAN_BLOCKS_MAX {
+                return requested_missing;
+            }
+        }
+        if planned.is_empty() {
+            requested_missing
+        } else {
+            planned
+        }
+    }
+
+    /// 把目录 lookup 窗口里的多个文件布局收敛成一个 Peer 导入计划。
+    ///
+    /// 这里只返回当前确实缺失的 immutable Block；Arena 已命中、空洞和重复
+    /// Block 都不进入计划。目录预取只接管“整个布局都能放进窗口”的小对象，
+    /// 不能只拉一个大对象的前缀：否则后续 offset=0 的冷读会误以为首个窗口
+    /// 已命中，无法把完整 Exact Version 合并为一条 PullBlocks 流。大对象由
+    /// 真正 read 的顺序首读计划接管；坏的顺带条目也不能拒绝主 lookup。
+    fn plan_filesystem_directory_prefetch(
+        &self,
+        read_scope_id: u64,
+        objects: &[pb::ResolveObjectResponse],
+    ) -> Result<Vec<PeerPullSpec>, WorkerError> {
+        let available_budget = self
+            .peer_import_byte_limit
+            .saturating_sub(self.peer_import_bytes)
+            .min(FILESYSTEM_DIRECTORY_PREFETCH_BYTES_MAX);
+        let mut planned_bytes = 0_u64;
+        let mut seen = HashSet::new();
+        let mut planned = Vec::new();
+
+        'objects: for resolved in objects {
+            let Some(layout) = resolved.layout.as_ref() else {
+                continue;
+            };
+            if super::version_layout::validate(layout.logical_length, &layout.extents).is_err() {
+                continue;
+            }
+            // 小文件目录预取的价值是合并大量完整对象，而不是提前搬运大文件
+            // 的任意前缀。超过窗口的对象整体跳过，后面的较小 sibling 仍可加入。
+            if layout.logical_length > FILESYSTEM_DIRECTORY_PREFETCH_BYTES_MAX {
+                continue;
+            }
+            for extent in &layout.extents {
+                if super::version_layout::is_hole(extent) || !seen.insert(extent.block_id.clone()) {
+                    continue;
+                }
+                if self
+                    .arena
+                    .block_length_and_digest(&extent.block_id)
+                    .is_some()
+                    || self.retirement_blocks_new_reads(&extent.block_id, read_scope_id)
+                    || self.peer_import_failures.contains_key(&extent.block_id)
+                {
+                    continue;
+                }
+                let Ok(spec) = self.describe_missing_block(&resolved.block_replicas, extent) else {
+                    continue;
+                };
+                let Some(next_bytes) = planned_bytes.checked_add(spec.expected_length) else {
+                    break 'objects;
+                };
+                if next_bytes > available_budget
+                    || planned.len() >= FILESYSTEM_DIRECTORY_PREFETCH_BLOCKS_MAX
+                {
+                    break 'objects;
+                }
+                planned_bytes = next_bytes;
+                planned.push(spec);
+            }
+        }
+        Ok(planned)
     }
 
     fn grpc_download_target(
@@ -6769,7 +7632,7 @@ impl NodeState {
         &mut self,
         read_scope_id: u64,
         spec: &PeerPullSpec,
-        reply: oneshot::Sender<Result<(), PeerImportFailure>>,
+        reply: oneshot::Sender<Result<Option<prost::bytes::Bytes>, PeerImportFailure>>,
     ) -> Option<u64> {
         if reply.is_closed() {
             return None;
@@ -6807,14 +7670,20 @@ impl NodeState {
             if length == spec.expected_length
                 && (spec.expected_checksum.is_empty() || checksum == spec.expected_checksum)
             {
-                let _ = reply.send(Ok(()));
+                // 该块在 Ensure 命令到达 owner 前已经安装。当前调用重新走一次
+                // Arena 物化即可；不为这个极小竞态额外复制完整 Block。
+                let _ = reply.send(Ok(None));
             } else {
                 reject(reply, WorkerError::Conflict);
             }
             return None;
         }
         let charged = self.peer_import_bytes.checked_add(spec.expected_length);
-        if self.peer_imports.len() + self.peer_import_failures.len() >= NODE_MAILBOX_CAPACITY
+        // mailbox 容量约束“排队的命令数”，不能拿来限制一条已经入队的
+        // PullBlocks 计划里有多少 Block。否则 512 MiB / 1 MiB Block 的正常计划
+        // 会在第 257 个 Block 被截断，重新退化成每个 FUSE read 一次 RPC。
+        // flight 表使用协议计划自身的有界上限，bytes 仍由下面的独立预算约束。
+        if self.peer_imports.len() + self.peer_import_failures.len() >= PEER_PULL_PLAN_BLOCKS_MAX
             || charged.is_none_or(|bytes| bytes > self.peer_import_byte_limit)
         {
             reject(reply, WorkerError::ResourceExhausted);
@@ -6861,7 +7730,7 @@ impl NodeState {
         &mut self,
         block_id: &[u8],
         attempt: u64,
-        result: Result<(), PeerImportFailure>,
+        result: Result<Option<prost::bytes::Bytes>, PeerImportFailure>,
     ) {
         if self
             .peer_imports
@@ -6907,11 +7776,16 @@ impl NodeState {
     }
 
     fn fail_peer_import_task(&mut self, task_id: tokio::task::Id) {
-        // 只在 panic/任务取消的异常路径扫描有界表；正常完成直接按 Block+attempt 查找。
-        let failed = self.peer_imports.iter().find_map(|(block_id, flight)| {
-            (flight.task_id == Some(task_id)).then_some((block_id.clone(), flight.attempt))
-        });
-        if let Some((block_id, attempt)) = failed {
+        // 一条 PullBlocks 任务可能同时拥有多个 flight。只在 panic/任务取消的
+        // 异常路径扫描有界表；正常完成仍直接按 Block+attempt 查找。
+        let failed = self
+            .peer_imports
+            .iter()
+            .filter_map(|(block_id, flight)| {
+                (flight.task_id == Some(task_id)).then_some((block_id.clone(), flight.attempt))
+            })
+            .collect::<Vec<_>>();
+        for (block_id, attempt) in failed {
             self.complete_peer_import(
                 &block_id,
                 attempt,
@@ -6926,10 +7800,11 @@ impl NodeState {
         &mut self,
         read_scope_id: u64,
         block_id: Vec<u8>,
-        bytes: Vec<u8>,
+        bytes: impl Into<prost::bytes::Bytes>,
         checksum: Vec<u8>,
         length: u64,
     ) -> Result<bool, WorkerError> {
+        let bytes = bytes.into();
         if length != bytes.len() as u64 {
             return Err(WorkerError::Conflict);
         }
@@ -6945,7 +7820,7 @@ impl NodeState {
             return Err(WorkerError::Conflict);
         }
         self.arena
-            .commit_inline_with_verified_digest(block_id, bytes, verified_digest)
+            .commit_inline_from_slice_with_verified_digest(&block_id, &bytes, verified_digest)
             .map_err(map_arena_error)?;
         Ok(!retiring_for_old_scope)
     }
@@ -7977,6 +8852,21 @@ fn map_arena_error(error: ArenaError) -> WorkerError {
     }
 }
 
+fn common_peer_source(work: &[PeerImportWork]) -> Option<PeerPullSource> {
+    let first = work.first()?;
+    first.spec.sources.iter().find_map(|candidate| {
+        work.iter()
+            .all(|item| {
+                item.spec.sources.iter().any(|source| {
+                    source.node_id == candidate.node_id
+                        && source.node_epoch == candidate.node_epoch
+                        && source.endpoint == candidate.endpoint
+                })
+            })
+            .then(|| candidate.clone())
+    })
+}
+
 async fn pull_block_from_peers(
     source_node_id: &str,
     spec: PeerPullSpec,
@@ -8101,7 +8991,7 @@ async fn pull_block_from_peer_source(
     Ok(PeerBlockResult {
         serving_node_id,
         block_id: spec.block_id.clone(),
-        payload,
+        payload: payload.into(),
         checksum,
         length: spec.expected_length,
     })
@@ -8477,6 +9367,39 @@ mod tests {
         }
     }
 
+    #[test]
+    fn filesystem_prefetch_reference_is_promoted_locally_but_not_renewed_while_unused() {
+        let mut state = NodeState::new("node-a".into(), None, 4096, Duration::from_secs(30), None);
+        let inode = 77;
+        state.install_filesystem_inode_reference_reservation(inode, 19, 1_000);
+
+        assert!(state.filesystem_inode_reference_snapshot().is_empty());
+        assert_eq!(
+            state.acquire_filesystem_inode_reference_local(inode),
+            None,
+            "live reservation must avoid a per-file Meta acquire"
+        );
+        assert_eq!(
+            state.filesystem_inode_reference_snapshot(),
+            vec![(inode, 19)]
+        );
+        assert_eq!(
+            state.release_filesystem_inode_reference_local(inode, 1),
+            Some((19, false))
+        );
+
+        state.install_filesystem_inode_reference_reservation(inode, 20, 1_000);
+        state
+            .filesystem_inode_references
+            .get_mut(&inode)
+            .expect("reservation")
+            .lease_until = Instant::now() - Duration::from_millis(1);
+        let replacement = state
+            .acquire_filesystem_inode_reference_local(inode)
+            .expect("expired reservation must reacquire Meta protection");
+        assert_ne!(replacement, 20);
+    }
+
     fn assert_peer_import_metrics(
         registry: &dms_metrics::Registry,
         inflight: usize,
@@ -8716,6 +9639,198 @@ mod tests {
             length,
             proofs: Vec::new(),
         }
+    }
+
+    #[test]
+    fn filesystem_offset_zero_peer_miss_expands_to_full_bounded_layout() {
+        let state = NodeState::new("node-a".into(), None, 4096, Duration::from_secs(30), None);
+        let first = test_extent(0, 4, b"first", 0);
+        let second = test_extent(4, 4, b"second", 0);
+        let layout = pb::VersionLayout {
+            version: 7,
+            logical_length: 8,
+            extents: vec![first.clone(), second],
+            digest: b"layout".to_vec(),
+            kind: pb::VersionKind::Value as i32,
+        };
+        let replicas = vec![replica_set(b"first", 4), replica_set(b"second", 4)];
+        let requested = vec![
+            state
+                .describe_missing_block(&replicas, &first)
+                .expect("first block has a peer"),
+        ];
+
+        let expanded =
+            state.expand_filesystem_peer_prefetch(1, &layout, &replicas, (0, 4), requested.clone());
+        assert_eq!(expanded.len(), 2, "首个顺序 range 接管完整 Exact Version");
+
+        let random =
+            state.expand_filesystem_peer_prefetch(1, &layout, &replicas, (4, 4), requested);
+        assert_eq!(random.len(), 1, "非零 offset 仍保持真正按需读取");
+    }
+
+    #[test]
+    fn directory_prefetch_skips_large_object_instead_of_pulling_its_prefix() {
+        let state = NodeState::new("node-a".into(), None, 4096, Duration::from_secs(30), None);
+        let large_length = FILESYSTEM_DIRECTORY_PREFETCH_BYTES_MAX + 1;
+        let mut large = resolved_value(
+            7,
+            large_length,
+            vec![test_extent(0, large_length, b"large", 0)],
+        );
+        large.block_replicas = vec![replica_set(b"large", large_length)];
+
+        let mut small = resolved_value(8, 4, vec![test_extent(0, 4, b"small", 0)]);
+        small.block_replicas = vec![replica_set(b"small", 4)];
+
+        let planned = state
+            .plan_filesystem_directory_prefetch(1, &[large, small])
+            .expect("directory prefetch planning succeeds");
+
+        assert_eq!(planned.len(), 1, "大对象不应占用目录预取窗口");
+        assert_eq!(planned[0].block_id, b"small");
+    }
+
+    #[test]
+    fn filesystem_peer_miss_reuses_installed_bytes_without_second_materialize() {
+        let mut state = NodeState::new("node-a".into(), None, 4096, Duration::from_secs(30), None);
+        state
+            .arena
+            .commit_inline(b"local".to_vec(), b"left".to_vec())
+            .expect("install local prefix");
+        let resolved = pb::ResolveObjectResponse {
+            layout: Some(pb::VersionLayout {
+                version: 7,
+                logical_length: 8,
+                extents: vec![
+                    test_extent(0, 4, b"local", 0),
+                    test_extent(4, 4, b"remote", 0),
+                ],
+                digest: b"layout".to_vec(),
+                kind: pb::VersionKind::Value as i32,
+            }),
+            block_replicas: vec![replica_set(b"remote", 4)],
+            current_lease: None,
+        };
+
+        let outcome = state
+            .materialize_resolved_into_for_data_core(
+                1,
+                &resolved,
+                Some((0, 8)),
+                false,
+                vec![0; 8],
+                None,
+                true,
+            )
+            .expect("build peer read plan");
+        let DataCoreMaterializeOutcome::NeedsRemoteBlocks {
+            remote_parts,
+            mut output,
+            bytes_read,
+            ..
+        } = outcome
+        else {
+            panic!("remote suffix must require peer import")
+        };
+        assert_eq!(&output[..4], b"left");
+        assert_eq!(bytes_read, 8);
+        assert_eq!(remote_parts.len(), 1);
+
+        let imported = HashMap::from([(
+            b"remote".to_vec(),
+            prost::bytes::Bytes::from_static(b"rght"),
+        )]);
+        assert!(
+            NodeHandle::fill_imported_parts(&mut output, &remote_parts, &imported)
+                .expect("fill imported suffix")
+        );
+        assert_eq!(output, b"leftrght");
+    }
+
+    #[test]
+    fn peer_import_plan_capacity_is_not_coupled_to_mailbox_capacity() {
+        let mut state = NodeState::new("node-a".into(), None, 1024, Duration::from_secs(30), None);
+        let scope = 1;
+        state.active_read_scopes.insert(scope);
+        let mut receivers = Vec::new();
+
+        for index in 0..512_u64 {
+            let block_id = format!("block-{index}").into_bytes();
+            let spec = PeerPullSpec::single_source(
+                "http://127.0.0.1:25299".to_string(),
+                block_id,
+                digest(&[index as u8]),
+                1,
+            );
+            let (reply, receiver) = oneshot::channel();
+            receivers.push(receiver);
+            assert!(
+                state.begin_peer_import(scope, &spec, reply).is_some(),
+                "一个有界 PullBlocks 计划不应在 mailbox 的 256 条边界被截断"
+            );
+        }
+
+        assert_eq!(state.peer_imports.len(), 512);
+        assert_eq!(state.peer_import_bytes, 512);
+    }
+
+    #[test]
+    fn peer_import_completion_is_published_per_block_before_plan_ends() {
+        let mut state = NodeState::new("node-a".into(), None, 4096, Duration::from_secs(30), None);
+        let scope = 1;
+        state.active_read_scopes.insert(scope);
+
+        let first_bytes = b"first".to_vec();
+        let second_bytes = b"second".to_vec();
+        let first = PeerPullSpec::single_source(
+            "http://127.0.0.1:25299".to_string(),
+            b"first-block".to_vec(),
+            digest(&first_bytes),
+            first_bytes.len() as u64,
+        );
+        let second = PeerPullSpec::single_source(
+            "http://127.0.0.1:25299".to_string(),
+            b"second-block".to_vec(),
+            digest(&second_bytes),
+            second_bytes.len() as u64,
+        );
+        let (first_reply, mut first_receiver) = oneshot::channel();
+        let (second_reply, mut second_receiver) = oneshot::channel();
+        let first_attempt = state
+            .begin_peer_import(scope, &first, first_reply)
+            .expect("first flight");
+        let _second_attempt = state
+            .begin_peer_import(scope, &second, second_reply)
+            .expect("second flight");
+
+        state
+            .import_peer_block(
+                scope,
+                first.block_id.clone(),
+                first_bytes.clone(),
+                digest(&first_bytes),
+                first_bytes.len() as u64,
+            )
+            .expect("install first block");
+        state.complete_peer_import(
+            &first.block_id,
+            first_attempt,
+            Ok(Some(prost::bytes::Bytes::from(first_bytes))),
+        );
+
+        assert!(matches!(
+            first_receiver.try_recv(),
+            Ok(Ok(Some(bytes))) if bytes.as_ref() == b"first"
+        ));
+        assert!(matches!(
+            second_receiver.try_recv(),
+            Err(oneshot::error::TryRecvError::Empty)
+        ));
+        assert!(
+            state.peer_imports.contains_key(&second.block_id),
+            "后续 Block 仍由同一计划继续接管"
+        );
     }
 
     #[cfg(feature = "reliability-faults")]

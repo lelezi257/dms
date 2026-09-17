@@ -114,7 +114,7 @@ fn mechanism_proof_cancelled_read_reclaims_unconsumed_download_ticket() {
             8,
         )
         .unwrap();
-    state.complete_peer_import(&spec.block_id, attempt, Ok(()));
+    state.complete_peer_import(&spec.block_id, attempt, Ok(None));
     let (read, _) = state.arena.open_read(&spec.block_id, None).unwrap();
     // 另一类取消窗口：GET 已创建下载票据，但回复未到 SDK；完成水位必须回收它。
     state.downloads.insert(
@@ -159,7 +159,7 @@ fn peer_import_completed_block_rejects_late_same_length_different_checksum() {
             8,
         )
         .unwrap();
-    state.complete_peer_import(&spec.block_id, attempt, Ok(()));
+    state.complete_peer_import(&spec.block_id, attempt, Ok(None));
     assert!(rx.try_recv().unwrap().is_ok());
     let mut changed = spec.clone();
     changed.expected_checksum = digest(b"ABCDEFGH");
@@ -256,7 +256,7 @@ fn peer_import_cancelled_leader_still_pins_prepare_until_job_and_followers_finis
             )
             .unwrap()
     );
-    state.complete_peer_import(&spec.block_id, attempt, Ok(()));
+    state.complete_peer_import(&spec.block_id, attempt, Ok(None));
     assert!(rx2.try_recv().unwrap().is_ok());
     assert!(
         prepared.try_recv().is_err(),
@@ -365,10 +365,10 @@ fn peer_import_location_failure_allows_same_scope_exact_retry_and_stale_completi
             .validate_peer_import_attempt(&spec.block_id, scope, attempt2)
             .is_ok()
     );
-    state.complete_peer_import(&spec.block_id, attempt1, Ok(()));
+    state.complete_peer_import(&spec.block_id, attempt1, Ok(None));
     assert_eq!(state.peer_imports[&spec.block_id].attempt, attempt2);
     assert!(rx2.try_recv().is_err());
-    state.complete_peer_import(&spec.block_id, attempt2, Ok(()));
+    state.complete_peer_import(&spec.block_id, attempt2, Ok(None));
     assert!(rx2.try_recv().unwrap().is_ok());
     assert_eq!(state.peer_import_bytes, 0);
 }
@@ -410,7 +410,7 @@ fn peer_import_terminal_failure_before_install_does_not_poison_later_scope_retry
             8,
         )
         .unwrap();
-    state.complete_peer_import(&spec.block_id, retry, Ok(()));
+    state.complete_peer_import(&spec.block_id, retry, Ok(None));
     assert!(rx.try_recv().unwrap().is_ok());
     state.finish_read_scope(old);
     state.finish_read_scope(fresh);
@@ -452,7 +452,7 @@ fn peer_import_same_identity_conflicts_and_waiters_are_bounded() {
 fn peer_import_flights_and_failure_fences_share_one_bounded_budget() {
     let (mut state, session, mut spec) = setup();
     let scope = state.begin_read_scope(session).unwrap();
-    for index in 0..NODE_MAILBOX_CAPACITY {
+    for index in 0..PEER_PULL_PLAN_BLOCKS_MAX {
         spec.block_id = index.to_be_bytes().to_vec();
         let (tx, _rx) = oneshot::channel();
         let attempt = state.begin_peer_import(scope, &spec, tx).unwrap();
@@ -462,7 +462,7 @@ fn peer_import_flights_and_failure_fences_share_one_bounded_budget() {
             Err(PeerImportFailure::terminal(WorkerError::Conflict)),
         );
     }
-    assert_eq!(state.peer_import_failures.len(), NODE_MAILBOX_CAPACITY);
+    assert_eq!(state.peer_import_failures.len(), PEER_PULL_PLAN_BLOCKS_MAX);
     spec.block_id = b"overflow".to_vec();
     let (tx, mut rx) = oneshot::channel();
     assert!(state.begin_peer_import(scope, &spec, tx).is_none());
@@ -492,7 +492,7 @@ fn peer_import_bytes_budget_rejects_oversubscription_without_charging_followers(
         rx2.try_recv().unwrap().unwrap_err().error,
         WorkerError::ResourceExhausted
     ));
-    state.complete_peer_import(&spec.block_id, attempt, Ok(()));
+    state.complete_peer_import(&spec.block_id, attempt, Ok(None));
     assert_eq!(state.peer_import_bytes, 0);
     let (tx3, _rx3) = oneshot::channel();
     assert!(state.begin_peer_import(scope, &second, tx3).is_some());
@@ -578,8 +578,11 @@ async fn peer_import_owner_shutdown_cancels_child_without_waiting_for_network() 
     // 故意使连接获取永远 pending，验证 owner 取消会取消子任务，不能等外部网络释放。
     let _blocked_network = peer_channels.lock().await;
     let request_node = node.clone();
-    let request =
-        tokio::spawn(async move { request_node.ensure_peer_block(scope.id(), setup().2).await });
+    let request = tokio::spawn(async move {
+        request_node
+            .ensure_peer_blocks(scope.id(), vec![setup().2])
+            .await
+    });
     tokio::time::timeout(Duration::from_secs(2), async {
         while node.debug_peer_imports().await.0 != 1 {
             tokio::task::yield_now().await;

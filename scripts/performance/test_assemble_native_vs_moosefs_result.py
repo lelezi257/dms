@@ -44,6 +44,34 @@ class AssembleTest(unittest.TestCase):
         }
         self.assertEqual(assembler.dms_rpc_counts(whitebox), {"PullBlock": 5})
 
+    def test_p4_contract_receipt_is_normalized(self):
+        receipt = {
+            "schema": "dms.native-fs-peer-first-contract-receipt.v1",
+            "foreground_synchronous_report_replicas": 0,
+            "fault_contracts": {"checksum_mismatch_rejected": True},
+            "mechanism_contracts": {"multi_block_read_uses_one_peer_stream": True},
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "p4-contracts.json"
+            path.write_text(json.dumps(receipt), encoding="utf-8")
+            self.assertEqual(
+                assembler.load_p4_contract_receipt(path),
+                {
+                    "foreground_synchronous_report_replicas": 0,
+                    "fault_contracts": {"checksum_mismatch_rejected": True},
+                    "mechanism_contracts": {
+                        "multi_block_read_uses_one_peer_stream": True
+                    },
+                },
+            )
+
+    def test_p4_contract_receipt_rejects_unknown_schema(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "p4-contracts.json"
+            path.write_text(json.dumps({"schema": "unknown"}), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "invalid P4 contract receipt"):
+                assembler.load_p4_contract_receipt(path)
+
 
 if __name__ == "__main__":
     unittest.main()

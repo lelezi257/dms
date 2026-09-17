@@ -742,6 +742,17 @@ impl ArenaManager {
         bytes: Vec<u8>,
         verified_digest: Vec<u8>,
     ) -> Result<(), ArenaError> {
+        self.commit_inline_from_slice_with_verified_digest(&block_id, &bytes, verified_digest)
+    }
+
+    /// 接纳已经由 Node owner 校验的借用 payload。Peer gRPC 使用 `Bytes` 解码时，
+    /// 本入口直接从解码帧复制到 Arena，避免先构造同尺寸临时 Vec。
+    pub(crate) fn commit_inline_from_slice_with_verified_digest(
+        &mut self,
+        block_id: &[u8],
+        bytes: &[u8],
+        verified_digest: Vec<u8>,
+    ) -> Result<(), ArenaError> {
         let length = bytes.len() as u64;
         if length == 0 {
             return Err(ArenaError::EmptyPayload);
@@ -749,22 +760,20 @@ impl ArenaManager {
         if verified_digest.is_empty() {
             return Err(ArenaError::ReceiptConflict);
         }
-        if let Some(block) = self.blocks.get(&block_id) {
+        if let Some(block) = self.blocks.get(block_id) {
             return self
                 .slot_bytes_checked(block.handle)
-                .is_some_and(|existing| {
-                    existing.len() as u64 == length && existing == bytes.as_slice()
-                })
+                .is_some_and(|existing| existing.len() as u64 == length && existing == bytes)
                 .then_some(())
                 .ok_or(ArenaError::ReceiptConflict);
         }
         let handle = self.allocate_slot(DEFAULT_REGION_GROUP_ID, length)?;
-        self.copy_into_slot(handle, &bytes)?;
+        self.copy_into_slot(handle, bytes)?;
         self.logical_bytes += length;
         self.allocated_bytes += handle.capacity;
         self.live_allocations.insert(handle.allocation_id, handle);
         self.blocks.insert(
-            block_id,
+            block_id.to_vec(),
             HostBlock {
                 handle,
                 digest: verified_digest,

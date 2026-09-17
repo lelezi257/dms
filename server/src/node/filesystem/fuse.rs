@@ -40,6 +40,12 @@ use crate::node::runtime::{NodeHandle, WorkerError};
 
 const UNCACHED_TTL: Duration = Duration::from_secs(0);
 const BLOCK_SIZE: u32 = 4096;
+/// Linux 当前把大顺序读拆成约 128 KiB 的 FUSE callback。每个 callback 都重新进入
+/// Node actor 会把一次 512 MiB 顺序读放大成 4096 次控制往返。这里以用户态窗口把
+/// callback 合并成 8 MiB DataCore 读取；它不改变 protocol，也不保存权威版本。
+const FUSE_READ_AHEAD_WINDOW_BYTES: usize = 8 * 1024 * 1024;
+/// 预取窗口只用于摊薄 FUSE callback，不允许随 open handle 数量无限增长。
+const FUSE_READ_AHEAD_BUDGET_BYTES: usize = 64 * 1024 * 1024;
 // 常规文件必须允许 Linux kernel page cache 跨 open 保留，否则 mmap/read 的热路径
 // 会退化成每次重新进入 FUSE read。这里不能使用 DIRECT_IO，也不能启用 writeback；
 // 远端写入发布后由 Meta Watch → Node cache invalidate → FUSE notifier 显式失效。
@@ -59,7 +65,7 @@ pub(crate) fn start(
     let metrics = node.metrics();
     let files = SharedFileOperations::new(node)
         .map_err(|error| format!("failed to initialize shared file operations: {error:?}"))?;
-    let fs = DmsFuse::new(files, runtime, metrics);
+    let fs = DmsFuse::new(files, runtime, metrics, kernel_cache.clone());
     let options = vec![
         MountOption::FSName("dms-node".to_string()),
         // 常规读写权限由内核使用 getattr 返回的 uid/gid/mode 快速判断；Node/Meta
@@ -92,12 +98,126 @@ struct DmsFuse {
     files: SharedFileOperations,
     runtime: Handle,
     metrics: NodeMetrics,
+    kernel_cache: KernelCacheInvalidator,
+    read_ahead: ReadAheadCache,
     next_directory_handle: u64,
     directory_handles: HashMap<u64, DirectoryHandle>,
     /// FUSE unique id → Node 内部分配的 Meta mutation sequence。只记录仍在等待的
     /// F_SETLKW；FUSE_INTERRUPT 用 kernel unique 做相关性查找，但取消 Meta waiter
     /// 时必须使用内部 sequence，不能把不单调的 FUSE unique 传给 Meta floor/window。
     pending_lock_waits: Arc<Mutex<HashMap<u64, PendingLockWait>>>,
+}
+
+/// 单个 open handle 的顺序读窗口。
+///
+/// `invalidation_epoch` 来自 Meta Watch 与 kernel invalidation 的共同边界。窗口只保存
+/// DataCore 已校验并按 Exact Version 物化的结果；代数变化、本地修改或 close 都会让
+/// 它失效，所以它只是性能副本，不是新的内容或一致性 owner。
+struct ReadAheadWindow {
+    inode: u64,
+    start: u64,
+    bytes: Vec<u8>,
+    invalidation_epoch: u64,
+    last_used: u64,
+}
+
+struct ReadAheadCache {
+    windows: HashMap<u64, ReadAheadWindow>,
+    used_bytes: usize,
+    budget_bytes: usize,
+    clock: u64,
+}
+
+impl ReadAheadCache {
+    fn new(budget_bytes: usize) -> Self {
+        Self {
+            windows: HashMap::new(),
+            used_bytes: 0,
+            budget_bytes,
+            clock: 0,
+        }
+    }
+
+    fn get(
+        &mut self,
+        handle: u64,
+        inode: u64,
+        offset: u64,
+        length: usize,
+        invalidation_epoch: u64,
+    ) -> Option<&[u8]> {
+        let end = offset.checked_add(length as u64)?;
+        let valid = self.windows.get(&handle).is_some_and(|window| {
+            let window_end = window.start.saturating_add(window.bytes.len() as u64);
+            window.inode == inode
+                && window.invalidation_epoch == invalidation_epoch
+                && offset >= window.start
+                && end <= window_end
+        });
+        if !valid {
+            self.remove_handle(handle);
+            return None;
+        }
+        self.clock = self.clock.saturating_add(1);
+        let window = self.windows.get_mut(&handle)?;
+        window.last_used = self.clock;
+        let start = usize::try_from(offset - window.start).ok()?;
+        window.bytes.get(start..start + length)
+    }
+
+    fn insert(
+        &mut self,
+        handle: u64,
+        inode: u64,
+        start: u64,
+        bytes: Vec<u8>,
+        invalidation_epoch: u64,
+    ) {
+        self.remove_handle(handle);
+        if bytes.is_empty() || bytes.len() > self.budget_bytes {
+            return;
+        }
+        while self.used_bytes.saturating_add(bytes.len()) > self.budget_bytes {
+            let Some(oldest) = self
+                .windows
+                .iter()
+                .min_by_key(|(_, window)| window.last_used)
+                .map(|(handle, _)| *handle)
+            else {
+                break;
+            };
+            self.remove_handle(oldest);
+        }
+        self.clock = self.clock.saturating_add(1);
+        self.used_bytes = self.used_bytes.saturating_add(bytes.len());
+        self.windows.insert(
+            handle,
+            ReadAheadWindow {
+                inode,
+                start,
+                bytes,
+                invalidation_epoch,
+                last_used: self.clock,
+            },
+        );
+    }
+
+    fn remove_handle(&mut self, handle: u64) {
+        if let Some(window) = self.windows.remove(&handle) {
+            self.used_bytes = self.used_bytes.saturating_sub(window.bytes.len());
+        }
+    }
+
+    fn invalidate_inode(&mut self, inode: u64) {
+        let handles = self
+            .windows
+            .iter()
+            .filter_map(|(handle, window)| (window.inode == inode).then_some(*handle))
+            .collect::<Vec<_>>();
+        for handle in handles {
+            self.remove_handle(handle);
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -163,11 +283,18 @@ struct DirectoryHandle {
 }
 
 impl DmsFuse {
-    fn new(files: SharedFileOperations, runtime: Handle, metrics: NodeMetrics) -> Self {
+    fn new(
+        files: SharedFileOperations,
+        runtime: Handle,
+        metrics: NodeMetrics,
+        kernel_cache: KernelCacheInvalidator,
+    ) -> Self {
         Self {
             files,
             runtime,
             metrics,
+            kernel_cache,
+            read_ahead: ReadAheadCache::new(FUSE_READ_AHEAD_BUDGET_BYTES),
             next_directory_handle: 1,
             directory_handles: HashMap::new(),
             pending_lock_waits: Arc::new(Mutex::new(HashMap::new())),
@@ -338,10 +465,15 @@ impl Filesystem for DmsFuse {
                 .block_on(self.files.get_inode(ino).instrument(span))
         };
         match result {
-            Ok(resolved) => reply.attr(
-                &kernel_cache_ttl(&resolved),
-                &file_attr(&resolved.granted.inode.attributes),
-            ),
+            Ok(resolved) => {
+                if size.is_some() {
+                    self.read_ahead.invalidate_inode(ino);
+                }
+                reply.attr(
+                    &kernel_cache_ttl(&resolved),
+                    &file_attr(&resolved.granted.inode.attributes),
+                )
+            }
             Err(error) => reply.error(worker_to_errno(error)),
         }
     }
@@ -794,16 +926,43 @@ impl Filesystem for DmsFuse {
             reply.error(libc::EINVAL);
             return;
         }
+        let length = size as usize;
+        if length == 0 {
+            reply.data(&[]);
+            return;
+        }
+        let invalidation_epoch = self.kernel_cache.inode_invalidation_epoch(_ino);
+        if let Some(bytes) =
+            self.read_ahead
+                .get(fh, _ino, offset as u64, length, invalidation_epoch)
+        {
+            self.metrics
+                .record_fuse_callback_bytes(FuseCallback::Read, bytes.len());
+            reply.data(bytes);
+            return;
+        }
+        let read_length = usize::max(length, FUSE_READ_AHEAD_WINDOW_BYTES) as u64;
         let span = filesystem_span("dms.filesystem.read", Some(_ino));
         match self.runtime.block_on(
             self.files
-                .read(fh, offset as u64, u64::from(size))
+                .read(fh, offset as u64, read_length)
                 .instrument(span),
         ) {
             Ok(Some(read)) => {
+                let delivered = length.min(read.bytes.len());
+                if delivered == 0 {
+                    reply.data(&[]);
+                    return;
+                }
+                self.read_ahead
+                    .insert(fh, _ino, offset as u64, read.bytes, invalidation_epoch);
+                let bytes = self
+                    .read_ahead
+                    .get(fh, _ino, offset as u64, delivered, invalidation_epoch)
+                    .expect("fresh read-ahead window must contain delivered range");
                 self.metrics
-                    .record_fuse_callback_bytes(FuseCallback::Read, read.bytes.len());
-                reply.data(&read.bytes);
+                    .record_fuse_callback_bytes(FuseCallback::Read, bytes.len());
+                reply.data(bytes);
             }
             Ok(None) => reply.error(libc::ENOENT),
             Err(error) => reply.error(worker_to_errno(error)),
@@ -833,6 +992,7 @@ impl Filesystem for DmsFuse {
             .block_on(self.files.write(fh, offset as u64, data).instrument(span))
         {
             Ok(_) => {
+                self.read_ahead.invalidate_inode(ino);
                 self.metrics
                     .record_fuse_callback_bytes(FuseCallback::Write, data.len());
                 reply.written(data.len() as u32);
@@ -864,7 +1024,10 @@ impl Filesystem for DmsFuse {
             }
             .instrument(span),
         ) {
-            Ok(()) => reply.ok(),
+            Ok(()) => {
+                self.read_ahead.invalidate_inode(ino);
+                reply.ok()
+            }
             Err(error) => {
                 let errno = worker_to_errno(error);
                 dms_logging::warn!(
@@ -1120,6 +1283,7 @@ impl Filesystem for DmsFuse {
         reply: ReplyEmpty,
     ) {
         self.metrics.record_fuse_callback(FuseCallback::Release);
+        self.read_ahead.remove_handle(fh);
         let span = filesystem_span("dms.filesystem.close", Some(_ino));
         let result = self.runtime.block_on(
             async {
@@ -1405,6 +1569,39 @@ mod tests {
         };
 
         assert_eq!(kernel_cache_ttl(&resolved), Duration::from_millis(1_234));
+    }
+
+    #[test]
+    fn read_ahead_window_serves_adjacent_fuse_callbacks() {
+        let mut cache = ReadAheadCache::new(16);
+        cache.insert(10, 20, 100, (0_u8..8).collect(), 3);
+
+        assert_eq!(cache.get(10, 20, 100, 4, 3), Some(&[0, 1, 2, 3][..]));
+        assert_eq!(cache.get(10, 20, 104, 4, 3), Some(&[4, 5, 6, 7][..]));
+    }
+
+    #[test]
+    fn read_ahead_window_rejects_new_invalidation_epoch() {
+        let mut cache = ReadAheadCache::new(16);
+        cache.insert(10, 20, 100, vec![1, 2, 3, 4], 3);
+
+        assert_eq!(cache.get(10, 20, 100, 4, 4), None);
+        assert_eq!(cache.used_bytes, 0);
+    }
+
+    #[test]
+    fn read_ahead_budget_evicts_least_recently_used_handle() {
+        let mut cache = ReadAheadCache::new(8);
+        cache.insert(10, 20, 0, vec![1; 4], 0);
+        cache.insert(11, 21, 0, vec![2; 4], 0);
+        assert_eq!(cache.get(10, 20, 0, 1, 0), Some(&[1][..]));
+
+        cache.insert(12, 22, 0, vec![3; 4], 0);
+
+        assert!(cache.windows.contains_key(&10));
+        assert!(!cache.windows.contains_key(&11));
+        assert!(cache.windows.contains_key(&12));
+        assert_eq!(cache.used_bytes, 8);
     }
 
     #[test]

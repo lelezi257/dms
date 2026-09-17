@@ -6,6 +6,7 @@
 
 #[cfg(feature = "reliability-faults")]
 use std::path::PathBuf;
+use std::pin::Pin;
 #[cfg(any(test, feature = "reliability-faults"))]
 use std::sync::{
     Arc,
@@ -13,10 +14,13 @@ use std::sync::{
 };
 
 use dms_protocol::v1 as pb;
+use dms_tracing::Instrument as _;
 use dms_transport::dms_error_to_status;
 use pb::peer_service_server::PeerService;
 #[cfg(test)]
 use tokio::sync::Notify;
+use tokio::sync::mpsc;
+use tokio_stream::{Stream, wrappers::ReceiverStream};
 use tonic::{Request, Response, Status};
 
 use super::metrics::{NodeMetrics, ReplicaDirection, ReplicaOperation};
@@ -295,6 +299,9 @@ impl PeerPullFaultConfig {
 
 #[tonic::async_trait]
 impl PeerService for PeerServiceHandler {
+    type PullBlocksStream =
+        Pin<Box<dyn Stream<Item = Result<pb::PeerPullBlockChunk, Status>> + Send>>;
+
     async fn probe(
         &self,
         request: Request<pb::PeerProbeRequest>,
@@ -371,6 +378,137 @@ impl PeerService for PeerServiceHandler {
             checksum: result.checksum,
             length: result.length,
         }))
+    }
+
+    async fn pull_blocks(
+        &self,
+        request: Request<pb::PeerPullBlocksRequest>,
+    ) -> Result<Response<Self::PullBlocksStream>, Status> {
+        const MAX_BLOCKS_PER_PLAN: usize = 1024;
+        const CHUNK_BYTES: usize = 2 * 1024 * 1024;
+
+        let request = request.into_inner();
+        if request.blocks.is_empty() || request.blocks.len() > MAX_BLOCKS_PER_PLAN {
+            return Err(node_invalid_argument(
+                "blocks must contain between 1 and 1024 entries",
+            ));
+        }
+        if request
+            .blocks
+            .iter()
+            .any(|block| block.block_id.is_empty() || block.expected_length == 0)
+        {
+            return Err(node_invalid_argument(
+                "each block requires a non-empty id and non-zero length",
+            ));
+        }
+
+        // gRPC stream 只承载有界 chunk；真正的 Block bytes 仍由唯一 Node owner
+        // 读取。channel 容量为 2，慢客户端只会把当前 Block 的生产协程背压住。
+        let (sender, receiver) = mpsc::channel(2);
+        let node = self.node.clone();
+        let metrics = self.metrics.clone();
+        let rpc_metrics = self.rpc_metrics.clone();
+        #[cfg(any(test, feature = "reliability-faults"))]
+        let fault_gate = self.peer_pull_fault_gate.clone();
+        tokio::spawn(
+            async move {
+                let mut rpc = rpc_metrics.begin_server_call(dms_metrics::RpcCall::PEER_PULL_BLOCKS);
+                let mut stream_ok = true;
+                for block in request.blocks {
+                    let mut metric = metrics.begin_replica_operation(ReplicaOperation::Pull);
+                    let result = match node
+                        .pull_block(request.source_node_id.clone(), block.block_id.clone(), None)
+                        .await
+                    {
+                        Ok(result) => result,
+                        Err(error) => {
+                            stream_ok = false;
+                            let _ = sender.send(Err(map_node_error(error))).await;
+                            break;
+                        }
+                    };
+                    if result.length != block.expected_length
+                        || (!block.expected_checksum.is_empty()
+                            && result.checksum != block.expected_checksum)
+                    {
+                        metrics.record_replica_checksum_failure();
+                        stream_ok = false;
+                        let _ = sender
+                            .send(Err(dms_error_to_status(dms_error::DmsError::new(
+                                dms_error::NODE_TRANSFER_CORRUPT_DATA,
+                                dms_error::ErrorKind::DataLoss,
+                                "peer block does not match expected length/checksum",
+                            ))))
+                            .await;
+                        break;
+                    }
+
+                    let block_length = result.length;
+                    let block_id = result.block_id;
+                    let checksum = result.checksum;
+                    let serving_node_id = result.serving_node_id;
+                    let payload_len = result.payload.len();
+                    if payload_len <= CHUNK_BYTES {
+                        #[cfg(any(test, feature = "reliability-faults"))]
+                        if let Some(gate) = &fault_gate {
+                            gate.pause_if_matched(
+                                &block_id,
+                                Some((0, payload_len as u64)),
+                                &metrics,
+                            )
+                            .await;
+                        }
+                        // Arena 读取已经生成 owned Vec；常见 Block 可直接移入 protobuf
+                        // message，避免 `chunks().to_vec()` 再复制一遍全部 bytes。
+                        let message = pb::PeerPullBlockChunk {
+                            serving_node_id,
+                            block_id,
+                            block_offset: 0,
+                            payload: result.payload,
+                            checksum,
+                            block_length,
+                            end_of_block: true,
+                        };
+                        if sender.send(Ok(message)).await.is_err() {
+                            return;
+                        }
+                        metric.success_with_payload(ReplicaDirection::Send, payload_len);
+                        continue;
+                    }
+                    for (index, chunk) in result.payload.chunks(CHUNK_BYTES).enumerate() {
+                        let offset = index * CHUNK_BYTES;
+                        #[cfg(any(test, feature = "reliability-faults"))]
+                        if let Some(gate) = &fault_gate {
+                            gate.pause_if_matched(
+                                &block_id,
+                                Some((offset as u64, chunk.len() as u64)),
+                                &metrics,
+                            )
+                            .await;
+                        }
+                        let message = pb::PeerPullBlockChunk {
+                            serving_node_id: serving_node_id.clone(),
+                            block_id: block_id.clone(),
+                            block_offset: offset as u64,
+                            payload: prost::bytes::Bytes::copy_from_slice(chunk),
+                            checksum: checksum.clone(),
+                            block_length,
+                            end_of_block: offset + chunk.len() == payload_len,
+                        };
+                        if sender.send(Ok(message)).await.is_err() {
+                            return;
+                        }
+                    }
+                    metric.success_with_payload(ReplicaDirection::Send, payload_len);
+                }
+                if stream_ok {
+                    rpc.success();
+                }
+            }
+            .instrument(dms_tracing::tracing::Span::current()),
+        );
+        Ok(Response::new(Box::pin(ReceiverStream::new(receiver))))
     }
 
     async fn prepare_replica(
@@ -530,8 +668,9 @@ mod tests {
 
     use dms_protocol::v1::{
         PeerActivateReplicaRequest, PeerPrepareReplicaRequest, PeerProbeRequest,
-        PeerPullBlockRequest, metadata_service_server::MetadataServiceServer,
-        peer_service_client::PeerServiceClient, peer_service_server::PeerServiceServer,
+        PeerPullBlockRequest, PeerPullBlockSpec, PeerPullBlocksRequest,
+        metadata_service_server::MetadataServiceServer, peer_service_client::PeerServiceClient,
+        peer_service_server::PeerServiceServer,
     };
     use dms_transport::{GrpcConfig, SecurityManager, TlsConfig};
     use tokio::{
@@ -540,7 +679,7 @@ mod tests {
         task::JoinHandle,
         time::{Duration, timeout},
     };
-    use tokio_stream::{Stream, wrappers::TcpListenerStream};
+    use tokio_stream::{Stream, StreamExt, wrappers::TcpListenerStream};
     use tonic::transport::Endpoint;
 
     #[cfg(feature = "reliability-faults")]
@@ -739,7 +878,7 @@ mod tests {
             .into_inner();
 
         assert_eq!(response.serving_node_id, "node-b");
-        assert_eq!(response.payload, b"peer-bytes");
+        assert_eq!(response.payload.as_ref(), b"peer-bytes");
         assert_eq!(response.checksum, digest(b"peer-bytes"));
 
         let ranged = client
@@ -757,8 +896,88 @@ mod tests {
         // PeerPullBlockResponse.length 表示完整 Block 长度；分段大小由 payload.len() 表达。
         // 这样 target 做大块分段拉取时，仍能确认源端 Block 身份没有被截短。
         assert_eq!(ranged.length, 10);
-        assert_eq!(ranged.payload, b"er-b");
+        assert_eq!(ranged.payload.as_ref(), b"er-b");
         assert_eq!(ranged.checksum, digest(b"er-b"));
+        let _ = shutdown_tx.send(());
+        server_task.await.expect("join peer server");
+    }
+
+    #[tokio::test]
+    async fn node_to_node_pull_blocks_streams_one_plan_in_request_order() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind peer");
+        let address = listener.local_addr().expect("peer address");
+        let node = NodeHandle::spawn_without_metadata("node-b".to_string());
+        let first_id = b"stream-block-1".to_vec();
+        let second_id = b"stream-block-2".to_vec();
+        let first = vec![b'a'; 2 * 1024 * 1024 + 17];
+        let second = b"second-block".to_vec();
+        let first_checksum = commit_test_block(&node, first_id.clone(), first.clone()).await;
+        let second_checksum = commit_test_block(&node, second_id.clone(), second.clone()).await;
+
+        let peer = PeerServiceHandler::new(node);
+        let (shutdown_tx, shutdown_rx) = oneshot::channel();
+        let server_task = tokio::spawn(async move {
+            tonic::transport::Server::builder()
+                .add_service(PeerServiceServer::new(peer))
+                .serve_with_incoming_shutdown(TcpListenerStream::new(listener), async {
+                    let _ = shutdown_rx.await;
+                })
+                .await
+                .expect("peer server");
+        });
+
+        let endpoint = Endpoint::from_shared(format!("http://{address}")).expect("peer endpoint");
+        let mut client = PeerServiceClient::connect(endpoint)
+            .await
+            .expect("connect peer");
+        let mut stream = client
+            .pull_blocks(PeerPullBlocksRequest {
+                source_node_id: "node-a".to_string(),
+                blocks: vec![
+                    PeerPullBlockSpec {
+                        block_id: first_id.clone(),
+                        expected_length: first.len() as u64,
+                        expected_checksum: first_checksum.clone(),
+                    },
+                    PeerPullBlockSpec {
+                        block_id: second_id.clone(),
+                        expected_length: second.len() as u64,
+                        expected_checksum: second_checksum.clone(),
+                    },
+                ],
+            })
+            .await
+            .expect("pull block plan")
+            .into_inner();
+
+        let mut chunks = Vec::new();
+        while let Some(chunk) = stream.next().await {
+            chunks.push(chunk.expect("stream chunk"));
+        }
+        assert_eq!(
+            chunks.len(),
+            3,
+            "first block has two chunks, second has one"
+        );
+        assert_eq!(chunks[0].block_id, first_id);
+        assert_eq!(chunks[0].block_offset, 0);
+        assert!(!chunks[0].end_of_block);
+        assert_eq!(chunks[1].block_offset, 2 * 1024 * 1024);
+        assert!(chunks[1].end_of_block);
+        assert_eq!(chunks[2].block_id, second_id);
+        assert_eq!(chunks[2].block_offset, 0);
+        assert!(chunks[2].end_of_block);
+        assert_eq!(chunks[0].checksum, first_checksum);
+        assert_eq!(chunks[2].checksum, second_checksum);
+        let reconstructed_first = chunks[0]
+            .payload
+            .iter()
+            .chain(chunks[1].payload.iter())
+            .copied()
+            .collect::<Vec<_>>();
+        assert_eq!(reconstructed_first, first);
+        assert_eq!(chunks[2].payload, second);
+
         let _ = shutdown_tx.send(());
         server_task.await.expect("join peer server");
     }
@@ -813,7 +1032,7 @@ mod tests {
             .expect("join pull")
             .expect("pull response")
             .into_inner();
-        assert_eq!(response.payload, b"fault");
+        assert_eq!(response.payload.as_ref(), b"fault");
 
         let _ = shutdown_tx.send(());
         server_task.await.expect("join peer server");

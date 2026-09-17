@@ -48,6 +48,18 @@ pub(crate) struct ResolvedDentry {
     pub(crate) refreshed_directories: Vec<ResolvedInode>,
     pub(crate) entry_reference_lease_millis: u64,
     pub(crate) entry_reference_generation: u64,
+    /// 同一目录内的有界顺带解析结果。它们填充 Node 缓存并预取
+    /// Peer payload；短期 reference reservation 只用于后续 lookup 本地升级，不是
+    /// 活跃 FUSE nlookup，未使用时不续租。
+    pub(crate) prefetched_entries: Vec<PrefetchedDentry>,
+}
+
+#[derive(Clone)]
+pub(crate) struct PrefetchedDentry {
+    pub(crate) dentry: DentrySnapshot,
+    pub(crate) resolved: ResolvedInode,
+    pub(crate) entry_reference_lease_millis: u64,
+    pub(crate) entry_reference_generation: u64,
 }
 
 /// namespace mutation 的持久化结果与在线缓存刷新数据分离。
@@ -218,6 +230,11 @@ impl FilesystemMetaClient for FilesystemMetaGrpcClient {
                         .map_err(invalid_filesystem_response)?,
                     entry_reference_lease_millis: response.entry_reference_lease_millis,
                     entry_reference_generation: response.entry_reference_generation,
+                    prefetched_entries: response
+                        .prefetched_entries
+                        .into_iter()
+                        .map(prefetched_dentry_from_proto)
+                        .collect::<DmsResult<Vec<_>>>()?,
                 })
             })
             .transpose()?;
@@ -287,6 +304,7 @@ impl FilesystemMetaClient for FilesystemMetaGrpcClient {
                 .map_err(invalid_filesystem_response)?,
             entry_reference_lease_millis: response.entry_reference_lease_millis,
             entry_reference_generation: response.entry_reference_generation,
+            prefetched_entries: Vec::new(),
         })
     }
 
@@ -332,6 +350,7 @@ impl FilesystemMetaClient for FilesystemMetaGrpcClient {
                 .map_err(invalid_filesystem_response)?,
             entry_reference_lease_millis: response.entry_reference_lease_millis,
             entry_reference_generation: response.entry_reference_generation,
+            prefetched_entries: Vec::new(),
         })
     }
 
@@ -641,6 +660,25 @@ impl FilesystemMetaClient for FilesystemMetaGrpcClient {
             .filesystem_release_lock_owner_if_known(mutation_sequence, lock_owner)
             .await
     }
+}
+
+fn prefetched_dentry_from_proto(
+    entry: pb::FilesystemResolvedDentry,
+) -> DmsResult<PrefetchedDentry> {
+    Ok(PrefetchedDentry {
+        dentry: entry
+            .dentry
+            .ok_or_else(missing_filesystem_response)
+            .map(dentry_from_proto)?,
+        resolved: entry
+            .resolved
+            .ok_or_else(missing_filesystem_response)
+            .and_then(|resolved| {
+                resolved_from_proto(resolved).map_err(invalid_filesystem_response)
+            })?,
+        entry_reference_lease_millis: entry.entry_reference_lease_millis,
+        entry_reference_generation: entry.entry_reference_generation,
+    })
 }
 
 fn lock_request_to_proto(request: NodeFileLockRequest) -> pb::FilesystemLockRequest {

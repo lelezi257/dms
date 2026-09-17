@@ -651,6 +651,9 @@ impl FakePeer {
 
 #[tonic::async_trait]
 impl PeerService for FakePeer {
+    type PullBlocksStream =
+        Pin<Box<dyn Stream<Item = Result<pb::PeerPullBlockChunk, Status>> + Send>>;
+
     async fn probe(
         &self,
         request: Request<pb::PeerProbeRequest>,
@@ -707,8 +710,39 @@ impl PeerService for FakePeer {
             block_id: request.block_id,
             length: request.expected_length.unwrap_or(self.payload.len() as u64),
             checksum,
-            payload,
+            payload: payload.into(),
         }))
+    }
+
+    async fn pull_blocks(
+        &self,
+        request: Request<pb::PeerPullBlocksRequest>,
+    ) -> Result<Response<Self::PullBlocksStream>, Status> {
+        let request = request.into_inner();
+        let mut chunks = Vec::with_capacity(request.blocks.len());
+        for block in request.blocks {
+            let response = self
+                .pull_block(Request::new(pb::PeerPullBlockRequest {
+                    source_node_id: request.source_node_id.clone(),
+                    block_id: block.block_id,
+                    offset: None,
+                    length: None,
+                    expected_length: Some(block.expected_length),
+                    expected_checksum: block.expected_checksum,
+                }))
+                .await?
+                .into_inner();
+            chunks.push(Ok(pb::PeerPullBlockChunk {
+                serving_node_id: response.serving_node_id,
+                block_id: response.block_id,
+                block_offset: 0,
+                payload: response.payload,
+                checksum: response.checksum,
+                block_length: response.length,
+                end_of_block: true,
+            }));
+        }
+        Ok(Response::new(Box::pin(tokio_stream::iter(chunks))))
     }
 
     async fn prepare_replica(

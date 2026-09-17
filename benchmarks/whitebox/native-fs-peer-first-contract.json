@@ -1,0 +1,26 @@
+{
+  "schema": "dms.native-fs-peer-first-contract.v1",
+  "description": "Native Filesystem P4：跨节点首次读取必须把控制 RPC 数量与 payload Block 数解耦，同时保持稳定本地读、Peer 复读、完整性与故障语义。",
+  "required_independent_runs": 2,
+  "minimum_paired_memory_rounds": 5,
+  "thresholds": {
+    "workspace_peer_first_p50_ratio_max": 1.15,
+    "sequential_512m_peer_first_throughput_ratio_min": 0.90,
+    "workspace_peer_repeat_p50_ratio_max": 1.10,
+    "sequential_512m_peer_repeat_throughput_ratio_min": 0.90,
+    "workspace_local_hot_p50_ratio_max": 1.10
+  },
+  "rpc_contract": {
+    "large_peer_first_legacy_pull_block_max": 0,
+    "large_peer_first_pull_streams_per_round_max": 1,
+    "large_peer_first_report_replicas_per_round_max": 1,
+    "foreground_synchronous_report_replicas_max": 0
+  },
+  "required_fault_contracts": [
+    "checksum_mismatch_rejected",
+    "missing_replica_rejected",
+    "source_failure_falls_back",
+    "stale_location_falls_back",
+    "background_report_does_not_delay_read"
+  ]
+}

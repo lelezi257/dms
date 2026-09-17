@@ -19,6 +19,7 @@ description: 在 DMS 项目复现性能基线、定位 Client/Node/Meta 或文�
 8. 文件路径对比必须让双方使用相同可靠性合同。memory 与 local WAL 不能直接判性能输赢；write-through 的一个 callback 对应一次发布，除非先批准独立 writeback 设计。
 9. `payload_copy_stages` 只表示单个数据段的完整字节复制路径深度。逻辑操作内的分段数量必须由 callback、Meta commit 和 Peer Pull 实测计数表达，不能把两者混成一个数字。
 10. FUSE 优化不能只检查挂载参数。必须同时比较原始 callback、文件业务操作、DataCore、Meta、Peer 和边界字节；workload 自身的 resolve/mkdir 等动作必须放在 Metrics 快照之前，不能污染业务账本。
+11. 与 MooseFS 对比时读取 [`references/native-filesystem-vs-moosefs.md`](references/native-filesystem-vs-moosefs.md)。memory lane 与 disk lane 必须分开；优先审计本地热路径是否恢复 0 Meta/Peer，再讨论冷访固有成本。
 
 ## 固定判定
 
@@ -46,6 +47,12 @@ FUSE callback、DataCore 和 RPC 放大门禁：
 ```bash
 DMS_FUSE_AMPLIFICATION_RESULT=/path/to/result.json \
   bash scripts/performance/validate_fuse_request_amplification.sh
+```
+
+Native Filesystem 与 MooseFS 的三 VM 同场门禁：
+
+```bash
+bash scripts/performance/validate_native_vs_moosefs.sh
 ```
 
 ## 交付

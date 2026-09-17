@@ -9,6 +9,13 @@
 /log/
 /artifacts/
 /evidence/*
+!/evidence/native-vs-moosefs/
+/evidence/native-vs-moosefs/*
+!/evidence/native-vs-moosefs/latest/
+/evidence/native-vs-moosefs/latest/*
+!/evidence/native-vs-moosefs/latest/result.json
+!/evidence/native-vs-moosefs/latest/evaluation.json
+!/evidence/native-vs-moosefs/latest/profile.json
 !/evidence/2026-09-14-filesystem-shared-file/
 !/evidence/2026-09-14-filesystem-shared-file/**
 !/evidence/2026-09-15-filesystem-namespace/

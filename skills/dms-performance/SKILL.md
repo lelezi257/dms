@@ -20,6 +20,7 @@ description: 在 DMS 项目复现性能基线、定位 Client/Node/Meta 或文�
 9. `payload_copy_stages` 只表示单个数据段的完整字节复制路径深度。逻辑操作内的分段数量必须由 callback、Meta commit 和 Peer Pull 实测计数表达，不能把两者混成一个数字。
 10. FUSE 优化不能只检查挂载参数。必须同时比较原始 callback、文件业务操作、DataCore、Meta、Peer 和边界字节；workload 自身的 resolve/mkdir 等动作必须放在 Metrics 快照之前，不能污染业务账本。
 11. 与 MooseFS 对比时读取 [`references/native-filesystem-vs-moosefs.md`](references/native-filesystem-vs-moosefs.md)；开始优化前再读 [`references/native-filesystem-performance-roadmap.md`](references/native-filesystem-performance-roadmap.md)。memory lane 与 disk lane 必须分开；按 Roadmap 顺序先消除实现放大，再讨论冷访固有成本，达到停止线后结束当前专项。
+12. “稳定热路径”必须在 Metrics before snapshot 前让双方完成相同 warmup，并把 warmup 结果独立保存。不得把 warmup 样本计入正式分位数，也不得把冷目录授权恢复冒充持续热路径成本。
 
 ## 固定判定
 
@@ -53,6 +54,12 @@ Native Filesystem 与 MooseFS 的三 VM 同场门禁：
 
 ```bash
 bash scripts/performance/validate_native_vs_moosefs.sh
+```
+
+P1 小文件稳定热路径双轮门禁：
+
+```bash
+bash scripts/performance/validate_native_fs_hot_path.sh
 ```
 
 ## 交付

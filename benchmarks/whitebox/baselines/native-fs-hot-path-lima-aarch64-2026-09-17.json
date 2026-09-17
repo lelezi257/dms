@@ -1,0 +1,72 @@
+{
+  "schema": "dms.native-fs-hot-path-baseline.v1",
+  "profile": {
+    "arch": "aarch64",
+    "environment": "three-lima-vm",
+    "nodes": 3,
+    "memory_lane_rounds_per_run": 5,
+    "independent_runs": 2
+  },
+  "source_sha": "095b8ca5fe24571d356cc330cdd9516f6e3a73e9",
+  "binary_sha256": {
+    "dms_node": "2bbfaf36408d854b0bf5b03f2818e1a54ad0287fef7ce2477df6252b43626a6d",
+    "dms_meta": "64d8684d080448f659de4920b8c6c220261300eb0175303459b6ea07691fad5d"
+  },
+  "measurement_boundary": {
+    "workspace.local_hot": "DMS 与 MooseFS 在 before snapshot 前各完整读取工作集一次；warmup 不进入正式样本或 RPC 差值",
+    "workspace.peer_repeat": "同一轮 workspace.peer_first 完成后立即测量，不重启服务"
+  },
+  "runs": [
+    {
+      "run_id": "native-fs-hot-path-20260917-run-1",
+      "cases": {
+        "workspace.local_hot": {
+          "dms_p50_us": 154.334,
+          "moosefs_p50_us": 208.251,
+          "p50_ratio": 0.741,
+          "dms_p95_us": 233.583,
+          "moosefs_p95_us": 359.292,
+          "p95_ratio": 0.650,
+          "foreground_meta_rpc": 0,
+          "foreground_peer_rpc": 0
+        },
+        "workspace.peer_repeat": {
+          "dms_p50_us": 152.168,
+          "moosefs_p50_us": 212.543,
+          "p50_ratio": 0.716,
+          "dms_p95_us": 187.002,
+          "moosefs_p95_us": 393.087,
+          "p95_ratio": 0.476,
+          "foreground_meta_rpc": 0,
+          "foreground_peer_rpc": 0
+        }
+      }
+    },
+    {
+      "run_id": "native-fs-hot-path-20260917-run-2",
+      "cases": {
+        "workspace.local_hot": {
+          "dms_p50_us": 149.252,
+          "moosefs_p50_us": 206.169,
+          "p50_ratio": 0.724,
+          "dms_p95_us": 223.420,
+          "moosefs_p95_us": 382.088,
+          "p95_ratio": 0.585,
+          "foreground_meta_rpc": 0,
+          "foreground_peer_rpc": 0
+        },
+        "workspace.peer_repeat": {
+          "dms_p50_us": 152.752,
+          "moosefs_p50_us": 212.618,
+          "p50_ratio": 0.718,
+          "dms_p95_us": 185.668,
+          "moosefs_p95_us": 372.363,
+          "p95_ratio": 0.499,
+          "foreground_meta_rpc": 0,
+          "foreground_peer_rpc": 0
+        }
+      }
+    }
+  ],
+  "evaluation": "PASS"
+}

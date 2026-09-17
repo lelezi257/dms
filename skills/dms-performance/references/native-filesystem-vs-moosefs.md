@@ -11,7 +11,7 @@
 - memory lane：MooseFS Master/Chunk 数据也放 tmpfs，5 轮后端顺序交替。
 - disk lane：MooseFS 使用 VM 虚拟磁盘，只展示真实部署差异，不与 DMS 内存可靠性混为一谈。
 
-## 2026-09-17 结论
+## 2026-09-17 P0 结论
 
 - DMS 512 MiB 本地热读为 1215.49 MiB/s，高于 MooseFS 803.96 MiB/s；本地 DataCore 路径有明确优势。
 - 512 MiB 跨节点接管后的复读吞吐比值为 0.969，达到持平门槛。
@@ -19,6 +19,13 @@
 - 512 MiB write-through 每个 1 MiB callback 同步一次 `CommitFilesystemVersion`，5 轮合计 2560 次，是写吞吐主要放大项。
 - 512 MiB peer-first 5 轮产生 2560 次 `PullBlock` 和 2322 次 `ReportReplicas`；分块拉取必要，但逐块 RPC 与副本上报不应直接视为架构下限。
 - Preview 判定为 `NOT_READY`。下一轮顺序固定为：恢复小文件热路径合同；优化提交流水线；优化连续 Block pull/report 控制路径。
+
+## P1 后续结论
+
+- 小文件稳定热读已恢复 0 前台 Meta/Peer RPC；两次独立运行 evaluator 均通过。
+- local hot 的两轮 p50 比值为 0.741/0.724，peer repeat 为 0.716/0.718；DMS 已稳定快于同环境 MooseFS。
+- `GetFilesystemXattr` 和无锁 `ReleaseFilesystemLockOwner` 已从普通读路径删除，没有通过扩大 TTL、关闭 ACL 或跳过 revoke 换性能。
+- 下一阶段是 namespace/mutation 固定成本；不要重新优化已经达到停止线的稳定热读。
 
 ## 不要重复争论
 

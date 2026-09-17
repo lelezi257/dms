@@ -23,9 +23,9 @@ use crate::filesystem::space_sync::{FileSpaceMutation, FileSpaceMutationRequest,
 use crate::filesystem::{
     AttributePatch, CommitFileVersionRequest, CreateSymlinkRequest, DirectoryPage, FileLockMode,
     FileLockOutcome, FileLockRange, FilesystemCaller, FilesystemStats, InodeId, InodeKind,
-    LinkEntryRequest, NamespaceMutationResult, PreparedObjectVersion, ROOT_INODE,
-    RemoveEntryRequest, RemoveKind, RemoveXattrRequest, RenameEntryRequest, ReservationRangeChange,
-    ResolvedInode, SetAttributesRequest, SetXattrRequest, TimeUpdate, XattrSetMode,
+    LinkEntryRequest, PreparedObjectVersion, ROOT_INODE, RemoveEntryRequest, RemoveKind,
+    RemoveXattrRequest, RenameEntryRequest, ReservationRangeChange, ResolvedInode,
+    SetAttributesRequest, SetXattrRequest, TimeUpdate, XattrSetMode,
 };
 use crate::node::metadata_client::digest;
 
@@ -183,13 +183,14 @@ impl SharedFileOperations {
             .await
             .map_err(WorkerError::Stable)?;
         let inode = response
+            .mutation
             .inode
             .clone()
             .ok_or(WorkerError::MetadataUnavailable)?;
         self.install_entry_reference(
             inode.attributes.inode,
-            response.entry_reference_generation,
-            response.entry_reference_lease_millis,
+            response.mutation.entry_reference_generation,
+            response.mutation.entry_reference_lease_millis,
         )
         .await?;
         self.apply_namespace_mutation(response, vec![(target_parent, target_name.to_vec())])
@@ -457,6 +458,7 @@ impl SharedFileOperations {
             .await
             .map_err(WorkerError::Stable)?;
         let orphaned_inode = response
+            .mutation
             .inode
             .as_ref()
             .filter(|inode| inode.attributes.link_count == 0)
@@ -1705,14 +1707,19 @@ impl SharedFileOperations {
 
     async fn apply_namespace_mutation(
         &self,
-        result: NamespaceMutationResult,
+        response: super::meta_client::ResolvedNamespaceMutation,
         removed_dentries: Vec<(InodeId, Vec<u8>)>,
     ) -> Result<(), WorkerError> {
+        let super::meta_client::ResolvedNamespaceMutation {
+            mutation,
+            refreshed_directories,
+        } = response;
         self.node
             .filesystem_apply_local_namespace_mutation(
-                result.changed_directories,
-                result.changed_inodes,
+                mutation.changed_directories,
+                mutation.changed_inodes,
                 removed_dentries,
+                refreshed_directories,
             )
             .await
     }

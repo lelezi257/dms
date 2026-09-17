@@ -382,26 +382,46 @@ async fn consume_meta_events(
                             invalidation.source_node_id,
                         ) =>
                     {
-                        if node
-                            .invalidate_filesystem_binding(
-                                invalidation.inode,
-                                invalidation.through_generation,
-                                invalidation.minimum_inode_revision,
+                        let bindings = std::iter::once((
+                            invalidation.inode,
+                            invalidation.through_generation,
+                            invalidation.minimum_inode_revision,
+                        ))
+                        .chain(invalidation.additional_inodes.iter().map(|item| {
+                            (
+                                item.inode,
+                                item.through_generation,
+                                item.minimum_inode_revision,
                             )
-                            .await
-                            .is_err()
-                        {
-                            break;
+                        }));
+                        let mut binding_invalidation_failed = false;
+                        for (inode, through_generation, minimum_inode_revision) in bindings {
+                            if node
+                                .invalidate_filesystem_binding(
+                                    inode,
+                                    through_generation,
+                                    minimum_inode_revision,
+                                )
+                                .await
+                                .is_err()
+                            {
+                                binding_invalidation_failed = true;
+                                break;
+                            }
+                            if let Err(error) = kernel_cache.invalidate_inode(inode) {
+                                dms_logging::warn!(
+                                    "FUSE kernel cache invalidation failed; replaying Watch event before ACK";
+                                    "event" => "node.filesystem.kernel_cache_invalidate.failed",
+                                    "inode" => inode,
+                                    "through_generation" => through_generation,
+                                    "minimum_inode_revision" => minimum_inode_revision,
+                                    "error" => error.to_string(),
+                                );
+                                binding_invalidation_failed = true;
+                                break;
+                            }
                         }
-                        if let Err(error) = kernel_cache.invalidate_inode(invalidation.inode) {
-                            dms_logging::warn!(
-                                "FUSE kernel cache invalidation failed; replaying Watch event before ACK";
-                                "event" => "node.filesystem.kernel_cache_invalidate.failed",
-                                "inode" => invalidation.inode,
-                                "through_generation" => invalidation.through_generation,
-                                "minimum_inode_revision" => invalidation.minimum_inode_revision,
-                                "error" => error.to_string(),
-                            );
+                        if binding_invalidation_failed {
                             break;
                         }
                         let mut dentry_invalidation_failed = false;

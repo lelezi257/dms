@@ -474,6 +474,8 @@ pub(crate) fn namespace_result_to_proto(
             .collect(),
         entry_reference_lease_millis: result.entry_reference_lease_millis,
         entry_reference_generation: result.entry_reference_generation,
+        // 这是在线响应缓存提示，不属于持久化 NamespaceMutationResult。
+        refreshed_directories: Vec::new(),
     }
 }
 

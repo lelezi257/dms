@@ -448,6 +448,15 @@ message InvalidateFilesystemBindingEvent {
   // namespace mutation 变更的具体目录项。Node 在 ACK 前同时失效
   // inode page/attr cache 与这些 dentry，因此可以安全给 FUSE 正向缓存 TTL。
   repeated FilesystemDentryInvalidation invalidated_dentries = 5;
+  // 同一次 namespace transaction 可能同时修改父目录和目标 inode。它们必须共用
+  // 一个 Watch event/ACK；拆成多条事件会把一次权威提交放大为多次控制 RPC。
+  repeated FilesystemInodeInvalidation additional_inodes = 6;
+}
+
+message FilesystemInodeInvalidation {
+  uint64 inode = 1;
+  uint64 through_generation = 2;
+  uint64 minimum_inode_revision = 3;
 }
 
 message FilesystemDentryInvalidation {

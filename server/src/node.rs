@@ -404,6 +404,25 @@ async fn consume_meta_events(
                             );
                             break;
                         }
+                        let mut dentry_invalidation_failed = false;
+                        for dentry in &invalidation.invalidated_dentries {
+                            if let Err(error) =
+                                kernel_cache.invalidate_entry(dentry.parent, &dentry.name)
+                            {
+                                dms_logging::warn!(
+                                    "FUSE kernel dentry invalidation failed; replaying Watch event before ACK";
+                                    "event" => "node.filesystem.kernel_dentry_invalidate.failed",
+                                    "parent" => dentry.parent,
+                                    "name_length" => dentry.name.len(),
+                                    "error" => error.to_string(),
+                                );
+                                dentry_invalidation_failed = true;
+                                break;
+                            }
+                        }
+                        if dentry_invalidation_failed {
+                            break;
+                        }
                     }
                     // 本节点刚发布的写已经同步更新本地 binding/cache；Meta 仍会把同一
                     // invalidation 广播回来，但不能据此清掉写入方刚建立的热缓存。

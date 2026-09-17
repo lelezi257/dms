@@ -557,6 +557,7 @@ pub(crate) fn resolved_to_proto(resolved: &ResolvedInode) -> pb::FilesystemResol
             lease_millis: resolved.granted.grant.lease_millis,
         }),
         object: resolved.object.clone().map(ResolvedObject::into_proto),
+        access_acl: resolved.access_acl.clone(),
     }
 }
 
@@ -580,13 +581,17 @@ pub(crate) fn resolved_from_proto(
             },
         },
         object: resolved.object.map(ResolvedObject::from_proto),
+        access_acl: resolved.access_acl,
     })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::filesystem::CommitFileVersionRequest;
+    use crate::filesystem::{
+        CacheGrant, CommitFileVersionRequest, GrantedInode, InodeAttributes, InodeKind,
+        InodeSnapshot,
+    };
 
     #[test]
     fn one_file_commit_carries_data_and_inode_changes_together() {
@@ -619,5 +624,41 @@ mod tests {
         assert_eq!(request.inode, 100);
         assert_eq!(request.prepared.expected_object_version, Some(7));
         assert_eq!(request.new_size, request.prepared.candidate.logical_length);
+    }
+
+    #[test]
+    fn resolved_inode_wire_keeps_access_acl_with_its_cache_grant() {
+        let resolved = ResolvedInode {
+            granted: GrantedInode {
+                inode: InodeSnapshot {
+                    revision: 3,
+                    attributes: InodeAttributes {
+                        inode: 9,
+                        kind: InodeKind::RegularFile,
+                        mode: 0o640,
+                        uid: 1,
+                        gid: 2,
+                        link_count: 1,
+                        size: 0,
+                        atime_unix_nanos: 0,
+                        mtime_unix_nanos: 0,
+                        ctime_unix_nanos: 0,
+                    },
+                    content: None,
+                    reservations: Vec::new(),
+                },
+                grant: CacheGrant {
+                    generation: 4,
+                    lease_millis: 5_000,
+                },
+            },
+            object: None,
+            access_acl: Some(vec![2, 0, 0, 0]),
+        };
+
+        assert_eq!(
+            resolved_from_proto(resolved_to_proto(&resolved)).expect("wire round trip"),
+            resolved
+        );
     }
 }

@@ -445,6 +445,14 @@ message InvalidateFilesystemBindingEvent {
   uint64 through_generation = 2;
   uint64 minimum_inode_revision = 3;
   uint64 source_node_id = 4;
+  // namespace mutation 变更的具体目录项。Node 在 ACK 前同时失效
+  // inode page/attr cache 与这些 dentry，因此可以安全给 FUSE 正向缓存 TTL。
+  repeated FilesystemDentryInvalidation invalidated_dentries = 5;
+}
+
+message FilesystemDentryInvalidation {
+  uint64 parent = 1;
+  bytes name = 2;
 }
 
 message NodeEvent {

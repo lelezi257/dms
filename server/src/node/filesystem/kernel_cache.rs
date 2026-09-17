@@ -6,6 +6,9 @@
 
 use std::sync::{Arc, Mutex};
 
+#[cfg(all(target_os = "linux", feature = "fuse"))]
+use std::{ffi::OsStr, os::unix::ffi::OsStrExt};
+
 use super::super::metrics::{FilesystemKernelInvalidationResult, NodeMetrics};
 
 #[cfg(all(target_os = "linux", feature = "fuse"))]
@@ -129,6 +132,67 @@ impl KernelCacheInvalidator {
             }
         }
     }
+
+    /// 失效目录中一个具体名字的 positive/negative dentry cache。
+    ///
+    /// inode invalidation 不等价于 dentry invalidation：create/unlink/rename 后，内核
+    /// 可能仍然保留“该名字存在/不存在”的 lookup 结果。Meta Watch 所以携带
+    /// `(parent, name)`，就是为了在 ACK 前完成这个边界。
+    pub(crate) fn invalidate_entry(
+        &self,
+        parent: u64,
+        name: &[u8],
+    ) -> Result<(), KernelCacheInvalidationError> {
+        #[cfg(all(target_os = "linux", feature = "fuse"))]
+        {
+            let (required, notifier) = {
+                let state = self.inner.lock().expect("kernel cache invalidator");
+                (state.required, state.notifier.clone())
+            };
+            if !required {
+                self.metrics.record_filesystem_kernel_invalidation(
+                    FilesystemKernelInvalidationResult::Skipped,
+                );
+                return Ok(());
+            }
+            let Some(notifier) = notifier else {
+                self.metrics.record_filesystem_kernel_invalidation(
+                    FilesystemKernelInvalidationResult::Error,
+                );
+                return Err(KernelCacheInvalidationError::NotifierNotInstalled);
+            };
+            if let Err(error) = notifier.inval_entry(parent, OsStr::from_bytes(name)) {
+                self.metrics.record_filesystem_kernel_invalidation(
+                    FilesystemKernelInvalidationResult::Error,
+                );
+                return Err(error.into());
+            }
+            self.metrics
+                .record_filesystem_kernel_invalidation(FilesystemKernelInvalidationResult::Ok);
+            Ok(())
+        }
+
+        #[cfg(not(all(target_os = "linux", feature = "fuse")))]
+        {
+            let _ = (parent, name);
+            let required = self
+                .inner
+                .lock()
+                .expect("kernel cache invalidator")
+                .required;
+            if required {
+                self.metrics.record_filesystem_kernel_invalidation(
+                    FilesystemKernelInvalidationResult::Error,
+                );
+                Err(KernelCacheInvalidationError::NotifierNotInstalled)
+            } else {
+                self.metrics.record_filesystem_kernel_invalidation(
+                    FilesystemKernelInvalidationResult::Skipped,
+                );
+                Ok(())
+            }
+        }
+    }
 }
 
 #[cfg(test)]
@@ -146,6 +210,9 @@ mod tests {
         invalidator
             .invalidate_inode(42)
             .expect("no FUSE mount means no kernel cache to invalidate");
+        invalidator
+            .invalidate_entry(1, b"file")
+            .expect("no FUSE mount means no kernel dentry cache to invalidate");
     }
 
     #[test]

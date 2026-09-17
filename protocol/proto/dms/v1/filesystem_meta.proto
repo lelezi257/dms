@@ -232,6 +232,10 @@ message FilesystemResolvedInode {
   // 普通文件带回精确版本的完整读取计划。Node 在 grant 有效期内缓存该计划，
   // 热读不需要再调用对象 ResolveObject。
   optional ResolveObjectResponse object = 3;
+  // access ACL 与 inode mode/revision 共同决定内核权限。它跟随同一
+  // CacheGrant 返回，远端 chmod/setxattr 通过同一 inode revoke 失效；
+  // 其它普通 xattr 仍按需查 Meta，不建立第二套通用 xattr cache。
+  optional bytes access_acl = 4;
 }
 
 message FilesystemLookupRequest {

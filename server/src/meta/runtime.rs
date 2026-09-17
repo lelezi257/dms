@@ -2160,6 +2160,10 @@ impl MetaState {
         Ok(ResolvedInode {
             granted,
             object: object.map(crate::filesystem::ResolvedObject::from_proto),
+            access_acl: self
+                .filesystem
+                .xattr(inode, ACL_ACCESS_NAME)
+                .map(ToOwned::to_owned),
         })
     }
 
@@ -2188,6 +2192,10 @@ impl MetaState {
                     lease_millis: FILESYSTEM_BINDING_LEASE_MILLIS,
                 }),
                 object,
+                access_acl: self
+                    .filesystem
+                    .xattr(inode.attributes.inode, ACL_ACCESS_NAME)
+                    .map(ToOwned::to_owned),
             }),
             invalidation_cursor,
             commit_index,
@@ -5920,6 +5928,7 @@ impl MetaState {
                             through_generation: revoked_generation,
                             minimum_inode_revision: inode_revision,
                             source_node_id,
+                            invalidated_dentries: Vec::new(),
                         },
                     )),
                 });
@@ -5970,6 +5979,7 @@ impl MetaState {
                             through_generation: record.revoked_grant_generation,
                             minimum_inode_revision: inode_revision,
                             source_node_id,
+                            invalidated_dentries: Vec::new(),
                         },
                     )),
                 });
@@ -6019,6 +6029,7 @@ impl MetaState {
                             through_generation: record.revoked_grant_generation,
                             minimum_inode_revision: inode_revision,
                             source_node_id,
+                            invalidated_dentries: Vec::new(),
                         },
                     )),
                 });
@@ -6081,6 +6092,10 @@ impl MetaState {
                 );
                 self.live_keys.insert(record.version.key);
 
+                let invalidated_dentries = filesystem_dentry_invalidations(
+                    &record.namespace.upsert_dentries,
+                    &record.namespace.remove_dentries,
+                );
                 let xattr_updates = record.namespace.xattr_updates.clone();
                 self.filesystem.apply_namespace_mutation(
                     record.namespace.upsert_inodes,
@@ -6105,6 +6120,10 @@ impl MetaState {
                                 through_generation: directory.grant_generation.saturating_sub(1),
                                 minimum_inode_revision: directory.revision,
                                 source_node_id,
+                                invalidated_dentries: invalidated_dentries
+                                    .get(&directory.inode)
+                                    .cloned()
+                                    .unwrap_or_default(),
                             },
                         )),
                     });
@@ -6122,6 +6141,7 @@ impl MetaState {
                                 through_generation: inode.grant_generation.saturating_sub(1),
                                 minimum_inode_revision: inode.revision,
                                 source_node_id,
+                                invalidated_dentries: Vec::new(),
                             },
                         )),
                     });
@@ -6150,6 +6170,10 @@ impl MetaState {
                 if let Some(record) = commit_sequence {
                     self.remember_commit_sequence(record);
                 }
+                let invalidated_dentries = filesystem_dentry_invalidations(
+                    &record.upsert_dentries,
+                    &record.remove_dentries,
+                );
                 let xattr_updates = record.xattr_updates.clone();
                 self.filesystem.apply_namespace_mutation(
                     record.upsert_inodes,
@@ -6174,6 +6198,10 @@ impl MetaState {
                                 through_generation: directory.grant_generation.saturating_sub(1),
                                 minimum_inode_revision: directory.revision,
                                 source_node_id,
+                                invalidated_dentries: invalidated_dentries
+                                    .get(&directory.inode)
+                                    .cloned()
+                                    .unwrap_or_default(),
                             },
                         )),
                     });
@@ -6191,6 +6219,7 @@ impl MetaState {
                                 through_generation: inode.grant_generation.saturating_sub(1),
                                 minimum_inode_revision: inode.revision,
                                 source_node_id,
+                                invalidated_dentries: Vec::new(),
                             },
                         )),
                     });
@@ -8051,6 +8080,34 @@ fn event_id_with_suffix(stage_epoch: u64, node_id: u64) -> Vec<u8> {
     let mut id = stage_epoch.to_be_bytes().to_vec();
     id.extend_from_slice(&node_id.to_be_bytes());
     id
+}
+
+/// 把一次 namespace journal delta 转成 kernel dentry 精确失效集。
+///
+/// create/link 只有 upsert，unlink 只有 remove，rename/replace 可能同时包含
+/// 两者。同一 `(parent, name)` 只通知一次；这些数据从已持久的
+/// journal record 推导，恢复重放和在线 apply 因此会生成相同事件。
+fn filesystem_dentry_invalidations(
+    upsert_dentries: &[crate::filesystem::DentrySnapshot],
+    remove_dentries: &[crate::filesystem::DentrySnapshot],
+) -> HashMap<u64, Vec<pb::FilesystemDentryInvalidation>> {
+    let mut names_by_parent = HashMap::<u64, BTreeSet<Vec<u8>>>::new();
+    for dentry in upsert_dentries.iter().chain(remove_dentries) {
+        names_by_parent
+            .entry(dentry.parent)
+            .or_default()
+            .insert(dentry.name.clone());
+    }
+    names_by_parent
+        .into_iter()
+        .map(|(parent, names)| {
+            let entries = names
+                .into_iter()
+                .map(|name| pb::FilesystemDentryInvalidation { parent, name })
+                .collect();
+            (parent, entries)
+        })
+        .collect()
 }
 
 struct ScanCursor {
@@ -16767,5 +16824,43 @@ mod tests {
             pb::node_event::Event::InvalidateCurrent(invalidation) => invalidation,
             other => panic!("expected invalidation event, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn namespace_dentry_invalidations_are_exact_and_deduplicated() {
+        let source = DentrySnapshot {
+            parent: 1,
+            name: b"old".to_vec(),
+            inode: 10,
+            directory_revision: 7,
+        };
+        let target = DentrySnapshot {
+            parent: 2,
+            name: b"new".to_vec(),
+            inode: 10,
+            directory_revision: 7,
+        };
+        let replaced = DentrySnapshot {
+            parent: 2,
+            name: b"new".to_vec(),
+            inode: 11,
+            directory_revision: 6,
+        };
+
+        let invalidations =
+            filesystem_dentry_invalidations(std::slice::from_ref(&target), &[source, replaced]);
+        assert_eq!(
+            invalidations.get(&1).expect("source parent")[0].name,
+            b"old"
+        );
+        assert_eq!(
+            invalidations.get(&2).expect("target parent").len(),
+            1,
+            "rename-over target appears in upsert and remove but needs one kernel notification"
+        );
+        assert_eq!(
+            invalidations.get(&2).expect("target parent")[0].name,
+            b"new"
+        );
     }
 }

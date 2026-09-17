@@ -2,6 +2,21 @@
 
 > Preview 判定：**NOT_READY**。本报告区分公平内存介质 lane 与真实虚拟磁盘 lane，后者不用于宣称同等可靠性。
 
+## P1 稳定热路径补充（2026-09-17）
+
+原始摸底中 `workspace.local_hot` 和 `workspace.peer_repeat` 的主要差距已经收口。新实现不再为普通读逐文件查询 access ACL，也不会为没有持锁的 FUSE owner 调用 Meta release；FUSE 正缓存只使用 Meta grant 的剩余租约，远端 namespace 变更仍在 Watch ACK 前精确撤销 inode/dentry。
+
+“稳定热路径”在采集前让 DMS 与 MooseFS 对同一工作集各 warmup 一次；warmup 结果独立保存，不进入正式样本或 before/after RPC 差值。这只排除每目录一次的冷授权恢复，不掩盖持续 RPC。
+
+| 独立运行 | Case | DMS p50 | MooseFS p50 | p50 比值 | DMS p95 | MooseFS p95 | p95 比值 | 前台 Meta/Peer RPC |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| run-1 | `workspace.local_hot` | 154.33 µs | 208.25 µs | 0.741 | 233.58 µs | 359.29 µs | 0.650 | 0 / 0 |
+| run-1 | `workspace.peer_repeat` | 152.17 µs | 212.54 µs | 0.716 | 187.00 µs | 393.09 µs | 0.476 | 0 / 0 |
+| run-2 | `workspace.local_hot` | 149.25 µs | 206.17 µs | 0.724 | 223.42 µs | 382.09 µs | 0.585 | 0 / 0 |
+| run-2 | `workspace.peer_repeat` | 152.75 µs | 212.62 µs | 0.718 | 185.67 µs | 372.36 µs | 0.499 | 0 / 0 |
+
+P1 evaluator 为 `PASS`；机器摘要见 [`native-fs-hot-path-lima-aarch64-2026-09-17.json`](../../benchmarks/whitebox/baselines/native-fs-hot-path-lima-aarch64-2026-09-17.json)。本报告后续章节保留 P0 原始摸底，作为优化前证据；整体 Preview 仍需继续完成 namespace/mutation、write-through 和 peer-first 阶段。
+
 ## 1. 对比拓扑与原则
 
 - A：写入端，也是 DMS Block owner / MooseFS 唯一 ChunkServer。

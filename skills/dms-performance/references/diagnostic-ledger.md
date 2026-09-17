@@ -28,3 +28,6 @@
 - 完整不可变 Block 可复用提交摘要；区间 payload 必须重新校验。
 - jemalloc 不替代 Region 内 Slot 管理；allocator 只有被分段证据证明为主成本时才进入优化优先级。
 - 高频覆盖写的失效合同是“远端目标 Node ACK 后才回复写成功”；写入 Node 已在本机提交路径更新 Current，不应再接收并 ACK 自己产生的失效事件。Watch lag、重放和事件回收都必须按真实目标 Node 计算，不能只改投递。
+- Native Filesystem 普通读的 access ACL 与 inode mode/revision 共用同一 grant；如果每次读仍出现 `GetFilesystemXattr`，属于实现回归，不应新增第二套 ACL cache。
+- FUSE release 只有本地镜像中存在真实锁或在途锁请求时才访问 Meta；无锁 owner 的 `ReleaseFilesystemLockOwner` 必须本地短路。
+- P1 稳定热读要求 before snapshot 前对双方执行相同完整 warmup。创建阶段过长导致的每目录一次 grant 恢复属于冷启动；warmup 后若仍有前台 Meta/Peer RPC，才是持续热路径放大。

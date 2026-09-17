@@ -36,6 +36,11 @@ PHASES = (
     ("large-peer-repeat", "B"),
 )
 
+# `workspace-local-hot` 验收的是稳定热路径，而不是创建阶段耗时超过授权租约后
+# 第一次重新遍历目录的冷启动成本。DMS 和 MooseFS 都在采集 before snapshot 前
+# 完整读取同一工作集一次；warmup 结果单独落盘，不能混入正式延迟样本。
+WARMUP_PHASES = {"workspace-local-hot"}
+
 
 def command(argv: list[str], *, capture: bool = False) -> subprocess.CompletedProcess[str]:
     completed = subprocess.run(argv, text=True, capture_output=True, check=False)
@@ -421,8 +426,28 @@ print(json.dumps({"processes": processes, "network": net}))
         for phase, role in PHASES:
             case_dir = self.output / lane / f"round-{round_id}" / backend / phase
             case_dir.mkdir(parents=True)
-            self.snapshot(lane, round_id, backend, case_dir, "before")
             root = self.experiment_root(lane, round_id, backend, role)
+            if phase in WARMUP_PHASES:
+                remote_warmup = root + f"/{phase}.warmup.json"
+                self.shell(
+                    role,
+                    shlex.join(
+                        [
+                            "python3",
+                            self.remote_base + "/workload.py",
+                            "--root",
+                            root + "/mnt",
+                            "--phase",
+                            phase,
+                            "--seed",
+                            "6701",
+                            "--output",
+                            remote_warmup,
+                        ]
+                    ),
+                )
+                self.copy_from(role, remote_warmup, case_dir / "warmup.json")
+            self.snapshot(lane, round_id, backend, case_dir, "before")
             remote_result = root + f"/{phase}.json"
             self.shell(
                 role,

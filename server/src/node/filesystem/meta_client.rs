@@ -604,7 +604,7 @@ impl FilesystemMetaClient for FilesystemMetaGrpcClient {
 
     async fn release_lock_owner(&self, mutation_sequence: u64, lock_owner: u64) -> DmsResult<u64> {
         self.metadata
-            .filesystem_release_lock_owner(mutation_sequence, lock_owner)
+            .filesystem_release_lock_owner_if_known(mutation_sequence, lock_owner)
             .await
     }
 }

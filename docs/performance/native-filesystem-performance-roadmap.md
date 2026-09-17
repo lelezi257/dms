@@ -1,6 +1,6 @@
 # DMS Native Filesystem 性能优化 Roadmap
 
-> 状态：**规划已冻结，等待按阶段执行**。本 Roadmap 从三 VM 白盒基线出发，目标不是无限追逐更高数字，而是先消除实现放大、兑现架构优势，再为可靠性和 Agent Workspace 建立持续门禁。
+> 状态：**P1 已完成，P2 是下一项**。本 Roadmap 从三 VM 白盒基线出发，目标不是无限追逐更高数字，而是先消除实现放大、兑现架构优势，再为可靠性和 Agent Workspace 建立持续门禁。
 
 GitHub 跟踪入口：[性能 Roadmap #32](https://github.com/lelezi257/dms/issues/32)。源码中的本文是稳定决策正文，Issue 只维护执行状态和阶段证据。
 
@@ -12,7 +12,7 @@ GitHub 跟踪入口：[性能 Roadmap #32](https://github.com/lelezi257/dms/issu
 
 - 512 MiB 本地热读为 1215.49 MiB/s，高于 MooseFS 的 803.96 MiB/s。
 - 512 MiB 跨节点接管后的复读比值为 0.969，已达到持平门槛。
-- 小文件本地热读和 Peer 复读仍逐文件访问 Meta，违背既有 0 Meta/Peer 热路径合同。
+- P1 已让小文件本地稳定热读和 Peer 复读恢复 0 前台 Meta/Peer RPC；两次独立运行的 p50 比值分别为 0.741/0.716 与 0.724/0.718。
 - 512 MiB Peer 首读出现逐 Block `PullBlock` 和 `ReportReplicas` 放大。
 - 当前大文件写比较并非完全等语义：DMS 每个 FUSE write callback 都完成 write-through；对端可以先进入客户端写缓存，最后再 `fsync`。
 
@@ -73,8 +73,8 @@ GitHub 跟踪入口：[性能 Roadmap #32](https://github.com/lelezi257/dms/issu
 | 阶段 | 目标 | 优先级 | 产品关系 |
 | --- | --- | --- | --- |
 | P0 | 冻结可复现基线与判定器 | 已完成 | 所有阶段基础 |
-| P1 | 恢复小文件稳定热路径 0 Meta/Peer 合同 | 立即执行 | Preview 阻塞项 |
-| P2 | 收敛 namespace 与 mutation 固定成本 | P1 后 | Agent 小文件体验 |
+| P1 | 恢复小文件稳定热路径 0 Meta/Peer 合同 | 已完成 | Preview 热读阻塞项已解除 |
+| P2 | 收敛 namespace 与 mutation 固定成本 | 立即执行 | Agent 小文件体验 |
 | P3 | 分离并优化 write-through 写路径 | P2 后 | POSIX 写与同步语义 |
 | P4 | 收敛跨节点首次读取控制放大 | P3 后 | P2P 架构优势 |
 | P5 | 验证并发、Actor、内存与背压上限 | P4 后 | 单机/多客户端扩展性 |
@@ -87,8 +87,8 @@ P1～P5 串行执行。只有上一阶段的根因、代码和机器证据收口
 ### GitHub 阶段状态
 
 - [x] P0：冻结可复现基线与判定器（#30 / PR #31）。
-- [ ] P1：恢复小文件稳定热路径 0 Meta/Peer 合同；这是下一项且唯一激活项。
-- [ ] P2：收敛 namespace 与 mutation 固定成本。
+- [x] P1：恢复小文件稳定热路径 0 Meta/Peer 合同（commit `095b8ca`，双轮 evaluator `PASS`）。
+- [ ] P2：收敛 namespace 与 mutation 固定成本；这是下一项且唯一激活项。
 - [ ] P3：建立等语义 write-through lane 并优化单次提交。
 - [ ] P4：收敛跨节点首次读取的 Pull/Report 控制放大。
 - [ ] P5：验证并发、Actor、内存、gRPC 与背压上限。
@@ -123,6 +123,14 @@ P1～P5 串行执行。只有上一阶段的根因、代码和机器证据收口
 
 800 次普通文件读取分别产生 800 次 `GetFilesystemXattr` 和 800 次 `ReleaseFilesystemLockOwner`。Peer repeat 已没有 Block 传输却仍慢 5.422 倍，因此主因是控制面实现回归，不是 P2P 架构税。
 
+### 已实施的收敛
+
+- access ACL 随 inode grant 一次返回，并与 mode/revision 共用 BindingCache、Watch revoke 和 lease expiry；普通权限检查不再单独调用 `GetFilesystemXattr`。
+- Node 只为本地镜像中真实存在或正在获取的锁 owner 访问 Meta；普通 close 的 `ReleaseFilesystemLockOwner` 在本地短路。
+- FUSE entry/attr TTL 使用 Node grant 的**剩余租约**，不会在缓存命中时凭空续出新的陈旧窗口。
+- Meta Watch 在 ACK 前同时撤销 inode 和精确 `(parent,name)` dentry；远端 namespace mutation 不依赖 TTL 才被看见。
+- `workspace.local_hot` 明确定义为稳态热读：DMS 与 MooseFS 都在 before snapshot 前完整 warmup 一次，warmup 结果单独保存且不进入正式样本/RPC 差值。创建阶段超过租约后的首次目录恢复属于冷启动，不伪装成稳态成本。
+
 ### 允许修改
 
 - 普通 read/open 使用有效的 inode attributes、binding/grant 与 Node cache；显式 xattr/ACL 查询才访问 xattr API。
@@ -134,13 +142,28 @@ P1～P5 串行执行。只有上一阶段的根因、代码和机器证据收口
 
 - `workspace.local_hot` 与 `workspace.peer_repeat` 的前台 Meta RPC = 0、Peer RPC = 0；Heartbeat/lease renew 作为后台周期流量单独统计。
 - 800 次普通读的 `GetFilesystemXattr` = 0、`ReleaseFilesystemLockOwner` = 0。
-- 继续使用当前门槛：local hot 与 peer repeat 的 DMS/MooseFS p50 latency <= 1.10。
-- p95 不得比本阶段修改前恶化超过 10%；CPU、RSS 和网络字节不得出现无法解释的增长。
+- local hot 与 peer repeat 的 DMS/MooseFS p50、p95 latency 均 <= 1.10。
+- CPU、RSS 和网络字节不得出现无法解释的增长。
 - 权限、ACL、真实文件锁、两 Node 写后失效、Node/Meta 重启与 stale generation 测试全部通过。
 
 ### 退出条件
 
 两个热路径门槛连续两次独立全量运行通过，且没有通过扩大 TTL、跳过授权或关闭失效通知获得结果。
+
+### 完成证据（2026-09-17）
+
+| 独立运行 | Case | p50 DMS/MooseFS | p95 DMS/MooseFS | 前台 Meta RPC | 前台 Peer RPC |
+| --- | --- | ---: | ---: | ---: | ---: |
+| run-1 | `workspace.local_hot` | 0.741 | 0.650 | 0 | 0 |
+| run-1 | `workspace.peer_repeat` | 0.716 | 0.476 | 0 | 0 |
+| run-2 | `workspace.local_hot` | 0.724 | 0.585 | 0 | 0 |
+| run-2 | `workspace.peer_repeat` | 0.718 | 0.499 | 0 | 0 |
+
+- [x] 两次运行均为 5 轮 memory lane + 1 轮独立 disk 观察 lane，服务和远端目录重新部署。
+- [x] `GetFilesystemXattr=0`、`ReleaseFilesystemLockOwner=0`，所有前台 RPC 为 0。
+- [x] 权限/ACL/锁/revoke/lease/generation 语义保留；`dms-server` 459 项单测通过。
+- [x] 机器基线：[`native-fs-hot-path-lima-aarch64-2026-09-17.json`](../../benchmarks/whitebox/baselines/native-fs-hot-path-lima-aarch64-2026-09-17.json)。
+- [x] 机器合同：[`native-fs-hot-path-contract.json`](../../benchmarks/whitebox/native-fs-hot-path-contract.json)。
 
 ## 7. P2：namespace 与 mutation 固定成本
 

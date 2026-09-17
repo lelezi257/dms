@@ -1211,8 +1211,10 @@ impl SharedFileOperations {
         }
     }
 
-    /// 按需读取一个扩展属性。首版不在 Node 建立长期 xattr cache：属性通常很小且
-    /// 修改频率低，直接由 Meta 做权限校验与 revision 读取，避免再引入一套失效协议。
+    /// 按需读取一个扩展属性。普通 xattr 不在 Node 建立长期 cache；但 Linux
+    /// `default_permissions + POSIX_ACL` 会在普通 open/read 前查询 access ACL。
+    /// access ACL 因此与 inode mode/revision 共用 BindingCache 的 grant/revoke，不再
+    /// 每次单独访问 Meta。这不是第二套 xattr 失效协议。
     pub(crate) async fn get_xattr(
         &self,
         inode: InodeId,
@@ -1222,11 +1224,17 @@ impl SharedFileOperations {
         let mut metric = self
             .metrics
             .begin_filesystem_operation(FilesystemOperation::Getxattr);
-        let result = self
-            .metadata
-            .get_xattr(inode, name, caller)
-            .await
-            .map_err(WorkerError::Stable)?;
+        let result = if name == crate::filesystem::ACL_ACCESS_NAME {
+            // Meta 的 getxattr 当前只验证 caller 存在，真正的访问判定由
+            // kernel default_permissions 执行；因此复用同一 inode 授权不会放宽权限。
+            let _ = caller;
+            self.resolve_inode(inode).await?.access_acl
+        } else {
+            self.metadata
+                .get_xattr(inode, name, caller)
+                .await
+                .map_err(WorkerError::Stable)?
+        };
         metric.success();
         Ok(result)
     }

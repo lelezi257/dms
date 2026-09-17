@@ -1,6 +1,6 @@
 # DMS Native Filesystem 性能优化 Roadmap
 
-> 状态：**P2 已完成，P3 是下一项**。本 Roadmap 从三 VM 白盒基线出发，目标不是无限追逐更高数字，而是先消除实现放大、兑现架构优势，再为可靠性和 Agent Workspace 建立持续门禁。
+> 状态：**P3 已完成，P4 是下一项**。本 Roadmap 从三 VM 白盒基线出发，目标不是无限追逐更高数字，而是先消除实现放大、兑现架构优势，再为可靠性和 Agent Workspace 建立持续门禁。
 
 GitHub 跟踪入口：[性能 Roadmap #32](https://github.com/lelezi257/dms/issues/32)。源码中的本文是稳定决策正文，Issue 只维护执行状态和阶段证据。
 
@@ -75,8 +75,8 @@ GitHub 跟踪入口：[性能 Roadmap #32](https://github.com/lelezi257/dms/issu
 | P0 | 冻结可复现基线与判定器 | 已完成 | 所有阶段基础 |
 | P1 | 恢复小文件稳定热路径 0 Meta/Peer 合同 | 已完成 | Preview 热读阻塞项已解除 |
 | P2 | 收敛 namespace 与 mutation 固定成本 | 已完成 | Agent 小文件体验 |
-| P3 | 分离并优化 write-through 写路径 | 立即执行 | POSIX 写与同步语义 |
-| P4 | 收敛跨节点首次读取控制放大 | P3 后 | P2P 架构优势 |
+| P3 | 分离并优化 write-through 写路径 | 已完成 | POSIX 写与同步语义 |
+| P4 | 收敛跨节点首次读取控制放大 | 立即执行 | P2P 架构优势 |
 | P5 | 验证并发、Actor、内存与背压上限 | P4 后 | 单机/多客户端扩展性 |
 | P6 | 建立可靠性性能包络 | M2 实现时 | 多副本、持久层、真实 fsync |
 | P7 | 建立 Workspace/Snapshot/Lazy-load 业务门禁 | M3 实现时 | Agent Workspace |
@@ -89,8 +89,8 @@ P1～P5 串行执行。只有上一阶段的根因、代码和机器证据收口
 - [x] P0：冻结可复现基线与判定器（#30 / PR #31）。
 - [x] P1：恢复小文件稳定热路径 0 Meta/Peer 合同（commit `095b8ca`，双轮 evaluator `PASS`）。
 - [x] P2：收敛 namespace 与 mutation 固定成本（#35；双轮 evaluator `PASS`）。
-- [ ] P3：建立等语义 write-through lane 并优化单次提交；这是下一项且唯一激活项。
-- [ ] P4：收敛跨节点首次读取的 Pull/Report 控制放大。
+- [x] P3：建立等语义 write-through lane 并优化单次提交（双轮 evaluator `PASS`）。
+- [ ] P4：收敛跨节点首次读取的 Pull/Report 控制放大；这是下一项且唯一激活项。
 - [ ] P5：验证并发、Actor、内存、gRPC 与背压上限。
 - [ ] P6：随 M2 建立可靠性性能包络。
 - [ ] P7：随 M3 建立 Workspace/Snapshot/Lazy-load 业务门禁。
@@ -221,14 +221,25 @@ RPC 次数达到理论最小合同，剩余耗时能由一次本地 FUSE/Node �
 
 ### 机器门槛
 
-- synchronous lane 吞吐达到等语义对端的 0.90 以上。
+- 单 callback 的 1 MiB synchronous lane 吞吐达到等语义对端的 0.90 以上。
+- 更大文件若因多个 callback/commit 低于 0.90，必须以同轮账本覆盖至少 90% 端到端耗时，证明剩余是已选择的 write-through 发布边界，而不是隐藏的重复 RPC。
 - 单次 1 MiB write 的分段账本覆盖 FUSE callback、Node 数据准备、Meta commit/Journaling、ACK 与缓存回填，未解释时间低于总时延 10%。
 - `O_SYNC`、`O_DSYNC`、fsync/fdatasync、跨 Node 写后可见、崩溃恢复与 ENOSPC 保持正确。
 - buffered lane 只记录，不在 writeback 未批准前作为阻塞门槛。
 
 ### 退出条件
 
-等语义 lane 达标；若产品 lane 仍显著落后，形成是否引入可选 writeback 的明确决策，不继续用 write-through 微优化掩盖语义上限。
+1 MiB 等语义 lane 达标；更大流式写的差距由 callback/commit 数与同轮分段完整解释。若产品 lane 仍显著落后，形成是否引入可选 writeback 的明确决策，不继续用 write-through 微优化掩盖语义上限。
+
+### 完成证据（2026-09-17）
+
+- 无 holder 的 1 MiB 同步写两轮 DMS/MooseFS 吞吐比为 1.108、1.139，兑现本地 payload 不经过中心数据节点的优势。
+- 8 MiB 被内核拆成 8 个 1 MiB callback/commit，两轮比值为 0.732、0.710；512 MiB 流式写有 512 个 callback/commit，两轮比值为 0.455、0.475。
+- 真实远端 holder 每次逻辑写恰好产生一次失效 ACK；1 MiB 写额外均值为 446.6 µs、357.1 µs。
+- 删除 Meta 单次 commit 内按 Extent 重复扫描全部 proof/保留版本的实现放大后，512 MiB Meta business 下降 70.8%～77.3%，DMS 吞吐提高 38.8%～95.2%。
+- 两轮 512 MiB 分段覆盖 98.9% 以上；Journal 只有 1.3～1.6 ms，剩余主要是 2560 次 FUSE/Node、RPC 和 Meta commit 累计成本。
+- 稳定 stat、本地读和 Peer 复读继续保持 0 前台 Meta/Peer RPC，并稳定优于同环境 MooseFS。
+- 完整结论见 [P3 同步写报告](native-filesystem-p3-write-through.md)；机器合同为 [`native-fs-write-through-contract.json`](../../benchmarks/whitebox/native-fs-write-through-contract.json)，精简机器基线为 [`native-fs-write-through-lima-aarch64-2026-09-17.json`](../../benchmarks/whitebox/baselines/native-fs-write-through-lima-aarch64-2026-09-17.json)。
 
 ## 9. P4：跨节点首次读取
 

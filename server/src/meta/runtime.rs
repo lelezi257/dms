@@ -3792,6 +3792,36 @@ impl MetaState {
             ));
         }
         let referenced_blocks = validate_filesystem_candidate_layout(&candidate)?;
+
+        // 一个顺序写文件会逐步形成很多 immutable Block。旧实现对 candidate 的每个
+        // Extent 都线性扫描 replica_proofs，并再次遍历全部保留版本确认 Block 仍被
+        // 引用；第 N 次追加因此会重复做 N 份相同目录查询，长文件会退化成平方级工作。
+        //
+        // 这里先建立本次 actor turn 内的只读索引。索引不成为第二份权威状态，也不
+        // 跨请求缓存：Meta 的 versions/replicas 仍是唯一真相，校验规则和失败语义不变。
+        // 同一个 block 的重复 proof 仍逐个尝试，保持旧代码“任一有效即可”的行为。
+        let retained_blocks: HashSet<&[u8]> = self
+            .versions
+            .values()
+            .flat_map(|versions| versions.values())
+            .flat_map(|layout| layout.extents.iter())
+            .filter(|extent| !is_filesystem_sparse_hole(extent))
+            .map(|extent| extent.block_id.as_slice())
+            .collect();
+        let mut proofs_by_block: HashMap<&[u8], Vec<&pb::ReplicaProof>> = HashMap::new();
+        for proof in &request.replica_proofs {
+            proofs_by_block
+                .entry(proof.block_id.as_slice())
+                .or_default()
+                .push(proof);
+        }
+        let mut new_replicas_by_block: HashMap<&[u8], Vec<&pb::ReplicaReport>> = HashMap::new();
+        for report in &request.new_replicas {
+            new_replicas_by_block
+                .entry(report.block_id.as_slice())
+                .or_default()
+                .push(report);
+        }
         for extent in &candidate.extents {
             if is_filesystem_sparse_hole(extent) {
                 continue;
@@ -3807,25 +3837,30 @@ impl MetaState {
                         .length,
                 )
                 .expect("validated block range");
-            let known = request.replica_proofs.iter().any(|proof| {
-                proof.block_id == extent.block_id
-                    && proof.checksum == extent.digest
-                    && self.replicas.get(&extent.block_id).is_some_and(|replicas| {
-                        replicas.iter().any(|replica| {
-                            replica.location.node_id == proof.node_id
-                                && replica.location.node_epoch == proof.node_epoch
-                                && replica.catalog_revision == proof.catalog_revision
-                                && replica.location.checksum == proof.checksum
-                                && replica.length >= required_end
+            let known = retained_blocks.contains(extent.block_id.as_slice())
+                && proofs_by_block
+                    .get(extent.block_id.as_slice())
+                    .is_some_and(|proofs| {
+                        proofs.iter().any(|proof| {
+                            proof.checksum == extent.digest
+                                && self.replicas.get(&extent.block_id).is_some_and(|replicas| {
+                                    replicas.iter().any(|replica| {
+                                        replica.location.node_id == proof.node_id
+                                            && replica.location.node_epoch == proof.node_epoch
+                                            && replica.catalog_revision == proof.catalog_revision
+                                            && replica.location.checksum == proof.checksum
+                                            && replica.length >= required_end
+                                    })
+                                })
                         })
+                    });
+            let new_replica = new_replicas_by_block
+                .get(extent.block_id.as_slice())
+                .is_some_and(|reports| {
+                    reports.iter().any(|report| {
+                        report.checksum == extent.digest && report.length >= required_end
                     })
-                    && self.block_referenced_by_retained_versions(&extent.block_id)
-            });
-            let new_replica = request.new_replicas.iter().any(|report| {
-                report.block_id == extent.block_id
-                    && report.checksum == extent.digest
-                    && report.length >= required_end
-            });
+                });
             if !known && !new_replica {
                 return Err(MetaRuntimeError::InvalidArgument(
                     "every filesystem data extent requires a matching complete replica".to_string(),

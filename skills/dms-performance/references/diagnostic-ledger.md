@@ -36,3 +36,7 @@
 - P2 `patch` 的当前最小权威图是一次 commit + 真实远端 holder ACK；ACK 属于强一致可见性屏障，不是重复 RPC。
 - P2 `create/delete` 的孤儿 inode `ReleaseFilesystemInodeReference` 使 durable reap 不必等待完整 lease；普通 named-file close 已只停止本地续租，不应每次发 Meta release。
 - 性能硬门槛未达标时，只有“RPC 合同仍精确通过 + 同轮分段覆盖达到合同阈值 + 正确性与身份门禁通过”才能使用分段证明；证明不能覆盖 forbidden/unbudgeted RPC。
+- P3 本地 owner 写的优势取决于“每次权威 commit 承载的 payload”，不是文件总大小。当前 1 MiB 恰好一个 FUSE callback，两轮领先 MooseFS 10.8%～13.9%；8 MiB/512 MiB 被拆成多个 callback 后，控制面随 commit 数累计而落后。
+- `CommitFilesystemVersion` 校验完整 layout 时，不能在每个 Extent 内重新扫描全部 proof 和保留版本。actor turn 内可建立临时只读索引，但不得跨请求形成第二份 Meta 权威状态。
+- 远端真实 holder 的写入成本是一次 invalidation ACK；无 holder 不应出现 ACK。这个成本影响强一致写返回，不代表 payload 经过 holder 或 Meta。
+- P3 稳定本地读、Peer 复读和 stat 的前台 Meta/Peer RPC 仍为 0。它们已处于 DMS 优势区，不得为写路径优化破坏。

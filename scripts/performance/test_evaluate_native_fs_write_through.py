@@ -64,6 +64,7 @@ def result(run_id: str, source="source", node_hash="node"):
     )
     dms["stable.stat.4k"] = stable_case()
     mfs["stable.stat.4k"] = stable_case()
+    large_write_cases = ("1m", "8m", "512m_stream")
     return {
         "schema": "dms.native-fs-write-through-result.v1",
         "run_id": run_id,
@@ -76,7 +77,13 @@ def result(run_id: str, source="source", node_hash="node"):
             "dms": {"correctness": True, "cases": dms},
             "moosefs": {"correctness": True, "cases": mfs},
         },
-        "workload_matrix": [{"case": "x"}],
+        "workload_matrix": [
+            {
+                "case": f"sync_write.no_holder.{size}",
+                "dms_to_moosefs_ratio": 1.0,
+            }
+            for size in large_write_cases
+        ],
         "holder_cost": {"4k": {}},
         "write_stage_accounting": {"sync_write.no_holder.1m": {}},
         "recommendation_contract": {"architectural_reason": "x"},
@@ -98,6 +105,7 @@ class WriteThroughEvaluatorTest(unittest.TestCase):
             payload["backends"]["dms"]["cases"]["sync_write.no_holder.1m"][
                 "throughput_mib_s"
             ] = 70.0
+            payload["workload_matrix"][0]["dms_to_moosefs_ratio"] = 0.7
         evaluation = MODULE.evaluate(self.contract, [one, two])
         self.assertEqual(evaluation["status"], "PASS", evaluation["errors"])
         self.assertEqual(
@@ -110,6 +118,7 @@ class WriteThroughEvaluatorTest(unittest.TestCase):
         case = one["backends"]["dms"]["cases"]["sync_write.no_holder.1m"]
         case["throughput_mib_s"] = 70.0
         case["segment_coverage_fraction"] = 0.5
+        one["workload_matrix"][0]["dms_to_moosefs_ratio"] = 0.7
         evaluation = MODULE.evaluate(self.contract, [one, result("two")])
         self.assertEqual(evaluation["status"], "FAIL")
         self.assertTrue(any("segmented proof failed" in error for error in evaluation["errors"]))

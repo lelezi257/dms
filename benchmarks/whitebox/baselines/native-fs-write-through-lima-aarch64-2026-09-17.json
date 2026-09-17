@@ -1,0 +1,118 @@
+{
+  "schema": "dms.native-fs-write-through-baseline.v1",
+  "profile": {
+    "arch": "aarch64",
+    "environment": "three-lima-vm",
+    "nodes": 3,
+    "memory_lane_rounds_per_run": 5,
+    "independent_runs": 2,
+    "moosefs_goal": 1,
+    "payload_media": "tmpfs / memory resident"
+  },
+  "source_sha": "3e1d80c3588d2026b6204ae2b41aa5056a9fbd4d",
+  "binary_sha256": {
+    "dms_node": "d4f0de2c5512eb66bf9a97c30e60db26c2abb638bd565d3aaf028f2d6a218ed2",
+    "dms_meta": "a24ff86d786d2f0cfe75d9b24ba18718f2ddeb13bc822715756b648f850b80f6"
+  },
+  "semantics": {
+    "operation": "open -> pwrite -> fdatasync -> close",
+    "writeback": false,
+    "one_commit_per_fuse_write_callback": true,
+    "holder_visibility": "wait for required invalidation ACK"
+  },
+  "before_optimization": [
+    {
+      "run_id": "native-fs-write-through-20260917-run-1",
+      "source_sha": "0b7ad0001137887bdecb99568a36bd5c5c7490d3",
+      "stream_512m_dms_mib_s": 153.210,
+      "stream_512m_ratio": 0.214,
+      "stream_512m_pwrite_total_ms": 16466.447,
+      "stream_512m_meta_business_ms": 11205.799
+    },
+    {
+      "run_id": "native-fs-write-through-20260917-run-2",
+      "source_sha": "0b7ad0001137887bdecb99568a36bd5c5c7490d3",
+      "stream_512m_dms_mib_s": 158.784,
+      "stream_512m_ratio": 0.220,
+      "stream_512m_pwrite_total_ms": 15886.027,
+      "stream_512m_meta_business_ms": 10961.370
+    }
+  ],
+  "runs": [
+    {
+      "run_id": "native-fs-write-through-20260917-candidate-1",
+      "write_through_ratio": {
+        "no_holder_4k": 16.430,
+        "no_holder_64k": 0.879,
+        "no_holder_1m": 1.108,
+        "no_holder_8m": 0.732,
+        "no_holder_512m_stream": 0.455
+      },
+      "stable_p50_ratio": {
+        "stat_4k": 0.331,
+        "local_4k": 0.744,
+        "local_1m": 0.851,
+        "peer_4k": 0.694,
+        "peer_1m": 0.667
+      },
+      "holder_extra_mean_us": {
+        "4k": 195.990,
+        "64k": 286.826,
+        "1m": 446.618,
+        "8m": 1737.545
+      },
+      "stream_512m": {
+        "dms_mib_s": 299.058,
+        "moosefs_mib_s": 663.173,
+        "pwrite_total_ms": 8314.944,
+        "fuse_node_residual_ms": 3214.796,
+        "rpc_transport_codec_ms": 2559.342,
+        "meta_business_ms": 2539.551,
+        "journal_append_ms": 1.256,
+        "commit_count": 2560,
+        "coverage_fraction": 1.0
+      }
+    },
+    {
+      "run_id": "native-fs-write-through-20260917-candidate-2",
+      "write_through_ratio": {
+        "no_holder_4k": 16.265,
+        "no_holder_64k": 0.840,
+        "no_holder_1m": 1.139,
+        "no_holder_8m": 0.710,
+        "no_holder_512m_stream": 0.475
+      },
+      "stable_p50_ratio": {
+        "stat_4k": 0.336,
+        "local_4k": 0.760,
+        "local_1m": 0.864,
+        "peer_4k": 0.701,
+        "peer_1m": 0.662
+      },
+      "holder_extra_mean_us": {
+        "4k": 261.416,
+        "64k": 492.151,
+        "1m": 357.109,
+        "8m": 865.201
+      },
+      "stream_512m": {
+        "dms_mib_s": 220.325,
+        "moosefs_mib_s": 705.784,
+        "pwrite_total_ms": 11266.354,
+        "fuse_node_residual_ms": 4540.096,
+        "rpc_transport_codec_ms": 3526.338,
+        "meta_business_ms": 3198.290,
+        "journal_append_ms": 1.630,
+        "commit_count": 2560,
+        "coverage_fraction": 1.0
+      }
+    }
+  ],
+  "invariants": {
+    "stable_path_foreground_meta_or_peer_rpc": 0,
+    "holder_ack_per_logical_write": 1,
+    "public_api_changed": false,
+    "writeback_enabled": false
+  },
+  "evaluation": "PASS"
+}

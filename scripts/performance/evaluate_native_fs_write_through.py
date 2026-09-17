@@ -107,6 +107,11 @@ def evaluate(contract: dict[str, Any], results: list[dict[str, Any]]) -> dict[st
         backends = result.get("backends", {})
         dms_cases = backends.get("dms", {}).get("cases", {})
         mfs_cases = backends.get("moosefs", {}).get("cases", {})
+        matrix = {
+            str(row.get("case")): row
+            for row in result.get("workload_matrix", [])
+            if isinstance(row, dict) and row.get("case")
+        }
         if not backends.get("dms", {}).get("correctness"):
             errors.append(f"{run_id}: DMS correctness failed")
         if not backends.get("moosefs", {}).get("correctness"):
@@ -118,9 +123,13 @@ def evaluate(contract: dict[str, Any], results: list[dict[str, Any]]) -> dict[st
             if not isinstance(dms, dict) or not isinstance(mfs, dict):
                 errors.append(f"{run_id}/{case_id}: missing case")
                 continue
-            ratio = float(dms.get("throughput_mib_s", 0.0)) / max(
-                float(mfs.get("throughput_mib_s", 0.0)), 1e-12
-            )
+            comparison = matrix.get(case_id)
+            if not isinstance(comparison, dict):
+                errors.append(f"{run_id}/{case_id}: missing paired comparison row")
+                continue
+            # Roadmap 固定使用“同一轮 DMS/MooseFS 比值的中位数”。不能先把两端
+            # 全部样本各自聚合再相除，否则某一端的单轮抖动会产生另一套结果。
+            ratio = float(comparison.get("dms_to_moosefs_ratio", 0.0))
             proof = segmented_proof(dms, contract)
             proof["throughput_ratio"] = ratio
             proofs[f"{run_id}/{case_id}"] = proof

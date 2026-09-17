@@ -326,10 +326,14 @@ def recommendation_contract(matrix: list[dict[str, Any]]) -> dict[str, Any]:
 
     return {
         "recommended_if_measured": [
-            evidence("sync_write.no_holder.4k"),
             evidence("sync_write.no_holder.1m"),
             evidence("stable_read.local.4k"),
             evidence("stable_read.peer.4k"),
+        ],
+        "conditional_if_measured": [
+            evidence("sync_write.no_holder.4k"),
+            evidence("sync_write.no_holder.64k"),
+            "4 KiB 结果包含对端每次 fdatasync 的固定成本，不能外推为 payload 越小越有架构优势。",
         ],
         "disadvantaged_if_measured": [
             evidence("sync_write.no_holder.8m"),
@@ -337,7 +341,7 @@ def recommendation_contract(matrix: list[dict[str, Any]]) -> dict[str, Any]:
             "holder 写的额外成本见 holder_cost；当前只实测一个远端 holder，不能外推高扇出写。",
         ],
         "recommended_workloads": [
-            "计算节点本地拥有数据、同步写后立即消费，且活跃远端 holder 很少",
+            "计算节点本地拥有数据、单次写通常不超过一个 FUSE callback，且活跃远端 holder 很少",
             "稳定本地读取，或 Peer 首次接管后在同一 Node 上重复读取",
             "需要每次写完成即跨进程可见，而非依赖客户端延迟刷盘的工作负载",
         ],

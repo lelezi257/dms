@@ -1,8 +1,9 @@
 # DMS M1 产品级总验收合同
 
-> 状态（2026-09-17）：M1 总验收清单已有 24 个 implemented 用例，覆盖单 VM、三 VM、
-> POSIX 子集、数据完整性、故障矩阵、资源回落、白盒路径、性能与干净交付。当前是否能发布
-> 不再取决于 planned 项，而取决于最终 clean release run 是否在无脏源码环境中全部 PASS。
+> 状态（2026-09-17）：M1 总验收清单的 24 个 implemented 用例已在干净提交
+> `b288313a9610f1056bd187f8ee2ba819e221d4d6` 上完成最终 release run。单 VM 13/13、
+> 三 VM 14/14 全部 PASS，0 FAIL、0 SKIP、0 warning。最终结果见
+> `docs/reviews/g006-m1-final-acceptance.html`。
 
 ## 1. 为什么需要这一层
 
@@ -172,10 +173,11 @@ M1.7 性能现在分成两个独立门禁：
 中位数判定；读路径使用配对比值并继续要求领先，mutation 使用配对绝对增量并限制固定控制成本。
 聚合 p50/p95 继续作为报告数据，但不允许单轮宿主调度抖动决定发布结果。
 
-最新同场证据位于 `evidence/m1/g004-performance-safe-id-20260917-r1`：本地热读领先
-44.5%～54.7%，跨节点首读领先 11.5%～29.7%；create 4 KiB/64 KiB 分别慢 10.96%/4.64%，
-1 MiB create 快 2.97%；64 KiB 中段覆盖慢 9.1%，均符合分类合同。M1.7 三 VM 总验收
-`evidence/m1/g004-full-three-vm-20260917-r7` 的性能原始数据在当前合同下重新评价为 PASS。
+最终 release 同场证据位于 `evidence/m1/g006-release-three-b288313-20260917/performance`：
+本地热读 p50 领先 45.29%～58.30%，跨节点首读 p50 领先 20.04%～26.88%；create 的配对
+p50/p95 固定开销均在 +400/+500 µs 预算内，64 KiB 中段覆盖在 +250/+300 µs 预算内。
+性能与请求放大评价均为 PASS；冻结摘要为
+`benchmarks/whitebox/baselines/m1.7-release-lima-aarch64-2026-09-17.json`。
 
 M1.7 的 `resource-return-to-baseline` 现在具备单 VM 与三 VM 执行入口：
 `scripts/validation/run_m1_resource_soak.py --topology single-vm|three-vm`。单 VM 模式会在本机

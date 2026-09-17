@@ -1,6 +1,6 @@
 # G006 M1.7 收口清理计划
 
-> 状态：执行中。本文只约束 G006 收口清理，不改变 M1 文件系统架构、公开 SDK 接口或验收拓扑。
+> 状态：已完成。本文只约束 G006 收口清理，不改变 M1 文件系统架构、公开 SDK 接口或验收拓扑。
 
 ## 1. 行为锁定证据
 
@@ -68,3 +68,11 @@
 - 远端日志收集失败、cleanup 失败属于诊断/清理边界的 fail-safe fallback，可以保留“不中断主业务失败”的行为，但必须写入机器证据。
 - malformed metrics 属于验收证据损坏，不能默默当成空指标；必须让 evaluator 或 runner 产出失败/警告。
 - 删除旧重复 evaluator 不改变产品行为，只移除已经被新双门禁取代的历史判断路径。
+
+## 6. 最终结果
+
+- 独立代码 Review：APPROVE；独立架构复审：CLEAR。
+- Linux workspace fmt/check/clippy/test 全部通过。
+- 最终单 VM release：13/13 PASS，0 FAIL、0 SKIP、0 warning。
+- 最终三 VM release：14/14 PASS，0 FAIL、0 SKIP、0 warning。
+- 结果入口：`docs/reviews/g006-m1-final-acceptance.html`。

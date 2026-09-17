@@ -1,0 +1,55 @@
+{
+  "schema": "dms.m1.release-baseline.v1",
+  "milestone": "M1.7",
+  "source_commit": "b288313a9610f1056bd187f8ee2ba819e221d4d6",
+  "source_branch": "feat/native-filesystem",
+  "source_dirty": false,
+  "environment": "three Lima aarch64 VMs; DMS and JuiceFS+DMS Glue use memory metadata",
+  "rounds": 6,
+  "workload": {
+    "files_per_round": 220,
+    "files_by_size": {
+      "4096": 140,
+      "65536": 50,
+      "1048576": 30
+    }
+  },
+  "single_vm_acceptance": {
+    "status": "PASS",
+    "passed": 13,
+    "failed": 0,
+    "skipped": 0,
+    "evidence": "evidence/m1/g006-release-single-b288313-r3-20260917/evaluation.json"
+  },
+  "three_vm_acceptance": {
+    "status": "PASS",
+    "passed": 14,
+    "failed": 0,
+    "skipped": 0,
+    "evidence": "evidence/m1/g006-release-three-b288313-20260917/evaluation.json"
+  },
+  "performance": {
+    "status": "PASS",
+    "amplification_status": "PASS",
+    "evaluation": "evidence/m1/g006-release-three-b288313-20260917/performance/performance-evaluation.json",
+    "amplification_evaluation": "evidence/m1/g006-release-three-b288313-20260917/performance/amplification-evaluation.json",
+    "cases": {
+      "create_write.4096": {"native_p50_us": 2138.057, "glue_p50_us": 1844.050, "paired_p50_overhead_us": 276.529, "paired_p95_overhead_us": 425.199},
+      "create_write.65536": {"native_p50_us": 2318.313, "glue_p50_us": 2015.554, "paired_p50_overhead_us": 286.299, "paired_p95_overhead_us": 255.465},
+      "create_write.1048576": {"native_p50_us": 2893.953, "glue_p50_us": 2962.746, "paired_p50_overhead_us": -101.857, "paired_p95_overhead_us": 128.232},
+      "local_hot_read.4096": {"native_p50_us": 680.185, "glue_p50_us": 1242.617, "paired_p50_improvement": 0.454457, "paired_p95_ratio": 0.560213},
+      "local_hot_read.65536": {"native_p50_us": 739.812, "glue_p50_us": 1336.702, "paired_p50_improvement": 0.452866, "paired_p95_ratio": 0.508497},
+      "local_hot_read.1048576": {"native_p50_us": 982.818, "glue_p50_us": 2325.312, "paired_p50_improvement": 0.583022, "paired_p95_ratio": 0.435304},
+      "peer_first_read.4096": {"native_p50_us": 1258.082, "glue_p50_us": 1649.832, "paired_p50_improvement": 0.237758, "paired_p95_ratio": 0.757060},
+      "peer_first_read.65536": {"native_p50_us": 1459.789, "glue_p50_us": 1973.371, "paired_p50_improvement": 0.268753, "paired_p95_ratio": 0.757840},
+      "peer_first_read.1048576": {"native_p50_us": 4235.161, "glue_p50_us": 5217.327, "paired_p50_improvement": 0.200431, "paired_p95_ratio": 0.798293},
+      "middle_overwrite.65536": {"native_p50_us": 1507.582, "glue_p50_us": 1260.867, "paired_p50_overhead_us": 225.173, "paired_p95_overhead_us": 193.193}
+    }
+  },
+  "resource_return": {
+    "status": "PASS",
+    "node_a": {"rss_delta_bytes": 68325376, "fd_delta": 1, "thread_delta": 0, "arena_allocated_delta_bytes": 1338368, "reservations_after": 0, "inode_references_after": 0},
+    "node_b": {"rss_delta_bytes": 68513792, "fd_delta": 1, "thread_delta": 0, "arena_allocated_delta_bytes": 1048576, "reservations_after": 0, "inode_references_after": 0},
+    "meta": {"rss_delta_bytes": 6279168, "watch_lag_after": 0, "live_sessions_after": 2}
+  }
+}

@@ -65,6 +65,12 @@ const MAX_PENDING_BLOCK_RETIREMENTS: usize = 1024;
 const MAX_RETIRED_BLOCK_FENCES: usize = 4096;
 const GC_RETRY_INTERVAL: Duration = Duration::from_secs(1);
 const FILESYSTEM_BINDING_LEASE_MILLIS: u64 = 30_000;
+/// lookup miss 顺带解析的后续目录项上限。该窗口只减少小文件串行遍历时
+/// 的控制往返，不改变目录分页合同。
+const FILESYSTEM_LOOKUP_PREFETCH_ENTRIES_MAX: usize = 64;
+/// 预取引用只覆盖紧接着发生的内核 lookup 窗口。它不是活跃 nlookup，
+/// 不跟随 Node heartbeat 续租；短 TTL 限制未使用预取对 orphan 回收的延迟。
+const FILESYSTEM_PREFETCH_REFERENCE_TTL: Duration = Duration::from_secs(2);
 /// 每个维护周期最多回收有限数量，避免大量 orphan 阻塞 Meta actor 的前台命令。
 const MAX_FILESYSTEM_ORPHANS_PER_TICK: usize = 64;
 const FILESYSTEM_BLOCK_SIZE: u64 = 4096;
@@ -2091,9 +2097,31 @@ impl MetaState {
                 entry_reference_lease_millis: 0,
                 entry_reference_generation: 0,
                 refreshed_directories: Vec::new(),
+                prefetched_entries: Vec::new(),
             });
         };
         let resolved = self.filesystem_resolved_inode(session, dentry.inode)?;
+        let sibling_dentries = self.filesystem.dentries_after(
+            request.parent,
+            &request.name,
+            FILESYSTEM_LOOKUP_PREFETCH_ENTRIES_MAX,
+        );
+        let mut prefetched_entries = Vec::with_capacity(sibling_dentries.len());
+        for sibling in sibling_dentries {
+            let resolved = self.filesystem_resolved_inode(session, sibling.inode)?;
+            let reference_generation = self.reserve_filesystem_reference_generation(
+                session,
+                sibling.inode,
+                request.reference_generation,
+                FILESYSTEM_PREFETCH_REFERENCE_TTL,
+            );
+            prefetched_entries.push(pb::FilesystemResolvedDentry {
+                dentry: Some(dentry_to_proto(&sibling)),
+                resolved: Some(resolved_to_proto(&resolved)),
+                entry_reference_lease_millis: FILESYSTEM_PREFETCH_REFERENCE_TTL.as_millis() as u64,
+                entry_reference_generation: reference_generation,
+            });
+        }
         let mut response = pb::FilesystemResolveResponse {
             found: true,
             resolved: Some(resolved_to_proto(&resolved)),
@@ -2102,6 +2130,7 @@ impl MetaState {
             entry_reference_lease_millis: 0,
             entry_reference_generation: 0,
             refreshed_directories: Vec::new(),
+            prefetched_entries,
         };
         self.attach_entry_reference_to_resolve_response(
             session,
@@ -2129,6 +2158,7 @@ impl MetaState {
                 entry_reference_lease_millis: 0,
                 entry_reference_generation: 0,
                 refreshed_directories: Vec::new(),
+                prefetched_entries: Vec::new(),
             });
         };
         let resolved = self.filesystem_resolved_inode(session, request.inode)?;
@@ -2140,6 +2170,7 @@ impl MetaState {
             entry_reference_lease_millis: 0,
             entry_reference_generation: 0,
             refreshed_directories: Vec::new(),
+            prefetched_entries: Vec::new(),
         })
     }
 
@@ -2297,6 +2328,7 @@ impl MetaState {
             entry_reference_generation: result.entry_reference_generation,
             refreshed_directories: self
                 .filesystem_refreshed_directories(session, &result.changed_directories)?,
+            prefetched_entries: Vec::new(),
         })
     }
 
@@ -2452,6 +2484,28 @@ impl MetaState {
             .or_insert((requested_generation, deadline));
         if requested_generation >= entry.0 {
             *entry = (requested_generation, deadline);
+        }
+        entry.0
+    }
+
+    /// 为目录预取保留一个短期引用世代。
+    ///
+    /// 如果同一 Node epoch 已持有活跃引用，不能用预取的短 TTL 或新世代
+    /// 覆盖它；只保证既有 deadline 至少覆盖本次预取窗口。
+    fn reserve_filesystem_reference_generation(
+        &mut self,
+        session: &pb::NodeSessionIdentity,
+        inode: u64,
+        requested_generation: u64,
+        ttl: Duration,
+    ) -> u64 {
+        let deadline = Instant::now() + ttl;
+        let entry = self
+            .filesystem_inode_references
+            .entry((session.node_id, session.node_epoch, inode))
+            .or_insert((requested_generation, deadline));
+        if deadline > entry.1 {
+            entry.1 = deadline;
         }
         entry.0
     }
@@ -10492,6 +10546,65 @@ mod tests {
                 .map(|(generation, _)| *generation),
             Some(2)
         );
+    }
+
+    #[test]
+    fn filesystem_lookup_prefetches_bounded_siblings_with_short_reference_reservations() {
+        let mut state = MetaState::new(Box::<InMemoryJournal>::default());
+        let writer = test_session(&mut state, 163);
+        for index in 0..=66 {
+            let name = format!("file-{index:03}");
+            create_test_file(&mut state, writer.clone(), name.as_bytes());
+        }
+        let reader = test_session(&mut state, 164);
+
+        let response = state
+            .filesystem_lookup(pb::FilesystemLookupRequest {
+                context: None,
+                session: Some(reader.clone()),
+                parent: ROOT_INODE,
+                name: b"file-000".to_vec(),
+                reference_generation: 77,
+            })
+            .expect("lookup with bounded prefetch");
+
+        assert_eq!(
+            response.prefetched_entries.len(),
+            FILESYSTEM_LOOKUP_PREFETCH_ENTRIES_MAX
+        );
+        assert_eq!(
+            response
+                .prefetched_entries
+                .first()
+                .and_then(|entry| { entry.dentry.as_ref().map(|dentry| dentry.name.as_slice()) }),
+            Some(b"file-001".as_slice())
+        );
+        assert_eq!(
+            response
+                .prefetched_entries
+                .last()
+                .and_then(|entry| { entry.dentry.as_ref().map(|dentry| dentry.name.as_slice()) }),
+            Some(b"file-064".as_slice())
+        );
+        for entry in &response.prefetched_entries {
+            assert_eq!(entry.entry_reference_generation, 77);
+            assert_eq!(
+                entry.entry_reference_lease_millis,
+                FILESYSTEM_PREFETCH_REFERENCE_TTL.as_millis() as u64
+            );
+            let inode = entry
+                .resolved
+                .as_ref()
+                .and_then(|resolved| resolved.inode.as_ref())
+                .and_then(|inode| inode.attributes.as_ref())
+                .map(|attributes| attributes.inode)
+                .expect("prefetched inode");
+            assert!(state.filesystem_inode_references.contains_key(&(
+                reader.node_id,
+                reader.node_epoch,
+                inode,
+            )));
+        }
     }
 
     #[test]

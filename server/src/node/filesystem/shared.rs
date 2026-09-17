@@ -122,9 +122,29 @@ impl SharedFileOperations {
             return Ok(None);
         };
         let result = resolved.resolved.clone();
+        let prefetch_objects = std::iter::once(result.object.clone())
+            .chain(
+                resolved
+                    .prefetched_entries
+                    .iter()
+                    .map(|entry| entry.resolved.object.clone()),
+            )
+            .flatten()
+            .collect::<Vec<_>>();
         self.node
             .filesystem_install_resolved_dentry(resolved, false)
             .await?;
+        // 缓存安装成功后，用同一个有界窗口合并拉取 payload。这是性能
+        // 提示而不是 lookup 正确性条件：预取失败时不伪造 ENOENT/EIO，随后的
+        // read 会用同一份 Exact Version 计划重试并运行 source fallback。
+        if let Err(error) = self.core.prefetch_resolved(prefetch_objects).await {
+            dms_logging::debug!(
+                "filesystem directory payload prefetch did not complete";
+                "event" => "node.filesystem.directory_prefetch.incomplete",
+                "parent_inode" => parent,
+                "error" => format!("{error:?}"),
+            );
+        }
         metric.success();
         Ok(Some(result))
     }

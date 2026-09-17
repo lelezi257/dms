@@ -372,6 +372,7 @@ impl RpcCall {
     pub const PAYLOAD_DOWNLOAD: Self = Self::new("WorkerPayloadService", "Download");
     pub const PEER_PROBE: Self = Self::new("PeerService", "Probe");
     pub const PEER_PULL_BLOCK: Self = Self::new("PeerService", "PullBlock");
+    pub const PEER_PULL_BLOCKS: Self = Self::new("PeerService", "PullBlocks");
     pub const PEER_PREPARE_REPLICA: Self = Self::new("PeerService", "PrepareReplica");
     pub const PEER_ACTIVATE_REPLICA: Self = Self::new("PeerService", "ActivateReplica");
     pub const PEER_ABORT_REPLICA: Self = Self::new("PeerService", "AbortReplica");

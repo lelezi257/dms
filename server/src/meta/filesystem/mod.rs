@@ -215,6 +215,28 @@ impl FilesystemCatalog {
         })
     }
 
+    /// 从已命中名字之后取一个有界的 dentry 窗口。
+    ///
+    /// 这不是新的 namespace 权威状态，只是 lookup 响应用的顺序视图。从当前名字
+    /// 向后读，能匹配内核顺序遍历目录后逐个 lookup 的常见访问模式；严格
+    /// `limit` 防止一次请求把大目录的全部布局都带回 Node。
+    pub(crate) fn dentries_after(
+        &self,
+        directory: InodeId,
+        name: &[u8],
+        limit: usize,
+    ) -> Vec<DentrySnapshot> {
+        self.dentries
+            .range((
+                Bound::Excluded((directory, name.to_vec())),
+                Bound::Unbounded,
+            ))
+            .take_while(|((parent, _), _)| *parent == directory)
+            .take(limit)
+            .map(|(_, dentry)| dentry.clone())
+            .collect()
+    }
+
     pub(crate) fn grant_generation(&self, inode: InodeId) -> u64 {
         self.grant_generations.get(&inode).copied().unwrap_or(0)
     }
@@ -508,5 +530,52 @@ mod tests {
             vec![b"c".as_slice(), b"d".as_slice()]
         );
         assert_eq!(second.next_cursor, Some(b"d".to_vec()));
+    }
+
+    #[test]
+    fn lookup_prefetch_window_is_ordered_bounded_and_stays_in_one_directory() {
+        let inodes = (2..=8).map(|inode| InodeSnapshot {
+            revision: 1,
+            attributes: InodeAttributes {
+                inode,
+                kind: InodeKind::RegularFile,
+                mode: 0o644,
+                uid: 1,
+                gid: 1,
+                link_count: 1,
+                size: 0,
+                atime_unix_nanos: 0,
+                mtime_unix_nanos: 0,
+                ctime_unix_nanos: 0,
+            },
+            content: None,
+            reservations: Vec::new(),
+        });
+        let dentries = [b"a", b"b", b"c", b"d", b"e", b"f"]
+            .into_iter()
+            .enumerate()
+            .map(|(index, name)| DentrySnapshot {
+                parent: ROOT_INODE,
+                name: name.to_vec(),
+                inode: index as u64 + 2,
+                directory_revision: 9,
+            })
+            .chain(std::iter::once(DentrySnapshot {
+                parent: 99,
+                name: b"z".to_vec(),
+                inode: 8,
+                directory_revision: 1,
+            }));
+        let catalog = FilesystemCatalog::restored(9, inodes, dentries, [], []);
+
+        let window = catalog.dentries_after(ROOT_INODE, b"b", 3);
+        assert_eq!(
+            window
+                .iter()
+                .map(|entry| entry.name.as_slice())
+                .collect::<Vec<_>>(),
+            vec![b"c".as_slice(), b"d".as_slice(), b"e".as_slice()]
+        );
+        assert!(catalog.dentries_after(ROOT_INODE, b"f", 3).is_empty());
     }
 }

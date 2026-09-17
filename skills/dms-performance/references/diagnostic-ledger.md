@@ -22,7 +22,7 @@
 ## 不重复探索的已确认结论
 
 - Client 保持薄，不用 SDK 私有 bytes cache 掩盖 Node 路径；SHM mapping registry 不是对象缓存。
-- Peer 首读的最小前台图是 Get + ResolveObject + PullBlock；ReportReplicas 在后台最终完成。
+- Peer 首读的最小前台图是 pathname/Exact Version resolve + 一条有界 `PullBlocks` stream + checksum 安装；`ReportReplicas` 在后台最终完成。正常多 Block 读取若出现旧 `PullBlock` 或逐块同步登记，属于实现回归。
 - 本地热读不访问 Meta；若出现 ResolveObject，优先判断 Current cache 失效、租约或实现回归。
 - 1 MiB SHM SET 的 AllocateStaging 和 Set 是“取得 Slot”与“宣布写完”两个语义，不应仅为减少 RPC 强行合并。
 - 完整不可变 Block 可复用提交摘要；区间 payload 必须重新校验。
@@ -40,3 +40,5 @@
 - `CommitFilesystemVersion` 校验完整 layout 时，不能在每个 Extent 内重新扫描全部 proof 和保留版本。actor turn 内可建立临时只读索引，但不得跨请求形成第二份 Meta 权威状态。
 - 远端真实 holder 的写入成本是一次 invalidation ACK；无 holder 不应出现 ACK。这个成本影响强一致写返回，不代表 payload 经过 holder 或 Meta。
 - P3 稳定本地读、Peer 复读和 stat 的前台 Meta/Peer RPC 仍为 0。它们已处于 DMS 优势区，不得为写路径优化破坏。
+- P4 两次独立三 VM 运行中，512 MiB Peer 首读每轮只使用一条 `PullBlocks` stream，旧 `PullBlock=0`；workspace 首读 p50 已与 MooseFS 持平，大对象首读吞吐稳定领先。以后不得重新把控制请求数量绑定到 Block 数。
+- P4 的副本登记只能在完整 Block 校验并安装后进入有界后台 Reporter；它影响其他 Node 选源的新鲜度，不得阻塞当前读，也不得把未校验或失败的接管登记为副本。

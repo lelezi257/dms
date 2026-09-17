@@ -1,6 +1,19 @@
 # DMS Native Filesystem 与 MooseFS 性能摸底
 
-> Preview 判定：**NOT_READY**。本报告区分公平内存介质 lane 与真实虚拟磁盘 lane，后者不用于宣称同等可靠性。
+> 历史 P0 判定：**NOT_READY**。P1～P4 后既有 Preview 读路径门槛已经全部通过；本文保留 P0 原始数据作为优化前证据，当前结论以 [P4 Peer 首读报告](native-filesystem-p4-peer-first.md) 和性能 Roadmap 为准。
+
+## P4 Peer 首读补充（2026-09-18）
+
+跨节点首次读取继续保留一次 Exact Version 解析和远端 payload，但已经消除逐 Block 控制 RPC 与前台副本登记等待。两次独立三 VM 全量运行中：
+
+| 指标 | run E | run F | 门槛 |
+| --- | ---: | ---: | ---: |
+| workspace Peer 首读 p50 DMS/MooseFS | 0.970 | 0.968 | <= 1.15 |
+| 512 MiB Peer 首读吞吐 DMS/MooseFS | 1.161 | 1.142 | >= 0.90 |
+| workspace Peer 复读 p50 DMS/MooseFS | 0.717 | 0.725 | <= 1.10 |
+| 512 MiB Peer 复读吞吐 DMS/MooseFS | 1.022 | 1.019 | >= 0.90 |
+
+每轮 512 MiB 首读只建立一条 `PullBlocks` stream，旧 `PullBlock` 为 0。副本登记在 checksum 校验与本地安装完成后由后台 Reporter 批量执行；故障合同覆盖错块、缺副本、source 中断、stale location 和后台登记阻塞。机器摘要见 [`native-fs-peer-first-lima-aarch64-2026-09-18.json`](../../benchmarks/whitebox/baselines/native-fs-peer-first-lima-aarch64-2026-09-18.json)。
 
 ## P1 稳定热路径补充（2026-09-17）
 

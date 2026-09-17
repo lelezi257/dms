@@ -1003,6 +1003,9 @@ impl Drop for ActivePeerCall {
 
 #[tonic::async_trait]
 impl PeerService for CountingPeerService {
+    type PullBlocksStream =
+        Pin<Box<dyn Stream<Item = Result<pb::PeerPullBlockChunk, Status>> + Send>>;
+
     async fn probe(
         &self,
         request: Request<pb::PeerProbeRequest>,
@@ -1024,6 +1027,21 @@ impl PeerService for CountingPeerService {
             tokio::time::sleep(Duration::from_millis(delay_ms)).await;
         }
         self.inner.pull_block(request).await
+    }
+
+    async fn pull_blocks(
+        &self,
+        request: Request<pb::PeerPullBlocksRequest>,
+    ) -> Result<Response<Self::PullBlocksStream>, Status> {
+        self.pull_count.fetch_add(1, Ordering::Relaxed);
+        let active = self.active.fetch_add(1, Ordering::AcqRel) + 1;
+        self.max_active.fetch_max(active, Ordering::AcqRel);
+        let _active = ActivePeerCall(self.active.clone());
+        let delay_ms = self.delay_ms.load(Ordering::Relaxed);
+        if delay_ms > 0 {
+            tokio::time::sleep(Duration::from_millis(delay_ms)).await;
+        }
+        self.inner.pull_blocks(request).await
     }
 
     async fn prepare_replica(
@@ -1786,6 +1804,9 @@ async fn shared_filesystem_write_peer_read_revoke_and_patch_are_one_version_chai
         .expect("initial write-through commit");
     assert_eq!(first_version.length, 6);
 
+    // lookup 可以机会性预取完整小文件；从 lookup 开始统计，验证整个首次访问
+    // 只有一次 Peer payload，而不是错误地只观察后续已经命中的 read。
+    writer_node.reset_peer_pull_count();
     let looked_up = reader_fs
         .lookup(crate::filesystem::ROOT_INODE, b"shared.txt")
         .await
@@ -1796,14 +1817,17 @@ async fn shared_filesystem_write_peer_read_revoke_and_patch_are_one_version_chai
         .await
         .expect("open on Node B");
 
-    writer_node.reset_peer_pull_count();
     let cold = reader_fs
         .read(reader.id, 0, 6)
         .await
         .expect("Node B first read")
         .expect("file content");
     assert_eq!(cold.bytes, b"abcdef");
-    assert_eq!(writer_node.peer_pull_count(), 1, "首读只拉一次 payload");
+    assert_eq!(
+        writer_node.peer_pull_count(),
+        1,
+        "lookup 预取或首个 read 合计只拉一次 payload"
+    );
 
     let hot = reader_fs
         .read(reader.id, 0, 6)
@@ -2499,6 +2523,41 @@ async fn cached_current_locations_pull_missing_peer_blocks_without_current_resol
         meta.resolve_count(),
         0,
         "Block 补齐后，本地命中仍保持 0 Meta Resolve"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn cold_current_read_pulls_all_missing_blocks_with_one_peer_stream() {
+    let meta = CountingMetaServer::start().await;
+    let reader_node = TestNode::start_with_peer_server(&meta.endpoint, 1).await;
+    let writer_node = TestNode::start_with_peer_server(&meta.endpoint, 2).await;
+    let writer = writer_node.open_write_session().await;
+    let key = b"peer-plan/two-block-current";
+
+    let v1 = writer_node.set_inline(writer, key, b"abcdefgh", 62).await;
+    let v2 = set_range_with_node(
+        writer_node.node.clone(),
+        writer,
+        key.to_vec(),
+        4,
+        b"Z".to_vec(),
+        v1,
+        63,
+    )
+    .await;
+    assert_eq!(v2, v1 + 1);
+    let (reader, _events) = reader_node.open_cached_session().await;
+
+    writer_node.reset_peer_pull_count();
+    meta.reset_resolve_count();
+    let result = reader_node.read_inline(reader, key).await;
+    assert_eq!(result.version, v2);
+    assert_eq!(result.inline_value.as_deref(), Some(b"abcdZfgh".as_slice()));
+    assert_eq!(meta.resolve_count(), 1, "冷读只解析一次 Exact Version");
+    assert_eq!(
+        writer_node.peer_pull_count(),
+        1,
+        "同一来源的 base 与 patch Block 必须共用一条 PullBlocks 流"
     );
 }
 

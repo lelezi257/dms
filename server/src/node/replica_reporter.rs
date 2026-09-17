@@ -26,9 +26,7 @@ const BATCH_MAX: usize = 64;
 /// 任务只携带可重试的控制信息，不复制 payload，也不持有用户读票据。
 #[derive(Clone, Debug)]
 pub(crate) struct ReplicaReportJob {
-    block_id: Vec<u8>,
-    length: u64,
-    checksum: Vec<u8>,
+    reports: Vec<pb::ReplicaReport>,
     operation_id: Vec<u8>,
 }
 
@@ -40,10 +38,24 @@ impl ReplicaReportJob {
         operation_id: Vec<u8>,
     ) -> Self {
         Self {
-            block_id,
-            length,
-            checksum,
+            reports: vec![pb::ReplicaReport {
+                block_id,
+                length,
+                checksum,
+                durability: pb::DurabilityPolicy::ReplicatedMemory as i32,
+            }],
             operation_id,
+        }
+    }
+
+    /// 同一 PullBlocks 计划已经在本地逐块校验并安装；登记时把这些事实作为一个
+    /// 有界控制消息交给 Reporter，避免 payload Block 数再次放大为 Meta RPC 数。
+    pub(crate) fn combine(jobs: Vec<Self>) -> Self {
+        debug_assert!(!jobs.is_empty());
+        let batch = ReplicaReportBatch::new(jobs);
+        Self {
+            reports: batch.reports,
+            operation_id: batch.operation_id,
         }
     }
 }
@@ -54,7 +66,7 @@ impl ReplicaReportJob {
 /// Meta 幂等表识别为同一次操作。
 #[derive(Clone, Debug)]
 struct ReplicaReportBatch {
-    jobs: Vec<ReplicaReportJob>,
+    reports: Vec<pb::ReplicaReport>,
     operation_id: Vec<u8>,
 }
 
@@ -69,7 +81,7 @@ impl ReplicaReportBatch {
         }
         Self {
             operation_id: digest(&identity),
-            jobs,
+            reports: jobs.into_iter().flat_map(|job| job.reports).collect(),
         }
     }
 }
@@ -116,14 +128,7 @@ pub(crate) async fn report_now(
     job: ReplicaReportJob,
 ) -> Result<(), DmsError> {
     metadata
-        .report_replica(
-            job.block_id,
-            job.length,
-            job.checksum,
-            job.operation_id,
-            2,
-            Vec::new(),
-        )
+        .report_replicas(job.reports, job.operation_id, 2, Vec::new())
         .await
 }
 
@@ -152,16 +157,7 @@ async fn report_batch(
 ) -> Result<(), DmsError> {
     metadata
         .report_replicas(
-            batch
-                .jobs
-                .iter()
-                .map(|job| pb::ReplicaReport {
-                    block_id: job.block_id.clone(),
-                    length: job.length,
-                    checksum: job.checksum.clone(),
-                    durability: pb::DurabilityPolicy::ReplicatedMemory as i32,
-                })
-                .collect(),
+            batch.reports.clone(),
             batch.operation_id.clone(),
             2,
             Vec::new(),
@@ -195,11 +191,15 @@ mod tests {
         let first = receiver.recv().await.expect("first report");
         let batch = collect_batch(first, &mut receiver).await;
 
-        assert_eq!(batch.jobs.len(), BATCH_MAX);
+        assert_eq!(batch.reports.len(), BATCH_MAX);
         assert_eq!(receiver.len(), 2, "overflow remains for the next batch");
-        assert_eq!(
-            batch.operation_id,
-            ReplicaReportBatch::new(batch.jobs.clone()).operation_id
-        );
+        assert!(!batch.operation_id.is_empty());
+    }
+
+    #[test]
+    fn combined_plan_keeps_all_replica_facts_in_one_queue_item() {
+        let combined = ReplicaReportJob::combine(vec![report_job(1), report_job(2)]);
+        assert_eq!(combined.reports.len(), 2);
+        assert!(!combined.operation_id.is_empty());
     }
 }

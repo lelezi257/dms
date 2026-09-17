@@ -9,6 +9,9 @@ package dms.v1;
 service PeerService {
   rpc Probe(PeerProbeRequest) returns (PeerProbeResponse);
   rpc PullBlock(PeerPullBlockRequest) returns (PeerPullBlockResponse);
+  // 一次读取计划可以包含多个不可变 Block。响应按请求顺序逐 Block、逐分段
+  // 返回，避免大文件首读把控制 RPC 数放大为 Block 数，同时保持单条消息有界。
+  rpc PullBlocks(PeerPullBlocksRequest) returns (stream PeerPullBlockChunk);
   rpc PrepareReplica(PeerPrepareReplicaRequest) returns (PeerReplicaStatusResponse);
   rpc ActivateReplica(PeerActivateReplicaRequest) returns (PeerReplicaStatusResponse);
   rpc AbortReplica(PeerAbortReplicaRequest) returns (PeerReplicaStatusResponse);
@@ -44,6 +47,27 @@ message PeerPullBlockResponse {
   uint64 length = 5;
   reserved 6;
   reserved "storage_generation";
+}
+
+message PeerPullBlocksRequest {
+  string source_node_id = 1;
+  repeated PeerPullBlockSpec blocks = 2;
+}
+
+message PeerPullBlockSpec {
+  bytes block_id = 1;
+  uint64 expected_length = 2;
+  bytes expected_checksum = 3;
+}
+
+message PeerPullBlockChunk {
+  string serving_node_id = 1;
+  bytes block_id = 2;
+  uint64 block_offset = 3;
+  bytes payload = 4;
+  bytes checksum = 5;
+  uint64 block_length = 6;
+  bool end_of_block = 7;
 }
 
 message PeerPrepareReplicaRequest {

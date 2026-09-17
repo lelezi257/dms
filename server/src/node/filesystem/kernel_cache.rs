@@ -4,7 +4,10 @@
 //! 文件内容授权仍由 Node 的 BindingCache/DataCore/Meta Watch 管理；本模块只是把
 //! “远端版本已经发布，本 Node 必须丢弃旧页缓存”这个结果通知给 Linux kernel。
 
-use std::sync::{Arc, Mutex};
+use std::{
+    collections::HashMap,
+    sync::{Arc, Mutex},
+};
 
 #[cfg(all(target_os = "linux", feature = "fuse"))]
 use std::{ffi::OsStr, os::unix::ffi::OsStrExt};
@@ -37,6 +40,13 @@ struct KernelCacheState {
     required: bool,
     #[cfg(all(target_os = "linux", feature = "fuse"))]
     notifier: Option<Notifier>,
+    /// 每个 inode 的进程内失效代数。
+    ///
+    /// FUSE 适配层可以保存有界的只读预取窗口，但它不是内容 owner。远端版本变化时，
+    /// Watch 在通知 kernel page cache 的同一边界先递增这里的代数；旧窗口即使尚未
+    /// 物理删除，也不会再被命中。这个代数只表达“本地副本是否过期”，不承载版本、
+    /// lease 或文件内容，因此不会形成第二套 metadata 状态。
+    inode_invalidation_epochs: HashMap<u64, u64>,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -63,6 +73,7 @@ impl KernelCacheInvalidator {
                 required,
                 #[cfg(all(target_os = "linux", feature = "fuse"))]
                 notifier: None,
+                inode_invalidation_epochs: HashMap::new(),
             })),
             metrics,
         }
@@ -82,6 +93,7 @@ impl KernelCacheInvalidator {
     /// range-level dirty page 协议，所以这里对整个 inode 做 invalidate。若将来 Watch
     /// 携带 range，再只在本边界缩小范围，不能把 range 状态扩散到 FUSE callback。
     pub(crate) fn invalidate_inode(&self, inode: u64) -> Result<(), KernelCacheInvalidationError> {
+        self.advance_inode_invalidation_epoch(inode);
         #[cfg(all(target_os = "linux", feature = "fuse"))]
         {
             let (required, notifier) = {
@@ -131,6 +143,23 @@ impl KernelCacheInvalidator {
                 Ok(())
             }
         }
+    }
+
+    /// 返回 FUSE 适配层只读窗口应绑定的当前失效代数。
+    pub(crate) fn inode_invalidation_epoch(&self, inode: u64) -> u64 {
+        self.inner
+            .lock()
+            .expect("kernel cache invalidator")
+            .inode_invalidation_epochs
+            .get(&inode)
+            .copied()
+            .unwrap_or_default()
+    }
+
+    fn advance_inode_invalidation_epoch(&self, inode: u64) {
+        let mut state = self.inner.lock().expect("kernel cache invalidator");
+        let epoch = state.inode_invalidation_epochs.entry(inode).or_default();
+        *epoch = epoch.saturating_add(1);
     }
 
     /// 失效目录中一个具体名字的 positive/negative dentry cache。
@@ -225,6 +254,20 @@ mod tests {
             invalidator.invalidate_inode(42),
             Err(KernelCacheInvalidationError::NotifierNotInstalled)
         ));
+        assert_eq!(invalidator.inode_invalidation_epoch(42), 1);
+    }
+
+    #[test]
+    fn inode_invalidation_epoch_changes_before_watch_can_retry() {
+        let registry = registry();
+        let metrics = NodeMetrics::register(&registry).expect("node metrics");
+        let invalidator = KernelCacheInvalidator::disabled(metrics);
+
+        assert_eq!(invalidator.inode_invalidation_epoch(7), 0);
+        invalidator.invalidate_inode(7).expect("disabled notifier");
+        assert_eq!(invalidator.inode_invalidation_epoch(7), 1);
+        invalidator.invalidate_inode(7).expect("watch replay");
+        assert_eq!(invalidator.inode_invalidation_epoch(7), 2);
     }
 
     #[test]

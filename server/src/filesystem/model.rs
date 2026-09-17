@@ -389,6 +389,10 @@ pub(crate) struct ResolvedInode {
     pub(crate) granted: GrantedInode,
     /// 对象解析计划是一个不透明领域值；protobuf 只在 `wire` 适配文件中出现。
     pub(crate) object: Option<super::wire::ResolvedObject>,
+    /// `system.posix_acl_access` 与 inode mode/revision 共用同一份缓存授权。
+    /// Linux 内核在常规 open/read 前会查询它；若每次单独访问 Meta，
+    /// 就会绕过已经存在的 inode revoke/lease 协议。普通 xattr 不放进这里。
+    pub(crate) access_acl: Option<Vec<u8>>,
 }
 
 /// `pwrite/truncate` 的唯一发布请求。

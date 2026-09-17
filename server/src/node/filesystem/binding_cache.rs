@@ -36,11 +36,9 @@ impl BindingCache {
         );
     }
 
-    pub(crate) fn get_authorized(
-        &mut self,
-        inode: InodeId,
-        now: Instant,
-    ) -> Option<&ResolvedInode> {
+    /// 返回一份带“剩余租约”的快照。FUSE 可以直接把这个剩余时间
+    /// 作为 kernel entry/attr TTL，不会因 Node 命中旧缓存而重新获得完整租约。
+    pub(crate) fn get_authorized(&mut self, inode: InodeId, now: Instant) -> Option<ResolvedInode> {
         let expired = self
             .entries
             .get(&inode)
@@ -49,7 +47,16 @@ impl BindingCache {
             self.entries.remove(&inode);
             return None;
         }
-        self.entries.get(&inode).map(|entry| &entry.resolved)
+        self.entries.get(&inode).map(|entry| {
+            let mut resolved = entry.resolved.clone();
+            let remaining_millis = entry
+                .valid_until
+                .saturating_duration_since(now)
+                .as_millis()
+                .min(u128::from(u64::MAX)) as u64;
+            resolved.granted.grant.lease_millis = remaining_millis;
+            resolved
+        })
     }
 
     /// 撤销不高于 `through_generation` 的授权。返回值表示是否真的删除了条目，调用方
@@ -106,6 +113,7 @@ mod tests {
                 },
             },
             object: None,
+            access_acl: None,
         }
     }
 
@@ -115,10 +123,12 @@ mod tests {
         let mut cache = BindingCache::default();
         cache.insert(resolved(5, 1_000), started);
 
-        assert!(
-            cache
-                .get_authorized(100, started + Duration::from_millis(999))
-                .is_some()
+        let almost_expired = cache
+            .get_authorized(100, started + Duration::from_millis(999))
+            .expect("grant remains valid");
+        assert_eq!(
+            almost_expired.granted.grant.lease_millis, 1,
+            "kernel TTL must use remaining lease rather than renewing the original second"
         );
         assert!(!cache.revoke(100, 4), "旧 revoke 不能删除更新后的授权");
         assert!(cache.revoke(100, 5));

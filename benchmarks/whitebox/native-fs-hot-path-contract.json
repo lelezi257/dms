@@ -1,0 +1,23 @@
+{
+  "schema": "dms.native-fs-hot-path-contract.v1",
+  "description": "P1 只验收稳定热读：有效缓存授权内不访问前台 Meta，不传输 Peer payload，也不为普通读查询 ACL xattr 或释放不存在的锁。",
+  "required_independent_runs": 2,
+  "cases": [
+    "workspace.local_hot",
+    "workspace.peer_repeat"
+  ],
+  "latency": {
+    "maximum_dms_to_moosefs_p50_ratio": 1.10,
+    "maximum_dms_to_moosefs_p95_ratio": 1.10
+  },
+  "rpc": {
+    "allowed_background_methods": [
+      "Heartbeat",
+      "RenewFilesystemInodeReferences"
+    ],
+    "forbidden_methods": [
+      "GetFilesystemXattr",
+      "ReleaseFilesystemLockOwner"
+    ]
+  }
+}

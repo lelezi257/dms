@@ -38,7 +38,7 @@ use crate::filesystem::{
 use crate::node::metrics::{FuseCallback, NodeMetrics};
 use crate::node::runtime::{NodeHandle, WorkerError};
 
-const TTL: Duration = Duration::from_secs(0);
+const UNCACHED_TTL: Duration = Duration::from_secs(0);
 const BLOCK_SIZE: u32 = 4096;
 // 常规文件必须允许 Linux kernel page cache 跨 open 保留，否则 mmap/read 的热路径
 // 会退化成每次重新进入 FUSE read。这里不能使用 DIRECT_IO，也不能启用 writeback；
@@ -142,6 +142,13 @@ fn flush_lock_owner(lock_owner: u64) -> Option<u64> {
     (lock_owner != 0).then_some(lock_owner)
 }
 
+/// FUSE kernel cache 不创造独立一致性窗口：TTL 直接使用 Node
+/// BindingCache 剩余的 Meta grant。远端变更会在 Watch ACK 前主动
+/// `inval_inode/inval_entry`；Watch 断开时也不会超过已授予的剩余租约。
+fn kernel_cache_ttl(resolved: &crate::filesystem::ResolvedInode) -> Duration {
+    Duration::from_millis(resolved.granted.grant.lease_millis)
+}
+
 /// 一次 `opendir` 到 `releasedir` 的枚举位置。
 ///
 /// 这里只保存 FUSE cookie 到 Meta name-cursor 的小型映射，不保存完整目录内容。
@@ -221,7 +228,11 @@ impl Filesystem for DmsFuse {
             .block_on(self.files.lookup(parent, name).instrument(span))
         {
             Ok(Some(resolved)) => {
-                reply.entry(&TTL, &file_attr(&resolved.granted.inode.attributes), 0);
+                reply.entry(
+                    &kernel_cache_ttl(&resolved),
+                    &file_attr(&resolved.granted.inode.attributes),
+                    0,
+                );
             }
             Ok(None) => reply.error(libc::ENOENT),
             Err(error) => reply.error(worker_to_errno(error)),
@@ -251,7 +262,10 @@ impl Filesystem for DmsFuse {
             .runtime
             .block_on(self.files.get_inode(ino).instrument(span))
         {
-            Ok(resolved) => reply.attr(&TTL, &file_attr(&resolved.granted.inode.attributes)),
+            Ok(resolved) => reply.attr(
+                &kernel_cache_ttl(&resolved),
+                &file_attr(&resolved.granted.inode.attributes),
+            ),
             Err(error) => reply.error(worker_to_errno(error)),
         }
     }
@@ -324,7 +338,10 @@ impl Filesystem for DmsFuse {
                 .block_on(self.files.get_inode(ino).instrument(span))
         };
         match result {
-            Ok(resolved) => reply.attr(&TTL, &file_attr(&resolved.granted.inode.attributes)),
+            Ok(resolved) => reply.attr(
+                &kernel_cache_ttl(&resolved),
+                &file_attr(&resolved.granted.inode.attributes),
+            ),
             Err(error) => reply.error(worker_to_errno(error)),
         }
     }
@@ -623,7 +640,7 @@ impl Filesystem for DmsFuse {
         match result {
             Ok((created, opened)) => {
                 reply.created(
-                    &TTL,
+                    &kernel_cache_ttl(&created),
                     &file_attr(&created.granted.inode.attributes),
                     0,
                     opened.id,
@@ -651,7 +668,11 @@ impl Filesystem for DmsFuse {
                 .mkdir(parent, name, mode, req.uid(), req.gid())
                 .instrument(span),
         ) {
-            Ok(created) => reply.entry(&TTL, &file_attr(&created.granted.inode.attributes), 0),
+            Ok(created) => reply.entry(
+                &kernel_cache_ttl(&created),
+                &file_attr(&created.granted.inode.attributes),
+                0,
+            ),
             Err(error) => reply.error(worker_to_errno(error)),
         }
     }
@@ -701,7 +722,11 @@ impl Filesystem for DmsFuse {
                 )
                 .instrument(span),
         ) {
-            Ok(created) => reply.entry(&TTL, &file_attr(&created.granted.inode.attributes), 0),
+            Ok(created) => reply.entry(
+                &kernel_cache_ttl(&created),
+                &file_attr(&created.granted.inode.attributes),
+                0,
+            ),
             Err(error) => reply.error(worker_to_errno(error)),
         }
     }
@@ -748,7 +773,7 @@ impl Filesystem for DmsFuse {
                 .instrument(span),
         );
         match result {
-            Ok(inode) => reply.entry(&TTL, &file_attr(&inode.attributes), 0),
+            Ok(inode) => reply.entry(&UNCACHED_TTL, &file_attr(&inode.attributes), 0),
             Err(error) => reply.error(worker_to_errno(error)),
         }
     }
@@ -1347,6 +1372,39 @@ mod tests {
     fn flush_releases_nonzero_lock_owner_and_ignores_zero_owner() {
         assert_eq!(flush_lock_owner(0), None);
         assert_eq!(flush_lock_owner(42), Some(42));
+    }
+
+    #[test]
+    fn kernel_cache_ttl_uses_remaining_binding_grant() {
+        let resolved = crate::filesystem::ResolvedInode {
+            granted: crate::filesystem::GrantedInode {
+                inode: crate::filesystem::InodeSnapshot {
+                    revision: 1,
+                    attributes: crate::filesystem::InodeAttributes {
+                        inode: 2,
+                        kind: crate::filesystem::InodeKind::RegularFile,
+                        mode: 0o644,
+                        uid: 0,
+                        gid: 0,
+                        link_count: 1,
+                        size: 0,
+                        atime_unix_nanos: 0,
+                        mtime_unix_nanos: 0,
+                        ctime_unix_nanos: 0,
+                    },
+                    content: None,
+                    reservations: Vec::new(),
+                },
+                grant: crate::filesystem::CacheGrant {
+                    generation: 1,
+                    lease_millis: 1_234,
+                },
+            },
+            object: None,
+            access_acl: None,
+        };
+
+        assert_eq!(kernel_cache_ttl(&resolved), Duration::from_millis(1_234));
     }
 
     #[test]

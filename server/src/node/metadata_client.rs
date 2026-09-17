@@ -1437,6 +1437,37 @@ impl MetadataClient {
         ))
     }
 
+    /// 只在本 Node 确实见过该 owner 的锁或在途 SetLock 时访问 Meta。
+    ///
+    /// FUSE `flush/release` 会携带内核分配的 owner，但这不代表应用曾建立
+    /// POSIX lock。普通 read/close 直接返回 0，避免把每次 close 放大成 Meta RPC。
+    /// 检查在 mirror mutex 内完成：检查后才开始的 SetLock 在时序上晚于本次
+    /// release，不应被它删除；已在途的 SetLock 会被 `inflight_sets` 捕获并继续
+    /// 使用原有 release fence/owner revision 规则。
+    pub(crate) async fn filesystem_release_lock_owner_if_known(
+        &self,
+        request_id: u64,
+        lock_owner: u64,
+    ) -> Result<u64, DmsError> {
+        let known = {
+            let mirror = self.filesystem_locks.lock().await;
+            mirror
+                .locks
+                .iter()
+                .any(|lock| lock.lock_owner == lock_owner)
+                || mirror
+                    .inflight_sets
+                    .get(&lock_owner)
+                    .is_some_and(|requests| !requests.is_empty())
+                || mirror.release_fences.contains_key(&lock_owner)
+        };
+        if !known {
+            return Ok(0);
+        }
+        self.filesystem_release_lock_owner(request_id, lock_owner)
+            .await
+    }
+
     async fn filesystem_rpc_once<Request, ResponseBody, Send, Fut>(
         &self,
         call: dms_metrics::RpcCall,
@@ -2599,6 +2630,24 @@ mod tests {
             exact_version: None,
             reply,
         }
+    }
+
+    #[tokio::test]
+    async fn unknown_fuse_lock_owner_does_not_contact_meta() {
+        let client = metadata_client_for_test(pb::NodeSessionIdentity {
+            session_id: b"test-session".to_vec(),
+            node_id: 9,
+            node_epoch: 1,
+        });
+
+        let affected = tokio::time::timeout(
+            Duration::from_millis(50),
+            client.filesystem_release_lock_owner_if_known(1, 77),
+        )
+        .await
+        .expect("unknown owner must complete without waiting for unreachable Meta")
+        .expect("unknown owner is a successful no-op");
+        assert_eq!(affected, 0);
     }
 
     fn metadata_client_for_test(session: pb::NodeSessionIdentity) -> MetadataClient {

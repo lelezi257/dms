@@ -4051,8 +4051,7 @@ async fn run_node(
                 NodeCommand::FilesystemGetBinding { inode, reply } => {
                     let resolved = state
                         .filesystem_bindings
-                        .get_authorized(inode, Instant::now())
-                        .cloned();
+                        .get_authorized(inode, Instant::now());
                     let _ = reply.send(Ok(resolved));
                 }
                 NodeCommand::FilesystemCacheBinding { resolved, reply } => {
@@ -9147,6 +9146,7 @@ mod tests {
                     grant,
                 },
                 object: None,
+                access_acl: None,
             },
             now,
         );

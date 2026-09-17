@@ -1,0 +1,64 @@
+{
+  "schema": "dms.native-fs-write-through-contract.v1",
+  "description": "P3 验收等语义 write-through：证明本地 owner 写的规模效应，量化远端 holder 的失效 ACK 成本，并锁定稳定热读不得访问 Meta/Peer。",
+  "required_independent_runs": 2,
+  "identity": {
+    "require_same_source_sha": true,
+    "require_same_binary_hashes": true
+  },
+  "semantics": {
+    "operation": "open -> pwrite -> fdatasync -> close",
+    "writeback": false,
+    "one_commit_per_fuse_write_callback": true
+  },
+  "allowed_background_methods": [
+    "Heartbeat",
+    "RenewFilesystemInodeReferences",
+    "ReportReplicas"
+  ],
+  "forbidden_foreground_methods": [
+    "GetFilesystemInode",
+    "GetFilesystemXattr",
+    "ReleaseFilesystemLockOwner",
+    "ResolveObject",
+    "PullBlock"
+  ],
+  "large_write_cases": [
+    "sync_write.no_holder.1m",
+    "sync_write.no_holder.8m",
+    "sync_write.no_holder.512m_stream"
+  ],
+  "minimum_dms_to_moosefs_throughput_ratio": 0.90,
+  "segmented_proof": {
+    "minimum_coverage_fraction": 0.90,
+    "required_segments": ["pwrite", "fdatasync"],
+    "reason": "write-through 必须完成一次 FUSE write callback 对应的唯一权威 CommitFilesystemVersion；未启用 writeback 时，这个同步可见性边界不能移出调用路径。"
+  },
+  "stable_cases": [
+    "stable.stat.4k",
+    "stable_read.local.4k",
+    "stable_read.local.64k",
+    "stable_read.local.1m",
+    "stable_read.local.8m",
+    "stable_read.peer.4k",
+    "stable_read.peer.64k",
+    "stable_read.peer.1m",
+    "stable_read.peer.8m"
+  ],
+  "holder_cases": [
+    "sync_write.holder.4k",
+    "sync_write.holder.64k",
+    "sync_write.holder.1m",
+    "sync_write.holder.8m"
+  ],
+  "holder_ack_per_logical_write": {
+    "minimum": 0.90,
+    "maximum": 1.10
+  },
+  "required_machine_sections": [
+    "workload_matrix",
+    "holder_cost",
+    "write_stage_accounting",
+    "recommendation_contract"
+  ]
+}

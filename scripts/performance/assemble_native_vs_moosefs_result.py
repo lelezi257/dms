@@ -90,6 +90,12 @@ def dms_whitebox(case_dir: Path) -> dict[str, float]:
     selected_metrics = (
         "dms_rpc_client_requests_total",
         "dms_rpc_client_duration_seconds_sum",
+        "dms_rpc_server_requests_total",
+        "dms_rpc_server_duration_seconds_sum",
+        "dms_meta_journal_append_duration_seconds_sum",
+        "dms_meta_journal_appends_total",
+    )
+    selected_prefixes = (
         "dms_node_fuse_",
         "dms_node_data_core_",
         "dms_node_filesystem_",
@@ -100,10 +106,11 @@ def dms_whitebox(case_dir: Path) -> dict[str, float]:
         after = parse_prometheus(case_dir / f"after-{role}.prom")
         for key, after_value in after.items():
             name, labels = key
-            # 报告只保留请求次数、总耗时和业务边界计数。Histogram bucket、
-            # server 镜像计数和 Meta 内部计数会把同一次 RPC 重复展开，既不利于
-            # 人工审阅，也会让 result.json 膨胀数十倍。
-            if not name.startswith(selected_metrics):
+            # 只保留可以构成端到端分段账本的 counter/sum，不收集
+            # Histogram bucket。Client/Server 两侧总耗时不是重复证据：
+            # 两者的差值用于估算编解码、调度与网络传输开销；Journal sum
+            # 则用于把 Meta handler 的业务处理与持久化边界分开。
+            if name not in selected_metrics and not name.startswith(selected_prefixes):
                 continue
             delta = after_value - before.get(key, 0.0)
             if delta:

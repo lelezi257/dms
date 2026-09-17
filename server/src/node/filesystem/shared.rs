@@ -6,7 +6,7 @@
 
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
-use dms_error::DmsError;
+use dms_error::{DmsError, ErrorKind};
 
 use super::super::{
     arena_manager::ReservationConsumption,
@@ -1229,11 +1229,20 @@ impl SharedFileOperations {
             // kernel default_permissions 执行；因此复用同一 inode 授权不会放宽权限。
             let _ = caller;
             self.resolve_inode(inode).await?.access_acl
-        } else {
+        } else if crate::filesystem::is_supported_xattr_name(name) {
             self.metadata
                 .get_xattr(inode, name, caller)
                 .await
                 .map_err(WorkerError::Stable)?
+        } else {
+            // Linux 会在普通 create/write 后探测 security.capability。该 namespace
+            // 在首版能力中确定不支持；把这个稳定答案送到 Meta 既不会增加正确性，
+            // 只会给每次 mutation 增加一次控制 RPC。
+            return Err(WorkerError::Stable(DmsError::new(
+                dms_error::META_FILESYSTEM_XATTR_UNSUPPORTED,
+                ErrorKind::Unimplemented,
+                "filesystem extended attribute namespace is unsupported",
+            )));
         };
         metric.success();
         Ok(result)

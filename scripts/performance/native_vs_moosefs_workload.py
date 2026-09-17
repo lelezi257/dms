@@ -103,10 +103,21 @@ def workspace_files() -> Iterable[tuple[int, int]]:
             yield size, index
 
 
+def prepare_workspace_directories(root: Path) -> None:
+    """在计时和 RPC 快照外创建 workload 共用的父目录。
+
+    create/create-delete 的样本只表达单个文件操作；父目录初始化属于测试夹具，
+    如果留在 before/after 快照内，会把 mkdir 的 Meta RPC 错算成文件 create RPC。
+    """
+
+    for group in range(8):
+        (root / "workspace" / f"task-{group:02d}").mkdir(parents=True, exist_ok=True)
+    (root / "workspace" / "ephemeral").mkdir(parents=True, exist_ok=True)
+
+
 def create_workspace(root: Path, recorder: Recorder, seed: int) -> None:
     for size, index in workspace_files():
         path = workspace_path(root, size, index)
-        path.parent.mkdir(parents=True, exist_ok=True)
         data = workspace_bytes(size, index, seed)
 
         def action(path: Path = path, data: bytes = data) -> int:
@@ -176,7 +187,6 @@ def patch_workspace(root: Path, recorder: Recorder, seed: int) -> None:
 
 def create_delete_workspace(root: Path, recorder: Recorder, seed: int) -> None:
     directory = root / "workspace" / "ephemeral"
-    directory.mkdir(parents=True, exist_ok=True)
     for index in range(80):
         path = directory / f"temp-{index:04d}.txt"
         data = deterministic_bytes(f"ephemeral:{index}", 1024, seed)
@@ -261,6 +271,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--phase",
         choices=(
+            "workspace-prepare",
             "workspace-create",
             "workspace-local-hot",
             "workspace-stat",
@@ -286,7 +297,9 @@ def main() -> int:
     cpu_before = resource.getrusage(resource.RUSAGE_SELF)
     wall_started = time.perf_counter_ns()
 
-    if args.phase == "workspace-create":
+    if args.phase == "workspace-prepare":
+        prepare_workspace_directories(args.root)
+    elif args.phase == "workspace-create":
         create_workspace(args.root, recorder, args.seed)
     elif args.phase == "workspace-local-hot":
         read_workspace(args.root, recorder, args.seed, "workspace.local_hot")

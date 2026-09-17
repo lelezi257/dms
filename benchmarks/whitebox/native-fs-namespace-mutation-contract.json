@@ -1,0 +1,59 @@
+{
+  "schema": "dms.native-fs-namespace-mutation-contract.v1",
+  "description": "P2 验收 namespace mutation：先锁定每个 POSIX 操作不可省的权威发布，再禁止重复 inode/xattr/resolve RPC，并要求 mutation 时延相对 P0 至少减半且不显著慢于 MooseFS。",
+  "required_independent_runs": 2,
+  "identity": {
+    "require_same_source_sha": true,
+    "require_same_binary_hashes": true
+  },
+  "allowed_background_methods": [
+    "Heartbeat",
+    "RenewFilesystemInodeReferences"
+  ],
+  "cases": {
+    "workspace.stat": {
+      "maximum_dms_p50_us": 10.0,
+      "rpc_per_sample": {}
+    },
+    "workspace.create": {
+      "baseline_p50_us": 1910.587,
+      "minimum_improvement_fraction": 0.50,
+      "maximum_dms_to_moosefs_p50_ratio": 1.25,
+      "rpc_per_sample": {
+        "CreateFilesystemInode": {"minimum": 1.0, "maximum": 1.0},
+        "CommitFilesystemVersion": {"minimum": 1.0, "maximum": 1.0},
+        "LookupFilesystemEntry": {"maximum": 1.0},
+        "AcknowledgeNodeEvent": {"maximum": 2.0}
+      }
+    },
+    "workspace.patch": {
+      "baseline_p50_us": 1322.336,
+      "minimum_improvement_fraction": 0.50,
+      "maximum_dms_to_moosefs_p50_ratio": 1.25,
+      "rpc_per_sample": {
+        "CommitFilesystemVersion": {"minimum": 1.0, "maximum": 1.0},
+        "AcknowledgeNodeEvent": {"maximum": 1.0}
+      }
+    },
+    "workspace.create_delete": {
+      "baseline_p50_us": 3334.549,
+      "minimum_improvement_fraction": 0.50,
+      "maximum_dms_to_moosefs_p50_ratio": 1.25,
+      "rpc_per_sample": {
+        "CreateFilesystemInode": {"minimum": 1.0, "maximum": 1.0},
+        "CommitFilesystemVersion": {"minimum": 1.0, "maximum": 1.0},
+        "RemoveFilesystemEntry": {"minimum": 1.0, "maximum": 1.0},
+        "ReleaseFilesystemInodeReference": {"maximum": 1.0},
+        "LookupFilesystemEntry": {"maximum": 1.0},
+        "AcknowledgeNodeEvent": {"maximum": 3.0}
+      }
+    }
+  },
+  "forbidden_foreground_methods": [
+    "GetFilesystemInode",
+    "GetFilesystemXattr",
+    "ReleaseFilesystemLockOwner",
+    "ResolveObject",
+    "PullBlock"
+  ]
+}

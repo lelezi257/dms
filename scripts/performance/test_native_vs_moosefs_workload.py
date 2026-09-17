@@ -32,6 +32,10 @@ class WorkloadTest(unittest.TestCase):
         try:
             with tempfile.TemporaryDirectory() as directory:
                 root = Path(directory)
+                workload.prepare_workspace_directories(root)
+                for group in range(8):
+                    self.assertTrue((root / "workspace" / f"task-{group:02d}").is_dir())
+                self.assertTrue((root / "workspace" / "ephemeral").is_dir())
                 create = workload.Recorder("create")
                 workload.create_workspace(root, create, 7)
                 self.assertEqual(len(create.samples), 5)

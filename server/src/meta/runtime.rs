@@ -19,12 +19,12 @@ use tokio::sync::{mpsc, oneshot};
 use crate::filesystem::{
     ACL_ACCESS_NAME, ACL_DEFAULT_NAME, AttributePatch, CacheGrant, DentrySnapshot, DirectoryGrant,
     FileContentBinding, FileLockOutcome, FileLockOwner, FileSpaceReservation, FilesystemCaller,
-    InodeAttributes, InodeKind, InodeSnapshot, InodeVersion, NamespaceMutationResult, ROOT_INODE,
-    RemoveKind, ResolvedInode, TimeUpdate, XattrSetMode, XattrUpdate, access_acl_after_chmod,
-    attribute_patch_from_proto, caller_from_proto, dentry_to_proto, directory_entry_to_proto,
-    directory_grant_to_proto, granted_lock_from_proto, inherit_default_acl, inode_to_proto,
-    lock_outcome_to_proto, lock_request_from_proto, namespace_result_to_proto, resolved_to_proto,
-    validate_acl_xattr,
+    InodeAttributes, InodeKind, InodeSnapshot, InodeVersion, MAX_XATTR_NAME_BYTES,
+    NamespaceMutationResult, ROOT_INODE, RemoveKind, ResolvedInode, TimeUpdate, XattrSetMode,
+    XattrUpdate, access_acl_after_chmod, attribute_patch_from_proto, caller_from_proto,
+    dentry_to_proto, directory_entry_to_proto, directory_grant_to_proto, granted_lock_from_proto,
+    inherit_default_acl, inode_to_proto, lock_outcome_to_proto, lock_request_from_proto,
+    namespace_result_to_proto, resolved_to_proto, validate_acl_xattr,
 };
 
 use super::filesystem::{
@@ -70,7 +70,6 @@ const MAX_FILESYSTEM_ORPHANS_PER_TICK: usize = 64;
 const FILESYSTEM_BLOCK_SIZE: u64 = 4096;
 #[cfg(test)]
 const DEFAULT_FILESYSTEM_MAX_INODES: u64 = 1_000_000;
-const MAX_XATTR_NAME_BYTES: usize = 255;
 const MAX_XATTR_VALUE_BYTES: usize = 64 * 1024;
 const MAX_XATTRS_PER_INODE: usize = 128;
 const MAX_XATTR_BYTES_PER_INODE: usize = 256 * 1024;
@@ -5814,6 +5813,7 @@ impl MetaState {
                         operation_digest,
                     },
                     commit_sequence.as_ref(),
+                    true,
                 );
             }
             JournalRecord::VersionsCommitted {
@@ -5821,7 +5821,7 @@ impl MetaState {
                 commit_sequence,
             } => {
                 for commit in commits {
-                    self.apply_version_commit(sequence, commit, commit_sequence.as_ref());
+                    self.apply_version_commit(sequence, commit, commit_sequence.as_ref(), true);
                 }
             }
             JournalRecord::OperationRemembered {
@@ -5910,7 +5910,10 @@ impl MetaState {
                 let committed_inode = record.inode.clone();
                 let revoked_generation = record.revoked_grant_generation;
                 let xattr_updates = record.xattr_updates.clone();
-                self.apply_version_commit(sequence, record.object, commit_sequence.as_ref());
+                // Filesystem 读者按 inode 绑定的 exact version 读取，不消费内部
+                // object key 的 Current。这里只发布下面的 binding 失效事件，避免
+                // 同一次文件提交让远端 Node 对两个等价事件分别 ACK。
+                self.apply_version_commit(sequence, record.object, commit_sequence.as_ref(), false);
                 self.filesystem
                     .apply_inode_version(record.inode, record.new_grant_generation);
                 self.filesystem.apply_xattr_updates(xattr_updates);
@@ -6239,7 +6242,9 @@ impl MetaState {
             }
             JournalRecord::FilesystemOrphanReaped { record } => {
                 if let Some(tombstone) = record.object_tombstone {
-                    self.apply_version_commit(sequence, tombstone, None);
+                    // orphan 的内部 object key 已经没有可见 inode 绑定，不需要再
+                    // 广播通用 Current 失效；目录/绑定生命周期由 filesystem 事件负责。
+                    self.apply_version_commit(sequence, tombstone, None, false);
                 }
                 self.filesystem.apply_orphan_reaped(record.inode);
                 self.filesystem_inode_references
@@ -6253,6 +6258,7 @@ impl MetaState {
         sequence: u64,
         commit: VersionCommitRecord,
         commit_sequence: Option<&CommitSequenceRecord>,
+        publish_current_invalidation: bool,
     ) {
         // commit sequence 记录真正发起提交的 Node，应优先作为来源；旧 WAL 没有
         // sequence 时才从新副本推断。两者都缺失则保留 0 并继续广播，以兼容
@@ -6296,33 +6302,37 @@ impl MetaState {
         } else if commit.layout.kind == pb::VersionKind::Tombstone as i32 {
             self.live_keys.remove(&commit.key);
         }
-        // cursor 是 Meta watch/ACK 的全局时序号。即使首次发布不需要失效事件，
-        // 也保留一个 cursor gap，避免旧 Journal 回放时历史 ACK 误确认后续事件。
-        let cursor = self.event_high_watermark + 1;
-        self.event_high_watermark = cursor;
-        let visibility_cursor = if old_version == 0 {
-            // 从未存在过的 key 没有旧 Current 可撤销。当前系统也没有负缓存；
-            // 读 miss 不会被缓存成“未来仍不存在”。因此首次发布可以直接完成，
-            // 不需要把未读过该 key 的 Node 拉进前台 ACK 屏障。上面的 cursor gap
-            // 只用于兼容恢复，不会投递给 watcher。
-            None
+        let visibility_cursor = if publish_current_invalidation {
+            // cursor 是 Meta watch/ACK 的全局时序号。即使首次发布不需要失效事件，
+            // 也保留一个 cursor gap，避免旧 Journal 回放时历史 ACK 误确认后续事件。
+            let cursor = self.event_high_watermark + 1;
+            self.event_high_watermark = cursor;
+            if old_version == 0 {
+                // 从未存在过的 key 没有旧 Current 可撤销。当前系统也没有负缓存；
+                // 读 miss 不会被缓存成“未来仍不存在”。因此首次发布可以直接完成，
+                // 不需要把未读过该 key 的 Node 拉进前台 ACK 屏障。上面的 cursor gap
+                // 只用于兼容恢复，不会投递给 watcher。
+                None
+            } else {
+                self.events.push(pb::NodeEvent {
+                    event_id: cursor.to_be_bytes().to_vec(),
+                    cursor,
+                    event: Some(pb::node_event::Event::InvalidateCurrent(
+                        pb::InvalidateCurrentEvent {
+                            key: Some(pb::Key { value: commit.key }),
+                            old_version,
+                            transition_id: sequence.to_be_bytes().to_vec(),
+                            lease_epoch: 0,
+                            revision: sequence,
+                            minimum_version: commit.layout.version,
+                            source_node_id,
+                        },
+                    )),
+                });
+                Some(cursor)
+            }
         } else {
-            self.events.push(pb::NodeEvent {
-                event_id: cursor.to_be_bytes().to_vec(),
-                cursor,
-                event: Some(pb::node_event::Event::InvalidateCurrent(
-                    pb::InvalidateCurrentEvent {
-                        key: Some(pb::Key { value: commit.key }),
-                        old_version,
-                        transition_id: sequence.to_be_bytes().to_vec(),
-                        lease_epoch: 0,
-                        revision: sequence,
-                        minimum_version: commit.layout.version,
-                        source_node_id,
-                    },
-                )),
-            });
-            Some(cursor)
+            None
         };
         let commit_sequence = commit_sequence.cloned();
         if let Some(record) = commit_sequence.clone() {
@@ -7920,15 +7930,7 @@ fn validate_filesystem_attribute_operation(
 /// 首版只开放用户自定义属性与 Linux POSIX ACL 的两个标准名称。
 /// security/trusted namespace 需要能力模型，不能在尚未定义授权时静默接受。
 fn validate_xattr_name(name: &[u8]) -> Result<(), MetaRuntimeError> {
-    if name.is_empty() || name.len() > MAX_XATTR_NAME_BYTES || name.contains(&0) {
-        return Err(MetaRuntimeError::XattrUnsupported);
-    }
-    if name == ACL_ACCESS_NAME
-        || name == ACL_DEFAULT_NAME
-        || name
-            .strip_prefix(b"user.")
-            .is_some_and(|suffix| !suffix.is_empty())
-    {
+    if crate::filesystem::is_supported_xattr_name(name) {
         Ok(())
     } else {
         Err(MetaRuntimeError::XattrUnsupported)
@@ -9134,6 +9136,51 @@ mod tests {
             "同一 operation 重试必须返回原始提交结果，不能读取当前 inode 后错返后续提交"
         );
         assert_eq!(retried_first, first_response);
+    }
+
+    #[test]
+    fn filesystem_recommit_emits_only_binding_invalidation() {
+        let mut state = MetaState::new(Box::<InMemoryJournal>::default());
+        let writer = test_session(&mut state, 146);
+        let _reader = test_session(&mut state, 147);
+        let inode = create_test_file(&mut state, writer.clone(), b"one-event-per-write.bin");
+
+        let first = state
+            .filesystem_commit_version(filesystem_commit_request_for(
+                writer.clone(),
+                &inode,
+                b"one-event-block-v1",
+                b"one-event-op-v1",
+            ))
+            .expect("first filesystem commit");
+        let first_inode = crate::filesystem::inode_from_proto(
+            first
+                .resolved
+                .expect("first resolved filesystem commit")
+                .inode
+                .expect("first committed inode"),
+        )
+        .expect("valid first inode");
+
+        // create 和第一次写产生的事件不是本断言的观测对象；第二次写必须只新增
+        // 一条 FileContentBinding 失效，不能再为内部 object Current 重复通知。
+        state.events.clear();
+        let before_cursor = state.event_high_watermark;
+        state
+            .filesystem_commit_version(filesystem_commit_request_for(
+                writer,
+                &first_inode,
+                b"one-event-block-v2",
+                b"one-event-op-v2",
+            ))
+            .expect("second filesystem commit");
+
+        assert_eq!(state.event_high_watermark, before_cursor + 1);
+        assert_eq!(state.events.len(), 1);
+        assert!(matches!(
+            state.events[0].event,
+            Some(pb::node_event::Event::InvalidateFilesystemBinding(_))
+        ));
     }
 
     #[test]

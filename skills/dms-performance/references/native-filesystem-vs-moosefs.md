@@ -36,7 +36,15 @@
 - Meta 单次 commit 内的嵌套扫描属于实现放大，已改为 actor turn 内临时索引；512 MiB Meta business 降低 70.8%～77.3%，但没有改变一次 callback 一次权威发布。
 - 远端 holder 每次逻辑写恰好增加一次 invalidation ACK。稳定本地读和 Peer 复读继续 0 前台 Meta/Peer RPC，并优于 MooseFS。
 - 推荐 workload 是本地 owner、低 holder 扇出、单次写通常不超过一个 callback、写后重复读取；当前不推荐要求每个 1 MiB chunk 都同步发布的大文件流式写。
-- 下一阶段是 P4 Peer 首读；不要把稳定复读、writeback 或高并发问题混入 P4。
+- P4 已完成 Peer 首读收口；不要再把稳定复读、writeback 或高并发问题混回单请求路径。
+
+## P4 后续结论
+
+- 跨节点首次读取仍保留一次 Exact Version 解析和远端 payload，这是近计算分布式架构的必要成本；逐 Block 控制 RPC 不是必要成本。
+- 512 MiB 首读已经从逐 Block `PullBlock` 收敛为每轮一条 `PullBlocks` stream；5 轮的 `PullBlocks=5`、旧 `PullBlock=0`。
+- `ReportReplicas` 改为校验安装后的后台批量登记；它影响其他 Node 何时选到新副本，不影响当前读的正确返回。
+- 两次独立运行中，workspace Peer 首读 p50 比值为 0.970/0.968，512 MiB Peer 首读吞吐比为 1.161/1.142；stable local/peer-repeat 均未回归。
+- 下一阶段是 P5 并发、Actor、gRPC、Arena/allocator 与背压上限；只有 profile 证明为瓶颈的层才允许修改。
 
 ## 不要重复争论
 

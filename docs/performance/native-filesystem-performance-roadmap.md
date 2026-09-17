@@ -1,6 +1,6 @@
 # DMS Native Filesystem 性能优化 Roadmap
 
-> 状态：**P3 已完成，P4 是下一项**。本 Roadmap 从三 VM 白盒基线出发，目标不是无限追逐更高数字，而是先消除实现放大、兑现架构优势，再为可靠性和 Agent Workspace 建立持续门禁。
+> 状态：**P4 已完成，P5 是下一项**。本 Roadmap 从三 VM 白盒基线出发，目标不是无限追逐更高数字，而是先消除实现放大、兑现架构优势，再为可靠性和 Agent Workspace 建立持续门禁。
 
 GitHub 跟踪入口：[性能 Roadmap #32](https://github.com/lelezi257/dms/issues/32)。源码中的本文是稳定决策正文，Issue 只维护执行状态和阶段证据。
 
@@ -76,8 +76,8 @@ GitHub 跟踪入口：[性能 Roadmap #32](https://github.com/lelezi257/dms/issu
 | P1 | 恢复小文件稳定热路径 0 Meta/Peer 合同 | 已完成 | Preview 热读阻塞项已解除 |
 | P2 | 收敛 namespace 与 mutation 固定成本 | 已完成 | Agent 小文件体验 |
 | P3 | 分离并优化 write-through 写路径 | 已完成 | POSIX 写与同步语义 |
-| P4 | 收敛跨节点首次读取控制放大 | 立即执行 | P2P 架构优势 |
-| P5 | 验证并发、Actor、内存与背压上限 | P4 后 | 单机/多客户端扩展性 |
+| P4 | 收敛跨节点首次读取控制放大 | 已完成 | P2P 架构优势 |
+| P5 | 验证并发、Actor、内存与背压上限 | 立即执行 | 单机/多客户端扩展性 |
 | P6 | 建立可靠性性能包络 | M2 实现时 | 多副本、持久层、真实 fsync |
 | P7 | 建立 Workspace/Snapshot/Lazy-load 业务门禁 | M3 实现时 | Agent Workspace |
 | P8 | 把已通过门槛变成持续回归 | 贯穿执行 | 发布与长期维护 |
@@ -90,8 +90,8 @@ P1～P5 串行执行。只有上一阶段的根因、代码和机器证据收口
 - [x] P1：恢复小文件稳定热路径 0 Meta/Peer 合同（commit `095b8ca`，双轮 evaluator `PASS`）。
 - [x] P2：收敛 namespace 与 mutation 固定成本（#35；双轮 evaluator `PASS`）。
 - [x] P3：建立等语义 write-through lane 并优化单次提交（双轮 evaluator `PASS`）。
-- [ ] P4：收敛跨节点首次读取的 Pull/Report 控制放大；这是下一项且唯一激活项。
-- [ ] P5：验证并发、Actor、内存、gRPC 与背压上限。
+- [x] P4：跨节点首次读取每轮只使用一条 `PullBlocks` 流，前台不等待副本登记；双轮 evaluator `PASS`。
+- [ ] P5：验证并发、Actor、内存、gRPC 与背压上限；这是下一项且唯一激活项。
 - [ ] P6：随 M2 建立可靠性性能包络。
 - [ ] P7：随 M3 建立 Workspace/Snapshot/Lazy-load 业务门禁。
 - [ ] P8：把已经通过的门槛固化为持续回归和发布停止线。
@@ -266,6 +266,15 @@ RPC 次数达到理论最小合同，剩余耗时能由一次本地 FUSE/Node �
 ### 退出条件
 
 两项既有 Preview 门槛连续两次独立全量运行通过，控制 RPC 次数与 payload chunk 数解耦，剩余差距可以由一次 resolve、网络吞吐和校验成本解释。
+
+### 完成证据（2026-09-18）
+
+- 两次独立三 VM 全量运行中，`workspace.peer_first` p50 比值为 0.970、0.968；512 MiB peer-first 吞吐比为 1.161、1.142。
+- 两轮 512 MiB 首读均为 5 个样本、5 次 `PullBlocks`，即每轮一条流；旧 `PullBlock` 为 0，控制请求数量不再随 Block 数增长。
+- `ReportReplicas` 每轮只产生一次后台批量 RPC；合同测试证明后台登记阻塞不会延迟当前读返回，前台同步等待次数为 0。
+- local hot、workspace peer-repeat 和 512 MiB peer-repeat 均继续通过既有门槛，没有用冷读优化破坏热路径。
+- checksum mismatch、缺副本、source 中断、stale location 与 fallback 全部通过故障门禁。
+- 完整结论见 [P4 Peer 首读报告](native-filesystem-p4-peer-first.md)；机器合同为 [`native-fs-peer-first-contract.json`](../../benchmarks/whitebox/native-fs-peer-first-contract.json)，精简机器基线为 [`native-fs-peer-first-lima-aarch64-2026-09-18.json`](../../benchmarks/whitebox/baselines/native-fs-peer-first-lima-aarch64-2026-09-18.json)。
 
 ## 10. P5：并发、Actor、内存与背压
 

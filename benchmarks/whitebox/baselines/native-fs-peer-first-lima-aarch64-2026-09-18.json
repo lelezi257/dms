@@ -1,0 +1,76 @@
+{
+  "schema": "dms.native-fs-peer-first-baseline.v1",
+  "profile": {
+    "arch": "aarch64",
+    "environment": "three-lima-vm",
+    "nodes": 3,
+    "memory_lane_rounds_per_run": 5,
+    "independent_runs": 2,
+    "moosefs_goal": 1,
+    "payload_media": "tmpfs / memory resident"
+  },
+  "source_sha": "93537228ced0cf92c050a62c171558238cf227c0",
+  "binary_sha256": {
+    "dms_node": "27e731ac17b50a9dbe4a34d1ad0e4e641e60cd149ba016c2bc4126085b10e23d",
+    "dms_meta": "dcb8ff2233d0ef53cb555da0cade7935de75832a175f75ab1ea34151700cda94"
+  },
+  "semantics": {
+    "reader": "node B",
+    "exact_version_resolved_before_payload": true,
+    "large_peer_first_transport": "one PullBlocks server stream per 512 MiB read",
+    "legacy_pull_block_used": false,
+    "replica_reporting": "bounded background batch after checksum-verified local install"
+  },
+  "runs": [
+    {
+      "run_id": "p4-final-e-20260918",
+      "ratio": {
+        "workspace_peer_first_p50_dms_over_moosefs": 0.9703625119049053,
+        "sequential_512m_peer_first_throughput_dms_over_moosefs": 1.1607919602815224,
+        "workspace_peer_repeat_p50_dms_over_moosefs": 0.7168176726643697,
+        "sequential_512m_peer_repeat_throughput_dms_over_moosefs": 1.0216826375573935,
+        "workspace_local_hot_p50_dms_over_moosefs": 0.7507801560312062
+      },
+      "large_peer_first_rpc_over_five_rounds": {
+        "GetFilesystemInode": 5,
+        "LookupFilesystemEntry": 5,
+        "PullBlocks": 5,
+        "PullBlock": 0,
+        "ReportReplicas": 5
+      }
+    },
+    {
+      "run_id": "p4-final-f-20260918",
+      "ratio": {
+        "workspace_peer_first_p50_dms_over_moosefs": 0.9682954637611332,
+        "sequential_512m_peer_first_throughput_dms_over_moosefs": 1.1415346687190644,
+        "workspace_peer_repeat_p50_dms_over_moosefs": 0.7254411876088768,
+        "sequential_512m_peer_repeat_throughput_dms_over_moosefs": 1.0188138957581732,
+        "workspace_local_hot_p50_dms_over_moosefs": 0.7247963425168104
+      },
+      "large_peer_first_rpc_over_five_rounds": {
+        "GetFilesystemInode": 5,
+        "LookupFilesystemEntry": 5,
+        "PullBlocks": 5,
+        "PullBlock": 0,
+        "ReportReplicas": 5
+      }
+    }
+  ],
+  "fault_contracts": {
+    "checksum_mismatch_rejected": true,
+    "missing_replica_rejected": true,
+    "source_failure_falls_back": true,
+    "stale_location_falls_back": true,
+    "background_report_does_not_delay_read": true
+  },
+  "invariants": {
+    "foreground_synchronous_report_replicas": 0,
+    "multi_block_read_uses_one_peer_stream": true,
+    "public_sdk_changed": false,
+    "data_core_owner_changed": false,
+    "meta_state_owner_changed": false,
+    "exact_version_and_checksum_preserved": true
+  },
+  "evaluation": "PASS"
+}

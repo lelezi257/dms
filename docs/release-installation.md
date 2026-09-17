@@ -28,7 +28,16 @@ cp config/dms.env.example config/dms.env
 
 ## 2. 配置并手动启动
 
-编辑 `config/dms.env`。单 VM 保持 `DMS_NODE_IP=127.0.0.1`；默认业务端口 Node 19200、Meta 19300，状态端口 19000/19100。如果这些端口已被使用，要把 bind、endpoint 和后续验证命令一起修改。
+编辑 `config/dms.env`。单 VM 保持 `DMS_NODE_IP=127.0.0.1`；默认业务端口 Node 19200、Meta 19300，状态端口 19000/19100。如果这些端口已被使用，要把 bind、endpoint 和后续验证命令一起修改。若安装路径很深，把 `DMS_RUN_DIR` 设置到 `/tmp/dms-run-<节点名>` 这类短路径，避免 Unix socket 路径超过 Linux 限制。若要启用原生 filesystem 挂载，把 `DMS_FUSE_MOUNTPOINT` 设置为本安装目录下的空目录，例如 `/opt/dms/mnt`；不设置时只启动 KV/Worker 服务。
+
+启用挂载的机器必须具备 `/dev/fuse` 和 `fusermount3`。DMS 使用 `allow_other + default_permissions`，让同一挂载上的不同 Linux 用户由内核按 inode 的 uid/gid/mode 做权限检查，因此还必须一次性启用 FUSE 的系统开关：
+
+```bash
+grep -qx user_allow_other /etc/fuse.conf \
+  || echo user_allow_other | sudo tee -a /etc/fuse.conf
+```
+
+这是主机级前置条件，不是每次启动都修改的 DMS 配置；缺失时 `cluster.sh node start` 会明确失败，而不会启动一个只能由挂载用户访问的降级文件系统。
 
 ```bash
 ./scripts/cluster.sh meta start
@@ -47,6 +56,16 @@ export DMS_ENDPOINT=http://127.0.0.1:19200
 ```
 
 这是随组件提供的诊断程序。应用开发使用下一节的 SDK，而不是调用这个命令代替 API。
+
+启用 `DMS_FUSE_MOUNTPOINT` 后，可用普通文件命令做最小验证：
+
+```bash
+printf 'hello' > "$DMS_FUSE_MOUNTPOINT/hello.txt"
+cat "$DMS_FUSE_MOUNTPOINT/hello.txt"
+```
+
+停止 Node 时 `cluster.sh` 会尝试 lazy unmount 该挂载点；若用户进程仍持有文件句柄，
+先关闭进程再重新执行 stop。
 
 ## 3. 用户程序只依赖 SDK
 

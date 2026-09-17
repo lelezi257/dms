@@ -180,6 +180,7 @@ impl MetadataService for MetadataServiceHandler {
                 session.node_id,
                 session.node_epoch,
                 request.event_cursor,
+                request.resources,
             )
             .await
             .map_err(|error| self.map_meta_error(error))?;
@@ -188,6 +189,7 @@ impl MetadataService for MetadataServiceHandler {
             lease_ttl_millis: grant.lease_ttl_millis,
             accepted_node_epoch: grant.accepted_node_epoch,
             event_high_watermark: grant.event_high_watermark,
+            filesystem_lock_reclaim_required: grant.filesystem_lock_reclaim_required,
         }))
     }
 
@@ -408,10 +410,10 @@ impl MetadataService for MetadataServiceHandler {
 #[cfg(test)]
 mod tests {
     use dms_protocol::v1::{
-        ByteRange, CommitVersionRequest, DurabilityPolicy, ExtentRecord, Key, MetaScanRequest,
-        MetaStatRequest, NodeHeartbeatRequest, NodeRegistration, ObjectScanOptions,
-        OpenNodeSessionRequest, ReplicaReport, RequestContext, ResourceSummary, VersionCandidate,
-        VersionKind, metadata_service_client::MetadataServiceClient,
+        ByteRange, CommitVersionRequest, DurabilityPolicy, ExtentKind, ExtentRecord, Key,
+        MetaScanRequest, MetaStatRequest, NodeHeartbeatRequest, NodeRegistration,
+        ObjectScanOptions, OpenNodeSessionRequest, ReplicaReport, RequestContext, ResourceSummary,
+        VersionCandidate, VersionKind, metadata_service_client::MetadataServiceClient,
         metadata_service_server::MetadataServiceServer,
     };
     use dms_transport::{GrpcConfig, SecurityManager, TlsConfig};
@@ -554,6 +556,7 @@ mod tests {
                         block_id: b"grpc/block-a".to_vec(),
                         block_offset: 0,
                         digest: b"digest".to_vec(),
+                        kind: ExtentKind::Data as i32,
                     }],
                     digest: b"layout".to_vec(),
                 }),

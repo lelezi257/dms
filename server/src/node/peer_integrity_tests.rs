@@ -799,6 +799,7 @@ async fn spawn_node_with_registry(
         node_id,
         format!("http://127.0.0.1:{}", 18_000 + node_id),
         None,
+        false,
     )
     .await
     .expect("connect node to Meta");

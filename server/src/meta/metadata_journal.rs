@@ -6,6 +6,10 @@
 
 use dms_protocol::v1 as pb;
 
+use crate::filesystem::{
+    DentrySnapshot, InodeId, InodeSnapshot, NamespaceMutationResult, XattrUpdate,
+};
+
 use super::metrics::JournalRecordMetric;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -16,6 +20,94 @@ pub(crate) struct VersionCommitRecord {
     pub(crate) new_replicas: Vec<(pb::ReplicaLocation, u64)>,
     pub(crate) operation_id: Vec<u8>,
     pub(crate) operation_digest: Vec<u8>,
+}
+
+/// 文件创建的一次完整 namespace 变更。
+///
+/// inode、dentry 与分配器水位必须共用一条记录，否则恢复后可能重用已经发布的 inode。
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct FilesystemInodeCreatedRecord {
+    pub(crate) inode: InodeSnapshot,
+    pub(crate) dentry: DentrySnapshot,
+    pub(crate) next_inode: InodeId,
+    pub(crate) grant_generation: u64,
+}
+
+/// 文件内容版本的一次原子发布。
+///
+/// `object` 是原有 DataCore 版本状态转换，`inode` 是同一时刻可见的精确绑定；两者
+/// 只能一起被 journal 接受和恢复。
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct FilesystemVersionCommitRecord {
+    pub(crate) object: VersionCommitRecord,
+    pub(crate) inode: InodeSnapshot,
+    pub(crate) revoked_grant_generation: u64,
+    pub(crate) new_grant_generation: u64,
+    pub(crate) xattr_updates: Vec<XattrUpdate>,
+}
+
+/// chmod/chown/utimens 的一次权威 inode 属性提交。
+///
+/// 记录保存 Meta 已经完成权限检查和 `NOW` 求值后的最终 inode；恢复时只重放结果，
+/// 不重新读取墙钟或重新判权，因此幂等重试与崩溃恢复看到同一份属性快照。
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct FilesystemAttributesUpdatedRecord {
+    pub(crate) operation_id: Vec<u8>,
+    pub(crate) operation_digest: Vec<u8>,
+    pub(crate) inode: InodeSnapshot,
+    pub(crate) revoked_grant_generation: u64,
+    pub(crate) new_grant_generation: u64,
+    pub(crate) xattr_updates: Vec<XattrUpdate>,
+}
+
+/// setxattr/removexattr 的一次完整提交；inode revision、grant 和 xattr delta
+/// 必须一起重放。
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct FilesystemXattrUpdatedRecord {
+    pub(crate) operation_id: Vec<u8>,
+    pub(crate) operation_digest: Vec<u8>,
+    pub(crate) inode: InodeSnapshot,
+    pub(crate) revoked_grant_generation: u64,
+    pub(crate) new_grant_generation: u64,
+    pub(crate) update: XattrUpdate,
+}
+
+/// create/mkdir/rename/unlink/rmdir 的一次 Meta 权威 namespace 变更。
+///
+/// 这条记录保存的是 Meta actor 已经决定的最终状态 delta：哪些 inode 被更新、
+/// 哪些 dentry 被新增/替换、哪些 dentry 被删除，以及 inode 分配器的新水位。
+/// 重放时不重新做 lookup/CAS，避免恢复路径和在线路径得出不同结果。
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct FilesystemNamespaceMutationRecord {
+    pub(crate) operation_id: Vec<u8>,
+    pub(crate) operation_digest: Vec<u8>,
+    pub(crate) result: NamespaceMutationResult,
+    pub(crate) upsert_inodes: Vec<InodeSnapshot>,
+    pub(crate) upsert_dentries: Vec<DentrySnapshot>,
+    pub(crate) remove_dentries: Vec<DentrySnapshot>,
+    pub(crate) next_inode: InodeId,
+    pub(crate) xattr_updates: Vec<XattrUpdate>,
+}
+
+/// 符号链接创建的单条权威记录。
+///
+/// symlink target 仍是 DataCore exact ObjectVersion；同时 dentry/inode/content binding
+/// 必须一条 WAL 原子发布，禁止先让 path 可见再单独提交 target。
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct FilesystemSymlinkCreatedRecord {
+    pub(crate) namespace: FilesystemNamespaceMutationRecord,
+    pub(crate) version: VersionCommitRecord,
+    pub(crate) new_grant_generation: u64,
+}
+
+/// 一个已经脱离 namespace 且不再被任何 Node 引用的 inode 被持久回收。
+///
+/// `object_tombstone` 与 inode 删除共用一条 WAL 记录：恢复时不会出现 inode 已消失但
+/// DataCore Current 仍指向旧内容，或对象已删除但 inode 又被快照恢复的半完成状态。
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct FilesystemOrphanReapedRecord {
+    pub(crate) inode: InodeId,
+    pub(crate) object_tombstone: Option<VersionCommitRecord>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -126,6 +218,38 @@ pub(crate) enum JournalRecord {
         block_ids: Vec<Vec<u8>>,
         stage_epoch: u64,
     },
+    /// 一个 inode 与父目录名字同时成为可见状态。
+    FilesystemInodeCreated {
+        record: FilesystemInodeCreatedRecord,
+    },
+    /// 对象版本、inode 精确绑定和缓存撤销由同一记录发布。
+    FilesystemVersionCommitted {
+        record: FilesystemVersionCommitRecord,
+        commit_sequence: Option<CommitSequenceRecord>,
+    },
+    /// inode 属性和对应缓存撤销由同一条记录发布。
+    FilesystemAttributesUpdated {
+        record: FilesystemAttributesUpdatedRecord,
+        commit_sequence: Option<CommitSequenceRecord>,
+    },
+    FilesystemXattrUpdated {
+        record: FilesystemXattrUpdatedRecord,
+        commit_sequence: Option<CommitSequenceRecord>,
+    },
+    /// 目录树名字空间的一次原子变更，覆盖 create/mkdir/rename/unlink/rmdir。
+    FilesystemNamespaceMutated {
+        record: FilesystemNamespaceMutationRecord,
+        commit_sequence: Option<CommitSequenceRecord>,
+    },
+    /// symlink 的名字、inode binding 与 target 对象版本一次性发布。
+    FilesystemSymlinkCreated {
+        record: FilesystemSymlinkCreatedRecord,
+        commit_sequence: Option<CommitSequenceRecord>,
+    },
+    /// link_count=0、引用租约已消失且恢复保护窗口已结束的 inode 被回收。
+    FilesystemOrphanReaped {
+        record: FilesystemOrphanReapedRecord,
+    },
 }
 
 impl JournalRecord {
@@ -148,6 +272,19 @@ impl JournalRecord {
             }
             Self::BlockRetirementFinalized { .. } => JournalRecordMetric::BlockRetirementFinalized,
             Self::BlockRetirementReleased { .. } => JournalRecordMetric::BlockRetirementReleased,
+            Self::FilesystemInodeCreated { .. } => JournalRecordMetric::FilesystemInodeCreated,
+            Self::FilesystemVersionCommitted { .. } => {
+                JournalRecordMetric::FilesystemVersionCommitted
+            }
+            Self::FilesystemAttributesUpdated { .. } => {
+                JournalRecordMetric::FilesystemAttributesUpdated
+            }
+            Self::FilesystemXattrUpdated { .. } => JournalRecordMetric::FilesystemAttributesUpdated,
+            Self::FilesystemNamespaceMutated { .. } => {
+                JournalRecordMetric::FilesystemNamespaceMutated
+            }
+            Self::FilesystemSymlinkCreated { .. } => JournalRecordMetric::FilesystemSymlinkCreated,
+            Self::FilesystemOrphanReaped { .. } => JournalRecordMetric::FilesystemOrphanReaped,
         }
     }
 }
@@ -180,6 +317,39 @@ pub(crate) struct SnapshotReplicaOperation {
     pub(crate) result: pb::ReportReplicasResponse,
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct SnapshotFilesystemNamespaceOperation {
+    pub(crate) operation_id: Vec<u8>,
+    pub(crate) digest: Vec<u8>,
+    pub(crate) result: NamespaceMutationResult,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct SnapshotFilesystemVersionOperation {
+    pub(crate) operation_id: Vec<u8>,
+    pub(crate) digest: Vec<u8>,
+    pub(crate) response: pb::FilesystemCommitVersionResponse,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct SnapshotFilesystemAttributeOperation {
+    pub(crate) operation_id: Vec<u8>,
+    pub(crate) digest: Vec<u8>,
+    pub(crate) response: pb::FilesystemAttributeMutationResponse,
+}
+
+/// Snapshot 中尚未完成的 Filesystem 可见性屏障。
+///
+/// 该字段作为 snapshot 尾部扩展单独编码，避免改变旧版 operation entry 的二进制布局。
+/// `None` 表示读取的是尚无此尾部的旧 snapshot；`Some(empty)` 则明确表示新版
+/// snapshot 创建时没有待确认的 Filesystem 操作。
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct SnapshotFilesystemOperationVisibility {
+    pub(crate) namespace: Vec<(Vec<u8>, u64)>,
+    pub(crate) versions: Vec<(Vec<u8>, u64)>,
+    pub(crate) attributes: Vec<(Vec<u8>, u64)>,
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct SnapshotSession {
     pub(crate) node_id: u64,
@@ -210,6 +380,15 @@ pub(crate) struct MetaSnapshot {
     pub(crate) replica_operations: Vec<SnapshotReplicaOperation>,
     pub(crate) event_high_watermark: u64,
     pub(crate) events: Vec<pb::NodeEvent>,
+    pub(crate) filesystem_next_inode: InodeId,
+    pub(crate) filesystem_inodes: Vec<InodeSnapshot>,
+    pub(crate) filesystem_dentries: Vec<DentrySnapshot>,
+    pub(crate) filesystem_grant_generations: Vec<(InodeId, u64)>,
+    pub(crate) filesystem_xattrs: Vec<(InodeId, Vec<u8>, Vec<u8>)>,
+    pub(crate) filesystem_namespace_operations: Vec<SnapshotFilesystemNamespaceOperation>,
+    pub(crate) filesystem_version_operations: Vec<SnapshotFilesystemVersionOperation>,
+    pub(crate) filesystem_attribute_operations: Vec<SnapshotFilesystemAttributeOperation>,
+    pub(crate) filesystem_operation_visibility: Option<SnapshotFilesystemOperationVisibility>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]

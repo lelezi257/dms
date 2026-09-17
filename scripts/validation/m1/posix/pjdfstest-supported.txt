@@ -1,0 +1,19 @@
+# DMS M1 支持的 pjdfstest 子集。
+#
+# 格式：<case-id>|<相对 pjdfstest 根目录的命令>
+# runner 会在真实 DMS FUSE mount 下设置 PJD_TEST_PATH，并逐条执行这些命令。
+# 这里冻结的是“我们声明要跑的上游 case”，不是完整 POSIX 兼容性声明。
+#
+# 这些路径是 pjdfstest 常见测试布局；如果上游目录没有对应文件，runner 必须
+# preflight FAIL，提醒维护者更新 suite revision 或 allowlist，不能静默跳过。
+mkdir/00|tests/mkdir/00.t
+rmdir/00|tests/rmdir/00.t
+open/00|tests/open/00.t
+unlink/00|tests/unlink/00.t
+rename/00|tests/rename/00.t
+truncate/00|tests/truncate/00.t
+link/00|tests/link/00.t
+symlink/00|tests/symlink/00.t
+chmod/00|tests/chmod/00.t
+chown/00|tests/chown/00.t
+utimensat/00|tests/utimensat/00.t

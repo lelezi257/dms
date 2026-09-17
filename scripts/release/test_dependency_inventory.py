@@ -24,7 +24,12 @@ class InventoryTests(unittest.TestCase):
         }
 
     def collect(self):
-        return inventory.collect({"packages": [self.package]}, self.root / "out", "lock-hash", curated=[])
+        return inventory.collect(
+            {"packages": [self.package], "workspace_members": []},
+            self.root / "out",
+            "lock-hash",
+            curated=[],
+        )
 
     def test_expression_and_original_bytes_preserved(self):
         content = b"Synthetic license fixture\r\nNot a rights declaration\r\n"
@@ -72,7 +77,68 @@ class InventoryTests(unittest.TestCase):
 
     def test_workspace_packages_not_mislabeled_third_party(self):
         self.package["source"] = None
-        self.assertEqual(self.collect()["package_count"], 0)
+        report = inventory.collect(
+            {"packages": [self.package], "workspace_members": [self.package["id"]]},
+            self.root / "out",
+            "lock-hash",
+            curated=[],
+        )
+        self.assertEqual(report["package_count"], 0)
+
+    def test_vendored_crates_io_patch_records_provenance_license_patch_and_tree_hash(self):
+        self.package["source"] = None
+        self.package["repository"] = "https://example.invalid/upstream"
+        (self.crate / "LICENSE.md").write_text("MIT fixture", encoding="utf-8")
+        (self.crate / "DMS-PATCH.md").write_text("callback patch", encoding="utf-8")
+        (self.crate / ".cargo_vcs_info.json").write_text(
+            json.dumps({"git": {"sha1": "abc123"}}), encoding="utf-8"
+        )
+        patch = {
+            self.crate.resolve(): {
+                "name": "sample",
+                "registry": "crates-io",
+                "original_source": inventory.CRATES_IO_SOURCE,
+                "declared_path": "third_party/sample",
+            }
+        }
+        report = inventory.collect(
+            {"packages": [self.package], "workspace_members": []},
+            self.root / "out",
+            "lock-hash",
+            curated=[],
+            path_patches=patch,
+        )
+        item = report["packages"][0]
+        self.assertEqual(item["resolved_source"], "vendored-path")
+        self.assertEqual(item["source_review"]["original_version"], "1.0.0")
+        self.assertEqual(item["source_review"]["upstream_revision"], "abc123")
+        self.assertEqual(len(item["source_review"]["vendored_tree_sha256"]), 64)
+        self.assertEqual(item["vendored_patch"]["source_path"], "DMS-PATCH.md")
+        inventory.verify_output(self.root / "out", ["sample"])
+
+    def test_verify_output_rejects_tampered_vendored_patch_material(self):
+        self.package["source"] = None
+        (self.crate / "LICENSE").write_text("license", encoding="utf-8")
+        (self.crate / "DMS-PATCH.md").write_text("patch", encoding="utf-8")
+        patch = {
+            self.crate.resolve(): {
+                "name": "sample",
+                "registry": "crates-io",
+                "original_source": inventory.CRATES_IO_SOURCE,
+                "declared_path": "third_party/sample",
+            }
+        }
+        report = inventory.collect(
+            {"packages": [self.package], "workspace_members": []},
+            self.root / "out",
+            "lock-hash",
+            curated=[],
+            path_patches=patch,
+        )
+        patch_path = self.root / "out" / report["packages"][0]["vendored_patch"]["path"]
+        patch_path.write_text("tampered", encoding="utf-8")
+        with self.assertRaisesRegex(ValueError, "checksum mismatch"):
+            inventory.verify_output(self.root / "out", ["sample"])
 
     def test_output_rejects_unowned_files(self):
         (self.crate / "LICENSE").write_text("license")
@@ -137,6 +203,26 @@ class InventoryTests(unittest.TestCase):
             fetcher=lambda _url: b"unexpected",
         )
         self.assertIn("checksum mismatch", "; ".join(report["packages"][0]["issues"]))
+
+    def test_catalog_covers_winapi_target_stub_license_materials(self):
+        """Cargo 的 Windows import-library stub 漏装原文时仍须有精确、双许可证据。"""
+        entries = {
+            (item["name"], item["version"]): item
+            for item in inventory.load_curated_sources()
+        }
+        for name, subdirectory in (
+            ("winapi-i686-pc-windows-gnu", "i686"),
+            ("winapi-x86_64-pc-windows-gnu", "x86_64"),
+        ):
+            item = entries[(name, "0.4.0")]
+            self.assertEqual(item["source"], inventory.CRATES_IO_SOURCE)
+            self.assertTrue(item["reference"].endswith("796a8e6c2971dc2ff1bcff166e6671284f9b5b6b"))
+            self.assertEqual(
+                {material["source_path"] for material in item["materials"]},
+                {"LICENSE-APACHE", "LICENSE-MIT"},
+            )
+            self.assertTrue(all(f"/{subdirectory}/" in material["url"] for material in item["materials"]))
+            self.assertTrue(all(len(material["sha256"]) == 64 for material in item["materials"]))
 
 
 if __name__ == "__main__":

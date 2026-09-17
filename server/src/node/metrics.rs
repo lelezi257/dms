@@ -21,6 +21,8 @@ pub(crate) struct NodeMetrics {
     arena_allocated_bytes: IntGauge,
     arena_quarantined_bytes: IntGauge,
     arena_logical_bytes: IntGauge,
+    arena_reserved_bytes: IntGauge,
+    arena_reservations: IntGauge,
     arena_free_bytes: IntGauge,
     arena_fragmentation_ratio: Gauge,
     arena_allocations_total: IntCounterVec,
@@ -44,6 +46,319 @@ pub(crate) struct NodeMetrics {
     current_cache_lookups_total: IntCounterVec,
     current_cache_resets_total: IntCounterVec,
     current_cache_charged_bytes: IntGauge,
+    filesystem_operations_total: IntCounterVec,
+    filesystem_io_bytes_total: IntCounterVec,
+    filesystem_operation_duration_seconds: HistogramVec,
+    fuse_callbacks_total: IntCounterVec,
+    fuse_callback_bytes_total: IntCounterVec,
+    data_core_operations_total: IntCounterVec,
+    data_core_bytes_total: IntCounterVec,
+    filesystem_dentry_cache_lookups_total: IntCounterVec,
+    filesystem_binding_cache_lookups_total: IntCounterVec,
+    filesystem_inode_references: IntGauge,
+    filesystem_inode_reference_transitions_total: IntCounterVec,
+    filesystem_kernel_invalidations_total: IntCounterVec,
+}
+
+/// Node 本地 inode 引用状态机的低基数迁移。
+///
+/// inode、路径、handle 不进入 label。该指标只回答“是否建立/复用/释放引用”，
+/// 精确对象身份留给按需 debug 日志，避免对象数量放大 Prometheus 时序。
+#[derive(Clone, Copy)]
+pub(crate) enum FilesystemInodeReferenceTransition {
+    Acquire,
+    Retain,
+    ReleasePartial,
+    ReleaseFinal,
+}
+
+impl FilesystemInodeReferenceTransition {
+    const LIVE: &'static [Self] = &[
+        Self::Acquire,
+        Self::Retain,
+        Self::ReleasePartial,
+        Self::ReleaseFinal,
+    ];
+
+    const fn label(self) -> &'static str {
+        match self {
+            Self::Acquire => "acquire",
+            Self::Retain => "retain",
+            Self::ReleasePartial => "release_partial",
+            Self::ReleaseFinal => "release_final",
+        }
+    }
+}
+
+/// Node 进程内 Filesystem API 的固定操作集合。
+///
+/// 只允许低基数操作名进入 label；inode、路径和 handle 不进入 Metrics。
+#[derive(Clone, Copy)]
+pub(crate) enum FilesystemOperation {
+    Lookup,
+    Getattr,
+    Create,
+    Mkdir,
+    Link,
+    Symlink,
+    Readlink,
+    Readdir,
+    Rename,
+    Unlink,
+    Rmdir,
+    Open,
+    Read,
+    Write,
+    Fallocate,
+    Flush,
+    Sync,
+    Truncate,
+    Setattr,
+    Getxattr,
+    Listxattr,
+    Setxattr,
+    Removexattr,
+    Statfs,
+    GetLock,
+    SetLock,
+    Close,
+}
+
+impl FilesystemOperation {
+    const LIVE: &'static [Self] = &[
+        Self::Lookup,
+        Self::Getattr,
+        Self::Create,
+        Self::Mkdir,
+        Self::Link,
+        Self::Symlink,
+        Self::Readlink,
+        Self::Readdir,
+        Self::Rename,
+        Self::Unlink,
+        Self::Rmdir,
+        Self::Open,
+        Self::Read,
+        Self::Write,
+        Self::Fallocate,
+        Self::Flush,
+        Self::Sync,
+        Self::Truncate,
+        Self::Setattr,
+        Self::Getxattr,
+        Self::Listxattr,
+        Self::Setxattr,
+        Self::Removexattr,
+        Self::Statfs,
+        Self::GetLock,
+        Self::SetLock,
+        Self::Close,
+    ];
+
+    const fn label(self) -> &'static str {
+        match self {
+            Self::Lookup => "lookup",
+            Self::Getattr => "getattr",
+            Self::Create => "create",
+            Self::Mkdir => "mkdir",
+            Self::Link => "link",
+            Self::Symlink => "symlink",
+            Self::Readlink => "readlink",
+            Self::Readdir => "readdir",
+            Self::Rename => "rename",
+            Self::Unlink => "unlink",
+            Self::Rmdir => "rmdir",
+            Self::Open => "open",
+            Self::Read => "read",
+            Self::Write => "write",
+            Self::Fallocate => "fallocate",
+            Self::Flush => "flush",
+            Self::Sync => "sync",
+            Self::Truncate => "truncate",
+            Self::Setattr => "setattr",
+            Self::Getxattr => "getxattr",
+            Self::Listxattr => "listxattr",
+            Self::Setxattr => "setxattr",
+            Self::Removexattr => "removexattr",
+            Self::Statfs => "statfs",
+            Self::GetLock => "get_lock",
+            Self::SetLock => "set_lock",
+            Self::Close => "close",
+        }
+    }
+}
+
+/// Linux FUSE 内核 callback 的固定集合。
+///
+/// 它与 `FilesystemOperation` 刻意分开：一次 `create` callback 会调用文件层的
+/// create 和 open 两个操作。两组计数并列后，才看得出放大来自内核边界还是业务层。
+#[derive(Clone, Copy)]
+pub(crate) enum FuseCallback {
+    Opendir,
+    Releasedir,
+    Forget,
+    BatchForget,
+    Lookup,
+    Getattr,
+    Readlink,
+    Readdir,
+    Mkdir,
+    Link,
+    Symlink,
+    Rename,
+    Unlink,
+    Rmdir,
+    Open,
+    Create,
+    Setattr,
+    Getxattr,
+    Listxattr,
+    Setxattr,
+    Removexattr,
+    Statfs,
+    Read,
+    Write,
+    Flush,
+    Fsync,
+    Fsyncdir,
+    Fallocate,
+    Getlk,
+    Setlk,
+    Interrupt,
+    Release,
+}
+
+impl FuseCallback {
+    const LIVE: &'static [Self] = &[
+        Self::Opendir,
+        Self::Releasedir,
+        Self::Forget,
+        Self::BatchForget,
+        Self::Lookup,
+        Self::Getattr,
+        Self::Readlink,
+        Self::Readdir,
+        Self::Mkdir,
+        Self::Link,
+        Self::Symlink,
+        Self::Rename,
+        Self::Unlink,
+        Self::Rmdir,
+        Self::Open,
+        Self::Create,
+        Self::Setattr,
+        Self::Getxattr,
+        Self::Listxattr,
+        Self::Setxattr,
+        Self::Removexattr,
+        Self::Statfs,
+        Self::Read,
+        Self::Write,
+        Self::Flush,
+        Self::Fsync,
+        Self::Fsyncdir,
+        Self::Fallocate,
+        Self::Getlk,
+        Self::Setlk,
+        Self::Interrupt,
+        Self::Release,
+    ];
+
+    const fn label(self) -> &'static str {
+        match self {
+            Self::Opendir => "opendir",
+            Self::Releasedir => "releasedir",
+            Self::Forget => "forget",
+            Self::BatchForget => "batch_forget",
+            Self::Lookup => "lookup",
+            Self::Getattr => "getattr",
+            Self::Readlink => "readlink",
+            Self::Readdir => "readdir",
+            Self::Mkdir => "mkdir",
+            Self::Link => "link",
+            Self::Symlink => "symlink",
+            Self::Rename => "rename",
+            Self::Unlink => "unlink",
+            Self::Rmdir => "rmdir",
+            Self::Open => "open",
+            Self::Create => "create",
+            Self::Setattr => "setattr",
+            Self::Getxattr => "getxattr",
+            Self::Listxattr => "listxattr",
+            Self::Setxattr => "setxattr",
+            Self::Removexattr => "removexattr",
+            Self::Statfs => "statfs",
+            Self::Read => "read",
+            Self::Write => "write",
+            Self::Flush => "flush",
+            Self::Fsync => "fsync",
+            Self::Fsyncdir => "fsyncdir",
+            Self::Fallocate => "fallocate",
+            Self::Getlk => "getlk",
+            Self::Setlk => "setlk",
+            Self::Interrupt => "interrupt",
+            Self::Release => "release",
+        }
+    }
+}
+
+/// FUSE kernel page cache invalidation 的固定结果集合。
+///
+/// 只记录远端 Watch 触发的 kernel invalidation，不记录本地成功读写热路径。
+/// skipped 表示当前进程没有配置 FUSE mount 或当前构建没有 FUSE 能力。
+#[derive(Clone, Copy)]
+pub(crate) enum FilesystemKernelInvalidationResult {
+    Ok,
+    Skipped,
+    Error,
+}
+
+impl FilesystemKernelInvalidationResult {
+    const LIVE: &'static [Self] = &[Self::Ok, Self::Skipped, Self::Error];
+
+    const fn label(self) -> &'static str {
+        match self {
+            Self::Ok => "ok",
+            Self::Skipped => "skipped",
+            Self::Error => "error",
+        }
+    }
+}
+
+/// 文件入口真正使用到的 DataCore 操作。
+///
+/// 只记录次数和 payload 字节，不记录时延；端到端与文件层时延已经有现成指标，
+/// 这里的唯一目的，是把“一个 POSIX 操作放大成几次 DataCore 操作”机器化。
+#[derive(Clone, Copy)]
+pub(crate) enum DataCoreOperation {
+    ReadResolved,
+    PrepareRange,
+    PrepareSparse,
+    PrepareTruncate,
+    PreparePunchHole,
+    FinishPrepared,
+}
+
+impl DataCoreOperation {
+    const LIVE: &'static [Self] = &[
+        Self::ReadResolved,
+        Self::PrepareRange,
+        Self::PrepareSparse,
+        Self::PrepareTruncate,
+        Self::PreparePunchHole,
+        Self::FinishPrepared,
+    ];
+
+    const fn label(self) -> &'static str {
+        match self {
+            Self::ReadResolved => "read_resolved",
+            Self::PrepareRange => "prepare_range",
+            Self::PrepareSparse => "prepare_sparse",
+            Self::PrepareTruncate => "prepare_truncate",
+            Self::PreparePunchHole => "prepare_punch_hole",
+            Self::FinishPrepared => "finish_prepared",
+        }
+    }
 }
 
 /// Node mailbox 中可出现的命令。枚举把 label 限制在代码审查可见的固定集合内。
@@ -282,6 +597,8 @@ pub(crate) struct ArenaMetricsSnapshot {
     pub(crate) allocated_bytes: u64,
     pub(crate) quarantined_bytes: u64,
     pub(crate) logical_bytes: u64,
+    pub(crate) reserved_bytes: u64,
+    pub(crate) reservations: usize,
     pub(crate) free_bytes: u64,
     pub(crate) fragmentation_ratio: f64,
     pub(crate) staging_allocations: usize,
@@ -338,6 +655,14 @@ impl NodeMetrics {
             arena_logical_bytes: IntGauge::new(
                 "dms_node_arena_logical_bytes",
                 "Logical payload bytes held by staging and blocks.",
+            )?,
+            arena_reserved_bytes: IntGauge::new(
+                "dms_node_arena_reserved_bytes",
+                "Aligned Arena capacity promised to filesystem reservations but not yet DATA.",
+            )?,
+            arena_reservations: IntGauge::new(
+                "dms_node_arena_reservations",
+                "Live filesystem capacity reservations owned by this Node incarnation.",
             )?,
             arena_free_bytes: IntGauge::new(
                 "dms_node_arena_free_bytes",
@@ -443,6 +768,65 @@ impl NodeMetrics {
                 "dms_node_current_cache_charged_bytes",
                 "Current layout cache budget charge. This is an accounting value, not process RSS.",
             )?,
+            filesystem_operations_total: counter_vec(
+                "dms_node_filesystem_operations_total",
+                "In-process filesystem operations by operation and result.",
+                &["operation", "result"],
+            )?,
+            filesystem_io_bytes_total: counter_vec(
+                "dms_node_filesystem_io_bytes_total",
+                "Bytes returned or accepted by successful FUSE read and write callbacks.",
+                &["operation"],
+            )?,
+            filesystem_operation_duration_seconds: histogram_vec(
+                "dms_node_filesystem_operation_duration_seconds",
+                "End-to-end latency of in-process filesystem operations.",
+                &["operation"],
+            )?,
+            fuse_callbacks_total: counter_vec(
+                "dms_node_fuse_callbacks_total",
+                "Linux FUSE callbacks received from the kernel by operation.",
+                &["operation"],
+            )?,
+            fuse_callback_bytes_total: counter_vec(
+                "dms_node_fuse_callback_bytes_total",
+                "Payload bytes received or returned at successful FUSE read/write callback boundaries.",
+                &["operation"],
+            )?,
+            data_core_operations_total: counter_vec(
+                "dms_node_data_core_operations_total",
+                "DataCore operations invoked by in-process filesystem and image entries.",
+                &["operation"],
+            )?,
+            data_core_bytes_total: counter_vec(
+                "dms_node_data_core_bytes_total",
+                "Payload bytes handled by measured DataCore read/prepare operations.",
+                &["operation"],
+            )?,
+            filesystem_dentry_cache_lookups_total: counter_vec(
+                "dms_node_filesystem_dentry_cache_lookups_total",
+                "Filesystem positive dentry hint cache lookups by result.",
+                &["result"],
+            )?,
+            filesystem_binding_cache_lookups_total: counter_vec(
+                "dms_node_filesystem_binding_cache_lookups_total",
+                "Filesystem inode binding cache lookups by result.",
+                &["result"],
+            )?,
+            filesystem_inode_references: IntGauge::new(
+                "dms_node_filesystem_inode_references",
+                "Distinct non-root inodes protected by local FUSE/open references.",
+            )?,
+            filesystem_inode_reference_transitions_total: counter_vec(
+                "dms_node_filesystem_inode_reference_transitions_total",
+                "Local inode reference state transitions by bounded transition type.",
+                &["transition"],
+            )?,
+            filesystem_kernel_invalidations_total: counter_vec(
+                "dms_node_filesystem_kernel_invalidations_total",
+                "Remote filesystem invalidation events delivered to the Linux kernel page cache.",
+                &["result"],
+            )?,
         };
         metrics.register_all(registry)?;
         metrics.initialize_bounded_series();
@@ -486,6 +870,46 @@ impl NodeMetrics {
         for reason in ["watch_disconnected", "watch_reconnected"] {
             self.current_cache_resets_total.with_label_values(&[reason]);
         }
+        for operation in FilesystemOperation::LIVE {
+            self.filesystem_operation_duration_seconds
+                .with_label_values(&[operation.label()]);
+            for result in ["ok", "error"] {
+                self.filesystem_operations_total
+                    .with_label_values(&[operation.label(), result]);
+            }
+        }
+        for operation in [FilesystemOperation::Read, FilesystemOperation::Write] {
+            self.filesystem_io_bytes_total
+                .with_label_values(&[operation.label()]);
+        }
+        for callback in FuseCallback::LIVE {
+            self.fuse_callbacks_total
+                .with_label_values(&[callback.label()]);
+        }
+        for callback in [FuseCallback::Read, FuseCallback::Write] {
+            self.fuse_callback_bytes_total
+                .with_label_values(&[callback.label()]);
+        }
+        for operation in DataCoreOperation::LIVE {
+            self.data_core_operations_total
+                .with_label_values(&[operation.label()]);
+            self.data_core_bytes_total
+                .with_label_values(&[operation.label()]);
+        }
+        for result in ["hit", "miss"] {
+            self.filesystem_dentry_cache_lookups_total
+                .with_label_values(&[result]);
+            self.filesystem_binding_cache_lookups_total
+                .with_label_values(&[result]);
+        }
+        for transition in FilesystemInodeReferenceTransition::LIVE {
+            self.filesystem_inode_reference_transitions_total
+                .with_label_values(&[transition.label()]);
+        }
+        for result in FilesystemKernelInvalidationResult::LIVE {
+            self.filesystem_kernel_invalidations_total
+                .with_label_values(&[result.label()]);
+        }
     }
 
     fn register_all(&self, registry: &Registry) -> Result<(), MetricsError> {
@@ -497,6 +921,8 @@ impl NodeMetrics {
         register_collector(registry, &self.arena_allocated_bytes)?;
         register_collector(registry, &self.arena_quarantined_bytes)?;
         register_collector(registry, &self.arena_logical_bytes)?;
+        register_collector(registry, &self.arena_reserved_bytes)?;
+        register_collector(registry, &self.arena_reservations)?;
         register_collector(registry, &self.arena_free_bytes)?;
         register_collector(registry, &self.arena_fragmentation_ratio)?;
         register_collector(registry, &self.arena_allocations_total)?;
@@ -520,6 +946,18 @@ impl NodeMetrics {
         register_collector(registry, &self.current_cache_lookups_total)?;
         register_collector(registry, &self.current_cache_resets_total)?;
         register_collector(registry, &self.current_cache_charged_bytes)?;
+        register_collector(registry, &self.filesystem_operations_total)?;
+        register_collector(registry, &self.filesystem_io_bytes_total)?;
+        register_collector(registry, &self.filesystem_operation_duration_seconds)?;
+        register_collector(registry, &self.fuse_callbacks_total)?;
+        register_collector(registry, &self.fuse_callback_bytes_total)?;
+        register_collector(registry, &self.data_core_operations_total)?;
+        register_collector(registry, &self.data_core_bytes_total)?;
+        register_collector(registry, &self.filesystem_dentry_cache_lookups_total)?;
+        register_collector(registry, &self.filesystem_binding_cache_lookups_total)?;
+        register_collector(registry, &self.filesystem_inode_references)?;
+        register_collector(registry, &self.filesystem_inode_reference_transitions_total)?;
+        register_collector(registry, &self.filesystem_kernel_invalidations_total)?;
         Ok(())
     }
 
@@ -566,6 +1004,10 @@ impl NodeMetrics {
         self.arena_quarantined_bytes
             .set(to_i64(snapshot.quarantined_bytes));
         self.arena_logical_bytes.set(to_i64(snapshot.logical_bytes));
+        self.arena_reserved_bytes
+            .set(to_i64(snapshot.reserved_bytes));
+        self.arena_reservations
+            .set(to_i64(snapshot.reservations as u64));
         self.arena_free_bytes.set(to_i64(snapshot.free_bytes));
         self.arena_fragmentation_ratio
             .set(snapshot.fragmentation_ratio);
@@ -668,6 +1110,118 @@ impl NodeMetrics {
     /// charge 来自 key、layout、extent、位置/证明和固定条目开销估算，不等于进程 RSS。
     pub(crate) fn set_current_cache_charge(&self, bytes: u64) {
         self.current_cache_charged_bytes.set(to_i64(bytes));
+    }
+
+    pub(crate) fn begin_filesystem_operation(
+        &self,
+        operation: FilesystemOperation,
+    ) -> FilesystemOperationGuard {
+        FilesystemOperationGuard {
+            metrics: self.clone(),
+            operation,
+            started: Instant::now(),
+            result: "error",
+        }
+    }
+
+    pub(crate) fn record_filesystem_binding_cache_lookup(&self, hit: bool) {
+        self.filesystem_binding_cache_lookups_total
+            .with_label_values(&[if hit { "hit" } else { "miss" }])
+            .inc();
+    }
+
+    pub(crate) fn set_filesystem_inode_references(&self, references: usize) {
+        self.filesystem_inode_references
+            .set(to_i64(references as u64));
+    }
+
+    pub(crate) fn record_filesystem_inode_reference_transition(
+        &self,
+        transition: FilesystemInodeReferenceTransition,
+    ) {
+        self.filesystem_inode_reference_transitions_total
+            .with_label_values(&[transition.label()])
+            .inc();
+    }
+
+    pub(crate) fn record_filesystem_kernel_invalidation(
+        &self,
+        result: FilesystemKernelInvalidationResult,
+    ) {
+        self.filesystem_kernel_invalidations_total
+            .with_label_values(&[result.label()])
+            .inc();
+    }
+
+    /// 记录一次成功 FUSE read/write callback 实际交付的字节数。
+    ///
+    /// 调用次数已经由 `filesystem_operations_total` 记录；两者组合后可以判断一次
+    /// 用户级 1 MiB I/O 被内核拆成多少 callback，以及每次 callback 的平均大小。
+    pub(crate) fn record_filesystem_io_bytes(&self, operation: FilesystemOperation, bytes: usize) {
+        debug_assert!(matches!(
+            operation,
+            FilesystemOperation::Read | FilesystemOperation::Write
+        ));
+        self.filesystem_io_bytes_total
+            .with_label_values(&[operation.label()])
+            .inc_by(bytes as u64);
+    }
+
+    pub(crate) fn record_filesystem_dentry_cache_lookup(&self, hit: bool) {
+        self.filesystem_dentry_cache_lookups_total
+            .with_label_values(&[if hit { "hit" } else { "miss" }])
+            .inc();
+    }
+
+    pub(crate) fn record_fuse_callback(&self, callback: FuseCallback) {
+        self.fuse_callbacks_total
+            .with_label_values(&[callback.label()])
+            .inc();
+    }
+
+    pub(crate) fn record_fuse_callback_bytes(&self, callback: FuseCallback, bytes: usize) {
+        debug_assert!(matches!(callback, FuseCallback::Read | FuseCallback::Write));
+        self.fuse_callback_bytes_total
+            .with_label_values(&[callback.label()])
+            .inc_by(bytes as u64);
+    }
+
+    pub(crate) fn record_data_core_operation(&self, operation: DataCoreOperation) {
+        self.data_core_operations_total
+            .with_label_values(&[operation.label()])
+            .inc();
+    }
+
+    pub(crate) fn record_data_core_bytes(&self, operation: DataCoreOperation, bytes: usize) {
+        self.data_core_bytes_total
+            .with_label_values(&[operation.label()])
+            .inc_by(bytes as u64);
+    }
+}
+
+pub(crate) struct FilesystemOperationGuard {
+    metrics: NodeMetrics,
+    operation: FilesystemOperation,
+    started: Instant,
+    result: &'static str,
+}
+
+impl FilesystemOperationGuard {
+    pub(crate) fn success(&mut self) {
+        self.result = "ok";
+    }
+}
+
+impl Drop for FilesystemOperationGuard {
+    fn drop(&mut self) {
+        self.metrics
+            .filesystem_operations_total
+            .with_label_values(&[self.operation.label(), self.result])
+            .inc();
+        self.metrics
+            .filesystem_operation_duration_seconds
+            .with_label_values(&[self.operation.label()])
+            .observe(self.started.elapsed().as_secs_f64());
     }
 }
 
@@ -776,6 +1330,16 @@ mod tests {
         });
         metrics.record_peer_pull_fault_injection();
         metrics.record_peer_source_failover();
+        let mut filesystem = metrics.begin_filesystem_operation(FilesystemOperation::Read);
+        filesystem.success();
+        drop(filesystem);
+        metrics.record_filesystem_dentry_cache_lookup(true);
+        metrics.record_filesystem_dentry_cache_lookup(false);
+        metrics.record_filesystem_binding_cache_lookup(true);
+        metrics.record_filesystem_binding_cache_lookup(false);
+        metrics.record_filesystem_kernel_invalidation(FilesystemKernelInvalidationResult::Ok);
+        metrics.record_filesystem_kernel_invalidation(FilesystemKernelInvalidationResult::Skipped);
+        metrics.record_filesystem_kernel_invalidation(FilesystemKernelInvalidationResult::Error);
         let mut guard = metrics.begin_replica_operation(ReplicaOperation::Pull);
         guard.success_with_payload(ReplicaDirection::Send, 3);
         drop(guard);
@@ -797,6 +1361,24 @@ mod tests {
         assert!(text.contains("dms_node_download_tickets 3"));
         assert!(text.contains("dms_node_peer_pull_fault_injections_total 1"));
         assert!(text.contains("dms_node_peer_source_failovers_total 1"));
+        assert!(
+            text.contains(
+                "dms_node_filesystem_operations_total{operation=\"read\",result=\"ok\"} 1"
+            )
+        );
+        assert!(text.contains("dms_node_filesystem_dentry_cache_lookups_total{result=\"hit\"} 1"));
+        assert!(text.contains("dms_node_filesystem_dentry_cache_lookups_total{result=\"miss\"} 1"));
+        assert!(text.contains("dms_node_filesystem_binding_cache_lookups_total{result=\"hit\"} 1"));
+        assert!(
+            text.contains("dms_node_filesystem_binding_cache_lookups_total{result=\"miss\"} 1")
+        );
+        assert!(text.contains("dms_node_filesystem_kernel_invalidations_total{result=\"ok\"} 1"));
+        assert!(
+            text.contains("dms_node_filesystem_kernel_invalidations_total{result=\"skipped\"} 1")
+        );
+        assert!(
+            text.contains("dms_node_filesystem_kernel_invalidations_total{result=\"error\"} 1")
+        );
         assert!(!text.contains("dms_node_views"));
     }
 }

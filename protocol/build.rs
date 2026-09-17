@@ -3,6 +3,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("cargo:rerun-if-changed=proto/dms/v1/client_node.proto");
     println!("cargo:rerun-if-changed=proto/dms/v1/node_peer.proto");
     println!("cargo:rerun-if-changed=proto/dms/v1/node_meta.proto");
+    println!("cargo:rerun-if-changed=proto/dms/v1/filesystem_meta.proto");
     tonic_prost_build::configure()
         .build_client(true)
         .build_server(true)
@@ -11,6 +12,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 "proto/dms/v1/client_node.proto",
                 "proto/dms/v1/node_peer.proto",
                 "proto/dms/v1/node_meta.proto",
+                "proto/dms/v1/filesystem_meta.proto",
             ],
             &["proto"],
         )?;

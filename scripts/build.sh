@@ -7,7 +7,9 @@ source "${SCRIPTS_DIR}/_common.sh"
 echo "== Linux release build =="
 uname -a
 rustc --version
-cargo build --workspace --all-targets --release --locked
+# M1 交付包必须包含原生 filesystem/FUSE 能力。`dms-server/fuse` 只影响
+# dms-server crate；SDK 与公共组件不会因此多出 FUSE 依赖。
+cargo build --workspace --all-targets --release --locked --features dms-server/fuse
 
 echo
 echo "构建完成："

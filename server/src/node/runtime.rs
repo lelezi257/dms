@@ -33,16 +33,26 @@ use tonic::transport::{Channel, Endpoint};
 
 use super::arena_manager::{
     ArenaError, ArenaManager, ArenaReadTicket, HostAllocationTarget, HostReceipt, HostRegionGrant,
-    HostShmDescriptor, ReleasedWriteAllocation, SharedFdBroker,
+    HostShmDescriptor, ReleasedWriteAllocation, ReservationConsumption, SharedFdBroker,
 };
 use super::current_cache::CurrentCache;
+use super::filesystem::{
+    binding_cache::BindingCache,
+    dentry_cache::{DentryCache, DentryLookup},
+    meta_client::ResolvedDentry,
+    open_handles::{OpenHandle, OpenHandleTable},
+};
 use super::metadata_client::{BatchValueCommit, LocalReplicaIdentity, MetadataClient, digest};
 use super::metrics::{
-    CurrentCacheResetReason, NodeMailboxCommand, NodeMetrics, PeerImportMetricsSnapshot,
-    ReplicaDirection, ReplicaOperation, SessionExpiration,
+    CurrentCacheResetReason, FilesystemInodeReferenceTransition, NodeMailboxCommand, NodeMetrics,
+    PeerImportMetricsSnapshot, ReplicaDirection, ReplicaOperation, SessionExpiration,
 };
 use super::replica_reporter::{self, ReplicaReportJob};
 use crate::config::{ConfigChange, ConfigError, OnlineConfigController};
+use crate::filesystem::{
+    DirectoryPage, DirectoryVersion, FileHandleId, InodeId, InodeVersion, PreparedObjectVersion,
+    ROOT_INODE, ResolvedInode, ResolvedObject,
+};
 
 // 有界队列防止请求无限堆积；满载时 Sender::send().await 会施加背压。
 const NODE_MAILBOX_CAPACITY: usize = 256;
@@ -74,6 +84,8 @@ const PEER_PULL_SEGMENT_BYTES: u64 = 2 * 1024 * 1024;
 const PEER_CHANNEL_CACHE_LIMIT: usize = 128;
 const COMPLETED_RETIREMENT_CACHE_LIMIT: usize = 1024;
 const RETIREMENT_PHASE_WAITER_LIMIT: usize = 16;
+type FilesystemOpenReferenceResult = (OpenHandle, Option<u64>);
+type FilesystemCloseReferenceResult = Option<(OpenHandle, Option<(u64, bool)>)>;
 #[cfg(feature = "reliability-faults")]
 const SOURCE_SELECTION_RECEIPT_ENV: &str = "DMS_RELIABILITY_SOURCE_SELECTION_RECEIPT";
 #[cfg(all(feature = "reliability-faults", test))]
@@ -90,6 +102,10 @@ type ApplyWrite = Box<dyn FnOnce(&mut NodeState) + Send>;
 // 有足够大的单调递增空间，不会因为启动种子靠近 u64::MAX 而很快溢出。
 const SESSION_ID_START_SPACE: u64 = 1u64 << 63;
 static NODE_SESSION_INCARNATION_NONCE: AtomicU64 = AtomicU64::new(1);
+// reference generation 只负责为一次 Node 进程中的引用周期生成 fencing token；它不
+// 读取 inode 表，也不决定引用是否存活。使用原子序列可让出站 Meta 请求直接取得 token，
+// 真正的引用安装、计数和释放仍然只能进入 NodeState owner。
+static FILESYSTEM_REFERENCE_GENERATION: AtomicU64 = AtomicU64::new(1);
 
 fn node_session_start(node_id: &str) -> u64 {
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
@@ -109,6 +125,15 @@ fn node_session_start(node_id: &str) -> u64 {
 fn normalize_session_start(raw: u64) -> u64 {
     // 映射到 1..=2^63，避免 0，同时远离 u64::MAX 溢出边界。
     raw % SESSION_ID_START_SPACE + 1
+}
+
+fn next_filesystem_reference_generation() -> u64 {
+    loop {
+        let generation = FILESYSTEM_REFERENCE_GENERATION.fetch_add(1, Ordering::Relaxed);
+        if generation != 0 {
+            return generation;
+        }
+    }
 }
 
 #[cfg(feature = "reliability-faults")]
@@ -317,6 +342,38 @@ pub(crate) struct ReadTicketSegment {
 pub(crate) enum ReadTarget {
     Grpc { transfer_id: u64 },
     Shm(HostShmDescriptor),
+    Zero { length: u64 },
+}
+
+#[derive(Clone, Debug)]
+enum PlannedReadPart {
+    Block {
+        logical_offset: u64,
+        read: ArenaReadTicket,
+    },
+    Zero {
+        logical_offset: u64,
+        length: u64,
+    },
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct DataCoreReadIntoResult {
+    pub(crate) version: u64,
+    pub(crate) logical_length: u64,
+    pub(crate) bytes: Vec<u8>,
+    pub(crate) bytes_read: usize,
+}
+
+/// DataCore 一次读尝试的结果。
+///
+/// `BufferTooSmall` 不是容量耗尽：它表示调用方在解析目标版本前只能按旧长度
+/// 预分配。返回本次已经解析出的固定版本和所需长度后，DataCore 可以只重试该
+/// 版本，避免 Current 在两次请求间继续变化导致读到混合快照。
+pub(crate) enum DataCoreReadAttempt {
+    Ready(DataCoreReadIntoResult),
+    NotFound,
+    BufferTooSmall { version: u64, required: usize },
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -528,6 +585,43 @@ enum MaterializeOutcome {
     NeedsRemoteBlocks(Vec<PeerPullSpec>),
 }
 
+fn planned_read_part_offset(part: &PlannedReadPart) -> u64 {
+    match part {
+        PlannedReadPart::Zero { logical_offset, .. }
+        | PlannedReadPart::Block { logical_offset, .. } => *logical_offset,
+    }
+}
+
+enum DataCoreMaterializeOutcome {
+    Ready(DataCoreReadIntoResult),
+    BufferTooSmall {
+        version: u64,
+        required: usize,
+    },
+    NeedsRemoteBlocks {
+        specs: Vec<PeerPullSpec>,
+        output: Vec<u8>,
+    },
+    NotFound,
+}
+
+enum DataCoreCachedReadOutcome {
+    Miss {
+        output: Vec<u8>,
+    },
+    Ready(DataCoreReadIntoResult),
+    BufferTooSmall {
+        version: u64,
+        required: usize,
+    },
+    NeedsRemoteBlocks {
+        resolved: pb::ResolveObjectResponse,
+        specs: Vec<PeerPullSpec>,
+        output: Vec<u8>,
+    },
+    NotFound,
+}
+
 #[derive(Clone, Debug)]
 pub(crate) enum WorkerError {
     /// 请求内容不合法；静态字符串避免临时分配。
@@ -547,6 +641,20 @@ pub(crate) enum WorkerError {
     ArenaShmUnavailable,
     ArenaAccessDenied,
     Stable(DmsError),
+}
+
+impl WorkerError {
+    /// 是否为对象版本条件冲突。Meta 在提交边界返回稳定 DMS 错误码，Node 内部
+    /// 也可能在更早阶段直接发现冲突；上层重试策略不应依赖错误来自哪一层。
+    #[cfg(test)]
+    pub(crate) fn is_version_conflict(&self) -> bool {
+        matches!(self, Self::Conflict)
+            || matches!(
+                self,
+                Self::Stable(error)
+                    if error.code() == dms_error::META_CATALOG_VERSION_CONFLICT
+            )
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -699,6 +807,290 @@ impl NodeHandle {
 
     pub(crate) fn metrics(&self) -> NodeMetrics {
         self.metrics.clone()
+    }
+
+    /// 返回复用同一 Meta HTTP/2 Channel 与 Node session 的文件元数据客户端。
+    /// 这里只 clone 轻量句柄，不建立第二条连接。
+    pub(crate) fn filesystem_metadata_client(
+        &self,
+    ) -> Result<super::filesystem::meta_client::FilesystemMetaGrpcClient, WorkerError> {
+        self.metadata
+            .clone()
+            .map(super::filesystem::meta_client::FilesystemMetaGrpcClient::new)
+            .ok_or(WorkerError::MetadataUnavailable)
+    }
+
+    pub(crate) async fn filesystem_cached_binding(
+        &self,
+        inode: InodeId,
+    ) -> Result<Option<ResolvedInode>, WorkerError> {
+        let (reply, receiver) = oneshot::channel();
+        self.submit(NodeCommand::FilesystemGetBinding { inode, reply })
+            .await?;
+        receive(receiver).await
+    }
+
+    pub(crate) async fn filesystem_cache_binding(
+        &self,
+        resolved: ResolvedInode,
+    ) -> Result<(), WorkerError> {
+        let (reply, receiver) = oneshot::channel();
+        self.submit(NodeCommand::FilesystemCacheBinding { resolved, reply })
+            .await?;
+        receive(receiver).await
+    }
+
+    pub(crate) async fn filesystem_cached_dentry(
+        &self,
+        parent: InodeId,
+        name: Vec<u8>,
+    ) -> Result<DentryLookup, WorkerError> {
+        let (reply, receiver) = oneshot::channel();
+        self.submit(NodeCommand::FilesystemGetDentry {
+            parent,
+            name,
+            reply,
+        })
+        .await?;
+        receive(receiver).await
+    }
+
+    pub(crate) async fn filesystem_cache_negative_dentry(
+        &self,
+        parent: InodeId,
+        name: Vec<u8>,
+        grant: crate::filesystem::DirectoryGrant,
+    ) -> Result<(), WorkerError> {
+        let (reply, receiver) = oneshot::channel();
+        self.submit(NodeCommand::FilesystemCacheNegativeDentry {
+            parent,
+            name,
+            grant,
+            reply,
+        })
+        .await?;
+        receive(receiver).await
+    }
+
+    pub(crate) async fn filesystem_apply_local_namespace_mutation(
+        &self,
+        changed_directories: Vec<DirectoryVersion>,
+        changed_inodes: Vec<InodeVersion>,
+        removed_dentries: Vec<(InodeId, Vec<u8>)>,
+    ) -> Result<(), WorkerError> {
+        let (reply, receiver) = oneshot::channel();
+        self.submit(NodeCommand::FilesystemApplyLocalNamespaceMutation {
+            changed_directories,
+            changed_inodes,
+            removed_dentries,
+            reply,
+        })
+        .await?;
+        receive(receiver).await
+    }
+
+    /// 把一次 Meta 返回的完整目录项在同一个 Node owner turn 中落入本地状态。
+    ///
+    /// dentry、inode binding 与 entry reference 来自同一份权威响应，拆成多条
+    /// mailbox 命令既没有一致性收益，还会放大 create/lookup 的本地排队开销。
+    /// `apply_directory_mutation` 只在本 Node 发起 create/symlink 时为 true；普通
+    /// lookup 不得把远端响应误当成本地 namespace mutation。
+    pub(crate) async fn filesystem_install_resolved_dentry(
+        &self,
+        resolved: ResolvedDentry,
+        apply_directory_mutation: bool,
+    ) -> Result<(), WorkerError> {
+        let inode = resolved.resolved.granted.inode.attributes.inode;
+        if inode != ROOT_INODE
+            && (resolved.entry_reference_generation == 0
+                || resolved.entry_reference_lease_millis == 0)
+        {
+            return Err(WorkerError::MetadataUnavailable);
+        }
+        let (reply, receiver) = oneshot::channel();
+        self.submit(NodeCommand::FilesystemInstallResolvedDentry {
+            resolved,
+            apply_directory_mutation,
+            reply,
+        })
+        .await?;
+        receive(receiver).await
+    }
+
+    pub(crate) async fn filesystem_cached_directory_page(
+        &self,
+        directory: InodeId,
+        cursor: Option<Vec<u8>>,
+        expected_revision: Option<u64>,
+    ) -> Result<Option<DirectoryPage>, WorkerError> {
+        let (reply, receiver) = oneshot::channel();
+        self.submit(NodeCommand::FilesystemGetDirectoryPage {
+            directory,
+            cursor,
+            expected_revision,
+            reply,
+        })
+        .await?;
+        receive(receiver).await
+    }
+
+    pub(crate) async fn filesystem_cache_directory_page(
+        &self,
+        cursor: Option<Vec<u8>>,
+        page: DirectoryPage,
+    ) -> Result<(), WorkerError> {
+        let (reply, receiver) = oneshot::channel();
+        self.submit(NodeCommand::FilesystemCacheDirectoryPage {
+            cursor,
+            page,
+            reply,
+        })
+        .await?;
+        receive(receiver).await
+    }
+
+    /// 在同一个 Node actor turn 内建立 open handle 并增加 inode 引用。
+    ///
+    /// handle 与引用属于同一份 NodeState；把两个动作拆成两条 mailbox 命令既会制造
+    /// 不必要的排队，也会留下中间态。返回的 generation 仅在本地引用从 0→1 时存在，
+    /// 调用方随后用它向 Meta 建立租约。
+    pub(crate) async fn filesystem_open_handle_with_reference(
+        &self,
+        inode: InodeId,
+        flags: i32,
+        lock_owner: Option<u64>,
+    ) -> Result<FilesystemOpenReferenceResult, WorkerError> {
+        let (reply, receiver) = oneshot::channel();
+        self.submit(NodeCommand::FilesystemOpenHandleWithReference {
+            inode,
+            flags,
+            lock_owner,
+            reply,
+        })
+        .await?;
+        receive(receiver).await
+    }
+
+    pub(crate) async fn filesystem_get_handle(
+        &self,
+        handle: FileHandleId,
+    ) -> Result<Option<super::filesystem::open_handles::OpenHandle>, WorkerError> {
+        let (reply, receiver) = oneshot::channel();
+        self.submit(NodeCommand::FilesystemGetHandle { handle, reply })
+            .await?;
+        receive(receiver).await
+    }
+
+    /// 在同一个 Node actor turn 内关闭 handle 并归还它持有的一份 inode 引用。
+    pub(crate) async fn filesystem_close_handle_with_reference(
+        &self,
+        handle: FileHandleId,
+    ) -> Result<FilesystemCloseReferenceResult, WorkerError> {
+        let (reply, receiver) = oneshot::channel();
+        self.submit(NodeCommand::FilesystemCloseHandleWithReference { handle, reply })
+            .await?;
+        receive(receiver).await
+    }
+
+    pub(crate) async fn filesystem_acquire_inode_reference_local(
+        &self,
+        inode: InodeId,
+    ) -> Result<Option<u64>, WorkerError> {
+        let (reply, receiver) = oneshot::channel();
+        self.submit(NodeCommand::FilesystemAcquireInodeReference { inode, reply })
+            .await?;
+        receive(receiver).await
+    }
+
+    pub(crate) async fn filesystem_release_inode_reference_local(
+        &self,
+        inode: InodeId,
+        count: u64,
+    ) -> Result<Option<(u64, bool)>, WorkerError> {
+        let (reply, receiver) = oneshot::channel();
+        self.submit(NodeCommand::FilesystemReleaseInodeReference {
+            inode,
+            count,
+            reply,
+        })
+        .await?;
+        receive(receiver).await
+    }
+
+    /// 标记本 Node 已知该 inode 失去最后一个目录项。
+    ///
+    /// 普通 close 只需停止心跳续租，不能为每个文件再向 Meta 发送 release RPC；
+    /// orphan 则需要尽快通知 Meta，避免只能等待租约自然到期才回收。
+    pub(crate) async fn filesystem_mark_inode_orphan(
+        &self,
+        inode: InodeId,
+    ) -> Result<(), WorkerError> {
+        let (reply, receiver) = oneshot::channel();
+        self.submit(NodeCommand::FilesystemMarkInodeOrphan { inode, reply })
+            .await?;
+        receive(receiver).await
+    }
+
+    pub(crate) fn filesystem_reserve_inode_reference_generation(&self) -> u64 {
+        next_filesystem_reference_generation()
+    }
+
+    pub(crate) async fn filesystem_install_inode_reference(
+        &self,
+        inode: InodeId,
+        generation: u64,
+        lease_millis: u64,
+    ) -> Result<(), WorkerError> {
+        let (reply, receiver) = oneshot::channel();
+        self.submit(NodeCommand::FilesystemInstallInodeReference {
+            inode,
+            generation,
+            lease_millis,
+            reply,
+        })
+        .await?;
+        receive(receiver).await
+    }
+
+    pub(crate) async fn filesystem_inode_reference_snapshot(
+        &self,
+    ) -> Result<Vec<(InodeId, u64)>, WorkerError> {
+        let (reply, receiver) = oneshot::channel();
+        self.submit(NodeCommand::FilesystemInodeReferenceSnapshot { reply })
+            .await?;
+        receive(receiver).await
+    }
+
+    /// 从 Node 唯一 Arena owner 读取资源快照，供周期心跳上报给 Meta。
+    pub(crate) async fn resource_summary(&self) -> Result<pb::ResourceSummary, WorkerError> {
+        let (reply, receiver) = oneshot::channel();
+        self.submit(NodeCommand::ResourceSummary { reply }).await?;
+        receive(receiver).await
+    }
+
+    pub(crate) async fn filesystem_renew_inode_reference_leases(
+        &self,
+        references: Vec<(InodeId, u64)>,
+        lease_millis: u64,
+    ) -> Result<(), WorkerError> {
+        let (reply, receiver) = oneshot::channel();
+        self.submit(NodeCommand::FilesystemRenewInodeReferenceLeases {
+            references,
+            lease_millis,
+            reply,
+        })
+        .await?;
+        receive(receiver).await
+    }
+
+    pub(crate) async fn filesystem_has_live_inode_reference(
+        &self,
+        inode: InodeId,
+    ) -> Result<bool, WorkerError> {
+        let (reply, receiver) = oneshot::channel();
+        self.submit(NodeCommand::FilesystemHasLiveInodeReference { inode, reply })
+            .await?;
+        receive(receiver).await
     }
 
     /// 启动唯一的状态 owner Task，并返回它的提交句柄。
@@ -1046,6 +1438,16 @@ impl NodeHandle {
         receive(receiver).await
     }
 
+    async fn begin_data_core_read_scope(&self) -> Result<ReadScopeLease, WorkerError> {
+        let (reply, receiver) = oneshot::channel();
+        self.submit(NodeCommand::BeginDataCoreReadScope {
+            cleanup_node: Box::new(self.clone()),
+            reply,
+        })
+        .await?;
+        receive(receiver).await
+    }
+
     async fn finish_read_scope(&self, scope_id: u64) -> Result<(), WorkerError> {
         let (reply, receiver) = oneshot::channel();
         self.submit(NodeCommand::FinishReadScope { scope_id, reply })
@@ -1080,6 +1482,257 @@ impl NodeHandle {
             .ok_or(WorkerError::MetadataUnavailable)?;
         self.validate_session(session_id).await?;
         metadata.stat(key).await.map_err(map_metadata_error)
+    }
+
+    pub(crate) async fn data_core_stat(
+        &self,
+        key: Vec<u8>,
+    ) -> Result<pb::MetaStatResponse, WorkerError> {
+        validate_user_key(&key)?;
+        let metadata = self
+            .metadata
+            .as_ref()
+            .ok_or(WorkerError::MetadataUnavailable)?;
+        metadata.stat(key).await.map_err(map_metadata_error)
+    }
+
+    pub(crate) async fn data_core_set_inline(
+        &self,
+        key: Vec<u8>,
+        bytes: Vec<u8>,
+        operation_id: Vec<u8>,
+        condition: String,
+    ) -> Result<SetOutcome, WorkerError> {
+        let (reply_tx, reply_rx) = oneshot::channel();
+        self.submit(NodeCommand::DataCoreSetInline {
+            key,
+            bytes,
+            operation_id,
+            condition,
+            reply: reply_tx,
+        })
+        .await?;
+        let outcome = receive(reply_rx).await?;
+        if let Some(barrier_id) = outcome.barrier_id {
+            self.wait_invalidation(barrier_id).await?;
+        }
+        Ok(outcome)
+    }
+
+    /// 在已解析的精确版本上准备文件 Extent overlay；允许覆盖或从 EOF 扩容，且不会
+    /// 先发布第二个 Object Current。普通 KV `SET_RANGE` 仍保持不改变 value 长度。
+    pub(crate) async fn data_core_prepare_range(
+        &self,
+        key: Vec<u8>,
+        offset: u64,
+        bytes: Vec<u8>,
+        operation_id: Vec<u8>,
+        resolved: ResolvedObject,
+    ) -> Result<PreparedObjectVersion, WorkerError> {
+        let (reply, receiver) = oneshot::channel();
+        self.submit(NodeCommand::DataCorePrepareRange {
+            key,
+            offset,
+            bytes,
+            operation_id,
+            resolved: resolved.into_proto(),
+            reply,
+        })
+        .await?;
+        receive(receiver).await
+    }
+
+    /// 为文件稀疏写准备候选版本。
+    ///
+    /// 这是文件语义专用入口，不改变普通 KV `SET_RANGE` 合同。`bytes` 只保存用户实际
+    /// 写入的数据；`offset` 前后的空洞由 VersionLayout sparse hole 表达，不申请全零
+    /// Block，也不会向 Meta 上报零副本。
+    pub(crate) async fn data_core_prepare_sparse(
+        &self,
+        key: Vec<u8>,
+        logical_length: u64,
+        offset: u64,
+        bytes: Vec<u8>,
+        operation_id: Vec<u8>,
+        expected_version: Option<u64>,
+    ) -> Result<PreparedObjectVersion, WorkerError> {
+        let (reply, receiver) = oneshot::channel();
+        self.submit(NodeCommand::DataCorePrepareSparse {
+            key,
+            logical_length,
+            offset,
+            bytes,
+            operation_id,
+            expected_version,
+            reply,
+        })
+        .await?;
+        receive(receiver).await
+    }
+
+    /// 为文件 truncate 准备一个只改变 Extent 布局的候选版本。
+    ///
+    /// 缩短文件不产生新 Block，不应退化成“读完整文件再重新写入”；扩展文件只追加
+    /// HOLE Extent，读路径本地填零，不物化全零 Block。
+    pub(crate) async fn data_core_prepare_truncate(
+        &self,
+        key: Vec<u8>,
+        new_length: u64,
+        operation_id: Vec<u8>,
+        resolved: ResolvedObject,
+    ) -> Result<PreparedObjectVersion, WorkerError> {
+        let (reply, receiver) = oneshot::channel();
+        self.submit(NodeCommand::DataCorePrepareTruncate {
+            key,
+            new_length,
+            operation_id,
+            resolved: resolved.into_proto(),
+            reply,
+        })
+        .await?;
+        receive(receiver).await
+    }
+
+    pub(crate) async fn data_core_prepare_punch_hole(
+        &self,
+        key: Vec<u8>,
+        offset: u64,
+        length: u64,
+        operation_id: Vec<u8>,
+        resolved: ResolvedObject,
+    ) -> Result<PreparedObjectVersion, WorkerError> {
+        let (reply, receiver) = oneshot::channel();
+        self.submit(NodeCommand::DataCorePreparePunchHole {
+            key,
+            offset,
+            length,
+            operation_id,
+            resolved: resolved.into_proto(),
+            reply,
+        })
+        .await?;
+        receive(receiver).await
+    }
+
+    pub(crate) async fn data_core_reserve_file_space(
+        &self,
+        reservation_id: Vec<u8>,
+        length: u64,
+    ) -> Result<(), WorkerError> {
+        let (reply, receiver) = oneshot::channel();
+        self.submit(NodeCommand::DataCoreReserveFileSpace {
+            reservation_id,
+            length,
+            reply,
+        })
+        .await?;
+        receive(receiver).await
+    }
+
+    pub(crate) async fn data_core_consume_file_space(
+        &self,
+        ranges: Vec<(Vec<u8>, u64)>,
+    ) -> Result<Vec<ReservationConsumption>, WorkerError> {
+        let (reply, receiver) = oneshot::channel();
+        self.submit(NodeCommand::DataCoreConsumeFileSpace { ranges, reply })
+            .await?;
+        receive(receiver).await
+    }
+
+    pub(crate) async fn data_core_restore_file_space(
+        &self,
+        consumptions: Vec<ReservationConsumption>,
+    ) -> Result<(), WorkerError> {
+        let (reply, receiver) = oneshot::channel();
+        self.submit(NodeCommand::DataCoreRestoreFileSpace {
+            consumptions,
+            reply,
+        })
+        .await?;
+        receive(receiver).await
+    }
+
+    pub(crate) async fn data_core_release_file_space(
+        &self,
+        ranges: Vec<(Vec<u8>, u64)>,
+    ) -> Result<(), WorkerError> {
+        let (reply, receiver) = oneshot::channel();
+        self.submit(NodeCommand::DataCoreReleaseFileSpace { ranges, reply })
+            .await?;
+        receive(receiver).await
+    }
+
+    /// 完成两阶段文件写。`version` 只在 Meta 已原子发布时存在；确定性 CAS/参数拒绝
+    /// 才允许回收新块，未知提交结果必须保留，以便同 operation 重试。
+    pub(crate) async fn data_core_finish_prepared(
+        &self,
+        prepared: PreparedObjectVersion,
+        version: Option<u64>,
+        rejected: bool,
+    ) -> Result<(), WorkerError> {
+        let (reply, receiver) = oneshot::channel();
+        self.submit(NodeCommand::DataCoreFinishPrepared {
+            prepared,
+            version,
+            rejected,
+            reply,
+        })
+        .await?;
+        receive(receiver).await
+    }
+
+    #[cfg(test)]
+    pub(crate) async fn data_core_set_range_inline(
+        &self,
+        key: Vec<u8>,
+        offset: u64,
+        bytes: Vec<u8>,
+        operation_id: Vec<u8>,
+        expected_version: Option<u64>,
+    ) -> Result<SetOutcome, WorkerError> {
+        validate_user_key(&key)?;
+        let resolved = self
+            .metadata
+            .as_ref()
+            .ok_or(WorkerError::MetadataUnavailable)?
+            .resolve(key.clone(), expected_version)
+            .await
+            .map_err(map_metadata_error)?;
+        let (reply_tx, reply_rx) = oneshot::channel();
+        self.submit(NodeCommand::DataCoreSetRangeInline {
+            key,
+            offset,
+            bytes,
+            operation_id,
+            resolved,
+            reply: reply_tx,
+        })
+        .await?;
+        let outcome = receive(reply_rx).await?;
+        if let Some(barrier_id) = outcome.barrier_id {
+            self.wait_invalidation(barrier_id).await?;
+        }
+        Ok(outcome)
+    }
+
+    #[cfg(test)]
+    pub(crate) async fn data_core_delete(
+        &self,
+        key: Vec<u8>,
+        operation_id: Vec<u8>,
+    ) -> Result<DeleteOutcome, WorkerError> {
+        let (reply_tx, reply_rx) = oneshot::channel();
+        self.submit(NodeCommand::DataCoreDelete {
+            key,
+            operation_id,
+            reply: reply_tx,
+        })
+        .await?;
+        let outcome = receive(reply_rx).await?;
+        if let Some(barrier_id) = outcome.barrier_id {
+            self.wait_invalidation(barrier_id).await?;
+        }
+        Ok(outcome)
     }
 
     pub(crate) async fn scan(
@@ -1288,6 +1941,24 @@ impl NodeHandle {
         self.submit(NodeCommand::InvalidateCurrent {
             key,
             minimum_version,
+            reply: reply_tx,
+        })
+        .await?;
+        receive(reply_rx).await
+    }
+
+    /// Meta Watch 在 ACK 前撤销文件绑定授权。重复事件保持幂等：条目已经不存在时也成功。
+    pub(crate) async fn invalidate_filesystem_binding(
+        &self,
+        inode: u64,
+        through_generation: u64,
+        minimum_inode_revision: u64,
+    ) -> Result<(), WorkerError> {
+        let (reply_tx, reply_rx) = oneshot::channel();
+        self.submit(NodeCommand::InvalidateFilesystemBinding {
+            inode,
+            through_generation,
+            minimum_inode_revision,
             reply: reply_tx,
         })
         .await?;
@@ -1602,6 +2273,54 @@ impl NodeHandle {
         }
     }
 
+    pub(crate) async fn data_core_read_into(
+        &self,
+        key: Vec<u8>,
+        exact_version: Option<u64>,
+        range: Option<(u64, u64)>,
+        clamp_range: bool,
+        output: Vec<u8>,
+    ) -> Result<DataCoreReadAttempt, WorkerError> {
+        validate_user_key(&key)?;
+        let scope = self.begin_data_core_read_scope().await?.into_guard();
+        let result = self
+            .data_core_read_into_scoped(scope.id(), key, exact_version, range, clamp_range, output)
+            .await;
+        let finish = scope.finish().await;
+        match (result, finish) {
+            (Ok(value), Ok(())) => Ok(value),
+            (Err(error), _) => Err(error),
+            (Ok(_), Err(error)) => Err(error),
+        }
+    }
+
+    /// 使用 Filesystem binding 中已经取得的精确读取计划，跳过对象 ResolveObject。
+    pub(crate) async fn data_core_read_pre_resolved_into(
+        &self,
+        resolved: ResolvedObject,
+        range: Option<(u64, u64)>,
+        clamp_range: bool,
+        output: Vec<u8>,
+    ) -> Result<DataCoreReadAttempt, WorkerError> {
+        let scope = self.begin_data_core_read_scope().await?.into_guard();
+        let result = self
+            .data_core_read_resolved_into(
+                scope.id(),
+                resolved.into_proto(),
+                range,
+                clamp_range,
+                output,
+                None,
+            )
+            .await;
+        let finish = scope.finish().await;
+        match (result, finish) {
+            (Ok(value), Ok(())) => Ok(value),
+            (Err(error), _) => Err(error),
+            (Ok(_), Err(error)) => Err(error),
+        }
+    }
+
     async fn get_materialized_scoped(
         &self,
         session_id: u64,
@@ -1634,6 +2353,134 @@ impl NodeHandle {
                             .await
                             .map_err(|failure| failure.error)?;
                     }
+                }
+            }
+        }
+        Err(WorkerError::NotFound)
+    }
+
+    async fn data_core_read_into_scoped(
+        &self,
+        read_scope_id: u64,
+        key: Vec<u8>,
+        exact_version: Option<u64>,
+        range: Option<(u64, u64)>,
+        clamp_range: bool,
+        mut output: Vec<u8>,
+    ) -> Result<DataCoreReadAttempt, WorkerError> {
+        let metadata = self
+            .metadata
+            .as_ref()
+            .ok_or(WorkerError::MetadataUnavailable)?;
+        let node_epoch = metadata.node_epoch().await;
+        let (reply_tx, reply_rx) = oneshot::channel();
+        self.submit(NodeCommand::DataCoreGetCached {
+            read_scope_id,
+            key: key.clone(),
+            node_epoch,
+            exact_version,
+            range,
+            clamp_range,
+            output,
+            reply: reply_tx,
+        })
+        .await?;
+        let (refill_token, cached) = receive(reply_rx).await?;
+        match cached {
+            DataCoreCachedReadOutcome::Ready(result) => {
+                return Ok(DataCoreReadAttempt::Ready(result));
+            }
+            DataCoreCachedReadOutcome::BufferTooSmall { version, required } => {
+                return Ok(DataCoreReadAttempt::BufferTooSmall { version, required });
+            }
+            DataCoreCachedReadOutcome::NeedsRemoteBlocks {
+                resolved,
+                specs,
+                output: returned,
+            } => {
+                output = returned;
+                for spec in specs {
+                    self.ensure_peer_block(read_scope_id, spec)
+                        .await
+                        .map_err(|failure| failure.error)?;
+                }
+                return self
+                    .data_core_read_resolved_into(
+                        read_scope_id,
+                        resolved,
+                        range,
+                        clamp_range,
+                        output,
+                        None,
+                    )
+                    .await;
+            }
+            DataCoreCachedReadOutcome::NotFound => return Ok(DataCoreReadAttempt::NotFound),
+            DataCoreCachedReadOutcome::Miss { output: returned } => {
+                output = returned;
+            }
+        }
+        let requested_at = Instant::now();
+        let resolved = metadata
+            .resolve(key.clone(), exact_version)
+            .await
+            .map_err(map_metadata_error)?;
+        let cache_refill = exact_version
+            .is_none()
+            .then(|| refill_token.map(|token| (token, key, requested_at, node_epoch)))
+            .flatten();
+        self.data_core_read_resolved_into(
+            read_scope_id,
+            resolved,
+            range,
+            clamp_range,
+            output,
+            cache_refill,
+        )
+        .await
+    }
+
+    async fn data_core_read_resolved_into(
+        &self,
+        read_scope_id: u64,
+        resolved: pb::ResolveObjectResponse,
+        range: Option<(u64, u64)>,
+        clamp_range: bool,
+        mut output: Vec<u8>,
+        cache_refill: Option<(u64, Vec<u8>, Instant, u64)>,
+    ) -> Result<DataCoreReadAttempt, WorkerError> {
+        for _ in 0..2 {
+            let (reply_tx, reply_rx) = oneshot::channel();
+            self.submit(NodeCommand::DataCoreMaterializeInto {
+                read_scope_id,
+                resolved: resolved.clone(),
+                range,
+                clamp_range,
+                output,
+                cache_refill: cache_refill.clone(),
+                reply: reply_tx,
+            })
+            .await?;
+            match receive(reply_rx).await? {
+                DataCoreMaterializeOutcome::Ready(result) => {
+                    return Ok(DataCoreReadAttempt::Ready(result));
+                }
+                DataCoreMaterializeOutcome::BufferTooSmall { version, required } => {
+                    return Ok(DataCoreReadAttempt::BufferTooSmall { version, required });
+                }
+                DataCoreMaterializeOutcome::NeedsRemoteBlocks {
+                    specs,
+                    output: returned,
+                } => {
+                    output = returned;
+                    for spec in specs {
+                        self.ensure_peer_block(read_scope_id, spec)
+                            .await
+                            .map_err(|failure| failure.error)?;
+                    }
+                }
+                DataCoreMaterializeOutcome::NotFound => {
+                    return Ok(DataCoreReadAttempt::NotFound);
                 }
             }
         }
@@ -1977,6 +2824,7 @@ async fn receive<T>(reply_rx: oneshot::Receiver<Result<T, WorkerError>>) -> Resu
 /// enum 而不是 `AnyMessage + method_id`，因此每个分支的参数和返回类型都由编译器检查。
 // owner 返回：在途查询的回填围栏，以及可直接返回的读取票据（未命中时为空）。
 type CachedRead = (Option<u64>, CachedReadOutcome);
+type DataCoreCachedRead = (Option<u64>, DataCoreCachedReadOutcome);
 
 enum NodeCommand {
     OpenSession {
@@ -2002,6 +2850,9 @@ enum NodeCommand {
         valid_until: Option<Instant>,
         watch_connected: Option<bool>,
         reply: oneshot::Sender<Result<(), WorkerError>>,
+    },
+    ResourceSummary {
+        reply: oneshot::Sender<Result<pb::ResourceSummary, WorkerError>>,
     },
     CloseSession {
         session_id: u64,
@@ -2067,6 +2918,77 @@ enum NodeCommand {
         condition: String,
         reply: oneshot::Sender<Result<SetOutcome, WorkerError>>,
     },
+    DataCoreSetInline {
+        key: Vec<u8>,
+        bytes: Vec<u8>,
+        operation_id: Vec<u8>,
+        condition: String,
+        reply: oneshot::Sender<Result<SetOutcome, WorkerError>>,
+    },
+    DataCorePrepareRange {
+        key: Vec<u8>,
+        offset: u64,
+        bytes: Vec<u8>,
+        operation_id: Vec<u8>,
+        resolved: pb::ResolveObjectResponse,
+        reply: oneshot::Sender<Result<PreparedObjectVersion, WorkerError>>,
+    },
+    DataCorePrepareSparse {
+        key: Vec<u8>,
+        logical_length: u64,
+        offset: u64,
+        bytes: Vec<u8>,
+        operation_id: Vec<u8>,
+        expected_version: Option<u64>,
+        reply: oneshot::Sender<Result<PreparedObjectVersion, WorkerError>>,
+    },
+    DataCorePrepareTruncate {
+        key: Vec<u8>,
+        new_length: u64,
+        operation_id: Vec<u8>,
+        resolved: pb::ResolveObjectResponse,
+        reply: oneshot::Sender<Result<PreparedObjectVersion, WorkerError>>,
+    },
+    DataCorePreparePunchHole {
+        key: Vec<u8>,
+        offset: u64,
+        length: u64,
+        operation_id: Vec<u8>,
+        resolved: pb::ResolveObjectResponse,
+        reply: oneshot::Sender<Result<PreparedObjectVersion, WorkerError>>,
+    },
+    DataCoreReserveFileSpace {
+        reservation_id: Vec<u8>,
+        length: u64,
+        reply: oneshot::Sender<Result<(), WorkerError>>,
+    },
+    DataCoreConsumeFileSpace {
+        ranges: Vec<(Vec<u8>, u64)>,
+        reply: oneshot::Sender<Result<Vec<ReservationConsumption>, WorkerError>>,
+    },
+    DataCoreRestoreFileSpace {
+        consumptions: Vec<ReservationConsumption>,
+        reply: oneshot::Sender<Result<(), WorkerError>>,
+    },
+    DataCoreReleaseFileSpace {
+        ranges: Vec<(Vec<u8>, u64)>,
+        reply: oneshot::Sender<Result<(), WorkerError>>,
+    },
+    DataCoreFinishPrepared {
+        prepared: PreparedObjectVersion,
+        version: Option<u64>,
+        rejected: bool,
+        reply: oneshot::Sender<Result<(), WorkerError>>,
+    },
+    #[cfg(test)]
+    DataCoreSetRangeInline {
+        key: Vec<u8>,
+        offset: u64,
+        bytes: Vec<u8>,
+        operation_id: Vec<u8>,
+        resolved: pb::ResolveObjectResponse,
+        reply: oneshot::Sender<Result<SetOutcome, WorkerError>>,
+    },
     SetRange {
         input: SetRangeInput,
         resolved: pb::ResolveObjectResponse,
@@ -2074,6 +2996,12 @@ enum NodeCommand {
     },
     Delete {
         session_id: u64,
+        key: Vec<u8>,
+        operation_id: Vec<u8>,
+        reply: oneshot::Sender<Result<DeleteOutcome, WorkerError>>,
+    },
+    #[cfg(test)]
+    DataCoreDelete {
         key: Vec<u8>,
         operation_id: Vec<u8>,
         reply: oneshot::Sender<Result<DeleteOutcome, WorkerError>>,
@@ -2105,6 +3033,25 @@ enum NodeCommand {
         read_scope_id: u64,
         resolved: pb::ResolveObjectResponse,
         reply: oneshot::Sender<Result<MaterializeOutcome, WorkerError>>,
+    },
+    DataCoreMaterializeInto {
+        read_scope_id: u64,
+        resolved: pb::ResolveObjectResponse,
+        range: Option<(u64, u64)>,
+        clamp_range: bool,
+        output: Vec<u8>,
+        cache_refill: Option<(u64, Vec<u8>, Instant, u64)>,
+        reply: oneshot::Sender<Result<DataCoreMaterializeOutcome, WorkerError>>,
+    },
+    DataCoreGetCached {
+        read_scope_id: u64,
+        key: Vec<u8>,
+        node_epoch: u64,
+        exact_version: Option<u64>,
+        range: Option<(u64, u64)>,
+        clamp_range: bool,
+        output: Vec<u8>,
+        reply: oneshot::Sender<Result<DataCoreCachedRead, WorkerError>>,
     },
     ImportPeerBlock {
         block_id: Vec<u8>,
@@ -2173,6 +3120,100 @@ enum NodeCommand {
         minimum_version: u64,
         reply: oneshot::Sender<Result<(), WorkerError>>,
     },
+    InvalidateFilesystemBinding {
+        inode: u64,
+        through_generation: u64,
+        minimum_inode_revision: u64,
+        reply: oneshot::Sender<Result<(), WorkerError>>,
+    },
+    FilesystemGetBinding {
+        inode: InodeId,
+        reply: oneshot::Sender<Result<Option<ResolvedInode>, WorkerError>>,
+    },
+    FilesystemCacheBinding {
+        resolved: ResolvedInode,
+        reply: oneshot::Sender<Result<(), WorkerError>>,
+    },
+    FilesystemGetDentry {
+        parent: InodeId,
+        name: Vec<u8>,
+        reply: oneshot::Sender<Result<DentryLookup, WorkerError>>,
+    },
+    FilesystemCacheNegativeDentry {
+        parent: InodeId,
+        name: Vec<u8>,
+        grant: crate::filesystem::DirectoryGrant,
+        reply: oneshot::Sender<Result<(), WorkerError>>,
+    },
+    FilesystemApplyLocalNamespaceMutation {
+        changed_directories: Vec<DirectoryVersion>,
+        changed_inodes: Vec<InodeVersion>,
+        removed_dentries: Vec<(InodeId, Vec<u8>)>,
+        reply: oneshot::Sender<Result<(), WorkerError>>,
+    },
+    FilesystemInstallResolvedDentry {
+        resolved: ResolvedDentry,
+        apply_directory_mutation: bool,
+        reply: oneshot::Sender<Result<(), WorkerError>>,
+    },
+    FilesystemGetDirectoryPage {
+        directory: InodeId,
+        cursor: Option<Vec<u8>>,
+        expected_revision: Option<u64>,
+        reply: oneshot::Sender<Result<Option<DirectoryPage>, WorkerError>>,
+    },
+    FilesystemCacheDirectoryPage {
+        cursor: Option<Vec<u8>>,
+        page: DirectoryPage,
+        reply: oneshot::Sender<Result<(), WorkerError>>,
+    },
+    FilesystemOpenHandleWithReference {
+        inode: InodeId,
+        flags: i32,
+        lock_owner: Option<u64>,
+        reply: oneshot::Sender<Result<FilesystemOpenReferenceResult, WorkerError>>,
+    },
+    FilesystemGetHandle {
+        handle: FileHandleId,
+        reply: oneshot::Sender<
+            Result<Option<super::filesystem::open_handles::OpenHandle>, WorkerError>,
+        >,
+    },
+    FilesystemCloseHandleWithReference {
+        handle: FileHandleId,
+        reply: oneshot::Sender<Result<FilesystemCloseReferenceResult, WorkerError>>,
+    },
+    FilesystemAcquireInodeReference {
+        inode: InodeId,
+        reply: oneshot::Sender<Result<Option<u64>, WorkerError>>,
+    },
+    FilesystemReleaseInodeReference {
+        inode: InodeId,
+        count: u64,
+        reply: oneshot::Sender<Result<Option<(u64, bool)>, WorkerError>>,
+    },
+    FilesystemMarkInodeOrphan {
+        inode: InodeId,
+        reply: oneshot::Sender<Result<(), WorkerError>>,
+    },
+    FilesystemInstallInodeReference {
+        inode: InodeId,
+        generation: u64,
+        lease_millis: u64,
+        reply: oneshot::Sender<Result<(), WorkerError>>,
+    },
+    FilesystemInodeReferenceSnapshot {
+        reply: oneshot::Sender<Result<Vec<(InodeId, u64)>, WorkerError>>,
+    },
+    FilesystemRenewInodeReferenceLeases {
+        references: Vec<(InodeId, u64)>,
+        lease_millis: u64,
+        reply: oneshot::Sender<Result<(), WorkerError>>,
+    },
+    FilesystemHasLiveInodeReference {
+        inode: InodeId,
+        reply: oneshot::Sender<Result<bool, WorkerError>>,
+    },
     PrepareBlockRetirement {
         retirement_id: Vec<u8>,
         block_ids: Vec<Vec<u8>>,
@@ -2185,6 +3226,10 @@ enum NodeCommand {
     },
     BeginReadScope {
         session_id: u64,
+        cleanup_node: Box<NodeHandle>,
+        reply: oneshot::Sender<Result<ReadScopeLease, WorkerError>>,
+    },
+    BeginDataCoreReadScope {
         cleanup_node: Box<NodeHandle>,
         reply: oneshot::Sender<Result<ReadScopeLease, WorkerError>>,
     },
@@ -2226,6 +3271,7 @@ impl NodeCommand {
             Self::AttachSession { .. } => NodeMailboxCommand::AttachSession,
             Self::Heartbeat { .. } => NodeMailboxCommand::Heartbeat,
             Self::MetadataLease { .. } => NodeMailboxCommand::Heartbeat,
+            Self::ResourceSummary { .. } => NodeMailboxCommand::Heartbeat,
             Self::CloseSession { .. } => NodeMailboxCommand::CloseSession,
             Self::ValidateSession { .. } => NodeMailboxCommand::ValidateSession,
             Self::Acknowledge { .. } => NodeMailboxCommand::Acknowledge,
@@ -2237,11 +3283,27 @@ impl NodeCommand {
             Self::Set { .. } => NodeMailboxCommand::Set,
             Self::MSet { .. } => NodeMailboxCommand::MSet,
             Self::SetInline { .. } => NodeMailboxCommand::SetInline,
+            Self::DataCoreSetInline { .. } => NodeMailboxCommand::SetInline,
+            Self::DataCorePrepareRange { .. } => NodeMailboxCommand::SetRange,
+            Self::DataCorePrepareSparse { .. } => NodeMailboxCommand::SetRange,
+            Self::DataCorePrepareTruncate { .. } => NodeMailboxCommand::SetRange,
+            Self::DataCorePreparePunchHole { .. } => NodeMailboxCommand::SetRange,
+            Self::DataCoreReserveFileSpace { .. }
+            | Self::DataCoreConsumeFileSpace { .. }
+            | Self::DataCoreRestoreFileSpace { .. }
+            | Self::DataCoreReleaseFileSpace { .. } => NodeMailboxCommand::SetRange,
+            Self::DataCoreFinishPrepared { .. } => NodeMailboxCommand::SetInline,
             Self::SetRange { .. } => NodeMailboxCommand::SetRange,
+            #[cfg(test)]
+            Self::DataCoreSetRangeInline { .. } => NodeMailboxCommand::SetRange,
             Self::Delete { .. } => NodeMailboxCommand::Delete,
+            #[cfg(test)]
+            Self::DataCoreDelete { .. } => NodeMailboxCommand::Delete,
             Self::GetResolved { .. } => NodeMailboxCommand::GetResolved,
             Self::GetCached { .. } => NodeMailboxCommand::GetCached,
             Self::MaterializeResolved { .. } => NodeMailboxCommand::MaterializeResolved,
+            Self::DataCoreMaterializeInto { .. } => NodeMailboxCommand::MaterializeResolved,
+            Self::DataCoreGetCached { .. } => NodeMailboxCommand::GetCached,
             Self::ImportPeerBlock { .. } => NodeMailboxCommand::ImportPeerBlock,
             Self::EnsurePeerBlock { .. } => NodeMailboxCommand::ImportPeerBlock,
             Self::Download { .. } => NodeMailboxCommand::Download,
@@ -2255,9 +3317,29 @@ impl NodeCommand {
             #[cfg(test)]
             Self::DebugCommitForPeerTest { .. } => NodeMailboxCommand::DebugCommitForPeerTest,
             Self::InvalidateCurrent { .. } => NodeMailboxCommand::InvalidateCurrent,
+            Self::InvalidateFilesystemBinding { .. } => NodeMailboxCommand::InvalidateCurrent,
+            Self::FilesystemGetBinding { .. }
+            | Self::FilesystemCacheBinding { .. }
+            | Self::FilesystemGetDentry { .. }
+            | Self::FilesystemCacheNegativeDentry { .. }
+            | Self::FilesystemApplyLocalNamespaceMutation { .. }
+            | Self::FilesystemInstallResolvedDentry { .. }
+            | Self::FilesystemGetDirectoryPage { .. }
+            | Self::FilesystemCacheDirectoryPage { .. } => NodeMailboxCommand::GetCached,
+            Self::FilesystemOpenHandleWithReference { .. }
+            | Self::FilesystemGetHandle { .. }
+            | Self::FilesystemCloseHandleWithReference { .. }
+            | Self::FilesystemAcquireInodeReference { .. }
+            | Self::FilesystemReleaseInodeReference { .. }
+            | Self::FilesystemMarkInodeOrphan { .. }
+            | Self::FilesystemInstallInodeReference { .. }
+            | Self::FilesystemInodeReferenceSnapshot { .. }
+            | Self::FilesystemRenewInodeReferenceLeases { .. }
+            | Self::FilesystemHasLiveInodeReference { .. } => NodeMailboxCommand::GetCached,
             Self::PrepareBlockRetirement { .. } => NodeMailboxCommand::InvalidateCurrent,
             Self::FinalizeBlockRetirement { .. } => NodeMailboxCommand::InvalidateCurrent,
             Self::BeginReadScope { .. } => NodeMailboxCommand::GetCached,
+            Self::BeginDataCoreReadScope { .. } => NodeMailboxCommand::GetCached,
             Self::FinishReadScope { .. } => NodeMailboxCommand::GetCached,
             Self::WaitInvalidation { .. } => NodeMailboxCommand::WaitInvalidation,
             Self::ApplyConfigChange { .. } => NodeMailboxCommand::ApplyConfigChange,
@@ -2401,6 +3483,9 @@ async fn run_node(
                     }
                     let _ = reply.send(Ok(()));
                 }
+                NodeCommand::ResourceSummary { reply } => {
+                    let _ = reply.send(Ok(state.arena.resource_summary()));
+                }
                 NodeCommand::CloseSession { session_id, reply } => {
                     let _ = reply.send(state.close_session(session_id));
                 }
@@ -2498,6 +3583,144 @@ async fn run_node(
                         state.commit_bytes(session_id, key, bytes, operation_id, condition)
                     });
                 }
+                NodeCommand::DataCoreSetInline {
+                    key,
+                    bytes,
+                    operation_id,
+                    condition,
+                    reply,
+                } => {
+                    launch_write(&mut state, &mut writes, reply, |state| {
+                        state.commit_bytes_for_data_core(key, bytes, operation_id, condition)
+                    });
+                }
+                NodeCommand::DataCorePrepareRange {
+                    key,
+                    offset,
+                    bytes,
+                    operation_id,
+                    resolved,
+                    reply,
+                } => {
+                    let _ = reply.send(state.prepare_range_for_filesystem(
+                        key,
+                        offset,
+                        bytes,
+                        operation_id,
+                        resolved,
+                    ));
+                }
+                NodeCommand::DataCorePrepareSparse {
+                    key,
+                    logical_length,
+                    offset,
+                    bytes,
+                    operation_id,
+                    expected_version,
+                    reply,
+                } => {
+                    let _ = reply.send(state.prepare_sparse_for_filesystem(
+                        key,
+                        logical_length,
+                        offset,
+                        bytes,
+                        operation_id,
+                        expected_version,
+                    ));
+                }
+                NodeCommand::DataCorePrepareTruncate {
+                    key,
+                    new_length,
+                    operation_id,
+                    resolved,
+                    reply,
+                } => {
+                    let _ = reply.send(state.prepare_truncate_for_filesystem(
+                        key,
+                        new_length,
+                        operation_id,
+                        resolved,
+                    ));
+                }
+                NodeCommand::DataCorePreparePunchHole {
+                    key,
+                    offset,
+                    length,
+                    operation_id,
+                    resolved,
+                    reply,
+                } => {
+                    let _ = reply.send(state.prepare_punch_hole_for_filesystem(
+                        key,
+                        offset,
+                        length,
+                        operation_id,
+                        resolved,
+                    ));
+                }
+                NodeCommand::DataCoreReserveFileSpace {
+                    reservation_id,
+                    length,
+                    reply,
+                } => {
+                    let _ = reply.send(
+                        state
+                            .arena
+                            .reserve_file_space(reservation_id, length)
+                            .map_err(map_arena_error),
+                    );
+                }
+                NodeCommand::DataCoreConsumeFileSpace { ranges, reply } => {
+                    let mut consumed = Vec::with_capacity(ranges.len());
+                    let mut failure = None;
+                    for (reservation_id, length) in ranges {
+                        match state.arena.consume_file_space(&reservation_id, length) {
+                            Ok(receipt) => consumed.push(receipt),
+                            Err(error) => {
+                                failure = Some(map_arena_error(error));
+                                break;
+                            }
+                        }
+                    }
+                    if let Some(error) = failure {
+                        for receipt in &consumed {
+                            let _ = state.arena.restore_file_space(receipt);
+                        }
+                        let _ = reply.send(Err(error));
+                    } else {
+                        let _ = reply.send(Ok(consumed));
+                    }
+                }
+                NodeCommand::DataCoreRestoreFileSpace {
+                    consumptions,
+                    reply,
+                } => {
+                    let result = consumptions.iter().try_for_each(|consumption| {
+                        state
+                            .arena
+                            .restore_file_space(consumption)
+                            .map_err(map_arena_error)
+                    });
+                    let _ = reply.send(result);
+                }
+                NodeCommand::DataCoreReleaseFileSpace { ranges, reply } => {
+                    let result = ranges.iter().try_for_each(|(reservation_id, length)| {
+                        state
+                            .arena
+                            .release_file_space(reservation_id, *length)
+                            .map_err(map_arena_error)
+                    });
+                    let _ = reply.send(result);
+                }
+                NodeCommand::DataCoreFinishPrepared {
+                    prepared,
+                    version,
+                    rejected,
+                    reply,
+                } => {
+                    let _ = reply
+                        .send(state.finish_filesystem_preparation(prepared, version, rejected));
+                }
                 NodeCommand::SetRange {
                     input,
                     resolved,
@@ -2505,6 +3728,25 @@ async fn run_node(
                 } => {
                     launch_write(&mut state, &mut writes, reply, |state| {
                         state.set_range(input, resolved)
+                    });
+                }
+                #[cfg(test)]
+                NodeCommand::DataCoreSetRangeInline {
+                    key,
+                    offset,
+                    bytes,
+                    operation_id,
+                    resolved,
+                    reply,
+                } => {
+                    launch_write(&mut state, &mut writes, reply, |state| {
+                        state.set_range_inline_for_data_core(
+                            key,
+                            offset,
+                            bytes,
+                            operation_id,
+                            resolved,
+                        )
                     });
                 }
                 NodeCommand::Delete {
@@ -2515,6 +3757,16 @@ async fn run_node(
                 } => {
                     launch_write(&mut state, &mut writes, reply, |state| {
                         state.delete(session_id, key, operation_id)
+                    });
+                }
+                #[cfg(test)]
+                NodeCommand::DataCoreDelete {
+                    key,
+                    operation_id,
+                    reply,
+                } => {
+                    launch_write(&mut state, &mut writes, reply, |state| {
+                        state.delete_for_data_core(key, operation_id)
                     });
                 }
                 NodeCommand::GetResolved {
@@ -2603,6 +3855,53 @@ async fn run_node(
                         read_scope_id,
                         &resolved,
                     ));
+                }
+                NodeCommand::DataCoreMaterializeInto {
+                    read_scope_id,
+                    resolved,
+                    range,
+                    clamp_range,
+                    output,
+                    cache_refill,
+                    reply,
+                } => {
+                    if reply.is_closed() {
+                        state.finish_read_scope(read_scope_id);
+                        return;
+                    }
+                    let _ = reply.send(state.materialize_resolved_into_for_data_core(
+                        read_scope_id,
+                        &resolved,
+                        range,
+                        clamp_range,
+                        output,
+                        cache_refill,
+                    ));
+                }
+                NodeCommand::DataCoreGetCached {
+                    read_scope_id,
+                    key,
+                    node_epoch,
+                    exact_version,
+                    range,
+                    clamp_range,
+                    output,
+                    reply,
+                } => {
+                    if reply.is_closed() {
+                        state.finish_read_scope(read_scope_id);
+                        return;
+                    }
+                    let result = state.get_cached_for_data_core(
+                        read_scope_id,
+                        &key,
+                        node_epoch,
+                        exact_version,
+                        range,
+                        clamp_range,
+                        output,
+                    );
+                    let _ = reply.send(result);
                 }
                 NodeCommand::EnsurePeerBlock {
                     read_scope_id,
@@ -2735,6 +4034,200 @@ async fn run_node(
                         let _ = reply.send(Ok(()));
                     }
                 }
+                NodeCommand::InvalidateFilesystemBinding {
+                    inode,
+                    through_generation,
+                    minimum_inode_revision,
+                    reply,
+                } => {
+                    state.filesystem_bindings.revoke(inode, through_generation);
+                    state.filesystem_dentries.revoke_directory(
+                        inode,
+                        through_generation,
+                        minimum_inode_revision,
+                    );
+                    let _ = reply.send(Ok(()));
+                }
+                NodeCommand::FilesystemGetBinding { inode, reply } => {
+                    let resolved = state
+                        .filesystem_bindings
+                        .get_authorized(inode, Instant::now())
+                        .cloned();
+                    let _ = reply.send(Ok(resolved));
+                }
+                NodeCommand::FilesystemCacheBinding { resolved, reply } => {
+                    state.filesystem_bindings.insert(resolved, Instant::now());
+                    let _ = reply.send(Ok(()));
+                }
+                NodeCommand::FilesystemGetDentry {
+                    parent,
+                    name,
+                    reply,
+                } => {
+                    let dentry = state
+                        .filesystem_dentries
+                        .lookup(parent, &name, Instant::now());
+                    let _ = reply.send(Ok(dentry));
+                }
+                NodeCommand::FilesystemCacheNegativeDentry {
+                    parent,
+                    name,
+                    grant,
+                    reply,
+                } => {
+                    state
+                        .filesystem_dentries
+                        .insert_negative(parent, name, grant, Instant::now());
+                    let _ = reply.send(Ok(()));
+                }
+                NodeCommand::FilesystemApplyLocalNamespaceMutation {
+                    changed_directories,
+                    changed_inodes,
+                    removed_dentries,
+                    reply,
+                } => {
+                    for directory in changed_directories {
+                        state
+                            .filesystem_bindings
+                            .revoke(directory.inode, directory.grant_generation);
+                        let removed_names = removed_dentries
+                            .iter()
+                            .filter_map(|(parent, name)| {
+                                (*parent == directory.inode).then_some(name.clone())
+                            })
+                            .collect::<Vec<_>>();
+                        state.filesystem_dentries.apply_local_mutation(
+                            directory.inode,
+                            directory.revision,
+                            directory.grant_generation,
+                            &removed_names,
+                        );
+                    }
+                    for inode in changed_inodes {
+                        state
+                            .filesystem_bindings
+                            .revoke(inode.inode, inode.grant_generation);
+                    }
+                    let _ = reply.send(Ok(()));
+                }
+                NodeCommand::FilesystemInstallResolvedDentry {
+                    resolved,
+                    apply_directory_mutation,
+                    reply,
+                } => {
+                    if apply_directory_mutation {
+                        state.filesystem_bindings.revoke(
+                            resolved.dentry.parent,
+                            resolved.directory_grant.grant.generation,
+                        );
+                        state.filesystem_dentries.apply_local_mutation(
+                            resolved.dentry.parent,
+                            resolved.directory_grant.directory_revision,
+                            resolved.directory_grant.grant.generation,
+                            std::slice::from_ref(&resolved.dentry.name),
+                        );
+                    }
+                    state.filesystem_dentries.insert_positive(
+                        resolved.dentry,
+                        resolved.directory_grant,
+                        Instant::now(),
+                    );
+                    let inode = resolved.resolved.granted.inode.attributes.inode;
+                    state
+                        .filesystem_bindings
+                        .insert(resolved.resolved, Instant::now());
+                    state.install_filesystem_inode_reference(
+                        inode,
+                        resolved.entry_reference_generation,
+                        resolved.entry_reference_lease_millis,
+                    );
+                    let _ = reply.send(Ok(()));
+                }
+                NodeCommand::FilesystemGetDirectoryPage {
+                    directory,
+                    cursor,
+                    expected_revision,
+                    reply,
+                } => {
+                    let page = state.filesystem_dentries.directory_page(
+                        directory,
+                        cursor.as_deref(),
+                        expected_revision,
+                        Instant::now(),
+                    );
+                    let _ = reply.send(Ok(page));
+                }
+                NodeCommand::FilesystemCacheDirectoryPage {
+                    cursor,
+                    page,
+                    reply,
+                } => {
+                    state
+                        .filesystem_dentries
+                        .insert_directory_page(cursor, page, Instant::now());
+                    let _ = reply.send(Ok(()));
+                }
+                NodeCommand::FilesystemOpenHandleWithReference {
+                    inode,
+                    flags,
+                    lock_owner,
+                    reply,
+                } => {
+                    let generation = state.acquire_filesystem_inode_reference_local(inode);
+                    let handle = state.filesystem_handles.open(inode, flags, lock_owner);
+                    let _ = reply.send(Ok((handle, generation)));
+                }
+                NodeCommand::FilesystemGetHandle { handle, reply } => {
+                    let opened = state.filesystem_handles.get(handle).cloned();
+                    let _ = reply.send(Ok(opened));
+                }
+                NodeCommand::FilesystemCloseHandleWithReference { handle, reply } => {
+                    let closed = state.filesystem_handles.close(handle).map(|opened| {
+                        let released =
+                            state.release_filesystem_inode_reference_local(opened.inode, 1);
+                        (opened, released)
+                    });
+                    let _ = reply.send(Ok(closed));
+                }
+                NodeCommand::FilesystemAcquireInodeReference { inode, reply } => {
+                    let generation = state.acquire_filesystem_inode_reference_local(inode);
+                    let _ = reply.send(Ok(generation));
+                }
+                NodeCommand::FilesystemReleaseInodeReference {
+                    inode,
+                    count,
+                    reply,
+                } => {
+                    let generation = state.release_filesystem_inode_reference_local(inode, count);
+                    let _ = reply.send(Ok(generation));
+                }
+                NodeCommand::FilesystemMarkInodeOrphan { inode, reply } => {
+                    state.mark_filesystem_inode_orphan(inode);
+                    let _ = reply.send(Ok(()));
+                }
+                NodeCommand::FilesystemInstallInodeReference {
+                    inode,
+                    generation,
+                    lease_millis,
+                    reply,
+                } => {
+                    state.install_filesystem_inode_reference(inode, generation, lease_millis);
+                    let _ = reply.send(Ok(()));
+                }
+                NodeCommand::FilesystemInodeReferenceSnapshot { reply } => {
+                    let _ = reply.send(Ok(state.filesystem_inode_reference_snapshot()));
+                }
+                NodeCommand::FilesystemRenewInodeReferenceLeases {
+                    references,
+                    lease_millis,
+                    reply,
+                } => {
+                    state.renew_filesystem_inode_reference_leases(&references, lease_millis);
+                    let _ = reply.send(Ok(()));
+                }
+                NodeCommand::FilesystemHasLiveInodeReference { inode, reply } => {
+                    let _ = reply.send(Ok(state.has_live_filesystem_inode_reference(inode)));
+                }
                 NodeCommand::PrepareBlockRetirement {
                     retirement_id,
                     block_ids,
@@ -2755,6 +4248,12 @@ async fn run_node(
                     reply,
                 } => {
                     state.begin_read_scope_reply(session_id, *cleanup_node, reply);
+                }
+                NodeCommand::BeginDataCoreReadScope {
+                    cleanup_node,
+                    reply,
+                } => {
+                    state.begin_data_core_read_scope_reply(*cleanup_node, reply);
                 }
                 NodeCommand::FinishReadScope { scope_id, reply } => {
                     state.finish_read_scope(scope_id);
@@ -2893,6 +4392,27 @@ struct NodeState {
     metadata_watch_connected: bool,
     client_cache_lease_ttl: Duration,
     current_cache: CurrentCache,
+    /// 文件 inode→Exact ObjectVersion 的本地授权索引；只由 Node owner 修改。
+    filesystem_bindings: BindingCache,
+    /// 文件 path component→inode 的正向提示；当前只缓存 create/lookup 成功结果。
+    filesystem_dentries: DentryCache,
+    /// FUSE open() 生命周期属于本 Node，不进入 Meta，也不复制 DataCore 状态。
+    filesystem_handles: OpenHandleTable,
+    /// 本 Node 内 open/lookup/opendir 对 inode 的本地引用计数。
+    ///
+    /// Meta 只需要知道“这个 node epoch 是否仍持有引用”，不保存精确 count。
+    /// 因此只有本表从 0→1 时建立 Meta lease；普通 N→0 停止 heartbeat 续租即可，
+    /// 已知 orphan 的 N→0 才立即发送 Meta release 以加速回收。
+    filesystem_inode_references: HashMap<InodeId, LocalFilesystemInodeReference>,
+}
+
+#[derive(Clone, Debug)]
+struct LocalFilesystemInodeReference {
+    count: u64,
+    generation: u64,
+    lease_until: Instant,
+    /// 该 Node 已观察到 link_count 变为 0；最后一个本地引用释放时可立即通知 Meta。
+    eager_meta_release: bool,
 }
 
 impl NodeState {
@@ -2976,6 +4496,10 @@ impl NodeState {
                 task_config.node_current_cache_bytes,
                 task_config.node_current_cache_ttl,
             ),
+            filesystem_bindings: BindingCache::default(),
+            filesystem_dentries: DentryCache::default(),
+            filesystem_handles: OpenHandleTable::default(),
+            filesystem_inode_references: HashMap::new(),
         }
     }
 
@@ -3002,6 +4526,180 @@ impl NodeState {
         Ok(version)
     }
 
+    fn acquire_filesystem_inode_reference_local(&mut self, inode: InodeId) -> Option<u64> {
+        if inode == ROOT_INODE {
+            return None;
+        }
+        if let Some(reference) = self.filesystem_inode_references.get_mut(&inode) {
+            reference.count = reference.count.saturating_add(1);
+            self.metrics.record_filesystem_inode_reference_transition(
+                FilesystemInodeReferenceTransition::Retain,
+            );
+            dms_logging::debug!(
+                "retained local filesystem inode reference";
+                "event" => "node.filesystem.reference.retained",
+                "inode" => inode,
+                "generation" => reference.generation,
+                "count" => reference.count,
+            );
+            return None;
+        }
+        let generation = next_filesystem_reference_generation();
+        self.filesystem_inode_references.insert(
+            inode,
+            LocalFilesystemInodeReference {
+                count: 1,
+                generation,
+                lease_until: Instant::now(),
+                eager_meta_release: false,
+            },
+        );
+        self.metrics
+            .set_filesystem_inode_references(self.filesystem_inode_references.len());
+        self.metrics.record_filesystem_inode_reference_transition(
+            FilesystemInodeReferenceTransition::Acquire,
+        );
+        dms_logging::debug!(
+            "acquired local filesystem inode reference";
+            "event" => "node.filesystem.reference.acquired",
+            "inode" => inode,
+            "generation" => generation,
+            "count" => 1_u64,
+        );
+        Some(generation)
+    }
+
+    fn install_filesystem_inode_reference(
+        &mut self,
+        inode: InodeId,
+        generation: u64,
+        lease_millis: u64,
+    ) {
+        if inode == ROOT_INODE || generation == 0 {
+            return;
+        }
+        let lease_until = Instant::now() + Duration::from_millis(lease_millis);
+        match self.filesystem_inode_references.get_mut(&inode) {
+            Some(reference) => {
+                reference.count = reference.count.saturating_add(1);
+                if generation >= reference.generation {
+                    reference.generation = generation;
+                    reference.lease_until = lease_until;
+                }
+                self.metrics.record_filesystem_inode_reference_transition(
+                    FilesystemInodeReferenceTransition::Retain,
+                );
+                dms_logging::debug!(
+                    "retained installed filesystem inode reference";
+                    "event" => "node.filesystem.reference.retained",
+                    "inode" => inode,
+                    "generation" => reference.generation,
+                    "count" => reference.count,
+                );
+            }
+            None => {
+                self.filesystem_inode_references.insert(
+                    inode,
+                    LocalFilesystemInodeReference {
+                        count: 1,
+                        generation,
+                        lease_until,
+                        eager_meta_release: false,
+                    },
+                );
+                self.metrics
+                    .set_filesystem_inode_references(self.filesystem_inode_references.len());
+                self.metrics.record_filesystem_inode_reference_transition(
+                    FilesystemInodeReferenceTransition::Acquire,
+                );
+                dms_logging::debug!(
+                    "installed local filesystem inode reference";
+                    "event" => "node.filesystem.reference.acquired",
+                    "inode" => inode,
+                    "generation" => generation,
+                    "count" => 1_u64,
+                );
+            }
+        }
+    }
+
+    fn filesystem_inode_reference_snapshot(&self) -> Vec<(InodeId, u64)> {
+        self.filesystem_inode_references
+            .iter()
+            .map(|(inode, reference)| (*inode, reference.generation))
+            .collect()
+    }
+
+    fn renew_filesystem_inode_reference_leases(
+        &mut self,
+        references: &[(InodeId, u64)],
+        lease_millis: u64,
+    ) {
+        let lease_until = Instant::now() + Duration::from_millis(lease_millis);
+        for (inode, generation) in references {
+            if let Some(reference) = self.filesystem_inode_references.get_mut(inode)
+                && reference.generation == *generation
+            {
+                reference.lease_until = lease_until;
+            }
+        }
+    }
+
+    fn has_live_filesystem_inode_reference(&self, inode: InodeId) -> bool {
+        inode == ROOT_INODE
+            || self
+                .filesystem_inode_references
+                .get(&inode)
+                .is_some_and(|reference| reference.lease_until > Instant::now())
+    }
+
+    fn mark_filesystem_inode_orphan(&mut self, inode: InodeId) {
+        if let Some(reference) = self.filesystem_inode_references.get_mut(&inode) {
+            reference.eager_meta_release = true;
+        }
+    }
+
+    fn release_filesystem_inode_reference_local(
+        &mut self,
+        inode: InodeId,
+        count: u64,
+    ) -> Option<(u64, bool)> {
+        if inode == ROOT_INODE || count == 0 {
+            return None;
+        }
+        let reference = self.filesystem_inode_references.get_mut(&inode)?;
+        if reference.count > count {
+            reference.count -= count;
+            self.metrics.record_filesystem_inode_reference_transition(
+                FilesystemInodeReferenceTransition::ReleasePartial,
+            );
+            dms_logging::debug!(
+                "released part of local filesystem inode reference";
+                "event" => "node.filesystem.reference.released",
+                "inode" => inode,
+                "generation" => reference.generation,
+                "count" => reference.count,
+            );
+            return None;
+        }
+        let generation = reference.generation;
+        let eager_meta_release = reference.eager_meta_release;
+        self.filesystem_inode_references.remove(&inode);
+        self.metrics
+            .set_filesystem_inode_references(self.filesystem_inode_references.len());
+        self.metrics.record_filesystem_inode_reference_transition(
+            FilesystemInodeReferenceTransition::ReleaseFinal,
+        );
+        dms_logging::debug!(
+            "released final local filesystem inode reference";
+            "event" => "node.filesystem.reference.released_final",
+            "inode" => inode,
+            "generation" => generation,
+            "count" => 0_u64,
+        );
+        Some((generation, eager_meta_release))
+    }
+
     fn reset_current_cache_for_watch(&mut self, connected: bool) {
         // Meta watch 是 Current cache 的一致性前提。断线时立即撤销 Node 本地
         // Current cache，并关闭后续新 grant；重连时也要撤销断线期间可能返回的
@@ -3016,6 +4714,8 @@ impl NodeState {
             CurrentCacheResetReason::WatchDisconnected
         };
         self.current_cache.clear();
+        self.filesystem_bindings.clear();
+        self.filesystem_dentries.clear();
         self.metrics.set_current_cache_charge(0);
         self.metadata_watch_connected = connected;
         self.metrics.record_current_cache_reset(reason);
@@ -3578,6 +5278,7 @@ impl NodeState {
             .block_replicas
             .iter()
             .filter(|set| set.block_id != patch_block)
+            .filter(|set| !set.block_id.is_empty())
             .filter_map(|set| set.proofs.first().cloned())
             .collect();
         let logical_length = layout.logical_length;
@@ -3618,6 +5319,110 @@ impl NodeState {
                 state.arena.mark_committed(&patch_block, committed.version);
                 let barrier_id = state.broadcast_invalidation(key.clone(), committed.version);
                 state.register_cache_interest(session_id, key)?;
+                Ok(SetOutcome {
+                    version: committed.version,
+                    length: logical_length,
+                    barrier_id,
+                })
+            }) as WriteCompletion<SetOutcome>
+        }))
+    }
+
+    #[cfg(test)]
+    fn set_range_inline_for_data_core(
+        &mut self,
+        key: Vec<u8>,
+        offset: u64,
+        bytes: Vec<u8>,
+        operation_id: Vec<u8>,
+        resolved: pb::ResolveObjectResponse,
+    ) -> Result<PreparedWrite<SetOutcome>, WorkerError> {
+        validate_user_key(&key)?;
+        validate_operation_id(&operation_id)?;
+        let metadata = self
+            .metadata
+            .clone()
+            .ok_or(WorkerError::MetadataUnavailable)?;
+        let layout = resolved.layout.as_ref().ok_or(WorkerError::NotFound)?;
+        let base_version = layout.version;
+        let patch_length = bytes.len() as u64;
+        let patch_end = offset
+            .checked_add(patch_length)
+            .ok_or(WorkerError::InvalidArgument("range write overflows u64"))?;
+        if patch_end > layout.logical_length {
+            return Err(WorkerError::InvalidArgument(
+                "range write extends beyond current value",
+            ));
+        }
+
+        // 进程内文件子系统已经把 patch bytes 交给 Node owner。这里直接把 patch
+        // 封成新的 immutable Block，再用 Extent overlay 描述新版本；不读取、不复制
+        // base value。
+        let patch_block = block_identity(&self.node_id, &operation_id);
+        let owns_block = self.check_block_preparation(&patch_block)?;
+        let patch_digest = digest(&bytes);
+        let extents = super::version_layout::overlay(
+            &layout.extents,
+            layout.logical_length,
+            offset,
+            patch_length,
+            &patch_block,
+            &patch_digest,
+        )?;
+        let candidate_digest = super::version_layout::digest(layout.logical_length, &extents);
+        if patch_length > 0 {
+            self.arena
+                .commit_inline_with_verified_digest(
+                    patch_block.clone(),
+                    bytes,
+                    patch_digest.clone(),
+                )
+                .map_err(map_arena_error)?;
+            self.pending_blocks.insert(patch_block.clone(), owns_block);
+        }
+        let replica_proofs = resolved
+            .block_replicas
+            .iter()
+            .filter(|set| set.block_id != patch_block)
+            .filter_map(|set| set.proofs.first().cloned())
+            .collect();
+        let logical_length = layout.logical_length;
+        Ok(Box::pin(async move {
+            let committed = metadata
+                .commit_layout(
+                    key.clone(),
+                    operation_id,
+                    pb::VersionCandidate {
+                        kind: pb::VersionKind::Value as i32,
+                        logical_length,
+                        extents,
+                        digest: candidate_digest,
+                    },
+                    replica_proofs,
+                    vec![pb::ReplicaReport {
+                        block_id: patch_block.clone(),
+                        length: patch_length,
+                        checksum: patch_digest,
+                        durability: pb::DurabilityPolicy::LocalMemory as i32,
+                    }],
+                    format!("if-version:{base_version}"),
+                )
+                .await;
+            Box::new(move |state: &mut NodeState| {
+                state.finish_block_preparation(
+                    &patch_block,
+                    committed
+                        .as_ref()
+                        .is_err_and(is_definitive_metadata_rejection),
+                );
+                let committed = match committed {
+                    Ok(committed) => committed,
+                    Err(error) => {
+                        return Err(map_metadata_error(error));
+                    }
+                };
+                state.arena.mark_committed(&patch_block, committed.version);
+                let barrier_id = state.broadcast_invalidation(key, committed.version);
                 Ok(SetOutcome {
                     version: committed.version,
                     length: logical_length,
@@ -3669,6 +5474,350 @@ impl NodeState {
             operation_id,
             condition,
         })
+    }
+
+    fn commit_bytes_for_data_core(
+        &mut self,
+        key: Vec<u8>,
+        bytes: Vec<u8>,
+        operation_id: Vec<u8>,
+        condition: String,
+    ) -> Result<PreparedWrite<SetOutcome>, WorkerError> {
+        validate_user_key(&key)?;
+        validate_operation_id(&operation_id)?;
+        // DataCore 是进程内入口，不经过 gRPC wire，因此不能继承 8 MiB 的单消息限制。
+        // 对象是否能够接纳由 Arena/Region 容量统一判断；跨进程 Worker 请求仍在各自
+        // 的 gRPC handler 边界执行 `validate_grpc_payload_bytes`。
+        let block_id = block_identity(&self.node_id, &operation_id);
+        if bytes.is_empty() {
+            return self.commit_block(ValueCommitInput {
+                cache_session_id: None,
+                key,
+                block_id,
+                length: 0,
+                checksum: digest(&[]),
+                operation_id,
+                condition,
+            });
+        }
+        let owns_block = self.check_block_preparation(&block_id)?;
+        let length = bytes.len() as u64;
+        let checksum = digest(&bytes);
+        self.arena
+            .commit_inline_with_verified_digest(block_id.clone(), bytes, checksum.clone())
+            .map_err(map_arena_error)?;
+        self.pending_blocks.insert(block_id.clone(), owns_block);
+        self.commit_block(ValueCommitInput {
+            cache_session_id: None,
+            key,
+            block_id,
+            length,
+            checksum,
+            operation_id,
+            condition,
+        })
+    }
+
+    /// 为文件覆盖或扩容准备一个 patch Block 和 Extent overlay。
+    ///
+    /// `offset` 可以越过当前 EOF；中间范围由 HOLE Extent 表达。base bytes 始终保持
+    /// immutable，普通追加也只新增 tail Block，不能退化成“读回旧文件再完整提交”。
+    fn prepare_range_for_filesystem(
+        &mut self,
+        key: Vec<u8>,
+        offset: u64,
+        bytes: Vec<u8>,
+        operation_id: Vec<u8>,
+        resolved: pb::ResolveObjectResponse,
+    ) -> Result<PreparedObjectVersion, WorkerError> {
+        validate_user_key(&key)?;
+        validate_operation_id(&operation_id)?;
+        if self.metadata.is_none() {
+            return Err(WorkerError::MetadataUnavailable);
+        }
+        let layout = resolved.layout.as_ref().ok_or(WorkerError::NotFound)?;
+        let patch_length = bytes.len() as u64;
+        let patch_end = offset
+            .checked_add(patch_length)
+            .ok_or(WorkerError::InvalidArgument("range write overflows u64"))?;
+        let patch_block = block_identity(&self.node_id, &operation_id);
+        let patch_digest = digest(&bytes);
+        let extents = super::version_layout::overlay_file_write(
+            &layout.extents,
+            layout.logical_length,
+            offset,
+            patch_length,
+            &patch_block,
+            &patch_digest,
+        )?;
+        if patch_length > 0 {
+            let owns_block = self.check_block_preparation(&patch_block)?;
+            self.arena
+                .commit_inline_with_verified_digest(
+                    patch_block.clone(),
+                    bytes,
+                    patch_digest.clone(),
+                )
+                .map_err(map_arena_error)?;
+            self.pending_blocks.insert(patch_block.clone(), owns_block);
+        }
+        let replica_proofs = resolved
+            .block_replicas
+            .iter()
+            .filter(|set| set.block_id != patch_block)
+            .filter_map(|set| set.proofs.first().cloned())
+            .collect();
+        let new_replicas = (patch_length > 0)
+            .then_some(pb::ReplicaReport {
+                block_id: patch_block,
+                length: patch_length,
+                checksum: patch_digest,
+                durability: pb::DurabilityPolicy::LocalMemory as i32,
+            })
+            .into_iter()
+            .collect();
+        Ok(PreparedObjectVersion {
+            object_key: key,
+            expected_object_version: Some(layout.version),
+            candidate: pb::VersionCandidate {
+                kind: pb::VersionKind::Value as i32,
+                logical_length: layout.logical_length.max(patch_end),
+                digest: super::version_layout::digest(
+                    layout.logical_length.max(patch_end),
+                    &extents,
+                ),
+                extents,
+            },
+            replica_proofs,
+            new_replicas,
+        })
+    }
+
+    /// 为首次稀疏写或纯扩容准备候选布局。
+    ///
+    /// 该入口只在文件层使用。它不会把 `[0, logical_length)` 物化为一整块 bytes：
+    /// 用户实际写入的数据形成一个 Block，其余范围是 sparse hole。Meta 提交后读
+    /// 路径遇到 hole 直接填零。
+    fn prepare_sparse_for_filesystem(
+        &mut self,
+        key: Vec<u8>,
+        logical_length: u64,
+        offset: u64,
+        bytes: Vec<u8>,
+        operation_id: Vec<u8>,
+        expected_version: Option<u64>,
+    ) -> Result<PreparedObjectVersion, WorkerError> {
+        validate_user_key(&key)?;
+        validate_operation_id(&operation_id)?;
+        if self.metadata.is_none() {
+            return Err(WorkerError::MetadataUnavailable);
+        }
+        let patch_length = bytes.len() as u64;
+        let patch_end = offset
+            .checked_add(patch_length)
+            .ok_or(WorkerError::InvalidArgument("sparse write overflows u64"))?;
+        if patch_end > logical_length {
+            return Err(WorkerError::InvalidArgument(
+                "sparse write extends beyond declared file length",
+            ));
+        }
+
+        let mut new_replicas = Vec::new();
+        let mut extents = if patch_length == 0 {
+            super::version_layout::truncate_file(&[], 0, logical_length)?
+        } else {
+            let patch_block = block_identity(&self.node_id, &operation_id);
+            let patch_digest = digest(&bytes);
+            let owns_block = self.check_block_preparation(&patch_block)?;
+            self.arena
+                .commit_inline_with_verified_digest(
+                    patch_block.clone(),
+                    bytes,
+                    patch_digest.clone(),
+                )
+                .map_err(map_arena_error)?;
+            self.pending_blocks.insert(patch_block.clone(), owns_block);
+            new_replicas.push(pb::ReplicaReport {
+                block_id: patch_block.clone(),
+                length: patch_length,
+                checksum: patch_digest.clone(),
+                durability: pb::DurabilityPolicy::LocalMemory as i32,
+            });
+            super::version_layout::overlay_file_write(
+                &[],
+                0,
+                offset,
+                patch_length,
+                &patch_block,
+                &patch_digest,
+            )?
+        };
+        let covered = extents
+            .last()
+            .and_then(|extent| extent.logical.as_ref())
+            .and_then(|range| range.offset.checked_add(range.length))
+            .unwrap_or_default();
+        if covered < logical_length {
+            extents = super::version_layout::truncate_file(&extents, covered, logical_length)?;
+        }
+        Ok(PreparedObjectVersion {
+            object_key: key,
+            expected_object_version: expected_version,
+            candidate: pb::VersionCandidate {
+                kind: pb::VersionKind::Value as i32,
+                logical_length,
+                digest: super::version_layout::digest(logical_length, &extents),
+                extents,
+            },
+            replica_proofs: Vec::new(),
+            new_replicas,
+        })
+    }
+
+    /// 为文件缩短准备新的布局候选。
+    ///
+    /// 这里不接收 payload bytes，也不向 Arena 申请新 Block；它只把现有精确版本的
+    /// Extent 前缀裁剪到 `new_length`。Meta 提交时仍会校验每个保留 Block 的 proof，
+    /// 确认这些 bytes 已经在可达副本中存在。
+    fn prepare_truncate_for_filesystem(
+        &mut self,
+        key: Vec<u8>,
+        new_length: u64,
+        operation_id: Vec<u8>,
+        resolved: pb::ResolveObjectResponse,
+    ) -> Result<PreparedObjectVersion, WorkerError> {
+        validate_user_key(&key)?;
+        validate_operation_id(&operation_id)?;
+        if self.metadata.is_none() {
+            return Err(WorkerError::MetadataUnavailable);
+        }
+        let layout = resolved.layout.as_ref().ok_or(WorkerError::NotFound)?;
+        let extents = super::version_layout::truncate_file(
+            &layout.extents,
+            layout.logical_length,
+            new_length,
+        )?;
+        let referenced_blocks = extents
+            .iter()
+            .filter(|extent| !super::version_layout::is_hole(extent))
+            .map(|extent| extent.block_id.clone())
+            .collect::<HashSet<_>>();
+        let replica_proofs = resolved
+            .block_replicas
+            .iter()
+            .filter(|set| referenced_blocks.contains(&set.block_id))
+            .filter_map(|set| set.proofs.first().cloned())
+            .collect();
+        Ok(PreparedObjectVersion {
+            object_key: key,
+            expected_object_version: Some(layout.version),
+            candidate: pb::VersionCandidate {
+                kind: pb::VersionKind::Value as i32,
+                logical_length: new_length,
+                digest: super::version_layout::digest(new_length, &extents),
+                extents,
+            },
+            replica_proofs,
+            new_replicas: Vec::new(),
+        })
+    }
+
+    /// 为文件打洞准备保持 logical length 不变的新布局。
+    ///
+    /// 未打洞的 Extent 继续引用原 Block；目标范围变成 HOLE，因此本阶段不触碰
+    /// Arena，也不会伪造全零副本。旧 Block 何时可回收仍由既有版本生命周期决定。
+    fn prepare_punch_hole_for_filesystem(
+        &mut self,
+        key: Vec<u8>,
+        offset: u64,
+        length: u64,
+        operation_id: Vec<u8>,
+        resolved: pb::ResolveObjectResponse,
+    ) -> Result<PreparedObjectVersion, WorkerError> {
+        validate_user_key(&key)?;
+        validate_operation_id(&operation_id)?;
+        if self.metadata.is_none() {
+            return Err(WorkerError::MetadataUnavailable);
+        }
+        let layout = resolved.layout.as_ref().ok_or(WorkerError::NotFound)?;
+        let extents = super::version_layout::punch_hole_file(
+            &layout.extents,
+            layout.logical_length,
+            offset,
+            length,
+        )?;
+        let referenced_blocks = extents
+            .iter()
+            .filter(|extent| !super::version_layout::is_hole(extent))
+            .map(|extent| extent.block_id.clone())
+            .collect::<HashSet<_>>();
+        let replica_proofs = resolved
+            .block_replicas
+            .iter()
+            .filter(|set| referenced_blocks.contains(&set.block_id))
+            .filter_map(|set| set.proofs.first().cloned())
+            .collect();
+        Ok(PreparedObjectVersion {
+            object_key: key,
+            expected_object_version: Some(layout.version),
+            candidate: pb::VersionCandidate {
+                kind: pb::VersionKind::Value as i32,
+                logical_length: layout.logical_length,
+                digest: super::version_layout::digest(layout.logical_length, &extents),
+                extents,
+            },
+            replica_proofs,
+            new_replicas: Vec::new(),
+        })
+    }
+
+    fn finish_filesystem_preparation(
+        &mut self,
+        prepared: PreparedObjectVersion,
+        version: Option<u64>,
+        rejected: bool,
+    ) -> Result<(), WorkerError> {
+        for replica in &prepared.new_replicas {
+            self.finish_block_preparation(&replica.block_id, rejected);
+            if let Some(version) = version {
+                self.arena.mark_committed(&replica.block_id, version);
+            }
+        }
+        if let Some(version) = version {
+            // Meta 的 object + inode 提交不会通过普通 KV 写路径回填本地 Current。
+            // 先撤销旧对象解析；文件热读随后使用同一提交返回的 ResolvedInode 回填。
+            self.broadcast_invalidation(prepared.object_key, version);
+        }
+        Ok(())
+    }
+
+    #[cfg(test)]
+    fn delete_for_data_core(
+        &mut self,
+        key: Vec<u8>,
+        operation_id: Vec<u8>,
+    ) -> Result<PreparedWrite<DeleteOutcome>, WorkerError> {
+        validate_user_key(&key)?;
+        validate_operation_id(&operation_id)?;
+        let metadata = self
+            .metadata
+            .clone()
+            .ok_or(WorkerError::MetadataUnavailable)?;
+        Ok(Box::pin(async move {
+            let committed = metadata.commit_delete(key.clone(), operation_id).await;
+            Box::new(move |state: &mut NodeState| {
+                let committed = committed.map_err(map_metadata_error)?;
+                let barrier_id = committed
+                    .changed
+                    .then(|| state.broadcast_invalidation(key, committed.version))
+                    .flatten();
+                Ok(DeleteOutcome {
+                    deleted: committed.changed,
+                    version: committed.version,
+                    barrier_id,
+                })
+            }) as WriteCompletion<DeleteOutcome>
+        }))
     }
 
     fn commit_block(
@@ -3892,6 +6041,84 @@ impl NodeState {
         Ok((token, outcome))
     }
 
+    /// DataCore/进程内子系统复用 Node CurrentCache，但不创建 KV Session。
+    ///
+    /// 这条路径只依赖 Node 与 Meta 之间的 Watch/Lease：Watch 断开或租约过期时
+    /// 直接 miss 并清理缓存；ExactVersion 只有在当前缓存版本刚好相等时机会性
+    /// 复用，否则仍由上层向 Meta 做固定版本解析。这里不登记 Client cache
+    /// interest，因为进程内子系统的缓存一致性由同一个 Node owner 维护。
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "DataCore cache lookup carries range/output ownership explicitly to avoid hidden session state"
+    )]
+    fn get_cached_for_data_core(
+        &mut self,
+        read_scope_id: u64,
+        key: &[u8],
+        node_epoch: u64,
+        exact_version: Option<u64>,
+        range: Option<(u64, u64)>,
+        clamp_range: bool,
+        output: Vec<u8>,
+    ) -> Result<DataCoreCachedRead, WorkerError> {
+        validate_user_key(key)?;
+        let now = Instant::now();
+        if !self.metadata_watch_connected || now >= self.metadata_lease_until {
+            self.current_cache.clear();
+            self.metrics.set_current_cache_charge(0);
+            self.metrics.record_current_cache_lookup(false);
+            return Ok((None, DataCoreCachedReadOutcome::Miss { output }));
+        }
+        let token = self.current_cache.token();
+        let charged_before_lookup = self.current_cache.charged();
+        let cached = self.current_cache.get(key, node_epoch, now);
+        if self.current_cache.charged() != charged_before_lookup {
+            self.metrics
+                .set_current_cache_charge(self.current_cache.charged());
+        }
+        let outcome = if let Some(cached) = cached
+            .filter(|cached| exact_version.is_none_or(|version| cached.layout.version == version))
+        {
+            let resolved = pb::ResolveObjectResponse {
+                layout: Some((*cached.layout).clone()),
+                block_replicas: (*cached.block_replicas).clone(),
+                current_lease: None,
+            };
+            match self.materialize_resolved_into_for_data_core(
+                read_scope_id,
+                &resolved,
+                range,
+                clamp_range,
+                output,
+                None,
+            )? {
+                DataCoreMaterializeOutcome::Ready(result) => {
+                    DataCoreCachedReadOutcome::Ready(result)
+                }
+                DataCoreMaterializeOutcome::BufferTooSmall { version, required } => {
+                    DataCoreCachedReadOutcome::BufferTooSmall { version, required }
+                }
+                DataCoreMaterializeOutcome::NeedsRemoteBlocks { specs, output } => {
+                    DataCoreCachedReadOutcome::NeedsRemoteBlocks {
+                        resolved,
+                        specs,
+                        output,
+                    }
+                }
+                DataCoreMaterializeOutcome::NotFound => DataCoreCachedReadOutcome::NotFound,
+            }
+        } else {
+            DataCoreCachedReadOutcome::Miss { output }
+        };
+        self.metrics.record_current_cache_lookup(!matches!(
+            outcome,
+            DataCoreCachedReadOutcome::Miss { .. }
+        ));
+        self.metrics
+            .set_current_cache_charge(self.current_cache.charged());
+        Ok((token, outcome))
+    }
+
     #[cfg(test)]
     fn get_resolved(
         &mut self,
@@ -3977,6 +6204,13 @@ impl NodeState {
             if start >= end {
                 continue;
             }
+            if super::version_layout::is_hole(extent) {
+                planned.push(PlannedReadPart::Zero {
+                    logical_offset: start - requested.0,
+                    length: end - start,
+                });
+                continue;
+            }
             if self.retirement_blocks_new_reads(&extent.block_id, read_scope_id) {
                 return Err(WorkerError::NotFound);
             }
@@ -3996,7 +6230,10 @@ impl NodeState {
                 self.arena.open_read(&extent.block_id, Some(block_range))
             };
             match local {
-                Ok((read, _)) => planned.push((start - requested.0, read)),
+                Ok((read, _)) => planned.push(PlannedReadPart::Block {
+                    logical_offset: start - requested.0,
+                    read,
+                }),
                 Err(ArenaError::UnknownBlock) => {
                     if !missing
                         .iter()
@@ -4036,39 +6273,54 @@ impl NodeState {
         }
         let mut segments = Vec::with_capacity(planned.len());
         let mut view_allocations = Vec::new();
-        for (logical_offset, read) in planned {
-            let payload_length = read.length;
-            let target = if shared_memory {
-                let transfer_id = self.next_transfer;
-                self.next_transfer += 1;
-                match self
-                    .arena
-                    .shm_descriptor_for_read(session_id, read, transfer_id, view_epoch)
-                    .map_err(map_arena_error)?
-                {
-                    Some(descriptor) => {
-                        view_allocations.push(descriptor.allocation_id);
-                        ReadTarget::Shm(descriptor)
-                    }
-                    None => {
+        for part in planned {
+            match part {
+                PlannedReadPart::Zero {
+                    logical_offset,
+                    length,
+                } => segments.push(ReadTicketSegment {
+                    logical_offset,
+                    target: ReadTarget::Zero { length },
+                    payload_length: length,
+                }),
+                PlannedReadPart::Block {
+                    logical_offset,
+                    read,
+                } => {
+                    let payload_length = read.length;
+                    let target = if shared_memory {
+                        let transfer_id = self.next_transfer;
+                        self.next_transfer += 1;
+                        match self
+                            .arena
+                            .shm_descriptor_for_read(session_id, read, transfer_id, view_epoch)
+                            .map_err(map_arena_error)?
+                        {
+                            Some(descriptor) => {
+                                view_allocations.push(descriptor.allocation_id);
+                                ReadTarget::Shm(descriptor)
+                            }
+                            None => {
+                                validate_grpc_payload_bytes(payload_length)?;
+                                self.grpc_download_target_with_id(
+                                    session_id,
+                                    read,
+                                    transfer_id,
+                                    read_request_id,
+                                )
+                            }
+                        }
+                    } else {
                         validate_grpc_payload_bytes(payload_length)?;
-                        self.grpc_download_target_with_id(
-                            session_id,
-                            read,
-                            transfer_id,
-                            read_request_id,
-                        )
-                    }
+                        self.grpc_download_target(session_id, read, read_request_id)
+                    };
+                    segments.push(ReadTicketSegment {
+                        logical_offset,
+                        target,
+                        payload_length,
+                    });
                 }
-            } else {
-                validate_grpc_payload_bytes(payload_length)?;
-                self.grpc_download_target(session_id, read, read_request_id)
-            };
-            segments.push(ReadTicketSegment {
-                logical_offset,
-                target,
-                payload_length,
-            });
+            }
         }
         // 只有真正返回 SHM 借用才消耗序号。TCP/内联、空范围，以及构造票据
         // 失败都不能制造 Client 永远收不到的 epoch 空洞。此段在唯一 owner 内。
@@ -4134,7 +6386,7 @@ impl NodeState {
         requested_length: u64,
         shared_memory: bool,
         max_inline_bytes: u64,
-        planned: &[(u64, ArenaReadTicket)],
+        planned: &[PlannedReadPart],
     ) -> Result<Option<Vec<u8>>, WorkerError> {
         let inline_limit = max_inline_bytes.min(dms_protocol::MAX_INLINE_READ_BYTES);
         if shared_memory || inline_limit == 0 || requested_length > inline_limit {
@@ -4143,21 +6395,43 @@ impl NodeState {
         let capacity =
             usize::try_from(requested_length).map_err(|_| WorkerError::ResourceExhausted)?;
         let mut ordered = planned.to_vec();
-        ordered.sort_by_key(|(logical_offset, _)| *logical_offset);
+        ordered.sort_by_key(|part| match part {
+            PlannedReadPart::Block { logical_offset, .. }
+            | PlannedReadPart::Zero { logical_offset, .. } => *logical_offset,
+        });
         let mut bytes = Vec::with_capacity(capacity);
         let mut cursor = 0_u64;
-        for (logical_offset, read) in ordered {
+        for part in ordered {
+            let (logical_offset, length) = match &part {
+                PlannedReadPart::Block {
+                    logical_offset,
+                    read,
+                } => (*logical_offset, read.length),
+                PlannedReadPart::Zero {
+                    logical_offset,
+                    length,
+                } => (*logical_offset, *length),
+            };
             if logical_offset != cursor {
                 return Err(WorkerError::InvalidArgument(
                     "layout extents contain a gap or overlap",
                 ));
             }
-            let part = self.arena.read_ticket(read).map_err(map_arena_error)?;
             cursor = cursor
-                .checked_add(part.len() as u64)
+                .checked_add(length)
                 .filter(|next| *next <= requested_length)
                 .ok_or(WorkerError::ResourceExhausted)?;
-            bytes.extend_from_slice(&part);
+            match part {
+                PlannedReadPart::Block { read, .. } => {
+                    let part = self.arena.read_ticket(read).map_err(map_arena_error)?;
+                    bytes.extend_from_slice(&part);
+                }
+                PlannedReadPart::Zero { length, .. } => {
+                    let zero_len =
+                        usize::try_from(length).map_err(|_| WorkerError::ResourceExhausted)?;
+                    bytes.resize(bytes.len() + zero_len, 0);
+                }
+            }
         }
         if cursor != requested_length {
             return Err(WorkerError::InvalidArgument(
@@ -4182,6 +6456,13 @@ impl NodeState {
             let logical = extent.logical.as_ref().ok_or(WorkerError::InvalidArgument(
                 "extent logical range is missing",
             ))?;
+            if super::version_layout::is_hole(extent) {
+                planned.push(PlannedReadPart::Zero {
+                    logical_offset: logical.offset,
+                    length: logical.length,
+                });
+                continue;
+            }
             if self.retirement_blocks_new_reads(&extent.block_id, read_scope_id) {
                 return Err(WorkerError::NotFound);
             }
@@ -4197,7 +6478,10 @@ impl NodeState {
                 )
             };
             match local {
-                Ok((read, _)) => planned.push((logical.offset, read)),
+                Ok((read, _)) => planned.push(PlannedReadPart::Block {
+                    logical_offset: logical.offset,
+                    read,
+                }),
                 Err(ArenaError::UnknownBlock) => {
                     if !missing
                         .iter()
@@ -4213,22 +6497,35 @@ impl NodeState {
         if !missing.is_empty() {
             return Ok(MaterializeOutcome::NeedsRemoteBlocks(missing));
         }
-        planned.sort_by_key(|(offset, _)| *offset);
+        planned.sort_by_key(planned_read_part_offset);
         let capacity =
             usize::try_from(layout.logical_length).map_err(|_| WorkerError::ResourceExhausted)?;
         let mut bytes = Vec::with_capacity(capacity);
         let mut expected_offset = 0_u64;
-        for (offset, ticket) in planned {
+        for part in planned {
+            let offset = planned_read_part_offset(&part);
             if offset != expected_offset {
                 return Err(WorkerError::InvalidArgument(
                     "layout extents contain a gap or overlap",
                 ));
             }
-            let part = self.arena.read_ticket(ticket).map_err(map_arena_error)?;
-            expected_offset = expected_offset
-                .checked_add(part.len() as u64)
-                .ok_or(WorkerError::ResourceExhausted)?;
-            bytes.extend_from_slice(&part);
+            match part {
+                PlannedReadPart::Zero { length, .. } => {
+                    let zero_len =
+                        usize::try_from(length).map_err(|_| WorkerError::ResourceExhausted)?;
+                    expected_offset = expected_offset
+                        .checked_add(length)
+                        .ok_or(WorkerError::ResourceExhausted)?;
+                    bytes.resize(bytes.len() + zero_len, 0);
+                }
+                PlannedReadPart::Block { read, .. } => {
+                    let part = self.arena.read_ticket(read).map_err(map_arena_error)?;
+                    expected_offset = expected_offset
+                        .checked_add(part.len() as u64)
+                        .ok_or(WorkerError::ResourceExhausted)?;
+                    bytes.extend_from_slice(&part);
+                }
+            }
         }
         if expected_offset != layout.logical_length {
             return Err(WorkerError::InvalidArgument(
@@ -4239,6 +6536,157 @@ impl NodeState {
             version: layout.version,
             bytes,
         })
+    }
+
+    fn materialize_resolved_into_for_data_core(
+        &mut self,
+        read_scope_id: u64,
+        resolved: &pb::ResolveObjectResponse,
+        range: Option<(u64, u64)>,
+        clamp_range: bool,
+        mut output: Vec<u8>,
+        cache_refill: Option<(u64, Vec<u8>, Instant, u64)>,
+    ) -> Result<DataCoreMaterializeOutcome, WorkerError> {
+        let Some(layout) = resolved.layout.as_ref() else {
+            return Ok(DataCoreMaterializeOutcome::NotFound);
+        };
+        super::version_layout::validate(layout.logical_length, &layout.extents)?;
+        let requested = Self::normalize_read_range(range, layout.logical_length, clamp_range)?;
+        let required = usize::try_from(requested.1).map_err(|_| WorkerError::ResourceExhausted)?;
+        if required > output.len() {
+            return Ok(DataCoreMaterializeOutcome::BufferTooSmall {
+                version: layout.version,
+                required,
+            });
+        }
+        let request_end = requested
+            .0
+            .checked_add(requested.1)
+            .ok_or(WorkerError::InvalidArgument("read range overflows u64"))?;
+        let mut missing = Vec::new();
+        let mut planned = Vec::new();
+        for extent in &layout.extents {
+            let logical = extent.logical.as_ref().ok_or(WorkerError::InvalidArgument(
+                "extent logical range is missing",
+            ))?;
+            let extent_end = logical
+                .offset
+                .checked_add(logical.length)
+                .ok_or(WorkerError::InvalidArgument("extent range overflows u64"))?;
+            let start = requested.0.max(logical.offset);
+            let end = request_end.min(extent_end);
+            if start >= end {
+                continue;
+            }
+            if super::version_layout::is_hole(extent) {
+                planned.push(PlannedReadPart::Zero {
+                    logical_offset: start - requested.0,
+                    length: end - start,
+                });
+                continue;
+            }
+            if self.retirement_blocks_new_reads(&extent.block_id, read_scope_id) {
+                return Err(WorkerError::NotFound);
+            }
+            if let Some(failure) = self.peer_import_failure(&extent.block_id, read_scope_id) {
+                return Err(failure.error.clone());
+            }
+            let block_offset = extent
+                .block_offset
+                .checked_add(start - logical.offset)
+                .ok_or(WorkerError::InvalidArgument("block range overflows u64"))?;
+            let block_range = (block_offset, end - start);
+            let local = if self.peer_imports.contains_key(&extent.block_id) {
+                Err(ArenaError::UnknownBlock)
+            } else {
+                self.arena.open_read(&extent.block_id, Some(block_range))
+            };
+            match local {
+                Ok((read, _)) => planned.push(PlannedReadPart::Block {
+                    logical_offset: start - requested.0,
+                    read,
+                }),
+                Err(ArenaError::UnknownBlock) => {
+                    if !missing
+                        .iter()
+                        .any(|item: &PeerPullSpec| item.block_id == extent.block_id)
+                    {
+                        missing
+                            .push(self.describe_missing_block(&resolved.block_replicas, extent)?);
+                    }
+                }
+                Err(error) => return Err(map_arena_error(error)),
+            }
+        }
+        if !missing.is_empty() {
+            return Ok(DataCoreMaterializeOutcome::NeedsRemoteBlocks {
+                specs: missing,
+                output,
+            });
+        }
+        if requested.1 > 0 && planned.is_empty() {
+            return Ok(DataCoreMaterializeOutcome::NotFound);
+        }
+        planned.sort_by_key(planned_read_part_offset);
+        let mut cursor = 0_u64;
+        for part in planned {
+            let offset = planned_read_part_offset(&part);
+            if offset != cursor {
+                return Err(WorkerError::InvalidArgument(
+                    "layout extents contain a gap or overlap",
+                ));
+            }
+            let start = usize::try_from(cursor).map_err(|_| WorkerError::ResourceExhausted)?;
+            match part {
+                PlannedReadPart::Zero { length, .. } => {
+                    let length_usize =
+                        usize::try_from(length).map_err(|_| WorkerError::ResourceExhausted)?;
+                    let end = start
+                        .checked_add(length_usize)
+                        .ok_or(WorkerError::ResourceExhausted)?;
+                    output[start..end].fill(0);
+                    cursor = cursor
+                        .checked_add(length)
+                        .ok_or(WorkerError::ResourceExhausted)?;
+                }
+                PlannedReadPart::Block { read, .. } => {
+                    let written = self
+                        .arena
+                        .read_ticket_into(read, &mut output[start..])
+                        .map_err(map_arena_error)?;
+                    cursor = cursor
+                        .checked_add(written as u64)
+                        .ok_or(WorkerError::ResourceExhausted)?;
+                }
+            }
+        }
+        if cursor != requested.1 {
+            return Err(WorkerError::InvalidArgument(
+                "layout extents do not cover requested range",
+            ));
+        }
+        if self.metadata_watch_connected
+            && Instant::now() < self.metadata_lease_until
+            && !self.layout_contains_retiring_block(resolved)
+            && let Some((token, key, requested_at, node_epoch)) = cache_refill
+        {
+            self.current_cache.insert(
+                token,
+                key,
+                resolved,
+                requested_at,
+                node_epoch,
+                Instant::now(),
+            );
+            self.metrics
+                .set_current_cache_charge(self.current_cache.charged());
+        }
+        Ok(DataCoreMaterializeOutcome::Ready(DataCoreReadIntoResult {
+            version: layout.version,
+            logical_length: layout.logical_length,
+            bytes: output,
+            bytes_read: usize::try_from(cursor).map_err(|_| WorkerError::ResourceExhausted)?,
+        }))
     }
 
     fn grpc_download_target(
@@ -4688,6 +7136,10 @@ impl NodeState {
 
     fn begin_read_scope(&mut self, session_id: u64) -> Result<u64, WorkerError> {
         self.live_session(session_id)?;
+        self.begin_read_scope_unchecked()
+    }
+
+    fn begin_read_scope_unchecked(&mut self) -> Result<u64, WorkerError> {
         let scope_id = self.next_read_scope;
         self.next_read_scope = self
             .next_read_scope
@@ -4712,6 +7164,26 @@ impl NodeState {
                     // Caller was cancelled after scope allocation but before
                     // receiving the id; undo immediately so Prepare cannot
                     // wait forever on an unobservable scope.
+                    self.finish_read_scope(scope_id);
+                }
+            }
+            Err(error) => {
+                let _ = reply.send(Err(error));
+            }
+        }
+    }
+
+    fn begin_data_core_read_scope_reply(
+        &mut self,
+        cleanup_node: NodeHandle,
+        reply: oneshot::Sender<Result<ReadScopeLease, WorkerError>>,
+    ) {
+        match self.begin_read_scope_unchecked() {
+            Ok(scope_id) => {
+                if reply
+                    .send(Ok(ReadScopeLease::new(cleanup_node, scope_id)))
+                    .is_err()
+                {
                     self.finish_read_scope(scope_id);
                 }
             }
@@ -5110,6 +7582,7 @@ impl NodeState {
                     block_id: block_id.clone(),
                     block_offset: 0,
                     digest: checksum.clone(),
+                    kind: pb::ExtentKind::Data as i32,
                 }],
                 vec![pb::BlockReplicaSet {
                     block_id: block_id.clone(),
@@ -5471,7 +7944,9 @@ fn map_arena_error(error: ArenaError) -> WorkerError {
     match error {
         ArenaError::UnknownTransfer => WorkerError::UnknownTransfer,
         ArenaError::UnknownStaging => WorkerError::UnknownStaging,
-        ArenaError::StagingNotWritable | ArenaError::ReceiptConflict => WorkerError::Conflict,
+        ArenaError::StagingNotWritable
+        | ArenaError::ReceiptConflict
+        | ArenaError::ReservationConflict => WorkerError::Conflict,
         ArenaError::StaleHandle | ArenaError::UnknownRegion => WorkerError::ArenaStaleHandle,
         ArenaError::SharedMemoryUnavailable => WorkerError::ArenaShmUnavailable,
         ArenaError::RegionAccessDenied => WorkerError::ArenaAccessDenied,
@@ -5482,7 +7957,7 @@ fn map_arena_error(error: ArenaError) -> WorkerError {
         )),
         ArenaError::CapacityExhausted => WorkerError::ResourceExhausted,
         ArenaError::EmptyPayload => WorkerError::ArenaInvalidRequest,
-        ArenaError::UnknownBlock => WorkerError::NotFound,
+        ArenaError::UnknownBlock | ArenaError::UnknownReservation => WorkerError::NotFound,
         ArenaError::LengthMismatch | ArenaError::RangeOutOfBounds | ArenaError::RegionOverflow => {
             WorkerError::ArenaInvalidRequest
         }
@@ -5910,11 +8385,83 @@ mod tests {
         let transfer_id = match target {
             ReadTarget::Grpc { transfer_id } => transfer_id,
             ReadTarget::Shm(_) => panic!("test uses non-SHM download ticket"),
+            ReadTarget::Zero { .. } => panic!("test uses non-zero download ticket"),
         };
         assert_peer_import_metrics(&registry, 0, 0, 0, 1);
 
         assert_eq!(state.download(transfer_id).unwrap(), b"local".to_vec());
         assert_peer_import_metrics(&registry, 0, 0, 0, 0);
+    }
+
+    #[test]
+    fn filesystem_inode_reference_lifecycle_updates_state_and_metrics() {
+        let registry = dms_metrics::registry();
+        let metrics = NodeMetrics::register(&registry).expect("node metrics");
+        let mut state = NodeState::with_metrics(
+            "node-a".into(),
+            None,
+            NodeTaskConfig {
+                arena_capacity_bytes: 4096,
+                region_size_bytes: crate::config::DEFAULT_REGION_SIZE_BYTES,
+                staging_ttl: Duration::from_secs(30),
+                client_cache_lease_ttl: CLIENT_CACHE_LEASE_TTL,
+                node_current_cache_bytes: crate::config::DEFAULT_NODE_CURRENT_CACHE_BYTES,
+                node_current_cache_ttl: Duration::from_millis(
+                    crate::config::DEFAULT_NODE_CURRENT_CACHE_TTL_MILLIS,
+                ),
+                shared_fd_broker: None,
+                log_level: LevelController::new(slog::Level::Info),
+                trace_periodic_operations: false,
+            },
+            metrics,
+        );
+        let inode = 42;
+
+        let generation = state
+            .acquire_filesystem_inode_reference_local(inode)
+            .expect("first local holder establishes a Meta generation");
+        assert_eq!(state.acquire_filesystem_inode_reference_local(inode), None);
+        assert_eq!(
+            state
+                .filesystem_inode_references
+                .get(&inode)
+                .map(|reference| (reference.count, reference.generation)),
+            Some((2, generation))
+        );
+
+        assert_eq!(
+            state.release_filesystem_inode_reference_local(inode, 1),
+            None
+        );
+        assert_eq!(
+            state.release_filesystem_inode_reference_local(inode, 1),
+            Some((generation, false))
+        );
+        assert!(!state.filesystem_inode_references.contains_key(&inode));
+
+        let orphan_generation = state
+            .acquire_filesystem_inode_reference_local(inode)
+            .expect("new local holder establishes a new generation");
+        state.mark_filesystem_inode_orphan(inode);
+        assert_eq!(
+            state.release_filesystem_inode_reference_local(inode, 1),
+            Some((orphan_generation, true)),
+            "已知 orphan 的最后一个引用必须要求立即通知 Meta"
+        );
+
+        let text = dms_metrics::encode_text(&registry).expect("encode metrics");
+        for expected in [
+            "dms_node_filesystem_inode_references 0",
+            "dms_node_filesystem_inode_reference_transitions_total{transition=\"acquire\"} 2",
+            "dms_node_filesystem_inode_reference_transitions_total{transition=\"retain\"} 1",
+            "dms_node_filesystem_inode_reference_transitions_total{transition=\"release_partial\"} 1",
+            "dms_node_filesystem_inode_reference_transitions_total{transition=\"release_final\"} 2",
+        ] {
+            assert!(
+                text.contains(expected),
+                "missing metric: {expected}\n{text}"
+            );
+        }
     }
 
     fn assert_peer_import_metrics(
@@ -6107,6 +8654,20 @@ mod tests {
             block_id: block_id.to_vec(),
             block_offset,
             digest: block_id.to_vec(),
+            kind: pb::ExtentKind::Data as i32,
+        }
+    }
+
+    fn test_hole_extent(logical_offset: u64, length: u64) -> pb::ExtentRecord {
+        pb::ExtentRecord {
+            logical: Some(pb::ByteRange {
+                offset: logical_offset,
+                length,
+            }),
+            block_id: Vec::new(),
+            block_offset: 0,
+            digest: Vec::new(),
+            kind: pb::ExtentKind::Hole as i32,
         }
     }
 
@@ -6280,9 +8841,10 @@ mod tests {
                 .await
                 .unwrap();
         });
-        let metadata = MetadataClient::connect(&endpoint, 7, "http://127.0.0.1:19007".into(), None)
-            .await
-            .unwrap();
+        let metadata =
+            MetadataClient::connect(&endpoint, 7, "http://127.0.0.1:19007".into(), None, false)
+                .await
+                .unwrap();
         let mut state = NodeState::new(
             "n".into(),
             Some(metadata.clone()),
@@ -6355,9 +8917,10 @@ mod tests {
                 .await
                 .unwrap();
         });
-        let metadata = MetadataClient::connect(&endpoint, 7, "http://127.0.0.1:19007".into(), None)
-            .await
-            .unwrap();
+        let metadata =
+            MetadataClient::connect(&endpoint, 7, "http://127.0.0.1:19007".into(), None, false)
+                .await
+                .unwrap();
         let mut state = NodeState::new(
             "n".into(),
             Some(metadata),
@@ -6549,6 +9112,83 @@ mod tests {
                 .get(b"key-a", 42, Instant::now())
                 .is_none(),
             "Meta watch 断线后不能继续命中 Node 本地 Current cache"
+        );
+    }
+
+    #[test]
+    fn metadata_watch_reset_clears_filesystem_grant_caches() {
+        let mut state = NodeState::new("n".into(), None, 4096, Duration::from_secs(30), None);
+        let now = Instant::now();
+        let grant = crate::filesystem::CacheGrant {
+            generation: 3,
+            lease_millis: 5_000,
+        };
+        let attrs = crate::filesystem::InodeAttributes {
+            inode: 9,
+            kind: crate::filesystem::InodeKind::RegularFile,
+            mode: 0o644,
+            uid: 0,
+            gid: 0,
+            link_count: 1,
+            size: 0,
+            atime_unix_nanos: 0,
+            mtime_unix_nanos: 0,
+            ctime_unix_nanos: 0,
+        };
+        state.filesystem_bindings.insert(
+            crate::filesystem::ResolvedInode {
+                granted: crate::filesystem::GrantedInode {
+                    inode: crate::filesystem::InodeSnapshot {
+                        revision: 2,
+                        attributes: attrs.clone(),
+                        content: None,
+                        reservations: Vec::new(),
+                    },
+                    grant,
+                },
+                object: None,
+            },
+            now,
+        );
+        state.filesystem_dentries.insert_directory_page(
+            None,
+            crate::filesystem::DirectoryPage {
+                directory: crate::filesystem::ROOT_INODE,
+                parent: crate::filesystem::ROOT_INODE,
+                grant: crate::filesystem::DirectoryGrant {
+                    directory_revision: 2,
+                    grant,
+                },
+                entries: vec![crate::filesystem::DirectoryEntry {
+                    dentry: crate::filesystem::DentrySnapshot {
+                        parent: crate::filesystem::ROOT_INODE,
+                        name: b"a.txt".to_vec(),
+                        inode: 9,
+                        directory_revision: 2,
+                    },
+                    attributes: attrs,
+                }],
+                next_cursor: None,
+            },
+            now,
+        );
+
+        assert!(state.filesystem_bindings.get_authorized(9, now).is_some());
+        assert!(
+            state
+                .filesystem_dentries
+                .directory_page(crate::filesystem::ROOT_INODE, None, Some(2), now)
+                .is_some()
+        );
+
+        state.reset_current_cache_for_watch(false);
+
+        assert!(state.filesystem_bindings.get_authorized(9, now).is_none());
+        assert!(
+            state
+                .filesystem_dentries
+                .directory_page(crate::filesystem::ROOT_INODE, None, Some(2), now)
+                .is_none()
         );
     }
 
@@ -6782,6 +9422,7 @@ mod tests {
                 id,
                 format!("http://127.0.0.1:{}", 19000 + id),
                 None,
+                false,
             )
             .await
             .unwrap();
@@ -7213,6 +9854,72 @@ mod tests {
         assert_eq!(ticket.inline_value.as_deref(), Some(b"abc".as_slice()));
         assert!(ticket.segments.is_empty());
         assert!(state.downloads.is_empty());
+    }
+
+    #[test]
+    fn get_resolved_inline_materializes_sparse_hole_as_zero_bytes() {
+        let mut state = NodeState::new("node-a".into(), None, 4096, Duration::from_secs(30), None);
+        let session = state.open_session(false);
+        state
+            .arena
+            .commit_inline(b"block-1".to_vec(), b"abc".to_vec())
+            .expect("commit block");
+        let resolved = resolved_value(
+            9,
+            6,
+            vec![
+                test_hole_extent(0, 2),
+                test_extent(2, 3, b"block-1", 0),
+                test_hole_extent(5, 1),
+            ],
+        );
+
+        let ticket = match state
+            .get_resolved(session, &resolved, None, 6)
+            .expect("get resolved")
+        {
+            GetOutcome::Ready(ticket) => ticket,
+            GetOutcome::NeedsRemoteBlocks(_) => panic!("block is local"),
+        };
+
+        assert_eq!(
+            ticket.inline_value.as_deref(),
+            Some(b"\0\0abc\0".as_slice())
+        );
+        assert!(ticket.segments.is_empty());
+        assert!(state.downloads.is_empty());
+    }
+
+    #[test]
+    fn get_resolved_non_inline_returns_zero_segments_without_download_tickets() {
+        let mut state = NodeState::new("node-a".into(), None, 4096, Duration::from_secs(30), None);
+        let session = state.open_session(false);
+        state
+            .arena
+            .commit_inline(b"block-1".to_vec(), b"abc".to_vec())
+            .expect("commit block");
+        let resolved = resolved_value(
+            10,
+            5,
+            vec![test_hole_extent(0, 2), test_extent(2, 3, b"block-1", 0)],
+        );
+
+        let ticket = match state
+            .get_resolved(session, &resolved, None, 0)
+            .expect("get resolved")
+        {
+            GetOutcome::Ready(ticket) => ticket,
+            GetOutcome::NeedsRemoteBlocks(_) => panic!("block is local"),
+        };
+
+        assert_eq!(ticket.inline_value, None);
+        assert_eq!(ticket.segments.len(), 2);
+        assert!(matches!(
+            ticket.segments[0].target,
+            ReadTarget::Zero { length: 2 }
+        ));
+        assert!(matches!(ticket.segments[1].target, ReadTarget::Grpc { .. }));
+        assert_eq!(state.downloads.len(), 1);
     }
 
     #[test]
@@ -7751,6 +10458,7 @@ mod tests {
         let transfer_id = match &ticket.segments[0].target {
             ReadTarget::Grpc { transfer_id } => *transfer_id,
             ReadTarget::Shm(_) => panic!("expected TCP ticket"),
+            ReadTarget::Zero { .. } => panic!("expected data ticket"),
         };
         let (prepare_tx, mut prepare_rx) = oneshot::channel();
         state.register_prepare_retirement(
@@ -7907,6 +10615,7 @@ mod tests {
         let transfer_id = match &ticket.segments[0].target {
             ReadTarget::Grpc { transfer_id } => *transfer_id,
             ReadTarget::Shm(_) => panic!("expected TCP ticket"),
+            ReadTarget::Zero { .. } => panic!("expected data ticket"),
         };
 
         assert!(

@@ -14,7 +14,7 @@ fi
 source "${CONFIG_FILE}"
 
 BIN_DIR="${DMS_HOME}/bin"
-RUN_DIR="${DMS_HOME}/run"
+RUN_DIR="${DMS_RUN_DIR:-${DMS_HOME}/run}"
 LOG_DIR="${DMS_HOME}/log"
 DATA_DIR="${DMS_HOME}/data"
 mkdir -p "${RUN_DIR}" "${LOG_DIR}" "${DATA_DIR}/meta-journal"
@@ -104,6 +104,11 @@ stop_component() {
     echo "${name}: pid ${pid} 在 TERM 后仍存活；保留 ${file}，未强杀，请人工排查" >&2
     return 1
   fi
+  if [[ "${name}" == "node" && -n "${DMS_FUSE_MOUNTPOINT:-}" ]]; then
+    fusermount3 -uz "${DMS_FUSE_MOUNTPOINT}" 2>/dev/null \
+      || umount -l "${DMS_FUSE_MOUNTPOINT}" 2>/dev/null \
+      || true
+  fi
   rm -f "${file}"
 }
 
@@ -131,6 +136,16 @@ start_meta() {
 
 start_node() {
   ensure_not_running node
+  local fuse_args=()
+  if [[ -n "${DMS_FUSE_MOUNTPOINT:-}" ]]; then
+    if [[ ! -r /etc/fuse.conf ]] || ! grep -Eq '^[[:space:]]*user_allow_other([[:space:]]|$)' /etc/fuse.conf; then
+      echo "node: DMS_FUSE_MOUNTPOINT requires 'user_allow_other' in /etc/fuse.conf" >&2
+      echo "node: configure it once as root, then retry: echo user_allow_other | sudo tee -a /etc/fuse.conf" >&2
+      return 1
+    fi
+    mkdir -p "${DMS_FUSE_MOUNTPOINT}"
+    fuse_args=(--fuse-mountpoint "${DMS_FUSE_MOUNTPOINT}")
+  fi
   nohup "${BIN_DIR}/dms-node" serve \
     --node-id "${DMS_NODE_ID}" \
     --health-address "${DMS_NODE_STATUS_BIND}" \
@@ -149,9 +164,21 @@ start_node() {
     --tracing-periodic-operations "${DMS_TRACING_PERIODIC_OPERATIONS:-false}" \
     --tracing-otlp-endpoint "${DMS_TRACING_OTLP_ENDPOINT}" \
     --tracing-sample-ratio "${DMS_TRACING_SAMPLE_RATIO}" \
+    "${fuse_args[@]}" \
     >/dev/null 2>"${LOG_DIR}/dms-node.fallback.log" &
   echo "$!" >"$(pid_file node)"
   wait_ready node
+  if [[ -n "${DMS_FUSE_MOUNTPOINT:-}" ]]; then
+    for _ in $(seq 1 50); do
+      if mountpoint -q "${DMS_FUSE_MOUNTPOINT}"; then
+        echo "node: fuse mounted at ${DMS_FUSE_MOUNTPOINT}"
+        return 0
+      fi
+      sleep 0.1
+    done
+    echo "node: ready but FUSE mount did not appear at ${DMS_FUSE_MOUNTPOINT}" >&2
+    return 1
+  fi
 }
 
 start_client() {

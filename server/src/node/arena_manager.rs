@@ -48,6 +48,22 @@ pub(crate) enum ArenaError {
     UnknownRegion,
     SharedMemoryUnavailable,
     RegionAccessDenied,
+    UnknownReservation,
+    ReservationConflict,
+}
+
+/// 一次 reservation 扣减的可逆凭证。只有 Meta 明确拒绝提交时才恢复；
+/// 未知提交结果必须保留扣减，避免同一容量同时承诺给两个文件版本。
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct ReservationConsumption {
+    pub(crate) reservation_id: Vec<u8>,
+    pub(crate) length: u64,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct ArenaReservation {
+    logical_total: u64,
+    logical_remaining: u64,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -248,6 +264,8 @@ pub(crate) struct ArenaStats {
     pub(crate) block_count: usize,
     pub(crate) reclaim_count: u64,
     pub(crate) quarantined_bytes: u64,
+    pub(crate) reserved_bytes: u64,
+    pub(crate) reservation_count: usize,
 }
 
 /// Runtime Host-memory owner used by the Node actor.
@@ -280,6 +298,8 @@ pub(crate) struct ArenaManager {
     // allocation id 索引同时验证旧 ticket，避免每次 range read 扫描对象表。
     live_allocations: HashMap<u64, AllocationHandle>,
     write_exports: HashMap<u64, WriteExportLease>,
+    reservations: HashMap<Vec<u8>, ArenaReservation>,
+    reserved_bytes: u64,
     quarantined_bytes: u64,
     #[cfg(test)]
     fail_next_region_creation: bool,
@@ -360,6 +380,8 @@ impl ArenaManager {
             blocks: HashMap::new(),
             live_allocations: HashMap::new(),
             write_exports: HashMap::new(),
+            reservations: HashMap::new(),
+            reserved_bytes: 0,
             quarantined_bytes: 0,
             #[cfg(test)]
             fail_next_region_creation: false,
@@ -378,6 +400,111 @@ impl ArenaManager {
 
     pub(crate) fn shared_region_enabled(&self) -> bool {
         self.shared_fd_broker.is_some()
+    }
+
+    /// 为未来 DATA 保留 Arena 容量。相同 id 与长度的重试幂等；不同长度说明调用方
+    /// 复用了 operation identity，必须拒绝而不是扩大或缩小原承诺。
+    pub(crate) fn reserve_file_space(
+        &mut self,
+        reservation_id: Vec<u8>,
+        length: u64,
+    ) -> Result<(), ArenaError> {
+        if reservation_id.is_empty() || length == 0 {
+            return Err(ArenaError::EmptyPayload);
+        }
+        if let Some(existing) = self.reservations.get(&reservation_id) {
+            return (existing.logical_total == length)
+                .then_some(())
+                .ok_or(ArenaError::ReservationConflict);
+        }
+        let capacity = aligned_capacity(length)?;
+        if capacity
+            > self
+                .capacity_bytes
+                .saturating_sub(self.allocated_bytes)
+                .saturating_sub(self.reserved_bytes)
+        {
+            self.record_failure("arena.reservation.exhausted");
+            return Err(ArenaError::CapacityExhausted);
+        }
+        self.reservations.insert(
+            reservation_id,
+            ArenaReservation {
+                logical_total: length,
+                logical_remaining: length,
+            },
+        );
+        self.reserved_bytes = self.reserved_bytes.saturating_add(capacity);
+        self.record_state();
+        Ok(())
+    }
+
+    pub(crate) fn consume_file_space(
+        &mut self,
+        reservation_id: &[u8],
+        length: u64,
+    ) -> Result<ReservationConsumption, ArenaError> {
+        if length == 0 {
+            return Err(ArenaError::EmptyPayload);
+        }
+        let reservation = self
+            .reservations
+            .get_mut(reservation_id)
+            .ok_or(ArenaError::UnknownReservation)?;
+        if length > reservation.logical_remaining {
+            return Err(ArenaError::ReservationConflict);
+        }
+        let before = aligned_capacity(reservation.logical_remaining)?;
+        reservation.logical_remaining -= length;
+        let after = aligned_capacity_or_zero(reservation.logical_remaining)?;
+        self.reserved_bytes = self
+            .reserved_bytes
+            .saturating_sub(before.saturating_sub(after));
+        let consumption = ReservationConsumption {
+            reservation_id: reservation_id.to_vec(),
+            length,
+        };
+        if reservation.logical_remaining == 0 {
+            self.reservations.remove(reservation_id);
+        }
+        self.record_state();
+        Ok(consumption)
+    }
+
+    pub(crate) fn restore_file_space(
+        &mut self,
+        consumption: &ReservationConsumption,
+    ) -> Result<(), ArenaError> {
+        let reservation = self
+            .reservations
+            .entry(consumption.reservation_id.clone())
+            .or_insert(ArenaReservation {
+                logical_total: consumption.length,
+                logical_remaining: 0,
+            });
+        let before = aligned_capacity_or_zero(reservation.logical_remaining)?;
+        reservation.logical_remaining = reservation
+            .logical_remaining
+            .checked_add(consumption.length)
+            .ok_or(ArenaError::RegionOverflow)?;
+        reservation.logical_total = reservation.logical_total.max(reservation.logical_remaining);
+        let after = aligned_capacity(reservation.logical_remaining)?;
+        self.reserved_bytes = self
+            .reserved_bytes
+            .saturating_add(after.saturating_sub(before));
+        self.record_state();
+        Ok(())
+    }
+
+    /// 释放尚未消费的承诺。提交成功后的打洞/truncate 与确定性预留回滚使用该入口。
+    pub(crate) fn release_file_space(
+        &mut self,
+        reservation_id: &[u8],
+        length: u64,
+    ) -> Result<(), ArenaError> {
+        let consumption = self.consume_file_space(reservation_id, length)?;
+        debug_assert_eq!(consumption.length, length);
+        Ok(())
     }
 
     /// 启动时设置扩容目标；不移动已经分配的 Region，不能改变既有 FD/mmap 身份。
@@ -774,6 +901,44 @@ impl ArenaManager {
         region.read_at(offset, length)
     }
 
+    pub(crate) fn read_ticket_into(
+        &self,
+        ticket: ArenaReadTicket,
+        output: &mut [u8],
+    ) -> Result<usize, ArenaError> {
+        if self.live_allocations.get(&ticket.handle.allocation_id) != Some(&ticket.handle) {
+            return Err(ArenaError::StaleHandle);
+        }
+        ticket
+            .offset
+            .checked_add(ticket.length)
+            .filter(|end| *end <= ticket.handle.length)
+            .ok_or(ArenaError::RangeOutOfBounds)?;
+        let offset = ticket
+            .handle
+            .offset
+            .checked_add(ticket.offset)
+            .and_then(|offset| usize::try_from(offset).ok())
+            .ok_or(ArenaError::RangeOutOfBounds)?;
+        let length = usize::try_from(ticket.length).map_err(|_| ArenaError::RangeOutOfBounds)?;
+        if output.len() < length {
+            return Err(ArenaError::RangeOutOfBounds);
+        }
+        let region_index = ticket
+            .handle
+            .region_id
+            .checked_sub(1)
+            .and_then(|index| usize::try_from(index).ok())
+            .ok_or(ArenaError::StaleHandle)?;
+        let region = self
+            .regions
+            .get(region_index)
+            .ok_or(ArenaError::StaleHandle)?;
+        let source = region.borrow_at(offset, length)?;
+        output[..length].copy_from_slice(source);
+        Ok(length)
+    }
+
     pub(crate) fn shm_descriptor_for_read(
         &mut self,
         session_id: u64,
@@ -957,6 +1122,32 @@ impl ArenaManager {
             block_count: self.blocks.len(),
             reclaim_count: self.reclaim_count,
             quarantined_bytes: self.quarantined_bytes,
+            reserved_bytes: self.reserved_bytes,
+            reservation_count: self.reservations.len(),
+        }
+    }
+
+    /// 生成上报给 Meta 的 Arena 容量快照。
+    ///
+    /// 这里读取唯一内存 owner 的真实 allocation 表，而不是从 Prometheus 指标反推；
+    /// `available` 表示仍可新增物理 allocation 的容量，已释放 Slot 已从
+    /// `allocated_bytes` 中扣除，因此可直接被后续申请复用。
+    pub(crate) fn resource_summary(&self) -> dms_protocol::v1::ResourceSummary {
+        let staged_bytes = self.staging.values().fold(0_u64, |sum, staging| {
+            sum.saturating_add(staging.handle.length)
+        });
+        let replica_bytes = self
+            .blocks
+            .values()
+            .fold(0_u64, |sum, block| sum.saturating_add(block.handle.length));
+        dms_protocol::v1::ResourceSummary {
+            total_host_memory_bytes: self.capacity_bytes,
+            available_host_memory_bytes: self
+                .capacity_bytes
+                .saturating_sub(self.allocated_bytes)
+                .saturating_sub(self.reserved_bytes),
+            staged_bytes,
+            replica_bytes,
         }
     }
 
@@ -974,7 +1165,16 @@ impl ArenaManager {
         group_id: u64,
         length: u64,
     ) -> Result<AllocationHandle, ArenaError> {
-        let aligned_length = length.checked_add(63).ok_or(ArenaError::RegionOverflow)? & !63;
+        let aligned_length = aligned_capacity(length)?;
+        if aligned_length
+            > self
+                .capacity_bytes
+                .saturating_sub(self.allocated_bytes)
+                .saturating_sub(self.reserved_bytes)
+        {
+            self.record_failure("arena.allocate.exhausted");
+            return Err(ArenaError::CapacityExhausted);
+        }
         let allocation_id = self.next_allocation_id;
         for region in self
             .regions
@@ -1219,7 +1419,10 @@ impl ArenaManager {
 
     fn record_state(&self) {
         let stats = self.stats();
-        let free_bytes = stats.capacity_bytes.saturating_sub(stats.allocated_bytes);
+        let free_bytes = stats
+            .capacity_bytes
+            .saturating_sub(stats.allocated_bytes)
+            .saturating_sub(stats.reserved_bytes);
         let fragmentation = if stats.free_slot_bytes == 0 {
             0.0
         } else {
@@ -1234,12 +1437,29 @@ impl ArenaManager {
             allocated_bytes: stats.allocated_bytes,
             quarantined_bytes: stats.quarantined_bytes,
             logical_bytes: stats.logical_bytes,
+            reserved_bytes: stats.reserved_bytes,
+            reservations: stats.reservation_count,
             free_bytes,
             fragmentation_ratio: fragmentation,
             staging_allocations: stats.staging_count,
             regions: self.regions.len(),
             oldest_staging_age_seconds: oldest,
         });
+    }
+}
+
+fn aligned_capacity(length: u64) -> Result<u64, ArenaError> {
+    length
+        .checked_add(63)
+        .ok_or(ArenaError::RegionOverflow)
+        .map(|value| value & !63)
+}
+
+fn aligned_capacity_or_zero(length: u64) -> Result<u64, ArenaError> {
+    if length == 0 {
+        Ok(0)
+    } else {
+        aligned_capacity(length)
     }
 }
 
@@ -1545,6 +1765,7 @@ mod runtime_tests {
             .commit_staging(7, allocation.staging_id, &receipt, b"mmap-block".to_vec())
             .unwrap();
         assert_eq!(arena.read_bytes(b"mmap-block").unwrap(), payload);
+        #[allow(clippy::drop_non_drop)]
         drop(mapping);
         if let Some(path) = path {
             let _ = std::fs::remove_file(path);
@@ -1602,6 +1823,85 @@ mod runtime_tests {
         assert_eq!(reused_handle.region_id, first_handle.region_id);
         assert_eq!(reused_handle.offset, first_handle.offset);
         assert_ne!(reused_handle.allocation_id, first_handle.allocation_id);
+    }
+
+    #[test]
+    fn resource_summary_reports_allocator_owned_capacity_and_live_bytes() {
+        let mut arena = ArenaManager::new(4096, Duration::from_secs(30));
+        let allocation = arena.allocate(7, 100).expect("allocate staging");
+        let staged = arena.resource_summary();
+        assert_eq!(staged.total_host_memory_bytes, 4096);
+        assert_eq!(staged.available_host_memory_bytes, 4096 - 128);
+        assert_eq!(staged.staged_bytes, 100);
+        assert_eq!(staged.replica_bytes, 0);
+
+        let receipt = arena
+            .upload(allocation.transfer_id, &[7; 100])
+            .expect("upload staging");
+        arena
+            .commit_staging(7, allocation.staging_id, &receipt, b"block".to_vec())
+            .expect("seal block");
+        let committed = arena.resource_summary();
+        assert_eq!(committed.available_host_memory_bytes, 4096 - 128);
+        assert_eq!(committed.staged_bytes, 0);
+        assert_eq!(committed.replica_bytes, 100);
+    }
+
+    #[test]
+    fn file_space_reservation_is_idempotent_and_reduces_admission_capacity() {
+        let mut arena = ArenaManager::new(4096, Duration::from_secs(30));
+        let reservation = b"reservation-1".to_vec();
+
+        arena
+            .reserve_file_space(reservation.clone(), 100)
+            .expect("reserve file space");
+        arena
+            .reserve_file_space(reservation.clone(), 100)
+            .expect("same retry is idempotent");
+
+        let stats = arena.stats();
+        assert_eq!(stats.reserved_bytes, 128);
+        assert_eq!(stats.reservation_count, 1);
+        assert_eq!(arena.resource_summary().available_host_memory_bytes, 3968);
+        assert_eq!(
+            arena.reserve_file_space(reservation, 101),
+            Err(ArenaError::ReservationConflict),
+        );
+    }
+
+    #[test]
+    fn reservation_consumption_and_restore_keep_capacity_accounting_exact() {
+        let mut arena = ArenaManager::new(256, Duration::from_secs(30));
+        let reservation = b"reservation-2".to_vec();
+        arena
+            .reserve_file_space(reservation.clone(), 100)
+            .expect("reserve file space");
+        assert_eq!(arena.allocate(7, 129), Err(ArenaError::CapacityExhausted));
+
+        let first = arena
+            .consume_file_space(&reservation, 40)
+            .expect("consume reservation");
+        assert_eq!(arena.stats().reserved_bytes, 64);
+        let second = arena
+            .consume_file_space(&reservation, 60)
+            .expect("consume remainder");
+        assert_eq!(arena.stats().reserved_bytes, 0);
+        assert_eq!(arena.stats().reservation_count, 0);
+
+        arena
+            .restore_file_space(&first)
+            .expect("restore first receipt");
+        arena
+            .restore_file_space(&second)
+            .expect("restore second receipt");
+        assert_eq!(arena.stats().reserved_bytes, 128);
+        assert_eq!(arena.stats().reservation_count, 1);
+
+        arena
+            .release_file_space(&reservation, 100)
+            .expect("release restored reservation");
+        assert_eq!(arena.stats().reserved_bytes, 0);
+        assert_eq!(arena.stats().reservation_count, 0);
     }
 
     #[test]

@@ -1,0 +1,24 @@
+{
+  "schema": "dms.filesystem.attributes-3vm-profile.v1",
+  "run_id": "attributes-final3",
+  "vms": {
+    "A": "g003-n1",
+    "B": "g003-n2",
+    "C": "g003-n3"
+  },
+  "ips": {
+    "A": "192.168.104.8",
+    "B": "192.168.104.9",
+    "C": "192.168.104.10"
+  },
+  "artifacts": {
+    "dms_node": {
+      "path": "target/debug/dms-node",
+      "sha256": "6d72b27ec371f31e0fc0a5e1c4adbb7349380a710a2d42e37320165e13508c97"
+    },
+    "dms_meta": {
+      "path": "target/debug/dms-meta",
+      "sha256": "883382f676018038b51d5ba940ac184d5ee6dd084d3628cab106bcd987a62c1e"
+    }
+  }
+}

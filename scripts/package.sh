@@ -112,6 +112,9 @@ done
 
 THIRD_PARTY_DIR="${DMS_THIRD_PARTY_DIR:-${DMS_SOURCE_DIR}/THIRD-PARTY-LICENSES}"
 if [[ -d "${THIRD_PARTY_DIR}" ]]; then
+  python3 "${SCRIPTS_DIR}/release/dependency_inventory.py" \
+    --verify-output "${THIRD_PARTY_DIR}" \
+    --require-vendored-patch fuser
   while IFS= read -r path; do
     mkdir -p "${STAGE_DIR}/THIRD-PARTY-LICENSES/$(dirname "${path}")"
     install -m 0644 "${THIRD_PARTY_DIR}/${path}" "${STAGE_DIR}/THIRD-PARTY-LICENSES/${path}"
@@ -168,6 +171,13 @@ manifest = {
         "scripts/verify_tracing.sh",
     ],
     "docs": ["docs/release-installation.md"],
+    "legal_materials": [
+        file_record(path)
+        for path in sorted(
+            [Path("LICENSE"), Path("NOTICE"), Path("CHANGELOG.md")]
+            + [path for path in Path("THIRD-PARTY-LICENSES").rglob("*") if path.is_file()]
+        )
+    ],
     "limitations": [
         "local-memory durability only",
         "single Meta process; no multi-Meta HA",

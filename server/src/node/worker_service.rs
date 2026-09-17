@@ -290,6 +290,8 @@ impl WorkerService for WorkerServiceHandler {
             .ok_or_else(|| node_invalid_argument("missing key"))?
             .value;
         let operation_id = decode_operation_id(request.operation_id)?;
+        // WorkerService 是外部 KV 合同边界，session 校验和错误语义留在该路径；
+        // 不借道只面向进程内子系统的 DataCoreHandle。
         let result = self
             .node
             .set_inline(
@@ -938,6 +940,9 @@ fn encode_read_target(target: ReadTarget, length: u64) -> pb::PayloadTarget {
             debug_assert_eq!(descriptor.length, length);
             shm_target(descriptor)
         }
+        ReadTarget::Zero { length } => pb::PayloadTarget {
+            target: Some(pb::payload_target::Target::Zero(pb::ZeroTarget { length })),
+        },
     }
 }
 
@@ -1219,6 +1224,7 @@ mod tests {
                 lease_ttl_millis: 30_000,
                 accepted_node_epoch: 1,
                 event_high_watermark: 0,
+                filesystem_lock_reclaim_required: false,
             }))
         }
 
@@ -1438,6 +1444,7 @@ mod tests {
                         1,
                         "http://127.0.0.1:0".to_string(),
                         None,
+                        false,
                     )
                     .await
                     .expect("register test node");
@@ -1467,7 +1474,10 @@ mod tests {
                     let event_node = node.clone();
                     let mut stream = metadata.watch_events(0).await.expect("open Meta watch");
                     let lease_started = Instant::now();
-                    let lease_ttl = metadata.heartbeat(0).await.expect("Meta cache lease");
+                    let lease_ttl = metadata
+                        .heartbeat(0, pb::ResourceSummary::default())
+                        .await
+                        .expect("Meta cache lease");
                     node.metadata_lease(
                         Some(lease_started + Duration::from_millis(lease_ttl)),
                         Some(true),

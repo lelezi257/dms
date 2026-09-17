@@ -1,0 +1,77 @@
+{
+  "schema": "dms.m1.execution-profile.v1",
+  "name": "m1-full-single-vm",
+  "variables": {
+    "single_vm": "dms-dev",
+    "vm_root": "/workspace/dms/source",
+    "pjdfstest_dir": "/tmp/dms-m1/pjdfstest",
+    "fstests_dir": "/tmp/dms-m1/xfstests-dev"
+  },
+  "commands": {
+    "namespace-single-vm": {
+      "argv": ["limactl", "shell", "--workdir", "{vm_root}", "{single_vm}", "--", "env", "DMS_FILESYSTEM_NAMESPACE_OUT_DIR={vm_root}/{case_rel_dir}/artifact", "bash", "scripts/validation/run_filesystem_namespace_e2e.sh"],
+      "timeout_seconds": 900,
+      "expected_evidence": ["{case_dir}/artifact/result.txt", "{case_dir}/artifact/evaluation.json"]
+    },
+    "size-single-vm": {
+      "argv": ["limactl", "shell", "--workdir", "{vm_root}", "{single_vm}", "--", "env", "DMS_FILESYSTEM_SIZE_OUT_DIR={vm_root}/{case_rel_dir}/artifact", "bash", "scripts/validation/run_filesystem_size_semantics_e2e.sh"],
+      "timeout_seconds": 900,
+      "expected_evidence": ["{case_dir}/artifact/result.txt", "{case_dir}/artifact/evaluation.json"]
+    },
+    "identity-single-vm": {
+      "argv": ["limactl", "shell", "--workdir", "{vm_root}", "{single_vm}", "--", "env", "DMS_FILESYSTEM_IDENTITY_OUT_DIR={vm_root}/{case_rel_dir}/artifact", "bash", "scripts/validation/run_filesystem_identity_lifecycle_e2e.sh"],
+      "timeout_seconds": 900,
+      "expected_evidence": ["{case_dir}/artifact/result.txt", "{case_dir}/artifact/evaluation.json"]
+    },
+    "attributes-single-vm": {
+      "argv": ["limactl", "shell", "--workdir", "{vm_root}", "{single_vm}", "--", "env", "DMS_FILESYSTEM_ATTRIBUTES_OUT_DIR={vm_root}/{case_rel_dir}/artifact", "bash", "scripts/validation/run_filesystem_attributes_e2e.sh"],
+      "timeout_seconds": 900,
+      "expected_evidence": ["{case_dir}/artifact/result.txt", "{case_dir}/artifact/attributes.json"]
+    },
+    "space-sync-single-vm": {
+      "argv": ["limactl", "shell", "--workdir", "{vm_root}", "{single_vm}", "--", "env", "DMS_FILESYSTEM_SPACE_SYNC_OUT_DIR={vm_root}/{case_rel_dir}/artifact", "bash", "scripts/validation/run_filesystem_space_sync_e2e.sh"],
+      "timeout_seconds": 900,
+      "expected_evidence": ["{case_dir}/artifact/result.txt", "{case_dir}/artifact/evaluation.json"]
+    },
+    "lock-single-vm": {
+      "argv": ["limactl", "shell", "--workdir", "{vm_root}", "{single_vm}", "--", "env", "DMS_FILESYSTEM_LOCK_E2E_OUT_DIR={vm_root}/{case_rel_dir}/artifact", "bash", "scripts/validation/run_filesystem_lock_e2e.sh"],
+      "timeout_seconds": 900,
+      "expected_evidence": ["{case_dir}/artifact/distributed-locks.json"]
+    },
+    "mmap-single-vm": {
+      "argv": ["limactl", "shell", "--workdir", "{vm_root}", "{single_vm}", "--", "env", "DMS_FILESYSTEM_MMAP_OUT_DIR={vm_root}/{case_rel_dir}/artifact", "bash", "scripts/validation/run_filesystem_mmap_e2e.sh"],
+      "timeout_seconds": 900,
+      "expected_evidence": ["{case_dir}/artifact/result.txt", "{case_dir}/artifact/evaluation.json"]
+    },
+    "posix-pjdfstest-supported": {
+      "argv": ["limactl", "shell", "--workdir", "{vm_root}", "{single_vm}", "--", "python3", "scripts/validation/run_m1_pjdfstest.py", "--suite-dir", "{pjdfstest_dir}", "--output", "{vm_root}/{case_rel_dir}/artifact", "--purpose", "{purpose}"],
+      "timeout_seconds": 1800,
+      "expected_evidence": ["{case_dir}/artifact/m1-result.json", "{case_dir}/artifact/suite-result.json"]
+    },
+    "fstests-generic-supported": {
+      "argv": ["limactl", "shell", "--workdir", "{vm_root}", "{single_vm}", "--", "python3", "scripts/validation/run_m1_fstests.py", "--suite-dir", "{fstests_dir}", "--output", "{vm_root}/{case_rel_dir}/artifact", "--purpose", "{purpose}", "--case-timeout-sec", "900"],
+      "timeout_seconds": 2400,
+      "expected_evidence": ["{case_dir}/artifact/m1-result.json", "{case_dir}/artifact/suite-result.json"]
+    },
+    "fio-integrity": {
+      "argv": ["limactl", "shell", "--workdir", "{vm_root}", "{single_vm}", "--", "python3", "scripts/validation/run_m1_fio.py", "--topology", "single-vm", "--purpose", "{purpose}", "--large-size", "512m", "--output", "{vm_root}/{case_rel_dir}/artifact"],
+      "timeout_seconds": 3600,
+      "expected_evidence": ["{case_dir}/artifact/m1-result.json", "{case_dir}/artifact/evaluation.json"]
+    },
+    "resource-return-to-baseline": {
+      "argv": ["limactl", "shell", "--workdir", "{vm_root}", "{single_vm}", "--", "python3", "scripts/validation/run_m1_resource_soak.py", "--topology", "single-vm", "--purpose", "{purpose}", "--output", "{vm_root}/{case_rel_dir}/artifact"],
+      "timeout_seconds": 1800,
+      "expected_evidence": ["{case_dir}/artifact/m1-result.json", "{case_dir}/artifact/evaluation.json"]
+    },
+    "release-check": {
+      "argv": ["limactl", "shell", "--workdir", "{vm_root}", "{single_vm}", "--", "bash", "scripts/release/check.sh"],
+      "timeout_seconds": 7200,
+      "expected_evidence": []
+    },
+    "clean-install-single-and-three-vm": {
+      "argv": ["limactl", "shell", "--workdir", "{vm_root}", "{single_vm}", "--", "python3", "scripts/validation/run_m1_clean_delivery.py", "--topology", "single-vm", "--output", "{vm_root}/{case_rel_dir}/artifact-root", "--run-id", "acceptance-single-{run_nonce}"],
+      "timeout_seconds": 3600,
+      "expected_evidence": ["{case_dir}/artifact-root/acceptance-single-{run_nonce}/clean-install-result.json"]
+    }
+  }
+}

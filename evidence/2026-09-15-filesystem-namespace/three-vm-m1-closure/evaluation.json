@@ -1,0 +1,233 @@
+{
+  "schema": "dms.filesystem.namespace-evaluation.v1",
+  "status": "PASS",
+  "errors": [],
+  "rows": [
+    {
+      "round": 0,
+      "operations": [
+        "mkdir_create_read",
+        "recovery_anchor",
+        "rename",
+        "rename_type_and_cycle_guards",
+        "unlink_regular_file",
+        "unlink_rmdir"
+      ]
+    },
+    {
+      "round": 1,
+      "operations": [
+        "mkdir_create_read",
+        "recovery_anchor",
+        "rename",
+        "rename_type_and_cycle_guards",
+        "unlink_regular_file",
+        "unlink_rmdir"
+      ]
+    },
+    {
+      "round": 2,
+      "operations": [
+        "mkdir_create_read",
+        "recovery_anchor",
+        "rename",
+        "rename_type_and_cycle_guards",
+        "unlink_regular_file",
+        "unlink_rmdir"
+      ]
+    },
+    {
+      "round": 3,
+      "operations": [
+        "mkdir_create_read",
+        "recovery_anchor",
+        "rename",
+        "rename_type_and_cycle_guards",
+        "unlink_regular_file",
+        "unlink_rmdir"
+      ]
+    },
+    {
+      "round": 4,
+      "operations": [
+        "mkdir_create_read",
+        "recovery_anchor",
+        "rename",
+        "rename_type_and_cycle_guards",
+        "unlink_regular_file",
+        "unlink_rmdir"
+      ]
+    },
+    {
+      "round": 5,
+      "operations": [
+        "mkdir_create_read",
+        "recovery_anchor",
+        "rename",
+        "rename_type_and_cycle_guards",
+        "unlink_regular_file",
+        "unlink_rmdir"
+      ]
+    },
+    {
+      "round": 6,
+      "operations": [
+        "mkdir_create_read",
+        "recovery_anchor",
+        "rename",
+        "rename_type_and_cycle_guards",
+        "unlink_regular_file",
+        "unlink_rmdir"
+      ]
+    },
+    {
+      "round": 7,
+      "operations": [
+        "mkdir_create_read",
+        "recovery_anchor",
+        "rename",
+        "rename_type_and_cycle_guards",
+        "unlink_regular_file",
+        "unlink_rmdir"
+      ]
+    },
+    {
+      "round": 8,
+      "operations": [
+        "mkdir_create_read",
+        "recovery_anchor",
+        "rename",
+        "rename_type_and_cycle_guards",
+        "unlink_regular_file",
+        "unlink_rmdir"
+      ]
+    },
+    {
+      "round": 9,
+      "operations": [
+        "mkdir_create_read",
+        "recovery_anchor",
+        "rename",
+        "rename_type_and_cycle_guards",
+        "unlink_regular_file",
+        "unlink_rmdir"
+      ]
+    },
+    {
+      "round": 10,
+      "operations": [
+        "mkdir_create_read",
+        "recovery_anchor",
+        "rename",
+        "rename_type_and_cycle_guards",
+        "unlink_regular_file",
+        "unlink_rmdir"
+      ]
+    },
+    {
+      "round": 11,
+      "operations": [
+        "mkdir_create_read",
+        "recovery_anchor",
+        "rename",
+        "rename_type_and_cycle_guards",
+        "unlink_regular_file",
+        "unlink_rmdir"
+      ]
+    },
+    {
+      "round": 12,
+      "operations": [
+        "mkdir_create_read",
+        "recovery_anchor",
+        "rename",
+        "rename_type_and_cycle_guards",
+        "unlink_regular_file",
+        "unlink_rmdir"
+      ]
+    },
+    {
+      "round": 13,
+      "operations": [
+        "mkdir_create_read",
+        "recovery_anchor",
+        "rename",
+        "rename_type_and_cycle_guards",
+        "unlink_regular_file",
+        "unlink_rmdir"
+      ]
+    },
+    {
+      "round": 14,
+      "operations": [
+        "mkdir_create_read",
+        "recovery_anchor",
+        "rename",
+        "rename_type_and_cycle_guards",
+        "unlink_regular_file",
+        "unlink_rmdir"
+      ]
+    },
+    {
+      "round": 15,
+      "operations": [
+        "mkdir_create_read",
+        "recovery_anchor",
+        "rename",
+        "rename_type_and_cycle_guards",
+        "unlink_regular_file",
+        "unlink_rmdir"
+      ]
+    },
+    {
+      "round": 16,
+      "operations": [
+        "mkdir_create_read",
+        "recovery_anchor",
+        "rename",
+        "rename_type_and_cycle_guards",
+        "unlink_regular_file",
+        "unlink_rmdir"
+      ]
+    },
+    {
+      "round": 17,
+      "operations": [
+        "mkdir_create_read",
+        "recovery_anchor",
+        "rename",
+        "rename_type_and_cycle_guards",
+        "unlink_regular_file",
+        "unlink_rmdir"
+      ]
+    },
+    {
+      "round": 18,
+      "operations": [
+        "mkdir_create_read",
+        "recovery_anchor",
+        "rename",
+        "rename_type_and_cycle_guards",
+        "unlink_regular_file",
+        "unlink_rmdir"
+      ]
+    },
+    {
+      "round": 19,
+      "operations": [
+        "mkdir_create_read",
+        "recovery_anchor",
+        "rename",
+        "rename_type_and_cycle_guards",
+        "unlink_regular_file",
+        "unlink_rmdir"
+      ]
+    }
+  ],
+  "paged_directory": {
+    "operation": "paged_readdir",
+    "entry_count": 300,
+    "wait_attempts": 1
+  },
+  "result_dir": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/source/evidence/2026-09-15-filesystem-namespace/three-vm-m1-closure"
+}

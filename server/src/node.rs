@@ -9,6 +9,9 @@
 #[allow(unsafe_code)]
 mod arena_manager;
 mod current_cache;
+mod data_core;
+mod filesystem;
+mod image;
 mod kkv_operations;
 mod metadata_client;
 mod metrics;
@@ -44,6 +47,7 @@ use tokio_stream::wrappers::UnixListenerStream;
 use crate::health::{Readiness, ReadinessState, serve_status};
 use crate::{ComponentKind, NodeId};
 use arena_manager::SharedFdBroker;
+use filesystem::kernel_cache::KernelCacheInvalidator;
 use metadata_client::{MetadataClient, retirement_block_ids};
 use metrics::NodeMetrics;
 use peer_service::PeerServiceHandler;
@@ -82,6 +86,9 @@ pub struct NodeConfig {
     pub log_level: LevelController,
     /// Process-owned trace runtime; SDKs deliberately do not install one.
     pub tracing: dms_tracing::TracingConfig,
+    /// Optional Linux FUSE mountpoint. When absent, dms-node keeps the pure KV runtime shape.
+    #[cfg(all(target_os = "linux", feature = "fuse"))]
+    pub fuse_mountpoint: Option<PathBuf>,
 }
 
 /// Starts the data-node process shell and blocks until it is stopped.
@@ -142,11 +149,16 @@ async fn serve_workers(config: NodeConfig) -> Result<(), Box<dyn std::error::Err
         .expect("business endpoint was validated before runtime startup");
     let node_id = config.node_id.to_string();
     let numeric_node_id = stable_node_id(&node_id);
+    #[cfg(all(target_os = "linux", feature = "fuse"))]
+    let filesystem_enabled = config.fuse_mountpoint.is_some();
+    #[cfg(not(all(target_os = "linux", feature = "fuse")))]
+    let filesystem_enabled = false;
     let metadata = MetadataClient::connect(
         &config.meta_endpoint,
         numeric_node_id,
         data_endpoint,
         Some(rpc_metrics.clone()),
+        filesystem_enabled,
     )
     .await
     .map_err(|error| format!("failed to register dms-node with Meta: {error:?}"))?;
@@ -205,8 +217,12 @@ async fn serve_workers(config: NodeConfig) -> Result<(), Box<dyn std::error::Err
         .await
         .map_err(|error| format!("failed to establish Meta watch: {error:?}"))?;
     let lease_started = std::time::Instant::now();
+    let initial_resources = node
+        .resource_summary()
+        .await
+        .map_err(|error| format!("failed to read initial Arena resources: {error:?}"))?;
     let lease_ttl = metadata
-        .heartbeat(0)
+        .heartbeat(0, initial_resources)
         .await
         .map_err(|error| format!("failed to establish Meta lease: {error:?}"))?;
     node.metadata_lease(
@@ -217,11 +233,31 @@ async fn serve_workers(config: NodeConfig) -> Result<(), Box<dyn std::error::Err
     .await
     .map_err(|error| format!("failed to install Meta lease: {error:?}"))?;
     let event_cursor = Arc::new(AtomicU64::new(0));
+    #[cfg(all(target_os = "linux", feature = "fuse"))]
+    let kernel_cache =
+        KernelCacheInvalidator::new(config.fuse_mountpoint.is_some(), node.metrics());
+    #[cfg(not(all(target_os = "linux", feature = "fuse")))]
+    let kernel_cache = KernelCacheInvalidator::disabled(node.metrics());
+    #[cfg(all(target_os = "linux", feature = "fuse"))]
+    // FUSE 和 Worker TCP/UDS 一样都是对外入口。这里已经建立 Meta Watch stream
+    // 和 lease；挂载时先拿到内核 notifier 并安装到 KernelCacheInvalidator，
+    // 然后才启动 Watch 消费任务。这样远端文件事件不会在 notifier 安装前被 ACK。
+    let _fuse_session = match config.fuse_mountpoint.clone() {
+        Some(mountpoint) => Some(filesystem::fuse::start(
+            mountpoint.clone(),
+            node.clone(),
+            tokio::runtime::Handle::current(),
+            kernel_cache.clone(),
+        )?),
+        None => None,
+    };
     let watch_task = tokio::spawn(consume_meta_events(
         metadata.clone(),
         node.clone(),
+        numeric_node_id,
         Some(initial_watch),
         event_cursor.clone(),
+        kernel_cache,
     ));
     let heartbeat_task = tokio::spawn(send_meta_heartbeats(metadata, node.clone(), event_cursor));
 
@@ -268,8 +304,10 @@ async fn serve_workers(config: NodeConfig) -> Result<(), Box<dyn std::error::Err
 async fn consume_meta_events(
     metadata: MetadataClient,
     node: NodeHandle,
+    local_node_id: u64,
     mut initial_stream: Option<tonic::Streaming<dms_protocol::v1::NodeEvent>>,
     acked_cursor: Arc<AtomicU64>,
+    kernel_cache: KernelCacheInvalidator,
 ) {
     let mut last_acked_cursor = 0;
     let mut reconnect_delay = std::time::Duration::from_millis(100);
@@ -338,6 +376,38 @@ async fn consume_meta_events(
                             break;
                         }
                     }
+                    Some(node_event::Event::InvalidateFilesystemBinding(invalidation))
+                        if should_apply_filesystem_invalidation(
+                            local_node_id,
+                            invalidation.source_node_id,
+                        ) =>
+                    {
+                        if node
+                            .invalidate_filesystem_binding(
+                                invalidation.inode,
+                                invalidation.through_generation,
+                                invalidation.minimum_inode_revision,
+                            )
+                            .await
+                            .is_err()
+                        {
+                            break;
+                        }
+                        if let Err(error) = kernel_cache.invalidate_inode(invalidation.inode) {
+                            dms_logging::warn!(
+                                "FUSE kernel cache invalidation failed; replaying Watch event before ACK";
+                                "event" => "node.filesystem.kernel_cache_invalidate.failed",
+                                "inode" => invalidation.inode,
+                                "through_generation" => invalidation.through_generation,
+                                "minimum_inode_revision" => invalidation.minimum_inode_revision,
+                                "error" => error.to_string(),
+                            );
+                            break;
+                        }
+                    }
+                    // 本节点刚发布的写已经同步更新本地 binding/cache；Meta 仍会把同一
+                    // invalidation 广播回来，但不能据此清掉写入方刚建立的热缓存。
+                    Some(node_event::Event::InvalidateFilesystemBinding(_)) => {}
                     Some(node_event::Event::RepairReplica(repair)) => {
                         if let Err(error) = apply_repair_event(&metadata, &node, repair).await {
                             dms_logging::error!(
@@ -420,6 +490,13 @@ async fn consume_meta_events(
             return;
         }
     }
+}
+
+fn should_apply_filesystem_invalidation(local_node_id: u64, source_node_id: u64) -> bool {
+    // 本 Node 的 namespace 提交已经用响应中的精确名字和 revision 更新本地缓存；
+    // 再应用广播事件只会把刚安装的新 grant 清掉。空 source 来自旧 journal，必须按
+    // 远端事件处理，保证滚动升级期间不会漏失效。
+    source_node_id == 0 || source_node_id != local_node_id
 }
 
 async fn apply_repair_event(
@@ -584,7 +661,11 @@ async fn send_meta_heartbeats(
         interval.tick().await;
         let event_cursor = acked_cursor.load(Ordering::Relaxed);
         let started = std::time::Instant::now();
-        match metadata.heartbeat(event_cursor).await {
+        let resources = match node.resource_summary().await {
+            Ok(resources) => resources,
+            Err(_) => return,
+        };
+        match metadata.heartbeat(event_cursor, resources).await {
             Ok(ttl) => {
                 if node
                     .metadata_lease(Some(started + Duration::from_millis(ttl)), None)
@@ -592,6 +673,46 @@ async fn send_meta_heartbeats(
                     .is_err()
                 {
                     return;
+                }
+                let references = match node.filesystem_inode_reference_snapshot().await {
+                    Ok(references) => references,
+                    Err(_) => return,
+                };
+                if !references.is_empty() {
+                    let wire_references = references
+                        .iter()
+                        .map(|(inode, reference_generation)| {
+                            dms_protocol::v1::FilesystemInodeReferenceLease {
+                                inode: *inode,
+                                reference_generation: *reference_generation,
+                            }
+                        })
+                        .collect();
+                    match metadata
+                        .filesystem_renew_inode_references(wire_references)
+                        .await
+                    {
+                        Ok(response) => {
+                            if node
+                                .filesystem_renew_inode_reference_leases(
+                                    references,
+                                    response.lease_millis,
+                                )
+                                .await
+                                .is_err()
+                            {
+                                return;
+                            }
+                        }
+                        Err(error) => {
+                            dms_logging::warn!(
+                                "filesystem inode reference renewal failed";
+                                "event" => "node.filesystem.reference.renew_failed",
+                                "reference_count" => references.len(),
+                                "error" => error.to_string(),
+                            );
+                        }
+                    }
                 }
             }
             Err(error) => {
@@ -811,4 +932,20 @@ fn bind_worker_uds(path: &PathBuf) -> io::Result<UnixListener> {
         Err(error) => return Err(error),
     }
     UnixListener::bind(path)
+}
+
+#[cfg(test)]
+mod invalidation_source_tests {
+    use super::should_apply_filesystem_invalidation;
+
+    #[test]
+    fn local_filesystem_invalidation_does_not_revoke_directly_updated_cache() {
+        assert!(!should_apply_filesystem_invalidation(17, 17));
+    }
+
+    #[test]
+    fn remote_and_legacy_filesystem_invalidations_are_applied() {
+        assert!(should_apply_filesystem_invalidation(17, 23));
+        assert!(should_apply_filesystem_invalidation(17, 0));
+    }
 }

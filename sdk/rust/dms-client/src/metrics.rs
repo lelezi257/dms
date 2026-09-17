@@ -281,6 +281,7 @@ pub(crate) enum TransferProvider {
     Grpc,
     Rdma,
     Ub,
+    Zero,
     Unknown,
 }
 
@@ -293,6 +294,7 @@ impl TransferProvider {
             Self::Grpc => "grpc",
             Self::Rdma => "rdma",
             Self::Ub => "ub",
+            Self::Zero => "zero",
             Self::Unknown => "unknown",
         }
     }

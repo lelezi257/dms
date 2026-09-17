@@ -6,23 +6,29 @@
 //! wrappers instead of touching raw pointers or ancillary data. Borrowed mmap
 //! access remains unsafe: callers must prove cross-process allocation lifetime.
 
+#[cfg(target_os = "linux")]
 use std::{
     collections::HashMap,
     fs,
     io::{Read, Write},
-    os::fd::{AsRawFd, FromRawFd, OwnedFd, RawFd},
+    os::fd::{AsRawFd, FromRawFd, RawFd},
     os::unix::net::{UnixListener, UnixStream},
-    path::{Path, PathBuf},
+    path::PathBuf,
     ptr::NonNull,
     sync::{
         Arc, Mutex,
         atomic::{AtomicU64, Ordering},
     },
+};
+use std::{
+    os::fd::OwnedFd,
+    path::Path,
     time::{Duration, Instant},
 };
 
 const PROTOCOL_VERSION: u32 = 2;
 const MAX_TOKEN_BYTES: usize = 256;
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
 const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(1);
 
 #[derive(Debug, thiserror::Error)]
@@ -83,6 +89,7 @@ impl FdRequest {
     }
 }
 
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
 pub struct FdGrant {
     request: FdRequest,
     fd: OwnedFd,
@@ -687,16 +694,107 @@ mod linux {
         pub fn create(_name: &str, _len: usize) -> Result<Self, ShmError> {
             Err(ShmError::Unsupported)
         }
+
+        /// Non-Linux builds keep the same API shape so higher layers remain
+        /// readable in IDEs. Real SHM ownership is Linux-only, therefore every
+        /// operation that would touch memory or FDs returns `Unsupported`.
+        ///
+        /// # Safety
+        /// Mirrors the Linux contract; this platform never returns a live fd.
+        pub unsafe fn duplicate_fd(&self) -> Result<OwnedFd, ShmError> {
+            Err(ShmError::Unsupported)
+        }
+
+        pub fn len(&self) -> usize {
+            0
+        }
+
+        pub fn is_empty(&self) -> bool {
+            true
+        }
+
+        pub fn write_at(&mut self, _offset: usize, _bytes: &[u8]) -> Result<(), ShmError> {
+            Err(ShmError::Unsupported)
+        }
+
+        pub fn read_at(&self, _offset: usize, _len: usize) -> Result<Vec<u8>, ShmError> {
+            Err(ShmError::Unsupported)
+        }
+
+        /// # Safety
+        /// Mirrors the Linux borrowed-mmap contract; this platform never
+        /// returns a slice.
+        pub unsafe fn as_slice(&self, _offset: usize, _len: usize) -> Result<&[u8], ShmError> {
+            Err(ShmError::Unsupported)
+        }
     }
 
     impl MappedRegion {
-        pub fn map(_fd: OwnedFd, _len: usize) -> Result<Self, ShmError> {
+        /// # Safety
+        /// Mirrors the Linux mmap lifetime contract; this platform never
+        /// returns a live mapping.
+        pub unsafe fn map(_fd: OwnedFd, _len: usize) -> Result<Self, ShmError> {
+            Err(ShmError::Unsupported)
+        }
+
+        pub fn len(&self) -> usize {
+            0
+        }
+
+        pub fn is_empty(&self) -> bool {
+            true
+        }
+
+        pub fn write_at(&mut self, _offset: usize, _bytes: &[u8]) -> Result<(), ShmError> {
+            Err(ShmError::Unsupported)
+        }
+
+        pub fn read_at(&self, _offset: usize, _len: usize) -> Result<Vec<u8>, ShmError> {
+            Err(ShmError::Unsupported)
+        }
+
+        /// # Safety
+        /// Mirrors the Linux borrowed-mmap contract; this platform never
+        /// returns a slice.
+        pub unsafe fn as_slice(&self, _offset: usize, _len: usize) -> Result<&[u8], ShmError> {
+            Err(ShmError::Unsupported)
+        }
+
+        pub fn as_mut_slice(&mut self, _offset: usize, _len: usize) -> Result<&mut [u8], ShmError> {
+            Err(ShmError::Unsupported)
+        }
+
+        /// # Safety
+        /// Mirrors the Linux staging contract; this platform never returns a
+        /// mutable staging slice.
+        #[allow(clippy::mut_from_ref)]
+        pub unsafe fn staging_slice_mut(
+            &self,
+            _offset: usize,
+            _len: usize,
+        ) -> Result<&mut [u8], ShmError> {
             Err(ShmError::Unsupported)
         }
     }
 
     impl FdBrokerServer {
         pub fn bind(_path: impl AsRef<Path>) -> Result<Self, ShmError> {
+            Err(ShmError::Unsupported)
+        }
+
+        pub fn register(&self, _grant: FdGrant) -> Result<(), ShmError> {
+            Err(ShmError::Unsupported)
+        }
+
+        pub fn served_count(&self) -> u64 {
+            0
+        }
+
+        pub fn reap_expired(&self) -> Result<usize, ShmError> {
+            Err(ShmError::Unsupported)
+        }
+
+        pub fn serve_one(&self) -> Result<(), ShmError> {
             Err(ShmError::Unsupported)
         }
     }
@@ -713,6 +811,7 @@ mod linux {
 
 pub use linux::{FdBrokerClient, FdBrokerServer, MappedRegion, SharedRegion};
 
+#[cfg(target_os = "linux")]
 fn write_request(stream: &mut impl Write, request: &FdRequest) -> Result<(), ShmError> {
     let token = request.token.as_bytes();
     let token_len = u32::try_from(token.len()).map_err(|_| ShmError::InvalidArgument {
@@ -737,6 +836,7 @@ fn write_request(stream: &mut impl Write, request: &FdRequest) -> Result<(), Shm
     Ok(())
 }
 
+#[cfg(target_os = "linux")]
 fn read_request(stream: &mut impl Read) -> Result<FdRequest, ShmError> {
     let protocol_version = read_u32(stream)?;
     if protocol_version != PROTOCOL_VERSION {
@@ -763,6 +863,7 @@ fn read_request(stream: &mut impl Read) -> Result<FdRequest, ShmError> {
     })
 }
 
+#[cfg(target_os = "linux")]
 fn read_u32(stream: &mut impl Read) -> Result<u32, ShmError> {
     let mut bytes = [0_u8; 4];
     stream
@@ -771,6 +872,7 @@ fn read_u32(stream: &mut impl Read) -> Result<u32, ShmError> {
     Ok(u32::from_be_bytes(bytes))
 }
 
+#[cfg(target_os = "linux")]
 fn read_u64(stream: &mut impl Read) -> Result<u64, ShmError> {
     let mut bytes = [0_u8; 8];
     stream
@@ -781,7 +883,13 @@ fn read_u64(stream: &mut impl Read) -> Result<u64, ShmError> {
 
 #[cfg(test)]
 mod tests {
-    use std::{thread, time::Duration};
+    use std::{
+        fs,
+        os::unix::net::{UnixListener, UnixStream},
+        path::PathBuf,
+        thread,
+        time::Duration,
+    };
 
     use super::*;
 

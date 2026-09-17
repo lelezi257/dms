@@ -324,6 +324,83 @@ mod catalog_tests {
             component: "Meta",
             subsystem: "Session",
         },
+        ExpectedError {
+            name: "META_FILESYSTEM_ALREADY_EXISTS",
+            code: crate::META_FILESYSTEM_ALREADY_EXISTS,
+            kind: ErrorKind::AlreadyExists,
+            component: "Meta",
+            subsystem: "Filesystem",
+        },
+        ExpectedError {
+            name: "META_FILESYSTEM_NOT_DIRECTORY",
+            code: crate::META_FILESYSTEM_NOT_DIRECTORY,
+            kind: ErrorKind::FailedPrecondition,
+            component: "Meta",
+            subsystem: "Filesystem",
+        },
+        ExpectedError {
+            name: "META_FILESYSTEM_IS_DIRECTORY",
+            code: crate::META_FILESYSTEM_IS_DIRECTORY,
+            kind: ErrorKind::FailedPrecondition,
+            component: "Meta",
+            subsystem: "Filesystem",
+        },
+        ExpectedError {
+            name: "META_FILESYSTEM_DIRECTORY_NOT_EMPTY",
+            code: crate::META_FILESYSTEM_DIRECTORY_NOT_EMPTY,
+            kind: ErrorKind::FailedPrecondition,
+            component: "Meta",
+            subsystem: "Filesystem",
+        },
+        ExpectedError {
+            name: "META_FILESYSTEM_STALE_REVISION",
+            code: crate::META_FILESYSTEM_STALE_REVISION,
+            kind: ErrorKind::Aborted,
+            component: "Meta",
+            subsystem: "Filesystem",
+        },
+        ExpectedError {
+            name: "META_FILESYSTEM_PERMISSION_DENIED",
+            code: crate::META_FILESYSTEM_PERMISSION_DENIED,
+            kind: ErrorKind::PermissionDenied,
+            component: "Meta",
+            subsystem: "Filesystem",
+        },
+        ExpectedError {
+            name: "META_FILESYSTEM_XATTR_NOT_FOUND",
+            code: crate::META_FILESYSTEM_XATTR_NOT_FOUND,
+            kind: ErrorKind::NotFound,
+            component: "Meta",
+            subsystem: "Filesystem",
+        },
+        ExpectedError {
+            name: "META_FILESYSTEM_XATTR_ALREADY_EXISTS",
+            code: crate::META_FILESYSTEM_XATTR_ALREADY_EXISTS,
+            kind: ErrorKind::AlreadyExists,
+            component: "Meta",
+            subsystem: "Filesystem",
+        },
+        ExpectedError {
+            name: "META_FILESYSTEM_XATTR_UNSUPPORTED",
+            code: crate::META_FILESYSTEM_XATTR_UNSUPPORTED,
+            kind: ErrorKind::Unimplemented,
+            component: "Meta",
+            subsystem: "Filesystem",
+        },
+        ExpectedError {
+            name: "META_FILESYSTEM_XATTR_TOO_LARGE",
+            code: crate::META_FILESYSTEM_XATTR_TOO_LARGE,
+            kind: ErrorKind::ResourceExhausted,
+            component: "Meta",
+            subsystem: "Filesystem",
+        },
+        ExpectedError {
+            name: "META_FILESYSTEM_CAPACITY_UNAVAILABLE",
+            code: crate::META_FILESYSTEM_CAPACITY_UNAVAILABLE,
+            kind: ErrorKind::Unavailable,
+            component: "Meta",
+            subsystem: "Filesystem",
+        },
     ];
 
     fn parse_code(entry: &toml::Value, field: &str) -> u32 {
@@ -472,6 +549,7 @@ mod catalog_tests {
             ("Meta", "Catalog") => 0x01,
             ("Meta", "Journal") => 0x02,
             ("Meta", "Session") => 0x03,
+            ("Meta", "Filesystem") => 0x04,
             (component, subsystem) => panic!("unknown subsystem {component}/{subsystem}"),
         }
     }

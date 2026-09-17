@@ -1,0 +1,4 @@
+PASS
+rounds=20
+namespace: mkdir/create/readdir/rename/unlink/rmdir across two FUSE mounts
+recovery: Meta and Node B restart preserve committed directory tree and file binding

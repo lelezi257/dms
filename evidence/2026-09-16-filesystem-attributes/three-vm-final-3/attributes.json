@@ -1,0 +1,8 @@
+{
+  "inode": 2,
+  "mode": 416,
+  "access_acl_hex": "0200000001000600ffffffff02000400f601000004000000ffffffff10000400ffffffff20000000ffffffff",
+  "default_acl_hex": "0200000001000700ffffffff04000500ffffffff20000000ffffffff",
+  "blocks": 131072,
+  "files": 10000
+}

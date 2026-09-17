@@ -23,6 +23,7 @@ pub const DEFAULT_NODE_CURRENT_CACHE_BYTES: u64 = 8 * 1024 * 1024;
 // Meta 首版节点租约上限对齐，实际条目仍受每次授权的剩余期限约束。
 pub const DEFAULT_NODE_CURRENT_CACHE_TTL_MILLIS: u64 = 30_000;
 pub const DEFAULT_META_CHECKPOINT_EVERY_RECORDS: u64 = 4_096;
+pub const DEFAULT_FILESYSTEM_MAX_INODES: u64 = 1_000_000;
 pub const DEFAULT_LOG_QUEUE_CAPACITY: usize = 10_240;
 pub const DEFAULT_LOG_MAX_FILE_SIZE_BYTES: u64 = 256 * 1024 * 1024;
 pub const DEFAULT_LOG_MAX_BACKUPS: usize = 14;
@@ -106,6 +107,9 @@ pub struct NodeConfigFile {
     pub node_current_cache_bytes: Option<u64>,
     /// Node 本地 Current 布局缓存 TTL；重启生效，且不延长 Meta 授权的可见性窗口。
     pub node_current_cache_ttl_millis: Option<u64>,
+    /// 真实 Linux FUSE 穿刺挂载点。只在 `fuse` feature 下生效；不配置不启用。
+    #[cfg(all(target_os = "linux", feature = "fuse"))]
+    pub fuse_mountpoint: Option<String>,
     #[serde(default)]
     pub log: LoggingConfigFile,
     #[serde(default)]
@@ -121,6 +125,8 @@ pub struct MetaConfigFile {
     pub journal_dir: Option<String>,
     /// Meta WAL 每累计多少条新 record 做一次 snapshot 并截断前缀。
     pub checkpoint_every_records: Option<u64>,
+    /// `statfs` 对外报告的 inode 总量上限；实际已用数量来自 Meta catalog。
+    pub filesystem_max_inodes: Option<u64>,
     #[serde(default)]
     pub log: LoggingConfigFile,
     #[serde(default)]
@@ -199,6 +205,8 @@ pub struct NodeCliOverrides {
     pub client_cache_lease_ttl_millis: Option<u64>,
     pub node_current_cache_bytes: Option<u64>,
     pub node_current_cache_ttl_millis: Option<u64>,
+    #[cfg(all(target_os = "linux", feature = "fuse"))]
+    pub fuse_mountpoint: Option<String>,
     pub log: LoggingCliOverrides,
     pub tracing: TracingCliOverrides,
 }
@@ -210,6 +218,7 @@ pub struct MetaCliOverrides {
     pub grpc_address: Option<String>,
     pub journal_dir: Option<String>,
     pub checkpoint_every_records: Option<u64>,
+    pub filesystem_max_inodes: Option<u64>,
     pub log: LoggingCliOverrides,
     pub tracing: TracingCliOverrides,
 }
@@ -227,6 +236,8 @@ pub struct ResolvedNodeConfig {
     pub client_cache_lease_ttl: Duration,
     pub node_current_cache_bytes: u64,
     pub node_current_cache_ttl: Duration,
+    #[cfg(all(target_os = "linux", feature = "fuse"))]
+    pub fuse_mountpoint: Option<String>,
     pub logging: LoggingConfig,
     pub tracing: TracingConfig,
 }
@@ -238,6 +249,7 @@ pub struct ResolvedMetaConfig {
     pub grpc_address: String,
     pub journal_dir: Option<String>,
     pub checkpoint_every_records: u64,
+    pub filesystem_max_inodes: u64,
     pub logging: LoggingConfig,
     pub tracing: TracingConfig,
 }
@@ -337,6 +349,8 @@ impl ResolvedNodeConfig {
             client_cache_lease_ttl: Duration::from_millis(cache_ttl),
             node_current_cache_bytes,
             node_current_cache_ttl: Duration::from_millis(node_current_cache_ttl_millis),
+            #[cfg(all(target_os = "linux", feature = "fuse"))]
+            fuse_mountpoint: pick(cli.fuse_mountpoint, file.fuse_mountpoint),
             logging,
             tracing,
         })
@@ -355,6 +369,9 @@ impl ResolvedMetaConfig {
             pick(cli.checkpoint_every_records, file.checkpoint_every_records)
                 .unwrap_or(DEFAULT_META_CHECKPOINT_EVERY_RECORDS);
         validate_positive_u64("checkpoint_every_records", checkpoint_every_records)?;
+        let filesystem_max_inodes = pick(cli.filesystem_max_inodes, file.filesystem_max_inodes)
+            .unwrap_or(DEFAULT_FILESYSTEM_MAX_INODES);
+        validate_positive_u64("filesystem_max_inodes", filesystem_max_inodes)?;
         let logging = resolve_logging(file.log, cli.log)?;
         let tracing = resolve_tracing(file.tracing, cli.tracing)?;
         Ok(Self {
@@ -363,6 +380,7 @@ impl ResolvedMetaConfig {
             grpc_address,
             journal_dir: pick(cli.journal_dir, file.journal_dir),
             checkpoint_every_records,
+            filesystem_max_inodes,
             logging,
             tracing,
         })
@@ -789,6 +807,7 @@ mod tests {
             grpc_address = "127.0.0.1:19300"
             journal_dir = "/tmp/dms-meta"
             checkpoint_every_records = 128
+            filesystem_max_inodes = 2048
             "#,
         )
         .expect("file config");
@@ -801,6 +820,7 @@ mod tests {
         assert_eq!(resolved.grpc_address, "127.0.0.1:19300");
         assert_eq!(resolved.journal_dir.as_deref(), Some("/tmp/dms-meta"));
         assert_eq!(resolved.checkpoint_every_records, 128);
+        assert_eq!(resolved.filesystem_max_inodes, 2048);
     }
 
     #[test]
@@ -843,6 +863,53 @@ mod tests {
                 base,
                 MetaCliOverrides {
                     checkpoint_every_records: Some(0),
+                    ..MetaCliOverrides::default()
+                }
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn meta_filesystem_inode_limit_uses_default_file_cli_and_rejects_zero() {
+        let base = MetaConfigFile {
+            node_id: Some("meta".into()),
+            grpc_address: Some("127.0.0.1:19300".into()),
+            ..MetaConfigFile::default()
+        };
+        assert_eq!(
+            ResolvedMetaConfig::from_sources(base.clone(), MetaCliOverrides::default())
+                .unwrap()
+                .filesystem_max_inodes,
+            DEFAULT_FILESYSTEM_MAX_INODES
+        );
+        let file = MetaConfigFile {
+            filesystem_max_inodes: Some(2_000),
+            ..base.clone()
+        };
+        assert_eq!(
+            ResolvedMetaConfig::from_sources(file.clone(), MetaCliOverrides::default())
+                .unwrap()
+                .filesystem_max_inodes,
+            2_000
+        );
+        assert_eq!(
+            ResolvedMetaConfig::from_sources(
+                file,
+                MetaCliOverrides {
+                    filesystem_max_inodes: Some(3_000),
+                    ..MetaCliOverrides::default()
+                }
+            )
+            .unwrap()
+            .filesystem_max_inodes,
+            3_000
+        );
+        assert!(
+            ResolvedMetaConfig::from_sources(
+                base,
+                MetaCliOverrides {
+                    filesystem_max_inodes: Some(0),
                     ..MetaCliOverrides::default()
                 }
             )

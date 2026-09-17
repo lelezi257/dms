@@ -392,6 +392,56 @@ impl RpcCall {
         Self::new("MetadataService", "AcknowledgeNodeEvent");
     pub const META_ACKNOWLEDGE_BLOCK_RETIREMENT: Self =
         Self::new("MetadataService", "AcknowledgeBlockRetirement");
+    pub const FILESYSTEM_LOOKUP: Self =
+        Self::new("FilesystemMetadataService", "LookupFilesystemEntry");
+    pub const FILESYSTEM_GET_INODE: Self =
+        Self::new("FilesystemMetadataService", "GetFilesystemInode");
+    pub const FILESYSTEM_CREATE_INODE: Self =
+        Self::new("FilesystemMetadataService", "CreateFilesystemInode");
+    pub const FILESYSTEM_CREATE_SYMLINK: Self =
+        Self::new("FilesystemMetadataService", "CreateFilesystemSymlink");
+    pub const FILESYSTEM_READ_DIRECTORY: Self =
+        Self::new("FilesystemMetadataService", "ReadFilesystemDirectory");
+    pub const FILESYSTEM_LINK: Self = Self::new("FilesystemMetadataService", "LinkFilesystemEntry");
+    pub const FILESYSTEM_ACQUIRE_INODE_REFERENCE: Self = Self::new(
+        "FilesystemMetadataService",
+        "AcquireFilesystemInodeReference",
+    );
+    pub const FILESYSTEM_RENEW_INODE_REFERENCES: Self = Self::new(
+        "FilesystemMetadataService",
+        "RenewFilesystemInodeReferences",
+    );
+    pub const FILESYSTEM_RELEASE_INODE_REFERENCE: Self = Self::new(
+        "FilesystemMetadataService",
+        "ReleaseFilesystemInodeReference",
+    );
+    pub const FILESYSTEM_RENAME: Self =
+        Self::new("FilesystemMetadataService", "RenameFilesystemEntry");
+    pub const FILESYSTEM_REMOVE: Self =
+        Self::new("FilesystemMetadataService", "RemoveFilesystemEntry");
+    pub const FILESYSTEM_SET_ATTRIBUTES: Self =
+        Self::new("FilesystemMetadataService", "SetFilesystemAttributes");
+    pub const FILESYSTEM_GET_XATTR: Self =
+        Self::new("FilesystemMetadataService", "GetFilesystemXattr");
+    pub const FILESYSTEM_LIST_XATTRS: Self =
+        Self::new("FilesystemMetadataService", "ListFilesystemXattrs");
+    pub const FILESYSTEM_SET_XATTR: Self =
+        Self::new("FilesystemMetadataService", "SetFilesystemXattr");
+    pub const FILESYSTEM_REMOVE_XATTR: Self =
+        Self::new("FilesystemMetadataService", "RemoveFilesystemXattr");
+    pub const FILESYSTEM_STAT: Self = Self::new("FilesystemMetadataService", "StatFilesystem");
+    pub const FILESYSTEM_COMMIT_VERSION: Self =
+        Self::new("FilesystemMetadataService", "CommitFilesystemVersion");
+    pub const FILESYSTEM_TEST_LOCK: Self =
+        Self::new("FilesystemMetadataService", "TestFilesystemLock");
+    pub const FILESYSTEM_SET_LOCK: Self =
+        Self::new("FilesystemMetadataService", "SetFilesystemLock");
+    pub const FILESYSTEM_CANCEL_LOCK_WAIT: Self =
+        Self::new("FilesystemMetadataService", "CancelFilesystemLockWait");
+    pub const FILESYSTEM_RELEASE_LOCK_OWNER: Self =
+        Self::new("FilesystemMetadataService", "ReleaseFilesystemLockOwner");
+    pub const FILESYSTEM_RECLAIM_LOCKS: Self =
+        Self::new("FilesystemMetadataService", "ReclaimFilesystemLocks");
 }
 
 /// Five transport-boundary collectors shared by every gRPC relationship.

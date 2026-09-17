@@ -83,6 +83,7 @@ sample_ratio = 0.01
 | Meta 必需 | `node_id`、`grpc_address` |
 | Meta journal | 不指定 `journal_dir` 则用内存后端；指定目录才使用 WAL/snapshot |
 | Meta checkpoint | `checkpoint_every_records=4096`，正数；CLI 为 `--checkpoint-every-records` |
+| Meta Filesystem | `filesystem_max_inodes=1000000`，正数；CLI 为 `--filesystem-max-inodes`；作为 `statfs` 的逻辑 inode 上限 |
 | status | 未指定 `health_address` 时为 `127.0.0.1:0`（随机空闲端口）；手工部署建议显式固定 |
 | 日志 | info、JSON、stderr；配置 path 才写文件；异步队列10240、DropAndReport、256 MiB滚动、14备份、7天老化 |
 | Trace | 默认关闭；启用后的默认采样0.01；周期成功请求默认不采集；队列4096、批次512、间隔5000ms、导出超时3000ms |
@@ -99,6 +100,12 @@ Meta 使用同样的 `[log]`、`[tracing]` 配置。
 不是 WAL 的刷盘间隔。WAL 模式仍然先可靠追加 journal、再 apply 状态，
 不会因为降低 snapshot 频率而跳过已确认写入的恢复记录。
 更大阈值减少全量复制/快照开销，但增加重启时重放的日志量；修改后重启生效。
+
+`filesystem_max_inodes` 是 Meta 对外报告的逻辑 inode 上限，不是预分配 inode 数量。
+`statfs.f_files` 使用该配置，`f_ffree` 用它减去 durable Filesystem catalog 中已使用的
+inode 数量；Node 的 block 容量则来自每个 live Node heartbeat 上报的真实 Arena 资源。
+修改该值需要重启 Meta。某个 live Node 在当前 incarnation 尚未送达第一份资源快照时，
+`statfs` 返回 `EAGAIN`，不会用 0 或局部 Node 容量冒充完整集群视图。
 
 `node_current_cache_bytes` 控制 Node 侧 GET 热路径的 Current 布局缓存预算。
 它保存的是 key 到 `VersionLayout` 及 Block 位置提示的解析结果，目的是在租约内减少
@@ -127,6 +134,7 @@ Node→Meta 的重复解析；它不保存用户 value，也不能证明某个 B
 | 旧 SDK cache lease TTL | 仅启动配置，保留旧协议兼容 | 重启；不得跳过已授予旧 SDK 的失效 ACK/到期义务 |
 | Node Current 布局缓存容量 / TTL | 仅启动配置 | 重启；不在线清空或扩展已有缓存预算 |
 | Meta checkpoint records | 仅启动配置 | 重启；不改变 journal 可靠性模式 |
+| Meta Filesystem inode 上限 | 仅启动配置 | 重启；改变后续 `statfs.f_files/f_ffree`，不重写现有 inode |
 | tracing 开关、采样、exporter | 启动初始化 | 重启；没有自动热重载 |
 
 当前没有一个可供用户调用的通用 `/config` URL。定义了内部 controller 不等于已经支持在线运维。

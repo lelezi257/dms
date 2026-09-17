@@ -1,5 +1,6 @@
 {
   "schema": "dms.whitebox-result.v1",
+  "document_role": "legacy_baseline",
   "profile": {
     "id": "lima-aarch64-3vm-2026-09-12",
     "measured_at": "2026-09-12",

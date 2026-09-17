@@ -50,6 +50,29 @@ pub(crate) enum MetaOperation {
     PlanReplicas,
     WatchNodeEvents,
     AcknowledgeNodeEvent,
+    FilesystemLookup,
+    FilesystemGetInode,
+    FilesystemCreateInode,
+    FilesystemCreateSymlink,
+    FilesystemReadDirectory,
+    FilesystemLinkEntry,
+    FilesystemAcquireInodeReference,
+    FilesystemRenewInodeReferences,
+    FilesystemReleaseInodeReference,
+    FilesystemRenameEntry,
+    FilesystemRemoveEntry,
+    FilesystemSetAttributes,
+    FilesystemGetXattr,
+    FilesystemListXattrs,
+    FilesystemSetXattr,
+    FilesystemRemoveXattr,
+    FilesystemStat,
+    FilesystemCommitVersion,
+    FilesystemTestLock,
+    FilesystemSetLock,
+    FilesystemCancelLockWait,
+    FilesystemReleaseLockOwner,
+    FilesystemReclaimLocks,
     #[cfg(test)]
     Stats,
 }
@@ -68,6 +91,29 @@ impl MetaOperation {
         Self::PlanReplicas,
         Self::WatchNodeEvents,
         Self::AcknowledgeNodeEvent,
+        Self::FilesystemLookup,
+        Self::FilesystemGetInode,
+        Self::FilesystemCreateInode,
+        Self::FilesystemCreateSymlink,
+        Self::FilesystemReadDirectory,
+        Self::FilesystemLinkEntry,
+        Self::FilesystemAcquireInodeReference,
+        Self::FilesystemRenewInodeReferences,
+        Self::FilesystemReleaseInodeReference,
+        Self::FilesystemRenameEntry,
+        Self::FilesystemRemoveEntry,
+        Self::FilesystemSetAttributes,
+        Self::FilesystemGetXattr,
+        Self::FilesystemListXattrs,
+        Self::FilesystemSetXattr,
+        Self::FilesystemRemoveXattr,
+        Self::FilesystemStat,
+        Self::FilesystemCommitVersion,
+        Self::FilesystemTestLock,
+        Self::FilesystemSetLock,
+        Self::FilesystemCancelLockWait,
+        Self::FilesystemReleaseLockOwner,
+        Self::FilesystemReclaimLocks,
     ];
 
     pub(crate) const fn label(self) -> &'static str {
@@ -84,6 +130,29 @@ impl MetaOperation {
             Self::PlanReplicas => "plan_replicas",
             Self::WatchNodeEvents => "watch_node_events",
             Self::AcknowledgeNodeEvent => "acknowledge_node_event",
+            Self::FilesystemLookup => "filesystem_lookup",
+            Self::FilesystemGetInode => "filesystem_get_inode",
+            Self::FilesystemCreateInode => "filesystem_create_inode",
+            Self::FilesystemCreateSymlink => "filesystem_create_symlink",
+            Self::FilesystemReadDirectory => "filesystem_read_directory",
+            Self::FilesystemLinkEntry => "filesystem_link_entry",
+            Self::FilesystemAcquireInodeReference => "filesystem_acquire_inode_reference",
+            Self::FilesystemRenewInodeReferences => "filesystem_renew_inode_references",
+            Self::FilesystemReleaseInodeReference => "filesystem_release_inode_reference",
+            Self::FilesystemRenameEntry => "filesystem_rename_entry",
+            Self::FilesystemRemoveEntry => "filesystem_remove_entry",
+            Self::FilesystemSetAttributes => "filesystem_set_attributes",
+            Self::FilesystemGetXattr => "filesystem_get_xattr",
+            Self::FilesystemListXattrs => "filesystem_list_xattrs",
+            Self::FilesystemSetXattr => "filesystem_set_xattr",
+            Self::FilesystemRemoveXattr => "filesystem_remove_xattr",
+            Self::FilesystemStat => "filesystem_stat",
+            Self::FilesystemCommitVersion => "filesystem_commit_version",
+            Self::FilesystemTestLock => "filesystem_test_lock",
+            Self::FilesystemSetLock => "filesystem_set_lock",
+            Self::FilesystemCancelLockWait => "filesystem_cancel_lock_wait",
+            Self::FilesystemReleaseLockOwner => "filesystem_release_lock_owner",
+            Self::FilesystemReclaimLocks => "filesystem_reclaim_locks",
             #[cfg(test)]
             Self::Stats => "stats",
         }
@@ -128,6 +197,12 @@ pub(crate) enum JournalRecordMetric {
     BlockRetirementAcknowledged,
     BlockRetirementFinalized,
     BlockRetirementReleased,
+    FilesystemInodeCreated,
+    FilesystemVersionCommitted,
+    FilesystemAttributesUpdated,
+    FilesystemNamespaceMutated,
+    FilesystemSymlinkCreated,
+    FilesystemOrphanReaped,
 }
 
 impl JournalRecordMetric {
@@ -143,6 +218,12 @@ impl JournalRecordMetric {
         Self::BlockRetirementAcknowledged,
         Self::BlockRetirementFinalized,
         Self::BlockRetirementReleased,
+        Self::FilesystemInodeCreated,
+        Self::FilesystemVersionCommitted,
+        Self::FilesystemAttributesUpdated,
+        Self::FilesystemNamespaceMutated,
+        Self::FilesystemSymlinkCreated,
+        Self::FilesystemOrphanReaped,
     ];
 
     pub(crate) const fn label(self) -> &'static str {
@@ -158,6 +239,12 @@ impl JournalRecordMetric {
             Self::BlockRetirementAcknowledged => "block_retirement_acknowledged",
             Self::BlockRetirementFinalized => "block_retirement_finalized",
             Self::BlockRetirementReleased => "block_retirement_released",
+            Self::FilesystemInodeCreated => "filesystem_inode_created",
+            Self::FilesystemVersionCommitted => "filesystem_version_committed",
+            Self::FilesystemAttributesUpdated => "filesystem_attributes_updated",
+            Self::FilesystemNamespaceMutated => "filesystem_namespace_mutated",
+            Self::FilesystemSymlinkCreated => "filesystem_symlink_created",
+            Self::FilesystemOrphanReaped => "filesystem_orphan_reaped",
         }
     }
 }
@@ -169,6 +256,7 @@ pub(crate) enum WatchEventType {
     Eviction,
     Fence,
     Gap,
+    FilesystemInvalidation,
     Empty,
 }
 
@@ -179,6 +267,7 @@ impl WatchEventType {
         Self::Eviction,
         Self::Fence,
         Self::Gap,
+        Self::FilesystemInvalidation,
         Self::Empty,
     ];
 
@@ -189,6 +278,7 @@ impl WatchEventType {
             Self::Eviction => "eviction",
             Self::Fence => "fence",
             Self::Gap => "gap",
+            Self::FilesystemInvalidation => "filesystem_invalidation",
             Self::Empty => "empty",
         }
     }

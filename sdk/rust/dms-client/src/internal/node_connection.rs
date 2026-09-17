@@ -2080,6 +2080,9 @@ impl NodeConnection {
             Some(pb::payload_target::Target::Ub(_)) => Err(DmsError::node_transfer_unsupported(
                 "UB provider is not enabled by this SDK build".to_string(),
             )),
+            Some(pb::payload_target::Target::Zero(_)) => Err(DmsError::node_transfer_unsupported(
+                "zero payload target is read-only".to_string(),
+            )),
             None => Err(DmsError::client_protocol_violation(
                 "empty payload target".to_string(),
             )),
@@ -2199,6 +2202,7 @@ fn read_target_length(target: &pb::PayloadTarget) -> Result<u64, DmsError> {
         Some(pb::payload_target::Target::Grpc(target)) => Ok(target.length),
         Some(pb::payload_target::Target::Rdma(target)) => Ok(target.length),
         Some(pb::payload_target::Target::Ub(target)) => Ok(target.length),
+        Some(pb::payload_target::Target::Zero(target)) => Ok(target.length),
         None => Err(DmsError::client_protocol_violation(
             "read segment has empty target",
         )),

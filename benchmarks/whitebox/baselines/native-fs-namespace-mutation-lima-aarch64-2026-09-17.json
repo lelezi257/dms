@@ -1,0 +1,42 @@
+{
+  "schema": "dms.native-fs-namespace-mutation-baseline.v1",
+  "profile": {
+    "arch": "aarch64",
+    "environment": "three-lima-vm",
+    "nodes": 3,
+    "memory_lane_rounds_per_run": 5,
+    "independent_runs": 2
+  },
+  "source_sha": "d794a6d31eabea35f00e1d30ff3bc4a8ff8677d0",
+  "binary_sha256": {
+    "dms_node": "bc1c332814d91460d0d7ea374f4d28710a1f1e4a1c43bba19582c3eb926f1b35",
+    "dms_meta": "1499a1d360bd1423005c6e3bc1962fa5477bf9f09858fefcb7c74a4c5bdb53cd"
+  },
+  "acceptance": {
+    "mode": "latency_or_segmented_proof",
+    "minimum_segmented_coverage_fraction": 0.85,
+    "rpc_contract_is_hard_gate": true,
+    "correctness_is_hard_gate": true
+  },
+  "runs": [
+    {
+      "run_id": "native-fs-namespace-mutation-20260917-run-1",
+      "cases": {
+        "workspace.stat": {"dms_p50_us": 2.875, "reference_p50_us": 169.299, "p50_ratio": 0.017},
+        "workspace.create": {"dms_p50_us": 1283.176, "reference_p50_us": 870.914, "p50_ratio": 1.473, "mean_us": 1298.625, "explained_us": 1129.814, "coverage_fraction": 0.870, "residual_us": 168.812},
+        "workspace.patch": {"dms_p50_us": 888.329, "reference_p50_us": 649.651, "p50_ratio": 1.367, "mean_us": 904.632, "explained_us": 789.922, "coverage_fraction": 0.873, "residual_us": 114.710},
+        "workspace.create_delete": {"dms_p50_us": 1806.571, "reference_p50_us": 1056.044, "p50_ratio": 1.711, "mean_us": 1807.522, "explained_us": 1585.272, "coverage_fraction": 0.877, "residual_us": 222.250}
+      }
+    },
+    {
+      "run_id": "native-fs-namespace-mutation-20260917-run-2",
+      "cases": {
+        "workspace.stat": {"dms_p50_us": 2.792, "reference_p50_us": 158.005, "p50_ratio": 0.018},
+        "workspace.create": {"dms_p50_us": 1246.079, "reference_p50_us": 813.817, "p50_ratio": 1.531, "mean_us": 1256.300, "explained_us": 1088.192, "coverage_fraction": 0.866, "residual_us": 168.109},
+        "workspace.patch": {"dms_p50_us": 886.110, "reference_p50_us": 661.395, "p50_ratio": 1.340, "mean_us": 904.796, "explained_us": 790.822, "coverage_fraction": 0.874, "residual_us": 113.973},
+        "workspace.create_delete": {"dms_p50_us": 1763.347, "reference_p50_us": 1047.700, "p50_ratio": 1.683, "mean_us": 1772.341, "explained_us": 1549.792, "coverage_fraction": 0.874, "residual_us": 222.548}
+      }
+    }
+  ],
+  "evaluation": "PASS"
+}

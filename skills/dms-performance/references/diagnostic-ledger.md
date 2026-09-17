@@ -31,3 +31,8 @@
 - Native Filesystem 普通读的 access ACL 与 inode mode/revision 共用同一 grant；如果每次读仍出现 `GetFilesystemXattr`，属于实现回归，不应新增第二套 ACL cache。
 - FUSE release 只有本地镜像中存在真实锁或在途锁请求时才访问 Meta；无锁 owner 的 `ReleaseFilesystemLockOwner` 必须本地短路。
 - P1 稳定热读要求 before snapshot 前对双方执行相同完整 warmup。创建阶段过长导致的每目录一次 grant 恢复属于冷启动；warmup 后若仍有前台 Meta/Peer RPC，才是持续热路径放大。
+- 在线 Filesystem invalidation 只投递给真实 grant holder，提交只等待这些 holder 的 ACK，Watch lag 和事件保留也按同一目标集合计算；重启恢复缺少 holder 快照时才保守退化为全 active Node。
+- P2 `create` 的当前最小权威图是 negative lookup + namespace create + 随后独立 FUSE write callback 的 write-through commit；三者不能在不改变 FUSE/POSIX 时序的情况下伪合并。
+- P2 `patch` 的当前最小权威图是一次 commit + 真实远端 holder ACK；ACK 属于强一致可见性屏障，不是重复 RPC。
+- P2 `create/delete` 的孤儿 inode `ReleaseFilesystemInodeReference` 使 durable reap 不必等待完整 lease；普通 named-file close 已只停止本地续租，不应每次发 Meta release。
+- 性能硬门槛未达标时，只有“RPC 合同仍精确通过 + 同轮分段覆盖达到合同阈值 + 正确性与身份门禁通过”才能使用分段证明；证明不能覆盖 forbidden/unbudgeted RPC。

@@ -43,8 +43,20 @@ pub(crate) struct ResolvedDentry {
     pub(crate) dentry: DentrySnapshot,
     pub(crate) resolved: ResolvedInode,
     pub(crate) directory_grant: DirectoryGrant,
+    /// 本次 mutation 同时更新的父目录 binding。它与 dentry/child 来自同一权威
+    /// 响应，Node 应在同一个 owner turn 中安装，避免后续 getattr 再访问 Meta。
+    pub(crate) refreshed_directories: Vec<ResolvedInode>,
     pub(crate) entry_reference_lease_millis: u64,
     pub(crate) entry_reference_generation: u64,
+}
+
+/// namespace mutation 的持久化结果与在线缓存刷新数据分离。
+///
+/// `mutation` 可以写入 WAL 并参与幂等重放；`refreshed_directories` 是 Meta 根据提交后
+/// 当前状态生成的在线响应，只用于替换 Node 的父目录 binding，不形成第二份权威状态。
+pub(crate) struct ResolvedNamespaceMutation {
+    pub(crate) mutation: NamespaceMutationResult,
+    pub(crate) refreshed_directories: Vec<ResolvedInode>,
 }
 
 pub(crate) struct LookupDentry {
@@ -91,17 +103,21 @@ pub(crate) trait FilesystemMetaClient: Send + Sync {
         expected_directory_revision: Option<u64>,
     ) -> DmsResult<DirectoryPage>;
 
-    async fn link_entry(&self, request: LinkEntryRequest) -> DmsResult<NamespaceMutationResult>;
+    async fn link_entry(&self, request: LinkEntryRequest) -> DmsResult<ResolvedNamespaceMutation>;
 
     async fn acquire_inode_reference(&self, inode: InodeId, generation: u64) -> DmsResult<u64>;
 
     async fn release_inode_reference(&self, inode: InodeId, generation: u64) -> DmsResult<()>;
 
-    async fn rename_entry(&self, request: RenameEntryRequest)
-    -> DmsResult<NamespaceMutationResult>;
+    async fn rename_entry(
+        &self,
+        request: RenameEntryRequest,
+    ) -> DmsResult<ResolvedNamespaceMutation>;
 
-    async fn remove_entry(&self, request: RemoveEntryRequest)
-    -> DmsResult<NamespaceMutationResult>;
+    async fn remove_entry(
+        &self,
+        request: RemoveEntryRequest,
+    ) -> DmsResult<ResolvedNamespaceMutation>;
 
     async fn resolve_inode(&self, inode: InodeId) -> DmsResult<Option<ResolvedInode>>;
 
@@ -194,6 +210,12 @@ impl FilesystemMetaClient for FilesystemMetaGrpcClient {
                     dentry: dentry_from_proto(dentry),
                     resolved: resolved_from_proto(resolved).map_err(invalid_filesystem_response)?,
                     directory_grant,
+                    refreshed_directories: response
+                        .refreshed_directories
+                        .into_iter()
+                        .map(resolved_from_proto)
+                        .collect::<Result<_, _>>()
+                        .map_err(invalid_filesystem_response)?,
                     entry_reference_lease_millis: response.entry_reference_lease_millis,
                     entry_reference_generation: response.entry_reference_generation,
                 })
@@ -257,6 +279,12 @@ impl FilesystemMetaClient for FilesystemMetaGrpcClient {
                 .and_then(|grant| {
                     directory_grant_from_proto(grant).map_err(invalid_filesystem_response)
                 })?,
+            refreshed_directories: response
+                .refreshed_directories
+                .into_iter()
+                .map(resolved_from_proto)
+                .collect::<Result<_, _>>()
+                .map_err(invalid_filesystem_response)?,
             entry_reference_lease_millis: response.entry_reference_lease_millis,
             entry_reference_generation: response.entry_reference_generation,
         })
@@ -296,6 +324,12 @@ impl FilesystemMetaClient for FilesystemMetaGrpcClient {
                 .and_then(|grant| {
                     directory_grant_from_proto(grant).map_err(invalid_filesystem_response)
                 })?,
+            refreshed_directories: response
+                .refreshed_directories
+                .into_iter()
+                .map(resolved_from_proto)
+                .collect::<Result<_, _>>()
+                .map_err(invalid_filesystem_response)?,
             entry_reference_lease_millis: response.entry_reference_lease_millis,
             entry_reference_generation: response.entry_reference_generation,
         })
@@ -320,7 +354,7 @@ impl FilesystemMetaClient for FilesystemMetaGrpcClient {
         directory_page_from_proto(directory, response).map_err(invalid_filesystem_response)
     }
 
-    async fn link_entry(&self, request: LinkEntryRequest) -> DmsResult<NamespaceMutationResult> {
+    async fn link_entry(&self, request: LinkEntryRequest) -> DmsResult<ResolvedNamespaceMutation> {
         let response = self
             .metadata
             .filesystem_link_entry(pb::FilesystemLinkRequest {
@@ -336,7 +370,7 @@ impl FilesystemMetaClient for FilesystemMetaGrpcClient {
                 reference_generation: request.reference_generation,
             })
             .await?;
-        namespace_result_from_proto(response).map_err(invalid_filesystem_response)
+        resolved_namespace_mutation_from_proto(response)
     }
 
     async fn acquire_inode_reference(&self, inode: InodeId, generation: u64) -> DmsResult<u64> {
@@ -366,7 +400,7 @@ impl FilesystemMetaClient for FilesystemMetaGrpcClient {
     async fn rename_entry(
         &self,
         request: RenameEntryRequest,
-    ) -> DmsResult<NamespaceMutationResult> {
+    ) -> DmsResult<ResolvedNamespaceMutation> {
         let response = self
             .metadata
             .filesystem_rename_entry(pb::FilesystemRenameRequest {
@@ -384,13 +418,13 @@ impl FilesystemMetaClient for FilesystemMetaGrpcClient {
                 replace_existing: request.replace_existing,
             })
             .await?;
-        namespace_result_from_proto(response).map_err(invalid_filesystem_response)
+        resolved_namespace_mutation_from_proto(response)
     }
 
     async fn remove_entry(
         &self,
         request: RemoveEntryRequest,
-    ) -> DmsResult<NamespaceMutationResult> {
+    ) -> DmsResult<ResolvedNamespaceMutation> {
         let response = self
             .metadata
             .filesystem_remove_entry(pb::FilesystemRemoveRequest {
@@ -405,7 +439,7 @@ impl FilesystemMetaClient for FilesystemMetaGrpcClient {
                 commit_sequence: request.commit_sequence,
             })
             .await?;
-        namespace_result_from_proto(response).map_err(invalid_filesystem_response)
+        resolved_namespace_mutation_from_proto(response)
     }
 
     async fn resolve_inode(&self, inode: InodeId) -> DmsResult<Option<ResolvedInode>> {
@@ -686,6 +720,21 @@ fn append_time_update_digest(digest: &mut Vec<u8>, update: TimeUpdate) {
             digest.extend_from_slice(&nanos.to_be_bytes());
         }
     }
+}
+
+fn resolved_namespace_mutation_from_proto(
+    mut response: pb::FilesystemNamespaceMutationResponse,
+) -> DmsResult<ResolvedNamespaceMutation> {
+    let refreshed_directories = std::mem::take(&mut response.refreshed_directories)
+        .into_iter()
+        .map(resolved_from_proto)
+        .collect::<Result<_, _>>()
+        .map_err(invalid_filesystem_response)?;
+    let mutation = namespace_result_from_proto(response).map_err(invalid_filesystem_response)?;
+    Ok(ResolvedNamespaceMutation {
+        mutation,
+        refreshed_directories,
+    })
 }
 
 fn missing_filesystem_response() -> DmsError {

@@ -19,12 +19,12 @@ use tokio::sync::{mpsc, oneshot};
 use crate::filesystem::{
     ACL_ACCESS_NAME, ACL_DEFAULT_NAME, AttributePatch, CacheGrant, DentrySnapshot, DirectoryGrant,
     FileContentBinding, FileLockOutcome, FileLockOwner, FileSpaceReservation, FilesystemCaller,
-    InodeAttributes, InodeKind, InodeSnapshot, InodeVersion, NamespaceMutationResult, ROOT_INODE,
-    RemoveKind, ResolvedInode, TimeUpdate, XattrSetMode, XattrUpdate, access_acl_after_chmod,
-    attribute_patch_from_proto, caller_from_proto, dentry_to_proto, directory_entry_to_proto,
-    directory_grant_to_proto, granted_lock_from_proto, inherit_default_acl, inode_to_proto,
-    lock_outcome_to_proto, lock_request_from_proto, namespace_result_to_proto, resolved_to_proto,
-    validate_acl_xattr,
+    InodeAttributes, InodeId, InodeKind, InodeSnapshot, InodeVersion, MAX_XATTR_NAME_BYTES,
+    NamespaceMutationResult, ROOT_INODE, RemoveKind, ResolvedInode, TimeUpdate, XattrSetMode,
+    XattrUpdate, access_acl_after_chmod, attribute_patch_from_proto, caller_from_proto,
+    dentry_to_proto, directory_entry_to_proto, directory_grant_to_proto, granted_lock_from_proto,
+    inherit_default_acl, inode_to_proto, lock_outcome_to_proto, lock_request_from_proto,
+    namespace_result_to_proto, resolved_to_proto, validate_acl_xattr,
 };
 
 use super::filesystem::{
@@ -70,7 +70,6 @@ const MAX_FILESYSTEM_ORPHANS_PER_TICK: usize = 64;
 const FILESYSTEM_BLOCK_SIZE: u64 = 4096;
 #[cfg(test)]
 const DEFAULT_FILESYSTEM_MAX_INODES: u64 = 1_000_000;
-const MAX_XATTR_NAME_BYTES: usize = 255;
 const MAX_XATTR_VALUE_BYTES: usize = 64 * 1024;
 const MAX_XATTRS_PER_INODE: usize = 128;
 const MAX_XATTR_BYTES_PER_INODE: usize = 256 * 1024;
@@ -1494,6 +1493,15 @@ struct MetaState {
     filesystem_namespace_operations: HashMap<Vec<u8>, StoredFilesystemNamespaceOperation>,
     filesystem_version_operations: HashMap<Vec<u8>, StoredFilesystemVersionOperation>,
     filesystem_attribute_operations: HashMap<Vec<u8>, StoredFilesystemAttributeOperation>,
+    /// 当前进程内实际拿到过 filesystem binding grant 的 Node。
+    ///
+    /// 该索引是租约派生状态，不写 WAL：Meta 恢复后由 `prior_lease_deadlines`
+    /// 对所有旧 Node 保守等待一个完整租约窗口。正常运行时只让真实 holder 进入
+    /// visibility barrier，避免无关 active Node 放大每次文件 mutation 的前台时延。
+    filesystem_binding_holders: HashMap<InodeId, HashMap<u64, Instant>>,
+    /// 在线产生的 filesystem 失效事件需要等待的精确 holder 集合。
+    /// 缺失条目表示该事件不是 filesystem binding 事件，继续使用全 active Node 规则。
+    filesystem_event_targets: HashMap<u64, HashSet<u64>>,
     /// Meta 当前知道的跨 Node inode 生命周期引用。
     ///
     /// 这里不保存精确计数；Node 在本地 0→1 时建立租约，非 orphan 的 1→0 通过停止
@@ -1602,6 +1610,8 @@ impl MetaState {
             filesystem_namespace_operations: HashMap::new(),
             filesystem_version_operations: HashMap::new(),
             filesystem_attribute_operations: HashMap::new(),
+            filesystem_binding_holders: HashMap::new(),
+            filesystem_event_targets: HashMap::new(),
             filesystem_inode_references: HashMap::new(),
             replica_operations: HashMap::new(),
             events: Vec::new(),
@@ -2067,7 +2077,12 @@ impl MetaState {
             ));
         }
         let directory_grant = Some(self.filesystem_directory_grant(request.parent)?);
-        let Some(dentry) = self.filesystem.lookup(request.parent, &request.name) else {
+        self.remember_filesystem_binding_holder(request.parent, session.node_id);
+        let Some(dentry) = self
+            .filesystem
+            .lookup(request.parent, &request.name)
+            .cloned()
+        else {
             return Ok(pb::FilesystemResolveResponse {
                 found: false,
                 resolved: None,
@@ -2075,16 +2090,18 @@ impl MetaState {
                 directory_grant,
                 entry_reference_lease_millis: 0,
                 entry_reference_generation: 0,
+                refreshed_directories: Vec::new(),
             });
         };
         let resolved = self.filesystem_resolved_inode(session, dentry.inode)?;
         let mut response = pb::FilesystemResolveResponse {
             found: true,
             resolved: Some(resolved_to_proto(&resolved)),
-            dentry: Some(dentry_to_proto(dentry)),
+            dentry: Some(dentry_to_proto(&dentry)),
             directory_grant,
             entry_reference_lease_millis: 0,
             entry_reference_generation: 0,
+            refreshed_directories: Vec::new(),
         };
         self.attach_entry_reference_to_resolve_response(
             session,
@@ -2095,7 +2112,7 @@ impl MetaState {
     }
 
     fn filesystem_get_inode(
-        &self,
+        &mut self,
         request: pb::FilesystemGetInodeRequest,
     ) -> Result<pb::FilesystemResolveResponse, MetaRuntimeError> {
         let session = request
@@ -2111,6 +2128,7 @@ impl MetaState {
                 directory_grant: None,
                 entry_reference_lease_millis: 0,
                 entry_reference_generation: 0,
+                refreshed_directories: Vec::new(),
             });
         };
         let resolved = self.filesystem_resolved_inode(session, request.inode)?;
@@ -2121,11 +2139,12 @@ impl MetaState {
             directory_grant: None,
             entry_reference_lease_millis: 0,
             entry_reference_generation: 0,
+            refreshed_directories: Vec::new(),
         })
     }
 
     fn filesystem_resolved_inode(
-        &self,
+        &mut self,
         session: &pb::NodeSessionIdentity,
         inode: u64,
     ) -> Result<ResolvedInode, MetaRuntimeError> {
@@ -2157,14 +2176,16 @@ impl MetaState {
             })?),
             None => None,
         };
-        Ok(ResolvedInode {
+        let resolved = ResolvedInode {
             granted,
             object: object.map(crate::filesystem::ResolvedObject::from_proto),
             access_acl: self
                 .filesystem
                 .xattr(inode, ACL_ACCESS_NAME)
                 .map(ToOwned::to_owned),
-        })
+        };
+        self.remember_filesystem_binding_holder(inode, session.node_id);
+        Ok(resolved)
     }
 
     fn filesystem_commit_response_for_inode(
@@ -2248,7 +2269,7 @@ impl MetaState {
     }
 
     fn filesystem_create_response_from_namespace(
-        &self,
+        &mut self,
         session: &pb::NodeSessionIdentity,
         result: &NamespaceMutationResult,
     ) -> Result<pb::FilesystemResolveResponse, MetaRuntimeError> {
@@ -2259,18 +2280,49 @@ impl MetaState {
             .attributes
             .inode;
         let resolved = self.filesystem_resolved_inode(session, inode)?;
+        let directory_grant = result
+            .dentry
+            .as_ref()
+            .map(|dentry| self.filesystem_directory_grant(dentry.parent))
+            .transpose()?;
+        if let Some(dentry) = result.dentry.as_ref() {
+            self.remember_filesystem_binding_holder(dentry.parent, session.node_id);
+        }
         Ok(pb::FilesystemResolveResponse {
             found: true,
             resolved: Some(resolved_to_proto(&resolved)),
             dentry: result.dentry.as_ref().map(dentry_to_proto),
-            directory_grant: result
-                .dentry
-                .as_ref()
-                .map(|dentry| self.filesystem_directory_grant(dentry.parent))
-                .transpose()?,
+            directory_grant,
             entry_reference_lease_millis: result.entry_reference_lease_millis,
             entry_reference_generation: result.entry_reference_generation,
+            refreshed_directories: self
+                .filesystem_refreshed_directories(session, &result.changed_directories)?,
         })
+    }
+
+    fn filesystem_namespace_response(
+        &mut self,
+        session: &pb::NodeSessionIdentity,
+        result: &NamespaceMutationResult,
+    ) -> Result<pb::FilesystemNamespaceMutationResponse, MetaRuntimeError> {
+        let mut response = namespace_result_to_proto(result);
+        response.refreshed_directories =
+            self.filesystem_refreshed_directories(session, &result.changed_directories)?;
+        Ok(response)
+    }
+
+    fn filesystem_refreshed_directories(
+        &mut self,
+        session: &pb::NodeSessionIdentity,
+        changed: &[crate::filesystem::DirectoryVersion],
+    ) -> Result<Vec<pb::FilesystemResolvedInode>, MetaRuntimeError> {
+        changed
+            .iter()
+            .map(|directory| {
+                self.filesystem_resolved_inode(session, directory.inode)
+                    .map(|resolved| resolved_to_proto(&resolved))
+            })
+            .collect()
     }
 
     fn filesystem_directory_grant(
@@ -2739,7 +2791,7 @@ impl MetaState {
     }
 
     fn filesystem_read_directory(
-        &self,
+        &mut self,
         request: pb::FilesystemReadDirectoryRequest,
     ) -> Result<pb::FilesystemReadDirectoryResponse, MetaRuntimeError> {
         let session = request
@@ -2763,6 +2815,7 @@ impl MetaState {
             return Err(MetaRuntimeError::NotDirectory);
         };
         let has_more = page.next_cursor.is_some();
+        self.remember_filesystem_binding_holder(request.directory, session.node_id);
         Ok(pb::FilesystemReadDirectoryResponse {
             directory_grant: Some(directory_grant_to_proto(page.grant)),
             entries: page.entries.iter().map(directory_entry_to_proto).collect(),
@@ -2790,7 +2843,7 @@ impl MetaState {
             )?
             .cloned()
         {
-            let mut response = namespace_result_to_proto(&previous);
+            let mut response = self.filesystem_namespace_response(&session, &previous)?;
             self.attach_entry_reference_to_namespace_response(
                 &session,
                 &mut response,
@@ -2847,7 +2900,7 @@ impl MetaState {
             inode: Some(inode.clone()),
             changed_directories: vec![self.changed_directory(request.target_parent, sequence)],
             changed_inodes: vec![self.changed_inode(request.source_inode, sequence)],
-            invalidation_cursor: self.next_filesystem_invalidation_cursor(2),
+            invalidation_cursor: self.next_filesystem_invalidation_cursor(1),
             commit_index: sequence,
             entry_reference_lease_millis: 0,
             entry_reference_generation: 0,
@@ -2868,7 +2921,7 @@ impl MetaState {
         let sequence = self.append_record(record.clone())?;
         self.apply_record(sequence, record);
         self.maybe_checkpoint(sequence)?;
-        let mut response = namespace_result_to_proto(&result);
+        let mut response = self.filesystem_namespace_response(&session, &result)?;
         self.attach_entry_reference_to_namespace_response(
             &session,
             &mut response,
@@ -2979,11 +3032,14 @@ impl MetaState {
         self.validate_namespace_operation(&request.operation_id, &request.operation_digest)?;
         validate_path_component(&request.source_name, "rename source")?;
         validate_path_component(&request.target_name, "rename target")?;
-        if let Some(previous) = self.previous_filesystem_namespace_operation(
-            &request.operation_id,
-            &request.operation_digest,
-        )? {
-            return Ok(namespace_result_to_proto(previous));
+        if let Some(previous) = self
+            .previous_filesystem_namespace_operation(
+                &request.operation_id,
+                &request.operation_digest,
+            )?
+            .cloned()
+        {
+            return self.filesystem_namespace_response(&session, &previous);
         }
         if request.source_parent == request.target_parent
             && request.source_name == request.target_name
@@ -3034,7 +3090,7 @@ impl MetaState {
             let sequence = self.append_record(record.clone())?;
             self.apply_record(sequence, record);
             self.maybe_checkpoint(sequence)?;
-            return Ok(namespace_result_to_proto(&result));
+            return self.filesystem_namespace_response(&session, &result);
         }
         let source_parent = self.filesystem_directory(request.source_parent)?;
         let target_parent = self.filesystem_directory(request.target_parent)?;
@@ -3117,7 +3173,7 @@ impl MetaState {
             let sequence = self.append_record(record.clone())?;
             self.apply_record(sequence, record);
             self.maybe_checkpoint(sequence)?;
-            return Ok(namespace_result_to_proto(&result));
+            return self.filesystem_namespace_response(&session, &result);
         }
         if let Some(inode) = replaced_inode.as_ref() {
             match (moved_inode.attributes.kind, inode.attributes.kind) {
@@ -3192,7 +3248,8 @@ impl MetaState {
             remove_dentries.push(replaced);
         }
         let changed_inodes = changed_replaced_inode.into_iter().collect::<Vec<_>>();
-        let event_count = changed_directories.len() + changed_inodes.len();
+        let event_count =
+            usize::from(!changed_directories.is_empty() || !changed_inodes.is_empty());
         let result = NamespaceMutationResult {
             dentry: Some(new_dentry.clone()),
             inode: Some(moved_inode),
@@ -3219,7 +3276,7 @@ impl MetaState {
         let sequence = self.append_record(record.clone())?;
         self.apply_record(sequence, record);
         self.maybe_checkpoint(sequence)?;
-        Ok(namespace_result_to_proto(&result))
+        self.filesystem_namespace_response(&session, &result)
     }
 
     fn filesystem_remove_entry(
@@ -3233,11 +3290,14 @@ impl MetaState {
         self.verify_session(&session)?;
         self.validate_namespace_operation(&request.operation_id, &request.operation_digest)?;
         validate_path_component(&request.name, "remove")?;
-        if let Some(previous) = self.previous_filesystem_namespace_operation(
-            &request.operation_id,
-            &request.operation_digest,
-        )? {
-            return Ok(namespace_result_to_proto(previous));
+        if let Some(previous) = self
+            .previous_filesystem_namespace_operation(
+                &request.operation_id,
+                &request.operation_digest,
+            )?
+            .cloned()
+        {
+            return self.filesystem_namespace_response(&session, &previous);
         }
         let parent = self.filesystem_directory(request.parent)?;
         self.check_expected_revision(request.expected_parent_revision, parent.revision)?;
@@ -3286,7 +3346,7 @@ impl MetaState {
             inode: Some(inode.clone()),
             changed_directories: vec![self.changed_directory(request.parent, sequence)],
             changed_inodes: vec![self.changed_inode(inode.attributes.inode, sequence)],
-            invalidation_cursor: self.next_filesystem_invalidation_cursor(2),
+            invalidation_cursor: self.next_filesystem_invalidation_cursor(1),
             commit_index: sequence,
             entry_reference_lease_millis: 0,
             entry_reference_generation: 0,
@@ -3307,7 +3367,7 @@ impl MetaState {
         let sequence = self.append_record(record.clone())?;
         self.apply_record(sequence, record);
         self.maybe_checkpoint(sequence)?;
-        Ok(namespace_result_to_proto(&result))
+        self.filesystem_namespace_response(&session, &result)
     }
 
     fn current_lease_grant(
@@ -3661,7 +3721,9 @@ impl MetaState {
                     actual: previous.response.commit_index,
                 });
             }
-            return Ok(previous.response.clone());
+            let response = previous.response.clone();
+            self.remember_filesystem_binding_holder(request.inode, session.node_id);
+            return Ok(response);
         }
         let current_inode = self
             .filesystem
@@ -3917,7 +3979,9 @@ impl MetaState {
                     actual: previous.response.commit_index,
                 });
             }
-            return Ok(previous.response.clone());
+            let response = previous.response.clone();
+            self.remember_filesystem_binding_holder(request.inode, session.node_id);
+            return Ok(response);
         }
 
         let caller = request.caller.map(caller_from_proto).ok_or_else(|| {
@@ -4064,7 +4128,9 @@ impl MetaState {
                     actual: previous.response.commit_index,
                 });
             }
-            return Ok(previous.response.clone());
+            let response = previous.response.clone();
+            self.remember_filesystem_binding_holder(request.inode, session.node_id);
+            return Ok(response);
         }
 
         validate_xattr_name(&request.name)?;
@@ -4168,7 +4234,9 @@ impl MetaState {
                     actual: previous.response.commit_index,
                 });
             }
-            return Ok(previous.response.clone());
+            let response = previous.response.clone();
+            self.remember_filesystem_binding_holder(request.inode, session.node_id);
+            return Ok(response);
         }
         validate_xattr_name(&request.name)?;
         let caller = request.caller.map(caller_from_proto).ok_or_else(|| {
@@ -5187,6 +5255,7 @@ impl MetaState {
 
     fn pump_watchers(&mut self) {
         let now = Instant::now();
+        let filesystem_event_targets = &self.filesystem_event_targets;
         for (node_id, watcher) in &mut self.watchers {
             if watcher.disconnected {
                 continue;
@@ -5196,7 +5265,11 @@ impl MetaState {
                 .partition_point(|event| event.cursor <= watcher.delivered_cursor);
             let mut delivered_fresh = false;
             for event in &self.events[start..] {
-                if !event_targets_node(event, *node_id) {
+                if !event_targets_node_with_filesystem_holders(
+                    event,
+                    *node_id,
+                    filesystem_event_targets,
+                ) {
                     watcher.delivered_cursor = event.cursor;
                     continue;
                 }
@@ -5648,9 +5721,55 @@ impl MetaState {
         }
     }
 
+    fn remember_filesystem_binding_holder(&mut self, inode: InodeId, node_id: u64) {
+        if node_id == 0 || !self.sessions.contains_key(&node_id) {
+            return;
+        }
+        self.filesystem_binding_holders
+            .entry(inode)
+            .or_default()
+            .insert(
+                node_id,
+                Instant::now() + Duration::from_millis(FILESYSTEM_BINDING_LEASE_MILLIS),
+            );
+    }
+
+    /// 在推进 grant generation 前取走旧 binding 的 holder。
+    ///
+    /// mutation 完成后 source Node 会随权威响应拿到新 grant 并重新登记；其他 holder
+    /// 必须先应用 Watch 失效。索引只是一项在线优化，恢复路径仍由旧租约窗口兜底。
+    fn take_filesystem_binding_holders(
+        &mut self,
+        inodes: impl IntoIterator<Item = InodeId>,
+    ) -> HashSet<u64> {
+        let mut targets = HashSet::new();
+        let now = Instant::now();
+        for inode in inodes {
+            if let Some(holders) = self.filesystem_binding_holders.remove(&inode) {
+                targets.extend(
+                    holders
+                        .into_iter()
+                        .filter_map(|(node_id, deadline)| (deadline > now).then_some(node_id)),
+                );
+            }
+        }
+        targets
+    }
+
+    fn forget_filesystem_binding_holder(&mut self, node_id: u64) {
+        self.filesystem_binding_holders.retain(|_, holders| {
+            holders.remove(&node_id);
+            !holders.is_empty()
+        });
+        for targets in self.filesystem_event_targets.values_mut() {
+            targets.remove(&node_id);
+        }
+    }
+
     /// 投递失败不构成缓存撤销证明：断流 watcher 仍然参与 visibility barrier。
     /// source Node 在 Meta 回复后执行本机 Client barrier，因此不需要等待自己的
-    /// 当前 Watch ACK；但 Meta 恢复前已经发出的旧 lease 仍要等真实到期。
+    /// 当前 Watch ACK。正常运行时 filesystem 事件只等待真实 grant holder；Meta
+    /// 恢复前已经发出的旧 lease 无法重建精确 holder，因此仍要等全部旧租约到期。
     fn visibility_barrier_nodes(
         &self,
         source_node: u64,
@@ -5660,24 +5779,31 @@ impl MetaState {
         let active_nodes = self
             .sessions
             .keys()
-            .filter(|node_id| !self.retired_sessions.contains(node_id));
-        let waiting_nodes = active_nodes
-            .clone()
-            .filter(|node_id| **node_id != source_node)
+            .filter(|node_id| !self.retired_sessions.contains(node_id))
+            .copied()
+            .collect::<HashSet<_>>();
+        let candidates = self
+            .filesystem_event_targets
+            .get(&cursor)
+            .cloned()
+            .unwrap_or_else(|| active_nodes.clone());
+        let waiting_nodes = candidates
+            .into_iter()
+            .filter(|node_id| *node_id != source_node)
+            .filter(|node_id| active_nodes.contains(node_id))
             .filter(|node_id| {
                 self.sessions
                     .get(node_id)
                     .is_some_and(|session| session.last_acked_cursor < cursor)
             })
-            .copied()
             .collect();
         let waiting_prior_lease_nodes = active_nodes
+            .into_iter()
             .filter(|node_id| {
                 self.prior_lease_deadlines
                     .get(node_id)
                     .is_some_and(|until| *until > now)
             })
-            .copied()
             .collect();
         (waiting_nodes, waiting_prior_lease_nodes)
     }
@@ -5719,6 +5845,9 @@ impl MetaState {
                         });
                     self.remember_prior_lease(node_id, until);
                 }
+                // 相同 node_id 的新 epoch 不能继承旧进程拿到的 binding grant。
+                // 旧 lease 由 prior_lease_deadlines 继续保守保护，新进程按实际读取重建 holder。
+                self.forget_filesystem_binding_holder(node_id);
                 self.retired_sessions.remove(&node_id);
                 self.node_epochs.insert(node_id, node_epoch);
                 self.next_session = self.next_session.max(next_session);
@@ -5814,6 +5943,7 @@ impl MetaState {
                         operation_digest,
                     },
                     commit_sequence.as_ref(),
+                    true,
                 );
             }
             JournalRecord::VersionsCommitted {
@@ -5821,7 +5951,7 @@ impl MetaState {
                 commit_sequence,
             } => {
                 for commit in commits {
-                    self.apply_version_commit(sequence, commit, commit_sequence.as_ref());
+                    self.apply_version_commit(sequence, commit, commit_sequence.as_ref(), true);
                 }
             }
             JournalRecord::OperationRemembered {
@@ -5910,7 +6040,11 @@ impl MetaState {
                 let committed_inode = record.inode.clone();
                 let revoked_generation = record.revoked_grant_generation;
                 let xattr_updates = record.xattr_updates.clone();
-                self.apply_version_commit(sequence, record.object, commit_sequence.as_ref());
+                let event_targets = self.take_filesystem_binding_holders([inode_id]);
+                // Filesystem 读者按 inode 绑定的 exact version 读取，不消费内部
+                // object key 的 Current。这里只发布下面的 binding 失效事件，避免
+                // 同一次文件提交让远端 Node 对两个等价事件分别 ACK。
+                self.apply_version_commit(sequence, record.object, commit_sequence.as_ref(), false);
                 self.filesystem
                     .apply_inode_version(record.inode, record.new_grant_generation);
                 self.filesystem.apply_xattr_updates(xattr_updates);
@@ -5919,6 +6053,7 @@ impl MetaState {
                 // 失效。单独事件仍来自同一 journal 记录，因此没有第二个发布点。
                 let cursor = self.event_high_watermark + 1;
                 self.event_high_watermark = cursor;
+                self.filesystem_event_targets.insert(cursor, event_targets);
                 self.events.push(pb::NodeEvent {
                     event_id: cursor.to_be_bytes().to_vec(),
                     cursor,
@@ -5929,6 +6064,7 @@ impl MetaState {
                             minimum_inode_revision: inode_revision,
                             source_node_id,
                             invalidated_dentries: Vec::new(),
+                            additional_inodes: Vec::new(),
                         },
                     )),
                 });
@@ -5945,6 +6081,7 @@ impl MetaState {
                         visibility_cursor: Some(cursor),
                     },
                 );
+                self.remember_filesystem_binding_holder(inode_id, source_node_id);
                 self.pump_watchers();
             }
             JournalRecord::FilesystemAttributesUpdated {
@@ -5964,12 +6101,14 @@ impl MetaState {
                 let inode_revision = record.inode.revision;
                 let committed_inode = record.inode.clone();
                 let xattr_updates = record.xattr_updates.clone();
+                let event_targets = self.take_filesystem_binding_holders([inode_id]);
                 self.filesystem
                     .apply_inode_version(record.inode, record.new_grant_generation);
                 self.filesystem.apply_xattr_updates(xattr_updates);
 
                 let cursor = self.event_high_watermark + 1;
                 self.event_high_watermark = cursor;
+                self.filesystem_event_targets.insert(cursor, event_targets);
                 self.events.push(pb::NodeEvent {
                     event_id: cursor.to_be_bytes().to_vec(),
                     cursor,
@@ -5980,6 +6119,7 @@ impl MetaState {
                             minimum_inode_revision: inode_revision,
                             source_node_id,
                             invalidated_dentries: Vec::new(),
+                            additional_inodes: Vec::new(),
                         },
                     )),
                 });
@@ -5996,6 +6136,7 @@ impl MetaState {
                         visibility_cursor: Some(cursor),
                     },
                 );
+                self.remember_filesystem_binding_holder(inode_id, source_node_id);
                 self.pump_watchers();
             }
             JournalRecord::FilesystemXattrUpdated {
@@ -6014,12 +6155,14 @@ impl MetaState {
                 let inode_id = record.inode.attributes.inode;
                 let inode_revision = record.inode.revision;
                 let committed_inode = record.inode.clone();
+                let event_targets = self.take_filesystem_binding_holders([inode_id]);
                 self.filesystem
                     .apply_inode_version(record.inode, record.new_grant_generation);
                 self.filesystem.apply_xattr_updates([record.update]);
 
                 let cursor = self.event_high_watermark + 1;
                 self.event_high_watermark = cursor;
+                self.filesystem_event_targets.insert(cursor, event_targets);
                 self.events.push(pb::NodeEvent {
                     event_id: cursor.to_be_bytes().to_vec(),
                     cursor,
@@ -6030,6 +6173,7 @@ impl MetaState {
                             minimum_inode_revision: inode_revision,
                             source_node_id,
                             invalidated_dentries: Vec::new(),
+                            additional_inodes: Vec::new(),
                         },
                     )),
                 });
@@ -6046,6 +6190,7 @@ impl MetaState {
                         visibility_cursor: Some(cursor),
                     },
                 );
+                self.remember_filesystem_binding_holder(inode_id, source_node_id);
                 self.pump_watchers();
             }
             JournalRecord::FilesystemSymlinkCreated {
@@ -6096,6 +6241,22 @@ impl MetaState {
                     &record.namespace.upsert_dentries,
                     &record.namespace.remove_dentries,
                 );
+                let affected_inodes = record
+                    .namespace
+                    .result
+                    .changed_directories
+                    .iter()
+                    .map(|directory| directory.inode)
+                    .chain(
+                        record
+                            .namespace
+                            .result
+                            .changed_inodes
+                            .iter()
+                            .map(|inode| inode.inode),
+                    )
+                    .collect::<Vec<_>>();
+                let event_targets = self.take_filesystem_binding_holders(affected_inodes);
                 let xattr_updates = record.namespace.xattr_updates.clone();
                 self.filesystem.apply_namespace_mutation(
                     record.namespace.upsert_inodes,
@@ -6106,56 +6267,34 @@ impl MetaState {
                     record.namespace.next_inode,
                 );
                 self.filesystem.apply_xattr_updates(xattr_updates);
-                let mut emitted_event = false;
-                for directory in &record.namespace.result.changed_directories {
+                let emitted_cursor = filesystem_namespace_invalidation(
+                    &record.namespace.result.changed_directories,
+                    &record.namespace.result.changed_inodes,
+                    &invalidated_dentries,
+                    source_node_id,
+                )
+                .map(|invalidation| {
                     let cursor = self.event_high_watermark + 1;
                     self.event_high_watermark = cursor;
-                    emitted_event = true;
+                    self.filesystem_event_targets.insert(cursor, event_targets);
                     self.events.push(pb::NodeEvent {
                         event_id: cursor.to_be_bytes().to_vec(),
                         cursor,
                         event: Some(pb::node_event::Event::InvalidateFilesystemBinding(
-                            pb::InvalidateFilesystemBindingEvent {
-                                inode: directory.inode,
-                                through_generation: directory.grant_generation.saturating_sub(1),
-                                minimum_inode_revision: directory.revision,
-                                source_node_id,
-                                invalidated_dentries: invalidated_dentries
-                                    .get(&directory.inode)
-                                    .cloned()
-                                    .unwrap_or_default(),
-                            },
+                            invalidation,
                         )),
                     });
-                }
-                for inode in &record.namespace.result.changed_inodes {
-                    let cursor = self.event_high_watermark + 1;
-                    self.event_high_watermark = cursor;
-                    emitted_event = true;
-                    self.events.push(pb::NodeEvent {
-                        event_id: cursor.to_be_bytes().to_vec(),
-                        cursor,
-                        event: Some(pb::node_event::Event::InvalidateFilesystemBinding(
-                            pb::InvalidateFilesystemBindingEvent {
-                                inode: inode.inode,
-                                through_generation: inode.grant_generation.saturating_sub(1),
-                                minimum_inode_revision: inode.revision,
-                                source_node_id,
-                                invalidated_dentries: Vec::new(),
-                            },
-                        )),
-                    });
-                }
+                    cursor
+                });
                 self.filesystem_namespace_operations.insert(
                     record.namespace.operation_id,
                     StoredFilesystemNamespaceOperation {
                         digest: record.namespace.operation_digest,
-                        visibility_cursor: emitted_event
-                            .then_some(record.namespace.result.invalidation_cursor),
+                        visibility_cursor: emitted_cursor,
                         result: record.namespace.result,
                     },
                 );
-                if emitted_event {
+                if emitted_cursor.is_some() {
                     self.pump_watchers();
                 }
             }
@@ -6174,6 +6313,14 @@ impl MetaState {
                     &record.upsert_dentries,
                     &record.remove_dentries,
                 );
+                let affected_inodes = record
+                    .result
+                    .changed_directories
+                    .iter()
+                    .map(|directory| directory.inode)
+                    .chain(record.result.changed_inodes.iter().map(|inode| inode.inode))
+                    .collect::<Vec<_>>();
+                let event_targets = self.take_filesystem_binding_holders(affected_inodes);
                 let xattr_updates = record.xattr_updates.clone();
                 self.filesystem.apply_namespace_mutation(
                     record.upsert_inodes,
@@ -6184,62 +6331,42 @@ impl MetaState {
                     record.next_inode,
                 );
                 self.filesystem.apply_xattr_updates(xattr_updates);
-                let mut emitted_event = false;
-                for directory in &record.result.changed_directories {
+                let emitted_cursor = filesystem_namespace_invalidation(
+                    &record.result.changed_directories,
+                    &record.result.changed_inodes,
+                    &invalidated_dentries,
+                    source_node_id,
+                )
+                .map(|invalidation| {
                     let cursor = self.event_high_watermark + 1;
                     self.event_high_watermark = cursor;
-                    emitted_event = true;
+                    self.filesystem_event_targets.insert(cursor, event_targets);
                     self.events.push(pb::NodeEvent {
                         event_id: cursor.to_be_bytes().to_vec(),
                         cursor,
                         event: Some(pb::node_event::Event::InvalidateFilesystemBinding(
-                            pb::InvalidateFilesystemBindingEvent {
-                                inode: directory.inode,
-                                through_generation: directory.grant_generation.saturating_sub(1),
-                                minimum_inode_revision: directory.revision,
-                                source_node_id,
-                                invalidated_dentries: invalidated_dentries
-                                    .get(&directory.inode)
-                                    .cloned()
-                                    .unwrap_or_default(),
-                            },
+                            invalidation,
                         )),
                     });
-                }
-                for inode in &record.result.changed_inodes {
-                    let cursor = self.event_high_watermark + 1;
-                    self.event_high_watermark = cursor;
-                    emitted_event = true;
-                    self.events.push(pb::NodeEvent {
-                        event_id: cursor.to_be_bytes().to_vec(),
-                        cursor,
-                        event: Some(pb::node_event::Event::InvalidateFilesystemBinding(
-                            pb::InvalidateFilesystemBindingEvent {
-                                inode: inode.inode,
-                                through_generation: inode.grant_generation.saturating_sub(1),
-                                minimum_inode_revision: inode.revision,
-                                source_node_id,
-                                invalidated_dentries: Vec::new(),
-                            },
-                        )),
-                    });
-                }
+                    cursor
+                });
                 self.filesystem_namespace_operations.insert(
                     record.operation_id,
                     StoredFilesystemNamespaceOperation {
                         digest: record.operation_digest,
-                        visibility_cursor: emitted_event
-                            .then_some(record.result.invalidation_cursor),
+                        visibility_cursor: emitted_cursor,
                         result: record.result,
                     },
                 );
-                if emitted_event {
+                if emitted_cursor.is_some() {
                     self.pump_watchers();
                 }
             }
             JournalRecord::FilesystemOrphanReaped { record } => {
                 if let Some(tombstone) = record.object_tombstone {
-                    self.apply_version_commit(sequence, tombstone, None);
+                    // orphan 的内部 object key 已经没有可见 inode 绑定，不需要再
+                    // 广播通用 Current 失效；目录/绑定生命周期由 filesystem 事件负责。
+                    self.apply_version_commit(sequence, tombstone, None, false);
                 }
                 self.filesystem.apply_orphan_reaped(record.inode);
                 self.filesystem_inode_references
@@ -6253,6 +6380,7 @@ impl MetaState {
         sequence: u64,
         commit: VersionCommitRecord,
         commit_sequence: Option<&CommitSequenceRecord>,
+        publish_current_invalidation: bool,
     ) {
         // commit sequence 记录真正发起提交的 Node，应优先作为来源；旧 WAL 没有
         // sequence 时才从新副本推断。两者都缺失则保留 0 并继续广播，以兼容
@@ -6296,33 +6424,37 @@ impl MetaState {
         } else if commit.layout.kind == pb::VersionKind::Tombstone as i32 {
             self.live_keys.remove(&commit.key);
         }
-        // cursor 是 Meta watch/ACK 的全局时序号。即使首次发布不需要失效事件，
-        // 也保留一个 cursor gap，避免旧 Journal 回放时历史 ACK 误确认后续事件。
-        let cursor = self.event_high_watermark + 1;
-        self.event_high_watermark = cursor;
-        let visibility_cursor = if old_version == 0 {
-            // 从未存在过的 key 没有旧 Current 可撤销。当前系统也没有负缓存；
-            // 读 miss 不会被缓存成“未来仍不存在”。因此首次发布可以直接完成，
-            // 不需要把未读过该 key 的 Node 拉进前台 ACK 屏障。上面的 cursor gap
-            // 只用于兼容恢复，不会投递给 watcher。
-            None
+        let visibility_cursor = if publish_current_invalidation {
+            // cursor 是 Meta watch/ACK 的全局时序号。即使首次发布不需要失效事件，
+            // 也保留一个 cursor gap，避免旧 Journal 回放时历史 ACK 误确认后续事件。
+            let cursor = self.event_high_watermark + 1;
+            self.event_high_watermark = cursor;
+            if old_version == 0 {
+                // 从未存在过的 key 没有旧 Current 可撤销。当前系统也没有负缓存；
+                // 读 miss 不会被缓存成“未来仍不存在”。因此首次发布可以直接完成，
+                // 不需要把未读过该 key 的 Node 拉进前台 ACK 屏障。上面的 cursor gap
+                // 只用于兼容恢复，不会投递给 watcher。
+                None
+            } else {
+                self.events.push(pb::NodeEvent {
+                    event_id: cursor.to_be_bytes().to_vec(),
+                    cursor,
+                    event: Some(pb::node_event::Event::InvalidateCurrent(
+                        pb::InvalidateCurrentEvent {
+                            key: Some(pb::Key { value: commit.key }),
+                            old_version,
+                            transition_id: sequence.to_be_bytes().to_vec(),
+                            lease_epoch: 0,
+                            revision: sequence,
+                            minimum_version: commit.layout.version,
+                            source_node_id,
+                        },
+                    )),
+                });
+                Some(cursor)
+            }
         } else {
-            self.events.push(pb::NodeEvent {
-                event_id: cursor.to_be_bytes().to_vec(),
-                cursor,
-                event: Some(pb::node_event::Event::InvalidateCurrent(
-                    pb::InvalidateCurrentEvent {
-                        key: Some(pb::Key { value: commit.key }),
-                        old_version,
-                        transition_id: sequence.to_be_bytes().to_vec(),
-                        lease_epoch: 0,
-                        revision: sequence,
-                        minimum_version: commit.layout.version,
-                        source_node_id,
-                    },
-                )),
-            });
-            Some(cursor)
+            None
         };
         let commit_sequence = commit_sequence.cloned();
         if let Some(record) = commit_sequence.clone() {
@@ -6461,7 +6593,11 @@ impl MetaState {
                     .iter()
                     .filter(|event| {
                         event.cursor > session.last_acked_cursor
-                            && event_targets_node(event, *node_id)
+                            && event_targets_node_with_filesystem_holders(
+                                event,
+                                *node_id,
+                                &self.filesystem_event_targets,
+                            )
                     })
                     .count() as u64
             })
@@ -6524,6 +6660,7 @@ impl MetaState {
             self.apply_record(sequence, record);
             self.retired_sessions.insert(node_id);
             self.watchers.remove(&node_id);
+            self.forget_filesystem_binding_holder(node_id);
             if let Some(session) = self.sessions.get(&node_id) {
                 self.filesystem_locks
                     .release_node_epoch(node_id, session.node_epoch);
@@ -6760,13 +6897,25 @@ impl MetaState {
         let sessions = &self.sessions;
         let retired_sessions = &self.retired_sessions;
         let pending_retirements = self.pending_retirements.clone();
+        let filesystem_event_targets = &self.filesystem_event_targets;
         self.events.retain(|event| {
             sessions.iter().any(|(node_id, session)| {
                 !retired_sessions.contains(node_id)
-                    && event_targets_node(event, *node_id)
+                    && event_targets_node_with_filesystem_holders(
+                        event,
+                        *node_id,
+                        filesystem_event_targets,
+                    )
                     && event.cursor > session.last_acked_cursor
             }) || retirement_event_outstanding_in(&pending_retirements, event)
         });
+        let retained_cursors = self
+            .events
+            .iter()
+            .map(|event| event.cursor)
+            .collect::<HashSet<_>>();
+        self.filesystem_event_targets
+            .retain(|cursor, _| retained_cursors.contains(cursor));
     }
 
     fn retain_replicas_referenced_by_versions(&mut self) {
@@ -7920,15 +8069,7 @@ fn validate_filesystem_attribute_operation(
 /// 首版只开放用户自定义属性与 Linux POSIX ACL 的两个标准名称。
 /// security/trusted namespace 需要能力模型，不能在尚未定义授权时静默接受。
 fn validate_xattr_name(name: &[u8]) -> Result<(), MetaRuntimeError> {
-    if name.is_empty() || name.len() > MAX_XATTR_NAME_BYTES || name.contains(&0) {
-        return Err(MetaRuntimeError::XattrUnsupported);
-    }
-    if name == ACL_ACCESS_NAME
-        || name == ACL_DEFAULT_NAME
-        || name
-            .strip_prefix(b"user.")
-            .is_some_and(|suffix| !suffix.is_empty())
-    {
+    if crate::filesystem::is_supported_xattr_name(name) {
         Ok(())
     } else {
         Err(MetaRuntimeError::XattrUnsupported)
@@ -8110,6 +8251,44 @@ fn filesystem_dentry_invalidations(
         .collect()
 }
 
+/// 把一次 namespace transaction 的全部 binding 变化压成一条 Watch 事件。
+///
+/// ACK 表示远端 Node 已经应用整次 transaction，而不是只应用某一个 inode。这样
+/// create/link/rename/remove 都保持“一次权威发布、一次失效 ACK”；事件内部仍逐项
+/// 携带 generation/revision，Node 不会因此放宽缓存一致性。
+fn filesystem_namespace_invalidation(
+    changed_directories: &[crate::filesystem::DirectoryVersion],
+    changed_inodes: &[crate::filesystem::InodeVersion],
+    invalidated_dentries: &HashMap<u64, Vec<pb::FilesystemDentryInvalidation>>,
+    source_node_id: u64,
+) -> Option<pb::InvalidateFilesystemBindingEvent> {
+    let mut bindings = changed_directories
+        .iter()
+        .map(|directory| pb::FilesystemInodeInvalidation {
+            inode: directory.inode,
+            through_generation: directory.grant_generation.saturating_sub(1),
+            minimum_inode_revision: directory.revision,
+        })
+        .chain(
+            changed_inodes
+                .iter()
+                .map(|inode| pb::FilesystemInodeInvalidation {
+                    inode: inode.inode,
+                    through_generation: inode.grant_generation.saturating_sub(1),
+                    minimum_inode_revision: inode.revision,
+                }),
+        );
+    let primary = bindings.next()?;
+    Some(pb::InvalidateFilesystemBindingEvent {
+        inode: primary.inode,
+        through_generation: primary.through_generation,
+        minimum_inode_revision: primary.minimum_inode_revision,
+        source_node_id,
+        invalidated_dentries: invalidated_dentries.values().flatten().cloned().collect(),
+        additional_inodes: bindings.collect(),
+    })
+}
+
 struct ScanCursor {
     prefix: Vec<u8>,
     delimiter: Vec<u8>,
@@ -8287,6 +8466,28 @@ fn event_targets_node(event: &pb::NodeEvent, node_id: u64) -> bool {
         Some(pb::node_event::Event::InvalidateFilesystemBinding(invalidate)) => {
             invalidate.source_node_id == 0 || invalidate.source_node_id != node_id
         }
+        _ => true,
+    }
+}
+
+/// 判断保留事件是否应该投递给指定 Node。
+///
+/// 普通事件沿用协议本身的目标规则。在线产生的 filesystem 失效事件额外记录了
+/// mutation 前真正持有 inode/directory grant 的 Node 集合，因此只向这些 Node
+/// 投递。Meta 恢复后这份瞬时索引无法从旧 WAL 精确重建；缺少索引时必须退回
+/// `event_targets_node` 的保守广播，直到旧 lease 到期，不能为了性能削弱恢复语义。
+fn event_targets_node_with_filesystem_holders(
+    event: &pb::NodeEvent,
+    node_id: u64,
+    filesystem_event_targets: &HashMap<u64, HashSet<u64>>,
+) -> bool {
+    if !event_targets_node(event, node_id) {
+        return false;
+    }
+    match &event.event {
+        Some(pb::node_event::Event::InvalidateFilesystemBinding(_)) => filesystem_event_targets
+            .get(&event.cursor)
+            .is_none_or(|targets| targets.contains(&node_id)),
         _ => true,
     }
 }
@@ -9137,11 +9338,63 @@ mod tests {
     }
 
     #[test]
+    fn filesystem_recommit_emits_only_binding_invalidation() {
+        let mut state = MetaState::new(Box::<InMemoryJournal>::default());
+        let writer = test_session(&mut state, 146);
+        let _reader = test_session(&mut state, 147);
+        let inode = create_test_file(&mut state, writer.clone(), b"one-event-per-write.bin");
+
+        let first = state
+            .filesystem_commit_version(filesystem_commit_request_for(
+                writer.clone(),
+                &inode,
+                b"one-event-block-v1",
+                b"one-event-op-v1",
+            ))
+            .expect("first filesystem commit");
+        let first_inode = crate::filesystem::inode_from_proto(
+            first
+                .resolved
+                .expect("first resolved filesystem commit")
+                .inode
+                .expect("first committed inode"),
+        )
+        .expect("valid first inode");
+
+        // create 和第一次写产生的事件不是本断言的观测对象；第二次写必须只新增
+        // 一条 FileContentBinding 失效，不能再为内部 object Current 重复通知。
+        state.events.clear();
+        let before_cursor = state.event_high_watermark;
+        state
+            .filesystem_commit_version(filesystem_commit_request_for(
+                writer,
+                &first_inode,
+                b"one-event-block-v2",
+                b"one-event-op-v2",
+            ))
+            .expect("second filesystem commit");
+
+        assert_eq!(state.event_high_watermark, before_cursor + 1);
+        assert_eq!(state.events.len(), 1);
+        assert!(matches!(
+            state.events[0].event,
+            Some(pb::node_event::Event::InvalidateFilesystemBinding(_))
+        ));
+    }
+
+    #[test]
     fn filesystem_visibility_and_exact_response_restore_as_one_lifecycle() {
         let mut state = MetaState::new(Box::<InMemoryJournal>::default());
         let writer = test_session(&mut state, 47);
         let reader = test_session(&mut state, 48);
         let inode = create_test_file(&mut state, writer.clone(), b"visibility.bin");
+        state
+            .filesystem_get_inode(pb::FilesystemGetInodeRequest {
+                context: None,
+                session: Some(reader.clone()),
+                inode: inode.attributes.inode,
+            })
+            .expect("reader obtains binding grant before write");
         let request = filesystem_commit_request_for(
             writer,
             &inode,
@@ -9162,6 +9415,7 @@ mod tests {
         assert_eq!(retry.response, first.response);
         assert_eq!(retry.event_cursor, Some(cursor));
         assert!(retry.waiting_nodes.contains(&reader.node_id));
+        assert!(retry.waiting_prior_lease_nodes.contains(&reader.node_id));
 
         restored.complete_operation_visibility(std::slice::from_ref(&request.operation_id));
         let mut restored_after_ack = MetaState::new(Box::<InMemoryJournal>::default());
@@ -9851,10 +10105,25 @@ mod tests {
             .expect("rename");
         assert_eq!(rename.changed_directories.len(), 2);
         assert_eq!(
-            state.events.len(),
-            4,
-            "mkdir/create only invalidate the changed parent; rename invalidates both changed parents"
+            rename.refreshed_directories.len(),
+            2,
+            "rename response must refresh both parent bindings without follow-up Meta reads"
         );
+        assert_eq!(
+            state.events.len(),
+            3,
+            "每次 namespace transaction 只发布一条事件；rename 的两个父目录在事件内合并"
+        );
+        let rename_invalidation = match state
+            .events
+            .last()
+            .and_then(|event| event.event.as_ref())
+            .expect("rename event")
+        {
+            pb::node_event::Event::InvalidateFilesystemBinding(invalidation) => invalidation,
+            other => panic!("expected filesystem invalidation, got {other:?}"),
+        };
+        assert_eq!(rename_invalidation.additional_inodes.len(), 1);
         assert!(
             state
                 .filesystem
@@ -9881,6 +10150,11 @@ mod tests {
                 commit_sequence: next_test_commit_sequence(),
             })
             .expect("unlink");
+        assert_eq!(
+            removed.refreshed_directories.len(),
+            1,
+            "unlink response must refresh the changed parent binding"
+        );
         assert_eq!(
             removed
                 .inode
@@ -10461,6 +10735,17 @@ mod tests {
         let mut state = MetaState::new(Box::<InMemoryJournal>::default());
         let writer = test_session(&mut state, 45);
         let reader = test_session(&mut state, 46);
+        let idle = test_session(&mut state, 145);
+        let lookup = state
+            .filesystem_lookup(pb::FilesystemLookupRequest {
+                context: None,
+                session: Some(reader.clone()),
+                parent: ROOT_INODE,
+                name: b"remember-root-grant".to_vec(),
+                reference_generation: 0,
+            })
+            .expect("reader obtains a negative directory grant");
+        assert!(!lookup.found);
         let (sender, mut events) = mpsc::channel(4);
         state
             .watch_node_events(
@@ -10472,6 +10757,17 @@ mod tests {
                 sender,
             )
             .expect("reader watch");
+        let (idle_sender, mut idle_events) = mpsc::channel(4);
+        state
+            .watch_node_events(
+                pb::WatchNodeEventsRequest {
+                    context: None,
+                    session: Some(idle.clone()),
+                    last_acked_cursor: 0,
+                },
+                idle_sender,
+            )
+            .expect("idle watch");
 
         let request = filesystem_create_request_for(
             writer.clone(),
@@ -10487,6 +10783,7 @@ mod tests {
         let dispatch =
             state.dispatch_filesystem_namespace(writer.node_id, operation_id.clone(), response);
         assert_eq!(dispatch.waiting_nodes, HashSet::from([reader.node_id]));
+        assert!(!dispatch.waiting_nodes.contains(&idle.node_id));
         let (reply, mut completion) = oneshot::channel();
         state.register_pending_filesystem_create(dispatch, reply);
         assert!(matches!(
@@ -10495,6 +10792,10 @@ mod tests {
         ));
 
         let event = events.try_recv().expect("directory revoke event");
+        assert!(
+            idle_events.try_recv().is_err(),
+            "未持有目录 grant 的活跃 Node 不应收到 filesystem 失效事件"
+        );
         state
             .acknowledge_node_event(pb::AcknowledgeNodeEventRequest {
                 context: None,
@@ -10521,6 +10822,16 @@ mod tests {
         let mut state = MetaState::new(Box::<InMemoryJournal>::default());
         let writer = test_session(&mut state, 47);
         let reader = test_session(&mut state, 48);
+        let lookup = state
+            .filesystem_lookup(pb::FilesystemLookupRequest {
+                context: None,
+                session: Some(reader.clone()),
+                parent: ROOT_INODE,
+                name: b"remember-root-grant".to_vec(),
+                reference_generation: 0,
+            })
+            .expect("reader obtains a negative directory grant");
+        assert!(!lookup.found);
         let (sender, receiver) = mpsc::channel(1);
         state
             .watch_node_events(

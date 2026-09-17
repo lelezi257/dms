@@ -9,6 +9,7 @@ use super::{InodeId, InodeKind, XattrUpdate};
 
 pub(crate) const ACL_ACCESS_NAME: &[u8] = b"system.posix_acl_access";
 pub(crate) const ACL_DEFAULT_NAME: &[u8] = b"system.posix_acl_default";
+pub(crate) const MAX_XATTR_NAME_BYTES: usize = 255;
 
 const ACL_VERSION: u32 = 0x0002;
 const ACL_USER_OBJ: u16 = 0x01;
@@ -23,6 +24,21 @@ const ACL_UNDEFINED_ID: u32 = u32::MAX;
 pub(crate) enum AclError {
     InvalidEncoding,
     DefaultAclRequiresDirectory,
+}
+
+/// 返回 xattr 名字是否属于首版公开能力。
+///
+/// Node 与 Meta 必须使用同一规则：Node 可在网络前拒绝确定不支持的 namespace，
+/// Meta 仍在权威边界重复校验，避免其它调用方绕过本地快速失败。
+pub(crate) fn is_supported_xattr_name(name: &[u8]) -> bool {
+    !name.is_empty()
+        && name.len() <= MAX_XATTR_NAME_BYTES
+        && !name.contains(&0)
+        && (name == ACL_ACCESS_NAME
+            || name == ACL_DEFAULT_NAME
+            || name
+                .strip_prefix(b"user.")
+                .is_some_and(|suffix| !suffix.is_empty()))
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -240,6 +256,17 @@ mod tests {
             ],
         }
         .encode()
+    }
+
+    #[test]
+    fn supported_xattr_names_match_the_public_namespace_contract() {
+        assert!(is_supported_xattr_name(ACL_ACCESS_NAME));
+        assert!(is_supported_xattr_name(ACL_DEFAULT_NAME));
+        assert!(is_supported_xattr_name(b"user.checksum"));
+        assert!(!is_supported_xattr_name(b"user."));
+        assert!(!is_supported_xattr_name(b"security.capability"));
+        assert!(!is_supported_xattr_name(b"trusted.overlay.opaque"));
+        assert!(!is_supported_xattr_name(b""));
     }
 
     #[test]

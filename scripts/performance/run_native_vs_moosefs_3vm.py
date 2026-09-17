@@ -427,6 +427,28 @@ print(json.dumps({"processes": processes, "network": net}))
             case_dir = self.output / lane / f"round-{round_id}" / backend / phase
             case_dir.mkdir(parents=True)
             root = self.experiment_root(lane, round_id, backend, role)
+            if phase == "workspace-create":
+                # 目录树是 workload 夹具，不属于单个文件 create 的性能合同。
+                # 在 before snapshot 前准备它，避免把 mkdir RPC 误计为 create 放大。
+                remote_prepare = root + "/workspace-prepare.json"
+                self.shell(
+                    role,
+                    shlex.join(
+                        [
+                            "python3",
+                            self.remote_base + "/workload.py",
+                            "--root",
+                            root + "/mnt",
+                            "--phase",
+                            "workspace-prepare",
+                            "--seed",
+                            "6701",
+                            "--output",
+                            remote_prepare,
+                        ]
+                    ),
+                )
+                self.copy_from(role, remote_prepare, case_dir / "prepare.json")
             if phase in WARMUP_PHASES:
                 remote_warmup = root + f"/{phase}.warmup.json"
                 self.shell(

@@ -877,12 +877,14 @@ impl NodeHandle {
         changed_directories: Vec<DirectoryVersion>,
         changed_inodes: Vec<InodeVersion>,
         removed_dentries: Vec<(InodeId, Vec<u8>)>,
+        refreshed_directories: Vec<ResolvedInode>,
     ) -> Result<(), WorkerError> {
         let (reply, receiver) = oneshot::channel();
         self.submit(NodeCommand::FilesystemApplyLocalNamespaceMutation {
             changed_directories,
             changed_inodes,
             removed_dentries,
+            refreshed_directories,
             reply,
         })
         .await?;
@@ -3149,6 +3151,7 @@ enum NodeCommand {
         changed_directories: Vec<DirectoryVersion>,
         changed_inodes: Vec<InodeVersion>,
         removed_dentries: Vec<(InodeId, Vec<u8>)>,
+        refreshed_directories: Vec<ResolvedInode>,
         reply: oneshot::Sender<Result<(), WorkerError>>,
     },
     FilesystemInstallResolvedDentry {
@@ -4083,6 +4086,7 @@ async fn run_node(
                     changed_directories,
                     changed_inodes,
                     removed_dentries,
+                    refreshed_directories,
                     reply,
                 } => {
                     for directory in changed_directories {
@@ -4107,6 +4111,12 @@ async fn run_node(
                             .filesystem_bindings
                             .revoke(inode.inode, inode.grant_generation);
                     }
+                    // Meta 已在同一权威 mutation 响应里返回更新后的父目录快照。
+                    // 先撤销旧水位、再安装新 grant，避免内核随后 getattr 时为同一
+                    // mutation 追加一次 GetFilesystemInode RPC。
+                    for resolved in refreshed_directories {
+                        state.filesystem_bindings.insert(resolved, Instant::now());
+                    }
                     let _ = reply.send(Ok(()));
                 }
                 NodeCommand::FilesystemInstallResolvedDentry {
@@ -4114,6 +4124,7 @@ async fn run_node(
                     apply_directory_mutation,
                     reply,
                 } => {
+                    let refreshed_directories = resolved.refreshed_directories.clone();
                     if apply_directory_mutation {
                         state.filesystem_bindings.revoke(
                             resolved.dentry.parent,
@@ -4135,6 +4146,9 @@ async fn run_node(
                     state
                         .filesystem_bindings
                         .insert(resolved.resolved, Instant::now());
+                    for directory in refreshed_directories {
+                        state.filesystem_bindings.insert(directory, Instant::now());
+                    }
                     state.install_filesystem_inode_reference(
                         inode,
                         resolved.entry_reference_generation,

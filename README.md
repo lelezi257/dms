@@ -1,5 +1,7 @@
 # DMS：分布式近计算内存对象系统
 
+**此开发分支另含 Agent workspace 节点归属文件系统候选。** 它从 `main` 独立开发，保留下面的 v0.1.0 KV 说明和旧服务能力，不把未验收的候选写成已发布产品。新方向先看 [架构原则](PRINCIPLES.md)、[专题设计](docs/agent-home-preview-design.md) 与 [源码构包/安装说明](docs/agent-home-preview-installation.md)；候选入口是 `server/homefs/` 和 `scripts/homefs/`。
+
 DMS 把计算节点的一部分内存用于保存和共享数据。应用通过 Rust SDK 使用 `set/get/del`、批量操作、随机写和两级键操作；Go SDK 提供接入所需的同语义子集。同节点可使用共享内存，跨节点通过网络获取数据。Meta 保存版本与位置，不转发用户 value。
 
 **当前稳定发布为 GitHub Release `v0.1.0`，源码托管在 [GitHub](https://github.com/lelezi257/dms)。** `v0.1.0` 提供源码、服务组件和 SDK 制品；Rust SDK 尚未发布到 crates.io，仍按发布包或源码路径使用。该版本适合开发与功能验证，不作为生产持久存储。当前写入保证仅为本地内存，Node 重启可能丢失 value；正常旧版本回收已实现，但永久失联 Node 或未归还的共享写权仍可能阻塞释放，多 Meta 高可用尚未完成。先看[能力与限制](docs/product.md)。

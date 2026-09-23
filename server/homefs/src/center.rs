@@ -4,7 +4,7 @@ use std::{
     env,
     fs::{self, File},
     io::{self, BufRead, BufReader, Read, Write},
-    net::{TcpListener, TcpStream},
+    net::{SocketAddr, TcpListener, TcpStream},
     path::{Path, PathBuf},
     sync::{Arc, Mutex},
     thread,
@@ -660,7 +660,13 @@ fn hex(byte: u8) -> io::Result<u8> {
 }
 
 pub fn query(address: &str, request: &str) -> io::Result<String> {
-    let mut stream = TcpStream::connect(address)?;
+    let address: SocketAddr = address.parse().map_err(|_| {
+        io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "center endpoint must be an IP:port",
+        )
+    })?;
+    let mut stream = TcpStream::connect_timeout(&address, Duration::from_secs(2))?;
     stream.set_read_timeout(Some(Duration::from_secs(2)))?;
     if mutating_command(request) {
         let token = env::var("DMS_HOME_TOKEN").map_err(|_| {

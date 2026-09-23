@@ -13,7 +13,7 @@ use std::{
     ffi::CString,
     fs::{self, File},
     io::{self, Read, Write},
-    net::{TcpListener, TcpStream},
+    net::{SocketAddr, TcpListener, TcpStream},
     os::{
         fd::{AsRawFd, IntoRawFd},
         unix::fs::{FileExt, MetadataExt},
@@ -419,7 +419,13 @@ impl Client {
         Self::connect_authenticated(address, "")
     }
     pub fn connect_authenticated(address: &str, token: &str) -> io::Result<Self> {
-        let mut stream = TcpStream::connect(address)?;
+        let address: SocketAddr = address.parse().map_err(|_| {
+            io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "P2P endpoint must be an IP:port",
+            )
+        })?;
+        let mut stream = TcpStream::connect_timeout(&address, Duration::from_secs(3))?;
         stream.set_nodelay(true)?;
         stream.set_read_timeout(Some(Duration::from_secs(30)))?;
         stream.set_write_timeout(Some(Duration::from_secs(30)))?;

@@ -15,7 +15,7 @@ DMS_THIRD_PARTY_DIR="$PWD/artifacts/homefs-licenses" ./scripts/homefs/build-pack
 
 ## 部署
 
-在中心节点和每台数据节点解包。复制 `config/homefs.env.example` 为 `config/homefs.env`，分别设置节点 ID、中心地址、数据根目录、公用 FUSE 挂载点、NFS 和 P2P 地址及相同的私有 token；中心也必须配置此 token。中心设置持久状态文件在本机可写磁盘。中心先执行 `scripts/run.sh center`；节点执行 `scripts/run.sh node`。用 `scripts/run.sh locate job-42` 或管理面 `GET http://CENTER_HTTP/v1/roots/job-42` 查询位置，调度器应优先把 Agent 放到返回的 home 节点。`scripts/run.sh roots` 查看全部目录。
+在中心节点和每台数据节点解包。复制 `config/homefs.env.example` 为 `config/homefs.env`，分别设置节点 ID、中心地址、数据根目录、公用 FUSE 挂载点、NFS 和 P2P 地址及相同的私有 token；中心也必须配置此 token。中心 RPC 与 P2P 地址使用数字 IP:port，配置文件应只允许节点管理员读取。中心设置持久状态文件在本机可写磁盘。中心先执行 `scripts/run.sh center`；节点执行 `scripts/run.sh node`。用 `scripts/run.sh locate job-42` 或管理面 `GET http://CENTER_HTTP/v1/roots/job-42` 查询位置，调度器应优先把 Agent 放到返回的 home 节点。`scripts/run.sh roots` 查看全部目录。
 
 NFS 后端：每个 home 节点先以 root 运行 `scripts/setup-nfs.sh DATA_ROOT TRUSTED_CLIENT_CIDR`，再将 `DMS_HOME_BACKEND=nfs`。节点以普通用户启动时，需要该用户能执行非交互式 `sudo -n mount -t nfs4`；也可由管理员提前挂好 `<PEER_MOUNTS>/<PEER_NODE_ID>`。导出使用 `no_root_squash`，因此 CIDR 内拥有 root 权限的客户端也能以 root 身份访问数据；只给隔离的测试节点网段，不暴露到其它机器。远端只在预挂载成功后可用。NFS 使用 `hard,actimeo=0,lookupcache=none,cto`；home 失联时已经进入 NFS 内核路径的调用可能等待到它恢复，不能把这个等待当成成功。P2P 后端设置 `DMS_HOME_BACKEND=p2p`，无需内核 NFS，但要求 P2P TCP 地址互通；超时返回失败。两模式都需要 FUSE 挂载能力。同一组节点必须一致配置后端，不能运行中切换。
 

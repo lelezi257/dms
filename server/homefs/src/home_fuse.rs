@@ -53,8 +53,30 @@ enum Location {
 }
 
 enum Handle {
-    File(File),
-    P2p { owner: String, remote: u64 },
+    File {
+        file: File,
+        needs_flush: bool,
+    },
+    P2p {
+        owner: String,
+        remote: u64,
+        needs_flush: bool,
+        prefetched: Option<Vec<u8>>,
+    },
+}
+
+impl Handle {
+    fn needs_flush(&self) -> bool {
+        match self {
+            Self::File { needs_flush, .. } | Self::P2p { needs_flush, .. } => *needs_flush,
+        }
+    }
+
+    fn set_needs_flush(&mut self, value: bool) {
+        match self {
+            Self::File { needs_flush, .. } | Self::P2p { needs_flush, .. } => *needs_flush = value,
+        }
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -295,8 +317,8 @@ impl HomeFs {
 
     fn close_handle(&mut self, handle: u64) -> Result<(), i32> {
         match self.handles.remove(&handle) {
-            Some(Handle::File(_)) => Ok(()),
-            Some(Handle::P2p { owner, remote }) => {
+            Some(Handle::File { .. }) => Ok(()),
+            Some(Handle::P2p { owner, remote, .. }) => {
                 self.p2p_handle_call(&owner, |client| client.close(remote))
             }
             None => Err(libc::EBADF),
@@ -304,19 +326,33 @@ impl HomeFs {
     }
 
     fn fsync_handle(&mut self, handle: u64, datasync: bool) -> Result<(), i32> {
-        match self.handles.get(&handle).ok_or(libc::EBADF)? {
-            Handle::File(file) => if datasync {
+        let result = match self.handles.get(&handle).ok_or(libc::EBADF)? {
+            Handle::File { file, .. } => if datasync {
                 file.sync_data()
             } else {
                 file.sync_all()
             }
             .map_err(io_error),
-            Handle::P2p { owner, remote } => {
+            Handle::P2p { owner, remote, .. } => {
                 let owner = owner.clone();
                 let remote = *remote;
                 self.p2p_handle_call(&owner, |client| client.fsync(remote, datasync))
             }
+        };
+        if result.is_ok() {
+            self.handles
+                .get_mut(&handle)
+                .unwrap()
+                .set_needs_flush(false);
         }
+        result
+    }
+
+    fn flush_handle(&mut self, handle: u64) -> Result<(), i32> {
+        if !self.handles.get(&handle).ok_or(libc::EBADF)?.needs_flush() {
+            return Ok(());
+        }
+        self.fsync_handle(handle, false)
     }
 
     fn set_attributes(&mut self, path: &str, spec: &SetAttrSpec) -> Result<(), i32> {
@@ -370,7 +406,11 @@ impl HomeFs {
                     flags
                 };
                 let file = checked_open(&self.base_for(None), path, flags, 0)?;
-                Ok(self.add_handle(Handle::File(file)))
+                Ok(self.add_handle(Handle::File {
+                    file,
+                    needs_flush: flags & libc::O_ACCMODE != libc::O_RDONLY
+                        || flags & libc::O_TRUNC != 0,
+                }))
             }
             Location::RemoteNfs(owner) => {
                 let flags = if directory {
@@ -379,12 +419,22 @@ impl HomeFs {
                     flags
                 };
                 let file = checked_open(&self.base_for(Some(&owner)), path, flags, 0)?;
-                Ok(self.add_handle(Handle::File(file)))
+                Ok(self.add_handle(Handle::File {
+                    file,
+                    needs_flush: flags & libc::O_ACCMODE != libc::O_RDONLY
+                        || flags & libc::O_TRUNC != 0,
+                }))
             }
             Location::RemoteP2p(owner) => {
-                let (remote, _) =
+                let (remote, _, prefetched) =
                     self.p2p_path_call(&owner, |client| client.open(path, flags, directory))?;
-                Ok(self.add_handle(Handle::P2p { owner, remote }))
+                Ok(self.add_handle(Handle::P2p {
+                    owner,
+                    remote,
+                    needs_flush: flags & libc::O_ACCMODE != libc::O_RDONLY
+                        || flags & libc::O_TRUNC != 0,
+                    prefetched,
+                }))
             }
         }
     }
@@ -393,7 +443,10 @@ impl HomeFs {
         match self.location(path)? {
             Location::Local => {
                 let file = checked_open(&self.base_for(None), path, flags | libc::O_CREAT, mode)?;
-                let handle = self.add_handle(Handle::File(file));
+                let handle = self.add_handle(Handle::File {
+                    file,
+                    needs_flush: true,
+                });
                 Ok((self.attr(path)?, handle))
             }
             Location::RemoteNfs(owner) => {
@@ -403,7 +456,10 @@ impl HomeFs {
                     flags | libc::O_CREAT,
                     mode,
                 )?;
-                let handle = self.add_handle(Handle::File(file));
+                let handle = self.add_handle(Handle::File {
+                    file,
+                    needs_flush: true,
+                });
                 Ok((self.attr(path)?, handle))
             }
             Location::RemoteP2p(owner) => {
@@ -411,7 +467,12 @@ impl HomeFs {
                 let ino = self.ino(path);
                 Ok((
                     attr.file_attr(ino),
-                    self.add_handle(Handle::P2p { owner, remote }),
+                    self.add_handle(Handle::P2p {
+                        owner,
+                        remote,
+                        needs_flush: true,
+                        prefetched: None,
+                    }),
                 ))
             }
         }
@@ -615,8 +676,12 @@ impl HomeFs {
 
     fn set_len(&mut self, path: &str, handle: Option<u64>, size: u64) -> Result<(), i32> {
         if let Some(handle) = handle {
+            self.handles
+                .get_mut(&handle)
+                .ok_or(libc::EBADF)?
+                .set_needs_flush(true);
             match self.handles.get(&handle).ok_or(libc::EBADF)? {
-                Handle::File(file) => return file.set_len(size).map_err(io_error),
+                Handle::File { file, .. } => return file.set_len(size).map_err(io_error),
                 Handle::P2p { .. } => {}
             }
         }
@@ -740,14 +805,25 @@ impl Filesystem for HomeFs {
         }
         let mut buffer = vec![0; size as usize];
         let result = match self.handles.get_mut(&handle).ok_or(libc::EBADF) {
-            Ok(Handle::File(file)) => file
+            Ok(Handle::File { file, .. }) => file
                 .read_at(&mut buffer, offset as u64)
                 .map(|count| buffer[..count].to_vec())
                 .map_err(io_error),
-            Ok(Handle::P2p { owner, remote }) => {
-                let owner = owner.clone();
-                let remote = *remote;
-                self.p2p_handle_call(&owner, |client| client.read(remote, offset as u64, size))
+            Ok(Handle::P2p {
+                owner,
+                remote,
+                prefetched,
+                ..
+            }) => {
+                if let Some(bytes) = prefetched {
+                    let start = (offset as usize).min(bytes.len());
+                    let end = start.saturating_add(size as usize).min(bytes.len());
+                    Ok(bytes[start..end].to_vec())
+                } else {
+                    let owner = owner.clone();
+                    let remote = *remote;
+                    self.p2p_handle_call(&owner, |client| client.read(remote, offset as u64, size))
+                }
             }
             Err(error) => Err(error),
         };
@@ -773,12 +849,15 @@ impl Filesystem for HomeFs {
             reply.error(libc::EINVAL);
             return;
         }
+        if let Some(entry) = self.handles.get_mut(&handle) {
+            entry.set_needs_flush(true);
+        }
         let result = match self.handles.get_mut(&handle).ok_or(libc::EBADF) {
-            Ok(Handle::File(file)) => file
+            Ok(Handle::File { file, .. }) => file
                 .write_at(data, offset as u64)
                 .map(|n| n as u32)
                 .map_err(io_error),
-            Ok(Handle::P2p { owner, remote }) => {
+            Ok(Handle::P2p { owner, remote, .. }) => {
                 let owner = owner.clone();
                 let remote = *remote;
                 self.p2p_handle_call(&owner, |client| client.write(remote, offset as u64, data))
@@ -793,7 +872,7 @@ impl Filesystem for HomeFs {
     }
 
     fn flush(&mut self, _: &Request<'_>, _: u64, handle: u64, _: u64, reply: ReplyEmpty) {
-        match self.fsync_handle(handle, false) {
+        match self.flush_handle(handle) {
             Ok(()) => reply.ok(),
             Err(error) => reply.error(error),
         }
@@ -1121,6 +1200,37 @@ pub(crate) fn checked_open(base: &Path, path: &str, flags: i32, mode: u32) -> Re
     if path == "/" {
         return open_base_dir(base);
     }
+    logical_components(path)?;
+    let dir = open_base_dir(base)?;
+    let name = cstring_name(&path[1..])?;
+    #[repr(C)]
+    struct OpenHow {
+        flags: u64,
+        mode: u64,
+        resolve: u64,
+    }
+    let how = OpenHow {
+        flags: (flags | libc::O_CLOEXEC | libc::O_NOFOLLOW) as u64,
+        mode: (mode & 0o7777) as u64,
+        resolve: 0x04 | 0x08, // RESOLVE_NO_SYMLINKS | RESOLVE_BENEATH
+    };
+    let fd = unsafe {
+        libc::syscall(
+            libc::SYS_openat2,
+            dir.as_raw_fd(),
+            name.as_ptr(),
+            &how,
+            std::mem::size_of::<OpenHow>(),
+        )
+    };
+    if fd >= 0 {
+        return Ok(unsafe { File::from_raw_fd(fd as i32) });
+    }
+    let error = io_error(io::Error::last_os_error());
+    if error != libc::ENOSYS {
+        return Err(error);
+    }
+    // Older Linux kernels retain the component-by-component checked walk.
     let (parent, leaf) = open_parent_dir(base, path)?;
     let leaf = cstring_name(&leaf)?;
     let fd = unsafe {
@@ -1528,6 +1638,22 @@ mod tests {
 
         cleanup(base);
         cleanup(outside);
+    }
+
+    #[test]
+    fn checked_open_accepts_fuse_create_mode_with_file_type() {
+        let base = test_dir("fuse-create-mode");
+        fs::create_dir(base.join("job")).unwrap();
+        let file = checked_open(
+            &base,
+            "/job/new",
+            libc::O_CREAT | libc::O_EXCL | libc::O_WRONLY,
+            libc::S_IFREG | 0o644,
+        )
+        .unwrap();
+        drop(file);
+        assert!(base.join("job/new").is_file());
+        cleanup(base);
     }
 
     fn assert_path_escape_rejected<T>(result: Result<T, i32>) {

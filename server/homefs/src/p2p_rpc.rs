@@ -24,6 +24,8 @@ use std::{
 
 const MAX_FRAME: usize = 8 * 1024 * 1024;
 const MAX_IO_BYTES: usize = MAX_FRAME - 128;
+const OPEN_PREFETCH_LIMIT: usize = 4096;
+const WIRE_VERSION: u32 = 2;
 const AUTH: u8 = 0;
 const GETATTR: u8 = 1;
 const MKDIR: u8 = 2;
@@ -430,6 +432,7 @@ impl Client {
         stream.set_read_timeout(Some(Duration::from_secs(30)))?;
         stream.set_write_timeout(Some(Duration::from_secs(30)))?;
         let mut auth = Writer::new(AUTH);
+        auth.u32(WIRE_VERSION);
         auth.bytes(token.as_bytes());
         write_frame(&mut stream, &auth.finish())?;
         let response = read_frame(&mut stream)?;
@@ -475,7 +478,12 @@ impl Client {
         let attr = Attr::read(&mut input).map_err(errno)?;
         Ok((handle, attr))
     }
-    pub fn open(&mut self, path: &str, flags: i32, directory: bool) -> Result<(u64, Attr), i32> {
+    pub fn open(
+        &mut self,
+        path: &str,
+        flags: i32,
+        directory: bool,
+    ) -> Result<(u64, Attr, Option<Vec<u8>>), i32> {
         let mut out = Writer::new(if directory { OPENDIR } else { OPEN });
         out.string(path);
         out.u32(flags as u32);
@@ -483,8 +491,13 @@ impl Client {
         let mut input = Reader::new(&bytes);
         let handle = input.u64().map_err(errno)?;
         let attr = Attr::read(&mut input).map_err(errno)?;
+        let prefetched = match input.u8().map_err(errno)? {
+            0 => None,
+            1 => Some(input.bytes().map_err(errno)?.to_vec()),
+            _ => return Err(libc::EIO),
+        };
         input.done().map_err(errno)?;
-        Ok((handle, attr))
+        Ok((handle, attr, prefetched))
     }
     pub fn read(&mut self, handle: u64, offset: u64, size: u32) -> Result<Vec<u8>, i32> {
         if offset > i64::MAX as u64 || size as usize > MAX_IO_BYTES {
@@ -631,6 +644,9 @@ fn authenticate(bytes: &[u8], token: &str) -> Result<(), i32> {
     let mut input = Reader::new(bytes);
     if input.u8().map_err(errno)? != AUTH {
         return Err(libc::EACCES);
+    }
+    if input.u32().map_err(errno)? != WIRE_VERSION {
+        return Err(libc::EPROTONOSUPPORT);
     }
     let actual = input.bytes().map_err(errno)?;
     input.done().map_err(errno)?;
@@ -809,8 +825,24 @@ impl Session {
                 }
                 let handle = self.open_file(path, flags, 0)?;
                 out.u64(handle);
-                Attr::from_metadata(&self.file(handle)?.metadata().map_err(errno)?)?
-                    .write(&mut out);
+                let attr = Attr::from_metadata(&self.file(handle)?.metadata().map_err(errno)?)?;
+                attr.write(&mut out);
+                if op == OPEN
+                    && flags & libc::O_ACCMODE == libc::O_RDONLY
+                    && flags & (libc::O_PATH | libc::O_DIRECT) == 0
+                    && attr.size <= OPEN_PREFETCH_LIMIT as u64
+                {
+                    let mut bytes = vec![0; attr.size as usize];
+                    let read = self.file(handle)?.read_at(&mut bytes, 0).map_err(errno)?;
+                    if read == bytes.len() {
+                        out.u8(1);
+                        out.bytes(&bytes);
+                    } else {
+                        out.u8(0);
+                    }
+                } else {
+                    out.u8(0);
+                }
             }
             READ => {
                 let handle = input.u64().map_err(errno)?;
@@ -982,6 +1014,20 @@ mod tests {
     }
 
     #[test]
+    fn authentication_rejects_old_wire_format() {
+        let mut old = Writer::new(AUTH);
+        old.bytes(b"secret");
+        assert!(authenticate(&old.finish(), "secret").is_err());
+        let mut wrong_version = Writer::new(AUTH);
+        wrong_version.u32(WIRE_VERSION - 1);
+        wrong_version.bytes(b"secret");
+        assert_eq!(
+            authenticate(&wrong_version.finish(), "secret"),
+            Err(libc::EPROTONOSUPPORT)
+        );
+    }
+
+    #[test]
     fn rejects_symlink_escape_and_unsupported_entries() {
         let root = temp_home("symlink");
         let outside = temp_home("outside");
@@ -1081,10 +1127,48 @@ mod tests {
         drop(first);
 
         let mut second = Client::connect_authenticated(&address, "secret").unwrap();
-        let (handle, _) = second.open("/note.txt", libc::O_RDONLY, false).unwrap();
+        let (handle, _, prefetched) = second.open("/note.txt", libc::O_RDONLY, false).unwrap();
+        assert_eq!(prefetched.as_deref(), Some(b"new-bytes".as_slice()));
         assert_eq!(second.read(handle, 0, 64).unwrap(), b"new-bytes");
         second.close(handle).unwrap();
 
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn small_read_prefetch_is_scoped_to_one_open() {
+        let root = temp_home("prefetch-reopen");
+        let address = serve_test(root.clone(), "secret");
+        let mut writer = Client::connect_authenticated(&address, "secret").unwrap();
+        let mut reader = Client::connect_authenticated(&address, "secret").unwrap();
+        let (handle, _) = writer.create("/note", libc::O_RDWR, 0o644).unwrap();
+        writer.write(handle, 0, b"first").unwrap();
+        writer.fsync(handle, true).unwrap();
+        writer.close(handle).unwrap();
+
+        let (handle, _, bytes) = reader.open("/note", libc::O_RDONLY, false).unwrap();
+        assert_eq!(bytes.as_deref(), Some(b"first".as_slice()));
+        reader.close(handle).unwrap();
+
+        let (handle, _, _) = writer.open("/note", libc::O_WRONLY, false).unwrap();
+        writer.write(handle, 0, b"newer").unwrap();
+        writer.fsync(handle, true).unwrap();
+        writer.close(handle).unwrap();
+        let (handle, _, bytes) = reader.open("/note", libc::O_RDONLY, false).unwrap();
+        assert_eq!(bytes.as_deref(), Some(b"newer".as_slice()));
+        reader.close(handle).unwrap();
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn path_only_open_does_not_try_to_prefetch() {
+        let root = temp_home("path-only-open");
+        fs::write(root.join("note"), b"content").unwrap();
+        let address = serve_test(root.clone(), "secret");
+        let mut client = Client::connect_authenticated(&address, "secret").unwrap();
+        let (handle, _, prefetched) = client.open("/note", libc::O_PATH, false).unwrap();
+        assert!(prefetched.is_none());
+        client.close(handle).unwrap();
         let _ = fs::remove_dir_all(root);
     }
 

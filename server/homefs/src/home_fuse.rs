@@ -140,8 +140,10 @@ pub struct HomeFs {
     p2p_clients: HashMap<String, Client>,
     paths: HashMap<u64, String>,
     ids: HashMap<String, u64>,
+    backing_ids: HashMap<String, (String, u64, u64)>,
     next_ino: u64,
     handles: HashMap<u64, Handle>,
+    handle_inodes: HashMap<u64, u64>,
     next_handle: u64,
 }
 
@@ -169,8 +171,10 @@ impl HomeFs {
             p2p_clients: HashMap::new(),
             paths: HashMap::from([(ROOT_INO, "/".to_owned())]),
             ids: HashMap::from([("/".to_owned(), ROOT_INO)]),
+            backing_ids: HashMap::new(),
             next_ino: ROOT_INO + 1,
             handles: HashMap::new(),
+            handle_inodes: HashMap::new(),
             next_handle: 1,
         }
     }
@@ -204,6 +208,31 @@ impl HomeFs {
         self.ids.insert(path.to_owned(), ino);
         self.paths.insert(ino, path.to_owned());
         ino
+    }
+
+    fn ino_for_backing(&mut self, path: &str, owner: &str, dev: u64, ino: u64) -> u64 {
+        let identity = (owner.to_owned(), dev, ino);
+        if self
+            .backing_ids
+            .get(path)
+            .is_some_and(|old| old != &identity)
+        {
+            // Keep the old inode alive for an open FD, but give a replacement
+            // at the same pathname a different FUSE inode.
+            self.ids.remove(path);
+        }
+        self.backing_ids.insert(path.to_owned(), identity);
+        self.ino(path)
+    }
+
+    fn register_handle_inode(&mut self, handle: u64, ino: u64) {
+        self.handle_inodes.insert(handle, ino);
+    }
+
+    fn open_handle_for_inode(&self, ino: u64) -> Option<u64> {
+        self.handle_inodes
+            .iter()
+            .find_map(|(handle, known)| (*known == ino).then_some(*handle))
     }
 
     fn add_handle(&mut self, handle: Handle) -> u64 {
@@ -382,12 +411,15 @@ impl HomeFs {
                 Ok(attr)
             }
             Location::RemoteNfs(owner) => {
-                let attr = checked_attr(&self.base_for(Some(&owner)), path, self.ino(path))?;
+                let (mut attr, dev, backing_ino) =
+                    checked_attr_with_identity(&self.base_for(Some(&owner)), path, 0)?;
+                attr.ino = self.ino_for_backing(path, &owner, dev, backing_ino);
                 Ok(attr)
             }
             Location::RemoteP2p(owner) => {
                 let attr = self.p2p_path_call(&owner, |client| client.getattr(path))?;
-                Ok(attr.file_attr(self.ino(path)))
+                let ino = self.ino_for_backing(path, &owner, attr.dev, attr.ino);
+                Ok(attr.file_attr(ino))
             }
         }
     }
@@ -412,6 +444,7 @@ impl HomeFs {
     }
 
     fn close_handle(&mut self, handle: u64) -> Result<(), i32> {
+        self.handle_inodes.remove(&handle);
         match self.handles.remove(&handle) {
             Some(Handle::File { .. }) => Ok(()),
             Some(Handle::P2p {
@@ -600,7 +633,7 @@ impl HomeFs {
             Location::RemoteP2p(owner) => {
                 let (remote, attr) =
                     self.p2p_mutating_path_call(&owner, |client| client.create(path, flags, mode))?;
-                let ino = self.ino(path);
+                let ino = self.ino_for_backing(path, &owner, attr.dev, attr.ino);
                 Ok((
                     attr.file_attr(ino),
                     self.add_handle(Handle::P2p {
@@ -628,7 +661,7 @@ impl HomeFs {
             Location::RemoteP2p(owner) => {
                 let attr =
                     self.p2p_mutating_path_call(&owner, |client| client.mkdir(path, mode))?;
-                let ino = self.ino(path);
+                let ino = self.ino_for_backing(path, &owner, attr.dev, attr.ino);
                 Ok(attr.file_attr(ino))
             }
         }
@@ -850,10 +883,12 @@ impl HomeFs {
 
     fn shift_paths(&mut self, old: &str, new: &str, recursive: bool) {
         shift_paths(&mut self.ids, &mut self.paths, old, new, recursive);
+        shift_backing_ids(&mut self.backing_ids, old, new, recursive);
     }
 
     fn drop_paths(&mut self, path: &str, recursive: bool) {
         drop_paths(&mut self.ids, &mut self.paths, path, recursive);
+        drop_backing_ids(&mut self.backing_ids, path, recursive);
     }
 }
 
@@ -885,12 +920,14 @@ impl Filesystem for HomeFs {
     fn getattr(&mut self, _: &Request<'_>, ino: u64, handle: Option<u64>, reply: ReplyAttr) {
         let cache = Arc::clone(&self.private_cache);
         let shared = cache.shared_roots.lock().unwrap();
+        let handle = handle.or_else(|| self.open_handle_for_inode(ino));
         let result = match handle {
             Some(handle) => self.attr_handle(handle, ino),
             None => self
                 .path(ino)
                 .map(str::to_owned)
-                .and_then(|path| self.attr(&path)),
+                .and_then(|path| self.attr(&path))
+                .and_then(|attr| (attr.ino == ino).then_some(attr).ok_or(libc::ESTALE)),
         };
         match result {
             Ok(attr) => {
@@ -946,7 +983,10 @@ impl Filesystem for HomeFs {
             self.create_file(&path, flags, mode)
         })();
         match result {
-            Ok((attr, handle)) => reply.created(&TTL, &attr, 0, handle, 0),
+            Ok((attr, handle)) => {
+                self.register_handle_inode(handle, attr.ino);
+                reply.created(&TTL, &attr, 0, handle, 0)
+            }
             Err(error) => reply.error(error),
         }
     }
@@ -957,7 +997,10 @@ impl Filesystem for HomeFs {
             .map(str::to_owned)
             .and_then(|path| self.open_existing(&path, flags, false))
         {
-            Ok(handle) => reply.opened(handle, 0),
+            Ok(handle) => {
+                self.register_handle_inode(handle, ino);
+                reply.opened(handle, 0)
+            }
             Err(error) => reply.error(error),
         }
     }
@@ -1081,7 +1124,10 @@ impl Filesystem for HomeFs {
             .map(str::to_owned)
             .and_then(|path| self.open_existing(&path, flags, true))
         {
-            Ok(handle) => reply.opened(handle, 0),
+            Ok(handle) => {
+                self.register_handle_inode(handle, ino);
+                reply.opened(handle, 0)
+            }
             Err(error) => reply.error(error),
         }
     }
@@ -1125,6 +1171,7 @@ impl Filesystem for HomeFs {
         _: Option<u32>,
         reply: ReplyAttr,
     ) {
+        let handle = handle.or_else(|| self.open_handle_for_inode(ino));
         let result = (|| {
             let path = match handle {
                 Some(_) => None,
@@ -1471,6 +1518,14 @@ pub(crate) fn checked_rename(base: &Path, old: &str, new: &str) -> Result<(), i3
 }
 
 fn checked_attr(base: &Path, path: &str, ino: u64) -> Result<FileAttr, i32> {
+    checked_attr_with_identity(base, path, ino).map(|(attr, _, _)| attr)
+}
+
+fn checked_attr_with_identity(
+    base: &Path,
+    path: &str,
+    ino: u64,
+) -> Result<(FileAttr, u64, u64), i32> {
     if path == "/" {
         let base = open_base_dir(base)?;
         let mut stat = std::mem::MaybeUninit::<libc::stat>::uninit();
@@ -1478,7 +1533,8 @@ fn checked_attr(base: &Path, path: &str, ino: u64) -> Result<FileAttr, i32> {
         if status < 0 {
             return Err(io_error(io::Error::last_os_error()));
         }
-        return attr_from_stat(ino, unsafe { stat.assume_init() });
+        let stat = unsafe { stat.assume_init() };
+        return Ok((attr_from_stat(ino, stat)?, stat.st_dev, stat.st_ino));
     }
     let (parent, leaf) = open_parent_dir(base, path)?;
     let leaf = cstring_name(&leaf)?;
@@ -1494,7 +1550,8 @@ fn checked_attr(base: &Path, path: &str, ino: u64) -> Result<FileAttr, i32> {
     if status < 0 {
         return Err(io_error(io::Error::last_os_error()));
     }
-    attr_from_stat(ino, unsafe { stat.assume_init() })
+    let stat = unsafe { stat.assume_init() };
+    Ok((attr_from_stat(ino, stat)?, stat.st_dev, stat.st_ino))
 }
 
 pub(crate) fn checked_read_dir(base: &Path, path: &str) -> Result<Vec<(String, FileType)>, i32> {
@@ -1646,6 +1703,30 @@ fn drop_paths(
         }
     } else if let Some(ino) = ids.remove(path) {
         paths.remove(&ino);
+    }
+}
+
+fn drop_backing_ids(ids: &mut HashMap<String, (String, u64, u64)>, path: &str, recursive: bool) {
+    let prefix = format!("{path}/");
+    ids.retain(|known, _| known != path && !(recursive && known.starts_with(&prefix)));
+}
+
+fn shift_backing_ids(
+    ids: &mut HashMap<String, (String, u64, u64)>,
+    old: &str,
+    new: &str,
+    recursive: bool,
+) {
+    drop_backing_ids(ids, new, recursive);
+    let prefix = format!("{old}/");
+    let moved: Vec<_> = ids
+        .iter()
+        .filter(|(path, _)| *path == old || (recursive && path.starts_with(&prefix)))
+        .map(|(path, identity)| (path.clone(), identity.clone()))
+        .collect();
+    for (path, identity) in moved {
+        ids.remove(&path);
+        ids.insert(format!("{new}{}", &path[old.len()..]), identity);
     }
 }
 

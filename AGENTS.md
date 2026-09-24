@@ -1,12 +1,12 @@
 # AFS（Agent FS）协作规则
 
-本分支从 origin/main 建立，服务 Agent workspace 与不可变镜像/快照两类工作负载。先读 [宪法](PRINCIPLES.md)，再读 [工作负载](docs/workloads.md)、[状态](docs/status.md)和 [下一步](docs/next.md)。本文件规定协作方式；架构权威只在原则与后续具名设计中，不从旧 KV 代码或旧分支文档推断。
+本分支从 origin/main 建立，服务 Agent workspace 与不可变镜像/快照两类工作负载。先读 [宪法](PRINCIPLES.md)，再读 [需求分析](docs/requirements.html)、[详细架构](docs/architecture.html)、[状态](docs/status.md)和 [下一步](docs/next.md)。本文件规定协作方式；架构权威只在原则与这两份具名设计中，不从旧 KV 代码或旧分支文档推断。
 
 ## 事实与决策
 
 - 区分**已决方向**、**当前实现**、**推断**与**待验证**。新增路径或类型不等于功能已完成；性能目标不等于实测收益。
 - 改变两类工作负载的写入、发布、读取、故障或副本语义时，先更新原则和相应设计，并说明对验收的影响。普通实现细节不复制进本文件。
-- docs/workloads.md 只写用户可见语义；后续每个机制只有一份正式设计正文。docs/status.md 记录当前已验证能力，docs/next.md 只保留下一阶段入口。历史决策留在 Git 历史，不把已删除旧文档重新标为现行规则。
+- docs/workloads.md 只写简要用户可见语义，docs/requirements.html 是正式需求合同，docs/architecture.html 是正式架构正文；同一机制不另建并行权威。docs/status.md 记录当前已验证能力，docs/next.md 只保留下一阶段入口。历史决策留在 Git 历史，不把已删除旧文档重新标为现行规则。
 
 ## 代码边界
 

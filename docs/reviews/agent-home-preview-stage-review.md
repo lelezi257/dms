@@ -35,3 +35,9 @@ W2 第一轮 MooseFS 出现 2310.99 ms，未剔除；交错顺序为奇数轮 DM
 **事实。** 本地 FUSE 路径的文件执行 `chmod 000` 后，再经 FUSE 恢复 `0644` 会返回 `EACCES`；这是扩大同事测试前应修复的已知权限问题，不影响上述 W1/W2 字节验收。P2P wire 已升到 v3，节点必须同版部署；远端新打开在 home 失联后失败，失联前已打开的小文件只读 FD 可能读出打开时得到的内容。首版删除一级目录保留 tombstone，不支持复用同名目录。
 
 **待验证。** 四节点、完整通用 POSIX、长稳、中心 HA、自动 home 接管、等物理耐久性能对照，以及真实 Agent workload/home 命中率均不在本次结论内。源码构包与安装步骤见[安装说明](../agent-home-preview-installation.md)，架构与语义见[设计](../agent-home-preview-design.md)。
+
+## 2026-09-24 文件身份与失败边界复验
+
+上文是 `4eceb8f` 的历史阶段记录；最新验收以 `6ea3203` 为准。P2P wire v5 把预期底层文件身份随远端 `OPEN` 送到 Home，Home 在 `O_TRUNC` 前校验；NFS 也在截断前检查已打开文件。旧 FD 在改名/删除与同名重建后仍指向原文件，远端丢失修改回复不自动重放。Linux 39 项单测、Clippy、release 构建通过；从最终安装包部署的三 VM P2P/NFS 各 10/10 步通过。
+
+同场 W1 两份六轮 DMS/MooseFS p50 比值 0.386/0.358，P2P W2 六轮为 0.972。逐轮样本与包 SHA 位于项目工作区 `evidence/2026-09-24-agent-home-semantic-closure/`，短结论见 `outputs/reports/2026-09-24-agent-home-semantic-closure.md`。这些数值不代表等物理耐久，也不证明四节点、全 POSIX、掉电切点、旧 FD 跨进程重启透明续接或自动 Home 接管。

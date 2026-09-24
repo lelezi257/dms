@@ -69,7 +69,7 @@ where
         }
         let operation_name = grpc_operation_name(method);
         let span = tracing::info_span!(
-            "dms.grpc.server",
+            "afs.grpc.server",
             // `operation_name` is already a bounded `&'static str`, so the
             // OpenTelemetry layer records it through the string-value visitor.
             otel.name = operation_name,
@@ -112,7 +112,7 @@ fn is_periodic_method(method: &str) -> bool {
 }
 
 fn grpc_operation_name(_method: &str) -> &'static str {
-    "dms.grpc.server"
+    "afs.grpc.server"
 }
 
 struct HeaderExtractor<'a>(&'a HeaderMap);
@@ -135,7 +135,7 @@ mod tests {
     fn unknown_routes_use_a_bounded_operation_name() {
         assert_eq!(
             grpc_operation_name("/future.Service/Method"),
-            "dms.grpc.server"
+            "afs.grpc.server"
         );
     }
 

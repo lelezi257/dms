@@ -1,4 +1,4 @@
-//! DMS distributed-tracing boundary.
+//! AFS distributed-tracing boundary.
 //!
 //! The default feature set propagates trace context without installing a
 //! global subscriber. Processes enable the runtime feature explicitly.

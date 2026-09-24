@@ -2,7 +2,7 @@
 
 use std::{env, time::Instant};
 
-use dms_logging::{LogOutput, LoggingConfig, ProcessIdentity, init_process_logging};
+use afs_logging::{LogOutput, LoggingConfig, ProcessIdentity, init_process_logging};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let records = env::args()
@@ -25,12 +25,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             max_backups: 1024,
             ..LoggingConfig::default()
         },
-        ProcessIdentity::new("dms-logging-bench", "local"),
+        ProcessIdentity::new("afs-logging-bench", "local"),
     )?;
 
     let started = Instant::now();
     for sequence in 0..records {
-        dms_logging::info!(
+        afs_logging::info!(
             "benchmark event";
             "event" => "logging.benchmark",
             "sequence" => sequence,
@@ -41,7 +41,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Give the consumer one scheduling window, then emit a marker. Under
     // DropAndReport this next record first publishes the accumulated drop count.
     std::thread::sleep(std::time::Duration::from_millis(200));
-    dms_logging::info!("benchmark drain marker"; "event" => "logging.benchmark.finished");
+    afs_logging::info!("benchmark drain marker"; "event" => "logging.benchmark.finished");
     drop(guard);
     let total_elapsed = started.elapsed();
     let bytes = std::fs::metadata(&path)?.len();

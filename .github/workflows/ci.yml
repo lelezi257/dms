@@ -1,4 +1,4 @@
-name: DMS foundation CI
+name: AFS foundation CI
 
 on:
   push:

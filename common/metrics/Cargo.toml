@@ -1,5 +1,5 @@
 [package]
-name = "dms-metrics"
+name = "afs-metrics"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

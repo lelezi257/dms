@@ -114,7 +114,7 @@ mod tests {
     #[test]
     fn rotation_happens_only_on_flush() {
         let directory = tempfile::tempdir().expect("tempdir");
-        let path = directory.path().join("dms.log");
+        let path = directory.path().join("afs.log");
         let (mut worker, handle) = RetentionWorker::spawn(
             path.clone(),
             RetentionPolicy {
@@ -133,7 +133,7 @@ mod tests {
         let archives = fs::read_dir(directory.path())
             .expect("read dir")
             .filter_map(Result::ok)
-            .filter(|entry| entry.file_name().to_string_lossy().starts_with("dms.log."))
+            .filter(|entry| entry.file_name().to_string_lossy().starts_with("afs.log."))
             .collect::<Vec<_>>();
         assert_eq!(archives.len(), 1);
         assert_eq!(fs::read(archives[0].path()).expect("archive"), b"abcdef\n");
@@ -144,7 +144,7 @@ mod tests {
     #[test]
     fn existing_file_size_is_resumed_after_restart() {
         let directory = tempfile::tempdir().expect("tempdir");
-        let path = directory.path().join("dms.log");
+        let path = directory.path().join("afs.log");
         fs::write(&path, b"1234").expect("seed");
         let (mut worker, handle) = RetentionWorker::spawn(
             path.clone(),

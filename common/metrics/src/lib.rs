@@ -1,4 +1,4 @@
-//! Shared Prometheus mechanics for DMS processes.
+//! Shared Prometheus mechanics for AFS processes.
 //!
 //! Business metrics belong to the backend that owns their meaning.
 //! A [`Registry`] is always created by the embedding process; this crate never
@@ -344,35 +344,35 @@ impl TraceRuntimeMetrics {
         let metrics = Self {
             export_batches_total: IntCounterVec::new(
                 Opts::new(
-                    "dms_trace_export_batches_total",
+                    "afs_trace_export_batches_total",
                     "Completed OTLP export batches.",
                 ),
                 &["result"],
             )?,
             exported_spans_total: IntCounter::new(
-                "dms_trace_exported_spans_total",
+                "afs_trace_exported_spans_total",
                 "Spans successfully exported through OTLP.",
             )?,
             dropped_spans_total: IntCounterVec::new(
                 Opts::new(
-                    "dms_trace_dropped_spans_total",
+                    "afs_trace_dropped_spans_total",
                     "Spans dropped before OTLP export.",
                 ),
                 &["reason"],
             )?,
             export_duration_seconds: Histogram::with_opts(
                 HistogramOpts::new(
-                    "dms_trace_export_duration_seconds",
+                    "afs_trace_export_duration_seconds",
                     "OTLP batch export latency in seconds.",
                 )
                 .buckets(latency_buckets()),
             )?,
             export_queue_depth: IntGauge::new(
-                "dms_trace_export_queue_depth",
+                "afs_trace_export_queue_depth",
                 "Sampled spans waiting in the process export queue.",
             )?,
             last_success_timestamp_seconds: Gauge::new(
-                "dms_trace_last_success_timestamp_seconds",
+                "afs_trace_last_success_timestamp_seconds",
                 "Unix timestamp of the most recent successful OTLP export.",
             )?,
         };
@@ -467,7 +467,7 @@ mod tests {
         let registry = registry();
         let first = registry
             .get_or_register::<IntCounter>(|registry| {
-                let counter = IntCounter::new("dms_shared_test_total", "test counter")?;
+                let counter = IntCounter::new("afs_shared_test_total", "test counter")?;
                 register_collector(registry, &counter)?;
                 Ok(counter)
             })
@@ -481,7 +481,7 @@ mod tests {
         assert!(
             encode_text(&registry)
                 .unwrap()
-                .contains("dms_shared_test_total 1")
+                .contains("afs_shared_test_total 1")
         );
     }
 
@@ -490,6 +490,6 @@ mod tests {
         let registry = registry();
         let _metrics = TraceRuntimeMetrics::register(&registry).unwrap();
         let text = encode_text(&registry).unwrap();
-        assert!(text.contains("dms_trace_dropped_spans_total{reason=\"queue_full\"} 0"));
+        assert!(text.contains("afs_trace_dropped_spans_total{reason=\"queue_full\"} 0"));
     }
 }

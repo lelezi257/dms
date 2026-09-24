@@ -1,4 +1,4 @@
-# DMS 新方向协作规则
+# AFS（Agent FS）协作规则
 
 本分支从 origin/main 建立，服务 Agent workspace 与不可变镜像/快照两类工作负载。先读 [宪法](PRINCIPLES.md)，再读 [工作负载](docs/workloads.md)、[状态](docs/status.md)和 [下一步](docs/next.md)。本文件规定协作方式；架构权威只在原则与后续具名设计中，不从旧 KV 代码或旧分支文档推断。
 

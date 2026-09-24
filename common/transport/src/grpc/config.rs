@@ -1,4 +1,4 @@
-//! DMS 所有 gRPC 连接共用的 HTTP/2 与超时配置。
+//! AFS 所有 gRPC 连接共用的 HTTP/2 与超时配置。
 //!
 //! 学习提示：这个文件不负责“建立连接”或“启动 Server”。它只把一组统一参数
 //! 应用到 Tonic 提供的 builder 上，应用完以后仍由调用方执行 `connect()` 或
@@ -76,7 +76,7 @@ impl GrpcConfig {
             .with_keepalive(Some(self.tcp_keepalive))
     }
 
-    /// 把 DMS 默认参数应用到一个具体的 Tonic 客户端 Endpoint。
+    /// 把 AFS 默认参数应用到一个具体的 Tonic 客户端 Endpoint。
     ///
     /// The caller still owns endpoint parsing, UDS/TCP selection and creation
     /// of the generated protobuf client.
@@ -95,7 +95,7 @@ impl GrpcConfig {
             .initial_stream_window_size(Some(self.initial_stream_window_size))
     }
 
-    /// 把 DMS 默认参数应用到进程提供的 Tonic Server builder。
+    /// 把 AFS 默认参数应用到进程提供的 Tonic Server builder。
     ///
     /// The process remains responsible for registering its generated services
     /// and choosing TCP or UDS listeners.

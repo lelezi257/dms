@@ -1,5 +1,5 @@
 //! 公共传输配置的集成测试：验证真实 accepted socket，不依赖 Node/Meta 业务。
-use dms_transport::GrpcConfig;
+use afs_transport::GrpcConfig;
 use tokio::net::{TcpListener, TcpStream};
 use tokio_stream::StreamExt;
 

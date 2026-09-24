@@ -1,10 +1,10 @@
 [package]
-name = "dms-tracing"
+name = "afs-tracing"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
-description = "Shared distributed tracing context and process runtime for DMS"
+description = "Shared distributed tracing context and process runtime for AFS"
 publish = false
 
 [features]
@@ -18,7 +18,7 @@ runtime = [
 test-support = ["runtime", "opentelemetry_sdk/testing"]
 
 [dependencies]
-dms-metrics = { path = "../metrics" }
+afs-metrics = { path = "../metrics" }
 opentelemetry = { version = "0.32.0", default-features = false, features = ["trace"] }
 opentelemetry_sdk = { version = "0.32.0", default-features = false, features = ["trace"] }
 opentelemetry-otlp = { version = "0.32.0", default-features = false, features = ["trace", "grpc-tonic", "tls-ring"], optional = true }

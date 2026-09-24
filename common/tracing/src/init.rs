@@ -7,7 +7,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use dms_metrics::TraceRuntimeMetrics;
+use afs_metrics::TraceRuntimeMetrics;
 use opentelemetry::{KeyValue, trace::TracerProvider as _};
 use opentelemetry_otlp::WithExportConfig;
 use opentelemetry_sdk::{
@@ -62,7 +62,7 @@ pub fn init_process_tracing(
     metrics: Option<TraceRuntimeMetrics>,
 ) -> Result<TracingGuard, TracingError> {
     config.validate()?;
-    dms_metrics::install_exemplar_provider(crate::current_exemplar);
+    afs_metrics::install_exemplar_provider(crate::current_exemplar);
     if !config.enabled {
         // 仅进程入口拥有 Subscriber。显式禁用可切断 tracing/log 在无
         // dispatcher 时的 Span→日志回退，业务 log facade 的桥接保持不变。
@@ -130,18 +130,18 @@ pub fn init_process_tracing(
         .build();
     let tracer = provider.tracer(identity.service_name);
     // Never export Hyper/Tonic/OTLP's own diagnostic spans through the same
-    // exporter: doing so creates an observability feedback loop. DMS owns the
+    // exporter: doing so creates an observability feedback loop. AFS owns the
     // public span contract, while dependency diagnostics remain in logs.
-    let dms_targets = Targets::new()
+    let afs_targets = Targets::new()
         .with_default(LevelFilter::OFF)
-        .with_target("dms_client", LevelFilter::TRACE)
-        .with_target("dms_server", LevelFilter::TRACE)
-        .with_target("dms_tracing", LevelFilter::TRACE);
+        .with_target("afs_client", LevelFilter::TRACE)
+        .with_target("afs_server", LevelFilter::TRACE)
+        .with_target("afs_tracing", LevelFilter::TRACE);
     tracing_subscriber::registry()
         .with(
             tracing_opentelemetry::layer()
                 .with_tracer(tracer)
-                .with_filter(dms_targets),
+                .with_filter(afs_targets),
         )
         .try_init()
         .map_err(|error| TracingError::Subscriber(error.to_string()))?;

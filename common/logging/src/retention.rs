@@ -53,7 +53,7 @@ impl RetentionWorker {
         let (sender, receiver) = mpsc::sync_channel(1);
         let worker_sender = sender.clone();
         let join = thread::Builder::new()
-            .name("dms-log-retention".to_string())
+            .name("afs-log-retention".to_string())
             .spawn(move || {
                 while let Ok(command) = receiver.recv() {
                     match command {
@@ -133,10 +133,10 @@ mod tests {
     #[test]
     fn cleanup_applies_count_limit() {
         let directory = tempfile::tempdir().expect("tempdir");
-        let current = directory.path().join("dms.log");
+        let current = directory.path().join("afs.log");
         fs::write(&current, b"current").expect("current");
         for index in 0..4 {
-            let path = directory.path().join(format!("dms.log.{index}"));
+            let path = directory.path().join(format!("afs.log.{index}"));
             let mut file = fs::File::create(path).expect("history");
             writeln!(file, "{index}").expect("write");
             std::thread::sleep(Duration::from_millis(2));
@@ -155,7 +155,7 @@ mod tests {
         let remaining = fs::read_dir(directory.path())
             .expect("read dir")
             .filter_map(Result::ok)
-            .filter(|entry| entry.file_name().to_string_lossy().starts_with("dms.log."))
+            .filter(|entry| entry.file_name().to_string_lossy().starts_with("afs.log."))
             .count();
         assert_eq!(remaining, 2);
     }
@@ -163,8 +163,8 @@ mod tests {
     #[test]
     fn cleanup_applies_age_limit_independently_of_count() {
         let directory = tempfile::tempdir().expect("tempdir");
-        let current = directory.path().join("dms.log");
-        let archive = directory.path().join("dms.log.old");
+        let current = directory.path().join("afs.log");
+        let archive = directory.path().join("afs.log.old");
         fs::write(&current, b"current").expect("current");
         let file = fs::File::create(&archive).expect("archive");
         let old = SystemTime::now() - Duration::from_secs(120);

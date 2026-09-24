@@ -1,5 +1,5 @@
 [package]
-name = "dms-transport"
+name = "afs-transport"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

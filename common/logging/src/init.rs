@@ -147,7 +147,7 @@ pub fn init_process_logging(
             OverflowPolicy::DropAndReport => slog_async::OverflowStrategy::DropAndReport,
             OverflowPolicy::Block => slog_async::OverflowStrategy::Block,
         })
-        .thread_name("dms-log-writer".to_string())
+        .thread_name("afs-log-writer".to_string())
         .build_with_guard();
     let level = LevelController::new(config.level);
     let filtered = DynamicLevelFilter {
@@ -255,14 +255,14 @@ mod tests {
     #[test]
     fn process_logger_writes_machine_readable_identity_and_event() {
         let directory = tempfile::tempdir().expect("tempdir");
-        let path = directory.path().join("dms.log");
+        let path = directory.path().join("afs.log");
         let guard = init_process_logging(
             &LoggingConfig {
                 output: LogOutput::File(path.clone()),
                 max_file_size: 1024 * 1024,
                 ..LoggingConfig::default()
             },
-            ProcessIdentity::new("dms-test", "node-a"),
+            ProcessIdentity::new("afs-test", "node-a"),
         )
         .expect("logger");
 
@@ -274,7 +274,7 @@ mod tests {
         drop(guard);
 
         let record = std::fs::read_to_string(path).expect("read log");
-        assert!(record.contains("\"service_name\":\"dms-test\""));
+        assert!(record.contains("\"service_name\":\"afs-test\""));
         assert!(record.contains("\"instance\":\"node-a\""));
         assert!(record.contains("\"event\":\"test.ready\""));
         assert!(record.contains("\"answer\":42"));

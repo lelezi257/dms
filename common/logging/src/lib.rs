@@ -1,4 +1,4 @@
-//! Process-level logging infrastructure for long-running DMS binaries.
+//! Process-level logging infrastructure for long-running AFS binaries.
 //!
 //! Worker and Master processes initialize this crate once. The small macros below
 //! only inject the process-global logger into upstream `slog`; formatting,
@@ -35,7 +35,7 @@ pub use slog_global;
 #[doc(hidden)]
 pub fn correlated_logger() -> slog::Logger {
     let logger = (**slog_global::borrow_global()).clone();
-    match dms_tracing::current_correlation() {
+    match afs_tracing::current_correlation() {
         Some(correlation) => logger.new(slog::o!(
             "trace_id" => correlation.trace_id,
             "span_id" => correlation.span_id,

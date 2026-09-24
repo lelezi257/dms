@@ -3,6 +3,58 @@
 version = 4
 
 [[package]]
+name = "afs-logging"
+version = "0.1.0"
+dependencies = [
+ "afs-tracing",
+ "log",
+ "serde_json",
+ "slog",
+ "slog-async",
+ "slog-global",
+ "slog-json",
+ "slog-term",
+ "tempfile",
+ "thiserror",
+ "tracing",
+]
+
+[[package]]
+name = "afs-metrics"
+version = "0.1.0"
+dependencies = [
+ "prometheus",
+ "thiserror",
+]
+
+[[package]]
+name = "afs-tracing"
+version = "0.1.0"
+dependencies = [
+ "afs-metrics",
+ "opentelemetry",
+ "opentelemetry-otlp",
+ "opentelemetry_sdk",
+ "thiserror",
+ "tokio",
+ "tonic",
+ "tower",
+ "tracing",
+ "tracing-opentelemetry",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "afs-transport"
+version = "0.1.0"
+dependencies = [
+ "thiserror",
+ "tokio",
+ "tokio-stream",
+ "tonic",
+]
+
+[[package]]
 name = "android_system_properties"
 version = "0.1.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -168,58 +220,6 @@ name = "deranged"
 version = "0.5.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7cd812cc2bc1d69d4764bd80df88b4317eaef9e773c75226407d9bc0876b211c"
-
-[[package]]
-name = "dms-logging"
-version = "0.1.0"
-dependencies = [
- "dms-tracing",
- "log",
- "serde_json",
- "slog",
- "slog-async",
- "slog-global",
- "slog-json",
- "slog-term",
- "tempfile",
- "thiserror",
- "tracing",
-]
-
-[[package]]
-name = "dms-metrics"
-version = "0.1.0"
-dependencies = [
- "prometheus",
- "thiserror",
-]
-
-[[package]]
-name = "dms-tracing"
-version = "0.1.0"
-dependencies = [
- "dms-metrics",
- "opentelemetry",
- "opentelemetry-otlp",
- "opentelemetry_sdk",
- "thiserror",
- "tokio",
- "tonic",
- "tower",
- "tracing",
- "tracing-opentelemetry",
- "tracing-subscriber",
-]
-
-[[package]]
-name = "dms-transport"
-version = "0.1.0"
-dependencies = [
- "thiserror",
- "tokio",
- "tokio-stream",
- "tonic",
-]
 
 [[package]]
 name = "either"

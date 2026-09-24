@@ -1,4 +1,4 @@
-use dms_metrics::MetricExemplar;
+use afs_metrics::MetricExemplar;
 use opentelemetry::{
     Context,
     trace::{SpanContext, TraceContextExt},
@@ -7,7 +7,7 @@ use tracing_opentelemetry::OpenTelemetrySpanExt;
 
 /// Transport-neutral parent context captured before an asynchronous boundary.
 ///
-/// This belongs in an internal mailbox envelope, not in DMS business protobuf
+/// This belongs in an internal mailbox envelope, not in AFS business protobuf
 /// messages. Cloning it clones small trace identity state, not payload bytes.
 #[derive(Clone, Debug)]
 pub struct TraceContext(Context);

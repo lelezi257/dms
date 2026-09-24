@@ -1,4 +1,4 @@
-//! DMS 所有 gRPC 链路共用的明文与双向 TLS 策略。
+//! AFS 所有 gRPC 链路共用的明文与双向 TLS 策略。
 //!
 //! `SecurityManager` 仍然只修改 Tonic builder，不负责连接生命周期。这样业务代码
 //! 只选择安全策略，不需要重复读取证书和拼装 `ClientTlsConfig/ServerTlsConfig`。

@@ -63,7 +63,7 @@ pub fn extract_remote_context(metadata: &MetadataMap) -> TraceContext {
     TraceContext::from_remote(context)
 }
 
-/// Concrete channel type used by all generated DMS gRPC clients.
+/// Concrete channel type used by all generated AFS gRPC clients.
 ///
 /// The interceptor mutates only transport metadata. Generated protobuf bodies,
 /// public SDK parameters, and payload bytes remain unchanged.

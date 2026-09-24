@@ -36,7 +36,7 @@ where
 }
 
 pub(crate) fn fallback(message: &str) {
-    eprintln!("dms-logging fallback: {message}");
+    eprintln!("afs-logging fallback: {message}");
 }
 
 #[cfg(test)]

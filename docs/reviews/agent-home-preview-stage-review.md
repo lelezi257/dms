@@ -51,3 +51,9 @@ Linux 安装包三 VM P2P/NFS 各 10/10 步通过。另将六个根目录置于�
 本地 W1 两份独立六轮 DMS/MooseFS p50 比值为 **0.409/0.400**；同场 DMS/薄 FUSE/Native/MooseFS p50 分别为 281/218/130/686 ms 和 263/218/122/657 ms。远端 W2 六轮 P2P 为 **0.969**（332/343 ms），NFS 为 **7.337**（2563/349 ms）；NFS 只保留后端功能，性能优化后置。完整逐轮值、构包 SHA、脚本及清理收据见工作区 `evidence/2026-09-24-agent-home-fault-closure/`。首次穿刺包的 Linux 42 项单测、Clippy 和 release 构建通过；随后增强 `OPEN(O_TRUNC)` 故障测试。默认 MooseFS 与本机单副本保存仍非等物理耐久对照。
 
 上述是 `ecb5b9b` 的首次穿刺；最终安装包重新从 `c17bef8` 构建，包 SHA256 为 `f5fcdd8e81003611f9c1d995ecca173b25ea6a7403f539d512e9481f49fd452a`。该包重新跑过六个目录故障切点、活跃目录缺失负例、A 的 VZ 强制停/启、三 VM P2P/NFS 各 10/10 步。最终 W1 两份独立六轮 DMS/MooseFS p50 比值为 **0.402/0.405**，DMS/薄 FUSE/Native/MooseFS 为 264/210/119/657 ms 与 260/218/124/643 ms；W2 P2P **0.978**（330/337 ms），NFS **7.251**（2525/348 ms）。Linux 43 项单测、Clippy、release 构建与 GitHub x86 `source-check` 通过。最终包和逐轮收据在工作区 `artifacts/homefs/dms-home-fault-c17bef8.tar.gz` 与 `evidence/2026-09-24-agent-home-fault-closure/`。真实控制器断电与等物理耐久仍未证明。
+
+## 2026-09-24 本地数据根 FD 复用
+
+`4330af3` 让 Home 本地文件操作复用数据根目录 FD，减少重复打开和关闭；远端 NFS 路径不变。Linux 上 43 项单测、Clippy、release 构建通过，从该提交构建的安装包在三 VM 的 P2P/NFS 验收各 10/10 步通过。安装包 SHA256 为 `ca81943b89a1c94fc52dd85f540c86870c07460c6be4cc7b4542f4d6641f8461`。
+
+完整 W1 两份独立六轮 DMS/薄 FUSE/Native/MooseFS p50 为 **234/191/114/625 ms** 与 **240/199/112/630 ms**，DMS/MooseFS 比值 **0.375/0.381**。独立基线场次为 252/209/123/645 ms 与 255/205/120/662 ms；薄 FUSE 同时波动，不能仅凭绝对耗时宣称稳定的归一化 W1 提升。W1 每轮在根目录创建和删除一级目录，包含低频归属控制；另在预先创建的 workspace 内运行相同 200 文件操作作为诊断，DMS/薄 FUSE p50 从基线的 **227/206、231/209 ms** 变为 **225/206、227/209 ms**，最终比值 **1.092/1.085**。这是独享 Agent 工作区的路径诊断，不替换完整 W1 合同。P2P W2 六轮 p50 为 307/334 ms（DMS/MooseFS=0.920），跨场不能断言 W2 改进。默认 MooseFS 与本机保存仍非等物理耐久对照；样本仅六轮，未测长稳或真实 Agent home 命中率。逐轮收据和 syscall trace 在工作区 `evidence/2026-09-24-agent-home-local-fd-cache/`。

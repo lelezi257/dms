@@ -21,7 +21,7 @@ use std::{
     },
     path::{Path, PathBuf},
     sync::{
-        Arc, Mutex, RwLock,
+        Arc, Mutex, OnceLock, RwLock,
         atomic::{AtomicU64, Ordering},
     },
     time::{Duration, SystemTime, UNIX_EPOCH},
@@ -202,6 +202,7 @@ pub struct HomeFs {
     id: String,
     center: String,
     local: PathBuf,
+    local_dir: OnceLock<File>,
     peers: PathBuf,
     mounted: Arc<RwLock<HashSet<String>>>,
     private_cache: Arc<PrivateAttrCache>,
@@ -233,6 +234,7 @@ impl HomeFs {
             id,
             center,
             local,
+            local_dir: OnceLock::new(),
             peers,
             mounted,
             private_cache: Arc::new(PrivateAttrCache::new()),
@@ -254,6 +256,15 @@ impl HomeFs {
     pub(crate) fn with_private_cache(mut self, private_cache: Arc<PrivateAttrCache>) -> Self {
         self.private_cache = private_cache;
         self
+    }
+
+    fn local_dir(&self) -> Result<&File, i32> {
+        if let Some(dir) = self.local_dir.get() {
+            return Ok(dir);
+        }
+        let dir = open_base_dir(&self.local)?;
+        let _ = self.local_dir.set(dir);
+        Ok(self.local_dir.get().expect("local directory initialized"))
     }
 
     fn path(&self, ino: u64) -> Result<&str, i32> {
@@ -498,7 +509,8 @@ impl HomeFs {
         }
         match self.location(path)? {
             Location::Local => {
-                let attr = checked_attr(&self.base_for(None), path, self.ino(path))?;
+                let ino = self.ino(path);
+                let attr = checked_attr_at(self.local_dir()?, path, ino)?;
                 Ok(attr)
             }
             Location::RemoteNfs(owner) => {
@@ -534,7 +546,7 @@ impl HomeFs {
     }
 
     fn root_attr(&mut self) -> Result<FileAttr, i32> {
-        let metadata = fs::metadata(&self.local).map_err(io_error)?;
+        let metadata = self.local_dir()?.metadata().map_err(io_error)?;
         attr_from_metadata(ROOT_INO, metadata)
     }
 
@@ -591,12 +603,13 @@ impl HomeFs {
     fn set_attributes(&mut self, path: &str, spec: &SetAttrSpec) -> Result<(), i32> {
         match self.location(path)? {
             location @ (Location::Local | Location::RemoteNfs(_)) => {
-                let base = match location {
-                    Location::Local => self.base_for(None),
-                    Location::RemoteNfs(owner) => self.base_for(Some(&owner)),
+                let file = match location {
+                    Location::Local => checked_open_at(self.local_dir()?, path, libc::O_RDONLY, 0)?,
+                    Location::RemoteNfs(owner) => {
+                        checked_open(&self.base_for(Some(&owner)), path, libc::O_RDONLY, 0)?
+                    }
                     Location::RemoteP2p(_) => unreachable!(),
                 };
-                let file = checked_open(&base, path, libc::O_RDONLY, 0)?;
                 if let Some(mode) = spec.mode
                     && unsafe { libc::fchmod(file.as_raw_fd(), mode as libc::mode_t) } < 0
                 {
@@ -663,7 +676,7 @@ impl HomeFs {
                 } else {
                     flags
                 };
-                let file = checked_open(&self.base_for(None), path, flags, 0)?;
+                let file = checked_open_at(self.local_dir()?, path, flags, 0)?;
                 Ok(self.add_handle(Handle::File {
                     file,
                     needs_flush: flags & libc::O_ACCMODE != libc::O_RDONLY
@@ -719,7 +732,7 @@ impl HomeFs {
     fn create_file(&mut self, path: &str, flags: i32, mode: u32) -> Result<(FileAttr, u64), i32> {
         match self.location(path)? {
             Location::Local => {
-                let file = checked_open(&self.base_for(None), path, flags | libc::O_CREAT, mode)?;
+                let file = checked_open_at(self.local_dir()?, path, flags | libc::O_CREAT, mode)?;
                 let handle = self.add_handle(Handle::File {
                     file,
                     needs_flush: true,
@@ -980,7 +993,7 @@ impl HomeFs {
             }
         }
         match self.location(path)? {
-            Location::Local => checked_open(&self.base_for(None), path, libc::O_WRONLY, 0)?
+            Location::Local => checked_open_at(self.local_dir()?, path, libc::O_WRONLY, 0)?
                 .set_len(size)
                 .map_err(io_error),
             Location::RemoteNfs(owner) => {
@@ -1547,12 +1560,29 @@ pub(crate) fn open_parent_dir(base: &Path, path: &str) -> Result<(File, String),
     Ok((dir, leaf))
 }
 
+fn open_parent_dir_at(base: &File, path: &str) -> Result<(File, String), i32> {
+    let mut parts = logical_components(path)?;
+    let leaf = parts.pop().ok_or(libc::EINVAL)?.to_owned();
+    let mut dir = open_child_dir(base, ".")?;
+    for part in parts {
+        dir = open_child_dir(&dir, part)?;
+    }
+    Ok((dir, leaf))
+}
+
 pub(crate) fn checked_open(base: &Path, path: &str, flags: i32, mode: u32) -> Result<File, i32> {
     if path == "/" {
         return open_base_dir(base);
     }
-    logical_components(path)?;
     let dir = open_base_dir(base)?;
+    checked_open_at(&dir, path, flags, mode)
+}
+
+fn checked_open_at(base: &File, path: &str, flags: i32, mode: u32) -> Result<File, i32> {
+    if path == "/" {
+        return open_child_dir(base, ".");
+    }
+    logical_components(path)?;
     let name = cstring_name(&path[1..])?;
     #[repr(C)]
     struct OpenHow {
@@ -1568,7 +1598,7 @@ pub(crate) fn checked_open(base: &Path, path: &str, flags: i32, mode: u32) -> Re
     let fd = unsafe {
         libc::syscall(
             libc::SYS_openat2,
-            dir.as_raw_fd(),
+            base.as_raw_fd(),
             name.as_ptr(),
             &how,
             std::mem::size_of::<OpenHow>(),
@@ -1582,7 +1612,7 @@ pub(crate) fn checked_open(base: &Path, path: &str, flags: i32, mode: u32) -> Re
         return Err(error);
     }
     // Older Linux kernels retain the component-by-component checked walk.
-    let (parent, leaf) = open_parent_dir(base, path)?;
+    let (parent, leaf) = open_parent_dir_at(base, path)?;
     let leaf = cstring_name(&leaf)?;
     let fd = unsafe {
         libc::openat(
@@ -1659,6 +1689,20 @@ fn checked_attr(base: &Path, path: &str, ino: u64) -> Result<FileAttr, i32> {
         )
     } < 0
     {
+        return Err(io_error(io::Error::last_os_error()));
+    }
+    attr_from_stat(ino, unsafe { stat.assume_init() })
+}
+
+fn checked_attr_at(base: &File, path: &str, ino: u64) -> Result<FileAttr, i32> {
+    // The openat2 containment check covers every path component while
+    // avoiding a fresh walk to the parent on each local lookup.
+    let opened = (path != "/")
+        .then(|| checked_open_at(base, path, libc::O_PATH, 0))
+        .transpose()?;
+    let file = opened.as_ref().unwrap_or(base);
+    let mut stat = std::mem::MaybeUninit::<libc::stat>::uninit();
+    if unsafe { libc::fstat(file.as_raw_fd(), stat.as_mut_ptr()) } < 0 {
         return Err(io_error(io::Error::last_os_error()));
     }
     attr_from_stat(ino, unsafe { stat.assume_init() })
@@ -2347,6 +2391,14 @@ mod tests {
 
         assert_path_escape_rejected(checked_open(&base, "/job/secret", libc::O_RDONLY, 0));
         assert_path_escape_rejected(checked_attr(&base, "/job/secret", 2));
+        let local_dir = open_base_dir(&base).unwrap();
+        assert_path_escape_rejected(checked_open_at(
+            &local_dir,
+            "/job/secret",
+            libc::O_RDONLY,
+            0,
+        ));
+        assert_path_escape_rejected(checked_attr_at(&local_dir, "/job/secret", 2));
         assert_path_escape_rejected(checked_read_dir(&base, "/job"));
         assert_path_escape_rejected(checked_mkdir(&base, "/job/new", 0o755));
         assert_path_escape_rejected(checked_rename(&base, "/job/secret", "/job/moved"));
@@ -2367,6 +2419,12 @@ mod tests {
         assert_path_escape_rejected(checked_open(&base, "/job/link", libc::O_RDONLY, 0));
         assert_eq!(
             checked_attr(&base, "/job/link", 2).unwrap_err(),
+            libc::EOPNOTSUPP
+        );
+        let local_dir = open_base_dir(&base).unwrap();
+        assert_path_escape_rejected(checked_open_at(&local_dir, "/job/link", libc::O_RDONLY, 0));
+        assert_eq!(
+            checked_attr_at(&local_dir, "/job/link", 2).unwrap_err(),
             libc::EOPNOTSUPP
         );
         assert_eq!(

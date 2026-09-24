@@ -147,8 +147,15 @@ fn write_frame(stream: &mut TcpStream, bytes: &[u8]) -> io::Result<()> {
     if bytes.len() > MAX_FRAME {
         return Err(invalid());
     }
-    stream.write_all(&(bytes.len() as u32).to_be_bytes())?;
-    stream.write_all(bytes)
+    if bytes.len() <= 8192 {
+        let mut frame = Vec::with_capacity(4 + bytes.len());
+        frame.extend_from_slice(&(bytes.len() as u32).to_be_bytes());
+        frame.extend_from_slice(bytes);
+        stream.write_all(&frame)
+    } else {
+        stream.write_all(&(bytes.len() as u32).to_be_bytes())?;
+        stream.write_all(bytes)
+    }
 }
 
 fn read_frame(stream: &mut TcpStream) -> io::Result<Vec<u8>> {

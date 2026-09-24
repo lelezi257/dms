@@ -4,6 +4,8 @@
 
 使用 0.1.0 时，先读[发布说明](release-0.1.0.md)，再按安装或编程入口继续。已经拿到制品的用户直接读[发布包安装与独立编程](release-installation.md)；下面的源码构建入口用于从源码开发。
 
+Agent workspace 节点归属文件系统属于独立测试候选；其[设计](agent-home-preview-design.md)、[阶段验收](reviews/agent-home-preview-stage-review.md)和[源码构包/安装](agent-home-preview-installation.md)不改变下列 0.1.0 发布说明。
+
 1. [0.1.0 发布说明](release-0.1.0.md)：正式制品、兼容矩阵、下载与限制。
 2. [能力与限制](product.md)：判断当前开发预览能否用于你的实验。
 3. [安装与构建](installation.md)：准备 Linux 环境并生成二进制。

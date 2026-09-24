@@ -130,6 +130,7 @@ class AcceptanceRun:
             self.step("start center and nodes", self.start_cluster)
             self.step("root mkdir and management lookup", self.verify_root_and_management_api)
             self.step("close-to-open bytes across A and B", self.verify_cross_node_bytes)
+            self.step("P2P immediate remote attributes", self.verify_p2p_remote_attrs)
             self.step("remote namespace mutations", self.verify_remote_mutations)
             self.step("cross-root rename returns EXDEV", self.verify_cross_root_exdev)
             self.step("center restart preserves root ownership", self.verify_center_restart)
@@ -313,6 +314,25 @@ class AcceptanceRun:
         write_fsync_close(note_a, b"rewritten-by-A-v2")
         assert_equal(note_b.read_bytes(), b"rewritten-by-A-v2", "B reopen reads A rewrite")
         return {"path": "/job-42/note.txt", "bytes": len(b"rewritten-by-A-v2")}
+
+    def verify_p2p_remote_attrs(self) -> dict[str, Any]:
+        if self.args.backend != "p2p":
+            return {"skipped": "P2P dentry cache contract"}
+        path_a = self.mount_a / "job-42" / "changing.txt"
+        path_b = self.mount_b / "job-42" / "changing.txt"
+        write_fsync_close(path_a, b"a")
+        for index in range(30):
+            previous = path_b.stat().st_size
+            data = b"b" * (128 if previous == 1 else 1)
+            write_fsync_close(path_a, data)
+            assert_equal(path_b.stat().st_size, len(data), f"B stat after A close #{index}")
+            assert_equal(path_b.read_bytes(), data, f"B reopen after A close #{index}")
+        path_a.unlink()
+        if path_b.exists():
+            raise AcceptanceError("B retained A-unlinked positive dentry")
+        write_fsync_close(path_a, b"recreated")
+        assert_equal(path_b.read_bytes(), b"recreated", "B reads A-recreated name")
+        return {"alternating_overwrites": 30, "recreated_name": True}
 
     def verify_remote_mutations(self) -> dict[str, Any]:
         subdir = self.mount_b / "job-42" / "logs"

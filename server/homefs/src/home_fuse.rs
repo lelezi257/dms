@@ -25,6 +25,7 @@ use std::{
 
 const ROOT_INO: u64 = 1;
 const TTL: Duration = Duration::from_secs(0);
+const P2P_ENTRY_TTL: Duration = Duration::from_secs(1);
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum BackendMode {
@@ -60,6 +61,7 @@ enum Handle {
     P2p {
         owner: String,
         remote: u64,
+        read_only: bool,
         needs_flush: bool,
         prefetched: Option<Vec<u8>>,
     },
@@ -318,8 +320,17 @@ impl HomeFs {
     fn close_handle(&mut self, handle: u64) -> Result<(), i32> {
         match self.handles.remove(&handle) {
             Some(Handle::File { .. }) => Ok(()),
-            Some(Handle::P2p { owner, remote, .. }) => {
-                self.p2p_handle_call(&owner, |client| client.close(remote))
+            Some(Handle::P2p {
+                owner,
+                remote,
+                read_only,
+                ..
+            }) => {
+                if read_only {
+                    self.p2p_handle_call(&owner, |client| client.close_no_reply(remote))
+                } else {
+                    self.p2p_handle_call(&owner, |client| client.close(remote))
+                }
             }
             None => Err(libc::EBADF),
         }
@@ -431,6 +442,7 @@ impl HomeFs {
                 Ok(self.add_handle(Handle::P2p {
                     owner,
                     remote,
+                    read_only: flags & libc::O_ACCMODE == libc::O_RDONLY,
                     needs_flush: flags & libc::O_ACCMODE != libc::O_RDONLY
                         || flags & libc::O_TRUNC != 0,
                     prefetched,
@@ -470,6 +482,7 @@ impl HomeFs {
                     self.add_handle(Handle::P2p {
                         owner,
                         remote,
+                        read_only: false,
                         needs_flush: true,
                         prefetched: None,
                     }),
@@ -715,6 +728,9 @@ impl Filesystem for HomeFs {
 
     fn lookup(&mut self, _: &Request<'_>, parent: u64, name: &OsStr, reply: ReplyEntry) {
         match self.child(parent, name).and_then(|path| self.attr(&path)) {
+            Ok(attr) if self.backend == BackendMode::P2p => {
+                reply.entry_with_ttls(&P2P_ENTRY_TTL, &TTL, &attr, 0)
+            }
             Ok(attr) => reply.entry(&TTL, &attr, 0),
             Err(error) => reply.error(error),
         }

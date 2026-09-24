@@ -25,7 +25,7 @@ use std::{
 const MAX_FRAME: usize = 8 * 1024 * 1024;
 const MAX_IO_BYTES: usize = MAX_FRAME - 128;
 const OPEN_PREFETCH_LIMIT: usize = 4096;
-const WIRE_VERSION: u32 = 2;
+const WIRE_VERSION: u32 = 3;
 const AUTH: u8 = 0;
 const GETATTR: u8 = 1;
 const MKDIR: u8 = 2;
@@ -42,6 +42,7 @@ const READDIR: u8 = 12;
 const OPENDIR: u8 = 13;
 const SETLEN: u8 = 14;
 const SETATTR: u8 = 15;
+const CLOSE_NO_REPLY: u8 = 16;
 
 const SETATTR_MODE: u32 = 1 << 0;
 const SETATTR_UID: u32 = 1 << 1;
@@ -539,6 +540,11 @@ impl Client {
         out.u64(handle);
         self.call(out).map(|_| ())
     }
+    pub fn close_no_reply(&mut self, handle: u64) -> Result<(), i32> {
+        let mut out = Writer::new(CLOSE_NO_REPLY);
+        out.u64(handle);
+        write_frame(&mut self.0, &out.finish()).map_err(errno)
+    }
     pub fn rename(&mut self, from: &str, to: &str) -> Result<Attr, i32> {
         let mut out = Writer::new(RENAME);
         out.string(from);
@@ -623,6 +629,9 @@ pub fn serve_listener(listener: TcpListener, root: PathBuf, token: String) -> io
             };
             while let Ok(request) = read_frame(&mut stream) {
                 let result = state.handle(&request);
+                if request.first() == Some(&CLOSE_NO_REPLY) {
+                    continue;
+                }
                 let mut response = Vec::new();
                 match result {
                     Ok(payload) => {
@@ -877,7 +886,7 @@ impl Session {
                     self.file(handle)?.sync_all().map_err(errno)?;
                 }
             }
-            CLOSE => {
+            CLOSE | CLOSE_NO_REPLY => {
                 let handle = input.u64().map_err(errno)?;
                 input.done().map_err(errno)?;
                 let file = self.handles.remove(&handle).ok_or(libc::EBADF)?;
@@ -1157,6 +1166,19 @@ mod tests {
         let (handle, _, bytes) = reader.open("/note", libc::O_RDONLY, false).unwrap();
         assert_eq!(bytes.as_deref(), Some(b"newer".as_slice()));
         reader.close(handle).unwrap();
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn one_way_read_close_keeps_next_reply_aligned() {
+        let root = temp_home("one-way-close");
+        fs::write(root.join("note"), b"content").unwrap();
+        let address = serve_test(root.clone(), "secret");
+        let mut client = Client::connect_authenticated(&address, "secret").unwrap();
+        let (handle, _, _) = client.open("/note", libc::O_RDONLY, false).unwrap();
+        client.close_no_reply(handle).unwrap();
+        assert_eq!(client.getattr("/note").unwrap().size, 7);
+        assert_eq!(client.close(handle), Err(libc::EBADF));
         let _ = fs::remove_dir_all(root);
     }
 

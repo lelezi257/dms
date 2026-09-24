@@ -4,7 +4,7 @@
 
 ## 从源码构包
 
-在 Linux 安装 Rust 1.95、Cargo、C 编译器、`protoc`、Python 3、FUSE3，以及 NFS 模式需要的 `nfs-common` / `nfs-kernel-server`。在完整源码根执行：
+**构包机**需要 Linux、Rust 1.95、Cargo、C 编译器和 `protoc`。下面第一条命令用 Python 3.11+ 从 `Cargo.lock` 收集第三方许可材料；Python 只用于这一步及可选的验收/压测脚本，Rust 编译和 `dms-home` 服务本身不依赖 Python。在完整源码根执行：
 
 ```sh
 python3 scripts/release/dependency_inventory.py --output artifacts/homefs-licenses
@@ -12,6 +12,8 @@ DMS_THIRD_PARTY_DIR="$PWD/artifacts/homefs-licenses" ./scripts/homefs/build-pack
 ```
 
 脚本运行 `cargo build -p dms-home --release --locked`，随后生成 `artifacts/homefs/...tar.gz` 和同名 `.sha256`。Linux VM 与宿主机不得共用 target 目录。解包后在包目录运行 `sha256sum -c SHA256SUMS` 检查包内文件；外层 `.sha256` 校验下载/复制过程。
+
+**运行时**，纯中心节点无需 FUSE3；数据节点需要 Linux 和 FUSE3 挂载能力，选择 NFS 后端时另需 `nfs-common` / `nfs-kernel-server`。只运行已构好的安装包不需要 Python、Rust、Cargo、C 编译器或 `protoc`。
 
 ## 部署
 

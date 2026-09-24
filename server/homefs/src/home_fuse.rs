@@ -1410,13 +1410,17 @@ fn attr_from_stat(ino: u64, stat: libc::stat) -> Result<FileAttr, i32> {
         crtime: UNIX_EPOCH,
         kind,
         perm: stat.st_mode as u16 & 0o7777,
-        nlink: stat.st_nlink,
+        nlink: nlink_as_u32(stat.st_nlink),
         uid: stat.st_uid,
         gid: stat.st_gid,
         rdev: stat.st_rdev as u32,
         blksize: stat.st_blksize as u32,
         flags: 0,
     })
+}
+
+fn nlink_as_u32(nlink: impl Into<u64>) -> u32 {
+    u32::try_from(nlink.into()).unwrap_or(u32::MAX)
 }
 
 fn io_error(error: io::Error) -> i32 {
@@ -1514,6 +1518,13 @@ mod tests {
         os::unix::fs::symlink,
         time::{SystemTime, UNIX_EPOCH},
     };
+
+    #[test]
+    fn stat_link_count_accepts_platform_width_and_saturates() {
+        assert_eq!(nlink_as_u32(7_u32), 7);
+        assert_eq!(nlink_as_u32(7_u64), 7);
+        assert_eq!(nlink_as_u32(u64::from(u32::MAX) + 1), u32::MAX);
+    }
 
     #[test]
     fn backend_mode_rejects_implicit_fallback() {

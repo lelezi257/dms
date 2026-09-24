@@ -50,11 +50,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
             let server_root = data_root.clone();
             let server_token = token.clone();
-            thread::spawn(move || {
-                if let Err(error) = p2p_rpc::serve_listener(p2p_listener, server_root, server_token) {
-                    eprintln!("home P2P server stopped: {error}");
-                }
-            });
+            let private_cache = Arc::new(home_fuse::PrivateAttrCache::new());
             let mounted = Arc::new(RwLock::new(HashSet::new()));
             let watcher = MembershipWatcher {
                 id: id.clone(),
@@ -74,8 +70,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 mounted,
                 backend,
                 token.clone(),
-            );
-            fuser::mount2(
+            )
+            .with_private_cache(private_cache.clone());
+            let mut session = fuser::Session::new(
                 home_fs,
                 mount,
                 &[
@@ -84,6 +81,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     fuser::MountOption::NoAtime,
                 ],
             )?;
+            let notifier = session.notifier();
+            thread::spawn(move || {
+                if let Err(error) = p2p_rpc::serve_listener_with_private_cache(
+                    p2p_listener,
+                    server_root,
+                    server_token,
+                    private_cache,
+                    notifier,
+                ) {
+                    eprintln!("home P2P server stopped: {error}");
+                }
+            });
+            session.run()?;
         }
         _ => return Err("usage: dms-home center RPC_ADDR MANAGEMENT_HTTP_ADDR STATE_FILE | locate ROOT RPC_ADDR | roots RPC_ADDR | node NODE_ID CENTER_RPC NFS_ENDPOINT P2P_ADDR DATA_ROOT PEER_MOUNTS FUSE_MOUNT nfs|p2p (DMS_HOME_TOKEN environment required)".into()),
     }

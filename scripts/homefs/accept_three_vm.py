@@ -127,6 +127,24 @@ def main() -> int:
             return {"home": "A", "remote": "B", "after_close_reopen": second, "remote_mutation": "visible on A"}
         record("close-to-open and remote namespace", namespace_and_bytes)
 
+        def alternating_sizes():
+            note = f"{root}/mnt/job-42/note"
+            for writer, reader, value in (
+                ("A", "B", "a"),
+                ("B", "A", "remote-expanded-content"),
+                ("A", "B", "short"),
+                ("B", "A", "remote-content-with-an-even-longer-length"),
+            ):
+                shell(writer, f"python3 -c 'from pathlib import Path; Path(\"{note}\").write_bytes(bytes.fromhex(\"{value.encode().hex()}\"))'", hosts)
+                observed = shell(reader, f"python3 -c 'from pathlib import Path; p=Path(\"{note}\"); print(p.stat().st_size, p.read_bytes().decode())'", hosts).strip()
+                if observed != f"{len(value)} {value}":
+                    raise RuntimeError(f"{writer} to {reader}: expected {value!r}, got {observed!r}")
+            shell("A", f"python3 -c 'from pathlib import Path; Path(\"{note}\").write_bytes(b\"second\")'", hosts)
+            if read_remote() != "second":
+                raise RuntimeError("failed to restore note after alternating writes")
+            return {"alternations": 4, "checked": "stat size and reopened bytes on other node"}
+        record("alternating cross-node length and reopen", alternating_sizes)
+
         def management_query():
             response = shell("A", f"python3 -c 'import urllib.request; opener=urllib.request.build_opener(urllib.request.ProxyHandler({{}})); print(opener.open(\"http://{management}/v1/roots/job-42\", timeout=3).read().decode())'", hosts)
             info = json.loads(response)

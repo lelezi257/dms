@@ -5,9 +5,10 @@
 //! implement replay recovery, replication, or cross-node failover; a missing
 //! home must remain a clear remote failure for this preview.
 use crate::home_fuse::{
-    checked_mkdir, checked_open, checked_read_dir, checked_rename, checked_unlink, open_parent_dir,
+    PrivateAttrCache, checked_mkdir, checked_open, checked_read_dir, checked_rename,
+    checked_unlink, open_parent_dir,
 };
-use fuser::{FileAttr, FileType};
+use fuser::{FileAttr, FileType, Notifier};
 use std::{
     collections::HashMap,
     ffi::CString,
@@ -19,6 +20,7 @@ use std::{
         unix::fs::{FileExt, MetadataExt},
     },
     path::{Path, PathBuf},
+    sync::Arc,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
@@ -610,6 +612,25 @@ pub fn serve_with_token(address: &str, root: &Path, token: &str) -> io::Result<(
 }
 
 pub fn serve_listener(listener: TcpListener, root: PathBuf, token: String) -> io::Result<()> {
+    serve_listener_inner(listener, root, token, None)
+}
+
+pub fn serve_listener_with_private_cache(
+    listener: TcpListener,
+    root: PathBuf,
+    token: String,
+    cache: Arc<PrivateAttrCache>,
+    notifier: Notifier,
+) -> io::Result<()> {
+    serve_listener_inner(listener, root, token, Some((cache, notifier)))
+}
+
+fn serve_listener_inner(
+    listener: TcpListener,
+    root: PathBuf,
+    token: String,
+    private_cache: Option<(Arc<PrivateAttrCache>, Notifier)>,
+) -> io::Result<()> {
     let root = root.canonicalize()?;
     eprintln!(
         "P2P file server listening on {}, root={}",
@@ -620,6 +641,7 @@ pub fn serve_listener(listener: TcpListener, root: PathBuf, token: String) -> io
         let mut stream = stream?;
         let root = root.clone();
         let token = token.clone();
+        let private_cache = private_cache.clone();
         std::thread::spawn(move || {
             let _ = stream.set_nodelay(true);
             let auth_result = read_frame(&mut stream)
@@ -635,7 +657,11 @@ pub fn serve_listener(listener: TcpListener, root: PathBuf, token: String) -> io
                 next_handle: 1,
             };
             while let Ok(request) = read_frame(&mut stream) {
-                let result = state.handle(&request);
+                let result = match &private_cache {
+                    Some((cache, notifier)) => enter_shared_request(&request, cache, notifier)
+                        .and_then(|()| state.handle(&request)),
+                    None => state.handle(&request),
+                };
                 if request.first() == Some(&CLOSE_NO_REPLY) {
                     continue;
                 }
@@ -652,6 +678,38 @@ pub fn serve_listener(listener: TcpListener, root: PathBuf, token: String) -> io
                 }
             }
         });
+    }
+    Ok(())
+}
+
+fn enter_shared_request(
+    request: &[u8],
+    cache: &PrivateAttrCache,
+    notifier: &Notifier,
+) -> Result<(), i32> {
+    let mut input = Reader::new(request);
+    let op = input.u8().map_err(errno)?;
+    if !matches!(
+        op,
+        GETATTR
+            | MKDIR
+            | CREATE
+            | OPEN
+            | RENAME
+            | UNLINK
+            | RMDIR
+            | READDIR
+            | OPENDIR
+            | SETLEN
+            | SETATTR
+    ) {
+        return Ok(());
+    }
+    let path = input.string().map_err(errno)?;
+    cache.enter_shared_path(path, notifier)?;
+    if op == RENAME {
+        let to = input.string().map_err(errno)?;
+        cache.enter_shared_path(to, notifier)?;
     }
     Ok(())
 }

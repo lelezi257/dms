@@ -3,7 +3,7 @@ use crate::{
     p2p_rpc::{Client, SetAttrSpec, TimeSpec},
 };
 use fuser::{
-    FileAttr, FileType, Filesystem, KernelConfig, ReplyAttr, ReplyCreate, ReplyData,
+    FileAttr, FileType, Filesystem, KernelConfig, Notifier, ReplyAttr, ReplyCreate, ReplyData,
     ReplyDirectory, ReplyEmpty, ReplyEntry, ReplyOpen, ReplyWrite, Request, TimeOrNow,
 };
 use std::{
@@ -19,13 +19,49 @@ use std::{
         },
     },
     path::{Path, PathBuf},
-    sync::{Arc, RwLock},
+    sync::{
+        Arc, Mutex, RwLock,
+        atomic::{AtomicU64, Ordering},
+    },
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
 const ROOT_INO: u64 = 1;
 const TTL: Duration = Duration::from_secs(0);
 const P2P_ENTRY_TTL: Duration = Duration::from_secs(1);
+const PRIVATE_ATTR_TTL: Duration = Duration::from_secs(1);
+
+pub(crate) struct PrivateAttrCache {
+    shared_roots: Mutex<HashSet<String>>,
+    next_ino: AtomicU64,
+}
+
+impl PrivateAttrCache {
+    pub(crate) fn new() -> Self {
+        Self {
+            shared_roots: Mutex::new(HashSet::new()),
+            next_ino: AtomicU64::new(ROOT_INO + 1),
+        }
+    }
+
+    pub(crate) fn enter_shared_path(&self, path: &str, notifier: &Notifier) -> Result<(), i32> {
+        if path == "/" {
+            return Ok(());
+        }
+        let root = HomeFs::root_name(path)?;
+        let mut shared = self.shared_roots.lock().unwrap();
+        if shared.contains(root) {
+            return Ok(());
+        }
+        // Hold the lock across invalidation. A local FUSE reply cannot grant
+        // another private TTL between the last notification and the mode flip.
+        for ino in ROOT_INO + 1..self.next_ino.load(Ordering::Acquire) {
+            notifier.inval_inode(ino, 0, 0).map_err(|_| libc::EIO)?;
+        }
+        shared.insert(root.to_owned());
+        Ok(())
+    }
+}
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum BackendMode {
@@ -96,6 +132,7 @@ pub struct HomeFs {
     local: PathBuf,
     peers: PathBuf,
     mounted: Arc<RwLock<HashSet<String>>>,
+    private_cache: Arc<PrivateAttrCache>,
     backend: BackendMode,
     token: String,
     owners: HashMap<String, String>,
@@ -124,6 +161,7 @@ impl HomeFs {
             local,
             peers,
             mounted,
+            private_cache: Arc::new(PrivateAttrCache::new()),
             backend,
             token,
             owners: HashMap::new(),
@@ -135,6 +173,11 @@ impl HomeFs {
             handles: HashMap::new(),
             next_handle: 1,
         }
+    }
+
+    pub(crate) fn with_private_cache(mut self, private_cache: Arc<PrivateAttrCache>) -> Self {
+        self.private_cache = private_cache;
+        self
     }
 
     fn path(&self, ino: u64) -> Result<&str, i32> {
@@ -155,6 +198,9 @@ impl HomeFs {
         }
         let ino = self.next_ino;
         self.next_ino += 1;
+        self.private_cache
+            .next_ino
+            .store(self.next_ino, Ordering::Release);
         self.ids.insert(path.to_owned(), ino);
         self.paths.insert(ino, path.to_owned());
         ino
@@ -176,6 +222,27 @@ impl HomeFs {
             .next()
             .filter(|root| center::safe(root))
             .ok_or(libc::EINVAL)
+    }
+
+    fn attr_ttl(&self, path: &str, shared_roots: &HashSet<String>) -> &'static Duration {
+        if path == "/" {
+            return if self.backend == BackendMode::P2p {
+                &PRIVATE_ATTR_TTL
+            } else {
+                &TTL
+            };
+        }
+        let Ok(root) = Self::root_name(path) else {
+            return &TTL;
+        };
+        if self.backend == BackendMode::P2p
+            && self.owners.get(root) == Some(&self.id)
+            && !shared_roots.contains(root)
+        {
+            &PRIVATE_ATTR_TTL
+        } else {
+            &TTL
+        }
     }
 
     fn owner(&mut self, root: &str) -> Result<String, i32> {
@@ -727,22 +794,36 @@ impl Filesystem for HomeFs {
     }
 
     fn lookup(&mut self, _: &Request<'_>, parent: u64, name: &OsStr, reply: ReplyEntry) {
-        match self.child(parent, name).and_then(|path| self.attr(&path)) {
-            Ok(attr) if self.backend == BackendMode::P2p => {
-                reply.entry_with_ttls(&P2P_ENTRY_TTL, &TTL, &attr, 0)
+        // Serialize the attribute read and reply with the first remote access.
+        // Otherwise an in-flight lookup could publish a stale private TTL after
+        // the owner has already invalidated its cached attributes.
+        let cache = Arc::clone(&self.private_cache);
+        let shared = cache.shared_roots.lock().unwrap();
+        match self.child(parent, name).and_then(|path| {
+            let attr = self.attr(&path)?;
+            Ok((path, attr))
+        }) {
+            Ok((path, attr)) if self.backend == BackendMode::P2p => {
+                let ttl = self.attr_ttl(&path, &shared);
+                reply.entry_with_ttls(&P2P_ENTRY_TTL, ttl, &attr, 0)
             }
-            Ok(attr) => reply.entry(&TTL, &attr, 0),
+            Ok((_, attr)) => reply.entry(&TTL, &attr, 0),
             Err(error) => reply.error(error),
         }
     }
 
     fn getattr(&mut self, _: &Request<'_>, ino: u64, _: Option<u64>, reply: ReplyAttr) {
+        let cache = Arc::clone(&self.private_cache);
+        let shared = cache.shared_roots.lock().unwrap();
         match self
             .path(ino)
             .map(str::to_owned)
-            .and_then(|path| self.attr(&path))
+            .and_then(|path| self.attr(&path).map(|attr| (path, attr)))
         {
-            Ok(attr) => reply.attr(&TTL, &attr),
+            Ok((path, attr)) => {
+                let ttl = self.attr_ttl(&path, &shared);
+                reply.attr(ttl, &attr)
+            }
             Err(error) => reply.error(error),
         }
     }
@@ -1564,6 +1645,25 @@ mod tests {
             fs.location("/job/file").unwrap(),
             Location::RemoteP2p("B".to_owned())
         );
+    }
+
+    #[test]
+    fn private_attribute_ttl_ends_when_root_becomes_shared() {
+        let mut fs = HomeFs::new(
+            "A".to_owned(),
+            "unused".to_owned(),
+            PathBuf::from("/tmp/local"),
+            PathBuf::from("/tmp/peers"),
+            Arc::new(RwLock::new(HashSet::new())),
+            BackendMode::P2p,
+            "token".to_owned(),
+        );
+        fs.owners.insert("job".to_owned(), "A".to_owned());
+        let mut shared = fs.private_cache.shared_roots.lock().unwrap();
+        assert_eq!(fs.attr_ttl("/job/file", &shared), &PRIVATE_ATTR_TTL);
+        assert_eq!(fs.attr_ttl("/", &shared), &PRIVATE_ATTR_TTL);
+        shared.insert("job".to_owned());
+        assert_eq!(fs.attr_ttl("/job/file", &shared), &TTL);
     }
 
     #[test]

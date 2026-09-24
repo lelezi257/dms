@@ -1,10 +1,11 @@
 mod center;
+mod file_identity;
 mod home_fuse;
 mod p2p_rpc;
 
 use std::{
     collections::HashSet,
-    env, fs,
+    env, fs, io,
     net::{SocketAddr, TcpListener, TcpStream},
     path::PathBuf,
     process::Command,
@@ -48,6 +49,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             if answer != "OK" {
                 return Err(format!("node registration failed: {answer}").into());
             }
+            home_fuse::recover_owned_roots(id, rpc, &data_root)
+                .map_err(io::Error::from_raw_os_error)?;
             let server_root = data_root.clone();
             let server_token = token.clone();
             let private_cache = Arc::new(home_fuse::PrivateAttrCache::new());

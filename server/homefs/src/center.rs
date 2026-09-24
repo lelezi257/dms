@@ -165,9 +165,11 @@ impl Center {
             ),
             ["NODES"] => self.nodes(),
             ["RESERVE", name, owner] => self.reserve_root(name, owner),
+            ["ABORT_PENDING", name, owner] => self.abort_pending(name, owner),
             ["ACTIVATE", name, owner] => self.activate_root(name, owner),
             ["GET", name] => self.get_root(name),
             ["ROOTS"] => self.roots(),
+            ["OWNED", owner] => self.owned_roots(owner),
             ["DELETE_PREPARE", name, owner] => self.delete_prepare(name, owner),
             ["DELETE_COMMIT", name, owner] => self.delete_commit(name, owner),
             ["DELETE", name] => self.delete_root(name, None),
@@ -254,6 +256,24 @@ impl Center {
         })
     }
 
+    fn abort_pending(&self, name: &str, owner: &str) -> io::Result<String> {
+        self.change_roots(|state| {
+            validate_root_and_owner(state, name, owner)?;
+            match state.roots.get(name) {
+                Some(root) if root.owner == owner && root.status == RootStatus::Pending => {
+                    state.roots.remove(name);
+                    Ok("OK\n".to_owned())
+                }
+                Some(root) => Ok(format!(
+                    "CONFLICT {} {}\n",
+                    root.owner,
+                    root.status.as_str()
+                )),
+                None => Ok("MISSING\n".to_owned()),
+            }
+        })
+    }
+
     fn legacy_root(&self, name: &str, owner: &str) -> io::Result<String> {
         self.change_roots(|state| {
             validate_root_and_owner(state, name, owner)?;
@@ -306,6 +326,21 @@ impl Center {
             .iter()
             .filter(|(_, root)| root.status == RootStatus::Active)
             .map(|(name, root)| format!("{name} {}", root.owner))
+            .collect();
+        rows.sort();
+        Ok(format!("{}\n", rows.join("\n")))
+    }
+
+    fn owned_roots(&self, owner: &str) -> io::Result<String> {
+        if !safe(owner) {
+            return Ok("ERROR\n".to_owned());
+        }
+        let state = self.state.lock().unwrap();
+        let mut rows: Vec<_> = state
+            .roots
+            .iter()
+            .filter(|(_, root)| root.owner == owner)
+            .map(|(name, root)| format!("{name} {}", root.status.as_str()))
             .collect();
         rows.sort();
         Ok(format!("{}\n", rows.join("\n")))
@@ -696,6 +731,7 @@ fn mutating_command(request: &str) -> bool {
         Some(
             "NODE"
                 | "RESERVE"
+                | "ABORT_PENDING"
                 | "ACTIVATE"
                 | "DELETE_PREPARE"
                 | "DELETE_COMMIT"
@@ -749,9 +785,11 @@ mod tests {
             "OK"
         );
         assert_eq!(center.process("RESERVE job-42 A").trim_end(), "OK");
+        assert_eq!(center.process("OWNED A").trim_end(), "job-42 pending");
         assert_eq!(center.process("GET job-42").trim_end(), "PENDING A");
         assert_eq!(center.process("ROOTS").trim_end(), "");
         assert_eq!(center.process("ACTIVATE job-42 A").trim_end(), "OK");
+        assert_eq!(center.process("OWNED A").trim_end(), "job-42 active");
         assert_eq!(center.process("GET job-42").trim_end(), "A");
 
         let recovered = load_state(&state_file).unwrap();
@@ -890,6 +928,30 @@ mod tests {
         assert_eq!(center.process("ROOT active A").trim_end(), "OK");
         assert_eq!(center.process("DELETE active A").trim_end(), "OK");
         assert_eq!(center.process("GET active").trim_end(), "TOMBSTONE A");
+        cleanup(dir);
+    }
+
+    #[test]
+    fn abort_pending_only_removes_unmaterialized_reservation() {
+        let dir = test_dir("center-abort-pending");
+        let state_file = dir.join("center.state");
+        let center = durable_center(&state_file);
+        assert_eq!(center.process("NODE A nfs://a p2p-a").trim_end(), "OK");
+        assert_eq!(center.process("NODE B nfs://b p2p-b").trim_end(), "OK");
+        assert_eq!(center.process("RESERVE job A").trim_end(), "OK");
+        assert_eq!(
+            center.process("ABORT_PENDING job B").trim_end(),
+            "CONFLICT A pending"
+        );
+        assert_eq!(center.process("ABORT_PENDING job A").trim_end(), "OK");
+        assert_eq!(center.process("GET job").trim_end(), "MISSING");
+        assert_eq!(center.process("RESERVE job B").trim_end(), "OK");
+        assert_eq!(center.process("ACTIVATE job B").trim_end(), "OK");
+        assert_eq!(
+            center.process("ABORT_PENDING job B").trim_end(),
+            "CONFLICT B active"
+        );
+        assert_eq!(center.process("GET job").trim_end(), "B");
         cleanup(dir);
     }
 

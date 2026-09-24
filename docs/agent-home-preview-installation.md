@@ -15,6 +15,8 @@ DMS_THIRD_PARTY_DIR="$PWD/artifacts/homefs-licenses" ./scripts/homefs/build-pack
 
 **运行时**，纯中心节点无需 FUSE3；数据节点需要 Linux 和 FUSE3 挂载能力，选择 NFS 后端时另需 `nfs-common` / `nfs-kernel-server`。只运行已构好的安装包不需要 Python、Rust、Cargo、C 编译器或 `protoc`。
 
+Home 数据盘以及 NFS 客户端挂载须支持 Linux `name_to_handle_at`，以区分 inode 号复用后的新旧文件；不支持时远端访问会显式失败。当前 Linux ext4 Home 数据盘与本验收使用的 NFSv4 挂载已验证该能力。请先在目标文件系统上验证，再交给同事测试。
+
 ## 部署
 
 在中心节点和每台数据节点解包。复制 `config/homefs.env.example` 为 `config/homefs.env`，分别设置节点 ID、中心地址、数据根目录、公用 FUSE 挂载点、NFS 和 P2P 地址及相同的私有 token；中心也必须配置此 token。中心 RPC 与 P2P 地址使用数字 IP:port，配置文件应只允许节点管理员读取。中心设置持久状态文件在本机可写磁盘。中心先执行 `scripts/run.sh center`；节点执行 `scripts/run.sh node`。用 `scripts/run.sh locate job-42` 或管理面 `GET http://CENTER_HTTP/v1/roots/job-42` 查询位置，调度器应优先把 Agent 放到返回的 home 节点。`scripts/run.sh roots` 查看全部目录。

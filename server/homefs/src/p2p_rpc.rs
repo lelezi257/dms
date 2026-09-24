@@ -4,6 +4,7 @@
 //! bounded file operations to the home node's ordinary file tree. It does not
 //! implement replay recovery, replication, or cross-node failover; a missing
 //! home must remain a clear remote failure for this preview.
+use crate::file_identity::FileIdentity;
 use crate::home_fuse::{
     PrivateAttrCache, checked_mkdir, checked_open, checked_read_dir, checked_rename,
     checked_unlink, open_parent_dir,
@@ -27,7 +28,7 @@ use std::{
 const MAX_FRAME: usize = 8 * 1024 * 1024;
 const MAX_IO_BYTES: usize = MAX_FRAME - 128;
 const OPEN_PREFETCH_LIMIT: usize = 4096;
-const WIRE_VERSION: u32 = 5;
+const WIRE_VERSION: u32 = 6;
 const AUTH: u8 = 0;
 const GETATTR: u8 = 1;
 const MKDIR: u8 = 2;
@@ -194,9 +195,14 @@ pub struct Attr {
     pub gid: u32,
     pub rdev: u32,
     pub blksize: u32,
+    pub mount_id: i32,
+    pub handle_type: i32,
+    pub handle: Vec<u8>,
 }
 impl Attr {
-    fn from_metadata(meta: &fs::Metadata) -> Result<Self, i32> {
+    fn from_file(file: &File) -> Result<Self, i32> {
+        let meta = file.metadata().map_err(errno)?;
+        let identity = FileIdentity::from_file(file).map_err(errno)?;
         let kind = if meta.file_type().is_symlink() {
             return Err(libc::ELOOP);
         } else if meta.is_dir() {
@@ -224,7 +230,19 @@ impl Attr {
             gid: meta.gid(),
             rdev: meta.rdev() as u32,
             blksize: meta.blksize() as u32,
+            mount_id: identity.mount_id,
+            handle_type: identity.handle_type,
+            handle: identity.handle,
         })
+    }
+    pub fn identity(&self) -> FileIdentity {
+        FileIdentity {
+            dev: self.dev,
+            ino: self.ino,
+            mount_id: self.mount_id,
+            handle_type: self.handle_type,
+            handle: self.handle.clone(),
+        }
     }
     fn write(&self, out: &mut Writer) {
         out.u64(self.dev);
@@ -244,9 +262,12 @@ impl Attr {
         out.u32(self.gid);
         out.u32(self.rdev);
         out.u32(self.blksize);
+        out.u32(self.mount_id as u32);
+        out.u32(self.handle_type as u32);
+        out.bytes(&self.handle);
     }
     fn read(input: &mut Reader<'_>) -> io::Result<Self> {
-        Ok(Self {
+        let attr = Self {
             dev: input.u64()?,
             ino: input.u64()?,
             size: input.u64()?,
@@ -264,7 +285,14 @@ impl Attr {
             gid: input.u32()?,
             rdev: input.u32()?,
             blksize: input.u32()?,
-        })
+            mount_id: input.u32()? as i32,
+            handle_type: input.u32()? as i32,
+            handle: input.bytes()?.to_vec(),
+        };
+        if attr.handle.is_empty() || attr.handle.len() > 128 {
+            return Err(invalid());
+        }
+        Ok(attr)
     }
     pub fn file_attr(&self, ino: u64) -> FileAttr {
         let stamp = |sec: i64, ns: u32| {
@@ -511,15 +539,18 @@ impl Client {
         path: &str,
         flags: i32,
         directory: bool,
-        expected: Option<(u64, u64)>,
+        expected: Option<&FileIdentity>,
     ) -> Result<(u64, Attr, Option<Vec<u8>>), i32> {
         let mut out = Writer::new(if directory { OPENDIR } else { OPEN });
         out.string(path);
         out.u32(flags as u32);
         out.u8(u8::from(expected.is_some()));
-        if let Some((dev, ino)) = expected {
-            out.u64(dev);
-            out.u64(ino);
+        if let Some(identity) = expected {
+            out.u64(identity.dev);
+            out.u64(identity.ino);
+            out.u32(identity.mount_id as u32);
+            out.u32(identity.handle_type as u32);
+            out.bytes(&identity.handle);
         }
         let bytes = self.call(out)?;
         let mut input = Reader::new(&bytes);
@@ -810,7 +841,7 @@ impl Session {
     }
     fn attr_at(&self, path: &str) -> Result<Attr, i32> {
         let file = checked_open(&self.root, path, libc::O_PATH, 0)?;
-        Attr::from_metadata(&file.metadata().map_err(errno)?)
+        Attr::from_file(&file)
     }
     fn file_type_at(&self, path: &str) -> Result<fs::FileType, i32> {
         let file = checked_open(&self.root, path, libc::O_PATH, 0)?;
@@ -918,14 +949,13 @@ impl Session {
         path: &str,
         flags: i32,
         mode: u32,
-        expected: Option<(u64, u64)>,
+        expected: Option<FileIdentity>,
     ) -> Result<u64, i32> {
         let file = checked_open(&self.root, path, flags & !libc::O_TRUNC, mode)?;
-        if let Some((dev, ino)) = expected {
-            let metadata = file.metadata().map_err(errno)?;
-            if (metadata.dev(), metadata.ino()) != (dev, ino) {
-                return Err(libc::ESTALE);
-            }
+        if let Some(identity) = expected
+            && FileIdentity::from_file(&file).map_err(errno)? != identity
+        {
+            return Err(libc::ESTALE);
         }
         if flags & libc::O_TRUNC != 0 {
             file.set_len(0).map_err(errno)?;
@@ -951,8 +981,7 @@ impl Session {
             FGETATTR => {
                 let handle = input.u64().map_err(errno)?;
                 input.done().map_err(errno)?;
-                Attr::from_metadata(&self.file(handle)?.metadata().map_err(errno)?)?
-                    .write(&mut out);
+                Attr::from_file(self.file(handle)?)?.write(&mut out);
             }
             MKDIR => {
                 let path = input.string().map_err(errno)?;
@@ -968,15 +997,26 @@ impl Session {
                 input.done().map_err(errno)?;
                 let handle = self.open_file(path, flags | libc::O_CREAT, mode)?;
                 out.u64(handle);
-                Attr::from_metadata(&self.file(handle)?.metadata().map_err(errno)?)?
-                    .write(&mut out);
+                Attr::from_file(self.file(handle)?)?.write(&mut out);
             }
             OPEN | OPENDIR => {
                 let path = input.string().map_err(errno)?;
                 let mut flags = input.u32().map_err(errno)? as i32;
                 let expected = match input.u8().map_err(errno)? {
                     0 => None,
-                    1 => Some((input.u64().map_err(errno)?, input.u64().map_err(errno)?)),
+                    1 => {
+                        let identity = FileIdentity {
+                            dev: input.u64().map_err(errno)?,
+                            ino: input.u64().map_err(errno)?,
+                            mount_id: input.u32().map_err(errno)? as i32,
+                            handle_type: input.u32().map_err(errno)? as i32,
+                            handle: input.bytes().map_err(errno)?.to_vec(),
+                        };
+                        if identity.handle.is_empty() || identity.handle.len() > 128 {
+                            return Err(libc::EINVAL);
+                        }
+                        Some(identity)
+                    }
                     _ => return Err(libc::EINVAL),
                 };
                 input.done().map_err(errno)?;
@@ -991,7 +1031,7 @@ impl Session {
                 }
                 let handle = self.open_file_if_identity(path, flags, 0, expected)?;
                 out.u64(handle);
-                let attr = Attr::from_metadata(&self.file(handle)?.metadata().map_err(errno)?)?;
+                let attr = Attr::from_file(self.file(handle)?)?;
                 attr.write(&mut out);
                 if op == OPEN
                     && flags & libc::O_ACCMODE == libc::O_RDONLY
@@ -1030,8 +1070,7 @@ impl Session {
                 input.done().map_err(errno)?;
                 Self::checked_range(offset, data.len())?;
                 out.u32(self.file(handle)?.write_at(data, offset).map_err(errno)? as u32);
-                Attr::from_metadata(&self.file(handle)?.metadata().map_err(errno)?)?
-                    .write(&mut out);
+                Attr::from_file(self.file(handle)?)?.write(&mut out);
             }
             FSYNC => {
                 let handle = input.u64().map_err(errno)?;
@@ -1101,15 +1140,14 @@ impl Session {
                 }
                 let file = checked_open(&self.root, path, libc::O_WRONLY, 0)?;
                 file.set_len(size).map_err(errno)?;
-                Attr::from_metadata(&file.metadata().map_err(errno)?)?.write(&mut out);
+                Attr::from_file(&file)?.write(&mut out);
             }
             FSETLEN => {
                 let handle = input.u64().map_err(errno)?;
                 let size = input.u64().map_err(errno)?;
                 input.done().map_err(errno)?;
                 self.file(handle)?.set_len(size).map_err(errno)?;
-                Attr::from_metadata(&self.file(handle)?.metadata().map_err(errno)?)?
-                    .write(&mut out);
+                Attr::from_file(self.file(handle)?)?.write(&mut out);
             }
             SETATTR => {
                 let path = input.string().map_err(errno)?;
@@ -1124,8 +1162,7 @@ impl Session {
                 let spec = SetAttrSpec::read(&mut input).map_err(errno)?;
                 input.done().map_err(errno)?;
                 self.apply_setattr_handle(handle, &spec)?;
-                Attr::from_metadata(&self.file(handle)?.metadata().map_err(errno)?)?
-                    .write(&mut out);
+                Attr::from_file(self.file(handle)?)?.write(&mut out);
             }
             _ => return Err(libc::ENOSYS),
         }

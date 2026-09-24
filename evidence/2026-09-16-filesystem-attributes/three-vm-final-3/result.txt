@@ -1,3 +1,0 @@
-PASS
-deployment=three-vm
-attributes, ACL and statfs verified

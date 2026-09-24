@@ -114,7 +114,7 @@ impl Drop for LoggingGuard {
     }
 }
 
-/// Initialize the one process-global logger used by `dms-node` or `dms-meta`.
+/// Initialize the one process-global logger for a service process.
 pub fn init_process_logging(
     config: &LoggingConfig,
     identity: ProcessIdentity,

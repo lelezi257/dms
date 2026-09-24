@@ -1,7 +1,0 @@
-PASS
-attributes: create uid/gid/mode, cross-node getattr, chmod and explicit utimens
-xattr: user namespace, create/replace flags, remove and cross-node visibility
-acl: FUSE negotiates POSIX_ACL; named access ACL synchronizes mode; directory default ACL is inherited atomically
-capacity: both mounts expose one Meta-aggregated 512 MiB / 10000-inode statfs view
-consistency: Node B cached attributes are revoked before a metadata mutation becomes visible
-recovery: Meta WAL and restarted Node B preserve attributes, xattrs and ACLs

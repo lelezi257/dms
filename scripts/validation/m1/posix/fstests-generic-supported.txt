@@ -1,9 +1,0 @@
-# DMS M1 支持的 fstests generic 子集。
-#
-# 格式：<case-id>|<xfstests generic 编号>
-# runner 使用真实 DMS FUSE mount 作为 TEST_DEV/TEST_DIR，按 allowlist 调用
-# xfstests/check -fuse。M1 只冻结不调用 _require_scratch 的 smoke 子集；
-# SCRATCH_DEV 语义后续单独扩展。没有 xfstests、没有对应 case、Not run 都是明确 FAIL。
-generic/001|001
-generic/013|013
-generic/075|075

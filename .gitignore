@@ -5,30 +5,10 @@
 .local/
 /.omx/
 
-# 本地运行与构包输出；不使用 *.log，测试用日志 fixture 仍可纳入源码。
+# 本地运行输出。
 /log/
 /artifacts/
-/evidence/*
-!/evidence/native-vs-moosefs/
-/evidence/native-vs-moosefs/*
-!/evidence/native-vs-moosefs/latest/
-/evidence/native-vs-moosefs/latest/*
-!/evidence/native-vs-moosefs/latest/result.json
-!/evidence/native-vs-moosefs/latest/evaluation.json
-!/evidence/native-vs-moosefs/latest/profile.json
-!/evidence/2026-09-14-filesystem-shared-file/
-!/evidence/2026-09-14-filesystem-shared-file/**
-!/evidence/2026-09-15-filesystem-namespace/
-!/evidence/2026-09-15-filesystem-namespace/**
-# 早期三 VM 调试结果由最终审查证据取代，不进入版本库。
-/evidence/2026-09-15-filesystem-namespace/three-vm/
-/evidence/2026-09-15-filesystem-namespace/three-vm-final*/
-/evidence/2026-09-15-filesystem-namespace/three-vm-reviewed/
-/evidence/2026-09-15-filesystem-namespace/three-vm-reviewed-2/
-/evidence/2026-09-15-filesystem-namespace/three-vm-reviewed-3/
-/evidence/2026-09-15-filesystem-namespace/three-vm-reviewed-4/
-!/evidence/2026-09-15-filesystem-namespace/three-vm-reviewed-final/
-!/evidence/2026-09-15-filesystem-namespace/three-vm-reviewed-final/**
+/evidence/
 
 # 本地凭据只通过宿主凭据管理器注入，不进入仓库。
 .env

@@ -1,8 +1,7 @@
-use dms_error::DmsError;
 use dms_metrics::MetricExemplar;
 use opentelemetry::{
     Context,
-    trace::{SpanContext, Status, TraceContextExt},
+    trace::{SpanContext, TraceContextExt},
 };
 use tracing_opentelemetry::OpenTelemetrySpanExt;
 
@@ -80,13 +79,6 @@ pub fn set_parent(span: &tracing::Span, parent: &TraceContext) {
 
 pub fn record_ok(span: &tracing::Span) {
     span.record("result", "ok");
-}
-
-pub fn record_error(span: &tracing::Span, error: &DmsError) {
-    span.record("result", "error");
-    span.record("error.code", error.code().raw());
-    span.record("error.kind", tracing::field::debug(error.kind()));
-    span.set_status(Status::error(error.to_string()));
 }
 
 fn current_otel_context() -> Context {

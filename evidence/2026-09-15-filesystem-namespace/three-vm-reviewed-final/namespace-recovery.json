@@ -1,7 +1,0 @@
-{
-  "schema": "dms.filesystem.namespace-recovery.v1",
-  "round": 19,
-  "path": "/tmp/dms-filesystem-namespace-m1-reviewed-final-20260915/mnt/stable/round-019/anchor.txt",
-  "wait_attempts": 1,
-  "bytes": 26
-}

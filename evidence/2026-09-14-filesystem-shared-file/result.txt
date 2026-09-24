@@ -1,5 +1,0 @@
-PASS
-create/write: Node A FUSE -> SharedFileOperations -> DataCore prepare -> one Meta filesystem commit
-cold/hot read: Node B first read pulls peer Block; later reads reuse Node-local Block and binding grant
-invalidation: Node A pwrite revokes Node B binding before ACK; B reads the new exact version
-recovery: Meta WAL reopen restores inode binding and object version; restarted Node B resolves and reads again

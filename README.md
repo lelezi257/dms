@@ -1,54 +1,9 @@
-# DMS：分布式近计算内存对象系统
+# DMS：面向 Agent 工作负载的文件服务
 
-DMS 把计算节点的一部分内存用于保存和共享数据。应用通过 Rust SDK 使用 `set/get/del`、批量操作、随机写和两级键操作；Go SDK 提供接入所需的同语义子集。同节点可使用共享内存，跨节点通过网络获取数据。Meta 保存版本与位置，不转发用户 value。
+这是从 main 建立的**新方向基础分支**，当前只保留可复用的日志、指标、追踪和传输组件；还没有可运行的 FUSE daemon、Master 或文件后端。旧内存 KV/对象 SDK 不属于本分支。已发布的旧版本与历史证据仍可从 Git 历史查看，不能把它们当成本分支的实现状态。
 
-**当前稳定发布为 GitHub Release `v0.1.0`，源码托管在 [GitHub](https://github.com/lelezi257/dms)。** `v0.1.0` 提供源码、服务组件和 SDK 制品；Rust SDK 尚未发布到 crates.io，仍按发布包或源码路径使用。该版本适合开发与功能验证，不作为生产持久存储。当前写入保证仅为本地内存，Node 重启可能丢失 value；正常旧版本回收已实现，但永久失联 Node 或未归还的共享写权仍可能阻塞释放，多 Meta 高可用尚未完成。先看[能力与限制](docs/product.md)。
+目标覆盖两类用途：Agent workspace 的亲和本地读写及必要的跨节点共享；以及私有写入、原子发布、发布后只读且可多点分发的镜像与快照。gVisor 的文件树和 Firecracker 的磁盘镜像文件都在镜像范围内。首版 Firecracker 可先完整下载镜像再启动，不要求块级懒加载。
 
-## 从这里开始
+先读 [宪法](PRINCIPLES.md)、[工作负载](docs/workloads.md)、[状态](docs/status.md)与[下一步](docs/next.md)。开发协作规则在 [AGENTS.md](AGENTS.md)。具体架构尚未设计，不应从保留的通用 crate 推断未来协议或进程实现。
 
-| 你要做什么 | 入口 |
-| --- | --- |
-| 了解 0.1.0 发布内容、限制和下载方式 | [0.1.0 发布说明](docs/release-0.1.0.md) |
-| 准备 Linux 环境并构建 | [安装与构建](docs/installation.md) |
-| 安装 SDK/服务发布包 | [发布制品安装与验收](docs/release-installation.md) |
-| 手动启动 Meta、Node，验证 SET/GET | [单 VM 教程](docs/local-single-vm-manual.md) |
-| 写自己的 Rust 应用 | [Rust SDK 编程](docs/rust-sdk.md) |
-| 写自己的 Go 应用 | [Go SDK 编程](docs/go-sdk.md) |
-| 理解进程分工与数据流 | [架构与关键流程](docs/architecture.md) |
-| 改参数、看观测、排查错误 | [配置](docs/configuration.md) · [观测](docs/observability.md) · [排障](docs/troubleshooting.md) |
-| 参与开发或让 AI 接手 | [贡献指南](docs/contributing.md) · [AGENTS.md](AGENTS.md) · [项目 Skills](skills/README.md) |
-
-## 最小应用
-
-这是普通 Rust 同步程序，连接已启动的 Node。完整依赖设置、执行命令见 [SDK 教程](docs/rust-sdk.md)。
-
-```rust
-use dms_client::{ClientOptions, DmsClient};
-
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let client = DmsClient::connect("http://127.0.0.1:25200", ClientOptions::default())?;
-    client.set("example/key", b"hello")?;
-    assert_eq!(client.get("example/key")?.as_deref(), Some(&b"hello"[..]));
-    client.del("example/key")?;
-    assert!(client.get("example/key")?.is_none());
-    Ok(())
-}
-```
-
-`Ok(None)` 表示 key 不存在；连接、超时、容量等失败是 `Err(DmsError)`，不能用空值代替。同步 SET 成功后立即 GET 不需要人为等待。
-
-## 工程目录
-
-| 目录 | 责任 |
-| --- | --- |
-| `sdk/rust/dms-client/`、`sdk/go/` | Rust SDK 与原生 Go SDK；Python/C++ 尚未实现。 |
-| `server/` | `dms-node`、`dms-meta` 及健康检查工具。 |
-| `protocol/` | 组件间 protobuf 源码，不是用户必须手写的接口。 |
-| `common/` | 内部共用的错误、传输、共享内存、日志、Metrics、Tracing 库。 |
-| `scripts/` | 构建、部署、验证与观测栈入口。 |
-| `docs/` | 用户与开发者文档。 |
-| `skills/` | 本项目的轻量开发流程和产物模板。 |
-
-用户产品面是 **SDK + 服务组件**，`common` 不是第三个服务。源码工作区使用路径依赖；Rust SDK 发布包内含私有共用实现与预生成协议，消费者只依赖 `dms-client`，不需要安装其它 DMS crate 或 protoc。
-
-权威环境为 Linux，Rust 工具链由 [rust-toolchain.toml](rust-toolchain.toml) 固定，依赖由 [Cargo.lock](Cargo.lock) 固定。macOS 只用于编辑和阅读；编译、测试、示例及服务运行都进入 Linux VM/容器执行。
+目前 common/ 是唯一保留的 Rust workspace 代码：logging、metrics、tracing、transport。权威开发与构建环境是 Linux；工具链由 [rust-toolchain.toml](rust-toolchain.toml) 固定。

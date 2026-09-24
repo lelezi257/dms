@@ -1,10 +1,9 @@
-DMS 0.1 candidate
+DMS Agent workload foundation
 
 Cargo.toml declares Apache-2.0; LICENSE supplies those license terms.
-This candidate does not establish copyright ownership or authorize a public
-release. The maintainer must confirm ownership and permission before publishing.
+This branch is an unpublished foundation and does not establish ownership or
+authorize a public release. The maintainer must confirm permissions before
+publishing.
 
 Third-party dependencies retain their own licenses and attribution notices.
-Generated THIRD-PARTY-LICENSES material lists locked dependency versions,
-license expressions, and available original notice files. It is an inventory,
-not a legal approval or a claim that all dependencies use Apache-2.0.
+Third-party dependencies retain their own license terms and notices.

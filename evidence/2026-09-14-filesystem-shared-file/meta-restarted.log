@@ -1,1 +1,0 @@
-{"msg":"dms-meta is ready","level":"INFO","ts":"2026-09-15T00:55:09.771808438Z","instance":"meta-filesystem-e2e","service_name":"dms-meta","protocol_version":1,"grpc_address":"127.0.0.1:29601","health_address":"127.0.0.1:29681","node_id":"meta-filesystem-e2e","event":"meta.process.ready"}

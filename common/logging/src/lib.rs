@@ -1,11 +1,10 @@
 //! Process-level logging infrastructure for long-running DMS binaries.
 //!
-//! `dms-node` and `dms-meta` initialize this crate once. The small macros below
+//! Worker and Master processes initialize this crate once. The small macros below
 //! only inject the process-global logger into upstream `slog`; formatting,
 //! queuing and output remain owned by the standard crates.
 //!
-//! The Rust client SDK is a library embedded in user applications and must not
-//! install this global logger. It uses the standard `log` facade instead.
+//! Libraries embedded in user applications must not install this global logger.
 
 #![forbid(unsafe_code)]
 

@@ -75,7 +75,7 @@ where
             otel.name = operation_name,
             otel.kind = "server",
             rpc.system = "grpc",
-            rpc.method = %method,
+            rpc.method = operation_name,
             transport.result = tracing::field::Empty,
         );
         // 无 Span 时无需解析远端父上下文。enabled 判断交给当前 Subscriber，
@@ -108,57 +108,11 @@ where
 }
 
 fn is_periodic_method(method: &str) -> bool {
-    matches!(
-        method,
-        "/dms.v1.MetadataService/Heartbeat" | "/dms.v1.WorkerService/Heartbeat"
-    )
+    method.ends_with("/Heartbeat")
 }
 
-/// Maps generated gRPC route names to bounded, human-readable Tempo names.
-/// Unknown routes retain a generic name instead of turning arbitrary URI text
-/// into an unbounded tracing dimension.
-fn grpc_operation_name(method: &str) -> &'static str {
-    match method {
-        "/dms.v1.WorkerService/OpenSession" => "dms.grpc.worker.open_session",
-        "/dms.v1.WorkerService/Session" => "dms.grpc.worker.session",
-        "/dms.v1.WorkerService/Heartbeat" => "dms.grpc.worker.heartbeat",
-        "/dms.v1.WorkerService/AllocateStaging" => "dms.grpc.worker.allocate_staging",
-        "/dms.v1.WorkerService/AcquireRegion" => "dms.grpc.worker.acquire_region",
-        "/dms.v1.WorkerService/DeleteStaging" => "dms.grpc.worker.delete_staging",
-        "/dms.v1.WorkerService/SetInline" => "dms.grpc.worker.set_inline",
-        "/dms.v1.WorkerService/Set" => "dms.grpc.worker.set",
-        "/dms.v1.WorkerService/Delete" => "dms.grpc.worker.delete",
-        "/dms.v1.WorkerService/Get" => "dms.grpc.worker.get",
-        "/dms.v1.WorkerService/MSet" => "dms.grpc.worker.mset",
-        "/dms.v1.WorkerService/MGet" => "dms.grpc.worker.mget",
-        "/dms.v1.WorkerService/SetRange" => "dms.grpc.worker.set_range",
-        "/dms.v1.WorkerService/HSet" => "dms.grpc.worker.hset",
-        "/dms.v1.WorkerService/HGet" => "dms.grpc.worker.hget",
-        "/dms.v1.WorkerService/HMGet" => "dms.grpc.worker.hmget",
-        "/dms.v1.WorkerService/HGetAll" => "dms.grpc.worker.hget_all",
-        "/dms.v1.WorkerService/HDelete" => "dms.grpc.worker.hdelete",
-        "/dms.v1.WorkerService/HScan" => "dms.grpc.worker.hscan",
-        "/dms.v1.WorkerService/HWriteAt" => "dms.grpc.worker.hwrite_at",
-        "/dms.v1.WorkerPayloadService/Upload" => "dms.grpc.payload.upload",
-        "/dms.v1.WorkerPayloadService/Download" => "dms.grpc.payload.download",
-        "/dms.v1.PeerService/Probe" => "dms.grpc.peer.probe",
-        "/dms.v1.PeerService/PullBlock" => "dms.grpc.peer.pull_block",
-        "/dms.v1.PeerService/PrepareReplica" => "dms.grpc.peer.prepare_replica",
-        "/dms.v1.PeerService/ActivateReplica" => "dms.grpc.peer.activate_replica",
-        "/dms.v1.PeerService/AbortReplica" => "dms.grpc.peer.abort_replica",
-        "/dms.v1.PeerService/GetReplicaStatus" => "dms.grpc.peer.get_replica_status",
-        "/dms.v1.MetadataService/OpenNodeSession" => "dms.grpc.meta.open_node_session",
-        "/dms.v1.MetadataService/Heartbeat" => "dms.grpc.meta.heartbeat",
-        "/dms.v1.MetadataService/ResolveObject" => "dms.grpc.meta.resolve_object",
-        "/dms.v1.MetadataService/ReportReplicas" => "dms.grpc.meta.report_replicas",
-        "/dms.v1.MetadataService/CommitVersion" => "dms.grpc.meta.commit_version",
-        "/dms.v1.MetadataService/CommitBatch" => "dms.grpc.meta.commit_batch",
-        "/dms.v1.MetadataService/GetOperation" => "dms.grpc.meta.get_operation",
-        "/dms.v1.MetadataService/PlanReplicas" => "dms.grpc.meta.plan_replicas",
-        "/dms.v1.MetadataService/WatchNodeEvents" => "dms.grpc.meta.watch_node_events",
-        "/dms.v1.MetadataService/AcknowledgeNodeEvent" => "dms.grpc.meta.acknowledge_node_event",
-        _ => "dms.grpc.server",
-    }
+fn grpc_operation_name(_method: &str) -> &'static str {
+    "dms.grpc.server"
 }
 
 struct HeaderExtractor<'a>(&'a HeaderMap);
@@ -178,26 +132,16 @@ mod tests {
     use super::*;
 
     #[test]
-    fn known_routes_have_operation_aware_names() {
+    fn unknown_routes_use_a_bounded_operation_name() {
         assert_eq!(
-            grpc_operation_name("/dms.v1.WorkerService/Get"),
-            "dms.grpc.worker.get"
+            grpc_operation_name("/future.Service/Method"),
+            "dms.grpc.server"
         );
-        assert_eq!(
-            grpc_operation_name("/dms.v1.MetadataService/ResolveObject"),
-            "dms.grpc.meta.resolve_object"
-        );
-        assert_eq!(
-            grpc_operation_name("/dms.v1.WorkerPayloadService/Download"),
-            "dms.grpc.payload.download"
-        );
-        assert_eq!(grpc_operation_name("/unknown"), "dms.grpc.server");
     }
 
     #[test]
-    fn only_lifecycle_heartbeats_are_periodic() {
-        assert!(is_periodic_method("/dms.v1.MetadataService/Heartbeat"));
-        assert!(is_periodic_method("/dms.v1.WorkerService/Heartbeat"));
-        assert!(!is_periodic_method("/dms.v1.WorkerService/Get"));
+    fn heartbeat_routes_are_periodic() {
+        assert!(is_periodic_method("/future.Service/Heartbeat"));
+        assert!(!is_periodic_method("/future.Service/Read"));
     }
 }

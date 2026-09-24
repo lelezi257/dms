@@ -4,7 +4,7 @@ version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
-description = "Process logging infrastructure for DMS node and meta binaries"
+description = "Process logging infrastructure"
 publish = false
 
 [dependencies]

@@ -1,3 +1,0 @@
-{"msg":"Meta event watch established","level":"INFO","ts":"2026-09-16T09:21:17.904907632Z","instance":"node-attributes-b","service_name":"dms-node","event_cursor":0,"request_cursor":0,"last_acked_cursor":0,"event":"node.meta_watch.connected"}
-{"msg":"Mounting /tmp/dms-filesystem-attributes.etAUv4/mnt-b","level":"INFO","ts":"2026-09-16T09:21:17.906243838Z","instance":"node-attributes-b","service_name":"dms-node"}
-{"msg":"dms-node is ready","level":"INFO","ts":"2026-09-16T09:21:17.911562951Z","instance":"node-attributes-b","service_name":"dms-node","protocol_version":1,"worker_uds":null,"worker_tcp":"127.0.0.1:29903","health_address":"127.0.0.1:29983","node_id":"node-attributes-b","event":"node.process.ready"}

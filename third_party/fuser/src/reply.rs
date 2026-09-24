@@ -182,12 +182,23 @@ impl Reply for ReplyEntry {
 impl ReplyEntry {
     /// Reply to a request with the given entry
     pub fn entry(self, ttl: &Duration, attr: &FileAttr, generation: u64) {
+        self.entry_with_ttls(ttl, ttl, attr, generation);
+    }
+
+    /// Reply with separate positive-name and attribute cache lifetimes.
+    pub fn entry_with_ttls(
+        self,
+        entry_ttl: &Duration,
+        attr_ttl: &Duration,
+        attr: &FileAttr,
+        generation: u64,
+    ) {
         self.reply.send_ll(&ll::Response::new_entry(
             ll::INodeNo(attr.ino),
             ll::Generation(generation),
             &attr.into(),
-            *ttl,
-            *ttl,
+            *entry_ttl,
+            *attr_ttl,
         ));
     }
 

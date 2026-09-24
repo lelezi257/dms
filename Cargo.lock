@@ -334,6 +334,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "dms-home"
+version = "0.1.0"
+dependencies = [
+ "crc32fast",
+ "fuser",
+ "libc",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "dms-logging"
 version = "0.1.0"
 dependencies = [

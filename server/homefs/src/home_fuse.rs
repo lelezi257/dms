@@ -344,6 +344,19 @@ impl HomeFs {
         }
     }
 
+    fn p2p_mutating_path_call<T>(
+        &mut self,
+        owner: &str,
+        call: impl FnOnce(&mut Client) -> Result<T, i32>,
+    ) -> Result<T, i32> {
+        let result = self.p2p_client(owner).and_then(call);
+        if result.as_ref().is_err_and(|error| connection_lost(*error)) {
+            self.p2p_clients.remove(owner);
+            self.p2p_endpoints.remove(owner);
+        }
+        result
+    }
+
     fn p2p_handle_call<T>(
         &mut self,
         owner: &str,
@@ -375,6 +388,20 @@ impl HomeFs {
             Location::RemoteP2p(owner) => {
                 let attr = self.p2p_path_call(&owner, |client| client.getattr(path))?;
                 Ok(attr.file_attr(self.ino(path)))
+            }
+        }
+    }
+
+    fn attr_handle(&mut self, handle: u64, ino: u64) -> Result<FileAttr, i32> {
+        match self.handles.get(&handle).ok_or(libc::EBADF)? {
+            Handle::File { file, .. } => {
+                attr_from_metadata(ino, file.metadata().map_err(io_error)?)
+            }
+            Handle::P2p { owner, remote, .. } => {
+                let owner = owner.clone();
+                let remote = *remote;
+                self.p2p_handle_call(&owner, |client| client.getattr_handle(remote))
+                    .map(|attr| attr.file_attr(ino))
             }
         }
     }
@@ -462,15 +489,40 @@ impl HomeFs {
                 }
                 Ok(())
             }
-            Location::RemoteP2p(owner) => {
-                let result = self
-                    .p2p_client(&owner)
-                    .and_then(|client| client.setattr(path, spec));
-                if result.as_ref().is_err_and(|error| connection_lost(*error)) {
-                    self.p2p_clients.remove(&owner);
-                    self.p2p_endpoints.remove(&owner);
+            Location::RemoteP2p(owner) => self
+                .p2p_mutating_path_call(&owner, |client| client.setattr(path, spec))
+                .map(|_| ()),
+        }
+    }
+
+    fn set_attributes_handle(&mut self, handle: u64, spec: &SetAttrSpec) -> Result<(), i32> {
+        match self.handles.get(&handle).ok_or(libc::EBADF)? {
+            Handle::File { file, .. } => {
+                if let Some(mode) = spec.mode
+                    && unsafe { libc::fchmod(file.as_raw_fd(), mode as libc::mode_t) } < 0
+                {
+                    return Err(io_error(io::Error::last_os_error()));
                 }
-                result.map(|_| ())
+                if spec.uid.is_some() || spec.gid.is_some() {
+                    let uid = spec.uid.unwrap_or(!0) as libc::uid_t;
+                    let gid = spec.gid.unwrap_or(!0) as libc::gid_t;
+                    if unsafe { libc::fchown(file.as_raw_fd(), uid, gid) } < 0 {
+                        return Err(io_error(io::Error::last_os_error()));
+                    }
+                }
+                if spec.atime.is_some() || spec.mtime.is_some() {
+                    let stamps = [to_libc_timespec(spec.atime), to_libc_timespec(spec.mtime)];
+                    if unsafe { libc::futimens(file.as_raw_fd(), stamps.as_ptr()) } < 0 {
+                        return Err(io_error(io::Error::last_os_error()));
+                    }
+                }
+                Ok(())
+            }
+            Handle::P2p { owner, remote, .. } => {
+                let owner = owner.clone();
+                let remote = *remote;
+                self.p2p_handle_call(&owner, |client| client.setattr_handle(remote, spec))
+                    .map(|_| ())
             }
         }
     }
@@ -504,8 +556,12 @@ impl HomeFs {
                 }))
             }
             Location::RemoteP2p(owner) => {
-                let (remote, _, prefetched) =
-                    self.p2p_path_call(&owner, |client| client.open(path, flags, directory))?;
+                let open = |client: &mut Client| client.open(path, flags, directory);
+                let (remote, _, prefetched) = if flags & (libc::O_TRUNC | libc::O_CREAT) != 0 {
+                    self.p2p_mutating_path_call(&owner, open)?
+                } else {
+                    self.p2p_path_call(&owner, open)?
+                };
                 Ok(self.add_handle(Handle::P2p {
                     owner,
                     remote,
@@ -542,7 +598,8 @@ impl HomeFs {
                 Ok((self.attr(path)?, handle))
             }
             Location::RemoteP2p(owner) => {
-                let (remote, attr) = self.p2p_client(&owner)?.create(path, flags, mode)?;
+                let (remote, attr) =
+                    self.p2p_mutating_path_call(&owner, |client| client.create(path, flags, mode))?;
                 let ino = self.ino(path);
                 Ok((
                     attr.file_attr(ino),
@@ -569,7 +626,8 @@ impl HomeFs {
                 self.attr(path)
             }
             Location::RemoteP2p(owner) => {
-                let attr = self.p2p_client(&owner)?.mkdir(path, mode)?;
+                let attr =
+                    self.p2p_mutating_path_call(&owner, |client| client.mkdir(path, mode))?;
                 let ino = self.ino(path);
                 Ok(attr.file_attr(ino))
             }
@@ -622,7 +680,9 @@ impl HomeFs {
         match self.location(path)? {
             Location::Local => checked_unlink(&self.base_for(None), path, false),
             Location::RemoteNfs(owner) => checked_unlink(&self.base_for(Some(&owner)), path, false),
-            Location::RemoteP2p(owner) => self.p2p_client(&owner)?.unlink(path, false),
+            Location::RemoteP2p(owner) => {
+                self.p2p_mutating_path_call(&owner, |client| client.unlink(path, false))
+            }
         }?;
         self.drop_paths(path, false);
         Ok(())
@@ -632,7 +692,9 @@ impl HomeFs {
         match self.location(path)? {
             Location::Local => checked_unlink(&self.base_for(None), path, true),
             Location::RemoteNfs(owner) => checked_unlink(&self.base_for(Some(&owner)), path, true),
-            Location::RemoteP2p(owner) => self.p2p_client(&owner)?.unlink(path, true),
+            Location::RemoteP2p(owner) => {
+                self.p2p_mutating_path_call(&owner, |client| client.unlink(path, true))
+            }
         }?;
         self.drop_paths(path, true);
         Ok(())
@@ -694,7 +756,7 @@ impl HomeFs {
             Location::Local => checked_rename(&self.base_for(None), old, new)?,
             Location::RemoteNfs(owner) => checked_rename(&self.base_for(Some(&owner)), old, new)?,
             Location::RemoteP2p(owner) => {
-                let _ = self.p2p_client(&owner)?.rename(old, new)?;
+                let _ = self.p2p_mutating_path_call(&owner, |client| client.rename(old, new))?;
             }
         }
         self.shift_paths(old, new, true);
@@ -762,7 +824,13 @@ impl HomeFs {
                 .set_needs_flush(true);
             match self.handles.get(&handle).ok_or(libc::EBADF)? {
                 Handle::File { file, .. } => return file.set_len(size).map_err(io_error),
-                Handle::P2p { .. } => {}
+                Handle::P2p { owner, remote, .. } => {
+                    let owner = owner.clone();
+                    let remote = *remote;
+                    return self
+                        .p2p_handle_call(&owner, |client| client.set_len_handle(remote, size))
+                        .map(|_| ());
+                }
             }
         }
         match self.location(path)? {
@@ -774,7 +842,9 @@ impl HomeFs {
                     .set_len(size)
                     .map_err(io_error)
             }
-            Location::RemoteP2p(owner) => self.p2p_client(&owner)?.set_len(path, size).map(|_| ()),
+            Location::RemoteP2p(owner) => self
+                .p2p_mutating_path_call(&owner, |client| client.set_len(path, size))
+                .map(|_| ()),
         }
     }
 
@@ -812,16 +882,23 @@ impl Filesystem for HomeFs {
         }
     }
 
-    fn getattr(&mut self, _: &Request<'_>, ino: u64, _: Option<u64>, reply: ReplyAttr) {
+    fn getattr(&mut self, _: &Request<'_>, ino: u64, handle: Option<u64>, reply: ReplyAttr) {
         let cache = Arc::clone(&self.private_cache);
         let shared = cache.shared_roots.lock().unwrap();
-        match self
-            .path(ino)
-            .map(str::to_owned)
-            .and_then(|path| self.attr(&path).map(|attr| (path, attr)))
-        {
-            Ok((path, attr)) => {
-                let ttl = self.attr_ttl(&path, &shared);
+        let result = match handle {
+            Some(handle) => self.attr_handle(handle, ino),
+            None => self
+                .path(ino)
+                .map(str::to_owned)
+                .and_then(|path| self.attr(&path)),
+        };
+        match result {
+            Ok(attr) => {
+                let ttl = self
+                    .path(ino)
+                    .ok()
+                    .map(|path| self.attr_ttl(path, &shared))
+                    .unwrap_or(&TTL);
                 reply.attr(ttl, &attr)
             }
             Err(error) => reply.error(error),
@@ -1048,9 +1125,13 @@ impl Filesystem for HomeFs {
         _: Option<u32>,
         reply: ReplyAttr,
     ) {
-        let result = self.path(ino).map(str::to_owned).and_then(|path| {
+        let result = (|| {
+            let path = match handle {
+                Some(_) => None,
+                None => Some(self.path(ino)?.to_owned()),
+            };
             if let Some(size) = size {
-                self.set_len(&path, handle, size)?;
+                self.set_len(path.as_deref().unwrap_or(""), handle, size)?;
             }
             if mode.is_some()
                 || uid.is_some()
@@ -1058,19 +1139,24 @@ impl Filesystem for HomeFs {
                 || atime.is_some()
                 || mtime.is_some()
             {
-                self.set_attributes(
-                    &path,
-                    &SetAttrSpec {
-                        mode,
-                        uid,
-                        gid,
-                        atime: atime.map(to_rpc_time),
-                        mtime: mtime.map(to_rpc_time),
-                    },
-                )?;
+                let spec = SetAttrSpec {
+                    mode,
+                    uid,
+                    gid,
+                    atime: atime.map(to_rpc_time),
+                    mtime: mtime.map(to_rpc_time),
+                };
+                if let Some(handle) = handle {
+                    self.set_attributes_handle(handle, &spec)?;
+                } else {
+                    self.set_attributes(path.as_deref().unwrap(), &spec)?;
+                }
             }
-            self.attr(&path)
-        });
+            match handle {
+                Some(handle) => self.attr_handle(handle, ino),
+                None => self.attr(path.as_deref().unwrap()),
+            }
+        })();
         match result {
             Ok(attr) => reply.attr(&TTL, &attr),
             Err(error) => reply.error(error),
@@ -1596,9 +1682,105 @@ fn shift_paths(
 mod tests {
     use super::*;
     use std::{
+        io::{Read, Write},
+        net::{TcpListener, TcpStream},
         os::unix::fs::symlink,
-        time::{SystemTime, UNIX_EPOCH},
+        sync::mpsc,
+        thread,
+        time::{Duration, SystemTime, UNIX_EPOCH},
     };
+
+    fn read_test_frame(stream: &mut TcpStream) -> Vec<u8> {
+        let mut length = [0; 4];
+        stream.read_exact(&mut length).unwrap();
+        let mut bytes = vec![0; u32::from_be_bytes(length) as usize];
+        stream.read_exact(&mut bytes).unwrap();
+        bytes
+    }
+
+    fn write_test_frame(stream: &mut TcpStream, bytes: &[u8]) {
+        stream
+            .write_all(&(bytes.len() as u32).to_be_bytes())
+            .unwrap();
+        stream.write_all(bytes).unwrap();
+    }
+
+    #[test]
+    fn truncating_remote_open_is_not_replayed_after_lost_reply() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let endpoint = listener.local_addr().unwrap().to_string();
+        let center_listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let center_endpoint = center_listener.local_addr().unwrap().to_string();
+        let advertised = endpoint.clone();
+        let center = thread::spawn(move || {
+            center_listener.set_nonblocking(true).unwrap();
+            let deadline = std::time::Instant::now() + Duration::from_secs(2);
+            while std::time::Instant::now() < deadline {
+                match center_listener.accept() {
+                    Ok((mut peer, _)) => {
+                        let mut request = [0; 64];
+                        let size = peer.read(&mut request).unwrap();
+                        assert_eq!(&request[..size], b"NODES\n");
+                        peer.write_all(format!("A unused {advertised}\n").as_bytes())
+                            .unwrap();
+                        return;
+                    }
+                    Err(error) if error.kind() == io::ErrorKind::WouldBlock => {
+                        thread::sleep(Duration::from_millis(5));
+                    }
+                    Err(error) => panic!("center accept failed: {error}"),
+                }
+            }
+        });
+        let (send_count, receive_count) = mpsc::channel();
+        let server = thread::spawn(move || {
+            listener.set_nonblocking(true).unwrap();
+            let deadline = std::time::Instant::now() + Duration::from_secs(2);
+            let mut requests = 0;
+            while std::time::Instant::now() < deadline {
+                let (mut peer, _) = match listener.accept() {
+                    Ok(pair) => pair,
+                    Err(error) if error.kind() == io::ErrorKind::WouldBlock => {
+                        thread::sleep(Duration::from_millis(5));
+                        continue;
+                    }
+                    Err(error) => panic!("accept failed: {error}"),
+                };
+                let auth = read_test_frame(&mut peer);
+                assert_eq!(auth[0], 0);
+                write_test_frame(&mut peer, &0_u32.to_be_bytes());
+                let request = read_test_frame(&mut peer);
+                assert_eq!(request[0], 4);
+                requests += 1;
+                if requests == 2 {
+                    write_test_frame(&mut peer, &(libc::EIO as u32).to_be_bytes());
+                }
+            }
+            send_count.send(requests).unwrap();
+        });
+
+        let mut fs = HomeFs::new(
+            "B".to_owned(),
+            center_endpoint,
+            PathBuf::from("/tmp/local"),
+            PathBuf::from("/tmp/peers"),
+            Arc::new(RwLock::new(HashSet::new())),
+            BackendMode::P2p,
+            "token".to_owned(),
+        );
+        fs.owners.insert("job".to_owned(), "A".to_owned());
+        fs.p2p_endpoints.insert("A".to_owned(), endpoint);
+        assert!(
+            fs.open_existing("/job/x", libc::O_WRONLY | libc::O_TRUNC, false)
+                .is_err()
+        );
+        assert_eq!(
+            receive_count.recv_timeout(Duration::from_secs(3)).unwrap(),
+            1
+        );
+        center.join().unwrap();
+        server.join().unwrap();
+    }
 
     #[test]
     fn stat_link_count_accepts_platform_width_and_saturates() {

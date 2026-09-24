@@ -27,7 +27,7 @@ use std::{
 const MAX_FRAME: usize = 8 * 1024 * 1024;
 const MAX_IO_BYTES: usize = MAX_FRAME - 128;
 const OPEN_PREFETCH_LIMIT: usize = 4096;
-const WIRE_VERSION: u32 = 3;
+const WIRE_VERSION: u32 = 4;
 const AUTH: u8 = 0;
 const GETATTR: u8 = 1;
 const MKDIR: u8 = 2;
@@ -45,6 +45,9 @@ const OPENDIR: u8 = 13;
 const SETLEN: u8 = 14;
 const SETATTR: u8 = 15;
 const CLOSE_NO_REPLY: u8 = 16;
+const FGETATTR: u8 = 17;
+const FSETLEN: u8 = 18;
+const FSETATTR: u8 = 19;
 
 const SETATTR_MODE: u32 = 1 << 0;
 const SETATTR_UID: u32 = 1 << 1;
@@ -470,6 +473,12 @@ impl Client {
         let bytes = self.call(out)?;
         Attr::read(&mut Reader::new(&bytes)).map_err(errno)
     }
+    pub fn getattr_handle(&mut self, handle: u64) -> Result<Attr, i32> {
+        let mut out = Writer::new(FGETATTR);
+        out.u64(handle);
+        let bytes = self.call(out)?;
+        Attr::read(&mut Reader::new(&bytes)).map_err(errno)
+    }
     pub fn mkdir(&mut self, path: &str, mode: u32) -> Result<Attr, i32> {
         let mut out = Writer::new(MKDIR);
         out.string(path);
@@ -592,9 +601,23 @@ impl Client {
         let bytes = self.call(out)?;
         Attr::read(&mut Reader::new(&bytes)).map_err(errno)
     }
+    pub fn set_len_handle(&mut self, handle: u64, size: u64) -> Result<Attr, i32> {
+        let mut out = Writer::new(FSETLEN);
+        out.u64(handle);
+        out.u64(size);
+        let bytes = self.call(out)?;
+        Attr::read(&mut Reader::new(&bytes)).map_err(errno)
+    }
     pub fn setattr(&mut self, path: &str, spec: &SetAttrSpec) -> Result<Attr, i32> {
         let mut out = Writer::new(SETATTR);
         out.string(path);
+        spec.write(&mut out);
+        let bytes = self.call(out)?;
+        Attr::read(&mut Reader::new(&bytes)).map_err(errno)
+    }
+    pub fn setattr_handle(&mut self, handle: u64, spec: &SetAttrSpec) -> Result<Attr, i32> {
+        let mut out = Writer::new(FSETATTR);
+        out.u64(handle);
         spec.write(&mut out);
         let bytes = self.call(out)?;
         Attr::read(&mut Reader::new(&bytes)).map_err(errno)
@@ -847,6 +870,31 @@ impl Session {
         }
         Ok(())
     }
+    fn apply_setattr_handle(&self, handle: u64, spec: &SetAttrSpec) -> Result<(), i32> {
+        let file = self.file(handle)?;
+        if let Some(mode) = spec.mode
+            && unsafe { libc::fchmod(file.as_raw_fd(), (mode & 0o7777) as libc::mode_t) } < 0
+        {
+            return Err(errno(io::Error::last_os_error()));
+        }
+        if spec.uid.is_some() || spec.gid.is_some() {
+            let uid = spec.uid.unwrap_or(u32::MAX) as libc::uid_t;
+            let gid = spec.gid.unwrap_or(u32::MAX) as libc::gid_t;
+            if unsafe { libc::fchown(file.as_raw_fd(), uid, gid) } < 0 {
+                return Err(errno(io::Error::last_os_error()));
+            }
+        }
+        if spec.atime.is_some() || spec.mtime.is_some() {
+            let times = [
+                TimeSpec::timespec(spec.atime)?,
+                TimeSpec::timespec(spec.mtime)?,
+            ];
+            if unsafe { libc::futimens(file.as_raw_fd(), times.as_ptr()) } < 0 {
+                return Err(errno(io::Error::last_os_error()));
+            }
+        }
+        Ok(())
+    }
     fn open_file(&mut self, path: &str, flags: i32, mode: u32) -> Result<u64, i32> {
         let handle = self.next_handle;
         self.next_handle = self.next_handle.checked_add(1).ok_or(libc::EOVERFLOW)?;
@@ -866,6 +914,12 @@ impl Session {
                 let path = input.string().map_err(errno)?;
                 input.done().map_err(errno)?;
                 self.attr_at(path)?.write(&mut out);
+            }
+            FGETATTR => {
+                let handle = input.u64().map_err(errno)?;
+                input.done().map_err(errno)?;
+                Attr::from_metadata(&self.file(handle)?.metadata().map_err(errno)?)?
+                    .write(&mut out);
             }
             MKDIR => {
                 let path = input.string().map_err(errno)?;
@@ -1011,6 +1065,14 @@ impl Session {
                 file.set_len(size).map_err(errno)?;
                 Attr::from_metadata(&file.metadata().map_err(errno)?)?.write(&mut out);
             }
+            FSETLEN => {
+                let handle = input.u64().map_err(errno)?;
+                let size = input.u64().map_err(errno)?;
+                input.done().map_err(errno)?;
+                self.file(handle)?.set_len(size).map_err(errno)?;
+                Attr::from_metadata(&self.file(handle)?.metadata().map_err(errno)?)?
+                    .write(&mut out);
+            }
             SETATTR => {
                 let path = input.string().map_err(errno)?;
                 let spec = SetAttrSpec::read(&mut input).map_err(errno)?;
@@ -1018,6 +1080,14 @@ impl Session {
                 self.file_type_at(path)?;
                 self.apply_setattr(path, &spec)?;
                 self.attr_at(path)?.write(&mut out);
+            }
+            FSETATTR => {
+                let handle = input.u64().map_err(errno)?;
+                let spec = SetAttrSpec::read(&mut input).map_err(errno)?;
+                input.done().map_err(errno)?;
+                self.apply_setattr_handle(handle, &spec)?;
+                Attr::from_metadata(&self.file(handle)?.metadata().map_err(errno)?)?
+                    .write(&mut out);
             }
             _ => return Err(libc::ENOSYS),
         }
@@ -1052,6 +1122,37 @@ mod tests {
         let address = listener.local_addr().unwrap().to_string();
         thread::spawn(move || serve_listener(listener, root, token.to_owned()).unwrap());
         address
+    }
+
+    #[test]
+    fn opened_handle_keeps_file_identity_after_rename_and_name_reuse() {
+        let root = temp_home("open-identity");
+        fs::create_dir(root.join("job")).unwrap();
+        fs::write(root.join("job/x"), b"old-file").unwrap();
+        let address = serve_test(root.clone(), "secret");
+        let mut client = Client::connect_authenticated(&address, "secret").unwrap();
+        let (handle, _, _) = client.open("/job/x", libc::O_RDWR, false).unwrap();
+
+        fs::rename(root.join("job/x"), root.join("job/y")).unwrap();
+        fs::write(root.join("job/x"), b"new-file").unwrap();
+        let new_mode = client.getattr("/job/x").unwrap().perm;
+        assert_eq!(client.getattr_handle(handle).unwrap().size, 8);
+        let changed = client
+            .setattr_handle(
+                handle,
+                &SetAttrSpec {
+                    mode: Some(0o600),
+                    ..SetAttrSpec::default()
+                },
+            )
+            .unwrap();
+        assert_eq!(changed.perm, 0o600);
+        assert_eq!(client.getattr("/job/x").unwrap().perm, new_mode);
+        assert_eq!(client.set_len_handle(handle, 0).unwrap().size, 0);
+        assert_eq!(fs::read(root.join("job/x")).unwrap(), b"new-file");
+        assert_eq!(fs::read(root.join("job/y")).unwrap(), b"");
+        client.close(handle).unwrap();
+        fs::remove_dir_all(root).unwrap();
     }
 
     #[test]

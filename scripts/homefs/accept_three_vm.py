@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+from concurrent.futures import ThreadPoolExecutor
 import json
 import os
 import platform
@@ -126,6 +127,61 @@ def main() -> int:
             shell("A", f"test -f {root}/mnt/job-42/sub/renamed", hosts)
             return {"home": "A", "remote": "B", "after_close_reopen": second, "remote_mutation": "visible on A"}
         record("close-to-open and remote namespace", namespace_and_bytes)
+
+        def single_root_owner_under_concurrent_create():
+            creation = (
+                "python3 -c 'import os; "
+                f"p=\"{root}/mnt/job-race\"; "
+                "\ntry: os.mkdir(p); print(\"created\")"
+                "\nexcept FileExistsError: print(\"exists\")'"
+            )
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                attempts = {
+                    role: pool.submit(shell, role, creation, hosts)
+                    for role in ("A", "B")
+                }
+                outcomes = {role: future.result().strip() for role, future in attempts.items()}
+            response = shell("A", f"python3 -c 'import urllib.request; opener=urllib.request.build_opener(urllib.request.ProxyHandler({{}})); print(opener.open(\"http://{management}/v1/roots/job-race\", timeout=3).read().decode())'", hosts)
+            info = json.loads(response)
+            owner = info.get("owner")
+            physical = {role: shell(role, f"test -d {root}/data/job-race && echo yes || echo no", hosts).strip() for role in ("A", "B")}
+            if owner not in ("A", "B") or info.get("status") != "active" or physical[owner] != "yes" or physical["B" if owner == "A" else "A"] != "no":
+                raise RuntimeError(f"root authority split: {outcomes=}, {info=}, {physical=}")
+            return {"attempts": outcomes, "owner": owner, "physical": physical}
+        record("concurrent root create keeps one authority", single_root_owner_under_concurrent_create)
+
+        def old_remote_fd_keeps_file_identity():
+            shell("A", f"python3 -c 'from pathlib import Path; Path(\"{root}/mnt/job-42/identity-x\").write_bytes(b\"old-file\")'", hosts)
+            holder = f"""
+import json, os, pathlib, time
+base = pathlib.Path({root!r})
+fd = os.open(base / 'mnt/job-42/identity-x', os.O_RDWR)
+(base / 'identity-ready').touch()
+deadline = time.monotonic() + 20
+while not (base / 'identity-go').exists():
+    if time.monotonic() > deadline:
+        raise RuntimeError('timed out waiting for rename')
+    time.sleep(0.01)
+before = os.fstat(fd).st_size
+os.ftruncate(fd, 0)
+os.pwrite(fd, b'old-only', 0)
+os.fchmod(fd, 0o600)
+os.fsync(fd)
+after = os.pread(fd, 8, 0)
+os.close(fd)
+print(json.dumps({{'before_size': before, 'old_fd_bytes': after.decode()}}))
+"""
+            with ThreadPoolExecutor(max_workers=1) as pool:
+                pending = pool.submit(shell, "B", "python3 -c " + shlex.quote(holder), hosts, timeout=30)
+                wait(lambda: shell("B", f"test -f {root}/identity-ready && echo yes", hosts, check=False).strip() == "yes", "B old fd open")
+                shell("A", f"python3 -c 'import os; from pathlib import Path; p=Path(\"{root}/mnt/job-42\"); os.rename(p/\"identity-x\", p/\"identity-y\"); (p/\"identity-x\").write_bytes(b\"new-file\")'", hosts)
+                shell("B", f"touch {root}/identity-go", hosts)
+                held = json.loads(pending.result())
+            names = json.loads(shell("A", f"python3 -c 'import json,stat; from pathlib import Path; p=Path(\"{root}/mnt/job-42\"); print(json.dumps({{\"new\":(p/\"identity-x\").read_bytes().decode(),\"old\":(p/\"identity-y\").read_bytes().decode(),\"old_mode\":stat.S_IMODE((p/\"identity-y\").stat().st_mode)}}))'", hosts))
+            if held != {"before_size": 8, "old_fd_bytes": "old-only"} or names != {"new": "new-file", "old": "old-only", "old_mode": 0o600}:
+                raise RuntimeError(f"old fd followed recreated name: {held=}, {names=}")
+            return {"old_fd": held, "home_files": names}
+        record("remote old fd follows file identity after rename", old_remote_fd_keeps_file_identity)
 
         def alternating_sizes():
             note = f"{root}/mnt/job-42/note"

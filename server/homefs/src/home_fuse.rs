@@ -427,7 +427,11 @@ impl HomeFs {
     fn attr_handle(&mut self, handle: u64, ino: u64) -> Result<FileAttr, i32> {
         match self.handles.get(&handle).ok_or(libc::EBADF)? {
             Handle::File { file, .. } => {
-                attr_from_metadata(ino, file.metadata().map_err(io_error)?)
+                let mut stat = std::mem::MaybeUninit::<libc::stat>::uninit();
+                if unsafe { libc::fstat(file.as_raw_fd(), stat.as_mut_ptr()) } < 0 {
+                    return Err(io_error(io::Error::last_os_error()));
+                }
+                attr_from_stat(ino, unsafe { stat.assume_init() })
             }
             Handle::P2p { owner, remote, .. } => {
                 let owner = owner.clone();

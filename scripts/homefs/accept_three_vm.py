@@ -168,8 +168,14 @@ os.pwrite(fd, b'old-only', 0)
 os.fchmod(fd, 0o600)
 os.fsync(fd)
 after = os.pread(fd, 8, 0)
+new_fd = os.open(base / 'mnt/job-42/identity-x', os.O_RDONLY)
+new_bytes = os.read(new_fd, 8)
+new_ino = os.fstat(new_fd).st_ino
+os.close(new_fd)
+os.chmod(base / 'mnt/job-42/identity-x', 0o640)
+old_ino = os.fstat(fd).st_ino
 os.close(fd)
-print(json.dumps({{'before_size': before, 'old_fd_bytes': after.decode()}}))
+print(json.dumps({{'before_size': before, 'old_fd_bytes': after.decode(), 'new_bytes': new_bytes.decode(), 'separate_inodes': old_ino != new_ino}}))
 """
             with ThreadPoolExecutor(max_workers=1) as pool:
                 pending = pool.submit(shell, "B", "python3 -c " + shlex.quote(holder), hosts, timeout=30)
@@ -177,11 +183,44 @@ print(json.dumps({{'before_size': before, 'old_fd_bytes': after.decode()}}))
                 shell("A", f"python3 -c 'import os; from pathlib import Path; p=Path(\"{root}/mnt/job-42\"); os.rename(p/\"identity-x\", p/\"identity-y\"); (p/\"identity-x\").write_bytes(b\"new-file\")'", hosts)
                 shell("B", f"touch {root}/identity-go", hosts)
                 held = json.loads(pending.result())
-            names = json.loads(shell("A", f"python3 -c 'import json,stat; from pathlib import Path; p=Path(\"{root}/mnt/job-42\"); print(json.dumps({{\"new\":(p/\"identity-x\").read_bytes().decode(),\"old\":(p/\"identity-y\").read_bytes().decode(),\"old_mode\":stat.S_IMODE((p/\"identity-y\").stat().st_mode)}}))'", hosts))
-            if held != {"before_size": 8, "old_fd_bytes": "old-only"} or names != {"new": "new-file", "old": "old-only", "old_mode": 0o600}:
+            names = json.loads(shell("A", f"python3 -c 'import json,stat; from pathlib import Path; p=Path(\"{root}/mnt/job-42\"); print(json.dumps({{\"new\":(p/\"identity-x\").read_bytes().decode(),\"old\":(p/\"identity-y\").read_bytes().decode(),\"new_mode\":stat.S_IMODE((p/\"identity-x\").stat().st_mode),\"old_mode\":stat.S_IMODE((p/\"identity-y\").stat().st_mode)}}))'", hosts))
+            if held != {"before_size": 8, "old_fd_bytes": "old-only", "new_bytes": "new-file", "separate_inodes": True} or names != {"new": "new-file", "old": "old-only", "new_mode": 0o640, "old_mode": 0o600}:
                 raise RuntimeError(f"old fd followed recreated name: {held=}, {names=}")
             return {"old_fd": held, "home_files": names}
         record("remote old fd follows file identity after rename", old_remote_fd_keeps_file_identity)
+
+        def unlinked_remote_fd_keeps_identity():
+            shell("A", f"python3 -c 'from pathlib import Path; Path(\"{root}/mnt/job-42/unlinked-x\").write_bytes(b\"old-unlinked\")'", hosts)
+            holder = f"""
+import json, os, pathlib, time
+base = pathlib.Path({root!r})
+path = base / 'mnt/job-42/unlinked-x'
+fd = os.open(path, os.O_RDWR)
+(base / 'unlinked-ready').touch()
+deadline = time.monotonic() + 20
+while not (base / 'unlinked-go').exists():
+    if time.monotonic() > deadline:
+        raise RuntimeError('timed out waiting for unlink')
+    time.sleep(0.01)
+os.ftruncate(fd, 0)
+os.pwrite(fd, b'old-fd', 0)
+os.fsync(fd)
+old_bytes = os.pread(fd, 6, 0)
+old_nlink = os.fstat(fd).st_nlink
+os.close(fd)
+new_bytes = path.read_bytes()
+print(json.dumps({{'old_fd_bytes': old_bytes.decode(), 'old_nlink': old_nlink, 'replacement': new_bytes.decode()}}))
+"""
+            with ThreadPoolExecutor(max_workers=1) as pool:
+                pending = pool.submit(shell, "B", "python3 -c " + shlex.quote(holder), hosts, timeout=30)
+                wait(lambda: shell("B", f"test -f {root}/unlinked-ready && echo yes", hosts, check=False).strip() == "yes", "B unlinked fd open")
+                shell("A", f"python3 -c 'from pathlib import Path; p=Path(\"{root}/mnt/job-42/unlinked-x\"); p.unlink(); p.write_bytes(b\"replacement\")'", hosts)
+                shell("B", f"touch {root}/unlinked-go", hosts)
+                held = json.loads(pending.result())
+            if held != {"old_fd_bytes": "old-fd", "old_nlink": 0, "replacement": "replacement"}:
+                raise RuntimeError(f"unlinked fd switched to replacement: {held=}")
+            return held
+        record("remote unlinked fd survives name reuse", unlinked_remote_fd_keeps_identity)
 
         def alternating_sizes():
             note = f"{root}/mnt/job-42/note"

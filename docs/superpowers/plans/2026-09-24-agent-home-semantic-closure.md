@@ -26,7 +26,7 @@
 ## Task 3: Five-invariant acceptance matrix
 
 - [x] Extend `scripts/homefs/accept_three_vm.py` with one owner race, stable remote file identity, close-to-open, Home process restart with a new open, and center restart/recovery checks for both backends. Old FD after Home process restart remains outside this acceptance.
-- [ ] Add controlled root create/delete fault cuts and compare persisted center state to actual Home directories; record any unsupported power-loss claim explicitly.
+- [x] Add controlled root create/delete fault cuts and compare persisted center state to actual Home directories; record any unsupported physical power-loss claim explicitly.
 - [x] Save Linux raw JSON, commands, binary/script SHA, topology, and cleanup receipt in workspace `evidence/`.
 
 ## Task 4: Performance and handoff
@@ -37,3 +37,5 @@
 **Success:** no open FD mutates a replacement pathname; uncertain mutating RPC is never silently replayed; new opens recover after Home process restart; owner remains unique; close-to-open holds in both backends; modified normal path preserves the already observed local W1 advantage or reports a valid failure. VM-loss availability, automatic migration, and cross-Home atomic operations remain stated architectural boundaries.
 
 **2026-09-24 verification note:** Linux three-VM P2P/NFS 10-step acceptance and W1/W2 receipts for `6ea3203` are recorded in `../../../../evidence/2026-09-24-agent-home-semantic-closure/`. Outstanding items above remain unchecked: a broader before-execution/after-execution RPC cut matrix, explicit power-loss cuts for center/root transitions, and old-FD continuity across Home process restart (not part of the present preview promise).
+
+**2026-09-24 fault-cut update:** `ecb5b9b` adds an opaque filesystem handle to remote identity and reconciles center/root transitions at Home startup. The installed package passed six staged create/delete states after center and Home `SIGKILL`, an active-directory-missing fail-closed cut, and a forced VZ VM stop/restart after explicit sync. Evidence: `../../../../evidence/2026-09-24-agent-home-fault-closure/`. Physical controller power loss remains unproved. The broader before/after RPC cut matrix above remains open; do not reinterpret this note as old-FD continuity across process restart.

@@ -41,3 +41,11 @@ W2 第一轮 MooseFS 出现 2310.99 ms，未剔除；交错顺序为奇数轮 DM
 上文是 `4eceb8f` 的历史阶段记录；最新验收以 `6ea3203` 为准。P2P wire v5 把预期底层文件身份随远端 `OPEN` 送到 Home，Home 在 `O_TRUNC` 前校验；NFS 也在截断前检查已打开文件。旧 FD 在改名/删除与同名重建后仍指向原文件，远端丢失修改回复不自动重放。Linux 39 项单测、Clippy、release 构建通过；从最终安装包部署的三 VM P2P/NFS 各 10/10 步通过。
 
 同场 W1 两份六轮 DMS/MooseFS p50 比值 0.386/0.358，P2P W2 六轮为 0.972。逐轮样本与包 SHA 位于项目工作区 `evidence/2026-09-24-agent-home-semantic-closure/`，短结论见 `outputs/reports/2026-09-24-agent-home-semantic-closure.md`。这些数值不代表等物理耐久，也不证明四节点、全 POSIX、掉电切点、旧 FD 跨进程重启透明续接或自动 Home 接管。
+
+## 2026-09-24 故障切点与 inode 复用复验
+
+最新安装包来自 `ecb5b9b`；上文数据作为历史记录保留。本次 P2P wire v6 使用 Linux 不透明 file handle 区分同一底层 inode 号快速复用；底层不支持该能力时远端操作显式失败。一级目录创建、删除在 Home 数据根目录 `fsync` 后才推进中心状态；重启先对账，再提供 FUSE 服务。
+
+Linux 安装包三 VM P2P/NFS 各 10/10 步通过。另将六个根目录置于预约、删除中、tombstone 和活跃的中间点，`SIGKILL` 中心及 Home 后重启均按盘上实际状态收敛；仅预约而目录未落盘会撤销预约，重试 `mkdir 0710` 保留权限；活跃目录若物理消失则拒绝 Home 启动。VZ `--force` 停 A 后 B 无法接管，原 VM 回来后文件可由 A/B 重开。该实验先显式同步本地数据，不等于物理存储控制器断电证明。
+
+本地 W1 两份独立六轮 DMS/MooseFS p50 比值为 **0.409/0.400**；同场 DMS/薄 FUSE/Native/MooseFS p50 分别为 281/218/130/686 ms 和 263/218/122/657 ms。远端 W2 六轮 P2P 为 **0.969**（332/343 ms），NFS 为 **7.337**（2563/349 ms）；NFS 只保留后端功能，性能优化后置。完整逐轮值、构包 SHA、脚本及清理收据见工作区 `evidence/2026-09-24-agent-home-fault-closure/`。Linux 42 项单测、Clippy 和 release 构建通过；默认 MooseFS 与本机单副本保存仍非等物理耐久对照。

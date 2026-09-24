@@ -27,7 +27,7 @@ use std::{
 const MAX_FRAME: usize = 8 * 1024 * 1024;
 const MAX_IO_BYTES: usize = MAX_FRAME - 128;
 const OPEN_PREFETCH_LIMIT: usize = 4096;
-const WIRE_VERSION: u32 = 4;
+const WIRE_VERSION: u32 = 5;
 const AUTH: u8 = 0;
 const GETATTR: u8 = 1;
 const MKDIR: u8 = 2;
@@ -497,15 +497,30 @@ impl Client {
         let attr = Attr::read(&mut input).map_err(errno)?;
         Ok((handle, attr))
     }
+    #[cfg(test)]
     pub fn open(
         &mut self,
         path: &str,
         flags: i32,
         directory: bool,
     ) -> Result<(u64, Attr, Option<Vec<u8>>), i32> {
+        self.open_if_identity(path, flags, directory, None)
+    }
+    pub fn open_if_identity(
+        &mut self,
+        path: &str,
+        flags: i32,
+        directory: bool,
+        expected: Option<(u64, u64)>,
+    ) -> Result<(u64, Attr, Option<Vec<u8>>), i32> {
         let mut out = Writer::new(if directory { OPENDIR } else { OPEN });
         out.string(path);
         out.u32(flags as u32);
+        out.u8(u8::from(expected.is_some()));
+        if let Some((dev, ino)) = expected {
+            out.u64(dev);
+            out.u64(ino);
+        }
         let bytes = self.call(out)?;
         let mut input = Reader::new(&bytes);
         let handle = input.u64().map_err(errno)?;
@@ -896,10 +911,28 @@ impl Session {
         Ok(())
     }
     fn open_file(&mut self, path: &str, flags: i32, mode: u32) -> Result<u64, i32> {
+        self.open_file_if_identity(path, flags, mode, None)
+    }
+    fn open_file_if_identity(
+        &mut self,
+        path: &str,
+        flags: i32,
+        mode: u32,
+        expected: Option<(u64, u64)>,
+    ) -> Result<u64, i32> {
+        let file = checked_open(&self.root, path, flags & !libc::O_TRUNC, mode)?;
+        if let Some((dev, ino)) = expected {
+            let metadata = file.metadata().map_err(errno)?;
+            if (metadata.dev(), metadata.ino()) != (dev, ino) {
+                return Err(libc::ESTALE);
+            }
+        }
+        if flags & libc::O_TRUNC != 0 {
+            file.set_len(0).map_err(errno)?;
+        }
         let handle = self.next_handle;
         self.next_handle = self.next_handle.checked_add(1).ok_or(libc::EOVERFLOW)?;
-        self.handles
-            .insert(handle, checked_open(&self.root, path, flags, mode)?);
+        self.handles.insert(handle, file);
         Ok(handle)
     }
     fn file(&self, handle: u64) -> Result<&File, i32> {
@@ -941,6 +974,11 @@ impl Session {
             OPEN | OPENDIR => {
                 let path = input.string().map_err(errno)?;
                 let mut flags = input.u32().map_err(errno)? as i32;
+                let expected = match input.u8().map_err(errno)? {
+                    0 => None,
+                    1 => Some((input.u64().map_err(errno)?, input.u64().map_err(errno)?)),
+                    _ => return Err(libc::EINVAL),
+                };
                 input.done().map_err(errno)?;
                 let file_type = self.file_type_at(path)?;
                 if op == OPENDIR {
@@ -951,7 +989,7 @@ impl Session {
                 } else if !file_type.is_file() {
                     return Err(libc::EOPNOTSUPP);
                 }
-                let handle = self.open_file(path, flags, 0)?;
+                let handle = self.open_file_if_identity(path, flags, 0, expected)?;
                 out.u64(handle);
                 let attr = Attr::from_metadata(&self.file(handle)?.metadata().map_err(errno)?)?;
                 attr.write(&mut out);
@@ -1219,6 +1257,7 @@ mod tests {
         let mut open_link = Writer::new(OPEN);
         open_link.string("/link/secret");
         open_link.u32(libc::O_RDONLY as u32);
+        open_link.u8(0);
         assert!(matches!(
             state.handle(&open_link.finish()),
             Err(libc::ELOOP | libc::ENOTDIR)

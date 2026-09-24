@@ -235,6 +235,26 @@ impl HomeFs {
             .find_map(|(handle, known)| (*known == ino).then_some(*handle))
     }
 
+    fn expected_backing(&self, path: &str, owner: &str) -> Option<(u64, u64)> {
+        self.backing_ids
+            .get(path)
+            .and_then(|(known_owner, dev, ino)| (known_owner == owner).then_some((*dev, *ino)))
+    }
+
+    fn accept_opened_backing(
+        &mut self,
+        path: &str,
+        owner: &str,
+        dev: u64,
+        ino: u64,
+    ) -> Result<(), i32> {
+        let changed = self
+            .expected_backing(path, owner)
+            .is_some_and(|old| old != (dev, ino));
+        self.ino_for_backing(path, owner, dev, ino);
+        if changed { Err(libc::ESTALE) } else { Ok(()) }
+    }
+
     fn add_handle(&mut self, handle: Handle) -> u64 {
         let id = self.next_handle;
         self.next_handle += 1;
@@ -585,7 +605,21 @@ impl HomeFs {
                 } else {
                     flags
                 };
-                let file = checked_open(&self.base_for(Some(&owner)), path, flags, 0)?;
+                let file = checked_open(
+                    &self.base_for(Some(&owner)),
+                    path,
+                    flags & !libc::O_TRUNC,
+                    0,
+                )?;
+                let mut stat = std::mem::MaybeUninit::<libc::stat>::uninit();
+                if unsafe { libc::fstat(file.as_raw_fd(), stat.as_mut_ptr()) } < 0 {
+                    return Err(io_error(io::Error::last_os_error()));
+                }
+                let stat = unsafe { stat.assume_init() };
+                self.accept_opened_backing(path, &owner, stat.st_dev, stat.st_ino)?;
+                if flags & libc::O_TRUNC != 0 {
+                    file.set_len(0).map_err(io_error)?;
+                }
                 Ok(self.add_handle(Handle::File {
                     file,
                     needs_flush: flags & libc::O_ACCMODE != libc::O_RDONLY
@@ -593,12 +627,15 @@ impl HomeFs {
                 }))
             }
             Location::RemoteP2p(owner) => {
-                let open = |client: &mut Client| client.open(path, flags, directory);
-                let (remote, _, prefetched) = if flags & (libc::O_TRUNC | libc::O_CREAT) != 0 {
+                let expected = self.expected_backing(path, &owner);
+                let open =
+                    |client: &mut Client| client.open_if_identity(path, flags, directory, expected);
+                let (remote, attr, prefetched) = if flags & (libc::O_TRUNC | libc::O_CREAT) != 0 {
                     self.p2p_mutating_path_call(&owner, open)?
                 } else {
                     self.p2p_path_call(&owner, open)?
                 };
+                self.accept_opened_backing(path, &owner, attr.dev, attr.ino)?;
                 Ok(self.add_handle(Handle::P2p {
                     owner,
                     remote,
@@ -996,11 +1033,12 @@ impl Filesystem for HomeFs {
     }
 
     fn open(&mut self, _: &Request<'_>, ino: u64, flags: i32, reply: ReplyOpen) {
-        match self
-            .path(ino)
-            .map(str::to_owned)
-            .and_then(|path| self.open_existing(&path, flags, false))
-        {
+        match self.path(ino).map(str::to_owned).and_then(|path| {
+            if self.ids.get(&path) != Some(&ino) {
+                return Err(libc::ESTALE);
+            }
+            self.open_existing(&path, flags, false)
+        }) {
             Ok(handle) => {
                 self.register_handle_inode(handle, ino);
                 reply.opened(handle, 0)
@@ -1123,11 +1161,12 @@ impl Filesystem for HomeFs {
     }
 
     fn opendir(&mut self, _: &Request<'_>, ino: u64, flags: i32, reply: ReplyOpen) {
-        match self
-            .path(ino)
-            .map(str::to_owned)
-            .and_then(|path| self.open_existing(&path, flags, true))
-        {
+        match self.path(ino).map(str::to_owned).and_then(|path| {
+            if self.ids.get(&path) != Some(&ino) {
+                return Err(libc::ESTALE);
+            }
+            self.open_existing(&path, flags, true)
+        }) {
             Ok(handle) => {
                 self.register_handle_inode(handle, ino);
                 reply.opened(handle, 0)
@@ -1179,7 +1218,13 @@ impl Filesystem for HomeFs {
         let result = (|| {
             let path = match handle {
                 Some(_) => None,
-                None => Some(self.path(ino)?.to_owned()),
+                None => {
+                    let path = self.path(ino)?.to_owned();
+                    if self.attr(&path)?.ino != ino {
+                        return Err(libc::ESTALE);
+                    }
+                    Some(path)
+                }
             };
             if let Some(size) = size {
                 self.set_len(path.as_deref().unwrap_or(""), handle, size)?;
@@ -1766,6 +1811,7 @@ fn shift_paths(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::p2p_rpc;
     use std::{
         io::{Read, Write},
         net::{TcpListener, TcpStream},
@@ -1865,6 +1911,50 @@ mod tests {
         );
         center.join().unwrap();
         server.join().unwrap();
+    }
+
+    #[test]
+    fn stale_remote_inode_cannot_open_replacement_name() {
+        let root = std::env::temp_dir().join(format!(
+            "dms-stale-open-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(root.join("job")).unwrap();
+        std::fs::write(root.join("job/x"), b"old").unwrap();
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let endpoint = listener.local_addr().unwrap().to_string();
+        let serving = root.clone();
+        thread::spawn(move || {
+            p2p_rpc::serve_listener(listener, serving, "token".to_owned()).unwrap()
+        });
+
+        let mut home = HomeFs::new(
+            "B".to_owned(),
+            "unused".to_owned(),
+            root.join("unused"),
+            root.join("peers"),
+            Arc::new(RwLock::new(HashSet::new())),
+            BackendMode::P2p,
+            "token".to_owned(),
+        );
+        home.owners.insert("job".to_owned(), "A".to_owned());
+        home.p2p_endpoints.insert("A".to_owned(), endpoint);
+        let old_ino = home.attr("/job/x").unwrap().ino;
+        std::fs::rename(root.join("job/x"), root.join("job/y")).unwrap();
+        std::fs::write(root.join("job/x"), b"new").unwrap();
+
+        assert_eq!(
+            home.open_existing("/job/x", libc::O_WRONLY | libc::O_TRUNC, false)
+                .unwrap_err(),
+            libc::ESTALE
+        );
+        assert_eq!(std::fs::read(root.join("job/x")).unwrap(), b"new");
+        assert_ne!(home.attr("/job/x").unwrap().ino, old_ino);
+        std::fs::remove_dir_all(root).unwrap();
     }
 
     #[test]

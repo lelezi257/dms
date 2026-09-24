@@ -48,4 +48,4 @@ W2 第一轮 MooseFS 出现 2310.99 ms，未剔除；交错顺序为奇数轮 DM
 
 Linux 安装包三 VM P2P/NFS 各 10/10 步通过。另将六个根目录置于预约、删除中、tombstone 和活跃的中间点，`SIGKILL` 中心及 Home 后重启均按盘上实际状态收敛；仅预约而目录未落盘会撤销预约，重试 `mkdir 0710` 保留权限；活跃目录若物理消失则拒绝 Home 启动。VZ `--force` 停 A 后 B 无法接管，原 VM 回来后文件可由 A/B 重开。该实验先显式同步本地数据，不等于物理存储控制器断电证明。
 
-本地 W1 两份独立六轮 DMS/MooseFS p50 比值为 **0.409/0.400**；同场 DMS/薄 FUSE/Native/MooseFS p50 分别为 281/218/130/686 ms 和 263/218/122/657 ms。远端 W2 六轮 P2P 为 **0.969**（332/343 ms），NFS 为 **7.337**（2563/349 ms）；NFS 只保留后端功能，性能优化后置。完整逐轮值、构包 SHA、脚本及清理收据见工作区 `evidence/2026-09-24-agent-home-fault-closure/`。Linux 42 项单测、Clippy 和 release 构建通过；默认 MooseFS 与本机单副本保存仍非等物理耐久对照。
+本地 W1 两份独立六轮 DMS/MooseFS p50 比值为 **0.409/0.400**；同场 DMS/薄 FUSE/Native/MooseFS p50 分别为 281/218/130/686 ms 和 263/218/122/657 ms。远端 W2 六轮 P2P 为 **0.969**（332/343 ms），NFS 为 **7.337**（2563/349 ms）；NFS 只保留后端功能，性能优化后置。完整逐轮值、构包 SHA、脚本及清理收据见工作区 `evidence/2026-09-24-agent-home-fault-closure/`。Linux 安装包版本 42 项单测、Clippy 和 release 构建通过；随后仅增强 `OPEN(O_TRUNC)` 故障测试，最终源码 43 项单测和 Clippy 通过，生产代码及安装包不变。默认 MooseFS 与本机单副本保存仍非等物理耐久对照。

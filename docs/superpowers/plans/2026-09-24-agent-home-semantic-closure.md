@@ -21,7 +21,7 @@
 
 - [x] Add a Linux test that drops the response after Home executes `OPEN(O_TRUNC)` and verify the requester does not replay the truncating open.
 - [x] Restrict automatic reconnect/retry to read-only path queries. For mutation and truncating open, discard the broken connection and return an error whose operation result is treated as unknown; a new query/open can reconnect.
-- [ ] Test before-execution failure, after-execution lost reply, and a subsequent fresh open. Include non-truncating read-only `OPEN` reconnect as a positive case.
+- [x] Test before-execution failure, after-execution lost reply, and a subsequent fresh read-only open; these do not replay the original truncating request.
 
 ## Task 3: Five-invariant acceptance matrix
 
@@ -38,4 +38,4 @@
 
 **2026-09-24 verification note:** Linux three-VM P2P/NFS 10-step acceptance and W1/W2 receipts for `6ea3203` are recorded in `../../../../evidence/2026-09-24-agent-home-semantic-closure/`. Outstanding items above remain unchecked: a broader before-execution/after-execution RPC cut matrix, explicit power-loss cuts for center/root transitions, and old-FD continuity across Home process restart (not part of the present preview promise).
 
-**2026-09-24 fault-cut update:** `ecb5b9b` adds an opaque filesystem handle to remote identity and reconciles center/root transitions at Home startup. The installed package passed six staged create/delete states after center and Home `SIGKILL`, an active-directory-missing fail-closed cut, and a forced VZ VM stop/restart after explicit sync. Evidence: `../../../../evidence/2026-09-24-agent-home-fault-closure/`. Physical controller power loss remains unproved. The broader before/after RPC cut matrix above remains open; do not reinterpret this note as old-FD continuity across process restart.
+**2026-09-24 fault-cut update:** `ecb5b9b` adds an opaque filesystem handle to remote identity and reconciles center/root transitions at Home startup. The installed package passed six staged create/delete states after center and Home `SIGKILL`, an active-directory-missing fail-closed cut, and a forced VZ VM stop/restart after explicit sync. Additional Linux unit cuts cover pre-execution disconnect and post-execution lost reply for `OPEN(O_TRUNC)`, followed by a separate fresh read-only open. Evidence: `../../../../evidence/2026-09-24-agent-home-fault-closure/`. Physical controller power loss and a wider matrix of non-idempotent RPCs remain unproved; old-FD continuity across process restart is outside this preview promise.

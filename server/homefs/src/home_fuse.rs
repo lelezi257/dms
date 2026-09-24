@@ -1917,22 +1917,97 @@ mod tests {
     }
 
     #[test]
-    fn truncating_remote_open_is_not_replayed_after_lost_reply() {
+    fn truncating_remote_open_is_not_replayed_when_home_disconnects_before_execution() {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let endpoint = listener.local_addr().unwrap().to_string();
         let center_listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let center_endpoint = center_listener.local_addr().unwrap().to_string();
-        let advertised = endpoint.clone();
         let center = thread::spawn(move || {
             center_listener.set_nonblocking(true).unwrap();
-            let deadline = std::time::Instant::now() + Duration::from_secs(2);
+            let deadline = std::time::Instant::now() + Duration::from_millis(700);
+            let mut requests = 0;
+            while std::time::Instant::now() < deadline {
+                match center_listener.accept() {
+                    Ok((mut peer, _)) => {
+                        requests += 1;
+                        let mut request = [0; 64];
+                        let size = peer.read(&mut request).unwrap();
+                        assert_eq!(&request[..size], b"NODES\n");
+                        peer.write_all(format!("A unused {endpoint}\n").as_bytes())
+                            .unwrap();
+                    }
+                    Err(error) if error.kind() == io::ErrorKind::WouldBlock => {
+                        thread::sleep(Duration::from_millis(5));
+                    }
+                    Err(error) => panic!("center accept failed: {error}"),
+                }
+            }
+            requests
+        });
+        let server = thread::spawn(move || {
+            listener.set_nonblocking(true).unwrap();
+            let deadline = std::time::Instant::now() + Duration::from_millis(700);
+            let mut connections = 0;
+            while std::time::Instant::now() < deadline {
+                match listener.accept() {
+                    Ok((mut peer, _)) => {
+                        connections += 1;
+                        let auth = read_test_frame(&mut peer);
+                        assert_eq!(auth[0], 0);
+                        write_test_frame(&mut peer, &0_u32.to_be_bytes());
+                        // No OPEN request is executed before the connection dies.
+                    }
+                    Err(error) if error.kind() == io::ErrorKind::WouldBlock => {
+                        thread::sleep(Duration::from_millis(5));
+                    }
+                    Err(error) => panic!("server accept failed: {error}"),
+                }
+            }
+            connections
+        });
+        let mut fs = HomeFs::new(
+            "B".to_owned(),
+            center_endpoint,
+            PathBuf::from("/tmp/local"),
+            PathBuf::from("/tmp/peers"),
+            Arc::new(RwLock::new(HashSet::new())),
+            BackendMode::P2p,
+            "token".to_owned(),
+        );
+        fs.owners.insert("job".to_owned(), "A".to_owned());
+        assert!(
+            fs.open_existing("/job/x", libc::O_WRONLY | libc::O_TRUNC, false)
+                .is_err()
+        );
+        assert_eq!(center.join().unwrap(), 1);
+        assert_eq!(server.join().unwrap(), 1);
+    }
+
+    #[test]
+    fn truncating_remote_open_is_not_replayed_after_lost_reply() {
+        let root = test_dir("lost-truncate-reply");
+        fs::create_dir(root.join("job")).unwrap();
+        fs::write(root.join("job/x"), b"original").unwrap();
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let endpoint = listener.local_addr().unwrap().to_string();
+        let fresh_listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let fresh_endpoint = fresh_listener.local_addr().unwrap().to_string();
+        let serving = root.clone();
+        thread::spawn(move || {
+            p2p_rpc::serve_listener(fresh_listener, serving, "token".to_owned()).unwrap()
+        });
+        let center_listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let center_endpoint = center_listener.local_addr().unwrap().to_string();
+        let center = thread::spawn(move || {
+            center_listener.set_nonblocking(true).unwrap();
+            let deadline = std::time::Instant::now() + Duration::from_secs(5);
             while std::time::Instant::now() < deadline {
                 match center_listener.accept() {
                     Ok((mut peer, _)) => {
                         let mut request = [0; 64];
                         let size = peer.read(&mut request).unwrap();
                         assert_eq!(&request[..size], b"NODES\n");
-                        peer.write_all(format!("A unused {advertised}\n").as_bytes())
+                        peer.write_all(format!("A unused {fresh_endpoint}\n").as_bytes())
                             .unwrap();
                         return;
                     }
@@ -1944,6 +2019,7 @@ mod tests {
             }
         });
         let (send_count, receive_count) = mpsc::channel();
+        let affected = root.join("job/x");
         let server = thread::spawn(move || {
             listener.set_nonblocking(true).unwrap();
             let deadline = std::time::Instant::now() + Duration::from_secs(2);
@@ -1963,9 +2039,15 @@ mod tests {
                 let request = read_test_frame(&mut peer);
                 assert_eq!(request[0], 4);
                 requests += 1;
-                if requests == 2 {
-                    write_test_frame(&mut peer, &(libc::EIO as u32).to_be_bytes());
-                }
+                // The Home executed O_TRUNC, but the response is lost. The
+                // requester must report uncertainty and never issue this OPEN
+                // a second time on its own.
+                fs::OpenOptions::new()
+                    .write(true)
+                    .open(&affected)
+                    .unwrap()
+                    .set_len(0)
+                    .unwrap();
             }
             send_count.send(requests).unwrap();
         });
@@ -1985,12 +2067,19 @@ mod tests {
             fs.open_existing("/job/x", libc::O_WRONLY | libc::O_TRUNC, false)
                 .is_err()
         );
+        assert_eq!(std::fs::read(root.join("job/x")).unwrap(), b"");
         assert_eq!(
             receive_count.recv_timeout(Duration::from_secs(3)).unwrap(),
             1
         );
+        // A new, read-only OPEN is a separate caller decision and reconnects
+        // to the actual Home service after checking the on-disk outcome.
+        std::fs::write(root.join("job/x"), b"recovered").unwrap();
+        let handle = fs.open_existing("/job/x", libc::O_RDONLY, false).unwrap();
+        fs.close_handle(handle).unwrap();
         center.join().unwrap();
         server.join().unwrap();
+        cleanup(root);
     }
 
     #[test]

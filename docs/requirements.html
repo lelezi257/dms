@@ -28,12 +28,12 @@
 <tr><td>I5 回收</td><td>删除一个版本别名后，已在使用它的读者仍可完成当前读；最终回收未引用数据。</td><td>版本固定身份、引用/保留期与垃圾回收不得竞态删除活跃读者所需 Blob。</td></tr>
 </tbody></table></div>
 <p><span class="tag">设计选定</span> “多副本”默认指<strong>至少两个不同物理节点的持久副本</strong>，并把副本域显式记录在版本中；单个节点上的两个目录不算两份。首版在仅两节点时，少于两份不能宣称发布成功；若运维允许降低副本数，必须创建可见的低耐久策略而非静默降级。缓存节点和 P2P 中转节点不计入副本数。已发布版本的 manifest 与提交记录也必须在至少两个不同物理节点持久可恢复，不能让 Master 单盘成为整版消失的唯一故障点；Master 服务本身首版仍可单主、故障时暂停新发布。高并发启动时优先从副本和已验证缓存读取；源节点/缓存选择策略不改变版本内容。</p><div class="callout warn">“快照”在本文默认是<strong>文件或磁盘内容快照</strong>。Firecracker 的 VM 状态、内存、设备快照有自己的工件和恢复规则，AFS 不把一个磁盘文件误称为可恢复运行进程的完整 VM 快照。（<a href="https://github.com/firecracker-microvm/firecracker/blob/main/docs/snapshotting/snapshot-support.md">Firecracker</a>；<a href="https://github.com/e2b-dev/runtime/blob/main/docs/ARCHITECTURE.md">E2B</a>）</div></section>
-<section class="section" id="shared"><h2>04 · 两类业务共用的外部合同</h2><div class="tablewrap"><table><thead><tr><th>主题</th><th>需求</th><th>首版明确不承诺</th></tr></thead><tbody>
+<section class="section" id="shared"><h2>04 · 两类业务共用的外部合同</h2><p><span class="tag decision">近计算、P2P</span> Worker 与计算节点共置。管理面暴露 workspace Home 与镜像副本/缓存位置，支持亲和调度；本地命中优先本机访问，缺失时 worker 通过 AFS P2P 直接向 Home 或镜像持有者取数据。产品不保留 NFS 后端；Master 管理位置和权威，不中转文件内容。P2P 的语义覆盖与性能按 case 验收。</p><div class="tablewrap"><table><thead><tr><th>主题</th><th>需求</th><th>首版明确不承诺</th></tr></thead><tbody>
 <tr><td>入口与命名空间</td><td>每 worker 一个 FUSE daemon 和一个可见挂载根；根下按类型路由。Master 对 workspace Home 与已发布版本提供管理面查询。</td><td>跨后端原子 rename/link、以通用对象 API 写版本。</td></tr>
 <tr><td>权威与分区</td><td>Master 持久保存 workspace 与私有 draft 的粗粒度归属/世代、版本目录和副本位置；已确认的根目录/版本控制记录跨两个故障域可恢复，数据读写不逐次找 Master。丢失 Master 时已有本地 Home 与已知不可变版本可按安全条件继续；创建、迁移、发布暂停。</td><td>网络分区时自动选第二个 Home、无围栏的故障切换。</td></tr>
 <tr><td>安全与隔离</td><td>挂载路径不能越过 workspace/版本根；身份、权限、跨节点传输认证、租户范围、版本校验应可审计。为性能合并小文件不能跨租户泄露内容。</td><td>因 P2P 可达就信任对端返回的未经校验数据。</td></tr>
-<tr><td>运维与可观测</td><td>暴露 Home 命中率、FUSE 调用、元数据与数据阶段耗时、P2P/NFS 请求、缓存命中与失效、发布队列、副本不足、源切换、GC 和失败原因。</td><td>只给单一 E2E 数字而无法归因。</td></tr>
-<tr><td>部署</td><td>2–4 节点 Linux；提供源码构建与安装包路径。具体内核、FUSE、NFS/文件句柄、快照、磁盘要求在实现时明示并探测。</td><td>所有内核/文件系统能力天然存在。</td></tr>
+<tr><td>运维与可观测</td><td>暴露 Home 命中率、FUSE 调用、元数据与数据阶段耗时、P2P 请求、缓存命中与失效、发布队列、副本不足、源切换、GC 和失败原因。</td><td>只给单一 E2E 数字而无法归因。</td></tr>
+<tr><td>部署</td><td>2–4 节点 Linux；提供源码构建与安装包路径。具体内核、FUSE、稳定文件句柄、快照、磁盘要求在实现时明示并探测。</td><td>所有内核/文件系统能力天然存在。</td></tr>
 </tbody></table></div></section>
 <section class="section" id="acceptance"><h2>05 · 验收以可观察行为为准</h2><div class="tablewrap"><table><thead><tr><th>维度</th><th>验收输入与指标</th><th>判定方式</th></tr></thead><tbody>
 <tr><td>Workspace 功能</td><td>W0–W5，至少 2 节点，再覆盖 4 节点；文件内容、errno、旧句柄、同名重建、close-to-open、<code>fsync</code>。</td><td>每个承诺有 Linux 真 FUSE E2E；未支持操作列在兼容表，不以“编译通过”代替。</td></tr>

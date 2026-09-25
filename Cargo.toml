@@ -1,11 +1,61 @@
+[package]
+name = "afs"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Agent FS process and backend foundation"
+publish = false
+
 [workspace]
 members = [
+    ".",
+    "client",
+    "common/error",
     "common/logging",
     "common/metrics",
+    "common/protocol",
     "common/tracing",
     "common/transport",
 ]
 resolver = "3"
+
+[features]
+default = ["ownerfs", "blobfs"]
+ownerfs = []
+blobfs = []
+rdma = ["afs-transport/rdma"]
+
+[dependencies]
+afs-error = { path = "common/error" }
+afs-logging = { path = "common/logging" }
+afs-metrics = { path = "common/metrics" }
+afs-protocol = { path = "common/protocol" }
+afs-tracing = { path = "common/tracing", features = ["runtime"] }
+afs-transport = { path = "common/transport", default-features = false, features = ["grpc", "shm"] }
+
+clap = { version = "4.5.51", features = ["derive"] }
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0"
+toml = "0.9.8"
+tokio = { version = "1.47.1", features = ["full"] }
+tokio-stream = { version = "0.1.17", features = ["net"] }
+tonic = { version = "0.14.6", features = ["tls-ring"] }
+prost = "0.14"
+axum = "0.8"
+thiserror = "2.0.16"
+libc = "0.2"
+fuser = { version = "0.16.0", default-features = false, features = ["abi-7-31"] }
+
+[dev-dependencies]
+tempfile = "3"
+afs-client = { path = "client" }
+hyper-util = { version = "0.1", features = ["tokio"] }
+opentelemetry-proto = { version = "0.32", default-features = false, features = ["gen-tonic", "trace"] }
+tower = { version = "0.5", features = ["util"] }
+
+[lints]
+workspace = true
 
 [workspace.package]
 version = "0.1.0"

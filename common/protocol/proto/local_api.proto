@@ -1,0 +1,45 @@
+syntax = "proto3";
+package afs.local.v1;
+
+// 本协议只在本机 UDS 上使用。LocalShmGrant 描述如何取得共享缓冲 FD，
+// token 是一次性 broker grant 匹配信息；file_offset 是文件偏移，region_offset 是缓冲偏移。
+// 两个偏移属于不同空间，不能互换。bytes token 不是文件内容。
+
+// 本机 SDK → Node 的高性能数据 API 控制协议，使用 gRPC over UDS。
+// 内容通过共享内存传递；无 SHM 时使用 POSIX，不提供远端 SDK 或内容 gRPC 兜底。
+
+service LocalData {
+  rpc Read(LocalReadRequest) returns (LocalReadReply);
+  rpc Write(LocalWriteRequest) returns (LocalWriteReply);
+}
+
+message LocalShmGrant {
+  string broker_socket_path = 1;
+  bytes token = 2;
+  uint64 session_id = 3;
+  uint64 region_id = 4;
+  uint64 region_offset = 5;
+  uint32 length = 6;
+}
+
+message LocalReadRequest {
+  string name = 1;
+  uint64 file_offset = 2;
+  uint32 length = 3;
+  LocalShmGrant target = 4;
+}
+
+message LocalReadReply {
+  uint32 length = 1;
+}
+
+message LocalWriteRequest {
+  string name = 1;
+  uint64 file_offset = 2;
+  uint32 length = 3;
+  LocalShmGrant source = 4;
+}
+
+message LocalWriteReply {
+  uint32 written = 1;
+}

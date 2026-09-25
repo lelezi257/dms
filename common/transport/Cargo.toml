@@ -4,12 +4,23 @@ version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
-description = "Shared gRPC connection and TLS configuration"
+description = "Shared transport mechanisms and optional data-channel module boundaries"
 publish = false
 
+[features]
+default = ["grpc"]
+grpc = ["dep:thiserror", "dep:tonic"]
+rdma = []
+shm = ["dep:libc", "dep:nix"]
+
 [dependencies]
-thiserror = "2.0.16"
-tonic = { version = "0.14.6", features = ["tls-ring"] }
+thiserror = { version = "2.0.16", optional = true }
+tonic = { version = "0.14.6", features = ["tls-ring"], optional = true }
+libc = { version = "0.2", optional = true }
+nix = { version = "0.29", features = ["socket", "uio"], optional = true }
+
+[build-dependencies]
+cc = "1.2"
 
 [dev-dependencies]
 # 仅供真实 TCP socket 测试使用，复用工作区已锁定的库，不进入生产依赖。
@@ -18,3 +29,7 @@ tokio-stream = { version = "0.1.17", features = ["net"] }
 
 [lints]
 workspace = true
+
+[[test]]
+name = "tcp_config"
+required-features = ["grpc"]

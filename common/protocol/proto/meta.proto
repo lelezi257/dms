@@ -1,0 +1,7 @@
+syntax = "proto3";
+package afs.meta.v1;
+// 当前只有连通性 Ping：不授予根目录访问权，也不持久化节点注册。
+// 后续根位置查询和授权属于 Meta 业务；不能把 Ping 成功解释成已获授权。
+service Meta { rpc Ping(PingRequest) returns (PingReply); }
+message PingRequest { string node_id = 1; }
+message PingReply { string message = 1; string instance = 2; }

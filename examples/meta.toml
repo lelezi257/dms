@@ -1,0 +1,5 @@
+id = "meta"
+grpc_listen = "127.0.0.1:7400"
+rest_listen = "127.0.0.1:7401"
+log_level = "info"
+trace_enabled = false

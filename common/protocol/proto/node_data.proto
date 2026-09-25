@@ -1,0 +1,48 @@
+syntax = "proto3";
+package afs.node.data.v1;
+
+// DataTransfer 决定内容在哪：GrpcInline 使用 data 字段；RdmaOneSided 使用 session_id
+// 找协商好的 MR/QP，data 字段为空。Proto 不封装 verbs 操作本身。
+// name 当前是诊断目录下的单组件对象名，不是完整 POSIX 路径或稳定文件句柄。
+
+// Node → Node 文件读写命令及结果，gRPC 与 RDMA 数据模式共同使用。
+// gRPC 模式消息携带内容；RDMA 模式只传命令、范围和会话/缓冲区描述，内容走 DMA。
+// 参考已验证方向：文件写时 server RDMA READ，文件读时 server RDMA WRITE。
+// 单边传输完成不等于文件业务成功；结果不明不自动跨通道重放。
+
+service NodeData {
+  rpc Read(DataReadRequest) returns (DataReadReply);
+  rpc Write(DataWriteRequest) returns (DataWriteReply);
+}
+
+message DataReadRequest {
+  uint64 session_id = 1;
+  DataTransfer transfer = 2;
+  string name = 3;
+  uint64 offset = 4;
+  uint32 length = 5;
+}
+
+message DataReadReply {
+  bytes data = 1;
+  uint32 length = 2;
+}
+
+message DataWriteRequest {
+  uint64 session_id = 1;
+  DataTransfer transfer = 2;
+  string name = 3;
+  uint64 offset = 4;
+  bytes data = 5;
+  uint32 length = 6;
+}
+
+message DataWriteReply {
+  uint32 written = 1;
+}
+
+enum DataTransfer {
+  DATA_TRANSFER_UNSPECIFIED = 0;
+  DATA_TRANSFER_GRPC_INLINE = 1;
+  DATA_TRANSFER_RDMA_ONE_SIDED = 2;
+}

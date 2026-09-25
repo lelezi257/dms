@@ -1,0 +1,15 @@
+id = "node-a"
+grpc_listen = "127.0.0.1:7500"
+rest_listen = "127.0.0.1:7501"
+meta_endpoint = "http://127.0.0.1:7400"
+# peer_endpoint = "http://127.0.0.1:7600"
+fs = "all"
+data_mode = "grpc"
+data_dir = "/tmp/afs-node-a/data"
+uds_path = "/tmp/afs-node-a/local.sock"
+# mount = "/tmp/afs-node-a/mnt"
+timeout_ms = 5000
+log_level = "info"
+trace_enabled = false
+trace_sample_ratio = 1.0
+trace_endpoint = "http://127.0.0.1:4317"

@@ -7,7 +7,7 @@ on:
     branches: [main]
   workflow_dispatch:
 
-# 只验证基础 crate；产品后端尚未实现。
+# 验证正式基础框架；完整文件业务后续实施。
 permissions:
   contents: read
 
@@ -30,6 +30,8 @@ jobs:
           persist-credentials: false
       - name: Load pinned Rust toolchain
         run: rustup show active-toolchain
+      - name: Install Linux protocol and RDMA headers
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler libibverbs-dev pkg-config
       - name: Format
         run: cargo fmt --all --check
       - name: Check
@@ -38,3 +40,9 @@ jobs:
         run: cargo clippy --locked --workspace --all-features --all-targets -- -D warnings
       - name: Test
         run: cargo test --locked --workspace --all-features
+      - name: Backend feature matrix
+        run: bash tests/feature-matrix.sh
+      - name: Build foundation processes and SDK example
+        run: cargo build --locked --workspace --all-features --bins --examples
+      - name: Real process gRPC and SHM acceptance
+        run: python3 tests/foundation_e2e.py --bin-dir target/debug --skip-fuse --output /tmp/afs-foundation-evidence

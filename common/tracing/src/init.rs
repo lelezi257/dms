@@ -134,6 +134,7 @@ pub fn init_process_tracing(
     // public span contract, while dependency diagnostics remain in logs.
     let afs_targets = Targets::new()
         .with_default(LevelFilter::OFF)
+        .with_target("afs", LevelFilter::TRACE)
         .with_target("afs_client", LevelFilter::TRACE)
         .with_target("afs_server", LevelFilter::TRACE)
         .with_target("afs_tracing", LevelFilter::TRACE);

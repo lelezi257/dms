@@ -1,0 +1,45 @@
+syntax = "proto3";
+package afs.node.control.v1;
+
+// 会话协商/close 是传输资源控制，不是目录读写授权。
+// 就绪通过 RDMA SEND_WITH_IMM 探测确认，不再提供 ReadyData RPC。
+// 根撤销屏障、访问权等未来控制操作不能用 RDMA session_id 代替。
+
+// Node → Node 的控制命令：协同、屏障及传输会话建立/关闭等。
+// 控制统一 gRPC，不能把收到命令当作已经完成缓存/在途请求屏障。
+// 不承载文件内容。
+
+service NodeControl {
+  rpc NegotiateData(NegotiateDataRequest) returns (NegotiateDataReply);
+  rpc CloseData(CloseDataRequest) returns (CloseDataReply);
+  rpc Ping(PingRequest) returns (PingReply);
+}
+
+message NegotiateDataRequest {
+  bytes client_info = 1;
+  uint32 capacity = 2;
+  // 1 = RDMA 探测握手；0（旧实现）必须拒绝，不能绕过就绪屏障。
+  uint32 handshake_version = 3;
+}
+
+message NegotiateDataReply {
+  uint64 session_id = 1;
+  bytes server_info = 2;
+  uint32 capacity = 3;
+  bool rdma_supported = 4;
+  uint32 handshake_version = 5;
+}
+
+message CloseDataRequest {
+  uint64 session_id = 1;
+}
+
+message CloseDataReply {}
+
+message PingRequest {
+  string payload = 1;
+}
+
+message PingReply {
+  string payload = 1;
+}

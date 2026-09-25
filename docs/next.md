@@ -1,7 +1,11 @@
-# 下一步：按双工作负载设计进入实施穿刺
+# 下一步：依修订设计展开 Linux 实施
 
-以[需求分析](requirements.html)和[详细架构](architecture.html)为唯一输入，把模块边界及 W0–W5 / I0–I5 展开成 Linux 端到端实施和验收清单。先闭合根归属与 Home 本地普通文件，再验证 P2P 共享缓存/未知结果；镜像侧先证明稳定切点、两故障域 Blob + 控制记录原子发布，再接 gVisor 文件树和 Firecracker 完整磁盘文件。每一步报告本分支的新证据，不能继承旧 Home 分支的功能和性能结论。
+唯一输入是[需求合同](requirements.html)与[详细架构](architecture.html)。先使用“抽象语义”章固定类型和模块职责，再拆可观察的实现步骤；不要恢复旧 KV/Block 模型、NFS 产品后端或单独 Home 进程。
 
-优先技术穿刺：A/B 交替写和重开读；Master/Home/FUSE 故障与围栏；目标文件系统 reflink/快照与暂停复制回退；两节点发布中途断点和损坏恢复；gVisor 与 Firecracker 的真实运行时接入。性能分别对照 Native、薄 FUSE、MooseFS、文件树/磁盘文件分发基线，并采真实 Agent Home 命中率。
+1. 闭合 Master/MetaStore（先 etcd）、WorkspaceRoot 创建/恢复/删除和 RootGrant。验证根内 mkdir 不查中心；首次远端访问严格在原节点屏障 ACK 与授权提交之后。
+2. 在一个 AFS Worker 内接通 FUSE 与 WorkspaceService 本地文件路径，再接 P2P。按保守缓存合同验证同一根的 A/B 共享、长短写、旧 FD、重建和断回复；两个 namespace 的身份/权限/缓存键隔离。
+3. RuntimeAdapter 显式 RequestSnapshot：私有 draft、稳定切点、持续写下一时刻内容；验证 base/upper/whiteout 与 guest 在途 I/O，区分 cut-ready 与 published。
+4. 接通后台打包、两物理副本/manifest、原子版本提交、暂存保护、reader pin 和 GC，再验证 gVisor 文件树与 Firecracker 完整本地私有磁盘的真实接入。
+5. 按架构 RPC 账核对调用数与消息/字节，再跑 W1/W2/W3、发布、冷/热启动和 fan-out。copy-up 和物化 base 缺失内容单独计量；Native/薄 FUSE 是参考，W1 快 MooseFS 20% 为待验证工程目标。
 
-执行时遵守近计算与 P2P 原则，不恢复 NFS 后端；同时采本地访问比例、跨节点字节和镜像读源分布。Workspace 本地与共享路径都直接使用 Home 普通文件，Blob 只属于显式镜像/快照发布。
+内嵌 Raft 是后续 MetaStore 实现，不能只换选主库而遗漏持久状态机、迁移、旧主围栏和故障验证。设计文档不等于已实现；旧分支数字不作为当前验收，所有构建、测试和性能测量继续在 Linux。

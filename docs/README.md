@@ -2,7 +2,7 @@
 
 - [宪法](../PRINCIPLES.md)：已确定的产品和架构边界。
 - [需求分析](requirements.html)：两类工作负载的正式需求合同、关键 case 与验收口径。
-- [详细架构](architecture.html)：组件/模块/交互、时序、数据抽象、可靠性、性能和开源借鉴。
+- [详细架构](architecture.html)：抽象语义与命名、同进程组件、根授权/撤销 ACK、显式快照时序、RPC 预算、MetaStore/Raft、可靠性和开源证据。
 - [工作负载速览](workloads.md)：简要用户可见语义；细节以需求分析为准。
 - [状态](status.md)：当前代码真实能力与未验证事项。
 - [下一步](next.md)：设计后的实施与穿刺入口。

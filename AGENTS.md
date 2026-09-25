@@ -8,6 +8,13 @@
 - 改变两类工作负载的写入、发布、读取、故障或副本语义时，先更新原则和相应设计，并说明对验收的影响。普通实现细节不复制进本文件。
 - docs/workloads.md 只写简要用户可见语义，docs/requirements.html 是正式需求合同，docs/architecture.html 是正式架构正文；同一机制不另建并行权威。docs/status.md 记录当前已验证能力，docs/next.md 只保留下一阶段入口。历史决策留在 Git 历史，不把已删除旧文档重新标为现行规则。
 
+## 术语与时序约束
+
+- 以 docs/architecture.html 的“抽象语义”为命名权威：WorkspaceRoot、DataHome、RootGrant、ImageDraft、SnapshotCut、SnapshotVersion 分开。DataHome 是位置，不是进程；FUSE 与本地文件/P2P 服务在同一个 AFS Worker 中。
+- 根位置查询不是访问授权；首次跨节点访问先完成撤销屏障和原节点 ACK，再提交新授权。本地已授权热路径不逐操作找 Master。
+- Workspace 与 Image 为隔离 namespace；同一 workspace 跨节点访问仍需缓存一致性。镜像由 runtime 显式触发快照，不从 close/fsync 推断发布。
+- 控制面先 etcd，后可内嵌 Rust Raft；MetaStore 提供条件事务和可恢复提交，不能把普通 Redis、选主锁或 watch 通知当作同等保证。
+
 ## 代码边界
 
 - 以近计算与 P2P 为数据面原则：本地直接访问本机文件，跨节点 worker 直连；不恢复 NFS 产品后端。Master 只处理控制面，不代理数据内容。

@@ -62,7 +62,7 @@ pub enum LocalClientError {
         reason: &'static str,
     },
     Transport(tonic::transport::Error),
-    Status(tonic::Status),
+    Status(afs_error::Error),
     Shm(afs_transport::shm::ShmError),
     BrokerThread,
     Worker,
@@ -87,6 +87,40 @@ impl fmt::Display for LocalClientError {
     }
 }
 
+impl LocalClientError {
+    /// 返回统一错误。保留来源枚举便于本机诊断，但业务判断应使用 code/kind。
+    pub fn error(&self) -> afs_error::Error {
+        use afs_error::*;
+        if let Self::Status(error) = self {
+            return error.clone();
+        }
+        if let Self::Shm(afs_transport::shm::ShmError::Syscall(_, inner)) = self {
+            return Error::from(std::io::Error::new(inner.kind(), inner.to_string()));
+        }
+        let code = match self {
+            Self::InvalidArgument { .. } => CLIENT_ARGUMENT_INVALID,
+            Self::Transport(_) => CLIENT_CONNECTION_UNAVAILABLE,
+            Self::Timeout => CLIENT_DEADLINE_EXCEEDED,
+            Self::Closed => CLIENT_CLOSED,
+            Self::BrokerThread | Self::Worker => CLIENT_WORKER_FAILED,
+            Self::Shm(afs_transport::shm::ShmError::InvalidArgument { .. }) => {
+                CLIENT_ARGUMENT_INVALID
+            }
+            Self::Shm(afs_transport::shm::ShmError::InvalidToken) => CLIENT_PERMISSION_DENIED,
+            Self::Shm(afs_transport::shm::ShmError::Protocol(_)) => CLIENT_PROTOCOL_VIOLATION,
+            Self::Shm(_) => CLIENT_SHM_UNAVAILABLE,
+            Self::Status(_) => unreachable!(),
+        };
+        Error::coded(code, self.to_string())
+    }
+    pub fn code(&self) -> afs_error::ErrorCode {
+        self.error().code()
+    }
+    pub fn kind(&self) -> afs_error::ErrorKind {
+        self.error().kind()
+    }
+}
+
 impl std::error::Error for LocalClientError {}
 
 impl From<tonic::transport::Error> for LocalClientError {
@@ -97,7 +131,7 @@ impl From<tonic::transport::Error> for LocalClientError {
 
 impl From<tonic::Status> for LocalClientError {
     fn from(value: tonic::Status) -> Self {
-        Self::Status(value)
+        Self::Status(afs_transport::grpc::error_status::status_to_error(value))
     }
 }
 
@@ -225,10 +259,10 @@ fn spawn_write_worker(
                 .into_inner();
             broker_result?;
             if reply.written != length {
-                return Err(LocalClientError::InvalidArgument {
-                    field: "written",
-                    reason: "reply length did not match request",
-                });
+                return Err(LocalClientError::Status(afs_error::Error::coded(
+                    afs_error::CLIENT_PROTOCOL_VIOLATION,
+                    "reply length did not match request",
+                )));
             }
             Ok(reply.written as usize)
         }
@@ -267,10 +301,10 @@ fn spawn_read_worker(
                 .into_inner();
             broker_result?;
             if reply.length > length {
-                return Err(LocalClientError::InvalidArgument {
-                    field: "length",
-                    reason: "reply length exceeded request",
-                });
+                return Err(LocalClientError::Status(afs_error::Error::coded(
+                    afs_error::CLIENT_PROTOCOL_VIOLATION,
+                    "reply length exceeded request",
+                )));
             }
             buffer.read_local(reply.length as usize).map_err(Into::into)
         }

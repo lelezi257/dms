@@ -1,6 +1,6 @@
 # 运行 AFS 正式基础框架
 
-本轮提供可以继续写真实业务的进程、接口、配置和传输底座。Ping、8 字节普通文件读写和 FUSE 分派是验证负载。**尚不能用它存放 workspace 或发布镜像。** FUSE 的创建入口故意返回 `ENOSYS`，不会假装文件已创建。
+本文记录 2026-09-25 基础框架阶段的启动和诊断方式。该阶段 Ping、8 字节普通文件读写和 FUSE 分派是验证负载，当时尚不能存放 workspace 或发布镜像，FUSE 创建返回 `ENOSYS`。OwnerFs 后续已接通真实 workspace 文件业务，现行能力和边界见[阶段复验](reviews/ownerfs-v12-stage-review.md)；BlobFs 镜像发布仍未实现。
 
 ## Linux 构建
 
@@ -18,6 +18,8 @@ cargo build --locked --workspace --all-features --bins --examples
 默认编译 OwnerFs 和 BlobFs。`--fs ownerfs|blobfs|all` 决定运行时 namespace；未指定时使用当前编译进来的后端。指定未编译后端立即报错。无后端构建可保留 Meta；Node 不能启动。RDMA 是独立编译 feature，不随 SDK 引入。
 
 配置顺序与 main 一致：默认值 < TOML < 显式 CLI。未知 TOML 字段报错。`--print-config` 解析并检查配置，不启动进程。配置样例在 examples/meta.toml 和 examples/node.toml。
+
+OwnerFs 的 MetaStore 默认是持久 `etcd`，须配置 `--etcd-endpoint`。一次性本地测试可在具备 OwnerFs 节点证书配置的 Meta TOML 上加 `--meta-store memory`，或写 `meta_store = "memory"`；这会使用易失的内存后端，无需 etcd。另可显式使用 `--meta-store local-file`，将本机 WAL/快照存在 Meta `data_dir/meta-store` 下。所有后端都经过统一 Store 提交队列：后端 ACK 前不发布新状态，也不回复成功。Meta 选主另行设计，完整边界见[MetaStore 提交边界](plans/2026-09-27-meta-store.md)。`memory` 只保持进程存活期间的条件事务、授权与去重状态。Meta 一旦退出，根权威即丢失；重试前须停止所有旧 Node，以新的空数据目录启动测试，旧目录需另行检查和处置。不能用它验证 Meta 重启、故障恢复或持久性，也不能在 Meta 重启后让旧 Node 继续服务。正式功能/故障验收仍用 etcd。
 
 ## 启动及观察
 

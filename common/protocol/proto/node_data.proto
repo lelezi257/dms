@@ -1,15 +1,18 @@
 syntax = "proto3";
 package afs.node.data.v1;
 
-// DataTransfer 决定内容在哪：GrpcInline 使用 data 字段；RdmaOneSided 使用 session_id
-// 找协商好的 MR/QP，data 字段为空。Proto 不封装 verbs 操作本身。
-// name 当前是诊断目录下的单组件对象名，不是完整 POSIX 路径或稳定文件句柄。
+// Node 的 data 面同时承载传输诊断和文件业务命令；OwnerFiles 与未来
+// Blob 服务各自保持独立 service/消息，Handler 不与诊断 Storage 混用。
+// 控制面的根授权由 Meta 协调，传输会话由 node_control.proto 管理。
 
-// Node → Node 文件读写命令及结果，gRPC 与 RDMA 数据模式共同使用。
-// gRPC 模式消息携带内容；RDMA 模式只传命令、范围和会话/缓冲区描述，内容走 DMA。
-// 参考已验证方向：文件写时 server RDMA READ，文件读时 server RDMA WRITE。
-// 单边传输完成不等于文件业务成功；结果不明不自动跨通道重放。
+// 仅选择内容搬运方式；RDMA 不取代 gRPC 文件命令或业务成功回复。
+enum DataTransfer {
+  DATA_TRANSFER_UNSPECIFIED = 0;
+  DATA_TRANSFER_GRPC_INLINE = 1;
+  DATA_TRANSFER_RDMA_ONE_SIDED = 2;
+}
 
+// NodeData 仅用于 8-byte 传输诊断，不是可用文件系统接口。
 service NodeData {
   rpc Read(DataReadRequest) returns (DataReadReply);
   rpc Write(DataWriteRequest) returns (DataWriteReply);
@@ -41,8 +44,371 @@ message DataWriteReply {
   uint32 written = 1;
 }
 
-enum DataTransfer {
-  DATA_TRANSFER_UNSPECIFIED = 0;
-  DATA_TRANSFER_GRPC_INLINE = 1;
-  DATA_TRANSFER_RDMA_ONE_SIDED = 2;
+// OwnerFiles 是 OwnerFs 的远端文件数据面合同。
+//
+// NodeData 上面的 Read/Write 只服务 8-byte diagnostics；OwnerFiles 才表达真实
+// workspace 文件操作。所有请求都携带 RootAccess，服务端用 root_epoch、
+// access_generation、session_id 和 fencing_token 拦住旧授权、旧进程会话或撤销后的请求。
+// Open 返回 opaque handle，后续 read/write/flush/release 不重新解释路径，避免远端
+// 客户端持有本机 inode 细节。handle 只在当前 owner Node 进程会话内有效，Node
+// 重启后必须重新 open；根授权来自 RootAccess，文件强身份来自 FileIdentity，
+// 两者都不能只靠 dev+ino 代替。当前实现尚未接
+// OwnerFs，所以必须返回 UNIMPLEMENTED。
+service OwnerFiles {
+  rpc Lookup(OwnerLookupRequest) returns (OwnerLookupReply);
+  rpc GetAttr(OwnerGetAttrRequest) returns (OwnerGetAttrReply);
+  rpc SetAttr(OwnerSetAttrRequest) returns (OwnerSetAttrReply);
+  rpc Create(OwnerCreateRequest) returns (OwnerCreateReply);
+  rpc Mkdir(OwnerMkdirRequest) returns (OwnerMkdirReply);
+  rpc Unlink(OwnerUnlinkRequest) returns (OwnerUnlinkReply);
+  rpc Rmdir(OwnerRmdirRequest) returns (OwnerRmdirReply);
+  rpc Rename(OwnerRenameRequest) returns (OwnerRenameReply);
+  rpc Open(OwnerOpenRequest) returns (OwnerOpenReply);
+  rpc Readlink(OwnerReadlinkRequest) returns (OwnerReadlinkReply);
+  rpc Read(OwnerReadRequest) returns (OwnerReadReply);
+  rpc Write(OwnerWriteRequest) returns (OwnerWriteReply);
+  rpc Flush(OwnerFlushRequest) returns (OwnerFlushReply);
+  rpc Fsync(OwnerFsyncRequest) returns (OwnerFsyncReply);
+  rpc Release(OwnerReleaseRequest) returns (OwnerReleaseReply);
+  rpc Opendir(OwnerOpendirRequest) returns (OwnerOpendirReply);
+  rpc Readdir(OwnerReaddirRequest) returns (OwnerReaddirReply);
+  rpc FsyncDir(OwnerFsyncDirRequest) returns (OwnerFsyncDirReply);
+  rpc ReleaseDir(OwnerReleaseDirRequest) returns (OwnerReleaseDirReply);
+  rpc Symlink(OwnerSymlinkRequest) returns (OwnerSymlinkReply);
+  rpc Link(OwnerLinkRequest) returns (OwnerLinkReply);
 }
+
+// RootAccess 是一次 OwnerFs 远端访问的防陈旧身份。
+//
+// root_id/root_epoch/access_generation/holder_node_id/home_node_id/session_id/home_session_id/fencing_token
+// 必须直接来自 Meta grant。P2P 不携带 caller 自报的 root_path；服务端只用 root_id 在
+// 本机可信 catalog 找 backing root。文件相对 path 仍在各请求中用 bytes 表达。
+// 这些字段本身不证明授权仍有效：Home 首次见到 B grant 时须让 Meta 核验
+// 当前权威状态和经通道认证的 peer 身份，并缓存结果；真正撤权须围栏该缓存。
+// 即便根授权有效，也不证明某个路径仍是之前打开或查到的文件；
+// 同名删除重建、O_TRUNC 防误截断等文件级陈旧判断必须使用 FileIdentity。
+message RootAccess {
+  string root_id = 1;
+  uint64 root_epoch = 2;
+  uint64 access_generation = 3;
+  string holder_node_id = 4;
+  string home_node_id = 5;
+  string session_id = 6;
+  string fencing_token = 7;
+  // 若 A 已重启，旧 grant 即使 root_id/epoch 未变也必须拒绝。
+  string home_session_id = 8;
+}
+
+// DataPlane 让同一业务命令选择内容搬运方式。
+//
+// gRPC inline 时 bytes 字段携带内容；RDMA one-sided 时使用 rdma_session_id 与远端
+// 注册缓冲区窗口，bytes 必须为空。buffer_offset 指向会话 MR 内本次请求起点，长度取
+// OwnerReadRequest.length 或 OwnerWriteRequest.length。未来服务端必须校验
+// buffer_offset + length <= MR 容量；请求方必须保证注册内存生命周期覆盖 CQ 与业务完成。
+// 控制语义不随传输方式变化。
+message DataPlane {
+  DataTransfer transfer = 1;
+  uint64 rdma_session_id = 2;
+  uint64 buffer_offset = 3;
+}
+
+// FileIdentity 是 OwnerFs 返回给远端节点的不透明文件身份。
+//
+// 它可由 owner Node 内部选择 generation、持久 file id 或其它组合编码；远端不能解析，
+// 只能在 Open(expected_file_identity) 等请求中原样带回，帮助 owner Node 发现同名重建
+// 后的陈旧请求。不要只用 Linux dev+ino 作为强身份。
+message FileIdentity {
+  bytes opaque = 1;
+}
+
+message OwnerHandle {
+  bytes opaque = 1;
+}
+
+message OwnerDirectoryHandle {
+  bytes opaque = 1;
+}
+
+enum OwnerFileKind {
+  OWNER_FILE_KIND_UNSPECIFIED = 0;
+  OWNER_FILE_KIND_REGULAR = 1;
+  OWNER_FILE_KIND_DIRECTORY = 2;
+  OWNER_FILE_KIND_SYMLINK = 3;
+  OWNER_FILE_KIND_BLOCK_DEVICE = 4;
+  OWNER_FILE_KIND_CHAR_DEVICE = 5;
+  OWNER_FILE_KIND_FIFO = 6;
+  OWNER_FILE_KIND_SOCKET = 7;
+}
+
+message OwnerFileAttr {
+  FileIdentity identity = 1;
+  OwnerFileKind kind = 2;
+  uint32 mode = 3;
+  uint32 uid = 4;
+  uint32 gid = 5;
+  uint64 size = 6;
+  uint64 blocks = 7;
+  uint64 atime_ns = 8;
+  uint64 mtime_ns = 9;
+  uint64 ctime_ns = 10;
+  uint32 nlink = 11;
+  uint32 blksize = 12;
+}
+
+message OwnerSetAttr {
+  optional uint32 mode = 1;
+  optional uint32 uid = 2;
+  optional uint32 gid = 3;
+  optional uint64 size = 4;
+  optional uint64 atime_ns = 5;
+  optional uint64 mtime_ns = 6;
+}
+
+message OwnerLookupRequest {
+  RootAccess access = 1;
+  bytes path = 2;
+  // Optional only for the empty root path. Non-root lookup must carry the
+  // parent directory identity observed by the remote node, so Home can reject
+  // lookup through a stale old directory after same-name replacement.
+  FileIdentity expected_parent_identity = 3;
+}
+
+message OwnerLookupReply {
+  OwnerFileAttr attr = 1;
+  string owner_session_id = 2;
+}
+
+message OwnerGetAttrRequest {
+  RootAccess access = 1;
+  bytes path = 2;
+  FileIdentity expected_file_identity = 3;
+  // 若 handle 存在，服务端按已打开文件取属性；path/expected_file_identity 只作为无
+  // handle 时的 lookup 防陈旧输入，避免 rename/unlink 后旧 FD 的 fstat 误走新路径。
+  OwnerHandle handle = 4;
+}
+
+message OwnerGetAttrReply {
+  OwnerFileAttr attr = 1;
+  string owner_session_id = 2;
+}
+
+message OwnerSetAttrRequest {
+  RootAccess access = 1;
+  bytes path = 2;
+  FileIdentity expected_file_identity = 3;
+  OwnerSetAttr attr = 4;
+  // 若 handle 存在，服务端按已打开文件改属性/截断；path/expected_file_identity 只作为无
+  // handle 时的 lookup 防陈旧输入，避免 rename/unlink 后旧 FD 的 ftruncate 误走新路径。
+  OwnerHandle handle = 5;
+}
+
+message OwnerSetAttrReply {
+  OwnerFileAttr attr = 1;
+  string owner_session_id = 2;
+}
+
+message OwnerCreateRequest {
+  RootAccess access = 1;
+  bytes path = 2;
+  uint32 flags = 3;
+  uint32 mode = 4;
+  // Parent directory identity observed by the remote node before issuing this
+  // create. Home must reject the request if the parent path now names a
+  // different directory, otherwise a stale remote dentry can create in the
+  // wrong generation after same-name delete/recreate.
+  FileIdentity expected_parent = 5;
+}
+
+message OwnerCreateReply {
+  OwnerHandle handle = 1;
+  OwnerFileAttr attr = 2;
+  string owner_session_id = 3;
+}
+
+message OwnerMkdirRequest {
+  RootAccess access = 1;
+  bytes path = 2;
+  uint32 mode = 3;
+  // Required stale-parent guard for the containing directory.
+  FileIdentity expected_parent = 4;
+}
+
+message OwnerMkdirReply {
+  OwnerFileAttr attr = 1;
+  string owner_session_id = 2;
+}
+
+message OwnerUnlinkRequest {
+  RootAccess access = 1;
+  bytes path = 2;
+  FileIdentity expected_file_identity = 3;
+  // Required stale-parent guard for the containing directory.
+  FileIdentity expected_parent = 4;
+}
+
+message OwnerUnlinkReply {}
+
+message OwnerRmdirRequest {
+  RootAccess access = 1;
+  bytes path = 2;
+  FileIdentity expected_file_identity = 3;
+  // Required stale-parent guard for the containing directory.
+  FileIdentity expected_parent = 4;
+}
+
+message OwnerRmdirReply {}
+
+message OwnerRenameRequest {
+  RootAccess access = 1;
+  bytes old_path = 2;
+  bytes new_path = 3;
+  FileIdentity expected_old_identity = 4;
+  FileIdentity expected_new_identity = 5;
+  uint32 flags = 6;
+  // Required stale-parent guard for the source directory.
+  FileIdentity expected_old_parent = 7;
+  // Required stale-parent guard for the destination directory.
+  FileIdentity expected_new_parent = 8;
+}
+
+message OwnerRenameReply {}
+
+message OwnerOpenRequest {
+  RootAccess access = 1;
+  bytes path = 2;
+  uint32 flags = 3;
+  uint32 mode = 4;
+  FileIdentity expected_file_identity = 5;
+}
+
+message OwnerOpenReply {
+  OwnerHandle handle = 1;
+  FileIdentity file_identity = 2;
+  string owner_session_id = 3;
+  OwnerFileAttr attr = 4;
+  // A small read-only file can travel with OPEN. Presence matters: an empty
+  // file is a valid prefetched result, while absence means READ must use RPC.
+  optional bytes prefetched_data = 5;
+}
+
+message OwnerReadlinkRequest {
+  RootAccess access = 1;
+  bytes path = 2;
+  FileIdentity expected_file_identity = 3;
+}
+
+message OwnerReadlinkReply {
+  bytes target = 1;
+}
+
+message OwnerReadRequest {
+  RootAccess access = 1;
+  OwnerHandle handle = 2;
+  uint64 offset = 3;
+  uint32 length = 4;
+  DataPlane plane = 5;
+}
+
+message OwnerReadReply {
+  bytes data = 1;
+  uint32 read = 2;
+  bool eof = 3;
+}
+
+message OwnerWriteRequest {
+  RootAccess access = 1;
+  OwnerHandle handle = 2;
+  uint64 offset = 3;
+  bytes data = 4;
+  uint32 length = 5;
+  DataPlane plane = 6;
+}
+
+message OwnerWriteReply {
+  uint32 written = 1;
+}
+
+message OwnerFlushRequest {
+  RootAccess access = 1;
+  OwnerHandle handle = 2;
+}
+
+message OwnerFlushReply {}
+
+message OwnerFsyncRequest {
+  RootAccess access = 1;
+  OwnerHandle handle = 2;
+  bool datasync = 3;
+}
+
+message OwnerFsyncReply {}
+
+message OwnerReleaseRequest {
+  RootAccess access = 1;
+  OwnerHandle handle = 2;
+}
+
+message OwnerReleaseReply {}
+
+message OwnerOpendirRequest {
+  RootAccess access = 1;
+  bytes path = 2;
+  FileIdentity expected_file_identity = 3;
+}
+
+message OwnerOpendirReply {
+  OwnerDirectoryHandle handle = 1;
+  FileIdentity file_identity = 2;
+  string owner_session_id = 3;
+}
+
+message OwnerDirEntry {
+  bytes name = 1;
+  OwnerFileAttr attr = 2;
+  uint64 next_offset = 3;
+}
+
+message OwnerReaddirRequest {
+  RootAccess access = 1;
+  OwnerDirectoryHandle handle = 2;
+  uint64 offset = 3;
+  uint32 max_entries = 4;
+}
+
+message OwnerReaddirReply {
+  repeated OwnerDirEntry entries = 1;
+  bool eof = 2;
+}
+
+message OwnerFsyncDirRequest {
+  RootAccess access = 1;
+  OwnerDirectoryHandle handle = 2;
+  bool datasync = 3;
+}
+
+message OwnerFsyncDirReply {}
+
+message OwnerReleaseDirRequest {
+  RootAccess access = 1;
+  OwnerDirectoryHandle handle = 2;
+}
+
+message OwnerReleaseDirReply {}
+
+// Symlink/Link 首版明确在协议中占位，但当前 handler 返回 UNIMPLEMENTED。
+message OwnerSymlinkRequest {
+  RootAccess access = 1;
+  bytes link_path = 2;
+  bytes target = 3;
+}
+
+message OwnerSymlinkReply {}
+
+message OwnerLinkRequest {
+  RootAccess access = 1;
+  bytes old_path = 2;
+  bytes new_path = 3;
+  FileIdentity expected_old_identity = 4;
+}
+
+message OwnerLinkReply {}

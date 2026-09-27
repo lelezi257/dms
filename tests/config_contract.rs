@@ -1,4 +1,4 @@
-use afs::config::{Cli, Config, Role};
+use afs::config::{Cli, Config, MetaStoreBackend, Role};
 use clap::Parser;
 #[test]
 fn file_values_are_overridden_only_by_explicit_cli() {
@@ -43,4 +43,40 @@ fn invalid_limits_and_uncompiled_mode_fail() {
         let cli = Cli::parse_from(["afs-node", "--fs", "blobfs"]);
         assert!(Config::resolve(Role::Node, cli).is_err());
     }
+}
+
+#[test]
+fn meta_store_defaults_to_etcd_and_cli_overrides_toml() {
+    let default = Config::resolve(Role::Meta, Cli::parse_from(["afs-meta"])).unwrap();
+    assert_eq!(default.meta_store, MetaStoreBackend::Etcd);
+
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("meta.toml");
+    std::fs::write(&path, "meta_store = 'memory'\n").unwrap();
+    let file = Config::resolve(
+        Role::Meta,
+        Cli::parse_from(["afs-meta", "--config", path.to_str().unwrap()]),
+    )
+    .unwrap();
+    assert_eq!(file.meta_store, MetaStoreBackend::InMemory);
+
+    let cli = Config::resolve(
+        Role::Meta,
+        Cli::parse_from([
+            "afs-meta",
+            "--config",
+            path.to_str().unwrap(),
+            "--meta-store",
+            "etcd",
+        ]),
+    )
+    .unwrap();
+    assert_eq!(cli.meta_store, MetaStoreBackend::Etcd);
+
+    let local = Config::resolve(
+        Role::Meta,
+        Cli::parse_from(["afs-meta", "--meta-store", "local-file"]),
+    )
+    .unwrap();
+    assert_eq!(local.meta_store, MetaStoreBackend::LocalFile);
 }

@@ -137,7 +137,9 @@ async fn local_sdk_rejects_oversized_write_without_grpc_data_fallback() {
         .await
         .expect_err("oversized storage write must fail");
     match error {
-        LocalClientError::Status(status) => assert_eq!(status.code(), Code::InvalidArgument),
+        LocalClientError::Status(status) => {
+            assert_eq!(status.kind(), afs_error::ErrorKind::InvalidArgument)
+        }
         LocalClientError::Shm(afs_transport::shm::ShmError::InvalidArgument { field, .. }) => {
             assert_eq!(field, "len");
         }
@@ -183,7 +185,9 @@ async fn missing_file_preserves_rpc_error_and_releases_broker_before_return() {
         .await
         .expect("failure must be bounded")
         .expect_err("file absent");
-    assert!(matches!(error, LocalClientError::Status(status) if status.code() == Code::NotFound));
+    assert!(
+        matches!(error, LocalClientError::Status(status) if status.code() == afs_error::NODE_STORAGE_NOT_FOUND)
+    );
     assert_eq!(
         client
             .write("after-failure", 0, b"ok".to_vec())

@@ -11,16 +11,16 @@
 ## 术语与时序约束
 
 - 业务抽象参见 docs/architecture.html，目录/模块名见 docs/code-layout.md。进程为 afs-meta/afs-node，后端为 OwnerFs/BlobFs。DataHome 是位置，不是进程；FUSE 与本地文件/P2P 服务在同一个 afs-node 中。旧 HTML 的 Meta/Node 是角色描述，不另建同名模块。
-- 根位置查询不是访问授权；首次跨节点访问先完成撤销屏障和原节点 ACK，再提交新授权。本地已授权热路径不逐操作找 Meta。
+- 根位置查询不是访问授权；Meta 可同时授权 Home 与远端节点，远端首次加入不撤销 Home 授权或触发模式切换。Home 始终执行同一份普通文件的本地和远端操作；首版用保守 FUSE 缓存保证跨节点重新打开可见，删除、撤权和 Home 重启才处理旧授权围栏。本地已授权热路径不逐操作找 Meta。
 - Workspace 与 Image 为隔离 namespace；同一 workspace 跨节点访问仍需缓存一致性。镜像由 runtime 显式触发快照，不从 close/fsync 推断发布。
-- 控制面先 etcd，后可内嵌 Rust Raft；MetaStore 提供条件事务和可恢复提交，不能把普通 Redis、选主锁或 watch 通知当作同等保证。
+- 控制面通过统一 MetaStore 提交队列更新可见状态；后端确认前不发布新状态，也不回复成功。当前后端为默认 `etcd`、显式 `memory` 和 `local-file`，边界见 docs/plans/2026-09-27-meta-store.md。Meta 选主尚未完成；不能把普通 Redis、选主锁或 watch 通知当作等价持久权威。
 
 ## 代码边界
 
 - 以近计算与 P2P 为数据面原则：本地直接访问本机文件，跨节点 node 直连；不恢复 NFS 产品后端。Meta 只处理控制面，不代理数据内容。
 - 业务后端按 workspace 与 immutable image 分开。共同 FUSE 入口只负责命名空间和请求分派；Meta 只负责粗粒度元数据。不得把旧 KV 的 Object、Block、Extent、Current 或逐写 Meta commit 当成新架构的默认前提。
 - common/ 只保留确实可跨两个后端使用的观测和传输工具。抽取前先指出两个真实调用方，不为想象中的通用性增加框架。
-- 本机 client/ 只访问本机 Node：UDS gRPC 控制与 SHM 数据，无 SHM 时走 POSIX。Node→Meta 与 Node 控制用 gRPC，Node 数据用共同 API 下的 gRPC/单边 RDMA adapter，文件命令两种模式共用 Proto。公共 gRPC 仅 config/security，不封装业务 client/Handler/actor。
+- 本机 client/ 只访问本机 Node：UDS gRPC 控制与 SHM 数据，无 SHM 时走 POSIX。Node→Meta 与 Node 控制用 gRPC，Node 数据用共同 API 下的 gRPC/单边 RDMA adapter，文件命令两种模式共用 Proto。公共 gRPC 提供 config/security 和通用错误编解码，不封装业务 client/Handler/actor。
 - 不在 workspace 本地主路径强制镜像转换或远端发布；不向读者暴露未发布镜像。跨后端操作必须有明确结果，不能隐式改变数据语义。
 - 本分支删除旧产品实现和旧 FUSE 补丁，需用到时从 Git 历史或旧分支按新合同重新引入；不要整目录复制旧权威状态机。
 

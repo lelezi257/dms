@@ -12,3 +12,8 @@ pub mod node_data {
 pub mod local_api {
     tonic::include_proto!("afs.local.v1");
 }
+
+/// Structured failure detail carried inside google.rpc.Status.
+pub mod error {
+    tonic::include_proto!("afs.error.v1");
+}

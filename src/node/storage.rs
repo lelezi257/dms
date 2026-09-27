@@ -6,15 +6,211 @@
 //! 先保持 Node 内模块，未出现实际外部调用者前不拆通用存储 crate。
 
 use std::{
+    ffi::{OsStr, OsString},
     fmt,
     fs::{self, OpenOptions},
     io::{Read, Seek, Write},
+    os::unix::ffi::{OsStrExt, OsStringExt},
     os::unix::fs::OpenOptionsExt,
     path::{Path, PathBuf},
     sync::Arc,
 };
 
+pub mod localfs;
+
+pub use localfs::LocalFs;
+
 pub const MAX_TRANSFER_BYTES: usize = 1024 * 1024;
+
+/// Root-relative storage path used by concrete data backends.
+///
+/// This validates the part shared by OwnerFs and BlobFs before a disk backend
+/// sees a path. A storage path is always relative to its configured root, never
+/// absolute, and never contains `.`/`..`, empty components, or NUL bytes.
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub struct StoragePath {
+    inner: PathBuf,
+}
+
+impl StoragePath {
+    /// Accepts an empty path as the storage root. Byte-level validation is used
+    /// because `Path::components()` normalizes forms that this layer must reject.
+    pub fn new(path: impl AsRef<Path>) -> std::io::Result<Self> {
+        let path = path.as_ref();
+        let bytes = path.as_os_str().as_bytes();
+        if bytes.is_empty() {
+            return Ok(Self {
+                inner: PathBuf::new(),
+            });
+        }
+        if bytes.starts_with(b"/") || bytes.ends_with(b"/") {
+            return Err(invalid_path());
+        }
+        for component in bytes.split(|byte| *byte == b'/') {
+            if component.is_empty()
+                || component == b"."
+                || component == b".."
+                || component.contains(&0)
+            {
+                return Err(invalid_path());
+            }
+        }
+        Ok(Self {
+            inner: path.to_path_buf(),
+        })
+    }
+
+    #[must_use]
+    pub fn root() -> Self {
+        Self {
+            inner: PathBuf::new(),
+        }
+    }
+
+    #[must_use]
+    pub fn is_root(&self) -> bool {
+        self.inner.as_os_str().is_empty()
+    }
+
+    #[must_use]
+    pub fn as_path(&self) -> &Path {
+        &self.inner
+    }
+
+    /// Return a child path below this root-confined path.
+    ///
+    /// OwnerFs uses this to append a FUSE name to the already authorized root
+    /// path. Validation is deliberately byte-level, matching Linux path rules:
+    /// no empty name, slash, NUL, `.` or `..`.
+    pub fn join_component(&self, component: &OsStr) -> std::io::Result<Self> {
+        let bytes = component.as_bytes();
+        if bytes.is_empty()
+            || bytes == b"."
+            || bytes == b".."
+            || bytes.contains(&b'/')
+            || bytes.contains(&0)
+        {
+            return Err(invalid_path());
+        }
+        let mut joined = self.inner.clone();
+        joined.push(OsString::from_vec(bytes.to_vec()));
+        Self::new(joined)
+    }
+
+    /// Append another validated relative storage path.
+    pub fn join_path(&self, relative: &StoragePath) -> std::io::Result<Self> {
+        if relative.is_root() {
+            return Ok(self.clone());
+        }
+        let mut joined = self.inner.clone();
+        joined.push(relative.as_path());
+        Self::new(joined)
+    }
+
+    fn bytes(&self) -> &[u8] {
+        self.inner.as_os_str().as_bytes()
+    }
+}
+
+impl TryFrom<&Path> for StoragePath {
+    type Error = std::io::Error;
+
+    fn try_from(value: &Path) -> Result<Self, Self::Error> {
+        Self::new(value)
+    }
+}
+
+impl TryFrom<PathBuf> for StoragePath {
+    type Error = std::io::Error;
+
+    fn try_from(value: PathBuf) -> Result<Self, Self::Error> {
+        Self::new(value)
+    }
+}
+
+/// Linux open flags and creation mode for a backend file open.
+///
+/// FUSE and P2P forwarding already speak Linux file semantics, so this contract
+/// keeps those bits explicit. Backends may reject flags that cannot be honored
+/// safely under the configured root.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct OpenSpec {
+    pub flags: i32,
+    pub mode: u32,
+}
+
+impl OpenSpec {
+    #[must_use]
+    pub const fn new(flags: i32, mode: u32) -> Self {
+        Self { flags, mode }
+    }
+}
+
+/// Rename semantics requested by higher layers.
+///
+/// LocalFs implements `Replace`. Modes that require Linux `renameat2` atomicity
+/// are kept in the common contract but may return `Unsupported` without unsafe
+/// syscalls or an added safe wrapper dependency.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum RenameMode {
+    Replace,
+    NoReplace,
+    Exchange,
+}
+
+/// A file opened once by the backend.
+///
+/// `read_at` and `write_at` return POSIX-style short counts. `flush` is only
+/// userspace buffer flushing; durable boundaries are explicit `sync_data` and
+/// `sync_all`, so native close/write paths do not accidentally become fsync-heavy.
+pub trait FileHandle: Send + Sync {
+    fn read_at(&self, offset: u64, buffer: &mut [u8]) -> std::io::Result<usize>;
+    fn write_at(&self, offset: u64, buffer: &[u8]) -> std::io::Result<usize>;
+    fn metadata(&self) -> std::io::Result<fs::Metadata>;
+    fn set_len(&self, size: u64) -> std::io::Result<()>;
+    fn flush(&self) -> std::io::Result<()>;
+    fn sync_data(&self) -> std::io::Result<()>;
+    fn sync_all(&self) -> std::io::Result<()>;
+}
+
+/// Open directory handle used when durability belongs to directory metadata.
+///
+/// Root creation, deletion, and rename recovery need an explicit directory
+/// fsync point. This trait exposes that without mixing ownership state into the
+/// storage layer.
+pub trait DirectoryHandle: Send + Sync {
+    fn metadata(&self) -> std::io::Result<fs::Metadata>;
+    fn read_dir(&self) -> std::io::Result<Vec<OsString>>;
+    fn sync_all(&self) -> std::io::Result<()>;
+}
+
+/// Root-confined file store shared by OwnerFs and BlobFs implementations.
+///
+/// This layer owns local path safety and file/directory durability primitives.
+/// It does not know root ownership, cache revocation, image publication, or
+/// strong file identity expectations; those remain backend-specific state.
+pub trait FileStore: Send + Sync {
+    type File: FileHandle;
+    type Directory: DirectoryHandle;
+
+    fn open_file(&self, path: &StoragePath, spec: OpenSpec) -> std::io::Result<Self::File>;
+    fn open_dir(&self, path: &StoragePath) -> std::io::Result<Self::Directory>;
+    fn metadata(&self, path: &StoragePath) -> std::io::Result<fs::Metadata>;
+    fn read_dir(&self, path: &StoragePath) -> std::io::Result<Vec<OsString>>;
+    fn mkdir(&self, path: &StoragePath, mode: u32) -> std::io::Result<()>;
+    fn remove_file(&self, path: &StoragePath) -> std::io::Result<()>;
+    fn remove_dir(&self, path: &StoragePath) -> std::io::Result<()>;
+    fn rename(&self, from: &StoragePath, to: &StoragePath, mode: RenameMode)
+    -> std::io::Result<()>;
+    fn sync_root(&self) -> std::io::Result<()>;
+}
+
+fn invalid_path() -> std::io::Error {
+    std::io::Error::new(
+        std::io::ErrorKind::InvalidInput,
+        "storage path must be root-relative and must not contain empty, dot, dot-dot, slash-only, or NUL components",
+    )
+}
 
 #[derive(Clone, Debug)]
 /// 当前最小诊断存储：共同被节点数据 RPC 与本机 SDK Handler 调用。
@@ -156,6 +352,33 @@ fn is_simple_component(name: &str) -> bool {
         && name
             .bytes()
             .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-'))
+}
+
+/// 本地 SDK 与节点 P2P 共用，避免同一 I/O 错误随入口改变类别。
+impl From<StorageError> for afs_error::Error {
+    fn from(error: StorageError) -> Self {
+        use afs_error::*;
+        match error {
+            StorageError::BadName | StorageError::TooLarge | StorageError::Range => {
+                Error::coded(NODE_STORAGE_INVALID, error.to_string())
+            }
+            StorageError::UnsafeFileType => {
+                Error::coded(NODE_STORAGE_UNSAFE_TYPE, error.to_string())
+            }
+            StorageError::Io(inner) if inner.kind() == std::io::ErrorKind::NotFound => {
+                Error::coded(NODE_STORAGE_NOT_FOUND, inner.to_string())
+            }
+            StorageError::Io(inner) => {
+                let mapped = Error::from(inner);
+                if mapped.code() == IO_OTHER {
+                    Error::coded(NODE_STORAGE_IO, mapped.message())
+                } else {
+                    mapped
+                }
+            }
+            StorageError::Join(inner) => Error::coded(NODE_STORAGE_TASK_FAILED, inner.to_string()),
+        }
+    }
 }
 
 #[cfg(test)]

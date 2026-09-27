@@ -1,8 +1,10 @@
 //! Node → Node 文件数据操作 Handler。
 //!
-//! 这个文件实现 node_data.proto 生成的服务端 handler。它是“共同服务端入口”：
+//! 这个文件实现 node_data.proto 的诊断 handler。真实 OwnerFs 文件命令
+//! 在 data/owner.rs；二者不可共用无授权的 diagnostics Storage 入口。
+//! 对诊断请求而言，它是“共同服务端入口”：
 //! 无论远端客户端选择 gRPC inline 还是 RDMA，最终都会进入这里，完成相同的
-//! Storage read/write 业务语义。区别只在文件内容怎么搬：
+//! Storage read/write 诊断语义。区别只在文件内容怎么搬：
 //! - gRPC inline：内容直接放在 DataReadReply/DataWriteRequest 的 proto bytes 里；
 //! - RDMA one-sided：proto 只放命令、session_id、offset/len，不放文件内容。
 //!
@@ -14,6 +16,10 @@
 //!
 //! CQ completion 只证明 DMA 完成，不证明文件落盘；文件成功标准仍由 Storage/业务层决定。
 
+#[cfg(feature = "ownerfs")]
+pub mod owner;
+
+use afs_transport::grpc::error_status::{coded_status, error_to_status};
 use std::sync::Arc;
 #[cfg(feature = "rdma")]
 use std::sync::atomic::Ordering;
@@ -70,7 +76,10 @@ impl NodeData for NodeDataService {
             validate_length(request.length)?;
             let transfer = transfer_mode(request.transfer)?;
             if transfer == DataTransfer::Unspecified {
-                return Err(Status::invalid_argument("transfer is required"));
+                return Err(coded_status(
+                    afs_error::NODE_TRANSFER_INVALID,
+                    "transfer is required",
+                ));
             }
             validate_read_session(&self.sessions, request.session_id, transfer).await?;
             let data = self
@@ -79,8 +88,9 @@ impl NodeData for NodeDataService {
                 .await
                 .map_err(storage_status)?;
             debug_assert_eq!(data.len(), request.length as usize);
-            let actual_len = u32::try_from(data.len())
-                .map_err(|_| Status::internal("read length exceeds u32"))?;
+            let actual_len = u32::try_from(data.len()).map_err(|_| {
+                coded_status(afs_error::NODE_TRANSFER_INTERNAL, "read length exceeds u32")
+            })?;
             match transfer {
                 DataTransfer::GrpcInline => Ok(Response::new(DataReadReply {
                     length: actual_len,
@@ -114,7 +124,10 @@ impl NodeData for NodeDataService {
             let data = match transfer_mode(request.transfer)? {
                 DataTransfer::GrpcInline => {
                     if !request.length.eq(&0) && request.length as usize != request.data.len() {
-                        return Err(Status::invalid_argument("inline length/data mismatch"));
+                        return Err(coded_status(
+                            afs_error::NODE_TRANSFER_INVALID,
+                            "inline length/data mismatch",
+                        ));
                     }
                     validate_length(request.data.len() as u32)?;
                     request.data
@@ -122,7 +135,8 @@ impl NodeData for NodeDataService {
                 DataTransfer::RdmaOneSided => {
                     validate_length(request.length)?;
                     if !request.data.is_empty() {
-                        return Err(Status::invalid_argument(
+                        return Err(coded_status(
+                            afs_error::NODE_TRANSFER_INVALID,
                             "RDMA write must not include inline data",
                         ));
                     }
@@ -134,7 +148,10 @@ impl NodeData for NodeDataService {
                     .await?
                 }
                 DataTransfer::Unspecified => {
-                    return Err(Status::invalid_argument("transfer is required"));
+                    return Err(coded_status(
+                        afs_error::NODE_TRANSFER_INVALID,
+                        "transfer is required",
+                    ));
                 }
             };
             let written = self
@@ -153,13 +170,17 @@ impl NodeData for NodeDataService {
 
 fn validate_length(length: u32) -> Result<(), Status> {
     if length as usize > MAX_TRANSFER_BYTES {
-        return Err(Status::invalid_argument("transfer exceeds 1MiB"));
+        return Err(coded_status(
+            afs_error::NODE_TRANSFER_INVALID,
+            "transfer exceeds 1MiB",
+        ));
     }
     Ok(())
 }
 
 fn transfer_mode(value: i32) -> Result<DataTransfer, Status> {
-    DataTransfer::try_from(value).map_err(|_| Status::invalid_argument("unknown transfer mode"))
+    DataTransfer::try_from(value)
+        .map_err(|_| coded_status(afs_error::NODE_TRANSFER_INVALID, "unknown transfer mode"))
 }
 
 /// RDMA read 必须先校验 session，再碰 Storage。
@@ -177,17 +198,7 @@ async fn validate_read_session(
 }
 
 fn storage_status(error: StorageError) -> Status {
-    match error {
-        StorageError::BadName | StorageError::Range | StorageError::TooLarge => {
-            Status::invalid_argument(error.to_string())
-        }
-        StorageError::UnsafeFileType => Status::failed_precondition(error.to_string()),
-        StorageError::Io(error) if error.kind() == std::io::ErrorKind::NotFound => {
-            Status::not_found(error.to_string())
-        }
-        StorageError::Io(error) => Status::internal(error.to_string()),
-        StorageError::Join(error) => Status::internal(error.to_string()),
-    }
+    error_to_status(error.into())
 }
 
 /// 写文件 RDMA 路径：服务端从客户端 MR 拉取 bytes。
@@ -207,7 +218,7 @@ async fn rdma_read_from_client(
         endpoint.get_local(len).map_err(rdma_status)
     })
     .await
-    .map_err(|error| Status::internal(error.to_string()))?;
+    .map_err(|error| coded_status(afs_error::NODE_TRANSFER_INTERNAL, error.to_string()))?;
     if result.is_err() {
         session.poisoned.store(true, Ordering::SeqCst);
     }
@@ -221,7 +232,10 @@ async fn rdma_read_from_client(
     _session_id: u64,
     _len: usize,
 ) -> Result<Vec<u8>, Status> {
-    Err(Status::unavailable("RDMA feature is not enabled"))
+    Err(coded_status(
+        afs_error::NODE_TRANSFER_UNSUPPORTED,
+        "RDMA feature is not enabled",
+    ))
 }
 
 /// 读文件 RDMA 路径：服务端把 bytes 推到客户端 MR。
@@ -241,7 +255,7 @@ async fn rdma_write_to_client(
         endpoint.transfer_write(data.len()).map_err(rdma_status)
     })
     .await
-    .map_err(|error| Status::internal(error.to_string()))?;
+    .map_err(|error| coded_status(afs_error::NODE_TRANSFER_INTERNAL, error.to_string()))?;
     if result.is_err() {
         session.poisoned.store(true, Ordering::SeqCst);
     }
@@ -255,21 +269,31 @@ async fn rdma_write_to_client(
     _session_id: u64,
     _data: Vec<u8>,
 ) -> Result<(), Status> {
-    Err(Status::unavailable("RDMA feature is not enabled"))
+    Err(coded_status(
+        afs_error::NODE_TRANSFER_UNSUPPORTED,
+        "RDMA feature is not enabled",
+    ))
 }
 
 #[cfg(feature = "rdma")]
 fn rdma_status(error: afs_transport::rdma::RdmaError) -> Status {
-    Status::unavailable(error.to_string())
+    coded_status(afs_error::NODE_TRANSFER_UNAVAILABLE, error.to_string())
 }
 
 #[cfg(test)]
 mod tests {
+    use super::owner::make_owner_files_server;
     use super::*;
     use crate::node::rpc::{
         control::make_control_server,
         peer::{DataClientOptions, DataMode, connect_data_client},
     };
+    use afs_protocol::node_data::{
+        OwnerDirectoryHandle, OwnerFsyncRequest, OwnerGetAttrRequest, OwnerHandle,
+        OwnerOpenRequest, OwnerReaddirRequest, OwnerReadlinkRequest, RootAccess,
+        owner_files_client::OwnerFilesClient,
+    };
+    use afs_transport::grpc::error_status::status_to_error;
     use tokio::net::TcpListener;
     use tokio_stream::wrappers::TcpListenerStream;
     use tonic::transport::Server;
@@ -399,8 +423,109 @@ mod tests {
         server.abort();
     }
 
+    #[tokio::test]
+    async fn owner_files_service_is_registered_but_not_faked() {
+        let (_temp, endpoint, server) = spawn_grpc_server().await;
+        let mut client = OwnerFilesClient::connect(endpoint).await.unwrap();
+
+        let error = client
+            .open(OwnerOpenRequest {
+                access: Some(root_access()),
+                path: b"notes.txt".to_vec(),
+                flags: 0,
+                mode: 0,
+                expected_file_identity: None,
+            })
+            .await
+            .unwrap_err();
+
+        assert_owner_unimplemented(error);
+        server.abort();
+    }
+
+    #[tokio::test]
+    async fn owner_files_attr_dir_and_fsync_rpcs_are_registered_but_not_faked() {
+        let (_temp, endpoint, server) = spawn_grpc_server().await;
+        let mut client = OwnerFilesClient::connect(endpoint).await.unwrap();
+
+        assert_owner_unimplemented(
+            client
+                .get_attr(OwnerGetAttrRequest {
+                    access: Some(root_access()),
+                    path: b"notes.txt".to_vec(),
+                    expected_file_identity: None,
+                    handle: None,
+                })
+                .await
+                .unwrap_err(),
+        );
+        assert_owner_unimplemented(
+            client
+                .readdir(OwnerReaddirRequest {
+                    access: Some(root_access()),
+                    handle: Some(OwnerDirectoryHandle {
+                        opaque: b"dir-handle".to_vec(),
+                    }),
+                    offset: 0,
+                    max_entries: 16,
+                })
+                .await
+                .unwrap_err(),
+        );
+        assert_owner_unimplemented(
+            client
+                .fsync(OwnerFsyncRequest {
+                    access: Some(root_access()),
+                    handle: Some(OwnerHandle {
+                        opaque: b"file-handle".to_vec(),
+                    }),
+                    datasync: true,
+                })
+                .await
+                .unwrap_err(),
+        );
+        assert_owner_unimplemented(
+            client
+                .readlink(OwnerReadlinkRequest {
+                    access: Some(root_access()),
+                    path: b"link.txt".to_vec(),
+                    expected_file_identity: None,
+                })
+                .await
+                .unwrap_err(),
+        );
+
+        server.abort();
+    }
+
+    fn root_access() -> RootAccess {
+        RootAccess {
+            root_id: "workspace-1".into(),
+            root_epoch: 7,
+            access_generation: 3,
+            holder_node_id: "node-b".into(),
+            home_node_id: "node-a".into(),
+            session_id: "node-b-session-11".into(),
+            fencing_token: "grant-token-7-3".into(),
+            home_session_id: "node-a-session-9".into(),
+        }
+    }
+
+    fn assert_owner_unimplemented(error: tonic::Status) {
+        assert_eq!(error.code(), tonic::Code::Unimplemented);
+        assert_eq!(
+            status_to_error(error).code(),
+            afs_error::NODE_VFS_UNIMPLEMENTED
+        );
+    }
+
     async fn spawn_grpc_server() -> (tempfile::TempDir, String, tokio::task::JoinHandle<()>) {
-        let temp = tempfile::tempdir().unwrap();
+        let base = std::env::current_dir()
+            .unwrap()
+            .join("target")
+            .join("afs-test-tmp");
+        std::fs::create_dir_all(&base).unwrap();
+        let temp = tempfile::Builder::new().tempdir_in(base).unwrap();
         let storage = Arc::new(Storage::new(temp.path()).unwrap());
         let registry = RdmaSessionRegistry::new(None);
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -411,6 +536,7 @@ mod tests {
                 Server::builder()
                     .add_service(make_control_server(registry.clone()))
                     .add_service(make_data_server(storage, registry))
+                    .add_service(make_owner_files_server())
                     .serve_with_incoming(TcpListenerStream::new(listener))
                     .await
                     .unwrap();

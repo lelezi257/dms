@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Linux-only real-process framework acceptance. Python is a test tool, not runtime."""
-import argparse, errno, json, os, pathlib, signal, socket, subprocess, tempfile, time, urllib.request
+import argparse, errno, json, os, pathlib, signal, socket, subprocess, tempfile, time, urllib.request, urllib.error
 
 p=argparse.ArgumentParser();p.add_argument('--bin-dir',required=True);p.add_argument('--rdma-device');p.add_argument('--skip-fuse',action='store_true');p.add_argument('--output',required=True);args=p.parse_args()
 out=pathlib.Path(args.output);out.mkdir(parents=True,exist_ok=True)
@@ -63,6 +63,12 @@ try:
     check('SDK8bytes readback',sdk_result.get('ok') is True and sdk_result.get('written')==8,sdk_result)
     check('SDK used actual local file',(root/'a-data'/'diagnostics'/'sdk-eight').read_bytes()==b'AFShello')
     check('meta REST ping','pong' in http(mr,'/v1/ping'))
+    try:
+        http(ar,'/v1/diagnostics','POST')
+        check('unconfigured diagnostics rejected',False)
+    except urllib.error.HTTPError as error:
+        failure=json.loads(error.read())
+        check('REST stable error identity',error.code==412 and failure['error']['code']==0x04020002 and failure['error']['kind']=='FailedPrecondition',failure)
     check('node REST ping','pong' in http(br,'/v1/ping'))
     result=json.loads(http(br,'/v1/diagnostics','POST'))
     check('node-meta + node-node control/data',result.get('ok') is True,result)

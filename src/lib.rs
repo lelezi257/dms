@@ -11,3 +11,5 @@ pub mod node;
 
 pub mod config;
 pub mod runtime;
+
+pub mod error;

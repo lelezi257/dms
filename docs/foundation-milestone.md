@@ -21,6 +21,6 @@ fmt、严格 Clippy、编译 feature 矩阵、bins/examples 构建和严格 Rust
 
 ## 尚未提供
 
-完整 OwnerFs/BlobFs 文件业务、根授权、共享缓存一致性、镜像发布/副本/GC、持久恢复及生产鉴权尚未实现。诊断存储不能当成已授权业务接口。SHM/RDMA 暂存区仍有拷贝；RXE 证明机制，不证明硬件性能或跨机器收益。
+这份基础框架交付记录形成时，完整 OwnerFs/BlobFs 文件业务、根授权、共享缓存一致性、镜像发布/副本/GC、持久恢复及生产鉴权尚未实现；OwnerFs 后续进展见[阶段复验](reviews/ownerfs-v12-stage-review.md)。诊断存储不能当成已授权业务接口。SHM/RDMA 暂存区仍有拷贝；RXE 证明机制，不证明硬件性能或跨机器收益。
 
 下一阶段按[下一步](next.md)实现业务，不重新引入旧 NFS/KV 路径。

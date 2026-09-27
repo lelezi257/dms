@@ -19,3 +19,6 @@ pub mod connection;
 pub use connection::{
     LocalClient, LocalClientConfig, LocalClientError, max_parallel_shm_operations,
 };
+
+/// SDK callers can inspect native machine identities without depending on Tonic.
+pub use afs_error::{Error, ErrorCode, ErrorKind};

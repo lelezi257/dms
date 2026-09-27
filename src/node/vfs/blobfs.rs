@@ -7,7 +7,7 @@
 //! 不在此预先固定 extent/chunk 布局或把所有写回调映射成一个 Blob。
 
 use super::{Backend, CreateRequest, Namespace};
-use afs_error::{Error, ErrorKind, Result};
+use afs_error::Result;
 
 #[derive(Debug, Default)]
 /// 当前是无状态的后端接入点，下面只实现日志和明确拒绝。
@@ -26,10 +26,10 @@ impl Backend for BlobFs {
         Namespace::BlobFs
     }
 
-    fn create(&self, request: &CreateRequest) -> Result<()> {
+    fn probe_create(&self, request: &CreateRequest) -> Result<()> {
         afs_logging::info!("blobfs.create"; "namespace" => request.namespace.as_str(), "path" => request.name.as_str());
-        Err(Error::new(
-            ErrorKind::Unsupported,
+        Err(afs_error::Error::coded(
+            afs_error::NODE_VFS_UNIMPLEMENTED,
             "BlobFs draft create is not implemented in the foundation skeleton",
         ))
     }

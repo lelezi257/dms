@@ -377,3 +377,27 @@ async fn spawn_grpc_data_only_node() -> (tempfile::TempDir, String, tokio::task:
     });
     (temp, endpoint, server)
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+#[ignore = "requires AFS_TEST_RDMA_DEVICE with a working RXE/RDMA device"]
+async fn rdma_adapter_preserves_remote_error_before_poisoning_session() {
+    let device = rdma_device().expect("explicit device");
+    let (_temp, _registry, endpoint, server) =
+        spawn_real_rdma_node(device.clone(), Duration::from_secs(60)).await;
+    let mut client = connect_data_client(DataClientOptions {
+        endpoint,
+        mode: DataMode::Rdma,
+        rdma_device: Some(device),
+        timeout: Duration::from_secs(2),
+    })
+    .await
+    .unwrap();
+    let remote = client.read("missing", 0, 1).await.unwrap_err();
+    assert_eq!(remote.code(), afs_error::NODE_STORAGE_NOT_FOUND);
+    assert_eq!(remote.kind(), afs_error::ErrorKind::NotFound);
+    // Preserve the existing conservative failure policy; structured errors must not revive MR reuse.
+    let next = client.read("missing", 0, 1).await.unwrap_err();
+    assert_eq!(next.code(), afs_error::NODE_RDMA_SESSION_POISONED);
+    client.close().await.unwrap();
+    server.abort();
+}

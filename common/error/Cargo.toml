@@ -4,8 +4,11 @@ version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
-description = "Shared error-contract module skeleton"
+description = "Stable protocol-independent AFS error contract"
 publish = false
 
 [lints]
 workspace = true
+
+[dev-dependencies]
+toml = "0.9.8"

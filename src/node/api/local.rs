@@ -12,6 +12,7 @@
 //! 当前安全边界是 trusted local host：UDS socket 权限 + 一次性 token/TTL/会话标识
 //! 限制同机误用；它不是跨主机认证授权系统。
 
+use afs_transport::grpc::error_status::{coded_status, error_to_status};
 use std::{
     io,
     os::{
@@ -248,9 +249,10 @@ impl LocalDataService {
         // 控制面必须带 source grant；没有 grant 就直接失败，不能退化为 gRPC payload 写入。
         let grant = request
             .source
-            .ok_or_else(|| Status::invalid_argument("missing SHM source grant"))?;
+            .ok_or_else(|| coded_status(afs_error::NODE_SHM_INVALID, "missing SHM source grant"))?;
         if request.length != grant.length {
-            return Err(Status::invalid_argument(
+            return Err(coded_status(
+                afs_error::NODE_SHM_INVALID,
                 "request length does not match SHM grant",
             ));
         }
@@ -271,9 +273,10 @@ impl LocalDataService {
         // 读取也必须带 target grant；node 把 Storage 读出的 bytes copy 进 SDK memfd。
         let grant = request
             .target
-            .ok_or_else(|| Status::invalid_argument("missing SHM target grant"))?;
+            .ok_or_else(|| coded_status(afs_error::NODE_SHM_INVALID, "missing SHM target grant"))?;
         if request.length != grant.length {
-            return Err(Status::invalid_argument(
+            return Err(coded_status(
+                afs_error::NODE_SHM_INVALID,
                 "request length does not match SHM grant",
             ));
         }
@@ -282,8 +285,12 @@ impl LocalDataService {
             .read(&request.name, request.file_offset, request.length)
             .await
             .map_err(storage_status)?;
-        let length = u32::try_from(data.len())
-            .map_err(|_| Status::internal("storage returned too many bytes"))?;
+        let length = u32::try_from(data.len()).map_err(|_| {
+            coded_status(
+                afs_error::NODE_SHM_INTERNAL,
+                "storage returned too many bytes",
+            )
+        })?;
         let (fd, offset) = request_grant_fd(grant).await?;
         write_fd_at(fd, offset, &data).map_err(shm_status)?;
         Ok(LocalReadReply { length })
@@ -294,26 +301,26 @@ impl LocalDataService {
 // token/session/region 防误用与重放，UDS 权限限制本机其它用户访问；不承担远端认证。
 async fn request_grant_fd(grant: LocalShmGrant) -> Result<(OwnedFd, usize), Status> {
     let offset = usize::try_from(grant.region_offset)
-        .map_err(|_| Status::invalid_argument("SHM offset is too large"))?;
+        .map_err(|_| coded_status(afs_error::NODE_SHM_INVALID, "SHM offset is too large"))?;
     let _len = grant_len(&grant)?;
     let token = BrokerToken::new(grant.token).map_err(shm_status)?;
     let request = FdRequest::new(token, grant.session_id, grant.region_id);
     let path = PathBuf::from(grant.broker_socket_path);
     let fd = tokio::task::spawn_blocking(move || FdBrokerClient::request_fd(path, &request))
         .await
-        .map_err(|error| Status::internal(error.to_string()))?
+        .map_err(|error| coded_status(afs_error::NODE_SHM_INTERNAL, error.to_string()))?
         .map_err(shm_status)?;
     Ok((fd, offset))
 }
 
 fn grant_len(grant: &LocalShmGrant) -> Result<usize, Status> {
     let offset = usize::try_from(grant.region_offset)
-        .map_err(|_| Status::invalid_argument("SHM offset is too large"))?;
+        .map_err(|_| coded_status(afs_error::NODE_SHM_INVALID, "SHM offset is too large"))?;
     let length = usize::try_from(grant.length)
-        .map_err(|_| Status::invalid_argument("SHM length is too large"))?;
+        .map_err(|_| coded_status(afs_error::NODE_SHM_INVALID, "SHM length is too large"))?;
     offset
         .checked_add(length.max(1))
-        .ok_or_else(|| Status::invalid_argument("SHM range overflows"))
+        .ok_or_else(|| coded_status(afs_error::NODE_SHM_INVALID, "SHM range overflows"))
 }
 
 // Local API socket 的最小权限策略。优先 chmod socket 到 0600；如果挂载层不支持
@@ -359,27 +366,20 @@ async fn remove_owned_socket(path: &Path, identity: SocketIdentity) -> io::Resul
 }
 
 fn storage_status(error: StorageError) -> Status {
-    match error {
-        StorageError::BadName | StorageError::TooLarge | StorageError::Range => {
-            Status::invalid_argument(error.to_string())
-        }
-        StorageError::UnsafeFileType => Status::failed_precondition(error.to_string()),
-        StorageError::Io(inner) if inner.kind() == io::ErrorKind::NotFound => {
-            Status::not_found(inner.to_string())
-        }
-        StorageError::Io(inner) => Status::unavailable(inner.to_string()),
-        StorageError::Join(inner) => Status::internal(inner.to_string()),
-    }
+    error_to_status(error.into())
 }
 
 // SHM 错误映射成 gRPC status；这些都是控制面错误码，不表示内容曾经过 gRPC payload。
 fn shm_status(error: ShmError) -> Status {
     match error {
-        ShmError::InvalidArgument { .. } | ShmError::InvalidToken | ShmError::Protocol(_) => {
-            Status::invalid_argument(error.to_string())
+        ShmError::InvalidArgument { .. } | ShmError::Protocol(_) => {
+            coded_status(afs_error::NODE_SHM_INVALID, error.to_string())
         }
-        ShmError::Unsupported => Status::failed_precondition(error.to_string()),
-        ShmError::Syscall(_, inner) => Status::unavailable(inner.to_string()),
-        ShmError::Poisoned => Status::internal(error.to_string()),
+        ShmError::InvalidToken => {
+            coded_status(afs_error::NODE_SHM_ACCESS_DENIED, error.to_string())
+        }
+        ShmError::Unsupported => coded_status(afs_error::NODE_SHM_UNSUPPORTED, error.to_string()),
+        ShmError::Syscall(_, inner) => error_to_status(afs_error::Error::from(inner)),
+        ShmError::Poisoned => coded_status(afs_error::NODE_SHM_INTERNAL, error.to_string()),
     }
 }

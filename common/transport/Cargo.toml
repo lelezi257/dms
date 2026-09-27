@@ -9,11 +9,16 @@ publish = false
 
 [features]
 default = ["grpc"]
-grpc = ["dep:thiserror", "dep:tonic"]
+grpc = ["dep:thiserror", "dep:tonic", "dep:afs-error", "dep:afs-protocol", "dep:prost", "dep:prost-types", "dep:tonic-types"]
 rdma = []
 shm = ["dep:libc", "dep:nix"]
 
 [dependencies]
+prost-types = { version = "0.14", optional = true }
+tonic-types = { version = "0.14", optional = true }
+afs-error = { path = "../error", optional = true }
+afs-protocol = { path = "../protocol", optional = true }
+prost = { version = "0.14", optional = true }
 thiserror = { version = "2.0.16", optional = true }
 tonic = { version = "0.14.6", features = ["tls-ring"], optional = true }
 libc = { version = "0.2", optional = true }

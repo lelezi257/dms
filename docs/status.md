@@ -1,21 +1,11 @@
 # 当前状态
 
-更新时间：2026-09-25。
+更新时间：2026-09-27。当前交付分支为 `feat/agent-workloads-foundation`；只交付源码与文档，未合并或发布。
 
-**代码导读（事实）：** 已补充配置、进程启动、FUSE/VFS、SDK、gRPC/RDMA、Storage 和资源回收的中文注释；阅读顺序见 [目录架构第 6 节](code-layout.md#6-从入口读代码)。`transport/native` 是 libibverbs C 适配层，不是文件后端。
+**已实现（事实）：** AFS 基础框架含 CLI/TOML、OwnerFs/BlobFs 编译与运行开关、FUSE/SDK/REST 入口、gRPC/RDMA 数据通道、日志/metrics/trace/error。OwnerFs 使用本机普通文件和 Node 间 P2P；Meta 负责节点注册与粗粒度根授权，不进入每次文件 I/O。MetaStore 统一提交队列在后端 ACK 后发布可见状态，当前后端为默认 `etcd`、显式 `local-file` 和 `memory`。BlobFs 仍是骨架。架构与边界见[目录架构](code-layout.md)、[MetaStore 提交合同](plans/2026-09-27-meta-store.md)。
 
-**正式基础框架已落地（事实）：** [目录架构](code-layout.md)记录当前布局和边界。根 `afs`、`afs-client` 与六个 common crate 已接入 workspace；`afs-meta` 和 `afs-node` 是可启动进程。当前能力包括 CLI/TOML 配置、运行时和编译期 `OwnerFs/BlobFs` 开关、日志/metrics/trace、Meta REST/gRPC ping、Node REST、Node→Meta ping、Node→Node control ping、Node→Node data 8 字节读写、Local SDK UDS gRPC + SHM、FUSE namespace 分派。FUSE create 明确返回 `ENOSYS`，不假装文件已创建。
+**本阶段验收（事实）：** 最终 Linux Release 二进制在三 VM 功能 15/15；带 `fh` 的属性操作与同句柄 I/O 保序，Home 对打开句柄校验实际根、peer 与授权，异步 RELEASE 短暂失败有界重试；B daemon 持有远端 FD 后被 `SIGKILL`，Home 后台记录回收 1 个遗留句柄。全特性测试、严格 Clippy、格式、release 构建通过。详见[修复与复验](reviews/2026-09-27-ownerfs-p2p-hardening.md)。
 
-**本步验证（事实）：** Linux ARM64 / Rust 1.95.0：workspace 测试 55 项通过；默认跳过的 6 项设备测试随后显式执行，真实 FUSE 3 项、真实 RXE RDMA 3 项全部通过。fmt、Clippy all-features/all-targets、编译 feature 矩阵、binary/example 构建通过。gRPC 与 RXE 两套独立进程 E2E 各 22 项通过，包含 SDK UDS+SHM、FUSE 分派、REST、跨服务 OTLP Trace、8 字节数据校验及退出/冲突清理。验证结果与复现入口见[阶段验收摘要](foundation-milestone.md)。Python 只用于测试脚本；产品运行不依赖 Python。RXE 不是硬件性能或跨机器验收。
+**性能（事实）：** 同一最终二进制的 W1 本机私有根两份 6 轮为 MooseFS 的 **0.482/0.451**；200×4 KiB、8 worker 完整 W2 两份 12 轮为 **0.768/0.780**；顺序 W2 两份 6 轮为 **1.106/1.080**。W1 同场本机 Native FS 147/144 ms、薄 FUSE 234/235 ms、OwnerFs 342/316 ms、MooseFS 709/701 ms。固定并发 W2 达到 0.8 目标，但顺序 W2 未证明稳定达到 1.10；不把此固定负载推广到所有工作负载。原始运行数据留在研究工作区 `experiments/results/2026-09-27-afs-p2p-hardening/`，不纳入 Git。
 
-**数据面边界（事实/决策）：** 本机 SDK 使用 UDS gRPC 传控制信息，每次操作通过 sealed-size memfd + SCM_RIGHTS FD passing 传递共享缓冲，服务端以 pread/pwrite 拷贝字节；当前不宣称零拷贝。SDK 无 gRPC 内容 fallback；没有 SHM 的普通调用者走 POSIX。Node→Node 数据使用同一业务 API 下的 gRPC inline 或 RDMA adapter；RDMA 模式仍用 gRPC 下命令，内容走单边 READ/WRITE。RDMA 会话使用 `NegotiateData` 交换描述符和版本，再用真实 RDMA `SEND_WITH_IMM` 探测证明通道就绪；没有独立 `ReadyData` RPC。自动 fallback 只发生在建连阶段，强制 RDMA 不会降级。
-
-**当前不是完整文件系统（事实）：** OwnerFs/BlobFs 业务状态机、根授权、共享屏障、真实 inode/dentry、持久恢复、镜像 draft/snapshot/publish、GC、生产鉴权和性能目标尚未实现。本轮 storage/diagnostics 是独立诊断对象，不是公开文件接口，也不代表逐写掉电持久合同。
-
-**最新讨论与专项（优先于旧命名）：** 进程确定为 `afs-meta/afs-node`，统一 VFS 下为 `OwnerFs/BlobFs`；高性能 SDK 只访问本机，UDS 控制与共享内存数据分离。RPC adapter/Handler 与业务调度分层，公共 gRPC 只保留 config/security，不强制 actor；业务状态用 Tokio 任务和作用域锁按模块管理。旧 HTML 命名与旧分支模块不恢复为现行权威。
-
-**决策：** AFS 面向 Agent workspace 与不可变镜像/快照。近计算部署、P2P 数据面、一个 Node 进程承载 FUSE/SDK/REST/P2P 和两套隔离后端；Home 仅指根的数据所在节点。NFS 不在产品范围内。
-
-**待验证：** 根位置与授权、OwnerFs 本地普通文件热路径、跨节点共享撤销 ACK、FUSE 缓存/文件身份、进程崩溃恢复、P2P 未知结果、BlobFs runtime 稳定切点与显式发布、两副本发布/GC、MetaStore 故障、真实 gVisor/Firecracker 接入、真实 RDMA 硬件与性能预算。见 [下一步](next.md)。
-
-**2026-09-25 RDMA 探测握手（事实）：** 参考 3FS 的 `SEND_WITH_IMM` connect probe，服务端在回复 `NegotiateData` 前准备接收槽，客户端连接 QP 后发送零字节探测并等待本地 CQ；服务端在首条数据请求前消费接收 CQ，成功后才允许文件访问和单边 READ/WRITE。探测使用固定立即数、独立 WR ID、状态/opcode/flags/byte_len 校验；超时或错误 poison 会话。握手版本为 1，两端需同时升级。最新 Linux 验证：57 项常规测试、3 项底层 RXE 探测、4 项节点 RXE 会话测试通过；gRPC/RDMA 两套独立进程 E2E 各 22 项通过，另有 fmt、严格 Clippy/Rustdoc、编译开关矩阵通过。见[阶段验收摘要](foundation-milestone.md)。RXE 仍不代表硬件性能结论。
+**未完成（事实）：** Meta 单活动围栏/选主、根删除及跨节点根列举、常用 `chmod/chown/atime/mtime`、完整 POSIX、VM 掉电和长稳尚未验收。`memory` Store 易失、`local-file` 只承诺单机/单盘，Redis 未实现。文件内容仍走 gRPC P2P，RDMA 文件内容路径未接通；不能宣称完整 MooseFS 替代。下一入口见[下一步](next.md)，前阶段审视留在[评审记录](reviews/)。

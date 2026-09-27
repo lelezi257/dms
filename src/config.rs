@@ -6,15 +6,29 @@
 //! 编译 feature 决定代码是否存在，运行配置决定现有代码是否实例化；两者不能混用。
 //! 这里只选后端和通道，不定义文件授权、存储位置或镜像发布策略。
 
-use afs_error::{Error, ErrorKind, Result};
+use afs_error::{Error, Result};
 use clap::Parser;
 use serde::{Deserialize, Serialize};
-use std::{net::SocketAddr, path::PathBuf};
+use std::{collections::HashMap, net::SocketAddr, path::PathBuf};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Role {
     Meta,
     Node,
+}
+/// Meta authority backend. `memory` is useful for disposable local runs but
+/// loses root/session authority whenever afs-meta exits.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, clap::ValueEnum)]
+pub enum MetaStoreBackend {
+    #[serde(rename = "etcd")]
+    #[value(name = "etcd")]
+    Etcd,
+    #[serde(rename = "local-file")]
+    #[value(name = "local-file")]
+    LocalFile,
+    #[serde(rename = "memory")]
+    #[value(name = "memory")]
+    InMemory,
 }
 #[derive(Debug, Clone, Parser, Default)]
 #[command(version, about = "AFS process foundation")]
@@ -30,8 +44,25 @@ pub struct Cli {
     pub rest_listen: Option<SocketAddr>,
     #[arg(long)]
     pub meta_endpoint: Option<String>,
+    /// etcd 后端的连接端点；memory 后端不使用。
+    #[arg(long)]
+    pub etcd_endpoint: Option<String>,
+    /// Meta 后端：etcd（默认）、local-file 或 memory。
+    #[arg(long, value_enum)]
+    pub meta_store: Option<MetaStoreBackend>,
     #[arg(long)]
     pub peer_endpoint: Option<String>,
+    /// 对外发布的本 Node gRPC URI；监听 0.0.0.0 时必须显式指定。
+    #[arg(long)]
+    pub advertise_endpoint: Option<String>,
+    #[arg(long)]
+    pub tls_ca_certificate: Option<PathBuf>,
+    #[arg(long)]
+    pub tls_identity_certificate: Option<PathBuf>,
+    #[arg(long)]
+    pub tls_identity_private_key: Option<PathBuf>,
+    #[arg(long)]
+    pub tls_server_name: Option<String>,
     #[arg(long)]
     pub fs: Option<String>,
     #[arg(long)]
@@ -65,7 +96,16 @@ struct FileConfig {
     grpc_listen: Option<SocketAddr>,
     rest_listen: Option<SocketAddr>,
     meta_endpoint: Option<String>,
+    etcd_endpoint: Option<String>,
+    meta_store: Option<MetaStoreBackend>,
     peer_endpoint: Option<String>,
+    advertise_endpoint: Option<String>,
+    tls_ca_certificate: Option<PathBuf>,
+    tls_identity_certificate: Option<PathBuf>,
+    tls_identity_private_key: Option<PathBuf>,
+    tls_server_name: Option<String>,
+    /// TLS 验证后再用证书 DER 的完整字节绑定 Node ID；仅由受信管理配置设置。
+    trusted_node_certs: Option<HashMap<String, PathBuf>>,
     fs: Option<String>,
     data_mode: Option<String>,
     rdma_device: Option<String>,
@@ -85,7 +125,15 @@ pub struct Config {
     pub grpc_listen: SocketAddr,
     pub rest_listen: SocketAddr,
     pub meta_endpoint: Option<String>,
+    pub etcd_endpoint: Option<String>,
+    pub meta_store: MetaStoreBackend,
     pub peer_endpoint: Option<String>,
+    pub advertise_endpoint: Option<String>,
+    pub tls_ca_certificate: Option<PathBuf>,
+    pub tls_identity_certificate: Option<PathBuf>,
+    pub tls_identity_private_key: Option<PathBuf>,
+    pub tls_server_name: Option<String>,
+    pub trusted_node_certs: HashMap<String, PathBuf>,
     pub ownerfs: bool,
     pub blobfs: bool,
     pub data_mode: String,
@@ -162,7 +210,22 @@ impl Config {
                 ([127, 0, 0, 1], if role == Role::Meta { 7401 } else { 7501 }).into()
             }),
             meta_endpoint: cli.meta_endpoint.or(file.meta_endpoint),
+            etcd_endpoint: cli.etcd_endpoint.or(file.etcd_endpoint),
+            meta_store: cli
+                .meta_store
+                .or(file.meta_store)
+                .unwrap_or(MetaStoreBackend::Etcd),
             peer_endpoint: cli.peer_endpoint.or(file.peer_endpoint),
+            advertise_endpoint: cli.advertise_endpoint.or(file.advertise_endpoint),
+            tls_ca_certificate: cli.tls_ca_certificate.or(file.tls_ca_certificate),
+            tls_identity_certificate: cli
+                .tls_identity_certificate
+                .or(file.tls_identity_certificate),
+            tls_identity_private_key: cli
+                .tls_identity_private_key
+                .or(file.tls_identity_private_key),
+            tls_server_name: cli.tls_server_name.or(file.tls_server_name),
+            trusted_node_certs: file.trusted_node_certs.unwrap_or_default(),
             data_dir: cli
                 .data_dir
                 .or(file.data_dir)
@@ -200,9 +263,14 @@ impl Config {
             return Err(invalid("trace_sample_ratio must be 0..1"));
         }
         afs_logging::parse_level(&cfg.log_level).map_err(|e| invalid(e.to_string()))?;
-        for endpoint in [&cfg.meta_endpoint, &cfg.peer_endpoint]
-            .into_iter()
-            .flatten()
+        for endpoint in [
+            &cfg.meta_endpoint,
+            &cfg.peer_endpoint,
+            &cfg.etcd_endpoint,
+            &cfg.advertise_endpoint,
+        ]
+        .into_iter()
+        .flatten()
         {
             if !endpoint.starts_with("http://") && !endpoint.starts_with("https://") {
                 return Err(invalid("gRPC endpoint must be an http(s) URI"));
@@ -213,9 +281,47 @@ impl Config {
         if !cfg.uds_path.is_absolute() || !cfg.data_dir.is_absolute() {
             return Err(invalid("uds_path and data_dir must be absolute"));
         }
+        let tls_count = [
+            cfg.tls_ca_certificate.is_some(),
+            cfg.tls_identity_certificate.is_some(),
+            cfg.tls_identity_private_key.is_some(),
+            cfg.tls_server_name.is_some(),
+        ]
+        .into_iter()
+        .filter(|value| *value)
+        .count();
+        if tls_count != 0 && tls_count != 4 {
+            return Err(invalid("all four tls_* fields are required together"));
+        }
+        for path in cfg.trusted_node_certs.values() {
+            if !path.is_absolute() {
+                return Err(invalid("trusted_node_certs paths must be absolute"));
+            }
+        }
         Ok(cfg)
+    }
+
+    /// gRPC builders共用安全配置；只有配置了完整证书集合才启用 mTLS。
+    /// OwnerFiles 远端业务还要求 `trusted_node_certs` 与证书身份匹配。
+    pub fn tls_config(&self) -> afs_transport::grpc::TlsConfig {
+        match (
+            &self.tls_ca_certificate,
+            &self.tls_identity_certificate,
+            &self.tls_identity_private_key,
+            &self.tls_server_name,
+        ) {
+            (Some(ca), Some(cert), Some(key), Some(server_name)) => {
+                afs_transport::grpc::TlsConfig::MutualTls {
+                    ca_certificate: ca.clone(),
+                    identity_certificate: cert.clone(),
+                    identity_private_key: key.clone(),
+                    server_name: server_name.clone(),
+                }
+            }
+            _ => afs_transport::grpc::TlsConfig::Disabled,
+        }
     }
 }
 fn invalid(message: impl Into<String>) -> Error {
-    Error::new(ErrorKind::InvalidArgument, message)
+    afs_error::Error::coded(afs_error::CONFIG_INVALID, message)
 }

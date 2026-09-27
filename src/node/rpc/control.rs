@@ -16,6 +16,7 @@
 //!
 //! TTL/close 只管理 RDMA 资源生命周期：过期或 close 后旧 session 不能继续使用。
 
+use afs_transport::grpc::error_status::coded_status;
 use std::{
     collections::HashMap,
     sync::{
@@ -90,9 +91,14 @@ impl RdmaSessionRegistry {
             .await
             .get(&session_id)
             .cloned()
-            .ok_or_else(|| Status::failed_precondition("unknown RDMA session"))?;
+            .ok_or_else(|| {
+                coded_status(afs_error::NODE_RDMA_SESSION_UNKNOWN, "unknown RDMA session")
+            })?;
         if session.poisoned.load(Ordering::SeqCst) {
-            return Err(Status::failed_precondition("RDMA session poisoned"));
+            return Err(coded_status(
+                afs_error::NODE_RDMA_SESSION_POISONED,
+                "RDMA session poisoned",
+            ));
         }
         if !session.ready.load(Ordering::SeqCst) {
             #[cfg(feature = "rdma")]
@@ -103,22 +109,33 @@ impl RdmaSessionRegistry {
                 tokio::task::spawn_blocking(move || {
                     let mut endpoint = pending.endpoint.blocking_lock();
                     if pending.poisoned.load(Ordering::SeqCst) {
-                        return Err(Status::failed_precondition("RDMA session poisoned"));
+                        return Err(coded_status(
+                            afs_error::NODE_RDMA_SESSION_POISONED,
+                            "RDMA session poisoned",
+                        ));
                     }
                     if !pending.ready.load(Ordering::SeqCst) {
                         if let Err(error) = endpoint.wait_probe(PROBE_TIMEOUT_MS) {
                             pending.poisoned.store(true, Ordering::SeqCst);
-                            return Err(Status::unavailable(error.to_string()));
+                            return Err(coded_status(
+                                afs_error::NODE_TRANSFER_UNAVAILABLE,
+                                error.to_string(),
+                            ));
                         }
                         pending.ready.store(true, Ordering::SeqCst);
                     }
                     Ok(())
                 })
                 .await
-                .map_err(|error| Status::internal(error.to_string()))??;
+                .map_err(|error| {
+                    coded_status(afs_error::NODE_TRANSFER_INTERNAL, error.to_string())
+                })??;
             }
             #[cfg(not(feature = "rdma"))]
-            return Err(Status::failed_precondition("RDMA session is not ready"));
+            return Err(coded_status(
+                afs_error::NODE_RDMA_NOT_READY,
+                "RDMA session is not ready",
+            ));
         }
         *session.last_used.lock().expect("last_used lock poisoned") = Instant::now();
         Ok(session)
@@ -140,7 +157,10 @@ impl RdmaSessionRegistry {
     pub async fn ensure_capacity(&self) -> Result<(), Status> {
         self.cleanup_expired().await;
         if self.inner.lock().await.len() >= MAX_RDMA_SESSIONS {
-            return Err(Status::resource_exhausted("too many RDMA sessions"));
+            return Err(coded_status(
+                afs_error::NODE_RDMA_CAPACITY,
+                "too many RDMA sessions",
+            ));
         }
         Ok(())
     }
@@ -150,7 +170,10 @@ impl RdmaSessionRegistry {
         self.cleanup_expired().await;
         let mut sessions = self.inner.lock().await;
         if sessions.len() >= MAX_RDMA_SESSIONS {
-            return Err(Status::resource_exhausted("too many RDMA sessions"));
+            return Err(coded_status(
+                afs_error::NODE_RDMA_CAPACITY,
+                "too many RDMA sessions",
+            ));
         }
         let id = self.next_id.fetch_add(1, Ordering::SeqCst);
         sessions.insert(id, Arc::new(session));
@@ -212,7 +235,8 @@ impl NodeControl for NodeControlService {
     ) -> Result<Response<NegotiateDataReply>, Status> {
         let request = request.into_inner();
         if request.handshake_version != RDMA_HANDSHAKE_VERSION {
-            return Err(Status::failed_precondition(
+            return Err(coded_status(
+                afs_error::NODE_RDMA_HANDSHAKE_VERSION,
                 "unsupported RDMA handshake version",
             ));
         }
@@ -261,10 +285,16 @@ async fn negotiate_rdma(
     request: NegotiateDataRequest,
 ) -> Result<Response<NegotiateDataReply>, Status> {
     if request.client_info.len() != INFO_BYTES {
-        return Err(Status::invalid_argument("client_info must be 38 bytes"));
+        return Err(coded_status(
+            afs_error::NODE_TRANSFER_INVALID,
+            "client_info must be 38 bytes",
+        ));
     }
     if request.capacity as usize > CAPACITY {
-        return Err(Status::invalid_argument("client capacity exceeds 1MiB"));
+        return Err(coded_status(
+            afs_error::NODE_TRANSFER_INVALID,
+            "client capacity exceeds 1MiB",
+        ));
     }
     registry.ensure_capacity().await?;
     let client_info = request.client_info;
@@ -277,7 +307,7 @@ async fn negotiate_rdma(
         Ok::<_, Status>((endpoint, info))
     })
     .await
-    .map_err(|error| Status::internal(error.to_string()))??;
+    .map_err(|error| coded_status(afs_error::NODE_TRANSFER_INTERNAL, error.to_string()))??;
     let session_id = registry.insert(RdmaSession::new(endpoint)).await?;
     Ok(Response::new(NegotiateDataReply {
         session_id,
@@ -306,7 +336,7 @@ async fn negotiate_rdma(
 
 #[cfg(feature = "rdma")]
 fn native_status(error: afs_transport::rdma::RdmaError) -> Status {
-    Status::unavailable(error.to_string())
+    coded_status(afs_error::NODE_TRANSFER_UNAVAILABLE, error.to_string())
 }
 
 #[cfg(test)]

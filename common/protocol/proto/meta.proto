@@ -1,7 +1,432 @@
 syntax = "proto3";
 package afs.meta.v1;
-// 当前只有连通性 Ping：不授予根目录访问权，也不持久化节点注册。
-// 后续根位置查询和授权属于 Meta 业务；不能把 Ping 成功解释成已获授权。
-service Meta { rpc Ping(PingRequest) returns (PingReply); }
-message PingRequest { string node_id = 1; }
-message PingReply { string message = 1; string instance = 2; }
+
+// Meta 是 afs-meta 的基础入口：连通性探测、节点注册和将来的集群级租约。
+// Ping 只证明 gRPC/观测链路可达，不授予根目录访问权。
+// RegisterNode 需要持久 MetaStore 后才能承诺注册生效，当前实现必须返回 UNIMPLEMENTED。
+service Meta {
+  rpc Ping(PingRequest) returns (PingReply);
+  rpc RegisterNode(RegisterNodeRequest) returns (RegisterNodeReply);
+  rpc LookupNode(LookupNodeRequest) returns (LookupNodeReply);
+}
+
+message PingRequest {
+  string node_id = 1;
+}
+
+message PingReply {
+  string message = 1;
+  string instance = 2;
+}
+
+message NodeEndpoint {
+  string grpc_addr = 1;
+  string data_addr = 2;
+  string rest_addr = 3;
+}
+
+message NodeDescriptor {
+  string node_id = 1;
+  NodeEndpoint endpoint = 2;
+  map<string, string> labels = 3;
+  repeated string capabilities = 4;
+  // 每次 afs-node 进程启动生成新身份；同一 node_id 的旧会话不得继续签发授权。
+  string session_id = 5;
+}
+
+message RegisterNodeRequest {
+  string request_id = 1;
+  NodeDescriptor node = 2;
+  uint64 lease_seconds = 3;
+}
+
+message RegisterNodeReply {
+  string node_id = 1;
+  uint64 lease_epoch = 2;
+  uint64 expires_at_unix_ms = 3;
+}
+
+message LookupNodeRequest {
+  string request_id = 1;
+  string node_id = 2;
+}
+
+message LookupNodeReply {
+  NodeDescriptor node = 1;
+  uint64 lease_epoch = 2;
+  uint64 expires_at_unix_ms = 3;
+  bool found = 4;
+}
+
+// ===== OwnerFs 根目录归属与访问授权 =====
+// OwnerRoots 是 OwnerFs 的粗粒度授权面。Meta 只管理根目录归属、
+// 授权代与撤销屏障；每个文件的 inode/dentry/内容仍在 afs-node。
+//
+// 状态机不变量：
+// - root_epoch 标识根目录归属事实的世代，只有持久 MetaStore 条件事务能推进。
+// - access_generation 标识真正撤权/删根/Home 会话恢复的围栏代；B 加入不改变 A 的 grant。
+// - A 第一次收到 B 的 grant 时向 Meta 验证后缓存；P2P 请求自身不是签名能力票据。
+// - 真正撤权须先让 Home 拒绝旧 grant 并 ACK，才可提交撤权；watch 通知本身不是屏障。
+// - session_id 是全系统统一的字符串 Node 会话 ID，P2P 和 Meta 不得混用 uint64。
+// - 旧 preview 分支只有中心内存协调，缺少 durable grant 与 revoke ACK，不能直接作为本合同。
+service OwnerRoots {
+  rpc ReserveRoot(ReserveRootRequest) returns (ReserveRootReply);
+  rpc ActivateRoot(ActivateRootRequest) returns (ActivateRootReply);
+  rpc AbortRoot(AbortRootRequest) returns (AbortRootReply);
+  rpc LookupRoot(LookupRootRequest) returns (LookupRootReply);
+  rpc ListOwnerRoots(ListOwnerRootsRequest) returns (ListOwnerRootsReply);
+  rpc AcquireRoot(AcquireRootRequest) returns (AcquireRootReply);
+  rpc ValidateRootAccess(ValidateRootAccessRequest) returns (ValidateRootAccessReply);
+  rpc WatchRootCommands(WatchRootCommandsRequest) returns (stream RootCommand);
+  rpc AckRevocation(AckRevocationRequest) returns (AckRevocationReply);
+  rpc RecoverRoot(RecoverRootRequest) returns (RecoverRootReply);
+}
+
+enum RootRight {
+  ROOT_RIGHT_UNSPECIFIED = 0;
+  ROOT_RIGHT_LOOKUP = 1;
+  ROOT_RIGHT_READ = 2;
+  ROOT_RIGHT_WRITE = 3;
+  ROOT_RIGHT_ADMIN = 4;
+}
+
+enum RootCommandType {
+  ROOT_COMMAND_TYPE_UNSPECIFIED = 0;
+  ROOT_COMMAND_TYPE_REVOKE_ACCESS = 1;
+  ROOT_COMMAND_TYPE_INVALIDATE_CACHE = 2;
+}
+
+// REVOKE_ACCESS 仅用于真正撤权、根删除或 Home 恢复；B 首次加入不触发。
+
+enum ReserveConflictPolicy {
+  RESERVE_CONFLICT_POLICY_UNSPECIFIED = 0;
+  RESERVE_CONFLICT_POLICY_FAIL_IF_EXISTS = 1;
+  RESERVE_CONFLICT_POLICY_REUSE_IF_SAME_INTENT = 2;
+}
+
+message RootAccess {
+  string root_id = 1;
+  uint64 root_epoch = 2;
+  string home_node_id = 3;
+  string holder_node_id = 4;
+  string session_id = 5;
+  uint64 access_generation = 6;
+  reserved 7;
+  reserved "mode";
+  repeated RootRight rights = 8;
+  string fencing_token = 9;
+  // Home 进程重启后改变；P2P 服务端须与自己的当前会话核对。
+  string home_session_id = 10;
+}
+
+// RootLocation 是查询结果，不是授权。它告诉调度器或 node 某个 root 当前在哪、
+// 属于哪个 epoch；它不包含 rights、fencing token 或 access_generation。
+message RootLocation {
+  string root_id = 1;
+  uint64 root_epoch = 2;
+  string home_node_id = 3;
+  reserved 4;
+  reserved "mode";
+  // 只供定位/故障诊断，仍不是授权。旧进程会话不能代替 RootAccess。
+  string home_session_id = 5;
+}
+
+// RootReservation 是 reserve 阶段的准备记录。Node 拿到它后只能本地 mkdir、
+// fsync parent 并携带 prepare_token 调 ActivateRoot；不能凭它读写该 root。
+message RootReservation {
+  string root_id = 1;
+  uint64 root_epoch = 2;
+  string home_node_id = 3;
+  string session_id = 4;
+  string create_intent_id = 5;
+  string prepare_token = 6;
+}
+
+message ReserveRootRequest {
+  string request_id = 1;
+  string root_id = 2;
+  string preferred_home_node_id = 3;
+  string session_id = 4;
+  repeated RootRight rights = 5;
+  uint64 expected_root_epoch = 6;
+  string parent_root_id = 7;
+  string create_intent_id = 8;
+  ReserveConflictPolicy conflict_policy = 9;
+}
+
+message ReserveRootReply {
+  RootReservation reservation = 1;
+  bool already_reserved_by_same_intent = 2;
+}
+
+message ActivateRootRequest {
+  string request_id = 1;
+  RootReservation reservation = 2;
+  string local_prepare_id = 3;
+  uint64 parent_fsync_generation = 4;
+  bool parent_fsync_complete = 5;
+}
+
+message ActivateRootReply {
+  RootAccess access = 1;
+}
+
+message AbortRootRequest {
+  string request_id = 1;
+  string root_id = 2;
+  uint64 root_epoch = 3;
+  string session_id = 4;
+  string create_intent_id = 5;
+  string reason = 6;
+  string prepare_token = 7;
+}
+
+message AbortRootReply {}
+
+message LookupRootRequest {
+  string request_id = 1;
+  string root_id = 2;
+}
+
+message LookupRootReply {
+  RootLocation location = 1;
+  bool found = 2;
+}
+
+message ListOwnerRootsRequest {
+  string request_id = 1;
+  string home_node_id = 2;
+}
+
+message ListOwnerRootsReply {
+  repeated RootLocation active_roots = 1;
+  repeated RootReservation pending_reservations = 2;
+  uint64 authority_revision = 3;
+}
+
+message AcquireRootRequest {
+  string request_id = 1;
+  string root_id = 2;
+  string requester_node_id = 3;
+  string session_id = 4;
+  repeated RootRight rights = 5;
+  uint64 expected_root_epoch = 6;
+  uint64 expected_access_generation = 7;
+}
+
+message AcquireRootReply {
+  RootAccess access = 1;
+}
+
+// Node 数据面只传下面这份出示凭证，不传根权限列表；权限只能从 Meta
+// 验证成功后返回的完整 RootAccess 取得，不能相信远端自报的 rights。
+message PresentedRootAccess {
+  string root_id = 1;
+  uint64 root_epoch = 2;
+  string home_node_id = 3;
+  string holder_node_id = 4;
+  string session_id = 5;
+  uint64 access_generation = 6;
+  string fencing_token = 7;
+  string home_session_id = 8;
+}
+
+// Home A 首次收到 B 的 P2P grant 时向 Meta 做权威验证。调用方必须把经
+// 节点间认证得到的 peer 身份填入 observed_peer_node_id，不可照抄请求体。
+// Meta 以持久权威状态核对出示凭证全部字段、B 当前 Node session、Home 当前
+// session、授权代/权利及未撤权状态；无效或无法权威判断时返回错误，不返回假成功。
+// A 缓存验证结果，后续同 grant 文件操作不逐次查询 Meta；撤权须先在 A 安装
+// 拒绝旧授权的屏障并等待 ACK，不能仅靠 watch 延迟推断缓存已失效。
+message ValidateRootAccessRequest {
+  string request_id = 1;
+  PresentedRootAccess presented_access = 2;
+  string observed_peer_node_id = 3;
+  string validator_home_node_id = 4;
+  string validator_home_session_id = 5;
+}
+
+message ValidateRootAccessReply {
+  RootAccess access = 1;
+  uint64 authority_revision = 2;
+}
+
+message WatchRootCommandsRequest {
+  string node_id = 1;
+  string session_id = 2;
+  uint64 after_revision = 3;
+}
+
+message RootCommand {
+  string command_id = 1;
+  RootCommandType command_type = 2;
+  RootAccess access = 3;
+  uint64 revision = 4;
+}
+
+message AckRevocationRequest {
+  // Meta 只接受当前 Home 会话对相应 command 的成功 ACK 作为撤权提交屏障；
+  // B 的 ACK、watch 投递或超时均不能代替 Home 已拒绝旧 grant 的证明。
+  string request_id = 1;
+  string command_id = 2;
+  string node_id = 3;
+  string session_id = 4;
+  string root_id = 5;
+  uint64 root_epoch = 6;
+  uint64 access_generation = 7;
+  bool success = 8;
+  string message = 9;
+}
+
+message AckRevocationReply {
+  uint64 accepted_at_unix_ms = 1;
+}
+
+// A 重启时先验证本机根身份记录和独占数据目录锁，再以新 Node session 请求恢复。
+// Meta 比对已持久化的 home、root_epoch 与 ActivateRoot 的 local_prepare_id，
+// 将旧 Home 会话和旧授权代围栏，完成必要的远端缓存屏障后才能返回新 grant。
+// 同一个 request_id 的重试必须查询/复用原结果，不能多次推进授权代。
+// 本 RPC 不从目录扫描结果创建新根，也不迁移 Home；Meta 不可达时失败关闭。
+message RecoverRootRequest {
+  string request_id = 1;
+  string root_id = 2;
+  uint64 expected_root_epoch = 3;
+  string home_node_id = 4;
+  string home_session_id = 5;
+  string local_prepare_id = 6;
+}
+
+message RecoverRootReply {
+  RootAccess access = 1;
+}
+
+// ===== BlobFs 私有写入与不可变版本发布 =====
+// BlobMeta 管理不可变镜像/快照的发布元数据。数据面不经过 Meta；
+// Meta 只协调 draft 所属写者和发布后的 version 索引。
+//
+// 状态机不变量：
+// - draft 只能由一个 writer session 持续修改，未 snapshot/commit 前不能被普通读者看见。
+// - BeginSnapshot 仅预留一次切点操作并固定 draft generation，不代表本机文件树已截取稳定视图。
+// - Node 完成停写、排空与稳定视图后，CommitVersion 才携带切点、manifest 与足额持久副本收据请求发布；Meta 提交前读者不可见。
+// - version 一旦发布就是不可变事实，后续修正必须发布新 version。
+// - snapshot/commit 需要持久 MetaStore 后才能承诺可恢复；当前实现必须返回 UNIMPLEMENTED。
+service BlobMeta {
+  rpc ReserveDraft(ReserveDraftRequest) returns (ReserveDraftReply);
+  rpc BeginSnapshot(BeginSnapshotRequest) returns (BeginSnapshotReply);
+  rpc CommitVersion(CommitVersionRequest) returns (CommitVersionReply);
+  rpc AbortSnapshot(AbortSnapshotRequest) returns (AbortSnapshotReply);
+  rpc AbortDraft(AbortDraftRequest) returns (AbortDraftReply);
+  rpc LookupVersion(LookupVersionRequest) returns (LookupVersionReply);
+}
+
+enum DraftKind {
+  DRAFT_KIND_UNSPECIFIED = 0;
+  DRAFT_KIND_CONTAINER_ROOTFS = 1;
+  DRAFT_KIND_MICROVM_DISK = 2;
+}
+
+message DraftRef {
+  string namespace = 1;
+  string object_id = 2;
+  string draft_id = 3;
+  string writer_node_id = 4;
+  string session_id = 5;
+  uint64 draft_epoch = 6;
+  DraftKind kind = 7;
+}
+
+message VersionRef {
+  string namespace = 1;
+  string object_id = 2;
+  string version_id = 3;
+  string manifest_digest = 4;
+  uint64 created_at_unix_ms = 5;
+}
+
+message ReserveDraftRequest {
+  string request_id = 1;
+  string namespace = 2;
+  string object_id = 3;
+  string writer_node_id = 4;
+  string session_id = 5;
+  DraftKind kind = 6;
+  string base_version_id = 7;
+}
+
+message ReserveDraftReply {
+  DraftRef draft = 1;
+}
+
+message SnapshotCut {
+  // 这是 Meta 签发的切点操作身份，不是实际数据切点已完成的证明。
+  DraftRef draft = 1;
+  string snapshot_operation_id = 2;
+  uint64 draft_generation = 3;
+  string cut_token = 4;
+}
+
+message SnapshotCutReceipt {
+  // Node 取得稳定视图并保存恢复记录后才能出具；必须绑定 SnapshotCut 的操作 ID。
+  string snapshot_operation_id = 1;
+  string writer_node_id = 2;
+  string session_id = 3;
+  string capture_id = 4;
+  string recovery_record_digest = 5;
+}
+
+message ReplicaReceipt {
+  string node_id = 1;
+  string receipt_id = 2;
+  string content_digest = 3;
+  uint64 durable_bytes = 4;
+}
+
+message BeginSnapshotRequest {
+  string request_id = 1;
+  DraftRef draft = 2;
+  uint64 expected_draft_generation = 3;
+}
+
+message BeginSnapshotReply {
+  SnapshotCut cut = 1;
+}
+
+message CommitVersionRequest {
+  string request_id = 1;
+  SnapshotCut cut = 2;
+  string manifest_digest = 3;
+  uint64 logical_size = 4;
+  repeated ReplicaReceipt replica_receipts = 5;
+  SnapshotCutReceipt cut_receipt = 6;
+}
+
+message CommitVersionReply {
+  VersionRef version = 1;
+}
+
+message AbortSnapshotRequest {
+  string request_id = 1;
+  SnapshotCut cut = 2;
+  string reason = 3;
+}
+
+message AbortSnapshotReply {}
+
+message AbortDraftRequest {
+  string request_id = 1;
+  DraftRef draft = 2;
+  string reason = 3;
+}
+
+message AbortDraftReply {}
+
+message LookupVersionRequest {
+  string request_id = 1;
+  string namespace = 2;
+  string object_id = 3;
+  string version_id = 4;
+}
+
+message LookupVersionReply {
+  VersionRef version = 1;
+  bool found = 2;
+}

@@ -3,7 +3,8 @@ package afs.node.control.v1;
 
 // 会话协商/close 是传输资源控制，不是目录读写授权。
 // 就绪通过 RDMA SEND_WITH_IMM 探测确认，不再提供 ReadyData RPC。
-// 根撤销屏障、访问权等未来控制操作不能用 RDMA session_id 代替。
+// 根访问权由 meta.proto 的 OwnerRoots 协调；B 首次加入不切换授权模式。
+// 真正撤权/删根/Home 恢复的围栏不能用 RDMA session_id 代替。
 
 // Node → Node 的控制命令：协同、屏障及传输会话建立/关闭等。
 // 控制统一 gRPC，不能把收到命令当作已经完成缓存/在途请求屏障。

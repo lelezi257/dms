@@ -1,16 +1,53 @@
-# AFS（Agent FS）宪法：Agent 双工作负载
+# AFS 架构原则
 
-状态：2026-09-25 已确定的产品与架构边界。本文是目标合同，不代表代码已经实现。当前进度见 [状态](docs/status.md)，详细需求与架构分别见 [需求分析](docs/requirements.html)和[详细架构](docs/architecture.html)。具体协议字节格式和实现细节留给实施阶段。
+状态：Accepted。本文定义 AFS 的长期产品与架构合同。代码已经具备的能力以[当前状态](docs/current-status.md)为准。
 
-目录与已确认命名见 [目录架构](docs/code-layout.md)：下文 Meta/Node 角色对应 afs-meta/afs-node，两类后端为 OwnerFs/BlobFs；该文档补充模块分界，不改变文件业务语义。
+## 1. 通用 POSIX 是外部兼容合同
 
-1. **只服务两类已确定的工作负载。** 一类是 Agent workspace：多读多写，但绝大多数操作发生在 Agent 所在节点的主要目录。另一类是镜像与快照：一个版本在私有写入阶段仅写者可见，发布后永久不可改，允许大量节点读取。内存 KV、通用对象 SDK 和完整通用分布式 POSIX 不是本方向的隐含目标。
-2. **共同入口，独立语义。** 每个节点一个 AFS Node 进程，其中 FUSE 前端与本地文件/P2P 服务同进程；通过 NamespaceId 和授权视图区分 workspace 与镜像。两者文件互不可见，统一接入不意味着统一数据空间。两类后端分别定义数据表示、一致性、可靠性、回收和性能合同；不能为了复用代码把它们合成一个通用文件系统。FUSE 是首版入口，不强制 Firecracker 启动后的磁盘 I/O 永久经过 FUSE。
-3. **近计算部署，P2P 数据面。** Node 与 Agent 计算节点共置；调度优先把 Agent 放到 workspace Home，镜像优先利用运行节点已有副本或缓存。跨节点的文件访问、镜像复制与分发由 node 通过 AFS P2P 直连，Meta 不中转数据。产品不保留 NFS 后端。P2P 不替代控制面权威；功能与性能仍按目标场景验证。
-4. **Meta 只管粗粒度权威。** Meta/node 是控制结构。Meta 持久管理节点、workspace 的 Home 归属、镜像私有 draft 的单写者归属、已发布镜像版本及副本位置，并为管理面与亲和调度提供查询。它不参与 workspace 的逐文件操作，也不参与已发布镜像的逐块读取。MetaStore 是唯一提交入口：业务命令先在私有状态上检查和合并，后端确认后才发布为可见状态并回复成功。当前后端为默认 `etcd`、显式 `local-file` 或 `memory`；Meta 选主尚未完成，不能据此宣称多 Meta 自动切换。单节点与三节点多数派部署分别声明容错，不自制另一套双份控制日志。显式选择的 memory 后端仅供可丢弃的开发与测试环境；Meta 进程退出即丢失根权威，不承诺跨 Meta 重启恢复。重启测试前须停止所有旧 Node，并为新测试使用空的数据目录；旧目录由使用者检查和处置。控制面失去提交能力时暂停新归属、授权与发布，不自动选第二个数据位置。
-5. **Workspace 本地路径尽量薄。** Home 仅表示根的数据所在节点，不是独立进程。WorkspaceRoot 是归属与授权单位；节点首次访问从 Meta 获取 RootGrant，根内操作复用它。Meta 可以同时授权 Home 和远端节点；远端节点加入本身不撤销 Home 授权，不触发独享/共享授权模式切换或 ACK。所有本地和远端文件操作最终由 Home 对同一份本机普通文件执行。OwnerFs 正确性基线禁用会产生跨节点旧读的 FUSE 内容缓存与 writeback，并使属性/目录项重新验证；Home 底层普通文件仍可使用内核 page cache。若为恢复旧分支性能启用本地短属性/目录项缓存，须在远端访问或修改可能使其过期时完成失效并验证 A/B 交替访问；远端短缓存正目录项时，每次有副作用的文件/目录操作还必须在 Home 核对目标和父目录身份，不得把旧目录下的操作落到同名新目录；缓存优化不改变根授权。只有删除根、撤销访问、Home 会话恢复等真正使旧授权失效的事件才需要围栏与必要的在途操作处理。底层数据目录只允许 AFS Node 修改，Agent 必须经挂载入口访问。本地 FUSE 尽量透传，避免每次写都同步做远端发布、分片或新 Block。远端经 P2P 访问同一份 Home 普通文件；共享不触发 Blob 转换。只有显式镜像/快照发布才由镜像后端从稳定副本生成 Blob，原 workspace 仍是普通文件。Home 迁移和故障可走较慢路径，但不能静默丢失或错读已确认的数据。普通 write/flush/close 不强制同步落盘；显式 fsync/fdatasync 才要求底层文件同步，目录项的持久化还需按目录 fsync 合同处理。未同步写入在 VM/磁盘故障后可能丢失。
-6. **镜像先完整发布，再多点读取。** 私有写入不能被其他节点当作已发布版本读取。沙箱可持续写 upper，由运行时显式 RequestSnapshot 建立稳定切点；close/fsync 不自动封存或发布。切点后的写入不能修改旧视图；upper 的父版本、删除和属性语义必须保留。发布必须给出固定身份、完整元数据和可校验的数据；失败的发布不得暴露半成品。已发布版本从多个持久副本与缓存节点读取，避免所有消费者回源到单一写者。缓存不能冒充持久副本。
-7. **gVisor 与 Firecracker 都在范围内。** gVisor 消费文件树；Firecracker 首版可把磁盘镜像作为一个不可变大文件完整拉到本地后启动。两者共用镜像发布、存放和分发语义，不要求首版实现虚拟磁盘的块级懒加载。沙箱新的写入进入自己的私有写层，下一次发布产生新版本。
-8. **共用基础设施，不预造公共业务核心。** 日志、Metrics、Trace、认证、连接、传输及本地存储工具只有在语义相同、已被真实使用时才共用。两类工作负载的业务协议和状态机各自所有。未来若需要通用多写，应新增具名合同，不能靠开关让不可变版本变可写。
-9. **可靠性和性能分开验收。** Workspace 重点验证本地优势、共享可见性与 Home 故障；镜像重点验证发布原子性、多点读取、冷启动、并发启动和副本失效。分别报告数据耐久级别、故障域、缓存条件与成本；理论收益和旧分支实验不算新实现的验收结果。
-10. **以现状和证据约束宣称。** 当前 OwnerFs 的持久 Meta 根权威、本地普通文件和远端 P2P 已接通，Linux 三节点阶段功能与本地 W1 性能通过；远端 W2 在固定 200×4 KiB/8 worker 场景的三次独立 12 轮验收达到 MooseFS 的 0.780/0.765/0.780 倍，其他负载尚未证明。完整通用 POSIX、VM 掉电与长稳未验，BlobFs 镜像发布尚未实现。现行实测和边界以 [OwnerFs 复测与架构审视](docs/reviews/2026-09-27-ownerfs-p2p-retest-architecture.md)为准；旧分支数字不能自动写成当前结果。
+AFS 为常见 Linux 应用提供统一文件 Namespace 和 POSIX 接口，使应用无需接入专用对象 API。具体支持范围通过逐项兼容矩阵声明；未实现的 `mmap`、锁、xattr、ACL、`O_DIRECT`、目录同步等能力必须明确返回不支持，不以静默降级冒充正确实现。
+
+## 2. Distributed BlobFs 是通用分布式主干
+
+BlobFs 负责通用文件的数据布局、chunk/extent、复制、读取、修复、再平衡、容量管理和外部存储分层。它同时支持可变文件与不可变发布版本。`Blob` 表示分布式数据单元，不表示整个后端只读。
+
+## 3. OwnerFs 是 1～4 节点 Workspace 特化路径
+
+OwnerFs 面向一体机式 Agent Workspace。一个 Workspace 由一个 Home 节点持有，Home 使用本地普通文件系统；计算与 Home 共置时走本地路径，计算迁移后由远端 Node 通过 P2P 访问 Home。OwnerFs 不承担通用分布式 chunk、多副本写和跨大量节点聚合带宽。
+
+## 4. Mutable 与 Published Immutable 是同一主干的两个 Profile
+
+两种 Profile 共用 Namespace、inode、Meta 事务、Storage Service、文件布局、placement、transport、认证、配额、观测和生命周期账本。
+
+Mutable Profile 负责 overwrite、append、truncate、写入排序、chunk version、`fsync`、cache coherence 和并发写语义。Published Immutable Profile 负责稳定切点、manifest、digest、发布门禁、P2P seed、去重、pin、淘汰和 spill。两种 Profile 使用不同的写入状态机，不建立两套文件系统。
+
+## 5. Snapshot 由运行时显式触发
+
+`close`、`flush` 和 `fsync` 不表示业务发布。运行时通过显式 Snapshot 接口取得目录树稳定切点。稳定视图独立后，活动文件继续通过新 generation 或 COW 写入。版本只有在 manifest、数据校验和可靠性策略全部满足后才可发布。
+
+## 6. 本地磁盘构成近计算存储层
+
+计算节点可以贡献 SSD、NVMe、HDD 或其他本地磁盘。系统根据介质能力、容量和故障域执行 placement。相对于集群外 OBS/S3，集群本地磁盘可以整体视为近计算缓存层；集群内部必须区分不完整副本、已校验缓存、持久副本和外部已提交副本。
+
+## 7. 对象存储是可选的外部层
+
+AFS 可以只使用集群本地磁盘形成可靠存储池。对象存储用于容量 spill、冷数据、归档和灾难恢复。数据只有在外部写入、校验和元数据提交全部完成后，才能以外部副本为依据逐出本地持久副本。活动可变数据不直接依赖对象存储的局部覆盖能力；首选将冻结 generation spill 到外部层。
+
+## 8. Meta 管理权威，数据路径绕过 Meta
+
+Meta 管理 Namespace、inode、文件布局、Workspace Home、版本、位置、租户和生命周期。客户端或 Node 取得布局后直接访问 Storage Service 或 OwnerFs Home。Meta 不转发文件内容，也不参与每个已解析数据块的读取。
+
+## 9. 多源读取以明确的数据身份为前提
+
+可变数据从受一致性协议管理的权威副本中选择读取目标。不可变发布版本通过 VersionId、manifest 和 digest 从持久副本、已校验缓存或 P2P seed 读取。未完成或未校验副本不可读取、不可计入可靠性、不可成为 seed。
+
+## 10. 高性能接口复用同一文件语义
+
+FUSE 提供低接入成本的 POSIX 路径。Native SDK 提供共享内存、注册 buffer、批量 range I/O、异步提交和 completion。块设备适配器服务 MicroVM。三种入口使用同一 Namespace、文件身份、布局和 Storage Service，不建立独立数据事实源。
+
+## 11. 可靠性、兼容性和性能分别验收
+
+可靠性验收覆盖副本、节点故障、Meta 故障、发布中断、spill、修复和逐出。兼容性验收覆盖 POSIX 操作、错误码、并发和持久化边界。性能验收按 OwnerFs 本地工作区、通用可变文件、大文件范围 I/O、镜像冷启动和多沙箱并发分别报告，不将单一场景结果外推到所有负载。
+
+## 12. 事实、设计与研究保持可见边界
+
+仓库文档使用 `Implemented`、`Experimental`、`Accepted Design`、`Draft`、`Research`、`Planned` 和 `Superseded` 标记状态。设计被接受不表示代码已经实现；实验成功不表示产品路径已经接入。

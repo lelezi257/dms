@@ -1,31 +1,52 @@
 # AFS（Agent FS）协作规则
 
-当前 `main` 是 AFS 主线，服务 Agent workspace 与不可变镜像/快照两类工作负载；旧 DMS 内存 KV 实现保存在 `mem-kv` 分支。先读 [宪法](PRINCIPLES.md)，再读 [需求分析](docs/requirements.html)、[详细架构](docs/architecture.html)、[目录架构](docs/code-layout.md)、[状态](docs/status.md)和 [下一步](docs/next.md)。业务语义以原则、需求与详细架构为准；已确认的目录/模块命名和依赖分界以 code-layout.md 为准，不从旧 KV 代码或旧分支推断。
+当前 `main` 是 AFS 主线；旧 DMS 内存 KV 实现保存在 `mem-kv` 分支。
 
-## 事实与决策
+## 必读顺序
 
-- 区分**已决方向**、**当前实现**、**推断**与**待验证**。新增路径或类型不等于功能已完成；性能目标不等于实测收益。
-- 改变两类工作负载的写入、发布、读取、故障或副本语义时，先更新原则和相应设计，并说明对验收的影响。普通实现细节不复制进本文件。
-- docs/workloads.md 只写简要用户可见语义，docs/requirements.html 是正式需求合同，docs/architecture.html 是正式架构正文；同一机制不另建并行权威。docs/status.md 记录当前已验证能力，docs/next.md 只保留下一阶段入口。历史决策留在 Git 历史，不把已删除旧文档重新标为现行规则。
+1. [README](README.md)：产品入口和当前能力。
+2. [架构原则](PRINCIPLES.md)：稳定产品合同。
+3. [产品定位](docs/product-positioning.md)：适用范围、优势场景和非目标。
+4. [架构总览](docs/architecture/overview.md)与[数据 Profile](docs/architecture/profiles.md)：模块边界和数据语义。
+5. [实现状态](docs/status.md)与[实现任务](docs/next.md)：真实能力和工程入口。
+6. 当前任务对应的 RFC、源码和验收证据。
 
-## 术语与时序约束
+`docs/requirements.html`、`docs/architecture.html` 和 `docs/workloads.md` 已标记为 Superseded，只用于追溯历史。
 
-- 业务抽象参见 docs/architecture.html，目录/模块名见 docs/code-layout.md。进程为 afs-meta/afs-node，后端为 OwnerFs/BlobFs。DataHome 是位置，不是进程；FUSE 与本地文件/P2P 服务在同一个 afs-node 中。旧 HTML 的 Meta/Node 是角色描述，不另建同名模块。
-- 根位置查询不是访问授权；Meta 可同时授权 Home 与远端节点，远端首次加入不撤销 Home 授权或触发模式切换。Home 始终执行同一份普通文件的本地和远端操作；首版用保守 FUSE 缓存保证跨节点重新打开可见，删除、撤权和 Home 重启才处理旧授权围栏。本地已授权热路径不逐操作找 Meta。
-- Workspace 与 Image 为隔离 namespace；同一 workspace 跨节点访问仍需缓存一致性。镜像由 runtime 显式触发快照，不从 close/fsync 推断发布。
-- 控制面通过统一 MetaStore 提交队列更新可见状态；后端确认前不发布新状态，也不回复成功。当前后端为默认 `etcd`、显式 `memory` 和 `local-file`，边界见 docs/plans/2026-09-27-meta-store.md。Meta 选主尚未完成；不能把普通 Redis、选主锁或 watch 通知当作等价持久权威。
+## 产品合同
+
+- AFS 是面向业务集群近计算场景的通用 POSIX 分布式文件系统。
+- Distributed BlobFs 是通用分布式主线，承载 Mutable 与 Published Immutable 两个 Profile。
+- OwnerFs 是 1～4 节点一体机 Agent workspace 的专用后端，以 Home 本地普通文件和跨 Node P2P 访问获得局部最优路径。
+- 不可变镜像、Snapshot、Checkpoint 是 BlobFs 的重点优化负载，不是 BlobFs 的全部范围。
+- 本地 SSD、NVMe、HDD 共同构成集群内持久副本与多级缓存；外部对象存储是可选 spill 层，不是系统成立条件。
+- Meta 处理 namespace、文件身份、布局、版本、placement 和授权，不代理稳态文件内容。
+- `fsync` 表示文件持久性；Snapshot/Publish 是显式业务操作，不从 `close` 或 `fsync` 推断发布。
+- Mutable Profile 的多源读取只选择一致性协议确认的同一已提交版本；Published Immutable Profile 还可使用校验通过的 cache 与消费者种子。
+
+## 事实、设计和能力声明
+
+- 文档必须区分 **Implemented**、**Experimental**、**Accepted Design**、**Proposed** 与 **Superseded**。
+- 新增路径、类型或接口不等于功能完成；性能目标不等于实测收益。
+- 产品语义变更必须先提交 RFC，并同步原则、架构、状态和验收标准。
+- 实现细节只写入对应模块文档或源码，不复制为新的产品合同。
+- 能力声明必须附带源码、测试、实验或命令输出位置。
 
 ## 代码边界
 
-- 以近计算与 P2P 为数据面原则：本地直接访问本机文件，跨节点 node 直连；不恢复 NFS 产品后端。Meta 只处理控制面，不代理数据内容。
-- 业务后端按 workspace 与 immutable image 分开。共同 FUSE 入口只负责命名空间和请求分派；Meta 只负责粗粒度元数据。不得把旧 KV 的 Object、Block、Extent、Current 或逐写 Meta commit 当成新架构的默认前提。
-- common/ 只保留确实可跨两个后端使用的观测和传输工具。抽取前先指出两个真实调用方，不为想象中的通用性增加框架。
-- 本机 client/ 只访问本机 Node：UDS gRPC 控制与 SHM 数据，无 SHM 时走 POSIX。Node→Meta 与 Node 控制用 gRPC，Node 数据用共同 API 下的 gRPC/单边 RDMA adapter，文件命令两种模式共用 Proto。公共 gRPC 提供 config/security 和通用错误编解码，不封装业务 client/Handler/actor。
-- 不在 workspace 本地主路径强制镜像转换或远端发布；不向读者暴露未发布镜像。跨后端操作必须有明确结果，不能隐式改变数据语义。
-- 本分支删除旧产品实现和旧 FUSE 补丁，需用到时从 Git 历史或旧分支按新合同重新引入；不要整目录复制旧权威状态机。
+- `afs-meta` 是控制面；`afs-node` 承载 FUSE、OwnerFs/BlobFs、Storage Service、P2P 和本机 SDK 接入。
+- FUSE、Native SDK 和未来的 runtime integration 使用同一 namespace 与后端语义，性能路径不能绕过授权、版本或校验合同。
+- BlobFs 的 Mutable 与 Published Immutable Profile 共享 namespace、Meta、Storage Service、chunk/extent、placement、transport 和运维体系；两类写入状态机保持独立。
+- OwnerFs 与 BlobFs 是独立后端。共同 FUSE 入口只做 namespace 和请求分派，不把 Owner/Home 语义扩散到 BlobFs。
+- 本机 client 只访问本机 Node。Node 到 Meta 使用控制 RPC；Node 间数据路径使用共同 API 下的 gRPC、SHM 或可选单边 RDMA adapter。
+- `common/` 只保留已有两个真实调用方的公共能力，不为预期复用增加框架。
+- 不恢复 NFS 产品后端，不从旧 KV 分支复制权威状态机。
+- staging、verified cache、durable replica 和 external committed 必须使用[副本状态](docs/semantics/copy-states.md)中的明确术语。
 
 ## 验证与交接
 
-- macOS 仅用于阅读与编辑；Rust 构建、测试和性能验证在 Linux VM/容器。保留锁定工具链和 Cargo.lock，变更后至少检查格式、编译、Clippy 和受影响测试。
-- 设计与实现分别验收。性能报告写明环境、输入、对照语义、样本和 p50/p95/p99；故障结论要有真实恢复证据。不能把过去分支的数字写成当前结果。
-- 每次阶段结束更新 docs/status.md 和 docs/next.md。提交使用上层工作区 AGENTS.md 的 Lore commit 协议。不要把本地运行数据、凭据和临时证据加入 Git。
+- macOS 只用于阅读与编辑；Rust 构建、服务、测试和性能验证在 Linux VM 或容器运行。
+- 代码变更至少检查格式、编译、Clippy 和受影响测试；纯文档变更检查链接、格式、术语一致性和 GitHub 模板语法。
+- 性能报告包含环境、输入、对照语义、样本和 p50/p95/p99；故障结论必须有真实恢复证据。
+- 每个阶段更新 `docs/status.md` 和 `docs/next.md`。重大设计进入 RFC，状态事件写入研究工作区记录。
+- 提交遵守上层工作区 `AGENTS.md` 的 Lore commit 协议；不得提交凭据、本地运行数据或临时证据。

@@ -1,18 +1,48 @@
-# 当前文档
+# AFS 文档
 
-- [宪法](../PRINCIPLES.md)：已确定的产品和架构边界。
-- [需求分析](requirements.html)：两类工作负载的正式需求合同、关键 case 与验收口径。
-- [详细架构](architecture.html)：抽象语义与命名、同进程组件、并存根授权与真正撤权围栏、显式快照时序、RPC 预算、MetaStore/Raft、可靠性和开源证据。
-- [工作负载速览](workloads.md)：简要用户可见语义；细节以需求分析为准。
-- [目录与模块](code-layout.md)：已确认的模块边界、公共机制与依赖方向。
-- [当前决策](decisions.md)：已采纳的 MetaStore 与后端边界。
-- [运行指南](foundation-running.md)：启动两个正式进程、挂载、调用 SDK 与复现验收。
-- [错误合同](error-contract.md)：稳定编号、分类、跨协议映射和兼容规则。
-- [阶段交付摘要](foundation-milestone.md)：本次分支交付范围、验证结果与限制。
-- [本轮实施与验收](plans/2026-09-25-foundation.md)：正式基础框架完成范围。
-- [状态](status.md)：当前代码真实能力与未验证事项。
-- [OwnerFs 全量审视](reviews/ownerfs-v15-full-review.md)：旧版迁移缺口、RustFS/JuiceFS 借鉴、RPC 业务边界与最新三节点性能证据。
-- [下一步](next.md)：基础框架之后的业务实施入口。
-- [基础分支清理计划](foundation-reset-plan.md)：本次从 main 重置范围与验证方式。
+## 开始阅读
 
-旧产品和历史穿刺文档可从 Git 历史或旧分支读取，不在本分支并列作为现行设计。
+1. [产品定位](product-positioning.md)：目标用户、核心价值、产品结构和适用范围。
+2. [架构原则](../PRINCIPLES.md)：长期稳定的产品与架构合同。
+3. [架构总览](architecture/overview.md)：Meta、Node、OwnerFs、BlobFs、Storage Service 和外部存储的关系。
+4. [数据 Profile](architecture/profiles.md)：OwnerFs、Mutable 与 Published Immutable 的边界。
+5. [副本和缓存状态](semantics/copy-states.md)：Staging、Cache、Replica、External 和发布/逐出门禁。
+6. [当前状态](current-status.md)：已经实现、实验可用、计划和研究中的能力。
+7. [Roadmap](../ROADMAP.md)：纵向 Milestone 和目标 E2E。
+8. [参与贡献](../CONTRIBUTING.md)：RFC、任务、实现和验证要求。
+
+## 设计与语义
+
+- [RFC 索引](rfcs/README.md)
+- [RFC-0001：产品架构与数据 Profile](rfcs/0001-product-architecture.md)
+- [错误合同](error-contract.md)
+- [代码地图](code-layout.md)
+
+## 运行与验证
+
+- [运行指南](foundation-running.md)
+- [详细实现状态与实验记录](status.md)
+- [实现任务入口](next.md)
+- [OwnerFs P2P 并发优化](plans/2026-09-27-ownerfs-p2p-concurrency.md)
+- [MetaStore 提交边界](plans/2026-09-27-meta-store.md)
+- [OwnerFs 根恢复审视](reviews/ownerfs-v16-root-recovery.md)
+
+## 文档状态
+
+| 状态 | 含义 |
+| --- | --- |
+| `Implemented` | 代码和验证证据已经闭合 |
+| `Experimental` | 真实链路可运行，产品边界或规模尚未闭合 |
+| `Accepted Design` | 架构合同已确认，代码可以尚未实现 |
+| `Draft` | 内容仍可调整，不作为实现合同 |
+| `Research` | 独立研究或实验存在，产品路径尚未接入 |
+| `Planned` | Roadmap 中的目标能力 |
+| `Superseded` | 由现行文档替代，仅作历史参考 |
+
+## 历史参考
+
+- [需求分析 HTML](requirements.html)：Status `Superseded`。
+- [详细架构 HTML](architecture.html)：Status `Superseded`。
+- [工作负载速览](workloads.md)：Status `Superseded`。
+
+现行产品语义以 `PRINCIPLES.md`、`product-positioning.md`、`architecture/` 和 Accepted RFC 为准。历史文档不定义当前产品边界。

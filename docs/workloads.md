@@ -1,6 +1,6 @@
 # 两类工作负载的语义边界
 
-本文速览已确定的用户目标，不声称已经实现。完整 case、故障与验收语义以 [需求分析](requirements.html) 为准；实现思路见 [详细架构](architecture.html)，已运行的基础通道见 [运行指南](foundation-running.md)，业务语义与性能仍须单独验收。
+状态：Superseded。本文仅作历史参考。现行产品合同见[产品定位](product-positioning.md)、[架构原则](../PRINCIPLES.md)和[数据 Profile](architecture/profiles.md)。
 
 ## Agent workspace
 

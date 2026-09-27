@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: AFS architecture and contribution guide
+    url: https://github.com/lelezi257/dms/blob/main/CONTRIBUTING.md
+    about: Read the architecture, RFC, task, and verification contracts.

@@ -1,16 +1,16 @@
 # AFS 目录架构与模块职责
 
-状态：2026-09-26。本文负责目录、模块归属和依赖方向；需求与业务语义仍见 [需求分析](requirements.html)、[详细架构](architecture.html)与[宪法](../PRINCIPLES.md)。旧设计中的 Master/Worker 角色对应 `afs-meta/afs-node`，文件后端命名为 `OwnerFs/BlobFs`。
+状态：Implementation Reference。本文定义当前源码目录、模块职责和依赖方向。产品语义见[架构原则](../PRINCIPLES.md)、[架构总览](architecture/overview.md)与[数据 Profile](architecture/profiles.md)。
 
-**2026-09-27 MetaStore 补记：** `src/meta/store.rs` 同时定义 `MetaStore` 业务接口与 Store 提交队列；队列负责排队、短窗合并、ACK 后发布已确认可见的权威状态。`src/meta/store/memory.rs`、`local_file.rs` 与 `etcd.rs` 是三个后端实现。`Meta::register_node/lookup_node` 承接节点业务，RPC 只转换身份与 Proto。Node 侧 FUSE/P2P 共用 OwnerFs 状态，本轮未搬动适配器。当前 Store 边界见[MetaStore 提交边界](plans/2026-09-27-meta-store.md)。下文旧目录树和阶段描述中与此不同的后端拆分或配置说法均为历史。
+`src/meta/store.rs` 定义 `MetaStore` 业务接口与 Store 提交队列；队列负责排队、短窗合并，并在后端 ACK 后发布权威状态。`src/meta/store/memory.rs`、`local_file.rs` 与 `etcd.rs` 是三个后端实现。`Meta::register_node/lookup_node` 承接节点业务，RPC 负责身份与 Proto 转换。Store 边界见[MetaStore 提交边界](plans/2026-09-27-meta-store.md)。
 
-**当前实现补记：** OwnerFs 的持久 Meta 根权威、本地普通文件、FUSE 文件操作、远端 P2P 与进程重启后重新打开恢复已经接通并在 Linux 三节点复验；BlobFs 仍是骨架，OwnerFiles RDMA 内容路径尚未接通。Meta 根授权业务由 `meta/owner_roots.rs` 承载，持久权威由 `meta/store.rs` 的统一 Store 与所选后端承载；`memory` 只供可丢弃的开发/测试，不提供 Meta 重启恢复。Node 文件业务由 `OwnerFsPeerExecutor` 注入 `node/rpc/data/owner.rs`，不依赖 actor；业务适配器尚与 gRPC service 同文件，`node/rpc/peer.rs` 仍含少量预取/异步关闭策略。详细缺口与性能见[全量审视](reviews/ownerfs-v15-full-review.md)。下文保留了 2026-09-25 基础框架和实施前接口设计的历史描述；其中“OwnerFs 未实现”“FUSE create 返回 ENOSYS”“etcd 尚未实现”只表示当时状态，不能作为当前能力结论。
+OwnerFs 的持久 Meta 根权威、本地普通文件、FUSE 文件操作、远端 P2P 与进程重启后重新打开恢复已经接通并完成 Linux 三节点复验。BlobFs 仍是骨架，OwnerFiles RDMA 内容路径尚未接通。Meta 根授权业务由 `meta/owner_roots.rs` 承载，持久权威由 `meta/store.rs` 与所选后端承载；`memory` 只供可丢弃的开发/测试，不提供 Meta 重启恢复。Node 文件业务由 `OwnerFsPeerExecutor` 注入 `node/rpc/data/owner.rs`。完整状态见[当前状态](current-status.md)。
 
-以下目录树来自基础框架阶段，作为模块导航保留；当前 OwnerFs 业务能力以 [status.md](status.md) 为准。
+以下目录树描述源码模块导航；实现能力以[当前状态](current-status.md)为准。
 
 ## 1. 完整目录
 
-下列是本步主要源码布局，已有公共库内部实现保持原状。采用 `foo.rs + foo/`：有真实子模块才建立对应目录，小模块先保留 `foo.rs`，不创建无内容的子目录。
+源码采用 `foo.rs + foo/` 布局：存在真实子模块时建立对应目录，小模块保留为单文件，不创建无内容的目录层级。
 
 ```text
 afs/
@@ -103,7 +103,7 @@ afs/
 │       │   ├── ownerfs/catalog.rs   # 本机根身份记录与启动独占锁合同
 │       │   ├── ownerfs/files.rs     # 本地/远端文件身份与打开句柄类型
 │       │   ├── ownerfs/remote.rs    # 远端文件操作业务接口
-│       │   └── blobfs.rs            # 私有写入、显式发布、不可变多读
+│       │   └── blobfs.rs            # 通用分布式主干骨架；Mutable / Immutable Profiles
 │       ├── storage.rs               # FileStore/FileHandle 与旧诊断对象
 │       └── storage/localfs.rs       # 本地普通文件后端
 └── tests/README.md                  # 未来跨模块集成/E2E 归属
@@ -177,19 +177,7 @@ transport 默认启用 `grpc`，`shm` 用于本机 SDK，`rdma` 是可选 featur
 
 Proto 已生成 local/meta/node_control/node_data 类型和基础 service。基础框架只提供 ping、诊断和 8 字节数据面，不放假的文件业务成功路径。SDK 的独立 crate 边界已建立，但 publish=false 保留到实际交付验收。
 
-## 5. 本步实施与验证
-
-本步按用户已确认的控制台方案直接实施，不改文件业务语义、不移植历史产品、不提交或推送。
-
-- [x] 建立本文和公共 error/protocol、SDK、进程/业务模块。
-- [x] 接入 Cargo、Rust 模块树、Proto 生成和 binary 入口；保留既有公共实现。
-- [x] 实现配置、observability、Meta/Node REST、Node→Meta、Node→Node control/data、Local SDK UDS+SHM、FUSE namespace 分派。
-- [x] Linux fmt/check/feature matrix/test/Clippy/build/E2E；覆盖 8 字节诊断链路、FUSE ENOSYS、metrics、trace、配置拒绝与清理。
-- [x] 同步导航与状态，保留已有未提交修改。
-
-本步只验正式基础框架，不验真实 OwnerFs/BlobFs 文件业务、镜像发布、故障恢复或性能目标。最终结果见 [状态](status.md)。
-
-## 6. 从入口读代码
+## 5. 从入口读代码
 
 第一版的关键模块、接口和资源生命周期已补中文注释。建议按以下顺序阅读：
 

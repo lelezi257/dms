@@ -1,11 +1,35 @@
-# 当前状态
+# 实现状态
 
-更新时间：2026-09-27。AFS 已成为 `main` 主线；旧 DMS 内存 KV 实现保存在 `mem-kv` 分支。当前只交付源码与文档，尚未发布 AFS 版本。
+更新时间：2026-09-27。
 
-**已实现（事实）：** AFS 基础框架含 CLI/TOML、OwnerFs/BlobFs 编译与运行开关、FUSE/SDK/REST 入口、gRPC/RDMA 数据通道、日志/metrics/trace/error。OwnerFs 使用本机普通文件和 Node 间 P2P；Meta 负责节点注册与粗粒度根授权，不进入每次文件 I/O。MetaStore 统一提交队列在后端 ACK 后发布可见状态，当前后端为默认 `etcd`、显式 `local-file` 和 `memory`。BlobFs 仍是骨架。架构与边界见[目录架构](code-layout.md)、[MetaStore 提交合同](plans/2026-09-27-meta-store.md)。
+AFS 是面向业务集群近计算场景的通用 POSIX 分布式文件系统。产品包含两条数据后端：Distributed BlobFs 是通用分布式主线，OwnerFs 是 1～4 节点一体机 Agent workspace 的专用优化。BlobFs 同时承载可变文件与已发布不可变数据，两类 Profile 共享 namespace、Meta、Storage Service、placement、transport 和运维体系，并使用各自的写入状态机。
 
-**本阶段验收（事实）：** 最终 Linux Release 二进制在三 VM 功能 15/15；带 `fh` 的属性操作与同句柄 I/O 保序，Home 对打开句柄校验实际根、peer 与授权，异步 RELEASE 短暂失败有界重试；B daemon 持有远端 FD 后被 `SIGKILL`，Home 后台记录回收 1 个遗留句柄。全特性测试、严格 Clippy、格式、release 构建通过。详见[修复与复验](reviews/2026-09-27-ownerfs-p2p-hardening.md)。
+## 当前能力
 
-**性能（事实）：** 同一最终二进制的 W1 本机私有根两份 6 轮为 MooseFS 的 **0.482/0.451**；200×4 KiB、8 worker 完整 W2 两份 12 轮为 **0.768/0.780**；顺序 W2 两份 6 轮为 **1.106/1.080**。W1 同场本机 Native FS 147/144 ms、薄 FUSE 234/235 ms、OwnerFs 342/316 ms、MooseFS 709/701 ms。固定并发 W2 达到 0.8 目标，但顺序 W2 未证明稳定达到 1.10；不把此固定负载推广到所有工作负载。原始运行数据留在研究工作区 `experiments/results/2026-09-27-afs-p2p-hardening/`，不纳入 Git。
+| 能力 | 状态 | 已验证边界 |
+| --- | --- | --- |
+| CLI、TOML、日志、metrics、trace、错误框架 | 已实现 | Linux 构建与现有测试通过 |
+| FUSE、SDK、REST 入口 | 已实现基础框架 | OwnerFs 路径已投入三 VM 验收 |
+| MetaStore | 已实现单活动基础 | etcd、local-file、memory；后端 ACK 后发布可见状态 |
+| OwnerFs | 已实现阶段能力 | 本机普通文件、跨 Node P2P、授权校验、句柄回收 |
+| Distributed BlobFs | 骨架 | 通用分布式 extent/chunk 数据面尚未实现 |
+| Mutable Profile | 未实现 | 多读多写、一致性和故障恢复合同待 RFC 固化 |
+| Published Immutable Profile | 未实现 | publish、校验、cache、P2P 多源和 GC 待实现 |
+| 外部对象存储 spill | 未实现 | 属于容量层选项，不是系统成立条件 |
+| Native SDK 高性能数据面 | 基础框架 | SHM/RDMA 文件内容路径尚未接通 |
 
-**未完成（事实）：** Meta 单活动围栏/选主、根删除及跨节点根列举、常用 `chmod/chown/atime/mtime`、完整 POSIX、VM 掉电和长稳尚未验收。`memory` Store 易失、`local-file` 只承诺单机/单盘，Redis 未实现。文件内容仍走 gRPC P2P，RDMA 文件内容路径未接通；不能宣称完整 MooseFS 替代。下一入口见[下一步](next.md)，前阶段审视留在[评审记录](reviews/)。
+## OwnerFs 证据
+
+最终 Linux Release 二进制在三 VM 功能验收中通过 15/15。带 `fh` 的属性操作与同句柄 I/O 保序；Home 校验打开句柄的实际根、peer 和授权；异步 RELEASE 支持有界重试；远端 daemon 异常退出后，Home 在 Meta 会话失效后回收遗留句柄。
+
+固定 200×4 KiB、8 worker 负载下，完整远端 W2 两份 12 轮结果为 MooseFS 的 **0.768/0.780**；W1 本机私有根为 **0.482/0.451**；顺序 W2 为 **1.106/1.080**。这些结果只证明该固定负载，不代表完整 POSIX 或所有工作负载均优于 MooseFS。详细证据见[OwnerFs 修复与复验](reviews/2026-09-27-ownerfs-p2p-hardening.md)。
+
+## 已知边界
+
+- Meta 单活动围栏与选主尚未完成，不能宣称生产 HA。
+- OwnerFs 尚缺根删除、跨节点根列举及部分常用属性操作。
+- `memory` MetaStore 只用于可丢弃测试；`local-file` 只承诺单机单盘。
+- RDMA 已有传输探测能力，文件内容仍走 gRPC P2P。
+- 完整 POSIX、VM 掉电、长稳、容量压力和对象存储 spill 尚未验收。
+
+产品合同见[产品定位](product-positioning.md)、[架构总览](architecture/overview.md)和[架构原则](../PRINCIPLES.md)。工程优先级见[Roadmap](../ROADMAP.md)与[实现任务](next.md)。

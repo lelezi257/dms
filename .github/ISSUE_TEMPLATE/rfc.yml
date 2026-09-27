@@ -1,0 +1,33 @@
+name: RFC proposal
+description: Propose a change to public semantics, persistent state, reliability, or module boundaries.
+title: "RFC: "
+labels: ["kind/rfc", "status/needs-evidence"]
+body:
+  - type: textarea
+    id: user-case
+    attributes:
+      label: User case
+      description: Describe the operation, expected result, and failure result.
+    validations:
+      required: true
+  - type: textarea
+    id: contract
+    attributes:
+      label: Contract
+      description: Describe the external semantics and architectural invariants.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence
+      description: Link source analysis, experiments, traces, or workload data.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: List functional, failure, performance, and operational evidence.
+    validations:
+      required: true

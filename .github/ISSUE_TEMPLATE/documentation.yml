@@ -1,0 +1,26 @@
+name: Documentation task
+description: Improve product, architecture, tutorial, or contributor documentation.
+title: "Docs: "
+labels: ["kind/documentation", "area/docs", "status/ready"]
+body:
+  - type: textarea
+    id: reader
+    attributes:
+      label: Reader outcome
+      description: State what the reader can understand or perform after the change.
+    validations:
+      required: true
+  - type: textarea
+    id: sources
+    attributes:
+      label: Source of truth
+      description: Link code, RFCs, experiments, and status evidence.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: List navigation, accuracy, examples, and status requirements.
+    validations:
+      required: true

@@ -1,0 +1,33 @@
+name: Implementation task
+description: Implement an accepted and bounded AFS capability.
+title: ""
+labels: ["kind/implementation", "status/ready"]
+body:
+  - type: input
+    id: rfc
+    attributes:
+      label: RFC or architecture contract
+      placeholder: docs/rfcs/0001-product-architecture.md
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope
+      description: List owned modules, inputs, outputs, and explicit boundaries.
+    validations:
+      required: true
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Required behavior
+      description: Describe successful operations, errors, retries, and visible state.
+    validations:
+      required: true
+  - type: textarea
+    id: verification
+    attributes:
+      label: Verification
+      description: List functional, failure, and performance evidence.
+    validations:
+      required: true

@@ -1,9 +1,38 @@
-# 下一步
+# 实现任务
 
-本阶段的 OwnerFs 句柄保序、Home 授权绑定、异步 RELEASE 与故障回收已完成复验。当前 Linux 三 VM 功能验收 15/15；固定 200×4 KiB、8 worker 完整 W2 两份 12 轮为 MooseFS 的 0.768/0.780；顺序 W2 两份为 1.106/1.080，未证明稳定达到 1.10。详见[修复与复验](reviews/2026-09-27-ownerfs-p2p-hardening.md)及[当前状态](status.md)。
+工程主线以 [Roadmap](../ROADMAP.md) 为准。当前优先级是建立最小 Distributed BlobFs，再补齐 Mutable Profile、Published Immutable Profile 和多源读取。
 
-1. **扩面性能：** 增加文件数、大小、并发与远端读比例，用现有分段指标定位 B 重读/覆盖写及顺序 W2 波动；有白盒证据后再优化 P2P/FUSE，复验本地 W1。
-2. **补强故障与控制面：** 验证 Meta 临时不可达、多个遗留 FD、进程重启后重新打开及根创建的真实中断切点；另行设计单活动 Meta 围栏/选主。`memory` Store 仅用于可丢弃测试集群，不能承担跨重启授权。
-3. **补齐产品边界：** 恢复 Agent 常用 `chmod/chown/atime/mtime`；单独设计根删除、同名重建与跨节点根列举。完整 POSIX、VM 掉电与长稳尚未验收。
+## P0：最小 Distributed BlobFs
 
-保持已确认的 VFS/Storage/Proto 核心合同；BlobFs 与 S6 不在此阶段。阶段历史、已关闭的问题和当时的下一步保留在 [OwnerFs 审视记录](reviews/)与 Git 历史；代码入口见[目录架构](code-layout.md)。
+1. 以 RFC 固化 inode、extent/chunk、文件版本、layout epoch、placement 和副本状态模型。
+2. 实现 Meta 侧文件布局事务，以及 Node 侧 chunk 创建、写入、读取、校验和删除。
+3. 打通 FUSE `create → write → fsync → close → open → read` 的两节点端到端路径。
+4. 定义副本确认规则、失败重试、重启恢复和校验失败处理。
+5. 为每个状态转换补充可观测字段，使实现状态可映射到[副本与缓存状态](semantics/copy-states.md)。
+
+## P1：Mutable Profile
+
+1. 定义并实现并发读写、truncate、rename、unlink、fsync 与崩溃恢复语义。
+2. 以一致性协议维护权威副本集合；多源读取只能选择同一已提交版本。
+3. 补 Meta 单活动围栏、选主和故障注入证据。
+
+## P1：OwnerFs 完整性
+
+1. 补齐 Agent 常用 `chmod`、`chown`、`atime`、`mtime`。
+2. 实现根删除、同名重建和跨节点根列举。
+3. 扩展文件大小、数量、并发和远端读写比例矩阵，记录 B 重读与覆盖写热点。
+
+## P2：Published Immutable Profile
+
+1. 定义显式 Snapshot/Publish API；`fsync` 只保证文件持久性，不承担发布语义。
+2. 生成内容校验、不可变版本和可验证 manifest。
+3. 将已验证本地副本、近端 cache 和外部对象存储副本纳入统一 placement。
+4. 实现 authoritative replica 与 verified cache 的多源调度、回源、修复和 GC。
+
+## P3：高性能与容量层
+
+1. 接通 Native SDK 的批量 I/O、SHM 与可选 RDMA 数据路径。
+2. 实现本地 SSD、NVMe、HDD 的容量与热度管理。
+3. 实现可选对象存储 spill，并验证回源、校验、删除与灾难恢复。
+
+贡献前先读[贡献指南](../CONTRIBUTING.md)和[RFC 规则](rfcs/README.md)。所有能力声明必须附带源码、测试或实验位置。

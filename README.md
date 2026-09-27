@@ -1,6 +1,6 @@
 # AFS（Agent FS）：面向 Agent 工作负载的文件服务
 
-这是从 main 建立的**新方向基础分支**。`afs-meta` 与 `afs-node` 已具备 CLI/TOML 配置、REST/gRPC、Node→Meta、Node→Node、Local SDK UDS + SHM、FUSE namespace 分派及日志/指标/Trace。OwnerFs 已接通真实 workspace 文件业务：Meta 管理持久根权威，Home 保存普通本机文件，远端 Node 通过 P2P 访问。BlobFs 仍是骨架，镜像发布业务未实现；当前能力和边界以[阶段复验](docs/reviews/ownerfs-v12-stage-review.md)为准。
+`main` 现为 AFS 主线；原 `main` 上的 DMS 内存 KV 实现保存在 [`mem-kv`](https://github.com/lelezi257/dms/tree/mem-kv) 分支，既有 DMS v0.1.0 Release 仍属于该旧实现。`afs-meta` 与 `afs-node` 已具备 CLI/TOML 配置、REST/gRPC、Node→Meta、Node→Node、Local SDK UDS + SHM、FUSE namespace 分派及日志/指标/Trace。OwnerFs 已接通真实 workspace 文件业务：Meta 管理持久根权威，Home 保存普通本机文件，远端 Node 通过 P2P 访问。BlobFs 仍是骨架，镜像发布业务未实现；当前能力和边界以[状态](docs/status.md)与[阶段复验](docs/reviews/2026-09-27-ownerfs-p2p-hardening.md)为准。
 
 架构以近计算与 P2P 为特征：afs-node 与计算节点共置，本地优先、跨节点直连，afs-meta 提供位置与权威管理。OwnerFs 面向 Agent workspace，BlobFs 面向私有写入、显式发布和不可变多读的镜像/快照。gVisor 文件树与 Firecracker 磁盘镜像都在范围内；首版 Firecracker 可先完整拉取镜像，不要求块级懒加载。
 

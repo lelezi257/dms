@@ -1,6 +1,6 @@
 # 当前状态
 
-更新时间：2026-09-27。当前交付分支为 `feat/agent-workloads-foundation`；只交付源码与文档，未合并或发布。
+更新时间：2026-09-27。AFS 已成为 `main` 主线；旧 DMS 内存 KV 实现保存在 `mem-kv` 分支。当前只交付源码与文档，尚未发布 AFS 版本。
 
 **已实现（事实）：** AFS 基础框架含 CLI/TOML、OwnerFs/BlobFs 编译与运行开关、FUSE/SDK/REST 入口、gRPC/RDMA 数据通道、日志/metrics/trace/error。OwnerFs 使用本机普通文件和 Node 间 P2P；Meta 负责节点注册与粗粒度根授权，不进入每次文件 I/O。MetaStore 统一提交队列在后端 ACK 后发布可见状态，当前后端为默认 `etcd`、显式 `local-file` 和 `memory`。BlobFs 仍是骨架。架构与边界见[目录架构](code-layout.md)、[MetaStore 提交合同](plans/2026-09-27-meta-store.md)。
 

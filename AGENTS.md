@@ -1,6 +1,6 @@
 # AFS（Agent FS）协作规则
 
-本分支从 origin/main 建立，服务 Agent workspace 与不可变镜像/快照两类工作负载。先读 [宪法](PRINCIPLES.md)，再读 [需求分析](docs/requirements.html)、[详细架构](docs/architecture.html)、[目录架构](docs/code-layout.md)、[状态](docs/status.md)和 [下一步](docs/next.md)。业务语义以原则、需求与详细架构为准；已确认的目录/模块命名和依赖分界以 code-layout.md 为准，不从旧 KV 代码或旧分支推断。
+当前 `main` 是 AFS 主线，服务 Agent workspace 与不可变镜像/快照两类工作负载；旧 DMS 内存 KV 实现保存在 `mem-kv` 分支。先读 [宪法](PRINCIPLES.md)，再读 [需求分析](docs/requirements.html)、[详细架构](docs/architecture.html)、[目录架构](docs/code-layout.md)、[状态](docs/status.md)和 [下一步](docs/next.md)。业务语义以原则、需求与详细架构为准；已确认的目录/模块命名和依赖分界以 code-layout.md 为准，不从旧 KV 代码或旧分支推断。
 
 ## 事实与决策
 

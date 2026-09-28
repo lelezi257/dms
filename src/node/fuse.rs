@@ -1,7 +1,7 @@
 //! 统一 POSIX/FUSE 入口。
 //!
 //! 接收内核回调，转换到 VFS `Backend` 接口并映射 errno/回复；管理 FUSE 会话内的
-//! inode、目录项和打开句柄。两种 namespace 通过同一入口分派，FUSE inode 编号
+//! inode、目录项和打开句柄。每个 mount session 绑定一个 Backend；FUSE inode 编号
 //! 不能当作后端持久文件身份。OwnerFs 的独用 Home 根可短暂缓存；首次远端
 //! 访问先通过 FUSE notifier 失效本机缓存，再由 Home 执行该请求。
 
@@ -26,51 +26,48 @@ use fuser::{
 #[cfg(feature = "ownerfs")]
 use crate::node::vfs::ownerfs::OwnerFs;
 use crate::node::vfs::{
-    Backend, Namespace, Vfs,
+    Backend,
     types::{
         AttributeChange, BackendInode, DirectoryEntry, Entry, FileAttributes, FileKind,
         RenameFlags, RequestContext, SyncMode,
     },
 };
 
-use self::state::{FuseNode, FuseState, ROOT_INO, namespace_ino};
+use self::state::{FuseNode, FuseState, ROOT_INO};
 
 const TTL: Duration = Duration::ZERO;
 // Keep name-to-inode mappings briefly on P2P mounts without caching remote
 // attributes. This separates redundant path lookups from close-to-open data
 // freshness; the patched fuser reply supports independent TTLs.
+#[cfg(feature = "ownerfs")]
 const OWNER_ENTRY_TTL: Duration = Duration::from_secs(1);
 const DIRECT_IO: u32 = consts::FOPEN_DIRECT_IO;
 
-/// 建立真正的内核 FUSE 挂载，由 fuser 后台会话收取 POSIX 回调。
-/// 返回值由 Node 持有；释放会话时卸载。没有 bind 子挂载，也不绕过 FUSE 访问后端。
-pub fn mount(vfs: Arc<Vfs>, path: &Path) -> Result<BackgroundSession> {
+/// 建立真正的内核 FUSE 挂载。一个 session 只绑定一个业务 Backend。
+pub fn mount_dfs(backend: Arc<dyn Backend>, path: &Path) -> Result<BackgroundSession> {
     reject_existing_mount(path)?;
-    let fs = AfsFuse::new(FuseBackends::Vfs(vfs));
+    let fs = AfsFuse::new(backend);
     fuser::spawn_mount2(
         fs,
         path,
-        &[MountOption::FSName("afs".into()), MountOption::NoAtime],
+        &[MountOption::FSName("afs-dfs".into()), MountOption::NoAtime],
     )
     .map_err(Error::from)
 }
 
-/// Production OwnerFs mount with the same private-cache policy as the HomeFs
-/// fast path. The concrete hook stays here; it does not expand the common VFS
-/// Backend interface or affect BlobFs and test mounts.
+/// OwnerFs 使用相同 FUSE 实现，并额外接入其本地 Home 缓存策略与 notifier。
 #[cfg(feature = "ownerfs")]
-pub fn mount_with_ownerfs_cache(
-    vfs: Arc<Vfs>,
-    ownerfs: Arc<OwnerFs>,
-    path: &Path,
-) -> Result<BackgroundSession> {
+pub fn mount_ownerfs(ownerfs: Arc<OwnerFs>, path: &Path) -> Result<BackgroundSession> {
     reject_existing_mount(path)?;
-    let mut fs = AfsFuse::new(FuseBackends::Vfs(vfs));
+    let mut fs = AfsFuse::new(ownerfs.clone());
     fs.ownerfs = Some(ownerfs.clone());
     let session = fuser::spawn_mount2(
         fs,
         path,
-        &[MountOption::FSName("afs".into()), MountOption::NoAtime],
+        &[
+            MountOption::FSName("afs-ownerfs".into()),
+            MountOption::NoAtime,
+        ],
     )
     .map_err(Error::from)?;
     ownerfs.register_fuse_notifier(session.notifier());
@@ -78,13 +75,9 @@ pub fn mount_with_ownerfs_cache(
 }
 
 #[doc(hidden)]
-pub fn mount_test_backend(
-    namespace: Namespace,
-    backend: Arc<dyn Backend>,
-    path: &Path,
-) -> Result<BackgroundSession> {
+pub fn mount_test_backend(backend: Arc<dyn Backend>, path: &Path) -> Result<BackgroundSession> {
     reject_existing_mount(path)?;
-    let fs = AfsFuse::new(FuseBackends::Single { namespace, backend });
+    let fs = AfsFuse::new(backend);
     fuser::spawn_mount2(
         fs,
         path,
@@ -287,7 +280,7 @@ impl Drop for FuseDispatch {
 }
 
 pub struct AfsFuse {
-    backends: FuseBackends,
+    backend: Arc<dyn Backend>,
     state: Arc<Mutex<FuseState>>,
     dispatch: FuseDispatch,
     #[cfg(feature = "ownerfs")]
@@ -296,10 +289,10 @@ pub struct AfsFuse {
 
 impl AfsFuse {
     #[must_use]
-    fn new(backends: FuseBackends) -> Self {
-        let state = Arc::new(Mutex::new(FuseState::new(backends.namespaces())));
+    fn new(backend: Arc<dyn Backend>) -> Self {
+        let state = Arc::new(Mutex::new(FuseState::new(backend.root_inode())));
         Self {
-            backends,
+            backend,
             state,
             dispatch: FuseDispatch::new(8),
             #[cfg(feature = "ownerfs")]
@@ -307,15 +300,13 @@ impl AfsFuse {
         }
     }
 
-    fn remember_cached_inode(&self, inode: BackendInode, ino: u64) {
+    fn remember_cached_inode(&self, _inode: BackendInode, ino: u64) {
         #[cfg(feature = "ownerfs")]
-        if inode.namespace == Namespace::OwnerFs
-            && let Some(ownerfs) = &self.ownerfs
-        {
+        if let Some(ownerfs) = &self.ownerfs {
             ownerfs.remember_fuse_inode(ino);
         }
         #[cfg(not(feature = "ownerfs"))]
-        let _ = (inode, ino);
+        let _ = ino;
     }
 
     fn with_cache_policy<T>(
@@ -324,9 +315,7 @@ impl AfsFuse {
         reply: impl FnOnce(Duration, bool) -> T,
     ) -> T {
         #[cfg(feature = "ownerfs")]
-        if inode.namespace == Namespace::OwnerFs
-            && let Some(ownerfs) = &self.ownerfs
-        {
+        if let Some(ownerfs) = &self.ownerfs {
             return ownerfs.with_fuse_cache_policy(inode, reply);
         }
         #[cfg(not(feature = "ownerfs"))]
@@ -343,58 +332,12 @@ impl AfsFuse {
         }
     }
 
-    fn backend(&self, namespace: Namespace) -> std::result::Result<&dyn Backend, i32> {
-        self.backends.backend(namespace).ok_or(libc::ENOENT)
-    }
-
     fn backend_inode(&self, ino: u64) -> std::result::Result<BackendInode, i32> {
         self.state
             .lock()
             .unwrap()
             .backend_inode(ino)
             .ok_or(libc::ESTALE)
-    }
-
-    fn lookup_root_child(&self, name: &OsStr) -> std::result::Result<FileAttr, i32> {
-        let Some(name) = name.to_str() else {
-            return Err(libc::EINVAL);
-        };
-        let namespace = Namespace::parse(name).map_err(errno)?;
-        let ino = namespace_ino(namespace);
-        let node = self.state.lock().unwrap().node(ino);
-        match node {
-            Some(FuseNode::NamespaceRoot(_)) => Ok(dir_attr(ino)),
-            _ => Err(libc::ENOENT),
-        }
-    }
-}
-
-#[derive(Clone)]
-enum FuseBackends {
-    Vfs(Arc<Vfs>),
-    Single {
-        namespace: Namespace,
-        backend: Arc<dyn Backend>,
-    },
-}
-
-impl FuseBackends {
-    fn namespaces(&self) -> Vec<Namespace> {
-        match self {
-            Self::Vfs(vfs) => vfs.namespaces(),
-            Self::Single { namespace, .. } => vec![*namespace],
-        }
-    }
-
-    fn backend(&self, namespace: Namespace) -> Option<&dyn Backend> {
-        match self {
-            Self::Vfs(vfs) => vfs.backend(namespace),
-            Self::Single {
-                namespace: enabled,
-                backend,
-            } if *enabled == namespace => Some(backend.as_ref()),
-            Self::Single { .. } => None,
-        }
     }
 }
 
@@ -408,13 +351,6 @@ impl Filesystem for AfsFuse {
     }
 
     fn lookup(&mut self, req: &Request<'_>, parent: u64, name: &OsStr, reply: ReplyEntry) {
-        if parent == ROOT_INO {
-            match self.lookup_root_child(name) {
-                Ok(attr) => reply.entry(&OWNER_ENTRY_TTL, &attr, 0),
-                Err(error) => reply.error(error),
-            }
-            return;
-        }
         let Ok(parent_inode) = self.backend_inode(parent) else {
             reply.error(libc::ESTALE);
             return;
@@ -422,31 +358,25 @@ impl Filesystem for AfsFuse {
         // A local Home directory lookup has no network wait. Keep it on the
         // FUSE receive thread; remote lookups still need worker concurrency.
         #[cfg(feature = "ownerfs")]
-        let inline_local_lookup = parent_inode.namespace == Namespace::OwnerFs
-            && self
-                .ownerfs
-                .as_ref()
-                .is_some_and(|ownerfs| ownerfs.is_local_inode(parent_inode));
+        let inline_local_lookup = self
+            .ownerfs
+            .as_ref()
+            .is_some_and(|ownerfs| ownerfs.is_local_inode(parent_inode));
         #[cfg(not(feature = "ownerfs"))]
         let inline_local_lookup = false;
-        let backends = self.backends.clone();
+        let backend = self.backend.clone();
         let state = self.state.clone();
         let context = Self::context(req, 0);
         let name = name.to_os_string();
         #[cfg(feature = "ownerfs")]
         let ownerfs = self.ownerfs.clone();
         let run = move || {
-            let result = backends
-                .backend(parent_inode.namespace)
-                .ok_or(libc::ENOENT)
-                .and_then(|backend| backend.lookup(&context, parent_inode, &name).map_err(errno));
+            let result = backend.lookup(&context, parent_inode, &name).map_err(errno);
             match result {
                 Ok(entry) => {
                     let ino = state.lock().unwrap().remember_lookup(&entry);
                     #[cfg(feature = "ownerfs")]
-                    if entry.inode.namespace == Namespace::OwnerFs
-                        && let Some(ownerfs) = &ownerfs
-                    {
+                    if let Some(ownerfs) = &ownerfs {
                         ownerfs.remember_fuse_inode(ino);
                         ownerfs.with_fuse_cache_policy(entry.inode, |ttl, private| {
                             if !private {
@@ -486,7 +416,7 @@ impl Filesystem for AfsFuse {
                 .file_handle(fh)
                 .is_some_and(|file| file.inline_local_read)
         });
-        let backends = self.backends.clone();
+        let backend = self.backend.clone();
         let state = self.state.clone();
         let context = Self::context(req, 0);
         #[cfg(feature = "ownerfs")]
@@ -494,32 +424,15 @@ impl Filesystem for AfsFuse {
         let run = move || {
             let node = state.lock().unwrap().node(ino);
             let result = match node {
-                Some(FuseNode::Root) => Ok(dir_attr(ROOT_INO)),
-                Some(FuseNode::NamespaceRoot(_)) => Ok(dir_attr(ino)),
-                Some(FuseNode::Backend(inode)) => {
+                Some(FuseNode::Root(inode)) | Some(FuseNode::Backend(inode)) => {
                     let handle = fh.and_then(|fh| state.lock().unwrap().file_handle(fh));
                     handle
-                        .map_or(Ok(()), |handle| {
-                            AfsFuse::validate_handle_inode_namespace_in(
-                                &state,
-                                ino,
-                                handle.namespace,
-                            )
-                        })
+                        .map_or(Ok(()), |_| AfsFuse::validate_handle_inode_in(&state, ino))
                         .and_then(|()| {
-                            backends
-                                .backend(inode.namespace)
-                                .ok_or(libc::ENOENT)
-                                .and_then(|backend| {
-                                    backend
-                                        .getattr(
-                                            &context,
-                                            inode,
-                                            handle.map(|handle| handle.handle),
-                                        )
-                                        .map(|attributes| file_attr(ino, &attributes))
-                                        .map_err(errno)
-                                })
+                            backend
+                                .getattr(&context, inode, handle.map(|handle| handle.handle))
+                                .map(|attributes| file_attr(ino, &attributes))
+                                .map_err(errno)
                         })
                 }
                 None => Err(libc::ESTALE),
@@ -529,12 +442,12 @@ impl Filesystem for AfsFuse {
                 Ok(attr) => match backend_inode {
                     Some(inode) => {
                         #[cfg(feature = "ownerfs")]
-                        if inode.namespace == Namespace::OwnerFs
-                            && let Some(ownerfs) = &ownerfs
-                        {
+                        if let Some(ownerfs) = &ownerfs {
                             ownerfs.with_fuse_cache_policy(inode, |ttl, _| reply.attr(&ttl, &attr));
                             return;
                         }
+                        #[cfg(not(feature = "ownerfs"))]
+                        let _ = inode;
                         reply.attr(&TTL, &attr);
                     }
                     None => reply.attr(&TTL, &attr),
@@ -574,7 +487,7 @@ impl Filesystem for AfsFuse {
                 .file_handle(fh)
                 .is_some_and(|file| file.inline_local_read)
         });
-        let backends = self.backends.clone();
+        let backend = self.backend.clone();
         let state = self.state.clone();
         let context = Self::context(req, 0);
         let change = AttributeChange {
@@ -589,17 +502,14 @@ impl Filesystem for AfsFuse {
             let inode = state.lock().unwrap().backend_inode(ino);
             let result = inode.ok_or(libc::ESTALE).and_then(|inode| {
                 let handle = fh.and_then(|fh| state.lock().unwrap().file_handle(fh));
-                if let Some(handle) = handle {
-                    AfsFuse::validate_handle_inode_namespace_in(&state, ino, handle.namespace)?;
+                if handle.is_some() {
+                    AfsFuse::validate_handle_inode_in(&state, ino)?;
                 }
-                backends
-                    .backend(inode.namespace)
-                    .ok_or(libc::ENOENT)
-                    .and_then(|backend| {
-                        backend
-                            .setattr(&context, inode, handle.map(|handle| handle.handle), &change)
-                            .map_err(errno)
-                    })
+                Ok(backend.as_ref()).and_then(|backend| {
+                    backend
+                        .setattr(&context, inode, handle.map(|handle| handle.handle), &change)
+                        .map_err(errno)
+                })
             });
             match result {
                 Ok(attributes) => reply.attr(&TTL, &file_attr(ino, &attributes)),
@@ -615,7 +525,7 @@ impl Filesystem for AfsFuse {
 
     fn readlink(&mut self, req: &Request<'_>, ino: u64, reply: ReplyData) {
         let result = self.backend_inode(ino).and_then(|inode| {
-            self.backend(inode.namespace).and_then(|backend| {
+            Ok(self.backend.as_ref()).and_then(|backend| {
                 backend
                     .readlink(&Self::context(req, 0), inode)
                     .map(|target| os_str_bytes(target.as_os_str()).to_vec())
@@ -638,7 +548,7 @@ impl Filesystem for AfsFuse {
         reply: ReplyEntry,
     ) {
         let result = self.backend_inode(parent).and_then(|parent_inode| {
-            self.backend(parent_inode.namespace).and_then(|backend| {
+            Ok(self.backend.as_ref()).and_then(|backend| {
                 backend
                     .mkdir(&Self::context(req, umask), parent_inode, name, mode)
                     .map_err(errno)
@@ -655,7 +565,7 @@ impl Filesystem for AfsFuse {
 
     fn unlink(&mut self, req: &Request<'_>, parent: u64, name: &OsStr, reply: ReplyEmpty) {
         let result = self.backend_inode(parent).and_then(|parent_inode| {
-            self.backend(parent_inode.namespace).and_then(|backend| {
+            Ok(self.backend.as_ref()).and_then(|backend| {
                 backend
                     .unlink(&Self::context(req, 0), parent_inode, name)
                     .map_err(errno)
@@ -666,7 +576,7 @@ impl Filesystem for AfsFuse {
 
     fn rmdir(&mut self, req: &Request<'_>, parent: u64, name: &OsStr, reply: ReplyEmpty) {
         let result = self.backend_inode(parent).and_then(|parent_inode| {
-            self.backend(parent_inode.namespace).and_then(|backend| {
+            Ok(self.backend.as_ref()).and_then(|backend| {
                 backend
                     .rmdir(&Self::context(req, 0), parent_inode, name)
                     .map_err(errno)
@@ -684,7 +594,7 @@ impl Filesystem for AfsFuse {
         reply: ReplyEntry,
     ) {
         let result = self.backend_inode(parent).and_then(|parent_inode| {
-            self.backend(parent_inode.namespace).and_then(|backend| {
+            Ok(self.backend.as_ref()).and_then(|backend| {
                 backend
                     .symlink(
                         &Self::context(req, 0),
@@ -716,10 +626,7 @@ impl Filesystem for AfsFuse {
     ) {
         let result = self.backend_inode(parent).and_then(|from_parent| {
             let to_parent = self.backend_inode(newparent)?;
-            if from_parent.namespace != to_parent.namespace {
-                return Err(libc::EXDEV);
-            }
-            self.backend(from_parent.namespace).and_then(|backend| {
+            Ok(self.backend.as_ref()).and_then(|backend| {
                 backend
                     .rename(
                         &Self::context(req, 0),
@@ -745,10 +652,7 @@ impl Filesystem for AfsFuse {
     ) {
         let result = self.backend_inode(ino).and_then(|inode| {
             let parent = self.backend_inode(newparent)?;
-            if inode.namespace != parent.namespace {
-                return Err(libc::EXDEV);
-            }
-            self.backend(inode.namespace).and_then(|backend| {
+            Ok(self.backend.as_ref()).and_then(|backend| {
                 backend
                     .link(&Self::context(req, 0), inode, parent, newname)
                     .map_err(errno)
@@ -772,18 +676,14 @@ impl Filesystem for AfsFuse {
         // This lets independent writable opens overlap with read-only ones;
         // O_PATH remains on the original path because it has no I/O handle.
         if flags & libc::O_PATH != 0 {
-            let result = self.backend(inode.namespace).and_then(|backend| {
+            let result = Ok(self.backend.as_ref()).and_then(|backend| {
                 backend
                     .open(&Self::context(req, 0), inode, flags)
                     .map_err(errno)
             });
             match result {
                 Ok(handle) => {
-                    let fh = self
-                        .state
-                        .lock()
-                        .unwrap()
-                        .insert_file_handle(inode.namespace, handle);
+                    let fh = self.state.lock().unwrap().insert_file_handle(handle);
                     self.with_cache_policy(inode, |_, private| {
                         reply.opened(fh, if private { 0 } else { DIRECT_IO });
                     });
@@ -794,34 +694,27 @@ impl Filesystem for AfsFuse {
         }
         #[cfg(feature = "ownerfs")]
         let inline_local_read = flags & libc::O_ACCMODE == libc::O_RDONLY
-            && inode.namespace == Namespace::OwnerFs
             && self
                 .ownerfs
                 .as_ref()
                 .is_some_and(|ownerfs| ownerfs.is_local_inode(inode));
         #[cfg(not(feature = "ownerfs"))]
         let inline_local_read = false;
-        let backends = self.backends.clone();
+        let backend = self.backend.clone();
         let state = self.state.clone();
         let context = Self::context(req, 0);
         #[cfg(feature = "ownerfs")]
         let ownerfs = self.ownerfs.clone();
         let run = move || {
-            let result = backends
-                .backend(inode.namespace)
-                .ok_or(libc::ENOENT)
-                .and_then(|backend| backend.open(&context, inode, flags).map_err(errno));
+            let result = backend.open(&context, inode, flags).map_err(errno);
             match result {
                 Ok(handle) => {
-                    let fh = state.lock().unwrap().insert_file_handle_with_policy(
-                        inode.namespace,
-                        handle,
-                        inline_local_read,
-                    );
+                    let fh = state
+                        .lock()
+                        .unwrap()
+                        .insert_file_handle_with_policy(handle, inline_local_read);
                     #[cfg(feature = "ownerfs")]
-                    if inode.namespace == Namespace::OwnerFs
-                        && let Some(ownerfs) = &ownerfs
-                    {
+                    if let Some(ownerfs) = &ownerfs {
                         ownerfs.with_fuse_cache_policy(inode, |_, private| {
                             reply.opened(fh, if private { 0 } else { DIRECT_IO });
                         });
@@ -856,26 +749,23 @@ impl Filesystem for AfsFuse {
             .unwrap()
             .file_handle(fh)
             .is_some_and(|file| file.inline_local_read);
-        let backends = self.backends.clone();
+        let backend = self.backend.clone();
         let state = self.state.clone();
         let context = Self::context(req, 0);
         let run = move || {
             let result = checked_offset(offset).and_then(|offset| {
                 let file = state.lock().unwrap().file_handle(fh).ok_or(libc::ESTALE)?;
-                AfsFuse::validate_handle_inode_namespace_in(&state, ino, file.namespace)?;
+                AfsFuse::validate_handle_inode_in(&state, ino)?;
                 let mut out = vec![0; size as usize];
-                backends
-                    .backend(file.namespace)
-                    .ok_or(libc::ENOENT)
-                    .and_then(|backend| {
-                        backend
-                            .read(&context, file.handle, offset, &mut out)
-                            .map(|n| {
-                                out.truncate(n);
-                                out
-                            })
-                            .map_err(errno)
-                    })
+                Ok(backend.as_ref()).and_then(|backend| {
+                    backend
+                        .read(&context, file.handle, offset, &mut out)
+                        .map(|n| {
+                            out.truncate(n);
+                            out
+                        })
+                        .map_err(errno)
+                })
             });
             match result {
                 Ok(data) => reply.data(&data),
@@ -901,22 +791,19 @@ impl Filesystem for AfsFuse {
         _lock_owner: Option<u64>,
         reply: ReplyWrite,
     ) {
-        let backends = self.backends.clone();
+        let backend = self.backend.clone();
         let state = self.state.clone();
         let context = Self::context(req, 0);
         let data = data.to_vec();
         self.dispatch.submit_keyed(fh, move || {
             let result = checked_offset(offset).and_then(|offset| {
                 let file = state.lock().unwrap().file_handle(fh).ok_or(libc::ESTALE)?;
-                AfsFuse::validate_handle_inode_namespace_in(&state, ino, file.namespace)?;
-                backends
-                    .backend(file.namespace)
-                    .ok_or(libc::ENOENT)
-                    .and_then(|backend| {
-                        backend
-                            .write(&context, file.handle, offset, &data)
-                            .map_err(errno)
-                    })
+                AfsFuse::validate_handle_inode_in(&state, ino)?;
+                Ok(backend.as_ref()).and_then(|backend| {
+                    backend
+                        .write(&context, file.handle, offset, &data)
+                        .map_err(errno)
+                })
             });
             match result {
                 Ok(written) => match u32::try_from(written) {
@@ -935,16 +822,14 @@ impl Filesystem for AfsFuse {
             .unwrap()
             .file_handle(fh)
             .is_some_and(|file| file.inline_local_read);
-        let backends = self.backends.clone();
+        let backend = self.backend.clone();
         let state = self.state.clone();
         let context = Self::context(req, 0);
         let run = move || {
             let file = state.lock().unwrap().file_handle(fh);
             let result = file.ok_or(libc::ESTALE).and_then(|file| {
-                AfsFuse::validate_handle_inode_namespace_in(&state, ino, file.namespace)?;
-                backends
-                    .backend(file.namespace)
-                    .ok_or(libc::ENOENT)
+                AfsFuse::validate_handle_inode_in(&state, ino)?;
+                Ok(backend.as_ref())
                     .and_then(|backend| backend.flush(&context, file.handle).map_err(errno))
             });
             reply_empty(reply, result);
@@ -972,16 +857,14 @@ impl Filesystem for AfsFuse {
             .unwrap()
             .file_handle(fh)
             .is_some_and(|file| file.inline_local_read);
-        let backends = self.backends.clone();
+        let backend = self.backend.clone();
         let state = self.state.clone();
         let context = Self::context(req, 0);
         let run = move || {
             let file = state.lock().unwrap().remove_file_handle(fh);
             let result = file.ok_or(libc::ESTALE).and_then(|file| {
-                AfsFuse::validate_handle_inode_namespace_in(&state, ino, file.namespace)?;
-                backends
-                    .backend(file.namespace)
-                    .ok_or(libc::ENOENT)
+                AfsFuse::validate_handle_inode_in(&state, ino)?;
+                Ok(backend.as_ref())
                     .and_then(|backend| backend.release(&context, file.handle).map_err(errno))
             });
             reply_empty(reply, result);
@@ -1000,21 +883,18 @@ impl Filesystem for AfsFuse {
             .unwrap()
             .file_handle(fh)
             .is_some_and(|file| file.inline_local_read);
-        let backends = self.backends.clone();
+        let backend = self.backend.clone();
         let state = self.state.clone();
         let context = Self::context(req, 0);
         let run = move || {
             let file = state.lock().unwrap().file_handle(fh);
             let result = file.ok_or(libc::ESTALE).and_then(|file| {
-                AfsFuse::validate_handle_inode_namespace_in(&state, ino, file.namespace)?;
-                backends
-                    .backend(file.namespace)
-                    .ok_or(libc::ENOENT)
-                    .and_then(|backend| {
-                        backend
-                            .fsync(&context, file.handle, sync_mode(datasync))
-                            .map_err(errno)
-                    })
+                AfsFuse::validate_handle_inode_in(&state, ino)?;
+                Ok(backend.as_ref()).and_then(|backend| {
+                    backend
+                        .fsync(&context, file.handle, sync_mode(datasync))
+                        .map_err(errno)
+                })
             });
             reply_empty(reply, result);
         };
@@ -1028,23 +908,15 @@ impl Filesystem for AfsFuse {
     fn opendir(&mut self, req: &Request<'_>, ino: u64, _flags: i32, reply: ReplyOpen) {
         let node = self.state.lock().unwrap().node(ino);
         match node {
-            Some(FuseNode::Root) => reply.opened(0, 0),
-            Some(FuseNode::NamespaceRoot(_)) | Some(FuseNode::Backend(_)) => {
+            Some(FuseNode::Root(_)) | Some(FuseNode::Backend(_)) => {
                 let result = self.backend_inode(ino).and_then(|inode| {
-                    self.backend(inode.namespace).and_then(|backend| {
-                        backend
-                            .opendir(&Self::context(req, 0), inode)
-                            .map(|handle| (inode.namespace, handle))
-                            .map_err(errno)
-                    })
+                    self.backend
+                        .opendir(&Self::context(req, 0), inode)
+                        .map_err(errno)
                 });
                 match result {
-                    Ok((namespace, handle)) => {
-                        let fh = self
-                            .state
-                            .lock()
-                            .unwrap()
-                            .insert_directory_handle(namespace, handle);
+                    Ok(handle) => {
+                        let fh = self.state.lock().unwrap().insert_directory_handle(handle);
                         reply.opened(fh, 0);
                     }
                     Err(error) => reply.error(error),
@@ -1064,23 +936,12 @@ impl Filesystem for AfsFuse {
     ) {
         let node = self.state.lock().unwrap().node(ino);
         match node {
-            Some(FuseNode::Root) => {
-                add_virtual_root_entries(
-                    &mut reply,
-                    offset,
-                    self.backends
-                        .namespaces()
-                        .into_iter()
-                        .map(|namespace| (namespace_ino(namespace), namespace.as_str())),
-                );
-                reply.ok();
-            }
-            Some(FuseNode::NamespaceRoot(_)) | Some(FuseNode::Backend(_)) => {
+            Some(FuseNode::Root(_)) | Some(FuseNode::Backend(_)) => {
                 let directory = self.state.lock().unwrap().directory_handle(fh);
                 let result = directory.ok_or(libc::ESTALE).and_then(|directory| {
-                    self.validate_handle_inode_namespace(ino, directory.namespace)?;
+                    self.validate_handle_inode(ino)?;
                     let cookie = backend_cookie(offset);
-                    self.backend(directory.namespace).and_then(|backend| {
+                    Ok(self.backend.as_ref()).and_then(|backend| {
                         backend
                             .readdir(&Self::context(req, 0), directory.handle, cookie, 128)
                             .map_err(errno)
@@ -1107,8 +968,8 @@ impl Filesystem for AfsFuse {
     fn releasedir(&mut self, req: &Request<'_>, ino: u64, fh: u64, _flags: i32, reply: ReplyEmpty) {
         let directory = self.state.lock().unwrap().remove_directory_handle(fh);
         let result = directory.ok_or(libc::ESTALE).and_then(|directory| {
-            self.validate_handle_inode_namespace(ino, directory.namespace)?;
-            self.backend(directory.namespace).and_then(|backend| {
+            self.validate_handle_inode(ino)?;
+            Ok(self.backend.as_ref()).and_then(|backend| {
                 backend
                     .releasedir(&Self::context(req, 0), directory.handle)
                     .map_err(errno)
@@ -1127,8 +988,8 @@ impl Filesystem for AfsFuse {
     ) {
         let directory = self.state.lock().unwrap().directory_handle(fh);
         let result = directory.ok_or(libc::ESTALE).and_then(|directory| {
-            self.validate_handle_inode_namespace(ino, directory.namespace)?;
-            self.backend(directory.namespace).and_then(|backend| {
+            self.validate_handle_inode(ino)?;
+            Ok(self.backend.as_ref()).and_then(|backend| {
                 backend
                     .fsyncdir(
                         &Self::context(req, 0),
@@ -1153,7 +1014,7 @@ impl Filesystem for AfsFuse {
     ) {
         afs_logging::info!("fuse.create"; "parent" => parent, "name" => name.to_string_lossy().into_owned());
         let result = self.backend_inode(parent).and_then(|parent_inode| {
-            self.backend(parent_inode.namespace).and_then(|backend| {
+            Ok(self.backend.as_ref()).and_then(|backend| {
                 backend
                     .create(&Self::context(req, umask), parent_inode, name, mode, flags)
                     .map_err(errno)
@@ -1167,7 +1028,7 @@ impl Filesystem for AfsFuse {
                     .state
                     .lock()
                     .unwrap()
-                    .insert_file_handle(created.entry.inode.namespace, created.handle);
+                    .insert_file_handle(created.handle);
                 self.with_cache_policy(created.entry.inode, |ttl, private| {
                     reply.created(
                         &ttl,
@@ -1201,48 +1062,17 @@ impl Filesystem for AfsFuse {
 }
 
 impl AfsFuse {
-    fn validate_handle_inode_namespace(
-        &self,
-        ino: u64,
-        handle_namespace: Namespace,
-    ) -> std::result::Result<(), i32> {
-        Self::validate_handle_inode_namespace_in(&self.state, ino, handle_namespace)
+    fn validate_handle_inode(&self, ino: u64) -> std::result::Result<(), i32> {
+        Self::validate_handle_inode_in(&self.state, ino)
     }
 
-    fn validate_handle_inode_namespace_in(
+    fn validate_handle_inode_in(
         state: &Mutex<FuseState>,
         ino: u64,
-        handle_namespace: Namespace,
     ) -> std::result::Result<(), i32> {
-        let node = state.lock().unwrap().node(ino);
-        match node {
-            Some(FuseNode::NamespaceRoot(namespace))
-            | Some(FuseNode::Backend(BackendInode { namespace, .. }))
-                if namespace == handle_namespace =>
-            {
-                Ok(())
-            }
-            Some(FuseNode::Root) => Err(libc::EISDIR),
-            Some(_) => Err(libc::ESTALE),
+        match state.lock().unwrap().node(ino) {
+            Some(FuseNode::Root(_)) | Some(FuseNode::Backend(_)) => Ok(()),
             None => Ok(()),
-        }
-    }
-}
-
-fn add_virtual_root_entries<'a>(
-    reply: &mut ReplyDirectory,
-    offset: i64,
-    children: impl Iterator<Item = (u64, &'a str)>,
-) {
-    let mut entries = vec![
-        (ROOT_INO, FileType::Directory, "."),
-        (ROOT_INO, FileType::Directory, ".."),
-    ];
-    entries.extend(children.map(|(ino, name)| (ino, FileType::Directory, name)));
-
-    for (index, (ino, kind, name)) in entries.into_iter().enumerate().skip(offset.max(0) as usize) {
-        if reply.add(ino, (index + 1) as i64, kind, name) {
-            break;
         }
     }
 }
@@ -1314,26 +1144,6 @@ fn file_type(kind: FileKind) -> FileType {
         FileKind::Regular => FileType::RegularFile,
         FileKind::Directory => FileType::Directory,
         FileKind::Symlink => FileType::Symlink,
-    }
-}
-
-fn dir_attr(ino: u64) -> FileAttr {
-    FileAttr {
-        ino,
-        size: 0,
-        blocks: 0,
-        atime: UNIX_EPOCH,
-        mtime: UNIX_EPOCH,
-        ctime: UNIX_EPOCH,
-        crtime: UNIX_EPOCH,
-        kind: FileType::Directory,
-        perm: 0o755,
-        nlink: 2,
-        uid: 0,
-        gid: 0,
-        rdev: 0,
-        blksize: 4096,
-        flags: 0,
     }
 }
 

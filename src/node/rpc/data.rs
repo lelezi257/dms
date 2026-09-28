@@ -39,7 +39,7 @@ use crate::node::{
 /// node_data 的服务端实现。
 ///
 /// `storage` 是真实文件操作入口；`sessions` 只在 RDMA 模式下把 session_id 转为
-/// 服务端 endpoint。这里不区分 OwnerFs/BlobFs，只实现第一版诊断用的 8-byte/文件数据路径。
+/// 服务端 endpoint。这里不区分 OwnerFs/DFS，只实现第一版诊断用的 8-byte/文件数据路径。
 #[derive(Clone)]
 pub struct NodeDataService {
     storage: Arc<Storage>,
@@ -282,17 +282,20 @@ fn rdma_status(error: afs_transport::rdma::RdmaError) -> Status {
 
 #[cfg(test)]
 mod tests {
+    #[cfg(feature = "ownerfs")]
     use super::owner::make_owner_files_server;
     use super::*;
     use crate::node::rpc::{
         control::make_control_server,
         peer::{DataClientOptions, DataMode, connect_data_client},
     };
+    #[cfg(feature = "ownerfs")]
     use afs_protocol::node_data::{
         OwnerDirectoryHandle, OwnerFsyncRequest, OwnerGetAttrRequest, OwnerHandle,
         OwnerOpenRequest, OwnerReaddirRequest, OwnerReadlinkRequest, RootAccess,
         owner_files_client::OwnerFilesClient,
     };
+    #[cfg(feature = "ownerfs")]
     use afs_transport::grpc::error_status::status_to_error;
     use tokio::net::TcpListener;
     use tokio_stream::wrappers::TcpListenerStream;
@@ -423,6 +426,7 @@ mod tests {
         server.abort();
     }
 
+    #[cfg(feature = "ownerfs")]
     #[tokio::test]
     async fn owner_files_service_is_registered_but_not_faked() {
         let (_temp, endpoint, server) = spawn_grpc_server().await;
@@ -443,6 +447,7 @@ mod tests {
         server.abort();
     }
 
+    #[cfg(feature = "ownerfs")]
     #[tokio::test]
     async fn owner_files_attr_dir_and_fsync_rpcs_are_registered_but_not_faked() {
         let (_temp, endpoint, server) = spawn_grpc_server().await;
@@ -498,6 +503,7 @@ mod tests {
         server.abort();
     }
 
+    #[cfg(feature = "ownerfs")]
     fn root_access() -> RootAccess {
         RootAccess {
             root_id: "workspace-1".into(),
@@ -511,6 +517,7 @@ mod tests {
         }
     }
 
+    #[cfg(feature = "ownerfs")]
     fn assert_owner_unimplemented(error: tonic::Status) {
         assert_eq!(error.code(), tonic::Code::Unimplemented);
         assert_eq!(
@@ -533,10 +540,12 @@ mod tests {
         let server = tokio::spawn({
             let registry = registry.clone();
             async move {
-                Server::builder()
+                let server = Server::builder()
                     .add_service(make_control_server(registry.clone()))
-                    .add_service(make_data_server(storage, registry))
-                    .add_service(make_owner_files_server())
+                    .add_service(make_data_server(storage, registry));
+                #[cfg(feature = "ownerfs")]
+                let server = server.add_service(make_owner_files_server());
+                server
                     .serve_with_incoming(TcpListenerStream::new(listener))
                     .await
                     .unwrap();

@@ -11,25 +11,20 @@ use crate::node::vfs::ownerfs::{
         RootMeta, RootReservation, RootRight,
     },
 };
-use afs_error::{CLIENT_ARGUMENT_INVALID, CLIENT_CONNECTION_UNAVAILABLE, Error};
-#[cfg(feature = "ownerfs")]
-use afs_error::{CLIENT_PROTOCOL_VIOLATION, Result};
+#[cfg(any(feature = "ownerfs", feature = "dfs"))]
+use afs_error::CLIENT_PROTOCOL_VIOLATION;
+use afs_error::{CLIENT_ARGUMENT_INVALID, CLIENT_CONNECTION_UNAVAILABLE, Error, Result};
 #[cfg(feature = "ownerfs")]
 use afs_protocol::meta::{
     AbortRootRequest, AcquireRootRequest, ActivateRootRequest, ListOwnerRootsRequest,
-    LookupNodeRequest, LookupRootRequest, PingRequest, RecoverRootRequest, RegisterNodeRequest,
-    ReserveConflictPolicy, ReserveRootRequest, ValidateRootAccessRequest, meta_client::MetaClient,
-    owner_roots_client::OwnerRootsClient,
+    LookupNodeRequest, LookupRootRequest, RecoverRootRequest, ReserveConflictPolicy,
+    ReserveRootRequest, ValidateRootAccessRequest, owner_roots_client::OwnerRootsClient,
 };
-#[cfg(not(feature = "ownerfs"))]
-use afs_protocol::meta::{PingRequest, meta_client::MetaClient};
-use afs_transport::grpc::GrpcConfig;
-#[cfg(feature = "ownerfs")]
-use afs_transport::grpc::{SecurityManager, TlsConfig};
-#[cfg(feature = "ownerfs")]
+use afs_protocol::meta::{PingRequest, RegisterNodeRequest, meta_client::MetaClient};
+use afs_transport::grpc::{GrpcConfig, SecurityManager, TlsConfig};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
-#[cfg(feature = "ownerfs")]
+#[cfg(any(feature = "ownerfs", feature = "dfs"))]
 use tonic::transport::Channel;
 use tonic::transport::Endpoint;
 pub async fn ping(endpoint: &str, node_id: &str, timeout: Duration) -> afs_error::Result<String> {
@@ -161,7 +156,7 @@ impl GrpcRootMeta {
     }
 }
 
-#[cfg(feature = "ownerfs")]
+#[cfg(any(feature = "ownerfs", feature = "dfs"))]
 fn required<T>(value: Option<T>, field: &str) -> Result<T> {
     value.ok_or_else(|| {
         Error::coded(
@@ -445,7 +440,6 @@ impl RootMeta for GrpcRootMeta {
 }
 
 /// 新 Node 会话注册完成之前不能挂载或服务 OwnerFs 根。
-#[cfg(feature = "ownerfs")]
 pub async fn register_node(
     endpoint: &str,
     node: afs_protocol::meta::NodeDescriptor,
@@ -483,4 +477,296 @@ pub async fn register_node(
         .await
         .map_err(afs_transport::grpc::error_status::status_to_error)?;
     Ok(())
+}
+
+/// Synchronous adapter used by the DFS Backend on FUSE worker threads.
+#[cfg(feature = "dfs")]
+pub struct GrpcDfsMeta {
+    channel: Channel,
+    runtime: tokio::runtime::Handle,
+    node_id: String,
+    namespace_id: crate::dfs::NamespaceId,
+    timeout: Duration,
+}
+
+#[cfg(feature = "dfs")]
+impl GrpcDfsMeta {
+    pub fn new(
+        endpoint: &str,
+        node_id: String,
+        namespace_id: crate::dfs::NamespaceId,
+        timeout: Duration,
+        tls: TlsConfig,
+    ) -> afs_error::Result<Self> {
+        let endpoint = GrpcConfig {
+            connect_timeout: timeout,
+            request_timeout: timeout,
+            ..Default::default()
+        }
+        .configure_client(
+            Endpoint::from_shared(endpoint.to_owned())
+                .map_err(|error| Error::coded(CLIENT_ARGUMENT_INVALID, error.to_string()))?,
+        );
+        let endpoint = SecurityManager::new(tls)
+            .map_err(|error| Error::coded(CLIENT_ARGUMENT_INVALID, error.to_string()))?
+            .configure_client(endpoint)
+            .map_err(|error| Error::coded(CLIENT_ARGUMENT_INVALID, error.to_string()))?;
+        Ok(Self {
+            channel: endpoint.connect_lazy(),
+            runtime: tokio::runtime::Handle::current(),
+            node_id,
+            namespace_id,
+            timeout,
+        })
+    }
+
+    fn run<T>(
+        &self,
+        future: impl std::future::Future<Output = std::result::Result<T, tonic::Status>>,
+    ) -> afs_error::Result<T> {
+        self.runtime.block_on(async {
+            tokio::time::timeout(self.timeout, future)
+                .await
+                .map_err(|_| {
+                    Error::coded(
+                        afs_error::CLIENT_DEADLINE_EXCEEDED,
+                        "DFS Meta request timed out",
+                    )
+                })?
+                .map_err(afs_transport::grpc::error_status::status_to_error)
+        })
+    }
+
+    fn client(&self) -> afs_protocol::meta::dfs_meta_client::DfsMetaClient<Channel> {
+        afs_protocol::meta::dfs_meta_client::DfsMetaClient::new(self.channel.clone())
+    }
+}
+
+#[cfg(feature = "dfs")]
+impl crate::node::vfs::dfs::DfsMeta for GrpcDfsMeta {
+    fn lookup(
+        &self,
+        parent: &crate::dfs::InodeId,
+        name: &[u8],
+    ) -> afs_error::Result<Option<crate::dfs::InodeRecord>> {
+        let reply = self
+            .run(self.client().lookup(afs_protocol::meta::DfsLookupRequest {
+                namespace_id: self.namespace_id.0.clone(),
+                parent_inode_id: parent.0.clone(),
+                name: name.to_vec(),
+            }))?
+            .into_inner();
+        if !reply.found {
+            return Ok(None);
+        }
+        required(reply.inode, "DfsLookup.inode")
+            .and_then(domain_dfs_inode)
+            .map(Some)
+    }
+
+    fn create(
+        &self,
+        operation_id: &crate::dfs::OperationId,
+        parent: &crate::dfs::InodeId,
+        name: &[u8],
+        attributes: crate::dfs::InodeAttributes,
+    ) -> afs_error::Result<crate::dfs::InodeRecord> {
+        let reply = self
+            .run(self.client().create(afs_protocol::meta::DfsCreateRequest {
+                caller_id: self.node_id.clone(),
+                operation_id: operation_id.0.clone(),
+                namespace_id: self.namespace_id.0.clone(),
+                parent_inode_id: parent.0.clone(),
+                name: name.to_vec(),
+                attributes: Some(wire_dfs_attributes(attributes)),
+            }))?
+            .into_inner();
+        required(reply.inode, "DfsCreate.inode").and_then(domain_dfs_inode)
+    }
+
+    fn get_inode(
+        &self,
+        inode_id: &crate::dfs::InodeId,
+    ) -> afs_error::Result<crate::dfs::InodeRecord> {
+        let reply = self
+            .run(
+                self.client()
+                    .get_inode(afs_protocol::meta::GetDfsInodeRequest {
+                        inode_id: inode_id.0.clone(),
+                    }),
+            )?
+            .into_inner();
+        required(reply.inode, "GetDfsInode.inode").and_then(domain_dfs_inode)
+    }
+
+    fn get_file_version(
+        &self,
+        version_id: &crate::dfs::FileVersionId,
+    ) -> afs_error::Result<(crate::dfs::FileVersion, crate::dfs::LayoutRoot)> {
+        let reply = self
+            .run(
+                self.client()
+                    .get_file_version(afs_protocol::meta::GetFileVersionRequest {
+                        version_id: version_id.0.clone(),
+                    }),
+            )?
+            .into_inner();
+        Ok((
+            domain_dfs_version(required(reply.version, "GetFileVersion.version")?),
+            domain_dfs_layout(required(reply.layout, "GetFileVersion.layout")?),
+        ))
+    }
+
+    fn commit_file_version(
+        &self,
+        commit: crate::dfs::CommitFileVersion,
+    ) -> afs_error::Result<crate::dfs::InodeRecord> {
+        let reply = self
+            .run(
+                self.client()
+                    .commit_file_version(afs_protocol::meta::CommitFileVersionRequest {
+                        caller_id: self.node_id.clone(),
+                        operation_id: commit.operation_id.0,
+                        inode_id: commit.inode_id.0,
+                        expected_inode_revision: commit.expected_inode_revision,
+                        expected_head_version_id: commit
+                            .expected_head_version
+                            .map_or_else(String::new, |id| id.0),
+                        version: Some(wire_dfs_version(commit.file_version)),
+                        layout: Some(wire_dfs_layout(commit.layout_root)),
+                        chunk_receipts: commit
+                            .chunk_receipts
+                            .into_iter()
+                            .map(wire_chunk_receipt)
+                            .collect(),
+                    }),
+            )?
+            .into_inner();
+        required(reply.inode, "CommitFileVersion.inode").and_then(domain_dfs_inode)
+    }
+}
+
+#[cfg(feature = "dfs")]
+fn wire_dfs_attributes(
+    attributes: crate::dfs::InodeAttributes,
+) -> afs_protocol::meta::DfsInodeAttributes {
+    afs_protocol::meta::DfsInodeAttributes {
+        mode: attributes.mode,
+        uid: attributes.uid,
+        gid: attributes.gid,
+        nlink: attributes.nlink,
+        atime_unix_ms: attributes.atime_unix_ms,
+        mtime_unix_ms: attributes.mtime_unix_ms,
+        ctime_unix_ms: attributes.ctime_unix_ms,
+    }
+}
+
+#[cfg(feature = "dfs")]
+fn domain_dfs_inode(
+    inode: afs_protocol::meta::DfsInodeRecord,
+) -> afs_error::Result<crate::dfs::InodeRecord> {
+    let attributes = required(inode.attributes, "DfsInodeRecord.attributes")?;
+    let kind = match afs_protocol::meta::DfsInodeKind::try_from(inode.kind) {
+        Ok(afs_protocol::meta::DfsInodeKind::Regular) => crate::dfs::InodeKind::Regular,
+        Ok(afs_protocol::meta::DfsInodeKind::Directory) => crate::dfs::InodeKind::Directory,
+        Ok(afs_protocol::meta::DfsInodeKind::Symlink) => crate::dfs::InodeKind::Symlink,
+        _ => {
+            return Err(Error::coded(
+                afs_error::CLIENT_PROTOCOL_VIOLATION,
+                "DfsInodeRecord has an invalid inode kind",
+            ));
+        }
+    };
+    Ok(crate::dfs::InodeRecord {
+        namespace_id: crate::dfs::NamespaceId::new(inode.namespace_id),
+        inode_id: crate::dfs::InodeId::new(inode.inode_id),
+        kind,
+        attributes: crate::dfs::InodeAttributes {
+            mode: attributes.mode,
+            uid: attributes.uid,
+            gid: attributes.gid,
+            nlink: attributes.nlink,
+            atime_unix_ms: attributes.atime_unix_ms,
+            mtime_unix_ms: attributes.mtime_unix_ms,
+            ctime_unix_ms: attributes.ctime_unix_ms,
+        },
+        head_version: (!inode.head_version_id.is_empty())
+            .then(|| crate::dfs::FileVersionId::new(inode.head_version_id)),
+        revision: inode.revision,
+    })
+}
+
+#[cfg(feature = "dfs")]
+fn wire_dfs_version(version: crate::dfs::FileVersion) -> afs_protocol::meta::DfsFileVersion {
+    afs_protocol::meta::DfsFileVersion {
+        version_id: version.id.0,
+        inode_id: version.inode_id.0,
+        parent_version_id: version.parent_version.map_or_else(String::new, |id| id.0),
+        length: version.length,
+        layout_root_id: version.layout_root.0,
+        created_at_unix_ms: version.created_at_unix_ms,
+    }
+}
+
+#[cfg(feature = "dfs")]
+fn domain_dfs_version(version: afs_protocol::meta::DfsFileVersion) -> crate::dfs::FileVersion {
+    crate::dfs::FileVersion {
+        id: crate::dfs::FileVersionId::new(version.version_id),
+        inode_id: crate::dfs::InodeId::new(version.inode_id),
+        parent_version: (!version.parent_version_id.is_empty())
+            .then(|| crate::dfs::FileVersionId::new(version.parent_version_id)),
+        length: version.length,
+        layout_root: crate::dfs::LayoutRootId::new(version.layout_root_id),
+        created_at_unix_ms: version.created_at_unix_ms,
+    }
+}
+
+#[cfg(feature = "dfs")]
+fn wire_dfs_layout(layout: crate::dfs::LayoutRoot) -> afs_protocol::meta::DfsLayoutRoot {
+    afs_protocol::meta::DfsLayoutRoot {
+        layout_root_id: layout.id.0,
+        file_length: layout.file_length,
+        inline_extents: layout
+            .inline_extents
+            .into_iter()
+            .map(|extent| afs_protocol::meta::DfsExtent {
+                file_offset: extent.file_offset,
+                length: extent.length,
+                chunk_id: extent.chunk_id.0,
+                chunk_offset: extent.chunk_offset,
+            })
+            .collect(),
+    }
+}
+
+#[cfg(feature = "dfs")]
+fn domain_dfs_layout(layout: afs_protocol::meta::DfsLayoutRoot) -> crate::dfs::LayoutRoot {
+    crate::dfs::LayoutRoot {
+        id: crate::dfs::LayoutRootId::new(layout.layout_root_id),
+        file_length: layout.file_length,
+        inline_extents: layout
+            .inline_extents
+            .into_iter()
+            .map(|extent| crate::dfs::Extent {
+                file_offset: extent.file_offset,
+                length: extent.length,
+                chunk_id: crate::dfs::ChunkId::new(extent.chunk_id),
+                chunk_offset: extent.chunk_offset,
+            })
+            .collect(),
+    }
+}
+
+#[cfg(feature = "dfs")]
+fn wire_chunk_receipt(receipt: crate::dfs::ChunkReceipt) -> afs_protocol::meta::DfsChunkReceipt {
+    afs_protocol::meta::DfsChunkReceipt {
+        operation_id: receipt.operation_id.0,
+        chunk_id: receipt.chunk.id.0,
+        chunk_length: receipt.chunk.length,
+        content_digest: receipt.chunk.content_digest.0.to_vec(),
+        copy_id: receipt.copy.id.0,
+        node_id: receipt.copy.node_id,
+        device_id: receipt.copy.device_id,
+        persisted_bytes: receipt.copy.persisted_bytes,
+    }
 }

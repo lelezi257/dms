@@ -1,3 +1,5 @@
+#![cfg(feature = "ownerfs")]
+
 use std::{
     ffi::OsStr,
     sync::{Arc, Mutex},
@@ -14,7 +16,7 @@ use afs::node::{
     },
     storage::LocalFs,
     vfs::{
-        Backend, Namespace,
+        Backend,
         ownerfs::{
             OwnerFs,
             catalog::LocalRootRecord,
@@ -331,10 +333,7 @@ async fn mtls_ownerfiles_grpc_roundtrip_uses_real_ownerfs_backend() {
         pid: 42,
         umask: 0,
     };
-    let owner_root = BackendInode {
-        namespace: Namespace::OwnerFs,
-        value: 1,
-    };
+    let owner_root = BackendInode { value: 1 };
     fs.mkdir(&ctx, owner_root, OsStr::new("job-42"), 0o755)
         .expect("create home root");
     let root_id = root_id_from_name(OsStr::new("job-42")).expect("root id");

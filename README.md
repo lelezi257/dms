@@ -51,7 +51,7 @@ Meta 管理 Namespace、InodeRecord、FileVersion、LayoutRoot、placement、版
 | OwnerFs 跨节点 P2P | Experimental | 远端节点访问 Home 上的同一份文件 |
 | FUSE、REST、gRPC、UDS + SHM 基础设施 | Experimental | 已接入正式进程和配置体系 |
 | RDMA transport | Experimental | 已验证握手与诊断链路，文件内容路径尚未接入 |
-| DistributedFs | Planned | 通用 FileVersion/Extent/Chunk 数据引擎尚未实现 |
+| DistributedFs R=1 纵向链路 | Experimental | 独立 mount；create/write/fsync/reopen/read；本机不可变 Chunk 与 FileVersion 提交 |
 | 不可变工作负载优化 | Planned | Pin、Alias、RootManifest、多源 P2P 与缓存策略尚未实现 |
 | 对象存储 Spill | Research | 已有独立机制实验，尚未接入 AFS 产品路径 |
 
@@ -74,4 +74,4 @@ Meta 管理 Namespace、InodeRecord、FileVersion、LayoutRoot、placement、版
 
 权威构建和运行环境为 Linux。工具链由 [rust-toolchain.toml](rust-toolchain.toml) 固定。进程启动、FUSE 挂载、SDK 调用和现有验收流程见[运行指南](docs/foundation-running.md)。源码入口与模块职责见[代码地图](docs/code-layout.md)。
 
-当前实现包含 `afs-meta`、`afs-node`、`afs-client` 和公共 transport/protocol crates。源码中的 `blobfs` 名称是尚未实现的历史占位符，将在 DFS 实施时迁移为 `distributedfs`；它不再定义产品数据模型。Python 只用于仓库 E2E 脚本，不是产品运行依赖。
+当前实现包含 `afs-meta`、`afs-node`、`afs-client` 和公共 transport/protocol crates。DFS 的内部模块、feature、配置和 CLI 统一使用 `dfs`，公开后端类型为 `DistributedFs`。真实 FUSE 的 R=1 验收入口是 `scripts/dfs/r1_e2e.py`。Python 只用于仓库 E2E 脚本，不是产品运行依赖。

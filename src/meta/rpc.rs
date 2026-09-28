@@ -6,18 +6,20 @@
 //! Without a store, authority RPCs fail closed instead of fabricating a grant.
 
 use afs_protocol::meta::{
-    AbortDraftReply, AbortDraftRequest, AbortRootReply, AbortRootRequest, AbortSnapshotReply,
-    AbortSnapshotRequest, AckRevocationReply, AckRevocationRequest, AcquireRootReply,
-    AcquireRootRequest, ActivateRootReply, ActivateRootRequest, BeginSnapshotReply,
-    BeginSnapshotRequest, CommitVersionReply, CommitVersionRequest, ListOwnerRootsReply,
-    ListOwnerRootsRequest, LookupNodeReply, LookupNodeRequest, LookupRootReply, LookupRootRequest,
-    LookupVersionReply, LookupVersionRequest, NodeDescriptor, NodeEndpoint, PingReply, PingRequest,
-    PresentedRootAccess, RecoverRootReply, RecoverRootRequest, RegisterNodeReply,
-    RegisterNodeRequest, ReserveDraftReply, ReserveDraftRequest, ReserveRootReply,
-    ReserveRootRequest, RootCommand, RootCommandType, RootLocation, RootReservation,
-    RootRight as PbRootRight, ValidateRootAccessReply, ValidateRootAccessRequest,
-    WatchRootCommandsRequest, blob_meta_server::BlobMeta as BlobMetaService,
-    meta_server::Meta as MetaService, owner_roots_server::OwnerRoots as OwnerRootsService,
+    AbortRootReply, AbortRootRequest, AckRevocationReply, AckRevocationRequest, AcquireRootReply,
+    AcquireRootRequest, ActivateRootReply, ActivateRootRequest, CommitFileVersionReply,
+    CommitFileVersionRequest, DfsCreateReply, DfsCreateRequest,
+    DfsInodeAttributes as PbDfsInodeAttributes, DfsInodeKind as PbDfsInodeKind,
+    DfsInodeRecord as PbDfsInodeRecord, DfsLayoutRoot as PbDfsLayoutRoot, DfsLookupReply,
+    DfsLookupRequest, GetDfsInodeReply, GetDfsInodeRequest, GetFileVersionReply,
+    GetFileVersionRequest, ListOwnerRootsReply, ListOwnerRootsRequest, LookupNodeReply,
+    LookupNodeRequest, LookupRootReply, LookupRootRequest, NodeDescriptor, NodeEndpoint, PingReply,
+    PingRequest, PresentedRootAccess, RecoverRootReply, RecoverRootRequest, RegisterNodeReply,
+    RegisterNodeRequest, ReserveRootReply, ReserveRootRequest, RootCommand, RootCommandType,
+    RootLocation, RootReservation, RootRight as PbRootRight, ValidateRootAccessReply,
+    ValidateRootAccessRequest, WatchRootCommandsRequest,
+    dfs_meta_server::DfsMeta as DfsMetaService, meta_server::Meta as MetaService,
+    owner_roots_server::OwnerRoots as OwnerRootsService,
 };
 use std::{pin::Pin, sync::Arc, time::Duration};
 use tokio_stream::Stream;
@@ -30,7 +32,7 @@ use super::store::{
 
 pub struct MetaRpc(pub Arc<super::Meta>);
 pub struct OwnerRootsRpc(pub Arc<super::Meta>);
-pub struct BlobMetaRpc(pub Arc<super::Meta>);
+pub struct DfsMetaRpc(pub Arc<super::Meta>);
 
 type RootCommandStream = Pin<Box<dyn Stream<Item = Result<RootCommand, Status>> + Send + 'static>>;
 
@@ -38,13 +40,6 @@ fn invalid(message: impl Into<String>) -> Status {
     afs_transport::grpc::error_status::error_to_status(afs_error::Error::coded(
         afs_error::META_CATALOG_INVALID_REQUEST,
         message,
-    ))
-}
-
-fn unavailable_blob(operation: &'static str) -> Status {
-    afs_transport::grpc::error_status::error_to_status(afs_error::Error::coded(
-        afs_error::META_STORE_UNIMPLEMENTED,
-        format!("{operation} is not implemented in the OwnerFs Meta authority slice"),
     ))
 }
 
@@ -112,6 +107,18 @@ fn require_text(value: &str, field: &'static str) -> Result<(), Status> {
     } else {
         Ok(())
     }
+}
+
+fn validate_caller(authenticated: Option<&str>, caller_id: &str) -> Result<(), Status> {
+    require_text(caller_id, "caller_id")?;
+    if let Some(authenticated) = authenticated
+        && authenticated != caller_id
+    {
+        return Err(permission_denied(format!(
+            "authenticated node {authenticated} does not match caller_id {caller_id}",
+        )));
+    }
+    Ok(())
 }
 
 fn domain_rights(rights: &[i32]) -> Result<Vec<RootRight>, Status> {
@@ -660,48 +667,262 @@ impl OwnerRootsService for OwnerRootsRpc {
 }
 
 #[tonic::async_trait]
-impl BlobMetaService for BlobMetaRpc {
-    async fn reserve_draft(
+impl DfsMetaService for DfsMetaRpc {
+    async fn lookup(
         &self,
-        _request: Request<ReserveDraftRequest>,
-    ) -> Result<Response<ReserveDraftReply>, Status> {
-        Err(unavailable_blob("BlobMeta.ReserveDraft"))
+        request: Request<DfsLookupRequest>,
+    ) -> Result<Response<DfsLookupReply>, Status> {
+        let request = request.into_inner();
+        require_text(&request.namespace_id, "namespace_id")?;
+        require_text(&request.parent_inode_id, "parent_inode_id")?;
+        let inode = dfs_service(&self.0)?
+            .lookup(
+                crate::dfs::NamespaceId::new(request.namespace_id),
+                crate::dfs::InodeId::new(request.parent_inode_id),
+                request.name,
+            )
+            .await
+            .map_err(afs_transport::grpc::error_status::error_to_status)?;
+        Ok(Response::new(DfsLookupReply {
+            found: inode.is_some(),
+            inode: inode.map(wire_dfs_inode),
+        }))
     }
 
-    async fn begin_snapshot(
+    async fn create(
         &self,
-        _request: Request<BeginSnapshotRequest>,
-    ) -> Result<Response<BeginSnapshotReply>, Status> {
-        Err(unavailable_blob("BlobMeta.BeginSnapshot"))
+        request: Request<DfsCreateRequest>,
+    ) -> Result<Response<DfsCreateReply>, Status> {
+        let authenticated = authenticated_node_id(&self.0, &request)?;
+        let request = request.into_inner();
+        validate_caller(authenticated.as_deref(), &request.caller_id)?;
+        require_text(&request.operation_id, "operation_id")?;
+        require_text(&request.namespace_id, "namespace_id")?;
+        require_text(&request.parent_inode_id, "parent_inode_id")?;
+        let attributes = request
+            .attributes
+            .ok_or_else(|| invalid("DFS create requires attributes"))?;
+        let inode = dfs_service(&self.0)?
+            .create(
+                request.caller_id,
+                crate::dfs::OperationId::new(request.operation_id),
+                crate::dfs::NamespaceId::new(request.namespace_id),
+                crate::dfs::InodeId::new(request.parent_inode_id),
+                request.name,
+                domain_dfs_attributes(attributes),
+            )
+            .await
+            .map_err(afs_transport::grpc::error_status::error_to_status)?;
+        Ok(Response::new(DfsCreateReply {
+            inode: Some(wire_dfs_inode(inode)),
+        }))
     }
 
-    async fn commit_version(
+    async fn get_inode(
         &self,
-        _request: Request<CommitVersionRequest>,
-    ) -> Result<Response<CommitVersionReply>, Status> {
-        Err(unavailable_blob("BlobMeta.CommitVersion"))
+        request: Request<GetDfsInodeRequest>,
+    ) -> Result<Response<GetDfsInodeReply>, Status> {
+        require_text(&request.get_ref().inode_id, "inode_id")?;
+        let inode = dfs_service(&self.0)?
+            .get_inode(crate::dfs::InodeId::new(request.into_inner().inode_id))
+            .await
+            .map_err(afs_transport::grpc::error_status::error_to_status)?;
+        Ok(Response::new(GetDfsInodeReply {
+            inode: Some(wire_dfs_inode(inode)),
+        }))
     }
 
-    async fn abort_snapshot(
+    async fn get_file_version(
         &self,
-        _request: Request<AbortSnapshotRequest>,
-    ) -> Result<Response<AbortSnapshotReply>, Status> {
-        Err(unavailable_blob("BlobMeta.AbortSnapshot"))
+        request: Request<GetFileVersionRequest>,
+    ) -> Result<Response<GetFileVersionReply>, Status> {
+        require_text(&request.get_ref().version_id, "version_id")?;
+        let (version, layout) = dfs_service(&self.0)?
+            .get_file_version(crate::dfs::FileVersionId::new(
+                request.into_inner().version_id,
+            ))
+            .await
+            .map_err(afs_transport::grpc::error_status::error_to_status)?;
+        Ok(Response::new(GetFileVersionReply {
+            version: Some(wire_dfs_version(version)),
+            layout: Some(wire_dfs_layout(layout)),
+        }))
     }
 
-    async fn abort_draft(
+    async fn commit_file_version(
         &self,
-        _request: Request<AbortDraftRequest>,
-    ) -> Result<Response<AbortDraftReply>, Status> {
-        Err(unavailable_blob("BlobMeta.AbortDraft"))
+        request: Request<CommitFileVersionRequest>,
+    ) -> Result<Response<CommitFileVersionReply>, Status> {
+        let authenticated = authenticated_node_id(&self.0, &request)?;
+        let request = request.into_inner();
+        validate_caller(authenticated.as_deref(), &request.caller_id)?;
+        require_text(&request.operation_id, "operation_id")?;
+        require_text(&request.inode_id, "inode_id")?;
+        let version = domain_dfs_version(
+            request
+                .version
+                .ok_or_else(|| invalid("DFS commit requires FileVersion"))?,
+        );
+        let layout = domain_dfs_layout(
+            request
+                .layout
+                .ok_or_else(|| invalid("DFS commit requires LayoutRoot"))?,
+        );
+        let receipts = request
+            .chunk_receipts
+            .into_iter()
+            .map(domain_chunk_receipt)
+            .collect::<Result<Vec<_>, _>>()?;
+        let inode = dfs_service(&self.0)?
+            .commit_file_version(
+                request.caller_id,
+                crate::dfs::CommitFileVersion {
+                    operation_id: crate::dfs::OperationId::new(request.operation_id),
+                    inode_id: crate::dfs::InodeId::new(request.inode_id),
+                    expected_inode_revision: request.expected_inode_revision,
+                    expected_head_version: optional_id(request.expected_head_version_id)
+                        .map(crate::dfs::FileVersionId::new),
+                    file_version: version,
+                    layout_root: layout,
+                    chunk_receipts: receipts,
+                },
+            )
+            .await
+            .map_err(afs_transport::grpc::error_status::error_to_status)?;
+        Ok(Response::new(CommitFileVersionReply {
+            inode: Some(wire_dfs_inode(inode)),
+        }))
     }
+}
 
-    async fn lookup_version(
-        &self,
-        _request: Request<LookupVersionRequest>,
-    ) -> Result<Response<LookupVersionReply>, Status> {
-        Err(unavailable_blob("BlobMeta.LookupVersion"))
+fn dfs_service(meta: &super::Meta) -> Result<&super::dfs::DfsService, Status> {
+    meta.dfs.as_ref().ok_or_else(|| {
+        afs_transport::grpc::error_status::error_to_status(super::store::unavailable_meta_store())
+    })
+}
+
+fn wire_dfs_inode(inode: crate::dfs::InodeRecord) -> PbDfsInodeRecord {
+    PbDfsInodeRecord {
+        namespace_id: inode.namespace_id.0,
+        inode_id: inode.inode_id.0,
+        kind: match inode.kind {
+            crate::dfs::InodeKind::Regular => PbDfsInodeKind::Regular as i32,
+            crate::dfs::InodeKind::Directory => PbDfsInodeKind::Directory as i32,
+            crate::dfs::InodeKind::Symlink => PbDfsInodeKind::Symlink as i32,
+        },
+        attributes: Some(PbDfsInodeAttributes {
+            mode: inode.attributes.mode,
+            uid: inode.attributes.uid,
+            gid: inode.attributes.gid,
+            nlink: inode.attributes.nlink,
+            atime_unix_ms: inode.attributes.atime_unix_ms,
+            mtime_unix_ms: inode.attributes.mtime_unix_ms,
+            ctime_unix_ms: inode.attributes.ctime_unix_ms,
+        }),
+        head_version_id: inode.head_version.map_or_else(String::new, |id| id.0),
+        revision: inode.revision,
     }
+}
+
+fn domain_dfs_attributes(attributes: PbDfsInodeAttributes) -> crate::dfs::InodeAttributes {
+    crate::dfs::InodeAttributes {
+        mode: attributes.mode,
+        uid: attributes.uid,
+        gid: attributes.gid,
+        nlink: attributes.nlink,
+        atime_unix_ms: attributes.atime_unix_ms,
+        mtime_unix_ms: attributes.mtime_unix_ms,
+        ctime_unix_ms: attributes.ctime_unix_ms,
+    }
+}
+
+fn wire_dfs_version(version: crate::dfs::FileVersion) -> afs_protocol::meta::DfsFileVersion {
+    afs_protocol::meta::DfsFileVersion {
+        version_id: version.id.0,
+        inode_id: version.inode_id.0,
+        parent_version_id: version.parent_version.map_or_else(String::new, |id| id.0),
+        length: version.length,
+        layout_root_id: version.layout_root.0,
+        created_at_unix_ms: version.created_at_unix_ms,
+    }
+}
+
+fn domain_dfs_version(version: afs_protocol::meta::DfsFileVersion) -> crate::dfs::FileVersion {
+    crate::dfs::FileVersion {
+        id: crate::dfs::FileVersionId::new(version.version_id),
+        inode_id: crate::dfs::InodeId::new(version.inode_id),
+        parent_version: optional_id(version.parent_version_id).map(crate::dfs::FileVersionId::new),
+        length: version.length,
+        layout_root: crate::dfs::LayoutRootId::new(version.layout_root_id),
+        created_at_unix_ms: version.created_at_unix_ms,
+    }
+}
+
+fn wire_dfs_layout(layout: crate::dfs::LayoutRoot) -> PbDfsLayoutRoot {
+    PbDfsLayoutRoot {
+        layout_root_id: layout.id.0,
+        file_length: layout.file_length,
+        inline_extents: layout
+            .inline_extents
+            .into_iter()
+            .map(|extent| afs_protocol::meta::DfsExtent {
+                file_offset: extent.file_offset,
+                length: extent.length,
+                chunk_id: extent.chunk_id.0,
+                chunk_offset: extent.chunk_offset,
+            })
+            .collect(),
+    }
+}
+
+fn domain_dfs_layout(layout: PbDfsLayoutRoot) -> crate::dfs::LayoutRoot {
+    crate::dfs::LayoutRoot {
+        id: crate::dfs::LayoutRootId::new(layout.layout_root_id),
+        file_length: layout.file_length,
+        inline_extents: layout
+            .inline_extents
+            .into_iter()
+            .map(|extent| crate::dfs::Extent {
+                file_offset: extent.file_offset,
+                length: extent.length,
+                chunk_id: crate::dfs::ChunkId::new(extent.chunk_id),
+                chunk_offset: extent.chunk_offset,
+            })
+            .collect(),
+    }
+}
+
+fn domain_chunk_receipt(
+    receipt: afs_protocol::meta::DfsChunkReceipt,
+) -> Result<crate::dfs::ChunkReceipt, Status> {
+    let digest: [u8; 16] = receipt
+        .content_digest
+        .try_into()
+        .map_err(|_| invalid("DFS chunk digest must contain 16 bytes"))?;
+    let digest = crate::dfs::ContentDigest(digest);
+    let chunk_id = crate::dfs::ChunkId::new(receipt.chunk_id);
+    Ok(crate::dfs::ChunkReceipt {
+        operation_id: crate::dfs::OperationId::new(receipt.operation_id),
+        chunk: crate::dfs::ChunkObject {
+            id: chunk_id.clone(),
+            length: receipt.chunk_length,
+            content_digest: digest.clone(),
+            encoding: crate::dfs::ChunkEncoding::Raw,
+        },
+        copy: crate::dfs::CopyRecord {
+            id: crate::dfs::CopyId::new(receipt.copy_id),
+            chunk_id,
+            node_id: receipt.node_id,
+            device_id: receipt.device_id,
+            state: crate::dfs::CopyState::Durable,
+            persisted_bytes: receipt.persisted_bytes,
+            verified_digest: digest,
+        },
+    })
+}
+
+fn optional_id(value: String) -> Option<String> {
+    (!value.is_empty()).then_some(value)
 }
 
 #[cfg(test)]

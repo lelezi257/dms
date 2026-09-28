@@ -2,7 +2,7 @@
 //!
 //! 一级目录是 OwnerFs 的授权单位；根内文件仍是本机普通文件。本地 Home
 //! 热路径只检查已缓存的 RootGrant，然后直接调用 LocalFs，不把每次写转换为
-//! Blob，也不逐写访问 Meta。远端/P2P 后续复用相同文件身份与句柄语义。
+//! Chunk，也不逐写访问 Meta。远端/P2P 后续复用相同文件身份与句柄语义。
 
 use std::{
     collections::{HashMap, HashSet},
@@ -22,7 +22,7 @@ use fuser::Notifier;
 
 use self::root::{PresentedRootAccess, RootGrant, RootId, RootManager, RootRight};
 use super::{
-    Backend, CreateRequest, Namespace,
+    Backend,
     types::{
         AttributeChange, BackendInode, CreatedFile, DirectoryEntry, DirectoryHandle, Entry,
         FileAttributes, FileHandle, FileKind, RenameFlags, RequestContext, SyncMode,
@@ -469,16 +469,8 @@ pub trait RemoteFilesFactory: Send + Sync {
 }
 
 impl Backend for OwnerFs {
-    fn namespace(&self) -> Namespace {
-        Namespace::OwnerFs
-    }
-
-    fn probe_create(&self, request: &CreateRequest) -> Result<()> {
-        afs_logging::info!("ownerfs.create"; "namespace" => request.namespace.as_str(), "path" => request.name.as_str());
-        Err(Error::coded(
-            afs_error::NODE_VFS_UNIMPLEMENTED,
-            "OwnerFs probe_create is a bootstrap diagnostic, not a real file operation",
-        ))
+    fn root_inode(&self) -> BackendInode {
+        backend_inode(OWNERFS_ROOT_INODE)
     }
 
     fn lookup(&self, _: &RequestContext, parent: BackendInode, name: &OsStr) -> Result<Entry> {
@@ -2493,15 +2485,8 @@ impl LocalOwnerFs {
         })
     }
 
-    fn check_inode_namespace(&self, inode: BackendInode) -> Result<()> {
-        if inode.namespace != Namespace::OwnerFs {
-            Err(Error::coded(
-                afs_error::NODE_VFS_INVALID,
-                "inode belongs to another namespace",
-            ))
-        } else {
-            Ok(())
-        }
+    fn check_inode_namespace(&self, _inode: BackendInode) -> Result<()> {
+        Ok(())
     }
 
     fn directory_record(&self, inode: BackendInode) -> Result<NodeRecord> {
@@ -2976,10 +2961,7 @@ fn check_expected_identity(
 }
 
 fn backend_inode(value: u64) -> BackendInode {
-    BackendInode {
-        namespace: Namespace::OwnerFs,
-        value,
-    }
+    BackendInode { value }
 }
 
 fn slice_directory_entries(
@@ -3858,7 +3840,6 @@ mod tests {
     fn home_handle_is_bound_to_its_peer_root_session_and_identity() {
         let (_temp, fs, ctx) = fixture();
         let root = BackendInode {
-            namespace: Namespace::OwnerFs,
             value: OWNERFS_ROOT_INODE,
         };
         let workspace = fs.mkdir(&ctx, root, OsStr::new("job-a"), 0o755).unwrap();
@@ -3914,7 +3895,6 @@ mod tests {
     fn expired_peer_session_reaps_only_its_home_handles() {
         let (_temp, fs, ctx) = fixture();
         let root = BackendInode {
-            namespace: Namespace::OwnerFs,
             value: OWNERFS_ROOT_INODE,
         };
         let workspace = fs.mkdir(&ctx, root, OsStr::new("job-a"), 0o755).unwrap();
@@ -4082,7 +4062,6 @@ mod tests {
     fn remote_lookup_refreshes_cached_grant_after_home_restart() {
         let (_temp, fs, ctx, meta, remote, _root_id) = remote_fixture();
         let root = BackendInode {
-            namespace: Namespace::OwnerFs,
             value: OWNERFS_ROOT_INODE,
         };
 
@@ -4101,7 +4080,6 @@ mod tests {
     fn remote_open_refreshes_cached_grant_after_home_restart() {
         let (_temp, fs, ctx, meta, remote, root_id) = remote_fixture();
         let root = BackendInode {
-            namespace: Namespace::OwnerFs,
             value: OWNERFS_ROOT_INODE,
         };
         let workspace = fs.lookup(&ctx, root, OsStr::new("job-42")).unwrap();
@@ -4133,7 +4111,6 @@ mod tests {
     fn local_root_and_file_round_trip_without_per_write_meta() {
         let (_temp, fs, ctx) = fixture();
         let root = BackendInode {
-            namespace: Namespace::OwnerFs,
             value: OWNERFS_ROOT_INODE,
         };
         let workspace = fs.mkdir(&ctx, root, OsStr::new("job-42"), 0o755).unwrap();
@@ -4158,7 +4135,6 @@ mod tests {
     fn freshly_created_root_getattr_uses_real_directory_identity() {
         let (_temp, fs, ctx) = fixture();
         let root = BackendInode {
-            namespace: Namespace::OwnerFs,
             value: OWNERFS_ROOT_INODE,
         };
         let workspace = fs.mkdir(&ctx, root, OsStr::new("job-42"), 0o755).unwrap();
@@ -4172,7 +4148,6 @@ mod tests {
     fn old_fd_survives_unlink_and_same_name_recreate() {
         let (_temp, fs, ctx) = fixture();
         let root = BackendInode {
-            namespace: Namespace::OwnerFs,
             value: OWNERFS_ROOT_INODE,
         };
         let workspace = fs.mkdir(&ctx, root, OsStr::new("job-42"), 0o755).unwrap();
@@ -4212,7 +4187,6 @@ mod tests {
     fn stale_open_with_truncate_does_not_modify_recreated_path() {
         let (_temp, fs, ctx) = fixture();
         let root = BackendInode {
-            namespace: Namespace::OwnerFs,
             value: OWNERFS_ROOT_INODE,
         };
         let workspace = fs.mkdir(&ctx, root, OsStr::new("job-42"), 0o755).unwrap();
@@ -4252,7 +4226,6 @@ mod tests {
     fn rename_no_replace_moves_when_destination_absent_and_preserves_existing_destination() {
         let (_temp, fs, ctx) = fixture();
         let root = BackendInode {
-            namespace: Namespace::OwnerFs,
             value: OWNERFS_ROOT_INODE,
         };
         let workspace = fs.mkdir(&ctx, root, OsStr::new("job-42"), 0o755).unwrap();
@@ -4301,7 +4274,6 @@ mod tests {
     fn rename_across_roots_returns_exdev_io_error() {
         let (_temp, fs, ctx) = fixture();
         let root = BackendInode {
-            namespace: Namespace::OwnerFs,
             value: OWNERFS_ROOT_INODE,
         };
         let left = fs.mkdir(&ctx, root, OsStr::new("left"), 0o755).unwrap();
@@ -4345,7 +4317,6 @@ mod tests {
             umask: 0,
         };
         let root = BackendInode {
-            namespace: Namespace::OwnerFs,
             value: OWNERFS_ROOT_INODE,
         };
         {
@@ -4377,7 +4348,6 @@ mod tests {
     fn local_directory_listing_uses_backend_entries() {
         let (_temp, fs, ctx) = fixture();
         let root = BackendInode {
-            namespace: Namespace::OwnerFs,
             value: OWNERFS_ROOT_INODE,
         };
         let workspace = fs.mkdir(&ctx, root, OsStr::new("job-42"), 0o755).unwrap();

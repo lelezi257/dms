@@ -21,9 +21,9 @@ members = [
 resolver = "3"
 
 [features]
-default = ["ownerfs", "blobfs"]
+default = ["ownerfs", "dfs"]
 ownerfs = []
-blobfs = []
+dfs = []
 rdma = ["afs-transport/rdma"]
 
 [dependencies]

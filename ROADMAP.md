@@ -24,7 +24,7 @@ flowchart LR
 
 ## M1：最小 DistributedFs
 
-状态：Planned
+状态：Experimental / R=1 vertical slice implemented
 
 端到端 Case：
 
@@ -41,9 +41,9 @@ create /xxx.txt
 - `StagedChunk → ChunkObject`；
 - `ExtentMap → LayoutRoot → FileVersion`；
 - R=1 本地优先写入；
-- R=N 在 `ChunkStore::put` 以下扩展；
+- R=N 在 `ChunkStore::put` 以下扩展，尚未实现；
 - FUSE create/write/fsync/open/read；
-- 三节点 Linux E2E 和故障切点。
+- 单节点 Linux 真 FUSE E2E 已通过；三节点与故障切点尚未实现。
 
 ## M2：POSIX 可见性与并发
 

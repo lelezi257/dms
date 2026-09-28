@@ -2,7 +2,7 @@
 //!
 //! 这一层只是 Rust 对 libibverbs 的很薄封装：创建 PD/CQ/QP，注册一块 MR，
 //! 暴露本端描述符，并执行单边 RDMA READ/WRITE。它不是 native 文件系统、
-//! 不是后台独立进程，也不理解路径、inode、OwnerFs、BlobFs 或 Proto 语义。
+//! 不是后台独立进程，也不理解路径、inode、OwnerFs、DFS 或 Proto 语义。
 //!
 //! 分层关系：
 //! - gRPC/proto 仍承载“读哪个文件、写哪个文件、offset/len 是多少”等命令；

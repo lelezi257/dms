@@ -10,13 +10,12 @@ use afs::{
 };
 use afs_protocol::meta::{
     AbortRootRequest, AcquireRootRequest, ActivateRootReply, ActivateRootRequest,
-    BeginSnapshotRequest, CommitVersionRequest, DraftKind, DraftRef, ListOwnerRootsRequest,
-    LookupNodeRequest, LookupRootReply, LookupRootRequest, NodeDescriptor, NodeEndpoint,
-    PresentedRootAccess, RecoverRootRequest, RegisterNodeRequest, ReplicaReceipt,
-    ReserveDraftRequest, ReserveRootReply, ReserveRootRequest, RootAccess, RootCommand,
-    RootCommandType, RootLocation, RootReservation, RootRight, SnapshotCut, SnapshotCutReceipt,
-    ValidateRootAccessRequest, VersionRef, WatchRootCommandsRequest,
-    blob_meta_server::BlobMeta as BlobMetaService, meta_server::Meta as MetaService,
+    CommitFileVersionRequest, DfsChunkReceipt, DfsExtent, DfsFileVersion, DfsLayoutRoot,
+    DfsLookupRequest, ListOwnerRootsRequest, LookupNodeRequest, LookupRootReply, LookupRootRequest,
+    NodeDescriptor, NodeEndpoint, PresentedRootAccess, RecoverRootRequest, RegisterNodeRequest,
+    ReserveRootReply, ReserveRootRequest, RootAccess, RootCommand, RootCommandType, RootLocation,
+    RootReservation, RootRight, ValidateRootAccessRequest, WatchRootCommandsRequest,
+    dfs_meta_server::DfsMeta as DfsMetaService, meta_server::Meta as MetaService,
     owner_roots_server::OwnerRoots as OwnerRootsService,
 };
 use std::sync::Arc;
@@ -81,7 +80,7 @@ async fn node_rpc_store_local_file_recovers_committed_session_and_reply() {
 #[test]
 fn meta_services_share_one_package_but_remain_separate_routes() {
     use afs_protocol::meta::{
-        blob_meta_server::BlobMetaServer, meta_server::MetaServer,
+        dfs_meta_server::DfsMetaServer, meta_server::MetaServer,
         owner_roots_server::OwnerRootsServer,
     };
     use tonic::server::NamedService;
@@ -95,8 +94,8 @@ fn meta_services_share_one_package_but_remain_separate_routes() {
         "afs.meta.v1.OwnerRoots"
     );
     assert_eq!(
-        <BlobMetaServer<rpc::BlobMetaRpc> as NamedService>::NAME,
-        "afs.meta.v1.BlobMeta"
+        <DfsMetaServer<rpc::DfsMetaRpc> as NamedService>::NAME,
+        "afs.meta.v1.DfsMeta"
     );
 }
 
@@ -181,42 +180,16 @@ async fn contract_rpc_does_not_issue_fake_grants_without_store() {
         .unwrap_err();
     assert_eq!(reserve_root.code(), Code::Unimplemented);
 
-    let blob_rpc = rpc::BlobMetaRpc(meta);
-    let reserve_draft = blob_rpc
-        .reserve_draft(Request::new(ReserveDraftRequest {
-            request_id: "req-draft".into(),
-            namespace: "images".into(),
-            object_id: "rootfs-a".into(),
-            writer_node_id: "node-a".into(),
-            session_id: "session-a".into(),
-            ..Default::default()
+    let dfs_rpc = rpc::DfsMetaRpc(meta);
+    let lookup = dfs_rpc
+        .lookup(Request::new(DfsLookupRequest {
+            namespace_id: "default".into(),
+            parent_inode_id: "1".into(),
+            name: b"missing".to_vec(),
         }))
         .await
         .unwrap_err();
-    assert_eq!(reserve_draft.code(), Code::Unimplemented);
-
-    let begin_snapshot = blob_rpc
-        .begin_snapshot(Request::new(BeginSnapshotRequest {
-            request_id: "req-snapshot".into(),
-            draft: None,
-            expected_draft_generation: 1,
-        }))
-        .await
-        .unwrap_err();
-    assert_eq!(begin_snapshot.code(), Code::Unimplemented);
-
-    let commit_version = blob_rpc
-        .commit_version(Request::new(CommitVersionRequest {
-            request_id: "req-commit".into(),
-            cut: None,
-            manifest_digest: "sha256:manifest".into(),
-            logical_size: 4096,
-            replica_receipts: Vec::new(),
-            cut_receipt: None,
-        }))
-        .await
-        .unwrap_err();
-    assert_eq!(commit_version.code(), Code::Unimplemented);
+    assert_eq!(lookup.code(), Code::Unimplemented);
 }
 
 #[tokio::test]
@@ -698,53 +671,42 @@ fn owner_root_messages_keep_location_reservation_and_access_separate() {
 }
 
 #[test]
-fn blob_messages_keep_snapshot_cut_and_version_commit_separate() {
-    let draft = DraftRef {
-        namespace: "images".into(),
-        object_id: "rootfs-a".into(),
-        draft_id: "draft-a".into(),
-        writer_node_id: "node-a".into(),
-        session_id: "session-a".into(),
-        draft_epoch: 3,
-        kind: DraftKind::ContainerRootfs.into(),
-    };
-    let cut = SnapshotCut {
-        draft: Some(draft),
-        snapshot_operation_id: "snapshot-op-a".into(),
-        draft_generation: 11,
-        cut_token: "cut-a".into(),
-    };
-    assert_eq!(cut.draft_generation, 11);
-
-    let receipt = ReplicaReceipt {
-        node_id: "node-b".into(),
-        receipt_id: "receipt-b".into(),
-        content_digest: "sha256:blob".into(),
-        durable_bytes: 4096,
-    };
-    let commit = CommitVersionRequest {
-        request_id: "commit-a".into(),
-        cut: Some(cut),
-        manifest_digest: "sha256:manifest".into(),
-        logical_size: 4096,
-        replica_receipts: vec![receipt],
-        cut_receipt: Some(SnapshotCutReceipt {
-            snapshot_operation_id: "snapshot-op-a".into(),
-            writer_node_id: "node-a".into(),
-            session_id: "session-a".into(),
-            capture_id: "capture-a".into(),
-            recovery_record_digest: "sha256:recovery".into(),
+fn dfs_commit_keeps_file_layout_and_durable_chunk_receipt_explicit() {
+    let commit = CommitFileVersionRequest {
+        caller_id: "node-a".into(),
+        operation_id: "session-a-write-1".into(),
+        inode_id: "inode:session-a-create-1".into(),
+        expected_inode_revision: 1,
+        expected_head_version_id: String::new(),
+        version: Some(DfsFileVersion {
+            version_id: "session-a-version-2".into(),
+            inode_id: "inode:session-a-create-1".into(),
+            parent_version_id: String::new(),
+            length: 5,
+            layout_root_id: "session-a-layout-2".into(),
+            created_at_unix_ms: 123,
         }),
+        layout: Some(DfsLayoutRoot {
+            layout_root_id: "session-a-layout-2".into(),
+            file_length: 5,
+            inline_extents: vec![DfsExtent {
+                file_offset: 0,
+                length: 5,
+                chunk_id: "digest-5".into(),
+                chunk_offset: 0,
+            }],
+        }),
+        chunk_receipts: vec![DfsChunkReceipt {
+            operation_id: "session-a-write-1".into(),
+            chunk_id: "digest-5".into(),
+            chunk_length: 5,
+            content_digest: vec![0; 16],
+            copy_id: "node-a:digest-5".into(),
+            node_id: "node-a".into(),
+            device_id: "local-0".into(),
+            persisted_bytes: 5,
+        }],
     };
-    assert_eq!(commit.replica_receipts.len(), 1);
-    assert_eq!(commit.cut_receipt.as_ref().unwrap().capture_id, "capture-a");
-
-    let version = VersionRef {
-        namespace: "images".into(),
-        object_id: "rootfs-a".into(),
-        version_id: "version-a".into(),
-        manifest_digest: commit.manifest_digest,
-        created_at_unix_ms: 123,
-    };
-    assert_eq!(version.version_id, "version-a");
+    assert_eq!(commit.layout.as_ref().unwrap().inline_extents.len(), 1);
+    assert_eq!(commit.chunk_receipts[0].persisted_bytes, 5);
 }

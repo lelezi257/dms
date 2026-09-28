@@ -1489,8 +1489,10 @@ mod tests {
         remote::RemoteFiles,
         root::{RootGrant, RootId, RootRight},
     };
+    #[cfg(feature = "ownerfs")]
+    use afs_protocol::node_data::OwnerReleaseReply;
     use afs_protocol::node_data::{
-        DataReadReply, DataWriteReply, OwnerReleaseReply,
+        DataReadReply, DataWriteReply,
         node_data_server::{NodeData, NodeDataServer},
     };
     #[cfg(feature = "ownerfs")]

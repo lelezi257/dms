@@ -6,6 +6,7 @@
 //! 所有 Meta 后端使用统一 Store：先提交完整状态，确认后才发布可见权威。
 //! 没有 store 时 RPC 必须失败关闭，避免把进程内判断误写成授权事实。
 
+pub mod dfs;
 pub mod owner_roots;
 pub mod rest;
 pub mod rpc;
@@ -21,6 +22,7 @@ pub struct Meta {
     pub observability: Observability,
     pub store: Option<Arc<dyn store::MetaStore>>,
     pub owner_roots: Arc<dyn owner_roots::OwnerRootAuthority>,
+    pub dfs: Option<dfs::DfsService>,
     /// Exact leaf certificate DER -> trusted AFS node id.
     ///
     /// The map is populated only by production startup from `trusted_node_certs`;
@@ -37,6 +39,7 @@ impl Meta {
             observability,
             store: None,
             owner_roots: Arc::new(owner_roots::MissingOwnerRootAuthority),
+            dfs: None,
             trusted_nodes_by_der: Arc::new(HashMap::new()),
             enforce_peer_identity: false,
         }
@@ -48,11 +51,13 @@ impl Meta {
         store: Arc<dyn store::MetaStore>,
     ) -> Self {
         let owner_roots = Arc::new(owner_roots::StoreOwnerRootAuthority::new(store.clone()));
+        let dfs = Some(dfs::DfsService::new(store.clone()));
         Self {
             id,
             observability,
             store: Some(store),
             owner_roots,
+            dfs,
             trusted_nodes_by_der: Arc::new(HashMap::new()),
             enforce_peer_identity: false,
         }
@@ -66,11 +71,13 @@ impl Meta {
         enforce_peer_identity: bool,
     ) -> Self {
         let owner_roots = Arc::new(owner_roots::StoreOwnerRootAuthority::new(store.clone()));
+        let dfs = Some(dfs::DfsService::new(store.clone()));
         Self {
             id,
             observability,
             store: Some(store),
             owner_roots,
+            dfs,
             trusted_nodes_by_der: Arc::new(trusted_nodes_by_der),
             enforce_peer_identity,
         }
@@ -152,13 +159,13 @@ impl Meta {
 pub async fn run(cfg: Config, obs: Observability) -> Result<(), BoxError> {
     let grpc = tokio::net::TcpListener::bind(cfg.grpc_listen).await?;
     let rest = tokio::net::TcpListener::bind(cfg.rest_listen).await?;
-    let store = if cfg.ownerfs {
+    let store = if cfg.ownerfs || cfg.dfs {
         Some(match cfg.meta_store {
             MetaStoreBackend::Etcd => {
                 let endpoint = cfg.etcd_endpoint.clone().ok_or_else(|| {
                     afs_error::Error::coded(
                         afs_error::CONFIG_INVALID,
-                        "meta ownerfs with meta_store=etcd requires --etcd-endpoint",
+                        "meta filesystem services with meta_store=etcd require --etcd-endpoint",
                     )
                 })?;
                 let backend = store::etcd::EtcdBackend::connect(endpoint).await?;
@@ -194,11 +201,15 @@ pub async fn run(cfg: Config, obs: Observability) -> Result<(), BoxError> {
         },
         |store| Arc::new(owner_roots::StoreOwnerRootAuthority::new(store.clone())),
     );
+    let dfs = store
+        .as_ref()
+        .map(|store| dfs::DfsService::new(store.clone()));
     let state = Arc::new(Meta {
         id: cfg.id.clone(),
         observability: obs,
         store,
         owner_roots,
+        dfs,
         trusted_nodes_by_der: Arc::new(trusted_nodes_by_der),
         enforce_peer_identity: cfg.ownerfs,
     });
@@ -212,8 +223,8 @@ pub async fn run(cfg: Config, obs: Observability) -> Result<(), BoxError> {
     let owner_service = afs_protocol::meta::owner_roots_server::OwnerRootsServer::new(
         rpc::OwnerRootsRpc(state.clone()),
     );
-    let blob_service =
-        afs_protocol::meta::blob_meta_server::BlobMetaServer::new(rpc::BlobMetaRpc(state.clone()));
+    let dfs_service =
+        afs_protocol::meta::dfs_meta_server::DfsMetaServer::new(rpc::DfsMetaRpc(state.clone()));
     let security = afs_transport::grpc::SecurityManager::new(cfg.tls_config())?;
     let server = security
         .configure_server(grpc_config.configure_server(tonic::transport::Server::builder()))?;
@@ -222,7 +233,7 @@ pub async fn run(cfg: Config, obs: Observability) -> Result<(), BoxError> {
             .layer(afs_tracing::GrpcServerTraceLayer::default())
             .add_service(meta_service)
             .add_service(owner_service)
-            .add_service(blob_service)
+            .add_service(dfs_service)
             .serve_with_incoming_shutdown(incoming, cancelled(stop))
             .await
             .map_err(Into::into)

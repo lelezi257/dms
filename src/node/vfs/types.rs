@@ -1,12 +1,10 @@
-//! FUSE 与业务后端之间的文件操作合同；这里不保存 OwnerFs 或 BlobFs 的权威状态。
+//! FUSE 与业务后端之间的文件操作合同；这里不保存 OwnerFs 或 DFS 的权威状态。
 //!
 //! 入口的 FUSE inode 只在一个挂载会话内有效。后端 inode/句柄也是 Node 进程内的
-//! 不透明编号；OwnerFs 的可恢复文件身份和 BlobFs 的版本身份由各自后端另行保存，
+//! 不透明编号；OwnerFs 的可恢复文件身份和 DFS 的版本身份由各自后端另行保存，
 //! 不能把下面的编号写进 Meta 充当持久身份。
 
 use std::{ffi::OsString, time::SystemTime};
-
-use super::Namespace;
 
 /// 由入口认证后的调用者身份；FUSE 的 `Request` 不泄露给业务实现。
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -18,11 +16,10 @@ pub struct RequestContext {
     pub umask: u32,
 }
 
-/// 路由到某个后端的会话内 inode。后端必须拒绝 namespace 不匹配或已失效的
-/// 编号；`value` 不能当作磁盘 inode、文件身份、Meta RootId 或 Blob 版本。
+/// 当前 Backend 内的会话 inode。`value` 不能当作磁盘 inode、持久文件身份、
+/// Meta RootId 或 FileVersionId。
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub struct BackendInode {
-    pub namespace: Namespace,
     pub value: u64,
 }
 

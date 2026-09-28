@@ -1,7 +1,7 @@
 # AFS 架构设计专题
 
 状态：Research Agenda
-实现状态：Not Implemented
+实现状态：专题一的 R=1 最小纵向链路已实现；其余专题继续研究
 权威合同：[架构原则](../../PRINCIPLES.md) · [架构总览](overview.md) · [工作负载路径](profiles.md)
 
 ## 目的
@@ -55,4 +55,4 @@ Implemented
 
 ## 当前入口
 
-[专题一](01-file-version-chunk-model.md)及 [RFC-0002](../rfcs/0002-file-version-chunk-model.md)已经接受，固定 DFS 的对象关系、三个 E2E、R=1/R=N 分层与 RPC 原则。下一专题在此基础上定义普通 write、O_SYNC、flush、fsync、跨节点可见性和并发 Writer 合同。
+[专题一](01-file-version-chunk-model.md)及 [RFC-0002](../rfcs/0002-file-version-chunk-model.md)已经接受。代码已经打通独立 DFS mount、R=1 本机不可变 Chunk、FileVersion CAS 提交和 create→write→fsync→reopen→read。当前实现为了避免 close 丢数据，也会在 dirty handle 的 flush/release 路径提交；专题二继续确定普通 write、O_SYNC、flush、fsync、close、跨节点可见性和并发 Writer 的最终合同。

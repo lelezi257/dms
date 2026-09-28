@@ -145,8 +145,8 @@ class OwnerFsAcceptance:
         }
         self.mount_a = f"{self.paths['A_ROOT']}/mnt"
         self.mount_b = f"{self.paths['B_ROOT']}/mnt"
-        self.owner_a = f"{self.mount_a}/ownerfs"
-        self.owner_b = f"{self.mount_b}/ownerfs"
+        self.owner_a = self.mount_a
+        self.owner_b = self.mount_b
         self.workspace = args.workspace
         self.endpoint_scheme = args.endpoint_scheme or ("https" if args.tls_ca_certificate else "http")
         self.result: dict[str, Any] = {
@@ -248,7 +248,7 @@ class OwnerFsAcceptance:
                 f"test -x {shlex.quote(self.args.bin_dir)}/afs-meta",
                 f"test -x {shlex.quote(self.args.bin_dir)}/afs-node",
                 f"{shlex.quote(self.args.bin_dir)}/afs-meta --print-config {meta_extra} >/dev/null",
-                f"{shlex.quote(self.args.bin_dir)}/afs-node --print-config --fs ownerfs --mount /tmp/nonexistent {node_extra} >/dev/null",
+                f"{shlex.quote(self.args.bin_dir)}/afs-node --print-config --fs ownerfs --ownerfs-mount /tmp/nonexistent {node_extra} >/dev/null",
                 "command -v python3 >/dev/null",
             ]
             if role.role in ("A", "B"):
@@ -308,7 +308,7 @@ class OwnerFsAcceptance:
             f"--fs ownerfs --data-mode grpc "
             f"--data-dir {shlex.quote(self.paths['A_ROOT'] + '/data')} "
             f"--uds-path {shlex.quote(self.paths['A_ROOT'] + '/node.sock')} "
-            f"--mount {shlex.quote(self.mount_a)} "
+            f"--ownerfs-mount {shlex.quote(self.mount_a)} "
             f"{node_a_extra}"
         )
         node_b_cmd = (
@@ -322,7 +322,7 @@ class OwnerFsAcceptance:
             f"--fs ownerfs --data-mode grpc "
             f"--data-dir {shlex.quote(self.paths['B_ROOT'] + '/data')} "
             f"--uds-path {shlex.quote(self.paths['B_ROOT'] + '/node.sock')} "
-            f"--mount {shlex.quote(self.mount_b)} "
+            f"--ownerfs-mount {shlex.quote(self.mount_b)} "
             f"{node_b_extra}"
         )
         self.procs.append(self.a.start("afs-node-a", node_a_cmd, f"{self.paths['A_ROOT']}/logs/afs-node-a.log"))
@@ -589,7 +589,7 @@ class OwnerFsAcceptance:
             f"--fs ownerfs --data-mode grpc "
             f"--data-dir {shlex.quote(self.paths['A_ROOT'] + '/data')} "
             f"--uds-path {shlex.quote(self.paths['A_ROOT'] + '/node.sock')} "
-            f"--mount {shlex.quote(self.mount_a)} "
+            f"--ownerfs-mount {shlex.quote(self.mount_a)} "
             f"{self.binary_args('A')}"
         )
         self.procs.append(self.a.start("afs-node-a", node_a_cmd, f"{self.paths['A_ROOT']}/logs/afs-node-a-restart.log"))

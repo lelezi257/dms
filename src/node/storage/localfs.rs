@@ -3,7 +3,7 @@
 //! LocalFs is the first concrete `FileStore` implementation. It is intentionally
 //! small: it provides root-confined local POSIX primitives without WAL, ownership
 //! state, image publication, or strong file-identity protection. Those rules live
-//! in OwnerFs/BlobFs above this layer.
+//! in OwnerFs/DFS above this layer.
 
 use std::{
     ffi::{CString, OsStr, OsString},

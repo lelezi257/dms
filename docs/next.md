@@ -1,6 +1,6 @@
 # 实现任务
 
-工程主线以 [Roadmap](../ROADMAP.md) 为准。当前优先级是完成 DFS 写入语义设计，再实现最小的 FileVersion/Extent/Chunk 纵向链路。
+工程主线以 [Roadmap](../ROADMAP.md) 为准。最小 R=1 FileVersion/Extent/Chunk 纵向链路已经实现。当前优先级是固化写入语义，并把首阶段实现替换成可扩展的并发、摘要和布局机制。
 
 ## 设计入口
 
@@ -15,20 +15,21 @@
 
 当前进入[专题二](architecture/02-write-durability-publication.md)，重点固化普通 write/flush/fsync 的完成语义、跨节点可见性、错误返回和所需 RPC。
 
-## P0：完成写入语义设计
+## P0：固化写入语义并消除首阶段限制
 
 1. 定义 write、flush、fsync、close 各自对客户端缓冲、Chunk 提交、FileVersion 提交和耐久性的承诺。
 2. 确定多写场景的并发排序与跨节点可见机制。
 3. 明确 inode `head_version` 的 CAS、失败重试、幂等键和故障恢复。
-4. 为单副本、多副本、4 KiB 覆盖写分别列出正常及故障 RPC 时序。
+4. 将全局 handle table 临界区改为每句柄并发控制，磁盘 I/O 与 Meta RPC 不占用全局锁。
+5. 选定带算法版本的强内容摘要，并定义旧 Chunk 格式的兼容边界。
+6. 为单副本、多副本、4 KiB 覆盖写分别列出正常及故障 RPC 时序。
 
-## P1：最小 DistributedFs
+## P1：扩展 DistributedFs
 
-1. 实现 `StagedChunk → ChunkObject` 和本地 `ChunkStore::put/get`。
-2. 实现 `ExtentMap`、`LayoutRoot`、`FileVersion` 与 inode head 提交事务。
-3. 打通 FUSE `create → write → fsync → close → open → read` 单节点端到端路径。
-4. 增加 R=3 的 `ChunkStore::put` 实现，不改变文件层接口。
-5. 以两节点读取与单节点故障换源验证固定版本读取。
+1. 将当前 whole-file 单 Chunk 实现扩展为分块、Extent 树、覆盖写与 compaction。
+2. 补齐 truncate、append、rename、unlink、目录与打开句柄语义。
+3. 增加 R=3 的 `ChunkStore::put` 实现，不改变文件层接口。
+4. 以两节点读取与单节点故障换源验证固定版本读取。
 
 ## P1：OwnerFs 完整性
 

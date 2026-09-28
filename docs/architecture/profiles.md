@@ -1,7 +1,7 @@
 # AFS 工作负载路径
 
 状态：Accepted Design
-实现状态：OwnerFs Experimental；DistributedFs Planned
+实现状态：OwnerFs Experimental；DistributedFs R=1 Experimental
 
 ## 结构
 
@@ -73,7 +73,7 @@ AFS Namespace
 - 本机访问不分 Chunk；
 - 远端访问回到 Home；
 - Meta 管理 WorkspaceRoot、Home、授权和会话；
-- 显式 Snapshot 把稳定视图写入 DFS。
+- OwnerFs 与 DFS 当前独立运行，不定义自动转换路径。
 
 边界：
 

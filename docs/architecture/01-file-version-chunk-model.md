@@ -1,7 +1,7 @@
 # 专题一：FileVersion、Extent 与 Chunk 数据模型
 
 状态：Accepted Design
-实现状态：Not Implemented
+实现状态：R=1 最小纵向链路已实现
 专题入口：[架构设计专题](design-topics.md)
 对应 RFC：[RFC-0002](../rfcs/0002-file-version-chunk-model.md)
 
@@ -20,7 +20,7 @@
 7. R=1 与 R=N 只在 `ChunkStore::put` 以下分叉，文件布局层只消费 `ChunkReceipt`。
 8. 多源读取必须先固定 FileVersion，再按 ChunkId 从多个合格 Copy 读取。
 9. FUSE 请求大小、Peer Frame 大小和存储 Chunk 大小彼此独立。
-10. 当前源码中的 `blobfs` 只是未实现的历史占位名；产品与新设计统一使用 DistributedFs（DFS）。
+10. 公开后端类型使用 DistributedFs；内部模块、feature、配置、CLI 和协议统一使用 `dfs` / `DfsMeta`。
 
 ## 3. 对象关系
 

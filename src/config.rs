@@ -1,7 +1,7 @@
 //! Defaults < TOML < explicit CLI, following main's typed configuration mechanism.
 //! Configuration belongs to processes; libraries receive resolved value objects.
 //!
-//! 例：TOML 写 fs="ownerfs"，启动时传 --fs blobfs，则运行 BlobFs。
+//! 例：TOML 写 fs="ownerfs"，启动时传 --fs dfs，则运行 DistributedFs。
 //! Cli 字段采用 Option，避免 clap 默认值把 TOML 的显式设置覆盖掉。
 //! 编译 feature 决定代码是否存在，运行配置决定现有代码是否实例化；两者不能混用。
 //! 这里只选后端和通道，不定义文件授权、存储位置或镜像发布策略。
@@ -74,7 +74,9 @@ pub struct Cli {
     #[arg(long)]
     pub uds_path: Option<PathBuf>,
     #[arg(long)]
-    pub mount: Option<PathBuf>,
+    pub ownerfs_mount: Option<PathBuf>,
+    #[arg(long)]
+    pub dfs_mount: Option<PathBuf>,
     #[arg(long)]
     pub timeout_ms: Option<u64>,
     #[arg(long)]
@@ -111,7 +113,8 @@ struct FileConfig {
     rdma_device: Option<String>,
     data_dir: Option<PathBuf>,
     uds_path: Option<PathBuf>,
-    mount: Option<PathBuf>,
+    ownerfs_mount: Option<PathBuf>,
+    dfs_mount: Option<PathBuf>,
     timeout_ms: Option<u64>,
     log_level: Option<String>,
     trace_enabled: Option<bool>,
@@ -135,12 +138,13 @@ pub struct Config {
     pub tls_server_name: Option<String>,
     pub trusted_node_certs: HashMap<String, PathBuf>,
     pub ownerfs: bool,
-    pub blobfs: bool,
+    pub dfs: bool,
     pub data_mode: String,
     pub rdma_device: Option<String>,
     pub data_dir: PathBuf,
     pub uds_path: PathBuf,
-    pub mount: Option<PathBuf>,
+    pub ownerfs_mount: Option<PathBuf>,
+    pub dfs_mount: Option<PathBuf>,
     pub timeout_ms: u64,
     pub log_level: String,
     pub trace_enabled: bool,
@@ -173,21 +177,21 @@ impl Config {
         {
             return Err(invalid("id must contain 1..128 letters, digits, _ or -"));
         }
-        // cfg! 查询本次二进制的编译能力；VFS 内的 #[cfg] 才实际裁掉后端模块。
+        // cfg! 查询本次二进制的编译能力；Backend 内的 #[cfg] 才实际裁掉后端模块。
         let requested = cli.fs.or(file.fs);
-        let (ownerfs, blobfs) = match requested.as_deref() {
-            None => (cfg!(feature = "ownerfs"), cfg!(feature = "blobfs")),
+        let (ownerfs, dfs) = match requested.as_deref() {
+            None => (cfg!(feature = "ownerfs"), cfg!(feature = "dfs")),
             Some("all") => (true, true),
             Some("ownerfs") => (true, false),
-            Some("blobfs") => (false, true),
-            _ => return Err(invalid("fs must be ownerfs, blobfs or all")),
+            Some("dfs") => (false, true),
+            _ => return Err(invalid("fs must be ownerfs, dfs or all")),
         };
         if role == Role::Node
-            && ((ownerfs && !cfg!(feature = "ownerfs")) || (blobfs && !cfg!(feature = "blobfs")))
+            && ((ownerfs && !cfg!(feature = "ownerfs")) || (dfs && !cfg!(feature = "dfs")))
         {
             return Err(invalid("requested filesystem backend is not compiled in"));
         }
-        if role == Role::Node && !ownerfs && !blobfs {
+        if role == Role::Node && !ownerfs && !dfs {
             return Err(invalid(
                 "node requires at least one compiled filesystem backend",
             ));
@@ -236,10 +240,11 @@ impl Config {
                 .unwrap_or_else(|| PathBuf::from(format!("/tmp/afs-{id}/local.sock"))),
             id,
             ownerfs,
-            blobfs,
+            dfs,
             data_mode,
             rdma_device: cli.rdma_device.or(file.rdma_device),
-            mount: cli.mount.or(file.mount),
+            ownerfs_mount: cli.ownerfs_mount.or(file.ownerfs_mount),
+            dfs_mount: cli.dfs_mount.or(file.dfs_mount),
             timeout_ms: cli.timeout_ms.or(file.timeout_ms).unwrap_or(5000),
             log_level: cli
                 .log_level
@@ -280,6 +285,22 @@ impl Config {
         }
         if !cfg.uds_path.is_absolute() || !cfg.data_dir.is_absolute() {
             return Err(invalid("uds_path and data_dir must be absolute"));
+        }
+        for mount in [&cfg.ownerfs_mount, &cfg.dfs_mount].into_iter().flatten() {
+            if !mount.is_absolute() {
+                return Err(invalid("filesystem mount paths must be absolute"));
+            }
+        }
+        if cfg.ownerfs_mount.is_some() && !cfg.ownerfs {
+            return Err(invalid("ownerfs_mount requires fs=ownerfs or fs=all"));
+        }
+        if cfg.dfs_mount.is_some() && !cfg.dfs {
+            return Err(invalid("dfs_mount requires fs=dfs or fs=all"));
+        }
+        if cfg.ownerfs_mount.is_some() && cfg.ownerfs_mount == cfg.dfs_mount {
+            return Err(invalid(
+                "ownerfs_mount and dfs_mount must be different paths",
+            ));
         }
         let tls_count = [
             cfg.tls_ca_certificate.is_some(),

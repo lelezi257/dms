@@ -35,7 +35,7 @@ pub fn router(node: Arc<Node>) -> Router {
 }
 async fn health(State(node): State<Arc<Node>>) -> Json<Value> {
     Json(
-        json!({"status":"ready","role":"node","id":node.config.id,"scope":"foundation","ownerfs":node.config.ownerfs,"blobfs":node.config.blobfs}),
+        json!({"status":"ready","role":"node","id":node.config.id,"scope":"foundation","ownerfs":node.config.ownerfs,"dfs":node.config.dfs}),
     )
 }
 async fn ping(State(node): State<Arc<Node>>) -> Json<Value> {
@@ -107,7 +107,7 @@ async fn diagnose(node: Arc<Node>) -> afs_error::Result<Value> {
     })
     .await?;
     let chosen = data.mode().to_owned();
-    // Dedicated foundation diagnostic file, not an OwnerFs/BlobFs file or publication.
+    // Dedicated foundation diagnostic file, not an OwnerFs/DFS file or publication.
     let name = format!("probe-{}", config.id);
     let transfer = async {
         let written = data.write(&name, 0, b"AFShello".to_vec()).await?;

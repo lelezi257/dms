@@ -1,6 +1,7 @@
 //! Node 内可复用的本地 I/O 基础机制。
 //!
-//! OwnerFs 普通文件和 BlobFs 内容存储按需共用文件 I/O、缓冲池与同步等机制。
+//! OwnerFs 普通文件和诊断对象使用这里的可变文件存储机制；DFS 的不可变
+//! Chunk 由独立 ChunkStore 管理，可复用底层 I/O 原则但不共享 FileStore 语义。
 //! 不拥有根授权、不可变发布、目录事务或统一恢复状态机；这些由具体后端决定。
 //! 不强制每次 write 都 sync，也不强制分片或 Blob 化；成功/耐久标准来自调用业务。
 //! 先保持 Node 内模块，未出现实际外部调用者前不拆通用存储 crate。
@@ -24,8 +25,8 @@ pub const MAX_TRANSFER_BYTES: usize = 1024 * 1024;
 
 /// Root-relative storage path used by concrete data backends.
 ///
-/// This validates the part shared by OwnerFs and BlobFs before a disk backend
-/// sees a path. A storage path is always relative to its configured root, never
+/// This validates root-relative paths before a mutable disk backend sees them.
+/// A storage path is always relative to its configured root, never
 /// absolute, and never contains `.`/`..`, empty components, or NUL bytes.
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct StoragePath {
@@ -184,7 +185,7 @@ pub trait DirectoryHandle: Send + Sync {
     fn sync_all(&self) -> std::io::Result<()>;
 }
 
-/// Root-confined file store shared by OwnerFs and BlobFs implementations.
+/// Root-confined mutable file store used by OwnerFs and diagnostics.
 ///
 /// This layer owns local path safety and file/directory durability primitives.
 /// It does not know root ownership, cache revocation, image publication, or

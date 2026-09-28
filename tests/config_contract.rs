@@ -38,9 +38,9 @@ fn invalid_limits_and_uncompiled_mode_fail() {
         let cli = Cli::parse_from(["afs-node", "--fs", "ownerfs"]);
         assert!(Config::resolve(Role::Node, cli).is_err());
     }
-    #[cfg(not(feature = "blobfs"))]
+    #[cfg(not(feature = "dfs"))]
     {
-        let cli = Cli::parse_from(["afs-node", "--fs", "blobfs"]);
+        let cli = Cli::parse_from(["afs-node", "--fs", "dfs"]);
         assert!(Config::resolve(Role::Node, cli).is_err());
     }
 }

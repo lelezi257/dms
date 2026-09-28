@@ -14,7 +14,7 @@ use std::{
 use afs::node::{
     fuse,
     vfs::{
-        Backend, CreateRequest, Namespace, Vfs,
+        Backend,
         types::{
             BackendInode, CreatedFile, DirectoryEntry, DirectoryHandle, Entry, FileAttributes,
             FileHandle, FileKind, RenameFlags, RequestContext, SyncMode,
@@ -24,19 +24,17 @@ use afs::node::{
 
 #[test]
 #[ignore = "requires Linux /dev/fuse and fusermount3"]
-fn fuse_mount_lists_namespaces_and_dispatches_create_as_unsupported() {
+fn fuse_mount_binds_backend_at_mount_root() {
     let temp = tempfile::tempdir().unwrap();
     let mount = temp.path().join("mnt");
     std::fs::create_dir(&mount).unwrap();
 
-    let vfs = Arc::new(Vfs::new(true, true, afs_metrics::registry()).unwrap());
-    let session = fuse::mount(vfs, &mount).unwrap();
+    let backend = Arc::new(MockBackend::default());
+    let session = fuse::mount_test_backend(backend, &mount).unwrap();
     wait_until_mounted(&mount).unwrap();
 
-    assert_eq!(namespace_entries(&mount), vec!["blobfs", "ownerfs"]);
-
-    let error = std::fs::File::create(mount.join("ownerfs").join("hello.txt")).unwrap_err();
-    assert_eq!(error.raw_os_error(), Some(libc::ENOSYS));
+    std::fs::write(mount.join("hello.txt"), b"hello").unwrap();
+    assert_eq!(std::fs::read(mount.join("hello.txt")).unwrap(), b"hello");
 
     drop(session);
     let _ = std::process::Command::new("fusermount3")
@@ -47,18 +45,16 @@ fn fuse_mount_lists_namespaces_and_dispatches_create_as_unsupported() {
 
 #[test]
 #[ignore = "requires Linux /dev/fuse and fusermount3"]
-fn fuse_mount_hides_runtime_disabled_backend() {
+fn fuse_mount_does_not_invent_backend_namespace_directories() {
     let temp = tempfile::tempdir().unwrap();
     let mount = temp.path().join("mnt");
     std::fs::create_dir(&mount).unwrap();
 
-    let vfs = Arc::new(Vfs::new(true, false, afs_metrics::registry()).unwrap());
-    let session = fuse::mount(vfs, &mount).unwrap();
+    let backend = Arc::new(MockBackend::default());
+    let session = fuse::mount_test_backend(backend, &mount).unwrap();
     wait_until_mounted(&mount).unwrap();
 
-    assert_eq!(namespace_entries(&mount), vec!["ownerfs"]);
-    let error = std::fs::metadata(mount.join("blobfs")).unwrap_err();
-    assert_eq!(error.raw_os_error(), Some(libc::ENOENT));
+    assert!(namespace_entries(&mount).is_empty());
 
     drop(session);
     let _ = std::process::Command::new("fusermount3")
@@ -74,15 +70,13 @@ fn fuse_mount_rejects_existing_live_mount() {
     let mount = temp.path().join("mnt");
     std::fs::create_dir(&mount).unwrap();
 
-    let vfs = Arc::new(Vfs::new(true, true, afs_metrics::registry()).unwrap());
-    let session = fuse::mount(vfs, &mount).unwrap();
+    let backend = Arc::new(MockBackend::default());
+    let session = fuse::mount_test_backend(backend, &mount).unwrap();
     wait_until_mounted(&mount).unwrap();
 
-    let second = Arc::new(Vfs::new(true, false, afs_metrics::registry()).unwrap());
-    let error = fuse::mount(second, &mount).unwrap_err();
+    let second = Arc::new(MockBackend::default());
+    let error = fuse::mount_test_backend(second, &mount).unwrap_err();
     assert_eq!(error.kind(), afs_error::ErrorKind::AlreadyExists);
-
-    assert_eq!(namespace_entries(&mount), vec!["blobfs", "ownerfs"]);
 
     drop(session);
     let _ = std::process::Command::new("fusermount3")
@@ -99,10 +93,10 @@ fn fuse_mount_dispatches_real_backend_and_preserves_open_handle_identity() {
     std::fs::create_dir(&mount).unwrap();
 
     let backend = Arc::new(MockBackend::default());
-    let session = fuse::mount_test_backend(Namespace::OwnerFs, backend.clone(), &mount).unwrap();
+    let session = fuse::mount_test_backend(backend.clone(), &mount).unwrap();
     wait_until_mounted(&mount).unwrap();
 
-    let root = mount.join("ownerfs");
+    let root = mount.clone();
     std::fs::create_dir(root.join("work")).unwrap();
     assert_eq!(backend.root_mkdir_parent.load(Ordering::SeqCst), 1);
 
@@ -162,10 +156,10 @@ fn fuse_ftruncate_on_same_handle_waits_for_prior_write() {
     std::fs::create_dir(&mount).unwrap();
 
     let backend = Arc::new(MockBackend::default());
-    let session = fuse::mount_test_backend(Namespace::OwnerFs, backend.clone(), &mount).unwrap();
+    let session = fuse::mount_test_backend(backend.clone(), &mount).unwrap();
     wait_until_mounted(&mount).unwrap();
 
-    let root = mount.join("ownerfs");
+    let root = mount.clone();
     let path = root.join("ordered.txt");
     let file = Arc::new(
         std::fs::OpenOptions::new()
@@ -309,12 +303,8 @@ struct MockNode {
 }
 
 impl Backend for MockBackend {
-    fn namespace(&self) -> Namespace {
-        Namespace::OwnerFs
-    }
-
-    fn probe_create(&self, _: &CreateRequest) -> afs_error::Result<()> {
-        unreachable!("mount smoke must use real Backend file operations")
+    fn root_inode(&self) -> BackendInode {
+        backend_inode(1)
     }
 
     fn lookup(
@@ -665,10 +655,7 @@ fn attributes(kind: FileKind, size: u64) -> FileAttributes {
 }
 
 fn backend_inode(value: u64) -> BackendInode {
-    BackendInode {
-        namespace: Namespace::OwnerFs,
-        value,
-    }
+    BackendInode { value }
 }
 
 fn not_found() -> afs_error::Error {

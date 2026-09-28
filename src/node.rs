@@ -1,17 +1,18 @@
 //! afs-node：近计算部署的单一节点进程。
 //!
 //! FUSE、SDK/REST、节点间 RPC 接入同一个 Node，内容经 P2P 直达数据节点。
-//! 不另建 Home 进程，不保留 NFS 后端。OwnerFs/BlobFs 共用 VFS 入口但 namespace、
-//! 数据表示、缓存、一致性、恢复与发布语义分开；普通本地写不强制生成 Blob。
+//! 不另建 Home 进程，不保留 NFS 后端。OwnerFs/DFS 共用 Backend 与 FUSE 实现，
+//! 但使用独立 mount、session、数据表示、缓存、一致性与恢复语义。
 //! 阻塞 I/O/设备等待不可占住异步执行线程；调度和局部保护归各业务模块。
 
 //!
-//! 阅读启动顺序：run → Vfs/Storage/会话表 → 本机 UDS → 可选 FUSE → TCP gRPC/REST。
+//! 阅读启动顺序：run → Backend/Storage/会话表 → 本机 UDS → 可选 FUSE → TCP gRPC/REST。
 //! gRPC 的控制与数据 service 共用 TCP listener；SDK 使用另一条本机 UDS listener。
-//! 当前两条验证链分开：FUSE→VFS→后端打印并返回 ENOSYS；
-//! REST diagnostics/SDK→真实传输→Storage 读写诊断文件。后者尚未接上根授权业务。
+//! OwnerFs 与 DFS 都通过 FUSE→Backend 进入各自的真实文件路径；
+//! REST diagnostics/SDK→Storage 仍是独立诊断链，不属于任何文件系统的数据面。
 
 pub mod api;
+pub mod chunk;
 pub mod fuse;
 pub mod rpc;
 pub mod storage;
@@ -65,15 +66,16 @@ impl vfs::ownerfs::RemoteFilesFactory for GrpcOwnerFilesFactory {
 }
 
 /// REST 持有的进程级共享对象，不是另一个 Home 服务进程。
-/// Vfs 用于入口分派；诊断 Storage 与 RDMA 会话表单独交给各 service。
+/// OwnerFs 和 DFS 分别绑定自己的 FUSE session；诊断 Storage 与 RDMA 会话表独立。
 pub struct Node {
     pub config: Config,
     pub observability: Observability,
-    pub vfs: Arc<vfs::Vfs>,
     /// 每次进程启动生成的新会话，旧远端句柄不能跨此边界复用。
     pub session_id: String,
     #[cfg(feature = "ownerfs")]
     pub ownerfs: Option<Arc<vfs::ownerfs::OwnerFs>>,
+    #[cfg(feature = "dfs")]
+    pub dfs: Option<Arc<vfs::dfs::DistributedFs>>,
 }
 
 /// 组装并持有 Node 的所有入口。启动失败清理已经建立的资源，正常退出卸载本进程挂载。
@@ -84,16 +86,24 @@ pub async fn run(cfg: Config, obs: Observability) -> Result<(), BoxError> {
     let grpc = tokio::net::TcpListener::bind(cfg.grpc_listen).await?;
     let rest = tokio::net::TcpListener::bind(cfg.rest_listen).await?;
     // OwnerFs 生产路径必须先建立 Meta 会话和本机普通文件后端，不能挂载
-    // Vfs::new 创建的无依赖诊断骨架。这里的 session ID 来自 Linux 内核随机源。
+    // 这里的 session ID 来自 Linux 内核随机源，也用于隔离 DFS 操作身份。
     let session_id = std::fs::read_to_string("/proc/sys/kernel/random/uuid")?
         .trim()
         .to_owned();
-    #[cfg(feature = "ownerfs")]
-    let (vfs, ownerfs_instance, node_descriptor) = if cfg.ownerfs {
-        let endpoint = cfg.meta_endpoint.as_deref().ok_or_else(|| {
-            afs_error::Error::coded(afs_error::CONFIG_INVALID, "OwnerFs requires meta_endpoint")
-        })?;
-        let advertised = match cfg.advertise_endpoint.clone() {
+    let timeout = std::time::Duration::from_millis(cfg.timeout_ms);
+    let needs_meta = cfg.ownerfs || cfg.dfs;
+    let meta_endpoint = if needs_meta {
+        Some(cfg.meta_endpoint.as_deref().ok_or_else(|| {
+            afs_error::Error::coded(
+                afs_error::CONFIG_INVALID,
+                "OwnerFs and DFS require meta_endpoint",
+            )
+        })?)
+    } else {
+        None
+    };
+    let advertised = if needs_meta {
+        Some(match cfg.advertise_endpoint.clone() {
             Some(value) => value,
             None if !cfg.grpc_listen.ip().is_unspecified() => format!("http://{}", cfg.grpc_listen),
             None => {
@@ -103,20 +113,43 @@ pub async fn run(cfg: Config, obs: Observability) -> Result<(), BoxError> {
                 )
                 .into());
             }
-        };
-        let timeout = std::time::Duration::from_millis(cfg.timeout_ms);
-        let descriptor = afs_protocol::meta::NodeDescriptor {
-            node_id: cfg.id.clone(),
-            endpoint: Some(afs_protocol::meta::NodeEndpoint {
-                grpc_addr: advertised.clone(),
-                data_addr: advertised,
-                rest_addr: format!("http://{}", cfg.rest_listen),
-            }),
-            labels: std::collections::HashMap::new(),
-            capabilities: vec!["ownerfs".into()],
-            session_id: session_id.clone(),
-        };
+        })
+    } else {
+        None
+    };
+    let node_descriptor = meta_endpoint.map(|endpoint| {
+        let advertised = advertised
+            .clone()
+            .expect("needs_meta sets advertised endpoint");
+        let mut capabilities = Vec::new();
+        if cfg.ownerfs {
+            capabilities.push("ownerfs".into());
+        }
+        if cfg.dfs {
+            capabilities.push("dfs".into());
+        }
+        (
+            endpoint,
+            afs_protocol::meta::NodeDescriptor {
+                node_id: cfg.id.clone(),
+                endpoint: Some(afs_protocol::meta::NodeEndpoint {
+                    grpc_addr: advertised.clone(),
+                    data_addr: advertised,
+                    rest_addr: format!("http://{}", cfg.rest_listen),
+                }),
+                labels: std::collections::HashMap::new(),
+                capabilities,
+                session_id: session_id.clone(),
+            },
+        )
+    });
+    if let Some((endpoint, descriptor)) = &node_descriptor {
         rpc::meta::register_node(endpoint, descriptor.clone(), timeout, cfg.tls_config()).await?;
+    }
+
+    #[cfg(feature = "ownerfs")]
+    let ownerfs_instance = if cfg.ownerfs {
+        let endpoint = meta_endpoint.expect("OwnerFs checked meta_endpoint");
         let root_meta = Arc::new(rpc::meta::GrpcRootMeta::new(
             endpoint,
             cfg.id.clone(),
@@ -125,9 +158,6 @@ pub async fn run(cfg: Config, obs: Observability) -> Result<(), BoxError> {
             cfg.tls_config(),
         )?);
         let disk = Arc::new(storage::LocalFs::open(cfg.data_dir.join("ownerfs"))?);
-        // Recovery calls Meta synchronously through RootMeta. Run it on a
-        // blocking thread before mounting FUSE, so no request can observe a
-        // partly recovered root namespace or block a Tokio worker.
         let recovery_disk = disk.clone();
         let recovery_node_id = cfg.id.clone();
         let recovery_session_id = session_id.clone();
@@ -149,31 +179,41 @@ pub async fn run(cfg: Config, obs: Observability) -> Result<(), BoxError> {
             })
             .await??,
         );
-        let ownerfs = Arc::new(vfs::ownerfs::OwnerFs::new_local_with_remote(
+        Some(Arc::new(vfs::ownerfs::OwnerFs::new_local_with_remote(
             roots,
             disk,
             remote_factory,
-        ));
-        let vfs = Arc::new(vfs::Vfs::with_ownerfs(
-            ownerfs.clone(),
-            cfg.blobfs,
-            obs.registry.clone(),
-        )?);
-        (vfs, Some(ownerfs), Some(descriptor))
+        )))
     } else {
-        (
-            Arc::new(vfs::Vfs::new(false, cfg.blobfs, obs.registry.clone())?),
-            None,
-            None,
-        )
+        None
     };
-    #[cfg(not(feature = "ownerfs"))]
-    let vfs = Arc::new(vfs::Vfs::new(
-        cfg.ownerfs,
-        cfg.blobfs,
-        obs.registry.clone(),
-    )?);
-    // diagnostics 是独立测试对象目录；不能据此认为 OwnerFs/BlobFs 已可存业务数据。
+
+    #[cfg(feature = "dfs")]
+    let dfs_instance = if cfg.dfs {
+        let endpoint = meta_endpoint.expect("DFS checked meta_endpoint");
+        let namespace = crate::dfs::NamespaceId::new("default");
+        let meta = Arc::new(rpc::meta::GrpcDfsMeta::new(
+            endpoint,
+            cfg.id.clone(),
+            namespace.clone(),
+            timeout,
+            cfg.tls_config(),
+        )?);
+        let chunks = Arc::new(chunk::LocalChunkStore::open(
+            cfg.data_dir.join("dfs"),
+            cfg.id.clone(),
+        )?);
+        Some(Arc::new(vfs::dfs::DistributedFs::new(
+            namespace,
+            session_id.clone(),
+            meta,
+            chunks,
+        )))
+    } else {
+        None
+    };
+
+    // diagnostics is a separate test object directory, not an OwnerFs or DFS data path.
     let storage = Arc::new(storage::Storage::new(cfg.data_dir.join("diagnostics"))?);
     let sessions = rpc::control::RdmaSessionRegistry::new(cfg.rdma_device.clone());
     let local = api::local::serve_local_api_with_options(
@@ -184,39 +224,63 @@ pub async fn run(cfg: Config, obs: Observability) -> Result<(), BoxError> {
         },
     )
     .await?;
-    let mount_result = match &cfg.mount {
-        #[cfg(feature = "ownerfs")]
-        Some(path) if ownerfs_instance.is_some() => fuse::mount_with_ownerfs_cache(
-            vfs.clone(),
-            ownerfs_instance.as_ref().expect("guarded above").clone(),
-            path,
-        )
-        .map(Some),
-        Some(path) => fuse::mount(vfs.clone(), path).map(Some),
-        None => Ok(None),
-    };
-    let mounted = match mount_result {
-        Ok(session) => session,
-        Err(error) => {
+
+    #[cfg(feature = "ownerfs")]
+    let mounted_ownerfs = match (&cfg.ownerfs_mount, &ownerfs_instance) {
+        (Some(path), Some(ownerfs)) => match fuse::mount_ownerfs(ownerfs.clone(), path) {
+            Ok(session) => Some(session),
+            Err(error) => {
+                local.shutdown().await?;
+                return Err(error.into());
+            }
+        },
+        (Some(_), None) => {
             local.shutdown().await?;
-            return Err(error.into());
+            return Err(afs_error::Error::coded(
+                afs_error::CONFIG_INVALID,
+                "ownerfs_mount requires the OwnerFs backend",
+            )
+            .into());
         }
+        (None, _) => None,
     };
+
+    #[cfg(feature = "dfs")]
+    let mounted_dfs = match (&cfg.dfs_mount, &dfs_instance) {
+        (Some(path), Some(dfs)) => match fuse::mount_dfs(dfs.clone(), path) {
+            Ok(session) => Some(session),
+            Err(error) => {
+                #[cfg(feature = "ownerfs")]
+                drop(mounted_ownerfs);
+                local.shutdown().await?;
+                return Err(error.into());
+            }
+        },
+        (Some(_), None) => {
+            #[cfg(feature = "ownerfs")]
+            drop(mounted_ownerfs);
+            local.shutdown().await?;
+            return Err(afs_error::Error::coded(
+                afs_error::CONFIG_INVALID,
+                "dfs_mount requires the DFS backend",
+            )
+            .into());
+        }
+        (None, _) => None,
+    };
+
     let state = Arc::new(Node {
         config: cfg.clone(),
         observability: obs,
-        vfs,
         session_id,
         #[cfg(feature = "ownerfs")]
         ownerfs: ownerfs_instance,
+        #[cfg(feature = "dfs")]
+        dfs: dfs_instance,
     });
     let mut services = Services::new();
-    #[cfg(feature = "ownerfs")]
-    if let Some(descriptor) = node_descriptor {
-        let endpoint = cfg
-            .meta_endpoint
-            .clone()
-            .expect("OwnerFs checked meta_endpoint");
+    if let Some((endpoint, descriptor)) = node_descriptor {
+        let endpoint = endpoint.to_owned();
         let timeout = std::time::Duration::from_millis(cfg.timeout_ms);
         let tls = cfg.tls_config();
         let stop = services.stop.subscribe();
@@ -354,10 +418,13 @@ pub async fn run(cfg: Config, obs: Observability) -> Result<(), BoxError> {
         }
         Ok(())
     });
-    afs_logging::info!("node.ready";"grpc"=>cfg.grpc_listen.to_string(),"rest"=>cfg.rest_listen.to_string(),"uds"=>cfg.uds_path.display().to_string(),"ownerfs"=>cfg.ownerfs,"blobfs"=>cfg.blobfs);
+    afs_logging::info!("node.ready";"grpc"=>cfg.grpc_listen.to_string(),"rest"=>cfg.rest_listen.to_string(),"uds"=>cfg.uds_path.display().to_string(),"ownerfs"=>cfg.ownerfs,"dfs"=>cfg.dfs);
     let result = services.run().await;
     // BackgroundSession owns the FUSE mount. Unmount before dropping request services.
-    drop(mounted);
+    #[cfg(feature = "dfs")]
+    drop(mounted_dfs);
+    #[cfg(feature = "ownerfs")]
+    drop(mounted_ownerfs);
     let local_result =
         tokio::time::timeout(std::time::Duration::from_secs(10), local.shutdown()).await?;
     result?;

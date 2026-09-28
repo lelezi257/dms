@@ -299,134 +299,128 @@ message RecoverRootReply {
   RootAccess access = 1;
 }
 
-// ===== BlobFs 私有写入与不可变版本发布 =====
-// BlobMeta 管理不可变镜像/快照的发布元数据。数据面不经过 Meta；
-// Meta 只协调 draft 所属写者和发布后的 version 索引。
-//
-// 状态机不变量：
-// - draft 只能由一个 writer session 持续修改，未 snapshot/commit 前不能被普通读者看见。
-// - BeginSnapshot 仅预留一次切点操作并固定 draft generation，不代表本机文件树已截取稳定视图。
-// - Node 完成停写、排空与稳定视图后，CommitVersion 才携带切点、manifest 与足额持久副本收据请求发布；Meta 提交前读者不可见。
-// - version 一旦发布就是不可变事实，后续修正必须发布新 version。
-// - snapshot/commit 需要持久 MetaStore 后才能承诺可恢复；当前实现必须返回 UNIMPLEMENTED。
-service BlobMeta {
-  rpc ReserveDraft(ReserveDraftRequest) returns (ReserveDraftReply);
-  rpc BeginSnapshot(BeginSnapshotRequest) returns (BeginSnapshotReply);
-  rpc CommitVersion(CommitVersionRequest) returns (CommitVersionReply);
-  rpc AbortSnapshot(AbortSnapshotRequest) returns (AbortSnapshotReply);
-  rpc AbortDraft(AbortDraftRequest) returns (AbortDraftReply);
-  rpc LookupVersion(LookupVersionRequest) returns (LookupVersionReply);
+// ===== DistributedFs namespace, immutable FileVersion and placement =====
+// Meta never carries file content. A node publishes a new inode head only
+// after local or replicated ChunkStore writes have produced durable receipts.
+service DfsMeta {
+  rpc Lookup(DfsLookupRequest) returns (DfsLookupReply);
+  rpc Create(DfsCreateRequest) returns (DfsCreateReply);
+  rpc GetInode(GetDfsInodeRequest) returns (GetDfsInodeReply);
+  rpc GetFileVersion(GetFileVersionRequest) returns (GetFileVersionReply);
+  rpc CommitFileVersion(CommitFileVersionRequest) returns (CommitFileVersionReply);
 }
 
-enum DraftKind {
-  DRAFT_KIND_UNSPECIFIED = 0;
-  DRAFT_KIND_CONTAINER_ROOTFS = 1;
-  DRAFT_KIND_MICROVM_DISK = 2;
+enum DfsInodeKind {
+  DFS_INODE_KIND_UNSPECIFIED = 0;
+  DFS_INODE_KIND_REGULAR = 1;
+  DFS_INODE_KIND_DIRECTORY = 2;
+  DFS_INODE_KIND_SYMLINK = 3;
 }
 
-message DraftRef {
-  string namespace = 1;
-  string object_id = 2;
-  string draft_id = 3;
-  string writer_node_id = 4;
-  string session_id = 5;
-  uint64 draft_epoch = 6;
-  DraftKind kind = 7;
+message DfsInodeAttributes {
+  uint32 mode = 1;
+  uint32 uid = 2;
+  uint32 gid = 3;
+  uint32 nlink = 4;
+  uint64 atime_unix_ms = 5;
+  uint64 mtime_unix_ms = 6;
+  uint64 ctime_unix_ms = 7;
 }
 
-message VersionRef {
-  string namespace = 1;
-  string object_id = 2;
-  string version_id = 3;
-  string manifest_digest = 4;
-  uint64 created_at_unix_ms = 5;
+message DfsInodeRecord {
+  string namespace_id = 1;
+  string inode_id = 2;
+  DfsInodeKind kind = 3;
+  DfsInodeAttributes attributes = 4;
+  string head_version_id = 5;
+  uint64 revision = 6;
 }
 
-message ReserveDraftRequest {
-  string request_id = 1;
-  string namespace = 2;
-  string object_id = 3;
-  string writer_node_id = 4;
-  string session_id = 5;
-  DraftKind kind = 6;
-  string base_version_id = 7;
+message DfsExtent {
+  uint64 file_offset = 1;
+  uint64 length = 2;
+  string chunk_id = 3;
+  uint64 chunk_offset = 4;
 }
 
-message ReserveDraftReply {
-  DraftRef draft = 1;
+message DfsLayoutRoot {
+  string layout_root_id = 1;
+  uint64 file_length = 2;
+  repeated DfsExtent inline_extents = 3;
 }
 
-message SnapshotCut {
-  // 这是 Meta 签发的切点操作身份，不是实际数据切点已完成的证明。
-  DraftRef draft = 1;
-  string snapshot_operation_id = 2;
-  uint64 draft_generation = 3;
-  string cut_token = 4;
+message DfsFileVersion {
+  string version_id = 1;
+  string inode_id = 2;
+  string parent_version_id = 3;
+  uint64 length = 4;
+  string layout_root_id = 5;
+  uint64 created_at_unix_ms = 6;
 }
 
-message SnapshotCutReceipt {
-  // Node 取得稳定视图并保存恢复记录后才能出具；必须绑定 SnapshotCut 的操作 ID。
-  string snapshot_operation_id = 1;
-  string writer_node_id = 2;
-  string session_id = 3;
-  string capture_id = 4;
-  string recovery_record_digest = 5;
+message DfsChunkReceipt {
+  string operation_id = 1;
+  string chunk_id = 2;
+  uint64 chunk_length = 3;
+  bytes content_digest = 4;
+  string copy_id = 5;
+  string node_id = 6;
+  string device_id = 7;
+  uint64 persisted_bytes = 8;
 }
 
-message ReplicaReceipt {
-  string node_id = 1;
-  string receipt_id = 2;
-  string content_digest = 3;
-  uint64 durable_bytes = 4;
+message DfsLookupRequest {
+  string namespace_id = 1;
+  string parent_inode_id = 2;
+  bytes name = 3;
 }
 
-message BeginSnapshotRequest {
-  string request_id = 1;
-  DraftRef draft = 2;
-  uint64 expected_draft_generation = 3;
-}
-
-message BeginSnapshotReply {
-  SnapshotCut cut = 1;
-}
-
-message CommitVersionRequest {
-  string request_id = 1;
-  SnapshotCut cut = 2;
-  string manifest_digest = 3;
-  uint64 logical_size = 4;
-  repeated ReplicaReceipt replica_receipts = 5;
-  SnapshotCutReceipt cut_receipt = 6;
-}
-
-message CommitVersionReply {
-  VersionRef version = 1;
-}
-
-message AbortSnapshotRequest {
-  string request_id = 1;
-  SnapshotCut cut = 2;
-  string reason = 3;
-}
-
-message AbortSnapshotReply {}
-
-message AbortDraftRequest {
-  string request_id = 1;
-  DraftRef draft = 2;
-  string reason = 3;
-}
-
-message AbortDraftReply {}
-
-message LookupVersionRequest {
-  string request_id = 1;
-  string namespace = 2;
-  string object_id = 3;
-  string version_id = 4;
-}
-
-message LookupVersionReply {
-  VersionRef version = 1;
+message DfsLookupReply {
+  DfsInodeRecord inode = 1;
   bool found = 2;
+}
+
+message DfsCreateRequest {
+  string caller_id = 1;
+  string operation_id = 2;
+  string namespace_id = 3;
+  string parent_inode_id = 4;
+  bytes name = 5;
+  DfsInodeAttributes attributes = 6;
+}
+
+message DfsCreateReply {
+  DfsInodeRecord inode = 1;
+}
+
+message GetDfsInodeRequest {
+  string inode_id = 1;
+}
+
+message GetDfsInodeReply {
+  DfsInodeRecord inode = 1;
+}
+
+message GetFileVersionRequest {
+  string version_id = 1;
+}
+
+message GetFileVersionReply {
+  DfsFileVersion version = 1;
+  DfsLayoutRoot layout = 2;
+}
+
+message CommitFileVersionRequest {
+  string caller_id = 1;
+  string operation_id = 2;
+  string inode_id = 3;
+  uint64 expected_inode_revision = 4;
+  string expected_head_version_id = 5;
+  DfsFileVersion version = 6;
+  DfsLayoutRoot layout = 7;
+  repeated DfsChunkReceipt chunk_receipts = 8;
+}
+
+message CommitFileVersionReply {
+  DfsInodeRecord inode = 1;
 }

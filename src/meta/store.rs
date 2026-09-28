@@ -21,6 +21,11 @@ use afs_error::{Error, Result};
 use serde::{Deserialize, Serialize};
 use tokio::sync::{RwLock, mpsc, oneshot};
 
+use crate::dfs::{
+    ChunkObject, CopyRecord, Dentry, DentryKey, FileVersion, FileVersionId, InodeId, InodeRecord,
+    LayoutRoot, LayoutRootId, PlacementRecord,
+};
+
 pub mod etcd;
 pub mod local_file;
 pub mod memory;
@@ -196,8 +201,8 @@ pub struct RootCommandRecord {
     pub old_access_generation: u64,
 }
 
-/// Immutable image/draft records use the same MetaStore mechanics but keep
-/// their own business state. The detailed BlobFs state machine will extend this
+/// OwnerFs and DFS records use the same MetaStore mechanics but keep
+/// their own business state. The DFS state machine extends this
 /// enum instead of adding another authority path.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[allow(clippy::large_enum_variant)]
@@ -208,6 +213,13 @@ pub enum MetaEntity {
     RootGrant(RootAccessGrant),
     RootCommand(RootCommandRecord),
     RootCommandAck(RootCommandAck),
+    DfsDentry(Dentry),
+    DfsInode(InodeRecord),
+    DfsFileVersion(FileVersion),
+    DfsLayoutRoot(LayoutRoot),
+    DfsChunk(ChunkObject),
+    DfsPlacement(PlacementRecord),
+    DfsCopy(CopyRecord),
 }
 
 impl MetaEntity {
@@ -219,6 +231,13 @@ impl MetaEntity {
             Self::RootGrant(_) => "root_grant",
             Self::RootCommand(_) => "root_command",
             Self::RootCommandAck(_) => "root_command_ack",
+            Self::DfsDentry(_) => "dfs_dentry",
+            Self::DfsInode(_) => "dfs_inode",
+            Self::DfsFileVersion(_) => "dfs_file_version",
+            Self::DfsLayoutRoot(_) => "dfs_layout_root",
+            Self::DfsChunk(_) => "dfs_chunk",
+            Self::DfsPlacement(_) => "dfs_placement",
+            Self::DfsCopy(_) => "dfs_copy",
         }
     }
 }
@@ -260,6 +279,10 @@ pub enum MetaRead {
         fencing_token: String,
     },
     RequestOutcome(RequestKey),
+    DfsDentry(DentryKey),
+    DfsInode(InodeId),
+    DfsFileVersion(FileVersionId),
+    DfsLayoutRoot(LayoutRootId),
 }
 
 /// A linearizable read response. Empty results are represented explicitly so
@@ -342,6 +365,13 @@ pub enum MetaKey {
         home_session_id: String,
     },
     RequestOutcome(RequestKey),
+    DfsDentry(DentryKey),
+    DfsInode(InodeId),
+    DfsFileVersion(FileVersionId),
+    DfsLayoutRoot(LayoutRootId),
+    DfsChunk(crate::dfs::ChunkId),
+    DfsPlacement(crate::dfs::ChunkId),
+    DfsCopy(crate::dfs::CopyId),
 }
 
 /// Idempotent result stored in the same transaction as the authority mutation.
@@ -367,11 +397,8 @@ pub enum StoreOperation {
     BeginRootRevocation,
     CommitRootRevocation,
     AckRootCommand,
-    ReserveDraft,
-    BeginSnapshot,
-    CommitVersion,
-    AbortSnapshot,
-    AbortDraft,
+    DfsCreate,
+    DfsCommitFileVersion,
 }
 
 /// Operation result that can be replayed to idempotent callers.
@@ -384,6 +411,7 @@ pub enum OperationResult {
     RootGrant(RootAccessGrant),
     RootCommand(RootCommandRecord),
     RootCommandAck(RootCommandAck),
+    DfsInode(InodeRecord),
     Empty,
 }
 
@@ -1027,6 +1055,14 @@ impl MetaStore for StoreState {
                     }
                 }
                 MetaRead::RequestOutcome(_) => None,
+                MetaRead::DfsDentry(key) => state.entities.get(&MetaKey::DfsDentry(key.clone())),
+                MetaRead::DfsInode(id) => state.entities.get(&MetaKey::DfsInode(id.clone())),
+                MetaRead::DfsFileVersion(id) => {
+                    state.entities.get(&MetaKey::DfsFileVersion(id.clone()))
+                }
+                MetaRead::DfsLayoutRoot(id) => {
+                    state.entities.get(&MetaKey::DfsLayoutRoot(id.clone()))
+                }
             };
             let request_outcome = match read {
                 MetaRead::RequestOutcome(key) => state.requests.get(&key).cloned(),
@@ -1345,6 +1381,13 @@ fn entity_key(entity: &MetaEntity) -> MetaKey {
             home_node_id: ack.node_id.clone(),
             home_session_id: ack.session_id.clone(),
         },
+        MetaEntity::DfsDentry(dentry) => MetaKey::DfsDentry(dentry.key.clone()),
+        MetaEntity::DfsInode(inode) => MetaKey::DfsInode(inode.inode_id.clone()),
+        MetaEntity::DfsFileVersion(version) => MetaKey::DfsFileVersion(version.id.clone()),
+        MetaEntity::DfsLayoutRoot(layout) => MetaKey::DfsLayoutRoot(layout.id.clone()),
+        MetaEntity::DfsChunk(chunk) => MetaKey::DfsChunk(chunk.id.clone()),
+        MetaEntity::DfsPlacement(placement) => MetaKey::DfsPlacement(placement.chunk_id.clone()),
+        MetaEntity::DfsCopy(copy) => MetaKey::DfsCopy(copy.id.clone()),
     }
 }
 

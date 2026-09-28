@@ -1,8 +1,14 @@
 # 实现状态
 
-更新时间：2026-09-27。
+更新时间：2026-09-28。
 
 AFS 是面向业务集群近计算场景的通用 POSIX 分布式文件系统。产品包含两条数据后端：Distributed BlobFs 是通用分布式主线，OwnerFs 是 1～4 节点一体机 Agent workspace 的专用优化。BlobFs 同时承载可变文件与已发布不可变数据，两类 Profile 共享 namespace、Meta、Storage Service、placement、transport 和运维体系，并使用各自的写入状态机。
+
+## 架构设计专题
+
+Distributed BlobFs 的设计工作由[架构设计专题](architecture/design-topics.md)统一维护，当前包含六份独立专题文档：File/Blob/Chunk 数据模型、写入与发布语义、副本状态机、本地 ChunkEngine/COW、长度与 seal，以及可靠性与高性能数据路径。
+
+六个专题均处于 `Research / Not Implemented`。它们记录需要形成设计合同的问题，不改变下方能力状态，也不构成已接受的外部语义。当前入口是[专题一：File、Blob、Chunk 统一数据模型](architecture/01-file-blob-chunk-model.md)；稳定结论需转成 Draft RFC，经接受后才能作为实现合同。
 
 ## 当前能力
 

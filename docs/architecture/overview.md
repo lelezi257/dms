@@ -4,6 +4,8 @@
 实现状态：Partial
 产品合同：[产品定位](../product-positioning.md) · [架构原则](../../PRINCIPLES.md)
 
+详细设计入口：[架构设计专题](design-topics.md)。六个专题处于 Research，不代表对应能力已经实现。
+
 ## 系统结构
 
 ```mermaid

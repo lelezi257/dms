@@ -6,10 +6,11 @@
 2. [架构原则](../PRINCIPLES.md)：长期稳定的产品与架构合同。
 3. [架构总览](architecture/overview.md)：Meta、Node、OwnerFs、BlobFs、Storage Service 和外部存储的关系。
 4. [数据 Profile](architecture/profiles.md)：OwnerFs、Mutable 与 Published Immutable 的边界。
-5. [副本和缓存状态](semantics/copy-states.md)：Staging、Cache、Replica、External 和发布/逐出门禁。
-6. [当前状态](current-status.md)：已经实现、实验可用、计划和研究中的能力。
-7. [Roadmap](../ROADMAP.md)：纵向 Milestone 和目标 E2E。
-8. [参与贡献](../CONTRIBUTING.md)：RFC、任务、实现和验证要求。
+5. [架构设计专题](architecture/design-topics.md)：Distributed BlobFs 六个设计专题、顺序、状态和独立文档入口。
+6. [副本和缓存状态](semantics/copy-states.md)：Staging、Cache、Replica、External 和发布/逐出门禁。
+7. [当前状态](current-status.md)：已经实现、实验可用、计划和研究中的能力。
+8. [Roadmap](../ROADMAP.md)：纵向 Milestone 和目标 E2E。
+9. [参与贡献](../CONTRIBUTING.md)：RFC、任务、实现和验证要求。
 
 ## 设计与语义
 

@@ -64,10 +64,11 @@ Meta 管理 Namespace、文件布局、Workspace Home、版本、位置和生命
 2. [架构原则](PRINCIPLES.md)
 3. [架构总览](docs/architecture/overview.md)
 4. [数据 Profile](docs/architecture/profiles.md)
-5. [副本、缓存与外部副本状态](docs/semantics/copy-states.md)
-6. [当前状态](docs/current-status.md)
-7. [路线图](ROADMAP.md)
-8. [参与贡献](CONTRIBUTING.md)
+5. [架构设计专题](docs/architecture/design-topics.md)
+6. [副本、缓存与外部副本状态](docs/semantics/copy-states.md)
+7. [当前状态](docs/current-status.md)
+8. [路线图](ROADMAP.md)
+9. [参与贡献](CONTRIBUTING.md)
 
 ## 运行与开发
 

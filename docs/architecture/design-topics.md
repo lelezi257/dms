@@ -1,7 +1,8 @@
 # AFS 架构设计专题
 
-状态：Research Agenda  
-实现状态：Not Implemented  
+状态：Research Agenda
+
+实现状态：Not Implemented
 权威合同：[架构原则](../../PRINCIPLES.md) · [架构总览](overview.md) · [数据 Profile](profiles.md)
 
 ## 目的
@@ -22,7 +23,7 @@
 
 | 顺序 | 专题 | 状态 | 主要产物 |
 | --- | --- | --- | --- |
-| 1 | [File、Blob、Chunk 统一数据模型](01-file-blob-chunk-model.md) | Research | 稳定身份、引用关系、Blob API 选择、stripe/chain 布局 |
+| 1 | [File、Blob、Chunk 统一数据模型](01-file-blob-chunk-model.md) | Draft | 稳定身份、引用关系、Blob API 选择、stripe/chain 布局；[RFC-0002](../rfcs/0002-file-blob-chunk-model.md) |
 | 2 | [写入完成、持久化与发布语义](02-write-durability-publication.md) | Research | `write/flush/fsync/seal/publish` 语义矩阵和完成级别 |
 | 3 | [单副本与多副本写入状态机](03-replication-state-machine.md) | Research | R=1/R=N 统一流程、故障和 chain 重配置 |
 | 4 | [本地 ChunkEngine 与 COW](04-local-chunk-engine-cow.md) | Research | pending/commit、物理 COW、manifest COW、恢复与回收 |
@@ -54,4 +55,4 @@ Implemented
 
 ## 当前入口
 
-首先完成[专题一](01-file-blob-chunk-model.md)：确定 File、Blob、Chunk、Manifest、Stripe、Replica Chain 和 Physical Position 的层次，以及 Blob 采用公开 API、POSIX 映射还是双入口。专题二以专题一的对象身份和生命周期为输入。
+[专题一](01-file-blob-chunk-model.md)已经形成 Draft 设计和 [RFC-0002](../rfcs/0002-file-blob-chunk-model.md)：File 与 Blob 共用 ExtentMap 和 immutable ChunkObject，POSIX 与可选 Native Blob API 共用一份数据事实源。当前先评审身份、不变量与未决参数；专题二以该 Draft 的对象身份和生命周期为输入。

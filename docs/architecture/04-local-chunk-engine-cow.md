@@ -1,16 +1,19 @@
 # 专题四：本地 ChunkEngine 与 COW
 
-状态：Research  
-实现状态：Not Implemented  
+状态：Research
+
+实现状态：Not Implemented
 专题入口：[架构设计专题](design-topics.md)
 
 ## 目标
 
 定义 Storage Service 在本地磁盘上保存 pending/committed Chunk、执行覆盖写、原子切换版本、恢复未完成写入和回收旧位置的机制。
 
-## 两类 COW
+[RFC-0002 Draft](../rfcs/0002-file-blob-chunk-model.md)选择“FileHead/ExtentMap 可变，committed ChunkObject 不可变”。本专题需要用最小实现和写放大数据验证该选择；下方稳定逻辑 Chunk 的物理 COW 保留为对照方案，不视为已经接受的合同。
 
-### 可变 Chunk 的物理 COW
+## COW 候选模型
+
+### 对照方案：稳定逻辑 Chunk 的物理 COW
 
 ```text
 Committed Position P1
@@ -30,6 +33,19 @@ Blob V2 = [C1, C2', C3, C4]
 ```
 
 未修改 Chunk 通过引用共享，不原地覆盖 sealed Blob。
+
+### RFC-0002 候选：immutable Chunk + Extent overlay
+
+```text
+FileHead E1
+  → write StagingChunk S2
+  → commit immutable ChunkObject C2
+  → build new ExtentRoot E2 sharing untouched Extents
+  → CAS FileHead E1 → E2
+  → compact patch Chunks when policy requires
+```
+
+该方案把 COW 放在 File ExtentMap，物理副本可以在 repair/rebalance 时迁移而不改变 ChunkId。
 
 ## 核心未决问题
 

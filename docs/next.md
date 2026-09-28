@@ -4,9 +4,9 @@
 
 ## 设计先行入口
 
-[架构设计专题](architecture/design-topics.md)保存 Distributed BlobFs 的六个设计专题及其依赖顺序。当前先完成[专题一：File、Blob、Chunk 统一数据模型](architecture/01-file-blob-chunk-model.md)，明确对象层次、稳定身份、Blob API 是否公开、stripe/replica chain 含义和引用/GC 边界。专题结论影响外部语义、持久格式或跨模块合同时，必须形成 Draft RFC 并完成评审；研究文档不直接作为实现合同。
+[架构设计专题](architecture/design-topics.md)保存 Distributed BlobFs 的六个设计专题及其依赖顺序。[专题一](architecture/01-file-blob-chunk-model.md)已经形成 [RFC-0002 Draft](rfcs/0002-file-blob-chunk-model.md)：File 与 Blob 共用 ExtentMap 和提交后不可变的 ChunkObject，POSIX 与可选 Native Blob API 共用数据事实源，Manifest 与动态 Copy Catalog 分离。当前先评审身份、不变量、API 边界和未决参数；Draft 接受前不作为实现合同。
 
-专题一完成后依次推进写入完成语义、副本状态机、本地 COW、长度与 seal、可靠性与高性能路径。各专题文档会逐步收敛为对应设计文档和 RFC，下面的实现任务引用已接受的结论执行。
+专题一评审后依次推进写入完成语义、副本状态机、本地 COW、长度与 seal、可靠性与高性能路径。各专题文档会逐步收敛为对应设计文档和 RFC，下面的实现任务引用已接受的结论执行。
 
 ## P0：最小 Distributed BlobFs
 

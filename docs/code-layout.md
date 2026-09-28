@@ -89,8 +89,8 @@ RPC 层只负责认证、参数校验、错误映射和 wire/domain 转换。`me
 
 ## Node 数据面
 
-- OwnerFs 的跨节点文件操作位于 `node/rpc/data/owner.rs` 和 `node/rpc/peer/owner.rs`。
-- DFS 当前只有本机 R=1 ChunkStore；后续副本协议应使用独立 DFS data service，不塞入 Meta RPC。
+- OwnerFs 的跨节点文件操作位于 `node/rpc/data.rs` 和 `node/rpc/peer.rs`。
+- DFS 当前只有本机 R=1 ChunkStore；后续副本协议仍进入 `node/rpc/data.rs` 和 `node/rpc/peer.rs`，不塞入 Meta RPC。所有专项完成前不按 OwnerFs/DFS 拆物理文件。
 - `common/transport` 只提供 gRPC、SHM、RDMA 等传输机制，不决定文件版本、授权或提交成功。
 - Node 本机 SDK 通过 UDS + sealed memfd 工作；当前尚未接入 DFS 文件批量 API。
 

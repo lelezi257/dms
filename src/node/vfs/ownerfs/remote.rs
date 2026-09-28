@@ -1,7 +1,7 @@
 //! OwnerFs 的远端文件操作合同，供非 Home 节点按根授权转发到 Home。
 //!
 //! 本层接收业务类型，不依赖 Proto、gRPC 或 RDMA 类型。`node/rpc/peer.rs`
-//! 负责 wire 转换；A 侧 `node/rpc/data/owner.rs` 校验授权后交给本机 OwnerFs。
+//! 负责 wire 转换；A 侧 `node/rpc/data.rs` 校验授权后交给本机 OwnerFs。
 //! 当前仅定义接口，尚无实现或可用的远端文件业务。
 
 use std::ffi::{OsStr, OsString};

@@ -54,7 +54,7 @@ The harness is ready to expose current OwnerFs gaps rather than mask them:
 
 - `src/node.rs` now creates a production `OwnerFs::new_local(...)` instance and requires `meta_endpoint`, `advertise_endpoint` when listening on `0.0.0.0`, and an etcd-backed Meta. The harness was updated to pass those fields through. This still needs a real Linux run before it can be counted as accepted.
 - `src/meta/rpc.rs` now contains real `OwnerRoots` authority methods over the configured `MetaStore`; Meta REST still exposes health/ping/metrics only. The runner therefore verifies root location through gRPC `OwnerRoots.LookupRoot` with `grpcurl` by default.
-- `src/node/rpc/data/owner.rs` still constructs `make_owner_files_server()` with the default service in `src/node.rs`; without an injected `OwnerFilesHandler` and peer authenticator, remote B P2P file operations should fail closed rather than pass.
+- `src/node/rpc/data.rs` still constructs `make_owner_files_server()` with the default service in `src/node.rs`; without an injected `OwnerFilesHandler` and peer authenticator, remote B P2P file operations should fail closed rather than pass.
 - `docs/plans/2026-09-26-ownerfs-readiness.md` says real remote file operations and performance evidence still require Linux three-VM and W1/W2 revalidation. Old S5 data is not reused here.
 
 These are product implementation gaps or environment gaps, not harness passes. The acceptance runner should remain failing until the actual semantics are implemented and exercised.

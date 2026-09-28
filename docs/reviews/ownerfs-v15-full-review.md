@@ -4,7 +4,7 @@
 
 ## RPC 与业务边界
 
-**事实：** Node 并未把全部业务放在单个 `rpc.rs`。启动时将 [`OwnerFs::peer_executor()`](../../src/node.rs) 注入 `OwnerFilesHandler`；[`node/rpc/data/owner.rs`](../../src/node/rpc/data/owner.rs) 处理 mTLS 认证、Proto 转换、指标和 gRPC 错误，文件语义仍在 [`ownerfs.rs`](../../src/node/vfs/ownerfs.rs)。不需要为此恢复 actor 串行邮箱。
+**事实：** Node 并未把全部业务放在单个 `rpc.rs`。启动时将 [`OwnerFs::peer_executor()`](../../src/node.rs) 注入 `OwnerFilesHandler`；[`node/rpc/data.rs`](../../src/node/rpc/data.rs) 处理 mTLS 认证、Proto 转换、指标和 gRPC 错误，文件语义仍在 [`ownerfs.rs`](../../src/node/vfs/ownerfs.rs)。不需要为此恢复 actor 串行邮箱。
 
 **本轮改动：** Meta 的 Reserve/Activate/Acquire/Validate/Recover 等事务状态机原先直接在 [`meta/rpc.rs`](../../src/meta/rpc.rs)。现在由新 [`meta/owner_roots.rs`](../../src/meta/owner_roots.rs) 的 `OwnerRootAuthority` 实现，启动时从 [`meta.rs`](../../src/meta.rs) 注入；RPC 只保留调用者身份绑定、字段校验、Proto/domain 转换和状态映射。`MetaService.RegisterNode/LookupNode` 仍在 RPC，作为后续小范围清理项。这次抽层不改变授权语义，也不修下表的故障窗口。
 

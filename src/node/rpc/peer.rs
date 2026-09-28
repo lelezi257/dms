@@ -1480,7 +1480,7 @@ mod tests {
     }
     use super::*;
     #[cfg(feature = "ownerfs")]
-    use crate::node::rpc::data::owner::{
+    use crate::node::rpc::data::{
         OwnerFilesHandler, PeerAuthenticator, make_owner_files_server_with_handler,
     };
     #[cfg(feature = "ownerfs")]

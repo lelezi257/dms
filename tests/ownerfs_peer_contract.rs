@@ -8,7 +8,7 @@ use std::{
 
 use afs::node::{
     rpc::{
-        data::owner::{
+        data::{
             MtlsPeerAuthenticator, PeerAuthenticator, make_owner_files_handler,
             make_owner_files_server_with_handler,
         },

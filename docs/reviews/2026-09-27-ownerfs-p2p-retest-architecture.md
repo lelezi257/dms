@@ -21,7 +21,7 @@
 ## 代码审视发现
 
 1. **P1，优化引入的排序缺口：** [FUSE 句柄队列](../../src/node/fuse.rs)覆盖 read/write/flush/fsync/release，却未覆盖带 `fh` 的 `setattr`/`getattr`。`setattr(size, fh)` 会修改打开文件长度；若先到的 write 已入队，后到的 ftruncate 可在接收线程越过它。`getattr(fh)` 也可能等每句柄锁并阻塞整个接收线程。应使所有带 `fh` 的操作走相同的 per-fh 顺序边界，再做 write→truncate 的确定性测试。无需修改 VFS trait。
-2. **P1，原有授权校验缺口：** [OwnerFiles RPC 适配](../../src/node/rpc/data/owner.rs)把请求携带的 root/session 与 8 字节 handle 重新组装，[OwnerFs 句柄查找](../../src/node/vfs/ownerfs.rs)未把请求 root 与句柄表中实际 `LocalOpenFile.root_id` 比较。句柄按递增数字分配。**推断：** 持有效 peer 身份和某根授权的节点若构造另一根的 handle，可越过该根的句柄权限边界。应在 Home 的句柄表查找处绑定并校验 root、Home session 和访问 peer；这是局部安全修复，不改变传输协议的大分层。
+2. **P1，原有授权校验缺口：** [OwnerFiles RPC 适配](../../src/node/rpc/data.rs)把请求携带的 root/session 与 8 字节 handle 重新组装，[OwnerFs 句柄查找](../../src/node/vfs/ownerfs.rs)未把请求 root 与句柄表中实际 `LocalOpenFile.root_id` 比较。句柄按递增数字分配。**推断：** 持有效 peer 身份和某根授权的节点若构造另一根的 handle，可越过该根的句柄权限边界。应在 Home 的句柄表查找处绑定并校验 root、Home session 和访问 peer；这是局部安全修复，不改变传输协议的大分层。
 3. **P2，异步 RELEASE 的回收边界：** [P2P client](../../src/node/rpc/peer.rs)在已确认 I/O 后异步发送 RELEASE；失败只记录日志。B 崩溃或网络失败时，[Home 打开句柄表](../../src/node/vfs/ownerfs.rs)没有按访问节点会话过期的回收路径，FD 可积累。应先界定会话与超时/重连对账，再决定清理实现；不可把 15/15 功能验收当成该故障切点已通过。
 4. **P2，性能上限：** 部分远端 `getattr/create/readdir` 仍在 FUSE 接收线程执行；有界队列满时会在接收线程内联执行远端任务。优化后的 0.8 只代表当前 W2，后续扩负载时应按阶段热点决定是否拓宽调度，不能无证据增加 worker 或批量 RPC。16 worker 与 LOOKUP 批量的同场尝试已回归并撤销。
 

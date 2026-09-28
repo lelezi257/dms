@@ -29,7 +29,7 @@
 | 本地根创建与授权 | `ownerfs/root.rs` 的 `RootLifecycle`/`RootManager`/`RootMeta`，`meta.proto` OwnerRoots | reserve → 本机目录及记录持久准备 → activate；去掉 `RootMode`，Home 与 B 授权并存；RootId 用无损名字编码 | 无新业务层 |
 | Meta 权威、重启与位置查询 | `meta.rs`、`meta/rpc.rs`、`meta/rest.rs` 已有进程/API；`meta/store.rs` 已定义持久权威接口 | 实现 etcd 条件事务、请求去重、revision/watch、Node 会话、恢复对账；统一驱动 gRPC/REST | 核心边界已落合同；真实后端尚未实现，不另加 Master/Actor 层 |
 | 本地文件、身份、持久操作 | `ownerfs/files.rs`、`storage.rs` 的 `FileStore/FileHandle/DirectoryHandle` 与 `storage/localfs.rs` | 文件身份/FD 表、普通文件与目录操作、权限、symlink/link、fsyncdir；补现有 trait 的缺失方法 | 无新核心块；本地/远端身份均留在 `files.rs` |
-| B 远端操作 | `ownerfs/remote.rs` 的 `RemoteFiles`，`node_data.proto` 的 OwnerFiles，`node/rpc/data/owner.rs`，`node/rpc/peer.rs` 的传输 adapter | 扩展 `RemoteFiles` 的 mkdir/create/rename/setattr 等；在 `node/rpc/peer/owner.rs` 转 Proto，内容复用 gRPC/RDMA 数据通道；A Handler 验证授权后调用同一 OwnerFs 文件执行器 | 无新业务层；`peer/owner.rs` 是已确定的适配文件 |
+| B 远端操作 | `ownerfs/remote.rs` 的 `RemoteFiles`，`node_data.proto` 的 OwnerFiles，`node/rpc/data.rs`，`node/rpc/peer.rs` 的传输 adapter | 扩展 `RemoteFiles` 的 mkdir/create/rename/setattr 等；在 `node/rpc/peer.rs` 转 Proto，内容复用 gRPC/RDMA 数据通道；A Handler 验证授权后调用同一 OwnerFs 文件执行器 | 无新业务层；`peer.rs` 是已确定的适配文件 |
 | 本机进程恢复 | `ownerfs/catalog.rs` 的持久根记录/生命周期锁，`RootMeta::recover_root`，`meta.proto` RecoverRoot | 实现记录落盘/数据目录排他锁、Meta 条件恢复、新 Home 会话围栏、B 旧句柄 `ESTALE` | 无新核心块 |
 | 缓存与 close-to-open | `node/fuse.rs`、`ownerfs/files.rs`、RootManager | 基线 direct-io、无 writeback、TTL=0；B 改写后 A 重开可见。若启短缓存，OwnerFs 文件身份映射与 FUSE invalidation 同步 | 无新业务层；性能优化不得改授权合同 |
 | 根删除/同名根重建 | `RootLifecycle`/OwnerRoots 现仅创建、查找、恢复；现架构 W4 要求新世代 | 扩展现有 trait/Proto 的 delete/reconcile 状态、旧授权围栏、tombstone 与新根身份/epoch | 无新业务层，但**当前接口方法确有缺口**；旧候选版没有同名根重建，不可当成已恢复功能 |

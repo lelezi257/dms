@@ -380,15 +380,15 @@ pub async fn run(cfg: Config, obs: Observability) -> Result<(), BoxError> {
             .iter()
             .map(|(node_id, path)| Ok((node_id.clone(), std::fs::read(path)?)))
             .collect::<std::io::Result<Vec<_>>>()?;
-        let authenticator = Arc::new(rpc::data::owner::MtlsPeerAuthenticator::new(trusted)?);
-        let handler = rpc::data::owner::make_owner_files_handler(ownerfs.peer_executor()?);
-        rpc::data::owner::make_owner_files_server_with_handler_and_metrics(
+        let authenticator = Arc::new(rpc::data::MtlsPeerAuthenticator::new(trusted)?);
+        let handler = rpc::data::make_owner_files_handler(ownerfs.peer_executor()?);
+        rpc::data::make_owner_files_server_with_handler_and_metrics(
             handler,
             authenticator,
             owner_rpc_metrics.clone(),
         )
     } else {
-        rpc::data::owner::make_owner_files_server()
+        rpc::data::make_owner_files_server()
     };
     services.spawn(async move {
         let router = grpc_server

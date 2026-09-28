@@ -8,6 +8,7 @@
 - DFS 公开类型为 `DistributedFs`；内部模块、feature、配置、CLI 和协议统一使用 `dfs` / `DfsMeta`。
 - DFS 的可变 inode head 指向不可变 `FileVersion`；`FileVersion → LayoutRoot → Extent → ChunkObject` 形成已提交读取视图。
 - R=1 与未来 R=N 的分叉位于 `ChunkStore::put` 以下，文件层只消费 `ChunkReceipt`。
+- Node RPC 保持 `control.rs`、`data.rs`、`meta.rs`、`peer.rs` 四个职责文件；OwnerFiles 已合并回 `data.rs`，所有专项完成前不按 OwnerFs/DFS 提前拆文件。
 
 ## 能力矩阵
 

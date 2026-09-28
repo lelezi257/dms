@@ -14,6 +14,8 @@ DFS 使用统一的数据模型承载普通可变文件和镜像、Snapshot 等�
 
 接入模型已经实现为两个独立 mount：OwnerFs 与 DFS 分别建立 FuseSession、FUSE connection、inode/handle table 和缓存策略，只复用 `fuse` 模块代码与 `Backend` 接口。`DfsWriteSession` 是 DFS 专属类型；OwnerFs 不进入 FileVersion/Extent/Chunk 写入状态机。
 
+Node RPC 使用四个职责文件：`control.rs` 负责 Node 间控制，`data.rs` 负责 Node 间入站数据服务，`meta.rs` 负责 Node 到 Meta 的调用，`peer.rs` 负责 Node 到其他 Node 的出站调用。OwnerFs 与未来 DFS Chunk RPC 先在对应职责文件内组织，全部专项完成后再评估物理拆分。
+
 ## 当前能力
 
 | 能力 | 状态 | 已验证边界 |

@@ -5,9 +5,9 @@ AFS 部署在 Agent 与 Sandbox 计算集群内部，以计算节点贡献的 SS
 AFS 包含一条通用分布式主干和一条小集群特化路径：
 
 ```text
-AfsVfs
-├── DistributedFs（DFS） 通用 POSIX、多读多写、分布式 Chunk、多副本、P2P、Spill
-└── OwnerFs             1～4 节点一体机 Workspace，本地 Home 亲和
+AFS Node
+├── /mnt/dfs     → FuseSession<DistributedFs> 通用 POSIX、多读多写、分布式 Chunk、多副本、P2P、Spill
+└── /mnt/ownerfs → FuseSession<OwnerFs>       1～4 节点一体机 Workspace，本地 Home 亲和
 ```
 
 DFS 使用统一的数据模型：可变 `InodeRecord.head_version` 指向不可变 `FileVersion`，文件版本通过不可变 `LayoutRoot/ExtentMap` 引用不可变 `ChunkObject`。普通文件、镜像、Snapshot 和 Checkpoint 使用同一数据事实源；不可变工作负载通过 Pin、Alias、RootManifest、多源 P2P 和缓存策略获得额外优化，不建立独立 Blob 对象或第二套文件系统。
@@ -18,22 +18,27 @@ OwnerFs 面向 1～4 节点的一体机式 Agent Workspace。一个 Workspace �
 
 ```mermaid
 flowchart TB
-    App[Applications] --> POSIX[POSIX / FUSE]
+    Workspace[Workspace Applications] --> OwnerMount[/mnt/ownerfs]
+    App[Distributed Applications] --> DfsMount[/mnt/dfs]
     App --> SDK[Native Async SDK]
     VM[MicroVM] --> Block[Block Adapter]
-    POSIX --> VFS[AfsVfs]
-    SDK --> VFS
-    Block --> VFS
-    VFS --> Owner[OwnerFs]
-    VFS --> DFS[DistributedFs]
+    Fuse[Shared FUSE module] -.instantiates.-> OwnerSession[OwnerFs FuseSession]
+    Fuse -.instantiates.-> DfsSession[DFS FuseSession]
+    OwnerMount --> OwnerSession --> Owner[OwnerFs]
+    DfsMount --> DfsSession --> DFS[DistributedFs]
+    SDK --> DFS
+    Block --> DFS
     Owner --> Home[Home Local Filesystem]
     DFS --> Storage[Chunk Store]
     Storage --> Disks[Local SSD / NVMe / HDD]
     Storage --> P2P[P2P Replica and Cache]
     Storage --> Object[Optional OBS / S3 Spill]
-    Meta[Meta Service] --> VFS
+    Meta[Meta Service] --> Owner
+    Meta --> DFS
     Meta --> Storage
 ```
+
+两个 mount 复用 FUSE 模块代码与 `Backend` 接口，但分别拥有 FUSE connection、会话 inode/handle table、notifier 和缓存策略。
 
 Meta 管理 Namespace、InodeRecord、FileVersion、LayoutRoot、placement、版本保留和生命周期。文件数据不经过 Meta 转发。Node 与计算节点共置，优先使用本机数据，缺失数据通过节点间链路读取。
 

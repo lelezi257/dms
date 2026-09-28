@@ -28,7 +28,7 @@ AFS Namespace
 
 行为：
 
-- WriteSession 聚合普通写入；
+- DfsWriteSession 聚合普通写入；
 - 提交产生新的不可变 FileVersion；
 - 未修改范围复用旧 Chunk；
 - 小范围修改使用 Patch Chunk 和 Extent Overlay；

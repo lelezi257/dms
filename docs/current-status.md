@@ -1,5 +1,12 @@
 # AFS 当前状态
 
+## 2026-09-28：DFS UML、双 mount 与核心模块边界已固化
+
+- **Accepted Design：** OwnerFs 与 DistributedFs 使用两个独立 mount 和 FuseSession；共享的是 `src/node/fuse.rs` 的实现代码与 `Backend` 接口，不共享 FUSE connection、会话 inode/handle table、notifier、缓存策略或数据模型。
+- **Accepted Design：** Meta 分为 `NamespaceService`、`VersionService`、`PlacementService`、`CopyCatalog`、`LifecycleService` 和 `MetaStore`；Node DFS 分为 `distributedfs`、`write`、`chunk`、`replication`、`cache/spill`，并复用公共 `fuse` 与 `peer`。
+- **Accepted Design：** `DfsWriteSession` 是 DFS 专属运行时类型；OwnerFs 使用自己的本地句柄。当前不设计 OwnerFs 到 DFS 的 Snapshot 转换，也不把 `ReadSlice/ReadPlan/ChunkReadTask` 纳入已接受数据模型。
+- **实现边界：** 当前源码仍是单 mount、多 namespace VFS 骨架，并保留 `blobfs` 历史名称；目标结构尚未实现。权威 UML 与模块关系见[专题一](architecture/01-file-version-chunk-model.md)和[架构总览](architecture/overview.md)。
+
 状态：Implemented Capability Index
 更新时间：2026-09-28
 详细实验与阶段记录：[status.md](status.md)

@@ -14,6 +14,8 @@ DistributedFs（DFS）负责通用文件的数据布局、Chunk、复制、读�
 
 OwnerFs 面向一体机式 Agent Workspace。一个 Workspace 由一个 Home 节点持有，Home 使用本地普通文件系统；计算与 Home 共置时走本地路径，计算迁移后由远端 Node 通过 P2P 访问 Home。OwnerFs 不承担通用分布式 Chunk、多副本写和跨大量节点聚合带宽。
 
+OwnerFs 与 DistributedFs 使用两个独立 mount 和 FuseSession。两者复用 FUSE 模块代码与 Backend 接口，但不共享运行时 inode/handle table、notifier、缓存策略或数据模型。当前阶段不定义 OwnerFs 到 DFS 的数据转换合同。
+
 ## 4. 不可变 Chunk 是 DFS 的数据基座
 
 提交完成的 `ChunkObject` 不原地修改。文件可变性由可变的 `InodeRecord.head_version` 指向一系列不可变 `FileVersion` 表达；每个版本通过不可变 `LayoutRoot/ExtentMap` 复用已有 Chunk，并为覆盖范围引用新的 Chunk。小范围修改允许产生 Patch Chunk 和 Extent Overlay，后台 Compaction 控制碎片和空间放大。
@@ -24,7 +26,7 @@ OwnerFs 面向一体机式 Agent Workspace。一个 Workspace 由一个 Home 节
 
 ## 6. fsync 提交文件版本，Snapshot 提交业务命名
 
-普通 `write` 可以先进入 WriteSession；`fsync` 必须完成脏数据 Chunk 化、当前 DurabilityPolicy 和 FileVersion CAS。`fsync` 产生持久、完整的文件版本，但不自动创建业务 Snapshot、Alias 或保留策略。运行时通过显式 Snapshot/Pin/Publish 固定一个或多个 FileVersion；多文件一致视图使用 RootManifest。
+普通 `write` 可以先进入 DfsWriteSession；`fsync` 必须完成脏数据 Chunk 化、当前 DurabilityPolicy 和 FileVersion CAS。`fsync` 产生持久、完整的文件版本，但不自动创建业务 Snapshot、Alias 或保留策略。运行时通过显式 Snapshot/Pin/Publish 固定一个或多个 FileVersion；多文件一致视图使用 RootManifest。
 
 ## 7. 单副本和多副本只在 ChunkStore 以下分叉
 

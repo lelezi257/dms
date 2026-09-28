@@ -8,55 +8,62 @@
 
 ## 系统结构
 
+OwnerFs 和 DistributedFs 使用同一份 FUSE 模块代码与 `Backend` 接口，但分别建立独立 mount、FUSE connection、`FuseSession`、inode table 和 handle table。一个 `afs-node` 进程可以同时承载两个 mount。
+
 ```mermaid
 flowchart LR
-    subgraph ComputeA[Compute Node A / AFS Node]
-        App[Application]
-        Fuse[FUSE Frontend]
-        SDK[Native Async SDK]
-        Block[Block Adapter]
-        VFS[AfsVfs]
+    AppO[Workspace Application] --> MountO[/mnt/ownerfs]
+    AppD[Distributed Application] --> MountD[/mnt/dfs]
+    AppSDK[High-performance Application] --> SDK[Native Async SDK]
+    VM[MicroVM] --> Block[Block Adapter]
+
+    subgraph NodeA[Compute Node A / afs-node]
+        FuseCode[Shared FUSE module<br/>src/node/fuse.rs]
+        OwnerSession[OwnerFs FuseSession]
+        DfsSession[DFS FuseSession]
         Owner[OwnerFs]
-        DFS[DistributedFs Client]
-        Session[WriteSession / ChunkBuilder]
-        LocalStore[Local ChunkStore]
+        DFS[DistributedFs]
+        DfsWrite[DfsWriteSession / ChunkBuilder]
+        LocalStore[ChunkStore]
         LocalDisk[(Local SSD / HDD)]
 
-        App --> Fuse
-        App --> SDK
-        Block --> VFS
-        Fuse --> VFS
-        SDK --> VFS
-        VFS --> Owner
-        VFS --> DFS
-        DFS --> Session
-        Session --> LocalStore
-        LocalStore --> LocalDisk
+        FuseCode -.instantiates.-> OwnerSession
+        FuseCode -.instantiates.-> DfsSession
+        OwnerSession --> Owner
+        DfsSession --> DFS
+        SDK --> DFS
+        Block --> DFS
+        DFS --> DfsWrite --> LocalStore --> LocalDisk
     end
 
     subgraph MetaCluster[AFS Meta Cluster]
         Meta[MetaService]
         MetaStore[(MetaStore)]
-        Namespace[Namespace / Dentry / InodeRecord]
-        Version[FileVersion / LayoutRoot]
-        Placement[Policy / Placement / Copy Catalog]
+        Namespace[NamespaceService<br/>Dentry / InodeRecord]
+        Version[VersionService<br/>FileVersion / LayoutRoot]
+        Placement[PlacementService<br/>Policy / ReplicaGroup]
+        Copies[CopyCatalog]
         Meta --> MetaStore
         Meta --> Namespace
         Meta --> Version
         Meta --> Placement
+        Meta --> Copies
     end
 
     subgraph StoragePeers[Storage Nodes]
         StoreB[ChunkStore B]
         StoreC[ChunkStore C]
-        Peer[P2P Connection Pool]
-        StoreB <--> Peer
-        Peer <--> StoreC
+        Pool[PeerConnectionPool]
+        StoreB <--> Pool
+        Pool <--> StoreC
     end
 
     Object[(Optional OBS / S3)]
 
-    VFS -->|resolve / commit version| Meta
+    MountO --> OwnerSession
+    MountD --> DfsSession
+    Owner -->|root auth / home| Meta
+    DFS -->|resolve / commit version| Meta
     Meta -->|policy + epoch| DFS
     LocalStore -->|replicate / range read| StoreB
     StoreB --> StoreC
@@ -66,34 +73,64 @@ flowchart LR
 
 Compute Node 与 Storage Node 可以同机或同进程部署，但逻辑边界保持独立。
 
-## Meta 组件
+## FUSE 与 mount 边界
 
-Meta 保存和处理：
+`FUSE module` 直接对应当前代码中的 `src/node/fuse.rs`，不增加 `FuseFrontend`。它实现内核 FUSE 协议、挂载会话、FUSE inode/handle 映射、请求调度、errno 和 reply。
 
-- Namespace、Dentry、InodeRecord、权限和租户；
-- `InodeRecord.head_version` 的 CAS；
-- FileVersion、LayoutRoot 和 Extent Tree；
-- ReplicaGroup、DurabilityPolicy 和 PlacementEpoch；
-- Durable Replica、Verified Cache 和 External Copy 的目录；
-- Pin、Alias、RootManifest、配额和生命周期。
+共用的是代码和接口：
 
-Meta 不负责：
+```text
+fuse module
+Backend trait
+request / reply conversion
+error mapping
+```
 
-- 转发文件内容；
-- 参与每个 FUSE WRITE；
-- 参与每个已解析 Chunk 的读取；
-- 保存应用数据副本。
+运行时不共用：
 
-## Node 组件
+```text
+/mnt/ownerfs
+  -> OwnerFs FuseSession
+  -> OwnerFs inode/handle table
+  -> OwnerFs cache and invalidation policy
+  -> OwnerFs Backend
 
-AFS Node 与计算节点共置，承载：
+/mnt/dfs
+  -> DFS FuseSession
+  -> DFS inode/handle table
+  -> DFS cache and invalidation policy
+  -> DistributedFs Backend
+```
 
-- FUSE/VFS、Native SDK 和 Block Adapter；
-- OwnerFs 与 DFS 请求路由；
-- FileHandle、WriteSession 和 read-your-writes；
-- ChunkBuilder、BufferPool 和本机 ChunkStore；
-- 节点间复制、P2P Range Read 和连接池；
-- 本机 Cache、Durable Target、Spill 和资源统计。
+每个 `FuseSession` 在创建时绑定一个确定的 Backend，不在同一 mount 内根据 inode 或虚拟根选择 OwnerFs/DFS。Native SDK 与 Block Adapter 直接进入 DistributedFs，不构造 FUSE 请求。
+
+## Meta 核心模块
+
+| 模块 | 核心类型 | 职责 |
+| --- | --- | --- |
+| `NamespaceService` | `Dentry`、`InodeRecord` | 路径、目录项、inode 属性和当前 `head_version_id` |
+| `VersionService` | `FileVersion`、`LayoutRoot`、`ExtentMapNode`、`Extent` | 不可变文件版本、布局查找和 Head CAS |
+| `PlacementService` | `DurabilityPolicy`、`ReplicaGroup`、`PlacementRecord` | 选择副本组、持久性策略和 PlacementEpoch |
+| `CopyCatalog` | `CopyRecord` | Durable Replica、Verified Cache 和 External Copy 的动态位置目录 |
+| `LifecycleService` | `Alias`、`PinRecord`、`RootManifest` | 固定版本、保留与多文件一致视图 |
+| `MetaStore` | 条件事务与修订 | 提交后权威状态、幂等结果和恢复 |
+
+Meta 不转发文件内容，不参与每个 FUSE WRITE，也不参与每个已解析 Chunk 的读取。
+
+## Node 核心模块
+
+| 模块 | 核心类型 | 职责 |
+| --- | --- | --- |
+| `fuse` | `FuseSession`、FUSE inode/handle 映射 | 两个 mount 复用的内核协议适配代码 |
+| `ownerfs` | `OwnerFsHandle` | Home 本地普通文件与远端回 Home；不使用 DFS Chunk 模型 |
+| `distributedfs` | `DistributedFs`、`DfsFileHandle` | DFS Backend、打开版本和 POSIX 文件操作编排 |
+| `write` | `DfsWriteSession`、`DirtyRange` | 聚合多个 write，维护 read-your-writes，提交新 FileVersion |
+| `chunk` | `StagedChunk`、`ChunkObject`、`ChunkReceipt`、`ChunkStore` | Chunk 构建、校验、Finalize、本地读写和持久性结果 |
+| `replication` | `ReplicationEngine`、`ReplicaGroup` | R=N 数据复制、确认、修复和重配置 |
+| `peer` | `PeerConnectionPool` | OwnerFs 与 DFS 可复用的连接管理；业务协议保持分开 |
+| `cache` / `spill` | `CopyRecord` 对应的本地执行状态 | 缓存驱逐、外部写穿和容量分层 |
+
+`DfsWriteSession` 是 DFS 专属运行时状态。OwnerFs 只复用共享 FUSE handle 生命周期，使用自己的 `OwnerFsHandle`，不经过 `DfsWriteSession`、`ChunkBuilder` 或 `ChunkStore`。
 
 ## DFS 数据模型
 
@@ -107,32 +144,37 @@ Dentry
                            -> ChunkObject[]
 ```
 
-可变对象：Dentry、InodeRecord.head_version、WriteSession、StagedChunk。
-不可变对象：FileVersion、LayoutRoot/Extent Tree Node、ChunkObject。
+可变对象：Dentry、`InodeRecord.head_version_id`、`DfsWriteSession`、StagedChunk、Placement 和 Copy Catalog。
+
+不可变对象：FileVersion、LayoutRoot、Extent Tree Node、Extent、ChunkObject 和 RootManifest。
 
 ## 写入数据路径
 
 ```mermaid
 sequenceDiagram
     participant A as Application
-    participant N as Local AFS Node
+    participant F as DFS FuseSession
+    participant D as DistributedFs
     participant S as Local ChunkStore
     participant P as Peer ChunkStores
     participant M as Meta
 
-    A->>N: write(offset, bytes)
-    N->>N: WriteSession + ChunkBuilder
-    N->>S: put StagedChunk
+    A->>F: write(offset, bytes)
+    F->>D: Backend::write
+    D->>D: DfsWriteSession + ChunkBuilder
+    D->>S: put StagedChunk
     par local staging and forwarding
-        S->>S: write + digest
+        S->>S: write + digest + finalize
         S->>P: stream Chunk frames
     end
     P-->>S: durability acknowledgements
-    S-->>N: ChunkReceipt
-    A->>N: fsync
-    N->>M: CommitFileVersion(expected_head, new_version)
-    M-->>N: CAS committed
-    N-->>A: fsync success
+    S-->>D: ChunkReceipt
+    A->>F: fsync
+    F->>D: Backend::fsync
+    D->>M: CommitFileVersion(expected_head, new_version)
+    M-->>D: CAS committed
+    D-->>F: fsync success
+    F-->>A: success
 ```
 
 R=1 与 R=N 在 `ChunkStore::put` 以下分叉。文件布局层只消费满足策略的 ChunkReceipt。
@@ -145,30 +187,31 @@ resolve path
   -> map range through LayoutRoot
   -> obtain ChunkIds
   -> select DurableReplica / VerifiedCache / ExternalCommitted
-  -> read ranges in parallel
+  -> read ranges
   -> verify Chunk identity and digest
 ```
 
-读取过程中 FileHead 可以前进到新版本；当前请求仍只读取已固定的 FileVersion。
+当前数据模型不定义 `ReadSlice`、`ReadPlan` 或 `ChunkReadTask`。实现可以直接遍历 Extent；只有后续证明并行调度、合并和任务级重试需要显式执行计划时，才增加 Node 私有运行时类型。
 
 ## OwnerFs 路径
 
 ```text
 Home local access:
-Application → FUSE → OwnerFs → local filesystem
+Application -> /mnt/ownerfs -> OwnerFs FuseSession -> OwnerFs -> local filesystem
 
 Remote access:
-Application → local FUSE → local Node → P2P → Home Node → local filesystem
+Application -> local OwnerFs mount -> local Node -> P2P -> Home Node -> local filesystem
 ```
 
-OwnerFs 到 DFS 的转换由显式 Snapshot 触发。跨后端 rename 和 hard link 不提供隐式迁移语义。
+OwnerFs 与 DFS 当前没有转换合同。跨后端 Snapshot、rename 和 hard link 不在本阶段设计范围内。
 
 ## 接口层
 
 | 入口 | 使用者 | 主要用途 |
 | --- | --- | --- |
-| POSIX/FUSE | 普通 Linux 应用 | 兼容性、目录和文件操作 |
+| OwnerFs POSIX/FUSE mount | 1～4 节点 Agent Workspace | Home 本地亲和或远端回 Home |
+| DFS POSIX/FUSE mount | 普通 Linux 应用 | 通用目录和文件操作 |
 | Native Async SDK | 数据加载器和高性能应用 | Batch Range、共享内存、异步完成 |
 | Block Adapter | Firecracker 等 MicroVM | 固定基础版本和私有写层 |
-| Runtime API | Sandbox 管理器 | Snapshot、Pin、Alias、Restore |
+| Runtime API | Sandbox 管理器 | DFS Snapshot、Pin、Alias、Restore |
 | Management API | 控制面和调度器 | Node、Home、Replica、容量和 Placement 查询 |

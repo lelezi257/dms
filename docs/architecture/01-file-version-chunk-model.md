@@ -46,7 +46,7 @@ flowchart TD
 
 - Dentry；
 - `InodeRecord.head_version` 和 inode 属性；
-- WriteSession；
+- `DfsWriteSession`；
 - StagedChunk；
 - Placement、Copy Catalog 和 Cache 状态；
 - Alias、Pin 与保留策略。
@@ -84,7 +84,7 @@ InodeRecord {
 
 InodeRecord 表示稳定文件身份。Dentry 把名称映射到 inode；rename 只修改 Dentry，hard link 让多个 Dentry 指向同一 InodeRecord。普通文件通过 `head_version_id` 指向当前内容。
 
-### 4.2 WriteRequest 与 WriteSession
+### 4.2 WriteRequest 与 DfsWriteSession
 
 ```text
 WriteRequest {
@@ -95,7 +95,7 @@ WriteRequest {
   flags
 }
 
-WriteSession {
+DfsWriteSession {
   inode_id
   base_version_id
   dirty_ranges
@@ -104,7 +104,7 @@ WriteSession {
 }
 ```
 
-WriteRequest 是一次入口请求，不是存储格式。WriteSession 聚合多个请求、维护 read-your-writes，并避免每个 FUSE WRITE 都执行 Meta 事务。
+WriteRequest 是一次入口请求，不是存储格式。`DfsWriteSession` 聚合多个请求、维护 read-your-writes，并避免每个 FUSE WRITE 都执行 Meta 事务。它属于 DistributedFs；OwnerFs 使用自己的本地文件句柄，不进入该状态机。
 
 ### 4.3 StagedChunk 与 ChunkObject
 
@@ -234,6 +234,284 @@ CopyRecord {
 
 Copy Catalog 是动态位置目录，不进入 FileVersion 或 LayoutRoot。Repair、Rebalance、Cache Eviction 和 Spill 只改变 CopyRecord。
 
+### 4.9 Meta UML：Namespace、Version 与 Layout
+
+下图是逻辑类模型，不预先固定 Rust 文件拆分。`ExtentMapNode` 的树形字段仍由专题四确定；其余关系是本专题的 Accepted Design。
+
+```mermaid
+classDiagram
+direction TB
+
+class Dentry {
+  <<mutable>>
+  +NamespaceId namespace_id
+  +InodeId parent_inode_id
+  +String name
+  +InodeId inode_id
+  +u64 revision
+}
+
+class InodeRecord {
+  <<mutable>>
+  +NamespaceId namespace_id
+  +InodeId inode_id
+  +u64 inode_revision
+  +InodeKind kind
+  +FileAttributes attributes
+  +u64 link_count
+  +FileVersionId? head_version_id
+}
+
+class FileVersion {
+  <<immutable>>
+  +FileVersionId version_id
+  +InodeId inode_id
+  +FileVersionId? parent_version_id
+  +u64 logical_length
+  +Extent[]? inline_extents
+  +LayoutRootId? layout_root_id
+  +Digest? content_digest
+  +Timestamp created_at
+}
+
+class LayoutRoot {
+  <<immutable>>
+  +LayoutRootId layout_root_id
+  +ExtentNodeId root_node_id
+  +u64 extent_count
+  +u32 format_version
+}
+
+class ExtentMapNode {
+  <<immutable schema TBD>>
+  +ExtentNodeId node_id
+  +u16 level
+  +FileOffset[] pivots
+  +ExtentNodeId[] child_ids
+  +Extent[] leaf_extents
+}
+
+class Extent {
+  <<immutable>>
+  +u64 file_offset
+  +u64 length
+  +ExtentKind kind
+  +ChunkId? chunk_id
+  +u64? chunk_offset
+}
+
+class ChunkObject {
+  <<shared immutable contract>>
+  +ChunkId chunk_id
+  +u64 logical_length
+  +DigestAlgorithm digest_algorithm
+  +Digest digest
+  +Encoding encoding
+  +u32 format_version
+  +DedupDomainId dedup_domain_id
+}
+
+Dentry "*" --> "1" InodeRecord : inode_id
+InodeRecord "1" --> "0..1" FileVersion : head_version_id
+FileVersion "1" --> "0..1" FileVersion : parent_version_id
+FileVersion "1" *-- "0..N" Extent : inline layout
+FileVersion "1" --> "0..1" LayoutRoot : large layout
+LayoutRoot "1" --> "1" ExtentMapNode : root
+ExtentMapNode "1" *-- "0..N" ExtentMapNode : children
+ExtentMapNode "1" *-- "0..N" Extent : leaf extents
+Extent "0..N" --> "0..1" ChunkObject : chunk_id
+```
+
+### 4.10 Meta UML：Placement、Copy 与生命周期
+
+```mermaid
+classDiagram
+direction TB
+
+class ChunkObject {
+  <<shared immutable contract>>
+  +ChunkId chunk_id
+  +u64 logical_length
+  +Digest digest
+}
+
+class DurabilityPolicy {
+  <<policy schema TBD>>
+  +DurabilityPolicyId policy_id
+  +u16 replica_count
+  +u16 required_acks
+  +FailureDomainRule failure_domain_rule
+}
+
+class ReplicaGroup {
+  <<mutable>>
+  +ReplicaGroupId replica_group_id
+  +NodeId[] members
+  +u16 required_acks
+  +u64 placement_epoch
+}
+
+class PlacementRecord {
+  <<mutable>>
+  +ChunkId chunk_id
+  +u64 placement_epoch
+  +ReplicaGroupId replica_group_id
+  +DurabilityPolicyId durability_policy_id
+}
+
+class CopyRecord {
+  <<mutable catalog>>
+  +ChunkId chunk_id
+  +CopyId copy_id
+  +CopyRole role
+  +NodeId? node_id
+  +ExternalProvider? external_provider
+  +u64 node_epoch
+  +String locator
+  +Digest verified_digest
+  +u64 catalog_revision
+}
+
+class Alias {
+  <<mutable>>
+  +NamespaceId namespace_id
+  +String name
+  +FileVersionId target_version_id
+  +u64 revision
+}
+
+class PinRecord {
+  <<mutable>>
+  +PinId pin_id
+  +FileVersionId version_id
+  +RetentionPolicy retention
+  +Timestamp created_at
+}
+
+class RootManifest {
+  <<immutable>>
+  +RootManifestId root_manifest_id
+  +Map entries
+  +u32 format_version
+  +Digest digest
+}
+
+class FileVersion {
+  <<immutable>>
+  +FileVersionId version_id
+}
+
+PlacementRecord --> ChunkObject : chunk_id
+PlacementRecord --> ReplicaGroup
+PlacementRecord --> DurabilityPolicy
+CopyRecord "*" --> "1" ChunkObject : physical copies
+Alias "*" --> "1" FileVersion
+PinRecord "*" --> "1" FileVersion
+RootManifest "*" --> "*" FileVersion : entries
+```
+
+`ChunkObject` 是 Meta 与 Node 共享的不可变值契约。Meta 通过 `ChunkId` 表达逻辑可达性和副本目录；Node 保存实际字节及校验所需头信息。是否为每个 Chunk 建立独立 Meta Catalog 行，留给持久化 schema 设计决定。
+
+### 4.11 Node UML：DFS 写入运行时
+
+```mermaid
+classDiagram
+direction TB
+
+class DfsFileHandle {
+  <<runtime>>
+  +FileHandleId handle_id
+  +InodeId inode_id
+  +FileVersionId opened_version_id
+  +OpenFlags flags
+  +DfsWriteSessionId? write_session_id
+}
+
+class WriteRequest {
+  <<runtime>>
+  +InodeId inode_id
+  +FileHandleId handle_id
+  +u64 offset
+  +Buffer payload
+  +WriteFlags flags
+}
+
+class DfsWriteSession {
+  <<runtime>>
+  +DfsWriteSessionId session_id
+  +InodeId inode_id
+  +FileVersionId base_version_id
+  +DirtyRange[] dirty_ranges
+  +u64 logical_length
+  +DurabilityPolicyId durability_policy_id
+}
+
+class DirtyRange {
+  <<runtime>>
+  +u64 start
+  +u64 end
+  +BufferRef data
+}
+
+class StagedChunk {
+  <<mutable until finalize>>
+  +OperationId operation_id
+  +u64 expected_length
+  +u64 received_length
+  +DigestState digest_state
+  +StagingLocation staging_location
+}
+
+class ChunkObject {
+  <<immutable after finalize>>
+  +ChunkId chunk_id
+  +u64 logical_length
+  +Digest digest
+  +Encoding encoding
+  +u32 format_version
+}
+
+class LocalChunkCopy {
+  <<node persistent>>
+  +ChunkId chunk_id
+  +CopyRole role
+  +LocalLocator locator
+  +ChunkState state
+  +u64 length
+  +Digest verified_digest
+  +u64 node_epoch
+}
+
+class ChunkReceipt {
+  <<durability proof>>
+  +ChunkId chunk_id
+  +u64 length
+  +DurabilityClass durability_class
+  +ReplicaGroupId replica_group_id
+  +u64 placement_epoch
+}
+
+class PlacementSnapshot {
+  <<cached metadata>>
+  +u64 placement_epoch
+  +ReplicaGroup[] replica_groups
+  +CopyRecord[] known_copies
+  +Timestamp expires_at
+}
+
+DfsFileHandle "1" --> "0..1" DfsWriteSession
+WriteRequest "*" --> "1" DfsFileHandle
+DfsWriteSession "1" *-- "0..N" DirtyRange
+DfsWriteSession "1" --> "0..N" StagedChunk : builds
+StagedChunk --> ChunkObject : finalize
+ChunkObject "1" --> "1..N" LocalChunkCopy : physical copies
+ChunkObject --> ChunkReceipt : successful put
+DfsWriteSession --> ChunkReceipt : consumes
+PlacementSnapshot --> ChunkReceipt : placement epoch
+```
+
+该图不定义 `ReadSlice`、`ReadPlan` 或 `ChunkReadTask`。读取实现先固定 FileVersion，再遍历 Extent 并根据 Copy Catalog 选择来源；只有后续调度设计证明需要时，才引入 Node 私有执行计划类型。
+
 ## 5. E2E Case 1：本地单副本文件
 
 输入：
@@ -252,7 +530,7 @@ DurabilityPolicy：R=1 LocalDurable
 CREATE /xxx.txt
   -> Dentry(/xxx.txt -> inode 1001)
   -> InodeRecord(1001, head_version = Empty)
-  -> WriteSession(base = Empty)
+  -> DfsWriteSession(base = Empty)
 ```
 
 新文件需要一次逻辑 Meta 创建。后续每个 WRITE 不访问 Meta。
@@ -330,7 +608,7 @@ ChunkStore::put(chunk, R=3)
 假设副本组为 A、B、C，写节点 A 是 Chain Head：
 
 ```text
-WriteSession
+DfsWriteSession
     -> A: local staging + digest
     -> B: local staging + digest
     -> C: local staging + digest
@@ -415,7 +693,7 @@ C103 <- A
 | --- | --- | --- |
 | InodeRecord | 保留 | 稳定 POSIX 文件身份、属性和 Head |
 | 独立 FileHead 表 | 不要求 | 可作为 InodeRecord 字段，逻辑上仍是 CAS 点 |
-| WriteSession | 保留 | 聚合写入、read-your-writes、减少 Meta RPC |
+| DfsWriteSession | 保留 | 聚合写入、read-your-writes、减少 Meta RPC |
 | BufferPool | 内部实现 | 控制在途内存，不是持久领域对象 |
 | StagedChunk | 保留 | 流式接收时最终 Chunk 尚未完成 |
 | ChunkObject | 保留 | 存储、校验、复制、P2P、Cache、Spill、GC 的统一单位 |
@@ -443,47 +721,95 @@ C103 <- A
 
 ```mermaid
 flowchart LR
-    subgraph Node[Compute / Storage Node]
-        Fuse[FuseFrontend]
-        Handle[FileHandleManager]
-        Session[WriteSessionManager]
+    OwnerMount[/mnt/ownerfs] --> OwnerSession[OwnerFs FuseSession]
+    DfsMount[/mnt/dfs] --> DfsSession[DFS FuseSession]
+
+    subgraph Shared[Shared code]
+        Fuse[FUSE module<br/>src/node/fuse.rs]
+        Backend[Backend trait]
+        Pool[PeerConnectionPool]
+
+        Fuse -.instantiates.-> OwnerSession
+        Fuse -.instantiates.-> DfsSession
+    end
+
+    subgraph Owner[OwnerFs Backend]
+        OwnerFs[OwnerFs]
+        OwnerHandle[OwnerFs File Handle]
+        Home[Home Local Filesystem]
+        OwnerPeer[P2P to Home]
+
+        OwnerFs --> OwnerHandle --> Home
+        OwnerHandle --> OwnerPeer
+    end
+
+    subgraph DFS[DistributedFs Backend]
+        DistributedFs[DistributedFs]
+        DfsHandle[DFS File Handle]
+        Session[DfsWriteSessionManager]
         Builder[ChunkBuilder]
         Buffer[BufferPool]
         Store[ChunkStore]
         Repl[ReplicationEngine]
-        Pool[PeerConnectionPool]
+        ReplPool[PeerConnectionPool]
         Cache[CacheManager]
         Spill[SpillManager]
         Disk[(Local Disk)]
 
-        Fuse --> Handle --> Session --> Builder --> Buffer --> Store
+        DistributedFs --> DfsHandle --> Session --> Builder --> Buffer --> Store
         Store --> Disk
-        Store --> Repl --> Pool
+        Store --> Repl --> ReplPool
         Store --> Cache
         Store --> Spill
     end
 
     subgraph Meta[Meta Cluster]
         MetaSvc[MetaService]
-        NS[Namespace / InodeRecord]
-        Versions[FileVersion Catalog]
-        Layouts[LayoutRoot / Extent Tree]
-        Placement[Placement / Replica Metadata]
-        Txn[Transaction / CAS]
+        NS[NamespaceService]
+        Versions[VersionService]
+        Placement[PlacementService]
+        Copies[CopyCatalog]
+        Lifecycle[LifecycleService]
+        Txn[MetaStore / CAS]
 
         MetaSvc --> NS
         MetaSvc --> Versions
-        MetaSvc --> Layouts
         MetaSvc --> Placement
+        MetaSvc --> Copies
+        MetaSvc --> Lifecycle
         MetaSvc --> Txn
     end
 
+    OwnerSession --> Backend --> OwnerFs
+    DfsSession --> Backend --> DistributedFs
+    OwnerFs -->|RootAccess / Home lookup| MetaSvc
     Session -->|CommitFileVersion| MetaSvc
     MetaSvc -->|Policy + PlacementEpoch| Repl
-    Pool --> Peers[Peer ChunkStores]
+    OwnerPeer --> Pool
+    ReplPool --> Pool
+    Pool --> Peers[Peer Nodes / ChunkStores]
 ```
 
-后台模块包括 IntegrityVerifier、Compactor、GarbageCollector 和 RepairScheduler。Meta 保存权威状态，Node 执行数据操作。
+`FUSE module` 是当前已有的 `src/node/fuse.rs`，不增加 `FuseFrontend`。OwnerFs 和 DistributedFs 分别创建独立 mount 和 `FuseSession`；每个 Session 在构造时绑定一个 Backend，并拥有自己的 FUSE inode/handle table、notifier 和缓存策略。两者复用的是 FUSE 代码与 `Backend` 接口，不是在同一 mount 内按虚拟根路由。
+
+| 归属 | 核心模块名 | 核心类型 |
+| --- | --- | --- |
+| Shared Node | `fuse` | `FuseSession`、会话内 inode/handle 映射 |
+| Shared Node | `peer` | `PeerConnectionPool`；OwnerFs 与 DFS 的业务消息保持分开 |
+| OwnerFs | `ownerfs` | `OwnerFs`、`OwnerFsHandle`、Home 与 RootGrant |
+| DFS Node | `distributedfs` | `DistributedFs`、`DfsFileHandle` |
+| DFS Node | `write` | `DfsWriteSession`、`DirtyRange`、`ChunkBuilder` |
+| DFS Node | `chunk` | `StagedChunk`、`ChunkObject`、`LocalChunkCopy`、`ChunkReceipt`、`ChunkStore` |
+| DFS Node | `replication` | `ReplicationEngine` 与副本写入状态 |
+| DFS Node | `cache` / `spill` | 缓存与外部层执行状态 |
+| Meta | `namespace` | `Dentry`、`InodeRecord` |
+| Meta | `version` | `FileVersion`、`LayoutRoot`、`ExtentMapNode`、`Extent` |
+| Meta | `placement` | `DurabilityPolicy`、`ReplicaGroup`、`PlacementRecord`、`CopyRecord` |
+| Meta | `lifecycle` | `Alias`、`PinRecord`、`RootManifest` |
+
+OwnerFs 不需要采用 FileVersion/Extent/Chunk 数据模型，也不经过 `DfsWriteSession`、`ChunkBuilder` 或 `ChunkStore`。当前阶段不设计 OwnerFs 到 DFS 的 Snapshot 转换。
+
+DistributedFs 后台模块包括 IntegrityVerifier、Compactor、GarbageCollector 和 RepairScheduler。Meta 保存权威状态，Node 执行数据操作。
 
 ## 12. 后续专题输入
 

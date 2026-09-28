@@ -12,6 +12,8 @@ DFS 使用统一的数据模型承载普通可变文件和镜像、Snapshot 等�
 
 专题一已经接受：[FileVersion、Extent 与 Chunk 数据模型](architecture/01-file-version-chunk-model.md)和 [RFC-0002](rfcs/0002-file-version-chunk-model.md)定义了统一不可变版本模型、`fsync` 边界、单副本与多副本分叉点、三个端到端 Case 和 RPC 预算。当前进入专题二：普通写入的完成、持久化和跨节点可见性。
 
+目标接入模型已经固定为两个独立 mount：OwnerFs 与 DFS 分别建立 FuseSession、FUSE connection、inode/handle table 和缓存策略，只复用 `fuse` 模块代码与 `Backend` 接口。`DfsWriteSession` 是 DFS 专属类型；OwnerFs 不进入 FileVersion/Extent/Chunk 写入状态机。当前源码仍是单 mount、多 namespace 骨架，尚未迁移到目标结构。
+
 ## 当前能力
 
 | 能力 | 状态 | 已验证边界 |

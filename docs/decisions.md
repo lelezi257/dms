@@ -4,6 +4,9 @@
 
 - **决策：** 通用分布式后端命名为 `DistributedFs`（`DFS`），与 1～4 节点小集群优化 `OwnerFs` 并列。DFS 的 inode 通过可变 `head_version` 指向不可变 `FileVersion`；FileVersion 再引用不可变 LayoutRoot/ExtentMap、Extent 和 ChunkObject。普通文件更新生成新 Chunk、布局和版本；镜像、Snapshot、Checkpoint 固定 FileVersion 后直接复用同一事实源进行 range read、缓存和多源 P2P。
 - **接口：** 不把 BlobRecord、BlobManifest、Blob API 设为基础要求。`fsync` 强制形成完整、持久的 FileVersion，但不自动创建业务 Alias、Pin 或 RootManifest。R=1 与 R=N 只在 `ChunkStore::put` 以下分叉，上层消费相同的 ChunkReceipt。
+- **共享接入：** 不新增 FUSE 中间层。当前 `src/node/fuse.rs` 是 OwnerFs 与 DistributedFs 共用的 FUSE module；两个后端分别建立独立 mount、FUSE connection、FuseSession、inode/handle table、notifier 和缓存策略。每个 Session 构造时绑定一个 Backend，不在同一 mount 内按虚拟根路由。
+- **运行时边界：** `DfsWriteSession`、ChunkBuilder 和 ChunkStore 只属于 DistributedFs。OwnerFs 使用自己的本地文件句柄，只复用 FUSE/Backend 接口和公共连接工具。当前阶段不设计 OwnerFs 到 DFS 的 Snapshot 转换。
+- **读取执行：** Accepted 数据模型不引入 `ReadSlice`、`ReadPlan` 或 `ChunkReadTask`；实现可以直接遍历 Extent。显式读取计划只有在后续调度设计证明必要时才作为 Node 私有类型引入。
 - **依据：** 统一模型既保留 POSIX 多读多写，又让写后很少修改的主优化场景天然获得不可变身份、校验和多源读取条件，避免两套持久格式、GC 和修复逻辑。
 - **限制：** 严格普通写的跨节点可见性、并发排序和失败返回仍由专题二确定；Accepted Design 不代表 DFS 数据路径已经实现。
 - **权威文档：** [RFC-0002](rfcs/0002-file-version-chunk-model.md)与[专题一](architecture/01-file-version-chunk-model.md)。

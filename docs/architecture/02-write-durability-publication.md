@@ -11,7 +11,7 @@
 
 ## 已确定边界
 
-- 普通 write 可以先进入 WriteSession；
+- 普通 write 可以先进入 DfsWriteSession；
 - `O_SYNC/O_DSYNC` 和 `fsync/fdatasync` 必须完成相应的持久化合同；
 - 满足策略的 ChunkReceipt 是构造 FileVersion 的前置条件；
 - FileVersion CAS 是新文件布局的原子可见点；
@@ -22,7 +22,7 @@
 
 ```text
 ACCEPTED
-  WriteSession 已接受数据
+  DfsWriteSession 已接受数据
 
 LOCAL_FINALIZED
   本地 ChunkObject 已完成校验和 Finalize
@@ -61,7 +61,7 @@ PINNED / PUBLISHED
 ## 预期设计产物
 
 - 操作 × DurabilityPolicy × 完成级别语义矩阵；
-- WriteSession、Lease、全局读可见性和错误上报合同；
+- DfsWriteSession、Lease、全局读可见性和错误上报合同；
 - FUSE、SDK、Runtime API 的 Completion 映射；
 - 介质持久化和故障域定义；
 - 对应 Draft RFC 与验收 Case。

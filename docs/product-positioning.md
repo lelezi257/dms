@@ -8,20 +8,22 @@
 
 AFS 是面向 Agent、Sandbox 和近计算工作负载的通用分布式文件系统。系统部署在业务计算集群内部，管理计算节点贡献的本地磁盘，并通过数据亲和、节点间直连和分布式数据布局降低远程存储路径成本。
 
-AFS 对普通应用提供 POSIX 文件接口，对高性能应用提供 Native Async SDK，对 MicroVM 提供文件树或块设备适配。所有入口使用同一 Namespace、文件身份、版本、布局和 Chunk 数据事实源。
+AFS 对普通应用提供 POSIX 文件接口，对高性能应用提供 Native Async SDK，对 MicroVM 提供文件树或块设备适配。DFS 的 POSIX、SDK 和块设备入口使用同一 Namespace、文件身份、版本、布局和 Chunk 数据事实源；OwnerFs 保持独立的 Home 本地普通文件模型。
 
 ## 产品结构
 
 ```text
-AfsVfs
-├── DistributedFs（DFS）
+AFS Node
+├── /mnt/dfs → FuseSession<DistributedFs>
 │   ├── 通用 POSIX 多读多写
 │   ├── Immutable FileVersion + LayoutRoot + ChunkObject
 │   ├── R=1 / R=N、多源 P2P、Cache、Repair
 │   └── 可选对象存储 Spill
-└── OwnerFs
+└── /mnt/ownerfs → FuseSession<OwnerFs>
     └── 1～4 节点 Agent Workspace 的 Home 本地亲和路径
 ```
+
+两个 mount 复用 FUSE 模块代码和 `Backend` 接口，但拥有独立的 FUSE connection、会话 inode/handle table、notifier 和缓存策略。
 
 ### DistributedFs
 
@@ -29,7 +31,7 @@ DFS 是通用分布式主干，负责 FileVersion、Extent、Chunk、ReplicaGrou
 
 ### OwnerFs
 
-OwnerFs 服务 1～4 节点一体机式 Agent Workspace。一个 Workspace 由一个 Home 节点持有，数据保存在 Home 的本地普通文件系统中。本机访问走最短路径，远端访问回到 Home。OwnerFs 通过显式 Snapshot 将稳定视图写入 DFS，不提供隐式跨后端 rename 或 hard link。
+OwnerFs 服务 1～4 节点一体机式 Agent Workspace。一个 Workspace 由一个 Home 节点持有，数据保存在 Home 的本地普通文件系统中。本机访问走最短路径，远端访问回到 Home。当前阶段不设计 OwnerFs 与 DFS 之间的数据转换合同。
 
 ## 核心价值
 

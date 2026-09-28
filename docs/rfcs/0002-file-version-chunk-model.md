@@ -20,6 +20,7 @@ DistributedFs 使用不可变 Chunk 作为数据基座。可变 InodeRecord Head
 - 多源读取的数据身份；
 - Pin、Alias 和 RootManifest 的可选位置；
 - Meta 与 Node 的数据边界。
+- OwnerFs 与 DFS 使用独立 mount 和 FuseSession，但复用 FUSE 模块代码与 Backend 接口。
 
 本 RFC不固定：
 
@@ -32,7 +33,7 @@ DistributedFs 使用不可变 Chunk 作为数据基座。可变 InodeRecord Head
 ## 外部语义
 
 1. 应用通过 POSIX 文件接口创建、读取和修改文件，不需要对象 API。
-2. 普通 write 可以进入 WriteSession；`fsync` 必须提交满足 DurabilityPolicy 的完整 FileVersion。
+2. 普通 write 可以进入 DfsWriteSession；`fsync` 必须提交满足 DurabilityPolicy 的完整 FileVersion。
 3. `fsync` 不自动 Pin、不创建 Alias、不创建多文件 Snapshot。
 4. Snapshot/Pin/Publish 引用已经提交的精确 FileVersionId；多文件一致视图使用 RootManifest。
 5. 已固定的 FileVersion 可以从多个通过校验的 Copy 并行读取。
@@ -157,8 +158,8 @@ stateDiagram-v2
 
 ```mermaid
 stateDiagram-v2
-    [*] --> WriteSession
-    WriteSession --> Chunking: flush or fsync
+    [*] --> DfsWriteSession
+    DfsWriteSession --> Chunking: flush or fsync
     Chunking --> DurableChunks: required ChunkReceipts obtained
     DurableChunks --> VersionPrepared: build LayoutRoot + FileVersion
     VersionPrepared --> Visible: CAS InodeRecord.head_version
@@ -231,13 +232,13 @@ ChunkStore::put(StagedChunk, DurabilityPolicy) -> ChunkReceipt
 
 ### Node
 
-- FUSE/SDK/Block 入口；
-- FileHandle 与 WriteSession；
+- 共享 `fuse` 模块代码；OwnerFs 和 DFS 各自建立独立 mount、FuseSession、inode/handle table 与缓存策略；
+- `DistributedFs`、`DfsFileHandle` 与 `DfsWriteSession`；
 - ChunkBuilder、BufferPool 和 StagedChunk；
 - ChunkStore、ReplicationEngine 和 PeerConnectionPool；
 - Cache、Spill、Integrity、Compaction 和 Repair 执行。
 
-Meta 不转发内容；Node 不独立决定 Namespace 权威状态。
+OwnerFs 只复用 FUSE/Backend 接口和公共连接工具，不进入 DFS 的 FileVersion、Extent、Chunk 与 DfsWriteSession 状态机。当前阶段不设计 OwnerFs 到 DFS 的 Snapshot 转换。Meta 不转发内容；Node 不独立决定 Namespace 权威状态。
 
 ## 备选方案
 

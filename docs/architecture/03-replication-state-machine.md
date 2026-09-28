@@ -1,7 +1,7 @@
 # 专题三：单副本与多副本写入状态机
 
-状态：Research  
-实现状态：Not Implemented  
+状态：Research
+实现状态：Not Implemented
 专题入口：[架构设计专题](design-topics.md)
 
 ## 目标
@@ -18,7 +18,7 @@ R=N:
 prepare local update → replicate → commit according to policy → return
 ```
 
-- R=1 的主副本优先放在计算或 owner/home 所在节点；本地亲和需要成为 placement 合同。
+- R=1 优先写当前计算节点的本地磁盘；本地亲和需要成为 placement 合同。
 - R=N 需要明确 write-all、quorum 或其他确认规则；读取来源必须与提交规则匹配。
 - pending 数据不能计入已提交可靠性，也不能成为普通读取或 P2P seed。
 - chain/version 变更必须隔离旧请求和新配置。

@@ -1,39 +1,46 @@
 # 实现任务
 
-工程主线以 [Roadmap](../ROADMAP.md) 为准。当前优先级是建立最小 Distributed BlobFs，再补齐 Mutable Profile、Published Immutable Profile 和多源读取。
+工程主线以 [Roadmap](../ROADMAP.md) 为准。当前优先级是完成 DFS 写入语义设计，再实现最小的 FileVersion/Extent/Chunk 纵向链路。
 
-## 设计先行入口
+## 设计入口
 
-[架构设计专题](architecture/design-topics.md)保存 Distributed BlobFs 的六个设计专题及其依赖顺序。[专题一](architecture/01-file-blob-chunk-model.md)已经形成 [RFC-0002 Draft](rfcs/0002-file-blob-chunk-model.md)：File 与 Blob 共用 ExtentMap 和提交后不可变的 ChunkObject，POSIX 与可选 Native Blob API 共用数据事实源，Manifest 与动态 Copy Catalog 分离。当前先评审身份、不变量、API 边界和未决参数；Draft 接受前不作为实现合同。
+[专题一](architecture/01-file-version-chunk-model.md)及 [RFC-0002](rfcs/0002-file-version-chunk-model.md)已经接受，确定以下实现合同：
 
-专题一评审后依次推进写入完成语义、副本状态机、本地 COW、长度与 seal、可靠性与高性能路径。各专题文档会逐步收敛为对应设计文档和 RFC，下面的实现任务引用已接受的结论执行。
+- inode 通过可变 `head_version` 指向已提交的不可变 `FileVersion`；
+- `FileVersion → LayoutRoot/ExtentMap → Extent → ChunkObject` 构成统一事实源；
+- `StagedChunk` 只有 finalize 后才成为可读的 `ChunkObject`；
+- 单副本和多副本只在 `ChunkStore::put` 以下分叉，上层只消费 `ChunkReceipt`；
+- `fsync` 强制形成完整、持久的 FileVersion，不自动创建业务 Alias、Pin 或 RootManifest；
+- 固定版本多源读取先固定 `FileVersionId`，再从合格副本或缓存读取其 Chunk。
 
-## P0：最小 Distributed BlobFs
+当前进入[专题二](architecture/02-write-durability-publication.md)，重点固化普通 write/flush/fsync 的完成语义、跨节点可见性、错误返回和所需 RPC。
 
-1. 以 RFC 固化 inode、extent/chunk、文件版本、layout epoch、placement 和副本状态模型。
-2. 实现 Meta 侧文件布局事务，以及 Node 侧 chunk 创建、写入、读取、校验和删除。
-3. 打通 FUSE `create → write → fsync → close → open → read` 的两节点端到端路径。
-4. 定义副本确认规则、失败重试、重启恢复和校验失败处理。
-5. 为每个状态转换补充可观测字段，使实现状态可映射到[副本与缓存状态](semantics/copy-states.md)。
+## P0：完成写入语义设计
 
-## P1：Mutable Profile
+1. 定义 write、flush、fsync、close 各自对客户端缓冲、Chunk 提交、FileVersion 提交和耐久性的承诺。
+2. 确定多写场景的并发排序与跨节点可见机制。
+3. 明确 inode `head_version` 的 CAS、失败重试、幂等键和故障恢复。
+4. 为单副本、多副本、4 KiB 覆盖写分别列出正常及故障 RPC 时序。
 
-1. 定义并实现并发读写、truncate、rename、unlink、fsync 与崩溃恢复语义。
-2. 以一致性协议维护权威副本集合；多源读取只能选择同一已提交版本。
-3. 补 Meta 单活动围栏、选主和故障注入证据。
+## P1：最小 DistributedFs
+
+1. 实现 `StagedChunk → ChunkObject` 和本地 `ChunkStore::put/get`。
+2. 实现 `ExtentMap`、`LayoutRoot`、`FileVersion` 与 inode head 提交事务。
+3. 打通 FUSE `create → write → fsync → close → open → read` 单节点端到端路径。
+4. 增加 R=3 的 `ChunkStore::put` 实现，不改变文件层接口。
+5. 以两节点读取与单节点故障换源验证固定版本读取。
 
 ## P1：OwnerFs 完整性
 
 1. 补齐 Agent 常用 `chmod`、`chown`、`atime`、`mtime`。
 2. 实现根删除、同名重建和跨节点根列举。
-3. 扩展文件大小、数量、并发和远端读写比例矩阵，记录 B 重读与覆盖写热点。
+3. 扩展文件大小、数量、并发和远端读写比例矩阵。
 
-## P2：Published Immutable Profile
+## P2：固定版本优化
 
-1. 定义显式 Snapshot/Publish API；`fsync` 只保证文件持久性，不承担发布语义。
-2. 生成内容校验、不可变版本和可验证 manifest。
-3. 将已验证本地副本、近端 cache 和外部对象存储副本纳入统一 placement。
-4. 实现 authoritative replica 与 verified cache 的多源调度、回源、修复和 GC。
+1. 实现按 `FileVersionId` 的 Alias、Pin/Retention 和 RootManifest 可选能力。
+2. 实现已验证缓存、多源调度、消费者转 seed、回源、修复和 GC。
+3. 对镜像、Snapshot 和 Checkpoint 验证 range read 与大规模启动。
 
 ## P3：高性能与容量层
 

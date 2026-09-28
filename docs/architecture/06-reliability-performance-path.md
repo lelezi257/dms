@@ -1,7 +1,7 @@
 # 专题六：可靠性与高性能数据路径
 
-状态：Research  
-实现状态：Not Implemented  
+状态：Research
+实现状态：Not Implemented
 专题入口：[架构设计专题](design-topics.md)
 
 ## 目标
@@ -36,8 +36,8 @@ control message + PayloadDescriptor
 - 跨节点按能力选择 RDMA 或普通网络；
 - transport adapter 不改变文件身份、提交语义和 checksum；
 - Native SDK、FUSE 和 Block Adapter 在 Chunk 层汇合；
-- Published Immutable 数据可从同版本的 durable replica、verified cache 和 seed 并行读取；
-- Mutable 数据只从一致性协议确认的权威版本读取。
+- 固定 FileVersion 的数据可从属于该版本的 durable replica、verified cache 和 seed 并行读取；
+- 活动文件读取先固定一致性协议确认的 FileVersion，再选择合格来源。
 
 ## 预期设计产物
 

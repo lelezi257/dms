@@ -1,7 +1,7 @@
-# AFS 数据 Profile
+# AFS 工作负载路径
 
 状态：Accepted Design
-实现状态：OwnerFs Experimental；BlobFs Profiles Planned
+实现状态：OwnerFs Experimental；DistributedFs Planned
 
 ## 结构
 
@@ -9,112 +9,57 @@
 AFS Namespace
 ├── OwnerFs Backend
 │   └── 1～4 节点 Workspace
-│
-└── Distributed BlobFs Backend
-    ├── Mutable Profile
-    └── Published Immutable Profile
+└── DistributedFs Backend
+    └── 统一 FileVersion / LayoutRoot / ChunkObject 数据模型
+        ├── 普通可变文件
+        └── 固定版本优化负载
 ```
 
-OwnerFs 是独立 Backend。Mutable 与 Published Immutable 是同一个 Distributed BlobFs 内的两个 Profile。
+普通文件和固定版本不是两套 Profile。两者使用相同的 InodeRecord、FileVersion、LayoutRoot、ChunkStore、placement、transport 和运维体系。差异来自版本保留、读取来源和调度策略。
 
-## 共用核心
+## 普通可变文件
 
-Mutable 与 Published Immutable 共用：
-
-- Namespace、inode、dentry、权限和租户；
-- Meta 事务与幂等提交；
-- 文件 layout、generation 和 extent map；
-- Storage Service 与本地磁盘 target；
-- chunk/extent 物理容器；
-- placement、replica group 和故障域；
-- TCP、RDMA 和共享内存 transport；
-- checksum、scrub、repair、rebalance 和 drain；
-- quota、pin、引用、GC 和 spill 账本；
-- FUSE、Native SDK 和 Block Adapter；
-- metrics、trace、审计和运维接口。
-
-## Mutable Profile
-
-### 适用范围
+适用范围：
 
 - 通用共享文件；
-- 大文件写入；
 - 多客户端读写；
-- 需要 overwrite、append 或 truncate 的数据；
+- overwrite、append、truncate 和 sparse file；
 - 不适合放在单 Home 的规模化 Workspace。
 
-### 数据身份
+行为：
 
-```text
-FileId + Generation + ChunkIndex
-```
+- WriteSession 聚合普通写入；
+- 提交产生新的不可变 FileVersion；
+- 未修改范围复用旧 Chunk；
+- 小范围修改使用 Patch Chunk 和 Extent Overlay；
+- Compaction 控制 Overlay 深度；
+- 并发 Writer、Append、truncate 和跨节点可见性由一致性协议管理。
 
-可变 chunk 的正确性来自写入排序、副本协议和 committed version，不依赖内容哈希作为主身份。
+## 固定版本优化负载
 
-### 状态机职责
+适用范围：
 
-- overlapping write 排序；
-- append reservation；
-- truncate 和 hole；
-- file length；
-- chunk committed/pending version；
-- `fsync` / `fdatasync`；
-- open handle、unlink 和 rename；
-- cache coherence；
-- writer lease/session；
-- 修复中的读写行为。
-
-## Published Immutable Profile
-
-### 适用范围
-
-- OCI 镜像；
+- OCI 镜像和文件树；
 - Nydus/EROFS/OverlayBD 数据；
 - MicroVM 根磁盘；
 - Agent Workspace Snapshot；
-- Checkpoint；
-- 模型、数据集和只读构建产物。
+- Checkpoint、模型、数据集和只读构建产物。
 
-### 数据身份
+行为：
 
-```text
-PublishedVersion
-└── Manifest
-    └── Logical Range → Content Digest / Chunk Version
-```
+- 固定一个或多个 FileVersion；
+- Pin 防止版本和 Chunk 被 GC；
+- Alias 提供稳定业务名称；
+- RootManifest 组合多文件一致视图；
+- 读取可选择 Durable Replica、Verified Cache、P2P Seed 和 ExternalCommitted；
+- 消费者完成 Chunk 校验后可以成为 Cache Seed；
+- FileVersion、LayoutRoot 和 ChunkObject 不因副本位置变化而变化。
 
-### 状态机职责
-
-- `RequestSnapshot`；
-- Namespace 稳定切点；
-- frozen generation；
-- COW；
-- manifest；
-- digest；
-- 发布门禁；
-- P2P seed；
-- 去重；
-- pin/unpin；
-- 热度和逐出；
-- spill/recall。
-
-## Mutable 到 Immutable
-
-```mermaid
-stateDiagram-v2
-    [*] --> MutableHead
-    MutableHead --> FrozenGeneration: RequestSnapshot
-    FrozenGeneration --> Verifying: manifest + digest + replica proof
-    Verifying --> Published: publish commit
-    Verifying --> Failed: validation or replication failure
-    MutableHead --> MutableHead: post-cut writes in new generation
-```
-
-Snapshot 不原地 seal 活动 inode。稳定切点冻结一个 generation；后续覆盖写进入新 generation 或触发 COW。未修改 chunk 可以由活动文件和 Snapshot 共享。
+`fsync` 提交文件版本，但不自动 Pin、不创建 Alias，也不构造多文件 RootManifest。
 
 ## OwnerFs
 
-### 适用范围
+适用范围：
 
 - 1～4 节点；
 - 一体机式部署；
@@ -122,20 +67,20 @@ Snapshot 不原地 seal 活动 inode。稳定切点冻结一个 generation；后
 - 大多数操作发生在 Home；
 - 调度器可以维持计算与 Home 亲和。
 
-### 数据路径
+数据路径：
 
 - Home 使用本地普通文件系统；
-- 本机访问不分 chunk；
+- 本机访问不分 Chunk；
 - 远端访问回到 Home；
 - Meta 管理 WorkspaceRoot、Home、授权和会话；
-- Snapshot/Promote 显式生成 BlobFs 稳定版本。
+- 显式 Snapshot 把稳定视图写入 DFS。
 
-### 边界
+边界：
 
 - Home 永久丢盘不自动由缓存接管；
 - 不提供通用多副本写；
 - 不提供跨大量节点聚合文件带宽；
-- OwnerFs 与 BlobFs 之间的 rename/link 返回明确错误；
+- OwnerFs 与 DFS 之间的 rename/link 返回明确错误；
 - 共享基础设施不合并两种后端的文件状态机。
 
 ## 入口选择
@@ -143,7 +88,7 @@ Snapshot 不原地 seal 活动 inode。稳定切点冻结一个 generation；后
 | 条件 | 推荐路径 |
 | --- | --- |
 | 1～4 节点 Agent Workspace，本地亲和明显 | OwnerFs |
-| 通用共享可变文件 | BlobFs Mutable |
-| 大文件跨节点并行 I/O | BlobFs Mutable + Native SDK |
-| 镜像、Snapshot、Checkpoint | BlobFs Published Immutable |
-| MicroVM 基础磁盘 | Published Immutable + Block Adapter |
+| 通用共享可变文件 | DistributedFs |
+| 大文件跨节点并行 I/O | DistributedFs + Native SDK |
+| 镜像、Snapshot、Checkpoint | DFS 固定 FileVersion + Pin/Alias |
+| MicroVM 基础磁盘 | DFS 固定 FileVersion + Block Adapter |

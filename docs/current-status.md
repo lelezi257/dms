@@ -1,7 +1,7 @@
 # AFS 当前状态
 
 状态：Implemented Capability Index
-更新时间：2026-09-27
+更新时间：2026-09-28
 详细实验与阶段记录：[status.md](status.md)
 
 ## 能力矩阵
@@ -9,18 +9,16 @@
 | 能力 | 状态 | 当前事实 | 主要缺口 |
 | --- | --- | --- | --- |
 | `afs-meta` / `afs-node` 进程 | Experimental | CLI/TOML、REST、gRPC、观测和退出已接入 | 生产部署、滚动升级和多 Meta 选主 |
-| MetaStore | Experimental | etcd、local-file、memory 共用 Store 提交入口；后端 ACK 后发布可见状态 | 全量状态规模、多活动 Meta、跨进程故障注入 |
+| MetaStore | Experimental | etcd、local-file、memory 共用 Store 提交入口 | 全量状态规模、多活动 Meta、跨进程故障注入 |
 | FUSE/VFS | Experimental | Linux 真 FUSE 和 OwnerFs 路径已接通 | 完整 POSIX 兼容矩阵 |
-| OwnerFs 本地路径 | Experimental | Home 本地普通文件、根授权和文件操作已接通 | chmod/chown/时间戳、根删除和全局列举等缺口 |
-| OwnerFs P2P | Experimental | 三 VM 15/15 功能验收；远端访问同一 Home 文件 | 更广负载、掉电、长稳、异步 RELEASE 回收 |
-| OwnerFs 性能 | Experimental | 固定 200×4 KiB、8 worker、12 轮完整 W2 p50 为 MooseFS 的 0.780 | 跨运行稳定性和不同负载不可外推 |
+| OwnerFs | Experimental | 本机普通文件、P2P 回 Home、根授权和句柄回收已接通 | 常用属性、根删除、全局列举、掉电与长稳 |
 | UDS + SHM SDK 基础 | Experimental | 本地 API、memfd 和 FD passing 已接线 | 正式文件批量异步 API |
-| RDMA transport | Experimental | RXE 握手、READ/WRITE 和诊断链通过 | OwnerFs/BlobFs 文件内容路径和硬件吞吐 |
-| Distributed BlobFs | Planned | VFS 骨架和 Meta service 位置已存在 | layout、Storage Service、复制和数据路径 |
-| Mutable Profile | Planned | 产品和架构合同已定义 | chunk version、写一致性、分布式 POSIX |
-| Published Immutable Profile | Planned | 产品和架构合同已定义 | stable cut、COW、manifest、digest、publish |
-| 多源 P2P | Research | 独立教学实验验证 consumer-to-seed 过程 | AFS tracker、source selection、限流和产品 E2E |
-| 对象存储 spill | Research | 独立 OBS-compatible L2 实验存在 | AFS copy state、外部提交、逐出和 recall |
+| RDMA transport | Experimental | RXE 握手、READ/WRITE 和诊断链通过 | 文件内容路径和硬件吞吐 |
+| DistributedFs | Planned | 产品合同和数据模型已接受；VFS 骨架位置存在 | FileVersion、ExtentMap、ChunkStore、副本与数据路径 |
+| FileVersion 数据模型 | Accepted Design | RFC-0002 定义统一不可变版本模型 | 实现与故障验证 |
+| 多写可见性 | Research | 专题二已定义研究边界 | 排序、CAS、跨节点可见与错误合同 |
+| 固定版本多源 P2P | Accepted Design | 固定 FileVersion 后按 Chunk 从合格来源读取 | tracker、选源、限流和产品 E2E |
+| 对象存储 spill | Research | 独立兼容对象存储实验存在 | 外部提交、逐出、recall 和灾难恢复 |
 
 ## 已验证边界
 
@@ -34,27 +32,25 @@
 
 证据入口：[OwnerFs P2P 并发优化](plans/2026-09-27-ownerfs-p2p-concurrency.md)、[根恢复审视](reviews/ownerfs-v16-root-recovery.md)。
 
-### MetaStore
+### DistributedFs 设计
 
-- 业务命令在私有状态中完成检查和合并。
-- 后端确认前不发布新可见状态。
-- etcd 使用条件事务，local-file 使用 WAL、同步和排他锁，memory 只用于可丢弃测试。
+- inode 的可变字段是 `head_version`；提交后的 FileVersion、布局和 Chunk 不原地修改。
+- 小覆盖写以新 Chunk 和 Extent overlay 表达，后台 compaction 处理碎片。
+- R=1 和 R=N 在 `ChunkStore::put` 以下分叉，文件层不感知副本协议。
+- `fsync` 必须完成数据 flush 和 FileVersion 提交，但不等于业务 Snapshot、Alias 或 Pin。
+- 固定版本多源读取先固定 `FileVersionId`，防止不同来源返回不同版本的同一范围。
 
-证据入口：[MetaStore 提交边界](plans/2026-09-27-meta-store.md)。
+设计入口：[专题一](architecture/01-file-version-chunk-model.md)、[RFC-0002](rfcs/0002-file-version-chunk-model.md)。
 
-## 未实现能力
+## 尚未实现
 
-以下能力属于目标架构，不属于当前代码能力：
-
-- 通用 Distributed BlobFs 数据路径；
-- 可变 chunk 多副本协议；
-- Snapshot 稳定切点与 COW；
-- immutable manifest 和发布门禁；
-- AFS 内置多源 P2P；
+- DFS 通用数据路径和分布式 POSIX；
+- `StagedChunk → ChunkObject`、ExtentMap、FileVersion 提交；
+- 可变文件多副本协议和跨节点写入可见性；
+- 固定版本的多源 P2P、Pin、Alias、RootManifest 和 GC；
 - 自动 spill、逐出和 recall；
 - 文件内容 Native Async SDK；
 - MicroVM 块设备正式适配；
-- 完整 POSIX；
 - Meta HA 和生产长稳。
 
 ## 代码入口
@@ -65,7 +61,7 @@
 | Meta | `src/meta.rs`、`src/meta/store.rs`、`src/meta/owner_roots.rs` |
 | Node | `src/node.rs`、`src/node/fuse.rs`、`src/node/vfs.rs` |
 | OwnerFs | `src/node/vfs/ownerfs.rs`、`src/node/vfs/ownerfs/` |
-| BlobFs 骨架 | `src/node/vfs/blobfs.rs` |
+| DistributedFs 骨架 | `src/node/vfs/blobfs.rs`（历史占位名，待实现时重命名） |
 | P2P | `src/node/rpc/peer.rs`、`src/node/rpc/data/owner.rs` |
 | SDK | `client/src/`、`src/node/api/local.rs` |
 | Transport | `common/transport/` |

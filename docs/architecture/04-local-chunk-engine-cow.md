@@ -9,7 +9,7 @@
 
 定义 Storage Service 在本地磁盘上保存 pending/committed Chunk、执行覆盖写、原子切换版本、恢复未完成写入和回收旧位置的机制。
 
-[RFC-0002 Draft](../rfcs/0002-file-blob-chunk-model.md)选择“FileHead/ExtentMap 可变，committed ChunkObject 不可变”。本专题需要用最小实现和写放大数据验证该选择；下方稳定逻辑 Chunk 的物理 COW 保留为对照方案，不视为已经接受的合同。
+[RFC-0002](../rfcs/0002-file-version-chunk-model.md)已经选择“Head 可变，FileVersion、LayoutRoot 与 committed ChunkObject 不可变”。本专题用最小实现和写放大数据确定 Chunk/Patch 参数、持久格式和 Compaction 策略；下方稳定逻辑 Chunk 的物理 COW 保留为对照方案。
 
 ## COW 候选模型
 
@@ -25,23 +25,24 @@ Committed Position P1
   → reclaim P1 after readers leave
 ```
 
-### 不可变 Blob 的 Manifest COW
+### 不可变 FileVersion 的 Layout COW
 
 ```text
-Blob V1 = [C1, C2, C3, C4]
-Blob V2 = [C1, C2', C3, C4]
+FileVersion V1 = [C1, C2, C3, C4]
+FileVersion V2 = [C1, C2', C3, C4]
 ```
 
-未修改 Chunk 通过引用共享，不原地覆盖 sealed Blob。
+未修改 Chunk 通过引用共享，不原地覆盖旧 FileVersion。
 
-### RFC-0002 候选：immutable Chunk + Extent overlay
+### 已接受基座：immutable Chunk + Extent overlay
 
 ```text
-FileHead E1
-  → write StagingChunk S2
+InodeRecord.head_version V1
+  → write StagedChunk S2
   → commit immutable ChunkObject C2
   → build new ExtentRoot E2 sharing untouched Extents
-  → CAS FileHead E1 → E2
+  → create FileVersion V2
+  → CAS head_version V1 → V2
   → compact patch Chunks when policy requires
 ```
 

@@ -1,10 +1,10 @@
 # AFS 目录架构与模块职责
 
-状态：Implementation Reference。本文定义当前源码目录、模块职责和依赖方向。产品语义见[架构原则](../PRINCIPLES.md)、[架构总览](architecture/overview.md)与[数据 Profile](architecture/profiles.md)。
+状态：Implementation Reference。本文定义当前源码目录、模块职责和依赖方向。产品语义见[架构原则](../PRINCIPLES.md)、[架构总览](architecture/overview.md)与[工作负载路径](architecture/profiles.md)。
 
 `src/meta/store.rs` 定义 `MetaStore` 业务接口与 Store 提交队列；队列负责排队、短窗合并，并在后端 ACK 后发布权威状态。`src/meta/store/memory.rs`、`local_file.rs` 与 `etcd.rs` 是三个后端实现。`Meta::register_node/lookup_node` 承接节点业务，RPC 负责身份与 Proto 转换。Store 边界见[MetaStore 提交边界](plans/2026-09-27-meta-store.md)。
 
-OwnerFs 的持久 Meta 根权威、本地普通文件、FUSE 文件操作、远端 P2P 与进程重启后重新打开恢复已经接通并完成 Linux 三节点复验。BlobFs 仍是骨架，OwnerFiles RDMA 内容路径尚未接通。Meta 根授权业务由 `meta/owner_roots.rs` 承载，持久权威由 `meta/store.rs` 与所选后端承载；`memory` 只供可丢弃的开发/测试，不提供 Meta 重启恢复。Node 文件业务由 `OwnerFsPeerExecutor` 注入 `node/rpc/data/owner.rs`。完整状态见[当前状态](current-status.md)。
+OwnerFs 的持久 Meta 根权威、本地普通文件、FUSE 文件操作、远端 P2P 与进程重启后重新打开恢复已经接通并完成 Linux 三节点复验。DistributedFs 仍是骨架，现有文件名 `blobfs.rs` 和协议名 `BlobMeta` 是实现前的历史占位名；OwnerFiles RDMA 内容路径尚未接通。Meta 根授权业务由 `meta/owner_roots.rs` 承载，持久权威由 `meta/store.rs` 与所选后端承载；`memory` 只供可丢弃的开发/测试，不提供 Meta 重启恢复。Node 文件业务由 `OwnerFsPeerExecutor` 注入 `node/rpc/data/owner.rs`。完整状态见[当前状态](current-status.md)。
 
 以下目录树描述源码模块导航；实现能力以[当前状态](current-status.md)为准。
 
@@ -103,13 +103,13 @@ afs/
 │       │   ├── ownerfs/catalog.rs   # 本机根身份记录与启动独占锁合同
 │       │   ├── ownerfs/files.rs     # 本地/远端文件身份与打开句柄类型
 │       │   ├── ownerfs/remote.rs    # 远端文件操作业务接口
-│       │   └── blobfs.rs            # 通用分布式主干骨架；Mutable / Immutable Profiles
+│       │   └── blobfs.rs            # DistributedFs 骨架；历史占位文件名，实施时重命名
 │       ├── storage.rs               # FileStore/FileHandle 与旧诊断对象
 │       └── storage/localfs.rs       # 本地普通文件后端
 └── tests/README.md                  # 未来跨模块集成/E2E 归属
 ```
 
-Meta 根归属、节点管理、授权及 MetaStore 子模块按上方当前补记阅读。同一个 afs-meta gRPC server 注册 Meta、OwnerRoots、BlobMeta 三个 service；OwnerFs 权威 RPC 已接真实业务，BlobMeta 仍按后续 BlobFs 设计推进。Meta wire 合同不等于镜像版本已可用。
+Meta 根归属、节点管理、授权及 MetaStore 子模块按上方当前补记阅读。同一个 afs-meta gRPC server 当前注册 Meta、OwnerRoots、BlobMeta 三个 service；OwnerFs 权威 RPC 已接真实业务，`BlobMeta` 是尚未投入使用的历史占位协议，DistributedFs 实施时按 RFC-0002 重命名并收敛合同。Meta wire 位置不等于 DFS 已可用。
 
 OwnerFs [全量实施前审视](plans/2026-09-26-ownerfs-readiness.md)确定的 `src/meta/store.rs` 核心接口已落地，并继续由 Store 统一提供条件事务、幂等结果、revision/watch 和恢复边界。`node/fuse/state.rs`（进程内 inode/句柄表）与 `node/rpc/peer/owner.rs`（OwnerFiles 客户端转换）若拆出只是已有模块的实现文件，不增加新业务层。`RootMode` 与 B 加入前 ACK 已从合同移除。
 
@@ -163,11 +163,11 @@ RDMA 建连参考 [3FS IBConnect](https://github.com/deepseek-ai/3FS/blob/22fca0
 | node/vfs | 共用接入形状、namespace 分派与身份映射边界 | 强迫两种后端共用持久化、缓存或恢复模型 |
 | node/storage | 两种后端共用的本地 I/O 机制 | 决定何时 sync、如何发布/恢复、强制 Blob 化 |
 
-FUSE 节点号、进程内后端 inode/句柄、OwnerFs 可恢复文件身份、Blob 版本身份分开。`vfs::Backend` 定义 lookup、getattr/setattr、create/open/read/write/flush/fsync/release、目录读写与同步、rename/link 等入口形状；未实现方法明确返回 `UNIMPLEMENTED`。`create_file` 仍是原有基础框架诊断探针，不产生文件身份或句柄，不能当作真实 create。真实文件回调接通时由 `Backend::create` 原子返回 `CreatedFile`，随后删除探针。Node 内部文件业务 caller 将留在 rpc/peer 下，不搬进 transport；现有 DataPeerClient 只服务诊断，不可冒充 OwnerFs。storage 先是 Node 内模块，不提前拆独立通用存储 crate。
+FUSE 节点号、进程内后端 inode/句柄、OwnerFs 可恢复文件身份、DFS 的 FileVersion 身份分开。`vfs::Backend` 定义 lookup、getattr/setattr、create/open/read/write/flush/fsync/release、目录读写与同步、rename/link 等入口形状；未实现方法明确返回 `UNIMPLEMENTED`。`create_file` 仍是原有基础框架诊断探针，不产生文件身份或句柄，不能当作真实 create。真实文件回调接通时由 `Backend::create` 原子返回 `CreatedFile`，随后删除探针。Node 内部文件业务 caller 将留在 rpc/peer 下，不搬进 transport；现有 DataPeerClient 只服务诊断，不可冒充 OwnerFs。storage 先是 Node 内模块，不提前拆独立通用存储 crate。
 
-`ownerfs/root.rs` 将根位置、创建预留、激活授权明确分型，定义 OwnerFs 私有的 RootMeta/RootLifecycle 合同。当前仅实现本机已激活授权的缓存准入、RootUse 在途计数、失效封闭和身份核对；首次 mkdir 的持久准备记录、MetaStore、FUSE 接线和重启对账尚未实现。根内热路径按 RootId 查缓存，不逐文件问 Meta；这些类型不提升为 VFS/BlobFs 公共抽象。
+`ownerfs/root.rs` 将根位置、创建预留、激活授权明确分型，定义 OwnerFs 私有的 RootMeta/RootLifecycle 合同。当前仅实现本机已激活授权的缓存准入、RootUse 在途计数、失效封闭和身份核对；首次 mkdir 的持久准备记录、MetaStore、FUSE 接线和重启对账尚未实现。根内热路径按 RootId 查缓存，不逐文件问 Meta；这些类型不提升为 VFS/DistributedFs 公共抽象。
 
-Workspace 底层数据目录仅由 AFS Node 修改；Agent 经挂载入口访问。普通 write/flush/close 不强制 fsync，显式 fsync/fdatasync 才是本地文件耐久边界；目录项的持久性另需目录同步。`FileStore` 仅抽象本地可变文件/目录能力，Blob 的不变对象存放另立业务合同，不能把 OBS 或数据库塞成假 POSIX 文件后端。
+Workspace 底层数据目录仅由 AFS Node 修改；Agent 经挂载入口访问。普通 write/flush/close 不强制 fsync，显式 fsync/fdatasync 才是本地文件耐久边界；目录项的持久性另需目录同步。`FileStore` 仅抽象 OwnerFs 的本地可变文件/目录能力；DFS 的不可变 ChunkObject 由 ChunkStore 承载，不能把 OBS 或数据库塞成假 POSIX 文件后端。
 
 ## 4. Cargo 与 feature
 
@@ -182,7 +182,7 @@ Proto 已生成 local/meta/node_control/node_data 类型和基础 service。基�
 第一版的关键模块、接口和资源生命周期已补中文注释。建议按以下顺序阅读：
 
 1. `src/bin/afs-node.rs` / `afs-meta.rs` → `src/config.rs` → `src/runtime.rs`：CLI/TOML 合并、编译与运行开关、观测和退出。
-2. `src/node.rs` → `node/fuse.rs` → `node/vfs.rs` → `vfs/ownerfs.rs` / `blobfs.rs`：同进程入口和后端分派。OwnerFs 文件业务已接通；BlobFs 仍为骨架。
+2. `src/node.rs` → `node/fuse.rs` → `node/vfs.rs` → `vfs/ownerfs.rs` / `blobfs.rs`：同进程入口和后端分派。OwnerFs 文件业务已接通；DistributedFs 仍为骨架，`blobfs.rs` 是历史占位文件名。
 3. `node/rpc/peer.rs` → `node/rpc/data.rs` → `node/storage.rs`：共同客户端 API、gRPC/RDMA adapter、共同服务端 Handler，以及诊断字节实际写入。
 4. `node/rpc/control.rs` → `common/transport/src/rdma.rs` → `common/transport/native/rdma.c`：会话协商、Rust 所有权、libibverbs 单边搬运。`native/` 是 C ABI 适配，不是 Native FS 后端；只在启用 `rdma` feature 时编译链接。
 5. `client/src/connection.rs` → `client/src/buffer.rs` → `node/api/local.rs` → `common/transport/src/shm.rs`：UDS 控制、memfd/FD passing 内容和取消后的资源回收。当前是有界拷贝，不是零拷贝。

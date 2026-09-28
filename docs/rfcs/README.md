@@ -18,7 +18,7 @@ RFC 使用四位编号：`0001-title.md`。编号只表示身份，不表示优�
 
 | RFC | 标题 | 状态 |
 | --- | --- | --- |
-| [0001](0001-product-architecture.md) | AFS 产品架构与数据 Profile | Accepted |
-| [0002](0002-file-blob-chunk-model.md) | File、Blob、Chunk 统一数据模型 | Draft |
+| [0001](0001-product-architecture.md) | AFS 产品架构 | Accepted |
+| [0002](0002-file-version-chunk-model.md) | FileVersion、Extent 与 Chunk 数据模型 | Accepted |
 
 新 RFC 使用[模板](0000-template.md)。

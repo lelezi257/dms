@@ -16,13 +16,13 @@
 ## 产品合同
 
 - AFS 是面向业务集群近计算场景的通用 POSIX 分布式文件系统。
-- Distributed BlobFs 是通用分布式主线，承载 Mutable 与 Published Immutable 两个 Profile。
+- DistributedFs（DFS）是通用分布式主线，以不可变 Chunk 和 FileVersion 统一承载普通可变文件与不可变优化负载。
 - OwnerFs 是 1～4 节点一体机 Agent workspace 的专用后端，以 Home 本地普通文件和跨 Node P2P 访问获得局部最优路径。
-- 不可变镜像、Snapshot、Checkpoint 是 BlobFs 的重点优化负载，不是 BlobFs 的全部范围。
+- 不可变镜像、Snapshot、Checkpoint 是 DFS 的重点优化负载，不是 DFS 的全部范围。
 - 本地 SSD、NVMe、HDD 共同构成集群内持久副本与多级缓存；外部对象存储是可选 spill 层，不是系统成立条件。
 - Meta 处理 namespace、文件身份、布局、版本、placement 和授权，不代理稳态文件内容。
-- `fsync` 表示文件持久性；Snapshot/Publish 是显式业务操作，不从 `close` 或 `fsync` 推断发布。
-- Mutable Profile 的多源读取只选择一致性协议确认的同一已提交版本；Published Immutable Profile 还可使用校验通过的 cache 与消费者种子。
+- `fsync` 提交持久 FileVersion；Snapshot/Pin/Publish 是显式业务操作，不从 `close` 或 `fsync` 推断业务发布。
+- 多源读取必须固定同一 FileVersion，并只选择通过 Chunk 身份和摘要校验的持久副本、cache 或消费者种子。
 
 ## 事实、设计和能力声明
 
@@ -34,10 +34,10 @@
 
 ## 代码边界
 
-- `afs-meta` 是控制面；`afs-node` 承载 FUSE、OwnerFs/BlobFs、Storage Service、P2P 和本机 SDK 接入。
+- `afs-meta` 是控制面；`afs-node` 承载 FUSE、OwnerFs/DistributedFs、ChunkStore、P2P 和本机 SDK 接入。
 - FUSE、Native SDK 和未来的 runtime integration 使用同一 namespace 与后端语义，性能路径不能绕过授权、版本或校验合同。
-- BlobFs 的 Mutable 与 Published Immutable Profile 共享 namespace、Meta、Storage Service、chunk/extent、placement、transport 和运维体系；两类写入状态机保持独立。
-- OwnerFs 与 BlobFs 是独立后端。共同 FUSE 入口只做 namespace 和请求分派，不把 Owner/Home 语义扩散到 BlobFs。
+- DFS 的所有文件共享 namespace、Meta、FileVersion、LayoutRoot、ChunkStore、placement、transport 和运维体系；不可变负载通过 Pin、Alias、RootManifest 和读取策略优化，不建立第二套文件对象。
+- OwnerFs 与 DistributedFs 是独立后端。共同 FUSE 入口只做 namespace 和请求分派，不把 Owner/Home 语义扩散到 DFS。
 - 本机 client 只访问本机 Node。Node 到 Meta 使用控制 RPC；Node 间数据路径使用共同 API 下的 gRPC、SHM 或可选单边 RDMA adapter。
 - `common/` 只保留已有两个真实调用方的公共能力，不为预期复用增加框架。
 - 不恢复 NFS 产品后端，不从旧 KV 分支复制权威状态机。

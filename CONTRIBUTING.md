@@ -8,28 +8,29 @@ AFS 接受文档、测试、工具、协议、存储和文件语义方面的贡�
 2. [架构原则](PRINCIPLES.md)
 3. [产品定位](docs/product-positioning.md)
 4. [架构总览](docs/architecture/overview.md)
-5. [当前状态](docs/current-status.md)
-6. [路线图](ROADMAP.md)
-7. [代码地图](docs/code-layout.md)
+5. [FileVersion 数据模型](docs/architecture/01-file-version-chunk-model.md)
+6. [当前状态](docs/current-status.md)
+7. [路线图](ROADMAP.md)
+8. [代码地图](docs/code-layout.md)
 
 ## 选择任务
 
 任务按领域和难度标记：
 
-- `area/meta`、`area/blobfs`、`area/ownerfs`、`area/storage`、`area/p2p`、`area/sdk`、`area/fuse`、`area/docs`
+- `area/meta`、`area/distributedfs`、`area/ownerfs`、`area/storage`、`area/p2p`、`area/sdk`、`area/fuse`、`area/docs`
 - `kind/rfc`、`kind/implementation`、`kind/test`、`kind/benchmark`、`kind/documentation`
 - `difficulty/good-first-issue`、`difficulty/intermediate`、`difficulty/advanced`
 - `status/ready`、`status/blocked-by-rfc`、`status/needs-evidence`
 
-适合首次贡献的任务应当具备明确文件范围、输入输出、验收命令和预期结果。复制协议、Snapshot 原子性、GC 和故障恢复需要先有 Accepted RFC。
+适合首次贡献的任务应当具备明确文件范围、输入输出、验收命令和预期结果。复制协议、并发可见性、GC 和故障恢复需要先有 Accepted RFC。
 
 ## 设计修改
 
 以下修改需要 RFC：
 
 - 外部 POSIX 语义；
-- inode、dentry、file layout 和版本身份；
-- 副本、缓存、发布和 spill 状态机；
+- inode、dentry、FileVersion、file layout 和版本身份；
+- 副本、缓存、spill 和 GC 状态机；
 - wire protocol 和持久格式；
 - 错误码兼容性；
 - 跨模块依赖方向；
@@ -40,9 +41,11 @@ RFC 模板见 [docs/rfcs/0000-template.md](docs/rfcs/0000-template.md)。RFC 合
 ## 实现要求
 
 - `ref/` 中的上游源码保持只读。
-- Meta、Node、Storage、OwnerFs 和 BlobFs 的职责边界保持清晰。
+- Meta、Node、DistributedFs、OwnerFs、ChunkStore 和 transport 的职责边界保持清晰。
 - Meta 不进入文件内容数据路径。
-- 未完成副本不可读、不可计入可靠性、不可成为 seed。
+- 未 finalize 的 Chunk 不可读，未满足副本策略的数据不可计入相应可靠性。
+- Cache 不自动成为持久副本；未校验数据不可成为 seed。
+- R=1 与 R=N 的分叉保持在 `ChunkStore::put` 以下。
 - 优化不得改变公开一致性和持久化语义。
 - 不支持的操作返回明确错误。
 - 新能力更新对应状态、架构和验证文档。

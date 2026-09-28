@@ -1,5 +1,13 @@
 # AFS 架构决策
 
+## 2026-09-28：DistributedFs 使用统一不可变 FileVersion/Chunk 数据模型
+
+- **决策：** 通用分布式后端命名为 `DistributedFs`（`DFS`），与 1～4 节点小集群优化 `OwnerFs` 并列。DFS 的 inode 通过可变 `head_version` 指向不可变 `FileVersion`；FileVersion 再引用不可变 LayoutRoot/ExtentMap、Extent 和 ChunkObject。普通文件更新生成新 Chunk、布局和版本；镜像、Snapshot、Checkpoint 固定 FileVersion 后直接复用同一事实源进行 range read、缓存和多源 P2P。
+- **接口：** 不把 BlobRecord、BlobManifest、Blob API 设为基础要求。`fsync` 强制形成完整、持久的 FileVersion，但不自动创建业务 Alias、Pin 或 RootManifest。R=1 与 R=N 只在 `ChunkStore::put` 以下分叉，上层消费相同的 ChunkReceipt。
+- **依据：** 统一模型既保留 POSIX 多读多写，又让写后很少修改的主优化场景天然获得不可变身份、校验和多源读取条件，避免两套持久格式、GC 和修复逻辑。
+- **限制：** 严格普通写的跨节点可见性、并发排序和失败返回仍由专题二确定；Accepted Design 不代表 DFS 数据路径已经实现。
+- **权威文档：** [RFC-0002](rfcs/0002-file-version-chunk-model.md)与[专题一](architecture/01-file-version-chunk-model.md)。
+
 ## 2026-09-27：独立文件使用有界 FUSE 并发与按会话回收
 
 - **决策：** 保持单 Home 普通文件与现有 P2P 协议；部分远端 FUSE 操作交给 8 个有界 worker，带 `fh` 的属性与 read/write/flush/fsync/release 共用同句柄 FIFO。本机只读操作与 LOOKUP 直接执行；OwnerFs 句柄 I/O 用每句柄锁，Home 对实际句柄核对根、peer 会话和授权。已确认 I/O 后远端 RELEASE 有界异步重试；Home 在 Meta 会话过期后清理 FD 和授权缓存。不引入 3FS 式 chunk 布局或新核心层。

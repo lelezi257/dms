@@ -4,71 +4,67 @@
 
 ```mermaid
 flowchart LR
-    M0[M0 Product Contract] --> M1[M1 Minimal Distributed BlobFs]
-    M1 --> M2[M2 Mutable POSIX]
-    M2 --> M3[M3 Published Immutable]
+    M0[M0 Product Contract] --> M1[M1 Minimal DistributedFs]
+    M1 --> M2[M2 POSIX Visibility and Concurrency]
+    M2 --> M3[M3 Fixed-version Workloads]
     M3 --> M4[M4 Multi-source P2P]
     M3 --> M5[M5 Storage Tier and Spill]
     M2 --> M6[M6 Native SDK]
 ```
 
-## M0：产品与贡献合同
+## M0：产品与数据合同
 
-状态：Active
+状态：Accepted Design
 
 - 产品定位、架构原则和术语统一。
-- OwnerFs、Mutable BlobFs、Published Immutable Profile 边界明确。
+- OwnerFs 与 DistributedFs 的适用边界明确。
+- FileVersion、ExtentMap 和不可变 ChunkObject 构成统一事实源。
+- 普通可变文件与固定版本工作负载共用数据模型。
 - 当前能力与目标能力分开呈现。
-- RFC、Issue、验证证据和贡献入口可查找。
 
-## M1：最小 Distributed BlobFs
+## M1：最小 DistributedFs
 
 状态：Planned
 
 端到端 Case：
 
 ```text
-create file
-→ write one chunk
-→ replicate to another node
-→ read from a replica
-→ fail one source
-→ read from the remaining replica
+create /xxx.txt
+→ FUSE 分段 write
+→ finalize immutable ChunkObject
+→ commit FileVersion and inode head
+→ open and read the committed version
 ```
 
 交付范围：
 
-- 固定 chunk layout；
-- Storage Service 本地磁盘管理；
-- 两副本；
-- 文件到 replica group 的布局；
-- 写入提交和权威读取；
-- 节点故障换源；
-- 三节点 Linux E2E。
+- `StagedChunk → ChunkObject`；
+- `ExtentMap → LayoutRoot → FileVersion`；
+- R=1 本地优先写入；
+- R=N 在 `ChunkStore::put` 以下扩展；
+- FUSE create/write/fsync/open/read；
+- 三节点 Linux E2E 和故障切点。
 
-## M2：Mutable POSIX
+## M2：POSIX 可见性与并发
 
-状态：Planned
+状态：Research
 
-- 多 chunk 文件；
-- overwrite、append、truncate；
-- rename、unlink、open handle；
-- `fsync`、目录持久化和失败结果；
-- 并发写入排序；
+- write、flush、fsync、close 的完成与持久化语义；
+- overwrite、append、truncate、rename、unlink 和 open handle；
+- inode head CAS、幂等、冲突和失败结果；
+- 跨节点读写排序与可见性；
 - 修复、再平衡和节点 drain；
 - POSIX 兼容矩阵。
 
-## M3：Published Immutable
+## M3：固定版本工作负载
 
-状态：Planned
+状态：Accepted Design / Planned
 
-- 显式 Snapshot；
-- Namespace 稳定切点；
-- generation 与 COW；
-- manifest 和 digest；
-- 发布门禁；
-- pin、引用和 GC；
-- 发布中断故障矩阵。
+- 按 `FileVersionId` 固定读取视图；
+- Alias、Pin/Retention 和 RootManifest 可选能力；
+- 镜像、Snapshot、Checkpoint 的 range read；
+- 内容校验、缓存和 GC；
+- 后续写入生成新 Chunk、新布局和新 FileVersion。
 
 ## M4：多源 P2P
 
@@ -86,11 +82,11 @@ create file
 
 状态：Research
 
+- 本地 SSD、NVMe、HDD 的容量和热度管理；
 - 磁盘高低水位；
 - 外部对象存储提交；
 - verified-then-evict；
 - recall；
-- 外部存储故障；
 - tenant quota 和冷数据 GC。
 
 ## M6：Native SDK

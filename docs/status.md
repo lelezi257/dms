@@ -2,13 +2,15 @@
 
 更新时间：2026-09-28。
 
-AFS 是面向业务集群近计算场景的通用 POSIX 分布式文件系统。产品包含两条数据后端：Distributed BlobFs 是通用分布式主线，OwnerFs 是 1～4 节点一体机 Agent workspace 的专用优化。BlobFs 同时承载可变文件与已发布不可变数据，两类 Profile 共享 namespace、Meta、Storage Service、placement、transport 和运维体系，并使用各自的写入状态机。
+AFS 是面向业务集群近计算场景的通用 POSIX 分布式文件系统。产品包含两条后端：`DistributedFs`（简称 `DFS`）是通用分布式主线，`OwnerFs` 是 1～4 节点一体机 Agent workspace 的专用优化。
+
+DFS 使用统一的数据模型承载普通可变文件和镜像、Snapshot 等固定版本工作负载：文件可变性由 inode 指向哪个 `FileVersion` 表达；已提交的 `FileVersion`、`LayoutRoot`、`ExtentMap` 和 `ChunkObject` 都不可变。固定版本读取、多源 P2P、缓存与 spill 直接复用这套事实源，不建立第二套 Blob 数据模型。
 
 ## 架构设计专题
 
-Distributed BlobFs 的设计工作由[架构设计专题](architecture/design-topics.md)统一维护，当前包含六份独立专题文档：File/Blob/Chunk 数据模型、写入与发布语义、副本状态机、本地 ChunkEngine/COW、长度与 seal，以及可靠性与高性能数据路径。
+[架构设计专题](architecture/design-topics.md)维护 DFS 的六个设计专题及其依赖关系。
 
-专题一已经完成首轮白盒与参考系统研究，形成 [Draft 设计](architecture/01-file-blob-chunk-model.md)和 [RFC-0002](rfcs/0002-file-blob-chunk-model.md)；其余五个专题保持 `Research`。全部能力仍为 `Not Implemented`，Draft 不构成已接受的外部语义。当前先评审专题一的对象身份、不变量和未决参数，再进入专题二。
+专题一已经接受：[FileVersion、Extent 与 Chunk 数据模型](architecture/01-file-version-chunk-model.md)和 [RFC-0002](rfcs/0002-file-version-chunk-model.md)定义了统一不可变版本模型、`fsync` 边界、单副本与多副本分叉点、三个端到端 Case 和 RPC 预算。当前进入专题二：普通写入的完成、持久化和跨节点可见性。
 
 ## 当前能力
 
@@ -18,9 +20,10 @@ Distributed BlobFs 的设计工作由[架构设计专题](architecture/design-to
 | FUSE、SDK、REST 入口 | 已实现基础框架 | OwnerFs 路径已投入三 VM 验收 |
 | MetaStore | 已实现单活动基础 | etcd、local-file、memory；后端 ACK 后发布可见状态 |
 | OwnerFs | 已实现阶段能力 | 本机普通文件、跨 Node P2P、授权校验、句柄回收 |
-| Distributed BlobFs | 骨架 | 通用分布式 extent/chunk 数据面尚未实现 |
-| Mutable Profile | 未实现 | 多读多写、一致性和故障恢复合同待 RFC 固化 |
-| Published Immutable Profile | 未实现 | publish、校验、cache、P2P 多源和 GC 待实现 |
+| DistributedFs | 骨架 | 通用 extent/chunk 数据面尚未实现；现有源码路径仍暂名 `blobfs.rs` |
+| FileVersion 数据模型 | Accepted Design | RFC-0002 已接受，代码尚未实现 |
+| 跨节点写入可见性 | Research | 由专题二确定 lease、路由或 sequencer 合同 |
+| 固定版本多源读取 | Accepted Design | 身份和读取规则已确定，调度与数据路径尚未实现 |
 | 外部对象存储 spill | 未实现 | 属于容量层选项，不是系统成立条件 |
 | Native SDK 高性能数据面 | 基础框架 | SHM/RDMA 文件内容路径尚未接通 |
 
@@ -34,7 +37,8 @@ Distributed BlobFs 的设计工作由[架构设计专题](architecture/design-to
 
 - Meta 单活动围栏与选主尚未完成，不能宣称生产 HA。
 - OwnerFs 尚缺根删除、跨节点根列举及部分常用属性操作。
-- `memory` MetaStore 只用于可丢弃测试；`local-file` 只承诺单机单盘。
+- DFS 的 FileVersion、ExtentMap、ChunkStore 和副本协议尚未实现。
+- 严格普通写跨节点可见性仍待专题二固化。
 - RDMA 已有传输探测能力，文件内容仍走 gRPC P2P。
 - 完整 POSIX、VM 掉电、长稳、容量压力和对象存储 spill 尚未验收。
 

@@ -8,7 +8,28 @@
 
 AFS 是面向 Agent、Sandbox 和近计算工作负载的通用分布式文件系统。系统部署在业务计算集群内部，管理计算节点贡献的本地磁盘，并通过数据亲和、节点间直连和分布式数据布局降低远程存储路径成本。
 
-AFS 对普通应用提供 POSIX 文件接口，对高性能应用提供 Native Async SDK，对 MicroVM 提供文件树或块设备适配。所有入口使用同一 Namespace、文件身份、布局和数据事实源。
+AFS 对普通应用提供 POSIX 文件接口，对高性能应用提供 Native Async SDK，对 MicroVM 提供文件树或块设备适配。所有入口使用同一 Namespace、文件身份、版本、布局和 Chunk 数据事实源。
+
+## 产品结构
+
+```text
+AfsVfs
+├── DistributedFs（DFS）
+│   ├── 通用 POSIX 多读多写
+│   ├── Immutable FileVersion + LayoutRoot + ChunkObject
+│   ├── R=1 / R=N、多源 P2P、Cache、Repair
+│   └── 可选对象存储 Spill
+└── OwnerFs
+    └── 1～4 节点 Agent Workspace 的 Home 本地亲和路径
+```
+
+### DistributedFs
+
+DFS 是通用分布式主干，负责 FileVersion、Extent、Chunk、ReplicaGroup、读取、写入、修复、再平衡、缓存和 Spill。文件对用户可变；已提交 FileVersion、LayoutRoot 和 ChunkObject 不可变。镜像、Snapshot、Checkpoint 和只读数据集通过版本 Pin、多源读取、消费者种子和缓存获得额外性能，不转换成另一种 Blob 对象。
+
+### OwnerFs
+
+OwnerFs 服务 1～4 节点一体机式 Agent Workspace。一个 Workspace 由一个 Home 节点持有，数据保存在 Home 的本地普通文件系统中。本机访问走最短路径，远端访问回到 Home。OwnerFs 通过显式 Snapshot 将稳定视图写入 DFS，不提供隐式跨后端 rename 或 hard link。
 
 ## 核心价值
 
@@ -22,32 +43,17 @@ Node 与计算节点共置。本机存在数据时优先本地访问；缺失数
 
 ### 计算节点本地磁盘池
 
-本地 SSD、NVMe、HDD 等介质组成集群存储资源。BlobFs 在多个节点之间放置、复制、修复和再平衡文件数据。外部 OBS/S3 是可选的容量 spill、冷数据和归档层。
+本地 SSD、NVMe、HDD 等介质组成集群存储资源。DFS 在多个节点之间放置、复制、修复和再平衡 Chunk。外部 OBS/S3 是可选的容量 Spill、冷数据和归档层。
 
-### 镜像与 Snapshot 优化
+### 不可变工作负载优化
 
-镜像、Snapshot 和 Checkpoint 具有显式稳定切点和固定版本，适合 manifest、digest、多源 P2P、去重、预取和分级缓存。消费者取得并校验 piece 后可以成为新 seed，降低大规模沙箱并发启动时的单源压力。
-
-## 产品结构
-
-### Distributed BlobFs
-
-BlobFs 是通用分布式主干，支持两种数据 Profile：
-
-- **Mutable Profile**：普通多读多写文件，支持 overwrite、append、truncate、并发写、`fsync` 和副本一致性。
-- **Published Immutable Profile**：显式 Snapshot 产生的固定版本，支持 manifest、digest、P2P seed、去重、pin、spill 和淘汰。
-
-两种 Profile 共用 Namespace、Meta、Storage Service、chunk/extent、placement、transport、认证、配额、观测和生命周期账本。
-
-### OwnerFs
-
-OwnerFs 服务 1～4 节点一体机式 Agent Workspace。一个 Workspace 由一个 Home 节点持有，数据保存在 Home 的本地普通文件系统中。本机访问走最短路径，远端访问回到 Home。OwnerFs 通过显式 Snapshot 或 Promote 将稳定视图交给 BlobFs，不隐式转换普通共享访问。
+镜像、Snapshot 和 Checkpoint 具有明确的稳定版本，适合 Digest、多源 P2P、去重、预取和分级缓存。消费者取得并校验 Chunk 后可以成为新 Seed，降低大规模沙箱并发启动时的单源压力。
 
 ## 部署模式
 
 ### 集群自持久化
 
-本地磁盘池保存满足故障域要求的持久副本。系统不依赖外部对象存储即可运行。缓存和副本通过内部状态明确区分。
+本地磁盘池保存满足故障域要求的持久副本。系统不依赖外部对象存储即可运行。缓存和持久副本通过状态明确区分。
 
 ### 外部层增强
 
@@ -55,18 +61,18 @@ OwnerFs 服务 1～4 节点一体机式 Agent Workspace。一个 Workspace 由�
 
 ### 小集群 Workspace
 
-OwnerFs 提供 Home 本地亲和路径。该模式优先降低 1～4 节点 Agent Workspace 的操作成本，不承担通用 BlobFs 的跨大量节点聚合吞吐。
+OwnerFs 提供 Home 本地亲和路径。该模式优先降低 1～4 节点 Agent Workspace 的操作成本，不承担 DFS 的跨大量节点聚合吞吐。
 
 ## 重点工作负载
 
-| 工作负载 | 入口 | 数据 Profile | 主要优化 |
+| 工作负载 | 入口 | 数据路径 | 主要优化 |
 | --- | --- | --- | --- |
-| Agent Workspace | POSIX/FUSE | OwnerFs 或 Mutable | Home 亲和、小文件和元数据操作 |
-| 通用共享文件 | POSIX/FUSE | Mutable | 分布式 chunk、副本、故障恢复 |
-| 大文件与训练数据 | Native SDK | Mutable 或 Immutable | 批量 range、多节点并行、低复制开销 |
-| OCI 镜像和文件树 | POSIX/文件树适配 | Immutable | 按需读取、digest、P2P、缓存 |
-| MicroVM 根磁盘 | Block Adapter | Immutable + 私有写层 | range 读取、本地落盘或懒加载 |
-| Snapshot/Checkpoint | Runtime API | Immutable | 稳定切点、发布、pin、spill |
+| Agent Workspace | POSIX/FUSE | OwnerFs 或 DFS | Home 亲和，或通用分布式一致性 |
+| 通用共享文件 | POSIX/FUSE | DFS | Extent、Chunk、副本、故障恢复 |
+| 大文件与训练数据 | Native SDK | DFS | 批量 Range、多节点并行、低复制开销 |
+| OCI 镜像和文件树 | POSIX/文件树适配 | DFS 固定 FileVersion | 按需读取、Digest、P2P、缓存 |
+| MicroVM 根磁盘 | Block Adapter | DFS 固定 FileVersion + 私有写层 | Range Read、本地落盘或懒加载 |
+| Snapshot/Checkpoint | Runtime API | DFS Pin/RootManifest | 稳定切点、保留、P2P、Spill |
 
 ## 非目标
 
@@ -84,7 +90,7 @@ AFS 的差异化来自能力组合：
 1. 通用 POSIX Namespace；
 2. 计算节点本地磁盘成为一等存储资源；
 3. 数据位置参与计算调度；
-4. 通用可变文件使用真正分布式的数据引擎；
-5. 不可变发布版本增加滚雪球式 P2P；
+4. 通用可变文件使用真正分布式的 FileVersion/Extent/Chunk 引擎；
+5. 固定 FileVersion 支持校验后的滚雪球式 P2P；
 6. OwnerFs 为 1～4 节点 Workspace 提供本地亲和特化；
 7. 外部对象存储保持可选。

@@ -4,18 +4,20 @@
 
 1. [产品定位](product-positioning.md)：目标用户、核心价值、产品结构和适用范围。
 2. [架构原则](../PRINCIPLES.md)：长期稳定的产品与架构合同。
-3. [架构总览](architecture/overview.md)：Meta、Node、OwnerFs、BlobFs、Storage Service 和外部存储的关系。
-4. [数据 Profile](architecture/profiles.md)：OwnerFs、Mutable 与 Published Immutable 的边界。
-5. [架构设计专题](architecture/design-topics.md)：Distributed BlobFs 六个设计专题、顺序、状态和独立文档入口。
-6. [副本和缓存状态](semantics/copy-states.md)：Staging、Cache、Replica、External 和发布/逐出门禁。
-7. [当前状态](current-status.md)：已经实现、实验可用、计划和研究中的能力。
-8. [Roadmap](../ROADMAP.md)：纵向 Milestone 和目标 E2E。
-9. [参与贡献](../CONTRIBUTING.md)：RFC、任务、实现和验证要求。
+3. [架构总览](architecture/overview.md)：Meta、Node、OwnerFs、DistributedFs、ChunkStore 和外部存储的关系。
+4. [工作负载路径](architecture/profiles.md)：OwnerFs、普通可变文件和固定版本读取的边界。
+5. [架构设计专题](architecture/design-topics.md)：DistributedFs 六个设计专题、状态和入口。
+6. [FileVersion 数据模型](architecture/01-file-version-chunk-model.md)：统一不可变 Chunk 基座、三个 E2E Case 和 RPC 预算。
+7. [副本和缓存状态](semantics/copy-states.md)：Staging、Cache、Replica、External 和逐出门禁。
+8. [当前状态](current-status.md)：已经实现、实验可用、已接受设计和研究中的能力。
+9. [Roadmap](../ROADMAP.md)：纵向 Milestone 和目标 E2E。
+10. [参与贡献](../CONTRIBUTING.md)：RFC、任务、实现和验证要求。
 
 ## 设计与语义
 
 - [RFC 索引](rfcs/README.md)
-- [RFC-0001：产品架构与数据 Profile](rfcs/0001-product-architecture.md)
+- [RFC-0001：产品架构](rfcs/0001-product-architecture.md)
+- [RFC-0002：FileVersion、Extent 与 Chunk 数据模型](rfcs/0002-file-version-chunk-model.md)
 - [错误合同](error-contract.md)
 - [代码地图](code-layout.md)
 

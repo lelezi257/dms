@@ -92,4 +92,5 @@ catalog! {
     IO_OUT_OF_MEMORY = 0x0403000c => ResourceExhausted;
     IO_DIRECTORY_NOT_EMPTY = 0x0403000b => FailedPrecondition;
     IO_CROSS_DEVICE = 0x0403000d => FailedPrecondition;
+    IO_BAD_FILE_DESCRIPTOR = 0x0403000e => FailedPrecondition;
 }

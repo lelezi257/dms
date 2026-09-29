@@ -72,6 +72,7 @@ async fn rest_body_and_posix_errno_preserve_meaning() {
         (NODE_MOUNT_CONFLICT, 409, libc::EEXIST),
         (IO_TIMEOUT, 504, libc::ETIMEDOUT),
         (IO_OUT_OF_MEMORY, 429, libc::ENOMEM),
+        (IO_BAD_FILE_DESCRIPTOR, 412, libc::EBADF),
         (NODE_OWNER_STALE_ACCESS, 412, libc::ESTALE),
         (NODE_OWNER_STALE_HANDLE, 412, libc::ESTALE),
     ] {

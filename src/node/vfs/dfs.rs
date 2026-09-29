@@ -22,8 +22,8 @@ use afs_error::{Error, Result};
 use super::{
     Backend,
     types::{
-        BackendInode, CreatedFile, Entry, FileAttributes, FileHandle, FileKind, RequestContext,
-        SyncMode,
+        AttributeChange, BackendInode, CreatedFile, Entry, FileAttributes, FileHandle, FileKind,
+        RequestContext, SyncMode,
     },
 };
 use crate::{
@@ -316,7 +316,7 @@ impl DistributedFs {
         Ok(())
     }
 
-    fn ensure_write_state(&self, inode: &InodeRecord, open_flags: i32) -> Result<DfsWriteSession> {
+    fn ensure_inode_write_state(&self, inode: &InodeRecord) -> Result<SharedInodeWriteState> {
         let state = match self.write_state(&inode.inode_id)? {
             Some(state) => state,
             None => {
@@ -327,6 +327,11 @@ impl DistributedFs {
                     .ok_or_else(|| unavailable("DFS write state was not installed"))?
             }
         };
+        Ok(state)
+    }
+
+    fn open_write_session(&self, inode: &InodeRecord, open_flags: i32) -> Result<DfsWriteSession> {
+        let state = self.ensure_inode_write_state(inode)?;
         let mut state = state
             .lock()
             .map_err(|_| unavailable("DFS inode write state is poisoned"))?;
@@ -343,14 +348,14 @@ impl DistributedFs {
         Ok(write_session(&state, open_flags, session_id))
     }
 
-    fn visible_size(&self, inode: &InodeRecord) -> Result<u64> {
+    fn visible_attributes(&self, inode: &InodeRecord) -> Result<FileAttributes> {
         let Some(state) = self.write_state(&inode.inode_id)? else {
-            return self.inode_size(inode);
+            return Ok(attributes(inode, self.inode_size(inode)?));
         };
         let state = state
             .lock()
             .map_err(|_| unavailable("DFS inode write state is poisoned"))?;
-        Ok(state.logical_length)
+        Ok(attributes(&state.inode, state.logical_length))
     }
 
     fn read_visible(
@@ -534,7 +539,10 @@ impl DistributedFs {
                 state.durable_write_seq = through_seq;
                 state.committed_write_seq = through_seq;
                 state.last_writer_background_requested = false;
-                if committed_full_metadata && state.dirty_extents.is_empty() {
+                if committed_full_metadata
+                    && state.dirty_extents.is_empty()
+                    && state.visible_write_seq <= through_seq
+                {
                     state.metadata_dirty = false;
                 }
                 Ok(Some(through_seq))
@@ -609,7 +617,7 @@ impl DistributedFs {
         Err(observed.error)
     }
 
-    fn truncate_dirty_inode(&self, inode_id: &InodeId, length: u64) -> Result<()> {
+    fn resize_dirty_inode(&self, inode_id: &InodeId, length: u64) -> Result<u64> {
         let state = self
             .write_state(inode_id)?
             .ok_or_else(|| stale("DFS write state is no longer open"))?;
@@ -617,16 +625,22 @@ impl DistributedFs {
             .lock()
             .map_err(|_| unavailable("DFS inode write state is poisoned"))?;
         state.next_write_seq = state.next_write_seq.saturating_add(1);
-        let old_length = state.logical_length;
         let write_seq = state.next_write_seq;
-        state
-            .dirty_extents
-            .truncate(old_length, length, write_seq)?;
-        state.logical_length = length;
+        let old_length = state.logical_length;
+        if old_length != length {
+            state.dirty_extents.resize(old_length, length, write_seq)?;
+            state.logical_length = length;
+            state.dirty = true;
+        }
+        state.visible_write_seq = write_seq;
+        let now = now_unix_ms();
+        state.inode.attributes.mtime_unix_ms = now;
+        state.inode.attributes.ctime_unix_ms = now;
         state.metadata_dirty = true;
-        state.visible_write_seq = state.next_write_seq;
-        state.dirty = true;
-        Ok(())
+        if state.open_writers == 0 && state.dirty {
+            state.last_writer_background_requested = true;
+        }
+        Ok(state.visible_write_seq)
     }
 
     fn release_writer(&self, session: &DfsWriteSession) -> Result<()> {
@@ -760,7 +774,7 @@ impl DirtyExtentMap {
         Ok(data.len())
     }
 
-    fn truncate(&mut self, old_length: u64, new_length: u64, write_seq: u64) -> Result<()> {
+    fn resize(&mut self, old_length: u64, new_length: u64, write_seq: u64) -> Result<()> {
         let (start, stop) = if new_length < old_length {
             (new_length, old_length)
         } else {
@@ -1072,10 +1086,9 @@ impl Backend for DistributedFs {
                     Error::coded(afs_error::NODE_VFS_NOT_FOUND, "DFS dentry not found")
                 })?,
         )?;
-        let size = self.visible_size(&inode)?;
         Ok(Entry {
             inode: self.backend_inode(&inode.inode_id)?,
-            attributes: attributes(&inode, size),
+            attributes: self.visible_attributes(&inode)?,
         })
     }
 
@@ -1087,12 +1100,65 @@ impl Backend for DistributedFs {
     ) -> Result<FileAttributes> {
         if let Some(handle) = handle {
             let snapshot = self.handle_snapshot(handle)?;
-            let size = self.visible_size(&snapshot.opened_inode)?;
-            return Ok(attributes(&snapshot.opened_inode, size));
+            return self.visible_attributes(&snapshot.opened_inode);
         }
         let record = self.validate_inode(self.meta.get_inode(&self.inode_id(inode)?)?)?;
-        let size = self.visible_size(&record)?;
-        Ok(attributes(&record, size))
+        self.visible_attributes(&record)
+    }
+
+    fn setattr(
+        &self,
+        ctx: &RequestContext,
+        inode: BackendInode,
+        handle: Option<FileHandle>,
+        change: &AttributeChange,
+    ) -> Result<FileAttributes> {
+        if change.mode.is_some()
+            || change.uid.is_some()
+            || change.gid.is_some()
+            || change.atime.is_some()
+            || change.mtime.is_some()
+        {
+            return Err(Error::coded(
+                afs_error::NODE_VFS_UNIMPLEMENTED,
+                "DFS chmod/chown/time updates are not wired yet",
+            ));
+        }
+
+        let Some(length) = change.size else {
+            return self.getattr(ctx, inode, handle);
+        };
+        let inode_id = self.inode_id(inode)?;
+        let (record, accepted_seq) = if let Some(handle) = handle {
+            self.observe_handle_error(handle)?;
+            let snapshot = self.handle_snapshot(handle)?;
+            if snapshot.inode_id != inode_id {
+                return Err(stale("DFS file handle does not name the requested inode"));
+            }
+            if snapshot.flags & libc::O_ACCMODE == libc::O_RDONLY {
+                return Err(bad_file_descriptor("DFS handle was not opened for writing"));
+            }
+            if snapshot.write_session.is_none() {
+                return Err(invalid("writable DFS handle has no write session"));
+            }
+            if snapshot.opened_inode.kind != InodeKind::Regular {
+                return Err(Error::from(std::io::Error::from_raw_os_error(libc::EISDIR)));
+            }
+            let accepted_seq = self.resize_dirty_inode(&snapshot.inode_id, length)?;
+            (snapshot.opened_inode, Some((handle, accepted_seq)))
+        } else {
+            let record = self.validate_inode(self.meta.get_inode(&inode_id)?)?;
+            if record.kind != InodeKind::Regular {
+                return Err(Error::from(std::io::Error::from_raw_os_error(libc::EISDIR)));
+            }
+            self.ensure_inode_write_state(&record)?;
+            self.resize_dirty_inode(&record.inode_id, length)?;
+            (record, None)
+        };
+        if let Some((handle, accepted_seq)) = accepted_seq {
+            self.update_handle_write_progress(handle, accepted_seq)?;
+        }
+        self.visible_attributes(&record)
     }
 
     fn create(
@@ -1120,7 +1186,7 @@ impl Backend for DistributedFs {
         )?;
         let inode = self.validate_inode(inode)?;
         self.install_write_state(inode.clone(), write_lease)?;
-        let session = self.ensure_write_state(&inode, flags)?;
+        let session = self.open_write_session(&inode, flags)?;
         let handle = self.allocate_handle(DfsFileHandle {
             inode_id: inode.inode_id.clone(),
             opened_inode: inode.clone(),
@@ -1143,10 +1209,13 @@ impl Backend for DistributedFs {
             let (inode, write_lease) = self.meta.open_write(&inode_id)?;
             let inode = self.validate_inode(inode)?;
             self.install_write_state(inode.clone(), write_lease)?;
-            if flags & libc::O_TRUNC != 0 {
-                self.truncate_dirty_inode(&inode.inode_id, 0)?;
+            let session = self.open_write_session(&inode, flags)?;
+            if flags & libc::O_TRUNC != 0
+                && let Err(error) = self.resize_dirty_inode(&inode.inode_id, 0)
+            {
+                self.release_writer(&session)?;
+                return Err(error);
             }
-            let session = self.ensure_write_state(&inode, flags)?;
             (inode, Some(session))
         } else {
             (self.validate_inode(self.meta.get_inode(&inode_id)?)?, None)
@@ -1185,7 +1254,7 @@ impl Backend for DistributedFs {
         self.observe_handle_error(handle)?;
         let snapshot = self.handle_snapshot(handle)?;
         if snapshot.flags & libc::O_ACCMODE == libc::O_RDONLY {
-            return Err(Error::from(std::io::Error::from_raw_os_error(libc::EBADF)));
+            return Err(bad_file_descriptor("DFS handle was not opened for writing"));
         }
         if snapshot.write_session.is_none() {
             return Err(invalid("writable DFS handle has no write session"));
@@ -1212,6 +1281,9 @@ impl Backend for DistributedFs {
                 state.visible_write_seq = state.next_write_seq;
                 state.dirty = true;
                 state.metadata_dirty = true;
+                let now = now_unix_ms();
+                state.inode.attributes.mtime_unix_ms = now;
+                state.inode.attributes.ctime_unix_ms = now;
             }
             (written, state.visible_write_seq)
         };
@@ -1385,6 +1457,10 @@ fn stale(message: impl Into<String>) -> Error {
     Error::coded(afs_error::NODE_DFS_STALE_HANDLE, message)
 }
 
+fn bad_file_descriptor(message: impl Into<String>) -> Error {
+    Error::coded(afs_error::IO_BAD_FILE_DESCRIPTOR, message)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1394,6 +1470,7 @@ mod tests {
         inode: Mutex<InodeRecord>,
         lease: Mutex<WriteLease>,
         commits: Mutex<Vec<CommitFileVersion>>,
+        fail_next_commit: Mutex<bool>,
     }
 
     impl RecordingMeta {
@@ -1423,11 +1500,16 @@ mod tests {
                     expires_at_unix_ms: u64::MAX,
                 }),
                 commits: Mutex::new(Vec::new()),
+                fail_next_commit: Mutex::new(false),
             }
         }
 
         fn commit_count(&self) -> usize {
             self.commits.lock().unwrap().len()
+        }
+
+        fn fail_next_commit(&self) {
+            *self.fail_next_commit.lock().unwrap() = true;
         }
     }
 
@@ -1492,6 +1574,12 @@ mod tests {
         }
 
         fn commit_file_version(&self, commit: CommitFileVersion) -> Result<InodeRecord> {
+            let mut fail_next_commit = self.fail_next_commit.lock().unwrap();
+            if *fail_next_commit {
+                *fail_next_commit = false;
+                return Err(unavailable("injected test commit failure"));
+            }
+            drop(fail_next_commit);
             let mut inode = self.inode.lock().unwrap();
             if inode.revision != commit.expected_inode_revision
                 || inode.head_version != commit.expected_head_version
@@ -1518,8 +1606,7 @@ mod tests {
         }
     }
 
-    #[test]
-    fn dirty_view_is_inode_shared_and_only_sync_commits_a_version() {
+    fn test_fs() -> (tempfile::TempDir, Arc<RecordingMeta>, DistributedFs) {
         let meta = Arc::new(RecordingMeta::new());
         let temp = tempfile::tempdir().unwrap();
         let chunks = Arc::new(LocalChunkStore::open(temp.path(), "node-a").unwrap());
@@ -1530,6 +1617,12 @@ mod tests {
             meta.clone(),
             chunks,
         );
+        (temp, meta, fs)
+    }
+
+    #[test]
+    fn dirty_view_is_inode_shared_and_only_sync_commits_a_version() {
+        let (_temp, meta, fs) = test_fs();
         let created = fs
             .create(
                 &context(),
@@ -1596,5 +1689,241 @@ mod tests {
         fs.release(&context(), writer).unwrap();
         fs.release(&context(), reader).unwrap();
         assert_eq!(fs.writeback_pending().unwrap(), 0);
+    }
+
+    #[test]
+    fn sparse_write_materializes_only_payload_chunk() {
+        let (_temp, meta, fs) = test_fs();
+        let created = fs
+            .create(
+                &context(),
+                fs.root_inode(),
+                OsStr::new("sparse.bin"),
+                0o640,
+                libc::O_RDWR,
+            )
+            .unwrap();
+        let offset = 1024 * 1024;
+        assert_eq!(
+            fs.write(&context(), created.handle, offset, b"tail")
+                .unwrap(),
+            4
+        );
+
+        let attrs = fs
+            .getattr(&context(), created.entry.inode, Some(created.handle))
+            .unwrap();
+        assert_eq!(attrs.size, offset + 4);
+        let mut head = [1; 16];
+        assert_eq!(
+            fs.read(&context(), created.handle, 0, &mut head).unwrap(),
+            head.len()
+        );
+        assert_eq!(head, [0; 16]);
+
+        fs.fsync(&context(), created.handle, SyncMode::Full)
+            .unwrap();
+        let commits = meta.commits.lock().unwrap();
+        let commit = commits.last().unwrap();
+        assert_eq!(commit.file_version.length, offset + 4);
+        assert_eq!(commit.layout_root.file_length, offset + 4);
+        assert_eq!(commit.layout_root.inline_extents.len(), 1);
+        assert_eq!(commit.layout_root.inline_extents[0].file_offset, offset);
+        assert_eq!(commit.layout_root.inline_extents[0].length, 4);
+        assert_eq!(commit.chunk_receipts.len(), 1);
+    }
+
+    #[test]
+    fn handle_resize_shrink_then_grow_masks_old_tail_without_new_chunk() {
+        let (_temp, meta, fs) = test_fs();
+        let created = fs
+            .create(
+                &context(),
+                fs.root_inode(),
+                OsStr::new("resize.bin"),
+                0o640,
+                libc::O_RDWR,
+            )
+            .unwrap();
+        fs.write(&context(), created.handle, 0, b"abcdefgh")
+            .unwrap();
+        fs.fsync(&context(), created.handle, SyncMode::Full)
+            .unwrap();
+        let before_seq = fs
+            .handle_snapshot(created.handle)
+            .unwrap()
+            .write_session
+            .unwrap()
+            .last_accepted_seq;
+
+        let shrink = AttributeChange {
+            size: Some(4),
+            ..AttributeChange::default()
+        };
+        let grow = AttributeChange {
+            size: Some(8),
+            ..AttributeChange::default()
+        };
+        fs.setattr(
+            &context(),
+            created.entry.inode,
+            Some(created.handle),
+            &shrink,
+        )
+        .unwrap();
+        let attrs = fs
+            .setattr(&context(), created.entry.inode, Some(created.handle), &grow)
+            .unwrap();
+        assert_eq!(attrs.size, 8);
+        let after_seq = fs
+            .handle_snapshot(created.handle)
+            .unwrap()
+            .write_session
+            .unwrap()
+            .last_accepted_seq;
+        assert!(after_seq > before_seq);
+
+        let mut visible = [1; 8];
+        assert_eq!(
+            fs.read(&context(), created.handle, 0, &mut visible)
+                .unwrap(),
+            visible.len()
+        );
+        assert_eq!(&visible, b"abcd\0\0\0\0");
+        fs.fsync(&context(), created.handle, SyncMode::Full)
+            .unwrap();
+
+        let commits = meta.commits.lock().unwrap();
+        assert_eq!(commits.len(), 2);
+        let resized = commits.last().unwrap();
+        assert_eq!(resized.file_version.length, 8);
+        assert!(resized.chunk_receipts.is_empty());
+        assert_eq!(resized.layout_root.inline_extents.len(), 1);
+        assert_eq!(resized.layout_root.inline_extents[0].length, 4);
+        drop(commits);
+
+        fs.setattr(&context(), created.entry.inode, Some(created.handle), &grow)
+            .unwrap();
+        fs.fsync(&context(), created.handle, SyncMode::Full)
+            .unwrap();
+        assert_eq!(
+            meta.commit_count(),
+            2,
+            "same-length resize must not create another FileVersion"
+        );
+    }
+
+    #[test]
+    fn path_resize_uses_inode_state_without_opening_a_writer() {
+        let (_temp, meta, fs) = test_fs();
+        let created = fs
+            .create(
+                &context(),
+                fs.root_inode(),
+                OsStr::new("path-resize.bin"),
+                0o640,
+                libc::O_RDWR,
+            )
+            .unwrap();
+        fs.write(&context(), created.handle, 0, b"abcdefgh")
+            .unwrap();
+        fs.fsync(&context(), created.handle, SyncMode::Full)
+            .unwrap();
+        fs.release(&context(), created.handle).unwrap();
+
+        let resize = AttributeChange {
+            size: Some(3),
+            ..AttributeChange::default()
+        };
+        let attrs = fs
+            .setattr(&context(), created.entry.inode, None, &resize)
+            .unwrap();
+        assert_eq!(attrs.size, 3);
+        let state = fs
+            .write_state(&meta.inode.lock().unwrap().inode_id)
+            .unwrap()
+            .unwrap();
+        let state = state.lock().unwrap();
+        assert_eq!(state.open_writers, 0);
+        assert!(state.last_writer_background_requested);
+        drop(state);
+
+        let reader = fs
+            .open(&context(), created.entry.inode, libc::O_RDONLY)
+            .unwrap();
+        let readonly_error = fs
+            .setattr(
+                &context(),
+                created.entry.inode,
+                Some(reader),
+                &AttributeChange {
+                    size: Some(2),
+                    ..AttributeChange::default()
+                },
+            )
+            .unwrap_err();
+        assert_eq!(readonly_error.code(), afs_error::IO_BAD_FILE_DESCRIPTOR);
+        let mut visible = [0; 8];
+        assert_eq!(fs.read(&context(), reader, 0, &mut visible).unwrap(), 3);
+        assert_eq!(&visible[..3], b"abc");
+
+        assert_eq!(fs.writeback_pending().unwrap(), 1);
+        assert_eq!(meta.commit_count(), 2);
+        let commits = meta.commits.lock().unwrap();
+        let resized = commits.last().unwrap();
+        assert_eq!(resized.file_version.length, 3);
+        assert!(resized.chunk_receipts.is_empty());
+    }
+
+    #[test]
+    fn failed_resize_commit_restores_overlay_and_length_for_retry() {
+        let (_temp, meta, fs) = test_fs();
+        let created = fs
+            .create(
+                &context(),
+                fs.root_inode(),
+                OsStr::new("retry-resize.bin"),
+                0o640,
+                libc::O_RDWR,
+            )
+            .unwrap();
+        fs.write(&context(), created.handle, 0, b"abcdefgh")
+            .unwrap();
+        fs.fsync(&context(), created.handle, SyncMode::Full)
+            .unwrap();
+        fs.setattr(
+            &context(),
+            created.entry.inode,
+            Some(created.handle),
+            &AttributeChange {
+                size: Some(4),
+                ..AttributeChange::default()
+            },
+        )
+        .unwrap();
+
+        meta.fail_next_commit();
+        fs.fsync(&context(), created.handle, SyncMode::Full)
+            .unwrap_err();
+        let attrs = fs
+            .getattr(&context(), created.entry.inode, Some(created.handle))
+            .unwrap();
+        assert_eq!(attrs.size, 4);
+        let mut visible = [0; 8];
+        assert_eq!(
+            fs.read(&context(), created.handle, 0, &mut visible)
+                .unwrap(),
+            4
+        );
+        assert_eq!(&visible[..4], b"abcd");
+
+        fs.fsync(&context(), created.handle, SyncMode::Full)
+            .unwrap();
+        assert_eq!(meta.commit_count(), 2);
+        let commits = meta.commits.lock().unwrap();
+        let retried = commits.last().unwrap();
+        assert_eq!(retried.file_version.length, 4);
+        assert_eq!(retried.layout_root.file_length, 4);
+        assert!(retried.chunk_receipts.is_empty());
     }
 }

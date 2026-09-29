@@ -53,7 +53,7 @@ Linux 真 FUSE 验收使用 local-file MetaStore，验证同步前跨 handle dir
 - Chunk 身份已使用带算法标识的 BLAKE3-256；旧 16 字节 FNV 原型格式不兼容。
 - 当前 commit 使用 FrozenCommit 把磁盘 I/O 和 Meta RPC 移出 inode 写状态锁；同一 inode 的第二个同步请求当前返回 busy，等待与合并策略尚未实现。
 - LocalChunkStore 已有批量 durable finalize、LocalCatalog 恢复和 reader FD pin；Pack、删除状态机、orphan reconciliation 与掉电故障矩阵尚未实现。
-- 只支持默认 namespace 下最小普通文件链路。目录、rename、unlink、完整 truncate、跨 Node writer 和完整 POSIX 尚未闭合。
+- 只支持默认 namespace 下最小普通文件链路。本地 owner 的 `truncate/ftruncate`、Shrink→Grow 和 sparse hole 已闭合；目录、rename、unlink、跨 Node writer 和完整 POSIX 尚未闭合。
 - R=N、多源读取、cache/spill、Pin/Alias/RootManifest、Native SDK 文件数据面和 MicroVM 块设备不在本阶段。
 - Meta 单活动围栏与选主尚未完成，不能宣称生产 HA。
 

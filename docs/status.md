@@ -26,7 +26,7 @@ Node RPC 使用四个职责文件：`control.rs` 负责 Node 间控制，`data.r
 | FUSE、SDK、REST 入口 | 已实现基础框架 | OwnerFs 路径已投入三 VM 验收 |
 | MetaStore | 已实现单活动基础 | etcd、local-file、memory；后端 ACK 后发布可见状态 |
 | OwnerFs | 已实现阶段能力 | 本机普通文件、跨 Node P2P、授权校验、句柄回收 |
-| DistributedFs | Experimental R=1 | 独立 mount；inode 级 dirty view；非阻塞 dirty freeze；write/flush/fdatasync/fsync/release 分离；同步 dirty data 生成不可变 Chunk/FileVersion |
+| DistributedFs | Experimental R=1 | 独立 mount；inode 级 dirty view；write/flush/fdatasync/fsync/release 分离；`setattr(size)`、`truncate/ftruncate`、稀疏写与隐式 Hole 已接入；同步 dirty data 生成不可变 Chunk/FileVersion |
 | FileVersion 数据模型 | Experimental | CommitPlanner 生成分块 Layout COW；Meta 以一次事务提交新 Chunk/Copy/Placement/LayoutRoot/FileVersion 与 inode head CAS，并验证 expected-base Extent 继承 |
 | 写入可见性与同步合同 | Experimental R=1 | WriteLease、inode 级 InodeWriteState、DirtyExtentMap、DataOnly/Full commit 已接入；跨节点 owner routing 尚未实现 |
 | Chunk 副本状态机 | Framework Implemented / R1 Experimental | ReplicationConfig 初始化、设备注册、PlacementSnapshot 缓存、R1 快路径、RN engine、ACK/receipt、Meta Copy/Placement/Task 原子提交和 gRPC/RDMA RPC 骨架已接入；RN 远端搬运与后台 worker 尚未实现 |
@@ -35,7 +35,7 @@ Node RPC 使用四个职责文件：`control.rs` 负责 Node 间控制，`data.r
 | 外部对象存储 spill | 未实现 | 属于容量层选项，不是系统成立条件 |
 | Native SDK 高性能数据面 | 基础框架 | SHM/RDMA 文件内容路径尚未接通 |
 
-专题四基础框架在 Linux `dms-dev` VM 通过 workspace 全特性全目标 check、无后端/OwnerFs-only/DFS-only feature matrix、严格 Clippy、格式检查和 release build。本轮未运行单元测试、真 FUSE E2E 或掉电故障注入，因此状态保持 Framework Implemented / R1 Experimental。
+DFS length/truncate/sparse 基础路径在 Linux `dms-dev` VM 通过全 workspace 测试和严格 Clippy；真实 FUSE R1 E2E 已验证 `ftruncate` shrink→grow 不恢复旧尾部、路径 `truncate`、远偏移稀疏写、Hole 零读取，以及 Hole 不物化为零 Chunk。进程 crash、VM 掉电和并发 sync 故障矩阵仍未验证，因此状态保持 Experimental R=1。
 
 ## OwnerFs 证据
 
@@ -53,7 +53,7 @@ Node RPC 使用四个职责文件：`control.rs` 负责 Node 间控制，`data.r
 - DFS commit 已用 FrozenCommit 把磁盘 I/O 和 Meta RPC 移出 inode 写状态锁；同一 inode 当前只允许一个 in-flight commit，后续需要等待/合并策略。
 - 严格普通写跨节点可见性合同已经固化；当前只接受本地 WriteLease owner，远端 owner routing 尚未实现。
 - DFS 已分离 `write/flush/fdatasync/fsync/release`，接通 `O_DSYNC/O_SYNC`，并增加定时后台 writeback、优雅退出 drain、inode sticky error 和 CommitBatch freeze；跨节点 owner routing、并发 sync 等待、故障恢复矩阵和 `fsync(dir)` 尚未实现。
-- DFS `O_APPEND` 和 `O_TRUNC` 已有局部路径，但 `setattr(size)` 尚未接通，普通 `truncate/ftruncate`、写过 EOF、Shrink 后 Grow 和稀疏读取 E2E 尚未完成。
+- DFS `setattr(size)`、普通 `truncate/ftruncate`、`O_TRUNC`、写过 EOF、Shrink 后 Grow 和稀疏读取已经接通本地 owner 路径；远端 owner 转发、完整属性修改和并发 sync 故障矩阵尚未完成。
 - RDMA 已有传输探测能力，文件内容仍走 gRPC P2P。
 - 完整 POSIX、VM 掉电、长稳、容量压力和对象存储 spill 尚未验收。
 

@@ -27,7 +27,7 @@
 - 新布局可以继承 expected base 的旧 Chunk；只有新增 Chunk 需要本次 receipt，继承关系由 Meta 验证。
 - per-chunk file 和未来 Pack backend 共享 LocalChunkStore 合同；Physical COW 只改变本地位置，不创建 FileVersion。
 
-原[专题五](architecture/05-length-truncate-seal.md)已经归并：length/implicit hole 进入专题一，append/truncate 与 EOF 提交进入专题二，Truncate Layout COW 进入专题四，不增加独立模块。下一设计入口是[专题六](architecture/06-reliability-performance-path.md)。RFC-0004 的副本基础类型、Meta Placement 合同、Node ReplicationEngine 与 Peer Chunk RPC 形状已经落入代码；专题四的 R1 Local ChunkEngine 基础框架也已接入。下一工程入口还包括 DFS `setattr(size)`、truncate/ftruncate 和 sparse file E2E，以及 RN 目标端 staging/finalize、幂等 ACK、多节点 placement 和专题四剩余的 recovery/GC 验证。
+原[专题五](architecture/05-length-truncate-seal.md)已经归并：length/implicit hole 进入专题一，append/truncate 与 EOF 提交进入专题二，Truncate Layout COW 进入专题四，不增加独立模块。DFS `setattr(size)`、truncate/ftruncate、shrink→grow 与 sparse file R1 E2E 已接入现有 `InodeWriteState/DirtyExtentMap/CommitPlanner`。下一设计入口是[专题六](architecture/06-reliability-performance-path.md)；下一工程入口包括跨节点 owner routing、RN 目标端 staging/finalize、幂等 ACK、多节点 placement 和专题四剩余的 recovery/GC 验证。
 
 RPC 物理布局保持为 `control.rs`、`data.rs`、`meta.rs`、`peer.rs`。R=N 设计可以在 `data.rs`/`peer.rs` 内增加 Chunk 协议实现；全部专项收敛前不按 OwnerFs/DFS 拆子文件。
 
@@ -46,7 +46,7 @@ RPC 物理布局保持为 `control.rs`、`data.rs`、`meta.rs`、`peer.rs`。R=N
 
 1. CommitPlanner、分块 Extent 布局、base Chunk 继承和覆盖写已接入；下一步增加 Extent/overlay 阈值与随 CommitBatch 触发的 compaction。
 2. LocalChunkRecord、批量可恢复 finalize、no-replace publish、reader FD pin 和启动恢复已接入；下一步实现 pin 计数、删除状态机与 orphan reconciliation，第一阶段继续使用 per-chunk file backend。
-3. 补齐 truncate、append、rename、unlink、目录与打开句柄语义。
+3. 本地 owner 的 truncate/ftruncate、O_APPEND、O_TRUNC、EOF write 和 sparse file 已接入；下一步补跨节点 owner 转发、rename、unlink、目录与其余打开句柄语义。
 4. 已增加 N/M `ReplicationConfig`、`DfsChunkStore` R1/RN 分叉、PlacementSnapshot、ReplicationEngine、ACK/receipt 与 Meta 提交框架；下一步实现 RN transport 和后台 ReplicationTask worker。
 5. 以两节点读取与单节点故障换源验证固定版本读取。
 

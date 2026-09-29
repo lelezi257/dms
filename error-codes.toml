@@ -488,3 +488,11 @@ kind = "FailedPrecondition"
 component = "Runtime"
 subsystem = "Io"
 description = "跨文件系统或跨根目录操作不支持"
+
+[[error]]
+name = "IO_BAD_FILE_DESCRIPTOR"
+value = "0x0403000e"
+kind = "FailedPrecondition"
+component = "Runtime"
+subsystem = "Io"
+description = "文件描述符无效或不具备请求的访问模式"

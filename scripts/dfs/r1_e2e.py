@@ -172,8 +172,69 @@ def main() -> int:
                 raise RuntimeError(f"reopened size mismatch: {stat.st_size}")
             if len(chunks) != 2:
                 raise RuntimeError(f"expected two immutable versions, found {len(chunks)} chunks")
-            if payload not in [chunk.read_bytes() for chunk in chunks]:
-                raise RuntimeError("latest immutable local Chunk does not match committed content")
+            chunk_payloads = {chunk.read_bytes() for chunk in chunks}
+            if chunk_payloads != {dirty_payload, b"DFS"}:
+                raise RuntimeError(
+                    "immutable Chunks do not match the base-plus-patch FileVersion layout"
+                )
+
+            resize_path = mount / "resize.txt"
+            resize_fd = os.open(
+                resize_path, os.O_CREAT | os.O_EXCL | os.O_RDWR, 0o640
+            )
+            try:
+                os.write(resize_fd, b"abcdefgh")
+                os.fdatasync(resize_fd)
+                os.ftruncate(resize_fd, 4)
+                os.ftruncate(resize_fd, 8)
+                os.fsync(resize_fd)
+            finally:
+                os.close(resize_fd)
+            if resize_path.read_bytes() != b"abcd\0\0\0\0":
+                raise RuntimeError("ftruncate shrink-grow restored the old file tail")
+            if resize_path.stat().st_size != 8:
+                raise RuntimeError("ftruncate shrink-grow reported the wrong file size")
+
+            path_truncate = mount / "path-truncate.txt"
+            path_truncate.write_bytes(b"path-value")
+            with path_truncate.open("r+b") as path_file:
+                os.fsync(path_file.fileno())
+            os.truncate(path_truncate, 4)
+            with path_truncate.open("r+b") as path_file:
+                os.fsync(path_file.fileno())
+            if path_truncate.read_bytes() != b"path":
+                raise RuntimeError("path truncate did not preserve the expected prefix")
+            if path_truncate.stat().st_size != 4:
+                raise RuntimeError("path truncate reported the wrong file size")
+
+            sparse_path = mount / "sparse.bin"
+            chunks_before_sparse = {
+                chunk.name for chunk in (work_dir / "node" / "dfs" / "chunks").iterdir()
+            }
+            sparse_offset = 1024 * 1024
+            sparse_fd = os.open(
+                sparse_path, os.O_CREAT | os.O_EXCL | os.O_RDWR, 0o640
+            )
+            try:
+                os.pwrite(sparse_fd, b"tail", sparse_offset)
+                os.fsync(sparse_fd)
+            finally:
+                os.close(sparse_fd)
+            if sparse_path.stat().st_size != sparse_offset + 4:
+                raise RuntimeError("sparse write reported the wrong file size")
+            with sparse_path.open("rb") as sparse_file:
+                if sparse_file.read(16) != b"\0" * 16:
+                    raise RuntimeError("sparse hole head did not read as zero")
+                sparse_file.seek(sparse_offset - 16)
+                if sparse_file.read(16) != b"\0" * 16:
+                    raise RuntimeError("sparse hole tail did not read as zero")
+                if sparse_file.read(4) != b"tail":
+                    raise RuntimeError("sparse payload mismatch")
+            chunks_after_sparse = {
+                chunk.name for chunk in (work_dir / "node" / "dfs" / "chunks").iterdir()
+            }
+            if len(chunks_after_sparse - chunks_before_sparse) != 1:
+                raise RuntimeError("sparse hole was materialized as extra Chunk data")
 
             result.update(
                 passed=True,
@@ -183,6 +244,9 @@ def main() -> int:
                 chunk_bytes=[chunk.stat().st_size for chunk in chunks],
                 dirty_overlay_visible=True,
                 fdatasync_then_fsync=True,
+                ftruncate_shrink_grow=True,
+                path_truncate=True,
+                sparse_hole=True,
             )
     except Exception as error:  # noqa: BLE001 - emit bounded diagnostics for the E2E runner.
         result.update(error=str(error), meta_log=tail(meta_log), node_log=tail(node_log))

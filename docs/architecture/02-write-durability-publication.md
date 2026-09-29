@@ -323,7 +323,7 @@ R=1 基础框架已经把 dirty data 从 handle 移到 inode 共享的 `InodeWri
 
 1. `OpenWrite` 能返回远端 owner 身份，但 Node 间 write/read/sync 转发尚未接入；当前非本机 owner 明确返回不支持。
 2. FrozenCommit 已在 inode 锁内冻结写入前缀，Chunk I/O 与 Meta RPC 在锁外执行，更晚 write 进入下一批；同一 inode 的并发 sync 等待与合并尚未实现。
-3. `DirtyExtentMap` 只保存覆盖范围；R=1 CommitPlanner 生成普通 patch Chunk 并复用 base Extent。`O_APPEND` 和 `O_TRUNC` 已有局部路径，但 DFS `setattr(size)` 尚未接通，因此普通 `truncate/ftruncate` 与完整稀疏文件 E2E 仍未实现；Extent 树和 compaction policy 也尚未实现。
+3. `DirtyExtentMap` 只保存覆盖范围；R=1 CommitPlanner 生成普通 patch Chunk 并复用 base Extent。DFS `setattr(size)`、`truncate/ftruncate`、`O_TRUNC` 和稀疏文件已经接入本地 owner 路径：Shrink 用零长度 tombstone 裁掉旧布局尾部，Grow 只推进 logical length，Hole 不物化为零 Chunk；Extent 树和 compaction policy 尚未实现。
 4. 后台失败会记录 inode sticky error，并由每个已打开 writer 的错误游标观察；故障注入、错误清除和重启恢复矩阵仍需补齐。
 5. DFS 只有 R=1 本地 ChunkStore；R=N ChunkReceipt 与 result-unknown 由专题三继续设计和实现。
 6. `fsync(dir)` 尚未实现，不能声明新建文件名已经满足崩溃恢复合同。

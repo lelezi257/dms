@@ -58,6 +58,9 @@ pub fn errno(error: &Error) -> i32 {
     if error.code() == afs_error::IO_OUT_OF_MEMORY {
         return libc::ENOMEM;
     }
+    if error.code() == afs_error::IO_BAD_FILE_DESCRIPTOR {
+        return libc::EBADF;
+    }
     use ErrorKind::*;
     match error.kind() {
         InvalidArgument => libc::EINVAL,

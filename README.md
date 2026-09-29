@@ -10,7 +10,7 @@ AFS Node
 └── /mnt/ownerfs → FuseSession<OwnerFs>       1～4 节点一体机 Workspace，本地 Home 亲和
 ```
 
-DFS 使用统一的数据模型：可变 `InodeRecord.head_version` 指向不可变 `FileVersion`，文件版本通过不可变 `LayoutRoot/ExtentMap` 引用不可变 `ChunkObject`。普通文件、镜像、Snapshot 和 Checkpoint 使用同一数据事实源；不可变工作负载通过 Pin、Alias、RootManifest、多源 P2P 和缓存策略获得额外优化，不建立独立 Blob 对象或第二套文件系统。
+DFS 使用统一的数据模型：可变 `InodeRecord.head_version` 指向不可变 `FileVersion`，文件版本通过不可变 `LayoutRoot/ExtentMap` 引用不可变 `ChunkObject`。普通 write 由 inode owner 排序并进入共享 dirty view，同步或后台 writeback 再形成新的 FileVersion。普通文件、镜像、Snapshot 和 Checkpoint 使用同一数据事实源；不可变工作负载通过 Pin、Alias、RootManifest、多源 P2P 和缓存策略获得额外优化，不建立独立 Blob 对象或第二套文件系统。
 
 OwnerFs 面向 1～4 节点的一体机式 Agent Workspace。一个 Workspace 由一个 Home 节点持有，Agent 与 Home 共置时直接使用本地普通文件，计算迁移后通过 P2P 回到 Home 访问同一份文件。
 
@@ -40,7 +40,7 @@ flowchart TB
 
 两个 mount 复用 FUSE 模块代码与 `Backend` 接口，但分别拥有 FUSE connection、会话 inode/handle table、notifier 和缓存策略。
 
-Meta 管理 Namespace、InodeRecord、FileVersion、LayoutRoot、placement、版本保留和生命周期。文件数据不经过 Meta 转发。Node 与计算节点共置，优先使用本机数据，缺失数据通过节点间链路读取。
+Meta 管理 Namespace、InodeRecord、WriteLease、FileVersion、LayoutRoot、placement、版本保留和生命周期。文件数据不经过 Meta 转发。Node 与计算节点共置，优先使用本机数据，远程 writer/dirty reader 访问 inode owner，缺失的 committed Chunk 通过节点间链路读取。
 
 ## 当前能力
 
@@ -65,10 +65,11 @@ Meta 管理 Namespace、InodeRecord、FileVersion、LayoutRoot、placement、版
 4. [工作负载路径](docs/architecture/profiles.md)
 5. [架构设计专题](docs/architecture/design-topics.md)
 6. [FileVersion 与 Chunk 数据模型](docs/architecture/01-file-version-chunk-model.md)
-7. [副本、缓存与外部副本状态](docs/semantics/copy-states.md)
-8. [当前状态](docs/current-status.md)
-9. [路线图](ROADMAP.md)
-10. [参与贡献](CONTRIBUTING.md)
+7. [写入完成、持久化与可见性](docs/architecture/02-write-durability-publication.md)
+8. [副本、缓存与外部副本状态](docs/semantics/copy-states.md)
+9. [当前状态](docs/current-status.md)
+10. [路线图](ROADMAP.md)
+11. [参与贡献](CONTRIBUTING.md)
 
 ## 运行与开发
 

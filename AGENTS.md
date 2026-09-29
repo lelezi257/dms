@@ -21,7 +21,7 @@
 - 不可变镜像、Snapshot、Checkpoint 是 DFS 的重点优化负载，不是 DFS 的全部范围。
 - 本地 SSD、NVMe、HDD 共同构成集群内持久副本与多级缓存；外部对象存储是可选 spill 层，不是系统成立条件。
 - Meta 处理 namespace、文件身份、布局、版本、placement 和授权，不代理稳态文件内容。
-- `fsync` 提交持久 FileVersion；Snapshot/Pin/Publish 是显式业务操作，不从 `close` 或 `fsync` 推断业务发布。
+- 普通 write 进入 inode owner 的共享 dirty view；`fdatasync/fsync` 提交持久 FileVersion，后台 writeback 可以提交内部版本但不产生用户同步保证；Snapshot/Pin/Publish 是显式业务操作，不从 `close` 或同步操作推断业务发布。
 - 多源读取必须固定同一 FileVersion，并只选择通过 Chunk 身份和摘要校验的持久副本、cache 或消费者种子。
 
 ## 事实、设计和能力声明

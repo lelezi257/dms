@@ -16,7 +16,8 @@
 - 提交后的 FileVersion、LayoutRoot 和 ChunkObject 不可变；文件可变性来自 Head 切换和 Extent Overlay。
 - 不引入必需 Blob API；Pin、Alias 和 RootManifest 是可选业务能力。
 - 单副本本地写是基础能力，多副本、异步副本和 Spill 是 ChunkStore 的可配置策略。
-- `write`、Chunk Finalize、DurabilityPolicy、FileVersion CAS、`fsync` 和业务 Snapshot 是不同完成边界。
+- 普通 `write` 的 dirty 可见性、Chunk Finalize、DurabilityPolicy、FileVersion CAS、`fdatasync/fsync` 和业务 Snapshot 是不同完成边界。
+- WriteLease 指定活跃 inode owner；DfsWriteSession 只保存 handle 状态，dirty data 属于 inode 共享的 InodeWriteState。
 - 小数据可以随控制消息 Inline；大数据通过共享内存、注册 Buffer、RDMA 或流式传输搬运，协议不绑定单一 Transport。
 
 ## 专题索引
@@ -24,7 +25,7 @@
 | 顺序 | 专题 | 状态 | 主要产物 |
 | --- | --- | --- | --- |
 | 1 | [FileVersion、Extent 与 Chunk 数据模型](01-file-version-chunk-model.md) | Accepted Design | 对象身份、三个 E2E、RPC 预算和模块边界；[RFC-0002](../rfcs/0002-file-version-chunk-model.md) |
-| 2 | [写入完成、持久化与可见性](02-write-durability-publication.md) | Research | `write/flush/fsync/O_SYNC`、版本 CAS 和跨节点可见性 |
+| 2 | [写入完成、持久化与可见性](02-write-durability-publication.md) | Accepted Design | 用户/Node/Meta 时间线、WriteLease、dirty visibility、同步合同和 [RFC-0003](../rfcs/0003-write-visibility-durability.md) |
 | 3 | [单副本与多副本写入状态机](03-replication-state-machine.md) | Research | R=1/R=N、ChunkReceipt、故障和 Chain 重配置 |
 | 4 | [本地 ChunkEngine 与 COW](04-local-chunk-engine-cow.md) | Research | StagedChunk/Finalize、Patch、Compaction、恢复与回收 |
 | 5 | [文件长度、truncate 与稳定版本](05-length-truncate-seal.md) | Research | Length 水位、Append、truncate、Pin 与 RootManifest |
@@ -55,4 +56,4 @@ Implemented
 
 ## 当前入口
 
-[专题一](01-file-version-chunk-model.md)及 [RFC-0002](../rfcs/0002-file-version-chunk-model.md)已经接受。代码已经打通独立 DFS mount、R=1 本机不可变 Chunk、FileVersion CAS 提交和 create→write→fsync→reopen→read。当前实现为了避免 close 丢数据，也会在 dirty handle 的 flush/release 路径提交；专题二继续确定普通 write、O_SYNC、flush、fsync、close、跨节点可见性和并发 Writer 的最终合同。
+[专题一](01-file-version-chunk-model.md)、[RFC-0002](../rfcs/0002-file-version-chunk-model.md)、[专题二](02-write-durability-publication.md)及 [RFC-0003](../rfcs/0003-write-visibility-durability.md)已经接受。代码已经打通独立 DFS mount、R=1 本机不可变 Chunk、FileVersion CAS 提交和 create→write→fsync→reopen→read，但仍将 dirty data 放在每 handle session，并把 flush/fsync/release 合并为同一提交路径。下一入口是专题三的副本状态机，同时按 RFC-0003 规划 WriteLease、InodeWriteState、同步边界和目录同步实现。

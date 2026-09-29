@@ -109,6 +109,7 @@ error mapping
 | 模块 | 核心类型 | 职责 |
 | --- | --- | --- |
 | `NamespaceService` | `Dentry`、`InodeRecord` | 路径、目录项、inode 属性和当前 `head_version_id` |
+| `WriteLeaseService` | `WriteLease` | 活跃 inode owner、lease epoch、续约与 fencing |
 | `VersionService` | `FileVersion`、`LayoutRoot`、`ExtentMapNode`、`Extent` | 不可变文件版本、布局查找和 Head CAS |
 | `PlacementService` | `DurabilityPolicy`、`ReplicaGroup`、`PlacementRecord` | 选择副本组、持久性策略和 PlacementEpoch |
 | `CopyCatalog` | `CopyRecord` | Durable Replica、Verified Cache 和 External Copy 的动态位置目录 |
@@ -123,14 +124,14 @@ Meta 不转发文件内容，不参与每个 FUSE WRITE，也不参与每个已�
 | --- | --- | --- |
 | `fuse` | `FuseSession`、FUSE inode/handle 映射 | 两个 mount 复用的内核协议适配代码 |
 | `ownerfs` | `OwnerFsHandle` | Home 本地普通文件与远端回 Home；不使用 DFS Chunk 模型 |
-| `distributedfs` | `DistributedFs`、`DfsFileHandle` | DFS Backend、打开版本和 POSIX 文件操作编排 |
-| `write` | `DfsWriteSession`、`DirtyRange` | 聚合多个 write，维护 read-your-writes，提交新 FileVersion |
-| `chunk` | `StagedChunk`、`ChunkObject`、`ChunkReceipt`、`ChunkStore` | Chunk 构建、校验、Finalize、本地读写和持久性结果 |
+| `dfs` | `DistributedFs`、`DfsFileHandle` | DFS Backend、打开版本和 POSIX 文件操作编排 |
+| `write` | `DfsWriteSession`、`InodeWriteState`、`DirtyExtentMap`、`CommitBatch` | owner 排序、共享 dirty view、同步屏障、后台 writeback 和版本提交 |
+| `chunk` | `StagedChunk`、`ChunkObject`、`ChunkReceipt`、`ChunkStore` | CommitBatch 内部的 Chunk 构建、校验、Finalize、本地读写和持久性结果 |
 | `replication` | `ReplicationEngine`、`ReplicaGroup` | R=N 数据复制、确认、修复和重配置 |
 | `peer` | `PeerConnectionPool` | OwnerFs 与 DFS 可复用的连接管理；业务协议保持分开 |
 | `cache` / `spill` | `CopyRecord` 对应的本地执行状态 | 缓存驱逐、外部写穿和容量分层 |
 
-`DfsWriteSession` 是 DFS 专属运行时状态。OwnerFs 只复用共享 FUSE handle 生命周期，使用自己的 `OwnerFsHandle`，不经过 `DfsWriteSession`、`ChunkBuilder` 或 `ChunkStore`。
+`DfsWriteSession`、`InodeWriteState` 和 CommitBatch 是 DFS 专属运行时状态。OwnerFs 只复用共享 FUSE handle 生命周期，使用自己的 `OwnerFsHandle`，不经过 DFS 的 WriteLease、FileVersion、Extent 或 ChunkStore 状态机。
 
 ## DFS 数据模型
 
@@ -144,38 +145,24 @@ Dentry
                            -> ChunkObject[]
 ```
 
-可变对象：Dentry、`InodeRecord.head_version_id`、`DfsWriteSession`、StagedChunk、Placement 和 Copy Catalog。
+可变对象：Dentry、`InodeRecord.head_version_id`、WriteLease、Node 上的 InodeWriteState/DirtyExtentMap、DfsWriteSession、CommitBatch、ChunkStore 内部 StagedChunk、Placement 和 Copy Catalog。
 
 不可变对象：FileVersion、LayoutRoot、Extent Tree Node、Extent、ChunkObject 和 RootManifest。
 
 ## 写入数据路径
 
-```mermaid
-sequenceDiagram
-    participant A as Application
-    participant F as DFS FuseSession
-    participant D as DistributedFs
-    participant S as Local ChunkStore
-    participant P as Peer ChunkStores
-    participant M as Meta
+```text
+user      open        write       read         fsync              ok       close
+───────────●────────────●───────────●────────────●──────────────────●──────────●────>
 
-    A->>F: write(offset, bytes)
-    F->>D: Backend::write
-    D->>D: DfsWriteSession + ChunkBuilder
-    D->>S: put StagedChunk
-    par local staging and forwarding
-        S->>S: write + digest + finalize
-        S->>P: stream Chunk frames
-    end
-    P-->>S: durability acknowledgements
-    S-->>D: ChunkReceipt
-    A->>F: fsync
-    F->>D: Backend::fsync
-    D->>M: CommitFileVersion(expected_head, new_version)
-    M-->>D: CAS committed
-    D-->>F: fsync success
-    F-->>A: success
+node     session       dirty      overlay       freeze    chunk   commit    release
+───────────●────────────●───────────●────────────●─────────●────────●──────────●────>
+
+meta     lease / V7                                         V8
+───────────●─────────────────────────────────────────────────●──────────────────────>
 ```
+
+普通 write 由 inode owner 排序并进入共享 dirty overlay，不创建 FileVersion。`fdatasync`、`fsync`、同步 write 或后台 writeback 冻结一个写入前缀，经 ChunkStore 获得 ChunkReceipt，再用一次 Meta CAS 创建并发布新 FileVersion。只有同步调用向用户提供对应的完成保证；文件同步与目录项 `fsync(dir)` 是两个合同。
 
 R=1 与 R=N 在 `ChunkStore::put` 以下分叉。文件布局层只消费满足策略的 ChunkReceipt。
 

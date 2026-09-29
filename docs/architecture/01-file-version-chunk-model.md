@@ -11,11 +11,11 @@
 
 ## 2. 决策摘要
 
-1. `InodeRecord.head_version` 是文件内容唯一的可变权威指针。
+1. `InodeRecord.head_version` 是文件已提交内容的唯一可变权威指针；尚未提交的内容由 inode owner 的运行时状态管理。
 2. `FileVersion`、`LayoutRoot/ExtentMap` 和 `ChunkObject` 提交后不可变。
-3. 文件修改创建新 Chunk、新布局节点和新 FileVersion；未修改范围复用旧对象。
+3. 普通 `write` 只修改 inode owner 上的 dirty overlay；CommitTrigger 冻结一个写入前缀，创建新 Chunk、新布局节点和新 FileVersion，未修改范围复用旧对象。
 4. 不引入基础 `BlobRecord`、`BlobManifest` 或必须调用的 Blob API。
-5. `fsync` 强制提交完整、持久的 FileVersion，但不自动 Pin、Publish 或创建业务 Alias。
+5. `fdatasync`、`fsync`、同步 write 和后台 writeback 都可以触发 FileVersion 提交；只有同步 API 向调用者提供相应完成保证，且都不自动 Pin、Publish 或创建业务 Alias。
 6. 多文件 Snapshot 使用可选 `RootManifest` 引用精确 FileVersionId。
 7. R=1 与 R=N 只在 `ChunkStore::put` 以下分叉，文件布局层只消费 `ChunkReceipt`。
 8. 多源读取必须先固定 FileVersion，再按 ChunkId 从多个合格 Copy 读取。
@@ -36,6 +36,10 @@ flowchart TD
     Pin[Optional Pin / Retention] --> Version
     Root[Optional RootManifest] --> Version
 
+    Lease[Mutable WriteLease] --> Inode
+    Runtime[Node InodeWriteState] -->|base_version| Version
+    Runtime -->|CommitBatch| Chunk
+
     Chunk --> Copies[Dynamic Copy Catalog]
     Copies --> Replica[Durable Replica]
     Copies --> Cache[Verified Cache]
@@ -46,8 +50,8 @@ flowchart TD
 
 - Dentry；
 - `InodeRecord.head_version` 和 inode 属性；
-- `DfsWriteSession`；
-- StagedChunk；
+- `WriteLease`、Node 上的 `InodeWriteState/DirtyExtentMap` 和 `DfsWriteSession`；
+- CommitBatch 和 ChunkStore 内部的 StagedChunk；
 - Placement、Copy Catalog 和 Cache 状态；
 - Alias、Pin 与保留策略。
 
@@ -58,13 +62,13 @@ flowchart TD
 - ChunkObject；
 - RootManifest。
 
-文件可变性来自 Head 指针切换：
+已提交文件内容的可变性来自 Head 指针切换：
 
 ```text
 InodeRecord.head_version: V7 -> V8
 ```
 
-不是原地修改 V7、LR7 或旧 Chunk。
+不是原地修改 V7、LR7 或旧 Chunk。Head 尚未切换时，普通文件的活动视图由 committed version 加 Node 上的 dirty overlay 组成；该运行时 overlay 不是另一个持久 FileVersion。
 
 ## 4. 核心数据类型
 
@@ -84,7 +88,7 @@ InodeRecord {
 
 InodeRecord 表示稳定文件身份。Dentry 把名称映射到 inode；rename 只修改 Dentry，hard link 让多个 Dentry 指向同一 InodeRecord。普通文件通过 `head_version_id` 指向当前内容。
 
-### 4.2 WriteRequest 与 DfsWriteSession
+### 4.2 WriteLease、InodeWriteState 与 DfsWriteSession
 
 ```text
 WriteRequest {
@@ -95,16 +99,37 @@ WriteRequest {
   flags
 }
 
-DfsWriteSession {
+WriteLease {
   inode_id
+  owner_node_id
+  lease_epoch
+  expires_at
+}
+
+InodeWriteState {
+  inode_id
+  lease_epoch
   base_version_id
-  dirty_ranges
+  next_seq / visible_seq / committed_seq
   logical_length
-  durability_policy_id
+  dirty_extents
+  pending_error
+  open_writers
+}
+
+DfsWriteSession {
+  session_id
+  handle_id
+  inode_id
+  open_flags
+  lease_epoch
+  last_accepted_seq
+  last_synced_seq
+  error_cursor
 }
 ```
 
-WriteRequest 是一次入口请求，不是存储格式。`DfsWriteSession` 聚合多个请求、维护 read-your-writes，并避免每个 FUSE WRITE 都执行 Meta 事务。它属于 DistributedFs；OwnerFs 使用自己的本地文件句柄，不进入该状态机。
+WriteRequest 是一次入口请求，不是存储格式。WriteLease 为活跃可写 inode 指定 owner 并提供 epoch fencing；InodeWriteState 保存该 inode 共享的 DirtyExtentMap、逻辑长度和写入水位；DfsWriteSession 只保存一次 open 的 flags、水位和错误观察位置。普通 write 由 owner 排序并更新 InodeWriteState，不为每个 FUSE WRITE 执行 Meta 事务。它们属于 DistributedFs；OwnerFs 使用自己的本地文件句柄，不进入该状态机。
 
 ### 4.3 StagedChunk 与 ChunkObject
 
@@ -134,7 +159,7 @@ ChunkObject {
 bytes -> StagedChunk -> finalize -> ChunkObject
 ```
 
-StagedChunk 尚未完整，不允许被 FileVersion、普通读取、Snapshot 或 P2P Seed 引用。Finalize 校验长度、摘要、编码和本地提交状态后产生不可变 ChunkObject。
+StagedChunk 是 CommitBatch 在 ChunkStore 内部使用的临时构造状态，尚未完整，不允许被 FileVersion、普通读取、Snapshot 或 P2P Seed 引用。Finalize 校验长度、摘要、编码和本地提交状态后产生不可变 ChunkObject。它不进入 Meta UML，也不是公开 API 或长期文件身份。
 
 ChunkId 使用带 DedupDomain、算法、Digest、长度和 Encoding 的规范化内容身份；知道 ChunkId 不等于获得读取授权，授权来自 Namespace 和 FileVersion 可达性。
 
@@ -262,6 +287,14 @@ class InodeRecord {
   +FileVersionId? head_version_id
 }
 
+class WriteLease {
+  <<mutable control state>>
+  +InodeId inode_id
+  +NodeId owner_node_id
+  +u64 lease_epoch
+  +Timestamp expires_at
+}
+
 class FileVersion {
   <<immutable>>
   +FileVersionId version_id
@@ -313,6 +346,7 @@ class ChunkObject {
 
 Dentry "*" --> "1" InodeRecord : inode_id
 InodeRecord "1" --> "0..1" FileVersion : head_version_id
+InodeRecord "1" --> "0..1" WriteLease : active writer owner
 FileVersion "1" --> "0..1" FileVersion : parent_version_id
 FileVersion "1" *-- "0..N" Extent : inline layout
 FileVersion "1" --> "0..1" LayoutRoot : large layout
@@ -422,39 +456,53 @@ class DfsFileHandle {
   <<runtime>>
   +FileHandleId handle_id
   +InodeId inode_id
-  +FileVersionId opened_version_id
   +OpenFlags flags
   +DfsWriteSessionId? write_session_id
 }
 
-class WriteRequest {
-  <<runtime>>
-  +InodeId inode_id
-  +FileHandleId handle_id
-  +u64 offset
-  +Buffer payload
-  +WriteFlags flags
-}
-
 class DfsWriteSession {
-  <<runtime>>
+  <<per open runtime>>
   +DfsWriteSessionId session_id
+  +FileHandleId handle_id
   +InodeId inode_id
-  +FileVersionId base_version_id
-  +DirtyRange[] dirty_ranges
-  +u64 logical_length
-  +DurabilityPolicyId durability_policy_id
+  +OpenFlags open_flags
+  +u64 lease_epoch
+  +u64 last_accepted_seq
+  +u64 last_synced_seq
+  +u64 error_cursor
 }
 
-class DirtyRange {
-  <<runtime>>
-  +u64 start
-  +u64 end
-  +BufferRef data
+class InodeWriteState {
+  <<per inode runtime>>
+  +InodeId inode_id
+  +u64 lease_epoch
+  +FileVersionId base_version_id
+  +u64 next_seq
+  +u64 visible_seq
+  +u64 committed_seq
+  +u64 logical_length
+  +PendingWriteError? pending_error
+  +u32 open_writers
+}
+
+class DirtyExtentMap {
+  <<mutable runtime overlay>>
+  +DirtyExtent[] ranges
+}
+
+class CommitBatch {
+  <<transient>>
+  +InodeId inode_id
+  +u64 lease_epoch
+  +CommitReason reason
+  +u64 through_seq
+  +FileVersionId expected_head
+  +u64 expected_revision
+  +OperationId operation_id
 }
 
 class StagedChunk {
-  <<mutable until finalize>>
+  <<ChunkStore internal>>
   +OperationId operation_id
   +u64 expected_length
   +u64 received_length
@@ -500,13 +548,14 @@ class PlacementSnapshot {
 }
 
 DfsFileHandle "1" --> "0..1" DfsWriteSession
-WriteRequest "*" --> "1" DfsFileHandle
-DfsWriteSession "1" *-- "0..N" DirtyRange
-DfsWriteSession "1" --> "0..N" StagedChunk : builds
+DfsWriteSession "0..N" --> "1" InodeWriteState : shared inode state
+InodeWriteState "1" *-- "1" DirtyExtentMap
+InodeWriteState --> CommitBatch : CommitTrigger freezes prefix
+CommitBatch --> StagedChunk : builds
 StagedChunk --> ChunkObject : finalize
 ChunkObject "1" --> "1..N" LocalChunkCopy : physical copies
 ChunkObject --> ChunkReceipt : successful put
-DfsWriteSession --> ChunkReceipt : consumes
+CommitBatch --> ChunkReceipt : consumes
 PlacementSnapshot --> ChunkReceipt : placement epoch
 ```
 
@@ -530,29 +579,34 @@ DurabilityPolicy：R=1 LocalDurable
 CREATE /xxx.txt
   -> Dentry(/xxx.txt -> inode 1001)
   -> InodeRecord(1001, head_version = Empty)
-  -> DfsWriteSession(base = Empty)
+  -> WriteLease(owner = local node, epoch = 1)
+  -> InodeWriteState(base = Empty)
+  -> DfsWriteSession(handle watermarks)
 ```
 
-新文件需要一次逻辑 Meta 创建。后续每个 WRITE 不访问 Meta。
+新文件需要一次逻辑 Meta 创建和 writer owner 建立；两者可以合并为一次 `CreateAndOpenWrite`。后续每个 WRITE 由 owner 排序并更新 InodeWriteState，不访问 Meta。
 
 ### 5.2 聚合 FUSE 请求
 
-应用一次或多次写入 10 MiB，内核最多按 1 MiB 交付 FUSE WRITE：
+应用一次或多次写入 10 MiB，内核最多按 1 MiB 交付 FUSE WRITE。每次请求先进入 inode 共享 DirtyExtentMap：
 
 ```text
-WRITE × 4 -> StagedChunk OP1
-WRITE × 4 -> StagedChunk OP2
-WRITE × 2 -> StagedChunk OP3
+WRITE × 10
+  -> owner assigns WriteSeq
+  -> DirtyExtentMap [0, 10 MiB)
 ```
 
-FUSE 请求是内核传输单位，Chunk 是存储、复制、P2P 和 GC 单位，两者不绑定。
+write 返回时尚不要求产生 Chunk 或 FileVersion。其他普通 reader 通过 owner 读取 `Empty base + dirty overlay`。FUSE 请求是内核传输单位，Chunk 是存储、复制、P2P 和 GC 单位，两者不绑定。
 
 ### 5.3 Finalize Chunk
 
+`fdatasync`、`fsync`、同步 write 或后台 writeback 触发 CommitBatch。CommitBatch 冻结写入前缀，再按目标 Chunk 大小构造 ChunkStore 内部的 StagedChunk：
+
 ```text
-OP1 -> C101  4 MiB
-OP2 -> C102  4 MiB
-OP3 -> C103  2 MiB
+DirtyExtentMap [0, 10 MiB)
+  -> StagedChunk OP1 -> C101  4 MiB
+  -> StagedChunk OP2 -> C102  4 MiB
+  -> StagedChunk OP3 -> C103  2 MiB
 ```
 
 R=1 时，本机 ChunkStore 对每个 StagedChunk 执行 staging write、Digest、长度校验、介质持久化和原子 Finalize，并返回 ChunkReceipt。
@@ -580,7 +634,7 @@ CommitFileVersion(
 
 CAS 由 MetaService 的事务合同实现，不要求业务层直接依赖某个数据库产品。
 
-`fsync` 只有在所有 Chunk 满足当前策略且 Head CAS 成功后返回。Chunk 成功而 Meta CAS 最终失败时，Chunk 是完整但不可达的 Orphan，由 GC 在安全窗口后清理。
+同步 trigger 只有在所有 Chunk 满足当前策略且 Head CAS 成功后返回。后台 trigger 可以执行相同提交，但不产生用户可依赖的完成点。Chunk 成功而 Meta CAS 最终失败时，Chunk 是完整但不可达的 Orphan，由 GC 在安全窗口后清理。
 
 ### 5.6 4 KiB 覆盖写
 
@@ -608,7 +662,7 @@ ChunkStore::put(chunk, R=3)
 假设副本组为 A、B、C，写节点 A 是 Chain Head：
 
 ```text
-DfsWriteSession
+CommitBatch
     -> A: local staging + digest
     -> B: local staging + digest
     -> C: local staging + digest
@@ -693,9 +747,12 @@ C103 <- A
 | --- | --- | --- |
 | InodeRecord | 保留 | 稳定 POSIX 文件身份、属性和 Head |
 | 独立 FileHead 表 | 不要求 | 可作为 InodeRecord 字段，逻辑上仍是 CAS 点 |
-| DfsWriteSession | 保留 | 聚合写入、read-your-writes、减少 Meta RPC |
+| WriteLease | 新增 | 指定 inode owner，并用 epoch fencing 拒绝旧 owner 提交 |
+| InodeWriteState | 新增 | 保存 inode 共享的 DirtyExtentMap、逻辑长度、写入顺序和延迟错误 |
+| DfsWriteSession | 保留并收窄 | 只保存 open flags、水位和错误游标，不拥有 dirty data |
+| CommitBatch | 新增的临时对象 | 冻结一个写入前缀并连接 dirty overlay、ChunkStore 和 FileVersion CAS |
 | BufferPool | 内部实现 | 控制在途内存，不是持久领域对象 |
-| StagedChunk | 保留 | 流式接收时最终 Chunk 尚未完成 |
+| StagedChunk | 保留为 ChunkStore 内部状态 | 流式接收时最终 Chunk 尚未完成，不进入 Meta 和公开 API |
 | ChunkObject | 保留 | 存储、校验、复制、P2P、Cache、Spill、GC 的统一单位 |
 | Extent | 保留 | Range Mapping 与小写 COW 基础 |
 | LayoutRoot | 大文件保留 | Range Lookup、分片和结构共享；小文件可内联 |
@@ -747,6 +804,8 @@ flowchart LR
         DistributedFs[DistributedFs]
         DfsHandle[DFS File Handle]
         Session[DfsWriteSessionManager]
+        InodeState[InodeWriteState Manager]
+        Commit[CommitBatch]
         Builder[ChunkBuilder]
         Buffer[BufferPool]
         Store[ChunkStore]
@@ -756,7 +815,7 @@ flowchart LR
         Spill[SpillManager]
         Disk[(Local Disk)]
 
-        DistributedFs --> DfsHandle --> Session --> Builder --> Buffer --> Store
+        DistributedFs --> DfsHandle --> Session --> InodeState --> Commit --> Builder --> Buffer --> Store
         Store --> Disk
         Store --> Repl --> ReplPool
         Store --> Cache
@@ -766,6 +825,7 @@ flowchart LR
     subgraph Meta[Meta Cluster]
         MetaSvc[MetaService]
         NS[NamespaceService]
+        Leases[WriteLeaseService]
         Versions[VersionService]
         Placement[PlacementService]
         Copies[CopyCatalog]
@@ -773,6 +833,7 @@ flowchart LR
         Txn[MetaStore / CAS]
 
         MetaSvc --> NS
+        MetaSvc --> Leases
         MetaSvc --> Versions
         MetaSvc --> Placement
         MetaSvc --> Copies
@@ -783,7 +844,8 @@ flowchart LR
     OwnerSession --> Backend --> OwnerFs
     DfsSession --> Backend --> DistributedFs
     OwnerFs -->|RootAccess / Home lookup| MetaSvc
-    Session -->|CommitFileVersion| MetaSvc
+    InodeState -->|Acquire / Renew WriteLease| MetaSvc
+    Commit -->|CommitFileVersion| MetaSvc
     MetaSvc -->|Policy + PlacementEpoch| Repl
     OwnerPeer --> Pool
     ReplPool --> Pool
@@ -797,13 +859,13 @@ flowchart LR
 | Shared Node | `fuse` | `FuseSession`、会话内 inode/handle 映射 |
 | Shared Node | `peer` | `PeerConnectionPool`；OwnerFs 与 DFS 的业务消息保持分开 |
 | OwnerFs | `ownerfs` | `OwnerFs`、`OwnerFsHandle`、Home 与 RootGrant |
-| DFS Node | `distributedfs` | `DistributedFs`、`DfsFileHandle` |
-| DFS Node | `write` | `DfsWriteSession`、`DirtyRange`、`ChunkBuilder` |
+| DFS Node | `dfs` | `DistributedFs`、`DfsFileHandle` |
+| DFS Node | `write` | `DfsWriteSession`、`InodeWriteState`、`DirtyExtentMap`、`CommitBatch`、`ChunkBuilder` |
 | DFS Node | `chunk` | `StagedChunk`、`ChunkObject`、`LocalChunkCopy`、`ChunkReceipt`、`ChunkStore` |
 | DFS Node | `replication` | `ReplicationEngine` 与副本写入状态 |
 | DFS Node | `cache` / `spill` | 缓存与外部层执行状态 |
 | Meta | `namespace` | `Dentry`、`InodeRecord` |
-| Meta | `version` | `FileVersion`、`LayoutRoot`、`ExtentMapNode`、`Extent` |
+| Meta | `version` | `WriteLease`、`FileVersion`、`LayoutRoot`、`ExtentMapNode`、`Extent` |
 | Meta | `placement` | `DurabilityPolicy`、`ReplicaGroup`、`PlacementRecord`、`CopyRecord` |
 | Meta | `lifecycle` | `Alias`、`PinRecord`、`RootManifest` |
 
@@ -813,4 +875,4 @@ DistributedFs 后台模块包括 IntegrityVerifier、Compactor、GarbageCollecto
 
 ## 12. 后续专题输入
 
-专题二必须在本模型上定义普通 write、O_SYNC、flush、fsync、close 和全局可见性。专题三定义 ChunkReceipt、R=1/R=N、Chain 重配置和 result-unknown。专题四定义本地 staging、Finalize、Compaction 和恢复。专题五定义 append、truncate、EOF 和 RootManifest 稳定切点。专题六定义 P2P、Cache、Spill、Native SDK 和可靠性验收。
+[专题二](02-write-durability-publication.md)与 [RFC-0003](../rfcs/0003-write-visibility-durability.md)已经在本模型上定义普通 write、fdatasync/fsync、O_SYNC/O_DSYNC、flush、close、WriteLease 和全局 dirty 可见性。专题三定义 ChunkReceipt、R=1/R=N、Chain 重配置和 result-unknown。专题四定义本地 staging、Finalize、Compaction 和恢复。专题五定义 append、truncate、EOF 和 RootManifest 稳定切点。专题六定义 P2P、Cache、Spill、Native SDK 和可靠性验收。

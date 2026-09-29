@@ -47,9 +47,12 @@ create /xxx.txt
 
 ## M2：POSIX 可见性与并发
 
-状态：Research
+状态：Accepted Design / Planned
 
-- write、flush、fsync、close 的完成与持久化语义；
+- 用户/Node/Meta 三泳道时间线和 write、flush、fdatasync、fsync、close 合同；
+- WriteLease、inode owner、共享 InodeWriteState 和 dirty read overlay；
+- CommitBatch、后台 writeback、sticky error 与 `O_DSYNC/O_SYNC`；
+- 文件同步和目录项 `fsync(dir)` 的独立合同；
 - overwrite、append、truncate、rename、unlink 和 open handle；
 - inode head CAS、幂等、冲突和失败结果；
 - 跨节点读写排序与可见性；

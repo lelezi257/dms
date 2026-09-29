@@ -28,8 +28,9 @@ AFS Namespace
 
 行为：
 
-- DfsWriteSession 聚合普通写入；
-- 提交产生新的不可变 FileVersion；
+- inode owner 将普通写入排序到共享 InodeWriteState/DirtyExtentMap；
+- DfsWriteSession 只保存一次 open 的 flags、水位和错误观察位置；
+- 同步或后台 CommitTrigger 提交新的不可变 FileVersion；
 - 未修改范围复用旧 Chunk；
 - 小范围修改使用 Patch Chunk 和 Extent Overlay；
 - Compaction 控制 Overlay 深度；
@@ -55,7 +56,7 @@ AFS Namespace
 - 消费者完成 Chunk 校验后可以成为 Cache Seed；
 - FileVersion、LayoutRoot 和 ChunkObject 不因副本位置变化而变化。
 
-`fsync` 提交文件版本，但不自动 Pin、不创建 Alias，也不构造多文件 RootManifest。
+`fdatasync/fsync` 提交文件版本，后台 writeback 也可以生成内部版本；这些操作都不自动 Pin、不创建 Alias，也不构造多文件 RootManifest。
 
 ## OwnerFs
 

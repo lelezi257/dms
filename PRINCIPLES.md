@@ -18,15 +18,17 @@ OwnerFs 与 DistributedFs 使用两个独立 mount 和 FuseSession。两者复�
 
 ## 4. 不可变 Chunk 是 DFS 的数据基座
 
-提交完成的 `ChunkObject` 不原地修改。文件可变性由可变的 `InodeRecord.head_version` 指向一系列不可变 `FileVersion` 表达；每个版本通过不可变 `LayoutRoot/ExtentMap` 复用已有 Chunk，并为覆盖范围引用新的 Chunk。小范围修改允许产生 Patch Chunk 和 Extent Overlay，后台 Compaction 控制碎片和空间放大。
+提交完成的 `ChunkObject` 不原地修改。已提交文件内容的可变性由 `InodeRecord.head_version` 指向一系列不可变 `FileVersion` 表达；尚未提交的活动写入由 inode owner 的 `InodeWriteState/DirtyExtentMap` 管理。每个版本通过不可变 `LayoutRoot/ExtentMap` 复用已有 Chunk，并为覆盖范围引用新的 Chunk。小范围修改允许产生 Patch Chunk 和 Extent Overlay，后台 Compaction 控制碎片和空间放大。
 
 ## 5. FileVersion 是稳定读取与多源 P2P 的一致性边界
 
 读取端先固定 `FileVersionId`，再解析 LayoutRoot、Extent 和 ChunkId。来自不同节点的数据只有在属于同一 FileVersion 且通过 Chunk 校验时才能组合。副本、已校验缓存和外部副本的位置变化不改变 FileVersion 或 Chunk 内容身份。
 
-## 6. fsync 提交文件版本，Snapshot 提交业务命名
+## 6. 同步操作提交文件版本，Snapshot 提交业务命名
 
-普通 `write` 可以先进入 DfsWriteSession；`fsync` 必须完成脏数据 Chunk 化、当前 DurabilityPolicy 和 FileVersion CAS。`fsync` 产生持久、完整的文件版本，但不自动创建业务 Snapshot、Alias 或保留策略。运行时通过显式 Snapshot/Pin/Publish 固定一个或多个 FileVersion；多文件一致视图使用 RootManifest。
+普通 `write` 由 inode owner 排序并进入共享 `InodeWriteState`，无故障运行时对后续普通读取可见，但不提供故障恢复保证。`fdatasync` 必须提交文件数据及恢复数据所需的 Chunk、ExtentMap、LayoutRoot、FileVersion、length 和 `head_version`；`fsync` 在此基础上同步 `mtime/ctime` 等完整 inode 属性。`O_DSYNC/O_SYNC` 将相应同步屏障放到每次 write 返回之前。后台 writeback 可以提交内部 FileVersion，但不产生用户可依赖的同步完成点。文件同步不保证父目录项，目录项需要独立 `fsync(dir)`。
+
+同步操作不自动创建业务 Snapshot、Alias 或保留策略。运行时通过显式 Snapshot/Pin/Publish 固定一个或多个 FileVersion；多文件一致视图使用 RootManifest。FUSE `flush` 和 `release` 只处理前端排空与 handle 生命周期，不作为持久化或业务发布边界。
 
 ## 7. 单副本和多副本只在 ChunkStore 以下分叉
 
@@ -42,7 +44,7 @@ AFS 可以只使用集群本地磁盘形成可靠存储池。对象存储用于�
 
 ## 10. Meta 管理权威，数据路径绕过 Meta
 
-Meta 管理 Namespace、Dentry、InodeRecord、FileVersion、LayoutRoot、placement、租户和生命周期。客户端或 Node 取得布局后直接访问 ChunkStore 或 OwnerFs Home。Meta 不转发文件内容，也不参与每个已解析 Chunk 的读取或每个 FUSE WRITE。
+Meta 管理 Namespace、Dentry、InodeRecord、WriteLease、FileVersion、LayoutRoot、placement、租户和生命周期。客户端或 Node 取得 lease、路由与布局后直接访问 inode owner、ChunkStore 或 OwnerFs Home。Meta 不转发文件内容，也不参与每个已解析 Chunk 的读取或每个 FUSE WRITE。
 
 ## 11. 高性能接口复用同一文件语义
 

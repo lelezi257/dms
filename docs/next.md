@@ -4,27 +4,33 @@
 
 ## 设计入口
 
-[专题一](architecture/01-file-version-chunk-model.md)及 [RFC-0002](rfcs/0002-file-version-chunk-model.md)已经接受，确定以下实现合同：
+[专题一](architecture/01-file-version-chunk-model.md)、[RFC-0002](rfcs/0002-file-version-chunk-model.md)、[专题二](architecture/02-write-durability-publication.md)及 [RFC-0003](rfcs/0003-write-visibility-durability.md)已经接受，确定以下实现合同：
 
 - inode 通过可变 `head_version` 指向已提交的不可变 `FileVersion`；
 - `FileVersion → LayoutRoot/ExtentMap → Extent → ChunkObject` 构成统一事实源；
-- `StagedChunk` 只有 finalize 后才成为可读的 `ChunkObject`；
+- 普通 write 由 inode owner 排序并进入共享 `InodeWriteState/DirtyExtentMap`，不修改 committed FileVersion；
+- `DfsWriteSession` 只保存一次 open 的 flags、水位和错误游标；
+- CommitTrigger 冻结写入前缀，`StagedChunk` 只在 ChunkStore 内部存在，finalize 后才成为可读的 `ChunkObject`；
 - 单副本和多副本只在 `ChunkStore::put` 以下分叉，上层只消费 `ChunkReceipt`；
-- `fsync` 强制形成完整、持久的 FileVersion，不自动创建业务 Alias、Pin 或 RootManifest；
+- `fdatasync` 提交数据与恢复索引，`fsync` 再提交完整 inode 属性；两者不自动创建业务 Alias、Pin 或 RootManifest；
+- FUSE flush/release 不替代同步合同；后台 writeback 可以提交版本但不产生用户可依赖的完成点；
+- 文件同步与目录项 `fsync(dir)` 是两个合同；
 - 固定版本多源读取先固定 `FileVersionId`，再从合格副本或缓存读取其 Chunk。
 
-当前进入[专题二](architecture/02-write-durability-publication.md)，重点固化普通 write/flush/fsync 的完成语义、跨节点可见性、错误返回和所需 RPC。
+下一设计入口是[专题三](architecture/03-replication-state-machine.md)，重点固化 R=1/R=N、ChunkReceipt、副本故障与重配置；RFC-0003 的实现需要与该副本合同共同落地。
 
 RPC 物理布局保持为 `control.rs`、`data.rs`、`meta.rs`、`peer.rs`。R=N 设计可以在 `data.rs`/`peer.rs` 内增加 Chunk 协议实现；全部专项收敛前不按 OwnerFs/DFS 拆子文件。
 
 ## P0：固化写入语义并消除首阶段限制
 
-1. 定义 write、flush、fsync、close 各自对客户端缓冲、Chunk 提交、FileVersion 提交和耐久性的承诺。
-2. 确定多写场景的并发排序与跨节点可见机制。
-3. 明确 inode `head_version` 的 CAS、失败重试、幂等键和故障恢复。
-4. 将全局 handle table 临界区改为每句柄并发控制，磁盘 I/O 与 Meta RPC 不占用全局锁。
-5. 选定带算法版本的强内容摘要，并定义旧 Chunk 格式的兼容边界。
-6. 为单副本、多副本、4 KiB 覆盖写分别列出正常及故障 RPC 时序。
+1. 实现 WriteLease、owner routing、epoch fencing 和组合 `OpenWrite` Meta 操作。
+2. 将 dirty data 从 DfsWriteSession 移到每 inode 的 InodeWriteState，并实现跨 handle/Node 的 base+overlay 读取。
+3. 实现 WriteSeq、CommitBatch、同步水位、后台 writeback 和 sticky error。
+4. 分离 write、flush、fdatasync、fsync 和 release；接通 `O_DSYNC/O_SYNC`，实现 `fsync(dir)`。
+5. 明确 inode `head_version` 的 CAS、失败重试、幂等键和故障恢复。
+6. 将全局 handle table 临界区改为每句柄和每 inode 并发控制，磁盘 I/O 与 Meta RPC 不占用全局锁。
+7. 选定带算法版本的强内容摘要，并定义旧 Chunk 格式的兼容边界。
+8. 为单副本、多副本、4 KiB 覆盖写分别列出正常及故障 RPC 时序。
 
 ## P1：扩展 DistributedFs
 

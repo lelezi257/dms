@@ -1,6 +1,6 @@
 # 实现状态
 
-更新时间：2026-09-28。
+更新时间：2026-09-29。
 
 AFS 是面向业务集群近计算场景的通用 POSIX 分布式文件系统。产品包含两条后端：`DistributedFs`（简称 `DFS`）是通用分布式主线，`OwnerFs` 是 1～4 节点一体机 Agent workspace 的专用优化。
 
@@ -10,7 +10,7 @@ DFS 使用统一的数据模型承载普通可变文件和镜像、Snapshot 等�
 
 [架构设计专题](architecture/design-topics.md)维护 DFS 的六个设计专题及其依赖关系。
 
-专题一已经接受：[FileVersion、Extent 与 Chunk 数据模型](architecture/01-file-version-chunk-model.md)和 [RFC-0002](rfcs/0002-file-version-chunk-model.md)定义了统一不可变版本模型、`fsync` 边界、单副本与多副本分叉点、三个端到端 Case 和 RPC 预算。当前进入专题二：普通写入的完成、持久化和跨节点可见性。
+专题一已经接受：[FileVersion、Extent 与 Chunk 数据模型](architecture/01-file-version-chunk-model.md)和 [RFC-0002](rfcs/0002-file-version-chunk-model.md)定义统一不可变版本模型、单副本与多副本分叉点、三个端到端 Case 和 RPC 预算。专题二及 [RFC-0003](rfcs/0003-write-visibility-durability.md)进一步固定用户/Node/Meta 时间线：普通 write 进入 inode owner 的共享 dirty view，CommitTrigger 才产生 Chunk 和 FileVersion；`fdatasync/fsync`、flush/release、后台 writeback 和目录同步具有独立合同。
 
 接入模型已经实现为两个独立 mount：OwnerFs 与 DFS 分别建立 FuseSession、FUSE connection、inode/handle table 和缓存策略，只复用 `fuse` 模块代码与 `Backend` 接口。`DfsWriteSession` 是 DFS 专属类型；OwnerFs 不进入 FileVersion/Extent/Chunk 写入状态机。
 
@@ -26,7 +26,7 @@ Node RPC 使用四个职责文件：`control.rs` 负责 Node 间控制，`data.r
 | OwnerFs | 已实现阶段能力 | 本机普通文件、跨 Node P2P、授权校验、句柄回收 |
 | DistributedFs | Experimental R=1 | 独立 mount；create/write/fsync/reopen/read；本机不可变 Chunk |
 | FileVersion 数据模型 | Experimental | Meta 以一次事务提交 Chunk/Copy/Placement/LayoutRoot/FileVersion 与 inode head CAS |
-| 跨节点写入可见性 | Research | 由专题二确定 lease、路由或 sequencer 合同 |
+| 跨节点写入可见性 | Accepted Design | WriteLease + inode owner + DirtyExtentMap；尚未实现 |
 | 固定版本多源读取 | Accepted Design | 身份和读取规则已确定，调度与数据路径尚未实现 |
 | 外部对象存储 spill | 未实现 | 属于容量层选项，不是系统成立条件 |
 | Native SDK 高性能数据面 | 基础框架 | SHM/RDMA 文件内容路径尚未接通 |
@@ -44,7 +44,8 @@ Node RPC 使用四个职责文件：`control.rs` 负责 Node 间控制，`data.r
 - DFS 当前将一个文件版本物化为单个 Chunk 和 inline extent；覆盖写、Extent 树、compaction 与 R=N 副本协议尚未实现。
 - 当前本机 Chunk digest 只用于首阶段损坏检测；在分布式去重与 P2P 前必须换成带算法版本的强摘要。
 - DFS commit 当前持有进程级 handle table 锁完成磁盘 I/O 和 Meta RPC；并发实现需要改为每句柄锁并缩短临界区。
-- 严格普通写跨节点可见性仍待专题二固化。
+- 严格普通写跨节点可见性合同已经固化，WriteLease、owner routing、InodeWriteState 和 read overlay 尚未实现。
+- DFS 当前仍把 `flush/fsync/release` 合并为同一提交路径，尚未实现 `fdatasync`、`O_DSYNC/O_SYNC`、后台 writeback、sticky error 和 `fsync(dir)` 合同。
 - RDMA 已有传输探测能力，文件内容仍走 gRPC P2P。
 - 完整 POSIX、VM 掉电、长稳、容量压力和对象存储 spill 尚未验收。
 

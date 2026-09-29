@@ -22,9 +22,9 @@ DistributedFs 使用不可变 Chunk 作为数据基座。可变 InodeRecord Head
 - Meta 与 Node 的数据边界。
 - OwnerFs 与 DFS 使用独立 mount 和 FuseSession，但复用 FUSE 模块代码与 Backend 接口。
 
-本 RFC不固定：
+本 RFC 不固定：
 
-- 多 Writer、Append、Lease 和跨节点即时可见性；
+- 多 Writer、Append、Lease 和跨节点即时可见性的协议细节；这些合同由 [RFC-0003](0003-write-visibility-durability.md) 固定；
 - Chunk、Patch、Extent Tree 和 Compaction 的具体参数；
 - Replication Chain 的完整状态机；
 - FUSE、SDK 和 RDMA 的 wire schema；
@@ -33,11 +33,11 @@ DistributedFs 使用不可变 Chunk 作为数据基座。可变 InodeRecord Head
 ## 外部语义
 
 1. 应用通过 POSIX 文件接口创建、读取和修改文件，不需要对象 API。
-2. 普通 write 可以进入 DfsWriteSession；`fsync` 必须提交满足 DurabilityPolicy 的完整 FileVersion。
+2. 普通 write 进入 inode owner 的 InodeWriteState，不修改 committed FileVersion；同步或后台 CommitTrigger 才冻结写入前缀并提交新版本。
 3. `fsync` 不自动 Pin、不创建 Alias、不创建多文件 Snapshot。
 4. Snapshot/Pin/Publish 引用已经提交的精确 FileVersionId；多文件一致视图使用 RootManifest。
 5. 已固定的 FileVersion 可以从多个通过校验的 Copy 并行读取。
-6. 文件后续修改产生新 FileVersion，不修改旧版本和旧 Chunk。
+6. 文件后续提交产生新 FileVersion，不修改旧版本和旧 Chunk；write 返回与版本提交是不同完成边界。
 
 ## 持久模型
 
@@ -158,13 +158,14 @@ stateDiagram-v2
 
 ```mermaid
 stateDiagram-v2
-    [*] --> DfsWriteSession
-    DfsWriteSession --> Chunking: flush or fsync
+    [*] --> InodeWriteState
+    InodeWriteState --> CommitBatch: CommitTrigger freezes prefix
+    CommitBatch --> Chunking: build internal StagedChunks
     Chunking --> DurableChunks: required ChunkReceipts obtained
     DurableChunks --> VersionPrepared: build LayoutRoot + FileVersion
     VersionPrepared --> Visible: CAS InodeRecord.head_version
     VersionPrepared --> Conflict: expected head changed
-    Conflict --> Chunking: replay overlay on accepted base
+    Conflict --> InodeWriteState: rebase or surface fenced conflict
 ```
 
 Chunk 已成功而 Head CAS 最终失败时，ChunkObject 保持完整但不可达，进入安全期后的 Orphan GC。实现不能产生只引用部分新 Chunk 的可见 FileVersion。
@@ -183,6 +184,9 @@ Chunk 已成功而 Head CAS 最终失败时，ChunkObject 保持完整但不可�
 10. 多源读取必须固定一个 FileVersionId，并验证每个 Chunk 身份和摘要。
 11. Cache Copy 不自动成为 Durable Replica。
 12. FileVersion、Pin、RootManifest 与 in-flight lease 构成逻辑可达根；Copy 数量不等同于逻辑引用数量。
+13. 普通 write 不修改 FileVersion 或 `InodeRecord.head_version`；只有 Meta CAS 可以发布新版本。
+14. DirtyExtentMap 属于 Node 运行时状态，不是可持久引用的 Mutable FileVersion。
+15. StagedChunk 只存在于 CommitBatch 和 ChunkStore 内部，不进入 Meta UML 或公开 API。
 
 ## R=1 与 R=N 边界
 
@@ -225,6 +229,7 @@ ChunkStore::put(StagedChunk, DurabilityPolicy) -> ChunkReceipt
 ### Meta
 
 - Namespace/Dentry/InodeRecord；
+- WriteLease 的 owner 与 fencing epoch；
 - FileVersion 和 LayoutRoot；
 - Head CAS；
 - Policy、PlacementEpoch 和 Copy Catalog；
@@ -233,8 +238,8 @@ ChunkStore::put(StagedChunk, DurabilityPolicy) -> ChunkReceipt
 ### Node
 
 - 共享 `fuse` 模块代码；OwnerFs 和 DFS 各自建立独立 mount、FuseSession、inode/handle table 与缓存策略；
-- `DistributedFs`、`DfsFileHandle` 与 `DfsWriteSession`；
-- ChunkBuilder、BufferPool 和 StagedChunk；
+- `DistributedFs`、`DfsFileHandle`、`DfsWriteSession`、`InodeWriteState` 与 `DirtyExtentMap`；
+- CommitBatch、ChunkBuilder、BufferPool 和 ChunkStore 内部的 StagedChunk；
 - ChunkStore、ReplicationEngine 和 PeerConnectionPool；
 - Cache、Spill、Integrity、Compaction 和 Repair 执行。
 
@@ -274,7 +279,7 @@ OwnerFs 只复用 FUSE/Backend 接口和公共连接工具，不进入 DFS 的 F
 
 ## 后续 RFC 输入
 
-- write/flush/fsync/O_SYNC 与跨节点可见性；
+- RFC-0003 已固定 write/flush/fdatasync/fsync/O_SYNC、WriteLease 与跨节点可见性；
 - 多 Writer、Lease、Append 和 truncate；
 - R=1/R=N、Chain 重配置和 result-unknown；
 - Chunk/Patch 大小、Extent Tree、Compaction 和 GC；

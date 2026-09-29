@@ -65,7 +65,8 @@ afs/
 FUSE request
   → node/fuse.rs
   → node/vfs/dfs.rs
-      write fragments → DfsWriteSession → ChunkBuilder
+      write fragments → InodeWriteState / DirtyExtentMap
+      commit trigger → CommitBatch → ChunkBuilder
   → node/chunk.rs
       StagedChunk → durable ChunkReceipt
   → node/rpc/meta.rs
@@ -76,6 +77,8 @@ FUSE request
 ```
 
 读取时 `DistributedFs` 先从 Meta 固定 inode 当前 `FileVersion` 和 `LayoutRoot`，再按 Extent 定位本机 Chunk。当前 R=1 只实现 whole-file 单 Chunk；R=N 预留在 `ChunkStore::put` 以下，不改变文件层合同。
+
+当前代码仍把 dirty data 保存在 handle 私有的 `DfsWriteSession` 中；上图表达已经接受但尚未实现的目标边界。实现状态和差异见[当前状态](current-status.md)与[专题二](architecture/02-write-durability-publication.md)。
 
 ## Meta 与协议
 

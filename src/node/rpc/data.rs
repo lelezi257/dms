@@ -25,6 +25,12 @@ use afs_protocol::node_data::{
     DataReadReply, DataReadRequest, DataTransfer, DataWriteReply, DataWriteRequest,
     node_data_server::{NodeData, NodeDataServer},
 };
+#[cfg(feature = "dfs")]
+use afs_protocol::node_data::{
+    DfsConfirmReplicaRequest, DfsPutReplicaFrame, DfsPutReplicaRdmaRequest, DfsPutReplicaReply,
+    DfsReplicaAck,
+    dfs_chunks_server::{DfsChunks, DfsChunksServer},
+};
 use afs_tracing::Instrument;
 use tonic::{Request, Response, Status};
 
@@ -55,6 +61,54 @@ pub fn make_data_server(
     sessions: RdmaSessionRegistry,
 ) -> NodeDataServer<NodeDataService> {
     NodeDataServer::new(NodeDataService::new(storage, sessions))
+}
+
+/// DFS replica RPC boundary.
+///
+/// The service is registered now so gRPC streaming and RDMA have stable wire
+/// contracts. RN execution remains fail-fast until replica staging, digest
+/// verification, catalog persistence and idempotent replay are implemented as
+/// one state machine; returning `UNIMPLEMENTED` here guarantees no partial
+/// replica can be mistaken for a durable acknowledgement.
+#[cfg(feature = "dfs")]
+#[derive(Clone, Default)]
+pub struct DfsChunksService;
+
+#[cfg(feature = "dfs")]
+#[must_use]
+pub fn make_dfs_chunks_server() -> DfsChunksServer<DfsChunksService> {
+    DfsChunksServer::new(DfsChunksService)
+}
+
+#[cfg(feature = "dfs")]
+#[tonic::async_trait]
+impl DfsChunks for DfsChunksService {
+    async fn put_replica_stream(
+        &self,
+        _request: Request<tonic::Streaming<DfsPutReplicaFrame>>,
+    ) -> Result<Response<DfsPutReplicaReply>, Status> {
+        Err(Status::unimplemented(
+            "DFS gRPC replica transfer is not implemented; request rejected before side effects",
+        ))
+    }
+
+    async fn put_replica_rdma(
+        &self,
+        _request: Request<DfsPutReplicaRdmaRequest>,
+    ) -> Result<Response<DfsPutReplicaReply>, Status> {
+        Err(Status::unimplemented(
+            "DFS RDMA replica transfer is not implemented; request rejected before side effects",
+        ))
+    }
+
+    async fn confirm_replica(
+        &self,
+        _request: Request<DfsConfirmReplicaRequest>,
+    ) -> Result<Response<DfsReplicaAck>, Status> {
+        Err(Status::unimplemented(
+            "DFS replica confirmation is not implemented; no durable acknowledgement exists",
+        ))
+    }
 }
 
 #[tonic::async_trait]

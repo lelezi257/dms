@@ -13,7 +13,7 @@
 //! 已经发出的写如果结果不明，绝不换通道重放；RDMA in-flight 被取消时会 poison
 //! 当前 client/session，后续复用必须失败，避免重复写或顺序错乱。
 
-#[cfg(any(feature = "ownerfs", feature = "rdma"))]
+#[cfg(any(feature = "ownerfs", feature = "rdma", feature = "dfs"))]
 use std::sync::Arc;
 #[cfg(feature = "rdma")]
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -85,6 +85,75 @@ pub enum DataMode {
     Grpc,
     Rdma,
     Auto,
+}
+
+#[cfg(feature = "dfs")]
+#[derive(Default)]
+pub struct GrpcReplicaDataPlane;
+
+#[cfg(feature = "dfs")]
+impl crate::node::replication::ReplicaDataPlane for GrpcReplicaDataPlane {
+    fn mode(&self) -> crate::node::replication::ReplicaTransferMode {
+        crate::node::replication::ReplicaTransferMode::GrpcStream
+    }
+
+    fn prepare(&self, _plan: &crate::node::replication::ReplicationPlan) -> afs_error::Result<()> {
+        Err(afs_error::Error::coded(
+            afs_error::NODE_VFS_UNIMPLEMENTED,
+            "DFS gRPC replica transfer is not implemented; RN rejected before side effects",
+        ))
+    }
+
+    fn put_remote_replicas(
+        &self,
+        _plan: &crate::node::replication::ReplicationPlan,
+        _staged: &crate::node::chunk::StagedChunk,
+    ) -> afs_error::Result<Vec<crate::dfs::ReplicaAck>> {
+        Err(afs_error::Error::coded(
+            afs_error::NODE_VFS_UNIMPLEMENTED,
+            "DFS gRPC replica transfer is not implemented",
+        ))
+    }
+}
+
+#[cfg(feature = "dfs")]
+#[derive(Default)]
+pub struct RdmaReplicaDataPlane;
+
+#[cfg(feature = "dfs")]
+impl crate::node::replication::ReplicaDataPlane for RdmaReplicaDataPlane {
+    fn mode(&self) -> crate::node::replication::ReplicaTransferMode {
+        crate::node::replication::ReplicaTransferMode::RdmaOneSided
+    }
+
+    fn prepare(&self, _plan: &crate::node::replication::ReplicationPlan) -> afs_error::Result<()> {
+        Err(afs_error::Error::coded(
+            afs_error::NODE_VFS_UNIMPLEMENTED,
+            "DFS RDMA replica transfer is not implemented; RN rejected before side effects",
+        ))
+    }
+
+    fn put_remote_replicas(
+        &self,
+        _plan: &crate::node::replication::ReplicationPlan,
+        _staged: &crate::node::chunk::StagedChunk,
+    ) -> afs_error::Result<Vec<crate::dfs::ReplicaAck>> {
+        Err(afs_error::Error::coded(
+            afs_error::NODE_VFS_UNIMPLEMENTED,
+            "DFS RDMA replica transfer is not implemented",
+        ))
+    }
+}
+
+#[cfg(feature = "dfs")]
+#[must_use]
+pub fn make_replica_data_plane(
+    mode: DataMode,
+) -> Arc<dyn crate::node::replication::ReplicaDataPlane> {
+    match mode {
+        DataMode::Rdma => Arc::new(RdmaReplicaDataPlane),
+        DataMode::Grpc | DataMode::Auto => Arc::new(GrpcReplicaDataPlane),
+    }
 }
 
 #[derive(Clone, Debug)]

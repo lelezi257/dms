@@ -32,6 +32,7 @@ message NodeDescriptor {
   repeated string capabilities = 4;
   // 每次 afs-node 进程启动生成新身份；同一 node_id 的旧会话不得继续签发授权。
   string session_id = 5;
+  repeated DfsStorageDevice storage_devices = 6;
 }
 
 message RegisterNodeRequest {
@@ -309,8 +310,64 @@ service DfsMeta {
   rpc RenewWriteLease(RenewDfsWriteLeaseRequest) returns (DfsWriteLeaseReply);
   rpc GetInode(GetDfsInodeRequest) returns (GetDfsInodeReply);
   rpc GetFileVersion(GetFileVersionRequest) returns (GetFileVersionReply);
+  rpc GetPlacementSnapshot(GetDfsPlacementSnapshotRequest) returns (GetDfsPlacementSnapshotReply);
   rpc SyncInodeMetadata(SyncDfsInodeMetadataRequest) returns (SyncDfsInodeMetadataReply);
   rpc CommitFileVersion(CommitFileVersionRequest) returns (CommitFileVersionReply);
+}
+
+enum DfsLocalCopyPolicy {
+  DFS_LOCAL_COPY_POLICY_UNSPECIFIED = 0;
+  DFS_LOCAL_COPY_POLICY_REQUIRED = 1;
+  DFS_LOCAL_COPY_POLICY_PREFERRED = 2;
+  DFS_LOCAL_COPY_POLICY_NOT_REQUIRED = 3;
+}
+
+message DfsReplicationConfig {
+  uint32 desired_copies = 1;
+  uint32 sync_required_copies = 2;
+  uint32 min_distinct_nodes = 3;
+  uint32 min_distinct_failure_domains = 4;
+  DfsLocalCopyPolicy local_copy = 5;
+}
+
+message DfsStorageDevice {
+  string device_id = 1;
+  uint64 device_epoch = 2;
+  uint64 catalog_revision = 3;
+  string failure_domain = 4;
+}
+
+message DfsReplicaTarget {
+  string node_id = 1;
+  uint64 node_epoch = 2;
+  string data_endpoint = 3;
+  DfsStorageDevice device = 4;
+}
+
+message DfsReplicaGroup {
+  string replica_group_id = 1;
+  uint64 placement_epoch = 2;
+  repeated DfsReplicaTarget targets = 3;
+}
+
+message DfsPlacementSnapshot {
+  uint64 revision = 1;
+  DfsReplicationConfig replication = 2;
+  repeated DfsReplicaGroup replica_groups = 3;
+}
+
+message DfsReplicaAck {
+  string operation_id = 1;
+  string chunk_id = 2;
+  uint64 placement_revision = 3;
+  uint64 placement_epoch = 4;
+  string node_id = 5;
+  uint64 node_epoch = 6;
+  string device_id = 7;
+  uint64 device_epoch = 8;
+  uint64 catalog_revision = 9;
+  uint64 persisted_bytes = 10;
+  bytes verified_digest = 11;
 }
 
 enum DfsInodeKind {
@@ -366,10 +423,11 @@ message DfsChunkReceipt {
   string chunk_id = 2;
   uint64 chunk_length = 3;
   bytes content_digest = 4;
-  string copy_id = 5;
-  string node_id = 6;
-  string device_id = 7;
-  uint64 persisted_bytes = 8;
+  reserved 5 to 8;
+  uint64 placement_revision = 9;
+  uint64 placement_epoch = 10;
+  string replica_group_id = 11;
+  repeated DfsReplicaAck durable_acks = 12;
 }
 
 message DfsWriteLease {
@@ -459,6 +517,15 @@ message GetFileVersionRequest {
 message GetFileVersionReply {
   DfsFileVersion version = 1;
   DfsLayoutRoot layout = 2;
+}
+
+message GetDfsPlacementSnapshotRequest {
+  string caller_id = 1;
+  uint64 minimum_revision = 2;
+}
+
+message GetDfsPlacementSnapshotReply {
+  DfsPlacementSnapshot snapshot = 1;
 }
 
 message SyncDfsInodeMetadataRequest {

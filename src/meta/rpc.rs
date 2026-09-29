@@ -12,16 +12,16 @@ use afs_protocol::meta::{
     DfsInodeAttributes as PbDfsInodeAttributes, DfsInodeKind as PbDfsInodeKind,
     DfsInodeRecord as PbDfsInodeRecord, DfsLayoutRoot as PbDfsLayoutRoot, DfsLookupReply,
     DfsLookupRequest, DfsWriteLeaseReply, GetDfsInodeReply, GetDfsInodeRequest,
-    GetFileVersionReply, GetFileVersionRequest, ListOwnerRootsReply, ListOwnerRootsRequest,
-    LookupNodeReply, LookupNodeRequest, LookupRootReply, LookupRootRequest, NodeDescriptor,
-    NodeEndpoint, OpenDfsWriteReply, OpenDfsWriteRequest, PingReply, PingRequest,
-    PresentedRootAccess, RecoverRootReply, RecoverRootRequest, RegisterNodeReply,
-    RegisterNodeRequest, RenewDfsWriteLeaseRequest, ReserveRootReply, ReserveRootRequest,
-    RootCommand, RootCommandType, RootLocation, RootReservation, RootRight as PbRootRight,
-    SyncDfsInodeMetadataReply, SyncDfsInodeMetadataRequest, ValidateRootAccessReply,
-    ValidateRootAccessRequest, WatchRootCommandsRequest,
-    dfs_meta_server::DfsMeta as DfsMetaService, meta_server::Meta as MetaService,
-    owner_roots_server::OwnerRoots as OwnerRootsService,
+    GetDfsPlacementSnapshotReply, GetDfsPlacementSnapshotRequest, GetFileVersionReply,
+    GetFileVersionRequest, ListOwnerRootsReply, ListOwnerRootsRequest, LookupNodeReply,
+    LookupNodeRequest, LookupRootReply, LookupRootRequest, NodeDescriptor, NodeEndpoint,
+    OpenDfsWriteReply, OpenDfsWriteRequest, PingReply, PingRequest, PresentedRootAccess,
+    RecoverRootReply, RecoverRootRequest, RegisterNodeReply, RegisterNodeRequest,
+    RenewDfsWriteLeaseRequest, ReserveRootReply, ReserveRootRequest, RootCommand, RootCommandType,
+    RootLocation, RootReservation, RootRight as PbRootRight, SyncDfsInodeMetadataReply,
+    SyncDfsInodeMetadataRequest, ValidateRootAccessReply, ValidateRootAccessRequest,
+    WatchRootCommandsRequest, dfs_meta_server::DfsMeta as DfsMetaService,
+    meta_server::Meta as MetaService, owner_roots_server::OwnerRoots as OwnerRootsService,
 };
 use std::{pin::Pin, sync::Arc, time::Duration};
 use tokio_stream::Stream;
@@ -191,6 +191,16 @@ fn wire_node(session: super::store::NodeSession) -> NodeDescriptor {
         labels: Default::default(),
         capabilities: Vec::new(),
         session_id: session.session_id,
+        storage_devices: session
+            .storage_devices
+            .into_iter()
+            .map(|device| afs_protocol::meta::DfsStorageDevice {
+                device_id: device.device_id,
+                device_epoch: device.device_epoch,
+                catalog_revision: device.catalog_revision,
+                failure_domain: device.failure_domain,
+            })
+            .collect(),
     }
 }
 
@@ -279,6 +289,16 @@ impl MetaService for MetaRpc {
                     grpc_addr: endpoint.grpc_addr,
                     data_addr: endpoint.data_addr,
                     rest_addr: endpoint.rest_addr,
+                    storage_devices: node
+                        .storage_devices
+                        .into_iter()
+                        .map(|device| crate::dfs::StorageDeviceDescriptor {
+                            device_id: device.device_id,
+                            device_epoch: device.device_epoch,
+                            catalog_revision: device.catalog_revision,
+                            failure_domain: device.failure_domain,
+                        })
+                        .collect(),
                     lease_ttl: ttl,
                 },
             )
@@ -811,6 +831,25 @@ impl DfsMetaService for DfsMetaRpc {
         }))
     }
 
+    async fn get_placement_snapshot(
+        &self,
+        request: Request<GetDfsPlacementSnapshotRequest>,
+    ) -> Result<Response<GetDfsPlacementSnapshotReply>, Status> {
+        let authenticated = authenticated_node_id(&self.0, &request)?;
+        let request = request.into_inner();
+        validate_caller(authenticated.as_deref(), &request.caller_id)?;
+        let snapshot = dfs_service(&self.0)?
+            .placement_snapshot(request.caller_id)
+            .await
+            .map_err(afs_transport::grpc::error_status::error_to_status)?;
+        if snapshot.revision < request.minimum_revision {
+            return Err(invalid("placement snapshot is older than minimum_revision"));
+        }
+        Ok(Response::new(GetDfsPlacementSnapshotReply {
+            snapshot: Some(wire_placement_snapshot(snapshot)),
+        }))
+    }
+
     async fn sync_inode_metadata(
         &self,
         request: Request<SyncDfsInodeMetadataRequest>,
@@ -986,6 +1025,52 @@ fn wire_dfs_layout(layout: crate::dfs::LayoutRoot) -> PbDfsLayoutRoot {
     }
 }
 
+fn wire_placement_snapshot(
+    snapshot: crate::dfs::PlacementSnapshot,
+) -> afs_protocol::meta::DfsPlacementSnapshot {
+    use afs_protocol::meta::DfsLocalCopyPolicy;
+
+    afs_protocol::meta::DfsPlacementSnapshot {
+        revision: snapshot.revision,
+        replication: Some(afs_protocol::meta::DfsReplicationConfig {
+            desired_copies: u32::from(snapshot.replication.desired_copies),
+            sync_required_copies: u32::from(snapshot.replication.sync_required_copies),
+            min_distinct_nodes: u32::from(snapshot.replication.min_distinct_nodes),
+            min_distinct_failure_domains: u32::from(
+                snapshot.replication.min_distinct_failure_domains,
+            ),
+            local_copy: match snapshot.replication.local_copy {
+                crate::dfs::LocalCopyPolicy::Required => DfsLocalCopyPolicy::Required as i32,
+                crate::dfs::LocalCopyPolicy::Preferred => DfsLocalCopyPolicy::Preferred as i32,
+                crate::dfs::LocalCopyPolicy::NotRequired => DfsLocalCopyPolicy::NotRequired as i32,
+            },
+        }),
+        replica_groups: snapshot
+            .replica_groups
+            .into_iter()
+            .map(|group| afs_protocol::meta::DfsReplicaGroup {
+                replica_group_id: group.id.0,
+                placement_epoch: group.placement_epoch,
+                targets: group
+                    .targets
+                    .into_iter()
+                    .map(|target| afs_protocol::meta::DfsReplicaTarget {
+                        node_id: target.node_id,
+                        node_epoch: target.node_epoch,
+                        data_endpoint: target.data_endpoint,
+                        device: Some(afs_protocol::meta::DfsStorageDevice {
+                            device_id: target.device.device_id,
+                            device_epoch: target.device.device_epoch,
+                            catalog_revision: target.device.catalog_revision,
+                            failure_domain: target.device.failure_domain,
+                        }),
+                    })
+                    .collect(),
+            })
+            .collect(),
+    }
+}
+
 fn domain_dfs_layout(layout: PbDfsLayoutRoot) -> crate::dfs::LayoutRoot {
     crate::dfs::LayoutRoot {
         id: crate::dfs::LayoutRootId::new(layout.layout_root_id),
@@ -1051,6 +1136,29 @@ fn domain_chunk_receipt(
         .map_err(|_| invalid("DFS chunk digest must contain 16 bytes"))?;
     let digest = crate::dfs::ContentDigest(digest);
     let chunk_id = crate::dfs::ChunkId::new(receipt.chunk_id);
+    let durable_acks = receipt
+        .durable_acks
+        .into_iter()
+        .map(|ack| {
+            let verified_digest: [u8; 16] = ack
+                .verified_digest
+                .try_into()
+                .map_err(|_| invalid("DFS replica digest must contain 16 bytes"))?;
+            Ok(crate::dfs::ReplicaAck {
+                operation_id: crate::dfs::OperationId::new(ack.operation_id),
+                chunk_id: crate::dfs::ChunkId::new(ack.chunk_id),
+                placement_revision: ack.placement_revision,
+                placement_epoch: ack.placement_epoch,
+                node_id: ack.node_id,
+                node_epoch: ack.node_epoch,
+                device_id: ack.device_id,
+                device_epoch: ack.device_epoch,
+                catalog_revision: ack.catalog_revision,
+                persisted_bytes: ack.persisted_bytes,
+                verified_digest: crate::dfs::ContentDigest(verified_digest),
+            })
+        })
+        .collect::<Result<Vec<_>, Status>>()?;
     Ok(crate::dfs::ChunkReceipt {
         operation_id: crate::dfs::OperationId::new(receipt.operation_id),
         chunk: crate::dfs::ChunkObject {
@@ -1059,15 +1167,10 @@ fn domain_chunk_receipt(
             content_digest: digest.clone(),
             encoding: crate::dfs::ChunkEncoding::Raw,
         },
-        copy: crate::dfs::CopyRecord {
-            id: crate::dfs::CopyId::new(receipt.copy_id),
-            chunk_id,
-            node_id: receipt.node_id,
-            device_id: receipt.device_id,
-            state: crate::dfs::CopyState::Durable,
-            persisted_bytes: receipt.persisted_bytes,
-            verified_digest: digest,
-        },
+        placement_revision: receipt.placement_revision,
+        placement_epoch: receipt.placement_epoch,
+        replica_group_id: crate::dfs::ReplicaGroupId::new(receipt.replica_group_id),
+        durable_acks,
     })
 }
 

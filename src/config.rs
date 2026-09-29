@@ -77,6 +77,19 @@ pub struct Cli {
     pub ownerfs_mount: Option<PathBuf>,
     #[arg(long)]
     pub dfs_mount: Option<PathBuf>,
+    /// Filesystem-wide immutable DFS replica target count. Applied by Meta at initialization.
+    #[arg(long)]
+    pub dfs_desired_copies: Option<u16>,
+    /// Replica acknowledgements required before a DFS FileVersion can commit.
+    #[arg(long)]
+    pub dfs_sync_required_copies: Option<u16>,
+    #[arg(long)]
+    pub dfs_min_distinct_nodes: Option<u16>,
+    #[arg(long)]
+    pub dfs_min_distinct_failure_domains: Option<u16>,
+    /// required, preferred, or none.
+    #[arg(long)]
+    pub dfs_local_copy: Option<String>,
     #[arg(long)]
     pub timeout_ms: Option<u64>,
     #[arg(long)]
@@ -115,6 +128,11 @@ struct FileConfig {
     uds_path: Option<PathBuf>,
     ownerfs_mount: Option<PathBuf>,
     dfs_mount: Option<PathBuf>,
+    dfs_desired_copies: Option<u16>,
+    dfs_sync_required_copies: Option<u16>,
+    dfs_min_distinct_nodes: Option<u16>,
+    dfs_min_distinct_failure_domains: Option<u16>,
+    dfs_local_copy: Option<String>,
     timeout_ms: Option<u64>,
     log_level: Option<String>,
     trace_enabled: Option<bool>,
@@ -145,6 +163,11 @@ pub struct Config {
     pub uds_path: PathBuf,
     pub ownerfs_mount: Option<PathBuf>,
     pub dfs_mount: Option<PathBuf>,
+    pub dfs_desired_copies: u16,
+    pub dfs_sync_required_copies: u16,
+    pub dfs_min_distinct_nodes: u16,
+    pub dfs_min_distinct_failure_domains: u16,
+    pub dfs_local_copy: String,
     pub timeout_ms: u64,
     pub log_level: String,
     pub trace_enabled: bool,
@@ -206,6 +229,42 @@ impl Config {
         if data_mode == "rdma" && !cfg!(feature = "rdma") {
             return Err(invalid("rdma feature is not compiled in"));
         }
+        let dfs_desired_copies = cli
+            .dfs_desired_copies
+            .or(file.dfs_desired_copies)
+            .unwrap_or(1);
+        let dfs_sync_required_copies = cli
+            .dfs_sync_required_copies
+            .or(file.dfs_sync_required_copies)
+            .unwrap_or(1);
+        let dfs_min_distinct_nodes = cli
+            .dfs_min_distinct_nodes
+            .or(file.dfs_min_distinct_nodes)
+            .unwrap_or(1);
+        let dfs_min_distinct_failure_domains = cli
+            .dfs_min_distinct_failure_domains
+            .or(file.dfs_min_distinct_failure_domains)
+            .unwrap_or(1);
+        let dfs_local_copy = cli
+            .dfs_local_copy
+            .or(file.dfs_local_copy)
+            .unwrap_or_else(|| "required".into());
+        if dfs_sync_required_copies == 0
+            || dfs_sync_required_copies > dfs_desired_copies
+            || dfs_min_distinct_nodes == 0
+            || dfs_min_distinct_nodes > dfs_desired_copies
+            || dfs_min_distinct_failure_domains == 0
+            || dfs_min_distinct_failure_domains > dfs_desired_copies
+        {
+            return Err(invalid(
+                "DFS replication counts must be non-zero and no greater than dfs_desired_copies",
+            ));
+        }
+        if !["required", "preferred", "none"].contains(&dfs_local_copy.as_str()) {
+            return Err(invalid(
+                "dfs_local_copy must be required, preferred or none",
+            ));
+        }
         let cfg = Self {
             grpc_listen: cli.grpc_listen.or(file.grpc_listen).unwrap_or_else(|| {
                 ([127, 0, 0, 1], if role == Role::Meta { 7400 } else { 7500 }).into()
@@ -245,6 +304,11 @@ impl Config {
             rdma_device: cli.rdma_device.or(file.rdma_device),
             ownerfs_mount: cli.ownerfs_mount.or(file.ownerfs_mount),
             dfs_mount: cli.dfs_mount.or(file.dfs_mount),
+            dfs_desired_copies,
+            dfs_sync_required_copies,
+            dfs_min_distinct_nodes,
+            dfs_min_distinct_failure_domains,
+            dfs_local_copy,
             timeout_ms: cli.timeout_ms.or(file.timeout_ms).unwrap_or(5000),
             log_level: cli
                 .log_level

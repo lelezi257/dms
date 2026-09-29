@@ -28,10 +28,9 @@ use super::{
 };
 use crate::{
     dfs::{
-        CommitFileVersion, CommitMetadataDelta, CommitMetadataMode, DfsWriteSessionId,
-        DurabilityPolicy, Extent, FileVersion, FileVersionId, InodeAttributes, InodeId, InodeKind,
-        InodeRecord, LayoutRoot, LayoutRootId, NamespaceId, OperationId, SyncInodeMetadata,
-        WriteLease,
+        CommitFileVersion, CommitMetadataDelta, CommitMetadataMode, DfsWriteSessionId, Extent,
+        FileVersion, FileVersionId, InodeAttributes, InodeId, InodeKind, InodeRecord, LayoutRoot,
+        LayoutRootId, NamespaceId, OperationId, SyncInodeMetadata, WriteLease,
     },
     node::chunk::{ChunkBuilder, ChunkStore},
 };
@@ -97,7 +96,6 @@ struct InodeWriteState {
     base_version_id: Option<FileVersionId>,
     logical_length: u64,
     metadata_dirty: bool,
-    durability_policy: DurabilityPolicy,
     dirty_extents: DirtyExtentMap,
     dirty: bool,
     next_write_seq: u64,
@@ -284,7 +282,6 @@ impl DistributedFs {
             base_version_id: inode.head_version.clone(),
             logical_length: base.len() as u64,
             metadata_dirty: false,
-            durability_policy: DurabilityPolicy::local_single_copy(),
             dirty_extents: DirtyExtentMap::new(base),
             inode: inode.clone(),
             dirty: false,
@@ -433,12 +430,7 @@ impl DistributedFs {
         builder.replace(materialized.clone());
         let operation_id = self.operation_id(reason.operation_prefix());
         let receipt = (!materialized.is_empty())
-            .then(|| {
-                self.chunk_store.put(
-                    builder.stage(operation_id.clone()),
-                    &state.durability_policy,
-                )
-            })
+            .then(|| self.chunk_store.put(builder.stage(operation_id.clone())))
             .transpose()?;
         let generation = self.next_operation.fetch_add(1, Ordering::Relaxed);
         let layout = LayoutRoot {

@@ -27,6 +27,8 @@ string_id!(ChunkId);
 string_id!(CopyId);
 string_id!(OperationId);
 string_id!(DfsWriteSessionId);
+string_id!(ReplicaGroupId);
+string_id!(ReplicationTaskId);
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub enum InodeKind {
@@ -112,10 +114,107 @@ pub struct ChunkObject {
     pub encoding: ChunkEncoding,
 }
 
+/// One immutable filesystem-wide replication contract.
+///
+/// The first implementation writes this record when the filesystem is
+/// initialized and rejects a different value on later starts. Changing it
+/// requires creating a new filesystem rather than migrating individual inodes.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct ReplicationConfig {
+    pub desired_copies: u16,
+    pub sync_required_copies: u16,
+    pub min_distinct_nodes: u16,
+    pub min_distinct_failure_domains: u16,
+    pub local_copy: LocalCopyPolicy,
+}
+
+impl ReplicationConfig {
+    pub fn local_single_copy() -> Self {
+        Self {
+            desired_copies: 1,
+            sync_required_copies: 1,
+            min_distinct_nodes: 1,
+            min_distinct_failure_domains: 1,
+            local_copy: LocalCopyPolicy::Required,
+        }
+    }
+
+    pub fn is_valid(&self) -> bool {
+        self.sync_required_copies > 0
+            && self.sync_required_copies <= self.desired_copies
+            && self.min_distinct_nodes > 0
+            && self.min_distinct_nodes <= self.desired_copies
+            && self.min_distinct_failure_domains > 0
+            && self.min_distinct_failure_domains <= self.desired_copies
+    }
+
+    pub fn is_local_fast_path(&self) -> bool {
+        self.desired_copies == 1
+            && self.sync_required_copies == 1
+            && self.local_copy == LocalCopyPolicy::Required
+    }
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub enum LocalCopyPolicy {
+    Required,
+    Preferred,
+    NotRequired,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct StorageDeviceDescriptor {
+    pub device_id: String,
+    pub device_epoch: u64,
+    pub catalog_revision: u64,
+    pub failure_domain: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct ReplicaTarget {
+    pub node_id: String,
+    pub node_epoch: u64,
+    pub data_endpoint: String,
+    pub device: StorageDeviceDescriptor,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct ReplicaGroup {
+    pub id: ReplicaGroupId,
+    pub placement_epoch: u64,
+    pub targets: Vec<ReplicaTarget>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct PlacementSnapshot {
+    pub revision: u64,
+    pub replication: ReplicationConfig,
+    pub replica_groups: Vec<ReplicaGroup>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct ReplicaAck {
+    pub operation_id: OperationId,
+    pub chunk_id: ChunkId,
+    pub placement_revision: u64,
+    pub placement_epoch: u64,
+    pub node_id: String,
+    pub node_epoch: u64,
+    pub device_id: String,
+    pub device_epoch: u64,
+    pub catalog_revision: u64,
+    pub persisted_bytes: u64,
+    pub verified_digest: ContentDigest,
+}
+
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub enum CopyState {
-    Staging,
-    Durable,
+    /// Decode-only compatibility for snapshots written before staging was
+    /// removed from the Meta catalog. New code never creates this state.
+    #[serde(rename = "Staging")]
+    LegacyStaging,
+    #[serde(alias = "Durable")]
+    DurableReplica,
     Corrupt,
     Deleting,
 }
@@ -125,41 +224,73 @@ pub struct CopyRecord {
     pub id: CopyId,
     pub chunk_id: ChunkId,
     pub node_id: String,
+    #[serde(default)]
+    pub node_epoch: u64,
     pub device_id: String,
+    #[serde(default)]
+    pub device_epoch: u64,
+    #[serde(default)]
+    pub catalog_revision: u64,
     pub state: CopyState,
     pub persisted_bytes: u64,
     pub verified_digest: ContentDigest,
 }
 
+#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+pub enum PlacementHealth {
+    #[default]
+    Satisfied,
+    UnderReplicated,
+    BlockedNoSource,
+}
+
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct PlacementRecord {
     pub chunk_id: ChunkId,
-    pub policy_id: String,
-    pub replica_group_id: String,
-    pub epoch: u64,
+    pub replica_group_id: ReplicaGroupId,
+    #[serde(alias = "epoch")]
+    pub placement_epoch: u64,
+    #[serde(default = "one_copy")]
+    pub desired_copies: u16,
     pub copies: Vec<CopyId>,
+    #[serde(default)]
+    pub health: PlacementHealth,
+}
+
+const fn one_copy() -> u16 {
+    1
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct ChunkReceipt {
     pub operation_id: OperationId,
     pub chunk: ChunkObject,
-    pub copy: CopyRecord,
+    pub placement_revision: u64,
+    pub placement_epoch: u64,
+    pub replica_group_id: ReplicaGroupId,
+    pub durable_acks: Vec<ReplicaAck>,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub enum ReplicationTaskState {
+    Pending,
+    Running,
+    RetryWaiting,
+    Completed,
+    BlockedNoSource,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-pub struct DurabilityPolicy {
-    pub id: String,
-    pub required_copies: u16,
-}
-
-impl DurabilityPolicy {
-    pub fn local_single_copy() -> Self {
-        Self {
-            id: "local-r1".into(),
-            required_copies: 1,
-        }
-    }
+pub struct ReplicationTask {
+    pub id: ReplicationTaskId,
+    pub chunk_id: ChunkId,
+    pub placement_epoch: u64,
+    pub desired_copies: u16,
+    pub existing_copies: Vec<CopyId>,
+    pub state: ReplicationTaskState,
+    pub attempt: u32,
+    pub next_retry_unix_ms: u64,
+    pub last_error: Option<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]

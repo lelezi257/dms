@@ -23,6 +23,8 @@ use afs_protocol::meta::{
 use afs_protocol::meta::{PingRequest, RegisterNodeRequest, meta_client::MetaClient};
 use afs_transport::grpc::{GrpcConfig, SecurityManager, TlsConfig};
 use std::sync::atomic::{AtomicU64, Ordering};
+#[cfg(feature = "dfs")]
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 #[cfg(any(feature = "ownerfs", feature = "dfs"))]
 use tonic::transport::Channel;
@@ -489,6 +491,7 @@ pub struct GrpcDfsMeta {
     namespace_id: crate::dfs::NamespaceId,
     timeout: Duration,
     sequence: AtomicU64,
+    placement: Mutex<Option<Arc<crate::dfs::PlacementSnapshot>>>,
 }
 
 #[cfg(feature = "dfs")]
@@ -522,6 +525,7 @@ impl GrpcDfsMeta {
             namespace_id,
             timeout,
             sequence: AtomicU64::new(1),
+            placement: Mutex::new(None),
         })
     }
 
@@ -552,6 +556,51 @@ impl GrpcDfsMeta {
 
     fn client(&self) -> afs_protocol::meta::dfs_meta_client::DfsMetaClient<Channel> {
         afs_protocol::meta::dfs_meta_client::DfsMetaClient::new(self.channel.clone())
+    }
+}
+
+#[cfg(feature = "dfs")]
+impl crate::node::replication::PlacementProvider for GrpcDfsMeta {
+    fn snapshot(&self) -> afs_error::Result<Arc<crate::dfs::PlacementSnapshot>> {
+        if let Some(snapshot) = self
+            .placement
+            .lock()
+            .map_err(|_| {
+                Error::coded(
+                    afs_error::CLIENT_PROTOCOL_VIOLATION,
+                    "DFS placement cache lock poisoned",
+                )
+            })?
+            .clone()
+        {
+            return Ok(snapshot);
+        }
+        self.refresh(0)
+    }
+
+    fn refresh(
+        &self,
+        minimum_revision: u64,
+    ) -> afs_error::Result<Arc<crate::dfs::PlacementSnapshot>> {
+        let reply = self
+            .run(self.client().get_placement_snapshot(
+                afs_protocol::meta::GetDfsPlacementSnapshotRequest {
+                    caller_id: self.node_id.clone(),
+                    minimum_revision,
+                },
+            ))?
+            .into_inner();
+        let snapshot = Arc::new(domain_placement_snapshot(required(
+            reply.snapshot,
+            "GetPlacementSnapshot.snapshot",
+        )?)?);
+        *self.placement.lock().map_err(|_| {
+            Error::coded(
+                afs_error::CLIENT_PROTOCOL_VIOLATION,
+                "DFS placement cache lock poisoned",
+            )
+        })? = Some(snapshot.clone());
+        Ok(snapshot)
     }
 }
 
@@ -891,9 +940,124 @@ fn wire_chunk_receipt(receipt: crate::dfs::ChunkReceipt) -> afs_protocol::meta::
         chunk_id: receipt.chunk.id.0,
         chunk_length: receipt.chunk.length,
         content_digest: receipt.chunk.content_digest.0.to_vec(),
-        copy_id: receipt.copy.id.0,
-        node_id: receipt.copy.node_id,
-        device_id: receipt.copy.device_id,
-        persisted_bytes: receipt.copy.persisted_bytes,
+        placement_revision: receipt.placement_revision,
+        placement_epoch: receipt.placement_epoch,
+        replica_group_id: receipt.replica_group_id.0,
+        durable_acks: receipt
+            .durable_acks
+            .into_iter()
+            .map(wire_replica_ack)
+            .collect(),
     }
+}
+
+#[cfg(feature = "dfs")]
+fn wire_replica_ack(ack: crate::dfs::ReplicaAck) -> afs_protocol::meta::DfsReplicaAck {
+    afs_protocol::meta::DfsReplicaAck {
+        operation_id: ack.operation_id.0,
+        chunk_id: ack.chunk_id.0,
+        placement_revision: ack.placement_revision,
+        placement_epoch: ack.placement_epoch,
+        node_id: ack.node_id,
+        node_epoch: ack.node_epoch,
+        device_id: ack.device_id,
+        device_epoch: ack.device_epoch,
+        catalog_revision: ack.catalog_revision,
+        persisted_bytes: ack.persisted_bytes,
+        verified_digest: ack.verified_digest.0.to_vec(),
+    }
+}
+
+#[cfg(feature = "dfs")]
+fn domain_placement_snapshot(
+    snapshot: afs_protocol::meta::DfsPlacementSnapshot,
+) -> afs_error::Result<crate::dfs::PlacementSnapshot> {
+    let replication = required(snapshot.replication, "DfsPlacementSnapshot.replication")?;
+    let local_copy = match afs_protocol::meta::DfsLocalCopyPolicy::try_from(replication.local_copy)
+    {
+        Ok(afs_protocol::meta::DfsLocalCopyPolicy::Required) => {
+            crate::dfs::LocalCopyPolicy::Required
+        }
+        Ok(afs_protocol::meta::DfsLocalCopyPolicy::Preferred) => {
+            crate::dfs::LocalCopyPolicy::Preferred
+        }
+        Ok(afs_protocol::meta::DfsLocalCopyPolicy::NotRequired) => {
+            crate::dfs::LocalCopyPolicy::NotRequired
+        }
+        _ => {
+            return Err(Error::coded(
+                afs_error::CLIENT_PROTOCOL_VIOLATION,
+                "DfsPlacementSnapshot has an invalid local-copy policy",
+            ));
+        }
+    };
+    let replication = crate::dfs::ReplicationConfig {
+        desired_copies: u16::try_from(replication.desired_copies).map_err(|_| {
+            Error::coded(
+                afs_error::CLIENT_PROTOCOL_VIOLATION,
+                "desired_copies exceeds u16",
+            )
+        })?,
+        sync_required_copies: u16::try_from(replication.sync_required_copies).map_err(|_| {
+            Error::coded(
+                afs_error::CLIENT_PROTOCOL_VIOLATION,
+                "sync_required_copies exceeds u16",
+            )
+        })?,
+        min_distinct_nodes: u16::try_from(replication.min_distinct_nodes).map_err(|_| {
+            Error::coded(
+                afs_error::CLIENT_PROTOCOL_VIOLATION,
+                "min_distinct_nodes exceeds u16",
+            )
+        })?,
+        min_distinct_failure_domains: u16::try_from(replication.min_distinct_failure_domains)
+            .map_err(|_| {
+                Error::coded(
+                    afs_error::CLIENT_PROTOCOL_VIOLATION,
+                    "min_distinct_failure_domains exceeds u16",
+                )
+            })?,
+        local_copy,
+    };
+    let replica_groups = snapshot
+        .replica_groups
+        .into_iter()
+        .map(|group| {
+            let targets = group
+                .targets
+                .into_iter()
+                .map(|target| {
+                    let device = required(target.device, "DfsReplicaTarget.device")?;
+                    Ok(crate::dfs::ReplicaTarget {
+                        node_id: target.node_id,
+                        node_epoch: target.node_epoch,
+                        data_endpoint: target.data_endpoint,
+                        device: crate::dfs::StorageDeviceDescriptor {
+                            device_id: device.device_id,
+                            device_epoch: device.device_epoch,
+                            catalog_revision: device.catalog_revision,
+                            failure_domain: device.failure_domain,
+                        },
+                    })
+                })
+                .collect::<afs_error::Result<Vec<_>>>()?;
+            Ok(crate::dfs::ReplicaGroup {
+                id: crate::dfs::ReplicaGroupId::new(group.replica_group_id),
+                placement_epoch: group.placement_epoch,
+                targets,
+            })
+        })
+        .collect::<afs_error::Result<Vec<_>>>()?;
+    let result = crate::dfs::PlacementSnapshot {
+        revision: snapshot.revision,
+        replication,
+        replica_groups,
+    };
+    if !result.replication.is_valid() {
+        return Err(Error::coded(
+            afs_error::CLIENT_PROTOCOL_VIOLATION,
+            "Meta returned an invalid DFS replication config",
+        ));
+    }
+    Ok(result)
 }

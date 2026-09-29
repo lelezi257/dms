@@ -201,9 +201,30 @@ pub async fn run(cfg: Config, obs: Observability) -> Result<(), BoxError> {
         },
         |store| Arc::new(owner_roots::StoreOwnerRootAuthority::new(store.clone())),
     );
-    let dfs = store
-        .as_ref()
-        .map(|store| dfs::DfsService::new(store.clone()));
+    let dfs = if let Some(store) = store.as_ref() {
+        let local_copy = match cfg.dfs_local_copy.as_str() {
+            "required" => crate::dfs::LocalCopyPolicy::Required,
+            "preferred" => crate::dfs::LocalCopyPolicy::Preferred,
+            "none" => crate::dfs::LocalCopyPolicy::NotRequired,
+            _ => unreachable!("Config validates dfs_local_copy"),
+        };
+        let service = dfs::DfsService::with_replication_config(
+            store.clone(),
+            crate::dfs::ReplicationConfig {
+                desired_copies: cfg.dfs_desired_copies,
+                sync_required_copies: cfg.dfs_sync_required_copies,
+                min_distinct_nodes: cfg.dfs_min_distinct_nodes,
+                min_distinct_failure_domains: cfg.dfs_min_distinct_failure_domains,
+                local_copy,
+            },
+        );
+        if cfg.dfs {
+            service.initialize_replication_config().await?;
+        }
+        Some(service)
+    } else {
+        None
+    };
     let state = Arc::new(Meta {
         id: cfg.id.clone(),
         observability: obs,
@@ -374,6 +395,7 @@ mod tests {
                 grpc_addr: "http://node-a:7400".into(),
                 data_addr: "http://node-a:7500".into(),
                 rest_addr: "http://node-a:7600".into(),
+                storage_devices: Vec::new(),
                 lease_ttl: Duration::from_nanos(1),
             },
         )

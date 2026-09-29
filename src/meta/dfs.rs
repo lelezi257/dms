@@ -1,6 +1,7 @@
 //! DistributedFs namespace and FileVersion authority on the shared MetaStore.
 
 use std::{
+    collections::HashSet,
     sync::Arc,
     time::{SystemTime, UNIX_EPOCH},
 };
@@ -8,9 +9,11 @@ use std::{
 use afs_error::{Error, Result};
 
 use crate::dfs::{
-    CommitFileVersion, CommitMetadataMode, CopyState, Dentry, DentryKey, FileVersion,
-    FileVersionId, InodeAttributes, InodeId, InodeKind, InodeRecord, LayoutRoot, NamespaceId,
-    OperationId, PlacementRecord, SyncInodeMetadata, WriteLease,
+    CommitFileVersion, CommitMetadataMode, CopyId, CopyRecord, CopyState, Dentry, DentryKey,
+    FileVersion, FileVersionId, InodeAttributes, InodeId, InodeKind, InodeRecord, LayoutRoot,
+    LocalCopyPolicy, NamespaceId, OperationId, PlacementHealth, PlacementRecord, PlacementSnapshot,
+    ReplicaGroup, ReplicaGroupId, ReplicaTarget, ReplicationConfig, ReplicationTask,
+    ReplicationTaskId, ReplicationTaskState, SyncInodeMetadata, WriteLease,
 };
 
 use super::store::{
@@ -21,6 +24,7 @@ use super::store::{
 #[derive(Clone)]
 pub struct DfsService {
     store: Arc<dyn MetaStore>,
+    replication: ReplicationConfig,
 }
 
 #[derive(Clone, Debug)]
@@ -37,7 +41,104 @@ pub struct CreateFileRequest {
 
 impl DfsService {
     pub fn new(store: Arc<dyn MetaStore>) -> Self {
-        Self { store }
+        Self::with_replication_config(store, ReplicationConfig::local_single_copy())
+    }
+
+    pub fn with_replication_config(
+        store: Arc<dyn MetaStore>,
+        replication: ReplicationConfig,
+    ) -> Self {
+        Self { store, replication }
+    }
+
+    /// Creates the single filesystem replication contract or verifies the
+    /// exact value persisted by an earlier start. A different value is a
+    /// reformat boundary, not a live configuration update.
+    pub async fn initialize_replication_config(&self) -> Result<()> {
+        if !self.replication.is_valid() {
+            return Err(invalid("DFS replication config is invalid"));
+        }
+        let existing = self.store.read(MetaRead::DfsReplicationConfig).await?;
+        if let Some(MetaEntity::DfsReplicationConfig(config)) = existing.entity {
+            return if config == self.replication {
+                Ok(())
+            } else {
+                Err(conflict(
+                    "DFS replication config is immutable; reinitialize the filesystem to change it",
+                ))
+            };
+        }
+
+        let request = RequestKey::new("afs-meta", "dfs-replication-config-v1");
+        let outcome = RequestOutcome {
+            request: request.clone(),
+            operation: StoreOperation::DfsInitializeReplicationConfig,
+            result: OperationResult::Empty,
+        };
+        let mut txn = MetaTxn::new(
+            request.clone(),
+            StoreOperation::DfsInitializeReplicationConfig,
+        );
+        txn.conditions.extend([
+            TxnCondition::RequestAbsent(request),
+            TxnCondition::Missing(MetaKey::DfsReplicationConfig),
+        ]);
+        txn.mutations.extend([
+            TxnMutation::Put(MetaEntity::DfsReplicationConfig(self.replication.clone())),
+            TxnMutation::RecordRequestOutcome(outcome),
+        ]);
+        let _ = self.store.compare_and_commit(txn).await?;
+        let persisted = self.store.read(MetaRead::DfsReplicationConfig).await?;
+        match persisted.entity {
+            Some(MetaEntity::DfsReplicationConfig(config)) if config == self.replication => Ok(()),
+            Some(MetaEntity::DfsReplicationConfig(_)) => Err(conflict(
+                "DFS replication config changed during initialization",
+            )),
+            _ => Err(invalid("DFS replication config was not persisted")),
+        }
+    }
+
+    pub async fn placement_snapshot(&self, caller_id: String) -> Result<PlacementSnapshot> {
+        require_id(&caller_id, "caller_id")?;
+        let config_snapshot = self.store.read(MetaRead::DfsReplicationConfig).await?;
+        let replication = match config_snapshot.entity {
+            Some(MetaEntity::DfsReplicationConfig(config)) => config,
+            _ => return Err(invalid("DFS replication config is not initialized")),
+        };
+        let node_snapshot = self
+            .store
+            .read(MetaRead::CurrentNodeSession {
+                node_id: caller_id.clone(),
+            })
+            .await?;
+        let session = match node_snapshot.entity {
+            Some(MetaEntity::NodeSession(session)) if session.is_live_at_unix_ms(now_unix_ms()) => {
+                session
+            }
+            _ => return Err(conflict("DFS placement requires a live Node session")),
+        };
+        let targets = session
+            .storage_devices
+            .into_iter()
+            .map(|device| ReplicaTarget {
+                node_id: session.node_id.clone(),
+                node_epoch: session.lease_epoch,
+                data_endpoint: session.data_addr.clone(),
+                device,
+            })
+            .collect();
+        Ok(PlacementSnapshot {
+            revision: config_snapshot.revision.0.max(node_snapshot.revision.0),
+            replication,
+            replica_groups: vec![ReplicaGroup {
+                id: ReplicaGroupId::new(format!(
+                    "local:{}:{}",
+                    session.node_id, session.lease_epoch
+                )),
+                placement_epoch: session.lease_epoch,
+                targets,
+            }],
+        })
     }
 
     pub async fn lookup(
@@ -472,16 +573,16 @@ impl DfsService {
                 "FileVersion and LayoutRoot do not describe one file",
             ));
         }
+        let replication = self.current_replication_config().await?;
+        let mut accepted_copies = Vec::with_capacity(commit.chunk_receipts.len());
         for receipt in &commit.chunk_receipts {
-            if receipt.operation_id != commit.operation_id
-                || receipt.chunk.id != receipt.copy.chunk_id
-                || receipt.chunk.length != receipt.copy.persisted_bytes
-                || receipt.chunk.content_digest != receipt.copy.verified_digest
-                || receipt.copy.state != CopyState::Durable
-                || receipt.copy.node_id != caller_id
-            {
-                return Err(invalid("ChunkReceipt does not prove the referenced copy"));
+            if receipt.operation_id != commit.operation_id {
+                return Err(invalid("ChunkReceipt operation does not match commit"));
             }
+            accepted_copies.push(
+                self.validate_chunk_receipt(&caller_id, receipt, &replication)
+                    .await?,
+            );
         }
         let mut previous_end = 0;
         for extent in &commit.layout_root.inline_extents {
@@ -541,25 +642,57 @@ impl DfsService {
             TxnCondition::RequestAbsent(request),
             TxnCondition::EntityEquals(MetaEntity::DfsInode(current)),
             TxnCondition::EntityEquals(MetaEntity::DfsWriteLease(current_lease)),
+            TxnCondition::EntityEquals(MetaEntity::DfsReplicationConfig(replication.clone())),
             TxnCondition::Missing(MetaKey::DfsFileVersion(commit.file_version.id.clone())),
             TxnCondition::Missing(MetaKey::DfsLayoutRoot(commit.layout_root.id.clone())),
         ]);
-        for receipt in &commit.chunk_receipts {
+        for (receipt, copies) in commit.chunk_receipts.iter().zip(accepted_copies) {
             txn.mutations.push(TxnMutation::Put(MetaEntity::DfsChunk(
                 receipt.chunk.clone(),
             )));
-            txn.mutations
-                .push(TxnMutation::Put(MetaEntity::DfsCopy(receipt.copy.clone())));
+            for copy in &copies {
+                txn.mutations
+                    .push(TxnMutation::Put(MetaEntity::DfsCopy(copy.clone())));
+            }
+            let copy_ids = copies
+                .iter()
+                .map(|copy| copy.id.clone())
+                .collect::<Vec<_>>();
+            let health = if copies.len() >= usize::from(replication.desired_copies) {
+                PlacementHealth::Satisfied
+            } else {
+                PlacementHealth::UnderReplicated
+            };
             txn.mutations
                 .push(TxnMutation::Put(MetaEntity::DfsPlacement(
                     PlacementRecord {
                         chunk_id: receipt.chunk.id.clone(),
-                        policy_id: "local-r1".into(),
-                        replica_group_id: format!("r1:{}", receipt.copy.node_id),
-                        epoch: 1,
-                        copies: vec![receipt.copy.id.clone()],
+                        replica_group_id: receipt.replica_group_id.clone(),
+                        placement_epoch: receipt.placement_epoch,
+                        desired_copies: replication.desired_copies,
+                        copies: copy_ids.clone(),
+                        health,
                     },
                 )));
+            if copies.len() < usize::from(replication.desired_copies) {
+                txn.mutations
+                    .push(TxnMutation::Put(MetaEntity::DfsReplicationTask(
+                        ReplicationTask {
+                            id: ReplicationTaskId::new(format!(
+                                "repair:{}:{}",
+                                commit.operation_id.0, receipt.chunk.id.0
+                            )),
+                            chunk_id: receipt.chunk.id.clone(),
+                            placement_epoch: receipt.placement_epoch,
+                            desired_copies: replication.desired_copies,
+                            existing_copies: copy_ids,
+                            state: ReplicationTaskState::Pending,
+                            attempt: 0,
+                            next_retry_unix_ms: now_unix_ms(),
+                            last_error: None,
+                        },
+                    )));
+            }
         }
         txn.mutations.extend([
             TxnMutation::Put(MetaEntity::DfsLayoutRoot(commit.layout_root)),
@@ -571,6 +704,132 @@ impl DfsService {
             self.store.compare_and_commit(txn).await?,
             StoreOperation::DfsCommitFileVersion,
         )
+    }
+
+    async fn current_replication_config(&self) -> Result<ReplicationConfig> {
+        let snapshot = self.store.read(MetaRead::DfsReplicationConfig).await?;
+        match snapshot.entity {
+            Some(MetaEntity::DfsReplicationConfig(config)) if config == self.replication => {
+                Ok(config)
+            }
+            Some(MetaEntity::DfsReplicationConfig(_)) => Err(conflict(
+                "DFS replication config differs from the initialized filesystem",
+            )),
+            _ => {
+                self.initialize_replication_config().await?;
+                Ok(self.replication.clone())
+            }
+        }
+    }
+
+    async fn validate_chunk_receipt(
+        &self,
+        caller_id: &str,
+        receipt: &crate::dfs::ChunkReceipt,
+        replication: &ReplicationConfig,
+    ) -> Result<Vec<CopyRecord>> {
+        if receipt.placement_revision == 0
+            || receipt.placement_epoch == 0
+            || receipt.durable_acks.len() < usize::from(replication.sync_required_copies)
+        {
+            return Err(invalid(
+                "ChunkReceipt does not satisfy the initialized replication config",
+            ));
+        }
+
+        let mut nodes = HashSet::new();
+        let mut failure_domains = HashSet::new();
+        let mut copies = Vec::with_capacity(receipt.durable_acks.len());
+        let placement = self.placement_snapshot(caller_id.to_owned()).await?;
+        if placement.replication != *replication || receipt.placement_revision > placement.revision
+        {
+            return Err(conflict(
+                "ChunkReceipt does not match the current replication authority",
+            ));
+        }
+        let group = placement
+            .replica_groups
+            .iter()
+            .find(|group| group.id == receipt.replica_group_id)
+            .filter(|group| group.placement_epoch == receipt.placement_epoch)
+            .ok_or_else(|| conflict("ChunkReceipt references a stale ReplicaGroup"))?;
+        for ack in &receipt.durable_acks {
+            if ack.operation_id != receipt.operation_id
+                || ack.chunk_id != receipt.chunk.id
+                || ack.placement_revision != receipt.placement_revision
+                || ack.placement_epoch != receipt.placement_epoch
+                || ack.persisted_bytes != receipt.chunk.length
+                || ack.verified_digest != receipt.chunk.content_digest
+            {
+                return Err(invalid("ReplicaAck does not prove its ChunkReceipt"));
+            }
+            if !nodes.insert(ack.node_id.clone()) {
+                return Err(invalid(
+                    "ChunkReceipt contains duplicate Node acknowledgements",
+                ));
+            }
+            if !group.targets.iter().any(|target| {
+                target.node_id == ack.node_id
+                    && target.node_epoch == ack.node_epoch
+                    && target.device.device_id == ack.device_id
+                    && target.device.device_epoch == ack.device_epoch
+                    && target.device.catalog_revision == ack.catalog_revision
+            }) {
+                return Err(conflict(
+                    "ReplicaAck target is not assigned by the current ReplicaGroup",
+                ));
+            }
+            let session_snapshot = self
+                .store
+                .read(MetaRead::CurrentNodeSession {
+                    node_id: ack.node_id.clone(),
+                })
+                .await?;
+            let session = match session_snapshot.entity {
+                Some(MetaEntity::NodeSession(session))
+                    if session.lease_epoch == ack.node_epoch
+                        && session.is_live_at_unix_ms(now_unix_ms()) =>
+                {
+                    session
+                }
+                _ => return Err(conflict("ReplicaAck references a stale Node epoch")),
+            };
+            let device = session
+                .storage_devices
+                .iter()
+                .find(|device| {
+                    device.device_id == ack.device_id
+                        && device.device_epoch == ack.device_epoch
+                        && device.catalog_revision == ack.catalog_revision
+                })
+                .ok_or_else(|| conflict("ReplicaAck references a stale storage device"))?;
+            failure_domains.insert(device.failure_domain.clone());
+            copies.push(CopyRecord {
+                id: CopyId::new(format!(
+                    "{}:{}:{}:{}",
+                    ack.node_id, ack.node_epoch, ack.device_id, receipt.chunk.id.0
+                )),
+                chunk_id: receipt.chunk.id.clone(),
+                node_id: ack.node_id.clone(),
+                node_epoch: ack.node_epoch,
+                device_id: ack.device_id.clone(),
+                device_epoch: ack.device_epoch,
+                catalog_revision: ack.catalog_revision,
+                state: CopyState::DurableReplica,
+                persisted_bytes: ack.persisted_bytes,
+                verified_digest: ack.verified_digest.clone(),
+            });
+        }
+
+        if nodes.len() < usize::from(replication.min_distinct_nodes)
+            || failure_domains.len() < usize::from(replication.min_distinct_failure_domains)
+            || (replication.local_copy == LocalCopyPolicy::Required && !nodes.contains(caller_id))
+        {
+            return Err(invalid(
+                "ChunkReceipt does not satisfy Node, failure-domain or local-copy constraints",
+            ));
+        }
+        Ok(copies)
     }
 
     async fn validate_write_lease(

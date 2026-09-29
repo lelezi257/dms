@@ -1,8 +1,8 @@
 syntax = "proto3";
 package afs.node.data.v1;
 
-// Node 的 data 面同时承载传输诊断和文件业务命令；OwnerFiles 与未来
-// DFS 服务各自保持独立 service/消息，Handler 不与诊断 Storage 混用。
+// Node 的 data 面同时承载传输诊断和文件业务命令；OwnerFiles 与 DfsChunks
+// 各自保持独立 service/消息，Handler 不与诊断 Storage 混用。
 // 控制面的根授权由 Meta 协调，传输会话由 node_control.proto 管理。
 
 // 仅选择内容搬运方式；RDMA 不取代 gRPC 文件命令或业务成功回复。
@@ -42,6 +42,79 @@ message DataWriteRequest {
 
 message DataWriteReply {
   uint32 written = 1;
+}
+
+// DistributedFs replica commands. gRPC streaming and one-sided RDMA are two
+// byte movers below the same immutable Chunk/ReplicaAck state machine.
+service DfsChunks {
+  rpc PutReplicaStream(stream DfsPutReplicaFrame) returns (DfsPutReplicaReply);
+  rpc PutReplicaRdma(DfsPutReplicaRdmaRequest) returns (DfsPutReplicaReply);
+  rpc ConfirmReplica(DfsConfirmReplicaRequest) returns (DfsReplicaAck);
+}
+
+message DfsPutReplicaHeader {
+  string operation_id = 1;
+  string chunk_id = 2;
+  uint64 chunk_length = 3;
+  bytes content_digest = 4;
+  uint64 placement_revision = 5;
+  uint64 placement_epoch = 6;
+  string replica_group_id = 7;
+  repeated DfsReplicaTarget ordered_targets = 8;
+}
+
+message DfsStorageDevice {
+  string device_id = 1;
+  uint64 device_epoch = 2;
+  uint64 catalog_revision = 3;
+  string failure_domain = 4;
+}
+
+message DfsReplicaTarget {
+  string node_id = 1;
+  uint64 node_epoch = 2;
+  string data_endpoint = 3;
+  DfsStorageDevice device = 4;
+}
+
+message DfsReplicaAck {
+  string operation_id = 1;
+  string chunk_id = 2;
+  uint64 placement_revision = 3;
+  uint64 placement_epoch = 4;
+  string node_id = 5;
+  uint64 node_epoch = 6;
+  string device_id = 7;
+  uint64 device_epoch = 8;
+  uint64 catalog_revision = 9;
+  uint64 persisted_bytes = 10;
+  bytes verified_digest = 11;
+}
+
+message DfsPutReplicaFrame {
+  oneof body {
+    DfsPutReplicaHeader header = 1;
+    bytes data = 2;
+  }
+}
+
+message DfsPutReplicaRdmaRequest {
+  DfsPutReplicaHeader header = 1;
+  uint64 rdma_session_id = 2;
+  uint64 region_offset = 3;
+  uint64 length = 4;
+}
+
+message DfsPutReplicaReply {
+  repeated DfsReplicaAck durable_acks = 1;
+}
+
+message DfsConfirmReplicaRequest {
+  string operation_id = 1;
+  string chunk_id = 2;
+  bytes expected_digest = 3;
+  uint64 placement_revision = 4;
+  uint64 placement_epoch = 5;
 }
 
 // OwnerFiles 是 OwnerFs 的远端文件数据面合同。

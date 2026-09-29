@@ -1,8 +1,8 @@
-//! Local immutable chunk lifecycle for the DFS R=1 data path.
+//! Local immutable chunk lifecycle shared by every DFS replica.
 //!
 //! `ChunkBuilder` accepts stream-like FUSE write fragments. `LocalChunkStore`
-//! finalizes one complete byte range with an atomic rename and directory fsync,
-//! then returns the receipt that Meta requires before publishing FileVersion.
+//! finalizes one complete byte range with an atomic rename and directory fsync.
+//! Replication coordination and Meta receipt construction live above this file.
 
 use std::{
     fs::{self, File, OpenOptions},
@@ -14,9 +14,11 @@ use std::{
 use afs_error::{Error, Result};
 
 use crate::dfs::{
-    ChunkEncoding, ChunkId, ChunkObject, ChunkReceipt, ContentDigest, CopyId, CopyRecord,
-    CopyState, DurabilityPolicy, OperationId,
+    ChunkEncoding, ChunkId, ChunkObject, ChunkReceipt, ContentDigest, OperationId, ReplicaAck,
+    ReplicaTarget,
 };
+#[cfg(test)]
+use crate::dfs::{ReplicaGroupId, StorageDeviceDescriptor};
 
 #[derive(Debug, Default)]
 pub struct ChunkBuilder {
@@ -43,9 +45,20 @@ impl ChunkBuilder {
     }
 
     pub fn stage(&self, operation_id: OperationId) -> StagedChunk {
+        let content_digest = digest(&self.bytes);
+        let chunk = ChunkObject {
+            id: ChunkId::new(format!(
+                "{}-{}",
+                digest_hex(&content_digest),
+                self.bytes.len()
+            )),
+            length: self.bytes.len() as u64,
+            content_digest,
+            encoding: ChunkEncoding::Raw,
+        };
         StagedChunk {
             operation_id,
-            content_digest: digest(&self.bytes),
+            chunk,
             bytes: self.bytes.clone(),
         }
     }
@@ -70,12 +83,18 @@ impl ChunkBuilder {
 #[derive(Debug)]
 pub struct StagedChunk {
     pub operation_id: OperationId,
-    pub content_digest: ContentDigest,
+    pub chunk: ChunkObject,
     bytes: Vec<u8>,
 }
 
+impl StagedChunk {
+    pub fn bytes(&self) -> &[u8] {
+        &self.bytes
+    }
+}
+
 pub trait ChunkStore: Send + Sync {
-    fn put(&self, staged: StagedChunk, policy: &DurabilityPolicy) -> Result<ChunkReceipt>;
+    fn put(&self, staged: StagedChunk) -> Result<ChunkReceipt>;
     fn read_at(&self, chunk_id: &ChunkId, offset: u64, out: &mut [u8]) -> Result<usize>;
     fn read_all(&self, chunk_id: &ChunkId) -> Result<Vec<u8>>;
     fn verify(&self, chunk_id: &ChunkId, expected: &ContentDigest) -> Result<()>;
@@ -109,19 +128,21 @@ impl LocalChunkStore {
     fn chunk_path(&self, id: &ChunkId) -> PathBuf {
         self.chunks.join(&id.0)
     }
-}
 
-impl ChunkStore for LocalChunkStore {
-    fn put(&self, staged: StagedChunk, policy: &DurabilityPolicy) -> Result<ChunkReceipt> {
-        if policy.required_copies != 1 {
-            return Err(Error::coded(
-                afs_error::NODE_VFS_UNIMPLEMENTED,
-                "R=1 LocalChunkStore cannot satisfy a multi-copy policy",
+    pub fn persist(
+        &self,
+        staged: &StagedChunk,
+        target: &ReplicaTarget,
+        placement_revision: u64,
+        placement_epoch: u64,
+    ) -> Result<ReplicaAck> {
+        if target.node_id != self.node_id || target.device.device_id != self.device_id {
+            return Err(invalid(
+                "replica target does not identify this local chunk store",
             ));
         }
-        let digest_hex = digest_hex(&staged.content_digest);
-        let chunk_id = ChunkId::new(format!("{}-{}", digest_hex, staged.bytes.len()));
-        let final_path = self.chunk_path(&chunk_id);
+        let digest_hex = digest_hex(&staged.chunk.content_digest);
+        let final_path = self.chunk_path(&staged.chunk.id);
         if !final_path.exists() {
             let temp_path = self.staging.join(format!(
                 "{}.{}.{}.tmp",
@@ -147,30 +168,23 @@ impl ChunkStore for LocalChunkStore {
                 .and_then(|directory| directory.sync_all())
                 .map_err(Error::from)?;
         }
-        self.verify(&chunk_id, &staged.content_digest)?;
-        let chunk = ChunkObject {
-            id: chunk_id.clone(),
-            length: staged.bytes.len() as u64,
-            content_digest: staged.content_digest.clone(),
-            encoding: ChunkEncoding::Raw,
-        };
-        let copy = CopyRecord {
-            id: CopyId::new(format!("{}:{}", self.node_id, chunk_id.0)),
-            chunk_id,
-            node_id: self.node_id.clone(),
-            device_id: self.device_id.clone(),
-            state: CopyState::Durable,
-            persisted_bytes: chunk.length,
-            verified_digest: chunk.content_digest.clone(),
-        };
-        Ok(ChunkReceipt {
-            operation_id: staged.operation_id,
-            chunk,
-            copy,
+        self.verify(&staged.chunk.id, &staged.chunk.content_digest)?;
+        Ok(ReplicaAck {
+            operation_id: staged.operation_id.clone(),
+            chunk_id: staged.chunk.id.clone(),
+            placement_revision,
+            placement_epoch,
+            node_id: target.node_id.clone(),
+            node_epoch: target.node_epoch,
+            device_id: target.device.device_id.clone(),
+            device_epoch: target.device.device_epoch,
+            catalog_revision: target.device.catalog_revision,
+            persisted_bytes: staged.chunk.length,
+            verified_digest: staged.chunk.content_digest.clone(),
         })
     }
 
-    fn read_at(&self, chunk_id: &ChunkId, offset: u64, out: &mut [u8]) -> Result<usize> {
+    pub fn read_at(&self, chunk_id: &ChunkId, offset: u64, out: &mut [u8]) -> Result<usize> {
         let bytes = fs::read(self.chunk_path(chunk_id)).map_err(Error::from)?;
         let actual_digest = digest(&bytes);
         let actual_id = ChunkId::new(format!("{}-{}", digest_hex(&actual_digest), bytes.len()));
@@ -192,11 +206,11 @@ impl ChunkStore for LocalChunkStore {
         Ok(count)
     }
 
-    fn read_all(&self, chunk_id: &ChunkId) -> Result<Vec<u8>> {
+    pub fn read_all(&self, chunk_id: &ChunkId) -> Result<Vec<u8>> {
         fs::read(self.chunk_path(chunk_id)).map_err(Error::from)
     }
 
-    fn verify(&self, chunk_id: &ChunkId, expected: &ContentDigest) -> Result<()> {
+    pub fn verify(&self, chunk_id: &ChunkId, expected: &ContentDigest) -> Result<()> {
         let bytes = self.read_all(chunk_id)?;
         if digest(&bytes) != *expected {
             return Err(Error::coded(
@@ -205,6 +219,47 @@ impl ChunkStore for LocalChunkStore {
             ));
         }
         Ok(())
+    }
+}
+
+// Unit tests below the replication layer keep using the concrete local store.
+// Production wiring always wraps it in `DfsChunkStore`, where authoritative
+// placement and the filesystem-wide replication contract are enforced.
+#[cfg(test)]
+impl ChunkStore for LocalChunkStore {
+    fn put(&self, staged: StagedChunk) -> Result<ChunkReceipt> {
+        let target = ReplicaTarget {
+            node_id: self.node_id.clone(),
+            node_epoch: 1,
+            data_endpoint: String::new(),
+            device: StorageDeviceDescriptor {
+                device_id: self.device_id.clone(),
+                device_epoch: 1,
+                catalog_revision: 0,
+                failure_domain: self.node_id.clone(),
+            },
+        };
+        let ack = self.persist(&staged, &target, 1, 1)?;
+        Ok(ChunkReceipt {
+            operation_id: staged.operation_id,
+            chunk: staged.chunk,
+            placement_revision: 1,
+            placement_epoch: 1,
+            replica_group_id: ReplicaGroupId::new(format!("local:{}", self.node_id)),
+            durable_acks: vec![ack],
+        })
+    }
+
+    fn read_at(&self, chunk_id: &ChunkId, offset: u64, out: &mut [u8]) -> Result<usize> {
+        LocalChunkStore::read_at(self, chunk_id, offset, out)
+    }
+
+    fn read_all(&self, chunk_id: &ChunkId) -> Result<Vec<u8>> {
+        LocalChunkStore::read_all(self, chunk_id)
+    }
+
+    fn verify(&self, chunk_id: &ChunkId, expected: &ContentDigest) -> Result<()> {
+        LocalChunkStore::verify(self, chunk_id, expected)
     }
 }
 

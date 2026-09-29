@@ -1,7 +1,7 @@
 # 专题三：单副本与多副本写入状态机
 
 状态：Accepted Design
-实现状态：R=1 Local Fast Path 已实现；RN、异步补副本与重配置未实现
+实现状态：副本基础框架已实现；R1 可执行；RN 远端搬运、异步 worker 与完整 placement 尚未实现
 专题入口：[架构设计专题](design-topics.md)
 规范合同：[RFC-0004](../rfcs/0004-replication-state-machine.md)
 数据模型：[RFC-0002](../rfcs/0002-file-version-chunk-model.md)
@@ -9,7 +9,7 @@
 
 ## 1. 目标
 
-本专题定义 `ChunkStore::put` 以下的副本协议，使同一个 FileVersion 提交流程可以使用本地单副本、同步多副本和异步补副本策略。副本数量由策略配置，不在协议中写死为一份或三份。
+本专题定义 `ChunkStore::put` 以下的副本协议，使同一个 FileVersion 提交流程可以使用本地单副本、同步多副本和异步补副本。副本数量由文件系统初始化配置决定，不在协议中写死为一份或三份。
 
 ```text
 CommitBatch
@@ -18,7 +18,7 @@ CommitBatch
 StagedChunk
     │
     ▼
-ChunkStore::put(policy)
+ChunkStore::put
     ├── Local Fast Path
     └── Replication Path
     │
@@ -43,8 +43,8 @@ FileVersion CAS
 ## 3. 核心结论
 
 1. R=1 与 RN 在副本协调层是两条不同执行路径；在单节点落盘层复用同一个 LocalChunkStore；在 FileVersion 提交层重新汇合。
-2. 副本数是 DurabilityPolicy 参数。R1、R2、R3、R4 都是策略实例，不是硬编码协议分支。
-3. Meta 维护权威 PlacementSnapshot、PolicyRevision、PlacementEpoch 和节点代际；Node 根据缓存快照为具体 Chunk 生成临时 ReplicationPlan。
+2. 整个文件系统只有一份不可在线修改的 ReplicationConfig。R1、R2、R3、R4 是不同初始化值，不是 inode 级策略。
+3. Meta 维护权威 PlacementSnapshot、PlacementRevision、PlacementEpoch 和节点代际；Node 根据缓存快照为具体 Chunk 生成临时 ReplicationPlan。
 4. RN 的 Chain 是 ReplicationEngine 的传输拓扑，不是文件布局或 Chunk 身份的一部分。
 5. 同步副本完成只产生 ChunkReceipt；只有 Meta CAS 推进 inode head 后，新 FileVersion 才对 committed read 可见。
 6. AFS 的 ChunkObject 不可变，因此不复制 3FS CRAQ 的可变 Chunk pending/committed 版本切换；保留流水转发、反向 durable ACK、epoch fencing、幂等重试和 repair gating。
@@ -52,9 +52,9 @@ FileVersion CAS
 
 ## 4. 两个完成边界
 
-### 4.1 PolicySatisfied
+### 4.1 ReplicationSatisfied
 
-一个 Chunk 的物理副本已经满足本次 DurabilityPolicy：
+一个 Chunk 的物理副本已经满足文件系统 ReplicationConfig 的同步门槛：
 
 - 本地单副本策略：一个本地副本完成；
 - 同步 N 副本策略：N 个符合故障域要求的副本完成；
@@ -67,24 +67,22 @@ FileVersion CAS
 Meta 在一个事务中校验 ChunkReceipt，创建或引用 ChunkObject、CopyRecord、PlacementRecord、LayoutRoot 和 FileVersion，并推进 `InodeRecord.head_version`。异步策略还必须在同一事务中登记 ReplicationTask。
 
 ```text
-PolicySatisfied
+ReplicationSatisfied
       ≠
 FileVersion visible
 ```
 
 只有 `MetaCommitted` 后，普通 committed read、Snapshot、Pin 和 P2P seed discovery 才能发现该文件版本及其 Copy。
 
-## 5. DurabilityPolicy
+## 5. 文件系统级 ReplicationConfig
 
 ```text
-DurabilityPolicy {
-  policy_id
-  policy_revision
+ReplicationConfig {
   desired_copies
   sync_required_copies
   min_distinct_nodes
   min_distinct_failure_domains
-  local_copy: Required | Preferred | None
+  local_copy: Required | Preferred | NotRequired
 }
 ```
 
@@ -92,11 +90,12 @@ DurabilityPolicy {
 
 - `1 <= sync_required_copies <= desired_copies`；
 - 同一个 Node 上的多个磁盘副本不能满足 `min_distinct_nodes > 1`；
-- 只有符合策略声明故障域的 ReplicaAck 才能计数；
+- 只有符合系统配置声明故障域的 ReplicaAck 才能计数；
 - `local_copy=Required` 时，调用 Node 的本地副本必须属于同步完成集合；
-- PolicyRevision 变化后，旧 revision 的完成证明不能自动满足新策略。
+- Meta 初始化文件系统时持久化唯一配置；后续启动值必须完全相同；
+- 修改配置需要停止并重新初始化文件系统，不提供动态 policy revision。
 
-常用策略只是配置别名：
+下表是常见初始化值：
 
 | 别名 | desired | sync required | local | 同步返回语义 |
 | --- | ---: | ---: | --- | --- |
@@ -107,7 +106,7 @@ DurabilityPolicy {
 | `LOCAL_ASYNC_R3` | 3 | 1 | Required | 本地一份完成，后台补到三份 |
 | `ASYNC_4_SYNC_2` | 4 | 2 | Preferred | 两份同步完成，后台补到四份 |
 
-核心协议基于 `desired_copies/sync_required_copies`，不能出现只识别 1 或 3 的分支。第一版可以只开放少量经过验证的策略别名，但持久类型和校验逻辑必须支持一般的 N/M。
+核心协议基于 `desired_copies/sync_required_copies`，不能出现只识别 1 或 3 的分支。当前执行能力只开放 R1；持久类型、RPC 和校验逻辑已经按一般 N/M 建模，RN 数据搬运完成后无需修改文件层。
 
 ## 6. R=1 与 RN 的分叉和复用
 
@@ -116,7 +115,7 @@ DurabilityPolicy {
                          │
                     StagedChunk
                          │
-              ChunkStore::put(policy)
+              ChunkStore::put
                          │
               ┌──────────┴──────────┐
               │                     │
@@ -167,20 +166,20 @@ RN 中每个节点仍执行同一个本地持久化原语。ReplicationEngine �
 
 ```text
 PlacementSnapshot {
-  snapshot_revision
-  policies
-  replica_groups
-  node_health
-  node_epochs
-  device_epochs
-  placement_epochs
+  revision
+  replication: ReplicationConfig
+  replica_groups[] {
+    replica_group_id
+    placement_epoch
+    targets[]
+  }
 }
 ```
 
 Meta 决定：
 
 - ReplicaGroup 的成员和故障域；
-- PolicyRevision 与 PlacementEpoch；
+- PlacementRevision 与 PlacementEpoch；
 - 节点、设备的当前代际和服务资格；
 - 哪些 Target 可以计入同步可靠性或作为 repair source。
 
@@ -190,14 +189,12 @@ ChunkId 生成后，Node 使用缓存的 PlacementSnapshot 计算：
 
 ```text
 ReplicationPlan {
-  operation_id
   chunk_id
-  policy_id
-  policy_revision
+  placement_revision
   placement_epoch
   replica_group_id
+  config
   ordered_targets
-  sync_required_acks
 }
 ```
 
@@ -211,7 +208,7 @@ cold path: Node ──fetch──> PlacementSnapshot
 hot path:  ChunkId
               → derive ReplicationPlan locally
               → replicate
-              → Meta validates policy/epoch/acks at FileVersion CAS
+              → Meta validates config/epoch/acks at FileVersion CAS
 ```
 
 Peer 返回 stale epoch 或 Meta 拒绝旧 epoch 时，Node 刷新 PlacementSnapshot、重新生成 ReplicationPlan 并按同一个 OperationId 重试。
@@ -224,10 +221,13 @@ Peer 返回 stale epoch 或 Meta 拒绝旧 epoch 时，Node 刷新 PlacementSnap
 ReplicaTarget {
   node_id
   node_epoch
-  device_id
-  device_epoch
-  failure_domain
-  role
+  data_endpoint
+  device {
+    device_id
+    device_epoch
+    catalog_revision
+    failure_domain
+  }
 }
 ```
 
@@ -237,12 +237,13 @@ ReplicaTarget {
 ReplicaAck {
   operation_id
   chunk_id
-  policy_revision
+  placement_revision
   placement_epoch
   node_id
   node_epoch
   device_id
   device_epoch
+  catalog_revision
   persisted_bytes
   verified_digest
 }
@@ -256,9 +257,9 @@ ReplicaAck 是 Peer 协议上的物理完成证明，不是 Meta 的长期 CopyR
 ChunkReceipt {
   operation_id
   chunk
-  policy_id
-  policy_revision
+  placement_revision
   placement_epoch
+  replica_group_id
   durable_acks: Vec<ReplicaAck>
 }
 ```
@@ -270,12 +271,11 @@ ChunkReceipt 证明本次 `ChunkStore::put` 已经满足同步策略。FileVersi
 ```text
 PlacementRecord {
   chunk_id
-  policy_id
-  policy_revision
   replica_group_id
   placement_epoch
-  desired_targets
-  achieved_copies
+  desired_copies
+  copies
+  health
 }
 ```
 
@@ -304,13 +304,13 @@ Meta 校验 ReplicaAck 后创建或更新 CopyRecord。ACK 可以因为 FileVers
 ReplicationTask {
   task_id
   chunk_id
-  source_candidates
-  target_constraints
   placement_epoch
-  reason: AsyncFill | Repair | Rebalance
+  desired_copies
+  existing_copies
   state
-  operation_id
-  retry_state
+  attempt
+  next_retry_unix_ms
+  last_error
 }
 ```
 
@@ -335,13 +335,9 @@ Absent
 DurableReplica
   ├──→ Corrupt
   └──→ Deleting
-
-VerifiedCache
-  └──→ Deleting
 ```
 
 - Staging 数据不进入 Meta，不读、不 seed、不计入可靠性；
-- VerifiedCache 可以读和 seed，但不自动计入 durable replica 数；
 - DurableReplica 可以读、seed，并按策略计入可靠性；
 - Node 或 Device 暂时不可达由健康状态派生，不需要批量改写每个 CopyRecord。
 
@@ -350,14 +346,14 @@ VerifiedCache
 ```text
 Planned
   → Replicating
-  → PolicySatisfied
+  → ReplicationSatisfied
   → MetaCommitted
 
 Replicating
   ├──→ Retryable
   └──→ Aborted
 
-PolicySatisfied
+ReplicationSatisfied
   └──→ Orphaned     // FileVersion CAS 最终未引用
 ```
 
@@ -366,15 +362,14 @@ PolicySatisfied
 ```text
 Pending
   → Running
-  → Complete
+  → Completed
 
 Running
-  ├──→ RetryWait ──→ Running
-  ├──→ Retargeting ──→ Running
+  ├──→ RetryWaiting ──→ Running
   └──→ BlockedNoSource
 ```
 
-目标节点失败、容量不足和网络超时通常进入 RetryWait 或 Retargeting。只有没有任何有效源时进入 BlockedNoSource。
+目标节点失败、容量不足和网络超时通常进入 RetryWaiting。只有没有任何有效源时进入 BlockedNoSource。
 
 ## 10. Case 1：`/model.bin` 使用本地单副本
 
@@ -401,12 +396,12 @@ RPC 预算：
 ```text
 Peer data hop: 0
 Meta transaction: 1 per CommitBatch
-Placement RPC: 0 on hot path
+Placement RPC: first use 1, cache hit 0
 ```
 
 ## 11. Case 2：`/snapshot.img` 使用同步 N 副本
 
-以 N=3 的一个策略实例说明，具体 N 可配置。对同一个 Chunk C28：
+以 N=3 的一个配置实例说明，具体 N 可配置。对同一个 Chunk C28：
 
 ```text
 A → B → C
@@ -441,7 +436,7 @@ meta                                                               V8
 
 ### 11.2 本地优先不是串行等待
 
-本地优先表示 Placement 包含当前计算节点，并以本地节点作为写入入口。实现使用 frame pipeline：
+本地优先表示 Placement 包含当前计算节点，并以本地节点作为写入入口。gRPC data plane 可以使用 frame pipeline：
 
 ```text
 frame 1: A 写本地并转发 B
@@ -450,7 +445,7 @@ frame 2: A 写本地并转发 B；B 写本地并转发 C
 EOF:     各节点校验、fsync、finalize
 ```
 
-不能先完整写完 A，再顺序复制完整文件到 B、C。
+RDMA data plane 使用已协商的内存描述符和单边搬运，不具有 frame stream 语义。两者都不应退化为“先完整写完 A，再顺序复制完整文件到 B、C”。
 
 ### 11.3 ACK 聚合
 
@@ -460,11 +455,11 @@ B durable + C ACK → ACK to A
 A durable + downstream ACKs → ChunkReceipt
 ```
 
-反向 ACK 可以沿同一 request/response stream 返回。它证明副本完成，不触发第二轮 Chunk 内容版本切换。
+gRPC 的 ACK 可以由原流式请求返回；RDMA 在 DMA completion 之后通过业务确认消息返回 ACK。ACK 证明目标端完成校验、fsync、finalize 和 catalog 更新，不触发第二轮 Chunk 内容版本切换。
 
 ### 11.4 FileVersion 提交
 
-只有 `sync_required_copies` 个有效 ACK 满足 PolicyRevision、PlacementEpoch、NodeEpoch、DeviceEpoch 和故障域约束后，Node 才能将 ChunkReceipt 放入 FileVersion CAS。CommitBatch 中任一 Chunk 未满足策略，整个新 FileVersion 都不能推进 head。
+只有 `sync_required_copies` 个有效 ACK 满足 PlacementRevision、PlacementEpoch、NodeEpoch、DeviceEpoch 和故障域约束后，Node 才能将 ChunkReceipt 放入 FileVersion CAS。CommitBatch 中任一 Chunk 未满足系统配置，整个新 FileVersion 都不能推进 head。
 
 以 N=3 Chain 为例：
 
@@ -542,7 +537,7 @@ Meta 提交 V8 时必须在同一事务中写入：
 
 ### 13.3 唯一有效源永久损坏
 
-FileVersion 和 ChunkObject 元数据仍然存在，但没有可用数据源。任务进入 BlockedNoSource，后续读取返回 EIO，不能返回空数据、旧版本或未校验数据。过去已经成功的 fsync 不被追溯改写；它当时只承诺策略声明的一份同步副本。
+FileVersion 和 ChunkObject 元数据仍然存在，但没有可用数据源。任务进入 BlockedNoSource，后续读取返回 EIO，不能返回空数据、旧版本或未校验数据。过去已经成功的 fsync 不被追溯改写；它当时只承诺系统配置声明的一份同步副本。
 
 ## 14. Read、Seed 与 Repair 规则
 
@@ -561,7 +556,7 @@ FileVersion 和 ChunkObject 元数据仍然存在，但没有可用数据源。�
 | FileVersionId | 文件内容版本 | 固定读取视图 |
 | ChunkId | Chunk 内容 | 内容变化产生新身份 |
 | WriteLeaseEpoch | inode owner | 拒绝旧 owner 提交 |
-| PolicyRevision | 持久性策略 | 拒绝旧策略证明 |
+| PlacementRevision | placement 快照 | 拒绝旧路由证明 |
 | PlacementEpoch | 副本拓扑 | 拒绝旧成员和旧顺序提交 |
 | NodeEpoch | Node 实例 | 拒绝节点重启前的 ACK |
 | DeviceEpoch | 存储设备实例 | 拒绝重建或重新格式化前的 ACK |
@@ -571,9 +566,9 @@ FileVersion 和 ChunkObject 元数据仍然存在，但没有可用数据源。�
 
 同一个 OperationId 的重试必须满足：
 
-- 相同 ChunkId 和策略返回相同已知结果；
+- 相同 ChunkId 和 placement 返回相同已知结果；
 - 同一 Target 已经完成时返回缓存 ReplicaAck，不重复写入；
-- OperationId 被用于不同 ChunkId 或策略时拒绝；
+- OperationId 被用于不同 ChunkId 时拒绝；
 - Meta CAS 响应丢失时可以查询 OperationOutcome；
 - NodeEpoch 或 DeviceEpoch 变化后，旧 ACK 不再有效。
 
@@ -598,7 +593,7 @@ new content = C28
 | ReliableUpdate request identity | OperationId |
 | storage target generation | NodeEpoch / DeviceEpoch |
 | Tail→Head commit | Tail→Head durable ACK |
-| write-all/read-any | policy satisfied / fixed ChunkId read-any |
+| write-all/read-any | replication satisfied / fixed ChunkId read-any |
 | SYNCING target | per-copy Repair/ReplicaAck/CopyRecord gating |
 
 AFS 保留：
@@ -656,7 +651,7 @@ AFS 不采用：
 
 ```text
 ┌──────────────────────────── Meta ────────────────────────────┐
-│ DurabilityPolicy        PlacementSnapshot / PlacementRecord │
+│ ReplicationConfig        PlacementSnapshot / PlacementRecord │
 │ CopyRecord              ReplicationTask                     │
 │ FileVersion CAS         OperationOutcome                    │
 └──────────────────────────────▲───────────────────────────────┘
@@ -674,7 +669,7 @@ AFS 不采用：
 
 保留的抽象：
 
-- DurabilityPolicy：定义同步完成承诺；
+- ReplicationConfig：定义文件系统级同步完成承诺，初始化后不可在线修改；
 - PlacementSnapshot/PlacementEpoch：定义权威拓扑；
 - ReplicationPlan：定义单次 Node 执行计划；
 - ReplicaAck：Peer wire 完成证明；
@@ -693,33 +688,39 @@ AFS 不采用：
 - Meta 中的 StagedChunk；
 - 每条 Chain 专属的业务连接对象。
 
-## 20. 当前实现差距
+## 20. 当前实现边界
 
-当前 R=1 实现具有 LocalChunkStore、StagedChunk、单 Copy ChunkReceipt 和 FileVersion CAS，但：
+已经实现：
 
-- DurabilityPolicy 只有 `required_copies`；
-- LocalChunkStore 拒绝非单副本策略；
-- ChunkReceipt 直接嵌入一个 CopyRecord；
-- Meta 要求 Copy 属于提交调用者；
-- PlacementRecord 被硬编码成 `local-r1` 和 epoch 1；
-- 没有 ReplicationEngine、ReplicaAck、ReplicationTask、PlacementSnapshot 缓存和 Peer Chunk 写协议。
+- Meta 初始化并持久化唯一 ReplicationConfig，后续启动配置不一致时拒绝；
+- Node 注册 storage device，Meta 返回 PlacementSnapshot，Node 缓存快照；
+- DfsChunkStore 在 R1 Local Fast Path 和 RN ReplicationEngine 之间分叉；
+- ReplicaTarget、ReplicationPlan、ReplicaAck、ChunkReceipt、CopyRecord、PlacementRecord 和 ReplicationTask 数据结构；
+- Meta 在 FileVersion CAS 同一事务中校验 ACK 并写入副本目录及欠副本任务；
+- gRPC stream 与 RDMA one-sided 两个 ReplicaDataPlane adapter，以及 DfsChunks 入站 RPC 骨架；
+- RN 未实现时在任何本地或远端副本副作用前返回错误。
 
-这些限制只描述当前实现能力，不改变本文接受的合同。
+尚未实现：
+
+- 多节点 placement 选择、健康信息和 watch 刷新；
+- RN 远端传输、目标端 staging/finalize、幂等 replay；
+- 异步补副本、Repair 和 Rebalance worker；
+- Copy read/seed 选择与管理 API。
 
 ## 21. 验收标准
 
 ### 21.1 功能
 
-- N=1、2、3、4 的同步策略使用同一个 DurabilityPolicy 和 ChunkReceipt 合同；
+- N=1、2、3、4 的同步配置使用同一个 ReplicationConfig 和 ChunkReceipt 合同；
 - R=1 不访问 Peer，多副本不改变 FileVersion 和 Extent 接口；
-- 同步 N 副本只有满足策略后才能提交 FileVersion；
+- 同步 N 副本只有满足系统配置后才能提交 FileVersion；
 - Local+Async 的 FileVersion、当前 Copy 和 ReplicationTask 在一个 Meta 事务中提交；
 - 读取固定 FileVersion/ChunkId，并可从任一合格 Copy 读取。
 
 ### 21.2 故障
 
 - Head、Middle、Tail 在 receive、finalize、ACK 和 Meta CAS 前后退出均有确定结果；
-- stale PolicyRevision、PlacementEpoch、NodeEpoch 和 DeviceEpoch 被拒绝；
+- stale PlacementRevision、PlacementEpoch、NodeEpoch 和 DeviceEpoch 被拒绝；
 - response lost 按 OperationId 返回原结果；
 - 多 Chunk 部分完成不能产生半个 FileVersion；
 - UnderReplicated、BlockedNoSource、Corrupt 和 Repair promotion 可以自动化验证。
@@ -727,7 +728,7 @@ AFS 不采用：
 ### 21.3 性能与可观测性
 
 - R=1 保持无 Peer 的 Local Fast Path；
-- RN 使用长连接和 frame pipeline，不按 Chunk 建连；
+- RN 复用长连接；gRPC 使用 frame pipeline，RDMA 使用已协商 MR，不按 Chunk 建连；
 - Placement 缓存命中时每个 Chunk 没有 Meta 路由 RPC；
 - 指标分别统计逻辑 put、Peer exchange、Data Hop、Meta transaction、retry、under-replicated age 和 repair throughput；
 - N=2、3、4 分别报告吞吐、p50/p95/p99、网络放大和本地磁盘开销。

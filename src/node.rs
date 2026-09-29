@@ -14,6 +14,8 @@
 pub mod api;
 pub mod chunk;
 pub mod fuse;
+#[cfg(feature = "dfs")]
+pub mod replication;
 pub mod rpc;
 pub mod storage;
 pub mod vfs;
@@ -140,6 +142,16 @@ pub async fn run(cfg: Config, obs: Observability) -> Result<(), BoxError> {
                 labels: std::collections::HashMap::new(),
                 capabilities,
                 session_id: session_id.clone(),
+                storage_devices: if cfg.dfs {
+                    vec![afs_protocol::meta::DfsStorageDevice {
+                        device_id: "local-0".into(),
+                        device_epoch: 1,
+                        catalog_revision: 0,
+                        failure_domain: cfg.id.clone(),
+                    }]
+                } else {
+                    Vec::new()
+                },
             },
         )
     });
@@ -204,12 +216,23 @@ pub async fn run(cfg: Config, obs: Observability) -> Result<(), BoxError> {
             cfg.data_dir.join("dfs"),
             cfg.id.clone(),
         )?);
+        let data_mode = match cfg.data_mode.as_str() {
+            "grpc" => rpc::peer::DataMode::Grpc,
+            "rdma" => rpc::peer::DataMode::Rdma,
+            _ => rpc::peer::DataMode::Auto,
+        };
+        let chunk_store = Arc::new(replication::DfsChunkStore::new(
+            cfg.id.clone(),
+            chunks,
+            meta.clone(),
+            rpc::peer::make_replica_data_plane(data_mode),
+        ));
         Some(Arc::new(vfs::dfs::DistributedFs::new(
             namespace,
             cfg.id.clone(),
             session_id.clone(),
             meta,
-            chunks,
+            chunk_store,
         )))
     } else {
         None
@@ -405,6 +428,8 @@ pub async fn run(cfg: Config, obs: Observability) -> Result<(), BoxError> {
     // 业务 Handler 在 Node，公共 transport 只提供 builder 配置和低层搬运机制。
     let control = rpc::control::make_control_server(sessions.clone());
     let data = rpc::data::make_data_server(storage, sessions.clone());
+    #[cfg(feature = "dfs")]
+    let dfs_chunks = rpc::data::make_dfs_chunks_server();
     #[cfg(feature = "ownerfs")]
     let owner_files = if let Some(ownerfs) = state.ownerfs.as_ref() {
         let trusted = cfg
@@ -429,6 +454,8 @@ pub async fn run(cfg: Config, obs: Observability) -> Result<(), BoxError> {
             .add_service(data);
         #[cfg(feature = "ownerfs")]
         let router = router.add_service(owner_files);
+        #[cfg(feature = "dfs")]
+        let router = router.add_service(dfs_chunks);
         router
             .serve_with_incoming_shutdown(incoming, cancelled(stop))
             .await

@@ -1,7 +1,7 @@
 # AFS 架构设计专题
 
 状态：Research Agenda
-实现状态：专题一的 R=1 最小纵向链路已实现；其余专题继续研究
+实现状态：专题一、二的 R1 纵向链路和专题三副本框架已实现；RN 远端搬运及专题四至六继续推进
 权威合同：[架构原则](../../PRINCIPLES.md) · [架构总览](overview.md) · [工作负载路径](profiles.md)
 
 ## 目的
@@ -15,8 +15,8 @@
 - DFS 使用 `InodeRecord → FileVersion → LayoutRoot/ExtentMap → ChunkObject` 统一表达普通文件与固定版本负载。
 - 提交后的 FileVersion、LayoutRoot 和 ChunkObject 不可变；文件可变性来自 Head 切换和 Extent Overlay。
 - 不引入必需 Blob API；Pin、Alias 和 RootManifest 是可选业务能力。
-- 单副本本地写是基础能力，多副本、异步副本和 Spill 是 ChunkStore 的可配置策略。
-- 普通 `write` 的 dirty 可见性、Chunk Finalize、DurabilityPolicy、FileVersion CAS、`fdatasync/fsync` 和业务 Snapshot 是不同完成边界。
+- 单副本本地写是基础能力，多副本、异步副本和 Spill 是 ChunkStore 的执行能力；副本数量由文件系统初始化时的 ReplicationConfig 固定。
+- 普通 `write` 的 dirty 可见性、Chunk Finalize、ReplicationSatisfied、FileVersion CAS、`fdatasync/fsync` 和业务 Snapshot 是不同完成边界。
 - WriteLease 指定活跃 inode owner；DfsWriteSession 只保存 handle 状态，dirty data 属于 inode 共享的 InodeWriteState。
 - 小数据可以随控制消息 Inline；大数据通过共享内存、注册 Buffer、RDMA 或流式传输搬运，协议不绑定单一 Transport。
 
@@ -26,7 +26,7 @@
 | --- | --- | --- | --- |
 | 1 | [FileVersion、Extent 与 Chunk 数据模型](01-file-version-chunk-model.md) | Accepted Design | 对象身份、三个 E2E、RPC 预算和模块边界；[RFC-0002](../rfcs/0002-file-version-chunk-model.md) |
 | 2 | [写入完成、持久化与可见性](02-write-durability-publication.md) | Accepted Design | 用户/Node/Meta 时间线、WriteLease、dirty visibility、同步合同和 [RFC-0003](../rfcs/0003-write-visibility-durability.md) |
-| 3 | [单副本与多副本写入状态机](03-replication-state-machine.md) | Accepted Design | 可配置 N/M 副本策略、R1/RN 分叉、Placement、ACK、异步补副本和 [RFC-0004](../rfcs/0004-replication-state-machine.md) |
+| 3 | [单副本与多副本写入状态机](03-replication-state-machine.md) | Framework Implemented | 文件系统级 N/M 配置、R1/RN 分叉、Placement、ACK、异步任务和 [RFC-0004](../rfcs/0004-replication-state-machine.md) |
 | 4 | [本地 ChunkEngine 与 COW](04-local-chunk-engine-cow.md) | Research | StagedChunk/Finalize、Patch、Compaction、恢复与回收 |
 | 5 | [文件长度、truncate 与稳定版本](05-length-truncate-seal.md) | Research | Length 水位、Append、truncate、Pin 与 RootManifest |
 | 6 | [可靠性与高性能数据路径](06-reliability-performance-path.md) | Research | 幂等、校验、Inline/SHM/RDMA、P2P、Cache 和 Spill |
@@ -56,4 +56,4 @@ Implemented
 
 ## 当前入口
 
-[专题一](01-file-version-chunk-model.md)、[专题二](02-write-durability-publication.md)、[专题三](03-replication-state-machine.md)及对应的 [RFC-0002](../rfcs/0002-file-version-chunk-model.md)、[RFC-0003](../rfcs/0003-write-visibility-durability.md)、[RFC-0004](../rfcs/0004-replication-state-machine.md)已经接受。代码已经实现独立 DFS mount、R=1 本机不可变 Chunk、inode owner dirty view、同步边界和 FileVersion CAS；RN、异步补副本和重配置尚未实现。下一设计入口是[专题四](04-local-chunk-engine-cow.md)，工程入口是 RFC-0004 的副本框架。
+[专题一](01-file-version-chunk-model.md)、[专题二](02-write-durability-publication.md)、[专题三](03-replication-state-machine.md)及对应的 [RFC-0002](../rfcs/0002-file-version-chunk-model.md)、[RFC-0003](../rfcs/0003-write-visibility-durability.md)、[RFC-0004](../rfcs/0004-replication-state-machine.md)已经接受。代码已经实现独立 DFS mount、R1 本机不可变 Chunk、inode owner dirty view、同步边界、FileVersion CAS 和副本框架；RN 远端搬运、异步 worker 和完整 placement 尚未实现。下一入口是[专题四](04-local-chunk-engine-cow.md)。

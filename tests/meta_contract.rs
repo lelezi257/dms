@@ -12,11 +12,11 @@ use afs_protocol::meta::{
     AbortRootRequest, AcquireRootRequest, ActivateRootReply, ActivateRootRequest,
     CommitFileVersionRequest, DfsChunkReceipt, DfsCommitMetadataDelta, DfsCommitMetadataMode,
     DfsCreateRequest, DfsExtent, DfsFileVersion, DfsInodeAttributes, DfsLayoutRoot,
-    DfsLookupRequest, DfsWriteLease, ListOwnerRootsRequest, LookupNodeRequest, LookupRootReply,
-    LookupRootRequest, NodeDescriptor, NodeEndpoint, OpenDfsWriteRequest, PresentedRootAccess,
-    RecoverRootRequest, RegisterNodeRequest, ReserveRootReply, ReserveRootRequest, RootAccess,
-    RootCommand, RootCommandType, RootLocation, RootReservation, RootRight,
-    ValidateRootAccessRequest, WatchRootCommandsRequest,
+    DfsLookupRequest, DfsReplicaAck, DfsWriteLease, ListOwnerRootsRequest, LookupNodeRequest,
+    LookupRootReply, LookupRootRequest, NodeDescriptor, NodeEndpoint, OpenDfsWriteRequest,
+    PresentedRootAccess, RecoverRootRequest, RegisterNodeRequest, ReserveRootReply,
+    ReserveRootRequest, RootAccess, RootCommand, RootCommandType, RootLocation, RootReservation,
+    RootRight, ValidateRootAccessRequest, WatchRootCommandsRequest,
     dfs_meta_server::DfsMeta as DfsMetaService, meta_server::Meta as MetaService,
     owner_roots_server::OwnerRoots as OwnerRootsService,
 };
@@ -45,6 +45,7 @@ async fn node_rpc_store_local_file_recovers_committed_session_and_reply() {
             labels: Default::default(),
             capabilities: Vec::new(),
             session_id: "session-a".into(),
+            storage_devices: Vec::new(),
         }),
         lease_seconds: 30,
     };
@@ -128,6 +129,7 @@ async fn contract_rpc_does_not_issue_fake_grants_without_store() {
                 labels: Default::default(),
                 capabilities: Vec::new(),
                 session_id: "session-a".into(),
+                storage_devices: Vec::new(),
             }),
             lease_seconds: 30,
         }))
@@ -223,6 +225,7 @@ async fn owner_authority_reserve_activate_acquire_validate_and_recover() {
                     labels: Default::default(),
                     capabilities: vec!["ownerfs".into()],
                     session_id: session_id.into(),
+                    storage_devices: Vec::new(),
                 }),
                 lease_seconds: 30,
             }))
@@ -428,6 +431,7 @@ async fn owner_authority_reserve_activate_acquire_validate_and_recover() {
                 labels: Default::default(),
                 capabilities: vec!["ownerfs".into()],
                 session_id: "session-a-2".into(),
+                storage_devices: Vec::new(),
             }),
             lease_seconds: 30,
         }))
@@ -514,6 +518,7 @@ async fn owner_authority_stale_abort_cannot_delete_new_pending_reservation() {
                 labels: Default::default(),
                 capabilities: vec!["ownerfs".into()],
                 session_id: "session-a".into(),
+                storage_devices: Vec::new(),
             }),
             lease_seconds: 30,
         }))
@@ -703,10 +708,22 @@ fn dfs_commit_keeps_file_layout_and_durable_chunk_receipt_explicit() {
             chunk_id: "digest-5".into(),
             chunk_length: 5,
             content_digest: vec![0; 16],
-            copy_id: "node-a:digest-5".into(),
-            node_id: "node-a".into(),
-            device_id: "local-0".into(),
-            persisted_bytes: 5,
+            placement_revision: 1,
+            placement_epoch: 1,
+            replica_group_id: "local:node-a".into(),
+            durable_acks: vec![DfsReplicaAck {
+                operation_id: "session-a-write-1".into(),
+                chunk_id: "digest-5".into(),
+                placement_revision: 1,
+                placement_epoch: 1,
+                node_id: "node-a".into(),
+                node_epoch: 1,
+                device_id: "local-0".into(),
+                device_epoch: 1,
+                catalog_revision: 0,
+                persisted_bytes: 5,
+                verified_digest: vec![0; 16],
+            }],
         }],
         write_lease: Some(DfsWriteLease {
             inode_id: "inode:session-a-create-1".into(),
@@ -722,7 +739,7 @@ fn dfs_commit_keeps_file_layout_and_durable_chunk_receipt_explicit() {
         }),
     };
     assert_eq!(commit.layout.as_ref().unwrap().inline_extents.len(), 1);
-    assert_eq!(commit.chunk_receipts[0].persisted_bytes, 5);
+    assert_eq!(commit.chunk_receipts[0].durable_acks[0].persisted_bytes, 5);
 }
 
 #[tokio::test]

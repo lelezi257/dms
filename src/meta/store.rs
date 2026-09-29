@@ -23,7 +23,8 @@ use tokio::sync::{RwLock, mpsc, oneshot};
 
 use crate::dfs::{
     ChunkObject, CopyRecord, Dentry, DentryKey, FileVersion, FileVersionId, InodeId, InodeRecord,
-    LayoutRoot, LayoutRootId, PlacementRecord, WriteLease,
+    LayoutRoot, LayoutRootId, PlacementRecord, ReplicationConfig, ReplicationTask,
+    ReplicationTaskId, StorageDeviceDescriptor, WriteLease,
 };
 
 pub mod etcd;
@@ -83,6 +84,8 @@ pub struct NodeSession {
     pub grpc_addr: String,
     pub data_addr: String,
     pub rest_addr: String,
+    #[serde(default)]
+    pub storage_devices: Vec<StorageDeviceDescriptor>,
     pub lease_epoch: u64,
     pub expires_at_unix_ms: u64,
 }
@@ -105,6 +108,7 @@ pub struct NodeSessionLease {
     pub grpc_addr: String,
     pub data_addr: String,
     pub rest_addr: String,
+    pub storage_devices: Vec<StorageDeviceDescriptor>,
     pub lease_ttl: Duration,
 }
 
@@ -218,8 +222,10 @@ pub enum MetaEntity {
     DfsFileVersion(FileVersion),
     DfsLayoutRoot(LayoutRoot),
     DfsChunk(ChunkObject),
+    DfsReplicationConfig(ReplicationConfig),
     DfsPlacement(PlacementRecord),
     DfsCopy(CopyRecord),
+    DfsReplicationTask(ReplicationTask),
     DfsWriteLease(WriteLease),
 }
 
@@ -237,8 +243,10 @@ impl MetaEntity {
             Self::DfsFileVersion(_) => "dfs_file_version",
             Self::DfsLayoutRoot(_) => "dfs_layout_root",
             Self::DfsChunk(_) => "dfs_chunk",
+            Self::DfsReplicationConfig(_) => "dfs_replication_config",
             Self::DfsPlacement(_) => "dfs_placement",
             Self::DfsCopy(_) => "dfs_copy",
+            Self::DfsReplicationTask(_) => "dfs_replication_task",
             Self::DfsWriteLease(_) => "dfs_write_lease",
         }
     }
@@ -285,6 +293,8 @@ pub enum MetaRead {
     DfsInode(InodeId),
     DfsFileVersion(FileVersionId),
     DfsLayoutRoot(LayoutRootId),
+    DfsReplicationConfig,
+    DfsReplicationTask(ReplicationTaskId),
     DfsWriteLease(InodeId),
 }
 
@@ -373,8 +383,10 @@ pub enum MetaKey {
     DfsFileVersion(FileVersionId),
     DfsLayoutRoot(LayoutRootId),
     DfsChunk(crate::dfs::ChunkId),
+    DfsReplicationConfig,
     DfsPlacement(crate::dfs::ChunkId),
     DfsCopy(crate::dfs::CopyId),
+    DfsReplicationTask(ReplicationTaskId),
     DfsWriteLease(InodeId),
 }
 
@@ -406,6 +418,7 @@ pub enum StoreOperation {
     DfsRenewWriteLease,
     DfsSyncInodeMetadata,
     DfsCommitFileVersion,
+    DfsInitializeReplicationConfig,
 }
 
 /// Operation result that can be replayed to idempotent callers.
@@ -1075,6 +1088,12 @@ impl MetaStore for StoreState {
                 MetaRead::DfsLayoutRoot(id) => {
                     state.entities.get(&MetaKey::DfsLayoutRoot(id.clone()))
                 }
+                MetaRead::DfsReplicationConfig => {
+                    state.entities.get(&MetaKey::DfsReplicationConfig)
+                }
+                MetaRead::DfsReplicationTask(id) => {
+                    state.entities.get(&MetaKey::DfsReplicationTask(id.clone()))
+                }
                 MetaRead::DfsWriteLease(id) => {
                     state.entities.get(&MetaKey::DfsWriteLease(id.clone()))
                 }
@@ -1234,8 +1253,33 @@ impl MetaStore for StoreState {
                     "expired node session cannot be renewed; start a new session_id",
                 ));
             }
-            let lease_epoch = state.node_epochs.get(&lease.node_id).copied().unwrap_or(0) + 1;
-            state.node_epochs.insert(lease.node_id.clone(), lease_epoch);
+            // Heartbeat renewal extends one process session; it must not fence
+            // placement and grants issued to that same live process. Only a
+            // new session_id advances the Node epoch.
+            let lease_epoch = state
+                .entities
+                .get(&MetaKey::CurrentNodeSession {
+                    node_id: lease.node_id.clone(),
+                })
+                .and_then(|versioned| match &versioned.entity {
+                    MetaEntity::NodeSession(session)
+                        if session.session_id == lease.session_id
+                            && session.is_live_at_unix_ms(now_ms) =>
+                    {
+                        Some(session.lease_epoch)
+                    }
+                    _ => None,
+                })
+                .unwrap_or_else(|| {
+                    let next = state
+                        .node_epochs
+                        .get(&lease.node_id)
+                        .copied()
+                        .unwrap_or(0)
+                        .saturating_add(1);
+                    state.node_epochs.insert(lease.node_id.clone(), next);
+                    next
+                });
             let ttl_ms = u64::try_from(lease.lease_ttl.as_millis()).unwrap_or(u64::MAX);
             let session = NodeSession {
                 node_id: lease.node_id.clone(),
@@ -1243,6 +1287,7 @@ impl MetaStore for StoreState {
                 grpc_addr: lease.grpc_addr,
                 data_addr: lease.data_addr,
                 rest_addr: lease.rest_addr,
+                storage_devices: lease.storage_devices,
                 lease_epoch,
                 expires_at_unix_ms: now_ms.saturating_add(ttl_ms),
             };
@@ -1401,8 +1446,10 @@ fn entity_key(entity: &MetaEntity) -> MetaKey {
         MetaEntity::DfsFileVersion(version) => MetaKey::DfsFileVersion(version.id.clone()),
         MetaEntity::DfsLayoutRoot(layout) => MetaKey::DfsLayoutRoot(layout.id.clone()),
         MetaEntity::DfsChunk(chunk) => MetaKey::DfsChunk(chunk.id.clone()),
+        MetaEntity::DfsReplicationConfig(_) => MetaKey::DfsReplicationConfig,
         MetaEntity::DfsPlacement(placement) => MetaKey::DfsPlacement(placement.chunk_id.clone()),
         MetaEntity::DfsCopy(copy) => MetaKey::DfsCopy(copy.id.clone()),
+        MetaEntity::DfsReplicationTask(task) => MetaKey::DfsReplicationTask(task.id.clone()),
         MetaEntity::DfsWriteLease(lease) => MetaKey::DfsWriteLease(lease.inode_id.clone()),
     }
 }
@@ -1551,6 +1598,7 @@ mod tests {
             grpc_addr: format!("http://{node_id}:7400"),
             data_addr: format!("http://{node_id}:7500"),
             rest_addr: format!("http://{node_id}:7600"),
+            storage_devices: Vec::new(),
             lease_epoch: 1,
             expires_at_unix_ms,
         }
@@ -1851,6 +1899,7 @@ mod tests {
             grpc_addr: "http://node-a:7400".into(),
             data_addr: "http://node-a:7500".into(),
             rest_addr: "http://node-a:7600".into(),
+            storage_devices: Vec::new(),
             lease_ttl: Duration::from_secs(30),
         }
     }

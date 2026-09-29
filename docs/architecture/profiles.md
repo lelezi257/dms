@@ -52,7 +52,7 @@ AFS Namespace
 - Pin 防止版本和 Chunk 被 GC；
 - Alias 提供稳定业务名称；
 - RootManifest 组合多文件一致视图；
-- 读取可选择 Durable Replica、Verified Cache、P2P Seed 和 ExternalCommitted；
+- 读取可选择 Ready DurableReplica、Ready VerifiedCache Seed 和 Ready ExternalCommitted；Seed 是 Copy 的短期服务能力，不是独立 Copy 类型；
 - 消费者完成 Chunk 校验后可以成为 Cache Seed；
 - FileVersion、LayoutRoot 和 ChunkObject 不因副本位置变化而变化。
 

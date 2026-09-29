@@ -559,7 +559,7 @@ CommitBatch --> ChunkReceipt : consumes
 PlacementSnapshot --> ChunkReceipt : placement epoch
 ```
 
-该图不定义 `ReadSlice`、`ReadPlan` 或 `ChunkReadTask`。读取实现先固定 FileVersion，再遍历 Extent 并根据 Copy Catalog 选择来源；只有后续调度设计证明需要时，才引入 Node 私有执行计划类型。
+该图不定义持久化的 `ReadSlice`、`ReadPlan` 或 `ChunkReadTask`。读取实现先固定 FileVersion，再遍历 Extent 并根据 Copy Catalog 选择来源。[专题六](06-reliability-performance-path.md)已经证明并行调度、合并和任务级重试需要 Node 私有运行时 `ChunkReadOp/ReadBatch`；它们由 Extent 临时生成，不进入 Meta、wire 或持久格式。
 
 ## 5. E2E Case 1：本地单副本文件
 

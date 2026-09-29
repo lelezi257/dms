@@ -34,8 +34,8 @@ Meta 管理 Namespace、InodeRecord、WriteLease、FileVersion、LayoutRoot、pl
 | FUSE、REST、gRPC、UDS + SHM 基础设施 | Experimental | 已接入正式进程和配置体系 |
 | RDMA transport | Experimental | 已验证握手与诊断链路，文件内容路径尚未接入 |
 | DistributedFs R=1 纵向链路 | Experimental | 独立 mount；create/write/fsync/reopen/read；本机不可变 Chunk 与 FileVersion 提交 |
-| 不可变工作负载优化 | Planned | Pin、Alias、RootManifest、多源 P2P 与缓存策略尚未实现 |
-| 对象存储 Spill | Research | 已有独立机制实验，尚未接入 AFS 产品路径 |
+| 不可变工作负载优化 | Accepted Design | DfsReadEngine、合批、选源、SeedLease 和完整 Chunk 缓存门禁已确定；尚未实现 |
+| 对象存储 Spill | Accepted Design | ExternalCommitted、先提交后逐出及 recall 合同已确定；尚未实现 |
 
 完整边界和证据见[当前状态](docs/current-status.md)。
 
@@ -48,10 +48,12 @@ Meta 管理 Namespace、InodeRecord、WriteLease、FileVersion、LayoutRoot、pl
 5. [架构设计专题](docs/architecture/design-topics.md)
 6. [FileVersion 与 Chunk 数据模型](docs/architecture/01-file-version-chunk-model.md)
 7. [写入完成、持久化与可见性](docs/architecture/02-write-durability-publication.md)
-8. [副本、缓存与外部副本状态](docs/semantics/copy-states.md)
-9. [当前状态](docs/current-status.md)
-10. [路线图](ROADMAP.md)
-11. [参与贡献](CONTRIBUTING.md)
+8. [本地 ChunkEngine 与 COW](docs/architecture/04-local-chunk-engine-cow.md)
+9. [Chunk 传输、P2P、Cache 与 Spill](docs/architecture/06-reliability-performance-path.md)
+10. [Copy、状态与 Seed](docs/semantics/copy-states.md)
+11. [当前状态](docs/current-status.md)
+12. [路线图](ROADMAP.md)
+13. [参与贡献](CONTRIBUTING.md)
 
 ## 运行与开发
 

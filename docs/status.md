@@ -12,7 +12,7 @@ DFS 使用统一的数据模型承载普通可变文件和镜像、Snapshot 等�
 
 [架构设计专题](architecture/design-topics.md)维护 DFS 的六个设计专题及其依赖关系。
 
-专题一已经接受：[FileVersion、Extent 与 Chunk 数据模型](architecture/01-file-version-chunk-model.md)和 [RFC-0002](rfcs/0002-file-version-chunk-model.md)定义统一不可变版本模型、FileVersion EOF、隐式 Hole、单副本与多副本分叉点、端到端 Case 和 RPC 预算。专题二及 [RFC-0003](rfcs/0003-write-visibility-durability.md)固定用户/Node/Meta 时间线：普通 write、append 和 truncate 由 inode owner 串行归并到共享 dirty view 与 logical length，CommitTrigger 才产生 Chunk 和 FileVersion；`fdatasync/fsync`、flush/release、后台 writeback 和目录同步具有独立合同。专题三及 [RFC-0004](rfcs/0004-replication-state-machine.md)固定文件系统级不可变 ReplicationConfig、R1 Local Fast Path、RN Replication Path、Meta Placement 权威、Node ReplicationPlan、ReplicaAck/ChunkReceipt 与异步补副本合同。专题四及 [RFC-0005](rfcs/0005-local-chunk-engine-cow.md)固定 Layout COW 与 Physical COW 的边界、Truncate COW、LocalChunkRecord、可恢复 finalize、base Chunk 继承、per-chunk file 到 Pack 的演进以及 orphan reconciliation 合同。原专题五已经归并到专题一、二、四，不增加 FileMutation、AppendReservation、LengthHint、Seal 或独立 Snapshot/Image 数据类型。
+专题一已经接受：[FileVersion、Extent 与 Chunk 数据模型](architecture/01-file-version-chunk-model.md)和 [RFC-0002](rfcs/0002-file-version-chunk-model.md)定义统一不可变版本模型、FileVersion EOF、隐式 Hole、单副本与多副本分叉点、端到端 Case 和 RPC 预算。专题二及 [RFC-0003](rfcs/0003-write-visibility-durability.md)固定用户/Node/Meta 时间线：普通 write、append 和 truncate 由 inode owner 串行归并到共享 dirty view 与 logical length，CommitTrigger 才产生 Chunk 和 FileVersion；`fdatasync/fsync`、flush/release、后台 writeback 和目录同步具有独立合同。专题三及 [RFC-0004](rfcs/0004-replication-state-machine.md)固定文件系统级不可变 ReplicationConfig、R1 Local Fast Path、RN Replication Path、Meta Placement 权威、Node ReplicationPlan、ReplicaAck/ChunkReceipt 与异步补副本合同。专题四及 [RFC-0005](rfcs/0005-local-chunk-engine-cow.md)固定 Layout COW 与 Physical COW 的边界、Truncate COW、LocalChunkRecord、可恢复 finalize、base Chunk 继承、per-chunk file 到 Pack 的演进以及 orphan reconciliation 合同。[专题六](architecture/06-reliability-performance-path.md)及 [RFC-0006](rfcs/0006-chunk-transfer-cache-spill.md)固定 DfsReadEngine、Copy role/state、SeedLease、合批与 attempt fencing、Inline/SHM/RDMA/Stream、VerifiedCache 和 Spill 合同。原专题五已经归并到专题一、二、四，不增加 FileMutation、AppendReservation、LengthHint、Seal 或独立 Snapshot/Image 数据类型。
 
 接入模型已经实现为两个独立 mount：OwnerFs 与 DFS 分别建立 FuseSession、FUSE connection、inode/handle table 和缓存策略，只复用 `fuse` 模块代码与 `Backend` 接口。`DfsWriteSession` 是 DFS 专属类型；OwnerFs 不进入 FileVersion/Extent/Chunk 写入状态机。
 
@@ -31,7 +31,7 @@ Node RPC 使用四个职责文件：`control.rs` 负责 Node 间控制，`data.r
 | 写入可见性与同步合同 | Experimental R=1 | WriteLease、inode 级 InodeWriteState、DirtyExtentMap、DataOnly/Full commit 已接入；跨节点 owner routing 尚未实现 |
 | Chunk 副本状态机 | Framework Implemented / R1 Experimental | ReplicationConfig 初始化、设备注册、PlacementSnapshot 缓存、R1 快路径、RN engine、ACK/receipt、Meta Copy/Placement/Task 原子提交和 gRPC/RDMA RPC 骨架已接入；RN 远端搬运与后台 worker 尚未实现 |
 | Local ChunkEngine | Framework Implemented / R1 Experimental | BLAKE3 身份、per-chunk file、批量 durable finalize、no-replace publish、LocalChunkRecord/LocalCatalog、启动恢复与 reader FD pin 已接入；Pack、relocation、GC/reconciliation 尚未实现 |
-| 固定版本多源读取 | Accepted Design | 身份和读取规则已确定，调度与数据路径尚未实现 |
+| 固定版本多源读取 | Accepted Design | DfsReadEngine、ChunkReadOp/ReadBatch、选源、attempt fencing、SeedLease 与缓存门禁已确定；调度与 Peer 数据路径尚未实现 |
 | 外部对象存储 spill | 未实现 | 属于容量层选项，不是系统成立条件 |
 | Native SDK 高性能数据面 | 基础框架 | SHM/RDMA 文件内容路径尚未接通 |
 
@@ -54,6 +54,8 @@ DFS length/truncate/sparse 基础路径在 Linux `dms-dev` VM 通过全 workspac
 - 严格普通写跨节点可见性合同已经固化；当前只接受本地 WriteLease owner，远端 owner routing 尚未实现。
 - DFS 已分离 `write/flush/fdatasync/fsync/release`，接通 `O_DSYNC/O_SYNC`，并增加定时后台 writeback、优雅退出 drain、inode sticky error 和 CommitBatch freeze；跨节点 owner routing、并发 sync 等待、故障恢复矩阵和 `fsync(dir)` 尚未实现。
 - DFS `setattr(size)`、普通 `truncate/ftruncate`、`O_TRUNC`、写过 EOF、Shrink 后 Grow 和稀疏读取已经接通本地 owner 路径；远端 owner 转发、完整属性修改和并发 sync 故障矩阵尚未完成。
+- CopyRecord 代码目前仍把 DurableReplica 与 Corrupt/Deleting 放在同一个 `CopyState` 枚举；RFC-0006 要求实现时拆为 `CopyRole + CopyState`，并增加 VerifiedCache 与 ExternalCommitted。
+- DFS 读取目前直接调用本机 LocalChunkStore；DfsReadEngine、Peer Range Read、Seed Directory、ChunkCache、SpillStore 和文件数据面 SHM/RDMA 尚未实现。
 - RDMA 已有传输探测能力，文件内容仍走 gRPC P2P。
 - 完整 POSIX、VM 掉电、长稳、容量压力和对象存储 spill 尚未验收。
 

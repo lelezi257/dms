@@ -173,12 +173,12 @@ resolve path
   -> fix FileVersionId
   -> map range through LayoutRoot
   -> obtain ChunkIds
-  -> select DurableReplica / VerifiedCache / ExternalCommitted
+  -> select Ready DurableReplica / VerifiedCache / ExternalCommitted
   -> read ranges
   -> verify Chunk identity and digest
 ```
 
-当前数据模型不定义 `ReadSlice`、`ReadPlan` 或 `ChunkReadTask`。实现可以直接遍历 Extent；只有后续证明并行调度、合并和任务级重试需要显式执行计划时，才增加 Node 私有运行时类型。
+持久数据模型不定义 `ReadSlice`、`ReadPlan` 或 `ChunkReadTask`。专题六已证明并行调度、合并和任务级重试需要 Node 私有运行时 `ChunkReadOp/ReadBatch`；它们由 Extent 临时生成，不进入 Meta、wire 或持久格式。
 
 ## OwnerFs 路径
 

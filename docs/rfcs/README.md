@@ -23,5 +23,6 @@ RFC 使用四位编号：`0001-title.md`。编号只表示身份，不表示优�
 | [0003](0003-write-visibility-durability.md) | 写入可见性、持久化与版本提交 | Accepted |
 | [0004](0004-replication-state-machine.md) | Chunk 单副本与多副本状态机 | Accepted |
 | [0005](0005-local-chunk-engine-cow.md) | 本地 ChunkEngine、COW 与崩溃恢复 | Accepted |
+| [0006](0006-chunk-transfer-cache-spill.md) | 固定版本 Chunk 的传输、P2P、Cache 与 Spill | Accepted |
 
 新 RFC 使用[模板](0000-template.md)。

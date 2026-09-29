@@ -544,7 +544,7 @@ FileVersion 和 ChunkObject 元数据仍然存在，但没有可用数据源。�
 ## 14. Read、Seed 与 Repair 规则
 
 1. 读取先固定 FileVersionId 和 ChunkId。
-2. 只从当前可达的 DurableReplica、已校验 VerifiedCache 或 ExternalCommitted 读取。
+2. 只从当前可达且状态为 Ready 的 DurableReplica、VerifiedCache 或 ExternalCommitted 读取；Seed 是前两类本地 Copy 的短期服务能力。
 3. Staging、Receiving、摘要不匹配和旧 NodeEpoch Copy 不可读取或 seed。
 4. 同一个不可变 ChunkId 的合格 Copy 内容相同，因此 RN 不需要向 Tail 查询 committed version。
 5. UnderReplicated 不阻止从现存合格 Copy 读取，同时提高 Repair 优先级。

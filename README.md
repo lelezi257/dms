@@ -16,27 +16,9 @@ OwnerFs 面向 1～4 节点的一体机式 Agent Workspace。一个 Workspace �
 
 ## 架构
 
-```mermaid
-flowchart TB
-    Workspace[Workspace Applications] --> OwnerMount[/mnt/ownerfs]
-    App[Distributed Applications] --> DfsMount[/mnt/dfs]
-    App --> SDK[Native Async SDK]
-    VM[MicroVM] --> Block[Block Adapter]
-    Fuse[Shared FUSE module] -.instantiates.-> OwnerSession[OwnerFs FuseSession]
-    Fuse -.instantiates.-> DfsSession[DFS FuseSession]
-    OwnerMount --> OwnerSession --> Owner[OwnerFs]
-    DfsMount --> DfsSession --> DFS[DistributedFs]
-    SDK --> DFS
-    Block --> DFS
-    Owner --> Home[Home Local Filesystem]
-    DFS --> Storage[Chunk Store]
-    Storage --> Disks[Local SSD / NVMe / HDD]
-    Storage --> P2P[P2P Replica and Cache]
-    Storage --> Object[Optional OBS / S3 Spill]
-    Meta[Meta Service] --> Owner
-    Meta --> DFS
-    Meta --> Storage
-```
+![AFS 目标架构与部署总图：afs-meta 控制面、每节点 afs-node、独立的 OwnerFs 与 DistributedFs 挂载，以及节点间 P2P 数据路径](docs/images/afs-target-architecture.svg)
+
+图中展示的是[已接受的目标架构](docs/architecture/overview.md)，不代表所有模块均已实现；实际进度见下方“当前能力”。
 
 两个 mount 复用 FUSE 模块代码与 `Backend` 接口，但分别拥有 FUSE connection、会话 inode/handle table、notifier 和缓存策略。
 

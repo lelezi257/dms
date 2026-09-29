@@ -1,0 +1,193 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Noto Sans CJK SC, PingFang SC, sans-serif" viewBox="0 0 1600 1210" role="img" aria-labelledby="diagram-title diagram-desc">
+      <style>
+.title { font-size: 34px; font-weight: 780; fill: #15243d; letter-spacing: -.8px; }
+    .subtitle { font-size: 16px; fill: #4e6079; }
+    .eyebrow { font-size: 13px; font-weight: 750; fill: #60718a; letter-spacing: 1.6px; }
+    .panel-title { font-size: 23px; font-weight: 760; fill: #172740; }
+    .card-title { font-size: 18px; font-weight: 740; fill: #1a2c47; }
+    .body { font-size: 15px; fill: #344962; }
+    .small { font-size: 13px; fill: #536783; }
+    .strong { font-weight: 700; fill: #253c5d; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 14px; fill: #244264; }
+    .blue { fill: #2469e8; }
+    .green { fill: #0a8d70; }
+    .purple { fill: #6553bd; }
+    .box { fill: white; stroke: #dbe4f0; stroke-width: 1.5; }
+    .meta-box { fill: #edf3ff; stroke: #cbdcff; stroke-width: 1.5; }
+    .node-box { fill: #fff7eb; stroke: #f3d9aa; stroke-width: 1.5; }
+    .owner-box { fill: #eaf7f3; stroke: #acdccc; stroke-width: 1.3; }
+    .dfs-box { fill: #f0efff; stroke: #cdc7fa; stroke-width: 1.3; }
+    .divider { stroke: #dbe3ef; stroke-width: 1.2; }
+    .control { stroke: #2670ea; stroke-width: 3; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+    .data { stroke: #0d9879; stroke-width: 3.5; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+    .local { stroke: #7765cb; stroke-width: 2.6; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+    .dashed { stroke-dasharray: 7 7; }
+    .review { fill: #fff1d5; stroke: #ead291; }
+    .review-text { fill: #865f14; font-size: 13px; font-weight: 760; }
+      </style>
+      <rect x="0" y="0" width="1600" height="1210" fill="#f8fafc"/>
+      <title id="diagram-title">AFS 目标架构与部署总图</title>
+      <desc id="diagram-desc">上方为工作负载与入口，中部为 afs-meta 和每节点一个 afs-node 的部署，显示 OwnerFs 和 DistributedFs 独立挂载、控制面及 P2P 数据面；下方是两种后端的核心数据模型和同步边界。</desc>
+      <defs>
+        <marker id="arrow-blue" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M1 1 L9 5 L1 9" fill="none" stroke="#2670ea" stroke-width="1.8"/></marker>
+        <marker id="arrow-green" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M1 1 L9 5 L1 9" fill="none" stroke="#0d9879" stroke-width="1.8"/></marker>
+        <marker id="arrow-local" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M1 1 L9 5 L1 9" fill="none" stroke="#7765cb" stroke-width="1.8"/></marker>
+      </defs>
+
+      <!-- Title and workload contracts -->
+      <text class="title" x="42" y="55">AFS 目标架构</text>
+      <text class="subtitle" x="44" y="83">近计算 · P2P 数据路径 · 两种文件系统语义，共享一套节点进程</text>
+      <rect class="review" x="1378" y="29" width="178" height="34" rx="17"/>
+      <text class="review-text" x="1402" y="51">目标架构 · 已接受设计</text>
+      <text class="eyebrow" x="44" y="119">WORKLOAD &amp; ACCESS CONTRACT</text>
+
+      <rect class="box" x="44" y="136" width="357" height="112" rx="14"/>
+      <rect x="44" y="136" width="6" height="112" rx="3" fill="#0a8d70"/>
+      <text class="card-title" x="65" y="167">Agent Workspace</text>
+      <text class="body" x="65" y="194">独占目录为主 · 调度尽量靠近 Home</text>
+      <text class="small" x="65" y="222">POSIX → /mnt/ownerfs</text>
+
+      <rect class="box" x="418" y="136" width="357" height="112" rx="14"/>
+      <rect x="418" y="136" width="6" height="112" rx="3" fill="#6553bd"/>
+      <text class="card-title" x="439" y="167">共享可变文件</text>
+      <text class="body" x="439" y="194">多节点读写 · inode owner 排序</text>
+      <text class="small" x="439" y="222">POSIX → /mnt/dfs</text>
+
+      <rect class="box" x="792" y="136" width="357" height="112" rx="14"/>
+      <rect x="792" y="136" width="6" height="112" rx="3" fill="#6553bd"/>
+      <text class="card-title" x="813" y="167">镜像 / Snapshot / Checkpoint</text>
+      <text class="body" x="813" y="194">同一个 DFS 后端 · 固定 FileVersion</text>
+      <text class="small" x="813" y="222">Native SDK / MicroVM Block Adapter</text>
+
+      <rect class="box" x="1166" y="136" width="390" height="112" rx="14"/>
+      <rect x="1166" y="136" width="6" height="112" rx="3" fill="#2670ea"/>
+      <text class="card-title" x="1187" y="167">调度器 / 管理面</text>
+      <text class="body" x="1187" y="194">查询 Workspace Home 与节点位置</text>
+      <text class="small" x="1187" y="222">管理 REST → Meta；节点 REST → 运行时</text>
+
+      <!-- Connections to the two independent FUSE mounts and API paths. -->
+      <path class="local" d="M220 248 V282 H608 V391" marker-end="url(#arrow-local)"/>
+      <path class="local" d="M595 248 V292 H840 V391" marker-end="url(#arrow-local)"/>
+      <path class="local" d="M970 248 V306 H880 V469" marker-end="url(#arrow-local)"/>
+      <path class="control" d="M1360 248 V290 H321 V330" marker-end="url(#arrow-blue)"/>
+      <text class="small blue" x="1082" y="281">管理 REST</text>
+
+      <!-- Deployment group labels -->
+      <text class="eyebrow" x="45" y="324">CONTROL PLANE</text>
+      <text class="eyebrow" x="479" y="324">COMPUTE + STORAGE · NODE A</text>
+      <text class="eyebrow" x="1066" y="324">COMPUTE + STORAGE · NODE B / N</text>
+
+      <!-- Meta -->
+      <rect class="meta-box" x="44" y="339" width="378" height="563" rx="18"/>
+      <text class="panel-title" x="65" y="374">afs-meta</text>
+      <text class="small" x="65" y="398">逻辑权威 · 1 / 3 实例 · 不转发文件字节</text>
+      <rect class="box" x="63" y="420" width="340" height="74" rx="11"/>
+      <text class="card-title" x="80" y="446">OwnerRoots</text>
+      <text class="small" x="80" y="471">WorkspaceRoot → Home → RootGrant</text>
+      <rect class="box" x="63" y="506" width="340" height="83" rx="11"/>
+      <text class="card-title" x="80" y="533">DFS Namespace + WriteLease</text>
+      <text class="small" x="80" y="558">Dentry / InodeRecord · inode owner / epoch</text>
+      <text class="small" x="80" y="576">Node 获取授权后直连数据节点</text>
+      <rect class="box" x="63" y="601" width="340" height="88" rx="11"/>
+      <text class="card-title" x="80" y="628">Version + Placement + CopyCatalog</text>
+      <text class="small" x="80" y="653">FileVersion / LayoutRoot / Head CAS</text>
+      <text class="small" x="80" y="674">副本位置 / 策略 / 修复元信息</text>
+      <rect class="box" x="63" y="701" width="340" height="70" rx="11"/>
+      <text class="card-title" x="80" y="728">Lifecycle</text>
+      <text class="small" x="80" y="752">显式 Pin / Alias / RootManifest</text>
+      <rect x="63" y="786" width="340" height="96" rx="11" fill="#dfeaff" stroke="#b9cef5" stroke-width="1.5"/>
+      <text class="card-title" x="80" y="816">MetaStore · 持久条件事务</text>
+      <text class="small" x="80" y="840">已提交权威状态 / CAS / 恢复</text>
+      <text class="small" x="80" y="861">可替换后端：本地 / etcd / 共识存储</text>
+
+      <!-- AFS Node A -->
+      <rect class="node-box" x="474" y="339" width="540" height="563" rx="18"/>
+      <text class="panel-title" x="495" y="374">afs-node · A</text>
+      <text class="small" x="495" y="398">一个进程 · 本机计算与磁盘共置 · 同时提供两个独立 mount</text>
+      <rect class="box" x="493" y="417" width="502" height="76" rx="11"/>
+      <text class="card-title" x="510" y="444">共享 FUSE 模块 · 两套独立会话</text>
+      <rect x="511" y="456" width="211" height="25" rx="7" fill="#e6f5ee"/>
+      <text class="small strong" x="522" y="474">/mnt/ownerfs → OwnerFs</text>
+      <rect x="736" y="456" width="240" height="25" rx="7" fill="#eeebff"/>
+      <text class="small strong" x="747" y="474">/mnt/dfs → DistributedFs</text>
+
+      <rect class="box" x="493" y="506" width="502" height="52" rx="11"/>
+      <text class="card-title" x="510" y="532">Node REST · Native SDK · Block Adapter</text>
+      <text class="small" x="510" y="549">SDK 经 UDS + SHM 直达 DFS，不构造 FUSE 请求</text>
+
+      <rect class="owner-box" x="493" y="572" width="502" height="103" rx="11"/>
+      <text class="card-title" x="510" y="598">OwnerFs · Workspace Home</text>
+      <text class="body" x="510" y="624">Home=A：本机普通文件读写；本地路径优先</text>
+      <text class="small" x="510" y="649">远端 Node → P2P → A 执行同一目录操作并返回结果</text>
+
+      <rect class="dfs-box" x="493" y="687" width="502" height="167" rx="11"/>
+      <text class="card-title" x="510" y="714">DistributedFs · 可变文件与固定版本共用</text>
+      <text class="body" x="510" y="742">WriteLease → InodeWriteState / DirtyExtentMap</text>
+      <text class="body" x="510" y="766">CommitBatch → ChunkStore::put(policy) → ChunkReceipt</text>
+      <text class="body" x="510" y="790">Meta CAS → FileVersion / head_version</text>
+      <text class="small" x="510" y="817">R=1 本机；R=N ReplicationEngine / ReplicaGroup</text>
+      <text class="small" x="510" y="839">版本读取：固定 ID → Extent → 验证 Chunk</text>
+      <rect x="493" y="866" width="502" height="24" rx="7" fill="#f3ebdd"/>
+      <text class="small strong" x="510" y="883">本机磁盘：OwnerFs 普通文件 │ DFS ChunkObject / 副本</text>
+
+      <!-- Node B-D: same node shape, showing peer and replica roles. -->
+      <rect class="node-box" x="1070" y="339" width="486" height="563" rx="18"/>
+      <text class="panel-title" x="1091" y="374">afs-node · B / N</text>
+      <text class="small" x="1091" y="398">每节点一进程 · 与 A 相同的模块组合</text>
+      <rect class="box" x="1089" y="417" width="448" height="76" rx="11"/>
+      <text class="card-title" x="1106" y="444">独立 OwnerFs / DFS FuseSession</text>
+      <text class="small" x="1106" y="472">/mnt/ownerfs　 /mnt/dfs　 独立 inode / handle</text>
+      <rect class="box" x="1089" y="506" width="448" height="52" rx="11"/>
+      <text class="card-title" x="1106" y="532">Node REST · Native SDK · Block Adapter</text>
+      <text class="small" x="1106" y="549">本地 SDK + 共享内存；数据面可选 RDMA</text>
+      <rect class="owner-box" x="1089" y="572" width="448" height="103" rx="11"/>
+      <text class="card-title" x="1106" y="598">OwnerFs · 目录按 Home 路由</text>
+      <text class="body" x="1106" y="624">访问 Home=A：转发给 A，A 操作本机文件</text>
+      <text class="small" x="1106" y="649">自己的 Home=B：仍走 B 的本机普通文件</text>
+      <rect class="dfs-box" x="1089" y="687" width="448" height="167" rx="11"/>
+      <text class="card-title" x="1106" y="714">DistributedFs · P2P 读与副本</text>
+      <text class="body" x="1106" y="742">固定 FileVersion，按 Extent 定位 Chunk</text>
+      <text class="body" x="1106" y="766">读已验证缓存 / 本机或其他节点副本</text>
+      <text class="body" x="1106" y="790">接收复制 → 持久化 → ReplicaAck</text>
+      <text class="small" x="1106" y="817">副本修复 / 再平衡，不改变文件版本身份</text>
+      <text class="small" x="1106" y="839">可作为另一 inode 的写 owner</text>
+      <rect x="1089" y="866" width="448" height="24" rx="7" fill="#f3ebdd"/>
+      <text class="small strong" x="1106" y="883">本机磁盘：普通文件 │ ChunkObject / 副本</text>
+
+      <!-- Named control and data-plane relationships. -->
+      <path class="control" d="M422 549 H474" marker-end="url(#arrow-blue)"/>
+      <text class="small blue" x="424" y="530">gRPC</text>
+      <path class="control" d="M422 784 H452 V927 H1320 V902" marker-end="url(#arrow-blue)"/>
+      <rect x="561" y="907" width="527" height="35" rx="10" fill="#e8f0ff" stroke="#bfd2fb"/>
+      <text class="small blue" x="577" y="929">Meta ↔ Node：RootGrant / WriteLease / Head CAS / Placement</text>
+      <path class="data" d="M1014 643 H1070" marker-end="url(#arrow-green)"/>
+      <path class="data" d="M1070 659 H1014" marker-end="url(#arrow-green)"/>
+      <path class="data" d="M1014 795 H1070" marker-end="url(#arrow-green)"/>
+      <path class="data" d="M1070 811 H1014" marker-end="url(#arrow-green)"/>
+      <rect x="1092" y="907" width="442" height="35" rx="10" fill="#e5f5f0" stroke="#acdfd0"/>
+      <text class="small green" x="1108" y="929">Node ↔ Node：gRPC 控制；gRPC / RDMA 数据</text>
+
+      <!-- The two distinct data models and the DFS user-visible boundary. -->
+      <text class="eyebrow" x="45" y="974">CORE DATA MODEL &amp; COMPLETION BOUNDARY</text>
+      <rect class="owner-box" x="44" y="991" width="535" height="137" rx="14"/>
+      <text class="card-title" x="64" y="1020">OwnerFs：Home 是目录的数据事实源</text>
+      <text class="mono" x="64" y="1051">WorkspaceRoot → Home Node → 普通本机文件</text>
+      <text class="body" x="64" y="1082">本地读写不转 Chunk；远端读写回 Home 执行。</text>
+      <text class="small" x="64" y="1106">根归属由 Meta 管；文件字节与细粒度元数据在 Home。</text>
+
+      <rect class="dfs-box" x="597" y="991" width="959" height="137" rx="14"/>
+      <text class="card-title" x="617" y="1020">DistributedFs：可变 Head + 不可变版本 / Chunk</text>
+      <text class="mono" x="617" y="1050">Dentry → InodeRecord.head → FileVersion → ExtentMap → ChunkObject</text>
+      <text class="body" x="617" y="1081">普通 write 先进入 dirty view；同步屏障取得 ChunkReceipt 后，Meta CAS 发布新 Head。</text>
+      <text class="small" x="617" y="1106">镜像 / Snapshot 通过显式 Pin / Alias / RootManifest 固定版本；close 不等于发布。</text>
+
+      <line class="divider" x1="44" y1="1152" x2="1556" y2="1152"/>
+      <line class="control" x1="49" y1="1181" x2="91" y2="1181" marker-end="url(#arrow-blue)"/>
+      <text class="small" x="104" y="1186">控制 / 权威状态</text>
+      <line class="data" x1="288" y1="1181" x2="330" y2="1181" marker-end="url(#arrow-green)"/>
+      <text class="small" x="343" y="1186">P2P 文件内容</text>
+      <line class="local" x1="512" y1="1181" x2="554" y2="1181" marker-end="url(#arrow-local)"/>
+      <text class="small" x="567" y="1186">本机接入</text>
+      <text class="small" x="873" y="1186">OwnerFs 常见 1–4 节点；DFS 可扩展；对象存储仅为可选冷层</text>
+    </svg>

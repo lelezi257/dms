@@ -4,6 +4,8 @@
 
 AFS 是面向业务集群近计算场景的通用 POSIX 分布式文件系统。产品包含两条后端：`DistributedFs`（简称 `DFS`）是通用分布式主线，`OwnerFs` 是 1～4 节点一体机 Agent workspace 的专用优化。
 
+[README 架构图](../README.md#架构)展示已接受的目标部署和模块关系，不作为已实现能力清单；本页以下表格仍是实现状态的依据。
+
 DFS 使用统一的数据模型承载普通可变文件和镜像、Snapshot 等固定版本工作负载：文件可变性由 inode 指向哪个 `FileVersion` 表达；已提交的 `FileVersion`、`LayoutRoot`、`ExtentMap` 和 `ChunkObject` 都不可变。固定版本读取、多源 P2P、缓存与 spill 直接复用这套事实源，不建立第二套 Blob 数据模型。
 
 ## 架构设计专题

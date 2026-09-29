@@ -2,6 +2,8 @@
 
 工程主线以 [Roadmap](../ROADMAP.md) 为准。最小 R=1 FileVersion/Extent/Chunk 纵向链路已经实现。当前优先级是固化写入语义，并把首阶段实现替换成可扩展的并发、摘要和布局机制。
 
+[README 目标架构图](../README.md#架构)已作为总览入口；它不改变下述工程任务和验收顺序。
+
 ## 设计入口
 
 [专题一](architecture/01-file-version-chunk-model.md)、[RFC-0002](rfcs/0002-file-version-chunk-model.md)、[专题二](architecture/02-write-durability-publication.md)、[RFC-0003](rfcs/0003-write-visibility-durability.md)、[专题三](architecture/03-replication-state-machine.md)及 [RFC-0004](rfcs/0004-replication-state-machine.md)已经接受，确定以下实现合同：

@@ -9,11 +9,12 @@ use std::{
 use afs_error::{Error, Result};
 
 use crate::dfs::{
-    CommitFileVersion, CommitMetadataMode, CopyId, CopyRecord, CopyState, Dentry, DentryKey,
-    FileVersion, FileVersionId, InodeAttributes, InodeId, InodeKind, InodeRecord, LayoutRoot,
-    LocalCopyPolicy, NamespaceId, OperationId, PlacementHealth, PlacementRecord, PlacementSnapshot,
-    ReplicaGroup, ReplicaGroupId, ReplicaTarget, ReplicationConfig, ReplicationTask,
-    ReplicationTaskId, ReplicationTaskState, SyncInodeMetadata, WriteLease,
+    ChunkSources, CommitFileVersion, CommitMetadataMode, CopyId, CopyRecord, CopyRole, CopyState,
+    Dentry, DentryKey, DfsChunkSourcesReply, DfsChunkSourcesRequest, DfsReadGrant, FileVersion,
+    FileVersionId, InodeAttributes, InodeId, InodeKind, InodeRecord, LayoutRoot, LocalCopyPolicy,
+    NamespaceId, OperationId, PlacementHealth, PlacementRecord, PlacementSnapshot, ReplicaGroup,
+    ReplicaGroupId, ReplicaTarget, ReplicationConfig, ReplicationTask, ReplicationTaskId,
+    ReplicationTaskState, SourceCandidate, SyncInodeMetadata, WriteLease,
 };
 
 use super::store::{
@@ -458,6 +459,140 @@ impl DfsService {
         Ok((version, layout))
     }
 
+    pub async fn chunk_sources(
+        &self,
+        request: DfsChunkSourcesRequest,
+    ) -> Result<DfsChunkSourcesReply> {
+        require_id(&request.caller_id, "caller_id")?;
+        require_id(&request.namespace_id.0, "namespace_id")?;
+        require_id(&request.file_version_id.0, "file_version_id")?;
+        require_id(&request.layout_root_id.0, "layout_root_id")?;
+        if request.chunk_ids.is_empty() {
+            return Ok(DfsChunkSourcesReply {
+                revision: 0,
+                chunks: Vec::new(),
+            });
+        }
+        let (version, layout) = self
+            .get_file_version(request.file_version_id.clone())
+            .await?;
+        if version.layout_root != request.layout_root_id || layout.id != request.layout_root_id {
+            return Err(conflict(
+                "DFS read source request references a stale LayoutRoot",
+            ));
+        }
+        let requested = request.chunk_ids.iter().cloned().collect::<HashSet<_>>();
+        for chunk_id in &requested {
+            if !layout
+                .inline_extents
+                .iter()
+                .any(|extent| extent.chunk_id == *chunk_id)
+            {
+                return Err(invalid(
+                    "DFS read source request includes a Chunk outside the FileVersion layout",
+                ));
+            }
+        }
+
+        let caller_session = self
+            .store
+            .read(MetaRead::CurrentNodeSession {
+                node_id: request.caller_id.clone(),
+            })
+            .await?;
+        let caller_epoch = match caller_session.entity {
+            Some(MetaEntity::NodeSession(session)) if session.is_live_at_unix_ms(now_unix_ms()) => {
+                session.lease_epoch
+            }
+            _ => {
+                return Err(conflict(
+                    "DFS read source request requires a live caller session",
+                ));
+            }
+        };
+
+        let mut revision = 0;
+        let mut chunks = Vec::with_capacity(request.chunk_ids.len());
+        for chunk_id in request.chunk_ids {
+            let placement_snapshot = self
+                .store
+                .read(MetaRead::DfsPlacement(chunk_id.clone()))
+                .await?;
+            revision = revision.max(placement_snapshot.revision.0);
+            let Some(MetaEntity::DfsPlacement(placement)) = placement_snapshot.entity else {
+                chunks.push(ChunkSources {
+                    chunk_id,
+                    sources: Vec::new(),
+                });
+                continue;
+            };
+            let mut sources = Vec::new();
+            for copy_id in placement.copies {
+                let copy_snapshot = self.store.read(MetaRead::DfsCopy(copy_id)).await?;
+                revision = revision.max(copy_snapshot.revision.0);
+                let Some(MetaEntity::DfsCopy(copy)) = copy_snapshot.entity else {
+                    continue;
+                };
+                if copy.chunk_id != chunk_id || !copy.is_ready_durable() {
+                    continue;
+                }
+                let session_snapshot = self
+                    .store
+                    .read(MetaRead::CurrentNodeSession {
+                        node_id: copy.node_id.clone(),
+                    })
+                    .await?;
+                revision = revision.max(session_snapshot.revision.0);
+                let session = match session_snapshot.entity {
+                    Some(MetaEntity::NodeSession(session))
+                        if session.lease_epoch == copy.node_epoch
+                            && session.is_live_at_unix_ms(now_unix_ms()) =>
+                    {
+                        session
+                    }
+                    _ => continue,
+                };
+                let device_ok = session.storage_devices.iter().any(|device| {
+                    device.device_id == copy.device_id
+                        && device.device_epoch == copy.device_epoch
+                        && copy.catalog_revision >= device.catalog_revision
+                });
+                if !device_ok {
+                    continue;
+                }
+                let token = format!(
+                    "dfs-read:{}:{}:{}:{}:{}",
+                    request.caller_id,
+                    caller_epoch,
+                    request.file_version_id.0,
+                    chunk_id.0,
+                    copy.id.0
+                );
+                sources.push(SourceCandidate {
+                    copy_id: copy.id.clone(),
+                    chunk_id: chunk_id.clone(),
+                    role: copy.role,
+                    state: copy.state,
+                    location: copy.node_location(),
+                    data_endpoint: session.data_addr,
+                    load_hint: 0,
+                    read_grant: DfsReadGrant {
+                        namespace_id: request.namespace_id.clone(),
+                        file_version_id: request.file_version_id.clone(),
+                        layout_root_id: request.layout_root_id.clone(),
+                        caller_node_id: request.caller_id.clone(),
+                        caller_node_epoch: caller_epoch,
+                        expires_at_unix_ms: now_unix_ms().saturating_add(30_000),
+                        fence: revision,
+                        token,
+                    },
+                });
+            }
+            chunks.push(ChunkSources { chunk_id, sources });
+        }
+        Ok(DfsChunkSourcesReply { revision, chunks })
+    }
+
     pub async fn sync_inode_metadata(
         &self,
         caller_id: String,
@@ -825,12 +960,13 @@ impl DfsService {
                     ack.node_id, ack.node_epoch, ack.device_id, receipt.chunk.id.0
                 )),
                 chunk_id: receipt.chunk.id.clone(),
+                role: CopyRole::DurableReplica,
                 node_id: ack.node_id.clone(),
                 node_epoch: ack.node_epoch,
                 device_id: ack.device_id.clone(),
                 device_epoch: ack.device_epoch,
                 catalog_revision: ack.catalog_revision,
-                state: CopyState::DurableReplica,
+                state: CopyState::Ready,
                 persisted_bytes: ack.persisted_bytes,
                 verified_digest: ack.verified_digest.clone(),
             });

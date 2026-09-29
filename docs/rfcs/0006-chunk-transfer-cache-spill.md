@@ -8,7 +8,7 @@
 
 上游合同：[RFC-0002](0002-file-version-chunk-model.md) · [RFC-0003](0003-write-visibility-durability.md) · [RFC-0004](0004-replication-state-machine.md) · [RFC-0005](0005-local-chunk-engine-cow.md)
 
-实现边界：当前 DFS 只能读取本机 DurableReplica；本 RFC 的 DfsReadEngine、Peer Range Read、VerifiedCache、SeedLease、SpillStore 和文件数据面 SHM/RDMA 尚未实现。
+实现边界：第一阶段框架已经接入 `DfsReadEngine`、本机 DurableReplica、Meta 批量选源和 gRPC Peer Range Read 的最小路径。它用于验证固定版本、选源、Range 协议和失败换源这些接口能连通；VerifiedCache、SeedLease、ExternalCommitted/Spill、SHM/RDMA、完整授权校验和生产级故障状态机尚未实现。
 
 ## 摘要
 

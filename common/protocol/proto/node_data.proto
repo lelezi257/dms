@@ -50,6 +50,7 @@ service DfsChunks {
   rpc PutReplicaStream(stream DfsPutReplicaFrame) returns (DfsPutReplicaReply);
   rpc PutReplicaRdma(DfsPutReplicaRdmaRequest) returns (DfsPutReplicaReply);
   rpc ConfirmReplica(DfsConfirmReplicaRequest) returns (DfsReplicaAck);
+  rpc ReadRanges(DfsReadRangesRequest) returns (stream DfsReadRangesFrame);
 }
 
 message DfsPutReplicaHeader {
@@ -123,6 +124,63 @@ message DfsConfirmReplicaRequest {
   uint64 placement_revision = 4;
   uint64 placement_epoch = 5;
   DfsDigestAlgorithm expected_digest_algorithm = 6;
+}
+
+message DfsReadGrant {
+  string namespace_id = 1;
+  string file_version_id = 2;
+  string layout_root_id = 3;
+  string caller_node_id = 4;
+  uint64 caller_node_epoch = 5;
+  uint64 expires_at_unix_ms = 6;
+  uint64 fence = 7;
+  string token = 8;
+}
+
+message DfsChunkReadOp {
+  uint32 operation_index = 1;
+  string chunk_id = 2;
+  uint64 chunk_offset = 3;
+  uint64 length = 4;
+  uint64 destination_offset = 5;
+  string source_copy_id = 6;
+}
+
+message DfsReadRangesRequest {
+  string read_id = 1;
+  string attempt_id = 2;
+  string file_version_id = 3;
+  string layout_root_id = 4;
+  DfsReadGrant grant = 5;
+  repeated DfsChunkReadOp operations = 6;
+}
+
+message DfsReadRangesHeader {
+  string read_id = 1;
+  string attempt_id = 2;
+  uint32 operation_index = 3;
+  string chunk_id = 4;
+  uint64 chunk_offset = 5;
+  uint64 length = 6;
+  string source_copy_id = 7;
+}
+
+message DfsReadRangesCompletion {
+  string read_id = 1;
+  string attempt_id = 2;
+  uint32 operation_index = 3;
+  string source_copy_id = 4;
+  uint64 transferred_bytes = 5;
+  bytes range_checksum = 6;
+  DfsDigestAlgorithm range_checksum_algorithm = 7;
+}
+
+message DfsReadRangesFrame {
+  oneof body {
+    DfsReadRangesHeader header = 1;
+    bytes data = 2;
+    DfsReadRangesCompletion completion = 3;
+  }
 }
 
 // OwnerFiles 是 OwnerFs 的远端文件数据面合同。

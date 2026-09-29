@@ -58,9 +58,9 @@ RPC 物理布局保持为 `control.rs`、`data.rs`、`meta.rs`、`peer.rs`。R=N
 
 ## P2：固定版本优化
 
-1. 增加 `DfsReadEngine` 与 Node 私有 `ChunkReadOp/ReadBatch`，先闭合本机 DurableReplica 与单个远端 DurableReplica 的固定版本换源读取。
-2. 将 `CopyRecord` 迁移为 `CopyRole + CopyState`，增加 VerifiedCache、ExternalCommitted 和批量 Copy/Seed 目录，但不把 StagedChunk 登记为 Copy。
-3. 在现有 `rpc::data/rpc::peer` 增加合批 Peer Range Read；复用公共连接池，加入全局/Peer/设备/租户并发字节预算和 attempt fencing。
+1. 已增加 `DfsReadEngine` 与 Node 私有 `ChunkReadOp/ReadBatch`，本机 DurableReplica、Meta 选源、远端 `DfsChunks.ReadRanges` 最小读取及候选失败换源已经接线；下一步补 ReadGrant 校验、连接复用、批量调度和真实多节点 E2E。
+2. 已将 `CopyRecord` 迁移为 `CopyRole + CopyState`，并保留旧 JSON `Staging` 为不可读兼容态；下一步实现 VerifiedCache、ExternalCommitted 和批量 Copy/Seed 目录。
+3. 已在 `rpc::data/rpc::peer` 增加 Peer Range Read wire、最小服务端本机 Chunk 读取和客户端 frame 校验；下一步实现公共连接池复用、真正按 Peer 合批、全局/Peer/设备/租户并发字节预算、attempt fencing 与故障注入。
 4. 实现完整 Chunk VerifiedCache、in-flight coalescing、SeedLease 以及消费者转 seed；部分 Range 不晋升为完整缓存。
 5. 实现按 `FileVersionId` 的 Alias、Pin/Retention 和 RootManifest 可选能力。
 6. 对镜像、Snapshot 和 Checkpoint 验证 range read、大规模启动、换源、校验失败和 seed 退场。

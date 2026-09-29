@@ -293,6 +293,8 @@ pub enum MetaRead {
     DfsInode(InodeId),
     DfsFileVersion(FileVersionId),
     DfsLayoutRoot(LayoutRootId),
+    DfsPlacement(crate::dfs::ChunkId),
+    DfsCopy(crate::dfs::CopyId),
     DfsReplicationConfig,
     DfsReplicationTask(ReplicationTaskId),
     DfsWriteLease(InodeId),
@@ -1088,6 +1090,10 @@ impl MetaStore for StoreState {
                 MetaRead::DfsLayoutRoot(id) => {
                     state.entities.get(&MetaKey::DfsLayoutRoot(id.clone()))
                 }
+                MetaRead::DfsPlacement(id) => {
+                    state.entities.get(&MetaKey::DfsPlacement(id.clone()))
+                }
+                MetaRead::DfsCopy(id) => state.entities.get(&MetaKey::DfsCopy(id.clone())),
                 MetaRead::DfsReplicationConfig => {
                     state.entities.get(&MetaKey::DfsReplicationConfig)
                 }

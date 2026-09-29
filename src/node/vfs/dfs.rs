@@ -33,6 +33,7 @@ use crate::{
         LayoutRootId, NamespaceId, OperationId, SyncInodeMetadata, WriteLease,
     },
     node::chunk::{ChunkBuilder, ChunkStore, StagedChunk},
+    node::dfs_read::{ChunkReadOp, DfsReadEngine, ReadBatch},
 };
 
 pub const DFS_WRITE_LEASE_SECONDS: u64 = 30;
@@ -64,6 +65,7 @@ pub struct DistributedFs {
     session_id: String,
     meta: Arc<dyn DfsMeta>,
     chunk_store: Arc<dyn ChunkStore>,
+    read_engine: Arc<DfsReadEngine>,
     handles: Mutex<HashMap<u64, DfsFileHandle>>,
     inode_writes: Mutex<HashMap<InodeId, SharedInodeWriteState>>,
     inode_to_backend: Mutex<HashMap<InodeId, u64>>,
@@ -173,6 +175,7 @@ impl DistributedFs {
         session_id: impl Into<String>,
         meta: Arc<dyn DfsMeta>,
         chunk_store: Arc<dyn ChunkStore>,
+        read_engine: Arc<DfsReadEngine>,
     ) -> Self {
         Self {
             namespace_id,
@@ -180,6 +183,7 @@ impl DistributedFs {
             session_id: session_id.into(),
             meta,
             chunk_store,
+            read_engine,
             handles: Mutex::new(HashMap::new()),
             inode_writes: Mutex::new(HashMap::new()),
             inode_to_backend: Mutex::new(HashMap::from([(InodeId::new("1"), ROOT_INODE)])),
@@ -393,7 +397,7 @@ impl DistributedFs {
         let count = usize::try_from((length - offset).min(out.len() as u64))
             .map_err(|_| invalid("read length is too large"))?;
         out[..count].fill(0);
-        self.read_layout_range(&layout, offset, &mut out[..count])?;
+        self.read_layout_range(committed, &layout, offset, &mut out[..count])?;
         if let Some(frozen) = frozen {
             frozen.overlay(offset, &mut out[..count])?;
         }
@@ -401,10 +405,17 @@ impl DistributedFs {
         Ok(count)
     }
 
-    fn read_layout_range(&self, layout: &LayoutRoot, offset: u64, out: &mut [u8]) -> Result<()> {
+    fn read_layout_range(
+        &self,
+        committed: Option<&FileVersionId>,
+        layout: &LayoutRoot,
+        offset: u64,
+        out: &mut [u8],
+    ) -> Result<()> {
         let end = offset
             .checked_add(out.len() as u64)
             .ok_or_else(|| invalid("read range overflow"))?;
+        let mut ops = Vec::new();
         for extent in &layout.inline_extents {
             let extent_end = extent
                 .file_offset
@@ -423,18 +434,21 @@ impl DistributedFs {
                 .chunk_offset
                 .checked_add(start - extent.file_offset)
                 .ok_or_else(|| invalid("chunk read offset overflow"))?;
-            let read = self.chunk_store.read_at(
-                &extent.chunk_id,
+            ops.push(ChunkReadOp {
+                chunk_id: extent.chunk_id.clone(),
                 chunk_offset,
-                &mut out[output_offset..output_offset + length],
-            )?;
-            if read != length {
-                return Err(Error::coded(
-                    afs_error::NODE_TRANSFER_CORRUPT_DATA,
-                    "chunk ended before the referenced extent",
-                ));
-            }
+                length: length as u64,
+                output_offset,
+            });
         }
+        self.read_engine.read_batch(
+            &ReadBatch {
+                file_version_id: committed.cloned(),
+                layout_root_id: layout.id.clone(),
+                ops,
+            },
+            out,
+        )?;
         Ok(())
     }
 
@@ -1610,12 +1624,21 @@ mod tests {
         let meta = Arc::new(RecordingMeta::new());
         let temp = tempfile::tempdir().unwrap();
         let chunks = Arc::new(LocalChunkStore::open(temp.path(), "node-a").unwrap());
+        let read_engine = Arc::new(crate::node::dfs_read::DfsReadEngine::new(
+            NamespaceId::new("default"),
+            "node-a".into(),
+            chunks.clone(),
+            Arc::new(crate::node::dfs_read::UnimplementedReadSourceProvider),
+            Arc::new(crate::node::dfs_read::UnimplementedChunkTransfer),
+            crate::node::dfs_read::DfsReadConfig::default(),
+        ));
         let fs = DistributedFs::new(
             NamespaceId::new("default"),
             "node-a",
             "session-a",
             meta.clone(),
             chunks,
+            read_engine,
         );
         (temp, meta, fs)
     }

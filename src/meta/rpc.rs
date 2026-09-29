@@ -11,14 +11,15 @@ use afs_protocol::meta::{
     CommitFileVersionRequest, DfsCommitMetadataMode, DfsCreateReply, DfsCreateRequest,
     DfsInodeAttributes as PbDfsInodeAttributes, DfsInodeKind as PbDfsInodeKind,
     DfsInodeRecord as PbDfsInodeRecord, DfsLayoutRoot as PbDfsLayoutRoot, DfsLookupReply,
-    DfsLookupRequest, DfsWriteLeaseReply, GetDfsInodeReply, GetDfsInodeRequest,
-    GetDfsPlacementSnapshotReply, GetDfsPlacementSnapshotRequest, GetFileVersionReply,
-    GetFileVersionRequest, ListOwnerRootsReply, ListOwnerRootsRequest, LookupNodeReply,
-    LookupNodeRequest, LookupRootReply, LookupRootRequest, NodeDescriptor, NodeEndpoint,
-    OpenDfsWriteReply, OpenDfsWriteRequest, PingReply, PingRequest, PresentedRootAccess,
-    RecoverRootReply, RecoverRootRequest, RegisterNodeReply, RegisterNodeRequest,
-    RenewDfsWriteLeaseRequest, ReserveRootReply, ReserveRootRequest, RootCommand, RootCommandType,
-    RootLocation, RootReservation, RootRight as PbRootRight, SyncDfsInodeMetadataReply,
+    DfsLookupRequest, DfsWriteLeaseReply, GetDfsChunkSourcesReply, GetDfsChunkSourcesRequest,
+    GetDfsInodeReply, GetDfsInodeRequest, GetDfsPlacementSnapshotReply,
+    GetDfsPlacementSnapshotRequest, GetFileVersionReply, GetFileVersionRequest,
+    ListOwnerRootsReply, ListOwnerRootsRequest, LookupNodeReply, LookupNodeRequest,
+    LookupRootReply, LookupRootRequest, NodeDescriptor, NodeEndpoint, OpenDfsWriteReply,
+    OpenDfsWriteRequest, PingReply, PingRequest, PresentedRootAccess, RecoverRootReply,
+    RecoverRootRequest, RegisterNodeReply, RegisterNodeRequest, RenewDfsWriteLeaseRequest,
+    ReserveRootReply, ReserveRootRequest, RootCommand, RootCommandType, RootLocation,
+    RootReservation, RootRight as PbRootRight, SyncDfsInodeMetadataReply,
     SyncDfsInodeMetadataRequest, ValidateRootAccessReply, ValidateRootAccessRequest,
     WatchRootCommandsRequest, dfs_meta_server::DfsMeta as DfsMetaService,
     meta_server::Meta as MetaService, owner_roots_server::OwnerRoots as OwnerRootsService,
@@ -850,6 +851,33 @@ impl DfsMetaService for DfsMetaRpc {
         }))
     }
 
+    async fn get_chunk_sources(
+        &self,
+        request: Request<GetDfsChunkSourcesRequest>,
+    ) -> Result<Response<GetDfsChunkSourcesReply>, Status> {
+        let authenticated = authenticated_node_id(&self.0, &request)?;
+        let request = request.into_inner();
+        validate_caller(authenticated.as_deref(), &request.caller_id)?;
+        require_text(&request.namespace_id, "namespace_id")?;
+        require_text(&request.file_version_id, "file_version_id")?;
+        require_text(&request.layout_root_id, "layout_root_id")?;
+        let reply = dfs_service(&self.0)?
+            .chunk_sources(crate::dfs::DfsChunkSourcesRequest {
+                caller_id: request.caller_id,
+                namespace_id: crate::dfs::NamespaceId::new(request.namespace_id),
+                file_version_id: crate::dfs::FileVersionId::new(request.file_version_id),
+                layout_root_id: crate::dfs::LayoutRootId::new(request.layout_root_id),
+                chunk_ids: request
+                    .chunk_ids
+                    .into_iter()
+                    .map(crate::dfs::ChunkId::new)
+                    .collect(),
+            })
+            .await
+            .map_err(afs_transport::grpc::error_status::error_to_status)?;
+        Ok(Response::new(wire_chunk_sources_reply(reply)))
+    }
+
     async fn sync_inode_metadata(
         &self,
         request: Request<SyncDfsInodeMetadataRequest>,
@@ -1068,6 +1096,102 @@ fn wire_placement_snapshot(
                     .collect(),
             })
             .collect(),
+    }
+}
+
+fn wire_chunk_sources_reply(
+    reply: crate::dfs::DfsChunkSourcesReply,
+) -> afs_protocol::meta::GetDfsChunkSourcesReply {
+    afs_protocol::meta::GetDfsChunkSourcesReply {
+        revision: reply.revision,
+        chunks: reply
+            .chunks
+            .into_iter()
+            .map(|chunk| afs_protocol::meta::DfsChunkSources {
+                chunk_id: chunk.chunk_id.0,
+                sources: chunk
+                    .sources
+                    .into_iter()
+                    .map(wire_source_candidate)
+                    .collect(),
+            })
+            .collect(),
+    }
+}
+
+fn wire_source_candidate(
+    source: crate::dfs::SourceCandidate,
+) -> afs_protocol::meta::DfsSourceCandidate {
+    afs_protocol::meta::DfsSourceCandidate {
+        copy_id: source.copy_id.0,
+        chunk_id: source.chunk_id.0,
+        role: match source.role {
+            crate::dfs::CopyRole::DurableReplica => {
+                afs_protocol::meta::DfsCopyRole::DurableReplica as i32
+            }
+            crate::dfs::CopyRole::VerifiedCache => {
+                afs_protocol::meta::DfsCopyRole::VerifiedCache as i32
+            }
+            crate::dfs::CopyRole::ExternalCommitted => {
+                afs_protocol::meta::DfsCopyRole::ExternalCommitted as i32
+            }
+        },
+        state: match source.state {
+            crate::dfs::CopyState::Ready => afs_protocol::meta::DfsCopyState::Ready as i32,
+            crate::dfs::CopyState::Corrupt => afs_protocol::meta::DfsCopyState::Corrupt as i32,
+            crate::dfs::CopyState::Deleting => afs_protocol::meta::DfsCopyState::Deleting as i32,
+            crate::dfs::CopyState::LegacyStaging => {
+                afs_protocol::meta::DfsCopyState::Unspecified as i32
+            }
+        },
+        location: Some(wire_copy_location(source.location)),
+        data_endpoint: source.data_endpoint,
+        load_hint: source.load_hint,
+        read_grant: Some(wire_read_grant(source.read_grant)),
+    }
+}
+
+fn wire_copy_location(location: crate::dfs::CopyLocation) -> afs_protocol::meta::DfsCopyLocation {
+    use afs_protocol::meta::dfs_copy_location::{External, Location, Node};
+
+    afs_protocol::meta::DfsCopyLocation {
+        location: Some(match location {
+            crate::dfs::CopyLocation::Node {
+                node_id,
+                node_epoch,
+                device_id,
+                device_epoch,
+                catalog_revision,
+            } => Location::Node(Node {
+                node_id,
+                node_epoch,
+                device_id,
+                device_epoch,
+                catalog_revision,
+            }),
+            crate::dfs::CopyLocation::External {
+                store_id,
+                object_key,
+                object_revision,
+            } => Location::External(External {
+                store_id,
+                object_key,
+                object_revision,
+            }),
+        }),
+    }
+}
+
+fn wire_read_grant(grant: crate::dfs::DfsReadGrant) -> afs_protocol::meta::DfsReadGrant {
+    afs_protocol::meta::DfsReadGrant {
+        namespace_id: grant.namespace_id.0,
+        file_version_id: grant.file_version_id.0,
+        layout_root_id: grant.layout_root_id.0,
+        caller_node_id: grant.caller_node_id,
+        caller_node_epoch: grant.caller_node_epoch,
+        expires_at_unix_ms: grant.expires_at_unix_ms,
+        fence: grant.fence,
+        token: grant.token,
     }
 }
 

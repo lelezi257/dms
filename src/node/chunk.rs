@@ -9,7 +9,7 @@
 use std::{
     collections::{HashMap, HashSet},
     fs::{self, File, OpenOptions},
-    io::{BufRead, BufReader, Read, Seek, SeekFrom, Write},
+    io::{BufRead, BufReader, Write},
     path::{Path, PathBuf},
     sync::{
         Arc, Mutex,
@@ -20,6 +20,8 @@ use std::{
 
 use afs_error::{Error, Result};
 use serde::{Deserialize, Serialize};
+#[cfg(unix)]
+use std::os::unix::fs::FileExt;
 
 #[cfg(test)]
 use crate::dfs::ReplicaGroupId;
@@ -143,17 +145,27 @@ pub struct PinnedChunkReader {
 }
 
 impl PinnedChunkReader {
-    pub fn read_at(&mut self, offset: u64, out: &mut [u8]) -> Result<usize> {
+    pub fn read_at(&self, offset: u64, out: &mut [u8]) -> Result<usize> {
         if offset >= self.chunk.length {
             return Ok(0);
         }
         let allowed = usize::try_from((self.chunk.length - offset).min(out.len() as u64))
             .map_err(|_| invalid("Chunk read length is too large"))?;
-        self.file
-            .seek(SeekFrom::Start(offset))
-            .map_err(Error::from)?;
-        self.file.read(&mut out[..allowed]).map_err(Error::from)
+        read_positioned(&self.file, offset, &mut out[..allowed])
     }
+}
+
+#[cfg(unix)]
+fn read_positioned(file: &File, offset: u64, out: &mut [u8]) -> Result<usize> {
+    file.read_at(out, offset).map_err(Error::from)
+}
+
+#[cfg(not(unix))]
+fn read_positioned(file: &File, offset: u64, out: &mut [u8]) -> Result<usize> {
+    let mut file = file.try_clone().map_err(Error::from)?;
+    use std::io::{Seek, SeekFrom};
+    file.seek(SeekFrom::Start(offset)).map_err(Error::from)?;
+    file.read(out).map_err(Error::from)
 }
 
 #[derive(Debug, Deserialize, Serialize)]

@@ -13,6 +13,8 @@
 
 pub mod api;
 pub mod chunk;
+#[cfg(feature = "dfs")]
+pub mod dfs_read;
 pub mod fuse;
 #[cfg(feature = "dfs")]
 pub mod replication;
@@ -244,9 +246,23 @@ pub async fn run(cfg: Config, obs: Observability) -> Result<(), BoxError> {
         };
         let chunk_store = Arc::new(replication::DfsChunkStore::new(
             cfg.id.clone(),
-            chunks,
+            chunks.clone(),
             meta.clone(),
             rpc::peer::make_replica_data_plane(data_mode),
+        ));
+        let read_engine = Arc::new(dfs_read::DfsReadEngine::new(
+            namespace.clone(),
+            cfg.id.clone(),
+            chunks,
+            meta.clone(),
+            rpc::peer::make_chunk_transfer(data_mode),
+            dfs_read::DfsReadConfig {
+                max_ops_per_batch: cfg.dfs_read_max_ops_per_batch,
+                max_inflight_bytes: cfg.dfs_read_max_inflight_bytes,
+                source_cache_ttl: std::time::Duration::from_millis(
+                    cfg.dfs_read_source_cache_ttl_ms,
+                ),
+            },
         ));
         Some(Arc::new(vfs::dfs::DistributedFs::new(
             namespace,
@@ -254,6 +270,7 @@ pub async fn run(cfg: Config, obs: Observability) -> Result<(), BoxError> {
             session_id.clone(),
             meta,
             chunk_store,
+            read_engine,
         )))
     } else {
         None
@@ -450,7 +467,7 @@ pub async fn run(cfg: Config, obs: Observability) -> Result<(), BoxError> {
     let control = rpc::control::make_control_server(sessions.clone());
     let data = rpc::data::make_data_server(storage, sessions.clone());
     #[cfg(feature = "dfs")]
-    let dfs_chunks = rpc::data::make_dfs_chunks_server();
+    let dfs_chunks = rpc::data::make_dfs_chunks_server(local_chunk_store.clone());
     #[cfg(feature = "ownerfs")]
     let owner_files = if let Some(ownerfs) = state.ownerfs.as_ref() {
         let trusted = cfg

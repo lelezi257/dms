@@ -29,6 +29,8 @@ string_id!(OperationId);
 string_id!(DfsWriteSessionId);
 string_id!(ReplicaGroupId);
 string_id!(ReplicationTaskId);
+string_id!(ReadBatchId);
+string_id!(ReadAttemptId);
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub enum InodeKind {
@@ -215,22 +217,57 @@ pub struct ReplicaAck {
     pub verified_digest: ContentDigest,
 }
 
-#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+pub enum CopyRole {
+    #[serde(alias = "Durable", alias = "DurableReplica")]
+    #[default]
+    DurableReplica,
+    VerifiedCache,
+    ExternalCommitted,
+}
+
+#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 pub enum CopyState {
     /// Decode-only compatibility for snapshots written before staging was
-    /// removed from the Meta catalog. New code never creates this state.
+    /// removed from the Meta catalog. New code never creates or serves this
+    /// state, so old staging records can never become readable Ready copies.
     #[serde(rename = "Staging")]
     LegacyStaging,
-    #[serde(alias = "Durable")]
-    DurableReplica,
+    #[serde(alias = "Durable", alias = "DurableReplica")]
+    #[default]
+    Ready,
     Corrupt,
     Deleting,
+}
+
+impl CopyState {
+    pub fn is_readable(self) -> bool {
+        self == Self::Ready
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub enum CopyLocation {
+    Node {
+        node_id: String,
+        node_epoch: u64,
+        device_id: String,
+        device_epoch: u64,
+        catalog_revision: u64,
+    },
+    External {
+        store_id: String,
+        object_key: String,
+        object_revision: String,
+    },
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct CopyRecord {
     pub id: CopyId,
     pub chunk_id: ChunkId,
+    #[serde(default)]
+    pub role: CopyRole,
     pub node_id: String,
     #[serde(default)]
     pub node_epoch: u64,
@@ -242,6 +279,22 @@ pub struct CopyRecord {
     pub state: CopyState,
     pub persisted_bytes: u64,
     pub verified_digest: ContentDigest,
+}
+
+impl CopyRecord {
+    pub fn node_location(&self) -> CopyLocation {
+        CopyLocation::Node {
+            node_id: self.node_id.clone(),
+            node_epoch: self.node_epoch,
+            device_id: self.device_id.clone(),
+            device_epoch: self.device_epoch,
+            catalog_revision: self.catalog_revision,
+        }
+    }
+
+    pub fn is_ready_durable(&self) -> bool {
+        self.role == CopyRole::DurableReplica && self.state.is_readable()
+    }
 }
 
 #[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
@@ -308,6 +361,51 @@ pub struct WriteLease {
     pub owner_session_id: String,
     pub lease_epoch: u64,
     pub expires_at_unix_ms: u64,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct DfsReadGrant {
+    pub namespace_id: NamespaceId,
+    pub file_version_id: FileVersionId,
+    pub layout_root_id: LayoutRootId,
+    pub caller_node_id: String,
+    pub caller_node_epoch: u64,
+    pub expires_at_unix_ms: u64,
+    pub fence: u64,
+    pub token: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct SourceCandidate {
+    pub copy_id: CopyId,
+    pub chunk_id: ChunkId,
+    pub role: CopyRole,
+    pub state: CopyState,
+    pub location: CopyLocation,
+    pub data_endpoint: String,
+    pub load_hint: u32,
+    pub read_grant: DfsReadGrant,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct ChunkSources {
+    pub chunk_id: ChunkId,
+    pub sources: Vec<SourceCandidate>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct DfsChunkSourcesRequest {
+    pub caller_id: String,
+    pub namespace_id: NamespaceId,
+    pub file_version_id: FileVersionId,
+    pub layout_root_id: LayoutRootId,
+    pub chunk_ids: Vec<ChunkId>,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+pub struct DfsChunkSourcesReply {
+    pub revision: u64,
+    pub chunks: Vec<ChunkSources>,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]

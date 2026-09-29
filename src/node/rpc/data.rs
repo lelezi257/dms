@@ -17,6 +17,8 @@
 //! CQ completion 只证明 DMA 完成，不证明文件落盘；文件成功标准仍由 Storage/业务层决定。
 
 use afs_transport::grpc::error_status::{coded_status, error_to_status};
+#[cfg(feature = "dfs")]
+use std::pin::Pin;
 use std::sync::Arc;
 #[cfg(feature = "rdma")]
 use std::sync::atomic::Ordering;
@@ -28,12 +30,18 @@ use afs_protocol::node_data::{
 #[cfg(feature = "dfs")]
 use afs_protocol::node_data::{
     DfsConfirmReplicaRequest, DfsPutReplicaFrame, DfsPutReplicaRdmaRequest, DfsPutReplicaReply,
+    DfsReadRangesCompletion, DfsReadRangesFrame, DfsReadRangesHeader, DfsReadRangesRequest,
     DfsReplicaAck,
     dfs_chunks_server::{DfsChunks, DfsChunksServer},
+    dfs_read_ranges_frame,
 };
 use afs_tracing::Instrument;
+#[cfg(feature = "dfs")]
+use tokio_stream::Stream;
 use tonic::{Request, Response, Status};
 
+#[cfg(feature = "dfs")]
+use crate::node::chunk::LocalChunkStore;
 use crate::node::{
     rpc::control::RdmaSessionRegistry,
     storage::{MAX_TRANSFER_BYTES, Storage, StorageError},
@@ -71,18 +79,26 @@ pub fn make_data_server(
 /// one state machine; returning `UNIMPLEMENTED` here guarantees no partial
 /// replica can be mistaken for a durable acknowledgement.
 #[cfg(feature = "dfs")]
-#[derive(Clone, Default)]
-pub struct DfsChunksService;
+#[derive(Clone)]
+pub struct DfsChunksService {
+    #[allow(dead_code)]
+    local_chunks: Option<Arc<LocalChunkStore>>,
+}
 
 #[cfg(feature = "dfs")]
 #[must_use]
-pub fn make_dfs_chunks_server() -> DfsChunksServer<DfsChunksService> {
-    DfsChunksServer::new(DfsChunksService)
+pub fn make_dfs_chunks_server(
+    local_chunks: Option<Arc<LocalChunkStore>>,
+) -> DfsChunksServer<DfsChunksService> {
+    DfsChunksServer::new(DfsChunksService { local_chunks })
 }
 
 #[cfg(feature = "dfs")]
 #[tonic::async_trait]
 impl DfsChunks for DfsChunksService {
+    type ReadRangesStream =
+        Pin<Box<dyn Stream<Item = Result<DfsReadRangesFrame, Status>> + Send + 'static>>;
+
     async fn put_replica_stream(
         &self,
         _request: Request<tonic::Streaming<DfsPutReplicaFrame>>,
@@ -108,6 +124,72 @@ impl DfsChunks for DfsChunksService {
         Err(Status::unimplemented(
             "DFS replica confirmation is not implemented; no durable acknowledgement exists",
         ))
+    }
+
+    async fn read_ranges(
+        &self,
+        request: Request<DfsReadRangesRequest>,
+    ) -> Result<Response<Self::ReadRangesStream>, Status> {
+        let local = self.local_chunks.clone().ok_or_else(|| {
+            coded_status(
+                afs_error::NODE_TRANSFER_UNAVAILABLE,
+                "DFS local ChunkStore is not available",
+            )
+        })?;
+        let request = request.into_inner();
+        validate_dfs_read_request(&request)?;
+        let mut frames = Vec::new();
+        for op in request.operations {
+            let length = usize::try_from(op.length).map_err(|_| {
+                coded_status(
+                    afs_error::NODE_TRANSFER_INVALID,
+                    "DFS read range is too large",
+                )
+            })?;
+            validate_length_u64(op.length)?;
+            let mut data = vec![0; length];
+            let read = local
+                .read_at(
+                    &crate::dfs::ChunkId::new(op.chunk_id.clone()),
+                    op.chunk_offset,
+                    &mut data,
+                )
+                .map_err(error_to_status)?;
+            if read != length {
+                return Err(coded_status(
+                    afs_error::NODE_TRANSFER_CORRUPT_DATA,
+                    "local Chunk ended before the requested DFS range",
+                ));
+            }
+            frames.push(Ok(DfsReadRangesFrame {
+                body: Some(dfs_read_ranges_frame::Body::Header(DfsReadRangesHeader {
+                    read_id: request.read_id.clone(),
+                    attempt_id: request.attempt_id.clone(),
+                    operation_index: op.operation_index,
+                    chunk_id: op.chunk_id,
+                    chunk_offset: op.chunk_offset,
+                    length: op.length,
+                    source_copy_id: op.source_copy_id.clone(),
+                })),
+            }));
+            frames.push(Ok(DfsReadRangesFrame {
+                body: Some(dfs_read_ranges_frame::Body::Data(data)),
+            }));
+            frames.push(Ok(DfsReadRangesFrame {
+                body: Some(dfs_read_ranges_frame::Body::Completion(
+                    DfsReadRangesCompletion {
+                        read_id: request.read_id.clone(),
+                        attempt_id: request.attempt_id.clone(),
+                        operation_index: op.operation_index,
+                        source_copy_id: op.source_copy_id,
+                        transferred_bytes: op.length,
+                        range_checksum: Vec::new(),
+                        range_checksum_algorithm: 0,
+                    },
+                )),
+            }));
+        }
+        Ok(Response::new(Box::pin(tokio_stream::iter(frames))))
     }
 }
 
@@ -225,6 +307,60 @@ fn validate_length(length: u32) -> Result<(), Status> {
             afs_error::NODE_TRANSFER_INVALID,
             "transfer exceeds 1MiB",
         ));
+    }
+    Ok(())
+}
+
+#[cfg(feature = "dfs")]
+fn validate_length_u64(length: u64) -> Result<(), Status> {
+    if length > MAX_TRANSFER_BYTES as u64 {
+        return Err(coded_status(
+            afs_error::NODE_TRANSFER_INVALID,
+            "transfer exceeds 1MiB",
+        ));
+    }
+    Ok(())
+}
+
+#[cfg(feature = "dfs")]
+fn validate_dfs_read_request(request: &DfsReadRangesRequest) -> Result<(), Status> {
+    if request.read_id.is_empty()
+        || request.attempt_id.is_empty()
+        || request.file_version_id.is_empty()
+        || request.layout_root_id.is_empty()
+        || request.operations.is_empty()
+    {
+        return Err(coded_status(
+            afs_error::NODE_TRANSFER_INVALID,
+            "DFS read request is incomplete",
+        ));
+    }
+    let grant = request.grant.as_ref().ok_or_else(|| {
+        coded_status(
+            afs_error::NODE_TRANSFER_INVALID,
+            "DFS read request is missing grant",
+        )
+    })?;
+    if grant.namespace_id.is_empty()
+        || grant.file_version_id != request.file_version_id
+        || grant.layout_root_id != request.layout_root_id
+        || grant.caller_node_id.is_empty()
+        || grant.expires_at_unix_ms == 0
+        || grant.token.is_empty()
+    {
+        return Err(coded_status(
+            afs_error::NODE_TRANSFER_INVALID,
+            "DFS read grant is structurally invalid",
+        ));
+    }
+    for op in &request.operations {
+        if op.chunk_id.is_empty() || op.source_copy_id.is_empty() {
+            return Err(coded_status(
+                afs_error::NODE_TRANSFER_INVALID,
+                "DFS read operation is incomplete",
+            ));
+        }
+        validate_length_u64(op.length)?;
     }
     Ok(())
 }

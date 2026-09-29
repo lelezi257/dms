@@ -605,6 +605,39 @@ impl crate::node::replication::PlacementProvider for GrpcDfsMeta {
 }
 
 #[cfg(feature = "dfs")]
+impl crate::node::dfs_read::ReadSourceProvider for GrpcDfsMeta {
+    fn sources_for(
+        &self,
+        request: crate::dfs::DfsChunkSourcesRequest,
+    ) -> afs_error::Result<crate::dfs::DfsChunkSourcesReply> {
+        let reply = self
+            .run(
+                self.client()
+                    .get_chunk_sources(afs_protocol::meta::GetDfsChunkSourcesRequest {
+                        caller_id: request.caller_id,
+                        namespace_id: request.namespace_id.0,
+                        file_version_id: request.file_version_id.0,
+                        layout_root_id: request.layout_root_id.0,
+                        chunk_ids: request
+                            .chunk_ids
+                            .into_iter()
+                            .map(|chunk_id| chunk_id.0)
+                            .collect(),
+                    }),
+            )?
+            .into_inner();
+        Ok(crate::dfs::DfsChunkSourcesReply {
+            revision: reply.revision,
+            chunks: reply
+                .chunks
+                .into_iter()
+                .map(domain_dfs_chunk_sources)
+                .collect::<afs_error::Result<Vec<_>>>()?,
+        })
+    }
+}
+
+#[cfg(feature = "dfs")]
 impl crate::node::vfs::dfs::DfsMeta for GrpcDfsMeta {
     fn lookup(
         &self,
@@ -1071,4 +1104,114 @@ fn domain_placement_snapshot(
         ));
     }
     Ok(result)
+}
+
+#[cfg(feature = "dfs")]
+fn domain_dfs_chunk_sources(
+    value: afs_protocol::meta::DfsChunkSources,
+) -> afs_error::Result<crate::dfs::ChunkSources> {
+    Ok(crate::dfs::ChunkSources {
+        chunk_id: crate::dfs::ChunkId::new(value.chunk_id),
+        sources: value
+            .sources
+            .into_iter()
+            .map(domain_dfs_source_candidate)
+            .collect::<afs_error::Result<Vec<_>>>()?,
+    })
+}
+
+#[cfg(feature = "dfs")]
+fn domain_dfs_source_candidate(
+    value: afs_protocol::meta::DfsSourceCandidate,
+) -> afs_error::Result<crate::dfs::SourceCandidate> {
+    Ok(crate::dfs::SourceCandidate {
+        copy_id: crate::dfs::CopyId::new(value.copy_id),
+        chunk_id: crate::dfs::ChunkId::new(value.chunk_id),
+        role: domain_dfs_copy_role(value.role)?,
+        state: domain_dfs_copy_state(value.state)?,
+        location: domain_dfs_copy_location(required(
+            value.location,
+            "DfsSourceCandidate.location",
+        )?)?,
+        data_endpoint: value.data_endpoint,
+        load_hint: value.load_hint,
+        read_grant: domain_dfs_read_grant(required(
+            value.read_grant,
+            "DfsSourceCandidate.read_grant",
+        )?),
+    })
+}
+
+#[cfg(feature = "dfs")]
+fn domain_dfs_copy_role(value: i32) -> afs_error::Result<crate::dfs::CopyRole> {
+    match afs_protocol::meta::DfsCopyRole::try_from(value) {
+        Ok(afs_protocol::meta::DfsCopyRole::DurableReplica) => {
+            Ok(crate::dfs::CopyRole::DurableReplica)
+        }
+        Ok(afs_protocol::meta::DfsCopyRole::VerifiedCache) => {
+            Ok(crate::dfs::CopyRole::VerifiedCache)
+        }
+        Ok(afs_protocol::meta::DfsCopyRole::ExternalCommitted) => {
+            Ok(crate::dfs::CopyRole::ExternalCommitted)
+        }
+        _ => Err(Error::coded(
+            afs_error::CLIENT_PROTOCOL_VIOLATION,
+            "DfsSourceCandidate has an invalid copy role",
+        )),
+    }
+}
+
+#[cfg(feature = "dfs")]
+fn domain_dfs_copy_state(value: i32) -> afs_error::Result<crate::dfs::CopyState> {
+    match afs_protocol::meta::DfsCopyState::try_from(value) {
+        Ok(afs_protocol::meta::DfsCopyState::Ready) => Ok(crate::dfs::CopyState::Ready),
+        Ok(afs_protocol::meta::DfsCopyState::Corrupt) => Ok(crate::dfs::CopyState::Corrupt),
+        Ok(afs_protocol::meta::DfsCopyState::Deleting) => Ok(crate::dfs::CopyState::Deleting),
+        _ => Err(Error::coded(
+            afs_error::CLIENT_PROTOCOL_VIOLATION,
+            "DfsSourceCandidate has an invalid copy state",
+        )),
+    }
+}
+
+#[cfg(feature = "dfs")]
+fn domain_dfs_copy_location(
+    value: afs_protocol::meta::DfsCopyLocation,
+) -> afs_error::Result<crate::dfs::CopyLocation> {
+    match value.location {
+        Some(afs_protocol::meta::dfs_copy_location::Location::Node(node)) => {
+            Ok(crate::dfs::CopyLocation::Node {
+                node_id: node.node_id,
+                node_epoch: node.node_epoch,
+                device_id: node.device_id,
+                device_epoch: node.device_epoch,
+                catalog_revision: node.catalog_revision,
+            })
+        }
+        Some(afs_protocol::meta::dfs_copy_location::Location::External(external)) => {
+            Ok(crate::dfs::CopyLocation::External {
+                store_id: external.store_id,
+                object_key: external.object_key,
+                object_revision: external.object_revision,
+            })
+        }
+        None => Err(Error::coded(
+            afs_error::CLIENT_PROTOCOL_VIOLATION,
+            "DfsCopyLocation is empty",
+        )),
+    }
+}
+
+#[cfg(feature = "dfs")]
+fn domain_dfs_read_grant(value: afs_protocol::meta::DfsReadGrant) -> crate::dfs::DfsReadGrant {
+    crate::dfs::DfsReadGrant {
+        namespace_id: crate::dfs::NamespaceId::new(value.namespace_id),
+        file_version_id: crate::dfs::FileVersionId::new(value.file_version_id),
+        layout_root_id: crate::dfs::LayoutRootId::new(value.layout_root_id),
+        caller_node_id: value.caller_node_id,
+        caller_node_epoch: value.caller_node_epoch,
+        expires_at_unix_ms: value.expires_at_unix_ms,
+        fence: value.fence,
+        token: value.token,
+    }
 }

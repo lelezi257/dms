@@ -2,7 +2,7 @@
 
 状态：Accepted Design
 
-实现状态：Not Implemented；当前 DFS 读取只支持本机 DurableReplica，SHM/RDMA 与文件内容路径尚未接通
+实现状态：Foundation；已接入本机 DurableReplica、Meta 选源和 gRPC Peer Range Read 最小路径，Cache/Seed/Spill、SHM/RDMA、完整授权与生产级故障状态机尚未实现
 
 专题入口：[架构设计专题](design-topics.md)
 

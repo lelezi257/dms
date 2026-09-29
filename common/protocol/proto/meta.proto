@@ -311,6 +311,7 @@ service DfsMeta {
   rpc GetInode(GetDfsInodeRequest) returns (GetDfsInodeReply);
   rpc GetFileVersion(GetFileVersionRequest) returns (GetFileVersionReply);
   rpc GetPlacementSnapshot(GetDfsPlacementSnapshotRequest) returns (GetDfsPlacementSnapshotReply);
+  rpc GetChunkSources(GetDfsChunkSourcesRequest) returns (GetDfsChunkSourcesReply);
   rpc SyncInodeMetadata(SyncDfsInodeMetadataRequest) returns (SyncDfsInodeMetadataReply);
   rpc CommitFileVersion(CommitFileVersionRequest) returns (CommitFileVersionReply);
 }
@@ -533,6 +534,79 @@ message GetDfsPlacementSnapshotRequest {
 
 message GetDfsPlacementSnapshotReply {
   DfsPlacementSnapshot snapshot = 1;
+}
+
+enum DfsCopyRole {
+  DFS_COPY_ROLE_UNSPECIFIED = 0;
+  DFS_COPY_ROLE_DURABLE_REPLICA = 1;
+  DFS_COPY_ROLE_VERIFIED_CACHE = 2;
+  DFS_COPY_ROLE_EXTERNAL_COMMITTED = 3;
+}
+
+enum DfsCopyState {
+  DFS_COPY_STATE_UNSPECIFIED = 0;
+  DFS_COPY_STATE_READY = 1;
+  DFS_COPY_STATE_CORRUPT = 2;
+  DFS_COPY_STATE_DELETING = 3;
+}
+
+message DfsCopyLocation {
+  message Node {
+    string node_id = 1;
+    uint64 node_epoch = 2;
+    string device_id = 3;
+    uint64 device_epoch = 4;
+    uint64 catalog_revision = 5;
+  }
+  message External {
+    string store_id = 1;
+    string object_key = 2;
+    string object_revision = 3;
+  }
+  oneof location {
+    Node node = 1;
+    External external = 2;
+  }
+}
+
+message DfsReadGrant {
+  string namespace_id = 1;
+  string file_version_id = 2;
+  string layout_root_id = 3;
+  string caller_node_id = 4;
+  uint64 caller_node_epoch = 5;
+  uint64 expires_at_unix_ms = 6;
+  uint64 fence = 7;
+  string token = 8;
+}
+
+message DfsSourceCandidate {
+  string copy_id = 1;
+  string chunk_id = 2;
+  DfsCopyRole role = 3;
+  DfsCopyState state = 4;
+  DfsCopyLocation location = 5;
+  string data_endpoint = 6;
+  uint32 load_hint = 7;
+  DfsReadGrant read_grant = 8;
+}
+
+message DfsChunkSources {
+  string chunk_id = 1;
+  repeated DfsSourceCandidate sources = 2;
+}
+
+message GetDfsChunkSourcesRequest {
+  string caller_id = 1;
+  string namespace_id = 2;
+  string file_version_id = 3;
+  string layout_root_id = 4;
+  repeated string chunk_ids = 5;
+}
+
+message GetDfsChunkSourcesReply {
+  uint64 revision = 1;
+  repeated DfsChunkSources chunks = 2;
 }
 
 message SyncDfsInodeMetadataRequest {

@@ -91,6 +91,12 @@ pub struct Cli {
     #[arg(long)]
     pub dfs_local_copy: Option<String>,
     #[arg(long)]
+    pub dfs_read_max_ops_per_batch: Option<usize>,
+    #[arg(long)]
+    pub dfs_read_max_inflight_bytes: Option<u64>,
+    #[arg(long)]
+    pub dfs_read_source_cache_ttl_ms: Option<u64>,
+    #[arg(long)]
     pub timeout_ms: Option<u64>,
     #[arg(long)]
     pub log_level: Option<String>,
@@ -133,6 +139,9 @@ struct FileConfig {
     dfs_min_distinct_nodes: Option<u16>,
     dfs_min_distinct_failure_domains: Option<u16>,
     dfs_local_copy: Option<String>,
+    dfs_read_max_ops_per_batch: Option<usize>,
+    dfs_read_max_inflight_bytes: Option<u64>,
+    dfs_read_source_cache_ttl_ms: Option<u64>,
     timeout_ms: Option<u64>,
     log_level: Option<String>,
     trace_enabled: Option<bool>,
@@ -168,6 +177,9 @@ pub struct Config {
     pub dfs_min_distinct_nodes: u16,
     pub dfs_min_distinct_failure_domains: u16,
     pub dfs_local_copy: String,
+    pub dfs_read_max_ops_per_batch: usize,
+    pub dfs_read_max_inflight_bytes: u64,
+    pub dfs_read_source_cache_ttl_ms: u64,
     pub timeout_ms: u64,
     pub log_level: String,
     pub trace_enabled: bool,
@@ -265,6 +277,26 @@ impl Config {
                 "dfs_local_copy must be required, preferred or none",
             ));
         }
+        let dfs_read_max_ops_per_batch = cli
+            .dfs_read_max_ops_per_batch
+            .or(file.dfs_read_max_ops_per_batch)
+            .unwrap_or(128);
+        let dfs_read_max_inflight_bytes = cli
+            .dfs_read_max_inflight_bytes
+            .or(file.dfs_read_max_inflight_bytes)
+            .unwrap_or(8 * 1024 * 1024);
+        let dfs_read_source_cache_ttl_ms = cli
+            .dfs_read_source_cache_ttl_ms
+            .or(file.dfs_read_source_cache_ttl_ms)
+            .unwrap_or(500);
+        if dfs_read_max_ops_per_batch == 0
+            || dfs_read_max_inflight_bytes == 0
+            || dfs_read_source_cache_ttl_ms > 60_000
+        {
+            return Err(invalid(
+                "DFS read budgets must be non-zero and source cache TTL must be <= 60000 ms",
+            ));
+        }
         let cfg = Self {
             grpc_listen: cli.grpc_listen.or(file.grpc_listen).unwrap_or_else(|| {
                 ([127, 0, 0, 1], if role == Role::Meta { 7400 } else { 7500 }).into()
@@ -309,6 +341,9 @@ impl Config {
             dfs_min_distinct_nodes,
             dfs_min_distinct_failure_domains,
             dfs_local_copy,
+            dfs_read_max_ops_per_batch,
+            dfs_read_max_inflight_bytes,
+            dfs_read_source_cache_ttl_ms,
             timeout_ms: cli.timeout_ms.or(file.timeout_ms).unwrap_or(5000),
             log_level: cli
                 .log_level

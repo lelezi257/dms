@@ -31,11 +31,11 @@ Node RPC 使用四个职责文件：`control.rs` 负责 Node 间控制，`data.r
 | 写入可见性与同步合同 | Experimental R=1 | WriteLease、inode 级 InodeWriteState、DirtyExtentMap、DataOnly/Full commit 已接入；跨节点 owner routing 尚未实现 |
 | Chunk 副本状态机 | Framework Implemented / R1 Experimental | ReplicationConfig 初始化、设备注册、PlacementSnapshot 缓存、R1 快路径、RN engine、ACK/receipt、Meta Copy/Placement/Task 原子提交和 gRPC/RDMA RPC 骨架已接入；RN 远端搬运与后台 worker 尚未实现 |
 | Local ChunkEngine | Framework Implemented / R1 Experimental | BLAKE3 身份、per-chunk file、批量 durable finalize、no-replace publish、LocalChunkRecord/LocalCatalog、启动恢复与 reader FD pin 已接入；Pack、relocation、GC/reconciliation 尚未实现 |
-| 固定版本多源读取 | Accepted Design | DfsReadEngine、ChunkReadOp/ReadBatch、选源、attempt fencing、SeedLease 与缓存门禁已确定；调度与 Peer 数据路径尚未实现 |
+| 固定版本多源读取 | Framework Implemented / Local DurableReplica Experimental | DfsReadEngine、ChunkReadOp/ReadBatch、Meta GetChunkSources、Peer ReadRanges wire、Source cache 与本机 DurableReplica 读取已接入；远端流式读取、VerifiedCache、SeedLease 与 Spill 尚未完成 |
 | 外部对象存储 spill | 未实现 | 属于容量层选项，不是系统成立条件 |
 | Native SDK 高性能数据面 | 基础框架 | SHM/RDMA 文件内容路径尚未接通 |
 
-DFS length/truncate/sparse 基础路径在 Linux `dms-dev` VM 通过全 workspace 测试和严格 Clippy；真实 FUSE R1 E2E 已验证 `ftruncate` shrink→grow 不恢复旧尾部、路径 `truncate`、远偏移稀疏写、Hole 零读取，以及 Hole 不物化为零 Chunk。进程 crash、VM 掉电和并发 sync 故障矩阵仍未验证，因此状态保持 Experimental R=1。
+DFS length/truncate/sparse 基础路径在 Linux `dms-dev` VM 通过全 workspace 测试和严格 Clippy；真实 FUSE R1 E2E 已验证 `ftruncate` shrink→grow 不恢复旧尾部、路径 `truncate`、远偏移稀疏写、Hole 零读取，以及 Hole 不物化为零 Chunk。专题六第一阶段在 Linux `dms-dev` VM 通过 workspace 全目标全 feature check、严格 Clippy 和定向测试，验证本机 DurableReplica 读取、Meta 固定版本选源、gRPC Peer Range Read 最小服务端/客户端路径及失败换源。进程 crash、VM 掉电、Peer 授权攻击面和并发 sync 故障矩阵仍未验证，因此状态保持 Experimental R=1。
 
 ## OwnerFs 证据
 
@@ -54,8 +54,8 @@ DFS length/truncate/sparse 基础路径在 Linux `dms-dev` VM 通过全 workspac
 - 严格普通写跨节点可见性合同已经固化；当前只接受本地 WriteLease owner，远端 owner routing 尚未实现。
 - DFS 已分离 `write/flush/fdatasync/fsync/release`，接通 `O_DSYNC/O_SYNC`，并增加定时后台 writeback、优雅退出 drain、inode sticky error 和 CommitBatch freeze；跨节点 owner routing、并发 sync 等待、故障恢复矩阵和 `fsync(dir)` 尚未实现。
 - DFS `setattr(size)`、普通 `truncate/ftruncate`、`O_TRUNC`、写过 EOF、Shrink 后 Grow 和稀疏读取已经接通本地 owner 路径；远端 owner 转发、完整属性修改和并发 sync 故障矩阵尚未完成。
-- CopyRecord 代码目前仍把 DurableReplica 与 Corrupt/Deleting 放在同一个 `CopyState` 枚举；RFC-0006 要求实现时拆为 `CopyRole + CopyState`，并增加 VerifiedCache 与 ExternalCommitted。
-- DFS 读取目前直接调用本机 LocalChunkStore；DfsReadEngine、Peer Range Read、Seed Directory、ChunkCache、SpillStore 和文件数据面 SHM/RDMA 尚未实现。
+- CopyRecord 已拆为 `CopyRole + CopyState`，旧 JSON `Staging` 仅解码为不可读兼容态；Meta 选源当前只返回 Ready DurableReplica。VerifiedCache 与 ExternalCommitted 还没有真实晋升/回源状态机。
+- DFS 固定版本读取已接入 `DfsReadEngine` 本机 DurableReplica 路径、Meta 选源和 gRPC Peer ReadRanges 最小路径；该路径只完成 Range 请求、服务端本机 Chunk 读取、frame 校验和候选失败换源。ReadGrant 完整校验、Seed Directory、ChunkCache、SpillStore、文件数据面 SHM/RDMA 和生产级连接/故障状态机尚未实现。
 - RDMA 已有传输探测能力，文件内容仍走 gRPC P2P。
 - 完整 POSIX、VM 掉电、长稳、容量压力和对象存储 spill 尚未验收。
 

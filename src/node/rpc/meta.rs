@@ -939,7 +939,8 @@ fn wire_chunk_receipt(receipt: crate::dfs::ChunkReceipt) -> afs_protocol::meta::
         operation_id: receipt.operation_id.0,
         chunk_id: receipt.chunk.id.0,
         chunk_length: receipt.chunk.length,
-        content_digest: receipt.chunk.content_digest.0.to_vec(),
+        content_digest: receipt.chunk.content_digest.bytes.to_vec(),
+        content_digest_algorithm: wire_digest_algorithm(receipt.chunk.content_digest.algorithm),
         placement_revision: receipt.placement_revision,
         placement_epoch: receipt.placement_epoch,
         replica_group_id: receipt.replica_group_id.0,
@@ -964,7 +965,17 @@ fn wire_replica_ack(ack: crate::dfs::ReplicaAck) -> afs_protocol::meta::DfsRepli
         device_epoch: ack.device_epoch,
         catalog_revision: ack.catalog_revision,
         persisted_bytes: ack.persisted_bytes,
-        verified_digest: ack.verified_digest.0.to_vec(),
+        verified_digest: ack.verified_digest.bytes.to_vec(),
+        verified_digest_algorithm: wire_digest_algorithm(ack.verified_digest.algorithm),
+    }
+}
+
+#[cfg(feature = "dfs")]
+fn wire_digest_algorithm(algorithm: crate::dfs::DigestAlgorithm) -> i32 {
+    match algorithm {
+        crate::dfs::DigestAlgorithm::Blake3 => {
+            afs_protocol::meta::DfsDigestAlgorithm::Blake3 as i32
+        }
     }
 }
 

@@ -61,6 +61,12 @@ message DfsPutReplicaHeader {
   uint64 placement_epoch = 6;
   string replica_group_id = 7;
   repeated DfsReplicaTarget ordered_targets = 8;
+  DfsDigestAlgorithm content_digest_algorithm = 9;
+}
+
+enum DfsDigestAlgorithm {
+  DFS_DIGEST_ALGORITHM_UNSPECIFIED = 0;
+  DFS_DIGEST_ALGORITHM_BLAKE3 = 1;
 }
 
 message DfsStorageDevice {
@@ -89,6 +95,7 @@ message DfsReplicaAck {
   uint64 catalog_revision = 9;
   uint64 persisted_bytes = 10;
   bytes verified_digest = 11;
+  DfsDigestAlgorithm verified_digest_algorithm = 12;
 }
 
 message DfsPutReplicaFrame {
@@ -115,6 +122,7 @@ message DfsConfirmReplicaRequest {
   bytes expected_digest = 3;
   uint64 placement_revision = 4;
   uint64 placement_epoch = 5;
+  DfsDigestAlgorithm expected_digest_algorithm = 6;
 }
 
 // OwnerFiles 是 OwnerFs 的远端文件数据面合同。

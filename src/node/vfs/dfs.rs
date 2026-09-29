@@ -32,11 +32,12 @@ use crate::{
         FileVersion, FileVersionId, InodeAttributes, InodeId, InodeKind, InodeRecord, LayoutRoot,
         LayoutRootId, NamespaceId, OperationId, SyncInodeMetadata, WriteLease,
     },
-    node::chunk::{ChunkBuilder, ChunkStore},
+    node::chunk::{ChunkBuilder, ChunkStore, StagedChunk},
 };
 
 pub const DFS_WRITE_LEASE_SECONDS: u64 = 30;
 const ROOT_INODE: u64 = 1;
+const COMMIT_CHUNK_BYTES: u64 = 4 * 1024 * 1024;
 
 pub trait DfsMeta: Send + Sync {
     fn lookup(&self, parent: &InodeId, name: &[u8]) -> Result<Option<InodeRecord>>;
@@ -93,10 +94,12 @@ pub struct DfsWriteSession {
 struct InodeWriteState {
     inode: InodeRecord,
     write_lease: WriteLease,
-    base_version_id: Option<FileVersionId>,
+    base_version: Option<FileVersion>,
+    base_layout: LayoutRoot,
     logical_length: u64,
     metadata_dirty: bool,
     dirty_extents: DirtyExtentMap,
+    in_flight: Option<FrozenCommit>,
     dirty: bool,
     next_write_seq: u64,
     visible_write_seq: u64,
@@ -113,19 +116,44 @@ struct ObservedWriteError {
     error: Error,
 }
 
+#[derive(Clone)]
 struct DirtyExtent {
     file_offset: u64,
-    bytes: Vec<u8>,
+    length: u64,
+    write_seq: u64,
+    data: Option<Arc<[u8]>>,
 }
 
+#[derive(Clone, Default)]
 struct DirtyExtentMap {
-    base: Vec<u8>,
     extents: Vec<DirtyExtent>,
+}
+
+#[derive(Clone)]
+struct FrozenCommit {
+    through_seq: u64,
+    logical_length: u64,
+    inode: InodeRecord,
+    write_lease: WriteLease,
+    base_version: Option<FileVersion>,
+    base_layout: LayoutRoot,
+    dirty_extents: DirtyExtentMap,
+}
+
+struct CommitPlan {
+    layout_root: LayoutRoot,
+    staged_chunks: Vec<StagedChunk>,
+}
+
+#[derive(Clone)]
+struct OverlaySegment {
+    file_offset: u64,
+    length: u64,
+    data: Option<(Arc<[u8]>, usize)>,
 }
 
 struct CommitBatch {
     through_seq: u64,
-    materialized: Vec<u8>,
     commit: CommitFileVersion,
 }
 
@@ -227,39 +255,23 @@ impl DistributedFs {
         Ok(FileHandle(id))
     }
 
-    fn load_version_bytes(&self, version_id: Option<&FileVersionId>) -> Result<Vec<u8>> {
+    fn load_version(
+        &self,
+        version_id: Option<&FileVersionId>,
+    ) -> Result<(Option<FileVersion>, LayoutRoot)> {
         let Some(version_id) = version_id else {
-            return Ok(Vec::new());
+            return Ok((
+                None,
+                LayoutRoot {
+                    id: LayoutRootId::new("empty"),
+                    file_length: 0,
+                    inline_extents: Vec::new(),
+                },
+            ));
         };
-        let (version, layout) = self.meta.get_file_version(version_id)?;
-        let mut bytes =
-            vec![0; usize::try_from(version.length).map_err(|_| invalid("file too large"))?];
-        for extent in layout.inline_extents {
-            let start = usize::try_from(extent.file_offset)
-                .map_err(|_| invalid("extent offset too large"))?;
-            let length =
-                usize::try_from(extent.length).map_err(|_| invalid("extent length too large"))?;
-            let end = start
-                .checked_add(length)
-                .ok_or_else(|| invalid("extent range overflow"))?;
-            if end > bytes.len() {
-                return Err(invalid("extent exceeds FileVersion length"));
-            }
-            let mut chunk_bytes = vec![0; length];
-            let read = self.chunk_store.read_at(
-                &extent.chunk_id,
-                extent.chunk_offset,
-                &mut chunk_bytes,
-            )?;
-            if read != length {
-                return Err(Error::coded(
-                    afs_error::NODE_TRANSFER_CORRUPT_DATA,
-                    "chunk ended before the referenced extent",
-                ));
-            }
-            bytes[start..end].copy_from_slice(&chunk_bytes);
-        }
-        Ok(bytes)
+        self.meta
+            .get_file_version(version_id)
+            .map(|(version, layout)| (Some(version), layout))
     }
 
     fn write_state(&self, inode_id: &InodeId) -> Result<Option<SharedInodeWriteState>> {
@@ -276,13 +288,16 @@ impl DistributedFs {
         if self.write_state(&inode.inode_id)?.is_some() {
             return Ok(());
         }
-        let base = self.load_version_bytes(inode.head_version.as_ref())?;
+        let (base_version, base_layout) = self.load_version(inode.head_version.as_ref())?;
+        let logical_length = base_version.as_ref().map_or(0, |version| version.length);
         let state = Arc::new(Mutex::new(InodeWriteState {
             write_lease,
-            base_version_id: inode.head_version.clone(),
-            logical_length: base.len() as u64,
+            base_version,
+            base_layout,
+            logical_length,
             metadata_dirty: false,
-            dirty_extents: DirtyExtentMap::new(base),
+            dirty_extents: DirtyExtentMap::default(),
+            in_flight: None,
             inode: inode.clone(),
             dirty: false,
             next_write_seq: 0,
@@ -338,18 +353,84 @@ impl DistributedFs {
         Ok(state.logical_length)
     }
 
-    fn current_bytes(
+    fn read_visible(
         &self,
         inode_id: &InodeId,
         committed: Option<&FileVersionId>,
-    ) -> Result<Vec<u8>> {
-        if let Some(state) = self.write_state(inode_id)? {
+        offset: u64,
+        out: &mut [u8],
+    ) -> Result<usize> {
+        let (length, layout, frozen, active) = if let Some(state) = self.write_state(inode_id)? {
             let state = state
                 .lock()
                 .map_err(|_| unavailable("DFS inode write state is poisoned"))?;
-            return state.dirty_extents.materialize(state.logical_length);
+            (
+                state.logical_length,
+                state.base_layout.clone(),
+                state
+                    .in_flight
+                    .as_ref()
+                    .map(|commit| commit.dirty_extents.clone()),
+                state.dirty_extents.clone(),
+            )
+        } else {
+            let (version, layout) = self.load_version(committed)?;
+            (
+                version.as_ref().map_or(0, |value| value.length),
+                layout,
+                None,
+                DirtyExtentMap::default(),
+            )
+        };
+        if offset >= length || out.is_empty() {
+            return Ok(0);
         }
-        self.load_version_bytes(committed)
+        let count = usize::try_from((length - offset).min(out.len() as u64))
+            .map_err(|_| invalid("read length is too large"))?;
+        out[..count].fill(0);
+        self.read_layout_range(&layout, offset, &mut out[..count])?;
+        if let Some(frozen) = frozen {
+            frozen.overlay(offset, &mut out[..count])?;
+        }
+        active.overlay(offset, &mut out[..count])?;
+        Ok(count)
+    }
+
+    fn read_layout_range(&self, layout: &LayoutRoot, offset: u64, out: &mut [u8]) -> Result<()> {
+        let end = offset
+            .checked_add(out.len() as u64)
+            .ok_or_else(|| invalid("read range overflow"))?;
+        for extent in &layout.inline_extents {
+            let extent_end = extent
+                .file_offset
+                .checked_add(extent.length)
+                .ok_or_else(|| invalid("extent range overflow"))?;
+            let start = offset.max(extent.file_offset);
+            let stop = end.min(extent_end);
+            if start >= stop {
+                continue;
+            }
+            let output_offset = usize::try_from(start - offset)
+                .map_err(|_| invalid("read output offset is too large"))?;
+            let length =
+                usize::try_from(stop - start).map_err(|_| invalid("read length is too large"))?;
+            let chunk_offset = extent
+                .chunk_offset
+                .checked_add(start - extent.file_offset)
+                .ok_or_else(|| invalid("chunk read offset overflow"))?;
+            let read = self.chunk_store.read_at(
+                &extent.chunk_id,
+                chunk_offset,
+                &mut out[output_offset..output_offset + length],
+            )?;
+            if read != length {
+                return Err(Error::coded(
+                    afs_error::NODE_TRANSFER_CORRUPT_DATA,
+                    "chunk ended before the referenced extent",
+                ));
+            }
+        }
+        Ok(())
     }
 
     fn handle_snapshot(&self, handle: FileHandle) -> Result<DfsFileHandleSnapshot> {
@@ -375,104 +456,134 @@ impl DistributedFs {
         let Some(state) = self.write_state(inode_id)? else {
             return Ok(None);
         };
+        let frozen = {
+            let mut state = state
+                .lock()
+                .map_err(|_| unavailable("DFS inode write state is poisoned"))?;
+            if state.in_flight.is_some() {
+                return Err(unavailable("DFS inode already has a commit in flight"));
+            }
+            if !(state.dirty || matches!(reason, CommitReason::FullSync) && state.metadata_dirty) {
+                return Ok(None);
+            }
+            if should_renew(&state.write_lease) {
+                state.write_lease = self.meta.renew_write_lease(state.write_lease.clone())?;
+            }
+            if !state.dirty {
+                let now = now_unix_ms();
+                let updated = self.validate_inode(
+                    self.meta.sync_inode_metadata(SyncInodeMetadata {
+                        operation_id: self.operation_id("fsync-metadata"),
+                        inode_id: state.inode.inode_id.clone(),
+                        write_lease: state.write_lease.clone(),
+                        expected_inode_revision: state.inode.revision,
+                        expected_head_version: state
+                            .base_version
+                            .as_ref()
+                            .map(|version| version.id.clone()),
+                        metadata_delta: CommitMetadataDelta {
+                            mode: CommitMetadataMode::Full,
+                            mtime_unix_ms: Some(now),
+                            ctime_unix_ms: Some(now),
+                        },
+                    })?,
+                )?;
+                state.inode = updated;
+                state.metadata_dirty = false;
+                return Ok(Some(state.committed_write_seq));
+            }
+            let frozen = FrozenCommit {
+                through_seq: state.visible_write_seq,
+                logical_length: state.logical_length,
+                inode: state.inode.clone(),
+                write_lease: state.write_lease.clone(),
+                base_version: state.base_version.clone(),
+                base_layout: state.base_layout.clone(),
+                dirty_extents: std::mem::take(&mut state.dirty_extents),
+            };
+            state.in_flight = Some(frozen.clone());
+            state.dirty = false;
+            frozen
+        };
+
+        let result = self.prepare_commit(&frozen, reason).and_then(|batch| {
+            let committed_full_metadata =
+                batch.commit.metadata_delta.mode == CommitMetadataMode::Full;
+            let version = batch.commit.file_version.clone();
+            let layout = batch.commit.layout_root.clone();
+            let updated = self.validate_inode(self.meta.commit_file_version(batch.commit)?)?;
+            Ok((
+                batch.through_seq,
+                committed_full_metadata,
+                version,
+                layout,
+                updated,
+            ))
+        });
+
         let mut state = state
             .lock()
             .map_err(|_| unavailable("DFS inode write state is poisoned"))?;
-        if !(state.dirty || matches!(reason, CommitReason::FullSync) && state.metadata_dirty) {
-            return Ok(None);
+        match result {
+            Ok((through_seq, committed_full_metadata, version, layout, updated)) => {
+                state.in_flight = None;
+                state.inode = updated;
+                state.base_version = Some(version);
+                state.base_layout = layout;
+                state.dirty = !state.dirty_extents.is_empty();
+                state.durable_write_seq = through_seq;
+                state.committed_write_seq = through_seq;
+                state.last_writer_background_requested = false;
+                if committed_full_metadata && state.dirty_extents.is_empty() {
+                    state.metadata_dirty = false;
+                }
+                Ok(Some(through_seq))
+            }
+            Err(error) => {
+                if let Some(failed) = state.in_flight.take() {
+                    state.dirty_extents.restore_before(failed.dirty_extents);
+                }
+                state.dirty = !state.dirty_extents.is_empty();
+                Err(error)
+            }
         }
-        if should_renew(&state.write_lease) {
-            state.write_lease = self.meta.renew_write_lease(state.write_lease.clone())?;
-        }
-        if !state.dirty {
-            let now = now_unix_ms();
-            let updated =
-                self.validate_inode(self.meta.sync_inode_metadata(SyncInodeMetadata {
-                    operation_id: self.operation_id("fsync-metadata"),
-                    inode_id: state.inode.inode_id.clone(),
-                    write_lease: state.write_lease.clone(),
-                    expected_inode_revision: state.inode.revision,
-                    expected_head_version: state.base_version_id.clone(),
-                    metadata_delta: CommitMetadataDelta {
-                        mode: CommitMetadataMode::Full,
-                        mtime_unix_ms: Some(now),
-                        ctime_unix_ms: Some(now),
-                    },
-                })?)?;
-            state.inode = updated;
-            state.metadata_dirty = false;
-            return Ok(Some(state.committed_write_seq));
-        }
-        let batch = self.prepare_commit(&mut state, reason)?;
-        let committed_full_metadata = batch.commit.metadata_delta.mode == CommitMetadataMode::Full;
-        let updated = self.validate_inode(self.meta.commit_file_version(batch.commit)?)?;
-        state.inode = updated.clone();
-        state.base_version_id = updated.head_version;
-        state.logical_length = batch.materialized.len() as u64;
-        state.dirty_extents = DirtyExtentMap::new(batch.materialized);
-        state.dirty = false;
-        state.durable_write_seq = batch.through_seq;
-        state.committed_write_seq = batch.through_seq;
-        state.last_writer_background_requested = false;
-        if committed_full_metadata {
-            state.metadata_dirty = false;
-        }
-        Ok(Some(batch.through_seq))
     }
 
-    fn prepare_commit(
-        &self,
-        state: &mut InodeWriteState,
-        reason: CommitReason,
-    ) -> Result<CommitBatch> {
-        let materialized = state.dirty_extents.materialize(state.logical_length)?;
-        let mut builder = ChunkBuilder::default();
-        builder.replace(materialized.clone());
+    fn prepare_commit(&self, frozen: &FrozenCommit, reason: CommitReason) -> Result<CommitBatch> {
         let operation_id = self.operation_id(reason.operation_prefix());
-        let receipt = (!materialized.is_empty())
-            .then(|| self.chunk_store.put(builder.stage(operation_id.clone())))
-            .transpose()?;
         let generation = self.next_operation.fetch_add(1, Ordering::Relaxed);
-        let layout = LayoutRoot {
-            id: LayoutRootId::new(format!("{}-layout-{generation}", self.session_id)),
-            file_length: state.logical_length,
-            inline_extents: if state.logical_length == 0 {
-                Vec::new()
-            } else {
-                vec![Extent {
-                    file_offset: 0,
-                    length: state.logical_length,
-                    chunk_id: receipt
-                        .as_ref()
-                        .expect("non-empty materialized data has a receipt")
-                        .chunk
-                        .id
-                        .clone(),
-                    chunk_offset: 0,
-                }]
-            },
-        };
+        let plan = CommitPlanner.plan(
+            frozen,
+            operation_id.clone(),
+            LayoutRootId::new(format!("{}-layout-{generation}", self.session_id)),
+        )?;
+        let receipts = self.chunk_store.put_batch(plan.staged_chunks)?;
         let now = now_unix_ms();
         let version = FileVersion {
             id: FileVersionId::new(format!("{}-version-{generation}", self.session_id)),
-            inode_id: state.inode.inode_id.clone(),
-            parent_version: state.base_version_id.clone(),
-            length: state.logical_length,
-            layout_root: layout.id.clone(),
+            inode_id: frozen.inode.inode_id.clone(),
+            parent_version: frozen
+                .base_version
+                .as_ref()
+                .map(|version| version.id.clone()),
+            length: frozen.logical_length,
+            layout_root: plan.layout_root.id.clone(),
             created_at_unix_ms: now,
         };
         Ok(CommitBatch {
-            through_seq: state.visible_write_seq,
-            materialized,
+            through_seq: frozen.through_seq,
             commit: CommitFileVersion {
                 operation_id,
-                inode_id: state.inode.inode_id.clone(),
-                write_lease: state.write_lease.clone(),
-                expected_inode_revision: state.inode.revision,
-                expected_head_version: state.base_version_id.clone(),
+                inode_id: frozen.inode.inode_id.clone(),
+                write_lease: frozen.write_lease.clone(),
+                expected_inode_revision: frozen.inode.revision,
+                expected_head_version: frozen
+                    .base_version
+                    .as_ref()
+                    .map(|version| version.id.clone()),
                 file_version: version,
-                layout_root: layout,
-                chunk_receipts: receipt.into_iter().collect(),
+                layout_root: plan.layout_root,
+                chunk_receipts: receipts,
                 metadata_delta: reason.metadata_delta(now),
             },
         })
@@ -505,10 +616,14 @@ impl DistributedFs {
         let mut state = state
             .lock()
             .map_err(|_| unavailable("DFS inode write state is poisoned"))?;
-        state.dirty_extents.truncate(length)?;
+        state.next_write_seq = state.next_write_seq.saturating_add(1);
+        let old_length = state.logical_length;
+        let write_seq = state.next_write_seq;
+        state
+            .dirty_extents
+            .truncate(old_length, length, write_seq)?;
         state.logical_length = length;
         state.metadata_dirty = true;
-        state.next_write_seq = state.next_write_seq.saturating_add(1);
         state.visible_write_seq = state.next_write_seq;
         state.dirty = true;
         Ok(())
@@ -632,52 +747,288 @@ impl From<&DfsFileHandle> for DfsFileHandleSnapshot {
 }
 
 impl DirtyExtentMap {
-    fn new(base: Vec<u8>) -> Self {
-        Self {
-            base,
-            extents: Vec::new(),
-        }
-    }
-
-    fn write_at(&mut self, offset: u64, data: &[u8]) -> Result<usize> {
+    fn write_at(&mut self, offset: u64, data: &[u8], write_seq: u64) -> Result<usize> {
         let _ = usize::try_from(offset).map_err(|_| invalid("write offset is too large"))?;
         if !data.is_empty() {
             self.extents.push(DirtyExtent {
                 file_offset: offset,
-                bytes: data.to_vec(),
+                length: data.len() as u64,
+                write_seq,
+                data: Some(Arc::from(data)),
             });
         }
         Ok(data.len())
     }
 
-    fn truncate(&mut self, length: u64) -> Result<()> {
-        let length = usize::try_from(length).map_err(|_| invalid("file length is too large"))?;
-        let mut materialized = self.materialize(length as u64)?;
-        materialized.resize(length, 0);
-        self.base = materialized;
-        self.extents.clear();
+    fn truncate(&mut self, old_length: u64, new_length: u64, write_seq: u64) -> Result<()> {
+        let (start, stop) = if new_length < old_length {
+            (new_length, old_length)
+        } else {
+            (old_length, new_length)
+        };
+        if start < stop {
+            self.extents.push(DirtyExtent {
+                file_offset: start,
+                length: stop - start,
+                write_seq,
+                data: None,
+            });
+        }
         Ok(())
     }
 
-    fn materialize(&self, length: u64) -> Result<Vec<u8>> {
-        let target_len =
-            usize::try_from(length).map_err(|_| invalid("file length is too large"))?;
-        let mut bytes = self.base.clone();
-        bytes.resize(target_len, 0);
+    fn overlay(&self, offset: u64, out: &mut [u8]) -> Result<()> {
+        let end = offset
+            .checked_add(out.len() as u64)
+            .ok_or_else(|| invalid("dirty read range overflow"))?;
         for extent in &self.extents {
-            let start = usize::try_from(extent.file_offset)
-                .map_err(|_| invalid("dirty extent offset is too large"))?;
-            let end = start
-                .checked_add(extent.bytes.len())
+            let extent_end = extent
+                .file_offset
+                .checked_add(extent.length)
                 .ok_or_else(|| invalid("dirty extent range overflow"))?;
-            if end > bytes.len() {
-                bytes.resize(end, 0);
+            let start = offset.max(extent.file_offset);
+            let stop = end.min(extent_end);
+            if start >= stop {
+                continue;
             }
-            bytes[start..end].copy_from_slice(&extent.bytes);
+            let output_start = usize::try_from(start - offset)
+                .map_err(|_| invalid("dirty output offset is too large"))?;
+            let length = usize::try_from(stop - start)
+                .map_err(|_| invalid("dirty overlay length is too large"))?;
+            match &extent.data {
+                Some(data) => {
+                    let data_start = usize::try_from(start - extent.file_offset)
+                        .map_err(|_| invalid("dirty data offset is too large"))?;
+                    out[output_start..output_start + length]
+                        .copy_from_slice(&data[data_start..data_start + length]);
+                }
+                None => out[output_start..output_start + length].fill(0),
+            }
         }
-        bytes.truncate(target_len);
-        Ok(bytes)
+        Ok(())
     }
+
+    fn restore_before(&mut self, mut older: DirtyExtentMap) {
+        older.extents.append(&mut self.extents);
+        older.extents.sort_by_key(|extent| extent.write_seq);
+        self.extents = older.extents;
+    }
+
+    fn is_empty(&self) -> bool {
+        self.extents.is_empty()
+    }
+}
+
+struct CommitPlanner;
+
+impl CommitPlanner {
+    fn plan(
+        &self,
+        frozen: &FrozenCommit,
+        operation_id: OperationId,
+        layout_id: LayoutRootId,
+    ) -> Result<CommitPlan> {
+        let overlay = normalized_overlay(&frozen.dirty_extents, frozen.logical_length)?;
+        let mut extents = frozen
+            .base_layout
+            .inline_extents
+            .iter()
+            .filter_map(|extent| clip_extent(extent, frozen.logical_length))
+            .collect::<Vec<_>>();
+        for segment in &overlay {
+            extents = subtract_range(extents, segment.file_offset, segment.length)?;
+        }
+
+        let mut staged_chunks = Vec::new();
+        let mut pending_start = None;
+        let mut pending = Vec::new();
+        for segment in overlay {
+            let Some((bytes, source_offset)) = segment.data else {
+                flush_pending(
+                    &mut pending_start,
+                    &mut pending,
+                    &operation_id,
+                    &mut extents,
+                    &mut staged_chunks,
+                );
+                continue;
+            };
+            let mut source_offset = source_offset;
+            let mut file_offset = segment.file_offset;
+            let mut remaining = usize::try_from(segment.length)
+                .map_err(|_| invalid("dirty data length is too large"))?;
+            while remaining > 0 {
+                let expected = pending_start.map(|start| start + pending.len() as u64);
+                if expected.is_some_and(|expected| expected != file_offset)
+                    || pending.len() == COMMIT_CHUNK_BYTES as usize
+                {
+                    flush_pending(
+                        &mut pending_start,
+                        &mut pending,
+                        &operation_id,
+                        &mut extents,
+                        &mut staged_chunks,
+                    );
+                }
+                let capacity = COMMIT_CHUNK_BYTES as usize - pending.len();
+                let take = capacity.min(remaining);
+                pending_start.get_or_insert(file_offset);
+                pending.extend_from_slice(&bytes[source_offset..source_offset + take]);
+                source_offset += take;
+                file_offset += take as u64;
+                remaining -= take;
+            }
+        }
+        flush_pending(
+            &mut pending_start,
+            &mut pending,
+            &operation_id,
+            &mut extents,
+            &mut staged_chunks,
+        );
+        extents.sort_by_key(|extent| extent.file_offset);
+        Ok(CommitPlan {
+            layout_root: LayoutRoot {
+                id: layout_id,
+                file_length: frozen.logical_length,
+                inline_extents: extents,
+            },
+            staged_chunks,
+        })
+    }
+}
+
+fn normalized_overlay(map: &DirtyExtentMap, file_length: u64) -> Result<Vec<OverlaySegment>> {
+    let mut output: Vec<OverlaySegment> = Vec::new();
+    for dirty in &map.extents {
+        if dirty.file_offset >= file_length || dirty.length == 0 {
+            continue;
+        }
+        let dirty_end = dirty
+            .file_offset
+            .checked_add(dirty.length)
+            .ok_or_else(|| invalid("dirty extent range overflow"))?
+            .min(file_length);
+        let mut next = Vec::with_capacity(output.len().saturating_add(1));
+        for segment in output {
+            let segment_end = segment.file_offset + segment.length;
+            if dirty_end <= segment.file_offset || dirty.file_offset >= segment_end {
+                next.push(segment);
+                continue;
+            }
+            if dirty.file_offset > segment.file_offset {
+                next.push(OverlaySegment {
+                    file_offset: segment.file_offset,
+                    length: dirty.file_offset - segment.file_offset,
+                    data: segment.data.clone(),
+                });
+            }
+            if dirty_end < segment_end {
+                let data = match segment.data {
+                    Some((bytes, source_offset)) => {
+                        let delta = usize::try_from(dirty_end - segment.file_offset)
+                            .map_err(|_| invalid("overlay source offset is too large"))?;
+                        let source_offset = source_offset
+                            .checked_add(delta)
+                            .ok_or_else(|| invalid("overlay source offset overflow"))?;
+                        Some((bytes, source_offset))
+                    }
+                    None => None,
+                };
+                next.push(OverlaySegment {
+                    file_offset: dirty_end,
+                    length: segment_end - dirty_end,
+                    data,
+                });
+            }
+        }
+        next.push(OverlaySegment {
+            file_offset: dirty.file_offset,
+            length: dirty_end - dirty.file_offset,
+            data: dirty.data.clone().map(|bytes| (bytes, 0)),
+        });
+        next.sort_by_key(|segment| segment.file_offset);
+        output = next;
+    }
+    Ok(output)
+}
+
+fn flush_pending(
+    pending_start: &mut Option<u64>,
+    pending: &mut Vec<u8>,
+    operation_id: &OperationId,
+    extents: &mut Vec<Extent>,
+    staged_chunks: &mut Vec<StagedChunk>,
+) {
+    let Some(file_offset) = pending_start.take() else {
+        return;
+    };
+    if pending.is_empty() {
+        return;
+    }
+    let mut builder = ChunkBuilder::default();
+    builder.replace(std::mem::take(pending));
+    let staged = builder.stage(operation_id.clone());
+    extents.push(Extent {
+        file_offset,
+        length: staged.chunk.length,
+        chunk_id: staged.chunk.id.clone(),
+        chunk_offset: 0,
+    });
+    staged_chunks.push(staged);
+}
+
+fn clip_extent(extent: &Extent, file_length: u64) -> Option<Extent> {
+    if extent.file_offset >= file_length {
+        return None;
+    }
+    let length = extent.length.min(file_length - extent.file_offset);
+    (length > 0).then(|| Extent {
+        file_offset: extent.file_offset,
+        length,
+        chunk_id: extent.chunk_id.clone(),
+        chunk_offset: extent.chunk_offset,
+    })
+}
+
+fn subtract_range(extents: Vec<Extent>, offset: u64, length: u64) -> Result<Vec<Extent>> {
+    if length == 0 {
+        return Ok(extents);
+    }
+    let end = offset
+        .checked_add(length)
+        .ok_or_else(|| invalid("subtracted extent range overflow"))?;
+    let mut output = Vec::with_capacity(extents.len().saturating_add(1));
+    for extent in extents {
+        let extent_end = extent
+            .file_offset
+            .checked_add(extent.length)
+            .ok_or_else(|| invalid("base extent range overflow"))?;
+        if end <= extent.file_offset || offset >= extent_end {
+            output.push(extent);
+            continue;
+        }
+        if offset > extent.file_offset {
+            output.push(Extent {
+                file_offset: extent.file_offset,
+                length: offset - extent.file_offset,
+                chunk_id: extent.chunk_id.clone(),
+                chunk_offset: extent.chunk_offset,
+            });
+        }
+        if end < extent_end {
+            output.push(Extent {
+                file_offset: end,
+                length: extent_end - end,
+                chunk_id: extent.chunk_id,
+                chunk_offset: extent
+                    .chunk_offset
+                    .checked_add(end - extent.file_offset)
+                    .ok_or_else(|| invalid("base extent chunk offset overflow"))?,
+            });
+        }
+    }
+    Ok(output)
 }
 
 impl CommitReason {
@@ -816,17 +1167,12 @@ impl Backend for DistributedFs {
         out: &mut [u8],
     ) -> Result<usize> {
         let snapshot = self.handle_snapshot(handle)?;
-        let bytes = self.current_bytes(
+        self.read_visible(
             &snapshot.inode_id,
             snapshot.opened_inode.head_version.as_ref(),
-        )?;
-        let start = usize::try_from(offset).map_err(|_| invalid("read offset too large"))?;
-        if start >= bytes.len() {
-            return Ok(0);
-        }
-        let count = out.len().min(bytes.len() - start);
-        out[..count].copy_from_slice(&bytes[start..start + count]);
-        Ok(count)
+            offset,
+            out,
+        )
     }
 
     fn write(
@@ -856,12 +1202,13 @@ impl Backend for DistributedFs {
             } else {
                 offset
             };
-            let written = state.dirty_extents.write_at(offset, data)?;
+            let next_seq = state.next_write_seq.saturating_add(1);
+            let written = state.dirty_extents.write_at(offset, data, next_seq)?;
             state.logical_length = state
                 .logical_length
                 .max(offset.saturating_add(written as u64));
             if written > 0 {
-                state.next_write_seq = state.next_write_seq.saturating_add(1);
+                state.next_write_seq = next_seq;
                 state.visible_write_seq = state.next_write_seq;
                 state.dirty = true;
                 state.metadata_dirty = true;

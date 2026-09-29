@@ -27,7 +27,7 @@ pinned snapshot length
 - Overwrite 不改变长度时是否避免不必要的属性写；
 - Append Reservation 如何避免多个 Writer 重叠；
 - Hole 和 Sparse Range 如何进入 ExtentMap；
-- Truncate 如何隔离旧的延迟写和 Patch Chunk；
+- Truncate 如何隔离旧的延迟写和普通 patch Chunk；
 - `fsync` 使用 DfsWriteSession Length，还是查询已完成 Chunk；
 - Close、Unlink 和开放句柄如何影响 Length 与回收；
 - Snapshot 如何取得目录树和精确 FileVersion 的一致稳定切点；

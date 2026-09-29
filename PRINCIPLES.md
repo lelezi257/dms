@@ -32,7 +32,7 @@ OwnerFs 与 DistributedFs 使用两个独立 mount 和 FuseSession。两者复�
 
 ## 7. 单副本和多副本只在 ChunkStore 以下分叉
 
-文件布局层只调用 `ChunkStore::put` 并消费 `ChunkReceipt`。R=1 优先写本机磁盘；R=N 由 ReplicationEngine 在 ReplicaGroup 内流水复制。副本数量、Chain 顺序、Repair 和重配置不渗透到 FileVersion 与 Extent 层。
+文件布局层只调用 `ChunkStore::put_batch` 并消费 `Vec<ChunkReceipt>`。R=1 优先写本机磁盘；R=N 由 ReplicationEngine 在 ReplicaGroup 内流水复制。副本数量、Chain 顺序、Repair 和重配置不渗透到 FileVersion 与 Extent 层。
 
 ## 8. 本地磁盘构成近计算存储层
 

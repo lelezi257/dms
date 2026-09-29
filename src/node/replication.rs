@@ -10,8 +10,8 @@ use afs_error::{Error, Result};
 
 use crate::{
     dfs::{
-        ChunkId, ChunkReceipt, ContentDigest, LocalCopyPolicy, PlacementSnapshot, ReplicaAck,
-        ReplicaGroupId, ReplicaTarget, ReplicationConfig,
+        ChunkId, ChunkReceipt, LocalCopyPolicy, PlacementSnapshot, ReplicaAck, ReplicaGroupId,
+        ReplicaTarget, ReplicationConfig,
     },
     node::chunk::{ChunkStore, LocalChunkStore, StagedChunk},
 };
@@ -104,42 +104,70 @@ impl ReplicationEngine {
         }
     }
 
-    fn put(&self, staged: StagedChunk) -> Result<ChunkReceipt> {
+    fn put_batch(&self, staged: Vec<StagedChunk>) -> Result<Vec<ChunkReceipt>> {
+        if staged.is_empty() {
+            return Ok(Vec::new());
+        }
         let snapshot = self.placement.snapshot()?;
-        let plan = ReplicationPlan::derive(&staged, &snapshot)?;
+        let plans = staged
+            .iter()
+            .map(|item| ReplicationPlan::derive(item, &snapshot))
+            .collect::<Result<Vec<_>>>()?;
 
         // RN is deliberately fail-fast in the framework stage. No local Chunk
         // is finalized until the selected transport confirms it can execute
         // the complete plan.
-        self.data_plane.prepare(&plan)?;
-
-        let mut durable_acks = Vec::new();
-        if let Some(local_target) = plan
+        for plan in &plans {
+            self.data_plane.prepare(plan)?;
+        }
+        let first_plan = &plans[0];
+        let local_target = first_plan
             .ordered_targets
             .iter()
             .find(|target| target.node_id == self.local_node_id)
-        {
-            durable_acks.push(self.local.persist(
-                &staged,
-                local_target,
-                plan.placement_revision,
-                plan.placement_epoch,
-            )?);
-        } else if plan.config.local_copy == LocalCopyPolicy::Required {
+            .cloned();
+        if local_target.is_none() && first_plan.config.local_copy == LocalCopyPolicy::Required {
             return Err(invalid(
                 "replication plan requires a local copy but has no local target",
             ));
         }
-        durable_acks.extend(self.data_plane.put_remote_replicas(&plan, &staged)?);
-        validate_acks(&plan, &staged, &durable_acks)?;
-        Ok(ChunkReceipt {
-            operation_id: staged.operation_id,
-            chunk: staged.chunk,
-            placement_revision: plan.placement_revision,
-            placement_epoch: plan.placement_epoch,
-            replica_group_id: plan.replica_group_id,
-            durable_acks,
-        })
+        if plans.iter().any(|plan| {
+            plan.placement_revision != first_plan.placement_revision
+                || plan.placement_epoch != first_plan.placement_epoch
+                || plan.replica_group_id != first_plan.replica_group_id
+                || plan.ordered_targets != first_plan.ordered_targets
+        }) {
+            return Err(invalid("one Chunk batch must use one ReplicationPlan"));
+        }
+        let local_acks = match local_target.as_ref() {
+            Some(target) => self.local.persist_batch(
+                &staged,
+                target,
+                first_plan.placement_revision,
+                first_plan.placement_epoch,
+            )?,
+            None => Vec::new(),
+        };
+        let mut receipts = Vec::with_capacity(staged.len());
+        for ((item, plan), local_ack) in staged.into_iter().zip(plans).zip(
+            local_acks
+                .into_iter()
+                .map(Some)
+                .chain(std::iter::repeat(None)),
+        ) {
+            let mut durable_acks = local_ack.into_iter().collect::<Vec<_>>();
+            durable_acks.extend(self.data_plane.put_remote_replicas(&plan, &item)?);
+            validate_acks(&plan, &item, &durable_acks)?;
+            receipts.push(ChunkReceipt {
+                operation_id: item.operation_id,
+                chunk: item.chunk,
+                placement_revision: plan.placement_revision,
+                placement_epoch: plan.placement_epoch,
+                replica_group_id: plan.replica_group_id,
+                durable_acks,
+            });
+        }
+        Ok(receipts)
     }
 }
 
@@ -165,7 +193,11 @@ impl DfsChunkStore {
         }
     }
 
-    fn put_local(&self, staged: StagedChunk, snapshot: &PlacementSnapshot) -> Result<ChunkReceipt> {
+    fn put_local_batch(
+        &self,
+        staged: Vec<StagedChunk>,
+        snapshot: &PlacementSnapshot,
+    ) -> Result<Vec<ChunkReceipt>> {
         let group = snapshot
             .replica_groups
             .first()
@@ -175,40 +207,36 @@ impl DfsChunkStore {
             .iter()
             .find(|target| target.node_id == self.local_node_id)
             .ok_or_else(|| invalid("local R1 placement does not contain this node"))?;
-        let ack = self
-            .local
-            .persist(&staged, target, snapshot.revision, group.placement_epoch)?;
-        Ok(ChunkReceipt {
-            operation_id: staged.operation_id,
-            chunk: staged.chunk,
-            placement_revision: snapshot.revision,
-            placement_epoch: group.placement_epoch,
-            replica_group_id: group.id.clone(),
-            durable_acks: vec![ack],
-        })
+        let acks =
+            self.local
+                .persist_batch(&staged, target, snapshot.revision, group.placement_epoch)?;
+        Ok(staged
+            .into_iter()
+            .zip(acks)
+            .map(|(item, ack)| ChunkReceipt {
+                operation_id: item.operation_id,
+                chunk: item.chunk,
+                placement_revision: snapshot.revision,
+                placement_epoch: group.placement_epoch,
+                replica_group_id: group.id.clone(),
+                durable_acks: vec![ack],
+            })
+            .collect())
     }
 }
 
 impl ChunkStore for DfsChunkStore {
-    fn put(&self, staged: StagedChunk) -> Result<ChunkReceipt> {
+    fn put_batch(&self, staged: Vec<StagedChunk>) -> Result<Vec<ChunkReceipt>> {
         let snapshot = self.placement.snapshot()?;
         if snapshot.replication.is_local_fast_path() {
-            self.put_local(staged, &snapshot)
+            self.put_local_batch(staged, &snapshot)
         } else {
-            self.replication.put(staged)
+            self.replication.put_batch(staged)
         }
     }
 
     fn read_at(&self, chunk_id: &ChunkId, offset: u64, out: &mut [u8]) -> Result<usize> {
         self.local.read_at(chunk_id, offset, out)
-    }
-
-    fn read_all(&self, chunk_id: &ChunkId) -> Result<Vec<u8>> {
-        self.local.read_all(chunk_id)
-    }
-
-    fn verify(&self, chunk_id: &ChunkId, expected: &ContentDigest) -> Result<()> {
-        self.local.verify(chunk_id, expected)
     }
 }
 
@@ -235,7 +263,7 @@ fn validate_acks(
                 && target.node_epoch == ack.node_epoch
                 && target.device.device_id == ack.device_id
                 && target.device.device_epoch == ack.device_epoch
-                && target.device.catalog_revision == ack.catalog_revision
+                && ack.catalog_revision >= target.device.catalog_revision
         });
         if !assigned {
             return Err(invalid(

@@ -1,12 +1,14 @@
 # RFC-0005：本地 ChunkEngine、COW 与崩溃恢复
 
-状态：Accepted / Not Implemented
+状态：Accepted / Framework Implemented
 
 目标 Milestone：M4
 
 研究依据：[专题四](../architecture/04-local-chunk-engine-cow.md)
 
 上游合同：[RFC-0002](0002-file-version-chunk-model.md) · [RFC-0003](0003-write-visibility-durability.md) · [RFC-0004](0004-replication-state-machine.md)
+
+实现边界：per-chunk file、BLAKE3 内容身份、批量 durable finalize、LocalCatalog 恢复、reader 文件描述符 pin、dirty freeze、Layout COW 和 expected-base 校验已经接入。Pack/relocation、独立 Physical COW、orphan 与 Meta reconciliation、布局 compaction policy 和真实掉电恢复验证仍未实现。
 
 ## 摘要
 
@@ -115,7 +117,7 @@ pin old LocalChunkRecord
 - Pack backend 为范围读取保存小粒度 CRC32C 或等价 range checksum；
 - 第一阶段只开放 Raw encoding；物理压缩或加密加入时不得改变逻辑 ChunkId。
 
-当前无算法版本的 128-bit FNV 仅是实验实现，不是兼容格式。
+旧无算法版本的 128-bit FNV 仅是实验原型，不是兼容格式。
 
 ## 8. 恢复
 
@@ -173,16 +175,18 @@ recover()
 
 ## 13. 实现状态
 
-当前代码已有 StagedChunk、LocalChunkStore、ReplicaAck 和 ChunkReceipt，但仍存在以下首阶段限制：
+R1 热路径框架已经接入：
 
-- writable open 加载完整 committed file；
-- commit 把 whole file 物化成一个 Chunk；
-- digest 是临时 128-bit FNV；
-- finalize 使用可覆盖 rename 并完整重读；
-- 没有 LocalChunkRecord、operation journal、recovery、GC 或 reader pin；
-- Meta 要求布局中每个 Chunk 都带本次 receipt，尚不能复用 base Chunk。
+- writable open 只加载 FileVersion/LayoutRoot，不加载完整 committed bytes；
+- FrozenCommit 在 inode 锁内冻结写入前缀，CommitPlanner 只处理脏范围；
+- 相邻脏范围合并为不超过 4 MiB 的普通 Chunk，未覆盖范围继承 expected base Extent；
+- Chunk 使用带算法标识的 BLAKE3-256 内容身份；
+- LocalChunkStore 使用 batch staging、数据屏障、no-replace publish、目录屏障和一次 LocalCatalog 提交；
+- Node 启动先恢复 LocalCatalog，再注册真实 device epoch/catalog revision；
+- `open_verified` 返回持有文件描述符的 PinnedChunkReader；
+- Meta 区分 receipt-backed 新 Chunk 与 expected-base inherited Chunk。
 
-因此本 RFC 状态是 Accepted / Not Implemented。
+Pack/relocation、pin 计数与删除状态机、orphan reconciliation、compaction policy 和故障注入尚未闭合，因此本 RFC 状态是 Accepted / Framework Implemented。
 
 ## 14. 验收标准
 

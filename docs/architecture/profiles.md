@@ -32,7 +32,7 @@ AFS Namespace
 - DfsWriteSession 只保存一次 open 的 flags、水位和错误观察位置；
 - 同步或后台 CommitTrigger 提交新的不可变 FileVersion；
 - 未修改范围复用旧 Chunk；
-- 小范围修改使用 Patch Chunk 和 Extent Overlay；
+- 小范围修改使用普通小 Chunk 和 Extent Overlay；
 - Compaction 控制 Overlay 深度；
 - 并发 Writer、Append、truncate 和跨节点可见性由一致性协议管理。
 

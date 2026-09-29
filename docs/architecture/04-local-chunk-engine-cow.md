@@ -2,7 +2,7 @@
 
 状态：Accepted Design
 
-实现状态：Not Implemented；现有 R1 LocalChunkStore 仅提供首阶段逐文件 Chunk 持久化
+实现状态：Framework Implemented；R1 已接入 per-chunk file、LocalCatalog、批量 finalize、Layout COW 和 expected-base 继承
 
 专题入口：[架构设计专题](design-topics.md)
 
@@ -291,7 +291,7 @@ Node 不发送一个可伪造的 `existing_chunk_ids` 白名单。Meta 自己读
 | stored checksum | 一个 LocalChunkRecord | 检测本地编码或介质损坏 |
 | range checksum | Pack 内的小范围 | 避免 range read 为校验而读取整个大 Chunk |
 
-正式分布式内容身份使用带算法版本的强摘要；候选为 BLAKE3-256。每范围校验可使用 CRC32C。算法选择和兼容格式在实现计划中确认，当前无版本 128-bit FNV 不能成为长期 wire/persistent identity。
+正式分布式内容身份使用带算法版本的 BLAKE3-256。当前 per-chunk raw backend 复用内容摘要校验持久字节；未来 Pack 可增加独立的每范围 checksum。旧无版本 128-bit FNV 原型不是兼容 wire/persistent identity。
 
 如果未来同一逻辑内容在不同节点使用不同压缩或加密方式，物理编码属于 `LocalChunkRecord/CopyRecord`，不能改变逻辑 ChunkObject。
 
@@ -363,18 +363,26 @@ AFS 不采用 3FS 的两项内容语义：
 
 这些差异来自 AFS 已接受的 immutable Chunk + Layout COW 基座，而不是对 3FS 机制优劣的判断。
 
-## 14. 当前代码与目标合同的差距
+## 14. 当前实现映射与剩余边界
 
-当前实现中：
+已经接入的合同：
 
-- `src/node/vfs/dfs.rs:121` 的 DirtyExtentMap 保存完整 base bytes；
-- `src/node/vfs/dfs.rs:662` 在 commit 时重新物化整个文件；
-- `src/node/chunk.rs:47` 在 stage 时构造 ChunkObject 并复制完整字节；
-- `src/node/chunk.rs:132` 使用临时文件、sync、rename、目录 sync 和完整重读；
-- `src/node/chunk.rs:266` 使用临时 128-bit FNV 摘要；
-- `src/meta/dfs.rs:588` 要求新布局中每个 Chunk 都出现在本次 receipts。
+- `src/node/vfs/dfs.rs` 的 DirtyExtentMap 只保存脏范围；FrozenCommit 把一次提交前缀与后续 write 分开；
+- CommitPlanner 归一化覆盖关系，将相邻脏数据合并成不超过 4 MiB 的普通 Chunk，并直接继承未覆盖的 base Extent；
+- `src/node/chunk.rs` 使用带算法标识的 BLAKE3 摘要、不可覆盖的 final name、批量目录屏障和单次 LocalCatalog 提交；
+- LocalChunkRecord 区分逻辑 Chunk 身份、本机物理位置、设备代际、物理编码和 catalog revision；
+- Node 启动先恢复 LocalCatalog，再把真实 device epoch 和 revision 注册到 Meta；
+- `src/meta/dfs.rs` 区分 receipt-backed 新 Chunk 与 expected-base inherited Chunk，并校验继承范围；
+- PlacementSnapshot 中的 catalog revision 按下界解释，ReplicaAck 携带本次本地 catalog 提交后的精确 revision。
 
-目标改动是用流式 CommitPlanner、合法 base Chunk 继承、LocalChunkRecord 和可恢复 finalize 替换这些首阶段限制。代码仍未实现本 RFC，不能把 Accepted Design 写成现有能力。
+仍未实现的合同：
+
+- Pack backend、allocator 和 Physical COW relocation；
+- reader pin 计数、删除状态机和旧位置回收；
+- orphan grace period、Node inventory 与 Meta reconciliation；
+- Extent 数量阈值、overlay 深度阈值和随正常 CommitBatch 执行的布局 compaction；
+- RN 目标端 staging/finalize 与真实多节点 durable ACK；
+- 进程崩溃和 VM 掉电故障矩阵。
 
 ## 15. 模块关系
 

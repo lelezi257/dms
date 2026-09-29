@@ -6,12 +6,12 @@
 - **本地持久化：** StagedChunk 已确定 ChunkObject 身份。Local finalize 完成数据屏障、no-replace 发布、目录持久化和 LocalChunkRecord 提交后，才产生 ReplicaAck。LocalChunkRecord 是 Node 的物理事实，CopyRecord 是 Meta 接受后的全局事实。
 - **物理 COW：** Pack compaction、设备迁移和重编码保持 ChunkId 不变，先持久化并校验新位置，再原子切换 LocalChunkRecord；旧位置在 reader pin 清空后回收。该过程不创建 FileVersion。
 - **提交与恢复：** 只有新 Chunk 需要本次 receipt；旧 Chunk 必须由 Meta 从 expected base layout 验证继承关系。orphan 通过 grace period 和批量 reconciliation 回收，不增加第二次同步提交 RPC。恢复不能无条件提交 staging 数据。
-- **演进：** 第一阶段使用 per-chunk file，未来 Pack backend 保持相同 LocalChunkStore 合同。正式内容身份使用带算法版本的强摘要；当前 128-bit FNV 不作为兼容格式。
+- **演进：** 第一阶段使用 per-chunk file，未来 Pack backend 保持相同 LocalChunkStore 合同。正式内容身份使用带算法版本的 BLAKE3-256；旧 128-bit FNV 原型不作为兼容格式。
 - **权威文档：** [RFC-0005](rfcs/0005-local-chunk-engine-cow.md)与[专题四](architecture/04-local-chunk-engine-cow.md)。
 
 ## 2026-09-29：R1 Local Fast Path 与 RN Replication Path 共用 LocalChunkStore
 
-- **决策：** DistributedFs 在 `ChunkStore::put` 以下保留两条执行路径：唯一目标为本地节点时使用无 Peer 的 Local Fast Path；多目标或远端目标使用 ReplicationEngine。每个副本复用相同的 LocalChunkStore 校验、fsync 和原子 finalize 原语，文件层统一消费 ChunkReceipt。
+- **决策：** DistributedFs 在 `ChunkStore::put_batch` 以下保留两条执行路径：唯一目标为本地节点时使用无 Peer 的 Local Fast Path；多目标或远端目标使用 ReplicationEngine。每个副本复用相同的 LocalChunkStore 校验、fsync 和原子 finalize 原语，文件层统一消费 ChunkReceipt。
 - **策略：** 副本数量由 `desired_copies/sync_required_copies` 和故障域约束配置，不写死为一份或三份。Meta 维护 PolicyRevision、PlacementSnapshot、PlacementEpoch、NodeEpoch 和 DeviceEpoch；Node 从缓存快照为具体 Chunk 生成临时 ReplicationPlan。
 - **证明：** ReplicaAck 是 Peer wire 完成证明，ChunkReceipt 聚合同步策略需要的 ACK，CopyRecord 是 Meta 接受后的长期目录事实。异步补副本任务与 FileVersion 在同一 Meta 事务登记；任务失败但仍有有效源时读取继续成功，没有有效源时读取返回 EIO。
 - **3FS 边界：** 采用流水复制、反向 durable ACK、epoch fencing、幂等和 repair gating；不采用同一 ChunkId 下的 mutable pending/committed version、第二轮 Chunk 内容 commit 或读取时 Tail 版本查询。
@@ -20,7 +20,7 @@
 ## 2026-09-28：DistributedFs 使用统一不可变 FileVersion/Chunk 数据模型
 
 - **决策：** 通用分布式后端命名为 `DistributedFs`（`DFS`），与 1～4 节点小集群优化 `OwnerFs` 并列。DFS 的 inode 通过可变 `head_version` 指向不可变 `FileVersion`；FileVersion 再引用不可变 LayoutRoot/ExtentMap、Extent 和 ChunkObject。普通文件更新生成新 Chunk、布局和版本；镜像、Snapshot、Checkpoint 固定 FileVersion 后直接复用同一事实源进行 range read、缓存和多源 P2P。
-- **接口：** 不把 BlobRecord、BlobManifest、Blob API 设为基础要求。`fsync` 强制形成完整、持久的 FileVersion，但不自动创建业务 Alias、Pin 或 RootManifest。R=1 与 R=N 只在 `ChunkStore::put` 以下分叉，上层消费相同的 ChunkReceipt。
+- **接口：** 不把 BlobRecord、BlobManifest、Blob API 设为基础要求。`fsync` 强制形成完整、持久的 FileVersion，但不自动创建业务 Alias、Pin 或 RootManifest。R=1 与 R=N 只在 `ChunkStore::put_batch` 以下分叉，上层消费相同的 ChunkReceipt。
 - **共享接入：** 不新增 FUSE 中间层。当前 `src/node/fuse.rs` 是 OwnerFs 与 DistributedFs 共用的 FUSE module；两个后端分别建立独立 mount、FUSE connection、FuseSession、inode/handle table、notifier 和缓存策略。每个 Session 构造时绑定一个 Backend，不在同一 mount 内按虚拟根路由。
 - **运行时边界：** `DfsWriteSession`、ChunkBuilder 和 ChunkStore 只属于 DistributedFs。OwnerFs 使用自己的本地文件句柄，只复用 FUSE/Backend 接口和公共连接工具。当前阶段不设计 OwnerFs 到 DFS 的 Snapshot 转换。
 - **读取执行：** Accepted 数据模型不引入 `ReadSlice`、`ReadPlan` 或 `ChunkReadTask`；实现可以直接遍历 Extent。显式读取计划只有在后续调度设计证明必要时才作为 Node 私有类型引入。

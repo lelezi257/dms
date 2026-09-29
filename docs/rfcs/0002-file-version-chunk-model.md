@@ -193,7 +193,7 @@ Chunk 已成功而 Head CAS 最终失败时，ChunkObject 保持完整但不可�
 文件层使用统一接口：
 
 ```text
-ChunkStore::put(StagedChunk, DurabilityPolicy) -> ChunkReceipt
+ChunkStore::put_batch(Vec<StagedChunk>) -> Vec<ChunkReceipt>
 ```
 
 - R=1：本机 staging、校验、介质提交、Finalize；
@@ -257,7 +257,7 @@ OwnerFs 只复用 FUSE/Backend 接口和公共连接工具，不进入 DFS 的 F
 
 ### 每次覆盖重写完整 Chunk
 
-不作为唯一机制。顺序大写可使用完整 Chunk；小范围写使用 Patch Chunk 和 Extent Overlay，并以 Compaction 限制长期代价。
+不作为唯一机制。顺序大写可使用完整 Chunk；小范围写使用普通小 Chunk 和 Extent Overlay，并以 Compaction 限制长期代价。
 
 ### Client 并行 Fan-out 到所有副本
 

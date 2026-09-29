@@ -164,7 +164,7 @@ meta     lease / V7                                         V8
 
 普通 write 由 inode owner 排序并进入共享 dirty overlay，不创建 FileVersion。`fdatasync`、`fsync`、同步 write 或后台 writeback 冻结一个写入前缀，经 ChunkStore 获得 ChunkReceipt，再用一次 Meta CAS 创建并发布新 FileVersion。只有同步调用向用户提供对应的完成保证；文件同步与目录项 `fsync(dir)` 是两个合同。
 
-R=1 与 R=N 在 `ChunkStore::put` 以下分叉。文件布局层只消费满足策略的 ChunkReceipt。
+R=1 与 R=N 在 `ChunkStore::put_batch` 以下分叉。文件布局层只消费满足策略的 ChunkReceipt。
 
 ## 固定版本的多源读取
 

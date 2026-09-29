@@ -1130,20 +1130,23 @@ fn domain_dfs_metadata_delta(
 fn domain_chunk_receipt(
     receipt: afs_protocol::meta::DfsChunkReceipt,
 ) -> Result<crate::dfs::ChunkReceipt, Status> {
-    let digest: [u8; 16] = receipt
+    let digest: [u8; 32] = receipt
         .content_digest
         .try_into()
-        .map_err(|_| invalid("DFS chunk digest must contain 16 bytes"))?;
-    let digest = crate::dfs::ContentDigest(digest);
+        .map_err(|_| invalid("DFS chunk digest must contain 32 bytes"))?;
+    let digest = crate::dfs::ContentDigest {
+        algorithm: domain_digest_algorithm(receipt.content_digest_algorithm)?,
+        bytes: digest,
+    };
     let chunk_id = crate::dfs::ChunkId::new(receipt.chunk_id);
     let durable_acks = receipt
         .durable_acks
         .into_iter()
         .map(|ack| {
-            let verified_digest: [u8; 16] = ack
+            let verified_digest: [u8; 32] = ack
                 .verified_digest
                 .try_into()
-                .map_err(|_| invalid("DFS replica digest must contain 16 bytes"))?;
+                .map_err(|_| invalid("DFS replica digest must contain 32 bytes"))?;
             Ok(crate::dfs::ReplicaAck {
                 operation_id: crate::dfs::OperationId::new(ack.operation_id),
                 chunk_id: crate::dfs::ChunkId::new(ack.chunk_id),
@@ -1155,7 +1158,10 @@ fn domain_chunk_receipt(
                 device_epoch: ack.device_epoch,
                 catalog_revision: ack.catalog_revision,
                 persisted_bytes: ack.persisted_bytes,
-                verified_digest: crate::dfs::ContentDigest(verified_digest),
+                verified_digest: crate::dfs::ContentDigest {
+                    algorithm: domain_digest_algorithm(ack.verified_digest_algorithm)?,
+                    bytes: verified_digest,
+                },
             })
         })
         .collect::<Result<Vec<_>, Status>>()?;
@@ -1172,6 +1178,17 @@ fn domain_chunk_receipt(
         replica_group_id: crate::dfs::ReplicaGroupId::new(receipt.replica_group_id),
         durable_acks,
     })
+}
+
+fn domain_digest_algorithm(value: i32) -> Result<crate::dfs::DigestAlgorithm, Status> {
+    match afs_protocol::meta::DfsDigestAlgorithm::try_from(value)
+        .map_err(|_| invalid("DFS digest algorithm is invalid"))?
+    {
+        afs_protocol::meta::DfsDigestAlgorithm::Blake3 => Ok(crate::dfs::DigestAlgorithm::Blake3),
+        afs_protocol::meta::DfsDigestAlgorithm::Unspecified => {
+            Err(invalid("DFS digest algorithm is required"))
+        }
+    }
 }
 
 fn optional_id(value: String) -> Option<String> {

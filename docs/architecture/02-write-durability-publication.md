@@ -219,7 +219,7 @@ StagedChunk 包含完整冻结字节和已经确定的 ChunkObject 身份，但�
 
 ### 7.3 同步 N 副本（N=3 示例）
 
-文件层流程与 R=1 相同，分叉只发生在 `ChunkStore::put`。本地 owner 作为优先 head 时，N=3 示例的数据沿 A→B→C 流水传输；只有满足 DurabilityPolicy 的 ChunkReceipt 才允许 V8 CAS。若只等待本地副本，应使用 `sync_required_copies=1` 的异步补副本策略，不能声明同步 N 副本已经完成。
+文件层流程与 R=1 相同，分叉只发生在 `ChunkStore::put_batch`。本地 owner 作为优先 head 时，N=3 示例的数据沿 A→B→C 流水传输；只有满足 DurabilityPolicy 的 ChunkReceipt 才允许 V8 CAS。若只等待本地副本，应使用 `sync_required_copies=1` 的异步补副本策略，不能声明同步 N 副本已经完成。
 
 ### 7.4 跨 Node 多 writer
 
@@ -300,8 +300,8 @@ R=1 基础框架已经把 dirty data 从 handle 移到 inode 共享的 `InodeWri
 当前边界如下：
 
 1. `OpenWrite` 能返回远端 owner 身份，但 Node 间 write/read/sync 转发尚未接入；当前非本机 owner 明确返回不支持。
-2. Commit 期间只持有对应 inode 的锁，不持有全局 handle table；尚未实现冻结前缀后让更晚 write 并行进入下一批。
-3. `DirtyExtentMap` 已表达覆盖范围，但 R=1 Commit 暂时仍把完整当前文件物化为一个 Chunk；Patch Chunk、Extent 树和 compaction 属于专题四。
+2. FrozenCommit 已在 inode 锁内冻结写入前缀，Chunk I/O 与 Meta RPC 在锁外执行，更晚 write 进入下一批；同一 inode 的并发 sync 等待与合并尚未实现。
+3. `DirtyExtentMap` 只保存覆盖范围；R=1 CommitPlanner 生成普通 patch Chunk 并复用 base Extent。Extent 树和 compaction policy 尚未实现。
 4. 后台失败会记录 inode sticky error，并由每个已打开 writer 的错误游标观察；故障注入、错误清除和重启恢复矩阵仍需补齐。
 5. DFS 只有 R=1 本地 ChunkStore；R=N ChunkReceipt 与 result-unknown 由专题三继续设计和实现。
 6. `fsync(dir)` 尚未实现，不能声明新建文件名已经满足崩溃恢复合同。
@@ -311,6 +311,6 @@ R=1 基础框架已经把 dirty data 从 handle 移到 inode 共享的 `InodeWri
 ## 12. 后续专题输入
 
 - 专题三承接 `freeze → chunk → policy durable`，定义 R=1/R=N 状态机、重配置和 result-unknown；
-- 专题四定义 StagedChunk、Patch Chunk、Extent 合并、Compaction 和本地恢复；
+- 专题四定义 StagedChunk、普通 patch Chunk、Extent 合并、Compaction 和本地恢复；
 - 专题五定义 dirty/committed length、append、truncate 与 Snapshot barrier；
 - 专题六定义幂等、错误账本、wire batching、P2P、Cache、Spill 和高性能数据路径。

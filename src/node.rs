@@ -119,6 +119,15 @@ pub async fn run(cfg: Config, obs: Observability) -> Result<(), BoxError> {
     } else {
         None
     };
+    #[cfg(feature = "dfs")]
+    let local_chunk_store = if cfg.dfs {
+        Some(Arc::new(chunk::LocalChunkStore::open(
+            cfg.data_dir.join("dfs"),
+            cfg.id.clone(),
+        )?))
+    } else {
+        None
+    };
     let node_descriptor = meta_endpoint.map(|endpoint| {
         let advertised = advertised
             .clone()
@@ -142,15 +151,27 @@ pub async fn run(cfg: Config, obs: Observability) -> Result<(), BoxError> {
                 labels: std::collections::HashMap::new(),
                 capabilities,
                 session_id: session_id.clone(),
-                storage_devices: if cfg.dfs {
-                    vec![afs_protocol::meta::DfsStorageDevice {
-                        device_id: "local-0".into(),
-                        device_epoch: 1,
-                        catalog_revision: 0,
-                        failure_domain: cfg.id.clone(),
-                    }]
-                } else {
-                    Vec::new()
+                storage_devices: {
+                    #[cfg(feature = "dfs")]
+                    {
+                        local_chunk_store
+                            .as_ref()
+                            .map(|store| store.device_descriptor())
+                            .transpose()
+                            .expect("local ChunkStore was opened before Node registration")
+                            .into_iter()
+                            .map(|device| afs_protocol::meta::DfsStorageDevice {
+                                device_id: device.device_id,
+                                device_epoch: device.device_epoch,
+                                catalog_revision: device.catalog_revision,
+                                failure_domain: device.failure_domain,
+                            })
+                            .collect()
+                    }
+                    #[cfg(not(feature = "dfs"))]
+                    {
+                        Vec::new()
+                    }
                 },
             },
         )
@@ -212,10 +233,10 @@ pub async fn run(cfg: Config, obs: Observability) -> Result<(), BoxError> {
             timeout,
             cfg.tls_config(),
         )?);
-        let chunks = Arc::new(chunk::LocalChunkStore::open(
-            cfg.data_dir.join("dfs"),
-            cfg.id.clone(),
-        )?);
+        let chunks = local_chunk_store
+            .as_ref()
+            .expect("DFS local ChunkStore was opened before registration")
+            .clone();
         let data_mode = match cfg.data_mode.as_str() {
             "grpc" => rpc::peer::DataMode::Grpc,
             "rdma" => rpc::peer::DataMode::Rdma,

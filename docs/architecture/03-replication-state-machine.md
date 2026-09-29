@@ -9,7 +9,7 @@
 
 ## 1. 目标
 
-本专题定义 `ChunkStore::put` 以下的副本协议，使同一个 FileVersion 提交流程可以使用本地单副本、同步多副本和异步补副本。副本数量由文件系统初始化配置决定，不在协议中写死为一份或三份。
+本专题定义 `ChunkStore::put_batch` 以下的副本协议，使同一个 FileVersion 提交流程可以使用本地单副本、同步多副本和异步补副本。副本数量由文件系统初始化配置决定，不在协议中写死为一份或三份。
 
 ```text
 CommitBatch
@@ -18,7 +18,7 @@ CommitBatch
 StagedChunk
     │
     ▼
-ChunkStore::put
+ChunkStore::put_batch
     ├── Local Fast Path
     └── Replication Path
     │
@@ -37,7 +37,7 @@ FileVersion CAS
 - 不把 ReplicaGroup、Chain 顺序或副本数量写入 FileVersion、Extent 或 ChunkId。
 - 不在同一个 ChunkId 下维护可变的 committed/pending 内容版本。
 - 不要求每个 Chunk 在写入前同步访问 Meta 获取路由。
-- 不在本专题确定本地 Patch Chunk、物理 COW、Compaction 和持久文件格式；这些由[专题四](04-local-chunk-engine-cow.md)定义。
+- 不在本专题确定本地普通 patch Chunk、物理 COW、Compaction 和持久文件格式；这些由[专题四](04-local-chunk-engine-cow.md)定义。
 - 不在本专题实现外部对象存储 Spill；Spill 服从同一 Copy Catalog 和发布门禁。
 
 ## 3. 核心结论
@@ -115,7 +115,7 @@ ReplicationConfig {
                          │
                     StagedChunk
                          │
-              ChunkStore::put
+              ChunkStore::put_batch
                          │
               ┌──────────┴──────────┐
               │                     │
@@ -266,7 +266,7 @@ ChunkReceipt {
 }
 ```
 
-ChunkReceipt 证明本次 `ChunkStore::put` 已经满足同步策略。FileVersionManager 不感知 Chain 顺序和 Repair 过程。
+ChunkReceipt 证明本次 `ChunkStore::put_batch` 已经满足同步策略。FileVersionManager 不感知 Chain 顺序和 Repair 过程。
 
 ### 8.4 Meta：PlacementRecord
 

@@ -8,7 +8,7 @@
 
 ## 摘要
 
-DistributedFs 在 `ChunkStore::put(StagedChunk)` 内部分成两条路径：本地单副本快速路径和多副本协调路径。文件层只得到 `ChunkReceipt`，不感知副本数量、目标节点或传输方式。
+DistributedFs 在 `ChunkStore::put_batch(Vec<StagedChunk>)` 内部分成两条路径：本地单副本快速路径和多副本协调路径。文件层只得到对应的 `Vec<ChunkReceipt>`，不感知副本数量、目标节点或传输方式。
 
 整个文件系统只有一份 `ReplicationConfig`。它在 Meta 初始化文件系统时持久化，后续启动只能使用完全相同的值。改变配置需要停止并重新初始化文件系统，不支持 inode 级策略或在线策略 revision。
 
@@ -19,7 +19,7 @@ Chunk 内容不可变。每个副本复用 `LocalChunkStore` 的校验、fsync �
 ```text
 CommitBatch
   → StagedChunk
-  → ChunkStore::put
+  → ChunkStore::put_batch
       ├── R1 Local Fast Path
       └── RN ReplicationEngine
   → ChunkReceipt

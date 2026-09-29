@@ -17,7 +17,7 @@
 4. 不引入基础 `BlobRecord`、`BlobManifest` 或必须调用的 Blob API。
 5. `fdatasync`、`fsync`、同步 write 和后台 writeback 都可以触发 FileVersion 提交；只有同步 API 向调用者提供相应完成保证，且都不自动 Pin、Publish 或创建业务 Alias。
 6. 多文件 Snapshot 使用可选 `RootManifest` 引用精确 FileVersionId。
-7. R=1 与 R=N 只在 `ChunkStore::put` 以下分叉，文件布局层只消费 `ChunkReceipt`。
+7. R=1 与 R=N 只在 `ChunkStore::put_batch` 以下分叉，文件布局层只消费 `ChunkReceipt`。
 8. 多源读取必须先固定 FileVersion，再按 ChunkId 从多个合格 Copy 读取。
 9. FUSE 请求大小、Peer Frame 大小和存储 Chunk 大小彼此独立。
 10. 公开后端类型使用 DistributedFs；内部模块、feature、配置、CLI 和协议统一使用 `dfs` / `DfsMeta`。
@@ -639,7 +639,7 @@ CAS 由 MetaService 的事务合同实现，不要求业务层直接依赖某个
 
 ### 5.6 4 KiB 覆盖写
 
-对文件偏移 5 MiB 覆盖 4 KiB，只创建 Patch Chunk P9：
+对文件偏移 5 MiB 覆盖 4 KiB，只创建普通 patch Chunk P9：
 
 ```text
 V2 / LR2
@@ -657,7 +657,7 @@ V2 / LR2
 FileVersion 以上的流程与 Case 1 完全相同。分叉只发生在：
 
 ```text
-ChunkStore::put(chunk, SYNC_REPLICATED(N=3))
+ChunkStore::put_batch([chunk])  // 使用文件系统初始化时固定的 N/M 副本策略
 ```
 
 假设副本组为 A、B、C，写节点 A 是 Chain Head：

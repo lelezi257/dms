@@ -13,7 +13,7 @@
 - 普通 write 由 inode owner 排序并进入共享 `InodeWriteState/DirtyExtentMap`，不修改 committed FileVersion；
 - `DfsWriteSession` 只保存一次 open 的 flags、水位和错误游标；
 - CommitTrigger 冻结写入前缀并确定不可变 `ChunkObject` 身份；`StagedChunk` 只在 ChunkStore 内部存在，finalize 后才形成可 ACK 的本地持久副本；
-- 单副本和多副本只在 `ChunkStore::put` 以下分叉，上层只消费 `ChunkReceipt`；
+- 单副本和多副本只在 `ChunkStore::put_batch` 以下分叉，上层只消费 `ChunkReceipt`；
 - `fdatasync` 提交数据与恢复索引，`fsync` 再提交完整 inode 属性；两者不自动创建业务 Alias、Pin 或 RootManifest；
 - FUSE flush/release 不替代同步合同；后台 writeback 可以提交版本但不产生用户可依赖的完成点；
 - 文件同步与目录项 `fsync(dir)` 是两个合同；
@@ -27,7 +27,7 @@
 - 新布局可以继承 expected base 的旧 Chunk；只有新增 Chunk 需要本次 receipt，继承关系由 Meta 验证。
 - per-chunk file 和未来 Pack backend 共享 LocalChunkStore 合同；Physical COW 只改变本地位置，不创建 FileVersion。
 
-下一设计入口是[专题五](architecture/05-length-truncate-seal.md)。RFC-0004 的副本基础类型、Meta Placement 合同、Node ReplicationEngine 与 Peer Chunk RPC 形状已经落入代码；下一工程入口是搭建专题四的 Local ChunkEngine 基础框架，再实现 RN 目标端 staging/finalize、幂等 ACK 与多节点 placement。
+下一设计入口是[专题五](architecture/05-length-truncate-seal.md)。RFC-0004 的副本基础类型、Meta Placement 合同、Node ReplicationEngine 与 Peer Chunk RPC 形状已经落入代码；专题四的 R1 Local ChunkEngine 基础框架也已接入。下一工程入口是 RN 目标端 staging/finalize、幂等 ACK、多节点 placement，以及专题四剩余的 recovery/GC 验证。
 
 RPC 物理布局保持为 `control.rs`、`data.rs`、`meta.rs`、`peer.rs`。R=N 设计可以在 `data.rs`/`peer.rs` 内增加 Chunk 协议实现；全部专项收敛前不按 OwnerFs/DFS 拆子文件。
 
@@ -35,17 +35,17 @@ RPC 物理布局保持为 `control.rs`、`data.rs`、`meta.rs`、`peer.rs`。R=N
 
 1. 已接入 WriteLease、lease epoch fencing 和组合 `OpenWrite` Meta 操作；下一步实现跨节点 owner routing。
 2. 已将 dirty data 从 DfsWriteSession 移到每 inode 的 InodeWriteState，并实现本地跨 handle 的 base+overlay 读取；下一步扩展到远端 owner 转发。
-3. 已实现 WriteSeq、CommitBatch、同步水位、定时后台 writeback、优雅退出 drain 与 sticky error；下一步补故障注入、每 inode 非阻塞 freeze 和错误恢复矩阵。
+3. 已实现 WriteSeq、FrozenCommit、CommitBatch、同步水位、定时后台 writeback、优雅退出 drain 与 sticky error；下一步补并发 sync 等待、故障注入和错误恢复矩阵。
 4. 已分离 write、flush、fdatasync、fsync 和 release，并接通 `O_DSYNC/O_SYNC`；下一步实现目录 `fsync(dir)`。
 5. 已把 inode `head_version` CAS、lease 校验和 commit 幂等键接入 Meta；下一步补充失败重试和恢复测试矩阵。
-6. 已避免全局 handle table 锁跨磁盘 I/O 与 Meta RPC；下一步缩短 inode 级写状态锁的 commit 临界区。
-7. 选定带算法版本的强内容摘要，并定义旧 Chunk 格式的兼容边界。
+6. 已把 Chunk I/O 与 Meta RPC 移出 inode 写状态锁；下一步实现同一 inode 多个同步请求的等待与水位合并。
+7. 已接入带算法版本的 BLAKE3 内容摘要；旧 16 字节 FNV 原型格式明确不兼容。
 8. 为单副本、多副本、4 KiB 覆盖写分别列出正常及故障 RPC 时序。
 
 ## P1：扩展 DistributedFs
 
-1. 将当前 whole-file 单 Chunk 实现扩展为流式 CommitPlanner、分块 Extent 布局、base Chunk 继承、覆盖写与随 CommitBatch 触发的 compaction。
-2. 增加 LocalChunkRecord、可恢复 finalize、no-replace publish、reader pin 与 orphan reconciliation；第一阶段保留 per-chunk file backend。
+1. CommitPlanner、分块 Extent 布局、base Chunk 继承和覆盖写已接入；下一步增加 Extent/overlay 阈值与随 CommitBatch 触发的 compaction。
+2. LocalChunkRecord、批量可恢复 finalize、no-replace publish、reader FD pin 和启动恢复已接入；下一步实现 pin 计数、删除状态机与 orphan reconciliation，第一阶段继续使用 per-chunk file backend。
 3. 补齐 truncate、append、rename、unlink、目录与打开句柄语义。
 4. 已增加 N/M `ReplicationConfig`、`DfsChunkStore` R1/RN 分叉、PlacementSnapshot、ReplicationEngine、ACK/receipt 与 Meta 提交框架；下一步实现 RN transport 和后台 ReplicationTask worker。
 5. 以两节点读取与单节点故障换源验证固定版本读取。

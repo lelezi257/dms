@@ -568,16 +568,25 @@ impl DfsService {
         if commit.file_version.inode_id != commit.inode_id
             || commit.file_version.layout_root != commit.layout_root.id
             || commit.file_version.length != commit.layout_root.file_length
+            || commit.file_version.parent_version != commit.expected_head_version
         {
             return Err(invalid(
                 "FileVersion and LayoutRoot do not describe one file",
             ));
         }
         let replication = self.current_replication_config().await?;
+        let expected_base_layout = match commit.expected_head_version.as_ref() {
+            Some(version_id) => Some(self.get_file_version(version_id.clone()).await?.1),
+            None => None,
+        };
         let mut accepted_copies = Vec::with_capacity(commit.chunk_receipts.len());
+        let mut receipt_chunks = HashSet::new();
         for receipt in &commit.chunk_receipts {
             if receipt.operation_id != commit.operation_id {
                 return Err(invalid("ChunkReceipt operation does not match commit"));
+            }
+            if !receipt_chunks.insert(receipt.chunk.id.clone()) {
+                return Err(invalid("commit contains duplicate ChunkReceipts"));
             }
             accepted_copies.push(
                 self.validate_chunk_receipt(&caller_id, receipt, &replication)
@@ -598,19 +607,25 @@ impl DfsService {
                     "LayoutRoot extents must be non-empty, ordered and non-overlapping",
                 ));
             }
-            let receipt = commit
-                .chunk_receipts
-                .iter()
-                .find(|receipt| receipt.chunk.id == extent.chunk_id)
-                .ok_or_else(|| {
-                    invalid("LayoutRoot references a Chunk without a durable receipt")
-                })?;
             let chunk_end = extent
                 .chunk_offset
                 .checked_add(extent.length)
                 .ok_or_else(|| invalid("DFS extent chunk range overflows"))?;
-            if chunk_end > receipt.chunk.length {
-                return Err(invalid("DFS extent exceeds its referenced Chunk"));
+            if let Some(receipt) = commit
+                .chunk_receipts
+                .iter()
+                .find(|receipt| receipt.chunk.id == extent.chunk_id)
+            {
+                if chunk_end > receipt.chunk.length {
+                    return Err(invalid("DFS extent exceeds its referenced Chunk"));
+                }
+            } else if !expected_base_layout
+                .as_ref()
+                .is_some_and(|layout| extent_is_inherited(extent, layout))
+            {
+                return Err(invalid(
+                    "LayoutRoot references neither a newly durable Chunk nor a legal expected-base range",
+                ));
             }
             previous_end = file_end;
         }
@@ -773,7 +788,7 @@ impl DfsService {
                     && target.node_epoch == ack.node_epoch
                     && target.device.device_id == ack.device_id
                     && target.device.device_epoch == ack.device_epoch
-                    && target.device.catalog_revision == ack.catalog_revision
+                    && ack.catalog_revision >= target.device.catalog_revision
             }) {
                 return Err(conflict(
                     "ReplicaAck target is not assigned by the current ReplicaGroup",
@@ -800,7 +815,7 @@ impl DfsService {
                 .find(|device| {
                     device.device_id == ack.device_id
                         && device.device_epoch == ack.device_epoch
-                        && device.catalog_revision == ack.catalog_revision
+                        && ack.catalog_revision >= device.catalog_revision
                 })
                 .ok_or_else(|| conflict("ReplicaAck references a stale storage device"))?;
             failure_domains.insert(device.failure_domain.clone());
@@ -943,6 +958,27 @@ impl DfsService {
             _ => Err(invalid("DFS operation replay returned the wrong result")),
         }
     }
+}
+
+fn extent_is_inherited(extent: &crate::dfs::Extent, base: &LayoutRoot) -> bool {
+    let Some(extent_file_end) = extent.file_offset.checked_add(extent.length) else {
+        return false;
+    };
+    base.inline_extents.iter().any(|candidate| {
+        let Some(candidate_file_end) = candidate.file_offset.checked_add(candidate.length) else {
+            return false;
+        };
+        if candidate.chunk_id != extent.chunk_id
+            || extent.file_offset < candidate.file_offset
+            || extent_file_end > candidate_file_end
+        {
+            return false;
+        }
+        candidate
+            .chunk_offset
+            .checked_add(extent.file_offset - candidate.file_offset)
+            == Some(extent.chunk_offset)
+    })
 }
 
 fn root_inode(namespace_id: NamespaceId) -> InodeRecord {

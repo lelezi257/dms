@@ -98,8 +98,16 @@ pub struct LayoutRoot {
     pub inline_extents: Vec<Extent>,
 }
 
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub enum DigestAlgorithm {
+    Blake3,
+}
+
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-pub struct ContentDigest(pub [u8; 16]);
+pub struct ContentDigest {
+    pub algorithm: DigestAlgorithm,
+    pub bytes: [u8; 32],
+}
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub enum ChunkEncoding {

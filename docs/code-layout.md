@@ -76,9 +76,9 @@ FUSE request
       Chunk + Copy + Placement + LayoutRoot + FileVersion + inode head CAS
 ```
 
-读取时 `DistributedFs` 先从 Meta 固定 inode 当前 `FileVersion` 和 `LayoutRoot`，再按 Extent 定位本机 Chunk。当前 R=1 只实现 whole-file 单 Chunk；R=N 预留在 `ChunkStore::put` 以下，不改变文件层合同。
+读取时 `DistributedFs` 先从 Meta 固定 inode 当前 `FileVersion` 和 `LayoutRoot`，再按 Extent 定位本机 Chunk。当前 R=1 CommitPlanner 将相邻脏范围合并为不超过 4 MiB 的 Chunk，并继承 expected base 中未覆盖的 Extent；R=N 保持在 `ChunkStore::put_batch` 以下，不改变文件层合同。
 
-当前代码已经把 dirty data 放入 inode 共享的 `InodeWriteState/DirtyExtentMap`；`DfsWriteSession` 只保存一次 open 的 flags、水位和错误游标。Commit 仍是 R=1 whole-file 单 Chunk，并在对应 inode 锁内执行；远端 owner routing 与非阻塞 freeze 尚未实现。实现状态和差异见[当前状态](current-status.md)与[专题二](architecture/02-write-durability-publication.md)。
+当前代码已经把 dirty data 放入 inode 共享的 `InodeWriteState/DirtyExtentMap`；`DfsWriteSession` 只保存一次 open 的 flags、水位和错误游标。FrozenCommit 在 inode 锁内冻结写入前缀，Chunk I/O 与 Meta RPC 在锁外执行，后续 write 进入下一批；远端 owner routing 与并发 sync 等待尚未实现。实现状态和差异见[当前状态](current-status.md)与[专题二](architecture/02-write-durability-publication.md)。
 
 ## Meta 与协议
 

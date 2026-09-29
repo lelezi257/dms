@@ -368,6 +368,12 @@ message DfsReplicaAck {
   uint64 catalog_revision = 9;
   uint64 persisted_bytes = 10;
   bytes verified_digest = 11;
+  DfsDigestAlgorithm verified_digest_algorithm = 12;
+}
+
+enum DfsDigestAlgorithm {
+  DFS_DIGEST_ALGORITHM_UNSPECIFIED = 0;
+  DFS_DIGEST_ALGORITHM_BLAKE3 = 1;
 }
 
 enum DfsInodeKind {
@@ -428,6 +434,7 @@ message DfsChunkReceipt {
   uint64 placement_epoch = 10;
   string replica_group_id = 11;
   repeated DfsReplicaAck durable_acks = 12;
+  DfsDigestAlgorithm content_digest_algorithm = 13;
 }
 
 message DfsWriteLease {

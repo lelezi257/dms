@@ -26,13 +26,16 @@ Node RPC 使用四个职责文件：`control.rs` 负责 Node 间控制，`data.r
 | FUSE、SDK、REST 入口 | 已实现基础框架 | OwnerFs 路径已投入三 VM 验收 |
 | MetaStore | 已实现单活动基础 | etcd、local-file、memory；后端 ACK 后发布可见状态 |
 | OwnerFs | 已实现阶段能力 | 本机普通文件、跨 Node P2P、授权校验、句柄回收 |
-| DistributedFs | Experimental R=1 | 独立 mount；inode 级 dirty view；write/flush/fdatasync/fsync/release 分离；同步 dirty data 生成不可变 Chunk/FileVersion |
-| FileVersion 数据模型 | Experimental | Meta 以一次事务提交 Chunk/Copy/Placement/LayoutRoot/FileVersion 与 inode head CAS |
+| DistributedFs | Experimental R=1 | 独立 mount；inode 级 dirty view；非阻塞 dirty freeze；write/flush/fdatasync/fsync/release 分离；同步 dirty data 生成不可变 Chunk/FileVersion |
+| FileVersion 数据模型 | Experimental | CommitPlanner 生成分块 Layout COW；Meta 以一次事务提交新 Chunk/Copy/Placement/LayoutRoot/FileVersion 与 inode head CAS，并验证 expected-base Extent 继承 |
 | 写入可见性与同步合同 | Experimental R=1 | WriteLease、inode 级 InodeWriteState、DirtyExtentMap、DataOnly/Full commit 已接入；跨节点 owner routing 尚未实现 |
 | Chunk 副本状态机 | Framework Implemented / R1 Experimental | ReplicationConfig 初始化、设备注册、PlacementSnapshot 缓存、R1 快路径、RN engine、ACK/receipt、Meta Copy/Placement/Task 原子提交和 gRPC/RDMA RPC 骨架已接入；RN 远端搬运与后台 worker 尚未实现 |
+| Local ChunkEngine | Framework Implemented / R1 Experimental | BLAKE3 身份、per-chunk file、批量 durable finalize、no-replace publish、LocalChunkRecord/LocalCatalog、启动恢复与 reader FD pin 已接入；Pack、relocation、GC/reconciliation 尚未实现 |
 | 固定版本多源读取 | Accepted Design | 身份和读取规则已确定，调度与数据路径尚未实现 |
 | 外部对象存储 spill | 未实现 | 属于容量层选项，不是系统成立条件 |
 | Native SDK 高性能数据面 | 基础框架 | SHM/RDMA 文件内容路径尚未接通 |
+
+专题四基础框架在 Linux `dms-dev` VM 通过 workspace 全特性全目标 check、无后端/OwnerFs-only/DFS-only feature matrix、严格 Clippy、格式检查和 release build。本轮未运行单元测试、真 FUSE E2E 或掉电故障注入，因此状态保持 Framework Implemented / R1 Experimental。
 
 ## OwnerFs 证据
 
@@ -44,12 +47,12 @@ Node RPC 使用四个职责文件：`control.rs` 负责 Node 间控制，`data.r
 
 - Meta 单活动围栏与选主尚未完成，不能宣称生产 HA。
 - OwnerFs 尚缺根删除、跨节点根列举及部分常用属性操作。
-- DFS 当前在 commit 时仍将文件版本物化为单个 Chunk 和 inline extent；已用 DirtyExtentMap 表达覆盖写，尚未实现分块 Extent 树、compaction 与 RN 远端副本搬运。
-- 专题四已经接受 immutable Chunk + Layout COW；代码尚未实现流式 CommitPlanner、合法复用 base Chunk、LocalChunkRecord、no-replace publish、恢复日志、reader pin 和 orphan reconciliation。
-- 当前本机 Chunk digest 只用于首阶段损坏检测；在分布式去重与 P2P 前必须换成带算法版本的强摘要。
-- DFS commit 已避免持有全局 handle table 锁执行磁盘 I/O 和 Meta RPC；当前仍持有 inode 级写状态锁完成首阶段 commit，后续需要用 freeze/snapshot 缩短 inode 临界区。
+- DFS 当前使用 inline Extent 列表；尚未实现 Extent tree、布局 compaction policy 与 RN 远端副本搬运。
+- 专题四的热路径框架已经接入；Pack/relocation、reader pin 计数与删除状态机、orphan reconciliation 和掉电故障矩阵仍未实现。
+- Chunk 内容身份已切换为带算法标识的 BLAKE3；旧 16 字节 FNV 原型格式不作为兼容持久格式。
+- DFS commit 已用 FrozenCommit 把磁盘 I/O 和 Meta RPC 移出 inode 写状态锁；同一 inode 当前只允许一个 in-flight commit，后续需要等待/合并策略。
 - 严格普通写跨节点可见性合同已经固化；当前只接受本地 WriteLease owner，远端 owner routing 尚未实现。
-- DFS 已分离 `write/flush/fdatasync/fsync/release`，接通 `O_DSYNC/O_SYNC`，并增加定时后台 writeback、优雅退出 drain 与 inode sticky error；跨节点 owner routing、非阻塞 CommitBatch freeze、故障恢复矩阵和 `fsync(dir)` 尚未实现。
+- DFS 已分离 `write/flush/fdatasync/fsync/release`，接通 `O_DSYNC/O_SYNC`，并增加定时后台 writeback、优雅退出 drain、inode sticky error 和 CommitBatch freeze；跨节点 owner routing、并发 sync 等待、故障恢复矩阵和 `fsync(dir)` 尚未实现。
 - RDMA 已有传输探测能力，文件内容仍走 gRPC P2P。
 - 完整 POSIX、VM 掉电、长稳、容量压力和对象存储 spill 尚未验收。
 

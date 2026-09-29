@@ -156,10 +156,10 @@ ChunkObject {
 生命周期方向固定为：
 
 ```text
-bytes -> StagedChunk -> finalize -> ChunkObject
+frozen bytes -> StagedChunk{ChunkObject identity} -> finalize -> durable local copy
 ```
 
-StagedChunk 是 CommitBatch 在 ChunkStore 内部使用的临时构造状态，尚未完整，不允许被 FileVersion、普通读取、Snapshot 或 P2P Seed 引用。Finalize 校验长度、摘要、编码和本地提交状态后产生不可变 ChunkObject。它不进入 Meta UML，也不是公开 API 或长期文件身份。
+StagedChunk 是 CommitBatch 在 ChunkStore 内部使用的临时构造状态，包含完整冻结字节和已经确定的不可变 ChunkObject 身份，但尚未形成持久副本证明，因此不允许被 FileVersion、普通读取、Snapshot 或 P2P Seed 引用。Finalize 校验长度、摘要、编码和本地提交状态后产生 LocalChunkRecord 与 ReplicaAck。StagedChunk 不进入 Meta UML，也不是公开 API 或长期文件身份。
 
 ChunkId 使用带 DedupDomain、算法、Digest、长度和 Encoding 的规范化内容身份；知道 ChunkId 不等于获得读取授权，授权来自 Namespace 和 FileVersion 可达性。
 
@@ -551,8 +551,9 @@ DfsFileHandle "1" --> "0..1" DfsWriteSession
 DfsWriteSession "0..N" --> "1" InodeWriteState : shared inode state
 InodeWriteState "1" *-- "1" DirtyExtentMap
 InodeWriteState --> CommitBatch : CommitTrigger freezes prefix
-CommitBatch --> StagedChunk : builds
-StagedChunk --> ChunkObject : finalize
+CommitBatch --> StagedChunk : freezes bytes + identity
+StagedChunk --> LocalChunkCopy : finalize
+StagedChunk --> ChunkObject : carries identity
 ChunkObject "1" --> "1..N" LocalChunkCopy : physical copies
 ChunkObject --> ChunkReceipt : successful put
 CommitBatch --> ChunkReceipt : consumes

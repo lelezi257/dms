@@ -12,7 +12,7 @@ DFS 使用统一的数据模型承载普通可变文件和镜像、Snapshot 等�
 
 [架构设计专题](architecture/design-topics.md)维护 DFS 的六个设计专题及其依赖关系。
 
-专题一已经接受：[FileVersion、Extent 与 Chunk 数据模型](architecture/01-file-version-chunk-model.md)和 [RFC-0002](rfcs/0002-file-version-chunk-model.md)定义统一不可变版本模型、单副本与多副本分叉点、三个端到端 Case 和 RPC 预算。专题二及 [RFC-0003](rfcs/0003-write-visibility-durability.md)固定用户/Node/Meta 时间线：普通 write 进入 inode owner 的共享 dirty view，CommitTrigger 才产生 Chunk 和 FileVersion；`fdatasync/fsync`、flush/release、后台 writeback 和目录同步具有独立合同。专题三及 [RFC-0004](rfcs/0004-replication-state-machine.md)固定文件系统级不可变 ReplicationConfig、R1 Local Fast Path、RN Replication Path、Meta Placement 权威、Node ReplicationPlan、ReplicaAck/ChunkReceipt 与异步补副本合同。
+专题一已经接受：[FileVersion、Extent 与 Chunk 数据模型](architecture/01-file-version-chunk-model.md)和 [RFC-0002](rfcs/0002-file-version-chunk-model.md)定义统一不可变版本模型、单副本与多副本分叉点、三个端到端 Case 和 RPC 预算。专题二及 [RFC-0003](rfcs/0003-write-visibility-durability.md)固定用户/Node/Meta 时间线：普通 write 进入 inode owner 的共享 dirty view，CommitTrigger 才产生 Chunk 和 FileVersion；`fdatasync/fsync`、flush/release、后台 writeback 和目录同步具有独立合同。专题三及 [RFC-0004](rfcs/0004-replication-state-machine.md)固定文件系统级不可变 ReplicationConfig、R1 Local Fast Path、RN Replication Path、Meta Placement 权威、Node ReplicationPlan、ReplicaAck/ChunkReceipt 与异步补副本合同。专题四及 [RFC-0005](rfcs/0005-local-chunk-engine-cow.md)固定 Layout COW 与 Physical COW 的边界、LocalChunkRecord、可恢复 finalize、base Chunk 继承、per-chunk file 到 Pack 的演进以及 orphan reconciliation 合同。
 
 接入模型已经实现为两个独立 mount：OwnerFs 与 DFS 分别建立 FuseSession、FUSE connection、inode/handle table 和缓存策略，只复用 `fuse` 模块代码与 `Backend` 接口。`DfsWriteSession` 是 DFS 专属类型；OwnerFs 不进入 FileVersion/Extent/Chunk 写入状态机。
 
@@ -45,6 +45,7 @@ Node RPC 使用四个职责文件：`control.rs` 负责 Node 间控制，`data.r
 - Meta 单活动围栏与选主尚未完成，不能宣称生产 HA。
 - OwnerFs 尚缺根删除、跨节点根列举及部分常用属性操作。
 - DFS 当前在 commit 时仍将文件版本物化为单个 Chunk 和 inline extent；已用 DirtyExtentMap 表达覆盖写，尚未实现分块 Extent 树、compaction 与 RN 远端副本搬运。
+- 专题四已经接受 immutable Chunk + Layout COW；代码尚未实现流式 CommitPlanner、合法复用 base Chunk、LocalChunkRecord、no-replace publish、恢复日志、reader pin 和 orphan reconciliation。
 - 当前本机 Chunk digest 只用于首阶段损坏检测；在分布式去重与 P2P 前必须换成带算法版本的强摘要。
 - DFS commit 已避免持有全局 handle table 锁执行磁盘 I/O 和 Meta RPC；当前仍持有 inode 级写状态锁完成首阶段 commit，后续需要用 freeze/snapshot 缩短 inode 临界区。
 - 严格普通写跨节点可见性合同已经固化；当前只接受本地 WriteLease owner，远端 owner routing 尚未实现。

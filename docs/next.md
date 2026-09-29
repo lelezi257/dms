@@ -6,13 +6,13 @@
 
 ## 设计入口
 
-[专题一](architecture/01-file-version-chunk-model.md)、[RFC-0002](rfcs/0002-file-version-chunk-model.md)、[专题二](architecture/02-write-durability-publication.md)、[RFC-0003](rfcs/0003-write-visibility-durability.md)、[专题三](architecture/03-replication-state-machine.md)及 [RFC-0004](rfcs/0004-replication-state-machine.md)已经接受，确定以下实现合同：
+[专题一](architecture/01-file-version-chunk-model.md)、[RFC-0002](rfcs/0002-file-version-chunk-model.md)、[专题二](architecture/02-write-durability-publication.md)、[RFC-0003](rfcs/0003-write-visibility-durability.md)、[专题三](architecture/03-replication-state-machine.md)、[RFC-0004](rfcs/0004-replication-state-machine.md)、[专题四](architecture/04-local-chunk-engine-cow.md)及 [RFC-0005](rfcs/0005-local-chunk-engine-cow.md)已经接受，确定以下实现合同：
 
 - inode 通过可变 `head_version` 指向已提交的不可变 `FileVersion`；
 - `FileVersion → LayoutRoot/ExtentMap → Extent → ChunkObject` 构成统一事实源；
 - 普通 write 由 inode owner 排序并进入共享 `InodeWriteState/DirtyExtentMap`，不修改 committed FileVersion；
 - `DfsWriteSession` 只保存一次 open 的 flags、水位和错误游标；
-- CommitTrigger 冻结写入前缀，`StagedChunk` 只在 ChunkStore 内部存在，finalize 后才成为可读的 `ChunkObject`；
+- CommitTrigger 冻结写入前缀并确定不可变 `ChunkObject` 身份；`StagedChunk` 只在 ChunkStore 内部存在，finalize 后才形成可 ACK 的本地持久副本；
 - 单副本和多副本只在 `ChunkStore::put` 以下分叉，上层只消费 `ChunkReceipt`；
 - `fdatasync` 提交数据与恢复索引，`fsync` 再提交完整 inode 属性；两者不自动创建业务 Alias、Pin 或 RootManifest；
 - FUSE flush/release 不替代同步合同；后台 writeback 可以提交版本但不产生用户可依赖的完成点；
@@ -22,8 +22,12 @@
 - 副本数量由文件系统初始化时的 `desired_copies/sync_required_copies` 固定；Meta 维护 Placement 权威，Node 从缓存快照生成 ReplicationPlan。
 - ReplicaAck 是 Peer wire 证明，ChunkReceipt 是提交层聚合证明，CopyRecord 是 Meta 长期目录事实。
 - 异步补副本任务与 FileVersion 在同一 Meta 事务登记；欠副本不阻止从现存有效 Copy 读取。
+- 文件修改使用 immutable Chunk + Layout COW；4 KiB patch 是普通 Chunk，不增加 PatchChunk。
+- Local finalize 只有在数据屏障、no-replace 发布、目录持久化和 LocalChunkRecord 完成后才返回 ReplicaAck。
+- 新布局可以继承 expected base 的旧 Chunk；只有新增 Chunk 需要本次 receipt，继承关系由 Meta 验证。
+- per-chunk file 和未来 Pack backend 共享 LocalChunkStore 合同；Physical COW 只改变本地位置，不创建 FileVersion。
 
-下一设计入口是[专题四](architecture/04-local-chunk-engine-cow.md)。RFC-0004 的副本基础类型、Meta Placement 合同、Node ReplicationEngine 与 Peer Chunk RPC 形状已经落入代码；下一工程入口是先完成专题四，再实现 RN 目标端 staging/finalize、幂等 ACK 与多节点 placement，避免在本地 Chunk crash contract 未固定前完成远端复制。
+下一设计入口是[专题五](architecture/05-length-truncate-seal.md)。RFC-0004 的副本基础类型、Meta Placement 合同、Node ReplicationEngine 与 Peer Chunk RPC 形状已经落入代码；下一工程入口是搭建专题四的 Local ChunkEngine 基础框架，再实现 RN 目标端 staging/finalize、幂等 ACK 与多节点 placement。
 
 RPC 物理布局保持为 `control.rs`、`data.rs`、`meta.rs`、`peer.rs`。R=N 设计可以在 `data.rs`/`peer.rs` 内增加 Chunk 协议实现；全部专项收敛前不按 OwnerFs/DFS 拆子文件。
 
@@ -40,10 +44,11 @@ RPC 物理布局保持为 `control.rs`、`data.rs`、`meta.rs`、`peer.rs`。R=N
 
 ## P1：扩展 DistributedFs
 
-1. 将当前 whole-file 单 Chunk 实现扩展为分块、Extent 树、覆盖写与 compaction。
-2. 补齐 truncate、append、rename、unlink、目录与打开句柄语义。
-3. 已增加 N/M `ReplicationConfig`、`DfsChunkStore` R1/RN 分叉、PlacementSnapshot、ReplicationEngine、ACK/receipt 与 Meta 提交框架；下一步实现 RN transport 和后台 ReplicationTask worker。
-4. 以两节点读取与单节点故障换源验证固定版本读取。
+1. 将当前 whole-file 单 Chunk 实现扩展为流式 CommitPlanner、分块 Extent 布局、base Chunk 继承、覆盖写与随 CommitBatch 触发的 compaction。
+2. 增加 LocalChunkRecord、可恢复 finalize、no-replace publish、reader pin 与 orphan reconciliation；第一阶段保留 per-chunk file backend。
+3. 补齐 truncate、append、rename、unlink、目录与打开句柄语义。
+4. 已增加 N/M `ReplicationConfig`、`DfsChunkStore` R1/RN 分叉、PlacementSnapshot、ReplicationEngine、ACK/receipt 与 Meta 提交框架；下一步实现 RN transport 和后台 ReplicationTask worker。
+5. 以两节点读取与单节点故障换源验证固定版本读取。
 
 ## P1：OwnerFs 完整性
 

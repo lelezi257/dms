@@ -196,10 +196,10 @@ CommitBatch 是一次提交的临时对象。`lease_epoch` 和 `through_seq` 用
 StagedChunk 保留为 ChunkStore 内部的临时构造状态：
 
 ```text
-CommitBatch -> StagedChunk -> finalize -> ChunkObject
+CommitBatch -> StagedChunk{ChunkObject identity} -> finalize -> durable local copy
 ```
 
-StagedChunk 不进入 Meta UML，不被 FileVersion、普通读取、Snapshot、Cache Seed 或 Repair 引用。
+StagedChunk 包含完整冻结字节和已经确定的 ChunkObject 身份，但尚未形成持久副本证明。它不进入 Meta UML，不被 FileVersion、普通读取、Snapshot、Cache Seed 或 Repair 引用。
 
 ## 7. E2E Case
 

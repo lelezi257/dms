@@ -31,14 +31,14 @@ flowchart LR
 ```text
 create /xxx.txt
 → FUSE 分段 write
-→ finalize immutable ChunkObject
+→ finalize durable local Chunk copy
 → commit FileVersion and inode head
 → open and read the committed version
 ```
 
 交付范围：
 
-- `StagedChunk → ChunkObject`；
+- `StagedChunk{ChunkObject identity} → durable local copy`；
 - `ExtentMap → LayoutRoot → FileVersion`；
 - R=1 本地优先写入；
 - R=N 在 `ChunkStore::put` 以下扩展，尚未实现；

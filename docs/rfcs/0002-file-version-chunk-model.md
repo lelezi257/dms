@@ -14,7 +14,7 @@ DistributedFs 使用不可变 Chunk 作为数据基座。可变 InodeRecord Head
 本 RFC 固定：
 
 - InodeRecord、FileVersion、LayoutRoot、Extent 和 ChunkObject 的关系；
-- StagedChunk 到 ChunkObject 的生命周期；
+- StagedChunk 携带 ChunkObject 身份并 finalize 为持久副本的生命周期；
 - R=1/R=N 在 ChunkStore 层的分界；
 - FileVersion CAS 的可见点；
 - 多源读取的数据身份；
@@ -148,8 +148,8 @@ Placement 和 Copy Catalog 不进入 FileVersion 或 LayoutRoot。位置变化�
 ```mermaid
 stateDiagram-v2
     [*] --> StagedChunk
-    StagedChunk --> Finalizing: all bytes received
-    Finalizing --> ChunkObject: length + digest + local commit verified
+    StagedChunk --> Finalizing: frozen bytes + ChunkObject identity
+    Finalizing --> DurableLocalCopy: data + catalog durable
     StagedChunk --> Aborted: validation or transfer failure
     Finalizing --> Aborted: finalize failure
 ```
@@ -175,7 +175,7 @@ Chunk 已成功而 Head CAS 最终失败时，ChunkObject 保持完整但不可�
 1. InodeRecord 的 `head_version_id` 是当前内容的唯一权威指针。
 2. 已提交 FileVersion 不可修改；新内容产生新 VersionId。
 3. 已提交 LayoutRoot 及其可达 Extent Tree Node 不可修改。
-4. 已 Finalize ChunkObject 不可修改；同一 ChunkId 只能对应同一规范化内容。
+4. ChunkObject 身份一经确定不可修改；同一 ChunkId 只能对应同一规范化内容。只有完成 finalize 的本地副本才能产生 ReplicaAck。
 5. StagedChunk 不可被 FileVersion、读取、Snapshot、Cache Seed 或 Repair 使用。
 6. FileVersion 的 Extent 按文件偏移有序且不重叠，并共同定义 `[0, logical_length)`。
 7. HOLE 不引用 ChunkObject。

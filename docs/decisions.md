@@ -1,5 +1,14 @@
 # AFS 架构决策
 
+## 2026-09-29：DFS 使用 Layout COW 表达修改，Local ChunkEngine 只对物理位置做 COW
+
+- **决策：** 文件内容更新生成新的 immutable Chunk，并由新 ExtentMap 复用 expected base FileVersion 中未修改的 Chunk；4 KiB patch 是普通 Chunk，不增加 PatchChunk。同一 ChunkId 的内容禁止 overwrite 和 in-place append。
+- **本地持久化：** StagedChunk 已确定 ChunkObject 身份。Local finalize 完成数据屏障、no-replace 发布、目录持久化和 LocalChunkRecord 提交后，才产生 ReplicaAck。LocalChunkRecord 是 Node 的物理事实，CopyRecord 是 Meta 接受后的全局事实。
+- **物理 COW：** Pack compaction、设备迁移和重编码保持 ChunkId 不变，先持久化并校验新位置，再原子切换 LocalChunkRecord；旧位置在 reader pin 清空后回收。该过程不创建 FileVersion。
+- **提交与恢复：** 只有新 Chunk 需要本次 receipt；旧 Chunk 必须由 Meta 从 expected base layout 验证继承关系。orphan 通过 grace period 和批量 reconciliation 回收，不增加第二次同步提交 RPC。恢复不能无条件提交 staging 数据。
+- **演进：** 第一阶段使用 per-chunk file，未来 Pack backend 保持相同 LocalChunkStore 合同。正式内容身份使用带算法版本的强摘要；当前 128-bit FNV 不作为兼容格式。
+- **权威文档：** [RFC-0005](rfcs/0005-local-chunk-engine-cow.md)与[专题四](architecture/04-local-chunk-engine-cow.md)。
+
 ## 2026-09-29：R1 Local Fast Path 与 RN Replication Path 共用 LocalChunkStore
 
 - **决策：** DistributedFs 在 `ChunkStore::put` 以下保留两条执行路径：唯一目标为本地节点时使用无 Peer 的 Local Fast Path；多目标或远端目标使用 ReplicationEngine。每个副本复用相同的 LocalChunkStore 校验、fsync 和原子 finalize 原语，文件层统一消费 ChunkReceipt。

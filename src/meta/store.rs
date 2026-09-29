@@ -23,7 +23,7 @@ use tokio::sync::{RwLock, mpsc, oneshot};
 
 use crate::dfs::{
     ChunkObject, CopyRecord, Dentry, DentryKey, FileVersion, FileVersionId, InodeId, InodeRecord,
-    LayoutRoot, LayoutRootId, PlacementRecord,
+    LayoutRoot, LayoutRootId, PlacementRecord, WriteLease,
 };
 
 pub mod etcd;
@@ -220,6 +220,7 @@ pub enum MetaEntity {
     DfsChunk(ChunkObject),
     DfsPlacement(PlacementRecord),
     DfsCopy(CopyRecord),
+    DfsWriteLease(WriteLease),
 }
 
 impl MetaEntity {
@@ -238,6 +239,7 @@ impl MetaEntity {
             Self::DfsChunk(_) => "dfs_chunk",
             Self::DfsPlacement(_) => "dfs_placement",
             Self::DfsCopy(_) => "dfs_copy",
+            Self::DfsWriteLease(_) => "dfs_write_lease",
         }
     }
 }
@@ -283,6 +285,7 @@ pub enum MetaRead {
     DfsInode(InodeId),
     DfsFileVersion(FileVersionId),
     DfsLayoutRoot(LayoutRootId),
+    DfsWriteLease(InodeId),
 }
 
 /// A linearizable read response. Empty results are represented explicitly so
@@ -372,6 +375,7 @@ pub enum MetaKey {
     DfsChunk(crate::dfs::ChunkId),
     DfsPlacement(crate::dfs::ChunkId),
     DfsCopy(crate::dfs::CopyId),
+    DfsWriteLease(InodeId),
 }
 
 /// Idempotent result stored in the same transaction as the authority mutation.
@@ -398,6 +402,9 @@ pub enum StoreOperation {
     CommitRootRevocation,
     AckRootCommand,
     DfsCreate,
+    DfsAcquireWriteLease,
+    DfsRenewWriteLease,
+    DfsSyncInodeMetadata,
     DfsCommitFileVersion,
 }
 
@@ -412,6 +419,11 @@ pub enum OperationResult {
     RootCommand(RootCommandRecord),
     RootCommandAck(RootCommandAck),
     DfsInode(InodeRecord),
+    DfsInodeWithLease {
+        inode: InodeRecord,
+        lease: WriteLease,
+    },
+    DfsWriteLease(WriteLease),
     Empty,
 }
 
@@ -1063,6 +1075,9 @@ impl MetaStore for StoreState {
                 MetaRead::DfsLayoutRoot(id) => {
                     state.entities.get(&MetaKey::DfsLayoutRoot(id.clone()))
                 }
+                MetaRead::DfsWriteLease(id) => {
+                    state.entities.get(&MetaKey::DfsWriteLease(id.clone()))
+                }
             };
             let request_outcome = match read {
                 MetaRead::RequestOutcome(key) => state.requests.get(&key).cloned(),
@@ -1388,6 +1403,7 @@ fn entity_key(entity: &MetaEntity) -> MetaKey {
         MetaEntity::DfsChunk(chunk) => MetaKey::DfsChunk(chunk.id.clone()),
         MetaEntity::DfsPlacement(placement) => MetaKey::DfsPlacement(placement.chunk_id.clone()),
         MetaEntity::DfsCopy(copy) => MetaKey::DfsCopy(copy.id.clone()),
+        MetaEntity::DfsWriteLease(lease) => MetaKey::DfsWriteLease(lease.inode_id.clone()),
     }
 }
 

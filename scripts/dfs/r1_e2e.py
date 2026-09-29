@@ -139,6 +139,25 @@ def main() -> int:
             try:
                 os.write(fd, b"hello-")
                 os.write(fd, b"dfs-r1")
+
+                # A second handle must observe the inode-level dirty overlay
+                # before any FileVersion is committed.
+                reader = os.open(path, os.O_RDONLY)
+                try:
+                    dirty_payload = os.pread(reader, 64, 0)
+                finally:
+                    os.close(reader)
+                if dirty_payload != b"hello-dfs-r1":
+                    raise RuntimeError(
+                        f"dirty overlay was not shared across handles: {dirty_payload!r}"
+                    )
+
+                os.fdatasync(fd)
+                first_chunks = sorted((work_dir / "node" / "dfs" / "chunks").iterdir())
+                if len(first_chunks) != 1 or first_chunks[0].read_bytes() != dirty_payload:
+                    raise RuntimeError("fdatasync did not commit the first immutable Chunk")
+
+                os.pwrite(fd, b"DFS", 6)
                 os.fsync(fd)
             finally:
                 os.close(fd)
@@ -147,19 +166,23 @@ def main() -> int:
                 payload = reopened.read()
             stat = path.stat()
             chunks = sorted((work_dir / "node" / "dfs" / "chunks").iterdir())
-            if payload != b"hello-dfs-r1":
+            if payload != b"hello-DFS-r1":
                 raise RuntimeError(f"reopened payload mismatch: {payload!r}")
             if stat.st_size != len(payload):
                 raise RuntimeError(f"reopened size mismatch: {stat.st_size}")
-            if len(chunks) != 1 or chunks[0].read_bytes() != payload:
-                raise RuntimeError("immutable local Chunk does not match committed file content")
+            if len(chunks) != 2:
+                raise RuntimeError(f"expected two immutable versions, found {len(chunks)} chunks")
+            if payload not in [chunk.read_bytes() for chunk in chunks]:
+                raise RuntimeError("latest immutable local Chunk does not match committed content")
 
             result.update(
                 passed=True,
                 payload=payload.decode(),
                 file_size=stat.st_size,
-                chunk_id=chunks[0].name,
-                chunk_bytes=chunks[0].stat().st_size,
+                chunk_ids=[chunk.name for chunk in chunks],
+                chunk_bytes=[chunk.stat().st_size for chunk in chunks],
+                dirty_overlay_visible=True,
+                fdatasync_then_fsync=True,
             )
     except Exception as error:  # noqa: BLE001 - emit bounded diagnostics for the E2E runner.
         result.update(error=str(error), meta_log=tail(meta_log), node_log=tail(node_log))

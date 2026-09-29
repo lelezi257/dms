@@ -8,15 +8,17 @@
 use afs_protocol::meta::{
     AbortRootReply, AbortRootRequest, AckRevocationReply, AckRevocationRequest, AcquireRootReply,
     AcquireRootRequest, ActivateRootReply, ActivateRootRequest, CommitFileVersionReply,
-    CommitFileVersionRequest, DfsCreateReply, DfsCreateRequest,
+    CommitFileVersionRequest, DfsCommitMetadataMode, DfsCreateReply, DfsCreateRequest,
     DfsInodeAttributes as PbDfsInodeAttributes, DfsInodeKind as PbDfsInodeKind,
     DfsInodeRecord as PbDfsInodeRecord, DfsLayoutRoot as PbDfsLayoutRoot, DfsLookupReply,
-    DfsLookupRequest, GetDfsInodeReply, GetDfsInodeRequest, GetFileVersionReply,
-    GetFileVersionRequest, ListOwnerRootsReply, ListOwnerRootsRequest, LookupNodeReply,
-    LookupNodeRequest, LookupRootReply, LookupRootRequest, NodeDescriptor, NodeEndpoint, PingReply,
-    PingRequest, PresentedRootAccess, RecoverRootReply, RecoverRootRequest, RegisterNodeReply,
-    RegisterNodeRequest, ReserveRootReply, ReserveRootRequest, RootCommand, RootCommandType,
-    RootLocation, RootReservation, RootRight as PbRootRight, ValidateRootAccessReply,
+    DfsLookupRequest, DfsWriteLeaseReply, GetDfsInodeReply, GetDfsInodeRequest,
+    GetFileVersionReply, GetFileVersionRequest, ListOwnerRootsReply, ListOwnerRootsRequest,
+    LookupNodeReply, LookupNodeRequest, LookupRootReply, LookupRootRequest, NodeDescriptor,
+    NodeEndpoint, OpenDfsWriteReply, OpenDfsWriteRequest, PingReply, PingRequest,
+    PresentedRootAccess, RecoverRootReply, RecoverRootRequest, RegisterNodeReply,
+    RegisterNodeRequest, RenewDfsWriteLeaseRequest, ReserveRootReply, ReserveRootRequest,
+    RootCommand, RootCommandType, RootLocation, RootReservation, RootRight as PbRootRight,
+    SyncDfsInodeMetadataReply, SyncDfsInodeMetadataRequest, ValidateRootAccessReply,
     ValidateRootAccessRequest, WatchRootCommandsRequest,
     dfs_meta_server::DfsMeta as DfsMetaService, meta_server::Meta as MetaService,
     owner_roots_server::OwnerRoots as OwnerRootsService,
@@ -25,6 +27,7 @@ use std::{pin::Pin, sync::Arc, time::Duration};
 use tokio_stream::Stream;
 use tonic::{Request, Response, Status};
 
+use super::dfs::CreateFileRequest;
 use super::store::{
     NodeSessionLease, RequestKey, RootAccessGrant, RootCommandRecord, RootReservationRecord,
     RootRight, StoreRevision,
@@ -699,22 +702,81 @@ impl DfsMetaService for DfsMetaRpc {
         require_text(&request.operation_id, "operation_id")?;
         require_text(&request.namespace_id, "namespace_id")?;
         require_text(&request.parent_inode_id, "parent_inode_id")?;
+        require_text(&request.owner_session_id, "owner_session_id")?;
         let attributes = request
             .attributes
             .ok_or_else(|| invalid("DFS create requires attributes"))?;
-        let inode = dfs_service(&self.0)?
-            .create(
-                request.caller_id,
-                crate::dfs::OperationId::new(request.operation_id),
-                crate::dfs::NamespaceId::new(request.namespace_id),
-                crate::dfs::InodeId::new(request.parent_inode_id),
-                request.name,
-                domain_dfs_attributes(attributes),
-            )
+        let (inode, lease) = dfs_service(&self.0)?
+            .create(CreateFileRequest {
+                caller_id: request.caller_id,
+                owner_session_id: request.owner_session_id,
+                operation_id: crate::dfs::OperationId::new(request.operation_id),
+                namespace_id: crate::dfs::NamespaceId::new(request.namespace_id),
+                parent_inode_id: crate::dfs::InodeId::new(request.parent_inode_id),
+                name: request.name,
+                attributes: domain_dfs_attributes(attributes),
+                lease_seconds: request.lease_seconds,
+            })
             .await
             .map_err(afs_transport::grpc::error_status::error_to_status)?;
         Ok(Response::new(DfsCreateReply {
             inode: Some(wire_dfs_inode(inode)),
+            write_lease: Some(wire_dfs_write_lease(lease)),
+        }))
+    }
+
+    async fn open_write(
+        &self,
+        request: Request<OpenDfsWriteRequest>,
+    ) -> Result<Response<OpenDfsWriteReply>, Status> {
+        let authenticated = authenticated_node_id(&self.0, &request)?;
+        let request = request.into_inner();
+        validate_caller(authenticated.as_deref(), &request.caller_id)?;
+        require_text(&request.owner_session_id, "owner_session_id")?;
+        require_text(&request.operation_id, "operation_id")?;
+        require_text(&request.inode_id, "inode_id")?;
+        let (inode, lease) = dfs_service(&self.0)?
+            .open_write(
+                request.caller_id,
+                request.owner_session_id,
+                crate::dfs::OperationId::new(request.operation_id),
+                crate::dfs::InodeId::new(request.inode_id),
+                request.lease_seconds,
+            )
+            .await
+            .map_err(afs_transport::grpc::error_status::error_to_status)?;
+        Ok(Response::new(OpenDfsWriteReply {
+            inode: Some(wire_dfs_inode(inode)),
+            write_lease: Some(wire_dfs_write_lease(lease)),
+        }))
+    }
+
+    async fn renew_write_lease(
+        &self,
+        request: Request<RenewDfsWriteLeaseRequest>,
+    ) -> Result<Response<DfsWriteLeaseReply>, Status> {
+        let authenticated = authenticated_node_id(&self.0, &request)?;
+        let request = request.into_inner();
+        validate_caller(authenticated.as_deref(), &request.caller_id)?;
+        require_text(&request.owner_session_id, "owner_session_id")?;
+        require_text(&request.operation_id, "operation_id")?;
+        let current = domain_dfs_write_lease(
+            request
+                .current_lease
+                .ok_or_else(|| invalid("DFS renew requires current lease"))?,
+        );
+        let lease = dfs_service(&self.0)?
+            .renew_write_lease(
+                request.caller_id,
+                request.owner_session_id,
+                crate::dfs::OperationId::new(request.operation_id),
+                current,
+                request.lease_seconds,
+            )
+            .await
+            .map_err(afs_transport::grpc::error_status::error_to_status)?;
+        Ok(Response::new(DfsWriteLeaseReply {
+            write_lease: Some(wire_dfs_write_lease(lease)),
         }))
     }
 
@@ -749,6 +811,43 @@ impl DfsMetaService for DfsMetaRpc {
         }))
     }
 
+    async fn sync_inode_metadata(
+        &self,
+        request: Request<SyncDfsInodeMetadataRequest>,
+    ) -> Result<Response<SyncDfsInodeMetadataReply>, Status> {
+        let authenticated = authenticated_node_id(&self.0, &request)?;
+        let request = request.into_inner();
+        validate_caller(authenticated.as_deref(), &request.caller_id)?;
+        require_text(&request.operation_id, "operation_id")?;
+        require_text(&request.inode_id, "inode_id")?;
+        let inode = dfs_service(&self.0)?
+            .sync_inode_metadata(
+                request.caller_id,
+                crate::dfs::SyncInodeMetadata {
+                    operation_id: crate::dfs::OperationId::new(request.operation_id),
+                    inode_id: crate::dfs::InodeId::new(request.inode_id),
+                    write_lease: domain_dfs_write_lease(
+                        request
+                            .write_lease
+                            .ok_or_else(|| invalid("DFS metadata sync requires write lease"))?,
+                    ),
+                    expected_inode_revision: request.expected_inode_revision,
+                    expected_head_version: optional_id(request.expected_head_version_id)
+                        .map(crate::dfs::FileVersionId::new),
+                    metadata_delta: domain_dfs_metadata_delta(
+                        request
+                            .metadata_delta
+                            .ok_or_else(|| invalid("DFS metadata sync requires metadata delta"))?,
+                    )?,
+                },
+            )
+            .await
+            .map_err(afs_transport::grpc::error_status::error_to_status)?;
+        Ok(Response::new(SyncDfsInodeMetadataReply {
+            inode: Some(wire_dfs_inode(inode)),
+        }))
+    }
+
     async fn commit_file_version(
         &self,
         request: Request<CommitFileVersionRequest>,
@@ -773,18 +872,30 @@ impl DfsMetaService for DfsMetaRpc {
             .into_iter()
             .map(domain_chunk_receipt)
             .collect::<Result<Vec<_>, _>>()?;
+        let write_lease = domain_dfs_write_lease(
+            request
+                .write_lease
+                .ok_or_else(|| invalid("DFS commit requires write lease"))?,
+        );
+        let metadata_delta = domain_dfs_metadata_delta(
+            request
+                .metadata_delta
+                .ok_or_else(|| invalid("DFS commit requires metadata delta"))?,
+        )?;
         let inode = dfs_service(&self.0)?
             .commit_file_version(
                 request.caller_id,
                 crate::dfs::CommitFileVersion {
                     operation_id: crate::dfs::OperationId::new(request.operation_id),
                     inode_id: crate::dfs::InodeId::new(request.inode_id),
+                    write_lease,
                     expected_inode_revision: request.expected_inode_revision,
                     expected_head_version: optional_id(request.expected_head_version_id)
                         .map(crate::dfs::FileVersionId::new),
                     file_version: version,
                     layout_root: layout,
                     chunk_receipts: receipts,
+                    metadata_delta,
                 },
             )
             .await
@@ -890,6 +1001,45 @@ fn domain_dfs_layout(layout: PbDfsLayoutRoot) -> crate::dfs::LayoutRoot {
             })
             .collect(),
     }
+}
+
+fn wire_dfs_write_lease(lease: crate::dfs::WriteLease) -> afs_protocol::meta::DfsWriteLease {
+    afs_protocol::meta::DfsWriteLease {
+        inode_id: lease.inode_id.0,
+        owner_node_id: lease.owner_node_id,
+        owner_session_id: lease.owner_session_id,
+        lease_epoch: lease.lease_epoch,
+        expires_at_unix_ms: lease.expires_at_unix_ms,
+    }
+}
+
+fn domain_dfs_write_lease(lease: afs_protocol::meta::DfsWriteLease) -> crate::dfs::WriteLease {
+    crate::dfs::WriteLease {
+        inode_id: crate::dfs::InodeId::new(lease.inode_id),
+        owner_node_id: lease.owner_node_id,
+        owner_session_id: lease.owner_session_id,
+        lease_epoch: lease.lease_epoch,
+        expires_at_unix_ms: lease.expires_at_unix_ms,
+    }
+}
+
+fn domain_dfs_metadata_delta(
+    delta: afs_protocol::meta::DfsCommitMetadataDelta,
+) -> Result<crate::dfs::CommitMetadataDelta, Status> {
+    let mode = match DfsCommitMetadataMode::try_from(delta.mode)
+        .map_err(|_| invalid("DFS commit metadata mode is invalid"))?
+    {
+        DfsCommitMetadataMode::DataOnly => crate::dfs::CommitMetadataMode::DataOnly,
+        DfsCommitMetadataMode::Full => crate::dfs::CommitMetadataMode::Full,
+        DfsCommitMetadataMode::Unspecified => {
+            return Err(invalid("DFS commit metadata mode is required"));
+        }
+    };
+    Ok(crate::dfs::CommitMetadataDelta {
+        mode,
+        mtime_unix_ms: (delta.mtime_unix_ms != 0).then_some(delta.mtime_unix_ms),
+        ctime_unix_ms: (delta.ctime_unix_ms != 0).then_some(delta.ctime_unix_ms),
+    })
 }
 
 fn domain_chunk_receipt(

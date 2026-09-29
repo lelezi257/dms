@@ -163,12 +163,46 @@ impl DurabilityPolicy {
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct WriteLease {
+    pub inode_id: InodeId,
+    pub owner_node_id: String,
+    pub owner_session_id: String,
+    pub lease_epoch: u64,
+    pub expires_at_unix_ms: u64,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub enum CommitMetadataMode {
+    DataOnly,
+    Full,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct CommitMetadataDelta {
+    pub mode: CommitMetadataMode,
+    pub mtime_unix_ms: Option<u64>,
+    pub ctime_unix_ms: Option<u64>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct CommitFileVersion {
     pub operation_id: OperationId,
     pub inode_id: InodeId,
+    pub write_lease: WriteLease,
     pub expected_inode_revision: u64,
     pub expected_head_version: Option<FileVersionId>,
     pub file_version: FileVersion,
     pub layout_root: LayoutRoot,
     pub chunk_receipts: Vec<ChunkReceipt>,
+    pub metadata_delta: CommitMetadataDelta,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct SyncInodeMetadata {
+    pub operation_id: OperationId,
+    pub inode_id: InodeId,
+    pub write_lease: WriteLease,
+    pub expected_inode_revision: u64,
+    pub expected_head_version: Option<FileVersionId>,
+    pub metadata_delta: CommitMetadataDelta,
 }

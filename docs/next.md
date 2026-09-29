@@ -23,12 +23,12 @@ RPC 物理布局保持为 `control.rs`、`data.rs`、`meta.rs`、`peer.rs`。R=N
 
 ## P0：固化写入语义并消除首阶段限制
 
-1. 实现 WriteLease、owner routing、epoch fencing 和组合 `OpenWrite` Meta 操作。
-2. 将 dirty data 从 DfsWriteSession 移到每 inode 的 InodeWriteState，并实现跨 handle/Node 的 base+overlay 读取。
-3. 实现 WriteSeq、CommitBatch、同步水位、后台 writeback 和 sticky error。
-4. 分离 write、flush、fdatasync、fsync 和 release；接通 `O_DSYNC/O_SYNC`，实现 `fsync(dir)`。
-5. 明确 inode `head_version` 的 CAS、失败重试、幂等键和故障恢复。
-6. 将全局 handle table 临界区改为每句柄和每 inode 并发控制，磁盘 I/O 与 Meta RPC 不占用全局锁。
+1. 已接入 WriteLease、lease epoch fencing 和组合 `OpenWrite` Meta 操作；下一步实现跨节点 owner routing。
+2. 已将 dirty data 从 DfsWriteSession 移到每 inode 的 InodeWriteState，并实现本地跨 handle 的 base+overlay 读取；下一步扩展到远端 owner 转发。
+3. 已实现 WriteSeq、CommitBatch、同步水位、定时后台 writeback、优雅退出 drain 与 sticky error；下一步补故障注入、每 inode 非阻塞 freeze 和错误恢复矩阵。
+4. 已分离 write、flush、fdatasync、fsync 和 release，并接通 `O_DSYNC/O_SYNC`；下一步实现目录 `fsync(dir)`。
+5. 已把 inode `head_version` CAS、lease 校验和 commit 幂等键接入 Meta；下一步补充失败重试和恢复测试矩阵。
+6. 已避免全局 handle table 锁跨磁盘 I/O 与 Meta RPC；下一步缩短 inode 级写状态锁的 commit 临界区。
 7. 选定带算法版本的强内容摘要，并定义旧 Chunk 格式的兼容边界。
 8. 为单副本、多副本、4 KiB 覆盖写分别列出正常及故障 RPC 时序。
 

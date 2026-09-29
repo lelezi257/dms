@@ -10,11 +10,13 @@ use afs::{
 };
 use afs_protocol::meta::{
     AbortRootRequest, AcquireRootRequest, ActivateRootReply, ActivateRootRequest,
-    CommitFileVersionRequest, DfsChunkReceipt, DfsExtent, DfsFileVersion, DfsLayoutRoot,
-    DfsLookupRequest, ListOwnerRootsRequest, LookupNodeRequest, LookupRootReply, LookupRootRequest,
-    NodeDescriptor, NodeEndpoint, PresentedRootAccess, RecoverRootRequest, RegisterNodeRequest,
-    ReserveRootReply, ReserveRootRequest, RootAccess, RootCommand, RootCommandType, RootLocation,
-    RootReservation, RootRight, ValidateRootAccessRequest, WatchRootCommandsRequest,
+    CommitFileVersionRequest, DfsChunkReceipt, DfsCommitMetadataDelta, DfsCommitMetadataMode,
+    DfsCreateRequest, DfsExtent, DfsFileVersion, DfsInodeAttributes, DfsLayoutRoot,
+    DfsLookupRequest, DfsWriteLease, ListOwnerRootsRequest, LookupNodeRequest, LookupRootReply,
+    LookupRootRequest, NodeDescriptor, NodeEndpoint, OpenDfsWriteRequest, PresentedRootAccess,
+    RecoverRootRequest, RegisterNodeRequest, ReserveRootReply, ReserveRootRequest, RootAccess,
+    RootCommand, RootCommandType, RootLocation, RootReservation, RootRight,
+    ValidateRootAccessRequest, WatchRootCommandsRequest,
     dfs_meta_server::DfsMeta as DfsMetaService, meta_server::Meta as MetaService,
     owner_roots_server::OwnerRoots as OwnerRootsService,
 };
@@ -706,7 +708,153 @@ fn dfs_commit_keeps_file_layout_and_durable_chunk_receipt_explicit() {
             device_id: "local-0".into(),
             persisted_bytes: 5,
         }],
+        write_lease: Some(DfsWriteLease {
+            inode_id: "inode:session-a-create-1".into(),
+            owner_node_id: "node-a".into(),
+            owner_session_id: "session-a".into(),
+            lease_epoch: 1,
+            expires_at_unix_ms: 456,
+        }),
+        metadata_delta: Some(DfsCommitMetadataDelta {
+            mode: DfsCommitMetadataMode::Full.into(),
+            mtime_unix_ms: 123,
+            ctime_unix_ms: 123,
+        }),
     };
     assert_eq!(commit.layout.as_ref().unwrap().inline_extents.len(), 1);
     assert_eq!(commit.chunk_receipts[0].persisted_bytes, 5);
+}
+
+#[tokio::test]
+async fn dfs_write_lease_reuses_one_owner_and_fences_stale_commits() {
+    let store = Arc::new(
+        Store::open(Arc::new(MemoryBackend::default()))
+            .await
+            .unwrap(),
+    );
+    let meta = Arc::new(Meta::with_store(
+        "meta-test".into(),
+        Observability::new().unwrap(),
+        store,
+    ));
+    let dfs = rpc::DfsMetaRpc(meta);
+    let created = dfs
+        .create(Request::new(DfsCreateRequest {
+            caller_id: "node-a".into(),
+            operation_id: "create-a".into(),
+            namespace_id: "default".into(),
+            parent_inode_id: "1".into(),
+            name: b"lease.txt".to_vec(),
+            attributes: Some(DfsInodeAttributes {
+                mode: 0o640,
+                uid: 1000,
+                gid: 1000,
+                nlink: 1,
+                atime_unix_ms: 1,
+                mtime_unix_ms: 1,
+                ctime_unix_ms: 1,
+            }),
+            owner_session_id: "session-a".into(),
+            lease_seconds: 30,
+        }))
+        .await
+        .unwrap()
+        .into_inner();
+    let inode = created.inode.unwrap();
+    let lease = created.write_lease.unwrap();
+    assert_eq!(lease.owner_node_id, "node-a");
+    assert_eq!(lease.owner_session_id, "session-a");
+    assert_eq!(lease.lease_epoch, 1);
+
+    let same_owner = dfs
+        .open_write(Request::new(OpenDfsWriteRequest {
+            caller_id: "node-a".into(),
+            owner_session_id: "session-a".into(),
+            operation_id: "open-a".into(),
+            inode_id: inode.inode_id.clone(),
+            lease_seconds: 30,
+        }))
+        .await
+        .unwrap()
+        .into_inner()
+        .write_lease
+        .unwrap();
+    assert_eq!(same_owner.lease_epoch, 1);
+
+    let routed_owner = dfs
+        .open_write(Request::new(OpenDfsWriteRequest {
+            caller_id: "node-b".into(),
+            owner_session_id: "session-b".into(),
+            operation_id: "open-b".into(),
+            inode_id: inode.inode_id.clone(),
+            lease_seconds: 30,
+        }))
+        .await
+        .unwrap()
+        .into_inner()
+        .write_lease
+        .unwrap();
+    assert_eq!(routed_owner.owner_node_id, "node-a");
+    assert_eq!(routed_owner.owner_session_id, "session-a");
+    assert_eq!(routed_owner.lease_epoch, 1);
+
+    let stale = dfs
+        .commit_file_version(Request::new(CommitFileVersionRequest {
+            caller_id: "node-a".into(),
+            operation_id: "commit-stale".into(),
+            inode_id: inode.inode_id.clone(),
+            expected_inode_revision: inode.revision,
+            expected_head_version_id: String::new(),
+            version: Some(DfsFileVersion {
+                version_id: "version-stale".into(),
+                inode_id: inode.inode_id.clone(),
+                parent_version_id: String::new(),
+                length: 0,
+                layout_root_id: "layout-stale".into(),
+                created_at_unix_ms: 2,
+            }),
+            layout: Some(DfsLayoutRoot {
+                layout_root_id: "layout-stale".into(),
+                file_length: 0,
+                inline_extents: Vec::new(),
+            }),
+            chunk_receipts: Vec::new(),
+            write_lease: Some(DfsWriteLease {
+                lease_epoch: 0,
+                ..same_owner.clone()
+            }),
+            metadata_delta: Some(DfsCommitMetadataDelta {
+                mode: DfsCommitMetadataMode::DataOnly.into(),
+                mtime_unix_ms: 0,
+                ctime_unix_ms: 0,
+            }),
+        }))
+        .await
+        .unwrap_err();
+    assert_eq!(stale.code(), Code::Unavailable);
+
+    let synced = dfs
+        .sync_inode_metadata(Request::new(
+            afs_protocol::meta::SyncDfsInodeMetadataRequest {
+                caller_id: "node-a".into(),
+                operation_id: "sync-metadata-a".into(),
+                inode_id: inode.inode_id,
+                write_lease: Some(same_owner),
+                expected_inode_revision: inode.revision,
+                expected_head_version_id: String::new(),
+                metadata_delta: Some(DfsCommitMetadataDelta {
+                    mode: DfsCommitMetadataMode::Full.into(),
+                    mtime_unix_ms: 9,
+                    ctime_unix_ms: 10,
+                }),
+            },
+        ))
+        .await
+        .unwrap()
+        .into_inner()
+        .inode
+        .unwrap();
+    assert_eq!(synced.revision, 2);
+    assert!(synced.head_version_id.is_empty());
+    assert_eq!(synced.attributes.unwrap().mtime_unix_ms, 9);
 }

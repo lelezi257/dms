@@ -195,6 +195,7 @@ pub async fn run(cfg: Config, obs: Observability) -> Result<(), BoxError> {
         let meta = Arc::new(rpc::meta::GrpcDfsMeta::new(
             endpoint,
             cfg.id.clone(),
+            session_id.clone(),
             namespace.clone(),
             timeout,
             cfg.tls_config(),
@@ -205,6 +206,7 @@ pub async fn run(cfg: Config, obs: Observability) -> Result<(), BoxError> {
         )?);
         Some(Arc::new(vfs::dfs::DistributedFs::new(
             namespace,
+            cfg.id.clone(),
             session_id.clone(),
             meta,
             chunks,
@@ -346,6 +348,36 @@ pub async fn run(cfg: Config, obs: Observability) -> Result<(), BoxError> {
             }
         });
     }
+    #[cfg(feature = "dfs")]
+    if let Some(dfs) = state.dfs.clone() {
+        let stop = services.stop.subscribe();
+        services.spawn(async move {
+            let mut tick = tokio::time::interval(std::time::Duration::from_secs(5));
+            tick.tick().await;
+            let shutdown = cancelled(stop);
+            tokio::pin!(shutdown);
+            loop {
+                tokio::select! {
+                    _ = &mut shutdown => return Ok(()),
+                    _ = tick.tick() => {
+                        let fs = dfs.clone();
+                        match tokio::task::spawn_blocking(move || fs.writeback_pending()).await {
+                            Ok(Ok(count)) if count > 0 => {
+                                afs_logging::info!("dfs.background_versions_committed"; "count" => count);
+                            }
+                            Ok(Ok(_)) => {}
+                            Ok(Err(error)) => {
+                                afs_logging::warn!("dfs.background_writeback_retry"; "error" => error.to_string());
+                            }
+                            Err(error) => {
+                                afs_logging::warn!("dfs.background_writeback_worker_failed"; "error" => error.to_string());
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
     // local API 自己持有 JoinHandle；这里监控它，避免 UDS 已死而 TCP 健康检查仍成功。
     let local_task = local
         .abort_handle()
@@ -402,6 +434,8 @@ pub async fn run(cfg: Config, obs: Observability) -> Result<(), BoxError> {
             .await
             .map_err(Into::into)
     });
+    #[cfg(feature = "dfs")]
+    let dfs_for_drain = state.dfs.clone();
     let stop = services.stop.subscribe();
     services.spawn(async move {
         axum::serve(rest, api::rest::router(state))
@@ -420,6 +454,21 @@ pub async fn run(cfg: Config, obs: Observability) -> Result<(), BoxError> {
     });
     afs_logging::info!("node.ready";"grpc"=>cfg.grpc_listen.to_string(),"rest"=>cfg.rest_listen.to_string(),"uds"=>cfg.uds_path.display().to_string(),"ownerfs"=>cfg.ownerfs,"dfs"=>cfg.dfs);
     let result = services.run().await;
+    #[cfg(feature = "dfs")]
+    if let Some(dfs) = dfs_for_drain {
+        match tokio::task::spawn_blocking(move || dfs.drain()).await {
+            Ok(Ok(count)) if count > 0 => {
+                afs_logging::info!("dfs.node_drain_versions_committed"; "count" => count);
+            }
+            Ok(Ok(_)) => {}
+            Ok(Err(error)) => {
+                afs_logging::warn!("dfs.node_drain_incomplete"; "error" => error.to_string());
+            }
+            Err(error) => {
+                afs_logging::warn!("dfs.node_drain_worker_failed"; "error" => error.to_string());
+            }
+        }
+    }
     // BackgroundSession owns the FUSE mount. Unmount before dropping request services.
     #[cfg(feature = "dfs")]
     drop(mounted_dfs);

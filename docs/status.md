@@ -24,9 +24,9 @@ Node RPC 使用四个职责文件：`control.rs` 负责 Node 间控制，`data.r
 | FUSE、SDK、REST 入口 | 已实现基础框架 | OwnerFs 路径已投入三 VM 验收 |
 | MetaStore | 已实现单活动基础 | etcd、local-file、memory；后端 ACK 后发布可见状态 |
 | OwnerFs | 已实现阶段能力 | 本机普通文件、跨 Node P2P、授权校验、句柄回收 |
-| DistributedFs | Experimental R=1 | 独立 mount；create/write/fsync/reopen/read；本机不可变 Chunk |
+| DistributedFs | Experimental R=1 | 独立 mount；inode 级 dirty view；write/flush/fdatasync/fsync/release 分离；同步 dirty data 生成不可变 Chunk/FileVersion |
 | FileVersion 数据模型 | Experimental | Meta 以一次事务提交 Chunk/Copy/Placement/LayoutRoot/FileVersion 与 inode head CAS |
-| 跨节点写入可见性 | Accepted Design | WriteLease + inode owner + DirtyExtentMap；尚未实现 |
+| 写入可见性与同步合同 | Experimental R=1 | WriteLease、inode 级 InodeWriteState、DirtyExtentMap、DataOnly/Full commit 已接入；跨节点 owner routing 尚未实现 |
 | 固定版本多源读取 | Accepted Design | 身份和读取规则已确定，调度与数据路径尚未实现 |
 | 外部对象存储 spill | 未实现 | 属于容量层选项，不是系统成立条件 |
 | Native SDK 高性能数据面 | 基础框架 | SHM/RDMA 文件内容路径尚未接通 |
@@ -41,11 +41,11 @@ Node RPC 使用四个职责文件：`control.rs` 负责 Node 间控制，`data.r
 
 - Meta 单活动围栏与选主尚未完成，不能宣称生产 HA。
 - OwnerFs 尚缺根删除、跨节点根列举及部分常用属性操作。
-- DFS 当前将一个文件版本物化为单个 Chunk 和 inline extent；覆盖写、Extent 树、compaction 与 R=N 副本协议尚未实现。
+- DFS 当前在 commit 时仍将文件版本物化为单个 Chunk 和 inline extent；已用 DirtyExtentMap 表达覆盖写，尚未实现分块 Extent 树、compaction 与 R=N 副本协议。
 - 当前本机 Chunk digest 只用于首阶段损坏检测；在分布式去重与 P2P 前必须换成带算法版本的强摘要。
-- DFS commit 当前持有进程级 handle table 锁完成磁盘 I/O 和 Meta RPC；并发实现需要改为每句柄锁并缩短临界区。
-- 严格普通写跨节点可见性合同已经固化，WriteLease、owner routing、InodeWriteState 和 read overlay 尚未实现。
-- DFS 当前仍把 `flush/fsync/release` 合并为同一提交路径，尚未实现 `fdatasync`、`O_DSYNC/O_SYNC`、后台 writeback、sticky error 和 `fsync(dir)` 合同。
+- DFS commit 已避免持有全局 handle table 锁执行磁盘 I/O 和 Meta RPC；当前仍持有 inode 级写状态锁完成首阶段 commit，后续需要用 freeze/snapshot 缩短 inode 临界区。
+- 严格普通写跨节点可见性合同已经固化；当前只接受本地 WriteLease owner，远端 owner routing 尚未实现。
+- DFS 已分离 `write/flush/fdatasync/fsync/release`，接通 `O_DSYNC/O_SYNC`，并增加定时后台 writeback、优雅退出 drain 与 inode sticky error；跨节点 owner routing、非阻塞 CommitBatch freeze、故障恢复矩阵和 `fsync(dir)` 尚未实现。
 - RDMA 已有传输探测能力，文件内容仍走 gRPC P2P。
 - 完整 POSIX、VM 掉电、长稳、容量压力和对象存储 spill 尚未验收。
 

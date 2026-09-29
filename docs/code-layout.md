@@ -78,7 +78,7 @@ FUSE request
 
 读取时 `DistributedFs` 先从 Meta 固定 inode 当前 `FileVersion` 和 `LayoutRoot`，再按 Extent 定位本机 Chunk。当前 R=1 只实现 whole-file 单 Chunk；R=N 预留在 `ChunkStore::put` 以下，不改变文件层合同。
 
-当前代码仍把 dirty data 保存在 handle 私有的 `DfsWriteSession` 中；上图表达已经接受但尚未实现的目标边界。实现状态和差异见[当前状态](current-status.md)与[专题二](architecture/02-write-durability-publication.md)。
+当前代码已经把 dirty data 放入 inode 共享的 `InodeWriteState/DirtyExtentMap`；`DfsWriteSession` 只保存一次 open 的 flags、水位和错误游标。Commit 仍是 R=1 whole-file 单 Chunk，并在对应 inode 锁内执行；远端 owner routing 与非阻塞 freeze 尚未实现。实现状态和差异见[当前状态](current-status.md)与[专题二](architecture/02-write-durability-publication.md)。
 
 ## Meta 与协议
 
@@ -86,7 +86,7 @@ FUSE request
 
 - `Meta`：Node 注册与查询；
 - `OwnerRoots`：OwnerFs 根授权；
-- `DfsMeta`：lookup、create、inode 查询、FileVersion 查询和提交。
+- `DfsMeta`：lookup、create、组合 OpenWrite、WriteLease renew、inode/FileVersion 查询和提交；lease acquire 是 Meta 内部步骤，不单独增加客户端冷路径 RPC。
 
 RPC 层只负责认证、参数校验、错误映射和 wire/domain 转换。`meta/dfs.rs` 负责 DFS 业务条件与事务，`meta/store.rs` 提供统一的条件提交、请求去重和持久实体。文件数据不经过 Meta。
 

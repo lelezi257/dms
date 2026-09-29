@@ -50,6 +50,7 @@ meta     lease / V7                                         V8
 WriteLease {
   inode_id
   owner_node_id
+  owner_session_id
   lease_epoch
   expires_at
 }

@@ -1,7 +1,7 @@
     # 专题二：写入完成、持久化与可见性
 
 状态：Accepted Design
-实现状态：Not Implemented
+实现状态：R=1 基础框架已实现；远端 owner、非阻塞 freeze 与目录同步未实现
 专题入口：[架构设计专题](design-topics.md)
 数据模型：[专题一](01-file-version-chunk-model.md) · [RFC-0002](../rfcs/0002-file-version-chunk-model.md)
 规范合同：[RFC-0003](../rfcs/0003-write-visibility-durability.md)
@@ -127,6 +127,7 @@ Node 使用当前 lease epoch、expected head、expected inode revision 和 oper
 WriteLease {
   inode_id
   owner_node_id
+  owner_session_id
   lease_epoch
   expires_at
 }
@@ -292,19 +293,20 @@ AFS 不直接复制其状态机：3FS 在 chain head 串行同一可变 Chunk，
 
 可吸收的原则包括：Meta 脱离稳态数据路径、共享 inode 缓冲、完成水位、稳定 request id、可靠重试、长连接、批量 pipeline，以及小数据 inline/大数据 buffer descriptor 或流式传输。
 
-## 11. 当前实现差距
+## 11. 当前实现状态与差距
 
-当前 `DfsWriteSession` 仍持有整文件 ChunkBuilder；普通 write 只修改该 handle 的内存；`flush`、`fsync` 和 `release` 都调用同一个 `commit_handle`；`SyncMode`、`O_SYNC/O_DSYNC` 尚未生效；DFS 只有 R=1 本地 ChunkStore；全局 handle mutex 覆盖本地 finalize。源码入口见 [`dfs.rs`](../../src/node/vfs/dfs.rs)、[`chunk.rs`](../../src/node/chunk.rs)、[`fuse.rs`](../../src/node/fuse.rs)和 [`meta/dfs.rs`](../../src/meta/dfs.rs)。
+R=1 基础框架已经把 dirty data 从 handle 移到 inode 共享的 `InodeWriteState/DirtyExtentMap`。`DfsWriteSession` 只保留 open flags、lease epoch、同步水位和错误游标。Meta 已实现组合 `OpenWrite`、内部 lease acquire、公开 renew，以及 `WriteLease` 的 `owner_node_id + owner_session_id + lease_epoch` 围栏；FileVersion commit 同时校验 expected head/revision。FUSE `write/flush/fdatasync/fsync/release` 已按本专题分离，`O_DSYNC/O_SYNC` 已接通；`fdatasync` 已提交 dirty data 后，后续无新数据的 `fsync` 使用同一 lease 围栏执行 metadata-only CAS，不创建空 FileVersion。Node 定时执行后台 writeback，并在优雅退出时 drain。真实 Linux FUSE 用例已验证另一个 handle 在同步前读取 dirty overlay，以及 `fdatasync(V1) → 覆盖写 → fsync(V2) → close/reopen`。
 
-实施前需要：
+当前边界如下：
 
-1. 把 dirty data 从 DfsWriteSession 移到每 inode 的 InodeWriteState；
-2. 增加 WriteLease、owner routing 和 epoch fencing；
-3. 分开 write、flush、fdatasync、fsync 和 release；
-4. 支持后台 writeback 和 sticky error；
-5. 将全局 handle 锁拆为 handle 与 inode 级并发控制；
-6. 在专题三接入 R=N ChunkReceipt；
-7. 实现并验证 `fsync(dir)`。
+1. `OpenWrite` 能返回远端 owner 身份，但 Node 间 write/read/sync 转发尚未接入；当前非本机 owner 明确返回不支持。
+2. Commit 期间只持有对应 inode 的锁，不持有全局 handle table；尚未实现冻结前缀后让更晚 write 并行进入下一批。
+3. `DirtyExtentMap` 已表达覆盖范围，但 R=1 Commit 暂时仍把完整当前文件物化为一个 Chunk；Patch Chunk、Extent 树和 compaction 属于专题四。
+4. 后台失败会记录 inode sticky error，并由每个已打开 writer 的错误游标观察；故障注入、错误清除和重启恢复矩阵仍需补齐。
+5. DFS 只有 R=1 本地 ChunkStore；R=N ChunkReceipt 与 result-unknown 由专题三继续设计和实现。
+6. `fsync(dir)` 尚未实现，不能声明新建文件名已经满足崩溃恢复合同。
+
+源码入口见 [`dfs.rs`](../../src/node/vfs/dfs.rs)、[`chunk.rs`](../../src/node/chunk.rs)、[`fuse.rs`](../../src/node/fuse.rs)和 [`meta/dfs.rs`](../../src/meta/dfs.rs)。
 
 ## 12. 后续专题输入
 

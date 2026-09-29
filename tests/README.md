@@ -12,7 +12,7 @@
 - `meta_contract.rs`：Meta Ping、OwnerRoots/DfsMeta 与 RecoverRoot 接口合同、请求/错误指标。
 - `rdma_lifecycle.rs`：显式真实 RXE/RDMA 搬运、取消后会话拒绝复用、不重放、TTL 过期；需配置设备并显式 `--ignored`。
 - `feature-matrix.sh`：OwnerFs/DFS 独立编译，Meta 零后端，公共传输无默认特性，SDK 不引入 RDMA。
-- `scripts/dfs/r1_e2e.py`：真实 Meta、DFS Node 和独立 FUSE mount，验证 R=1 create/write/fsync/reopen/read 与 immutable Chunk。
+- `scripts/dfs/r1_e2e.py`：真实 Meta、DFS Node 和独立 FUSE mount，验证跨 handle dirty overlay、`fdatasync(V1)`、覆盖写、`fsync(V2)`、reopen/read 与两份 immutable Chunk。
 - `ownerfs_acceptance.py`：OwnerFs 多节点功能和恢复验收。
 
 传输错误与协议边界测试同时位于 `src/node/rpc`、`common/transport`；OwnerFiles 的远端文件协议目前只验证注册与明确拒绝，未实现实际文件访问。没有用 Ping 冒充文件业务、授权或恢复完成。Python 仅是验收工具，不是运行 AFS binary 的依赖。

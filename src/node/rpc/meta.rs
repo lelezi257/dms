@@ -485,8 +485,10 @@ pub struct GrpcDfsMeta {
     channel: Channel,
     runtime: tokio::runtime::Handle,
     node_id: String,
+    session_id: String,
     namespace_id: crate::dfs::NamespaceId,
     timeout: Duration,
+    sequence: AtomicU64,
 }
 
 #[cfg(feature = "dfs")]
@@ -494,6 +496,7 @@ impl GrpcDfsMeta {
     pub fn new(
         endpoint: &str,
         node_id: String,
+        session_id: String,
         namespace_id: crate::dfs::NamespaceId,
         timeout: Duration,
         tls: TlsConfig,
@@ -515,9 +518,19 @@ impl GrpcDfsMeta {
             channel: endpoint.connect_lazy(),
             runtime: tokio::runtime::Handle::current(),
             node_id,
+            session_id,
             namespace_id,
             timeout,
+            sequence: AtomicU64::new(1),
         })
+    }
+
+    fn request_id(&self) -> String {
+        format!(
+            "{}-dfs-{}",
+            self.session_id,
+            self.sequence.fetch_add(1, Ordering::Relaxed)
+        )
     }
 
     fn run<T>(
@@ -570,7 +583,7 @@ impl crate::node::vfs::dfs::DfsMeta for GrpcDfsMeta {
         parent: &crate::dfs::InodeId,
         name: &[u8],
         attributes: crate::dfs::InodeAttributes,
-    ) -> afs_error::Result<crate::dfs::InodeRecord> {
+    ) -> afs_error::Result<(crate::dfs::InodeRecord, crate::dfs::WriteLease)> {
         let reply = self
             .run(self.client().create(afs_protocol::meta::DfsCreateRequest {
                 caller_id: self.node_id.clone(),
@@ -579,9 +592,57 @@ impl crate::node::vfs::dfs::DfsMeta for GrpcDfsMeta {
                 parent_inode_id: parent.0.clone(),
                 name: name.to_vec(),
                 attributes: Some(wire_dfs_attributes(attributes)),
+                owner_session_id: self.session_id.clone(),
+                lease_seconds: crate::node::vfs::dfs::DFS_WRITE_LEASE_SECONDS,
             }))?
             .into_inner();
-        required(reply.inode, "DfsCreate.inode").and_then(domain_dfs_inode)
+        Ok((
+            domain_dfs_inode(required(reply.inode, "DfsCreate.inode")?)?,
+            domain_dfs_write_lease(required(reply.write_lease, "DfsCreate.write_lease")?),
+        ))
+    }
+
+    fn open_write(
+        &self,
+        inode_id: &crate::dfs::InodeId,
+    ) -> afs_error::Result<(crate::dfs::InodeRecord, crate::dfs::WriteLease)> {
+        let reply = self
+            .run(
+                self.client()
+                    .open_write(afs_protocol::meta::OpenDfsWriteRequest {
+                        caller_id: self.node_id.clone(),
+                        owner_session_id: self.session_id.clone(),
+                        operation_id: self.request_id(),
+                        inode_id: inode_id.0.clone(),
+                        lease_seconds: crate::node::vfs::dfs::DFS_WRITE_LEASE_SECONDS,
+                    }),
+            )?
+            .into_inner();
+        Ok((
+            domain_dfs_inode(required(reply.inode, "OpenWrite.inode")?)?,
+            domain_dfs_write_lease(required(reply.write_lease, "OpenWrite.write_lease")?),
+        ))
+    }
+
+    fn renew_write_lease(
+        &self,
+        lease: crate::dfs::WriteLease,
+    ) -> afs_error::Result<crate::dfs::WriteLease> {
+        let reply =
+            self.run(self.client().renew_write_lease(
+                afs_protocol::meta::RenewDfsWriteLeaseRequest {
+                    caller_id: self.node_id.clone(),
+                    owner_session_id: self.session_id.clone(),
+                    operation_id: self.request_id(),
+                    current_lease: Some(wire_dfs_write_lease(lease)),
+                    lease_seconds: crate::node::vfs::dfs::DFS_WRITE_LEASE_SECONDS,
+                },
+            ))?
+            .into_inner();
+        Ok(domain_dfs_write_lease(required(
+            reply.write_lease,
+            "RenewWriteLease.write_lease",
+        )?))
     }
 
     fn get_inode(
@@ -617,6 +678,30 @@ impl crate::node::vfs::dfs::DfsMeta for GrpcDfsMeta {
         ))
     }
 
+    fn sync_inode_metadata(
+        &self,
+        sync: crate::dfs::SyncInodeMetadata,
+    ) -> afs_error::Result<crate::dfs::InodeRecord> {
+        let reply = self
+            .run(
+                self.client().sync_inode_metadata(
+                    afs_protocol::meta::SyncDfsInodeMetadataRequest {
+                        caller_id: self.node_id.clone(),
+                        operation_id: sync.operation_id.0,
+                        inode_id: sync.inode_id.0,
+                        write_lease: Some(wire_dfs_write_lease(sync.write_lease)),
+                        expected_inode_revision: sync.expected_inode_revision,
+                        expected_head_version_id: sync
+                            .expected_head_version
+                            .map_or_else(String::new, |id| id.0),
+                        metadata_delta: Some(wire_dfs_metadata_delta(sync.metadata_delta)),
+                    },
+                ),
+            )?
+            .into_inner();
+        required(reply.inode, "SyncInodeMetadata.inode").and_then(domain_dfs_inode)
+    }
+
     fn commit_file_version(
         &self,
         commit: crate::dfs::CommitFileVersion,
@@ -628,6 +713,7 @@ impl crate::node::vfs::dfs::DfsMeta for GrpcDfsMeta {
                         caller_id: self.node_id.clone(),
                         operation_id: commit.operation_id.0,
                         inode_id: commit.inode_id.0,
+                        write_lease: Some(wire_dfs_write_lease(commit.write_lease)),
                         expected_inode_revision: commit.expected_inode_revision,
                         expected_head_version_id: commit
                             .expected_head_version
@@ -639,6 +725,7 @@ impl crate::node::vfs::dfs::DfsMeta for GrpcDfsMeta {
                             .into_iter()
                             .map(wire_chunk_receipt)
                             .collect(),
+                        metadata_delta: Some(wire_dfs_metadata_delta(commit.metadata_delta)),
                     }),
             )?
             .into_inner();
@@ -754,6 +841,46 @@ fn domain_dfs_layout(layout: afs_protocol::meta::DfsLayoutRoot) -> crate::dfs::L
                 chunk_offset: extent.chunk_offset,
             })
             .collect(),
+    }
+}
+
+#[cfg(feature = "dfs")]
+fn wire_dfs_write_lease(lease: crate::dfs::WriteLease) -> afs_protocol::meta::DfsWriteLease {
+    afs_protocol::meta::DfsWriteLease {
+        inode_id: lease.inode_id.0,
+        owner_node_id: lease.owner_node_id,
+        owner_session_id: lease.owner_session_id,
+        lease_epoch: lease.lease_epoch,
+        expires_at_unix_ms: lease.expires_at_unix_ms,
+    }
+}
+
+#[cfg(feature = "dfs")]
+fn domain_dfs_write_lease(lease: afs_protocol::meta::DfsWriteLease) -> crate::dfs::WriteLease {
+    crate::dfs::WriteLease {
+        inode_id: crate::dfs::InodeId::new(lease.inode_id),
+        owner_node_id: lease.owner_node_id,
+        owner_session_id: lease.owner_session_id,
+        lease_epoch: lease.lease_epoch,
+        expires_at_unix_ms: lease.expires_at_unix_ms,
+    }
+}
+
+#[cfg(feature = "dfs")]
+fn wire_dfs_metadata_delta(
+    delta: crate::dfs::CommitMetadataDelta,
+) -> afs_protocol::meta::DfsCommitMetadataDelta {
+    afs_protocol::meta::DfsCommitMetadataDelta {
+        mode: match delta.mode {
+            crate::dfs::CommitMetadataMode::DataOnly => {
+                afs_protocol::meta::DfsCommitMetadataMode::DataOnly as i32
+            }
+            crate::dfs::CommitMetadataMode::Full => {
+                afs_protocol::meta::DfsCommitMetadataMode::Full as i32
+            }
+        },
+        mtime_unix_ms: delta.mtime_unix_ms.unwrap_or_default(),
+        ctime_unix_ms: delta.ctime_unix_ms.unwrap_or_default(),
     }
 }
 

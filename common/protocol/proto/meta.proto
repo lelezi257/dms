@@ -305,8 +305,11 @@ message RecoverRootReply {
 service DfsMeta {
   rpc Lookup(DfsLookupRequest) returns (DfsLookupReply);
   rpc Create(DfsCreateRequest) returns (DfsCreateReply);
+  rpc OpenWrite(OpenDfsWriteRequest) returns (OpenDfsWriteReply);
+  rpc RenewWriteLease(RenewDfsWriteLeaseRequest) returns (DfsWriteLeaseReply);
   rpc GetInode(GetDfsInodeRequest) returns (GetDfsInodeReply);
   rpc GetFileVersion(GetFileVersionRequest) returns (GetFileVersionReply);
+  rpc SyncInodeMetadata(SyncDfsInodeMetadataRequest) returns (SyncDfsInodeMetadataReply);
   rpc CommitFileVersion(CommitFileVersionRequest) returns (CommitFileVersionReply);
 }
 
@@ -369,6 +372,26 @@ message DfsChunkReceipt {
   uint64 persisted_bytes = 8;
 }
 
+message DfsWriteLease {
+  string inode_id = 1;
+  string owner_node_id = 2;
+  string owner_session_id = 3;
+  uint64 lease_epoch = 4;
+  uint64 expires_at_unix_ms = 5;
+}
+
+enum DfsCommitMetadataMode {
+  DFS_COMMIT_METADATA_MODE_UNSPECIFIED = 0;
+  DFS_COMMIT_METADATA_MODE_DATA_ONLY = 1;
+  DFS_COMMIT_METADATA_MODE_FULL = 2;
+}
+
+message DfsCommitMetadataDelta {
+  DfsCommitMetadataMode mode = 1;
+  uint64 mtime_unix_ms = 2;
+  uint64 ctime_unix_ms = 3;
+}
+
 message DfsLookupRequest {
   string namespace_id = 1;
   string parent_inode_id = 2;
@@ -387,10 +410,38 @@ message DfsCreateRequest {
   string parent_inode_id = 4;
   bytes name = 5;
   DfsInodeAttributes attributes = 6;
+  string owner_session_id = 7;
+  uint64 lease_seconds = 8;
 }
 
 message DfsCreateReply {
   DfsInodeRecord inode = 1;
+  DfsWriteLease write_lease = 2;
+}
+
+message OpenDfsWriteRequest {
+  string caller_id = 1;
+  string owner_session_id = 2;
+  string operation_id = 3;
+  string inode_id = 4;
+  uint64 lease_seconds = 5;
+}
+
+message OpenDfsWriteReply {
+  DfsInodeRecord inode = 1;
+  DfsWriteLease write_lease = 2;
+}
+
+message RenewDfsWriteLeaseRequest {
+  string caller_id = 1;
+  string owner_session_id = 2;
+  string operation_id = 3;
+  DfsWriteLease current_lease = 4;
+  uint64 lease_seconds = 5;
+}
+
+message DfsWriteLeaseReply {
+  DfsWriteLease write_lease = 1;
 }
 
 message GetDfsInodeRequest {
@@ -410,6 +461,20 @@ message GetFileVersionReply {
   DfsLayoutRoot layout = 2;
 }
 
+message SyncDfsInodeMetadataRequest {
+  string caller_id = 1;
+  string operation_id = 2;
+  string inode_id = 3;
+  DfsWriteLease write_lease = 4;
+  uint64 expected_inode_revision = 5;
+  string expected_head_version_id = 6;
+  DfsCommitMetadataDelta metadata_delta = 7;
+}
+
+message SyncDfsInodeMetadataReply {
+  DfsInodeRecord inode = 1;
+}
+
 message CommitFileVersionRequest {
   string caller_id = 1;
   string operation_id = 2;
@@ -419,6 +484,8 @@ message CommitFileVersionRequest {
   DfsFileVersion version = 6;
   DfsLayoutRoot layout = 7;
   repeated DfsChunkReceipt chunk_receipts = 8;
+  DfsWriteLease write_lease = 9;
+  DfsCommitMetadataDelta metadata_delta = 10;
 }
 
 message CommitFileVersionReply {

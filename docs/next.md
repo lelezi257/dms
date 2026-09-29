@@ -27,7 +27,7 @@
 - 新布局可以继承 expected base 的旧 Chunk；只有新增 Chunk 需要本次 receipt，继承关系由 Meta 验证。
 - per-chunk file 和未来 Pack backend 共享 LocalChunkStore 合同；Physical COW 只改变本地位置，不创建 FileVersion。
 
-下一设计入口是[专题五](architecture/05-length-truncate-seal.md)。RFC-0004 的副本基础类型、Meta Placement 合同、Node ReplicationEngine 与 Peer Chunk RPC 形状已经落入代码；专题四的 R1 Local ChunkEngine 基础框架也已接入。下一工程入口是 RN 目标端 staging/finalize、幂等 ACK、多节点 placement，以及专题四剩余的 recovery/GC 验证。
+原[专题五](architecture/05-length-truncate-seal.md)已经归并：length/implicit hole 进入专题一，append/truncate 与 EOF 提交进入专题二，Truncate Layout COW 进入专题四，不增加独立模块。下一设计入口是[专题六](architecture/06-reliability-performance-path.md)。RFC-0004 的副本基础类型、Meta Placement 合同、Node ReplicationEngine 与 Peer Chunk RPC 形状已经落入代码；专题四的 R1 Local ChunkEngine 基础框架也已接入。下一工程入口还包括 DFS `setattr(size)`、truncate/ftruncate 和 sparse file E2E，以及 RN 目标端 staging/finalize、幂等 ACK、多节点 placement 和专题四剩余的 recovery/GC 验证。
 
 RPC 物理布局保持为 `control.rs`、`data.rs`、`meta.rs`、`peer.rs`。R=N 设计可以在 `data.rs`/`peer.rs` 内增加 Chunk 协议实现；全部专项收敛前不按 OwnerFs/DFS 拆子文件。
 

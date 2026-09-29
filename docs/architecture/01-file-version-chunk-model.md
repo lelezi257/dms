@@ -21,6 +21,7 @@
 8. 多源读取必须先固定 FileVersion，再按 ChunkId 从多个合格 Copy 读取。
 9. FUSE 请求大小、Peer Frame 大小和存储 Chunk 大小彼此独立。
 10. 公开后端类型使用 DistributedFs；内部模块、feature、配置、CLI 和协议统一使用 `dfs` / `DfsMeta`。
+11. `FileVersion.logical_length` 定义该版本的 EOF；只记录 DATA Extent，`[0, logical_length)` 中未被 Extent 覆盖的区间是隐式 Hole，读取返回零且不创建零数据 Chunk。
 
 ## 3. 对象关系
 
@@ -169,13 +170,12 @@ ChunkId 使用带 DedupDomain、算法、Digest、长度和 Encoding 的规范�
 Extent {
   file_offset
   length
-  kind: DATA | HOLE
-  chunk_id?
-  chunk_offset?
+  chunk_id
+  chunk_offset
 }
 ```
 
-Extent 描述文件逻辑范围到 Chunk 子范围或 Hole 的映射。相邻 Extent 不重叠，并共同描述 FileVersion 的逻辑内容。
+Extent 只描述文件逻辑范围到 Chunk 子范围的数据映射。相邻 Extent 不重叠，且必须完全位于 `[0, FileVersion.logical_length)`；该区间内没有被 Extent 覆盖的范围是隐式 Hole，读取时返回零。大范围 Hole 不创建零数据 Chunk，也不要求显式 HOLE Extent。第一阶段只保证稀疏范围的读取语义；`SEEK_HOLE`、`SEEK_DATA`、`fallocate`、hole punch 和精确 `st_blocks` 留给后续 POSIX 完整性设计。
 
 ### 4.5 LayoutRoot
 
@@ -328,9 +328,8 @@ class Extent {
   <<immutable>>
   +u64 file_offset
   +u64 length
-  +ExtentKind kind
-  +ChunkId? chunk_id
-  +u64? chunk_offset
+  +ChunkId chunk_id
+  +u64 chunk_offset
 }
 
 class ChunkObject {
@@ -652,6 +651,22 @@ V2 / LR2
 
 后台 Compaction 可以把 C102 与 P9 合成 C102' 并提交新版本；如果 Head 已变化，Compaction 必须重新基于新版本计算或放弃，不能覆盖前台写入。
 
+### 5.7 写过 EOF 的稀疏文件
+
+初始 V2 的长度为 4 KiB。应用在 1 GiB 偏移写入 4 KiB 并执行 `fsync`：
+
+```text
+pwrite(fd, 4 KiB, offset = 1 GiB)
+
+V3.logical_length = 1 GiB + 4 KiB
+V3 layout:
+  DATA [0, 4 KiB)              -> 原 Chunk
+  HOLE [4 KiB, 1 GiB)          -> 不保存 Extent，不创建 Chunk
+  DATA [1 GiB, 1 GiB + 4 KiB)  -> 新 Chunk
+```
+
+读取 Hole 返回零。布局中只有两个 DATA Extent；文件逻辑长度与实际分配字节数是不同指标。后续 truncate 缩小再扩大时，被截断的旧数据不能重新出现，扩大的范围重新表现为 Hole。
+
 ## 6. E2E Case 2：同步 N 副本 Chain（N=3 示例）
 
 FileVersion 以上的流程与 Case 1 完全相同。分叉只发生在：
@@ -876,4 +891,4 @@ DistributedFs 后台模块包括 IntegrityVerifier、Compactor、GarbageCollecto
 
 ## 12. 后续专题输入
 
-[专题二](02-write-durability-publication.md)与 [RFC-0003](../rfcs/0003-write-visibility-durability.md)已经在本模型上定义普通 write、fdatasync/fsync、O_SYNC/O_DSYNC、flush、close、WriteLease 和全局 dirty 可见性。专题三定义 ChunkReceipt、R=1/R=N、Chain 重配置和 result-unknown。专题四定义本地 staging、Finalize、Compaction 和恢复。专题五定义 append、truncate、EOF 和 RootManifest 稳定切点。专题六定义 P2P、Cache、Spill、Native SDK 和可靠性验收。
+[专题二](02-write-durability-publication.md)与 [RFC-0003](../rfcs/0003-write-visibility-durability.md)已经在本模型上定义普通 write、append、truncate、fdatasync/fsync、O_SYNC/O_DSYNC、flush、close、WriteLease、EOF 和全局 dirty 可见性。专题三定义 ChunkReceipt、R=1/R=N、Chain 重配置和 result-unknown。专题四定义本地 staging、Finalize、Truncate Layout COW、Compaction 和恢复。原专题五的有效结论已经归并到专题一、二、四；专题六定义 P2P、Cache、Spill、Native SDK 和可靠性验收。

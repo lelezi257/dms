@@ -17,6 +17,7 @@ DistributedFs 使用不可变 Chunk 作为数据基座。可变 InodeRecord Head
 - StagedChunk 携带 ChunkObject 身份并 finalize 为持久副本的生命周期；
 - R=1/R=N 在 ChunkStore 层的分界；
 - FileVersion CAS 的可见点；
+- FileVersion length、Extent 边界和隐式 Hole；
 - 多源读取的数据身份；
 - Pin、Alias 和 RootManifest 的可选位置；
 - Meta 与 Node 的数据边界。
@@ -82,11 +83,12 @@ FileVersion {
 Extent {
   file_offset
   length
-  kind: DATA | HOLE
-  chunk_id?
-  chunk_offset?
+  chunk_id
+  chunk_offset
 }
 ```
+
+Extent 只记录 DATA。`[0, FileVersion.logical_length)` 内未被 Extent 覆盖的范围是隐式 Hole，读取返回零且不创建零数据 Chunk。Extent 必须按 file offset 有序、不重叠，并完全位于 FileVersion length 以内。
 
 ### ChunkObject
 
@@ -177,8 +179,8 @@ Chunk 已成功而 Head CAS 最终失败时，ChunkObject 保持完整但不可�
 3. 已提交 LayoutRoot 及其可达 Extent Tree Node 不可修改。
 4. ChunkObject 身份一经确定不可修改；同一 ChunkId 只能对应同一规范化内容。只有完成 finalize 的本地副本才能产生 ReplicaAck。
 5. StagedChunk 不可被 FileVersion、读取、Snapshot、Cache Seed 或 Repair 使用。
-6. FileVersion 的 Extent 按文件偏移有序且不重叠，并共同定义 `[0, logical_length)`。
-7. HOLE 不引用 ChunkObject。
+6. FileVersion 的 DATA Extent 按文件偏移有序、不重叠且不越过 `[0, logical_length)`；未覆盖区间是隐式 Hole，读取返回零。
+7. Hole 不创建 ChunkObject；文件逻辑长度与实际分配字节数是不同指标。
 8. Copy Catalog、Repair、Rebalance、Cache Eviction 和 Spill 不改变 FileVersion 或 ChunkId。
 9. R=1、R=N、VerifiedCache 和 ExternalCommitted 只改变可靠性和位置，不改变逻辑数据身份。
 10. 多源读取必须固定一个 FileVersionId，并验证每个 Chunk 身份和摘要。
@@ -187,6 +189,7 @@ Chunk 已成功而 Head CAS 最终失败时，ChunkObject 保持完整但不可�
 13. 普通 write 不修改 FileVersion 或 `InodeRecord.head_version`；只有 Meta CAS 可以发布新版本。
 14. DirtyExtentMap 属于 Node 运行时状态，不是可持久引用的 Mutable FileVersion。
 15. StagedChunk 只存在于 CommitBatch 和 ChunkStore 内部，不进入 Meta UML 或公开 API。
+16. Shrink 后再次 Grow 不得让新版本重新暴露已被截断的旧 Extent；新增范围必须表现为 Hole。
 
 ## R=1 与 R=N 边界
 

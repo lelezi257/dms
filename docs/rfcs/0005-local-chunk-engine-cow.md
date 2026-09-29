@@ -27,6 +27,8 @@ DistributedFs 使用 immutable Chunk + Layout COW 表达文件修改。覆盖写
 5. Local finalize 完成不等于 FileVersion 可见；Meta CAS 是 committed visibility point。
 6. 物理 relocation 不创建 FileVersion，也不修改 ChunkObject。
 7. 未经 LocalChunkRecord 确认的字节不能 ACK、读取、seed 或计入副本数。
+8. Truncate 不原地修改 Chunk：Shrink 通过新布局裁剪或删除 Extent，Grow 只推进 FileVersion length 并形成隐式 Hole。
+9. Shrink 后 Grow 不得恢复旧版本在截断范围内的数据。
 
 ## 2. 对象边界
 
@@ -65,6 +67,8 @@ CommitPlanner 输入 expected base layout、冻结的 DirtyExtentMap 和目标�
 - new chunk receipts 集合。
 
 4 KiB patch 是普通 4 KiB Chunk。重复 patch 导致 Extent 数或 overlay 深度超过阈值时，CommitPlanner 在下一次正常 CommitBatch 中重写受影响窗口。第一阶段不运行独立的 head-changing compaction transaction。
+
+Truncate 同样使用 Layout COW。Shrink 可以让新 Extent 继续引用 base Chunk 的合法前缀，不要求重写该 Chunk。Grow 不创建零数据 Chunk；FileVersion length 以内没有 DATA Extent 的范围按 RFC-0002 解释为 Hole。旧版本继续引用完整旧布局，物理回收由可达性与 GC 决定，不能在 truncate 热路径删除。
 
 ## 4. Local finalize
 
@@ -166,6 +170,7 @@ recover()
 ## 12. 被拒绝方案
 
 - `PatchChunk` 专用类型：普通 Chunk + Extent 已能表达，新增类型会复制校验、复制与 GC 状态机；
+- 为 Grow 写入零 Chunk 或显式 HOLE Chunk：逻辑 length 与 DATA Extent 间隙已经完整表达稀疏范围；
 - 同一 ChunkId 下 mutable pending/committed version：与 immutable Chunk 身份冲突；
 - finalized Chunk 原地 append：掉电可能产生内容身份和字节不一致；
 - `exists() + rename()` 去重：存在 TOCTOU，且 rename 可能覆盖目标；
@@ -191,6 +196,7 @@ Pack/relocation、pin 计数与删除状态机、orphan reconciliation、compact
 ## 14. 验收标准
 
 - 分块顺序写、4 KiB patch 和 compaction E2E 与专题四一致；
+- Shrink、Grow、写过 EOF 以及 Shrink 后 Grow 的稀疏文件 E2E 满足 RFC-0002 的 Hole 语义；
 - 故障注入覆盖每个持久化边界并通过重启恢复；
 - Meta 正确区分 new 与 inherited Chunk；
 - R1/RN 共用 finalize 合同；

@@ -33,6 +33,7 @@
 6. 文件布局可以继承 expected base FileVersion 的旧 Chunk。只有本次新增 Chunk 必须提供 `ChunkReceipt`；Meta 必须验证复用关系，不能要求布局中每个 Chunk 都在本次 receipt 列表里。
 7. 第一阶段每个 Chunk 使用独立文件；未来 Pack/Allocator 后端替换物理存储，不改变 `LocalChunkStore`、`LocalChunkRecord`、ACK 或 Meta 合同。
 8. 成功 ACK 的门槛是字节持久化、原子发布和本地目录记录完成。直接 I/O 或传输完成本身不能替代持久化屏障。
+9. Truncate 使用 Layout COW：Shrink 裁剪或删除新 EOF 之后的 Extent，Grow 只推进 FileVersion length 并形成隐式 Hole；两者都不能原地修改旧 Chunk。
 
 ## 3. 两层 COW
 
@@ -246,6 +247,28 @@ V2 → [C20 prefix] [CP1] [C20 suffix]
 - 重写字节数和设备负载；
 - 当前 inode 是否有频繁写入。
 
+### 7.2 Truncate 的 Layout COW
+
+初始布局：
+
+```text
+V1.length = 8 MiB
+[0, 4 MiB) -> C1
+[4, 8 MiB) -> C2
+```
+
+Shrink 到 6 MiB 时，新版本复用 C1 和 C2 的前 2 MiB：
+
+```text
+V2.length = 6 MiB
+[0, 4 MiB) -> C1
+[4, 6 MiB) -> C2[0, 2 MiB)
+```
+
+本次不写新 Chunk。V1 仍完整引用 C2，V2 只引用其子范围。Grow 到 20 MiB 时只创建 `V3.length=20 MiB`，`[6,20 MiB)` 是不保存 Extent 的 Hole。若先 Shrink 再 Grow，旧版本在截断范围中的 Chunk 不得重新进入新布局；新增区间必须读取为零。
+
+旧 Chunk 是否仍可回收由全部 FileVersion 可达性和 GC 决定，truncate 热路径不删除物理数据。
+
 ## 8. E2E Case 3：崩溃、重试与孤儿
 
 ```text
@@ -437,11 +460,13 @@ flowchart LR
 12. ChunkObject 内容身份与 LocalChunkRecord/ReplicaAck 的物理持久证明分离；
 13. 使用带版本强摘要与本地 checksum 分层；
 14. 第一阶段 per-chunk file，未来 Pack 后端保持相同上层合同。
+15. Truncate 只生成新 length 和新布局；Shrink 可以复用旧 Chunk 子范围，Grow 不分配零 Chunk，Shrink 后 Grow 不暴露已截断旧数据。
 
 ## 17. 验收标准
 
 - 10 MiB 顺序文件形成多个 Chunk，commit 过程不物化 whole-file buffer；
 - 4 KiB 覆盖写只写入 patch 数据并合法复用旧 Chunk；
+- Shrink 不重写旧 Chunk，Grow 不创建零 Chunk，Shrink 后 Grow 的新增范围读取为零；
 - Meta 拒绝引用既无 receipt、也不能从 expected base 继承的 Chunk；
 - staging、finalize、catalog、Meta CAS 和删除各故障点均能重启恢复；
 - 已 ACK 的本地副本在模拟掉电后仍可按 ChunkId 和摘要读取；

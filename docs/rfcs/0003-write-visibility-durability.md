@@ -20,6 +20,7 @@ DistributedFs 使用 inode owner 管理普通可变文件的全局 dirty view。
 6. `O_DSYNC` 和 `O_SYNC` 分别把 fdatasync/full fsync 屏障放到每次 write 返回之前。
 7. `close`、FUSE `flush` 和 FUSE `release` 不增加超出此前成功同步操作的 crash guarantee。
 8. `fsync` 不 Pin、不 Publish、不创建 Alias 或 RootManifest。
+9. write 越过 EOF、`O_APPEND` 和 `truncate/ftruncate` 在 inode owner 上串行更新活动视图的 `logical_length`；其返回只提供与普通异步 write 相同的无故障可见性合同，后续同步操作才提交新 length。
 
 ## 规范时间线
 
@@ -153,6 +154,8 @@ Chunk 成功但 CAS 失败不会产生半个可见版本。未引用 Chunk 进�
 - 同一 inode 的普通写入由 owner 分配全局顺序；不同 inode 可以由不同 owner 并行处理。
 - 重叠写按 WriteSeq 顺序覆盖。
 - `O_APPEND` offset 由 owner 基于当前 logical length 原子分配。
+- `write/pwrite` 越过 EOF 时，owner 将 logical length 推进到 `max(old_length, offset+size)`；中间未覆盖范围是 Hole。
+- Shrink 立即裁掉新 EOF 后的 dirty ranges 并推进活动视图；Grow 只推进 logical length。两者都不保存独立操作日志。
 - fsync 屏障覆盖调用者此前成功 write 对应的 WriteSeq，以及全局顺序中不晚于该水位的写。
 - 同步期间到达的更晚写入不进入已冻结 CommitBatch。
 - 多个同步等待者可以共享覆盖其水位的同一批次。
@@ -199,6 +202,8 @@ Chunk 成功但 CAS 失败不会产生半个可见版本。未引用 Chunk 进�
 8. dirty data 不属于某个可被单独 release 的 handle。
 9. 旧 lease epoch 不能提交新版本。
 10. 文件 `fsync` 和目录 `fsync` 是不同合同。
+11. 同一 inode 的 write、append、truncate 和同步屏障由 owner 串行归并到 `logical_length + DirtyExtentMap`，第一版不引入 FileMutation 日志或 Meta AppendReservation。
+12. FileVersion CAS 必须原子提交最终 length 与 LayoutRoot；不增加独立 LengthRecord、LengthHint 或按 Chunk 查询 EOF 的 RPC。
 
 ## 模块合同
 
@@ -244,6 +249,10 @@ Chunk 成功但 CAS 失败不会产生半个可见版本。未引用 Chunk 进�
 ### 可变 Chunk 代替 FileVersion
 
 拒绝。它会改变 RFC-0002 已接受的 immutable Chunk 数据基座和固定版本多源读取边界。
+
+### FileMutation 操作日志与 Meta AppendReservation
+
+拒绝作为第一版基础抽象。同一 inode 的 write、append、truncate 和 fsync 已由 owner 串行处理并立即归并到 InodeWriteState；保存操作日志不能增加顺序保证。Append offset 同样由 owner 原子分配，每次请求访问 Meta 会把小写热路径变成控制面瓶颈。
 
 ## 验收标准
 

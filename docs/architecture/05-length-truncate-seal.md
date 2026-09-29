@@ -1,43 +1,25 @@
 # 专题五：文件长度、truncate 与稳定版本
 
-状态：Research
-实现状态：Not Implemented
+状态：Merged
+
 专题入口：[架构设计专题](design-topics.md)
-数据模型：[RFC-0002](../rfcs/0002-file-version-chunk-model.md)
 
-## 目标
+## 结论
 
-定义 Chunk 完成与文件全局长度收敛之间的协议，并连接普通 Append/Truncate、FileVersion 提交、Snapshot Pin 和多文件 RootManifest。
+本专题不形成新的架构层、状态机或实现模块。有效结论已经归并到既有专题：
 
-## 需要区分的水位
+- [专题一](01-file-version-chunk-model.md)与 [RFC-0002](../rfcs/0002-file-version-chunk-model.md)：`FileVersion.logical_length`、Extent 边界、隐式 Hole 和稀疏读取；
+- [专题二](02-write-durability-publication.md)与 [RFC-0003](../rfcs/0003-write-visibility-durability.md)：owner 串行处理 write、append、truncate 与同步屏障，以及 visible/committed EOF；
+- [专题四](04-local-chunk-engine-cow.md)与 [RFC-0005](../rfcs/0005-local-chunk-engine-cow.md)：Shrink/Grow 的 Layout COW、旧 Chunk 复用与 GC 边界。
 
-```text
-accepted length
-local finalized length
-policy durable length
-version committed length
-pinned snapshot length
-```
+## 不增加的抽象
 
-这些水位在简单顺序写中可以相同，在 Buffered Write、并发 Append、部分失败、Truncate 和异步复制中可能不同。
+- 不增加 `FileMutation` 操作日志；同一 inode 的操作由 owner 串行处理并立即归并到 `InodeWriteState`；
+- 不增加 Meta AppendReservation；append offset 由 owner 原子分配；
+- 不增加 LengthHint、TruncateVersion 或独立 LengthRecord；最终 length 与 LayoutRoot 由一次 FileVersion CAS 原子提交；
+- 不增加 Blob、Seal、ImageFile 或 SnapshotFile；finalize 后的 Chunk、提交后的 LayoutRoot 和 FileVersion 已经不可变；
+- Pin、Alias 和 RootManifest 仍是可选生命周期或业务能力，不进入普通 POSIX 写入路径。
 
-## 核心问题
+## 实现入口
 
-- 文件扩容后何时更新逻辑 Length；
-- Overwrite 不改变长度时是否避免不必要的属性写；
-- Append Reservation 如何避免多个 Writer 重叠；
-- Hole 和 Sparse Range 如何进入 ExtentMap；
-- Truncate 如何隔离旧的延迟写和普通 patch Chunk；
-- `fsync` 使用 DfsWriteSession Length，还是查询已完成 Chunk；
-- Close、Unlink 和开放句柄如何影响 Length 与回收；
-- Snapshot 如何取得目录树和精确 FileVersion 的一致稳定切点；
-- Pin、Alias 和 RootManifest 如何固定版本而不复制单文件布局；
-- Snapshot 元数据提交失败时如何重试或 GC。
-
-## 预期设计产物
-
-- 文件 Length、Append 和 Truncate 状态机；
-- EOF 可见性与并发 Reader 合同；
-- Snapshot Stable Cut、Pin 和 RootManifest 状态机；
-- Length Hint 与 Meta/ChunkStore 对账协议；
-- 故障矩阵和对应 Draft RFC。
+代码需要补齐 DFS `setattr(size)`、`truncate/ftruncate`、完整稀疏文件读取与对应 E2E，但复用现有 `InodeWriteState.logical_length`、`DirtyExtentMap`、CommitPlanner、FileVersion 和 LayoutRoot，不建立独立专题五模块。

@@ -1,7 +1,7 @@
 # AFS 架构设计专题
 
 状态：Research Agenda
-实现状态：专题一、二的 R1 纵向链路、专题三副本框架和专题四 R1 热路径框架已实现；RN 远端搬运、专题四 recovery/GC 闭环及专题五、六继续推进
+实现状态：专题一、二的 R1 纵向链路、专题三副本框架和专题四 R1 热路径框架已实现；专题五已归并到专题一、二、四；RN 远端搬运、专题四 recovery/GC 闭环及专题六继续推进
 权威合同：[架构原则](../../PRINCIPLES.md) · [架构总览](overview.md) · [工作负载路径](profiles.md)
 
 ## 目的
@@ -28,7 +28,7 @@
 | 2 | [写入完成、持久化与可见性](02-write-durability-publication.md) | Accepted Design | 用户/Node/Meta 时间线、WriteLease、dirty visibility、同步合同和 [RFC-0003](../rfcs/0003-write-visibility-durability.md) |
 | 3 | [单副本与多副本写入状态机](03-replication-state-machine.md) | Framework Implemented | 文件系统级 N/M 配置、R1/RN 分叉、Placement、ACK、异步任务和 [RFC-0004](../rfcs/0004-replication-state-machine.md) |
 | 4 | [本地 ChunkEngine 与 COW](04-local-chunk-engine-cow.md) | Framework Implemented | Layout COW、Local finalize、Physical COW、恢复、GC 与 [RFC-0005](../rfcs/0005-local-chunk-engine-cow.md) |
-| 5 | [文件长度、truncate 与稳定版本](05-length-truncate-seal.md) | Research | Length 水位、Append、truncate、Pin 与 RootManifest |
+| 5 | [文件长度、truncate 与稳定版本](05-length-truncate-seal.md) | Merged | length、implicit hole、append、truncate 已归并到专题一、二、四，不增加独立抽象 |
 | 6 | [可靠性与高性能数据路径](06-reliability-performance-path.md) | Research | 幂等、校验、Inline/SHM/RDMA、P2P、Cache 和 Spill |
 
 ## 文档成熟流程
@@ -56,4 +56,4 @@ Implemented
 
 ## 当前入口
 
-[专题一](01-file-version-chunk-model.md)、[专题二](02-write-durability-publication.md)、[专题三](03-replication-state-machine.md)、[专题四](04-local-chunk-engine-cow.md)及对应 RFC 已经接受。代码已经实现独立 DFS mount、R1 本机不可变 Chunk、inode owner dirty view、同步边界、FileVersion CAS、副本框架，以及专题四的分块 CommitPlanner、base Chunk 继承、LocalChunkRecord 和批量可恢复 finalize。专题四剩余 Pack/relocation、pin/删除状态机、orphan reconciliation、compaction policy 和故障验证。下一设计入口是[专题五](05-length-truncate-seal.md)。
+[专题一](01-file-version-chunk-model.md)、[专题二](02-write-durability-publication.md)、[专题三](03-replication-state-machine.md)、[专题四](04-local-chunk-engine-cow.md)及对应 RFC 已经接受。原专题五的 length、implicit hole、append 和 truncate 结论已经归并到专题一、二、四，不建立独立模块。代码已经实现独立 DFS mount、R1 本机不可变 Chunk、inode owner dirty view、同步边界、FileVersion CAS、副本框架，以及专题四的分块 CommitPlanner、base Chunk 继承、LocalChunkRecord 和批量可恢复 finalize。专题四剩余 Pack/relocation、pin/删除状态机、orphan reconciliation、compaction policy 和故障验证。下一设计入口是[专题六](06-reliability-performance-path.md)。

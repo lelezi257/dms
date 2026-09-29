@@ -111,6 +111,9 @@ Node 使用当前 lease epoch、expected head、expected inode revision 和 oper
 | 用户操作 | Node 行为 | 返回时的保证 |
 | --- | --- | --- |
 | `write/pwrite` | owner 排序并更新 DirtyExtentMap | 无故障时后续读取可见；不保证故障恢复 |
+| `write/pwrite` 越过 EOF | owner 更新 DirtyExtentMap，并令 `logical_length=max(logical_length, offset+size)` | 中间范围立即表现为 Hole，读取返回零 |
+| `write(O_APPEND)` | owner 在 inode 状态锁内以当前 `logical_length` 分配 offset 并推进 EOF | 同一 inode 的并发 append 区间不重叠 |
+| `truncate/ftruncate` | owner 串行裁剪 dirty layout 或推进 `logical_length` | 新 EOF 立即在 owner 活动视图中可见；尚不保证故障恢复 |
 | `read/pread` | 有活跃 dirty owner 时读取 base+overlay；固定版本读不混入 overlay | 返回某个明确读视图的数据 |
 | `fdatasync` | 提交写入前缀 | 数据、恢复索引、length 和 head 可恢复 |
 | `fsync` | `fdatasync` 加完整 inode 属性 | 文件内容和完整 inode 属性达到合同 |
@@ -171,6 +174,8 @@ InodeWriteState {
 ```
 
 `DirtyExtentMap` 是 committed FileVersion 上的内存 overlay。它合并覆盖写、支持 base+overlay 读取，并在 CommitBatch 中规范化为新的不可变 ExtentMap。它不是一个可持久引用的 Mutable FileVersion。
+
+同一 inode 的 `write`、append、truncate 和同步屏障由 owner 串行处理并立即归并到 `logical_length + DirtyExtentMap`。第一版不保存 `FileMutation` 操作日志：顺序由 owner 分配的 WriteSeq 和归并后的状态表达。Shrink 立即裁掉新 EOF 之后的 dirty ranges；Grow 只推进 logical length，新增区间是隐式 Hole。
 
 ### 6.4 CommitBatch
 
@@ -255,6 +260,23 @@ meta     lease / V7                              V8
 
 这里的 `ok` 是 write 返回。返回前已经完成 V8 提交和完整 inode metadata 合同。
 
+### 7.7 并发 Append
+
+初始 `logical_length=100`。两个 handle 同时执行 `O_APPEND` write，owner 在同一个 inode 状态锁内串行分配范围：
+
+```text
+A: offset=100, length=3, WriteSeq=41  -> logical_length=103
+B: offset=103, length=4, WriteSeq=42  -> logical_length=107
+```
+
+实际顺序可以相反，但两个范围不能重叠。该路径不访问 Meta，也不增加 AppendReservation；远端 handle 只需把 append 请求转发到 owner。`fsync` 冻结最终归并的 DirtyExtentMap 与 `target_length=107`，在一次 FileVersion CAS 中提交布局和 EOF。
+
+### 7.8 Truncate 与稀疏扩容
+
+Shrink `10 GiB -> 3 GiB` 时，owner 立即把活动视图的 `logical_length` 改为 3 GiB，并裁掉新 EOF 之后的 dirty ranges；后续读取从 3 GiB 起返回 EOF。Grow `3 GiB -> 10 GiB` 时只推进 logical length，新增范围读取为零，不创建 Chunk。
+
+`truncate/ftruncate` 的返回合同与普通异步 write 相同：无故障运行时新 EOF 已可见，但 owner 永久故障时允许回退到最后 committed FileVersion。只有后续 `fdatasync/fsync` 成功，最终 length 与 LayoutRoot 才作为一个新 FileVersion 原子提交。Shrink 后再次 Grow 不得恢复被截断的旧数据。
+
 ## 8. RPC 与数据 Hop
 
 统一计数：FUSE callback 和进程内调用不算 RPC；request/response 是一次逻辑 RPC exchange；完整 payload 跨一条网络连接是一次 data hop；ACK 是控制消息。
@@ -301,7 +323,7 @@ R=1 基础框架已经把 dirty data 从 handle 移到 inode 共享的 `InodeWri
 
 1. `OpenWrite` 能返回远端 owner 身份，但 Node 间 write/read/sync 转发尚未接入；当前非本机 owner 明确返回不支持。
 2. FrozenCommit 已在 inode 锁内冻结写入前缀，Chunk I/O 与 Meta RPC 在锁外执行，更晚 write 进入下一批；同一 inode 的并发 sync 等待与合并尚未实现。
-3. `DirtyExtentMap` 只保存覆盖范围；R=1 CommitPlanner 生成普通 patch Chunk 并复用 base Extent。Extent 树和 compaction policy 尚未实现。
+3. `DirtyExtentMap` 只保存覆盖范围；R=1 CommitPlanner 生成普通 patch Chunk 并复用 base Extent。`O_APPEND` 和 `O_TRUNC` 已有局部路径，但 DFS `setattr(size)` 尚未接通，因此普通 `truncate/ftruncate` 与完整稀疏文件 E2E 仍未实现；Extent 树和 compaction policy 也尚未实现。
 4. 后台失败会记录 inode sticky error，并由每个已打开 writer 的错误游标观察；故障注入、错误清除和重启恢复矩阵仍需补齐。
 5. DFS 只有 R=1 本地 ChunkStore；R=N ChunkReceipt 与 result-unknown 由专题三继续设计和实现。
 6. `fsync(dir)` 尚未实现，不能声明新建文件名已经满足崩溃恢复合同。
@@ -312,5 +334,5 @@ R=1 基础框架已经把 dirty data 从 handle 移到 inode 共享的 `InodeWri
 
 - 专题三承接 `freeze → chunk → policy durable`，定义 R=1/R=N 状态机、重配置和 result-unknown；
 - 专题四定义 StagedChunk、普通 patch Chunk、Extent 合并、Compaction 和本地恢复；
-- 专题五定义 dirty/committed length、append、truncate 与 Snapshot barrier；
+- 原专题五的 length、append、truncate 与 sparse hole 结论已经归并到本专题、专题一和专题四，不增加独立状态机；
 - 专题六定义幂等、错误账本、wire batching、P2P、Cache、Spill 和高性能数据路径。

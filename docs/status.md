@@ -12,7 +12,7 @@ DFS 使用统一的数据模型承载普通可变文件和镜像、Snapshot 等�
 
 [架构设计专题](architecture/design-topics.md)维护 DFS 的六个设计专题及其依赖关系。
 
-专题一已经接受：[FileVersion、Extent 与 Chunk 数据模型](architecture/01-file-version-chunk-model.md)和 [RFC-0002](rfcs/0002-file-version-chunk-model.md)定义统一不可变版本模型、单副本与多副本分叉点、三个端到端 Case 和 RPC 预算。专题二及 [RFC-0003](rfcs/0003-write-visibility-durability.md)固定用户/Node/Meta 时间线：普通 write 进入 inode owner 的共享 dirty view，CommitTrigger 才产生 Chunk 和 FileVersion；`fdatasync/fsync`、flush/release、后台 writeback 和目录同步具有独立合同。专题三及 [RFC-0004](rfcs/0004-replication-state-machine.md)固定文件系统级不可变 ReplicationConfig、R1 Local Fast Path、RN Replication Path、Meta Placement 权威、Node ReplicationPlan、ReplicaAck/ChunkReceipt 与异步补副本合同。专题四及 [RFC-0005](rfcs/0005-local-chunk-engine-cow.md)固定 Layout COW 与 Physical COW 的边界、LocalChunkRecord、可恢复 finalize、base Chunk 继承、per-chunk file 到 Pack 的演进以及 orphan reconciliation 合同。
+专题一已经接受：[FileVersion、Extent 与 Chunk 数据模型](architecture/01-file-version-chunk-model.md)和 [RFC-0002](rfcs/0002-file-version-chunk-model.md)定义统一不可变版本模型、FileVersion EOF、隐式 Hole、单副本与多副本分叉点、端到端 Case 和 RPC 预算。专题二及 [RFC-0003](rfcs/0003-write-visibility-durability.md)固定用户/Node/Meta 时间线：普通 write、append 和 truncate 由 inode owner 串行归并到共享 dirty view 与 logical length，CommitTrigger 才产生 Chunk 和 FileVersion；`fdatasync/fsync`、flush/release、后台 writeback 和目录同步具有独立合同。专题三及 [RFC-0004](rfcs/0004-replication-state-machine.md)固定文件系统级不可变 ReplicationConfig、R1 Local Fast Path、RN Replication Path、Meta Placement 权威、Node ReplicationPlan、ReplicaAck/ChunkReceipt 与异步补副本合同。专题四及 [RFC-0005](rfcs/0005-local-chunk-engine-cow.md)固定 Layout COW 与 Physical COW 的边界、Truncate COW、LocalChunkRecord、可恢复 finalize、base Chunk 继承、per-chunk file 到 Pack 的演进以及 orphan reconciliation 合同。原专题五已经归并到专题一、二、四，不增加 FileMutation、AppendReservation、LengthHint、Seal 或独立 Snapshot/Image 数据类型。
 
 接入模型已经实现为两个独立 mount：OwnerFs 与 DFS 分别建立 FuseSession、FUSE connection、inode/handle table 和缓存策略，只复用 `fuse` 模块代码与 `Backend` 接口。`DfsWriteSession` 是 DFS 专属类型；OwnerFs 不进入 FileVersion/Extent/Chunk 写入状态机。
 
@@ -53,6 +53,7 @@ Node RPC 使用四个职责文件：`control.rs` 负责 Node 间控制，`data.r
 - DFS commit 已用 FrozenCommit 把磁盘 I/O 和 Meta RPC 移出 inode 写状态锁；同一 inode 当前只允许一个 in-flight commit，后续需要等待/合并策略。
 - 严格普通写跨节点可见性合同已经固化；当前只接受本地 WriteLease owner，远端 owner routing 尚未实现。
 - DFS 已分离 `write/flush/fdatasync/fsync/release`，接通 `O_DSYNC/O_SYNC`，并增加定时后台 writeback、优雅退出 drain、inode sticky error 和 CommitBatch freeze；跨节点 owner routing、并发 sync 等待、故障恢复矩阵和 `fsync(dir)` 尚未实现。
+- DFS `O_APPEND` 和 `O_TRUNC` 已有局部路径，但 `setattr(size)` 尚未接通，普通 `truncate/ftruncate`、写过 EOF、Shrink 后 Grow 和稀疏读取 E2E 尚未完成。
 - RDMA 已有传输探测能力，文件内容仍走 gRPC P2P。
 - 完整 POSIX、VM 掉电、长稳、容量压力和对象存储 spill 尚未验收。
 

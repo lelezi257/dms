@@ -8,7 +8,7 @@
 
 本专题不形成新的架构层、状态机或实现模块。有效结论已经归并到既有专题：
 
-- [专题一](01-file-version-chunk-model.md)与 [RFC-0002](../rfcs/0002-file-version-chunk-model.md)：`FileVersion.logical_length`、Extent 边界、隐式 Hole 和稀疏读取；
+- [专题一](01-file-version-chunk-model.md)与 [RFC-0002](../rfcs/0002-file-version-chunk-model.md)：`FileVersion.length`、Extent 边界、隐式 Hole 和稀疏读取；
 - [专题二](02-write-durability-publication.md)与 [RFC-0003](../rfcs/0003-write-visibility-durability.md)：owner 串行处理 write、append、truncate 与同步屏障，以及 visible/committed EOF；
 - [专题四](04-local-chunk-engine-cow.md)与 [RFC-0005](../rfcs/0005-local-chunk-engine-cow.md)：Shrink/Grow 的 Layout COW、旧 Chunk 复用与 GC 边界。
 

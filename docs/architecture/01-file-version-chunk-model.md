@@ -21,7 +21,7 @@
 8. 多源读取必须先固定 FileVersion，再按 ChunkId 从多个合格 Copy 读取。
 9. FUSE 请求大小、Peer Frame 大小和存储 Chunk 大小彼此独立。
 10. 公开后端类型使用 DistributedFs；内部模块、feature、配置、CLI 和协议统一使用 `dfs` / `DfsMeta`。
-11. `FileVersion.logical_length` 定义该版本的 EOF；只记录 DATA Extent，`[0, logical_length)` 中未被 Extent 覆盖的区间是隐式 Hole，读取返回零且不创建零数据 Chunk。
+11. `FileVersion.length` 定义该版本的 EOF；只记录 DATA Extent，`[0, length)` 中未被 Extent 覆盖的区间是隐式 Hole，读取返回零且不创建零数据 Chunk。
 
 ## 3. 对象关系
 
@@ -175,7 +175,7 @@ Extent {
 }
 ```
 
-Extent 只描述文件逻辑范围到 Chunk 子范围的数据映射。相邻 Extent 不重叠，且必须完全位于 `[0, FileVersion.logical_length)`；该区间内没有被 Extent 覆盖的范围是隐式 Hole，读取时返回零。大范围 Hole 不创建零数据 Chunk，也不要求显式 HOLE Extent。第一阶段只保证稀疏范围的读取语义；`SEEK_HOLE`、`SEEK_DATA`、`fallocate`、hole punch 和精确 `st_blocks` 留给后续 POSIX 完整性设计。
+Extent 只描述文件逻辑范围到 Chunk 子范围的数据映射。相邻 Extent 不重叠，且必须完全位于 `[0, FileVersion.length)`；该区间内没有被 Extent 覆盖的范围是隐式 Hole，读取时返回零。大范围 Hole 不创建零数据 Chunk，也不要求显式 HOLE Extent。第一阶段只保证稀疏范围的读取语义；`SEEK_HOLE`、`SEEK_DATA`、`fallocate`、hole punch 和精确 `st_blocks` 留给后续 POSIX 完整性设计。
 
 ### 4.5 LayoutRoot
 
@@ -212,7 +212,7 @@ FileVersion {
   version_id
   inode_id
   parent_version_id?
-  logical_length
+  length
   inline_extents? / layout_root_id?
   content_digest?
   created_at
@@ -300,7 +300,7 @@ class FileVersion {
   +FileVersionId version_id
   +InodeId inode_id
   +FileVersionId? parent_version_id
-  +u64 logical_length
+  +u64 length
   +Extent[]? inline_extents
   +LayoutRootId? layout_root_id
   +Digest? content_digest
@@ -658,7 +658,7 @@ V2 / LR2
 ```text
 pwrite(fd, 4 KiB, offset = 1 GiB)
 
-V3.logical_length = 1 GiB + 4 KiB
+V3.length = 1 GiB + 4 KiB
 V3 layout:
   DATA [0, 4 KiB)              -> 原 Chunk
   HOLE [4 KiB, 1 GiB)          -> 不保存 Extent，不创建 Chunk

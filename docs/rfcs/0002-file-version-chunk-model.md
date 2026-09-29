@@ -70,7 +70,7 @@ FileVersion {
   version_id
   inode_id
   parent_version_id?
-  logical_length
+  length
   inline_extents? / layout_root_id?
   content_digest?
   created_at
@@ -88,7 +88,7 @@ Extent {
 }
 ```
 
-Extent 只记录 DATA。`[0, FileVersion.logical_length)` 内未被 Extent 覆盖的范围是隐式 Hole，读取返回零且不创建零数据 Chunk。Extent 必须按 file offset 有序、不重叠，并完全位于 FileVersion length 以内。
+Extent 只记录 DATA。`[0, FileVersion.length)` 内未被 Extent 覆盖的范围是隐式 Hole，读取返回零且不创建零数据 Chunk。Extent 必须按 file offset 有序、不重叠，并完全位于 FileVersion length 以内。
 
 ### ChunkObject
 
@@ -179,7 +179,7 @@ Chunk 已成功而 Head CAS 最终失败时，ChunkObject 保持完整但不可�
 3. 已提交 LayoutRoot 及其可达 Extent Tree Node 不可修改。
 4. ChunkObject 身份一经确定不可修改；同一 ChunkId 只能对应同一规范化内容。只有完成 finalize 的本地副本才能产生 ReplicaAck。
 5. StagedChunk 不可被 FileVersion、读取、Snapshot、Cache Seed 或 Repair 使用。
-6. FileVersion 的 DATA Extent 按文件偏移有序、不重叠且不越过 `[0, logical_length)`；未覆盖区间是隐式 Hole，读取返回零。
+6. FileVersion 的 DATA Extent 按文件偏移有序、不重叠且不越过 `[0, length)`；未覆盖区间是隐式 Hole，读取返回零。
 7. Hole 不创建 ChunkObject；文件逻辑长度与实际分配字节数是不同指标。
 8. Copy Catalog、Repair、Rebalance、Cache Eviction 和 Spill 不改变 FileVersion 或 ChunkId。
 9. R=1、R=N、VerifiedCache 和 ExternalCommitted 只改变可靠性和位置，不改变逻辑数据身份。

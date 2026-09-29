@@ -21,5 +21,6 @@ RFC 使用四位编号：`0001-title.md`。编号只表示身份，不表示优�
 | [0001](0001-product-architecture.md) | AFS 产品架构 | Accepted |
 | [0002](0002-file-version-chunk-model.md) | FileVersion、Extent 与 Chunk 数据模型 | Accepted |
 | [0003](0003-write-visibility-durability.md) | 写入可见性、持久化与版本提交 | Accepted |
+| [0004](0004-replication-state-machine.md) | Chunk 单副本与多副本状态机 | Accepted |
 
 新 RFC 使用[模板](0000-template.md)。

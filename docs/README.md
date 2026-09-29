@@ -8,16 +8,20 @@
 4. [工作负载路径](architecture/profiles.md)：OwnerFs、普通可变文件和固定版本读取的边界。
 5. [架构设计专题](architecture/design-topics.md)：DistributedFs 六个设计专题、状态和入口。
 6. [FileVersion 数据模型](architecture/01-file-version-chunk-model.md)：统一不可变 Chunk 基座、三个 E2E Case 和 RPC 预算。
-7. [副本和缓存状态](semantics/copy-states.md)：Staging、Cache、Replica、External 和逐出门禁。
-8. [当前状态](current-status.md)：已经实现、实验可用、已接受设计和研究中的能力。
-9. [Roadmap](../ROADMAP.md)：纵向 Milestone 和目标 E2E。
-10. [参与贡献](../CONTRIBUTING.md)：RFC、任务、实现和验证要求。
+7. [写入与版本提交](architecture/02-write-durability-publication.md)：write、fsync、dirty view 和 FileVersion 可见边界。
+8. [副本状态机](architecture/03-replication-state-machine.md)：R1/RN、可配置副本策略、Placement、ACK、Repair 和异步补副本。
+9. [副本和缓存状态](semantics/copy-states.md)：Staging、Cache、Replica、External 和逐出门禁。
+10. [当前状态](current-status.md)：已经实现、实验可用、已接受设计和研究中的能力。
+11. [Roadmap](../ROADMAP.md)：纵向 Milestone 和目标 E2E。
+12. [参与贡献](../CONTRIBUTING.md)：RFC、任务、实现和验证要求。
 
 ## 设计与语义
 
 - [RFC 索引](rfcs/README.md)
 - [RFC-0001：产品架构](rfcs/0001-product-architecture.md)
 - [RFC-0002：FileVersion、Extent 与 Chunk 数据模型](rfcs/0002-file-version-chunk-model.md)
+- [RFC-0003：写入可见性、持久化与版本提交](rfcs/0003-write-visibility-durability.md)
+- [RFC-0004：Chunk 单副本与多副本状态机](rfcs/0004-replication-state-machine.md)
 - [错误合同](error-contract.md)
 - [代码地图](code-layout.md)
 

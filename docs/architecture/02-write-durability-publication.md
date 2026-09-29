@@ -217,9 +217,9 @@ StagedChunk 不进入 Meta UML，不被 FileVersion、普通读取、Snapshot、
 
 普通 write 只增加覆盖范围的 DirtyExtent。同步时仅为 patch 生成新 Chunk，V8 的 ExtentMap 复用 V7 未修改范围。大量小覆盖造成的 Extent 碎片由专题四的 Compaction 处理，不在 write 热路径重写整个文件。
 
-### 7.3 R=3
+### 7.3 同步 N 副本（N=3 示例）
 
-文件层流程与 R=1 相同，分叉只发生在 `ChunkStore::put`。本地 owner 作为优先 head 时，数据沿 A→B→C 流水传输；只有满足 R=3 的 ChunkReceipt 才允许 V8 CAS。若只等待本地副本，应使用 `LOCAL_DURABLE_ASYNC_REPLICA`，不能声明 R=3 已完成。
+文件层流程与 R=1 相同，分叉只发生在 `ChunkStore::put`。本地 owner 作为优先 head 时，N=3 示例的数据沿 A→B→C 流水传输；只有满足 DurabilityPolicy 的 ChunkReceipt 才允许 V8 CAS。若只等待本地副本，应使用 `sync_required_copies=1` 的异步补副本策略，不能声明同步 N 副本已经完成。
 
 ### 7.4 跨 Node 多 writer
 
@@ -266,7 +266,7 @@ meta     lease / V7                              V8
 | 远程 writer 普通 write | 0 | 1 个可批量 Peer exchange / 1 hop |
 | 远程 dirty read | cache 命中时 0 | 1 个 Peer read exchange |
 | R=1 fsync | 1 次 FileVersion CAS | 0 |
-| R=3 fsync，本地是 head | 1 次 FileVersion CAS | 每个新 Chunk 两个 payload hop，wire 层应批量和流水 |
+| 同步 N=3 fsync，本地是 head | 1 次 FileVersion CAS | 每个新 Chunk 两个 payload hop，wire 层应批量和流水 |
 | 无脏数据的 fsync | 0，必要时只同步属性 | 0 |
 | flush / release | 0 | 只在仍有前端待发送请求时 drain |
 
@@ -283,7 +283,7 @@ meta     lease / V7                              V8
 | 旧 lease owner 提交 | 无 | Meta 按 epoch 拒绝 |
 | 后台 writeback 失败 | 普通 write 只获得可见性合同 | 记录 sticky error，在后续 write/flush/sync 报告 |
 
-`R1_LOCAL` 只覆盖本地介质仍可用的重启恢复，不覆盖永久磁盘丢失；`R3_SYNC` 才提供声明范围内的 Node/磁盘故障容忍；异步副本策略必须明确返回时仍存在的单点风险。
+本地单副本策略只覆盖本地介质仍可用的重启恢复，不覆盖永久磁盘丢失；同步 N 副本策略提供其声明范围内的 Node/磁盘故障容忍；异步副本策略必须明确返回时已经完成的同步副本数和仍存在的风险。
 
 ## 10. 与 3FS 的关系
 

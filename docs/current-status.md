@@ -8,7 +8,8 @@
 - DFS 公开类型为 `DistributedFs`；内部模块、feature、配置、CLI 和协议统一使用 `dfs` / `DfsMeta`。
 - DFS 的可变 inode head 指向不可变 `FileVersion`；`FileVersion → LayoutRoot → Extent → ChunkObject` 形成已提交读取视图。
 - 专题二的 R=1 基础框架已经实现：普通 write 进入 inode 共享 dirty view，CommitTrigger 才生成 Chunk 和 FileVersion；跨节点 owner routing 尚未实现。
-- R=1 与未来 R=N 的分叉位于 `ChunkStore::put` 以下，文件层只消费 `ChunkReceipt`。
+- 专题三和 RFC-0004 已接受：R=1 与 R=N 的分叉位于 `ChunkStore::put` 以下，文件层只消费 `ChunkReceipt`；R1 使用无 Peer 的 Local Fast Path，RN 使用 ReplicationEngine，二者复用 LocalChunkStore。
+- 副本数由 `desired_copies/sync_required_copies` 配置；Meta 维护权威 PlacementSnapshot，Node 生成单次 ReplicationPlan。该多副本框架尚未实现。
 - Node RPC 保持 `control.rs`、`data.rs`、`meta.rs`、`peer.rs` 四个职责文件；OwnerFiles 已合并回 `data.rs`，所有专项完成前不按 OwnerFs/DFS 提前拆文件。
 
 ## 能力矩阵
@@ -20,6 +21,7 @@
 | 独立 FUSE mount | Experimental | OwnerFs 和 DFS 分别建立 session | 完整 POSIX 兼容矩阵 |
 | OwnerFs | Experimental | 本机文件、P2P 回 Home、根授权和句柄回收 | 常用属性、根删除、全局列举、掉电与长稳 |
 | DistributedFs R=1 | Experimental | WriteLease；inode 共享 dirty view；fdatasync 数据版本提交；fsync 完整属性同步；本机不可变 Chunk；Meta CAS | 远端 owner、目录同步、Extent 树、R=N、多节点读取 |
+| R=N 副本协议 | Accepted Design | 可配置 N/M 策略、ACK/Receipt、PlacementEpoch、异步补副本与故障合同已确定 | ReplicationEngine、Peer Chunk RPC、Repair 和故障注入 |
 | 固定版本多源 P2P | Accepted Design | 读取先固定 FileVersion，再按 Chunk 选来源 | tracker、选源、限流和产品 E2E |
 | UDS + SHM SDK | Experimental foundation | 本地 API、memfd 和 FD passing 已接线 | 正式文件批量异步 API |
 | RDMA transport | Experimental foundation | RXE 握手、READ/WRITE 和诊断链通过 | DFS 文件内容路径和硬件吞吐 |
@@ -67,4 +69,4 @@ Linux 真 FUSE 验收使用 local-file MetaStore，验证同步前跨 handle dir
 | 协议 | `common/protocol/proto/meta.proto` |
 | E2E | `scripts/dfs/r1_e2e.py` |
 
-设计入口：[专题一](architecture/01-file-version-chunk-model.md)、[RFC-0002](rfcs/0002-file-version-chunk-model.md)、[专题二](architecture/02-write-durability-publication.md)和 [RFC-0003](rfcs/0003-write-visibility-durability.md)。工程优先级见[实现任务](next.md)与[Roadmap](../ROADMAP.md)。
+设计入口：[专题一](architecture/01-file-version-chunk-model.md)、[RFC-0002](rfcs/0002-file-version-chunk-model.md)、[专题二](architecture/02-write-durability-publication.md)、[RFC-0003](rfcs/0003-write-visibility-durability.md)、[专题三](architecture/03-replication-state-machine.md)和 [RFC-0004](rfcs/0004-replication-state-machine.md)。工程优先级见[实现任务](next.md)与[Roadmap](../ROADMAP.md)。

@@ -176,7 +176,7 @@ Chunk 成功但 CAS 失败不会产生半个可见版本。未引用 Chunk 进�
 | 旧 owner 提交 | lease epoch 校验拒绝 |
 | 后台 writeback 失败 | 在 inode 记录 sticky error，并由后续 write/flush/sync 观察 |
 
-`R1_LOCAL`、`R3_SYNC` 和异步副本策略必须分别声明 fsync 返回时已经覆盖的故障域。文件同步与目录项同步分别验收。
+本地单副本、同步 N 副本和异步补副本策略必须分别声明 fsync 返回时已经完成的副本数和覆盖的故障域。文件同步与目录项同步分别验收。
 
 ## RPC 合同
 
@@ -252,6 +252,6 @@ Chunk 成功但 CAS 失败不会产生半个可见版本。未引用 Chunk 进�
 - `fdatasync`、`fsync`、`O_DSYNC` 和 `O_SYNC` 分别满足本文定义的完成合同。
 - `dup` 产生的多次 flush 幂等，release 不承担唯一提交。
 - 两个 Node 并发覆盖和 append 获得可解释的全局顺序。
-- R=1/R=3 使用相同文件提交协议，只在 ChunkStore 以下分叉。
+- R=1/R=N 使用相同文件提交协议，只在 ChunkStore 以下分叉。
 - Chunk durable、CAS 前故障、CAS response lost 和 stale lease 均有自动化故障验收。
 - 新文件完成 `fsync(file)+fsync(dir)` 后，内容和名称都能在声明故障域内恢复。

@@ -4,7 +4,7 @@
 
 ## 设计入口
 
-[专题一](architecture/01-file-version-chunk-model.md)、[RFC-0002](rfcs/0002-file-version-chunk-model.md)、[专题二](architecture/02-write-durability-publication.md)及 [RFC-0003](rfcs/0003-write-visibility-durability.md)已经接受，确定以下实现合同：
+[专题一](architecture/01-file-version-chunk-model.md)、[RFC-0002](rfcs/0002-file-version-chunk-model.md)、[专题二](architecture/02-write-durability-publication.md)、[RFC-0003](rfcs/0003-write-visibility-durability.md)、[专题三](architecture/03-replication-state-machine.md)及 [RFC-0004](rfcs/0004-replication-state-machine.md)已经接受，确定以下实现合同：
 
 - inode 通过可变 `head_version` 指向已提交的不可变 `FileVersion`；
 - `FileVersion → LayoutRoot/ExtentMap → Extent → ChunkObject` 构成统一事实源；
@@ -16,8 +16,12 @@
 - FUSE flush/release 不替代同步合同；后台 writeback 可以提交版本但不产生用户可依赖的完成点；
 - 文件同步与目录项 `fsync(dir)` 是两个合同；
 - 固定版本多源读取先固定 `FileVersionId`，再从合格副本或缓存读取其 Chunk。
+- R=1 使用无 Peer 的 Local Fast Path；RN 由 ReplicationEngine 协调多个共享 LocalChunkStore 的副本。
+- 副本数量由 `desired_copies/sync_required_copies` 配置，Meta 维护 Placement 权威，Node 从缓存快照生成 ReplicationPlan。
+- ReplicaAck 是 Peer wire 证明，ChunkReceipt 是提交层聚合证明，CopyRecord 是 Meta 长期目录事实。
+- 异步补副本任务与 FileVersion 在同一 Meta 事务登记；欠副本不阻止从现存有效 Copy 读取。
 
-下一设计入口是[专题三](architecture/03-replication-state-machine.md)，重点固化 R=1/R=N、ChunkReceipt、副本故障与重配置；RFC-0003 的实现需要与该副本合同共同落地。
+下一设计入口是[专题四](architecture/04-local-chunk-engine-cow.md)。下一工程入口是 RFC-0004 的副本基础类型、Meta Placement 合同、Node ReplicationEngine 骨架和 Peer Chunk RPC 形状；功能实现必须经过对应代码框架评审。
 
 RPC 物理布局保持为 `control.rs`、`data.rs`、`meta.rs`、`peer.rs`。R=N 设计可以在 `data.rs`/`peer.rs` 内增加 Chunk 协议实现；全部专项收敛前不按 OwnerFs/DFS 拆子文件。
 
@@ -36,7 +40,7 @@ RPC 物理布局保持为 `control.rs`、`data.rs`、`meta.rs`、`peer.rs`。R=N
 
 1. 将当前 whole-file 单 Chunk 实现扩展为分块、Extent 树、覆盖写与 compaction。
 2. 补齐 truncate、append、rename、unlink、目录与打开句柄语义。
-3. 增加 R=3 的 `ChunkStore::put` 实现，不改变文件层接口。
+3. 增加可配置 N/M 的 `ChunkStore::put` 副本框架，不改变文件层接口；首批功能策略由独立实现评审确定。
 4. 以两节点读取与单节点故障换源验证固定版本读取。
 
 ## P1：OwnerFs 完整性

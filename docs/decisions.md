@@ -1,5 +1,13 @@
 # AFS 架构决策
 
+## 2026-09-29：R1 Local Fast Path 与 RN Replication Path 共用 LocalChunkStore
+
+- **决策：** DistributedFs 在 `ChunkStore::put` 以下保留两条执行路径：唯一目标为本地节点时使用无 Peer 的 Local Fast Path；多目标或远端目标使用 ReplicationEngine。每个副本复用相同的 LocalChunkStore 校验、fsync 和原子 finalize 原语，文件层统一消费 ChunkReceipt。
+- **策略：** 副本数量由 `desired_copies/sync_required_copies` 和故障域约束配置，不写死为一份或三份。Meta 维护 PolicyRevision、PlacementSnapshot、PlacementEpoch、NodeEpoch 和 DeviceEpoch；Node 从缓存快照为具体 Chunk 生成临时 ReplicationPlan。
+- **证明：** ReplicaAck 是 Peer wire 完成证明，ChunkReceipt 聚合同步策略需要的 ACK，CopyRecord 是 Meta 接受后的长期目录事实。异步补副本任务与 FileVersion 在同一 Meta 事务登记；任务失败但仍有有效源时读取继续成功，没有有效源时读取返回 EIO。
+- **3FS 边界：** 采用流水复制、反向 durable ACK、epoch fencing、幂等和 repair gating；不采用同一 ChunkId 下的 mutable pending/committed version、第二轮 Chunk 内容 commit 或读取时 Tail 版本查询。
+- **权威文档：** [RFC-0004](rfcs/0004-replication-state-machine.md)与[专题三](architecture/03-replication-state-machine.md)。
+
 ## 2026-09-28：DistributedFs 使用统一不可变 FileVersion/Chunk 数据模型
 
 - **决策：** 通用分布式后端命名为 `DistributedFs`（`DFS`），与 1～4 节点小集群优化 `OwnerFs` 并列。DFS 的 inode 通过可变 `head_version` 指向不可变 `FileVersion`；FileVersion 再引用不可变 LayoutRoot/ExtentMap、Extent 和 ChunkObject。普通文件更新生成新 Chunk、布局和版本；镜像、Snapshot、Checkpoint 固定 FileVersion 后直接复用同一事实源进行 range read、缓存和多源 P2P。

@@ -651,12 +651,12 @@ V2 / LR2
 
 后台 Compaction 可以把 C102 与 P9 合成 C102' 并提交新版本；如果 Head 已变化，Compaction 必须重新基于新版本计算或放弃，不能覆盖前台写入。
 
-## 6. E2E Case 2：R=3 Chain 多副本
+## 6. E2E Case 2：同步 N 副本 Chain（N=3 示例）
 
 FileVersion 以上的流程与 Case 1 完全相同。分叉只发生在：
 
 ```text
-ChunkStore::put(chunk, R=3)
+ChunkStore::put(chunk, SYNC_REPLICATED(N=3))
 ```
 
 假设副本组为 A、B、C，写节点 A 是 Chain Head：
@@ -668,7 +668,7 @@ CommitBatch
     -> C: local staging + digest
 ```
 
-A 在接收 Frame 时同时写本地并转发 B；B 同样流水转发 C，不等待整个 Chunk 在上一节点写完。最后一个 Frame 确认总长度、Chunk 身份和 PlacementEpoch。C、B、A 依次完成幂等 Finalize，A 返回满足 R=3 的 ChunkReceipt。
+A 在接收 Frame 时同时写本地并转发 B；B 同样流水转发 C，不等待整个 Chunk 在上一节点写完。最后一个 Frame 确认总长度、Chunk 身份和 PlacementEpoch。C、B、A 依次完成幂等 Finalize，A 返回满足该同步 N=3 策略的 ChunkReceipt。N=2、4 使用同一合同。
 
 Chunk 已不可变，文件逻辑可见点又是 FileVersion CAS，因此不增加第二轮 Chunk Visibility Commit。副本成功、Meta 失败时留下 Orphan Chunk，不产生半个可见文件。
 
@@ -719,7 +719,7 @@ C103 <- A
 | 每个 WRITE 的 Meta RPC | 0 |
 | 每个 Chunk 的路由 RPC | 0 |
 
-### Case 2：R=3、三个 Chunk
+### Case 2：同步 N=3、三个 Chunk
 
 | 操作 | 数量 |
 | --- | ---: |

@@ -271,7 +271,7 @@ OwnerFs 只复用 FUSE/Backend 接口和公共连接工具，不进入 DFS 的 F
 
 - 顺序写：10 MiB 文件可以由多个 FUSE WRITE 聚合为三个示例 Chunk，并一次提交 FileVersion。
 - 随机写：4 KiB 覆盖不重写整个文件，旧 FileVersion 仍能读出原内容。
-- 副本：R=1 与 R=3 使用相同文件布局接口，R=3 的策略只由 ChunkReceipt 表达。
+- 副本：R=1 与可配置 R=N 使用相同文件布局接口，副本策略只由 DurabilityPolicy 和 ChunkReceipt 表达。
 - 多源读：固定 FileVersion 的多个 Chunk 可以从不同 Peer 读取并通过摘要校验。
 - 故障：Chunk 完成与 Head CAS 任一阶段中断都不会产生半个可见版本。
 - RPC：普通 WRITE 不访问 Meta；每个可见性批次最多一次 Head CAS；Peer 连接可复用。

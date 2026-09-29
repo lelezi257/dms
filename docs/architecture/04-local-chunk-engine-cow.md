@@ -120,6 +120,8 @@ LocalChunkRecord {
 
 `LocalChunkRecord` 是本节点的物理事实：字节放在哪里、如何编码、属于哪个设备代际、目录推进到哪个 revision。它不能并入 Meta 的 `CopyRecord`：前者服务本机恢复和读取，后者是 Meta 接受后的全局副本事实。
 
+Local finalize 返回的 `ReplicaAck.catalog_revision` 取自本次 LocalCatalog 原子提交后的 revision。ReplicationPlan 中目标设备的 revision 只是 Meta 已知下界；校验规则是 ACK revision 不小于该下界，而不是相等。
+
 ### 4.4 Wire 与 Meta 对象
 
 - `ReplicaAck`：本节点针对本次 operation 的 durable proof；

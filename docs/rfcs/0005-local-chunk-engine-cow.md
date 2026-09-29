@@ -51,6 +51,8 @@ created_at / deletion_state
 
 `ChunkObject` 不保存 Node、Device、Position 或物理编码。
 
+`ReplicaAck.catalog_revision` 必须使用本次 LocalChunkRecord 提交后 LocalCatalog 返回的 revision。PlacementSnapshot 中同一设备的 revision 是 Meta 已知下界；ACK 必须不小于该下界，不要求相等。
+
 ## 3. Layout COW
 
 CommitPlanner 输入 expected base layout、冻结的 DirtyExtentMap 和目标长度，输出：

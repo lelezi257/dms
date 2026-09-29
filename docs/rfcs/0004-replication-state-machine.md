@@ -78,7 +78,7 @@ PlacementSnapshot {
 
 Node 缓存快照，再为一个 StagedChunk 生成临时 `ReplicationPlan`。热路径不按 Chunk 查询 Meta。Node 不能降低同步数量，不能自行加入快照外 Target。
 
-`NodeEpoch` 表示 Node 进程 session。正常心跳只延长 lease，不推进 epoch；新的 `session_id` 才推进 epoch。`DeviceEpoch` 表示设备重建代际，`catalog_revision` 表示设备目录确认点，`PlacementEpoch` 围栏 ReplicaGroup 拓扑。
+`NodeEpoch` 表示 Node 进程 session。正常心跳只延长 lease，不推进 epoch；新的 `session_id` 才推进 epoch。`DeviceEpoch` 表示设备重建代际，`PlacementEpoch` 围栏 ReplicaGroup 拓扑。PlacementSnapshot 中的 `catalog_revision` 是 Meta 最近确认的本地目录下界；ReplicaAck 中的值是 finalize 后 LocalCatalog 返回的确切 revision，因此 ACK revision 可以大于快照下界，不能要求两者相等。
 
 ## 4. R1 Local Fast Path
 
@@ -151,7 +151,7 @@ ReplicaAck {                         ChunkReceipt {
 Meta 提交 FileVersion 时必须同时：
 
 1. 校验 WriteLease、expected inode revision 和 expected head；
-2. 校验每个 ACK 与 Chunk、operation、placement、NodeEpoch、DeviceEpoch、catalog revision、长度和 digest 一致；
+2. 校验每个 ACK 与 Chunk、operation、placement、NodeEpoch、DeviceEpoch、长度和 digest 一致，并要求 ACK catalog revision 不小于 PlacementSnapshot 中对应设备的已知下界；
 3. 校验 distinct node、failure domain 和 local-copy 约束；
 4. 写入 `ChunkObject`、`CopyRecord` 和 `PlacementRecord`；
 5. 欠副本时写入 `ReplicationTask(Pending)`；

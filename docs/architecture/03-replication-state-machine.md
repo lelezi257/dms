@@ -251,6 +251,8 @@ ReplicaAck {
 
 ReplicaAck 是 Peer 协议上的物理完成证明，不是 Meta 的长期 CopyRecord。
 
+`ReplicaTarget.device.catalog_revision` 是生成计划时 Meta 已知的目录下界；`ReplicaAck.catalog_revision` 是目标 LocalCatalog 完成本次 finalize 后的确切 revision。Node 与 Meta 校验后者不小于前者，并用 NodeEpoch 与 DeviceEpoch 防止把其他进程或重建设备的 revision 混入当前计划；两者不要求相等。
+
 ### 8.3 Node/File commit boundary：ChunkReceipt
 
 ```text

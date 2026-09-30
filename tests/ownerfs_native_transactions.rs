@@ -278,3 +278,248 @@ fn same_epoch_retired_home_session_survives_manager_restart() {
         Some(libc::ESTALE)
     );
 }
+
+fn private_orphan(path: &Path, name: &str, data: &[u8]) {
+    use std::io::Write;
+    use std::os::unix::fs::OpenOptionsExt;
+    let mut file = fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .mode(0o600)
+        .open(path.join(name))
+        .unwrap();
+    file.write_all(data).unwrap();
+}
+
+#[test]
+fn orphan_cleanup_requires_reconciliation_and_preserves_unknown_files() {
+    use std::os::unix::fs::symlink;
+    let (dir, path, spy) = fixture();
+    let workspace = spec("session-a");
+    let manager = new_manager(&path, spy.clone());
+    manager.register(workspace.clone()).unwrap();
+    let bytes = fs::read(path.join("state.json")).unwrap();
+    private_orphan(&path, ".state-123-100", &bytes);
+    private_orphan(&path, ".state-123-101", b"unrecognized partial data");
+    private_orphan(&path, "operator-note", b"keep this");
+    let outside = dir.path().join("outside");
+    fs::write(&outside, b"untouched").unwrap();
+    symlink(&outside, path.join(".state-123-102")).unwrap();
+    drop(manager);
+    let restored = new_manager(&path, spy.clone());
+    assert!(restored.cleanup_journal_orphans().is_err());
+    assert!(path.join(".state-123-100").exists());
+    restored.reconcile(&workspace).unwrap();
+    let report = restored.cleanup_journal_orphans().unwrap();
+    assert_eq!(report.removed, vec![".state-123-100"]);
+    for name in [".state-123-101", ".state-123-102", "operator-note"] {
+        assert!(
+            report.retained.contains(&name.to_owned()),
+            "missing retained {name}"
+        );
+    }
+    assert_eq!(fs::read(&outside).unwrap(), b"untouched");
+    assert_eq!(fs::read(path.join("state.json")).unwrap(), bytes);
+    assert_eq!(spy.kernel.lock().unwrap().binds, 0);
+    assert!(
+        restored
+            .cleanup_journal_orphans()
+            .unwrap()
+            .removed
+            .is_empty()
+    );
+}
+
+#[test]
+fn orphan_cleanup_preserves_foreign_future_and_hardlinked_snapshots() {
+    let (_dir, path, spy) = fixture();
+    let workspace = spec("session-a");
+    let manager = new_manager(&path, spy.clone());
+    manager.register(workspace.clone()).unwrap();
+    let original = fs::read(path.join("state.json")).unwrap();
+    let mut snapshot: JournalSnapshot = serde_json::from_slice(&original).unwrap();
+    snapshot.boot_id = "00000000-0000-0000-0000-000000000002".into();
+    private_orphan(
+        &path,
+        ".state-123-200",
+        &serde_json::to_vec(&snapshot).unwrap(),
+    );
+    snapshot.boot_id = "00000000-0000-0000-0000-000000000001".into();
+    snapshot.records[0].status.operation_seq += 1;
+    private_orphan(
+        &path,
+        ".state-123-201",
+        &serde_json::to_vec(&snapshot).unwrap(),
+    );
+    snapshot.records[0].status.operation_seq = 0;
+    snapshot.records[0].spec.identity.home_session_id = "unknown-session".into();
+    snapshot.records[0].status.identity = snapshot.records[0].spec.identity.clone();
+    private_orphan(
+        &path,
+        ".state-123-202",
+        &serde_json::to_vec(&snapshot).unwrap(),
+    );
+    private_orphan(&path, ".state-123-203", &original);
+    fs::hard_link(path.join(".state-123-203"), path.join("outside-hardlink")).unwrap();
+    let report = manager.cleanup_journal_orphans().unwrap();
+    assert!(report.removed.is_empty());
+    for name in [
+        ".state-123-200",
+        ".state-123-201",
+        ".state-123-202",
+        ".state-123-203",
+    ] {
+        assert!(path.join(name).is_file());
+        assert!(report.retained.contains(&name.to_owned()));
+    }
+    assert_eq!(fs::read(path.join("state.json")).unwrap(), original);
+}
+
+#[test]
+fn orphan_cleanup_never_precedes_fresh_physical_observation() {
+    let (_dir, path, spy) = fixture();
+    let workspace = spec("session-a");
+    let manager = new_manager(&path, spy.clone());
+    manager.register(workspace.clone()).unwrap();
+    let original = fs::read(path.join("state.json")).unwrap();
+    private_orphan(&path, ".state-123-300", &original);
+    spy.kernel.lock().unwrap().mounted = Some(MountIdentity {
+        mount_id: 45,
+        unique_mount_id: 9000,
+        namespace: workspace.identity.namespace,
+        source: workspace.source,
+        covered_target: workspace.target,
+    });
+    assert_eq!(
+        manager
+            .cleanup_journal_orphans()
+            .unwrap_err()
+            .raw_os_error(),
+        Some(libc::ESTALE)
+    );
+    assert!(path.join(".state-123-300").exists());
+    assert_eq!(fs::read(path.join("state.json")).unwrap(), original);
+}
+
+#[test]
+fn orphan_directory_scan_is_bounded_before_any_removal() {
+    let (_dir, path, spy) = fixture();
+    let manager = new_manager(&path, spy.clone());
+    manager.register(spec("session-a")).unwrap();
+    let original = fs::read(path.join("state.json")).unwrap();
+    private_orphan(&path, ".state-123-400", &original);
+    for index in 0..256 {
+        private_orphan(&path, &format!("note-{index}"), b"preserve");
+    }
+    assert_eq!(
+        manager
+            .cleanup_journal_orphans()
+            .unwrap_err()
+            .raw_os_error(),
+        Some(libc::ENOSPC)
+    );
+    assert!(path.join(".state-123-400").exists());
+    assert_eq!(fs::read(path.join("state.json")).unwrap(), original);
+}
+
+#[test]
+fn orphan_unlink_directory_sync_failure_requires_reopen() {
+    use std::os::unix::fs::OpenOptionsExt;
+    let (_dir, path, spy) = fixture();
+    let workspace = spec("session-a");
+    let namespace = workspace.identity.namespace;
+    let journal = MountJournal::open(
+        File::open(&path).unwrap(),
+        "00000000-0000-0000-0000-000000000001",
+        namespace,
+        8,
+    )
+    .unwrap();
+    private_orphan(
+        &path,
+        ".state-123-500",
+        &serde_json::to_vec(&journal.load().unwrap()).unwrap(),
+    );
+    drop(journal);
+    // O_PATH supports fd-relative lookup/unlink but cannot be fsynced. There
+    // are no roots here, so no unverified recovered record may be admitted.
+    let descriptor = fs::OpenOptions::new()
+        .read(true)
+        .custom_flags(libc::O_PATH | libc::O_DIRECTORY)
+        .open(&path)
+        .unwrap();
+    let journal = MountJournal::open(
+        descriptor,
+        "00000000-0000-0000-0000-000000000001",
+        namespace,
+        8,
+    )
+    .unwrap();
+    let manager = NativeMountManager::with_journal(namespace, 8, spy.clone(), journal).unwrap();
+    assert_eq!(
+        manager
+            .cleanup_journal_orphans()
+            .unwrap_err()
+            .raw_os_error(),
+        Some(libc::EBADF)
+    );
+    assert!(!path.join(".state-123-500").exists());
+    assert_eq!(
+        manager
+            .cleanup_journal_orphans()
+            .unwrap_err()
+            .raw_os_error(),
+        Some(libc::EIO)
+    );
+    assert_eq!(
+        manager
+            .register(workspace.clone())
+            .unwrap_err()
+            .raw_os_error(),
+        Some(libc::EIO)
+    );
+    assert_eq!(spy.kernel.lock().unwrap().binds, 0);
+    drop(manager);
+    let reopened = new_manager(&path, spy);
+    reopened.register(workspace).unwrap();
+    assert!(
+        reopened
+            .cleanup_journal_orphans()
+            .unwrap()
+            .removed
+            .is_empty()
+    );
+}
+
+#[test]
+fn duplicate_registration_rejects_global_uncertain_journal() {
+    let (_dir, path, spy) = fixture();
+    let workspace = spec("session-a");
+    let manager = new_manager(&path, spy.clone());
+    manager.register(workspace.clone()).unwrap();
+    // Fail rename after a temp has been written/fsynced, independently of UID.
+    // The failure belongs to a different root: the old record itself has not
+    // seen a persistence error, but its duplicate ACK must check journal health.
+    fs::rename(path.join("state.json"), path.join("saved-state")).unwrap();
+    fs::create_dir(path.join("state.json")).unwrap();
+    let mut other = workspace.clone();
+    other.identity.root_id = "agent2".into();
+    assert!(manager.register(other).is_err());
+    assert_eq!(
+        manager
+            .register(workspace.clone())
+            .unwrap_err()
+            .raw_os_error(),
+        Some(libc::EIO)
+    );
+    assert_eq!(spy.kernel.lock().unwrap().binds, 0);
+    drop(manager);
+    fs::remove_dir(path.join("state.json")).unwrap();
+    fs::rename(path.join("saved-state"), path.join("state.json")).unwrap();
+    let restored = new_manager(&path, spy);
+    restored.reconcile(&workspace).unwrap();
+    assert_eq!(
+        restored.register(workspace).unwrap().state,
+        NativeState::FuseReady
+    );
+}

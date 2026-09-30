@@ -10,7 +10,7 @@ mod linux;
 mod manager;
 mod mountinfo;
 
-pub use journal::{JournalRecord, JournalSnapshot, MountJournal};
+pub use journal::{JournalRecord, JournalSnapshot, MountJournal, OrphanMaintenance};
 pub use linux::{LinuxMountBackend, MountPolicy};
 pub use manager::{MountBackend, NativeMountManager};
 pub use mountinfo::MountInfo;

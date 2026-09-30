@@ -28,7 +28,7 @@
 1. An old asynchronous operation arrives after cancellation or same-name/epoch change: reject it without touching the newer root.
 2. Target has stacked/foreign mount, symlink replacement or wrong namespace: refuse mount/unmount; never claim native readiness from path text alone.
 3. Native write after old FUSE fd open, rename/unlink/replacement, or held mmap: content and object identity must not become stale or rebound by path.
-4. Native fcntl/flock competes with local/remote FUSE; close, cancellation and dead peers: use the Home kernel inode and retain precise owner/waiter lifetime.
+4. Native fcntl/flock competes with local/remote FUSE; close, cancellation and dead peers: use the Home kernel inode and retain precise owner/waiter lifetime, including same-process native/old-FUSE lock conversion and unlock.
 5. Mount/fencing/persistence failure, retained cwd/dirfd/mmap, Node death and restart: retain recoverable identity/state and forbid premature deletion/reuse.
 
 ## Task 1: mount identity and lifecycle controller
@@ -68,7 +68,7 @@ Files: modify narrow hooks in `src/config.rs`, `src/node.rs`, `src/node/fuse.rs`
 
 Files: new OwnerFs-native lock mechanism where possible; narrow integration in OwnerFs and peer contracts, avoiding shared DFS lock behavior changes. Extend existing metadata interfaces only for proven missing operations.
 
-- [ ] Add RED actual-native-versus-FUSE/peer fcntl/flock tests with native/native controls; cover range replacement, read/write locks, fork/dup/close, cancel before/after grant, long waits and peer cleanup.
+- [ ] Add RED actual-native-versus-FUSE/peer fcntl/flock tests with native/native controls; cover range replacement, read/write locks, fork/dup/close, cancel before/after grant, long waits and peer cleanup, plus same-process native/old-local-FUSE owner conversion and unlock.
 - [ ] Implement Home kernel-inode arbitration while preserving POSIX process ownership, flock open-description ownership, waiter identity, errno and cancellation. A separate user-space lock table alone cannot pass this task.
 - [ ] Add RED native/transition/remote differential operations: append/EXCL, truncate, hardlink/symlink, chmod/chown/umask/SGID/sticky, xattr/time, rename/unlink/replacement with old handles, directory enumeration and sync.
 - [ ] Implement required gaps and verify mmap MAP_SHARED/MAP_PRIVATE/msync/fsync/close behavior under the accepted contract. Do not add unsupported exclusions after observing failure.
@@ -118,3 +118,7 @@ Files: new OwnerFs-native lock mechanism where possible; narrow integration in O
 - Ruling: `release_prepared` releases only absent, unclaimed, identity-matched pins; it never unmounts, revokes authority or deletes backing. Cost: unresolved externally removed claims remain blocked until verified recovery or supervisory teardown, and Node lifecycle still must connect this API.
 - Pending question: may native mode require capability-detected Linux6.9+ FUSE passthrough in a separate feature environment while older kernels retain ordinary FUSE? The existing6.8/formal lane is untouched. No passthrough implementation or semantics PASS follows from source support alone.
 - Remaining: Node opt-in/event/helper/supervisor, cache/locks/P2P/permissions integration, orphan maintenance, daemon/namespace/boot-loss recovery, authority/Agent fencing and all performance work. Durability and proposed platform contract decisions remain pending.
+
+- 2026-10-01 maintenance checkpoint:38 unit/transaction passes and12 actual VM/portable passes. Bounded same-identity orphan cleanup has fresh export checks and an unlink/directory-fsync uncertainty barrier. Foreign/future/unknown files remain evidence; no source data is deleted. Node/boot-loss lifecycle integration is still pending.
+- RED/GREEN: another root's journal rename failure left an existing root's duplicate registration returning stale success. Duplicate ACK now checks global journal health and rejects EIO until reopen; the reproduction and recovery control are retained.
+- Design rejection observed on VM: native same-process POSIX downgrade succeeds, but a helper inheriting its fd and supplying its PID or using an OFD lock gets EAGAIN. Do not implement the naive proxy and claim full owner semantics. Passthrough I/O/mmap is not evidence that POSIX/flock delegation is solved. The tracked counterprobe and required owner case remain Task4 inputs.

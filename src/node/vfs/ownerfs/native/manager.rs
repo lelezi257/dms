@@ -211,6 +211,7 @@ impl<D: MountBackend> NativeMountManager<D> {
             if old.persist_failed {
                 return Err(errno(libc::EIO));
             }
+            self.journal_healthy(&mut old)?;
             return Ok(old.status.clone());
         }
         self.mutable(&mut old)?;
@@ -474,6 +475,36 @@ impl<D: MountBackend> NativeMountManager<D> {
             Err(error) => self.reject(&mut record, NativeState::Recovering, error),
         }
     }
+    /// Explicit private-journal maintenance after all roots are reconciled.
+    /// Keep registration and root mutations serialized throughout observation
+    /// and removal. Files of uncertain origin/state are retained, not promoted.
+    pub fn cleanup_journal_orphans(&self) -> io::Result<super::OrphanMaintenance> {
+        let journal = self.journal.as_ref().ok_or_else(|| errno(libc::ENOTSUP))?;
+        let records = lock(&self.records)?;
+        let shared: Vec<_> = records.values().cloned().collect();
+        let mut guarded = shared
+            .iter()
+            .map(|record| lock(record))
+            .collect::<io::Result<Vec<_>>>()?;
+        for record in &mut guarded {
+            self.mutable(record)?;
+            if matches!(
+                record.status.state,
+                NativeState::Recovering | NativeState::Mounting | NativeState::Unmounting
+            ) {
+                return Err(errno(libc::ESTALE));
+            }
+            let actual = self.backend.inspect(&record.spec)?;
+            if actual != record.status.observed || actual != record.owned_mount {
+                return Err(errno(libc::ESTALE));
+            }
+        }
+        let result = lock(journal)?.cleanup_orphans();
+        drop(guarded);
+        drop(records);
+        result
+    }
+
     pub fn status(&self, root_id: &str) -> io::Result<Option<NativeStatus>> {
         let record = lock(&self.records)?.get(root_id).cloned();
         record.map(|r| Ok(lock(&r)?.status.clone())).transpose()
@@ -485,6 +516,9 @@ impl<D: MountBackend> NativeMountManager<D> {
         if record.recovery_from.is_some() {
             return Err(errno(libc::ESTALE));
         }
+        self.journal_healthy(record)
+    }
+    fn journal_healthy(&self, record: &mut Record) -> io::Result<()> {
         if let Some(journal) = &self.journal
             && let Err(error) = lock(journal)?.load()
         {

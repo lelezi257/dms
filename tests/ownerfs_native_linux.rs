@@ -800,3 +800,63 @@ sys.stdin.buffer.read(1)
         );
     }
 }
+
+#[test]
+#[ignore = "requires CAP_SYS_ADMIN, private VM namespace, ext4 and Linux >= 6.8"]
+fn privileged_journal_maintenance_preserves_active_export_and_data() {
+    use afs::node::vfs::ownerfs::native::MountJournal;
+    use std::io::Write;
+    use std::os::unix::fs::OpenOptionsExt;
+    assert_eq!(
+        std::env::var("AFS_NATIVE_PRIVATE_NAMESPACE").as_deref(),
+        Ok("1")
+    );
+    let dir = tempfile::tempdir().unwrap();
+    let (backend, spec) = setup(&dir);
+    fs::write(dir.path().join("source/file"), b"backing retained").unwrap();
+    let journal_path = dir.path().join("journal");
+    fs::create_dir(&journal_path).unwrap();
+    let boot = fs::read_to_string("/proc/sys/kernel/random/boot_id").unwrap();
+    let journal = MountJournal::open(
+        File::open(&journal_path).unwrap(),
+        boot.trim(),
+        spec.identity.namespace,
+        8,
+    )
+    .unwrap();
+    let manager =
+        NativeMountManager::with_journal(spec.identity.namespace, 8, backend, journal).unwrap();
+    manager.register(spec.clone()).unwrap();
+    let active = manager.activate(&spec.identity).unwrap();
+    let state_before = fs::read(journal_path.join("state.json")).unwrap();
+    let orphan = journal_path.join(".state-123-1000");
+    let mut file = fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .mode(0o600)
+        .open(&orphan)
+        .unwrap();
+    file.write_all(&state_before).unwrap();
+    drop(file);
+    let report = manager.cleanup_journal_orphans().unwrap();
+    assert_eq!(report.removed, vec![".state-123-1000"]);
+    assert!(!orphan.exists());
+    assert_eq!(
+        manager.activate(&spec.identity).unwrap().observed,
+        active.observed
+    );
+    assert_eq!(
+        fs::read(journal_path.join("state.json")).unwrap(),
+        state_before
+    );
+    assert_eq!(
+        fs::read(dir.path().join("parent/agent1/file")).unwrap(),
+        b"backing retained"
+    );
+    manager.quiesce(&spec.identity).unwrap();
+    manager.detach(&spec.identity).unwrap();
+    assert_eq!(
+        fs::read(dir.path().join("source/file")).unwrap(),
+        b"backing retained"
+    );
+}

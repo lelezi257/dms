@@ -13,7 +13,16 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
+mod maintenance;
+
 const MAX_BYTES: usize = 1024 * 1024;
+
+/// Maintenance touches only recognized private journal temporaries, never data.
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct OrphanMaintenance {
+    pub removed: Vec<String>,
+    pub retained: Vec<String>,
+}
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -106,6 +115,12 @@ impl MountJournal {
             capacity,
             uncertain: false,
         })
+    }
+
+    // Only the controller may call this after fresh physical reconciliation;
+    // a stored snapshot alone is not current ownership/admission evidence.
+    pub(super) fn cleanup_orphans(&mut self) -> io::Result<OrphanMaintenance> {
+        maintenance::cleanup(self)
     }
 
     pub fn load(&self) -> io::Result<JournalSnapshot> {

@@ -48,6 +48,43 @@ impl Channel {
         }
     }
 
+    /// AFS process teardown wakeup. The socket belongs to this session, so it
+    /// cannot stop another mount or close a reused FUSE descriptor.
+    pub(crate) fn receive_until_stop(
+        &self,
+        buffer: &mut [u8],
+        stop: &std::os::unix::net::UnixStream,
+    ) -> io::Result<Option<usize>> {
+        let mut fds = [
+            libc::pollfd {
+                fd: self.0.as_raw_fd(),
+                events: libc::POLLIN,
+                revents: 0,
+            },
+            libc::pollfd {
+                fd: stop.as_raw_fd(),
+                events: libc::POLLIN,
+                revents: 0,
+            },
+        ];
+        loop {
+            let result = unsafe { libc::poll(fds.as_mut_ptr(), fds.len() as libc::nfds_t, -1) };
+            if result < 0 {
+                let error = io::Error::last_os_error();
+                if error.kind() == io::ErrorKind::Interrupted {
+                    continue;
+                }
+                return Err(error);
+            }
+            if fds[1].revents != 0 {
+                return Ok(None);
+            }
+            if fds[0].revents != 0 {
+                return self.receive(buffer).map(Some);
+            }
+        }
+    }
+
     /// Returns a sender object for this channel. The sender object can be
     /// used to send to the channel. Multiple sender objects can be used
     /// and they can safely be sent to other threads.

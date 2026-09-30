@@ -1,0 +1,74 @@
+{
+  "status": "FAIL",
+  "events": [
+    {
+      "environment": {
+        "platform": "Linux-6.8.0-142-generic-aarch64-with-glibc2.39",
+        "boot_id": "36a572e0-859b-4a94-adc7-789210a83fc8",
+        "filesystem": {
+          "fstype": "ext4",
+          "source": "/dev/vdb1",
+          "target": "/mnt/lima-afsadata"
+        },
+        "config_sha256": {
+          "node": "89d66d2e7f69c89dc32cc62e436e56f8cace3cf09314c5e32f71cbfaffdf4a59",
+          "meta": "ca2b63c419a2d671e95720b617c6961490b651f7a0745474a46d67ceb526a6a2"
+        }
+      }
+    },
+    {
+      "meta": {
+        "pid": 707208,
+        "sha256": "f96b6a06047da02bf186ea8d89457ee74c454d6c437915f5c32a20a9b909f312",
+        "start_ticks": "6085455"
+      },
+      "node": {
+        "pid": 707212,
+        "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+        "start_ticks": "6085457"
+      }
+    },
+    {
+      "normal_stop": {
+        "status": 0,
+        "elapsed_ms": 31.777618001797237,
+        "old_fd_close": {
+          "errno": 107
+        }
+      }
+    },
+    {
+      "normal_restart": {
+        "pid": 707247,
+        "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+        "start_ticks": "6085500"
+      },
+      "dirty_drain_readback": "61636365707465642d6469727479"
+    },
+    {
+      "fault": {
+        "signal": "SIGSTOP",
+        "meta": {
+          "pid": 707208,
+          "sha256": "f96b6a06047da02bf186ea8d89457ee74c454d6c437915f5c32a20a9b909f312",
+          "start_ticks": "6085455"
+        },
+        "state": "T",
+        "node": {
+          "pid": 707247,
+          "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+          "start_ticks": "6085500"
+        }
+      }
+    },
+    {
+      "forced_stop": {
+        "status": 1,
+        "elapsed_ms": 5024.961562005046,
+        "old_fd_close": {
+          "errno": 107
+        }
+      }
+    }
+  ]
+}

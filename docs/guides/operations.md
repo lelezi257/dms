@@ -32,6 +32,14 @@ Backend and TLS options stay in TOML and are passed directly to `afs-meta` or `a
 
 Run OwnerFs and DFS as separate mounts. Each mount has its own FUSE session, inode table, handle table and cache policy.
 
+## Node Stop
+
+Stop prevents new FUSE admission, waits for accepted callbacks, closes lock sessions and drains dirty DFS data before releasing process resources. An application fd cannot remain usable after its Node exits. Applications must complete their required sync barriers before requesting shutdown; a failed shutdown does not acknowledge outstanding writes.
+
+The production Node uses one15-second shutdown deadline across service teardown, FUSE join, dirty drain, blocking runtime workers and observability cleanup. A completed shutdown error returns nonzero immediately. Expiry exits124 and is a forced failure, not a successful drain or cancellation of physical I/O. `services.stopped` marks service-task completion only; it does not establish that Node data and process cleanup have finished. Preserve the exit status and error records when diagnosing a stop.
+
+The [implementation status](../status.md) records which controller and lifecycle matrices are qualified. A controller observing that a PID disappeared cannot infer that the process exited cleanly.
+
 ## Meta
 
 The first-stage deployment runs one Meta process per filesystem. Stop and confirm termination of the old process before restarting it; do not run independent Meta instances against the same filesystem backend. The installer checks its own deployment's PID and port use. Meta election, automatic failover and fencing between instances require the separate [high-availability TODO](../acceptance.md#10-第一阶段验收后-todo).

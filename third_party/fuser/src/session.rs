@@ -143,6 +143,10 @@ impl<FS: Filesystem> Session<FS> {
     /// having multiple buffers (which take up much memory), but the filesystem methods
     /// may run concurrent by spawning threads.
     pub fn run(&mut self) -> io::Result<()> {
+        self.run_until_stop(None)
+    }
+
+    fn run_until_stop(&mut self, stop: Option<&std::os::unix::net::UnixStream>) -> io::Result<()> {
         // Buffer for receiving requests from the kernel. Only one is allocated and
         // it is reused immediately after dispatching to conserve memory and allocations.
         let mut buffer = vec![0; BUFFER_SIZE];
@@ -153,7 +157,15 @@ impl<FS: Filesystem> Session<FS> {
         loop {
             // Read the next request from the given channel to kernel driver
             // The kernel driver makes sure that we get exactly one request per read
-            match self.ch.receive(buf) {
+            let received = match stop {
+                Some(stop) => match self.ch.receive_until_stop(buf, stop) {
+                    Ok(Some(size)) => Ok(size),
+                    Ok(None) => break,
+                    Err(error) => Err(error),
+                },
+                None => self.ch.receive(buf),
+            };
+            match received {
                 Ok(size) => match Request::new(self.ch.sender(), &buf[..size]) {
                     // Dispatch request
                     Some(req) => req.dispatch(self),
@@ -246,6 +258,7 @@ pub struct BackgroundSession {
     sender: ChannelSender,
     /// Ensures the filesystem is unmounted when the session ends
     _mount: Option<Mount>,
+    stop: std::os::unix::net::UnixStream,
 }
 
 impl BackgroundSession {
@@ -256,14 +269,16 @@ impl BackgroundSession {
         let sender = se.ch.sender();
         // Take the fuse_session, so that we can unmount it
         let mount = std::mem::take(&mut *se.mount.lock().unwrap()).map(|(_, mount)| mount);
+        let (stop, receiver) = std::os::unix::net::UnixStream::pair()?;
         let guard = thread::spawn(move || {
             let mut se = se;
-            se.run()
+            se.run_until_stop(Some(&receiver))
         });
         Ok(BackgroundSession {
             guard,
             sender,
             _mount: mount,
+            stop,
         })
     }
     /// Unmount the filesystem and join the background thread.
@@ -272,7 +287,10 @@ impl BackgroundSession {
             guard,
             sender: _,
             _mount,
+            mut stop,
         } = self;
+        use std::io::Write;
+        let _ = stop.write_all(&[1]);
         drop(_mount);
         guard.join().unwrap().unwrap();
     }

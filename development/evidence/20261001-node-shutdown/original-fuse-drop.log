@@ -1,0 +1,21 @@
+bash: line 1: cd: /Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/source: No such file or directory
+bash: line 1: cd: /Users/lzc: No such file or directory
+   Compiling afs v0.1.0 (/home/lzc.guest/afs-build/work/root-merged-v46)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 17.97s
+     Running unittests src/lib.rs (/home/lzc.guest/afs-build/target/debug/deps/afs-586e1b701367e588)
+
+running 1 test
+
+thread 'node::fuse::dispatch_tests::dropping_fuse_dispatch_waits_for_admitted_jobs' (368741) panicked at src/node/fuse.rs:1954:9:
+dispatch teardown returned while accepted write remained active
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test node::fuse::dispatch_tests::dropping_fuse_dispatch_waits_for_admitted_jobs ... FAILED
+
+failures:
+
+failures:
+    node::fuse::dispatch_tests::dropping_fuse_dispatch_waits_for_admitted_jobs
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 344 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `--lib`

@@ -25,7 +25,11 @@ The [delivery acceptance contract](acceptance.md) requires JuiceFS default same-
 
 ## Current Validation Checkpoint
 
-Candidate v45 passes the coherent Linux gate:337 library tests (two explicit environmental ignores),57 interface contracts,four shared-error tests,nine local API tests,five privileged actual FUSE tests,formatting,strict Clippy,feature checks and binary build. All143 compile inputs match. [Owner restart evidence](../development/evidence/20261001-owner-recovery/README.md) preserves two failing original-behavior regressions, the original v44 runtime failure and the repaired source/runtime proof.
+Candidate v48 passes the coherent Linux gate:343 library tests (two explicit environmental ignores),57 interface contracts,four shared-error tests,nine local API tests,five privileged actual FUSE tests,formatting,strict Clippy,feature checks and binary build. All143 compile inputs match. [Shutdown evidence](../development/evidence/20261001-node-shutdown/README.md) retains three original-behavior regression failures, the v47 real healthy-stop failure and the corrected v48 runtime proof.
+
+An isolated v48 Node with an open writable fd stops normally and its first restart read contains all14 accepted bytes. With verified paused Meta, dirty drain returns an explicit timeout and exit1 in5.032s; after resuming the same memory Meta, first reads retain the acknowledged four-byte head and the earlier14-byte watermark. Separate child-process regressions prove the native deadline exits124 during blocked Tokio runtime destruction. The15-second guard covers production Node teardown; background pass candidate/RPC budgets and controller exit-status propagation remain open. The existing A/B v45 runtime is unchanged; its consistency and lock checks do not qualify v48.
+
+Earlier v45 passes337 library tests with the same contract/error/local-API/FUSE counts. [Owner restart evidence](../development/evidence/20261001-owner-recovery/README.md) preserves two failing original-behavior regressions, the original v44 runtime failure and the repaired source/runtime proof.
 
 Actual A/B v45 memory-backed mounts pass a64MiB R1 owner Node SIGKILL slice: Meta stays live; the same Node binary/config/disk restarts without manual socket removal; the first fresh B read matches length and SHA256. B close during owner unavailability returns explicit EIO. One observed queued old-session cleanup retires after replacement and before its original expiry. Source/receiver grant validation derives the new serving epoch without modifying the durable receipt. This does not prove Meta restart durability, disk loss or the complete lifecycle fault matrix.
 
@@ -43,7 +47,7 @@ The formal 69-case release manifest remains NOT_RUN and the environment lock PRE
 
 ## Known Open Items
 
-- Complete the wider owner-open ACK-loss, remote cleanup/resource and network-fault matrix, and a total dirty-writeback/shutdown budget. Bounded cleanup passes do not qualify complete Node shutdown.
+- Complete the wider owner-open ACK-loss, remote cleanup/resource and network-fault matrix, cooperative whole-writeback-pass budgets, controller stop-status propagation and complete shutdown matrices. The native process deadline reports forced failure; it does not prove every worker cooperatively stops.
 - Complete the distributed-lock resource and long-run lifecycle matrix. Short actual A/B contention, cancellation, delayed waits and close/session checks have evidence; capacity and exact retired identity still require sustained product validation.
 - Run full applicable POSIX matrices for the current candidate and required backend variants without adding exclusions; complete remote-owner consistency, permissions, namespace, mmap, xattr, ACL and directory durability coverage.
 - Complete cross-node DFS file-operation and lock authority, stale owner rejection and uncertain-result fault verification; preserve exact pending identity and inode serialization.

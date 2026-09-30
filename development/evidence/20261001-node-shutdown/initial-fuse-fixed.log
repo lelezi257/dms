@@ -1,0 +1,42 @@
+bash: line 1: cd: /Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store: No such file or directory
+bash: line 1: cd: /Users/lzc: No such file or directory
+   Compiling afs v0.1.0 (/home/lzc.guest/afs-build/work/root-merged-v46)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 17.75s
+     Running unittests src/lib.rs (/home/lzc.guest/afs-build/target/debug/deps/afs-586e1b701367e588)
+
+running 1 test
+test node::fuse::dispatch_tests::dropping_fuse_dispatch_waits_for_admitted_jobs ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 344 filtered out; finished in 0.10s
+
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.06s
+     Running unittests src/lib.rs (/home/lzc.guest/afs-build/target/debug/deps/afs-586e1b701367e588)
+
+running 3 tests
+test runtime::shutdown_deadline_tests::shutdown_deadline_child ... ok
+
+running 1 test
+
+running 1 test
+test runtime::shutdown_deadline_tests::shutdown_deadline_forces_failure_even_during_runtime_drop ... ok
+test runtime::shutdown_deadline_tests::shutdown_deadline_child ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 344 filtered out; finished in 0.26s
+
+test runtime::shutdown_deadline_tests::shutdown_deadline_completion_disarms_process_failure ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 342 filtered out; finished in 0.27s
+
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.07s
+     Running unittests src/lib.rs (/home/lzc.guest/afs-build/target/debug/deps/afs-586e1b701367e588)
+
+running 2 tests
+test node::vfs::dfs::tests::background_writeback_skips_active_commit_and_preserves_exact_request ... ok
+test node::vfs::dfs::tests::background_writeback_does_not_hold_table_behind_locked_inode ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 343 filtered out; finished in 0.07s
+
+    Checking fuser v0.16.0 (/home/lzc.guest/afs-build/work/root-merged-v46/third_party/fuser)
+    Checking afs-transport v0.1.0 (/home/lzc.guest/afs-build/work/root-merged-v46/common/transport)
+    Checking afs v0.1.0 (/home/lzc.guest/afs-build/work/root-merged-v46)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 2.87s

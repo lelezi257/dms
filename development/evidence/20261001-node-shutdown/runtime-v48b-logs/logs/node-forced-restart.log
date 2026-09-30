@@ -1,0 +1,6 @@
+{"msg":"Mounting /mnt/lima-afsadata/afs-delivery/p2-shutdown-v48b/mount-ownerfs","level":"INFO","ts":"2026-09-30T22:01:15.442812572Z","instance":"memory-node-a","service_name":"afs-node"}
+{"msg":"Mounting /mnt/lima-afsadata/afs-delivery/p2-shutdown-v48b/mount-dfs","level":"INFO","ts":"2026-09-30T22:01:15.444416928Z","instance":"memory-node-a","service_name":"afs-node"}
+{"msg":"node.ready","level":"INFO","ts":"2026-09-30T22:01:15.449306786Z","instance":"memory-node-a","service_name":"afs-node","dfs":true,"ownerfs":true,"uds":"/mnt/lima-afsadata/afs-delivery/p2-shutdown-v48b/run/node.sock","rest":"0.0.0.0:17983","grpc":"0.0.0.0:17982"}
+{"msg":"[Not Implemented] ioctl(ino: 0x2, fh: 1, flags: 0, cmd: 21505, in_data.len(): 0, out_size: 0)","level":"WARN","ts":"2026-09-30T22:01:15.464763307Z","instance":"memory-node-a","service_name":"afs-node"}
+{"msg":"[Not Implemented] ioctl(ino: 0x3, fh: 2, flags: 0, cmd: 21505, in_data.len(): 0, out_size: 0)","level":"WARN","ts":"2026-09-30T22:01:15.470709319Z","instance":"memory-node-a","service_name":"afs-node"}
+{"msg":"services.stopped","level":"INFO","ts":"2026-09-30T22:01:15.61142562Z","instance":"memory-node-a","service_name":"afs-node"}

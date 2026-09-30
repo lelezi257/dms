@@ -11,6 +11,85 @@ use std::{future::Future, time::Duration};
 use tokio::{sync::watch, task::JoinSet};
 pub type BoxError = Box<dyn std::error::Error + Send + Sync>;
 pub type ServiceResult = Result<(), BoxError>;
+
+/// Covers service drain, FUSE cleanup, runtime destruction and observability
+/// teardown. It does not cancel a blocking syscall or an uncertain commit.
+/// The process is terminated with a failure status if graceful stop cannot
+/// complete; crash recovery then uses only acknowledged durability barriers.
+pub struct ShutdownDeadline {
+    trigger: ShutdownTrigger,
+    worker: std::thread::JoinHandle<()>,
+}
+
+#[derive(Clone)]
+pub struct ShutdownTrigger {
+    sender: std::sync::mpsc::Sender<ShutdownMessage>,
+    armed: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    budget: Duration,
+}
+
+enum ShutdownMessage {
+    Arm(std::time::Instant),
+    Complete,
+}
+
+impl ShutdownDeadline {
+    pub fn new(budget: Duration) -> std::io::Result<Self> {
+        let (sender, receiver) = std::sync::mpsc::channel();
+        let worker = std::thread::Builder::new()
+            .name("afs-shutdown-deadline".into())
+            .spawn(move || {
+                let deadline = match receiver.recv() {
+                    Ok(ShutdownMessage::Arm(deadline)) => deadline,
+                    Ok(ShutdownMessage::Complete) | Err(_) => return,
+                };
+                loop {
+                    match receiver
+                        .recv_timeout(deadline.saturating_duration_since(std::time::Instant::now()))
+                    {
+                        Ok(ShutdownMessage::Complete) => return,
+                        // Repeated signals cannot extend the original deadline.
+                        Ok(ShutdownMessage::Arm(_)) => {}
+                        Err(_) => {
+                            // No logging/disk flush on this thread: either could
+                            // block at the boundary this guard must enforce.
+                            // Exit 124 is deliberately not a clean-stop status.
+                            std::process::exit(124);
+                        }
+                    }
+                }
+            })?;
+        Ok(Self {
+            trigger: ShutdownTrigger {
+                sender,
+                armed: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
+                budget,
+            },
+            worker,
+        })
+    }
+
+    pub fn trigger(&self) -> ShutdownTrigger {
+        self.trigger.clone()
+    }
+
+    /// Call only after all process-owned resources, including the Tokio
+    /// runtime and logging guards, have completed their teardown.
+    pub fn complete(self) {
+        let _ = self.trigger.sender.send(ShutdownMessage::Complete);
+        let _ = self.worker.join();
+    }
+}
+
+impl ShutdownTrigger {
+    pub fn arm(&self) {
+        if !self.armed.swap(true, std::sync::atomic::Ordering::AcqRel) {
+            let _ = self.sender.send(ShutdownMessage::Arm(
+                std::time::Instant::now() + self.budget,
+            ));
+        }
+    }
+}
 #[derive(Clone)]
 /// 每进程独立的指标注册表和基础请求计数；不把文件路径等高基数字段当指标标签。
 pub struct Observability {
@@ -93,7 +172,11 @@ impl Services {
     }
     /// 等待 SIGINT/SIGTERM 或服务退出，然后广播停止并限时排空。
     /// 超时会中止异步任务并返回错误；不把强制退出报告成正常关闭。
-    pub async fn run(mut self) -> ServiceResult {
+    pub async fn run(self) -> ServiceResult {
+        self.run_with_shutdown(|| {}).await
+    }
+
+    pub async fn run_with_shutdown(mut self, on_shutdown: impl FnOnce()) -> ServiceResult {
         let mut terminate =
             tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())?;
         let result = tokio::select! {
@@ -104,6 +187,7 @@ impl Services {
                 _=>Err(std::io::Error::other("service exited unexpectedly").into()),
             }
         };
+        on_shutdown();
         let _ = self.stop.send(true);
         let mut failure = None;
         let drained = tokio::time::timeout(Duration::from_secs(10), async {
@@ -132,7 +216,85 @@ impl Services {
         if let Some(error) = failure {
             return Err(error);
         }
-        afs_logging::info!("process.stopped");
+        afs_logging::info!("services.stopped");
         result
+    }
+}
+
+#[cfg(test)]
+mod shutdown_deadline_tests {
+    use super::*;
+
+    #[test]
+    fn shutdown_deadline_child() {
+        let Ok(mode) = std::env::var("AFS_TEST_SHUTDOWN_CHILD") else {
+            return;
+        };
+        let deadline = ShutdownDeadline::new(Duration::from_millis(150)).unwrap();
+        let trigger = deadline.trigger();
+        if mode == "complete" {
+            trigger.arm();
+            deadline.complete();
+            std::thread::sleep(Duration::from_millis(250));
+            return;
+        }
+        let executor = tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        let (started_tx, started_rx) = std::sync::mpsc::channel();
+        executor.spawn_blocking(move || {
+            started_tx.send(()).unwrap();
+            loop {
+                std::thread::park();
+            }
+        });
+        started_rx.recv_timeout(Duration::from_secs(1)).unwrap();
+        trigger.arm();
+        std::thread::sleep(Duration::from_millis(100));
+        trigger.arm();
+        // This drop waits forever without a native process deadline.
+        drop(executor);
+        panic!("blocking runtime unexpectedly finished");
+    }
+
+    fn child(mode: &str) -> (std::process::ExitStatus, Duration) {
+        let start = std::time::Instant::now();
+        let mut child = std::process::Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "runtime::shutdown_deadline_tests::shutdown_deadline_child",
+                "--nocapture",
+            ])
+            .env("AFS_TEST_SHUTDOWN_CHILD", mode)
+            .spawn()
+            .unwrap();
+        loop {
+            if let Some(status) = child.try_wait().unwrap() {
+                return (status, start.elapsed());
+            }
+            if start.elapsed() > Duration::from_secs(3) {
+                child.kill().unwrap();
+                child.wait().unwrap();
+                panic!("shutdown child failed to exit within 3s");
+            }
+            std::thread::sleep(Duration::from_millis(5));
+        }
+    }
+
+    #[test]
+    fn shutdown_deadline_forces_failure_even_during_runtime_drop() {
+        let (status, elapsed) = child("blocked");
+        assert_eq!(status.code(), Some(124));
+        assert!(elapsed < Duration::from_secs(2));
+    }
+
+    #[test]
+    fn shutdown_deadline_completion_disarms_process_failure() {
+        let (status, _) = child("complete");
+        assert!(status.success());
+        ShutdownDeadline::new(Duration::from_millis(1))
+            .unwrap()
+            .complete();
     }
 }

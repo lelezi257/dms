@@ -86,6 +86,22 @@ pub struct Node {
 
 /// 组装并持有 Node 的所有入口。启动失败清理已经建立的资源，正常退出卸载本进程挂载。
 pub async fn run(cfg: Config, obs: Observability) -> Result<(), BoxError> {
+    run_node(cfg, obs, || {}).await
+}
+
+pub async fn run_with_shutdown(
+    cfg: Config,
+    obs: Observability,
+    shutdown: crate::runtime::ShutdownTrigger,
+) -> Result<(), BoxError> {
+    run_node(cfg, obs, move || shutdown.arm()).await
+}
+
+async fn run_node(
+    cfg: Config,
+    obs: Observability,
+    on_shutdown: impl FnOnce(),
+) -> Result<(), BoxError> {
     #[cfg(feature = "ownerfs")]
     let owner_rpc_metrics = rpc::OwnerRpcMetrics::register(&obs.registry)?;
     // Bind all TCP ingress before spawning services. A failed bind cannot leave a half-ready Node.
@@ -712,7 +728,25 @@ pub async fn run(cfg: Config, obs: Observability) -> Result<(), BoxError> {
         Ok(())
     });
     afs_logging::info!("node.ready";"grpc"=>cfg.grpc_listen.to_string(),"rest"=>cfg.rest_listen.to_string(),"uds"=>cfg.uds_path.display().to_string(),"ownerfs"=>cfg.ownerfs,"dfs"=>cfg.dfs);
-    let mut shutdown_error = services.run().await.err();
+    let mut shutdown_error = services.run_with_shutdown(on_shutdown).await.err();
+    // Stop FUSE admission and observe its thread cleanup before the final dirty drain.
+    // Dropping BackgroundSession alone detaches the thread and cannot prove this boundary.
+    #[cfg(feature = "dfs")]
+    if let Some(mounted) = mounted_dfs {
+        match tokio::task::spawn_blocking(move || mounted.join()).await {
+            Ok(Ok(())) => {}
+            Ok(Err(error)) => remember_shutdown_error(&mut shutdown_error, error.into()),
+            Err(error) => remember_shutdown_error(&mut shutdown_error, error.into()),
+        }
+    }
+    #[cfg(feature = "ownerfs")]
+    if let Some(mounted) = mounted_ownerfs {
+        match tokio::task::spawn_blocking(move || mounted.join()).await {
+            Ok(Ok(())) => {}
+            Ok(Err(error)) => remember_shutdown_error(&mut shutdown_error, error.into()),
+            Err(error) => remember_shutdown_error(&mut shutdown_error, error.into()),
+        }
+    }
     #[cfg(feature = "dfs")]
     if let Some(dfs) = dfs_for_drain {
         match tokio::task::spawn_blocking(move || {
@@ -782,11 +816,6 @@ pub async fn run(cfg: Config, obs: Observability) -> Result<(), BoxError> {
             }
         }
     }
-    // BackgroundSession owns the FUSE mount. Unmount before dropping request services.
-    #[cfg(feature = "dfs")]
-    drop(mounted_dfs);
-    #[cfg(feature = "ownerfs")]
-    drop(mounted_ownerfs);
     match tokio::time::timeout(std::time::Duration::from_secs(10), local.shutdown()).await {
         Ok(Ok(())) => {}
         Ok(Err(error)) => remember_shutdown_error(&mut shutdown_error, error.into()),

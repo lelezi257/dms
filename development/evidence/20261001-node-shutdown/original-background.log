@@ -1,0 +1,27 @@
+bash: line 1: cd: /Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store: No such file or directory
+bash: line 1: cd: /Users/lzc: No such file or directory
+   Compiling fuser v0.16.0 (/home/lzc.guest/afs-build/work/root-merged-v46/third_party/fuser)
+   Compiling afs v0.1.0 (/home/lzc.guest/afs-build/work/root-merged-v46)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 19.51s
+     Running unittests src/lib.rs (/home/lzc.guest/afs-build/target/debug/deps/afs-586e1b701367e588)
+
+running 2 tests
+
+thread 'node::vfs::dfs::tests::background_writeback_skips_active_commit_and_preserves_exact_request' (368507) panicked at src/node/vfs/dfs.rs:12143:27:
+called `Result::unwrap()` on an `Err` value: Timeout
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test node::vfs::dfs::tests::background_writeback_skips_active_commit_and_preserves_exact_request ... FAILED
+
+thread 'node::vfs::dfs::tests::background_writeback_does_not_hold_table_behind_locked_inode' (368506) panicked at src/node/vfs/dfs.rs:12114:27:
+called `Result::unwrap()` on an `Err` value: Timeout
+test node::vfs::dfs::tests::background_writeback_does_not_hold_table_behind_locked_inode ... FAILED
+
+failures:
+
+failures:
+    node::vfs::dfs::tests::background_writeback_does_not_hold_table_behind_locked_inode
+    node::vfs::dfs::tests::background_writeback_skips_active_commit_and_preserves_exact_request
+
+test result: FAILED. 0 passed; 2 failed; 0 ignored; 0 measured; 339 filtered out; finished in 0.22s
+
+error: test failed, to rerun pass `--lib`

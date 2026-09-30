@@ -187,7 +187,7 @@ fn fuse_mount_binds_backend_at_mount_root() {
     std::fs::write(mount.join("hello.txt"), b"hello").unwrap();
     assert_eq!(std::fs::read(mount.join("hello.txt")).unwrap(), b"hello");
 
-    drop(session);
+    session.join().unwrap();
     let _ = std::process::Command::new("fusermount3")
         .arg("-u")
         .arg(&mount)
@@ -207,7 +207,7 @@ fn fuse_mount_does_not_invent_backend_namespace_directories() {
 
     assert!(namespace_entries(&mount).is_empty());
 
-    drop(session);
+    session.join().unwrap();
     let _ = std::process::Command::new("fusermount3")
         .arg("-u")
         .arg(&mount)
@@ -229,7 +229,7 @@ fn fuse_mount_rejects_existing_live_mount() {
     let error = fuse::mount_test_backend(second, &mount).unwrap_err();
     assert_eq!(error.kind(), afs_error::ErrorKind::AlreadyExists);
 
-    drop(session);
+    session.join().unwrap();
     let _ = std::process::Command::new("fusermount3")
         .arg("-u")
         .arg(&mount)
@@ -292,7 +292,7 @@ fn fuse_mount_dispatches_real_backend_and_preserves_open_handle_identity() {
     assert_eq!(missing.raw_os_error(), Some(libc::ENOENT));
 
     drop(old_fd);
-    drop(session);
+    session.join().unwrap();
     let _ = std::process::Command::new("fusermount3")
         .arg("-u")
         .arg(&mount)
@@ -367,7 +367,7 @@ fn fuse_ftruncate_on_same_handle_waits_for_prior_write() {
     );
 
     drop(file);
-    drop(session);
+    session.join().unwrap();
     let _ = std::process::Command::new("fusermount3")
         .arg("-u")
         .arg(&mount)

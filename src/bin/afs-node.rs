@@ -7,15 +7,28 @@ use afs::{
     runtime::{self, BoxError, Observability},
 };
 use clap::Parser;
-#[tokio::main]
-async fn main() -> Result<(), BoxError> {
+fn main() -> Result<(), BoxError> {
     let cfg = Config::resolve(Role::Node, Cli::parse())?;
     if cfg.print_config {
         println!("{}", serde_json::to_string_pretty(&cfg)?);
         return Ok(());
     }
+    // processctl's default stop wait is 20s. Leave a margin for the caller
+    // to observe failure; this single budget starts when service stop starts.
+    let deadline = runtime::ShutdownDeadline::new(std::time::Duration::from_secs(15))?;
+    let trigger = deadline.trigger();
+    let executor = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()?;
     let obs = Observability::new()?;
     // Guard 必须留到 run 返回之后，退出时才能刷新日志与导出尚未发送的 Trace。
-    let _guards = runtime::initialize(&cfg, "afs-node", &obs)?;
-    afs::node::run(cfg, obs).await
+    let guards = runtime::initialize(&cfg, "afs-node", &obs)?;
+    let result = executor.block_on(afs::node::run_with_shutdown(cfg, obs, trigger.clone()));
+    // Includes failure-path cleanup and runtime blocking workers. A running
+    // worker is still owned; returning from run does not mean it was cancelled.
+    trigger.arm();
+    drop(executor);
+    drop(guards);
+    deadline.complete();
+    result
 }

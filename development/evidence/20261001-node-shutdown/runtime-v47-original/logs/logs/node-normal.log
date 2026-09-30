@@ -1,0 +1,8 @@
+{"msg":"Mounting /mnt/lima-afsadata/afs-delivery/p2-shutdown-v47/mount-ownerfs","level":"INFO","ts":"2026-09-30T21:53:26.569259457Z","instance":"memory-node-a","service_name":"afs-node"}
+{"msg":"Mounting /mnt/lima-afsadata/afs-delivery/p2-shutdown-v47/mount-dfs","level":"INFO","ts":"2026-09-30T21:53:26.577807211Z","instance":"memory-node-a","service_name":"afs-node"}
+{"msg":"node.ready","level":"INFO","ts":"2026-09-30T21:53:26.584944506Z","instance":"memory-node-a","service_name":"afs-node","dfs":true,"ownerfs":true,"uds":"/mnt/lima-afsadata/afs-delivery/p2-shutdown-v47/run/node.sock","rest":"0.0.0.0:17983","grpc":"0.0.0.0:17982"}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-09-30T21:53:26.929183957Z","instance":"memory-node-a","service_name":"afs-node","message":"DFS dentry not found","kind":"NotFound","code":34078721}
+{"msg":"fuse.create","level":"INFO","ts":"2026-09-30T21:53:26.929214124Z","instance":"memory-node-a","service_name":"afs-node","name":"normal-drain.bin","parent":1}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-09-30T21:53:26.936471919Z","instance":"memory-node-a","service_name":"afs-node","message":"DFS currently supports only user.* xattrs","kind":"FailedPrecondition","code":67305489}
+{"msg":"process.stopped","level":"INFO","ts":"2026-09-30T21:53:26.936840211Z","instance":"memory-node-a","service_name":"afs-node"}
+{"msg":"Unmount failed: Device or resource busy (os error 16)","level":"ERRO","ts":"2026-09-30T21:53:26.936877711Z","instance":"memory-node-a","service_name":"afs-node"}

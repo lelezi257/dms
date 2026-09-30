@@ -64,7 +64,7 @@ impl Drop for Mount {
             return;
         }
         if let Err(err) = super::libc_umount(&self.mountpoint) {
-            if err.kind() == PermissionDenied {
+            if err.kind() == PermissionDenied || err.raw_os_error() == Some(libc::EBUSY) {
                 // Linux always returns EPERM for non-root users.  We have to let the
                 // library go through the setuid-root "fusermount -u" to unmount.
                 fuse_unmount_pure(&self.mountpoint)

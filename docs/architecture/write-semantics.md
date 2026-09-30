@@ -84,6 +84,12 @@ Close-time flush follows the same uncertainty rule. Application timeout or descr
 
 This rule prevents a later dirty batch from being ordered after an unknown version head. It also gives retry logic a precise idempotence key instead of relying on timeout interpretation.
 
+## Node Shutdown
+
+Shutdown closes FUSE request admission and waits for accepted callbacks before the final dirty drain. Background writeback can skip a busy inode; it cannot overtake an active commit or discard an unresolved request. The global inode table is not held while waiting for a single inode.
+
+An incomplete drain is an explicit shutdown failure. A process deadline bounds termination without converting blocked disk work or an unknown Meta result into successful cancellation. Until termination, the exact pending identity and inode ordering remain protected. Recovery resolves committed metadata and durable chunks; an ordinary unsynced write is not an acknowledged durability watermark. Applications requiring persistence must check sync/close results before shutdown.
+
 ## Definite Rejection And Metadata
 
 Timeout, transport failure and uncertain store persistence retain the exact pending request. A confirmed Meta validation or condition rejection stops this owner state from accepting further modifications; recovery must resolve the lease and committed head before writing resumes. Reopening a file is not itself owner recovery.

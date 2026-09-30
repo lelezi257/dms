@@ -53,15 +53,39 @@ const MAX_PENDING_LOCK_INTERRUPTS: usize = 4096;
 
 static NEXT_INGRESS_SESSION: AtomicU64 = AtomicU64::new(1);
 
+/// Process-owned mount with an observable backend cleanup result. Plain drop
+/// still unmounts; a clean Node stop must call join and inspect its result.
+#[derive(Debug)]
+pub struct MountedFuse {
+    session: BackgroundSession,
+    cleanup_error: Arc<Mutex<Option<Error>>>,
+}
+
+impl MountedFuse {
+    pub fn join(self) -> Result<()> {
+        let joined = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| self.session.join()));
+        let cleanup_error = self
+            .cleanup_error
+            .lock()
+            .map_err(|_| Error::from(std::io::Error::other("FUSE cleanup state is poisoned")))?
+            .take();
+        if let Some(error) = cleanup_error {
+            return Err(error);
+        }
+        joined.map_err(|_| Error::from(std::io::Error::other("FUSE session cleanup thread failed")))
+    }
+}
+
 /// 建立真正的内核 FUSE 挂载。一个 session 只绑定一个业务 Backend。
-pub fn mount_dfs(backend: Arc<dyn Backend>, path: &Path) -> Result<BackgroundSession> {
+pub fn mount_dfs(backend: Arc<dyn Backend>, path: &Path) -> Result<MountedFuse> {
     reject_existing_mount(path)?;
     let mut fs = AfsFuse::new(backend);
     // Cached write-through sends each syscall write to the inode owner and
     // keeps this mount's pages coherent. Do not enable writeback or KEEP_CACHE:
     // ordinary opens must refresh after another mount's close barrier.
     fs.cached_io = true;
-    fuser::spawn_mount2(
+    let cleanup_error = fs.cleanup_error.clone();
+    let session = fuser::spawn_mount2(
         fs,
         path,
         &[
@@ -71,15 +95,20 @@ pub fn mount_dfs(backend: Arc<dyn Backend>, path: &Path) -> Result<BackgroundSes
             MountOption::DefaultPermissions,
         ],
     )
-    .map_err(Error::from)
+    .map_err(Error::from)?;
+    Ok(MountedFuse {
+        session,
+        cleanup_error,
+    })
 }
 
 /// OwnerFs 使用相同 FUSE 实现，并额外接入其本地 Home 缓存策略与 notifier。
 #[cfg(feature = "ownerfs")]
-pub fn mount_ownerfs(ownerfs: Arc<OwnerFs>, path: &Path) -> Result<BackgroundSession> {
+pub fn mount_ownerfs(ownerfs: Arc<OwnerFs>, path: &Path) -> Result<MountedFuse> {
     reject_existing_mount(path)?;
     let mut fs = AfsFuse::new(ownerfs.clone());
     fs.ownerfs = Some(ownerfs.clone());
+    let cleanup_error = fs.cleanup_error.clone();
     let session = fuser::spawn_mount2(
         fs,
         path,
@@ -92,19 +121,27 @@ pub fn mount_ownerfs(ownerfs: Arc<OwnerFs>, path: &Path) -> Result<BackgroundSes
     )
     .map_err(Error::from)?;
     ownerfs.register_fuse_notifier(session.notifier());
-    Ok(session)
+    Ok(MountedFuse {
+        session,
+        cleanup_error,
+    })
 }
 
 #[doc(hidden)]
-pub fn mount_test_backend(backend: Arc<dyn Backend>, path: &Path) -> Result<BackgroundSession> {
+pub fn mount_test_backend(backend: Arc<dyn Backend>, path: &Path) -> Result<MountedFuse> {
     reject_existing_mount(path)?;
     let fs = AfsFuse::new(backend);
-    fuser::spawn_mount2(
+    let cleanup_error = fs.cleanup_error.clone();
+    let session = fuser::spawn_mount2(
         fs,
         path,
         &[MountOption::FSName("afs-test".into()), MountOption::NoAtime],
     )
-    .map_err(Error::from)
+    .map_err(Error::from)?;
+    Ok(MountedFuse {
+        session,
+        cleanup_error,
+    })
 }
 
 fn reject_existing_mount(path: &Path) -> Result<()> {
@@ -303,13 +340,23 @@ impl FuseDispatch {
         queue.ready.push_back((None, job()));
         wake.notify_one();
     }
+
+    fn close_and_drain(&self) {
+        let (queue, wake) = &*self.shared;
+        let mut state = queue.lock().unwrap();
+        state.closed = true;
+        wake.notify_all();
+        // Workers retain ownership of accepted callbacks. Wait for their
+        // completion; the Node process deadline covers a blocked callback.
+        while state.jobs != 0 {
+            state = wake.wait(state).unwrap();
+        }
+    }
 }
 
 impl Drop for FuseDispatch {
     fn drop(&mut self) {
-        let (queue, wake) = &*self.shared;
-        queue.lock().unwrap().closed = true;
-        wake.notify_all();
+        self.close_and_drain();
     }
 }
 
@@ -364,6 +411,8 @@ pub struct AfsFuse {
     pending_locks: Arc<PendingLockRegistry>,
     ingress_session_id: String,
     lock_session_cleaned: bool,
+    callbacks_drained: bool,
+    cleanup_error: Arc<Mutex<Option<Error>>>,
     #[cfg(feature = "ownerfs")]
     ownerfs: Option<Arc<OwnerFs>>,
 }
@@ -382,6 +431,8 @@ impl AfsFuse {
             pending_locks: Arc::new(PendingLockRegistry::default()),
             ingress_session_id: next_ingress_session_id(),
             lock_session_cleaned: false,
+            callbacks_drained: false,
+            cleanup_error: Arc::new(Mutex::new(None)),
             #[cfg(feature = "ownerfs")]
             ownerfs: None,
         }
@@ -472,16 +523,36 @@ impl AfsFuse {
         }
         self.lock_session_cleaned = true;
         self.pending_locks.clear();
+        self.release_lock_session();
+    }
+
+    fn release_lock_session(&self) {
         if let Err(error) = self.backend.release_lock_session(&self.ingress_session_id) {
-            let errno = errno(error);
+            let errno = errno(error.clone());
+            self.cleanup_error.lock().unwrap().get_or_insert(error);
             afs_logging::error!("fuse.lock_session_cleanup_failed"; "errno" => errno);
         }
+    }
+
+    fn finish_callbacks(&mut self) {
+        if self.callbacks_drained {
+            return;
+        }
+        // Fence the session and cancel blocking lock waits first. OwnerFs,
+        // DFS and LockTable reject late lock acquisition for this session.
+        self.cleanup_lock_session();
+        self.dispatch.close_and_drain();
+        self.lock_dispatch.close_and_drain();
+        // Final idempotent sweep observes every accepted callback's terminal
+        // outcome before a joined mount can report successful cleanup.
+        self.release_lock_session();
+        self.callbacks_drained = true;
     }
 }
 
 impl Drop for AfsFuse {
     fn drop(&mut self) {
-        self.cleanup_lock_session();
+        self.finish_callbacks();
     }
 }
 
@@ -502,7 +573,7 @@ impl Filesystem for AfsFuse {
     }
 
     fn destroy(&mut self) {
-        self.cleanup_lock_session();
+        self.finish_callbacks();
     }
 
     fn lookup(&mut self, req: &Request<'_>, parent: u64, name: &OsStr, reply: ReplyEntry) {
@@ -1931,6 +2002,36 @@ mod dispatch_tests {
         let attr = super::file_attr(2, &attributes);
         assert_eq!(attr.size, attributes.size);
         assert_eq!(attr.blocks, 8);
+    }
+
+    #[test]
+    fn dropping_fuse_dispatch_waits_for_admitted_jobs() {
+        let dispatch = FuseDispatch::new(2);
+        let (started_tx, started_rx) = mpsc::channel();
+        let (release_tx, release_rx) = mpsc::channel();
+        let (second_tx, second_rx) = mpsc::channel();
+        dispatch.submit_keyed(7, move || {
+            started_tx.send(()).unwrap();
+            release_rx.recv().unwrap();
+        });
+        dispatch.submit_keyed(7, move || {
+            second_tx.send(()).unwrap();
+        });
+        started_rx.recv_timeout(Duration::from_secs(1)).unwrap();
+        let (dropped_tx, dropped_rx) = mpsc::channel();
+        let dropper = std::thread::spawn(move || {
+            drop(dispatch);
+            dropped_tx.send(()).unwrap();
+        });
+        let early = dropped_rx.recv_timeout(Duration::from_millis(100));
+        release_tx.send(()).unwrap();
+        second_rx.recv_timeout(Duration::from_secs(1)).unwrap();
+        dropper.join().unwrap();
+        assert!(
+            early.is_err(),
+            "dispatch teardown returned while accepted write remained active"
+        );
+        dropped_rx.recv_timeout(Duration::from_secs(1)).unwrap();
     }
 
     #[test]

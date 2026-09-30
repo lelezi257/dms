@@ -1697,9 +1697,25 @@ impl DistributedFs {
 
         loop {
             let action = loop {
-                let mut state = cell
-                    .lock()
-                    .map_err(|_| unavailable("DFS inode write state is poisoned"))?;
+                let maintenance =
+                    matches!(reason, CommitReason::Background | CommitReason::LastWriter);
+                let mut state = if maintenance {
+                    match cell.state.try_lock() {
+                        Ok(state) => state,
+                        Err(std::sync::TryLockError::WouldBlock) => return Ok(None),
+                        Err(std::sync::TryLockError::Poisoned(_)) => {
+                            return Err(unavailable("DFS inode write state is poisoned"));
+                        }
+                    }
+                } else {
+                    cell.lock()
+                        .map_err(|_| unavailable("DFS inode write state is poisoned"))?
+                };
+                // Background policy never queues behind an already admitted
+                // operation. Foreground sync/drain still observes inode order.
+                if maintenance && (state.commit_busy || state.operation_busy) {
+                    return Ok(None);
+                }
                 while state.commit_busy || wait_for_operation && state.operation_busy {
                     state = cell
                         .wait(state)
@@ -1711,6 +1727,9 @@ impl DistributedFs {
                 if let Some(in_flight) = state.in_flight.clone() {
                     let pending = match in_flight {
                         InFlightCommit::Preparing(_) => {
+                            if maintenance {
+                                return Ok(None);
+                            }
                             state = cell
                                 .wait(state)
                                 .map_err(|_| unavailable("DFS inode write state is poisoned"))?;
@@ -3514,29 +3533,41 @@ impl DistributedFs {
     /// close contract. Failures remain attached to the inode and are reported
     /// once per open writer by a later write/flush/sync operation.
     pub fn writeback_pending(&self) -> Result<usize> {
-        let candidates = self
+        // Snapshot references only. No inode lock or network wait may be held
+        // under the shared table: that would stall unrelated inode lookups.
+        let states = self
             .inode_writes
             .lock()
             .map_err(|_| unavailable("DFS inode write table is poisoned"))?
             .iter()
-            .filter_map(|(inode_id, state)| {
-                let state = state.lock().ok()?;
-                (state.dirty
+            .map(|(inode_id, state)| (inode_id.clone(), state.clone()))
+            .collect::<Vec<_>>();
+        let mut candidates = Vec::new();
+        for (inode_id, cell) in states {
+            let state = match cell.state.try_lock() {
+                Ok(state) => state,
+                Err(std::sync::TryLockError::WouldBlock) => continue,
+                Err(std::sync::TryLockError::Poisoned(_)) => {
+                    return Err(unavailable("DFS inode write state is poisoned"));
+                }
+            };
+            if !state.commit_busy
+                && !state.operation_busy
+                && (state.dirty
                     || state.metadata_dirty
                     || state.kill_suidgid_dirty
                     || state.in_flight.is_some())
-                .then(|| {
-                    (
-                        inode_id.clone(),
-                        if state.last_writer_background_requested {
-                            CommitReason::LastWriter
-                        } else {
-                            CommitReason::Background
-                        },
-                    )
-                })
-            })
-            .collect::<Vec<_>>();
+            {
+                candidates.push((
+                    inode_id,
+                    if state.last_writer_background_requested {
+                        CommitReason::LastWriter
+                    } else {
+                        CommitReason::Background
+                    },
+                ));
+            }
+        }
         let mut committed = 0;
         for (inode_id, reason) in candidates {
             match self.commit_inode(&inode_id, reason) {
@@ -12081,6 +12112,94 @@ mod tests {
         assert_eq!(
             metadata_syncs[0].expected_head_version,
             meta.inode.lock().unwrap().head_version
+        );
+    }
+
+    #[test]
+    fn background_writeback_does_not_hold_table_behind_locked_inode() {
+        let (_temp, meta, fs) = test_fs();
+        let fs = Arc::new(fs);
+        let created = fs
+            .create(
+                &context(),
+                fs.root_inode(),
+                OsStr::new("busy-table.bin"),
+                0o640,
+                libc::O_RDWR,
+            )
+            .unwrap();
+        fs.write(&context(), created.handle, 0, b"data").unwrap();
+        let inode_id = meta.inode.lock().unwrap().inode_id.clone();
+        let cell = fs.write_state(&inode_id).unwrap().unwrap();
+        let held = cell.lock().unwrap();
+        let (started_tx, started_rx) = std::sync::mpsc::channel();
+        let writer_fs = fs.clone();
+        let writer = std::thread::spawn(move || {
+            started_tx.send(()).unwrap();
+            writer_fs.writeback_pending()
+        });
+        started_rx.recv_timeout(Duration::from_secs(1)).unwrap();
+        // Give the original blocking scan time to acquire the table mutex.
+        std::thread::sleep(Duration::from_millis(50));
+        let (lookup_tx, lookup_rx) = std::sync::mpsc::channel();
+        let lookup_fs = fs.clone();
+        let lookup = std::thread::spawn(move || {
+            lookup_tx
+                .send(lookup_fs.write_state(&inode_id).unwrap().is_some())
+                .unwrap();
+        });
+        let result = lookup_rx.recv_timeout(Duration::from_millis(150));
+        drop(held);
+        writer.join().unwrap().unwrap();
+        lookup.join().unwrap();
+        assert!(
+            result.unwrap(),
+            "busy inode must not block the shared table"
+        );
+    }
+
+    #[test]
+    fn background_writeback_skips_active_commit_and_preserves_exact_request() {
+        let (_temp, meta, fs) = test_fs();
+        let fs = Arc::new(fs);
+        let created = fs
+            .create(
+                &context(),
+                fs.root_inode(),
+                OsStr::new("busy-commit.bin"),
+                0o640,
+                libc::O_RDWR,
+            )
+            .unwrap();
+        fs.write(&context(), created.handle, 0, b"data").unwrap();
+        let pause = meta.pause_commit_after_successes(0);
+        let commit_fs = fs.clone();
+        let commit = std::thread::spawn(move || {
+            commit_fs.fsync(&context(), created.handle, SyncMode::DataOnly)
+        });
+        pause.wait_until_reached();
+        let inode_id = meta.inode.lock().unwrap().inode_id.clone();
+        let cell = fs.write_state(&inode_id).unwrap().unwrap();
+        let exact = match cell.lock().unwrap().in_flight.clone().unwrap() {
+            InFlightCommit::File(pending) => pending.batch.commit,
+            _ => panic!("expected exact prepared file request"),
+        };
+        let (done_tx, done_rx) = std::sync::mpsc::channel();
+        let maintenance_fs = fs.clone();
+        let maintenance = std::thread::spawn(move || {
+            done_tx.send(maintenance_fs.writeback_pending()).unwrap();
+        });
+        let result = done_rx.recv_timeout(Duration::from_millis(150));
+        // Release both workers even on the original regression failure.
+        pause.release();
+        commit.join().unwrap().unwrap();
+        maintenance.join().unwrap();
+        assert_eq!(result.unwrap().unwrap(), 0);
+        let committed = meta.commits.lock().unwrap();
+        assert_eq!(committed.len(), 1);
+        assert_eq!(
+            serde_json::to_value(&exact).unwrap(),
+            serde_json::to_value(&committed[0]).unwrap()
         );
     }
 

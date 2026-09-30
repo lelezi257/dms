@@ -41,6 +41,7 @@ use crate::node::storage::{
 
 pub mod catalog;
 pub mod files;
+pub mod native;
 pub mod remote;
 pub mod root;
 

@@ -2,7 +2,7 @@
 
 ## Process Deployment
 
-Release packages provide three deployment entry points:
+Release packages provide these deployment entry points:
 
 | Command | Purpose |
 | --- | --- |
@@ -11,18 +11,24 @@ Release packages provide three deployment entry points:
 | `/opt/afs/bin/afs-processctl` | start, stop, restart, status and uninstall managed AFS services |
 | `/opt/afs/bin/dep02-smoke.sh` | verify exact AFS FUSE mount plus minimal file create/write/fsync/close/reopen behavior; DFS writes at mount root, OwnerFs writes inside a newly created workspace |
 
-Managed services are `meta`, `dfs` and `ownerfs`. `dfs` and `ownerfs` run as independent `afs-node` services with separate config files, data directories and mounts. `all` expands to all three services.
+Managed processes are `meta` and `node`. OwnerFs and DFS are modules of the same `afs-node` process, configured with separate FUSE mounts. The `dfs` and `ownerfs` controller names are aliases for that Node; they select the requested mount readiness checks. `all` controls Meta and Node.
 
-The process controller uses PID files, `/proc/<pid>/exe`, configured ports and a per-service start lock to reject duplicate starts and avoid PID reuse mistakes. Start waits for the service REST `/health` endpoint and, for Node services, verifies that the configured path itself is an AFS FUSE mount (`afs-dfs` or `afs-ownerfs`). A parent ext4 mount such as `/tmp` is not readiness. If readiness fails, the newly started process is terminated and its PID file is removed. It removes stale PID files only during explicit start. `uninstall` stops managed processes and removes runtime PID files, but program files, config and persistent data stay in place unless the operator deletes them separately.
+The process controller binds the real product PID to its executable, config path, Linux boot ID, start ticks and a unique launch directory. `node`, `dfs` and `ownerfs` control the same Node process. Their lifecycle commands share one lock; `restart` holds it through stop and start. `all` controls Meta and Node. These locks prevent concurrent controller commands; they do not provide Meta high availability.
+
+Start waits for REST `/health` and verifies each requested mount is an exact AFS FUSE mount (`afs-dfs` or `afs-ownerfs`). A parent ext4 mount such as `/tmp` is not readiness. Before acknowledging readiness it rechecks the original process identity. Failed readiness cleans up that exact newly started process; incomplete cleanup retains its identity. An interrupted startup with missing PID publication retains launch intent so `stop` can recover the original child or report an unknown result.
+
+A small supervisor owns the product child's `wait` status and atomically records it in that launch directory. `stop` succeeds only for a matching exit record with code `0` (or a service that was never started). Codes such as `1`, `124` or `137` are returned as failures. Missing or mismatched records produce a nonzero unknown result. PID disappearance and a successful signal alone do not prove successful shutdown.
+
+Completed PID, identity and exit records remain available for repeated `stop` and `status`. JSON status preserves its service, state, pid, config and log fields and adds `exit_code`; stopped failures have state `failed`, unavailable results have state `exit-unknown`. An explicit new start establishes a new launch and retires the previous completed records. Unknown launch directories remain for diagnosis. `restart` and `uninstall` stop on a failed or unknown termination result. Successful uninstall removes program files and preserves config, data, logs and termination evidence.
 
 Default paths:
 
 | Path | Meaning |
 | --- | --- |
 | `/opt/afs` | installed binaries and package manifest |
-| `/etc/afs` | `meta.toml`, `node-dfs.toml`, `node-ownerfs.toml` |
+| `/etc/afs` | `meta.toml`, `node.toml` |
 | `/var/lib/afs` | persistent Meta and Node data |
-| `/run/afs` | PID files |
+| `/run/afs` | PID, identity, launch and exit records |
 | `/var/log/afs` | process logs |
 | `/mnt/afs` | default mount root used in generated configs; override with `install.sh --mount-root DIR` for isolated installs |
 
@@ -36,7 +42,7 @@ Run OwnerFs and DFS as separate mounts. Each mount has its own FUSE session, ino
 
 Stop prevents new FUSE admission, waits for accepted callbacks, closes lock sessions and drains dirty DFS data before releasing process resources. An application fd cannot remain usable after its Node exits. Applications must complete their required sync barriers before requesting shutdown; a failed shutdown does not acknowledge outstanding writes.
 
-The production Node uses one15-second shutdown deadline across service teardown, FUSE join, dirty drain, blocking runtime workers and observability cleanup. A completed shutdown error returns nonzero immediately. Expiry exits124 and is a forced failure, not a successful drain or cancellation of physical I/O. `services.stopped` marks service-task completion only; it does not establish that Node data and process cleanup have finished. Preserve the exit status and error records when diagnosing a stop.
+The production Node arms one 15-second shutdown deadline when service shutdown begins, covering subsequent service teardown, FUSE join, dirty drain, blocking runtime workers and observability cleanup. It is not a qualified 15-second bound from sending SIGTERM: the identified paused-Meta probe measures approximately 20.1 seconds from the controller stop command to exit. A completed shutdown error returns nonzero immediately. Expiry exits with code `124` and is a forced failure, not a successful drain or cancellation of physical I/O. `services.stopped` marks service-task completion only; it does not establish that Node data and process cleanup have finished. Preserve the exit status and error records when diagnosing a stop.
 
 The [implementation status](../status.md) records which controller and lifecycle matrices are qualified. A controller observing that a PID disappeared cannot infer that the process exited cleanly.
 

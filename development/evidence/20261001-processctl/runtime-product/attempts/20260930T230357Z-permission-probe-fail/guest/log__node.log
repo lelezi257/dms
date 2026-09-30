@@ -1,0 +1,4 @@
+{"msg":"Mounting /mnt/lima-afsadata/afs-delivery/processctl-v50/mount-ownerfs","level":"INFO","ts":"2026-09-30T23:03:35.336047071Z","instance":"processctl-v50-node-a","service_name":"afs-node"}
+{"msg":"Mounting /mnt/lima-afsadata/afs-delivery/processctl-v50/mount-dfs","level":"INFO","ts":"2026-09-30T23:03:35.342201025Z","instance":"processctl-v50-node-a","service_name":"afs-node"}
+{"msg":"node.ready","level":"INFO","ts":"2026-09-30T23:03:35.342216733Z","instance":"processctl-v50-node-a","service_name":"afs-node","dfs":true,"ownerfs":true,"uds":"/mnt/lima-afsadata/afs-delivery/processctl-v50/run/node.sock","rest":"0.0.0.0:18083","grpc":"0.0.0.0:18082"}
+{"msg":"services.stopped","level":"INFO","ts":"2026-09-30T23:03:35.394974126Z","instance":"processctl-v50-node-a","service_name":"afs-node"}

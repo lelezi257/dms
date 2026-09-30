@@ -1,0 +1,22 @@
+{
+  "scope": "cleanup own r2 shell readiness fixture only",
+  "child": 415173,
+  "supervisor": 415157,
+  "child_cmd": [
+    "python3",
+    "-",
+    "127.0.0.1",
+    "59801"
+  ],
+  "supervisor_cmd": [
+    "bash",
+    "/var/tmp/afs-deploy-v50/deploy/afs-processctl",
+    "__supervise",
+    "/tmp/afs-deploy-selftest-415103/prefix/bin/afs-node",
+    "/tmp/afs-deploy-selftest-415103/etc/node.toml",
+    "/tmp/afs-deploy-selftest-415103/run/node.lifecycle.va4xrO"
+  ],
+  "child_start_ticks": "6357896",
+  "live_child_remaining": false,
+  "live_supervisor_remaining": false
+}

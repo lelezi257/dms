@@ -1,0 +1,335 @@
+{
+  "status": "PASS",
+  "events": [
+    {
+      "environment": {
+        "platform": "Linux-6.8.0-142-generic-aarch64-with-glibc2.39",
+        "run_id": "20260930T231013Z-pid712230",
+        "boot_id": "36a572e0-859b-4a94-adc7-789210a83fc8",
+        "filesystem": "{\n   \"filesystems\": [\n      {\n         \"fstype\": \"ext4\",\n         \"source\": \"/dev/vdb1\",\n         \"target\": \"/mnt/lima-afsadata\"\n      }\n   ]\n}\n",
+        "controller_sha256": "b5dd0fa011475fb94658d3b1322ed8395c69aa1f85fbff5b5e1e4a307eec83a1",
+        "binary_sha256": {
+          "afs-node": "dbbf2ccd5eb47f06178bfc3140599865c1b7ad5f28851e244e728fbcdfc136af",
+          "afs-meta": "917432057950380da208b057a4d94156841e1eab03e533f56675433d5184fd9c"
+        },
+        "config_sha256": {
+          "node": "deec90fa4c6cc34fae309511ed72dc1f6a3990be54e108efebae4998196244b6",
+          "meta": "f72ddc3554aae64cd5a96e8f04ae09e27a467590fe32de7cc566bb3c7d649c0e"
+        }
+      }
+    },
+    {
+      "start_all": {
+        "returncode": 0,
+        "stdout": "started meta pid=712351 ready=true\nstarted node pid=712577 ready=true\n",
+        "stderr": "removing stale pid file for meta: 709372\nremoving stale pid file for node: 710961\n",
+        "elapsed_seconds": 0.3323599430004833
+      }
+    },
+    {
+      "identity_initial": {
+        "meta": {
+          "pid": 712351,
+          "exe": "/mnt/lima-afsadata/afs-delivery/processctl-v50/prefix/bin/afs-meta",
+          "sha256": "917432057950380da208b057a4d94156841e1eab03e533f56675433d5184fd9c",
+          "start_ticks": "6505387",
+          "state": "S"
+        },
+        "node": {
+          "pid": 712577,
+          "exe": "/mnt/lima-afsadata/afs-delivery/processctl-v50/prefix/bin/afs-node",
+          "sha256": "dbbf2ccd5eb47f06178bfc3140599865c1b7ad5f28851e244e728fbcdfc136af",
+          "start_ticks": "6505403",
+          "state": "S"
+        },
+        "mounts": {
+          "dfs": {
+            "target": "/mnt/lima-afsadata/afs-delivery/processctl-v50/mount-dfs",
+            "fstype": "fuse",
+            "source": "afs-dfs"
+          },
+          "ownerfs": {
+            "target": "/mnt/lima-afsadata/afs-delivery/processctl-v50/mount-ownerfs",
+            "fstype": "fuse",
+            "source": "afs-ownerfs"
+          }
+        }
+      }
+    },
+    {
+      "normal_dirty_write": {
+        "path": "/mnt/lima-afsadata/afs-delivery/processctl-v50/mount-dfs/normal-drain-20260930T231013Z-pid712230.bin",
+        "bytes": 14,
+        "elapsed_seconds": 0.0005596629998763092
+      }
+    },
+    {
+      "normal_stop": {
+        "returncode": 0,
+        "stdout": "node stopped exit_code=0\n",
+        "stderr": "",
+        "elapsed_seconds": 0.09964039799524471,
+        "old_fd_close": {
+          "errno": 107,
+          "strerror": "Transport endpoint is not connected"
+        },
+        "status": {
+          "service": "node",
+          "state": "stopped",
+          "pid": "",
+          "config": "/mnt/lima-afsadata/afs-delivery/processctl-v50/etc/node.toml",
+          "log": "/mnt/lima-afsadata/afs-delivery/processctl-v50/log/node.log",
+          "exit_code": "0"
+        },
+        "receipt": {
+          "identity": {
+            "pid": "712577",
+            "exe": "/mnt/lima-afsadata/afs-delivery/processctl-v50/prefix/bin/afs-node",
+            "config": "/mnt/lima-afsadata/afs-delivery/processctl-v50/etc/node.toml",
+            "start_ticks": "6505403",
+            "boot_id": "36a572e0-859b-4a94-adc7-789210a83fc8",
+            "lifecycle": "/mnt/lima-afsadata/afs-delivery/processctl-v50/run/node.lifecycle.vvFg5J",
+            "supervisor_pid": "712561",
+            "cmdline": "/mnt/lima-afsadata/afs-delivery/processctl-v50/prefix/bin/afs-node --config /mnt/lima-afsadata/afs-delivery/processctl-v50/etc/node.toml"
+          },
+          "receipt": {
+            "pid": "712577",
+            "exe": "/mnt/lima-afsadata/afs-delivery/processctl-v50/prefix/bin/afs-node",
+            "config": "/mnt/lima-afsadata/afs-delivery/processctl-v50/etc/node.toml",
+            "start_ticks": "6505403",
+            "boot_id": "36a572e0-859b-4a94-adc7-789210a83fc8",
+            "lifecycle": "/mnt/lima-afsadata/afs-delivery/processctl-v50/run/node.lifecycle.vvFg5J",
+            "supervisor_pid": "712561",
+            "exit_code": "0"
+          }
+        }
+      }
+    },
+    {
+      "normal_restart": {
+        "returncode": 0,
+        "stdout": "started node pid=713084 ready=true\n",
+        "stderr": "removing stale pid file for node: 712577\n",
+        "elapsed_seconds": 0.16597978900244925
+      }
+    },
+    {
+      "normal_readback": "61636365707465642d6469727479",
+      "identity_normal_restart": {
+        "pid": 713084,
+        "exe": "/mnt/lima-afsadata/afs-delivery/processctl-v50/prefix/bin/afs-node",
+        "sha256": "dbbf2ccd5eb47f06178bfc3140599865c1b7ad5f28851e244e728fbcdfc136af",
+        "start_ticks": "6505462",
+        "state": "S"
+      }
+    },
+    {
+      "fault": {
+        "signal": "SIGSTOP",
+        "meta": {
+          "pid": 712351,
+          "exe": "/mnt/lima-afsadata/afs-delivery/processctl-v50/prefix/bin/afs-meta",
+          "sha256": "917432057950380da208b057a4d94156841e1eab03e533f56675433d5184fd9c",
+          "start_ticks": "6505387",
+          "state": "S"
+        },
+        "state": "T",
+        "node_before_fault": {
+          "pid": 713084,
+          "exe": "/mnt/lima-afsadata/afs-delivery/processctl-v50/prefix/bin/afs-node",
+          "sha256": "dbbf2ccd5eb47f06178bfc3140599865c1b7ad5f28851e244e728fbcdfc136af",
+          "start_ticks": "6505462",
+          "state": "S"
+        },
+        "node_after_t_dirty_write": {
+          "pid": 713084,
+          "exe": "/mnt/lima-afsadata/afs-delivery/processctl-v50/prefix/bin/afs-node",
+          "sha256": "dbbf2ccd5eb47f06178bfc3140599865c1b7ad5f28851e244e728fbcdfc136af",
+          "start_ticks": "6505462",
+          "state": "S"
+        },
+        "dirty_write_after_t": {
+          "path": "/mnt/lima-afsadata/afs-delivery/processctl-v50/mount-dfs/forced-unknown-20260930T231013Z-pid712230.bin",
+          "bytes": 4,
+          "elapsed_seconds": 5.003459855004621
+        }
+      }
+    },
+    {
+      "failed_stop": {
+        "returncode": 124,
+        "stdout": "",
+        "stderr": "node failed exit_code=124; retained identity and lifecycle evidence\n",
+        "elapsed_seconds": 20.07157971199922,
+        "old_fd_close": {
+          "errno": 107,
+          "strerror": "Transport endpoint is not connected"
+        },
+        "status": {
+          "service": "node",
+          "state": "failed",
+          "pid": "",
+          "config": "/mnt/lima-afsadata/afs-delivery/processctl-v50/etc/node.toml",
+          "log": "/mnt/lima-afsadata/afs-delivery/processctl-v50/log/node.log",
+          "exit_code": "124"
+        },
+        "receipt": {
+          "identity": {
+            "pid": "713084",
+            "exe": "/mnt/lima-afsadata/afs-delivery/processctl-v50/prefix/bin/afs-node",
+            "config": "/mnt/lima-afsadata/afs-delivery/processctl-v50/etc/node.toml",
+            "start_ticks": "6505462",
+            "boot_id": "36a572e0-859b-4a94-adc7-789210a83fc8",
+            "lifecycle": "/mnt/lima-afsadata/afs-delivery/processctl-v50/run/node.lifecycle.DESIVz",
+            "supervisor_pid": "713068",
+            "cmdline": "/mnt/lima-afsadata/afs-delivery/processctl-v50/prefix/bin/afs-node --config /mnt/lima-afsadata/afs-delivery/processctl-v50/etc/node.toml"
+          },
+          "receipt": {
+            "pid": "713084",
+            "exe": "/mnt/lima-afsadata/afs-delivery/processctl-v50/prefix/bin/afs-node",
+            "config": "/mnt/lima-afsadata/afs-delivery/processctl-v50/etc/node.toml",
+            "start_ticks": "6505462",
+            "boot_id": "36a572e0-859b-4a94-adc7-789210a83fc8",
+            "lifecycle": "/mnt/lima-afsadata/afs-delivery/processctl-v50/run/node.lifecycle.DESIVz",
+            "supervisor_pid": "713068",
+            "exit_code": "124"
+          }
+        },
+        "log_after_stop": "{\"msg\":\"FUSE request failed\",\"level\":\"ERRO\",\"ts\":\"2026-09-30T23:10:19.849727589Z\",\"instance\":\"processctl-v50-node-a\",\"service_name\":\"afs-node\",\"message\":\"Timeout expired\",\"kind\":\"Cancelled\",\"code\":16973827}\n{\"msg\":\"FUSE request failed\",\"level\":\"ERRO\",\"ts\":\"2026-09-30T23:10:25.044937567Z\",\"instance\":\"processctl-v50-node-a\",\"service_name\":\"afs-node\",\"message\":\"Timeout expired\",\"kind\":\"Cancelled\",\"code\":16973827}\n{\"msg\":\"process.shutdown_forced\",\"level\":\"ERRO\",\"ts\":\"2026-09-30T23:10:35.093841898Z\",\"instance\":\"processctl-v50-node-a\",\"service_name\":\"afs-node\"}\n"
+      }
+    },
+    {
+      "meta_resumed": {
+        "before": {
+          "pid": 712351,
+          "exe": "/mnt/lima-afsadata/afs-delivery/processctl-v50/prefix/bin/afs-meta",
+          "sha256": "917432057950380da208b057a4d94156841e1eab03e533f56675433d5184fd9c",
+          "start_ticks": "6505387",
+          "state": "S"
+        },
+        "after": {
+          "pid": 712351,
+          "exe": "/mnt/lima-afsadata/afs-delivery/processctl-v50/prefix/bin/afs-meta",
+          "sha256": "917432057950380da208b057a4d94156841e1eab03e533f56675433d5184fd9c",
+          "start_ticks": "6505387",
+          "state": "S"
+        }
+      }
+    },
+    {
+      "forced_restart": {
+        "returncode": 0,
+        "stdout": "started node pid=714650 ready=true\n",
+        "stderr": "removing stale pid file for node: 713084\n",
+        "elapsed_seconds": 0.17036302099586464
+      }
+    },
+    {
+      "fresh_readback": {
+        "forced_path": "73656564",
+        "watermark": "61636365707465642d6469727479"
+      },
+      "identity_forced_restart": {
+        "pid": 714650,
+        "exe": "/mnt/lima-afsadata/afs-delivery/processctl-v50/prefix/bin/afs-node",
+        "sha256": "dbbf2ccd5eb47f06178bfc3140599865c1b7ad5f28851e244e728fbcdfc136af",
+        "start_ticks": "6508069",
+        "state": "S"
+      }
+    },
+    {
+      "final_node_stop": {
+        "returncode": 0,
+        "stdout": "node stopped exit_code=0\n",
+        "stderr": "",
+        "elapsed_seconds": 0.09404753499984508,
+        "status": {
+          "service": "node",
+          "state": "stopped",
+          "pid": "",
+          "config": "/mnt/lima-afsadata/afs-delivery/processctl-v50/etc/node.toml",
+          "log": "/mnt/lima-afsadata/afs-delivery/processctl-v50/log/node.log",
+          "exit_code": "0"
+        },
+        "receipt": {
+          "identity": {
+            "pid": "714650",
+            "exe": "/mnt/lima-afsadata/afs-delivery/processctl-v50/prefix/bin/afs-node",
+            "config": "/mnt/lima-afsadata/afs-delivery/processctl-v50/etc/node.toml",
+            "start_ticks": "6508069",
+            "boot_id": "36a572e0-859b-4a94-adc7-789210a83fc8",
+            "lifecycle": "/mnt/lima-afsadata/afs-delivery/processctl-v50/run/node.lifecycle.6DMgkO",
+            "supervisor_pid": "714634",
+            "cmdline": "/mnt/lima-afsadata/afs-delivery/processctl-v50/prefix/bin/afs-node --config /mnt/lima-afsadata/afs-delivery/processctl-v50/etc/node.toml"
+          },
+          "receipt": {
+            "pid": "714650",
+            "exe": "/mnt/lima-afsadata/afs-delivery/processctl-v50/prefix/bin/afs-node",
+            "config": "/mnt/lima-afsadata/afs-delivery/processctl-v50/etc/node.toml",
+            "start_ticks": "6508069",
+            "boot_id": "36a572e0-859b-4a94-adc7-789210a83fc8",
+            "lifecycle": "/mnt/lima-afsadata/afs-delivery/processctl-v50/run/node.lifecycle.6DMgkO",
+            "supervisor_pid": "714634",
+            "exit_code": "0"
+          }
+        }
+      }
+    },
+    {
+      "final_meta_stop": {
+        "returncode": 0,
+        "stdout": "meta stopped exit_code=0\n",
+        "stderr": "",
+        "elapsed_seconds": 0.0916023009995115,
+        "status": {
+          "service": "meta",
+          "state": "stopped",
+          "pid": "",
+          "config": "/mnt/lima-afsadata/afs-delivery/processctl-v50/etc/meta.toml",
+          "log": "/mnt/lima-afsadata/afs-delivery/processctl-v50/log/meta.log",
+          "exit_code": "0"
+        },
+        "receipt": {
+          "identity": {
+            "pid": "712351",
+            "exe": "/mnt/lima-afsadata/afs-delivery/processctl-v50/prefix/bin/afs-meta",
+            "config": "/mnt/lima-afsadata/afs-delivery/processctl-v50/etc/meta.toml",
+            "start_ticks": "6505387",
+            "boot_id": "36a572e0-859b-4a94-adc7-789210a83fc8",
+            "lifecycle": "/mnt/lima-afsadata/afs-delivery/processctl-v50/run/meta.lifecycle.MMvo9E",
+            "supervisor_pid": "712335",
+            "cmdline": "/mnt/lima-afsadata/afs-delivery/processctl-v50/prefix/bin/afs-meta --config /mnt/lima-afsadata/afs-delivery/processctl-v50/etc/meta.toml"
+          },
+          "receipt": {
+            "pid": "712351",
+            "exe": "/mnt/lima-afsadata/afs-delivery/processctl-v50/prefix/bin/afs-meta",
+            "config": "/mnt/lima-afsadata/afs-delivery/processctl-v50/etc/meta.toml",
+            "start_ticks": "6505387",
+            "boot_id": "36a572e0-859b-4a94-adc7-789210a83fc8",
+            "lifecycle": "/mnt/lima-afsadata/afs-delivery/processctl-v50/run/meta.lifecycle.MMvo9E",
+            "supervisor_pid": "712335",
+            "exit_code": "0"
+          }
+        }
+      }
+    }
+  ],
+  "cleanup": [
+    {
+      "cleanup_stop_node": {
+        "returncode": 0,
+        "stdout": "node stopped exit_code=0\n",
+        "stderr": "",
+        "elapsed_seconds": 0.024530210001103114
+      }
+    },
+    {
+      "cleanup_stop_meta": {
+        "returncode": 0,
+        "stdout": "meta stopped exit_code=0\n",
+        "stderr": "",
+        "elapsed_seconds": 0.02395067200268386
+      }
+    }
+  ]
+}

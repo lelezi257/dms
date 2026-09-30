@@ -49,43 +49,39 @@ fi
 READY_PORT=$(free_port)
 IDENTITY_PORT=$(free_port)
 mkdir -p "$TMP/prefix/bin" "$TMP/etc" "$TMP/run" "$TMP/log" "$TMP/state" "$TMP/mnt"
-cat > "$TMP/prefix/bin/afs-node" <<'BIN'
-#!/usr/bin/env bash
-set -euo pipefail
-rest=127.0.0.1:0
-while [ "$#" -gt 0 ]; do
-  case "$1" in
-    --config)
-      cfg=$2; shift 2
-      rest=$(awk -F= '$1 ~ /^[[:space:]]*rest_listen[[:space:]]*$/ { gsub(/[[:space:]\"]/, "", $2); print $2; exit }' "$cfg")
-      ;;
-    *) shift ;;
-  esac
-done
-host=${rest%:*}
-port=${rest##*:}
-exec python3 - "$host" "$port" <<'PY'
-import http.server, socketserver, sys
-host, port = sys.argv[1], int(sys.argv[2])
-class Handler(http.server.BaseHTTPRequestHandler):
-    def log_message(self, *args):
-        pass
-    def do_GET(self):
-        if self.path == '/health':
-            body = b'{"status":"ready"}'
-            self.send_response(200)
-            self.send_header('Content-Type', 'application/json')
-            self.send_header('Content-Length', str(len(body)))
-            self.end_headers()
-            self.wfile.write(body)
-        else:
-            self.send_response(404)
-            self.end_headers()
-with socketserver.TCPServer((host, port), Handler) as server:
-    server.serve_forever()
-PY
+# Keep the readiness fixture a native executable, just like shipped AFS
+# binaries, so executable/PID/start-tick identity checks remain meaningful.
+cat > "$TMP/ready-fixture.c" <<'BIN'
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <signal.h>
+#include <unistd.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+static void stop(int sig) { (void)sig; _exit(0); }
+int main(int argc, char **argv) {
+  if (argc != 3) return 2;
+  FILE *f = fopen(argv[2], "r");
+  if (!f) return 2;
+  char line[512]; unsigned port = 0;
+  while (fgets(line, sizeof line, f)) sscanf(line, "rest_listen = \"127.0.0.1:%u", &port);
+  fclose(f);
+  signal(SIGTERM, stop);
+  int s = socket(AF_INET, SOCK_STREAM, 0), one = 1;
+  setsockopt(s, SOL_SOCKET, SO_REUSEADDR, &one, sizeof one);
+  struct sockaddr_in addr = { .sin_family = AF_INET, .sin_port = htons(port), .sin_addr.s_addr = htonl(INADDR_LOOPBACK) };
+  if (bind(s, (struct sockaddr*)&addr, sizeof addr) || listen(s, 8)) return 2;
+  for (;;) {
+    int c = accept(s, NULL, NULL);
+    if (c < 0) continue;
+    char request[1024]; (void)read(c, request, sizeof request);
+    const char *body = "HTTP/1.1 200 OK\r\nContent-Length: 18\r\nConnection: close\r\n\r\n{\"status\":\"ready\"}";
+    (void)write(c, body, strlen(body)); close(c);
+  }
+}
 BIN
-chmod +x "$TMP/prefix/bin/afs-node"
+cc -Wall -Wextra -Werror "$TMP/ready-fixture.c" -o "$TMP/prefix/bin/afs-node"
 cat > "$TMP/etc/node.toml" <<EOF
 grpc_listen = "127.0.0.1:0"
 rest_listen = "127.0.0.1:$READY_PORT"
@@ -149,3 +145,281 @@ else
   cat "$TMP/identity-stop.out" "$TMP/identity-stop.err" >&2
   fail "processctl preserves mismatched same-binary process"
 fi
+
+# Detached controllers cannot wait on the product themselves. Exercise the real
+# supervisor with native child wait statuses, not a shell trap or forged log.
+python3 - "$ROOT/afs-processctl" "$TMP/lifecycle" <<'PY_LIFECYCLE'
+import ctypes
+import json
+import os
+from pathlib import Path
+import platform
+import shutil
+import signal
+import subprocess
+import sys
+import time
+
+assert platform.system() == 'Linux'
+controller, root = sys.argv[1], Path(sys.argv[2])
+root.mkdir()
+# Reap orphaned supervisors and the deliberate supervisor-loss fixture ourselves.
+assert ctypes.CDLL(None, use_errno=True).prctl(36, 1, 0, 0, 0) == 0
+source = root / 'fixture.c'
+source.write_text(r'''
+#include <stdio.h>
+#include <stdlib.h>
+#include <signal.h>
+#include <unistd.h>
+#include <sys/prctl.h>
+static int code, delay;
+static void stop(int sig) { (void)sig; usleep(delay * 1000); _exit(code); }
+int main(int argc, char **argv) {
+  int immediate;
+  if (argc != 3) return 2;
+  FILE *cfg = fopen(argv[2], "r");
+  if (!cfg || fscanf(cfg, "%d %d %d", &code, &delay, &immediate) != 3) return 2;
+  fclose(cfg);
+  prctl(PR_SET_NAME, "afs (fixture)", 0, 0, 0);
+  if (immediate) return code;
+  signal(SIGTERM, code == 999 ? SIG_IGN : stop);
+  puts("fixture-ready"); fflush(stdout);
+  for (;;) pause();
+}
+''')
+exe = root / 'fixture'
+subprocess.run(['cc', '-Wall', '-Wextra', '-Werror', str(source), '-o', str(exe)], check=True)
+children = []
+records = []
+
+
+def fields(path):
+    return dict(line.split('=', 1) for line in Path(path).read_text().splitlines())
+
+
+def lane(name, code=0, delay=0, immediate=0):
+    p = root / name
+    for d in ('prefix/bin', 'etc', 'run', 'log'):
+        (p / d).mkdir(parents=True)
+    shutil.copy2(exe, p / 'prefix/bin/afs-node')
+    (p / 'etc/node.toml').write_text(f'{code} {delay} {immediate}\n')
+    return p
+
+
+def argv(p, *args, timeout=3):
+    return [controller, '--prefix', str(p/'prefix'), '--config-dir', str(p/'etc'),
+            '--run-dir', str(p/'run'), '--log-dir', str(p/'log'), '--timeout', str(timeout),
+            '--no-readiness', *args]
+
+
+def run(p, *args, timeout=3):
+    result = subprocess.run(argv(p, *args, timeout=timeout), capture_output=True, text=True, timeout=8)
+    records.append({'command': args, 'lane': p.name, 'returncode': result.returncode,
+                    'stdout': result.stdout, 'stderr': result.stderr})
+    return result
+
+
+def start(p, alias='node'):
+    result = run(p, 'start', alias)
+    assert result.returncode == 0, records[-1]
+    pid = int((p/'run/node.pid').read_text())
+    children.append(pid)
+    identity = fields(p/'run/node.identity')
+    child = fields(Path(identity['lifecycle'])/'child')
+    assert int(child['pid']) == pid
+    assert identity['start_ticks'] == child['start_ticks'] and identity['start_ticks']
+    assert identity['boot_id'] == child['boot_id']
+    assert identity['exe'] == str(p/'prefix/bin/afs-node')
+    return pid, identity
+
+
+def status(p):
+    r = run(p, '--json', 'status', 'node')
+    assert r.returncode == 0
+    return json.loads(r.stdout)
+
+
+def wait_for(predicate):
+    end = time.monotonic()+3
+    while time.monotonic() < end:
+        if predicate():
+            return
+        time.sleep(.01)
+    raise AssertionError('bounded fixture wait failed')
+
+
+try:
+    # Never-started idempotency and genuine exit propagation, including repeats.
+    p = lane('never')
+    assert run(p, 'stop', 'node').returncode == 0
+    assert status(p)['state'] == 'stopped'
+    for code in (0, 1, 124):
+        p = lane(f'exit-{code}', code)
+        pid, identity = start(p)
+        assert status(p)['state'] == 'running'
+        assert run(p, 'stop', 'dfs').returncode == code
+        assert run(p, 'stop', 'ownerfs').returncode == code
+        receipt = fields(Path(identity['lifecycle'])/'exit')
+        assert receipt['exit_code'] == str(code)
+        s = status(p)
+        assert s['state'] == ('stopped' if code == 0 else 'failed') and s['exit_code'] == str(code)
+        print(f'ok - native exit {code} and repeated alias stop retain exact result')
+
+    # New start establishes a distinct generation; the previous receipt cannot
+    # qualify its termination, even if copied to the new receipt path.
+    p = lane('generation', 0)
+    _, old = start(p)
+    assert run(p, 'stop', 'node').returncode == 0
+    previous_receipt = (Path(old['lifecycle'])/'exit').read_bytes()
+    (p/'etc/node.toml').write_text('1 0 0\n')
+    _, new = start(p)
+    assert new['lifecycle'] != old['lifecycle'] and not Path(old['lifecycle']).exists()
+    assert run(p, 'stop', 'node').returncode == 1
+    receipt = Path(new['lifecycle'])/'exit'
+    good = receipt.read_bytes()
+    receipt.write_bytes(previous_receipt)
+    assert run(p, 'stop', 'node', timeout=1).returncode != 0
+    assert status(p)['state'] == 'exit-unknown'
+    receipt.write_text('exit_code=0\n')
+    assert run(p, 'stop', 'node', timeout=1).returncode != 0
+    assert status(p)['state'] == 'exit-unknown'
+    receipt.unlink()
+    assert run(p, 'stop', 'node', timeout=1).returncode != 0
+    assert status(p)['state'] == 'exit-unknown'
+    receipt.write_bytes(good)
+    assert run(p, 'stop', 'node').returncode == 1
+    assert run(p, 'restart', 'node').returncode == 1
+    assert run(p, 'uninstall', 'node').returncode == 1
+    assert (p/'prefix/bin/afs-node').exists()
+    print('ok - stale, corrupt, missing receipts and failed restart/uninstall cannot become clean')
+
+    # A watchdog can bypass Rust cleanup; lost supervision cannot fabricate 0.
+    p = lane('supervisor-loss')
+    pid, identity = start(p)
+    child = fields(Path(identity['lifecycle'])/'child')
+    os.kill(int(child['supervisor_pid']), signal.SIGKILL)
+    wait_for(lambda: not Path(f"/proc/{child['supervisor_pid']}/exe").exists())
+    assert run(p, 'stop', 'node', timeout=1).returncode != 0
+    assert status(p)['state'] == 'exit-unknown'
+    assert not (Path(identity['lifecycle'])/'exit').exists()
+    print('ok - lost supervisor leaves explicit unknown instead of clean stop')
+
+    # Kernel signal exit also propagates the actual wait code.
+    p = lane('signal-loss')
+    pid, identity = start(p)
+    os.kill(pid, signal.SIGKILL)
+    wait_for(lambda: (Path(identity['lifecycle'])/'exit').exists())
+    assert run(p, 'stop', 'node').returncode == 137
+    assert status(p)['exit_code'] == '137'
+    print('ok - SIGKILL propagates exit 137')
+
+    # Zero timeout retains evidence and does not kill or detach the wait owner.
+    p = lane('zero-timeout', delay=300)
+    _, identity = start(p)
+    r = run(p, 'stop', 'node', timeout=0)
+    assert r.returncode != 0 and 'did not stop within' in r.stderr
+    assert run(p, 'stop', 'node').returncode == 0
+    print('ok - timeout zero reports failure; subsequent stop observes actual completion')
+
+    # All aliases lock the same real process, and restart keeps its lock through
+    # both stop and start. Rejected calls cannot overwrite identity or launch.
+    p = lane('alias-race', delay=300)
+    first = subprocess.Popen(argv(p, 'start', 'dfs'), stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    wait_for(lambda: (p/'run/node.start.lock').exists())
+    assert run(p, 'start', 'ownerfs').returncode != 0
+    assert run(p, 'stop', 'node').returncode != 0
+    out, err = first.communicate(timeout=8)
+    assert first.returncode == 0, (out, err)
+    pid = int((p/'run/node.pid').read_text()); children.append(pid)
+    old = fields(p/'run/node.identity')
+    restart = subprocess.Popen(argv(p, 'restart', 'node'), stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    wait_for(lambda: (p/'run/node.start.lock').exists())
+    assert run(p, 'start', 'dfs').returncode != 0
+    out, err = restart.communicate(timeout=8)
+    assert restart.returncode == 0, (out, err)
+    children.append(int((p/'run/node.pid').read_text()))
+    assert fields(p/'run/node.identity')['lifecycle'] != old['lifecycle']
+    assert run(p, 'stop', 'ownerfs').returncode == 0
+    assert (p/'log/node.log').read_text().count('fixture-ready') == 2
+    print('ok - canonical alias locks serialize start, stop and complete restart')
+
+    p = lane('zero-start')
+    assert run(p, 'start', 'node', timeout=0).returncode != 0
+    assert not (p/'run/node.pid').exists() and not (p/'run/node.launch').exists()
+    assert run(p, 'stop', 'node').returncode == 0
+    print('ok - timeout zero start cannot create a detached product')
+
+    original_controller = controller
+    text = Path(controller).read_text()
+    slow = root/'slow-bootstrap-controller'
+    slow.write_text(text.replace('  printf \'supervisor_pid=%s', "  sleep 2\n  printf 'supervisor_pid=%s", 1))
+    slow.chmod(0o755)
+    assert slow.read_text() != text
+    controller = str(slow)
+    p = lane('bootstrap-timeout')
+    r = run(p, 'start', 'node', timeout=1)
+    assert r.returncode != 0 and 'bootstrap failed before product launch' in r.stderr
+    assert not (p/'run/node.pid').exists() and not (p/'run/node.launch').exists()
+    assert 'fixture-ready' not in (p/'log/node.log').read_text()
+    assert run(p, 'stop', 'node').returncode == 0
+    print('ok - bootstrap expiry before go cancels supervisor without launching product')
+
+    paused = root/'paused-bootstrap-controller'
+    paused.write_text(text.replace('  printf \'supervisor_pid=%s', "  kill -STOP \"$$\"\n  printf 'supervisor_pid=%s", 1))
+    paused.chmod(0o755)
+    assert paused.read_text() != text
+    controller = str(paused)
+    p = lane('paused-bootstrap')
+    began = time.monotonic()
+    r = run(p, 'start', 'node', timeout=1)
+    assert r.returncode != 0 and 'bootstrap failed before product launch' in r.stderr
+    assert time.monotonic()-began < 3
+    assert not (p/'run/node.pid').exists() and not (p/'run/node.launch').exists()
+    assert 'fixture-ready' not in (p/'log/node.log').read_text()
+    assert run(p, 'stop', 'node').returncode == 0
+    print('ok - SIGSTOP bootstrap cleanup stays bounded and cannot launch product')
+
+    late = root/'late-child-controller'
+    late.write_text(text.replace('  ticks=$(sed', '  sleep 2\n  ticks=$(sed', 1))
+    late.chmod(0o755)
+    assert late.read_text() != text
+    controller = str(late)
+    p = lane('late-publication')
+    r = run(p, 'start', 'node', timeout=1)
+    assert r.returncode != 0 and 'retained managed launch' in r.stderr
+    assert not (p/'run/node.pid').exists() and (p/'run/node.launch').exists()
+    assert status(p)['state'] == 'exit-unknown'
+    lifecycle = Path((p/'run/node.launch').read_text().strip())
+    wait_for(lambda: (lifecycle/'child').exists())
+    child = fields(lifecycle/'child'); children.append(int(child['pid']))
+    assert run(p, 'stop', 'node').returncode == 0
+    assert fields(p/'run/node.identity')['start_ticks'] == child['start_ticks']
+    assert status(p)['exit_code'] == '0'
+    print('ok - post-go delayed publication retains intent and stop recovers original child')
+    controller = original_controller
+
+    p = lane('immediate-failure', code=1, immediate=1)
+    assert run(p, 'start', 'node').returncode != 0
+    assert not (p/'run/node.pid').exists()
+    print('ok - immediate startup failure is never ready and removes PID')
+    print(json.dumps({'scope': 'Linux native controller regression, not full DEP acceptance',
+                      'status': 'PASS', 'commands': records}, sort_keys=True))
+finally:
+    for pid in children:
+        try:
+            actual = os.readlink(f'/proc/{pid}/exe')
+            if actual.startswith(str(root)):
+                os.kill(pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        except FileNotFoundError:
+            pass
+    end = time.monotonic()+2
+    while time.monotonic() < end:
+        try:
+            pid, _ = os.waitpid(-1, os.WNOHANG)
+        except ChildProcessError:
+            break
+        if pid == 0:
+            time.sleep(.02)
+PY_LIFECYCLE

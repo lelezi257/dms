@@ -1,0 +1,20 @@
+{
+  "status": "PASS",
+  "scope": "Root independent raw report, four receipt identities, two config hashes, guest report/product hashes and final port/mount check",
+  "controller_stop_seconds": 20.12368465399777,
+  "pause_before_write_bytes": 4,
+  "receipt_count": 4,
+  "guest": {
+    "status": "PASS",
+    "files_sha256": {
+      "prefix/bin/afs-node": "dbbf2ccd5eb47f06178bfc3140599865c1b7ad5f28851e244e728fbcdfc136af",
+      "prefix/bin/afs-meta": "917432057950380da208b057a4d94156841e1eab03e533f56675433d5184fd9c",
+      "prefix/bin/afs-processctl": "b5dd0fa011475fb94658d3b1322ed8395c69aa1f85fbff5b5e1e4a307eec83a1",
+      "etc/meta.toml": "f72ddc3554aae64cd5a96e8f04ae09e27a467590fe32de7cc566bb3c7d649c0e",
+      "etc/node.toml": "deec90fa4c6cc34fae309511ed72dc1f6a3990be54e108efebae4998196244b6",
+      "report.json": "d5d4cae8b2f6471a63a3d438fccf5234e237dc4b303e47910ee43a6adce27f29"
+    },
+    "listeners": [],
+    "mounts": []
+  }
+}

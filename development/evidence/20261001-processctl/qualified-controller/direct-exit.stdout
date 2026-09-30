@@ -1,0 +1,38 @@
+{
+  "status": "PASS",
+  "scope": "controller exit-status diagnostic with native fixture; not a product shutdown acceptance",
+  "controller_sha256": "b5dd0fa011475fb94658d3b1322ed8395c69aa1f85fbff5b5e1e4a307eec83a1",
+  "platform": "Linux-6.8.0-106-generic-aarch64-with-glibc2.39",
+  "checks": [
+    {
+      "fixture_exit_code": 0,
+      "direct_wait_status": 0,
+      "controller_returncode": 0,
+      "controller_stdout": "node stopped exit_code=0\n",
+      "controller_stderr": "",
+      "pid": 439444,
+      "elapsed_seconds": 0.05216834200109588,
+      "ok": true
+    },
+    {
+      "fixture_exit_code": 1,
+      "direct_wait_status": 1,
+      "controller_returncode": 1,
+      "controller_stdout": "",
+      "controller_stderr": "node failed exit_code=1; retained identity and lifecycle evidence\n",
+      "pid": 439747,
+      "elapsed_seconds": 0.05590248500084272,
+      "ok": true
+    },
+    {
+      "fixture_exit_code": 124,
+      "direct_wait_status": 124,
+      "controller_returncode": 124,
+      "controller_stdout": "",
+      "controller_stderr": "node failed exit_code=124; retained identity and lifecycle evidence\n",
+      "pid": 440050,
+      "elapsed_seconds": 0.033763171995815355,
+      "ok": true
+    }
+  ]
+}

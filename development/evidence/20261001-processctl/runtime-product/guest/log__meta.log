@@ -1,0 +1,12 @@
+{"msg":"meta.store.memory_volatile","level":"WARN","ts":"2026-09-30T23:03:35.159383693Z","instance":"processctl-v50-meta-a","service_name":"afs-meta","instance":"processctl-v50-meta-a"}
+{"msg":"meta.ready","level":"INFO","ts":"2026-09-30T23:03:35.163830142Z","instance":"processctl-v50-meta-a","service_name":"afs-meta","rest":"0.0.0.0:18081","grpc":"0.0.0.0:18080"}
+{"msg":"services.stopped","level":"INFO","ts":"2026-09-30T23:03:35.485608849Z","instance":"processctl-v50-meta-a","service_name":"afs-meta"}
+{"msg":"meta.store.memory_volatile","level":"WARN","ts":"2026-09-30T23:04:08.625156279Z","instance":"processctl-v50-meta-a","service_name":"afs-meta","instance":"processctl-v50-meta-a"}
+{"msg":"meta.ready","level":"INFO","ts":"2026-09-30T23:04:08.627458776Z","instance":"processctl-v50-meta-a","service_name":"afs-meta","rest":"0.0.0.0:18081","grpc":"0.0.0.0:18080"}
+{"msg":"services.stopped","level":"INFO","ts":"2026-09-30T23:04:20.723373822Z","instance":"processctl-v50-meta-a","service_name":"afs-meta"}
+{"msg":"meta.store.memory_volatile","level":"WARN","ts":"2026-09-30T23:10:13.549750247Z","instance":"processctl-v50-meta-a","service_name":"afs-meta","instance":"processctl-v50-meta-a"}
+{"msg":"meta.ready","level":"INFO","ts":"2026-09-30T23:10:13.552148229Z","instance":"processctl-v50-meta-a","service_name":"afs-meta","rest":"0.0.0.0:18081","grpc":"0.0.0.0:18080"}
+{"msg":"services.stopped","level":"INFO","ts":"2026-09-30T23:10:40.742734817Z","instance":"processctl-v50-meta-a","service_name":"afs-meta"}
+{"msg":"meta.store.memory_volatile","level":"WARN","ts":"2026-09-30T23:11:49.27697768Z","instance":"processctl-v50-meta-a","service_name":"afs-meta","instance":"processctl-v50-meta-a"}
+{"msg":"meta.ready","level":"INFO","ts":"2026-09-30T23:11:49.280012705Z","instance":"processctl-v50-meta-a","service_name":"afs-meta","rest":"0.0.0.0:18081","grpc":"0.0.0.0:18080"}
+{"msg":"services.stopped","level":"INFO","ts":"2026-09-30T23:12:16.418271023Z","instance":"processctl-v50-meta-a","service_name":"afs-meta"}

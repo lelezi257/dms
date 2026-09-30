@@ -1,0 +1,7 @@
+pid=712351
+exe=/mnt/lima-afsadata/afs-delivery/processctl-v50/prefix/bin/afs-meta
+config=/mnt/lima-afsadata/afs-delivery/processctl-v50/etc/meta.toml
+start_ticks=6505387
+boot_id=36a572e0-859b-4a94-adc7-789210a83fc8
+lifecycle=/mnt/lima-afsadata/afs-delivery/processctl-v50/run/meta.lifecycle.MMvo9E
+supervisor_pid=712335

@@ -1,0 +1,3 @@
+{"msg":"meta.store.memory_volatile","level":"WARN","ts":"2026-09-30T23:03:35.159383693Z","instance":"processctl-v50-meta-a","service_name":"afs-meta","instance":"processctl-v50-meta-a"}
+{"msg":"meta.ready","level":"INFO","ts":"2026-09-30T23:03:35.163830142Z","instance":"processctl-v50-meta-a","service_name":"afs-meta","rest":"0.0.0.0:18081","grpc":"0.0.0.0:18080"}
+{"msg":"services.stopped","level":"INFO","ts":"2026-09-30T23:03:35.485608849Z","instance":"processctl-v50-meta-a","service_name":"afs-meta"}

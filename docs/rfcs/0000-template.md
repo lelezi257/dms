@@ -1,81 +1,17 @@
-# RFC-0000：标题
+# RFC: <title>
 
-状态：Draft
-作者：
-关联 Issue：
-目标 Milestone：
+## Problem
 
-## 摘要
+What user-visible or operator-visible problem does this proposal solve?
 
-用一段话说明采用的设计和外部结果。
+## Contract
 
-## 用户 Case
+What behavior, data model, RPC, persistence or failure contract changes?
 
-描述用户执行的操作、期望结果和失败结果。
+## Alternatives
 
-## 目标
+What options were considered and rejected?
 
--
+## Validation
 
-## 非目标
-
--
-
-## 术语
-
-| 术语 | 定义 |
-| --- | --- |
-| | |
-
-## 外部语义
-
-描述 API、POSIX 行为、错误码、可见性和持久化边界。
-
-## 数据模型
-
-描述稳定身份、持久字段、索引和引用关系。
-
-## 状态机
-
-使用 Mermaid 或表格描述状态、事件、门禁和终态。
-
-## 调用路径
-
-描述 Client、Node、Meta、Storage 和外部服务之间的请求顺序。
-
-## 并发与幂等
-
-描述并发操作排序、OperationId、重试和未知结果处理。
-
-## 故障矩阵
-
-| 故障点 | 可见状态 | 恢复动作 | 用户结果 |
-| --- | --- | --- | --- |
-| | | | |
-
-## 安全与隔离
-
-描述身份、授权、tenant、数据校验和资源限制。
-
-## 可观测性
-
-列出关键 metrics、trace、日志和管理查询。
-
-## 兼容性
-
-描述 wire、持久格式、滚动升级和降级规则。
-
-## 备选方案
-
-列出可行方案和未采用原因。
-
-## 验收标准
-
-- 功能：
-- 故障：
-- 性能：
-- 运维：
-
-## 未决问题
-
--
+What evidence will prove the proposal works?

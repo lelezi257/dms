@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="620" viewBox="0 0 1100 620" role="img" aria-labelledby="title desc">
+  <title id="title">AFS architecture</title>
+  <desc id="desc">Compute cluster contains applications, DFS SDK, Meta service, and compute hosts. Each compute host runs an AFS Node with OwnerFs and DFS modules. Optional external spill is outside the cluster.</desc>
+  <defs>
+    <style>
+      .box{fill:#fff;stroke:#1f2937;stroke-width:2;rx:14;ry:14}.soft{fill:#eef6ff;stroke:#2563eb}.node{fill:#f8fafc;stroke:#475569}.meta{fill:#fff7ed;stroke:#ea580c}.dfs{fill:#ecfdf5;stroke:#059669}.owner{fill:#fef2f2;stroke:#dc2626}.spill{fill:#f5f3ff;stroke:#7c3aed}.label{font-family:Arial, sans-serif;font-size:18px;fill:#111827}.small{font-family:Arial, sans-serif;font-size:14px;fill:#374151}.arrow{stroke:#374151;stroke-width:2;fill:none;marker-end:url(#arrow)}.bidir{stroke:#374151;stroke-width:2;fill:none;marker-end:url(#arrow);marker-start:url(#arrowStart)}.dash{stroke-dasharray:6 5}
+    </style>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="#374151"/></marker>
+    <marker id="arrowStart" markerWidth="10" markerHeight="10" refX="1" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M9,0 L9,6 L0,3 z" fill="#374151"/></marker>
+  </defs>
+  <rect x="30" y="30" width="820" height="550" class="box soft"/>
+  <text x="440" y="65" text-anchor="middle" class="label">Compute Cluster</text>
+
+  <rect x="70" y="100" width="260" height="90" class="box"/>
+  <text x="200" y="135" text-anchor="middle" class="label">Applications</text>
+  <text x="200" y="162" text-anchor="middle" class="small">POSIX FUSE mounts</text>
+
+  <rect x="360" y="100" width="190" height="90" class="box dfs"/>
+  <text x="455" y="134" text-anchor="middle" class="label">DFS SDK</text>
+  <text x="455" y="162" text-anchor="middle" class="small">DFS only</text>
+
+  <rect x="590" y="100" width="220" height="90" class="box meta"/>
+  <text x="700" y="132" text-anchor="middle" class="label">afs-meta</text>
+  <text x="700" y="158" text-anchor="middle" class="small">namespace · versions</text>
+  <text x="700" y="178" text-anchor="middle" class="small">leases · placement</text>
+
+  <rect x="70" y="240" width="350" height="260" class="box node"/>
+  <text x="245" y="272" text-anchor="middle" class="label">Compute Host A</text>
+  <rect x="100" y="305" width="290" height="150" class="box"/>
+  <text x="245" y="334" text-anchor="middle" class="label">afs-node</text>
+  <rect x="125" y="360" width="110" height="55" class="box owner"/>
+  <text x="180" y="393" text-anchor="middle" class="small">OwnerFs</text>
+  <rect x="255" y="360" width="110" height="55" class="box dfs"/>
+  <text x="310" y="393" text-anchor="middle" class="small">DFS Node</text>
+  <text x="245" y="480" text-anchor="middle" class="small">local disk: replicas · cache · staging</text>
+
+  <rect x="470" y="240" width="350" height="260" class="box node"/>
+  <text x="645" y="272" text-anchor="middle" class="label">Compute Host B</text>
+  <rect x="500" y="305" width="290" height="150" class="box"/>
+  <text x="645" y="334" text-anchor="middle" class="label">afs-node</text>
+  <rect x="525" y="360" width="110" height="55" class="box owner"/>
+  <text x="580" y="393" text-anchor="middle" class="small">OwnerFs</text>
+  <rect x="655" y="360" width="110" height="55" class="box dfs"/>
+  <text x="710" y="393" text-anchor="middle" class="small">DFS Node</text>
+  <text x="645" y="480" text-anchor="middle" class="small">local disk: replicas · cache · staging</text>
+
+  <rect x="900" y="250" width="160" height="150" class="box spill"/>
+  <text x="980" y="305" text-anchor="middle" class="label">External Spill</text>
+  <text x="980" y="334" text-anchor="middle" class="small">optional object</text>
+  <text x="980" y="354" text-anchor="middle" class="small">or cold store</text>
+
+  <path d="M200 190 L200 305" class="arrow"/>
+  <text x="210" y="230" class="small">FUSE</text>
+
+  <path d="M455 190 L610 305" class="arrow"/>
+  <text x="485" y="238" class="small">local SDK RPC</text>
+
+  <path d="M305 305 L620 190" class="arrow dash"/>
+  <text x="390" y="235" class="small">metadata</text>
+  <path d="M645 305 L700 190" class="arrow dash"/>
+  <text x="665" y="238" class="small">metadata</text>
+
+  <path d="M390 390 L500 390" class="bidir"/>
+  <text x="445" y="374" text-anchor="middle" class="small">P2P data</text>
+
+  <path d="M765 388 L900 325" class="arrow"/>
+  <text x="835" y="372" class="small">spill</text>
+</svg>

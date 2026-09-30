@@ -1,18 +1,25 @@
-# 基础框架验收
+# Test Reference
 
-所有命令在 Linux 运行，入口见 [运行指南](../docs/foundation-running.md)。
+Run tests on Linux. Some filesystem tests require `/dev/fuse`, privileges or explicit ignored-test selection.
 
-- `error_contract.rs`：真实 TCP/UDS 错误身份一致、Meta 详情、REST JSON 与 FUSE errno。
-- `config_contract.rs`：CLI/TOML 优先级、未知配置、编译/运行后端选择。
-- `vfs_contract.rs`：单 mount/单 Backend 接入、文件/目录句柄接口的未实现边界与指标。
-- `src/node/vfs/ownerfs/root.rs` 内单元测试：本机根授权激活后的准入、权限拒绝、Holder/Home 会话不匹配与失效封闭；不代表首次 mkdir 或重启恢复已接通。
-- `storage_localfs.rs`：受限本地路径、打开一次后的句柄 I/O、短读写及显式同步。
-- `fuse_contract.rs`：真实 FUSE 挂载、独立 Backend session 与已有挂载保护；需显式 `--ignored`。
-- `local_sdk.rs`：真实 UDS + SHM，8 字节读写、无 SHM 拒绝、错误/取消与 socket 回收。
-- `meta_contract.rs`：Meta Ping、OwnerRoots/DfsMeta 与 RecoverRoot 接口合同、请求/错误指标。
-- `rdma_lifecycle.rs`：显式真实 RXE/RDMA 搬运、取消后会话拒绝复用、不重放、TTL 过期；需配置设备并显式 `--ignored`。
-- `feature-matrix.sh`：OwnerFs/DFS 独立编译，Meta 零后端，公共传输无默认特性，SDK 不引入 RDMA。
-- `scripts/dfs/r1_e2e.py`：真实 Meta、DFS Node 和独立 FUSE mount，验证跨 handle dirty overlay、`fdatasync(V1)`、覆盖写、`fsync(V2)`、reopen/read 与两份 immutable Chunk。
-- `ownerfs_acceptance.py`：OwnerFs 多节点功能和恢复验收。
+## Rust Tests
 
-传输错误与协议边界测试同时位于 `src/node/rpc`、`common/transport`；OwnerFiles 的远端文件协议目前只验证注册与明确拒绝，未实现实际文件访问。没有用 Ping 冒充文件业务、授权或恢复完成。Python 仅是验收工具，不是运行 AFS binary 的依赖。
+- `config_contract.rs`: CLI and TOML precedence, unknown fields and backend feature selection.
+- `error_contract.rs`: structured AFS errors across TCP, UDS, REST and FUSE edges.
+- `fuse_contract.rs`: FUSE session and backend contract checks; privileged and ignored where required.
+- `local_sdk.rs`: UDS and SHM-oriented local SDK behavior.
+- `meta_contract.rs`: Meta ping, OwnerRoots, DFS Meta and recovery-contract checks.
+- `ownerfs_peer_contract.rs`: OwnerFs peer protocol boundaries.
+- `rdma_lifecycle.rs`: explicit RDMA lifecycle checks when an RDMA environment is provided.
+- `storage_localfs.rs`: local filesystem storage safety and range I/O.
+- `vfs_contract.rs`: backend trait and VFS boundary checks.
+
+## Scripts
+
+- `tests/feature-matrix.sh`: verifies feature combinations for OwnerFs, DFS, zero-backend Meta and transport crates.
+- `scripts/dfs/r1_e2e.py`: starts real Meta and DFS Node processes, mounts FUSE, writes a file, syncs it and reads it back.
+- `scripts/ownerfs/accept_three_vm.py`: OwnerFs multi-node acceptance entry point.
+
+## Scope Notes
+
+Tests prove only the behavior they exercise. The suite does not currently prove production HA, complete POSIX coverage, full R=N replication, VerifiedCache, SeedLease, Spill or all crash-recovery scenarios.

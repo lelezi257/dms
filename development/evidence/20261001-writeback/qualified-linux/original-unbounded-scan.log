@@ -1,0 +1,59 @@
+   Compiling afs v0.1.0 (/home/lzc.guest/afs-build/work/root-merged-v49)
+warning: unused variable: `budget`
+    --> src/node/vfs/dfs.rs:3630:45
+     |
+3630 |     fn writeback_pending_with_budget(&self, budget: Duration, max_ops: usize) -> Result<usize> {
+     |                                             ^^^^^^ help: if this is intentional, prefix it with an underscore: `_budget`
+     |
+     = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `max_ops`
+    --> src/node/vfs/dfs.rs:3630:63
+     |
+3630 |     fn writeback_pending_with_budget(&self, budget: Duration, max_ops: usize) -> Result<usize> {
+     |                                                               ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_max_ops`
+
+warning: field `writeback_maintenance_gate` is never read
+   --> src/node/vfs/dfs.rs:210:5
+    |
+183 | pub struct DistributedFs {
+    |            ------------- field in this struct
+...
+210 |     writeback_maintenance_gate: Mutex<()>,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: methods `commit_inode_until` and `pause_after_writeback_examine` are never used
+    --> src/node/vfs/dfs.rs:1719:8
+     |
+ 986 | impl DistributedFs {
+     | ------------------ methods in this implementation
+...
+1719 |     fn commit_inode_until(
+     |        ^^^^^^^^^^^^^^^^^^
+...
+3681 |     fn pause_after_writeback_examine(&self) {
+     |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: `afs` (lib test) generated 4 warnings (run `cargo fix --lib -p afs --tests` to apply 2 suggestions)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 18.02s
+     Running unittests src/lib.rs (/home/lzc.guest/afs-build/target/debug/deps/afs-586e1b701367e588)
+
+running 1 test
+
+thread 'node::vfs::dfs::tests::background_writeback_rotates_bounded_scan_across_clean_and_busy_entries' (374849) panicked at src/node/vfs/dfs.rs:12448:9:
+assertion `left == right` failed: the first bounded pass should examine only the clean/busy prefix
+  left: 1
+ right: 0
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test node::vfs::dfs::tests::background_writeback_rotates_bounded_scan_across_clean_and_busy_entries ... FAILED
+
+failures:
+
+failures:
+    node::vfs::dfs::tests::background_writeback_rotates_bounded_scan_across_clean_and_busy_entries
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 351 filtered out; finished in 0.11s
+
+error: test failed, to rerun pass `--lib`

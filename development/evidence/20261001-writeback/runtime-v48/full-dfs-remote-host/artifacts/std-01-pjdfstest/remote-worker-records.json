@@ -1,0 +1,296 @@
+{
+  "meta_pre": {
+    "argv": [
+      "limactl",
+      "shell",
+      "afs-accept-a",
+      "--",
+      "sudo",
+      "python3",
+      "/var/tmp/standard-v48/standard.py",
+      "worker-identity",
+      "--path",
+      "/",
+      "--expected-process",
+      "meta=707560:f96b6a06047da02bf186ea8d89457ee74c454d6c437915f5c32a20a9b909f312"
+    ],
+    "duration_seconds": 0.212,
+    "json_events": [
+      {
+        "base_mount": {
+          "argv": [
+            "findmnt",
+            "-T",
+            "/",
+            "-o",
+            "TARGET,SOURCE,FSTYPE,OPTIONS",
+            "--json"
+          ],
+          "returncode": 0,
+          "stderr": "",
+          "stdout": "{\n   \"filesystems\": [\n      {\n         \"target\": \"/\",\n         \"source\": \"/dev/vda1\",\n         \"fstype\": \"ext4\",\n         \"options\": \"rw,relatime,discard,errors=remount-ro,commit=30\"\n      }\n   ]\n}\n"
+        },
+        "event": "IDENTITY",
+        "mount": {
+          "argv": [
+            "findmnt",
+            "-T",
+            "/",
+            "-o",
+            "TARGET,SOURCE,FSTYPE,OPTIONS",
+            "--json"
+          ],
+          "returncode": 0,
+          "stderr": "",
+          "stdout": "{\n   \"filesystems\": [\n      {\n         \"target\": \"/\",\n         \"source\": \"/dev/vda1\",\n         \"fstype\": \"ext4\",\n         \"options\": \"rw,relatime,discard,errors=remount-ro,commit=30\"\n      }\n   ]\n}\n"
+        },
+        "platform": {
+          "machine": "aarch64",
+          "python": "3.12.3",
+          "system": "Linux"
+        },
+        "processes": {
+          "meta": {
+            "boot_id": "36a572e0-859b-4a94-adc7-789210a83fc8",
+            "cmdline_args": [
+              "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/bin/afs-meta",
+              "--config",
+              "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/meta.toml"
+            ],
+            "config": {
+              "grpc_listen": "0.0.0.0:17980",
+              "meta_endpoint": null,
+              "path": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/meta.toml",
+              "rest_listen": "0.0.0.0:17981",
+              "sha256": "28fc6c5f01154895f01cb660551e7bbac07e171128050712925cb35a62b8b905",
+              "tls": {
+                "tls_ca_certificate": {
+                  "exists": true,
+                  "path": "/mnt/lima-afsadata/afs-delivery/p1b/tls/ca.pem",
+                  "sha256": "400f7b9fbfce58aaae82feebebcea77dd8ef1a2ac61a6a7e88fe409365d3d71f"
+                },
+                "tls_identity_certificate": {
+                  "exists": true,
+                  "path": "/mnt/lima-afsadata/afs-delivery/p1b/tls/node-a.pem",
+                  "sha256": "7fead5ecb3998dcd158dfe1a5ecfda5cd2c12ffc214ef53751b400f4788b8b30"
+                },
+                "tls_identity_private_key": {
+                  "exists": true,
+                  "path": "/mnt/lima-afsadata/afs-delivery/p1b/tls/node-a-key.pem",
+                  "sha256": "ef3666ab559848b4e0cb592de508347b1f5c5e6916d90825f09d4282295a9751"
+                }
+              },
+              "tls_missing": [],
+              "tls_required": true,
+              "tls_server_name": "afs-cluster",
+              "trusted_node_certs": {
+                "memory-node-a": {
+                  "exists": true,
+                  "path": "/mnt/lima-afsadata/afs-delivery/p1b/tls/node-a.pem",
+                  "sha256": "7fead5ecb3998dcd158dfe1a5ecfda5cd2c12ffc214ef53751b400f4788b8b30"
+                },
+                "memory-node-b": {
+                  "exists": true,
+                  "path": "/mnt/lima-afsadata/afs-delivery/p1b/tls/node-b.pem",
+                  "sha256": "60b6cc8e2293c416114c588c0ef237e3cf048e802d0d1e56685e0125b18ac919"
+                }
+              }
+            },
+            "exe_dev": 64785,
+            "exe_inode": 1577498,
+            "exe_path": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/bin/afs-meta",
+            "exists": true,
+            "expected_sha256": "f96b6a06047da02bf186ea8d89457ee74c454d6c437915f5c32a20a9b909f312",
+            "machine_id": "9253e8d222af4657a862f974ae5ce752",
+            "network": {
+              "interface_ips": [
+                "192.168.109.12"
+              ],
+              "listen_sockets": [
+                {
+                  "family": "tcp",
+                  "inode": "961607",
+                  "ip": "0.0.0.0",
+                  "port": 17980
+                },
+                {
+                  "family": "tcp",
+                  "inode": "961608",
+                  "ip": "0.0.0.0",
+                  "port": 17981
+                }
+              ]
+            },
+            "pid": 707560,
+            "role": "meta",
+            "sha256": "f96b6a06047da02bf186ea8d89457ee74c454d6c437915f5c32a20a9b909f312",
+            "sha256_ok": true,
+            "start_ticks": 6127754
+          }
+        }
+      }
+    ],
+    "json_parse_errors": [],
+    "returncode": 0,
+    "stderr": "",
+    "stdout": "{\"base_mount\": {\"argv\": [\"findmnt\", \"-T\", \"/\", \"-o\", \"TARGET,SOURCE,FSTYPE,OPTIONS\", \"--json\"], \"returncode\": 0, \"stderr\": \"\", \"stdout\": \"{\\n   \\\"filesystems\\\": [\\n      {\\n         \\\"target\\\": \\\"/\\\",\\n         \\\"source\\\": \\\"/dev/vda1\\\",\\n         \\\"fstype\\\": \\\"ext4\\\",\\n         \\\"options\\\": \\\"rw,relatime,discard,errors=remount-ro,commit=30\\\"\\n      }\\n   ]\\n}\\n\"}, \"event\": \"IDENTITY\", \"mount\": {\"argv\": [\"findmnt\", \"-T\", \"/\", \"-o\", \"TARGET,SOURCE,FSTYPE,OPTIONS\", \"--json\"], \"returncode\": 0, \"stderr\": \"\", \"stdout\": \"{\\n   \\\"filesystems\\\": [\\n      {\\n         \\\"target\\\": \\\"/\\\",\\n         \\\"source\\\": \\\"/dev/vda1\\\",\\n         \\\"fstype\\\": \\\"ext4\\\",\\n         \\\"options\\\": \\\"rw,relatime,discard,errors=remount-ro,commit=30\\\"\\n      }\\n   ]\\n}\\n\"}, \"platform\": {\"machine\": \"aarch64\", \"python\": \"3.12.3\", \"system\": \"Linux\"}, \"processes\": {\"meta\": {\"boot_id\": \"36a572e0-859b-4a94-adc7-789210a83fc8\", \"cmdline_args\": [\"/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/bin/afs-meta\", \"--config\", \"/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/meta.toml\"], \"config\": {\"grpc_listen\": \"0.0.0.0:17980\", \"meta_endpoint\": null, \"path\": \"/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/meta.toml\", \"rest_listen\": \"0.0.0.0:17981\", \"sha256\": \"28fc6c5f01154895f01cb660551e7bbac07e171128050712925cb35a62b8b905\", \"tls\": {\"tls_ca_certificate\": {\"exists\": true, \"path\": \"/mnt/lima-afsadata/afs-delivery/p1b/tls/ca.pem\", \"sha256\": \"400f7b9fbfce58aaae82feebebcea77dd8ef1a2ac61a6a7e88fe409365d3d71f\"}, \"tls_identity_certificate\": {\"exists\": true, \"path\": \"/mnt/lima-afsadata/afs-delivery/p1b/tls/node-a.pem\", \"sha256\": \"7fead5ecb3998dcd158dfe1a5ecfda5cd2c12ffc214ef53751b400f4788b8b30\"}, \"tls_identity_private_key\": {\"exists\": true, \"path\": \"/mnt/lima-afsadata/afs-delivery/p1b/tls/node-a-key.pem\", \"sha256\": \"ef3666ab559848b4e0cb592de508347b1f5c5e6916d90825f09d4282295a9751\"}}, \"tls_missing\": [], \"tls_required\": true, \"tls_server_name\": \"afs-cluster\", \"trusted_node_certs\": {\"memory-node-a\": {\"exists\": true, \"path\": \"/mnt/lima-afsadata/afs-delivery/p1b/tls/node-a.pem\", \"sha256\": \"7fead5ecb3998dcd158dfe1a5ecfda5cd2c12ffc214ef53751b400f4788b8b30\"}, \"memory-node-b\": {\"exists\": true, \"path\": \"/mnt/lima-afsadata/afs-delivery/p1b/tls/node-b.pem\", \"sha256\": \"60b6cc8e2293c416114c588c0ef237e3cf048e802d0d1e56685e0125b18ac919\"}}}, \"exe_dev\": 64785, \"exe_inode\": 1577498, \"exe_path\": \"/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/bin/afs-meta\", \"exists\": true, \"expected_sha256\": \"f96b6a06047da02bf186ea8d89457ee74c454d6c437915f5c32a20a9b909f312\", \"machine_id\": \"9253e8d222af4657a862f974ae5ce752\", \"network\": {\"interface_ips\": [\"192.168.109.12\"], \"listen_sockets\": [{\"family\": \"tcp\", \"inode\": \"961607\", \"ip\": \"0.0.0.0\", \"port\": 17980}, {\"family\": \"tcp\", \"inode\": \"961608\", \"ip\": \"0.0.0.0\", \"port\": 17981}]}, \"pid\": 707560, \"role\": \"meta\", \"sha256\": \"f96b6a06047da02bf186ea8d89457ee74c454d6c437915f5c32a20a9b909f312\", \"sha256_ok\": true, \"start_ticks\": 6127754}}}\n",
+    "timed_out": false,
+    "timeout_seconds": 1900
+  },
+  "node_pre": {
+    "argv": [
+      "limactl",
+      "shell",
+      "afs-accept-b",
+      "--",
+      "sudo",
+      "python3",
+      "/var/tmp/standard-v48/standard.py",
+      "worker-identity",
+      "--path",
+      "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v48/mount-dfs",
+      "--base-path",
+      "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v48/mount-dfs",
+      "--worker-run-dir",
+      "/mnt/lima-afsbdata/afs-delivery/evidence/full-std-v48-dfs-remote",
+      "--expected-process",
+      "node=67588:f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39"
+    ],
+    "duration_seconds": 0.175,
+    "json_events": [
+      {
+        "base_mount": {
+          "argv": [
+            "findmnt",
+            "-T",
+            "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v48/mount-dfs",
+            "-o",
+            "TARGET,SOURCE,FSTYPE,OPTIONS",
+            "--json"
+          ],
+          "returncode": 0,
+          "stderr": "",
+          "stdout": "{\n   \"filesystems\": [\n      {\n         \"target\": \"/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v48/mount-dfs\",\n         \"source\": \"afs-dfs\",\n         \"fstype\": \"fuse\",\n         \"options\": \"rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other\"\n      }\n   ]\n}\n"
+        },
+        "event": "IDENTITY",
+        "mount": {
+          "argv": [
+            "findmnt",
+            "-T",
+            "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v48/mount-dfs",
+            "-o",
+            "TARGET,SOURCE,FSTYPE,OPTIONS",
+            "--json"
+          ],
+          "returncode": 0,
+          "stderr": "",
+          "stdout": "{\n   \"filesystems\": [\n      {\n         \"target\": \"/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v48/mount-dfs\",\n         \"source\": \"afs-dfs\",\n         \"fstype\": \"fuse\",\n         \"options\": \"rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other\"\n      }\n   ]\n}\n"
+        },
+        "platform": {
+          "machine": "aarch64",
+          "python": "3.12.3",
+          "system": "Linux"
+        },
+        "processes": {
+          "node": {
+            "boot_id": "3adebcd0-cb31-4df0-b18a-e970786ab7fb",
+            "cmdline_args": [
+              "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v48/bin/afs-node",
+              "--config",
+              "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v48/node.toml"
+            ],
+            "config": {
+              "grpc_listen": "0.0.0.0:17984",
+              "meta_endpoint": "https://192.168.109.12:17980",
+              "path": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v48/node.toml",
+              "rest_listen": "0.0.0.0:17985",
+              "sha256": "cf8bbaf5c1689d5f559a3e012afa27a2539649386461eff110c93df4c29dbe7c",
+              "tls": {
+                "tls_ca_certificate": {
+                  "exists": true,
+                  "path": "/mnt/lima-afsbdata/afs-delivery/p1b/tls/ca.pem",
+                  "sha256": "400f7b9fbfce58aaae82feebebcea77dd8ef1a2ac61a6a7e88fe409365d3d71f"
+                },
+                "tls_identity_certificate": {
+                  "exists": true,
+                  "path": "/mnt/lima-afsbdata/afs-delivery/p1b/tls/node-b.pem",
+                  "sha256": "60b6cc8e2293c416114c588c0ef237e3cf048e802d0d1e56685e0125b18ac919"
+                },
+                "tls_identity_private_key": {
+                  "exists": true,
+                  "path": "/mnt/lima-afsbdata/afs-delivery/p1b/tls/node-b-key.pem",
+                  "sha256": "506ea81a5ca52a931ce38cab13730a55ebf0a9243e47717b9f408a697e16bbf4"
+                }
+              },
+              "tls_missing": [],
+              "tls_required": true,
+              "tls_server_name": "afs-cluster",
+              "trusted_node_certs": {
+                "memory-node-a": {
+                  "exists": true,
+                  "path": "/mnt/lima-afsbdata/afs-delivery/p1b/tls/node-a.pem",
+                  "sha256": "7fead5ecb3998dcd158dfe1a5ecfda5cd2c12ffc214ef53751b400f4788b8b30"
+                },
+                "memory-node-b": {
+                  "exists": true,
+                  "path": "/mnt/lima-afsbdata/afs-delivery/p1b/tls/node-b.pem",
+                  "sha256": "60b6cc8e2293c416114c588c0ef237e3cf048e802d0d1e56685e0125b18ac919"
+                }
+              }
+            },
+            "exe_dev": 64785,
+            "exe_inode": 1311332,
+            "exe_path": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v48/bin/afs-node",
+            "exists": true,
+            "expected_sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+            "machine_id": "c581e30d9cc847af8a866d69ed374dc7",
+            "network": {
+              "interface_ips": [
+                "192.168.109.13"
+              ],
+              "listen_sockets": [
+                {
+                  "family": "tcp",
+                  "inode": "133471",
+                  "ip": "0.0.0.0",
+                  "port": 17984
+                },
+                {
+                  "family": "tcp",
+                  "inode": "133472",
+                  "ip": "0.0.0.0",
+                  "port": 17985
+                }
+              ]
+            },
+            "pid": 67588,
+            "role": "node",
+            "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+            "sha256_ok": true,
+            "start_ticks": 5197272
+          }
+        },
+        "worker_run_dir": "/mnt/lima-afsbdata/afs-delivery/evidence/full-std-v48-dfs-remote",
+        "worker_run_dir_mount": {
+          "argv": [
+            "findmnt",
+            "-T",
+            "/mnt/lima-afsbdata/afs-delivery/evidence/full-std-v48-dfs-remote",
+            "-o",
+            "TARGET,SOURCE,FSTYPE,OPTIONS",
+            "--json"
+          ],
+          "returncode": 1,
+          "stderr": "",
+          "stdout": ""
+        }
+      }
+    ],
+    "json_parse_errors": [],
+    "returncode": 0,
+    "stderr": "",
+    "stdout": "{\"base_mount\": {\"argv\": [\"findmnt\", \"-T\", \"/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v48/mount-dfs\", \"-o\", \"TARGET,SOURCE,FSTYPE,OPTIONS\", \"--json\"], \"returncode\": 0, \"stderr\": \"\", \"stdout\": \"{\\n   \\\"filesystems\\\": [\\n      {\\n         \\\"target\\\": \\\"/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v48/mount-dfs\\\",\\n         \\\"source\\\": \\\"afs-dfs\\\",\\n         \\\"fstype\\\": \\\"fuse\\\",\\n         \\\"options\\\": \\\"rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other\\\"\\n      }\\n   ]\\n}\\n\"}, \"event\": \"IDENTITY\", \"mount\": {\"argv\": [\"findmnt\", \"-T\", \"/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v48/mount-dfs\", \"-o\", \"TARGET,SOURCE,FSTYPE,OPTIONS\", \"--json\"], \"returncode\": 0, \"stderr\": \"\", \"stdout\": \"{\\n   \\\"filesystems\\\": [\\n      {\\n         \\\"target\\\": \\\"/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v48/mount-dfs\\\",\\n         \\\"source\\\": \\\"afs-dfs\\\",\\n         \\\"fstype\\\": \\\"fuse\\\",\\n         \\\"options\\\": \\\"rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other\\\"\\n      }\\n   ]\\n}\\n\"}, \"platform\": {\"machine\": \"aarch64\", \"python\": \"3.12.3\", \"system\": \"Linux\"}, \"processes\": {\"node\": {\"boot_id\": \"3adebcd0-cb31-4df0-b18a-e970786ab7fb\", \"cmdline_args\": [\"/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v48/bin/afs-node\", \"--config\", \"/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v48/node.toml\"], \"config\": {\"grpc_listen\": \"0.0.0.0:17984\", \"meta_endpoint\": \"https://192.168.109.12:17980\", \"path\": \"/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v48/node.toml\", \"rest_listen\": \"0.0.0.0:17985\", \"sha256\": \"cf8bbaf5c1689d5f559a3e012afa27a2539649386461eff110c93df4c29dbe7c\", \"tls\": {\"tls_ca_certificate\": {\"exists\": true, \"path\": \"/mnt/lima-afsbdata/afs-delivery/p1b/tls/ca.pem\", \"sha256\": \"400f7b9fbfce58aaae82feebebcea77dd8ef1a2ac61a6a7e88fe409365d3d71f\"}, \"tls_identity_certificate\": {\"exists\": true, \"path\": \"/mnt/lima-afsbdata/afs-delivery/p1b/tls/node-b.pem\", \"sha256\": \"60b6cc8e2293c416114c588c0ef237e3cf048e802d0d1e56685e0125b18ac919\"}, \"tls_identity_private_key\": {\"exists\": true, \"path\": \"/mnt/lima-afsbdata/afs-delivery/p1b/tls/node-b-key.pem\", \"sha256\": \"506ea81a5ca52a931ce38cab13730a55ebf0a9243e47717b9f408a697e16bbf4\"}}, \"tls_missing\": [], \"tls_required\": true, \"tls_server_name\": \"afs-cluster\", \"trusted_node_certs\": {\"memory-node-a\": {\"exists\": true, \"path\": \"/mnt/lima-afsbdata/afs-delivery/p1b/tls/node-a.pem\", \"sha256\": \"7fead5ecb3998dcd158dfe1a5ecfda5cd2c12ffc214ef53751b400f4788b8b30\"}, \"memory-node-b\": {\"exists\": true, \"path\": \"/mnt/lima-afsbdata/afs-delivery/p1b/tls/node-b.pem\", \"sha256\": \"60b6cc8e2293c416114c588c0ef237e3cf048e802d0d1e56685e0125b18ac919\"}}}, \"exe_dev\": 64785, \"exe_inode\": 1311332, \"exe_path\": \"/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v48/bin/afs-node\", \"exists\": true, \"expected_sha256\": \"f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39\", \"machine_id\": \"c581e30d9cc847af8a866d69ed374dc7\", \"network\": {\"interface_ips\": [\"192.168.109.13\"], \"listen_sockets\": [{\"family\": \"tcp\", \"inode\": \"133471\", \"ip\": \"0.0.0.0\", \"port\": 17984}, {\"family\": \"tcp\", \"inode\": \"133472\", \"ip\": \"0.0.0.0\", \"port\": 17985}]}, \"pid\": 67588, \"role\": \"node\", \"sha256\": \"f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39\", \"sha256_ok\": true, \"start_ticks\": 5197272}}, \"worker_run_dir\": \"/mnt/lima-afsbdata/afs-delivery/evidence/full-std-v48-dfs-remote\", \"worker_run_dir_mount\": {\"argv\": [\"findmnt\", \"-T\", \"/mnt/lima-afsbdata/afs-delivery/evidence/full-std-v48-dfs-remote\", \"-o\", \"TARGET,SOURCE,FSTYPE,OPTIONS\", \"--json\"], \"returncode\": 1, \"stderr\": \"\", \"stdout\": \"\"}}\n",
+    "timed_out": false,
+    "timeout_seconds": 1900
+  }
+}

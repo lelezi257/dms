@@ -55,6 +55,8 @@ const REMOTE_RELEASE_SHUTDOWN_BUDGET: std::time::Duration = std::time::Duration:
 const REMOTE_PROVIDER_IDLE_WAIT_BUDGET: std::time::Duration = std::time::Duration::from_secs(2);
 const REMOTE_RELEASE_RPC_BUDGET: std::time::Duration = std::time::Duration::from_millis(100);
 const REMOTE_RELEASE_RETRY_MAX_OPS: usize = 64;
+const WRITEBACK_MAINTENANCE_BUDGET: std::time::Duration = std::time::Duration::from_millis(250);
+const WRITEBACK_MAINTENANCE_MAX_OPS: usize = 64;
 const LOCK_SESSION_REAP_BUDGET: std::time::Duration = std::time::Duration::from_millis(250);
 const LOCK_SESSION_REAP_MAX_OPS: usize = 64;
 const OWNER_HANDLE_REAP_BUDGET: std::time::Duration = std::time::Duration::from_millis(250);
@@ -84,8 +86,29 @@ pub trait DfsMeta: Send + Sync {
     fn get_file_version(&self, version_id: &FileVersionId) -> Result<(FileVersion, LayoutRoot)>;
     fn open_write(&self, inode_id: &InodeId) -> Result<(InodeRecord, WriteLease)>;
     fn renew_write_lease(&self, lease: WriteLease) -> Result<WriteLease>;
+    fn renew_write_lease_with_timeout(
+        &self,
+        lease: WriteLease,
+        _timeout: Duration,
+    ) -> Result<WriteLease> {
+        self.renew_write_lease(lease)
+    }
     fn sync_inode_metadata(&self, sync: SyncInodeMetadata) -> Result<InodeRecord>;
+    fn sync_inode_metadata_with_timeout(
+        &self,
+        sync: SyncInodeMetadata,
+        _timeout: Duration,
+    ) -> Result<InodeRecord> {
+        self.sync_inode_metadata(sync)
+    }
     fn commit_file_version(&self, commit: CommitFileVersion) -> Result<InodeRecord>;
+    fn commit_file_version_with_timeout(
+        &self,
+        commit: CommitFileVersion,
+        _timeout: Duration,
+    ) -> Result<InodeRecord> {
+        self.commit_file_version(commit)
+    }
     fn lookup_node_location(&self, node_id: &str) -> Result<Option<DfsNodeLocation>>;
     fn current_node_session(&self, node_id: &str) -> Result<Option<String>>;
     fn current_node_session_with_timeout(
@@ -183,6 +206,12 @@ pub struct DistributedFs {
     owner_open_finish_pause: Mutex<Option<Arc<OwnerOpenFinishPause>>>,
     lock_session_reap_cursor: AtomicU64,
     owner_handle_reap_cursor: AtomicU64,
+    writeback_cursor: AtomicU64,
+    writeback_maintenance_gate: Mutex<()>,
+    #[cfg(test)]
+    writeback_after_examine_pause: Mutex<Option<Duration>>,
+    #[cfg(test)]
+    writeback_after_prepare_pause: Mutex<Option<Duration>>,
     closed_lock_sessions: Mutex<HashSet<String>>,
     closed_lock_session_admission_closed: AtomicBool,
     remote_operation_results: Mutex<HashMap<RemoteOperationKey, RemoteOperationResult>>,
@@ -988,6 +1017,12 @@ impl DistributedFs {
             owner_open_finish_pause: Mutex::new(None),
             lock_session_reap_cursor: AtomicU64::new(0),
             owner_handle_reap_cursor: AtomicU64::new(0),
+            writeback_cursor: AtomicU64::new(0),
+            writeback_maintenance_gate: Mutex::new(()),
+            #[cfg(test)]
+            writeback_after_examine_pause: Mutex::new(None),
+            #[cfg(test)]
+            writeback_after_prepare_pause: Mutex::new(None),
             closed_lock_sessions: Mutex::new(HashSet::new()),
             closed_lock_session_admission_closed: AtomicBool::new(false),
             remote_operation_results: Mutex::new(HashMap::new()),
@@ -1670,7 +1705,7 @@ impl DistributedFs {
     }
 
     fn commit_inode(&self, inode_id: &InodeId, reason: CommitReason) -> Result<Option<u64>> {
-        self.commit_inode_with_operation_gate(inode_id, reason, true)
+        self.commit_inode_with_operation_gate(inode_id, reason, true, None)
     }
 
     fn commit_inode_inside_operation(
@@ -1678,7 +1713,16 @@ impl DistributedFs {
         inode_id: &InodeId,
         reason: CommitReason,
     ) -> Result<Option<u64>> {
-        self.commit_inode_with_operation_gate(inode_id, reason, false)
+        self.commit_inode_with_operation_gate(inode_id, reason, false, None)
+    }
+
+    fn commit_inode_until(
+        &self,
+        inode_id: &InodeId,
+        reason: CommitReason,
+        deadline: Instant,
+    ) -> Result<Option<u64>> {
+        self.commit_inode_with_operation_gate(inode_id, reason, true, Some(deadline))
     }
 
     fn commit_inode_with_operation_gate(
@@ -1686,6 +1730,7 @@ impl DistributedFs {
         inode_id: &InodeId,
         reason: CommitReason,
         wait_for_operation: bool,
+        deadline: Option<Instant>,
     ) -> Result<Option<u64>> {
         let Some(cell) = self.write_state(inode_id)? else {
             return Ok(None);
@@ -1724,6 +1769,9 @@ impl DistributedFs {
                 if let Some(error) = state.terminal_error.clone() {
                     return Err(error);
                 }
+                if deadline.is_some_and(|deadline| Instant::now() >= deadline) {
+                    return Ok(None);
+                }
                 if let Some(in_flight) = state.in_flight.clone() {
                     let pending = match in_flight {
                         InFlightCommit::Preparing(_) => {
@@ -1749,8 +1797,20 @@ impl DistributedFs {
                         return Ok(None);
                     }
                     if should_renew(&state.write_lease) {
-                        state.write_lease =
-                            self.meta.renew_write_lease(state.write_lease.clone())?;
+                        state.write_lease = if let Some(timeout) = remaining_until(deadline) {
+                            if timeout.is_zero() {
+                                return Ok(None);
+                            }
+                            self.meta.renew_write_lease_with_timeout(
+                                state.write_lease.clone(),
+                                timeout,
+                            )?
+                        } else {
+                            self.meta.renew_write_lease(state.write_lease.clone())?
+                        };
+                    }
+                    if deadline.is_some_and(|deadline| Instant::now() >= deadline) {
+                        return Ok(None);
                     }
                     if !state.dirty {
                         let sync = SyncInodeMetadata {
@@ -1804,6 +1864,8 @@ impl DistributedFs {
                             .lock()
                             .map_err(|_| unavailable("DFS inode write state is poisoned"))?;
                         state.in_flight = Some(pending.clone());
+                        #[cfg(test)]
+                        self.pause_after_writeback_prepare();
                         pending
                     }
                     Err(error) => {
@@ -1821,7 +1883,24 @@ impl DistributedFs {
                 },
             };
 
-            let committed = self.finish_commit(cell.clone(), pending)?;
+            if deadline.is_some_and(|deadline| Instant::now() >= deadline) {
+                let mut state = cell
+                    .lock()
+                    .map_err(|_| unavailable("DFS inode write state is poisoned"))?;
+                state.commit_busy = false;
+                cell.notify_all();
+                return Ok(None);
+            }
+            let timeout = remaining_until(deadline);
+            if timeout.is_some_and(|timeout| timeout.is_zero()) {
+                let mut state = cell
+                    .lock()
+                    .map_err(|_| unavailable("DFS inode write state is poisoned"))?;
+                state.commit_busy = false;
+                cell.notify_all();
+                return Ok(None);
+            }
+            let committed = self.finish_commit(cell.clone(), pending, timeout)?;
             if matches!(reason, CommitReason::FullSync) && self.needs_full_metadata_sync(&cell)? {
                 continue;
             }
@@ -1833,6 +1912,7 @@ impl DistributedFs {
         &self,
         cell: SharedInodeWriteState,
         pending: InFlightCommit,
+        timeout: Option<Duration>,
     ) -> Result<Option<u64>> {
         let committed_kill_suidgid = matches!(&pending, InFlightCommit::File(pending) if pending.frozen.kill_suidgid_dirty)
             || matches!(&pending, InFlightCommit::Metadata(sync) if sync.metadata_delta.kill_suidgid);
@@ -1843,10 +1923,13 @@ impl DistributedFs {
                     pending.batch.commit.metadata_delta.mode == CommitMetadataMode::Full;
                 let version = pending.batch.commit.file_version.clone();
                 let layout = pending.batch.commit.layout_root.clone();
-                let updated = self.validate_inode(
+                let updated = self.validate_inode(if let Some(timeout) = timeout {
                     self.meta
-                        .commit_file_version(pending.batch.commit.clone())?,
-                )?;
+                        .commit_file_version_with_timeout(pending.batch.commit.clone(), timeout)?
+                } else {
+                    self.meta
+                        .commit_file_version(pending.batch.commit.clone())?
+                })?;
                 Ok(AppliedCommit::File {
                     through_seq: pending.batch.through_seq,
                     committed_full_metadata,
@@ -1856,7 +1939,12 @@ impl DistributedFs {
                 })
             }
             InFlightCommit::Metadata(sync) => {
-                let updated = self.validate_inode(self.meta.sync_inode_metadata(sync.clone())?)?;
+                let updated = self.validate_inode(if let Some(timeout) = timeout {
+                    self.meta
+                        .sync_inode_metadata_with_timeout(sync.clone(), timeout)?
+                } else {
+                    self.meta.sync_inode_metadata(sync.clone())?
+                })?;
                 Ok(AppliedCommit::Metadata { updated })
             }
         })();
@@ -3533,17 +3621,46 @@ impl DistributedFs {
     /// close contract. Failures remain attached to the inode and are reported
     /// once per open writer by a later write/flush/sync operation.
     pub fn writeback_pending(&self) -> Result<usize> {
+        self.writeback_pending_with_budget(
+            WRITEBACK_MAINTENANCE_BUDGET,
+            WRITEBACK_MAINTENANCE_MAX_OPS,
+        )
+    }
+
+    fn writeback_pending_with_budget(&self, budget: Duration, max_ops: usize) -> Result<usize> {
+        let _guard = match self.writeback_maintenance_gate.try_lock() {
+            Ok(guard) => guard,
+            Err(std::sync::TryLockError::WouldBlock) => return Ok(0),
+            Err(std::sync::TryLockError::Poisoned(_)) => {
+                return Err(unavailable("DFS writeback maintenance gate is poisoned"));
+            }
+        };
+        let deadline = Instant::now() + budget;
         // Snapshot references only. No inode lock or network wait may be held
         // under the shared table: that would stall unrelated inode lookups.
-        let states = self
+        let mut states = self
             .inode_writes
             .lock()
             .map_err(|_| unavailable("DFS inode write table is poisoned"))?
             .iter()
             .map(|(inode_id, state)| (inode_id.clone(), state.clone()))
             .collect::<Vec<_>>();
-        let mut candidates = Vec::new();
+        states.sort_by(|left, right| left.0.0.cmp(&right.0.0));
+        if !states.is_empty() {
+            let start = (self.writeback_cursor.load(Ordering::Relaxed) as usize) % states.len();
+            states.rotate_left(start);
+        }
+
+        let mut examined = 0usize;
+        let mut attempted = 0usize;
+        let mut committed = 0usize;
         for (inode_id, cell) in states {
+            if examined >= max_ops || Instant::now() >= deadline {
+                break;
+            }
+            examined = examined.saturating_add(1);
+            #[cfg(test)]
+            self.pause_after_writeback_examine();
             let state = match cell.state.try_lock() {
                 Ok(state) => state,
                 Err(std::sync::TryLockError::WouldBlock) => continue,
@@ -3558,28 +3675,45 @@ impl DistributedFs {
                     || state.kill_suidgid_dirty
                     || state.in_flight.is_some())
             {
-                candidates.push((
-                    inode_id,
-                    if state.last_writer_background_requested {
-                        CommitReason::LastWriter
-                    } else {
-                        CommitReason::Background
-                    },
-                ));
+                let reason = if state.last_writer_background_requested {
+                    CommitReason::LastWriter
+                } else {
+                    CommitReason::Background
+                };
+                drop(state);
+                if attempted >= max_ops || Instant::now() >= deadline {
+                    break;
+                }
+                attempted = attempted.saturating_add(1);
+                match self.commit_inode_until(&inode_id, reason, deadline) {
+                    Ok(Some(seq)) => {
+                        self.update_handles_after_commit(&inode_id, seq)?;
+                        committed += 1;
+                    }
+                    Ok(None) => {}
+                    Err(error) => self.record_background_error(&inode_id, error)?,
+                }
             }
         }
-        let mut committed = 0;
-        for (inode_id, reason) in candidates {
-            match self.commit_inode(&inode_id, reason) {
-                Ok(Some(seq)) => {
-                    self.update_handles_after_commit(&inode_id, seq)?;
-                    committed += 1;
-                }
-                Ok(None) => {}
-                Err(error) => self.record_background_error(&inode_id, error)?,
-            }
+        if examined != 0 {
+            self.writeback_cursor
+                .fetch_add(examined as u64, Ordering::Relaxed);
         }
         Ok(committed)
+    }
+
+    #[cfg(test)]
+    fn pause_after_writeback_examine(&self) {
+        if let Some(duration) = *self.writeback_after_examine_pause.lock().unwrap() {
+            std::thread::sleep(duration);
+        }
+    }
+
+    #[cfg(test)]
+    fn pause_after_writeback_prepare(&self) {
+        if let Some(duration) = self.writeback_after_prepare_pause.lock().unwrap().take() {
+            std::thread::sleep(duration);
+        }
     }
 
     /// Best-effort graceful drain. It gives a clean Node shutdown a chance to
@@ -7445,6 +7579,10 @@ fn should_renew(lease: &WriteLease) -> bool {
     lease.expires_at_unix_ms <= now_unix_ms().saturating_add(5_000)
 }
 
+fn remaining_until(deadline: Option<Instant>) -> Option<Duration> {
+    deadline.map(|deadline| deadline.saturating_duration_since(Instant::now()))
+}
+
 fn should_background_renew(lease: &WriteLease) -> bool {
     let renew_before_expiry_ms = DFS_WRITE_LEASE_SECONDS.saturating_mul(1_000) * 2 / 3;
     lease.expires_at_unix_ms <= now_unix_ms().saturating_add(renew_before_expiry_ms)
@@ -7850,6 +7988,9 @@ mod tests {
         next_open_write_error: Mutex<Option<Error>>,
         next_open_write_bad_namespace: Mutex<bool>,
         renew_results: Mutex<std::collections::VecDeque<Result<WriteLease>>>,
+        renew_timeouts: Mutex<Vec<Duration>>,
+        metadata_timeouts: Mutex<Vec<Duration>>,
+        commit_timeouts: Mutex<Vec<Duration>>,
         node_sessions: Mutex<HashMap<String, Option<String>>>,
         next_current_session_error: Mutex<Option<Error>>,
         current_session_calls: AtomicUsize,
@@ -7898,6 +8039,9 @@ mod tests {
                 next_open_write_error: Mutex::new(None),
                 next_open_write_bad_namespace: Mutex::new(false),
                 renew_results: Mutex::new(std::collections::VecDeque::new()),
+                renew_timeouts: Mutex::new(Vec::new()),
+                metadata_timeouts: Mutex::new(Vec::new()),
+                commit_timeouts: Mutex::new(Vec::new()),
                 node_sessions: Mutex::new(HashMap::new()),
                 next_current_session_error: Mutex::new(None),
                 current_session_calls: AtomicUsize::new(0),
@@ -7970,6 +8114,18 @@ mod tests {
 
         fn renew_call_count(&self) -> usize {
             self.renew_calls.load(Ordering::SeqCst)
+        }
+
+        fn commit_timeouts(&self) -> Vec<Duration> {
+            self.commit_timeouts.lock().unwrap().clone()
+        }
+
+        fn metadata_timeouts(&self) -> Vec<Duration> {
+            self.metadata_timeouts.lock().unwrap().clone()
+        }
+
+        fn renew_timeouts(&self) -> Vec<Duration> {
+            self.renew_timeouts.lock().unwrap().clone()
         }
 
         fn set_node_session(&self, node_id: &str, session_id: Option<&str>) {
@@ -8094,6 +8250,15 @@ mod tests {
             Ok(stored.clone())
         }
 
+        fn renew_write_lease_with_timeout(
+            &self,
+            lease: WriteLease,
+            timeout: Duration,
+        ) -> Result<WriteLease> {
+            self.renew_timeouts.lock().unwrap().push(timeout);
+            self.renew_write_lease(lease)
+        }
+
         fn sync_inode_metadata(&self, sync: SyncInodeMetadata) -> Result<InodeRecord> {
             let next_error = self.next_metadata_sync_error.lock().unwrap().take();
             if let Some(error) = next_error {
@@ -8115,6 +8280,15 @@ mod tests {
             }
             self.metadata_syncs.lock().unwrap().push(sync);
             Ok(inode.clone())
+        }
+
+        fn sync_inode_metadata_with_timeout(
+            &self,
+            sync: SyncInodeMetadata,
+            timeout: Duration,
+        ) -> Result<InodeRecord> {
+            self.metadata_timeouts.lock().unwrap().push(timeout);
+            self.sync_inode_metadata(sync)
         }
 
         fn commit_file_version(&self, commit: CommitFileVersion) -> Result<InodeRecord> {
@@ -8160,6 +8334,15 @@ mod tests {
             }
             self.commits.lock().unwrap().push(commit);
             Ok(inode.clone())
+        }
+
+        fn commit_file_version_with_timeout(
+            &self,
+            commit: CommitFileVersion,
+            timeout: Duration,
+        ) -> Result<InodeRecord> {
+            self.commit_timeouts.lock().unwrap().push(timeout);
+            self.commit_file_version(commit)
         }
 
         fn mkdir(
@@ -12201,6 +12384,291 @@ mod tests {
             serde_json::to_value(&exact).unwrap(),
             serde_json::to_value(&committed[0]).unwrap()
         );
+    }
+
+    fn synthetic_write_state(
+        inode_id: InodeId,
+        lease: WriteLease,
+        dirty: bool,
+        metadata_dirty: bool,
+        kill_suidgid_dirty: bool,
+        operation_busy: bool,
+    ) -> SharedInodeWriteState {
+        let mut inode = InodeRecord {
+            namespace_id: NamespaceId::new("default"),
+            inode_id: inode_id.clone(),
+            kind: InodeKind::Regular,
+            attributes: InodeAttributes {
+                mode: 0o640,
+                uid: 1000,
+                gid: 1000,
+                nlink: 1,
+                atime_unix_ms: 1,
+                mtime_unix_ms: 1,
+                ctime_unix_ms: 1,
+            },
+            head_version: None,
+            symlink_target: None,
+            xattrs: std::collections::BTreeMap::new(),
+            revision: 1,
+        };
+        let mut write_lease = lease;
+        write_lease.inode_id = inode_id.clone();
+        inode.inode_id = inode_id;
+        Arc::new(InodeWriteStateCell::new(InodeWriteState {
+            inode,
+            write_lease,
+            base_version: None,
+            base_layout: LayoutRoot {
+                id: LayoutRootId::new("synthetic-empty-layout"),
+                file_length: 0,
+                inline_extents: Vec::new(),
+            },
+            logical_length: 0,
+            metadata_dirty,
+            kill_suidgid_dirty,
+            dirty_extents: DirtyExtentMap::default(),
+            in_flight: None,
+            commit_busy: false,
+            operation_busy,
+            dirty,
+            next_write_seq: 0,
+            visible_write_seq: 0,
+            durable_write_seq: 0,
+            committed_write_seq: 0,
+            open_writers: 0,
+            last_writer_background_requested: false,
+            background_error: None,
+            terminal_error: None,
+        }))
+    }
+
+    #[test]
+    fn background_writeback_rotates_bounded_scan_across_clean_and_busy_entries() {
+        let (_temp, meta, fs) = test_fs();
+        let lease = meta.lease.lock().unwrap().clone();
+        {
+            let mut states = fs.inode_writes.lock().unwrap();
+            for index in 0..64 {
+                let inode_id = InodeId::new(format!("inode:fair-{index:03}"));
+                states.insert(
+                    inode_id.clone(),
+                    synthetic_write_state(
+                        inode_id,
+                        lease.clone(),
+                        index == 63,
+                        false,
+                        false,
+                        index == 63,
+                    ),
+                );
+            }
+            let inode_id = InodeId::new("inode:fair-064");
+            states.insert(
+                inode_id.clone(),
+                synthetic_write_state(inode_id, lease, false, false, true, false),
+            );
+        }
+
+        assert_eq!(
+            fs.writeback_pending_with_budget(Duration::from_secs(1), 64)
+                .unwrap(),
+            0,
+            "the first bounded pass should examine only the clean/busy prefix"
+        );
+        assert!(meta.metadata_syncs.lock().unwrap().is_empty());
+
+        assert_eq!(
+            fs.writeback_pending_with_budget(Duration::from_secs(1), 64)
+                .unwrap(),
+            1,
+            "the next pass should rotate to the deferred candidate"
+        );
+        assert_eq!(meta.metadata_syncs.lock().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn background_writeback_cursor_advances_after_partial_timed_passes() {
+        let (_temp, meta, fs) = test_fs();
+        let lease = meta.lease.lock().unwrap().clone();
+        {
+            let mut states = fs.inode_writes.lock().unwrap();
+            for index in 0..4 {
+                let inode_id = InodeId::new(format!("inode:partial-{index:03}"));
+                states.insert(
+                    inode_id.clone(),
+                    synthetic_write_state(inode_id, lease.clone(), false, false, index == 3, false),
+                );
+            }
+        }
+        *fs.writeback_after_examine_pause.lock().unwrap() = Some(Duration::from_millis(60));
+        for pass in 0..3 {
+            assert_eq!(
+                fs.writeback_pending_with_budget(Duration::from_millis(50), 64)
+                    .unwrap(),
+                0
+            );
+            assert_eq!(fs.writeback_cursor.load(Ordering::Relaxed), pass + 1);
+        }
+        assert!(meta.metadata_syncs.lock().unwrap().is_empty());
+
+        *fs.writeback_after_examine_pause.lock().unwrap() = None;
+        assert_eq!(
+            fs.writeback_pending_with_budget(Duration::from_secs(1), 1)
+                .unwrap(),
+            1
+        );
+        let metadata_syncs = meta.metadata_syncs.lock().unwrap();
+        assert_eq!(metadata_syncs.len(), 1);
+        assert_eq!(
+            metadata_syncs[0].inode_id,
+            InodeId::new("inode:partial-003")
+        );
+    }
+
+    #[test]
+    fn background_writeback_passes_remaining_timeout_to_each_candidate() {
+        let (_temp, meta, fs) = test_fs();
+        let lease = meta.lease.lock().unwrap().clone();
+        {
+            let mut states = fs.inode_writes.lock().unwrap();
+            for index in 0..2 {
+                let inode_id = InodeId::new(format!("inode:timeout-{index:03}"));
+                let cell = synthetic_write_state(
+                    inode_id.clone(),
+                    lease.clone(),
+                    false,
+                    false,
+                    true,
+                    false,
+                );
+                cell.lock().unwrap().inode.revision = (index + 1) as u64;
+                states.insert(inode_id, cell);
+            }
+        }
+
+        assert_eq!(
+            fs.writeback_pending_with_budget(Duration::from_millis(250), 64)
+                .unwrap(),
+            2
+        );
+        let timeouts = meta.metadata_timeouts();
+        assert_eq!(timeouts.len(), 2);
+        assert!(
+            timeouts
+                .iter()
+                .all(|timeout| *timeout <= Duration::from_millis(250))
+        );
+        assert!(timeouts.iter().all(|timeout| !timeout.is_zero()));
+        assert!(
+            timeouts.windows(2).all(|window| window[1] <= window[0]),
+            "remaining timeout should not increase across candidates"
+        );
+    }
+
+    #[test]
+    fn background_writeback_expired_before_send_retains_exact_pending_for_replay() {
+        let (_temp, meta, fs) = test_fs();
+        let created = fs
+            .create(
+                &context(),
+                fs.root_inode(),
+                OsStr::new("prepared-replay.bin"),
+                0o640,
+                libc::O_RDWR,
+            )
+            .unwrap();
+        fs.write(&context(), created.handle, 0, b"prepared")
+            .unwrap();
+        let inode_id = meta.inode.lock().unwrap().inode_id.clone();
+        let cell = fs.write_state(&inode_id).unwrap().unwrap();
+
+        *fs.writeback_after_prepare_pause.lock().unwrap() = Some(Duration::from_secs(2));
+        assert_eq!(
+            fs.writeback_pending_with_budget(Duration::from_secs(1), 64)
+                .unwrap(),
+            0
+        );
+        assert!(meta.commits.lock().unwrap().is_empty());
+        let pending_commit = {
+            let state = cell.lock().unwrap();
+            assert!(!state.commit_busy);
+            assert!(state.background_error.is_none());
+            match state.in_flight.as_ref().expect("pending commit retained") {
+                InFlightCommit::File(pending) => {
+                    assert_eq!(
+                        pending.batch.commit.metadata_delta.mode,
+                        CommitMetadataMode::Full
+                    );
+                    pending.batch.commit.clone()
+                }
+                InFlightCommit::Preparing(_) | InFlightCommit::Metadata(_) => {
+                    panic!("expected exact prepared file commit")
+                }
+            }
+        };
+
+        assert_eq!(
+            fs.writeback_pending_with_budget(Duration::from_secs(1), 64)
+                .unwrap(),
+            1
+        );
+        let commits = meta.commits.lock().unwrap();
+        assert_eq!(commits.len(), 1);
+        assert_eq!(
+            commits[0], pending_commit,
+            "exact request, lease, CAS and receipts must replay"
+        );
+    }
+
+    #[test]
+    fn background_writeback_expired_before_lease_renewal_defers_cleanly() {
+        let (_temp, meta, fs) = test_fs();
+        let inode_id = InodeId::new("inode:lease-defer");
+        let mut lease = meta.lease.lock().unwrap().clone();
+        lease.expires_at_unix_ms = 0;
+        let cell = synthetic_write_state(inode_id.clone(), lease, true, false, false, false);
+        cell.lock()
+            .unwrap()
+            .dirty_extents
+            .write_at(0, b"x", 1)
+            .unwrap();
+        fs.inode_writes
+            .lock()
+            .unwrap()
+            .insert(inode_id.clone(), cell.clone());
+
+        *fs.writeback_after_examine_pause.lock().unwrap() = Some(Duration::from_millis(2));
+        assert_eq!(
+            fs.writeback_pending_with_budget(Duration::from_millis(1), 64)
+                .unwrap(),
+            0
+        );
+        assert_eq!(meta.renew_call_count(), 0);
+        let state = cell.lock().unwrap();
+        assert!(state.background_error.is_none());
+        assert!(state.dirty);
+        assert!(state.in_flight.is_none());
+    }
+
+    #[test]
+    fn foreground_sync_does_not_use_writeback_meta_timeout_slice() {
+        let (_temp, meta, fs) = test_fs();
+        let created = fs
+            .create(
+                &context(),
+                fs.root_inode(),
+                OsStr::new("foreground-no-budget.bin"),
+                0o640,
+                libc::O_RDWR,
+            )
+            .unwrap();
+        fs.write(&context(), created.handle, 0, b"data").unwrap();
+        fs.fsync(&context(), created.handle, SyncMode::DataOnly)
+            .unwrap();
+        assert!(meta.commit_timeouts().is_empty());
+        assert!(meta.metadata_timeouts().is_empty());
+        assert!(meta.renew_timeouts().is_empty());
     }
 
     #[test]

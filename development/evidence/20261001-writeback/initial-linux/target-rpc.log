@@ -1,0 +1,20 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.07s
+     Running unittests src/lib.rs (/home/lzc.guest/afs-build/target/debug/deps/afs-586e1b701367e588)
+
+running 1 test
+
+thread 'node::rpc::meta::tests::grpc_dfs_meta_focused_timeouts_bound_hanging_rpc' (374578) panicked at src/node/rpc/meta.rs:1992:9:
+assertion `left == right` failed
+  left: ErrorCode(16973827)
+ right: ErrorCode(16908290)
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test node::rpc::meta::tests::grpc_dfs_meta_focused_timeouts_bound_hanging_rpc ... FAILED
+
+failures:
+
+failures:
+    node::rpc::meta::tests::grpc_dfs_meta_focused_timeouts_bound_hanging_rpc
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 351 filtered out; finished in 0.18s
+
+error: test failed, to rerun pass `--lib`

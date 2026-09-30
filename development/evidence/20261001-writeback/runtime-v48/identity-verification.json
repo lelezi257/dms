@@ -1,0 +1,3554 @@
+{
+  "status": "PASS",
+  "scope": "exact product process identities, independent mount evidence in reports; removed file paths have four findmnt ENOENT observations retained separately",
+  "reports": {
+    "consistency/report.json": {
+      "status": "PASS",
+      "summary": {
+        "commands": 30,
+        "failed": 0,
+        "passed": 10,
+        "steps": 10
+      },
+      "identity_records": 96
+    },
+    "dfs-cross/report.json": {
+      "status": "PASS",
+      "summary": {
+        "commands": 29,
+        "failed": 0,
+        "passed": 7,
+        "steps": 7
+      },
+      "identity_records": 76
+    },
+    "ownerfs-cross/report.json": {
+      "status": "PASS",
+      "summary": {
+        "commands": 29,
+        "failed": 0,
+        "passed": 7,
+        "steps": 7
+      },
+      "identity_records": 76
+    }
+  },
+  "total_product_identity_records": 248,
+  "unique_incarnations": {
+    "lima-afs-accept-a/node": [
+      [
+        707590,
+        "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+        6127772,
+        64785,
+        1577499
+      ]
+    ],
+    "lima-afs-accept-a/meta": [
+      [
+        707560,
+        "f96b6a06047da02bf186ea8d89457ee74c454d6c437915f5c32a20a9b909f312",
+        6127754,
+        64785,
+        1577498
+      ]
+    ],
+    "lima-afs-accept-b/node": [
+      [
+        67588,
+        "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+        5197272,
+        64785,
+        1311332
+      ]
+    ]
+  },
+  "missing_file_path_mount_observations": [
+    {
+      "report": "dfs-cross/report.json",
+      "object_path": "root/commands/27/json_events/0/identity",
+      "host": "lima-afs-accept-a",
+      "argv": [
+        "findmnt",
+        "-T",
+        "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-dfs/lock-v48-dfs.txt",
+        "-o",
+        "TARGET,SOURCE,FSTYPE,OPTIONS",
+        "--json"
+      ]
+    },
+    {
+      "report": "dfs-cross/report.json",
+      "object_path": "root/commands/28/json_events/0/identity",
+      "host": "lima-afs-accept-a",
+      "argv": [
+        "findmnt",
+        "-T",
+        "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-dfs/lock-v48-dfs.txt.held",
+        "-o",
+        "TARGET,SOURCE,FSTYPE,OPTIONS",
+        "--json"
+      ]
+    },
+    {
+      "report": "ownerfs-cross/report.json",
+      "object_path": "root/commands/27/json_events/0/identity",
+      "host": "lima-afs-accept-a",
+      "argv": [
+        "findmnt",
+        "-T",
+        "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-ownerfs/owner-memory-lane-20260930T220717Z/lock-v48-ownerfs.txt",
+        "-o",
+        "TARGET,SOURCE,FSTYPE,OPTIONS",
+        "--json"
+      ]
+    },
+    {
+      "report": "ownerfs-cross/report.json",
+      "object_path": "root/commands/28/json_events/0/identity",
+      "host": "lima-afs-accept-a",
+      "argv": [
+        "findmnt",
+        "-T",
+        "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-ownerfs/owner-memory-lane-20260930T220717Z/lock-v48-ownerfs.txt.held",
+        "-o",
+        "TARGET,SOURCE,FSTYPE,OPTIONS",
+        "--json"
+      ]
+    }
+  ],
+  "records": [
+    {
+      "report": "consistency/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "meta",
+      "pid": 707560,
+      "sha256": "f96b6a06047da02bf186ea8d89457ee74c454d6c437915f5c32a20a9b909f312",
+      "start_ticks": 6127754,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-ownerfs",
+        "source": "afs-ownerfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "consistency/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "node",
+      "pid": 707590,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 6127772,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-ownerfs",
+        "source": "afs-ownerfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "consistency/report.json",
+      "host": "lima-afs-accept-b",
+      "process": "node",
+      "pid": 67588,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 5197272,
+      "mount": {
+        "target": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v48/mount-ownerfs",
+        "source": "afs-ownerfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "consistency/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "meta",
+      "pid": 707560,
+      "sha256": "f96b6a06047da02bf186ea8d89457ee74c454d6c437915f5c32a20a9b909f312",
+      "start_ticks": 6127754,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "consistency/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "node",
+      "pid": 707590,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 6127772,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "consistency/report.json",
+      "host": "lima-afs-accept-b",
+      "process": "node",
+      "pid": 67588,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 5197272,
+      "mount": {
+        "target": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "consistency/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "meta",
+      "pid": 707560,
+      "sha256": "f96b6a06047da02bf186ea8d89457ee74c454d6c437915f5c32a20a9b909f312",
+      "start_ticks": 6127754,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-ownerfs",
+        "source": "afs-ownerfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "consistency/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "node",
+      "pid": 707590,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 6127772,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-ownerfs",
+        "source": "afs-ownerfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "consistency/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "meta",
+      "pid": 707560,
+      "sha256": "f96b6a06047da02bf186ea8d89457ee74c454d6c437915f5c32a20a9b909f312",
+      "start_ticks": 6127754,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "consistency/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "node",
+      "pid": 707590,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 6127772,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "consistency/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "meta",
+      "pid": 707560,
+      "sha256": "f96b6a06047da02bf186ea8d89457ee74c454d6c437915f5c32a20a9b909f312",
+      "start_ticks": 6127754,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-ownerfs",
+        "source": "afs-ownerfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "consistency/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "node",
+      "pid": 707590,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 6127772,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-ownerfs",
+        "source": "afs-ownerfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "consistency/report.json",
+      "host": "lima-afs-accept-b",
+      "process": "node",
+      "pid": 67588,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 5197272,
+      "mount": {
+        "target": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v48/mount-ownerfs",
+        "source": "afs-ownerfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "consistency/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "meta",
+      "pid": 707560,
+      "sha256": "f96b6a06047da02bf186ea8d89457ee74c454d6c437915f5c32a20a9b909f312",
+      "start_ticks": 6127754,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-ownerfs",
+        "source": "afs-ownerfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "consistency/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "node",
+      "pid": 707590,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 6127772,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-ownerfs",
+        "source": "afs-ownerfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "consistency/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "meta",
+      "pid": 707560,
+      "sha256": "f96b6a06047da02bf186ea8d89457ee74c454d6c437915f5c32a20a9b909f312",
+      "start_ticks": 6127754,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "consistency/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "node",
+      "pid": 707590,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 6127772,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "consistency/report.json",
+      "host": "lima-afs-accept-b",
+      "process": "node",
+      "pid": 67588,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 5197272,
+      "mount": {
+        "target": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "consistency/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "meta",
+      "pid": 707560,
+      "sha256": "f96b6a06047da02bf186ea8d89457ee74c454d6c437915f5c32a20a9b909f312",
+      "start_ticks": 6127754,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "consistency/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "node",
+      "pid": 707590,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 6127772,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "consistency/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "meta",
+      "pid": 707560,
+      "sha256": "f96b6a06047da02bf186ea8d89457ee74c454d6c437915f5c32a20a9b909f312",
+      "start_ticks": 6127754,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-ownerfs",
+        "source": "afs-ownerfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "consistency/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "node",
+      "pid": 707590,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 6127772,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-ownerfs",
+        "source": "afs-ownerfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "consistency/report.json",
+      "host": "lima-afs-accept-b",
+      "process": "node",
+      "pid": 67588,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 5197272,
+      "mount": {
+        "target": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v48/mount-ownerfs",
+        "source": "afs-ownerfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "consistency/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "meta",
+      "pid": 707560,
+      "sha256": "f96b6a06047da02bf186ea8d89457ee74c454d6c437915f5c32a20a9b909f312",
+      "start_ticks": 6127754,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-ownerfs",
+        "source": "afs-ownerfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "consistency/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "node",
+      "pid": 707590,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 6127772,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-ownerfs",
+        "source": "afs-ownerfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "consistency/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "meta",
+      "pid": 707560,
+      "sha256": "f96b6a06047da02bf186ea8d89457ee74c454d6c437915f5c32a20a9b909f312",
+      "start_ticks": 6127754,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-ownerfs",
+        "source": "afs-ownerfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "consistency/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "node",
+      "pid": 707590,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 6127772,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-ownerfs",
+        "source": "afs-ownerfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "consistency/report.json",
+      "host": "lima-afs-accept-b",
+      "process": "node",
+      "pid": 67588,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 5197272,
+      "mount": {
+        "target": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v48/mount-ownerfs",
+        "source": "afs-ownerfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "consistency/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "meta",
+      "pid": 707560,
+      "sha256": "f96b6a06047da02bf186ea8d89457ee74c454d6c437915f5c32a20a9b909f312",
+      "start_ticks": 6127754,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "consistency/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "node",
+      "pid": 707590,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 6127772,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "consistency/report.json",
+      "host": "lima-afs-accept-b",
+      "process": "node",
+      "pid": 67588,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 5197272,
+      "mount": {
+        "target": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "consistency/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "meta",
+      "pid": 707560,
+      "sha256": "f96b6a06047da02bf186ea8d89457ee74c454d6c437915f5c32a20a9b909f312",
+      "start_ticks": 6127754,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "consistency/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "node",
+      "pid": 707590,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 6127772,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "consistency/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "meta",
+      "pid": 707560,
+      "sha256": "f96b6a06047da02bf186ea8d89457ee74c454d6c437915f5c32a20a9b909f312",
+      "start_ticks": 6127754,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "consistency/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "node",
+      "pid": 707590,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 6127772,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "consistency/report.json",
+      "host": "lima-afs-accept-b",
+      "process": "node",
+      "pid": 67588,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 5197272,
+      "mount": {
+        "target": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "consistency/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "meta",
+      "pid": 707560,
+      "sha256": "f96b6a06047da02bf186ea8d89457ee74c454d6c437915f5c32a20a9b909f312",
+      "start_ticks": 6127754,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "consistency/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "node",
+      "pid": 707590,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 6127772,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "consistency/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "meta",
+      "pid": 707560,
+      "sha256": "f96b6a06047da02bf186ea8d89457ee74c454d6c437915f5c32a20a9b909f312",
+      "start_ticks": 6127754,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "consistency/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "node",
+      "pid": 707590,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 6127772,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "consistency/report.json",
+      "host": "lima-afs-accept-b",
+      "process": "node",
+      "pid": 67588,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 5197272,
+      "mount": {
+        "target": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "consistency/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "meta",
+      "pid": 707560,
+      "sha256": "f96b6a06047da02bf186ea8d89457ee74c454d6c437915f5c32a20a9b909f312",
+      "start_ticks": 6127754,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "consistency/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "node",
+      "pid": 707590,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 6127772,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "consistency/report.json",
+      "host": "lima-afs-accept-b",
+      "process": "node",
+      "pid": 67588,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 5197272,
+      "mount": {
+        "target": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "consistency/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "meta",
+      "pid": 707560,
+      "sha256": "f96b6a06047da02bf186ea8d89457ee74c454d6c437915f5c32a20a9b909f312",
+      "start_ticks": 6127754,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "consistency/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "node",
+      "pid": 707590,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 6127772,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "consistency/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "meta",
+      "pid": 707560,
+      "sha256": "f96b6a06047da02bf186ea8d89457ee74c454d6c437915f5c32a20a9b909f312",
+      "start_ticks": 6127754,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "consistency/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "node",
+      "pid": 707590,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 6127772,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "consistency/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "meta",
+      "pid": 707560,
+      "sha256": "f96b6a06047da02bf186ea8d89457ee74c454d6c437915f5c32a20a9b909f312",
+      "start_ticks": 6127754,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-ownerfs",
+        "source": "afs-ownerfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "consistency/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "node",
+      "pid": 707590,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 6127772,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-ownerfs",
+        "source": "afs-ownerfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "consistency/report.json",
+      "host": "lima-afs-accept-b",
+      "process": "node",
+      "pid": 67588,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 5197272,
+      "mount": {
+        "target": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "consistency/report.json",
+      "host": "lima-afs-accept-b",
+      "process": "node",
+      "pid": 67588,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 5197272,
+      "mount": {
+        "target": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v48/mount-ownerfs",
+        "source": "afs-ownerfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "consistency/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "meta",
+      "pid": 707560,
+      "sha256": "f96b6a06047da02bf186ea8d89457ee74c454d6c437915f5c32a20a9b909f312",
+      "start_ticks": 6127754,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-ownerfs",
+        "source": "afs-ownerfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "consistency/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "node",
+      "pid": 707590,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 6127772,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-ownerfs",
+        "source": "afs-ownerfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "consistency/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "meta",
+      "pid": 707560,
+      "sha256": "f96b6a06047da02bf186ea8d89457ee74c454d6c437915f5c32a20a9b909f312",
+      "start_ticks": 6127754,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "consistency/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "node",
+      "pid": 707590,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 6127772,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "consistency/report.json",
+      "host": "lima-afs-accept-b",
+      "process": "node",
+      "pid": 67588,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 5197272,
+      "mount": {
+        "target": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v48/mount-ownerfs",
+        "source": "afs-ownerfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "consistency/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "meta",
+      "pid": 707560,
+      "sha256": "f96b6a06047da02bf186ea8d89457ee74c454d6c437915f5c32a20a9b909f312",
+      "start_ticks": 6127754,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-ownerfs",
+        "source": "afs-ownerfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "consistency/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "node",
+      "pid": 707590,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 6127772,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-ownerfs",
+        "source": "afs-ownerfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "consistency/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "meta",
+      "pid": 707560,
+      "sha256": "f96b6a06047da02bf186ea8d89457ee74c454d6c437915f5c32a20a9b909f312",
+      "start_ticks": 6127754,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-ownerfs",
+        "source": "afs-ownerfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "consistency/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "node",
+      "pid": 707590,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 6127772,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-ownerfs",
+        "source": "afs-ownerfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "consistency/report.json",
+      "host": "lima-afs-accept-b",
+      "process": "node",
+      "pid": 67588,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 5197272,
+      "mount": {
+        "target": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v48/mount-ownerfs",
+        "source": "afs-ownerfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "consistency/report.json",
+      "host": "lima-afs-accept-b",
+      "process": "node",
+      "pid": 67588,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 5197272,
+      "mount": {
+        "target": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v48/mount-ownerfs",
+        "source": "afs-ownerfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "consistency/report.json",
+      "host": "lima-afs-accept-b",
+      "process": "node",
+      "pid": 67588,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 5197272,
+      "mount": {
+        "target": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "consistency/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "meta",
+      "pid": 707560,
+      "sha256": "f96b6a06047da02bf186ea8d89457ee74c454d6c437915f5c32a20a9b909f312",
+      "start_ticks": 6127754,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "consistency/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "node",
+      "pid": 707590,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 6127772,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "consistency/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "meta",
+      "pid": 707560,
+      "sha256": "f96b6a06047da02bf186ea8d89457ee74c454d6c437915f5c32a20a9b909f312",
+      "start_ticks": 6127754,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "consistency/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "node",
+      "pid": 707590,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 6127772,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "consistency/report.json",
+      "host": "lima-afs-accept-b",
+      "process": "node",
+      "pid": 67588,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 5197272,
+      "mount": {
+        "target": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "consistency/report.json",
+      "host": "lima-afs-accept-b",
+      "process": "node",
+      "pid": 67588,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 5197272,
+      "mount": {
+        "target": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "consistency/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "meta",
+      "pid": 707560,
+      "sha256": "f96b6a06047da02bf186ea8d89457ee74c454d6c437915f5c32a20a9b909f312",
+      "start_ticks": 6127754,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-ownerfs",
+        "source": "afs-ownerfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "consistency/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "node",
+      "pid": 707590,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 6127772,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-ownerfs",
+        "source": "afs-ownerfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "consistency/report.json",
+      "host": "lima-afs-accept-b",
+      "process": "node",
+      "pid": 67588,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 5197272,
+      "mount": {
+        "target": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v48/mount-ownerfs",
+        "source": "afs-ownerfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "consistency/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "meta",
+      "pid": 707560,
+      "sha256": "f96b6a06047da02bf186ea8d89457ee74c454d6c437915f5c32a20a9b909f312",
+      "start_ticks": 6127754,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-ownerfs",
+        "source": "afs-ownerfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "consistency/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "node",
+      "pid": 707590,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 6127772,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-ownerfs",
+        "source": "afs-ownerfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "consistency/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "meta",
+      "pid": 707560,
+      "sha256": "f96b6a06047da02bf186ea8d89457ee74c454d6c437915f5c32a20a9b909f312",
+      "start_ticks": 6127754,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-ownerfs",
+        "source": "afs-ownerfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "consistency/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "node",
+      "pid": 707590,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 6127772,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-ownerfs",
+        "source": "afs-ownerfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "consistency/report.json",
+      "host": "lima-afs-accept-b",
+      "process": "node",
+      "pid": 67588,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 5197272,
+      "mount": {
+        "target": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v48/mount-ownerfs",
+        "source": "afs-ownerfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "consistency/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "meta",
+      "pid": 707560,
+      "sha256": "f96b6a06047da02bf186ea8d89457ee74c454d6c437915f5c32a20a9b909f312",
+      "start_ticks": 6127754,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "consistency/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "node",
+      "pid": 707590,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 6127772,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "consistency/report.json",
+      "host": "lima-afs-accept-b",
+      "process": "node",
+      "pid": 67588,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 5197272,
+      "mount": {
+        "target": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "consistency/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "meta",
+      "pid": 707560,
+      "sha256": "f96b6a06047da02bf186ea8d89457ee74c454d6c437915f5c32a20a9b909f312",
+      "start_ticks": 6127754,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "consistency/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "node",
+      "pid": 707590,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 6127772,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "consistency/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "meta",
+      "pid": 707560,
+      "sha256": "f96b6a06047da02bf186ea8d89457ee74c454d6c437915f5c32a20a9b909f312",
+      "start_ticks": 6127754,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "consistency/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "node",
+      "pid": 707590,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 6127772,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "consistency/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "meta",
+      "pid": 707560,
+      "sha256": "f96b6a06047da02bf186ea8d89457ee74c454d6c437915f5c32a20a9b909f312",
+      "start_ticks": 6127754,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "consistency/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "node",
+      "pid": 707590,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 6127772,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "consistency/report.json",
+      "host": "lima-afs-accept-b",
+      "process": "node",
+      "pid": 67588,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 5197272,
+      "mount": {
+        "target": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "consistency/report.json",
+      "host": "lima-afs-accept-b",
+      "process": "node",
+      "pid": 67588,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 5197272,
+      "mount": {
+        "target": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "consistency/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "meta",
+      "pid": 707560,
+      "sha256": "f96b6a06047da02bf186ea8d89457ee74c454d6c437915f5c32a20a9b909f312",
+      "start_ticks": 6127754,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "consistency/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "node",
+      "pid": 707590,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 6127772,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "consistency/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "meta",
+      "pid": 707560,
+      "sha256": "f96b6a06047da02bf186ea8d89457ee74c454d6c437915f5c32a20a9b909f312",
+      "start_ticks": 6127754,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "consistency/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "node",
+      "pid": 707590,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 6127772,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "consistency/report.json",
+      "host": "lima-afs-accept-b",
+      "process": "node",
+      "pid": 67588,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 5197272,
+      "mount": {
+        "target": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "consistency/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "meta",
+      "pid": 707560,
+      "sha256": "f96b6a06047da02bf186ea8d89457ee74c454d6c437915f5c32a20a9b909f312",
+      "start_ticks": 6127754,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "consistency/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "node",
+      "pid": 707590,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 6127772,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "dfs-cross/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "node",
+      "pid": 707590,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 6127772,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "dfs-cross/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "meta",
+      "pid": 707560,
+      "sha256": "f96b6a06047da02bf186ea8d89457ee74c454d6c437915f5c32a20a9b909f312",
+      "start_ticks": 6127754,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "dfs-cross/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "node",
+      "pid": 707590,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 6127772,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "dfs-cross/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "meta",
+      "pid": 707560,
+      "sha256": "f96b6a06047da02bf186ea8d89457ee74c454d6c437915f5c32a20a9b909f312",
+      "start_ticks": 6127754,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "dfs-cross/report.json",
+      "host": "lima-afs-accept-b",
+      "process": "node",
+      "pid": 67588,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 5197272,
+      "mount": {
+        "target": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "dfs-cross/report.json",
+      "host": "lima-afs-accept-b",
+      "process": "node",
+      "pid": 67588,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 5197272,
+      "mount": {
+        "target": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "dfs-cross/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "node",
+      "pid": 707590,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 6127772,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "dfs-cross/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "meta",
+      "pid": 707560,
+      "sha256": "f96b6a06047da02bf186ea8d89457ee74c454d6c437915f5c32a20a9b909f312",
+      "start_ticks": 6127754,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "dfs-cross/report.json",
+      "host": "lima-afs-accept-b",
+      "process": "node",
+      "pid": 67588,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 5197272,
+      "mount": {
+        "target": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "dfs-cross/report.json",
+      "host": "lima-afs-accept-b",
+      "process": "node",
+      "pid": 67588,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 5197272,
+      "mount": {
+        "target": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "dfs-cross/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "node",
+      "pid": 707590,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 6127772,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "dfs-cross/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "meta",
+      "pid": 707560,
+      "sha256": "f96b6a06047da02bf186ea8d89457ee74c454d6c437915f5c32a20a9b909f312",
+      "start_ticks": 6127754,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "dfs-cross/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "node",
+      "pid": 707590,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 6127772,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "dfs-cross/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "meta",
+      "pid": 707560,
+      "sha256": "f96b6a06047da02bf186ea8d89457ee74c454d6c437915f5c32a20a9b909f312",
+      "start_ticks": 6127754,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "dfs-cross/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "node",
+      "pid": 707590,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 6127772,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "dfs-cross/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "meta",
+      "pid": 707560,
+      "sha256": "f96b6a06047da02bf186ea8d89457ee74c454d6c437915f5c32a20a9b909f312",
+      "start_ticks": 6127754,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "dfs-cross/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "node",
+      "pid": 707590,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 6127772,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "dfs-cross/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "meta",
+      "pid": 707560,
+      "sha256": "f96b6a06047da02bf186ea8d89457ee74c454d6c437915f5c32a20a9b909f312",
+      "start_ticks": 6127754,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "dfs-cross/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "node",
+      "pid": 707590,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 6127772,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "dfs-cross/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "meta",
+      "pid": 707560,
+      "sha256": "f96b6a06047da02bf186ea8d89457ee74c454d6c437915f5c32a20a9b909f312",
+      "start_ticks": 6127754,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "dfs-cross/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "node",
+      "pid": 707590,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 6127772,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "dfs-cross/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "meta",
+      "pid": 707560,
+      "sha256": "f96b6a06047da02bf186ea8d89457ee74c454d6c437915f5c32a20a9b909f312",
+      "start_ticks": 6127754,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "dfs-cross/report.json",
+      "host": "lima-afs-accept-b",
+      "process": "node",
+      "pid": 67588,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 5197272,
+      "mount": {
+        "target": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "dfs-cross/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "node",
+      "pid": 707590,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 6127772,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "dfs-cross/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "meta",
+      "pid": 707560,
+      "sha256": "f96b6a06047da02bf186ea8d89457ee74c454d6c437915f5c32a20a9b909f312",
+      "start_ticks": 6127754,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "dfs-cross/report.json",
+      "host": "lima-afs-accept-b",
+      "process": "node",
+      "pid": 67588,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 5197272,
+      "mount": {
+        "target": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "dfs-cross/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "node",
+      "pid": 707590,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 6127772,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "dfs-cross/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "meta",
+      "pid": 707560,
+      "sha256": "f96b6a06047da02bf186ea8d89457ee74c454d6c437915f5c32a20a9b909f312",
+      "start_ticks": 6127754,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "dfs-cross/report.json",
+      "host": "lima-afs-accept-b",
+      "process": "node",
+      "pid": 67588,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 5197272,
+      "mount": {
+        "target": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "dfs-cross/report.json",
+      "host": "lima-afs-accept-b",
+      "process": "node",
+      "pid": 67588,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 5197272,
+      "mount": {
+        "target": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "dfs-cross/report.json",
+      "host": "lima-afs-accept-b",
+      "process": "node",
+      "pid": 67588,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 5197272,
+      "mount": {
+        "target": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "dfs-cross/report.json",
+      "host": "lima-afs-accept-b",
+      "process": "node",
+      "pid": 67588,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 5197272,
+      "mount": {
+        "target": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "dfs-cross/report.json",
+      "host": "lima-afs-accept-b",
+      "process": "node",
+      "pid": 67588,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 5197272,
+      "mount": {
+        "target": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "dfs-cross/report.json",
+      "host": "lima-afs-accept-b",
+      "process": "node",
+      "pid": 67588,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 5197272,
+      "mount": {
+        "target": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "dfs-cross/report.json",
+      "host": "lima-afs-accept-b",
+      "process": "node",
+      "pid": 67588,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 5197272,
+      "mount": {
+        "target": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "dfs-cross/report.json",
+      "host": "lima-afs-accept-b",
+      "process": "node",
+      "pid": 67588,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 5197272,
+      "mount": {
+        "target": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "dfs-cross/report.json",
+      "host": "lima-afs-accept-b",
+      "process": "node",
+      "pid": 67588,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 5197272,
+      "mount": {
+        "target": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "dfs-cross/report.json",
+      "host": "lima-afs-accept-b",
+      "process": "node",
+      "pid": 67588,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 5197272,
+      "mount": {
+        "target": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "dfs-cross/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "node",
+      "pid": 707590,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 6127772,
+      "mount": null
+    },
+    {
+      "report": "dfs-cross/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "meta",
+      "pid": 707560,
+      "sha256": "f96b6a06047da02bf186ea8d89457ee74c454d6c437915f5c32a20a9b909f312",
+      "start_ticks": 6127754,
+      "mount": null
+    },
+    {
+      "report": "dfs-cross/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "node",
+      "pid": 707590,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 6127772,
+      "mount": null
+    },
+    {
+      "report": "dfs-cross/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "meta",
+      "pid": 707560,
+      "sha256": "f96b6a06047da02bf186ea8d89457ee74c454d6c437915f5c32a20a9b909f312",
+      "start_ticks": 6127754,
+      "mount": null
+    },
+    {
+      "report": "dfs-cross/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "node",
+      "pid": 707590,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 6127772,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "dfs-cross/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "meta",
+      "pid": 707560,
+      "sha256": "f96b6a06047da02bf186ea8d89457ee74c454d6c437915f5c32a20a9b909f312",
+      "start_ticks": 6127754,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "dfs-cross/report.json",
+      "host": "lima-afs-accept-b",
+      "process": "node",
+      "pid": 67588,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 5197272,
+      "mount": {
+        "target": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "dfs-cross/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "node",
+      "pid": 707590,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 6127772,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "dfs-cross/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "meta",
+      "pid": 707560,
+      "sha256": "f96b6a06047da02bf186ea8d89457ee74c454d6c437915f5c32a20a9b909f312",
+      "start_ticks": 6127754,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "dfs-cross/report.json",
+      "host": "lima-afs-accept-b",
+      "process": "node",
+      "pid": 67588,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 5197272,
+      "mount": {
+        "target": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "dfs-cross/report.json",
+      "host": "lima-afs-accept-b",
+      "process": "node",
+      "pid": 67588,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 5197272,
+      "mount": {
+        "target": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "dfs-cross/report.json",
+      "host": "lima-afs-accept-b",
+      "process": "node",
+      "pid": 67588,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 5197272,
+      "mount": {
+        "target": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "dfs-cross/report.json",
+      "host": "lima-afs-accept-b",
+      "process": "node",
+      "pid": 67588,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 5197272,
+      "mount": {
+        "target": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "dfs-cross/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "node",
+      "pid": 707590,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 6127772,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "dfs-cross/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "meta",
+      "pid": 707560,
+      "sha256": "f96b6a06047da02bf186ea8d89457ee74c454d6c437915f5c32a20a9b909f312",
+      "start_ticks": 6127754,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "dfs-cross/report.json",
+      "host": "lima-afs-accept-b",
+      "process": "node",
+      "pid": 67588,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 5197272,
+      "mount": {
+        "target": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "dfs-cross/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "node",
+      "pid": 707590,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 6127772,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "dfs-cross/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "meta",
+      "pid": 707560,
+      "sha256": "f96b6a06047da02bf186ea8d89457ee74c454d6c437915f5c32a20a9b909f312",
+      "start_ticks": 6127754,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "dfs-cross/report.json",
+      "host": "lima-afs-accept-b",
+      "process": "node",
+      "pid": 67588,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 5197272,
+      "mount": {
+        "target": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "dfs-cross/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "node",
+      "pid": 707590,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 6127772,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "dfs-cross/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "meta",
+      "pid": 707560,
+      "sha256": "f96b6a06047da02bf186ea8d89457ee74c454d6c437915f5c32a20a9b909f312",
+      "start_ticks": 6127754,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "dfs-cross/report.json",
+      "host": "lima-afs-accept-b",
+      "process": "node",
+      "pid": 67588,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 5197272,
+      "mount": {
+        "target": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "dfs-cross/report.json",
+      "host": "lima-afs-accept-b",
+      "process": "node",
+      "pid": 67588,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 5197272,
+      "mount": {
+        "target": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "dfs-cross/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "node",
+      "pid": 707590,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 6127772,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "dfs-cross/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "meta",
+      "pid": 707560,
+      "sha256": "f96b6a06047da02bf186ea8d89457ee74c454d6c437915f5c32a20a9b909f312",
+      "start_ticks": 6127754,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "dfs-cross/report.json",
+      "host": "lima-afs-accept-b",
+      "process": "node",
+      "pid": 67588,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 5197272,
+      "mount": {
+        "target": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "dfs-cross/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "node",
+      "pid": 707590,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 6127772,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "dfs-cross/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "meta",
+      "pid": 707560,
+      "sha256": "f96b6a06047da02bf186ea8d89457ee74c454d6c437915f5c32a20a9b909f312",
+      "start_ticks": 6127754,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "dfs-cross/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "node",
+      "pid": 707590,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 6127772,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "dfs-cross/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "meta",
+      "pid": 707560,
+      "sha256": "f96b6a06047da02bf186ea8d89457ee74c454d6c437915f5c32a20a9b909f312",
+      "start_ticks": 6127754,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "dfs-cross/report.json",
+      "host": "lima-afs-accept-b",
+      "process": "node",
+      "pid": 67588,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 5197272,
+      "mount": {
+        "target": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "dfs-cross/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "node",
+      "pid": 707590,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 6127772,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "dfs-cross/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "meta",
+      "pid": 707560,
+      "sha256": "f96b6a06047da02bf186ea8d89457ee74c454d6c437915f5c32a20a9b909f312",
+      "start_ticks": 6127754,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "dfs-cross/report.json",
+      "host": "lima-afs-accept-b",
+      "process": "node",
+      "pid": 67588,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 5197272,
+      "mount": {
+        "target": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "dfs-cross/report.json",
+      "host": "lima-afs-accept-b",
+      "process": "node",
+      "pid": 67588,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 5197272,
+      "mount": {
+        "target": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "dfs-cross/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "node",
+      "pid": 707590,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 6127772,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "dfs-cross/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "meta",
+      "pid": 707560,
+      "sha256": "f96b6a06047da02bf186ea8d89457ee74c454d6c437915f5c32a20a9b909f312",
+      "start_ticks": 6127754,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "dfs-cross/report.json",
+      "host": "lima-afs-accept-b",
+      "process": "node",
+      "pid": 67588,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 5197272,
+      "mount": {
+        "target": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v48/mount-dfs",
+        "source": "afs-dfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "ownerfs-cross/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "node",
+      "pid": 707590,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 6127772,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-ownerfs",
+        "source": "afs-ownerfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "ownerfs-cross/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "meta",
+      "pid": 707560,
+      "sha256": "f96b6a06047da02bf186ea8d89457ee74c454d6c437915f5c32a20a9b909f312",
+      "start_ticks": 6127754,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-ownerfs",
+        "source": "afs-ownerfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "ownerfs-cross/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "node",
+      "pid": 707590,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 6127772,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-ownerfs",
+        "source": "afs-ownerfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "ownerfs-cross/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "meta",
+      "pid": 707560,
+      "sha256": "f96b6a06047da02bf186ea8d89457ee74c454d6c437915f5c32a20a9b909f312",
+      "start_ticks": 6127754,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-ownerfs",
+        "source": "afs-ownerfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "ownerfs-cross/report.json",
+      "host": "lima-afs-accept-b",
+      "process": "node",
+      "pid": 67588,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 5197272,
+      "mount": {
+        "target": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v48/mount-ownerfs",
+        "source": "afs-ownerfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "ownerfs-cross/report.json",
+      "host": "lima-afs-accept-b",
+      "process": "node",
+      "pid": 67588,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 5197272,
+      "mount": {
+        "target": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v48/mount-ownerfs",
+        "source": "afs-ownerfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "ownerfs-cross/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "node",
+      "pid": 707590,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 6127772,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-ownerfs",
+        "source": "afs-ownerfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "ownerfs-cross/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "meta",
+      "pid": 707560,
+      "sha256": "f96b6a06047da02bf186ea8d89457ee74c454d6c437915f5c32a20a9b909f312",
+      "start_ticks": 6127754,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-ownerfs",
+        "source": "afs-ownerfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "ownerfs-cross/report.json",
+      "host": "lima-afs-accept-b",
+      "process": "node",
+      "pid": 67588,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 5197272,
+      "mount": {
+        "target": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v48/mount-ownerfs",
+        "source": "afs-ownerfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "ownerfs-cross/report.json",
+      "host": "lima-afs-accept-b",
+      "process": "node",
+      "pid": 67588,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 5197272,
+      "mount": {
+        "target": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v48/mount-ownerfs",
+        "source": "afs-ownerfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "ownerfs-cross/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "node",
+      "pid": 707590,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 6127772,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-ownerfs",
+        "source": "afs-ownerfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "ownerfs-cross/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "meta",
+      "pid": 707560,
+      "sha256": "f96b6a06047da02bf186ea8d89457ee74c454d6c437915f5c32a20a9b909f312",
+      "start_ticks": 6127754,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-ownerfs",
+        "source": "afs-ownerfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "ownerfs-cross/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "node",
+      "pid": 707590,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 6127772,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-ownerfs",
+        "source": "afs-ownerfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "ownerfs-cross/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "meta",
+      "pid": 707560,
+      "sha256": "f96b6a06047da02bf186ea8d89457ee74c454d6c437915f5c32a20a9b909f312",
+      "start_ticks": 6127754,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-ownerfs",
+        "source": "afs-ownerfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "ownerfs-cross/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "node",
+      "pid": 707590,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 6127772,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-ownerfs",
+        "source": "afs-ownerfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "ownerfs-cross/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "meta",
+      "pid": 707560,
+      "sha256": "f96b6a06047da02bf186ea8d89457ee74c454d6c437915f5c32a20a9b909f312",
+      "start_ticks": 6127754,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-ownerfs",
+        "source": "afs-ownerfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "ownerfs-cross/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "node",
+      "pid": 707590,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 6127772,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-ownerfs",
+        "source": "afs-ownerfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "ownerfs-cross/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "meta",
+      "pid": 707560,
+      "sha256": "f96b6a06047da02bf186ea8d89457ee74c454d6c437915f5c32a20a9b909f312",
+      "start_ticks": 6127754,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-ownerfs",
+        "source": "afs-ownerfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "ownerfs-cross/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "node",
+      "pid": 707590,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 6127772,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-ownerfs",
+        "source": "afs-ownerfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "ownerfs-cross/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "meta",
+      "pid": 707560,
+      "sha256": "f96b6a06047da02bf186ea8d89457ee74c454d6c437915f5c32a20a9b909f312",
+      "start_ticks": 6127754,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-ownerfs",
+        "source": "afs-ownerfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "ownerfs-cross/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "node",
+      "pid": 707590,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 6127772,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-ownerfs",
+        "source": "afs-ownerfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "ownerfs-cross/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "meta",
+      "pid": 707560,
+      "sha256": "f96b6a06047da02bf186ea8d89457ee74c454d6c437915f5c32a20a9b909f312",
+      "start_ticks": 6127754,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-ownerfs",
+        "source": "afs-ownerfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "ownerfs-cross/report.json",
+      "host": "lima-afs-accept-b",
+      "process": "node",
+      "pid": 67588,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 5197272,
+      "mount": {
+        "target": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v48/mount-ownerfs",
+        "source": "afs-ownerfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "ownerfs-cross/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "node",
+      "pid": 707590,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 6127772,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-ownerfs",
+        "source": "afs-ownerfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "ownerfs-cross/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "meta",
+      "pid": 707560,
+      "sha256": "f96b6a06047da02bf186ea8d89457ee74c454d6c437915f5c32a20a9b909f312",
+      "start_ticks": 6127754,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-ownerfs",
+        "source": "afs-ownerfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "ownerfs-cross/report.json",
+      "host": "lima-afs-accept-b",
+      "process": "node",
+      "pid": 67588,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 5197272,
+      "mount": {
+        "target": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v48/mount-ownerfs",
+        "source": "afs-ownerfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "ownerfs-cross/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "node",
+      "pid": 707590,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 6127772,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-ownerfs",
+        "source": "afs-ownerfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "ownerfs-cross/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "meta",
+      "pid": 707560,
+      "sha256": "f96b6a06047da02bf186ea8d89457ee74c454d6c437915f5c32a20a9b909f312",
+      "start_ticks": 6127754,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-ownerfs",
+        "source": "afs-ownerfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "ownerfs-cross/report.json",
+      "host": "lima-afs-accept-b",
+      "process": "node",
+      "pid": 67588,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 5197272,
+      "mount": {
+        "target": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v48/mount-ownerfs",
+        "source": "afs-ownerfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "ownerfs-cross/report.json",
+      "host": "lima-afs-accept-b",
+      "process": "node",
+      "pid": 67588,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 5197272,
+      "mount": {
+        "target": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v48/mount-ownerfs",
+        "source": "afs-ownerfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "ownerfs-cross/report.json",
+      "host": "lima-afs-accept-b",
+      "process": "node",
+      "pid": 67588,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 5197272,
+      "mount": {
+        "target": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v48/mount-ownerfs",
+        "source": "afs-ownerfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "ownerfs-cross/report.json",
+      "host": "lima-afs-accept-b",
+      "process": "node",
+      "pid": 67588,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 5197272,
+      "mount": {
+        "target": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v48/mount-ownerfs",
+        "source": "afs-ownerfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "ownerfs-cross/report.json",
+      "host": "lima-afs-accept-b",
+      "process": "node",
+      "pid": 67588,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 5197272,
+      "mount": {
+        "target": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v48/mount-ownerfs",
+        "source": "afs-ownerfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "ownerfs-cross/report.json",
+      "host": "lima-afs-accept-b",
+      "process": "node",
+      "pid": 67588,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 5197272,
+      "mount": {
+        "target": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v48/mount-ownerfs",
+        "source": "afs-ownerfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "ownerfs-cross/report.json",
+      "host": "lima-afs-accept-b",
+      "process": "node",
+      "pid": 67588,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 5197272,
+      "mount": {
+        "target": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v48/mount-ownerfs",
+        "source": "afs-ownerfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "ownerfs-cross/report.json",
+      "host": "lima-afs-accept-b",
+      "process": "node",
+      "pid": 67588,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 5197272,
+      "mount": {
+        "target": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v48/mount-ownerfs",
+        "source": "afs-ownerfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "ownerfs-cross/report.json",
+      "host": "lima-afs-accept-b",
+      "process": "node",
+      "pid": 67588,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 5197272,
+      "mount": {
+        "target": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v48/mount-ownerfs",
+        "source": "afs-ownerfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "ownerfs-cross/report.json",
+      "host": "lima-afs-accept-b",
+      "process": "node",
+      "pid": 67588,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 5197272,
+      "mount": {
+        "target": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v48/mount-ownerfs",
+        "source": "afs-ownerfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "ownerfs-cross/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "node",
+      "pid": 707590,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 6127772,
+      "mount": null
+    },
+    {
+      "report": "ownerfs-cross/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "meta",
+      "pid": 707560,
+      "sha256": "f96b6a06047da02bf186ea8d89457ee74c454d6c437915f5c32a20a9b909f312",
+      "start_ticks": 6127754,
+      "mount": null
+    },
+    {
+      "report": "ownerfs-cross/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "node",
+      "pid": 707590,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 6127772,
+      "mount": null
+    },
+    {
+      "report": "ownerfs-cross/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "meta",
+      "pid": 707560,
+      "sha256": "f96b6a06047da02bf186ea8d89457ee74c454d6c437915f5c32a20a9b909f312",
+      "start_ticks": 6127754,
+      "mount": null
+    },
+    {
+      "report": "ownerfs-cross/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "node",
+      "pid": 707590,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 6127772,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-ownerfs",
+        "source": "afs-ownerfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "ownerfs-cross/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "meta",
+      "pid": 707560,
+      "sha256": "f96b6a06047da02bf186ea8d89457ee74c454d6c437915f5c32a20a9b909f312",
+      "start_ticks": 6127754,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-ownerfs",
+        "source": "afs-ownerfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "ownerfs-cross/report.json",
+      "host": "lima-afs-accept-b",
+      "process": "node",
+      "pid": 67588,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 5197272,
+      "mount": {
+        "target": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v48/mount-ownerfs",
+        "source": "afs-ownerfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "ownerfs-cross/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "node",
+      "pid": 707590,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 6127772,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-ownerfs",
+        "source": "afs-ownerfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "ownerfs-cross/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "meta",
+      "pid": 707560,
+      "sha256": "f96b6a06047da02bf186ea8d89457ee74c454d6c437915f5c32a20a9b909f312",
+      "start_ticks": 6127754,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-ownerfs",
+        "source": "afs-ownerfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "ownerfs-cross/report.json",
+      "host": "lima-afs-accept-b",
+      "process": "node",
+      "pid": 67588,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 5197272,
+      "mount": {
+        "target": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v48/mount-ownerfs",
+        "source": "afs-ownerfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "ownerfs-cross/report.json",
+      "host": "lima-afs-accept-b",
+      "process": "node",
+      "pid": 67588,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 5197272,
+      "mount": {
+        "target": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v48/mount-ownerfs",
+        "source": "afs-ownerfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "ownerfs-cross/report.json",
+      "host": "lima-afs-accept-b",
+      "process": "node",
+      "pid": 67588,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 5197272,
+      "mount": {
+        "target": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v48/mount-ownerfs",
+        "source": "afs-ownerfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "ownerfs-cross/report.json",
+      "host": "lima-afs-accept-b",
+      "process": "node",
+      "pid": 67588,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 5197272,
+      "mount": {
+        "target": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v48/mount-ownerfs",
+        "source": "afs-ownerfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "ownerfs-cross/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "node",
+      "pid": 707590,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 6127772,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-ownerfs",
+        "source": "afs-ownerfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "ownerfs-cross/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "meta",
+      "pid": 707560,
+      "sha256": "f96b6a06047da02bf186ea8d89457ee74c454d6c437915f5c32a20a9b909f312",
+      "start_ticks": 6127754,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-ownerfs",
+        "source": "afs-ownerfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "ownerfs-cross/report.json",
+      "host": "lima-afs-accept-b",
+      "process": "node",
+      "pid": 67588,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 5197272,
+      "mount": {
+        "target": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v48/mount-ownerfs",
+        "source": "afs-ownerfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "ownerfs-cross/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "node",
+      "pid": 707590,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 6127772,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-ownerfs",
+        "source": "afs-ownerfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "ownerfs-cross/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "meta",
+      "pid": 707560,
+      "sha256": "f96b6a06047da02bf186ea8d89457ee74c454d6c437915f5c32a20a9b909f312",
+      "start_ticks": 6127754,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-ownerfs",
+        "source": "afs-ownerfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "ownerfs-cross/report.json",
+      "host": "lima-afs-accept-b",
+      "process": "node",
+      "pid": 67588,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 5197272,
+      "mount": {
+        "target": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v48/mount-ownerfs",
+        "source": "afs-ownerfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "ownerfs-cross/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "node",
+      "pid": 707590,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 6127772,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-ownerfs",
+        "source": "afs-ownerfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "ownerfs-cross/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "meta",
+      "pid": 707560,
+      "sha256": "f96b6a06047da02bf186ea8d89457ee74c454d6c437915f5c32a20a9b909f312",
+      "start_ticks": 6127754,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-ownerfs",
+        "source": "afs-ownerfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "ownerfs-cross/report.json",
+      "host": "lima-afs-accept-b",
+      "process": "node",
+      "pid": 67588,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 5197272,
+      "mount": {
+        "target": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v48/mount-ownerfs",
+        "source": "afs-ownerfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "ownerfs-cross/report.json",
+      "host": "lima-afs-accept-b",
+      "process": "node",
+      "pid": 67588,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 5197272,
+      "mount": {
+        "target": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v48/mount-ownerfs",
+        "source": "afs-ownerfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "ownerfs-cross/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "node",
+      "pid": 707590,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 6127772,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-ownerfs",
+        "source": "afs-ownerfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "ownerfs-cross/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "meta",
+      "pid": 707560,
+      "sha256": "f96b6a06047da02bf186ea8d89457ee74c454d6c437915f5c32a20a9b909f312",
+      "start_ticks": 6127754,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-ownerfs",
+        "source": "afs-ownerfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "ownerfs-cross/report.json",
+      "host": "lima-afs-accept-b",
+      "process": "node",
+      "pid": 67588,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 5197272,
+      "mount": {
+        "target": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v48/mount-ownerfs",
+        "source": "afs-ownerfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "ownerfs-cross/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "node",
+      "pid": 707590,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 6127772,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-ownerfs",
+        "source": "afs-ownerfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "ownerfs-cross/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "meta",
+      "pid": 707560,
+      "sha256": "f96b6a06047da02bf186ea8d89457ee74c454d6c437915f5c32a20a9b909f312",
+      "start_ticks": 6127754,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-ownerfs",
+        "source": "afs-ownerfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "ownerfs-cross/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "node",
+      "pid": 707590,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 6127772,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-ownerfs",
+        "source": "afs-ownerfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "ownerfs-cross/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "meta",
+      "pid": 707560,
+      "sha256": "f96b6a06047da02bf186ea8d89457ee74c454d6c437915f5c32a20a9b909f312",
+      "start_ticks": 6127754,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-ownerfs",
+        "source": "afs-ownerfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "ownerfs-cross/report.json",
+      "host": "lima-afs-accept-b",
+      "process": "node",
+      "pid": 67588,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 5197272,
+      "mount": {
+        "target": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v48/mount-ownerfs",
+        "source": "afs-ownerfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "ownerfs-cross/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "node",
+      "pid": 707590,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 6127772,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-ownerfs",
+        "source": "afs-ownerfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "ownerfs-cross/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "meta",
+      "pid": 707560,
+      "sha256": "f96b6a06047da02bf186ea8d89457ee74c454d6c437915f5c32a20a9b909f312",
+      "start_ticks": 6127754,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-ownerfs",
+        "source": "afs-ownerfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "ownerfs-cross/report.json",
+      "host": "lima-afs-accept-b",
+      "process": "node",
+      "pid": 67588,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 5197272,
+      "mount": {
+        "target": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v48/mount-ownerfs",
+        "source": "afs-ownerfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "ownerfs-cross/report.json",
+      "host": "lima-afs-accept-b",
+      "process": "node",
+      "pid": 67588,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 5197272,
+      "mount": {
+        "target": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v48/mount-ownerfs",
+        "source": "afs-ownerfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "ownerfs-cross/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "node",
+      "pid": 707590,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 6127772,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-ownerfs",
+        "source": "afs-ownerfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "ownerfs-cross/report.json",
+      "host": "lima-afs-accept-a",
+      "process": "meta",
+      "pid": 707560,
+      "sha256": "f96b6a06047da02bf186ea8d89457ee74c454d6c437915f5c32a20a9b909f312",
+      "start_ticks": 6127754,
+      "mount": {
+        "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-ownerfs",
+        "source": "afs-ownerfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    },
+    {
+      "report": "ownerfs-cross/report.json",
+      "host": "lima-afs-accept-b",
+      "process": "node",
+      "pid": 67588,
+      "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+      "start_ticks": 5197272,
+      "mount": {
+        "target": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v48/mount-ownerfs",
+        "source": "afs-ownerfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+    }
+  ]
+}

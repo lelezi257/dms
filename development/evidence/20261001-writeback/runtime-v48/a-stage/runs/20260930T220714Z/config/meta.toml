@@ -1,0 +1,14 @@
+id = 'memory-meta-a'
+fs = 'all'
+meta_store = 'memory'
+data_dir = '/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/state/meta'
+uds_path = '/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/run/meta.sock'
+grpc_listen = '0.0.0.0:17980'
+rest_listen = '0.0.0.0:17981'
+tls_ca_certificate = '/mnt/lima-afsadata/afs-delivery/p1b/tls/ca.pem'
+tls_identity_certificate = '/mnt/lima-afsadata/afs-delivery/p1b/tls/node-a.pem'
+tls_identity_private_key = '/mnt/lima-afsadata/afs-delivery/p1b/tls/node-a-key.pem'
+tls_server_name = 'afs-cluster'
+trusted_node_certs = { memory-node-a = '/mnt/lima-afsadata/afs-delivery/p1b/tls/node-a.pem', memory-node-b = '/mnt/lima-afsadata/afs-delivery/p1b/tls/node-b.pem' }
+log_level = 'info'
+trace_enabled = false

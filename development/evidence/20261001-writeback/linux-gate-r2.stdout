@@ -1,0 +1,18 @@
+fmt 0
+target-writeback 0
+target-rpc 0
+original-unbounded-scan 101
+original-send-after-expiry 101
+original-fixed-rpc-timeout 101
+clippy 0
+library 0
+local-api 0
+error 0
+contracts 0
+fuse-build 0
+real-root-fuse 0
+feature-none 0
+feature-ownerfs 0
+feature-dfs 0
+build 0
+PASS {"afs-node": "dbbf2ccd5eb47f06178bfc3140599865c1b7ad5f28851e244e728fbcdfc136af", "afs-meta": "917432057950380da208b057a4d94156841e1eab03e533f56675433d5184fd9c"}

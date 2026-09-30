@@ -1,0 +1,38 @@
+{
+  "status": "FAIL",
+  "scope": "controller exit-status diagnostic with native fixture; not a product shutdown acceptance",
+  "controller_sha256": "1bf6d7ddf29089b4bd4b2b826c906d8b11cd6086c0a1758eb452a6ac76f88d6d",
+  "platform": "Linux-6.8.0-106-generic-aarch64-with-glibc2.39",
+  "checks": [
+    {
+      "fixture_exit_code": 0,
+      "direct_wait_status": 0,
+      "controller_returncode": 0,
+      "controller_stdout": "node stopped\n",
+      "controller_stderr": "",
+      "pid": 374054,
+      "elapsed_seconds": 1.0205232149965013,
+      "ok": true
+    },
+    {
+      "fixture_exit_code": 1,
+      "direct_wait_status": 1,
+      "controller_returncode": 0,
+      "controller_stdout": "node stopped\n",
+      "controller_stderr": "",
+      "pid": 374133,
+      "elapsed_seconds": 1.0099829259997932,
+      "ok": false
+    },
+    {
+      "fixture_exit_code": 124,
+      "direct_wait_status": 124,
+      "controller_returncode": 0,
+      "controller_stdout": "node stopped\n",
+      "controller_stderr": "",
+      "pid": 374210,
+      "elapsed_seconds": 1.0124619939961121,
+      "ok": false
+    }
+  ]
+}

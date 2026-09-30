@@ -1,0 +1,9 @@
+bash: line 1: cd: /Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store: No such file or directory
+bash: line 1: cd: /Users/lzc: No such file or directory
+Traceback (most recent call last):
+  File "/var/tmp/afs-v49-linux-gate.py", line 21, in <module>
+    run("target-rpc",["cargo","test","--all-features","--lib","grpc_dfs_meta_focused_timeouts_bound_hanging_rpc","--","--nocapture"],60)
+  File "/var/tmp/afs-v49-linux-gate.py", line 17, in run
+    assert (result.returncode==101 if fail else result.returncode==0),(label,result.returncode,result.stdout[-2500:])
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: ('target-rpc', 101, "    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.07s\n     Running unittests src/lib.rs (/home/lzc.guest/afs-build/target/debug/deps/afs-586e1b701367e588)\n\nrunning 1 test\n\nthread 'node::rpc::meta::tests::grpc_dfs_meta_focused_timeouts_bound_hanging_rpc' (374578) panicked at src/node/rpc/meta.rs:1992:9:\nassertion `left == right` failed\n  left: ErrorCode(16973827)\n right: ErrorCode(16908290)\nnote: run with `RUST_BACKTRACE=1` environment variable to display a backtrace\ntest node::rpc::meta::tests::grpc_dfs_meta_focused_timeouts_bound_hanging_rpc ... FAILED\n\nfailures:\n\nfailures:\n    node::rpc::meta::tests::grpc_dfs_meta_focused_timeouts_bound_hanging_rpc\n\ntest result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 351 filtered out; finished in 0.18s\n\nerror: test failed, to rerun pass `--lib`\n")

@@ -27,7 +27,7 @@ The user-visible triggers are explicit POSIX barriers and open flags:
 - `fsync(fd)` does the same work and also commits complete inode attributes such as `mtime` and `ctime`. It still does not commit the parent directory entry; callers need `fsync(dir)` for that.
 - `O_DSYNC` makes each accepted write wait for the data durability boundary before returning.
 - `O_SYNC` makes each accepted write wait for the stronger file sync boundary before returning.
-- Background writeback can stage or finalize chunk candidates to reduce memory pressure, but it cannot advertise a stronger application contract than the operation that triggered it. The ordered sync barrier is still the point where `head_version` can move.
+- Background writeback can freeze dirty state, finalize chunks and successfully commit a new `FileVersion`, including moving `head_version`. Applications cannot rely on when that happens; only explicit sync operations and sync write flags create a caller-visible durability completion point.
 
 ## Node State
 

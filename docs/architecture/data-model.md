@@ -36,54 +36,171 @@ Open question Q1: whether every committed `FileVersion` must always have a `Layo
 
 ## UML View
 
+The names below mirror the domain structs used by the framework. Meta records are the committed authority; Node runtime records are in-memory write-path state used to produce the next Meta commit.
+
+### Meta Committed Records
+
 ```text
-Dentry {
-  parent_inode: InodeId
-  name: String
-  target_inode: InodeId
-  entry_version: u64
+InodeRecord {
+  namespace_id: NamespaceId
+  inode_id: InodeId
+  kind: InodeKind
+  attributes: InodeAttributes
+  head_version: Option<FileVersionId>
+  revision: u64
 }
 
-InodeRecord {
-  inode: InodeId
-  kind: File | Directory | Symlink
-  attrs: InodeAttrs
-  head_version: Option<FileVersionId>
-  write_owner: Option<NodeEpoch>
+DentryKey {
+  namespace_id: NamespaceId
+  parent_inode_id: InodeId
+  name: Vec<u8>
+}
+
+Dentry {
+  key: DentryKey
+  inode_id: InodeId
 }
 
 FileVersion {
   id: FileVersionId
-  inode: InodeId
-  parent: Option<FileVersionId>
+  inode_id: InodeId
+  parent_version: Option<FileVersionId>
   length: u64
-  layout: LayoutRoot
-  created_by: OperationId
+  layout_root: LayoutRootId
+  created_at_unix_ms: u64
 }
 
 LayoutRoot {
-  version: FileVersionId
-  extents: InlineExtents | ExtentTreeRoot
+  id: LayoutRootId
+  file_length: u64
+  inline_extents: Vec<Extent>
 }
 
 Extent {
   file_offset: u64
   length: u64
-  chunk: ChunkId
-  chunk_offset: u32
+  chunk_id: ChunkId
+  chunk_offset: u64
 }
 
 ChunkObject {
   id: ChunkId
-  length: u32
-  digest: Digest
-  encoding: Encoding
+  length: u64
+  content_digest: ContentDigest
+  encoding: ChunkEncoding
 }
 
 CopyRecord {
-  chunk: ChunkId
-  location: CopyLocation
+  id: CopyId
+  chunk_id: ChunkId
+  role: CopyRole
+  node_id: String
+  node_epoch: u64
+  device_id: String
+  device_epoch: u64
+  catalog_revision: u64
   state: CopyState
-  epoch: DeviceEpoch
+  persisted_bytes: u64
+  verified_digest: ContentDigest
+}
+```
+
+### Node Runtime Write State
+
+```text
+InodeWriteState {
+  inode: InodeRecord
+  write_lease: WriteLease
+  base_version: Option<FileVersion>
+  base_layout: LayoutRoot
+  logical_length: u64
+  metadata_dirty: bool
+  dirty_extents: DirtyExtentMap
+  in_flight: Option<FrozenCommit>
+  dirty: bool
+  next_write_seq: u64
+  visible_write_seq: u64
+  durable_write_seq: u64
+  committed_write_seq: u64
+  open_writers: u64
+  last_writer_background_requested: bool
+  background_error: Option<ObservedWriteError>
+}
+
+DirtyExtentMap {
+  extents: Vec<DirtyExtent>
+}
+
+DirtyExtent {
+  file_offset: u64
+  length: u64
+  write_seq: u64
+  data: Option<Arc<[u8]>>
+}
+
+FrozenCommit {
+  through_seq: u64
+  logical_length: u64
+  inode: InodeRecord
+  write_lease: WriteLease
+  base_version: Option<FileVersion>
+  base_layout: LayoutRoot
+  dirty_extents: DirtyExtentMap
+}
+
+CommitBatch {
+  through_seq: u64
+  commit: CommitFileVersion
+}
+
+CommitFileVersion {
+  operation_id: OperationId
+  inode_id: InodeId
+  write_lease: WriteLease
+  expected_inode_revision: u64
+  expected_head_version: Option<FileVersionId>
+  file_version: FileVersion
+  layout_root: LayoutRoot
+  chunk_receipts: Vec<ChunkReceipt>
+  metadata_delta: CommitMetadataDelta
+}
+```
+
+### Referenced Value Types
+
+```text
+InodeAttributes {
+  mode: u32
+  uid: u32
+  gid: u32
+  nlink: u32
+  atime_unix_ms: u64
+  mtime_unix_ms: u64
+  ctime_unix_ms: u64
+}
+
+ContentDigest {
+  algorithm: DigestAlgorithm
+  bytes: [u8; 32]
+}
+
+CommitMetadataDelta {
+  mode: CommitMetadataMode
+  mtime_unix_ms: Option<u64>
+  ctime_unix_ms: Option<u64>
+}
+
+CopyLocation::Node {
+  node_id: String
+  node_epoch: u64
+  device_id: String
+  device_epoch: u64
+  catalog_revision: u64
+}
+
+CopyLocation::External {
+  store_id: String
+  object_key: String
+  object_revision: String
 }
 ```

@@ -42,17 +42,19 @@ Peer range reads require both peer authentication and a read authorization decis
 ## Copy State
 
 ```text
-Staging -> Ready -> Deleting -> removed
-             |
-             v
-          Corrupt
+Ready -> Deleting -> removed
+  |
+  v
+Corrupt
+
+LegacyStaging -> removed
 ```
 
-- `Staging` copies are incomplete and are never advertised to readers.
 - `Ready` durable copies can satisfy durability and can become read sources.
 - `Ready` verified cache copies can serve reads and seed peers, but do not count as durable replicas.
 - `Corrupt` copies fail identity verification and are removed from source selection.
 - `Deleting` copies are no longer selected for new reads while in-flight reader pins drain.
+- `LegacyStaging` is a decode-only compatibility state for old catalog entries; new code does not create or serve it.
 
 ## Seed And Eviction
 

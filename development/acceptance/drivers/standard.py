@@ -110,6 +110,89 @@ def discover_tests(suite_root: Path) -> dict[str, Any]:
     }
 
 
+def tap_file_progress(text: str, selected_tests: list[str]) -> dict[str, Any]:
+    """Infer pjdfstest file progress from prove -rv TAP output.
+
+    prove emits a file header before each .t script and an unnumbered
+    per-file result when that file finishes.  A timeout can leave a current
+    file with normal TAP subtests but without that final result.  Suite
+    accounting must therefore distinguish selected files from files actually
+    started and completed.
+    """
+    selected_set = set(selected_tests)
+    started: list[str] = []
+    completed: list[str] = []
+    seen_started: set[str] = set()
+    seen_completed: set[str] = set()
+    current: str | None = None
+    current_has_output = False
+    current_has_result = False
+
+    def header_rel(line: str) -> str | None:
+        stripped = line.strip()
+        if ".t" not in stripped:
+            return None
+        first = stripped.split(None, 1)[0]
+        if not first.endswith(".t"):
+            return None
+        candidate = first.split("/tests/", 1)[1] if "/tests/" in first else first
+        if candidate in selected_set:
+            return candidate
+        for rel_test in selected_tests:
+            if first.endswith("/" + rel_test):
+                return rel_test
+        return None
+
+    def finish_current(completed_by_header: bool) -> None:
+        nonlocal current, current_has_output, current_has_result
+        if current is not None and current not in seen_completed and (completed_by_header or current_has_result):
+            seen_completed.add(current)
+            completed.append(current)
+        current = None
+        current_has_output = False
+        current_has_result = False
+
+    for line in text.splitlines():
+        rel_test = header_rel(line)
+        if rel_test:
+            finish_current(completed_by_header=True)
+            current = rel_test
+            current_has_output = False
+            current_has_result = False
+            if rel_test not in seen_started:
+                seen_started.add(rel_test)
+                started.append(rel_test)
+            continue
+
+        stripped = line.strip()
+        if current is not None:
+            if stripped:
+                current_has_output = True
+            if re.match(r"^(?:not\s+)?ok$", stripped):
+                current_has_result = True
+
+    truncated_current = current if current is not None and current not in seen_completed and current_has_output and not current_has_result else None
+    finish_current(completed_by_header=False)
+    unobserved = [rel_test for rel_test in selected_tests if rel_test not in seen_started]
+    observed_incomplete = [rel_test for rel_test in started if rel_test not in seen_completed]
+    return {
+        "observed_started_files": len(started),
+        "executed_files": len(started),
+        "observed_completed_files": len(completed),
+        "completed_files": len(completed),
+        "unobserved_files": len(unobserved),
+        "observed_incomplete_files": len(observed_incomplete),
+        "incomplete_files": len(observed_incomplete),
+        "observed_started_tests": started,
+        "observed_completed_tests": completed,
+        "unobserved_tests": unobserved,
+        "observed_incomplete_tests": observed_incomplete,
+        "truncated_current_test": truncated_current,
+        "file_progress_complete": len(completed) == len(selected_tests),
+        "file_progress_note": "unobserved files may have been unstarted or buffered by prove before timeout",
+    }
+
+
 def parse_tap_and_prove(stdout_path: Path, stderr_path: Path, selected_tests: list[str]) -> dict[str, Any]:
     text = stdout_path.read_text(errors="replace") if stdout_path.exists() else ""
     stderr = stderr_path.read_text(errors="replace") if stderr_path.exists() else ""
@@ -152,6 +235,7 @@ def parse_tap_and_prove(stdout_path: Path, stderr_path: Path, selected_tests: li
         prove_files = int(match.group(1))
         prove_tests = int(match.group(2))
         prove_result = match.group(3)
+    file_progress = tap_file_progress(text, selected_tests)
     return {
         "selected_files": len(selected_tests),
         "selected_tests": selected_tests,
@@ -171,9 +255,13 @@ def parse_tap_and_prove(stdout_path: Path, stderr_path: Path, selected_tests: li
         "prove_files": prove_files,
         "prove_tests": prove_tests,
         "prove_result": prove_result,
+        **file_progress,
         "accounting_identity": {
             "tap_total_observed": tap_ok + tap_not_ok,
             "tap_total_accounted": tap_ok + tap_not_ok,
+            "file_total_selected": len(selected_tests),
+            "file_total_observed_started": file_progress["observed_started_files"],
+            "file_total_observed_completed": file_progress["observed_completed_files"],
             "no_post_failure_filtering": True,
             "todo_is_counted_not_filtered": True,
         },
@@ -186,12 +274,18 @@ def mount_identity(mount: Path) -> dict[str, Any]:
 
 def complete_accounting(accounting: dict[str, Any], selected_files: int) -> bool:
     observed = accounting["tap_ok"] + accounting["tap_not_ok"]
+    file_progress_complete = (
+        accounting.get("observed_completed_files", accounting.get("completed_files", selected_files)) == selected_files
+        and accounting.get("observed_incomplete_files", accounting.get("incomplete_files", 0)) == 0
+        and accounting.get("unobserved_files", 0) == 0
+    )
     return (
         selected_files > 0
         and accounting["prove_files"] == selected_files
         and observed > 0
         and accounting["prove_tests"] == observed
         and accounting["tap_planned"] == observed
+        and file_progress_complete
     )
 
 
@@ -595,7 +689,7 @@ def run_pjdfstest_worker(args: argparse.Namespace) -> dict[str, Any]:
             command_result = run_bounded(["prove", "-e", "/bin/sh", "-rv", *test_paths], cwd=fixture, timeout=timeout, stdout_path=stdout, stderr_path=stderr)
             write_json(artifacts / "command.json", command_result)
             accounting = parse_tap_and_prove(stdout, stderr, selected_tests)
-            accounting.update({"profile": args.profile, "discovered_files": discovery["discovered_files"], "executed_files": len(selected_tests), "incomplete_files": max(0, discovery["discovered_files"] - len(selected_tests)), "upstream_todo_source_file_count": discovery["todo_source_file_count"], "uid_drop_test_file_count": discovery["uid_drop_test_file_count"]})
+            accounting.update({"profile": args.profile, "discovered_files": discovery["discovered_files"], "not_selected_files": max(0, discovery["discovered_files"] - len(selected_tests)), "upstream_todo_source_file_count": discovery["todo_source_file_count"], "uid_drop_test_file_count": discovery["uid_drop_test_file_count"]})
             write_json(artifacts / "tap-accounting.json", accounting)
             checks.append(build_check("subprocess-bound", "PASS" if not command_result["timed_out"] else "BLOCKED", {"timeout_seconds": command_result["timeout_seconds"], "timed_out": command_result["timed_out"], "returncode": command_result["returncode"]}, rel(artifacts / "command.json", run_dir)))
             accounting_ok = complete_accounting(accounting, len(selected_tests))
@@ -1056,8 +1150,7 @@ def legacy_main(argv: list[str]) -> int:
             accounting.update({
                 "profile": args.profile,
                 "discovered_files": discovery["discovered_files"],
-                "executed_files": len(selected_tests),
-                "incomplete_files": max(0, discovery["discovered_files"] - len(selected_tests)),
+                "not_selected_files": max(0, discovery["discovered_files"] - len(selected_tests)),
                 "upstream_todo_source_file_count": discovery["todo_source_file_count"],
                 "uid_drop_test_file_count": discovery["uid_drop_test_file_count"],
             })

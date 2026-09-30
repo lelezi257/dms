@@ -38,6 +38,87 @@ class StandardAccountingTest(unittest.TestCase):
         self.assertFalse(standard.complete_accounting(self.counts, 2))
 
 
+class StandardTapFileProgressTest(unittest.TestCase):
+    def parse_text(self, text, selected):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            stdout = root / "pjdfstest.stdout.tap"
+            stderr = root / "pjdfstest.stderr.log"
+            stdout.write_text(text, encoding="utf-8")
+            stderr.write_text("", encoding="utf-8")
+            return standard.parse_tap_and_prove(stdout, stderr, selected)
+
+    def test_complete_verbose_tap_counts_completed_files_and_todo(self):
+        accounting = self.parse_text(
+            "\n".join([
+                "/suite/tests/open/00.t .......... ",
+                "1..2",
+                "ok 1",
+                "not ok 2 # TODO upstream behavior",
+                "ok",
+                "/suite/tests/mkdir/00.t .......... ",
+                "1..1",
+                "ok 1 # SKIP environment",
+                "ok",
+                "Files=2, Tests=3,  0 wallclock secs",
+                "Result: PASS",
+                "",
+            ]),
+            ["open/00.t", "mkdir/00.t"],
+        )
+        self.assertEqual(accounting["observed_started_files"], 2)
+        self.assertEqual(accounting["observed_completed_files"], 2)
+        self.assertEqual(accounting["unobserved_files"], 0)
+        self.assertEqual(accounting["observed_incomplete_files"], 0)
+        self.assertEqual(accounting["truncated_current_test"], None)
+        self.assertEqual(accounting["tap_todo"], 1)
+        self.assertEqual(accounting["tap_todo_not_ok"], 1)
+        self.assertEqual(accounting["tap_skip"], 1)
+        self.assertTrue(standard.complete_accounting(accounting, 2))
+
+    def test_timeout_partial_tap_keeps_unobserved_distinct_from_incomplete(self):
+        accounting = self.parse_text(
+            "\n".join([
+                "/suite/tests/open/00.t .......... ",
+                "1..1",
+                "ok 1",
+                "ok",
+                "/suite/tests/mkdir/00.t .......... ",
+                "1..2",
+                "ok 1",
+                "",
+            ]),
+            ["open/00.t", "mkdir/00.t", "rename/00.t"],
+        )
+        self.assertEqual(accounting["observed_started_files"], 2)
+        self.assertEqual(accounting["executed_files"], 2)
+        self.assertEqual(accounting["observed_completed_files"], 1)
+        self.assertEqual(accounting["observed_incomplete_files"], 1)
+        self.assertEqual(accounting["unobserved_files"], 1)
+        self.assertEqual(accounting["observed_incomplete_tests"], ["mkdir/00.t"])
+        self.assertEqual(accounting["unobserved_tests"], ["rename/00.t"])
+        self.assertEqual(accounting["truncated_current_test"], "mkdir/00.t")
+        self.assertFalse(standard.complete_accounting(accounting, 3))
+
+    def test_timeout_between_files_reports_unobserved_without_incomplete_current(self):
+        accounting = self.parse_text(
+            "\n".join([
+                "/suite/tests/open/00.t .......... ",
+                "1..1",
+                "ok 1",
+                "ok",
+                "",
+            ]),
+            ["open/00.t", "mkdir/00.t"],
+        )
+        self.assertEqual(accounting["observed_started_files"], 1)
+        self.assertEqual(accounting["observed_completed_files"], 1)
+        self.assertEqual(accounting["observed_incomplete_files"], 0)
+        self.assertEqual(accounting["unobserved_files"], 1)
+        self.assertEqual(accounting["truncated_current_test"], None)
+        self.assertFalse(standard.complete_accounting(accounting, 2))
+
+
 class StandardRemoteIdentityHelpersTest(unittest.TestCase):
     def test_parse_start_ticks_handles_comm_with_spaces(self):
         stat_text = "123 (python worker) S " + " ".join(str(i) for i in range(1, 25))

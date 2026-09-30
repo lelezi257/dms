@@ -4,7 +4,7 @@ This directory holds the first-stage AFS acceptance manifest derived from `sourc
 
 ## Files
 
-- `cases.json` records contract case IDs, applicability, smoke/full boundaries and driver readiness. Every real product driver remains TODO. Case status stays `NOT_RUN`; results are separate immutable artifacts.
+- `cases.json` records contract case IDs, applicability, smoke/full boundaries and driver readiness. Formal driver registration remains TODO. Case status stays `NOT_RUN`; results are separate immutable artifacts.
 - `acceptance.lock.json` remains `PREPARING`: the image and four guest inventories exist, and network/RXE probes have partial evidence. Comparator mounts, complete reference suites, faults, and release identities are still required before freezing it.
 - `runner.py` dispatches registered drivers and verifies structured results and matrix coverage. `test_runner.py` exercises conservative failure handling; runner self-check success is not product acceptance.
 - `results/` is reserved for future runner output. Result files should be immutable run artifacts containing commands, logs, JSON/JUnit, seeds, environment identity, success watermarks and raw evidence. Results must not be written back into `cases.json`.
@@ -51,4 +51,4 @@ Standard suite exclusions are not incremented by this manifest. Exclusion counts
 
 ## Execution Boundary
 
-The runner exists, but real case drivers and the full environment are still being prepared. TODO drivers return BLOCKED. An unfrozen lock blocks full acceptance. Development probes outside the manifest are recorded as short slices, never as a product case PASS. Concrete runs belong in `results/`; do not overwrite case statuses with preparation claims.
+The runner exists, but formal driver bindings and the full environment are still being prepared. `drivers/standard.py` implements pjdfstest execution, accounting and guarded remote orchestration; its Linux selftests and captured development runs are recorded in `../evidence/`. The STD-01 manifest entry remains TODO until its release environment and backend bindings are complete. TODO registrations return BLOCKED. An unfrozen lock blocks full acceptance. Development probes outside the manifest retain their own scope and identities, never substituting for a product case PASS. Concrete runs belong in `results/`; do not overwrite case statuses with preparation claims.

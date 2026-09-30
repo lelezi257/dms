@@ -107,7 +107,7 @@
       "driver": {
         "state": "TODO",
         "command": null,
-        "note": "pjdfstest driver and accounting parser are not implemented."
+        "note": "pjdfstest execution, accounting and remote identity guards are implemented; release environment/backend registration is still pending."
       },
       "evidence": [
         "TAP output",

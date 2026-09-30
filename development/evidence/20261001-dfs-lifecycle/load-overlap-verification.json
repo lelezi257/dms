@@ -1,0 +1,15 @@
+{
+  "status": "PASS",
+  "load_start_unix_seconds": 1790795937.1764605,
+  "load_end_unix_seconds": 1790796145.474813,
+  "lock_start_unix_seconds": 1790795973.0,
+  "lock_end_unix_seconds": 1790796024.427536,
+  "complete_lock_run_overlaps_load": true,
+  "load_operations": 3842,
+  "load_rounds": 3,
+  "observed_process_identities": 75,
+  "process_sha_and_pid_exact": true,
+  "process_start_ticks_stable": true,
+  "namespace_probe_sha256": "05e456fd2e13e834a4432f94d8681bb136abc63789e3762144c5661dddbafbff",
+  "scope": "synthetic namespace load diagnostic; not full pjdfstest or release/performance qualification"
+}

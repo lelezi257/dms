@@ -1,0 +1,29 @@
+bash: line 1: cd: /Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store: No such file or directory
+bash: line 1: cd: /Users/lzc: No such file or directory
+   Compiling afs v0.1.0 (/home/lzc.guest/afs-build/work/root-merged-v40)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 16.43s
+     Running unittests src/lib.rs (/home/lzc.guest/afs-build/target/debug/deps/afs-586e1b701367e588)
+
+running 2 tests
+
+thread 'node::vfs::dfs::tests::remote_interrupted_lock_wait_does_not_issue_redundant_cancel_ack' (340203) panicked at src/node/vfs/dfs.rs:11452:9:
+assertion `left == right` failed
+  left: 1
+ right: 0
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test node::vfs::dfs::tests::remote_interrupted_lock_wait_does_not_issue_redundant_cancel_ack ... FAILED
+
+thread 'node::vfs::dfs::tests::interrupted_owner_lock_wait_does_not_run_post_mutation_renewal' (340202) panicked at src/node/vfs/dfs.rs:11776:17:
+interrupted waiter was blocked behind post-mutation lock renewal
+test node::vfs::dfs::tests::interrupted_owner_lock_wait_does_not_run_post_mutation_renewal ... FAILED
+
+failures:
+
+failures:
+    node::vfs::dfs::tests::interrupted_owner_lock_wait_does_not_run_post_mutation_renewal
+    node::vfs::dfs::tests::remote_interrupted_lock_wait_does_not_issue_redundant_cancel_ack
+
+test result: FAILED. 0 passed; 2 failed; 0 ignored; 0 measured; 300 filtered out; finished in 0.19s
+
+error: test failed, to rerun pass `--lib`
+Old post-cancel renewal / redundant cancel behavior rejected; exact candidate restored.

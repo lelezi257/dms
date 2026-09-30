@@ -555,8 +555,17 @@ impl GrpcDfsMeta {
         &self,
         future: impl std::future::Future<Output = std::result::Result<T, tonic::Status>>,
     ) -> afs_error::Result<T> {
+        self.run_with_timeout(future, self.timeout)
+    }
+
+    fn run_with_timeout<T>(
+        &self,
+        future: impl std::future::Future<Output = std::result::Result<T, tonic::Status>>,
+        timeout: Duration,
+    ) -> afs_error::Result<T> {
+        let timeout = timeout.min(self.timeout);
         self.runtime.block_on(async {
-            tokio::time::timeout(self.timeout, future)
+            tokio::time::timeout(timeout, future)
                 .await
                 .map_err(|_| {
                     Error::coded(
@@ -1187,13 +1196,22 @@ impl crate::node::vfs::dfs::DfsMeta for GrpcDfsMeta {
     }
 
     fn current_node_session(&self, node_id: &str) -> afs_error::Result<Option<String>> {
+        self.current_node_session_with_timeout(node_id, self.timeout)
+    }
+
+    fn current_node_session_with_timeout(
+        &self,
+        node_id: &str,
+        timeout: Duration,
+    ) -> afs_error::Result<Option<String>> {
         let reply = self
-            .run(
+            .run_with_timeout(
                 self.root_client()
                     .lookup_node(afs_protocol::meta::LookupNodeRequest {
                         request_id: self.request_id(),
                         node_id: node_id.to_owned(),
                     }),
+                timeout,
             )?
             .into_inner();
         if !reply.found {

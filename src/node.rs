@@ -498,16 +498,54 @@ pub async fn run(cfg: Config, obs: Observability) -> Result<(), BoxError> {
                     _ = tick.tick() => {
                         let fs = dfs.clone();
                         match tokio::task::spawn_blocking(move || {
-                            let committed = fs.writeback_pending()?;
-                            let reaped = fs.reap_expired_peer_lock_sessions()?;
-                            Ok::<_, afs_error::Error>((committed, reaped))
-                        }).await {
-                            Ok(Ok((count, reaped))) if count > 0 || reaped > 0 => {
-                                if count > 0 {
-                                    afs_logging::info!("dfs.background_versions_committed"; "count" => count);
+                            let mut first_error = None;
+                            let committed = match fs.writeback_pending() {
+                                Ok(count) => count,
+                                Err(error) => {
+                                    first_error.get_or_insert(error);
+                                    0
                                 }
-                                if reaped > 0 {
-                                    afs_logging::info!("dfs.peer_lock_sessions_reaped"; "count" => reaped);
+                            };
+                            let remote_releases = match fs.retry_pending_remote_releases() {
+                                Ok(count) => count,
+                                Err(error) => {
+                                    first_error.get_or_insert(error);
+                                    0
+                                }
+                            };
+                            let owner_handles = match fs.reap_expired_peer_owner_handles() {
+                                Ok(count) => count,
+                                Err(error) => {
+                                    first_error.get_or_insert(error);
+                                    0
+                                }
+                            };
+                            let lock_sessions = match fs.reap_expired_peer_lock_sessions() {
+                                Ok(count) => count,
+                                Err(error) => {
+                                    first_error.get_or_insert(error);
+                                    0
+                                }
+                            };
+                            if let Some(error) = first_error {
+                                return Err(error);
+                            }
+                            Ok::<_, afs_error::Error>((committed, remote_releases, owner_handles, lock_sessions))
+                        }).await {
+                            Ok(Ok((committed, remote_releases, owner_handles, lock_sessions)))
+                                if committed > 0 || remote_releases > 0 || owner_handles > 0 || lock_sessions > 0 =>
+                            {
+                                if committed > 0 {
+                                    afs_logging::info!("dfs.background_versions_committed"; "count" => committed);
+                                }
+                                if remote_releases > 0 {
+                                    afs_logging::info!("dfs.remote_releases_retried"; "count" => remote_releases);
+                                }
+                                if owner_handles > 0 {
+                                    afs_logging::info!("dfs.peer_owner_handles_reaped"; "count" => owner_handles);
+                                }
+                                if lock_sessions > 0 {
+                                    afs_logging::info!("dfs.peer_lock_sessions_reaped"; "count" => lock_sessions);
                                 }
                             }
                             Ok(Ok(_)) => {}
@@ -677,9 +715,61 @@ pub async fn run(cfg: Config, obs: Observability) -> Result<(), BoxError> {
     let mut shutdown_error = services.run().await.err();
     #[cfg(feature = "dfs")]
     if let Some(dfs) = dfs_for_drain {
-        match tokio::task::spawn_blocking(move || dfs.drain()).await {
-            Ok(Ok(count)) if count > 0 => {
-                afs_logging::info!("dfs.node_drain_versions_committed"; "count" => count);
+        match tokio::task::spawn_blocking(move || {
+            let mut first_error = None;
+            let committed = match dfs.drain() {
+                Ok(count) => count,
+                Err(error) => {
+                    first_error.get_or_insert(error);
+                    0
+                }
+            };
+            let remote_releases = match dfs.drain_pending_remote_releases() {
+                Ok(count) => count,
+                Err(error) => {
+                    first_error.get_or_insert(error);
+                    0
+                }
+            };
+            let owner_handles = match dfs.reap_expired_peer_owner_handles() {
+                Ok(count) => count,
+                Err(error) => {
+                    first_error.get_or_insert(error);
+                    0
+                }
+            };
+            let lock_sessions = match dfs.reap_expired_peer_lock_sessions() {
+                Ok(count) => count,
+                Err(error) => {
+                    first_error.get_or_insert(error);
+                    0
+                }
+            };
+            if let Some(error) = first_error {
+                return Err(error);
+            }
+            Ok::<_, afs_error::Error>((committed, remote_releases, owner_handles, lock_sessions))
+        })
+        .await
+        {
+            Ok(Ok((committed, remote_releases, owner_handles, lock_sessions)))
+                if committed > 0
+                    || remote_releases > 0
+                    || owner_handles > 0
+                    || lock_sessions > 0 =>
+            {
+                if committed > 0 {
+                    afs_logging::info!("dfs.node_drain_versions_committed"; "count" => committed);
+                }
+                if remote_releases > 0 {
+                    afs_logging::info!("dfs.node_drain_remote_releases"; "count" => remote_releases);
+                }
+                if owner_handles > 0 {
+                    afs_logging::info!("dfs.node_drain_owner_handles_reaped"; "count" => owner_handles);
+                }
+                if lock_sessions > 0 {
+                    afs_logging::info!("dfs.node_drain_lock_sessions_reaped"; "count" => lock_sessions);
+                }
             }
             Ok(Ok(_)) => {}
             Ok(Err(error)) => {

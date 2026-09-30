@@ -1302,6 +1302,13 @@ pub trait RemoteDfsOwner: Send + Sync {
         &self,
         request: afs_protocol::node_control::DfsOwnerReleaseRequest,
     ) -> afs_error::Result<afs_protocol::node_control::DfsOwnerReleaseReply>;
+    fn release_with_timeout(
+        &self,
+        request: afs_protocol::node_control::DfsOwnerReleaseRequest,
+        _timeout: Duration,
+    ) -> afs_error::Result<afs_protocol::node_control::DfsOwnerReleaseReply> {
+        self.release(request)
+    }
     fn get_lock(
         &self,
         request: afs_protocol::node_control::DfsOwnerGetLockRequest,
@@ -1318,6 +1325,13 @@ pub trait RemoteDfsOwner: Send + Sync {
         &self,
         request: afs_protocol::node_control::DfsOwnerAcknowledgeLockWaitRequest,
     ) -> afs_error::Result<afs_protocol::node_control::DfsOwnerAcknowledgeLockWaitReply>;
+    fn acknowledge_lock_wait_with_timeout(
+        &self,
+        request: afs_protocol::node_control::DfsOwnerAcknowledgeLockWaitRequest,
+        _timeout: Duration,
+    ) -> afs_error::Result<afs_protocol::node_control::DfsOwnerAcknowledgeLockWaitReply> {
+        self.acknowledge_lock_wait(request)
+    }
     fn release_locks(
         &self,
         request: afs_protocol::node_control::DfsOwnerReleaseLocksRequest,
@@ -1326,6 +1340,13 @@ pub trait RemoteDfsOwner: Send + Sync {
         &self,
         request: afs_protocol::node_control::DfsOwnerReleaseLockSessionRequest,
     ) -> afs_error::Result<afs_protocol::node_control::DfsOwnerReleaseLockSessionReply>;
+    fn release_lock_session_with_timeout(
+        &self,
+        request: afs_protocol::node_control::DfsOwnerReleaseLockSessionRequest,
+        _timeout: Duration,
+    ) -> afs_error::Result<afs_protocol::node_control::DfsOwnerReleaseLockSessionReply> {
+        self.release_lock_session(request)
+    }
     fn read(
         &self,
         request: afs_protocol::node_data::DfsOwnerReadRequest,
@@ -1613,6 +1634,14 @@ impl RemoteDfsOwner for GrpcDfsOwnerClient {
         &self,
         request: afs_protocol::node_control::DfsOwnerReleaseRequest,
     ) -> afs_error::Result<afs_protocol::node_control::DfsOwnerReleaseReply> {
+        self.release_with_timeout(request, self.timeout)
+    }
+
+    fn release_with_timeout(
+        &self,
+        request: afs_protocol::node_control::DfsOwnerReleaseRequest,
+        timeout: Duration,
+    ) -> afs_error::Result<afs_protocol::node_control::DfsOwnerReleaseReply> {
         if request
             .handle
             .as_ref()
@@ -1620,11 +1649,12 @@ impl RemoteDfsOwner for GrpcDfsOwnerClient {
         {
             return Err(dfs_protocol_error("DFS owner request targets another Node"));
         }
+        let timeout = timeout.min(self.timeout);
         self.runtime.block_on(async {
-            tokio::time::timeout(self.timeout, async {
+            tokio::time::timeout(timeout, async {
                 let mut client = self.control_client().await?;
                 let mut request = request_with_current_context(request);
-                request.set_timeout(self.timeout);
+                request.set_timeout(timeout);
                 client
                     .dfs_owner_release(request)
                     .await
@@ -1705,6 +1735,14 @@ impl RemoteDfsOwner for GrpcDfsOwnerClient {
         &self,
         request: afs_protocol::node_control::DfsOwnerAcknowledgeLockWaitRequest,
     ) -> afs_error::Result<afs_protocol::node_control::DfsOwnerAcknowledgeLockWaitReply> {
+        self.acknowledge_lock_wait_with_timeout(request, self.timeout)
+    }
+
+    fn acknowledge_lock_wait_with_timeout(
+        &self,
+        request: afs_protocol::node_control::DfsOwnerAcknowledgeLockWaitRequest,
+        timeout: Duration,
+    ) -> afs_error::Result<afs_protocol::node_control::DfsOwnerAcknowledgeLockWaitReply> {
         if request
             .authority
             .as_ref()
@@ -1714,9 +1752,13 @@ impl RemoteDfsOwner for GrpcDfsOwnerClient {
                 "DFS owner control request targets another Node",
             ));
         }
-        self.dfs_owner_control_request(request, |mut client, request| async move {
-            client.dfs_owner_acknowledge_lock_wait(request).await
-        })
+        self.dfs_owner_control_request_with_timeout(
+            request,
+            Some(timeout.min(self.timeout)),
+            |mut client, request| async move {
+                client.dfs_owner_acknowledge_lock_wait(request).await
+            },
+        )
     }
 
     fn release_locks(
@@ -1741,6 +1783,14 @@ impl RemoteDfsOwner for GrpcDfsOwnerClient {
         &self,
         request: afs_protocol::node_control::DfsOwnerReleaseLockSessionRequest,
     ) -> afs_error::Result<afs_protocol::node_control::DfsOwnerReleaseLockSessionReply> {
+        self.release_lock_session_with_timeout(request, self.timeout)
+    }
+
+    fn release_lock_session_with_timeout(
+        &self,
+        request: afs_protocol::node_control::DfsOwnerReleaseLockSessionRequest,
+        timeout: Duration,
+    ) -> afs_error::Result<afs_protocol::node_control::DfsOwnerReleaseLockSessionReply> {
         if request
             .authority
             .as_ref()
@@ -1750,9 +1800,13 @@ impl RemoteDfsOwner for GrpcDfsOwnerClient {
                 "DFS owner control request targets another Node",
             ));
         }
-        self.dfs_owner_control_request(request, |mut client, request| async move {
-            client.dfs_owner_release_lock_session(request).await
-        })
+        self.dfs_owner_control_request_with_timeout(
+            request,
+            Some(timeout.min(self.timeout)),
+            |mut client, request| async move {
+                client.dfs_owner_release_lock_session(request).await
+            },
+        )
     }
     dfs_owner_rpc!(
         read,

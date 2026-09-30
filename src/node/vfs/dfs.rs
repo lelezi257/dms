@@ -8,7 +8,7 @@
 //! writes before reporting close success; `release` only drops the handle.
 
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{HashMap, HashSet, VecDeque},
     ffi::{OsStr, OsString},
     os::unix::ffi::OsStringExt,
     sync::{
@@ -48,6 +48,15 @@ pub const DFS_WRITE_LEASE_SECONDS: u64 = 30;
 pub const DEFAULT_DIRTY_DATA_BUDGET_BYTES: u64 = 16 * 1024 * 1024;
 const ROOT_INODE: u64 = 1;
 const COMMIT_CHUNK_BYTES: u64 = crate::node::chunk::MAX_STAGED_CHUNK_BYTES as u64;
+const MAX_PENDING_REMOTE_RELEASES: usize = 1024;
+const REMOTE_RELEASE_MAINTENANCE_BUDGET: std::time::Duration =
+    std::time::Duration::from_millis(250);
+const REMOTE_RELEASE_SHUTDOWN_BUDGET: std::time::Duration = std::time::Duration::from_secs(2);
+const REMOTE_RELEASE_RPC_BUDGET: std::time::Duration = std::time::Duration::from_millis(100);
+const LOCK_SESSION_REAP_BUDGET: std::time::Duration = std::time::Duration::from_millis(250);
+const LOCK_SESSION_REAP_MAX_OPS: usize = 64;
+const OWNER_HANDLE_REAP_BUDGET: std::time::Duration = std::time::Duration::from_millis(250);
+const OWNER_HANDLE_REAP_MAX_PEERS: usize = 64;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct DfsNodeLocation {
@@ -77,6 +86,13 @@ pub trait DfsMeta: Send + Sync {
     fn commit_file_version(&self, commit: CommitFileVersion) -> Result<InodeRecord>;
     fn lookup_node_location(&self, node_id: &str) -> Result<Option<DfsNodeLocation>>;
     fn current_node_session(&self, node_id: &str) -> Result<Option<String>>;
+    fn current_node_session_with_timeout(
+        &self,
+        node_id: &str,
+        _timeout: Duration,
+    ) -> Result<Option<String>> {
+        self.current_node_session(node_id)
+    }
 
     fn mkdir(
         &self,
@@ -151,12 +167,15 @@ pub struct DistributedFs {
     dir_handles: Mutex<HashMap<u64, DfsDirectoryHandle>>,
     inode_writes: Mutex<HashMap<InodeId, SharedInodeWriteState>>,
     remote_inode_providers: Mutex<HashMap<InodeId, RemoteDfsWriteSession>>,
+    pending_remote_releases: Mutex<PendingRemoteReleaseState>,
     lock_authorities: Mutex<HashMap<InodeId, Arc<DfsLockAuthority>>>,
     lock_renewal: Arc<DfsLockRenewal>,
     remote_lock_authorities: Mutex<HashMap<InodeId, DfsRemoteLockAuthority>>,
     remote_lock_authority_sessions: Mutex<HashMap<InodeId, HashMap<String, usize>>>,
     remote_lock_waiters: Mutex<HashMap<LockWaiterId, DfsRemoteLockAuthority>>,
     cancelled_remote_lock_waiters: Mutex<HashSet<LockWaiterId>>,
+    lock_session_reap_cursor: AtomicU64,
+    owner_handle_reap_cursor: AtomicU64,
     closed_lock_sessions: Mutex<HashSet<String>>,
     closed_lock_session_admission_closed: AtomicBool,
     remote_operation_results: Mutex<HashMap<RemoteOperationKey, RemoteOperationResult>>,
@@ -173,6 +192,14 @@ struct DfsFileHandle {
     opened_inode: InodeRecord,
     write_session: Option<DfsRemoteWriteSession>,
     flags: i32,
+    owner_scope: Option<DfsOwnerHandleScope>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct DfsOwnerHandleScope {
+    caller_node_id: String,
+    caller_session_id: String,
+    lease_epoch: u64,
 }
 
 struct DfsDirectoryHandle {
@@ -504,6 +531,32 @@ struct RemoteDfsWriteSession {
     owner: Arc<dyn RemoteDfsOwner>,
     handle: afs_protocol::node_control::DfsOwnerHandle,
     read_handle: Option<afs_protocol::node_control::DfsOwnerHandle>,
+    release_slots: usize,
+}
+
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+struct PendingRemoteReleaseKey {
+    namespace_id: String,
+    inode_id: String,
+    owner_node_id: String,
+    owner_session_id: String,
+    lease_epoch: u64,
+    caller_node_id: String,
+    caller_session_id: String,
+    opaque_handle: Vec<u8>,
+}
+
+#[derive(Clone)]
+struct PendingRemoteRelease {
+    owner: Arc<dyn RemoteDfsOwner>,
+    handle: afs_protocol::node_control::DfsOwnerHandle,
+}
+
+#[derive(Default)]
+struct PendingRemoteReleaseState {
+    entries: HashMap<PendingRemoteReleaseKey, PendingRemoteRelease>,
+    order: VecDeque<PendingRemoteReleaseKey>,
+    reserved: usize,
 }
 
 #[derive(Clone)]
@@ -731,12 +784,15 @@ impl DistributedFs {
             dir_handles: Mutex::new(HashMap::new()),
             inode_writes: Mutex::new(HashMap::new()),
             remote_inode_providers: Mutex::new(HashMap::new()),
+            pending_remote_releases: Mutex::new(PendingRemoteReleaseState::default()),
             lock_authorities: Mutex::new(HashMap::new()),
             lock_renewal: Arc::new(DfsLockRenewal::new()),
             remote_lock_authorities: Mutex::new(HashMap::new()),
             remote_lock_authority_sessions: Mutex::new(HashMap::new()),
             remote_lock_waiters: Mutex::new(HashMap::new()),
             cancelled_remote_lock_waiters: Mutex::new(HashSet::new()),
+            lock_session_reap_cursor: AtomicU64::new(0),
+            owner_handle_reap_cursor: AtomicU64::new(0),
             closed_lock_sessions: Mutex::new(HashSet::new()),
             closed_lock_session_admission_closed: AtomicBool::new(false),
             remote_operation_results: Mutex::new(HashMap::new()),
@@ -1843,8 +1899,10 @@ impl DistributedFs {
         open_flags: i32,
         options: OpenOptions,
     ) -> Result<DfsRemoteWriteSession> {
+        let release_slots = Self::remote_release_slot_count(open_flags);
         let owner = self.remote_owner(lease)?;
-        let reply = owner.open(afs_protocol::node_control::DfsOwnerOpenRequest {
+        self.reserve_remote_release_capacity(release_slots)?;
+        let reply = match owner.open(afs_protocol::node_control::DfsOwnerOpenRequest {
             namespace_id: self.namespace_id.0.clone(),
             inode_id: inode.inode_id.0.clone(),
             owner_node_id: lease.owner_node_id.clone(),
@@ -1853,10 +1911,20 @@ impl DistributedFs {
             caller_session_id: self.session_id.clone(),
             open_flags,
             kill_suidgid: options.kill_suidgid,
-        })?;
-        let handle = reply
-            .handle
-            .ok_or_else(|| unavailable("DFS owner open returned no handle"))?;
+        }) {
+            Ok(reply) => reply,
+            Err(error) => {
+                self.release_remote_release_capacity(release_slots)?;
+                return Err(error);
+            }
+        };
+        let handle = match reply.handle {
+            Some(handle) => handle,
+            None => {
+                self.release_remote_release_capacity(release_slots)?;
+                return Err(unavailable("DFS owner open returned no handle"));
+            }
+        };
         let read_handle = if open_flags & libc::O_ACCMODE == libc::O_WRONLY {
             match owner.open(afs_protocol::node_control::DfsOwnerOpenRequest {
                 namespace_id: self.namespace_id.0.clone(),
@@ -1871,14 +1939,20 @@ impl DistributedFs {
                 Ok(reply) => match reply.handle {
                     Some(handle) => Some(handle),
                     None => {
-                        let _ = Self::remote_release_handle(&owner, &handle);
+                        let release =
+                            self.remote_release_handle_or_queue_reserved(&owner, handle, true);
+                        self.release_remote_release_capacity(1)?;
+                        release?;
                         return Err(unavailable(
                             "DFS owner read companion open returned no handle",
                         ));
                     }
                 },
                 Err(error) => {
-                    let _ = Self::remote_release_handle(&owner, &handle);
+                    let release =
+                        self.remote_release_handle_or_queue_reserved(&owner, handle, true);
+                    self.release_remote_release_capacity(1)?;
+                    release?;
                     return Err(error);
                 }
             }
@@ -1889,6 +1963,7 @@ impl DistributedFs {
             owner,
             handle,
             read_handle,
+            release_slots,
         };
         self.remote_inode_providers
             .lock()
@@ -2399,11 +2474,36 @@ impl DistributedFs {
 
     pub fn reap_expired_peer_lock_sessions(&self) -> Result<usize> {
         self.reclaim_idle_lock_authorities()?;
-        let scoped_by_peer = self.collect_peer_lock_scopes()?;
+        let deadline = std::time::Instant::now() + LOCK_SESSION_REAP_BUDGET;
+        let mut scoped_by_peer = self
+            .collect_peer_lock_scopes()?
+            .into_iter()
+            .collect::<Vec<_>>();
+        scoped_by_peer.sort_by(|left, right| left.0.cmp(&right.0));
+        if !scoped_by_peer.is_empty() {
+            let start = (self
+                .lock_session_reap_cursor
+                .fetch_add(1, Ordering::Relaxed) as usize)
+                % scoped_by_peer.len();
+            scoped_by_peer.rotate_left(start);
+        }
         let mut reclaimed = 0usize;
         let mut first_error = None;
+        let mut checked = 0usize;
         for ((node_id, session_id), scopes) in scoped_by_peer {
-            match self.meta.current_node_session(&node_id) {
+            if checked >= LOCK_SESSION_REAP_MAX_OPS || std::time::Instant::now() >= deadline {
+                break;
+            }
+            let remaining = deadline.saturating_duration_since(std::time::Instant::now());
+            let timeout = remaining.min(REMOTE_RELEASE_RPC_BUDGET);
+            if timeout.is_zero() {
+                break;
+            }
+            checked = checked.saturating_add(1);
+            match self
+                .meta
+                .current_node_session_with_timeout(&node_id, timeout)
+            {
                 Ok(current) if current.as_deref() != Some(session_id.as_str()) => {
                     match self.release_scoped_lock_sessions(scopes) {
                         Ok(count) => reclaimed = reclaimed.saturating_add(count),
@@ -2418,7 +2518,18 @@ impl DistributedFs {
                 }
             }
         }
-        match self.retry_closed_remote_lock_sessions() {
+        match self.retry_closed_remote_lock_sessions_until(
+            deadline,
+            LOCK_SESSION_REAP_MAX_OPS.saturating_sub(checked),
+        ) {
+            Ok(count) => reclaimed = reclaimed.saturating_add(count),
+            Err(error) => {
+                first_error.get_or_insert(error);
+            }
+        }
+        match self
+            .retry_cancelled_remote_lock_waiter_acks_until(deadline, LOCK_SESSION_REAP_MAX_OPS)
+        {
             Ok(count) => reclaimed = reclaimed.saturating_add(count),
             Err(error) => {
                 first_error.get_or_insert(error);
@@ -2640,6 +2751,100 @@ impl DistributedFs {
         Ok(())
     }
 
+    fn mark_cancelled_remote_lock_waiter(&self, waiter: &LockWaiterId) -> Result<()> {
+        let mut cancelled = self
+            .cancelled_remote_lock_waiters
+            .lock()
+            .map_err(|_| unavailable("DFS remote lock cancellation table is poisoned"))?;
+        if cancelled.len() >= MAX_REMOTE_LOCK_WAITERS && !cancelled.contains(waiter) {
+            return Err(Error::from(std::io::Error::from_raw_os_error(libc::ENOLCK)));
+        }
+        cancelled.insert(waiter.clone());
+        Ok(())
+    }
+
+    fn clear_cancelled_remote_lock_waiter(&self, waiter: &LockWaiterId) -> Result<()> {
+        self.cancelled_remote_lock_waiters
+            .lock()
+            .map_err(|_| unavailable("DFS remote lock cancellation table is poisoned"))?
+            .remove(waiter);
+        Ok(())
+    }
+
+    fn cleanup_acknowledged_remote_lock_waiter(&self, waiter: &LockWaiterId) -> Result<()> {
+        self.remove_remote_lock_waiter_route(waiter)?;
+        self.clear_cancelled_remote_lock_waiter(waiter)
+    }
+
+    fn retry_cancelled_remote_lock_waiter_acks_until(
+        &self,
+        deadline: std::time::Instant,
+        max_ops: usize,
+    ) -> Result<usize> {
+        let mut cancelled = self
+            .cancelled_remote_lock_waiters
+            .lock()
+            .map_err(|_| unavailable("DFS remote lock cancellation table is poisoned"))?
+            .iter()
+            .cloned()
+            .collect::<Vec<_>>();
+        cancelled.sort_by(|left, right| {
+            left.ingress_session_id
+                .cmp(&right.ingress_session_id)
+                .then_with(|| left.request_id.cmp(&right.request_id))
+        });
+        if !cancelled.is_empty() {
+            let start = (self
+                .lock_session_reap_cursor
+                .fetch_add(1, Ordering::Relaxed) as usize)
+                % cancelled.len();
+            cancelled.rotate_left(start);
+        }
+        let waiters = self
+            .remote_lock_waiters
+            .lock()
+            .map_err(|_| unavailable("DFS remote lock waiter table is poisoned"))?
+            .clone();
+        let mut acknowledged = 0usize;
+        let mut first_error = None;
+        let mut attempted = 0usize;
+        for waiter in cancelled {
+            if attempted >= max_ops || std::time::Instant::now() >= deadline {
+                break;
+            }
+            attempted = attempted.saturating_add(1);
+            let Some(remote) = waiters.get(&waiter) else {
+                continue;
+            };
+            let remaining = deadline.saturating_duration_since(std::time::Instant::now());
+            let timeout = remaining.min(REMOTE_RELEASE_RPC_BUDGET);
+            if timeout.is_zero() {
+                break;
+            }
+            match remote.owner.acknowledge_lock_wait_with_timeout(
+                afs_protocol::node_control::DfsOwnerAcknowledgeLockWaitRequest {
+                    authority: Some(remote.authority.clone()),
+                    waiter: Some(Self::wire_lock_waiter(&waiter)),
+                },
+                timeout,
+            ) {
+                Ok(_) => {
+                    let inode_id = InodeId::new(remote.authority.inode_id.clone());
+                    self.cleanup_acknowledged_remote_lock_waiter(&waiter)?;
+                    self.cleanup_remote_lock_authority_if_idle(&inode_id)?;
+                    acknowledged = acknowledged.saturating_add(1);
+                }
+                Err(error) => {
+                    first_error.get_or_insert(error);
+                }
+            }
+        }
+        if let Some(error) = first_error {
+            return Err(error);
+        }
+        Ok(acknowledged)
+    }
+
     fn consume_precancelled_lock_waiter(&self, waiter: &LockWaiterId) -> Result<bool> {
         Ok(self
             .cancelled_remote_lock_waiters
@@ -2788,23 +2993,29 @@ impl DistributedFs {
         inode_id: &InodeId,
         remote: &DfsRemoteLockAuthority,
         scoped_session: &str,
+        timeout: Duration,
     ) -> Result<()> {
-        remote.owner.release_lock_session(
+        remote.owner.release_lock_session_with_timeout(
             afs_protocol::node_control::DfsOwnerReleaseLockSessionRequest {
                 authority: Some(remote.authority.clone()),
                 ingress_session_id: Self::raw_lock_session(scoped_session).to_owned(),
             },
+            timeout,
         )?;
         self.cleanup_successful_remote_lock_session(inode_id, scoped_session)
     }
 
-    fn retry_closed_remote_lock_sessions(&self) -> Result<usize> {
+    fn retry_closed_remote_lock_sessions_until(
+        &self,
+        deadline: std::time::Instant,
+        max_ops: usize,
+    ) -> Result<usize> {
         let closed = self
             .closed_lock_sessions
             .lock()
             .map_err(|_| unavailable("DFS closed lock session table is poisoned"))?
             .clone();
-        let pending = self
+        let mut pending = self
             .remote_lock_authority_sessions
             .lock()
             .map_err(|_| unavailable("DFS remote lock authority session table is poisoned"))?
@@ -2818,6 +3029,14 @@ impl DistributedFs {
                     .map(|(session, _state)| (inode_id.clone(), session.clone()))
             })
             .collect::<Vec<_>>();
+        pending.sort_by(|left, right| left.0.0.cmp(&right.0.0).then_with(|| left.1.cmp(&right.1)));
+        if !pending.is_empty() {
+            let start = (self
+                .lock_session_reap_cursor
+                .fetch_add(1, Ordering::Relaxed) as usize)
+                % pending.len();
+            pending.rotate_left(start);
+        }
         let remotes = self
             .remote_lock_authorities
             .lock()
@@ -2825,7 +3044,12 @@ impl DistributedFs {
             .clone();
         let mut released = 0usize;
         let mut first_error = None;
+        let mut attempted = 0usize;
         for (inode_id, scoped_session) in pending {
+            if attempted >= max_ops || std::time::Instant::now() >= deadline {
+                break;
+            }
+            attempted = attempted.saturating_add(1);
             let Some(remote) = remotes.get(&inode_id) else {
                 if let Err(error) =
                     self.cleanup_successful_remote_lock_session(&inode_id, &scoped_session)
@@ -2836,7 +3060,13 @@ impl DistributedFs {
                 }
                 continue;
             };
-            match self.release_remote_lock_session_once(&inode_id, remote, &scoped_session) {
+            let remaining = deadline.saturating_duration_since(std::time::Instant::now());
+            let timeout = remaining.min(REMOTE_RELEASE_RPC_BUDGET);
+            if timeout.is_zero() {
+                break;
+            }
+            match self.release_remote_lock_session_once(&inode_id, remote, &scoped_session, timeout)
+            {
                 Ok(()) => released = released.saturating_add(1),
                 Err(error) => {
                     first_error.get_or_insert(error);
@@ -2988,6 +3218,7 @@ struct DfsFileHandleSnapshot {
     opened_inode: InodeRecord,
     write_session: Option<DfsRemoteWriteSession>,
     flags: i32,
+    owner_scope: Option<DfsOwnerHandleScope>,
 }
 
 impl From<&DfsFileHandle> for DfsFileHandleSnapshot {
@@ -2997,6 +3228,7 @@ impl From<&DfsFileHandle> for DfsFileHandleSnapshot {
             opened_inode: handle.opened_inode.clone(),
             write_session: handle.write_session.clone(),
             flags: handle.flags,
+            owner_scope: handle.owner_scope.clone(),
         }
     }
 }
@@ -3400,20 +3632,247 @@ impl DistributedFs {
             .as_ref()
             .ok_or_else(|| invalid("DFS write session is local"))?;
         let mut first_error = None;
-        if let Some(read_handle) = remote.read_handle.as_ref()
-            && let Err(error) = Self::remote_release_handle(&remote.owner, read_handle)
-        {
-            first_error = Some(error);
+        let mut released = 0usize;
+        if let Some(read_handle) = remote.read_handle.clone() {
+            released = released.saturating_add(1);
+            if let Err(error) =
+                self.remote_release_handle_or_queue_reserved(&remote.owner, read_handle, true)
+            {
+                first_error = Some(error);
+            }
         }
-        if let Err(error) = Self::remote_release_handle(&remote.owner, &remote.handle)
+        released = released.saturating_add(1);
+        if let Err(error) =
+            self.remote_release_handle_or_queue_reserved(&remote.owner, remote.handle.clone(), true)
             && first_error.is_none()
         {
             first_error = Some(error);
+        }
+        if remote.release_slots > released {
+            self.release_remote_release_capacity(remote.release_slots - released)?;
         }
         if let Some(error) = first_error {
             return Err(error);
         }
         Ok(())
+    }
+
+    fn remote_release_slot_count(open_flags: i32) -> usize {
+        if open_flags & libc::O_ACCMODE == libc::O_WRONLY {
+            2
+        } else {
+            1
+        }
+    }
+
+    fn remote_release_key(
+        handle: &afs_protocol::node_control::DfsOwnerHandle,
+    ) -> PendingRemoteReleaseKey {
+        PendingRemoteReleaseKey {
+            namespace_id: handle.namespace_id.clone(),
+            inode_id: handle.inode_id.clone(),
+            owner_node_id: handle.owner_node_id.clone(),
+            owner_session_id: handle.owner_session_id.clone(),
+            lease_epoch: handle.lease_epoch,
+            caller_node_id: handle.caller_node_id.clone(),
+            caller_session_id: handle.caller_session_id.clone(),
+            opaque_handle: handle.opaque_handle.clone(),
+        }
+    }
+
+    fn reserve_remote_release_capacity(&self, slots: usize) -> Result<()> {
+        let mut state = self
+            .pending_remote_releases
+            .lock()
+            .map_err(|_| unavailable("DFS pending remote release table is poisoned"))?;
+        if state
+            .entries
+            .len()
+            .saturating_add(state.reserved)
+            .saturating_add(slots)
+            > MAX_PENDING_REMOTE_RELEASES
+        {
+            return Err(Error::coded(
+                afs_error::NODE_VFS_UNAVAILABLE,
+                "DFS pending remote release table is full",
+            ));
+        }
+        state.reserved = state.reserved.saturating_add(slots);
+        Ok(())
+    }
+
+    fn release_remote_release_capacity(&self, slots: usize) -> Result<()> {
+        if slots == 0 {
+            return Ok(());
+        }
+        let mut state = self
+            .pending_remote_releases
+            .lock()
+            .map_err(|_| unavailable("DFS pending remote release table is poisoned"))?;
+        state.reserved = state.reserved.saturating_sub(slots);
+        Ok(())
+    }
+
+    fn remote_release_handle_or_queue_reserved(
+        &self,
+        owner: &Arc<dyn RemoteDfsOwner>,
+        handle: afs_protocol::node_control::DfsOwnerHandle,
+        consume_reserved: bool,
+    ) -> Result<()> {
+        match Self::remote_release_handle(owner, &handle) {
+            Ok(()) => {
+                if consume_reserved {
+                    self.release_remote_release_capacity(1)?;
+                }
+                Ok(())
+            }
+            Err(error) if Self::remote_release_error_is_retryable(&error) => {
+                self.queue_pending_remote_release(owner.clone(), handle, consume_reserved)?;
+                Err(error)
+            }
+            Err(error) => {
+                if consume_reserved {
+                    self.release_remote_release_capacity(1)?;
+                }
+                Err(error)
+            }
+        }
+    }
+
+    fn queue_pending_remote_release(
+        &self,
+        owner: Arc<dyn RemoteDfsOwner>,
+        handle: afs_protocol::node_control::DfsOwnerHandle,
+        consume_reserved: bool,
+    ) -> Result<()> {
+        let key = Self::remote_release_key(&handle);
+        let mut state = self
+            .pending_remote_releases
+            .lock()
+            .map_err(|_| unavailable("DFS pending remote release table is poisoned"))?;
+        if consume_reserved {
+            state.reserved = state.reserved.saturating_sub(1);
+        } else if !state.entries.contains_key(&key)
+            && state.entries.len().saturating_add(state.reserved) >= MAX_PENDING_REMOTE_RELEASES
+        {
+            return Err(Error::coded(
+                afs_error::NODE_VFS_UNAVAILABLE,
+                "DFS pending remote release table is full",
+            ));
+        }
+        if !state.entries.contains_key(&key) {
+            state.order.push_back(key.clone());
+        }
+        state
+            .entries
+            .entry(key)
+            .or_insert(PendingRemoteRelease { owner, handle });
+        Ok(())
+    }
+
+    pub fn retry_pending_remote_releases(&self) -> Result<usize> {
+        self.retry_pending_remote_releases_with_budget(REMOTE_RELEASE_MAINTENANCE_BUDGET)
+    }
+
+    pub fn drain_pending_remote_releases(&self) -> Result<usize> {
+        self.retry_pending_remote_releases_with_budget(REMOTE_RELEASE_SHUTDOWN_BUDGET)
+    }
+
+    fn retry_pending_remote_releases_with_budget(
+        &self,
+        budget: std::time::Duration,
+    ) -> Result<usize> {
+        let deadline = std::time::Instant::now() + budget;
+        let mut released = 0usize;
+        let mut first_error = None;
+        loop {
+            if std::time::Instant::now() >= deadline {
+                break;
+            }
+            let Some((key, pending)) = self.next_pending_remote_release()? else {
+                break;
+            };
+            let remaining = deadline.saturating_duration_since(std::time::Instant::now());
+            let timeout = remaining.min(REMOTE_RELEASE_RPC_BUDGET);
+            match Self::remote_release_handle_with_timeout(&pending.owner, &pending.handle, timeout)
+            {
+                Ok(()) => {
+                    self.remove_pending_remote_release(&key)?;
+                    released = released.saturating_add(1);
+                }
+                Err(error) => {
+                    first_error.get_or_insert(error);
+                    self.rotate_pending_remote_release(&key)?;
+                }
+            }
+        }
+        if let Some(error) = first_error {
+            return Err(error);
+        }
+        let remaining = self.pending_remote_release_count()?;
+        if remaining != 0 {
+            return Err(unavailable(format!(
+                "DFS pending remote release drain left {remaining} handle(s) queued"
+            )));
+        }
+        Ok(released)
+    }
+
+    fn next_pending_remote_release(
+        &self,
+    ) -> Result<Option<(PendingRemoteReleaseKey, PendingRemoteRelease)>> {
+        let state = self
+            .pending_remote_releases
+            .lock()
+            .map_err(|_| unavailable("DFS pending remote release table is poisoned"))?;
+        for key in state.order.iter() {
+            if let Some(pending) = state.entries.get(key) {
+                return Ok(Some((key.clone(), pending.clone())));
+            }
+        }
+        Ok(None)
+    }
+
+    fn rotate_pending_remote_release(&self, key: &PendingRemoteReleaseKey) -> Result<()> {
+        let mut state = self
+            .pending_remote_releases
+            .lock()
+            .map_err(|_| unavailable("DFS pending remote release table is poisoned"))?;
+        if let Some(position) = state.order.iter().position(|candidate| candidate == key)
+            && let Some(key) = state.order.remove(position)
+        {
+            state.order.push_back(key);
+        }
+        Ok(())
+    }
+
+    fn remove_pending_remote_release(&self, key: &PendingRemoteReleaseKey) -> Result<()> {
+        let mut state = self
+            .pending_remote_releases
+            .lock()
+            .map_err(|_| unavailable("DFS pending remote release table is poisoned"))?;
+        state.entries.remove(key);
+        state.order.retain(|candidate| candidate != key);
+        Ok(())
+    }
+
+    pub fn pending_remote_release_count(&self) -> Result<usize> {
+        Ok(self
+            .pending_remote_releases
+            .lock()
+            .map_err(|_| unavailable("DFS pending remote release table is poisoned"))?
+            .entries
+            .len())
+    }
+
+    fn remote_release_error_is_retryable(error: &Error) -> bool {
+        matches!(
+            error.kind(),
+            afs_error::ErrorKind::Unavailable
+                | afs_error::ErrorKind::DeadlineExceeded
+                | afs_error::ErrorKind::ResourceExhausted
+                | afs_error::ErrorKind::Aborted
+        )
     }
 
     fn remote_release_handle(
@@ -3423,6 +3882,20 @@ impl DistributedFs {
         owner.release(afs_protocol::node_control::DfsOwnerReleaseRequest {
             handle: Some(handle.clone()),
         })?;
+        Ok(())
+    }
+
+    fn remote_release_handle_with_timeout(
+        owner: &Arc<dyn RemoteDfsOwner>,
+        handle: &afs_protocol::node_control::DfsOwnerHandle,
+        timeout: std::time::Duration,
+    ) -> Result<()> {
+        owner.release_with_timeout(
+            afs_protocol::node_control::DfsOwnerReleaseRequest {
+                handle: Some(handle.clone()),
+            },
+            timeout,
+        )?;
         Ok(())
     }
 
@@ -4017,6 +4490,7 @@ impl Backend for DistributedFs {
                             .table
                             .acknowledge_waiter(&waiter_id)
                             .map_err(lock_error)?;
+                        self.check_lock_renewal_after_mutation(&authority)?;
                     } else if result
                         .as_ref()
                         .err()
@@ -4027,7 +4501,6 @@ impl Backend for DistributedFs {
                             .acknowledge_waiter(&waiter_id)
                             .map_err(lock_error)?;
                     }
-                    self.check_lock_renewal_after_mutation(&authority)?;
                     result
                 } else {
                     let result = authority
@@ -4036,8 +4509,8 @@ impl Backend for DistributedFs {
                         .map_err(lock_error);
                     if result.is_ok() {
                         self.register_local_lock_success(&authority, &request)?;
+                        self.check_lock_renewal_after_mutation(&authority)?;
                     }
-                    self.check_lock_renewal_after_mutation(&authority)?;
                     result
                 }
             }
@@ -4068,6 +4541,21 @@ impl Backend for DistributedFs {
                             lock: Some(Self::wire_lock_request(&request)),
                             waiter: waiter.as_ref().map(Self::wire_lock_waiter),
                         });
+                if result
+                    .as_ref()
+                    .err()
+                    .is_some_and(|error| error.code() == afs_error::IO_INTERRUPTED)
+                    && let Some(waiter_id) = waiter.as_ref()
+                {
+                    self.mark_cancelled_remote_lock_waiter(waiter_id)?;
+                    if remote_session_was_new {
+                        self.forget_remote_lock_session(
+                            &inode_id,
+                            &request.owner.ingress_session_id,
+                        )?;
+                    }
+                    return Err(lock_error(LockError::Interrupted));
+                }
                 if result.is_err()
                     && waiter.is_some()
                     && let Some(waiter_id) = waiter.as_ref()
@@ -4086,11 +4574,12 @@ impl Backend for DistributedFs {
                                 },
                             );
                             if ack.is_err() {
+                                self.mark_cancelled_remote_lock_waiter(waiter_id)?;
                                 return Err(unavailable(
                                     "DFS remote lock cancellation could not be acknowledged; waiter identity retained",
                                 ));
                             }
-                            self.remove_remote_lock_waiter_route(waiter_id)?;
+                            self.cleanup_acknowledged_remote_lock_waiter(waiter_id)?;
                             if remote_session_was_new {
                                 self.forget_remote_lock_session(
                                     &inode_id,
@@ -4107,7 +4596,9 @@ impl Backend for DistributedFs {
                                 },
                             );
                             if ack.is_ok() {
-                                self.remove_remote_lock_waiter_route(waiter_id)?;
+                                self.cleanup_acknowledged_remote_lock_waiter(waiter_id)?;
+                            } else {
+                                self.mark_cancelled_remote_lock_waiter(waiter_id)?;
                             }
                             return Ok(());
                         }
@@ -4128,7 +4619,9 @@ impl Backend for DistributedFs {
                         },
                     );
                     if ack.is_ok() {
-                        self.remove_remote_lock_waiter_route(waiter_id)?;
+                        self.cleanup_acknowledged_remote_lock_waiter(waiter_id)?;
+                    } else {
+                        self.mark_cancelled_remote_lock_waiter(waiter_id)?;
                     }
                 }
                 result.map(|_| ())
@@ -4148,13 +4641,20 @@ impl Backend for DistributedFs {
             )?;
             match reply.outcome {
                 1 => {
-                    remote.owner.acknowledge_lock_wait(
+                    match remote.owner.acknowledge_lock_wait(
                         afs_protocol::node_control::DfsOwnerAcknowledgeLockWaitRequest {
                             authority: Some(authority.clone()),
                             waiter: Some(Self::wire_lock_waiter(&waiter)),
                         },
-                    )?;
-                    self.remove_remote_lock_waiter_route(&waiter)?;
+                    ) {
+                        Ok(_) => {
+                            self.cleanup_acknowledged_remote_lock_waiter(&waiter)?;
+                        }
+                        Err(error) => {
+                            self.mark_cancelled_remote_lock_waiter(&waiter)?;
+                            return Err(error);
+                        }
+                    }
                 }
                 2 => {
                     let ack = remote.owner.acknowledge_lock_wait(
@@ -4164,7 +4664,9 @@ impl Backend for DistributedFs {
                         },
                     );
                     if ack.is_ok() {
-                        self.remove_remote_lock_waiter_route(&waiter)?;
+                        self.cleanup_acknowledged_remote_lock_waiter(&waiter)?;
+                    } else {
+                        self.mark_cancelled_remote_lock_waiter(&waiter)?;
                     }
                 }
                 _ => {
@@ -4305,9 +4807,12 @@ impl Backend for DistributedFs {
                 continue;
             }
             self.mark_remote_lock_session_pending_close(inode_id, ingress_session_id)?;
-            if let Err(error) =
-                self.release_remote_lock_session_once(inode_id, remote, ingress_session_id)
-            {
+            if let Err(error) = self.release_remote_lock_session_once(
+                inode_id,
+                remote,
+                ingress_session_id,
+                REMOTE_RELEASE_RPC_BUDGET,
+            ) {
                 errors.push(error);
             }
         }
@@ -4558,6 +5063,7 @@ impl Backend for DistributedFs {
             opened_inode: inode.clone(),
             write_session: Some(Self::make_local_write_session(session)),
             flags,
+            owner_scope: None,
         })?;
         Ok(CreatedFile {
             entry: Entry {
@@ -4678,6 +5184,7 @@ impl Backend for DistributedFs {
             opened_inode,
             write_session,
             flags,
+            owner_scope: None,
         })
     }
 
@@ -5245,6 +5752,11 @@ impl crate::node::rpc::control::DfsOwnerLifecycleHandler for DistributedFs {
             return Err(stale("DFS owner open targets another owner session"));
         }
         let inode_id = InodeId::new(request.inode_id.clone());
+        if self.meta.current_node_session(peer)?.as_deref()
+            != Some(request.caller_session_id.as_str())
+        {
+            return Err(stale("DFS owner open caller session is stale"));
+        }
         let (inode, lease) = self.meta.open_write(&inode_id)?;
         let inode = self.validate_inode(inode)?;
         if lease.owner_node_id != self.node_id
@@ -5267,6 +5779,11 @@ impl crate::node::rpc::control::DfsOwnerLifecycleHandler for DistributedFs {
             opened_inode: inode.clone(),
             write_session: Some(Self::make_local_write_session(session)),
             flags: request.open_flags,
+            owner_scope: Some(DfsOwnerHandleScope {
+                caller_node_id: peer.to_owned(),
+                caller_session_id: request.caller_session_id.clone(),
+                lease_epoch: lease.lease_epoch,
+            }),
         })?;
         Ok(afs_protocol::node_control::DfsOwnerOpenReply {
             handle: Some(self.owner_handle_for(
@@ -5287,8 +5804,7 @@ impl crate::node::rpc::control::DfsOwnerLifecycleHandler for DistributedFs {
         let handle = request
             .handle
             .ok_or_else(|| stale("DFS owner getattr missing handle"))?;
-        self.validate_owner_handle(peer, &handle)?;
-        let file = Self::file_handle_from_owner(&handle)?;
+        let file = self.validate_owner_handle(peer, &handle)?;
         let snapshot = self.handle_snapshot(file)?;
         let attr = self.visible_attributes(&snapshot.opened_inode)?;
         Ok(afs_protocol::node_control::DfsOwnerGetAttrReply {
@@ -5361,8 +5877,8 @@ impl crate::node::rpc::control::DfsOwnerLifecycleHandler for DistributedFs {
         };
         if result.is_ok() {
             self.register_local_lock_success(&authority, &lock)?;
+            self.check_lock_renewal_after_mutation(&authority)?;
         }
-        self.check_lock_renewal_after_mutation(&authority)?;
         result?;
         Ok(afs_protocol::node_control::DfsOwnerSetLockReply {})
     }
@@ -5538,9 +6054,13 @@ impl crate::node::rpc::control::DfsOwnerLifecycleHandler for DistributedFs {
         let handle = request
             .handle
             .ok_or_else(|| stale("DFS owner release missing handle"))?;
-        self.validate_owner_handle(peer, &handle)?;
-        let file = Self::file_handle_from_owner(&handle)?;
-        <Self as Backend>::release(self, &owner_request_context(), file)?;
+        if let Some(file) = self.owner_release_file_handle(peer, &handle)? {
+            match <Self as Backend>::release(self, &owner_request_context(), file) {
+                Ok(()) => {}
+                Err(error) if error.code() == afs_error::NODE_DFS_STALE_HANDLE => {}
+                Err(error) => return Err(error),
+            }
+        }
         Ok(afs_protocol::node_control::DfsOwnerReleaseReply {})
     }
 }
@@ -5555,8 +6075,7 @@ impl crate::node::rpc::data::DfsOwnerFilesHandler for DistributedFs {
             .handle
             .ok_or_else(|| stale("DFS owner read missing handle"))?;
         let handle = Self::control_owner_handle(&handle);
-        self.validate_owner_handle(peer, &handle)?;
-        let file = Self::file_handle_from_owner(&handle)?;
+        let file = self.validate_owner_handle(peer, &handle)?;
         let mut data = vec![0; request.length as usize];
         let read = <Self as Backend>::read(
             self,
@@ -5586,7 +6105,7 @@ impl crate::node::rpc::data::DfsOwnerFilesHandler for DistributedFs {
             .clone()
             .ok_or_else(|| stale("DFS owner write missing handle"))?;
         let handle = Self::control_owner_handle(&handle);
-        self.validate_owner_handle(peer, &handle)?;
+        let file = self.validate_owner_handle(peer, &handle)?;
         let operation_id = OperationId::new(request.operation_id.clone());
         let key = Self::remote_operation_key(peer, &handle, operation_id);
         let fingerprint = Self::fingerprint_remote_write(
@@ -5601,7 +6120,6 @@ impl crate::node::rpc::data::DfsOwnerFilesHandler for DistributedFs {
         {
             return Ok(reply);
         }
-        let file = Self::file_handle_from_owner(&handle)?;
         let offset = if request.append {
             let snapshot = self.handle_snapshot(file)?;
             self.visible_attributes(&snapshot.opened_inode)?.size
@@ -5642,7 +6160,7 @@ impl crate::node::rpc::data::DfsOwnerFilesHandler for DistributedFs {
             .clone()
             .ok_or_else(|| stale("DFS owner resize missing handle"))?;
         let handle = Self::control_owner_handle(&handle);
-        self.validate_owner_handle(peer, &handle)?;
+        let file = self.validate_owner_handle(peer, &handle)?;
         let operation_id = OperationId::new(request.operation_id.clone());
         let key = Self::remote_operation_key(peer, &handle, operation_id);
         let fingerprint =
@@ -5652,7 +6170,6 @@ impl crate::node::rpc::data::DfsOwnerFilesHandler for DistributedFs {
         {
             return Ok(reply);
         }
-        let file = Self::file_handle_from_owner(&handle)?;
         let snapshot = self.handle_snapshot(file)?;
         let accepted =
             self.resize_dirty_inode(&snapshot.inode_id, request.length, request.kill_suidgid)?;
@@ -5674,7 +6191,7 @@ impl crate::node::rpc::data::DfsOwnerFilesHandler for DistributedFs {
             .clone()
             .ok_or_else(|| stale("DFS owner sync missing handle"))?;
         let handle = Self::control_owner_handle(&handle);
-        self.validate_owner_handle(peer, &handle)?;
+        let file = self.validate_owner_handle(peer, &handle)?;
         let operation_id = OperationId::new(request.operation_id.clone());
         let key = Self::remote_operation_key(peer, &handle, operation_id);
         let fingerprint =
@@ -5684,7 +6201,6 @@ impl crate::node::rpc::data::DfsOwnerFilesHandler for DistributedFs {
         {
             return Ok(reply);
         }
-        let file = Self::file_handle_from_owner(&handle)?;
         <Self as Backend>::fsync(
             self,
             &owner_request_context(),
@@ -5729,16 +6245,14 @@ impl DistributedFs {
         &self,
         peer: &str,
         handle: &afs_protocol::node_control::DfsOwnerHandle,
-    ) -> Result<()> {
-        if handle.namespace_id != self.namespace_id.0
-            || handle.owner_node_id != self.node_id
-            || handle.owner_session_id != self.session_id
-            || handle.caller_node_id != peer
-            || handle.lease_epoch == 0
-        {
-            return Err(stale("DFS owner handle identity does not match this owner"));
+    ) -> Result<FileHandle> {
+        let (inode_id, file) = self.validate_owner_handle_basic(peer, handle)?;
+        let snapshot = self.handle_snapshot(file)?;
+        self.validate_owner_handle_scope(peer, handle, &inode_id, &snapshot)?;
+        let current = self.meta.current_node_session(peer)?;
+        if current.as_deref() != Some(handle.caller_session_id.as_str()) {
+            return Err(stale("DFS owner caller session is stale"));
         }
-        let inode_id = InodeId::new(handle.inode_id.clone());
         let state = self
             .write_state(&inode_id)?
             .ok_or_else(|| stale("DFS owner write state is not open"))?;
@@ -5751,12 +6265,166 @@ impl DistributedFs {
         {
             return Err(stale("DFS owner lease epoch is stale"));
         }
-        let file = Self::file_handle_from_owner(handle)?;
-        let snapshot = self.handle_snapshot(file)?;
-        if snapshot.inode_id != inode_id {
+        Ok(file)
+    }
+
+    fn validate_owner_handle_basic(
+        &self,
+        peer: &str,
+        handle: &afs_protocol::node_control::DfsOwnerHandle,
+    ) -> Result<(InodeId, FileHandle)> {
+        if handle.namespace_id != self.namespace_id.0
+            || handle.owner_node_id != self.node_id
+            || handle.owner_session_id != self.session_id
+            || handle.caller_node_id != peer
+            || handle.lease_epoch == 0
+        {
+            return Err(stale("DFS owner handle identity does not match this owner"));
+        }
+        Ok((
+            InodeId::new(handle.inode_id.clone()),
+            Self::file_handle_from_owner(handle)?,
+        ))
+    }
+
+    fn validate_owner_handle_scope(
+        &self,
+        peer: &str,
+        handle: &afs_protocol::node_control::DfsOwnerHandle,
+        inode_id: &InodeId,
+        snapshot: &DfsFileHandleSnapshot,
+    ) -> Result<()> {
+        if snapshot.inode_id != *inode_id {
             return Err(stale("DFS owner handle names another inode"));
         }
+        let Some(scope) = snapshot.owner_scope.as_ref() else {
+            return Err(stale("DFS owner handle is not a remote caller handle"));
+        };
+        if scope.caller_node_id != peer
+            || scope.caller_session_id != handle.caller_session_id
+            || scope.lease_epoch != handle.lease_epoch
+        {
+            return Err(stale("DFS owner handle caller scope does not match"));
+        }
         Ok(())
+    }
+
+    fn owner_release_file_handle(
+        &self,
+        peer: &str,
+        handle: &afs_protocol::node_control::DfsOwnerHandle,
+    ) -> Result<Option<FileHandle>> {
+        let (inode_id, file) = self.validate_owner_handle_basic(peer, handle)?;
+        let Some(snapshot) = self
+            .handles
+            .lock()
+            .map_err(|_| unavailable("DFS handle table is poisoned"))?
+            .get(&file.0)
+            .map(DfsFileHandleSnapshot::from)
+        else {
+            return Ok(None);
+        };
+        self.validate_owner_handle_scope(peer, handle, &inode_id, &snapshot)?;
+        Ok(Some(file))
+    }
+
+    fn peer_owner_handle_sessions(&self) -> Result<HashMap<String, HashSet<String>>> {
+        let mut sessions: HashMap<String, HashSet<String>> = HashMap::new();
+        for handle in self
+            .handles
+            .lock()
+            .map_err(|_| unavailable("DFS handle table is poisoned"))?
+            .values()
+        {
+            if let Some(scope) = handle.owner_scope.as_ref() {
+                sessions
+                    .entry(scope.caller_node_id.clone())
+                    .or_default()
+                    .insert(scope.caller_session_id.clone());
+            }
+        }
+        Ok(sessions)
+    }
+
+    pub fn reap_expired_peer_owner_handles(&self) -> Result<usize> {
+        let sessions_by_node = self.peer_owner_handle_sessions()?;
+        let mut peers = sessions_by_node.into_iter().collect::<Vec<_>>();
+        peers.sort_by(|left, right| left.0.cmp(&right.0));
+        if peers.is_empty() {
+            return Ok(0);
+        }
+        let start =
+            (self.owner_handle_reap_cursor.fetch_add(1, Ordering::AcqRel) as usize) % peers.len();
+        peers.rotate_left(start);
+        let deadline = std::time::Instant::now() + OWNER_HANDLE_REAP_BUDGET;
+        let mut reaped = 0usize;
+        let mut first_error = None;
+        let mut checked = 0usize;
+        for (node_id, sessions) in peers {
+            if checked >= OWNER_HANDLE_REAP_MAX_PEERS || std::time::Instant::now() >= deadline {
+                break;
+            }
+            let remaining = deadline.saturating_duration_since(std::time::Instant::now());
+            let timeout = remaining.min(REMOTE_RELEASE_RPC_BUDGET);
+            if timeout.is_zero() {
+                break;
+            }
+            checked = checked.saturating_add(1);
+            match self
+                .meta
+                .current_node_session_with_timeout(&node_id, timeout)
+            {
+                Ok(current) => {
+                    for session_id in sessions {
+                        if current.as_deref() != Some(session_id.as_str()) {
+                            match self.reap_peer_owner_session(&node_id, &session_id) {
+                                Ok(count) => reaped = reaped.saturating_add(count),
+                                Err(error) => {
+                                    first_error.get_or_insert(error);
+                                }
+                            }
+                        }
+                    }
+                }
+                Err(error) => {
+                    first_error.get_or_insert(error);
+                }
+            }
+        }
+        if let Some(error) = first_error {
+            return Err(error);
+        }
+        Ok(reaped)
+    }
+
+    fn reap_peer_owner_session(&self, node_id: &str, session_id: &str) -> Result<usize> {
+        let handles = self
+            .handles
+            .lock()
+            .map_err(|_| unavailable("DFS handle table is poisoned"))?
+            .iter()
+            .filter_map(|(id, handle)| {
+                handle.owner_scope.as_ref().and_then(|scope| {
+                    (scope.caller_node_id == node_id && scope.caller_session_id == session_id)
+                        .then_some(FileHandle(*id))
+                })
+            })
+            .collect::<Vec<_>>();
+        let mut reaped = 0usize;
+        let mut first_error = None;
+        for file in handles {
+            match <Self as Backend>::release(self, &owner_request_context(), file) {
+                Ok(()) => reaped = reaped.saturating_add(1),
+                Err(error) if error.code() == afs_error::NODE_DFS_STALE_HANDLE => {}
+                Err(error) => {
+                    first_error.get_or_insert(error);
+                }
+            }
+        }
+        if let Some(error) = first_error {
+            return Err(error);
+        }
+        Ok(reaped)
     }
 }
 
@@ -6127,6 +6795,41 @@ mod tests {
         }
     }
 
+    struct RenewPause {
+        reached: (Mutex<bool>, std::sync::Condvar),
+        release: (Mutex<bool>, std::sync::Condvar),
+    }
+
+    impl RenewPause {
+        fn new() -> Self {
+            Self {
+                reached: (Mutex::new(false), std::sync::Condvar::new()),
+                release: (Mutex::new(false), std::sync::Condvar::new()),
+            }
+        }
+
+        fn block(&self) {
+            let (reached_lock, reached_cv) = &self.reached;
+            *reached_lock.lock().unwrap() = true;
+            reached_cv.notify_all();
+            let (release_lock, release_cv) = &self.release;
+            let mut release = release_lock.lock().unwrap();
+            while !*release {
+                release = release_cv.wait(release).unwrap();
+            }
+        }
+
+        fn release(&self) {
+            let (lock, cv) = &self.release;
+            *lock.lock().unwrap() = true;
+            cv.notify_all();
+        }
+
+        fn was_reached(&self) -> bool {
+            *self.reached.0.lock().unwrap()
+        }
+    }
+
     struct RecordingMeta {
         inode: Mutex<InodeRecord>,
         lease: Mutex<WriteLease>,
@@ -6138,9 +6841,12 @@ mod tests {
         next_commit_error: Mutex<Option<Error>>,
         commit_error_after_successes: Mutex<Option<(usize, Error)>>,
         commit_pause: Mutex<Option<Arc<CommitPause>>>,
+        renew_pause: Mutex<Option<Arc<RenewPause>>>,
         next_metadata_sync_error: Mutex<Option<Error>>,
         next_renew_error: Mutex<Option<Error>>,
         renew_results: Mutex<std::collections::VecDeque<Result<WriteLease>>>,
+        node_sessions: Mutex<HashMap<String, Option<String>>>,
+        next_current_session_error: Mutex<Option<Error>>,
         renew_calls: AtomicUsize,
     }
 
@@ -6180,9 +6886,12 @@ mod tests {
                 next_commit_error: Mutex::new(None),
                 commit_error_after_successes: Mutex::new(None),
                 commit_pause: Mutex::new(None),
+                renew_pause: Mutex::new(None),
                 next_metadata_sync_error: Mutex::new(None),
                 next_renew_error: Mutex::new(None),
                 renew_results: Mutex::new(std::collections::VecDeque::new()),
+                node_sessions: Mutex::new(HashMap::new()),
+                next_current_session_error: Mutex::new(None),
                 renew_calls: AtomicUsize::new(0),
             }
         }
@@ -6218,6 +6927,12 @@ mod tests {
             pause
         }
 
+        fn pause_next_renew(&self) -> Arc<RenewPause> {
+            let pause = Arc::new(RenewPause::new());
+            *self.renew_pause.lock().unwrap() = Some(pause.clone());
+            pause
+        }
+
         fn fail_next_metadata_sync_with(&self, error: Error) {
             *self.next_metadata_sync_error.lock().unwrap() = Some(error);
         }
@@ -6238,6 +6953,17 @@ mod tests {
 
         fn renew_call_count(&self) -> usize {
             self.renew_calls.load(Ordering::SeqCst)
+        }
+
+        fn set_node_session(&self, node_id: &str, session_id: Option<&str>) {
+            self.node_sessions
+                .lock()
+                .unwrap()
+                .insert(node_id.to_owned(), session_id.map(ToOwned::to_owned));
+        }
+
+        fn fail_next_current_session_with(&self, error: Error) {
+            *self.next_current_session_error.lock().unwrap() = Some(error);
         }
         fn publish_external_version(&self, length: u64) -> FileVersionId {
             let mut inode = self.inode.lock().unwrap();
@@ -6327,6 +7053,9 @@ mod tests {
 
         fn renew_write_lease(&self, lease: WriteLease) -> Result<WriteLease> {
             self.renew_calls.fetch_add(1, Ordering::SeqCst);
+            if let Some(pause) = self.renew_pause.lock().unwrap().take() {
+                pause.block();
+            }
             if let Some(result) = self.renew_results.lock().unwrap().pop_front() {
                 return result;
             }
@@ -6572,6 +7301,12 @@ mod tests {
         }
 
         fn current_node_session(&self, node_id: &str) -> Result<Option<String>> {
+            if let Some(error) = self.next_current_session_error.lock().unwrap().take() {
+                return Err(error);
+            }
+            if let Some(session) = self.node_sessions.lock().unwrap().get(node_id).cloned() {
+                return Ok(session);
+            }
             let suffix = node_id.strip_prefix("node-").unwrap_or("a");
             Ok(Some(format!("session-{suffix}")))
         }
@@ -8354,8 +9089,7 @@ mod tests {
             .remove(&owner_writer.0)
             .unwrap();
 
-        fs_b.release(&context(), writer)
-            .expect_err("writer release failure is still returned");
+        fs_b.release(&context(), writer).unwrap();
         assert!(fs_b.current_remote_provider(&inode_id).unwrap().is_none());
         assert!(fs_a.handles.lock().unwrap().is_empty());
     }
@@ -8425,13 +9159,295 @@ mod tests {
             .unwrap();
 
         fs_b.close_temporary_remote_write_session(&inode_id, &temp, Some(previous.clone()))
-            .expect_err("temporary writer release failure is still returned");
+            .unwrap();
         let current = fs_b
             .current_remote_provider(&inode_id)
             .unwrap()
             .expect("previous provider is restored after failed temp close");
         assert!(DistributedFs::same_remote_provider(&current, &previous));
         fs_b.release(&context(), writer).unwrap();
+    }
+
+    #[test]
+    fn remote_release_ack_loss_is_retained_and_drained_idempotently() {
+        let (_temp_a, meta, fs_a_raw) = test_fs();
+        let fs_a = Arc::new(fs_a_raw);
+        let created = fs_a
+            .create(
+                &context(),
+                fs_a.root_inode(),
+                OsStr::new("release-ack-loss.bin"),
+                0o640,
+                libc::O_RDWR,
+            )
+            .unwrap();
+        fs_a.release(&context(), created.handle).unwrap();
+        let temp_b = tempfile::tempdir().unwrap();
+        let chunks_b = Arc::new(LocalChunkStore::open(temp_b.path(), "node-b").unwrap());
+        let read_engine_b = Arc::new(crate::node::dfs_read::DfsReadEngine::new(
+            NamespaceId::new("default"),
+            "node-b".into(),
+            chunks_b.clone(),
+            Arc::new(crate::node::dfs_read::UnimplementedReadSourceProvider),
+            Arc::new(crate::node::dfs_read::UnimplementedChunkTransfer),
+            crate::node::dfs_read::DfsReadConfig::default(),
+        ));
+        let loopback = Arc::new(LoopbackRemoteDfsOwner {
+            owner: fs_a.clone(),
+            peer: "node-b".into(),
+        }) as Arc<dyn RemoteDfsOwner>;
+        let scripted = Arc::new(ScriptedReleaseRemoteDfsOwner::new(
+            loopback,
+            vec![ScriptedReleaseAction::DelegateThenErr(unavailable(
+                "injected ACK loss",
+            ))],
+        ));
+        let remote_owner = scripted.clone() as Arc<dyn RemoteDfsOwner>;
+        let fs_b = DistributedFs::new(
+            NamespaceId::new("default"),
+            "node-b",
+            "session-b",
+            meta.clone(),
+            chunks_b,
+            read_engine_b,
+        )
+        .with_remote_owner_factory(Arc::new(StaticRemoteOwnerFactory {
+            owner: remote_owner,
+        }));
+        let inode_id = meta.inode.lock().unwrap().inode_id.clone();
+        let inode_b = fs_b.backend_inode(&inode_id).unwrap();
+        let writer = fs_b.open(&context(), inode_b, libc::O_RDWR).unwrap();
+
+        fs_b.release(&context(), writer)
+            .expect_err("lost release ACK is reported once");
+        assert_eq!(fs_b.pending_remote_release_count().unwrap(), 1);
+        assert!(fs_a.handles.lock().unwrap().is_empty());
+        assert_eq!(fs_b.retry_pending_remote_releases().unwrap(), 1);
+        assert_eq!(fs_b.pending_remote_release_count().unwrap(), 0);
+        assert_eq!(scripted.release_call_count(), 2);
+    }
+
+    #[test]
+    fn remote_release_before_apply_failure_is_retained_and_later_drained() {
+        let (_temp_a, meta, fs_a_raw) = test_fs();
+        let fs_a = Arc::new(fs_a_raw);
+        let created = fs_a
+            .create(
+                &context(),
+                fs_a.root_inode(),
+                OsStr::new("release-before-apply.bin"),
+                0o640,
+                libc::O_RDWR,
+            )
+            .unwrap();
+        fs_a.release(&context(), created.handle).unwrap();
+        let temp_b = tempfile::tempdir().unwrap();
+        let chunks_b = Arc::new(LocalChunkStore::open(temp_b.path(), "node-b").unwrap());
+        let read_engine_b = Arc::new(crate::node::dfs_read::DfsReadEngine::new(
+            NamespaceId::new("default"),
+            "node-b".into(),
+            chunks_b.clone(),
+            Arc::new(crate::node::dfs_read::UnimplementedReadSourceProvider),
+            Arc::new(crate::node::dfs_read::UnimplementedChunkTransfer),
+            crate::node::dfs_read::DfsReadConfig::default(),
+        ));
+        let loopback = Arc::new(LoopbackRemoteDfsOwner {
+            owner: fs_a.clone(),
+            peer: "node-b".into(),
+        }) as Arc<dyn RemoteDfsOwner>;
+        let scripted = Arc::new(ScriptedReleaseRemoteDfsOwner::new(
+            loopback,
+            vec![ScriptedReleaseAction::ErrWithoutDelegate(unavailable(
+                "injected before apply",
+            ))],
+        ));
+        let remote_owner = scripted.clone() as Arc<dyn RemoteDfsOwner>;
+        let fs_b = DistributedFs::new(
+            NamespaceId::new("default"),
+            "node-b",
+            "session-b",
+            meta.clone(),
+            chunks_b,
+            read_engine_b,
+        )
+        .with_remote_owner_factory(Arc::new(StaticRemoteOwnerFactory {
+            owner: remote_owner,
+        }));
+        let inode_id = meta.inode.lock().unwrap().inode_id.clone();
+        let inode_b = fs_b.backend_inode(&inode_id).unwrap();
+        let writer = fs_b.open(&context(), inode_b, libc::O_RDWR).unwrap();
+
+        fs_b.release(&context(), writer)
+            .expect_err("pre-apply release failure is reported");
+        assert_eq!(fs_b.pending_remote_release_count().unwrap(), 1);
+        assert_eq!(fs_a.handles.lock().unwrap().len(), 1);
+        assert_eq!(fs_b.retry_pending_remote_releases().unwrap(), 1);
+        assert_eq!(fs_b.pending_remote_release_count().unwrap(), 0);
+        assert!(fs_a.handles.lock().unwrap().is_empty());
+    }
+
+    #[test]
+    fn remote_release_capacity_rejects_new_admission_without_owner_open() {
+        let (_temp_a, meta, fs_a_raw) = test_fs();
+        let fs_a = Arc::new(fs_a_raw);
+        let created = fs_a
+            .create(
+                &context(),
+                fs_a.root_inode(),
+                OsStr::new("release-capacity.bin"),
+                0o640,
+                libc::O_RDWR,
+            )
+            .unwrap();
+        fs_a.release(&context(), created.handle).unwrap();
+        let temp_b = tempfile::tempdir().unwrap();
+        let chunks_b = Arc::new(LocalChunkStore::open(temp_b.path(), "node-b").unwrap());
+        let read_engine_b = Arc::new(crate::node::dfs_read::DfsReadEngine::new(
+            NamespaceId::new("default"),
+            "node-b".into(),
+            chunks_b.clone(),
+            Arc::new(crate::node::dfs_read::UnimplementedReadSourceProvider),
+            Arc::new(crate::node::dfs_read::UnimplementedChunkTransfer),
+            crate::node::dfs_read::DfsReadConfig::default(),
+        ));
+        let remote_owner = Arc::new(LoopbackRemoteDfsOwner {
+            owner: fs_a.clone(),
+            peer: "node-b".into(),
+        }) as Arc<dyn RemoteDfsOwner>;
+        let fs_b = DistributedFs::new(
+            NamespaceId::new("default"),
+            "node-b",
+            "session-b",
+            meta.clone(),
+            chunks_b,
+            read_engine_b,
+        )
+        .with_remote_owner_factory(Arc::new(StaticRemoteOwnerFactory {
+            owner: remote_owner,
+        }));
+        fs_b.pending_remote_releases.lock().unwrap().reserved = MAX_PENDING_REMOTE_RELEASES;
+        let inode_id = meta.inode.lock().unwrap().inode_id.clone();
+        let inode_b = fs_b.backend_inode(&inode_id).unwrap();
+        let error = fs_b.open(&context(), inode_b, libc::O_RDWR).unwrap_err();
+        assert_eq!(error.code(), afs_error::NODE_VFS_UNAVAILABLE);
+        assert!(fs_a.handles.lock().unwrap().is_empty());
+    }
+
+    #[test]
+    fn old_owner_lease_data_ops_are_denied_but_release_cleans_resource() {
+        let (_temp, meta, fs) = test_fs();
+        let open = <DistributedFs as crate::node::rpc::control::DfsOwnerLifecycleHandler>::open(
+            &fs,
+            "node-b",
+            afs_protocol::node_control::DfsOwnerOpenRequest {
+                namespace_id: "default".into(),
+                inode_id: "inode:test".into(),
+                owner_node_id: "node-a".into(),
+                owner_session_id: "session-a".into(),
+                lease_epoch: 1,
+                caller_session_id: "session-b".into(),
+                open_flags: libc::O_RDWR,
+                kill_suidgid: false,
+            },
+        )
+        .unwrap();
+        let handle = open.handle.unwrap();
+        let inode_id = InodeId::new("inode:test");
+        let state = fs.write_state(&inode_id).unwrap().unwrap();
+        state.lock().unwrap().write_lease.lease_epoch = 2;
+        meta.lease.lock().unwrap().lease_epoch = 2;
+        let data_handle = DistributedFs::data_owner_handle(&handle);
+        let error = <DistributedFs as crate::node::rpc::data::DfsOwnerFilesHandler>::write(
+            &fs,
+            "node-b",
+            afs_protocol::node_data::DfsOwnerWriteRequest {
+                handle: Some(data_handle),
+                operation_id: "old-lease-write".into(),
+                offset: 0,
+                data: b"x".to_vec(),
+                append: false,
+                kill_suidgid: false,
+            },
+        )
+        .unwrap_err();
+        assert_eq!(error.code(), afs_error::NODE_DFS_STALE_HANDLE);
+        <DistributedFs as crate::node::rpc::control::DfsOwnerLifecycleHandler>::release(
+            &fs,
+            "node-b",
+            afs_protocol::node_control::DfsOwnerReleaseRequest {
+                handle: Some(handle),
+            },
+        )
+        .unwrap();
+        assert!(fs.handles.lock().unwrap().is_empty());
+    }
+
+    #[test]
+    fn owner_handle_reap_requires_definite_caller_session_replacement() {
+        let (_temp, meta, fs) = test_fs();
+        let open = <DistributedFs as crate::node::rpc::control::DfsOwnerLifecycleHandler>::open(
+            &fs,
+            "node-b",
+            afs_protocol::node_control::DfsOwnerOpenRequest {
+                namespace_id: "default".into(),
+                inode_id: "inode:test".into(),
+                owner_node_id: "node-a".into(),
+                owner_session_id: "session-a".into(),
+                lease_epoch: 1,
+                caller_session_id: "session-b".into(),
+                open_flags: libc::O_RDWR,
+                kill_suidgid: false,
+            },
+        )
+        .unwrap();
+        assert!(open.handle.is_some());
+        meta.fail_next_current_session_with(unavailable("injected Meta session lookup failure"));
+        assert!(fs.reap_expired_peer_owner_handles().is_err());
+        assert_eq!(fs.handles.lock().unwrap().len(), 1);
+        meta.set_node_session("node-b", Some("session-b2"));
+        assert_eq!(fs.reap_expired_peer_owner_handles().unwrap(), 1);
+        assert!(fs.handles.lock().unwrap().is_empty());
+    }
+
+    #[test]
+    fn wrong_peer_cannot_release_live_owner_handle() {
+        let (_temp, _meta, fs) = test_fs();
+        let handle = <DistributedFs as crate::node::rpc::control::DfsOwnerLifecycleHandler>::open(
+            &fs,
+            "node-b",
+            afs_protocol::node_control::DfsOwnerOpenRequest {
+                namespace_id: "default".into(),
+                inode_id: "inode:test".into(),
+                owner_node_id: "node-a".into(),
+                owner_session_id: "session-a".into(),
+                lease_epoch: 1,
+                caller_session_id: "session-b".into(),
+                open_flags: libc::O_RDWR,
+                kill_suidgid: false,
+            },
+        )
+        .unwrap()
+        .handle
+        .unwrap();
+        let error =
+            <DistributedFs as crate::node::rpc::control::DfsOwnerLifecycleHandler>::release(
+                &fs,
+                "node-c",
+                afs_protocol::node_control::DfsOwnerReleaseRequest {
+                    handle: Some(handle.clone()),
+                },
+            )
+            .unwrap_err();
+        assert_eq!(error.code(), afs_error::NODE_DFS_STALE_HANDLE);
+        assert_eq!(fs.handles.lock().unwrap().len(), 1);
+        <DistributedFs as crate::node::rpc::control::DfsOwnerLifecycleHandler>::release(
+            &fs,
+            "node-b",
+            afs_protocol::node_control::DfsOwnerReleaseRequest {
+                handle: Some(handle),
+            },
+        )
+        .unwrap();
     }
 
     #[test]
@@ -9453,6 +10469,312 @@ mod tests {
         }
     }
 
+    enum ScriptedReleaseAction {
+        DelegateThenErr(Error),
+        ErrWithoutDelegate(Error),
+    }
+
+    struct ScriptedReleaseRemoteDfsOwner {
+        inner: Arc<dyn RemoteDfsOwner>,
+        releases: Mutex<std::collections::VecDeque<ScriptedReleaseAction>>,
+        calls: Mutex<Vec<afs_protocol::node_control::DfsOwnerHandle>>,
+    }
+
+    impl ScriptedReleaseRemoteDfsOwner {
+        fn new(inner: Arc<dyn RemoteDfsOwner>, actions: Vec<ScriptedReleaseAction>) -> Self {
+            Self {
+                inner,
+                releases: Mutex::new(actions.into_iter().collect()),
+                calls: Mutex::new(Vec::new()),
+            }
+        }
+
+        fn release_call_count(&self) -> usize {
+            self.calls.lock().unwrap().len()
+        }
+    }
+
+    impl RemoteDfsOwner for ScriptedReleaseRemoteDfsOwner {
+        fn open(
+            &self,
+            request: afs_protocol::node_control::DfsOwnerOpenRequest,
+        ) -> Result<afs_protocol::node_control::DfsOwnerOpenReply> {
+            self.inner.open(request)
+        }
+
+        fn getattr(
+            &self,
+            request: afs_protocol::node_control::DfsOwnerGetAttrRequest,
+        ) -> Result<afs_protocol::node_control::DfsOwnerGetAttrReply> {
+            self.inner.getattr(request)
+        }
+
+        fn release(
+            &self,
+            request: afs_protocol::node_control::DfsOwnerReleaseRequest,
+        ) -> Result<afs_protocol::node_control::DfsOwnerReleaseReply> {
+            if let Some(handle) = request.handle.as_ref() {
+                self.calls.lock().unwrap().push(handle.clone());
+            }
+            match self.releases.lock().unwrap().pop_front() {
+                None => self.inner.release(request),
+                Some(ScriptedReleaseAction::DelegateThenErr(error)) => {
+                    self.inner.release(request)?;
+                    Err(error)
+                }
+                Some(ScriptedReleaseAction::ErrWithoutDelegate(error)) => Err(error),
+            }
+        }
+
+        fn get_lock(
+            &self,
+            request: afs_protocol::node_control::DfsOwnerGetLockRequest,
+        ) -> Result<afs_protocol::node_control::DfsOwnerGetLockReply> {
+            self.inner.get_lock(request)
+        }
+
+        fn set_lock(
+            &self,
+            request: afs_protocol::node_control::DfsOwnerSetLockRequest,
+        ) -> Result<afs_protocol::node_control::DfsOwnerSetLockReply> {
+            self.inner.set_lock(request)
+        }
+
+        fn cancel_lock_wait(
+            &self,
+            request: afs_protocol::node_control::DfsOwnerCancelLockWaitRequest,
+        ) -> Result<afs_protocol::node_control::DfsOwnerCancelLockWaitReply> {
+            self.inner.cancel_lock_wait(request)
+        }
+
+        fn acknowledge_lock_wait(
+            &self,
+            request: afs_protocol::node_control::DfsOwnerAcknowledgeLockWaitRequest,
+        ) -> Result<afs_protocol::node_control::DfsOwnerAcknowledgeLockWaitReply> {
+            self.inner.acknowledge_lock_wait(request)
+        }
+
+        fn release_locks(
+            &self,
+            request: afs_protocol::node_control::DfsOwnerReleaseLocksRequest,
+        ) -> Result<afs_protocol::node_control::DfsOwnerReleaseLocksReply> {
+            self.inner.release_locks(request)
+        }
+
+        fn release_lock_session(
+            &self,
+            request: afs_protocol::node_control::DfsOwnerReleaseLockSessionRequest,
+        ) -> Result<afs_protocol::node_control::DfsOwnerReleaseLockSessionReply> {
+            self.inner.release_lock_session(request)
+        }
+
+        fn read(
+            &self,
+            request: afs_protocol::node_data::DfsOwnerReadRequest,
+        ) -> Result<afs_protocol::node_data::DfsOwnerReadReply> {
+            self.inner.read(request)
+        }
+
+        fn write(
+            &self,
+            request: afs_protocol::node_data::DfsOwnerWriteRequest,
+        ) -> Result<afs_protocol::node_data::DfsOwnerWriteReply> {
+            self.inner.write(request)
+        }
+
+        fn resize(
+            &self,
+            request: afs_protocol::node_data::DfsOwnerResizeRequest,
+        ) -> Result<afs_protocol::node_data::DfsOwnerResizeReply> {
+            self.inner.resize(request)
+        }
+
+        fn sync(
+            &self,
+            request: afs_protocol::node_data::DfsOwnerSyncRequest,
+        ) -> Result<afs_protocol::node_data::DfsOwnerSyncReply> {
+            self.inner.sync(request)
+        }
+    }
+
+    struct InterruptedSetLockRemoteDfsOwner {
+        cancel_calls: AtomicUsize,
+        acknowledge_calls: AtomicUsize,
+    }
+
+    impl InterruptedSetLockRemoteDfsOwner {
+        fn cancel_call_count(&self) -> usize {
+            self.cancel_calls.load(Ordering::SeqCst)
+        }
+
+        fn acknowledge_call_count(&self) -> usize {
+            self.acknowledge_calls.load(Ordering::SeqCst)
+        }
+    }
+
+    struct CancelAckFailsOnceRemoteDfsOwner {
+        cancel_calls: AtomicUsize,
+        acknowledge_calls: AtomicUsize,
+    }
+
+    impl CancelAckFailsOnceRemoteDfsOwner {
+        fn cancel_call_count(&self) -> usize {
+            self.cancel_calls.load(Ordering::SeqCst)
+        }
+
+        fn acknowledge_call_count(&self) -> usize {
+            self.acknowledge_calls.load(Ordering::SeqCst)
+        }
+    }
+
+    impl RemoteDfsOwner for CancelAckFailsOnceRemoteDfsOwner {
+        noop_remote_owner_method!(
+            open,
+            afs_protocol::node_control::DfsOwnerOpenRequest,
+            afs_protocol::node_control::DfsOwnerOpenReply
+        );
+        noop_remote_owner_method!(
+            getattr,
+            afs_protocol::node_control::DfsOwnerGetAttrRequest,
+            afs_protocol::node_control::DfsOwnerGetAttrReply
+        );
+        noop_remote_owner_method!(
+            release,
+            afs_protocol::node_control::DfsOwnerReleaseRequest,
+            afs_protocol::node_control::DfsOwnerReleaseReply
+        );
+        noop_remote_owner_method!(
+            get_lock,
+            afs_protocol::node_control::DfsOwnerGetLockRequest,
+            afs_protocol::node_control::DfsOwnerGetLockReply
+        );
+        fn set_lock(
+            &self,
+            _: afs_protocol::node_control::DfsOwnerSetLockRequest,
+        ) -> Result<afs_protocol::node_control::DfsOwnerSetLockReply> {
+            Err(unavailable("injected remote lock failure"))
+        }
+        fn cancel_lock_wait(
+            &self,
+            _: afs_protocol::node_control::DfsOwnerCancelLockWaitRequest,
+        ) -> Result<afs_protocol::node_control::DfsOwnerCancelLockWaitReply> {
+            self.cancel_calls.fetch_add(1, Ordering::SeqCst);
+            Ok(afs_protocol::node_control::DfsOwnerCancelLockWaitReply { outcome: 1 })
+        }
+        fn acknowledge_lock_wait(
+            &self,
+            _: afs_protocol::node_control::DfsOwnerAcknowledgeLockWaitRequest,
+        ) -> Result<afs_protocol::node_control::DfsOwnerAcknowledgeLockWaitReply> {
+            if self.acknowledge_calls.fetch_add(1, Ordering::SeqCst) == 0 {
+                return Err(unavailable("injected remote lock ack failure"));
+            }
+            Ok(afs_protocol::node_control::DfsOwnerAcknowledgeLockWaitReply {})
+        }
+        noop_remote_owner_method!(
+            release_locks,
+            afs_protocol::node_control::DfsOwnerReleaseLocksRequest,
+            afs_protocol::node_control::DfsOwnerReleaseLocksReply
+        );
+        noop_remote_owner_method!(
+            release_lock_session,
+            afs_protocol::node_control::DfsOwnerReleaseLockSessionRequest,
+            afs_protocol::node_control::DfsOwnerReleaseLockSessionReply
+        );
+        noop_remote_owner_method!(
+            read,
+            afs_protocol::node_data::DfsOwnerReadRequest,
+            afs_protocol::node_data::DfsOwnerReadReply
+        );
+        noop_remote_owner_method!(
+            write,
+            afs_protocol::node_data::DfsOwnerWriteRequest,
+            afs_protocol::node_data::DfsOwnerWriteReply
+        );
+        noop_remote_owner_method!(
+            resize,
+            afs_protocol::node_data::DfsOwnerResizeRequest,
+            afs_protocol::node_data::DfsOwnerResizeReply
+        );
+        noop_remote_owner_method!(
+            sync,
+            afs_protocol::node_data::DfsOwnerSyncRequest,
+            afs_protocol::node_data::DfsOwnerSyncReply
+        );
+    }
+
+    impl RemoteDfsOwner for InterruptedSetLockRemoteDfsOwner {
+        noop_remote_owner_method!(
+            open,
+            afs_protocol::node_control::DfsOwnerOpenRequest,
+            afs_protocol::node_control::DfsOwnerOpenReply
+        );
+        noop_remote_owner_method!(
+            getattr,
+            afs_protocol::node_control::DfsOwnerGetAttrRequest,
+            afs_protocol::node_control::DfsOwnerGetAttrReply
+        );
+        noop_remote_owner_method!(
+            release,
+            afs_protocol::node_control::DfsOwnerReleaseRequest,
+            afs_protocol::node_control::DfsOwnerReleaseReply
+        );
+        noop_remote_owner_method!(
+            get_lock,
+            afs_protocol::node_control::DfsOwnerGetLockRequest,
+            afs_protocol::node_control::DfsOwnerGetLockReply
+        );
+        fn set_lock(
+            &self,
+            _: afs_protocol::node_control::DfsOwnerSetLockRequest,
+        ) -> Result<afs_protocol::node_control::DfsOwnerSetLockReply> {
+            Err(lock_error(LockError::Interrupted))
+        }
+        fn cancel_lock_wait(
+            &self,
+            _: afs_protocol::node_control::DfsOwnerCancelLockWaitRequest,
+        ) -> Result<afs_protocol::node_control::DfsOwnerCancelLockWaitReply> {
+            self.cancel_calls.fetch_add(1, Ordering::SeqCst);
+            Ok(afs_protocol::node_control::DfsOwnerCancelLockWaitReply { outcome: 1 })
+        }
+        fn acknowledge_lock_wait(
+            &self,
+            _: afs_protocol::node_control::DfsOwnerAcknowledgeLockWaitRequest,
+        ) -> Result<afs_protocol::node_control::DfsOwnerAcknowledgeLockWaitReply> {
+            self.acknowledge_calls.fetch_add(1, Ordering::SeqCst);
+            Ok(afs_protocol::node_control::DfsOwnerAcknowledgeLockWaitReply {})
+        }
+        noop_remote_owner_method!(
+            release_locks,
+            afs_protocol::node_control::DfsOwnerReleaseLocksRequest,
+            afs_protocol::node_control::DfsOwnerReleaseLocksReply
+        );
+        noop_remote_owner_method!(
+            release_lock_session,
+            afs_protocol::node_control::DfsOwnerReleaseLockSessionRequest,
+            afs_protocol::node_control::DfsOwnerReleaseLockSessionReply
+        );
+        noop_remote_owner_method!(
+            read,
+            afs_protocol::node_data::DfsOwnerReadRequest,
+            afs_protocol::node_data::DfsOwnerReadReply
+        );
+        noop_remote_owner_method!(
+            write,
+            afs_protocol::node_data::DfsOwnerWriteRequest,
+            afs_protocol::node_data::DfsOwnerWriteReply
+        );
+        noop_remote_owner_method!(
+            resize,
+            afs_protocol::node_data::DfsOwnerResizeRequest,
+            afs_protocol::node_data::DfsOwnerResizeReply
+        );
+        noop_remote_owner_method!(
+            sync,
+            afs_protocol::node_data::DfsOwnerSyncRequest,
+            afs_protocol::node_data::DfsOwnerSyncReply
+        );
+    }
+
     struct FailOnceReleaseRemoteDfsOwner {
         calls: Mutex<Vec<String>>,
     }
@@ -10107,6 +11429,150 @@ mod tests {
     }
 
     #[test]
+    fn remote_interrupted_lock_wait_does_not_issue_redundant_cancel_ack() {
+        let (_temp, meta, fs_raw) = test_fs();
+        {
+            let mut lease = meta.lease.lock().unwrap();
+            lease.owner_node_id = "node-c".into();
+            lease.owner_session_id = "session-c".into();
+            lease.expires_at_unix_ms = u64::MAX;
+        }
+        let remote = Arc::new(InterruptedSetLockRemoteDfsOwner {
+            cancel_calls: AtomicUsize::new(0),
+            acknowledge_calls: AtomicUsize::new(0),
+        });
+        let fs = fs_raw.with_remote_owner_factory(Arc::new(StaticRemoteOwnerFactory {
+            owner: remote.clone() as Arc<dyn RemoteDfsOwner>,
+        }));
+        let inode = fs.backend_inode(&InodeId::new("inode:test")).unwrap();
+        let handle = fs.open(&context(), inode, libc::O_RDONLY).unwrap();
+        let error = fs
+            .setlk(
+                &context(),
+                inode,
+                handle,
+                LockRequest::read(
+                    FileLockKind::Posix,
+                    lock_owner("mount-b", 94),
+                    94,
+                    lock_range(0, 99),
+                ),
+                Some(LockWaiterId {
+                    ingress_session_id: "mount-b".into(),
+                    request_id: 94,
+                }),
+            )
+            .unwrap_err();
+        assert_eq!(error.code(), afs_error::IO_INTERRUPTED);
+        assert_eq!(remote.cancel_call_count(), 0);
+        assert_eq!(remote.acknowledge_call_count(), 0);
+        let scoped_waiter = LockWaiterId {
+            ingress_session_id: DistributedFs::lock_scope("node-a", "session-a", "mount-b")
+                .unwrap(),
+            request_id: 94,
+        };
+        assert!(
+            fs.remote_lock_waiters
+                .lock()
+                .unwrap()
+                .contains_key(&scoped_waiter)
+        );
+        assert!(
+            fs.cancelled_remote_lock_waiters
+                .lock()
+                .unwrap()
+                .contains(&scoped_waiter)
+        );
+
+        assert_eq!(fs.reap_expired_peer_lock_sessions().unwrap(), 1);
+        assert_eq!(remote.acknowledge_call_count(), 1);
+        assert!(
+            !fs.remote_lock_waiters
+                .lock()
+                .unwrap()
+                .contains_key(&scoped_waiter)
+        );
+        assert!(
+            !fs.cancelled_remote_lock_waiters
+                .lock()
+                .unwrap()
+                .contains(&scoped_waiter)
+        );
+    }
+
+    #[test]
+    fn remote_cancel_ack_failure_retains_waiter_for_background_retry() {
+        let (_temp, meta, fs_raw) = test_fs();
+        {
+            let mut lease = meta.lease.lock().unwrap();
+            lease.owner_node_id = "node-c".into();
+            lease.owner_session_id = "session-c".into();
+            lease.expires_at_unix_ms = u64::MAX;
+        }
+        let remote = Arc::new(CancelAckFailsOnceRemoteDfsOwner {
+            cancel_calls: AtomicUsize::new(0),
+            acknowledge_calls: AtomicUsize::new(0),
+        });
+        let fs = fs_raw.with_remote_owner_factory(Arc::new(StaticRemoteOwnerFactory {
+            owner: remote.clone() as Arc<dyn RemoteDfsOwner>,
+        }));
+        let inode = fs.backend_inode(&InodeId::new("inode:test")).unwrap();
+        let handle = fs.open(&context(), inode, libc::O_RDONLY).unwrap();
+        let error = fs
+            .setlk(
+                &context(),
+                inode,
+                handle,
+                LockRequest::read(
+                    FileLockKind::Posix,
+                    lock_owner("mount-b", 95),
+                    95,
+                    lock_range(0, 99),
+                ),
+                Some(LockWaiterId {
+                    ingress_session_id: "mount-b".into(),
+                    request_id: 95,
+                }),
+            )
+            .unwrap_err();
+        assert_eq!(error.code(), afs_error::NODE_VFS_UNAVAILABLE);
+        assert_eq!(remote.cancel_call_count(), 1);
+        assert_eq!(remote.acknowledge_call_count(), 1);
+        let scoped_waiter = LockWaiterId {
+            ingress_session_id: DistributedFs::lock_scope("node-a", "session-a", "mount-b")
+                .unwrap(),
+            request_id: 95,
+        };
+        assert!(
+            fs.remote_lock_waiters
+                .lock()
+                .unwrap()
+                .contains_key(&scoped_waiter)
+        );
+        assert!(
+            fs.cancelled_remote_lock_waiters
+                .lock()
+                .unwrap()
+                .contains(&scoped_waiter)
+        );
+
+        assert_eq!(fs.reap_expired_peer_lock_sessions().unwrap(), 1);
+        assert_eq!(remote.acknowledge_call_count(), 2);
+        assert!(
+            !fs.remote_lock_waiters
+                .lock()
+                .unwrap()
+                .contains_key(&scoped_waiter)
+        );
+        assert!(
+            !fs.cancelled_remote_lock_waiters
+                .lock()
+                .unwrap()
+                .contains(&scoped_waiter)
+        );
+    }
+
+    #[test]
     fn dfs_owner_lock_session_release_is_scoped_by_authenticated_process_session() {
         let (_temp, _meta, fs) = test_fs();
         let authority = dfs_lock_authority("session-b");
@@ -10223,6 +11689,117 @@ mod tests {
             )
             .unwrap_err();
         assert_eq!(error.code(), afs_error::IO_INTERRUPTED);
+    }
+
+    #[test]
+    fn interrupted_owner_lock_wait_does_not_run_post_mutation_renewal() {
+        let (_temp, meta, fs_raw) = test_fs();
+        let fs = Arc::new(fs_raw);
+        let authority = dfs_lock_authority("session-b");
+        let inode_id = InodeId::new("inode:test");
+        let held = LockRequest::write(
+            FileLockKind::Posix,
+            lock_owner("mount-b", 92),
+            92,
+            lock_range(0, 99),
+        );
+        <DistributedFs as crate::node::rpc::control::DfsOwnerLifecycleHandler>::set_lock(
+            fs.as_ref(),
+            "node-b",
+            afs_protocol::node_control::DfsOwnerSetLockRequest {
+                authority: Some(authority.clone()),
+                lock: Some(DistributedFs::wire_lock_request(&held)),
+                waiter: None,
+            },
+        )
+        .unwrap();
+        let renews_after_grant = meta.renew_call_count();
+        let waiter = afs_protocol::node_control::DfsOwnerLockWaiter {
+            ingress_session_id: "mount-b".into(),
+            request_id: 93,
+        };
+        let blocked = LockRequest::write(
+            FileLockKind::Posix,
+            lock_owner("mount-b", 93),
+            93,
+            lock_range(0, 99),
+        );
+        let fs_for_waiter = fs.clone();
+        let authority_for_waiter = authority.clone();
+        let waiter_for_thread = waiter.clone();
+        let (done_tx, done_rx) = std::sync::mpsc::channel();
+        let join = std::thread::spawn(move || {
+            let result =
+                <DistributedFs as crate::node::rpc::control::DfsOwnerLifecycleHandler>::set_lock(
+                    fs_for_waiter.as_ref(),
+                    "node-b",
+                    afs_protocol::node_control::DfsOwnerSetLockRequest {
+                        authority: Some(authority_for_waiter),
+                        lock: Some(DistributedFs::wire_lock_request(&blocked)),
+                        waiter: Some(waiter_for_thread),
+                    },
+                )
+                .map(|_| ());
+            let _ = done_tx.send(result);
+        });
+        let mut registered = false;
+        for _ in 0..100 {
+            registered = fs
+                .lock_authorities
+                .lock()
+                .unwrap()
+                .values()
+                .any(|authority| !authority.state.lock().unwrap().waiters.is_empty());
+            if registered {
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(1));
+        }
+        assert!(
+            registered,
+            "waiter should be registered before cancellation"
+        );
+        let local_authority = fs
+            .lock_authorities
+            .lock()
+            .unwrap()
+            .get(&inode_id)
+            .cloned()
+            .expect("owner lock authority must exist");
+        local_authority
+            .state
+            .lock()
+            .unwrap()
+            .lease
+            .expires_at_unix_ms = now_unix_ms().saturating_add(4_000);
+        let renews_after_waiter_registered = meta.renew_call_count();
+        let pause = meta.pause_next_renew();
+        <DistributedFs as crate::node::rpc::control::DfsOwnerLifecycleHandler>::cancel_lock_wait(
+            fs.as_ref(),
+            "node-b",
+            afs_protocol::node_control::DfsOwnerCancelLockWaitRequest {
+                authority: Some(authority),
+                waiter: Some(waiter),
+            },
+        )
+        .unwrap();
+        let result = match done_rx.recv_timeout(Duration::from_millis(100)) {
+            Ok(result) => result,
+            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
+                pause.release();
+                join.join().unwrap();
+                panic!("interrupted waiter was blocked behind post-mutation lock renewal");
+            }
+            Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
+                panic!("interrupted waiter thread exited without reporting a result");
+            }
+        };
+        join.join().unwrap();
+        let error = result.expect_err("interrupted waiter must return an error");
+        assert_eq!(error.code(), afs_error::IO_INTERRUPTED);
+        assert_eq!(meta.renew_call_count(), renews_after_waiter_registered);
+        assert!(!pause.was_reached());
+        assert!(meta.renew_call_count() >= renews_after_grant);
     }
 
     #[test]

@@ -1,0 +1,26 @@
+{
+  "boot_id": "36a572e0-859b-4a94-adc7-789210a83fc8",
+  "mount": [
+    {
+      "fstype": "fuse",
+      "source": "afs-dfs",
+      "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v40/mount-dfs"
+    }
+  ],
+  "processes": {
+    "meta": {
+      "exe": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v40/bin/afs-meta",
+      "exe_inode": 1577012,
+      "pid": 703267,
+      "sha256": "2f6a4f6e219468f056e9749030683c20d5432beb94bf7009e7e28f47681238e5",
+      "start_ticks": 5104825
+    },
+    "node": {
+      "exe": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v40/bin/afs-node",
+      "exe_inode": 1577013,
+      "pid": 703297,
+      "sha256": "19c0fda458e12708c38b577aa82c0b9b307facfff2c74f0ff17571d5af10fee3",
+      "start_ticks": 5104844
+    }
+  }
+}

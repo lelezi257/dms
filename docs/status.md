@@ -26,7 +26,8 @@ The [delivery acceptance contract](acceptance.md) requires JuiceFS default same-
 ## Known Open Items
 
 - Close-time FUSE flush must commit prior writes and report commit errors; read-only view refresh and kernel cache handling must satisfy default same-mount visibility. Existing fixed-handle tests need to be reconciled with the acceptance contract.
-- Redis persistent Meta backend and its durability/fencing parity with etcd.
+- Redis persistent Meta backend and its single-Meta durability, recovery and inode-owner authority parity with etcd.
+- OwnerFs REST location query exists, but its `status` is currently a constant `active`; it does not report Home availability. The existing OwnerFs acceptance runner checks creation and Meta-restart location, but the full `OPS-07` contract has not been validated.
 - One-command release installation and process deployment acceptance; complete POSIX suites and MooseFS/3FS baselines.
 - Cross-node DFS write owner routing.
 - Full R=N replication, remote staging/finalize, repair workers and failure matrix.
@@ -37,5 +38,5 @@ The [delivery acceptance contract](acceptance.md) requires JuiceFS default same-
 - Existing persisted copy records need an explicit migration to the `CopyLocation` representation; no automatic old-format migration is provided.
 - Metadata-only dirty attributes require explicit full `fsync`; background and drain policies do not yet provide a complete metadata-only recovery path.
 - SHM/RDMA file-data path for DFS reads and writes.
-- Meta active fencing, failover and production HA.
+- Meta instance election, active fencing and failover are deferred to the [post-acceptance TODO](acceptance.md#10-第一阶段验收后-todo); they are not first-stage delivery gates.
 - Q1 whether every committed `FileVersion` must always use a `LayoutRoot`, and Q2 spill durability lower bound.

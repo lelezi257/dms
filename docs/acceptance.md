@@ -19,7 +19,9 @@ AFS 是近计算文件系统。应用通过普通 Linux 文件接口访问本机
 
 DFS 必须能从多个持久副本读取并在源失败时换源；这不依赖本期排除的缓存扩散功能。Replica count 是初始化配置，验收覆盖 1、2、3、4，不支持在线改策略。OwnerFs 不因远端访问而增加持久副本。
 
-Meta 首个交付形态为单个有效 `afs-meta` 进程，支持持久恢复、重启和防止重复 active 写入。etcd 可使用三成员后端。Redis 单实例持久恢复必须交付；Redis 自动主从故障转移、多 active Meta 和整机房容灾不属于此环境的交付保证。故障时可以拒绝服务，不能以成功响应隐藏状态丢失。
+第一阶段部署单个 `afs-meta` 进程，交付持久恢复和进程重启；重启前确认旧进程已停止。部署工具负责本次部署的 PID/端口检查和重复启动防护，不承担跨主机 Meta 选主或防双活协议。第一阶段不支持两个独立 Meta 实例同时操作同一 filesystem 后端。
+
+etcd 可使用三成员持久后端；etcd 自身的成员选主不等于 AFS Meta 服务已实现选主。Redis 单实例持久恢复必须交付。Meta 选主、切主、跨实例 fencing 和 Redis 自动主从故障转移列入 [验收后 TODO](#10-第一阶段验收后-todo)，不作为第一阶段门禁。故障时可以拒绝服务，不能以成功响应隐藏状态丢失。
 
 ### 1.2 可验收目标
 
@@ -98,7 +100,7 @@ RXE 验证协议和资源生命周期，不证明硬件零拷贝、RoCE NIC 性�
 | 异步副本 | `desired=3, sync_required=1`，成功只代表当时一个持久副本；不足副本须有持久 repair task/状态 |
 | 数据面 | 强制 gRPC、强制 RDMA、自动选择及显式回退；小数据和大数据都覆盖 |
 
-Redis 的 `always` 在回复前同步 AOF；`everysec` 可能丢失最近的写入，不能作为强持久化基线。[Redis 持久化说明](https://redis.io/docs/latest/operate/oss_and_stack/management/persistence/)。Meta 在后端确认前不得发布候选状态；不要求后端提供原生多记录事务，但必须满足原子持久状态、幂等重放和 fencing 合同。
+Redis 的 `always` 在回复前同步 AOF；`everysec` 可能丢失最近的写入，不能作为强持久化基线。[Redis 持久化说明](https://redis.io/docs/latest/operate/oss_and_stack/management/persistence/)。单 Meta 在后端确认前不得发布候选状态；不要求后端提供原生多记录事务，但必须满足原子持久状态、幂等重放和 inode owner lease/epoch 校验。Meta 实例之间的 fencing 属于后续高可用设计。
 
 ### 3.4 冻结清单与准备 gate
 
@@ -203,7 +205,7 @@ OwnerFs 主 lane 与 MooseFS goal=1 比较，固定 Home/数据位置以确保 B
 | `REL-02 barrier-restart` | 成功 fsync/fdatasync/close 后 kill -9、重启 Node/Meta，另测 guest 硬复位；在配置故障预算内数据与恢复必要状态不丢 |
 | `REL-03 finalize-crash` | 每个 staging/验证/publish/catalog 切点注入失败与重启；没有半个 Ready Chunk，没有引用未完成数据的 FileVersion，orphan 有可观测回收结果 |
 | `REL-04 lost-meta-ack` | Meta 已持久化但 ACK 被丢弃；重复原 OperationId/精确请求只产生一次 head 变更；同 inode 后续修改被阻塞，其他 inode 正常 |
-| `REL-05 meta-restart` | Meta kill/restart、etcd 单成员与三成员失效、Redis AOF 重启及 rewrite 中断；确认旧 head、幂等结果和 inode 身份；后端不可持久化时不得返回成功 |
+| `REL-05 meta-restart` | 单 Meta kill/restart，确认旧进程已退出再启动新进程；etcd 单成员与三成员失效、Redis AOF 重启及 rewrite 中断；确认旧 head、幂等结果和 inode 身份；后端不可持久化时不得返回成功 |
 | `REL-06 stale-owner` | partition/重启后旧 lease、Node/Device epoch、重放旧 ACK；旧 owner 不可写当前 inode，不可把旧设备证据计入副本数 |
 | `REL-07 replica-loss` | R=3 成功后隔离/永久移除一个数据卷，剩余副本仍可读并报告 degraded；加入替换空卷及新 DeviceEpoch，或启用 ctl 第四 Node，再 repair 补足。修复预算从合格目标可用时开始，不能靠同 Node 双副本凑数；R=1 唯一副本永久丢失只能明确不可恢复 |
 | `REL-08 capacity-io` | 专用限额卷 ENOSPC、只读设备、注入 EIO、后端 OOM/拒写；write/屏障/close 返回明确错误，不发布损坏布局，不侵占宿主保留空间 |
@@ -213,7 +215,8 @@ OwnerFs 主 lane 与 MooseFS goal=1 比较，固定 Home/数据位置以确保 B
 | `REL-12 owner-home-loss` | Home 暂时退出/恢复后文件可用；Home 磁盘永久丢失时明确不可恢复和受影响 workspace，不承诺 DFS 型副本修复 |
 | `REL-13 namespace-durable` | 文件 fsync 与 fsync(dir) 分开注入崩溃；测试带目录屏障的 create/rename/unlink 恢复，普通文件屏障不能冒充目录持久化 |
 | `REL-14 soak` | 8 客户端混合操作持续 8 小时，每 15 分钟可重现故障/恢复；全量摘要正确，无持续 fd/任务/内存增长，没有未解释的 stuck pending |
-| `REL-15 duplicate-active-meta` | 两个独立 Meta 进程连接同一后端；暂停、隔离、重启原有效实例并让陈旧实例继续写。etcd/Redis 分别验证有效 fencing，仅一个实例可持久化修改，无 head 分叉；重复 active 可被明确拒绝，不要求自动切主 |
+
+`REL-15 duplicate-active-meta` 保留为后续高可用设计的预留 ID，不纳入第一阶段用例 manifest 或发布 gate。`REL-06` 中的 inode owner lease 和 Node/Device epoch 校验仍为第一阶段必测，防止旧 Node 修改当前文件；它不要求实现 Meta 选主。
 
 故障 case 的 harness 单操作 deadline 为 30 秒；恢复网络或重启服务后，60 秒内进入可服务或明确失败状态；小数据集副本修复 120 秒内完成。可靠性切点默认使用 64 MiB 文件，不以 8 GiB 性能任务套用这项修复预算；性能任务 watchdog 为 1,800 秒。它们是此 VM 验收的超时预算，不是所有容量的生产 SLA。超时必须保存状态/日志，不能无限等待使 case 假通过。
 
@@ -241,6 +244,9 @@ guest 硬复位和虚拟卷移除只模拟相应故障。SSD 控制器掉电、�
 | `OPS-04 diagnostics` | 一条诊断命令导出版本/配置摘要、进程、端口、mount、设备、后端、近期错误及指标；脱敏，有超时，失败仍输出可读结果 |
 | `OPS-05 backpressure` | 8 客户端超量请求时内存、连接、任务和 buffer 有界；返回受控错误/等待，不 OOM。资源上限写入 lock；soak 结束返回同一 idle 基线，无线性增长 |
 | `OPS-06 reproducible-runner` | 可按 case ID/类别/backend/transport 运行；输出 JSON + JUnit、原始日志、种子、SHA/环境身份，结果只有 PASS/FAIL/BLOCKED/INCONCLUSIVE/预审排除 |
+| `OPS-07 workspace-location-affinity` | OwnerFs 在 A 创建 workspace，经管理 REST `GET /v1/roots/{root_id}` 验证 Home=A、root epoch 和归属 revision；按查询结果在 A 访问时无 Peer 数据 RPC，在 B 访问时转发到 A。Meta/Home 重启后归属和 session 正确；Home 不可服务时保留归属但不可把它报告为健康，未知 root/后端不可用返回明确错误。etcd/Redis 都执行；管理查询不承担实际调度器实现，也不提供自动 Home 迁移 |
+
+位置查询供调度器或管理工具选择计算节点，文件 I/O 仍通过本机 Node。workspace 归属与 Home 在线状态是两个不同字段或查询结果，不能用固定的 `active` 表示 Home 健康。DFS 的 inode owner 与 Chunk 副本分布不等同于 OwnerFs 整个 workspace 的单 Home。
 
 ### 7.3 一键安装与进程部署用例
 
@@ -261,7 +267,7 @@ guest 硬复位和虚拟卷移除只模拟相应故障。SSD 控制器掉电、�
 
 每个结果包含 case ID、参数矩阵、锁文件摘要、开始/结束时间、应用返回值和成功水位、数据校验、命令、日志/指标/trace、注入故障及恢复记录。性能额外保存每轮原值与比较公式。没有执行的 case 是 BLOCKED，不是 PASS。
 
-发布 gate 为所有必测功能、可靠性、部署、运维、RDMA 和性能门槛通过；审定的环境/范围排除项单列，未解决 BLOCKED 或 INCONCLUSIVE 不得被总结成“全通过”。验收 Skill 后续以本规范和锁文件为输入，按 case 执行、定位、修复和复验，不能自行降低门槛、改副本数、换介质或吞掉错误。
+第一阶段发布 gate 为本阶段所有必测功能、可靠性、部署、运维、RDMA 和性能门槛通过；审定的环境/范围排除项单列，未解决 BLOCKED 或 INCONCLUSIVE 不得被总结成“全通过”。第 10 节 TODO 不作为第一阶段失败或 BLOCKED 项，也不能记成已通过。验收 Skill 后续以本规范和锁文件为输入，按 case 执行、定位、修复和复验，不能自行降低门槛、改副本数、换介质或吞掉错误。
 
 ## 9. 环境准备需要完成的冻结项
 
@@ -273,3 +279,26 @@ guest 硬复位和虚拟卷移除只模拟相应故障。SSD 控制器掉电、�
 4. 可复用验收 runner 与 Skill；自动归档身份、命令、结果、失败最小轨迹和基线。
 
 依赖版本与排除项在准备阶段记录精确值后冻结。若 3FS 在本机资源/RXE 下不能完成公平基线，该性能 gate 保持 BLOCKED，单独评审环境调整，不改成“接近公开硬件数字”或用其他文件系统替代。
+
+## 10. 第一阶段验收后 TODO
+
+下列能力属于后续目标，第一阶段验收完成后分别设计范围、接口和验收标准。列入 TODO 不自动批准具体实现方案，也不要求第一阶段预先搭建框架。候选项经评审确定范围后才能成为后续承诺。
+
+### 10.1 已明确的后续能力
+
+| ID | 能力 | 需要单独解决的问题 |
+| --- | --- | --- |
+| `TODO-01` | Meta 高可用 | Meta 实例选主、leader 任期、切主、持久化写入 fencing、旧实例暂停/隔离后恢复、未知提交与幂等结果在切主后的恢复。分别设计 etcd/Redis 后端条件下的协议；届时启用预留 `REL-15` |
+| `TODO-02` | DFS 高性能 SDK | 侵入式文件 API、身份/授权、buffer 与完成语义；与 FUSE 使用同一文件及副本合同；不扩展为 OwnerFs SDK |
+| `TODO-03` | VerifiedCache 与 Seed 扩散 | 完整 Chunk 校验、种子发现、缓存淘汰、容量控制、与持久副本的角色边界；扩展大规模镜像/快照多源读取，不能把缓存计为 durable replica |
+| `TODO-04` | 外部 Spill | 写穿/迁出、外部副本验证与 Meta 提交、召回、容量和本地删除条件；明确外部存储能否替代本地持久副本 |
+
+### 10.2 后续需评估的扩展
+
+| ID | 候选方向 | 评审重点 |
+| --- | --- | --- |
+| `TODO-05` | Redis 后端高可用 | 主从切换的已确认数据保证、后端角色变化与 Meta leader 协议的关系；不能把 Redis 自动切主直接等同于 AFS 端到端高可用 |
+| `TODO-06` | 升级、格式迁移与后端迁移 | 跨版本兼容、回滚、CopyLocation 等存量格式、etcd/Redis 迁移时的持久化与幂等记录；第一阶段仅保证同版本重部署 |
+| `TODO-07` | 物理集群与规模验证 | 独立物理故障域、真实 RDMA NIC、硬件掉电和大规模并发；重新制定性能/容灾指标，不能从单宿主 RXE 成绩外推 |
+
+systemd/Kubernetes 集成、OwnerFs 转 DFS Snapshot 和专用容器/MicroVM 适配器不因本表存在而成为后续必做承诺，需要独立需求确认。

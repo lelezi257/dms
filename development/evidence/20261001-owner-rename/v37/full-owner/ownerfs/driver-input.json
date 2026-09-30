@@ -1,0 +1,28 @@
+{
+  "argv": [
+    "python3",
+    "/mnt/lima-afsadata/afs-delivery/evidence/p2-posix-owner-v36/driver-current/experiments/afs-acceptance/drivers/standard.py",
+    "--profile",
+    "full",
+    "--timeout",
+    "1800",
+    "--suite-root",
+    "/mnt/lima-afsadata/afs-acceptance/suites-reference/src/pjdfstest",
+    "--backend",
+    "ownerfs",
+    "--meta",
+    "memory",
+    "--mount",
+    "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v37/mount-ownerfs",
+    "--base-dir",
+    "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v37/mount-ownerfs/owner-memory-lane-20260930T181239Z/std01-v37",
+    "--run-dir",
+    "/mnt/lima-afsadata/afs-delivery/evidence/p2-posix-v37/ownerfs/driver-result",
+    "--process-pid",
+    "576329",
+    "--meta-process-pid",
+    "576299"
+  ],
+  "driver_sha256": "8472021d0f37a725eec170149734ede1a67cc800bc151aeb091aefa3c1c7620d",
+  "wrapper_sha256": "1b90155c330b6d0b7fa0f073beb21fea6cf981dc2eea9b4540654944aad078c4"
+}

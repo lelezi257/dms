@@ -1,0 +1,12 @@
+{
+  "scope": "OwnerState::rename_path canonical hardlink path after overwrite",
+  "reviewer": "/root/handoff_checkpoint_review",
+  "verdict": "PASS",
+  "must_fix_findings": [],
+  "notes": [
+    "Same-inode no-op, cached directory descendant moves and open-unlinked handle fallback preserved.",
+    "Local, Home-side peer and remote caller caches share the same path mutation helper.",
+    "Any surviving alias may be canonical; tests must not depend on HashMap order."
+  ],
+  "validation_boundary": "Reviewer was read-only; runtime and regression proof are separate."
+}

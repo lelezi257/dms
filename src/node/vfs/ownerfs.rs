@@ -5222,11 +5222,28 @@ impl OwnerState {
         for (old_path, _, _) in &moved {
             self.paths.remove(&(root_id.clone(), old_path.clone()));
         }
-        // An overwritten destination's old inode records remain so existing
-        // handles can still be released, but no path lookup may reuse them.
+        // An overwritten destination's exact path may be one of several hardlink
+        // aliases for the same inode. Drop only the overwritten path from path
+        // lookup, then rebind that inode's canonical path to a surviving alias
+        // so getattr by an already-known inode does not stat the replacement.
+        let overwritten_inodes: Vec<_> = self
+            .paths
+            .iter()
+            .filter_map(|((id, path), inode)| {
+                (id == &root_id && path.as_path().strip_prefix(to.as_path()).is_ok())
+                    .then_some(*inode)
+            })
+            .collect();
         self.paths.retain(|(id, path), _| {
             id != &root_id || path.as_path().strip_prefix(to.as_path()).is_err()
         });
+        for inode in overwritten_inodes {
+            if let Some(replacement) = self.active_path_for_inode(&root_id, inode)
+                && let Some(record) = self.inodes.get_mut(&inode)
+            {
+                record.relative = replacement;
+            }
+        }
         for (_, new_path, inode) in moved {
             self.paths
                 .insert((root_id.clone(), new_path.clone()), inode);
@@ -8438,6 +8455,69 @@ mod tests {
     }
 
     #[test]
+    fn local_rename_over_linked_destination_rebinds_surviving_alias() {
+        let (_temp, fs, ctx) = fixture();
+        let root = BackendInode {
+            value: OWNERFS_ROOT_INODE,
+        };
+        let workspace = fs
+            .mkdir(&ctx, root, OsStr::new("job-rename-linked-dst"), 0o755)
+            .unwrap();
+        let source = fs
+            .create(
+                &ctx,
+                workspace.inode,
+                OsStr::new("src"),
+                0o644,
+                libc::O_RDWR,
+            )
+            .unwrap();
+        fs.release(&ctx, source.handle).unwrap();
+        let destination = fs
+            .create(
+                &ctx,
+                workspace.inode,
+                OsStr::new("dst"),
+                0o644,
+                libc::O_RDWR,
+            )
+            .unwrap();
+        fs.release(&ctx, destination.handle).unwrap();
+
+        let destination_primary = fs.lookup(&ctx, workspace.inode, OsStr::new("dst")).unwrap();
+        assert_eq!(destination_primary.inode, destination.entry.inode);
+        let alias = fs
+            .link(
+                &ctx,
+                destination_primary.inode,
+                workspace.inode,
+                OsStr::new("dstlnk"),
+            )
+            .unwrap();
+        assert_eq!(alias.inode, destination.entry.inode);
+
+        fs.rename(
+            &ctx,
+            workspace.inode,
+            OsStr::new("src"),
+            workspace.inode,
+            OsStr::new("dst"),
+            RenameFlags(0),
+        )
+        .unwrap();
+
+        let replacement = fs.lookup(&ctx, workspace.inode, OsStr::new("dst")).unwrap();
+        assert_eq!(replacement.inode, source.entry.inode);
+        let remaining = fs
+            .lookup(&ctx, workspace.inode, OsStr::new("dstlnk"))
+            .unwrap();
+        assert_eq!(remaining.inode, destination.entry.inode);
+        let remaining_attrs = fs.getattr(&ctx, remaining.inode, None).unwrap();
+        assert_eq!(remaining_attrs.kind, FileKind::Regular);
+        assert_eq!(remaining_attrs.nlink, 1);
+    }
+
+    #[test]
     fn writable_created_mode_zero_handle_can_ftruncate_but_readonly_cannot() {
         let (_temp, fs, ctx) = fixture();
         let workspace = fs
@@ -9151,6 +9231,85 @@ mod tests {
         let remaining = fs.lookup(&ctx, workspace.inode, OsStr::new("a")).unwrap();
         assert_eq!(remaining.inode, created.entry.inode);
         assert_eq!(fs.getattr(&ctx, remaining.inode, None).unwrap().nlink, 1);
+    }
+
+    #[test]
+    fn peer_rename_over_linked_destination_rebinds_surviving_alias() {
+        let (_temp, fs, ctx) = fixture();
+        let root = BackendInode {
+            value: OWNERFS_ROOT_INODE,
+        };
+        let workspace = fs
+            .mkdir(&ctx, root, OsStr::new("job-peer-rename-linked-dst"), 0o755)
+            .unwrap();
+        let source = fs
+            .create(
+                &ctx,
+                workspace.inode,
+                OsStr::new("src"),
+                0o644,
+                libc::O_RDWR,
+            )
+            .unwrap();
+        fs.release(&ctx, source.handle).unwrap();
+        let destination = fs
+            .create(
+                &ctx,
+                workspace.inode,
+                OsStr::new("dst"),
+                0o644,
+                libc::O_RDWR,
+            )
+            .unwrap();
+        fs.release(&ctx, destination.handle).unwrap();
+
+        let destination_primary = fs.lookup(&ctx, workspace.inode, OsStr::new("dst")).unwrap();
+        assert_eq!(destination_primary.inode, destination.entry.inode);
+
+        let owner_ctx = context_for_attrs(ctx.clone(), &destination.entry.attributes);
+        let local = fs.require_local().unwrap();
+        let source_record = local.record(source.entry.inode.value).unwrap();
+        let destination_record = local.record(destination_primary.inode.value).unwrap();
+        let parent = local.record(workspace.inode.value).unwrap();
+        let grant = test_grant(parent.root_id.clone());
+        let access = presented(&grant);
+        let alias = local
+            .peer_link(
+                &owner_ctx,
+                "node-b",
+                &access,
+                destination_record.relative.as_path().as_os_str(),
+                OsStr::new("dstlnk"),
+                &destination_record.identity,
+                &parent.identity,
+            )
+            .unwrap();
+        assert_eq!(alias.attributes.nlink, 2);
+
+        local
+            .peer_rename(
+                &owner_ctx,
+                "node-b",
+                &access,
+                source_record.relative.as_path().as_os_str(),
+                destination_record.relative.as_path().as_os_str(),
+                Some(&source_record.identity),
+                Some(&destination_record.identity),
+                &parent.identity,
+                &parent.identity,
+                RenameFlags(0),
+            )
+            .unwrap();
+
+        let replacement = fs.lookup(&ctx, workspace.inode, OsStr::new("dst")).unwrap();
+        assert_eq!(replacement.inode, source.entry.inode);
+        let remaining = fs
+            .lookup(&ctx, workspace.inode, OsStr::new("dstlnk"))
+            .unwrap();
+        assert_eq!(remaining.inode, destination.entry.inode);
+        let remaining_attrs = fs.getattr(&ctx, remaining.inode, None).unwrap();
+        assert_eq!(remaining_attrs.kind, FileKind::Regular);
+        assert_eq!(remaining_attrs.nlink, 1);
     }
 
     #[test]

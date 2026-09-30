@@ -312,6 +312,75 @@ def _safe_stat_size(path: Path) -> tuple[int | None, dict[str, Any] | None]:
         return None, _os_error(exc)
 
 
+def _rename_overwrite_hardlink(path: Path) -> dict[str, Any]:
+    started = time.time()
+    src_payload = b"rename-src-bytes"
+    dst_payload = b"rename-dst-original"
+    path.mkdir(parents=True, exist_ok=False)
+    src = path / "src"
+    dst = path / "dst"
+    dst_link = path / "dst.lnk"
+    src.write_bytes(src_payload)
+    dst.write_bytes(dst_payload)
+    os.link(dst, dst_link)
+
+    def stat_record(target: Path) -> dict[str, Any]:
+        st = os.stat(target)
+        return {
+            "path": str(target),
+            "dev": st.st_dev,
+            "ino": st.st_ino,
+            "nlink": st.st_nlink,
+            "size": st.st_size,
+            "mode": oct(st.st_mode & 0o7777),
+            "mtime_ns": st.st_mtime_ns,
+        }
+
+    src_before = stat_record(src)
+    dst_before = stat_record(dst)
+    link_before = stat_record(dst_link)
+    os.rename(src, dst)
+    # This stat must observe the surviving hardlink before reopening the file.
+    link_after = stat_record(dst_link)
+    dst_after = stat_record(dst)
+    src_exists_after = src.exists()
+    link_data = _read_all(dst_link)
+    dst_data = _read_all(dst)
+    ok = (
+        dst_before["dev"] == link_before["dev"]
+        and dst_before["ino"] == link_before["ino"]
+        and dst_before["nlink"] == 2
+        and link_before["nlink"] == 2
+        and link_after["dev"] == dst_before["dev"]
+        and link_after["ino"] == dst_before["ino"]
+        and link_after["nlink"] == 1
+        and link_data == dst_payload
+        and dst_after["dev"] == src_before["dev"]
+        and dst_after["ino"] == src_before["ino"]
+        and dst_after["nlink"] == 1
+        and dst_data == src_payload
+        and not src_exists_after
+    )
+    return {
+        "ok": ok,
+        "src_before": src_before,
+        "dst_before": dst_before,
+        "link_before": link_before,
+        "link_after": link_after,
+        "dst_after": dst_after,
+        "src_exists_after": src_exists_after,
+        "link_content_hex": link_data.hex(),
+        "dst_content_hex": dst_data.hex(),
+        "expected_link_content_hex": dst_payload.hex(),
+        "expected_dst_content_hex": src_payload.hex(),
+        "link_content_sha256": _sha256_bytes(link_data),
+        "dst_content_sha256": _sha256_bytes(dst_data),
+        "expected_link_content_sha256": _sha256_bytes(dst_payload),
+        "expected_dst_content_sha256": _sha256_bytes(src_payload),
+        "duration_seconds": round(time.time() - started, 6),
+    }
+
+
 def _provider_resize_write_visible(path: Path, payload: bytes, temporary_size: int) -> dict[str, Any]:
     started = time.time()
     fd: int | None = None
@@ -440,6 +509,11 @@ def _worker_main(args: argparse.Namespace) -> int:
         if args.op == "provider-resize-write-visible":
             assert path is not None
             result = _provider_resize_write_visible(path, args.payload.encode(), 0 if args.resize_to is None else args.resize_to)
+            _emit(_result_event(args.op, path, expected_processes, **result, stat=_stat_json(path)))
+            return 0 if result.get("ok") else 1
+        if args.op == "rename-overwrite-hardlink":
+            assert path is not None
+            result = _rename_overwrite_hardlink(path)
             _emit(_result_event(args.op, path, expected_processes, **result, stat=_stat_json(path)))
             return 0 if result.get("ok") else 1
         if args.op == "hold-old-then-fresh":
@@ -748,6 +822,12 @@ class ConsistencyController:
         self.expect(a_verify.get("ok") is True, f"{backend} A fresh open did not observe B remote-owner write", a_verify)
         return {"initial": initial, "b_write": b_write, "a_verify": a_verify}
 
+    def owner_rename_overwrite_hardlink(self, worker: str, label: str) -> dict[str, Any]:
+        path = self.backend_path("owner", worker, f"owner-rename-overwrite-hardlink-{label}")
+        event = self.event(self.run_cmd(worker, "rename-overwrite-hardlink", path))
+        self.expect(event.get("ok") is True, f"OwnerFs {label} rename overwrite hardlink regression failed", event)
+        return event
+
     def dfs_handover_after_idle(self) -> dict[str, Any]:
         path_a = self.backend_path("dfs", "A", "dfs-handover-after-idle.txt")
         path_b = self.backend_path("dfs", "B", "dfs-handover-after-idle.txt")
@@ -788,6 +868,8 @@ class ConsistencyController:
         self.step("owner_close_to_open", lambda: self.close_to_open("owner"))
         self.step("dfs_close_to_open", lambda: self.close_to_open("dfs"))
         self.step("owner_remote_owner", lambda: self.remote_owner("owner"))
+        self.step("owner_rename_overwrite_hardlink_local", lambda: self.owner_rename_overwrite_hardlink("A", "local"))
+        self.step("owner_rename_overwrite_hardlink_remote_home", lambda: self.owner_rename_overwrite_hardlink("B", "remote-home"))
         self.step("dfs_remote_owner", lambda: self.remote_owner("dfs"))
         self.step("dfs_handover_after_idle", self.dfs_handover_after_idle)
         self.step("dfs_provider_existing_handle_after_remote_resize", self.dfs_provider_existing_handle_after_remote_resize)
@@ -822,6 +904,7 @@ class ConsistencyController:
                 "Close-to-open checks use one fresh open after an explicit stdin GO orchestration point; no read retry is used to hide stale results.",
                 "The controller does not restart, signal, pause, or reconfigure product runtime processes.",
                 "The DFS handover case intentionally idles before B writable open, performs one A fresh-open verification after B close, then verifies the former local owner can perform a provider write without retained stale state shadowing it.",
+                "The OwnerFs rename regression overwrites dst with src while a dst hardlink survives, then checks the surviving hardlink inode, nlink, and content without retry.",
                 "The DFS provider regression keeps a B writable handle open, performs handleless truncate(path), writes through the original handle without sync, checks same-B readonly visibility before close, then checks A fresh-open visibility after close.",
             ],
         }
@@ -896,7 +979,14 @@ def _selftest_main() -> int:
         ]
         proc = subprocess.run(argv, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=60, check=False)
         report = json.loads((evidence / "report.json").read_text(encoding="utf-8"))
-        record("local_reference_positive", proc.returncode == 0 and report["status"] == "PASS" and report["summary"]["failed"] == 0, returncode=proc.returncode, summary=report["summary"], stderr=proc.stderr)
+        summary = report["summary"]
+        record(
+            "local_reference_positive",
+            proc.returncode == 0 and report["status"] == "PASS" and summary["steps"] == 10 and summary["passed"] == 10 and summary["failed"] == 0,
+            returncode=proc.returncode,
+            summary=summary,
+            stderr=proc.stderr,
+        )
 
         # Regression: wrong expected SHA must be visible in worker identity.
         wrong_sha_path = temp / "wrong-sha-target"

@@ -1,0 +1,12 @@
+bash: line 1: cd: /Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store: No such file or directory
+bash: line 1: cd: /Users/lzc: No such file or directory
+   Compiling afs v0.1.0 (/home/lzc.guest/afs-build/work/root-merged-v37)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 16.47s
+     Running unittests src/lib.rs (/home/lzc.guest/afs-build/target/debug/deps/afs-586e1b701367e588)
+
+running 2 tests
+test node::vfs::ownerfs::tests::local_rename_over_linked_destination_rebinds_surviving_alias ... ok
+test node::vfs::ownerfs::tests::peer_rename_over_linked_destination_rebinds_surviving_alias ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 291 filtered out; finished in 0.02s
+

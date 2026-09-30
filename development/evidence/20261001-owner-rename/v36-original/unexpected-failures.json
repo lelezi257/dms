@@ -1,0 +1,42 @@
+[
+  {
+    "line": "not ok 6 - tried 'lstat pjdfstest_e0b8c4499c3ce07130e0ba323adb7c17 type,nlink', expected regular,1, got ESTALE",
+    "test": "/mnt/lima-afsadata/afs-acceptance/suites-reference/src/pjdfstest/tests/rename/23.t"
+  },
+  {
+    "line": "not ok 7",
+    "test": "/mnt/lima-afsadata/afs-acceptance/suites-reference/src/pjdfstest/tests/rename/23.t"
+  },
+  {
+    "line": "not ok 14 - tried 'lstat pjdfstest_e0b8c4499c3ce07130e0ba323adb7c17 type,nlink', expected fifo,1, got ESTALE",
+    "test": "/mnt/lima-afsadata/afs-acceptance/suites-reference/src/pjdfstest/tests/rename/23.t"
+  },
+  {
+    "line": "not ok 15",
+    "test": "/mnt/lima-afsadata/afs-acceptance/suites-reference/src/pjdfstest/tests/rename/23.t"
+  },
+  {
+    "line": "not ok 22 - tried 'lstat pjdfstest_e0b8c4499c3ce07130e0ba323adb7c17 type,nlink', expected block,1, got ESTALE",
+    "test": "/mnt/lima-afsadata/afs-acceptance/suites-reference/src/pjdfstest/tests/rename/23.t"
+  },
+  {
+    "line": "not ok 23",
+    "test": "/mnt/lima-afsadata/afs-acceptance/suites-reference/src/pjdfstest/tests/rename/23.t"
+  },
+  {
+    "line": "not ok 30 - tried 'lstat pjdfstest_e0b8c4499c3ce07130e0ba323adb7c17 type,nlink', expected char,1, got ESTALE",
+    "test": "/mnt/lima-afsadata/afs-acceptance/suites-reference/src/pjdfstest/tests/rename/23.t"
+  },
+  {
+    "line": "not ok 31",
+    "test": "/mnt/lima-afsadata/afs-acceptance/suites-reference/src/pjdfstest/tests/rename/23.t"
+  },
+  {
+    "line": "not ok 38 - tried 'lstat pjdfstest_e0b8c4499c3ce07130e0ba323adb7c17 type,nlink', expected socket,1, got ESTALE",
+    "test": "/mnt/lima-afsadata/afs-acceptance/suites-reference/src/pjdfstest/tests/rename/23.t"
+  },
+  {
+    "line": "not ok 39",
+    "test": "/mnt/lima-afsadata/afs-acceptance/suites-reference/src/pjdfstest/tests/rename/23.t"
+  }
+]

@@ -4161,6 +4161,7 @@ impl DistributedFs {
         let deadline = std::time::Instant::now() + budget;
         let mut released = 0usize;
         let mut first_error = None;
+        let mut session_cache = HashMap::new();
         for (attempted, (key, pending)) in self
             .pending_remote_release_snapshot()?
             .into_iter()
@@ -4173,12 +4174,43 @@ impl DistributedFs {
             if remaining.is_zero() {
                 break;
             }
+            let session_key = key.owner_node_id.clone();
+            let current_session = if let Some(cached) = session_cache.get(&session_key).cloned() {
+                cached
+            } else {
+                let timeout = remaining.min(REMOTE_RELEASE_RPC_BUDGET);
+                let result = self
+                    .meta
+                    .current_node_session_with_timeout(&key.owner_node_id, timeout);
+                session_cache.insert(session_key, result.clone());
+                result
+            };
+            match current_session {
+                Ok(Some(current)) if current == key.owner_session_id => {}
+                Ok(_) => {
+                    if self.remove_pending_remote_release_if_current(&key, &pending)? {
+                        released = released.saturating_add(1);
+                    }
+                    continue;
+                }
+                Err(error) => {
+                    first_error.get_or_insert(error);
+                    self.rotate_pending_remote_release(&key)?;
+                    continue;
+                }
+            }
+
+            let remaining = deadline.saturating_duration_since(std::time::Instant::now());
+            if remaining.is_zero() {
+                break;
+            }
             let timeout = remaining.min(REMOTE_RELEASE_RPC_BUDGET);
             match Self::remote_release_handle_with_timeout(&pending.owner, &pending.handle, timeout)
             {
                 Ok(()) => {
-                    self.remove_pending_remote_release(&key)?;
-                    released = released.saturating_add(1);
+                    if self.remove_pending_remote_release_if_current(&key, &pending)? {
+                        released = released.saturating_add(1);
+                    }
                 }
                 Err(error) => {
                     first_error.get_or_insert(error);
@@ -4231,14 +4263,23 @@ impl DistributedFs {
         Ok(())
     }
 
-    fn remove_pending_remote_release(&self, key: &PendingRemoteReleaseKey) -> Result<()> {
+    fn remove_pending_remote_release_if_current(
+        &self,
+        key: &PendingRemoteReleaseKey,
+        pending: &PendingRemoteRelease,
+    ) -> Result<bool> {
         let mut state = self
             .pending_remote_releases
             .lock()
             .map_err(|_| unavailable("DFS pending remote release table is poisoned"))?;
-        state.entries.remove(key);
-        state.order.retain(|candidate| candidate != key);
-        Ok(())
+        let current_matches = state.entries.get(key).is_some_and(|current| {
+            current.handle == pending.handle && Arc::ptr_eq(&current.owner, &pending.owner)
+        });
+        if current_matches {
+            state.entries.remove(key);
+            state.order.retain(|candidate| candidate != key);
+        }
+        Ok(current_matches)
     }
 
     pub fn pending_remote_release_count(&self) -> Result<usize> {
@@ -7667,6 +7708,7 @@ mod tests {
         renew_results: Mutex<std::collections::VecDeque<Result<WriteLease>>>,
         node_sessions: Mutex<HashMap<String, Option<String>>>,
         next_current_session_error: Mutex<Option<Error>>,
+        current_session_calls: AtomicUsize,
         renew_calls: AtomicUsize,
     }
 
@@ -7714,6 +7756,7 @@ mod tests {
                 renew_results: Mutex::new(std::collections::VecDeque::new()),
                 node_sessions: Mutex::new(HashMap::new()),
                 next_current_session_error: Mutex::new(None),
+                current_session_calls: AtomicUsize::new(0),
                 renew_calls: AtomicUsize::new(0),
             }
         }
@@ -7795,6 +7838,11 @@ mod tests {
         fn fail_next_current_session_with(&self, error: Error) {
             *self.next_current_session_error.lock().unwrap() = Some(error);
         }
+
+        fn current_session_call_count(&self) -> usize {
+            self.current_session_calls.load(Ordering::SeqCst)
+        }
+
         fn publish_external_version(&self, length: u64) -> FileVersionId {
             let mut inode = self.inode.lock().unwrap();
             let generation = self.commits.lock().unwrap().len() + 1;
@@ -8136,6 +8184,7 @@ mod tests {
         }
 
         fn current_node_session(&self, node_id: &str) -> Result<Option<String>> {
+            self.current_session_calls.fetch_add(1, Ordering::SeqCst);
             if let Some(error) = self.next_current_session_error.lock().unwrap().take() {
                 return Err(error);
             }
@@ -10287,7 +10336,8 @@ mod tests {
 
     #[test]
     fn pending_remote_release_retry_pass_attempts_each_existing_handle_once() {
-        let (_temp, _meta, fs) = test_fs();
+        let (_temp, meta, fs) = test_fs();
+        meta.set_node_session("node-b", Some("owner-session-b"));
         let scripted = Arc::new(ScriptedReleaseRemoteDfsOwner::new(
             Arc::new(NoopRemoteDfsOwner),
             vec![
@@ -10347,7 +10397,8 @@ mod tests {
 
     #[test]
     fn pending_remote_release_retry_pass_caps_attempts_and_rotates_fairly() {
-        let (_temp, _meta, fs) = test_fs();
+        let (_temp, meta, fs) = test_fs();
+        meta.set_node_session("node-b", Some("owner-session-b"));
         let scripted = Arc::new(ScriptedReleaseRemoteDfsOwner::new(
             Arc::new(NoopRemoteDfsOwner),
             (0..65)
@@ -10398,6 +10449,171 @@ mod tests {
             "the next pass starts with the previous pass's unattempted tail handle"
         );
         assert_eq!(fs.pending_remote_release_count().unwrap(), 65);
+    }
+
+    #[test]
+    fn pending_remote_release_retires_replaced_or_absent_owner_session() {
+        let (_temp, meta, fs) = test_fs();
+        meta.set_node_session("node-b", Some("session-new"));
+        meta.set_node_session("node-c", None);
+        let scripted = Arc::new(ScriptedReleaseRemoteDfsOwner::new(
+            Arc::new(NoopRemoteDfsOwner),
+            Vec::new(),
+        ));
+        let owner = scripted.clone() as Arc<dyn RemoteDfsOwner>;
+        let replaced = afs_protocol::node_control::DfsOwnerHandle {
+            namespace_id: "default".into(),
+            inode_id: "inode:pending-retired-replaced".into(),
+            owner_node_id: "node-b".into(),
+            owner_session_id: "session-old".into(),
+            lease_epoch: 7,
+            caller_node_id: "node-a".into(),
+            caller_session_id: "caller-session-a".into(),
+            open_seq: 1,
+            opaque_handle: b"retired-replaced".to_vec(),
+        };
+        let absent = afs_protocol::node_control::DfsOwnerHandle {
+            namespace_id: "default".into(),
+            inode_id: "inode:pending-retired-absent".into(),
+            owner_node_id: "node-c".into(),
+            owner_session_id: "session-old".into(),
+            lease_epoch: 7,
+            caller_node_id: "node-a".into(),
+            caller_session_id: "caller-session-a".into(),
+            open_seq: 2,
+            opaque_handle: b"retired-absent".to_vec(),
+        };
+        fs.queue_pending_remote_release(owner.clone(), replaced, false)
+            .unwrap();
+        fs.queue_pending_remote_release(owner, absent, false)
+            .unwrap();
+
+        assert_eq!(fs.retry_pending_remote_releases().unwrap(), 2);
+
+        assert_eq!(fs.pending_remote_release_count().unwrap(), 0);
+        assert_eq!(scripted.release_call_count(), 0);
+        assert_eq!(meta.current_session_call_count(), 2);
+    }
+
+    #[test]
+    fn pending_remote_release_unknown_owner_session_retains_debt() {
+        let (_temp, meta, fs) = test_fs();
+        meta.fail_next_current_session_with(unavailable("injected session lookup failure"));
+        let scripted = Arc::new(ScriptedReleaseRemoteDfsOwner::new(
+            Arc::new(NoopRemoteDfsOwner),
+            Vec::new(),
+        ));
+        let owner = scripted.clone() as Arc<dyn RemoteDfsOwner>;
+        let handle = afs_protocol::node_control::DfsOwnerHandle {
+            namespace_id: "default".into(),
+            inode_id: "inode:pending-unknown-session".into(),
+            owner_node_id: "node-b".into(),
+            owner_session_id: "session-b".into(),
+            lease_epoch: 7,
+            caller_node_id: "node-a".into(),
+            caller_session_id: "caller-session-a".into(),
+            open_seq: 1,
+            opaque_handle: b"unknown-session".to_vec(),
+        };
+        fs.queue_pending_remote_release(owner, handle.clone(), false)
+            .unwrap();
+
+        fs.retry_pending_remote_releases()
+            .expect_err("unknown owner process session keeps exact cleanup debt");
+
+        assert_eq!(fs.pending_remote_release_count().unwrap(), 1);
+        assert_eq!(scripted.release_call_count(), 0);
+        assert_eq!(meta.current_session_call_count(), 1);
+        let state = fs.pending_remote_releases.lock().unwrap();
+        assert!(
+            state
+                .entries
+                .contains_key(&DistributedFs::remote_release_key(&handle))
+        );
+    }
+
+    #[test]
+    fn pending_remote_release_mixed_sessions_retire_old_and_release_same_session() {
+        let (_temp, meta, fs) = test_fs();
+        meta.set_node_session("node-b", Some("session-live"));
+        let scripted = Arc::new(ScriptedReleaseRemoteDfsOwner::new(
+            Arc::new(NoopRemoteDfsOwner),
+            vec![ScriptedReleaseAction::OkWithoutDelegate],
+        ));
+        let owner = scripted.clone() as Arc<dyn RemoteDfsOwner>;
+        let old = afs_protocol::node_control::DfsOwnerHandle {
+            namespace_id: "default".into(),
+            inode_id: "inode:pending-old-session".into(),
+            owner_node_id: "node-b".into(),
+            owner_session_id: "session-old".into(),
+            lease_epoch: 7,
+            caller_node_id: "node-a".into(),
+            caller_session_id: "caller-session-a".into(),
+            open_seq: 1,
+            opaque_handle: b"old-session".to_vec(),
+        };
+        let live = afs_protocol::node_control::DfsOwnerHandle {
+            namespace_id: "default".into(),
+            inode_id: "inode:pending-live-session".into(),
+            owner_node_id: "node-b".into(),
+            owner_session_id: "session-live".into(),
+            lease_epoch: 7,
+            caller_node_id: "node-a".into(),
+            caller_session_id: "caller-session-a".into(),
+            open_seq: 2,
+            opaque_handle: b"live-session".to_vec(),
+        };
+        fs.queue_pending_remote_release(owner.clone(), old, false)
+            .unwrap();
+        fs.queue_pending_remote_release(owner, live, false).unwrap();
+
+        assert_eq!(fs.retry_pending_remote_releases().unwrap(), 2);
+
+        assert_eq!(fs.pending_remote_release_count().unwrap(), 0);
+        assert_eq!(scripted.release_call_count(), 1);
+        assert_eq!(
+            scripted.release_opaque_handles(),
+            vec![b"live-session".to_vec()]
+        );
+        assert_eq!(meta.current_session_call_count(), 1);
+    }
+
+    #[test]
+    fn pending_remote_release_groups_retired_session_lookup_and_preserves_fair_cap() {
+        let (_temp, meta, fs) = test_fs();
+        meta.set_node_session("node-b", Some("session-new"));
+        let scripted = Arc::new(ScriptedReleaseRemoteDfsOwner::new(
+            Arc::new(NoopRemoteDfsOwner),
+            Vec::new(),
+        ));
+        let owner = scripted.clone() as Arc<dyn RemoteDfsOwner>;
+        for index in 0..65 {
+            let handle = afs_protocol::node_control::DfsOwnerHandle {
+                namespace_id: "default".into(),
+                inode_id: format!("inode:pending-retired-group-{index:02}"),
+                owner_node_id: "node-b".into(),
+                owner_session_id: "session-old".into(),
+                lease_epoch: 7,
+                caller_node_id: "node-a".into(),
+                caller_session_id: "caller-session-a".into(),
+                open_seq: index + 1,
+                opaque_handle: vec![index as u8],
+            };
+            fs.queue_pending_remote_release(owner.clone(), handle, false)
+                .unwrap();
+        }
+
+        fs.retry_pending_remote_releases()
+            .expect_err("one fair pass retires only the first 64 queued entries");
+
+        assert_eq!(fs.pending_remote_release_count().unwrap(), 1);
+        assert_eq!(scripted.release_call_count(), 0);
+        assert_eq!(meta.current_session_call_count(), 1);
+
+        assert_eq!(fs.retry_pending_remote_releases().unwrap(), 1);
+        assert_eq!(fs.pending_remote_release_count().unwrap(), 0);
+        assert_eq!(scripted.release_call_count(), 0);
+        assert_eq!(meta.current_session_call_count(), 2);
     }
 
     #[test]
@@ -12159,6 +12375,7 @@ mod tests {
         DelegateThenErr(Error),
         DelegateThenPause(Arc<OwnerOpenFinishPause>),
         ErrWithoutDelegate(Error),
+        OkWithoutDelegate,
     }
 
     struct ScriptedReleaseRemoteDfsOwner {
@@ -12230,6 +12447,9 @@ mod tests {
                     Ok(reply)
                 }
                 Some(ScriptedReleaseAction::ErrWithoutDelegate(error)) => Err(error),
+                Some(ScriptedReleaseAction::OkWithoutDelegate) => {
+                    Ok(afs_protocol::node_control::DfsOwnerReleaseReply {})
+                }
             }
         }
 

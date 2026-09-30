@@ -1,0 +1,3 @@
+READY 64 MiB persisted; injecting exact owner SIGKILL
+Owner restarted on same disk; validating first successful fresh read
+PASS

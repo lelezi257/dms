@@ -359,53 +359,40 @@ def check_main(args: argparse.Namespace) -> int:
     expected_payload = expected.get("payload", {})
     expected_size = int(expected_payload.get("size", -1))
     expected_sha = str(expected_payload.get("sha256", ""))
-    deadline = time.monotonic() + args.open_timeout
-    attempts: list[dict[str, Any]] = []
-    status = "UNKNOWN"
-    while True:
-        try:
-            data = _read_file_once(target)
-            actual = {"length": len(data), "sha256": _sha256_bytes(data)}
-            ok = actual["length"] == expected_size and actual["sha256"] == expected_sha
-            status = "PASS" if ok else "MISMATCH"
-            result = {
-                "schema": SCHEMA,
-                "phase": "RECOVERY_CHECK",
-                "status": status,
-                "created_at": _now(),
-                "target": str(target),
-                "ready_file": str(args.ready_file),
-                "result_file": str(result_file),
-                "expected": {"length": expected_size, "sha256": expected_sha},
-                "actual": actual,
-                "attempts": attempts + [{"event": "read", "ok": True, "target_stat": _stat_record(target)}],
-            }
-            _write_json_atomic(result_file, result)
-            return 0 if ok else 1
-        except OSError as exc:
-            attempts.append({
-                "event": "open_or_read_error",
-                "errno": exc.errno,
-                "errno_name": errno.errorcode.get(exc.errno, "UNKNOWN"),
-                "message": str(exc),
-                "elapsed_ms": round((args.open_timeout - max(0.0, deadline - time.monotonic())) * 1000, 3),
-            })
-            if time.monotonic() >= deadline:
-                status = "OPEN_TIMEOUT"
-                result = {
-                    "schema": SCHEMA,
-                    "phase": "RECOVERY_CHECK",
-                    "status": status,
-                    "created_at": _now(),
-                    "target": str(target),
-                    "ready_file": str(args.ready_file),
-                    "result_file": str(result_file),
-                    "expected": {"length": expected_size, "sha256": expected_sha},
-                    "attempts": attempts,
-                }
-                _write_json_atomic(result_file, result)
-                return 2
-            time.sleep(0.2)
+    started = time.monotonic()
+    previous = signal.getsignal(signal.SIGALRM)
+    def on_alarm(_signum: int, _frame: Any) -> None:
+        raise TimeoutError(f"recovery read exceeded {args.open_timeout} seconds")
+    signal.signal(signal.SIGALRM, on_alarm)
+    signal.setitimer(signal.ITIMER_REAL, args.open_timeout)
+    result = {
+        "schema": SCHEMA,
+        "phase": "RECOVERY_CHECK",
+        "created_at": _now(),
+        "target": str(target),
+        "ready_file": str(args.ready_file),
+        "result_file": str(result_file),
+        "expected": {"length": expected_size, "sha256": expected_sha},
+    }
+    try:
+        data = _read_file_once(target)
+        actual = {"length": len(data), "sha256": _sha256_bytes(data)}
+        ok = actual["length"] == expected_size and actual["sha256"] == expected_sha
+        result.update(status="PASS" if ok else "MISMATCH", actual=actual,
+                      attempts=[{"event": "read", "ok": True, "target_stat": _stat_record(target)}])
+    except TimeoutError as exc:
+        result.update(status="READ_TIMEOUT", error=str(exc), attempts=[{"event": "timeout"}])
+    except OSError as exc:
+        result.update(status="READ_ERROR", attempts=[{
+            "event": "open_or_read_error", "errno": exc.errno,
+            "errno_name": errno.errorcode.get(exc.errno, "UNKNOWN"), "message": str(exc),
+        }])
+    finally:
+        signal.setitimer(signal.ITIMER_REAL, 0)
+        signal.signal(signal.SIGALRM, previous)
+    result["elapsed_ms"] = round((time.monotonic() - started) * 1000, 3)
+    _write_json_atomic(result_file, result)
+    return 0 if result["status"] == "PASS" else 1
 
 
 def selftest_main(args: argparse.Namespace) -> int:
@@ -483,7 +470,7 @@ def build_parser() -> argparse.ArgumentParser:
     checker.add_argument("--target", required=True, help="DFS path to open after restart")
     checker.add_argument("--ready-file", required=True, help="READY JSON produced by writer")
     checker.add_argument("--result-file", required=True, help="ext4 JSON file receiving recovery result")
-    checker.add_argument("--open-timeout", type=float, default=DEFAULT_CHECK_TIMEOUT_SECONDS)
+    checker.add_argument("--open-timeout", type=float, default=DEFAULT_CHECK_TIMEOUT_SECONDS, help="deadline for one fresh open/read; errors are not retried")
 
     selftest = sub.add_parser("selftest", help="run a Linux ext4 protocol selftest on an ordinary file")
     selftest.add_argument("--root", required=True, help="ext4 directory for selftest files")

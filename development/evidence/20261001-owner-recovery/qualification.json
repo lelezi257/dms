@@ -1,0 +1,31 @@
+{
+  "status": "PASS",
+  "checks": {
+    "exact_owner_sigkill": true,
+    "same_meta_process": true,
+    "same_node_binary": true,
+    "same_node_config": true,
+    "new_node_process": true,
+    "new_node_session": true,
+    "new_serving_epoch": true,
+    "unchanged_b_node": true,
+    "bounded_close_error": true,
+    "bounded_fsync": true,
+    "bounded_restart": true,
+    "first_read_once": true,
+    "bounded_correct_read": true,
+    "retirement_after_replacement_before_old_expiry": true,
+    "consistency": true,
+    "dfs-cross": true,
+    "ownerfs-cross": true,
+    "all_captured_product_identities_match": true
+  },
+  "retirement_observations": [
+    {
+      "at_unix": 1790803322.289679,
+      "count": 1
+    }
+  ],
+  "verified_process_records": 248,
+  "scope": "bounded memory R1 Node crash and original consistency/lock regressions; not formal release acceptance"
+}

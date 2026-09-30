@@ -1,6 +1,6 @@
 # Retire cleanup debt after authoritative owner-session loss
 
-Date: 2026-10-01. Linux ARM64 source candidate v44. Live A/B remains the [qualified v43 candidate](../20261001-owner-open/README.md); this source result does not qualify runtime restart faults or release acceptance.
+Date: 2026-10-01. Linux ARM64 source candidate v44. At this source-gate checkpoint, A/B ran the [qualified v43 candidate](../20261001-owner-open/README.md); this source result does not qualify runtime restart faults or release acceptance.
 
 ## Results
 
@@ -39,4 +39,4 @@ Node SHA256: eb1540ba7b95b9b19aade368d2e93227aba5427581f832a888c10af548a9c865.
 Meta SHA256: 8f879feb0c8d58d59a41fa2aa9df06d071d7ac3078b19fcfe60196181d3bf351.
 Immutable Linux artifacts: /home/lzc.guest/afs-build/artifacts/v44-qualified.
 
-These binaries are not deployed. Actual restart/network faults, current full-suite completion, overall writeback/shutdown budgeting and durable-backend parity remain unqualified. Formal69 cases remain NOT_RUN; ENV lock remains PREPARING. Handoff documentation is unchanged.
+The binaries were not deployed at this source-gate checkpoint. The later [owner restart investigation](../20261001-owner-recovery/README.md) preserves the v44 runtime failure and repaired v45 proof. Actual complete restart/network faults, current full-suite completion, overall writeback/shutdown budgeting and durable-backend parity remain unqualified. Formal69 cases remain NOT_RUN; ENV lock remains PREPARING. Handoff documentation is unchanged.

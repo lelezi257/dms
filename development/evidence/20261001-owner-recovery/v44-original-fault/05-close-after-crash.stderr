@@ -1,0 +1,4 @@
+  File "<stdin>", line 2
+    state=pathlib.Path('/var/tmp/afs-v44-owner-fault');(state/'trigger').write_text('close after verified SIGKILL
+                                                                                    ^
+SyntaxError: unterminated string literal (detected at line 2)

@@ -1668,14 +1668,7 @@ impl DfsService {
                 if copy.chunk_id != chunk_id || !copy.is_ready_durable() {
                     continue;
                 }
-                let CopyLocation::Node {
-                    node_id,
-                    node_epoch,
-                    device_id,
-                    device_epoch,
-                    catalog_revision: _,
-                } = &copy.location
-                else {
+                let CopyLocation::Node { node_id, .. } = &copy.location else {
                     continue;
                 }; // ExternalCommitted never masquerades as a Peer replica.
                 let session_snapshot = view
@@ -1684,21 +1677,12 @@ impl DfsService {
                     })
                     .await?;
                 revision = revision.max(session_snapshot.revision.0);
-                let session = match session_snapshot.entity {
-                    Some(MetaEntity::NodeSession(session))
-                        if session.lease_epoch == *node_epoch
-                            && session.is_live_at_unix_ms(now_unix_ms()) =>
-                    {
-                        session
-                    }
-                    _ => continue,
-                };
-                let device_ok = session.storage_devices.iter().any(|device| {
-                    device.device_id == *device_id && device.device_epoch == *device_epoch
-                });
-                if !device_ok {
+                let Some(MetaEntity::NodeSession(session)) = session_snapshot.entity else {
                     continue;
-                }
+                };
+                let Some(serving_copy) = serving_read_copy(&copy, &session, now_unix_ms()) else {
+                    continue;
+                };
                 let mut read_grant = DfsReadGrant {
                     namespace_id: request.namespace_id.clone(),
                     file_version_id: request.file_version_id.clone(),
@@ -1718,13 +1702,14 @@ impl DfsService {
                     _ => return Err(invalid("DFS source chunk identity is missing")),
                 };
                 let ranges = read_chunk_intervals(&layout, &chunk)?;
-                read_grant.token = self.read_grant_token(&read_grant, &copy, &chunk, &ranges)?;
+                read_grant.token =
+                    self.read_grant_token(&read_grant, &serving_copy, &chunk, &ranges)?;
                 sources.push(SourceCandidate {
                     copy_id: copy.id.clone(),
                     chunk_id: chunk_id.clone(),
                     role: copy.role,
                     state: copy.state,
-                    location: copy.location.clone(),
+                    location: serving_copy.location.clone(),
                     data_endpoint: Some(session.data_addr),
                     load_hint: 0,
                     read_grant,
@@ -1845,31 +1830,16 @@ impl DfsService {
                 }
                 _ => return Err(permission_denied("read grant copy is not Ready")),
             };
-            match &copy.location {
-                CopyLocation::Node {
-                    node_id,
-                    node_epoch,
-                    device_id,
-                    device_epoch,
-                    ..
-                } if *node_id == request.receiver_node_id
-                    && *node_epoch == request.receiver_node_epoch
-                    && receiver.storage_devices.iter().any(|device| {
-                        device.device_id == *device_id && device.device_epoch == *device_epoch
-                    }) => {}
-                _ => {
-                    return Err(permission_denied(
-                        "read grant does not select the receiver device",
-                    ));
-                }
-            }
+            let serving_copy = serving_read_copy(&copy, &receiver, now).ok_or_else(|| {
+                permission_denied("read grant does not select a recovered receiver device")
+            })?;
             let intervals = read_chunk_intervals(&layout, &chunk)?;
             let supplied = grant
                 .token
                 .strip_prefix("dfs-read-v1:")
                 .and_then(|hex| blake3::Hash::from_hex(hex).ok())
                 .ok_or_else(|| permission_denied("read grant MAC format is invalid"))?;
-            if supplied != self.read_grant_mac(grant, &copy, &chunk, &intervals)? {
+            if supplied != self.read_grant_mac(grant, &serving_copy, &chunk, &intervals)? {
                 return Err(permission_denied("read grant MAC authentication failed"));
             }
             if !read_range_covered(&intervals, validation.chunk_offset, validation.length) {
@@ -3407,6 +3377,47 @@ fn conflict(message: impl Into<String>) -> Error {
     Error::coded(afs_error::META_DFS_CONFLICT, message)
 }
 
+/// A committed copy records the process that produced its durable receipt;
+/// reads use the live process serving that same persistent device. After a
+/// restart, registration follows LocalChunkStore recovery and advertises the
+/// recovered catalog revision. Its floor must cover the original receipt, so
+/// an older catalog/device cannot acquire read authority for that copy.
+/// Same-process writes may advance beyond the startup descriptor, so that
+/// additional floor is required only across process epochs. This projection
+/// is read-only: neither persisted copy evidence nor write/replica fencing is
+/// changed. Signing the projected epoch rejects old grants on a new process.
+fn serving_read_copy(copy: &CopyRecord, session: &NodeSession, now: u64) -> Option<CopyRecord> {
+    let CopyLocation::Node {
+        node_id,
+        node_epoch,
+        device_id,
+        device_epoch,
+        catalog_revision,
+    } = &copy.location
+    else {
+        return None;
+    };
+    if !copy.is_ready_durable()
+        || node_id != &session.node_id
+        || *node_epoch == 0
+        || session.lease_epoch < *node_epoch
+        || !session.is_live_at_unix_ms(now)
+        || !session.storage_devices.iter().any(|device| {
+            device.device_id == *device_id
+                && device.device_epoch == *device_epoch
+                && (session.lease_epoch == *node_epoch
+                    || device.catalog_revision >= *catalog_revision)
+        })
+    {
+        return None;
+    }
+    let mut serving_copy = copy.clone();
+    if let CopyLocation::Node { node_epoch, .. } = &mut serving_copy.location {
+        *node_epoch = session.lease_epoch;
+    }
+    Some(serving_copy)
+}
+
 async fn live_read_session(
     view: &MetaReadView,
     node_id: &str,
@@ -3473,4 +3484,307 @@ fn read_range_covered(intervals: &[(u64, u64)], offset: u64, length: u64) -> boo
                 offset >= *start && start.checked_add(*len).is_some_and(|limit| end <= limit)
             })
         })
+}
+
+#[cfg(all(test, feature = "dfs"))]
+mod read_recovery_tests {
+    use super::*;
+    use crate::dfs::{
+        DfsReadValidation, Extent, LayoutRootId, StorageDeviceDescriptor, ValidateDfsReadGrants,
+    };
+    use crate::meta::store::{NodeSessionLease, Store, memory::MemoryBackend};
+    use crate::node::chunk::{ChunkStore, LocalChunkStore, StagedChunk};
+
+    struct Fixture {
+        service: DfsService,
+        store: Arc<Store>,
+        temp: tempfile::TempDir,
+        local: LocalChunkStore,
+        request: DfsChunkSourcesRequest,
+        copy: CopyRecord,
+    }
+
+    impl Fixture {
+        async fn sources(&self) -> Vec<SourceCandidate> {
+            self.service
+                .chunk_sources(self.request.clone())
+                .await
+                .unwrap()
+                .chunks
+                .remove(0)
+                .sources
+        }
+
+        async fn validate(&self, source: &SourceCandidate, epoch: u64) -> Result<()> {
+            self.service
+                .validate_read_grants(ValidateDfsReadGrants {
+                    receiver_node_id: "receiver".into(),
+                    receiver_node_epoch: epoch,
+                    peer_node_id: "reader".into(),
+                    validations: vec![DfsReadValidation {
+                        grant: source.read_grant.clone(),
+                        chunk_id: source.chunk_id.clone(),
+                        copy_id: source.copy_id.clone(),
+                        chunk_offset: 0,
+                        length: 4,
+                    }],
+                })
+                .await
+                .map(|_| ())
+        }
+
+        async fn restart(&self, device: StorageDeviceDescriptor) -> NodeSession {
+            register(&self.store, "receiver", "restarted", vec![device]).await;
+            match self
+                .store
+                .read(MetaRead::CurrentNodeSession {
+                    node_id: "receiver".into(),
+                })
+                .await
+                .unwrap()
+                .entity
+            {
+                Some(MetaEntity::NodeSession(session)) => session,
+                _ => panic!("replacement session is missing"),
+            }
+        }
+    }
+
+    async fn register(
+        store: &Store,
+        id: &str,
+        session: &str,
+        devices: Vec<StorageDeviceDescriptor>,
+    ) {
+        store
+            .register_node_session(
+                RequestKey::new(id, format!("register-{session}")),
+                NodeSessionLease {
+                    node_id: id.into(),
+                    session_id: session.into(),
+                    grpc_addr: "http://127.0.0.1:1".into(),
+                    data_addr: "http://127.0.0.1:2".into(),
+                    rest_addr: "http://127.0.0.1:3".into(),
+                    storage_devices: devices,
+                    lease_ttl: std::time::Duration::from_secs(30),
+                },
+            )
+            .await
+            .unwrap();
+    }
+
+    async fn fixture() -> Fixture {
+        let temp = tempfile::tempdir().unwrap();
+        let local = LocalChunkStore::open(temp.path(), "receiver").unwrap();
+        let store = Arc::new(
+            Store::open(Arc::new(MemoryBackend::default()))
+                .await
+                .unwrap(),
+        );
+        // Registration precedes writes: the live descriptor retains floor 0.
+        register(&store, "reader", "reader-original", Vec::new()).await;
+        register(
+            &store,
+            "receiver",
+            "receiver-original",
+            vec![local.device_descriptor().unwrap()],
+        )
+        .await;
+        let staged = StagedChunk::new(OperationId::new("durable-r1"), b"data".to_vec());
+        let receipt = local.put(staged.clone()).unwrap();
+        let ack = &receipt.durable_acks[0];
+        let copy = CopyRecord {
+            id: CopyId::new("copy"),
+            chunk_id: staged.chunk.id.clone(),
+            role: CopyRole::DurableReplica,
+            state: CopyState::Ready,
+            location: CopyLocation::Node {
+                node_id: ack.node_id.clone(),
+                node_epoch: ack.node_epoch,
+                device_id: ack.device_id.clone(),
+                device_epoch: ack.device_epoch,
+                catalog_revision: ack.catalog_revision,
+            },
+            persisted_bytes: ack.persisted_bytes,
+            verified_digest: ack.verified_digest.clone(),
+        };
+        let service = DfsService::new(store.clone());
+        let mut inode = root_inode(NamespaceId::new("default"));
+        inode.inode_id = InodeId::new("file");
+        inode.kind = InodeKind::Regular;
+        inode.head_version = Some(FileVersionId::new("version"));
+        let layout = LayoutRoot {
+            id: LayoutRootId::new("layout"),
+            file_length: 4,
+            inline_extents: vec![Extent {
+                file_offset: 0,
+                length: 4,
+                chunk_id: staged.chunk.id.clone(),
+                chunk_offset: 0,
+            }],
+        };
+        let key = RequestKey::new("fixture", "commit");
+        let mut txn = MetaTxn::new(key.clone(), StoreOperation::DfsCommitFileVersion);
+        txn.conditions
+            .push(TxnCondition::RequestAbsent(key.clone()));
+        txn.mutations = vec![
+            TxnMutation::Put(MetaEntity::DfsInode(inode)),
+            TxnMutation::Put(MetaEntity::DfsFileVersion(FileVersion {
+                id: FileVersionId::new("version"),
+                inode_id: InodeId::new("file"),
+                parent_version: None,
+                length: 4,
+                layout_root: layout.id.clone(),
+                created_at_unix_ms: 1,
+            })),
+            TxnMutation::Put(MetaEntity::DfsLayoutRoot(layout)),
+            TxnMutation::Put(MetaEntity::DfsChunk(staged.chunk.clone())),
+            TxnMutation::Put(MetaEntity::DfsCopy(copy.clone())),
+            TxnMutation::Put(MetaEntity::DfsPlacement(PlacementRecord {
+                chunk_id: staged.chunk.id.clone(),
+                replica_group_id: ReplicaGroupId::new("r1"),
+                placement_epoch: 1,
+                desired_copies: 1,
+                copies: vec![copy.id.clone()],
+                health: PlacementHealth::Satisfied,
+            })),
+            TxnMutation::RecordRequestOutcome(RequestOutcome {
+                request: key,
+                operation: StoreOperation::DfsCommitFileVersion,
+                result: OperationResult::Empty,
+            }),
+        ];
+        store.compare_and_commit(txn).await.unwrap();
+        Fixture {
+            service,
+            store,
+            temp,
+            local,
+            request: DfsChunkSourcesRequest {
+                caller_id: "reader".into(),
+                namespace_id: NamespaceId::new("default"),
+                file_version_id: FileVersionId::new("version"),
+                layout_root_id: LayoutRootId::new("layout"),
+                chunk_ids: vec![staged.chunk.id],
+            },
+            copy,
+        }
+    }
+
+    #[tokio::test]
+    async fn recovered_r1_copy_serves_new_epoch_without_mutating_durable_evidence() {
+        let fixture = fixture().await;
+        let old = fixture.sources().await.remove(0);
+        fixture.validate(&old, 1).await.unwrap();
+        let placement = fixture
+            .store
+            .read(MetaRead::DfsPlacement(old.chunk_id.clone()))
+            .await
+            .unwrap();
+        let recovered = LocalChunkStore::open(fixture.temp.path(), "receiver").unwrap();
+        let session = fixture
+            .restart(recovered.device_descriptor().unwrap())
+            .await;
+        assert_eq!(session.lease_epoch, 2);
+        let fresh = fixture.sources().await.remove(0);
+        assert!(matches!(
+            fresh.location,
+            CopyLocation::Node { node_epoch: 2, .. }
+        ));
+        fixture.validate(&fresh, 2).await.unwrap();
+        // The old token is unexpired and caller is unchanged: its receiver MAC
+        // must nevertheless fail after serving authority changes.
+        assert!(fixture.validate(&old, 2).await.is_err());
+        assert!(fixture.validate(&fresh, 1).await.is_err());
+        let mut bytes = [0; 4];
+        assert_eq!(
+            recovered.read_at(&fresh.chunk_id, 0, &mut bytes).unwrap(),
+            4
+        );
+        assert_eq!(&bytes, b"data");
+        assert!(matches!(
+            fixture.store.read(MetaRead::DfsCopy(fixture.copy.id.clone())).await.unwrap().entity,
+            Some(MetaEntity::DfsCopy(copy)) if copy == fixture.copy
+        ));
+        let after = fixture
+            .store
+            .read(MetaRead::DfsPlacement(old.chunk_id))
+            .await
+            .unwrap();
+        assert_eq!(after.revision, placement.revision);
+        assert!(
+            matches!(after.entity, Some(MetaEntity::DfsPlacement(value)) if value.copies == vec![fixture.copy.id])
+        );
+    }
+
+    #[tokio::test]
+    async fn recovered_read_copy_rejects_changed_device_and_insufficient_catalog() {
+        for case in 0..3 {
+            let fixture = fixture().await;
+            let old = fixture.sources().await.remove(0);
+            let mut device = fixture.local.device_descriptor().unwrap();
+            match case {
+                0 => device.device_id = "replacement-device".into(),
+                1 => device.device_epoch = device.device_epoch.wrapping_add(1),
+                _ => device.catalog_revision = 0,
+            }
+            fixture.restart(device).await;
+            assert!(fixture.sources().await.is_empty());
+            assert!(fixture.validate(&old, 2).await.is_err());
+        }
+    }
+
+    #[tokio::test]
+    async fn live_read_copy_allows_new_writes_above_startup_catalog_floor() {
+        let fixture = fixture().await;
+        let device = fixture.local.device_descriptor().unwrap();
+        assert!(device.catalog_revision > 0);
+        let source = fixture.sources().await.remove(0);
+        fixture.validate(&source, 1).await.unwrap();
+        let session = match fixture
+            .store
+            .read(MetaRead::CurrentNodeSession {
+                node_id: "receiver".into(),
+            })
+            .await
+            .unwrap()
+            .entity
+        {
+            Some(MetaEntity::NodeSession(session)) => session,
+            _ => panic!("original session is missing"),
+        };
+        assert_eq!(session.storage_devices[0].catalog_revision, 0);
+        assert!(serving_read_copy(&fixture.copy, &session, now_unix_ms()).is_some());
+    }
+
+    #[tokio::test]
+    async fn recovered_read_copy_rejects_regressed_missing_expired_or_wrong_authority() {
+        let fixture = fixture().await;
+        let session = fixture
+            .restart(fixture.local.device_descriptor().unwrap())
+            .await;
+        let now = now_unix_ms();
+        let mut future_copy = fixture.copy.clone();
+        if let CopyLocation::Node { node_epoch, .. } = &mut future_copy.location {
+            *node_epoch = session.lease_epoch + 1;
+        }
+        assert!(serving_read_copy(&future_copy, &session, now).is_none());
+        let mut bad = session.clone();
+        bad.storage_devices.clear();
+        assert!(serving_read_copy(&fixture.copy, &bad, now).is_none());
+        bad = session.clone();
+        bad.node_id = "other-node".into();
+        assert!(serving_read_copy(&fixture.copy, &bad, now).is_none());
+        bad = session.clone();
+        bad.expires_at_unix_ms = now;
+        assert!(serving_read_copy(&fixture.copy, &bad, now).is_none());
+        let mut corrupt = fixture.copy.clone();
+        corrupt.state = CopyState::Corrupt;
+        assert!(serving_read_copy(&corrupt, &session, now).is_none());
+        let mut zero_epoch = fixture.copy.clone();
+        if let CopyLocation::Node { node_epoch, .. } = &mut zero_epoch.location {
+            *node_epoch = 0;
+        }
+        assert!(serving_read_copy(&zero_epoch, &session, now).is_none());
+    }
 }

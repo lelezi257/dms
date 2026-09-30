@@ -18,13 +18,15 @@
 
 use afs_transport::grpc::error_status::{coded_status, error_to_status};
 use std::{
+    fs::{File, OpenOptions},
     io,
     os::{
         fd::OwnedFd,
-        unix::fs::{FileTypeExt, MetadataExt, PermissionsExt},
+        unix::fs::{FileTypeExt, MetadataExt, OpenOptionsExt, PermissionsExt},
     },
     path::{Path, PathBuf},
     sync::Arc,
+    time::Duration,
 };
 
 use afs_metrics::{IntCounterVec, Opts, Registry};
@@ -43,6 +45,8 @@ use tokio_stream::wrappers::UnixListenerStream;
 use tonic::{Request, Response, Status, transport::Server};
 
 use crate::node::storage::{Storage, StorageError};
+
+const STALE_SOCKET_CONNECT_TIMEOUT: Duration = Duration::from_millis(250);
 
 pub async fn serve_local_api(
     storage: impl Into<Arc<Storage>>,
@@ -66,15 +70,11 @@ pub async fn serve_local_api_with_options(
     options: LocalApiOptions,
 ) -> io::Result<LocalApiServer> {
     let socket_path = socket_path.as_ref().to_path_buf();
-    if socket_path.exists() {
-        return Err(io::Error::new(
-            io::ErrorKind::AlreadyExists,
-            format!("local api socket already exists: {}", socket_path.display()),
-        ));
-    }
     if let Some(parent) = socket_path.parent() {
         tokio::fs::create_dir_all(parent).await?;
     }
+    let socket_lock = acquire_local_api_socket_lock(&socket_path)?;
+    reclaim_stale_local_api_socket(&socket_path).await?;
     let metrics = options
         .metrics_registry
         .as_ref()
@@ -82,10 +82,7 @@ pub async fn serve_local_api_with_options(
         .transpose()?;
     let listener = UnixListener::bind(&socket_path)?;
     let metadata = std::fs::symlink_metadata(&socket_path)?;
-    let socket_identity = SocketIdentity {
-        dev: metadata.dev(),
-        ino: metadata.ino(),
-    };
+    let socket_identity = SocketIdentity::from_metadata(&metadata);
     if let Err(error) = secure_bound_socket(&socket_path).await {
         let _ = remove_owned_socket_sync(&socket_path, socket_identity);
         return Err(error);
@@ -114,6 +111,7 @@ pub async fn serve_local_api_with_options(
         task: Some(task),
         socket_path,
         socket_identity,
+        _socket_lock: socket_lock,
     })
 }
 
@@ -126,6 +124,7 @@ pub struct LocalApiServer {
     task: Option<JoinHandle<io::Result<()>>>,
     socket_path: PathBuf,
     socket_identity: SocketIdentity,
+    _socket_lock: File,
 }
 
 impl LocalApiServer {
@@ -187,6 +186,15 @@ struct LocalApiMetrics {
 struct SocketIdentity {
     dev: u64,
     ino: u64,
+}
+
+impl SocketIdentity {
+    fn from_metadata(metadata: &std::fs::Metadata) -> Self {
+        Self {
+            dev: metadata.dev(),
+            ino: metadata.ino(),
+        }
+    }
 }
 
 impl LocalApiMetrics {
@@ -388,6 +396,139 @@ async fn secure_bound_socket(path: &Path) -> io::Result<()> {
     }
 }
 
+fn acquire_local_api_socket_lock(socket_path: &Path) -> io::Result<File> {
+    let lock_path = local_api_socket_lock_path(socket_path)?;
+    let file = match OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(true)
+        .mode(0o600)
+        .custom_flags(libc::O_NOFOLLOW)
+        .open(&lock_path)
+    {
+        Ok(file) => file,
+        Err(error) if error.raw_os_error() == Some(libc::ELOOP) => {
+            return Err(local_socket_lock_exists_error(
+                socket_path,
+                &lock_path,
+                "lock path is a symlink",
+            ));
+        }
+        Err(error) => return Err(error),
+    };
+    file.set_permissions(std::fs::Permissions::from_mode(0o600))?;
+    let file_metadata = file.metadata()?;
+    let path_metadata = std::fs::symlink_metadata(&lock_path)?;
+    if !path_metadata.file_type().is_file()
+        || path_metadata.dev() != file_metadata.dev()
+        || path_metadata.ino() != file_metadata.ino()
+    {
+        return Err(local_socket_lock_exists_error(
+            socket_path,
+            &lock_path,
+            "lock path was replaced while opening",
+        ));
+    }
+    match file.try_lock() {
+        Ok(()) => Ok(file),
+        Err(std::fs::TryLockError::WouldBlock) => Err(local_socket_lock_exists_error(
+            socket_path,
+            &lock_path,
+            "another local api startup is active",
+        )),
+        Err(std::fs::TryLockError::Error(error)) => Err(error),
+    }
+}
+
+fn local_api_socket_lock_path(socket_path: &Path) -> io::Result<PathBuf> {
+    let parent = socket_path
+        .parent()
+        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "socket path has no parent"))?;
+    let name = socket_path.file_name().ok_or_else(|| {
+        io::Error::new(io::ErrorKind::InvalidInput, "socket path has no file name")
+    })?;
+    let mut lock_name = name.to_os_string();
+    lock_name.push(".lock");
+    Ok(parent.join(lock_name))
+}
+
+fn local_socket_lock_exists_error(socket_path: &Path, lock_path: &Path, detail: &str) -> io::Error {
+    io::Error::new(
+        io::ErrorKind::AlreadyExists,
+        format!(
+            "local api socket lock already exists: {} for {} ({})",
+            lock_path.display(),
+            socket_path.display(),
+            detail
+        ),
+    )
+}
+
+async fn reclaim_stale_local_api_socket(path: &Path) -> io::Result<()> {
+    let metadata = match tokio::fs::symlink_metadata(path).await {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(()),
+        Err(error) => return Err(error),
+    };
+    if !metadata.file_type().is_socket() {
+        return Err(local_socket_exists_error(
+            path,
+            "path exists and is not a Unix socket",
+        ));
+    }
+    let identity = SocketIdentity::from_metadata(&metadata);
+    match tokio::time::timeout(
+        STALE_SOCKET_CONNECT_TIMEOUT,
+        tokio::net::UnixStream::connect(path),
+    )
+    .await
+    {
+        Ok(Ok(_stream)) => Err(local_socket_exists_error(path, "active listener responded")),
+        Ok(Err(error)) if error.kind() == io::ErrorKind::ConnectionRefused => {
+            if remove_stale_socket_if_same(path, identity).await? {
+                Ok(())
+            } else {
+                Err(local_socket_exists_error(
+                    path,
+                    "socket identity changed during stale-socket reclaim",
+                ))
+            }
+        }
+        Ok(Err(error)) if error.kind() == io::ErrorKind::NotFound => Ok(()),
+        Ok(Err(error)) => Err(local_socket_exists_error(
+            path,
+            format!("connect probe failed: {error}"),
+        )),
+        Err(_elapsed) => Err(local_socket_exists_error(path, "connect probe timed out")),
+    }
+}
+
+fn local_socket_exists_error(path: &Path, detail: impl AsRef<str>) -> io::Error {
+    io::Error::new(
+        io::ErrorKind::AlreadyExists,
+        format!(
+            "local api socket already exists: {} ({})",
+            path.display(),
+            detail.as_ref()
+        ),
+    )
+}
+
+async fn remove_stale_socket_if_same(path: &Path, identity: SocketIdentity) -> io::Result<bool> {
+    match tokio::fs::symlink_metadata(path).await {
+        Ok(metadata)
+            if metadata.file_type().is_socket()
+                && metadata.dev() == identity.dev
+                && metadata.ino() == identity.ino =>
+        {
+            tokio::fs::remove_file(path).await?;
+            Ok(true)
+        }
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(true),
+        Ok(_) | Err(_) => Ok(false),
+    }
+}
+
 fn remove_owned_socket_sync(path: &Path, identity: SocketIdentity) -> io::Result<()> {
     match std::fs::symlink_metadata(path) {
         Ok(metadata)
@@ -430,5 +571,154 @@ fn shm_status(error: ShmError) -> Status {
         ShmError::Unsupported => coded_status(afs_error::NODE_SHM_UNSUPPORTED, error.to_string()),
         ShmError::Syscall(_, inner) => error_to_status(afs_error::Error::from(inner)),
         ShmError::Poisoned => coded_status(afs_error::NODE_SHM_INTERNAL, error.to_string()),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::os::unix::{fs::symlink, net::UnixListener as StdUnixListener};
+
+    #[tokio::test]
+    async fn stale_local_api_socket_is_removed() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let path = temp.path().join("node.sock");
+        StdUnixListener::bind(&path).expect("bind stale socket");
+
+        reclaim_stale_local_api_socket(&path)
+            .await
+            .expect("stale socket should be reclaimed");
+
+        assert!(!path.exists());
+    }
+
+    #[tokio::test]
+    async fn serve_local_api_reclaims_stale_socket_before_bind() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let path = temp.path().join("node.sock");
+        StdUnixListener::bind(&path).expect("bind stale socket");
+        let storage = Storage::new(temp.path().join("data")).expect("storage");
+
+        let server = serve_local_api(storage, &path)
+            .await
+            .expect("serve local api after stale socket");
+
+        assert!(path.exists());
+        server.shutdown().await.expect("shutdown local api");
+        assert!(!path.exists());
+    }
+
+    #[tokio::test]
+    async fn competing_local_api_startup_preserves_first_listener() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let path = temp.path().join("node.sock");
+        let first_storage = Storage::new(temp.path().join("first-data")).expect("first storage");
+        let first = serve_local_api(first_storage, &path)
+            .await
+            .expect("first local api starts");
+
+        let second_storage = Storage::new(temp.path().join("second-data")).expect("second storage");
+        let error = match serve_local_api(second_storage, &path).await {
+            Ok(server) => {
+                drop(server);
+                panic!("second cooperative startup must fail");
+            }
+            Err(error) => error,
+        };
+
+        assert_eq!(error.kind(), io::ErrorKind::AlreadyExists);
+        let stream = tokio::net::UnixStream::connect(&path)
+            .await
+            .expect("first listener remains reachable");
+        drop(stream);
+        first.shutdown().await.expect("shutdown first local api");
+        assert!(!path.exists());
+        assert!(local_api_socket_lock_path(&path).unwrap().exists());
+    }
+
+    #[tokio::test]
+    async fn active_local_api_socket_is_preserved() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let path = temp.path().join("node.sock");
+        let listener = StdUnixListener::bind(&path).expect("bind active listener");
+
+        let error = reclaim_stale_local_api_socket(&path)
+            .await
+            .expect_err("active listener must not be reclaimed");
+
+        assert_eq!(error.kind(), io::ErrorKind::AlreadyExists);
+        assert!(path.exists());
+        drop(listener);
+    }
+
+    #[tokio::test]
+    async fn non_socket_local_api_path_is_preserved() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let file_path = temp.path().join("node.sock");
+        std::fs::write(&file_path, b"not a socket").expect("write marker file");
+
+        let error = reclaim_stale_local_api_socket(&file_path)
+            .await
+            .expect_err("ordinary file must not be reclaimed");
+
+        assert_eq!(error.kind(), io::ErrorKind::AlreadyExists);
+        assert_eq!(std::fs::read(&file_path).unwrap(), b"not a socket");
+    }
+
+    #[tokio::test]
+    async fn symlink_local_api_path_is_preserved() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let link_path = temp.path().join("node.sock");
+        symlink("target.sock", &link_path).expect("create symlink");
+
+        let error = reclaim_stale_local_api_socket(&link_path)
+            .await
+            .expect_err("symlink must not be reclaimed");
+
+        assert_eq!(error.kind(), io::ErrorKind::AlreadyExists);
+        assert!(
+            std::fs::symlink_metadata(&link_path)
+                .unwrap()
+                .file_type()
+                .is_symlink()
+        );
+    }
+
+    #[test]
+    fn socket_lock_symlink_is_preserved() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let path = temp.path().join("node.sock");
+        let lock_path = local_api_socket_lock_path(&path).expect("lock path");
+        symlink("target.lock", &lock_path).expect("create lock symlink");
+
+        let error = acquire_local_api_socket_lock(&path).expect_err("lock symlink must fail");
+
+        assert_eq!(error.kind(), io::ErrorKind::AlreadyExists);
+        assert!(
+            std::fs::symlink_metadata(&lock_path)
+                .unwrap()
+                .file_type()
+                .is_symlink()
+        );
+    }
+
+    #[tokio::test]
+    async fn stale_socket_reclaim_preserves_replacement_inode() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let path = temp.path().join("node.sock");
+        let old_listener = StdUnixListener::bind(&path).expect("bind old listener");
+        let old_metadata = std::fs::symlink_metadata(&path).expect("old metadata");
+        let old_identity = SocketIdentity::from_metadata(&old_metadata);
+        std::fs::remove_file(&path).expect("remove old socket");
+        let replacement = StdUnixListener::bind(&path).expect("bind replacement listener");
+
+        let removed = remove_stale_socket_if_same(&path, old_identity)
+            .await
+            .expect("identity checked remove");
+
+        assert!(!removed);
+        assert!(path.exists());
+        drop(replacement);
+        drop(old_listener);
     }
 }

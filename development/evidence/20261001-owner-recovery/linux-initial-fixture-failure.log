@@ -1,0 +1,39 @@
+bash: line 1: cd: /Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store: No such file or directory
+bash: line 1: cd: /Users/lzc: No such file or directory
+   Compiling afs v0.1.0 (/home/lzc.guest/afs-build/work/root-merged-v45)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 17.38s
+     Running unittests src/lib.rs (/home/lzc.guest/afs-build/target/debug/deps/afs-586e1b701367e588)
+
+running 4 tests
+test meta::dfs::read_recovery_tests::live_read_copy_allows_new_writes_above_startup_catalog_floor ... ok
+test meta::dfs::read_recovery_tests::recovered_read_copy_rejects_regressed_missing_expired_or_wrong_authority ... ok
+test meta::dfs::read_recovery_tests::recovered_r1_copy_serves_new_epoch_without_mutating_durable_evidence ... ok
+test meta::dfs::read_recovery_tests::recovered_read_copy_rejects_changed_device_and_insufficient_catalog ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 335 filtered out; finished in 0.06s
+
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.05s
+     Running unittests src/lib.rs (/home/lzc.guest/afs-build/target/debug/deps/afs-586e1b701367e588)
+
+running 8 tests
+test node::api::local::tests::active_local_api_socket_is_preserved ... ok
+test node::api::local::tests::competing_local_api_startup_preserves_first_listener ... ok
+test node::api::local::tests::serve_local_api_reclaims_stale_socket_before_bind ... ok
+test node::api::local::tests::non_socket_local_api_path_is_preserved ... ok
+test node::api::local::tests::socket_lock_symlink_is_preserved ... ok
+test node::api::local::tests::stale_local_api_socket_is_removed ... ok
+test node::api::local::tests::symlink_local_api_path_is_preserved ... ok
+
+thread 'node::api::local::tests::stale_socket_reclaim_preserves_replacement_inode' (364143) panicked at src/node/api/local.rs:720:9:
+assertion failed: !removed
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test node::api::local::tests::stale_socket_reclaim_preserves_replacement_inode ... FAILED
+
+failures:
+
+failures:
+    node::api::local::tests::stale_socket_reclaim_preserves_replacement_inode
+
+test result: FAILED. 7 passed; 1 failed; 0 ignored; 0 measured; 331 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `--lib`

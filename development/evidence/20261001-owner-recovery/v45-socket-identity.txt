@@ -1,0 +1,2 @@
+socket 600 64785 1577355 /mnt/lima-afsadata/afs-delivery/p2-memory-lane-v45/run/node.sock
+regular empty file 600 64785 1577354 /mnt/lima-afsadata/afs-delivery/p2-memory-lane-v45/run/node.sock.lock

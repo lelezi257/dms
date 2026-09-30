@@ -211,3 +211,5 @@ CopyLocation::External {
   object_revision: String
 }
 ```
+
+In a persisted durable `CopyRecord`, `CopyLocation::Node.node_epoch` identifies the process that produced the receipt. A `SourceCandidate` derives the current serving epoch only after validating the live Node session and the recovered persistent device/catalog. The original receipt and copy record remain immutable evidence; write fencing continues to use the current write authority.

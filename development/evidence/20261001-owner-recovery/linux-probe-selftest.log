@@ -1,0 +1,26 @@
+bash: line 1: cd: /Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store: No such file or directory
+bash: line 1: cd: /Users/lzc: No such file or directory
+usage: owner_restart.py [-h] {writer,check,selftest} ...
+
+Run DFS owner restart probe workers
+
+positional arguments:
+  {writer,check,selftest}
+    writer              write, fsync, hold fd, wait for close trigger, and
+                        close
+    check               after owner restart, read target once and validate
+                        READY bytes
+    selftest            run a Linux ext4 protocol selftest on an ordinary file
+
+options:
+  -h, --help            show this help message and exit
+test_help_available_without_linux_runtime (test_owner_restart.OwnerRestartHelpTests.test_help_available_without_linux_runtime) ... ok
+test_checker_fails_immediately_on_stale_or_wrong_bytes (test_owner_restart.OwnerRestartProtocolTests.test_checker_fails_immediately_on_stale_or_wrong_bytes) ... ok
+test_checker_reports_first_open_error_without_retry (test_owner_restart.OwnerRestartProtocolTests.test_checker_reports_first_open_error_without_retry) ... ok
+test_writer_and_checker_preserve_payload_on_ext4_regular_file (test_owner_restart.OwnerRestartProtocolTests.test_writer_and_checker_preserve_payload_on_ext4_regular_file) ... ok
+
+----------------------------------------------------------------------
+Ran 4 tests in 0.361s
+
+OK
+{"check_result": {"actual": {"length": 65536, "sha256": "ac36a914c58e2c8885f936e998630521dd7d660619eca6e02d0f97018a4dc050"}, "attempts": [{"event": "read", "ok": true, "target_stat": {"dev": 64769, "ino": 575706, "mode": "0o664", "mtime_ns": 1790802816654108362, "path": "/home/lzc.guest/afs-build/probes/v45/selftest/owner-restart-target.bin", "size": 65536}}], "created_at": "2026-09-30T21:13:36Z", "elapsed_ms": 0.16, "expected": {"length": 65536, "sha256": "ac36a914c58e2c8885f936e998630521dd7d660619eca6e02d0f97018a4dc050"}, "phase": "RECOVERY_CHECK", "ready_file": "/home/lzc.guest/afs-build/probes/v45/selftest/ready.json", "result_file": "/home/lzc.guest/afs-build/probes/v45/selftest/check-result.json", "schema": "afs.owner_restart.v1", "status": "PASS", "target": "/home/lzc.guest/afs-build/probes/v45/selftest/owner-restart-target.bin"}, "phase": "SELFTEST", "root": "/home/lzc.guest/afs-build/probes/v45/selftest", "schema": "afs.owner_restart.v1", "status": "PASS", "writer_result": {"close": {"completed": true, "duration_ms": 0.052, "ok": true}, "created_at": "2026-09-30T21:13:36Z", "phase": "WRITER_RESULT", "ready": {"created_at": "2026-09-30T21:13:36Z", "durable_watermark": {"fsync_completed": true, "length": 65536, "read_own_fd_sha256": "ac36a914c58e2c8885f936e998630521dd7d660619eca6e02d0f97018a4dc050", "sha256": "ac36a914c58e2c8885f936e998630521dd7d660619eca6e02d0f97018a4dc050", "target_stat": {"dev": 64769, "ino": 575706, "mode": "0o664", "mtime_ns": 1790802816654108362, "path": "/home/lzc.guest/afs-build/probes/v45/selftest/owner-restart-target.bin", "size": 65536}, "write_fsync_elapsed_ms": 3.787}, "payload": {"seed": "owner-restart-selftest", "sha256": "ac36a914c58e2c8885f936e998630521dd7d660619eca6e02d0f97018a4dc050", "size": 65536}, "phase": "READY", "process": {"boot_id": "91653569-f0a0-4e34-8a21-2c27d73345fb", "hostname": "lima-afs-build", "machine": "aarch64", "pid": 364173, "python": "3.12.3", "release": "6.8.0-106-generic", "system": "Linux"}, "schema": "afs.owner_restart.v1", "state_dir": "/home/lzc.guest/afs-build/probes/v45/selftest", "target": "/home/lzc.guest/afs-build/probes/v45/selftest/owner-restart-target.bin"}, "ready_file": "/home/lzc.guest/afs-build/probes/v45/selftest/ready.json", "result_file": "/home/lzc.guest/afs-build/probes/v45/selftest/writer-result.json", "schema": "afs.owner_restart.v1", "status": "CLOSE_OK", "target": "/home/lzc.guest/afs-build/probes/v45/selftest/owner-restart-target.bin", "trigger": {"elapsed_ms": 105.027, "observed": true, "path": "/home/lzc.guest/afs-build/probes/v45/selftest/trigger", "polls": 2, "stat": {"dev": 64769, "ino": 575708, "mode": "0o664", "mtime_ns": 1790802816705107548, "path": "/home/lzc.guest/afs-build/probes/v45/selftest/trigger", "size": 6}}, "trigger_file": "/home/lzc.guest/afs-build/probes/v45/selftest/trigger"}}

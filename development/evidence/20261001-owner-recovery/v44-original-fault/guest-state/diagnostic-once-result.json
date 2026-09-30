@@ -1,0 +1,22 @@
+{
+  "attempts": [
+    {
+      "errno": 113,
+      "errno_name": "EHOSTUNREACH",
+      "event": "open_or_read_error",
+      "message": "[Errno 113] No route to host"
+    }
+  ],
+  "created_at": "2026-09-30T21:10:09Z",
+  "elapsed_ms": 7.171,
+  "expected": {
+    "length": 67108864,
+    "sha256": "e6e17e2df5d8d41949a9c0e1b5ffa7595008811937b9aebb1b17d1332e9e276d"
+  },
+  "phase": "RECOVERY_CHECK",
+  "ready_file": "/var/tmp/afs-v44-owner-fault/ready.json",
+  "result_file": "/var/tmp/afs-v44-owner-fault/diagnostic-once-result.json",
+  "schema": "afs.owner_restart.v1",
+  "status": "READ_ERROR",
+  "target": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v44/mount-dfs/owner-restart-v44-64m.bin"
+}

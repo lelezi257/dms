@@ -1,0 +1,13 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "afs-accept-a",
+    "--",
+    "sudo",
+    "python3",
+    "-"
+  ],
+  "exit": 0,
+  "elapsed": 0.4826136250048876
+}

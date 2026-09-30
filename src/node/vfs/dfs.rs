@@ -689,6 +689,15 @@ impl RemoteProviderLifecycle {
             .map_err(|_| unavailable("DFS remote provider lifecycle is poisoned"))?
             .live)
     }
+
+    fn is_idle(&self) -> Result<bool> {
+        Ok(self
+            .state
+            .lock()
+            .map_err(|_| unavailable("DFS remote provider lifecycle is poisoned"))?
+            .inflight
+            == 0)
+    }
 }
 
 impl Drop for RemoteProviderIoGuard {
@@ -731,6 +740,7 @@ struct PendingRemoteReleaseKey {
 struct PendingRemoteRelease {
     owner: Arc<dyn RemoteDfsOwner>,
     handle: afs_protocol::node_control::DfsOwnerHandle,
+    lifecycle: Option<Arc<RemoteProviderLifecycle>>,
 }
 
 #[derive(Default)]
@@ -4132,6 +4142,16 @@ impl DistributedFs {
         handle: afs_protocol::node_control::DfsOwnerHandle,
         consume_reserved: bool,
     ) -> Result<()> {
+        self.queue_pending_remote_release_with_lifecycle(owner, handle, consume_reserved, None)
+    }
+
+    fn queue_pending_remote_release_with_lifecycle(
+        &self,
+        owner: Arc<dyn RemoteDfsOwner>,
+        handle: afs_protocol::node_control::DfsOwnerHandle,
+        consume_reserved: bool,
+        lifecycle: Option<Arc<RemoteProviderLifecycle>>,
+    ) -> Result<()> {
         let key = Self::remote_release_key(&handle);
         let mut state = self
             .pending_remote_releases
@@ -4150,10 +4170,63 @@ impl DistributedFs {
         if !state.entries.contains_key(&key) {
             state.order.push_back(key.clone());
         }
-        state
+        state.entries.entry(key).or_insert(PendingRemoteRelease {
+            owner,
+            handle,
+            lifecycle,
+        });
+        Ok(())
+    }
+
+    fn queue_remote_session_release_with_lifecycle(
+        &self,
+        remote: &RemoteDfsWriteSession,
+    ) -> Result<()> {
+        let mut handles = Vec::with_capacity(remote.release_slots);
+        if let Some(read_handle) = remote.read_handle.clone() {
+            handles.push(read_handle);
+        }
+        handles.push(remote.handle.clone());
+
+        let mut state = self
+            .pending_remote_releases
+            .lock()
+            .map_err(|_| unavailable("DFS pending remote release table is poisoned"))?;
+        let new_entries = handles
+            .iter()
+            .filter(|handle| {
+                let key = Self::remote_release_key(handle);
+                !state.entries.contains_key(&key)
+            })
+            .count();
+        let remaining_reserved = state.reserved.saturating_sub(handles.len());
+        if state
             .entries
-            .entry(key)
-            .or_insert(PendingRemoteRelease { owner, handle });
+            .len()
+            .saturating_add(new_entries)
+            .saturating_add(remaining_reserved)
+            > MAX_PENDING_REMOTE_RELEASES
+        {
+            return Err(Error::coded(
+                afs_error::NODE_VFS_UNAVAILABLE,
+                "DFS pending remote release table is full",
+            ));
+        }
+        state.reserved = state.reserved.saturating_sub(handles.len());
+        for handle in handles {
+            let key = Self::remote_release_key(&handle);
+            if !state.entries.contains_key(&key) {
+                state.order.push_back(key.clone());
+            }
+            state
+                .entries
+                .entry(key)
+                .or_insert_with(|| PendingRemoteRelease {
+                    owner: remote.owner.clone(),
+                    handle,
+                    lifecycle: Some(remote.lifecycle.clone()),
+                });
+        }
         Ok(())
     }
 
@@ -4209,6 +4282,15 @@ impl DistributedFs {
                     self.rotate_pending_remote_release(&key)?;
                     continue;
                 }
+            }
+            if let Some(lifecycle) = pending.lifecycle.as_ref()
+                && !lifecycle.is_idle()?
+            {
+                self.rotate_pending_remote_release(&key)?;
+                first_error.get_or_insert_with(|| {
+                    unavailable("DFS remote provider release is waiting for admitted IO")
+                });
+                continue;
             }
 
             let remaining = deadline.saturating_duration_since(std::time::Instant::now());
@@ -4284,13 +4366,26 @@ impl DistributedFs {
             .lock()
             .map_err(|_| unavailable("DFS pending remote release table is poisoned"))?;
         let current_matches = state.entries.get(key).is_some_and(|current| {
-            current.handle == pending.handle && Arc::ptr_eq(&current.owner, &pending.owner)
+            current.handle == pending.handle
+                && Arc::ptr_eq(&current.owner, &pending.owner)
+                && Self::same_pending_release_lifecycle(&current.lifecycle, &pending.lifecycle)
         });
         if current_matches {
             state.entries.remove(key);
             state.order.retain(|candidate| candidate != key);
         }
         Ok(current_matches)
+    }
+
+    fn same_pending_release_lifecycle(
+        left: &Option<Arc<RemoteProviderLifecycle>>,
+        right: &Option<Arc<RemoteProviderLifecycle>>,
+    ) -> bool {
+        match (left, right) {
+            (Some(left), Some(right)) => Arc::ptr_eq(left, right),
+            (None, None) => true,
+            _ => false,
+        }
     }
 
     pub fn pending_remote_release_count(&self) -> Result<usize> {
@@ -4466,7 +4561,12 @@ impl DistributedFs {
         let Some(remote) = session.remote.as_ref() else {
             return Err(invalid("DFS write session is local"));
         };
-        self.retire_released_remote_provider(inode_id, remote, previous_provider)?;
+        if let Err(error) =
+            self.retire_released_remote_provider(inode_id, remote, previous_provider)
+        {
+            self.queue_remote_session_release_with_lifecycle(remote)?;
+            return Err(error);
+        }
         self.remote_release(session)
     }
 
@@ -11429,6 +11529,93 @@ mod tests {
         fs_b.release(&context(), reader).unwrap();
         fs_b.release(&context(), writer).unwrap();
         assert!(fs_b.current_remote_provider(&inode_id).unwrap().is_none());
+        assert!(fs_a.handles.lock().unwrap().is_empty());
+    }
+
+    #[test]
+    fn remote_provider_retire_timeout_keeps_release_debt_until_io_guard_drops() {
+        let (_temp_a, meta, fs_a_raw) = test_fs();
+        meta.set_node_session("node-a", Some("session-a"));
+        let fs_a = Arc::new(fs_a_raw);
+        let created = fs_a
+            .create(
+                &context(),
+                fs_a.root_inode(),
+                OsStr::new("remote-provider-retire-timeout.bin"),
+                0o640,
+                libc::O_RDWR,
+            )
+            .unwrap();
+        fs_a.write(&context(), created.handle, 0, b"abcdef")
+            .unwrap();
+        fs_a.fsync(&context(), created.handle, SyncMode::Full)
+            .unwrap();
+        fs_a.release(&context(), created.handle).unwrap();
+
+        let temp_b = tempfile::tempdir().unwrap();
+        let chunks_b = Arc::new(LocalChunkStore::open(temp_b.path(), "node-b").unwrap());
+        let read_engine_b = Arc::new(crate::node::dfs_read::DfsReadEngine::new(
+            NamespaceId::new("default"),
+            "node-b".into(),
+            chunks_b.clone(),
+            Arc::new(crate::node::dfs_read::UnimplementedReadSourceProvider),
+            Arc::new(crate::node::dfs_read::UnimplementedChunkTransfer),
+            crate::node::dfs_read::DfsReadConfig::default(),
+        ));
+        let loopback = Arc::new(LoopbackRemoteDfsOwner {
+            owner: fs_a.clone(),
+            peer: "node-b".into(),
+        }) as Arc<dyn RemoteDfsOwner>;
+        let scripted = Arc::new(ScriptedReleaseRemoteDfsOwner::new(loopback, Vec::new()));
+        let remote_owner = scripted.clone() as Arc<dyn RemoteDfsOwner>;
+        let fs_b = DistributedFs::new(
+            NamespaceId::new("default"),
+            "node-b",
+            "session-b",
+            meta.clone(),
+            chunks_b,
+            read_engine_b,
+        )
+        .with_remote_owner_factory(Arc::new(StaticRemoteOwnerFactory {
+            owner: remote_owner,
+        }));
+        let inode_id = meta.inode.lock().unwrap().inode_id.clone();
+        let inode_b = fs_b.backend_inode(&inode_id).unwrap();
+        let writer = fs_b.open(&context(), inode_b, libc::O_WRONLY).unwrap();
+        let snapshot = fs_b.handle_snapshot(writer).unwrap();
+        let remote = snapshot
+            .write_session
+            .as_ref()
+            .and_then(|session| session.remote.as_ref())
+            .expect("remote write-only open installs a provider")
+            .clone();
+        let guard = remote
+            .lifecycle
+            .begin_io()
+            .unwrap()
+            .expect("live provider admits read IO");
+
+        let error = fs_b
+            .release(&context(), writer)
+            .expect_err("retire waits for admitted IO and reports timeout");
+        assert_eq!(error.code(), afs_error::NODE_VFS_UNAVAILABLE);
+        assert_eq!(scripted.release_call_count(), 0);
+        assert_eq!(fs_b.pending_remote_release_count().unwrap(), 2);
+        assert_eq!(fs_a.handles.lock().unwrap().len(), 2);
+        assert_eq!(fs_b.pending_remote_releases.lock().unwrap().reserved, 0);
+
+        fs_b.retry_pending_remote_releases()
+            .expect_err("maintenance must not release while provider IO is admitted");
+        assert_eq!(scripted.release_call_count(), 0);
+        assert_eq!(fs_b.pending_remote_release_count().unwrap(), 2);
+        assert_eq!(fs_a.handles.lock().unwrap().len(), 2);
+
+        drop(guard);
+
+        assert_eq!(fs_b.retry_pending_remote_releases().unwrap(), 2);
+        assert_eq!(scripted.release_call_count(), 2);
+        assert_eq!(fs_b.pending_remote_release_count().unwrap(), 0);
+        assert_eq!(fs_b.pending_remote_releases.lock().unwrap().reserved, 0);
         assert!(fs_a.handles.lock().unwrap().is_empty());
     }
 

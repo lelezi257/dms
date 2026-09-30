@@ -1,0 +1,476 @@
+{
+  "files": {
+    "README.md": {
+      "sha256": "5ae2a82a10e60bb4be28fac649cc435481bbf76860d89f07318c68e6dea40a7f",
+      "bytes": 7587
+    },
+    "host-source-hashes.json": {
+      "sha256": "4f84d3651bde72676d97b3572980034372afcd2377c13136b6003bc830397cdf",
+      "bytes": 14697
+    },
+    "linux-focused-corrected.log": {
+      "sha256": "749f4fa778fc9e12b47d4ce8cab59639a0fb54ff042093f92ca8fcbaa6621041",
+      "bytes": 2420
+    },
+    "linux-gate.sh": {
+      "sha256": "3d2489c348e5c618d13a78b01d23712e6c39efbe7c13db42b0a4db0d0b3583e6",
+      "bytes": 2069
+    },
+    "linux-initial-compile-failure.log": {
+      "sha256": "e2c657cdb70115b9b612bd82928a05b60130c8c325d2927dcc564fd17333e6ec",
+      "bytes": 13389
+    },
+    "linux-initial-fixture-failure.log": {
+      "sha256": "da63ababc29e803da3f2159cbd2841cce5992558dc5ffb23c081c974a516412d",
+      "bytes": 2285
+    },
+    "linux-original-injections.log": {
+      "sha256": "773714879346ce2eb7ec6ad1b182f16967ab2bfac9ed7301f9c3e79b59ce2971",
+      "bytes": 2559
+    },
+    "linux-probe-selftest.log": {
+      "sha256": "7e6c2112b27748b5f89220a11497b0ce9135f726530ac967469f32eed1819add",
+      "bytes": 4247
+    },
+    "linux-qualified-gate.log": {
+      "sha256": "7600bb7072a077eced4db827d0840b63d504db9c54211a85d8004f0997e7e0a3",
+      "bytes": 66809
+    },
+    "linux-source-hashes.json": {
+      "sha256": "b3e2a60ff15c194985b8836b5bb44acb2f7d439ba7c75ca0373f4bb1bceca19c",
+      "bytes": 14825
+    },
+    "owner-restart-controller.py": {
+      "sha256": "759d257597efc6095314eb6313a1bd62c9765a533a7cf101abe6f2fc0e1013f6",
+      "bytes": 10687
+    },
+    "qualification.json": {
+      "sha256": "06550556c954484b9ce549d736145fd7246eb717c153a134415082466fd580b0",
+      "bytes": 876
+    },
+    "v44-original-fault/01-preflight-a.command.json": {
+      "sha256": "7987dec22a3617fc8f5200b46d7597f7a50a6638e6eb99f21bff63c0176c3a44",
+      "bytes": 158
+    },
+    "v44-original-fault/01-preflight-a.py": {
+      "sha256": "0bde1f9740e3e309f72e144701a5374a71a8e4ebbacffd8cc515c12e394aeea3",
+      "bytes": 1782
+    },
+    "v44-original-fault/01-preflight-a.stderr": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "v44-original-fault/01-preflight-a.stdout": {
+      "sha256": "f542c6dcd6c3c26983c050924c5fecf54cf11b2840d94efc189f1c3f5b4d1493",
+      "bytes": 1646
+    },
+    "v44-original-fault/02-preflight-b.command.json": {
+      "sha256": "304ed052e2559dee4744ecce72891656c9e0d2954cb1de99cb84889ca4e6a5f1",
+      "bytes": 158
+    },
+    "v44-original-fault/02-preflight-b.py": {
+      "sha256": "263ba4f76dc36d4a902b902419fde0c259a373a040f9558681e3bc92cf0a1b40",
+      "bytes": 2151
+    },
+    "v44-original-fault/02-preflight-b.stderr": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "v44-original-fault/02-preflight-b.stdout": {
+      "sha256": "94fb921742ee6c34754cb188374e0814fbcf3e05b368f0b37a34d74d45396ee1",
+      "bytes": 1305
+    },
+    "v44-original-fault/03-durable-watermark.command.json": {
+      "sha256": "a942ab0b9777a61751de3776117c477f232d36ed1f8d8a6f30c706f27a8bf51a",
+      "bytes": 158
+    },
+    "v44-original-fault/03-durable-watermark.py": {
+      "sha256": "4d4001e1faec66cc098e11b1b649c16721f532a49612acaa9e984841e331f497",
+      "bytes": 564
+    },
+    "v44-original-fault/03-durable-watermark.stderr": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "v44-original-fault/03-durable-watermark.stdout": {
+      "sha256": "38b704c3e67577b0429884f83baf353cdf88800ce4486c9ddf38ce69f13a574b",
+      "bytes": 1058
+    },
+    "v44-original-fault/04-kill-owner.command.json": {
+      "sha256": "bb196143db8de12b6e14316c2086caf092bb06f11557d70e14bfa243a577301f",
+      "bytes": 158
+    },
+    "v44-original-fault/04-kill-owner.py": {
+      "sha256": "55330643c24b81ef0f70f41f469da49905a0134c8b0fa59038587383aa6d545e",
+      "bytes": 1987
+    },
+    "v44-original-fault/04-kill-owner.stderr": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "v44-original-fault/04-kill-owner.stdout": {
+      "sha256": "378a7cb58237f7ab3109ce65833d3aaf9b5bb0139a6f9a75c06bbca95d858c71",
+      "bytes": 1068
+    },
+    "v44-original-fault/05-close-after-crash-resumed.command.json": {
+      "sha256": "19372e32b86331e93a19174e2c794e30fd898140477e00d7ae15ce019ccd0dc2",
+      "bytes": 159
+    },
+    "v44-original-fault/05-close-after-crash-resumed.py": {
+      "sha256": "b4ea28ca84dd641f7bee937ddde00eed42dda58340e424dd2ee79fb5f2bdcb39",
+      "bytes": 484
+    },
+    "v44-original-fault/05-close-after-crash-resumed.stderr": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "v44-original-fault/05-close-after-crash-resumed.stdout": {
+      "sha256": "52a5bb09c2a1a22d720a02370a8766ece9a69c9425f4d3f77f5ed918aaa3077b",
+      "bytes": 1888
+    },
+    "v44-original-fault/05-close-after-crash.command.json": {
+      "sha256": "29d0ff87fc71d10504a8342cb41beb78f1cf1b46733496b15cc8e8d9194d356d",
+      "bytes": 158
+    },
+    "v44-original-fault/05-close-after-crash.py": {
+      "sha256": "c5d18b04d14793cd1cb8f1499ce506c5f46c2bcace890fd5ac0ede3737fa032f",
+      "bytes": 485
+    },
+    "v44-original-fault/05-close-after-crash.stderr": {
+      "sha256": "2491318ccb4f35eba39cd274329a9715ba214c050c7657dfffc7e66d4f3459e4",
+      "bytes": 287
+    },
+    "v44-original-fault/05-close-after-crash.stdout": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "v44-original-fault/06-debt-before-restart-resumed.command.json": {
+      "sha256": "0fc841fddba47357d9743913b0ccf51ab3b8585021def5c110731b882f94f1fb",
+      "bytes": 157
+    },
+    "v44-original-fault/06-debt-before-restart-resumed.py": {
+      "sha256": "8dd51161f50b4f6a992ddc866e90e9aeccff302bbdfd9e4e8f98e0c33b439e09",
+      "bytes": 250
+    },
+    "v44-original-fault/06-debt-before-restart-resumed.stderr": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "v44-original-fault/06-debt-before-restart-resumed.stdout": {
+      "sha256": "aced162d3815fb6508a8adb63605b9f246db6d43a361832e767ec80318b12f87",
+      "bytes": 1228
+    },
+    "v44-original-fault/07-restart-same-owner-disk-resumed.command.json": {
+      "sha256": "b6b4dc371fc8470a80887004c210a7202ed1cfe40fc730f9f1c26c8fd4d83e0d",
+      "bytes": 158
+    },
+    "v44-original-fault/07-restart-same-owner-disk-resumed.py": {
+      "sha256": "788e459612f290357c006cd988feaf55e6d422dee0aa3903b37acfe9bf37a8e8",
+      "bytes": 2957
+    },
+    "v44-original-fault/07-restart-same-owner-disk-resumed.stderr": {
+      "sha256": "062f03613f780f8d483d64bc5200e5ab6474ad945965736034134cf6a206226a",
+      "bytes": 112
+    },
+    "v44-original-fault/07-restart-same-owner-disk-resumed.stdout": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "v44-original-fault/10-diagnostic-stale-socket-restart.command.json": {
+      "sha256": "77324618d51b843721b60a528430755e73f79ebe9655936a476285e68471563d",
+      "bytes": 157
+    },
+    "v44-original-fault/10-diagnostic-stale-socket-restart.py": {
+      "sha256": "7e645559d33bc9b7340bdd414612a4367025cfc2b70abe7965c2436c4b57d874",
+      "bytes": 3359
+    },
+    "v44-original-fault/10-diagnostic-stale-socket-restart.stderr": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "v44-original-fault/10-diagnostic-stale-socket-restart.stdout": {
+      "sha256": "9769c68108768bbc8d87ef7dfc73f2fb031537eb6f877d19d16d90ec0cde2a6a",
+      "bytes": 1691
+    },
+    "v44-original-fault/11-diagnostic-fresh-read.command.json": {
+      "sha256": "0561c49360caa283e630008d66835084074eeb50ee4a21503e0ca42839e72630",
+      "bytes": 157
+    },
+    "v44-original-fault/11-diagnostic-fresh-read.py": {
+      "sha256": "c87043ca1bcb9918cc4a4c10a227aadcea750473ddb1ae4328b3a46f9e323623",
+      "bytes": 713
+    },
+    "v44-original-fault/11-diagnostic-fresh-read.stderr": {
+      "sha256": "af47c8e6844d62a47e001ed7cb32a40fe87ae03423db7b4385c20a954d41ff98",
+      "bytes": 1080
+    },
+    "v44-original-fault/11-diagnostic-fresh-read.stdout": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "v44-original-fault/12-diagnostic-once.log": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "v44-original-fault/guest-state/diagnostic-once-result.json": {
+      "sha256": "888d4b5922ab93c846c8e8e17c8e2433afaeb6aa1fd015f35f4dfabfd6ad677b",
+      "bytes": 695
+    },
+    "v44-original-fault/guest-state/ready.json": {
+      "sha256": "f29f363a0c355a3c6b32f7a19eae68134f8e47734584157d5e8a55e541a58d6c",
+      "bytes": 1194
+    },
+    "v44-original-fault/guest-state/writer-result.json": {
+      "sha256": "63f33f9c88395dbe21b2fb3656247098794fdaecad6ec749357f3c71f15655a0",
+      "bytes": 2212
+    },
+    "v44-original-fault/node-restart-v44.log": {
+      "sha256": "d3781b31082da4d87e29f066fb5c96c0244b603829f67f1b9f4a801a1afcfa89",
+      "bytes": 146
+    },
+    "v44-original-fault/report-failure.json": {
+      "sha256": "e6f6166ab9779d5b2b421637930853284e6cbb528e9b2dc5bd6350bc18efb0b8",
+      "bytes": 10059
+    },
+    "v45-consistency/report.json": {
+      "sha256": "2cfd1fe463937777188daa2587c352a2a8bca09182b04bce0d922ce0647536ba",
+      "bytes": 295313
+    },
+    "v45-consistency/summary.txt": {
+      "sha256": "7f180e18ca871f0c731129b02f104d2701f66eecb25a358dabb452ae0534a65a",
+      "bytes": 199
+    },
+    "v45-consistency-command.json": {
+      "sha256": "e2eb5b5a85f3affb7bec986fbfa2d9799ed79e706372cef344a6c149ecd42800",
+      "bytes": 1353
+    },
+    "v45-consistency-controller.log": {
+      "sha256": "1ec074dc556355bbc30c769cc024e5bc0e81aec8609d3bcbeb87fa8cd88424be",
+      "bytes": 181
+    },
+    "v45-dfs-cross/report.json": {
+      "sha256": "03b565a6ee949f1a375b927087b898b41863c695e279d110c620998673c0b7e0",
+      "bytes": 232051
+    },
+    "v45-dfs-cross/summary.txt": {
+      "sha256": "162597d036779f532fa1880bac8d55a8c67847a0a69ecdde3876ce36bc786976",
+      "bytes": 229
+    },
+    "v45-dfs-cross-command.json": {
+      "sha256": "ac3acadc89745e3bd5cedabe0ccc30d19179c1982f2771b9cb9082bcd68b9f0b",
+      "bytes": 1482
+    },
+    "v45-dfs-cross-controller.log": {
+      "sha256": "e0b0bd45ed5f1664d81acd7a2d02c0970b6baa5f0ce0f515047f506eca3c760f",
+      "bytes": 179
+    },
+    "v45-fault-controller.log": {
+      "sha256": "ba3eadd039b5f45a7d86c30f17cb5ade3c7c1823ecc2020edc017050c46b08d8",
+      "bytes": 128
+    },
+    "v45-ownerfs-cross/report.json": {
+      "sha256": "15d5081b6da4366503fd19bd784fc423f38e93c96727ddd3500083c73b63fce4",
+      "bytes": 240756
+    },
+    "v45-ownerfs-cross/summary.txt": {
+      "sha256": "152ed1ed7d3219de44d2937cdbb4f308ffda36e86c15dcc31b0c6b5c6f825363",
+      "bytes": 233
+    },
+    "v45-ownerfs-cross-command.json": {
+      "sha256": "406d5d2d497bb5a6059b2d880da40be77cd1185567122c37d5ebc524d26a1947",
+      "bytes": 1658
+    },
+    "v45-ownerfs-cross-controller.log": {
+      "sha256": "a98f30e454c92700f3e88c8b89d2cebd08bbfdfd3777f31a73e53c91e164e4da",
+      "bytes": 183
+    },
+    "v45-recovered-fault/01-preflight-a.command.json": {
+      "sha256": "203d0b78c6483d74db85cb2a675e3616337c9f7ac3d4da3bbbf4d70262bd9d72",
+      "bytes": 158
+    },
+    "v45-recovered-fault/01-preflight-a.py": {
+      "sha256": "0e9353f558805f1649127660fcbb6d88d1e71a751b391bd69d69ee7a1bcfd33d",
+      "bytes": 1782
+    },
+    "v45-recovered-fault/01-preflight-a.stderr": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "v45-recovered-fault/01-preflight-a.stdout": {
+      "sha256": "6c41baa3341d8018500ce29c9034010649c04966904f2895e284350b189b7112",
+      "bytes": 1646
+    },
+    "v45-recovered-fault/02-preflight-b.command.json": {
+      "sha256": "c318357929296d20752d249a52f7800a08317a8da04af9e77f98a8518d761d3f",
+      "bytes": 159
+    },
+    "v45-recovered-fault/02-preflight-b.py": {
+      "sha256": "a3378dcca44babe7c1e467fda6c974c76cca48e302ae92f96802ef1381c9e1e6",
+      "bytes": 2179
+    },
+    "v45-recovered-fault/02-preflight-b.stderr": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "v45-recovered-fault/02-preflight-b.stdout": {
+      "sha256": "c1f5129dbc85accf97bbe667ec0c2c052d84f3d9917d673d3055cfd0b6b04269",
+      "bytes": 1303
+    },
+    "v45-recovered-fault/03-durable-watermark.command.json": {
+      "sha256": "6714d4d6c7381a8789617d873cba82f214a9def2ed00287000a59e0aaf70dc48",
+      "bytes": 158
+    },
+    "v45-recovered-fault/03-durable-watermark.py": {
+      "sha256": "b8a61367b54c570f1c1449240afb355bf46ab3bc1ad65b9fbb531a56fa3297ae",
+      "bytes": 564
+    },
+    "v45-recovered-fault/03-durable-watermark.stderr": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "v45-recovered-fault/03-durable-watermark.stdout": {
+      "sha256": "c7e89d2504401e0d801ecb5841fa7079465d833b431f0db93f13c22154b2bb02",
+      "bytes": 1057
+    },
+    "v45-recovered-fault/04-kill-owner.command.json": {
+      "sha256": "df1ebd544837a655da2346618922a269a984d1fbce84e86c1d5decefa709af20",
+      "bytes": 158
+    },
+    "v45-recovered-fault/04-kill-owner.py": {
+      "sha256": "e05af671df86295d915ce9714822ed21fc6acd24c9517cafb8ca617eaf72d469",
+      "bytes": 1987
+    },
+    "v45-recovered-fault/04-kill-owner.stderr": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "v45-recovered-fault/04-kill-owner.stdout": {
+      "sha256": "2697810bb6f9f544a7328e86d1d38c4929d2b866d548309abbbfdf8c3b55e706",
+      "bytes": 1066
+    },
+    "v45-recovered-fault/05-close-after-crash.command.json": {
+      "sha256": "7002a473ec4b9eeca8e5d8a439bc25ab7fc93b3986209a4677b24c6736ae7a7e",
+      "bytes": 159
+    },
+    "v45-recovered-fault/05-close-after-crash.py": {
+      "sha256": "8ad1af063ff27ae689185e1eb0bd6bc935686641f58184a2d94a6cee2bcc1e75",
+      "bytes": 484
+    },
+    "v45-recovered-fault/05-close-after-crash.stderr": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "v45-recovered-fault/05-close-after-crash.stdout": {
+      "sha256": "9825746a68af97dc3134dcc9a45d2a38b3712dce8b01c80df9664ae50ae8827f",
+      "bytes": 1873
+    },
+    "v45-recovered-fault/06-debt-before-restart.command.json": {
+      "sha256": "bfbdd694c21cd5e2f9f496888b0f7d1057c63de7ce36b4a757e3e4ba0fe5d5bf",
+      "bytes": 159
+    },
+    "v45-recovered-fault/06-debt-before-restart.py": {
+      "sha256": "ea5cf79d74c34ca82c2cd1f27fefa1745c2f5db270c64ac2132c9ac89b732e51",
+      "bytes": 234
+    },
+    "v45-recovered-fault/06-debt-before-restart.stderr": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "v45-recovered-fault/06-debt-before-restart.stdout": {
+      "sha256": "03403cb2b9a10d6e9a36aacca85d05f2053ee56c5c0349ac66be2be2a389b299",
+      "bytes": 1045
+    },
+    "v45-recovered-fault/07-restart-same-owner-disk.command.json": {
+      "sha256": "1e0a586ad1c6b1f5cae6e4b149be3e6e8b51f72ecba020c110255b091512f981",
+      "bytes": 158
+    },
+    "v45-recovered-fault/07-restart-same-owner-disk.py": {
+      "sha256": "0d4cec4c1298830e029793e90e0b9e4088503c205b7ad93b8f54faa910c9ab29",
+      "bytes": 2957
+    },
+    "v45-recovered-fault/07-restart-same-owner-disk.stderr": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "v45-recovered-fault/07-restart-same-owner-disk.stdout": {
+      "sha256": "e2d8d603077dd0fd3a46cda0b00da3b74039deaf3f68620c52447acaafe5e374",
+      "bytes": 1689
+    },
+    "v45-recovered-fault/08-fresh-read.command.json": {
+      "sha256": "644a83635b9e787cc01fcd17348b7d609f8f04590a2ebfbf47f5dfbe71a71976",
+      "bytes": 158
+    },
+    "v45-recovered-fault/08-fresh-read.py": {
+      "sha256": "64aa09f5c0259be0667d88e20237db90b25f7aefb1a1fd701316bde016c19537",
+      "bytes": 771
+    },
+    "v45-recovered-fault/08-fresh-read.stderr": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "v45-recovered-fault/08-fresh-read.stdout": {
+      "sha256": "2685ecebf59eddef7aac5266c4c0a595225b8bda418ce342c96d3a54a29c5f04",
+      "bytes": 1240
+    },
+    "v45-recovered-fault/09-retirement-after-restart.command.json": {
+      "sha256": "f210dbe36dec7633d25f3af14d2ac8557d9af42463790985340c3d2fe9dc4846",
+      "bytes": 157
+    },
+    "v45-recovered-fault/09-retirement-after-restart.py": {
+      "sha256": "8c13caaaac7e023cfa02df39673bfbfad6f540c1809f04e8fb8339cb6f551729",
+      "bytes": 1395
+    },
+    "v45-recovered-fault/09-retirement-after-restart.stderr": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "v45-recovered-fault/09-retirement-after-restart.stdout": {
+      "sha256": "e46760197eb7e827f2e38dd35f31f5bca286da875f2a02c0702391c1af21e033",
+      "bytes": 1433
+    },
+    "v45-recovered-fault/guest-state/afs-v45-owner-fault/check-result.json": {
+      "sha256": "dd89a6c9b4c78fb6ee8057098d87e6c822f3eafc502d48f9286383a554562a10",
+      "bytes": 972
+    },
+    "v45-recovered-fault/guest-state/afs-v45-owner-fault/ready.json": {
+      "sha256": "d2ef01c90ba7e212f77bf81c5f462d618065b1a84e11264d4e7c7d631bba2ce2",
+      "bytes": 1193
+    },
+    "v45-recovered-fault/guest-state/afs-v45-owner-fault/trigger": {
+      "sha256": "1362d413740c56a2c57990b0f0d4fda754e4a7091e8a3eccf35bf9e51bcaa931",
+      "bytes": 28
+    },
+    "v45-recovered-fault/guest-state/afs-v45-owner-fault/writer-result.json": {
+      "sha256": "66e8d1c377b2131fda1fe14016fac047c61381008f272319560d502751c4b978",
+      "bytes": 2197
+    },
+    "v45-recovered-fault/guest-state/afs-v45-owner-fault/writer.log": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "v45-recovered-fault/report.json": {
+      "sha256": "462b7c884155f288bdb2315d07067360914ce7e1187d591d0f96694c0dbd8f05",
+      "bytes": 30037
+    },
+    "v45-socket-identity.txt": {
+      "sha256": "460197943471da06375c32b00635b9a097b3c246904fffd487389023dc141c7a",
+      "bytes": 197
+    },
+    "v45-start-a.log": {
+      "sha256": "0ef09902f19d03b8f1797b12640264b8f6a78d6af3b993b749b1a00f5147ced5",
+      "bytes": 2642
+    },
+    "v45-start-b.log": {
+      "sha256": "1d287cf3b52cbacae85487c11c92c67babd1e6a0d40c13c43873dd1b0ff765ed",
+      "bytes": 100
+    },
+    "v45-stop-a.log": {
+      "sha256": "8a921ca5f2d300f02e72c20b1bbb5240dadba9ed41370ad6b8f4bf83b05128d4",
+      "bytes": 188
+    },
+    "v45-stop-b.log": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    }
+  }
+}

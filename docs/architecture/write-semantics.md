@@ -60,6 +60,8 @@ Caller admission is serialized per caller-to-owner session route, so a later seq
 
 A remote read provider admits reads and attribute requests through one shared lifetime guard. Close first stops new admissions and removes or replaces that exact provider, then waits for its admitted I/O before releasing owner handles. Replacement must still be live at publication. A fresh read cannot reuse a closing provider, and a reader already admitted can finish without its owner handle disappearing beneath the RPC. Network calls do not hold the provider or handle-table mutex.
 
+The provider idle wait is bounded. If it times out, close reports the error and transfers its exact owner handles and shared lifetime guard to the bounded cleanup queue. The reservation becomes pending debt rather than disappearing. For the same live owner session, maintenance releases those handles only after admitted I/O drains. Authoritative owner-session replacement or expiry can retire the old identity; an unknown lookup retains it. A bounded provider wait does not by itself establish a total Node writeback or shutdown deadline.
+
 ## Commit Flow
 
 ```text

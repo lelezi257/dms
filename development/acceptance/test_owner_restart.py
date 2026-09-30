@@ -117,6 +117,25 @@ class OwnerRestartProtocolTests(unittest.TestCase):
             self.assertEqual(check_json["status"], "PASS")
             self.assertEqual(check_json["actual"]["length"], 64 * 1024)
 
+    def test_checker_reports_first_open_error_without_retry(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            ext4_or_skip(self, root)
+            ready = root / "ready.json"
+            ready.write_text(json.dumps({"payload": {"size": 3, "sha256": "unused"}}))
+            output = root / "read-error.json"
+            started = time.monotonic()
+            result = subprocess.run([
+                sys.executable, str(PROBE), "check", "--target", str(root / "missing"),
+                "--ready-file", str(ready), "--result-file", str(output), "--open-timeout", "5",
+            ], text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=10)
+            self.assertEqual(result.returncode, 1, result.stderr)
+            self.assertLess(time.monotonic() - started, 2)
+            report = json.loads(output.read_text())
+            self.assertEqual(report["status"], "READ_ERROR")
+            self.assertEqual(len(report["attempts"]), 1)
+            self.assertEqual(report["attempts"][0]["errno_name"], "ENOENT")
+
     def test_checker_fails_immediately_on_stale_or_wrong_bytes(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

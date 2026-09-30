@@ -1,0 +1,13 @@
+Traceback (most recent call last):
+  File "<stdin>", line 3, in <module>
+  File "/usr/lib/python3.12/subprocess.py", line 550, in run
+    stdout, stderr = process.communicate(input, timeout=timeout)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/subprocess.py", line 1209, in communicate
+    stdout, stderr = self._communicate(input, endtime, timeout)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/subprocess.py", line 2116, in _communicate
+    self._check_timeout(endtime, orig_timeout, stdout, stderr)
+  File "/usr/lib/python3.12/subprocess.py", line 1253, in _check_timeout
+    raise TimeoutExpired(
+subprocess.TimeoutExpired: Command '['python3', '/var/tmp/afs-v44-owner-restart.py', 'check', '--target', '/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v44/mount-dfs/owner-restart-v44-64m.bin', '--ready-file', '/var/tmp/afs-v44-owner-fault/ready.json', '--result-file', '/var/tmp/afs-v44-owner-fault/diagnostic-check-result.json', '--open-timeout', '30']' timed out after 30 seconds

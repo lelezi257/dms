@@ -1,0 +1,244 @@
+{
+  "accounting": {
+    "accounting_identity": {
+      "no_post_failure_filtering": true,
+      "tap_total_accounted": 241,
+      "tap_total_observed": 241,
+      "todo_is_counted_not_filtered": true
+    },
+    "discovered_files": 236,
+    "executed_files": 4,
+    "incomplete_files": 232,
+    "not_ok_lines": [],
+    "profile": "smoke",
+    "prove_files": 4,
+    "prove_result": "PASS",
+    "prove_tests": 241,
+    "selected_files": 4,
+    "selected_tests": [
+      "open/00.t",
+      "mkdir/00.t",
+      "rename/00.t",
+      "mknod/00.t"
+    ],
+    "skip_lines": [],
+    "stderr_bytes": 0,
+    "stdout_bytes": 1949,
+    "tap_not_ok": 0,
+    "tap_ok": 241,
+    "tap_planned": 241,
+    "tap_skip": 0,
+    "tap_todo": 0,
+    "tap_todo_not_ok": 0,
+    "tap_unexpected_fail": 0,
+    "todo_lines": [],
+    "uid_drop_test_file_count": 62,
+    "unexpected_fail_lines": [],
+    "upstream_todo_source_file_count": 0
+  },
+  "artifacts": {
+    "manifest": [
+      {
+        "bytes": 641,
+        "path": "artifacts/std-01-pjdfstest/command.json",
+        "sha256": "4e9729e5ddd045e4a04211ff80ec9a835d2c1b92a99707ee9b0d55ddae706df7"
+      },
+      {
+        "bytes": 5965,
+        "path": "artifacts/std-01-pjdfstest/discovery.json",
+        "sha256": "562922889dc3779126a6203759241aef8639892069bd5a0e1c3482df834c3869"
+      },
+      {
+        "bytes": 3023,
+        "path": "artifacts/std-01-pjdfstest/identity.json",
+        "sha256": "cdc0e9d31ed67f75547a795ead7af7d2ed8b5694a9080181f27b204a2233300a"
+      },
+      {
+        "bytes": 0,
+        "path": "artifacts/std-01-pjdfstest/pjdfstest.stderr.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 1949,
+        "path": "artifacts/std-01-pjdfstest/pjdfstest.stdout.tap",
+        "sha256": "8e6a5b706ce639369e30b548b1f8df861b2fa45ab43743972e868ec02f2752e7"
+      },
+      {
+        "bytes": 822,
+        "path": "artifacts/std-01-pjdfstest/tap-accounting.json",
+        "sha256": "8d269e8b294cab06ef443fc80308f199e17df39b3ec5a59e9126e44597cc0660"
+      }
+    ],
+    "root": "artifacts/std-01-pjdfstest"
+  },
+  "case_id": "STD-01",
+  "checks": [
+    {
+      "artifact": "artifacts/std-01-pjdfstest/identity.json",
+      "evidence": {
+        "executable_exists": true,
+        "expected": "d25636a227606f8960e5179741d8f4ad7030ef41",
+        "observed": "d25636a227606f8960e5179741d8f4ad7030ef41"
+      },
+      "name": "pinned-suite-identity",
+      "status": "PASS"
+    },
+    {
+      "artifact": "artifacts/std-01-pjdfstest/discovery.json",
+      "evidence": {
+        "euid": 0,
+        "uid_drop_test_file_count": 62
+      },
+      "name": "root-harness",
+      "status": "PASS"
+    },
+    {
+      "artifact": "artifacts/std-01-pjdfstest/identity.json",
+      "evidence": {
+        "findmnt_returncode": 0,
+        "mount": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v37/mount-dfs"
+      },
+      "name": "mount-identity",
+      "status": "PASS"
+    },
+    {
+      "artifact": "artifacts/std-01-pjdfstest/identity.json",
+      "evidence": {
+        "base_dir": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v37/mount-dfs",
+        "exists": true,
+        "is_dir": true,
+        "mount": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v37/mount-dfs",
+        "under_mount": true
+      },
+      "name": "base-dir-scope",
+      "status": "PASS"
+    },
+    {
+      "artifact": "artifacts/std-01-pjdfstest/discovery.json",
+      "evidence": {
+        "discovered_files": 236
+      },
+      "name": "discovery",
+      "status": "PASS"
+    },
+    {
+      "artifact": "artifacts/std-01-pjdfstest/command.json",
+      "evidence": {
+        "returncode": 0,
+        "timed_out": false,
+        "timeout_seconds": 180
+      },
+      "name": "subprocess-bound",
+      "status": "PASS"
+    },
+    {
+      "artifact": "artifacts/std-01-pjdfstest/tap-accounting.json",
+      "evidence": {
+        "accounting_identity": {
+          "no_post_failure_filtering": true,
+          "tap_total_accounted": 241,
+          "tap_total_observed": 241,
+          "todo_is_counted_not_filtered": true
+        },
+        "discovered_files": 236,
+        "executed_files": 4,
+        "incomplete_files": 232,
+        "not_ok_lines": [],
+        "profile": "smoke",
+        "prove_files": 4,
+        "prove_result": "PASS",
+        "prove_tests": 241,
+        "selected_files": 4,
+        "selected_tests": [
+          "open/00.t",
+          "mkdir/00.t",
+          "rename/00.t",
+          "mknod/00.t"
+        ],
+        "skip_lines": [],
+        "stderr_bytes": 0,
+        "stdout_bytes": 1949,
+        "tap_not_ok": 0,
+        "tap_ok": 241,
+        "tap_planned": 241,
+        "tap_skip": 0,
+        "tap_todo": 0,
+        "tap_todo_not_ok": 0,
+        "tap_unexpected_fail": 0,
+        "todo_lines": [],
+        "uid_drop_test_file_count": 62,
+        "unexpected_fail_lines": [],
+        "upstream_todo_source_file_count": 0
+      },
+      "name": "tap-accounting",
+      "status": "PASS"
+    },
+    {
+      "artifact": "artifacts/std-01-pjdfstest/pjdfstest.stdout.tap",
+      "evidence": {
+        "prove_result": "PASS",
+        "returncode": 0,
+        "tap_todo": 0,
+        "tap_unexpected_fail": 0
+      },
+      "name": "pjdfstest-result",
+      "status": "PASS"
+    }
+  ],
+  "command": {
+    "argv": [
+      "prove",
+      "-e",
+      "/bin/sh",
+      "-rv",
+      "/mnt/lima-afsbdata/afs-acceptance/suites-reference/src/pjdfstest/tests/open/00.t",
+      "/mnt/lima-afsbdata/afs-acceptance/suites-reference/src/pjdfstest/tests/mkdir/00.t",
+      "/mnt/lima-afsbdata/afs-acceptance/suites-reference/src/pjdfstest/tests/rename/00.t",
+      "/mnt/lima-afsbdata/afs-acceptance/suites-reference/src/pjdfstest/tests/mknod/00.t"
+    ],
+    "cwd": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v37/mount-dfs/.afs-std01-pjdfstest-20260930T190558Z-e21a7722",
+    "duration_seconds": 69.204,
+    "returncode": 0,
+    "timed_out": false,
+    "timeout_seconds": 180
+  },
+  "coverage": {
+    "axes": {
+      "reference": {
+        "values": [
+          "afs-dfs"
+        ]
+      },
+      "suite_sha": {
+        "values": [
+          "sanwan/pjdfstest d25636a227606f8960e5179741d8f4ad7030ef41"
+        ]
+      }
+    },
+    "profile": "smoke"
+  },
+  "fixture": {
+    "base_dir": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v37/mount-dfs",
+    "kept": false,
+    "path": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v37/mount-dfs/.afs-std01-pjdfstest-20260930T190558Z-e21a7722"
+  },
+  "identity": {
+    "artifact": "artifacts/std-01-pjdfstest/identity.json",
+    "product": {
+      "backend": "dfs",
+      "base_dir": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v37/mount-dfs",
+      "mount_path": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v37/mount-dfs"
+    }
+  },
+  "matrix": {
+    "meta": "memory",
+    "reference": "afs-dfs",
+    "suite_sha": "sanwan/pjdfstest d25636a227606f8960e5179741d8f4ad7030ef41"
+  },
+  "notes": [
+    "Worker suite execution is qualified by standard.py host strict Node/Meta identity checks."
+  ],
+  "profile": "smoke",
+  "reason": "",
+  "status": "PASS"
+}

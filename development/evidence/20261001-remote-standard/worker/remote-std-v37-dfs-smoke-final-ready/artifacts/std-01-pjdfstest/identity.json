@@ -1,0 +1,92 @@
+{
+  "base_mount": {
+    "argv": [
+      "findmnt",
+      "-T",
+      "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v37/mount-dfs",
+      "-o",
+      "TARGET,SOURCE,FSTYPE,OPTIONS",
+      "--json"
+    ],
+    "returncode": 0,
+    "stderr": "",
+    "stdout": "{\n   \"filesystems\": [\n      {\n         \"target\": \"/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v37/mount-dfs\",\n         \"source\": \"afs-dfs\",\n         \"fstype\": \"fuse\",\n         \"options\": \"rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other\"\n      }\n   ]\n}\n"
+  },
+  "created_at": "2026-09-30T19:05:58Z",
+  "host": {
+    "argv": [
+      "hostname"
+    ],
+    "returncode": 0,
+    "stderr": "",
+    "stdout": "lima-afs-accept-b\n"
+  },
+  "mount": {
+    "argv": [
+      "findmnt",
+      "-T",
+      "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v37/mount-dfs",
+      "-o",
+      "TARGET,SOURCE,FSTYPE,OPTIONS",
+      "--json"
+    ],
+    "returncode": 0,
+    "stderr": "",
+    "stdout": "{\n   \"filesystems\": [\n      {\n         \"target\": \"/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v37/mount-dfs\",\n         \"source\": \"afs-dfs\",\n         \"fstype\": \"fuse\",\n         \"options\": \"rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other\"\n      }\n   ]\n}\n"
+  },
+  "platform": {
+    "gid": 0,
+    "machine": "aarch64",
+    "python": "3.12.3",
+    "release": "6.8.0-142-generic",
+    "system": "Linux",
+    "uid": 0
+  },
+  "product": {
+    "backend": "dfs",
+    "base_dir": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v37/mount-dfs",
+    "mount_path": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v37/mount-dfs"
+  },
+  "suite": {
+    "executable": "/mnt/lima-afsbdata/afs-acceptance/suites-reference/src/pjdfstest/pjdfstest",
+    "executable_exists": true,
+    "executable_sha256": "83f27ae21a4de5c2dabc447238c83f21c1a17558e61762ec52fe7ffbcf61f780",
+    "expected_revision": "d25636a227606f8960e5179741d8f4ad7030ef41",
+    "git_head": "d25636a227606f8960e5179741d8f4ad7030ef41",
+    "git_head_command": {
+      "argv": [
+        "git",
+        "-C",
+        "/mnt/lima-afsbdata/afs-acceptance/suites-reference/src/pjdfstest",
+        "rev-parse",
+        "HEAD"
+      ],
+      "returncode": 0,
+      "stderr": "",
+      "stdout": "d25636a227606f8960e5179741d8f4ad7030ef41\n"
+    },
+    "git_status_command": {
+      "argv": [
+        "git",
+        "-C",
+        "/mnt/lima-afsbdata/afs-acceptance/suites-reference/src/pjdfstest",
+        "status",
+        "--porcelain"
+      ],
+      "returncode": 0,
+      "stderr": "",
+      "stdout": "?? configure~\n"
+    },
+    "git_status_porcelain": "?? configure~\n",
+    "suite_root": "/mnt/lima-afsbdata/afs-acceptance/suites-reference/src/pjdfstest"
+  },
+  "uname": {
+    "argv": [
+      "uname",
+      "-a"
+    ],
+    "returncode": 0,
+    "stderr": "",
+    "stdout": "Linux lima-afs-accept-b 6.8.0-142-generic #142-Ubuntu SMP PREEMPT_DYNAMIC Wed Sep  2 14:30:29 UTC 2026 aarch64 aarch64 aarch64 GNU/Linux\n"
+  }
+}

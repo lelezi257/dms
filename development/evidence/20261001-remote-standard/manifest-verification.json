@@ -1,0 +1,86 @@
+{
+  "status": "PASS",
+  "worker_proof_matches_host": true,
+  "manifest_file_count": 7,
+  "files": [
+    {
+      "location": "host",
+      "path": "artifacts/std-01-pjdfstest/remote-worker-records.json",
+      "bytes_match": true,
+      "sha256_match": true
+    },
+    {
+      "location": "worker",
+      "path": "artifacts/std-01-pjdfstest/command.json",
+      "bytes_match": true,
+      "sha256_match": true
+    },
+    {
+      "location": "worker",
+      "path": "artifacts/std-01-pjdfstest/discovery.json",
+      "bytes_match": true,
+      "sha256_match": true
+    },
+    {
+      "location": "worker",
+      "path": "artifacts/std-01-pjdfstest/identity.json",
+      "bytes_match": true,
+      "sha256_match": true
+    },
+    {
+      "location": "worker",
+      "path": "artifacts/std-01-pjdfstest/pjdfstest.stderr.log",
+      "bytes_match": true,
+      "sha256_match": true
+    },
+    {
+      "location": "worker",
+      "path": "artifacts/std-01-pjdfstest/pjdfstest.stdout.tap",
+      "bytes_match": true,
+      "sha256_match": true
+    },
+    {
+      "location": "worker",
+      "path": "artifacts/std-01-pjdfstest/tap-accounting.json",
+      "bytes_match": true,
+      "sha256_match": true
+    }
+  ],
+  "accounting": {
+    "accounting_identity": {
+      "no_post_failure_filtering": true,
+      "tap_total_accounted": 241,
+      "tap_total_observed": 241,
+      "todo_is_counted_not_filtered": true
+    },
+    "discovered_files": 236,
+    "executed_files": 4,
+    "incomplete_files": 232,
+    "not_ok_lines": [],
+    "profile": "smoke",
+    "prove_files": 4,
+    "prove_result": "PASS",
+    "prove_tests": 241,
+    "selected_files": 4,
+    "selected_tests": [
+      "open/00.t",
+      "mkdir/00.t",
+      "rename/00.t",
+      "mknod/00.t"
+    ],
+    "skip_lines": [],
+    "stderr_bytes": 0,
+    "stdout_bytes": 1949,
+    "tap_not_ok": 0,
+    "tap_ok": 241,
+    "tap_planned": 241,
+    "tap_skip": 0,
+    "tap_todo": 0,
+    "tap_todo_not_ok": 0,
+    "tap_unexpected_fail": 0,
+    "todo_lines": [],
+    "uid_drop_test_file_count": 62,
+    "unexpected_fail_lines": [],
+    "upstream_todo_source_file_count": 0
+  }
+}

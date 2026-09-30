@@ -31,6 +31,8 @@ Identified A/B v37 memory-backed OwnerFs/DFS mounts pass ten cross-mount consist
 
 The complete v37 OwnerFs pjdfstest run executes all 236 files and accounts for 8819 TAP checks, with zero unexpected failures/skips and 28 upstream TODO. Before/after process, configuration and mount identity checks pass. The preserved v36 full run has ten unexpected `rename/23.t` failures: the surviving hardlink returned `ESTALE`. Two targeted regressions fail with the original rename logic and pass after canonical path rebind. The complete v37 DFS run also passes all 236 files / 8819 checks with zero unexpected failures/skips, 28 original TODO, and all pre/post identity checks. [The earlier DFS v26 full result](../development/evidence/20260930-resume/README.md) binds its own binary and does not qualify the current candidate or unrun backend variants. Full-suite success here covers this development matrix, not the entire POSIX release contract.
 
+The remote STD-01 driver passes 48 Linux selftests and an actual B DFS smoke run with strict A Meta/B Node identity: four files / 241 checks, zero unexpected failures/skips. Pre/post process, configuration, TLS, endpoint, mount and guest-ext4 evidence checks pass. All seven retrieved raw artifact manifest entries match exact bytes. The smoke profile accounts for 232 discovered files that it did not run. [Driver evidence](../development/evidence/20261001-remote-standard/README.md) does not qualify the full remote or backend matrix.
+
 The formal 69-case release manifest remains NOT_RUN and the environment lock PREPARING. No mandatory release or performance gate is declared complete by these short checks.
 
 ## Known Open Items

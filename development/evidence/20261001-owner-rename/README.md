@@ -18,6 +18,7 @@ Date: 2026-10-01. Linux ARM64 development lane, memory Meta, independent A/B FUS
 | v37 full DFS pjdfstest | PASS: 236 files / 8819 checks, zero unexpected failures/skips, 28 upstream TODO | [Qualified result](v37/full-dfs/dfs/qualification.json) |
 | v37 actual OwnerFs cross-mount locks | Seven PASS, including 35-second waits | [Report](v37/owner-cross/report.json) |
 | v37 actual DFS cross-mount locks under namespace load | FAIL: six PASS, interrupted blocking wait exceeds 55 seconds | [Original failure](v37/dfs-cross/report.json) |
+| v37 actual DFS cross-mount locks after namespace load ended | Seven PASS; diagnostic repeat, not a repair qualification | [Repeat](v37/dfs-cross-repeat/report.json) |
 
 ## Mechanism
 
@@ -32,4 +33,4 @@ Meta SHA256: `ffe7268031438318de65ee999e4872846974784141fba4d85ad451865a958d01`.
 
 A Node PID576329 / Meta PID576299; B Node PID8811. PIDs and VM paths are observed run identities. The cross-worker report captures separate boot IDs, exact executable SHA/start time and actual mounts. Full-suite qualification verifies Node/Meta identity, boot ID, configuration digests and mount identity before and after execution. Complete raw TAP/accounting is retained. Assertions do not retry stale reads; rename fixtures reject existing run directories.
 
-All compilation, tests and file I/O run on Linux. macOS performs editing, copying, hashing and VM orchestration. No executable, build cache, private key or VM disk is published here. No test was excluded after failure. Both complete suites qualify this v37 development candidate. The separate DFS lock cancellation failure remains open; a full POSIX PASS does not qualify that failed reliability check. Formal69 cases remain NOT_RUN and ENV lock PREPARING. Required backend parity, remote/POSIX/security matrices, repair/GC, RDMA faults/resources, fair comparison, deployment and long runs remain open.
+All compilation, tests and file I/O run on Linux. macOS performs editing, copying, hashing and VM orchestration. No executable, build cache, private key or VM disk is published here. No test was excluded after failure. Both complete suites qualify this v37 development candidate. The separate DFS lock cancellation failure remains open; a full POSIX PASS does not qualify that failed reliability check. The quiet repeat passes on unchanged binaries after the namespace run has ended; it does not close the original load-dependent failure. Formal69 cases remain NOT_RUN and ENV lock PREPARING. Required backend parity, remote/POSIX/security matrices, repair/GC, RDMA faults/resources, fair comparison, deployment and long runs remain open.

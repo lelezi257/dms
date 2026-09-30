@@ -1,0 +1,17 @@
+{
+  "argv": [
+    "prove",
+    "-e",
+    "/bin/sh",
+    "-rv",
+    "/mnt/lima-afsbdata/afs-acceptance/suites-reference/src/pjdfstest/tests/open/00.t",
+    "/mnt/lima-afsbdata/afs-acceptance/suites-reference/src/pjdfstest/tests/mkdir/00.t",
+    "/mnt/lima-afsbdata/afs-acceptance/suites-reference/src/pjdfstest/tests/rename/00.t",
+    "/mnt/lima-afsbdata/afs-acceptance/suites-reference/src/pjdfstest/tests/mknod/00.t"
+  ],
+  "cwd": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v37/mount-dfs/.afs-std01-pjdfstest-20260930T190558Z-e21a7722",
+  "duration_seconds": 69.204,
+  "returncode": 0,
+  "timed_out": false,
+  "timeout_seconds": 180
+}

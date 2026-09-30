@@ -15,7 +15,7 @@ use std::{
         Arc, Condvar, Mutex,
         atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering},
     },
-    time::{Duration, SystemTime, UNIX_EPOCH},
+    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
 use afs_error::{Error, Result};
@@ -52,6 +52,7 @@ const MAX_PENDING_REMOTE_RELEASES: usize = 1024;
 const REMOTE_RELEASE_MAINTENANCE_BUDGET: std::time::Duration =
     std::time::Duration::from_millis(250);
 const REMOTE_RELEASE_SHUTDOWN_BUDGET: std::time::Duration = std::time::Duration::from_secs(2);
+const REMOTE_PROVIDER_IDLE_WAIT_BUDGET: std::time::Duration = std::time::Duration::from_secs(2);
 const REMOTE_RELEASE_RPC_BUDGET: std::time::Duration = std::time::Duration::from_millis(100);
 const REMOTE_RELEASE_RETRY_MAX_OPS: usize = 64;
 const LOCK_SESSION_REAP_BUDGET: std::time::Duration = std::time::Duration::from_millis(250);
@@ -657,16 +658,26 @@ impl RemoteProviderLifecycle {
         Ok(())
     }
 
-    fn wait_idle(&self) -> Result<()> {
+    fn wait_idle(&self, budget: Duration) -> Result<()> {
+        let deadline = Instant::now() + budget;
         let mut state = self
             .state
             .lock()
             .map_err(|_| unavailable("DFS remote provider lifecycle is poisoned"))?;
         while state.inflight != 0 {
-            state = self
+            let now = Instant::now();
+            if now >= deadline {
+                return Err(unavailable("DFS remote provider idle wait timed out"));
+            }
+            let remaining = deadline.saturating_duration_since(now);
+            let (next_state, timeout) = self
                 .cv
-                .wait(state)
+                .wait_timeout(state, remaining)
                 .map_err(|_| unavailable("DFS remote provider lifecycle is poisoned"))?;
+            state = next_state;
+            if timeout.timed_out() && state.inflight != 0 {
+                return Err(unavailable("DFS remote provider idle wait timed out"));
+            }
         }
         Ok(())
     }
@@ -4423,7 +4434,9 @@ impl DistributedFs {
     ) -> Result<()> {
         released.lifecycle.retire_new_io()?;
         let replace_result = self.replace_released_remote_provider(inode_id, released, preferred);
-        let wait_result = released.lifecycle.wait_idle();
+        let wait_result = released
+            .lifecycle
+            .wait_idle(REMOTE_PROVIDER_IDLE_WAIT_BUDGET);
         replace_result.and(wait_result)
     }
 
@@ -10140,6 +10153,35 @@ mod tests {
         assert!(release_done_rx.recv().is_ok());
         assert_eq!(scripted.release_call_count(), 2);
         assert!(fs_a.handles.lock().unwrap().is_empty());
+    }
+
+    #[test]
+    fn remote_provider_lifecycle_wait_idle_times_out_with_admitted_io() {
+        let lifecycle = RemoteProviderLifecycle::live();
+        let guard = lifecycle
+            .begin_io()
+            .unwrap()
+            .expect("live lifecycle admits provider IO");
+        lifecycle.retire_new_io().unwrap();
+        assert!(
+            lifecycle.begin_io().unwrap().is_none(),
+            "retired provider must reject new IO while admitted IO drains"
+        );
+
+        let started = Instant::now();
+        let result = lifecycle.wait_idle(Duration::from_millis(50));
+        assert!(result.is_err());
+        assert!(
+            started.elapsed() >= Duration::from_millis(40),
+            "wait_idle should wait for its budget before timing out"
+        );
+        assert!(
+            started.elapsed() < Duration::from_secs(1),
+            "wait_idle timeout must be bounded"
+        );
+
+        drop(guard);
+        lifecycle.wait_idle(Duration::from_secs(1)).unwrap();
     }
 
     #[test]

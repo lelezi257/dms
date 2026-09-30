@@ -7,7 +7,7 @@ body:
     id: rfc
     attributes:
       label: RFC or architecture contract
-      placeholder: docs/rfcs/0001-product-architecture.md
+      placeholder: docs/architecture.md
     validations:
       required: true
   - type: textarea

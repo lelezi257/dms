@@ -13,6 +13,7 @@ Read these files before changing this repository:
 
 - Product documentation describes the accepted target design.
 - Implementation capability status belongs in `docs/status.md`; `docs/handoff.md` carries the portable execution checkpoint.
+- Refresh `docs/handoff.md` only when the user explicitly requests it; ordinary development and validation do not trigger a handoff refresh.
 - Mechanism pages live under `docs/architecture/` and should explain the user-visible scenario first, then the contract.
 - Historical process notes are not product documentation; use Git history for old stage records.
 - SVG diagrams live under `docs/images/` and should use readable text labels.

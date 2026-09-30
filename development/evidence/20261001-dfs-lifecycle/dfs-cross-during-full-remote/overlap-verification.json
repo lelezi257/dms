@@ -1,0 +1,29 @@
+{
+  "status": "PASS",
+  "steps": 7,
+  "blocking_wake_seconds": 35.349000914997305,
+  "interruption_bound_seconds": 55,
+  "suite_pids": [
+    11321,
+    11328
+  ],
+  "suite_processes_stable": true,
+  "suite_tap_bytes_before": 4795,
+  "suite_tap_bytes_after": 17554,
+  "before_observed_at": 1790797040.945714,
+  "after_observed_at": 1790797115.3049188,
+  "lock_started_at": 1790797042.0,
+  "lock_finished_at": 1790797113.358216,
+  "observed_product_identity_count": 75,
+  "expected_binary_sha_by_pid": {
+    "703297": "19c0fda458e12708c38b577aa82c0b9b307facfff2c74f0ff17571d5af10fee3",
+    "10887": "19c0fda458e12708c38b577aa82c0b9b307facfff2c74f0ff17571d5af10fee3",
+    "703267": "2f6a4f6e219468f056e9749030683c20d5432beb94bf7009e7e28f47681238e5"
+  },
+  "stable_start_ticks_by_pid": {
+    "703297": 5104844,
+    "703267": 5104825,
+    "10887": 4174006
+  },
+  "scope": "v40 A/B cross-node locks during full pjdfstest on B; full suite outcome pending; original v37 full load ran on A"
+}

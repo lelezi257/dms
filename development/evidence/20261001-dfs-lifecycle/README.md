@@ -16,6 +16,8 @@ Date: 2026-10-01. Identified v40 Linux ARM64 A/B development candidate, memory M
 | Namespace load | Three rounds / 3842 operations; stable process/mount identities; fixture cleaned | [Result](namespace-load/result.json), [Events](namespace-load/events.jsonl) |
 | Complete DFS lock run overlaps namespace load | PASS; 75 observed process identities match exact PIDs, SHA and stable start times | [Verification](load-overlap-verification.json) |
 | A/B OwnerFs locks | Seven PASS | [Report](owner-cross/report.json) |
+| A/B DFS locks during full remote pjdfstest | Seven PASS; wake after35.349 seconds; unchanged55-second interruption bound | [Report](dfs-cross-during-full-remote/report.json) |
+| Full upstream workload overlaps the lock run | PASS; suite process identities stable, TAP output advances,75 product identity records match | [Verification](dfs-cross-during-full-remote/overlap-verification.json) |
 
 ## Mechanism
 
@@ -31,7 +33,7 @@ Node SHA256: `19c0fda458e12708c38b577aa82c0b9b307facfff2c74f0ff17571d5af10fee3`.
 Meta SHA256: `2f6a4f6e219468f056e9749030683c20d5432beb94bf7009e7e28f47681238e5`.
 A Node PID703297 / Meta PID703267; B Node PID10887. The consistency probe captures exact identities, separate boot IDs and actual mounts. The namespace probe checks A identities before and after the load. These are observed run values, not installation defaults.
 
-The preserved [v37 failure](../20261001-owner-rename/v37/dfs-cross/report.json) occurred with a complete namespace suite running concurrently. This v40 rerun uses a synthetic create/rename/stat/unlink load and the same seven lock cases and time bounds. It verifies the focused repair under load; the complete combined upstream run and sustained resource matrix remain unrun for v40. Earlier v37 full POSIX results do not qualify v40 or additional backends.
+The preserved [v37 failure](../20261001-owner-rename/v37/dfs-cross/report.json) occurred with a complete namespace suite running concurrently on A. The first v40 rerun uses a synthetic create/rename/stat/unlink load. The additional rerun uses the same seven lock cases and time bounds while the full remote upstream suite runs on B; the controller and prove processes remain stable and TAP bytes advance from4795 to17554 during the lock run. The complete upstream result is still pending. This verifies the focused lock repair under both observed loads; sustained resource qualification remains open. Earlier v37 full POSIX results do not qualify v40 or additional backends.
 
 Known remaining lifecycle work includes owner-open ACK loss before the caller learns its handle, retirement of pending release identities after an owner process changes, retry RPC amplification and a total Node shutdown/writeback budget. Bounded cleanup RPCs do not bound the existing dirty-inode drain. No REL-10/11 release PASS is claimed. Full RDMA, durable-backend, repair, storage, installation, fair performance and long-run gates remain open; formal69 cases remain NOT_RUN and ENV PREPARING.
 

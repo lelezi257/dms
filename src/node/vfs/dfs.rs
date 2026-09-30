@@ -53,6 +53,7 @@ const REMOTE_RELEASE_MAINTENANCE_BUDGET: std::time::Duration =
     std::time::Duration::from_millis(250);
 const REMOTE_RELEASE_SHUTDOWN_BUDGET: std::time::Duration = std::time::Duration::from_secs(2);
 const REMOTE_RELEASE_RPC_BUDGET: std::time::Duration = std::time::Duration::from_millis(100);
+const REMOTE_RELEASE_RETRY_MAX_OPS: usize = 64;
 const LOCK_SESSION_REAP_BUDGET: std::time::Duration = std::time::Duration::from_millis(250);
 const LOCK_SESSION_REAP_MAX_OPS: usize = 64;
 const OWNER_HANDLE_REAP_BUDGET: std::time::Duration = std::time::Duration::from_millis(250);
@@ -3785,14 +3786,18 @@ impl DistributedFs {
         let deadline = std::time::Instant::now() + budget;
         let mut released = 0usize;
         let mut first_error = None;
-        loop {
-            if std::time::Instant::now() >= deadline {
+        for (attempted, (key, pending)) in self
+            .pending_remote_release_snapshot()?
+            .into_iter()
+            .enumerate()
+        {
+            if attempted >= REMOTE_RELEASE_RETRY_MAX_OPS || std::time::Instant::now() >= deadline {
                 break;
             }
-            let Some((key, pending)) = self.next_pending_remote_release()? else {
-                break;
-            };
             let remaining = deadline.saturating_duration_since(std::time::Instant::now());
+            if remaining.is_zero() {
+                break;
+            }
             let timeout = remaining.min(REMOTE_RELEASE_RPC_BUDGET);
             match Self::remote_release_handle_with_timeout(&pending.owner, &pending.handle, timeout)
             {
@@ -3818,19 +3823,24 @@ impl DistributedFs {
         Ok(released)
     }
 
-    fn next_pending_remote_release(
+    fn pending_remote_release_snapshot(
         &self,
-    ) -> Result<Option<(PendingRemoteReleaseKey, PendingRemoteRelease)>> {
+    ) -> Result<Vec<(PendingRemoteReleaseKey, PendingRemoteRelease)>> {
         let state = self
             .pending_remote_releases
             .lock()
             .map_err(|_| unavailable("DFS pending remote release table is poisoned"))?;
-        for key in state.order.iter() {
-            if let Some(pending) = state.entries.get(key) {
-                return Ok(Some((key.clone(), pending.clone())));
-            }
-        }
-        Ok(None)
+        Ok(state
+            .order
+            .iter()
+            .filter_map(|key| {
+                state
+                    .entries
+                    .get(key)
+                    .map(|pending| (key.clone(), pending.clone()))
+            })
+            .take(REMOTE_RELEASE_RETRY_MAX_OPS)
+            .collect())
     }
 
     fn rotate_pending_remote_release(&self, key: &PendingRemoteReleaseKey) -> Result<()> {
@@ -9287,6 +9297,118 @@ mod tests {
     }
 
     #[test]
+    fn pending_remote_release_retry_pass_attempts_each_existing_handle_once() {
+        let (_temp, _meta, fs) = test_fs();
+        let scripted = Arc::new(ScriptedReleaseRemoteDfsOwner::new(
+            Arc::new(NoopRemoteDfsOwner),
+            vec![
+                ScriptedReleaseAction::ErrWithoutDelegate(unavailable("release one fails")),
+                ScriptedReleaseAction::ErrWithoutDelegate(unavailable("release two fails")),
+            ],
+        ));
+        let owner = scripted.clone() as Arc<dyn RemoteDfsOwner>;
+        let first = afs_protocol::node_control::DfsOwnerHandle {
+            namespace_id: "default".into(),
+            inode_id: "inode:pending-release-one".into(),
+            owner_node_id: "node-b".into(),
+            owner_session_id: "owner-session-b".into(),
+            lease_epoch: 7,
+            caller_node_id: "node-a".into(),
+            caller_session_id: "caller-session-a".into(),
+            opaque_handle: b"release-one".to_vec(),
+        };
+        let second = afs_protocol::node_control::DfsOwnerHandle {
+            namespace_id: "default".into(),
+            inode_id: "inode:pending-release-two".into(),
+            owner_node_id: "node-b".into(),
+            owner_session_id: "owner-session-b".into(),
+            lease_epoch: 7,
+            caller_node_id: "node-a".into(),
+            caller_session_id: "caller-session-a".into(),
+            opaque_handle: b"release-two".to_vec(),
+        };
+        fs.queue_pending_remote_release(owner.clone(), first.clone(), false)
+            .unwrap();
+        fs.queue_pending_remote_release(owner, second.clone(), false)
+            .unwrap();
+
+        fs.retry_pending_remote_releases()
+            .expect_err("retryable release failures remain queued");
+
+        assert_eq!(
+            scripted.release_call_count(),
+            2,
+            "one maintenance pass must not retry the same queued release more than once"
+        );
+        assert_eq!(fs.pending_remote_release_count().unwrap(), 2);
+        let state = fs.pending_remote_releases.lock().unwrap();
+        assert!(
+            state
+                .entries
+                .contains_key(&DistributedFs::remote_release_key(&first))
+        );
+        assert!(
+            state
+                .entries
+                .contains_key(&DistributedFs::remote_release_key(&second))
+        );
+    }
+
+    #[test]
+    fn pending_remote_release_retry_pass_caps_attempts_and_rotates_fairly() {
+        let (_temp, _meta, fs) = test_fs();
+        let scripted = Arc::new(ScriptedReleaseRemoteDfsOwner::new(
+            Arc::new(NoopRemoteDfsOwner),
+            (0..65)
+                .map(|index| {
+                    ScriptedReleaseAction::ErrWithoutDelegate(unavailable(format!(
+                        "release {index} fails"
+                    )))
+                })
+                .collect(),
+        ));
+        let owner = scripted.clone() as Arc<dyn RemoteDfsOwner>;
+        let handles: Vec<_> = (0..65)
+            .map(|index| afs_protocol::node_control::DfsOwnerHandle {
+                namespace_id: "default".into(),
+                inode_id: format!("inode:pending-release-{index:02}"),
+                owner_node_id: "node-b".into(),
+                owner_session_id: "owner-session-b".into(),
+                lease_epoch: 7,
+                caller_node_id: "node-a".into(),
+                caller_session_id: "caller-session-a".into(),
+                opaque_handle: vec![index as u8],
+            })
+            .collect();
+        for handle in &handles {
+            fs.queue_pending_remote_release(owner.clone(), handle.clone(), false)
+                .unwrap();
+        }
+
+        fs.retry_pending_remote_releases()
+            .expect_err("retryable release failures remain queued");
+
+        let first_pass = scripted.release_opaque_handles();
+        assert_eq!(
+            first_pass,
+            (0..64).map(|index| vec![index as u8]).collect::<Vec<_>>(),
+            "one maintenance pass tries only the first 64 queued handles once"
+        );
+        assert_eq!(fs.pending_remote_release_count().unwrap(), 65);
+
+        fs.retry_pending_remote_releases()
+            .expect_err("retryable release failures remain queued");
+
+        let calls = scripted.release_opaque_handles();
+        assert_eq!(
+            calls.get(64),
+            Some(&vec![64]),
+            "the next pass starts with the previous pass's unattempted tail handle"
+        );
+        assert_eq!(fs.pending_remote_release_count().unwrap(), 65);
+    }
+
+    #[test]
     fn remote_release_capacity_rejects_new_admission_without_owner_open() {
         let (_temp_a, meta, fs_a_raw) = test_fs();
         let fs_a = Arc::new(fs_a_raw);
@@ -10491,6 +10613,15 @@ mod tests {
 
         fn release_call_count(&self) -> usize {
             self.calls.lock().unwrap().len()
+        }
+
+        fn release_opaque_handles(&self) -> Vec<Vec<u8>> {
+            self.calls
+                .lock()
+                .unwrap()
+                .iter()
+                .map(|handle| handle.opaque_handle.clone())
+                .collect()
         }
     }
 

@@ -139,6 +139,25 @@ impl LinuxMountBackend {
         Ok(())
     }
 
+    /// Release pinned preparation descriptors only after the export is absent.
+    /// This does not unmount, fence users, retire authority or delete backing.
+    /// The lifecycle caller persists its resolved controller state separately.
+    /// An attached claim is retained even if its mount disappeared externally;
+    /// only normal unmount (or fresh verified recovery) may resolve that claim.
+    pub fn release_prepared(&self, spec: &WorkspaceMount) -> io::Result<()> {
+        self.check_namespace()?;
+        let mut records = lock(&self.prepared)?;
+        if !records.contains_key(&spec.identity.root_id) {
+            return Ok(());
+        }
+        let entry = get(&records, spec)?;
+        if entry.attached.is_some() || self.inspect_prepared(entry)?.is_some() {
+            return Err(errno(libc::EBUSY));
+        }
+        records.remove(&spec.identity.root_id);
+        Ok(())
+    }
+
     /// Reprepare an exclusively journaled workspace after helper restart.
     /// The trusted current grant/spec is supplied independently of the journal.
     /// Clone only the parent tree (not its submounts) to inspect the directory

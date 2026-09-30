@@ -50,7 +50,7 @@ Files: create focused `native/linux.rs`, `native/journal.rs`, VM integration tes
 
 Interfaces: `LinuxMountBackend` consumes configured source/target directory descriptors and trusted prepared workspace identity. Use `open_tree/move_mount` plus selected mount flags; `MountJournal` persists versioned desired/operation identity and fsyncs its directory. Actual mount IDs/namespace are reobserved, never restored as current facts.
 
-- [ ] Add RED tests for exact-source same-path mount, mount policy, duplicate retry, foreign/stacked mount, target replacement, wrong namespace, retained fd/cwd/mmap busy umount, and syscall failure preserving data.
+- [x] Add RED tests for exact-source same-path mount, mount policy, duplicate retry, foreign/stacked mount, target replacement, wrong namespace, retained fd/cwd/mmap busy umount, and syscall failure preserving data. Backend/controller failures and positive kernel controls are retained separately; this does not prove Node/Agent/P2P fencing.
 - [x] Implement fd-confined Linux calls, mountinfo/statx identity confirmation, structured diagnostics and durable journal.
 - [x] Add crash-point recovery tests before/after kernel mount/journal ACK. Only owned, identity-matched exports may be recovered or removed. Scope: helper process exit in the same surviving private namespace; Node/FUSE death remains Task5.
 - [x] Run in a disposable private mount namespace in the independent VM; retain commands, identities, errno, contents and cleanup proof.
@@ -113,3 +113,8 @@ Files: new OwnerFs-native lock mechanism where possible; narrow integration in O
 - Ruling: journal schema2 requires retired Home session history. Version1 prototype state is preserved and rejected. Cost: old development journals require explicit inspection; no deployed Node native format exists to migrate automatically.
 - Ruling: nonrecursive parent clone reveals the covered target for recovery without touching a live export; current effective flags independently gate readiness. Cost: same surviving namespace/parent is required for this path; source-authority and Node/FUSE death recovery remain separate requirements.
 - RED/GREEN: foreign target self-bind and changed recovery policy both reproduced on VM before fixes. Current exact binary SHA and raw exit/log evidence are indexed in `native-bind-evidence.md` and the external transaction input manifest.
+
+- 2026-10-01 reference checkpoint: actual VM11/11 and portable replay11/11 passed. Real OwnerFs mkdir/FD attachment/re-preparation/fallback preserves same backing; native dirfd/cwd/shared-VMA/private-VMA each prevents normal unmount until its exact actor exits. Tests use an in-process Meta fixture, not production Node or remote P2P.
+- Ruling: `release_prepared` releases only absent, unclaimed, identity-matched pins; it never unmounts, revokes authority or deletes backing. Cost: unresolved externally removed claims remain blocked until verified recovery or supervisory teardown, and Node lifecycle still must connect this API.
+- Pending question: may native mode require capability-detected Linux6.9+ FUSE passthrough in a separate feature environment while older kernels retain ordinary FUSE? The existing6.8/formal lane is untouched. No passthrough implementation or semantics PASS follows from source support alone.
+- Remaining: Node opt-in/event/helper/supervisor, cache/locks/P2P/permissions integration, orphan maintenance, daemon/namespace/boot-loss recovery, authority/Agent fencing and all performance work. Durability and proposed platform contract decisions remain pending.

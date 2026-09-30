@@ -5,6 +5,8 @@ use afs::node::vfs::ownerfs::native::{
     DirectoryIdentity, MountBackend, NativeMountManager, NativeState, WorkspaceIdentity,
     WorkspaceMount,
 };
+#[path = "ownerfs_native_linux/ownerfs_fixture.rs"]
+mod ownerfs_fixture;
 use std::{
     fs::{self, File},
     os::unix::fs::MetadataExt,
@@ -526,4 +528,275 @@ fn privileged_recovery_does_not_admit_rw_export_under_new_readonly_policy() {
     manager.quiesce(&spec.identity).unwrap();
     manager.detach(&spec.identity).unwrap();
     assert_eq!(result.unwrap_err().raw_os_error(), Some(libc::EPERM));
+}
+
+#[test]
+#[ignore = "requires CAP_SYS_ADMIN, private VM namespace and Linux >= 6.8"]
+fn privileged_release_retains_live_claim_and_fences_reprepared_epoch() {
+    assert_eq!(
+        std::env::var("AFS_NATIVE_PRIVATE_NAMESPACE").as_deref(),
+        Ok("1")
+    );
+    let dir = tempfile::tempdir().unwrap();
+    let (backend, first) = setup(&dir);
+    let mount = backend.bind(&first).unwrap();
+    assert_eq!(
+        backend.release_prepared(&first).unwrap_err().raw_os_error(),
+        Some(libc::EBUSY)
+    );
+    assert_eq!(backend.inspect(&first).unwrap(), Some(mount.clone()));
+    backend.unmount(&first, &mount).unwrap();
+    backend.release_prepared(&first).unwrap();
+    backend.release_prepared(&first).unwrap();
+    assert_eq!(
+        backend.inspect(&first).unwrap_err().raw_os_error(),
+        Some(libc::ENOENT)
+    );
+
+    let mut next = first.clone();
+    next.identity.epoch += 1;
+    next.identity.home_session_id = "new-home-session".into();
+    backend
+        .prepare(
+            next.clone(),
+            File::open(dir.path().join("source")).unwrap(),
+            File::open(dir.path().join("parent")).unwrap(),
+            std::ffi::OsStr::new("agent1"),
+            MountPolicy::default(),
+        )
+        .unwrap();
+    assert_eq!(
+        backend.release_prepared(&first).unwrap_err().raw_os_error(),
+        Some(libc::ESTALE)
+    );
+    let next_mount = backend.bind(&next).unwrap();
+    assert_eq!(backend.inspect(&next).unwrap(), Some(next_mount.clone()));
+    backend.unmount(&next, &next_mount).unwrap();
+    backend.release_prepared(&next).unwrap();
+    assert!(dir.path().join("source").is_dir());
+
+    // Removing a foreign cover must never be a side effect of releasing pins.
+    backend
+        .prepare(
+            next.clone(),
+            File::open(dir.path().join("source")).unwrap(),
+            File::open(dir.path().join("parent")).unwrap(),
+            std::ffi::OsStr::new("agent1"),
+            MountPolicy::default(),
+        )
+        .unwrap();
+    let target = dir.path().join("parent/agent1");
+    assert!(
+        std::process::Command::new("mount")
+            .arg("--bind")
+            .arg(&target)
+            .arg(&target)
+            .status()
+            .unwrap()
+            .success()
+    );
+    let observed = backend.inspect(&next).unwrap();
+    let refusal = backend.release_prepared(&next).unwrap_err();
+    assert_eq!(backend.inspect(&next).unwrap(), observed);
+    assert!(
+        std::process::Command::new("umount")
+            .arg(&target)
+            .status()
+            .unwrap()
+            .success()
+    );
+    assert_eq!(refusal.raw_os_error(), Some(libc::EBUSY));
+    backend.release_prepared(&next).unwrap();
+}
+
+#[test]
+#[ignore = "requires real /dev/fuse, CAP_SYS_ADMIN, private VM namespace and Linux >= 6.8"]
+fn privileged_fd_mount_over_real_ownerfs_directory() {
+    use afs::node::vfs::ownerfs::root::{RootRight, root_id_from_name};
+    assert_eq!(
+        std::env::var("AFS_NATIVE_PRIVATE_NAMESPACE").as_deref(),
+        Ok("1")
+    );
+    let dir = tempfile::tempdir().unwrap();
+    let mount_path = dir.path().join("ownerfs");
+    fs::create_dir(&mount_path).unwrap();
+    let (disk, roots, ownerfs) = ownerfs_fixture::ownerfs_fixture(&dir.path().join("data"));
+    let session = afs::node::fuse::mount_ownerfs(ownerfs.clone(), &mount_path).unwrap();
+    // mkdir is a real kernel FUSE request; it completes before FD preparation.
+    let target = mount_path.join("agent1");
+    fs::create_dir(&target).unwrap();
+    fs::write(target.join("transition.txt"), b"FUSE transition").unwrap();
+    let id = root_id_from_name(std::ffi::OsStr::new("agent1")).unwrap();
+    let authority = roots.enter_root(&id, RootRight::Write).unwrap();
+    let source = disk.root_path().join(authority.data_dir().as_path());
+    let namespace = LinuxMountBackend::current_namespace().unwrap();
+    let grant = authority.grant();
+    let spec = WorkspaceMount {
+        identity: WorkspaceIdentity {
+            root_id: grant.id.0.clone(),
+            epoch: grant.epoch,
+            home_node_id: grant.home_node_id.clone(),
+            home_session_id: grant.home_session_id.clone(),
+            namespace,
+        },
+        source: dir_id(&source),
+        target: dir_id(&target),
+    };
+    assert_ne!(spec.source.device, spec.target.device);
+    let old_directory = File::open(&target).unwrap();
+    let backend = LinuxMountBackend::new(namespace, 8).unwrap();
+    backend
+        .prepare(
+            spec.clone(),
+            File::open(&source).unwrap(),
+            File::open(&mount_path).unwrap(),
+            std::ffi::OsStr::new("agent1"),
+            MountPolicy::default(),
+        )
+        .unwrap();
+    let mounted = backend.bind(&spec).unwrap();
+    assert_eq!(dir_id(&target), spec.source);
+    assert_eq!(old_directory.metadata().unwrap().dev(), spec.target.device);
+    assert_eq!(
+        fs::read(target.join("transition.txt")).unwrap(),
+        b"FUSE transition"
+    );
+    fs::write(target.join("native.txt"), b"native on same backing").unwrap();
+    assert_eq!(
+        fs::read(source.join("native.txt")).unwrap(),
+        b"native on same backing"
+    );
+    // Restart preparation uses a detached parent clone while the real FUSE
+    // daemon lives; it must find the covered FUSE inode, not the native inode.
+    let recovered = LinuxMountBackend::new(namespace, 8).unwrap();
+    recovered
+        .prepare_recovery(
+            spec.clone(),
+            File::open(&source).unwrap(),
+            File::open(&mount_path).unwrap(),
+            std::ffi::OsStr::new("agent1"),
+            MountPolicy::default(),
+            &mounted,
+        )
+        .unwrap();
+    recovered.adopt_verified_claim(&spec, &mounted).unwrap();
+    recovered.verify_policy(&spec, &mounted).unwrap();
+    recovered.unmount(&spec, &mounted).unwrap();
+    recovered.release_prepared(&spec).unwrap();
+    assert_eq!(dir_id(&target), spec.target);
+    assert_eq!(
+        fs::read(target.join("native.txt")).unwrap(),
+        b"native on same backing"
+    );
+    println!(
+        "real_ownerfs_mount source={:?} covered={:?} mount={:?}",
+        spec.source, spec.target, mounted
+    );
+    drop(recovered);
+    // The original helper retains an unresolved claim after external removal;
+    // dropping its preparation is teardown, never product reclamation proof.
+    drop(backend);
+    drop(old_directory);
+    drop(authority);
+    assert!(
+        std::process::Command::new("umount")
+            .arg(&mount_path)
+            .status()
+            .unwrap()
+            .success()
+    );
+    drop(session);
+    drop(ownerfs);
+    drop(roots);
+    drop(disk);
+}
+
+struct RetainedReference(std::process::Child);
+impl Drop for RetainedReference {
+    fn drop(&mut self) {
+        // Only this unreaped child may be signaled. Closing its input requests
+        // orderly exit; kill+wait also bounds teardown after a test panic.
+        drop(self.0.stdin.take());
+        if self.0.try_wait().ok().flatten().is_none() {
+            let _ = self.0.kill();
+        }
+        let _ = self.0.wait();
+    }
+}
+
+#[test]
+#[ignore = "requires Python3, CAP_SYS_ADMIN, private VM namespace and Linux >= 6.8"]
+fn privileged_native_retained_reference_busy_matrix() {
+    use std::io::BufRead;
+    assert_eq!(
+        std::env::var("AFS_NATIVE_PRIVATE_NAMESPACE").as_deref(),
+        Ok("1")
+    );
+    let script = r#"
+import os, sys, ctypes, json
+mode, target = sys.argv[1:]
+if mode == 'dirfd':
+    retained = os.open(target, os.O_RDONLY | os.O_DIRECTORY)
+elif mode == 'cwd':
+    os.chdir(target)
+else:
+    libc = ctypes.CDLL(None, use_errno=True)
+    libc.mmap.restype = ctypes.c_void_p
+    libc.mmap.argtypes = [ctypes.c_void_p, ctypes.c_size_t, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_long]
+    opened = os.open(target + '/pages', os.O_RDONLY)
+    pointer = libc.mmap(None, 4096, 1, 1 if mode == 'shared-mmap' else 2, opened, 0)
+    assert pointer != ctypes.c_void_p(-1).value, ctypes.get_errno()
+    assert ctypes.string_at(pointer, 4) == b'page'
+    os.close(opened)
+    # ctypes mmap holds only a VMA; unlike Python mmap there is no duplicate fd.
+    assert all(not os.readlink('/proc/self/fd/' + name).endswith('/pages')
+               for name in os.listdir('/proc/self/fd') if os.path.exists('/proc/self/fd/' + name))
+print(json.dumps({'mode':mode, 'pid':os.getpid(), 'ready':True}), flush=True)
+sys.stdin.buffer.read(1)
+"#;
+    for mode in ["dirfd", "cwd", "shared-mmap", "private-mmap"] {
+        let dir = tempfile::tempdir().unwrap();
+        let (backend, spec) = setup(&dir);
+        let mut pages = vec![0_u8; 4096];
+        pages[..4].copy_from_slice(b"page");
+        fs::write(dir.path().join("source/pages"), pages).unwrap();
+        let mounted = backend.bind(&spec).unwrap();
+        let child = std::process::Command::new("python3")
+            .arg("-c")
+            .arg(script)
+            .arg(mode)
+            .arg(dir.path().join("parent/agent1"))
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .spawn()
+            .unwrap();
+        let mut retained = RetainedReference(child);
+        let mut line = String::new();
+        std::io::BufReader::new(retained.0.stdout.take().unwrap())
+            .read_line(&mut line)
+            .unwrap();
+        let ready: serde_json::Value = serde_json::from_str(&line).unwrap();
+        assert_eq!(ready["pid"].as_u64(), Some(u64::from(retained.0.id())));
+        assert_eq!(ready["mode"], mode);
+        assert_eq!(ready["ready"], true);
+        let refused = backend.unmount(&spec, &mounted);
+        assert_eq!(
+            refused.unwrap_err().raw_os_error(),
+            Some(libc::EBUSY),
+            "mode={mode}"
+        );
+        assert_eq!(backend.inspect(&spec).unwrap(), Some(mounted.clone()));
+        println!(
+            "retained_reference mode={mode} child={} unmount=EBUSY",
+            retained.0.id()
+        );
+        // Reap this exact actor before the successful normal-unmount retry.
+        drop(retained);
+        backend.unmount(&spec, &mounted).unwrap();
+        backend.release_prepared(&spec).unwrap();
+        assert_eq!(
+            &fs::read(dir.path().join("source/pages")).unwrap()[..4],
+            b"page"
+        );
+    }
 }

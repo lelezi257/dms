@@ -2,6 +2,8 @@
 
 All product validation runs on Linux. macOS is suitable for reading and editing docs, but not for final filesystem claims.
 
+The authoritative delivery contract is [Acceptance](../acceptance.md): environment identity, standard POSIX suites, distributed cases, performance baselines, faults, RDMA and deployment. Existing smoke commands cover individual paths; they do not replace that contract.
+
 ## Standard Checks
 
 ```sh

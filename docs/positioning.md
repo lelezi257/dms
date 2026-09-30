@@ -6,7 +6,7 @@ AFS has two storage backends:
 
 | Backend | Scope | Main benefit |
 | --- | --- | --- |
-| `DistributedFs` (`DFS`) | General shared distributed filesystem | Mutable files over immutable chunks, configurable replication, fixed-version reads, P2P, cache and optional spill |
+| `DistributedFs` (`DFS`) | General shared distributed filesystem | Mutable files over immutable chunks, configurable replication, version-coherent reads, P2P, cache and optional spill |
 | `OwnerFs` | Small Agent workspaces, normally 1 to 4 nodes | Home-node local files with peer forwarding when compute moves away from Home |
 
 DFS is the general path. OwnerFs exists because a small workspace often gets better latency and simpler failure boundaries when the active data remains on its Home node.
@@ -25,7 +25,9 @@ AFS does not require a separate Blob API. Images and snapshots are stable file v
 ## Boundaries
 
 - AFS does not claim every POSIX workload is fastest on AFS.
-- `close` does not commit data.
+- Successful `close` flushes prior writes and makes them visible to later opens; file sync does not imply parent directory sync.
 - `fsync` does not create a business publish, alias, pin or snapshot.
 - Verified cache does not count as a durable replica unless it is promoted and committed as one.
 - External object storage is optional spill and cold capacity, not the mandatory source of truth.
+
+The [delivery acceptance scope](acceptance.md) includes OwnerFs, DFS, etcd/Redis persistence, FUSE and RDMA. DFS SDK, verified data cache and spill belong to the broader architecture and are outside this release.

@@ -4,6 +4,7 @@
 
 - [Positioning](positioning.md)
 - [Architecture](architecture.md)
+- [Delivery Acceptance](acceptance.md)
 - [Implementation Status](status.md)
 
 ## Mechanisms

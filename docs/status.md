@@ -4,6 +4,8 @@ Last updated: 2026-09-30.
 
 This page is the only implementation-status page. Architecture pages describe the accepted target design.
 
+The [delivery acceptance contract](acceptance.md) requires JuiceFS default same-mount visibility and close-to-open semantics. The dedicated environment, suite manifest, comparison baselines and acceptance Skill have not been prepared or executed. Existing framework checks are not proof that these release gates pass.
+
 ## Current Capability Matrix
 
 | Area | Status | Evidence and limit |
@@ -16,13 +18,16 @@ This page is the only implementation-status page. Architecture pages describe th
 | FileVersion and layout model | Experimental | `FileVersion`, `LayoutRoot`, `Extent`, `ChunkObject`, CAS commit and base-chunk inheritance exist. Extent tree and compaction policy are not complete. |
 | Replication | Framework / R=1 experimental | Replication config, placement snapshots, R1 path, receipt types and RN interfaces exist. Remote RN data movement and repair workers are not complete. |
 | Local chunk engine | Experimental foundation | BLAKE3 identity, per-chunk files, local catalog, finalize and startup recovery exist. Pack backend, relocation, GC and full crash matrix are not complete. |
-| Fixed-version reads | Framework / local durable read experimental | Read-only handles pin the committed version, layout and length until close; writable handles read shared dirty state. `DfsReadEngine`, local durable sources, per-operation grants, bounded peer batches, complete-response validation and a shared TLS/epoch/LRU connection pool exist. Formal Node peer reads default to `DenyDfsReadAuthorizer`. Real grant authority, VerifiedCache, SeedLease, Spill and production resource tuning are not complete. |
+| File reads and default consistency | Framework / target gap | Current read-only handles pin the committed version, layout and length until close; writable handles read shared dirty state. This does not meet the target's immediate same-mount read-only visibility. Current DFS flush only observes errors and does not implement close-time commit. `DfsReadEngine`, local durable sources, per-operation grants, bounded peer batches, complete-response validation and a shared TLS/epoch/LRU pool exist; peer reads default to `DenyDfsReadAuthorizer`. |
 | Native SDK | Foundation | `DfsLocalData` protocol and typed DFS client identity framework exist. The default Node service returns `UNIMPLEMENTED`; diagnostic `LocalData` remains separate and does not become OwnerFs. |
 | RDMA | Transport probe foundation | RDMA lifecycle tests exist behind explicit environment requirements. File data path integration is not complete. |
 | External spill | Not implemented | Design exists for `ExternalCommitted`; no product spill path is complete. |
 
 ## Known Open Items
 
+- Close-time FUSE flush must commit prior writes and report commit errors; read-only view refresh and kernel cache handling must satisfy default same-mount visibility. Existing fixed-handle tests need to be reconciled with the acceptance contract.
+- Redis persistent Meta backend and its durability/fencing parity with etcd.
+- One-command release installation and process deployment acceptance; complete POSIX suites and MooseFS/3FS baselines.
 - Cross-node DFS write owner routing.
 - Full R=N replication, remote staging/finalize, repair workers and failure matrix.
 - Extent tree, layout compaction and large-scale metadata cost validation.

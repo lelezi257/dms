@@ -1,6 +1,6 @@
 # AFS
 
-AFS is a near-compute distributed file system for Agent, Sandbox and VM clusters. It exposes file interfaces with [fixed-version read-only handles](docs/architecture/write-semantics.md), while using disks on compute nodes as the primary pool for hot data, durable replicas, verified cache and peer-to-peer reads.
+AFS is a near-compute distributed file system for Agent, Sandbox and VM clusters. It exposes file interfaces with [same-mount visibility and close-to-open consistency](docs/architecture/write-semantics.md), while using disks on compute nodes as the primary pool for hot data, durable replicas, verified cache and peer-to-peer reads.
 
 AFS has two backends:
 
@@ -19,6 +19,8 @@ AFS has two backends:
 4. [Data Model](docs/architecture/data-model.md)
 5. [Write Semantics](docs/architecture/write-semantics.md)
 6. [Implementation Status](docs/status.md)
+
+[Delivery Acceptance](docs/acceptance.md) defines the release scope, fixed Linux VM environment, functional suites, performance targets, reliability, RDMA and installation gates.
 
 ## Development
 

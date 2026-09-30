@@ -44,14 +44,14 @@ Async repair can improve placement after a local-first success. It cannot retroa
 
 ## RPC Budget
 
-The file layer batches work at sync boundaries, so the hot path is not one RPC per byte. The intended budget is:
+The file layer batches work at durability boundaries, including close-time flush, so the hot path is not one RPC per byte. The intended budget is:
 
 | Case | Meta RPCs | Peer data RPCs | Notes |
 | --- | --- | --- | --- |
 | local-owner `write` | 0 | 0 | updates inode dirty state; remote-owner access adds one forwarding RPC |
 | R=1 changed-data sync | 1 final commit | 0 | cached placement and valid lease; refresh/renew may add RPCs |
 | R=N changed-data sync | 1 final commit | N-1 chain-link transfers per chunk, with batching | only replication below `ChunkStore` changes |
-| read-only `open` | head lookup + version/layout lookup, up to 2 without cache | 0 | fixes one version for the handle |
+| read-only `open` | head lookup + version/layout lookup, up to 2 without cache | 0 | resolves the current view; does not create a lifetime snapshot |
 | fixed-version peer read | 0 on valid source cache; source refresh otherwise | 1 range-read batch per selected peer/context | each operation retains its authorization |
 
 The exact transport can be request/response, streaming, RDMA descriptors or another data-plane mechanism. The contract is that small data can be carried inline, while large data should move through a data path that avoids unnecessary copies and still returns the same receipt semantics.

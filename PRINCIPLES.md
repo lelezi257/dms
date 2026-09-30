@@ -4,7 +4,7 @@ This page defines stable product and architecture principles. Implementation pro
 
 ## POSIX First
 
-AFS exposes a shared file namespace through POSIX-compatible interfaces. Applications use normal directories, files, reads, writes and sync operations. DFS read-only handles fix the committed version at open; see the [visibility contract](docs/architecture/write-semantics.md) for the boundary from immediate cross-handle POSIX visibility.
+AFS exposes a shared file namespace through POSIX-compatible interfaces. Applications use normal directories, files, reads, writes and sync operations. Default consistency follows JuiceFS: immediate visibility within a mount and close-to-open across mounts. See the [visibility contract](docs/architecture/write-semantics.md).
 
 High-performance SDKs are additional DFS entry points over the same namespace and file semantics.
 
@@ -26,7 +26,7 @@ A committed `ChunkObject` is immutable. A file remains mutable because its curre
 
 ## FileVersion Is The Read Consistency Boundary
 
-A read-only open fixes a `FileVersion`, layout and length until close. Data from different nodes can be combined only when it belongs to that same file version and passes chunk identity checks.
+A resolved committed read plan fixes a `FileVersion`, layout and length while assembling data from sources. Ordinary read-only open is not a lifetime snapshot. Data from different nodes can be combined only when it belongs to the same resolved version and passes chunk identity checks.
 
 Replica location, cache location and external location can change without changing the file version or chunk content identity.
 
@@ -34,7 +34,7 @@ Replica location, cache location and external location can change without changi
 
 `fdatasync` commits file data and recovery-required metadata. `fsync` includes that work and also syncs complete inode attributes such as `mtime` and `ctime`.
 
-File sync does not imply parent directory sync. Directory entries require `fsync(dir)`. `close` does not commit data. Sync operations do not create a business snapshot, alias or pin.
+File sync does not imply parent directory sync. Directory entries require `fsync(dir)`. Successful close flushes prior writes and commits their recoverable state; release only cleans up resources. These barriers do not create a business snapshot, alias or pin.
 
 ## Replication Lives Below ChunkStore
 

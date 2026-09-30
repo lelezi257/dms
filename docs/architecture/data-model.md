@@ -8,7 +8,7 @@ DFS exposes mutable files but stores committed content as immutable versions and
 
 A user creates `/xxx.txt`, writes data and calls `fsync`. Meta holds a stable inode. Node turns the synced byte ranges into chunks. Meta commits a new file version and moves the inode head to it.
 
-A later reader opens `/xxx.txt`, fixes the current head version, loads the layout for that version and reads the referenced chunks. If another writer commits a newer version while the reader is open, the existing read-only handle keeps its fixed version, layout and length until close.
+A later reader opens `/xxx.txt` and resolves the current file view. A committed read plan loads one version's layout and referenced chunks without mixing different versions. Ordinary read-only handles are not lifetime snapshots: same-mount readers observe accepted local writes, and a new open on another mount after successful writer close observes the completed changes. See [Write Semantics](write-semantics.md).
 
 ## Core Objects
 

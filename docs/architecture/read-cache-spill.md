@@ -1,18 +1,20 @@
 # Read, Cache And Spill
 
-Fixed-version reads are the common path for ordinary committed reads, image lazy loading, checkpoint restore and dataset scans.
+Committed read plans use immutable versions for source selection and data assembly. Ordinary file visibility follows [same-mount visibility and close-to-open](write-semantics.md); it does not pin every read-only handle until close. Stable chunks also support image lazy loading, checkpoint restore and dataset scans.
 
 ![Read path](../images/read-path.svg)
 
 ## Read Flow
 
-1. Resolve the path and fix a committed `FileVersion` for the handle.
+1. Resolve the current file view, including local accepted dirty state when applicable; fix one committed `FileVersion` for each committed read plan.
 2. Convert file offsets to chunk ranges through that version's layout.
 3. Select eligible sources for each chunk range.
 4. Read ranges from local durable replicas, peer replicas, verified cache or external committed copies.
 5. Verify identity and assemble the user response.
 
-A reader never combines bytes from different file versions.
+A committed read plan never combines bytes using different version layouts. Changes in ordinary file visibility can produce a later plan; they do not mutate existing Chunk contents.
+
+The [delivery scope](../acceptance.md) includes local/peer durable replicas and source retry. VerifiedCache, seed propagation and spill are outside this release.
 
 ## Source Types
 

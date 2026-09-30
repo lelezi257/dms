@@ -1,0 +1,372 @@
+{
+  "status": "PASS",
+  "events": [
+    {
+      "environment": {
+        "run_id": "20260930T233048Z-pid719442",
+        "platform": "Linux-6.8.0-142-generic-aarch64-with-glibc2.39",
+        "boot_id": "36a572e0-859b-4a94-adc7-789210a83fc8",
+        "filesystem": "{\n   \"filesystems\": [\n      {\n         \"fstype\": \"ext4\",\n         \"source\": \"/dev/vdb1\",\n         \"target\": \"/mnt/lima-afsadata\"\n      }\n   ]\n}\n",
+        "controller_sha256": "b5dd0fa011475fb94658d3b1322ed8395c69aa1f85fbff5b5e1e4a307eec83a1",
+        "binary_sha256": {
+          "afs-node": "97d735243d741ef98d917f05a965c9e02703b3b05468ba42e7b1d7c5f2c38e31",
+          "afs-meta": "00cb99fe46f20024ab3b476978dd0e16d9e8a2c0535b95d5c8febc3aa863cf2d"
+        },
+        "config_sha256": {
+          "node": "fca87713c8ae6a8c6c07f32121516c5efe8ef3283535ecc2be4ab4f97da76b68",
+          "meta": "7f1310b75898b3bb47c527ce35fb392bcb465bc706bd60eb6a117215e3278987"
+        }
+      }
+    },
+    {
+      "start_all": {
+        "returncode": 0,
+        "stdout": "started meta pid=719500 ready=true\nstarted node pid=719665 ready=true\n",
+        "stderr": "",
+        "elapsed_seconds": 0.47282557700236794
+      }
+    },
+    {
+      "identity_initial": {
+        "meta": {
+          "pid": 719500,
+          "exe": "/mnt/lima-afsadata/afs-delivery/shutdown-signal-v51/prefix/bin/afs-meta",
+          "sha256": "00cb99fe46f20024ab3b476978dd0e16d9e8a2c0535b95d5c8febc3aa863cf2d",
+          "start_ticks": "6628921",
+          "state": "S"
+        },
+        "node": {
+          "pid": 719665,
+          "exe": "/mnt/lima-afsadata/afs-delivery/shutdown-signal-v51/prefix/bin/afs-node",
+          "sha256": "97d735243d741ef98d917f05a965c9e02703b3b05468ba42e7b1d7c5f2c38e31",
+          "start_ticks": "6628936",
+          "state": "S"
+        },
+        "mounts": {
+          "dfs": {
+            "target": "/mnt/lima-afsadata/afs-delivery/shutdown-signal-v51/mount-dfs",
+            "fstype": "fuse",
+            "source": "afs-dfs"
+          },
+          "ownerfs": {
+            "target": "/mnt/lima-afsadata/afs-delivery/shutdown-signal-v51/mount-ownerfs",
+            "fstype": "fuse",
+            "source": "afs-ownerfs"
+          }
+        }
+      }
+    },
+    {
+      "normal_stop": {
+        "returncode": 0,
+        "stdout": "node stopped exit_code=0\n",
+        "stderr": "",
+        "elapsed_seconds": 0.09876973800419364,
+        "old_fd_close": {
+          "errno": 107,
+          "strerror": "Transport endpoint is not connected"
+        },
+        "status": {
+          "service": "node",
+          "state": "stopped",
+          "pid": "",
+          "config": "/mnt/lima-afsadata/afs-delivery/shutdown-signal-v51/etc/node.toml",
+          "log": "/mnt/lima-afsadata/afs-delivery/shutdown-signal-v51/log/node.log",
+          "exit_code": "0"
+        },
+        "receipt": {
+          "identity": {
+            "pid": "719665",
+            "exe": "/mnt/lima-afsadata/afs-delivery/shutdown-signal-v51/prefix/bin/afs-node",
+            "config": "/mnt/lima-afsadata/afs-delivery/shutdown-signal-v51/etc/node.toml",
+            "start_ticks": "6628936",
+            "boot_id": "36a572e0-859b-4a94-adc7-789210a83fc8",
+            "lifecycle": "/mnt/lima-afsadata/afs-delivery/shutdown-signal-v51/run/node.lifecycle.DVZUwd",
+            "supervisor_pid": "719649",
+            "cmdline": "/mnt/lima-afsadata/afs-delivery/shutdown-signal-v51/prefix/bin/afs-node --config /mnt/lima-afsadata/afs-delivery/shutdown-signal-v51/etc/node.toml"
+          },
+          "receipt": {
+            "pid": "719665",
+            "exe": "/mnt/lima-afsadata/afs-delivery/shutdown-signal-v51/prefix/bin/afs-node",
+            "config": "/mnt/lima-afsadata/afs-delivery/shutdown-signal-v51/etc/node.toml",
+            "start_ticks": "6628936",
+            "boot_id": "36a572e0-859b-4a94-adc7-789210a83fc8",
+            "lifecycle": "/mnt/lima-afsadata/afs-delivery/shutdown-signal-v51/run/node.lifecycle.DVZUwd",
+            "supervisor_pid": "719649",
+            "exit_code": "0"
+          }
+        },
+        "raw_lifecycle_snapshot": {
+          "identity": "/mnt/lima-afsadata/afs-delivery/shutdown-signal-v51/probe-artifacts/20260930T233048Z-pid719442/normal-stop-node/node.identity",
+          "lifecycle": "/mnt/lima-afsadata/afs-delivery/shutdown-signal-v51/run/node.lifecycle.DVZUwd",
+          "files": [
+            "/mnt/lima-afsadata/afs-delivery/shutdown-signal-v51/probe-artifacts/20260930T233048Z-pid719442/normal-stop-node/child",
+            "/mnt/lima-afsadata/afs-delivery/shutdown-signal-v51/probe-artifacts/20260930T233048Z-pid719442/normal-stop-node/exit",
+            "/mnt/lima-afsadata/afs-delivery/shutdown-signal-v51/probe-artifacts/20260930T233048Z-pid719442/normal-stop-node/ready",
+            "/mnt/lima-afsadata/afs-delivery/shutdown-signal-v51/probe-artifacts/20260930T233048Z-pid719442/normal-stop-node/go"
+          ]
+        }
+      }
+    },
+    {
+      "normal_restart": {
+        "returncode": 0,
+        "stdout": "started node pid=720175 ready=true\n",
+        "stderr": "removing stale pid file for node: 719665\n",
+        "elapsed_seconds": 0.1672435849905014
+      }
+    },
+    {
+      "normal_readback": "61636365707465642d6469727479",
+      "identity_normal_restart": {
+        "pid": 720175,
+        "exe": "/mnt/lima-afsadata/afs-delivery/shutdown-signal-v51/prefix/bin/afs-node",
+        "sha256": "97d735243d741ef98d917f05a965c9e02703b3b05468ba42e7b1d7c5f2c38e31",
+        "start_ticks": "6629009",
+        "state": "S"
+      }
+    },
+    {
+      "fault": {
+        "signal": "SIGSTOP",
+        "meta": {
+          "pid": 719500,
+          "exe": "/mnt/lima-afsadata/afs-delivery/shutdown-signal-v51/prefix/bin/afs-meta",
+          "sha256": "00cb99fe46f20024ab3b476978dd0e16d9e8a2c0535b95d5c8febc3aa863cf2d",
+          "start_ticks": "6628921",
+          "state": "S"
+        },
+        "state": "T",
+        "dirty_write_after_t": {
+          "path": "/mnt/lima-afsadata/afs-delivery/shutdown-signal-v51/mount-dfs/forced-signal-20260930T233048Z-pid719442.bin",
+          "bytes": 4,
+          "elapsed_seconds": 5.003018741001142
+        }
+      }
+    },
+    {
+      "direct_signal_stop": {
+        "returncode": 1,
+        "stdout": "",
+        "stderr": "node failed exit_code=1; retained identity and lifecycle evidence\n",
+        "elapsed_seconds": 0.06249458000820596,
+        "old_fd_close": {
+          "errno": 107,
+          "strerror": "Transport endpoint is not connected"
+        },
+        "status": {
+          "service": "node",
+          "state": "failed",
+          "pid": "",
+          "config": "/mnt/lima-afsadata/afs-delivery/shutdown-signal-v51/etc/node.toml",
+          "log": "/mnt/lima-afsadata/afs-delivery/shutdown-signal-v51/log/node.log",
+          "exit_code": "1"
+        },
+        "receipt": {
+          "identity": {
+            "pid": "720175",
+            "exe": "/mnt/lima-afsadata/afs-delivery/shutdown-signal-v51/prefix/bin/afs-node",
+            "config": "/mnt/lima-afsadata/afs-delivery/shutdown-signal-v51/etc/node.toml",
+            "start_ticks": "6629009",
+            "boot_id": "36a572e0-859b-4a94-adc7-789210a83fc8",
+            "lifecycle": "/mnt/lima-afsadata/afs-delivery/shutdown-signal-v51/run/node.lifecycle.aEsZ25",
+            "supervisor_pid": "720159",
+            "cmdline": "/mnt/lima-afsadata/afs-delivery/shutdown-signal-v51/prefix/bin/afs-node --config /mnt/lima-afsadata/afs-delivery/shutdown-signal-v51/etc/node.toml"
+          },
+          "receipt": {
+            "pid": "720175",
+            "exe": "/mnt/lima-afsadata/afs-delivery/shutdown-signal-v51/prefix/bin/afs-node",
+            "config": "/mnt/lima-afsadata/afs-delivery/shutdown-signal-v51/etc/node.toml",
+            "start_ticks": "6629009",
+            "boot_id": "36a572e0-859b-4a94-adc7-789210a83fc8",
+            "lifecycle": "/mnt/lima-afsadata/afs-delivery/shutdown-signal-v51/run/node.lifecycle.aEsZ25",
+            "supervisor_pid": "720159",
+            "exit_code": "1"
+          }
+        },
+        "direct_signal": {
+          "signal": "SIGTERM",
+          "node_before_signal": {
+            "pid": 720175,
+            "exe": "/mnt/lima-afsadata/afs-delivery/shutdown-signal-v51/prefix/bin/afs-node",
+            "sha256": "97d735243d741ef98d917f05a965c9e02703b3b05468ba42e7b1d7c5f2c38e31",
+            "start_ticks": "6629009",
+            "state": "S"
+          },
+          "node_verified_before_signal": {
+            "pid": 720175,
+            "exe": "/mnt/lima-afsadata/afs-delivery/shutdown-signal-v51/prefix/bin/afs-node",
+            "sha256": "97d735243d741ef98d917f05a965c9e02703b3b05468ba42e7b1d7c5f2c38e31",
+            "start_ticks": "6629009",
+            "state": "S"
+          },
+          "signal_to_receipt_seconds": 5.034410228996421
+        },
+        "raw_lifecycle_snapshot": {
+          "identity": "/mnt/lima-afsadata/afs-delivery/shutdown-signal-v51/probe-artifacts/20260930T233048Z-pid719442/direct-signal-stop-node/node.identity",
+          "lifecycle": "/mnt/lima-afsadata/afs-delivery/shutdown-signal-v51/run/node.lifecycle.aEsZ25",
+          "files": [
+            "/mnt/lima-afsadata/afs-delivery/shutdown-signal-v51/probe-artifacts/20260930T233048Z-pid719442/direct-signal-stop-node/child",
+            "/mnt/lima-afsadata/afs-delivery/shutdown-signal-v51/probe-artifacts/20260930T233048Z-pid719442/direct-signal-stop-node/exit",
+            "/mnt/lima-afsadata/afs-delivery/shutdown-signal-v51/probe-artifacts/20260930T233048Z-pid719442/direct-signal-stop-node/ready",
+            "/mnt/lima-afsadata/afs-delivery/shutdown-signal-v51/probe-artifacts/20260930T233048Z-pid719442/direct-signal-stop-node/go"
+          ]
+        },
+        "log_after_signal": "{\"msg\":\"services.stopped\",\"level\":\"INFO\",\"ts\":\"2026-09-30T23:30:55.538802221Z\",\"instance\":\"shutdown-signal-v51-node-a\",\"service_name\":\"afs-node\"}\n{\"msg\":\"dfs.node_drain_incomplete\",\"level\":\"ERRO\",\"ts\":\"2026-09-30T23:31:00.557721024Z\",\"instance\":\"shutdown-signal-v51-node-a\",\"service_name\":\"afs-node\",\"error\":\"0x01030003 Cancelled: Timeout expired\"}\n{\"msg\":\"node.shutdown_failed\",\"level\":\"ERRO\",\"ts\":\"2026-09-30T23:31:00.559545488Z\",\"instance\":\"shutdown-signal-v51-node-a\",\"service_name\":\"afs-node\",\"error\":\"0x01030003 Cancelled: Timeout expired\"}\nError: Error { code: ErrorCode(16973827), kind: Cancelled, message: \"Timeout expired\" }\n"
+      }
+    },
+    {
+      "meta_resumed": {
+        "before": {
+          "pid": 719500,
+          "exe": "/mnt/lima-afsadata/afs-delivery/shutdown-signal-v51/prefix/bin/afs-meta",
+          "sha256": "00cb99fe46f20024ab3b476978dd0e16d9e8a2c0535b95d5c8febc3aa863cf2d",
+          "start_ticks": "6628921",
+          "state": "S"
+        },
+        "after": {
+          "pid": 719500,
+          "exe": "/mnt/lima-afsadata/afs-delivery/shutdown-signal-v51/prefix/bin/afs-meta",
+          "sha256": "00cb99fe46f20024ab3b476978dd0e16d9e8a2c0535b95d5c8febc3aa863cf2d",
+          "start_ticks": "6628921",
+          "state": "S"
+        }
+      }
+    },
+    {
+      "forced_restart": {
+        "returncode": 0,
+        "stdout": "started node pid=720642 ready=true\n",
+        "stderr": "removing stale pid file for node: 720175\n",
+        "elapsed_seconds": 0.20390466701064724
+      }
+    },
+    {
+      "fresh_readback": {
+        "forced_path": "73656564",
+        "watermark": "61636365707465642d6469727479"
+      },
+      "identity_forced_restart": {
+        "pid": 720642,
+        "exe": "/mnt/lima-afsadata/afs-delivery/shutdown-signal-v51/prefix/bin/afs-node",
+        "sha256": "97d735243d741ef98d917f05a965c9e02703b3b05468ba42e7b1d7c5f2c38e31",
+        "start_ticks": "6630126",
+        "state": "S"
+      }
+    },
+    {
+      "final_node_stop": {
+        "returncode": 0,
+        "stdout": "node stopped exit_code=0\n",
+        "stderr": "",
+        "elapsed_seconds": 0.1353808179992484,
+        "status": {
+          "service": "node",
+          "state": "stopped",
+          "pid": "",
+          "config": "/mnt/lima-afsadata/afs-delivery/shutdown-signal-v51/etc/node.toml",
+          "log": "/mnt/lima-afsadata/afs-delivery/shutdown-signal-v51/log/node.log",
+          "exit_code": "0"
+        },
+        "receipt": {
+          "identity": {
+            "pid": "720642",
+            "exe": "/mnt/lima-afsadata/afs-delivery/shutdown-signal-v51/prefix/bin/afs-node",
+            "config": "/mnt/lima-afsadata/afs-delivery/shutdown-signal-v51/etc/node.toml",
+            "start_ticks": "6630126",
+            "boot_id": "36a572e0-859b-4a94-adc7-789210a83fc8",
+            "lifecycle": "/mnt/lima-afsadata/afs-delivery/shutdown-signal-v51/run/node.lifecycle.gAh10X",
+            "supervisor_pid": "720626",
+            "cmdline": "/mnt/lima-afsadata/afs-delivery/shutdown-signal-v51/prefix/bin/afs-node --config /mnt/lima-afsadata/afs-delivery/shutdown-signal-v51/etc/node.toml"
+          },
+          "receipt": {
+            "pid": "720642",
+            "exe": "/mnt/lima-afsadata/afs-delivery/shutdown-signal-v51/prefix/bin/afs-node",
+            "config": "/mnt/lima-afsadata/afs-delivery/shutdown-signal-v51/etc/node.toml",
+            "start_ticks": "6630126",
+            "boot_id": "36a572e0-859b-4a94-adc7-789210a83fc8",
+            "lifecycle": "/mnt/lima-afsadata/afs-delivery/shutdown-signal-v51/run/node.lifecycle.gAh10X",
+            "supervisor_pid": "720626",
+            "exit_code": "0"
+          }
+        },
+        "raw_lifecycle_snapshot": {
+          "identity": "/mnt/lima-afsadata/afs-delivery/shutdown-signal-v51/probe-artifacts/20260930T233048Z-pid719442/final-stop-node/node.identity",
+          "lifecycle": "/mnt/lima-afsadata/afs-delivery/shutdown-signal-v51/run/node.lifecycle.gAh10X",
+          "files": [
+            "/mnt/lima-afsadata/afs-delivery/shutdown-signal-v51/probe-artifacts/20260930T233048Z-pid719442/final-stop-node/child",
+            "/mnt/lima-afsadata/afs-delivery/shutdown-signal-v51/probe-artifacts/20260930T233048Z-pid719442/final-stop-node/exit",
+            "/mnt/lima-afsadata/afs-delivery/shutdown-signal-v51/probe-artifacts/20260930T233048Z-pid719442/final-stop-node/ready",
+            "/mnt/lima-afsadata/afs-delivery/shutdown-signal-v51/probe-artifacts/20260930T233048Z-pid719442/final-stop-node/go"
+          ]
+        }
+      }
+    },
+    {
+      "final_meta_stop": {
+        "returncode": 0,
+        "stdout": "meta stopped exit_code=0\n",
+        "stderr": "",
+        "elapsed_seconds": 0.2103709799994249,
+        "status": {
+          "service": "meta",
+          "state": "stopped",
+          "pid": "",
+          "config": "/mnt/lima-afsadata/afs-delivery/shutdown-signal-v51/etc/meta.toml",
+          "log": "/mnt/lima-afsadata/afs-delivery/shutdown-signal-v51/log/meta.log",
+          "exit_code": "0"
+        },
+        "receipt": {
+          "identity": {
+            "pid": "719500",
+            "exe": "/mnt/lima-afsadata/afs-delivery/shutdown-signal-v51/prefix/bin/afs-meta",
+            "config": "/mnt/lima-afsadata/afs-delivery/shutdown-signal-v51/etc/meta.toml",
+            "start_ticks": "6628921",
+            "boot_id": "36a572e0-859b-4a94-adc7-789210a83fc8",
+            "lifecycle": "/mnt/lima-afsadata/afs-delivery/shutdown-signal-v51/run/meta.lifecycle.8yfUhX",
+            "supervisor_pid": "719484",
+            "cmdline": "/mnt/lima-afsadata/afs-delivery/shutdown-signal-v51/prefix/bin/afs-meta --config /mnt/lima-afsadata/afs-delivery/shutdown-signal-v51/etc/meta.toml"
+          },
+          "receipt": {
+            "pid": "719500",
+            "exe": "/mnt/lima-afsadata/afs-delivery/shutdown-signal-v51/prefix/bin/afs-meta",
+            "config": "/mnt/lima-afsadata/afs-delivery/shutdown-signal-v51/etc/meta.toml",
+            "start_ticks": "6628921",
+            "boot_id": "36a572e0-859b-4a94-adc7-789210a83fc8",
+            "lifecycle": "/mnt/lima-afsadata/afs-delivery/shutdown-signal-v51/run/meta.lifecycle.8yfUhX",
+            "supervisor_pid": "719484",
+            "exit_code": "0"
+          }
+        },
+        "raw_lifecycle_snapshot": {
+          "identity": "/mnt/lima-afsadata/afs-delivery/shutdown-signal-v51/probe-artifacts/20260930T233048Z-pid719442/final-stop-meta/meta.identity",
+          "lifecycle": "/mnt/lima-afsadata/afs-delivery/shutdown-signal-v51/run/meta.lifecycle.8yfUhX",
+          "files": [
+            "/mnt/lima-afsadata/afs-delivery/shutdown-signal-v51/probe-artifacts/20260930T233048Z-pid719442/final-stop-meta/child",
+            "/mnt/lima-afsadata/afs-delivery/shutdown-signal-v51/probe-artifacts/20260930T233048Z-pid719442/final-stop-meta/exit",
+            "/mnt/lima-afsadata/afs-delivery/shutdown-signal-v51/probe-artifacts/20260930T233048Z-pid719442/final-stop-meta/ready",
+            "/mnt/lima-afsadata/afs-delivery/shutdown-signal-v51/probe-artifacts/20260930T233048Z-pid719442/final-stop-meta/go"
+          ]
+        }
+      }
+    }
+  ],
+  "cleanup": [
+    {
+      "cleanup_stop_node": {
+        "returncode": 0,
+        "stdout": "node stopped exit_code=0\n",
+        "stderr": "",
+        "elapsed_seconds": 0.048024114992585965
+      }
+    },
+    {
+      "cleanup_stop_meta": {
+        "returncode": 0,
+        "stdout": "meta stopped exit_code=0\n",
+        "stderr": "",
+        "elapsed_seconds": 0.055999017000431195
+      }
+    }
+  ]
+}

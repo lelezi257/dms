@@ -14,8 +14,9 @@ fn main() -> Result<(), BoxError> {
         return Ok(());
     }
     // processctl's default stop wait is 20s. Leave a margin for the caller
-    // to observe failure; this single budget starts when service stop starts.
-    let deadline = runtime::ShutdownDeadline::new(std::time::Duration::from_secs(15))?;
+    // to observe failure. Register the independent signal observer before the
+    // business executor so its polling cannot delay arming the process budget.
+    let deadline = runtime::ShutdownDeadline::for_process(std::time::Duration::from_secs(15))?;
     let trigger = deadline.trigger();
     let executor = tokio::runtime::Builder::new_multi_thread()
         .enable_all()

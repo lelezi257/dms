@@ -1,0 +1,8 @@
+pid=720175
+exe=/mnt/lima-afsadata/afs-delivery/shutdown-signal-v51/prefix/bin/afs-node
+config=/mnt/lima-afsadata/afs-delivery/shutdown-signal-v51/etc/node.toml
+start_ticks=6629009
+boot_id=36a572e0-859b-4a94-adc7-789210a83fc8
+lifecycle=/mnt/lima-afsadata/afs-delivery/shutdown-signal-v51/run/node.lifecycle.aEsZ25
+supervisor_pid=720159
+exit_code=1

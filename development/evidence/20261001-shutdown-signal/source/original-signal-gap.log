@@ -1,0 +1,29 @@
+   Compiling afs-protocol v0.1.0 (/home/lzc.guest/afs-build/work/root-merged-v51/common/protocol)
+   Compiling afs-metrics v0.1.0 (/home/lzc.guest/afs-build/work/root-merged-v51/common/metrics)
+   Compiling afs-transport v0.1.0 (/home/lzc.guest/afs-build/work/root-merged-v51/common/transport)
+   Compiling afs-error v0.1.0 (/home/lzc.guest/afs-build/work/root-merged-v51/common/error)
+   Compiling afs-tracing v0.1.0 (/home/lzc.guest/afs-build/work/root-merged-v51/common/tracing)
+   Compiling fuser v0.16.0 (/home/lzc.guest/afs-build/work/root-merged-v51/third_party/fuser)
+   Compiling afs-logging v0.1.0 (/home/lzc.guest/afs-build/work/root-merged-v51/common/logging)
+   Compiling afs-client v0.1.0 (/home/lzc.guest/afs-build/work/root-merged-v51/client)
+   Compiling afs v0.1.0 (/home/lzc.guest/afs-build/work/root-merged-v51)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 23.21s
+     Running unittests src/lib.rs (/home/lzc.guest/afs-build/target/debug/deps/afs-469b45811fda1b7a)
+
+running 1 test
+
+running 1 test
+
+thread 'runtime::shutdown_deadline_tests::shutdown_deadline_covers_signal_when_business_reactor_is_blocked' (442480) panicked at src/runtime.rs:315:17:
+shutdown child failed to exit within 3s
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test runtime::shutdown_deadline_tests::shutdown_deadline_covers_signal_when_business_reactor_is_blocked ... FAILED
+
+failures:
+
+failures:
+    runtime::shutdown_deadline_tests::shutdown_deadline_covers_signal_when_business_reactor_is_blocked
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 352 filtered out; finished in 3.01s
+
+error: test failed, to rerun pass `-p afs --lib`

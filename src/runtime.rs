@@ -19,6 +19,13 @@ pub type ServiceResult = Result<(), BoxError>;
 pub struct ShutdownDeadline {
     trigger: ShutdownTrigger,
     worker: std::thread::JoinHandle<()>,
+    signal_observer: Option<ProcessSignalObserver>,
+}
+
+/// Only process entry opts in; ordinary embedded guards do not install signals.
+struct ProcessSignalObserver {
+    stop: tokio::sync::oneshot::Sender<()>,
+    worker: std::thread::JoinHandle<()>,
 }
 
 #[derive(Clone)]
@@ -66,7 +73,64 @@ impl ShutdownDeadline {
                 budget,
             },
             worker,
+            signal_observer: None,
         })
+    }
+
+    /// Arm on process signals independently of business executor scheduling.
+    /// Registration is complete before returning to the process entry. Tokio
+    /// broadcasts each signal to all listeners; Services still drains normally.
+    pub fn for_process(budget: Duration) -> std::io::Result<Self> {
+        let mut deadline = Self::new(budget)?;
+        let executor = tokio::runtime::Builder::new_current_thread()
+            .enable_io()
+            .build()?;
+        let trigger = deadline.trigger();
+        let (ready_tx, ready_rx) = std::sync::mpsc::sync_channel(1);
+        let (stop_tx, mut stop_rx) = tokio::sync::oneshot::channel();
+        let worker = std::thread::Builder::new()
+            .name("afs-shutdown-signals".into())
+            .spawn(move || {
+                executor.block_on(async move {
+                    use tokio::signal::unix::{SignalKind, signal};
+                    let registered = signal(SignalKind::terminate()).and_then(|terminate| {
+                        signal(SignalKind::interrupt()).map(|interrupt| (terminate, interrupt))
+                    });
+                    let (mut terminate, mut interrupt) = match registered {
+                        Ok(signals) => signals,
+                        Err(error) => {
+                            let _ = ready_tx.send(Err(error));
+                            return;
+                        }
+                    };
+                    if ready_tx.send(Ok(())).is_err() {
+                        return;
+                    }
+                    loop {
+                        tokio::select! {
+                            _ = &mut stop_rx => return,
+                            _ = terminate.recv() => trigger.arm(),
+                            _ = interrupt.recv() => trigger.arm(),
+                        }
+                    }
+                });
+            })?;
+        deadline.signal_observer = Some(ProcessSignalObserver {
+            stop: stop_tx,
+            worker,
+        });
+        match ready_rx.recv() {
+            Ok(Ok(())) => Ok(deadline),
+            ready => {
+                deadline.complete();
+                Err(match ready {
+                    Ok(Err(error)) => error,
+                    _ => {
+                        std::io::Error::other("process signal observer exited before registration")
+                    }
+                })
+            }
+        }
     }
 
     pub fn trigger(&self) -> ShutdownTrigger {
@@ -76,6 +140,10 @@ impl ShutdownDeadline {
     /// Call only after all process-owned resources, including the Tokio
     /// runtime and logging guards, have completed their teardown.
     pub fn complete(self) {
+        if let Some(observer) = self.signal_observer {
+            let _ = observer.stop.send(());
+            let _ = observer.worker.join();
+        }
         let _ = self.trigger.sender.send(ShutdownMessage::Complete);
         let _ = self.worker.join();
     }
@@ -230,6 +298,80 @@ mod shutdown_deadline_tests {
         let Ok(mode) = std::env::var("AFS_TEST_SHUTDOWN_CHILD") else {
             return;
         };
+        if mode == "signal-graceful-term" || mode == "signal-graceful-int" {
+            let deadline = ShutdownDeadline::for_process(Duration::from_millis(500)).unwrap();
+            let trigger = deadline.trigger();
+            let executor = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .unwrap();
+            let (registered_tx, registered_rx) = std::sync::mpsc::channel();
+            let sender = std::thread::spawn(move || {
+                registered_rx.recv_timeout(Duration::from_secs(1)).unwrap();
+                let signal = if mode == "signal-graceful-term" {
+                    "-TERM"
+                } else {
+                    "-INT"
+                };
+                assert!(
+                    std::process::Command::new("kill")
+                        .args([signal, &std::process::id().to_string()])
+                        .status()
+                        .unwrap()
+                        .success()
+                );
+            });
+            executor.block_on(async {
+                let mut services = Services::new();
+                let stop = services.stop.subscribe();
+                services.spawn(async move {
+                    registered_tx.send(()).unwrap();
+                    cancelled(stop).await;
+                    Ok(())
+                });
+                services
+                    .run_with_shutdown(move || trigger.arm())
+                    .await
+                    .unwrap();
+            });
+            sender.join().unwrap();
+            drop(executor);
+            deadline.complete();
+            // A cancelled/joined observer and disarmed watchdog cannot force a
+            // healthy process to fail later, despite having received a signal.
+            std::thread::sleep(Duration::from_millis(600));
+            return;
+        }
+        if mode == "signal-starved" {
+            let deadline = ShutdownDeadline::for_process(Duration::from_millis(150)).unwrap();
+            let executor = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .unwrap();
+            let (registered_tx, registered_rx) = std::sync::mpsc::channel();
+            let sender = std::thread::spawn(move || {
+                registered_rx.recv_timeout(Duration::from_secs(1)).unwrap();
+                let status = std::process::Command::new("kill")
+                    .args(["-TERM", &std::process::id().to_string()])
+                    .status()
+                    .unwrap();
+                assert!(status.success());
+            });
+            executor.block_on(async {
+                // The business reactor deliberately cannot poll the signal.
+                let mut terminate =
+                    tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+                        .unwrap();
+                registered_tx.send(()).unwrap();
+                std::thread::sleep(Duration::from_secs(5));
+                terminate.recv().await;
+                deadline.trigger().arm();
+            });
+            sender.join().unwrap();
+            drop(executor);
+            deadline.complete();
+            return;
+        }
         let deadline = ShutdownDeadline::new(Duration::from_millis(150)).unwrap();
         let trigger = deadline.trigger();
         if mode == "complete" {
@@ -287,6 +429,21 @@ mod shutdown_deadline_tests {
         let (status, elapsed) = child("blocked");
         assert_eq!(status.code(), Some(124));
         assert!(elapsed < Duration::from_secs(2));
+    }
+
+    #[test]
+    fn shutdown_deadline_covers_signal_when_business_reactor_is_blocked() {
+        let (status, elapsed) = child("signal-starved");
+        assert_eq!(status.code(), Some(124));
+        assert!(elapsed < Duration::from_secs(2));
+    }
+
+    #[test]
+    fn process_signal_observer_does_not_steal_graceful_service_signals() {
+        for mode in ["signal-graceful-term", "signal-graceful-int"] {
+            let (status, _) = child(mode);
+            assert!(status.success(), "{mode}: {status}");
+        }
     }
 
     #[test]

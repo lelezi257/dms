@@ -1,0 +1,18 @@
+id = "shutdown-signal-v51-node-a"
+fs = "all"
+meta_endpoint = "https://127.0.0.1:18180"
+advertise_endpoint = "https://127.0.0.1:18182"
+grpc_listen = "0.0.0.0:18182"
+rest_listen = "0.0.0.0:18183"
+data_dir = "/mnt/lima-afsadata/afs-delivery/shutdown-signal-v51/state/node"
+uds_path = "/mnt/lima-afsadata/afs-delivery/shutdown-signal-v51/run/node.sock"
+ownerfs_mount = "/mnt/lima-afsadata/afs-delivery/shutdown-signal-v51/mount-ownerfs"
+dfs_mount = "/mnt/lima-afsadata/afs-delivery/shutdown-signal-v51/mount-dfs"
+data_mode = "grpc"
+tls_ca_certificate = "/mnt/lima-afsadata/afs-delivery/p1b/tls/ca.pem"
+tls_identity_certificate = "/mnt/lima-afsadata/afs-delivery/p1b/tls/node-a.pem"
+tls_identity_private_key = "/mnt/lima-afsadata/afs-delivery/p1b/tls/node-a-key.pem"
+tls_server_name = "afs-cluster"
+trusted_node_certs = { shutdown-signal-v51-node-a = "/mnt/lima-afsadata/afs-delivery/p1b/tls/node-a.pem" }
+log_level = "info"
+trace_enabled = false

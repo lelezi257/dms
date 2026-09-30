@@ -1,0 +1,18 @@
+{
+  "phase": "collected",
+  "time_utc": "2026-09-30T23:32:09Z",
+  "status": "PASS",
+  "guest_run": "/mnt/lima-afsadata/afs-delivery/shutdown-signal-v51",
+  "ports": {
+    "meta_grpc": 18180,
+    "meta_rest": 18181,
+    "node_grpc": 18182,
+    "node_rest": 18183
+  },
+  "controller_sha256": "b5dd0fa011475fb94658d3b1322ed8395c69aa1f85fbff5b5e1e4a307eec83a1",
+  "expected_sha256": {
+    "afs-node": "97d735243d741ef98d917f05a965c9e02703b3b05468ba42e7b1d7c5f2c38e31",
+    "afs-meta": "00cb99fe46f20024ab3b476978dd0e16d9e8a2c0535b95d5c8febc3aa863cf2d"
+  },
+  "run_id": "20260930T233048Z-pid719442"
+}

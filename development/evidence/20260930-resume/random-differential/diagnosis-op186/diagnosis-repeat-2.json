@@ -1,0 +1,81 @@
+{
+  "iteration": 2,
+  "mismatch": {
+    "index": 161,
+    "operation": {
+      "data_hex": "929585303a099edf475747e0d51c034dc1ddd25cf60fe6e41934f2b5d3604d448800ebd6d419d4a6466f794aa72e5fe334c27b28a3",
+      "index": 161,
+      "op": "write",
+      "path": "f3"
+    },
+    "reference_d0_f0": {
+      "exists": true,
+      "mode": 420,
+      "nlink": 1,
+      "sha256": "3f2f0d00bdadca1191e2cc8ad3fd1644575e04b114333c01a6ccdf05e5f21fd1",
+      "size": 16301,
+      "type": "file"
+    },
+    "reference_result": {
+      "errno": null,
+      "ok": true,
+      "written": 53
+    },
+    "reference_tree_sha256": "43b69a1422bb4a4f8d0f6c80183b28a24ca457e95f2203ddcf3e5848ce9db79f",
+    "target_d0_f0": {
+      "exists": true,
+      "mode": 420,
+      "nlink": 1,
+      "sha256": "3f2f0d00bdadca1191e2cc8ad3fd1644575e04b114333c01a6ccdf05e5f21fd1",
+      "size": 16301,
+      "type": "file"
+    },
+    "target_result": {
+      "errno": 16,
+      "errno_name": "EBUSY",
+      "ok": false
+    },
+    "target_tree_sha256": "2355fd7eba96057fdc7cea91d7bc16b676f8c097231fe12e7d7095d9ac2b83ff"
+  },
+  "reference": "/mnt/lima-afsadata/afs-delivery/evidence/p2-random-v27/diagnosis-op186/ext4-ref/ref-2-20260930T163239Z",
+  "tail_events": [
+    {
+      "index": 161,
+      "operation": {
+        "data_hex": "929585303a099edf475747e0d51c034dc1ddd25cf60fe6e41934f2b5d3604d448800ebd6d419d4a6466f794aa72e5fe334c27b28a3",
+        "index": 161,
+        "op": "write",
+        "path": "f3"
+      },
+      "reference_d0_f0": {
+        "exists": true,
+        "mode": 420,
+        "nlink": 1,
+        "sha256": "3f2f0d00bdadca1191e2cc8ad3fd1644575e04b114333c01a6ccdf05e5f21fd1",
+        "size": 16301,
+        "type": "file"
+      },
+      "reference_result": {
+        "errno": null,
+        "ok": true,
+        "written": 53
+      },
+      "reference_tree_sha256": "43b69a1422bb4a4f8d0f6c80183b28a24ca457e95f2203ddcf3e5848ce9db79f",
+      "target_d0_f0": {
+        "exists": true,
+        "mode": 420,
+        "nlink": 1,
+        "sha256": "3f2f0d00bdadca1191e2cc8ad3fd1644575e04b114333c01a6ccdf05e5f21fd1",
+        "size": 16301,
+        "type": "file"
+      },
+      "target_result": {
+        "errno": 16,
+        "errno_name": "EBUSY",
+        "ok": false
+      },
+      "target_tree_sha256": "2355fd7eba96057fdc7cea91d7bc16b676f8c097231fe12e7d7095d9ac2b83ff"
+    }
+  ],
+  "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v27/mount-dfs/diag-op186-2-20260930T163239Z"
+}

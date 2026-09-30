@@ -1,0 +1,21 @@
+bash: line 1: cd: /Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store: No such file or directory
+bash: line 1: cd: /Users/lzc: No such file or directory
+   Compiling afs v0.1.0 (/home/lzc.guest/afs-build/work/root-skew-before)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 17.50s
+     Running unittests src/lib.rs (/home/lzc.guest/afs-build/target/debug/deps/afs-586e1b701367e588)
+
+running 1 test
+
+thread 'node::rpc::data::tests::dfs_read_authority_tolerates_meta_clock_skew_without_extending_cache' (332428) panicked at src/node/rpc/data.rs:4216:50:
+called `Result::unwrap()` on an `Err` value: Error { code: ErrorCode(67305474), kind: PermissionDenied, message: "read authority reply is not the precise requested capability" }
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test node::rpc::data::tests::dfs_read_authority_tolerates_meta_clock_skew_without_extending_cache ... FAILED
+
+failures:
+
+failures:
+    node::rpc::data::tests::dfs_read_authority_tolerates_meta_clock_skew_without_extending_cache
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 286 filtered out; finished in 0.03s
+
+error: test failed, to rerun pass `--lib`

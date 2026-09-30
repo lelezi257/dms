@@ -1,0 +1,41 @@
+bash: line 1: cd: /Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store: No such file or directory
+bash: line 1: cd: /Users/lzc: No such file or directory
+test_applicability_manifest_binding_mismatch_is_rejected (test_ltp_driver.LtpDriverPureTests.test_applicability_manifest_binding_mismatch_is_rejected) ... ok
+test_applicability_manifest_raw_command_count_mismatch_is_rejected (test_ltp_driver.LtpDriverPureTests.test_applicability_manifest_raw_command_count_mismatch_is_rejected) ... ok
+test_cross_target_scope_still_requires_expected_product_event (test_ltp_driver.LtpDriverPureTests.test_cross_target_scope_still_requires_expected_product_event) ... ok
+test_extracts_result_lines_for_subtest_accounting (test_ltp_driver.LtpDriverPureTests.test_extracts_result_lines_for_subtest_accounting) ... ok
+test_extracts_source_file_line_from_ltp_events (test_ltp_driver.LtpDriverPureTests.test_extracts_source_file_line_from_ltp_events) ... ok
+test_extracts_source_file_line_through_relative_suite_path (test_ltp_driver.LtpDriverPureTests.test_extracts_source_file_line_through_relative_suite_path) ... ok
+test_reference_only_missing_events_do_not_block_product_backend_pass (test_ltp_driver.LtpDriverPureTests.test_reference_only_missing_events_do_not_block_product_backend_pass) ... ok
+test_reference_only_scope_cannot_waive_product_backend_tconf (test_ltp_driver.LtpDriverPureTests.test_reference_only_scope_cannot_waive_product_backend_tconf) ... ok
+test_short_fixture_paths_stay_within_legacy_ltp_budget (test_ltp_driver.LtpDriverPureTests.test_short_fixture_paths_stay_within_legacy_ltp_budget) ... ok
+test_tfail_remains_blocking_even_with_applicability_enabled (test_ltp_driver.LtpDriverPureTests.test_tfail_remains_blocking_even_with_applicability_enabled) ... ok
+test_all_pass_can_pass_smoke (test_ltp_driver.LtpDriverTests.test_all_pass_can_pass_smoke) ... ok
+test_applicability_manifest_fails_closed_on_unmatched_event (test_ltp_driver.LtpDriverTests.test_applicability_manifest_fails_closed_on_unmatched_event) ... ok
+test_applicability_manifest_fails_closed_when_expected_event_disappears (test_ltp_driver.LtpDriverTests.test_applicability_manifest_fails_closed_when_expected_event_disappears) ... ok
+test_applicability_manifest_pre_reviews_tconf_without_changing_raw_counts (test_ltp_driver.LtpDriverTests.test_applicability_manifest_pre_reviews_tconf_without_changing_raw_counts) ... ok
+test_applicability_manifest_requires_ordinary_tpass_when_requested (test_ltp_driver.LtpDriverTests.test_applicability_manifest_requires_ordinary_tpass_when_requested) ... ok
+test_failure_is_fail_and_keeps_raw_output (test_ltp_driver.LtpDriverTests.test_failure_is_fail_and_keeps_raw_output) ... ok
+test_fake_product_label_on_ext4_is_blocked (test_ltp_driver.LtpDriverTests.test_fake_product_label_on_ext4_is_blocked) ... ok
+test_full_cap_is_blocked_not_pass (test_ltp_driver.LtpDriverTests.test_full_cap_is_blocked_not_pass) ... ok
+test_tconf_blocks_uncurated_acceptance (test_ltp_driver.LtpDriverTests.test_tconf_blocks_uncurated_acceptance) ... ok
+test_timeout_is_blocked_and_counted (test_ltp_driver.LtpDriverTests.test_timeout_is_blocked_and_counted) ... ok
+test_bad_fake_worker_preserves_command_and_failure_accounting (test_locks_cross.LocksCrossTests.test_bad_fake_worker_preserves_command_and_failure_accounting) ... ok
+test_errno_predicates_reject_unsupported_and_capacity_errors (test_locks_cross.LocksCrossTests.test_errno_predicates_reject_unsupported_and_capacity_errors) ... ok
+test_ext4_workers_pass_but_are_reference_only (test_locks_cross.LocksCrossTests.test_ext4_workers_pass_but_are_reference_only) ... ok
+test_fake_different_kernel_non_afs_fuse_is_not_qualified (test_locks_cross.LocksCrossTests.test_fake_different_kernel_non_afs_fuse_is_not_qualified) ... ok
+test_fake_enolck_fcntl_conflict_fails_host_step (test_locks_cross.LocksCrossTests.test_fake_enolck_fcntl_conflict_fails_host_step) ... ok
+test_getlk_predicate_prefers_worker_lock_type_name (test_locks_cross.LocksCrossTests.test_getlk_predicate_prefers_worker_lock_type_name) ... ok
+test_require_cross_mount_rejects_same_kernel_workers (test_locks_cross.LocksCrossTests.test_require_cross_mount_rejects_same_kernel_workers) ... ok
+test_worker_pid_file_identity_records_product_and_meta (test_locks_cross.LocksCrossTests.test_worker_pid_file_identity_records_product_and_meta) ... ok
+test_worker_read_event_timeout_is_bounded_without_output (test_locks_cross.LocksCrossTests.test_worker_read_event_timeout_is_bounded_without_output) ... ok
+test_worker_readonly_write_lock_returns_ebadf (test_locks_cross.LocksCrossTests.test_worker_readonly_write_lock_returns_ebadf) ... ok
+test_changed_pid_rejected_after_binding_same_binary (test_locks_renewal_fault.RenewalFaultControlTests.test_changed_pid_rejected_after_binding_same_binary) ... ok
+test_prestopped_target_rejected_and_manual_cont_restores (test_locks_renewal_fault.RenewalFaultControlTests.test_prestopped_target_rejected_and_manual_cont_restores) ... ok
+test_stop_then_cont_finally_restores_bound_target (test_locks_renewal_fault.RenewalFaultControlTests.test_stop_then_cont_finally_restores_bound_target) ... ok
+test_wrong_sha_rejected_before_signal (test_locks_renewal_fault.RenewalFaultControlTests.test_wrong_sha_rejected_before_signal) ... ok
+
+----------------------------------------------------------------------
+Ran 34 tests in 85.981s
+
+OK

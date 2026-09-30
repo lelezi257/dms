@@ -1,0 +1,10 @@
+{
+  "reference": {
+    "path": "/mnt/lima-afsadata/afs-delivery/evidence/p2-random-v27/ref-ext4-500-20260930T162214Z/replay-seed-1-candidate-8-186-ref-a7f3ffb3",
+    "removed": true
+  },
+  "target": {
+    "path": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v27/mount-dfs/std04-dfs-random-500-20260930T162214Z/replay-seed-1-candidate-8-186-target-a5eebe47",
+    "removed": true
+  }
+}

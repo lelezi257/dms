@@ -1,0 +1,51 @@
+bash: line 1: cd: /Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store: No such file or directory
+bash: line 1: cd: /Users/lzc: No such file or directory
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.09s
+     Running tests/meta_contract.rs (/home/lzc.guest/afs-build/target/debug/deps/meta_contract-93da30cdbe5dc1a1)
+
+running 38 tests
+test dfs_commit_keeps_file_layout_and_durable_chunk_receipt_explicit ... ok
+test both_edges_can_reuse_the_same_meta_state ... ok
+test contract_rpc_does_not_issue_fake_grants_without_store ... ok
+test dfs_metadata_sync_allows_metadata_revision_drift_without_losing_xattrs ... ok
+test dfs_commit_accepts_durable_ack_after_unrelated_catalog_advance ... ok
+test dfs_kernel_killpriv_commit_requires_lease_and_preserves_nonexecutable_sgid ... ok
+test dfs_data_commit_allows_metadata_revision_drift_without_losing_attrs ... ok
+test dfs_namespace_errors_preserve_posix_errno ... ok
+test dfs_namespace_hardlink_symlink_and_readlink_are_metadata_operations ... ok
+test dfs_namespace_mkdir_readdir_and_rmdir_update_directory_links ... ok
+test dfs_namespace_attrs_and_user_xattrs_are_revision_fenced ... ok
+test dfs_namespace_mutations_update_parent_times_and_replay_is_stable ... ok
+test dfs_namespace_permissions_require_parent_write_and_search ... ok
+test dfs_namespace_rename_no_replace_and_replace_are_atomic ... ok
+test dfs_namespace_rpc_requires_caller_context_for_mutations ... ok
+test dfs_namespace_rename_rejects_directory_into_its_subtree ... ok
+test dfs_namespace_root_rejects_aliasing_another_namespace ... ok
+test dfs_namespace_retry_binds_semantics_and_new_inode_identity_scopes_caller ... ok
+test dfs_namespace_sgid_parent_sets_child_group_for_directories_and_symlinks ... ok
+test dfs_namespace_sticky_directories_require_victim_or_directory_owner ... ok
+test dfs_namespace_unlink_removes_name_but_keeps_orphan_inode_for_open_handles ... ok
+test dfs_placement_allows_remote_head_when_local_copy_not_required ... ok
+test dfs_placement_rejects_unsatisfied_sync_minima ... ok
+test dfs_placement_uses_global_live_devices_for_required_local_copy ... ok
+test dfs_removed_directory_cannot_receive_new_entries ... ok
+test dfs_readonly_owner_can_set_times_and_directory_chown_preserves_special_bits ... ok
+test dfs_rename_preserves_other_hardlinks_and_same_inode_is_noop ... ok
+test dfs_renewal_accepts_same_epoch_expiry_drift_and_replays_exact_result ... ok
+test dfs_replica_write_grant_accepts_frozen_target_catalog_floor ... ok
+test dfs_special_inode_has_metadata_without_chunks_and_enforces_parent_access ... ok
+test meta_services_share_one_package_but_remain_separate_routes ... ok
+test dfs_write_lease_reuses_one_owner_and_fences_stale_commits ... ok
+test dfs_renewal_concurrent_same_epoch_callers_preserve_authority ... ok
+test owner_authority_stale_abort_cannot_delete_new_pending_reservation ... ok
+test owner_root_messages_keep_location_reservation_and_access_separate ... ok
+test owner_authority_reserve_activate_acquire_validate_and_recover ... ok
+test node_rpc_store_local_file_recovers_committed_session_and_reply ... ok
+test dfs_renewal_cannot_resurrect_expired_or_reassigned_authority ... ok
+
+test result: ok. 38 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.18s
+
+    Checking afs v0.1.0 (/home/lzc.guest/afs-build/work/root-merged-v26)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 4.37s
+   Compiling afs v0.1.0 (/home/lzc.guest/afs-build/work/root-merged-v26)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 16.49s

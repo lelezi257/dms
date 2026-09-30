@@ -1,0 +1,32 @@
+{
+  "executed": 1,
+  "fixed_full_seeds": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10
+  ],
+  "hypothesis_database_per_failure": true,
+  "no_post_failure_filtering": true,
+  "operations_per_seed": 500,
+  "profile": "smoke",
+  "raw_trace_per_seed": true,
+  "required_full_operations_per_seed": 10000,
+  "result_counts": {
+    "BLOCKED": 0,
+    "FAIL": 1,
+    "INCONCLUSIVE": 0,
+    "NOT_RUN": 0,
+    "PASS": 0
+  },
+  "selected_seeds": [
+    1
+  ],
+  "shrink_corpus_per_seed": true
+}

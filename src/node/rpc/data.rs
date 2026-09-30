@@ -692,7 +692,6 @@ impl DfsReadAuthorizer for CachedDfsReadAuthorizer {
                 || entry.allowed_ranges.is_empty()
                 || entry.allowed_ranges.len() > 128
                 || entry.expires_at_unix_ms <= completed_now
-                || entry.expires_at_unix_ms > completed_now.saturating_add(5_000)
                 || entry.expires_at_unix_ms > check.grant.expires_at_unix_ms
                 || !authorized_read_range(entry, check.chunk_offset, check.length)
             {
@@ -713,6 +712,9 @@ impl DfsReadAuthorizer for CachedDfsReadAuthorizer {
             {
                 cache.remove(&old);
             }
+            // Meta and this receiver have different wall clocks. Bound local
+            // retention monotonically instead of rejecting a valid Meta reply
+            // whose five-second expiry is slightly ahead of our clock.
             let remaining = entry
                 .expires_at_unix_ms
                 .saturating_sub(completed_now)
@@ -4159,6 +4161,84 @@ mod tests {
         runtime: tokio::runtime::Handle,
         calls: std::sync::atomic::AtomicUsize,
         unavailable: std::sync::atomic::AtomicBool,
+    }
+
+    #[cfg(feature = "dfs")]
+    struct SkewedReadGrantValidator {
+        change_identity: bool,
+        exceed_grant_expiry: bool,
+    }
+
+    #[cfg(feature = "dfs")]
+    impl DfsReadGrantValidator for SkewedReadGrantValidator {
+        fn validate(
+            &self,
+            request: crate::dfs::ValidateDfsReadGrants,
+        ) -> afs_error::Result<Vec<crate::dfs::DfsAuthorizedRead>> {
+            let now = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_millis() as u64;
+            Ok(request
+                .validations
+                .into_iter()
+                .map(|mut validation| {
+                    let expires_at_unix_ms = if self.exceed_grant_expiry {
+                        validation.grant.expires_at_unix_ms + 1
+                    } else {
+                        assert!(validation.grant.expires_at_unix_ms > now + 5_600);
+                        now + 5_500
+                    };
+                    let allowed_ranges = vec![(validation.chunk_offset, validation.length)];
+                    if self.change_identity {
+                        validation.copy_id = crate::dfs::CopyId::new("another-copy");
+                    }
+                    crate::dfs::DfsAuthorizedRead {
+                        validation,
+                        allowed_ranges,
+                        expires_at_unix_ms,
+                    }
+                })
+                .collect())
+        }
+    }
+
+    #[cfg(feature = "dfs")]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn dfs_read_authority_tolerates_meta_clock_skew_without_extending_cache() {
+        let (_meta, _local, _temp, request) = memory_read_authority_fixture().await;
+        let authorizer = CachedDfsReadAuthorizer::new(
+            Arc::new(SkewedReadGrantValidator {
+                change_identity: false,
+                exceed_grant_expiry: false,
+            }),
+            "receiver".into(),
+            1,
+        );
+        authorizer.authorize("reader", &request).unwrap();
+        let cache = authorizer.cache.lock().unwrap();
+        assert!(!cache.is_empty());
+        for entry in cache.values() {
+            let remaining = entry
+                .deadline
+                .saturating_duration_since(std::time::Instant::now());
+            assert!(remaining > std::time::Duration::ZERO);
+            assert!(remaining <= std::time::Duration::from_secs(5));
+        }
+        drop(cache);
+
+        for (change_identity, exceed_grant_expiry) in [(true, false), (false, true)] {
+            let authorizer = CachedDfsReadAuthorizer::new(
+                Arc::new(SkewedReadGrantValidator {
+                    change_identity,
+                    exceed_grant_expiry,
+                }),
+                "receiver".into(),
+                1,
+            );
+            assert!(authorizer.authorize("reader", &request).is_err());
+            assert!(authorizer.cache.lock().unwrap().is_empty());
+        }
     }
     #[cfg(feature = "dfs")]
     impl DfsReadGrantValidator for MemoryReadGrantValidator {

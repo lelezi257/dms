@@ -1,0 +1,158 @@
+{
+  "allow_reference_fixture": false,
+  "created_at": "2026-09-30T16:57:48Z",
+  "driver": "AFS custom deterministic differential-random; JuiceFS fsrand/Hypothesis-inspired, not upstream suite",
+  "driver_file": {
+    "path": "/mnt/lima-afsadata/afs-delivery/evidence/p2-random-v30/acceptance-copy/experiments/afs-acceptance/drivers/random_fs.py",
+    "sha256": "9eb954504d525788431747ddac97b342233d35b218af21f40f2c25ae4fc9edde"
+  },
+  "host": {
+    "argv": [
+      "hostname"
+    ],
+    "returncode": 0,
+    "stderr": "",
+    "stdout": "lima-afs-accept-a\n"
+  },
+  "hypothesis": {
+    "available": true,
+    "module": "/mnt/lima-afsadata/afs-delivery/evidence/p2-random-v27/venv/lib/python3.12/site-packages/hypothesis/__init__.py",
+    "version": "6.168.3"
+  },
+  "meta_process": {
+    "cmdline": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v30/bin/afs-meta --config /mnt/lima-afsadata/afs-delivery/p2-memory-lane-v30/meta.toml ",
+    "exe": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v30/bin/afs-meta",
+    "exe_sha256": "ab7ce32ed9e0f212f4aa8341c0ca5ff32fd603c1a598d5e0f8e901db44dbb91d",
+    "exists": true,
+    "pid": "509012"
+  },
+  "mount": {
+    "argv": [
+      "findmnt",
+      "-T",
+      "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v30/mount-dfs",
+      "-o",
+      "TARGET,SOURCE,FSTYPE,OPTIONS",
+      "--json"
+    ],
+    "returncode": 0,
+    "stderr": "",
+    "stdout": "{\n   \"filesystems\": [\n      {\n         \"target\": \"/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v30/mount-dfs\",\n         \"source\": \"afs-dfs\",\n         \"fstype\": \"fuse\",\n         \"options\": \"rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other\"\n      }\n   ]\n}\n"
+  },
+  "observed_checks": {
+    "linux-runtime": true,
+    "observed-target-backend": true,
+    "product-process-identity": true,
+    "same-fixture-filesystem": true
+  },
+  "operation_alphabet": [
+    "create",
+    "open_read",
+    "write",
+    "pwrite",
+    "append",
+    "read",
+    "truncate",
+    "sparse",
+    "rename",
+    "hardlink",
+    "symlink",
+    "unlink",
+    "stat"
+  ],
+  "platform": {
+    "gid": 0,
+    "machine": "aarch64",
+    "python": "3.12.3",
+    "release": "6.8.0-142-generic",
+    "system": "Linux",
+    "uid": 0
+  },
+  "process": {
+    "cmdline": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v30/bin/afs-node --config /mnt/lima-afsadata/afs-delivery/p2-memory-lane-v30/node.toml ",
+    "exe": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v30/bin/afs-node",
+    "exe_sha256": "e4fd549487967518fb982963f3291096327d5f38c16a59cac0f5561ba07e442a",
+    "exists": true,
+    "pid": "509042"
+  },
+  "product": {
+    "backend": "dfs",
+    "meta": "memory",
+    "meta_process_pid": "509012",
+    "mount_path": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v30/mount-dfs",
+    "process_pid": "509042",
+    "product_target": true,
+    "reference_base": "/mnt/lima-afsadata/afs-delivery/evidence/p2-random-v30/ref-ext4-500-20260930T165748Z",
+    "target_base": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v30/mount-dfs/std04-dfs-random-500-v30-20260930T165748Z"
+  },
+  "reference_filesystem": {
+    "fstype": "ext4",
+    "options": "rw,relatime",
+    "source": "/dev/vdb1",
+    "target": "/mnt/lima-afsadata"
+  },
+  "reference_mount": {
+    "argv": [
+      "findmnt",
+      "-T",
+      "/mnt/lima-afsadata/afs-delivery/evidence/p2-random-v30/ref-ext4-500-20260930T165748Z",
+      "-o",
+      "TARGET,SOURCE,FSTYPE,OPTIONS",
+      "--json"
+    ],
+    "returncode": 0,
+    "stderr": "",
+    "stdout": "{\n   \"filesystems\": [\n      {\n         \"target\": \"/mnt/lima-afsadata\",\n         \"source\": \"/dev/vdb1\",\n         \"fstype\": \"ext4\",\n         \"options\": \"rw,relatime\"\n      }\n   ]\n}\n"
+  },
+  "selection": {
+    "cap_applied": false,
+    "full_seeds": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10
+    ],
+    "operations_per_seed": 500,
+    "per_seed_timeout_seconds": 60.0,
+    "profile": "smoke",
+    "selected_seeds": [
+      1
+    ]
+  },
+  "selftest_inject_target_fault_at": null,
+  "selftest_skip_target_cleanup": false,
+  "target_base_mount": {
+    "argv": [
+      "findmnt",
+      "-T",
+      "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v30/mount-dfs/std04-dfs-random-500-v30-20260930T165748Z",
+      "-o",
+      "TARGET,SOURCE,FSTYPE,OPTIONS",
+      "--json"
+    ],
+    "returncode": 0,
+    "stderr": "",
+    "stdout": "{\n   \"filesystems\": [\n      {\n         \"target\": \"/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v30/mount-dfs\",\n         \"source\": \"afs-dfs\",\n         \"fstype\": \"fuse\",\n         \"options\": \"rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other\"\n      }\n   ]\n}\n"
+  },
+  "target_filesystem": {
+    "fstype": "fuse",
+    "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other",
+    "source": "afs-dfs",
+    "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v30/mount-dfs"
+  },
+  "uname": {
+    "argv": [
+      "uname",
+      "-a"
+    ],
+    "returncode": 0,
+    "stderr": "",
+    "stdout": "Linux lima-afs-accept-a 6.8.0-142-generic #142-Ubuntu SMP PREEMPT_DYNAMIC Wed Sep  2 14:30:29 UTC 2026 aarch64 aarch64 aarch64 GNU/Linux\n"
+  }
+}

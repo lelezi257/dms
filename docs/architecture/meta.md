@@ -25,6 +25,14 @@ Meta service processes can be stateless with respect to local memory only when t
 
 The [first-stage delivery](../acceptance.md) deploys one Meta process per filesystem. It requires durable restart and exact request replay, but does not implement Meta instance election or fencing between competing instances. High availability requires a separate leader and persistence protocol, listed in the acceptance TODO. Inode owner lease and Node/Device epoch checks remain part of the first-stage file protocol.
 
+### DFS Lease Identity And Renewal
+
+A DFS write lease is identified by inode, owner node, owner process session and lease epoch. Its expiry can advance when the same owner opens a handle or renews authority. Different handles and the inode lock authority can therefore hold different expiry hints for the same epoch.
+
+Meta validates the stored live identity before renewal, compares that stored lease atomically, and preserves a monotonically increasing expiry. Expiry contention retries with the same operation identity; exhausted contention reports a retryable error. An expired or reassigned stored lease cannot be renewed through an old handle. A repeated successful operation returns its recorded result.
+
+Node distinguishes temporary renewal failure from confirmed fencing. Temporary failure retains existing locks and waiters while their authority is live. Confirmed fencing or expiry invalidates that authority; a delayed renewal response cannot restore an invalidated lock table. The same rules apply to local lock operations and Peer control requests.
+
 ## Snapshot Reads
 
 Compound read operations can use `MetaReadView` to pin one committed state while resolving a file version, layout, inode and chunk sources. This gives a consistent read view above the store interface without requiring the backend itself to expose native multi-record read transactions.

@@ -1388,7 +1388,12 @@ impl DfsService {
         if !same_owner || !live {
             lease.lease_epoch = lease.lease_epoch.saturating_add(1);
         }
-        lease.expires_at_unix_ms = lease_expiry(lease_seconds)?;
+        let requested_expiry = lease_expiry(lease_seconds)?;
+        lease.expires_at_unix_ms = if same_owner && live {
+            lease.expires_at_unix_ms.max(requested_expiry)
+        } else {
+            requested_expiry
+        };
 
         let request = RequestKey::new(caller_id, operation_id.0.clone());
         let outcome = RequestOutcome {
@@ -1477,27 +1482,45 @@ impl DfsService {
         {
             return Ok(lease);
         }
-        let mut renewed = current.clone();
-        renewed.expires_at_unix_ms = lease_expiry(lease_seconds)?;
-        let request = RequestKey::new(caller_id, operation_id.0.clone());
-        let outcome = RequestOutcome {
-            request: request.clone(),
-            operation: StoreOperation::DfsRenewWriteLease,
-            result: OperationResult::DfsWriteLease(renewed.clone()),
-        };
-        let mut txn = MetaTxn::new(request.clone(), StoreOperation::DfsRenewWriteLease);
-        txn.conditions.extend([
-            TxnCondition::RequestAbsent(request),
-            TxnCondition::EntityEquals(MetaEntity::DfsWriteLease(current)),
-        ]);
-        txn.mutations.extend([
-            TxnMutation::Put(MetaEntity::DfsWriteLease(renewed)),
-            TxnMutation::RecordRequestOutcome(outcome),
-        ]);
-        lease_outcome(
-            self.store.compare_and_commit(txn).await?,
-            StoreOperation::DfsRenewWriteLease,
-        )
+        // Expiry is a mutable renewal hint, not the fencing identity. A file
+        // handle and its lock authority can hold different expiry snapshots
+        // of the same live owner/epoch after another open or renewal.
+        for _ in 0..16 {
+            let stored = self
+                .validate_write_lease(&caller_id, &current.inode_id, &current)
+                .await?;
+            let mut renewed = stored.clone();
+            renewed.expires_at_unix_ms =
+                stored.expires_at_unix_ms.max(lease_expiry(lease_seconds)?);
+            let request = RequestKey::new(caller_id.clone(), operation_id.0.clone());
+            let outcome = RequestOutcome {
+                request: request.clone(),
+                operation: StoreOperation::DfsRenewWriteLease,
+                result: OperationResult::DfsWriteLease(renewed.clone()),
+            };
+            let mut txn = MetaTxn::new(request.clone(), StoreOperation::DfsRenewWriteLease);
+            txn.conditions.extend([
+                TxnCondition::RequestAbsent(request),
+                TxnCondition::EntityEquals(MetaEntity::DfsWriteLease(stored)),
+            ]);
+            txn.mutations.extend([
+                TxnMutation::Put(MetaEntity::DfsWriteLease(renewed)),
+                TxnMutation::RecordRequestOutcome(outcome),
+            ]);
+            match self.store.compare_and_commit(txn).await? {
+                TxnOutcome::ConditionFailed {
+                    existing_outcome: None,
+                    ..
+                } => continue,
+                outcome => {
+                    return lease_outcome(outcome, StoreOperation::DfsRenewWriteLease);
+                }
+            }
+        }
+        Err(Error::coded(
+            afs_error::META_DFS_LEASE_RETRY,
+            "DFS lease renewal remained contended after retries",
+        ))
     }
 
     pub async fn get_inode(&self, inode_id: InodeId) -> Result<InodeRecord> {

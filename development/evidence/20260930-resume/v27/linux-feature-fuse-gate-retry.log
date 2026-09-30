@@ -1,0 +1,44 @@
+bash: line 1: cd: /Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store: No such file or directory
+bash: line 1: cd: /Users/lzc: No such file or directory
+
+running 5 tests
+test fuse_ftruncate_on_same_handle_waits_for_prior_write ... fusermount3: failed to unmount /tmp/.tmpw5cMG8/mnt: Invalid argument
+ok
+test fuse_mount_binds_backend_at_mount_root ... fusermount3: failed to unmount /tmp/.tmpseYJ1Q/mnt: Invalid argument
+ok
+test fuse_mount_dispatches_real_backend_and_preserves_open_handle_identity ... fusermount3: failed to unmount /tmp/.tmp1kKMLq/mnt: Invalid argument
+ok
+test fuse_mount_does_not_invent_backend_namespace_directories ... fusermount3: failed to unmount /tmp/.tmpsKdepw/mnt: Invalid argument
+ok
+test fuse_mount_rejects_existing_live_mount ... fusermount3: failed to unmount /tmp/.tmpIiG2nv/mnt: Invalid argument
+ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 3 filtered out; finished in 0.13s
+
+   Compiling afs-error v0.1.0 (/home/lzc.guest/afs-build/work/root-merged-v27/common/error)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.34s
+     Running unittests src/lib.rs (/home/lzc.guest/afs-build/target/debug/deps/afs_error-826c9a2d05548ba5)
+
+running 4 tests
+test tests::io_keeps_linux_raw_errno_for_xattr_and_operation_permissions ... ok
+test tests::unknown_code_is_preserved ... ok
+test tests::io_keeps_permission_capacity_and_type_categories ... ok
+test tests::catalog_matches_unique_nonzero_numbered_constants ... FAILED
+
+failures:
+
+---- tests::catalog_matches_unique_nonzero_numbered_constants stdout ----
+
+thread 'tests::catalog_matches_unique_nonzero_numbered_constants' (307601) panicked at common/error/src/lib.rs:110:9:
+assertion `left == right` failed
+  left: 73
+ right: 74
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    tests::catalog_matches_unique_nonzero_numbered_constants
+
+test result: FAILED. 3 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p afs-error --lib`

@@ -1,0 +1,17 @@
+bash: line 1: cd: /Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store: No such file or directory
+bash: line 1: cd: /Users/lzc: No such file or directory
+test_bad_fake_worker_preserves_command_and_failure_accounting (test_locks_cross.LocksCrossTests.test_bad_fake_worker_preserves_command_and_failure_accounting) ... ok
+test_errno_predicates_reject_unsupported_and_capacity_errors (test_locks_cross.LocksCrossTests.test_errno_predicates_reject_unsupported_and_capacity_errors) ... ok
+test_ext4_workers_pass_but_are_reference_only (test_locks_cross.LocksCrossTests.test_ext4_workers_pass_but_are_reference_only) ... ok
+test_fake_different_kernel_non_afs_fuse_is_not_qualified (test_locks_cross.LocksCrossTests.test_fake_different_kernel_non_afs_fuse_is_not_qualified) ... ok
+test_fake_enolck_fcntl_conflict_fails_host_step (test_locks_cross.LocksCrossTests.test_fake_enolck_fcntl_conflict_fails_host_step) ... ok
+test_getlk_predicate_prefers_worker_lock_type_name (test_locks_cross.LocksCrossTests.test_getlk_predicate_prefers_worker_lock_type_name) ... ok
+test_require_cross_mount_rejects_same_kernel_workers (test_locks_cross.LocksCrossTests.test_require_cross_mount_rejects_same_kernel_workers) ... ok
+test_worker_pid_file_identity_records_product_and_meta (test_locks_cross.LocksCrossTests.test_worker_pid_file_identity_records_product_and_meta) ... ok
+test_worker_read_event_timeout_is_bounded_without_output (test_locks_cross.LocksCrossTests.test_worker_read_event_timeout_is_bounded_without_output) ... ok
+test_worker_readonly_write_lock_returns_ebadf (test_locks_cross.LocksCrossTests.test_worker_readonly_write_lock_returns_ebadf) ... ok
+
+----------------------------------------------------------------------
+Ran 10 tests in 2.108s
+
+OK

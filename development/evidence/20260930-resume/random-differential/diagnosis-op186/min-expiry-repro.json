@@ -1,0 +1,15 @@
+{
+  "initial_write": {
+    "written": 6
+  },
+  "root": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v27/mount-dfs/diag-expiry-20260930T163455Z",
+  "second_pwrite": {
+    "errno": 16,
+    "errno_name": "EBUSY",
+    "ok": false
+  },
+  "sleep_seconds": 35,
+  "stat": {
+    "size": 6
+  }
+}

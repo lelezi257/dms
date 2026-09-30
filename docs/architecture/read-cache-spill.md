@@ -43,6 +43,8 @@ Peer range reads require both peer authentication and a read authorization decis
 
 Each source candidate carries a per-operation `DfsReadGrant`, binding namespace, file version, layout root, caller node identity and epoch, expiry, fence and token. A peer batch preserves those independent grants rather than sharing one grant across different chunks.
 
+Receiver authorization caching retains the exact validated capability and covered ranges. Meta limits the authorization to the original grant, caller and receiver leases, and its five-second authorization window. The receiver limits local retention to five seconds using a monotonic deadline. It rejects expired, changed or overbroad replies; it does not require identical wall clocks on Meta and the receiver to accept a valid reply.
+
 In the protobuf, `DfsReadGrant.caller_node_epoch` retains field 5. The former batch-level grant at `DfsReadRangesRequest` field 5 is reserved; each `DfsChunkReadOp` carries its own grant at field 7. Peers must use compatible protocol versions during a coordinated upgrade.
 
 `PeerConnectionPool` is transport plumbing only. It may reuse lazy gRPC channels and enforce capacity, but grant validity remains with each read operation. Pool eviction, backpressure and production limits are operational policy, not authorization.

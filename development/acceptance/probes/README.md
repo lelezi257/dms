@@ -96,3 +96,11 @@ sudo python3 experiments/afs-acceptance/probes/locks_smoke.py \
 The report marks `cross_path_probe=true` when primary and secondary paths differ. That result proves only the observed behavior between those two paths; it does not by itself prove cross-node coverage.
 
 On success the fixture is removed. On failure it is kept unless setup failed before a target file was created. `ENOSYS` or `EOPNOTSUPP` failures are treated as clear evidence that the current filesystem/mount does not support the requested lock callback path.
+
+## Cross-Mount Consistency
+
+`consistency_cross.py` runs eight short scenarios through two Linux workers: OwnerFs and DFS same-mount visibility, close-to-open, remote-owner writes, DFS reopen and dirty writes from the former owner after owner handover, and an existing remote writable handle surviving handleless resize. The last scenario reads accepted writes before close, then checks a fresh open after close. Assertions are one-shot and do not poll until stale data happens to disappear.
+
+The `host` command takes JSON worker command prefixes, the OwnerFs workspace and DFS roots visible to each worker, and exact expected Node/Meta PID and executable SHA pairs. Use `--require-cross-mount` for product runs. The report must identify different Linux boot IDs, all four actual AFS FUSE mounts and the same expected processes throughout the run. `--allow-host-non-linux` permits VM orchestration only; worker file operations remain on Linux. See `host --help` for the complete arguments.
+
+Run `python3 consistency_cross.py selftest` on Linux to verify positive reference behavior, bounded silent-worker timeout, wrong-binary rejection and rejection of unqualified mounts. Reference selftests do not qualify AFS behavior. Evidence includes exact commands, phase-specific errors, content, sizes, identities and discovered step accounting.

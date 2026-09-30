@@ -41,6 +41,16 @@ The user-visible triggers are POSIX barriers, close and open flags:
 
 All inode modifications are serialized by the inode owner. If a commit result is unknown, the precise request remains pending and later `write`, `resize` and `sync` operations for that inode are blocked until the result is recovered or failed. DFS does not start a next dirty batch in parallel behind an unknown commit.
 
+### Retained State And Reopen
+
+Closing the last writer can leave a reusable inode state on the node. That retained state is not proof that its lease or committed head is still current. A new writable open resolves the current owner through Meta; remote mutations are forwarded to that owner, including truncation performed before a file handle exists.
+
+A local owner can adopt a fresh lease when its retained state has no protected writes or unresolved operation. Pending metadata can remain only when its committed inode revision and head still match. Dirty data, active writers and exact pending commits cannot be silently attached to another lease epoch.
+
+A fresh readonly open revalidates the committed view. An inactive retained view can load the current version, layout and length together; a delayed older Meta response cannot replace a newer committed view. Observation does not rebind protected local write state or alter the identity of a pending commit. Same-mount readers continue to see the local dirty overlay while it is protected.
+
+When a mount has a remote writable handle, same-mount reads and visible attributes reach that handle's inode owner to observe accepted dirty writes and their current length. A fully clean inactive local state cannot shadow that remote route. A write-only handle keeps its original access mode; the node retains a separate read-capable owner handle for same-mount readers and still rejects reads on the user's write-only handle. Data routing alone is insufficient: a committed length of zero can make the kernel return EOF before requesting any bytes. A handleless resize uses a temporary owner handle and a full sync before returning. Closing that temporary handle preserves the route for surviving writable handles. Provider replacement checks live handles and updates the route atomically; cleanup cannot restore an already closed handle or remove a newer route.
+
 ## Commit Flow
 
 ```text

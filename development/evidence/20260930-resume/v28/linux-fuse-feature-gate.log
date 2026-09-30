@@ -1,0 +1,25 @@
+bash: line 1: cd: /Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store: No such file or directory
+bash: line 1: cd: /Users/lzc: No such file or directory
+
+running 5 tests
+test fuse_ftruncate_on_same_handle_waits_for_prior_write ... fusermount3: failed to unmount /tmp/.tmpsYNZR0/mnt: Invalid argument
+ok
+test fuse_mount_binds_backend_at_mount_root ... fusermount3: failed to unmount /tmp/.tmp6Gbnrd/mnt: Invalid argument
+ok
+test fuse_mount_dispatches_real_backend_and_preserves_open_handle_identity ... fusermount3: failed to unmount /tmp/.tmpEh1BYq/mnt: Invalid argument
+ok
+test fuse_mount_does_not_invent_backend_namespace_directories ... fusermount3: failed to unmount /tmp/.tmpqOqT0N/mnt: Invalid argument
+ok
+test fuse_mount_rejects_existing_live_mount ... fusermount3: failed to unmount /tmp/.tmpAo8F9O/mnt: Invalid argument
+ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 3 filtered out; finished in 0.11s
+
+   Compiling afs-transport v0.1.0 (/home/lzc.guest/afs-build/work/root-merged-v28/common/transport)
+    Checking fuser v0.16.0 (/home/lzc.guest/afs-build/work/root-merged-v28/third_party/fuser)
+    Checking afs v0.1.0 (/home/lzc.guest/afs-build/work/root-merged-v28)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 2.09s
+    Checking afs v0.1.0 (/home/lzc.guest/afs-build/work/root-merged-v28)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 1.94s
+    Checking afs v0.1.0 (/home/lzc.guest/afs-build/work/root-merged-v28)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 1.92s

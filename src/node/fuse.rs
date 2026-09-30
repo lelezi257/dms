@@ -2123,5 +2123,11 @@ mod dispatch_tests {
         );
         rejected_rx.recv_timeout(Duration::from_secs(1)).unwrap();
         release_tx.send(()).unwrap();
+        for expected in 1..8 {
+            assert_eq!(
+                started_rx.recv_timeout(Duration::from_secs(1)).unwrap(),
+                expected
+            );
+        }
     }
 }

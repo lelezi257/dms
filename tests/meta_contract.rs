@@ -33,6 +33,191 @@ use afs_protocol::meta::{
 use std::sync::Arc;
 use tonic::{Code, Request};
 
+async fn renewal_fixture(lease_seconds: u64) -> (DfsService, afs::dfs::WriteLease) {
+    use afs::dfs::{InodeAttributes, InodeId, NamespaceId};
+    use afs::meta::dfs::CreateFileRequest;
+    let (_, dfs) = memory_meta_and_dfs_service(ReplicationConfig::local_single_copy()).await;
+    let (_, lease) = dfs
+        .create(CreateFileRequest {
+            caller_id: "node-a".into(),
+            owner_session_id: "session-a".into(),
+            operation_id: OperationId::new("create-renewal"),
+            namespace_id: NamespaceId::new("default"),
+            parent_inode_id: InodeId::new("1"),
+            name: b"renewal.txt".to_vec(),
+            attributes: InodeAttributes {
+                mode: 0o644,
+                uid: 1000,
+                gid: 1000,
+                nlink: 1,
+                atime_unix_ms: 1,
+                mtime_unix_ms: 1,
+                ctime_unix_ms: 1,
+            },
+            lease_seconds,
+        })
+        .await
+        .unwrap();
+    (dfs, lease)
+}
+
+#[tokio::test]
+async fn dfs_renewal_accepts_same_epoch_expiry_drift_and_replays_exact_result() {
+    let (dfs, original) = renewal_fixture(30).await;
+    let (_, reopened) = dfs
+        .open_write(
+            "node-a".into(),
+            "session-a".into(),
+            OperationId::new("reopen"),
+            original.inode_id.clone(),
+            60,
+        )
+        .await
+        .unwrap();
+    assert_ne!(original.expires_at_unix_ms, reopened.expires_at_unix_ms);
+    let renewed = dfs
+        .renew_write_lease(
+            "node-a".into(),
+            "session-a".into(),
+            OperationId::new("renew-original"),
+            original.clone(),
+            30,
+        )
+        .await
+        .expect("a same-epoch reopen must not fence the lock renewal snapshot");
+    assert_eq!(renewed.lease_epoch, original.lease_epoch);
+    assert!(renewed.expires_at_unix_ms >= reopened.expires_at_unix_ms);
+    let mut stale_hint = original.clone();
+    stale_hint.expires_at_unix_ms = 0;
+    dfs.renew_write_lease(
+        "node-a".into(),
+        "session-a".into(),
+        OperationId::new("renew-old-hint"),
+        stale_hint,
+        90,
+    )
+    .await
+    .expect("stored live authority, rather than a copied expiry hint, controls renewal");
+    let replay = dfs
+        .renew_write_lease(
+            "node-a".into(),
+            "session-a".into(),
+            OperationId::new("renew-original"),
+            original.clone(),
+            30,
+        )
+        .await
+        .unwrap();
+    assert_eq!(replay, renewed);
+    let mut fenced = original;
+    fenced.lease_epoch += 1;
+    assert!(
+        dfs.renew_write_lease(
+            "node-a".into(),
+            "session-a".into(),
+            OperationId::new("renew-wrong-epoch"),
+            fenced,
+            30
+        )
+        .await
+        .is_err()
+    );
+}
+
+#[tokio::test]
+async fn dfs_same_owner_reopen_cannot_shorten_live_lease_expiry() {
+    let (dfs, original) = renewal_fixture(90).await;
+    let (_, reopened) = dfs
+        .open_write(
+            "node-a".into(),
+            "session-a".into(),
+            OperationId::new("shorter-reopen"),
+            original.inode_id.clone(),
+            30,
+        )
+        .await
+        .unwrap();
+    assert_eq!(reopened.lease_epoch, original.lease_epoch);
+    assert!(reopened.expires_at_unix_ms >= original.expires_at_unix_ms);
+    let renewed = dfs
+        .renew_write_lease(
+            "node-a".into(),
+            "session-a".into(),
+            OperationId::new("shorter-renew"),
+            original,
+            30,
+        )
+        .await
+        .unwrap();
+    assert!(renewed.expires_at_unix_ms >= reopened.expires_at_unix_ms);
+}
+
+#[tokio::test]
+async fn dfs_renewal_concurrent_same_epoch_callers_preserve_authority() {
+    let (dfs, original) = renewal_fixture(30).await;
+    let mut tasks = tokio::task::JoinSet::new();
+    for index in 0..8 {
+        let dfs = dfs.clone();
+        let original = original.clone();
+        tasks.spawn(async move {
+            dfs.renew_write_lease(
+                "node-a".into(),
+                "session-a".into(),
+                OperationId::new(format!("renew-{index}")),
+                original,
+                60 + index,
+            )
+            .await
+        });
+    }
+    while let Some(result) = tasks.join_next().await {
+        let lease = result
+            .unwrap()
+            .expect("same-epoch expiry CAS races must be retried");
+        assert_eq!(lease.lease_epoch, original.lease_epoch);
+        assert_eq!(lease.owner_session_id, original.owner_session_id);
+    }
+}
+
+#[tokio::test]
+async fn dfs_renewal_cannot_resurrect_expired_or_reassigned_authority() {
+    let (dfs, original) = renewal_fixture(1).await;
+    tokio::time::sleep(std::time::Duration::from_millis(1100)).await;
+    assert!(
+        dfs.renew_write_lease(
+            "node-a".into(),
+            "session-a".into(),
+            OperationId::new("renew-expired"),
+            original.clone(),
+            30
+        )
+        .await
+        .is_err()
+    );
+    let (_, next) = dfs
+        .open_write(
+            "node-b".into(),
+            "session-b".into(),
+            OperationId::new("takeover"),
+            original.inode_id.clone(),
+            30,
+        )
+        .await
+        .unwrap();
+    assert!(next.lease_epoch > original.lease_epoch);
+    assert!(
+        dfs.renew_write_lease(
+            "node-a".into(),
+            "session-a".into(),
+            OperationId::new("renew-fenced"),
+            original,
+            30
+        )
+        .await
+        .is_err()
+    );
+}
+
 #[tokio::test]
 async fn node_rpc_store_local_file_recovers_committed_session_and_reply() {
     let dir = tempfile::tempdir().unwrap();

@@ -182,6 +182,7 @@ struct DfsDirectoryHandle {
 struct DfsLockAuthority {
     table: LockTable,
     state: Mutex<DfsLockAuthorityState>,
+    renewal: Mutex<()>,
 }
 
 struct DfsLockAuthorityState {
@@ -217,8 +218,155 @@ impl DfsLockAuthority {
                 waiters: HashSet::new(),
                 last_error: None,
             }),
+            renewal: Mutex::new(()),
         }
     }
+}
+
+fn same_lease_identity(left: &WriteLease, right: &WriteLease) -> bool {
+    left.inode_id == right.inode_id
+        && left.owner_node_id == right.owner_node_id
+        && left.owner_session_id == right.owner_session_id
+        && left.lease_epoch == right.lease_epoch
+}
+
+fn merge_same_identity_lease(current: &WriteLease, incoming: WriteLease) -> WriteLease {
+    let mut merged = incoming;
+    merged.expires_at_unix_ms = merged.expires_at_unix_ms.max(current.expires_at_unix_ms);
+    merged
+}
+
+fn lock_authority_renewal_guard(
+    authority: &Arc<DfsLockAuthority>,
+) -> Result<std::sync::MutexGuard<'_, ()>> {
+    authority
+        .renewal
+        .lock()
+        .map_err(|_| unavailable("DFS lock authority renewal guard is poisoned"))
+}
+
+fn refresh_same_epoch_lock_authority(
+    authority: &Arc<DfsLockAuthority>,
+    lease: WriteLease,
+) -> Result<()> {
+    let mut state = authority
+        .state
+        .lock()
+        .map_err(|_| unavailable("DFS lock authority state is poisoned"))?;
+    if let Some(error) = state.last_error.clone() {
+        return Err(error);
+    }
+    if same_lease_identity(&state.lease, &lease) {
+        state.lease = merge_same_identity_lease(&state.lease, lease);
+    }
+    Ok(())
+}
+
+fn apply_lock_renewal_success(
+    authority: &Arc<DfsLockAuthority>,
+    renewed: WriteLease,
+) -> Result<Option<Error>> {
+    let terminal_error = {
+        let mut state = authority
+            .state
+            .lock()
+            .map_err(|_| unavailable("DFS lock authority state is poisoned"))?;
+        if let Some(error) = state.last_error.clone() {
+            return Ok(Some(error));
+        }
+        let terminal_error = if !same_lease_identity(&state.lease, &renewed) {
+            Some(stale(
+                "DFS lock authority was renewed with a different lease identity",
+            ))
+        } else if state
+            .lease
+            .expires_at_unix_ms
+            .max(renewed.expires_at_unix_ms)
+            <= now_unix_ms()
+        {
+            Some(stale("DFS lock authority lease expired"))
+        } else {
+            None
+        };
+        if let Some(error) = terminal_error.clone() {
+            state.last_error = Some(error);
+            state.pinned_owners.clear();
+            state.waiters.clear();
+        } else {
+            state.lease = merge_same_identity_lease(&state.lease, renewed);
+        }
+        terminal_error
+    };
+    if terminal_error.is_some() {
+        let _ = authority.table.invalidate();
+    }
+    Ok(terminal_error)
+}
+
+fn apply_lock_renewal_failure(
+    authority: &Arc<DfsLockAuthority>,
+    attempted: &WriteLease,
+    error: Error,
+) -> Result<Option<Error>> {
+    let terminal_error = {
+        let mut state = authority
+            .state
+            .lock()
+            .map_err(|_| unavailable("DFS lock authority state is poisoned"))?;
+        if let Some(error) = state.last_error.clone() {
+            return Ok(Some(error));
+        }
+        if !same_lease_identity(&state.lease, attempted) {
+            return Ok(None);
+        }
+        let terminal_error = if is_confirmed_lock_renewal_fence(&error) {
+            Some(error)
+        } else if state.lease.expires_at_unix_ms <= now_unix_ms() {
+            Some(stale("DFS lock authority lease expired"))
+        } else {
+            None
+        };
+        if let Some(error) = terminal_error.clone() {
+            state.last_error = Some(error.clone());
+            state.pinned_owners.clear();
+            state.waiters.clear();
+            Some(error)
+        } else {
+            None
+        }
+    };
+    if terminal_error.is_some() {
+        let _ = authority.table.invalidate();
+    }
+    Ok(terminal_error)
+}
+
+fn expire_lock_authority_if_due_locked(authority: &Arc<DfsLockAuthority>) -> Result<bool> {
+    let expired = {
+        let mut state = authority
+            .state
+            .lock()
+            .map_err(|_| unavailable("DFS lock authority state is poisoned"))?;
+        let expired = state.last_error.is_none() && state.lease.expires_at_unix_ms <= now_unix_ms();
+        if expired {
+            state.last_error = Some(stale("DFS lock authority lease expired"));
+            state.pinned_owners.clear();
+            state.waiters.clear();
+        }
+        expired
+    };
+    if expired {
+        let _ = authority.table.invalidate();
+        return Ok(true);
+    }
+    Ok(false)
+}
+
+fn is_confirmed_lock_renewal_fence(error: &Error) -> bool {
+    matches!(
+        error.code(),
+        afs_error::META_DFS_CONFLICT | afs_error::NODE_DFS_STALE_HANDLE
+    )
 }
 
 impl DfsLockRenewal {
@@ -280,7 +428,7 @@ impl DfsLockRenewal {
         // The thread is intentionally one per DistributedFs instance, not one per inode.
         std::thread::spawn(move || {
             while running.load(Ordering::Acquire) {
-                std::thread::sleep(Duration::from_secs((DFS_WRITE_LEASE_SECONDS / 3).max(1)));
+                std::thread::sleep(Duration::from_secs(1));
                 if !running.load(Ordering::Acquire) {
                     break;
                 }
@@ -293,6 +441,9 @@ impl DfsLockRenewal {
                 };
                 let mut idle = Vec::new();
                 for (inode_id, authority) in entries {
+                    let Ok(_renewal) = lock_authority_renewal_guard(&authority) else {
+                        return;
+                    };
                     let (active, lease) = match authority.state.lock() {
                         Ok(state) => {
                             let active =
@@ -301,29 +452,25 @@ impl DfsLockRenewal {
                         }
                         Err(_) => return,
                     };
+                    if expire_lock_authority_if_due_locked(&authority).unwrap_or(true) {
+                        continue;
+                    }
                     if !active && authority.table.is_idle().unwrap_or(false) {
+                        drop(_renewal);
                         idle.push((inode_id, authority));
                         continue;
                     }
-                    if !active && !should_renew(&lease) {
+                    if !should_background_renew(&lease) {
                         continue;
                     }
-                    match meta.renew_write_lease(lease) {
+                    match meta.renew_write_lease(lease.clone()) {
                         Ok(renewed) => {
-                            if let Ok(mut state) = authority.state.lock() {
-                                state.lease = renewed;
-                                state.last_error = None;
-                            } else {
+                            if apply_lock_renewal_success(&authority, renewed).is_err() {
                                 return;
                             }
                         }
                         Err(error) => {
-                            let _ = authority.table.invalidate();
-                            if let Ok(mut state) = authority.state.lock() {
-                                state.last_error = Some(error);
-                                state.pinned_owners.clear();
-                                state.waiters.clear();
-                            } else {
+                            if apply_lock_renewal_failure(&authority, &lease, error).is_err() {
                                 return;
                             }
                         }
@@ -356,6 +503,7 @@ impl DfsLockRenewal {
 struct RemoteDfsWriteSession {
     owner: Arc<dyn RemoteDfsOwner>,
     handle: afs_protocol::node_control::DfsOwnerHandle,
+    read_handle: Option<afs_protocol::node_control::DfsOwnerHandle>,
 }
 
 #[derive(Clone)]
@@ -720,9 +868,237 @@ impl DistributedFs {
             .cloned())
     }
 
+    fn write_state_can_adopt_fresh_lease(state: &InodeWriteState) -> bool {
+        state.open_writers == 0
+            && !state.dirty
+            && !state.metadata_dirty
+            && !state.kill_suidgid_dirty
+            && state.dirty_extents.is_empty()
+            && state.in_flight.is_none()
+            && !state.commit_busy
+            && !state.operation_busy
+            && !state.last_writer_background_requested
+            && state.background_error.is_none()
+            && state.terminal_error.is_none()
+    }
+
+    fn write_state_can_rebind_fresh_lease_preserving_metadata(state: &InodeWriteState) -> bool {
+        state.open_writers == 0
+            && !state.dirty
+            && state.metadata_dirty
+            && !state.kill_suidgid_dirty
+            && state.dirty_extents.is_empty()
+            && state.in_flight.is_none()
+            && !state.commit_busy
+            && !state.operation_busy
+            && !state.last_writer_background_requested
+            && state.background_error.is_none()
+            && state.terminal_error.is_none()
+    }
+
+    fn write_state_can_refresh_committed_view(state: &InodeWriteState) -> bool {
+        state.open_writers == 0
+            && !state.dirty
+            && !state.kill_suidgid_dirty
+            && state.dirty_extents.is_empty()
+            && state.in_flight.is_none()
+            && !state.commit_busy
+            && !state.operation_busy
+            && !state.last_writer_background_requested
+            && state.background_error.is_none()
+            && state.terminal_error.is_none()
+    }
+
+    fn local_write_state_protects_remote_provider(&self, inode_id: &InodeId) -> Result<bool> {
+        let Some(state) = self.write_state(inode_id)? else {
+            return Ok(false);
+        };
+        let state = state
+            .lock()
+            .map_err(|_| unavailable("DFS inode write state is poisoned"))?;
+        Ok(!Self::write_state_can_adopt_fresh_lease(&state))
+    }
+
+    fn remote_provider_visible_for_reads(
+        &self,
+        inode_id: &InodeId,
+    ) -> Result<Option<RemoteDfsWriteSession>> {
+        if self.local_write_state_protects_remote_provider(inode_id)? {
+            return Ok(None);
+        }
+        self.current_remote_provider(inode_id)
+    }
+
+    fn write_state_should_reacquire_clean_lease(cell: &SharedInodeWriteState) -> Result<bool> {
+        let state = cell
+            .lock()
+            .map_err(|_| unavailable("DFS inode write state is poisoned"))?;
+        Ok((Self::write_state_can_adopt_fresh_lease(&state)
+            || Self::write_state_can_rebind_fresh_lease_preserving_metadata(&state))
+            && should_renew(&state.write_lease))
+    }
+
+    fn incoming_write_lease_is_older(state: &InodeWriteState, incoming: &WriteLease) -> bool {
+        state.write_lease.inode_id == incoming.inode_id
+            && state.write_lease.owner_node_id == incoming.owner_node_id
+            && state.write_lease.owner_session_id == incoming.owner_session_id
+            && incoming.lease_epoch < state.write_lease.lease_epoch
+    }
+
+    fn apply_clean_fresh_write_state(
+        state: &mut InodeWriteState,
+        inode: InodeRecord,
+        write_lease: WriteLease,
+        base_version: Option<FileVersion>,
+        base_layout: LayoutRoot,
+        logical_length: u64,
+    ) {
+        state.inode = inode;
+        state.write_lease = write_lease;
+        state.base_version = base_version;
+        state.base_layout = base_layout;
+        state.logical_length = logical_length;
+    }
+
+    fn apply_metadata_dirty_fresh_write_lease(
+        state: &mut InodeWriteState,
+        inode: &InodeRecord,
+        write_lease: WriteLease,
+        base_version: Option<FileVersion>,
+        base_layout: LayoutRoot,
+        logical_length: u64,
+    ) -> Result<()> {
+        if state.inode.revision != inode.revision || state.inode.head_version != inode.head_version
+        {
+            return Err(stale(
+                "DFS metadata-dirty write state cannot adopt a changed file head",
+            ));
+        }
+        state.write_lease = write_lease;
+        state.base_version = base_version;
+        state.base_layout = base_layout;
+        state.logical_length = logical_length;
+        Ok(())
+    }
+
+    fn apply_fresh_committed_view(
+        state: &mut InodeWriteState,
+        inode: InodeRecord,
+        base_version: Option<FileVersion>,
+        base_layout: LayoutRoot,
+        logical_length: u64,
+    ) {
+        state.inode = inode;
+        state.base_version = base_version;
+        state.base_layout = base_layout;
+        state.logical_length = logical_length;
+        state.metadata_dirty = false;
+    }
+
+    fn refresh_retained_committed_view(&self, inode: &InodeRecord) -> Result<()> {
+        let Some(existing) = self.write_state(&inode.inode_id)? else {
+            return Ok(());
+        };
+        {
+            let state = existing
+                .lock()
+                .map_err(|_| unavailable("DFS inode write state is poisoned"))?;
+            if inode.revision < state.inode.revision {
+                return Ok(());
+            }
+            if state.inode.revision == inode.revision
+                && state.inode.head_version == inode.head_version
+            {
+                return Ok(());
+            }
+            if !Self::write_state_can_refresh_committed_view(&state) {
+                return Ok(());
+            }
+        }
+        let (base_version, base_layout) = self.load_version(inode.head_version.as_ref())?;
+        let logical_length = base_version.as_ref().map_or(0, |version| version.length);
+        let mut state = existing
+            .lock()
+            .map_err(|_| unavailable("DFS inode write state is poisoned"))?;
+        if inode.revision < state.inode.revision {
+            return Ok(());
+        }
+        if state.inode.revision == inode.revision && state.inode.head_version == inode.head_version
+        {
+            return Ok(());
+        }
+        if !Self::write_state_can_refresh_committed_view(&state) {
+            return Ok(());
+        }
+        Self::apply_fresh_committed_view(
+            &mut state,
+            inode.clone(),
+            base_version,
+            base_layout,
+            logical_length,
+        );
+        existing.notify_all();
+        Ok(())
+    }
+
     fn install_write_state(&self, inode: InodeRecord, write_lease: WriteLease) -> Result<()> {
         self.ensure_local_write_owner(&write_lease)?;
-        if self.write_state(&inode.inode_id)?.is_some() {
+        if let Some(existing) = self.write_state(&inode.inode_id)? {
+            {
+                let mut state = existing
+                    .lock()
+                    .map_err(|_| unavailable("DFS inode write state is poisoned"))?;
+                if same_lease_identity(&state.write_lease, &write_lease) {
+                    state.write_lease = merge_same_identity_lease(&state.write_lease, write_lease);
+                    return Ok(());
+                }
+                if Self::incoming_write_lease_is_older(&state, &write_lease) {
+                    return Err(stale("DFS write state already holds a newer lease epoch"));
+                }
+                if !(Self::write_state_can_adopt_fresh_lease(&state)
+                    || Self::write_state_can_rebind_fresh_lease_preserving_metadata(&state))
+                {
+                    return Err(stale(
+                        "DFS write state has pending local changes under an older lease",
+                    ));
+                }
+            }
+            let (base_version, base_layout) = self.load_version(inode.head_version.as_ref())?;
+            let logical_length = base_version.as_ref().map_or(0, |version| version.length);
+            let mut state = existing
+                .lock()
+                .map_err(|_| unavailable("DFS inode write state is poisoned"))?;
+            if same_lease_identity(&state.write_lease, &write_lease) {
+                state.write_lease = merge_same_identity_lease(&state.write_lease, write_lease);
+                return Ok(());
+            }
+            if Self::incoming_write_lease_is_older(&state, &write_lease) {
+                return Err(stale("DFS write state already holds a newer lease epoch"));
+            }
+            if Self::write_state_can_adopt_fresh_lease(&state) {
+                Self::apply_clean_fresh_write_state(
+                    &mut state,
+                    inode,
+                    write_lease,
+                    base_version,
+                    base_layout,
+                    logical_length,
+                );
+            } else if Self::write_state_can_rebind_fresh_lease_preserving_metadata(&state) {
+                Self::apply_metadata_dirty_fresh_write_lease(
+                    &mut state,
+                    &inode,
+                    write_lease,
+                    base_version,
+                    base_layout,
+                    logical_length,
+                )?;
+            } else {
+                return Err(stale(
+                    "DFS write state became dirty before adopting a fresh lease",
+                ));
+            }
+            existing.notify_all();
             return Ok(());
         }
         let (base_version, base_layout) = self.load_version(inode.head_version.as_ref())?;
@@ -759,7 +1135,14 @@ impl DistributedFs {
 
     fn ensure_inode_write_state(&self, inode: &InodeRecord) -> Result<SharedInodeWriteState> {
         let state = match self.write_state(&inode.inode_id)? {
-            Some(state) => state,
+            Some(state) => {
+                if Self::write_state_should_reacquire_clean_lease(&state)? {
+                    let (fresh_inode, write_lease) = self.meta.open_write(&inode.inode_id)?;
+                    let fresh_inode = self.validate_inode(fresh_inode)?;
+                    self.install_write_state(fresh_inode, write_lease)?;
+                }
+                state
+            }
             None => {
                 let (fresh_inode, write_lease) = self.meta.open_write(&inode.inode_id)?;
                 let fresh_inode = self.validate_inode(fresh_inode)?;
@@ -795,9 +1178,17 @@ impl DistributedFs {
     }
 
     fn visible_attributes(&self, inode: &InodeRecord) -> Result<FileAttributes> {
+        self.visible_attributes_with_observed_inode(inode, inode)
+    }
+
+    fn visible_attributes_with_observed_inode(
+        &self,
+        inode: &InodeRecord,
+        observed: &InodeRecord,
+    ) -> Result<FileAttributes> {
         let Some(state) = self.write_state(&inode.inode_id)? else {
-            let (size, blocks) = self.inode_size_and_blocks(inode)?;
-            return Ok(attributes(inode, size, blocks));
+            let (size, blocks) = self.inode_size_and_blocks(observed)?;
+            return Ok(attributes(observed, size, blocks));
         };
         let state = state
             .lock()
@@ -812,7 +1203,19 @@ impl DistributedFs {
             frozen.as_ref(),
             &state.dirty_extents,
         )?;
-        Ok(attributes(&state.inode, state.logical_length, blocks))
+        let mut view = observed.clone();
+        if state.metadata_dirty {
+            view.attributes.atime_unix_ms = state.inode.attributes.atime_unix_ms;
+            view.attributes.mtime_unix_ms = state.inode.attributes.mtime_unix_ms;
+            view.attributes.ctime_unix_ms = view
+                .attributes
+                .ctime_unix_ms
+                .max(state.inode.attributes.ctime_unix_ms);
+        }
+        if state.kill_suidgid_dirty {
+            view.attributes.mode = state.inode.attributes.mode;
+        }
+        Ok(attributes(&view, state.logical_length, blocks))
     }
 
     fn clear_kernel_write_privileges(mode: u32) -> u32 {
@@ -843,6 +1246,12 @@ impl DistributedFs {
         Ok(state.kill_suidgid_dirty)
     }
 
+    fn observe_inode_record(&self, inode: InodeRecord) -> Result<InodeRecord> {
+        let inode = self.validate_inode(inode)?;
+        self.refresh_retained_committed_view(&inode)?;
+        Ok(inode)
+    }
+
     fn refresh_inode_record(
         &self,
         inode: InodeRecord,
@@ -850,6 +1259,7 @@ impl DistributedFs {
         preserve_dirty_mtime: bool,
     ) -> Result<InodeRecord> {
         let mut inode = self.validate_inode(inode)?;
+        self.refresh_retained_committed_view(&inode)?;
         if let Some(state) = self.write_state(&inode.inode_id)? {
             let mut state = state
                 .lock()
@@ -1447,7 +1857,39 @@ impl DistributedFs {
         let handle = reply
             .handle
             .ok_or_else(|| unavailable("DFS owner open returned no handle"))?;
-        let remote = RemoteDfsWriteSession { owner, handle };
+        let read_handle = if open_flags & libc::O_ACCMODE == libc::O_WRONLY {
+            match owner.open(afs_protocol::node_control::DfsOwnerOpenRequest {
+                namespace_id: self.namespace_id.0.clone(),
+                inode_id: inode.inode_id.0.clone(),
+                owner_node_id: lease.owner_node_id.clone(),
+                owner_session_id: lease.owner_session_id.clone(),
+                lease_epoch: lease.lease_epoch,
+                caller_session_id: self.session_id.clone(),
+                open_flags: libc::O_RDONLY,
+                kill_suidgid: false,
+            }) {
+                Ok(reply) => match reply.handle {
+                    Some(handle) => Some(handle),
+                    None => {
+                        let _ = Self::remote_release_handle(&owner, &handle);
+                        return Err(unavailable(
+                            "DFS owner read companion open returned no handle",
+                        ));
+                    }
+                },
+                Err(error) => {
+                    let _ = Self::remote_release_handle(&owner, &handle);
+                    return Err(error);
+                }
+            }
+        } else {
+            None
+        };
+        let remote = RemoteDfsWriteSession {
+            owner,
+            handle,
+            read_handle,
+        };
         self.remote_inode_providers
             .lock()
             .map_err(|_| unavailable("DFS remote owner table is poisoned"))?
@@ -1579,7 +2021,10 @@ impl DistributedFs {
                 .lease_epoch;
             if epoch == lease.lease_epoch {
                 drop(authorities);
-                self.check_lock_renewal(&authority)?;
+                let _renewal = lock_authority_renewal_guard(&authority)?;
+                refresh_same_epoch_lock_authority(&authority, lease)?;
+                self.check_lock_renewal_locked(&authority)?;
+                drop(_renewal);
                 return Ok(authority);
             }
             let replacement = self.replace_stale_lock_authority(inode_id, &authority, lease)?;
@@ -1989,18 +2434,59 @@ impl DistributedFs {
         self.lock_renewal.start(self.meta.clone());
     }
 
-    fn check_lock_renewal(&self, authority: &Arc<DfsLockAuthority>) -> Result<()> {
-        let mut state = authority
+    fn renewal_lease_snapshot(
+        &self,
+        authority: &Arc<DfsLockAuthority>,
+    ) -> Result<Option<WriteLease>> {
+        let state = authority
             .state
             .lock()
             .map_err(|_| unavailable("DFS lock authority state is poisoned"))?;
         if let Some(error) = state.last_error.clone() {
             return Err(error);
         }
-        if should_renew(&state.lease) {
-            state.lease = self.meta.renew_write_lease(state.lease.clone())?;
+        if !should_renew(&state.lease) {
+            return Ok(None);
         }
-        Ok(())
+        Ok(Some(state.lease.clone()))
+    }
+
+    fn check_lock_renewal_locked(&self, authority: &Arc<DfsLockAuthority>) -> Result<()> {
+        let Some(lease) = self.renewal_lease_snapshot(authority)? else {
+            return Ok(());
+        };
+        match self.meta.renew_write_lease(lease.clone()) {
+            Ok(renewed) => match apply_lock_renewal_success(authority, renewed)? {
+                Some(error) => Err(error),
+                None => Ok(()),
+            },
+            Err(error) => match apply_lock_renewal_failure(authority, &lease, error.clone())? {
+                Some(terminal) => Err(terminal),
+                None => Err(error),
+            },
+        }
+    }
+
+    fn check_lock_renewal(&self, authority: &Arc<DfsLockAuthority>) -> Result<()> {
+        let _renewal = lock_authority_renewal_guard(authority)?;
+        self.check_lock_renewal_locked(authority)
+    }
+
+    fn check_lock_renewal_after_mutation(&self, authority: &Arc<DfsLockAuthority>) -> Result<()> {
+        let _renewal = lock_authority_renewal_guard(authority)?;
+        let Some(lease) = self.renewal_lease_snapshot(authority)? else {
+            return Ok(());
+        };
+        match self.meta.renew_write_lease(lease.clone()) {
+            Ok(renewed) => match apply_lock_renewal_success(authority, renewed)? {
+                Some(error) => Err(error),
+                None => Ok(()),
+            },
+            Err(error) => match apply_lock_renewal_failure(authority, &lease, error)? {
+                Some(terminal) => Err(terminal),
+                None => Ok(()),
+            },
+        }
     }
 
     fn register_local_lock_success(
@@ -2817,16 +3303,29 @@ impl DistributedFs {
         if out.is_empty() {
             return Ok(0);
         }
+        let handle = remote.read_handle.as_ref().unwrap_or(&remote.handle);
         let reply = remote
             .owner
             .read(afs_protocol::node_data::DfsOwnerReadRequest {
-                handle: Some(Self::data_owner_handle(&remote.handle)),
+                handle: Some(Self::data_owner_handle(handle)),
                 offset,
                 length: out.len() as u64,
             })?;
         let count = reply.data.len().min(out.len());
         out[..count].copy_from_slice(&reply.data[..count]);
         Ok(count)
+    }
+
+    fn remote_getattr(&self, remote: &RemoteDfsWriteSession) -> Result<FileAttributes> {
+        let reply = remote
+            .owner
+            .getattr(afs_protocol::node_control::DfsOwnerGetAttrRequest {
+                handle: Some(remote.handle.clone()),
+            })?;
+        let attr = reply
+            .attr
+            .ok_or_else(|| unavailable("DFS owner getattr returned no attributes"))?;
+        file_attributes_from_owner_attr(attr)
     }
 
     fn remote_write(
@@ -2900,12 +3399,134 @@ impl DistributedFs {
             .remote
             .as_ref()
             .ok_or_else(|| invalid("DFS write session is local"))?;
-        remote
-            .owner
-            .release(afs_protocol::node_control::DfsOwnerReleaseRequest {
-                handle: Some(remote.handle.clone()),
-            })?;
+        let mut first_error = None;
+        if let Some(read_handle) = remote.read_handle.as_ref()
+            && let Err(error) = Self::remote_release_handle(&remote.owner, read_handle)
+        {
+            first_error = Some(error);
+        }
+        if let Err(error) = Self::remote_release_handle(&remote.owner, &remote.handle)
+            && first_error.is_none()
+        {
+            first_error = Some(error);
+        }
+        if let Some(error) = first_error {
+            return Err(error);
+        }
         Ok(())
+    }
+
+    fn remote_release_handle(
+        owner: &Arc<dyn RemoteDfsOwner>,
+        handle: &afs_protocol::node_control::DfsOwnerHandle,
+    ) -> Result<()> {
+        owner.release(afs_protocol::node_control::DfsOwnerReleaseRequest {
+            handle: Some(handle.clone()),
+        })?;
+        Ok(())
+    }
+
+    fn same_remote_provider(left: &RemoteDfsWriteSession, right: &RemoteDfsWriteSession) -> bool {
+        let left = &left.handle;
+        let right = &right.handle;
+        left.namespace_id == right.namespace_id
+            && left.inode_id == right.inode_id
+            && left.owner_node_id == right.owner_node_id
+            && left.owner_session_id == right.owner_session_id
+            && left.lease_epoch == right.lease_epoch
+            && left.caller_node_id == right.caller_node_id
+            && left.caller_session_id == right.caller_session_id
+            && left.opaque_handle == right.opaque_handle
+    }
+
+    fn current_remote_provider(&self, inode_id: &InodeId) -> Result<Option<RemoteDfsWriteSession>> {
+        self.remote_inode_providers
+            .lock()
+            .map_err(|_| unavailable("DFS remote owner table is poisoned"))
+            .map(|providers| providers.get(inode_id).cloned())
+    }
+
+    fn replace_released_remote_provider(
+        &self,
+        inode_id: &InodeId,
+        released: &RemoteDfsWriteSession,
+        preferred: Option<&RemoteDfsWriteSession>,
+    ) -> Result<()> {
+        let handles = self
+            .handles
+            .lock()
+            .map_err(|_| unavailable("DFS handle table is poisoned"))?;
+        let replacement = preferred
+            .filter(|preferred| {
+                handles.values().any(|handle| {
+                    handle.inode_id == *inode_id
+                        && handle
+                            .write_session
+                            .as_ref()
+                            .and_then(|session| session.remote.as_ref())
+                            .is_some_and(|remote| Self::same_remote_provider(remote, preferred))
+                })
+            })
+            .cloned()
+            .or_else(|| {
+                handles
+                    .values()
+                    .filter(|handle| handle.inode_id == *inode_id)
+                    .filter_map(|handle| {
+                        handle
+                            .write_session
+                            .as_ref()
+                            .and_then(|session| session.remote.clone())
+                    })
+                    .next()
+            });
+        let mut providers = self
+            .remote_inode_providers
+            .lock()
+            .map_err(|_| unavailable("DFS remote owner table is poisoned"))?;
+        if providers
+            .get(inode_id)
+            .is_some_and(|current| Self::same_remote_provider(current, released))
+        {
+            if let Some(replacement) = replacement {
+                providers.insert(inode_id.clone(), replacement);
+            } else {
+                providers.remove(inode_id);
+            }
+        }
+        Ok(())
+    }
+
+    fn close_remote_write_session(
+        &self,
+        inode_id: &InodeId,
+        session: &DfsRemoteWriteSession,
+    ) -> Result<()> {
+        self.close_remote_write_session_with_provider(inode_id, session, None)
+    }
+
+    fn close_temporary_remote_write_session(
+        &self,
+        inode_id: &InodeId,
+        session: &DfsRemoteWriteSession,
+        previous_provider: Option<RemoteDfsWriteSession>,
+    ) -> Result<()> {
+        self.close_remote_write_session_with_provider(inode_id, session, previous_provider.as_ref())
+    }
+
+    fn close_remote_write_session_with_provider(
+        &self,
+        inode_id: &InodeId,
+        session: &DfsRemoteWriteSession,
+        previous_provider: Option<&RemoteDfsWriteSession>,
+    ) -> Result<()> {
+        let Some(remote) = session.remote.as_ref() else {
+            return Err(invalid("DFS write session is local"));
+        };
+        let release_result = self.remote_release(session);
+        let cleanup_result =
+            self.replace_released_remote_provider(inode_id, remote, previous_provider);
+        release_result.and(cleanup_result)
     }
 
     fn remote_operation_cached(
@@ -3406,7 +4027,7 @@ impl Backend for DistributedFs {
                             .acknowledge_waiter(&waiter_id)
                             .map_err(lock_error)?;
                     }
-                    self.check_lock_renewal(&authority)?;
+                    self.check_lock_renewal_after_mutation(&authority)?;
                     result
                 } else {
                     let result = authority
@@ -3416,7 +4037,7 @@ impl Backend for DistributedFs {
                     if result.is_ok() {
                         self.register_local_lock_success(&authority, &request)?;
                     }
-                    self.check_lock_renewal(&authority)?;
+                    self.check_lock_renewal_after_mutation(&authority)?;
                     result
                 }
             }
@@ -3718,13 +4339,18 @@ impl Backend for DistributedFs {
     ) -> Result<FileAttributes> {
         if let Some(handle) = handle {
             let snapshot = self.handle_snapshot(handle)?;
-            let record =
-                self.refresh_inode_record(self.meta.get_inode(&snapshot.inode_id)?, true, true)?;
-            return self.visible_attributes(&record);
+            if let Some(remote) = self.remote_provider_visible_for_reads(&snapshot.inode_id)? {
+                return self.remote_getattr(&remote);
+            }
+            let record = self.observe_inode_record(self.meta.get_inode(&snapshot.inode_id)?)?;
+            return self.visible_attributes_with_observed_inode(&snapshot.opened_inode, &record);
         }
-        let record =
-            self.refresh_inode_record(self.meta.get_inode(&self.inode_id(inode)?)?, true, true)?;
-        self.visible_attributes(&record)
+        let inode_id = self.inode_id(inode)?;
+        if let Some(remote) = self.remote_provider_visible_for_reads(&inode_id)? {
+            return self.remote_getattr(&remote);
+        }
+        let record = self.observe_inode_record(self.meta.get_inode(&inode_id)?)?;
+        self.visible_attributes_with_observed_inode(&record, &record)
     }
 
     fn setattr(
@@ -3827,12 +4453,54 @@ impl Backend for DistributedFs {
             };
             (snapshot.opened_inode, Some((handle, accepted_seq)))
         } else {
-            let record = self.validate_inode(self.meta.get_inode(&inode_id)?)?;
+            let (record, write_lease) = self.meta.open_write(&inode_id)?;
+            let mut record = self.validate_inode(record)?;
             if record.kind != InodeKind::Regular {
                 return Err(Error::from(std::io::Error::from_raw_os_error(libc::EISDIR)));
             }
-            self.ensure_inode_write_state(&record)?;
-            self.resize_dirty_inode(&record.inode_id, length, options.kill_suidgid)?;
+            if write_lease.owner_node_id == self.node_id
+                && write_lease.owner_session_id == self.session_id
+            {
+                self.install_write_state(record.clone(), write_lease)?;
+                self.resize_dirty_inode(&record.inode_id, length, options.kill_suidgid)?;
+            } else {
+                let previous_provider = self.current_remote_provider(&record.inode_id)?;
+                let mut session = self.open_remote_write_session(
+                    &record,
+                    &write_lease,
+                    libc::O_WRONLY,
+                    OpenOptions {
+                        kill_suidgid: options.kill_suidgid,
+                    },
+                )?;
+                match self.remote_resize(&session, length, options) {
+                    Ok(accepted_seq) => {
+                        session.local.last_accepted_seq = accepted_seq;
+                    }
+                    Err(error) => {
+                        let _ = self.close_temporary_remote_write_session(
+                            &record.inode_id,
+                            &session,
+                            previous_provider.clone(),
+                        );
+                        return Err(error);
+                    }
+                }
+                if let Err(error) = self.remote_sync(&session, SyncMode::Full) {
+                    let _ = self.close_temporary_remote_write_session(
+                        &record.inode_id,
+                        &session,
+                        previous_provider.clone(),
+                    );
+                    return Err(error);
+                }
+                self.close_temporary_remote_write_session(
+                    &record.inode_id,
+                    &session,
+                    previous_provider,
+                )?;
+                record = self.observe_inode_record(self.meta.get_inode(&inode_id)?)?;
+            }
             (record, None)
         };
         if let Some((handle, accepted_seq)) = accepted_seq {
@@ -3978,6 +4646,7 @@ impl Backend for DistributedFs {
                 }
                 session
             } else {
+                let previous_provider = self.current_remote_provider(&inode.inode_id)?;
                 let session =
                     self.open_remote_write_session(&inode, &write_lease, flags, options)?;
                 if flags & libc::O_TRUNC != 0
@@ -3990,14 +4659,18 @@ impl Backend for DistributedFs {
                         },
                     )
                 {
-                    self.remote_release(&session)?;
+                    let _ = self.close_temporary_remote_write_session(
+                        &inode.inode_id,
+                        &session,
+                        previous_provider,
+                    );
                     return Err(error);
                 }
                 session
             };
             (inode, Some(session))
         } else {
-            let inode = self.validate_inode(self.meta.get_inode(&inode_id)?)?;
+            let inode = self.observe_inode_record(self.meta.get_inode(&inode_id)?)?;
             (inode, None)
         };
         self.allocate_handle(DfsFileHandle {
@@ -4019,14 +4692,7 @@ impl Backend for DistributedFs {
         if snapshot.flags & libc::O_ACCMODE == libc::O_WRONLY {
             return Err(bad_file_descriptor("DFS handle was not opened for reading"));
         }
-        if self.write_state(&snapshot.inode_id)?.is_none()
-            && let Some(remote) = self
-                .remote_inode_providers
-                .lock()
-                .map_err(|_| unavailable("DFS remote owner table is poisoned"))?
-                .get(&snapshot.inode_id)
-                .cloned()
-        {
+        if let Some(remote) = self.remote_provider_visible_for_reads(&snapshot.inode_id)? {
             return self.remote_read(&remote, offset, out);
         }
         self.read_visible(&snapshot.inode_id, offset, out)
@@ -4208,11 +4874,7 @@ impl Backend for DistributedFs {
             .ok_or_else(|| stale("DFS file handle is no longer open"))?;
         if let Some(session) = removed.write_session.as_ref() {
             if session.remote.is_some() {
-                self.remote_release(session)?;
-                self.remote_inode_providers
-                    .lock()
-                    .map_err(|_| unavailable("DFS remote owner table is poisoned"))?
-                    .remove(&removed.inode_id);
+                self.close_remote_write_session(&removed.inode_id, session)?;
             } else {
                 self.release_writer(&session.local)?;
             }
@@ -4700,7 +5362,7 @@ impl crate::node::rpc::control::DfsOwnerLifecycleHandler for DistributedFs {
         if result.is_ok() {
             self.register_local_lock_success(&authority, &lock)?;
         }
-        self.check_lock_renewal(&authority)?;
+        self.check_lock_renewal_after_mutation(&authority)?;
         result?;
         Ok(afs_protocol::node_control::DfsOwnerSetLockReply {})
     }
@@ -5112,6 +5774,11 @@ fn should_renew(lease: &WriteLease) -> bool {
     lease.expires_at_unix_ms <= now_unix_ms().saturating_add(5_000)
 }
 
+fn should_background_renew(lease: &WriteLease) -> bool {
+    let renew_before_expiry_ms = DFS_WRITE_LEASE_SECONDS.saturating_mul(1_000) * 2 / 3;
+    lease.expires_at_unix_ms <= now_unix_ms().saturating_add(renew_before_expiry_ms)
+}
+
 fn has_o_dsync(flags: i32) -> bool {
     #[cfg(any(target_os = "linux", target_os = "android"))]
     {
@@ -5189,6 +5856,31 @@ fn attributes(inode: &InodeRecord, size: u64, blocks: u64) -> FileAttributes {
         mtime: unix_ms(attrs.mtime_unix_ms),
         ctime: unix_ms(attrs.ctime_unix_ms),
     }
+}
+
+fn file_attributes_from_owner_attr(
+    attr: afs_protocol::node_control::DfsOwnerFileAttr,
+) -> Result<FileAttributes> {
+    let kind = match attr.kind {
+        1 => FileKind::Regular,
+        2 => FileKind::Directory,
+        3 => FileKind::Symlink,
+        _ => {
+            return Err(invalid("DFS owner getattr returned unsupported file kind"));
+        }
+    };
+    Ok(FileAttributes {
+        kind,
+        size: attr.size,
+        blocks: attr.size.div_ceil(512),
+        mode: attr.mode,
+        uid: attr.uid,
+        gid: attr.gid,
+        nlink: attr.nlink,
+        atime: unix_ms(attr.atime_unix_ms),
+        mtime: unix_ms(attr.mtime_unix_ms),
+        ctime: unix_ms(attr.ctime_unix_ms),
+    })
 }
 
 fn now_unix_ms() -> u64 {
@@ -5391,6 +6083,7 @@ fn bad_file_descriptor(message: impl Into<String>) -> Error {
 mod tests {
     use super::*;
     use crate::node::chunk::LocalChunkStore;
+    use std::sync::atomic::AtomicUsize;
 
     struct CommitPause {
         after_successes: usize,
@@ -5446,6 +6139,9 @@ mod tests {
         commit_error_after_successes: Mutex<Option<(usize, Error)>>,
         commit_pause: Mutex<Option<Arc<CommitPause>>>,
         next_metadata_sync_error: Mutex<Option<Error>>,
+        next_renew_error: Mutex<Option<Error>>,
+        renew_results: Mutex<std::collections::VecDeque<Result<WriteLease>>>,
+        renew_calls: AtomicUsize,
     }
 
     impl RecordingMeta {
@@ -5485,6 +6181,9 @@ mod tests {
                 commit_error_after_successes: Mutex::new(None),
                 commit_pause: Mutex::new(None),
                 next_metadata_sync_error: Mutex::new(None),
+                next_renew_error: Mutex::new(None),
+                renew_results: Mutex::new(std::collections::VecDeque::new()),
+                renew_calls: AtomicUsize::new(0),
             }
         }
 
@@ -5521,6 +6220,66 @@ mod tests {
 
         fn fail_next_metadata_sync_with(&self, error: Error) {
             *self.next_metadata_sync_error.lock().unwrap() = Some(error);
+        }
+
+        fn fail_next_renew_with(&self, error: Error) {
+            *self.next_renew_error.lock().unwrap() = Some(error);
+        }
+
+        fn queue_renew_result(&self, result: Result<WriteLease>) {
+            self.renew_results.lock().unwrap().push_back(result);
+        }
+
+        fn lease_with_expiry(&self, expires_at_unix_ms: u64) -> WriteLease {
+            let mut lease = self.lease.lock().unwrap().clone();
+            lease.expires_at_unix_ms = expires_at_unix_ms;
+            lease
+        }
+
+        fn renew_call_count(&self) -> usize {
+            self.renew_calls.load(Ordering::SeqCst)
+        }
+        fn publish_external_version(&self, length: u64) -> FileVersionId {
+            let mut inode = self.inode.lock().unwrap();
+            let generation = self.commits.lock().unwrap().len() + 1;
+            let layout_id = LayoutRootId::new(format!("external-layout-{generation}"));
+            let version_id = FileVersionId::new(format!("external-version-{generation}"));
+            let now = now_unix_ms();
+            let version = FileVersion {
+                id: version_id.clone(),
+                inode_id: inode.inode_id.clone(),
+                parent_version: inode.head_version.clone(),
+                length,
+                layout_root: layout_id.clone(),
+                created_at_unix_ms: now,
+            };
+            let commit = CommitFileVersion {
+                operation_id: OperationId::new(format!("external-commit-{generation}")),
+                inode_id: inode.inode_id.clone(),
+                write_lease: self.lease.lock().unwrap().clone(),
+                expected_inode_revision: inode.revision,
+                expected_head_version: inode.head_version.clone(),
+                file_version: version,
+                layout_root: LayoutRoot {
+                    id: layout_id,
+                    file_length: length,
+                    inline_extents: Vec::new(),
+                },
+                chunk_receipts: Vec::new(),
+                metadata_delta: CommitMetadataDelta {
+                    mode: CommitMetadataMode::Full,
+                    mtime_unix_ms: Some(now),
+                    ctime_unix_ms: Some(now),
+                    kill_suidgid: false,
+                },
+            };
+            inode.revision = inode.revision.saturating_add(1);
+            inode.head_version = Some(version_id.clone());
+            inode.attributes.mtime_unix_ms = now;
+            inode.attributes.ctime_unix_ms = now;
+            drop(inode);
+            self.commits.lock().unwrap().push(commit);
+            version_id
         }
     }
 
@@ -5567,8 +6326,16 @@ mod tests {
         }
 
         fn renew_write_lease(&self, lease: WriteLease) -> Result<WriteLease> {
-            *self.lease.lock().unwrap() = lease.clone();
-            Ok(lease)
+            self.renew_calls.fetch_add(1, Ordering::SeqCst);
+            if let Some(result) = self.renew_results.lock().unwrap().pop_front() {
+                return result;
+            }
+            if let Some(error) = self.next_renew_error.lock().unwrap().take() {
+                return Err(error);
+            }
+            let mut stored = self.lease.lock().unwrap();
+            stored.expires_at_unix_ms = stored.expires_at_unix_ms.max(lease.expires_at_unix_ms);
+            Ok(stored.clone())
         }
 
         fn sync_inode_metadata(&self, sync: SyncInodeMetadata) -> Result<InodeRecord> {
@@ -7052,6 +7819,1070 @@ mod tests {
     }
 
     #[test]
+    fn closed_metadata_dirty_write_state_reopen_adopts_fresh_epoch_without_old_renewal() {
+        let (_temp, meta, fs) = test_fs();
+        let created = fs
+            .create(
+                &context(),
+                fs.root_inode(),
+                OsStr::new("clean-reopen-fresh-lease.bin"),
+                0o640,
+                libc::O_RDWR,
+            )
+            .unwrap();
+        assert_eq!(fs.write(&context(), created.handle, 0, b"base").unwrap(), 4);
+        fs.flush(&context(), created.handle).unwrap();
+        fs.release(&context(), created.handle).unwrap();
+        let inode_id = meta.inode.lock().unwrap().inode_id.clone();
+        let state = fs.write_state(&inode_id).unwrap().unwrap();
+        {
+            let mut state = state.lock().unwrap();
+            state.write_lease.expires_at_unix_ms = now_unix_ms().saturating_sub(1);
+            assert!(!DistributedFs::write_state_can_adopt_fresh_lease(&state));
+            assert!(DistributedFs::write_state_can_rebind_fresh_lease_preserving_metadata(&state));
+        }
+        let fresh_epoch = {
+            let mut lease = meta.lease.lock().unwrap();
+            lease.lease_epoch = lease.lease_epoch.saturating_add(1);
+            lease.expires_at_unix_ms = now_unix_ms().saturating_add(30_000);
+            lease.lease_epoch
+        };
+        meta.fail_next_renew_with(Error::coded(
+            afs_error::META_DFS_CONFLICT,
+            "old clean lease must be replaced by fresh Meta open before renewal",
+        ));
+        let renews_before = meta.renew_call_count();
+
+        let handle = fs
+            .open(&context(), created.entry.inode, libc::O_RDWR)
+            .unwrap();
+
+        assert_eq!(meta.renew_call_count(), renews_before);
+        let state = fs.write_state(&inode_id).unwrap().unwrap();
+        let state = state.lock().unwrap();
+        assert_eq!(state.write_lease.lease_epoch, fresh_epoch);
+        assert!(state.write_lease.expires_at_unix_ms > now_unix_ms());
+        drop(state);
+        assert_eq!(fs.write(&context(), handle, 4, b"x").unwrap(), 1);
+    }
+
+    #[test]
+    fn clean_retained_write_state_path_resize_reacquires_fresh_epoch() {
+        let (_temp, meta, fs) = test_fs();
+        let created = fs
+            .create(
+                &context(),
+                fs.root_inode(),
+                OsStr::new("clean-resize-fresh-lease.bin"),
+                0o640,
+                libc::O_RDWR,
+            )
+            .unwrap();
+        fs.release(&context(), created.handle).unwrap();
+        let inode_id = meta.inode.lock().unwrap().inode_id.clone();
+        let state = fs.write_state(&inode_id).unwrap().unwrap();
+        {
+            let mut state = state.lock().unwrap();
+            state.write_lease.expires_at_unix_ms = now_unix_ms().saturating_sub(1);
+            assert!(DistributedFs::write_state_can_adopt_fresh_lease(&state));
+        }
+        let fresh_epoch = {
+            let mut lease = meta.lease.lock().unwrap();
+            lease.lease_epoch = lease.lease_epoch.saturating_add(1);
+            lease.expires_at_unix_ms = now_unix_ms().saturating_add(30_000);
+            lease.lease_epoch
+        };
+        meta.fail_next_renew_with(Error::coded(
+            afs_error::META_DFS_CONFLICT,
+            "path resize must not renew the old clean lease",
+        ));
+        let renews_before = meta.renew_call_count();
+
+        let attrs = fs
+            .setattr(
+                &context(),
+                created.entry.inode,
+                None,
+                &AttributeChange {
+                    size: Some(5),
+                    ..AttributeChange::default()
+                },
+            )
+            .unwrap();
+
+        assert_eq!(attrs.size, 5);
+        assert_eq!(meta.renew_call_count(), renews_before);
+        let state = fs.write_state(&inode_id).unwrap().unwrap();
+        let state = state.lock().unwrap();
+        assert_eq!(state.write_lease.lease_epoch, fresh_epoch);
+        assert_eq!(state.logical_length, 5);
+        assert!(state.dirty);
+    }
+
+    #[test]
+    fn metadata_dirty_write_state_rejects_fresh_epoch_after_head_change() {
+        let (_temp, meta, fs) = test_fs();
+        let created = fs
+            .create(
+                &context(),
+                fs.root_inode(),
+                OsStr::new("metadata-dirty-reject-changed-head.bin"),
+                0o640,
+                libc::O_RDWR,
+            )
+            .unwrap();
+        assert_eq!(fs.write(&context(), created.handle, 0, b"base").unwrap(), 4);
+        fs.flush(&context(), created.handle).unwrap();
+        fs.release(&context(), created.handle).unwrap();
+        let inode_id = meta.inode.lock().unwrap().inode_id.clone();
+        let state = fs.write_state(&inode_id).unwrap().unwrap();
+        {
+            let mut state = state.lock().unwrap();
+            state.write_lease.expires_at_unix_ms = now_unix_ms().saturating_sub(1);
+            assert!(DistributedFs::write_state_can_rebind_fresh_lease_preserving_metadata(&state));
+        }
+        {
+            let mut lease = meta.lease.lock().unwrap();
+            lease.lease_epoch = lease.lease_epoch.saturating_add(1);
+            lease.expires_at_unix_ms = now_unix_ms().saturating_add(30_000);
+        }
+        meta.advance_namespace_revision();
+
+        let error = fs
+            .open(&context(), created.entry.inode, libc::O_RDWR)
+            .expect_err("metadata-dirty state must not rebind across a changed Meta inode");
+
+        assert_eq!(error.code(), afs_error::NODE_DFS_STALE_HANDLE);
+        let state = state.lock().unwrap();
+        assert!(state.metadata_dirty);
+        assert_eq!(state.write_lease.lease_epoch, 1);
+    }
+
+    #[test]
+    fn clean_retained_write_state_rejects_delayed_older_epoch() {
+        let (_temp, meta, fs) = test_fs();
+        let created = fs
+            .create(
+                &context(),
+                fs.root_inode(),
+                OsStr::new("clean-reject-old-epoch.bin"),
+                0o640,
+                libc::O_RDWR,
+            )
+            .unwrap();
+        fs.release(&context(), created.handle).unwrap();
+        let inode = meta.inode.lock().unwrap().clone();
+        let older_lease = meta.lease.lock().unwrap().clone();
+        let mut newer_lease = older_lease.clone();
+        newer_lease.lease_epoch = newer_lease.lease_epoch.saturating_add(1);
+        newer_lease.expires_at_unix_ms = now_unix_ms().saturating_add(30_000);
+        fs.install_write_state(inode.clone(), newer_lease.clone())
+            .unwrap();
+
+        let error = fs
+            .install_write_state(inode, older_lease)
+            .expect_err("a delayed old open response must not downgrade a newer clean state");
+
+        assert_eq!(error.code(), afs_error::NODE_DFS_STALE_HANDLE);
+        let state = fs.write_state(&newer_lease.inode_id).unwrap().unwrap();
+        assert_eq!(
+            state.lock().unwrap().write_lease.lease_epoch,
+            newer_lease.lease_epoch
+        );
+    }
+
+    #[test]
+    fn dirty_write_state_rejects_fresh_epoch_without_losing_dirty_data() {
+        let (_temp, meta, fs) = test_fs();
+        let created = fs
+            .create(
+                &context(),
+                fs.root_inode(),
+                OsStr::new("dirty-reject-fresh-epoch.bin"),
+                0o640,
+                libc::O_RDWR,
+            )
+            .unwrap();
+        assert_eq!(
+            fs.write(&context(), created.handle, 0, b"dirty").unwrap(),
+            5
+        );
+        let inode = meta.inode.lock().unwrap().clone();
+        let inode_id = inode.inode_id.clone();
+        let mut fresh_lease = meta.lease.lock().unwrap().clone();
+        fresh_lease.lease_epoch = fresh_lease.lease_epoch.saturating_add(1);
+        fresh_lease.expires_at_unix_ms = now_unix_ms().saturating_add(30_000);
+
+        let error = fs
+            .install_write_state(inode, fresh_lease)
+            .expect_err("dirty state must not be silently reattached to a new lease epoch");
+
+        assert_eq!(error.code(), afs_error::NODE_DFS_STALE_HANDLE);
+        let state = fs.write_state(&inode_id).unwrap().unwrap();
+        let state = state.lock().unwrap();
+        assert_eq!(state.write_lease.lease_epoch, 1);
+        assert!(state.dirty);
+        assert_eq!(state.dirty_extents.dirty_data_bytes(), 5);
+    }
+
+    #[test]
+    fn remote_owner_write_after_local_close_rebinds_metadata_dirty_state() {
+        let (_temp, meta, fs) = test_fs();
+        let created = fs
+            .create(
+                &context(),
+                fs.root_inode(),
+                OsStr::new("remote-after-close.bin"),
+                0o640,
+                libc::O_RDWR,
+            )
+            .unwrap();
+        assert_eq!(
+            fs.write(&context(), created.handle, 0, b"base-data")
+                .unwrap(),
+            9
+        );
+        fs.flush(&context(), created.handle).unwrap();
+        fs.release(&context(), created.handle).unwrap();
+        let inode_id = meta.inode.lock().unwrap().inode_id.clone();
+        let state = fs.write_state(&inode_id).unwrap().unwrap();
+        {
+            let mut state = state.lock().unwrap();
+            state.write_lease.expires_at_unix_ms = now_unix_ms().saturating_sub(1);
+            assert!(state.metadata_dirty);
+            assert!(DistributedFs::write_state_can_rebind_fresh_lease_preserving_metadata(&state));
+        }
+        let fresh_epoch = {
+            let mut lease = meta.lease.lock().unwrap();
+            lease.lease_epoch = lease.lease_epoch.saturating_add(1);
+            lease.expires_at_unix_ms = now_unix_ms().saturating_add(30_000);
+            lease.lease_epoch
+        };
+
+        let open = <DistributedFs as crate::node::rpc::control::DfsOwnerLifecycleHandler>::open(
+            &fs,
+            "node-b",
+            afs_protocol::node_control::DfsOwnerOpenRequest {
+                namespace_id: "default".into(),
+                inode_id: "inode:test".into(),
+                owner_node_id: "node-a".into(),
+                owner_session_id: "session-a".into(),
+                lease_epoch: fresh_epoch,
+                caller_session_id: "session-b".into(),
+                open_flags: libc::O_RDWR,
+                kill_suidgid: false,
+            },
+        )
+        .unwrap();
+        let handle = open.handle.expect("owner open returns handle");
+        let data_handle = DistributedFs::data_owner_handle(&handle);
+        let write = <DistributedFs as crate::node::rpc::data::DfsOwnerFilesHandler>::write(
+            &fs,
+            "node-b",
+            afs_protocol::node_data::DfsOwnerWriteRequest {
+                handle: Some(data_handle.clone()),
+                operation_id: "remote-after-close-write".into(),
+                offset: 0,
+                data: b"remote-final".to_vec(),
+                append: false,
+                kill_suidgid: false,
+            },
+        )
+        .unwrap();
+        assert_eq!(write.written, 12);
+        <DistributedFs as crate::node::rpc::data::DfsOwnerFilesHandler>::resize(
+            &fs,
+            "node-b",
+            afs_protocol::node_data::DfsOwnerResizeRequest {
+                handle: Some(data_handle.clone()),
+                operation_id: "remote-after-close-resize".into(),
+                length: 12,
+                kill_suidgid: false,
+            },
+        )
+        .unwrap();
+        <DistributedFs as crate::node::rpc::data::DfsOwnerFilesHandler>::sync(
+            &fs,
+            "node-b",
+            afs_protocol::node_data::DfsOwnerSyncRequest {
+                handle: Some(data_handle),
+                operation_id: "remote-after-close-sync".into(),
+                through_write_seq: write.accepted_write_seq,
+                data_only: false,
+            },
+        )
+        .unwrap();
+        <DistributedFs as crate::node::rpc::control::DfsOwnerLifecycleHandler>::release(
+            &fs,
+            "node-b",
+            afs_protocol::node_control::DfsOwnerReleaseRequest {
+                handle: Some(handle),
+            },
+        )
+        .unwrap();
+
+        let state = state.lock().unwrap();
+        assert_eq!(state.write_lease.lease_epoch, fresh_epoch);
+        assert_eq!(state.logical_length, 12);
+        assert!(!state.metadata_dirty);
+    }
+
+    #[test]
+    fn path_resize_to_remote_owner_uses_owner_rpc_not_local_lease() {
+        let (_temp_a, meta, fs_a_raw) = test_fs();
+        let fs_a = Arc::new(fs_a_raw);
+        let created = fs_a
+            .create(
+                &context(),
+                fs_a.root_inode(),
+                OsStr::new("remote-path-resize.bin"),
+                0o640,
+                libc::O_RDWR,
+            )
+            .unwrap();
+        assert_eq!(
+            fs_a.write(&context(), created.handle, 0, b"abcdef")
+                .unwrap(),
+            6
+        );
+        fs_a.flush(&context(), created.handle).unwrap();
+        fs_a.release(&context(), created.handle).unwrap();
+        assert_eq!(meta.commit_count(), 1);
+
+        let temp_b = tempfile::tempdir().unwrap();
+        let chunks_b = Arc::new(LocalChunkStore::open(temp_b.path(), "node-b").unwrap());
+        let read_engine_b = Arc::new(crate::node::dfs_read::DfsReadEngine::new(
+            NamespaceId::new("default"),
+            "node-b".into(),
+            chunks_b.clone(),
+            Arc::new(crate::node::dfs_read::UnimplementedReadSourceProvider),
+            Arc::new(crate::node::dfs_read::UnimplementedChunkTransfer),
+            crate::node::dfs_read::DfsReadConfig::default(),
+        ));
+        let remote_owner = Arc::new(LoopbackRemoteDfsOwner {
+            owner: fs_a.clone(),
+            peer: "node-b".into(),
+        }) as Arc<dyn RemoteDfsOwner>;
+        let fs_b = DistributedFs::new(
+            NamespaceId::new("default"),
+            "node-b",
+            "session-b",
+            meta.clone(),
+            chunks_b,
+            read_engine_b,
+        )
+        .with_remote_owner_factory(Arc::new(StaticRemoteOwnerFactory {
+            owner: remote_owner,
+        }));
+        let inode_id = meta.inode.lock().unwrap().inode_id.clone();
+        let inode_b = fs_b.backend_inode(&inode_id).unwrap();
+
+        let attrs = fs_b
+            .setattr(
+                &context(),
+                inode_b,
+                None,
+                &AttributeChange {
+                    size: Some(3),
+                    ..AttributeChange::default()
+                },
+            )
+            .unwrap();
+
+        assert_eq!(attrs.size, 3);
+        assert_eq!(meta.commit_count(), 2);
+        let state = fs_a.write_state(&inode_id).unwrap().unwrap();
+        let state = state.lock().unwrap();
+        assert_eq!(state.logical_length, 3);
+        assert!(!state.dirty);
+    }
+
+    #[test]
+    fn temporary_remote_resize_preserves_existing_remote_provider() {
+        let (_temp_a, meta, fs_a_raw) = test_fs();
+        let fs_a = Arc::new(fs_a_raw);
+        let created = fs_a
+            .create(
+                &context(),
+                fs_a.root_inode(),
+                OsStr::new("remote-provider-preserve.bin"),
+                0o640,
+                libc::O_RDWR,
+            )
+            .unwrap();
+        assert_eq!(
+            fs_a.write(&context(), created.handle, 0, b"abcdef")
+                .unwrap(),
+            6
+        );
+        fs_a.fsync(&context(), created.handle, SyncMode::Full)
+            .unwrap();
+        fs_a.release(&context(), created.handle).unwrap();
+
+        let temp_b = tempfile::tempdir().unwrap();
+        let chunks_b = Arc::new(LocalChunkStore::open(temp_b.path(), "node-b").unwrap());
+        let read_engine_b = Arc::new(crate::node::dfs_read::DfsReadEngine::new(
+            NamespaceId::new("default"),
+            "node-b".into(),
+            chunks_b.clone(),
+            Arc::new(crate::node::dfs_read::UnimplementedReadSourceProvider),
+            Arc::new(crate::node::dfs_read::UnimplementedChunkTransfer),
+            crate::node::dfs_read::DfsReadConfig::default(),
+        ));
+        let remote_owner = Arc::new(LoopbackRemoteDfsOwner {
+            owner: fs_a.clone(),
+            peer: "node-b".into(),
+        }) as Arc<dyn RemoteDfsOwner>;
+        let fs_b = DistributedFs::new(
+            NamespaceId::new("default"),
+            "node-b",
+            "session-b",
+            meta.clone(),
+            chunks_b,
+            read_engine_b,
+        )
+        .with_remote_owner_factory(Arc::new(StaticRemoteOwnerFactory {
+            owner: remote_owner,
+        }));
+        let inode_id = meta.inode.lock().unwrap().inode_id.clone();
+        let inode_b = fs_b.backend_inode(&inode_id).unwrap();
+        let handle = fs_b.open(&context(), inode_b, libc::O_RDWR).unwrap();
+        let provider_before = fs_b
+            .current_remote_provider(&inode_id)
+            .unwrap()
+            .expect("remote open installs provider");
+
+        let attrs = fs_b
+            .setattr(
+                &context(),
+                inode_b,
+                None,
+                &AttributeChange {
+                    size: Some(3),
+                    ..AttributeChange::default()
+                },
+            )
+            .unwrap();
+        assert_eq!(attrs.size, 3);
+        let provider_after = fs_b
+            .current_remote_provider(&inode_id)
+            .unwrap()
+            .expect("temporary resize restores existing provider");
+        assert!(DistributedFs::same_remote_provider(
+            &provider_after,
+            &provider_before
+        ));
+
+        assert_eq!(fs_b.write(&context(), handle, 0, b"XYZ").unwrap(), 3);
+        assert_eq!(fs_b.getattr(&context(), inode_b, None).unwrap().size, 3);
+        let reader = fs_b.open(&context(), inode_b, libc::O_RDONLY).unwrap();
+        assert_eq!(
+            fs_b.getattr(&context(), inode_b, Some(reader))
+                .unwrap()
+                .size,
+            3
+        );
+        let mut path_data = [0; 3];
+        assert_eq!(fs_b.read(&context(), reader, 0, &mut path_data).unwrap(), 3);
+        assert_eq!(&path_data, b"XYZ");
+        fs_b.release(&context(), reader).unwrap();
+
+        let mut data = [0; 3];
+        assert_eq!(fs_b.read(&context(), handle, 0, &mut data).unwrap(), 3);
+        assert_eq!(&data, b"XYZ");
+
+        fs_b.release(&context(), handle).unwrap();
+        assert!(fs_b.current_remote_provider(&inode_id).unwrap().is_none());
+    }
+
+    #[test]
+    fn remote_release_failure_after_companion_close_still_removes_provider() {
+        let (_temp_a, meta, fs_a_raw) = test_fs();
+        let fs_a = Arc::new(fs_a_raw);
+        let created = fs_a
+            .create(
+                &context(),
+                fs_a.root_inode(),
+                OsStr::new("remote-release-failure-cleans-provider.bin"),
+                0o640,
+                libc::O_RDWR,
+            )
+            .unwrap();
+        fs_a.write(&context(), created.handle, 0, b"abcdef")
+            .unwrap();
+        fs_a.fsync(&context(), created.handle, SyncMode::Full)
+            .unwrap();
+        fs_a.release(&context(), created.handle).unwrap();
+
+        let temp_b = tempfile::tempdir().unwrap();
+        let chunks_b = Arc::new(LocalChunkStore::open(temp_b.path(), "node-b").unwrap());
+        let read_engine_b = Arc::new(crate::node::dfs_read::DfsReadEngine::new(
+            NamespaceId::new("default"),
+            "node-b".into(),
+            chunks_b.clone(),
+            Arc::new(crate::node::dfs_read::UnimplementedReadSourceProvider),
+            Arc::new(crate::node::dfs_read::UnimplementedChunkTransfer),
+            crate::node::dfs_read::DfsReadConfig::default(),
+        ));
+        let remote_owner = Arc::new(LoopbackRemoteDfsOwner {
+            owner: fs_a.clone(),
+            peer: "node-b".into(),
+        }) as Arc<dyn RemoteDfsOwner>;
+        let fs_b = DistributedFs::new(
+            NamespaceId::new("default"),
+            "node-b",
+            "session-b",
+            meta.clone(),
+            chunks_b,
+            read_engine_b,
+        )
+        .with_remote_owner_factory(Arc::new(StaticRemoteOwnerFactory {
+            owner: remote_owner,
+        }));
+        let inode_id = meta.inode.lock().unwrap().inode_id.clone();
+        let inode_b = fs_b.backend_inode(&inode_id).unwrap();
+        let writer = fs_b.open(&context(), inode_b, libc::O_WRONLY).unwrap();
+        let provider = fs_b
+            .current_remote_provider(&inode_id)
+            .unwrap()
+            .expect("remote open installs provider");
+        assert!(provider.read_handle.is_some());
+        let owner_writer = DistributedFs::file_handle_from_owner(&provider.handle).unwrap();
+        fs_a.handles
+            .lock()
+            .unwrap()
+            .remove(&owner_writer.0)
+            .unwrap();
+
+        fs_b.release(&context(), writer)
+            .expect_err("writer release failure is still returned");
+        assert!(fs_b.current_remote_provider(&inode_id).unwrap().is_none());
+        assert!(fs_a.handles.lock().unwrap().is_empty());
+    }
+
+    #[test]
+    fn temporary_remote_release_failure_still_restores_previous_provider() {
+        let (_temp_a, meta, fs_a_raw) = test_fs();
+        let fs_a = Arc::new(fs_a_raw);
+        let created = fs_a
+            .create(
+                &context(),
+                fs_a.root_inode(),
+                OsStr::new("remote-temp-release-failure-restores.bin"),
+                0o640,
+                libc::O_RDWR,
+            )
+            .unwrap();
+        fs_a.write(&context(), created.handle, 0, b"abcdef")
+            .unwrap();
+        fs_a.fsync(&context(), created.handle, SyncMode::Full)
+            .unwrap();
+        fs_a.release(&context(), created.handle).unwrap();
+
+        let temp_b = tempfile::tempdir().unwrap();
+        let chunks_b = Arc::new(LocalChunkStore::open(temp_b.path(), "node-b").unwrap());
+        let read_engine_b = Arc::new(crate::node::dfs_read::DfsReadEngine::new(
+            NamespaceId::new("default"),
+            "node-b".into(),
+            chunks_b.clone(),
+            Arc::new(crate::node::dfs_read::UnimplementedReadSourceProvider),
+            Arc::new(crate::node::dfs_read::UnimplementedChunkTransfer),
+            crate::node::dfs_read::DfsReadConfig::default(),
+        ));
+        let remote_owner = Arc::new(LoopbackRemoteDfsOwner {
+            owner: fs_a.clone(),
+            peer: "node-b".into(),
+        }) as Arc<dyn RemoteDfsOwner>;
+        let fs_b = DistributedFs::new(
+            NamespaceId::new("default"),
+            "node-b",
+            "session-b",
+            meta.clone(),
+            chunks_b,
+            read_engine_b,
+        )
+        .with_remote_owner_factory(Arc::new(StaticRemoteOwnerFactory {
+            owner: remote_owner,
+        }));
+        let inode_id = meta.inode.lock().unwrap().inode_id.clone();
+        let inode_b = fs_b.backend_inode(&inode_id).unwrap();
+        let writer = fs_b.open(&context(), inode_b, libc::O_RDWR).unwrap();
+        let previous = fs_b
+            .current_remote_provider(&inode_id)
+            .unwrap()
+            .expect("remote open installs provider");
+        let (record, lease) = meta.open_write(&inode_id).unwrap();
+        let record = fs_b.validate_inode(record).unwrap();
+        let temp = fs_b
+            .open_remote_write_session(&record, &lease, libc::O_WRONLY, OpenOptions::default())
+            .unwrap();
+        let temp_remote = temp.remote.as_ref().unwrap().clone();
+        let owner_writer = DistributedFs::file_handle_from_owner(&temp_remote.handle).unwrap();
+        fs_a.handles
+            .lock()
+            .unwrap()
+            .remove(&owner_writer.0)
+            .unwrap();
+
+        fs_b.close_temporary_remote_write_session(&inode_id, &temp, Some(previous.clone()))
+            .expect_err("temporary writer release failure is still returned");
+        let current = fs_b
+            .current_remote_provider(&inode_id)
+            .unwrap()
+            .expect("previous provider is restored after failed temp close");
+        assert!(DistributedFs::same_remote_provider(&current, &previous));
+        fs_b.release(&context(), writer).unwrap();
+    }
+
+    #[test]
+    fn writeonly_remote_provider_supports_fresh_readonly_reader() {
+        let (_temp_a, meta, fs_a_raw) = test_fs();
+        let fs_a = Arc::new(fs_a_raw);
+        let created = fs_a
+            .create(
+                &context(),
+                fs_a.root_inode(),
+                OsStr::new("remote-provider-readonly-reader.bin"),
+                0o640,
+                libc::O_RDWR,
+            )
+            .unwrap();
+        fs_a.write(&context(), created.handle, 0, b"abcdef")
+            .unwrap();
+        fs_a.fsync(&context(), created.handle, SyncMode::Full)
+            .unwrap();
+        fs_a.release(&context(), created.handle).unwrap();
+
+        let temp_b = tempfile::tempdir().unwrap();
+        let chunks_b = Arc::new(LocalChunkStore::open(temp_b.path(), "node-b").unwrap());
+        let read_engine_b = Arc::new(crate::node::dfs_read::DfsReadEngine::new(
+            NamespaceId::new("default"),
+            "node-b".into(),
+            chunks_b.clone(),
+            Arc::new(crate::node::dfs_read::UnimplementedReadSourceProvider),
+            Arc::new(crate::node::dfs_read::UnimplementedChunkTransfer),
+            crate::node::dfs_read::DfsReadConfig::default(),
+        ));
+        let remote_owner = Arc::new(LoopbackRemoteDfsOwner {
+            owner: fs_a.clone(),
+            peer: "node-b".into(),
+        }) as Arc<dyn RemoteDfsOwner>;
+        let fs_b = DistributedFs::new(
+            NamespaceId::new("default"),
+            "node-b",
+            "session-b",
+            meta.clone(),
+            chunks_b,
+            read_engine_b,
+        )
+        .with_remote_owner_factory(Arc::new(StaticRemoteOwnerFactory {
+            owner: remote_owner,
+        }));
+        let inode_id = meta.inode.lock().unwrap().inode_id.clone();
+        let inode_b = fs_b.backend_inode(&inode_id).unwrap();
+        let writer = fs_b
+            .open(&context(), inode_b, libc::O_WRONLY | libc::O_TRUNC)
+            .unwrap();
+
+        assert_eq!(fs_b.write(&context(), writer, 0, b"XYZ").unwrap(), 3);
+        let reader = fs_b.open(&context(), inode_b, libc::O_RDONLY).unwrap();
+        assert_eq!(
+            fs_b.getattr(&context(), inode_b, Some(reader))
+                .unwrap()
+                .size,
+            3
+        );
+        let mut data = [0; 3];
+        assert_eq!(fs_b.read(&context(), reader, 0, &mut data).unwrap(), 3);
+        assert_eq!(&data, b"XYZ");
+
+        assert!(fs_b.read(&context(), writer, 0, &mut data).is_err());
+        fs_b.release(&context(), reader).unwrap();
+        fs_b.release(&context(), writer).unwrap();
+        assert!(fs_b.current_remote_provider(&inode_id).unwrap().is_none());
+        assert!(fs_a.handles.lock().unwrap().is_empty());
+    }
+
+    #[test]
+    fn former_local_clean_state_does_not_shadow_remote_provider() {
+        let (_temp_a, meta, fs_a_raw) = test_fs();
+        let created = fs_a_raw
+            .create(
+                &context(),
+                fs_a_raw.root_inode(),
+                OsStr::new("former-local-remote-provider.bin"),
+                0o640,
+                libc::O_RDWR,
+            )
+            .unwrap();
+        fs_a_raw
+            .write(&context(), created.handle, 0, b"abcdef")
+            .unwrap();
+        fs_a_raw
+            .fsync(&context(), created.handle, SyncMode::Full)
+            .unwrap();
+        fs_a_raw.release(&context(), created.handle).unwrap();
+        let inode_id = meta.inode.lock().unwrap().inode_id.clone();
+        let retained = fs_a_raw
+            .write_state(&inode_id)
+            .unwrap()
+            .expect("local owner keeps a clean retained write state");
+        assert!(DistributedFs::write_state_can_refresh_committed_view(
+            &retained.lock().unwrap()
+        ));
+
+        {
+            let mut lease = meta.lease.lock().unwrap();
+            lease.owner_node_id = "node-b".into();
+            lease.owner_session_id = "session-b".into();
+            lease.lease_epoch = lease.lease_epoch.saturating_add(1);
+            lease.expires_at_unix_ms = u64::MAX;
+        }
+
+        // The routing fixture gives the new owner a recovered committed base.
+        let chunks_b = Arc::new(LocalChunkStore::open(_temp_a.path(), "node-b").unwrap());
+        let read_engine_b = Arc::new(crate::node::dfs_read::DfsReadEngine::new(
+            NamespaceId::new("default"),
+            "node-b".into(),
+            chunks_b.clone(),
+            Arc::new(crate::node::dfs_read::UnimplementedReadSourceProvider),
+            Arc::new(crate::node::dfs_read::UnimplementedChunkTransfer),
+            crate::node::dfs_read::DfsReadConfig::default(),
+        ));
+        let fs_b = Arc::new(DistributedFs::new(
+            NamespaceId::new("default"),
+            "node-b",
+            "session-b",
+            meta.clone(),
+            chunks_b,
+            read_engine_b,
+        ));
+        let remote_owner = Arc::new(LoopbackRemoteDfsOwner {
+            owner: fs_b,
+            peer: "node-a".into(),
+        }) as Arc<dyn RemoteDfsOwner>;
+        let fs_a = fs_a_raw.with_remote_owner_factory(Arc::new(StaticRemoteOwnerFactory {
+            owner: remote_owner,
+        }));
+        let inode_a = fs_a.backend_inode(&inode_id).unwrap();
+        let writer = fs_a
+            .open(&context(), inode_a, libc::O_WRONLY | libc::O_TRUNC)
+            .unwrap();
+
+        assert_eq!(fs_a.write(&context(), writer, 0, b"XYZ").unwrap(), 3);
+        let reader = fs_a.open(&context(), inode_a, libc::O_RDONLY).unwrap();
+        assert_eq!(
+            fs_a.getattr(&context(), inode_a, Some(reader))
+                .unwrap()
+                .size,
+            3
+        );
+        let mut data = [0; 3];
+        assert_eq!(fs_a.read(&context(), reader, 0, &mut data).unwrap(), 3);
+        assert_eq!(&data, b"XYZ");
+        fs_a.release(&context(), reader).unwrap();
+        fs_a.release(&context(), writer).unwrap();
+        assert!(fs_a.current_remote_provider(&inode_id).unwrap().is_none());
+    }
+
+    #[test]
+    fn temporary_remote_close_does_not_restore_released_previous_provider() {
+        let (_temp_a, meta, fs_a_raw) = test_fs();
+        let fs_a = Arc::new(fs_a_raw);
+        let created = fs_a
+            .create(
+                &context(),
+                fs_a.root_inode(),
+                OsStr::new("remote-provider-stale-restore.bin"),
+                0o640,
+                libc::O_RDWR,
+            )
+            .unwrap();
+        fs_a.write(&context(), created.handle, 0, b"abcdef")
+            .unwrap();
+        fs_a.fsync(&context(), created.handle, SyncMode::Full)
+            .unwrap();
+        fs_a.release(&context(), created.handle).unwrap();
+
+        let temp_b = tempfile::tempdir().unwrap();
+        let chunks_b = Arc::new(LocalChunkStore::open(temp_b.path(), "node-b").unwrap());
+        let read_engine_b = Arc::new(crate::node::dfs_read::DfsReadEngine::new(
+            NamespaceId::new("default"),
+            "node-b".into(),
+            chunks_b.clone(),
+            Arc::new(crate::node::dfs_read::UnimplementedReadSourceProvider),
+            Arc::new(crate::node::dfs_read::UnimplementedChunkTransfer),
+            crate::node::dfs_read::DfsReadConfig::default(),
+        ));
+        let remote_owner = Arc::new(LoopbackRemoteDfsOwner {
+            owner: fs_a.clone(),
+            peer: "node-b".into(),
+        }) as Arc<dyn RemoteDfsOwner>;
+        let fs_b = DistributedFs::new(
+            NamespaceId::new("default"),
+            "node-b",
+            "session-b",
+            meta.clone(),
+            chunks_b,
+            read_engine_b,
+        )
+        .with_remote_owner_factory(Arc::new(StaticRemoteOwnerFactory {
+            owner: remote_owner,
+        }));
+        let inode_id = meta.inode.lock().unwrap().inode_id.clone();
+        let inode_b = fs_b.backend_inode(&inode_id).unwrap();
+        let handle = fs_b.open(&context(), inode_b, libc::O_RDWR).unwrap();
+        let previous = fs_b
+            .current_remote_provider(&inode_id)
+            .unwrap()
+            .expect("remote open installs provider");
+        let (record, lease) = meta.open_write(&inode_id).unwrap();
+        let record = fs_b.validate_inode(record).unwrap();
+        let temp = fs_b
+            .open_remote_write_session(&record, &lease, libc::O_WRONLY, OpenOptions::default())
+            .unwrap();
+        let current = fs_b
+            .current_remote_provider(&inode_id)
+            .unwrap()
+            .expect("temporary session becomes provider");
+        assert!(!DistributedFs::same_remote_provider(&current, &previous));
+
+        fs_b.release(&context(), handle).unwrap();
+        let current = fs_b
+            .current_remote_provider(&inode_id)
+            .unwrap()
+            .expect("ordinary release must not remove temporary provider");
+        assert!(!DistributedFs::same_remote_provider(&current, &previous));
+
+        fs_b.close_temporary_remote_write_session(&inode_id, &temp, Some(previous))
+            .unwrap();
+        assert!(fs_b.current_remote_provider(&inode_id).unwrap().is_none());
+    }
+
+    #[test]
+    fn fresh_readonly_open_refreshes_retained_committed_view_after_external_commit() {
+        let (_temp, meta, fs) = test_fs();
+        let created = fs
+            .create(
+                &context(),
+                fs.root_inode(),
+                OsStr::new("fresh-open-external-commit.bin"),
+                0o640,
+                libc::O_RDWR,
+            )
+            .unwrap();
+        assert_eq!(
+            fs.write(&context(), created.handle, 0, b"dfs-handover-initial")
+                .unwrap(),
+            20
+        );
+        fs.fsync(&context(), created.handle, SyncMode::Full)
+            .unwrap();
+        fs.release(&context(), created.handle).unwrap();
+        let inode_id = meta.inode.lock().unwrap().inode_id.clone();
+        let state = fs.write_state(&inode_id).unwrap().unwrap();
+        {
+            let state = state.lock().unwrap();
+            assert_eq!(state.logical_length, 20);
+            assert!(!state.dirty);
+            assert!(!state.metadata_dirty);
+        }
+
+        let external_version = meta.publish_external_version(18);
+        let reader = fs
+            .open(&context(), created.entry.inode, libc::O_RDONLY)
+            .unwrap();
+
+        assert_eq!(
+            fs.getattr(&context(), created.entry.inode, Some(reader))
+                .unwrap()
+                .size,
+            18
+        );
+        let state = state.lock().unwrap();
+        assert_eq!(
+            state.base_version.as_ref().map(|version| &version.id),
+            Some(&external_version)
+        );
+        assert_eq!(state.logical_length, 18);
+        assert_eq!(state.inode.head_version.as_ref(), Some(&external_version));
+        drop(state);
+        fs.release(&context(), reader).unwrap();
+    }
+
+    #[test]
+    fn delayed_older_readonly_observation_does_not_downgrade_clean_committed_view() {
+        let (_temp, meta, fs) = test_fs();
+        let created = fs
+            .create(
+                &context(),
+                fs.root_inode(),
+                OsStr::new("delayed-readonly-observation.bin"),
+                0o640,
+                libc::O_RDWR,
+            )
+            .unwrap();
+        assert_eq!(fs.write(&context(), created.handle, 0, b"old").unwrap(), 3);
+        fs.fsync(&context(), created.handle, SyncMode::Full)
+            .unwrap();
+        fs.release(&context(), created.handle).unwrap();
+        let inode_id = meta.inode.lock().unwrap().inode_id.clone();
+        let state = fs.write_state(&inode_id).unwrap().unwrap();
+        let older_inode = meta.inode.lock().unwrap().clone();
+        let newer_version = meta.publish_external_version(8);
+        let newer_inode = meta.inode.lock().unwrap().clone();
+
+        fs.observe_inode_record(newer_inode).unwrap();
+        {
+            let state = state.lock().unwrap();
+            assert_eq!(state.inode.head_version.as_ref(), Some(&newer_version));
+            assert_eq!(state.logical_length, 8);
+        }
+
+        fs.observe_inode_record(older_inode).unwrap();
+        let state = state.lock().unwrap();
+        assert_eq!(state.inode.head_version.as_ref(), Some(&newer_version));
+        assert_eq!(state.logical_length, 8);
+    }
+
+    #[test]
+    fn fresh_readonly_open_preserves_dirty_open_writer_after_external_commit() {
+        let (_temp, meta, fs) = test_fs();
+        let created = fs
+            .create(
+                &context(),
+                fs.root_inode(),
+                OsStr::new("dirty-open-reader-external.bin"),
+                0o640,
+                libc::O_RDWR,
+            )
+            .unwrap();
+        assert_eq!(
+            fs.write(&context(), created.handle, 0, b"local-dirty")
+                .unwrap(),
+            11
+        );
+        let inode_id = meta.inode.lock().unwrap().inode_id.clone();
+        let state = fs.write_state(&inode_id).unwrap().unwrap();
+        let (old_revision, old_head, old_base, dirty_bytes) = {
+            let state = state.lock().unwrap();
+            assert_eq!(state.open_writers, 1);
+            assert!(state.dirty);
+            (
+                state.inode.revision,
+                state.inode.head_version.clone(),
+                state
+                    .base_version
+                    .as_ref()
+                    .map(|version| version.id.clone()),
+                state.dirty_extents.dirty_data_bytes(),
+            )
+        };
+
+        let external_version = meta.publish_external_version(18);
+        let reader = fs
+            .open(&context(), created.entry.inode, libc::O_RDONLY)
+            .unwrap();
+        assert_eq!(
+            fs.getattr(&context(), created.entry.inode, Some(reader))
+                .unwrap()
+                .size,
+            11
+        );
+        let mut data = [0; 16];
+        assert_eq!(fs.read(&context(), reader, 0, &mut data).unwrap(), 11);
+        assert_eq!(&data[..11], b"local-dirty");
+
+        let state = state.lock().unwrap();
+        assert_eq!(state.inode.revision, old_revision);
+        assert_eq!(state.inode.head_version.as_ref(), old_head.as_ref());
+        assert_ne!(state.inode.head_version.as_ref(), Some(&external_version));
+        assert_eq!(
+            state
+                .base_version
+                .as_ref()
+                .map(|version| version.id.clone()),
+            old_base
+        );
+        assert!(state.dirty);
+        assert_eq!(state.dirty_extents.dirty_data_bytes(), dirty_bytes);
+        drop(state);
+        fs.release(&context(), reader).unwrap();
+        fs.release(&context(), created.handle).unwrap();
+    }
+
+    #[test]
+    fn fresh_readonly_open_preserves_inflight_commit_after_external_commit() {
+        let (_temp, meta, fs) = test_fs();
+        let created = fs
+            .create(
+                &context(),
+                fs.root_inode(),
+                OsStr::new("inflight-reader-external.bin"),
+                0o640,
+                libc::O_RDWR,
+            )
+            .unwrap();
+        assert_eq!(
+            fs.write(&context(), created.handle, 0, b"pending").unwrap(),
+            7
+        );
+        meta.fail_next_commit_with(unavailable("injected pending commit failure"));
+        assert_eq!(
+            fs.fsync(&context(), created.handle, SyncMode::DataOnly)
+                .expect_err("injected commit must fail")
+                .code(),
+            afs_error::NODE_VFS_UNAVAILABLE
+        );
+        let inode_id = meta.inode.lock().unwrap().inode_id.clone();
+        let state = fs.write_state(&inode_id).unwrap().unwrap();
+        let (old_revision, old_head, pending_expected_head, pending_version) = {
+            let state = state.lock().unwrap();
+            let pending = match state.in_flight.as_ref().expect("commit remains in flight") {
+                InFlightCommit::File(pending) => pending,
+                InFlightCommit::Preparing(_) => panic!("commit should have reached Meta"),
+                InFlightCommit::Metadata(_) => panic!("test expects data commit"),
+            };
+            (
+                state.inode.revision,
+                state.inode.head_version.clone(),
+                pending.batch.commit.expected_head_version.clone(),
+                pending.batch.commit.file_version.id.clone(),
+            )
+        };
+
+        let external_version = meta.publish_external_version(18);
+        let reader = fs
+            .open(&context(), created.entry.inode, libc::O_RDONLY)
+            .unwrap();
+
+        let state = state.lock().unwrap();
+        assert_eq!(state.inode.revision, old_revision);
+        assert_eq!(state.inode.head_version.as_ref(), old_head.as_ref());
+        assert_ne!(state.inode.head_version.as_ref(), Some(&external_version));
+        match state
+            .in_flight
+            .as_ref()
+            .expect("pending commit must be preserved")
+        {
+            InFlightCommit::File(pending) => {
+                assert_eq!(
+                    pending.batch.commit.expected_head_version.as_ref(),
+                    pending_expected_head.as_ref()
+                );
+                assert_eq!(&pending.batch.commit.file_version.id, &pending_version);
+            }
+            InFlightCommit::Preparing(_) => {
+                panic!("commit should still be exact pending file commit")
+            }
+            InFlightCommit::Metadata(_) => panic!("test expects data commit"),
+        }
+        drop(state);
+        fs.release(&context(), reader).unwrap();
+        fs.release(&context(), created.handle).unwrap();
+    }
+
+    #[test]
     fn failed_metadata_only_sync_keeps_request_identity_and_blocks_writes() {
         let (_temp, meta, fs) = test_fs();
         let created = fs
@@ -7460,6 +9291,166 @@ mod tests {
             afs_protocol::node_data::DfsOwnerSyncRequest,
             afs_protocol::node_data::DfsOwnerSyncReply
         );
+    }
+
+    struct StaticRemoteOwnerFactory {
+        owner: Arc<dyn RemoteDfsOwner>,
+    }
+
+    impl DfsRemoteOwnerFactory for StaticRemoteOwnerFactory {
+        fn connect(&self, _: DfsNodeLocation) -> Result<Arc<dyn RemoteDfsOwner>> {
+            Ok(self.owner.clone())
+        }
+    }
+
+    struct LoopbackRemoteDfsOwner {
+        owner: Arc<DistributedFs>,
+        peer: String,
+    }
+
+    impl RemoteDfsOwner for LoopbackRemoteDfsOwner {
+        fn open(
+            &self,
+            request: afs_protocol::node_control::DfsOwnerOpenRequest,
+        ) -> Result<afs_protocol::node_control::DfsOwnerOpenReply> {
+            <DistributedFs as crate::node::rpc::control::DfsOwnerLifecycleHandler>::open(
+                self.owner.as_ref(),
+                &self.peer,
+                request,
+            )
+        }
+
+        fn getattr(
+            &self,
+            request: afs_protocol::node_control::DfsOwnerGetAttrRequest,
+        ) -> Result<afs_protocol::node_control::DfsOwnerGetAttrReply> {
+            <DistributedFs as crate::node::rpc::control::DfsOwnerLifecycleHandler>::getattr(
+                self.owner.as_ref(),
+                &self.peer,
+                request,
+            )
+        }
+
+        fn release(
+            &self,
+            request: afs_protocol::node_control::DfsOwnerReleaseRequest,
+        ) -> Result<afs_protocol::node_control::DfsOwnerReleaseReply> {
+            <DistributedFs as crate::node::rpc::control::DfsOwnerLifecycleHandler>::release(
+                self.owner.as_ref(),
+                &self.peer,
+                request,
+            )
+        }
+
+        fn get_lock(
+            &self,
+            request: afs_protocol::node_control::DfsOwnerGetLockRequest,
+        ) -> Result<afs_protocol::node_control::DfsOwnerGetLockReply> {
+            <DistributedFs as crate::node::rpc::control::DfsOwnerLifecycleHandler>::get_lock(
+                self.owner.as_ref(),
+                &self.peer,
+                request,
+            )
+        }
+
+        fn set_lock(
+            &self,
+            request: afs_protocol::node_control::DfsOwnerSetLockRequest,
+        ) -> Result<afs_protocol::node_control::DfsOwnerSetLockReply> {
+            <DistributedFs as crate::node::rpc::control::DfsOwnerLifecycleHandler>::set_lock(
+                self.owner.as_ref(),
+                &self.peer,
+                request,
+            )
+        }
+
+        fn cancel_lock_wait(
+            &self,
+            request: afs_protocol::node_control::DfsOwnerCancelLockWaitRequest,
+        ) -> Result<afs_protocol::node_control::DfsOwnerCancelLockWaitReply> {
+            <DistributedFs as crate::node::rpc::control::DfsOwnerLifecycleHandler>::cancel_lock_wait(
+                self.owner.as_ref(),
+                &self.peer,
+                request,
+            )
+        }
+
+        fn acknowledge_lock_wait(
+            &self,
+            request: afs_protocol::node_control::DfsOwnerAcknowledgeLockWaitRequest,
+        ) -> Result<afs_protocol::node_control::DfsOwnerAcknowledgeLockWaitReply> {
+            <DistributedFs as crate::node::rpc::control::DfsOwnerLifecycleHandler>::acknowledge_lock_wait(
+                self.owner.as_ref(),
+                &self.peer,
+                request,
+            )
+        }
+
+        fn release_locks(
+            &self,
+            request: afs_protocol::node_control::DfsOwnerReleaseLocksRequest,
+        ) -> Result<afs_protocol::node_control::DfsOwnerReleaseLocksReply> {
+            <DistributedFs as crate::node::rpc::control::DfsOwnerLifecycleHandler>::release_locks(
+                self.owner.as_ref(),
+                &self.peer,
+                request,
+            )
+        }
+
+        fn release_lock_session(
+            &self,
+            request: afs_protocol::node_control::DfsOwnerReleaseLockSessionRequest,
+        ) -> Result<afs_protocol::node_control::DfsOwnerReleaseLockSessionReply> {
+            <DistributedFs as crate::node::rpc::control::DfsOwnerLifecycleHandler>::release_lock_session(
+                self.owner.as_ref(),
+                &self.peer,
+                request,
+            )
+        }
+
+        fn read(
+            &self,
+            request: afs_protocol::node_data::DfsOwnerReadRequest,
+        ) -> Result<afs_protocol::node_data::DfsOwnerReadReply> {
+            <DistributedFs as crate::node::rpc::data::DfsOwnerFilesHandler>::read(
+                self.owner.as_ref(),
+                &self.peer,
+                request,
+            )
+        }
+
+        fn write(
+            &self,
+            request: afs_protocol::node_data::DfsOwnerWriteRequest,
+        ) -> Result<afs_protocol::node_data::DfsOwnerWriteReply> {
+            <DistributedFs as crate::node::rpc::data::DfsOwnerFilesHandler>::write(
+                self.owner.as_ref(),
+                &self.peer,
+                request,
+            )
+        }
+
+        fn resize(
+            &self,
+            request: afs_protocol::node_data::DfsOwnerResizeRequest,
+        ) -> Result<afs_protocol::node_data::DfsOwnerResizeReply> {
+            <DistributedFs as crate::node::rpc::data::DfsOwnerFilesHandler>::resize(
+                self.owner.as_ref(),
+                &self.peer,
+                request,
+            )
+        }
+
+        fn sync(
+            &self,
+            request: afs_protocol::node_data::DfsOwnerSyncRequest,
+        ) -> Result<afs_protocol::node_data::DfsOwnerSyncReply> {
+            <DistributedFs as crate::node::rpc::data::DfsOwnerFilesHandler>::sync(
+                self.owner.as_ref(),
+                &self.peer,
+                request,
+            )
+        }
     }
 
     struct FailOnceReleaseRemoteDfsOwner {
@@ -8303,6 +10294,588 @@ mod tests {
             conflict.is_none(),
             "old epoch locks must not survive fencing"
         );
+    }
+
+    #[test]
+    fn dfs_lock_renewal_transient_error_preserves_locks_and_waiters() {
+        let (_temp, meta, fs) = test_fs();
+        let inode_id = InodeId::new("inode:test");
+        {
+            let mut lease = meta.lease.lock().unwrap();
+            lease.expires_at_unix_ms = now_unix_ms().saturating_add(4_000);
+        }
+        let authority = fs
+            .local_lock_authority(&inode_id, meta.lease.lock().unwrap().clone())
+            .unwrap();
+        let owner = lock_owner("mount-a", 40);
+        let lock = LockRequest::write(FileLockKind::Posix, owner.clone(), 40, lock_range(0, 99));
+        let waiter = LockWaiterId {
+            ingress_session_id: "mount-b".into(),
+            request_id: 41,
+        };
+        authority.table.setlk_nonblocking(lock).unwrap();
+        {
+            let mut state = authority.state.lock().unwrap();
+            state.pinned_owners.insert(owner.clone());
+            state.waiters.insert(waiter.clone());
+        }
+
+        meta.fail_next_renew_with(Error::coded(
+            afs_error::META_DFS_LEASE_RETRY,
+            "injected retryable renewal contention",
+        ));
+        assert_eq!(
+            fs.check_lock_renewal(&authority).unwrap_err().code(),
+            afs_error::META_DFS_LEASE_RETRY
+        );
+
+        let state = authority.state.lock().unwrap();
+        assert!(state.last_error.is_none());
+        assert!(state.pinned_owners.contains(&owner));
+        assert!(state.waiters.contains(&waiter));
+        drop(state);
+        assert!(
+            authority
+                .table
+                .getlk(&LockRequest::write(
+                    FileLockKind::Posix,
+                    lock_owner("mount-c", 42),
+                    42,
+                    lock_range(0, 99),
+                ))
+                .unwrap()
+                .is_some(),
+            "retryable renewal errors must not clear the active lock table"
+        );
+    }
+
+    #[test]
+    fn dfs_lock_authority_refresh_waits_for_renewal_guard_and_preserves_terminal_state() {
+        let (_temp, meta, fs) = test_fs();
+        let fs = Arc::new(fs);
+        let inode_id = InodeId::new("inode:test");
+        let authority = fs
+            .local_lock_authority(&inode_id, meta.lease.lock().unwrap().clone())
+            .unwrap();
+        let renewal = lock_authority_renewal_guard(&authority).unwrap();
+        let worker_fs = fs.clone();
+        let worker_inode = inode_id.clone();
+        let worker_lease = meta.lease_with_expiry(now_unix_ms().saturating_add(30_000));
+        let (started_tx, started_rx) = std::sync::mpsc::channel();
+        let (done_tx, done_rx) = std::sync::mpsc::channel();
+        let worker = std::thread::spawn(move || {
+            started_tx.send(()).unwrap();
+            done_tx
+                .send(worker_fs.local_lock_authority(&worker_inode, worker_lease))
+                .unwrap();
+        });
+        started_rx.recv().unwrap();
+        assert!(
+            done_rx.recv_timeout(Duration::from_millis(50)).is_err(),
+            "same-epoch authority refresh must serialize behind an in-flight renewal decision"
+        );
+        {
+            let mut state = authority.state.lock().unwrap();
+            state.last_error = Some(stale("foreground renewal fenced authority"));
+        }
+        let _ = authority.table.invalidate();
+        drop(renewal);
+        assert_eq!(
+            done_rx
+                .recv_timeout(Duration::from_secs(1))
+                .unwrap()
+                .err()
+                .expect("same-epoch refresh must remain fenced")
+                .code(),
+            afs_error::NODE_DFS_STALE_HANDLE,
+            "same-epoch refresh must not revive a terminal authority once the serialized renewal finishes"
+        );
+        worker.join().unwrap();
+        assert!(authority.state.lock().unwrap().last_error.is_some());
+        assert!(matches!(
+            authority.table.getlk(&LockRequest::write(
+                FileLockKind::Posix,
+                lock_owner("mount-b", 39),
+                39,
+                lock_range(0, 99),
+            )),
+            Err(LockError::Interrupted)
+        ));
+    }
+
+    #[test]
+    fn dfs_lock_renewal_retry_after_expiry_records_local_stale_error() {
+        let (_temp, meta, fs) = test_fs();
+        let inode_id = InodeId::new("inode:test");
+        let attempted = meta.lease.lock().unwrap().clone();
+        let authority = fs
+            .local_lock_authority(&inode_id, attempted.clone())
+            .unwrap();
+        let expired_at = now_unix_ms().saturating_sub(1);
+        {
+            let mut state = authority.state.lock().unwrap();
+            state.lease.expires_at_unix_ms = expired_at;
+            assert_eq!(state.lease.expires_at_unix_ms, expired_at);
+        }
+        let mut attempted = attempted;
+        attempted.expires_at_unix_ms = expired_at;
+
+        assert_eq!(
+            apply_lock_renewal_failure(
+                &authority,
+                &attempted,
+                Error::coded(
+                    afs_error::META_DFS_LEASE_RETRY,
+                    "retry exhausted after expiry"
+                ),
+            )
+            .unwrap()
+            .unwrap()
+            .code(),
+            afs_error::NODE_DFS_STALE_HANDLE
+        );
+        assert_eq!(
+            authority
+                .state
+                .lock()
+                .unwrap()
+                .last_error
+                .as_ref()
+                .unwrap()
+                .code(),
+            afs_error::NODE_DFS_STALE_HANDLE,
+            "local expiry is the terminal cause; a retryable Meta error must not become the terminal lock state"
+        );
+    }
+
+    #[test]
+    fn dfs_lock_expiry_waits_for_inflight_renewal_completion() {
+        let (_temp, meta, fs) = test_fs();
+        let inode_id = InodeId::new("inode:test");
+        let authority = fs
+            .local_lock_authority(&inode_id, meta.lease.lock().unwrap().clone())
+            .unwrap();
+        let expired_at = now_unix_ms().saturating_sub(1);
+        {
+            let mut state = authority.state.lock().unwrap();
+            state.lease.expires_at_unix_ms = expired_at;
+            assert_eq!(state.lease.expires_at_unix_ms, expired_at);
+        }
+        let renewal = lock_authority_renewal_guard(&authority).unwrap();
+        let worker_authority = authority.clone();
+        let (started_tx, started_rx) = std::sync::mpsc::channel();
+        let (done_tx, done_rx) = std::sync::mpsc::channel();
+        let worker = std::thread::spawn(move || {
+            started_tx.send(()).unwrap();
+            let _renewal = lock_authority_renewal_guard(&worker_authority).unwrap();
+            done_tx
+                .send(expire_lock_authority_if_due_locked(&worker_authority).unwrap())
+                .unwrap();
+        });
+        started_rx.recv().unwrap();
+        assert!(
+            done_rx.recv_timeout(Duration::from_millis(50)).is_err(),
+            "background expiry must not complete while a foreground renewal owns the authority guard"
+        );
+        authority.state.lock().unwrap().lease.expires_at_unix_ms =
+            now_unix_ms().saturating_add(30_000);
+        drop(renewal);
+        assert!(
+            !done_rx.recv_timeout(Duration::from_secs(1)).unwrap(),
+            "a foreground renewal that extends the same authority before releasing the guard prevents stale expiry"
+        );
+        worker.join().unwrap();
+        assert!(authority.state.lock().unwrap().last_error.is_none());
+    }
+
+    #[test]
+    fn dfs_lock_renewal_stale_retry_error_does_not_fence_extended_state() {
+        let (_temp, meta, fs) = test_fs();
+        let inode_id = InodeId::new("inode:test");
+        let attempted = {
+            let mut lease = meta.lease.lock().unwrap();
+            lease.expires_at_unix_ms = now_unix_ms().saturating_add(1_000);
+            lease.clone()
+        };
+        let authority = fs
+            .local_lock_authority(&inode_id, attempted.clone())
+            .unwrap();
+        let owner = lock_owner("mount-a", 45);
+        let lock = LockRequest::write(FileLockKind::Posix, owner.clone(), 45, lock_range(0, 99));
+        authority.table.setlk_nonblocking(lock).unwrap();
+        {
+            let mut state = authority.state.lock().unwrap();
+            state.pinned_owners.insert(owner.clone());
+            state.lease.expires_at_unix_ms = now_unix_ms().saturating_add(30_000);
+        }
+
+        assert!(
+            apply_lock_renewal_failure(
+                &authority,
+                &attempted,
+                Error::coded(afs_error::META_DFS_LEASE_RETRY, "stale renewal retry"),
+            )
+            .unwrap()
+            .is_none()
+        );
+
+        let state = authority.state.lock().unwrap();
+        assert!(state.last_error.is_none());
+        assert!(state.pinned_owners.contains(&owner));
+        drop(state);
+        assert!(
+            authority
+                .table
+                .getlk(&LockRequest::write(
+                    FileLockKind::Posix,
+                    lock_owner("mount-c", 46),
+                    46,
+                    lock_range(0, 99),
+                ))
+                .unwrap()
+                .is_some(),
+            "a stale renewal response must not invalidate a fresher local authority"
+        );
+    }
+
+    #[test]
+    fn dfs_lock_renewal_confirmed_fence_invalidates_same_identity_extended_state() {
+        let (_temp, meta, fs) = test_fs();
+        let inode_id = InodeId::new("inode:test");
+        let attempted = {
+            let mut lease = meta.lease.lock().unwrap();
+            lease.expires_at_unix_ms = now_unix_ms().saturating_add(1_000);
+            lease.clone()
+        };
+        let authority = fs
+            .local_lock_authority(&inode_id, attempted.clone())
+            .unwrap();
+        {
+            let mut state = authority.state.lock().unwrap();
+            state.lease.expires_at_unix_ms = now_unix_ms().saturating_add(30_000);
+        }
+
+        assert_eq!(
+            apply_lock_renewal_failure(
+                &authority,
+                &attempted,
+                Error::coded(afs_error::META_DFS_CONFLICT, "confirmed lease fencing"),
+            )
+            .unwrap()
+            .unwrap()
+            .code(),
+            afs_error::META_DFS_CONFLICT
+        );
+
+        assert_eq!(
+            authority
+                .state
+                .lock()
+                .unwrap()
+                .last_error
+                .as_ref()
+                .unwrap()
+                .code(),
+            afs_error::META_DFS_CONFLICT
+        );
+        assert!(matches!(
+            authority.table.getlk(&LockRequest::write(
+                FileLockKind::Posix,
+                lock_owner("mount-c", 48),
+                48,
+                lock_range(0, 99),
+            )),
+            Err(LockError::Interrupted)
+        ));
+    }
+
+    #[test]
+    fn dfs_local_setlk_postgrant_transient_renewal_keeps_lock() {
+        let (_temp, meta, fs) = test_fs();
+        let near_expiry = now_unix_ms().saturating_add(1_000);
+        {
+            let mut lease = meta.lease.lock().unwrap();
+            lease.expires_at_unix_ms = near_expiry;
+        }
+        meta.queue_renew_result(Ok(meta.lease_with_expiry(near_expiry)));
+        meta.queue_renew_result(Ok(meta.lease_with_expiry(near_expiry)));
+        meta.queue_renew_result(Err(Error::coded(
+            afs_error::META_DFS_LEASE_RETRY,
+            "post-grant renewal retry",
+        )));
+
+        let created = fs
+            .create(
+                &context(),
+                fs.root_inode(),
+                OsStr::new("postgrant-local-lock.bin"),
+                0o640,
+                libc::O_RDWR,
+            )
+            .unwrap();
+        fs.setlk(
+            &context(),
+            created.entry.inode,
+            created.handle,
+            LockRequest::write(
+                FileLockKind::Posix,
+                lock_owner("mount-a", 48),
+                48,
+                lock_range(0, 99),
+            ),
+            None,
+        )
+        .unwrap();
+
+        let authority = fs
+            .lock_authorities
+            .lock()
+            .unwrap()
+            .get(&InodeId::new("inode:test"))
+            .cloned()
+            .expect("successful lock must keep a local authority");
+        assert_eq!(
+            meta.renew_call_count(),
+            3,
+            "local lock regression must inject the retryable error after the lock table mutation"
+        );
+        assert!(authority.state.lock().unwrap().last_error.is_none());
+        assert!(
+            authority
+                .table
+                .getlk(&LockRequest::write(
+                    FileLockKind::Posix,
+                    lock_owner("mount-b", 49),
+                    49,
+                    lock_range(0, 99),
+                ))
+                .unwrap()
+                .is_some(),
+            "post-grant transient renewal errors must not leave a granted lock reported as failed"
+        );
+    }
+
+    #[test]
+    fn dfs_owner_set_lock_postgrant_transient_renewal_keeps_lock() {
+        let (_temp, meta, fs) = test_fs();
+        let near_expiry = now_unix_ms().saturating_add(1_000);
+        {
+            let mut lease = meta.lease.lock().unwrap();
+            lease.expires_at_unix_ms = near_expiry;
+        }
+        meta.queue_renew_result(Ok(meta.lease_with_expiry(near_expiry)));
+        meta.queue_renew_result(Ok(meta.lease_with_expiry(near_expiry)));
+        meta.queue_renew_result(Err(Error::coded(
+            afs_error::META_DFS_LEASE_RETRY,
+            "remote post-grant renewal retry",
+        )));
+
+        let authority = dfs_lock_authority("session-b");
+        let lock = LockRequest::write(
+            FileLockKind::Posix,
+            lock_owner("mount-b", 50),
+            50,
+            lock_range(0, 99),
+        );
+        <DistributedFs as crate::node::rpc::control::DfsOwnerLifecycleHandler>::set_lock(
+            &fs,
+            "node-b",
+            afs_protocol::node_control::DfsOwnerSetLockRequest {
+                authority: Some(authority),
+                lock: Some(DistributedFs::wire_lock_request(&lock)),
+                waiter: None,
+            },
+        )
+        .unwrap();
+
+        let authority = fs
+            .lock_authorities
+            .lock()
+            .unwrap()
+            .get(&InodeId::new("inode:test"))
+            .cloned()
+            .expect("successful owner lock must keep a local authority");
+        assert_eq!(
+            meta.renew_call_count(),
+            3,
+            "remote owner lock regression must inject the retryable error after the owner table mutation"
+        );
+        assert!(authority.state.lock().unwrap().last_error.is_none());
+        assert!(
+            authority
+                .table
+                .getlk(&LockRequest::write(
+                    FileLockKind::Posix,
+                    lock_owner("mount-c", 51),
+                    51,
+                    lock_range(0, 99),
+                ))
+                .unwrap()
+                .is_some(),
+            "remote post-grant transient renewal errors must preserve the installed owner lock"
+        );
+    }
+
+    #[test]
+    fn dfs_lock_renewal_success_accepts_live_response_after_old_expiry() {
+        let (_temp, meta, fs) = test_fs();
+        let inode_id = InodeId::new("inode:test");
+        let expired = {
+            let mut lease = meta.lease.lock().unwrap();
+            lease.expires_at_unix_ms = now_unix_ms().saturating_sub(1);
+            lease.clone()
+        };
+        let authority = fs.local_lock_authority(&inode_id, expired).unwrap();
+        let renewed_expiry = now_unix_ms().saturating_add(30_000);
+
+        assert!(
+            apply_lock_renewal_success(&authority, meta.lease_with_expiry(renewed_expiry))
+                .unwrap()
+                .is_none(),
+            "a same-identity live renewal proves continuous authority even if the old local snapshot expired"
+        );
+        let state = authority.state.lock().unwrap();
+        assert!(state.last_error.is_none());
+        assert!(state.lease.expires_at_unix_ms >= renewed_expiry);
+    }
+
+    #[test]
+    fn dfs_lock_renewal_old_success_hint_does_not_shorten_newer_state() {
+        let (_temp, meta, fs) = test_fs();
+        let inode_id = InodeId::new("inode:test");
+        let current_expiry = now_unix_ms().saturating_add(30_000);
+        let authority = fs
+            .local_lock_authority(&inode_id, meta.lease_with_expiry(current_expiry))
+            .unwrap();
+        let stale_success_expiry = now_unix_ms().saturating_sub(1);
+
+        assert!(
+            apply_lock_renewal_success(&authority, meta.lease_with_expiry(stale_success_expiry))
+                .unwrap()
+                .is_none()
+        );
+        let state = authority.state.lock().unwrap();
+        assert!(state.last_error.is_none());
+        assert_eq!(state.lease.expires_at_unix_ms, current_expiry);
+    }
+
+    #[test]
+    fn dfs_lock_renewal_success_does_not_resurrect_terminal_authority() {
+        let (_temp, meta, fs) = test_fs();
+        let inode_id = InodeId::new("inode:test");
+        let attempted = meta.lease_with_expiry(now_unix_ms().saturating_add(1_000));
+        let authority = fs
+            .local_lock_authority(&inode_id, attempted.clone())
+            .unwrap();
+        authority
+            .table
+            .setlk_nonblocking(LockRequest::write(
+                FileLockKind::Posix,
+                lock_owner("mount-a", 52),
+                52,
+                lock_range(0, 99),
+            ))
+            .unwrap();
+        apply_lock_renewal_failure(
+            &authority,
+            &attempted,
+            Error::coded(afs_error::META_DFS_CONFLICT, "previous confirmed fencing"),
+        )
+        .unwrap()
+        .unwrap();
+        let original_expiry = authority.state.lock().unwrap().lease.expires_at_unix_ms;
+        let renewed_expiry = now_unix_ms().saturating_add(30_000);
+
+        assert_eq!(
+            apply_lock_renewal_success(&authority, meta.lease_with_expiry(renewed_expiry))
+                .unwrap()
+                .unwrap()
+                .code(),
+            afs_error::META_DFS_CONFLICT
+        );
+        let state = authority.state.lock().unwrap();
+        assert_eq!(state.lease.expires_at_unix_ms, original_expiry);
+        assert_eq!(
+            state.last_error.as_ref().unwrap().code(),
+            afs_error::META_DFS_CONFLICT
+        );
+        assert!(state.pinned_owners.is_empty());
+        drop(state);
+        assert!(matches!(
+            authority.table.getlk(&LockRequest::write(
+                FileLockKind::Posix,
+                lock_owner("mount-b", 53),
+                53,
+                lock_range(0, 99),
+            )),
+            Err(LockError::Interrupted)
+        ));
+    }
+
+    #[test]
+    fn dfs_lock_renewal_terminal_fence_invalidates_locks_and_waiters() {
+        let (_temp, meta, fs) = test_fs();
+        let inode_id = InodeId::new("inode:test");
+        {
+            let mut lease = meta.lease.lock().unwrap();
+            lease.expires_at_unix_ms = now_unix_ms().saturating_add(4_000);
+        }
+        let authority = fs
+            .local_lock_authority(&inode_id, meta.lease.lock().unwrap().clone())
+            .unwrap();
+        let owner = lock_owner("mount-a", 50);
+        let lock = LockRequest::write(FileLockKind::Posix, owner.clone(), 50, lock_range(0, 99));
+        let waiter = LockWaiterId {
+            ingress_session_id: "mount-b".into(),
+            request_id: 51,
+        };
+        authority.table.setlk_nonblocking(lock).unwrap();
+        {
+            let mut state = authority.state.lock().unwrap();
+            state.pinned_owners.insert(owner);
+            state.waiters.insert(waiter);
+        }
+
+        meta.fail_next_renew_with(Error::coded(
+            afs_error::META_DFS_CONFLICT,
+            "injected lease fencing",
+        ));
+        assert_eq!(
+            fs.check_lock_renewal(&authority).unwrap_err().code(),
+            afs_error::META_DFS_CONFLICT
+        );
+
+        let state = authority.state.lock().unwrap();
+        assert!(state.last_error.is_some());
+        assert!(state.pinned_owners.is_empty());
+        assert!(state.waiters.is_empty());
+        drop(state);
+        assert!(matches!(
+            authority.table.getlk(&LockRequest::write(
+                FileLockKind::Posix,
+                lock_owner("mount-c", 52),
+                52,
+                lock_range(0, 99),
+            )),
+            Err(LockError::Interrupted)
+        ));
+    }
+
+    #[test]
+    fn dfs_lock_background_renewal_starts_with_retry_budget() {
+        let mut lease = WriteLease {
+            inode_id: InodeId::new("inode:test"),
+            owner_node_id: "node-a".into(),
+            owner_session_id: "session-a".into(),
+            lease_epoch: 1,
+            expires_at_unix_ms: now_unix_ms().saturating_add(21_000),
+        };
+        assert!(!should_background_renew(&lease));
+        assert!(!should_renew(&lease));
+
+        lease.expires_at_unix_ms = now_unix_ms().saturating_add(19_000);
+        assert!(should_background_renew(&lease));
+        assert!(!should_renew(&lease));
     }
 
     #[test]

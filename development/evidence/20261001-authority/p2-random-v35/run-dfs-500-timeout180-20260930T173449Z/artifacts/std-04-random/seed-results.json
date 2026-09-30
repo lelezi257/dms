@@ -1,0 +1,28 @@
+[
+  {
+    "cleanup": {
+      "reference": {
+        "path": "/mnt/lima-afsadata/afs-delivery/evidence/p2-random-v35/ref-ext4-500-timeout180-20260930T173449Z/seed-1-ref-4f1876ba",
+        "removed": true
+      },
+      "target": {
+        "path": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v35/mount-dfs/std04-dfs-random-500-v35-timeout180-20260930T173449Z/seed-1-target-68caddc6",
+        "removed": true
+      }
+    },
+    "cleanup_ok": true,
+    "hypothesis_shrink": null,
+    "mismatch": null,
+    "operations_executed": 500,
+    "operations_requested": 500,
+    "reference_fixture": "/mnt/lima-afsadata/afs-delivery/evidence/p2-random-v35/ref-ext4-500-timeout180-20260930T173449Z/seed-1-ref-4f1876ba",
+    "seed": 1,
+    "shrink_corpus": "seeds/seed-1/shrink-corpus.json",
+    "status": "PASS",
+    "target_fixture": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v35/mount-dfs/std04-dfs-random-500-v35-timeout180-20260930T173449Z/seed-1-target-68caddc6",
+    "timed_out": false,
+    "timeout_seconds": 180.0,
+    "trace": "seeds/seed-1/trace.json",
+    "trace_sha256": "4c1f94d96a3b902babd57f1100ab15a659d2583d8302f413b13cbcc2c0499ee7"
+  }
+]

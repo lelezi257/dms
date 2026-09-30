@@ -354,6 +354,14 @@ subsystem = "DistributedFs"
 description = "DFS 条件或写租约已变化，请求明确被拒绝，原 owner 必须停止修改"
 
 [[error]]
+name = "META_DFS_LEASE_RETRY"
+value = "0x03030002"
+kind = "Unavailable"
+component = "Meta"
+subsystem = "DistributedFs"
+description = "同一有效租约续租持续竞争，调用者可保留当前权威并重试；不表示 owner 已被隔离"
+
+[[error]]
 name = "META_STORE_UNIMPLEMENTED"
 value = "0x03020001"
 kind = "Unimplemented"

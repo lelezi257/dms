@@ -1,0 +1,55 @@
+{
+  "accounting": {
+    "accounting_identity": {
+      "no_post_failure_filtering": true,
+      "tap_total_accounted": 33,
+      "tap_total_observed": 33,
+      "todo_is_counted_not_filtered": true
+    },
+    "not_ok_lines": [],
+    "prove_files": 2,
+    "prove_result": "PASS",
+    "prove_tests": 33,
+    "selected_files": 2,
+    "selected_tests": [
+      "ftruncate/00.t",
+      "unlink/14.t"
+    ],
+    "skip_lines": [],
+    "tap_not_ok": 0,
+    "tap_ok": 33,
+    "tap_planned": 33,
+    "tap_skip": 0,
+    "tap_todo": 0,
+    "tap_unexpected_fail": 0,
+    "todo_lines": [],
+    "unexpected_fail_lines": []
+  },
+  "case_id": "STD-01-selected-original-v11-ownerfs-failures",
+  "command": {
+    "argv": [
+      "prove",
+      "-e",
+      "/bin/sh",
+      "-rv",
+      "/mnt/lima-afsadata/afs-acceptance/suites-reference/src/pjdfstest/tests/ftruncate/00.t",
+      "/mnt/lima-afsadata/afs-acceptance/suites-reference/src/pjdfstest/tests/unlink/14.t"
+    ],
+    "cwd": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v25/mount-ownerfs/std01-ownerfs-selected-v25/.afs-selected-original-failures-20260930T153919Z",
+    "duration_seconds": 3,
+    "returncode": 0,
+    "timed_out": false,
+    "timeout_seconds": null
+  },
+  "fixture": {
+    "base_dir": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v25/mount-ownerfs/std01-ownerfs-selected-v25",
+    "kept": true,
+    "path": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v25/mount-ownerfs/std01-ownerfs-selected-v25/.afs-selected-original-failures-20260930T153919Z"
+  },
+  "identity": {
+    "artifact": "artifacts/selected-pjdfstest/identity.json"
+  },
+  "profile": "selected",
+  "reason": "",
+  "status": "PASS"
+}

@@ -1,6 +1,7 @@
 //! Durable export intent. A persisted mount is a claim requiring live verification.
 use super::{
-    MountIdentity, NamespaceIdentity, NativeDesiredState, NativeState, NativeStatus, WorkspaceMount,
+    MountIdentity, NamespaceIdentity, NativeDesiredState, NativeState, NativeStatus,
+    WorkspaceIdentity, WorkspaceMount,
 };
 use serde::{Deserialize, Serialize};
 use std::{
@@ -19,8 +20,9 @@ const MAX_BYTES: usize = 1024 * 1024;
 pub struct JournalRecord {
     pub spec: WorkspaceMount,
     pub status: NativeStatus,
-    /// A claim written after attachment; never proof of current ownership.
+    /// Exclusive clone intent saved before attachment; never proof that it is mounted.
     pub owned_mount: Option<MountIdentity>,
+    pub retired: Vec<WorkspaceIdentity>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -90,7 +92,7 @@ impl MountJournal {
                 snapshot
             }
             Err(error) if error.kind() == io::ErrorKind::NotFound => JournalSnapshot {
-                schema_version: 1,
+                schema_version: 2,
                 boot_id: boot_id.into(),
                 namespace,
                 records: Vec::new(),
@@ -128,6 +130,12 @@ impl MountJournal {
             .position(|r| r.spec.identity.root_id == record.spec.identity.root_id)
         {
             let old = &next.records[index];
+            if !old.retired.iter().all(|id| record.retired.contains(id))
+                || (old.spec.identity != record.spec.identity
+                    && !record.retired.contains(&old.spec.identity))
+            {
+                return Err(errno(libc::ESTALE));
+            }
             if old.spec.identity == record.spec.identity {
                 if old.spec != record.spec || record.status.operation_seq < old.status.operation_seq
                 {
@@ -181,7 +189,7 @@ impl MountJournal {
 }
 
 fn validate_snapshot(snapshot: &JournalSnapshot, capacity: usize) -> io::Result<()> {
-    if snapshot.schema_version != 1
+    if snapshot.schema_version != 2
         || !valid_boot_id(&snapshot.boot_id)
         || snapshot.namespace.inode == 0
         || snapshot.records.len() > capacity
@@ -199,6 +207,23 @@ fn validate_snapshot(snapshot: &JournalSnapshot, capacity: usize) -> io::Result<
 }
 fn validate_record(record: &JournalRecord, namespace: NamespaceIdentity) -> io::Result<()> {
     let identity = &record.spec.identity;
+    let mut retired = std::collections::HashSet::new();
+    if record.retired.len() > 64
+        || record.retired.iter().any(|old| {
+            old == identity
+                || old.root_id != identity.root_id
+                || old.namespace != namespace
+                || old.epoch == 0
+                || old.epoch > identity.epoch
+                || old.home_node_id.is_empty()
+                || old.home_node_id.len() > 1024
+                || old.home_session_id.is_empty()
+                || old.home_session_id.len() > 1024
+                || !retired.insert(old)
+        })
+    {
+        return Err(invalid("invalid retired Home session history"));
+    }
     if record.status.identity != *identity
         || identity.namespace != namespace
         || identity.epoch == 0

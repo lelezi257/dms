@@ -34,6 +34,7 @@ fn record(epoch: u64) -> JournalRecord {
     };
     JournalRecord {
         spec,
+        retired: Vec::new(),
         status: NativeStatus {
             identity,
             desired: NativeDesiredState::Native,
@@ -214,4 +215,30 @@ fn failed_directory_sync_requires_reopen_instead_of_serving_stale_memory() {
     );
     drop(journal);
     assert_eq!(open(&dir).unwrap().load().unwrap().records, vec![record(1)]);
+}
+
+#[test]
+fn old_journal_version_is_preserved_without_silent_history_loss() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut journal = open(&dir).unwrap();
+    journal.store(record(1)).unwrap();
+    let mut old = journal.load().unwrap();
+    drop(journal);
+    old.schema_version = 1;
+    let bytes = serde_json::to_vec(&old).unwrap();
+    fs::write(dir.path().join("state.json"), &bytes).unwrap();
+    assert_eq!(open(&dir).err().unwrap().kind(), io::ErrorKind::InvalidData);
+    assert_eq!(fs::read(dir.path().join("state.json")).unwrap(), bytes);
+}
+
+#[test]
+fn hardlinked_state_or_lock_cannot_modify_an_outside_file() {
+    for name in ["state.json", "manager.lock"] {
+        let dir = tempfile::tempdir().unwrap();
+        let outside = tempfile::NamedTempFile::new().unwrap();
+        fs::write(outside.path(), b"outside must survive").unwrap();
+        fs::hard_link(outside.path(), dir.path().join(name)).unwrap();
+        assert_eq!(open(&dir).err().unwrap().kind(), io::ErrorKind::InvalidData);
+        assert_eq!(fs::read(outside.path()).unwrap(), b"outside must survive");
+    }
 }

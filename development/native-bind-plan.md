@@ -51,9 +51,9 @@ Files: create focused `native/linux.rs`, `native/journal.rs`, VM integration tes
 Interfaces: `LinuxMountBackend` consumes configured source/target directory descriptors and trusted prepared workspace identity. Use `open_tree/move_mount` plus selected mount flags; `MountJournal` persists versioned desired/operation identity and fsyncs its directory. Actual mount IDs/namespace are reobserved, never restored as current facts.
 
 - [ ] Add RED tests for exact-source same-path mount, mount policy, duplicate retry, foreign/stacked mount, target replacement, wrong namespace, retained fd/cwd/mmap busy umount, and syscall failure preserving data.
-- [ ] Implement fd-confined Linux calls, mountinfo/statx identity confirmation, structured diagnostics and durable journal.
-- [ ] Add crash-point recovery tests before/after kernel mount/journal ACK. Only owned, identity-matched exports may be recovered or removed.
-- [ ] Run in a disposable private mount namespace in the independent VM; retain commands, identities, errno, contents and cleanup proof.
+- [x] Implement fd-confined Linux calls, mountinfo/statx identity confirmation, structured diagnostics and durable journal.
+- [x] Add crash-point recovery tests before/after kernel mount/journal ACK. Only owned, identity-matched exports may be recovered or removed. Scope: helper process exit in the same surviving private namespace; Node/FUSE death remains Task5.
+- [x] Run in a disposable private mount namespace in the independent VM; retain commands, identities, errno, contents and cleanup proof.
 
 ## Task 3: consistent OwnerFs transition/fallback and opt-in integration
 
@@ -104,6 +104,12 @@ Files: new OwnerFs-native lock mechanism where possible; narrow integration in O
 - 2026-10-01: controller 16 + journal8 tests passed in WSL. VM A Linux6.8/ext4 independently passed5 backend tests, including same-path identity, busy retry, nosuid/nodev/ro/noexec, foreign-manager refusal, source pinning and target substitution. These cover mount primitives on disposable ext4 directories, not OwnerFs FUSE integration.
 - 2026-10-01: post-rename directory-fsync failure and matching-foreign-mount-after-bind-failure regressions were observed failing before fixes. All RED logs remain external. Rust1.95 diagnostic rendering itself panicked on one unresolved-import RED; split imports/short diagnostics produced the intended unresolved-import error.
 - 2026-10-01: the first VM driver passed the mount test but failed a stale requirement that old environment mounts still existed. Inspection found no old Node/FUSE lane running; no stop operation was issued. Corrected driver compares actual parent mountinfo before/after and succeeded. Failed raw log is retained.
-- Remaining: durable journal is not yet wired to controller pre-syscall/post-syscall transitions; physical recovery/Node death/manager death, FUSE/P2P/locking/cache integration, lifecycle fencing and all performance work remain NOT_RUN. Do not claim feature completion from primitive PASS.
+- Remaining after the first primitive checkpoint: controller transactions/recovery were then unwired. The later transaction checkpoint below supersedes that limitation only for the tested surviving-namespace helper crash scope; full feature completion remains pending.
 
 - 2026-10-01 checkpoint: fmt and all-targets/all-features strict Clippy passed; unchanged-library serial regression258 PASS/2 ignored. Portable VM probe reproduced5 PASS, no parent mount changes. Evidence summary `native-bind-evidence.md`. Feature completion and PR still pending.
+
+- 2026-10-01 transaction checkpoint: 32 controller/journal/transaction tests passed; all8 actual VM backend tests passed, including helper exits before attach, after attach and after normal umount. Same-namespace restart requires current trusted spec, exact unique mount claim and effective flags before NativeActive. No Node admission, Agent drainage, boot/namespace-loss recovery or performance claim.
+- Ruling: `bind_journaled` synchronously persists the allocated exclusive clone ID before kernel attachment; errors never fall back to an unjournaled bind. `Unmounting` persists normal-unmount intent before removal. Cost: persistence failures close mutation until reopen/reconciliation.
+- Ruling: journal schema2 requires retired Home session history. Version1 prototype state is preserved and rejected. Cost: old development journals require explicit inspection; no deployed Node native format exists to migrate automatically.
+- Ruling: nonrecursive parent clone reveals the covered target for recovery without touching a live export; current effective flags independently gate readiness. Cost: same surviving namespace/parent is required for this path; source-authority and Node/FUSE death recovery remain separate requirements.
+- RED/GREEN: foreign target self-bind and changed recovery policy both reproduced on VM before fixes. Current exact binary SHA and raw exit/log evidence are indexed in `native-bind-evidence.md` and the external transaction input manifest.

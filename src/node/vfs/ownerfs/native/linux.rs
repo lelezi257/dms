@@ -103,6 +103,11 @@ impl LinuxMountBackend {
             return Err(errno(libc::ESTALE));
         }
         let covered_unique_mount_id = unique_mount_id(&target)?;
+        // Eligible workspace children are on the managed parent filesystem.
+        // A self-bind keeps dev/ino unchanged but is already a foreign mount.
+        if covered_unique_mount_id != unique_mount_id(&parent)? {
+            return Err(errno(libc::ESTALE));
+        }
         let mut prepared = lock(&self.prepared)?;
         if let Some(old) = prepared.get(&spec.identity.root_id) {
             // Do not replace active descriptors or reset recorded ownership.
@@ -131,6 +136,148 @@ impl LinuxMountBackend {
                 attached: None,
             },
         );
+        Ok(())
+    }
+
+    /// Reprepare an exclusively journaled workspace after helper restart.
+    /// The trusted current grant/spec is supplied independently of the journal.
+    /// Clone only the parent tree (not its submounts) to inspect the directory
+    /// hidden by the export, without unmounting a live user-visible path.
+    pub fn prepare_recovery(
+        &self,
+        spec: WorkspaceMount,
+        source: File,
+        parent: File,
+        name: &OsStr,
+        policy: MountPolicy,
+        claim: &MountIdentity,
+    ) -> io::Result<()> {
+        self.check_namespace()?;
+        let bytes = name.as_bytes();
+        if bytes.is_empty()
+            || bytes.len() > 255
+            || bytes == b"."
+            || bytes == b".."
+            || bytes.contains(&b'/')
+        {
+            return Err(errno(libc::EINVAL));
+        }
+        let name = CString::new(bytes).map_err(|_| errno(libc::EINVAL))?;
+        if !claim.matches(&spec)
+            || spec.identity.namespace != self.namespace
+            || directory_identity(&source)? != spec.source
+            || !parent.metadata()?.is_dir()
+        {
+            return Err(errno(libc::ESTALE));
+        }
+        let parent_tree = clone_tree(&parent)?;
+        let covered = open_child(&parent_tree, &name)?;
+        if directory_identity(&covered)? != spec.target {
+            return Err(errno(libc::ESTALE));
+        }
+        let covered_unique_mount_id = unique_mount_id(&parent)?;
+        let top = open_child(&parent, &name)?;
+        let top_id = unique_mount_id(&top)?;
+        let top_directory = directory_identity(&top)?;
+        if top_id == covered_unique_mount_id {
+            if top_directory != spec.target {
+                return Err(errno(libc::ESTALE));
+            }
+        } else if top_id != claim.unique_mount_id
+            || mount_id(&top)? != claim.mount_id
+            || top_directory != spec.source
+        {
+            return Err(errno(libc::ESTALE));
+        }
+        drop(top);
+        drop(parent_tree);
+        let mut records = lock(&self.prepared)?;
+        if records.contains_key(&spec.identity.root_id) {
+            return Err(errno(libc::EEXIST));
+        }
+        if records.len() >= self.capacity {
+            return Err(errno(libc::ENOSPC));
+        }
+        records.insert(
+            spec.identity.root_id.clone(),
+            Prepared {
+                spec,
+                source,
+                parent,
+                _covered_target: covered,
+                name,
+                covered_unique_mount_id,
+                policy,
+                attached: None,
+            },
+        );
+        // Not owned yet: the controller must explicitly reobserve and adopt
+        // the exact exclusive journal claim before it may remove this export.
+        Ok(())
+    }
+
+    fn bind_impl(
+        &self,
+        spec: &WorkspaceMount,
+        before_attach: &mut dyn FnMut(&MountIdentity) -> io::Result<()>,
+    ) -> io::Result<MountIdentity> {
+        self.check_namespace()?;
+        let mut records = lock(&self.prepared)?;
+        let entry = get_mut(&mut records, spec)?;
+        if entry.attached.is_some() || self.inspect_prepared(entry)?.is_some() {
+            return Err(errno(libc::EEXIST));
+        }
+        let target = open_child(&entry.parent, &entry.name)?;
+        if unique_mount_id(&target)? != entry.covered_unique_mount_id
+            || directory_identity(&target)? != spec.target
+        {
+            return Err(errno(libc::ESTALE));
+        }
+        let tree = clone_tree(&entry.source)?;
+        apply_policy(&tree, entry.policy)?;
+        // Identity is known before attachment, retaining the claim if later
+        // observation fails. Caller must reconcile instead of retry stacking.
+        let cloned = MountIdentity {
+            mount_id: mount_id(&tree)?,
+            unique_mount_id: unique_mount_id(&tree)?,
+            namespace: self.namespace,
+            source: directory_identity(&tree)?,
+            covered_target: spec.target,
+        };
+        if !cloned.matches(spec) {
+            return Err(errno(libc::ESTALE));
+        }
+        before_attach(&cloned)?;
+        // The callback may persist or fail, but must not mutate the namespace.
+        // Recheck the target immediately before attaching the pinned clone.
+        if self.inspect_prepared(entry)?.is_some() {
+            return Err(errno(libc::EEXIST));
+        }
+        attach_tree(&tree, &target)?;
+        entry.attached = Some(cloned.clone());
+        drop(tree);
+        drop(target);
+        if self.inspect_prepared(entry)?.as_ref() != Some(&cloned) {
+            return Err(errno(libc::ESTALE));
+        }
+        self.check_policy(entry, &cloned)?;
+        Ok(cloned)
+    }
+
+    fn check_policy(&self, entry: &Prepared, mount: &MountIdentity) -> io::Result<()> {
+        let info = super::MountInfo::parse(&std::fs::read("/proc/thread-self/mountinfo")?)?;
+        let current = info
+            .iter()
+            .find(|item| item.mount_id == mount.mount_id)
+            .ok_or_else(|| errno(libc::ESTALE))?;
+        let flag = |name: &str| current.mount_options.iter().any(|option| option == name);
+        if !flag("nosuid")
+            || !flag("nodev")
+            || flag("ro") != entry.policy.read_only
+            || flag("noexec") != entry.policy.no_exec
+        {
+            return Err(errno(libc::EPERM));
+        }
         Ok(())
     }
 
@@ -182,40 +329,37 @@ impl MountBackend for LinuxMountBackend {
     }
 
     fn bind(&self, spec: &WorkspaceMount) -> io::Result<MountIdentity> {
+        self.bind_impl(spec, &mut |_| Ok(()))
+    }
+    fn bind_journaled(
+        &self,
+        spec: &WorkspaceMount,
+        before_attach: &mut dyn FnMut(&MountIdentity) -> io::Result<()>,
+    ) -> io::Result<MountIdentity> {
+        self.bind_impl(spec, before_attach)
+    }
+    fn adopt_verified_claim(&self, spec: &WorkspaceMount, claim: &MountIdentity) -> io::Result<()> {
         self.check_namespace()?;
         let mut records = lock(&self.prepared)?;
         let entry = get_mut(&mut records, spec)?;
-        if entry.attached.is_some() || self.inspect_prepared(entry)?.is_some() {
-            return Err(errno(libc::EEXIST));
-        }
-        let target = open_child(&entry.parent, &entry.name)?;
-        if unique_mount_id(&target)? != entry.covered_unique_mount_id
-            || directory_identity(&target)? != spec.target
+        if !claim.matches(spec)
+            || self.inspect_prepared(entry)?.as_ref() != Some(claim)
+            || entry.attached.as_ref().is_some_and(|old| old != claim)
         {
             return Err(errno(libc::ESTALE));
         }
-        let tree = clone_tree(&entry.source)?;
-        apply_policy(&tree, entry.policy)?;
-        // Identity is known before attachment, retaining the claim if later
-        // observation fails. Caller must reconcile instead of retry stacking.
-        let cloned = MountIdentity {
-            mount_id: mount_id(&tree)?,
-            unique_mount_id: unique_mount_id(&tree)?,
-            namespace: self.namespace,
-            source: directory_identity(&tree)?,
-            covered_target: spec.target,
-        };
-        if !cloned.matches(spec) {
+        entry.attached = Some(claim.clone());
+        Ok(())
+    }
+
+    fn verify_policy(&self, spec: &WorkspaceMount, mount: &MountIdentity) -> io::Result<()> {
+        self.check_namespace()?;
+        let records = lock(&self.prepared)?;
+        let entry = get(&records, spec)?;
+        if self.inspect_prepared(entry)?.as_ref() != Some(mount) {
             return Err(errno(libc::ESTALE));
         }
-        attach_tree(&tree, &target)?;
-        entry.attached = Some(cloned.clone());
-        drop(tree);
-        drop(target);
-        if self.inspect_prepared(entry)?.as_ref() != Some(&cloned) {
-            return Err(errno(libc::ESTALE));
-        }
-        Ok(cloned)
+        self.check_policy(entry, mount)
     }
 
     fn unmount(&self, spec: &WorkspaceMount, expected: &MountIdentity) -> io::Result<()> {

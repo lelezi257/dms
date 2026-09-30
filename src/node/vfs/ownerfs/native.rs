@@ -77,6 +77,7 @@ pub enum NativeState {
     NativeActive,
     FuseOnly,
     Quiescing,
+    Unmounting,
     Draining,
     Detached,
     Recovering,

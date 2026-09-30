@@ -27,6 +27,8 @@ import uuid
 from pathlib import Path
 from typing import Any
 
+from target_identity import target_checks
+
 FULL_SEEDS = list(range(1, 11))
 FULL_OPERATIONS = 10_000
 SMOKE_SEEDS = [1]
@@ -131,33 +133,28 @@ def findmnt_first(identity: dict[str, Any]) -> dict[str, Any]:
     return filesystems[0] if filesystems else {}
 
 
-def process_identity(pattern: str) -> dict[str, Any]:
-    probe = run_text(["pgrep", "-af", pattern])
-    identities: list[dict[str, Any]] = []
-    if probe.get("returncode") == 0:
-        for line in (probe.get("stdout") or "").splitlines():
-            parts = line.split(maxsplit=1)
-            if not parts or not parts[0].isdigit():
-                continue
-            pid = parts[0]
-            exe = Path(f"/proc/{pid}/exe")
-            try:
-                exe_path = exe.resolve()
-                exe_sha = sha256_file(exe_path)
-                live = True
-            except Exception as exc:  # noqa: BLE001
-                exe_path = Path("")
-                exe_sha = None
-                live = False
-                identities.append({"pid": int(pid), "cmdline": parts[1] if len(parts) > 1 else "", "live": live, "exe_error": f"{type(exc).__name__}: {exc}"})
-                continue
-            identities.append({"pid": int(pid), "cmdline": parts[1] if len(parts) > 1 else "", "live": live, "exe": str(exe_path), "exe_sha256": exe_sha})
-    return {"pattern": pattern, "probe": probe, "processes": identities, "live_count": sum(1 for item in identities if item.get("live"))}
+def process_identity(pid: str | None) -> dict[str, Any] | None:
+    if not pid:
+        return None
+    proc = Path("/proc") / str(pid)
+    result: dict[str, Any] = {"pid": str(pid), "exists": proc.exists()}
+    try:
+        exe = proc.joinpath("exe").resolve()
+        result["exe"] = str(exe)
+        if exe.is_file():
+            result["exe_sha256"] = sha256_file(exe)
+    except Exception as exc:  # noqa: BLE001
+        result["exe_error"] = f"{type(exc).__name__}: {exc}"
+    try:
+        result["cmdline"] = proc.joinpath("cmdline").read_bytes().replace(b"\0", b" ").decode(errors="replace")
+    except Exception as exc:  # noqa: BLE001
+        result["cmdline_error"] = f"{type(exc).__name__}: {exc}"
+    return result
 
 
 def is_product_backend(name: str) -> bool:
     normalized = name.lower()
-    return "dfs" in normalized or "owner" in normalized or "afs" in normalized
+    return normalized in {"dfs", "ownerfs"} or "afs" in normalized
 
 
 def data_for(seed: int, index: int, label: str, max_len: int = 257) -> bytes:
@@ -646,6 +643,8 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--per-seed-timeout-seconds", type=float, default=None)
     parser.add_argument("--allow-reference-fixture", action="store_true", help="Allow non-AFS target fixtures for driver selftests and smoke only; full profile remains BLOCKED.")
     parser.add_argument("--backend", default=os.environ.get("AFS_ACCEPTANCE_BACKEND"))
+    parser.add_argument("--process-pid", default=os.environ.get("AFS_ACCEPTANCE_PROCESS_PID"))
+    parser.add_argument("--meta-process-pid", default=os.environ.get("AFS_ACCEPTANCE_META_PROCESS_PID"))
     parser.add_argument("--selftest-inject-target-fault-at", type=int, default=None, help=argparse.SUPPRESS)
     parser.add_argument("--selftest-skip-target-cleanup", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--meta", default=os.environ.get("AFS_ACCEPTANCE_META"))
@@ -692,9 +691,10 @@ def main(argv: list[str]) -> int:
         target_fs = findmnt_first(target_base_identity)
         reference_fs = findmnt_first(reference_identity)
         product_backend = args.backend or matrix.get("backend") or ""
-        product_target = is_product_backend(str(product_backend)) and not args.allow_reference_fixture
-        node_identity = process_identity("afs-node") if product_target else {"skipped": "non-product fixture or explicitly allowed reference fixture"}
-        meta_identity = process_identity("afs-meta") if product_target else {"skipped": "non-product fixture or explicitly allowed reference fixture"}
+        product_target = is_product_backend(str(product_backend))
+        node_identity = process_identity(args.process_pid)
+        meta_identity = process_identity(args.meta_process_pid)
+        observed_checks = target_checks(platform.system(), str(product_backend), target_mount_identity, target_base_identity, node_identity, meta_identity)
         driver_path = Path(__file__).resolve()
         identity = {
             "created_at": utc(),
@@ -709,35 +709,36 @@ def main(argv: list[str]) -> int:
             "selftest_skip_target_cleanup": args.selftest_skip_target_cleanup,
             "allow_reference_fixture": args.allow_reference_fixture,
             "selection": {"profile": args.profile, "full_seeds": FULL_SEEDS, "selected_seeds": seeds, "operations_per_seed": operations, "cap_applied": cap_applied, "per_seed_timeout_seconds": timeout_seconds},
-            "product": {"backend": product_backend, "meta": args.meta or matrix.get("meta"), "mount_path": str(args.mount), "target_base": str(target_base), "reference_base": str(reference_base), "product_target": product_target},
+            "product": {"backend": product_backend, "meta": args.meta or matrix.get("meta"), "mount_path": str(args.mount), "target_base": str(target_base), "reference_base": str(reference_base), "process_pid": args.process_pid, "meta_process_pid": args.meta_process_pid, "product_target": product_target},
             "mount": target_mount_identity,
             "target_base_mount": target_base_identity,
             "reference_mount": reference_identity,
             "target_filesystem": target_fs,
             "reference_filesystem": reference_fs,
-            "processes": {"afs-node": node_identity, "afs-meta": meta_identity},
+            "process": node_identity,
+            "meta_process": meta_identity,
+            "observed_checks": observed_checks,
         }
         write_json(artifacts / "identity.json", identity)
         linux_ok = platform.system() == "Linux"
         mount_ok = args.mount.exists() and target_base.is_dir() and is_under(target_base, args.mount) and identity["target_base_mount"].get("returncode") == 0
         reference_ok = reference_base.is_dir() and identity["reference_mount"].get("returncode") == 0 and reference_fs.get("fstype") == "ext4"
         backend_ok = bool(identity["product"]["backend"])
-        target_afs_ok = (not product_target) or (str(target_fs.get("fstype", "")).startswith("fuse") and str(target_fs.get("source", "")).startswith("afs-"))
-        process_ok = (not product_target) or (node_identity.get("live_count", 0) >= 1 and meta_identity.get("live_count", 0) >= 1)
+        target_identity_ok = all(observed_checks.values())
         reference_fixture_ok = (not args.allow_reference_fixture) or args.profile != "full"
-        full_contract_ok = full_seed_operation_ok and hypothesis_gate_ok and (not product_target or (target_afs_ok and process_ok)) and reference_ok and reference_fixture_ok
+        full_contract_ok = full_seed_operation_ok and hypothesis_gate_ok and target_identity_ok and reference_ok and reference_fixture_ok
         checks.extend([
             build_check("linux-host", "PASS" if linux_ok else "BLOCKED", identity["platform"], rel(artifacts / "identity.json", run_dir)),
             build_check("target-mount-scope", "PASS" if mount_ok else "BLOCKED", {"mount": str(args.mount), "target_base": str(target_base), "under_mount": is_under(target_base, args.mount), "exists": target_base.exists(), "filesystem": target_fs}, rel(artifacts / "identity.json", run_dir)),
             build_check("reference-ext4-scope", "PASS" if reference_ok else "BLOCKED", {"reference_base": str(reference_base), "exists": reference_base.exists(), "findmnt_returncode": identity["reference_mount"].get("returncode"), "filesystem": reference_fs}, rel(artifacts / "identity.json", run_dir)),
             build_check("backend-selection", "PASS" if backend_ok else "BLOCKED", identity["product"], rel(artifacts / "identity.json", run_dir)),
-            build_check("product-target-afs-mount", "PASS" if target_afs_ok else "BLOCKED", {"product_target": product_target, "target_filesystem": target_fs, "allow_reference_fixture": args.allow_reference_fixture}, rel(artifacts / "identity.json", run_dir)),
-            build_check("product-process-identity", "PASS" if process_ok else "BLOCKED", identity["processes"], rel(artifacts / "identity.json", run_dir)),
             build_check("fixed-seed-operation-contract", "PASS" if full_seed_operation_ok else "BLOCKED", {"profile": args.profile, "required_full_seeds": FULL_SEEDS, "selected_seeds": seeds, "required_operations": FULL_OPERATIONS, "operations_per_seed": operations, "cap_applied": cap_applied}, rel(artifacts / "identity.json", run_dir)),
             build_check("hypothesis-shrink-database", "PASS" if hypothesis_gate_ok else "BLOCKED", {"profile": args.profile, "implemented": True, "hypothesis": hyp_identity, "required_for_full_pass": True}, rel(artifacts / "identity.json", run_dir)),
             build_check("reference-fixture-scope", "PASS" if reference_fixture_ok else "BLOCKED", {"allow_reference_fixture": args.allow_reference_fixture, "profile": args.profile}, rel(artifacts / "identity.json", run_dir)),
         ])
-        if not linux_ok or not mount_ok or not reference_ok or not backend_ok or not target_afs_ok or not process_ok or not reference_fixture_ok or not hypothesis_gate_ok:
+        for name, passed in observed_checks.items():
+            checks.append(build_check(name, "PASS" if passed else "BLOCKED", {"observed": passed}, rel(artifacts / "identity.json", run_dir)))
+        if not linux_ok or not mount_ok or not reference_ok or not backend_ok or not target_identity_ok or not reference_fixture_ok or not hypothesis_gate_ok:
             status = "BLOCKED"
             reason = "STD-04 preflight failed"
         else:

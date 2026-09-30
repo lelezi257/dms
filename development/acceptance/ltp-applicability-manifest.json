@@ -5,6 +5,11 @@
     "machine": "aarch64",
     "suite_revision": "3a64d78f58bdceba93ed321e91215fb969a047ed"
   },
+  "policy": {
+    "reference_only_scopes": [
+      "alternateFS-check"
+    ]
+  },
   "entries": [
     {
       "disposition": "pre_reviewed_not_applicable",

@@ -301,6 +301,8 @@ def ltp_path_budget_ok(tmp_dir: Path) -> bool:
 
 APPLICABLE_BLOCKING_STATUSES = {"TCONF", "TBROK", "TFAIL"}
 PRE_REVIEWABLE_STATUSES = {"TCONF", "TBROK"}
+REFERENCE_BACKENDS = {"reference", "ext4"}
+REFERENCE_ONLY_SCOPES = {"alternateFS-check"}
 
 
 def manifest_binding_value(manifest: dict[str, Any], *names: str) -> Any | None:
@@ -387,7 +389,16 @@ def load_applicability_manifest(path: Path, identity: dict[str, Any]) -> dict[st
     if errors:
         raise RuntimeError("invalid applicability manifest: " + "; ".join(errors))
     digest = hashlib.sha256(path.read_bytes()).hexdigest()
-    return {"path": str(path), "sha256": digest, "binding": {**expected, **{k: v for k, v in optional_expected.items() if manifest_binding_value(manifest, k) is not None}}, "entries": normalized_entries}
+    reference_only_scopes = policy.get("reference_only_scopes", sorted(REFERENCE_ONLY_SCOPES))
+    if not isinstance(reference_only_scopes, list) or not all(isinstance(item, str) for item in reference_only_scopes):
+        raise RuntimeError("invalid applicability manifest: policy.reference_only_scopes must be a list of strings")
+    return {
+        "path": str(path),
+        "sha256": digest,
+        "binding": {**expected, **{k: v for k, v in optional_expected.items() if manifest_binding_value(manifest, k) is not None}},
+        "policy": {"reference_only_scopes": sorted(set(reference_only_scopes))},
+        "entries": normalized_entries,
+    }
 
 
 def event_matches_entry(event: dict[str, Any], entry: dict[str, Any]) -> bool:
@@ -403,14 +414,33 @@ def event_matches_entry(event: dict[str, Any], entry: dict[str, Any]) -> bool:
     return re.search(entry["message_regex"], event.get("message", "")) is not None or re.search(entry["message_regex"], event.get("raw", "")) is not None
 
 
-def apply_applicability(command_records: list[dict[str, Any]], manifest: dict[str, Any] | None) -> dict[str, Any]:
+def applicability_target_context(identity: dict[str, Any] | None) -> dict[str, Any]:
+    product = identity.get("product", {}) if identity else {}
+    matrix = identity.get("matrix", {}) if identity else {}
+    backend = product.get("backend") or matrix.get("backend") or matrix.get("reference") or "reference"
+    backend_text = str(backend).lower()
+    return {
+        "backend": backend,
+        "is_reference_backend": backend_text in REFERENCE_BACKENDS,
+    }
+
+
+def entry_allowed_for_target(entry: dict[str, Any], manifest: dict[str, Any] | None, target: dict[str, Any]) -> bool:
+    policy = manifest.get("policy", {}) if manifest else {}
+    reference_only_scopes = set(policy.get("reference_only_scopes", sorted(REFERENCE_ONLY_SCOPES)))
+    return target.get("is_reference_backend", False) or entry.get("scope") not in reference_only_scopes
+
+
+def apply_applicability(command_records: list[dict[str, Any]], manifest: dict[str, Any] | None, identity: dict[str, Any] | None = None) -> dict[str, Any]:
     raw_blocking_events: list[dict[str, Any]] = []
     pre_reviewed_events: list[dict[str, Any]] = []
     unmatched_events: list[dict[str, Any]] = []
     missing_entries: list[dict[str, Any]] = []
     ordinary_coverage_failures: list[dict[str, Any]] = []
+    target_context_failures: list[dict[str, Any]] = []
     matched_entry_ids: set[str] = set()
     selected_test_ids = {record["test_id"] for record in command_records}
+    target_context = applicability_target_context(identity)
     entries = manifest.get("entries", []) if manifest else []
     entries_by_test: dict[str, list[dict[str, Any]]] = {}
     for entry in entries:
@@ -432,7 +462,19 @@ def apply_applicability(command_records: list[dict[str, Any]], manifest: dict[st
             if not matched_entry:
                 unmatched_events.append(event_ref)
                 continue
-            matched_entry_ids.add(matched_entry["id"])
+            allowed_for_target = entry_allowed_for_target(matched_entry, manifest, target_context)
+            if allowed_for_target:
+                matched_entry_ids.add(matched_entry["id"])
+            else:
+                target_context_failures.append({
+                    **event_ref,
+                    "entry_id": matched_entry["id"],
+                    "scope": matched_entry["scope"],
+                    "rationale": matched_entry["rationale"],
+                    "reason": "pre-reviewed event is scoped to the reference filesystem and cannot waive a product backend result",
+                    "target": target_context,
+                })
+                continue
             if matched_entry["ordinary_subtests_required"] and tpass_count <= 0:
                 coverage_link = matched_entry.get("ordinary_coverage_link")
                 if isinstance(coverage_link, str):
@@ -447,7 +489,7 @@ def apply_applicability(command_records: list[dict[str, Any]], manifest: dict[st
             pre_reviewed_events.append(event_ref)
 
     for entry in entries:
-        if entry["test_id"] in selected_test_ids and entry["id"] not in matched_entry_ids:
+        if entry["test_id"] in selected_test_ids and entry["id"] not in matched_entry_ids and entry_allowed_for_target(entry, manifest, target_context):
             missing_entries.append({"entry_id": entry["id"], "test_id": entry["test_id"], "status": entry["status"], "source": entry["source"], "message_regex": entry["message_regex"], "reason": "selected command did not emit the expected pre-reviewed event"})
 
     enabled = manifest is not None
@@ -458,6 +500,8 @@ def apply_applicability(command_records: list[dict[str, Any]], manifest: dict[st
         errors.append("manifest expected events were not observed")
     if ordinary_coverage_failures:
         errors.append("ordinary TPASS coverage requirement failed")
+    if target_context_failures:
+        errors.append("pre-reviewed reference filesystem events cannot waive product backend results")
     if any(event["status"] == "TFAIL" for event in raw_blocking_events):
         errors.append("TFAIL events are never pre-reviewable")
     effective_blocking_events = list(unmatched_events)
@@ -465,19 +509,24 @@ def apply_applicability(command_records: list[dict[str, Any]], manifest: dict[st
         effective_blocking_events.extend(ordinary_coverage_failures)
     if missing_entries:
         effective_blocking_events.extend(missing_entries)
+    if target_context_failures:
+        effective_blocking_events.extend(target_context_failures)
     return {
         "enabled": enabled,
-        "manifest": {"path": manifest.get("path"), "sha256": manifest.get("sha256"), "binding": manifest.get("binding"), "entries": len(entries)} if manifest else None,
+        "manifest": {"path": manifest.get("path"), "sha256": manifest.get("sha256"), "binding": manifest.get("binding"), "policy": manifest.get("policy"), "entries": len(entries)} if manifest else None,
+        "target": target_context,
         "raw_blocking_event_count": len(raw_blocking_events),
         "pre_reviewed_event_count": len(pre_reviewed_events),
         "unmatched_event_count": len(unmatched_events),
         "missing_entry_count": len(missing_entries),
         "ordinary_coverage_failure_count": len(ordinary_coverage_failures),
+        "target_context_failure_count": len(target_context_failures),
         "raw_blocking_events": raw_blocking_events,
         "pre_reviewed_events": pre_reviewed_events,
         "unmatched_events": unmatched_events,
         "missing_entries": missing_entries,
         "ordinary_coverage_failures": ordinary_coverage_failures,
+        "target_context_failures": target_context_failures,
         "effective_blocking_events": effective_blocking_events,
         "status": "PASS" if enabled and not errors else ("BLOCKED" if enabled else "NOT_APPLIED"),
         "errors": errors,
@@ -733,7 +782,7 @@ def main(argv: list[str]) -> int:
             os.chmod(fixture, 0o755)
             command_records, command_summary = run_ltp_commands(selected, fixture, args.ltp_install, artifacts, args.per_test_timeout)
             write_json(artifacts / "commands.json", command_records)
-            applicability = apply_applicability(command_records, applicability_manifest)
+            applicability = apply_applicability(command_records, applicability_manifest, identity)
             if applicability_manifest is not None:
                 write_json(artifacts / "applicability.json", applicability)
             selector_counts: dict[str, int] = {}

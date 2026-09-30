@@ -119,6 +119,14 @@ class LtpDriverPureTests(unittest.TestCase):
         events = driver.extract_ltp_events("/tmp/src/openat02.c:151: TBROK: write failed: EFBIG\n")
         self.assertEqual(events[0]["source"], "openat02.c:151")
 
+    def test_extracts_source_file_line_through_relative_suite_path(self):
+        driver = load_driver_module()
+        events = driver.extract_ltp_events(
+            "/mnt/ltp/testcases/kernel/syscalls/chown/../utils/compat_tst_16.h:153: "
+            "TCONF: 16-bit version of chown() is not supported on your platform\n"
+        )
+        self.assertEqual(events[0]["source"], "compat_tst_16.h:153")
+
     def test_short_fixture_paths_stay_within_legacy_ltp_budget(self):
         driver = load_driver_module()
         base = Path("/mnt/afs/base")
@@ -201,6 +209,100 @@ class LtpDriverPureTests(unittest.TestCase):
         self.assertEqual(app["status"], "BLOCKED")
         self.assertEqual(app["unmatched_event_count"], 1)
         self.assertIn("TFAIL events are never pre-reviewable", app["errors"])
+
+    def test_reference_only_scope_cannot_waive_product_backend_tconf(self):
+        driver = load_driver_module()
+        manifest = {
+            "path": "manifest.json",
+            "sha256": "synthetic",
+            "binding": {},
+            "policy": {"reference_only_scopes": ["alternateFS-check"]},
+            "entries": [{
+                "id": "fallocate04:tconf",
+                "test_id": "fallocate04",
+                "status": "TCONF",
+                "source": "fallocate04.c:92",
+                "message_regex": "fallocate\\(\\) not supported",
+                "scope": "alternateFS-check",
+                "disposition": "pre_reviewed_not_applicable",
+                "rationale": "reference ext4 subcase context only",
+                "ordinary_subtests_required": True,
+                "ordinary_coverage_link": None,
+            }],
+        }
+        command_records = [{
+            "index": 1,
+            "test_id": "fallocate04",
+            "ltp_event_counts": {"TPASS": 1, "TCONF": 1},
+            "ltp_events": [
+                {"line": 1, "status": "TPASS", "source": "fallocate04.c:80", "message": "ordinary path ok", "raw": "fallocate04 1 TPASS: ordinary path ok"},
+                {"line": 2, "status": "TCONF", "source": "fallocate04.c:92", "message": "fallocate() not supported", "raw": "fallocate04.c:92: TCONF: fallocate() not supported"},
+            ],
+        }]
+        reference_app = driver.apply_applicability(command_records, manifest, {"product": {"backend": "reference"}})
+        self.assertEqual(reference_app["status"], "PASS", reference_app)
+        self.assertEqual(reference_app["pre_reviewed_event_count"], 1)
+        product_app = driver.apply_applicability(command_records, manifest, {"product": {"backend": "dfs"}})
+        self.assertEqual(product_app["status"], "BLOCKED")
+        self.assertEqual(product_app["pre_reviewed_event_count"], 0)
+        self.assertEqual(product_app["target_context_failure_count"], 1)
+        self.assertIn("pre-reviewed reference filesystem events cannot waive product backend results", product_app["errors"])
+
+    def test_reference_only_missing_events_do_not_block_product_backend_pass(self):
+        driver = load_driver_module()
+        manifest = {
+            "path": "manifest.json",
+            "sha256": "synthetic",
+            "binding": {},
+            "policy": {"reference_only_scopes": ["alternateFS-check"]},
+            "entries": [{
+                "id": "fallocate04:tconf",
+                "test_id": "fallocate04",
+                "status": "TCONF",
+                "source": "fallocate04.c:92",
+                "message_regex": "fallocate\\(\\) not supported",
+                "scope": "alternateFS-check",
+                "disposition": "pre_reviewed_not_applicable",
+                "rationale": "reference ext4 subcase context only",
+                "ordinary_subtests_required": True,
+                "ordinary_coverage_link": None,
+            }],
+        }
+        app = driver.apply_applicability(
+            [{"index": 1, "test_id": "fallocate04", "ltp_event_counts": {"TPASS": 1}, "ltp_events": []}],
+            manifest,
+            {"product": {"backend": "ownerfs"}},
+        )
+        self.assertEqual(app["status"], "PASS", app)
+        self.assertEqual(app["missing_entry_count"], 0)
+
+    def test_cross_target_scope_still_requires_expected_product_event(self):
+        driver = load_driver_module()
+        manifest = {
+            "path": "manifest.json",
+            "sha256": "synthetic",
+            "binding": {},
+            "policy": {"reference_only_scopes": ["alternateFS-check"]},
+            "entries": [{
+                "id": "fcntl40:tconf",
+                "test_id": "fcntl40",
+                "status": "TCONF",
+                "source": "tst_test.c:1080",
+                "message_regex": "requires kernel 6\\.12",
+                "scope": "irrelevantkernel",
+                "disposition": "pre_reviewed_not_applicable",
+                "rationale": "kernel version is independent of filesystem backend",
+                "ordinary_subtests_required": False,
+                "ordinary_coverage_link": None,
+            }],
+        }
+        app = driver.apply_applicability(
+            [{"index": 1, "test_id": "fcntl40", "ltp_event_counts": {"TPASS": 1}, "ltp_events": []}],
+            manifest,
+            {"product": {"backend": "dfs"}},
+        )
+        self.assertEqual(app["status"], "BLOCKED")
+        self.assertEqual(app["missing_entry_count"], 1)
 
 
 class LtpDriverTests(unittest.TestCase):

@@ -7,12 +7,12 @@ import platform
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
 
-ROOT = Path(__file__).resolve().parents[2]
-PROBE = ROOT / "experiments" / "afs-acceptance" / "probes" / "locks_cross.py"
+PROBE = Path(__file__).resolve().parent / "probes" / "locks_cross.py"
 
 
 def load_probe_module():
@@ -27,15 +27,41 @@ def load_probe_module():
 class LocksCrossTests(unittest.TestCase):
     def test_errno_predicates_reject_unsupported_and_capacity_errors(self):
         probe = load_probe_module()
-        self.assertTrue(probe._fcntl_conflict_errno_ok(errno.EACCES))
-        self.assertTrue(probe._fcntl_conflict_errno_ok(errno.EAGAIN))
+        self.assertTrue(probe._fcntl_conflict_errno_ok(13))
+        self.assertTrue(probe._fcntl_conflict_errno_ok(11))
+        self.assertFalse(probe._fcntl_conflict_errno_ok(35))
         self.assertFalse(probe._fcntl_conflict_errno_ok(errno.ENOLCK))
         self.assertFalse(probe._fcntl_conflict_errno_ok(errno.ENOSYS))
         self.assertFalse(probe._fcntl_conflict_errno_ok(errno.EOPNOTSUPP))
-        self.assertTrue(probe._flock_conflict_errno_ok(errno.EAGAIN))
+        self.assertTrue(probe._flock_conflict_errno_ok(11))
+        self.assertFalse(probe._flock_conflict_errno_ok(35))
         self.assertFalse(probe._flock_conflict_errno_ok(errno.ENOLCK))
         self.assertFalse(probe._flock_conflict_errno_ok(errno.ENOSYS))
         self.assertFalse(probe._flock_conflict_errno_ok(errno.EOPNOTSUPP))
+
+    def test_getlk_predicate_prefers_worker_lock_type_name(self):
+        probe = load_probe_module()
+        self.assertTrue(probe._getlk_reports_conflict({"ok": True, "l_type_name": "F_WRLCK", "l_type": -1}))
+        self.assertFalse(probe._getlk_reports_conflict({"ok": True, "l_type_name": "F_UNLCK", "l_type": -1}))
+        self.assertFalse(probe._getlk_reports_conflict({"ok": False, "l_type_name": "F_WRLCK"}))
+        self.assertFalse(probe._getlk_reports_conflict({"ok": True, "l_type_name": "UNKNOWN"}))
+        self.assertFalse(probe._getlk_reports_conflict({"ok": True}))
+        self.assertFalse(probe._getlk_reports_conflict({"ok": True, "l_type": 2}))
+        self.assertTrue(probe._getlk_reports_conflict({"ok": True, "l_type": 1}))
+
+    def test_worker_read_event_timeout_is_bounded_without_output(self):
+        probe = load_probe_module()
+        argv = [sys.executable, "-c", "import time; time.sleep(2)"]
+        proc = subprocess.Popen(argv, text=True, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        child = probe.WorkerProcess("silent", argv, proc, 0.1)
+        started = time.monotonic()
+        try:
+            with self.assertRaises(TimeoutError):
+                child.read_event("READY")
+            self.assertLess(time.monotonic() - started, 1)
+        finally:
+            child.proc.kill()
+            child.wait()
 
     def run_probe(self, temp: Path, *, extra=None, path_a=None, path_b=None):
         path_a = path_a or temp / "lock-target.bin"

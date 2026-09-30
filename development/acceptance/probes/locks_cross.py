@@ -9,13 +9,13 @@ All real file IO and advisory-lock syscalls happen inside worker processes.
 from __future__ import annotations
 
 import argparse
-import errno
 import fcntl
 import hashlib
 import json
 import os
 import platform
 import random
+import selectors
 import signal
 import subprocess
 import sys
@@ -34,6 +34,9 @@ import locks_smoke  # noqa: E402
 DEFAULT_PEER_REQUEST_TIMEOUT_SECONDS = 5.0
 DEFAULT_MIN_WAIT_SECONDS = 6.0
 DEFAULT_CHILD_TIMEOUT_SECONDS = 20.0
+LINUX_EACCES = 13
+LINUX_EAGAIN = 11
+LINUX_EBADF = 9
 LOCK_BYTES = b"afs-locks-cross\n" + (b"x" * 4096)
 
 
@@ -163,14 +166,20 @@ def _fcntl_type(mode: str) -> int:
 
 
 def _fcntl_conflict_errno_ok(value: int | None) -> bool:
-    return value in (errno.EACCES, errno.EAGAIN)
+    return value in (LINUX_EACCES, LINUX_EAGAIN)
 
 
 def _flock_conflict_errno_ok(value: int | None) -> bool:
-    expected = {errno.EAGAIN}
-    ewouldblock = getattr(errno, "EWOULDBLOCK", errno.EAGAIN)
-    expected.add(ewouldblock)
-    return value in expected
+    return value == LINUX_EAGAIN
+
+
+def _getlk_reports_conflict(result: dict[str, Any]) -> bool:
+    if result.get("ok") is not True:
+        return False
+    l_type_name = result.get("l_type_name")
+    if l_type_name is not None:
+        return l_type_name in ("F_WRLCK", "F_RDLCK")
+    return result.get("l_type") in (0, 1)  # Linux F_RDLCK / F_WRLCK
 
 
 def _worker_result(op: str, path: Path | None, **extra: Any) -> dict[str, Any]:
@@ -411,7 +420,13 @@ class WorkerProcess:
     def read_event(self, expected: str | None = None, timeout: float | None = None) -> dict[str, Any]:
         deadline = time.time() + (timeout if timeout is not None else self.timeout)
         while time.time() < deadline:
-            line = self.proc.stdout.readline() if self.proc.stdout else ""
+            if self.proc.stdout is None:
+                break
+            with selectors.DefaultSelector() as selector:
+                selector.register(self.proc.stdout, selectors.EVENT_READ)
+                if not selector.select(max(0, deadline - time.time())):
+                    break
+            line = self.proc.stdout.readline()
             if line:
                 event = json.loads(line)
                 self.events.append(event)
@@ -648,6 +663,11 @@ class CrossProbe:
             "steps": self.records,
             "failures": self.failures,
             "commands": self.commands,
+            "children": [
+                {"name": child.name, "events": child.events, "stderr": child.stderr,
+                 "returncode": child.proc.returncode}
+                for child in self.children
+            ],
             "notes": [
                 "PASS means the requested behavior checks passed for the observed worker/path pair.",
                 "cross_mount_qualified=false is reference evidence only and must not be counted as cross-mount AFS PASS.",
@@ -697,7 +717,7 @@ class CrossProbe:
         _expect(conflict.get("ok") is False, "overlapping POSIX fcntl lock conflicts", conflict)
         _expect(_fcntl_conflict_errno_ok(conflict.get("errno")), "fcntl conflict errno is EACCES/EAGAIN", conflict)
         _expect(nonoverlap.get("ok") is True, "non-overlapping POSIX range succeeds", nonoverlap)
-        _expect(getlk.get("result", {}).get("ok") is True and getlk.get("result", {}).get("l_type") != fcntl.F_UNLCK, "F_GETLK reports conflicting lock", getlk)
+        _expect(_getlk_reports_conflict(getlk.get("result", {})), "F_GETLK reports conflicting lock", getlk)
         _expect(rc == 0, "holder exits cleanly", {"returncode": rc, "stderr": holder.stderr})
         return {"ready": ready, "conflict": conflict, "nonoverlap": nonoverlap, "getlk": getlk, "holder_returncode": rc}
 
@@ -786,7 +806,7 @@ class CrossProbe:
 
     def test_readonly_fd_write_lock_ebadf(self) -> dict[str, Any]:
         result = self.event(self.run_cmd("B", "try_readonly_write_lock", self.path_b, start=220, length=10))
-        _expect(result.get("ok") is False and result.get("errno") == errno.EBADF, "write lock through readonly fd fails with EBADF", result)
+        _expect(result.get("ok") is False and result.get("errno") == LINUX_EBADF, "write lock through readonly fd fails with EBADF", result)
         return {"readonly_write_lock": result}
 
     def run(self) -> None:

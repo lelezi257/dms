@@ -144,6 +144,8 @@ message DfsChunkReadOp {
   uint64 length = 4;
   uint64 destination_offset = 5;
   string source_copy_id = 6;
+  // Authorization remains scoped to this copy/range when batching one peer.
+  DfsReadGrant grant = 7;
 }
 
 message DfsReadRangesRequest {
@@ -151,7 +153,7 @@ message DfsReadRangesRequest {
   string attempt_id = 2;
   string file_version_id = 3;
   string layout_root_id = 4;
-  DfsReadGrant grant = 5;
+  reserved 5; // Grants now belong to each operation, never to a whole peer.
   repeated DfsChunkReadOp operations = 6;
 }
 
@@ -551,3 +553,64 @@ message OwnerLinkRequest {
 }
 
 message OwnerLinkReply {}
+
+// DFS active writer-handle commands. These are unrelated to OwnerFs Home files.
+// Read is only for a writer handle's dirty view. Ordinary fixed-version reads
+// use DfsChunks and never add a mandatory inode-owner content hop.
+service DfsOwnerFiles {
+  rpc Read(DfsOwnerReadRequest) returns (DfsOwnerReadReply);
+  rpc Write(DfsOwnerWriteRequest) returns (DfsOwnerWriteReply);
+  rpc Resize(DfsOwnerResizeRequest) returns (DfsOwnerResizeReply);
+  rpc Sync(DfsOwnerSyncRequest) returns (DfsOwnerSyncReply);
+}
+
+// Established by a future owner open/forwarding flow. This wire shape does not
+// itself authorize access: the receiver validates the authenticated caller,
+// handle table, current owner session, lease epoch and rights before execution.
+message DfsOwnerHandle {
+  string namespace_id = 1;
+  string inode_id = 2;
+  string owner_node_id = 3;
+  string owner_session_id = 4;
+  uint64 lease_epoch = 5;
+  string caller_node_id = 6;
+  string caller_session_id = 7;
+  bytes opaque_handle = 8;
+}
+message DfsOwnerReadRequest {
+  DfsOwnerHandle handle = 1;
+  uint64 offset = 2;
+  uint64 length = 3;
+}
+message DfsOwnerReadReply {
+  bytes data = 1;
+  uint64 visible_write_seq = 2;
+}
+message DfsOwnerWriteRequest {
+  DfsOwnerHandle handle = 1;
+  string operation_id = 2;
+  uint64 offset = 3;
+  bytes data = 4;
+  bool append = 5;
+}
+message DfsOwnerWriteReply {
+  uint64 written = 1;
+  uint64 accepted_write_seq = 2;
+  uint64 effective_offset = 3;
+}
+message DfsOwnerResizeRequest {
+  DfsOwnerHandle handle = 1;
+  string operation_id = 2;
+  uint64 length = 3;
+}
+message DfsOwnerResizeReply { uint64 accepted_write_seq = 1; }
+message DfsOwnerSyncRequest {
+  DfsOwnerHandle handle = 1;
+  string operation_id = 2;
+  uint64 through_write_seq = 3;
+  bool data_only = 4;
+}
+message DfsOwnerSyncReply {
+  uint64 durable_write_seq = 1;
+  string file_version_id = 2;
+}

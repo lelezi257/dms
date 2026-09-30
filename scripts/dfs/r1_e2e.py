@@ -140,25 +140,34 @@ def main() -> int:
                 os.write(fd, b"hello-")
                 os.write(fd, b"dfs-r1")
 
-                # A second handle must observe the inode-level dirty overlay
-                # before any FileVersion is committed.
-                reader = os.open(path, os.O_RDONLY)
-                try:
-                    dirty_payload = os.pread(reader, 64, 0)
-                finally:
-                    os.close(reader)
-                if dirty_payload != b"hello-dfs-r1":
-                    raise RuntimeError(
-                        f"dirty overlay was not shared across handles: {dirty_payload!r}"
-                    )
+                expected_base = b"hello-dfs-r1"
+                if os.pread(fd, 64, 0) != expected_base:
+                    raise RuntimeError("writable handle did not see accepted dirty bytes")
 
-                os.fdatasync(fd)
+                # Read-only opens fix the committed view, initially empty.
+                before_sync = os.open(path, os.O_RDONLY)
+                try:
+                    if os.pread(before_sync, 64, 0) != b"":
+                        raise RuntimeError("read-only open exposed uncommitted dirty bytes")
+                    os.fdatasync(fd)
+                    if os.pread(before_sync, 64, 0) != b"":
+                        raise RuntimeError("old read-only handle moved to the new version")
+                finally:
+                    os.close(before_sync)
                 first_chunks = sorted((work_dir / "node" / "dfs" / "chunks").iterdir())
-                if len(first_chunks) != 1 or first_chunks[0].read_bytes() != dirty_payload:
+                if len(first_chunks) != 1 or first_chunks[0].read_bytes() != expected_base:
                     raise RuntimeError("fdatasync did not commit the first immutable Chunk")
 
-                os.pwrite(fd, b"DFS", 6)
-                os.fsync(fd)
+                pinned = os.open(path, os.O_RDONLY)
+                try:
+                    if os.pread(pinned, 64, 0) != expected_base:
+                        raise RuntimeError("reopen after sync did not see the committed version")
+                    os.pwrite(fd, b"DFS", 6)
+                    os.fsync(fd)
+                    if os.pread(pinned, 64, 0) != expected_base:
+                        raise RuntimeError("pinned reader changed after a newer fsync")
+                finally:
+                    os.close(pinned)
             finally:
                 os.close(fd)
 
@@ -173,7 +182,7 @@ def main() -> int:
             if len(chunks) != 2:
                 raise RuntimeError(f"expected two immutable versions, found {len(chunks)} chunks")
             chunk_payloads = {chunk.read_bytes() for chunk in chunks}
-            if chunk_payloads != {dirty_payload, b"DFS"}:
+            if chunk_payloads != {expected_base, b"DFS"}:
                 raise RuntimeError(
                     "immutable Chunks do not match the base-plus-patch FileVersion layout"
                 )
@@ -242,7 +251,9 @@ def main() -> int:
                 file_size=stat.st_size,
                 chunk_ids=[chunk.name for chunk in chunks],
                 chunk_bytes=[chunk.stat().st_size for chunk in chunks],
-                dirty_overlay_visible=True,
+                writable_dirty_visible=True,
+                readonly_open_pinned=True,
+                sync_reopen_visible=True,
                 fdatasync_then_fsync=True,
                 ftruncate_shrink_grow=True,
                 path_truncate=True,

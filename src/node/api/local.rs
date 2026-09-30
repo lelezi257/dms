@@ -3,8 +3,12 @@
 //! 这层只处理同机 SDK 的高性能数据入口：gRPC over UDS 是控制面，memfd/FD pass
 //! 是数据面。服务端不会从 gRPC payload 里收发文件内容，也不会在本层接 RDMA。
 //!
-//! 写入 E2E：SDK 给 source grant -> node 通过 fd broker 取 memfd fd -> `read_fd_at`
-//! 从 fd copy bytes -> 写入 Storage。
+//! `LocalData` 保留 diagnostics Storage 的 SHM 穿刺；`DfsLocalData` 是正式 DFS SDK
+//! 的独立协议面。DFS backend 尚未接线时所有 DFS RPC 明确返回 unimplemented，绝不
+//! 降级访问 diagnostics Storage。
+//!
+//! diagnostics 写入 E2E：SDK 给 source grant -> node 通过 fd broker 取 memfd fd -> `read_fd_at`
+//! 从 fd copy bytes -> 写入 diagnostics Storage。
 //!
 //! 读取 E2E：node 从 Storage 读 bytes -> 通过 target grant 取 fd -> `write_fd_at`
 //! copy 到 SDK memfd -> SDK 再本地读取。
@@ -25,7 +29,10 @@ use std::{
 
 use afs_metrics::{IntCounterVec, Opts, Registry};
 use afs_protocol::local_api::{
-    LocalReadReply, LocalReadRequest, LocalShmGrant, LocalWriteReply, LocalWriteRequest,
+    DfsCloseReply, DfsCloseRequest, DfsOpenReply, DfsOpenRequest, DfsReadReply, DfsReadRequest,
+    DfsSyncReply, DfsSyncRequest, DfsWriteReply, DfsWriteRequest, LocalReadReply, LocalReadRequest,
+    LocalShmGrant, LocalWriteReply, LocalWriteRequest,
+    dfs_local_data_server::{DfsLocalData, DfsLocalDataServer},
     local_data_server::{LocalData, LocalDataServer},
 };
 use afs_transport::shm::{
@@ -85,15 +92,17 @@ pub async fn serve_local_api_with_options(
     }
     let incoming = UnixListenerStream::new(listener);
     let (shutdown_tx, shutdown_rx) = oneshot::channel();
-    let service = LocalDataServer::new(LocalDataService {
+    let diagnostic_service = LocalDataServer::new(DiagnosticLocalDataService {
         storage: storage.into(),
-        metrics,
+        metrics: metrics.clone(),
     });
+    let dfs_service = DfsLocalDataServer::new(DfsLocalDataService { metrics });
     let task = tokio::spawn(async move {
         afs_transport::grpc::GrpcConfig::default()
             .configure_server(Server::builder())
             .layer(afs_tracing::GrpcServerTraceLayer::default())
-            .add_service(service)
+            .add_service(diagnostic_service)
+            .add_service(dfs_service)
             .serve_with_incoming_shutdown(incoming, async {
                 let _ = shutdown_rx.await;
             })
@@ -159,8 +168,13 @@ impl Drop for LocalApiServer {
 }
 
 #[derive(Clone)]
-struct LocalDataService {
+struct DiagnosticLocalDataService {
     storage: Arc<Storage>,
+    metrics: Option<LocalApiMetrics>,
+}
+
+#[derive(Clone)]
+struct DfsLocalDataService {
     metrics: Option<LocalApiMetrics>,
 }
 
@@ -199,7 +213,7 @@ impl LocalApiMetrics {
     }
 }
 
-impl LocalDataService {
+impl DiagnosticLocalDataService {
     fn record(&self, operation: &'static str, ok: bool) {
         if let Some(metrics) = &self.metrics {
             metrics.record(operation, ok);
@@ -207,20 +221,32 @@ impl LocalDataService {
     }
 }
 
+impl DfsLocalDataService {
+    fn reject<T>(&self, operation: &'static str) -> Result<Response<T>, Status> {
+        if let Some(metrics) = &self.metrics {
+            metrics.record(operation, false);
+        }
+        Err(coded_status(
+            afs_error::NODE_VFS_UNIMPLEMENTED,
+            format!("DFS local SDK backend is not wired: {operation}"),
+        ))
+    }
+}
+
 #[tonic::async_trait]
-impl LocalData for LocalDataService {
+impl LocalData for DiagnosticLocalDataService {
     async fn write(
         &self,
         request: Request<LocalWriteRequest>,
     ) -> Result<Response<LocalWriteReply>, Status> {
         let outcome = self.write_inner(request.into_inner()).await;
-        self.record("write", outcome.is_ok());
+        self.record("diagnostic_write", outcome.is_ok());
         match &outcome {
             Ok(reply) => {
-                afs_logging::info!("local_api.write";"result"=>"ok","written"=>reply.written);
+                afs_logging::info!("local_api.diagnostic_write";"result"=>"ok","written"=>reply.written);
             }
             Err(error) => {
-                afs_logging::warn!("local_api.write";"result"=>"error","error"=>error.to_string());
+                afs_logging::warn!("local_api.diagnostic_write";"result"=>"error","error"=>error.to_string());
             }
         }
         outcome.map(Response::new)
@@ -231,20 +257,43 @@ impl LocalData for LocalDataService {
         request: Request<LocalReadRequest>,
     ) -> Result<Response<LocalReadReply>, Status> {
         let outcome = self.read_inner(request.into_inner()).await;
-        self.record("read", outcome.is_ok());
+        self.record("diagnostic_read", outcome.is_ok());
         match &outcome {
             Ok(reply) => {
-                afs_logging::info!("local_api.read";"result"=>"ok","length"=>reply.length);
+                afs_logging::info!("local_api.diagnostic_read";"result"=>"ok","length"=>reply.length);
             }
             Err(error) => {
-                afs_logging::warn!("local_api.read";"result"=>"error","error"=>error.to_string());
+                afs_logging::warn!("local_api.diagnostic_read";"result"=>"error","error"=>error.to_string());
             }
         }
         outcome.map(Response::new)
     }
 }
 
-impl LocalDataService {
+#[tonic::async_trait]
+impl DfsLocalData for DfsLocalDataService {
+    async fn open(&self, _: Request<DfsOpenRequest>) -> Result<Response<DfsOpenReply>, Status> {
+        self.reject("dfs_open")
+    }
+
+    async fn read(&self, _: Request<DfsReadRequest>) -> Result<Response<DfsReadReply>, Status> {
+        self.reject("dfs_read")
+    }
+
+    async fn write(&self, _: Request<DfsWriteRequest>) -> Result<Response<DfsWriteReply>, Status> {
+        self.reject("dfs_write")
+    }
+
+    async fn sync(&self, _: Request<DfsSyncRequest>) -> Result<Response<DfsSyncReply>, Status> {
+        self.reject("dfs_sync")
+    }
+
+    async fn close(&self, _: Request<DfsCloseRequest>) -> Result<Response<DfsCloseReply>, Status> {
+        self.reject("dfs_close")
+    }
+}
+
+impl DiagnosticLocalDataService {
     async fn write_inner(&self, request: LocalWriteRequest) -> Result<LocalWriteReply, Status> {
         // 控制面必须带 source grant；没有 grant 就直接失败，不能退化为 gRPC payload 写入。
         let grant = request

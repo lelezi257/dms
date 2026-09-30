@@ -16,6 +16,8 @@ use std::{
 use afs_protocol::local_api::LocalShmGrant;
 use afs_transport::shm::{BrokerToken, FdBrokerServer, FdGrant, FdRequest, SharedRegion, ShmError};
 
+use crate::connection::LocalClientError;
+
 static NEXT_ID: AtomicU64 = AtomicU64::new(1);
 
 // OperationBuffer 是 SDK 与 node 之间一次数据交换的所有权边界。
@@ -24,6 +26,81 @@ pub(crate) struct OperationBuffer {
     region: SharedRegion,
     broker: FdBrokerServer,
     request: FdRequest,
+}
+
+/// DistributedFs read 的调用方所有 target buffer。
+///
+/// buffer 被移入一次 read 操作后，由 SDK worker 持有直到 RPC 与 fd broker 都结束；
+/// 成功时通过 `DfsReadResult` 归还，取消 future 不会提前释放其 memfd。
+pub struct DfsReadBuffer {
+    operation: OperationBuffer,
+    capacity: u32,
+}
+
+impl DfsReadBuffer {
+    pub fn new(capacity: u32) -> Result<Self, LocalClientError> {
+        Ok(Self {
+            operation: OperationBuffer::new(capacity as usize)?,
+            capacity,
+        })
+    }
+
+    pub fn capacity(&self) -> u32 {
+        self.capacity
+    }
+
+    pub fn read_prefix(&self, length: u32) -> Result<Vec<u8>, LocalClientError> {
+        if length > self.capacity {
+            return Err(LocalClientError::InvalidArgument {
+                field: "length",
+                reason: "exceeds DFS read buffer capacity",
+            });
+        }
+        self.operation
+            .read_local(length as usize)
+            .map_err(Into::into)
+    }
+
+    pub(crate) fn grant(&self, length: u32) -> LocalShmGrant {
+        self.operation.grant(length)
+    }
+
+    pub(crate) fn serve_one(&self) -> thread::JoinHandle<Result<(), ShmError>> {
+        self.operation.serve_one()
+    }
+}
+
+/// DistributedFs write 的调用方所有 source buffer。
+///
+/// 构造时把 bytes 放入 sealed-size memfd；调用 write 时所有权转给 SDK worker，
+/// 使源数据在 Node 领取 fd 前不能被释放或替换。
+pub struct DfsWriteBuffer {
+    operation: OperationBuffer,
+    length: u32,
+}
+
+impl DfsWriteBuffer {
+    pub fn from_bytes(bytes: Vec<u8>) -> Result<Self, LocalClientError> {
+        let length = u32::try_from(bytes.len()).map_err(|_| LocalClientError::InvalidArgument {
+            field: "bytes",
+            reason: "too large for DFS local SDK request",
+        })?;
+        let mut operation = OperationBuffer::new(bytes.len())?;
+        operation.write_local(&bytes)?;
+        Ok(Self { operation, length })
+    }
+
+    pub fn length(&self) -> u32 {
+        self.length
+    }
+
+    pub(crate) fn grant(&self) -> LocalShmGrant {
+        self.operation.grant(self.length)
+    }
+
+    pub(crate) fn serve_one(&self) -> thread::JoinHandle<Result<(), ShmError>> {
+        self.operation.serve_one()
+    }
 }
 
 impl OperationBuffer {

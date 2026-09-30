@@ -116,6 +116,12 @@ impl GrpcRootMeta {
     /// 节点位置来自 Meta 注册表，而非调用者在数据请求中自报的地址。
     /// 返回完整 URI，供 OwnerFs 在根授权缓存未命中时建立 P2P 连接。
     pub fn lookup_node_endpoint(&self, node_id: &str) -> Result<String> {
+        self.lookup_node_location(node_id)
+            .map(|(endpoint, _)| endpoint)
+    }
+
+    /// Returns the registered endpoint and Node incarnation for connection reuse.
+    pub fn lookup_node_location(&self, node_id: &str) -> Result<(String, u64)> {
         let mut client = MetaClient::new(self.channel.clone());
         let reply = self
             .run(client.lookup_node(LookupNodeRequest {
@@ -129,6 +135,7 @@ impl GrpcRootMeta {
                 "Home Node is not registered",
             ));
         }
+        let node_epoch = reply.lease_epoch;
         let node = required(reply.node, "LookupNode.node")?;
         let endpoint = required(node.endpoint, "LookupNode.node.endpoint")?.grpc_addr;
         if endpoint.is_empty() {
@@ -137,7 +144,7 @@ impl GrpcRootMeta {
                 "Home Node has no gRPC endpoint",
             ));
         }
-        Ok(endpoint)
+        Ok((endpoint, node_epoch))
     }
 
     fn run<T>(
@@ -1124,15 +1131,31 @@ fn domain_dfs_chunk_sources(
 fn domain_dfs_source_candidate(
     value: afs_protocol::meta::DfsSourceCandidate,
 ) -> afs_error::Result<crate::dfs::SourceCandidate> {
+    let location =
+        domain_dfs_copy_location(required(value.location, "DfsSourceCandidate.location")?)?;
+    match &location {
+        crate::dfs::CopyLocation::Node { .. }
+            if value.data_endpoint.as_deref().is_none_or(str::is_empty) =>
+        {
+            return Err(Error::coded(
+                CLIENT_PROTOCOL_VIOLATION,
+                "Node source requires a Peer endpoint",
+            ));
+        }
+        crate::dfs::CopyLocation::External { .. } if value.data_endpoint.is_some() => {
+            return Err(Error::coded(
+                CLIENT_PROTOCOL_VIOLATION,
+                "External source cannot carry a Peer endpoint",
+            ));
+        }
+        _ => {}
+    }
     Ok(crate::dfs::SourceCandidate {
         copy_id: crate::dfs::CopyId::new(value.copy_id),
         chunk_id: crate::dfs::ChunkId::new(value.chunk_id),
         role: domain_dfs_copy_role(value.role)?,
         state: domain_dfs_copy_state(value.state)?,
-        location: domain_dfs_copy_location(required(
-            value.location,
-            "DfsSourceCandidate.location",
-        )?)?,
+        location,
         data_endpoint: value.data_endpoint,
         load_hint: value.load_hint,
         read_grant: domain_dfs_read_grant(required(

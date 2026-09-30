@@ -850,7 +850,7 @@ async fn dfs_write_lease_reuses_one_owner_and_fences_stale_commits() {
         }))
         .await
         .unwrap_err();
-    assert_eq!(stale.code(), Code::Unavailable);
+    assert_eq!(stale.code(), Code::FailedPrecondition);
 
     let synced = dfs
         .sync_inode_metadata(Request::new(

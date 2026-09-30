@@ -34,8 +34,7 @@ use std::sync::Arc;
 #[cfg(feature = "ownerfs")]
 struct GrpcOwnerFilesFactory {
     meta: Arc<rpc::meta::GrpcRootMeta>,
-    tls: afs_transport::grpc::TlsConfig,
-    timeout: std::time::Duration,
+    peers: Arc<rpc::peer::PeerConnectionPool>,
     runtime: tokio::runtime::Handle,
     metrics: rpc::OwnerRpcMetrics,
 }
@@ -46,19 +45,10 @@ impl vfs::ownerfs::RemoteFilesFactory for GrpcOwnerFilesFactory {
         &self,
         home_node_id: &str,
     ) -> afs_error::Result<Arc<dyn vfs::ownerfs::remote::RemoteFiles>> {
-        let uri = self.meta.lookup_node_endpoint(home_node_id)?;
-        let endpoint = tonic::transport::Endpoint::from_shared(uri).map_err(|error| {
-            afs_error::Error::coded(afs_error::CLIENT_ARGUMENT_INVALID, error.to_string())
-        })?;
-        let endpoint = endpoint.connect_timeout(self.timeout).timeout(self.timeout);
-        let endpoint = afs_transport::grpc::SecurityManager::new(self.tls.clone())
-            .and_then(|security| security.configure_client(endpoint))
-            .map_err(|error| {
-                afs_error::Error::coded(afs_error::CLIENT_ARGUMENT_INVALID, error.to_string())
-            })?;
-        let channel = self.runtime.block_on(endpoint.connect()).map_err(|error| {
-            afs_error::Error::coded(afs_error::CLIENT_CONNECTION_UNAVAILABLE, error.to_string())
-        })?;
+        let (uri, node_epoch) = self.meta.lookup_node_location(home_node_id)?;
+        let channel = self
+            .runtime
+            .block_on(self.peers.channel(home_node_id, node_epoch, &uri))?;
         Ok(Arc::new(
             rpc::peer::owner_files_client_from_channel_with_runtime_and_metrics(
                 channel,
@@ -182,6 +172,17 @@ pub async fn run(cfg: Config, obs: Observability) -> Result<(), BoxError> {
         rpc::meta::register_node(endpoint, descriptor.clone(), timeout, cfg.tls_config()).await?;
     }
 
+    #[cfg(any(feature = "ownerfs", feature = "dfs"))]
+    let peer_connections = Arc::new(rpc::peer::PeerConnectionPool::new(
+        afs_transport::grpc::GrpcConfig {
+            connect_timeout: timeout,
+            request_timeout: timeout,
+            ..Default::default()
+        },
+        cfg.tls_config(),
+        64,
+    )?);
+
     #[cfg(feature = "ownerfs")]
     let ownerfs_instance = if cfg.ownerfs {
         let endpoint = meta_endpoint.expect("OwnerFs checked meta_endpoint");
@@ -198,8 +199,7 @@ pub async fn run(cfg: Config, obs: Observability) -> Result<(), BoxError> {
         let recovery_session_id = session_id.clone();
         let remote_factory = Arc::new(GrpcOwnerFilesFactory {
             meta: root_meta.clone(),
-            tls: cfg.tls_config(),
-            timeout,
+            peers: peer_connections.clone(),
             runtime: tokio::runtime::Handle::current(),
             metrics: owner_rpc_metrics.clone(),
         });
@@ -250,19 +250,19 @@ pub async fn run(cfg: Config, obs: Observability) -> Result<(), BoxError> {
             meta.clone(),
             rpc::peer::make_replica_data_plane(data_mode),
         ));
+        let read_config = dfs_read::DfsReadConfig {
+            max_ops_per_batch: cfg.dfs_read_max_ops_per_batch,
+            max_inflight_bytes: cfg.dfs_read_max_inflight_bytes,
+            source_cache_ttl: std::time::Duration::from_millis(cfg.dfs_read_source_cache_ttl_ms),
+        };
+        read_config.validate()?;
         let read_engine = Arc::new(dfs_read::DfsReadEngine::new(
             namespace.clone(),
             cfg.id.clone(),
             chunks,
             meta.clone(),
-            rpc::peer::make_chunk_transfer(data_mode),
-            dfs_read::DfsReadConfig {
-                max_ops_per_batch: cfg.dfs_read_max_ops_per_batch,
-                max_inflight_bytes: cfg.dfs_read_max_inflight_bytes,
-                source_cache_ttl: std::time::Duration::from_millis(
-                    cfg.dfs_read_source_cache_ttl_ms,
-                ),
-            },
+            rpc::peer::make_chunk_transfer(data_mode, peer_connections.clone(), timeout)?,
+            read_config,
         ));
         Some(Arc::new(vfs::dfs::DistributedFs::new(
             namespace,
@@ -277,10 +277,10 @@ pub async fn run(cfg: Config, obs: Observability) -> Result<(), BoxError> {
     };
 
     // diagnostics is a separate test object directory, not an OwnerFs or DFS data path.
-    let storage = Arc::new(storage::Storage::new(cfg.data_dir.join("diagnostics"))?);
+    let diagnostic_storage = Arc::new(storage::Storage::new(cfg.data_dir.join("diagnostics"))?);
     let sessions = rpc::control::RdmaSessionRegistry::new(cfg.rdma_device.clone());
     let local = api::local::serve_local_api_with_options(
-        storage.clone(),
+        diagnostic_storage.clone(),
         &cfg.uds_path,
         api::local::LocalApiOptions {
             metrics_registry: Some(obs.registry.clone()),
@@ -465,16 +465,31 @@ pub async fn run(cfg: Config, obs: Observability) -> Result<(), BoxError> {
         grpc_config.configure_tcp_incoming(tonic::transport::server::TcpIncoming::from(grpc));
     // 业务 Handler 在 Node，公共 transport 只提供 builder 配置和低层搬运机制。
     let control = rpc::control::make_control_server(sessions.clone());
-    let data = rpc::data::make_data_server(storage, sessions.clone());
+    let data = rpc::data::make_data_server(diagnostic_storage, sessions.clone());
     #[cfg(feature = "dfs")]
-    let dfs_chunks = rpc::data::make_dfs_chunks_server(local_chunk_store.clone());
+    let dfs_chunks = {
+        let trusted = cfg
+            .trusted_node_certs
+            .iter()
+            .map(|(node_id, path)| {
+                Ok((node_id.clone(), crate::config::read_certificate_der(path)?))
+            })
+            .collect::<afs_error::Result<Vec<_>>>()?;
+        rpc::data::make_dfs_chunks_server(
+            local_chunk_store.clone(),
+            Arc::new(rpc::data::MtlsPeerAuthenticator::new(trusted)?),
+            Arc::new(rpc::data::DenyDfsReadAuthorizer),
+        )
+    };
     #[cfg(feature = "ownerfs")]
     let owner_files = if let Some(ownerfs) = state.ownerfs.as_ref() {
         let trusted = cfg
             .trusted_node_certs
             .iter()
-            .map(|(node_id, path)| Ok((node_id.clone(), std::fs::read(path)?)))
-            .collect::<std::io::Result<Vec<_>>>()?;
+            .map(|(node_id, path)| {
+                Ok((node_id.clone(), crate::config::read_certificate_der(path)?))
+            })
+            .collect::<afs_error::Result<Vec<_>>>()?;
         let authenticator = Arc::new(rpc::data::MtlsPeerAuthenticator::new(trusted)?);
         let handler = rpc::data::make_owner_files_handler(ownerfs.peer_executor()?);
         rpc::data::make_owner_files_server_with_handler_and_metrics(
@@ -493,7 +508,12 @@ pub async fn run(cfg: Config, obs: Observability) -> Result<(), BoxError> {
         #[cfg(feature = "ownerfs")]
         let router = router.add_service(owner_files);
         #[cfg(feature = "dfs")]
-        let router = router.add_service(dfs_chunks);
+        let router =
+            router
+                .add_service(dfs_chunks)
+                .add_service(rpc::data::make_dfs_owner_files_server(
+                    rpc::data::DfsOwnerFilesService::default(),
+                ));
         router
             .serve_with_incoming_shutdown(incoming, cancelled(stop))
             .await

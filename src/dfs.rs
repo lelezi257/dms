@@ -268,27 +268,29 @@ pub struct CopyRecord {
     pub chunk_id: ChunkId,
     #[serde(default)]
     pub role: CopyRole,
-    pub node_id: String,
-    #[serde(default)]
-    pub node_epoch: u64,
-    pub device_id: String,
-    #[serde(default)]
-    pub device_epoch: u64,
-    #[serde(default)]
-    pub catalog_revision: u64,
+    pub location: CopyLocation,
     pub state: CopyState,
     pub persisted_bytes: u64,
     pub verified_digest: ContentDigest,
 }
 
 impl CopyRecord {
-    pub fn node_location(&self) -> CopyLocation {
-        CopyLocation::Node {
-            node_id: self.node_id.clone(),
-            node_epoch: self.node_epoch,
-            device_id: self.device_id.clone(),
-            device_epoch: self.device_epoch,
-            catalog_revision: self.catalog_revision,
+    pub fn node_location(&self) -> Option<CopyLocation> {
+        match &self.location {
+            CopyLocation::Node {
+                node_id,
+                node_epoch,
+                device_id,
+                device_epoch,
+                catalog_revision,
+            } => Some(CopyLocation::Node {
+                node_id: node_id.clone(),
+                node_epoch: *node_epoch,
+                device_id: device_id.clone(),
+                device_epoch: *device_epoch,
+                catalog_revision: *catalog_revision,
+            }),
+            CopyLocation::External { .. } => None,
         }
     }
 
@@ -382,9 +384,15 @@ pub struct SourceCandidate {
     pub role: CopyRole,
     pub state: CopyState,
     pub location: CopyLocation,
-    pub data_endpoint: String,
+    pub data_endpoint: Option<String>,
     pub load_hint: u32,
     pub read_grant: DfsReadGrant,
+}
+
+impl SourceCandidate {
+    pub fn node_data_endpoint(&self) -> Option<&str> {
+        self.data_endpoint.as_deref()
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]

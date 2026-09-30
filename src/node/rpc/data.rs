@@ -22,6 +22,8 @@ use std::pin::Pin;
 use std::sync::Arc;
 #[cfg(feature = "rdma")]
 use std::sync::atomic::Ordering;
+use std::{collections::HashMap, net::SocketAddr};
+use tonic::metadata::MetadataMap;
 
 use afs_protocol::node_data::{
     DataReadReply, DataReadRequest, DataTransfer, DataWriteReply, DataWriteRequest,
@@ -41,11 +43,198 @@ use tokio_stream::Stream;
 use tonic::{Request, Response, Status};
 
 #[cfg(feature = "dfs")]
-use crate::node::chunk::LocalChunkStore;
+use crate::node::{
+    chunk::LocalChunkStore,
+    dfs_read::{MAX_DFS_READ_BYTES, MAX_DFS_READ_OPS},
+};
 use crate::node::{
     rpc::control::RdmaSessionRegistry,
     storage::{MAX_TRANSFER_BYTES, Storage, StorageError},
 };
+
+#[cfg(feature = "dfs")]
+use afs_protocol::node_data::{
+    DfsOwnerHandle, DfsOwnerReadReply, DfsOwnerReadRequest, DfsOwnerResizeReply,
+    DfsOwnerResizeRequest, DfsOwnerSyncReply, DfsOwnerSyncRequest, DfsOwnerWriteReply,
+    DfsOwnerWriteRequest,
+    dfs_owner_files_server::{DfsOwnerFiles, DfsOwnerFilesServer},
+};
+
+/// Framework boundary only: handlers own lease/handle validation, sequencing,
+/// deduplication and result-unknown recovery. A transport ACK is never fsync.
+#[cfg(feature = "dfs")]
+pub trait DfsOwnerFilesHandler: Send + Sync + 'static {
+    fn read(
+        &self,
+        _peer: &str,
+        _request: DfsOwnerReadRequest,
+    ) -> afs_error::Result<DfsOwnerReadReply> {
+        Err(dfs_owner_unimplemented())
+    }
+    fn write(
+        &self,
+        _peer: &str,
+        _request: DfsOwnerWriteRequest,
+    ) -> afs_error::Result<DfsOwnerWriteReply> {
+        Err(dfs_owner_unimplemented())
+    }
+    fn resize(
+        &self,
+        _peer: &str,
+        _request: DfsOwnerResizeRequest,
+    ) -> afs_error::Result<DfsOwnerResizeReply> {
+        Err(dfs_owner_unimplemented())
+    }
+    fn sync(
+        &self,
+        _peer: &str,
+        _request: DfsOwnerSyncRequest,
+    ) -> afs_error::Result<DfsOwnerSyncReply> {
+        Err(dfs_owner_unimplemented())
+    }
+}
+
+#[cfg(feature = "dfs")]
+fn dfs_owner_unimplemented() -> afs_error::Error {
+    afs_error::Error::coded(
+        afs_error::NODE_VFS_UNIMPLEMENTED,
+        "DFS remote inode owner execution is not wired",
+    )
+}
+
+#[cfg(feature = "dfs")]
+#[derive(Clone, Default)]
+pub struct DfsOwnerFilesService {
+    handler: Option<Arc<dyn DfsOwnerFilesHandler>>,
+    authenticator: Option<Arc<dyn PeerAuthenticator>>,
+}
+
+#[cfg(feature = "dfs")]
+impl DfsOwnerFilesService {
+    pub fn new(
+        handler: Arc<dyn DfsOwnerFilesHandler>,
+        authenticator: Arc<dyn PeerAuthenticator>,
+    ) -> Self {
+        Self {
+            handler: Some(handler),
+            authenticator: Some(authenticator),
+        }
+    }
+
+    async fn dispatch<Req: Send + 'static, Reply: Send + 'static>(
+        &self,
+        request: Request<Req>,
+        handle: Option<&DfsOwnerHandle>,
+        operation_id: Option<&str>,
+        call: impl FnOnce(Arc<dyn DfsOwnerFilesHandler>, String, Req) -> afs_error::Result<Reply>
+        + Send
+        + 'static,
+    ) -> Result<Response<Reply>, Status> {
+        let handler = self
+            .handler
+            .clone()
+            .ok_or_else(|| error_to_status(dfs_owner_unimplemented()))?;
+        let authenticator = self
+            .authenticator
+            .as_ref()
+            .ok_or_else(|| Status::permission_denied("DFS owner has no peer authenticator"))?;
+        let peer = authenticate_peer(authenticator.as_ref(), &request)?;
+        let handle =
+            handle.ok_or_else(|| Status::invalid_argument("DFS owner request has no handle"))?;
+        if handle.namespace_id.is_empty()
+            || handle.inode_id.is_empty()
+            || handle.owner_node_id.is_empty()
+            || handle.owner_session_id.is_empty()
+            || handle.lease_epoch == 0
+            || handle.caller_node_id != peer
+            || handle.caller_session_id.is_empty()
+            || handle.opaque_handle.is_empty()
+            || operation_id.is_some_and(str::is_empty)
+        {
+            return Err(Status::permission_denied(
+                "DFS owner handle identity is incomplete or mismatched",
+            ));
+        }
+        let request = request.into_inner();
+        tokio::task::spawn_blocking(move || call(handler, peer, request))
+            .await
+            .map_err(|error| Status::internal(error.to_string()))?
+            .map(Response::new)
+            .map_err(error_to_status)
+    }
+}
+
+#[cfg(feature = "dfs")]
+pub fn make_dfs_owner_files_server(
+    service: DfsOwnerFilesService,
+) -> DfsOwnerFilesServer<DfsOwnerFilesService> {
+    DfsOwnerFilesServer::new(service)
+}
+
+#[cfg(feature = "dfs")]
+#[tonic::async_trait]
+impl DfsOwnerFiles for DfsOwnerFilesService {
+    async fn read(
+        &self,
+        request: Request<DfsOwnerReadRequest>,
+    ) -> Result<Response<DfsOwnerReadReply>, Status> {
+        let handle = request.get_ref().handle.clone();
+        if request.get_ref().length > MAX_TRANSFER_BYTES as u64 {
+            return Err(Status::invalid_argument("owner read exceeds inline budget"));
+        }
+        self.dispatch(request, handle.as_ref(), None, |handler, peer, request| {
+            handler.read(&peer, request)
+        })
+        .await
+    }
+    async fn write(
+        &self,
+        request: Request<DfsOwnerWriteRequest>,
+    ) -> Result<Response<DfsOwnerWriteReply>, Status> {
+        let handle = request.get_ref().handle.clone();
+        let operation = request.get_ref().operation_id.clone();
+        if request.get_ref().data.len() > MAX_TRANSFER_BYTES {
+            return Err(Status::invalid_argument(
+                "owner write exceeds inline budget",
+            ));
+        }
+        self.dispatch(
+            request,
+            handle.as_ref(),
+            Some(&operation),
+            |handler, peer, request| handler.write(&peer, request),
+        )
+        .await
+    }
+    async fn resize(
+        &self,
+        request: Request<DfsOwnerResizeRequest>,
+    ) -> Result<Response<DfsOwnerResizeReply>, Status> {
+        let handle = request.get_ref().handle.clone();
+        let operation = request.get_ref().operation_id.clone();
+        self.dispatch(
+            request,
+            handle.as_ref(),
+            Some(&operation),
+            |handler, peer, request| handler.resize(&peer, request),
+        )
+        .await
+    }
+    async fn sync(
+        &self,
+        request: Request<DfsOwnerSyncRequest>,
+    ) -> Result<Response<DfsOwnerSyncReply>, Status> {
+        let handle = request.get_ref().handle.clone();
+        let operation = request.get_ref().operation_id.clone();
+        self.dispatch(
+            request,
+            handle.as_ref(),
+            Some(&operation),
+            |handler, peer, request| handler.sync(&peer, request),
+        )
+        .await
+    }
+}
 
 /// node_data 的服务端实现。
 ///
@@ -81,16 +270,48 @@ pub fn make_data_server(
 #[cfg(feature = "dfs")]
 #[derive(Clone)]
 pub struct DfsChunksService {
-    #[allow(dead_code)]
     local_chunks: Option<Arc<LocalChunkStore>>,
+    authenticator: Arc<dyn PeerAuthenticator>,
+    authorizer: Arc<dyn DfsReadAuthorizer>,
+}
+
+/// Verifies grant authenticity, caller epoch, namespace/version/layout membership
+/// and the selected local copy/device epoch for every requested range. Structural
+/// validation alone never authorizes access. The implementation owns any cached
+/// authority snapshot and its expiry; it must not turn each range into a Meta RPC.
+#[cfg(feature = "dfs")]
+pub trait DfsReadAuthorizer: Send + Sync + 'static {
+    fn authorize(
+        &self,
+        authenticated_peer: &str,
+        request: &DfsReadRangesRequest,
+    ) -> afs_error::Result<()>;
 }
 
 #[cfg(feature = "dfs")]
-#[must_use]
+pub struct DenyDfsReadAuthorizer;
+
+#[cfg(feature = "dfs")]
+impl DfsReadAuthorizer for DenyDfsReadAuthorizer {
+    fn authorize(&self, _peer: &str, _request: &DfsReadRangesRequest) -> afs_error::Result<()> {
+        Err(afs_error::Error::coded(
+            afs_error::NODE_TRANSFER_UNSUPPORTED,
+            "DFS read grant authority is not wired; peer reads are denied",
+        ))
+    }
+}
+
+#[cfg(feature = "dfs")]
 pub fn make_dfs_chunks_server(
     local_chunks: Option<Arc<LocalChunkStore>>,
+    authenticator: Arc<dyn PeerAuthenticator>,
+    authorizer: Arc<dyn DfsReadAuthorizer>,
 ) -> DfsChunksServer<DfsChunksService> {
-    DfsChunksServer::new(DfsChunksService { local_chunks })
+    DfsChunksServer::new(DfsChunksService {
+        local_chunks,
+        authenticator,
+        authorizer,
+    })
 }
 
 #[cfg(feature = "dfs")]
@@ -130,66 +351,40 @@ impl DfsChunks for DfsChunksService {
         &self,
         request: Request<DfsReadRangesRequest>,
     ) -> Result<Response<Self::ReadRangesStream>, Status> {
+        let authenticated_peer = authenticate_peer(self.authenticator.as_ref(), &request)?;
+        let request = request.into_inner();
+        validate_dfs_read_request(&request)?;
+        for operation in &request.operations {
+            if operation
+                .grant
+                .as_ref()
+                .is_none_or(|grant| grant.caller_node_id != authenticated_peer)
+            {
+                return Err(Status::permission_denied(
+                    "DFS read grant caller does not match the authenticated peer",
+                ));
+            }
+        }
+        self.authorizer
+            .authorize(&authenticated_peer, &request)
+            .map_err(error_to_status)?;
         let local = self.local_chunks.clone().ok_or_else(|| {
             coded_status(
                 afs_error::NODE_TRANSFER_UNAVAILABLE,
                 "DFS local ChunkStore is not available",
             )
         })?;
-        let request = request.into_inner();
-        validate_dfs_read_request(&request)?;
-        let mut frames = Vec::new();
-        for op in request.operations {
-            let length = usize::try_from(op.length).map_err(|_| {
-                coded_status(
-                    afs_error::NODE_TRANSFER_INVALID,
-                    "DFS read range is too large",
-                )
-            })?;
-            validate_length_u64(op.length)?;
-            let mut data = vec![0; length];
-            let read = local
-                .read_at(
-                    &crate::dfs::ChunkId::new(op.chunk_id.clone()),
-                    op.chunk_offset,
-                    &mut data,
-                )
-                .map_err(error_to_status)?;
-            if read != length {
-                return Err(coded_status(
-                    afs_error::NODE_TRANSFER_CORRUPT_DATA,
-                    "local Chunk ended before the requested DFS range",
-                ));
+        // At most four 64 KiB frames await the consumer. The blocking producer
+        // owns each reader pin until its last range frame has been generated.
+        let (sender, receiver) = tokio::sync::mpsc::channel(4);
+        tokio::task::spawn_blocking(move || {
+            if let Err(error) = stream_dfs_ranges(&local, &request, &sender) {
+                let _ = sender.blocking_send(Err(error));
             }
-            frames.push(Ok(DfsReadRangesFrame {
-                body: Some(dfs_read_ranges_frame::Body::Header(DfsReadRangesHeader {
-                    read_id: request.read_id.clone(),
-                    attempt_id: request.attempt_id.clone(),
-                    operation_index: op.operation_index,
-                    chunk_id: op.chunk_id,
-                    chunk_offset: op.chunk_offset,
-                    length: op.length,
-                    source_copy_id: op.source_copy_id.clone(),
-                })),
-            }));
-            frames.push(Ok(DfsReadRangesFrame {
-                body: Some(dfs_read_ranges_frame::Body::Data(data)),
-            }));
-            frames.push(Ok(DfsReadRangesFrame {
-                body: Some(dfs_read_ranges_frame::Body::Completion(
-                    DfsReadRangesCompletion {
-                        read_id: request.read_id.clone(),
-                        attempt_id: request.attempt_id.clone(),
-                        operation_index: op.operation_index,
-                        source_copy_id: op.source_copy_id,
-                        transferred_bytes: op.length,
-                        range_checksum: Vec::new(),
-                        range_checksum_algorithm: 0,
-                    },
-                )),
-            }));
-        }
-        Ok(Response::new(Box::pin(tokio_stream::iter(frames))))
+        });
+        Ok(Response::new(Box::pin(
+            tokio_stream::wrappers::ReceiverStream::new(receiver),
+        )))
     }
 }
 
@@ -312,57 +507,144 @@ fn validate_length(length: u32) -> Result<(), Status> {
 }
 
 #[cfg(feature = "dfs")]
-fn validate_length_u64(length: u64) -> Result<(), Status> {
-    if length > MAX_TRANSFER_BYTES as u64 {
-        return Err(coded_status(
-            afs_error::NODE_TRANSFER_INVALID,
-            "transfer exceeds 1MiB",
-        ));
-    }
-    Ok(())
-}
-
-#[cfg(feature = "dfs")]
 fn validate_dfs_read_request(request: &DfsReadRangesRequest) -> Result<(), Status> {
     if request.read_id.is_empty()
         || request.attempt_id.is_empty()
         || request.file_version_id.is_empty()
         || request.layout_root_id.is_empty()
         || request.operations.is_empty()
+        || request.operations.len() > MAX_DFS_READ_OPS
     {
         return Err(coded_status(
             afs_error::NODE_TRANSFER_INVALID,
-            "DFS read request is incomplete",
+            "DFS read batch identity or operation count is invalid",
         ));
     }
-    let grant = request.grant.as_ref().ok_or_else(|| {
-        coded_status(
-            afs_error::NODE_TRANSFER_INVALID,
-            "DFS read request is missing grant",
-        )
-    })?;
-    if grant.namespace_id.is_empty()
-        || grant.file_version_id != request.file_version_id
-        || grant.layout_root_id != request.layout_root_id
-        || grant.caller_node_id.is_empty()
-        || grant.expires_at_unix_ms == 0
-        || grant.token.is_empty()
-    {
-        return Err(coded_status(
-            afs_error::NODE_TRANSFER_INVALID,
-            "DFS read grant is structurally invalid",
-        ));
-    }
-    for op in &request.operations {
-        if op.chunk_id.is_empty() || op.source_copy_id.is_empty() {
-            return Err(coded_status(
-                afs_error::NODE_TRANSFER_INVALID,
-                "DFS read operation is incomplete",
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis();
+    let mut total = 0_u64;
+    for (index, op) in request.operations.iter().enumerate() {
+        let grant = op
+            .grant
+            .as_ref()
+            .ok_or_else(|| Status::permission_denied("DFS read operation has no grant"))?;
+        if grant.namespace_id.is_empty()
+            || grant.file_version_id != request.file_version_id
+            || grant.layout_root_id != request.layout_root_id
+            || grant.caller_node_id.is_empty()
+            || grant.caller_node_epoch == 0
+            || u128::from(grant.expires_at_unix_ms) <= now
+            || grant.token.is_empty()
+        {
+            return Err(Status::permission_denied(
+                "DFS read operation grant identity or expiry is invalid",
             ));
         }
-        validate_length_u64(op.length)?;
+        if op.chunk_id.is_empty()
+            || op.source_copy_id.is_empty()
+            || op.operation_index as usize != index
+            || op.length == 0
+            || op.chunk_offset.checked_add(op.length).is_none()
+        {
+            return Err(coded_status(
+                afs_error::NODE_TRANSFER_INVALID,
+                "DFS read operation is invalid",
+            ));
+        }
+        total = total
+            .checked_add(op.length)
+            .filter(|total| *total <= MAX_DFS_READ_BYTES)
+            .ok_or_else(|| {
+                coded_status(
+                    afs_error::NODE_TRANSFER_INVALID,
+                    "DFS read batch exceeds byte budget",
+                )
+            })?;
     }
     Ok(())
+}
+
+#[cfg(feature = "dfs")]
+fn stream_dfs_ranges(
+    local: &LocalChunkStore,
+    request: &DfsReadRangesRequest,
+    sender: &tokio::sync::mpsc::Sender<Result<DfsReadRangesFrame, Status>>,
+) -> Result<(), Status> {
+    let send = |body| {
+        sender
+            .blocking_send(Ok(DfsReadRangesFrame { body: Some(body) }))
+            .map_err(|_| Status::cancelled("DFS range consumer disconnected"))
+    };
+    for op in &request.operations {
+        if sender.is_closed() {
+            return Ok(());
+        }
+        let reader = local
+            .open_verified(&crate::dfs::ChunkId::new(op.chunk_id.clone()))
+            .map_err(error_to_status)?;
+        send(dfs_read_ranges_frame::Body::Header(DfsReadRangesHeader {
+            read_id: request.read_id.clone(),
+            attempt_id: request.attempt_id.clone(),
+            operation_index: op.operation_index,
+            chunk_id: op.chunk_id.clone(),
+            chunk_offset: op.chunk_offset,
+            length: op.length,
+            source_copy_id: op.source_copy_id.clone(),
+        }))?;
+        let mut offset = 0;
+        let mut checksum = blake3::Hasher::new();
+        while offset < op.length {
+            if sender.is_closed() {
+                return Ok(());
+            }
+            let length = (op.length - offset).min(64 * 1024) as usize;
+            let mut data = vec![0; length];
+            let read = reader
+                .read_at(op.chunk_offset + offset, &mut data)
+                .map_err(error_to_status)?;
+            if read != length {
+                return Err(coded_status(
+                    afs_error::NODE_TRANSFER_CORRUPT_DATA,
+                    "local Chunk ended before the requested DFS range",
+                ));
+            }
+            checksum.update(&data);
+            send(dfs_read_ranges_frame::Body::Data(data))?;
+            offset += length as u64;
+        }
+        send(dfs_read_ranges_frame::Body::Completion(
+            DfsReadRangesCompletion {
+                read_id: request.read_id.clone(),
+                attempt_id: request.attempt_id.clone(),
+                operation_index: op.operation_index,
+                source_copy_id: op.source_copy_id.clone(),
+                transferred_bytes: op.length,
+                range_checksum: checksum.finalize().as_bytes().to_vec(),
+                range_checksum_algorithm: afs_protocol::node_data::DfsDigestAlgorithm::Blake3
+                    as i32,
+            },
+        ))?;
+    }
+    Ok(())
+}
+
+/// Extracts only transport-authenticated identity; request fields cannot supply it.
+pub fn authenticate_peer<T>(
+    authenticator: &dyn PeerAuthenticator,
+    request: &Request<T>,
+) -> Result<String, Status> {
+    let certificates = request.peer_certs();
+    authenticator
+        .authenticate(
+            request.metadata(),
+            request.remote_addr(),
+            certificates
+                .as_ref()
+                .and_then(|certs| certs.first().map(|cert| cert.as_ref())),
+        )
+        .map_err(error_to_status)
 }
 
 fn transfer_mode(value: i32) -> Result<DataTransfer, Status> {
@@ -471,9 +753,7 @@ fn rdma_status(error: afs_transport::rdma::RdmaError) -> Status {
 // 不形成独立文件或公开模块层级。
 #[cfg(feature = "ownerfs")]
 use std::{
-    collections::HashMap,
     ffi::OsString,
-    net::SocketAddr,
     os::unix::ffi::OsStringExt,
     time::{Duration, UNIX_EPOCH},
 };
@@ -492,8 +772,6 @@ use afs_protocol::node_data::{
     OwnerUnlinkRequest, OwnerWriteReply, OwnerWriteRequest,
     owner_files_server::{OwnerFiles, OwnerFilesServer},
 };
-#[cfg(feature = "ownerfs")]
-use tonic::metadata::MetadataMap;
 
 #[cfg(feature = "ownerfs")]
 use crate::node::vfs::{
@@ -1311,7 +1589,6 @@ fn protocol_error(message: &'static str) -> afs_error::Error {
 ///
 /// 最终生产实现应绑定 mTLS/SPIFFE SAN、或 Meta 下发的每节点 token 与 TLS
 /// channel binding。这里故意不提供“信任 holder_node_id 字段”的实现。
-#[cfg(feature = "ownerfs")]
 pub trait PeerAuthenticator: Send + Sync + 'static {
     fn authenticate(
         &self,
@@ -1330,12 +1607,10 @@ pub trait PeerAuthenticator: Send + Sync + 'static {
 /// is present, or if the bytes are unknown, OwnerFiles fails closed before the
 /// request body is inspected.
 #[derive(Clone, Debug)]
-#[cfg(feature = "ownerfs")]
 pub struct MtlsPeerAuthenticator {
     node_id_by_cert_der: Arc<HashMap<Vec<u8>, String>>,
 }
 
-#[cfg(feature = "ownerfs")]
 impl MtlsPeerAuthenticator {
     pub fn new<I>(trusted_peer_certs: I) -> afs_error::Result<Self>
     where
@@ -1370,7 +1645,6 @@ impl MtlsPeerAuthenticator {
     }
 }
 
-#[cfg(feature = "ownerfs")]
 impl PeerAuthenticator for MtlsPeerAuthenticator {
     fn authenticate(
         &self,
@@ -2054,5 +2328,140 @@ mod tests {
             }
         });
         (temp, endpoint, server)
+    }
+    #[cfg(feature = "dfs")]
+    struct AllowDfsTestPeer;
+    #[cfg(feature = "dfs")]
+    impl PeerAuthenticator for AllowDfsTestPeer {
+        fn authenticate(
+            &self,
+            _: &MetadataMap,
+            _: Option<SocketAddr>,
+            _: Option<&[u8]>,
+        ) -> afs_error::Result<String> {
+            Ok("reader".into())
+        }
+    }
+    #[cfg(feature = "dfs")]
+    struct AllowDfsTestGrant;
+    #[cfg(feature = "dfs")]
+    impl DfsReadAuthorizer for AllowDfsTestGrant {
+        fn authorize(&self, peer: &str, request: &DfsReadRangesRequest) -> afs_error::Result<()> {
+            if peer == "reader"
+                && request.operations.iter().all(|op| {
+                    op.grant
+                        .as_ref()
+                        .is_some_and(|grant| grant.token == "fixture-grant")
+                })
+            {
+                Ok(())
+            } else {
+                Err(afs_error::Error::coded(
+                    afs_error::NODE_TRANSFER_INVALID,
+                    "fixture grant rejected",
+                ))
+            }
+        }
+    }
+
+    #[cfg(feature = "dfs")]
+    fn dfs_read_request(chunk_id: String, length: u64) -> DfsReadRangesRequest {
+        DfsReadRangesRequest {
+            read_id: "read".into(),
+            attempt_id: "attempt".into(),
+            file_version_id: "version".into(),
+            layout_root_id: "layout".into(),
+            operations: vec![afs_protocol::node_data::DfsChunkReadOp {
+                operation_index: 0,
+                chunk_id,
+                chunk_offset: 0,
+                length,
+                destination_offset: 0,
+                source_copy_id: "copy".into(),
+                grant: Some(afs_protocol::node_data::DfsReadGrant {
+                    namespace_id: "namespace".into(),
+                    file_version_id: "version".into(),
+                    layout_root_id: "layout".into(),
+                    caller_node_id: "reader".into(),
+                    caller_node_epoch: 1,
+                    expires_at_unix_ms: u64::MAX,
+                    fence: 1,
+                    token: "fixture-grant".into(),
+                }),
+            }],
+        }
+    }
+
+    #[cfg(feature = "dfs")]
+    #[tokio::test]
+    async fn dfs_range_service_requires_authority_and_streams_bounded_frames() {
+        use crate::node::chunk::{ChunkStore, StagedChunk};
+        use tokio_stream::StreamExt;
+        let temp = tempfile::tempdir().unwrap();
+        let local = Arc::new(LocalChunkStore::open(temp.path(), "node").unwrap());
+        let bytes = vec![42; 150 * 1024];
+        let staged = StagedChunk::new(crate::dfs::OperationId::new("fixture-write"), bytes.clone());
+        let request = dfs_read_request(staged.chunk.id.0.clone(), bytes.len() as u64);
+        local.put(staged).unwrap();
+        let denied = DfsChunksService {
+            local_chunks: Some(local.clone()),
+            authenticator: Arc::new(AllowDfsTestPeer),
+            authorizer: Arc::new(DenyDfsReadAuthorizer),
+        };
+        assert!(
+            denied
+                .read_ranges(Request::new(request.clone()))
+                .await
+                .is_err()
+        );
+        let allowed = DfsChunksService {
+            local_chunks: Some(local),
+            authenticator: Arc::new(AllowDfsTestPeer),
+            authorizer: Arc::new(AllowDfsTestGrant),
+        };
+        let mut stream = allowed
+            .read_ranges(Request::new(request))
+            .await
+            .unwrap()
+            .into_inner();
+        let mut received = Vec::new();
+        let mut completions = 0;
+        while let Some(frame) = stream.next().await {
+            match frame.unwrap().body.unwrap() {
+                dfs_read_ranges_frame::Body::Data(data) => {
+                    assert!(data.len() <= 64 * 1024);
+                    received.extend(data);
+                }
+                dfs_read_ranges_frame::Body::Completion(completion) => {
+                    assert_eq!(
+                        completion.range_checksum,
+                        blake3::hash(&bytes).as_bytes().to_vec()
+                    );
+                    completions += 1;
+                }
+                dfs_read_ranges_frame::Body::Header(_) => {}
+            }
+        }
+        assert_eq!(received, bytes);
+        assert_eq!(completions, 1);
+    }
+
+    #[cfg(feature = "dfs")]
+    #[test]
+    fn dfs_range_request_rejects_expired_grants_and_unbounded_batches() {
+        let mut request = dfs_read_request("chunk".into(), 1);
+        request.operations[0]
+            .grant
+            .as_mut()
+            .unwrap()
+            .expires_at_unix_ms = 1;
+        assert!(validate_dfs_read_request(&request).is_err());
+        request.operations[0]
+            .grant
+            .as_mut()
+            .unwrap()
+            .expires_at_unix_ms = u64::MAX;
+        request.operations[0].length = MAX_DFS_READ_BYTES + 1;
+        assert!(validate_dfs_read_request(&request).is_err());
     }
 }

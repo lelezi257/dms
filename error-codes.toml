@@ -346,6 +346,14 @@ subsystem = "Catalog"
 description = "Meta 请求参数不合法"
 
 [[error]]
+name = "META_DFS_CONFLICT"
+value = "0x03030001"
+kind = "FailedPrecondition"
+component = "Meta"
+subsystem = "DistributedFs"
+description = "DFS 条件或写租约已变化，请求明确被拒绝，原 owner 必须停止修改"
+
+[[error]]
 name = "META_STORE_UNIMPLEMENTED"
 value = "0x03020001"
 kind = "Unimplemented"

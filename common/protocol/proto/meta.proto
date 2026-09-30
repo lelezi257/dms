@@ -586,7 +586,7 @@ message DfsSourceCandidate {
   DfsCopyRole role = 3;
   DfsCopyState state = 4;
   DfsCopyLocation location = 5;
-  string data_endpoint = 6;
+  optional string data_endpoint = 6;
   uint32 load_hint = 7;
   DfsReadGrant read_grant = 8;
 }

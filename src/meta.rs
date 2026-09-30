@@ -15,7 +15,7 @@ use crate::{
     config::{Config, MetaStoreBackend},
     runtime::{BoxError, Observability, Services, cancelled},
 };
-use std::{collections::HashMap, path::Path, sync::Arc};
+use std::{collections::HashMap, sync::Arc};
 #[derive(Clone)]
 pub struct Meta {
     pub id: String,
@@ -280,88 +280,12 @@ fn load_trusted_node_certs(
                 "trusted_node_certs contains an empty node id",
             ));
         }
-        let cert = read_certificate_der(path)?;
+        let cert = crate::config::read_certificate_der(path)?;
         if let Some(previous) = out.insert(cert, node_id.clone()) {
             return Err(config_invalid(format!(
                 "trusted_node_certs maps the same certificate to both {previous} and {node_id}"
             )));
         }
-    }
-    Ok(out)
-}
-
-fn read_certificate_der(path: &Path) -> Result<Vec<u8>, afs_error::Error> {
-    let bytes = std::fs::read(path).map_err(|source| {
-        config_invalid(format!(
-            "failed to read trusted node cert {}: {source}",
-            path.display()
-        ))
-    })?;
-    if let Some(der) = first_pem_certificate_der(&bytes)? {
-        Ok(der)
-    } else if bytes.is_empty() {
-        Err(config_invalid(format!(
-            "trusted node cert {} is empty",
-            path.display()
-        )))
-    } else {
-        Ok(bytes)
-    }
-}
-
-fn first_pem_certificate_der(bytes: &[u8]) -> Result<Option<Vec<u8>>, afs_error::Error> {
-    let text = match std::str::from_utf8(bytes) {
-        Ok(text) => text,
-        Err(_) => return Ok(None),
-    };
-    const BEGIN: &str = "-----BEGIN CERTIFICATE-----";
-    const END: &str = "-----END CERTIFICATE-----";
-    let Some(begin) = text.find(BEGIN) else {
-        return Ok(None);
-    };
-    let body_start = begin + BEGIN.len();
-    let Some(relative_end) = text[body_start..].find(END) else {
-        return Err(config_invalid("PEM certificate is missing END CERTIFICATE"));
-    };
-    let body = text[body_start..body_start + relative_end]
-        .chars()
-        .filter(|c| !c.is_ascii_whitespace())
-        .collect::<String>();
-    Ok(Some(decode_base64(&body)?))
-}
-
-fn decode_base64(input: &str) -> Result<Vec<u8>, afs_error::Error> {
-    let mut out = Vec::with_capacity(input.len() * 3 / 4);
-    let mut buffer = 0u32;
-    let mut bits = 0u8;
-    let mut padding = false;
-    for byte in input.bytes() {
-        let value = match byte {
-            b'A'..=b'Z' => u32::from(byte - b'A'),
-            b'a'..=b'z' => u32::from(byte - b'a' + 26),
-            b'0'..=b'9' => u32::from(byte - b'0' + 52),
-            b'+' => 62,
-            b'/' => 63,
-            b'=' => {
-                padding = true;
-                continue;
-            }
-            _ => return Err(config_invalid("PEM certificate contains invalid base64")),
-        };
-        if padding {
-            return Err(config_invalid(
-                "PEM certificate has data after base64 padding",
-            ));
-        }
-        buffer = (buffer << 6) | value;
-        bits += 6;
-        if bits >= 8 {
-            bits -= 8;
-            out.push(((buffer >> bits) & 0xff) as u8);
-        }
-    }
-    if out.is_empty() {
-        return Err(config_invalid("PEM certificate has empty base64 body"));
     }
     Ok(out)
 }

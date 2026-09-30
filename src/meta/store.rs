@@ -629,7 +629,22 @@ pub struct OwnerRootScan {
 /// Boxed only on the coarse Meta control path.
 pub type MetaFuture<'a, T> = Pin<Box<dyn Future<Output = Result<T>> + Send + 'a>>;
 
+/// A pinned, immutable authority view for compound reads. It exposes no mutations.
+/// Production views share the acknowledged state; backends need no native read transaction.
+pub struct MetaReadView {
+    state: Arc<StoreState>,
+}
+
+impl MetaReadView {
+    pub async fn read(&self, read: MetaRead) -> Result<MetaSnapshot> {
+        self.state.read(read).await
+    }
+}
+
 pub trait MetaStore: Send + Sync {
+    /// Pins one acknowledged revision for all reads belonging to a source resolution.
+    fn read_view(&self) -> MetaFuture<'_, MetaReadView>;
+
     /// Returns a linearizable snapshot for a single entity or request outcome.
     fn read(&self, read: MetaRead) -> MetaFuture<'_, MetaSnapshot>;
 
@@ -829,6 +844,14 @@ fn unavailable(message: impl Into<String>) -> Error {
 }
 
 impl MetaStore for Store {
+    fn read_view(&self) -> MetaFuture<'_, MetaReadView> {
+        Box::pin(async move {
+            Ok(MetaReadView {
+                state: self.committed().await?,
+            })
+        })
+    }
+
     fn read(&self, read: MetaRead) -> MetaFuture<'_, MetaSnapshot> {
         Box::pin(async move { self.committed().await?.read(read).await })
     }
@@ -1010,6 +1033,14 @@ struct PersistedMemoryState {
 }
 
 impl MetaStore for StoreState {
+    fn read_view(&self) -> MetaFuture<'_, MetaReadView> {
+        Box::pin(async move {
+            Ok(MetaReadView {
+                state: Arc::new(self.fork()?),
+            })
+        })
+    }
+
     fn read(&self, read: MetaRead) -> MetaFuture<'_, MetaSnapshot> {
         Box::pin(async move {
             let state = self
@@ -2032,6 +2063,31 @@ mod tests {
                 }
             })
         }
+    }
+
+    #[tokio::test]
+    async fn pinned_read_view_keeps_one_revision_across_later_commits() {
+        let store = Store::open(Arc::new(memory::MemoryBackend::default()))
+            .await
+            .unwrap();
+        let view = store.read_view().await.unwrap();
+        let key = MetaRead::CurrentNodeSession {
+            node_id: "node-a".into(),
+        };
+        let before = view.read(key.clone()).await.unwrap();
+        store
+            .register_node_session(
+                RequestKey::new("node-a", "view-register"),
+                lease("session-1"),
+            )
+            .await
+            .unwrap();
+        let pinned = view.read(key.clone()).await.unwrap();
+        let current = store.read(key).await.unwrap();
+        assert_eq!(before.revision, pinned.revision);
+        assert!(pinned.entity.is_none());
+        assert!(current.entity.is_some());
+        assert!(current.revision > pinned.revision);
     }
 
     #[tokio::test]

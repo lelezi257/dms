@@ -4,13 +4,17 @@ use afs::node::{
     api::local::{LocalApiServer, serve_local_api},
     storage::{MAX_TRANSFER_BYTES, Storage},
 };
-use afs_client::{LocalClient, LocalClientConfig, LocalClientError, max_parallel_shm_operations};
+use afs_client::{
+    DfsAccess, DfsFileVersion, DfsLocalClient, DfsLocalClientConfig, DfsReadBuffer, DfsWriteBuffer,
+    DiagnosticLocalClient, DiagnosticLocalClientConfig, LocalClientError,
+    max_parallel_shm_operations,
+};
 use afs_protocol::local_api::{LocalWriteRequest, local_data_client::LocalDataClient};
 use hyper_util::rt::TokioIo;
 use tonic::{Code, transport::Endpoint};
 use tower::service_fn;
 
-async fn start_local_api(temp: &tempfile::TempDir) -> (LocalApiServer, LocalClient) {
+async fn start_local_api(temp: &tempfile::TempDir) -> (LocalApiServer, DiagnosticLocalClient) {
     let socket_path = temp.path().join("afs-node.sock");
     let storage = Storage::new(temp.path().join("data")).expect("storage");
     let server = serve_local_api(storage, &socket_path)
@@ -18,7 +22,7 @@ async fn start_local_api(temp: &tempfile::TempDir) -> (LocalApiServer, LocalClie
         .expect("serve local api");
     assert!(!server.is_finished());
     assert!(server.abort_handle().is_some());
-    let client = LocalClient::connect(LocalClientConfig::new(socket_path))
+    let client = DiagnosticLocalClient::connect(DiagnosticLocalClientConfig::new(socket_path))
         .await
         .expect("connect local client");
     (server, client)
@@ -41,7 +45,7 @@ async fn raw_local_client(path: &Path) -> LocalDataClient<tonic::transport::Chan
 }
 
 #[tokio::test]
-async fn local_sdk_writes_and_reads_eight_bytes_through_shm() {
+async fn diagnostic_local_sdk_writes_and_reads_eight_bytes_through_shm() {
     let temp = tempfile::tempdir().expect("tempdir");
     let (server, client) = start_local_api(&temp).await;
 
@@ -83,6 +87,68 @@ async fn local_api_rejects_missing_shm_grant_without_data_fallback() {
     assert!(error.message().contains("missing SHM source grant"));
 
     server.shutdown().await.expect("shutdown local api");
+}
+
+#[tokio::test]
+async fn dfs_local_sdk_is_typed_and_never_falls_through_to_diagnostics_storage() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let socket_path = temp.path().join("afs-node.sock");
+    let storage = Storage::new(temp.path().join("diagnostics")).expect("storage");
+    let server = serve_local_api(storage, &socket_path)
+        .await
+        .expect("serve local api");
+    let diagnostic =
+        DiagnosticLocalClient::connect(DiagnosticLocalClientConfig::new(socket_path.clone()))
+            .await
+            .expect("connect diagnostic client");
+    diagnostic
+        .write("inode-test", 0, b"diagnostic-only".to_vec())
+        .await
+        .expect("seed diagnostics object");
+
+    let dfs = DfsLocalClient::connect(DfsLocalClientConfig::new(socket_path))
+        .await
+        .expect("connect DFS local client");
+    let error = dfs
+        .open("default", "inode-test", DfsAccess::ReadWrite, None)
+        .await
+        .expect_err("unwired DFS service must fail explicitly");
+    assert!(
+        matches!(error, LocalClientError::Status(status) if status.code() == afs_error::NODE_VFS_UNIMPLEMENTED)
+    );
+    assert_eq!(
+        diagnostic
+            .read("inode-test", 0, 15)
+            .await
+            .expect("diagnostics object remains independent"),
+        b"diagnostic-only"
+    );
+
+    server.shutdown().await.expect("shutdown local api");
+}
+
+#[test]
+fn dfs_sdk_buffers_and_fixed_version_validate_ownership_inputs() {
+    let read = DfsReadBuffer::new(8).expect("allocate DFS read buffer");
+    assert_eq!(read.capacity(), 8);
+    assert_eq!(read.read_prefix(0).unwrap(), Vec::<u8>::new());
+
+    let write = DfsWriteBuffer::from_bytes(b"payload".to_vec()).expect("DFS write buffer");
+    assert_eq!(write.length(), 7);
+
+    let version = DfsFileVersion::new("default", "inode-test", "version:1")
+        .expect("complete fixed version identity");
+    assert_eq!(
+        version,
+        DfsFileVersion::new("default", "inode-test", "version:1").unwrap()
+    );
+    assert!(matches!(
+        DfsFileVersion::new("", "inode-test", "version:1"),
+        Err(LocalClientError::InvalidArgument {
+            field: "namespace_id",
+            ..
+        })
+    ));
 }
 
 #[tokio::test]

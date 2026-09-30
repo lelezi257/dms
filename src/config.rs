@@ -445,3 +445,110 @@ impl Config {
 fn invalid(message: impl Into<String>) -> Error {
     afs_error::Error::coded(afs_error::CONFIG_INVALID, message)
 }
+
+// Normalize configured certificate files to the leaf DER identity exposed by tonic.
+pub(crate) fn read_certificate_der(path: &std::path::Path) -> Result<Vec<u8>> {
+    let bytes = std::fs::read(path).map_err(|source| {
+        invalid(format!(
+            "failed to read trusted node cert {}: {source}",
+            path.display()
+        ))
+    })?;
+    if let Some(der) = first_pem_certificate_der(&bytes)? {
+        Ok(der)
+    } else if bytes.is_empty() {
+        Err(invalid(format!(
+            "trusted node cert {} is empty",
+            path.display()
+        )))
+    } else {
+        Ok(bytes)
+    }
+}
+
+fn first_pem_certificate_der(bytes: &[u8]) -> Result<Option<Vec<u8>>> {
+    let text = match std::str::from_utf8(bytes) {
+        Ok(text) => text,
+        Err(_) => return Ok(None),
+    };
+    const BEGIN: &str = "-----BEGIN CERTIFICATE-----";
+    const END: &str = "-----END CERTIFICATE-----";
+    let Some(begin) = text.find(BEGIN) else {
+        return Ok(None);
+    };
+    let body_start = begin + BEGIN.len();
+    let Some(relative_end) = text[body_start..].find(END) else {
+        return Err(invalid("PEM certificate is missing END CERTIFICATE"));
+    };
+    let body = text[body_start..body_start + relative_end]
+        .chars()
+        .filter(|c| !c.is_ascii_whitespace())
+        .collect::<String>();
+    Ok(Some(decode_base64(&body)?))
+}
+
+fn decode_base64(input: &str) -> Result<Vec<u8>> {
+    let mut out = Vec::with_capacity(input.len() * 3 / 4);
+    let mut buffer = 0u32;
+    let mut bits = 0u8;
+    let mut padding = false;
+    for byte in input.bytes() {
+        let value = match byte {
+            b'A'..=b'Z' => u32::from(byte - b'A'),
+            b'a'..=b'z' => u32::from(byte - b'a' + 26),
+            b'0'..=b'9' => u32::from(byte - b'0' + 52),
+            b'+' => 62,
+            b'/' => 63,
+            b'=' => {
+                padding = true;
+                continue;
+            }
+            _ => return Err(invalid("PEM certificate contains invalid base64")),
+        };
+        if padding {
+            return Err(invalid("PEM certificate has data after base64 padding"));
+        }
+        buffer = (buffer << 6) | value;
+        bits += 6;
+        if bits >= 8 {
+            bits -= 8;
+            out.push(((buffer >> bits) & 0xff) as u8);
+        }
+    }
+    if out.is_empty() {
+        return Err(invalid("PEM certificate has empty base64 body"));
+    }
+    Ok(out)
+}
+
+#[cfg(test)]
+mod certificate_tests {
+    use super::*;
+
+    #[test]
+    fn trusted_certificates_normalize_pem_and_preserve_der() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("peer.crt");
+        std::fs::write(
+            &path,
+            b"-----BEGIN CERTIFICATE-----\nAQIDBA==\n-----END CERTIFICATE-----",
+        )
+        .unwrap();
+        assert_eq!(read_certificate_der(&path).unwrap(), vec![1, 2, 3, 4]);
+        std::fs::write(&path, [1, 2, 3, 4]).unwrap();
+        assert_eq!(read_certificate_der(&path).unwrap(), vec![1, 2, 3, 4]);
+    }
+
+    #[test]
+    fn malformed_or_empty_trusted_certificate_fails_closed() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("peer.crt");
+        for bytes in [b"".as_slice(), b"-----BEGIN CERTIFICATE-----\nAQID"] {
+            std::fs::write(&path, bytes).unwrap();
+            assert_eq!(
+                read_certificate_der(&path).unwrap_err().code(),
+                afs_error::CONFIG_INVALID
+            );
+        }
+    }
+}

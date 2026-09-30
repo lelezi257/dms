@@ -11,7 +11,7 @@ use std::{
     collections::HashMap,
     ffi::OsStr,
     sync::{
-        Arc, Mutex,
+        Arc, Condvar, Mutex,
         atomic::{AtomicU64, Ordering},
     },
     time::{SystemTime, UNIX_EPOCH},
@@ -57,7 +57,12 @@ pub trait DfsMeta: Send + Sync {
     fn commit_file_version(&self, commit: CommitFileVersion) -> Result<InodeRecord>;
 }
 
-type SharedInodeWriteState = Arc<Mutex<InodeWriteState>>;
+type SharedInodeWriteState = Arc<InodeWriteStateCell>;
+
+struct InodeWriteStateCell {
+    state: Mutex<InodeWriteState>,
+    cv: Condvar,
+}
 
 pub struct DistributedFs {
     namespace_id: NamespaceId,
@@ -78,8 +83,16 @@ pub struct DistributedFs {
 struct DfsFileHandle {
     inode_id: InodeId,
     opened_inode: InodeRecord,
+    opened_version: Option<OpenedFileVersion>,
     write_session: Option<DfsWriteSession>,
     flags: i32,
+}
+
+#[derive(Clone)]
+struct OpenedFileVersion {
+    version: Option<FileVersion>,
+    layout: LayoutRoot,
+    length: u64,
 }
 
 #[derive(Clone)]
@@ -101,7 +114,8 @@ struct InodeWriteState {
     logical_length: u64,
     metadata_dirty: bool,
     dirty_extents: DirtyExtentMap,
-    in_flight: Option<FrozenCommit>,
+    in_flight: Option<InFlightCommit>,
+    commit_busy: bool,
     dirty: bool,
     next_write_seq: u64,
     visible_write_seq: u64,
@@ -110,6 +124,7 @@ struct InodeWriteState {
     open_writers: u64,
     last_writer_background_requested: bool,
     background_error: Option<ObservedWriteError>,
+    terminal_error: Option<Error>,
 }
 
 #[derive(Clone)]
@@ -142,6 +157,19 @@ struct FrozenCommit {
     dirty_extents: DirtyExtentMap,
 }
 
+#[derive(Clone)]
+enum InFlightCommit {
+    Preparing(Box<FrozenCommit>),
+    File(Box<PendingFileCommit>),
+    Metadata(SyncInodeMetadata),
+}
+
+#[derive(Clone)]
+struct PendingFileCommit {
+    frozen: FrozenCommit,
+    batch: CommitBatch,
+}
+
 struct CommitPlan {
     layout_root: LayoutRoot,
     staged_chunks: Vec<StagedChunk>,
@@ -154,9 +182,23 @@ struct OverlaySegment {
     data: Option<(Arc<[u8]>, usize)>,
 }
 
+#[derive(Clone)]
 struct CommitBatch {
     through_seq: u64,
     commit: CommitFileVersion,
+}
+
+enum AppliedCommit {
+    File {
+        through_seq: u64,
+        committed_full_metadata: bool,
+        version: FileVersion,
+        layout: LayoutRoot,
+        updated: InodeRecord,
+    },
+    Metadata {
+        updated: InodeRecord,
+    },
 }
 
 #[derive(Clone, Copy)]
@@ -166,6 +208,40 @@ enum CommitReason {
     Background,
     LastWriter,
     NodeDrain,
+}
+
+impl InFlightCommit {
+    fn dirty_extents(&self) -> Option<DirtyExtentMap> {
+        match self {
+            InFlightCommit::Preparing(frozen) => Some(frozen.dirty_extents.clone()),
+            InFlightCommit::File(pending) => Some(pending.frozen.dirty_extents.clone()),
+            InFlightCommit::Metadata(_) => None,
+        }
+    }
+}
+
+impl InodeWriteStateCell {
+    fn new(state: InodeWriteState) -> Self {
+        Self {
+            state: Mutex::new(state),
+            cv: Condvar::new(),
+        }
+    }
+
+    fn lock(&self) -> std::sync::LockResult<std::sync::MutexGuard<'_, InodeWriteState>> {
+        self.state.lock()
+    }
+
+    fn wait<'a>(
+        &self,
+        guard: std::sync::MutexGuard<'a, InodeWriteState>,
+    ) -> std::sync::LockResult<std::sync::MutexGuard<'a, InodeWriteState>> {
+        self.cv.wait(guard)
+    }
+
+    fn notify_all(&self) {
+        self.cv.notify_all();
+    }
 }
 
 impl DistributedFs {
@@ -278,6 +354,16 @@ impl DistributedFs {
             .map(|(version, layout)| (Some(version), layout))
     }
 
+    fn opened_version(&self, inode: &InodeRecord) -> Result<OpenedFileVersion> {
+        let (version, layout) = self.load_version(inode.head_version.as_ref())?;
+        let length = version.as_ref().map_or(0, |version| version.length);
+        Ok(OpenedFileVersion {
+            version,
+            layout,
+            length,
+        })
+    }
+
     fn write_state(&self, inode_id: &InodeId) -> Result<Option<SharedInodeWriteState>> {
         Ok(self
             .inode_writes
@@ -294,7 +380,7 @@ impl DistributedFs {
         }
         let (base_version, base_layout) = self.load_version(inode.head_version.as_ref())?;
         let logical_length = base_version.as_ref().map_or(0, |version| version.length);
-        let state = Arc::new(Mutex::new(InodeWriteState {
+        let state = Arc::new(InodeWriteStateCell::new(InodeWriteState {
             write_lease,
             base_version,
             base_layout,
@@ -302,6 +388,7 @@ impl DistributedFs {
             metadata_dirty: false,
             dirty_extents: DirtyExtentMap::default(),
             in_flight: None,
+            commit_busy: false,
             inode: inode.clone(),
             dirty: false,
             next_write_seq: 0,
@@ -311,6 +398,7 @@ impl DistributedFs {
             open_writers: 0,
             last_writer_background_requested: false,
             background_error: None,
+            terminal_error: None,
         }));
         self.inode_writes
             .lock()
@@ -379,7 +467,7 @@ impl DistributedFs {
                 state
                     .in_flight
                     .as_ref()
-                    .map(|commit| commit.dirty_extents.clone()),
+                    .and_then(InFlightCommit::dirty_extents),
                 state.dirty_extents.clone(),
             )
         } else {
@@ -402,6 +490,27 @@ impl DistributedFs {
             frozen.overlay(offset, &mut out[..count])?;
         }
         active.overlay(offset, &mut out[..count])?;
+        Ok(count)
+    }
+
+    fn read_opened_version(
+        &self,
+        opened: &OpenedFileVersion,
+        offset: u64,
+        out: &mut [u8],
+    ) -> Result<usize> {
+        if offset >= opened.length || out.is_empty() {
+            return Ok(0);
+        }
+        let count = usize::try_from((opened.length - offset).min(out.len() as u64))
+            .map_err(|_| invalid("read length is too large"))?;
+        out[..count].fill(0);
+        self.read_layout_range(
+            opened.version.as_ref().map(|version| &version.id),
+            &opened.layout,
+            offset,
+            &mut out[..count],
+        )?;
         Ok(count)
     }
 
@@ -472,80 +581,174 @@ impl DistributedFs {
     }
 
     fn commit_inode(&self, inode_id: &InodeId, reason: CommitReason) -> Result<Option<u64>> {
-        let Some(state) = self.write_state(inode_id)? else {
+        let Some(cell) = self.write_state(inode_id)? else {
             return Ok(None);
         };
-        let frozen = {
-            let mut state = state
-                .lock()
-                .map_err(|_| unavailable("DFS inode write state is poisoned"))?;
-            if state.in_flight.is_some() {
-                return Err(unavailable("DFS inode already has a commit in flight"));
-            }
-            if !(state.dirty || matches!(reason, CommitReason::FullSync) && state.metadata_dirty) {
-                return Ok(None);
-            }
-            if should_renew(&state.write_lease) {
-                state.write_lease = self.meta.renew_write_lease(state.write_lease.clone())?;
-            }
-            if !state.dirty {
-                let now = now_unix_ms();
-                let updated = self.validate_inode(
-                    self.meta.sync_inode_metadata(SyncInodeMetadata {
-                        operation_id: self.operation_id("fsync-metadata"),
-                        inode_id: state.inode.inode_id.clone(),
-                        write_lease: state.write_lease.clone(),
-                        expected_inode_revision: state.inode.revision,
-                        expected_head_version: state
-                            .base_version
-                            .as_ref()
-                            .map(|version| version.id.clone()),
-                        metadata_delta: CommitMetadataDelta {
-                            mode: CommitMetadataMode::Full,
-                            mtime_unix_ms: Some(now),
-                            ctime_unix_ms: Some(now),
-                        },
-                    })?,
-                )?;
-                state.inode = updated;
-                state.metadata_dirty = false;
-                return Ok(Some(state.committed_write_seq));
-            }
-            let frozen = FrozenCommit {
-                through_seq: state.visible_write_seq,
-                logical_length: state.logical_length,
-                inode: state.inode.clone(),
-                write_lease: state.write_lease.clone(),
-                base_version: state.base_version.clone(),
-                base_layout: state.base_layout.clone(),
-                dirty_extents: std::mem::take(&mut state.dirty_extents),
-            };
-            state.in_flight = Some(frozen.clone());
-            state.dirty = false;
-            frozen
-        };
+        enum CommitAction {
+            Prepare(Box<FrozenCommit>),
+            Send(InFlightCommit),
+        }
 
-        let result = self.prepare_commit(&frozen, reason).and_then(|batch| {
-            let committed_full_metadata =
-                batch.commit.metadata_delta.mode == CommitMetadataMode::Full;
-            let version = batch.commit.file_version.clone();
-            let layout = batch.commit.layout_root.clone();
-            let updated = self.validate_inode(self.meta.commit_file_version(batch.commit)?)?;
-            Ok((
-                batch.through_seq,
+        loop {
+            let action = loop {
+                let mut state = cell
+                    .lock()
+                    .map_err(|_| unavailable("DFS inode write state is poisoned"))?;
+                while state.commit_busy {
+                    state = cell
+                        .wait(state)
+                        .map_err(|_| unavailable("DFS inode write state is poisoned"))?;
+                }
+                if let Some(error) = state.terminal_error.clone() {
+                    return Err(error);
+                }
+                if let Some(in_flight) = state.in_flight.clone() {
+                    let pending = match in_flight {
+                        InFlightCommit::Preparing(_) => {
+                            state = cell
+                                .wait(state)
+                                .map_err(|_| unavailable("DFS inode write state is poisoned"))?;
+                            drop(state);
+                            continue;
+                        }
+                        InFlightCommit::File(pending) => InFlightCommit::File(pending),
+                        InFlightCommit::Metadata(sync) => InFlightCommit::Metadata(sync),
+                    };
+                    state.commit_busy = true;
+                    break CommitAction::Send(pending);
+                } else {
+                    if !(state.dirty
+                        || matches!(reason, CommitReason::FullSync) && state.metadata_dirty)
+                    {
+                        return Ok(None);
+                    }
+                    if should_renew(&state.write_lease) {
+                        state.write_lease =
+                            self.meta.renew_write_lease(state.write_lease.clone())?;
+                    }
+                    if !state.dirty {
+                        let sync = SyncInodeMetadata {
+                            operation_id: self.operation_id("fsync-metadata"),
+                            inode_id: state.inode.inode_id.clone(),
+                            write_lease: state.write_lease.clone(),
+                            expected_inode_revision: state.inode.revision,
+                            expected_head_version: state
+                                .base_version
+                                .as_ref()
+                                .map(|version| version.id.clone()),
+                            metadata_delta: CommitMetadataDelta {
+                                mode: CommitMetadataMode::Full,
+                                mtime_unix_ms: Some(state.inode.attributes.mtime_unix_ms),
+                                ctime_unix_ms: Some(state.inode.attributes.ctime_unix_ms),
+                            },
+                        };
+                        let pending = InFlightCommit::Metadata(sync);
+                        state.in_flight = Some(pending.clone());
+                        state.commit_busy = true;
+                        break CommitAction::Send(pending);
+                    } else {
+                        let frozen = FrozenCommit {
+                            through_seq: state.visible_write_seq,
+                            logical_length: state.logical_length,
+                            inode: state.inode.clone(),
+                            write_lease: state.write_lease.clone(),
+                            base_version: state.base_version.clone(),
+                            base_layout: state.base_layout.clone(),
+                            dirty_extents: std::mem::take(&mut state.dirty_extents),
+                        };
+                        state.in_flight = Some(InFlightCommit::Preparing(Box::new(frozen.clone())));
+                        state.commit_busy = true;
+                        state.dirty = false;
+                        break CommitAction::Prepare(Box::new(frozen));
+                    }
+                }
+            };
+
+            let pending = match action {
+                CommitAction::Send(pending) => pending,
+                CommitAction::Prepare(frozen) => match self.prepare_commit(&frozen, reason) {
+                    Ok(batch) => {
+                        let pending = InFlightCommit::File(Box::new(PendingFileCommit {
+                            frozen: *frozen,
+                            batch,
+                        }));
+                        let mut state = cell
+                            .lock()
+                            .map_err(|_| unavailable("DFS inode write state is poisoned"))?;
+                        state.in_flight = Some(pending.clone());
+                        pending
+                    }
+                    Err(error) => {
+                        let mut state = cell
+                            .lock()
+                            .map_err(|_| unavailable("DFS inode write state is poisoned"))?;
+                        if let Some(InFlightCommit::Preparing(failed)) = state.in_flight.take() {
+                            state.dirty_extents.restore_before(failed.dirty_extents);
+                        }
+                        state.dirty = !state.dirty_extents.is_empty();
+                        state.commit_busy = false;
+                        cell.notify_all();
+                        return Err(error);
+                    }
+                },
+            };
+
+            let committed = self.finish_commit(cell.clone(), pending)?;
+            if matches!(reason, CommitReason::FullSync) && self.needs_full_metadata_sync(&cell)? {
+                continue;
+            }
+            return Ok(committed);
+        }
+    }
+
+    fn finish_commit(
+        &self,
+        cell: SharedInodeWriteState,
+        pending: InFlightCommit,
+    ) -> Result<Option<u64>> {
+        let result = (|| match &pending {
+            InFlightCommit::Preparing(_) => Err(unavailable("DFS inode commit is still preparing")),
+            InFlightCommit::File(pending) => {
+                let committed_full_metadata =
+                    pending.batch.commit.metadata_delta.mode == CommitMetadataMode::Full;
+                let version = pending.batch.commit.file_version.clone();
+                let layout = pending.batch.commit.layout_root.clone();
+                let updated = self.validate_inode(
+                    self.meta
+                        .commit_file_version(pending.batch.commit.clone())?,
+                )?;
+                Ok(AppliedCommit::File {
+                    through_seq: pending.batch.through_seq,
+                    committed_full_metadata,
+                    version,
+                    layout,
+                    updated,
+                })
+            }
+            InFlightCommit::Metadata(sync) => {
+                let updated = self.validate_inode(self.meta.sync_inode_metadata(sync.clone())?)?;
+                Ok(AppliedCommit::Metadata { updated })
+            }
+        })();
+
+        let mut state = cell
+            .lock()
+            .map_err(|_| unavailable("DFS inode write state is poisoned"))?;
+        state.commit_busy = false;
+        let outcome = match result {
+            Ok(AppliedCommit::File {
+                through_seq,
                 committed_full_metadata,
                 version,
                 layout,
                 updated,
-            ))
-        });
-
-        let mut state = state
-            .lock()
-            .map_err(|_| unavailable("DFS inode write state is poisoned"))?;
-        match result {
-            Ok((through_seq, committed_full_metadata, version, layout, updated)) => {
+            }) => {
                 state.in_flight = None;
+                let mut updated = updated;
+                if !committed_full_metadata {
+                    updated.attributes.mtime_unix_ms = state.inode.attributes.mtime_unix_ms;
+                    updated.attributes.ctime_unix_ms = state.inode.attributes.ctime_unix_ms;
+                }
                 state.inode = updated;
                 state.base_version = Some(version);
                 state.base_layout = layout;
@@ -561,13 +764,59 @@ impl DistributedFs {
                 }
                 Ok(Some(through_seq))
             }
+            Ok(AppliedCommit::Metadata { updated }) => {
+                state.in_flight = None;
+                state.inode = updated;
+                state.metadata_dirty = false;
+                Ok(Some(state.committed_write_seq))
+            }
             Err(error) => {
-                if let Some(failed) = state.in_flight.take() {
-                    state.dirty_extents.restore_before(failed.dirty_extents);
+                if is_definite_commit_rejection(&error) {
+                    state.in_flight = None;
+                    state.terminal_error = Some(error.clone());
+                    if let InFlightCommit::File(pending) = pending {
+                        state
+                            .dirty_extents
+                            .restore_before(pending.frozen.dirty_extents);
+                        state.dirty = !state.dirty_extents.is_empty();
+                    }
                 }
-                state.dirty = !state.dirty_extents.is_empty();
                 Err(error)
             }
+        };
+        cell.notify_all();
+        outcome
+    }
+
+    fn needs_full_metadata_sync(&self, cell: &SharedInodeWriteState) -> Result<bool> {
+        let state = cell
+            .lock()
+            .map_err(|_| unavailable("DFS inode write state is poisoned"))?;
+        Ok(state.metadata_dirty)
+    }
+
+    fn lock_for_mutation<'a>(
+        &self,
+        inode_id: &InodeId,
+        cell: &'a SharedInodeWriteState,
+    ) -> Result<std::sync::MutexGuard<'a, InodeWriteState>> {
+        loop {
+            let mut state = cell
+                .lock()
+                .map_err(|_| unavailable("DFS inode write state is poisoned"))?;
+            while state.commit_busy {
+                state = cell
+                    .wait(state)
+                    .map_err(|_| unavailable("DFS inode write state is poisoned"))?;
+            }
+            if let Some(error) = state.terminal_error.clone() {
+                return Err(error);
+            }
+            if state.in_flight.is_none() {
+                return Ok(state);
+            }
+            drop(state);
+            self.commit_inode(inode_id, CommitReason::Background)?;
         }
     }
 
@@ -606,7 +855,10 @@ impl DistributedFs {
                 file_version: version,
                 layout_root: plan.layout_root,
                 chunk_receipts: receipts,
-                metadata_delta: reason.metadata_delta(now),
+                metadata_delta: reason.metadata_delta(
+                    frozen.inode.attributes.mtime_unix_ms,
+                    frozen.inode.attributes.ctime_unix_ms,
+                ),
             },
         })
     }
@@ -619,11 +871,13 @@ impl DistributedFs {
         let Some(state) = self.write_state(&snapshot.inode_id)? else {
             return Ok(());
         };
-        let observed = state
+        let state = state
             .lock()
-            .map_err(|_| unavailable("DFS inode write state is poisoned"))?
-            .background_error
-            .clone();
+            .map_err(|_| unavailable("DFS inode write state is poisoned"))?;
+        if let Some(error) = state.terminal_error.clone() {
+            return Err(error);
+        }
+        let observed = state.background_error.clone();
         let Some(observed) = observed.filter(|error| error.cursor > session.error_cursor) else {
             return Ok(());
         };
@@ -635,9 +889,7 @@ impl DistributedFs {
         let state = self
             .write_state(inode_id)?
             .ok_or_else(|| stale("DFS write state is no longer open"))?;
-        let mut state = state
-            .lock()
-            .map_err(|_| unavailable("DFS inode write state is poisoned"))?;
+        let mut state = self.lock_for_mutation(inode_id, &state)?;
         state.next_write_seq = state.next_write_seq.saturating_add(1);
         let write_seq = state.next_write_seq;
         let old_length = state.logical_length;
@@ -692,7 +944,7 @@ impl DistributedFs {
             .iter()
             .filter_map(|(inode_id, state)| {
                 let state = state.lock().ok()?;
-                state.dirty.then(|| {
+                (state.dirty || state.in_flight.is_some()).then(|| {
                     (
                         inode_id.clone(),
                         if state.last_writer_background_requested {
@@ -759,6 +1011,7 @@ impl DistributedFs {
 struct DfsFileHandleSnapshot {
     inode_id: InodeId,
     opened_inode: InodeRecord,
+    opened_version: Option<OpenedFileVersion>,
     write_session: Option<DfsWriteSession>,
     flags: i32,
 }
@@ -768,6 +1021,7 @@ impl From<&DfsFileHandle> for DfsFileHandleSnapshot {
         Self {
             inode_id: handle.inode_id.clone(),
             opened_inode: handle.opened_inode.clone(),
+            opened_version: handle.opened_version.clone(),
             write_session: handle.write_session.clone(),
             flags: handle.flags,
         }
@@ -1070,12 +1324,12 @@ impl CommitReason {
         }
     }
 
-    fn metadata_delta(self, now: u64) -> CommitMetadataDelta {
+    fn metadata_delta(self, mtime_unix_ms: u64, ctime_unix_ms: u64) -> CommitMetadataDelta {
         if !matches!(self, Self::DataSync) {
             CommitMetadataDelta {
                 mode: CommitMetadataMode::Full,
-                mtime_unix_ms: Some(now),
-                ctime_unix_ms: Some(now),
+                mtime_unix_ms: Some(mtime_unix_ms),
+                ctime_unix_ms: Some(ctime_unix_ms),
             }
         } else {
             CommitMetadataDelta {
@@ -1114,6 +1368,9 @@ impl Backend for DistributedFs {
     ) -> Result<FileAttributes> {
         if let Some(handle) = handle {
             let snapshot = self.handle_snapshot(handle)?;
+            if let Some(opened) = snapshot.opened_version.as_ref() {
+                return Ok(attributes(&snapshot.opened_inode, opened.length));
+            }
             return self.visible_attributes(&snapshot.opened_inode);
         }
         let record = self.validate_inode(self.meta.get_inode(&self.inode_id(inode)?)?)?;
@@ -1204,6 +1461,7 @@ impl Backend for DistributedFs {
         let handle = self.allocate_handle(DfsFileHandle {
             inode_id: inode.inode_id.clone(),
             opened_inode: inode.clone(),
+            opened_version: None,
             write_session: Some(session),
             flags,
         })?;
@@ -1219,7 +1477,7 @@ impl Backend for DistributedFs {
     fn open(&self, _: &RequestContext, inode: BackendInode, flags: i32) -> Result<FileHandle> {
         let inode_id = self.inode_id(inode)?;
         let writable = flags & libc::O_ACCMODE != libc::O_RDONLY;
-        let (opened_inode, write_session) = if writable {
+        let (opened_inode, opened_version, write_session) = if writable {
             let (inode, write_lease) = self.meta.open_write(&inode_id)?;
             let inode = self.validate_inode(inode)?;
             self.install_write_state(inode.clone(), write_lease)?;
@@ -1230,13 +1488,16 @@ impl Backend for DistributedFs {
                 self.release_writer(&session)?;
                 return Err(error);
             }
-            (inode, Some(session))
+            (inode, None, Some(session))
         } else {
-            (self.validate_inode(self.meta.get_inode(&inode_id)?)?, None)
+            let inode = self.validate_inode(self.meta.get_inode(&inode_id)?)?;
+            let opened_version = self.opened_version(&inode)?;
+            (inode, Some(opened_version), None)
         };
         self.allocate_handle(DfsFileHandle {
             inode_id: opened_inode.inode_id.clone(),
             opened_inode,
+            opened_version,
             write_session,
             flags,
         })
@@ -1250,6 +1511,9 @@ impl Backend for DistributedFs {
         out: &mut [u8],
     ) -> Result<usize> {
         let snapshot = self.handle_snapshot(handle)?;
+        if let Some(opened) = snapshot.opened_version.as_ref() {
+            return self.read_opened_version(opened, offset, out);
+        }
         self.read_visible(
             &snapshot.inode_id,
             snapshot.opened_inode.head_version.as_ref(),
@@ -1277,9 +1541,7 @@ impl Backend for DistributedFs {
             .write_state(&snapshot.inode_id)?
             .ok_or_else(|| stale("DFS write state is no longer open"))?;
         let (written, accepted_seq) = {
-            let mut state = state
-                .lock()
-                .map_err(|_| unavailable("DFS inode write state is poisoned"))?;
+            let mut state = self.lock_for_mutation(&snapshot.inode_id, &state)?;
             let offset = if snapshot.flags & libc::O_APPEND != 0 {
                 state.logical_length
             } else {
@@ -1383,8 +1645,8 @@ impl DistributedFs {
             .values_mut()
             .filter(|handle| handle.inode_id == *inode_id)
         {
-            handle.opened_inode = inode.clone();
             if let Some(session) = handle.write_session.as_mut() {
+                handle.opened_inode = inode.clone();
                 session.last_synced_seq = session.last_synced_seq.max(committed_seq);
             }
         }
@@ -1467,6 +1729,13 @@ fn unavailable(message: impl Into<String>) -> Error {
     Error::coded(afs_error::NODE_VFS_UNAVAILABLE, message)
 }
 
+fn is_definite_commit_rejection(error: &Error) -> bool {
+    matches!(
+        error.code(),
+        afs_error::META_CATALOG_INVALID_REQUEST | afs_error::META_DFS_CONFLICT
+    )
+}
+
 fn stale(message: impl Into<String>) -> Error {
     Error::coded(afs_error::NODE_DFS_STALE_HANDLE, message)
 }
@@ -1484,7 +1753,11 @@ mod tests {
         inode: Mutex<InodeRecord>,
         lease: Mutex<WriteLease>,
         commits: Mutex<Vec<CommitFileVersion>>,
-        fail_next_commit: Mutex<bool>,
+        failed_commits: Mutex<Vec<CommitFileVersion>>,
+        metadata_syncs: Mutex<Vec<SyncInodeMetadata>>,
+        failed_metadata_syncs: Mutex<Vec<SyncInodeMetadata>>,
+        next_commit_error: Mutex<Option<Error>>,
+        next_metadata_sync_error: Mutex<Option<Error>>,
     }
 
     impl RecordingMeta {
@@ -1514,7 +1787,11 @@ mod tests {
                     expires_at_unix_ms: u64::MAX,
                 }),
                 commits: Mutex::new(Vec::new()),
-                fail_next_commit: Mutex::new(false),
+                failed_commits: Mutex::new(Vec::new()),
+                metadata_syncs: Mutex::new(Vec::new()),
+                failed_metadata_syncs: Mutex::new(Vec::new()),
+                next_commit_error: Mutex::new(None),
+                next_metadata_sync_error: Mutex::new(None),
             }
         }
 
@@ -1523,7 +1800,19 @@ mod tests {
         }
 
         fn fail_next_commit(&self) {
-            *self.fail_next_commit.lock().unwrap() = true;
+            self.fail_next_commit_with(unavailable("injected test commit failure"));
+        }
+
+        fn fail_next_metadata_sync(&self) {
+            self.fail_next_metadata_sync_with(unavailable("injected test metadata sync failure"));
+        }
+
+        fn fail_next_commit_with(&self, error: Error) {
+            *self.next_commit_error.lock().unwrap() = Some(error);
+        }
+
+        fn fail_next_metadata_sync_with(&self, error: Error) {
+            *self.next_metadata_sync_error.lock().unwrap() = Some(error);
         }
     }
 
@@ -1575,6 +1864,11 @@ mod tests {
         }
 
         fn sync_inode_metadata(&self, sync: SyncInodeMetadata) -> Result<InodeRecord> {
+            let next_error = self.next_metadata_sync_error.lock().unwrap().take();
+            if let Some(error) = next_error {
+                self.failed_metadata_syncs.lock().unwrap().push(sync);
+                return Err(error);
+            }
             let mut inode = self.inode.lock().unwrap();
             if inode.revision != sync.expected_inode_revision
                 || inode.head_version != sync.expected_head_version
@@ -1584,16 +1878,16 @@ mod tests {
             inode.revision = inode.revision.saturating_add(1);
             inode.attributes.mtime_unix_ms = sync.metadata_delta.mtime_unix_ms.unwrap();
             inode.attributes.ctime_unix_ms = sync.metadata_delta.ctime_unix_ms.unwrap();
+            self.metadata_syncs.lock().unwrap().push(sync);
             Ok(inode.clone())
         }
 
         fn commit_file_version(&self, commit: CommitFileVersion) -> Result<InodeRecord> {
-            let mut fail_next_commit = self.fail_next_commit.lock().unwrap();
-            if *fail_next_commit {
-                *fail_next_commit = false;
-                return Err(unavailable("injected test commit failure"));
+            let next_error = self.next_commit_error.lock().unwrap().take();
+            if let Some(error) = next_error {
+                self.failed_commits.lock().unwrap().push(commit);
+                return Err(error);
             }
-            drop(fail_next_commit);
             let mut inode = self.inode.lock().unwrap();
             if inode.revision != commit.expected_inode_revision
                 || inode.head_version != commit.expected_head_version
@@ -1644,7 +1938,7 @@ mod tests {
     }
 
     #[test]
-    fn dirty_view_is_inode_shared_and_only_sync_commits_a_version() {
+    fn readonly_handles_keep_opened_file_version_while_writer_sees_dirty() {
         let (_temp, meta, fs) = test_fs();
         let created = fs
             .create(
@@ -1667,12 +1961,21 @@ mod tests {
             .open(&context(), created.entry.inode, libc::O_RDONLY)
             .unwrap();
         let mut out = [0; 5];
-        assert_eq!(fs.read(&context(), reader, 0, &mut out).unwrap(), 5);
-        assert_eq!(&out, b"hello", "another handle must read the dirty overlay");
+        assert_eq!(
+            fs.read(&context(), reader, 0, &mut out).unwrap(),
+            0,
+            "readonly handle opened before the first FileVersion must stay on that empty snapshot"
+        );
 
         let writer = fs
             .open(&context(), created.entry.inode, libc::O_RDWR)
             .unwrap();
+        let mut writer_view = [0; 5];
+        assert_eq!(fs.read(&context(), writer, 0, &mut writer_view).unwrap(), 5);
+        assert_eq!(
+            &writer_view, b"hello",
+            "writer must keep seeing owner dirty"
+        );
         fs.release(&context(), created.handle).unwrap();
         assert_eq!(
             meta.commit_count(),
@@ -1694,6 +1997,16 @@ mod tests {
             "fsync after fdatasync must sync inode metadata without inventing another FileVersion"
         );
         assert_eq!(meta.inode.lock().unwrap().head_version, data_version);
+        let committed_reader = fs
+            .open(&context(), created.entry.inode, libc::O_RDONLY)
+            .unwrap();
+        let mut committed = [0; 5];
+        assert_eq!(
+            fs.read(&context(), committed_reader, 0, &mut committed)
+                .unwrap(),
+            5
+        );
+        assert_eq!(&committed, b"hello");
 
         fs.write(&context(), writer, 0, b"H").unwrap();
         fs.fsync(&context(), writer, SyncMode::Full).unwrap();
@@ -1707,10 +2020,25 @@ mod tests {
         drop(commits);
 
         let mut latest = [0; 5];
-        assert_eq!(fs.read(&context(), reader, 0, &mut latest).unwrap(), 5);
+        assert_eq!(fs.read(&context(), reader, 0, &mut latest).unwrap(), 0);
+        assert_eq!(
+            fs.read(&context(), committed_reader, 0, &mut latest)
+                .unwrap(),
+            5
+        );
+        assert_eq!(&latest, b"hello");
+        let fresh_reader = fs
+            .open(&context(), created.entry.inode, libc::O_RDONLY)
+            .unwrap();
+        assert_eq!(
+            fs.read(&context(), fresh_reader, 0, &mut latest).unwrap(),
+            5
+        );
         assert_eq!(&latest, b"Hello");
         fs.release(&context(), writer).unwrap();
         fs.release(&context(), reader).unwrap();
+        fs.release(&context(), committed_reader).unwrap();
+        fs.release(&context(), fresh_reader).unwrap();
         assert_eq!(fs.writeback_pending().unwrap(), 0);
     }
 
@@ -1887,8 +2215,8 @@ mod tests {
             .unwrap_err();
         assert_eq!(readonly_error.code(), afs_error::IO_BAD_FILE_DESCRIPTOR);
         let mut visible = [0; 8];
-        assert_eq!(fs.read(&context(), reader, 0, &mut visible).unwrap(), 3);
-        assert_eq!(&visible[..3], b"abc");
+        assert_eq!(fs.read(&context(), reader, 0, &mut visible).unwrap(), 8);
+        assert_eq!(&visible, b"abcdefgh");
 
         assert_eq!(fs.writeback_pending().unwrap(), 1);
         assert_eq!(meta.commit_count(), 2);
@@ -1899,7 +2227,205 @@ mod tests {
     }
 
     #[test]
-    fn failed_resize_commit_restores_overlay_and_length_for_retry() {
+    fn failed_metadata_only_sync_keeps_request_identity_and_blocks_writes() {
+        let (_temp, meta, fs) = test_fs();
+        let created = fs
+            .create(
+                &context(),
+                fs.root_inode(),
+                OsStr::new("metadata-retry.bin"),
+                0o640,
+                libc::O_RDWR,
+            )
+            .unwrap();
+        fs.write(&context(), created.handle, 0, b"data").unwrap();
+        fs.fsync(&context(), created.handle, SyncMode::DataOnly)
+            .unwrap();
+        assert_eq!(meta.commit_count(), 1);
+        assert!(meta.metadata_syncs.lock().unwrap().is_empty());
+
+        meta.fail_next_metadata_sync();
+        fs.fsync(&context(), created.handle, SyncMode::Full)
+            .unwrap_err();
+        let failed = meta.failed_metadata_syncs.lock().unwrap()[0].clone();
+        assert_eq!(
+            fs.write(&context(), created.handle, 4, b"!").unwrap(),
+            1,
+            "write must wait for the pending metadata sync retry before creating new dirty state"
+        );
+        let metadata_syncs = meta.metadata_syncs.lock().unwrap();
+        assert_eq!(metadata_syncs.len(), 1);
+        assert_eq!(failed.operation_id, metadata_syncs[0].operation_id);
+        assert_eq!(
+            failed.expected_inode_revision,
+            metadata_syncs[0].expected_inode_revision
+        );
+        assert_eq!(
+            failed.expected_head_version,
+            metadata_syncs[0].expected_head_version
+        );
+    }
+
+    #[test]
+    fn full_sync_after_pending_data_only_commit_also_syncs_metadata() {
+        let (_temp, meta, fs) = test_fs();
+        let created = fs
+            .create(
+                &context(),
+                fs.root_inode(),
+                OsStr::new("full-after-data-pending.bin"),
+                0o640,
+                libc::O_RDWR,
+            )
+            .unwrap();
+        fs.write(&context(), created.handle, 0, b"data").unwrap();
+        let dirty_mtime = {
+            let state = fs
+                .write_state(&meta.inode.lock().unwrap().inode_id)
+                .unwrap()
+                .unwrap();
+            state.lock().unwrap().inode.attributes.mtime_unix_ms
+        };
+
+        meta.fail_next_commit();
+        fs.fsync(&context(), created.handle, SyncMode::DataOnly)
+            .unwrap_err();
+        let failed = meta.failed_commits.lock().unwrap()[0].clone();
+
+        fs.fsync(&context(), created.handle, SyncMode::Full)
+            .unwrap();
+        let commits = meta.commits.lock().unwrap();
+        assert_eq!(commits.len(), 1);
+        assert_eq!(failed.operation_id, commits[0].operation_id);
+        assert_eq!(failed.file_version.id, commits[0].file_version.id);
+        assert_eq!(commits[0].metadata_delta.mode, CommitMetadataMode::DataOnly);
+        drop(commits);
+        let metadata_syncs = meta.metadata_syncs.lock().unwrap();
+        assert_eq!(metadata_syncs.len(), 1);
+        assert_eq!(
+            metadata_syncs[0].metadata_delta.mtime_unix_ms,
+            Some(dirty_mtime)
+        );
+        assert_eq!(
+            metadata_syncs[0].expected_head_version,
+            meta.inode.lock().unwrap().head_version
+        );
+    }
+
+    #[test]
+    fn deadline_commit_error_preserves_exact_batch_for_retry() {
+        let (_temp, meta, fs) = test_fs();
+        let created = fs
+            .create(
+                &context(),
+                fs.root_inode(),
+                OsStr::new("deadline-retry.bin"),
+                0o640,
+                libc::O_RDWR,
+            )
+            .unwrap();
+        fs.write(&context(), created.handle, 0, b"data").unwrap();
+
+        meta.fail_next_commit_with(Error::coded(
+            afs_error::CLIENT_DEADLINE_EXCEEDED,
+            "deadline while committing file version",
+        ));
+        fs.fsync(&context(), created.handle, SyncMode::Full)
+            .unwrap_err();
+        let failed = meta.failed_commits.lock().unwrap()[0].clone();
+
+        fs.fsync(&context(), created.handle, SyncMode::Full)
+            .unwrap();
+        let commits = meta.commits.lock().unwrap();
+        assert_eq!(commits.len(), 1);
+        assert_eq!(failed.operation_id, commits[0].operation_id);
+        assert_eq!(failed.file_version.id, commits[0].file_version.id);
+        assert_eq!(failed.layout_root.id, commits[0].layout_root.id);
+    }
+
+    #[test]
+    fn remote_status_metadata_error_preserves_exact_request_for_retry() {
+        let (_temp, meta, fs) = test_fs();
+        let created = fs
+            .create(
+                &context(),
+                fs.root_inode(),
+                OsStr::new("remote-status-metadata-retry.bin"),
+                0o640,
+                libc::O_RDWR,
+            )
+            .unwrap();
+        fs.write(&context(), created.handle, 0, b"data").unwrap();
+        fs.fsync(&context(), created.handle, SyncMode::DataOnly)
+            .unwrap();
+
+        meta.fail_next_metadata_sync_with(Error::new(
+            afs_error::CLIENT_REMOTE_STATUS,
+            afs_error::ErrorKind::Unavailable,
+            "remote status without AFS detail",
+        ));
+        fs.fsync(&context(), created.handle, SyncMode::Full)
+            .unwrap_err();
+        let failed = meta.failed_metadata_syncs.lock().unwrap()[0].clone();
+
+        fs.fsync(&context(), created.handle, SyncMode::Full)
+            .unwrap();
+        let metadata_syncs = meta.metadata_syncs.lock().unwrap();
+        assert_eq!(metadata_syncs.len(), 1);
+        assert_eq!(failed.operation_id, metadata_syncs[0].operation_id);
+        assert_eq!(
+            failed.expected_head_version,
+            metadata_syncs[0].expected_head_version
+        );
+    }
+
+    #[test]
+    fn definite_meta_invalid_blocks_subsequent_mutation() {
+        let (_temp, meta, fs) = test_fs();
+        let created = fs
+            .create(
+                &context(),
+                fs.root_inode(),
+                OsStr::new("terminal-invalid.bin"),
+                0o640,
+                libc::O_RDWR,
+            )
+            .unwrap();
+        fs.write(&context(), created.handle, 0, b"data").unwrap();
+
+        meta.fail_next_commit_with(Error::coded(
+            afs_error::META_CATALOG_INVALID_REQUEST,
+            "definite invalid commit",
+        ));
+        let error = fs
+            .fsync(&context(), created.handle, SyncMode::Full)
+            .unwrap_err();
+        assert_eq!(error.code(), afs_error::META_CATALOG_INVALID_REQUEST);
+
+        let mut visible = [0; 4];
+        assert_eq!(
+            fs.read(&context(), created.handle, 0, &mut visible)
+                .unwrap(),
+            4
+        );
+        assert_eq!(&visible, b"data");
+        assert_eq!(
+            fs.write(&context(), created.handle, 4, b"!")
+                .unwrap_err()
+                .code(),
+            afs_error::META_CATALOG_INVALID_REQUEST
+        );
+        assert_eq!(
+            fs.fsync(&context(), created.handle, SyncMode::Full)
+                .unwrap_err()
+                .code(),
+            afs_error::META_CATALOG_INVALID_REQUEST
+        );
+        assert_eq!(meta.commit_count(), 0);
+    }
+
+    #[test]
+    fn failed_resize_commit_keeps_batch_identity_and_blocks_new_dirty_for_retry() {
         let (_temp, meta, fs) = test_fs();
         let created = fs
             .create(
@@ -1928,6 +2454,7 @@ mod tests {
         meta.fail_next_commit();
         fs.fsync(&context(), created.handle, SyncMode::Full)
             .unwrap_err();
+        let failed = meta.failed_commits.lock().unwrap()[0].clone();
         let attrs = fs
             .getattr(&context(), created.entry.inode, Some(created.handle))
             .unwrap();
@@ -1939,14 +2466,32 @@ mod tests {
             4
         );
         assert_eq!(&visible[..4], b"abcd");
-
-        fs.fsync(&context(), created.handle, SyncMode::Full)
-            .unwrap();
+        assert_eq!(
+            fs.write(&context(), created.handle, 4, b"Z").unwrap(),
+            1,
+            "write must wait for the pending FileVersion retry before appending new dirty state"
+        );
         assert_eq!(meta.commit_count(), 2);
         let commits = meta.commits.lock().unwrap();
         let retried = commits.last().unwrap();
+        assert_eq!(failed.operation_id, retried.operation_id);
+        assert_eq!(failed.file_version.id, retried.file_version.id);
+        assert_eq!(failed.layout_root.id, retried.layout_root.id);
         assert_eq!(retried.file_version.length, 4);
         assert_eq!(retried.layout_root.file_length, 4);
         assert!(retried.chunk_receipts.is_empty());
+        drop(commits);
+        let attrs = fs
+            .setattr(
+                &context(),
+                created.entry.inode,
+                Some(created.handle),
+                &AttributeChange {
+                    size: Some(6),
+                    ..AttributeChange::default()
+                },
+            )
+            .unwrap();
+        assert_eq!(attrs.size, 6);
     }
 }

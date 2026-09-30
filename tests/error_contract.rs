@@ -11,7 +11,7 @@ use afs::{
     },
     runtime::Observability,
 };
-use afs_client::{LocalClient, LocalClientConfig};
+use afs_client::{DiagnosticLocalClient, DiagnosticLocalClientConfig};
 use afs_error::*;
 use axum::response::IntoResponse;
 use std::{sync::Arc, time::Duration};
@@ -24,9 +24,11 @@ async fn tcp_peer_and_local_sdk_preserve_identical_storage_identity() {
     let local = serve_local_api(storage.clone(), temp.path().join("node.sock"))
         .await
         .unwrap();
-    let sdk = LocalClient::connect(LocalClientConfig::new(temp.path().join("node.sock")))
-        .await
-        .unwrap();
+    let sdk = DiagnosticLocalClient::connect(DiagnosticLocalClientConfig::new(
+        temp.path().join("node.sock"),
+    ))
+    .await
+    .unwrap();
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let address = listener.local_addr().unwrap();
     let server = tokio::spawn(

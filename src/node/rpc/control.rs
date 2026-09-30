@@ -53,6 +53,48 @@ pub struct NodeControlConfig {
     pub rdma_device: Option<String>,
 }
 
+/// Identity established from an authenticated channel and a validated Node
+/// registration epoch. File grants and inode leases remain separate authority.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PeerSessionIdentity {
+    node_id: String,
+    node_epoch: u64,
+}
+
+impl PeerSessionIdentity {
+    pub fn new(authenticated_node_id: String, verified_node_epoch: u64) -> Result<Self, Status> {
+        if authenticated_node_id.is_empty() || verified_node_epoch == 0 {
+            return Err(Status::permission_denied(
+                "RDMA peer identity/epoch is incomplete",
+            ));
+        }
+        Ok(Self {
+            node_id: authenticated_node_id,
+            node_epoch: verified_node_epoch,
+        })
+    }
+}
+
+/// Authenticated business transports use this entry point after validating the
+/// channel and Node epoch. The legacy diagnostic RPC creates unbound sessions.
+pub async fn negotiate_for_peer(
+    registry: &RdmaSessionRegistry,
+    identity: PeerSessionIdentity,
+    request: NegotiateDataRequest,
+) -> Result<Response<NegotiateDataReply>, Status> {
+    if request.handshake_version != RDMA_HANDSHAKE_VERSION {
+        return Err(coded_status(
+            afs_error::NODE_RDMA_HANDSHAKE_VERSION,
+            "unsupported RDMA handshake version",
+        ));
+    }
+    let device = registry
+        .device
+        .clone()
+        .ok_or_else(|| Status::unimplemented("RDMA is not configured"))?;
+    negotiate_rdma(registry, device, request, Some(identity)).await
+}
+
 /// 服务端 RDMA session 表。
 ///
 /// 它把 control proto 里的 `session_id` 映射到服务端持有的 `RdmaEndpoint`。
@@ -85,6 +127,22 @@ impl RdmaSessionRegistry {
     }
 
     pub async fn session(&self, session_id: u64) -> Result<Arc<RdmaSession>, Status> {
+        self.session_with_identity(session_id, None).await
+    }
+
+    pub async fn session_for(
+        &self,
+        session_id: u64,
+        identity: &PeerSessionIdentity,
+    ) -> Result<Arc<RdmaSession>, Status> {
+        self.session_with_identity(session_id, Some(identity)).await
+    }
+
+    async fn session_with_identity(
+        &self,
+        session_id: u64,
+        identity: Option<&PeerSessionIdentity>,
+    ) -> Result<Arc<RdmaSession>, Status> {
         let session = self
             .inner
             .lock()
@@ -94,6 +152,11 @@ impl RdmaSessionRegistry {
             .ok_or_else(|| {
                 coded_status(afs_error::NODE_RDMA_SESSION_UNKNOWN, "unknown RDMA session")
             })?;
+        if session.peer_identity.as_ref() != identity {
+            return Err(Status::permission_denied(
+                "RDMA session belongs to another peer or transport scope",
+            ));
+        }
         if session.poisoned.load(Ordering::SeqCst) {
             return Err(coded_status(
                 afs_error::NODE_RDMA_SESSION_POISONED,
@@ -182,8 +245,33 @@ impl RdmaSessionRegistry {
 
     // Close/TTL 关闭的是新请求入口，不是文件操作的取消或 drain 屏障。
     // 已取得 Arc 的请求可以完成；endpoint 最后一个持有者释放时才销毁 QP/MR。
-    async fn remove(&self, session_id: u64) {
-        self.inner.lock().await.remove(&session_id);
+    async fn remove(&self, session_id: u64) -> Result<(), Status> {
+        self.close_with_identity(session_id, None).await
+    }
+
+    pub async fn close_for(
+        &self,
+        session_id: u64,
+        identity: &PeerSessionIdentity,
+    ) -> Result<(), Status> {
+        self.close_with_identity(session_id, Some(identity)).await
+    }
+
+    async fn close_with_identity(
+        &self,
+        session_id: u64,
+        identity: Option<&PeerSessionIdentity>,
+    ) -> Result<(), Status> {
+        let mut sessions = self.inner.lock().await;
+        if let Some(session) = sessions.get(&session_id)
+            && session.peer_identity.as_ref() != identity
+        {
+            return Err(Status::permission_denied(
+                "RDMA close identity does not match session owner",
+            ));
+        }
+        sessions.remove(&session_id);
+        Ok(())
     }
 }
 
@@ -192,6 +280,7 @@ impl RdmaSessionRegistry {
 /// `ready=false` 表示尚未消费真实 RDMA 探测接收完成；不是只缺一条 gRPC 确认。
 /// `poisoned=true` 时表示某次 DMA/命令可能处于未知状态，必须拒绝复用。
 pub struct RdmaSession {
+    peer_identity: Option<PeerSessionIdentity>,
     #[cfg(feature = "rdma")]
     pub endpoint: Arc<Mutex<RdmaEndpoint>>,
     ready: AtomicBool,
@@ -201,8 +290,9 @@ pub struct RdmaSession {
 
 impl RdmaSession {
     #[cfg(feature = "rdma")]
-    fn new(endpoint: RdmaEndpoint) -> Self {
+    fn new(endpoint: RdmaEndpoint, peer_identity: Option<PeerSessionIdentity>) -> Self {
         Self {
+            peer_identity,
             endpoint: Arc::new(Mutex::new(endpoint)),
             ready: AtomicBool::new(false),
             poisoned: AtomicBool::new(false),
@@ -249,14 +339,16 @@ impl NodeControl for NodeControlService {
                 handshake_version: RDMA_HANDSHAKE_VERSION,
             }));
         };
-        negotiate_rdma(&self.registry, device, request).await
+        negotiate_rdma(&self.registry, device, request, None).await
     }
 
     async fn close_data(
         &self,
         request: Request<CloseDataRequest>,
     ) -> Result<Response<CloseDataReply>, Status> {
-        self.registry.remove(request.into_inner().session_id).await;
+        self.registry
+            .remove(request.into_inner().session_id)
+            .await?;
         Ok(Response::new(CloseDataReply {}))
     }
 
@@ -283,6 +375,7 @@ async fn negotiate_rdma(
     registry: &RdmaSessionRegistry,
     device: String,
     request: NegotiateDataRequest,
+    identity: Option<PeerSessionIdentity>,
 ) -> Result<Response<NegotiateDataReply>, Status> {
     if request.client_info.len() != INFO_BYTES {
         return Err(coded_status(
@@ -308,7 +401,9 @@ async fn negotiate_rdma(
     })
     .await
     .map_err(|error| coded_status(afs_error::NODE_TRANSFER_INTERNAL, error.to_string()))??;
-    let session_id = registry.insert(RdmaSession::new(endpoint)).await?;
+    let session_id = registry
+        .insert(RdmaSession::new(endpoint, identity))
+        .await?;
     Ok(Response::new(NegotiateDataReply {
         session_id,
         server_info: info.to_vec(),
@@ -324,6 +419,7 @@ async fn negotiate_rdma(
     _registry: &RdmaSessionRegistry,
     _device: String,
     _request: NegotiateDataRequest,
+    _identity: Option<PeerSessionIdentity>,
 ) -> Result<Response<NegotiateDataReply>, Status> {
     Ok(Response::new(NegotiateDataReply {
         session_id: 0,
@@ -376,7 +472,7 @@ mod tests {
             session_error_code(&registry, 99).await,
             tonic::Code::FailedPrecondition
         );
-        registry.remove(99).await;
+        registry.remove(99).await.unwrap();
         assert_eq!(
             session_error_code(&registry, 99).await,
             tonic::Code::FailedPrecondition
@@ -390,6 +486,7 @@ mod tests {
         registry.inner.lock().await.insert(
             1,
             Arc::new(RdmaSession {
+                peer_identity: None,
                 ready: AtomicBool::new(true),
                 poisoned: AtomicBool::new(false),
                 last_used: StdMutex::new(Instant::now() - Duration::from_secs(1)),
@@ -409,5 +506,28 @@ mod tests {
             Ok(_) => panic!("session unexpectedly exists"),
             Err(status) => status.code(),
         }
+    }
+    #[cfg(not(feature = "rdma"))]
+    #[tokio::test]
+    async fn bound_session_rejects_diagnostic_and_other_peer_access() {
+        let registry = RdmaSessionRegistry::new(None);
+        let owner = PeerSessionIdentity::new("node-a".into(), 1).unwrap();
+        let other = PeerSessionIdentity::new("node-b".into(), 1).unwrap();
+        registry.inner.lock().await.insert(
+            7,
+            Arc::new(RdmaSession {
+                peer_identity: Some(owner.clone()),
+                ready: AtomicBool::new(true),
+                poisoned: AtomicBool::new(false),
+                last_used: StdMutex::new(Instant::now()),
+            }),
+        );
+        assert!(registry.session(7).await.is_err());
+        assert!(registry.remove(7).await.is_err());
+        assert!(registry.session_for(7, &other).await.is_err());
+        assert!(registry.close_for(7, &other).await.is_err());
+        assert!(registry.session_for(7, &owner).await.is_ok());
+        registry.close_for(7, &owner).await.unwrap();
+        assert!(registry.session_for(7, &owner).await.is_err());
     }
 }

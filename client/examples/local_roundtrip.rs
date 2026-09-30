@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use afs_client::{LocalClient, LocalClientConfig};
+use afs_client::{DiagnosticLocalClient, DiagnosticLocalClientConfig};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -12,7 +12,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let name = args
         .next()
         .unwrap_or_else(|| "local-roundtrip.bin".to_owned());
-    let client = LocalClient::connect(LocalClientConfig::new(socket_path)).await?;
+    let client =
+        DiagnosticLocalClient::connect(DiagnosticLocalClientConfig::new(socket_path)).await?;
     let written = client.write(&name, 0, b"AFShello".to_vec()).await?;
     let read = client.read(&name, 0, 8).await?;
     println!(

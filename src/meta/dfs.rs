@@ -9,12 +9,13 @@ use std::{
 use afs_error::{Error, Result};
 
 use crate::dfs::{
-    ChunkSources, CommitFileVersion, CommitMetadataMode, CopyId, CopyRecord, CopyRole, CopyState,
-    Dentry, DentryKey, DfsChunkSourcesReply, DfsChunkSourcesRequest, DfsReadGrant, FileVersion,
-    FileVersionId, InodeAttributes, InodeId, InodeKind, InodeRecord, LayoutRoot, LocalCopyPolicy,
-    NamespaceId, OperationId, PlacementHealth, PlacementRecord, PlacementSnapshot, ReplicaGroup,
-    ReplicaGroupId, ReplicaTarget, ReplicationConfig, ReplicationTask, ReplicationTaskId,
-    ReplicationTaskState, SourceCandidate, SyncInodeMetadata, WriteLease,
+    ChunkSources, CommitFileVersion, CommitMetadataMode, CopyId, CopyLocation, CopyRecord,
+    CopyRole, CopyState, Dentry, DentryKey, DfsChunkSourcesReply, DfsChunkSourcesRequest,
+    DfsReadGrant, FileVersion, FileVersionId, InodeAttributes, InodeId, InodeKind, InodeRecord,
+    LayoutRoot, LocalCopyPolicy, NamespaceId, OperationId, PlacementHealth, PlacementRecord,
+    PlacementSnapshot, ReplicaGroup, ReplicaGroupId, ReplicaTarget, ReplicationConfig,
+    ReplicationTask, ReplicationTaskId, ReplicationTaskState, SourceCandidate, SyncInodeMetadata,
+    WriteLease,
 };
 
 use super::store::{
@@ -473,9 +474,31 @@ impl DfsService {
                 chunks: Vec::new(),
             });
         }
-        let (version, layout) = self
-            .get_file_version(request.file_version_id.clone())
-            .await?;
+        let view = self.store.read_view().await?;
+        let Some(MetaEntity::DfsFileVersion(version)) = view
+            .read(MetaRead::DfsFileVersion(request.file_version_id.clone()))
+            .await?
+            .entity
+        else {
+            return Err(invalid("DFS read source FileVersion does not exist"));
+        };
+        let Some(MetaEntity::DfsLayoutRoot(layout)) = view
+            .read(MetaRead::DfsLayoutRoot(request.layout_root_id.clone()))
+            .await?
+            .entity
+        else {
+            return Err(invalid("DFS read source LayoutRoot does not exist"));
+        };
+        let Some(MetaEntity::DfsInode(inode)) = view
+            .read(MetaRead::DfsInode(version.inode_id.clone()))
+            .await?
+            .entity
+        else {
+            return Err(invalid("DFS read source inode does not exist"));
+        };
+        if inode.namespace_id != request.namespace_id {
+            return Err(invalid("DFS read source namespace does not match the file"));
+        }
         if version.layout_root != request.layout_root_id || layout.id != request.layout_root_id {
             return Err(conflict(
                 "DFS read source request references a stale LayoutRoot",
@@ -494,8 +517,7 @@ impl DfsService {
             }
         }
 
-        let caller_session = self
-            .store
+        let caller_session = view
             .read(MetaRead::CurrentNodeSession {
                 node_id: request.caller_id.clone(),
             })
@@ -514,10 +536,7 @@ impl DfsService {
         let mut revision = 0;
         let mut chunks = Vec::with_capacity(request.chunk_ids.len());
         for chunk_id in request.chunk_ids {
-            let placement_snapshot = self
-                .store
-                .read(MetaRead::DfsPlacement(chunk_id.clone()))
-                .await?;
+            let placement_snapshot = view.read(MetaRead::DfsPlacement(chunk_id.clone())).await?;
             revision = revision.max(placement_snapshot.revision.0);
             let Some(MetaEntity::DfsPlacement(placement)) = placement_snapshot.entity else {
                 chunks.push(ChunkSources {
@@ -528,7 +547,7 @@ impl DfsService {
             };
             let mut sources = Vec::new();
             for copy_id in placement.copies {
-                let copy_snapshot = self.store.read(MetaRead::DfsCopy(copy_id)).await?;
+                let copy_snapshot = view.read(MetaRead::DfsCopy(copy_id)).await?;
                 revision = revision.max(copy_snapshot.revision.0);
                 let Some(MetaEntity::DfsCopy(copy)) = copy_snapshot.entity else {
                     continue;
@@ -536,16 +555,25 @@ impl DfsService {
                 if copy.chunk_id != chunk_id || !copy.is_ready_durable() {
                     continue;
                 }
-                let session_snapshot = self
-                    .store
+                let CopyLocation::Node {
+                    node_id,
+                    node_epoch,
+                    device_id,
+                    device_epoch,
+                    catalog_revision,
+                } = &copy.location
+                else {
+                    continue;
+                }; // ExternalCommitted never masquerades as a Peer replica.
+                let session_snapshot = view
                     .read(MetaRead::CurrentNodeSession {
-                        node_id: copy.node_id.clone(),
+                        node_id: node_id.clone(),
                     })
                     .await?;
                 revision = revision.max(session_snapshot.revision.0);
                 let session = match session_snapshot.entity {
                     Some(MetaEntity::NodeSession(session))
-                        if session.lease_epoch == copy.node_epoch
+                        if session.lease_epoch == *node_epoch
                             && session.is_live_at_unix_ms(now_unix_ms()) =>
                     {
                         session
@@ -553,9 +581,9 @@ impl DfsService {
                     _ => continue,
                 };
                 let device_ok = session.storage_devices.iter().any(|device| {
-                    device.device_id == copy.device_id
-                        && device.device_epoch == copy.device_epoch
-                        && copy.catalog_revision >= device.catalog_revision
+                    device.device_id == *device_id
+                        && device.device_epoch == *device_epoch
+                        && *catalog_revision >= device.catalog_revision
                 });
                 if !device_ok {
                     continue;
@@ -573,8 +601,8 @@ impl DfsService {
                     chunk_id: chunk_id.clone(),
                     role: copy.role,
                     state: copy.state,
-                    location: copy.node_location(),
-                    data_endpoint: session.data_addr,
+                    location: copy.location.clone(),
+                    data_endpoint: Some(session.data_addr),
                     load_hint: 0,
                     read_grant: DfsReadGrant {
                         namespace_id: request.namespace_id.clone(),
@@ -961,11 +989,13 @@ impl DfsService {
                 )),
                 chunk_id: receipt.chunk.id.clone(),
                 role: CopyRole::DurableReplica,
-                node_id: ack.node_id.clone(),
-                node_epoch: ack.node_epoch,
-                device_id: ack.device_id.clone(),
-                device_epoch: ack.device_epoch,
-                catalog_revision: ack.catalog_revision,
+                location: CopyLocation::Node {
+                    node_id: ack.node_id.clone(),
+                    node_epoch: ack.node_epoch,
+                    device_id: ack.device_id.clone(),
+                    device_epoch: ack.device_epoch,
+                    catalog_revision: ack.catalog_revision,
+                },
                 state: CopyState::Ready,
                 persisted_bytes: ack.persisted_bytes,
                 verified_digest: ack.verified_digest.clone(),
@@ -1236,5 +1266,5 @@ fn require_id(value: &str, field: &str) -> Result<()> {
 }
 
 fn conflict(message: impl Into<String>) -> Error {
-    Error::coded(afs_error::IO_UNAVAILABLE, message)
+    Error::coded(afs_error::META_DFS_CONFLICT, message)
 }

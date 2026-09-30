@@ -13,7 +13,7 @@
 //! 已经发出的写如果结果不明，绝不换通道重放；RDMA in-flight 被取消时会 poison
 //! 当前 client/session，后续复用必须失败，避免重复写或顺序错乱。
 
-#[cfg(any(feature = "ownerfs", feature = "rdma", feature = "dfs"))]
+#[cfg(any(feature = "ownerfs", feature = "dfs", feature = "rdma", test))]
 use std::sync::Arc;
 #[cfg(feature = "rdma")]
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -135,16 +135,16 @@ impl crate::node::replication::ReplicaDataPlane for GrpcReplicaDataPlane {
         crate::node::replication::ReplicaTransferMode::GrpcStream
     }
 
-    fn prepare(&self, _plan: &crate::node::replication::ReplicationPlan) -> afs_error::Result<()> {
+    fn prepare_peer(&self, _op: &crate::node::replication::ReplicaPeerOp) -> afs_error::Result<()> {
         Err(afs_error::Error::coded(
             afs_error::NODE_VFS_UNIMPLEMENTED,
             "DFS gRPC replica transfer is not implemented; RN rejected before side effects",
         ))
     }
 
-    fn put_remote_replicas(
+    fn put_peer_replica(
         &self,
-        _plan: &crate::node::replication::ReplicationPlan,
+        _op: &crate::node::replication::ReplicaPeerOp,
         _staged: &crate::node::chunk::StagedChunk,
     ) -> afs_error::Result<Vec<crate::dfs::ReplicaAck>> {
         Err(afs_error::Error::coded(
@@ -164,16 +164,16 @@ impl crate::node::replication::ReplicaDataPlane for RdmaReplicaDataPlane {
         crate::node::replication::ReplicaTransferMode::RdmaOneSided
     }
 
-    fn prepare(&self, _plan: &crate::node::replication::ReplicationPlan) -> afs_error::Result<()> {
+    fn prepare_peer(&self, _op: &crate::node::replication::ReplicaPeerOp) -> afs_error::Result<()> {
         Err(afs_error::Error::coded(
             afs_error::NODE_VFS_UNIMPLEMENTED,
             "DFS RDMA replica transfer is not implemented; RN rejected before side effects",
         ))
     }
 
-    fn put_remote_replicas(
+    fn put_peer_replica(
         &self,
-        _plan: &crate::node::replication::ReplicationPlan,
+        _op: &crate::node::replication::ReplicaPeerOp,
         _staged: &crate::node::chunk::StagedChunk,
     ) -> afs_error::Result<Vec<crate::dfs::ReplicaAck>> {
         Err(afs_error::Error::coded(
@@ -194,22 +194,133 @@ pub fn make_replica_data_plane(
     }
 }
 
-#[cfg(feature = "dfs")]
-pub struct GrpcChunkTransfer {
-    clients: std::sync::Mutex<std::collections::HashMap<String, DfsChunksClient<Channel>>>,
-    runtime: PeerRuntime,
-    timeout: Duration,
+/// Node-owned connection resources shared by file reads, owner forwarding and
+/// replica commands. Epoch changes invalidate cached channels; grant/handle
+/// validity remains with the business operation, never with this pool.
+pub struct PeerConnectionPool {
+    config: afs_transport::GrpcConfig,
+    security: afs_transport::SecurityManager,
+    capacity: usize,
+    state: tokio::sync::Mutex<PeerPoolState>,
+}
+
+#[derive(Default)]
+struct PeerPoolState {
+    channels: std::collections::HashMap<(String, u64, String), CachedPeerChannel>,
+    // A channel eviction does not erase the highest authority generation seen.
+    high_water_epochs: std::collections::HashMap<String, u64>,
+}
+
+struct CachedPeerChannel {
+    channel: Channel,
+    touched: std::time::Instant,
+}
+
+impl PeerConnectionPool {
+    pub fn new(
+        config: afs_transport::GrpcConfig,
+        tls: afs_transport::TlsConfig,
+        capacity: usize,
+    ) -> afs_error::Result<Self> {
+        if capacity == 0 {
+            return Err(afs_error::Error::coded(
+                afs_error::CLIENT_ARGUMENT_INVALID,
+                "peer pool capacity must be positive",
+            ));
+        }
+        let security = afs_transport::SecurityManager::new(tls).map_err(|error| {
+            afs_error::Error::coded(afs_error::CLIENT_ARGUMENT_INVALID, error.to_string())
+        })?;
+        Ok(Self {
+            config,
+            security,
+            capacity,
+            state: tokio::sync::Mutex::new(PeerPoolState::default()),
+        })
+    }
+
+    pub async fn channel(
+        &self,
+        node_id: &str,
+        node_epoch: u64,
+        endpoint: &str,
+    ) -> afs_error::Result<Channel> {
+        if node_id.is_empty() || node_epoch == 0 || endpoint.is_empty() {
+            return Err(afs_error::Error::coded(
+                afs_error::CLIENT_ARGUMENT_INVALID,
+                "peer identity or endpoint is incomplete",
+            ));
+        }
+        let key = (node_id.to_owned(), node_epoch, endpoint.to_owned());
+        let mut state = self.state.lock().await;
+        if state
+            .high_water_epochs
+            .get(node_id)
+            .is_some_and(|epoch| node_epoch < *epoch)
+        {
+            return Err(afs_error::Error::coded(
+                afs_error::NODE_TRANSFER_UNAVAILABLE,
+                "peer candidate has an older Node epoch than the connection pool",
+            ));
+        }
+        if let Some(entry) = state.channels.get_mut(&key) {
+            entry.touched = std::time::Instant::now();
+            return Ok(entry.channel.clone());
+        }
+        let endpoint = Endpoint::from_shared(endpoint.to_owned()).map_err(|error| {
+            afs_error::Error::coded(afs_error::CLIENT_ARGUMENT_INVALID, error.to_string())
+        })?;
+        let endpoint = self
+            .security
+            .configure_client(self.config.configure_client(endpoint))
+            .map_err(|error| {
+                afs_error::Error::coded(afs_error::CLIENT_ARGUMENT_INVALID, error.to_string())
+            })?;
+        // No await occurs from the epoch check through publication. Lazy
+        // connection completion cannot reinsert a stale channel after an epoch
+        // advance; both the channel and its high-water mark publish under lock.
+        let channel = endpoint.connect_lazy();
+        state
+            .high_water_epochs
+            .insert(node_id.to_owned(), node_epoch);
+        let channels = &mut state.channels;
+        channels.retain(|(id, epoch, _), _| id != node_id || *epoch == node_epoch);
+        if channels.len() >= self.capacity
+            && let Some(oldest) = channels
+                .iter()
+                .min_by_key(|(_, value)| value.touched)
+                .map(|(key, _)| key.clone())
+        {
+            channels.remove(&oldest);
+        }
+        channels.insert(
+            key,
+            CachedPeerChannel {
+                channel: channel.clone(),
+                touched: std::time::Instant::now(),
+            },
+        );
+        Ok(channel)
+    }
 }
 
 #[cfg(feature = "dfs")]
-impl Default for GrpcChunkTransfer {
-    fn default() -> Self {
-        Self {
-            clients: std::sync::Mutex::new(std::collections::HashMap::new()),
-            runtime: PeerRuntime::current_or_new()
-                .expect("DFS peer read client runtime must be available or constructible"),
-            timeout: Duration::from_secs(5),
-        }
+pub struct GrpcChunkTransfer {
+    peers: Arc<PeerConnectionPool>,
+    runtime: PeerRuntime,
+    timeout: Duration,
+    next_read: std::sync::atomic::AtomicU64,
+}
+
+#[cfg(feature = "dfs")]
+impl GrpcChunkTransfer {
+    pub fn new(peers: Arc<PeerConnectionPool>, timeout: Duration) -> afs_error::Result<Self> {
+        Ok(Self {
+            peers,
+            runtime: PeerRuntime::current_or_new().map_err(|error| error.0)?,
+            timeout,
+            next_read: std::sync::atomic::AtomicU64::new(1),
+        })
     }
 }
 
@@ -217,156 +328,210 @@ impl Default for GrpcChunkTransfer {
 impl crate::node::dfs_read::ChunkTransfer for GrpcChunkTransfer {
     fn read_ranges(
         &self,
-        source: &crate::dfs::SourceCandidate,
-        batch: &crate::node::dfs_read::ReadBatch,
+        batch: &crate::node::dfs_read::PeerReadBatch,
         out: &mut [u8],
     ) -> afs_error::Result<()> {
-        if source.data_endpoint.is_empty() {
-            return Err(afs_error::Error::coded(
-                afs_error::NODE_TRANSFER_INVALID,
-                "DFS source has no data endpoint",
-            ));
-        }
-        let mut client = self.client(&source.data_endpoint)?;
+        batch.validate(out.len())?;
+        let first = &batch.operations[0].source;
+        let crate::dfs::CopyLocation::Node {
+            node_id,
+            node_epoch,
+            ..
+        } = &first.location
+        else {
+            return Err(dfs_protocol_error("peer read candidate is not a Node copy"));
+        };
+        let sequence = self
+            .next_read
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         let request = DfsReadRangesRequest {
-            read_id: format!("read-{}", source.read_grant.fence),
-            attempt_id: source.copy_id.0.clone(),
-            file_version_id: source.read_grant.file_version_id.0.clone(),
-            layout_root_id: source.read_grant.layout_root_id.0.clone(),
-            grant: Some(wire_dfs_read_grant(&source.read_grant)),
+            read_id: format!(
+                "{}-{}-{sequence}",
+                first.read_grant.caller_node_id, first.read_grant.caller_node_epoch
+            ),
+            attempt_id: format!("{node_id}-{node_epoch}-{sequence}"),
+            file_version_id: batch.file_version_id.0.clone(),
+            layout_root_id: batch.layout_root_id.0.clone(),
             operations: batch
-                .ops
+                .operations
                 .iter()
                 .enumerate()
-                .map(|(index, op)| DfsChunkReadOp {
-                    operation_index: u32::try_from(index).unwrap_or(u32::MAX),
-                    chunk_id: op.chunk_id.0.clone(),
-                    chunk_offset: op.chunk_offset,
-                    length: op.length,
-                    destination_offset: op.output_offset as u64,
-                    source_copy_id: source.copy_id.0.clone(),
+                .map(|(index, item)| DfsChunkReadOp {
+                    operation_index: index as u32,
+                    chunk_id: item.op.chunk_id.0.clone(),
+                    chunk_offset: item.op.chunk_offset,
+                    length: item.op.length,
+                    destination_offset: item.op.output_offset as u64,
+                    source_copy_id: item.source.copy_id.0.clone(),
+                    grant: Some(wire_dfs_read_grant(&item.source.read_grant)),
                 })
                 .collect(),
         };
         self.runtime.block_on(async {
-            let response = tokio::time::timeout(
-                self.timeout,
-                client.read_ranges(request_with_current_context(request)),
-            )
+            // One deadline covers connection, response headers and every frame.
+            tokio::time::timeout(self.timeout, async {
+                let channel = self
+                    .peers
+                    .channel(
+                        node_id,
+                        *node_epoch,
+                        first
+                            .node_data_endpoint()
+                            .ok_or_else(|| dfs_protocol_error("peer source has no endpoint"))?,
+                    )
+                    .await?;
+                let mut client = DfsChunksClient::new(channel)
+                    .max_encoding_message_size(self.peers.config.max_encoding_message_bytes)
+                    .max_decoding_message_size(self.peers.config.max_decoding_message_bytes);
+                let mut rpc_request = request_with_current_context(request.clone());
+                rpc_request.set_timeout(self.timeout);
+                let response = client
+                    .read_ranges(rpc_request)
+                    .await
+                    .map_err(afs_transport::grpc::error_status::status_to_error)?;
+                let mut stream = response.into_inner();
+                let mut decoder = ReadFrameDecoder::new(&request);
+                while let Some(frame) = stream
+                    .message()
+                    .await
+                    .map_err(afs_transport::grpc::error_status::status_to_error)?
+                {
+                    decoder.accept(frame, out)?;
+                }
+                decoder.finish()
+            })
             .await
             .map_err(|_| {
                 afs_error::Error::coded(
                     afs_error::CLIENT_DEADLINE_EXCEEDED,
-                    "DFS peer read timed out",
+                    "DFS peer read total deadline exceeded",
                 )
             })?
-            .map_err(afs_transport::grpc::error_status::status_to_error)?;
-            let mut stream = response.into_inner();
-            let mut active: Option<ActivePeerRead> = None;
-            while let Some(frame) = stream
-                .message()
-                .await
-                .map_err(afs_transport::grpc::error_status::status_to_error)?
-            {
-                match frame.body {
-                    Some(dfs_read_ranges_frame::Body::Header(header)) => {
-                        let index = usize::try_from(header.operation_index).map_err(|_| {
-                            protocol_error("DFS peer read operation index is too large")
-                        })?;
-                        let op = batch.ops.get(index).ok_or_else(|| {
-                            protocol_error("DFS peer read returned an unknown operation index")
-                        })?;
-                        if header.chunk_id != op.chunk_id.0
-                            || header.chunk_offset != op.chunk_offset
-                            || header.length != op.length
-                            || header.source_copy_id != source.copy_id.0
-                        {
-                            return Err(protocol_error(
-                                "DFS peer read header does not match the request",
-                            ));
-                        }
-                        let length = usize::try_from(op.length)
-                            .map_err(|_| protocol_error("DFS peer read length is too large"))?;
-                        let end = op
-                            .output_offset
-                            .checked_add(length)
-                            .ok_or_else(|| protocol_error("DFS peer read destination overflow"))?;
-                        if end > out.len() {
-                            return Err(protocol_error("DFS peer read data exceeds destination"));
-                        }
-                        active = Some(ActivePeerRead {
-                            start: op.output_offset,
-                            end,
-                            cursor: op.output_offset,
-                        });
-                    }
-                    Some(dfs_read_ranges_frame::Body::Data(data)) => {
-                        let Some(active) = active.as_mut() else {
-                            return Err(protocol_error("DFS peer read sent data before a header"));
-                        };
-                        let next = active
-                            .cursor
-                            .checked_add(data.len())
-                            .ok_or_else(|| protocol_error("DFS peer read cursor overflow"))?;
-                        if active.cursor < active.start || next > active.end {
-                            return Err(protocol_error("DFS peer read sent too much data"));
-                        }
-                        out[active.cursor..next].copy_from_slice(&data);
-                        active.cursor = next;
-                    }
-                    Some(dfs_read_ranges_frame::Body::Completion(completion)) => {
-                        let Some(active) = active.take() else {
-                            return Err(protocol_error("DFS peer read completed before a header"));
-                        };
-                        let expected = active.end - active.start;
-                        if active.cursor != active.end
-                            || completion.source_copy_id != source.copy_id.0
-                            || completion.transferred_bytes != expected as u64
-                        {
-                            return Err(protocol_error(
-                                "DFS peer read completion does not match transferred data",
-                            ));
-                        }
-                    }
-                    None => return Err(protocol_error("DFS peer read returned an empty frame")),
-                }
-            }
-            if active.is_some() {
-                return Err(protocol_error("DFS peer read stream ended mid range"));
-            }
-            Ok(())
         })
     }
 }
 
 #[cfg(feature = "dfs")]
-impl GrpcChunkTransfer {
-    fn client(&self, endpoint: &str) -> afs_error::Result<DfsChunksClient<Channel>> {
-        let mut clients = self.clients.lock().map_err(|_| {
-            afs_error::Error::coded(
-                afs_error::CLIENT_WORKER_FAILED,
-                "DFS peer read client cache lock poisoned",
-            )
-        })?;
-        if let Some(client) = clients.get(endpoint) {
-            return Ok(client.clone());
-        }
-        let channel = self.runtime.block_on(async {
-            connect_channel(endpoint, self.timeout)
-                .await
-                .map_err(|error| error.0)
-        })?;
-        let client = DfsChunksClient::new(channel);
-        clients.insert(endpoint.to_owned(), client.clone());
-        Ok(client)
-    }
+struct ReadFrameDecoder<'a> {
+    request: &'a DfsReadRangesRequest,
+    completed: Vec<bool>,
+    active: Option<ActivePeerRead>,
 }
 
 #[cfg(feature = "dfs")]
 struct ActivePeerRead {
+    index: usize,
     start: usize,
     end: usize,
     cursor: usize,
+    checksum: blake3::Hasher,
+}
+
+#[cfg(feature = "dfs")]
+impl<'a> ReadFrameDecoder<'a> {
+    fn new(request: &'a DfsReadRangesRequest) -> Self {
+        Self {
+            request,
+            completed: vec![false; request.operations.len()],
+            active: None,
+        }
+    }
+
+    fn accept(
+        &mut self,
+        frame: afs_protocol::node_data::DfsReadRangesFrame,
+        out: &mut [u8],
+    ) -> afs_error::Result<()> {
+        match frame.body {
+            Some(dfs_read_ranges_frame::Body::Header(header)) => {
+                let index = header.operation_index as usize;
+                let op = self
+                    .request
+                    .operations
+                    .get(index)
+                    .ok_or_else(|| dfs_protocol_error("unknown peer read operation"))?;
+                if self.active.is_some()
+                    || self.completed[index]
+                    || header.read_id != self.request.read_id
+                    || header.attempt_id != self.request.attempt_id
+                    || header.operation_index != op.operation_index
+                    || header.chunk_id != op.chunk_id
+                    || header.chunk_offset != op.chunk_offset
+                    || header.length != op.length
+                    || header.source_copy_id != op.source_copy_id
+                {
+                    return Err(dfs_protocol_error(
+                        "peer read header identity/order mismatch",
+                    ));
+                }
+                let start = usize::try_from(op.destination_offset)
+                    .map_err(|_| dfs_protocol_error("read destination overflow"))?;
+                let length = usize::try_from(op.length)
+                    .map_err(|_| dfs_protocol_error("read length overflow"))?;
+                let end = start
+                    .checked_add(length)
+                    .filter(|end| *end <= out.len())
+                    .ok_or_else(|| dfs_protocol_error("read exceeds destination"))?;
+                self.active = Some(ActivePeerRead {
+                    index,
+                    start,
+                    end,
+                    cursor: start,
+                    checksum: blake3::Hasher::new(),
+                });
+            }
+            Some(dfs_read_ranges_frame::Body::Data(data)) => {
+                let active = self
+                    .active
+                    .as_mut()
+                    .ok_or_else(|| dfs_protocol_error("peer data without header"))?;
+                let next = active
+                    .cursor
+                    .checked_add(data.len())
+                    .filter(|end| *end <= active.end)
+                    .ok_or_else(|| dfs_protocol_error("peer sent too much data"))?;
+                out[active.cursor..next].copy_from_slice(&data);
+                active.checksum.update(&data);
+                active.cursor = next;
+            }
+            Some(dfs_read_ranges_frame::Body::Completion(completion)) => {
+                let active = self
+                    .active
+                    .take()
+                    .ok_or_else(|| dfs_protocol_error("completion without header"))?;
+                let op = &self.request.operations[active.index];
+                if completion.read_id != self.request.read_id
+                    || completion.attempt_id != self.request.attempt_id
+                    || completion.operation_index != op.operation_index
+                    || completion.source_copy_id != op.source_copy_id
+                    || active.cursor != active.end
+                    || completion.transferred_bytes != (active.end - active.start) as u64
+                    || completion.range_checksum_algorithm
+                        != afs_protocol::node_data::DfsDigestAlgorithm::Blake3 as i32
+                    || completion.range_checksum.as_slice() != active.checksum.finalize().as_bytes()
+                {
+                    return Err(dfs_protocol_error(
+                        "peer read completion identity/length/checksum mismatch",
+                    ));
+                }
+                self.completed[active.index] = true;
+            }
+            None => return Err(dfs_protocol_error("empty peer frame")),
+        }
+        Ok(())
+    }
+
+    fn finish(self) -> afs_error::Result<()> {
+        if self.active.is_some()
+            || self.completed.is_empty()
+            || self.completed.iter().any(|done| !done)
+        {
+            return Err(dfs_protocol_error(
+                "peer stream omitted a requested operation or completion",
+            ));
+        }
+        Ok(())
+    }
 }
 
 #[cfg(feature = "dfs")]
@@ -384,7 +549,7 @@ fn wire_dfs_read_grant(grant: &crate::dfs::DfsReadGrant) -> PbDfsReadGrant {
 }
 
 #[cfg(feature = "dfs")]
-fn protocol_error(message: impl Into<String>) -> afs_error::Error {
+fn dfs_protocol_error(message: impl Into<String>) -> afs_error::Error {
     afs_error::Error::coded(afs_error::CLIENT_PROTOCOL_VIOLATION, message)
 }
 
@@ -396,24 +561,152 @@ pub struct RdmaChunkTransfer;
 impl crate::node::dfs_read::ChunkTransfer for RdmaChunkTransfer {
     fn read_ranges(
         &self,
-        _source: &crate::dfs::SourceCandidate,
-        _batch: &crate::node::dfs_read::ReadBatch,
+        _batch: &crate::node::dfs_read::PeerReadBatch,
         _out: &mut [u8],
     ) -> afs_error::Result<()> {
         Err(afs_error::Error::coded(
             afs_error::NODE_TRANSFER_UNSUPPORTED,
-            "DFS RDMA range read is not implemented in the phase-one read path",
+            "DFS RDMA range read is not implemented",
         ))
     }
 }
 
 #[cfg(feature = "dfs")]
-#[must_use]
-pub fn make_chunk_transfer(mode: DataMode) -> Arc<dyn crate::node::dfs_read::ChunkTransfer> {
+pub fn make_chunk_transfer(
+    mode: DataMode,
+    peers: Arc<PeerConnectionPool>,
+    timeout: Duration,
+) -> afs_error::Result<Arc<dyn crate::node::dfs_read::ChunkTransfer>> {
     match mode {
-        DataMode::Rdma => Arc::new(RdmaChunkTransfer),
-        DataMode::Grpc | DataMode::Auto => Arc::new(GrpcChunkTransfer::default()),
+        DataMode::Rdma => Ok(Arc::new(RdmaChunkTransfer)),
+        DataMode::Grpc | DataMode::Auto => Ok(Arc::new(GrpcChunkTransfer::new(peers, timeout)?)),
     }
+}
+
+/// Transport adapter for already-open DFS writer handles. There is deliberately
+/// no automatic retry/fallback of mutating operations after an uncertain reply.
+#[cfg(feature = "dfs")]
+pub trait RemoteDfsOwner: Send + Sync {
+    fn read(
+        &self,
+        request: afs_protocol::node_data::DfsOwnerReadRequest,
+    ) -> afs_error::Result<afs_protocol::node_data::DfsOwnerReadReply>;
+    fn write(
+        &self,
+        request: afs_protocol::node_data::DfsOwnerWriteRequest,
+    ) -> afs_error::Result<afs_protocol::node_data::DfsOwnerWriteReply>;
+    fn resize(
+        &self,
+        request: afs_protocol::node_data::DfsOwnerResizeRequest,
+    ) -> afs_error::Result<afs_protocol::node_data::DfsOwnerResizeReply>;
+    fn sync(
+        &self,
+        request: afs_protocol::node_data::DfsOwnerSyncRequest,
+    ) -> afs_error::Result<afs_protocol::node_data::DfsOwnerSyncReply>;
+}
+
+#[cfg(feature = "dfs")]
+pub struct GrpcDfsOwnerClient {
+    peers: Arc<PeerConnectionPool>,
+    node_id: String,
+    node_epoch: u64,
+    endpoint: String,
+    runtime: PeerRuntime,
+    timeout: Duration,
+}
+
+#[cfg(feature = "dfs")]
+impl GrpcDfsOwnerClient {
+    pub fn new(
+        peers: Arc<PeerConnectionPool>,
+        node_id: String,
+        node_epoch: u64,
+        endpoint: String,
+        timeout: Duration,
+    ) -> afs_error::Result<Self> {
+        Ok(Self {
+            peers,
+            node_id,
+            node_epoch,
+            endpoint,
+            timeout,
+            runtime: PeerRuntime::current_or_new().map_err(|error| error.0)?,
+        })
+    }
+
+    async fn client(
+        &self,
+    ) -> afs_error::Result<
+        afs_protocol::node_data::dfs_owner_files_client::DfsOwnerFilesClient<Channel>,
+    > {
+        let channel = self
+            .peers
+            .channel(&self.node_id, self.node_epoch, &self.endpoint)
+            .await?;
+        Ok(
+            afs_protocol::node_data::dfs_owner_files_client::DfsOwnerFilesClient::new(channel)
+                .max_encoding_message_size(self.peers.config.max_encoding_message_bytes)
+                .max_decoding_message_size(self.peers.config.max_decoding_message_bytes),
+        )
+    }
+}
+
+#[cfg(feature = "dfs")]
+macro_rules! dfs_owner_rpc {
+    ($method:ident, $request:ty, $reply:ty) => {
+        fn $method(&self, request: $request) -> afs_error::Result<$reply> {
+            if request
+                .handle
+                .as_ref()
+                .is_none_or(|handle| handle.owner_node_id != self.node_id)
+            {
+                return Err(dfs_protocol_error("DFS owner request targets another Node"));
+            }
+            self.runtime.block_on(async {
+                tokio::time::timeout(self.timeout, async {
+                    let mut client = self.client().await?;
+                    let mut request = request_with_current_context(request);
+                    request.set_timeout(self.timeout);
+                    client
+                        .$method(request)
+                        .await
+                        .map(tonic::Response::into_inner)
+                        .map_err(afs_transport::grpc::error_status::status_to_error)
+                })
+                .await
+                .map_err(|_| {
+                    afs_error::Error::coded(
+                        afs_error::CLIENT_DEADLINE_EXCEEDED,
+                        "DFS owner request result may be unknown; preserve its operation ID",
+                    )
+                })?
+            })
+        }
+    };
+}
+
+#[cfg(feature = "dfs")]
+impl RemoteDfsOwner for GrpcDfsOwnerClient {
+    dfs_owner_rpc!(
+        read,
+        afs_protocol::node_data::DfsOwnerReadRequest,
+        afs_protocol::node_data::DfsOwnerReadReply
+    );
+    dfs_owner_rpc!(
+        write,
+        afs_protocol::node_data::DfsOwnerWriteRequest,
+        afs_protocol::node_data::DfsOwnerWriteReply
+    );
+    dfs_owner_rpc!(
+        resize,
+        afs_protocol::node_data::DfsOwnerResizeRequest,
+        afs_protocol::node_data::DfsOwnerResizeReply
+    );
+    dfs_owner_rpc!(
+        sync,
+        afs_protocol::node_data::DfsOwnerSyncRequest,
+        afs_protocol::node_data::DfsOwnerSyncReply
+    );
 }
 
 #[derive(Clone, Debug)]
@@ -1703,7 +1996,7 @@ fn time_to_ns(time: SystemTime) -> u64 {
         .min(u128::from(u64::MAX)) as u64
 }
 
-#[cfg(all(feature = "ownerfs", not(feature = "dfs")))]
+#[cfg(feature = "ownerfs")]
 fn protocol_error(message: &'static str) -> afs_error::Error {
     afs_error::Error::coded(afs_error::CLIENT_PROTOCOL_VIOLATION, message)
 }
@@ -2134,5 +2427,160 @@ mod tests {
             tokio::time::sleep(Duration::from_millis(5)).await;
         }
         panic!("condition did not become true before timeout");
+    }
+    #[cfg(feature = "dfs")]
+    fn range_request() -> DfsReadRangesRequest {
+        DfsReadRangesRequest {
+            read_id: "read".into(),
+            attempt_id: "attempt".into(),
+            file_version_id: "version".into(),
+            layout_root_id: "layout".into(),
+            operations: (0..2)
+                .map(|index| DfsChunkReadOp {
+                    operation_index: index,
+                    chunk_id: format!("chunk-{index}"),
+                    chunk_offset: 0,
+                    length: 1,
+                    destination_offset: u64::from(index),
+                    source_copy_id: format!("copy-{index}"),
+                    grant: None,
+                })
+                .collect(),
+        }
+    }
+
+    #[cfg(feature = "dfs")]
+    fn range_frames(
+        request: &DfsReadRangesRequest,
+        index: usize,
+    ) -> Vec<afs_protocol::node_data::DfsReadRangesFrame> {
+        use afs_protocol::node_data::{
+            DfsReadRangesCompletion, DfsReadRangesFrame, DfsReadRangesHeader,
+        };
+        let op = &request.operations[index];
+        vec![
+            DfsReadRangesFrame {
+                body: Some(dfs_read_ranges_frame::Body::Header(DfsReadRangesHeader {
+                    read_id: request.read_id.clone(),
+                    attempt_id: request.attempt_id.clone(),
+                    operation_index: op.operation_index,
+                    chunk_id: op.chunk_id.clone(),
+                    chunk_offset: op.chunk_offset,
+                    length: op.length,
+                    source_copy_id: op.source_copy_id.clone(),
+                })),
+            },
+            DfsReadRangesFrame {
+                body: Some(dfs_read_ranges_frame::Body::Data(vec![b'a' + index as u8])),
+            },
+            DfsReadRangesFrame {
+                body: Some(dfs_read_ranges_frame::Body::Completion(
+                    DfsReadRangesCompletion {
+                        read_id: request.read_id.clone(),
+                        attempt_id: request.attempt_id.clone(),
+                        operation_index: op.operation_index,
+                        source_copy_id: op.source_copy_id.clone(),
+                        transferred_bytes: op.length,
+                        range_checksum: blake3::hash(&[b'a' + index as u8]).as_bytes().to_vec(),
+                        range_checksum_algorithm:
+                            afs_protocol::node_data::DfsDigestAlgorithm::Blake3 as i32,
+                    },
+                )),
+            },
+        ]
+    }
+
+    #[cfg(feature = "dfs")]
+    #[test]
+    fn range_decoder_requires_every_operation_and_completion() {
+        let request = range_request();
+        assert!(ReadFrameDecoder::new(&request).finish().is_err());
+        let mut partial = ReadFrameDecoder::new(&request);
+        let mut out = [0; 2];
+        for frame in range_frames(&request, 0) {
+            partial.accept(frame, &mut out).unwrap();
+        }
+        assert!(partial.finish().is_err());
+        let mut complete = ReadFrameDecoder::new(&request);
+        for index in 0..2 {
+            for frame in range_frames(&request, index) {
+                complete.accept(frame, &mut out).unwrap();
+            }
+        }
+        complete.finish().unwrap();
+        assert_eq!(&out, b"ab");
+    }
+
+    #[cfg(feature = "dfs")]
+    #[test]
+    fn range_decoder_rejects_duplicate_stale_and_corrupt_frames() {
+        let request = range_request();
+        let mut out = [0; 2];
+        let mut decoder = ReadFrameDecoder::new(&request);
+        for frame in range_frames(&request, 0) {
+            decoder.accept(frame, &mut out).unwrap();
+        }
+        assert!(
+            decoder
+                .accept(range_frames(&request, 0).remove(0), &mut out)
+                .is_err()
+        );
+        for malformed in 0..4 {
+            let mut frames = range_frames(&request, 0);
+            if let Some(dfs_read_ranges_frame::Body::Completion(completion)) = &mut frames[2].body {
+                match malformed {
+                    0 => completion.attempt_id = "old-attempt".into(),
+                    1 => completion.operation_index = 1,
+                    2 => completion.range_checksum[0] ^= 1,
+                    _ => completion.source_copy_id = "other-copy".into(),
+                }
+            }
+            let mut decoder = ReadFrameDecoder::new(&request);
+            decoder.accept(frames.remove(0), &mut out).unwrap();
+            decoder.accept(frames.remove(0), &mut out).unwrap();
+            assert!(decoder.accept(frames.remove(0), &mut out).is_err());
+        }
+    }
+
+    #[tokio::test]
+    async fn peer_pool_never_regresses_epoch_even_after_channel_eviction() {
+        let pool = Arc::new(
+            PeerConnectionPool::new(
+                afs_transport::GrpcConfig::default(),
+                afs_transport::TlsConfig::Disabled,
+                1,
+            )
+            .unwrap(),
+        );
+        let endpoint = "http://127.0.0.1:9";
+        pool.channel("peer", 1, endpoint).await.unwrap();
+        let release_old = Arc::new(tokio::sync::Notify::new());
+        let delayed_pool = pool.clone();
+        let delayed_gate = release_old.clone();
+        let old_lookup = tokio::spawn(async move {
+            delayed_gate.notified().await;
+            delayed_pool.channel("peer", 1, endpoint).await
+        });
+        pool.channel("peer", 2, endpoint).await.unwrap();
+        release_old.notify_one();
+        assert!(old_lookup.await.unwrap().is_err());
+        {
+            let state = pool.state.lock().await;
+            assert_eq!(state.high_water_epochs.get("peer"), Some(&2));
+            assert!(
+                state
+                    .channels
+                    .keys()
+                    .all(|(node, epoch, _)| node != "peer" || *epoch == 2)
+            );
+        }
+        pool.channel("other", 1, endpoint).await.unwrap(); // evicts peer's channel, not its epoch
+        assert!(pool.channel("peer", 1, endpoint).await.is_err());
+        pool.channel("peer", 3, endpoint).await.unwrap();
+        assert!(pool.channel("peer", 2, endpoint).await.is_err());
+        assert_eq!(
+            pool.state.lock().await.high_water_epochs.get("peer"),
+            Some(&3)
+        );
     }
 }

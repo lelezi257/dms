@@ -48,10 +48,17 @@ The file layer batches work at sync boundaries, so the hot path is not one RPC p
 
 | Case | Meta RPCs | Peer data RPCs | Notes |
 | --- | --- | --- | --- |
-| `write` with an existing owner | 0 | 0 | updates inode dirty state on the owner |
-| R=1 `fdatasync` / `fsync` | commit RPC after local chunk receipts; placement may be cached or refreshed | 0 | local finalization satisfies the replica policy |
-| R=N `fdatasync` / `fsync` | same final commit RPC after receipts | one transfer path per required remote copy or chain link | replication differs below `ChunkStore` only |
-| read-only `open` | resolve current head and layout | 0 | fixes one version for the handle |
-| fixed-version peer read | source lookup may be cached or refreshed | range read from selected peer | served only after authorization |
+| local-owner `write` | 0 | 0 | updates inode dirty state; remote-owner access adds one forwarding RPC |
+| R=1 changed-data sync | 1 final commit | 0 | cached placement and valid lease; refresh/renew may add RPCs |
+| R=N changed-data sync | 1 final commit | N-1 chain-link transfers per chunk, with batching | only replication below `ChunkStore` changes |
+| read-only `open` | head lookup + version/layout lookup, up to 2 without cache | 0 | fixes one version for the handle |
+| fixed-version peer read | 0 on valid source cache; source refresh otherwise | 1 range-read batch per selected peer/context | each operation retains its authorization |
 
 The exact transport can be request/response, streaming, RDMA descriptors or another data-plane mechanism. The contract is that small data can be carried inline, while large data should move through a data path that avoids unnecessary copies and still returns the same receipt semantics.
+
+
+## Peer Connection Reuse
+
+Peer connection pooling belongs below replication and read planning. A pool can reuse channels and cap peer endpoints, but it must not cache authorization or file-version decisions. Those decisions stay with the `ReplicationPlan`, `DfsReadGrant` and per-operation request identity.
+
+A no-change barrier can need zero Meta commits. A metadata-only full sync needs one metadata commit. Full sync following an unresolved data-only request may need the original request retry and then a metadata commit. These counts describe logical successful requests; transport retries reuse the exact operation identity and add attempts. Node-to-Meta control requests are separate from Node-to-Node byte transfers.

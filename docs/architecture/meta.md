@@ -26,3 +26,7 @@ Meta service processes can be stateless with respect to local memory only when t
 ## Snapshot Reads
 
 Compound read operations can use `MetaReadView` to pin one committed state while resolving a file version, layout, inode and chunk sources. This gives a consistent read view above the store interface without requiring the backend itself to expose native multi-record read transactions.
+
+## Compound Reads
+
+A source query reads its file version, layout, placement, copies, node sessions and device state from one acknowledged `MetaReadView`. Advancing the live state during that query cannot mix revisions. This view is a Meta semantic guarantee: a backend that atomically persists the complete state can support it without native multi-record transactions.

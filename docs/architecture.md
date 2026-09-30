@@ -7,7 +7,7 @@ AFS separates user-visible file semantics from the movement of file bytes. Appli
 ## First Principles
 
 1. **Meta owns authority, not data bytes.** Meta commits namespace, inode, version, layout, placement and copy records. Steady-state file bytes move between nodes, local disks, verified cache and optional spill.
-2. **DFS stores committed data as immutable chunks.** Mutable files are represented by inode dirty state before sync and by moving `InodeRecord.head_version` to a new immutable `FileVersion` at sync.
+2. **DFS stores committed data as immutable chunks.** Mutable writes accumulate in inode dirty state. An ordered commit moves `InodeRecord.head_version` to a new immutable `FileVersion`; explicit sync, synchronous write flags and background policies can trigger that commit. Ordinary writes do not create a version per request.
 3. **Reads fix a version before selecting sources.** A fixed `FileVersionId`, layout and length define the read view. Local replicas, peer replicas, cache and spill can be mixed only inside that view.
 4. **Replication lives below file layout.** The layout layer asks for durable chunks and receives receipts. R=1 and R=N split below `ChunkStore` and rejoin before Meta commits a new version.
 5. **OwnerFs and DFS are separate mounts.** They share process and FUSE infrastructure but have separate backend state machines and cache policies.

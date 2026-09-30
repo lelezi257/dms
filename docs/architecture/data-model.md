@@ -94,11 +94,7 @@ CopyRecord {
   id: CopyId
   chunk_id: ChunkId
   role: CopyRole
-  node_id: String
-  node_epoch: u64
-  device_id: String
-  device_epoch: u64
-  catalog_revision: u64
+  location: CopyLocation
   state: CopyState
   persisted_bytes: u64
   verified_digest: ContentDigest
@@ -116,7 +112,8 @@ InodeWriteState {
   logical_length: u64
   metadata_dirty: bool
   dirty_extents: DirtyExtentMap
-  in_flight: Option<FrozenCommit>
+  in_flight: Option<InFlightCommit>
+  commit_busy: bool
   dirty: bool
   next_write_seq: u64
   visible_write_seq: u64
@@ -125,6 +122,7 @@ InodeWriteState {
   open_writers: u64
   last_writer_background_requested: bool
   background_error: Option<ObservedWriteError>
+  terminal_error: Option<Error>
 }
 
 DirtyExtentMap {
@@ -146,6 +144,15 @@ FrozenCommit {
   base_version: Option<FileVersion>
   base_layout: LayoutRoot
   dirty_extents: DirtyExtentMap
+}
+
+InFlightCommit::Preparing(Box<FrozenCommit>)
+InFlightCommit::File(Box<PendingFileCommit>)
+InFlightCommit::Metadata(SyncInodeMetadata)
+
+PendingFileCommit {
+  frozen: FrozenCommit
+  batch: CommitBatch
 }
 
 CommitBatch {

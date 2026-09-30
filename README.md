@@ -1,6 +1,6 @@
 # AFS
 
-AFS is a near-compute distributed file system for Agent, Sandbox and VM clusters. It exposes ordinary file semantics while using disks on compute nodes as the primary pool for hot data, durable replicas, verified cache and peer-to-peer reads.
+AFS is a near-compute distributed file system for Agent, Sandbox and VM clusters. It exposes file interfaces with [fixed-version read-only handles](docs/architecture/write-semantics.md), while using disks on compute nodes as the primary pool for hot data, durable replicas, verified cache and peer-to-peer reads.
 
 AFS has two backends:
 

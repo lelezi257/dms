@@ -9,7 +9,7 @@ DFS separates ordinary visibility from recoverable durability. `write` changes t
 | Operation | Contract |
 | --- | --- |
 | `open` for read | Fixes the current `FileVersion`, layout and length for that handle until close |
-| `write` | Enters the inode owner's dirty state and is visible through that owner during normal operation |
+| `write` | Enters the inode owner's shared dirty state, visible to writable handles through that owner; read-only handles keep their fixed committed version |
 | read on the same write handle | Sees its own accepted writes through the owner dirty view |
 | `fdatasync` | Commits file data, chunks, layout, length and inode head needed for recovery when there is dirty data |
 | `fsync` | Includes `fdatasync`, then commits complete inode attributes such as `mtime` and `ctime` |
@@ -54,3 +54,9 @@ The file version number changes only at the Meta commit point. Chunks may alread
 A sync can reach a point where the node does not know whether Meta accepted the exact commit request. That result is not guessed. The inode keeps the operation identity as unresolved, returns or retries according to the caller contract, and blocks later `write`, `resize` and `sync` operations for that inode until recovery establishes whether the commit succeeded or failed.
 
 This rule prevents a later dirty batch from being ordered after an unknown version head. It also gives retry logic a precise idempotence key instead of relying on timeout interpretation.
+
+## Definite Rejection And Metadata
+
+Timeout, transport failure and uncertain store persistence retain the exact pending request. A confirmed Meta validation or condition rejection stops this owner state from accepting further modifications; recovery must resolve the lease and committed head before writing resumes. Reopening a file is not itself owner recovery.
+
+`fdatasync` may leave complete timestamp attributes dirty after committing recoverable data. `fsync` must complete that metadata phase even when retrying an older data-only request. Timestamps describe the accepted mutation time, rather than the later sync time. An unchanged file does not require a new version merely to complete a barrier.

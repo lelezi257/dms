@@ -39,6 +39,12 @@ Open question Q2: the minimum spill durability contract is not fixed. An externa
 
 Peer range reads require both peer authentication and a read authorization decision for the fixed file version, layout and chunk range. Authorization is tied to the committed version and chunk range being served, so a peer cannot use a stale grant to read a different version.
 
+Each source candidate carries a per-operation `DfsReadGrant`, binding namespace, file version, layout root, caller node identity and epoch, expiry, fence and token. A peer batch preserves those independent grants rather than sharing one grant across different chunks.
+
+In the protobuf, `DfsReadGrant.caller_node_epoch` retains field 5. The former batch-level grant at `DfsReadRangesRequest` field 5 is reserved; each `DfsChunkReadOp` carries its own grant at field 7. Peers must use compatible protocol versions during a coordinated upgrade.
+
+`PeerConnectionPool` is transport plumbing only. It may reuse lazy gRPC channels and enforce capacity, but grant validity remains with each read operation. Pool eviction, backpressure and production limits are operational policy, not authorization.
+
 ## Copy State
 
 ```text
@@ -59,3 +65,9 @@ LegacyStaging -> removed
 ## Seed And Eviction
 
 A node can advertise a seed only for a complete `Ready` durable copy or a complete verified cache copy. Seed leases expire or are withdrawn before eviction. Eviction is legal only when Meta can still find enough durable or explicitly accepted external copies for the configured policy. Cache pressure cannot delete the only valid source for a committed chunk.
+
+## Batch Failure And Completion
+
+Operations sharing a peer and fixed read context travel in one batch. Each operation retains its copy identity, grant and attempt identity. Missing, duplicate or inconsistent headers, bytes or completion frames fail the batch; partial scratch data never becomes an application result. If a combined batch fails, isolate its operations before abandoning a source that may still be valid for another chunk.
+
+Connection reuse is keyed by node identity, epoch and endpoint, under one TLS configuration. A lower epoch cannot replace a newer accepted epoch. Read deadlines cover connection admission and the whole response stream. Wire limits bound batch operation count and total bytes; configuration cannot silently exceed them.

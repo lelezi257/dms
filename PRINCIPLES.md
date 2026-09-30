@@ -4,7 +4,7 @@ This page defines stable product and architecture principles. Implementation pro
 
 ## POSIX First
 
-AFS exposes a shared file namespace through POSIX-compatible interfaces. Applications should not need a special object API to use normal directories, files, reads, writes and sync operations.
+AFS exposes a shared file namespace through POSIX-compatible interfaces. Applications use normal directories, files, reads, writes and sync operations. DFS read-only handles fix the committed version at open; see the [visibility contract](docs/architecture/write-semantics.md) for the boundary from immediate cross-handle POSIX visibility.
 
 High-performance SDKs are additional DFS entry points over the same namespace and file semantics.
 

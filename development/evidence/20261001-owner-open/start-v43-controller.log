@@ -1,0 +1,21 @@
+c261dfe3de628e03bc0ece84d645562243ebaf5a4997f6b8097943edb4c55ea8  /Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/.local/v43-binaries/afs-meta
+9c311471c4e4bcbd605b326e5955c12399f659ba5176cc1f5c7fe83d589fa12e  /Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/.local/v43-binaries/afs-node
+evidence=/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/p2-owner-open-v42/memory-start-v43/runs/start-v43
+===health===
+{"id":"memory-meta-a","role":"meta","scope":"foundation","status":"ready"}
+{"dfs":true,"id":"memory-node-a","ownerfs":true,"role":"node","scope":"foundation","status":"ready"}===proc===
+c261dfe3de628e03bc0ece84d645562243ebaf5a4997f6b8097943edb4c55ea8  /proc/704776/exe
+/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v43/bin/afs-meta
+9c311471c4e4bcbd605b326e5955c12399f659ba5176cc1f5c7fe83d589fa12e  /proc/704806/exe
+/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v43/bin/afs-node
+===mounts===
+afs-dfs fuse /mnt/lima-afsadata/afs-delivery/p2-memory-lane-v43/mount-dfs rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other
+afs-ownerfs fuse /mnt/lima-afsadata/afs-delivery/p2-memory-lane-v43/mount-ownerfs rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other
+===io===
+{"dfs_file": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v43/mount-dfs/dfs-memory-lane-20260930T203556Z.txt", "dfs_read": "dfs-memory-memory-lane-20260930T203556Z\n", "owner_file": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v43/mount-ownerfs/owner-memory-lane-20260930T203556Z/dir/hello.txt", "owner_read": "owner-memory-memory-lane-20260930T203556Z\n", "workspace_name": "owner-memory-lane-20260930T203556Z"}
+===root===
+{"checked_at_unix_ms":1790800556610,"home_data_addr":"https://192.168.109.12:17882","home_grpc_addr":"https://192.168.109.12:17882","home_lease_epoch":1,"home_node_id":"memory-node-a","home_rest_addr":"http://0.0.0.0:17883","home_serving":true,"home_session_expires_at_unix_ms":1790800586389,"home_session_id":"15b43064-cf37-45af-a146-64b1feff348e","owner":"memory-node-a","revision":4,"root_epoch":1,"root_id":"root-6f776e65722d6d656d6f72792d6c616e652d3230323630393330543230333535365a","status":"serving"}===ports===
+LISTEN 0      128          0.0.0.0:17880      0.0.0.0:*    users:(("afs-meta",pid=704776,fd=9)) 
+LISTEN 0      128          0.0.0.0:17881      0.0.0.0:*    users:(("afs-meta",pid=704776,fd=10))
+LISTEN 0      128          0.0.0.0:17882      0.0.0.0:*                                         
+LISTEN 0      128          0.0.0.0:17883      0.0.0.0:*                                         

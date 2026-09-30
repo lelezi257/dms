@@ -720,6 +720,7 @@ message DfsOwnerHandle {
   string caller_node_id = 6;
   string caller_session_id = 7;
   bytes opaque_handle = 8;
+  uint64 open_seq = 9;
 }
 message DfsOwnerReadRequest {
   DfsOwnerHandle handle = 1;

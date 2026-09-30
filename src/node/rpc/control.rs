@@ -850,6 +850,7 @@ impl NodeControl for NodeControlService {
             || body.owner_session_id.is_empty()
             || body.lease_epoch == 0
             || body.caller_session_id.is_empty()
+            || body.open_seq == 0
         {
             return Err(Status::permission_denied(
                 "DFS owner open identity is incomplete",
@@ -1000,7 +1001,7 @@ impl NodeControl for NodeControlService {
         &self,
         request: Request<DfsOwnerReleaseRequest>,
     ) -> Result<Response<DfsOwnerReleaseReply>, Status> {
-        validate_dfs_owner_control_handle(request.get_ref().handle.as_ref())?;
+        validate_dfs_owner_release_handle(request.get_ref().handle.as_ref())?;
         self.dispatch_dfs_owner(request, |handler, peer, request| {
             handler.release(&peer, request)
         })
@@ -1270,10 +1271,32 @@ fn validate_dfs_owner_control_handle(
         || handle.lease_epoch == 0
         || handle.caller_node_id.is_empty()
         || handle.caller_session_id.is_empty()
+        || handle.open_seq == 0
         || handle.opaque_handle.is_empty()
     {
         return Err(Status::permission_denied(
             "DFS owner handle identity is incomplete",
+        ));
+    }
+    Ok(())
+}
+
+#[cfg(feature = "dfs")]
+fn validate_dfs_owner_release_handle(
+    handle: Option<&afs_protocol::node_control::DfsOwnerHandle>,
+) -> Result<(), Status> {
+    let handle = handle.ok_or_else(|| Status::permission_denied("DFS owner handle is required"))?;
+    if handle.namespace_id.is_empty()
+        || handle.inode_id.is_empty()
+        || handle.owner_node_id.is_empty()
+        || handle.owner_session_id.is_empty()
+        || handle.lease_epoch == 0
+        || handle.caller_node_id.is_empty()
+        || handle.caller_session_id.is_empty()
+        || handle.open_seq == 0
+    {
+        return Err(Status::permission_denied(
+            "DFS owner release identity is incomplete",
         ));
     }
     Ok(())

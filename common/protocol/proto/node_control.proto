@@ -77,6 +77,9 @@ message DfsOwnerOpenRequest {
   string caller_session_id = 6;
   int32 open_flags = 7;
   bool kill_suidgid = 8;
+  // Monotonic non-zero caller admission sequence scoped by the authenticated
+  // caller node, caller process session, owner process session, and request body.
+  uint64 open_seq = 9;
 }
 message DfsOwnerOpenReply { DfsOwnerHandle handle = 1; }
 message DfsOwnerGetAttrRequest { DfsOwnerHandle handle = 1; }
@@ -131,6 +134,7 @@ message DfsOwnerReleaseLockSessionReply {}
 message DfsOwnerReleaseRequest { DfsOwnerHandle handle = 1; }
 message DfsOwnerReleaseReply {}
 
+
 enum DfsOwnerSpecialNodeKind {
   DFS_OWNER_SPECIAL_NODE_KIND_UNSPECIFIED = 0;
   DFS_OWNER_SPECIAL_NODE_KIND_FIFO = 1;
@@ -169,6 +173,9 @@ message DfsOwnerHandle {
   string caller_node_id = 6;
   string caller_session_id = 7;
   bytes opaque_handle = 8;
+  // Present on all live data handles. On Release only, opaque_handle may be
+  // empty when open_seq identifies a caller-known admission to cancel/retire.
+  uint64 open_seq = 9;
 }
 
 // Lock authority is separate from DfsOwnerHandle: advisory read locks need the

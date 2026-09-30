@@ -147,6 +147,7 @@ impl DfsOwnerFilesService {
             || handle.lease_epoch == 0
             || handle.caller_node_id != peer
             || handle.caller_session_id.is_empty()
+            || handle.open_seq == 0
             || handle.opaque_handle.is_empty()
             || operation_id.is_some_and(str::is_empty)
         {

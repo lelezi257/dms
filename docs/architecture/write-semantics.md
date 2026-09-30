@@ -51,6 +51,15 @@ A fresh readonly open revalidates the committed view. An inactive retained view 
 
 When a mount has a remote writable handle, same-mount reads and visible attributes reach that handle's inode owner to observe accepted dirty writes and their current length. A fully clean inactive local state cannot shadow that remote route. A write-only handle keeps its original access mode; the node retains a separate read-capable owner handle for same-mount readers and still rejects reads on the user's write-only handle. Data routing alone is insufficient: a committed length of zero can make the kernel return EOF before requesting any bytes. A handleless resize uses a temporary owner handle and a full sync before returning. Closing that temporary handle preserves the route for surviving writable handles. Provider replacement checks live handles and updates the route atomically; cleanup cannot restore an already closed handle or remove a newer route.
 
+
+### Remote Open And Provider Lifetime
+
+The caller assigns a nonzero admission sequence before contacting the owner. The identity includes both Nodes' process sessions and the inode/lease scope. Replaying an active admission returns the same owner handle; changing its request body is rejected. If the Open reply is lost, the caller retains that identity and uses the existing Release operation to cancel or retire it without requiring the missing opaque handle. Retirement rejects delayed Open replay.
+
+Caller admission is serialized per caller-to-owner session route, so a later sequence cannot overtake an unresolved earlier admission. Owner replay state is bounded by live handles and per-route high-water marks; authoritative caller-session retirement removes the old route. An unknown Meta lookup does not prove retirement.
+
+A remote read provider admits reads and attribute requests through one shared lifetime guard. Close first stops new admissions and removes or replaces that exact provider, then waits for its admitted I/O before releasing owner handles. Replacement must still be live at publication. A fresh read cannot reuse a closing provider, and a reader already admitted can finish without its owner handle disappearing beneath the RPC. Network calls do not hold the provider or handle-table mutex.
+
 ## Commit Flow
 
 ```text

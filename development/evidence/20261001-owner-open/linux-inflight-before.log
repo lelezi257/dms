@@ -1,0 +1,37 @@
+bash: line 1: cd: /Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store: No such file or directory
+bash: line 1: cd: /Users/lzc: No such file or directory
+INJECTION: retire provider without waiting for already admitted read/getattr
+   Compiling afs v0.1.0 (/home/lzc.guest/afs-build/work/root-merged-v43)
+warning: method `wait_idle` is never used
+   --> src/node/vfs/dfs.rs:660:8
+    |
+626 | impl RemoteProviderLifecycle {
+    | ---------------------------- method in this implementation
+...
+660 |     fn wait_idle(&self) -> Result<()> {
+    |        ^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `afs` (lib test) generated 1 warning
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 16.99s
+     Running unittests src/lib.rs (/home/lzc.guest/afs-build/target/debug/deps/afs-586e1b701367e588)
+
+running 1 test
+
+thread 'node::vfs::dfs::tests::retiring_provider_waits_for_inflight_fresh_read_before_owner_release' (347643) panicked at src/node/vfs/dfs.rs:10077:9:
+assertion `left == right` failed: provider release must wait for an already admitted provider read
+  left: Ok(())
+ right: Err(Timeout)
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test node::vfs::dfs::tests::retiring_provider_waits_for_inflight_fresh_read_before_owner_release ... FAILED
+
+failures:
+
+failures:
+    node::vfs::dfs::tests::retiring_provider_waits_for_inflight_fresh_read_before_owner_release
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 320 filtered out; finished in 0.02s
+
+error: test failed, to rerun pass `--lib`
+EXPECTED_FAIL confirmed; source restored

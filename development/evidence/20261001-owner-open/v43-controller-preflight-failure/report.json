@@ -1,0 +1,613 @@
+{
+  "commands": [
+    {
+      "argv": [
+        "limactl",
+        "shell",
+        "afs-accept-a",
+        "--",
+        "sudo",
+        "python3",
+        "/var/tmp/afs-consistency-v43.py",
+        "worker",
+        "--op",
+        "identity",
+        "--expected-process",
+        "node=704806:9c311471c4e4bcbd605b326e5955c12399f659ba5176cc1f5c7fe83d589fa12e",
+        "--expected-process",
+        "meta=704776:c261dfe3de628e03bc0ece84d645562243ebaf5a4997f6b8097943edb4c55ea8",
+        "--path",
+        "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v43/mount-ownerfs/owner-memory-lane-20260930T203556Z"
+      ],
+      "duration_ms": 317.475,
+      "json_events": [
+        {
+          "event": "RESULT",
+          "identity": {
+            "all_expected_processes_ok": true,
+            "boot_id": "36a572e0-859b-4a94-adc7-789210a83fc8",
+            "created_at": "2026-09-30T20:38:43Z",
+            "expected_processes": {
+              "meta": {
+                "exe_dev": 64785,
+                "exe_inode": 1577161,
+                "exe_path": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v43/bin/afs-meta",
+                "expected_sha256": "c261dfe3de628e03bc0ece84d645562243ebaf5a4997f6b8097943edb4c55ea8",
+                "pid": 704776,
+                "role": "meta",
+                "sha256": "c261dfe3de628e03bc0ece84d645562243ebaf5a4997f6b8097943edb4c55ea8",
+                "sha256_ok": true,
+                "start_ticks": 5579651
+              },
+              "node": {
+                "exe_dev": 64785,
+                "exe_inode": 1577162,
+                "exe_path": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v43/bin/afs-node",
+                "expected_sha256": "9c311471c4e4bcbd605b326e5955c12399f659ba5176cc1f5c7fe83d589fa12e",
+                "pid": 704806,
+                "role": "node",
+                "sha256": "9c311471c4e4bcbd605b326e5955c12399f659ba5176cc1f5c7fe83d589fa12e",
+                "sha256_ok": true,
+                "start_ticks": 5579668
+              }
+            },
+            "machine_id": "9253e8d222af4657a862f974ae5ce752",
+            "mount": {
+              "argv": [
+                "findmnt",
+                "-T",
+                "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v43/mount-ownerfs/owner-memory-lane-20260930T203556Z",
+                "-o",
+                "TARGET,SOURCE,FSTYPE,OPTIONS",
+                "--json"
+              ],
+              "returncode": 0,
+              "stderr": "",
+              "stdout": "{\n   \"filesystems\": [\n      {\n         \"target\": \"/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v43/mount-ownerfs\",\n         \"source\": \"afs-ownerfs\",\n         \"fstype\": \"fuse\",\n         \"options\": \"rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other\"\n      }\n   ]\n}\n"
+            },
+            "platform": {
+              "gid": 0,
+              "hostname": "lima-afs-accept-a",
+              "machine": "aarch64",
+              "python": "3.12.3",
+              "release": "6.8.0-142-generic",
+              "system": "Linux",
+              "uid": 0
+            }
+          },
+          "op": "identity",
+          "stat": {
+            "dev": 48,
+            "ino": 2,
+            "mode": "0o755",
+            "mtime_ns": 1790800556587078524,
+            "path": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v43/mount-ownerfs/owner-memory-lane-20260930T203556Z",
+            "sha256": null,
+            "size": 4096
+          }
+        }
+      ],
+      "op": "identity",
+      "returncode": 0,
+      "stderr": "",
+      "stdout": "{\"event\": \"RESULT\", \"identity\": {\"all_expected_processes_ok\": true, \"boot_id\": \"36a572e0-859b-4a94-adc7-789210a83fc8\", \"created_at\": \"2026-09-30T20:38:43Z\", \"expected_processes\": {\"meta\": {\"exe_dev\": 64785, \"exe_inode\": 1577161, \"exe_path\": \"/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v43/bin/afs-meta\", \"expected_sha256\": \"c261dfe3de628e03bc0ece84d645562243ebaf5a4997f6b8097943edb4c55ea8\", \"pid\": 704776, \"role\": \"meta\", \"sha256\": \"c261dfe3de628e03bc0ece84d645562243ebaf5a4997f6b8097943edb4c55ea8\", \"sha256_ok\": true, \"start_ticks\": 5579651}, \"node\": {\"exe_dev\": 64785, \"exe_inode\": 1577162, \"exe_path\": \"/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v43/bin/afs-node\", \"expected_sha256\": \"9c311471c4e4bcbd605b326e5955c12399f659ba5176cc1f5c7fe83d589fa12e\", \"pid\": 704806, \"role\": \"node\", \"sha256\": \"9c311471c4e4bcbd605b326e5955c12399f659ba5176cc1f5c7fe83d589fa12e\", \"sha256_ok\": true, \"start_ticks\": 5579668}}, \"machine_id\": \"9253e8d222af4657a862f974ae5ce752\", \"mount\": {\"argv\": [\"findmnt\", \"-T\", \"/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v43/mount-ownerfs/owner-memory-lane-20260930T203556Z\", \"-o\", \"TARGET,SOURCE,FSTYPE,OPTIONS\", \"--json\"], \"returncode\": 0, \"stderr\": \"\", \"stdout\": \"{\\n   \\\"filesystems\\\": [\\n      {\\n         \\\"target\\\": \\\"/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v43/mount-ownerfs\\\",\\n         \\\"source\\\": \\\"afs-ownerfs\\\",\\n         \\\"fstype\\\": \\\"fuse\\\",\\n         \\\"options\\\": \\\"rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other\\\"\\n      }\\n   ]\\n}\\n\"}, \"platform\": {\"gid\": 0, \"hostname\": \"lima-afs-accept-a\", \"machine\": \"aarch64\", \"python\": \"3.12.3\", \"release\": \"6.8.0-142-generic\", \"system\": \"Linux\", \"uid\": 0}}, \"op\": \"identity\", \"stat\": {\"dev\": 48, \"ino\": 2, \"mode\": \"0o755\", \"mtime_ns\": 1790800556587078524, \"path\": \"/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v43/mount-ownerfs/owner-memory-lane-20260930T203556Z\", \"sha256\": null, \"size\": 4096}}\n",
+      "worker": "A"
+    },
+    {
+      "argv": [
+        "limactl",
+        "shell",
+        "afs-accept-b",
+        "--",
+        "sudo",
+        "python3",
+        "/var/tmp/afs-consistency-v43.py",
+        "worker",
+        "--op",
+        "identity",
+        "--path",
+        "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v43/mount-ownerfs/owner-memory-lane-20260930T203556Z"
+      ],
+      "duration_ms": 118.007,
+      "json_events": [
+        {
+          "event": "RESULT",
+          "identity": {
+            "all_expected_processes_ok": true,
+            "boot_id": "3adebcd0-cb31-4df0-b18a-e970786ab7fb",
+            "created_at": "2026-09-30T20:38:43Z",
+            "expected_processes": {},
+            "machine_id": "c581e30d9cc847af8a866d69ed374dc7",
+            "mount": {
+              "argv": [
+                "findmnt",
+                "-T",
+                "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v43/mount-ownerfs/owner-memory-lane-20260930T203556Z",
+                "-o",
+                "TARGET,SOURCE,FSTYPE,OPTIONS",
+                "--json"
+              ],
+              "returncode": 0,
+              "stderr": "",
+              "stdout": "{\n   \"filesystems\": [\n      {\n         \"target\": \"/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v43/mount-ownerfs\",\n         \"source\": \"afs-ownerfs\",\n         \"fstype\": \"fuse\",\n         \"options\": \"rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other\"\n      }\n   ]\n}\n"
+            },
+            "platform": {
+              "gid": 0,
+              "hostname": "lima-afs-accept-b",
+              "machine": "aarch64",
+              "python": "3.12.3",
+              "release": "6.8.0-142-generic",
+              "system": "Linux",
+              "uid": 0
+            }
+          },
+          "op": "identity",
+          "stat": {
+            "dev": 48,
+            "ino": 2,
+            "mode": "0o755",
+            "mtime_ns": 1790800556587078524,
+            "path": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v43/mount-ownerfs/owner-memory-lane-20260930T203556Z",
+            "sha256": null,
+            "size": 4096
+          }
+        }
+      ],
+      "op": "identity",
+      "returncode": 0,
+      "stderr": "",
+      "stdout": "{\"event\": \"RESULT\", \"identity\": {\"all_expected_processes_ok\": true, \"boot_id\": \"3adebcd0-cb31-4df0-b18a-e970786ab7fb\", \"created_at\": \"2026-09-30T20:38:43Z\", \"expected_processes\": {}, \"machine_id\": \"c581e30d9cc847af8a866d69ed374dc7\", \"mount\": {\"argv\": [\"findmnt\", \"-T\", \"/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v43/mount-ownerfs/owner-memory-lane-20260930T203556Z\", \"-o\", \"TARGET,SOURCE,FSTYPE,OPTIONS\", \"--json\"], \"returncode\": 0, \"stderr\": \"\", \"stdout\": \"{\\n   \\\"filesystems\\\": [\\n      {\\n         \\\"target\\\": \\\"/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v43/mount-ownerfs\\\",\\n         \\\"source\\\": \\\"afs-ownerfs\\\",\\n         \\\"fstype\\\": \\\"fuse\\\",\\n         \\\"options\\\": \\\"rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other\\\"\\n      }\\n   ]\\n}\\n\"}, \"platform\": {\"gid\": 0, \"hostname\": \"lima-afs-accept-b\", \"machine\": \"aarch64\", \"python\": \"3.12.3\", \"release\": \"6.8.0-142-generic\", \"system\": \"Linux\", \"uid\": 0}}, \"op\": \"identity\", \"stat\": {\"dev\": 48, \"ino\": 2, \"mode\": \"0o755\", \"mtime_ns\": 1790800556587078524, \"path\": \"/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v43/mount-ownerfs/owner-memory-lane-20260930T203556Z\", \"sha256\": null, \"size\": 4096}}\n",
+      "worker": "B"
+    },
+    {
+      "argv": [
+        "limactl",
+        "shell",
+        "afs-accept-a",
+        "--",
+        "sudo",
+        "python3",
+        "/var/tmp/afs-consistency-v43.py",
+        "worker",
+        "--op",
+        "identity",
+        "--expected-process",
+        "node=704806:9c311471c4e4bcbd605b326e5955c12399f659ba5176cc1f5c7fe83d589fa12e",
+        "--expected-process",
+        "meta=704776:c261dfe3de628e03bc0ece84d645562243ebaf5a4997f6b8097943edb4c55ea8",
+        "--path",
+        "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v43/mount-dfs"
+      ],
+      "duration_ms": 262.14,
+      "json_events": [
+        {
+          "event": "RESULT",
+          "identity": {
+            "all_expected_processes_ok": true,
+            "boot_id": "36a572e0-859b-4a94-adc7-789210a83fc8",
+            "created_at": "2026-09-30T20:38:43Z",
+            "expected_processes": {
+              "meta": {
+                "exe_dev": 64785,
+                "exe_inode": 1577161,
+                "exe_path": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v43/bin/afs-meta",
+                "expected_sha256": "c261dfe3de628e03bc0ece84d645562243ebaf5a4997f6b8097943edb4c55ea8",
+                "pid": 704776,
+                "role": "meta",
+                "sha256": "c261dfe3de628e03bc0ece84d645562243ebaf5a4997f6b8097943edb4c55ea8",
+                "sha256_ok": true,
+                "start_ticks": 5579651
+              },
+              "node": {
+                "exe_dev": 64785,
+                "exe_inode": 1577162,
+                "exe_path": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v43/bin/afs-node",
+                "expected_sha256": "9c311471c4e4bcbd605b326e5955c12399f659ba5176cc1f5c7fe83d589fa12e",
+                "pid": 704806,
+                "role": "node",
+                "sha256": "9c311471c4e4bcbd605b326e5955c12399f659ba5176cc1f5c7fe83d589fa12e",
+                "sha256_ok": true,
+                "start_ticks": 5579668
+              }
+            },
+            "machine_id": "9253e8d222af4657a862f974ae5ce752",
+            "mount": {
+              "argv": [
+                "findmnt",
+                "-T",
+                "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v43/mount-dfs",
+                "-o",
+                "TARGET,SOURCE,FSTYPE,OPTIONS",
+                "--json"
+              ],
+              "returncode": 0,
+              "stderr": "",
+              "stdout": "{\n   \"filesystems\": [\n      {\n         \"target\": \"/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v43/mount-dfs\",\n         \"source\": \"afs-dfs\",\n         \"fstype\": \"fuse\",\n         \"options\": \"rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other\"\n      }\n   ]\n}\n"
+            },
+            "platform": {
+              "gid": 0,
+              "hostname": "lima-afs-accept-a",
+              "machine": "aarch64",
+              "python": "3.12.3",
+              "release": "6.8.0-142-generic",
+              "system": "Linux",
+              "uid": 0
+            }
+          },
+          "op": "identity",
+          "stat": {
+            "dev": 49,
+            "ino": 1,
+            "mode": "0o755",
+            "mtime_ns": 1790800556593000000,
+            "path": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v43/mount-dfs",
+            "sha256": null,
+            "size": 0
+          }
+        }
+      ],
+      "op": "identity",
+      "returncode": 0,
+      "stderr": "",
+      "stdout": "{\"event\": \"RESULT\", \"identity\": {\"all_expected_processes_ok\": true, \"boot_id\": \"36a572e0-859b-4a94-adc7-789210a83fc8\", \"created_at\": \"2026-09-30T20:38:43Z\", \"expected_processes\": {\"meta\": {\"exe_dev\": 64785, \"exe_inode\": 1577161, \"exe_path\": \"/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v43/bin/afs-meta\", \"expected_sha256\": \"c261dfe3de628e03bc0ece84d645562243ebaf5a4997f6b8097943edb4c55ea8\", \"pid\": 704776, \"role\": \"meta\", \"sha256\": \"c261dfe3de628e03bc0ece84d645562243ebaf5a4997f6b8097943edb4c55ea8\", \"sha256_ok\": true, \"start_ticks\": 5579651}, \"node\": {\"exe_dev\": 64785, \"exe_inode\": 1577162, \"exe_path\": \"/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v43/bin/afs-node\", \"expected_sha256\": \"9c311471c4e4bcbd605b326e5955c12399f659ba5176cc1f5c7fe83d589fa12e\", \"pid\": 704806, \"role\": \"node\", \"sha256\": \"9c311471c4e4bcbd605b326e5955c12399f659ba5176cc1f5c7fe83d589fa12e\", \"sha256_ok\": true, \"start_ticks\": 5579668}}, \"machine_id\": \"9253e8d222af4657a862f974ae5ce752\", \"mount\": {\"argv\": [\"findmnt\", \"-T\", \"/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v43/mount-dfs\", \"-o\", \"TARGET,SOURCE,FSTYPE,OPTIONS\", \"--json\"], \"returncode\": 0, \"stderr\": \"\", \"stdout\": \"{\\n   \\\"filesystems\\\": [\\n      {\\n         \\\"target\\\": \\\"/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v43/mount-dfs\\\",\\n         \\\"source\\\": \\\"afs-dfs\\\",\\n         \\\"fstype\\\": \\\"fuse\\\",\\n         \\\"options\\\": \\\"rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other\\\"\\n      }\\n   ]\\n}\\n\"}, \"platform\": {\"gid\": 0, \"hostname\": \"lima-afs-accept-a\", \"machine\": \"aarch64\", \"python\": \"3.12.3\", \"release\": \"6.8.0-142-generic\", \"system\": \"Linux\", \"uid\": 0}}, \"op\": \"identity\", \"stat\": {\"dev\": 49, \"ino\": 1, \"mode\": \"0o755\", \"mtime_ns\": 1790800556593000000, \"path\": \"/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v43/mount-dfs\", \"sha256\": null, \"size\": 0}}\n",
+      "worker": "A"
+    },
+    {
+      "argv": [
+        "limactl",
+        "shell",
+        "afs-accept-b",
+        "--",
+        "sudo",
+        "python3",
+        "/var/tmp/afs-consistency-v43.py",
+        "worker",
+        "--op",
+        "identity",
+        "--path",
+        "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v43/mount-dfs"
+      ],
+      "duration_ms": 83.605,
+      "json_events": [
+        {
+          "event": "RESULT",
+          "identity": {
+            "all_expected_processes_ok": true,
+            "boot_id": "3adebcd0-cb31-4df0-b18a-e970786ab7fb",
+            "created_at": "2026-09-30T20:38:43Z",
+            "expected_processes": {},
+            "machine_id": "c581e30d9cc847af8a866d69ed374dc7",
+            "mount": {
+              "argv": [
+                "findmnt",
+                "-T",
+                "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v43/mount-dfs",
+                "-o",
+                "TARGET,SOURCE,FSTYPE,OPTIONS",
+                "--json"
+              ],
+              "returncode": 0,
+              "stderr": "",
+              "stdout": "{\n   \"filesystems\": [\n      {\n         \"target\": \"/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v43/mount-dfs\",\n         \"source\": \"afs-dfs\",\n         \"fstype\": \"fuse\",\n         \"options\": \"rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other\"\n      }\n   ]\n}\n"
+            },
+            "platform": {
+              "gid": 0,
+              "hostname": "lima-afs-accept-b",
+              "machine": "aarch64",
+              "python": "3.12.3",
+              "release": "6.8.0-142-generic",
+              "system": "Linux",
+              "uid": 0
+            }
+          },
+          "op": "identity",
+          "stat": {
+            "dev": 49,
+            "ino": 1,
+            "mode": "0o755",
+            "mtime_ns": 1790800556593000000,
+            "path": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v43/mount-dfs",
+            "sha256": null,
+            "size": 0
+          }
+        }
+      ],
+      "op": "identity",
+      "returncode": 0,
+      "stderr": "",
+      "stdout": "{\"event\": \"RESULT\", \"identity\": {\"all_expected_processes_ok\": true, \"boot_id\": \"3adebcd0-cb31-4df0-b18a-e970786ab7fb\", \"created_at\": \"2026-09-30T20:38:43Z\", \"expected_processes\": {}, \"machine_id\": \"c581e30d9cc847af8a866d69ed374dc7\", \"mount\": {\"argv\": [\"findmnt\", \"-T\", \"/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v43/mount-dfs\", \"-o\", \"TARGET,SOURCE,FSTYPE,OPTIONS\", \"--json\"], \"returncode\": 0, \"stderr\": \"\", \"stdout\": \"{\\n   \\\"filesystems\\\": [\\n      {\\n         \\\"target\\\": \\\"/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v43/mount-dfs\\\",\\n         \\\"source\\\": \\\"afs-dfs\\\",\\n         \\\"fstype\\\": \\\"fuse\\\",\\n         \\\"options\\\": \\\"rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other\\\"\\n      }\\n   ]\\n}\\n\"}, \"platform\": {\"gid\": 0, \"hostname\": \"lima-afs-accept-b\", \"machine\": \"aarch64\", \"python\": \"3.12.3\", \"release\": \"6.8.0-142-generic\", \"system\": \"Linux\", \"uid\": 0}}, \"op\": \"identity\", \"stat\": {\"dev\": 49, \"ino\": 1, \"mode\": \"0o755\", \"mtime_ns\": 1790800556593000000, \"path\": \"/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v43/mount-dfs\", \"sha256\": null, \"size\": 0}}\n",
+      "worker": "B"
+    }
+  ],
+  "created_at": "2026-09-30T20:38:43Z",
+  "failures": [
+    {
+      "exception": "AssertionError",
+      "message": "{\"details\": {\"cross_mount_qualified\": false, \"qualification\": {\"different_worker_kernels\": true, \"meta_identity_present\": true, \"worker_a_dfs_afs_fuse\": true, \"worker_a_expected_processes_ok\": true, \"worker_a_node_identity_present\": true, \"worker_a_owner_afs_fuse\": true, \"worker_b_dfs_afs_fuse\": true, \"worker_b_expected_processes_ok\": false, \"worker_b_node_identity_present\": false, \"worker_b_owner_afs_fuse\": true, \"worker_boot_ids_nonempty\": true}, \"worker_a_dfs\": {\"event\": \"RESULT\", \"identity\": {\"all_expected_processes_ok\": true, \"boot_id\": \"36a572e0-859b-4a94-adc7-789210a83fc8\", \"created_at\": \"2026-09-30T20:38:43Z\", \"expected_processes\": {\"meta\": {\"exe_dev\": 64785, \"exe_inode\": 1577161, \"exe_path\": \"/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v43/bin/afs-meta\", \"expected_sha256\": \"c261dfe3de628e03bc0ece84d645562243ebaf5a4997f6b8097943edb4c55ea8\", \"pid\": 704776, \"role\": \"meta\", \"sha256\": \"c261dfe3de628e03bc0ece84d645562243ebaf5a4997f6b8097943edb4c55ea8\", \"sha256_ok\": true, \"start_ticks\": 5579651}, \"node\": {\"exe_dev\": 64785, \"exe_inode\": 1577162, \"exe_path\": \"/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v43/bin/afs-node\", \"expected_sha256\": \"9c311471c4e4bcbd605b326e5955c12399f659ba5176cc1f5c7fe83d589fa12e\", \"pid\": 704806, \"role\": \"node\", \"sha256\": \"9c311471c4e4bcbd605b326e5955c12399f659ba5176cc1f5c7fe83d589fa12e\", \"sha256_ok\": true, \"start_ticks\": 5579668}}, \"machine_id\": \"9253e8d222af4657a862f974ae5ce752\", \"mount\": {\"argv\": [\"findmnt\", \"-T\", \"/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v43/mount-dfs\", \"-o\", \"TARGET,SOURCE,FSTYPE,OPTIONS\", \"--json\"], \"returncode\": 0, \"stderr\": \"\", \"stdout\": \"{\\n   \\\"filesystems\\\": [\\n      {\\n         \\\"target\\\": \\\"/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v43/mount-dfs\\\",\\n         \\\"source\\\": \\\"afs-dfs\\\",\\n         \\\"fstype\\\": \\\"fuse\\\",\\n         \\\"options\\\": \\\"rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other\\\"\\n      }\\n   ]\\n}\\n\"}, \"platform\": {\"gid\": 0, \"hostname\": \"lima-afs-accept-a\", \"machine\": \"aarch64\", \"python\": \"3.12.3\", \"release\": \"6.8.0-142-generic\", \"system\": \"Linux\", \"uid\": 0}}, \"op\": \"identity\", \"stat\": {\"dev\": 49, \"ino\": 1, \"mode\": \"0o755\", \"mtime_ns\": 1790800556593000000, \"path\": \"/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v43/mount-dfs\", \"sha256\": null, \"size\": 0}}, \"worker_a_owner\": {\"event\": \"RESULT\", \"identity\": {\"all_expected_processes_ok\": true, \"boot_id\": \"36a572e0-859b-4a94-adc7-789210a83fc8\", \"created_at\": \"2026-09-30T20:38:43Z\", \"expected_processes\": {\"meta\": {\"exe_dev\": 64785, \"exe_inode\": 1577161, \"exe_path\": \"/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v43/bin/afs-meta\", \"expected_sha256\": \"c261dfe3de628e03bc0ece84d645562243ebaf5a4997f6b8097943edb4c55ea8\", \"pid\": 704776, \"role\": \"meta\", \"sha256\": \"c261dfe3de628e03bc0ece84d645562243ebaf5a4997f6b8097943edb4c55ea8\", \"sha256_ok\": true, \"start_ticks\": 5579651}, \"node\": {\"exe_dev\": 64785, \"exe_inode\": 1577162, \"exe_path\": \"/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v43/bin/afs-node\", \"expected_sha256\": \"9c311471c4e4bcbd605b326e5955c12399f659ba5176cc1f5c7fe83d589fa12e\", \"pid\": 704806, \"role\": \"node\", \"sha256\": \"9c311471c4e4bcbd605b326e5955c12399f659ba5176cc1f5c7fe83d589fa12e\", \"sha256_ok\": true, \"start_ticks\": 5579668}}, \"machine_id\": \"9253e8d222af4657a862f974ae5ce752\", \"mount\": {\"argv\": [\"findmnt\", \"-T\", \"/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v43/mount-ownerfs/owner-memory-lane-20260930T203556Z\", \"-o\", \"TARGET,SOURCE,FSTYPE,OPTIONS\", \"--json\"], \"returncode\": 0, \"stderr\": \"\", \"stdout\": \"{\\n   \\\"filesystems\\\": [\\n      {\\n         \\\"target\\\": \\\"/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v43/mount-ownerfs\\\",\\n         \\\"source\\\": \\\"afs-ownerfs\\\",\\n         \\\"fstype\\\": \\\"fuse\\\",\\n         \\\"options\\\": \\\"rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other\\\"\\n      }\\n   ]\\n}\\n\"}, \"platform\": {\"gid\": 0, \"hostname\": \"lima-afs-accept-a\", \"machine\": \"aarch64\", \"python\": \"3.12.3\", \"release\": \"6.8.0-142-generic\", \"system\": \"Linux\", \"uid\": 0}}, \"op\": \"identity\", \"stat\": {\"dev\": 48, \"ino\": 2, \"mode\": \"0o755\", \"mtime_ns\": 1790800556587078524, \"path\": \"/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v43/mount-ownerfs/owner-memory-lane-20260930T203556Z\", \"sha256\": null, \"size\": 4096}}, \"worker_b_dfs\": {\"event\": \"RESULT\", \"identity\": {\"all_expected_processes_ok\": true, \"boot_id\": \"3adebcd0-cb31-4df0-b18a-e970786ab7fb\", \"created_at\": \"2026-09-30T20:38:43Z\", \"expected_processes\": {}, \"machine_id\": \"c581e30d9cc847af8a866d69ed374dc7\", \"mount\": {\"argv\": [\"findmnt\", \"-T\", \"/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v43/mount-dfs\", \"-o\", \"TARGET,SOURCE,FSTYPE,OPTIONS\", \"--json\"], \"returncode\": 0, \"stderr\": \"\", \"stdout\": \"{\\n   \\\"filesystems\\\": [\\n      {\\n         \\\"target\\\": \\\"/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v43/mount-dfs\\\",\\n         \\\"source\\\": \\\"afs-dfs\\\",\\n         \\\"fstype\\\": \\\"fuse\\\",\\n         \\\"options\\\": \\\"rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other\\\"\\n      }\\n   ]\\n}\\n\"}, \"platform\": {\"gid\": 0, \"hostname\": \"lima-afs-accept-b\", \"machine\": \"aarch64\", \"python\": \"3.12.3\", \"release\": \"6.8.0-142-generic\", \"system\": \"Linux\", \"uid\": 0}}, \"op\": \"identity\", \"stat\": {\"dev\": 49, \"ino\": 1, \"mode\": \"0o755\", \"mtime_ns\": 1790800556593000000, \"path\": \"/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v43/mount-dfs\", \"sha256\": null, \"size\": 0}}, \"worker_b_owner\": {\"event\": \"RESULT\", \"identity\": {\"all_expected_processes_ok\": true, \"boot_id\": \"3adebcd0-cb31-4df0-b18a-e970786ab7fb\", \"created_at\": \"2026-09-30T20:38:43Z\", \"expected_processes\": {}, \"machine_id\": \"c581e30d9cc847af8a866d69ed374dc7\", \"mount\": {\"argv\": [\"findmnt\", \"-T\", \"/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v43/mount-ownerfs/owner-memory-lane-20260930T203556Z\", \"-o\", \"TARGET,SOURCE,FSTYPE,OPTIONS\", \"--json\"], \"returncode\": 0, \"stderr\": \"\", \"stdout\": \"{\\n   \\\"filesystems\\\": [\\n      {\\n         \\\"target\\\": \\\"/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v43/mount-ownerfs\\\",\\n         \\\"source\\\": \\\"afs-ownerfs\\\",\\n         \\\"fstype\\\": \\\"fuse\\\",\\n         \\\"options\\\": \\\"rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other\\\"\\n      }\\n   ]\\n}\\n\"}, \"platform\": {\"gid\": 0, \"hostname\": \"lima-afs-accept-b\", \"machine\": \"aarch64\", \"python\": \"3.12.3\", \"release\": \"6.8.0-142-generic\", \"system\": \"Linux\", \"uid\": 0}}, \"op\": \"identity\", \"stat\": {\"dev\": 48, \"ino\": 2, \"mode\": \"0o755\", \"mtime_ns\": 1790800556587078524, \"path\": \"/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v43/mount-ownerfs/owner-memory-lane-20260930T203556Z\", \"sha256\": null, \"size\": 4096}}}, \"message\": \"workers are not qualified cross-mount AFS evidence\"}",
+      "name": "setup_or_runner",
+      "ok": false,
+      "traceback": "Traceback (most recent call last):\n  File \"/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/experiments/afs-acceptance/probes/consistency_cross.py\", line 922, in _host_main\n    controller.setup()\n  File \"/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/experiments/afs-acceptance/probes/consistency_cross.py\", line 754, in setup\n    self.expect(self.identity[\"cross_mount_qualified\"], \"workers are not qualified cross-mount AFS evidence\", self.identity)\n  File \"/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/experiments/afs-acceptance/probes/consistency_cross.py\", line 758, in expect\n    raise AssertionError(json.dumps({\"message\": message, \"details\": details or {}}, sort_keys=True))\nAssertionError: {\"details\": {\"cross_mount_qualified\": false, \"qualification\": {\"different_worker_kernels\": true, \"meta_identity_present\": true, \"worker_a_dfs_afs_fuse\": true, \"worker_a_expected_processes_ok\": true, \"worker_a_node_identity_present\": true, \"worker_a_owner_afs_fuse\": true, \"worker_b_dfs_afs_fuse\": true, \"worker_b_expected_processes_ok\": false, \"worker_b_node_identity_present\": false, \"worker_b_owner_afs_fuse\": true, \"worker_boot_ids_nonempty\": true}, \"worker_a_dfs\": {\"event\": \"RESULT\", \"identity\": {\"all_expected_processes_ok\": true, \"boot_id\": \"36a572e0-859b-4a94-adc7-789210a83fc8\", \"created_at\": \"2026-09-30T20:38:43Z\", \"expected_processes\": {\"meta\": {\"exe_dev\": 64785, \"exe_inode\": 1577161, \"exe_path\": \"/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v43/bin/afs-meta\", \"expected_sha256\": \"c261dfe3de628e03bc0ece84d645562243ebaf5a4997f6b8097943edb4c55ea8\", \"pid\": 704776, \"role\": \"meta\", \"sha256\": \"c261dfe3de628e03bc0ece84d645562243ebaf5a4997f6b8097943edb4c55ea8\", \"sha256_ok\": true, \"start_ticks\": 5579651}, \"node\": {\"exe_dev\": 64785, \"exe_inode\": 1577162, \"exe_path\": \"/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v43/bin/afs-node\", \"expected_sha256\": \"9c311471c4e4bcbd605b326e5955c12399f659ba5176cc1f5c7fe83d589fa12e\", \"pid\": 704806, \"role\": \"node\", \"sha256\": \"9c311471c4e4bcbd605b326e5955c12399f659ba5176cc1f5c7fe83d589fa12e\", \"sha256_ok\": true, \"start_ticks\": 5579668}}, \"machine_id\": \"9253e8d222af4657a862f974ae5ce752\", \"mount\": {\"argv\": [\"findmnt\", \"-T\", \"/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v43/mount-dfs\", \"-o\", \"TARGET,SOURCE,FSTYPE,OPTIONS\", \"--json\"], \"returncode\": 0, \"stderr\": \"\", \"stdout\": \"{\\n   \\\"filesystems\\\": [\\n      {\\n         \\\"target\\\": \\\"/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v43/mount-dfs\\\",\\n         \\\"source\\\": \\\"afs-dfs\\\",\\n         \\\"fstype\\\": \\\"fuse\\\",\\n         \\\"options\\\": \\\"rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other\\\"\\n      }\\n   ]\\n}\\n\"}, \"platform\": {\"gid\": 0, \"hostname\": \"lima-afs-accept-a\", \"machine\": \"aarch64\", \"python\": \"3.12.3\", \"release\": \"6.8.0-142-generic\", \"system\": \"Linux\", \"uid\": 0}}, \"op\": \"identity\", \"stat\": {\"dev\": 49, \"ino\": 1, \"mode\": \"0o755\", \"mtime_ns\": 1790800556593000000, \"path\": \"/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v43/mount-dfs\", \"sha256\": null, \"size\": 0}}, \"worker_a_owner\": {\"event\": \"RESULT\", \"identity\": {\"all_expected_processes_ok\": true, \"boot_id\": \"36a572e0-859b-4a94-adc7-789210a83fc8\", \"created_at\": \"2026-09-30T20:38:43Z\", \"expected_processes\": {\"meta\": {\"exe_dev\": 64785, \"exe_inode\": 1577161, \"exe_path\": \"/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v43/bin/afs-meta\", \"expected_sha256\": \"c261dfe3de628e03bc0ece84d645562243ebaf5a4997f6b8097943edb4c55ea8\", \"pid\": 704776, \"role\": \"meta\", \"sha256\": \"c261dfe3de628e03bc0ece84d645562243ebaf5a4997f6b8097943edb4c55ea8\", \"sha256_ok\": true, \"start_ticks\": 5579651}, \"node\": {\"exe_dev\": 64785, \"exe_inode\": 1577162, \"exe_path\": \"/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v43/bin/afs-node\", \"expected_sha256\": \"9c311471c4e4bcbd605b326e5955c12399f659ba5176cc1f5c7fe83d589fa12e\", \"pid\": 704806, \"role\": \"node\", \"sha256\": \"9c311471c4e4bcbd605b326e5955c12399f659ba5176cc1f5c7fe83d589fa12e\", \"sha256_ok\": true, \"start_ticks\": 5579668}}, \"machine_id\": \"9253e8d222af4657a862f974ae5ce752\", \"mount\": {\"argv\": [\"findmnt\", \"-T\", \"/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v43/mount-ownerfs/owner-memory-lane-20260930T203556Z\", \"-o\", \"TARGET,SOURCE,FSTYPE,OPTIONS\", \"--json\"], \"returncode\": 0, \"stderr\": \"\", \"stdout\": \"{\\n   \\\"filesystems\\\": [\\n      {\\n         \\\"target\\\": \\\"/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v43/mount-ownerfs\\\",\\n         \\\"source\\\": \\\"afs-ownerfs\\\",\\n         \\\"fstype\\\": \\\"fuse\\\",\\n         \\\"options\\\": \\\"rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other\\\"\\n      }\\n   ]\\n}\\n\"}, \"platform\": {\"gid\": 0, \"hostname\": \"lima-afs-accept-a\", \"machine\": \"aarch64\", \"python\": \"3.12.3\", \"release\": \"6.8.0-142-generic\", \"system\": \"Linux\", \"uid\": 0}}, \"op\": \"identity\", \"stat\": {\"dev\": 48, \"ino\": 2, \"mode\": \"0o755\", \"mtime_ns\": 1790800556587078524, \"path\": \"/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v43/mount-ownerfs/owner-memory-lane-20260930T203556Z\", \"sha256\": null, \"size\": 4096}}, \"worker_b_dfs\": {\"event\": \"RESULT\", \"identity\": {\"all_expected_processes_ok\": true, \"boot_id\": \"3adebcd0-cb31-4df0-b18a-e970786ab7fb\", \"created_at\": \"2026-09-30T20:38:43Z\", \"expected_processes\": {}, \"machine_id\": \"c581e30d9cc847af8a866d69ed374dc7\", \"mount\": {\"argv\": [\"findmnt\", \"-T\", \"/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v43/mount-dfs\", \"-o\", \"TARGET,SOURCE,FSTYPE,OPTIONS\", \"--json\"], \"returncode\": 0, \"stderr\": \"\", \"stdout\": \"{\\n   \\\"filesystems\\\": [\\n      {\\n         \\\"target\\\": \\\"/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v43/mount-dfs\\\",\\n         \\\"source\\\": \\\"afs-dfs\\\",\\n         \\\"fstype\\\": \\\"fuse\\\",\\n         \\\"options\\\": \\\"rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other\\\"\\n      }\\n   ]\\n}\\n\"}, \"platform\": {\"gid\": 0, \"hostname\": \"lima-afs-accept-b\", \"machine\": \"aarch64\", \"python\": \"3.12.3\", \"release\": \"6.8.0-142-generic\", \"system\": \"Linux\", \"uid\": 0}}, \"op\": \"identity\", \"stat\": {\"dev\": 49, \"ino\": 1, \"mode\": \"0o755\", \"mtime_ns\": 1790800556593000000, \"path\": \"/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v43/mount-dfs\", \"sha256\": null, \"size\": 0}}, \"worker_b_owner\": {\"event\": \"RESULT\", \"identity\": {\"all_expected_processes_ok\": true, \"boot_id\": \"3adebcd0-cb31-4df0-b18a-e970786ab7fb\", \"created_at\": \"2026-09-30T20:38:43Z\", \"expected_processes\": {}, \"machine_id\": \"c581e30d9cc847af8a866d69ed374dc7\", \"mount\": {\"argv\": [\"findmnt\", \"-T\", \"/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v43/mount-ownerfs/owner-memory-lane-20260930T203556Z\", \"-o\", \"TARGET,SOURCE,FSTYPE,OPTIONS\", \"--json\"], \"returncode\": 0, \"stderr\": \"\", \"stdout\": \"{\\n   \\\"filesystems\\\": [\\n      {\\n         \\\"target\\\": \\\"/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v43/mount-ownerfs\\\",\\n         \\\"source\\\": \\\"afs-ownerfs\\\",\\n         \\\"fstype\\\": \\\"fuse\\\",\\n         \\\"options\\\": \\\"rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other\\\"\\n      }\\n   ]\\n}\\n\"}, \"platform\": {\"gid\": 0, \"hostname\": \"lima-afs-accept-b\", \"machine\": \"aarch64\", \"python\": \"3.12.3\", \"release\": \"6.8.0-142-generic\", \"system\": \"Linux\", \"uid\": 0}}, \"op\": \"identity\", \"stat\": {\"dev\": 48, \"ino\": 2, \"mode\": \"0o755\", \"mtime_ns\": 1790800556587078524, \"path\": \"/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v43/mount-ownerfs/owner-memory-lane-20260930T203556Z\", \"sha256\": null, \"size\": 4096}}}, \"message\": \"workers are not qualified cross-mount AFS evidence\"}\n"
+    }
+  ],
+  "host": {
+    "boot_id": null,
+    "machine": "arm64",
+    "python": "3.12.13",
+    "release": "27.0.0",
+    "system": "Darwin"
+  },
+  "identity": {
+    "cross_mount_qualified": false,
+    "qualification": {
+      "different_worker_kernels": true,
+      "meta_identity_present": true,
+      "worker_a_dfs_afs_fuse": true,
+      "worker_a_expected_processes_ok": true,
+      "worker_a_node_identity_present": true,
+      "worker_a_owner_afs_fuse": true,
+      "worker_b_dfs_afs_fuse": true,
+      "worker_b_expected_processes_ok": false,
+      "worker_b_node_identity_present": false,
+      "worker_b_owner_afs_fuse": true,
+      "worker_boot_ids_nonempty": true
+    },
+    "worker_a_dfs": {
+      "event": "RESULT",
+      "identity": {
+        "all_expected_processes_ok": true,
+        "boot_id": "36a572e0-859b-4a94-adc7-789210a83fc8",
+        "created_at": "2026-09-30T20:38:43Z",
+        "expected_processes": {
+          "meta": {
+            "exe_dev": 64785,
+            "exe_inode": 1577161,
+            "exe_path": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v43/bin/afs-meta",
+            "expected_sha256": "c261dfe3de628e03bc0ece84d645562243ebaf5a4997f6b8097943edb4c55ea8",
+            "pid": 704776,
+            "role": "meta",
+            "sha256": "c261dfe3de628e03bc0ece84d645562243ebaf5a4997f6b8097943edb4c55ea8",
+            "sha256_ok": true,
+            "start_ticks": 5579651
+          },
+          "node": {
+            "exe_dev": 64785,
+            "exe_inode": 1577162,
+            "exe_path": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v43/bin/afs-node",
+            "expected_sha256": "9c311471c4e4bcbd605b326e5955c12399f659ba5176cc1f5c7fe83d589fa12e",
+            "pid": 704806,
+            "role": "node",
+            "sha256": "9c311471c4e4bcbd605b326e5955c12399f659ba5176cc1f5c7fe83d589fa12e",
+            "sha256_ok": true,
+            "start_ticks": 5579668
+          }
+        },
+        "machine_id": "9253e8d222af4657a862f974ae5ce752",
+        "mount": {
+          "argv": [
+            "findmnt",
+            "-T",
+            "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v43/mount-dfs",
+            "-o",
+            "TARGET,SOURCE,FSTYPE,OPTIONS",
+            "--json"
+          ],
+          "returncode": 0,
+          "stderr": "",
+          "stdout": "{\n   \"filesystems\": [\n      {\n         \"target\": \"/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v43/mount-dfs\",\n         \"source\": \"afs-dfs\",\n         \"fstype\": \"fuse\",\n         \"options\": \"rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other\"\n      }\n   ]\n}\n"
+        },
+        "platform": {
+          "gid": 0,
+          "hostname": "lima-afs-accept-a",
+          "machine": "aarch64",
+          "python": "3.12.3",
+          "release": "6.8.0-142-generic",
+          "system": "Linux",
+          "uid": 0
+        }
+      },
+      "op": "identity",
+      "stat": {
+        "dev": 49,
+        "ino": 1,
+        "mode": "0o755",
+        "mtime_ns": 1790800556593000000,
+        "path": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v43/mount-dfs",
+        "sha256": null,
+        "size": 0
+      }
+    },
+    "worker_a_owner": {
+      "event": "RESULT",
+      "identity": {
+        "all_expected_processes_ok": true,
+        "boot_id": "36a572e0-859b-4a94-adc7-789210a83fc8",
+        "created_at": "2026-09-30T20:38:43Z",
+        "expected_processes": {
+          "meta": {
+            "exe_dev": 64785,
+            "exe_inode": 1577161,
+            "exe_path": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v43/bin/afs-meta",
+            "expected_sha256": "c261dfe3de628e03bc0ece84d645562243ebaf5a4997f6b8097943edb4c55ea8",
+            "pid": 704776,
+            "role": "meta",
+            "sha256": "c261dfe3de628e03bc0ece84d645562243ebaf5a4997f6b8097943edb4c55ea8",
+            "sha256_ok": true,
+            "start_ticks": 5579651
+          },
+          "node": {
+            "exe_dev": 64785,
+            "exe_inode": 1577162,
+            "exe_path": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v43/bin/afs-node",
+            "expected_sha256": "9c311471c4e4bcbd605b326e5955c12399f659ba5176cc1f5c7fe83d589fa12e",
+            "pid": 704806,
+            "role": "node",
+            "sha256": "9c311471c4e4bcbd605b326e5955c12399f659ba5176cc1f5c7fe83d589fa12e",
+            "sha256_ok": true,
+            "start_ticks": 5579668
+          }
+        },
+        "machine_id": "9253e8d222af4657a862f974ae5ce752",
+        "mount": {
+          "argv": [
+            "findmnt",
+            "-T",
+            "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v43/mount-ownerfs/owner-memory-lane-20260930T203556Z",
+            "-o",
+            "TARGET,SOURCE,FSTYPE,OPTIONS",
+            "--json"
+          ],
+          "returncode": 0,
+          "stderr": "",
+          "stdout": "{\n   \"filesystems\": [\n      {\n         \"target\": \"/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v43/mount-ownerfs\",\n         \"source\": \"afs-ownerfs\",\n         \"fstype\": \"fuse\",\n         \"options\": \"rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other\"\n      }\n   ]\n}\n"
+        },
+        "platform": {
+          "gid": 0,
+          "hostname": "lima-afs-accept-a",
+          "machine": "aarch64",
+          "python": "3.12.3",
+          "release": "6.8.0-142-generic",
+          "system": "Linux",
+          "uid": 0
+        }
+      },
+      "op": "identity",
+      "stat": {
+        "dev": 48,
+        "ino": 2,
+        "mode": "0o755",
+        "mtime_ns": 1790800556587078524,
+        "path": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v43/mount-ownerfs/owner-memory-lane-20260930T203556Z",
+        "sha256": null,
+        "size": 4096
+      }
+    },
+    "worker_b_dfs": {
+      "event": "RESULT",
+      "identity": {
+        "all_expected_processes_ok": true,
+        "boot_id": "3adebcd0-cb31-4df0-b18a-e970786ab7fb",
+        "created_at": "2026-09-30T20:38:43Z",
+        "expected_processes": {},
+        "machine_id": "c581e30d9cc847af8a866d69ed374dc7",
+        "mount": {
+          "argv": [
+            "findmnt",
+            "-T",
+            "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v43/mount-dfs",
+            "-o",
+            "TARGET,SOURCE,FSTYPE,OPTIONS",
+            "--json"
+          ],
+          "returncode": 0,
+          "stderr": "",
+          "stdout": "{\n   \"filesystems\": [\n      {\n         \"target\": \"/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v43/mount-dfs\",\n         \"source\": \"afs-dfs\",\n         \"fstype\": \"fuse\",\n         \"options\": \"rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other\"\n      }\n   ]\n}\n"
+        },
+        "platform": {
+          "gid": 0,
+          "hostname": "lima-afs-accept-b",
+          "machine": "aarch64",
+          "python": "3.12.3",
+          "release": "6.8.0-142-generic",
+          "system": "Linux",
+          "uid": 0
+        }
+      },
+      "op": "identity",
+      "stat": {
+        "dev": 49,
+        "ino": 1,
+        "mode": "0o755",
+        "mtime_ns": 1790800556593000000,
+        "path": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v43/mount-dfs",
+        "sha256": null,
+        "size": 0
+      }
+    },
+    "worker_b_owner": {
+      "event": "RESULT",
+      "identity": {
+        "all_expected_processes_ok": true,
+        "boot_id": "3adebcd0-cb31-4df0-b18a-e970786ab7fb",
+        "created_at": "2026-09-30T20:38:43Z",
+        "expected_processes": {},
+        "machine_id": "c581e30d9cc847af8a866d69ed374dc7",
+        "mount": {
+          "argv": [
+            "findmnt",
+            "-T",
+            "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v43/mount-ownerfs/owner-memory-lane-20260930T203556Z",
+            "-o",
+            "TARGET,SOURCE,FSTYPE,OPTIONS",
+            "--json"
+          ],
+          "returncode": 0,
+          "stderr": "",
+          "stdout": "{\n   \"filesystems\": [\n      {\n         \"target\": \"/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v43/mount-ownerfs\",\n         \"source\": \"afs-ownerfs\",\n         \"fstype\": \"fuse\",\n         \"options\": \"rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other\"\n      }\n   ]\n}\n"
+        },
+        "platform": {
+          "gid": 0,
+          "hostname": "lima-afs-accept-b",
+          "machine": "aarch64",
+          "python": "3.12.3",
+          "release": "6.8.0-142-generic",
+          "system": "Linux",
+          "uid": 0
+        }
+      },
+      "op": "identity",
+      "stat": {
+        "dev": 48,
+        "ino": 2,
+        "mode": "0o755",
+        "mtime_ns": 1790800556587078524,
+        "path": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v43/mount-ownerfs/owner-memory-lane-20260930T203556Z",
+        "sha256": null,
+        "size": 4096
+      }
+    }
+  },
+  "mount_roots": {
+    "dfs_root_a": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v43/mount-dfs",
+    "dfs_root_b": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v43/mount-dfs",
+    "owner_root_a": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v43/mount-ownerfs/owner-memory-lane-20260930T203556Z",
+    "owner_root_b": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v43/mount-ownerfs/owner-memory-lane-20260930T203556Z"
+  },
+  "notes": [
+    "All product file IO is performed by Linux worker subprocesses.",
+    "Close-to-open checks use one fresh open after an explicit stdin GO orchestration point; no read retry is used to hide stale results.",
+    "The controller does not restart, signal, pause, or reconfigure product runtime processes.",
+    "The DFS handover case intentionally idles before B writable open, performs one A fresh-open verification after B close, then verifies the former local owner can perform a provider write without retained stale state shadowing it.",
+    "The OwnerFs rename regression overwrites dst with src while a dst hardlink survives, then checks the surviving hardlink inode, nlink, and content without retry.",
+    "The DFS provider regression keeps a B writable handle open, performs handleless truncate(path), writes through the original handle without sync, checks same-B readonly visibility before close, then checks A fresh-open visibility after close."
+  ],
+  "run_id": "v43",
+  "schema": "afs.consistency_cross.v1",
+  "status": "FAIL",
+  "steps": [],
+  "summary": {
+    "commands": 4,
+    "failed": 1,
+    "passed": 0,
+    "steps": 0
+  },
+  "worker_commands": {
+    "A": [
+      "limactl",
+      "shell",
+      "afs-accept-a",
+      "--",
+      "sudo",
+      "python3",
+      "/var/tmp/afs-consistency-v43.py"
+    ],
+    "B": [
+      "limactl",
+      "shell",
+      "afs-accept-b",
+      "--",
+      "sudo",
+      "python3",
+      "/var/tmp/afs-consistency-v43.py"
+    ]
+  }
+}

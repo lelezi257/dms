@@ -166,6 +166,7 @@ WSL Ubuntu 24.04 构建；Hyper-V `dms-smoke` VM 验证：Ubuntu 24.04、x86_64�
 | G | 同目录 `run-03/`、`run-04/`：LOOKUP/GETATTR/CREATE 门控，分别用先 stat 与立即 open 的客户端。 |
 | F | 同目录 `run-05-direct-io/`、`run-06-cached/`：共享 backing passthrough 与缓存负对照。 |
 | R | 同目录 `real-ownerfs-results.json`，对应真实 OwnerFs `run-07` 的 26 个场景；完整 runner、结果及日志在 `ownerfs-real-evidence-final.tar.gz`。 |
+| P | 同目录 `native-path-results.json`、`native-path-evidence.tar.gz`：真实 OwnerFs 原生访问的 FUSE syscall 对照；包含 runner 和原始 strace。 |
 
 上述路径均相对于研究工作区 `/home/lzc/workspace/dms/`，不是 Git 仓库路径。原始过程产物与临时 probe 程序留在研究工作区，本 RFC 保存可阅读的结论、复现方法与验收合同；不发布证书私钥。R 的 `outcome=observed` 表示完成观察，不表示功能成功；错误 errno、缓存旧值和不互斥锁都是已观察的负结果。
 
@@ -174,6 +175,7 @@ WSL Ubuntu 24.04 构建；Hyper-V `dms-smoke` VM 验证：Ubuntu 24.04、x86_64�
 | 穿刺 | 实测结果 | 设计结论 | 证据 |
 | --- | --- | --- | --- |
 | 同路径覆盖 ext4 | 新 fd 的 device 与 backing ext4 一致；路径名不变 | 基础原生出口可行 | M、R |
+| 原生路径是否仍发 FUSE 请求 | 每组 40 次操作：绝对路径 open/read/write/close、保留 native fd 的 read/write、native dirfd 的 openat/read/close，均未跟踪到 Home `/dev/fuse` 请求；旧 direct-I/O FUSE fd 对照产生 40 READ + 40 WRITE | 这些访问确实绕过了 FUSE 请求路径；未量化耗时收益 | P |
 | `mkdir` 未回复前 mount | inline/helper/direct syscall 阻塞，完成或取消目标请求后解除 | 不等待 mount 再回复 mkdir | M |
 | mkdir 后异步 mount | 立即访问可先落到 FUSE；最终 bind 成功 | 必须支持过渡请求 | M |
 | LOOKUP 门控 | 先 stat、立即 open 两种客户端进入原生 | 仅为条件成立时的优化 | G |
@@ -230,6 +232,7 @@ sudo unshare --mount --propagation private \
 7. 测试原生 mmap 后的远端普通读和远端 mmap；测试 mode、链接、xattr、watch 与目录 fsync。
 8. 测试 mounted-root rmdir/rename、重复 mount、busy umount、lazy 后旧 fd、namespace 可见性和切换后的旧 dirfd。
 9. 在专用进程上跟踪 Home 的 fsync/fdatasync，比较普通 close 与显式远端 fsync；最后 kill Node，检查旧 fd、残留挂载、socket 和受控恢复。
+10. 单独跟踪 Home 的 `/dev/fuse` `read(2)`，解析 FUSE request header 的 opcode；比较原生绝对路径、native fd、native dirfd 与挂载前保留的 direct-I/O FUSE fd。必须用旧 FUSE fd 的 READ/WRITE 作为正对照，不能把跟踪器没有抓到请求误判为绕过 FUSE。
 
 审计 SHA-256：
 
@@ -241,6 +244,10 @@ evidence   56b8ec4fc4bb4cffd4a27c57711e9dbf95874bf3804181b2ce133cc07c2d2772
 ```
 
 上述 runner/evidence 哈希对应最终 `run-07` 归档；归档未包含证书私钥或运行中的 socket。
+
+P 使用同一真实集群配置，四组各执行 40 次操作；strace 成功附着 Node 的全部线程，以 `/dev/fuse` 路径过滤接收 syscall。前三组没有捕获请求，旧 direct-I/O FUSE fd 正对照捕获 opcode 15/16 各 40 次。证据支持已测试稳态访问绕过 FUSE，不代表任意路径解析、冷缓存、namespace 或故障状态均无 FUSE 请求，也不是性能基准。
+
+P 归档 SHA-256：`02dfeec6bb302f5d223087feb0e1e3698a55865dee89fd81ca7fc47816342ac7`。
 
 ### 4. 后续实施顺序与准入条件
 

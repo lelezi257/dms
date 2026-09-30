@@ -1,0 +1,12 @@
+   Compiling opentelemetry v0.32.0
+   Compiling nix v0.29.0
+   Compiling opentelemetry_sdk v0.32.1
+   Compiling tracing-opentelemetry v0.33.0
+   Compiling afs-transport v0.1.0 (/home/lzc.guest/afs-build/work/p3a-replication/common/transport)
+   Compiling opentelemetry-proto v0.32.0
+   Compiling opentelemetry-otlp v0.32.0
+   Compiling afs-tracing v0.1.0 (/home/lzc.guest/afs-build/work/p3a-replication/common/tracing)
+   Compiling afs-logging v0.1.0 (/home/lzc.guest/afs-build/work/p3a-replication/common/logging)
+   Compiling fuser v0.16.0 (/home/lzc.guest/afs-build/work/p3a-replication/third_party/fuser)
+   Compiling afs v0.1.0 (/home/lzc.guest/afs-build/work/p3a-replication)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 20.78s

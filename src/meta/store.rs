@@ -3,10 +3,10 @@
 //! `MetaStore` is the domain contract; `Store` is its single production
 //! implementation. It serializes conditional transitions, persists each batch
 //! through a selected backend, then publishes the acknowledged state. Memory,
-//! local-file and etcd backends differ only in their persistence guarantees.
+//! local-file, etcd and Redis backends differ only in their persistence guarantees.
 
 use std::{
-    collections::HashMap,
+    collections::{BTreeMap, HashMap},
     fmt,
     future::Future,
     pin::Pin,
@@ -23,13 +23,14 @@ use tokio::sync::{RwLock, mpsc, oneshot};
 
 use crate::dfs::{
     ChunkObject, CopyRecord, Dentry, DentryKey, FileVersion, FileVersionId, InodeId, InodeRecord,
-    LayoutRoot, LayoutRootId, PlacementRecord, ReplicationConfig, ReplicationTask,
-    ReplicationTaskId, StorageDeviceDescriptor, WriteLease,
+    LayoutRoot, LayoutRootId, NamespaceId, PlacementRecord, RenameOutcome, ReplicationConfig,
+    ReplicationTask, ReplicationTaskId, StorageDeviceDescriptor, WriteLease,
 };
 
 pub mod etcd;
 pub mod local_file;
 pub mod memory;
+pub mod redis;
 
 /// Monotonic revision assigned by the selected MetaStore.
 ///
@@ -53,7 +54,7 @@ impl StoreRevision {
 /// A retry with the same request id must observe the same committed outcome
 /// when the original transaction reached the store. A retry with the same id
 /// but different semantic operation must be rejected by the store backend.
-#[derive(Clone, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
+#[derive(Clone, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 pub struct RequestKey {
     pub caller_id: String,
     pub request_id: String,
@@ -262,6 +263,7 @@ pub enum MetaRead {
     CurrentNodeSession {
         node_id: String,
     },
+    CurrentNodeSessions,
     Root {
         root_id: String,
     },
@@ -290,9 +292,14 @@ pub enum MetaRead {
     },
     RequestOutcome(RequestKey),
     DfsDentry(DentryKey),
+    DfsDirectory {
+        namespace_id: NamespaceId,
+        parent_inode_id: InodeId,
+    },
     DfsInode(InodeId),
     DfsFileVersion(FileVersionId),
     DfsLayoutRoot(LayoutRootId),
+    DfsChunk(crate::dfs::ChunkId),
     DfsPlacement(crate::dfs::ChunkId),
     DfsCopy(crate::dfs::CopyId),
     DfsReplicationConfig,
@@ -307,6 +314,7 @@ pub struct MetaSnapshot {
     pub revision: StoreRevision,
     pub entity: Option<MetaEntity>,
     pub request_outcome: Option<RequestOutcome>,
+    pub entities: Vec<MetaEntity>,
 }
 
 /// Condition checked inside a single durable transaction.
@@ -339,6 +347,15 @@ pub enum TxnCondition {
         session_id: String,
     },
     RequestAbsent(RequestKey),
+    DfsDirectoryEmpty {
+        namespace_id: NamespaceId,
+        parent_inode_id: InodeId,
+    },
+    DfsNotDescendant {
+        namespace_id: NamespaceId,
+        ancestor_inode_id: InodeId,
+        child_inode_id: InodeId,
+    },
 }
 
 /// Mutation written inside a single durable transaction.
@@ -351,7 +368,7 @@ pub enum TxnMutation {
 }
 
 /// Key shapes used by transaction conditions and deletes.
-#[derive(Clone, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
+#[derive(Clone, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 pub enum MetaKey {
     NodeSession {
         node_id: String,
@@ -360,6 +377,7 @@ pub enum MetaKey {
     CurrentNodeSession {
         node_id: String,
     },
+    CurrentNodeSessions,
     Root {
         root_id: String,
     },
@@ -416,6 +434,17 @@ pub enum StoreOperation {
     CommitRootRevocation,
     AckRootCommand,
     DfsCreate,
+    DfsMkdir,
+    DfsMknod,
+    DfsInitializeNamespace,
+    DfsUnlink,
+    DfsRmdir,
+    DfsRename,
+    DfsLink,
+    DfsSymlink,
+    DfsSetInodeAttributes,
+    DfsSetXattr,
+    DfsRemoveXattr,
     DfsAcquireWriteLease,
     DfsRenewWriteLease,
     DfsSyncInodeMetadata,
@@ -427,6 +456,12 @@ pub enum StoreOperation {
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[allow(clippy::large_enum_variant)]
 pub enum OperationResult {
+    /// Namespace retries must bind the complete original request, including
+    /// caller credentials; a reused ID cannot authorize a different mutation.
+    DfsNamespace {
+        request_digest: [u8; 32],
+        result: Box<OperationResult>,
+    },
     NodeSession(NodeSession),
     RootReservation(RootReservationRecord),
     RootRecord(RootRecord),
@@ -439,6 +474,7 @@ pub enum OperationResult {
         lease: WriteLease,
     },
     DfsWriteLease(WriteLease),
+    DfsRename(RenameOutcome),
     Empty,
 }
 
@@ -642,6 +678,12 @@ impl MetaReadView {
 }
 
 pub trait MetaStore: Send + Sync {
+    /// Verifies that the durable backend can currently serve a real read.
+    ///
+    /// This must not be satisfied only from Store's in-memory acknowledged snapshot:
+    /// REST readiness uses it to fail closed when the backend is disconnected.
+    fn health(&self) -> MetaFuture<'_, ()>;
+
     /// Pins one acknowledged revision for all reads belonging to a source resolution.
     fn read_view(&self) -> MetaFuture<'_, MetaReadView>;
 
@@ -691,6 +733,15 @@ pub trait MetaStore: Send + Sync {
 /// physical CAS token; it is deliberately separate from `StoreRevision`,
 /// because one physical write may acknowledge several logical operations.
 pub trait StoreBackend: Send + Sync {
+    /// Probes backend availability with real backend IO.
+    ///
+    /// Backends may override this with a cheaper read-only command, but the
+    /// default intentionally calls `load` so health cannot be satisfied from
+    /// Store's in-memory snapshot.
+    fn health(&self) -> MetaFuture<'_, ()> {
+        Box::pin(async move { self.load().await.map(|_| ()) })
+    }
+
     fn load(&self) -> MetaFuture<'_, Option<(u64, Vec<u8>)>>;
     fn commit(&self, expected_version: u64, bytes: Vec<u8>) -> MetaFuture<'_, u64>;
 }
@@ -716,6 +767,7 @@ struct Pending {
 pub struct Store {
     visible: Arc<Visible>,
     writes: mpsc::Sender<Pending>,
+    backend: Arc<dyn StoreBackend>,
 }
 
 impl Store {
@@ -732,10 +784,14 @@ impl Store {
         tokio::spawn(run_commit_loop(
             receiver,
             Arc::clone(&visible),
-            backend,
+            backend.clone(),
             version,
         ));
-        Ok(Self { visible, writes })
+        Ok(Self {
+            visible,
+            writes,
+            backend,
+        })
     }
 
     fn ensure_available(&self) -> Result<()> {
@@ -844,6 +900,14 @@ fn unavailable(message: impl Into<String>) -> Error {
 }
 
 impl MetaStore for Store {
+    fn health(&self) -> MetaFuture<'_, ()> {
+        Box::pin(async move {
+            self.ensure_available()?;
+            self.backend.health().await?;
+            self.ensure_available()
+        })
+    }
+
     fn read_view(&self) -> MetaFuture<'_, MetaReadView> {
         Box::pin(async move {
             Ok(MetaReadView {
@@ -952,17 +1016,23 @@ impl StoreState {
                 .entities
                 .iter()
                 .map(|(key, entity)| (key.clone(), entity.clone()))
+                .collect::<BTreeMap<_, _>>()
+                .into_iter()
                 .collect(),
             requests: state
                 .requests
                 .iter()
                 .map(|(key, outcome)| (key.clone(), outcome.clone()))
+                .collect::<BTreeMap<_, _>>()
+                .into_iter()
                 .collect(),
             events: state.events.clone(),
             node_epochs: state
                 .node_epochs
                 .iter()
                 .map(|(node, epoch)| (node.clone(), *epoch))
+                .collect::<BTreeMap<_, _>>()
+                .into_iter()
                 .collect(),
         };
         serde_json::to_vec(&snapshot)
@@ -1033,6 +1103,10 @@ struct PersistedMemoryState {
 }
 
 impl MetaStore for StoreState {
+    fn health(&self) -> MetaFuture<'_, ()> {
+        Box::pin(async { Ok(()) })
+    }
+
     fn read_view(&self) -> MetaFuture<'_, MetaReadView> {
         Box::pin(async move {
             Ok(MetaReadView {
@@ -1060,6 +1134,7 @@ impl MetaStore for StoreState {
                         node_id: node_id.clone(),
                     })
                 }
+                MetaRead::CurrentNodeSessions => None,
                 MetaRead::Root { root_id } => state.entities.get(&MetaKey::Root {
                     root_id: root_id.clone(),
                 }),
@@ -1114,6 +1189,7 @@ impl MetaStore for StoreState {
                 }
                 MetaRead::RequestOutcome(_) => None,
                 MetaRead::DfsDentry(key) => state.entities.get(&MetaKey::DfsDentry(key.clone())),
+                MetaRead::DfsDirectory { .. } => None,
                 MetaRead::DfsInode(id) => state.entities.get(&MetaKey::DfsInode(id.clone())),
                 MetaRead::DfsFileVersion(id) => {
                     state.entities.get(&MetaKey::DfsFileVersion(id.clone()))
@@ -1124,6 +1200,7 @@ impl MetaStore for StoreState {
                 MetaRead::DfsPlacement(id) => {
                     state.entities.get(&MetaKey::DfsPlacement(id.clone()))
                 }
+                MetaRead::DfsChunk(id) => state.entities.get(&MetaKey::DfsChunk(id.clone())),
                 MetaRead::DfsCopy(id) => state.entities.get(&MetaKey::DfsCopy(id.clone())),
                 MetaRead::DfsReplicationConfig => {
                     state.entities.get(&MetaKey::DfsReplicationConfig)
@@ -1135,18 +1212,82 @@ impl MetaStore for StoreState {
                     state.entities.get(&MetaKey::DfsWriteLease(id.clone()))
                 }
             };
-            let request_outcome = match read {
-                MetaRead::RequestOutcome(key) => state.requests.get(&key).cloned(),
+            let request_outcome = match &read {
+                MetaRead::RequestOutcome(key) => state.requests.get(key).cloned(),
                 _ => None,
             };
+            let (revision, entities) = match &read {
+                MetaRead::DfsDirectory {
+                    namespace_id,
+                    parent_inode_id,
+                } => {
+                    let mut entries = state
+                        .entities
+                        .values()
+                        .filter_map(|versioned| match &versioned.entity {
+                            MetaEntity::DfsDentry(dentry)
+                                if dentry.key.namespace_id == *namespace_id
+                                    && dentry.key.parent_inode_id == *parent_inode_id =>
+                            {
+                                Some((dentry.key.name.clone(), versioned.clone()))
+                            }
+                            _ => None,
+                        })
+                        .collect::<Vec<_>>();
+                    entries.sort_by(|left, right| left.0.cmp(&right.0));
+                    let revision = entries
+                        .iter()
+                        .fold(state.revision, |max, (_, entity)| max.max(entity.revision));
+                    (
+                        revision,
+                        entries
+                            .into_iter()
+                            .map(|(_, versioned)| versioned.entity)
+                            .collect(),
+                    )
+                }
+                MetaRead::CurrentNodeSessions => {
+                    let mut sessions = state
+                        .entities
+                        .iter()
+                        .filter_map(|(key, versioned)| match (key, &versioned.entity) {
+                            (
+                                MetaKey::CurrentNodeSession { .. },
+                                MetaEntity::NodeSession(session),
+                            ) => Some((
+                                session.node_id.clone(),
+                                session.session_id.clone(),
+                                versioned.clone(),
+                            )),
+                            _ => None,
+                        })
+                        .collect::<Vec<_>>();
+                    sessions.sort_by(|left, right| left.0.cmp(&right.0).then(left.1.cmp(&right.1)));
+                    let revision = sessions.iter().fold(state.revision, |max, (_, _, entity)| {
+                        max.max(entity.revision)
+                    });
+                    (
+                        revision,
+                        sessions
+                            .into_iter()
+                            .map(|(_, _, versioned)| versioned.entity)
+                            .collect(),
+                    )
+                }
+                _ => (
+                    // A conditional update compares the entity's mod revision,
+                    // not the store-wide revision of unrelated later writes.
+                    entity
+                        .map(|versioned| versioned.revision)
+                        .unwrap_or(state.revision),
+                    Vec::new(),
+                ),
+            };
             Ok(MetaSnapshot {
-                // A conditional update compares the entity's mod revision,
-                // not the store-wide revision of unrelated later writes.
-                revision: entity
-                    .map(|versioned| versioned.revision)
-                    .unwrap_or(state.revision),
+                revision,
                 entity: entity.map(|versioned| versioned.entity.clone()),
                 request_outcome,
+                entities,
             })
         })
     }
@@ -1538,7 +1679,75 @@ fn condition_matches(state: &MemoryState, condition: &TxnCondition) -> bool {
                 )
             }),
         TxnCondition::RequestAbsent(key) => !state.requests.contains_key(key),
+        TxnCondition::DfsDirectoryEmpty {
+            namespace_id,
+            parent_inode_id,
+        } => dfs_directory_is_empty(state, namespace_id, parent_inode_id),
+        TxnCondition::DfsNotDescendant {
+            namespace_id,
+            ancestor_inode_id,
+            child_inode_id,
+        } => !dfs_is_descendant_or_same(state, namespace_id, ancestor_inode_id, child_inode_id),
     }
+}
+
+fn dfs_directory_is_empty(
+    state: &MemoryState,
+    namespace_id: &NamespaceId,
+    parent_inode_id: &InodeId,
+) -> bool {
+    !state.entities.values().any(|versioned| {
+        matches!(
+            &versioned.entity,
+            MetaEntity::DfsDentry(dentry)
+                if dentry.key.namespace_id == *namespace_id
+                    && dentry.key.parent_inode_id == *parent_inode_id
+        )
+    })
+}
+
+fn dfs_is_descendant_or_same(
+    state: &MemoryState,
+    namespace_id: &NamespaceId,
+    ancestor_inode_id: &InodeId,
+    child_inode_id: &InodeId,
+) -> bool {
+    if ancestor_inode_id == child_inode_id {
+        return true;
+    }
+    let mut current = child_inode_id.clone();
+    let mut seen = std::collections::HashSet::new();
+    while seen.insert(current.clone()) {
+        let Some(parent) = dfs_parent_of(state, namespace_id, &current) else {
+            return false;
+        };
+        if &parent == ancestor_inode_id {
+            return true;
+        }
+        if parent.0 == "1" {
+            return false;
+        }
+        current = parent;
+    }
+    true
+}
+
+fn dfs_parent_of(
+    state: &MemoryState,
+    namespace_id: &NamespaceId,
+    inode_id: &InodeId,
+) -> Option<InodeId> {
+    state
+        .entities
+        .values()
+        .find_map(|versioned| match &versioned.entity {
+            MetaEntity::DfsDentry(dentry)
+                if dentry.key.namespace_id == *namespace_id && dentry.inode_id == *inode_id =>
+            {
+                Some(dentry.key.parent_inode_id.clone())
+            }
+            _ => None,
+        })
 }
 
 fn current_session_matches(state: &MemoryState, node_id: &str, session_id: &str) -> bool {
@@ -1647,6 +1856,59 @@ mod tests {
         assert!(!session.is_live_at_unix_ms(100));
         assert!(!session.is_live_at_unix_ms(101));
         assert!(session.is_live_at_unix_ms(99));
+    }
+
+    #[test]
+    fn snapshot_bytes_are_independent_of_hash_map_insertion_order() {
+        fn state_in_order(nodes: &[&str]) -> StoreState {
+            let mut state = MemoryState {
+                revision: StoreRevision(7),
+                ..MemoryState::default()
+            };
+            for node in nodes {
+                let value = session(node, "session-1", 100);
+                state.entities.insert(
+                    MetaKey::NodeSession {
+                        node_id: (*node).to_owned(),
+                        session_id: value.session_id.clone(),
+                    },
+                    VersionedEntity {
+                        revision: StoreRevision(7),
+                        entity: MetaEntity::NodeSession(value.clone()),
+                    },
+                );
+                let request = RequestKey::new(*node, "register-1");
+                state.requests.insert(
+                    request.clone(),
+                    RequestOutcome {
+                        request,
+                        operation: StoreOperation::RegisterNode,
+                        result: OperationResult::NodeSession(value),
+                    },
+                );
+                state.node_epochs.insert((*node).to_owned(), 1);
+            }
+            StoreState {
+                state: Mutex::new(state),
+            }
+        }
+
+        let bytes = state_in_order(&["node-a", "node-b", "node-c"])
+            .snapshot_bytes()
+            .unwrap();
+        assert_eq!(
+            bytes,
+            state_in_order(&["node-c", "node-a", "node-b"])
+                .snapshot_bytes()
+                .unwrap()
+        );
+        assert_eq!(
+            bytes,
+            StoreState::from_snapshot(&bytes)
+                .unwrap()
+                .snapshot_bytes()
+                .unwrap()
+        );
     }
 
     #[test]

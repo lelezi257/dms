@@ -8,10 +8,20 @@
 use afs_protocol::meta::{
     AbortRootReply, AbortRootRequest, AckRevocationReply, AckRevocationRequest, AcquireRootReply,
     AcquireRootRequest, ActivateRootReply, ActivateRootRequest, CommitFileVersionReply,
-    CommitFileVersionRequest, DfsCommitMetadataMode, DfsCreateReply, DfsCreateRequest,
+    CommitFileVersionRequest, DfsCallerContext as PbDfsCallerContext, DfsCommitMetadataMode,
+    DfsCreateReply, DfsCreateRequest, DfsDentryRecord as PbDfsDentryRecord, DfsGetXattrReply,
+    DfsGetXattrRequest, DfsInodeAttributeUpdate as PbDfsInodeAttributeUpdate,
     DfsInodeAttributes as PbDfsInodeAttributes, DfsInodeKind as PbDfsInodeKind,
-    DfsInodeRecord as PbDfsInodeRecord, DfsLayoutRoot as PbDfsLayoutRoot, DfsLookupReply,
-    DfsLookupRequest, DfsWriteLeaseReply, GetDfsChunkSourcesReply, GetDfsChunkSourcesRequest,
+    DfsInodeRecord as PbDfsInodeRecord, DfsLayoutRoot as PbDfsLayoutRoot, DfsLinkReply,
+    DfsLinkRequest, DfsListXattrReply, DfsListXattrRequest, DfsLookupReply, DfsLookupRequest,
+    DfsMkdirReply, DfsMkdirRequest, DfsMknodReply, DfsMknodRequest, DfsReadDirReply,
+    DfsReadDirRequest, DfsReadLinkReply, DfsReadLinkRequest, DfsRemoveXattrReply,
+    DfsRemoveXattrRequest, DfsRenameMode as PbDfsRenameMode, DfsRenameReply, DfsRenameRequest,
+    DfsRmdirReply, DfsRmdirRequest, DfsSetInodeAttributesReply, DfsSetInodeAttributesRequest,
+    DfsSetXattrReply, DfsSetXattrRequest, DfsSpecialNode as PbDfsSpecialNode,
+    DfsSpecialNodeKind as PbDfsSpecialNodeKind, DfsSymlinkReply, DfsSymlinkRequest, DfsUnlinkReply,
+    DfsUnlinkRequest, DfsWriteLeaseReply, DfsXattrRecord as PbDfsXattrRecord,
+    DfsXattrSetMode as PbDfsXattrSetMode, GetDfsChunkSourcesReply, GetDfsChunkSourcesRequest,
     GetDfsInodeReply, GetDfsInodeRequest, GetDfsPlacementSnapshotReply,
     GetDfsPlacementSnapshotRequest, GetFileVersionReply, GetFileVersionRequest,
     ListOwnerRootsReply, ListOwnerRootsRequest, LookupNodeReply, LookupNodeRequest,
@@ -20,9 +30,10 @@ use afs_protocol::meta::{
     RecoverRootRequest, RegisterNodeReply, RegisterNodeRequest, RenewDfsWriteLeaseRequest,
     ReserveRootReply, ReserveRootRequest, RootCommand, RootCommandType, RootLocation,
     RootReservation, RootRight as PbRootRight, SyncDfsInodeMetadataReply,
-    SyncDfsInodeMetadataRequest, ValidateRootAccessReply, ValidateRootAccessRequest,
-    WatchRootCommandsRequest, dfs_meta_server::DfsMeta as DfsMetaService,
-    meta_server::Meta as MetaService, owner_roots_server::OwnerRoots as OwnerRootsService,
+    SyncDfsInodeMetadataRequest, ValidateDfsReplicaWriteReply, ValidateDfsReplicaWriteRequest,
+    ValidateRootAccessReply, ValidateRootAccessRequest, WatchRootCommandsRequest,
+    dfs_meta_server::DfsMeta as DfsMetaService, meta_server::Meta as MetaService,
+    owner_roots_server::OwnerRoots as OwnerRootsService,
 };
 use std::{pin::Pin, sync::Arc, time::Duration};
 use tokio_stream::Stream;
@@ -746,6 +757,423 @@ impl DfsMetaService for DfsMetaRpc {
         }))
     }
 
+    async fn mkdir(
+        &self,
+        request: Request<DfsMkdirRequest>,
+    ) -> Result<Response<DfsMkdirReply>, Status> {
+        let authenticated = authenticated_node_id(&self.0, &request)?;
+        let request = request.into_inner();
+        validate_caller(authenticated.as_deref(), &request.caller_id)?;
+        require_text(&request.operation_id, "operation_id")?;
+        require_text(&request.namespace_id, "namespace_id")?;
+        require_text(&request.parent_inode_id, "parent_inode_id")?;
+        let attributes = request
+            .attributes
+            .ok_or_else(|| invalid("DFS mkdir requires attributes"))?;
+        let caller = request
+            .caller
+            .ok_or_else(|| invalid("DFS mkdir requires caller context"))?;
+        let inode = dfs_service(&self.0)?
+            .mkdir(crate::dfs::MkdirRequest {
+                caller_id: request.caller_id,
+                operation_id: crate::dfs::OperationId::new(request.operation_id),
+                namespace_id: crate::dfs::NamespaceId::new(request.namespace_id),
+                parent_inode_id: crate::dfs::InodeId::new(request.parent_inode_id),
+                name: request.name,
+                attributes: domain_dfs_attributes(attributes),
+                caller: domain_caller_context(caller),
+            })
+            .await
+            .map_err(afs_transport::grpc::error_status::error_to_status)?;
+        Ok(Response::new(DfsMkdirReply {
+            inode: Some(wire_dfs_inode(inode)),
+        }))
+    }
+
+    async fn read_dir(
+        &self,
+        request: Request<DfsReadDirRequest>,
+    ) -> Result<Response<DfsReadDirReply>, Status> {
+        let request = request.into_inner();
+        require_text(&request.namespace_id, "namespace_id")?;
+        require_text(&request.parent_inode_id, "parent_inode_id")?;
+        let entries = dfs_service(&self.0)?
+            .read_dir(
+                crate::dfs::NamespaceId::new(request.namespace_id),
+                crate::dfs::InodeId::new(request.parent_inode_id),
+            )
+            .await
+            .map_err(afs_transport::grpc::error_status::error_to_status)?;
+        Ok(Response::new(DfsReadDirReply {
+            entries: entries.into_iter().map(wire_dfs_dentry).collect(),
+        }))
+    }
+
+    async fn unlink(
+        &self,
+        request: Request<DfsUnlinkRequest>,
+    ) -> Result<Response<DfsUnlinkReply>, Status> {
+        let authenticated = authenticated_node_id(&self.0, &request)?;
+        let request = request.into_inner();
+        validate_caller(authenticated.as_deref(), &request.caller_id)?;
+        require_text(&request.operation_id, "operation_id")?;
+        require_text(&request.namespace_id, "namespace_id")?;
+        require_text(&request.parent_inode_id, "parent_inode_id")?;
+        let caller = request
+            .caller
+            .ok_or_else(|| invalid("DFS unlink requires caller context"))?;
+        let inode = dfs_service(&self.0)?
+            .unlink(crate::dfs::UnlinkRequest {
+                caller_id: request.caller_id,
+                operation_id: crate::dfs::OperationId::new(request.operation_id),
+                namespace_id: crate::dfs::NamespaceId::new(request.namespace_id),
+                parent_inode_id: crate::dfs::InodeId::new(request.parent_inode_id),
+                name: request.name,
+                caller: domain_caller_context(caller),
+            })
+            .await
+            .map_err(afs_transport::grpc::error_status::error_to_status)?;
+        Ok(Response::new(DfsUnlinkReply {
+            inode: Some(wire_dfs_inode(inode)),
+        }))
+    }
+
+    async fn rmdir(
+        &self,
+        request: Request<DfsRmdirRequest>,
+    ) -> Result<Response<DfsRmdirReply>, Status> {
+        let authenticated = authenticated_node_id(&self.0, &request)?;
+        let request = request.into_inner();
+        validate_caller(authenticated.as_deref(), &request.caller_id)?;
+        require_text(&request.operation_id, "operation_id")?;
+        require_text(&request.namespace_id, "namespace_id")?;
+        require_text(&request.parent_inode_id, "parent_inode_id")?;
+        let caller = request
+            .caller
+            .ok_or_else(|| invalid("DFS rmdir requires caller context"))?;
+        let inode = dfs_service(&self.0)?
+            .rmdir(crate::dfs::RmdirRequest {
+                caller_id: request.caller_id,
+                operation_id: crate::dfs::OperationId::new(request.operation_id),
+                namespace_id: crate::dfs::NamespaceId::new(request.namespace_id),
+                parent_inode_id: crate::dfs::InodeId::new(request.parent_inode_id),
+                name: request.name,
+                caller: domain_caller_context(caller),
+            })
+            .await
+            .map_err(afs_transport::grpc::error_status::error_to_status)?;
+        Ok(Response::new(DfsRmdirReply {
+            inode: Some(wire_dfs_inode(inode)),
+        }))
+    }
+
+    async fn rename(
+        &self,
+        request: Request<DfsRenameRequest>,
+    ) -> Result<Response<DfsRenameReply>, Status> {
+        let authenticated = authenticated_node_id(&self.0, &request)?;
+        let request = request.into_inner();
+        validate_caller(authenticated.as_deref(), &request.caller_id)?;
+        require_text(&request.operation_id, "operation_id")?;
+        require_text(&request.namespace_id, "namespace_id")?;
+        require_text(&request.old_parent_inode_id, "old_parent_inode_id")?;
+        require_text(&request.new_parent_inode_id, "new_parent_inode_id")?;
+        let mode = match PbDfsRenameMode::try_from(request.mode) {
+            Ok(PbDfsRenameMode::NoReplace) => crate::dfs::RenameMode::NoReplace,
+            Ok(PbDfsRenameMode::Replace) => crate::dfs::RenameMode::Replace,
+            Ok(PbDfsRenameMode::Unspecified) | Err(_) => {
+                return Err(invalid("DFS rename mode is required"));
+            }
+        };
+        let caller = request
+            .caller
+            .ok_or_else(|| invalid("DFS rename requires caller context"))?;
+        let outcome = dfs_service(&self.0)?
+            .rename(crate::dfs::RenameRequest {
+                caller_id: request.caller_id,
+                operation_id: crate::dfs::OperationId::new(request.operation_id),
+                namespace_id: crate::dfs::NamespaceId::new(request.namespace_id),
+                old_parent_inode_id: crate::dfs::InodeId::new(request.old_parent_inode_id),
+                old_name: request.old_name,
+                new_parent_inode_id: crate::dfs::InodeId::new(request.new_parent_inode_id),
+                new_name: request.new_name,
+                mode,
+                caller: domain_caller_context(caller),
+            })
+            .await
+            .map_err(afs_transport::grpc::error_status::error_to_status)?;
+        Ok(Response::new(DfsRenameReply {
+            inode: Some(wire_dfs_inode(outcome.inode)),
+            replaced: outcome.replaced_inode.is_some(),
+            replaced_inode: outcome.replaced_inode.map(wire_dfs_inode),
+        }))
+    }
+
+    async fn link(
+        &self,
+        request: Request<DfsLinkRequest>,
+    ) -> Result<Response<DfsLinkReply>, Status> {
+        let authenticated = authenticated_node_id(&self.0, &request)?;
+        let request = request.into_inner();
+        validate_caller(authenticated.as_deref(), &request.caller_id)?;
+        require_text(&request.operation_id, "operation_id")?;
+        require_text(&request.namespace_id, "namespace_id")?;
+        require_text(&request.existing_inode_id, "existing_inode_id")?;
+        require_text(&request.parent_inode_id, "parent_inode_id")?;
+        let caller = request
+            .caller
+            .ok_or_else(|| invalid("DFS link requires caller context"))?;
+        let inode = dfs_service(&self.0)?
+            .link(crate::dfs::LinkRequest {
+                caller_id: request.caller_id,
+                operation_id: crate::dfs::OperationId::new(request.operation_id),
+                namespace_id: crate::dfs::NamespaceId::new(request.namespace_id),
+                existing_inode_id: crate::dfs::InodeId::new(request.existing_inode_id),
+                expected_inode_revision: request.expected_inode_revision,
+                parent_inode_id: crate::dfs::InodeId::new(request.parent_inode_id),
+                name: request.name,
+                caller: domain_caller_context(caller),
+            })
+            .await
+            .map_err(afs_transport::grpc::error_status::error_to_status)?;
+        Ok(Response::new(DfsLinkReply {
+            inode: Some(wire_dfs_inode(inode)),
+        }))
+    }
+
+    async fn symlink(
+        &self,
+        request: Request<DfsSymlinkRequest>,
+    ) -> Result<Response<DfsSymlinkReply>, Status> {
+        let authenticated = authenticated_node_id(&self.0, &request)?;
+        let request = request.into_inner();
+        validate_caller(authenticated.as_deref(), &request.caller_id)?;
+        require_text(&request.operation_id, "operation_id")?;
+        require_text(&request.namespace_id, "namespace_id")?;
+        require_text(&request.parent_inode_id, "parent_inode_id")?;
+        let attributes = request
+            .attributes
+            .ok_or_else(|| invalid("DFS symlink requires attributes"))?;
+        let caller = request
+            .caller
+            .ok_or_else(|| invalid("DFS symlink requires caller context"))?;
+        let inode = dfs_service(&self.0)?
+            .symlink(crate::dfs::SymlinkRequest {
+                caller_id: request.caller_id,
+                operation_id: crate::dfs::OperationId::new(request.operation_id),
+                namespace_id: crate::dfs::NamespaceId::new(request.namespace_id),
+                parent_inode_id: crate::dfs::InodeId::new(request.parent_inode_id),
+                name: request.name,
+                target: request.target,
+                attributes: domain_dfs_attributes(attributes),
+                caller: domain_caller_context(caller),
+            })
+            .await
+            .map_err(afs_transport::grpc::error_status::error_to_status)?;
+        Ok(Response::new(DfsSymlinkReply {
+            inode: Some(wire_dfs_inode(inode)),
+        }))
+    }
+
+    async fn mknod(
+        &self,
+        request: Request<DfsMknodRequest>,
+    ) -> Result<Response<DfsMknodReply>, Status> {
+        let authenticated = authenticated_node_id(&self.0, &request)?;
+        let request = request.into_inner();
+        validate_caller(authenticated.as_deref(), &request.caller_id)?;
+        require_text(&request.operation_id, "operation_id")?;
+        require_text(&request.namespace_id, "namespace_id")?;
+        require_text(&request.parent_inode_id, "parent_inode_id")?;
+        let attributes = request
+            .attributes
+            .ok_or_else(|| invalid("DFS mknod requires attributes"))?;
+        let caller = request
+            .caller
+            .ok_or_else(|| invalid("DFS mknod requires caller context"))?;
+        let special_node = request
+            .special_node
+            .ok_or_else(|| invalid("DFS mknod requires special_node"))?;
+        let request = crate::dfs::MknodRequest {
+            caller_id: request.caller_id,
+            operation_id: crate::dfs::OperationId::new(request.operation_id),
+            namespace_id: crate::dfs::NamespaceId::new(request.namespace_id),
+            parent_inode_id: crate::dfs::InodeId::new(request.parent_inode_id),
+            name: request.name,
+            kind: domain_dfs_special_node(special_node)?,
+            attributes: domain_dfs_attributes(attributes),
+            caller: domain_caller_context(caller),
+        };
+        let inode = dfs_service(&self.0)?
+            .mknod(request)
+            .await
+            .map_err(afs_transport::grpc::error_status::error_to_status)?;
+        Ok(Response::new(DfsMknodReply {
+            inode: Some(wire_dfs_inode(inode)),
+        }))
+    }
+
+    async fn read_link(
+        &self,
+        request: Request<DfsReadLinkRequest>,
+    ) -> Result<Response<DfsReadLinkReply>, Status> {
+        let request = request.into_inner();
+        require_text(&request.namespace_id, "namespace_id")?;
+        require_text(&request.inode_id, "inode_id")?;
+        let target = dfs_service(&self.0)?
+            .read_link(crate::dfs::ReadLinkRequest {
+                namespace_id: crate::dfs::NamespaceId::new(request.namespace_id),
+                inode_id: crate::dfs::InodeId::new(request.inode_id),
+            })
+            .await
+            .map_err(afs_transport::grpc::error_status::error_to_status)?;
+        Ok(Response::new(DfsReadLinkReply { target }))
+    }
+
+    async fn set_inode_attributes(
+        &self,
+        request: Request<DfsSetInodeAttributesRequest>,
+    ) -> Result<Response<DfsSetInodeAttributesReply>, Status> {
+        let authenticated = authenticated_node_id(&self.0, &request)?;
+        let request = request.into_inner();
+        validate_caller(authenticated.as_deref(), &request.caller_id)?;
+        require_text(&request.operation_id, "operation_id")?;
+        require_text(&request.inode_id, "inode_id")?;
+        let inode = dfs_service(&self.0)?
+            .set_inode_attributes(crate::dfs::SetInodeAttrRequest {
+                caller_id: request.caller_id,
+                operation_id: crate::dfs::OperationId::new(request.operation_id),
+                caller: domain_caller_context(
+                    request
+                        .caller
+                        .ok_or_else(|| invalid("DFS setattr requires caller context"))?,
+                ),
+                inode_id: crate::dfs::InodeId::new(request.inode_id),
+                expected_inode_revision: request.expected_inode_revision,
+                update: domain_inode_attr_update(
+                    request
+                        .update
+                        .ok_or_else(|| invalid("DFS setattr requires update"))?,
+                ),
+            })
+            .await
+            .map_err(afs_transport::grpc::error_status::error_to_status)?;
+        Ok(Response::new(DfsSetInodeAttributesReply {
+            inode: Some(wire_dfs_inode(inode)),
+        }))
+    }
+
+    async fn get_xattr(
+        &self,
+        request: Request<DfsGetXattrRequest>,
+    ) -> Result<Response<DfsGetXattrReply>, Status> {
+        let _authenticated = authenticated_node_id(&self.0, &request)?;
+        let request = request.into_inner();
+        require_text(&request.inode_id, "inode_id")?;
+        let value = dfs_service(&self.0)?
+            .get_xattr(crate::dfs::GetXattrRequest {
+                caller: domain_caller_context(
+                    request
+                        .caller
+                        .ok_or_else(|| invalid("DFS getxattr requires caller context"))?,
+                ),
+                inode_id: crate::dfs::InodeId::new(request.inode_id),
+                name: request.name,
+            })
+            .await
+            .map_err(afs_transport::grpc::error_status::error_to_status)?;
+        Ok(Response::new(DfsGetXattrReply { value }))
+    }
+
+    async fn list_xattr(
+        &self,
+        request: Request<DfsListXattrRequest>,
+    ) -> Result<Response<DfsListXattrReply>, Status> {
+        let _authenticated = authenticated_node_id(&self.0, &request)?;
+        let request = request.into_inner();
+        require_text(&request.inode_id, "inode_id")?;
+        let names = dfs_service(&self.0)?
+            .list_xattr(crate::dfs::ListXattrRequest {
+                caller: domain_caller_context(
+                    request
+                        .caller
+                        .ok_or_else(|| invalid("DFS listxattr requires caller context"))?,
+                ),
+                inode_id: crate::dfs::InodeId::new(request.inode_id),
+            })
+            .await
+            .map_err(afs_transport::grpc::error_status::error_to_status)?;
+        Ok(Response::new(DfsListXattrReply { names }))
+    }
+
+    async fn set_xattr(
+        &self,
+        request: Request<DfsSetXattrRequest>,
+    ) -> Result<Response<DfsSetXattrReply>, Status> {
+        let authenticated = authenticated_node_id(&self.0, &request)?;
+        let request = request.into_inner();
+        validate_caller(authenticated.as_deref(), &request.caller_id)?;
+        require_text(&request.operation_id, "operation_id")?;
+        require_text(&request.inode_id, "inode_id")?;
+        let mode = match PbDfsXattrSetMode::try_from(request.mode) {
+            Ok(PbDfsXattrSetMode::Upsert) => crate::dfs::XattrSetMode::Upsert,
+            Ok(PbDfsXattrSetMode::Create) => crate::dfs::XattrSetMode::Create,
+            Ok(PbDfsXattrSetMode::Replace) => crate::dfs::XattrSetMode::Replace,
+            Ok(PbDfsXattrSetMode::Unspecified) | Err(_) => {
+                return Err(invalid("DFS setxattr mode is required"));
+            }
+        };
+        let inode = dfs_service(&self.0)?
+            .set_xattr(crate::dfs::SetXattrRequest {
+                caller_id: request.caller_id,
+                operation_id: crate::dfs::OperationId::new(request.operation_id),
+                caller: domain_caller_context(
+                    request
+                        .caller
+                        .ok_or_else(|| invalid("DFS setxattr requires caller context"))?,
+                ),
+                inode_id: crate::dfs::InodeId::new(request.inode_id),
+                expected_inode_revision: request.expected_inode_revision,
+                name: request.name,
+                value: request.value,
+                mode,
+            })
+            .await
+            .map_err(afs_transport::grpc::error_status::error_to_status)?;
+        Ok(Response::new(DfsSetXattrReply {
+            inode: Some(wire_dfs_inode(inode)),
+        }))
+    }
+
+    async fn remove_xattr(
+        &self,
+        request: Request<DfsRemoveXattrRequest>,
+    ) -> Result<Response<DfsRemoveXattrReply>, Status> {
+        let authenticated = authenticated_node_id(&self.0, &request)?;
+        let request = request.into_inner();
+        validate_caller(authenticated.as_deref(), &request.caller_id)?;
+        require_text(&request.operation_id, "operation_id")?;
+        require_text(&request.inode_id, "inode_id")?;
+        let inode = dfs_service(&self.0)?
+            .remove_xattr(crate::dfs::RemoveXattrRequest {
+                caller_id: request.caller_id,
+                operation_id: crate::dfs::OperationId::new(request.operation_id),
+                caller: domain_caller_context(
+                    request
+                        .caller
+                        .ok_or_else(|| invalid("DFS removexattr requires caller context"))?,
+                ),
+                inode_id: crate::dfs::InodeId::new(request.inode_id),
+                expected_inode_revision: request.expected_inode_revision,
+                name: request.name,
+            })
+            .await
+            .map_err(afs_transport::grpc::error_status::error_to_status)?;
+        Ok(Response::new(DfsRemoveXattrReply {
+            inode: Some(wire_dfs_inode(inode)),
+        }))
+    }
+
     async fn open_write(
         &self,
         request: Request<OpenDfsWriteRequest>,
@@ -849,6 +1277,95 @@ impl DfsMetaService for DfsMetaRpc {
         Ok(Response::new(GetDfsPlacementSnapshotReply {
             snapshot: Some(wire_placement_snapshot(snapshot)),
         }))
+    }
+
+    async fn validate_replica_write(
+        &self,
+        request: Request<ValidateDfsReplicaWriteRequest>,
+    ) -> Result<Response<ValidateDfsReplicaWriteReply>, Status> {
+        let authenticated = authenticated_node_id(&self.0, &request)?;
+        let request = request.into_inner();
+        validate_caller(authenticated.as_deref(), &request.requester_node_id)?;
+        let grant = dfs_service(&self.0)?
+            .validate_replica_write(domain_validate_replica_write(request)?)
+            .await
+            .map_err(afs_transport::grpc::error_status::error_to_status)?;
+        Ok(Response::new(ValidateDfsReplicaWriteReply {
+            grant: Some(wire_replica_write_grant(grant)),
+        }))
+    }
+
+    async fn validate_read_grants(
+        &self,
+        request: Request<afs_protocol::meta::ValidateDfsReadGrantsRequest>,
+    ) -> Result<Response<afs_protocol::meta::ValidateDfsReadGrantsReply>, Status> {
+        let authenticated = authenticated_node_id(&self.0, &request)?;
+        let request = request.into_inner();
+        validate_caller(authenticated.as_deref(), &request.receiver_node_id)?;
+        let validations = request
+            .validations
+            .into_iter()
+            .map(|validation| {
+                let grant = validation
+                    .grant
+                    .ok_or_else(|| invalid("read validation grant is missing"))?;
+                Ok(crate::dfs::DfsReadValidation {
+                    grant: crate::dfs::DfsReadGrant {
+                        namespace_id: crate::dfs::NamespaceId::new(grant.namespace_id),
+                        file_version_id: crate::dfs::FileVersionId::new(grant.file_version_id),
+                        layout_root_id: crate::dfs::LayoutRootId::new(grant.layout_root_id),
+                        caller_node_id: grant.caller_node_id,
+                        caller_node_epoch: grant.caller_node_epoch,
+                        expires_at_unix_ms: grant.expires_at_unix_ms,
+                        fence: grant.fence,
+                        token: grant.token,
+                    },
+                    chunk_id: crate::dfs::ChunkId::new(validation.chunk_id),
+                    copy_id: crate::dfs::CopyId::new(validation.copy_id),
+                    chunk_offset: validation.chunk_offset,
+                    length: validation.length,
+                })
+            })
+            .collect::<Result<Vec<_>, Status>>()?;
+        let authorized = dfs_service(&self.0)?
+            .validate_read_grants(crate::dfs::ValidateDfsReadGrants {
+                receiver_node_id: request.receiver_node_id,
+                receiver_node_epoch: request.receiver_node_epoch,
+                peer_node_id: request.peer_node_id,
+                validations,
+            })
+            .await
+            .map_err(afs_transport::grpc::error_status::error_to_status)?;
+        Ok(Response::new(
+            afs_protocol::meta::ValidateDfsReadGrantsReply {
+                authorizations: authorized
+                    .into_iter()
+                    .map(|entry| {
+                        let validation = entry.validation;
+                        afs_protocol::meta::DfsAuthorizedRead {
+                            validation: Some(afs_protocol::meta::DfsReadValidation {
+                                grant: Some(wire_read_grant(validation.grant)),
+                                chunk_id: validation.chunk_id.0,
+                                copy_id: validation.copy_id.0,
+                                chunk_offset: validation.chunk_offset,
+                                length: validation.length,
+                            }),
+                            allowed_ranges: entry
+                                .allowed_ranges
+                                .into_iter()
+                                .map(|(offset, length)| {
+                                    afs_protocol::meta::dfs_authorized_read::Range {
+                                        offset,
+                                        length,
+                                    }
+                                })
+                                .collect(),
+                            expires_at_unix_ms: entry.expires_at_unix_ms,
+                        }
+                    })
+                    .collect(),
+            },
+        ))
     }
 
     async fn get_chunk_sources(
@@ -979,6 +1496,13 @@ fn dfs_service(meta: &super::Meta) -> Result<&super::dfs::DfsService, Status> {
     })
 }
 
+fn wire_dfs_dentry(entry: crate::dfs::DentryRecord) -> PbDfsDentryRecord {
+    PbDfsDentryRecord {
+        name: entry.name,
+        inode: Some(wire_dfs_inode(entry.inode)),
+    }
+}
+
 fn wire_dfs_inode(inode: crate::dfs::InodeRecord) -> PbDfsInodeRecord {
     PbDfsInodeRecord {
         namespace_id: inode.namespace_id.0,
@@ -987,6 +1511,7 @@ fn wire_dfs_inode(inode: crate::dfs::InodeRecord) -> PbDfsInodeRecord {
             crate::dfs::InodeKind::Regular => PbDfsInodeKind::Regular as i32,
             crate::dfs::InodeKind::Directory => PbDfsInodeKind::Directory as i32,
             crate::dfs::InodeKind::Symlink => PbDfsInodeKind::Symlink as i32,
+            crate::dfs::InodeKind::Special(_) => PbDfsInodeKind::Special as i32,
         },
         attributes: Some(PbDfsInodeAttributes {
             mode: inode.attributes.mode,
@@ -999,6 +1524,75 @@ fn wire_dfs_inode(inode: crate::dfs::InodeRecord) -> PbDfsInodeRecord {
         }),
         head_version_id: inode.head_version.map_or_else(String::new, |id| id.0),
         revision: inode.revision,
+        symlink_target: inode.symlink_target.unwrap_or_default(),
+        xattrs: inode
+            .xattrs
+            .into_iter()
+            .map(|(name, value)| PbDfsXattrRecord { name, value })
+            .collect(),
+        special_node: match inode.kind {
+            crate::dfs::InodeKind::Special(kind) => Some(wire_dfs_special_node(kind)),
+            _ => None,
+        },
+    }
+}
+
+fn domain_dfs_special_node(
+    special: PbDfsSpecialNode,
+) -> Result<crate::dfs::SpecialNodeKind, Status> {
+    match PbDfsSpecialNodeKind::try_from(special.kind) {
+        Ok(PbDfsSpecialNodeKind::Fifo) if special.rdev == 0 => {
+            Ok(crate::dfs::SpecialNodeKind::Fifo)
+        }
+        Ok(PbDfsSpecialNodeKind::Socket) if special.rdev == 0 => {
+            Ok(crate::dfs::SpecialNodeKind::Socket)
+        }
+        Ok(PbDfsSpecialNodeKind::BlockDevice) => {
+            Ok(crate::dfs::SpecialNodeKind::BlockDevice { rdev: special.rdev })
+        }
+        Ok(PbDfsSpecialNodeKind::CharDevice) => {
+            Ok(crate::dfs::SpecialNodeKind::CharDevice { rdev: special.rdev })
+        }
+        _ => Err(invalid(
+            "DFS special node has an invalid kind/rdev combination",
+        )),
+    }
+}
+
+fn wire_dfs_special_node(kind: crate::dfs::SpecialNodeKind) -> PbDfsSpecialNode {
+    let (kind, rdev) = match kind {
+        crate::dfs::SpecialNodeKind::Fifo => (PbDfsSpecialNodeKind::Fifo, 0),
+        crate::dfs::SpecialNodeKind::Socket => (PbDfsSpecialNodeKind::Socket, 0),
+        crate::dfs::SpecialNodeKind::BlockDevice { rdev } => {
+            (PbDfsSpecialNodeKind::BlockDevice, rdev)
+        }
+        crate::dfs::SpecialNodeKind::CharDevice { rdev } => {
+            (PbDfsSpecialNodeKind::CharDevice, rdev)
+        }
+    };
+    PbDfsSpecialNode {
+        kind: kind.into(),
+        rdev,
+    }
+}
+
+fn domain_caller_context(caller: PbDfsCallerContext) -> crate::dfs::CallerContext {
+    crate::dfs::CallerContext {
+        uid: caller.uid,
+        gid: caller.gid,
+        supplementary_gids: caller.supplementary_gids,
+    }
+}
+
+fn domain_inode_attr_update(update: PbDfsInodeAttributeUpdate) -> crate::dfs::InodeAttrUpdate {
+    crate::dfs::InodeAttrUpdate {
+        mode: update.mode,
+        uid: update.uid,
+        gid: update.gid,
+        atime_unix_ms: update.atime_unix_ms,
+        mtime_unix_ms: update.mtime_unix_ms,
+        ctime_unix_ms: update.ctime_unix_ms,
+        timestamps_now: update.timestamps_now,
     }
 }
 
@@ -1056,46 +1650,83 @@ fn wire_dfs_layout(layout: crate::dfs::LayoutRoot) -> PbDfsLayoutRoot {
 fn wire_placement_snapshot(
     snapshot: crate::dfs::PlacementSnapshot,
 ) -> afs_protocol::meta::DfsPlacementSnapshot {
-    use afs_protocol::meta::DfsLocalCopyPolicy;
-
     afs_protocol::meta::DfsPlacementSnapshot {
         revision: snapshot.revision,
-        replication: Some(afs_protocol::meta::DfsReplicationConfig {
-            desired_copies: u32::from(snapshot.replication.desired_copies),
-            sync_required_copies: u32::from(snapshot.replication.sync_required_copies),
-            min_distinct_nodes: u32::from(snapshot.replication.min_distinct_nodes),
-            min_distinct_failure_domains: u32::from(
-                snapshot.replication.min_distinct_failure_domains,
-            ),
-            local_copy: match snapshot.replication.local_copy {
-                crate::dfs::LocalCopyPolicy::Required => DfsLocalCopyPolicy::Required as i32,
-                crate::dfs::LocalCopyPolicy::Preferred => DfsLocalCopyPolicy::Preferred as i32,
-                crate::dfs::LocalCopyPolicy::NotRequired => DfsLocalCopyPolicy::NotRequired as i32,
-            },
-        }),
+        replication: Some(wire_replication_config(snapshot.replication)),
         replica_groups: snapshot
             .replica_groups
             .into_iter()
-            .map(|group| afs_protocol::meta::DfsReplicaGroup {
-                replica_group_id: group.id.0,
-                placement_epoch: group.placement_epoch,
-                targets: group
-                    .targets
-                    .into_iter()
-                    .map(|target| afs_protocol::meta::DfsReplicaTarget {
-                        node_id: target.node_id,
-                        node_epoch: target.node_epoch,
-                        data_endpoint: target.data_endpoint,
-                        device: Some(afs_protocol::meta::DfsStorageDevice {
-                            device_id: target.device.device_id,
-                            device_epoch: target.device.device_epoch,
-                            catalog_revision: target.device.catalog_revision,
-                            failure_domain: target.device.failure_domain,
-                        }),
-                    })
-                    .collect(),
-            })
+            .map(wire_replica_group)
             .collect(),
+    }
+}
+
+fn wire_replication_config(
+    replication: crate::dfs::ReplicationConfig,
+) -> afs_protocol::meta::DfsReplicationConfig {
+    use afs_protocol::meta::DfsLocalCopyPolicy;
+
+    afs_protocol::meta::DfsReplicationConfig {
+        desired_copies: u32::from(replication.desired_copies),
+        sync_required_copies: u32::from(replication.sync_required_copies),
+        min_distinct_nodes: u32::from(replication.min_distinct_nodes),
+        min_distinct_failure_domains: u32::from(replication.min_distinct_failure_domains),
+        local_copy: match replication.local_copy {
+            crate::dfs::LocalCopyPolicy::Required => DfsLocalCopyPolicy::Required as i32,
+            crate::dfs::LocalCopyPolicy::Preferred => DfsLocalCopyPolicy::Preferred as i32,
+            crate::dfs::LocalCopyPolicy::NotRequired => DfsLocalCopyPolicy::NotRequired as i32,
+        },
+    }
+}
+
+fn wire_replica_group(group: crate::dfs::ReplicaGroup) -> afs_protocol::meta::DfsReplicaGroup {
+    afs_protocol::meta::DfsReplicaGroup {
+        replica_group_id: group.id.0,
+        placement_epoch: group.placement_epoch,
+        targets: group.targets.into_iter().map(wire_replica_target).collect(),
+    }
+}
+
+fn wire_replica_target(target: crate::dfs::ReplicaTarget) -> afs_protocol::meta::DfsReplicaTarget {
+    afs_protocol::meta::DfsReplicaTarget {
+        node_id: target.node_id,
+        node_epoch: target.node_epoch,
+        data_endpoint: target.data_endpoint,
+        device: Some(afs_protocol::meta::DfsStorageDevice {
+            device_id: target.device.device_id,
+            device_epoch: target.device.device_epoch,
+            catalog_revision: target.device.catalog_revision,
+            failure_domain: target.device.failure_domain,
+        }),
+    }
+}
+
+fn wire_replica_write_grant(
+    grant: crate::dfs::ReplicaWriteGrant,
+) -> afs_protocol::meta::DfsReplicaWriteGrant {
+    afs_protocol::meta::DfsReplicaWriteGrant {
+        requester_node_id: grant.requester_node_id,
+        requester_node_epoch: grant.requester_node_epoch,
+        initiator_node_id: grant.initiator_node_id,
+        initiator_node_epoch: grant.initiator_node_epoch,
+        operation_id: grant.operation_id.0,
+        chunk_id: grant.chunk_id.0,
+        chunk_length: grant.chunk_length,
+        content_digest: grant.content_digest.bytes.to_vec(),
+        content_digest_algorithm: match grant.content_digest.algorithm {
+            crate::dfs::DigestAlgorithm::Blake3 => {
+                afs_protocol::meta::DfsDigestAlgorithm::Blake3 as i32
+            }
+        },
+        placement_revision: grant.placement_revision,
+        placement_epoch: grant.placement_epoch,
+        replica_group_id: grant.replica_group_id.0,
+        target_index: grant.target_index,
+        replication: Some(wire_replication_config(grant.replication)),
+        replica_group: Some(wire_replica_group(grant.replica_group)),
+        expires_at_unix_ms: grant.expires_at_unix_ms,
+        fence: grant.fence,
+        token: grant.token,
     }
 }
 
@@ -1248,6 +1879,57 @@ fn domain_dfs_metadata_delta(
         mode,
         mtime_unix_ms: (delta.mtime_unix_ms != 0).then_some(delta.mtime_unix_ms),
         ctime_unix_ms: (delta.ctime_unix_ms != 0).then_some(delta.ctime_unix_ms),
+        kill_suidgid: delta.kill_suidgid,
+    })
+}
+
+fn domain_validate_replica_write(
+    request: afs_protocol::meta::ValidateDfsReplicaWriteRequest,
+) -> Result<crate::dfs::ValidateReplicaWriteRequest, Status> {
+    let digest: [u8; 32] = request
+        .content_digest
+        .try_into()
+        .map_err(|_| invalid("DFS replica write digest must contain 32 bytes"))?;
+    Ok(crate::dfs::ValidateReplicaWriteRequest {
+        requester_node_id: request.requester_node_id,
+        requester_node_epoch: request.requester_node_epoch,
+        initiator_node_id: request.initiator_node_id,
+        initiator_node_epoch: request.initiator_node_epoch,
+        operation_id: crate::dfs::OperationId::new(request.operation_id),
+        chunk_id: crate::dfs::ChunkId::new(request.chunk_id),
+        chunk_length: request.chunk_length,
+        content_digest: crate::dfs::ContentDigest {
+            algorithm: domain_digest_algorithm(request.content_digest_algorithm)?,
+            bytes: digest,
+        },
+        placement_revision: request.placement_revision,
+        placement_epoch: request.placement_epoch,
+        replica_group_id: crate::dfs::ReplicaGroupId::new(request.replica_group_id),
+        target_index: request.target_index,
+        ordered_targets: request
+            .ordered_targets
+            .into_iter()
+            .map(domain_replica_target)
+            .collect::<Result<Vec<_>, Status>>()?,
+    })
+}
+
+fn domain_replica_target(
+    target: afs_protocol::meta::DfsReplicaTarget,
+) -> Result<crate::dfs::ReplicaTarget, Status> {
+    let device = target
+        .device
+        .ok_or_else(|| invalid("DfsReplicaTarget.device is required"))?;
+    Ok(crate::dfs::ReplicaTarget {
+        node_id: target.node_id,
+        node_epoch: target.node_epoch,
+        data_endpoint: target.data_endpoint,
+        device: crate::dfs::StorageDeviceDescriptor {
+            device_id: device.device_id,
+            device_epoch: device.device_epoch,
+            catalog_revision: device.catalog_revision,
+            failure_domain: device.failure_domain,
+        },
     })
 }
 

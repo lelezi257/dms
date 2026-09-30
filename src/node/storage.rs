@@ -15,6 +15,7 @@ use std::{
     os::unix::fs::OpenOptionsExt,
     path::{Path, PathBuf},
     sync::Arc,
+    time::SystemTime,
 };
 
 pub mod localfs;
@@ -169,6 +170,17 @@ pub trait FileHandle: Send + Sync {
     fn write_at(&self, offset: u64, buffer: &[u8]) -> std::io::Result<usize>;
     fn metadata(&self) -> std::io::Result<fs::Metadata>;
     fn set_len(&self, size: u64) -> std::io::Result<()>;
+    fn chmod(&self, mode: u32) -> std::io::Result<()>;
+    fn chown(&self, uid: Option<u32>, gid: Option<u32>) -> std::io::Result<()>;
+    fn set_times(
+        &self,
+        atime: Option<SystemTime>,
+        mtime: Option<SystemTime>,
+    ) -> std::io::Result<()>;
+    fn get_xattr(&self, name: &OsStr) -> std::io::Result<Vec<u8>>;
+    fn list_xattr(&self) -> std::io::Result<Vec<u8>>;
+    fn set_xattr(&self, name: &OsStr, value: &[u8], flags: i32) -> std::io::Result<()>;
+    fn remove_xattr(&self, name: &OsStr) -> std::io::Result<()>;
     fn flush(&self) -> std::io::Result<()>;
     fn sync_data(&self) -> std::io::Result<()>;
     fn sync_all(&self) -> std::io::Result<()>;
@@ -197,6 +209,27 @@ pub trait FileStore: Send + Sync {
     fn open_file(&self, path: &StoragePath, spec: OpenSpec) -> std::io::Result<Self::File>;
     fn open_dir(&self, path: &StoragePath) -> std::io::Result<Self::Directory>;
     fn metadata(&self, path: &StoragePath) -> std::io::Result<fs::Metadata>;
+    fn read_link(&self, path: &StoragePath) -> std::io::Result<OsString>;
+    fn symlink(&self, path: &StoragePath, target: &OsStr) -> std::io::Result<()>;
+    fn hard_link(&self, from: &StoragePath, to: &StoragePath) -> std::io::Result<()>;
+    fn chmod(&self, path: &StoragePath, mode: u32) -> std::io::Result<()>;
+    fn chown(&self, path: &StoragePath, uid: Option<u32>, gid: Option<u32>) -> std::io::Result<()>;
+    fn set_times(
+        &self,
+        path: &StoragePath,
+        atime: Option<SystemTime>,
+        mtime: Option<SystemTime>,
+    ) -> std::io::Result<()>;
+    fn get_xattr(&self, path: &StoragePath, name: &OsStr) -> std::io::Result<Vec<u8>>;
+    fn list_xattr(&self, path: &StoragePath) -> std::io::Result<Vec<u8>>;
+    fn set_xattr(
+        &self,
+        path: &StoragePath,
+        name: &OsStr,
+        value: &[u8],
+        flags: i32,
+    ) -> std::io::Result<()>;
+    fn remove_xattr(&self, path: &StoragePath, name: &OsStr) -> std::io::Result<()>;
     fn read_dir(&self, path: &StoragePath) -> std::io::Result<Vec<OsString>>;
     fn mkdir(&self, path: &StoragePath, mode: u32) -> std::io::Result<()>;
     fn remove_file(&self, path: &StoragePath) -> std::io::Result<()>;

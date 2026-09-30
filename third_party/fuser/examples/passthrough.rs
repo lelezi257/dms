@@ -163,7 +163,7 @@ impl Filesystem for PassthroughFs {
         }
     }
 
-    fn open(&mut self, _req: &Request, ino: u64, _flags: i32, reply: ReplyOpen) {
+    fn open(&mut self, _req: &Request, ino: u64, _flags: i32, _open_flags: u32, reply: ReplyOpen) {
         if ino != 2 {
             reply.error(ENOENT);
             return;

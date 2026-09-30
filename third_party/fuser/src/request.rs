@@ -20,7 +20,7 @@ use crate::ll::Request as _;
 use crate::reply::ReplyDirectoryPlus;
 use crate::reply::{Reply, ReplyDirectory, ReplySender};
 use crate::session::{Session, SessionACL};
-use crate::{KernelConfig, ll};
+use crate::{KernelConfig, LockOptions, ll};
 
 /// Request data structure
 #[derive(Debug)]
@@ -71,7 +71,13 @@ impl<'a> Request<'a> {
         &self,
         se: &mut Session<FS>,
     ) -> Result<Option<Response<'_>>, Errno> {
-        let op = self.request.operation().map_err(|_| Errno::ENOSYS)?;
+        let op = self.request.operation().map_err(|error| {
+            warn!(
+                "FUSE operation parse failed for request {:?}: {error}",
+                self.request.unique()
+            );
+            Errno::ENOSYS
+        })?;
         // Implement allow_root & access check for auto_unmount
         if (se.allowed == SessionACL::RootAndOwner
             && self.request.uid() != se.session_owner
@@ -170,9 +176,9 @@ impl<'a> Request<'a> {
                 return Err(Errno::EIO);
             }
 
-            ll::Operation::Interrupt(_) => {
-                // TODO: handle FUSE_INTERRUPT
-                return Err(Errno::ENOSYS);
+            ll::Operation::Interrupt(x) => {
+                se.filesystem
+                    .interrupt(self, x.unique().into(), self.reply());
             }
 
             ll::Operation::Lookup(x) => {
@@ -211,6 +217,7 @@ impl<'a> Request<'a> {
                     x.chgtime(),
                     x.bkuptime(),
                     x.flags(),
+                    x.kill_suidgid(),
                     self.reply(),
                 );
             }
@@ -285,8 +292,13 @@ impl<'a> Request<'a> {
                 );
             }
             ll::Operation::Open(x) => {
-                se.filesystem
-                    .open(self, self.request.nodeid().into(), x.flags(), self.reply());
+                se.filesystem.open(
+                    self,
+                    self.request.nodeid().into(),
+                    x.flags(),
+                    x.open_flags(),
+                    self.reply(),
+                );
             }
             ll::Operation::Read(x) => {
                 se.filesystem.read(
@@ -425,11 +437,12 @@ impl<'a> Request<'a> {
                     x.mode(),
                     x.umask(),
                     x.flags(),
+                    x.open_flags(),
                     self.reply(),
                 );
             }
             ll::Operation::GetLk(x) => {
-                se.filesystem.getlk(
+                se.filesystem.getlk_with_options(
                     self,
                     self.request.nodeid().into(),
                     x.file_handle().into(),
@@ -438,11 +451,14 @@ impl<'a> Request<'a> {
                     x.lock().range.1,
                     x.lock().typ,
                     x.lock().pid,
+                    LockOptions {
+                        flags: x.lock_flags(),
+                    },
                     self.reply(),
                 );
             }
             ll::Operation::SetLk(x) => {
-                se.filesystem.setlk(
+                se.filesystem.setlk_with_options(
                     self,
                     self.request.nodeid().into(),
                     x.file_handle().into(),
@@ -452,11 +468,14 @@ impl<'a> Request<'a> {
                     x.lock().typ,
                     x.lock().pid,
                     false,
+                    LockOptions {
+                        flags: x.lock_flags(),
+                    },
                     self.reply(),
                 );
             }
             ll::Operation::SetLkW(x) => {
-                se.filesystem.setlk(
+                se.filesystem.setlk_with_options(
                     self,
                     self.request.nodeid().into(),
                     x.file_handle().into(),
@@ -466,6 +485,9 @@ impl<'a> Request<'a> {
                     x.lock().typ,
                     x.lock().pid,
                     true,
+                    LockOptions {
+                        flags: x.lock_flags(),
+                    },
                     self.reply(),
                 );
             }
@@ -638,5 +660,117 @@ impl<'a> Request<'a> {
     #[inline]
     pub fn pid(&self) -> u32 {
         self.request.pid()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ll::fuse_abi::consts::FUSE_LK_FLOCK;
+    use crate::ll::fuse_abi::{fuse_in_header, fuse_interrupt_in, fuse_lk_in, fuse_opcode};
+    use std::io::{Read, Seek, SeekFrom};
+    use std::os::fd::OwnedFd;
+
+    #[derive(Default)]
+    struct TestFs {
+        last_lock_flags: Option<u32>,
+    }
+
+    impl Filesystem for TestFs {
+        #[allow(clippy::too_many_arguments)]
+        fn getlk_with_options(
+            &mut self,
+            _req: &Request<'_>,
+            _ino: u64,
+            _fh: u64,
+            _lock_owner: u64,
+            _start: u64,
+            _end: u64,
+            _typ: i32,
+            _pid: u32,
+            options: LockOptions,
+            reply: crate::ReplyLock,
+        ) {
+            self.last_lock_flags = Some(options.flags);
+            reply.error(libc::ENOSYS);
+        }
+    }
+
+    fn interrupt_request(unique: u64, interrupted_unique: u64) -> Vec<u8> {
+        let len = (std::mem::size_of::<fuse_in_header>() + std::mem::size_of::<fuse_interrupt_in>())
+            as u32;
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(&len.to_ne_bytes());
+        bytes.extend_from_slice(&(fuse_opcode::FUSE_INTERRUPT as u32).to_ne_bytes());
+        bytes.extend_from_slice(&unique.to_ne_bytes());
+        bytes.extend_from_slice(&1_u64.to_ne_bytes());
+        bytes.extend_from_slice(&0_u32.to_ne_bytes());
+        bytes.extend_from_slice(&0_u32.to_ne_bytes());
+        bytes.extend_from_slice(&0_u32.to_ne_bytes());
+        bytes.extend_from_slice(&0_u32.to_ne_bytes());
+        bytes.extend_from_slice(&interrupted_unique.to_ne_bytes());
+        bytes
+    }
+
+    fn lk_request(unique: u64, lk_flags: u32) -> Vec<u8> {
+        let len =
+            (std::mem::size_of::<fuse_in_header>() + std::mem::size_of::<fuse_lk_in>()) as u32;
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(&len.to_ne_bytes());
+        bytes.extend_from_slice(&(fuse_opcode::FUSE_GETLK as u32).to_ne_bytes());
+        bytes.extend_from_slice(&unique.to_ne_bytes());
+        bytes.extend_from_slice(&7_u64.to_ne_bytes());
+        bytes.extend_from_slice(&0_u32.to_ne_bytes());
+        bytes.extend_from_slice(&0_u32.to_ne_bytes());
+        bytes.extend_from_slice(&0_u32.to_ne_bytes());
+        bytes.extend_from_slice(&0_u32.to_ne_bytes());
+        bytes.extend_from_slice(&0x1234_u64.to_ne_bytes());
+        bytes.extend_from_slice(&0x5678_u64.to_ne_bytes());
+        bytes.extend_from_slice(&0_u64.to_ne_bytes());
+        bytes.extend_from_slice(&u64::MAX.to_ne_bytes());
+        bytes.extend_from_slice(&libc::F_RDLCK.to_ne_bytes());
+        bytes.extend_from_slice(&999_u32.to_ne_bytes());
+        bytes.extend_from_slice(&lk_flags.to_ne_bytes());
+        bytes.extend_from_slice(&0_u32.to_ne_bytes());
+        bytes
+    }
+
+    #[test]
+    fn getlk_dispatch_preserves_lock_flags() {
+        let reply_file = tempfile::tempfile().unwrap();
+        let session_file: OwnedFd = reply_file.try_clone().unwrap().into();
+        let mut session = Session::from_fd(TestFs::default(), session_file, SessionACL::All);
+        session.initialized = true;
+        let request = lk_request(0x9988_7766, FUSE_LK_FLOCK);
+        let req = Request::new(session.ch.sender(), &request).unwrap();
+
+        req.dispatch(&mut session);
+
+        assert_eq!(session.filesystem.last_lock_flags, Some(FUSE_LK_FLOCK));
+    }
+
+    #[test]
+    fn interrupt_dispatch_defaults_to_eagain() {
+        let mut reply_file = tempfile::tempfile().unwrap();
+        let session_file: OwnedFd = reply_file.try_clone().unwrap().into();
+        let mut session = Session::from_fd(TestFs::default(), session_file, SessionACL::All);
+        session.initialized = true;
+        let request = interrupt_request(0x1234_5678, 0x0102_0304_0506_0708);
+        let req = Request::new(session.ch.sender(), &request).unwrap();
+
+        req.dispatch(&mut session);
+
+        reply_file.seek(SeekFrom::Start(0)).unwrap();
+        let mut header = [0_u8; 16];
+        reply_file.read_exact(&mut header).unwrap();
+        assert_eq!(u32::from_ne_bytes(header[0..4].try_into().unwrap()), 16);
+        assert_eq!(
+            i32::from_ne_bytes(header[4..8].try_into().unwrap()),
+            -libc::EAGAIN
+        );
+        assert_eq!(
+            u64::from_ne_bytes(header[8..16].try_into().unwrap()),
+            0x1234_5678
+        );
     }
 }

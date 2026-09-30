@@ -9,6 +9,9 @@ use etcd_client::{Client, Compare, CompareOp, Txn, TxnOp};
 use super::{MetaFuture, StoreBackend};
 
 const SNAPSHOT_KEY: &[u8] = b"/afs/meta/snapshot";
+// The delivery deployment currently accepts snapshots up to 64 MiB. Leave
+// room for the protobuf envelope when decoding a backend response.
+const SNAPSHOT_RPC_LIMIT: usize = 65 * 1024 * 1024;
 
 /// Etcd storage for an opaque, full Store snapshot.
 ///
@@ -33,7 +36,11 @@ impl EtcdBackend {
 
     /// Loads the current full snapshot and its CAS version.
     pub async fn load(&self) -> Result<Option<(u64, Vec<u8>)>> {
-        let mut client = self.client.clone();
+        let mut client = self
+            .client
+            .kv_client()
+            .max_decoding_message_size(SNAPSHOT_RPC_LIMIT)
+            .max_encoding_message_size(SNAPSHOT_RPC_LIMIT);
         let response = client
             .get(SNAPSHOT_KEY.to_vec(), None)
             .await
@@ -77,7 +84,11 @@ impl EtcdBackend {
             bytes.to_vec(),
             None,
         )]);
-        let mut client = self.client.clone();
+        let mut client = self
+            .client
+            .kv_client()
+            .max_decoding_message_size(SNAPSHOT_RPC_LIMIT)
+            .max_encoding_message_size(SNAPSHOT_RPC_LIMIT);
         let response = client.txn(txn).await.map_err(etcd_error)?;
         if !response.succeeded() {
             return Err(cas_mismatch());

@@ -23,6 +23,9 @@ pub enum MetaStoreBackend {
     #[serde(rename = "etcd")]
     #[value(name = "etcd")]
     Etcd,
+    #[serde(rename = "redis")]
+    #[value(name = "redis")]
+    Redis,
     #[serde(rename = "local-file")]
     #[value(name = "local-file")]
     LocalFile,
@@ -47,6 +50,9 @@ pub struct Cli {
     /// etcd 后端的连接端点；memory 后端不使用。
     #[arg(long)]
     pub etcd_endpoint: Option<String>,
+    /// Redis 持久 Meta 后端的连接 URI；例如 redis://127.0.0.1:6379/0。
+    #[arg(long)]
+    pub redis_endpoint: Option<String>,
     /// Meta 后端：etcd（默认）、local-file 或 memory。
     #[arg(long, value_enum)]
     pub meta_store: Option<MetaStoreBackend>,
@@ -118,6 +124,7 @@ struct FileConfig {
     rest_listen: Option<SocketAddr>,
     meta_endpoint: Option<String>,
     etcd_endpoint: Option<String>,
+    redis_endpoint: Option<String>,
     meta_store: Option<MetaStoreBackend>,
     peer_endpoint: Option<String>,
     advertise_endpoint: Option<String>,
@@ -156,6 +163,7 @@ pub struct Config {
     pub rest_listen: SocketAddr,
     pub meta_endpoint: Option<String>,
     pub etcd_endpoint: Option<String>,
+    pub redis_endpoint: Option<String>,
     pub meta_store: MetaStoreBackend,
     pub peer_endpoint: Option<String>,
     pub advertise_endpoint: Option<String>,
@@ -306,6 +314,7 @@ impl Config {
             }),
             meta_endpoint: cli.meta_endpoint.or(file.meta_endpoint),
             etcd_endpoint: cli.etcd_endpoint.or(file.etcd_endpoint),
+            redis_endpoint: cli.redis_endpoint.or(file.redis_endpoint),
             meta_store: cli
                 .meta_store
                 .or(file.meta_store)
@@ -381,6 +390,9 @@ impl Config {
             }
             tonic::transport::Endpoint::from_shared(endpoint.clone())
                 .map_err(|e| invalid(e.to_string()))?;
+        }
+        if let Some(endpoint) = &cfg.redis_endpoint {
+            redis::Client::open(endpoint.as_str()).map_err(|e| invalid(e.to_string()))?;
         }
         if !cfg.uds_path.is_absolute() || !cfg.data_dir.is_absolute() {
             return Err(invalid("uds_path and data_dir must be absolute"));

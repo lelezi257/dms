@@ -6,6 +6,7 @@
 - [Architecture](architecture.md)
 - [Delivery Acceptance](acceptance.md)
 - [Implementation Status](status.md)
+- [Delivery Handoff](handoff.md)
 
 ## Mechanisms
 

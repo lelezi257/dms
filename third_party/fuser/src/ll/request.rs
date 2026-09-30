@@ -421,6 +421,21 @@ mod op {
                 _ => Some(FileHandle(self.arg.fh)),
             }
         }
+        /// Linux FUSE killpriv v2 cause from FATTR_KILL_SUIDGID.
+        ///
+        /// This is distinct from macOS setattr flags and must only be interpreted
+        /// as the kernel asking userspace to clear suid/executable-sgid privilege
+        /// bits for this setattr operation.
+        pub fn kill_suidgid(&self) -> bool {
+            #[cfg(feature = "abi-7-33")]
+            {
+                self.arg.valid & FATTR_KILL_SUIDGID != 0
+            }
+            #[cfg(not(feature = "abi-7-33"))]
+            {
+                false
+            }
+        }
         pub fn crtime(&self) -> Option<SystemTime> {
             #[cfg(target_os = "macos")]
             match self.arg.valid & FATTR_CRTIME {
@@ -652,6 +667,17 @@ mod op {
     impl Open<'_> {
         pub fn flags(&self) -> i32 {
             self.arg.flags
+        }
+        /// Linux FUSE killpriv v2 open cause flags.
+        pub fn open_flags(&self) -> u32 {
+            #[cfg(feature = "abi-7-33")]
+            {
+                self.arg.open_flags
+            }
+            #[cfg(not(feature = "abi-7-33"))]
+            {
+                0
+            }
         }
     }
 
@@ -1111,6 +1137,9 @@ mod op {
         pub fn lock_owner(&self) -> LockOwner {
             LockOwner(self.arg.owner)
         }
+        pub fn lock_flags(&self) -> u32 {
+            self.arg.lk_flags
+        }
     }
 
     /// Acquire, modify or release a POSIX file lock.
@@ -1138,6 +1167,9 @@ mod op {
         pub fn lock_owner(&self) -> LockOwner {
             LockOwner(self.arg.owner)
         }
+        pub fn lock_flags(&self) -> u32 {
+            self.arg.lk_flags
+        }
     }
     #[derive(Debug)]
     pub struct SetLkW<'a> {
@@ -1155,6 +1187,9 @@ mod op {
         }
         pub fn lock_owner(&self) -> LockOwner {
             LockOwner(self.arg.owner)
+        }
+        pub fn lock_flags(&self) -> u32 {
+            self.arg.lk_flags
         }
     }
 
@@ -1205,6 +1240,17 @@ mod op {
         }
         pub fn umask(&self) -> u32 {
             self.arg.umask
+        }
+        /// Linux FUSE killpriv v2 create/open cause flags.
+        pub fn open_flags(&self) -> u32 {
+            #[cfg(feature = "abi-7-33")]
+            {
+                self.arg.open_flags
+            }
+            #[cfg(not(feature = "abi-7-33"))]
+            {
+                0
+            }
         }
     }
 
@@ -2171,6 +2217,8 @@ impl<'a> TryFrom<&'a [u8]> for AnyRequest<'a> {
 
 #[cfg(test)]
 mod tests {
+    use super::super::fuse_abi::consts::FUSE_LK_FLOCK;
+    use super::super::fuse_abi::{fuse_interrupt_in, fuse_lk_in};
     use super::super::test::AlignedData;
     use super::*;
     use std::ffi::OsStr;
@@ -2251,6 +2299,104 @@ mod tests {
                 assert_eq!(x.version(), Version(7, 8));
                 assert_eq!(x.max_readahead(), 4096);
             }
+            _ => panic!("Unexpected request operation"),
+        }
+    }
+
+    fn base_header(len: u32, opcode: fuse_opcode) -> Vec<u8> {
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(&len.to_ne_bytes());
+        bytes.extend_from_slice(&(opcode as u32).to_ne_bytes());
+        bytes.extend_from_slice(&0xdead_beef_baad_f00d_u64.to_ne_bytes());
+        bytes.extend_from_slice(&0x1122_3344_5566_7788_u64.to_ne_bytes());
+        bytes.extend_from_slice(&0xc001_d00d_u32.to_ne_bytes());
+        bytes.extend_from_slice(&0xc001_cafe_u32.to_ne_bytes());
+        bytes.extend_from_slice(&0xc0de_ba5e_u32.to_ne_bytes());
+        bytes.extend_from_slice(&0_u32.to_ne_bytes());
+        bytes
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn linux_rename_wire_layout_is_independent_of_macfuse_feature() {
+        assert_eq!(
+            std::mem::size_of::<crate::ll::fuse_abi::fuse_rename_in>(),
+            8
+        );
+        for (old, new) in [("a", "b"), ("original-long-name", "new-long-name")] {
+            let len = std::mem::size_of::<fuse_in_header>() + 8 + old.len() + new.len() + 2;
+            let mut bytes = base_header(len as u32, fuse_opcode::FUSE_RENAME);
+            bytes.extend_from_slice(&123_u64.to_ne_bytes());
+            bytes.extend_from_slice(old.as_bytes());
+            bytes.push(0);
+            bytes.extend_from_slice(new.as_bytes());
+            bytes.push(0);
+            let req = AnyRequest::try_from(bytes.as_slice()).unwrap();
+            match req.operation().unwrap() {
+                Operation::Rename(x) => {
+                    assert_eq!(x.src().dir, req.nodeid());
+                    assert_eq!(x.src().name, Path::new(old));
+                    assert_eq!(x.dest().dir, INodeNo(123));
+                    assert_eq!(x.dest().name, Path::new(new));
+                }
+                _ => panic!("Unexpected request operation"),
+            }
+        }
+    }
+
+    fn lk_request(opcode: fuse_opcode, lk_flags: u32) -> Vec<u8> {
+        let len =
+            (std::mem::size_of::<fuse_in_header>() + std::mem::size_of::<fuse_lk_in>()) as u32;
+        let mut bytes = base_header(len, opcode);
+        bytes.extend_from_slice(&0x1234_5678_90ab_cdef_u64.to_ne_bytes());
+        bytes.extend_from_slice(&0xfedc_ba09_8765_4321_u64.to_ne_bytes());
+        bytes.extend_from_slice(&11_u64.to_ne_bytes());
+        bytes.extend_from_slice(&99_u64.to_ne_bytes());
+        bytes.extend_from_slice(&libc::F_WRLCK.to_ne_bytes());
+        bytes.extend_from_slice(&4242_u32.to_ne_bytes());
+        bytes.extend_from_slice(&lk_flags.to_ne_bytes());
+        bytes.extend_from_slice(&0_u32.to_ne_bytes());
+        bytes
+    }
+
+    #[test]
+    fn lk_flags_are_preserved() {
+        let request = lk_request(fuse_opcode::FUSE_GETLK, FUSE_LK_FLOCK);
+        let req = AnyRequest::try_from(request.as_slice()).unwrap();
+        match req.operation().unwrap() {
+            Operation::GetLk(x) => {
+                assert_eq!(x.file_handle(), FileHandle(0x1234_5678_90ab_cdef));
+                assert_eq!(x.lock_owner(), LockOwner(0xfedc_ba09_8765_4321));
+                assert_eq!(x.lock_flags(), FUSE_LK_FLOCK);
+            }
+            _ => panic!("Unexpected request operation"),
+        }
+
+        let request = lk_request(fuse_opcode::FUSE_SETLK, FUSE_LK_FLOCK);
+        let req = AnyRequest::try_from(request.as_slice()).unwrap();
+        match req.operation().unwrap() {
+            Operation::SetLk(x) => assert_eq!(x.lock_flags(), FUSE_LK_FLOCK),
+            _ => panic!("Unexpected request operation"),
+        }
+
+        let request = lk_request(fuse_opcode::FUSE_SETLKW, FUSE_LK_FLOCK);
+        let req = AnyRequest::try_from(request.as_slice()).unwrap();
+        match req.operation().unwrap() {
+            Operation::SetLkW(x) => assert_eq!(x.lock_flags(), FUSE_LK_FLOCK),
+            _ => panic!("Unexpected request operation"),
+        }
+    }
+
+    #[test]
+    fn interrupt_unique_is_parsed() {
+        let len = (std::mem::size_of::<fuse_in_header>() + std::mem::size_of::<fuse_interrupt_in>())
+            as u32;
+        let mut bytes = base_header(len, fuse_opcode::FUSE_INTERRUPT);
+        bytes.extend_from_slice(&0x0102_0304_0506_0708_u64.to_ne_bytes());
+
+        let req = AnyRequest::try_from(bytes.as_slice()).unwrap();
+        match req.operation().unwrap() {
+            Operation::Interrupt(x) => assert_eq!(x.unique(), RequestId(0x0102_0304_0506_0708)),
             _ => panic!("Unexpected request operation"),
         }
     }

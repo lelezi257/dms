@@ -79,4 +79,21 @@ fn meta_store_defaults_to_etcd_and_cli_overrides_toml() {
     )
     .unwrap();
     assert_eq!(local.meta_store, MetaStoreBackend::LocalFile);
+
+    let redis = Config::resolve(
+        Role::Meta,
+        Cli::parse_from([
+            "afs-meta",
+            "--meta-store",
+            "redis",
+            "--redis-endpoint",
+            "redis://127.0.0.1:6379/0",
+        ]),
+    )
+    .unwrap();
+    assert_eq!(redis.meta_store, MetaStoreBackend::Redis);
+    assert_eq!(
+        redis.redis_endpoint.as_deref(),
+        Some("redis://127.0.0.1:6379/0")
+    );
 }

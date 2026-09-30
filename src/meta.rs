@@ -171,6 +171,16 @@ pub async fn run(cfg: Config, obs: Observability) -> Result<(), BoxError> {
                 let backend = store::etcd::EtcdBackend::connect(endpoint).await?;
                 Arc::new(store::Store::open(Arc::new(backend)).await?) as Arc<dyn store::MetaStore>
             }
+            MetaStoreBackend::Redis => {
+                let endpoint = cfg.redis_endpoint.clone().ok_or_else(|| {
+                    afs_error::Error::coded(
+                        afs_error::CONFIG_INVALID,
+                        "meta filesystem services with meta_store=redis require --redis-endpoint",
+                    )
+                })?;
+                let backend = store::redis::RedisBackend::connect(endpoint).await?;
+                Arc::new(store::Store::open(Arc::new(backend)).await?) as Arc<dyn store::MetaStore>
+            }
             MetaStoreBackend::InMemory => {
                 afs_logging::warn!("meta.store.memory_volatile"; "instance" => &cfg.id);
                 Arc::new(

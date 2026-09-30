@@ -4,6 +4,8 @@
 //! an immutable `FileVersion`. A version owns an immutable extent layout; every
 //! extent refers to an immutable chunk. Physical copies are tracked separately.
 
+use std::collections::BTreeMap;
+
 use serde::{Deserialize, Serialize};
 
 macro_rules! string_id {
@@ -17,6 +19,86 @@ macro_rules! string_id {
             }
         }
     };
+}
+
+mod bytes_key_map {
+    use std::{collections::BTreeMap, fmt};
+
+    use serde::{Deserializer, Serialize, Serializer, de::Visitor};
+
+    pub fn serialize<S>(map: &BTreeMap<Vec<u8>, Vec<u8>>, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let encoded = map
+            .iter()
+            .map(|(key, value)| (hex_encode(key), value))
+            .collect::<BTreeMap<_, _>>();
+        encoded.serialize(serializer)
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<BTreeMap<Vec<u8>, Vec<u8>>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        struct MapVisitor;
+
+        impl<'de> Visitor<'de> for MapVisitor {
+            type Value = BTreeMap<Vec<u8>, Vec<u8>>;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+                formatter.write_str("a map with hex-encoded byte keys")
+            }
+
+            fn visit_map<A>(self, mut access: A) -> Result<Self::Value, A::Error>
+            where
+                A: serde::de::MapAccess<'de>,
+            {
+                let mut out = BTreeMap::new();
+                while let Some((key, value)) = access.next_entry::<String, Vec<u8>>()? {
+                    let key = hex_decode(&key).map_err(serde::de::Error::custom)?;
+                    out.insert(key, value);
+                }
+                Ok(out)
+            }
+        }
+
+        deserializer.deserialize_map(MapVisitor)
+    }
+
+    fn hex_encode(bytes: &[u8]) -> String {
+        const HEX: &[u8; 16] = b"0123456789abcdef";
+        let mut out = String::with_capacity(bytes.len() * 2);
+        for byte in bytes {
+            out.push(HEX[(byte >> 4) as usize] as char);
+            out.push(HEX[(byte & 0x0f) as usize] as char);
+        }
+        out
+    }
+
+    fn hex_decode(input: &str) -> Result<Vec<u8>, String> {
+        if !input.len().is_multiple_of(2) {
+            return Err("hex key length must be even".into());
+        }
+        input
+            .as_bytes()
+            .chunks_exact(2)
+            .map(|pair| {
+                let high = hex_value(pair[0])?;
+                let low = hex_value(pair[1])?;
+                Ok((high << 4) | low)
+            })
+            .collect()
+    }
+
+    fn hex_value(byte: u8) -> Result<u8, String> {
+        match byte {
+            b'0'..=b'9' => Ok(byte - b'0'),
+            b'a'..=b'f' => Ok(byte - b'a' + 10),
+            b'A'..=b'F' => Ok(byte - b'A' + 10),
+            _ => Err("hex key contains a non-hex character".into()),
+        }
+    }
 }
 
 string_id!(NamespaceId);
@@ -33,10 +115,19 @@ string_id!(ReadBatchId);
 string_id!(ReadAttemptId);
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub enum SpecialNodeKind {
+    Fifo,
+    Socket,
+    BlockDevice { rdev: u64 },
+    CharDevice { rdev: u64 },
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub enum InodeKind {
     Regular,
     Directory,
     Symlink,
+    Special(SpecialNodeKind),
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -57,10 +148,14 @@ pub struct InodeRecord {
     pub kind: InodeKind,
     pub attributes: InodeAttributes,
     pub head_version: Option<FileVersionId>,
+    #[serde(default)]
+    pub symlink_target: Option<Vec<u8>>,
+    #[serde(default, with = "bytes_key_map")]
+    pub xattrs: BTreeMap<Vec<u8>, Vec<u8>>,
     pub revision: u64,
 }
 
-#[derive(Clone, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
+#[derive(Clone, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 pub struct DentryKey {
     pub namespace_id: NamespaceId,
     pub parent_inode_id: InodeId,
@@ -71,6 +166,181 @@ pub struct DentryKey {
 pub struct Dentry {
     pub key: DentryKey,
     pub inode_id: InodeId,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct DentryRecord {
+    pub name: Vec<u8>,
+    pub inode: InodeRecord,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct MkdirRequest {
+    pub caller_id: String,
+    pub operation_id: OperationId,
+    pub namespace_id: NamespaceId,
+    pub parent_inode_id: InodeId,
+    pub name: Vec<u8>,
+    pub attributes: InodeAttributes,
+    pub caller: CallerContext,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct LinkRequest {
+    pub caller_id: String,
+    pub operation_id: OperationId,
+    pub namespace_id: NamespaceId,
+    pub existing_inode_id: InodeId,
+    pub expected_inode_revision: u64,
+    pub parent_inode_id: InodeId,
+    pub name: Vec<u8>,
+    pub caller: CallerContext,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct SymlinkRequest {
+    pub caller_id: String,
+    pub operation_id: OperationId,
+    pub namespace_id: NamespaceId,
+    pub parent_inode_id: InodeId,
+    pub name: Vec<u8>,
+    pub target: Vec<u8>,
+    pub attributes: InodeAttributes,
+    pub caller: CallerContext,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ReadLinkRequest {
+    pub namespace_id: NamespaceId,
+    pub inode_id: InodeId,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct CallerContext {
+    pub uid: u32,
+    pub gid: u32,
+    pub supplementary_gids: Vec<u32>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct MknodRequest {
+    pub caller_id: String,
+    pub operation_id: OperationId,
+    pub namespace_id: NamespaceId,
+    pub parent_inode_id: InodeId,
+    pub name: Vec<u8>,
+    pub kind: SpecialNodeKind,
+    pub attributes: InodeAttributes,
+    pub caller: CallerContext,
+}
+
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct InodeAttrUpdate {
+    pub mode: Option<u32>,
+    pub uid: Option<u32>,
+    pub gid: Option<u32>,
+    pub atime_unix_ms: Option<u64>,
+    pub mtime_unix_ms: Option<u64>,
+    pub ctime_unix_ms: Option<u64>,
+    /// Kernel NOW intent; explicit timestamps require owner/root authority.
+    pub timestamps_now: bool,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SetInodeAttrRequest {
+    pub caller_id: String,
+    pub operation_id: OperationId,
+    pub caller: CallerContext,
+    pub inode_id: InodeId,
+    pub expected_inode_revision: u64,
+    pub update: InodeAttrUpdate,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub enum XattrSetMode {
+    Upsert,
+    Create,
+    Replace,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct GetXattrRequest {
+    pub caller: CallerContext,
+    pub inode_id: InodeId,
+    pub name: Vec<u8>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ListXattrRequest {
+    pub caller: CallerContext,
+    pub inode_id: InodeId,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SetXattrRequest {
+    pub caller_id: String,
+    pub operation_id: OperationId,
+    pub caller: CallerContext,
+    pub inode_id: InodeId,
+    pub expected_inode_revision: u64,
+    pub name: Vec<u8>,
+    pub value: Vec<u8>,
+    pub mode: XattrSetMode,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RemoveXattrRequest {
+    pub caller_id: String,
+    pub operation_id: OperationId,
+    pub caller: CallerContext,
+    pub inode_id: InodeId,
+    pub expected_inode_revision: u64,
+    pub name: Vec<u8>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct UnlinkRequest {
+    pub caller_id: String,
+    pub operation_id: OperationId,
+    pub namespace_id: NamespaceId,
+    pub parent_inode_id: InodeId,
+    pub name: Vec<u8>,
+    pub caller: CallerContext,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct RmdirRequest {
+    pub caller_id: String,
+    pub operation_id: OperationId,
+    pub namespace_id: NamespaceId,
+    pub parent_inode_id: InodeId,
+    pub name: Vec<u8>,
+    pub caller: CallerContext,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub enum RenameMode {
+    NoReplace,
+    Replace,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct RenameRequest {
+    pub caller_id: String,
+    pub operation_id: OperationId,
+    pub namespace_id: NamespaceId,
+    pub old_parent_inode_id: InodeId,
+    pub old_name: Vec<u8>,
+    pub new_parent_inode_id: InodeId,
+    pub new_name: Vec<u8>,
+    pub mode: RenameMode,
+    pub caller: CallerContext,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct RenameOutcome {
+    pub inode: InodeRecord,
+    pub replaced_inode: Option<InodeRecord>,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -200,6 +470,44 @@ pub struct PlacementSnapshot {
     pub revision: u64,
     pub replication: ReplicationConfig,
     pub replica_groups: Vec<ReplicaGroup>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct ValidateReplicaWriteRequest {
+    pub requester_node_id: String,
+    pub requester_node_epoch: u64,
+    pub initiator_node_id: String,
+    pub initiator_node_epoch: u64,
+    pub operation_id: OperationId,
+    pub chunk_id: ChunkId,
+    pub chunk_length: u64,
+    pub content_digest: ContentDigest,
+    pub placement_revision: u64,
+    pub placement_epoch: u64,
+    pub replica_group_id: ReplicaGroupId,
+    pub target_index: u32,
+    pub ordered_targets: Vec<ReplicaTarget>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct ReplicaWriteGrant {
+    pub requester_node_id: String,
+    pub requester_node_epoch: u64,
+    pub initiator_node_id: String,
+    pub initiator_node_epoch: u64,
+    pub operation_id: OperationId,
+    pub chunk_id: ChunkId,
+    pub chunk_length: u64,
+    pub content_digest: ContentDigest,
+    pub placement_revision: u64,
+    pub placement_epoch: u64,
+    pub replica_group_id: ReplicaGroupId,
+    pub target_index: u32,
+    pub replication: ReplicationConfig,
+    pub replica_group: ReplicaGroup,
+    pub expires_at_unix_ms: u64,
+    pub fence: u64,
+    pub token: String,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -377,6 +685,31 @@ pub struct DfsReadGrant {
     pub token: String,
 }
 
+/// One authenticated, immutable source context presented by a receiver to Meta.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct DfsReadValidation {
+    pub grant: DfsReadGrant,
+    pub chunk_id: ChunkId,
+    pub copy_id: CopyId,
+    pub chunk_offset: u64,
+    pub length: u64,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct DfsAuthorizedRead {
+    pub validation: DfsReadValidation,
+    pub allowed_ranges: Vec<(u64, u64)>,
+    pub expires_at_unix_ms: u64,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct ValidateDfsReadGrants {
+    pub receiver_node_id: String,
+    pub receiver_node_epoch: u64,
+    pub peer_node_id: String,
+    pub validations: Vec<DfsReadValidation>,
+}
+
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct SourceCandidate {
     pub copy_id: CopyId,
@@ -427,6 +760,9 @@ pub struct CommitMetadataDelta {
     pub mode: CommitMetadataMode,
     pub mtime_unix_ms: Option<u64>,
     pub ctime_unix_ms: Option<u64>,
+    /// Kernel killpriv v2 side effect, accepted only with a valid write lease.
+    #[serde(default)]
+    pub kill_suidgid: bool,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]

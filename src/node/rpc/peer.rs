@@ -29,6 +29,8 @@ use std::{
     },
     time::{Instant, SystemTime, UNIX_EPOCH},
 };
+#[cfg(feature = "dfs")]
+use tokio_stream::StreamExt;
 
 #[cfg(feature = "rdma")]
 use afs_protocol::node_control::{
@@ -38,10 +40,12 @@ use afs_protocol::node_control::{
 use afs_protocol::node_data::{
     DataPlane, FileIdentity as PbFileIdentity, OwnerCreateRequest, OwnerDirectoryHandle,
     OwnerFileAttr, OwnerFileKind, OwnerFlushRequest, OwnerFsyncDirRequest, OwnerFsyncRequest,
-    OwnerGetAttrRequest, OwnerHandle, OwnerLookupRequest, OwnerMkdirRequest, OwnerOpenRequest,
-    OwnerOpendirRequest, OwnerReadRequest, OwnerReaddirRequest, OwnerReadlinkRequest,
-    OwnerReleaseDirRequest, OwnerReleaseRequest, OwnerRenameRequest, OwnerRmdirRequest,
-    OwnerSetAttr, OwnerSetAttrRequest, OwnerUnlinkRequest, OwnerWriteRequest, RootAccess,
+    OwnerGetAttrRequest, OwnerGetXattrRequest, OwnerHandle, OwnerLinkRequest,
+    OwnerListXattrRequest, OwnerLookupRequest, OwnerMkdirRequest, OwnerMknodRequest,
+    OwnerOpenRequest, OwnerOpendirRequest, OwnerReadRequest, OwnerReaddirRequest,
+    OwnerReadlinkRequest, OwnerReleaseDirRequest, OwnerReleaseRequest, OwnerRemoveXattrRequest,
+    OwnerRenameRequest, OwnerRmdirRequest, OwnerSetAttr, OwnerSetAttrRequest, OwnerSetXattrRequest,
+    OwnerSymlinkRequest, OwnerUnlinkRequest, OwnerWriteRequest, RootAccess,
     owner_files_client::OwnerFilesClient,
 };
 use afs_protocol::node_data::{
@@ -72,7 +76,10 @@ use crate::node::vfs::{
         remote::{RemoteCreatedFile, RemoteDirectoryEntry, RemoteFiles},
         root::RootGrant,
     },
-    types::{AttributeChange, FileAttributes, FileKind, RenameFlags},
+    types::{
+        AttributeChange, FileAttributes, FileKind, OpenOptions, RenameFlags, RequestContext,
+        SetAttrOptions, SpecialFileKind, WriteOptions,
+    },
 };
 
 const MAX_TRANSFER_BYTES: usize = crate::node::storage::MAX_TRANSFER_BYTES;
@@ -126,8 +133,24 @@ impl PeerRuntime {
 }
 
 #[cfg(feature = "dfs")]
-#[derive(Default)]
-pub struct GrpcReplicaDataPlane;
+pub struct GrpcReplicaDataPlane {
+    peers: Arc<PeerConnectionPool>,
+    timeout: Duration,
+    runtime: PeerRuntime,
+}
+
+#[cfg(feature = "dfs")]
+impl GrpcReplicaDataPlane {
+    pub fn new(peers: Arc<PeerConnectionPool>, timeout: Duration) -> afs_error::Result<Self> {
+        Ok(Self {
+            peers,
+            timeout,
+            runtime: PeerRuntime::current_or_new().map_err(|error| {
+                afs_error::Error::coded(afs_error::CLIENT_WORKER_FAILED, error.to_string())
+            })?,
+        })
+    }
+}
 
 #[cfg(feature = "dfs")]
 impl crate::node::replication::ReplicaDataPlane for GrpcReplicaDataPlane {
@@ -135,62 +158,530 @@ impl crate::node::replication::ReplicaDataPlane for GrpcReplicaDataPlane {
         crate::node::replication::ReplicaTransferMode::GrpcStream
     }
 
-    fn prepare_peer(&self, _op: &crate::node::replication::ReplicaPeerOp) -> afs_error::Result<()> {
-        Err(afs_error::Error::coded(
-            afs_error::NODE_VFS_UNIMPLEMENTED,
-            "DFS gRPC replica transfer is not implemented; RN rejected before side effects",
-        ))
+    fn prepare_peer(&self, op: &crate::node::replication::ReplicaPeerOp) -> afs_error::Result<()> {
+        op.validate_shape()?;
+        // This obtains a reusable lazy channel; it does not claim a completed
+        // TCP/TLS handshake or receiver authority. PutReplicaStream does both.
+        self.runtime
+            .block_on(self.peers.channel(
+                &op.target.node_id,
+                op.target.node_epoch,
+                &op.target.data_endpoint,
+            ))
+            .map(|_| ())
     }
 
     fn put_peer_replica(
         &self,
-        _op: &crate::node::replication::ReplicaPeerOp,
-        _staged: &crate::node::chunk::StagedChunk,
+        op: &crate::node::replication::ReplicaPeerOp,
+        staged: &crate::node::chunk::StagedChunk,
     ) -> afs_error::Result<Vec<crate::dfs::ReplicaAck>> {
-        Err(afs_error::Error::coded(
-            afs_error::NODE_VFS_UNIMPLEMENTED,
-            "DFS gRPC replica transfer is not implemented",
-        ))
+        op.validate_shape()?;
+        if staged.chunk.id != op.chunk_id
+            || staged.bytes().len() > super::data::MAX_DFS_REPLICA_BYTES
+        {
+            return Err(dfs_protocol_error(
+                "replica Chunk identity or length is invalid",
+            ));
+        }
+        let header = replica_header(op, staged)?;
+        let staged = staged.clone();
+        self.runtime.block_on(async {
+            tokio::time::timeout(self.timeout, async {
+                let channel = self
+                    .peers
+                    .channel(
+                        &op.target.node_id,
+                        op.target.node_epoch,
+                        &op.target.data_endpoint,
+                    )
+                    .await?;
+                let mut client = DfsChunksClient::new(channel)
+                    .max_encoding_message_size(self.peers.config.max_encoding_message_bytes)
+                    .max_decoding_message_size(self.peers.config.max_decoding_message_bytes);
+                let validation_staged = staged.clone();
+                let frames = tokio_stream::iter(std::iter::once(
+                    afs_protocol::node_data::DfsPutReplicaFrame {
+                        body: Some(
+                            afs_protocol::node_data::dfs_put_replica_frame::Body::Header(header),
+                        ),
+                    },
+                ))
+                .chain(tokio_stream::iter(
+                    (0..staged.bytes().len())
+                        .step_by(super::data::DFS_REPLICA_FRAME_BYTES)
+                        .map(move |offset| {
+                            let end = (offset + super::data::DFS_REPLICA_FRAME_BYTES)
+                                .min(staged.bytes().len());
+                            afs_protocol::node_data::DfsPutReplicaFrame {
+                                body: Some(
+                                    afs_protocol::node_data::dfs_put_replica_frame::Body::Data(
+                                        staged.bytes()[offset..end].to_vec(),
+                                    ),
+                                ),
+                            }
+                        }),
+                ));
+                let mut request = request_with_current_context(frames);
+                request.set_timeout(self.timeout);
+                let reply = client
+                    .put_replica_stream(request)
+                    .await
+                    .map_err(afs_transport::grpc::error_status::status_to_error)?
+                    .into_inner();
+                if reply.durable_acks.len() != op.sync_target_count - op.target_index {
+                    return Err(dfs_protocol_error(
+                        "replica reply does not include the complete synchronous tail",
+                    ));
+                }
+                let acks = reply
+                    .durable_acks
+                    .into_iter()
+                    .map(domain_replica_ack)
+                    .collect::<afs_error::Result<Vec<_>>>()?;
+                crate::node::replication::validate_peer_acks(op, &validation_staged, &acks)?;
+                Ok(acks)
+            })
+            .await
+            .map_err(|_| {
+                afs_error::Error::coded(
+                    afs_error::CLIENT_DEADLINE_EXCEEDED,
+                    "DFS replica transfer total deadline exceeded",
+                )
+            })?
+        })
     }
 }
 
 #[cfg(feature = "dfs")]
-#[derive(Default)]
-pub struct RdmaReplicaDataPlane;
+pub(crate) fn replica_header(
+    op: &crate::node::replication::ReplicaPeerOp,
+    staged: &crate::node::chunk::StagedChunk,
+) -> afs_error::Result<afs_protocol::node_data::DfsPutReplicaHeader> {
+    op.validate_shape()?;
+    Ok(afs_protocol::node_data::DfsPutReplicaHeader {
+        operation_id: staged.operation_id.0.clone(),
+        chunk_id: staged.chunk.id.0.clone(),
+        chunk_length: staged.chunk.length,
+        content_digest: staged.chunk.content_digest.bytes.to_vec(),
+        content_digest_algorithm: afs_protocol::node_data::DfsDigestAlgorithm::Blake3 as i32,
+        placement_revision: op.placement_revision,
+        placement_epoch: op.placement_epoch,
+        replica_group_id: op.replica_group_id.0.clone(),
+        ordered_targets: op
+            .ordered_targets
+            .iter()
+            .map(|target| afs_protocol::node_data::DfsReplicaTarget {
+                node_id: target.node_id.clone(),
+                node_epoch: target.node_epoch,
+                data_endpoint: target.data_endpoint.clone(),
+                device: Some(afs_protocol::node_data::DfsStorageDevice {
+                    device_id: target.device.device_id.clone(),
+                    device_epoch: target.device.device_epoch,
+                    catalog_revision: target.device.catalog_revision,
+                    failure_domain: target.device.failure_domain.clone(),
+                }),
+            })
+            .collect(),
+        target_index: op.target_index as u32,
+        initiator_node_id: op.initiator_node_id.clone(),
+        initiator_node_epoch: op.initiator_node_epoch,
+    })
+}
 
+#[cfg(feature = "dfs")]
+fn domain_replica_ack(
+    ack: afs_protocol::node_data::DfsReplicaAck,
+) -> afs_error::Result<crate::dfs::ReplicaAck> {
+    if ack.verified_digest_algorithm != afs_protocol::node_data::DfsDigestAlgorithm::Blake3 as i32 {
+        return Err(dfs_protocol_error(
+            "replica acknowledgement digest algorithm is unsupported",
+        ));
+    }
+    let bytes: [u8; 32] = ack
+        .verified_digest
+        .try_into()
+        .map_err(|_| dfs_protocol_error("replica acknowledgement digest length is invalid"))?;
+    Ok(crate::dfs::ReplicaAck {
+        operation_id: crate::dfs::OperationId::new(ack.operation_id),
+        chunk_id: crate::dfs::ChunkId::new(ack.chunk_id),
+        placement_revision: ack.placement_revision,
+        placement_epoch: ack.placement_epoch,
+        node_id: ack.node_id,
+        node_epoch: ack.node_epoch,
+        device_id: ack.device_id,
+        device_epoch: ack.device_epoch,
+        catalog_revision: ack.catalog_revision,
+        persisted_bytes: ack.persisted_bytes,
+        verified_digest: crate::dfs::ContentDigest {
+            algorithm: crate::dfs::DigestAlgorithm::Blake3,
+            bytes,
+        },
+    })
+}
+
+#[cfg(feature = "dfs")]
+pub struct RdmaReplicaDataPlane {
+    pool: Arc<DfsRdmaPool>,
+    runtime: PeerRuntime,
+}
+#[cfg(feature = "dfs")]
+impl RdmaReplicaDataPlane {
+    pub fn new(pool: Arc<DfsRdmaPool>) -> afs_error::Result<Self> {
+        Ok(Self {
+            pool,
+            runtime: PeerRuntime::current_or_new().map_err(|error| error.0)?,
+        })
+    }
+}
 #[cfg(feature = "dfs")]
 impl crate::node::replication::ReplicaDataPlane for RdmaReplicaDataPlane {
     fn mode(&self) -> crate::node::replication::ReplicaTransferMode {
         crate::node::replication::ReplicaTransferMode::RdmaOneSided
     }
-
-    fn prepare_peer(&self, _op: &crate::node::replication::ReplicaPeerOp) -> afs_error::Result<()> {
-        Err(afs_error::Error::coded(
-            afs_error::NODE_VFS_UNIMPLEMENTED,
-            "DFS RDMA replica transfer is not implemented; RN rejected before side effects",
-        ))
+    fn prepare_peer(&self, op: &crate::node::replication::ReplicaPeerOp) -> afs_error::Result<()> {
+        op.validate_shape()?;
+        self.runtime
+            .block_on(self.pool.peers.channel(
+                &op.target.node_id,
+                op.target.node_epoch,
+                &op.target.data_endpoint,
+            ))
+            .map(|_| ())
     }
-
     fn put_peer_replica(
         &self,
-        _op: &crate::node::replication::ReplicaPeerOp,
-        _staged: &crate::node::chunk::StagedChunk,
+        op: &crate::node::replication::ReplicaPeerOp,
+        staged: &crate::node::chunk::StagedChunk,
     ) -> afs_error::Result<Vec<crate::dfs::ReplicaAck>> {
-        Err(afs_error::Error::coded(
-            afs_error::NODE_VFS_UNIMPLEMENTED,
-            "DFS RDMA replica transfer is not implemented",
-        ))
+        #[cfg(not(feature = "rdma"))]
+        {
+            let _ = (op, staged, self.pool.timeout);
+            Err(afs_error::Error::coded(
+                afs_error::NODE_TRANSFER_UNSUPPORTED,
+                "DFS RDMA is not compiled",
+            ))
+        }
+        #[cfg(feature = "rdma")]
+        {
+            if staged.chunk.id != op.chunk_id
+                || staged.bytes().len() > crate::node::chunk::MAX_STAGED_CHUNK_BYTES
+            {
+                return Err(dfs_protocol_error(
+                    "RDMA replica immutable identity/length differs",
+                ));
+            }
+            let header = replica_header(op, staged)?;
+            let epoch = if op.target_index == 0 {
+                op.initiator_node_epoch
+            } else {
+                op.ordered_targets[op.target_index - 1].node_epoch
+            };
+            self.runtime.block_on(async {
+                tokio::time::timeout(self.pool.timeout, async {
+                let lease = self.pool.acquire(&op.target.node_id, op.target.node_epoch, &op.target.data_endpoint, afs_protocol::node_data::dfs_negotiate_rdma_request::Authority::ReplicaHeader(header.clone()), epoch).await?;
+                let cancel_guard = CancelPoisonGuard::new(lease.session.poisoned.clone());
+                let worker_op = op.clone();
+                let staged = staged.clone();
+                let task = tokio::spawn(async move {
+                    validate_open(false, &lease.session.poisoned).map_err(|error| error.0)?;
+                    let endpoint = lease.session.endpoint.clone();
+                    let payload = staged.clone();
+                    tokio::task::spawn_blocking(move || endpoint.blocking_lock().put_local(payload.bytes())).await.map_err(dfs_rdma_join_error)?.map_err(dfs_rdma_error)?;
+                    let mut client = lease.session.client.clone();
+                    let mut request = request_with_current_context(afs_protocol::node_data::DfsPutReplicaRdmaRequest { header: Some(header), rdma_session_id: lease.session.session_id, region_offset: 0, length: staged.chunk.length, chunk_offset: 0, staging_id: staged.operation_id.0.clone() });
+                    request.set_timeout(lease.session.timeout);
+                    let reply = client.put_replica_rdma(request).await.map_err(afs_transport::grpc::error_status::status_to_error)?.into_inner();
+                    let acks = reply.durable_acks.into_iter().map(domain_replica_ack).collect::<afs_error::Result<Vec<_>>>()?;
+                    crate::node::replication::validate_peer_acks(&worker_op, &staged, &acks)?;
+                    validate_open(false, &lease.session.poisoned).map_err(|error| error.0)?;
+                    Ok::<_, afs_error::Error>(acks)
+                });
+                let result = task.await.map_err(dfs_rdma_join_error)?;
+                if result.is_ok() { cancel_guard.disarm(); }
+                result
+                }).await.map_err(|_| afs_error::Error::coded(afs_error::CLIENT_DEADLINE_EXCEEDED, "DFS RDMA replica total deadline exceeded"))?
+            })
+        }
+    }
+}
+
+// Draft insertion into existing node/rpc/peer.rs. Not a new product module.
+#[cfg(all(feature = "dfs", feature = "rdma"))]
+type DfsRdmaKey = (String, u64, String);
+
+#[cfg(feature = "dfs")]
+pub struct DfsRdmaPool {
+    peers: Arc<PeerConnectionPool>,
+    #[cfg(feature = "rdma")]
+    device: String,
+    timeout: Duration,
+    #[cfg(feature = "rdma")]
+    slots: tokio::sync::Mutex<std::collections::HashMap<DfsRdmaKey, DfsRdmaSlot>>,
+    #[cfg(feature = "rdma")]
+    permits: Arc<tokio::sync::Semaphore>,
+}
+
+#[cfg(all(feature = "dfs", feature = "rdma"))]
+struct DfsRdmaSlot {
+    connection: Arc<tokio::sync::Mutex<Option<Arc<DfsRdmaSession>>>>,
+    touched: std::time::Instant,
+}
+
+#[cfg(all(feature = "dfs", feature = "rdma"))]
+struct DfsRdmaSession {
+    endpoint: Arc<tokio::sync::Mutex<RdmaEndpoint>>,
+    poisoned: Arc<AtomicBool>,
+    session_id: u64,
+    caller_epoch: u64,
+    client: DfsChunksClient<Channel>,
+    timeout: Duration,
+    _permit: tokio::sync::OwnedSemaphorePermit,
+}
+
+#[cfg(all(feature = "dfs", feature = "rdma"))]
+struct DfsRdmaLease {
+    session: Arc<DfsRdmaSession>,
+    // Held by the complete command task, including CQ and reply verification.
+    _guard: tokio::sync::OwnedMutexGuard<Option<Arc<DfsRdmaSession>>>,
+}
+
+#[cfg(feature = "dfs")]
+impl DfsRdmaPool {
+    pub fn new(
+        peers: Arc<PeerConnectionPool>,
+        device: String,
+        timeout: Duration,
+    ) -> afs_error::Result<Self> {
+        if device.is_empty() || timeout.is_zero() {
+            return Err(dfs_protocol_error("DFS RDMA device/timeout is required"));
+        }
+        #[cfg(not(feature = "rdma"))]
+        {
+            let _ = peers;
+            Err(afs_error::Error::coded(
+                afs_error::NODE_TRANSFER_UNSUPPORTED,
+                "DFS RDMA is not compiled",
+            ))
+        }
+        #[cfg(feature = "rdma")]
+        {
+            // Startup preflight is bounded and cannot silently choose gRPC.
+            let _ = RdmaEndpoint::open_with_capacity(
+                &device,
+                crate::node::chunk::MAX_STAGED_CHUNK_BYTES,
+            )
+            .map_err(dfs_rdma_error)?;
+            Ok(Self {
+                peers,
+                device,
+                timeout,
+                slots: tokio::sync::Mutex::new(std::collections::HashMap::new()),
+                permits: Arc::new(tokio::sync::Semaphore::new(16)),
+            })
+        }
+    }
+
+    #[cfg(feature = "rdma")]
+    async fn acquire(
+        &self,
+        node_id: &str,
+        node_epoch: u64,
+        address: &str,
+        authority: afs_protocol::node_data::dfs_negotiate_rdma_request::Authority,
+        caller_epoch: u64,
+    ) -> afs_error::Result<DfsRdmaLease> {
+        let channel = self.peers.channel(node_id, node_epoch, address).await?;
+        let key = (node_id.to_owned(), node_epoch, address.to_owned());
+        let slot = {
+            let mut slots = self.slots.lock().await;
+            // An idle old epoch can be retired; active tasks retain their Arc.
+            slots.retain(|(id, epoch, _), entry| {
+                id != node_id || *epoch == node_epoch || Arc::strong_count(&entry.connection) > 1
+            });
+            if !slots.contains_key(&key) && slots.len() >= 16 {
+                let old = slots
+                    .iter()
+                    .filter(|(_, entry)| Arc::strong_count(&entry.connection) == 1)
+                    .min_by_key(|(_, entry)| entry.touched)
+                    .map(|(key, _)| key.clone())
+                    .ok_or_else(|| {
+                        afs_error::Error::coded(
+                            afs_error::NODE_RDMA_CAPACITY,
+                            "all DFS RDMA sessions are busy",
+                        )
+                    })?;
+                slots.remove(&old);
+            }
+            let entry = slots.entry(key).or_insert_with(|| DfsRdmaSlot {
+                connection: Arc::new(tokio::sync::Mutex::new(None)),
+                touched: std::time::Instant::now(),
+            });
+            entry.touched = std::time::Instant::now();
+            entry.connection.clone()
+        };
+        let mut guard = slot.lock_owned().await;
+        if guard.as_ref().is_some_and(|connection| {
+            connection.poisoned.load(Ordering::SeqCst) || connection.caller_epoch != caller_epoch
+        }) {
+            *guard = None;
+        }
+        if guard.is_none() {
+            let permit = self.permits.clone().try_acquire_owned().map_err(|_| {
+                afs_error::Error::coded(
+                    afs_error::NODE_RDMA_CAPACITY,
+                    "DFS RDMA registered memory budget is full",
+                )
+            })?;
+            let device = self.device.clone();
+            let (endpoint, info, permit) = tokio::task::spawn_blocking(move || {
+                let mut endpoint = RdmaEndpoint::open_with_capacity(
+                    &device,
+                    crate::node::chunk::MAX_STAGED_CHUNK_BYTES,
+                )?;
+                let info = endpoint.info()?;
+                Ok::<_, afs_transport::rdma::RdmaError>((endpoint, info, permit))
+            })
+            .await
+            .map_err(dfs_rdma_join_error)?
+            .map_err(dfs_rdma_error)?;
+            let mut client = DfsChunksClient::new(channel);
+            let mut request =
+                request_with_current_context(afs_protocol::node_data::DfsNegotiateRdmaRequest {
+                    client_info: info.to_vec(),
+                    capacity: crate::node::chunk::MAX_STAGED_CHUNK_BYTES as u32,
+                    handshake_version: RDMA_HANDSHAKE_VERSION,
+                    authority: Some(authority),
+                });
+            request.set_timeout(self.timeout);
+            let reply = client
+                .negotiate_rdma(request)
+                .await
+                .map_err(afs_transport::grpc::error_status::status_to_error)?
+                .into_inner();
+            let mut remote_cleanup = DfsRdmaRemoteClose {
+                client: client.clone(),
+                session_id: reply.session_id,
+                caller_epoch,
+                timeout: self.timeout,
+                armed: true,
+            };
+            if !reply.rdma_supported
+                || reply.session_id == 0
+                || reply.capacity as usize != endpoint.capacity()
+                || reply.handshake_version != RDMA_HANDSHAKE_VERSION
+            {
+                return Err(dfs_protocol_error(
+                    "DFS RDMA negotiation identity/capacity is invalid",
+                ));
+            }
+            let server_info = reply.server_info;
+            let (endpoint, permit) = tokio::task::spawn_blocking(move || {
+                let mut endpoint = endpoint;
+                endpoint.connect(&server_info)?;
+                endpoint.send_probe(5000)?;
+                Ok::<_, afs_transport::rdma::RdmaError>((endpoint, permit))
+            })
+            .await
+            .map_err(dfs_rdma_join_error)?
+            .map_err(dfs_rdma_error)?;
+            remote_cleanup.armed = false;
+            *guard = Some(Arc::new(DfsRdmaSession {
+                endpoint: Arc::new(tokio::sync::Mutex::new(endpoint)),
+                poisoned: Arc::new(AtomicBool::new(false)),
+                session_id: reply.session_id,
+                caller_epoch,
+                client,
+                timeout: self.timeout,
+                _permit: permit,
+            }));
+        }
+        let session = guard
+            .as_ref()
+            .ok_or_else(|| dfs_protocol_error("DFS RDMA session publication failed"))?
+            .clone();
+        Ok(DfsRdmaLease {
+            session,
+            _guard: guard,
+        })
+    }
+}
+
+#[cfg(all(feature = "dfs", feature = "rdma"))]
+impl Drop for DfsRdmaSession {
+    fn drop(&mut self) {
+        self.poisoned.store(true, Ordering::SeqCst);
+        if let Ok(handle) = tokio::runtime::Handle::try_current() {
+            let mut client = self.client.clone();
+            let session_id = self.session_id;
+            let epoch = self.caller_epoch;
+            let timeout = self.timeout;
+            handle.spawn(async move {
+                let mut request =
+                    request_with_current_context(afs_protocol::node_data::DfsCloseRdmaRequest {
+                        session_id,
+                        peer_node_epoch: epoch,
+                    });
+                request.set_timeout(timeout);
+                let _ = client.close_rdma(request).await;
+            });
+        }
+    }
+}
+
+#[cfg(all(feature = "dfs", feature = "rdma"))]
+fn dfs_rdma_error(error: afs_transport::rdma::RdmaError) -> afs_error::Error {
+    afs_error::Error::coded(afs_error::NODE_TRANSFER_UNAVAILABLE, error.to_string())
+}
+#[cfg(all(feature = "dfs", feature = "rdma"))]
+fn dfs_rdma_join_error(error: tokio::task::JoinError) -> afs_error::Error {
+    afs_error::Error::coded(afs_error::CLIENT_WORKER_FAILED, error.to_string())
+}
+
+#[cfg(all(feature = "dfs", feature = "rdma"))]
+struct DfsRdmaRemoteClose {
+    client: DfsChunksClient<Channel>,
+    session_id: u64,
+    caller_epoch: u64,
+    timeout: Duration,
+    armed: bool,
+}
+#[cfg(all(feature = "dfs", feature = "rdma"))]
+impl Drop for DfsRdmaRemoteClose {
+    fn drop(&mut self) {
+        if !self.armed {
+            return;
+        }
+        if let Ok(handle) = tokio::runtime::Handle::try_current() {
+            let mut client = self.client.clone();
+            let session_id = self.session_id;
+            let peer_node_epoch = self.caller_epoch;
+            let timeout = self.timeout;
+            handle.spawn(async move {
+                let mut request =
+                    request_with_current_context(afs_protocol::node_data::DfsCloseRdmaRequest {
+                        session_id,
+                        peer_node_epoch,
+                    });
+                request.set_timeout(timeout);
+                let _ = client.close_rdma(request).await;
+            });
+        }
     }
 }
 
 #[cfg(feature = "dfs")]
-#[must_use]
 pub fn make_replica_data_plane(
     mode: DataMode,
-) -> Arc<dyn crate::node::replication::ReplicaDataPlane> {
+    peers: Arc<PeerConnectionPool>,
+    timeout: Duration,
+    rdma: Option<Arc<DfsRdmaPool>>,
+) -> afs_error::Result<Arc<dyn crate::node::replication::ReplicaDataPlane>> {
     match mode {
-        DataMode::Rdma => Arc::new(RdmaReplicaDataPlane),
-        DataMode::Grpc | DataMode::Auto => Arc::new(GrpcReplicaDataPlane),
+        DataMode::Rdma => Ok(Arc::new(RdmaReplicaDataPlane::new(
+            rdma.ok_or_else(|| dfs_protocol_error("DFS RDMA resources are absent"))?,
+        )?)),
+        DataMode::Grpc | DataMode::Auto => Ok(Arc::new(GrpcReplicaDataPlane::new(peers, timeout)?)),
     }
 }
 
@@ -245,6 +736,28 @@ impl PeerConnectionPool {
         node_epoch: u64,
         endpoint: &str,
     ) -> afs_error::Result<Channel> {
+        self.channel_with_timeout(node_id, node_epoch, endpoint, true)
+            .await
+    }
+
+    #[cfg(any(feature = "ownerfs", feature = "dfs"))]
+    pub async fn long_wait_channel(
+        &self,
+        node_id: &str,
+        node_epoch: u64,
+        endpoint: &str,
+    ) -> afs_error::Result<Channel> {
+        self.channel_with_timeout(node_id, node_epoch, endpoint, false)
+            .await
+    }
+
+    async fn channel_with_timeout(
+        &self,
+        node_id: &str,
+        node_epoch: u64,
+        endpoint: &str,
+        request_timeout: bool,
+    ) -> afs_error::Result<Channel> {
         if node_id.is_empty() || node_epoch == 0 || endpoint.is_empty() {
             return Err(afs_error::Error::coded(
                 afs_error::CLIENT_ARGUMENT_INVALID,
@@ -263,28 +776,51 @@ impl PeerConnectionPool {
                 "peer candidate has an older Node epoch than the connection pool",
             ));
         }
-        if let Some(entry) = state.channels.get_mut(&key) {
+        if request_timeout && let Some(entry) = state.channels.get_mut(&key) {
             entry.touched = std::time::Instant::now();
             return Ok(entry.channel.clone());
         }
         let endpoint = Endpoint::from_shared(endpoint.to_owned()).map_err(|error| {
             afs_error::Error::coded(afs_error::CLIENT_ARGUMENT_INVALID, error.to_string())
         })?;
-        let endpoint = self
-            .security
-            .configure_client(self.config.configure_client(endpoint))
-            .map_err(|error| {
-                afs_error::Error::coded(afs_error::CLIENT_ARGUMENT_INVALID, error.to_string())
-            })?;
-        // No await occurs from the epoch check through publication. Lazy
-        // connection completion cannot reinsert a stale channel after an epoch
-        // advance; both the channel and its high-water mark publish under lock.
+        let endpoint = if request_timeout {
+            self.config.configure_client(endpoint)
+        } else {
+            self.config.configure_long_wait_client(endpoint)
+        };
+        let endpoint = self.security.configure_client(endpoint).map_err(|error| {
+            afs_error::Error::coded(afs_error::CLIENT_ARGUMENT_INVALID, error.to_string())
+        })?;
         let channel = endpoint.connect_lazy();
+        if request_timeout {
+            self.publish_channel(&mut state, key, channel.clone());
+        } else {
+            self.publish_epoch(&mut state, node_id, node_epoch);
+        }
+        Ok(channel)
+    }
+
+    fn publish_epoch(&self, state: &mut PeerPoolState, node_id: &str, node_epoch: u64) {
         state
             .high_water_epochs
             .insert(node_id.to_owned(), node_epoch);
+        state
+            .channels
+            .retain(|(id, epoch, _), _| id != node_id || *epoch == node_epoch);
+    }
+
+    fn publish_channel(
+        &self,
+        state: &mut PeerPoolState,
+        key: (String, u64, String),
+        channel: Channel,
+    ) {
+        let (node_id, node_epoch, _) = &key;
+        // No await occurs from the epoch check through publication. Lazy
+        // connection completion cannot reinsert a stale channel after an epoch
+        // advance; both the channel and its high-water mark publish under lock.
+        self.publish_epoch(state, node_id, *node_epoch);
         let channels = &mut state.channels;
-        channels.retain(|(id, epoch, _), _| id != node_id || *epoch == node_epoch);
         if channels.len() >= self.capacity
             && let Some(oldest) = channels
                 .iter()
@@ -296,11 +832,10 @@ impl PeerConnectionPool {
         channels.insert(
             key,
             CachedPeerChannel {
-                channel: channel.clone(),
+                channel,
                 touched: std::time::Instant::now(),
             },
         );
-        Ok(channel)
     }
 }
 
@@ -554,21 +1089,186 @@ fn dfs_protocol_error(message: impl Into<String>) -> afs_error::Error {
 }
 
 #[cfg(feature = "dfs")]
-#[derive(Default)]
-pub struct RdmaChunkTransfer;
-
+pub struct RdmaChunkTransfer {
+    pool: Arc<DfsRdmaPool>,
+    runtime: PeerRuntime,
+    next_read: std::sync::atomic::AtomicU64,
+}
+#[cfg(feature = "dfs")]
+impl RdmaChunkTransfer {
+    pub fn new(pool: Arc<DfsRdmaPool>) -> afs_error::Result<Self> {
+        Ok(Self {
+            pool,
+            runtime: PeerRuntime::current_or_new().map_err(|error| error.0)?,
+            next_read: std::sync::atomic::AtomicU64::new(1),
+        })
+    }
+}
 #[cfg(feature = "dfs")]
 impl crate::node::dfs_read::ChunkTransfer for RdmaChunkTransfer {
     fn read_ranges(
         &self,
-        _batch: &crate::node::dfs_read::PeerReadBatch,
-        _out: &mut [u8],
+        batch: &crate::node::dfs_read::PeerReadBatch,
+        out: &mut [u8],
     ) -> afs_error::Result<()> {
-        Err(afs_error::Error::coded(
-            afs_error::NODE_TRANSFER_UNSUPPORTED,
-            "DFS RDMA range read is not implemented",
-        ))
+        #[cfg(not(feature = "rdma"))]
+        {
+            let _ = (batch, out, &self.pool, &self.runtime, &self.next_read);
+            Err(afs_error::Error::coded(
+                afs_error::NODE_TRANSFER_UNSUPPORTED,
+                "DFS RDMA is not compiled",
+            ))
+        }
+        #[cfg(feature = "rdma")]
+        {
+            batch.validate(out.len())?;
+            let first = &batch.operations[0].source;
+            let crate::dfs::CopyLocation::Node {
+                node_id,
+                node_epoch,
+                ..
+            } = &first.location
+            else {
+                return Err(dfs_protocol_error("RDMA source is not a Node"));
+            };
+            let endpoint = first
+                .data_endpoint
+                .as_deref()
+                .ok_or_else(|| dfs_protocol_error("RDMA source endpoint is absent"))?;
+            let sequence = self
+                .next_read
+                .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            let windows = pack_dfs_rdma_read_windows(batch, sequence)?;
+            self.runtime.block_on(async {
+                tokio::time::timeout(self.pool.timeout, async {
+                    for (request, mappings, length) in windows {
+                        let lease = self.pool.acquire(node_id, *node_epoch, endpoint, afs_protocol::node_data::dfs_negotiate_rdma_request::Authority::ReadRequest(request.clone()), first.read_grant.caller_node_epoch).await?;
+                        let cancel_guard = CancelPoisonGuard::new(lease.session.poisoned.clone());
+                        let task = tokio::spawn(async move {
+                            validate_open(false, &lease.session.poisoned).map_err(|error| error.0)?;
+                            let mut client = lease.session.client.clone();
+                            let mut command = request_with_current_context(afs_protocol::node_data::DfsReadRangesRdmaRequest { request: Some(request.clone()), rdma_session_id: lease.session.session_id });
+                            command.set_timeout(lease.session.timeout);
+                            let reply = client.read_ranges_rdma(command).await.map_err(afs_transport::grpc::error_status::status_to_error)?.into_inner();
+                            let endpoint = lease.session.endpoint.clone();
+                            let bytes = tokio::task::spawn_blocking(move || endpoint.blocking_lock().get_local(length)).await.map_err(dfs_rdma_join_error)?.map_err(dfs_rdma_error)?;
+                            validate_dfs_rdma_read_reply(&request, &reply, &bytes)?;
+                            validate_open(false, &lease.session.poisoned).map_err(|error| error.0)?;
+                            Ok::<_, afs_error::Error>(bytes)
+                        });
+                        let result = task.await.map_err(dfs_rdma_join_error)?;
+                        let bytes = result?;
+                        cancel_guard.disarm();
+                        for (destination, range) in mappings {
+                            out[destination..destination + range.len()].copy_from_slice(&bytes[range]);
+                        }
+                    }
+                    Ok::<_, afs_error::Error>(())
+                }).await.map_err(|_| afs_error::Error::coded(afs_error::CLIENT_DEADLINE_EXCEEDED, "DFS RDMA read total deadline exceeded"))?
+            })
+        }
     }
+}
+
+#[cfg(all(feature = "dfs", feature = "rdma"))]
+type DfsRdmaReadWindow = (
+    DfsReadRangesRequest,
+    Vec<(usize, std::ops::Range<usize>)>,
+    usize,
+);
+
+#[cfg(all(feature = "dfs", feature = "rdma"))]
+fn pack_dfs_rdma_read_windows(
+    batch: &crate::node::dfs_read::PeerReadBatch,
+    sequence: u64,
+) -> afs_error::Result<Vec<DfsRdmaReadWindow>> {
+    let first = &batch.operations[0].source.read_grant;
+    let mut windows = Vec::new();
+    let mut request = DfsReadRangesRequest {
+        read_id: format!(
+            "{}-{}-{sequence}",
+            first.caller_node_id, first.caller_node_epoch
+        ),
+        attempt_id: format!("rdma-{sequence}-0"),
+        file_version_id: batch.file_version_id.0.clone(),
+        layout_root_id: batch.layout_root_id.0.clone(),
+        operations: Vec::new(),
+    };
+    let mut mappings = Vec::new();
+    let mut length = 0;
+    for item in &batch.operations {
+        let count = usize::try_from(item.op.length)
+            .map_err(|_| dfs_protocol_error("RDMA range length overflow"))?;
+        if count == 0 || count > crate::node::chunk::MAX_STAGED_CHUNK_BYTES {
+            return Err(dfs_protocol_error(
+                "RDMA range exceeds one immutable Chunk window",
+            ));
+        }
+        if length + count > crate::node::chunk::MAX_STAGED_CHUNK_BYTES {
+            let mut next = request.clone();
+            next.operations.clear();
+            next.attempt_id = format!("rdma-{sequence}-{}", windows.len() + 1);
+            windows.push((request, mappings, length));
+            request = next;
+            mappings = Vec::new();
+            length = 0;
+        }
+        request.operations.push(DfsChunkReadOp {
+            operation_index: request.operations.len() as u32,
+            chunk_id: item.op.chunk_id.0.clone(),
+            chunk_offset: item.op.chunk_offset,
+            length: item.op.length,
+            destination_offset: length as u64,
+            source_copy_id: item.source.copy_id.0.clone(),
+            grant: Some(wire_dfs_read_grant(&item.source.read_grant)),
+        });
+        mappings.push((item.op.output_offset, length..length + count));
+        length += count;
+    }
+    if !request.operations.is_empty() {
+        windows.push((request, mappings, length));
+    }
+    Ok(windows)
+}
+
+#[cfg(all(feature = "dfs", feature = "rdma"))]
+fn validate_dfs_rdma_read_reply(
+    request: &DfsReadRangesRequest,
+    reply: &afs_protocol::node_data::DfsReadRangesRdmaReply,
+    bytes: &[u8],
+) -> afs_error::Result<()> {
+    if reply.read_id != request.read_id
+        || reply.attempt_id != request.attempt_id
+        || reply.completions.len() != request.operations.len()
+        || reply.transferred_bytes as usize != bytes.len()
+    {
+        return Err(dfs_protocol_error(
+            "RDMA read completion batch identity differs",
+        ));
+    }
+    for (completion, op) in reply.completions.iter().zip(&request.operations) {
+        let start = op.destination_offset as usize;
+        let end = start
+            .checked_add(op.length as usize)
+            .ok_or_else(|| dfs_protocol_error("RDMA read range overflow"))?;
+        let range = bytes
+            .get(start..end)
+            .ok_or_else(|| dfs_protocol_error("RDMA read range exceeds MR"))?;
+        if completion.read_id != request.read_id
+            || completion.attempt_id != request.attempt_id
+            || completion.operation_index != op.operation_index
+            || completion.source_copy_id != op.source_copy_id
+            || completion.transferred_bytes != op.length
+            || completion.range_checksum_algorithm
+                != afs_protocol::node_data::DfsDigestAlgorithm::Blake3 as i32
+            || completion.range_checksum.as_slice() != blake3::hash(range).as_bytes()
+        {
+            return Err(dfs_protocol_error(
+                "RDMA read completion identity/length/checksum differs",
+            ));
+        }
+    }
+    Ok(())
 }
 
 #[cfg(feature = "dfs")]
@@ -576,9 +1276,12 @@ pub fn make_chunk_transfer(
     mode: DataMode,
     peers: Arc<PeerConnectionPool>,
     timeout: Duration,
+    rdma: Option<Arc<DfsRdmaPool>>,
 ) -> afs_error::Result<Arc<dyn crate::node::dfs_read::ChunkTransfer>> {
     match mode {
-        DataMode::Rdma => Ok(Arc::new(RdmaChunkTransfer)),
+        DataMode::Rdma => Ok(Arc::new(RdmaChunkTransfer::new(
+            rdma.ok_or_else(|| dfs_protocol_error("DFS RDMA resources are absent"))?,
+        )?)),
         DataMode::Grpc | DataMode::Auto => Ok(Arc::new(GrpcChunkTransfer::new(peers, timeout)?)),
     }
 }
@@ -587,6 +1290,42 @@ pub fn make_chunk_transfer(
 /// no automatic retry/fallback of mutating operations after an uncertain reply.
 #[cfg(feature = "dfs")]
 pub trait RemoteDfsOwner: Send + Sync {
+    fn open(
+        &self,
+        request: afs_protocol::node_control::DfsOwnerOpenRequest,
+    ) -> afs_error::Result<afs_protocol::node_control::DfsOwnerOpenReply>;
+    fn getattr(
+        &self,
+        request: afs_protocol::node_control::DfsOwnerGetAttrRequest,
+    ) -> afs_error::Result<afs_protocol::node_control::DfsOwnerGetAttrReply>;
+    fn release(
+        &self,
+        request: afs_protocol::node_control::DfsOwnerReleaseRequest,
+    ) -> afs_error::Result<afs_protocol::node_control::DfsOwnerReleaseReply>;
+    fn get_lock(
+        &self,
+        request: afs_protocol::node_control::DfsOwnerGetLockRequest,
+    ) -> afs_error::Result<afs_protocol::node_control::DfsOwnerGetLockReply>;
+    fn set_lock(
+        &self,
+        request: afs_protocol::node_control::DfsOwnerSetLockRequest,
+    ) -> afs_error::Result<afs_protocol::node_control::DfsOwnerSetLockReply>;
+    fn cancel_lock_wait(
+        &self,
+        request: afs_protocol::node_control::DfsOwnerCancelLockWaitRequest,
+    ) -> afs_error::Result<afs_protocol::node_control::DfsOwnerCancelLockWaitReply>;
+    fn acknowledge_lock_wait(
+        &self,
+        request: afs_protocol::node_control::DfsOwnerAcknowledgeLockWaitRequest,
+    ) -> afs_error::Result<afs_protocol::node_control::DfsOwnerAcknowledgeLockWaitReply>;
+    fn release_locks(
+        &self,
+        request: afs_protocol::node_control::DfsOwnerReleaseLocksRequest,
+    ) -> afs_error::Result<afs_protocol::node_control::DfsOwnerReleaseLocksReply>;
+    fn release_lock_session(
+        &self,
+        request: afs_protocol::node_control::DfsOwnerReleaseLockSessionRequest,
+    ) -> afs_error::Result<afs_protocol::node_control::DfsOwnerReleaseLockSessionReply>;
     fn read(
         &self,
         request: afs_protocol::node_data::DfsOwnerReadRequest,
@@ -603,6 +1342,37 @@ pub trait RemoteDfsOwner: Send + Sync {
         &self,
         request: afs_protocol::node_data::DfsOwnerSyncRequest,
     ) -> afs_error::Result<afs_protocol::node_data::DfsOwnerSyncReply>;
+}
+
+#[cfg(feature = "dfs")]
+pub struct GrpcDfsOwnerFactory {
+    peers: Arc<PeerConnectionPool>,
+    timeout: Duration,
+}
+
+#[cfg(feature = "dfs")]
+impl GrpcDfsOwnerFactory {
+    #[must_use]
+    pub fn new(peers: Arc<PeerConnectionPool>, timeout: Duration) -> Self {
+        Self { peers, timeout }
+    }
+}
+
+#[cfg(feature = "dfs")]
+impl crate::node::vfs::dfs::DfsRemoteOwnerFactory for GrpcDfsOwnerFactory {
+    fn connect(
+        &self,
+        location: crate::node::vfs::dfs::DfsNodeLocation,
+    ) -> afs_error::Result<Arc<dyn RemoteDfsOwner>> {
+        GrpcDfsOwnerClient::new(
+            self.peers.clone(),
+            location.node_id,
+            location.node_epoch,
+            location.data_endpoint,
+            self.timeout,
+        )
+        .map(|client| Arc::new(client) as Arc<dyn RemoteDfsOwner>)
+    }
 }
 
 #[cfg(feature = "dfs")]
@@ -634,7 +1404,7 @@ impl GrpcDfsOwnerClient {
         })
     }
 
-    async fn client(
+    async fn data_client(
         &self,
     ) -> afs_error::Result<
         afs_protocol::node_data::dfs_owner_files_client::DfsOwnerFilesClient<Channel>,
@@ -648,6 +1418,99 @@ impl GrpcDfsOwnerClient {
                 .max_encoding_message_size(self.peers.config.max_encoding_message_bytes)
                 .max_decoding_message_size(self.peers.config.max_decoding_message_bytes),
         )
+    }
+
+    async fn control_client(
+        &self,
+    ) -> afs_error::Result<
+        afs_protocol::node_control::node_control_client::NodeControlClient<Channel>,
+    > {
+        self.control_client_with_long_wait(false).await
+    }
+
+    async fn control_client_with_long_wait(
+        &self,
+        long_wait: bool,
+    ) -> afs_error::Result<
+        afs_protocol::node_control::node_control_client::NodeControlClient<Channel>,
+    > {
+        let channel = if long_wait {
+            self.peers
+                .long_wait_channel(&self.node_id, self.node_epoch, &self.endpoint)
+                .await?
+        } else {
+            self.peers
+                .channel(&self.node_id, self.node_epoch, &self.endpoint)
+                .await?
+        };
+        Ok(
+            afs_protocol::node_control::node_control_client::NodeControlClient::new(channel)
+                .max_encoding_message_size(self.peers.config.max_encoding_message_bytes)
+                .max_decoding_message_size(self.peers.config.max_decoding_message_bytes),
+        )
+    }
+
+    fn dfs_owner_control_request<Req, Reply, Fut, Call>(
+        &self,
+        request: Req,
+        call: Call,
+    ) -> afs_error::Result<Reply>
+    where
+        Req: Send + 'static,
+        Reply: Send + 'static,
+        Fut: std::future::Future<Output = Result<tonic::Response<Reply>, tonic::Status>> + Send,
+        Call: FnOnce(
+                afs_protocol::node_control::node_control_client::NodeControlClient<Channel>,
+                tonic::Request<Req>,
+            ) -> Fut
+            + Send
+            + 'static,
+    {
+        self.dfs_owner_control_request_with_timeout(request, Some(self.timeout), call)
+    }
+
+    fn dfs_owner_control_request_with_timeout<Req, Reply, Fut, Call>(
+        &self,
+        request: Req,
+        timeout: Option<Duration>,
+        call: Call,
+    ) -> afs_error::Result<Reply>
+    where
+        Req: Send + 'static,
+        Reply: Send + 'static,
+        Fut: std::future::Future<Output = Result<tonic::Response<Reply>, tonic::Status>> + Send,
+        Call: FnOnce(
+                afs_protocol::node_control::node_control_client::NodeControlClient<Channel>,
+                tonic::Request<Req>,
+            ) -> Fut
+            + Send
+            + 'static,
+    {
+        self.runtime.block_on(async {
+            let future = async {
+                let client = self
+                    .control_client_with_long_wait(timeout.is_none())
+                    .await?;
+                let mut request = request_with_current_context(request);
+                if let Some(timeout) = timeout {
+                    request.set_timeout(timeout);
+                }
+                call(client, request)
+                    .await
+                    .map(tonic::Response::into_inner)
+                    .map_err(afs_transport::grpc::error_status::status_to_error)
+            };
+            if let Some(timeout) = timeout {
+                tokio::time::timeout(timeout, future).await.map_err(|_| {
+                    afs_error::Error::coded(
+                        afs_error::CLIENT_DEADLINE_EXCEEDED,
+                        "DFS owner control request result may be unknown",
+                    )
+                })?
+            } else {
+                future.await
+            }
+        })
     }
 }
 
@@ -664,7 +1527,7 @@ macro_rules! dfs_owner_rpc {
             }
             self.runtime.block_on(async {
                 tokio::time::timeout(self.timeout, async {
-                    let mut client = self.client().await?;
+                    let mut client = self.data_client().await?;
                     let mut request = request_with_current_context(request);
                     request.set_timeout(self.timeout);
                     client
@@ -687,6 +1550,210 @@ macro_rules! dfs_owner_rpc {
 
 #[cfg(feature = "dfs")]
 impl RemoteDfsOwner for GrpcDfsOwnerClient {
+    fn open(
+        &self,
+        request: afs_protocol::node_control::DfsOwnerOpenRequest,
+    ) -> afs_error::Result<afs_protocol::node_control::DfsOwnerOpenReply> {
+        if request.owner_node_id != self.node_id {
+            return Err(dfs_protocol_error("DFS owner open targets another Node"));
+        }
+        self.runtime.block_on(async {
+            tokio::time::timeout(self.timeout, async {
+                let mut client = self.control_client().await?;
+                let mut request = request_with_current_context(request);
+                request.set_timeout(self.timeout);
+                client
+                    .dfs_owner_open(request)
+                    .await
+                    .map(tonic::Response::into_inner)
+                    .map_err(afs_transport::grpc::error_status::status_to_error)
+            })
+            .await
+            .map_err(|_| {
+                afs_error::Error::coded(
+                    afs_error::CLIENT_DEADLINE_EXCEEDED,
+                    "DFS owner open result may be unknown; retry with the same lease",
+                )
+            })?
+        })
+    }
+
+    fn getattr(
+        &self,
+        request: afs_protocol::node_control::DfsOwnerGetAttrRequest,
+    ) -> afs_error::Result<afs_protocol::node_control::DfsOwnerGetAttrReply> {
+        if request
+            .handle
+            .as_ref()
+            .is_none_or(|handle| handle.owner_node_id != self.node_id)
+        {
+            return Err(dfs_protocol_error("DFS owner request targets another Node"));
+        }
+        self.runtime.block_on(async {
+            tokio::time::timeout(self.timeout, async {
+                let mut client = self.control_client().await?;
+                let mut request = request_with_current_context(request);
+                request.set_timeout(self.timeout);
+                client
+                    .dfs_owner_get_attr(request)
+                    .await
+                    .map(tonic::Response::into_inner)
+                    .map_err(afs_transport::grpc::error_status::status_to_error)
+            })
+            .await
+            .map_err(|_| {
+                afs_error::Error::coded(
+                    afs_error::CLIENT_DEADLINE_EXCEEDED,
+                    "DFS owner request result may be unknown; preserve its operation ID",
+                )
+            })?
+        })
+    }
+    fn release(
+        &self,
+        request: afs_protocol::node_control::DfsOwnerReleaseRequest,
+    ) -> afs_error::Result<afs_protocol::node_control::DfsOwnerReleaseReply> {
+        if request
+            .handle
+            .as_ref()
+            .is_none_or(|handle| handle.owner_node_id != self.node_id)
+        {
+            return Err(dfs_protocol_error("DFS owner request targets another Node"));
+        }
+        self.runtime.block_on(async {
+            tokio::time::timeout(self.timeout, async {
+                let mut client = self.control_client().await?;
+                let mut request = request_with_current_context(request);
+                request.set_timeout(self.timeout);
+                client
+                    .dfs_owner_release(request)
+                    .await
+                    .map(tonic::Response::into_inner)
+                    .map_err(afs_transport::grpc::error_status::status_to_error)
+            })
+            .await
+            .map_err(|_| {
+                afs_error::Error::coded(
+                    afs_error::CLIENT_DEADLINE_EXCEEDED,
+                    "DFS owner request result may be unknown; preserve its operation ID",
+                )
+            })?
+        })
+    }
+    fn get_lock(
+        &self,
+        request: afs_protocol::node_control::DfsOwnerGetLockRequest,
+    ) -> afs_error::Result<afs_protocol::node_control::DfsOwnerGetLockReply> {
+        if request
+            .authority
+            .as_ref()
+            .is_none_or(|authority| authority.owner_node_id != self.node_id)
+        {
+            return Err(dfs_protocol_error(
+                "DFS owner control request targets another Node",
+            ));
+        }
+        self.dfs_owner_control_request(request, |mut client, request| async move {
+            client.dfs_owner_get_lock(request).await
+        })
+    }
+
+    fn set_lock(
+        &self,
+        request: afs_protocol::node_control::DfsOwnerSetLockRequest,
+    ) -> afs_error::Result<afs_protocol::node_control::DfsOwnerSetLockReply> {
+        if request
+            .authority
+            .as_ref()
+            .is_none_or(|authority| authority.owner_node_id != self.node_id)
+        {
+            return Err(dfs_protocol_error(
+                "DFS owner control request targets another Node",
+            ));
+        }
+        let timeout = if request.waiter.is_some() {
+            None
+        } else {
+            Some(self.timeout)
+        };
+        self.dfs_owner_control_request_with_timeout(
+            request,
+            timeout,
+            |mut client, request| async move { client.dfs_owner_set_lock(request).await },
+        )
+    }
+
+    fn cancel_lock_wait(
+        &self,
+        request: afs_protocol::node_control::DfsOwnerCancelLockWaitRequest,
+    ) -> afs_error::Result<afs_protocol::node_control::DfsOwnerCancelLockWaitReply> {
+        if request
+            .authority
+            .as_ref()
+            .is_none_or(|authority| authority.owner_node_id != self.node_id)
+        {
+            return Err(dfs_protocol_error(
+                "DFS owner control request targets another Node",
+            ));
+        }
+        self.dfs_owner_control_request(request, |mut client, request| async move {
+            client.dfs_owner_cancel_lock_wait(request).await
+        })
+    }
+
+    fn acknowledge_lock_wait(
+        &self,
+        request: afs_protocol::node_control::DfsOwnerAcknowledgeLockWaitRequest,
+    ) -> afs_error::Result<afs_protocol::node_control::DfsOwnerAcknowledgeLockWaitReply> {
+        if request
+            .authority
+            .as_ref()
+            .is_none_or(|authority| authority.owner_node_id != self.node_id)
+        {
+            return Err(dfs_protocol_error(
+                "DFS owner control request targets another Node",
+            ));
+        }
+        self.dfs_owner_control_request(request, |mut client, request| async move {
+            client.dfs_owner_acknowledge_lock_wait(request).await
+        })
+    }
+
+    fn release_locks(
+        &self,
+        request: afs_protocol::node_control::DfsOwnerReleaseLocksRequest,
+    ) -> afs_error::Result<afs_protocol::node_control::DfsOwnerReleaseLocksReply> {
+        if request
+            .authority
+            .as_ref()
+            .is_none_or(|authority| authority.owner_node_id != self.node_id)
+        {
+            return Err(dfs_protocol_error(
+                "DFS owner control request targets another Node",
+            ));
+        }
+        self.dfs_owner_control_request(request, |mut client, request| async move {
+            client.dfs_owner_release_locks(request).await
+        })
+    }
+
+    fn release_lock_session(
+        &self,
+        request: afs_protocol::node_control::DfsOwnerReleaseLockSessionRequest,
+    ) -> afs_error::Result<afs_protocol::node_control::DfsOwnerReleaseLockSessionReply> {
+        if request
+            .authority
+            .as_ref()
+            .is_none_or(|authority| authority.owner_node_id != self.node_id)
+        {
+            return Err(dfs_protocol_error(
+                "DFS owner control request targets another Node",
+            ));
+        }
+        self.dfs_owner_control_request(request, |mut client, request| async move {
+            client.dfs_owner_release_lock_session(request).await
+        })
+    }
     dfs_owner_rpc!(
         read,
         afs_protocol::node_data::DfsOwnerReadRequest,
@@ -780,6 +1847,9 @@ enum DataPeerClientInner {
 #[cfg(feature = "ownerfs")]
 pub struct OwnerPeerClient {
     client: StdMutex<OwnerFilesClient<Channel>>,
+    lock_control: afs_protocol::node_control::node_control_client::NodeControlClient<Channel>,
+    long_lock_control:
+        Option<afs_protocol::node_control::node_control_client::NodeControlClient<Channel>>,
     runtime: OwnerRuntime,
     // Per-open immutable read snapshot returned by OwnerFiles.Open. It is
     // removed at release and never reused for another open of the same path.
@@ -858,6 +1928,10 @@ pub fn owner_files_client_from_channel(channel: Channel) -> OwnerPeerClient {
 #[cfg(feature = "ownerfs")]
 pub fn owner_files_client_from_channel_result(channel: Channel) -> PeerResult<OwnerPeerClient> {
     Ok(OwnerPeerClient {
+        lock_control: afs_protocol::node_control::node_control_client::NodeControlClient::new(
+            channel.clone(),
+        ),
+        long_lock_control: None,
         client: StdMutex::new(OwnerFilesClient::new(channel)),
         runtime: OwnerRuntime::current_or_new()?,
         prefetched_reads: StdMutex::new(HashMap::new()),
@@ -884,6 +1958,10 @@ pub fn owner_files_client_from_channel_with_runtime_and_metrics(
     metrics: Option<super::OwnerRpcMetrics>,
 ) -> OwnerPeerClient {
     OwnerPeerClient {
+        lock_control: afs_protocol::node_control::node_control_client::NodeControlClient::new(
+            channel.clone(),
+        ),
+        long_lock_control: None,
         client: StdMutex::new(OwnerFilesClient::new(channel)),
         runtime: OwnerRuntime::Existing(runtime),
         prefetched_reads: StdMutex::new(HashMap::new()),
@@ -894,6 +1972,37 @@ pub fn owner_files_client_from_channel_with_runtime_and_metrics(
 
 #[cfg(feature = "ownerfs")]
 impl OwnerPeerClient {
+    fn acknowledge_lock_wait(
+        &self,
+        grant: &RootGrant,
+        id: &crate::node::vfs::locks::LockWaiterId,
+    ) -> afs_error::Result<()> {
+        let mut client = self.lock_control.clone();
+        let body = afs_protocol::node_control::OwnerAckLockWaitRequest {
+            access: Some(root_access(grant)),
+            waiter: Some(afs_protocol::node_control::OwnerLockWaiter {
+                ingress_session_id: id.ingress_session_id.clone(),
+                request_id: id.request_id,
+            }),
+        };
+        self.runtime.block_on(async move {
+            tokio::time::timeout(
+                Duration::from_secs(5),
+                client.owner_ack_lock_wait(request_with_current_context(body)),
+            )
+            .await
+            .map_err(|_| owner_lock_transport_unknown())?
+            .map_err(|e| PeerError::from(e).0)
+        })?;
+        Ok(())
+    }
+
+    pub fn with_long_wait_channel(mut self, channel: Channel) -> Self {
+        self.long_lock_control =
+            Some(afs_protocol::node_control::node_control_client::NodeControlClient::new(channel));
+        self
+    }
+
     fn cloned_client(&self) -> PeerResult<OwnerFilesClient<Channel>> {
         Ok(self
             .client
@@ -926,6 +2035,211 @@ macro_rules! owner_rpc {
 
 #[cfg(feature = "ownerfs")]
 impl RemoteFiles for OwnerPeerClient {
+    fn getlk(
+        &self,
+        grant: &RootGrant,
+        file: &RemoteFile,
+        request: crate::node::vfs::locks::LockRequest,
+    ) -> afs_error::Result<Option<crate::node::vfs::types::FileLockConflict>> {
+        let mut client = self.lock_control.clone();
+        let body = afs_protocol::node_control::OwnerGetLockRequest {
+            handle: Some(owner_lock_wire_handle(grant, file)),
+            lock: Some(super::control::owner_lock_to_wire(&request)),
+        };
+        let reply = self
+            .runtime
+            .block_on(async move {
+                tokio::time::timeout(
+                    Duration::from_secs(5),
+                    client.owner_get_lock(request_with_current_context(body)),
+                )
+                .await
+                .map_err(|_| owner_lock_transport_unknown())?
+                .map_err(|e| PeerError::from(e).0)
+            })?
+            .into_inner();
+        reply
+            .conflict
+            .map(|lock| {
+                super::control::owner_lock_from_wire(Some(lock)).map(|request| {
+                    crate::node::vfs::types::FileLockConflict {
+                        kind: request.kind,
+                        owner: request.owner,
+                        pid: request.pid,
+                        range: request.range,
+                        lock_type: request.lock_type,
+                    }
+                })
+            })
+            .transpose()
+    }
+    fn setlk(
+        &self,
+        grant: &RootGrant,
+        file: &RemoteFile,
+        request: crate::node::vfs::locks::LockRequest,
+        waiter: Option<crate::node::vfs::locks::LockWaiterId>,
+    ) -> afs_error::Result<()> {
+        let blocking = waiter.is_some();
+        let mut client = if blocking {
+            self.long_lock_control.clone().ok_or_else(|| {
+                afs_error::Error::coded(
+                    afs_error::NODE_VFS_UNIMPLEMENTED,
+                    "Owner blocking locks require a channel without request deadline",
+                )
+            })?
+        } else {
+            self.lock_control.clone()
+        };
+        let body = afs_protocol::node_control::OwnerSetLockRequest {
+            handle: Some(owner_lock_wire_handle(grant, file)),
+            lock: Some(super::control::owner_lock_to_wire(&request)),
+            waiter: waiter
+                .as_ref()
+                .map(|id| afs_protocol::node_control::OwnerLockWaiter {
+                    ingress_session_id: id.ingress_session_id.clone(),
+                    request_id: id.request_id,
+                }),
+        };
+        let result = self.runtime.block_on(async move {
+            let call = client.owner_set_lock(request_with_current_context(body));
+            if blocking {
+                call.await
+            } else {
+                tokio::time::timeout(Duration::from_secs(5), call)
+                    .await
+                    .map_err(|_| tonic::Status::deadline_exceeded("Owner lock control timed out"))?
+            }
+        });
+        if let Err(error) = result {
+            // A structured server error is a definitive business rejection;
+            // preserve its errno (including EINTR/ENOLCK/permission errors).
+            let transport_unknown = error.details().is_empty()
+                && matches!(
+                    error.code(),
+                    tonic::Code::Unavailable
+                        | tonic::Code::Cancelled
+                        | tonic::Code::Unknown
+                        | tonic::Code::DeadlineExceeded
+                        | tonic::Code::Internal
+                );
+            if transport_unknown && let Some(waiter) = &waiter {
+                // Only an authenticated terminal outcome resolves a lost reply.
+                // A raced grant is never rolled back by broad owner cleanup.
+                match self.cancel_lock_wait(grant, waiter.clone()) {
+                    Ok(crate::node::vfs::locks::LockWaiterOutcome::Granted) => {
+                        let _ = self.acknowledge_lock_wait(grant, waiter);
+                        return Ok(());
+                    }
+                    Ok(crate::node::vfs::locks::LockWaiterOutcome::Cancelled) => {
+                        let _ = self.acknowledge_lock_wait(grant, waiter);
+                        return Err(afs_error::Error::from(std::io::Error::from_raw_os_error(
+                            libc::EINTR,
+                        )));
+                    }
+                    Ok(crate::node::vfs::locks::LockWaiterOutcome::Unknown) | Err(_) => {
+                        return Err(afs_error::Error::coded(
+                            afs_error::IO_UNAVAILABLE,
+                            format!(
+                                "Owner blocking lock response uncertain; original waiter retained: {error}"
+                            ),
+                        ));
+                    }
+                }
+            }
+            if let Some(waiter) = &waiter {
+                // The server has delivered a definitive business rejection;
+                // retire a cancelled terminal outcome without touching locks.
+                let _ = self.acknowledge_lock_wait(grant, waiter);
+            }
+            return Err(PeerError::from(error).0);
+        }
+        if let Some(waiter) = waiter {
+            let _ = self.acknowledge_lock_wait(grant, &waiter);
+        }
+        Ok(())
+    }
+    fn cancel_lock_wait(
+        &self,
+        grant: &RootGrant,
+        waiter: crate::node::vfs::locks::LockWaiterId,
+    ) -> afs_error::Result<crate::node::vfs::locks::LockWaiterOutcome> {
+        let mut client = self.lock_control.clone();
+        let body = afs_protocol::node_control::OwnerCancelLockWaitRequest {
+            access: Some(root_access(grant)),
+            waiter: Some(afs_protocol::node_control::OwnerLockWaiter {
+                ingress_session_id: waiter.ingress_session_id,
+                request_id: waiter.request_id,
+            }),
+        };
+        let reply = self
+            .runtime
+            .block_on(async move {
+                tokio::time::timeout(
+                    Duration::from_secs(5),
+                    client.owner_cancel_lock_wait(request_with_current_context(body)),
+                )
+                .await
+                .map_err(|_| owner_lock_transport_unknown())?
+                .map_err(|e| PeerError::from(e).0)
+            })?
+            .into_inner();
+        match reply.outcome {
+            1 => Ok(crate::node::vfs::locks::LockWaiterOutcome::Cancelled),
+            2 => Ok(crate::node::vfs::locks::LockWaiterOutcome::Granted),
+            3 => Ok(crate::node::vfs::locks::LockWaiterOutcome::Unknown),
+            _ => Err(afs_error::Error::coded(
+                afs_error::IO_OTHER,
+                "Owner lock cancellation outcome unknown",
+            )),
+        }
+    }
+    fn release_locks(
+        &self,
+        grant: &RootGrant,
+        file: &RemoteFile,
+        owner: crate::node::vfs::types::FileLockOwner,
+        kind: crate::node::vfs::types::ReleaseKind,
+    ) -> afs_error::Result<()> {
+        let mut client = self.lock_control.clone();
+        let body = afs_protocol::node_control::OwnerReleaseLocksRequest {
+            handle: Some(owner_lock_wire_handle(grant, file)),
+            ingress_session_id: owner.ingress_session_id,
+            kernel_owner: owner.kernel_owner,
+            release_kind: match kind {
+                crate::node::vfs::types::ReleaseKind::PosixOwner => 1,
+                crate::node::vfs::types::ReleaseKind::FlockOwner => 2,
+            },
+        };
+        self.runtime.block_on(async move {
+            tokio::time::timeout(
+                Duration::from_secs(5),
+                client.owner_release_locks(request_with_current_context(body)),
+            )
+            .await
+            .map_err(|_| owner_lock_transport_unknown())?
+            .map_err(|e| PeerError::from(e).0)
+        })?;
+        Ok(())
+    }
+    fn release_lock_session(&self, grant: &RootGrant, session: &str) -> afs_error::Result<()> {
+        let mut client = self.lock_control.clone();
+        let body = afs_protocol::node_control::OwnerReleaseLockSessionRequest {
+            access: Some(root_access(grant)),
+            ingress_session_id: session.into(),
+        };
+        self.runtime.block_on(async move {
+            tokio::time::timeout(
+                Duration::from_secs(5),
+                client.owner_release_lock_session(request_with_current_context(body)),
+            )
+            .await
+            .map_err(|_| owner_lock_transport_unknown())?
+            .map_err(|e| PeerError::from(e).0)
+        })?;
+        Ok(())
+    }
+
     fn lookup(
         &self,
         grant: &RootGrant,
@@ -964,13 +2278,15 @@ impl RemoteFiles for OwnerPeerClient {
         owner_entry(grant, reply.attr)
     }
 
-    fn setattr(
+    fn setattr_with_options(
         &self,
+        ctx: &RequestContext,
         grant: &RootGrant,
         path: &OsStr,
         expected_identity: Option<&FileIdentity>,
         file: Option<&RemoteFile>,
         change: &AttributeChange,
+        options: SetAttrOptions,
     ) -> afs_error::Result<OwnerEntry> {
         let reply = owner_rpc!(
             self,
@@ -979,20 +2295,113 @@ impl RemoteFiles for OwnerPeerClient {
                 access: Some(root_access(grant)),
                 path: path.as_bytes().to_vec(),
                 expected_file_identity: expected_identity.map(file_identity),
-                attr: Some(owner_set_attr(change)),
+                attr: Some(owner_set_attr(change, options)),
                 handle: file.map(file_handle),
+                caller: Some(owner_caller(ctx)),
             }
         );
         owner_entry(grant, reply.attr)
     }
 
-    fn create(
+    fn getxattr(
         &self,
+        ctx: &RequestContext,
+        grant: &RootGrant,
+        path: &OsStr,
+        expected_identity: &FileIdentity,
+        name: &OsStr,
+    ) -> afs_error::Result<Vec<u8>> {
+        let reply = owner_rpc!(
+            self,
+            get_xattr,
+            OwnerGetXattrRequest {
+                access: Some(root_access(grant)),
+                path: path.as_bytes().to_vec(),
+                expected_file_identity: Some(file_identity(expected_identity)),
+                name: name.as_bytes().to_vec(),
+                caller: Some(owner_caller(ctx)),
+            }
+        );
+        Ok(reply.value)
+    }
+
+    fn listxattr(
+        &self,
+        ctx: &RequestContext,
+        grant: &RootGrant,
+        path: &OsStr,
+        expected_identity: &FileIdentity,
+    ) -> afs_error::Result<Vec<u8>> {
+        let reply = owner_rpc!(
+            self,
+            list_xattr,
+            OwnerListXattrRequest {
+                access: Some(root_access(grant)),
+                path: path.as_bytes().to_vec(),
+                expected_file_identity: Some(file_identity(expected_identity)),
+                caller: Some(owner_caller(ctx)),
+            }
+        );
+        Ok(reply.names)
+    }
+
+    fn setxattr(
+        &self,
+        ctx: &RequestContext,
+        grant: &RootGrant,
+        path: &OsStr,
+        expected_identity: &FileIdentity,
+        name: &OsStr,
+        value: &[u8],
+        flags: i32,
+    ) -> afs_error::Result<()> {
+        let _reply = owner_rpc!(
+            self,
+            set_xattr,
+            OwnerSetXattrRequest {
+                access: Some(root_access(grant)),
+                path: path.as_bytes().to_vec(),
+                expected_file_identity: Some(file_identity(expected_identity)),
+                name: name.as_bytes().to_vec(),
+                value: value.to_vec(),
+                flags,
+                caller: Some(owner_caller(ctx)),
+            }
+        );
+        Ok(())
+    }
+
+    fn removexattr(
+        &self,
+        ctx: &RequestContext,
+        grant: &RootGrant,
+        path: &OsStr,
+        expected_identity: &FileIdentity,
+        name: &OsStr,
+    ) -> afs_error::Result<()> {
+        let _reply = owner_rpc!(
+            self,
+            remove_xattr,
+            OwnerRemoveXattrRequest {
+                access: Some(root_access(grant)),
+                path: path.as_bytes().to_vec(),
+                expected_file_identity: Some(file_identity(expected_identity)),
+                name: name.as_bytes().to_vec(),
+                caller: Some(owner_caller(ctx)),
+            }
+        );
+        Ok(())
+    }
+
+    fn create_with_options(
+        &self,
+        ctx: &RequestContext,
         grant: &RootGrant,
         path: &OsStr,
         flags: i32,
         mode: u32,
         expected_parent: &FileIdentity,
+        options: OpenOptions,
     ) -> afs_error::Result<RemoteCreatedFile> {
         let reply = owner_rpc!(
             self,
@@ -1003,6 +2412,8 @@ impl RemoteFiles for OwnerPeerClient {
                 flags: flags as u32,
                 mode,
                 expected_parent: Some(file_identity(expected_parent)),
+                caller: Some(owner_caller(ctx)),
+                kill_suidgid: options.kill_suidgid,
             }
         );
         let entry = owner_entry(grant, reply.attr)?;
@@ -1022,6 +2433,7 @@ impl RemoteFiles for OwnerPeerClient {
 
     fn mkdir(
         &self,
+        ctx: &RequestContext,
         grant: &RootGrant,
         path: &OsStr,
         mode: u32,
@@ -1035,6 +2447,31 @@ impl RemoteFiles for OwnerPeerClient {
                 path: path.as_bytes().to_vec(),
                 mode,
                 expected_parent: Some(file_identity(expected_parent)),
+                caller: Some(owner_caller(ctx)),
+            }
+        );
+        owner_entry(grant, reply.attr)
+    }
+
+    fn mknod(
+        &self,
+        ctx: &RequestContext,
+        grant: &RootGrant,
+        path: &OsStr,
+        kind: SpecialFileKind,
+        mode: u32,
+        expected_parent: &FileIdentity,
+    ) -> afs_error::Result<OwnerEntry> {
+        let reply = owner_rpc!(
+            self,
+            mknod,
+            OwnerMknodRequest {
+                access: Some(root_access(grant)),
+                path: path.as_bytes().to_vec(),
+                special_node: Some(owner_special_node(kind)),
+                mode,
+                expected_parent: Some(file_identity(expected_parent)),
+                caller: Some(owner_caller(ctx)),
             }
         );
         owner_entry(grant, reply.attr)
@@ -1042,6 +2479,7 @@ impl RemoteFiles for OwnerPeerClient {
 
     fn unlink(
         &self,
+        ctx: &RequestContext,
         grant: &RootGrant,
         path: &OsStr,
         expected_identity: Option<&FileIdentity>,
@@ -1055,6 +2493,7 @@ impl RemoteFiles for OwnerPeerClient {
                 path: path.as_bytes().to_vec(),
                 expected_file_identity: expected_identity.map(file_identity),
                 expected_parent: Some(file_identity(expected_parent)),
+                caller: Some(owner_caller(ctx)),
             }
         );
         Ok(())
@@ -1062,6 +2501,7 @@ impl RemoteFiles for OwnerPeerClient {
 
     fn rmdir(
         &self,
+        ctx: &RequestContext,
         grant: &RootGrant,
         path: &OsStr,
         expected_identity: Option<&FileIdentity>,
@@ -1075,6 +2515,7 @@ impl RemoteFiles for OwnerPeerClient {
                 path: path.as_bytes().to_vec(),
                 expected_file_identity: expected_identity.map(file_identity),
                 expected_parent: Some(file_identity(expected_parent)),
+                caller: Some(owner_caller(ctx)),
             }
         );
         Ok(())
@@ -1082,6 +2523,7 @@ impl RemoteFiles for OwnerPeerClient {
 
     fn rename(
         &self,
+        ctx: &RequestContext,
         grant: &RootGrant,
         old_path: &OsStr,
         new_path: &OsStr,
@@ -1103,17 +2545,19 @@ impl RemoteFiles for OwnerPeerClient {
                 flags: flags.0,
                 expected_old_parent: Some(file_identity(expected_old_parent)),
                 expected_new_parent: Some(file_identity(expected_new_parent)),
+                caller: Some(owner_caller(ctx)),
             }
         );
         Ok(())
     }
 
-    fn open(
+    fn open_with_options(
         &self,
         grant: &RootGrant,
         path: &OsStr,
         flags: i32,
         expected_identity: Option<&FileIdentity>,
+        options: OpenOptions,
     ) -> afs_error::Result<(RemoteFile, FileAttributes)> {
         let reply = owner_rpc!(
             self,
@@ -1124,6 +2568,7 @@ impl RemoteFiles for OwnerPeerClient {
                 flags: flags as u32,
                 mode: 0,
                 expected_file_identity: expected_identity.map(file_identity),
+                kill_suidgid: options.kill_suidgid,
             }
         );
         let identity = reply
@@ -1172,6 +2617,52 @@ impl RemoteFiles for OwnerPeerClient {
         Ok(reply.target)
     }
 
+    fn symlink(
+        &self,
+        ctx: &RequestContext,
+        grant: &RootGrant,
+        path: &OsStr,
+        target: &OsStr,
+        expected_parent: &FileIdentity,
+    ) -> afs_error::Result<OwnerEntry> {
+        let reply = owner_rpc!(
+            self,
+            symlink,
+            OwnerSymlinkRequest {
+                access: Some(root_access(grant)),
+                link_path: path.as_bytes().to_vec(),
+                target: target.as_bytes().to_vec(),
+                expected_parent: Some(file_identity(expected_parent)),
+                caller: Some(owner_caller(ctx)),
+            }
+        );
+        owner_entry(grant, reply.attr)
+    }
+
+    fn link(
+        &self,
+        ctx: &RequestContext,
+        grant: &RootGrant,
+        old_path: &OsStr,
+        new_path: &OsStr,
+        expected_old_identity: &FileIdentity,
+        expected_new_parent: &FileIdentity,
+    ) -> afs_error::Result<OwnerEntry> {
+        let reply = owner_rpc!(
+            self,
+            link,
+            OwnerLinkRequest {
+                access: Some(root_access(grant)),
+                old_path: old_path.as_bytes().to_vec(),
+                new_path: new_path.as_bytes().to_vec(),
+                expected_old_identity: Some(file_identity(expected_old_identity)),
+                expected_new_parent: Some(file_identity(expected_new_parent)),
+                caller: Some(owner_caller(ctx)),
+            }
+        );
+        owner_entry(grant, reply.attr)
+    }
+
     fn read(
         &self,
         grant: &RootGrant,
@@ -1212,12 +2703,13 @@ impl RemoteFiles for OwnerPeerClient {
         Ok(reply.data.len())
     }
 
-    fn write(
+    fn write_with_options(
         &self,
         grant: &RootGrant,
         file: &RemoteFile,
         offset: u64,
         data: &[u8],
+        options: WriteOptions,
     ) -> afs_error::Result<usize> {
         validate_length(data.len()).map_err(|error| error.0)?;
         let len = data.len();
@@ -1231,6 +2723,7 @@ impl RemoteFiles for OwnerPeerClient {
                 data: data.to_vec(),
                 length: len as u32,
                 plane: Some(grpc_plane()),
+                kill_suidgid: options.kill_suidgid,
             }
         );
         Ok(reply.written as usize)
@@ -1867,6 +3360,17 @@ async fn connect_rdma(
 }
 
 #[cfg(feature = "ownerfs")]
+fn owner_caller(ctx: &RequestContext) -> afs_protocol::node_data::OwnerCaller {
+    afs_protocol::node_data::OwnerCaller {
+        uid: ctx.uid,
+        gid: ctx.gid,
+        pid: ctx.pid,
+        umask: ctx.umask,
+        supplementary_gids: ctx.supplementary_gids.clone(),
+    }
+}
+
+#[cfg(feature = "ownerfs")]
 fn root_access(grant: &RootGrant) -> RootAccess {
     RootAccess {
         root_id: grant.id.0.clone(),
@@ -1911,6 +3415,20 @@ fn grpc_plane() -> DataPlane {
 }
 
 #[cfg(feature = "ownerfs")]
+fn owner_special_node(kind: SpecialFileKind) -> afs_protocol::node_data::OwnerSpecialNode {
+    let (kind, rdev) = match kind {
+        SpecialFileKind::Fifo => (OwnerFileKind::Fifo, 0),
+        SpecialFileKind::Socket => (OwnerFileKind::Socket, 0),
+        SpecialFileKind::BlockDevice { rdev } => (OwnerFileKind::BlockDevice, rdev),
+        SpecialFileKind::CharDevice { rdev } => (OwnerFileKind::CharDevice, rdev),
+    };
+    afs_protocol::node_data::OwnerSpecialNode {
+        kind: kind.into(),
+        rdev,
+    }
+}
+
+#[cfg(feature = "ownerfs")]
 fn remote_file(
     grant: &RootGrant,
     identity: FileIdentity,
@@ -1948,19 +3466,21 @@ fn file_attributes(attr: OwnerFileAttr) -> afs_error::Result<FileAttributes> {
         OwnerFileKind::Regular => FileKind::Regular,
         OwnerFileKind::Directory => FileKind::Directory,
         OwnerFileKind::Symlink => FileKind::Symlink,
-        OwnerFileKind::Unspecified
+        OwnerFileKind::Fifo
+        | OwnerFileKind::Socket
         | OwnerFileKind::BlockDevice
-        | OwnerFileKind::CharDevice
-        | OwnerFileKind::Fifo
-        | OwnerFileKind::Socket => {
-            return Err(protocol_error(
-                "OwnerFileKind is not supported by VFS types",
-            ));
+        | OwnerFileKind::CharDevice => FileKind::Special(domain_owner_special_node(
+            attr.kind,
+            attr.special_node.as_ref(),
+        )?),
+        OwnerFileKind::Unspecified => {
+            return Err(protocol_error("OwnerFileKind is unspecified"));
         }
     };
     Ok(FileAttributes {
         kind,
         size: attr.size,
+        blocks: attr.blocks,
         mode: attr.mode,
         uid: attr.uid,
         gid: attr.gid,
@@ -1972,7 +3492,33 @@ fn file_attributes(attr: OwnerFileAttr) -> afs_error::Result<FileAttributes> {
 }
 
 #[cfg(feature = "ownerfs")]
-fn owner_set_attr(change: &AttributeChange) -> OwnerSetAttr {
+fn domain_owner_special_node(
+    attr_kind: i32,
+    special: Option<&afs_protocol::node_data::OwnerSpecialNode>,
+) -> afs_error::Result<SpecialFileKind> {
+    let attr_kind =
+        OwnerFileKind::try_from(attr_kind).map_err(|_| protocol_error("unknown OwnerFileKind"))?;
+    let special = special.ok_or_else(|| protocol_error("OwnerFileAttr missing special_node"))?;
+    let special_kind = OwnerFileKind::try_from(special.kind)
+        .map_err(|_| protocol_error("unknown OwnerSpecialNode kind"))?;
+    if special_kind != attr_kind {
+        return Err(protocol_error(
+            "OwnerFileAttr kind differs from special_node kind",
+        ));
+    }
+    match special_kind {
+        OwnerFileKind::Fifo if special.rdev == 0 => Ok(SpecialFileKind::Fifo),
+        OwnerFileKind::Socket if special.rdev == 0 => Ok(SpecialFileKind::Socket),
+        OwnerFileKind::BlockDevice => Ok(SpecialFileKind::BlockDevice { rdev: special.rdev }),
+        OwnerFileKind::CharDevice => Ok(SpecialFileKind::CharDevice { rdev: special.rdev }),
+        _ => Err(protocol_error(
+            "OwnerSpecialNode has an invalid kind/rdev combination",
+        )),
+    }
+}
+
+#[cfg(feature = "ownerfs")]
+fn owner_set_attr(change: &AttributeChange, options: SetAttrOptions) -> OwnerSetAttr {
     OwnerSetAttr {
         mode: change.mode,
         uid: change.uid,
@@ -1980,6 +3526,8 @@ fn owner_set_attr(change: &AttributeChange) -> OwnerSetAttr {
         size: change.size,
         atime_ns: change.atime.map(time_to_ns),
         mtime_ns: change.mtime.map(time_to_ns),
+        kill_suidgid: options.kill_suidgid,
+        timestamps_now: options.timestamps_now,
     }
 }
 
@@ -2583,4 +4131,130 @@ mod tests {
             Some(&3)
         );
     }
+}
+
+#[cfg(all(test, feature = "dfs", feature = "rdma"))]
+mod dfs_rdma_tests {
+    use super::*;
+
+    #[test]
+    fn read_completion_binds_attempt_copy_range_and_payload_checksum() {
+        let request = DfsReadRangesRequest {
+            read_id: "read".into(),
+            attempt_id: "attempt".into(),
+            file_version_id: "version".into(),
+            layout_root_id: "layout".into(),
+            operations: vec![DfsChunkReadOp {
+                operation_index: 0,
+                chunk_id: "chunk".into(),
+                chunk_offset: 7,
+                length: 3,
+                destination_offset: 0,
+                source_copy_id: "copy".into(),
+                grant: None,
+            }],
+        };
+        let reply = afs_protocol::node_data::DfsReadRangesRdmaReply {
+            read_id: request.read_id.clone(),
+            attempt_id: request.attempt_id.clone(),
+            transferred_bytes: 3,
+            completions: vec![afs_protocol::node_data::DfsReadRangesCompletion {
+                read_id: request.read_id.clone(),
+                attempt_id: request.attempt_id.clone(),
+                operation_index: 0,
+                source_copy_id: "copy".into(),
+                transferred_bytes: 3,
+                range_checksum: blake3::hash(b"abc").as_bytes().to_vec(),
+                range_checksum_algorithm: afs_protocol::node_data::DfsDigestAlgorithm::Blake3
+                    as i32,
+            }],
+        };
+        validate_dfs_rdma_read_reply(&request, &reply, b"abc").unwrap();
+        assert!(validate_dfs_rdma_read_reply(&request, &reply, b"abd").is_err());
+        let mut wrong = reply.clone();
+        wrong.attempt_id = "another".into();
+        assert!(validate_dfs_rdma_read_reply(&request, &wrong, b"abc").is_err());
+        let mut wrong = reply.clone();
+        wrong.completions[0].source_copy_id = "another".into();
+        assert!(validate_dfs_rdma_read_reply(&request, &wrong, b"abc").is_err());
+        let mut wrong = reply;
+        wrong.completions[0].transferred_bytes = 2;
+        assert!(validate_dfs_rdma_read_reply(&request, &wrong, b"abc").is_err());
+    }
+
+    #[test]
+    fn read_windows_split_at_registered_capacity_and_preserve_destinations() {
+        use crate::dfs::*;
+        use crate::node::dfs_read::{ChunkReadOp, PeerReadBatch, ResolvedReadOp};
+        let size = 3 * 1024 * 1024;
+        let batch = PeerReadBatch {
+            file_version_id: FileVersionId::new("version"),
+            layout_root_id: LayoutRootId::new("layout"),
+            operations: (0..2)
+                .map(|i| ResolvedReadOp {
+                    op: ChunkReadOp {
+                        chunk_id: ChunkId::new(format!("chunk-{i}")),
+                        chunk_offset: 0,
+                        length: size as u64,
+                        output_offset: i * size,
+                    },
+                    source: SourceCandidate {
+                        copy_id: CopyId::new(format!("copy-{i}")),
+                        chunk_id: ChunkId::new(format!("chunk-{i}")),
+                        role: CopyRole::DurableReplica,
+                        state: CopyState::Ready,
+                        location: CopyLocation::Node {
+                            node_id: "source".into(),
+                            node_epoch: 1,
+                            device_id: "disk".into(),
+                            device_epoch: 1,
+                            catalog_revision: 1,
+                        },
+                        data_endpoint: Some("http://127.0.0.1:1".into()),
+                        load_hint: 0,
+                        read_grant: DfsReadGrant {
+                            namespace_id: NamespaceId::new("ns"),
+                            file_version_id: FileVersionId::new("version"),
+                            layout_root_id: LayoutRootId::new("layout"),
+                            caller_node_id: "reader".into(),
+                            caller_node_epoch: 1,
+                            expires_at_unix_ms: u64::MAX,
+                            fence: 1,
+                            token: "fixture".into(),
+                        },
+                    },
+                })
+                .collect(),
+        };
+        let windows = pack_dfs_rdma_read_windows(&batch, 42).unwrap();
+        assert_eq!(windows.len(), 2);
+        assert_eq!(windows[0].2, size);
+        assert_eq!(windows[1].2, size);
+        assert_eq!(windows[0].1, vec![(0, 0..size)]);
+        assert_eq!(windows[1].1, vec![(size, 0..size)]);
+        assert_eq!(windows[1].0.operations[0].operation_index, 0);
+        assert_eq!(windows[1].0.operations[0].destination_offset, 0);
+        assert_ne!(windows[0].0.attempt_id, windows[1].0.attempt_id);
+    }
+}
+
+#[cfg(feature = "ownerfs")]
+fn owner_lock_wire_handle(
+    grant: &RootGrant,
+    file: &RemoteFile,
+) -> afs_protocol::node_control::OwnerLockHandle {
+    afs_protocol::node_control::OwnerLockHandle {
+        access: Some(root_access(grant)),
+        file: Some(OwnerHandle {
+            opaque: file.handle.clone(),
+        }),
+        identity: Some(file_identity(&file.identity)),
+    }
+}
+#[cfg(feature = "ownerfs")]
+fn owner_lock_transport_unknown() -> afs_error::Error {
+    afs_error::Error::coded(
+        afs_error::IO_OTHER,
+        "Owner lock control transport response unknown",
+    )
 }

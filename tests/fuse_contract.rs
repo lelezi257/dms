@@ -15,12 +15,163 @@ use afs::node::{
     fuse,
     vfs::{
         Backend,
+        locks::{LockRequest, LockWaiterId},
         types::{
             BackendInode, CreatedFile, DirectoryEntry, DirectoryHandle, Entry, FileAttributes,
-            FileHandle, FileKind, RenameFlags, RequestContext, SyncMode,
+            FileHandle, FileKind, FileLockKind, FileLockOwner, FileLockRange, FileLockType,
+            OpenOptions, ReleaseKind, RenameFlags, RequestContext, SetAttrOptions, SyncMode,
+            WriteOptions,
         },
     },
 };
+
+#[test]
+fn vfs_killpriv_options_fail_closed_until_backend_supports_them() {
+    let backend = MockBackend::default();
+    let ctx = request_context();
+
+    assert!(!backend.supports_killpriv_v2());
+
+    let open_error = backend
+        .open_with_options(
+            &ctx,
+            backend.root_inode(),
+            libc::O_WRONLY,
+            OpenOptions { kill_suidgid: true },
+        )
+        .unwrap_err();
+    assert_eq!(open_error.code(), afs_error::NODE_VFS_UNIMPLEMENTED);
+
+    let write_error = backend
+        .write_with_options(
+            &ctx,
+            FileHandle(999),
+            0,
+            b"x",
+            WriteOptions { kill_suidgid: true },
+        )
+        .unwrap_err();
+    assert_eq!(write_error.code(), afs_error::NODE_VFS_UNIMPLEMENTED);
+
+    let setattr_error = backend
+        .setattr_with_options(
+            &ctx,
+            backend.root_inode(),
+            None,
+            &Default::default(),
+            SetAttrOptions {
+                kill_suidgid: true,
+                timestamps_now: false,
+            },
+        )
+        .unwrap_err();
+    assert_eq!(setattr_error.code(), afs_error::NODE_VFS_UNIMPLEMENTED);
+}
+
+#[test]
+fn vfs_options_preserve_legacy_paths_without_killpriv() {
+    let backend = MockBackend::default();
+    let ctx = request_context();
+    let created = backend
+        .create_with_options(
+            &ctx,
+            backend.root_inode(),
+            OsStr::new("legacy.txt"),
+            0o644,
+            libc::O_RDWR,
+            OpenOptions::default(),
+        )
+        .unwrap();
+    let handle = backend
+        .open_with_options(
+            &ctx,
+            created.entry.inode,
+            libc::O_RDWR,
+            OpenOptions::default(),
+        )
+        .unwrap();
+
+    let written = backend
+        .write_with_options(&ctx, handle, 0, b"ok", WriteOptions::default())
+        .unwrap();
+    assert_eq!(written, 2);
+
+    let attributes = backend
+        .setattr_with_options(
+            &ctx,
+            created.entry.inode,
+            Some(handle),
+            &Default::default(),
+            SetAttrOptions {
+                kill_suidgid: false,
+                timestamps_now: true,
+            },
+        )
+        .unwrap();
+    assert_eq!(attributes.size, 2);
+}
+
+#[test]
+fn vfs_advisory_lock_methods_fail_closed_until_backend_supports_them() {
+    let backend = MockBackend::default();
+    let ctx = request_context();
+    let owner = FileLockOwner {
+        ingress_session_id: "test-mount".to_owned(),
+        kernel_owner: 7,
+    };
+    let request = LockRequest {
+        kind: FileLockKind::Posix,
+        owner: owner.clone(),
+        pid: 123,
+        range: FileLockRange { start: 0, end: 99 },
+        lock_type: FileLockType::Write,
+    };
+
+    assert!(!backend.supports_advisory_locks());
+    assert_eq!(
+        backend
+            .getlk(&ctx, backend.root_inode(), FileHandle(1), request.clone())
+            .unwrap_err()
+            .code(),
+        afs_error::NODE_VFS_UNIMPLEMENTED
+    );
+    assert_eq!(
+        backend
+            .setlk(
+                &ctx,
+                backend.root_inode(),
+                FileHandle(1),
+                request,
+                Some(LockWaiterId {
+                    ingress_session_id: "test-mount".to_owned(),
+                    request_id: 99,
+                }),
+            )
+            .unwrap_err()
+            .code(),
+        afs_error::NODE_VFS_UNIMPLEMENTED
+    );
+    assert_eq!(
+        backend
+            .cancel_lock_wait(LockWaiterId {
+                ingress_session_id: "test-mount".to_owned(),
+                request_id: 99,
+            })
+            .unwrap_err()
+            .code(),
+        afs_error::NODE_VFS_UNIMPLEMENTED
+    );
+    backend
+        .release_locks(
+            &ctx,
+            backend.root_inode(),
+            FileHandle(1),
+            owner,
+            ReleaseKind::PosixOwner,
+        )
+        .unwrap();
+    backend.release_lock_session("test-mount").unwrap();
+}
 
 #[test]
 #[ignore = "requires Linux /dev/fuse and fusermount3"]
@@ -640,10 +791,12 @@ fn attributes(kind: FileKind, size: u64) -> FileAttributes {
     FileAttributes {
         kind,
         size,
+        blocks: size.div_ceil(512),
         mode: match kind {
             FileKind::Directory => 0o755,
             FileKind::Regular => 0o644,
             FileKind::Symlink => 0o777,
+            FileKind::Special(_) => 0o644,
         },
         uid: 0,
         gid: 0,
@@ -668,5 +821,6 @@ fn request_context() -> RequestContext {
         gid: 0,
         pid: 0,
         umask: 0,
+        supplementary_gids: Vec::new(),
     }
 }

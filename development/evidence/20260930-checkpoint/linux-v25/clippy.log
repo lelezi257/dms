@@ -1,0 +1,10 @@
+   Compiling fuser v0.16.0 (/home/lzc.guest/afs-build/work/root-merged-v25/third_party/fuser)
+   Compiling afs-protocol v0.1.0 (/home/lzc.guest/afs-build/work/root-merged-v25/common/protocol)
+    Checking afs-metrics v0.1.0 (/home/lzc.guest/afs-build/work/root-merged-v25/common/metrics)
+   Compiling afs-transport v0.1.0 (/home/lzc.guest/afs-build/work/root-merged-v25/common/transport)
+    Checking afs-tracing v0.1.0 (/home/lzc.guest/afs-build/work/root-merged-v25/common/tracing)
+    Checking afs-error v0.1.0 (/home/lzc.guest/afs-build/work/root-merged-v25/common/error)
+    Checking afs-logging v0.1.0 (/home/lzc.guest/afs-build/work/root-merged-v25/common/logging)
+    Checking afs v0.1.0 (/home/lzc.guest/afs-build/work/root-merged-v25)
+    Checking afs-client v0.1.0 (/home/lzc.guest/afs-build/work/root-merged-v25/client)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 9.89s

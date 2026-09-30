@@ -144,30 +144,32 @@ def main() -> int:
                 if os.pread(fd, 64, 0) != expected_base:
                     raise RuntimeError("writable handle did not see accepted dirty bytes")
 
-                # Read-only opens fix the committed view, initially empty.
+                # Ordinary readonly handles share this mount's current view.
                 before_sync = os.open(path, os.O_RDONLY)
                 try:
-                    if os.pread(before_sync, 64, 0) != b"":
-                        raise RuntimeError("read-only open exposed uncommitted dirty bytes")
+                    if os.pread(before_sync, 64, 0) != expected_base:
+                        raise RuntimeError("read-only handle missed accepted dirty bytes")
                     os.fdatasync(fd)
-                    if os.pread(before_sync, 64, 0) != b"":
-                        raise RuntimeError("old read-only handle moved to the new version")
+                    if os.pread(before_sync, 64, 0) != expected_base:
+                        raise RuntimeError("read-only handle lost content after fdatasync")
                 finally:
                     os.close(before_sync)
                 first_chunks = sorted((work_dir / "node" / "dfs" / "chunks").iterdir())
                 if len(first_chunks) != 1 or first_chunks[0].read_bytes() != expected_base:
                     raise RuntimeError("fdatasync did not commit the first immutable Chunk")
 
-                pinned = os.open(path, os.O_RDONLY)
+                reader = os.open(path, os.O_RDONLY)
                 try:
-                    if os.pread(pinned, 64, 0) != expected_base:
+                    if os.pread(reader, 64, 0) != expected_base:
                         raise RuntimeError("reopen after sync did not see the committed version")
                     os.pwrite(fd, b"DFS", 6)
+                    if os.pread(reader, 64, 0) != b"hello-DFS-r1":
+                        raise RuntimeError("previously open reader missed accepted overwrite")
                     os.fsync(fd)
-                    if os.pread(pinned, 64, 0) != expected_base:
-                        raise RuntimeError("pinned reader changed after a newer fsync")
+                    if os.pread(reader, 64, 0) != b"hello-DFS-r1":
+                        raise RuntimeError("reader lost the new view after fsync")
                 finally:
-                    os.close(pinned)
+                    os.close(reader)
             finally:
                 os.close(fd)
 
@@ -252,7 +254,7 @@ def main() -> int:
                 chunk_ids=[chunk.name for chunk in chunks],
                 chunk_bytes=[chunk.stat().st_size for chunk in chunks],
                 writable_dirty_visible=True,
-                readonly_open_pinned=True,
+                readonly_dirty_visible=True,
                 sync_reopen_visible=True,
                 fdatasync_then_fsync=True,
                 ftruncate_shrink_grow=True,

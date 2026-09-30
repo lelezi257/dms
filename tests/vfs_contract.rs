@@ -25,6 +25,7 @@ fn backend_contract_binds_one_root_and_rejects_unimplemented_operations() {
         gid: 1000,
         pid: 42,
         umask: 0o022,
+        supplementary_gids: Vec::new(),
     };
     assert_eq!(
         backend

@@ -81,11 +81,23 @@ impl GrpcConfig {
     /// The caller still owns endpoint parsing, UDS/TCP selection and creation
     /// of the generated protobuf client.
     pub fn configure_client(&self, endpoint: Endpoint) -> Endpoint {
+        self.configure_client_base(endpoint)
+            .timeout(self.request_timeout)
+    }
+
+    /// Configure a client for semantic long-running RPCs that are cancelled by
+    /// an explicit protocol request. The returned endpoint keeps connect and
+    /// HTTP/2 keepalive bounds but deliberately has no default per-request
+    /// timeout.
+    pub fn configure_long_wait_client(&self, endpoint: Endpoint) -> Endpoint {
+        self.configure_client_base(endpoint)
+    }
+
+    fn configure_client_base(&self, endpoint: Endpoint) -> Endpoint {
         // 每个 builder 方法都取得前一个 Endpoint 的所有权并返回新的 Endpoint；
         // 最终返回值仍未连接，调用者还需要 `.connect().await`。
         endpoint
             .connect_timeout(self.connect_timeout)
-            .timeout(self.request_timeout)
             .tcp_nodelay(true)
             .tcp_keepalive(Some(self.tcp_keepalive))
             .http2_keep_alive_interval(self.http2_keepalive_interval)

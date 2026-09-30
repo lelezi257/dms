@@ -41,6 +41,14 @@ struct GrpcOwnerFilesFactory {
 
 #[cfg(feature = "ownerfs")]
 impl vfs::ownerfs::RemoteFilesFactory for GrpcOwnerFilesFactory {
+    fn supports_advisory_locks(&self) -> bool {
+        true
+    }
+
+    fn supports_killpriv_v2(&self) -> bool {
+        true
+    }
+
     fn connect(
         &self,
         home_node_id: &str,
@@ -49,12 +57,16 @@ impl vfs::ownerfs::RemoteFilesFactory for GrpcOwnerFilesFactory {
         let channel = self
             .runtime
             .block_on(self.peers.channel(home_node_id, node_epoch, &uri))?;
+        let long_wait_channel =
+            self.runtime
+                .block_on(self.peers.long_wait_channel(home_node_id, node_epoch, &uri))?;
         Ok(Arc::new(
             rpc::peer::owner_files_client_from_channel_with_runtime_and_metrics(
                 channel,
                 self.runtime.clone(),
                 Some(self.metrics.clone()),
-            ),
+            )
+            .with_long_wait_channel(long_wait_channel),
         ))
     }
 }
@@ -168,9 +180,13 @@ pub async fn run(cfg: Config, obs: Observability) -> Result<(), BoxError> {
             },
         )
     });
-    if let Some((endpoint, descriptor)) = &node_descriptor {
-        rpc::meta::register_node(endpoint, descriptor.clone(), timeout, cfg.tls_config()).await?;
-    }
+    let registered_node_epoch = if let Some((endpoint, descriptor)) = &node_descriptor {
+        rpc::meta::register_node(endpoint, descriptor.clone(), timeout, cfg.tls_config()).await?
+    } else {
+        0
+    };
+    #[cfg(not(feature = "dfs"))]
+    let _ = registered_node_epoch;
 
     #[cfg(any(feature = "ownerfs", feature = "dfs"))]
     let peer_connections = Arc::new(rpc::peer::PeerConnectionPool::new(
@@ -224,17 +240,55 @@ pub async fn run(cfg: Config, obs: Observability) -> Result<(), BoxError> {
     };
 
     #[cfg(feature = "dfs")]
-    let dfs_instance = if cfg.dfs {
-        let endpoint = meta_endpoint.expect("DFS checked meta_endpoint");
-        let namespace = crate::dfs::NamespaceId::new("default");
-        let meta = Arc::new(rpc::meta::GrpcDfsMeta::new(
-            endpoint,
+    let dfs_meta = if cfg.dfs {
+        Some(Arc::new(rpc::meta::GrpcDfsMeta::new(
+            meta_endpoint.expect("DFS checked meta_endpoint"),
             cfg.id.clone(),
             session_id.clone(),
-            namespace.clone(),
+            crate::dfs::NamespaceId::new("default"),
             timeout,
             cfg.tls_config(),
-        )?);
+        )?))
+    } else {
+        None
+    };
+    #[cfg(feature = "dfs")]
+    let dfs_rdma_pool = if cfg.dfs && cfg.data_mode == "rdma" {
+        let peers = peer_connections.clone();
+        let device = cfg.rdma_device.clone().ok_or_else(|| {
+            afs_error::Error::coded(afs_error::CONFIG_INVALID, "DFS RDMA requires rdma_device")
+        })?;
+        Some(Arc::new(
+            tokio::task::spawn_blocking(move || {
+                rpc::peer::DfsRdmaPool::new(peers, device, timeout)
+            })
+            .await??,
+        ))
+    } else {
+        None
+    };
+    #[cfg(feature = "dfs")]
+    let dfs_replica_plane = rpc::peer::make_replica_data_plane(
+        match if cfg.dfs {
+            cfg.data_mode.as_str()
+        } else {
+            "grpc"
+        } {
+            "grpc" => rpc::peer::DataMode::Grpc,
+            "rdma" => rpc::peer::DataMode::Rdma,
+            _ => rpc::peer::DataMode::Auto,
+        },
+        peer_connections.clone(),
+        timeout,
+        dfs_rdma_pool.clone(),
+    )?;
+    #[cfg(feature = "dfs")]
+    let dfs_instance = if cfg.dfs {
+        let namespace = crate::dfs::NamespaceId::new("default");
+        let meta = dfs_meta
+            .as_ref()
+            .expect("DFS Meta adapter was constructed")
+            .clone();
         let chunks = local_chunk_store
             .as_ref()
             .expect("DFS local ChunkStore was opened before registration")
@@ -244,11 +298,12 @@ pub async fn run(cfg: Config, obs: Observability) -> Result<(), BoxError> {
             "rdma" => rpc::peer::DataMode::Rdma,
             _ => rpc::peer::DataMode::Auto,
         };
-        let chunk_store = Arc::new(replication::DfsChunkStore::new(
+        let chunk_store = Arc::new(replication::DfsChunkStore::new_with_epoch(
             cfg.id.clone(),
+            registered_node_epoch,
             chunks.clone(),
             meta.clone(),
-            rpc::peer::make_replica_data_plane(data_mode),
+            dfs_replica_plane.clone(),
         ));
         let read_config = dfs_read::DfsReadConfig {
             max_ops_per_batch: cfg.dfs_read_max_ops_per_batch,
@@ -261,17 +316,29 @@ pub async fn run(cfg: Config, obs: Observability) -> Result<(), BoxError> {
             cfg.id.clone(),
             chunks,
             meta.clone(),
-            rpc::peer::make_chunk_transfer(data_mode, peer_connections.clone(), timeout)?,
+            rpc::peer::make_chunk_transfer(
+                data_mode,
+                peer_connections.clone(),
+                timeout,
+                dfs_rdma_pool.clone(),
+            )?,
             read_config,
         ));
-        Some(Arc::new(vfs::dfs::DistributedFs::new(
-            namespace,
-            cfg.id.clone(),
-            session_id.clone(),
-            meta,
-            chunk_store,
-            read_engine,
-        )))
+        let remote_factory = Arc::new(rpc::peer::GrpcDfsOwnerFactory::new(
+            peer_connections.clone(),
+            timeout,
+        ));
+        Some(Arc::new(
+            vfs::dfs::DistributedFs::new(
+                namespace,
+                cfg.id.clone(),
+                session_id.clone(),
+                meta,
+                chunk_store,
+                read_engine,
+            )
+            .with_remote_owner_factory(remote_factory),
+        ))
     } else {
         None
     };
@@ -361,12 +428,20 @@ pub async fn run(cfg: Config, obs: Observability) -> Result<(), BoxError> {
                     _ = &mut shutdown => return Ok(()),
                     _ = tokio::time::sleep(next_delay) => {
                         match rpc::meta::register_node(&endpoint, descriptor.clone(), timeout, tls.clone()).await {
-                            Ok(()) => {
+                            Ok(epoch) => {
+                                if epoch != registered_node_epoch {
+                                    return Err(afs_error::Error::coded(
+                                        afs_error::IO_PERMISSION_DENIED,
+                                        "Node registration epoch changed; the running authority must stop",
+                                    ).into());
+                                }
                                 last_success = tokio::time::Instant::now();
                                 next_delay = std::time::Duration::from_secs(10);
                             }
                             Err(error) => {
-                                if last_success.elapsed() >= std::time::Duration::from_secs(25) {
+                                if !heartbeat_error_is_retryable(&error)
+                                    || last_success.elapsed() >= std::time::Duration::from_secs(25)
+                                {
                                     return Err(error.into());
                                 }
                                 afs_logging::warn!("node.meta_heartbeat_retry"; "error" => error.to_string());
@@ -422,16 +497,25 @@ pub async fn run(cfg: Config, obs: Observability) -> Result<(), BoxError> {
                     _ = &mut shutdown => return Ok(()),
                     _ = tick.tick() => {
                         let fs = dfs.clone();
-                        match tokio::task::spawn_blocking(move || fs.writeback_pending()).await {
-                            Ok(Ok(count)) if count > 0 => {
-                                afs_logging::info!("dfs.background_versions_committed"; "count" => count);
+                        match tokio::task::spawn_blocking(move || {
+                            let committed = fs.writeback_pending()?;
+                            let reaped = fs.reap_expired_peer_lock_sessions()?;
+                            Ok::<_, afs_error::Error>((committed, reaped))
+                        }).await {
+                            Ok(Ok((count, reaped))) if count > 0 || reaped > 0 => {
+                                if count > 0 {
+                                    afs_logging::info!("dfs.background_versions_committed"; "count" => count);
+                                }
+                                if reaped > 0 {
+                                    afs_logging::info!("dfs.peer_lock_sessions_reaped"; "count" => reaped);
+                                }
                             }
                             Ok(Ok(_)) => {}
                             Ok(Err(error)) => {
-                                afs_logging::warn!("dfs.background_writeback_retry"; "error" => error.to_string());
+                                afs_logging::warn!("dfs.background_retry"; "error" => error.to_string());
                             }
                             Err(error) => {
-                                afs_logging::warn!("dfs.background_writeback_worker_failed"; "error" => error.to_string());
+                                afs_logging::warn!("dfs.background_worker_failed"; "error" => error.to_string());
                             }
                         }
                     }
@@ -464,23 +548,68 @@ pub async fn run(cfg: Config, obs: Observability) -> Result<(), BoxError> {
     let incoming =
         grpc_config.configure_tcp_incoming(tonic::transport::server::TcpIncoming::from(grpc));
     // 业务 Handler 在 Node，公共 transport 只提供 builder 配置和低层搬运机制。
-    let control = rpc::control::make_control_server(sessions.clone());
+    #[cfg(any(feature = "ownerfs", feature = "dfs"))]
+    let dfs_trusted = cfg
+        .trusted_node_certs
+        .iter()
+        .map(|(node_id, path)| Ok((node_id.clone(), crate::config::read_certificate_der(path)?)))
+        .collect::<afs_error::Result<Vec<_>>>()?;
+    #[cfg(feature = "dfs")]
+    let control = if let Some(dfs) = state.dfs.as_ref() {
+        rpc::control::NodeControlService::with_dfs_owner(
+            sessions.clone(),
+            dfs.clone(),
+            Arc::new(rpc::data::MtlsPeerAuthenticator::new(dfs_trusted.clone())?),
+        )
+    } else {
+        rpc::control::NodeControlService::new(sessions.clone())
+    };
+    #[cfg(not(feature = "dfs"))]
+    let control = rpc::control::NodeControlService::new(sessions.clone());
+    #[cfg(feature = "ownerfs")]
+    let control = if let Some(owner) = state.ownerfs.as_ref() {
+        control.with_owner_locks(
+            owner.peer_executor()?,
+            Arc::new(rpc::data::MtlsPeerAuthenticator::new(dfs_trusted.clone())?),
+        )
+    } else {
+        control
+    };
+    let control = control.into_server();
     let data = rpc::data::make_data_server(diagnostic_storage, sessions.clone());
     #[cfg(feature = "dfs")]
-    let dfs_chunks = {
-        let trusted = cfg
-            .trusted_node_certs
-            .iter()
-            .map(|(node_id, path)| {
-                Ok((node_id.clone(), crate::config::read_certificate_der(path)?))
-            })
-            .collect::<afs_error::Result<Vec<_>>>()?;
-        rpc::data::make_dfs_chunks_server(
-            local_chunk_store.clone(),
-            Arc::new(rpc::data::MtlsPeerAuthenticator::new(trusted)?),
-            Arc::new(rpc::data::DenyDfsReadAuthorizer),
-        )
+    let dfs_read_authorizer: Arc<dyn rpc::data::DfsReadAuthorizer> = match dfs_meta.as_ref() {
+        Some(meta) => Arc::new(rpc::data::CachedDfsReadAuthorizer::new(
+            meta.clone(),
+            cfg.id.clone(),
+            registered_node_epoch,
+        )),
+        None => Arc::new(rpc::data::DenyDfsReadAuthorizer),
     };
+    #[cfg(feature = "dfs")]
+    let dfs_replica_authorizer: Arc<dyn rpc::data::DfsReplicaAuthorizer> = match dfs_meta {
+        Some(meta) => Arc::new(rpc::data::MetaReplicaAuthorizer {
+            meta,
+            node_id: cfg.id.clone(),
+            node_epoch: registered_node_epoch,
+        }),
+        None => Arc::new(rpc::data::DenyDfsReplicaAuthorizer),
+    };
+    #[cfg(feature = "dfs")]
+    let dfs_chunks = rpc::data::make_dfs_chunks_server_with_transport(
+        local_chunk_store.clone(),
+        Arc::new(rpc::data::MtlsPeerAuthenticator::new(dfs_trusted.clone())?),
+        dfs_read_authorizer,
+        dfs_replica_authorizer,
+        Some(dfs_replica_plane),
+        timeout,
+        rpc::data::DfsChunkTransportResources {
+            rdma_sessions: sessions.clone(),
+            payload_metrics: Some(rpc::data::DfsPayloadMetrics::register(
+                &state.observability.registry,
+            )?),
+        },
+    );
     #[cfg(feature = "ownerfs")]
     let owner_files = if let Some(ownerfs) = state.ownerfs.as_ref() {
         let trusted = cfg
@@ -500,6 +629,8 @@ pub async fn run(cfg: Config, obs: Observability) -> Result<(), BoxError> {
     } else {
         rpc::data::make_owner_files_server()
     };
+    #[cfg(feature = "dfs")]
+    let grpc_state = state.clone();
     services.spawn(async move {
         let router = grpc_server
             .layer(afs_tracing::GrpcServerTraceLayer::default())
@@ -508,12 +639,17 @@ pub async fn run(cfg: Config, obs: Observability) -> Result<(), BoxError> {
         #[cfg(feature = "ownerfs")]
         let router = router.add_service(owner_files);
         #[cfg(feature = "dfs")]
-        let router =
-            router
-                .add_service(dfs_chunks)
-                .add_service(rpc::data::make_dfs_owner_files_server(
-                    rpc::data::DfsOwnerFilesService::default(),
-                ));
+        let router = {
+            let dfs_owner_files = if let Some(dfs) = grpc_state.dfs.as_ref() {
+                rpc::data::make_dfs_owner_files_server(rpc::data::DfsOwnerFilesService::new(
+                    dfs.clone(),
+                    Arc::new(rpc::data::MtlsPeerAuthenticator::new(dfs_trusted.clone())?),
+                ))
+            } else {
+                rpc::data::make_dfs_owner_files_server(rpc::data::DfsOwnerFilesService::default())
+            };
+            router.add_service(dfs_chunks).add_service(dfs_owner_files)
+        };
         router
             .serve_with_incoming_shutdown(incoming, cancelled(stop))
             .await
@@ -538,7 +674,7 @@ pub async fn run(cfg: Config, obs: Observability) -> Result<(), BoxError> {
         Ok(())
     });
     afs_logging::info!("node.ready";"grpc"=>cfg.grpc_listen.to_string(),"rest"=>cfg.rest_listen.to_string(),"uds"=>cfg.uds_path.display().to_string(),"ownerfs"=>cfg.ownerfs,"dfs"=>cfg.dfs);
-    let result = services.run().await;
+    let mut shutdown_error = services.run().await.err();
     #[cfg(feature = "dfs")]
     if let Some(dfs) = dfs_for_drain {
         match tokio::task::spawn_blocking(move || dfs.drain()).await {
@@ -547,10 +683,12 @@ pub async fn run(cfg: Config, obs: Observability) -> Result<(), BoxError> {
             }
             Ok(Ok(_)) => {}
             Ok(Err(error)) => {
-                afs_logging::warn!("dfs.node_drain_incomplete"; "error" => error.to_string());
+                afs_logging::error!("dfs.node_drain_incomplete"; "error" => error.to_string());
+                remember_shutdown_error(&mut shutdown_error, error.into());
             }
             Err(error) => {
-                afs_logging::warn!("dfs.node_drain_worker_failed"; "error" => error.to_string());
+                afs_logging::error!("dfs.node_drain_worker_failed"; "error" => error.to_string());
+                remember_shutdown_error(&mut shutdown_error, error.into());
             }
         }
     }
@@ -559,8 +697,65 @@ pub async fn run(cfg: Config, obs: Observability) -> Result<(), BoxError> {
     drop(mounted_dfs);
     #[cfg(feature = "ownerfs")]
     drop(mounted_ownerfs);
-    let local_result =
-        tokio::time::timeout(std::time::Duration::from_secs(10), local.shutdown()).await?;
-    result?;
-    Ok(local_result?)
+    match tokio::time::timeout(std::time::Duration::from_secs(10), local.shutdown()).await {
+        Ok(Ok(())) => {}
+        Ok(Err(error)) => remember_shutdown_error(&mut shutdown_error, error.into()),
+        Err(error) => remember_shutdown_error(&mut shutdown_error, error.into()),
+    }
+    if let Some(error) = shutdown_error {
+        afs_logging::error!("node.shutdown_failed"; "error" => error.to_string());
+        return Err(error);
+    }
+    Ok(())
+}
+
+fn heartbeat_error_is_retryable(error: &afs_error::Error) -> bool {
+    !matches!(
+        error.kind(),
+        afs_error::ErrorKind::InvalidArgument
+            | afs_error::ErrorKind::PermissionDenied
+            | afs_error::ErrorKind::Unauthenticated
+    )
+}
+
+fn remember_shutdown_error(first: &mut Option<BoxError>, error: BoxError) {
+    if first.is_none() {
+        *first = Some(error);
+    }
+}
+
+#[cfg(test)]
+mod shutdown_tests {
+    #[test]
+    fn heartbeat_retries_transport_failure_but_stops_expired_session() {
+        assert!(super::heartbeat_error_is_retryable(
+            &afs_error::Error::coded(
+                afs_error::CLIENT_CONNECTION_UNAVAILABLE,
+                "temporary transport outage",
+            )
+        ));
+        assert!(!super::heartbeat_error_is_retryable(
+            &afs_error::Error::coded(
+                afs_error::CLIENT_ARGUMENT_INVALID,
+                "expired node session cannot be renewed; start a new session_id",
+            )
+        ));
+        assert!(!super::heartbeat_error_is_retryable(
+            &afs_error::Error::coded(
+                afs_error::IO_PERMISSION_DENIED,
+                "registration authority rejected",
+            )
+        ));
+    }
+
+    #[test]
+    fn cleanup_keeps_first_failure_after_later_cleanup() {
+        let mut first = None;
+        super::remember_shutdown_error(&mut first, std::io::Error::other("drain failed").into());
+        super::remember_shutdown_error(
+            &mut first,
+            std::io::Error::other("local shutdown failed").into(),
+        );
+        assert_eq!(first.unwrap().to_string(), "drain failed");
+    }
 }

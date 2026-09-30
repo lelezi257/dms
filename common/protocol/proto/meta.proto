@@ -306,12 +306,28 @@ message RecoverRootReply {
 service DfsMeta {
   rpc Lookup(DfsLookupRequest) returns (DfsLookupReply);
   rpc Create(DfsCreateRequest) returns (DfsCreateReply);
+  rpc Mkdir(DfsMkdirRequest) returns (DfsMkdirReply);
+  rpc ReadDir(DfsReadDirRequest) returns (DfsReadDirReply);
+  rpc Unlink(DfsUnlinkRequest) returns (DfsUnlinkReply);
+  rpc Rmdir(DfsRmdirRequest) returns (DfsRmdirReply);
+  rpc Rename(DfsRenameRequest) returns (DfsRenameReply);
+  rpc Link(DfsLinkRequest) returns (DfsLinkReply);
+  rpc Symlink(DfsSymlinkRequest) returns (DfsSymlinkReply);
+  rpc Mknod(DfsMknodRequest) returns (DfsMknodReply);
+  rpc ReadLink(DfsReadLinkRequest) returns (DfsReadLinkReply);
+  rpc SetInodeAttributes(DfsSetInodeAttributesRequest) returns (DfsSetInodeAttributesReply);
+  rpc GetXattr(DfsGetXattrRequest) returns (DfsGetXattrReply);
+  rpc ListXattr(DfsListXattrRequest) returns (DfsListXattrReply);
+  rpc SetXattr(DfsSetXattrRequest) returns (DfsSetXattrReply);
+  rpc RemoveXattr(DfsRemoveXattrRequest) returns (DfsRemoveXattrReply);
   rpc OpenWrite(OpenDfsWriteRequest) returns (OpenDfsWriteReply);
   rpc RenewWriteLease(RenewDfsWriteLeaseRequest) returns (DfsWriteLeaseReply);
   rpc GetInode(GetDfsInodeRequest) returns (GetDfsInodeReply);
   rpc GetFileVersion(GetFileVersionRequest) returns (GetFileVersionReply);
   rpc GetPlacementSnapshot(GetDfsPlacementSnapshotRequest) returns (GetDfsPlacementSnapshotReply);
+  rpc ValidateReplicaWrite(ValidateDfsReplicaWriteRequest) returns (ValidateDfsReplicaWriteReply);
   rpc GetChunkSources(GetDfsChunkSourcesRequest) returns (GetDfsChunkSourcesReply);
+  rpc ValidateReadGrants(ValidateDfsReadGrantsRequest) returns (ValidateDfsReadGrantsReply);
   rpc SyncInodeMetadata(SyncDfsInodeMetadataRequest) returns (SyncDfsInodeMetadataReply);
   rpc CommitFileVersion(CommitFileVersionRequest) returns (CommitFileVersionReply);
 }
@@ -357,6 +373,27 @@ message DfsPlacementSnapshot {
   repeated DfsReplicaGroup replica_groups = 3;
 }
 
+message DfsReplicaWriteGrant {
+  string requester_node_id = 1;
+  uint64 requester_node_epoch = 2;
+  string initiator_node_id = 3;
+  uint64 initiator_node_epoch = 4;
+  string operation_id = 5;
+  string chunk_id = 6;
+  uint64 chunk_length = 7;
+  bytes content_digest = 8;
+  DfsDigestAlgorithm content_digest_algorithm = 9;
+  uint64 placement_revision = 10;
+  uint64 placement_epoch = 11;
+  string replica_group_id = 12;
+  uint32 target_index = 13;
+  DfsReplicationConfig replication = 14;
+  DfsReplicaGroup replica_group = 15;
+  uint64 expires_at_unix_ms = 16;
+  uint64 fence = 17;
+  string token = 18;
+}
+
 message DfsReplicaAck {
   string operation_id = 1;
   string chunk_id = 2;
@@ -382,6 +419,21 @@ enum DfsInodeKind {
   DFS_INODE_KIND_REGULAR = 1;
   DFS_INODE_KIND_DIRECTORY = 2;
   DFS_INODE_KIND_SYMLINK = 3;
+  DFS_INODE_KIND_SPECIAL = 4;
+}
+
+enum DfsSpecialNodeKind {
+  DFS_SPECIAL_NODE_KIND_UNSPECIFIED = 0;
+  DFS_SPECIAL_NODE_KIND_FIFO = 1;
+  DFS_SPECIAL_NODE_KIND_SOCKET = 2;
+  DFS_SPECIAL_NODE_KIND_BLOCK_DEVICE = 3;
+  DFS_SPECIAL_NODE_KIND_CHAR_DEVICE = 4;
+}
+
+message DfsSpecialNode {
+  DfsSpecialNodeKind kind = 1;
+  // Meaningful only for block/character devices. FIFO and sockets must carry 0.
+  uint64 rdev = 2;
 }
 
 message DfsInodeAttributes {
@@ -394,6 +446,11 @@ message DfsInodeAttributes {
   uint64 ctime_unix_ms = 7;
 }
 
+message DfsXattrRecord {
+  bytes name = 1;
+  bytes value = 2;
+}
+
 message DfsInodeRecord {
   string namespace_id = 1;
   string inode_id = 2;
@@ -401,6 +458,9 @@ message DfsInodeRecord {
   DfsInodeAttributes attributes = 4;
   string head_version_id = 5;
   uint64 revision = 6;
+  bytes symlink_target = 7;
+  repeated DfsXattrRecord xattrs = 8;
+  DfsSpecialNode special_node = 9;
 }
 
 message DfsExtent {
@@ -456,6 +516,7 @@ message DfsCommitMetadataDelta {
   DfsCommitMetadataMode mode = 1;
   uint64 mtime_unix_ms = 2;
   uint64 ctime_unix_ms = 3;
+  bool kill_suidgid = 4;
 }
 
 message DfsLookupRequest {
@@ -483,6 +544,222 @@ message DfsCreateRequest {
 message DfsCreateReply {
   DfsInodeRecord inode = 1;
   DfsWriteLease write_lease = 2;
+}
+
+
+message DfsDentryRecord {
+  bytes name = 1;
+  DfsInodeRecord inode = 2;
+}
+
+message DfsMkdirRequest {
+  string caller_id = 1;
+  string operation_id = 2;
+  string namespace_id = 3;
+  string parent_inode_id = 4;
+  bytes name = 5;
+  DfsInodeAttributes attributes = 6;
+  DfsCallerContext caller = 7;
+}
+
+message DfsMkdirReply {
+  DfsInodeRecord inode = 1;
+}
+
+message DfsReadDirRequest {
+  string namespace_id = 1;
+  string parent_inode_id = 2;
+}
+
+message DfsReadDirReply {
+  repeated DfsDentryRecord entries = 1;
+}
+
+message DfsUnlinkRequest {
+  string caller_id = 1;
+  string operation_id = 2;
+  string namespace_id = 3;
+  string parent_inode_id = 4;
+  bytes name = 5;
+  DfsCallerContext caller = 6;
+}
+
+message DfsUnlinkReply {
+  DfsInodeRecord inode = 1;
+}
+
+message DfsRmdirRequest {
+  string caller_id = 1;
+  string operation_id = 2;
+  string namespace_id = 3;
+  string parent_inode_id = 4;
+  bytes name = 5;
+  DfsCallerContext caller = 6;
+}
+
+message DfsRmdirReply {
+  DfsInodeRecord inode = 1;
+}
+
+enum DfsRenameMode {
+  DFS_RENAME_MODE_UNSPECIFIED = 0;
+  DFS_RENAME_MODE_NO_REPLACE = 1;
+  DFS_RENAME_MODE_REPLACE = 2;
+}
+
+message DfsRenameRequest {
+  string caller_id = 1;
+  string operation_id = 2;
+  string namespace_id = 3;
+  string old_parent_inode_id = 4;
+  bytes old_name = 5;
+  string new_parent_inode_id = 6;
+  bytes new_name = 7;
+  DfsRenameMode mode = 8;
+  DfsCallerContext caller = 9;
+}
+
+message DfsRenameReply {
+  DfsInodeRecord inode = 1;
+  DfsInodeRecord replaced_inode = 2;
+  bool replaced = 3;
+}
+
+message DfsLinkRequest {
+  string caller_id = 1;
+  string operation_id = 2;
+  string namespace_id = 3;
+  string existing_inode_id = 4;
+  uint64 expected_inode_revision = 5;
+  string parent_inode_id = 6;
+  bytes name = 7;
+  DfsCallerContext caller = 8;
+}
+
+message DfsLinkReply {
+  DfsInodeRecord inode = 1;
+}
+
+message DfsSymlinkRequest {
+  string caller_id = 1;
+  string operation_id = 2;
+  string namespace_id = 3;
+  string parent_inode_id = 4;
+  bytes name = 5;
+  bytes target = 6;
+  DfsInodeAttributes attributes = 7;
+  DfsCallerContext caller = 8;
+}
+
+message DfsSymlinkReply {
+  DfsInodeRecord inode = 1;
+}
+
+message DfsMknodRequest {
+  string caller_id = 1;
+  string operation_id = 2;
+  string namespace_id = 3;
+  string parent_inode_id = 4;
+  bytes name = 5;
+  DfsSpecialNode special_node = 6;
+  DfsInodeAttributes attributes = 7;
+  DfsCallerContext caller = 8;
+}
+
+message DfsMknodReply {
+  DfsInodeRecord inode = 1;
+}
+
+message DfsReadLinkRequest {
+  string namespace_id = 1;
+  string inode_id = 2;
+}
+
+message DfsReadLinkReply {
+  bytes target = 1;
+}
+
+message DfsCallerContext {
+  uint32 uid = 1;
+  uint32 gid = 2;
+  repeated uint32 supplementary_gids = 3;
+}
+
+message DfsInodeAttributeUpdate {
+  optional uint32 mode = 1;
+  optional uint32 uid = 2;
+  optional uint32 gid = 3;
+  optional uint64 atime_unix_ms = 4;
+  optional uint64 mtime_unix_ms = 5;
+  optional uint64 ctime_unix_ms = 6;
+  bool timestamps_now = 7;
+}
+
+message DfsSetInodeAttributesRequest {
+  string caller_id = 1;
+  string operation_id = 2;
+  DfsCallerContext caller = 3;
+  string inode_id = 4;
+  uint64 expected_inode_revision = 5;
+  DfsInodeAttributeUpdate update = 6;
+}
+
+message DfsSetInodeAttributesReply {
+  DfsInodeRecord inode = 1;
+}
+
+message DfsGetXattrRequest {
+  DfsCallerContext caller = 1;
+  string inode_id = 2;
+  bytes name = 3;
+}
+
+message DfsGetXattrReply {
+  bytes value = 1;
+}
+
+message DfsListXattrRequest {
+  DfsCallerContext caller = 1;
+  string inode_id = 2;
+}
+
+message DfsListXattrReply {
+  repeated bytes names = 1;
+}
+
+enum DfsXattrSetMode {
+  DFS_XATTR_SET_MODE_UNSPECIFIED = 0;
+  DFS_XATTR_SET_MODE_UPSERT = 1;
+  DFS_XATTR_SET_MODE_CREATE = 2;
+  DFS_XATTR_SET_MODE_REPLACE = 3;
+}
+
+message DfsSetXattrRequest {
+  string caller_id = 1;
+  string operation_id = 2;
+  DfsCallerContext caller = 3;
+  string inode_id = 4;
+  uint64 expected_inode_revision = 5;
+  bytes name = 6;
+  bytes value = 7;
+  DfsXattrSetMode mode = 8;
+}
+
+message DfsSetXattrReply {
+  DfsInodeRecord inode = 1;
+}
+
+message DfsRemoveXattrRequest {
+  string caller_id = 1;
+  string operation_id = 2;
+  DfsCallerContext caller = 3;
+  string inode_id = 4;
+  uint64 expected_inode_revision = 5;
+  bytes name = 6;
+}
+
+message DfsRemoveXattrReply {
+  DfsInodeRecord inode = 1;
 }
 
 message OpenDfsWriteRequest {
@@ -534,6 +811,27 @@ message GetDfsPlacementSnapshotRequest {
 
 message GetDfsPlacementSnapshotReply {
   DfsPlacementSnapshot snapshot = 1;
+}
+
+message ValidateDfsReplicaWriteRequest {
+  string requester_node_id = 1;
+  uint64 requester_node_epoch = 2;
+  string initiator_node_id = 3;
+  uint64 initiator_node_epoch = 4;
+  string operation_id = 5;
+  string chunk_id = 6;
+  uint64 chunk_length = 7;
+  bytes content_digest = 8;
+  DfsDigestAlgorithm content_digest_algorithm = 9;
+  uint64 placement_revision = 10;
+  uint64 placement_epoch = 11;
+  string replica_group_id = 12;
+  uint32 target_index = 13;
+  repeated DfsReplicaTarget ordered_targets = 14;
+}
+
+message ValidateDfsReplicaWriteReply {
+  DfsReplicaWriteGrant grant = 1;
 }
 
 enum DfsCopyRole {
@@ -639,3 +937,25 @@ message CommitFileVersionRequest {
 message CommitFileVersionReply {
   DfsInodeRecord inode = 1;
 }
+
+// Receiver-authenticated, batched authority check. No file bytes traverse Meta.
+message DfsReadValidation {
+  DfsReadGrant grant = 1;
+  string chunk_id = 2;
+  string copy_id = 3;
+  uint64 chunk_offset = 4;
+  uint64 length = 5;
+}
+message DfsAuthorizedRead {
+  DfsReadValidation validation = 1;
+  message Range { uint64 offset = 1; uint64 length = 2; }
+  repeated Range allowed_ranges = 2;
+  uint64 expires_at_unix_ms = 3;
+}
+message ValidateDfsReadGrantsRequest {
+  string receiver_node_id = 1;
+  uint64 receiver_node_epoch = 2;
+  string peer_node_id = 3;
+  repeated DfsReadValidation validations = 4;
+}
+message ValidateDfsReadGrantsReply { repeated DfsAuthorizedRead authorizations = 1; }

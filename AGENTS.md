@@ -12,7 +12,7 @@ Read these files before changing this repository:
 ## Documentation Rules
 
 - Product documentation describes the accepted target design.
-- Implementation progress belongs only in `docs/status.md`.
+- Implementation capability status belongs in `docs/status.md`; `docs/handoff.md` carries the portable execution checkpoint.
 - Mechanism pages live under `docs/architecture/` and should explain the user-visible scenario first, then the contract.
 - Historical process notes are not product documentation; use Git history for old stage records.
 - SVG diagrams live under `docs/images/` and should use readable text labels.
@@ -28,5 +28,6 @@ Read these files before changing this repository:
 
 - [docs/acceptance.md](docs/acceptance.md) is the first-stage release gate; do not lower it.
 - Before implementation read [implementation rules](development/implementation.md) and [validation strategy](development/validation.md). These hold detailed rules; do not duplicate them here.
+- Read [delivery handoff](docs/handoff.md) when continuing implementation on this or another machine.
 - Read [delivery task map](development/plan.md) for dependencies. In the research workspace use `../execution/README.md` for the current checkpoint and change log; standalone clones keep execution artifacts under ignored `.local/delivery/`. Architecture/interface changes require a final-review record.
 - Use the locked Linux environment; macOS is only for editing and VM orchestration. Keep current module and RPC boundaries.

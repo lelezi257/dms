@@ -2,6 +2,7 @@
 
 use std::{
     ffi::OsStr,
+    os::unix::fs::MetadataExt,
     sync::{Arc, Mutex},
     time::Duration,
 };
@@ -30,7 +31,8 @@ use afs::node::{
     },
 };
 use afs_protocol::node_data::{
-    OwnerCreateRequest, OwnerLookupRequest, OwnerOpenRequest, OwnerReleaseRequest, RootAccess,
+    FileIdentity, OwnerCaller, OwnerCreateRequest, OwnerLookupRequest, OwnerOpenRequest,
+    OwnerReleaseRequest, OwnerRenameRequest, OwnerRmdirRequest, OwnerUnlinkRequest, RootAccess,
     owner_files_client::OwnerFilesClient,
 };
 use tokio::net::TcpListener;
@@ -326,12 +328,13 @@ async fn mtls_ownerfiles_grpc_roundtrip_uses_real_ownerfs_backend() {
         meta.clone(),
         disk.clone(),
     ));
-    let fs = OwnerFs::new_local(roots, disk);
+    let fs = Arc::new(OwnerFs::new_local(roots, disk));
     let ctx = RequestContext {
-        uid: 1000,
-        gid: 1000,
+        uid: temp.path().metadata().expect("fixture metadata").uid(),
+        gid: temp.path().metadata().expect("fixture metadata").gid(),
         pid: 42,
         umask: 0,
+        supplementary_gids: Vec::new(),
     };
     let owner_root = BackendInode { value: 1 };
     fs.mkdir(&ctx, owner_root, OsStr::new("job-42"), 0o755)
@@ -346,7 +349,13 @@ async fn mtls_ownerfiles_grpc_roundtrip_uses_real_ownerfs_backend() {
         "https://localhost:{}",
         listener.local_addr().unwrap().port()
     );
-    let handler = make_owner_files_handler(fs.peer_executor().expect("peer executor"));
+    let executor = fs.peer_executor().expect("peer executor");
+    let control = afs::node::rpc::control::NodeControlService::new(
+        afs::node::rpc::control::RdmaSessionRegistry::new(None),
+    )
+    .with_owner_locks(executor.clone(), Arc::new(RequireMtlsNodeB))
+    .into_server();
+    let handler = make_owner_files_handler(executor);
     let server_tls = ServerTlsConfig::new()
         .client_ca_root(Certificate::from_pem(CA_PEM))
         .identity(Identity::from_pem(SERVER_CERT_PEM, SERVER_KEY_PEM));
@@ -354,6 +363,7 @@ async fn mtls_ownerfiles_grpc_roundtrip_uses_real_ownerfs_backend() {
         Server::builder()
             .tls_config(server_tls)
             .expect("server tls")
+            .add_service(control)
             .add_service(make_owner_files_server_with_handler(
                 handler,
                 Arc::new(RequireMtlsNodeB),
@@ -367,6 +377,13 @@ async fn mtls_ownerfiles_grpc_roundtrip_uses_real_ownerfs_backend() {
         .ca_certificate(Certificate::from_pem(CA_PEM))
         .identity(Identity::from_pem(CLIENT_CERT_PEM, CLIENT_KEY_PEM))
         .domain_name("localhost");
+    let long_wait_channel: Channel = Endpoint::from_shared(endpoint.clone())
+        .expect("long wait endpoint")
+        .tls_config(client_tls.clone())
+        .expect("long wait TLS")
+        .connect()
+        .await
+        .expect("long wait connect");
     let channel: Channel = Endpoint::from_shared(endpoint)
         .expect("endpoint")
         .timeout(Duration::from_secs(5))
@@ -396,6 +413,14 @@ async fn mtls_ownerfiles_grpc_roundtrip_uses_real_ownerfs_backend() {
             flags: libc::O_RDWR as u32,
             mode: 0o644,
             expected_parent: None,
+            caller: Some(OwnerCaller {
+                uid: ctx.uid,
+                gid: ctx.gid,
+                pid: ctx.pid,
+                umask: ctx.umask,
+                supplementary_gids: ctx.supplementary_gids.clone(),
+            }),
+            kill_suidgid: false,
         })
         .await
         .expect_err("OwnerFiles.Create without expected_parent must fail");
@@ -405,19 +430,213 @@ async fn mtls_ownerfiles_grpc_roundtrip_uses_real_ownerfs_backend() {
             .contains("OwnerCreateRequest missing expected_parent"),
         "unexpected status for missing expected_parent: {missing_parent_status:?}"
     );
+    // Caller-less destructive requests fail before any namespace mutation,
+    // even when all identity fields are supplied.
+    let mut raw_missing_caller = OwnerFilesClient::new(channel.clone());
+    let parent = Some(FileIdentity {
+        opaque: b"identity-present".to_vec(),
+    });
+    let status = raw_missing_caller
+        .unlink(OwnerUnlinkRequest {
+            access: Some(root_access_for(&grant)),
+            path: b"absent".to_vec(),
+            expected_file_identity: None,
+            expected_parent: parent.clone(),
+            caller: None,
+        })
+        .await
+        .expect_err("unlink requires caller");
+    assert!(status.message().contains("missing caller"));
+    let status = raw_missing_caller
+        .rmdir(OwnerRmdirRequest {
+            access: Some(root_access_for(&grant)),
+            path: b"absent".to_vec(),
+            expected_file_identity: None,
+            expected_parent: parent.clone(),
+            caller: None,
+        })
+        .await
+        .expect_err("rmdir requires caller");
+    assert!(status.message().contains("missing caller"));
+    let status = raw_missing_caller
+        .rename(OwnerRenameRequest {
+            access: Some(root_access_for(&grant)),
+            old_path: b"absent".to_vec(),
+            new_path: b"new".to_vec(),
+            expected_old_identity: None,
+            expected_new_identity: None,
+            flags: 0,
+            expected_old_parent: parent.clone(),
+            expected_new_parent: parent,
+            caller: None,
+        })
+        .await
+        .expect_err("rename requires caller");
+    assert!(status.message().contains("missing caller"));
     let raw_channel = channel.clone();
     let raw_grant = grant.clone();
-    let client = std::thread::spawn(move || owner_files_client_from_channel(channel))
-        .join()
-        .expect("OwnerFiles client construction must not require a Tokio reactor");
+    let client = std::thread::spawn(move || {
+        owner_files_client_from_channel(channel).with_long_wait_channel(long_wait_channel)
+    })
+    .join()
+    .expect("OwnerFiles client construction must not require a Tokio reactor");
 
     tokio::task::spawn_blocking(move || -> afs_error::Result<()> {
         let root_parent = client.lookup(&grant, OsStr::new(""), None)?.identity;
         let created = client.create(
+            &ctx,
             &grant,
             OsStr::new("log.txt"),
             libc::O_RDWR,
             0o644,
+            &root_parent,
+        )?;
+        let client = Arc::new(client);
+        let held = owner_test_lock(
+            "remote-mount",
+            10,
+            afs::node::vfs::types::FileLockType::Write,
+        );
+        client.setlk(&grant, &created.file, held.clone(), None)?;
+        let home_root = fs.lookup(&ctx, owner_root, OsStr::new("job-42"))?;
+        let home_file = fs.lookup(&ctx, home_root.inode, OsStr::new("log.txt"))?;
+        let home_handle = fs.open(&ctx, home_file.inode, libc::O_RDWR)?;
+        // Matching raw strings/kernel IDs from local and peer ingress still
+        // identify distinct owners, and both meet the same Home inode table.
+        assert!(
+            fs.setlk(
+                &ctx,
+                home_file.inode,
+                home_handle,
+                owner_test_lock(
+                    "remote-mount",
+                    10,
+                    afs::node::vfs::types::FileLockType::Write
+                ),
+                None
+            )
+            .is_err()
+        );
+        fs.release(&ctx, home_handle)?;
+        let mut forged = created.file.clone();
+        forged.identity.0 = b"wrong-file-identity".to_vec();
+        assert!(client.getlk(&grant, &forged, held.clone()).is_err());
+        let other = owner_test_lock(
+            "other-mount",
+            11,
+            afs::node::vfs::types::FileLockType::Write,
+        );
+        assert!(
+            client
+                .setlk(&grant, &created.file, other.clone(), None)
+                .is_err()
+        );
+        assert!(
+            client
+                .getlk(&grant, &created.file, other.clone())?
+                .is_some()
+        );
+        let waiter = afs::node::vfs::locks::LockWaiterId {
+            ingress_session_id: "other-mount".into(),
+            request_id: 9001,
+        };
+        let waiting_client = client.clone();
+        let waiting_grant = grant.clone();
+        let waiting_file = created.file.clone();
+        let waiting_id = waiter.clone();
+        let (send, receive) = std::sync::mpsc::channel();
+        let wait_thread = std::thread::spawn(move || {
+            send.send(waiting_client.setlk(&waiting_grant, &waiting_file, other, Some(waiting_id)))
+                .unwrap();
+        });
+        // The ordinary Endpoint has a 5 second timeout. SETLKW uses the
+        // separately authenticated no-deadline channel and must survive it.
+        assert!(receive.recv_timeout(Duration::from_millis(5200)).is_err());
+        let mut unlock = held;
+        unlock.lock_type = afs::node::vfs::types::FileLockType::Unlock;
+        client.setlk(&grant, &created.file, unlock, None)?;
+        receive
+            .recv_timeout(Duration::from_secs(3))
+            .expect("long waiter completed")?;
+        wait_thread.join().unwrap();
+        assert_eq!(
+            client.cancel_lock_wait(&grant, waiter)?,
+            afs::node::vfs::locks::LockWaiterOutcome::Unknown
+        );
+        client.release_locks(
+            &grant,
+            &created.file,
+            owner_test_lock(
+                "other-mount",
+                11,
+                afs::node::vfs::types::FileLockType::Write,
+            )
+            .owner,
+            afs::node::vfs::types::ReleaseKind::PosixOwner,
+        )?;
+        client.release_lock_session(&grant, "remote-mount")?;
+        client.release_lock_session(&grant, "other-mount")?;
+        let denied = RequestContext {
+            uid: if ctx.uid == 0 { 1000 } else { ctx.uid + 1 },
+            gid: if ctx.gid == 0 { 1000 } else { ctx.gid + 1 },
+            supplementary_gids: Vec::new(),
+            ..ctx.clone()
+        };
+        let directory = client.mkdir(
+            &ctx,
+            &grant,
+            OsStr::new("protected-dir"),
+            0o700,
+            &root_parent,
+        )?;
+        assert_eq!(
+            client
+                .unlink(
+                    &denied,
+                    &grant,
+                    OsStr::new("log.txt"),
+                    Some(&created.entry.identity),
+                    &root_parent
+                )
+                .unwrap_err()
+                .code(),
+            afs_error::IO_PERMISSION_DENIED
+        );
+        assert_eq!(
+            client
+                .rmdir(
+                    &denied,
+                    &grant,
+                    OsStr::new("protected-dir"),
+                    Some(&directory.identity),
+                    &root_parent
+                )
+                .unwrap_err()
+                .code(),
+            afs_error::IO_PERMISSION_DENIED
+        );
+        assert_eq!(
+            client
+                .rename(
+                    &denied,
+                    &grant,
+                    OsStr::new("log.txt"),
+                    OsStr::new("denied.txt"),
+                    Some(&created.entry.identity),
+                    None,
+                    &root_parent,
+                    &root_parent,
+                    RenameFlags(0)
+                )
+                .unwrap_err()
+                .code(),
+            afs_error::IO_PERMISSION_DENIED
+        );
+        client.rmdir(
+            &ctx,
+            &grant,
+            OsStr::new("protected-dir"),
+            Some(&directory.identity),
             &root_parent,
         )?;
         assert_eq!(client.write(&grant, &created.file, 0, b"AAAA")?, 4);
@@ -437,6 +656,7 @@ async fn mtls_ownerfiles_grpc_roundtrip_uses_real_ownerfs_backend() {
         assert_eq!(&buf, b"AAAA");
 
         client.rename(
+            &ctx,
             &grant,
             OsStr::new("log.txt"),
             OsStr::new("renamed.txt"),
@@ -447,6 +667,7 @@ async fn mtls_ownerfiles_grpc_roundtrip_uses_real_ownerfs_backend() {
             RenameFlags(0),
         )?;
         client.unlink(
+            &ctx,
             &grant,
             OsStr::new("renamed.txt"),
             Some(&created.entry.identity),
@@ -454,6 +675,7 @@ async fn mtls_ownerfiles_grpc_roundtrip_uses_real_ownerfs_backend() {
         )?;
 
         let recreated = client.create(
+            &ctx,
             &grant,
             OsStr::new("renamed.txt"),
             libc::O_RDWR,
@@ -496,6 +718,7 @@ async fn mtls_ownerfiles_grpc_roundtrip_uses_real_ownerfs_backend() {
                 flags,
                 mode: 0,
                 expected_file_identity: None,
+                kill_suidgid: false,
             })
             .await
             .expect("open for prefetch contract")
@@ -529,4 +752,21 @@ fn root_access_for(grant: &RootGrant) -> RootAccess {
 #[test]
 fn mtls_authenticator_is_available_for_exact_der_mapping() {
     assert!(MtlsPeerAuthenticator::new(vec![("node-b".to_owned(), vec![1, 2, 3])]).is_ok());
+}
+
+fn owner_test_lock(
+    scope: &str,
+    kernel_owner: u64,
+    lock_type: afs::node::vfs::types::FileLockType,
+) -> afs::node::vfs::locks::LockRequest {
+    afs::node::vfs::locks::LockRequest {
+        kind: afs::node::vfs::types::FileLockKind::Posix,
+        owner: afs::node::vfs::types::FileLockOwner {
+            ingress_session_id: scope.into(),
+            kernel_owner,
+        },
+        pid: kernel_owner as u32,
+        range: afs::node::vfs::types::FileLockRange { start: 0, end: 99 },
+        lock_type,
+    }
 }

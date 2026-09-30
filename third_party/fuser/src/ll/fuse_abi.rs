@@ -134,6 +134,8 @@ pub mod consts {
     pub const FATTR_LOCKOWNER: u32 = 1 << 9;
     #[cfg(feature = "abi-7-23")]
     pub const FATTR_CTIME: u32 = 1 << 10;
+    #[cfg(feature = "abi-7-33")]
+    pub const FATTR_KILL_SUIDGID: u32 = 1 << 11;
 
     #[cfg(target_os = "macos")]
     pub const FATTR_CRTIME: u32 = 1 << 28;
@@ -201,6 +203,14 @@ pub mod consts {
     pub const FUSE_NO_OPENDIR_SUPPORT: u64 = 1 << 24; // kernel supports zero-message opendir
     #[cfg(feature = "abi-7-30")]
     pub const FUSE_EXPLICIT_INVAL_DATA: u64 = 1 << 25; // only invalidate cached pages on explicit request
+    #[cfg(feature = "abi-7-33")]
+    pub const FUSE_MAP_ALIGNMENT: u64 = 1 << 26; // init_out.map_alignment contains log2(byte alignment)
+    #[cfg(feature = "abi-7-33")]
+    pub const FUSE_SUBMOUNTS: u64 = 1 << 27; // kernel supports auto-mounting directory submounts
+    #[cfg(feature = "abi-7-33")]
+    pub const FUSE_HANDLE_KILLPRIV_V2: u64 = 1 << 28; // fs handles Linux killpriv v2 causes
+    #[cfg(feature = "abi-7-33")]
+    pub const FUSE_SETXATTR_EXT: u64 = 1 << 29; // extended fuse_setxattr_in
     #[cfg(feature = "abi-7-36")]
     pub const FUSE_INIT_EXT: u64 = 1 << 30; // extended fuse_init_in request
     #[cfg(feature = "abi-7-36")]
@@ -237,6 +247,8 @@ pub mod consts {
     pub const FUSE_WRITE_LOCKOWNER: u32 = 1 << 1; // lock_owner field is valid
     #[cfg(feature = "abi-7-31")]
     pub const FUSE_WRITE_KILL_PRIV: u32 = 1 << 2; // kill suid and sgid bits
+    #[cfg(feature = "abi-7-33")]
+    pub const FUSE_WRITE_KILL_SUIDGID: u32 = 1 << 2; // kill suid and sgid bits
 
     // Read flags
     pub const FUSE_READ_LOCKOWNER: u32 = 1 << 1;
@@ -256,6 +268,10 @@ pub mod consts {
 
     // fsync flags
     pub const FUSE_FSYNC_FDATASYNC: u32 = 1 << 0; // Sync data only, not metadata
+
+    // Open flags
+    #[cfg(feature = "abi-7-33")]
+    pub const FUSE_OPEN_KILL_SUIDGID: u32 = 1 << 0; // kill suid and executable sgid bits
 
     // The read buffer is required to be at least 8k, but may be much larger
     pub const FUSE_MIN_READ_BUFFER: usize = 8192;
@@ -512,9 +528,9 @@ pub struct fuse_mkdir_in {
 #[derive(Debug, FromBytes, KnownLayout, Immutable)]
 pub struct fuse_rename_in {
     pub newdir: u64,
-    #[cfg(feature = "macfuse-4-compat")]
+    #[cfg(all(target_os = "macos", feature = "macfuse-4-compat"))]
     pub flags: u32,
-    #[cfg(feature = "macfuse-4-compat")]
+    #[cfg(all(target_os = "macos", feature = "macfuse-4-compat"))]
     pub padding: u32,
 }
 
@@ -604,7 +620,10 @@ pub struct fuse_open_in {
     // NOTE: this field is defined as u32 in fuse_kernel.h in libfuse. However, it is then cast
     // to an i32 when invoking the filesystem's open method and this matches the open() syscall
     pub flags: i32,
+    #[cfg(not(feature = "abi-7-33"))]
     pub unused: u32,
+    #[cfg(feature = "abi-7-33")]
+    pub open_flags: u32,
 }
 
 #[repr(C)]
@@ -615,7 +634,10 @@ pub struct fuse_create_in {
     pub flags: i32,
     pub mode: u32,
     pub umask: u32,
+    #[cfg(not(feature = "abi-7-33"))]
     pub padding: u32,
+    #[cfg(feature = "abi-7-33")]
+    pub open_flags: u32,
 }
 
 #[repr(C)]

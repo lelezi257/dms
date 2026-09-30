@@ -18,7 +18,11 @@
 use std::{ffi::CString, ptr::NonNull};
 
 pub const INFO_BYTES: usize = 38;
+/// Historical diagnostic default MR size. `open()` keeps this value for compatibility.
 pub const CAPACITY: usize = 1024 * 1024;
+/// Hard ceiling for one endpoint MR. This intentionally matches the first DFS
+/// max-chunk target without allowing unbounded pinned memory.
+pub const MAX_CAPACITY: usize = 4 * 1024 * 1024;
 const ERR_BYTES: usize = 256;
 
 #[derive(Debug)]
@@ -106,6 +110,8 @@ mod ffi {
 pub struct RdmaEndpoint {
     #[cfg(has_native_rdma)]
     ep: NonNull<std::ffi::c_void>,
+    capacity: usize,
+    remote_capacity: Option<usize>,
 }
 
 // The native endpoint owns a QP and MR that are not internally synchronized.
@@ -118,21 +124,39 @@ impl RdmaEndpoint {
     ///
     /// 这是资源初始化，不涉及对端；对端信息必须通过 gRPC control negotiate 交换。
     pub fn open(device: &str) -> Result<Self, RdmaError> {
+        Self::open_with_capacity(device, CAPACITY)
+    }
+
+    /// 打开一个自定义容量的 endpoint。
+    ///
+    /// 容量仍然是固定 MR 大小，不是动态 buffer pool。调用方必须选择一个明确
+    /// 的、受上限约束的值；默认诊断路径继续使用 `open()` 的 1 MiB。
+    pub fn open_with_capacity(device: &str, capacity: usize) -> Result<Self, RdmaError> {
+        validate_capacity(capacity)?;
         #[cfg(has_native_rdma)]
         {
             let device = CString::new(device).map_err(|error| RdmaError(error.to_string()))?;
             let mut err = ErrBuf::default();
             let ep = unsafe {
-                ffi::afs_rdma_open(device.as_ptr(), CAPACITY as u32, err.ptr(), ERR_BYTES)
+                ffi::afs_rdma_open(device.as_ptr(), capacity as u32, err.ptr(), ERR_BYTES)
             };
             let ep = NonNull::new(ep).ok_or_else(|| RdmaError(err.message()))?;
-            Ok(Self { ep })
+            Ok(Self {
+                ep,
+                capacity,
+                remote_capacity: None,
+            })
         }
         #[cfg(not(has_native_rdma))]
         {
             let _ = device;
             Err(RdmaError("native RDMA is not linked".into()))
         }
+    }
+
+    #[must_use]
+    pub fn capacity(&self) -> usize {
+        self.capacity
     }
 
     /// 导出本端连接描述符。描述符通过 control proto 传给对端。
@@ -162,9 +186,7 @@ impl RdmaEndpoint {
     }
 
     pub fn connect(&mut self, peer: &[u8]) -> Result<(), RdmaError> {
-        if peer.len() != INFO_BYTES {
-            return Err(RdmaError("peer info must be 38 bytes".into()));
-        }
+        let peer_capacity = validate_peer_descriptor(peer)?;
         #[cfg(has_native_rdma)]
         {
             let mut err = ErrBuf::default();
@@ -177,10 +199,13 @@ impl RdmaEndpoint {
                     ERR_BYTES,
                 )
             };
-            check(code, err)
+            check(code, err)?;
+            self.remote_capacity = Some(peer_capacity);
+            Ok(())
         }
         #[cfg(not(has_native_rdma))]
         {
+            let _ = peer_capacity;
             Err(RdmaError("native RDMA is not linked".into()))
         }
     }
@@ -253,8 +278,11 @@ impl RdmaEndpoint {
     /// 客户端写文件时先 `put_local(data)`，随后服务端执行 RDMA READ，
     /// 从客户端 MR 拉取内容。
     pub fn put_local(&mut self, data: &[u8]) -> Result<(), RdmaError> {
-        if data.len() > CAPACITY {
-            return Err(RdmaError("local put exceeds 1MiB".into()));
+        if data.len() > self.capacity {
+            return Err(RdmaError(format!(
+                "local put exceeds endpoint capacity {}",
+                self.capacity
+            )));
         }
         #[cfg(has_native_rdma)]
         {
@@ -282,8 +310,11 @@ impl RdmaEndpoint {
     /// 客户端读文件时服务端先执行 RDMA WRITE，把文件内容推到客户端 MR，
     /// 客户端再 `get_local(len)` 返回给上层。
     pub fn get_local(&mut self, len: usize) -> Result<Vec<u8>, RdmaError> {
-        if len > CAPACITY {
-            return Err(RdmaError("local get exceeds 1MiB".into()));
+        if len > self.capacity {
+            return Err(RdmaError(format!(
+                "local get exceeds endpoint capacity {}",
+                self.capacity
+            )));
         }
         #[cfg(has_native_rdma)]
         {
@@ -323,9 +354,7 @@ impl RdmaEndpoint {
     }
 
     fn transfer(&mut self, operation: i32, len: usize) -> Result<(), RdmaError> {
-        if len > CAPACITY {
-            return Err(RdmaError("transfer exceeds 1MiB".into()));
-        }
+        validate_transfer_capacity(self.capacity, self.remote_capacity, len)?;
         #[cfg(has_native_rdma)]
         {
             let mut err = ErrBuf::default();
@@ -393,10 +422,97 @@ impl ErrBuf {
     }
 }
 
+fn validate_capacity(capacity: usize) -> Result<(), RdmaError> {
+    if capacity == 0 || capacity > MAX_CAPACITY || capacity > u32::MAX as usize {
+        return Err(RdmaError(format!(
+            "RDMA capacity must be 1..{} bytes",
+            MAX_CAPACITY
+        )));
+    }
+    Ok(())
+}
+
+fn validate_peer_descriptor(peer: &[u8]) -> Result<usize, RdmaError> {
+    if peer.len() != INFO_BYTES {
+        return Err(RdmaError("peer info must be 38 bytes".into()));
+    }
+    let qpn = u32::from_be_bytes(peer[0..4].try_into().expect("slice length"));
+    let capacity = u32::from_be_bytes(peer[34..38].try_into().expect("slice length")) as usize;
+    if qpn == 0 {
+        return Err(RdmaError("peer descriptor has empty QP number".into()));
+    }
+    validate_capacity(capacity)?;
+    Ok(capacity)
+}
+
+fn validate_transfer_capacity(
+    local_capacity: usize,
+    remote_capacity: Option<usize>,
+    len: usize,
+) -> Result<(), RdmaError> {
+    if len > local_capacity {
+        return Err(RdmaError(format!(
+            "transfer exceeds local endpoint capacity {local_capacity}"
+        )));
+    }
+    if let Some(remote_capacity) = remote_capacity
+        && len > remote_capacity
+    {
+        return Err(RdmaError(format!(
+            "transfer exceeds remote endpoint capacity {remote_capacity}"
+        )));
+    }
+    Ok(())
+}
+
 fn check(code: i32, err: ErrBuf) -> Result<(), RdmaError> {
     if code == 0 {
         Ok(())
     } else {
         Err(RdmaError(err.message()))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        CAPACITY, INFO_BYTES, MAX_CAPACITY, validate_capacity, validate_peer_descriptor,
+        validate_transfer_capacity,
+    };
+
+    #[test]
+    fn capacity_validation_is_bounded_and_keeps_default_valid() {
+        validate_capacity(CAPACITY).expect("default capacity stays valid");
+        validate_capacity(MAX_CAPACITY).expect("DFS max chunk capacity is valid");
+        assert!(validate_capacity(0).is_err());
+        assert!(validate_capacity(MAX_CAPACITY + 1).is_err());
+    }
+
+    #[test]
+    fn peer_descriptor_capacity_is_validated_before_connect() {
+        let mut info = [0_u8; INFO_BYTES];
+        info[0..4].copy_from_slice(&7_u32.to_be_bytes());
+        info[34..38].copy_from_slice(&(MAX_CAPACITY as u32).to_be_bytes());
+        assert_eq!(validate_peer_descriptor(&info).unwrap(), MAX_CAPACITY);
+
+        info[34..38].copy_from_slice(&0_u32.to_be_bytes());
+        assert!(validate_peer_descriptor(&info).is_err());
+
+        info[34..38].copy_from_slice(&((MAX_CAPACITY as u32) + 1).to_be_bytes());
+        assert!(validate_peer_descriptor(&info).is_err());
+
+        info[34..38].copy_from_slice(&(CAPACITY as u32).to_be_bytes());
+        info[0..4].copy_from_slice(&0_u32.to_be_bytes());
+        assert!(validate_peer_descriptor(&info).is_err());
+    }
+
+    #[test]
+    fn transfer_capacity_checks_local_and_remote_bounds() {
+        validate_transfer_capacity(MAX_CAPACITY, Some(CAPACITY), CAPACITY)
+            .expect("length within both sides is accepted");
+        assert!(validate_transfer_capacity(CAPACITY, Some(MAX_CAPACITY), CAPACITY + 1).is_err());
+        assert!(validate_transfer_capacity(MAX_CAPACITY, Some(CAPACITY), CAPACITY + 1).is_err());
+        validate_transfer_capacity(MAX_CAPACITY, None, MAX_CAPACITY)
+            .expect("remote capacity is absent before connect");
     }
 }

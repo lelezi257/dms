@@ -1,6 +1,10 @@
 //! 进程边缘的错误映射。领域错误不依赖 Axum 或 libc；协议只在此转换。
 //! POSIX 无法携带 AFS 数字码：返回 errno，同时在结构化日志保留 code/kind。
-use afs_error::{Error, ErrorKind, IO_DIRECTORY_NOT_EMPTY, IO_IS_DIRECTORY, IO_NOT_DIRECTORY};
+use afs_error::{
+    Error, ErrorKind, IO_DIRECTORY_NOT_EMPTY, IO_FILE_TOO_LARGE, IO_IS_DIRECTORY, IO_NAME_TOO_LONG,
+    IO_NO_DATA, IO_NOT_DIRECTORY, IO_NOT_SUPPORTED, IO_OPERATION_NOT_PERMITTED,
+    IO_TOO_MANY_SYMLINKS,
+};
 use axum::{
     Json,
     http::StatusCode,
@@ -38,6 +42,18 @@ pub fn http_status(kind: ErrorKind) -> StatusCode {
     }
 }
 pub fn errno(error: &Error) -> i32 {
+    if error.code() == afs_error::IO_INTERRUPTED {
+        return libc::EINTR;
+    }
+    if error.code() == afs_error::IO_WOULD_BLOCK {
+        return libc::EAGAIN;
+    }
+    if error.code() == afs_error::IO_DEADLOCK {
+        return libc::EDEADLK;
+    }
+    if error.code() == afs_error::IO_NO_LOCKS {
+        return libc::ENOLCK;
+    }
     if error.code() == afs_error::NODE_OWNER_STALE_ACCESS
         || error.code() == afs_error::NODE_OWNER_STALE_HANDLE
     {
@@ -60,6 +76,24 @@ pub fn errno(error: &Error) -> i32 {
     }
     if error.code() == afs_error::IO_BAD_FILE_DESCRIPTOR {
         return libc::EBADF;
+    }
+    if error.code() == IO_NAME_TOO_LONG {
+        return libc::ENAMETOOLONG;
+    }
+    if error.code() == IO_TOO_MANY_SYMLINKS {
+        return libc::ELOOP;
+    }
+    if error.code() == IO_FILE_TOO_LARGE {
+        return libc::EFBIG;
+    }
+    if error.code() == IO_NO_DATA {
+        return libc::ENODATA;
+    }
+    if error.code() == IO_NOT_SUPPORTED {
+        return libc::EOPNOTSUPP;
+    }
+    if error.code() == IO_OPERATION_NOT_PERMITTED {
+        return libc::EPERM;
     }
     use ErrorKind::*;
     match error.kind() {

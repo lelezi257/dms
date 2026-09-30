@@ -1,0 +1,10 @@
+TARGET                                                       SOURCE  FSTYPE OPTIONS
+/mnt/lima-afsadata/afs-delivery/20260930-rdma-ab-02/r1/mount afs-dfs fuse   rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other
+Filesystem      Size  Used Avail Use% Mounted on
+/dev/vdb1        32G   12G   19G  39% /mnt/lima-afsadata
+link rxe0/1 state ACTIVE physical_state LINK_UP netdev eth0 
+7c14e03f63041440d74ad003d79ec04f5503fbc225cbe3dbf16b88997e8ce42e  /var/tmp/afs-rdmax-bin/afs-node
+4b69ca073f234b1f32c53b8def041a46c54ed45dc5b658af0212aa6ff975135d  /mnt/lima-afsadata/afs-delivery/20260930-rdma-ab-02/r1/meta.toml
+0aadece6d698028073f176f081ba3c977649b658fdd044a0e294941bb771debb  /mnt/lima-afsadata/afs-delivery/20260930-rdma-ab-02/r1/node.toml
+    PID COMMAND
+ 110581 /var/tmp/afs-rdmax-bin/afs-node --config /mnt/lima-afsadata/afs-delivery/20260930-rdma-ab-02/r1/node.toml

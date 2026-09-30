@@ -48,6 +48,9 @@ impl fmt::Display for Error {
 impl std::error::Error for Error {}
 impl From<std::io::Error> for Error {
     fn from(error: std::io::Error) -> Self {
+        if let Some(code) = linux_raw_errno_code(error.raw_os_error()) {
+            return Self::coded(code, error.to_string());
+        }
         use std::io::ErrorKind as K;
         let code = match error.kind() {
             K::NotFound => IO_NOT_FOUND,
@@ -55,13 +58,13 @@ impl From<std::io::Error> for Error {
             K::AlreadyExists => IO_ALREADY_EXISTS,
             K::InvalidInput | K::InvalidData => IO_INVALID,
             K::TimedOut => IO_TIMEOUT,
+            K::WouldBlock => IO_WOULD_BLOCK,
+            K::Interrupted => IO_INTERRUPTED,
             K::ConnectionRefused
             | K::ConnectionReset
             | K::ConnectionAborted
             | K::NotConnected
-            | K::BrokenPipe
-            | K::WouldBlock
-            | K::Interrupted => IO_UNAVAILABLE,
+            | K::BrokenPipe => IO_UNAVAILABLE,
             K::StorageFull | K::QuotaExceeded => IO_CAPACITY,
             K::OutOfMemory => IO_OUT_OF_MEMORY,
             K::NotADirectory => IO_NOT_DIRECTORY,
@@ -74,6 +77,29 @@ impl From<std::io::Error> for Error {
     }
 }
 pub type Result<T> = std::result::Result<T, Error>;
+
+#[cfg(target_os = "linux")]
+fn linux_raw_errno_code(raw: Option<i32>) -> Option<ErrorCode> {
+    match raw? {
+        1 => Some(IO_OPERATION_NOT_PERMITTED),
+        4 => Some(IO_INTERRUPTED),
+        9 => Some(IO_BAD_FILE_DESCRIPTOR),
+        11 => Some(IO_WOULD_BLOCK),
+        27 => Some(IO_FILE_TOO_LARGE),
+        35 => Some(IO_DEADLOCK),
+        36 => Some(IO_NAME_TOO_LONG),
+        37 => Some(IO_NO_LOCKS),
+        40 => Some(IO_TOO_MANY_SYMLINKS),
+        61 => Some(IO_NO_DATA),
+        95 => Some(IO_NOT_SUPPORTED),
+        _ => None,
+    }
+}
+
+#[cfg(not(target_os = "linux"))]
+fn linux_raw_errno_code(_raw: Option<i32>) -> Option<ErrorCode> {
+    None
+}
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -111,6 +137,27 @@ mod tests {
         assert_eq!(e.code().raw(), 0x7f010001);
         assert_eq!(e.kind(), ErrorKind::Unavailable);
     }
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn io_keeps_linux_raw_errno_for_xattr_and_operation_permissions() {
+        for (raw, code) in [
+            (1, IO_OPERATION_NOT_PERMITTED),
+            (4, IO_INTERRUPTED),
+            (9, IO_BAD_FILE_DESCRIPTOR),
+            (11, IO_WOULD_BLOCK),
+            (27, IO_FILE_TOO_LARGE),
+            (35, IO_DEADLOCK),
+            (36, IO_NAME_TOO_LONG),
+            (37, IO_NO_LOCKS),
+            (40, IO_TOO_MANY_SYMLINKS),
+            (61, IO_NO_DATA),
+            (95, IO_NOT_SUPPORTED),
+        ] {
+            let e = Error::from(std::io::Error::from_raw_os_error(raw));
+            assert_eq!(e.code(), code);
+        }
+    }
+
     #[test]
     fn io_keeps_permission_capacity_and_type_categories() {
         for (io, code, kind) in [

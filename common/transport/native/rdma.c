@@ -22,6 +22,7 @@
 #define AFS_RDMA_WR_PROBE_SEND 0xAF500001ULL
 #define AFS_RDMA_WR_PROBE_RECV 0xAF500002ULL
 #define AFS_RDMA_PROBE_MAGIC 0xAF5A1001U
+#define AFS_RDMA_MAX_CAPACITY (4U*1024U*1024U)
 
 /* One endpoint owns the verbs lifecycle for a single AFS RDMA session:
  * context -> PD -> CQ -> QP -> MR(buffer). The remote_* fields are filled after
@@ -36,6 +37,7 @@ struct endpoint {
     uint8_t *buffer;
     uint32_t capacity;
     union ibv_gid gid;
+    uint8_t gid_index;
     uint16_t lid;
     uint64_t remote_address;
     uint32_t remote_key, remote_capacity;
@@ -54,6 +56,35 @@ static uint64_t monotonic_ms(void) {
     return (uint64_t)ts.tv_sec*1000U + (uint64_t)ts.tv_nsec/1000000U;
 }
 static void poison(struct endpoint *e);
+
+/* GID indices are local device state, not a universal constant. RoCE on an
+ * IPv4 cluster must advertise the IPv4-mapped GID and use that same index in
+ * the QP's source route. Prefer a global IPv6 GID when no IPv4 GID exists;
+ * link-local is a last choice for a genuinely shared IPv6 link. */
+static bool ipv4_gid(const union ibv_gid *gid) {
+    static const uint8_t prefix[12]={0,0,0,0,0,0,0,0,0,0,0xff,0xff};
+    return !memcmp(gid->raw,prefix,sizeof(prefix));
+}
+static int select_gid(struct endpoint *e, int table_length) {
+    int best_rank=0;
+    /* ibv_global_route.sgid_index is uint8_t even when a provider advertises
+     * a larger table; never truncate a selected index into another GID. */
+    for (int i=0;i<table_length && i<=UINT8_MAX;i++) {
+        union ibv_gid gid;
+        if (ibv_query_gid(e->context,1,i,&gid)) continue;
+        static const uint8_t zero[16]={0};
+        if (!memcmp(gid.raw,zero,sizeof(zero))) continue;
+        bool link_local=gid.raw[0]==0xfe && (gid.raw[1]&0xc0)==0x80;
+        int rank=ipv4_gid(&gid)?3:(link_local?1:2);
+        if (rank>best_rank) { e->gid=gid; e->gid_index=(uint8_t)i; best_rank=rank; }
+    }
+    if (!best_rank) { errno=EADDRNOTAVAIL; return -1; }
+    char address[INET6_ADDRSTRLEN];
+    if (!inet_ntop(AF_INET6,e->gid.raw,address,sizeof(address))) return -1;
+    fprintf(stderr,"AFS_RDMA_GID index=%u address=%s family=%s\n",
+        e->gid_index,address,ipv4_gid(&e->gid)?"ipv4":"ipv6");
+    return 0;
+}
 
 void afs_rdma_close(void *opaque) {
     struct endpoint *e=opaque;
@@ -74,7 +105,7 @@ void afs_rdma_close(void *opaque) {
 }
 
 void *afs_rdma_open(const char *device, uint32_t capacity, char *err, size_t errlen) {
-    if (!capacity || capacity>1024U*1024U) { error(err,errlen,"capacity must be 1..1MiB"); return NULL; }
+    if (!capacity || capacity>AFS_RDMA_MAX_CAPACITY) { error(err,errlen,"capacity must be 1..4MiB"); return NULL; }
     struct endpoint *e=calloc(1,sizeof(*e));
     if (!e) { error(err,errlen,"endpoint allocation"); return NULL; }
     int count=0;
@@ -89,7 +120,7 @@ void *afs_rdma_open(const char *device, uint32_t capacity, char *err, size_t err
     if (!e->context) goto failed;
     struct ibv_port_attr port;
     if (ibv_query_port(e->context,1,&port) || port.state != IBV_PORT_ACTIVE ||
-        ibv_query_gid(e->context,1,0,&e->gid)) goto failed;
+        select_gid(e,port.gid_tbl_len)) goto failed;
     e->lid=port.lid;
     e->capacity=capacity;
     e->pd=ibv_alloc_pd(e->context);
@@ -136,7 +167,7 @@ int afs_rdma_connect(void *opaque,const uint8_t *peer,uint32_t len,char *err,siz
     if (!e || !peer || len!=AFS_RDMA_INFO_BYTES || e->connected || e->poisoned)
         return error(err,errlen,"invalid connection state/descriptor");
     uint32_t capacity=get32(peer+34);
-    if (!capacity || capacity>1024U*1024U || !get32(peer))
+    if (!capacity || capacity>AFS_RDMA_MAX_CAPACITY || !get32(peer))
         return error(err,errlen,"invalid peer capacity/QP");
     e->remote_address=((uint64_t)get32(peer+22)<<32)|get32(peer+26);
     e->remote_key=get32(peer+30); e->remote_capacity=capacity;
@@ -147,7 +178,12 @@ int afs_rdma_connect(void *opaque,const uint8_t *peer,uint32_t len,char *err,siz
     attr.ah_attr.is_global=1; attr.ah_attr.port_num=1;
     uint16_t lid; memcpy(&lid,peer+4,2); attr.ah_attr.dlid=ntohs(lid);
     memcpy(&attr.ah_attr.grh.dgid,peer+6,16);
-    attr.ah_attr.grh.hop_limit=1; attr.ah_attr.grh.sgid_index=0;
+    if (ipv4_gid(&e->gid)!=ipv4_gid(&attr.ah_attr.grh.dgid)) {
+        errno=EAFNOSUPPORT;
+        e->poisoned=true;
+        return error(err,errlen,"RDMA peer GID address family differs from local selected GID");
+    }
+    attr.ah_attr.grh.hop_limit=1; attr.ah_attr.grh.sgid_index=e->gid_index;
     if (ibv_modify_qp(e->qp,&attr,IBV_QP_STATE|IBV_QP_AV|IBV_QP_PATH_MTU|
         IBV_QP_DEST_QPN|IBV_QP_RQ_PSN|IBV_QP_MAX_DEST_RD_ATOMIC|IBV_QP_MIN_RNR_TIMER)) goto failed;
     memset(&attr,0,sizeof(attr));

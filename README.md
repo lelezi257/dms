@@ -24,6 +24,8 @@ AFS has two backends:
 
 ## Development
 
+[Delivery handoff](docs/handoff.md) records the execution checkpoint, remaining gates and portable continuation inputs.
+
 The authoritative build and runtime environment is Linux. The Rust toolchain is pinned by [rust-toolchain.toml](rust-toolchain.toml).
 
 Use the guides for local commands:

@@ -203,6 +203,7 @@ mod tests {
             attributes: FileAttributes {
                 kind: FileKind::Regular,
                 size: 0,
+                blocks: 0,
                 mode: 0o644,
                 uid: 0,
                 gid: 0,

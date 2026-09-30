@@ -57,6 +57,10 @@ impl ChunkBuilder {
     }
 }
 
+/// Shared producer/replica budget per immutable staged chunk, never a file limit.
+#[cfg(feature = "dfs")]
+pub(crate) const MAX_STAGED_CHUNK_BYTES: usize = 4 * 1024 * 1024;
+
 #[derive(Clone, Debug)]
 pub struct StagedChunk {
     pub operation_id: OperationId,
@@ -647,4 +651,59 @@ fn corrupt(id: &ChunkId, detail: &str) -> Error {
 
 fn invalid(message: impl Into<String>) -> Error {
     Error::coded(afs_error::NODE_STORAGE_INVALID, message)
+}
+
+#[cfg(test)]
+mod replica_replay_tests {
+    use super::*;
+
+    #[test]
+    fn immutable_chunk_retry_preserves_content_after_catalog_advances_and_restart() {
+        let temp = tempfile::tempdir().unwrap();
+        let store = LocalChunkStore::open(temp.path(), "node-a").unwrap();
+        let target = ReplicaTarget {
+            node_id: "node-a".into(),
+            node_epoch: 3,
+            data_endpoint: "https://node-a".into(),
+            device: store.device_descriptor().unwrap(),
+        };
+        let first = StagedChunk::new(OperationId::new("op-first"), b"first".to_vec());
+        let ack = store.persist(&first, &target, 4, 5).unwrap();
+        store
+            .persist(
+                &StagedChunk::new(OperationId::new("op-second"), b"second".to_vec()),
+                &target,
+                4,
+                5,
+            )
+            .unwrap();
+        let replay = store.persist(&first, &target, 4, 5).unwrap();
+        assert_eq!(replay.chunk_id, ack.chunk_id);
+        assert_eq!(replay.verified_digest, ack.verified_digest);
+        assert_eq!(replay.persisted_bytes, ack.persisted_bytes);
+        assert!(replay.catalog_revision > ack.catalog_revision);
+        let mut newer_target = target.clone();
+        newer_target.device = store.device_descriptor().unwrap();
+        let floor_ack = store.persist(&first, &newer_target, 6, 7).unwrap();
+        assert_eq!(
+            floor_ack.catalog_revision,
+            newer_target.device.catalog_revision
+        );
+        drop(store);
+        let recovered = LocalChunkStore::open(temp.path(), "node-a").unwrap();
+        let recovered_ack = recovered.persist(&first, &target, 4, 5).unwrap();
+        assert_eq!(recovered_ack.chunk_id, ack.chunk_id);
+        assert_eq!(recovered_ack.verified_digest, ack.verified_digest);
+        assert_eq!(recovered_ack.catalog_revision, replay.catalog_revision);
+        let mut bytes = [0; 5];
+        assert_eq!(
+            recovered.read_at(&first.chunk.id, 0, &mut bytes).unwrap(),
+            5
+        );
+        assert_eq!(&bytes, b"first");
+        assert_eq!(
+            recovered.persist(&first, &newer_target, 6, 7).unwrap(),
+            floor_ack
+        );
+    }
 }

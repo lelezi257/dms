@@ -16,6 +16,8 @@ Record exact source and binary identity, environment lock, mount/backend/replica
 4. Performance: use frozen representative short workloads to find RPC/copy/serialization amplification, then full contract workloads. Do not start product performance tuning before valid comparison baselines.
 5. Release: all mandatory case matrices, 8 GiB files, full FSx seeds, long stability/fault/restart runs, paired performance repetitions and clean/offline installation. Earlier short checks do not replace full gates.
 
+Core filesystem development uses a memory-backed Meta first, so POSIX, layout, visibility, replication and transport defects can be reproduced without persistent-backend variables. Keep existing etcd/Redis integration work and validate it in separate lanes. Memory-backed runs do not prove Meta restart durability or qualify a performance comparison that requires durable metadata. Backend parity and persistent recovery are completed after the core functional and performance development gates.
+
 ## Trustworthy results
 
 Check content, EOF, attributes, errno, successful durability watermarks and recovery. Verify faults occurred and RDMA file bytes actually used verbs. A TCP fallback is not an RDMA PASS. Track every discovered suite test, including skips/TODO/unfinished items; no post-failure exclusions.

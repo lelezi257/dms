@@ -94,4 +94,14 @@ catalog! {
     IO_DIRECTORY_NOT_EMPTY = 0x0403000b => FailedPrecondition;
     IO_CROSS_DEVICE = 0x0403000d => FailedPrecondition;
     IO_BAD_FILE_DESCRIPTOR = 0x0403000e => FailedPrecondition;
+    IO_NAME_TOO_LONG = 0x0403000f => OutOfRange;
+    IO_NO_DATA = 0x04030010 => NotFound;
+    IO_NOT_SUPPORTED = 0x04030011 => FailedPrecondition;
+    IO_OPERATION_NOT_PERMITTED = 0x04030012 => PermissionDenied;
+    IO_TOO_MANY_SYMLINKS = 0x04030013 => FailedPrecondition;
+    IO_FILE_TOO_LARGE = 0x04030014 => OutOfRange;
+    IO_INTERRUPTED = 0x04030015 => Cancelled;
+    IO_WOULD_BLOCK = 0x04030016 => Unavailable;
+    IO_DEADLOCK = 0x04030017 => FailedPrecondition;
+    IO_NO_LOCKS = 0x04030018 => ResourceExhausted;
 }

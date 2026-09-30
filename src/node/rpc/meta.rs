@@ -454,7 +454,7 @@ pub async fn register_node(
     node: afs_protocol::meta::NodeDescriptor,
     timeout: Duration,
     tls: TlsConfig,
-) -> Result<()> {
+) -> Result<u64> {
     static REGISTER_SEQUENCE: AtomicU64 = AtomicU64::new(1);
     let config = GrpcConfig {
         connect_timeout: timeout,
@@ -473,7 +473,7 @@ pub async fn register_node(
         .await
         .map_err(|e| Error::coded(CLIENT_CONNECTION_UNAVAILABLE, e.to_string()))?;
     let mut client = MetaClient::new(afs_tracing::traced_channel(channel));
-    client
+    let reply = client
         .register_node(RegisterNodeRequest {
             request_id: format!(
                 "register-{}-{}",
@@ -484,8 +484,15 @@ pub async fn register_node(
             lease_seconds: 30,
         })
         .await
-        .map_err(afs_transport::grpc::error_status::status_to_error)?;
-    Ok(())
+        .map_err(afs_transport::grpc::error_status::status_to_error)?
+        .into_inner();
+    if reply.lease_epoch == 0 {
+        return Err(Error::coded(
+            CLIENT_ARGUMENT_INVALID,
+            "Meta returned a zero Node registration epoch",
+        ));
+    }
+    Ok(reply.lease_epoch)
 }
 
 /// Synchronous adapter used by the DFS Backend on FUSE worker threads.
@@ -563,6 +570,87 @@ impl GrpcDfsMeta {
 
     fn client(&self) -> afs_protocol::meta::dfs_meta_client::DfsMetaClient<Channel> {
         afs_protocol::meta::dfs_meta_client::DfsMetaClient::new(self.channel.clone())
+    }
+
+    fn root_client(&self) -> afs_protocol::meta::meta_client::MetaClient<Channel> {
+        afs_protocol::meta::meta_client::MetaClient::new(self.channel.clone())
+    }
+
+    pub fn validate_read_grants(
+        &self,
+        request: crate::dfs::ValidateDfsReadGrants,
+    ) -> afs_error::Result<Vec<crate::dfs::DfsAuthorizedRead>> {
+        let validations = request
+            .validations
+            .into_iter()
+            .map(|validation| {
+                let grant = validation.grant;
+                afs_protocol::meta::DfsReadValidation {
+                    grant: Some(afs_protocol::meta::DfsReadGrant {
+                        namespace_id: grant.namespace_id.0,
+                        file_version_id: grant.file_version_id.0,
+                        layout_root_id: grant.layout_root_id.0,
+                        caller_node_id: grant.caller_node_id,
+                        caller_node_epoch: grant.caller_node_epoch,
+                        expires_at_unix_ms: grant.expires_at_unix_ms,
+                        fence: grant.fence,
+                        token: grant.token,
+                    }),
+                    chunk_id: validation.chunk_id.0,
+                    copy_id: validation.copy_id.0,
+                    chunk_offset: validation.chunk_offset,
+                    length: validation.length,
+                }
+            })
+            .collect();
+        let reply = self
+            .run(self.client().validate_read_grants(
+                afs_protocol::meta::ValidateDfsReadGrantsRequest {
+                    receiver_node_id: request.receiver_node_id,
+                    receiver_node_epoch: request.receiver_node_epoch,
+                    peer_node_id: request.peer_node_id,
+                    validations,
+                },
+            ))?
+            .into_inner();
+        reply
+            .authorizations
+            .into_iter()
+            .map(|entry| {
+                let validation = required(entry.validation, "ReadAuthorization.validation")?;
+                Ok(crate::dfs::DfsAuthorizedRead {
+                    validation: crate::dfs::DfsReadValidation {
+                        grant: domain_dfs_read_grant(required(
+                            validation.grant,
+                            "ReadAuthorization.grant",
+                        )?),
+                        chunk_id: crate::dfs::ChunkId::new(validation.chunk_id),
+                        copy_id: crate::dfs::CopyId::new(validation.copy_id),
+                        chunk_offset: validation.chunk_offset,
+                        length: validation.length,
+                    },
+                    allowed_ranges: entry
+                        .allowed_ranges
+                        .into_iter()
+                        .map(|range| (range.offset, range.length))
+                        .collect(),
+                    expires_at_unix_ms: entry.expires_at_unix_ms,
+                })
+            })
+            .collect()
+    }
+
+    pub fn validate_replica_write(
+        &self,
+        request: crate::dfs::ValidateReplicaWriteRequest,
+    ) -> afs_error::Result<crate::dfs::ReplicaWriteGrant> {
+        let reply = self
+            .run(
+                self.client()
+                    .validate_replica_write(wire_validate_replica_write_request(request)),
+            )?
+            .into_inner();
+        domain_replica_write_grant(required(reply.grant, "ValidateReplicaWrite.grant")?)
     }
 }
 
@@ -691,6 +779,195 @@ impl crate::node::vfs::dfs::DfsMeta for GrpcDfsMeta {
         ))
     }
 
+    fn mkdir(
+        &self,
+        operation_id: &crate::dfs::OperationId,
+        parent: &crate::dfs::InodeId,
+        name: &[u8],
+        attributes: crate::dfs::InodeAttributes,
+        caller: crate::dfs::CallerContext,
+    ) -> afs_error::Result<crate::dfs::InodeRecord> {
+        let reply = self
+            .run(self.client().mkdir(afs_protocol::meta::DfsMkdirRequest {
+                caller_id: self.node_id.clone(),
+                operation_id: operation_id.0.clone(),
+                namespace_id: self.namespace_id.0.clone(),
+                parent_inode_id: parent.0.clone(),
+                name: name.to_vec(),
+                attributes: Some(wire_dfs_attributes(attributes)),
+                caller: Some(wire_dfs_caller_context(caller)),
+            }))?
+            .into_inner();
+        required(reply.inode, "DfsMkdir.inode").and_then(domain_dfs_inode)
+    }
+
+    fn read_dir(
+        &self,
+        parent: &crate::dfs::InodeId,
+    ) -> afs_error::Result<Vec<crate::dfs::DentryRecord>> {
+        let reply = self
+            .run(
+                self.client()
+                    .read_dir(afs_protocol::meta::DfsReadDirRequest {
+                        namespace_id: self.namespace_id.0.clone(),
+                        parent_inode_id: parent.0.clone(),
+                    }),
+            )?
+            .into_inner();
+        reply.entries.into_iter().map(domain_dfs_dentry).collect()
+    }
+
+    fn unlink(
+        &self,
+        operation_id: &crate::dfs::OperationId,
+        parent: &crate::dfs::InodeId,
+        name: &[u8],
+        caller: crate::dfs::CallerContext,
+    ) -> afs_error::Result<crate::dfs::InodeRecord> {
+        let reply = self
+            .run(self.client().unlink(afs_protocol::meta::DfsUnlinkRequest {
+                caller_id: self.node_id.clone(),
+                operation_id: operation_id.0.clone(),
+                namespace_id: self.namespace_id.0.clone(),
+                parent_inode_id: parent.0.clone(),
+                name: name.to_vec(),
+                caller: Some(wire_dfs_caller_context(caller)),
+            }))?
+            .into_inner();
+        required(reply.inode, "DfsUnlink.inode").and_then(domain_dfs_inode)
+    }
+
+    fn rmdir(
+        &self,
+        operation_id: &crate::dfs::OperationId,
+        parent: &crate::dfs::InodeId,
+        name: &[u8],
+        caller: crate::dfs::CallerContext,
+    ) -> afs_error::Result<crate::dfs::InodeRecord> {
+        let reply = self
+            .run(self.client().rmdir(afs_protocol::meta::DfsRmdirRequest {
+                caller_id: self.node_id.clone(),
+                operation_id: operation_id.0.clone(),
+                namespace_id: self.namespace_id.0.clone(),
+                parent_inode_id: parent.0.clone(),
+                name: name.to_vec(),
+                caller: Some(wire_dfs_caller_context(caller)),
+            }))?
+            .into_inner();
+        required(reply.inode, "DfsRmdir.inode").and_then(domain_dfs_inode)
+    }
+
+    fn rename(
+        &self,
+        operation_id: &crate::dfs::OperationId,
+        old_parent: &crate::dfs::InodeId,
+        old_name: &[u8],
+        new_parent: &crate::dfs::InodeId,
+        new_name: &[u8],
+        mode: crate::dfs::RenameMode,
+        caller: crate::dfs::CallerContext,
+    ) -> afs_error::Result<crate::dfs::RenameOutcome> {
+        let mode = match mode {
+            crate::dfs::RenameMode::NoReplace => afs_protocol::meta::DfsRenameMode::NoReplace,
+            crate::dfs::RenameMode::Replace => afs_protocol::meta::DfsRenameMode::Replace,
+        };
+        let reply = self
+            .run(self.client().rename(afs_protocol::meta::DfsRenameRequest {
+                caller_id: self.node_id.clone(),
+                operation_id: operation_id.0.clone(),
+                namespace_id: self.namespace_id.0.clone(),
+                old_parent_inode_id: old_parent.0.clone(),
+                old_name: old_name.to_vec(),
+                new_parent_inode_id: new_parent.0.clone(),
+                new_name: new_name.to_vec(),
+                mode: mode as i32,
+                caller: Some(wire_dfs_caller_context(caller)),
+            }))?
+            .into_inner();
+        Ok(crate::dfs::RenameOutcome {
+            inode: domain_dfs_inode(required(reply.inode, "DfsRename.inode")?)?,
+            replaced_inode: reply.replaced_inode.map(domain_dfs_inode).transpose()?,
+        })
+    }
+
+    fn link(
+        &self,
+        operation_id: &crate::dfs::OperationId,
+        inode_id: &crate::dfs::InodeId,
+        expected_inode_revision: u64,
+        parent: &crate::dfs::InodeId,
+        name: &[u8],
+        caller: crate::dfs::CallerContext,
+    ) -> afs_error::Result<crate::dfs::InodeRecord> {
+        let reply = self
+            .run(self.client().link(afs_protocol::meta::DfsLinkRequest {
+                caller_id: self.node_id.clone(),
+                operation_id: operation_id.0.clone(),
+                namespace_id: self.namespace_id.0.clone(),
+                existing_inode_id: inode_id.0.clone(),
+                expected_inode_revision,
+                parent_inode_id: parent.0.clone(),
+                name: name.to_vec(),
+                caller: Some(wire_dfs_caller_context(caller)),
+            }))?
+            .into_inner();
+        required(reply.inode, "DfsLink.inode").and_then(domain_dfs_inode)
+    }
+
+    fn symlink(
+        &self,
+        request: crate::dfs::SymlinkRequest,
+    ) -> afs_error::Result<crate::dfs::InodeRecord> {
+        let reply = self
+            .run(
+                self.client()
+                    .symlink(afs_protocol::meta::DfsSymlinkRequest {
+                        caller_id: request.caller_id,
+                        operation_id: request.operation_id.0,
+                        namespace_id: request.namespace_id.0,
+                        parent_inode_id: request.parent_inode_id.0,
+                        name: request.name,
+                        target: request.target,
+                        attributes: Some(wire_dfs_attributes(request.attributes)),
+                        caller: Some(wire_dfs_caller_context(request.caller)),
+                    }),
+            )?
+            .into_inner();
+        required(reply.inode, "DfsSymlink.inode").and_then(domain_dfs_inode)
+    }
+
+    fn mknod(
+        &self,
+        request: crate::dfs::MknodRequest,
+    ) -> afs_error::Result<crate::dfs::InodeRecord> {
+        let reply = self
+            .run(self.client().mknod(afs_protocol::meta::DfsMknodRequest {
+                caller_id: request.caller_id,
+                operation_id: request.operation_id.0,
+                namespace_id: request.namespace_id.0,
+                parent_inode_id: request.parent_inode_id.0,
+                name: request.name,
+                special_node: Some(wire_dfs_special_node(request.kind)),
+                attributes: Some(wire_dfs_attributes(request.attributes)),
+                caller: Some(wire_dfs_caller_context(request.caller)),
+            }))?
+            .into_inner();
+        required(reply.inode, "DfsMknod.inode").and_then(domain_dfs_inode)
+    }
+
+    fn read_link(&self, request: crate::dfs::ReadLinkRequest) -> afs_error::Result<Vec<u8>> {
+        let reply = self
+            .run(
+                self.client()
+                    .read_link(afs_protocol::meta::DfsReadLinkRequest {
+                        namespace_id: request.namespace_id.0,
+                        inode_id: request.inode_id.0,
+                    }),
+            )?
+            .into_inner();
+        Ok(reply.target)
+    }
+
     fn open_write(
         &self,
         inode_id: &crate::dfs::InodeId,
@@ -791,6 +1068,147 @@ impl crate::node::vfs::dfs::DfsMeta for GrpcDfsMeta {
         required(reply.inode, "SyncInodeMetadata.inode").and_then(domain_dfs_inode)
     }
 
+    fn set_inode_attributes(
+        &self,
+        request: crate::dfs::SetInodeAttrRequest,
+    ) -> afs_error::Result<crate::dfs::InodeRecord> {
+        let reply = self
+            .run(self.client().set_inode_attributes(
+                afs_protocol::meta::DfsSetInodeAttributesRequest {
+                    caller_id: request.caller_id,
+                    operation_id: request.operation_id.0,
+                    caller: Some(wire_dfs_caller_context(request.caller)),
+                    inode_id: request.inode_id.0,
+                    expected_inode_revision: request.expected_inode_revision,
+                    update: Some(wire_dfs_attr_update(request.update)),
+                },
+            ))?
+            .into_inner();
+        required(reply.inode, "SetInodeAttributes.inode").and_then(domain_dfs_inode)
+    }
+
+    fn get_xattr(&self, request: crate::dfs::GetXattrRequest) -> afs_error::Result<Vec<u8>> {
+        let reply = self
+            .run(
+                self.client()
+                    .get_xattr(afs_protocol::meta::DfsGetXattrRequest {
+                        caller: Some(wire_dfs_caller_context(request.caller)),
+                        inode_id: request.inode_id.0,
+                        name: request.name,
+                    }),
+            )?
+            .into_inner();
+        Ok(reply.value)
+    }
+
+    fn list_xattr(&self, request: crate::dfs::ListXattrRequest) -> afs_error::Result<Vec<Vec<u8>>> {
+        let reply = self
+            .run(
+                self.client()
+                    .list_xattr(afs_protocol::meta::DfsListXattrRequest {
+                        caller: Some(wire_dfs_caller_context(request.caller)),
+                        inode_id: request.inode_id.0,
+                    }),
+            )?
+            .into_inner();
+        Ok(reply.names)
+    }
+
+    fn set_xattr(
+        &self,
+        request: crate::dfs::SetXattrRequest,
+    ) -> afs_error::Result<crate::dfs::InodeRecord> {
+        let mode = match request.mode {
+            crate::dfs::XattrSetMode::Upsert => afs_protocol::meta::DfsXattrSetMode::Upsert,
+            crate::dfs::XattrSetMode::Create => afs_protocol::meta::DfsXattrSetMode::Create,
+            crate::dfs::XattrSetMode::Replace => afs_protocol::meta::DfsXattrSetMode::Replace,
+        };
+        let reply = self
+            .run(
+                self.client()
+                    .set_xattr(afs_protocol::meta::DfsSetXattrRequest {
+                        caller_id: request.caller_id,
+                        operation_id: request.operation_id.0,
+                        caller: Some(wire_dfs_caller_context(request.caller)),
+                        inode_id: request.inode_id.0,
+                        expected_inode_revision: request.expected_inode_revision,
+                        name: request.name,
+                        value: request.value,
+                        mode: mode as i32,
+                    }),
+            )?
+            .into_inner();
+        required(reply.inode, "SetXattr.inode").and_then(domain_dfs_inode)
+    }
+
+    fn remove_xattr(
+        &self,
+        request: crate::dfs::RemoveXattrRequest,
+    ) -> afs_error::Result<crate::dfs::InodeRecord> {
+        let reply = self
+            .run(
+                self.client()
+                    .remove_xattr(afs_protocol::meta::DfsRemoveXattrRequest {
+                        caller_id: request.caller_id,
+                        operation_id: request.operation_id.0,
+                        caller: Some(wire_dfs_caller_context(request.caller)),
+                        inode_id: request.inode_id.0,
+                        expected_inode_revision: request.expected_inode_revision,
+                        name: request.name,
+                    }),
+            )?
+            .into_inner();
+        required(reply.inode, "RemoveXattr.inode").and_then(domain_dfs_inode)
+    }
+
+    fn lookup_node_location(
+        &self,
+        node_id: &str,
+    ) -> afs_error::Result<Option<crate::node::vfs::dfs::DfsNodeLocation>> {
+        let reply = self
+            .run(
+                self.root_client()
+                    .lookup_node(afs_protocol::meta::LookupNodeRequest {
+                        request_id: self.request_id(),
+                        node_id: node_id.to_owned(),
+                    }),
+            )?
+            .into_inner();
+        if !reply.found {
+            return Ok(None);
+        }
+        let node = required(reply.node, "LookupNode.node")?;
+        let endpoint = required(node.endpoint, "LookupNode.node.endpoint")?;
+        Ok(Some(crate::node::vfs::dfs::DfsNodeLocation {
+            node_id: node.node_id,
+            node_epoch: reply.lease_epoch,
+            data_endpoint: endpoint.data_addr,
+        }))
+    }
+
+    fn current_node_session(&self, node_id: &str) -> afs_error::Result<Option<String>> {
+        let reply = self
+            .run(
+                self.root_client()
+                    .lookup_node(afs_protocol::meta::LookupNodeRequest {
+                        request_id: self.request_id(),
+                        node_id: node_id.to_owned(),
+                    }),
+            )?
+            .into_inner();
+        if !reply.found {
+            return Ok(None);
+        }
+        let node = required(reply.node, "LookupNode.node")?;
+        if node.session_id.is_empty() {
+            return Err(Error::coded(
+                CLIENT_PROTOCOL_VIOLATION,
+                "LookupNode returned an empty process session",
+            ));
+        }
+        Ok(Some(node.session_id))
+    }
+
     fn commit_file_version(
         &self,
         commit: crate::dfs::CommitFileVersion,
@@ -823,6 +1241,42 @@ impl crate::node::vfs::dfs::DfsMeta for GrpcDfsMeta {
 }
 
 #[cfg(feature = "dfs")]
+fn wire_dfs_caller_context(
+    caller: crate::dfs::CallerContext,
+) -> afs_protocol::meta::DfsCallerContext {
+    afs_protocol::meta::DfsCallerContext {
+        uid: caller.uid,
+        gid: caller.gid,
+        supplementary_gids: caller.supplementary_gids,
+    }
+}
+
+#[cfg(feature = "dfs")]
+fn wire_dfs_attr_update(
+    update: crate::dfs::InodeAttrUpdate,
+) -> afs_protocol::meta::DfsInodeAttributeUpdate {
+    afs_protocol::meta::DfsInodeAttributeUpdate {
+        mode: update.mode,
+        uid: update.uid,
+        gid: update.gid,
+        atime_unix_ms: update.atime_unix_ms,
+        mtime_unix_ms: update.mtime_unix_ms,
+        ctime_unix_ms: update.ctime_unix_ms,
+        timestamps_now: update.timestamps_now,
+    }
+}
+
+#[cfg(feature = "dfs")]
+fn domain_dfs_dentry(
+    entry: afs_protocol::meta::DfsDentryRecord,
+) -> afs_error::Result<crate::dfs::DentryRecord> {
+    Ok(crate::dfs::DentryRecord {
+        name: entry.name,
+        inode: domain_dfs_inode(required(entry.inode, "DfsDentryRecord.inode")?)?,
+    })
+}
+
+#[cfg(feature = "dfs")]
 fn wire_dfs_attributes(
     attributes: crate::dfs::InodeAttributes,
 ) -> afs_protocol::meta::DfsInodeAttributes {
@@ -846,6 +1300,9 @@ fn domain_dfs_inode(
         Ok(afs_protocol::meta::DfsInodeKind::Regular) => crate::dfs::InodeKind::Regular,
         Ok(afs_protocol::meta::DfsInodeKind::Directory) => crate::dfs::InodeKind::Directory,
         Ok(afs_protocol::meta::DfsInodeKind::Symlink) => crate::dfs::InodeKind::Symlink,
+        Ok(afs_protocol::meta::DfsInodeKind::Special) => crate::dfs::InodeKind::Special(
+            domain_dfs_special_node(required(inode.special_node, "DfsInodeRecord.special_node")?)?,
+        ),
         _ => {
             return Err(Error::coded(
                 afs_error::CLIENT_PROTOCOL_VIOLATION,
@@ -868,8 +1325,56 @@ fn domain_dfs_inode(
         },
         head_version: (!inode.head_version_id.is_empty())
             .then(|| crate::dfs::FileVersionId::new(inode.head_version_id)),
+        symlink_target: (!inode.symlink_target.is_empty()).then_some(inode.symlink_target),
+        xattrs: inode
+            .xattrs
+            .into_iter()
+            .map(|record| (record.name, record.value))
+            .collect(),
         revision: inode.revision,
     })
+}
+
+#[cfg(feature = "dfs")]
+fn domain_dfs_special_node(
+    special: afs_protocol::meta::DfsSpecialNode,
+) -> afs_error::Result<crate::dfs::SpecialNodeKind> {
+    match afs_protocol::meta::DfsSpecialNodeKind::try_from(special.kind) {
+        Ok(afs_protocol::meta::DfsSpecialNodeKind::Fifo) if special.rdev == 0 => {
+            Ok(crate::dfs::SpecialNodeKind::Fifo)
+        }
+        Ok(afs_protocol::meta::DfsSpecialNodeKind::Socket) if special.rdev == 0 => {
+            Ok(crate::dfs::SpecialNodeKind::Socket)
+        }
+        Ok(afs_protocol::meta::DfsSpecialNodeKind::BlockDevice) => {
+            Ok(crate::dfs::SpecialNodeKind::BlockDevice { rdev: special.rdev })
+        }
+        Ok(afs_protocol::meta::DfsSpecialNodeKind::CharDevice) => {
+            Ok(crate::dfs::SpecialNodeKind::CharDevice { rdev: special.rdev })
+        }
+        _ => Err(Error::coded(
+            afs_error::CLIENT_PROTOCOL_VIOLATION,
+            "DfsSpecialNode has an invalid kind/rdev combination",
+        )),
+    }
+}
+
+#[cfg(feature = "dfs")]
+fn wire_dfs_special_node(kind: crate::dfs::SpecialNodeKind) -> afs_protocol::meta::DfsSpecialNode {
+    let (kind, rdev) = match kind {
+        crate::dfs::SpecialNodeKind::Fifo => (afs_protocol::meta::DfsSpecialNodeKind::Fifo, 0),
+        crate::dfs::SpecialNodeKind::Socket => (afs_protocol::meta::DfsSpecialNodeKind::Socket, 0),
+        crate::dfs::SpecialNodeKind::BlockDevice { rdev } => {
+            (afs_protocol::meta::DfsSpecialNodeKind::BlockDevice, rdev)
+        }
+        crate::dfs::SpecialNodeKind::CharDevice { rdev } => {
+            (afs_protocol::meta::DfsSpecialNodeKind::CharDevice, rdev)
+        }
+    };
+    afs_protocol::meta::DfsSpecialNode {
+        kind: kind.into(),
+        rdev,
+    }
 }
 
 #[cfg(feature = "dfs")]
@@ -970,6 +1475,48 @@ fn wire_dfs_metadata_delta(
         },
         mtime_unix_ms: delta.mtime_unix_ms.unwrap_or_default(),
         ctime_unix_ms: delta.ctime_unix_ms.unwrap_or_default(),
+        kill_suidgid: delta.kill_suidgid,
+    }
+}
+
+#[cfg(feature = "dfs")]
+fn wire_validate_replica_write_request(
+    request: crate::dfs::ValidateReplicaWriteRequest,
+) -> afs_protocol::meta::ValidateDfsReplicaWriteRequest {
+    afs_protocol::meta::ValidateDfsReplicaWriteRequest {
+        requester_node_id: request.requester_node_id,
+        requester_node_epoch: request.requester_node_epoch,
+        initiator_node_id: request.initiator_node_id,
+        initiator_node_epoch: request.initiator_node_epoch,
+        operation_id: request.operation_id.0,
+        chunk_id: request.chunk_id.0,
+        chunk_length: request.chunk_length,
+        content_digest: request.content_digest.bytes.to_vec(),
+        content_digest_algorithm: wire_digest_algorithm(request.content_digest.algorithm),
+        placement_revision: request.placement_revision,
+        placement_epoch: request.placement_epoch,
+        replica_group_id: request.replica_group_id.0,
+        target_index: request.target_index,
+        ordered_targets: request
+            .ordered_targets
+            .into_iter()
+            .map(wire_replica_target)
+            .collect(),
+    }
+}
+
+#[cfg(feature = "dfs")]
+fn wire_replica_target(target: crate::dfs::ReplicaTarget) -> afs_protocol::meta::DfsReplicaTarget {
+    afs_protocol::meta::DfsReplicaTarget {
+        node_id: target.node_id,
+        node_epoch: target.node_epoch,
+        data_endpoint: target.data_endpoint,
+        device: Some(afs_protocol::meta::DfsStorageDevice {
+            device_id: target.device.device_id,
+            device_epoch: target.device.device_epoch,
+            catalog_revision: target.device.catalog_revision,
+            failure_domain: target.device.failure_domain,
+        }),
     }
 }
 
@@ -1020,10 +1567,62 @@ fn wire_digest_algorithm(algorithm: crate::dfs::DigestAlgorithm) -> i32 {
 }
 
 #[cfg(feature = "dfs")]
-fn domain_placement_snapshot(
-    snapshot: afs_protocol::meta::DfsPlacementSnapshot,
-) -> afs_error::Result<crate::dfs::PlacementSnapshot> {
-    let replication = required(snapshot.replication, "DfsPlacementSnapshot.replication")?;
+fn domain_digest_algorithm(value: i32) -> afs_error::Result<crate::dfs::DigestAlgorithm> {
+    match afs_protocol::meta::DfsDigestAlgorithm::try_from(value) {
+        Ok(afs_protocol::meta::DfsDigestAlgorithm::Blake3) => {
+            Ok(crate::dfs::DigestAlgorithm::Blake3)
+        }
+        _ => Err(Error::coded(
+            CLIENT_PROTOCOL_VIOLATION,
+            "DFS digest algorithm is invalid",
+        )),
+    }
+}
+
+#[cfg(feature = "dfs")]
+fn domain_replica_write_grant(
+    grant: afs_protocol::meta::DfsReplicaWriteGrant,
+) -> afs_error::Result<crate::dfs::ReplicaWriteGrant> {
+    let digest: [u8; 32] = grant.content_digest.try_into().map_err(|_| {
+        Error::coded(
+            CLIENT_PROTOCOL_VIOLATION,
+            "DfsReplicaWriteGrant digest must contain 32 bytes",
+        )
+    })?;
+    Ok(crate::dfs::ReplicaWriteGrant {
+        requester_node_id: grant.requester_node_id,
+        requester_node_epoch: grant.requester_node_epoch,
+        initiator_node_id: grant.initiator_node_id,
+        initiator_node_epoch: grant.initiator_node_epoch,
+        operation_id: crate::dfs::OperationId::new(grant.operation_id),
+        chunk_id: crate::dfs::ChunkId::new(grant.chunk_id),
+        chunk_length: grant.chunk_length,
+        content_digest: crate::dfs::ContentDigest {
+            algorithm: domain_digest_algorithm(grant.content_digest_algorithm)?,
+            bytes: digest,
+        },
+        placement_revision: grant.placement_revision,
+        placement_epoch: grant.placement_epoch,
+        replica_group_id: crate::dfs::ReplicaGroupId::new(grant.replica_group_id),
+        target_index: grant.target_index,
+        replication: domain_replication_config(required(
+            grant.replication,
+            "DfsReplicaWriteGrant.replication",
+        )?)?,
+        replica_group: domain_replica_group(required(
+            grant.replica_group,
+            "DfsReplicaWriteGrant.replica_group",
+        )?)?,
+        expires_at_unix_ms: grant.expires_at_unix_ms,
+        fence: grant.fence,
+        token: grant.token,
+    })
+}
+
+#[cfg(feature = "dfs")]
+fn domain_replication_config(
+    replication: afs_protocol::meta::DfsReplicationConfig,
+) -> afs_error::Result<crate::dfs::ReplicationConfig> {
     let local_copy = match afs_protocol::meta::DfsLocalCopyPolicy::try_from(replication.local_copy)
     {
         Ok(afs_protocol::meta::DfsLocalCopyPolicy::Required) => {
@@ -1037,80 +1636,90 @@ fn domain_placement_snapshot(
         }
         _ => {
             return Err(Error::coded(
-                afs_error::CLIENT_PROTOCOL_VIOLATION,
-                "DfsPlacementSnapshot has an invalid local-copy policy",
+                CLIENT_PROTOCOL_VIOLATION,
+                "DFS replication config has an invalid local-copy policy",
             ));
         }
     };
     let replication = crate::dfs::ReplicationConfig {
-        desired_copies: u16::try_from(replication.desired_copies).map_err(|_| {
-            Error::coded(
-                afs_error::CLIENT_PROTOCOL_VIOLATION,
-                "desired_copies exceeds u16",
-            )
-        })?,
+        desired_copies: u16::try_from(replication.desired_copies)
+            .map_err(|_| Error::coded(CLIENT_PROTOCOL_VIOLATION, "desired_copies exceeds u16"))?,
         sync_required_copies: u16::try_from(replication.sync_required_copies).map_err(|_| {
             Error::coded(
-                afs_error::CLIENT_PROTOCOL_VIOLATION,
+                CLIENT_PROTOCOL_VIOLATION,
                 "sync_required_copies exceeds u16",
             )
         })?,
         min_distinct_nodes: u16::try_from(replication.min_distinct_nodes).map_err(|_| {
-            Error::coded(
-                afs_error::CLIENT_PROTOCOL_VIOLATION,
-                "min_distinct_nodes exceeds u16",
-            )
+            Error::coded(CLIENT_PROTOCOL_VIOLATION, "min_distinct_nodes exceeds u16")
         })?,
         min_distinct_failure_domains: u16::try_from(replication.min_distinct_failure_domains)
             .map_err(|_| {
                 Error::coded(
-                    afs_error::CLIENT_PROTOCOL_VIOLATION,
+                    CLIENT_PROTOCOL_VIOLATION,
                     "min_distinct_failure_domains exceeds u16",
                 )
             })?,
         local_copy,
     };
-    let replica_groups = snapshot
-        .replica_groups
-        .into_iter()
-        .map(|group| {
-            let targets = group
-                .targets
-                .into_iter()
-                .map(|target| {
-                    let device = required(target.device, "DfsReplicaTarget.device")?;
-                    Ok(crate::dfs::ReplicaTarget {
-                        node_id: target.node_id,
-                        node_epoch: target.node_epoch,
-                        data_endpoint: target.data_endpoint,
-                        device: crate::dfs::StorageDeviceDescriptor {
-                            device_id: device.device_id,
-                            device_epoch: device.device_epoch,
-                            catalog_revision: device.catalog_revision,
-                            failure_domain: device.failure_domain,
-                        },
-                    })
-                })
-                .collect::<afs_error::Result<Vec<_>>>()?;
-            Ok(crate::dfs::ReplicaGroup {
-                id: crate::dfs::ReplicaGroupId::new(group.replica_group_id),
-                placement_epoch: group.placement_epoch,
-                targets,
-            })
-        })
-        .collect::<afs_error::Result<Vec<_>>>()?;
-    let result = crate::dfs::PlacementSnapshot {
-        revision: snapshot.revision,
-        replication,
-        replica_groups,
-    };
-    if !result.replication.is_valid() {
+    if !replication.is_valid() {
         return Err(Error::coded(
-            afs_error::CLIENT_PROTOCOL_VIOLATION,
+            CLIENT_PROTOCOL_VIOLATION,
             "Meta returned an invalid DFS replication config",
         ));
     }
-    Ok(result)
+    Ok(replication)
+}
+
+#[cfg(feature = "dfs")]
+fn domain_replica_group(
+    group: afs_protocol::meta::DfsReplicaGroup,
+) -> afs_error::Result<crate::dfs::ReplicaGroup> {
+    Ok(crate::dfs::ReplicaGroup {
+        id: crate::dfs::ReplicaGroupId::new(group.replica_group_id),
+        placement_epoch: group.placement_epoch,
+        targets: group
+            .targets
+            .into_iter()
+            .map(domain_replica_target)
+            .collect::<afs_error::Result<Vec<_>>>()?,
+    })
+}
+
+#[cfg(feature = "dfs")]
+fn domain_replica_target(
+    target: afs_protocol::meta::DfsReplicaTarget,
+) -> afs_error::Result<crate::dfs::ReplicaTarget> {
+    let device = required(target.device, "DfsReplicaTarget.device")?;
+    Ok(crate::dfs::ReplicaTarget {
+        node_id: target.node_id,
+        node_epoch: target.node_epoch,
+        data_endpoint: target.data_endpoint,
+        device: crate::dfs::StorageDeviceDescriptor {
+            device_id: device.device_id,
+            device_epoch: device.device_epoch,
+            catalog_revision: device.catalog_revision,
+            failure_domain: device.failure_domain,
+        },
+    })
+}
+
+#[cfg(feature = "dfs")]
+fn domain_placement_snapshot(
+    snapshot: afs_protocol::meta::DfsPlacementSnapshot,
+) -> afs_error::Result<crate::dfs::PlacementSnapshot> {
+    Ok(crate::dfs::PlacementSnapshot {
+        revision: snapshot.revision,
+        replication: domain_replication_config(required(
+            snapshot.replication,
+            "DfsPlacementSnapshot.replication",
+        )?)?,
+        replica_groups: snapshot
+            .replica_groups
+            .into_iter()
+            .map(domain_replica_group)
+            .collect::<afs_error::Result<Vec<_>>>()?,
+    })
 }
 
 #[cfg(feature = "dfs")]

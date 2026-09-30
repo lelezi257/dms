@@ -120,7 +120,7 @@ impl Filesystem for ClockFS<'_> {
         }
     }
 
-    fn open(&mut self, _req: &Request, ino: u64, flags: i32, reply: ReplyOpen) {
+    fn open(&mut self, _req: &Request, ino: u64, flags: i32, _open_flags: u32, reply: ReplyOpen) {
         if ino == FUSE_ROOT_ID {
             reply.error(EISDIR);
         } else if flags & libc::O_ACCMODE != libc::O_RDONLY {

@@ -10,7 +10,7 @@
 // vendor copy carries only the separate-entry-TTL API patch.
 #![allow(dead_code, clippy::io_other_error)]
 
-use libc::{ENOSYS, EPERM, c_int};
+use libc::{EAGAIN, ENOSYS, EPERM, c_int};
 use log::warn;
 use mnt::mount_options::parse_options_from_args;
 #[cfg(feature = "serializable")]
@@ -57,6 +57,20 @@ mod passthrough;
 mod reply;
 mod request;
 mod session;
+
+/// Additional lock request flags supplied by the FUSE kernel ABI.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct LockOptions {
+    /// Raw `fuse_lk_in.lk_flags` value.
+    pub flags: u32,
+}
+
+impl LockOptions {
+    /// True when the kernel marks this lock request as BSD flock-style locking.
+    pub fn is_flock(self) -> bool {
+        self.flags & FUSE_LK_FLOCK != 0
+    }
+}
 
 /// We generally support async reads
 #[cfg(not(target_os = "macos"))]
@@ -373,11 +387,13 @@ pub trait Filesystem {
         _chgtime: Option<SystemTime>,
         _bkuptime: Option<SystemTime>,
         flags: Option<u32>,
+        kill_suidgid: bool,
         reply: ReplyAttr,
     ) {
         warn!(
             "[Not Implemented] setattr(ino: {ino:#x?}, mode: {mode:?}, uid: {uid:?}, \
-            gid: {gid:?}, size: {size:?}, fh: {fh:?}, flags: {flags:?})"
+            gid: {gid:?}, size: {size:?}, fh: {fh:?}, flags: {flags:?}, \
+            kill_suidgid: {kill_suidgid})"
         );
         reply.error(ENOSYS);
     }
@@ -491,7 +507,14 @@ pub trait Filesystem {
     /// anything in fh. There are also some flags (direct_io, keep_cache) which the
     /// filesystem may set, to change the way the file is opened. See fuse_file_info
     /// structure in <fuse_common.h> for more details.
-    fn open(&mut self, _req: &Request<'_>, _ino: u64, _flags: i32, reply: ReplyOpen) {
+    fn open(
+        &mut self,
+        _req: &Request<'_>,
+        _ino: u64,
+        _flags: i32,
+        _open_flags: u32,
+        reply: ReplyOpen,
+    ) {
         reply.opened(0, 0);
     }
 
@@ -757,11 +780,12 @@ pub trait Filesystem {
         mode: u32,
         umask: u32,
         flags: i32,
+        open_flags: u32,
         reply: ReplyCreate,
     ) {
         warn!(
             "[Not Implemented] create(parent: {parent:#x?}, name: {name:?}, mode: {mode}, \
-            umask: {umask:#x?}, flags: {flags:#x?})"
+            umask: {umask:#x?}, flags: {flags:#x?}, open_flags: {open_flags:#x?})"
         );
         reply.error(ENOSYS);
     }
@@ -784,6 +808,24 @@ pub trait Filesystem {
             start: {start}, end: {end}, typ: {typ}, pid: {pid})"
         );
         reply.error(ENOSYS);
+    }
+
+    /// Test for a POSIX file lock, preserving kernel lock flags.
+    #[allow(clippy::too_many_arguments)]
+    fn getlk_with_options(
+        &mut self,
+        req: &Request<'_>,
+        ino: u64,
+        fh: u64,
+        lock_owner: u64,
+        start: u64,
+        end: u64,
+        typ: i32,
+        pid: u32,
+        _options: LockOptions,
+        reply: ReplyLock,
+    ) {
+        self.getlk(req, ino, fh, lock_owner, start, end, typ, pid, reply)
     }
 
     /// Acquire, modify or release a POSIX file lock.
@@ -811,6 +853,35 @@ pub trait Filesystem {
             start: {start}, end: {end}, typ: {typ}, pid: {pid}, sleep: {sleep})"
         );
         reply.error(ENOSYS);
+    }
+
+    /// Acquire, modify or release a POSIX file lock, preserving kernel lock flags.
+    #[allow(clippy::too_many_arguments)]
+    fn setlk_with_options(
+        &mut self,
+        req: &Request<'_>,
+        ino: u64,
+        fh: u64,
+        lock_owner: u64,
+        start: u64,
+        end: u64,
+        typ: i32,
+        pid: u32,
+        sleep: bool,
+        _options: LockOptions,
+        reply: ReplyEmpty,
+    ) {
+        self.setlk(req, ino, fh, lock_owner, start, end, typ, pid, sleep, reply)
+    }
+
+    /// Interrupt a pending original request.
+    ///
+    /// The default follows the Linux FUSE contract: if userspace cannot match
+    /// the original request, reply `EAGAIN` so the kernel may requeue or ignore
+    /// the interrupt depending on the race outcome.
+    fn interrupt(&mut self, _req: &Request<'_>, unique: u64, reply: ReplyEmpty) {
+        warn!("[Not Implemented] interrupt(unique: {unique:#x?})");
+        reply.error(EAGAIN);
     }
 
     /// Map block index within file to block index within device.

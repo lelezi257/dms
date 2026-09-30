@@ -5,6 +5,7 @@
 
 #[cfg(feature = "dfs")]
 pub mod dfs;
+pub mod locks;
 #[cfg(feature = "ownerfs")]
 pub mod ownerfs;
 pub mod types;
@@ -21,6 +22,59 @@ use afs_error::{Error, Result};
 pub trait Backend: Send + Sync {
     /// 当前 Backend 在本 mount 内的根 inode。它不是 FUSE inode，也不是跨进程身份。
     fn root_inode(&self) -> types::BackendInode;
+
+    /// Linux FUSE killpriv v2 is advertised only when the selected backend can
+    /// honor explicit kernel kill_suidgid causes on open/create, write and setattr.
+    fn supports_killpriv_v2(&self) -> bool {
+        false
+    }
+
+    /// Advisory locks are advertised to the kernel only when the selected
+    /// backend can arbitrate POSIX byte-range locks and BSD flock locks across
+    /// every mount/peer that can reach the same inode authority.
+    fn supports_advisory_locks(&self) -> bool {
+        false
+    }
+
+    fn getlk(
+        &self,
+        _ctx: &types::RequestContext,
+        _inode: types::BackendInode,
+        _handle: types::FileHandle,
+        _request: locks::LockRequest,
+    ) -> Result<Option<types::FileLockConflict>> {
+        Err(unsupported("getlk"))
+    }
+
+    fn setlk(
+        &self,
+        _ctx: &types::RequestContext,
+        _inode: types::BackendInode,
+        _handle: types::FileHandle,
+        _request: locks::LockRequest,
+        _waiter: Option<locks::LockWaiterId>,
+    ) -> Result<()> {
+        Err(unsupported("setlk"))
+    }
+
+    fn cancel_lock_wait(&self, _waiter: locks::LockWaiterId) -> Result<()> {
+        Err(unsupported("cancel_lock_wait"))
+    }
+
+    fn release_locks(
+        &self,
+        _ctx: &types::RequestContext,
+        _inode: types::BackendInode,
+        _handle: types::FileHandle,
+        _owner: types::FileLockOwner,
+        _kind: types::ReleaseKind,
+    ) -> Result<()> {
+        Ok(())
+    }
+
+    fn release_lock_session(&self, _ingress_session_id: &str) -> Result<()> {
+        Ok(())
+    }
 
     /// 仅在已选后端的父 inode 下查一个目录项。OwnerFs 应先由父 inode
     /// 找到 WorkspaceRoot，再校验其 RootGrant；不能按名字再查一次中心。
@@ -55,6 +109,22 @@ pub trait Backend: Send + Sync {
         Err(unsupported("setattr"))
     }
 
+    /// Options-aware setattr entry. The default implementation preserves the
+    /// legacy API when no killpriv cause is present and fails closed otherwise.
+    fn setattr_with_options(
+        &self,
+        ctx: &types::RequestContext,
+        inode: types::BackendInode,
+        handle: Option<types::FileHandle>,
+        change: &types::AttributeChange,
+        options: types::SetAttrOptions,
+    ) -> Result<types::FileAttributes> {
+        if options.kill_suidgid {
+            return Err(unsupported("setattr kill_suidgid"));
+        }
+        self.setattr(ctx, inode, handle, change)
+    }
+
     /// 一个 create 回调同时产生目录项与打开句柄；根首次创建涉及 Meta
     /// reserve/activate，是 OwnerFs 私有慢路径，不让 VFS 逐文件提交 Meta。
     fn create(
@@ -68,6 +138,37 @@ pub trait Backend: Send + Sync {
         Err(unsupported("create"))
     }
 
+    /// Options-aware create entry. FUSE_CREATE carries the same Linux open killpriv
+    /// cause bit as FUSE_OPEN on kernels that support killpriv v2.
+    fn create_with_options(
+        &self,
+        ctx: &types::RequestContext,
+        parent: types::BackendInode,
+        name: &OsStr,
+        mode: u32,
+        flags: i32,
+        options: types::OpenOptions,
+    ) -> Result<types::CreatedFile> {
+        if options.kill_suidgid {
+            return Err(unsupported("create kill_suidgid"));
+        }
+        self.create(ctx, parent, name, mode, flags)
+    }
+
+    /// Metadata-only special inode creation for FIFO/socket/block/char nodes.
+    /// Regular files, directories and symlinks use create/mkdir/symlink because
+    /// their POSIX entry points have different handle or payload contracts.
+    fn mknod(
+        &self,
+        _ctx: &types::RequestContext,
+        _parent: types::BackendInode,
+        _name: &OsStr,
+        _kind: types::SpecialFileKind,
+        _mode: u32,
+    ) -> Result<types::Entry> {
+        Err(unsupported("mknod"))
+    }
+
     /// 原始 Linux flags 由 FUSE 边缘验证后传入，后端仍必须执行权限/授权检查。
     /// O_TRUNC 必须在确认期望文件身份后生效。
     fn open(
@@ -77,6 +178,21 @@ pub trait Backend: Send + Sync {
         _flags: i32,
     ) -> Result<types::FileHandle> {
         Err(unsupported("open"))
+    }
+
+    /// Options-aware open entry. The default implementation preserves the
+    /// legacy API when no killpriv cause is present and fails closed otherwise.
+    fn open_with_options(
+        &self,
+        ctx: &types::RequestContext,
+        inode: types::BackendInode,
+        flags: i32,
+        options: types::OpenOptions,
+    ) -> Result<types::FileHandle> {
+        if options.kill_suidgid {
+            return Err(unsupported("open kill_suidgid"));
+        }
+        self.open(ctx, inode, flags)
     }
 
     /// 返回写入调用者缓冲区的实际字节数；EOF 可返回 0，不补齐短读。
@@ -102,12 +218,29 @@ pub trait Backend: Send + Sync {
         Err(unsupported("write"))
     }
 
-    /// 处理前序异步错误。后端可以采用更强的保守语义；显式耐久合同由 fsync 表达。
+    /// Options-aware write entry. The default implementation preserves the
+    /// legacy API when no killpriv cause is present and fails closed otherwise.
+    fn write_with_options(
+        &self,
+        ctx: &types::RequestContext,
+        handle: types::FileHandle,
+        offset: u64,
+        data: &[u8],
+        options: types::WriteOptions,
+    ) -> Result<usize> {
+        if options.kill_suidgid {
+            return Err(unsupported("write kill_suidgid"));
+        }
+        self.write(ctx, handle, offset, data)
+    }
+
+    /// FUSE close 的可返回错误屏障：提交该句柄先前的写入并报告错误。
+    /// 只读句柄不能提交其它 writer；release 只清理资源，不承担提交。
     fn flush(&self, _ctx: &types::RequestContext, _handle: types::FileHandle) -> Result<()> {
         Err(unsupported("flush"))
     }
 
-    /// 只有显式调用才同步；DataOnly/Full 分别对应 fdatasync/fsync。
+    /// 应用显式要求的屏障；DataOnly/Full 分别对应 fdatasync/fsync。
     fn fsync(
         &self,
         _ctx: &types::RequestContext,
@@ -229,6 +362,48 @@ pub trait Backend: Send + Sync {
         _name: &OsStr,
     ) -> Result<types::Entry> {
         Err(unsupported("link"))
+    }
+
+    /// Extended attributes use raw Linux names and values. Permission and
+    /// namespace checks belong to the selected backend, including Peer calls.
+    fn getxattr(
+        &self,
+        _ctx: &types::RequestContext,
+        _inode: types::BackendInode,
+        _name: &OsStr,
+    ) -> Result<Vec<u8>> {
+        Err(unsupported("getxattr"))
+    }
+
+    /// Return the Linux list encoding: each name followed by a NUL byte.
+    fn listxattr(
+        &self,
+        _ctx: &types::RequestContext,
+        _inode: types::BackendInode,
+    ) -> Result<Vec<u8>> {
+        Err(unsupported("listxattr"))
+    }
+
+    /// `flags` retains XATTR_CREATE/XATTR_REPLACE; zero means upsert. The
+    /// frontend rejects invalid flag combinations before invoking the backend.
+    fn setxattr(
+        &self,
+        _ctx: &types::RequestContext,
+        _inode: types::BackendInode,
+        _name: &OsStr,
+        _value: &[u8],
+        _flags: i32,
+    ) -> Result<()> {
+        Err(unsupported("setxattr"))
+    }
+
+    fn removexattr(
+        &self,
+        _ctx: &types::RequestContext,
+        _inode: types::BackendInode,
+        _name: &OsStr,
+    ) -> Result<()> {
+        Err(unsupported("removexattr"))
     }
 }
 

@@ -1,0 +1,57 @@
+depth=1 CN = afs-acceptance-ca
+verify return:1
+depth=0 CN = node-b
+verify return:1
+CONNECTED(00000003)
+---
+Certificate chain
+ 0 s:CN = node-b
+   i:CN = afs-acceptance-ca
+   a:PKEY: rsaEncryption, 2048 (bit); sigalg: RSA-SHA256
+   v:NotBefore: Sep 30 06:46:10 2026 GMT; NotAfter: Oct 30 06:46:10 2026 GMT
+---
+Server certificate
+-----BEGIN CERTIFICATE-----
+MIIDRDCCAiygAwIBAgIUdhW06/o2jZV9lLPOrDpWEJ1Wg7gwDQYJKoZIhvcNAQEL
+BQAwHDEaMBgGA1UEAwwRYWZzLWFjY2VwdGFuY2UtY2EwHhcNMjYwOTMwMDY0NjEw
+WhcNMjYxMDMwMDY0NjEwWjARMQ8wDQYDVQQDDAZub2RlLWIwggEiMA0GCSqGSIb3
+DQEBAQUAA4IBDwAwggEKAoIBAQChS0UG9kvmKj7HdVgfFppTRULA9qj3XK5B7KPP
+FM05R0H3OrW3ZfvuUDoum4kQEo/96EjOxjm7pXmaVjIffKmUQMbV74yLC917pXcg
+DPXKuWsmIgpHF4MuwQVsEx+qLm4n4snTwmhZOYUv+tDZheOvOgTfZBRgao5naxrc
+143AYah9EzPfdT0oWrKo9ON2Du5TGZkwH1QG/ySnM7PGz86YHRGd3N8mLeBccl0a
+FACz6JXsjaXmaH+iMrXWJwSPF+5DkctgclzDBT3d3ggG7RwHEi76HVzBMTC9Khxf
+epXqfa7gaynS1KGDaEbUW+UJ+A5SpMgj0kptJwVCB9rGn165AgMBAAGjgYgwgYUw
+JAYDVR0RBB0wG4ILYWZzLWNsdXN0ZXKCBm5vZGUtYocEwKhtDTAdBgNVHSUEFjAU
+BggrBgEFBQcDAQYIKwYBBQUHAwIwHQYDVR0OBBYEFF90ukPjkFrzOwOD5BcqvS2s
+Qjf2MB8GA1UdIwQYMBaAFNemnyrX1ZgQSuj/fOZZ8ZD3S1DSMA0GCSqGSIb3DQEB
+CwUAA4IBAQA10xjmW2Tk2ibVqHWaBSlzN9AHYisrVFEkeaWitdXViFKVqTntGnzW
+Zu9bJ0o73ZwPW2saxvRap3A/nTWaUMbUpKj6O7wgrS7QSscn3lI7itBEQjzQNxzY
+mxxbVLAo46kuJLOOcSxWFDRl1M4KtcV1LlAAQHU9vQ62TQ0dkASuHGnCJC5YiqWU
+gkhbPeZ6pP6ervSnUm5IbjKnbGlnedSYM7/wJgvKqV97LM0q28Z8ee0e+Za1h2y5
+w6A6qXW0phyKYa2VKw4Qt6y3SMdunKwXYsCM3ebBt+M4vgVJLjoy0SffspCL9c79
+ikdadxRmFOoM5XZWzEsnJEghvif0NcEY
+-----END CERTIFICATE-----
+subject=CN = node-b
+issuer=CN = afs-acceptance-ca
+---
+Acceptable client certificate CA names
+CN = afs-acceptance-ca
+Requested Signature Algorithms: ECDSA+SHA384:ECDSA+SHA256:Ed25519:RSA-PSS+SHA512:RSA-PSS+SHA384:RSA-PSS+SHA256:RSA+SHA512:RSA+SHA384:RSA+SHA256
+Shared Requested Signature Algorithms: ECDSA+SHA384:ECDSA+SHA256:Ed25519:RSA-PSS+SHA512:RSA-PSS+SHA384:RSA-PSS+SHA256:RSA+SHA512:RSA+SHA384:RSA+SHA256
+Peer signing digest: SHA512
+Peer signature type: RSA-PSS
+Server Temp Key: X25519, 253 bits
+---
+SSL handshake has read 1403 bytes and written 423 bytes
+Verification: OK
+---
+New, TLSv1.3, Cipher is TLS_AES_256_GCM_SHA384
+Server public key is 2048 bit
+Secure Renegotiation IS NOT supported
+Compression: NONE
+Expansion: NONE
+No ALPN negotiated
+Early data was not sent
+Verify return code: 0 (ok)
+---
+DONE

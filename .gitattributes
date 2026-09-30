@@ -1,0 +1,4 @@
+# Keep raw captured output unchanged, including TAP alignment whitespace.
+development/evidence/** -whitespace
+# TSV fixtures deliberately include an empty final exclusion_reason field.
+development/acceptance/suites/prepare_ctl_reference.sh whitespace=-blank-at-eol

@@ -1,0 +1,112 @@
+{
+  "base_mount": {
+    "argv": [
+      "findmnt",
+      "-T",
+      "/mnt/lima-afsadata/afs-delivery/p2-memory-lane/mount-ownerfs/std01-ownerfs-full-v11",
+      "-o",
+      "TARGET,SOURCE,FSTYPE,OPTIONS",
+      "--json"
+    ],
+    "returncode": 0,
+    "stderr": "",
+    "stdout": "{\n   \"filesystems\": [\n      {\n         \"target\": \"/mnt/lima-afsadata/afs-delivery/p2-memory-lane/mount-ownerfs\",\n         \"source\": \"afs-ownerfs\",\n         \"fstype\": \"fuse\",\n         \"options\": \"rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other\"\n      }\n   ]\n}\n"
+  },
+  "created_at": "2026-09-30T11:30:24Z",
+  "host": {
+    "argv": [
+      "hostname"
+    ],
+    "returncode": 0,
+    "stderr": "",
+    "stdout": "lima-afs-accept-a\n"
+  },
+  "lock_state_note": "acceptance.lock.json may remain PREPARING; driver readiness is not a release PASS.",
+  "meta_process": {
+    "cmdline": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane/bin/afs-meta --config /mnt/lima-afsadata/afs-delivery/p2-memory-lane/meta.toml ",
+    "exe": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane/bin/afs-meta",
+    "exe_sha256": "8d4af9c9424ee4e96cd08cba892c55d78547fc7f9149604cf680d96742066702",
+    "exists": true,
+    "pid": "169264"
+  },
+  "mount": {
+    "argv": [
+      "findmnt",
+      "-T",
+      "/mnt/lima-afsadata/afs-delivery/p2-memory-lane/mount-ownerfs",
+      "-o",
+      "TARGET,SOURCE,FSTYPE,OPTIONS",
+      "--json"
+    ],
+    "returncode": 0,
+    "stderr": "",
+    "stdout": "{\n   \"filesystems\": [\n      {\n         \"target\": \"/mnt/lima-afsadata/afs-delivery/p2-memory-lane/mount-ownerfs\",\n         \"source\": \"afs-ownerfs\",\n         \"fstype\": \"fuse\",\n         \"options\": \"rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other\"\n      }\n   ]\n}\n"
+  },
+  "platform": {
+    "gid": 0,
+    "machine": "aarch64",
+    "python": "3.12.3",
+    "release": "6.8.0-142-generic",
+    "system": "Linux",
+    "uid": 0
+  },
+  "process": {
+    "cmdline": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane/bin/afs-node --config /mnt/lima-afsadata/afs-delivery/p2-memory-lane/node.toml ",
+    "exe": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane/bin/afs-node",
+    "exe_sha256": "bd25c7e3b3f3e0d4eca4ed26099d3410691d433097a53ef65bceb1b02eec5364",
+    "exists": true,
+    "pid": "169294"
+  },
+  "product": {
+    "backend": "ownerfs",
+    "base_dir": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane/mount-ownerfs/std01-ownerfs-full-v11",
+    "meta": "memory",
+    "meta_process_pid": "169264",
+    "mount_path": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane/mount-ownerfs",
+    "process_pid": "169294",
+    "single_backend_selection": true,
+    "transport": null
+  },
+  "suite": {
+    "executable": "/mnt/lima-afsadata/afs-acceptance/suites-reference/src/pjdfstest/pjdfstest",
+    "executable_exists": true,
+    "executable_sha256": "83f27ae21a4de5c2dabc447238c83f21c1a17558e61762ec52fe7ffbcf61f780",
+    "expected_revision": "d25636a227606f8960e5179741d8f4ad7030ef41",
+    "git_head": "d25636a227606f8960e5179741d8f4ad7030ef41",
+    "git_head_command": {
+      "argv": [
+        "git",
+        "-C",
+        "/mnt/lima-afsadata/afs-acceptance/suites-reference/src/pjdfstest",
+        "rev-parse",
+        "HEAD"
+      ],
+      "returncode": 0,
+      "stderr": "",
+      "stdout": "d25636a227606f8960e5179741d8f4ad7030ef41\n"
+    },
+    "git_status_command": {
+      "argv": [
+        "git",
+        "-C",
+        "/mnt/lima-afsadata/afs-acceptance/suites-reference/src/pjdfstest",
+        "status",
+        "--porcelain"
+      ],
+      "returncode": 0,
+      "stderr": "",
+      "stdout": "?? configure~\n"
+    },
+    "git_status_porcelain": "?? configure~\n",
+    "suite_root": "/mnt/lima-afsadata/afs-acceptance/suites-reference/src/pjdfstest"
+  },
+  "uname": {
+    "argv": [
+      "uname",
+      "-a"
+    ],
+    "returncode": 0,
+    "stderr": "",
+    "stdout": "Linux lima-afs-accept-a 6.8.0-142-generic #142-Ubuntu SMP PREEMPT_DYNAMIC Wed Sep  2 14:30:29 UTC 2026 aarch64 aarch64 aarch64 GNU/Linux\n"
+  }
+}

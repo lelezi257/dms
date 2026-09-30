@@ -1,0 +1,4 @@
+# Compatibility template: DFS and OwnerFs run inside the same afs-node process.
+# The installer writes node.toml as the authoritative generated config.
+# Use afs-processctl start dfs only to start/verify the shared node DFS mount.
+include = "node.toml"

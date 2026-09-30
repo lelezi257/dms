@@ -1,6 +1,6 @@
 #![cfg(feature = "rdma")]
 
-use afs_transport::rdma::RdmaEndpoint;
+use afs_transport::rdma::{MAX_CAPACITY, RdmaEndpoint};
 
 fn rdma_device() -> Option<String> {
     std::env::var("AFS_TEST_RDMA_DEVICE")
@@ -9,8 +9,12 @@ fn rdma_device() -> Option<String> {
 }
 
 fn connected_pair(device: &str) -> (RdmaEndpoint, RdmaEndpoint) {
-    let mut client = RdmaEndpoint::open(device).expect("client endpoint");
-    let mut server = RdmaEndpoint::open(device).expect("server endpoint");
+    connected_pair_with_capacity(device, afs_transport::rdma::CAPACITY)
+}
+
+fn connected_pair_with_capacity(device: &str, capacity: usize) -> (RdmaEndpoint, RdmaEndpoint) {
+    let mut client = RdmaEndpoint::open_with_capacity(device, capacity).expect("client endpoint");
+    let mut server = RdmaEndpoint::open_with_capacity(device, capacity).expect("server endpoint");
     let client_info = client.info().expect("client descriptor");
     let server_info = server.info().expect("server descriptor");
 
@@ -80,4 +84,29 @@ fn rdma_probe_rejects_duplicate_send() {
         .send_probe(5000)
         .expect_err("second probe send must be rejected");
     assert!(error.to_string().contains("probe already sent"));
+}
+
+#[test]
+#[ignore = "requires AFS_TEST_RDMA_DEVICE with a working RXE/RDMA device"]
+fn rdma_probe_transfers_max_capacity_payload() {
+    let device = rdma_device().expect("explicit RXE tests require AFS_TEST_RDMA_DEVICE");
+    let (mut client, mut server) = connected_pair_with_capacity(&device, MAX_CAPACITY);
+
+    client.send_probe(5000).expect("client probe send");
+    server.wait_probe(5000).expect("server probe receive");
+
+    let mut payload = vec![0_u8; MAX_CAPACITY];
+    payload[0] = b'a';
+    payload[MAX_CAPACITY / 2] = b'b';
+    payload[MAX_CAPACITY - 1] = b'c';
+    client
+        .put_local(&payload)
+        .expect("client puts 4MiB payload");
+    server
+        .transfer_read(MAX_CAPACITY)
+        .expect("server reads full endpoint capacity");
+    let received = server.get_local(MAX_CAPACITY).expect("server local bytes");
+    assert_eq!(received[0], b'a');
+    assert_eq!(received[MAX_CAPACITY / 2], b'b');
+    assert_eq!(received[MAX_CAPACITY - 1], b'c');
 }

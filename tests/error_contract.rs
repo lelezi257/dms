@@ -75,6 +75,9 @@ async fn rest_body_and_posix_errno_preserve_meaning() {
         (IO_TIMEOUT, 504, libc::ETIMEDOUT),
         (IO_OUT_OF_MEMORY, 429, libc::ENOMEM),
         (IO_BAD_FILE_DESCRIPTOR, 412, libc::EBADF),
+        (IO_NAME_TOO_LONG, 400, libc::ENAMETOOLONG),
+        (IO_TOO_MANY_SYMLINKS, 412, libc::ELOOP),
+        (IO_FILE_TOO_LARGE, 400, libc::EFBIG),
         (NODE_OWNER_STALE_ACCESS, 412, libc::ESTALE),
         (NODE_OWNER_STALE_HANDLE, 412, libc::ESTALE),
     ] {
@@ -108,4 +111,23 @@ async fn meta_grpc_keeps_native_validation_code() {
         afs_transport::grpc::error_status::status_to_error(status).code(),
         META_CATALOG_INVALID_REQUEST
     );
+}
+
+#[cfg(target_os = "linux")]
+#[tokio::test]
+async fn linux_raw_errno_preserves_posix_file_errors() {
+    for (raw, code, errno) in [
+        (9, IO_BAD_FILE_DESCRIPTOR, libc::EBADF),
+        (4, IO_INTERRUPTED, libc::EINTR),
+        (11, IO_WOULD_BLOCK, libc::EAGAIN),
+        (35, IO_DEADLOCK, libc::EDEADLK),
+        (37, IO_NO_LOCKS, libc::ENOLCK),
+        (27, IO_FILE_TOO_LARGE, libc::EFBIG),
+        (36, IO_NAME_TOO_LONG, libc::ENAMETOOLONG),
+        (40, IO_TOO_MANY_SYMLINKS, libc::ELOOP),
+    ] {
+        let error = Error::from(std::io::Error::from_raw_os_error(raw));
+        assert_eq!(error.code(), code);
+        assert_eq!(afs::error::errno(&error), errno);
+    }
 }

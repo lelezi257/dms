@@ -1,44 +1,64 @@
 //! DistributedFs POSIX backend for the first local R=1 vertical slice.
 //!
 //! Open handles are process-local identities. Mutable file contents live in an
-//! inode-level dirty view shared by every writable handle for that inode. A
+//! inode-level dirty view shared by every handle in this mount for that inode. A
 //! normal `write` changes that dirty view and the local visibility sequence;
 //! explicit `fdatasync`/`fsync` turns the dirty view into immutable Chunk data
-//! and asks Meta to publish a new FileVersion. `flush` reports already known
-//! background writeback errors, and `release` only drops the handle.
+//! and asks Meta to publish a new FileVersion. Writable `flush` commits prior
+//! writes before reporting close success; `release` only drops the handle.
 
 use std::{
-    collections::HashMap,
-    ffi::OsStr,
+    collections::{HashMap, HashSet},
+    ffi::{OsStr, OsString},
+    os::unix::ffi::OsStringExt,
     sync::{
         Arc, Condvar, Mutex,
-        atomic::{AtomicU64, Ordering},
+        atomic::{AtomicBool, AtomicU64, Ordering},
     },
-    time::{SystemTime, UNIX_EPOCH},
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
 use afs_error::{Error, Result};
 
 use super::{
     Backend,
+    locks::{LockError, LockRequest, LockTable, LockWaiterId, LockWaiterOutcome},
     types::{
-        AttributeChange, BackendInode, CreatedFile, Entry, FileAttributes, FileHandle, FileKind,
-        RequestContext, SyncMode,
+        AttributeChange, BackendInode, CreatedFile, DirectoryEntry, DirectoryHandle, Entry,
+        FileAttributes, FileHandle, FileKind, FileLockConflict, FileLockKind, FileLockOwner,
+        FileLockRange, FileLockType, OpenOptions, ReleaseKind, RenameFlags, RequestContext,
+        SetAttrOptions, SpecialFileKind, SyncMode, WriteOptions,
     },
 };
 use crate::{
     dfs::{
-        CommitFileVersion, CommitMetadataDelta, CommitMetadataMode, DfsWriteSessionId, Extent,
-        FileVersion, FileVersionId, InodeAttributes, InodeId, InodeKind, InodeRecord, LayoutRoot,
-        LayoutRootId, NamespaceId, OperationId, SyncInodeMetadata, WriteLease,
+        CallerContext, CommitFileVersion, CommitMetadataDelta, CommitMetadataMode, DentryRecord,
+        DfsWriteSessionId, Extent, FileVersion, FileVersionId, GetXattrRequest, InodeAttrUpdate,
+        InodeAttributes, InodeId, InodeKind, InodeRecord, LayoutRoot, LayoutRootId,
+        ListXattrRequest, MknodRequest, NamespaceId, OperationId, ReadLinkRequest,
+        RemoveXattrRequest, RenameMode, RenameOutcome, SetInodeAttrRequest, SetXattrRequest,
+        SpecialNodeKind, SymlinkRequest, SyncInodeMetadata, WriteLease, XattrSetMode,
     },
     node::chunk::{ChunkBuilder, ChunkStore, StagedChunk},
     node::dfs_read::{ChunkReadOp, DfsReadEngine, ReadBatch},
+    node::rpc::peer::RemoteDfsOwner,
 };
 
 pub const DFS_WRITE_LEASE_SECONDS: u64 = 30;
+pub const DEFAULT_DIRTY_DATA_BUDGET_BYTES: u64 = 16 * 1024 * 1024;
 const ROOT_INODE: u64 = 1;
-const COMMIT_CHUNK_BYTES: u64 = 4 * 1024 * 1024;
+const COMMIT_CHUNK_BYTES: u64 = crate::node::chunk::MAX_STAGED_CHUNK_BYTES as u64;
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct DfsNodeLocation {
+    pub node_id: String,
+    pub node_epoch: u64,
+    pub data_endpoint: String,
+}
+
+pub trait DfsRemoteOwnerFactory: Send + Sync {
+    fn connect(&self, location: DfsNodeLocation) -> Result<Arc<dyn RemoteDfsOwner>>;
+}
 
 pub trait DfsMeta: Send + Sync {
     fn lookup(&self, parent: &InodeId, name: &[u8]) -> Result<Option<InodeRecord>>;
@@ -55,6 +75,61 @@ pub trait DfsMeta: Send + Sync {
     fn renew_write_lease(&self, lease: WriteLease) -> Result<WriteLease>;
     fn sync_inode_metadata(&self, sync: SyncInodeMetadata) -> Result<InodeRecord>;
     fn commit_file_version(&self, commit: CommitFileVersion) -> Result<InodeRecord>;
+    fn lookup_node_location(&self, node_id: &str) -> Result<Option<DfsNodeLocation>>;
+    fn current_node_session(&self, node_id: &str) -> Result<Option<String>>;
+
+    fn mkdir(
+        &self,
+        operation_id: &OperationId,
+        parent: &InodeId,
+        name: &[u8],
+        attributes: InodeAttributes,
+        caller: CallerContext,
+    ) -> Result<InodeRecord>;
+    fn read_dir(&self, parent: &InodeId) -> Result<Vec<DentryRecord>>;
+    fn link(
+        &self,
+        operation_id: &OperationId,
+        inode_id: &InodeId,
+        expected_inode_revision: u64,
+        parent: &InodeId,
+        name: &[u8],
+        caller: CallerContext,
+    ) -> Result<InodeRecord>;
+    fn symlink(&self, request: SymlinkRequest) -> Result<InodeRecord>;
+    fn mknod(&self, request: MknodRequest) -> Result<InodeRecord>;
+    fn read_link(&self, request: ReadLinkRequest) -> Result<Vec<u8>>;
+    fn unlink(
+        &self,
+        operation_id: &OperationId,
+        parent: &InodeId,
+        name: &[u8],
+        caller: CallerContext,
+    ) -> Result<InodeRecord>;
+    fn rmdir(
+        &self,
+        operation_id: &OperationId,
+        parent: &InodeId,
+        name: &[u8],
+        caller: CallerContext,
+    ) -> Result<InodeRecord>;
+    #[allow(clippy::too_many_arguments)] // Mirrors the authenticated Meta rename contract.
+    fn rename(
+        &self,
+        operation_id: &OperationId,
+        old_parent: &InodeId,
+        old_name: &[u8],
+        new_parent: &InodeId,
+        new_name: &[u8],
+        mode: RenameMode,
+        caller: CallerContext,
+    ) -> Result<RenameOutcome>;
+
+    fn set_inode_attributes(&self, request: SetInodeAttrRequest) -> Result<InodeRecord>;
+    fn get_xattr(&self, request: GetXattrRequest) -> Result<Vec<u8>>;
+    fn list_xattr(&self, request: ListXattrRequest) -> Result<Vec<Vec<u8>>>;
+    fn set_xattr(&self, request: SetXattrRequest) -> Result<InodeRecord>;
+    fn remove_xattr(&self, request: RemoveXattrRequest) -> Result<InodeRecord>;
 }
 
 type SharedInodeWriteState = Arc<InodeWriteStateCell>;
@@ -71,8 +146,21 @@ pub struct DistributedFs {
     meta: Arc<dyn DfsMeta>,
     chunk_store: Arc<dyn ChunkStore>,
     read_engine: Arc<DfsReadEngine>,
+    remote_owner_factory: Option<Arc<dyn DfsRemoteOwnerFactory>>,
     handles: Mutex<HashMap<u64, DfsFileHandle>>,
+    dir_handles: Mutex<HashMap<u64, DfsDirectoryHandle>>,
     inode_writes: Mutex<HashMap<InodeId, SharedInodeWriteState>>,
+    remote_inode_providers: Mutex<HashMap<InodeId, RemoteDfsWriteSession>>,
+    lock_authorities: Mutex<HashMap<InodeId, Arc<DfsLockAuthority>>>,
+    lock_renewal: Arc<DfsLockRenewal>,
+    remote_lock_authorities: Mutex<HashMap<InodeId, DfsRemoteLockAuthority>>,
+    remote_lock_authority_sessions: Mutex<HashMap<InodeId, HashMap<String, usize>>>,
+    remote_lock_waiters: Mutex<HashMap<LockWaiterId, DfsRemoteLockAuthority>>,
+    cancelled_remote_lock_waiters: Mutex<HashSet<LockWaiterId>>,
+    closed_lock_sessions: Mutex<HashSet<String>>,
+    closed_lock_session_admission_closed: AtomicBool,
+    remote_operation_results: Mutex<HashMap<RemoteOperationKey, RemoteOperationResult>>,
+    dirty_budget_bytes: u64,
     inode_to_backend: Mutex<HashMap<InodeId, u64>>,
     backend_to_inode: Mutex<HashMap<u64, InodeId>>,
     next_inode: AtomicU64,
@@ -83,17 +171,229 @@ pub struct DistributedFs {
 struct DfsFileHandle {
     inode_id: InodeId,
     opened_inode: InodeRecord,
-    opened_version: Option<OpenedFileVersion>,
-    write_session: Option<DfsWriteSession>,
+    write_session: Option<DfsRemoteWriteSession>,
     flags: i32,
 }
 
-#[derive(Clone)]
-struct OpenedFileVersion {
-    version: Option<FileVersion>,
-    layout: LayoutRoot,
-    length: u64,
+struct DfsDirectoryHandle {
+    entries: Vec<DirectoryEntry>,
 }
+
+struct DfsLockAuthority {
+    table: LockTable,
+    state: Mutex<DfsLockAuthorityState>,
+}
+
+struct DfsLockAuthorityState {
+    lease: WriteLease,
+    pinned_owners: HashSet<FileLockOwner>,
+    waiters: HashSet<LockWaiterId>,
+    last_error: Option<Error>,
+}
+
+struct DfsLockRenewal {
+    authorities: Arc<Mutex<HashMap<InodeId, Arc<DfsLockAuthority>>>>,
+    running: Arc<AtomicBool>,
+}
+
+#[derive(Clone)]
+struct DfsRemoteLockAuthority {
+    owner: Arc<dyn RemoteDfsOwner>,
+    authority: afs_protocol::node_control::DfsOwnerLockAuthority,
+}
+
+enum DfsLockTarget {
+    Local(Arc<DfsLockAuthority>),
+    Remote(DfsRemoteLockAuthority),
+}
+
+impl DfsLockAuthority {
+    fn new(lease: WriteLease) -> Self {
+        Self {
+            table: LockTable::default(),
+            state: Mutex::new(DfsLockAuthorityState {
+                lease,
+                pinned_owners: HashSet::new(),
+                waiters: HashSet::new(),
+                last_error: None,
+            }),
+        }
+    }
+}
+
+impl DfsLockRenewal {
+    fn new() -> Self {
+        Self {
+            authorities: Arc::new(Mutex::new(HashMap::new())),
+            running: Arc::new(AtomicBool::new(false)),
+        }
+    }
+
+    fn track(&self, inode_id: InodeId, authority: Arc<DfsLockAuthority>) -> Result<()> {
+        let mut authorities = self
+            .authorities
+            .lock()
+            .map_err(|_| unavailable("DFS lock renewal registry is poisoned"))?;
+        authorities.insert(inode_id, authority);
+        Ok(())
+    }
+
+    fn untrack_if_current(
+        &self,
+        inode_id: &InodeId,
+        authority: &Arc<DfsLockAuthority>,
+    ) -> Result<bool> {
+        let mut authorities = self
+            .authorities
+            .lock()
+            .map_err(|_| unavailable("DFS lock renewal registry is poisoned"))?;
+        let should_remove = authorities
+            .get(inode_id)
+            .is_some_and(|current| Arc::ptr_eq(current, authority));
+        if should_remove {
+            authorities.remove(inode_id);
+        }
+        Ok(should_remove)
+    }
+
+    fn stop(&self) {
+        self.running.store(false, Ordering::Release);
+        if let Ok(mut authorities) = self.authorities.lock() {
+            for authority in authorities.values() {
+                let _ = authority.table.invalidate();
+                if let Ok(mut state) = authority.state.lock() {
+                    state.last_error = Some(stale("DFS lock renewal stopped"));
+                    state.pinned_owners.clear();
+                    state.waiters.clear();
+                }
+            }
+            authorities.clear();
+        }
+    }
+
+    fn start(&self, meta: Arc<dyn DfsMeta>) {
+        if self.running.swap(true, Ordering::AcqRel) {
+            return;
+        }
+        let authorities = self.authorities.clone();
+        let running = self.running.clone();
+        // The thread is intentionally one per DistributedFs instance, not one per inode.
+        std::thread::spawn(move || {
+            while running.load(Ordering::Acquire) {
+                std::thread::sleep(Duration::from_secs((DFS_WRITE_LEASE_SECONDS / 3).max(1)));
+                if !running.load(Ordering::Acquire) {
+                    break;
+                }
+                let entries = match authorities.lock() {
+                    Ok(map) => map
+                        .iter()
+                        .map(|(inode_id, authority)| (inode_id.clone(), authority.clone()))
+                        .collect::<Vec<_>>(),
+                    Err(_) => return,
+                };
+                let mut idle = Vec::new();
+                for (inode_id, authority) in entries {
+                    let (active, lease) = match authority.state.lock() {
+                        Ok(state) => {
+                            let active =
+                                !state.pinned_owners.is_empty() || !state.waiters.is_empty();
+                            (active, state.lease.clone())
+                        }
+                        Err(_) => return,
+                    };
+                    if !active && authority.table.is_idle().unwrap_or(false) {
+                        idle.push((inode_id, authority));
+                        continue;
+                    }
+                    if !active && !should_renew(&lease) {
+                        continue;
+                    }
+                    match meta.renew_write_lease(lease) {
+                        Ok(renewed) => {
+                            if let Ok(mut state) = authority.state.lock() {
+                                state.lease = renewed;
+                                state.last_error = None;
+                            } else {
+                                return;
+                            }
+                        }
+                        Err(error) => {
+                            let _ = authority.table.invalidate();
+                            if let Ok(mut state) = authority.state.lock() {
+                                state.last_error = Some(error);
+                                state.pinned_owners.clear();
+                                state.waiters.clear();
+                            } else {
+                                return;
+                            }
+                        }
+                    }
+                }
+                if !idle.is_empty() {
+                    if let Ok(mut map) = authorities.lock() {
+                        for (inode_id, authority) in idle {
+                            let current_is_idle = map.get(&inode_id).is_some_and(|current| {
+                                Arc::ptr_eq(current, &authority)
+                                    && Arc::strong_count(current) <= 2
+                                    && current.table.is_idle().unwrap_or(false)
+                            });
+                            if current_is_idle {
+                                map.remove(&inode_id);
+                            }
+                        }
+                    } else {
+                        running.store(false, Ordering::Release);
+                        return;
+                    }
+                }
+            }
+            running.store(false, Ordering::Release);
+        });
+    }
+}
+
+#[derive(Clone)]
+struct RemoteDfsWriteSession {
+    owner: Arc<dyn RemoteDfsOwner>,
+    handle: afs_protocol::node_control::DfsOwnerHandle,
+}
+
+#[derive(Clone)]
+struct DfsRemoteWriteSession {
+    local: DfsWriteSession,
+    remote: Option<RemoteDfsWriteSession>,
+}
+
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+struct RemoteOperationKey {
+    peer: String,
+    caller_session_id: String,
+    operation_id: OperationId,
+}
+
+#[derive(Clone)]
+enum RemoteOperationResult {
+    Write {
+        fingerprint: [u8; 32],
+        reply: afs_protocol::node_data::DfsOwnerWriteReply,
+    },
+    Resize {
+        fingerprint: [u8; 32],
+        reply: afs_protocol::node_data::DfsOwnerResizeReply,
+    },
+    Sync {
+        fingerprint: [u8; 32],
+        reply: afs_protocol::node_data::DfsOwnerSyncReply,
+    },
+}
+
+const MAX_REMOTE_OPERATION_RESULTS: usize = 4096;
+const MAX_LOCK_AUTHORITIES: usize = 8192;
+const MAX_REMOTE_LOCK_AUTHORITIES: usize = 8192;
+const MAX_REMOTE_LOCK_WAITERS: usize = 4096;
+const MAX_CLOSED_LOCK_SESSIONS: usize = 4096;
+const REMOTE_LOCK_SESSION_PENDING_CLOSE: usize = 0;
+const REMOTE_LOCK_SESSION_ACTIVE: usize = 1;
 
 #[derive(Clone)]
 pub struct DfsWriteSession {
@@ -113,9 +413,11 @@ struct InodeWriteState {
     base_layout: LayoutRoot,
     logical_length: u64,
     metadata_dirty: bool,
+    kill_suidgid_dirty: bool,
     dirty_extents: DirtyExtentMap,
     in_flight: Option<InFlightCommit>,
     commit_busy: bool,
+    operation_busy: bool,
     dirty: bool,
     next_write_seq: u64,
     visible_write_seq: u64,
@@ -131,6 +433,19 @@ struct InodeWriteState {
 struct ObservedWriteError {
     cursor: u64,
     error: Error,
+}
+
+struct InodeOperationGuard {
+    cell: SharedInodeWriteState,
+}
+
+impl Drop for InodeOperationGuard {
+    fn drop(&mut self) {
+        if let Ok(mut state) = self.cell.lock() {
+            state.operation_busy = false;
+            self.cell.notify_all();
+        }
+    }
 }
 
 #[derive(Clone)]
@@ -155,6 +470,7 @@ struct FrozenCommit {
     base_version: Option<FileVersion>,
     base_layout: LayoutRoot,
     dirty_extents: DirtyExtentMap,
+    kill_suidgid_dirty: bool,
 }
 
 #[derive(Clone)]
@@ -204,7 +520,9 @@ enum AppliedCommit {
 #[derive(Clone, Copy)]
 enum CommitReason {
     DataSync,
+    DirtyBudget,
     FullSync,
+    Close,
     Background,
     LastWriter,
     NodeDrain,
@@ -260,14 +578,32 @@ impl DistributedFs {
             meta,
             chunk_store,
             read_engine,
+            remote_owner_factory: None,
             handles: Mutex::new(HashMap::new()),
+            dir_handles: Mutex::new(HashMap::new()),
             inode_writes: Mutex::new(HashMap::new()),
+            remote_inode_providers: Mutex::new(HashMap::new()),
+            lock_authorities: Mutex::new(HashMap::new()),
+            lock_renewal: Arc::new(DfsLockRenewal::new()),
+            remote_lock_authorities: Mutex::new(HashMap::new()),
+            remote_lock_authority_sessions: Mutex::new(HashMap::new()),
+            remote_lock_waiters: Mutex::new(HashMap::new()),
+            cancelled_remote_lock_waiters: Mutex::new(HashSet::new()),
+            closed_lock_sessions: Mutex::new(HashSet::new()),
+            closed_lock_session_admission_closed: AtomicBool::new(false),
+            remote_operation_results: Mutex::new(HashMap::new()),
+            dirty_budget_bytes: DEFAULT_DIRTY_DATA_BUDGET_BYTES,
             inode_to_backend: Mutex::new(HashMap::from([(InodeId::new("1"), ROOT_INODE)])),
             backend_to_inode: Mutex::new(HashMap::from([(ROOT_INODE, InodeId::new("1"))])),
             next_inode: AtomicU64::new(ROOT_INODE + 1),
             next_handle: AtomicU64::new(1),
             next_operation: AtomicU64::new(1),
         }
+    }
+
+    pub fn with_dirty_budget_bytes(mut self, budget: u64) -> Self {
+        self.dirty_budget_bytes = budget.max(1);
+        self
     }
 
     fn operation_id(&self, prefix: &str) -> OperationId {
@@ -285,13 +621,23 @@ impl DistributedFs {
         Ok(inode)
     }
 
-    fn inode_size(&self, inode: &InodeRecord) -> Result<u64> {
+    fn inode_size_and_blocks(&self, inode: &InodeRecord) -> Result<(u64, u64)> {
         match inode.head_version.as_ref() {
-            Some(version_id) => self
-                .meta
-                .get_file_version(version_id)
-                .map(|(version, _)| version.length),
-            None => Ok(0),
+            Some(version_id) => {
+                let (version, layout) = self.meta.get_file_version(version_id)?;
+                Ok((
+                    version.length,
+                    allocated_blocks(&layout, version.length, None, &DirtyExtentMap::default())?,
+                ))
+            }
+            None if inode.kind == InodeKind::Symlink => Ok((
+                inode
+                    .symlink_target
+                    .as_ref()
+                    .map_or(0, |target| target.len() as u64),
+                0,
+            )),
+            None => Ok((0, 0)),
         }
     }
 
@@ -326,6 +672,17 @@ impl DistributedFs {
         Ok(BackendInode { value })
     }
 
+    fn directory_entry(&self, entry: DentryRecord) -> Result<DirectoryEntry> {
+        let inode = self.validate_inode(entry.inode)?;
+        let kind = file_kind(inode.kind);
+        Ok(DirectoryEntry {
+            name: OsString::from_vec(entry.name),
+            inode: self.backend_inode(&inode.inode_id)?,
+            kind,
+            next_cookie: 0,
+        })
+    }
+
     fn allocate_handle(&self, handle: DfsFileHandle) -> Result<FileHandle> {
         let id = self.next_handle.fetch_add(1, Ordering::Relaxed);
         self.handles
@@ -354,16 +711,6 @@ impl DistributedFs {
             .map(|(version, layout)| (Some(version), layout))
     }
 
-    fn opened_version(&self, inode: &InodeRecord) -> Result<OpenedFileVersion> {
-        let (version, layout) = self.load_version(inode.head_version.as_ref())?;
-        let length = version.as_ref().map_or(0, |version| version.length);
-        Ok(OpenedFileVersion {
-            version,
-            layout,
-            length,
-        })
-    }
-
     fn write_state(&self, inode_id: &InodeId) -> Result<Option<SharedInodeWriteState>> {
         Ok(self
             .inode_writes
@@ -386,9 +733,11 @@ impl DistributedFs {
             base_layout,
             logical_length,
             metadata_dirty: false,
+            kill_suidgid_dirty: false,
             dirty_extents: DirtyExtentMap::default(),
             in_flight: None,
             commit_busy: false,
+            operation_busy: false,
             inode: inode.clone(),
             dirty: false,
             next_write_seq: 0,
@@ -422,6 +771,11 @@ impl DistributedFs {
         Ok(state)
     }
 
+    pub fn with_remote_owner_factory(mut self, factory: Arc<dyn DfsRemoteOwnerFactory>) -> Self {
+        self.remote_owner_factory = Some(factory);
+        self
+    }
+
     fn open_write_session(&self, inode: &InodeRecord, open_flags: i32) -> Result<DfsWriteSession> {
         let state = self.ensure_inode_write_state(inode)?;
         let mut state = state
@@ -442,75 +796,137 @@ impl DistributedFs {
 
     fn visible_attributes(&self, inode: &InodeRecord) -> Result<FileAttributes> {
         let Some(state) = self.write_state(&inode.inode_id)? else {
-            return Ok(attributes(inode, self.inode_size(inode)?));
+            let (size, blocks) = self.inode_size_and_blocks(inode)?;
+            return Ok(attributes(inode, size, blocks));
         };
         let state = state
             .lock()
             .map_err(|_| unavailable("DFS inode write state is poisoned"))?;
-        Ok(attributes(&state.inode, state.logical_length))
+        let frozen = state
+            .in_flight
+            .as_ref()
+            .and_then(InFlightCommit::dirty_extents);
+        let blocks = allocated_blocks(
+            &state.base_layout,
+            state.logical_length,
+            frozen.as_ref(),
+            &state.dirty_extents,
+        )?;
+        Ok(attributes(&state.inode, state.logical_length, blocks))
     }
 
-    fn read_visible(
+    fn clear_kernel_write_privileges(mode: u32) -> u32 {
+        let mut cleared = mode & !0o4000;
+        if mode & 0o010 != 0 {
+            cleared &= !0o2000;
+        }
+        cleared
+    }
+
+    fn apply_kernel_killpriv_to_state(state: &mut InodeWriteState) {
+        let cleared = Self::clear_kernel_write_privileges(state.inode.attributes.mode);
+        if cleared != state.inode.attributes.mode {
+            state.inode.attributes.mode = cleared;
+            state.inode.attributes.ctime_unix_ms = now_unix_ms();
+            state.metadata_dirty = true;
+            state.kill_suidgid_dirty = true;
+        }
+    }
+
+    fn has_pending_killpriv(&self, inode_id: &InodeId) -> Result<bool> {
+        let Some(state) = self.write_state(inode_id)? else {
+            return Ok(false);
+        };
+        let state = state
+            .lock()
+            .map_err(|_| unavailable("DFS inode write state is poisoned"))?;
+        Ok(state.kill_suidgid_dirty)
+    }
+
+    fn refresh_inode_record(
         &self,
-        inode_id: &InodeId,
-        committed: Option<&FileVersionId>,
-        offset: u64,
-        out: &mut [u8],
-    ) -> Result<usize> {
-        let (length, layout, frozen, active) = if let Some(state) = self.write_state(inode_id)? {
-            let state = state
+        inode: InodeRecord,
+        preserve_dirty_atime: bool,
+        preserve_dirty_mtime: bool,
+    ) -> Result<InodeRecord> {
+        let mut inode = self.validate_inode(inode)?;
+        if let Some(state) = self.write_state(&inode.inode_id)? {
+            let mut state = state
                 .lock()
                 .map_err(|_| unavailable("DFS inode write state is poisoned"))?;
-            (
-                state.logical_length,
-                state.base_layout.clone(),
-                state
-                    .in_flight
-                    .as_ref()
-                    .and_then(InFlightCommit::dirty_extents),
-                state.dirty_extents.clone(),
-            )
-        } else {
-            let (version, layout) = self.load_version(committed)?;
-            (
-                version.as_ref().map_or(0, |value| value.length),
-                layout,
-                None,
-                DirtyExtentMap::default(),
-            )
-        };
+            if state.metadata_dirty {
+                if preserve_dirty_atime {
+                    inode.attributes.atime_unix_ms = state.inode.attributes.atime_unix_ms;
+                }
+                if preserve_dirty_mtime {
+                    inode.attributes.mtime_unix_ms = state.inode.attributes.mtime_unix_ms;
+                }
+                inode.attributes.ctime_unix_ms = inode
+                    .attributes
+                    .ctime_unix_ms
+                    .max(state.inode.attributes.ctime_unix_ms);
+            }
+            if state.kill_suidgid_dirty {
+                inode.attributes.mode = state.inode.attributes.mode;
+            }
+            state.inode = inode.clone();
+        }
+        let mut handles = self
+            .handles
+            .lock()
+            .map_err(|_| unavailable("DFS handle table is poisoned"))?;
+        for handle in handles
+            .values_mut()
+            .filter(|handle| handle.inode_id == inode.inode_id)
+        {
+            handle.opened_inode = inode.clone();
+        }
+        Ok(inode)
+    }
+
+    fn read_visible(&self, inode_id: &InodeId, offset: u64, out: &mut [u8]) -> Result<usize> {
+        // The base version and its layout must come from the same owner-state
+        // snapshot. An open handle identifies an inode, not a lifetime version.
+        let (committed, length, layout, frozen, active) =
+            if let Some(state) = self.write_state(inode_id)? {
+                let state = state
+                    .lock()
+                    .map_err(|_| unavailable("DFS inode write state is poisoned"))?;
+                (
+                    state
+                        .base_version
+                        .as_ref()
+                        .map(|version| version.id.clone()),
+                    state.logical_length,
+                    state.base_layout.clone(),
+                    state
+                        .in_flight
+                        .as_ref()
+                        .and_then(InFlightCommit::dirty_extents),
+                    state.dirty_extents.clone(),
+                )
+            } else {
+                let inode = self.validate_inode(self.meta.get_inode(inode_id)?)?;
+                let (version, layout) = self.load_version(inode.head_version.as_ref())?;
+                (
+                    version.as_ref().map(|version| version.id.clone()),
+                    version.as_ref().map_or(0, |value| value.length),
+                    layout,
+                    None,
+                    DirtyExtentMap::default(),
+                )
+            };
         if offset >= length || out.is_empty() {
             return Ok(0);
         }
         let count = usize::try_from((length - offset).min(out.len() as u64))
             .map_err(|_| invalid("read length is too large"))?;
         out[..count].fill(0);
-        self.read_layout_range(committed, &layout, offset, &mut out[..count])?;
+        self.read_layout_range(committed.as_ref(), &layout, offset, &mut out[..count])?;
         if let Some(frozen) = frozen {
             frozen.overlay(offset, &mut out[..count])?;
         }
         active.overlay(offset, &mut out[..count])?;
-        Ok(count)
-    }
-
-    fn read_opened_version(
-        &self,
-        opened: &OpenedFileVersion,
-        offset: u64,
-        out: &mut [u8],
-    ) -> Result<usize> {
-        if offset >= opened.length || out.is_empty() {
-            return Ok(0);
-        }
-        let count = usize::try_from((opened.length - offset).min(out.len() as u64))
-            .map_err(|_| invalid("read length is too large"))?;
-        out[..count].fill(0);
-        self.read_layout_range(
-            opened.version.as_ref().map(|version| &version.id),
-            &opened.layout,
-            offset,
-            &mut out[..count],
-        )?;
         Ok(count)
     }
 
@@ -581,6 +997,23 @@ impl DistributedFs {
     }
 
     fn commit_inode(&self, inode_id: &InodeId, reason: CommitReason) -> Result<Option<u64>> {
+        self.commit_inode_with_operation_gate(inode_id, reason, true)
+    }
+
+    fn commit_inode_inside_operation(
+        &self,
+        inode_id: &InodeId,
+        reason: CommitReason,
+    ) -> Result<Option<u64>> {
+        self.commit_inode_with_operation_gate(inode_id, reason, false)
+    }
+
+    fn commit_inode_with_operation_gate(
+        &self,
+        inode_id: &InodeId,
+        reason: CommitReason,
+        wait_for_operation: bool,
+    ) -> Result<Option<u64>> {
         let Some(cell) = self.write_state(inode_id)? else {
             return Ok(None);
         };
@@ -594,7 +1027,7 @@ impl DistributedFs {
                 let mut state = cell
                     .lock()
                     .map_err(|_| unavailable("DFS inode write state is poisoned"))?;
-                while state.commit_busy {
+                while state.commit_busy || wait_for_operation && state.operation_busy {
                     state = cell
                         .wait(state)
                         .map_err(|_| unavailable("DFS inode write state is poisoned"))?;
@@ -618,7 +1051,8 @@ impl DistributedFs {
                     break CommitAction::Send(pending);
                 } else {
                     if !(state.dirty
-                        || matches!(reason, CommitReason::FullSync) && state.metadata_dirty)
+                        || matches!(reason, CommitReason::FullSync) && state.metadata_dirty
+                        || state.kill_suidgid_dirty)
                     {
                         return Ok(None);
                     }
@@ -640,6 +1074,7 @@ impl DistributedFs {
                                 mode: CommitMetadataMode::Full,
                                 mtime_unix_ms: Some(state.inode.attributes.mtime_unix_ms),
                                 ctime_unix_ms: Some(state.inode.attributes.ctime_unix_ms),
+                                kill_suidgid: state.kill_suidgid_dirty,
                             },
                         };
                         let pending = InFlightCommit::Metadata(sync);
@@ -655,6 +1090,7 @@ impl DistributedFs {
                             base_version: state.base_version.clone(),
                             base_layout: state.base_layout.clone(),
                             dirty_extents: std::mem::take(&mut state.dirty_extents),
+                            kill_suidgid_dirty: state.kill_suidgid_dirty,
                         };
                         state.in_flight = Some(InFlightCommit::Preparing(Box::new(frozen.clone())));
                         state.commit_busy = true;
@@ -706,6 +1142,8 @@ impl DistributedFs {
         cell: SharedInodeWriteState,
         pending: InFlightCommit,
     ) -> Result<Option<u64>> {
+        let committed_kill_suidgid = matches!(&pending, InFlightCommit::File(pending) if pending.frozen.kill_suidgid_dirty)
+            || matches!(&pending, InFlightCommit::Metadata(sync) if sync.metadata_delta.kill_suidgid);
         let result = (|| match &pending {
             InFlightCommit::Preparing(_) => Err(unavailable("DFS inode commit is still preparing")),
             InFlightCommit::File(pending) => {
@@ -762,12 +1200,16 @@ impl DistributedFs {
                 {
                     state.metadata_dirty = false;
                 }
+                if committed_kill_suidgid {
+                    state.kill_suidgid_dirty = false;
+                }
                 Ok(Some(through_seq))
             }
             Ok(AppliedCommit::Metadata { updated }) => {
                 state.in_flight = None;
                 state.inode = updated;
                 state.metadata_dirty = false;
+                state.kill_suidgid_dirty = false;
                 Ok(Some(state.committed_write_seq))
             }
             Err(error) => {
@@ -795,6 +1237,33 @@ impl DistributedFs {
         Ok(state.metadata_dirty)
     }
 
+    fn begin_inode_operation(
+        &self,
+        inode_id: &InodeId,
+        cell: SharedInodeWriteState,
+    ) -> Result<InodeOperationGuard> {
+        loop {
+            let mut state = cell
+                .lock()
+                .map_err(|_| unavailable("DFS inode write state is poisoned"))?;
+            while state.commit_busy || state.operation_busy {
+                state = cell
+                    .wait(state)
+                    .map_err(|_| unavailable("DFS inode write state is poisoned"))?;
+            }
+            if let Some(error) = state.terminal_error.clone() {
+                return Err(error);
+            }
+            if state.in_flight.is_none() {
+                state.operation_busy = true;
+                drop(state);
+                return Ok(InodeOperationGuard { cell });
+            }
+            drop(state);
+            self.commit_inode(inode_id, CommitReason::Background)?;
+        }
+    }
+
     fn lock_for_mutation<'a>(
         &self,
         inode_id: &InodeId,
@@ -804,7 +1273,7 @@ impl DistributedFs {
             let mut state = cell
                 .lock()
                 .map_err(|_| unavailable("DFS inode write state is poisoned"))?;
-            while state.commit_busy {
+            while state.commit_busy || state.operation_busy {
                 state = cell
                     .wait(state)
                     .map_err(|_| unavailable("DFS inode write state is poisoned"))?;
@@ -858,6 +1327,7 @@ impl DistributedFs {
                 metadata_delta: reason.metadata_delta(
                     frozen.inode.attributes.mtime_unix_ms,
                     frozen.inode.attributes.ctime_unix_ms,
+                    frozen.kill_suidgid_dirty,
                 ),
             },
         })
@@ -878,14 +1348,20 @@ impl DistributedFs {
             return Err(error);
         }
         let observed = state.background_error.clone();
-        let Some(observed) = observed.filter(|error| error.cursor > session.error_cursor) else {
+        let Some(observed) = observed.filter(|error| error.cursor > session.local.error_cursor)
+        else {
             return Ok(());
         };
         self.update_handle_error_cursor(handle, observed.cursor)?;
         Err(observed.error)
     }
 
-    fn resize_dirty_inode(&self, inode_id: &InodeId, length: u64) -> Result<u64> {
+    fn resize_dirty_inode(
+        &self,
+        inode_id: &InodeId,
+        length: u64,
+        kill_suidgid: bool,
+    ) -> Result<u64> {
         let state = self
             .write_state(inode_id)?
             .ok_or_else(|| stale("DFS write state is no longer open"))?;
@@ -903,6 +1379,9 @@ impl DistributedFs {
         state.inode.attributes.mtime_unix_ms = now;
         state.inode.attributes.ctime_unix_ms = now;
         state.metadata_dirty = true;
+        if kill_suidgid {
+            Self::apply_kernel_killpriv_to_state(&mut state);
+        }
         if state.open_writers == 0 && state.dirty {
             state.last_writer_background_requested = true;
         }
@@ -925,12 +1404,1018 @@ impl DistributedFs {
 
     fn ensure_local_write_owner(&self, lease: &WriteLease) -> Result<()> {
         if lease.owner_node_id != self.node_id || lease.owner_session_id != self.session_id {
-            return Err(Error::coded(
-                afs_error::NODE_VFS_UNIMPLEMENTED,
-                "DFS remote write owner routing is not implemented in this slice",
-            ));
+            return Err(stale("DFS write lease is owned by another node session"));
         }
         Ok(())
+    }
+
+    fn remote_owner(&self, lease: &WriteLease) -> Result<Arc<dyn RemoteDfsOwner>> {
+        let factory = self.remote_owner_factory.as_ref().ok_or_else(|| {
+            Error::coded(
+                afs_error::NODE_VFS_UNIMPLEMENTED,
+                "DFS remote write owner connector is not configured",
+            )
+        })?;
+        let location = self
+            .meta
+            .lookup_node_location(&lease.owner_node_id)?
+            .ok_or_else(|| stale("DFS write owner node is not registered"))?;
+        if location.node_id != lease.owner_node_id {
+            return Err(stale("DFS owner lookup returned another node"));
+        }
+        factory.connect(location)
+    }
+
+    fn open_remote_write_session(
+        &self,
+        inode: &InodeRecord,
+        lease: &WriteLease,
+        open_flags: i32,
+        options: OpenOptions,
+    ) -> Result<DfsRemoteWriteSession> {
+        let owner = self.remote_owner(lease)?;
+        let reply = owner.open(afs_protocol::node_control::DfsOwnerOpenRequest {
+            namespace_id: self.namespace_id.0.clone(),
+            inode_id: inode.inode_id.0.clone(),
+            owner_node_id: lease.owner_node_id.clone(),
+            owner_session_id: lease.owner_session_id.clone(),
+            lease_epoch: lease.lease_epoch,
+            caller_session_id: self.session_id.clone(),
+            open_flags,
+            kill_suidgid: options.kill_suidgid,
+        })?;
+        let handle = reply
+            .handle
+            .ok_or_else(|| unavailable("DFS owner open returned no handle"))?;
+        let remote = RemoteDfsWriteSession { owner, handle };
+        self.remote_inode_providers
+            .lock()
+            .map_err(|_| unavailable("DFS remote owner table is poisoned"))?
+            .insert(inode.inode_id.clone(), remote.clone());
+        Ok(DfsRemoteWriteSession {
+            local: DfsWriteSession {
+                id: DfsWriteSessionId::new(format!(
+                    "{}-remote-write-session-{}",
+                    self.session_id,
+                    self.next_operation.fetch_add(1, Ordering::Relaxed)
+                )),
+                inode_id: inode.inode_id.clone(),
+                open_flags,
+                lease_epoch: lease.lease_epoch,
+                last_accepted_seq: 0,
+                last_synced_seq: 0,
+                error_cursor: 0,
+            },
+            remote: Some(remote),
+        })
+    }
+
+    fn make_local_write_session(session: DfsWriteSession) -> DfsRemoteWriteSession {
+        DfsRemoteWriteSession {
+            local: session,
+            remote: None,
+        }
+    }
+
+    fn lock_authority_for(&self, inode_id: &InodeId) -> Result<DfsLockTarget> {
+        let (inode, lease) = self.meta.open_write(inode_id)?;
+        let inode = self.validate_inode(inode)?;
+        if inode.inode_id != *inode_id {
+            return Err(stale("DFS lock authority returned another inode"));
+        }
+        if lease.owner_node_id == self.node_id && lease.owner_session_id == self.session_id {
+            self.ensure_local_write_owner(&lease)?;
+            let authority = self.local_lock_authority(&inode.inode_id, lease)?;
+            Ok(DfsLockTarget::Local(authority))
+        } else {
+            Ok(DfsLockTarget::Remote(
+                self.remote_lock_authority(&inode.inode_id, &lease)?,
+            ))
+        }
+    }
+
+    fn existing_lock_authority_for(&self, inode_id: &InodeId) -> Result<Option<DfsLockTarget>> {
+        if let Some(authority) = self
+            .lock_authorities
+            .lock()
+            .map_err(|_| unavailable("DFS lock authority table is poisoned"))?
+            .get(inode_id)
+            .cloned()
+        {
+            return Ok(Some(DfsLockTarget::Local(authority)));
+        }
+        Ok(self
+            .remote_lock_authorities
+            .lock()
+            .map_err(|_| unavailable("DFS remote lock authority table is poisoned"))?
+            .get(inode_id)
+            .cloned()
+            .map(DfsLockTarget::Remote))
+    }
+
+    fn reclaim_idle_lock_authorities(&self) -> Result<()> {
+        let mut authorities = self
+            .lock_authorities
+            .lock()
+            .map_err(|_| unavailable("DFS lock authority table is poisoned"))?;
+        let idle = authorities
+            .iter()
+            .filter_map(|(inode_id, authority)| {
+                let idle = authority.table.is_idle().ok()?;
+                (idle && Arc::strong_count(authority) <= 2)
+                    .then(|| (inode_id.clone(), authority.clone()))
+            })
+            .collect::<Vec<_>>();
+        for (inode_id, authority) in idle {
+            let current_is_idle = authorities.get(&inode_id).is_some_and(|current| {
+                Arc::ptr_eq(current, &authority)
+                    && Arc::strong_count(current) <= 3
+                    && current.table.is_idle().unwrap_or(false)
+            });
+            if current_is_idle {
+                authorities.remove(&inode_id);
+                let _ = self.lock_renewal.untrack_if_current(&inode_id, &authority);
+            }
+        }
+        Ok(())
+    }
+
+    fn replace_stale_lock_authority(
+        &self,
+        inode_id: &InodeId,
+        old: &Arc<DfsLockAuthority>,
+        lease: WriteLease,
+    ) -> Result<Arc<DfsLockAuthority>> {
+        let _ = old.table.invalidate();
+        if let Ok(mut state) = old.state.lock() {
+            state.last_error = Some(stale(
+                "DFS lock authority was fenced by a newer lease epoch",
+            ));
+            state.pinned_owners.clear();
+            state.waiters.clear();
+        }
+        let authority = Arc::new(DfsLockAuthority::new(lease));
+        self.lock_renewal
+            .track(inode_id.clone(), authority.clone())?;
+        Ok(authority)
+    }
+
+    fn local_lock_authority(
+        &self,
+        inode_id: &InodeId,
+        lease: WriteLease,
+    ) -> Result<Arc<DfsLockAuthority>> {
+        self.reclaim_idle_lock_authorities()?;
+        let mut authorities = self
+            .lock_authorities
+            .lock()
+            .map_err(|_| unavailable("DFS lock authority table is poisoned"))?;
+        if let Some(authority) = authorities.get(inode_id).cloned() {
+            let epoch = authority
+                .state
+                .lock()
+                .map_err(|_| unavailable("DFS lock authority state is poisoned"))?
+                .lease
+                .lease_epoch;
+            if epoch == lease.lease_epoch {
+                drop(authorities);
+                self.check_lock_renewal(&authority)?;
+                return Ok(authority);
+            }
+            let replacement = self.replace_stale_lock_authority(inode_id, &authority, lease)?;
+            authorities.insert(inode_id.clone(), replacement.clone());
+            return Ok(replacement);
+        }
+        if authorities.len() >= MAX_LOCK_AUTHORITIES {
+            return Err(Error::from(std::io::Error::from_raw_os_error(libc::ENOLCK)));
+        }
+        let authority = Arc::new(DfsLockAuthority::new(lease));
+        self.lock_renewal
+            .track(inode_id.clone(), authority.clone())?;
+        authorities.insert(inode_id.clone(), authority.clone());
+        drop(authorities);
+        Ok(authority)
+    }
+
+    fn reclaim_idle_remote_lock_authorities(&self) -> Result<()> {
+        let active_session_inodes = self
+            .remote_lock_authority_sessions
+            .lock()
+            .map_err(|_| unavailable("DFS remote lock authority session table is poisoned"))?
+            .iter()
+            .filter(|&(_inode_id, sessions)| !sessions.is_empty())
+            .map(|(inode_id, _sessions)| inode_id.clone())
+            .collect::<HashSet<_>>();
+        let active_waiter_inodes = self
+            .remote_lock_waiters
+            .lock()
+            .map_err(|_| unavailable("DFS remote lock waiter table is poisoned"))?
+            .values()
+            .map(|remote| InodeId::new(remote.authority.inode_id.clone()))
+            .collect::<HashSet<_>>();
+        self.remote_lock_authorities
+            .lock()
+            .map_err(|_| unavailable("DFS remote lock authority table is poisoned"))?
+            .retain(|inode_id, _| {
+                active_session_inodes.contains(inode_id) || active_waiter_inodes.contains(inode_id)
+            });
+        Ok(())
+    }
+
+    fn remote_lock_authority(
+        &self,
+        inode_id: &InodeId,
+        lease: &WriteLease,
+    ) -> Result<DfsRemoteLockAuthority> {
+        self.reclaim_idle_remote_lock_authorities()?;
+        let owner = self.remote_owner(lease)?;
+        let remote = DfsRemoteLockAuthority {
+            owner,
+            authority: self.lock_authority_wire(inode_id, lease),
+        };
+        let mut authorities = self
+            .remote_lock_authorities
+            .lock()
+            .map_err(|_| unavailable("DFS remote lock authority table is poisoned"))?;
+        if !authorities.contains_key(inode_id) && authorities.len() >= MAX_REMOTE_LOCK_AUTHORITIES {
+            return Err(Error::from(std::io::Error::from_raw_os_error(libc::ENOLCK)));
+        }
+        authorities.insert(inode_id.clone(), remote.clone());
+        Ok(remote)
+    }
+
+    fn lock_authority_wire(
+        &self,
+        inode_id: &InodeId,
+        lease: &WriteLease,
+    ) -> afs_protocol::node_control::DfsOwnerLockAuthority {
+        afs_protocol::node_control::DfsOwnerLockAuthority {
+            namespace_id: self.namespace_id.0.clone(),
+            inode_id: inode_id.0.clone(),
+            owner_node_id: lease.owner_node_id.clone(),
+            owner_session_id: lease.owner_session_id.clone(),
+            lease_epoch: lease.lease_epoch,
+            lease_expires_at_unix_ms: lease.expires_at_unix_ms,
+            caller_node_id: self.node_id.clone(),
+            caller_session_id: self.session_id.clone(),
+        }
+    }
+
+    fn lock_scope(
+        node_id: &str,
+        caller_session_id: &str,
+        ingress_session_id: &str,
+    ) -> Result<String> {
+        if node_id.is_empty() || caller_session_id.is_empty() || ingress_session_id.is_empty() {
+            return Err(invalid("DFS lock scope is incomplete"));
+        }
+        if node_id.contains('\0')
+            || caller_session_id.contains('\0')
+            || ingress_session_id.contains('\0')
+        {
+            return Err(invalid("DFS lock scope contains an invalid NUL byte"));
+        }
+        Ok(format!(
+            "{node_id}\0{caller_session_id}\0{ingress_session_id}"
+        ))
+    }
+
+    fn raw_lock_session(scoped: &str) -> &str {
+        scoped.rsplit('\0').next().unwrap_or(scoped)
+    }
+
+    fn scoped_lock_process_session(scoped: &str) -> Option<(String, String)> {
+        let mut parts = scoped.splitn(3, '\0');
+        let node_id = parts.next()?;
+        let session_id = parts.next()?;
+        let raw_session = parts.next()?;
+        (!node_id.is_empty() && !session_id.is_empty() && !raw_session.is_empty())
+            .then(|| (node_id.to_owned(), session_id.to_owned()))
+    }
+
+    fn scoped_local_lock_owner(&self, owner: FileLockOwner) -> Result<FileLockOwner> {
+        Ok(FileLockOwner {
+            ingress_session_id: Self::lock_scope(
+                &self.node_id,
+                &self.session_id,
+                &owner.ingress_session_id,
+            )?,
+            kernel_owner: owner.kernel_owner,
+        })
+    }
+
+    fn scoped_local_lock_waiter(&self, waiter: LockWaiterId) -> Result<LockWaiterId> {
+        Ok(LockWaiterId {
+            ingress_session_id: Self::lock_scope(
+                &self.node_id,
+                &self.session_id,
+                &waiter.ingress_session_id,
+            )?,
+            request_id: waiter.request_id,
+        })
+    }
+
+    fn scoped_remote_lock_owner(
+        peer: &str,
+        caller_session_id: &str,
+        owner: afs_protocol::node_control::DfsOwnerLockOwner,
+    ) -> Result<FileLockOwner> {
+        if owner.ingress_session_id.is_empty() {
+            return Err(invalid("DFS lock owner session is empty"));
+        }
+        Ok(FileLockOwner {
+            ingress_session_id: Self::lock_scope(
+                peer,
+                caller_session_id,
+                &owner.ingress_session_id,
+            )?,
+            kernel_owner: owner.kernel_owner,
+        })
+    }
+
+    fn scoped_remote_lock_waiter(
+        peer: &str,
+        caller_session_id: &str,
+        waiter: afs_protocol::node_control::DfsOwnerLockWaiter,
+    ) -> Result<LockWaiterId> {
+        if waiter.ingress_session_id.is_empty() {
+            return Err(invalid("DFS lock waiter session is empty"));
+        }
+        Ok(LockWaiterId {
+            ingress_session_id: Self::lock_scope(
+                peer,
+                caller_session_id,
+                &waiter.ingress_session_id,
+            )?,
+            request_id: waiter.request_id,
+        })
+    }
+
+    fn scoped_local_lock_request(&self, mut request: LockRequest) -> Result<LockRequest> {
+        request.owner = self.scoped_local_lock_owner(request.owner)?;
+        Ok(request)
+    }
+
+    fn scoped_remote_lock_request(
+        peer: &str,
+        caller_session_id: &str,
+        request: afs_protocol::node_control::DfsOwnerLockRequest,
+    ) -> Result<LockRequest> {
+        Ok(LockRequest {
+            kind: Self::file_lock_kind_from_wire(request.kind)?,
+            owner: Self::scoped_remote_lock_owner(
+                peer,
+                caller_session_id,
+                request
+                    .owner
+                    .ok_or_else(|| invalid("DFS lock owner is missing"))?,
+            )?,
+            pid: request.pid,
+            range: Self::file_lock_range_from_wire(
+                request
+                    .range
+                    .ok_or_else(|| invalid("DFS lock range is missing"))?,
+            )?,
+            lock_type: Self::file_lock_type_from_wire(request.lock_type)?,
+        })
+    }
+
+    fn validate_lock_authority(
+        &self,
+        peer: &str,
+        authority: &afs_protocol::node_control::DfsOwnerLockAuthority,
+    ) -> Result<WriteLease> {
+        if authority.namespace_id != self.namespace_id.0
+            || authority.owner_node_id != self.node_id
+            || authority.owner_session_id != self.session_id
+            || authority.caller_node_id != peer
+            || authority.caller_session_id.is_empty()
+            || authority.lease_epoch == 0
+        {
+            return Err(stale(
+                "DFS lock authority identity does not match this owner",
+            ));
+        }
+        if peer.contains('\0') || authority.caller_session_id.contains('\0') {
+            return Err(invalid("DFS lock authority contains an invalid NUL byte"));
+        }
+        match self.meta.current_node_session(peer)? {
+            Some(session_id) if session_id == authority.caller_session_id => {}
+            _ => {
+                return Err(stale(
+                    "DFS lock authority caller session is no longer current",
+                ));
+            }
+        }
+        let lease = WriteLease {
+            inode_id: InodeId::new(authority.inode_id.clone()),
+            owner_node_id: authority.owner_node_id.clone(),
+            owner_session_id: authority.owner_session_id.clone(),
+            lease_epoch: authority.lease_epoch,
+            expires_at_unix_ms: authority.lease_expires_at_unix_ms,
+        };
+        let renewed = self.meta.renew_write_lease(lease)?;
+        if renewed.owner_node_id != self.node_id
+            || renewed.owner_session_id != self.session_id
+            || renewed.lease_epoch != authority.lease_epoch
+        {
+            return Err(stale("DFS lock authority lease is no longer current"));
+        }
+        Ok(renewed)
+    }
+
+    fn cached_local_authority_from_wire(
+        &self,
+        peer: &str,
+        authority: afs_protocol::node_control::DfsOwnerLockAuthority,
+    ) -> Result<Option<(InodeId, Arc<DfsLockAuthority>)>> {
+        if authority.namespace_id != self.namespace_id.0
+            || authority.owner_node_id != self.node_id
+            || authority.owner_session_id != self.session_id
+            || authority.caller_node_id != peer
+            || authority.caller_session_id.is_empty()
+            || authority.lease_epoch == 0
+        {
+            return Err(stale(
+                "DFS lock authority identity does not match this owner",
+            ));
+        }
+        if peer.contains('\0') || authority.caller_session_id.contains('\0') {
+            return Err(invalid("DFS lock authority contains an invalid NUL byte"));
+        }
+        let inode_id = InodeId::new(authority.inode_id);
+        let existing = self
+            .lock_authorities
+            .lock()
+            .map_err(|_| unavailable("DFS lock authority table is poisoned"))?
+            .get(&inode_id)
+            .cloned();
+        let Some(existing) = existing else {
+            return Ok(None);
+        };
+        let epoch = existing
+            .state
+            .lock()
+            .map_err(|_| unavailable("DFS lock authority state is poisoned"))?
+            .lease
+            .lease_epoch;
+        if epoch != authority.lease_epoch {
+            return Ok(None);
+        }
+        Ok(Some((inode_id, existing)))
+    }
+
+    fn local_authority_from_wire(
+        &self,
+        peer: &str,
+        authority: afs_protocol::node_control::DfsOwnerLockAuthority,
+    ) -> Result<(InodeId, Arc<DfsLockAuthority>)> {
+        let lease = self.validate_lock_authority(peer, &authority)?;
+        let inode_id = InodeId::new(authority.inode_id);
+        Ok((
+            inode_id.clone(),
+            self.local_lock_authority(&inode_id, lease)?,
+        ))
+    }
+
+    fn collect_peer_lock_scopes(&self) -> Result<HashMap<(String, String), HashSet<String>>> {
+        let authorities = self
+            .lock_authorities
+            .lock()
+            .map_err(|_| unavailable("DFS lock authority table is poisoned"))?
+            .values()
+            .cloned()
+            .collect::<Vec<_>>();
+        let mut scopes: HashMap<(String, String), HashSet<String>> = HashMap::new();
+        for authority in authorities {
+            let state = authority
+                .state
+                .lock()
+                .map_err(|_| unavailable("DFS lock authority state is poisoned"))?;
+            for scope in state
+                .pinned_owners
+                .iter()
+                .map(|owner| owner.ingress_session_id.as_str())
+                .chain(
+                    state
+                        .waiters
+                        .iter()
+                        .map(|waiter| waiter.ingress_session_id.as_str()),
+                )
+            {
+                if let Some(peer_session) = Self::scoped_lock_process_session(scope) {
+                    scopes
+                        .entry(peer_session)
+                        .or_default()
+                        .insert(scope.to_owned());
+                }
+            }
+        }
+        Ok(scopes)
+    }
+
+    fn release_scoped_lock_sessions(&self, scopes: HashSet<String>) -> Result<usize> {
+        if scopes.is_empty() {
+            return Ok(0);
+        }
+        for scope in &scopes {
+            self.note_closed_lock_session(scope)?;
+        }
+        let authorities = self
+            .lock_authorities
+            .lock()
+            .map_err(|_| unavailable("DFS lock authority table is poisoned"))?
+            .values()
+            .cloned()
+            .collect::<Vec<_>>();
+        let mut first_error = None;
+        for authority in authorities {
+            for scope in &scopes {
+                if let Err(error) = authority.table.release_session(scope).map_err(lock_error) {
+                    first_error.get_or_insert(error);
+                }
+            }
+            let mut state = authority
+                .state
+                .lock()
+                .map_err(|_| unavailable("DFS lock authority state is poisoned"))?;
+            state
+                .pinned_owners
+                .retain(|owner| !scopes.contains(&owner.ingress_session_id));
+            state
+                .waiters
+                .retain(|waiter| !scopes.contains(&waiter.ingress_session_id));
+        }
+        if let Some(error) = first_error {
+            return Err(error);
+        }
+        Ok(scopes.len())
+    }
+
+    pub fn reap_expired_peer_lock_sessions(&self) -> Result<usize> {
+        self.reclaim_idle_lock_authorities()?;
+        let scoped_by_peer = self.collect_peer_lock_scopes()?;
+        let mut reclaimed = 0usize;
+        let mut first_error = None;
+        for ((node_id, session_id), scopes) in scoped_by_peer {
+            match self.meta.current_node_session(&node_id) {
+                Ok(current) if current.as_deref() != Some(session_id.as_str()) => {
+                    match self.release_scoped_lock_sessions(scopes) {
+                        Ok(count) => reclaimed = reclaimed.saturating_add(count),
+                        Err(error) => {
+                            first_error.get_or_insert(error);
+                        }
+                    }
+                }
+                Ok(_) => {}
+                Err(error) => {
+                    first_error.get_or_insert(error);
+                }
+            }
+        }
+        match self.retry_closed_remote_lock_sessions() {
+            Ok(count) => reclaimed = reclaimed.saturating_add(count),
+            Err(error) => {
+                first_error.get_or_insert(error);
+            }
+        }
+        if let Some(error) = first_error {
+            return Err(error);
+        }
+        Ok(reclaimed)
+    }
+
+    fn start_lock_renewal_if_needed(&self) {
+        self.lock_renewal.start(self.meta.clone());
+    }
+
+    fn check_lock_renewal(&self, authority: &Arc<DfsLockAuthority>) -> Result<()> {
+        let mut state = authority
+            .state
+            .lock()
+            .map_err(|_| unavailable("DFS lock authority state is poisoned"))?;
+        if let Some(error) = state.last_error.clone() {
+            return Err(error);
+        }
+        if should_renew(&state.lease) {
+            state.lease = self.meta.renew_write_lease(state.lease.clone())?;
+        }
+        Ok(())
+    }
+
+    fn register_local_lock_success(
+        &self,
+        authority: &Arc<DfsLockAuthority>,
+        request: &LockRequest,
+    ) -> Result<()> {
+        if request.lock_type == FileLockType::Unlock {
+            self.unpin_owner_if_inactive(authority, &request.owner, Some(request.kind))?;
+            return Ok(());
+        }
+        let mut state = authority
+            .state
+            .lock()
+            .map_err(|_| unavailable("DFS lock authority state is poisoned"))?;
+        if let Some(error) = state.last_error.clone() {
+            return Err(error);
+        }
+        state.pinned_owners.insert(request.owner.clone());
+        drop(state);
+        self.start_lock_renewal_if_needed();
+        Ok(())
+    }
+
+    fn register_lock_waiter(
+        &self,
+        authority: &Arc<DfsLockAuthority>,
+        waiter: &LockWaiterId,
+    ) -> Result<()> {
+        if self.consume_precancelled_lock_waiter(waiter)? {
+            return Err(lock_error(LockError::Interrupted));
+        }
+        let mut state = authority
+            .state
+            .lock()
+            .map_err(|_| unavailable("DFS lock authority state is poisoned"))?;
+        if let Some(error) = state.last_error.clone() {
+            return Err(error);
+        }
+        state.waiters.insert(waiter.clone());
+        drop(state);
+        self.start_lock_renewal_if_needed();
+        Ok(())
+    }
+
+    fn unpin_lock_waiter(
+        &self,
+        authority: &Arc<DfsLockAuthority>,
+        waiter: Option<&LockWaiterId>,
+    ) -> Result<()> {
+        let Some(waiter) = waiter else {
+            return Ok(());
+        };
+        let mut state = authority
+            .state
+            .lock()
+            .map_err(|_| unavailable("DFS lock authority state is poisoned"))?;
+        state.waiters.remove(waiter);
+        Ok(())
+    }
+
+    fn unpin_owner_if_inactive(
+        &self,
+        authority: &Arc<DfsLockAuthority>,
+        owner: &FileLockOwner,
+        kind: Option<FileLockKind>,
+    ) -> Result<()> {
+        if authority
+            .table
+            .has_owner_activity(owner, kind)
+            .map_err(lock_error)?
+        {
+            return Ok(());
+        }
+        authority
+            .state
+            .lock()
+            .map_err(|_| unavailable("DFS lock authority state is poisoned"))?
+            .pinned_owners
+            .remove(owner);
+        Ok(())
+    }
+
+    fn note_closed_lock_session(&self, ingress_session_id: &str) -> Result<()> {
+        let mut sessions = self
+            .closed_lock_sessions
+            .lock()
+            .map_err(|_| unavailable("DFS closed lock session table is poisoned"))?;
+        // Closing a concrete session is cleanup, not new lock admission. Keep
+        // this admission tombstone table bounded: when it is full, cleanup still
+        // proceeds through the concrete lock tables and remote pending-close
+        // state, but this global fast-path set is not expanded.
+        if sessions.len() < MAX_CLOSED_LOCK_SESSIONS || sessions.contains(ingress_session_id) {
+            sessions.insert(ingress_session_id.to_owned());
+        } else {
+            self.closed_lock_session_admission_closed
+                .store(true, Ordering::Release);
+        }
+        Ok(())
+    }
+
+    fn ensure_lock_session_open(&self, ingress_session_id: &str) -> Result<()> {
+        if self
+            .closed_lock_sessions
+            .lock()
+            .map_err(|_| unavailable("DFS closed lock session table is poisoned"))?
+            .contains(ingress_session_id)
+        {
+            return Err(lock_error(LockError::Interrupted));
+        }
+        if self
+            .closed_lock_session_admission_closed
+            .load(Ordering::Acquire)
+        {
+            return Err(lock_error(LockError::Capacity));
+        }
+        Ok(())
+    }
+
+    fn register_remote_lock_waiter_route(
+        &self,
+        waiter_id: &LockWaiterId,
+        remote: DfsRemoteLockAuthority,
+    ) -> Result<()> {
+        let cancelled = self
+            .cancelled_remote_lock_waiters
+            .lock()
+            .map_err(|_| unavailable("DFS remote lock cancellation table is poisoned"))?;
+        if cancelled.contains(waiter_id) {
+            return Err(lock_error(LockError::Interrupted));
+        }
+        let mut waiters = self
+            .remote_lock_waiters
+            .lock()
+            .map_err(|_| unavailable("DFS remote lock waiter table is poisoned"))?;
+        if waiters.contains_key(waiter_id) {
+            return Err(Error::from(std::io::Error::from_raw_os_error(libc::EBUSY)));
+        }
+        if waiters.len() >= MAX_REMOTE_LOCK_WAITERS {
+            return Err(Error::from(std::io::Error::from_raw_os_error(libc::ENOLCK)));
+        }
+        waiters.insert(waiter_id.clone(), remote);
+        Ok(())
+    }
+
+    fn remove_remote_lock_waiter_route(&self, waiter_id: &LockWaiterId) -> Result<()> {
+        self.remote_lock_waiters
+            .lock()
+            .map_err(|_| unavailable("DFS remote lock waiter table is poisoned"))?
+            .remove(waiter_id);
+        Ok(())
+    }
+
+    fn consume_precancelled_lock_waiter(&self, waiter: &LockWaiterId) -> Result<bool> {
+        Ok(self
+            .cancelled_remote_lock_waiters
+            .lock()
+            .map_err(|_| unavailable("DFS lock cancellation table is poisoned"))?
+            .contains(waiter))
+    }
+
+    fn note_precancelled_lock_waiter(&self, waiter: LockWaiterId) -> Result<()> {
+        let mut cancelled = self
+            .cancelled_remote_lock_waiters
+            .lock()
+            .map_err(|_| unavailable("DFS lock cancellation table is poisoned"))?;
+        if cancelled.len() >= MAX_REMOTE_LOCK_WAITERS && !cancelled.contains(&waiter) {
+            return Err(Error::from(std::io::Error::from_raw_os_error(libc::ENOLCK)));
+        }
+        cancelled.insert(waiter);
+        Ok(())
+    }
+
+    fn note_remote_lock_session(&self, inode_id: &InodeId, session_id: &str) -> Result<bool> {
+        let mut sessions = self
+            .remote_lock_authority_sessions
+            .lock()
+            .map_err(|_| unavailable("DFS remote lock authority session table is poisoned"))?;
+        if let Some(active_sessions) = sessions.get_mut(inode_id) {
+            if let Some(state) = active_sessions.get(session_id) {
+                if *state == REMOTE_LOCK_SESSION_PENDING_CLOSE {
+                    return Err(lock_error(LockError::Interrupted));
+                }
+                return Ok(false);
+            }
+            if self
+                .closed_lock_session_admission_closed
+                .load(Ordering::Acquire)
+            {
+                return Err(lock_error(LockError::Capacity));
+            }
+            if active_sessions.len() >= MAX_REMOTE_LOCK_WAITERS {
+                return Err(Error::from(std::io::Error::from_raw_os_error(libc::ENOLCK)));
+            }
+            active_sessions.insert(session_id.to_owned(), REMOTE_LOCK_SESSION_ACTIVE);
+            return Ok(true);
+        }
+        if self
+            .closed_lock_session_admission_closed
+            .load(Ordering::Acquire)
+        {
+            return Err(lock_error(LockError::Capacity));
+        }
+        if sessions.len() >= MAX_REMOTE_LOCK_AUTHORITIES {
+            return Err(Error::from(std::io::Error::from_raw_os_error(libc::ENOLCK)));
+        }
+        sessions.insert(
+            inode_id.clone(),
+            HashMap::from([(session_id.to_owned(), REMOTE_LOCK_SESSION_ACTIVE)]),
+        );
+        Ok(true)
+    }
+
+    fn mark_remote_lock_session_pending_close(
+        &self,
+        inode_id: &InodeId,
+        session_id: &str,
+    ) -> Result<bool> {
+        let mut sessions = self
+            .remote_lock_authority_sessions
+            .lock()
+            .map_err(|_| unavailable("DFS remote lock authority session table is poisoned"))?;
+        let Some(active_sessions) = sessions.get_mut(inode_id) else {
+            return Ok(false);
+        };
+        let Some(state) = active_sessions.get_mut(session_id) else {
+            return Ok(false);
+        };
+        *state = REMOTE_LOCK_SESSION_PENDING_CLOSE;
+        Ok(true)
+    }
+
+    fn forget_remote_lock_session(&self, inode_id: &InodeId, session_id: &str) -> Result<()> {
+        let mut sessions = self
+            .remote_lock_authority_sessions
+            .lock()
+            .map_err(|_| unavailable("DFS remote lock authority session table is poisoned"))?;
+        if let Some(active_sessions) = sessions.get_mut(inode_id) {
+            active_sessions.remove(session_id);
+            if active_sessions.is_empty() {
+                sessions.remove(inode_id);
+            }
+        }
+        Ok(())
+    }
+
+    fn remote_waiter_inodes(&self) -> Result<HashSet<InodeId>> {
+        Ok(self
+            .remote_lock_waiters
+            .lock()
+            .map_err(|_| unavailable("DFS remote lock waiter table is poisoned"))?
+            .values()
+            .map(|remote| InodeId::new(remote.authority.inode_id.clone()))
+            .collect())
+    }
+
+    fn cleanup_remote_lock_authority_if_idle(&self, inode_id: &InodeId) -> Result<()> {
+        let has_sessions = self
+            .remote_lock_authority_sessions
+            .lock()
+            .map_err(|_| unavailable("DFS remote lock authority session table is poisoned"))?
+            .get(inode_id)
+            .is_some_and(|sessions| !sessions.is_empty());
+        if has_sessions {
+            return Ok(());
+        }
+        if self.remote_waiter_inodes()?.contains(inode_id) {
+            return Ok(());
+        }
+        self.remote_lock_authorities
+            .lock()
+            .map_err(|_| unavailable("DFS remote lock authority table is poisoned"))?
+            .remove(inode_id);
+        Ok(())
+    }
+
+    fn cleanup_successful_remote_lock_session(
+        &self,
+        inode_id: &InodeId,
+        scoped_session: &str,
+    ) -> Result<()> {
+        self.forget_remote_lock_session(inode_id, scoped_session)?;
+        self.remote_lock_waiters
+            .lock()
+            .map_err(|_| unavailable("DFS remote lock waiter table is poisoned"))?
+            .retain(|waiter, remote| {
+                waiter.ingress_session_id != scoped_session
+                    || remote.authority.inode_id != inode_id.0
+            });
+        self.cancelled_remote_lock_waiters
+            .lock()
+            .map_err(|_| unavailable("DFS remote lock cancellation table is poisoned"))?
+            .retain(|waiter| waiter.ingress_session_id != scoped_session);
+        self.cleanup_remote_lock_authority_if_idle(inode_id)
+    }
+
+    fn release_remote_lock_session_once(
+        &self,
+        inode_id: &InodeId,
+        remote: &DfsRemoteLockAuthority,
+        scoped_session: &str,
+    ) -> Result<()> {
+        remote.owner.release_lock_session(
+            afs_protocol::node_control::DfsOwnerReleaseLockSessionRequest {
+                authority: Some(remote.authority.clone()),
+                ingress_session_id: Self::raw_lock_session(scoped_session).to_owned(),
+            },
+        )?;
+        self.cleanup_successful_remote_lock_session(inode_id, scoped_session)
+    }
+
+    fn retry_closed_remote_lock_sessions(&self) -> Result<usize> {
+        let closed = self
+            .closed_lock_sessions
+            .lock()
+            .map_err(|_| unavailable("DFS closed lock session table is poisoned"))?
+            .clone();
+        let pending = self
+            .remote_lock_authority_sessions
+            .lock()
+            .map_err(|_| unavailable("DFS remote lock authority session table is poisoned"))?
+            .iter()
+            .flat_map(|(inode_id, sessions)| {
+                sessions
+                    .iter()
+                    .filter(|&(session, state)| {
+                        *state == REMOTE_LOCK_SESSION_PENDING_CLOSE || closed.contains(session)
+                    })
+                    .map(|(session, _state)| (inode_id.clone(), session.clone()))
+            })
+            .collect::<Vec<_>>();
+        let remotes = self
+            .remote_lock_authorities
+            .lock()
+            .map_err(|_| unavailable("DFS remote lock authority table is poisoned"))?
+            .clone();
+        let mut released = 0usize;
+        let mut first_error = None;
+        for (inode_id, scoped_session) in pending {
+            let Some(remote) = remotes.get(&inode_id) else {
+                if let Err(error) =
+                    self.cleanup_successful_remote_lock_session(&inode_id, &scoped_session)
+                {
+                    first_error.get_or_insert(error);
+                } else {
+                    released = released.saturating_add(1);
+                }
+                continue;
+            };
+            match self.release_remote_lock_session_once(&inode_id, remote, &scoped_session) {
+                Ok(()) => released = released.saturating_add(1),
+                Err(error) => {
+                    first_error.get_or_insert(error);
+                }
+            }
+        }
+        if let Some(error) = first_error {
+            return Err(error);
+        }
+        Ok(released)
+    }
+
+    fn take_remote_lock_waiter_route_or_precancel(
+        &self,
+        waiter: LockWaiterId,
+    ) -> Result<Option<DfsRemoteLockAuthority>> {
+        let mut cancelled = self
+            .cancelled_remote_lock_waiters
+            .lock()
+            .map_err(|_| unavailable("DFS remote lock cancellation table is poisoned"))?;
+        let waiters = self
+            .remote_lock_waiters
+            .lock()
+            .map_err(|_| unavailable("DFS remote lock waiter table is poisoned"))?;
+        if let Some(remote) = waiters.get(&waiter).cloned() {
+            return Ok(Some(remote));
+        }
+        if cancelled.len() >= MAX_REMOTE_LOCK_WAITERS && !cancelled.contains(&waiter) {
+            return Err(Error::from(std::io::Error::from_raw_os_error(libc::ENOLCK)));
+        }
+        cancelled.insert(waiter);
+        Ok(None)
+    }
+
+    fn validate_lock_handle(
+        &self,
+        inode: BackendInode,
+        handle: FileHandle,
+        request: Option<&LockRequest>,
+    ) -> Result<(InodeId, DfsFileHandleSnapshot)> {
+        let inode_id = self.inode_id(inode)?;
+        let snapshot = self.handle_snapshot(handle)?;
+        if snapshot.inode_id != inode_id {
+            return Err(bad_file_descriptor(
+                "DFS lock handle belongs to another inode",
+            ));
+        }
+        if let Some(request) = request
+            && request.kind == FileLockKind::Posix
+        {
+            match request.lock_type {
+                FileLockType::Read if snapshot.flags & libc::O_ACCMODE == libc::O_WRONLY => {
+                    return Err(bad_file_descriptor(
+                        "POSIX read lock requires a readable handle",
+                    ));
+                }
+                FileLockType::Write if snapshot.flags & libc::O_ACCMODE == libc::O_RDONLY => {
+                    return Err(bad_file_descriptor(
+                        "POSIX write lock requires a writable handle",
+                    ));
+                }
+                _ => {}
+            }
+        }
+        Ok((inode_id, snapshot))
     }
 
     /// Execute pending background commits without changing the user-visible
@@ -944,7 +2429,11 @@ impl DistributedFs {
             .iter()
             .filter_map(|(inode_id, state)| {
                 let state = state.lock().ok()?;
-                (state.dirty || state.in_flight.is_some()).then(|| {
+                (state.dirty
+                    || state.metadata_dirty
+                    || state.kill_suidgid_dirty
+                    || state.in_flight.is_some())
+                .then(|| {
                     (
                         inode_id.clone(),
                         if state.last_writer_background_requested {
@@ -1011,8 +2500,7 @@ impl DistributedFs {
 struct DfsFileHandleSnapshot {
     inode_id: InodeId,
     opened_inode: InodeRecord,
-    opened_version: Option<OpenedFileVersion>,
-    write_session: Option<DfsWriteSession>,
+    write_session: Option<DfsRemoteWriteSession>,
     flags: i32,
 }
 
@@ -1021,7 +2509,6 @@ impl From<&DfsFileHandle> for DfsFileHandleSnapshot {
         Self {
             inode_id: handle.inode_id.clone(),
             opened_inode: handle.opened_inode.clone(),
-            opened_version: handle.opened_version.clone(),
             write_session: handle.write_session.clone(),
             flags: handle.flags,
         }
@@ -1094,6 +2581,13 @@ impl DirtyExtentMap {
         older.extents.append(&mut self.extents);
         older.extents.sort_by_key(|extent| extent.write_seq);
         self.extents = older.extents;
+    }
+
+    fn dirty_data_bytes(&self) -> u64 {
+        self.extents
+            .iter()
+            .filter(|extent| extent.data.is_some())
+            .fold(0u64, |total, extent| total.saturating_add(extent.length))
     }
 
     fn is_empty(&self) -> bool {
@@ -1313,29 +2807,502 @@ fn subtract_range(extents: Vec<Extent>, offset: u64, length: u64) -> Result<Vec<
     Ok(output)
 }
 
+impl DistributedFs {
+    fn remote_read(
+        &self,
+        remote: &RemoteDfsWriteSession,
+        offset: u64,
+        out: &mut [u8],
+    ) -> Result<usize> {
+        if out.is_empty() {
+            return Ok(0);
+        }
+        let reply = remote
+            .owner
+            .read(afs_protocol::node_data::DfsOwnerReadRequest {
+                handle: Some(Self::data_owner_handle(&remote.handle)),
+                offset,
+                length: out.len() as u64,
+            })?;
+        let count = reply.data.len().min(out.len());
+        out[..count].copy_from_slice(&reply.data[..count]);
+        Ok(count)
+    }
+
+    fn remote_write(
+        &self,
+        session: &DfsRemoteWriteSession,
+        flags: i32,
+        offset: u64,
+        data: &[u8],
+        options: WriteOptions,
+    ) -> Result<(usize, u64)> {
+        let remote = session
+            .remote
+            .as_ref()
+            .ok_or_else(|| invalid("DFS write session is local"))?;
+        let operation_id = self.operation_id("remote-write");
+        let reply = remote
+            .owner
+            .write(afs_protocol::node_data::DfsOwnerWriteRequest {
+                handle: Some(Self::data_owner_handle(&remote.handle)),
+                operation_id: operation_id.0,
+                offset,
+                data: data.to_vec(),
+                append: flags & libc::O_APPEND != 0,
+                kill_suidgid: options.kill_suidgid,
+            })?;
+        Ok((reply.written as usize, reply.accepted_write_seq))
+    }
+
+    fn remote_resize(
+        &self,
+        session: &DfsRemoteWriteSession,
+        length: u64,
+        options: SetAttrOptions,
+    ) -> Result<u64> {
+        let remote = session
+            .remote
+            .as_ref()
+            .ok_or_else(|| invalid("DFS write session is local"))?;
+        let reply = remote
+            .owner
+            .resize(afs_protocol::node_data::DfsOwnerResizeRequest {
+                handle: Some(Self::data_owner_handle(&remote.handle)),
+                operation_id: self.operation_id("remote-resize").0,
+                length,
+                kill_suidgid: options.kill_suidgid,
+            })?;
+        Ok(reply.accepted_write_seq)
+    }
+
+    fn remote_sync(
+        &self,
+        session: &DfsRemoteWriteSession,
+        mode: SyncMode,
+    ) -> Result<afs_protocol::node_data::DfsOwnerSyncReply> {
+        let remote = session
+            .remote
+            .as_ref()
+            .ok_or_else(|| invalid("DFS write session is local"))?;
+        remote
+            .owner
+            .sync(afs_protocol::node_data::DfsOwnerSyncRequest {
+                handle: Some(Self::data_owner_handle(&remote.handle)),
+                operation_id: self.operation_id("remote-sync").0,
+                through_write_seq: session.local.last_accepted_seq,
+                data_only: matches!(mode, SyncMode::DataOnly),
+            })
+    }
+
+    fn remote_release(&self, session: &DfsRemoteWriteSession) -> Result<()> {
+        let remote = session
+            .remote
+            .as_ref()
+            .ok_or_else(|| invalid("DFS write session is local"))?;
+        remote
+            .owner
+            .release(afs_protocol::node_control::DfsOwnerReleaseRequest {
+                handle: Some(remote.handle.clone()),
+            })?;
+        Ok(())
+    }
+
+    fn remote_operation_cached(
+        &self,
+        key: &RemoteOperationKey,
+        fingerprint: [u8; 32],
+    ) -> Result<Option<RemoteOperationResult>> {
+        let cached = self
+            .remote_operation_results
+            .lock()
+            .map_err(|_| unavailable("DFS remote operation table is poisoned"))?
+            .get(key)
+            .cloned();
+        let Some(result) = cached else {
+            return Ok(None);
+        };
+        let cached_fingerprint = match &result {
+            RemoteOperationResult::Write { fingerprint, .. }
+            | RemoteOperationResult::Resize { fingerprint, .. }
+            | RemoteOperationResult::Sync { fingerprint, .. } => *fingerprint,
+        };
+        if cached_fingerprint != fingerprint {
+            return Err(invalid(
+                "DFS remote operation id was reused with a different request body",
+            ));
+        }
+        Ok(Some(result))
+    }
+
+    fn remember_remote_operation(
+        &self,
+        key: RemoteOperationKey,
+        result: RemoteOperationResult,
+    ) -> Result<()> {
+        let mut operations = self
+            .remote_operation_results
+            .lock()
+            .map_err(|_| unavailable("DFS remote operation table is poisoned"))?;
+        if operations.len() >= MAX_REMOTE_OPERATION_RESULTS && !operations.contains_key(&key) {
+            return Err(unavailable(
+                "DFS remote operation table is full; retry later",
+            ));
+        }
+        operations.insert(key, result);
+        Ok(())
+    }
+
+    fn remote_operation_key(
+        peer: &str,
+        handle: &afs_protocol::node_control::DfsOwnerHandle,
+        operation_id: OperationId,
+    ) -> RemoteOperationKey {
+        RemoteOperationKey {
+            peer: peer.to_owned(),
+            caller_session_id: handle.caller_session_id.clone(),
+            operation_id,
+        }
+    }
+
+    fn fingerprint_remote_write(
+        handle: &afs_protocol::node_control::DfsOwnerHandle,
+        offset: u64,
+        append: bool,
+        data: &[u8],
+        kill_suidgid: bool,
+    ) -> [u8; 32] {
+        let mut hasher = blake3::Hasher::new();
+        Self::fingerprint_handle(&mut hasher, handle);
+        hasher.update(b"write");
+        hasher.update(&offset.to_be_bytes());
+        hasher.update(&[u8::from(append)]);
+        hasher.update(&[u8::from(kill_suidgid)]);
+        hasher.update(&(data.len() as u64).to_be_bytes());
+        hasher.update(data);
+        *hasher.finalize().as_bytes()
+    }
+
+    fn fingerprint_remote_resize(
+        handle: &afs_protocol::node_control::DfsOwnerHandle,
+        length: u64,
+        kill_suidgid: bool,
+    ) -> [u8; 32] {
+        let mut hasher = blake3::Hasher::new();
+        Self::fingerprint_handle(&mut hasher, handle);
+        hasher.update(b"resize");
+        hasher.update(&length.to_be_bytes());
+        hasher.update(&[u8::from(kill_suidgid)]);
+        *hasher.finalize().as_bytes()
+    }
+
+    fn fingerprint_remote_sync(
+        handle: &afs_protocol::node_control::DfsOwnerHandle,
+        through_write_seq: u64,
+        data_only: bool,
+    ) -> [u8; 32] {
+        let mut hasher = blake3::Hasher::new();
+        Self::fingerprint_handle(&mut hasher, handle);
+        hasher.update(b"sync");
+        hasher.update(&through_write_seq.to_be_bytes());
+        hasher.update(&[u8::from(data_only)]);
+        *hasher.finalize().as_bytes()
+    }
+
+    fn fingerprint_handle(
+        hasher: &mut blake3::Hasher,
+        handle: &afs_protocol::node_control::DfsOwnerHandle,
+    ) {
+        for part in [
+            handle.namespace_id.as_bytes(),
+            handle.inode_id.as_bytes(),
+            handle.owner_node_id.as_bytes(),
+            handle.owner_session_id.as_bytes(),
+            handle.caller_node_id.as_bytes(),
+            handle.caller_session_id.as_bytes(),
+            handle.opaque_handle.as_slice(),
+        ] {
+            hasher.update(&(part.len() as u64).to_be_bytes());
+            hasher.update(part);
+        }
+        hasher.update(&handle.lease_epoch.to_be_bytes());
+    }
+
+    fn file_handle_from_owner(
+        handle: &afs_protocol::node_control::DfsOwnerHandle,
+    ) -> Result<FileHandle> {
+        let bytes: [u8; 8] = handle
+            .opaque_handle
+            .as_slice()
+            .try_into()
+            .map_err(|_| stale("DFS owner handle is malformed"))?;
+        Ok(FileHandle(u64::from_be_bytes(bytes)))
+    }
+
+    fn owner_handle_for(
+        &self,
+        peer: &str,
+        caller_session_id: String,
+        inode: &InodeRecord,
+        lease: &WriteLease,
+        handle: FileHandle,
+    ) -> afs_protocol::node_control::DfsOwnerHandle {
+        afs_protocol::node_control::DfsOwnerHandle {
+            namespace_id: self.namespace_id.0.clone(),
+            inode_id: inode.inode_id.0.clone(),
+            owner_node_id: self.node_id.clone(),
+            owner_session_id: self.session_id.clone(),
+            lease_epoch: lease.lease_epoch,
+            caller_node_id: peer.to_owned(),
+            caller_session_id,
+            opaque_handle: handle.0.to_be_bytes().to_vec(),
+        }
+    }
+
+    fn control_owner_handle(
+        handle: &afs_protocol::node_data::DfsOwnerHandle,
+    ) -> afs_protocol::node_control::DfsOwnerHandle {
+        afs_protocol::node_control::DfsOwnerHandle {
+            namespace_id: handle.namespace_id.clone(),
+            inode_id: handle.inode_id.clone(),
+            owner_node_id: handle.owner_node_id.clone(),
+            owner_session_id: handle.owner_session_id.clone(),
+            lease_epoch: handle.lease_epoch,
+            caller_node_id: handle.caller_node_id.clone(),
+            caller_session_id: handle.caller_session_id.clone(),
+            opaque_handle: handle.opaque_handle.clone(),
+        }
+    }
+
+    fn data_owner_handle(
+        handle: &afs_protocol::node_control::DfsOwnerHandle,
+    ) -> afs_protocol::node_data::DfsOwnerHandle {
+        afs_protocol::node_data::DfsOwnerHandle {
+            namespace_id: handle.namespace_id.clone(),
+            inode_id: handle.inode_id.clone(),
+            owner_node_id: handle.owner_node_id.clone(),
+            owner_session_id: handle.owner_session_id.clone(),
+            lease_epoch: handle.lease_epoch,
+            caller_node_id: handle.caller_node_id.clone(),
+            caller_session_id: handle.caller_session_id.clone(),
+            opaque_handle: handle.opaque_handle.clone(),
+        }
+    }
+
+    fn wire_lock_owner(owner: &FileLockOwner) -> afs_protocol::node_control::DfsOwnerLockOwner {
+        afs_protocol::node_control::DfsOwnerLockOwner {
+            ingress_session_id: Self::raw_lock_session(&owner.ingress_session_id).to_owned(),
+            kernel_owner: owner.kernel_owner,
+        }
+    }
+
+    fn file_lock_owner_from_wire(
+        owner: afs_protocol::node_control::DfsOwnerLockOwner,
+    ) -> Result<FileLockOwner> {
+        if owner.ingress_session_id.is_empty() {
+            return Err(invalid("DFS lock owner session is empty"));
+        }
+        Ok(FileLockOwner {
+            ingress_session_id: owner.ingress_session_id,
+            kernel_owner: owner.kernel_owner,
+        })
+    }
+
+    fn wire_lock_range(range: FileLockRange) -> afs_protocol::node_control::DfsOwnerLockRange {
+        afs_protocol::node_control::DfsOwnerLockRange {
+            start: range.start,
+            end: range.end,
+        }
+    }
+
+    fn file_lock_range_from_wire(
+        range: afs_protocol::node_control::DfsOwnerLockRange,
+    ) -> Result<FileLockRange> {
+        let range = FileLockRange {
+            start: range.start,
+            end: range.end,
+        };
+        if !range.is_valid() {
+            return Err(invalid("DFS lock range is invalid"));
+        }
+        Ok(range)
+    }
+
+    fn wire_lock_kind(kind: FileLockKind) -> afs_protocol::node_control::DfsOwnerLockKind {
+        match kind {
+            FileLockKind::Posix => afs_protocol::node_control::DfsOwnerLockKind::Posix,
+            FileLockKind::Flock => afs_protocol::node_control::DfsOwnerLockKind::Flock,
+        }
+    }
+
+    fn file_lock_kind_from_wire(kind: i32) -> Result<FileLockKind> {
+        match afs_protocol::node_control::DfsOwnerLockKind::try_from(kind) {
+            Ok(afs_protocol::node_control::DfsOwnerLockKind::Posix) => Ok(FileLockKind::Posix),
+            Ok(afs_protocol::node_control::DfsOwnerLockKind::Flock) => Ok(FileLockKind::Flock),
+            _ => Err(invalid("DFS lock kind is invalid")),
+        }
+    }
+
+    fn wire_lock_type(lock_type: FileLockType) -> afs_protocol::node_control::DfsOwnerLockType {
+        match lock_type {
+            FileLockType::Read => afs_protocol::node_control::DfsOwnerLockType::Read,
+            FileLockType::Write => afs_protocol::node_control::DfsOwnerLockType::Write,
+            FileLockType::Unlock => afs_protocol::node_control::DfsOwnerLockType::Unlock,
+        }
+    }
+
+    fn file_lock_type_from_wire(lock_type: i32) -> Result<FileLockType> {
+        match afs_protocol::node_control::DfsOwnerLockType::try_from(lock_type) {
+            Ok(afs_protocol::node_control::DfsOwnerLockType::Read) => Ok(FileLockType::Read),
+            Ok(afs_protocol::node_control::DfsOwnerLockType::Write) => Ok(FileLockType::Write),
+            Ok(afs_protocol::node_control::DfsOwnerLockType::Unlock) => Ok(FileLockType::Unlock),
+            _ => Err(invalid("DFS lock type is invalid")),
+        }
+    }
+
+    fn wire_lock_request(request: &LockRequest) -> afs_protocol::node_control::DfsOwnerLockRequest {
+        afs_protocol::node_control::DfsOwnerLockRequest {
+            kind: Self::wire_lock_kind(request.kind) as i32,
+            owner: Some(Self::wire_lock_owner(&request.owner)),
+            pid: request.pid,
+            range: Some(Self::wire_lock_range(request.range)),
+            lock_type: Self::wire_lock_type(request.lock_type) as i32,
+        }
+    }
+
+    fn wire_lock_conflict(
+        conflict: FileLockConflict,
+    ) -> afs_protocol::node_control::DfsOwnerLockConflict {
+        afs_protocol::node_control::DfsOwnerLockConflict {
+            kind: Self::wire_lock_kind(conflict.kind) as i32,
+            owner: Some(Self::wire_lock_owner(&conflict.owner)),
+            pid: conflict.pid,
+            range: Some(Self::wire_lock_range(conflict.range)),
+            lock_type: Self::wire_lock_type(conflict.lock_type) as i32,
+        }
+    }
+
+    fn file_lock_conflict_from_wire(
+        conflict: afs_protocol::node_control::DfsOwnerLockConflict,
+    ) -> Result<FileLockConflict> {
+        Ok(FileLockConflict {
+            kind: Self::file_lock_kind_from_wire(conflict.kind)?,
+            owner: Self::file_lock_owner_from_wire(
+                conflict
+                    .owner
+                    .ok_or_else(|| invalid("DFS lock conflict owner is missing"))?,
+            )?,
+            pid: conflict.pid,
+            range: Self::file_lock_range_from_wire(
+                conflict
+                    .range
+                    .ok_or_else(|| invalid("DFS lock conflict range is missing"))?,
+            )?,
+            lock_type: Self::file_lock_type_from_wire(conflict.lock_type)?,
+        })
+    }
+
+    fn raw_lock_conflict(mut conflict: FileLockConflict) -> FileLockConflict {
+        conflict.owner.ingress_session_id =
+            Self::raw_lock_session(&conflict.owner.ingress_session_id).to_owned();
+        conflict
+    }
+
+    fn wire_lock_waiter(waiter: &LockWaiterId) -> afs_protocol::node_control::DfsOwnerLockWaiter {
+        afs_protocol::node_control::DfsOwnerLockWaiter {
+            ingress_session_id: Self::raw_lock_session(&waiter.ingress_session_id).to_owned(),
+            request_id: waiter.request_id,
+        }
+    }
+
+    fn lock_release_kind_from_wire(release_kind: i32) -> Result<ReleaseKind> {
+        match afs_protocol::node_control::DfsOwnerLockReleaseKind::try_from(release_kind) {
+            Ok(afs_protocol::node_control::DfsOwnerLockReleaseKind::PosixOwner) => {
+                Ok(ReleaseKind::PosixOwner)
+            }
+            Ok(afs_protocol::node_control::DfsOwnerLockReleaseKind::FlockOwner) => {
+                Ok(ReleaseKind::FlockOwner)
+            }
+            _ => Err(invalid("DFS lock release kind is invalid")),
+        }
+    }
+
+    fn wire_lock_release_kind(
+        release_kind: ReleaseKind,
+    ) -> afs_protocol::node_control::DfsOwnerLockReleaseKind {
+        match release_kind {
+            ReleaseKind::PosixOwner => {
+                afs_protocol::node_control::DfsOwnerLockReleaseKind::PosixOwner
+            }
+            ReleaseKind::FlockOwner => {
+                afs_protocol::node_control::DfsOwnerLockReleaseKind::FlockOwner
+            }
+        }
+    }
+
+    fn wire_attr(attr: FileAttributes) -> afs_protocol::node_control::DfsOwnerFileAttr {
+        let (kind, special_node) = match attr.kind {
+            FileKind::Regular => (1, None),
+            FileKind::Directory => (2, None),
+            FileKind::Symlink => (3, None),
+            FileKind::Special(kind) => {
+                let special = dfs_owner_special_node(kind);
+                (special.kind as u32, Some(special))
+            }
+        };
+        afs_protocol::node_control::DfsOwnerFileAttr {
+            size: attr.size,
+            mode: attr.mode,
+            uid: attr.uid,
+            gid: attr.gid,
+            nlink: attr.nlink,
+            atime_unix_ms: system_time_ms(attr.atime),
+            mtime_unix_ms: system_time_ms(attr.mtime),
+            ctime_unix_ms: system_time_ms(attr.ctime),
+            kind,
+            special_node,
+        }
+    }
+}
+
+impl Drop for DistributedFs {
+    fn drop(&mut self) {
+        self.lock_renewal.stop();
+    }
+}
+
 impl CommitReason {
     fn operation_prefix(self) -> &'static str {
         match self {
             Self::DataSync => "fdatasync",
+            Self::DirtyBudget => "dirty-budget",
             Self::FullSync => "fsync",
+            Self::Close => "close",
             Self::Background => "background",
             Self::LastWriter => "last-writer",
             Self::NodeDrain => "node-drain",
         }
     }
 
-    fn metadata_delta(self, mtime_unix_ms: u64, ctime_unix_ms: u64) -> CommitMetadataDelta {
-        if !matches!(self, Self::DataSync) {
+    fn metadata_delta(
+        self,
+        mtime_unix_ms: u64,
+        ctime_unix_ms: u64,
+        kill_suidgid: bool,
+    ) -> CommitMetadataDelta {
+        if !matches!(self, Self::DataSync | Self::DirtyBudget | Self::Close) {
             CommitMetadataDelta {
                 mode: CommitMetadataMode::Full,
                 mtime_unix_ms: Some(mtime_unix_ms),
                 ctime_unix_ms: Some(ctime_unix_ms),
+                kill_suidgid,
             }
         } else {
             CommitMetadataDelta {
                 mode: CommitMetadataMode::DataOnly,
                 mtime_unix_ms: None,
-                ctime_unix_ms: None,
+                ctime_unix_ms: kill_suidgid.then_some(ctime_unix_ms),
+                kill_suidgid,
             }
         }
     }
@@ -1344,6 +3311,389 @@ impl CommitReason {
 impl Backend for DistributedFs {
     fn root_inode(&self) -> BackendInode {
         BackendInode { value: ROOT_INODE }
+    }
+
+    fn supports_killpriv_v2(&self) -> bool {
+        true
+    }
+
+    fn supports_advisory_locks(&self) -> bool {
+        true
+    }
+
+    fn getlk(
+        &self,
+        _: &RequestContext,
+        inode: BackendInode,
+        handle: FileHandle,
+        request: LockRequest,
+    ) -> Result<Option<FileLockConflict>> {
+        let (inode_id, _) = self.validate_lock_handle(inode, handle, Some(&request))?;
+        let request = self.scoped_local_lock_request(request)?;
+        self.ensure_lock_session_open(&request.owner.ingress_session_id)?;
+        match self.lock_authority_for(&inode_id)? {
+            DfsLockTarget::Local(authority) => {
+                self.check_lock_renewal(&authority)?;
+                authority
+                    .table
+                    .getlk(&request)
+                    .map_err(lock_error)
+                    .map(|conflict| conflict.map(Self::raw_lock_conflict))
+            }
+            DfsLockTarget::Remote(remote) => {
+                let reply =
+                    remote
+                        .owner
+                        .get_lock(afs_protocol::node_control::DfsOwnerGetLockRequest {
+                            authority: Some(remote.authority),
+                            lock: Some(Self::wire_lock_request(&request)),
+                        })?;
+                reply
+                    .conflict
+                    .map(Self::file_lock_conflict_from_wire)
+                    .transpose()
+            }
+        }
+    }
+
+    fn setlk(
+        &self,
+        _: &RequestContext,
+        inode: BackendInode,
+        handle: FileHandle,
+        request: LockRequest,
+        waiter: Option<LockWaiterId>,
+    ) -> Result<()> {
+        let (inode_id, _) = self.validate_lock_handle(inode, handle, Some(&request))?;
+        let request = self.scoped_local_lock_request(request)?;
+        let waiter = waiter
+            .map(|waiter| self.scoped_local_lock_waiter(waiter))
+            .transpose()?;
+        if request.lock_type != FileLockType::Unlock {
+            self.ensure_lock_session_open(&request.owner.ingress_session_id)?;
+        }
+        if let Some(waiter) = waiter.as_ref() {
+            if waiter.ingress_session_id != request.owner.ingress_session_id {
+                return Err(invalid("DFS lock waiter scope does not match owner scope"));
+            }
+            if request.lock_type != FileLockType::Unlock {
+                self.ensure_lock_session_open(&waiter.ingress_session_id)?;
+            }
+        }
+        match self.lock_authority_for(&inode_id)? {
+            DfsLockTarget::Local(authority) => {
+                self.check_lock_renewal(&authority)?;
+                if let Some(waiter_id) = waiter.clone() {
+                    self.register_lock_waiter(&authority, &waiter_id)?;
+                    let result = authority
+                        .table
+                        .setlk_blocking(request.clone(), waiter_id.clone())
+                        .map_err(lock_error);
+                    self.unpin_lock_waiter(&authority, waiter.as_ref())?;
+                    if result.is_ok() {
+                        self.register_local_lock_success(&authority, &request)?;
+                        authority
+                            .table
+                            .acknowledge_waiter(&waiter_id)
+                            .map_err(lock_error)?;
+                    } else if result
+                        .as_ref()
+                        .err()
+                        .is_some_and(|error| error.code() == afs_error::IO_INTERRUPTED)
+                    {
+                        authority
+                            .table
+                            .acknowledge_waiter(&waiter_id)
+                            .map_err(lock_error)?;
+                    }
+                    self.check_lock_renewal(&authority)?;
+                    result
+                } else {
+                    let result = authority
+                        .table
+                        .setlk_nonblocking(request.clone())
+                        .map_err(lock_error);
+                    if result.is_ok() {
+                        self.register_local_lock_success(&authority, &request)?;
+                    }
+                    self.check_lock_renewal(&authority)?;
+                    result
+                }
+            }
+            DfsLockTarget::Remote(remote) => {
+                let pins_remote_session = request.lock_type != FileLockType::Unlock;
+                let remote_session_was_new = if pins_remote_session {
+                    self.note_remote_lock_session(&inode_id, &request.owner.ingress_session_id)?
+                } else {
+                    false
+                };
+                if let Some(waiter_id) = waiter.as_ref()
+                    && let Err(error) =
+                        self.register_remote_lock_waiter_route(waiter_id, remote.clone())
+                {
+                    if remote_session_was_new {
+                        self.forget_remote_lock_session(
+                            &inode_id,
+                            &request.owner.ingress_session_id,
+                        )?;
+                    }
+                    return Err(error);
+                }
+                let result =
+                    remote
+                        .owner
+                        .set_lock(afs_protocol::node_control::DfsOwnerSetLockRequest {
+                            authority: Some(remote.authority.clone()),
+                            lock: Some(Self::wire_lock_request(&request)),
+                            waiter: waiter.as_ref().map(Self::wire_lock_waiter),
+                        });
+                if result.is_err()
+                    && waiter.is_some()
+                    && let Some(waiter_id) = waiter.as_ref()
+                {
+                    match remote.owner.cancel_lock_wait(
+                        afs_protocol::node_control::DfsOwnerCancelLockWaitRequest {
+                            authority: Some(remote.authority.clone()),
+                            waiter: Some(Self::wire_lock_waiter(waiter_id)),
+                        },
+                    ) {
+                        Ok(reply) if reply.outcome == 1 => {
+                            let ack = remote.owner.acknowledge_lock_wait(
+                                afs_protocol::node_control::DfsOwnerAcknowledgeLockWaitRequest {
+                                    authority: Some(remote.authority.clone()),
+                                    waiter: Some(Self::wire_lock_waiter(waiter_id)),
+                                },
+                            );
+                            if ack.is_err() {
+                                return Err(unavailable(
+                                    "DFS remote lock cancellation could not be acknowledged; waiter identity retained",
+                                ));
+                            }
+                            self.remove_remote_lock_waiter_route(waiter_id)?;
+                            if remote_session_was_new {
+                                self.forget_remote_lock_session(
+                                    &inode_id,
+                                    &request.owner.ingress_session_id,
+                                )?;
+                            }
+                            return Err(lock_error(LockError::Interrupted));
+                        }
+                        Ok(reply) if reply.outcome == 2 => {
+                            let ack = remote.owner.acknowledge_lock_wait(
+                                afs_protocol::node_control::DfsOwnerAcknowledgeLockWaitRequest {
+                                    authority: Some(remote.authority.clone()),
+                                    waiter: Some(Self::wire_lock_waiter(waiter_id)),
+                                },
+                            );
+                            if ack.is_ok() {
+                                self.remove_remote_lock_waiter_route(waiter_id)?;
+                            }
+                            return Ok(());
+                        }
+                        _ => {
+                            return Err(unavailable(
+                                "DFS remote lock cancellation outcome is unknown; waiter identity retained",
+                            ));
+                        }
+                    }
+                }
+                if result.is_ok()
+                    && let Some(waiter_id) = waiter.as_ref()
+                {
+                    let ack = remote.owner.acknowledge_lock_wait(
+                        afs_protocol::node_control::DfsOwnerAcknowledgeLockWaitRequest {
+                            authority: Some(remote.authority.clone()),
+                            waiter: Some(Self::wire_lock_waiter(waiter_id)),
+                        },
+                    );
+                    if ack.is_ok() {
+                        self.remove_remote_lock_waiter_route(waiter_id)?;
+                    }
+                }
+                result.map(|_| ())
+            }
+        }
+    }
+
+    fn cancel_lock_wait(&self, waiter: LockWaiterId) -> Result<()> {
+        let waiter = self.scoped_local_lock_waiter(waiter)?;
+        if let Some(remote) = self.take_remote_lock_waiter_route_or_precancel(waiter.clone())? {
+            let authority = remote.authority.clone();
+            let reply = remote.owner.cancel_lock_wait(
+                afs_protocol::node_control::DfsOwnerCancelLockWaitRequest {
+                    authority: Some(authority.clone()),
+                    waiter: Some(Self::wire_lock_waiter(&waiter)),
+                },
+            )?;
+            match reply.outcome {
+                1 => {
+                    remote.owner.acknowledge_lock_wait(
+                        afs_protocol::node_control::DfsOwnerAcknowledgeLockWaitRequest {
+                            authority: Some(authority.clone()),
+                            waiter: Some(Self::wire_lock_waiter(&waiter)),
+                        },
+                    )?;
+                    self.remove_remote_lock_waiter_route(&waiter)?;
+                }
+                2 => {
+                    let ack = remote.owner.acknowledge_lock_wait(
+                        afs_protocol::node_control::DfsOwnerAcknowledgeLockWaitRequest {
+                            authority: Some(authority),
+                            waiter: Some(Self::wire_lock_waiter(&waiter)),
+                        },
+                    );
+                    if ack.is_ok() {
+                        self.remove_remote_lock_waiter_route(&waiter)?;
+                    }
+                }
+                _ => {
+                    return Err(Error::coded(
+                        afs_error::IO_OTHER,
+                        "DFS remote lock cancellation outcome is unknown",
+                    ));
+                }
+            }
+            return Ok(());
+        }
+        let authorities = self
+            .lock_authorities
+            .lock()
+            .map_err(|_| unavailable("DFS lock authority table is poisoned"))?
+            .values()
+            .cloned()
+            .collect::<Vec<_>>();
+        let mut last_error = None;
+        for authority in authorities {
+            match authority
+                .table
+                .cancel_waiter_with_outcome(waiter.clone())
+                .map_err(lock_error)
+            {
+                Ok(LockWaiterOutcome::Unknown) => {
+                    last_error = Some(Error::coded(
+                        afs_error::IO_OTHER,
+                        "DFS local lock cancellation outcome is unknown",
+                    ));
+                }
+                Ok(LockWaiterOutcome::Cancelled | LockWaiterOutcome::Granted) => {}
+                Err(error) => last_error = Some(error),
+            }
+            authority
+                .state
+                .lock()
+                .map_err(|_| unavailable("DFS lock authority state is poisoned"))?
+                .waiters
+                .remove(&waiter);
+        }
+        if let Some(error) = last_error {
+            return Err(error);
+        }
+        Ok(())
+    }
+
+    fn release_locks(
+        &self,
+        _: &RequestContext,
+        inode: BackendInode,
+        handle: FileHandle,
+        owner: FileLockOwner,
+        kind: ReleaseKind,
+    ) -> Result<()> {
+        let (inode_id, _) = self.validate_lock_handle(inode, handle, None)?;
+        let owner = self.scoped_local_lock_owner(owner)?;
+        match self.existing_lock_authority_for(&inode_id)? {
+            Some(DfsLockTarget::Local(authority)) => {
+                match kind {
+                    ReleaseKind::PosixOwner => authority.table.release_posix_owner(&owner),
+                    ReleaseKind::FlockOwner => authority.table.release_flock_owner(&owner),
+                }
+                .map_err(lock_error)?;
+                self.unpin_owner_if_inactive(
+                    &authority,
+                    &owner,
+                    Some(match kind {
+                        ReleaseKind::PosixOwner => FileLockKind::Posix,
+                        ReleaseKind::FlockOwner => FileLockKind::Flock,
+                    }),
+                )?;
+                Ok(())
+            }
+            Some(DfsLockTarget::Remote(remote)) => {
+                remote.owner.release_locks(
+                    afs_protocol::node_control::DfsOwnerReleaseLocksRequest {
+                        authority: Some(remote.authority),
+                        owner: Some(Self::wire_lock_owner(&owner)),
+                        release_kind: Self::wire_lock_release_kind(kind) as i32,
+                    },
+                )?;
+                // Keep remote session presence until explicit session close. Releasing one
+                // kernel owner does not prove that this mount has no remaining locks.
+                Ok(())
+            }
+            None => Ok(()),
+        }
+    }
+
+    fn release_lock_session(&self, ingress_session_id: &str) -> Result<()> {
+        let scoped_session = Self::lock_scope(&self.node_id, &self.session_id, ingress_session_id)?;
+        let ingress_session_id = scoped_session.as_str();
+        self.note_closed_lock_session(ingress_session_id)?;
+        let authorities = self
+            .lock_authorities
+            .lock()
+            .map_err(|_| unavailable("DFS lock authority table is poisoned"))?
+            .values()
+            .cloned()
+            .collect::<Vec<_>>();
+        let mut errors = Vec::new();
+        for authority in authorities {
+            if let Err(error) = authority
+                .table
+                .release_session(ingress_session_id)
+                .map_err(lock_error)
+            {
+                errors.push(error);
+                continue;
+            }
+            let mut state = authority
+                .state
+                .lock()
+                .map_err(|_| unavailable("DFS lock authority state is poisoned"))?;
+            state
+                .pinned_owners
+                .retain(|owner| owner.ingress_session_id != ingress_session_id);
+            state
+                .waiters
+                .retain(|waiter| waiter.ingress_session_id != ingress_session_id);
+        }
+        let remotes = self
+            .remote_lock_authorities
+            .lock()
+            .map_err(|_| unavailable("DFS remote lock authority table is poisoned"))?
+            .iter()
+            .map(|(inode_id, remote)| (inode_id.clone(), remote.clone()))
+            .collect::<Vec<_>>();
+        for (inode_id, remote) in &remotes {
+            let has_session = self
+                .remote_lock_authority_sessions
+                .lock()
+                .map_err(|_| unavailable("DFS remote lock authority session table is poisoned"))?
+                .get(inode_id)
+                .is_some_and(|sessions| sessions.contains_key(ingress_session_id));
+            if !has_session {
+                continue;
+            }
+            self.mark_remote_lock_session_pending_close(inode_id, ingress_session_id)?;
+            if let Err(error) =
+                self.release_remote_lock_session_once(inode_id, remote, ingress_session_id)
+            {
+                errors.push(error);
+            }
+        }
+        if let Some(error) = errors.into_iter().next() {
+            return Err(error);
+        }
+        Ok(())
     }
 
     fn lookup(&self, _: &RequestContext, parent: BackendInode, name: &OsStr) -> Result<Entry> {
@@ -1368,12 +3718,12 @@ impl Backend for DistributedFs {
     ) -> Result<FileAttributes> {
         if let Some(handle) = handle {
             let snapshot = self.handle_snapshot(handle)?;
-            if let Some(opened) = snapshot.opened_version.as_ref() {
-                return Ok(attributes(&snapshot.opened_inode, opened.length));
-            }
-            return self.visible_attributes(&snapshot.opened_inode);
+            let record =
+                self.refresh_inode_record(self.meta.get_inode(&snapshot.inode_id)?, true, true)?;
+            return self.visible_attributes(&record);
         }
-        let record = self.validate_inode(self.meta.get_inode(&self.inode_id(inode)?)?)?;
+        let record =
+            self.refresh_inode_record(self.meta.get_inode(&self.inode_id(inode)?)?, true, true)?;
         self.visible_attributes(&record)
     }
 
@@ -1384,22 +3734,77 @@ impl Backend for DistributedFs {
         handle: Option<FileHandle>,
         change: &AttributeChange,
     ) -> Result<FileAttributes> {
+        self.setattr_with_options(ctx, inode, handle, change, SetAttrOptions::default())
+    }
+
+    fn setattr_with_options(
+        &self,
+        ctx: &RequestContext,
+        inode: BackendInode,
+        handle: Option<FileHandle>,
+        change: &AttributeChange,
+        options: SetAttrOptions,
+    ) -> Result<FileAttributes> {
+        let inode_id = self.inode_id(inode)?;
+        let mut change = change.clone();
+        let mut killpriv_setattr = false;
+        if options.kill_suidgid {
+            let current = self.validate_inode(self.meta.get_inode(&inode_id)?)?;
+            if current.kind == InodeKind::Regular {
+                killpriv_setattr = true;
+                let state = self.ensure_inode_write_state(&current)?;
+                let mut state = self.lock_for_mutation(&inode_id, &state)?;
+                Self::apply_kernel_killpriv_to_state(&mut state);
+                change.mode = None;
+            }
+        } else if change.mode.is_some() && self.has_pending_killpriv(&inode_id)? {
+            self.commit_inode(&inode_id, CommitReason::DataSync)?;
+        }
         if change.mode.is_some()
             || change.uid.is_some()
             || change.gid.is_some()
             || change.atime.is_some()
             || change.mtime.is_some()
+            || options.timestamps_now
         {
-            return Err(Error::coded(
-                afs_error::NODE_VFS_UNIMPLEMENTED,
-                "DFS chmod/chown/time updates are not wired yet",
-            ));
+            let current = self.validate_inode(self.meta.get_inode(&inode_id)?)?;
+            let updated = self.refresh_inode_record(
+                self.meta.set_inode_attributes(SetInodeAttrRequest {
+                    caller_id: self.node_id.clone(),
+                    operation_id: self.operation_id("setattr"),
+                    caller: caller_context(ctx),
+                    inode_id: inode_id.clone(),
+                    expected_inode_revision: current.revision,
+                    update: InodeAttrUpdate {
+                        mode: change.mode,
+                        uid: change.uid,
+                        gid: change.gid,
+                        atime_unix_ms: change.atime.map(system_time_ms),
+                        mtime_unix_ms: change.mtime.map(system_time_ms),
+                        ctime_unix_ms: Some(now_unix_ms()),
+                        timestamps_now: options.timestamps_now,
+                    },
+                })?,
+                change.atime.is_none() && !options.timestamps_now,
+                change.mtime.is_none() && !options.timestamps_now,
+            )?;
+            if change.size.is_none() {
+                if killpriv_setattr {
+                    self.commit_inode(&inode_id, CommitReason::DataSync)?;
+                    let updated =
+                        self.refresh_inode_record(self.meta.get_inode(&inode_id)?, true, true)?;
+                    return self.visible_attributes(&updated);
+                }
+                return self.visible_attributes(&updated);
+            }
         }
 
         let Some(length) = change.size else {
+            if killpriv_setattr {
+                self.commit_inode(&inode_id, CommitReason::DataSync)?;
+            }
             return self.getattr(ctx, inode, handle);
         };
-        let inode_id = self.inode_id(inode)?;
         let (record, accepted_seq) = if let Some(handle) = handle {
             self.observe_handle_error(handle)?;
             let snapshot = self.handle_snapshot(handle)?;
@@ -1409,13 +3814,17 @@ impl Backend for DistributedFs {
             if snapshot.flags & libc::O_ACCMODE == libc::O_RDONLY {
                 return Err(bad_file_descriptor("DFS handle was not opened for writing"));
             }
-            if snapshot.write_session.is_none() {
+            let Some(session) = snapshot.write_session.as_ref() else {
                 return Err(invalid("writable DFS handle has no write session"));
-            }
+            };
             if snapshot.opened_inode.kind != InodeKind::Regular {
                 return Err(Error::from(std::io::Error::from_raw_os_error(libc::EISDIR)));
             }
-            let accepted_seq = self.resize_dirty_inode(&snapshot.inode_id, length)?;
+            let accepted_seq = if session.remote.is_some() {
+                self.remote_resize(session, length, options)?
+            } else {
+                self.resize_dirty_inode(&snapshot.inode_id, length, options.kill_suidgid)?
+            };
             (snapshot.opened_inode, Some((handle, accepted_seq)))
         } else {
             let record = self.validate_inode(self.meta.get_inode(&inode_id)?)?;
@@ -1423,7 +3832,7 @@ impl Backend for DistributedFs {
                 return Err(Error::from(std::io::Error::from_raw_os_error(libc::EISDIR)));
             }
             self.ensure_inode_write_state(&record)?;
-            self.resize_dirty_inode(&record.inode_id, length)?;
+            self.resize_dirty_inode(&record.inode_id, length, options.kill_suidgid)?;
             (record, None)
         };
         if let Some((handle, accepted_seq)) = accepted_seq {
@@ -1440,13 +3849,31 @@ impl Backend for DistributedFs {
         mode: u32,
         flags: i32,
     ) -> Result<CreatedFile> {
+        self.create_with_options(ctx, parent, name, mode, flags, OpenOptions::default())
+    }
+
+    fn create_with_options(
+        &self,
+        ctx: &RequestContext,
+        parent: BackendInode,
+        name: &OsStr,
+        mode: u32,
+        flags: i32,
+        options: OpenOptions,
+    ) -> Result<CreatedFile> {
         let now = now_unix_ms();
+        let mode = mode & !ctx.umask;
+        let mode = if options.kill_suidgid {
+            Self::clear_kernel_write_privileges(mode)
+        } else {
+            mode
+        };
         let (inode, write_lease) = self.meta.create(
             &self.operation_id("create"),
             &self.inode_id(parent)?,
             name.as_encoded_bytes(),
             InodeAttributes {
-                mode: mode & !ctx.umask,
+                mode,
                 uid: ctx.uid,
                 gid: ctx.gid,
                 nlink: 1,
@@ -1461,43 +3888,121 @@ impl Backend for DistributedFs {
         let handle = self.allocate_handle(DfsFileHandle {
             inode_id: inode.inode_id.clone(),
             opened_inode: inode.clone(),
-            opened_version: None,
-            write_session: Some(session),
+            write_session: Some(Self::make_local_write_session(session)),
             flags,
         })?;
         Ok(CreatedFile {
             entry: Entry {
                 inode: self.backend_inode(&inode.inode_id)?,
-                attributes: attributes(&inode, 0),
+                attributes: attributes(&inode, 0, 0),
             },
             handle,
         })
     }
 
-    fn open(&self, _: &RequestContext, inode: BackendInode, flags: i32) -> Result<FileHandle> {
+    fn mknod(
+        &self,
+        ctx: &RequestContext,
+        parent: BackendInode,
+        name: &OsStr,
+        kind: SpecialFileKind,
+        mode: u32,
+    ) -> Result<Entry> {
+        let now = now_unix_ms();
+        let inode = self.validate_inode(self.meta.mknod(MknodRequest {
+            caller_id: self.node_id.clone(),
+            operation_id: self.operation_id("mknod"),
+            namespace_id: self.namespace_id.clone(),
+            parent_inode_id: self.inode_id(parent)?,
+            name: name.as_encoded_bytes().to_vec(),
+            kind: dfs_special_kind(kind),
+            attributes: InodeAttributes {
+                mode: mode & !ctx.umask,
+                uid: ctx.uid,
+                gid: ctx.gid,
+                nlink: 1,
+                atime_unix_ms: now,
+                mtime_unix_ms: now,
+                ctime_unix_ms: now,
+            },
+            caller: caller_context(ctx),
+        })?)?;
+        Ok(Entry {
+            inode: self.backend_inode(&inode.inode_id)?,
+            attributes: attributes(&inode, 0, 0),
+        })
+    }
+
+    fn open(&self, ctx: &RequestContext, inode: BackendInode, flags: i32) -> Result<FileHandle> {
+        self.open_with_options(ctx, inode, flags, OpenOptions::default())
+    }
+
+    fn open_with_options(
+        &self,
+        _: &RequestContext,
+        inode: BackendInode,
+        flags: i32,
+        options: OpenOptions,
+    ) -> Result<FileHandle> {
         let inode_id = self.inode_id(inode)?;
+        let preflight = self.validate_inode(self.meta.get_inode(&inode_id)?)?;
+        if matches!(preflight.kind, InodeKind::Special(_)) {
+            return Err(Error::coded(
+                afs_error::IO_NOT_SUPPORTED,
+                "DFS special inode data path is handled by kernel/local device semantics",
+            ));
+        }
         let writable = flags & libc::O_ACCMODE != libc::O_RDONLY;
-        let (opened_inode, opened_version, write_session) = if writable {
+        let (opened_inode, write_session) = if writable {
             let (inode, write_lease) = self.meta.open_write(&inode_id)?;
             let inode = self.validate_inode(inode)?;
-            self.install_write_state(inode.clone(), write_lease)?;
-            let session = self.open_write_session(&inode, flags)?;
-            if flags & libc::O_TRUNC != 0
-                && let Err(error) = self.resize_dirty_inode(&inode.inode_id, 0)
+            let session = if write_lease.owner_node_id == self.node_id
+                && write_lease.owner_session_id == self.session_id
             {
-                self.release_writer(&session)?;
-                return Err(error);
-            }
-            (inode, None, Some(session))
+                self.install_write_state(inode.clone(), write_lease.clone())?;
+                let session = self.open_write_session(&inode, flags)?;
+                let session = Self::make_local_write_session(session);
+                if options.kill_suidgid {
+                    let state = self
+                        .write_state(&inode.inode_id)?
+                        .ok_or_else(|| stale("DFS write state is no longer open"))?;
+                    let mut state = self.lock_for_mutation(&inode.inode_id, &state)?;
+                    Self::apply_kernel_killpriv_to_state(&mut state);
+                }
+                if flags & libc::O_TRUNC != 0
+                    && let Err(error) =
+                        self.resize_dirty_inode(&inode.inode_id, 0, options.kill_suidgid)
+                {
+                    self.release_writer(&session.local)?;
+                    return Err(error);
+                }
+                session
+            } else {
+                let session =
+                    self.open_remote_write_session(&inode, &write_lease, flags, options)?;
+                if flags & libc::O_TRUNC != 0
+                    && let Err(error) = self.remote_resize(
+                        &session,
+                        0,
+                        SetAttrOptions {
+                            kill_suidgid: options.kill_suidgid,
+                            timestamps_now: false,
+                        },
+                    )
+                {
+                    self.remote_release(&session)?;
+                    return Err(error);
+                }
+                session
+            };
+            (inode, Some(session))
         } else {
             let inode = self.validate_inode(self.meta.get_inode(&inode_id)?)?;
-            let opened_version = self.opened_version(&inode)?;
-            (inode, Some(opened_version), None)
+            (inode, None)
         };
         self.allocate_handle(DfsFileHandle {
             inode_id: opened_inode.inode_id.clone(),
             opened_inode,
-            opened_version,
             write_session,
             flags,
         })
@@ -1511,79 +4016,187 @@ impl Backend for DistributedFs {
         out: &mut [u8],
     ) -> Result<usize> {
         let snapshot = self.handle_snapshot(handle)?;
-        if let Some(opened) = snapshot.opened_version.as_ref() {
-            return self.read_opened_version(opened, offset, out);
+        if snapshot.flags & libc::O_ACCMODE == libc::O_WRONLY {
+            return Err(bad_file_descriptor("DFS handle was not opened for reading"));
         }
-        self.read_visible(
-            &snapshot.inode_id,
-            snapshot.opened_inode.head_version.as_ref(),
-            offset,
-            out,
-        )
+        if self.write_state(&snapshot.inode_id)?.is_none()
+            && let Some(remote) = self
+                .remote_inode_providers
+                .lock()
+                .map_err(|_| unavailable("DFS remote owner table is poisoned"))?
+                .get(&snapshot.inode_id)
+                .cloned()
+        {
+            return self.remote_read(&remote, offset, out);
+        }
+        self.read_visible(&snapshot.inode_id, offset, out)
     }
 
     fn write(
+        &self,
+        ctx: &RequestContext,
+        handle: FileHandle,
+        offset: u64,
+        data: &[u8],
+    ) -> Result<usize> {
+        self.write_with_options(ctx, handle, offset, data, WriteOptions::default())
+    }
+
+    fn write_with_options(
         &self,
         _: &RequestContext,
         handle: FileHandle,
         offset: u64,
         data: &[u8],
+        options: WriteOptions,
     ) -> Result<usize> {
         self.observe_handle_error(handle)?;
         let snapshot = self.handle_snapshot(handle)?;
         if snapshot.flags & libc::O_ACCMODE == libc::O_RDONLY {
             return Err(bad_file_descriptor("DFS handle was not opened for writing"));
         }
-        if snapshot.write_session.is_none() {
+        let Some(write_session) = snapshot.write_session.as_ref() else {
             return Err(invalid("writable DFS handle has no write session"));
+        };
+        if write_session.remote.is_some() {
+            let written =
+                self.remote_write(write_session, snapshot.flags, offset, data, options)?;
+            if snapshot.flags & libc::O_SYNC == libc::O_SYNC {
+                self.remote_sync(write_session, SyncMode::Full)?;
+            } else if has_o_dsync(snapshot.flags) {
+                self.remote_sync(write_session, SyncMode::DataOnly)?;
+            }
+            self.update_handle_write_progress(handle, written.1)?;
+            return Ok(written.0);
         }
         let state = self
             .write_state(&snapshot.inode_id)?
             .ok_or_else(|| stale("DFS write state is no longer open"))?;
-        let (written, accepted_seq) = {
-            let mut state = self.lock_for_mutation(&snapshot.inode_id, &state)?;
-            let offset = if snapshot.flags & libc::O_APPEND != 0 {
-                state.logical_length
-            } else {
-                offset
-            };
-            let next_seq = state.next_write_seq.saturating_add(1);
-            let written = state.dirty_extents.write_at(offset, data, next_seq)?;
-            state.logical_length = state
-                .logical_length
-                .max(offset.saturating_add(written as u64));
-            if written > 0 {
-                state.next_write_seq = next_seq;
-                state.visible_write_seq = state.next_write_seq;
-                state.dirty = true;
-                state.metadata_dirty = true;
-                let now = now_unix_ms();
-                state.inode.attributes.mtime_unix_ms = now;
-                state.inode.attributes.ctime_unix_ms = now;
-            }
-            (written, state.visible_write_seq)
-        };
-        self.update_handle_write_progress(handle, accepted_seq)?;
-        if snapshot.flags & libc::O_SYNC != 0 {
-            self.commit_handle(handle, CommitReason::FullSync)?;
-        } else if has_o_dsync(snapshot.flags) {
-            self.commit_handle(handle, CommitReason::DataSync)?;
+        if data.is_empty() {
+            return Ok(0);
         }
-        Ok(written)
+        let _operation = self.begin_inode_operation(&snapshot.inode_id, state.clone())?;
+        let mut total_written = 0usize;
+        let mut accepted_seq = None;
+        while total_written < data.len() {
+            let (written, seq, over_budget) = {
+                let mut state = state
+                    .lock()
+                    .map_err(|_| unavailable("DFS inode write state is poisoned"))?;
+                if let Some(error) = state.terminal_error.clone() {
+                    return Err(error);
+                }
+                let dirty_bytes = state.dirty_extents.dirty_data_bytes();
+                let budget_remaining = self.dirty_budget_bytes.saturating_sub(dirty_bytes);
+                let take = (data.len() - total_written)
+                    .min(usize::try_from(budget_remaining.max(1)).unwrap_or(usize::MAX));
+                let chunk = &data[total_written..total_written + take];
+                let file_offset = if snapshot.flags & libc::O_APPEND != 0 {
+                    state.logical_length
+                } else {
+                    offset
+                        .checked_add(total_written as u64)
+                        .ok_or_else(file_too_large)?
+                };
+                let next_seq = state.next_write_seq.saturating_add(1);
+                let written = state.dirty_extents.write_at(file_offset, chunk, next_seq)?;
+                let end_offset = file_offset
+                    .checked_add(written as u64)
+                    .ok_or_else(file_too_large)?;
+                state.logical_length = state.logical_length.max(end_offset);
+                if written > 0 {
+                    state.next_write_seq = next_seq;
+                    state.visible_write_seq = state.next_write_seq;
+                    state.dirty = true;
+                    state.metadata_dirty = true;
+                    let now = now_unix_ms();
+                    state.inode.attributes.mtime_unix_ms = now;
+                    state.inode.attributes.ctime_unix_ms = now;
+                    if options.kill_suidgid {
+                        Self::apply_kernel_killpriv_to_state(&mut state);
+                    }
+                }
+                let over_budget = written > 0
+                    && state.dirty_extents.dirty_data_bytes() >= self.dirty_budget_bytes;
+                (written, state.visible_write_seq, over_budget)
+            };
+            if written == 0 {
+                break;
+            }
+            total_written += written;
+            accepted_seq = Some(seq);
+            if over_budget {
+                match self
+                    .commit_inode_inside_operation(&snapshot.inode_id, CommitReason::DirtyBudget)
+                {
+                    Ok(Some(committed_seq)) => {
+                        self.update_handles_after_commit(&snapshot.inode_id, committed_seq)?;
+                        self.update_handle_write_progress(handle, seq)?;
+                    }
+                    Ok(None) => {
+                        self.update_handle_write_progress(handle, seq)?;
+                    }
+                    Err(error)
+                        if snapshot.flags & libc::O_SYNC == libc::O_SYNC
+                            || has_o_dsync(snapshot.flags) =>
+                    {
+                        return Err(error);
+                    }
+                    Err(error) => {
+                        self.update_handle_write_progress(handle, seq)?;
+                        self.record_background_error(&snapshot.inode_id, error)?;
+                        return Ok(total_written);
+                    }
+                }
+            }
+        }
+        if let Some(seq) = accepted_seq {
+            self.update_handle_write_progress(handle, seq)?;
+        }
+        if snapshot.flags & libc::O_SYNC == libc::O_SYNC {
+            let committed_seq =
+                self.commit_inode_inside_operation(&snapshot.inode_id, CommitReason::FullSync)?;
+            if let Some(committed_seq) = committed_seq {
+                self.update_handles_after_commit(&snapshot.inode_id, committed_seq)?;
+            }
+        } else if has_o_dsync(snapshot.flags) {
+            let committed_seq =
+                self.commit_inode_inside_operation(&snapshot.inode_id, CommitReason::DataSync)?;
+            if let Some(committed_seq) = committed_seq {
+                self.update_handles_after_commit(&snapshot.inode_id, committed_seq)?;
+            }
+        }
+        Ok(total_written)
     }
 
     fn flush(&self, _: &RequestContext, handle: FileHandle) -> Result<()> {
-        self.observe_handle_error(handle)
+        let snapshot = self.handle_snapshot(handle)?;
+        if let Some(session) = snapshot.write_session.as_ref() {
+            if session.remote.is_some() {
+                self.remote_sync(session, SyncMode::DataOnly).map(|_| ())
+            } else {
+                self.commit_handle(handle, CommitReason::Close)
+            }
+        } else {
+            self.observe_handle_error(handle)
+        }
     }
 
     fn fsync(&self, _: &RequestContext, handle: FileHandle, mode: SyncMode) -> Result<()> {
-        self.commit_handle(
-            handle,
-            match mode {
-                SyncMode::DataOnly => CommitReason::DataSync,
-                SyncMode::Full => CommitReason::FullSync,
-            },
-        )
+        let snapshot = self.handle_snapshot(handle)?;
+        if let Some(session) = snapshot.write_session.as_ref()
+            && session.remote.is_some()
+        {
+            self.remote_sync(session, mode).map(|_| ())
+        } else {
+            self.commit_handle(
+                handle,
+                match mode {
+                    SyncMode::DataOnly => CommitReason::DataSync,
+                    SyncMode::Full => CommitReason::FullSync,
+                },
+            )
+        }
     }
 
     fn release(&self, _: &RequestContext, handle: FileHandle) -> Result<()> {
@@ -1594,8 +4207,292 @@ impl Backend for DistributedFs {
             .remove(&handle.0)
             .ok_or_else(|| stale("DFS file handle is no longer open"))?;
         if let Some(session) = removed.write_session.as_ref() {
-            self.release_writer(session)?;
+            if session.remote.is_some() {
+                self.remote_release(session)?;
+                self.remote_inode_providers
+                    .lock()
+                    .map_err(|_| unavailable("DFS remote owner table is poisoned"))?
+                    .remove(&removed.inode_id);
+            } else {
+                self.release_writer(&session.local)?;
+            }
         }
+        Ok(())
+    }
+
+    fn opendir(&self, _: &RequestContext, inode: BackendInode) -> Result<DirectoryHandle> {
+        let inode_id = self.inode_id(inode)?;
+        let record = self.validate_inode(self.meta.get_inode(&inode_id)?)?;
+        if record.kind != InodeKind::Directory {
+            return Err(Error::from(std::io::Error::from(
+                std::io::ErrorKind::NotADirectory,
+            )));
+        }
+        let entries = self
+            .meta
+            .read_dir(&inode_id)?
+            .into_iter()
+            .map(|entry| self.directory_entry(entry))
+            .collect::<Result<Vec<_>>>()?;
+        let id = self.next_handle.fetch_add(1, Ordering::Relaxed);
+        self.dir_handles
+            .lock()
+            .map_err(|_| unavailable("DFS directory handle table is poisoned"))?
+            .insert(id, DfsDirectoryHandle { entries });
+        Ok(DirectoryHandle(id))
+    }
+
+    fn readdir(
+        &self,
+        _: &RequestContext,
+        handle: DirectoryHandle,
+        cookie: u64,
+        max_entries: usize,
+    ) -> Result<Vec<DirectoryEntry>> {
+        let handles = self
+            .dir_handles
+            .lock()
+            .map_err(|_| unavailable("DFS directory handle table is poisoned"))?;
+        let directory = handles
+            .get(&handle.0)
+            .ok_or_else(|| stale("DFS directory handle is no longer open"))?;
+        slice_directory_entries(directory.entries.clone(), cookie, max_entries)
+    }
+
+    fn fsyncdir(&self, _: &RequestContext, handle: DirectoryHandle, _: SyncMode) -> Result<()> {
+        let handles = self
+            .dir_handles
+            .lock()
+            .map_err(|_| unavailable("DFS directory handle table is poisoned"))?;
+        handles
+            .get(&handle.0)
+            .ok_or_else(|| stale("DFS directory handle is no longer open"))?;
+        Ok(())
+    }
+
+    fn releasedir(&self, _: &RequestContext, handle: DirectoryHandle) -> Result<()> {
+        self.dir_handles
+            .lock()
+            .map_err(|_| unavailable("DFS directory handle table is poisoned"))?
+            .remove(&handle.0)
+            .ok_or_else(|| stale("DFS directory handle is no longer open"))?;
+        Ok(())
+    }
+
+    fn mkdir(
+        &self,
+        ctx: &RequestContext,
+        parent: BackendInode,
+        name: &OsStr,
+        mode: u32,
+    ) -> Result<Entry> {
+        let now = now_unix_ms();
+        let inode = self.validate_inode(self.meta.mkdir(
+            &self.operation_id("mkdir"),
+            &self.inode_id(parent)?,
+            name.as_encoded_bytes(),
+            InodeAttributes {
+                mode: mode & !ctx.umask,
+                uid: ctx.uid,
+                gid: ctx.gid,
+                nlink: 2,
+                atime_unix_ms: now,
+                mtime_unix_ms: now,
+                ctime_unix_ms: now,
+            },
+            caller_context(ctx),
+        )?)?;
+        Ok(Entry {
+            inode: self.backend_inode(&inode.inode_id)?,
+            attributes: attributes(&inode, 0, 0),
+        })
+    }
+
+    fn unlink(&self, ctx: &RequestContext, parent: BackendInode, name: &OsStr) -> Result<()> {
+        self.refresh_inode_record(
+            self.meta.unlink(
+                &self.operation_id("unlink"),
+                &self.inode_id(parent)?,
+                name.as_encoded_bytes(),
+                caller_context(ctx),
+            )?,
+            true,
+            true,
+        )?;
+        Ok(())
+    }
+
+    fn rmdir(&self, ctx: &RequestContext, parent: BackendInode, name: &OsStr) -> Result<()> {
+        self.refresh_inode_record(
+            self.meta.rmdir(
+                &self.operation_id("rmdir"),
+                &self.inode_id(parent)?,
+                name.as_encoded_bytes(),
+                caller_context(ctx),
+            )?,
+            true,
+            true,
+        )?;
+        Ok(())
+    }
+
+    fn rename(
+        &self,
+        ctx: &RequestContext,
+        from_parent: BackendInode,
+        from_name: &OsStr,
+        to_parent: BackendInode,
+        to_name: &OsStr,
+        flags: RenameFlags,
+    ) -> Result<()> {
+        let mode = rename_mode(flags)?;
+        let outcome = self.meta.rename(
+            &self.operation_id("rename"),
+            &self.inode_id(from_parent)?,
+            from_name.as_encoded_bytes(),
+            &self.inode_id(to_parent)?,
+            to_name.as_encoded_bytes(),
+            mode,
+            caller_context(ctx),
+        )?;
+        self.refresh_inode_record(outcome.inode, true, true)?;
+        if let Some(replaced) = outcome.replaced_inode {
+            self.refresh_inode_record(replaced, true, true)?;
+        }
+        Ok(())
+    }
+
+    fn symlink(
+        &self,
+        ctx: &RequestContext,
+        parent: BackendInode,
+        name: &OsStr,
+        target: &OsStr,
+    ) -> Result<Entry> {
+        let now = now_unix_ms();
+        let inode = self.validate_inode(self.meta.symlink(SymlinkRequest {
+            caller_id: self.node_id.clone(),
+            operation_id: self.operation_id("symlink"),
+            namespace_id: self.namespace_id.clone(),
+            parent_inode_id: self.inode_id(parent)?,
+            name: name.as_encoded_bytes().to_vec(),
+            target: target.as_encoded_bytes().to_vec(),
+            attributes: InodeAttributes {
+                mode: libc::S_IFLNK | 0o777,
+                uid: ctx.uid,
+                gid: ctx.gid,
+                nlink: 1,
+                atime_unix_ms: now,
+                mtime_unix_ms: now,
+                ctime_unix_ms: now,
+            },
+            caller: caller_context(ctx),
+        })?)?;
+        Ok(Entry {
+            inode: self.backend_inode(&inode.inode_id)?,
+            attributes: attributes(&inode, 0, 0),
+        })
+    }
+
+    fn readlink(&self, _: &RequestContext, inode: BackendInode) -> Result<OsString> {
+        let target = self.meta.read_link(ReadLinkRequest {
+            namespace_id: self.namespace_id.clone(),
+            inode_id: self.inode_id(inode)?,
+        })?;
+        Ok(OsString::from_vec(target))
+    }
+
+    fn link(
+        &self,
+        ctx: &RequestContext,
+        inode: BackendInode,
+        new_parent: BackendInode,
+        new_name: &OsStr,
+    ) -> Result<Entry> {
+        let inode_id = self.inode_id(inode)?;
+        let current = self.validate_inode(self.meta.get_inode(&inode_id)?)?;
+        let linked = self.refresh_inode_record(
+            self.meta.link(
+                &self.operation_id("link"),
+                &inode_id,
+                current.revision,
+                &self.inode_id(new_parent)?,
+                new_name.as_encoded_bytes(),
+                caller_context(ctx),
+            )?,
+            true,
+            true,
+        )?;
+        Ok(Entry {
+            inode: self.backend_inode(&linked.inode_id)?,
+            attributes: self.visible_attributes(&linked)?,
+        })
+    }
+
+    fn getxattr(&self, ctx: &RequestContext, inode: BackendInode, name: &OsStr) -> Result<Vec<u8>> {
+        self.meta.get_xattr(GetXattrRequest {
+            caller: caller_context(ctx),
+            inode_id: self.inode_id(inode)?,
+            name: name.as_encoded_bytes().to_vec(),
+        })
+    }
+
+    fn listxattr(&self, ctx: &RequestContext, inode: BackendInode) -> Result<Vec<u8>> {
+        let names = self.meta.list_xattr(ListXattrRequest {
+            caller: caller_context(ctx),
+            inode_id: self.inode_id(inode)?,
+        })?;
+        let total = names.iter().map(|name| name.len() + 1).sum();
+        let mut encoded = Vec::with_capacity(total);
+        for name in names {
+            encoded.extend_from_slice(&name);
+            encoded.push(0);
+        }
+        Ok(encoded)
+    }
+
+    fn setxattr(
+        &self,
+        ctx: &RequestContext,
+        inode: BackendInode,
+        name: &OsStr,
+        value: &[u8],
+        flags: i32,
+    ) -> Result<()> {
+        let inode_id = self.inode_id(inode)?;
+        let current = self.validate_inode(self.meta.get_inode(&inode_id)?)?;
+        self.refresh_inode_record(
+            self.meta.set_xattr(SetXattrRequest {
+                caller_id: self.node_id.clone(),
+                operation_id: self.operation_id("setxattr"),
+                caller: caller_context(ctx),
+                inode_id,
+                expected_inode_revision: current.revision,
+                name: name.as_encoded_bytes().to_vec(),
+                value: value.to_vec(),
+                mode: xattr_set_mode(flags)?,
+            })?,
+            true,
+            true,
+        )?;
+        Ok(())
+    }
+
+    fn removexattr(&self, ctx: &RequestContext, inode: BackendInode, name: &OsStr) -> Result<()> {
+        let inode_id = self.inode_id(inode)?;
+        let current = self.validate_inode(self.meta.get_inode(&inode_id)?)?;
+        self.refresh_inode_record(
+            self.meta.remove_xattr(RemoveXattrRequest {
+                caller_id: self.node_id.clone(),
+                operation_id: self.operation_id("removexattr"),
+                caller: caller_context(ctx),
+                inode_id,
+                expected_inode_revision: current.revision,
+                name: name.as_encoded_bytes().to_vec(),
+            })?,
+            true,
+            true,
+        )?;
         Ok(())
     }
 }
@@ -1610,7 +4507,7 @@ impl DistributedFs {
             .get_mut(&handle.0)
             .ok_or_else(|| stale("DFS file handle is no longer open"))?;
         if let Some(session) = file.write_session.as_mut() {
-            session.last_accepted_seq = accepted_seq;
+            session.local.last_accepted_seq = accepted_seq;
         }
         Ok(())
     }
@@ -1624,7 +4521,7 @@ impl DistributedFs {
             .get_mut(&handle.0)
             .ok_or_else(|| stale("DFS file handle is no longer open"))?;
         if let Some(session) = file.write_session.as_mut() {
-            session.error_cursor = cursor;
+            session.local.error_cursor = cursor;
         }
         Ok(())
     }
@@ -1647,7 +4544,7 @@ impl DistributedFs {
         {
             if let Some(session) = handle.write_session.as_mut() {
                 handle.opened_inode = inode.clone();
-                session.last_synced_seq = session.last_synced_seq.max(committed_seq);
+                session.local.last_synced_seq = session.local.last_synced_seq.max(committed_seq);
             }
         }
         Ok(())
@@ -1673,6 +4570,544 @@ fn write_session(
     }
 }
 
+impl crate::node::rpc::control::DfsOwnerLifecycleHandler for DistributedFs {
+    fn open(
+        &self,
+        peer: &str,
+        request: afs_protocol::node_control::DfsOwnerOpenRequest,
+    ) -> Result<afs_protocol::node_control::DfsOwnerOpenReply> {
+        if request.namespace_id != self.namespace_id.0
+            || request.owner_node_id != self.node_id
+            || request.owner_session_id != self.session_id
+        {
+            return Err(stale("DFS owner open targets another owner session"));
+        }
+        let inode_id = InodeId::new(request.inode_id.clone());
+        let (inode, lease) = self.meta.open_write(&inode_id)?;
+        let inode = self.validate_inode(inode)?;
+        if lease.owner_node_id != self.node_id
+            || lease.owner_session_id != self.session_id
+            || lease.lease_epoch != request.lease_epoch
+        {
+            return Err(stale("DFS owner lease is no longer current"));
+        }
+        self.install_write_state(inode.clone(), lease.clone())?;
+        let session = self.open_write_session(&inode, request.open_flags)?;
+        if request.kill_suidgid {
+            let state = self
+                .write_state(&inode.inode_id)?
+                .ok_or_else(|| stale("DFS write state is no longer open"))?;
+            let mut state = self.lock_for_mutation(&inode.inode_id, &state)?;
+            Self::apply_kernel_killpriv_to_state(&mut state);
+        }
+        let handle = self.allocate_handle(DfsFileHandle {
+            inode_id: inode.inode_id.clone(),
+            opened_inode: inode.clone(),
+            write_session: Some(Self::make_local_write_session(session)),
+            flags: request.open_flags,
+        })?;
+        Ok(afs_protocol::node_control::DfsOwnerOpenReply {
+            handle: Some(self.owner_handle_for(
+                peer,
+                request.caller_session_id,
+                &inode,
+                &lease,
+                handle,
+            )),
+        })
+    }
+
+    fn getattr(
+        &self,
+        peer: &str,
+        request: afs_protocol::node_control::DfsOwnerGetAttrRequest,
+    ) -> Result<afs_protocol::node_control::DfsOwnerGetAttrReply> {
+        let handle = request
+            .handle
+            .ok_or_else(|| stale("DFS owner getattr missing handle"))?;
+        self.validate_owner_handle(peer, &handle)?;
+        let file = Self::file_handle_from_owner(&handle)?;
+        let snapshot = self.handle_snapshot(file)?;
+        let attr = self.visible_attributes(&snapshot.opened_inode)?;
+        Ok(afs_protocol::node_control::DfsOwnerGetAttrReply {
+            attr: Some(Self::wire_attr(attr)),
+        })
+    }
+
+    fn get_lock(
+        &self,
+        peer: &str,
+        request: afs_protocol::node_control::DfsOwnerGetLockRequest,
+    ) -> Result<afs_protocol::node_control::DfsOwnerGetLockReply> {
+        let authority = request
+            .authority
+            .ok_or_else(|| stale("DFS owner lock authority is missing"))?;
+        let lock = request
+            .lock
+            .ok_or_else(|| invalid("DFS owner lock request is missing"))?;
+        let caller_session_id = authority.caller_session_id.clone();
+        let (_, authority) = self.local_authority_from_wire(peer, authority)?;
+        let lock = Self::scoped_remote_lock_request(peer, &caller_session_id, lock)?;
+        self.check_lock_renewal(&authority)?;
+        let conflict = authority
+            .table
+            .getlk(&lock)
+            .map_err(lock_error)?
+            .map(Self::wire_lock_conflict);
+        Ok(afs_protocol::node_control::DfsOwnerGetLockReply { conflict })
+    }
+
+    fn set_lock(
+        &self,
+        peer: &str,
+        request: afs_protocol::node_control::DfsOwnerSetLockRequest,
+    ) -> Result<afs_protocol::node_control::DfsOwnerSetLockReply> {
+        let authority_wire = request
+            .authority
+            .ok_or_else(|| stale("DFS owner lock authority is missing"))?;
+        let lock = request
+            .lock
+            .ok_or_else(|| invalid("DFS owner lock request is missing"))?;
+        let caller_session_id = authority_wire.caller_session_id.clone();
+        let waiter = request
+            .waiter
+            .map(|waiter| Self::scoped_remote_lock_waiter(peer, &caller_session_id, waiter))
+            .transpose()?;
+        let (_, authority) = self.local_authority_from_wire(peer, authority_wire)?;
+        let lock = Self::scoped_remote_lock_request(peer, &caller_session_id, lock)?;
+        self.ensure_lock_session_open(&lock.owner.ingress_session_id)?;
+        if let Some(waiter_id) = waiter.as_ref() {
+            if waiter_id.ingress_session_id != lock.owner.ingress_session_id {
+                return Err(invalid("DFS lock waiter scope does not match owner scope"));
+            }
+            self.ensure_lock_session_open(&waiter_id.ingress_session_id)?;
+        }
+        self.check_lock_renewal(&authority)?;
+        let result = if let Some(waiter_id) = waiter.clone() {
+            self.register_lock_waiter(&authority, &waiter_id)?;
+            let result = authority
+                .table
+                .setlk_blocking(lock.clone(), waiter_id.clone())
+                .map_err(lock_error);
+            self.unpin_lock_waiter(&authority, waiter.as_ref())?;
+            result
+        } else {
+            authority
+                .table
+                .setlk_nonblocking(lock.clone())
+                .map_err(lock_error)
+        };
+        if result.is_ok() {
+            self.register_local_lock_success(&authority, &lock)?;
+        }
+        self.check_lock_renewal(&authority)?;
+        result?;
+        Ok(afs_protocol::node_control::DfsOwnerSetLockReply {})
+    }
+
+    fn cancel_lock_wait(
+        &self,
+        peer: &str,
+        request: afs_protocol::node_control::DfsOwnerCancelLockWaitRequest,
+    ) -> Result<afs_protocol::node_control::DfsOwnerCancelLockWaitReply> {
+        let authority_wire = request
+            .authority
+            .ok_or_else(|| stale("DFS owner lock authority is missing"))?;
+        let caller_session_id = authority_wire.caller_session_id.clone();
+        let waiter = Self::scoped_remote_lock_waiter(
+            peer,
+            &caller_session_id,
+            request
+                .waiter
+                .ok_or_else(|| invalid("DFS owner lock waiter is missing"))?,
+        )?;
+        let Some((_, authority)) = self.cached_local_authority_from_wire(peer, authority_wire)?
+        else {
+            self.note_precancelled_lock_waiter(waiter)?;
+            return Ok(afs_protocol::node_control::DfsOwnerCancelLockWaitReply { outcome: 1 });
+        };
+        let outcome = authority
+            .table
+            .cancel_waiter_with_outcome(waiter.clone())
+            .map_err(lock_error)?;
+        authority
+            .state
+            .lock()
+            .map_err(|_| unavailable("DFS lock authority state is poisoned"))?
+            .waiters
+            .remove(&waiter);
+        Ok(afs_protocol::node_control::DfsOwnerCancelLockWaitReply {
+            outcome: match outcome {
+                LockWaiterOutcome::Cancelled => 1,
+                LockWaiterOutcome::Granted => 2,
+                LockWaiterOutcome::Unknown => 3,
+            },
+        })
+    }
+
+    fn acknowledge_lock_wait(
+        &self,
+        peer: &str,
+        request: afs_protocol::node_control::DfsOwnerAcknowledgeLockWaitRequest,
+    ) -> Result<afs_protocol::node_control::DfsOwnerAcknowledgeLockWaitReply> {
+        let authority_wire = request
+            .authority
+            .ok_or_else(|| stale("DFS owner lock authority is missing"))?;
+        let caller_session_id = authority_wire.caller_session_id.clone();
+        let waiter = Self::scoped_remote_lock_waiter(
+            peer,
+            &caller_session_id,
+            request
+                .waiter
+                .ok_or_else(|| invalid("DFS owner lock waiter is missing"))?,
+        )?;
+        let Some((_, authority)) = self.cached_local_authority_from_wire(peer, authority_wire)?
+        else {
+            return Ok(afs_protocol::node_control::DfsOwnerAcknowledgeLockWaitReply {});
+        };
+        authority
+            .table
+            .acknowledge_waiter(&waiter)
+            .map_err(lock_error)?;
+        authority
+            .state
+            .lock()
+            .map_err(|_| unavailable("DFS lock authority state is poisoned"))?
+            .waiters
+            .remove(&waiter);
+        Ok(afs_protocol::node_control::DfsOwnerAcknowledgeLockWaitReply {})
+    }
+
+    fn release_locks(
+        &self,
+        peer: &str,
+        request: afs_protocol::node_control::DfsOwnerReleaseLocksRequest,
+    ) -> Result<afs_protocol::node_control::DfsOwnerReleaseLocksReply> {
+        let authority_wire = request
+            .authority
+            .ok_or_else(|| stale("DFS owner lock authority is missing"))?;
+        let caller_session_id = authority_wire.caller_session_id.clone();
+        let owner = Self::scoped_remote_lock_owner(
+            peer,
+            &caller_session_id,
+            request
+                .owner
+                .ok_or_else(|| invalid("DFS owner lock owner is missing"))?,
+        )?;
+        let kind = Self::lock_release_kind_from_wire(request.release_kind)?;
+        let Some((_, authority)) = self.cached_local_authority_from_wire(peer, authority_wire)?
+        else {
+            return Ok(afs_protocol::node_control::DfsOwnerReleaseLocksReply {});
+        };
+        match kind {
+            ReleaseKind::PosixOwner => authority.table.release_posix_owner(&owner),
+            ReleaseKind::FlockOwner => authority.table.release_flock_owner(&owner),
+        }
+        .map_err(lock_error)?;
+        self.unpin_owner_if_inactive(
+            &authority,
+            &owner,
+            Some(match kind {
+                ReleaseKind::PosixOwner => FileLockKind::Posix,
+                ReleaseKind::FlockOwner => FileLockKind::Flock,
+            }),
+        )?;
+        Ok(afs_protocol::node_control::DfsOwnerReleaseLocksReply {})
+    }
+
+    fn release_lock_session(
+        &self,
+        peer: &str,
+        request: afs_protocol::node_control::DfsOwnerReleaseLockSessionRequest,
+    ) -> Result<afs_protocol::node_control::DfsOwnerReleaseLockSessionReply> {
+        let authority_wire = request
+            .authority
+            .ok_or_else(|| stale("DFS owner lock authority is missing"))?;
+        if request.ingress_session_id.is_empty() {
+            return Err(invalid("DFS owner release lock session is empty"));
+        }
+        let caller_session_id = authority_wire.caller_session_id.clone();
+        let scoped_session =
+            Self::lock_scope(peer, &caller_session_id, &request.ingress_session_id)?;
+        self.note_closed_lock_session(&scoped_session)?;
+        let Some((_, authority)) = self.cached_local_authority_from_wire(peer, authority_wire)?
+        else {
+            return Ok(afs_protocol::node_control::DfsOwnerReleaseLockSessionReply {});
+        };
+        let known_session = {
+            let state = authority
+                .state
+                .lock()
+                .map_err(|_| unavailable("DFS lock authority state is poisoned"))?;
+            state
+                .pinned_owners
+                .iter()
+                .any(|owner| owner.ingress_session_id == scoped_session)
+                || state
+                    .waiters
+                    .iter()
+                    .any(|waiter| waiter.ingress_session_id == scoped_session)
+        };
+        if !known_session {
+            return Ok(afs_protocol::node_control::DfsOwnerReleaseLockSessionReply {});
+        }
+        authority
+            .table
+            .release_session(&scoped_session)
+            .map_err(lock_error)?;
+        let mut state = authority
+            .state
+            .lock()
+            .map_err(|_| unavailable("DFS lock authority state is poisoned"))?;
+        state
+            .pinned_owners
+            .retain(|owner| owner.ingress_session_id != scoped_session);
+        state
+            .waiters
+            .retain(|waiter| waiter.ingress_session_id != scoped_session);
+        Ok(afs_protocol::node_control::DfsOwnerReleaseLockSessionReply {})
+    }
+
+    fn release(
+        &self,
+        peer: &str,
+        request: afs_protocol::node_control::DfsOwnerReleaseRequest,
+    ) -> Result<afs_protocol::node_control::DfsOwnerReleaseReply> {
+        let handle = request
+            .handle
+            .ok_or_else(|| stale("DFS owner release missing handle"))?;
+        self.validate_owner_handle(peer, &handle)?;
+        let file = Self::file_handle_from_owner(&handle)?;
+        <Self as Backend>::release(self, &owner_request_context(), file)?;
+        Ok(afs_protocol::node_control::DfsOwnerReleaseReply {})
+    }
+}
+
+impl crate::node::rpc::data::DfsOwnerFilesHandler for DistributedFs {
+    fn read(
+        &self,
+        peer: &str,
+        request: afs_protocol::node_data::DfsOwnerReadRequest,
+    ) -> Result<afs_protocol::node_data::DfsOwnerReadReply> {
+        let handle = request
+            .handle
+            .ok_or_else(|| stale("DFS owner read missing handle"))?;
+        let handle = Self::control_owner_handle(&handle);
+        self.validate_owner_handle(peer, &handle)?;
+        let file = Self::file_handle_from_owner(&handle)?;
+        let mut data = vec![0; request.length as usize];
+        let read = <Self as Backend>::read(
+            self,
+            &owner_request_context(),
+            file,
+            request.offset,
+            &mut data,
+        )?;
+        data.truncate(read);
+        let visible_write_seq = self
+            .write_state(&InodeId::new(handle.inode_id))?
+            .and_then(|state| state.lock().ok().map(|state| state.visible_write_seq))
+            .unwrap_or(0);
+        Ok(afs_protocol::node_data::DfsOwnerReadReply {
+            data,
+            visible_write_seq,
+        })
+    }
+
+    fn write(
+        &self,
+        peer: &str,
+        request: afs_protocol::node_data::DfsOwnerWriteRequest,
+    ) -> Result<afs_protocol::node_data::DfsOwnerWriteReply> {
+        let handle = request
+            .handle
+            .clone()
+            .ok_or_else(|| stale("DFS owner write missing handle"))?;
+        let handle = Self::control_owner_handle(&handle);
+        self.validate_owner_handle(peer, &handle)?;
+        let operation_id = OperationId::new(request.operation_id.clone());
+        let key = Self::remote_operation_key(peer, &handle, operation_id);
+        let fingerprint = Self::fingerprint_remote_write(
+            &handle,
+            request.offset,
+            request.append,
+            &request.data,
+            request.kill_suidgid,
+        );
+        if let Some(RemoteOperationResult::Write { reply, .. }) =
+            self.remote_operation_cached(&key, fingerprint)?
+        {
+            return Ok(reply);
+        }
+        let file = Self::file_handle_from_owner(&handle)?;
+        let offset = if request.append {
+            let snapshot = self.handle_snapshot(file)?;
+            self.visible_attributes(&snapshot.opened_inode)?.size
+        } else {
+            request.offset
+        };
+        let written = <Self as Backend>::write_with_options(
+            self,
+            &owner_request_context(),
+            file,
+            offset,
+            &request.data,
+            WriteOptions {
+                kill_suidgid: request.kill_suidgid,
+            },
+        )?;
+        let snapshot = self.handle_snapshot(file)?;
+        let accepted = snapshot
+            .write_session
+            .as_ref()
+            .map_or(0, |session| session.local.last_accepted_seq);
+        let reply = afs_protocol::node_data::DfsOwnerWriteReply {
+            written: written as u64,
+            accepted_write_seq: accepted,
+            effective_offset: offset,
+        };
+        self.remember_remote_operation(key, RemoteOperationResult::Write { fingerprint, reply })?;
+        Ok(reply)
+    }
+
+    fn resize(
+        &self,
+        peer: &str,
+        request: afs_protocol::node_data::DfsOwnerResizeRequest,
+    ) -> Result<afs_protocol::node_data::DfsOwnerResizeReply> {
+        let handle = request
+            .handle
+            .clone()
+            .ok_or_else(|| stale("DFS owner resize missing handle"))?;
+        let handle = Self::control_owner_handle(&handle);
+        self.validate_owner_handle(peer, &handle)?;
+        let operation_id = OperationId::new(request.operation_id.clone());
+        let key = Self::remote_operation_key(peer, &handle, operation_id);
+        let fingerprint =
+            Self::fingerprint_remote_resize(&handle, request.length, request.kill_suidgid);
+        if let Some(RemoteOperationResult::Resize { reply, .. }) =
+            self.remote_operation_cached(&key, fingerprint)?
+        {
+            return Ok(reply);
+        }
+        let file = Self::file_handle_from_owner(&handle)?;
+        let snapshot = self.handle_snapshot(file)?;
+        let accepted =
+            self.resize_dirty_inode(&snapshot.inode_id, request.length, request.kill_suidgid)?;
+        self.update_handle_write_progress(file, accepted)?;
+        let reply = afs_protocol::node_data::DfsOwnerResizeReply {
+            accepted_write_seq: accepted,
+        };
+        self.remember_remote_operation(key, RemoteOperationResult::Resize { fingerprint, reply })?;
+        Ok(reply)
+    }
+
+    fn sync(
+        &self,
+        peer: &str,
+        request: afs_protocol::node_data::DfsOwnerSyncRequest,
+    ) -> Result<afs_protocol::node_data::DfsOwnerSyncReply> {
+        let handle = request
+            .handle
+            .clone()
+            .ok_or_else(|| stale("DFS owner sync missing handle"))?;
+        let handle = Self::control_owner_handle(&handle);
+        self.validate_owner_handle(peer, &handle)?;
+        let operation_id = OperationId::new(request.operation_id.clone());
+        let key = Self::remote_operation_key(peer, &handle, operation_id);
+        let fingerprint =
+            Self::fingerprint_remote_sync(&handle, request.through_write_seq, request.data_only);
+        if let Some(RemoteOperationResult::Sync { reply, .. }) =
+            self.remote_operation_cached(&key, fingerprint)?
+        {
+            return Ok(reply);
+        }
+        let file = Self::file_handle_from_owner(&handle)?;
+        <Self as Backend>::fsync(
+            self,
+            &owner_request_context(),
+            file,
+            if request.data_only {
+                SyncMode::DataOnly
+            } else {
+                SyncMode::Full
+            },
+        )?;
+        let snapshot = self.handle_snapshot(file)?;
+        let reply = afs_protocol::node_data::DfsOwnerSyncReply {
+            durable_write_seq: snapshot
+                .write_session
+                .as_ref()
+                .map_or(0, |session| session.local.last_synced_seq),
+            file_version_id: self
+                .write_state(&snapshot.inode_id)?
+                .and_then(|state| {
+                    state.lock().ok().and_then(|state| {
+                        state
+                            .base_version
+                            .as_ref()
+                            .map(|version| version.id.0.clone())
+                    })
+                })
+                .unwrap_or_default(),
+        };
+        self.remember_remote_operation(
+            key,
+            RemoteOperationResult::Sync {
+                fingerprint,
+                reply: reply.clone(),
+            },
+        )?;
+        Ok(reply)
+    }
+}
+
+impl DistributedFs {
+    fn validate_owner_handle(
+        &self,
+        peer: &str,
+        handle: &afs_protocol::node_control::DfsOwnerHandle,
+    ) -> Result<()> {
+        if handle.namespace_id != self.namespace_id.0
+            || handle.owner_node_id != self.node_id
+            || handle.owner_session_id != self.session_id
+            || handle.caller_node_id != peer
+            || handle.lease_epoch == 0
+        {
+            return Err(stale("DFS owner handle identity does not match this owner"));
+        }
+        let inode_id = InodeId::new(handle.inode_id.clone());
+        let state = self
+            .write_state(&inode_id)?
+            .ok_or_else(|| stale("DFS owner write state is not open"))?;
+        let state = state
+            .lock()
+            .map_err(|_| unavailable("DFS inode write state is poisoned"))?;
+        if state.write_lease.lease_epoch != handle.lease_epoch
+            || state.write_lease.owner_node_id != self.node_id
+            || state.write_lease.owner_session_id != self.session_id
+        {
+            return Err(stale("DFS owner lease epoch is stale"));
+        }
+        let file = Self::file_handle_from_owner(handle)?;
+        let snapshot = self.handle_snapshot(file)?;
+        if snapshot.inode_id != inode_id {
+            return Err(stale("DFS owner handle names another inode"));
+        }
+        Ok(())
+    }
+}
+
+fn owner_request_context() -> RequestContext {
+    RequestContext {
+        uid: 0,
+        gid: 0,
+        pid: 0,
+        umask: 0,
+        supplementary_gids: Vec::new(),
+    }
+}
+
 fn should_renew(lease: &WriteLease) -> bool {
     lease.expires_at_unix_ms <= now_unix_ms().saturating_add(5_000)
 }
@@ -1689,15 +5124,63 @@ fn has_o_dsync(flags: i32) -> bool {
     }
 }
 
-fn attributes(inode: &InodeRecord, size: u64) -> FileAttributes {
+fn file_kind(kind: InodeKind) -> FileKind {
+    match kind {
+        InodeKind::Regular => FileKind::Regular,
+        InodeKind::Directory => FileKind::Directory,
+        InodeKind::Symlink => FileKind::Symlink,
+        InodeKind::Special(kind) => FileKind::Special(vfs_special_kind(kind)),
+    }
+}
+
+fn dfs_special_kind(kind: SpecialFileKind) -> SpecialNodeKind {
+    match kind {
+        SpecialFileKind::Fifo => SpecialNodeKind::Fifo,
+        SpecialFileKind::Socket => SpecialNodeKind::Socket,
+        SpecialFileKind::BlockDevice { rdev } => SpecialNodeKind::BlockDevice { rdev },
+        SpecialFileKind::CharDevice { rdev } => SpecialNodeKind::CharDevice { rdev },
+    }
+}
+
+fn vfs_special_kind(kind: SpecialNodeKind) -> SpecialFileKind {
+    match kind {
+        SpecialNodeKind::Fifo => SpecialFileKind::Fifo,
+        SpecialNodeKind::Socket => SpecialFileKind::Socket,
+        SpecialNodeKind::BlockDevice { rdev } => SpecialFileKind::BlockDevice { rdev },
+        SpecialNodeKind::CharDevice { rdev } => SpecialFileKind::CharDevice { rdev },
+    }
+}
+
+fn dfs_owner_special_node(
+    kind: SpecialFileKind,
+) -> afs_protocol::node_control::DfsOwnerSpecialNode {
+    let (kind, rdev) = match kind {
+        SpecialFileKind::Fifo => (afs_protocol::node_control::DfsOwnerSpecialNodeKind::Fifo, 0),
+        SpecialFileKind::Socket => (
+            afs_protocol::node_control::DfsOwnerSpecialNodeKind::Socket,
+            0,
+        ),
+        SpecialFileKind::BlockDevice { rdev } => (
+            afs_protocol::node_control::DfsOwnerSpecialNodeKind::BlockDevice,
+            rdev,
+        ),
+        SpecialFileKind::CharDevice { rdev } => (
+            afs_protocol::node_control::DfsOwnerSpecialNodeKind::CharDevice,
+            rdev,
+        ),
+    };
+    afs_protocol::node_control::DfsOwnerSpecialNode {
+        kind: kind.into(),
+        rdev,
+    }
+}
+
+fn attributes(inode: &InodeRecord, size: u64, blocks: u64) -> FileAttributes {
     let attrs = &inode.attributes;
     FileAttributes {
-        kind: match inode.kind {
-            InodeKind::Regular => FileKind::Regular,
-            InodeKind::Directory => FileKind::Directory,
-            InodeKind::Symlink => FileKind::Symlink,
-        },
+        kind: file_kind(inode.kind),
         size,
+        blocks,
         mode: attrs.mode,
         uid: attrs.uid,
         gid: attrs.gid,
@@ -1721,8 +5204,168 @@ fn unix_ms(value: u64) -> SystemTime {
     UNIX_EPOCH + std::time::Duration::from_millis(value)
 }
 
+fn system_time_ms(value: SystemTime) -> u64 {
+    value
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis()
+        .try_into()
+        .unwrap_or(u64::MAX)
+}
+
+fn allocated_blocks(
+    layout: &LayoutRoot,
+    logical_length: u64,
+    frozen: Option<&DirtyExtentMap>,
+    active: &DirtyExtentMap,
+) -> Result<u64> {
+    let mut ranges = Vec::new();
+    for extent in &layout.inline_extents {
+        push_allocated_range(
+            &mut ranges,
+            extent.file_offset,
+            extent.length,
+            logical_length,
+        )?;
+    }
+    if let Some(frozen) = frozen {
+        push_dirty_allocated_ranges(&mut ranges, frozen, logical_length)?;
+    }
+    push_dirty_allocated_ranges(&mut ranges, active, logical_length)?;
+    ranges_to_blocks(ranges)
+}
+
+fn push_dirty_allocated_ranges(
+    ranges: &mut Vec<(u64, u64)>,
+    map: &DirtyExtentMap,
+    logical_length: u64,
+) -> Result<()> {
+    for extent in &map.extents {
+        if extent.data.is_some() {
+            push_allocated_range(ranges, extent.file_offset, extent.length, logical_length)?;
+        }
+    }
+    Ok(())
+}
+
+fn push_allocated_range(
+    ranges: &mut Vec<(u64, u64)>,
+    offset: u64,
+    length: u64,
+    logical_length: u64,
+) -> Result<()> {
+    if offset >= logical_length || length == 0 {
+        return Ok(());
+    }
+    let end = offset
+        .checked_add(length)
+        .ok_or_else(|| invalid("allocated range overflow"))?
+        .min(logical_length);
+    if end > offset {
+        ranges.push((offset, end));
+    }
+    Ok(())
+}
+
+fn ranges_to_blocks(mut ranges: Vec<(u64, u64)>) -> Result<u64> {
+    if ranges.is_empty() {
+        return Ok(0);
+    }
+    ranges.sort_by_key(|range| range.0);
+    let mut total = 0u64;
+    let (mut start, mut end) = ranges[0];
+    for (next_start, next_end) in ranges.into_iter().skip(1) {
+        if next_start <= end {
+            end = end.max(next_end);
+        } else {
+            total = total
+                .checked_add(end - start)
+                .ok_or_else(|| invalid("allocated byte count overflow"))?;
+            start = next_start;
+            end = next_end;
+        }
+    }
+    total = total
+        .checked_add(end - start)
+        .ok_or_else(|| invalid("allocated byte count overflow"))?;
+    Ok(total.div_ceil(512))
+}
+
+fn caller_context(ctx: &RequestContext) -> CallerContext {
+    CallerContext {
+        uid: ctx.uid,
+        gid: ctx.gid,
+        supplementary_gids: ctx.supplementary_gids.clone(),
+    }
+}
+
+fn slice_directory_entries(
+    mut rows: Vec<DirectoryEntry>,
+    cookie: u64,
+    max_entries: usize,
+) -> Result<Vec<DirectoryEntry>> {
+    let start = usize::try_from(cookie).map_err(|_| invalid("directory cookie is too large"))?;
+    rows.sort_by(|left, right| left.name.cmp(&right.name));
+    Ok(rows
+        .into_iter()
+        .enumerate()
+        .skip(start)
+        .take(max_entries)
+        .map(|(index, mut entry)| {
+            entry.next_cookie = u64::try_from(index + 1).unwrap_or(u64::MAX);
+            entry
+        })
+        .collect())
+}
+
+fn rename_mode(flags: RenameFlags) -> Result<RenameMode> {
+    #[cfg(any(target_os = "linux", target_os = "android"))]
+    {
+        if flags.0 == 0 {
+            return Ok(RenameMode::Replace);
+        }
+        if flags.0 == libc::RENAME_NOREPLACE {
+            return Ok(RenameMode::NoReplace);
+        }
+    }
+    #[cfg(not(any(target_os = "linux", target_os = "android")))]
+    {
+        if flags.0 == 0 {
+            return Ok(RenameMode::Replace);
+        }
+    }
+    Err(Error::coded(
+        afs_error::NODE_VFS_UNIMPLEMENTED,
+        "DFS rename supports only default replace and RENAME_NOREPLACE",
+    ))
+}
+
+fn xattr_set_mode(flags: i32) -> Result<XattrSetMode> {
+    if flags == 0 {
+        return Ok(XattrSetMode::Upsert);
+    }
+    #[cfg(any(target_os = "linux", target_os = "android"))]
+    {
+        if flags == libc::XATTR_CREATE {
+            return Ok(XattrSetMode::Create);
+        }
+        if flags == libc::XATTR_REPLACE {
+            return Ok(XattrSetMode::Replace);
+        }
+    }
+    Err(invalid("invalid DFS xattr set flags"))
+}
+
 fn invalid(message: impl Into<String>) -> Error {
     Error::coded(afs_error::NODE_VFS_INVALID, message)
+}
+
+fn lock_error(error: LockError) -> Error {
+    Error::from(std::io::Error::from_raw_os_error(error.errno()))
+}
+
+fn file_too_large() -> Error {
+    Error::from(std::io::Error::from_raw_os_error(libc::EFBIG))
 }
 
 fn unavailable(message: impl Into<String>) -> Error {
@@ -1749,14 +5392,59 @@ mod tests {
     use super::*;
     use crate::node::chunk::LocalChunkStore;
 
+    struct CommitPause {
+        after_successes: usize,
+        reached: (Mutex<bool>, std::sync::Condvar),
+        release: (Mutex<bool>, std::sync::Condvar),
+    }
+
+    impl CommitPause {
+        fn new(after_successes: usize) -> Self {
+            Self {
+                after_successes,
+                reached: (Mutex::new(false), std::sync::Condvar::new()),
+                release: (Mutex::new(false), std::sync::Condvar::new()),
+            }
+        }
+
+        fn wait_until_reached(&self) {
+            let (lock, cv) = &self.reached;
+            let mut reached = lock.lock().unwrap();
+            while !*reached {
+                reached = cv.wait(reached).unwrap();
+            }
+        }
+
+        fn release(&self) {
+            let (lock, cv) = &self.release;
+            *lock.lock().unwrap() = true;
+            cv.notify_all();
+        }
+
+        fn block(&self) {
+            let (reached_lock, reached_cv) = &self.reached;
+            *reached_lock.lock().unwrap() = true;
+            reached_cv.notify_all();
+
+            let (release_lock, release_cv) = &self.release;
+            let mut released = release_lock.lock().unwrap();
+            while !*released {
+                released = release_cv.wait(released).unwrap();
+            }
+        }
+    }
+
     struct RecordingMeta {
         inode: Mutex<InodeRecord>,
         lease: Mutex<WriteLease>,
         commits: Mutex<Vec<CommitFileVersion>>,
         failed_commits: Mutex<Vec<CommitFileVersion>>,
+        cas_failed_commits: Mutex<Vec<CommitFileVersion>>,
         metadata_syncs: Mutex<Vec<SyncInodeMetadata>>,
         failed_metadata_syncs: Mutex<Vec<SyncInodeMetadata>>,
         next_commit_error: Mutex<Option<Error>>,
+        commit_error_after_successes: Mutex<Option<(usize, Error)>>,
+        commit_pause: Mutex<Option<Arc<CommitPause>>>,
         next_metadata_sync_error: Mutex<Option<Error>>,
     }
 
@@ -1777,6 +5465,8 @@ mod tests {
                         ctime_unix_ms: 1,
                     },
                     head_version: None,
+                    symlink_target: None,
+                    xattrs: std::collections::BTreeMap::new(),
                     revision: 1,
                 }),
                 lease: Mutex::new(WriteLease {
@@ -1788,15 +5478,23 @@ mod tests {
                 }),
                 commits: Mutex::new(Vec::new()),
                 failed_commits: Mutex::new(Vec::new()),
+                cas_failed_commits: Mutex::new(Vec::new()),
                 metadata_syncs: Mutex::new(Vec::new()),
                 failed_metadata_syncs: Mutex::new(Vec::new()),
                 next_commit_error: Mutex::new(None),
+                commit_error_after_successes: Mutex::new(None),
+                commit_pause: Mutex::new(None),
                 next_metadata_sync_error: Mutex::new(None),
             }
         }
 
         fn commit_count(&self) -> usize {
             self.commits.lock().unwrap().len()
+        }
+
+        fn advance_namespace_revision(&self) {
+            let mut inode = self.inode.lock().unwrap();
+            inode.revision = inode.revision.saturating_add(1);
         }
 
         fn fail_next_commit(&self) {
@@ -1809,6 +5507,16 @@ mod tests {
 
         fn fail_next_commit_with(&self, error: Error) {
             *self.next_commit_error.lock().unwrap() = Some(error);
+        }
+
+        fn fail_commit_after_successes(&self, successes: usize, error: Error) {
+            *self.commit_error_after_successes.lock().unwrap() = Some((successes, error));
+        }
+
+        fn pause_commit_after_successes(&self, successes: usize) -> Arc<CommitPause> {
+            let pause = Arc::new(CommitPause::new(successes));
+            *self.commit_pause.lock().unwrap() = Some(pause.clone());
+            pause
         }
 
         fn fail_next_metadata_sync_with(&self, error: Error) {
@@ -1878,6 +5586,10 @@ mod tests {
             inode.revision = inode.revision.saturating_add(1);
             inode.attributes.mtime_unix_ms = sync.metadata_delta.mtime_unix_ms.unwrap();
             inode.attributes.ctime_unix_ms = sync.metadata_delta.ctime_unix_ms.unwrap();
+            if sync.metadata_delta.kill_suidgid {
+                inode.attributes.mode =
+                    DistributedFs::clear_kernel_write_privileges(inode.attributes.mode);
+            }
             self.metadata_syncs.lock().unwrap().push(sync);
             Ok(inode.clone())
         }
@@ -1888,10 +5600,29 @@ mod tests {
                 self.failed_commits.lock().unwrap().push(commit);
                 return Err(error);
             }
+            {
+                let mut scheduled = self.commit_error_after_successes.lock().unwrap();
+                let should_fail = scheduled
+                    .as_ref()
+                    .is_some_and(|(successes, _)| self.commits.lock().unwrap().len() >= *successes);
+                if should_fail {
+                    let (_, error) = scheduled.take().unwrap();
+                    self.failed_commits.lock().unwrap().push(commit);
+                    return Err(error);
+                }
+            }
+            let pause = self.commit_pause.lock().unwrap().clone();
+            if let Some(pause) = pause
+                && self.commits.lock().unwrap().len() >= pause.after_successes
+            {
+                *self.commit_pause.lock().unwrap() = None;
+                pause.block();
+            }
             let mut inode = self.inode.lock().unwrap();
             if inode.revision != commit.expected_inode_revision
                 || inode.head_version != commit.expected_head_version
             {
+                self.cas_failed_commits.lock().unwrap().push(commit);
                 return Err(unavailable("test inode CAS failed"));
             }
             inode.revision = inode.revision.saturating_add(1);
@@ -1900,8 +5631,182 @@ mod tests {
                 inode.attributes.mtime_unix_ms = commit.metadata_delta.mtime_unix_ms.unwrap();
                 inode.attributes.ctime_unix_ms = commit.metadata_delta.ctime_unix_ms.unwrap();
             }
+            if commit.metadata_delta.kill_suidgid {
+                inode.attributes.mode =
+                    DistributedFs::clear_kernel_write_privileges(inode.attributes.mode);
+            }
             self.commits.lock().unwrap().push(commit);
             Ok(inode.clone())
+        }
+
+        fn mkdir(
+            &self,
+            _: &OperationId,
+            _: &InodeId,
+            _: &[u8],
+            attributes: InodeAttributes,
+            _: CallerContext,
+        ) -> Result<InodeRecord> {
+            let mut inode = self.inode.lock().unwrap().clone();
+            inode.kind = InodeKind::Directory;
+            inode.attributes = attributes;
+            Ok(inode)
+        }
+
+        fn read_dir(&self, _: &InodeId) -> Result<Vec<DentryRecord>> {
+            Ok(Vec::new())
+        }
+
+        fn unlink(
+            &self,
+            _: &OperationId,
+            _: &InodeId,
+            _: &[u8],
+            _: CallerContext,
+        ) -> Result<InodeRecord> {
+            Ok(self.inode.lock().unwrap().clone())
+        }
+
+        fn rmdir(
+            &self,
+            _: &OperationId,
+            _: &InodeId,
+            _: &[u8],
+            _: CallerContext,
+        ) -> Result<InodeRecord> {
+            Ok(self.inode.lock().unwrap().clone())
+        }
+
+        fn rename(
+            &self,
+            _: &OperationId,
+            _: &InodeId,
+            _: &[u8],
+            _: &InodeId,
+            _: &[u8],
+            _: RenameMode,
+            _: CallerContext,
+        ) -> Result<RenameOutcome> {
+            Ok(RenameOutcome {
+                inode: self.inode.lock().unwrap().clone(),
+                replaced_inode: None,
+            })
+        }
+
+        fn link(
+            &self,
+            _: &OperationId,
+            _: &InodeId,
+            expected_inode_revision: u64,
+            _: &InodeId,
+            _: &[u8],
+            _: CallerContext,
+        ) -> Result<InodeRecord> {
+            let mut inode = self.inode.lock().unwrap();
+            if inode.revision != expected_inode_revision {
+                return Err(unavailable("test link CAS failed"));
+            }
+            inode.attributes.nlink = inode.attributes.nlink.saturating_add(1);
+            inode.revision = inode.revision.saturating_add(1);
+            Ok(inode.clone())
+        }
+
+        fn symlink(&self, _: SymlinkRequest) -> Result<InodeRecord> {
+            Err(unavailable("test meta symlink is not implemented"))
+        }
+
+        fn mknod(&self, request: MknodRequest) -> Result<InodeRecord> {
+            let mut inode = self.inode.lock().unwrap().clone();
+            inode.kind = InodeKind::Special(request.kind);
+            inode.attributes = request.attributes;
+            inode.head_version = None;
+            inode.revision = inode.revision.saturating_add(1);
+            *self.inode.lock().unwrap() = inode.clone();
+            Ok(inode)
+        }
+
+        fn read_link(&self, _: ReadLinkRequest) -> Result<Vec<u8>> {
+            Err(unavailable("test meta readlink is not implemented"))
+        }
+
+        fn set_inode_attributes(&self, request: SetInodeAttrRequest) -> Result<InodeRecord> {
+            let mut inode = self.inode.lock().unwrap();
+            if inode.revision != request.expected_inode_revision {
+                return Err(unavailable("test setattr CAS failed"));
+            }
+            if let Some(mode) = request.update.mode {
+                inode.attributes.mode = mode;
+            }
+            if let Some(uid) = request.update.uid {
+                inode.attributes.uid = uid;
+            }
+            if let Some(gid) = request.update.gid {
+                inode.attributes.gid = gid;
+            }
+            if let Some(atime) = request.update.atime_unix_ms {
+                inode.attributes.atime_unix_ms = atime;
+            }
+            if let Some(mtime) = request.update.mtime_unix_ms {
+                inode.attributes.mtime_unix_ms = mtime;
+            }
+            if let Some(ctime) = request.update.ctime_unix_ms {
+                inode.attributes.ctime_unix_ms = ctime;
+            }
+            inode.revision = inode.revision.saturating_add(1);
+            Ok(inode.clone())
+        }
+
+        fn get_xattr(&self, request: GetXattrRequest) -> Result<Vec<u8>> {
+            self.inode
+                .lock()
+                .unwrap()
+                .xattrs
+                .get(&request.name)
+                .cloned()
+                .ok_or_else(|| Error::coded(afs_error::NODE_VFS_NOT_FOUND, "test xattr not found"))
+        }
+
+        fn list_xattr(&self, _: ListXattrRequest) -> Result<Vec<Vec<u8>>> {
+            Ok(self.inode.lock().unwrap().xattrs.keys().cloned().collect())
+        }
+
+        fn set_xattr(&self, request: SetXattrRequest) -> Result<InodeRecord> {
+            let mut inode = self.inode.lock().unwrap();
+            if inode.revision != request.expected_inode_revision {
+                return Err(unavailable("test setxattr CAS failed"));
+            }
+            let exists = inode.xattrs.contains_key(&request.name);
+            match request.mode {
+                XattrSetMode::Create if exists => return Err(invalid("test xattr exists")),
+                XattrSetMode::Replace if !exists => return Err(invalid("test xattr missing")),
+                _ => {}
+            }
+            inode.xattrs.insert(request.name, request.value);
+            inode.revision = inode.revision.saturating_add(1);
+            Ok(inode.clone())
+        }
+
+        fn remove_xattr(&self, request: RemoveXattrRequest) -> Result<InodeRecord> {
+            let mut inode = self.inode.lock().unwrap();
+            if inode.revision != request.expected_inode_revision {
+                return Err(unavailable("test removexattr CAS failed"));
+            }
+            inode.xattrs.remove(&request.name);
+            inode.revision = inode.revision.saturating_add(1);
+            Ok(inode.clone())
+        }
+
+        fn lookup_node_location(&self, node_id: &str) -> Result<Option<DfsNodeLocation>> {
+            Ok(Some(DfsNodeLocation {
+                node_id: node_id.into(),
+                node_epoch: 1,
+                data_endpoint: "http://127.0.0.1:9".into(),
+            }))
+        }
+
+        fn current_node_session(&self, node_id: &str) -> Result<Option<String>> {
+            let suffix = node_id.strip_prefix("node-").unwrap_or("a");
+            Ok(Some(format!("session-{suffix}")))
         }
     }
 
@@ -1911,10 +5816,17 @@ mod tests {
             gid: 1000,
             pid: 42,
             umask: 0,
+            supplementary_gids: Vec::new(),
         }
     }
 
     fn test_fs() -> (tempfile::TempDir, Arc<RecordingMeta>, DistributedFs) {
+        test_fs_with_dirty_budget(DEFAULT_DIRTY_DATA_BUDGET_BYTES)
+    }
+
+    fn test_fs_with_dirty_budget(
+        budget: u64,
+    ) -> (tempfile::TempDir, Arc<RecordingMeta>, DistributedFs) {
         let meta = Arc::new(RecordingMeta::new());
         let temp = tempfile::tempdir().unwrap();
         let chunks = Arc::new(LocalChunkStore::open(temp.path(), "node-a").unwrap());
@@ -1933,12 +5845,637 @@ mod tests {
             meta.clone(),
             chunks,
             read_engine,
-        );
+        )
+        .with_dirty_budget_bytes(budget);
         (temp, meta, fs)
     }
 
     #[test]
-    fn readonly_handles_keep_opened_file_version_while_writer_sees_dirty() {
+    fn killpriv_positive_write_clears_suid_and_executable_sgid_until_commit() {
+        let (_temp, meta, fs) = test_fs();
+        meta.inode.lock().unwrap().attributes.mode = 0o6777;
+        let created = fs
+            .create(
+                &context(),
+                fs.root_inode(),
+                OsStr::new("killpriv-write.bin"),
+                0o640,
+                libc::O_RDWR,
+            )
+            .unwrap();
+
+        assert_eq!(
+            fs.write_with_options(
+                &context(),
+                created.handle,
+                0,
+                b"x",
+                WriteOptions { kill_suidgid: true },
+            )
+            .unwrap(),
+            1
+        );
+        assert_eq!(
+            fs.getattr(&context(), created.entry.inode, Some(created.handle))
+                .unwrap()
+                .mode,
+            0o0777
+        );
+
+        let killpriv_ctime = system_time_ms(
+            fs.getattr(&context(), created.entry.inode, Some(created.handle))
+                .unwrap()
+                .ctime,
+        );
+        fs.flush(&context(), created.handle).unwrap();
+        let commits = meta.commits.lock().unwrap();
+        assert_eq!(commits.len(), 1);
+        assert!(commits[0].metadata_delta.kill_suidgid);
+        assert_eq!(
+            commits[0].metadata_delta.ctime_unix_ms,
+            Some(killpriv_ctime)
+        );
+        assert_eq!(meta.inode.lock().unwrap().attributes.mode, 0o0777);
+    }
+
+    #[test]
+    fn killpriv_zero_write_does_not_clear_mode() {
+        let (_temp, meta, fs) = test_fs();
+        meta.inode.lock().unwrap().attributes.mode = 0o6777;
+        let created = fs
+            .create(
+                &context(),
+                fs.root_inode(),
+                OsStr::new("killpriv-zero.bin"),
+                0o640,
+                libc::O_RDWR,
+            )
+            .unwrap();
+
+        assert_eq!(
+            fs.write_with_options(
+                &context(),
+                created.handle,
+                0,
+                b"",
+                WriteOptions { kill_suidgid: true },
+            )
+            .unwrap(),
+            0
+        );
+        assert_eq!(
+            fs.getattr(&context(), created.entry.inode, Some(created.handle))
+                .unwrap()
+                .mode,
+            0o6777
+        );
+        assert_eq!(meta.commit_count(), 0);
+    }
+
+    #[test]
+    fn killpriv_pending_clear_commits_before_plain_chmod() {
+        let (_temp, meta, fs) = test_fs();
+        meta.inode.lock().unwrap().attributes.mode = 0o6777;
+        let created = fs
+            .create(
+                &context(),
+                fs.root_inode(),
+                OsStr::new("killpriv-chmod.bin"),
+                0o640,
+                libc::O_RDWR,
+            )
+            .unwrap();
+
+        fs.write_with_options(
+            &context(),
+            created.handle,
+            0,
+            b"x",
+            WriteOptions { kill_suidgid: true },
+        )
+        .unwrap();
+        let attrs = fs
+            .setattr_with_options(
+                &context(),
+                created.entry.inode,
+                Some(created.handle),
+                &AttributeChange {
+                    mode: Some(0o6755),
+                    ..AttributeChange::default()
+                },
+                SetAttrOptions::default(),
+            )
+            .unwrap();
+        assert_eq!(attrs.mode, 0o6755);
+        fs.fsync(&context(), created.handle, SyncMode::Full)
+            .unwrap();
+
+        let commits = meta.commits.lock().unwrap();
+        assert_eq!(commits.len(), 1);
+        assert!(commits[0].metadata_delta.kill_suidgid);
+        assert_eq!(meta.inode.lock().unwrap().attributes.mode, 0o6755);
+    }
+
+    #[test]
+    fn killpriv_resize_clears_mode_on_explicit_cause() {
+        let (_temp, meta, fs) = test_fs();
+        meta.inode.lock().unwrap().attributes.mode = 0o6777;
+        let created = fs
+            .create(
+                &context(),
+                fs.root_inode(),
+                OsStr::new("killpriv-resize.bin"),
+                0o640,
+                libc::O_RDWR,
+            )
+            .unwrap();
+
+        let attrs = fs
+            .setattr_with_options(
+                &context(),
+                created.entry.inode,
+                Some(created.handle),
+                &AttributeChange {
+                    size: Some(4),
+                    ..AttributeChange::default()
+                },
+                SetAttrOptions {
+                    kill_suidgid: true,
+                    timestamps_now: false,
+                },
+            )
+            .unwrap();
+        assert_eq!(attrs.mode, 0o0777);
+        fs.flush(&context(), created.handle).unwrap();
+        assert!(meta.commits.lock().unwrap()[0].metadata_delta.kill_suidgid);
+    }
+
+    #[test]
+    fn killpriv_setattr_on_special_inode_uses_normal_meta_attribute_path() {
+        let (_temp, meta, fs) = test_fs();
+        let entry = fs
+            .mknod(
+                &context(),
+                fs.root_inode(),
+                OsStr::new("killpriv-fifo"),
+                SpecialFileKind::Fifo,
+                0o666,
+            )
+            .unwrap();
+
+        let attrs = fs
+            .setattr_with_options(
+                &context(),
+                entry.inode,
+                None,
+                &AttributeChange {
+                    mode: Some(0o600),
+                    uid: Some(4242),
+                    gid: Some(4343),
+                    ..AttributeChange::default()
+                },
+                SetAttrOptions {
+                    kill_suidgid: true,
+                    timestamps_now: false,
+                },
+            )
+            .unwrap();
+
+        assert!(matches!(
+            attrs.kind,
+            FileKind::Special(SpecialFileKind::Fifo)
+        ));
+        assert_eq!(attrs.mode & 0o777, 0o600);
+        assert_eq!(attrs.uid, 4242);
+        assert_eq!(attrs.gid, 4343);
+        assert_eq!(
+            meta.commit_count(),
+            0,
+            "non-regular setattr killpriv cause must not enter DFS chunk/write-lease commit path"
+        );
+    }
+
+    #[test]
+    fn dirty_budget_writeback_splits_streaming_writes_without_per_write_meta_rpc() {
+        let (_temp, meta, fs) = test_fs_with_dirty_budget(8);
+        let created = fs
+            .create(
+                &context(),
+                fs.root_inode(),
+                OsStr::new("budget-stream.bin"),
+                0o640,
+                libc::O_RDWR,
+            )
+            .unwrap();
+
+        assert_eq!(
+            fs.write(&context(), created.handle, 0, b"abcdefghijklmnop")
+                .unwrap(),
+            16
+        );
+        assert_eq!(
+            meta.commit_count(),
+            2,
+            "one large write is staged and committed in budget-sized windows"
+        );
+
+        let commits = meta.commits.lock().unwrap();
+        assert_eq!(commits[0].metadata_delta.mode, CommitMetadataMode::DataOnly);
+        assert_eq!(commits[0].file_version.length, 8);
+        assert_eq!(commits[1].metadata_delta.mode, CommitMetadataMode::DataOnly);
+        assert_eq!(commits[1].file_version.length, 16);
+        assert_eq!(
+            commits[1].file_version.parent_version,
+            Some(commits[0].file_version.id.clone())
+        );
+        drop(commits);
+
+        let mut out = [0; 16];
+        assert_eq!(
+            fs.read(&context(), created.handle, 0, &mut out).unwrap(),
+            16
+        );
+        assert_eq!(&out, b"abcdefghijklmnop");
+    }
+
+    #[test]
+    fn dirty_budget_counts_payload_not_sparse_holes() {
+        let (_temp, meta, fs) = test_fs_with_dirty_budget(8);
+        let created = fs
+            .create(
+                &context(),
+                fs.root_inode(),
+                OsStr::new("budget-sparse.bin"),
+                0o640,
+                libc::O_RDWR,
+            )
+            .unwrap();
+        let offset = 8 * 1024 * 1024 * 1024u64;
+
+        assert_eq!(
+            fs.write(&context(), created.handle, offset, b"tail")
+                .unwrap(),
+            4
+        );
+        assert_eq!(
+            meta.commit_count(),
+            0,
+            "large logical hole must not count as dirty payload memory"
+        );
+        fs.flush(&context(), created.handle).unwrap();
+        let commits = meta.commits.lock().unwrap();
+        assert_eq!(commits.len(), 1);
+        assert_eq!(commits[0].file_version.length, offset + 4);
+        assert_eq!(commits[0].layout_root.inline_extents.len(), 1);
+        assert_eq!(commits[0].layout_root.inline_extents[0].file_offset, offset);
+        assert_eq!(commits[0].layout_root.inline_extents[0].length, 4);
+        assert_eq!(commits[0].chunk_receipts.len(), 1);
+    }
+
+    #[test]
+    fn dirty_budget_unknown_commit_ack_preserves_exact_request_and_backpressures_next_write() {
+        let (_temp, meta, fs) = test_fs_with_dirty_budget(4);
+        let created = fs
+            .create(
+                &context(),
+                fs.root_inode(),
+                OsStr::new("budget-retry.bin"),
+                0o640,
+                libc::O_RDWR,
+            )
+            .unwrap();
+
+        meta.fail_next_commit();
+        assert_eq!(
+            fs.write(&context(), created.handle, 0, b"data").unwrap(),
+            4,
+            "buffered write reports bytes admitted into the exact pending request"
+        );
+        let failed = meta.failed_commits.lock().unwrap()[0].clone();
+
+        assert_eq!(
+            fs.write(&context(), created.handle, 4, b"!")
+                .unwrap_err()
+                .code(),
+            afs_error::NODE_VFS_UNAVAILABLE,
+            "the unknown commit is reported before admitting new mutation"
+        );
+        assert_eq!(fs.write(&context(), created.handle, 4, b"!").unwrap(), 1);
+        let commits = meta.commits.lock().unwrap();
+        assert_eq!(commits.len(), 1);
+        assert_eq!(failed.operation_id, commits[0].operation_id);
+        assert_eq!(failed.file_version.id, commits[0].file_version.id);
+        assert_eq!(failed.layout_root.id, commits[0].layout_root.id);
+        assert_eq!(commits[0].file_version.length, 4);
+        drop(commits);
+
+        fs.flush(&context(), created.handle).unwrap();
+        let commits = meta.commits.lock().unwrap();
+        assert_eq!(commits.len(), 2);
+        assert_eq!(commits[1].file_version.length, 5);
+    }
+
+    #[test]
+    fn dirty_budget_returns_admitted_bytes_and_latches_later_error() {
+        let (_temp, meta, fs) = test_fs_with_dirty_budget(4);
+        let created = fs
+            .create(
+                &context(),
+                fs.root_inode(),
+                OsStr::new("budget-partial.bin"),
+                0o640,
+                libc::O_RDWR,
+            )
+            .unwrap();
+
+        meta.fail_commit_after_successes(1, unavailable("injected second commit failure"));
+        assert_eq!(
+            fs.write(&context(), created.handle, 0, b"abcdefgh")
+                .unwrap(),
+            8,
+            "buffered write reports every byte admitted into dirty/pending state"
+        );
+        assert_eq!(meta.commit_count(), 1);
+        assert_eq!(meta.failed_commits.lock().unwrap().len(), 1);
+        assert_eq!(
+            fs.getattr(&context(), created.entry.inode, Some(created.handle))
+                .unwrap()
+                .size,
+            8,
+            "visible length follows the returned admitted byte count"
+        );
+        assert_eq!(
+            fs.write(&context(), created.handle, 8, b"!")
+                .unwrap_err()
+                .code(),
+            afs_error::NODE_VFS_UNAVAILABLE,
+            "the uncertain later window is reported on the next operation"
+        );
+    }
+
+    #[test]
+    fn dirty_budget_sync_write_error_does_not_report_unconfirmed_bytes() {
+        let (_temp, meta, fs) = test_fs_with_dirty_budget(4);
+        let created = fs
+            .create(
+                &context(),
+                fs.root_inode(),
+                OsStr::new("budget-sync-error.bin"),
+                0o640,
+                libc::O_RDWR | libc::O_SYNC,
+            )
+            .unwrap();
+
+        meta.fail_commit_after_successes(1, unavailable("injected second commit failure"));
+        assert_eq!(
+            fs.write(&context(), created.handle, 0, b"abcdefgh")
+                .unwrap_err()
+                .code(),
+            afs_error::NODE_VFS_UNAVAILABLE,
+            "O_SYNC cannot report bytes whose dirty-budget commit is unknown"
+        );
+        assert_eq!(meta.commit_count(), 1);
+        assert_eq!(meta.failed_commits.lock().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn dirty_budget_append_write_serializes_concurrent_resize() {
+        let (_temp, meta, fs) = test_fs_with_dirty_budget(4);
+        let fs = Arc::new(fs);
+        let created = fs
+            .create(
+                &context(),
+                fs.root_inode(),
+                OsStr::new("append-resize.bin"),
+                0o640,
+                libc::O_RDWR | libc::O_APPEND,
+            )
+            .unwrap();
+        let pause = meta.pause_commit_after_successes(0);
+
+        let writer_fs = fs.clone();
+        let writer_handle = created.handle;
+        let inode = created.entry.inode;
+        let handle = created.handle;
+        let writer =
+            std::thread::spawn(move || writer_fs.write(&context(), writer_handle, 0, b"abcdefgh"));
+        pause.wait_until_reached();
+
+        let resizer_fs = fs.clone();
+        let (started_tx, started_rx) = std::sync::mpsc::channel();
+        let resizer = std::thread::spawn(move || {
+            started_tx.send(()).unwrap();
+            resizer_fs.setattr(
+                &context(),
+                inode,
+                Some(handle),
+                &AttributeChange {
+                    size: Some(1),
+                    ..AttributeChange::default()
+                },
+            )
+        });
+        started_rx.recv().unwrap();
+        pause.release();
+
+        assert_eq!(writer.join().unwrap().unwrap(), 8);
+        assert_eq!(resizer.join().unwrap().unwrap().size, 1);
+        assert_eq!(
+            fs.getattr(&context(), inode, Some(handle)).unwrap().size,
+            1,
+            "resize runs after the complete append write, not between budget windows"
+        );
+        let commits = meta.commits.lock().unwrap();
+        assert_eq!(commits.len(), 2);
+        assert_eq!(commits[0].file_version.length, 4);
+        assert_eq!(commits[1].file_version.length, 8);
+    }
+
+    #[test]
+    fn dirty_budget_append_write_serializes_concurrent_full_sync() {
+        let (_temp, meta, fs) = test_fs_with_dirty_budget(4);
+        let fs = Arc::new(fs);
+        let created = fs
+            .create(
+                &context(),
+                fs.root_inode(),
+                OsStr::new("append-sync.bin"),
+                0o640,
+                libc::O_RDWR | libc::O_APPEND,
+            )
+            .unwrap();
+        let pause = meta.pause_commit_after_successes(0);
+
+        let writer_fs = fs.clone();
+        let writer_handle = created.handle;
+        let sync_handle = created.handle;
+        let writer =
+            std::thread::spawn(move || writer_fs.write(&context(), writer_handle, 0, b"abcdefgh"));
+        pause.wait_until_reached();
+
+        let sync_fs = fs.clone();
+        let (started_tx, started_rx) = std::sync::mpsc::channel();
+        let syncer = std::thread::spawn(move || {
+            started_tx.send(()).unwrap();
+            sync_fs.fsync(&context(), sync_handle, SyncMode::Full)
+        });
+        started_rx.recv().unwrap();
+        pause.release();
+
+        assert_eq!(writer.join().unwrap().unwrap(), 8);
+        syncer.join().unwrap().unwrap();
+
+        let commits = meta.commits.lock().unwrap();
+        assert_eq!(commits.len(), 2);
+        assert_eq!(commits[0].file_version.length, 4);
+        assert_eq!(commits[1].file_version.length, 8);
+        let final_head = Some(commits[1].file_version.id.clone());
+        drop(commits);
+
+        let metadata_syncs = meta.metadata_syncs.lock().unwrap();
+        assert_eq!(metadata_syncs.len(), 1);
+        assert_eq!(
+            metadata_syncs[0].expected_head_version, final_head,
+            "full fsync must synchronize the completed append version, not a mid-write budget window"
+        );
+    }
+
+    #[test]
+    fn mknod_creates_special_inode_without_write_session() {
+        let (_temp, _meta, fs) = test_fs();
+        let entry = fs
+            .mknod(
+                &context(),
+                fs.root_inode(),
+                OsStr::new("pipe"),
+                SpecialFileKind::Fifo,
+                0o666,
+            )
+            .unwrap();
+        assert_eq!(
+            entry.attributes.kind,
+            FileKind::Special(SpecialFileKind::Fifo)
+        );
+        assert_eq!(entry.attributes.size, 0);
+        assert_eq!(entry.attributes.blocks, 0);
+        assert_eq!(entry.attributes.mode, 0o666);
+        assert_eq!(
+            fs.open(&context(), entry.inode, libc::O_RDONLY)
+                .unwrap_err()
+                .code(),
+            afs_error::IO_NOT_SUPPORTED
+        );
+    }
+
+    #[test]
+    fn close_flush_commits_dirty_data_without_an_explicit_sync() {
+        let (_temp, meta, fs) = test_fs();
+        let created = fs
+            .create(
+                &context(),
+                fs.root_inode(),
+                OsStr::new("close.txt"),
+                0o640,
+                libc::O_RDWR,
+            )
+            .unwrap();
+        fs.write(&context(), created.handle, 0, b"closed").unwrap();
+        assert_eq!(meta.commit_count(), 0, "write does not create a version");
+        fs.flush(&context(), created.handle).unwrap();
+        assert_eq!(meta.commit_count(), 1, "successful close flush must commit");
+        assert_eq!(meta.commits.lock().unwrap()[0].file_version.length, 6);
+        fs.flush(&context(), created.handle).unwrap();
+        assert_eq!(
+            meta.commit_count(),
+            1,
+            "unchanged flush must not create a version"
+        );
+        fs.release(&context(), created.handle).unwrap();
+        let reader = fs
+            .open(&context(), created.entry.inode, libc::O_RDONLY)
+            .unwrap();
+        let mut out = [0; 6];
+        assert_eq!(fs.read(&context(), reader, 0, &mut out).unwrap(), 6);
+        assert_eq!(&out, b"closed");
+        fs.release(&context(), reader).unwrap();
+    }
+
+    #[test]
+    fn close_flush_reports_a_commit_error_instead_of_success() {
+        let (_temp, meta, fs) = test_fs();
+        let created = fs
+            .create(
+                &context(),
+                fs.root_inode(),
+                OsStr::new("failed-close.txt"),
+                0o640,
+                libc::O_RDWR,
+            )
+            .unwrap();
+        fs.write(&context(), created.handle, 0, b"pending").unwrap();
+        *meta.next_commit_error.lock().unwrap() = Some(unavailable("injected ACK loss"));
+        assert!(fs.flush(&context(), created.handle).is_err());
+        assert_eq!(meta.commit_count(), 0);
+        fs.flush(&context(), created.handle).unwrap();
+        assert_eq!(meta.commit_count(), 1);
+        let failed = meta.failed_commits.lock().unwrap();
+        let applied = meta.commits.lock().unwrap();
+        assert_eq!(failed[0].operation_id, applied[0].operation_id);
+        assert_eq!(failed[0].file_version, applied[0].file_version);
+        assert_eq!(failed[0].layout_root, applied[0].layout_root);
+    }
+
+    #[test]
+    fn readonly_close_does_not_commit_another_handles_dirty_writes() {
+        let (_temp, meta, fs) = test_fs();
+        let created = fs
+            .create(
+                &context(),
+                fs.root_inode(),
+                OsStr::new("read-close.txt"),
+                0o640,
+                libc::O_RDWR,
+            )
+            .unwrap();
+        let reader = fs
+            .open(&context(), created.entry.inode, libc::O_RDONLY)
+            .unwrap();
+        fs.write(&context(), created.handle, 0, b"dirty").unwrap();
+        fs.flush(&context(), reader).unwrap();
+        fs.release(&context(), reader).unwrap();
+        assert_eq!(meta.commit_count(), 0);
+        fs.flush(&context(), created.handle).unwrap();
+        assert_eq!(meta.commit_count(), 1);
+        assert_eq!(
+            meta.commits.lock().unwrap()[0].metadata_delta.mode,
+            CommitMetadataMode::DataOnly
+        );
+    }
+
+    #[test]
+    fn dsync_write_commits_data_without_promoting_to_full_inode_sync() {
+        let (_temp, meta, fs) = test_fs();
+        let created = fs
+            .create(
+                &context(),
+                fs.root_inode(),
+                OsStr::new("dsync.txt"),
+                0o640,
+                libc::O_RDWR | libc::O_DSYNC,
+            )
+            .unwrap();
+        fs.write(&context(), created.handle, 0, b"data").unwrap();
+        assert_eq!(meta.commit_count(), 1);
+        assert_eq!(
+            meta.commits.lock().unwrap()[0].metadata_delta.mode,
+            CommitMetadataMode::DataOnly
+        );
+        fs.flush(&context(), created.handle).unwrap();
+        assert_eq!(meta.commit_count(), 1);
+    }
+
+    #[test]
+    fn readonly_handles_share_the_current_mount_dirty_and_committed_view() {
         let (_temp, meta, fs) = test_fs();
         let created = fs
             .create(
@@ -1954,8 +6491,11 @@ mod tests {
             fs.write(&context(), created.handle, 0, b"hello").unwrap(),
             5
         );
-        fs.flush(&context(), created.handle).unwrap();
-        assert_eq!(meta.commit_count(), 0, "flush must not create FileVersion");
+        assert_eq!(
+            meta.commit_count(),
+            0,
+            "ordinary write does not create FileVersion"
+        );
 
         let reader = fs
             .open(&context(), created.entry.inode, libc::O_RDONLY)
@@ -1963,8 +6503,15 @@ mod tests {
         let mut out = [0; 5];
         assert_eq!(
             fs.read(&context(), reader, 0, &mut out).unwrap(),
-            0,
-            "readonly handle opened before the first FileVersion must stay on that empty snapshot"
+            5,
+            "ordinary readonly handles share the mount's accepted dirty view"
+        );
+        assert_eq!(&out, b"hello");
+        assert_eq!(
+            fs.getattr(&context(), created.entry.inode, Some(reader))
+                .unwrap()
+                .size,
+            5
         );
 
         let writer = fs
@@ -2009,6 +6556,11 @@ mod tests {
         assert_eq!(&committed, b"hello");
 
         fs.write(&context(), writer, 0, b"H").unwrap();
+        assert_eq!(fs.read(&context(), reader, 0, &mut out).unwrap(), 5);
+        assert_eq!(
+            &out, b"Hello",
+            "accepted overwrites are visible before sync"
+        );
         fs.fsync(&context(), writer, SyncMode::Full).unwrap();
         let commits = meta.commits.lock().unwrap();
         assert_eq!(commits.len(), 2);
@@ -2020,13 +6572,14 @@ mod tests {
         drop(commits);
 
         let mut latest = [0; 5];
-        assert_eq!(fs.read(&context(), reader, 0, &mut latest).unwrap(), 0);
+        assert_eq!(fs.read(&context(), reader, 0, &mut latest).unwrap(), 5);
+        assert_eq!(&latest, b"Hello");
         assert_eq!(
             fs.read(&context(), committed_reader, 0, &mut latest)
                 .unwrap(),
             5
         );
-        assert_eq!(&latest, b"hello");
+        assert_eq!(&latest, b"Hello");
         let fresh_reader = fs
             .open(&context(), created.entry.inode, libc::O_RDONLY)
             .unwrap();
@@ -2040,6 +6593,270 @@ mod tests {
         fs.release(&context(), committed_reader).unwrap();
         fs.release(&context(), fresh_reader).unwrap();
         assert_eq!(fs.writeback_pending().unwrap(), 0);
+    }
+
+    #[test]
+    fn previously_open_readonly_handle_tracks_append_and_shrink_grow() {
+        let (_temp, meta, fs) = test_fs();
+        let created = fs
+            .create(
+                &context(),
+                fs.root_inode(),
+                OsStr::new("view.bin"),
+                0o600,
+                libc::O_RDWR,
+            )
+            .unwrap();
+        let reader = fs
+            .open(&context(), created.entry.inode, libc::O_RDONLY)
+            .unwrap();
+        let mut out = [0; 8];
+        assert_eq!(fs.read(&context(), reader, 0, &mut out).unwrap(), 0);
+        fs.write(&context(), created.handle, 0, b"abcd").unwrap();
+        fs.write(&context(), created.handle, 4, b"efgh").unwrap();
+        assert_eq!(fs.read(&context(), reader, 0, &mut out).unwrap(), 8);
+        assert_eq!(&out, b"abcdefgh");
+        for length in [3, 8] {
+            fs.setattr(
+                &context(),
+                created.entry.inode,
+                Some(created.handle),
+                &AttributeChange {
+                    size: Some(length),
+                    ..AttributeChange::default()
+                },
+            )
+            .unwrap();
+        }
+        assert_eq!(meta.commit_count(), 0);
+        assert_eq!(fs.read(&context(), reader, 0, &mut out).unwrap(), 8);
+        assert_eq!(&out, b"abc\0\0\0\0\0");
+        assert_eq!(
+            fs.getattr(&context(), created.entry.inode, Some(reader))
+                .unwrap()
+                .size,
+            8
+        );
+        fs.flush(&context(), created.handle).unwrap();
+        assert_eq!(fs.read(&context(), reader, 0, &mut out).unwrap(), 8);
+        assert_eq!(&out, b"abc\0\0\0\0\0");
+    }
+
+    #[test]
+    fn writeonly_handle_cannot_read_the_inode_view() {
+        let (_temp, _meta, fs) = test_fs();
+        let created = fs
+            .create(
+                &context(),
+                fs.root_inode(),
+                OsStr::new("writeonly.bin"),
+                0o600,
+                libc::O_WRONLY,
+            )
+            .unwrap();
+        fs.write(&context(), created.handle, 0, b"secret").unwrap();
+        assert_eq!(
+            fs.read(&context(), created.handle, 0, &mut [0; 8])
+                .unwrap_err()
+                .code(),
+            afs_error::IO_BAD_FILE_DESCRIPTOR
+        );
+    }
+
+    #[test]
+    fn metadata_changes_refresh_active_write_state_after_close() {
+        let (_temp, _meta, fs) = test_fs();
+        let created = fs
+            .create(
+                &context(),
+                fs.root_inode(),
+                OsStr::new("attrs.bin"),
+                0o644,
+                libc::O_RDWR,
+            )
+            .unwrap();
+        fs.write(&context(), created.handle, 0, b"mode").unwrap();
+        fs.flush(&context(), created.handle).unwrap();
+        fs.release(&context(), created.handle).unwrap();
+
+        let changed = AttributeChange {
+            mode: Some(libc::S_IFREG | 0o640),
+            uid: Some(4242),
+            gid: Some(60002),
+            ..AttributeChange::default()
+        };
+        fs.setattr(&context(), created.entry.inode, None, &changed)
+            .unwrap();
+        let attrs = fs.getattr(&context(), created.entry.inode, None).unwrap();
+        assert_eq!(attrs.mode & 0o777, 0o640);
+        assert_eq!(attrs.uid, 4242);
+        assert_eq!(attrs.gid, 60002);
+    }
+
+    #[test]
+    fn hardlink_refreshes_active_write_state_nlink() {
+        let (_temp, _meta, fs) = test_fs();
+        let created = fs
+            .create(
+                &context(),
+                fs.root_inode(),
+                OsStr::new("link-a"),
+                0o644,
+                libc::O_RDWR,
+            )
+            .unwrap();
+        fs.write(&context(), created.handle, 0, b"hardlink-data")
+            .unwrap();
+        fs.flush(&context(), created.handle).unwrap();
+
+        let linked = fs
+            .link(
+                &context(),
+                created.entry.inode,
+                fs.root_inode(),
+                OsStr::new("link-b"),
+            )
+            .unwrap();
+        assert_eq!(linked.attributes.nlink, 2);
+        assert_eq!(
+            fs.getattr(&context(), created.entry.inode, Some(created.handle))
+                .unwrap()
+                .nlink,
+            2
+        );
+        assert_eq!(
+            fs.getattr(&context(), created.entry.inode, None)
+                .unwrap()
+                .nlink,
+            2
+        );
+    }
+
+    #[test]
+    fn namespace_and_xattr_refresh_preserve_dirty_write_mtime_for_full_sync() {
+        let (_temp, meta, fs) = test_fs();
+        let created = fs
+            .create(
+                &context(),
+                fs.root_inode(),
+                OsStr::new("dirty-mtime.bin"),
+                0o644,
+                libc::O_RDWR,
+            )
+            .unwrap();
+        fs.write(&context(), created.handle, 0, b"mtime").unwrap();
+        let dirty_mtime = {
+            let state = fs
+                .write_state(&meta.inode.lock().unwrap().inode_id)
+                .unwrap()
+                .unwrap();
+            state.lock().unwrap().inode.attributes.mtime_unix_ms
+        };
+
+        fs.link(
+            &context(),
+            created.entry.inode,
+            fs.root_inode(),
+            OsStr::new("dirty-mtime-link"),
+        )
+        .unwrap();
+        fs.setxattr(
+            &context(),
+            created.entry.inode,
+            OsStr::new("user.dirty_mtime"),
+            b"value",
+            0,
+        )
+        .unwrap();
+        fs.setattr(
+            &context(),
+            created.entry.inode,
+            Some(created.handle),
+            &AttributeChange {
+                mode: Some(libc::S_IFREG | 0o640),
+                ..AttributeChange::default()
+            },
+        )
+        .unwrap();
+        fs.fsync(&context(), created.handle, SyncMode::Full)
+            .unwrap();
+
+        let commits = meta.commits.lock().unwrap();
+        assert_eq!(commits.len(), 1);
+        assert_eq!(commits[0].metadata_delta.mode, CommitMetadataMode::Full);
+        assert_eq!(commits[0].metadata_delta.mtime_unix_ms, Some(dirty_mtime));
+    }
+
+    #[test]
+    fn explicit_mtime_refresh_overrides_dirty_write_mtime_for_full_sync() {
+        let (_temp, meta, fs) = test_fs();
+        let created = fs
+            .create(
+                &context(),
+                fs.root_inode(),
+                OsStr::new("explicit-mtime.bin"),
+                0o644,
+                libc::O_RDWR,
+            )
+            .unwrap();
+        fs.write(&context(), created.handle, 0, b"mtime").unwrap();
+        let explicit = UNIX_EPOCH + std::time::Duration::from_millis(42);
+        fs.setattr(
+            &context(),
+            created.entry.inode,
+            Some(created.handle),
+            &AttributeChange {
+                mtime: Some(explicit),
+                ..AttributeChange::default()
+            },
+        )
+        .unwrap();
+        fs.fsync(&context(), created.handle, SyncMode::Full)
+            .unwrap();
+
+        let commits = meta.commits.lock().unwrap();
+        assert_eq!(commits.len(), 1);
+        assert_eq!(commits[0].metadata_delta.mode, CommitMetadataMode::Full);
+        assert_eq!(commits[0].metadata_delta.mtime_unix_ms, Some(42));
+    }
+
+    #[test]
+    fn getattr_refreshes_active_write_state_from_meta_without_losing_dirty_mtime() {
+        let (_temp, meta, fs) = test_fs();
+        let created = fs
+            .create(
+                &context(),
+                fs.root_inode(),
+                OsStr::new("remote-fresh.bin"),
+                0o644,
+                libc::O_RDWR,
+            )
+            .unwrap();
+        fs.write(&context(), created.handle, 0, b"fresh").unwrap();
+        let dirty_mtime = {
+            let state = fs
+                .write_state(&meta.inode.lock().unwrap().inode_id)
+                .unwrap()
+                .unwrap();
+            state.lock().unwrap().inode.attributes.mtime_unix_ms
+        };
+        {
+            let mut inode = meta.inode.lock().unwrap();
+            inode.attributes.mode = libc::S_IFREG | 0o660;
+            inode.attributes.gid = 60002;
+            inode.attributes.nlink = 2;
+            inode.attributes.mtime_unix_ms = 7;
+            inode.attributes.ctime_unix_ms = inode.attributes.ctime_unix_ms.saturating_add(100);
+            inode.revision = inode.revision.saturating_add(1);
+        }
+
+        let attrs = fs
+            .getattr(&context(), created.entry.inode, Some(created.handle))
+            .unwrap();
+        assert_eq!(attrs.mode & 0o777, 0o660);
+        assert_eq!(attrs.gid, 60002);
+        assert_eq!(attrs.nlink, 2);
+        assert_eq!(system_time_ms(attrs.mtime), dirty_mtime);
     }
 
     #[test]
@@ -2105,6 +6922,7 @@ mod tests {
             .unwrap()
             .write_session
             .unwrap()
+            .local
             .last_accepted_seq;
 
         let shrink = AttributeChange {
@@ -2131,6 +6949,7 @@ mod tests {
             .unwrap()
             .write_session
             .unwrap()
+            .local
             .last_accepted_seq;
         assert!(after_seq > before_seq);
 
@@ -2215,8 +7034,14 @@ mod tests {
             .unwrap_err();
         assert_eq!(readonly_error.code(), afs_error::IO_BAD_FILE_DESCRIPTOR);
         let mut visible = [0; 8];
-        assert_eq!(fs.read(&context(), reader, 0, &mut visible).unwrap(), 8);
-        assert_eq!(&visible, b"abcdefgh");
+        assert_eq!(fs.read(&context(), reader, 0, &mut visible).unwrap(), 3);
+        assert_eq!(&visible[..3], b"abc");
+        assert_eq!(
+            fs.getattr(&context(), created.entry.inode, Some(reader))
+                .unwrap()
+                .size,
+            3
+        );
 
         assert_eq!(fs.writeback_pending().unwrap(), 1);
         assert_eq!(meta.commit_count(), 2);
@@ -2493,5 +7318,1181 @@ mod tests {
             )
             .unwrap();
         assert_eq!(attrs.size, 6);
+    }
+
+    #[test]
+    fn unknown_commit_ack_replays_original_request_after_namespace_revision_change() {
+        let (_temp, meta, fs) = test_fs();
+        let created = fs
+            .create(
+                &context(),
+                fs.root_inode(),
+                OsStr::new("unknown-ack-revision.bin"),
+                0o640,
+                libc::O_RDWR,
+            )
+            .unwrap();
+        fs.write(&context(), created.handle, 0, b"data").unwrap();
+
+        meta.fail_next_commit();
+        fs.fsync(&context(), created.handle, SyncMode::Full)
+            .unwrap_err();
+        let failed = meta.failed_commits.lock().unwrap()[0].clone();
+
+        meta.advance_namespace_revision();
+        let error = fs.write(&context(), created.handle, 4, b"!").unwrap_err();
+        assert_eq!(error.code(), afs_error::NODE_VFS_UNAVAILABLE);
+
+        let cas_failed = meta.cas_failed_commits.lock().unwrap();
+        assert_eq!(cas_failed.len(), 1);
+        assert_eq!(failed.operation_id, cas_failed[0].operation_id);
+        assert_eq!(
+            failed.expected_inode_revision,
+            cas_failed[0].expected_inode_revision
+        );
+        assert_eq!(
+            failed.expected_head_version,
+            cas_failed[0].expected_head_version
+        );
+        assert_eq!(failed.file_version.id, cas_failed[0].file_version.id);
+        assert_eq!(failed.layout_root.id, cas_failed[0].layout_root.id);
+    }
+
+    fn lock_owner(session: &str, kernel_owner: u64) -> FileLockOwner {
+        FileLockOwner {
+            ingress_session_id: session.into(),
+            kernel_owner,
+        }
+    }
+
+    fn lock_range(start: u64, end: u64) -> FileLockRange {
+        FileLockRange { start, end }
+    }
+
+    fn dfs_lock_authority(
+        caller_session_id: &str,
+    ) -> afs_protocol::node_control::DfsOwnerLockAuthority {
+        afs_protocol::node_control::DfsOwnerLockAuthority {
+            namespace_id: "default".into(),
+            inode_id: "inode:test".into(),
+            owner_node_id: "node-a".into(),
+            owner_session_id: "session-a".into(),
+            lease_epoch: 1,
+            lease_expires_at_unix_ms: u64::MAX,
+            caller_node_id: "node-b".into(),
+            caller_session_id: caller_session_id.into(),
+        }
+    }
+
+    struct NoopRemoteDfsOwner;
+
+    macro_rules! noop_remote_owner_method {
+        ($method:ident, $request:ty, $reply:ty) => {
+            fn $method(&self, _: $request) -> afs_error::Result<$reply> {
+                Err(unavailable("noop remote owner should not be called"))
+            }
+        };
+    }
+
+    impl RemoteDfsOwner for NoopRemoteDfsOwner {
+        noop_remote_owner_method!(
+            open,
+            afs_protocol::node_control::DfsOwnerOpenRequest,
+            afs_protocol::node_control::DfsOwnerOpenReply
+        );
+        noop_remote_owner_method!(
+            getattr,
+            afs_protocol::node_control::DfsOwnerGetAttrRequest,
+            afs_protocol::node_control::DfsOwnerGetAttrReply
+        );
+        noop_remote_owner_method!(
+            release,
+            afs_protocol::node_control::DfsOwnerReleaseRequest,
+            afs_protocol::node_control::DfsOwnerReleaseReply
+        );
+        noop_remote_owner_method!(
+            get_lock,
+            afs_protocol::node_control::DfsOwnerGetLockRequest,
+            afs_protocol::node_control::DfsOwnerGetLockReply
+        );
+        noop_remote_owner_method!(
+            set_lock,
+            afs_protocol::node_control::DfsOwnerSetLockRequest,
+            afs_protocol::node_control::DfsOwnerSetLockReply
+        );
+        noop_remote_owner_method!(
+            cancel_lock_wait,
+            afs_protocol::node_control::DfsOwnerCancelLockWaitRequest,
+            afs_protocol::node_control::DfsOwnerCancelLockWaitReply
+        );
+        noop_remote_owner_method!(
+            acknowledge_lock_wait,
+            afs_protocol::node_control::DfsOwnerAcknowledgeLockWaitRequest,
+            afs_protocol::node_control::DfsOwnerAcknowledgeLockWaitReply
+        );
+        noop_remote_owner_method!(
+            release_locks,
+            afs_protocol::node_control::DfsOwnerReleaseLocksRequest,
+            afs_protocol::node_control::DfsOwnerReleaseLocksReply
+        );
+        noop_remote_owner_method!(
+            release_lock_session,
+            afs_protocol::node_control::DfsOwnerReleaseLockSessionRequest,
+            afs_protocol::node_control::DfsOwnerReleaseLockSessionReply
+        );
+        noop_remote_owner_method!(
+            read,
+            afs_protocol::node_data::DfsOwnerReadRequest,
+            afs_protocol::node_data::DfsOwnerReadReply
+        );
+        noop_remote_owner_method!(
+            write,
+            afs_protocol::node_data::DfsOwnerWriteRequest,
+            afs_protocol::node_data::DfsOwnerWriteReply
+        );
+        noop_remote_owner_method!(
+            resize,
+            afs_protocol::node_data::DfsOwnerResizeRequest,
+            afs_protocol::node_data::DfsOwnerResizeReply
+        );
+        noop_remote_owner_method!(
+            sync,
+            afs_protocol::node_data::DfsOwnerSyncRequest,
+            afs_protocol::node_data::DfsOwnerSyncReply
+        );
+    }
+
+    struct FailOnceReleaseRemoteDfsOwner {
+        calls: Mutex<Vec<String>>,
+    }
+
+    impl FailOnceReleaseRemoteDfsOwner {
+        fn new() -> Self {
+            Self {
+                calls: Mutex::new(Vec::new()),
+            }
+        }
+
+        fn call_count(&self) -> usize {
+            self.calls.lock().unwrap().len()
+        }
+    }
+
+    impl RemoteDfsOwner for FailOnceReleaseRemoteDfsOwner {
+        noop_remote_owner_method!(
+            open,
+            afs_protocol::node_control::DfsOwnerOpenRequest,
+            afs_protocol::node_control::DfsOwnerOpenReply
+        );
+        noop_remote_owner_method!(
+            getattr,
+            afs_protocol::node_control::DfsOwnerGetAttrRequest,
+            afs_protocol::node_control::DfsOwnerGetAttrReply
+        );
+        noop_remote_owner_method!(
+            release,
+            afs_protocol::node_control::DfsOwnerReleaseRequest,
+            afs_protocol::node_control::DfsOwnerReleaseReply
+        );
+        noop_remote_owner_method!(
+            get_lock,
+            afs_protocol::node_control::DfsOwnerGetLockRequest,
+            afs_protocol::node_control::DfsOwnerGetLockReply
+        );
+        noop_remote_owner_method!(
+            set_lock,
+            afs_protocol::node_control::DfsOwnerSetLockRequest,
+            afs_protocol::node_control::DfsOwnerSetLockReply
+        );
+        noop_remote_owner_method!(
+            cancel_lock_wait,
+            afs_protocol::node_control::DfsOwnerCancelLockWaitRequest,
+            afs_protocol::node_control::DfsOwnerCancelLockWaitReply
+        );
+        noop_remote_owner_method!(
+            acknowledge_lock_wait,
+            afs_protocol::node_control::DfsOwnerAcknowledgeLockWaitRequest,
+            afs_protocol::node_control::DfsOwnerAcknowledgeLockWaitReply
+        );
+        noop_remote_owner_method!(
+            release_locks,
+            afs_protocol::node_control::DfsOwnerReleaseLocksRequest,
+            afs_protocol::node_control::DfsOwnerReleaseLocksReply
+        );
+
+        fn release_lock_session(
+            &self,
+            request: afs_protocol::node_control::DfsOwnerReleaseLockSessionRequest,
+        ) -> afs_error::Result<afs_protocol::node_control::DfsOwnerReleaseLockSessionReply>
+        {
+            let mut calls = self.calls.lock().unwrap();
+            calls.push(request.ingress_session_id);
+            if calls.len() == 1 {
+                return Err(unavailable("injected remote release failure"));
+            }
+            Ok(afs_protocol::node_control::DfsOwnerReleaseLockSessionReply {})
+        }
+
+        noop_remote_owner_method!(
+            read,
+            afs_protocol::node_data::DfsOwnerReadRequest,
+            afs_protocol::node_data::DfsOwnerReadReply
+        );
+        noop_remote_owner_method!(
+            write,
+            afs_protocol::node_data::DfsOwnerWriteRequest,
+            afs_protocol::node_data::DfsOwnerWriteReply
+        );
+        noop_remote_owner_method!(
+            resize,
+            afs_protocol::node_data::DfsOwnerResizeRequest,
+            afs_protocol::node_data::DfsOwnerResizeReply
+        );
+        noop_remote_owner_method!(
+            sync,
+            afs_protocol::node_data::DfsOwnerSyncRequest,
+            afs_protocol::node_data::DfsOwnerSyncReply
+        );
+    }
+
+    #[test]
+    fn dfs_reaps_lock_scopes_for_expired_peer_process_session() {
+        let (_temp, _meta, fs) = test_fs();
+        let inode_id = InodeId::new("inode:reap-peer-locks");
+        let authority = fs
+            .local_lock_authority(
+                &inode_id,
+                WriteLease {
+                    inode_id: inode_id.clone(),
+                    owner_node_id: "node-a".into(),
+                    owner_session_id: "session-a".into(),
+                    lease_epoch: 1,
+                    expires_at_unix_ms: u64::MAX,
+                },
+            )
+            .unwrap();
+        let owner = FileLockOwner {
+            ingress_session_id: DistributedFs::lock_scope("node-z", "old-session", "mount-z")
+                .unwrap(),
+            kernel_owner: 77,
+        };
+        let lock = LockRequest::write(FileLockKind::Posix, owner.clone(), 77, lock_range(0, 99));
+        authority.table.setlk_nonblocking(lock.clone()).unwrap();
+        fs.register_local_lock_success(&authority, &lock).unwrap();
+        assert!(
+            authority
+                .table
+                .getlk(&LockRequest::write(
+                    FileLockKind::Posix,
+                    FileLockOwner {
+                        ingress_session_id: DistributedFs::lock_scope(
+                            "node-a",
+                            "session-a",
+                            "mount-a"
+                        )
+                        .unwrap(),
+                        kernel_owner: 78,
+                    },
+                    78,
+                    lock_range(0, 99),
+                ))
+                .unwrap()
+                .is_some()
+        );
+
+        assert_eq!(fs.reap_expired_peer_lock_sessions().unwrap(), 1);
+        assert!(
+            authority
+                .table
+                .getlk(&LockRequest::write(
+                    FileLockKind::Posix,
+                    FileLockOwner {
+                        ingress_session_id: DistributedFs::lock_scope(
+                            "node-a",
+                            "session-a",
+                            "mount-a"
+                        )
+                        .unwrap(),
+                        kernel_owner: 78,
+                    },
+                    78,
+                    lock_range(0, 99),
+                ))
+                .unwrap()
+                .is_none()
+        );
+        assert!(authority.state.lock().unwrap().pinned_owners.is_empty());
+    }
+
+    #[test]
+    fn dfs_release_scoped_session_cleans_scope_when_closed_tombstones_are_full() {
+        let (_temp, _meta, fs) = test_fs();
+        let inode_id = InodeId::new("inode:closed-capacity");
+        let authority = fs
+            .local_lock_authority(
+                &inode_id,
+                WriteLease {
+                    inode_id: inode_id.clone(),
+                    owner_node_id: "node-a".into(),
+                    owner_session_id: "session-a".into(),
+                    lease_epoch: 1,
+                    expires_at_unix_ms: u64::MAX,
+                },
+            )
+            .unwrap();
+        for index in 0..MAX_CLOSED_LOCK_SESSIONS {
+            fs.closed_lock_sessions
+                .lock()
+                .unwrap()
+                .insert(format!("closed-{index}"));
+        }
+        let released_scope = DistributedFs::lock_scope("node-z", "old-session", "mount-z").unwrap();
+        let retained_scope =
+            DistributedFs::lock_scope("node-y", "live-session", "mount-y").unwrap();
+        let released = FileLockOwner {
+            ingress_session_id: released_scope.clone(),
+            kernel_owner: 10,
+        };
+        let retained = FileLockOwner {
+            ingress_session_id: retained_scope.clone(),
+            kernel_owner: 11,
+        };
+        let released_lock =
+            LockRequest::write(FileLockKind::Posix, released.clone(), 10, lock_range(0, 9));
+        let retained_lock = LockRequest::write(
+            FileLockKind::Posix,
+            retained.clone(),
+            11,
+            lock_range(100, 109),
+        );
+        authority
+            .table
+            .setlk_nonblocking(released_lock.clone())
+            .unwrap();
+        fs.register_local_lock_success(&authority, &released_lock)
+            .unwrap();
+        authority
+            .table
+            .setlk_nonblocking(retained_lock.clone())
+            .unwrap();
+        fs.register_local_lock_success(&authority, &retained_lock)
+            .unwrap();
+
+        let mut scopes = HashSet::new();
+        scopes.insert(released_scope.clone());
+        assert_eq!(fs.release_scoped_lock_sessions(scopes).unwrap(), 1);
+
+        let closed = fs.closed_lock_sessions.lock().unwrap();
+        assert_eq!(closed.len(), MAX_CLOSED_LOCK_SESSIONS);
+        assert!(!closed.contains(&released_scope));
+        drop(closed);
+        assert!(
+            fs.closed_lock_session_admission_closed
+                .load(Ordering::Acquire)
+        );
+        assert!(fs.ensure_lock_session_open("new-mount").is_err());
+        assert!(
+            authority
+                .table
+                .getlk(&LockRequest::write(
+                    FileLockKind::Posix,
+                    lock_owner("probe-a", 20),
+                    20,
+                    lock_range(0, 9),
+                ))
+                .unwrap()
+                .is_none()
+        );
+        assert!(
+            authority
+                .table
+                .getlk(&LockRequest::write(
+                    FileLockKind::Posix,
+                    lock_owner("probe-b", 21),
+                    21,
+                    lock_range(100, 109),
+                ))
+                .unwrap()
+                .is_some()
+        );
+        assert!(matches!(
+            authority.table.setlk_nonblocking(LockRequest::write(
+                FileLockKind::Posix,
+                released,
+                10,
+                lock_range(0, 9),
+            )),
+            Err(LockError::Interrupted)
+        ));
+        assert!(
+            authority
+                .state
+                .lock()
+                .unwrap()
+                .pinned_owners
+                .contains(&retained)
+        );
+    }
+
+    #[test]
+    fn dfs_remote_lock_session_release_failure_retains_identity_for_retry() {
+        let (_temp, _meta, fs) = test_fs();
+        let inode_id = InodeId::new("inode:remote-release-retry");
+        let owner = Arc::new(FailOnceReleaseRemoteDfsOwner::new());
+        let remote = DfsRemoteLockAuthority {
+            owner: owner.clone(),
+            authority: afs_protocol::node_control::DfsOwnerLockAuthority {
+                namespace_id: "default".into(),
+                inode_id: inode_id.0.clone(),
+                owner_node_id: "node-b".into(),
+                owner_session_id: "session-b".into(),
+                lease_epoch: 1,
+                lease_expires_at_unix_ms: u64::MAX,
+                caller_node_id: "node-a".into(),
+                caller_session_id: "session-a".into(),
+            },
+        };
+        let scoped_session = DistributedFs::lock_scope("node-a", "session-a", "mount-r").unwrap();
+        let waiter = LockWaiterId {
+            ingress_session_id: scoped_session.clone(),
+            request_id: 7,
+        };
+        fs.remote_lock_authorities
+            .lock()
+            .unwrap()
+            .insert(inode_id.clone(), remote.clone());
+        fs.note_remote_lock_session(&inode_id, &scoped_session)
+            .unwrap();
+        for index in 0..MAX_CLOSED_LOCK_SESSIONS {
+            fs.closed_lock_sessions
+                .lock()
+                .unwrap()
+                .insert(format!("closed-remote-{index}"));
+        }
+        fs.register_remote_lock_waiter_route(&waiter, remote)
+            .unwrap();
+
+        assert_eq!(
+            fs.release_lock_session("mount-r").unwrap_err().code(),
+            afs_error::NODE_VFS_UNAVAILABLE
+        );
+        assert_eq!(owner.call_count(), 1);
+        let closed = fs.closed_lock_sessions.lock().unwrap();
+        assert_eq!(closed.len(), MAX_CLOSED_LOCK_SESSIONS);
+        assert!(!closed.contains(&scoped_session));
+        drop(closed);
+        assert_eq!(
+            fs.remote_lock_authority_sessions
+                .lock()
+                .unwrap()
+                .get(&inode_id)
+                .unwrap()
+                .get(&scoped_session),
+            Some(&REMOTE_LOCK_SESSION_PENDING_CLOSE)
+        );
+        assert_eq!(
+            fs.note_remote_lock_session(&inode_id, &scoped_session)
+                .unwrap_err()
+                .code(),
+            afs_error::IO_INTERRUPTED
+        );
+        assert!(fs.remote_lock_waiters.lock().unwrap().contains_key(&waiter));
+        assert!(
+            fs.remote_lock_authorities
+                .lock()
+                .unwrap()
+                .contains_key(&inode_id)
+        );
+
+        assert_eq!(fs.reap_expired_peer_lock_sessions().unwrap(), 1);
+        assert_eq!(owner.call_count(), 2);
+        assert!(
+            !fs.remote_lock_authority_sessions
+                .lock()
+                .unwrap()
+                .contains_key(&inode_id)
+        );
+        assert!(!fs.remote_lock_waiters.lock().unwrap().contains_key(&waiter));
+        assert!(
+            !fs.remote_lock_authorities
+                .lock()
+                .unwrap()
+                .contains_key(&inode_id)
+        );
+    }
+
+    #[test]
+    fn dfs_remote_lock_precancel_survives_replayed_waiter_identity() {
+        let (_temp, _meta, fs) = test_fs();
+        let remote = DfsRemoteLockAuthority {
+            owner: Arc::new(NoopRemoteDfsOwner),
+            authority: afs_protocol::node_control::DfsOwnerLockAuthority {
+                namespace_id: "default".into(),
+                inode_id: "inode:test".into(),
+                owner_node_id: "node-b".into(),
+                owner_session_id: "session-b".into(),
+                lease_epoch: 1,
+                lease_expires_at_unix_ms: u64::MAX,
+                caller_node_id: "node-a".into(),
+                caller_session_id: "session-a".into(),
+            },
+        };
+        let waiter = LockWaiterId {
+            ingress_session_id: "mount-a".into(),
+            request_id: 43,
+        };
+
+        assert!(
+            fs.take_remote_lock_waiter_route_or_precancel(waiter.clone())
+                .unwrap()
+                .is_none()
+        );
+        assert_eq!(
+            fs.register_remote_lock_waiter_route(&waiter, remote.clone())
+                .unwrap_err()
+                .code(),
+            afs_error::IO_INTERRUPTED
+        );
+        assert_eq!(
+            fs.register_remote_lock_waiter_route(&waiter, remote)
+                .unwrap_err()
+                .code(),
+            afs_error::IO_INTERRUPTED
+        );
+        assert!(fs.remote_lock_waiters.lock().unwrap().is_empty());
+    }
+
+    #[test]
+    fn dfs_remote_lock_waiter_route_rejects_duplicate_identity() {
+        let (_temp, _meta, fs) = test_fs();
+        let remote = DfsRemoteLockAuthority {
+            owner: Arc::new(NoopRemoteDfsOwner),
+            authority: afs_protocol::node_control::DfsOwnerLockAuthority {
+                namespace_id: "default".into(),
+                inode_id: "inode:test".into(),
+                owner_node_id: "node-b".into(),
+                owner_session_id: "session-b".into(),
+                lease_epoch: 1,
+                lease_expires_at_unix_ms: u64::MAX,
+                caller_node_id: "node-a".into(),
+                caller_session_id: "session-a".into(),
+            },
+        };
+        let waiter = LockWaiterId {
+            ingress_session_id: "mount-a".into(),
+            request_id: 42,
+        };
+
+        fs.register_remote_lock_waiter_route(&waiter, remote.clone())
+            .unwrap();
+        let error = fs
+            .register_remote_lock_waiter_route(&waiter, remote)
+            .unwrap_err();
+
+        assert_eq!(error.code(), afs_error::IO_OTHER);
+        assert_eq!(fs.remote_lock_waiters.lock().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn dfs_local_posix_locks_conflict_and_release_by_owner() {
+        let (_temp, _meta, fs) = test_fs();
+        let created = fs
+            .create(
+                &context(),
+                fs.root_inode(),
+                OsStr::new("locks-local.bin"),
+                0o640,
+                libc::O_RDWR,
+            )
+            .unwrap();
+        let second = fs
+            .open(&context(), created.entry.inode, libc::O_RDWR)
+            .unwrap();
+        let owner_a = lock_owner("mount-a", 10);
+        let owner_b = lock_owner("mount-a", 11);
+
+        fs.setlk(
+            &context(),
+            created.entry.inode,
+            created.handle,
+            LockRequest::read(FileLockKind::Posix, owner_a.clone(), 100, lock_range(0, 9)),
+            None,
+        )
+        .unwrap();
+        let conflict = fs
+            .getlk(
+                &context(),
+                created.entry.inode,
+                second,
+                LockRequest::write(FileLockKind::Posix, owner_b.clone(), 200, lock_range(0, 9)),
+            )
+            .unwrap()
+            .expect("write lock must observe read-lock conflict");
+        assert_eq!(conflict.owner, owner_a);
+        assert_eq!(conflict.lock_type, FileLockType::Read);
+
+        fs.setlk(
+            &context(),
+            created.entry.inode,
+            second,
+            LockRequest::write(FileLockKind::Posix, owner_b.clone(), 200, lock_range(0, 9)),
+            None,
+        )
+        .unwrap_err();
+        let authority = fs
+            .lock_authorities
+            .lock()
+            .unwrap()
+            .get(&InodeId::new("inode:test"))
+            .cloned()
+            .expect("local lock authority exists");
+        assert!(
+            !authority
+                .state
+                .lock()
+                .unwrap()
+                .pinned_owners
+                .contains(&owner_b),
+            "failed nonblocking lock must not pin owner or renew activity"
+        );
+        fs.release_locks(
+            &context(),
+            created.entry.inode,
+            created.handle,
+            owner_a,
+            ReleaseKind::PosixOwner,
+        )
+        .unwrap();
+        fs.setlk(
+            &context(),
+            created.entry.inode,
+            second,
+            LockRequest::write(FileLockKind::Posix, owner_b, 200, lock_range(0, 9)),
+            None,
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn dfs_owner_lock_authority_is_bound_to_authenticated_peer() {
+        let (_temp, _meta, fs) = test_fs();
+        let authority = afs_protocol::node_control::DfsOwnerLockAuthority {
+            namespace_id: "default".into(),
+            inode_id: "inode:test".into(),
+            owner_node_id: "node-a".into(),
+            owner_session_id: "session-a".into(),
+            lease_epoch: 1,
+            lease_expires_at_unix_ms: u64::MAX,
+            caller_node_id: "node-b".into(),
+            caller_session_id: "session-b".into(),
+        };
+        let request = afs_protocol::node_control::DfsOwnerGetLockRequest {
+            authority: Some(authority.clone()),
+            lock: Some(DistributedFs::wire_lock_request(&LockRequest::read(
+                FileLockKind::Posix,
+                lock_owner("mount-b", 7),
+                77,
+                lock_range(0, 0),
+            ))),
+        };
+        <DistributedFs as crate::node::rpc::control::DfsOwnerLifecycleHandler>::get_lock(
+            &fs,
+            "node-b",
+            request.clone(),
+        )
+        .unwrap();
+        assert_eq!(
+            <DistributedFs as crate::node::rpc::control::DfsOwnerLifecycleHandler>::get_lock(
+                &fs, "node-c", request,
+            )
+            .unwrap_err()
+            .code(),
+            afs_error::NODE_DFS_STALE_HANDLE
+        );
+    }
+
+    #[test]
+    fn dfs_owner_lock_release_is_scoped_by_authenticated_process_session() {
+        let (_temp, _meta, fs) = test_fs();
+        let authority = dfs_lock_authority("session-b");
+        let lock = LockRequest::write(
+            FileLockKind::Posix,
+            lock_owner("mount-b", 70),
+            70,
+            lock_range(0, 99),
+        );
+        <DistributedFs as crate::node::rpc::control::DfsOwnerLifecycleHandler>::set_lock(
+            &fs,
+            "node-b",
+            afs_protocol::node_control::DfsOwnerSetLockRequest {
+                authority: Some(authority.clone()),
+                lock: Some(DistributedFs::wire_lock_request(&lock)),
+                waiter: None,
+            },
+        )
+        .unwrap();
+
+        let mut forged_authority = authority.clone();
+        forged_authority.caller_session_id = "session-other".into();
+        <DistributedFs as crate::node::rpc::control::DfsOwnerLifecycleHandler>::release_locks(
+            &fs,
+            "node-b",
+            afs_protocol::node_control::DfsOwnerReleaseLocksRequest {
+                authority: Some(forged_authority),
+                owner: Some(DistributedFs::wire_lock_owner(&lock.owner)),
+                release_kind: DistributedFs::wire_lock_release_kind(ReleaseKind::PosixOwner) as i32,
+            },
+        )
+        .unwrap();
+
+        let conflict =
+            <DistributedFs as crate::node::rpc::control::DfsOwnerLifecycleHandler>::get_lock(
+                &fs,
+                "node-b",
+                afs_protocol::node_control::DfsOwnerGetLockRequest {
+                    authority: Some(authority.clone()),
+                    lock: Some(DistributedFs::wire_lock_request(&LockRequest::write(
+                        FileLockKind::Posix,
+                        lock_owner("mount-c", 71),
+                        71,
+                        lock_range(0, 99),
+                    ))),
+                },
+            )
+            .unwrap()
+            .conflict
+            .map(DistributedFs::file_lock_conflict_from_wire)
+            .transpose()
+            .unwrap()
+            .expect("forged release must not drop another process session's lock");
+        assert_eq!(conflict.owner, lock.owner);
+
+        <DistributedFs as crate::node::rpc::control::DfsOwnerLifecycleHandler>::release_locks(
+            &fs,
+            "node-b",
+            afs_protocol::node_control::DfsOwnerReleaseLocksRequest {
+                authority: Some(authority.clone()),
+                owner: Some(DistributedFs::wire_lock_owner(&lock.owner)),
+                release_kind: DistributedFs::wire_lock_release_kind(ReleaseKind::PosixOwner) as i32,
+            },
+        )
+        .unwrap();
+        assert!(
+            <DistributedFs as crate::node::rpc::control::DfsOwnerLifecycleHandler>::get_lock(
+                &fs,
+                "node-b",
+                afs_protocol::node_control::DfsOwnerGetLockRequest {
+                    authority: Some(authority),
+                    lock: Some(DistributedFs::wire_lock_request(&LockRequest::write(
+                        FileLockKind::Posix,
+                        lock_owner("mount-c", 71),
+                        71,
+                        lock_range(0, 99),
+                    ))),
+                },
+            )
+            .unwrap()
+            .conflict
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn dfs_remote_lock_session_presence_is_not_refcounted_by_lock_count() {
+        let (_temp, _meta, fs) = test_fs();
+        let inode_id = InodeId::new("inode:remote-presence");
+        assert!(fs.note_remote_lock_session(&inode_id, "mount-a").unwrap());
+        assert!(!fs.note_remote_lock_session(&inode_id, "mount-a").unwrap());
+        let sessions = fs.remote_lock_authority_sessions.lock().unwrap();
+        assert_eq!(sessions.get(&inode_id).unwrap().get("mount-a"), Some(&1));
+        drop(sessions);
+        fs.forget_remote_lock_session(&inode_id, "mount-a").unwrap();
+        assert!(
+            !fs.remote_lock_authority_sessions
+                .lock()
+                .unwrap()
+                .contains_key(&inode_id)
+        );
+    }
+
+    #[test]
+    fn dfs_owner_lock_session_release_is_scoped_by_authenticated_process_session() {
+        let (_temp, _meta, fs) = test_fs();
+        let authority = dfs_lock_authority("session-b");
+        let lock = LockRequest::write(
+            FileLockKind::Posix,
+            lock_owner("mount-b", 80),
+            80,
+            lock_range(0, 99),
+        );
+        <DistributedFs as crate::node::rpc::control::DfsOwnerLifecycleHandler>::set_lock(
+            &fs,
+            "node-b",
+            afs_protocol::node_control::DfsOwnerSetLockRequest {
+                authority: Some(authority.clone()),
+                lock: Some(DistributedFs::wire_lock_request(&lock)),
+                waiter: None,
+            },
+        )
+        .unwrap();
+
+        let mut forged_authority = authority.clone();
+        forged_authority.caller_session_id = "session-other".into();
+        <DistributedFs as crate::node::rpc::control::DfsOwnerLifecycleHandler>::release_lock_session(
+            &fs,
+            "node-b",
+            afs_protocol::node_control::DfsOwnerReleaseLockSessionRequest {
+                authority: Some(forged_authority),
+                ingress_session_id: "mount-b".into(),
+            },
+        )
+        .unwrap();
+        assert!(
+            <DistributedFs as crate::node::rpc::control::DfsOwnerLifecycleHandler>::get_lock(
+                &fs,
+                "node-b",
+                afs_protocol::node_control::DfsOwnerGetLockRequest {
+                    authority: Some(authority.clone()),
+                    lock: Some(DistributedFs::wire_lock_request(&LockRequest::write(
+                        FileLockKind::Posix,
+                        lock_owner("mount-c", 81),
+                        81,
+                        lock_range(0, 99),
+                    ))),
+                },
+            )
+            .unwrap()
+            .conflict
+            .is_some()
+        );
+
+        <DistributedFs as crate::node::rpc::control::DfsOwnerLifecycleHandler>::release_lock_session(
+            &fs,
+            "node-b",
+            afs_protocol::node_control::DfsOwnerReleaseLockSessionRequest {
+                authority: Some(authority.clone()),
+                ingress_session_id: "mount-b".into(),
+            },
+        )
+        .unwrap();
+        assert!(
+            <DistributedFs as crate::node::rpc::control::DfsOwnerLifecycleHandler>::get_lock(
+                &fs,
+                "node-b",
+                afs_protocol::node_control::DfsOwnerGetLockRequest {
+                    authority: Some(authority),
+                    lock: Some(DistributedFs::wire_lock_request(&LockRequest::write(
+                        FileLockKind::Posix,
+                        lock_owner("mount-c", 81),
+                        81,
+                        lock_range(0, 99),
+                    ))),
+                },
+            )
+            .unwrap()
+            .conflict
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn dfs_owner_cancel_before_authority_precancels_replayed_waiter() {
+        let (_temp, _meta, fs) = test_fs();
+        let authority = dfs_lock_authority("session-b");
+        let waiter = afs_protocol::node_control::DfsOwnerLockWaiter {
+            ingress_session_id: "mount-b".into(),
+            request_id: 91,
+        };
+        let cancel = <DistributedFs as crate::node::rpc::control::DfsOwnerLifecycleHandler>::cancel_lock_wait(
+            &fs,
+            "node-b",
+            afs_protocol::node_control::DfsOwnerCancelLockWaitRequest {
+                authority: Some(authority.clone()),
+                waiter: Some(waiter.clone()),
+            },
+        )
+        .unwrap();
+        assert_eq!(cancel.outcome, 1);
+
+        let lock = LockRequest::write(
+            FileLockKind::Posix,
+            lock_owner("mount-b", 91),
+            91,
+            lock_range(0, 99),
+        );
+        let error =
+            <DistributedFs as crate::node::rpc::control::DfsOwnerLifecycleHandler>::set_lock(
+                &fs,
+                "node-b",
+                afs_protocol::node_control::DfsOwnerSetLockRequest {
+                    authority: Some(authority),
+                    lock: Some(DistributedFs::wire_lock_request(&lock)),
+                    waiter: Some(waiter),
+                },
+            )
+            .unwrap_err();
+        assert_eq!(error.code(), afs_error::IO_INTERRUPTED);
+    }
+
+    #[test]
+    fn dfs_owner_lock_waiter_must_share_owner_ingress_scope() {
+        let (_temp, _meta, fs) = test_fs();
+        let authority = dfs_lock_authority("session-b");
+        let lock = LockRequest::write(
+            FileLockKind::Posix,
+            lock_owner("mount-b", 90),
+            90,
+            lock_range(0, 99),
+        );
+        let error =
+            <DistributedFs as crate::node::rpc::control::DfsOwnerLifecycleHandler>::set_lock(
+                &fs,
+                "node-b",
+                afs_protocol::node_control::DfsOwnerSetLockRequest {
+                    authority: Some(authority),
+                    lock: Some(DistributedFs::wire_lock_request(&lock)),
+                    waiter: Some(afs_protocol::node_control::DfsOwnerLockWaiter {
+                        ingress_session_id: "mount-other".into(),
+                        request_id: 90,
+                    }),
+                },
+            )
+            .unwrap_err();
+        assert_eq!(error.code(), afs_error::NODE_VFS_INVALID);
+    }
+
+    #[test]
+    fn dfs_lock_authority_epoch_replaces_old_table() {
+        let (_temp, meta, fs) = test_fs();
+        let created = fs
+            .create(
+                &context(),
+                fs.root_inode(),
+                OsStr::new("lock-epoch.bin"),
+                0o640,
+                libc::O_RDWR,
+            )
+            .unwrap();
+        let owner_a = lock_owner("mount-a", 30);
+        fs.setlk(
+            &context(),
+            created.entry.inode,
+            created.handle,
+            LockRequest::write(FileLockKind::Posix, owner_a, 30, lock_range(0, 99)),
+            None,
+        )
+        .unwrap();
+        {
+            let mut lease = meta.lease.lock().unwrap();
+            lease.lease_epoch = lease.lease_epoch.saturating_add(1);
+        }
+        let conflict = fs
+            .getlk(
+                &context(),
+                created.entry.inode,
+                created.handle,
+                LockRequest::write(
+                    FileLockKind::Posix,
+                    lock_owner("mount-b", 31),
+                    31,
+                    lock_range(0, 99),
+                ),
+            )
+            .unwrap();
+        assert!(
+            conflict.is_none(),
+            "old epoch locks must not survive fencing"
+        );
+    }
+
+    #[test]
+    fn dfs_release_locks_without_authority_does_not_open_write() {
+        let (_temp, _meta, fs) = test_fs();
+        let created = fs
+            .create(
+                &context(),
+                fs.root_inode(),
+                OsStr::new("release-no-lock.bin"),
+                0o640,
+                libc::O_RDWR,
+            )
+            .unwrap();
+        fs.release_locks(
+            &context(),
+            created.entry.inode,
+            created.handle,
+            lock_owner("mount-a", 20),
+            ReleaseKind::PosixOwner,
+        )
+        .unwrap();
+        assert!(fs.lock_authorities.lock().unwrap().is_empty());
+        assert!(fs.remote_lock_authorities.lock().unwrap().is_empty());
+    }
+
+    #[test]
+    fn dfs_posix_lock_checks_file_access() {
+        let (_temp, _meta, fs) = test_fs();
+        let created = fs
+            .create(
+                &context(),
+                fs.root_inode(),
+                OsStr::new("lock-access.bin"),
+                0o640,
+                libc::O_RDWR,
+            )
+            .unwrap();
+        let readonly = fs
+            .open(&context(), created.entry.inode, libc::O_RDONLY)
+            .unwrap();
+        let writeonly = fs
+            .open(&context(), created.entry.inode, libc::O_WRONLY)
+            .unwrap();
+        assert_eq!(
+            fs.setlk(
+                &context(),
+                created.entry.inode,
+                readonly,
+                LockRequest::write(
+                    FileLockKind::Posix,
+                    lock_owner("mount-a", 21),
+                    21,
+                    lock_range(0, 0),
+                ),
+                None,
+            )
+            .unwrap_err()
+            .code(),
+            afs_error::IO_BAD_FILE_DESCRIPTOR
+        );
+        assert_eq!(
+            fs.getlk(
+                &context(),
+                created.entry.inode,
+                writeonly,
+                LockRequest::read(
+                    FileLockKind::Posix,
+                    lock_owner("mount-a", 22),
+                    22,
+                    lock_range(0, 0),
+                ),
+            )
+            .unwrap_err()
+            .code(),
+            afs_error::IO_BAD_FILE_DESCRIPTOR
+        );
+    }
+
+    #[test]
+    fn dfs_closed_lock_session_rejects_late_waiter() {
+        let (_temp, _meta, fs) = test_fs();
+        let created = fs
+            .create(
+                &context(),
+                fs.root_inode(),
+                OsStr::new("closed-lock-session.bin"),
+                0o640,
+                libc::O_RDWR,
+            )
+            .unwrap();
+        fs.release_lock_session("mount-closed").unwrap();
+        assert_eq!(
+            fs.setlk(
+                &context(),
+                created.entry.inode,
+                created.handle,
+                LockRequest::write(
+                    FileLockKind::Posix,
+                    lock_owner("mount-closed", 23),
+                    23,
+                    lock_range(0, 0),
+                ),
+                Some(LockWaiterId {
+                    ingress_session_id: "mount-closed".into(),
+                    request_id: 1,
+                }),
+            )
+            .unwrap_err()
+            .code(),
+            afs_error::IO_INTERRUPTED
+        );
+    }
+
+    #[test]
+    fn remote_owner_append_retry_is_idempotent_and_dirty_read_is_visible() {
+        let (_temp, _meta, fs) = test_fs();
+        let open = <DistributedFs as crate::node::rpc::control::DfsOwnerLifecycleHandler>::open(
+            &fs,
+            "node-b",
+            afs_protocol::node_control::DfsOwnerOpenRequest {
+                namespace_id: "default".into(),
+                inode_id: "inode:test".into(),
+                owner_node_id: "node-a".into(),
+                owner_session_id: "session-a".into(),
+                lease_epoch: 1,
+                caller_session_id: "session-b".into(),
+                open_flags: libc::O_RDWR | libc::O_APPEND,
+                kill_suidgid: false,
+            },
+        )
+        .unwrap();
+        let handle = open.handle.expect("owner open returns handle");
+        let data_handle = DistributedFs::data_owner_handle(&handle);
+
+        let write = afs_protocol::node_data::DfsOwnerWriteRequest {
+            handle: Some(data_handle.clone()),
+            operation_id: "node-b-op-1".into(),
+            offset: 0,
+            data: b"hi".to_vec(),
+            append: true,
+            kill_suidgid: false,
+        };
+        let first = <DistributedFs as crate::node::rpc::data::DfsOwnerFilesHandler>::write(
+            &fs,
+            "node-b",
+            write.clone(),
+        )
+        .unwrap();
+        let retry = <DistributedFs as crate::node::rpc::data::DfsOwnerFilesHandler>::write(
+            &fs,
+            "node-b",
+            write.clone(),
+        )
+        .unwrap();
+        assert_eq!(first, retry);
+        assert_eq!(first.written, 2);
+        let mut changed = afs_protocol::node_data::DfsOwnerWriteRequest {
+            data: b"changed".to_vec(),
+            ..write.clone()
+        };
+        changed.operation_id = "node-b-op-1".into();
+        assert!(
+            <DistributedFs as crate::node::rpc::data::DfsOwnerFilesHandler>::write(
+                &fs, "node-b", changed
+            )
+            .unwrap_err()
+            .message()
+            .contains("reused with a different request body")
+        );
+
+        let reply = <DistributedFs as crate::node::rpc::data::DfsOwnerFilesHandler>::read(
+            &fs,
+            "node-b",
+            afs_protocol::node_data::DfsOwnerReadRequest {
+                handle: Some(data_handle.clone()),
+                offset: 0,
+                length: 8,
+            },
+        )
+        .unwrap();
+        assert_eq!(reply.data, b"hi");
+
+        <DistributedFs as crate::node::rpc::control::DfsOwnerLifecycleHandler>::release(
+            &fs,
+            "node-b",
+            afs_protocol::node_control::DfsOwnerReleaseRequest {
+                handle: Some(handle),
+            },
+        )
+        .unwrap();
     }
 }

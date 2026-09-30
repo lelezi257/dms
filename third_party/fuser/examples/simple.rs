@@ -557,6 +557,7 @@ impl Filesystem for SimpleFS {
         _chgtime: Option<SystemTime>,
         _bkuptime: Option<SystemTime>,
         _flags: Option<u32>,
+        _kill_suidgid: bool,
         reply: ReplyAttr,
     ) {
         let mut attrs = match self.get_inode(inode) {
@@ -1348,7 +1349,7 @@ impl Filesystem for SimpleFS {
         }
     }
 
-    fn open(&mut self, req: &Request, inode: u64, flags: i32, reply: ReplyOpen) {
+    fn open(&mut self, req: &Request, inode: u64, flags: i32, _open_flags: u32, reply: ReplyOpen) {
         debug!("open() called for {inode:?}");
         let (access_mask, read, write) = match flags & libc::O_ACCMODE {
             libc::O_RDONLY => {
@@ -1725,6 +1726,7 @@ impl Filesystem for SimpleFS {
         mut mode: u32,
         _umask: u32,
         flags: i32,
+        _open_flags: u32,
         reply: ReplyCreate,
     ) {
         debug!("create() called with {parent:?} {name:?}");

@@ -504,3 +504,83 @@ kind = "FailedPrecondition"
 component = "Runtime"
 subsystem = "Io"
 description = "文件描述符无效或不具备请求的访问模式"
+
+[[error]]
+name = "IO_NAME_TOO_LONG"
+value = "0x0403000f"
+kind = "OutOfRange"
+component = "Runtime"
+subsystem = "Io"
+description = "路径组件或名称超过支持长度"
+
+[[error]]
+name = "IO_NO_DATA"
+value = "0x04030010"
+kind = "NotFound"
+component = "Runtime"
+subsystem = "Io"
+description = "扩展属性或命名数据不存在"
+
+[[error]]
+name = "IO_NOT_SUPPORTED"
+value = "0x04030011"
+kind = "FailedPrecondition"
+component = "Runtime"
+subsystem = "Io"
+description = "当前对象或命名空间不支持请求的操作"
+
+[[error]]
+name = "IO_OPERATION_NOT_PERMITTED"
+value = "0x04030012"
+kind = "PermissionDenied"
+component = "Runtime"
+subsystem = "Io"
+description = "调用者缺少执行请求操作的所有者或特权权限"
+
+[[error]]
+name = "IO_TOO_MANY_SYMLINKS"
+value = "0x04030013"
+kind = "FailedPrecondition"
+component = "Runtime"
+subsystem = "Io"
+description = "路径解析遇到过多符号链接或符号链接环"
+
+[[error]]
+name = "IO_FILE_TOO_LARGE"
+value = "0x04030014"
+kind = "OutOfRange"
+component = "Runtime"
+subsystem = "Io"
+description = "文件大小或写入范围超过支持上限"
+
+[[error]]
+name = "IO_INTERRUPTED"
+value = "0x04030015"
+kind = "Cancelled"
+component = "Runtime"
+subsystem = "Io"
+description = "调用者中断了等待中的操作"
+
+[[error]]
+name = "IO_WOULD_BLOCK"
+value = "0x04030016"
+kind = "Unavailable"
+component = "Runtime"
+subsystem = "Io"
+description = "非阻塞操作当前无法立即完成"
+
+[[error]]
+name = "IO_DEADLOCK"
+value = "0x04030017"
+kind = "FailedPrecondition"
+component = "Runtime"
+subsystem = "Io"
+description = "文件锁等待将形成死锁"
+
+[[error]]
+name = "IO_NO_LOCKS"
+value = "0x04030018"
+kind = "ResourceExhausted"
+component = "Runtime"
+subsystem = "Io"
+description = "文件锁或等待记录达到容量上限"

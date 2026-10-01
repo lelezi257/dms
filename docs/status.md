@@ -26,6 +26,19 @@ The [delivery acceptance contract](acceptance.md) requires JuiceFS default same-
 
 ## Current Validation Checkpoint
 
+The native-bind branch now has a command-scoped RootManager refusal and actual
+admitted-operation barrier. Five focused regressions,404 all-feature library
+tests (two existing ignored), strict workspace Clippy/fmt, root-project tests,
+three feature builds and independent ext4 VM replay pass. Fresh actual VM
+foundation17 also passes. The project run includes the unchanged DFS expiry
+case, but does not establish that earlier WSL clock anomalies are fixed; prior
+failures and ignored/unrun scope remain in the evidence record. Delayed or
+foreign command identities cannot close the current
+grant; retired cache objects cannot prove the replacement is drained. This
+interface is not yet called by the production Node worker and does not prove
+open-handle/lock/native-Agent drainage, normal detach, durable cursor state or
+ACK completion. Full semantic/performance gates and the no-merge PR remain open.
+
 The latest native-bind control prerequisite adds a current-session command poll
 with pinned prefix cursors and exact command/ACK/replay checks.399 all-feature
 library tests PASS (two existing ignored), strict Clippy/fmt and three feature

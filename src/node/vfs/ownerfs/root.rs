@@ -242,6 +242,24 @@ pub struct RootControlPage {
     pub commands: Vec<RootRevocationCommand>,
 }
 
+/// A command-scoped admission barrier, not proof of handles, locks, native
+/// processes, mount teardown, durable revocation or an ACK.
+pub struct RootRefusal {
+    root: Arc<LocalRoot>,
+    command: RootRevocationCommand,
+    grant: RootGrant,
+}
+
+impl RootRefusal {
+    pub fn grant(&self) -> &RootGrant {
+        &self.grant
+    }
+
+    pub fn command(&self) -> &RootRevocationCommand {
+        &self.command
+    }
+}
+
 /// 缓存中的一个本机根；只在 Meta 已激活且身份校验通过后发布。
 /// `data_dir` 是 LocalFs 根下的私有路径，不由调用者凭文件名自行拼接。
 pub struct LocalRoot {
@@ -264,7 +282,13 @@ struct RootRuntime {
 
 enum GrantPhase {
     Active(RootGrant),
+    Refusing(Box<RefusedGrant>),
     Invalid,
+}
+
+struct RefusedGrant {
+    command: RootRevocationCommand,
+    grant: RootGrant,
 }
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
@@ -792,6 +816,104 @@ impl RootManager {
         self.control_valid.store(false, Ordering::Release);
     }
 
+    /// Consume a validated current-session control command. Match its complete
+    /// target before changing admission under the same lock used by enter_root.
+    /// An exact duplicate resumes the same refusal; another command cannot
+    /// borrow its proof. This is process-local, not a durable command receipt.
+    pub fn begin_command_refusal(&self, command: &RootRevocationCommand) -> Result<RootRefusal> {
+        if command.command_id.is_empty()
+            || command.revision == 0
+            || command.root_epoch == 0
+            || command.access_generation == 0
+            || command.home_node_id != self.local_node_id
+            || command.home_session_id != self.session_id
+        {
+            return Err(invalid_grant(
+                "revocation command has invalid Home identity",
+            ));
+        }
+        let roots = self
+            .roots
+            .read()
+            .map_err(|_| invalid_grant("root cache lock poisoned"))?;
+        let root = roots
+            .get(&command.root_id)
+            .ok_or_else(|| unavailable_grant("revocation command root is not cached"))?;
+        let mut state = root
+            .state
+            .lock()
+            .map_err(|_| invalid_grant("root grant lock poisoned"))?;
+        if !self.control_valid.load(Ordering::Acquire) {
+            return Err(unavailable_grant("Meta control session is invalid"));
+        }
+        let grant = match &state.phase {
+            GrantPhase::Active(grant) => grant.clone(),
+            GrantPhase::Refusing(refused) if refused.command == *command => refused.grant.clone(),
+            GrantPhase::Refusing(_) | GrantPhase::Invalid => {
+                return Err(invalid_grant(
+                    "root is not active for this revocation command",
+                ));
+            }
+        };
+        if grant.id != command.root_id
+            || grant.epoch != command.root_epoch
+            || grant.home_node_id != command.home_node_id
+            || grant.home_session_id != command.home_session_id
+            || grant.access_generation != command.access_generation
+            || grant.holder_node_id != self.local_node_id
+            || grant.session_id != self.session_id
+        {
+            return Err(invalid_grant(
+                "revocation command differs from cached Home authority",
+            ));
+        }
+        state.phase = GrantPhase::Refusing(Box::new(RefusedGrant {
+            command: command.clone(),
+            grant: grant.clone(),
+        }));
+        state.validated_peer_grants.clear();
+        Ok(RootRefusal {
+            root: root.clone(),
+            command: command.clone(),
+            grant,
+        })
+    }
+
+    /// Only the counted, already-admitted operations have drained. Open file
+    /// descriptions, lock waiters, native processes and mount references require
+    /// their own cleanup proofs before any ACK or deletion. A retired root
+    /// object, unrelated invalidation or lost control session cannot provide
+    /// this command's current drain observation.
+    pub fn refused_operations_drained(&self, refusal: &RootRefusal) -> Result<bool> {
+        let roots = self
+            .roots
+            .read()
+            .map_err(|_| invalid_grant("root cache lock poisoned"))?;
+        let root = roots
+            .get(&refusal.command.root_id)
+            .ok_or_else(|| unavailable_grant("refused root is no longer cached"))?;
+        if !Arc::ptr_eq(root, &refusal.root) {
+            return Err(invalid_grant(
+                "refusal belongs to a retired root cache object",
+            ));
+        }
+        let state = root
+            .state
+            .lock()
+            .map_err(|_| invalid_grant("root grant lock poisoned"))?;
+        if !self.control_valid.load(Ordering::Acquire) {
+            return Err(unavailable_grant("Meta control session is invalid"));
+        }
+        match &state.phase {
+            GrantPhase::Refusing(refused)
+                if refused.command == refusal.command && refused.grant == refusal.grant =>
+            {
+                Ok(state.in_flight == 0)
+            }
+            _ => Err(invalid_grant("command-scoped refusal is no longer current")),
+        }
+    }
+
     /// 真正收到 Meta 撤销或本地恢复判定旧授权失效时，封闭单个根。
     /// 已准入操作仍由 RootUse 计数；撤销完成条件由后续持久协议定义。
     pub fn revoke_root(&self, id: &RootId) {
@@ -1112,6 +1234,162 @@ mod tests {
             peer: Mutex::new(peer),
             validate_calls: std::sync::atomic::AtomicUsize::new(0),
         })
+    }
+
+    fn native_refusal_command(id: &RootId) -> RootRevocationCommand {
+        RootRevocationCommand {
+            command_id: "revoke-a".into(),
+            root_id: id.clone(),
+            root_epoch: 1,
+            home_node_id: "node-a".into(),
+            home_session_id: "session-a".into(),
+            access_generation: 7,
+            revision: 12,
+        }
+    }
+
+    #[test]
+    fn native_refusal_waits_for_all_admitted_operations_and_blocks_new_ones() {
+        let (_temp, manager, prepared) = fixture("session-a", "session-a");
+        manager
+            .activate_prepared("job-42".into(), &prepared)
+            .unwrap();
+        let id = &prepared.reservation.id;
+        let first = manager.enter_root(id, RootRight::Lookup).unwrap();
+        let second = manager.enter_root(id, RootRight::Lookup).unwrap();
+        let refusal = manager
+            .begin_command_refusal(&native_refusal_command(id))
+            .unwrap();
+        assert_eq!(refusal.grant(), first.grant());
+        assert!(!manager.refused_operations_drained(&refusal).unwrap());
+        assert!(manager.enter_root(id, RootRight::Lookup).is_err());
+        assert!(!manager.has_active_local_root(id));
+        drop(first);
+        assert!(!manager.refused_operations_drained(&refusal).unwrap());
+        drop(second);
+        assert!(manager.refused_operations_drained(&refusal).unwrap());
+        assert!(manager.enter_root(id, RootRight::Lookup).is_err());
+    }
+
+    #[test]
+    fn native_refusal_foreign_stale_or_malformed_command_preserves_current_grant() {
+        for mutation in 0..8 {
+            let (_temp, manager, prepared) = fixture("session-a", "session-a");
+            manager
+                .activate_prepared("job-42".into(), &prepared)
+                .unwrap();
+            let id = &prepared.reservation.id;
+            let mut command = native_refusal_command(id);
+            match mutation {
+                0 => command.root_id = RootId("another-root".into()),
+                1 => command.root_epoch += 1,
+                2 => command.home_node_id = "foreign-home".into(),
+                3 => command.home_session_id = "old-home-session".into(),
+                4 => command.access_generation += 1,
+                5 => command.command_id.clear(),
+                6 => command.revision = 0,
+                7 => command.root_epoch = 0,
+                _ => unreachable!(),
+            }
+            assert!(
+                manager.begin_command_refusal(&command).is_err(),
+                "mutation {mutation}"
+            );
+            assert!(
+                manager.enter_root(id, RootRight::Lookup).is_ok(),
+                "mutation {mutation}"
+            );
+            let valid = manager
+                .begin_command_refusal(&native_refusal_command(id))
+                .unwrap();
+            assert!(manager.refused_operations_drained(&valid).unwrap());
+        }
+    }
+
+    #[test]
+    fn native_refusal_duplicate_is_idempotent_but_changed_payload_is_rejected() {
+        let (_temp, manager, prepared) = fixture("session-a", "session-a");
+        manager
+            .activate_prepared("job-42".into(), &prepared)
+            .unwrap();
+        let command = native_refusal_command(&prepared.reservation.id);
+        let first = manager.begin_command_refusal(&command).unwrap();
+        let second = manager.begin_command_refusal(&command).unwrap();
+        assert_eq!(first.grant(), second.grant());
+        assert!(manager.refused_operations_drained(&second).unwrap());
+        for mutation in 0..3 {
+            let mut altered = command.clone();
+            match mutation {
+                0 => altered.command_id = "revoke-b".into(),
+                1 => altered.revision += 1,
+                2 => altered.access_generation += 1,
+                _ => unreachable!(),
+            }
+            assert!(manager.begin_command_refusal(&altered).is_err());
+            assert!(manager.refused_operations_drained(&first).unwrap());
+        }
+    }
+
+    #[test]
+    fn native_refusal_retired_cache_object_cannot_prove_replacement_is_drained() {
+        let (_temp, manager, prepared) = fixture("session-a", "session-a");
+        manager
+            .activate_prepared("job-42".into(), &prepared)
+            .unwrap();
+        let id = &prepared.reservation.id;
+        let admitted = manager.enter_root(id, RootRight::Lookup).unwrap();
+        let grant = admitted.grant().clone();
+        let refusal = manager
+            .begin_command_refusal(&native_refusal_command(id))
+            .unwrap();
+        // Model recovery publishing a distinct root object, even if all public
+        // grant facts are accidentally identical. The retired counter is not
+        // evidence about the new cache object's operations.
+        let replacement = Arc::new(LocalRoot {
+            id: id.clone(),
+            name: "job-42".into(),
+            data_dir: prepared.data_dir.clone(),
+            state: Mutex::new(RootRuntime {
+                phase: GrantPhase::Active(grant),
+                in_flight: 0,
+                validated_peer_grants: HashMap::new(),
+                fenced_peer_sessions: HashSet::new(),
+            }),
+        });
+        manager
+            .roots
+            .write()
+            .unwrap()
+            .insert(id.clone(), replacement);
+        drop(admitted);
+        assert!(manager.refused_operations_drained(&refusal).is_err());
+        let fresh = manager.enter_root(id, RootRight::Lookup).unwrap();
+        let current = manager
+            .begin_command_refusal(&native_refusal_command(id))
+            .unwrap();
+        assert!(!manager.refused_operations_drained(&current).unwrap());
+        drop(fresh);
+        assert!(manager.refused_operations_drained(&current).unwrap());
+    }
+
+    #[test]
+    fn native_refusal_global_fence_or_control_loss_cannot_be_reported_as_command_drain() {
+        for disconnect in [false, true] {
+            let (_temp, manager, prepared) = fixture("session-a", "session-a");
+            manager
+                .activate_prepared("job-42".into(), &prepared)
+                .unwrap();
+            let command = native_refusal_command(&prepared.reservation.id);
+            let refusal = manager.begin_command_refusal(&command).unwrap();
+            assert!(manager.refused_operations_drained(&refusal).unwrap());
+            if disconnect {
+                manager.on_watch_disconnected();
+            } else {
+                manager.invalidate_all();
+            }
+            assert!(manager.refused_operations_drained(&refusal).is_err());
+            assert!(manager.begin_command_refusal(&command).is_err());
+        }
     }
 
     fn fixture(

@@ -31,6 +31,30 @@ source/binary/archive identities and exact scope. Feature-off/DFS-only builds
 retain two descriptor-helper dead-code warnings; strict lint under those
 individual variants has not been claimed.
 
+## Command-scoped Home refusal interface
+
+RootManager adds `begin_command_refusal` and `refused_operations_drained` with
+an opaque process-local `RootRefusal`. A Refusing phase retains the exact command
+and full captured grant; it rejects new local/peer admission under the same lock
+as operation counting. Delayed/foreign targets fail before mutation. Duplicate
+identity is exact, including revision; a changed command cannot reuse a previous
+barrier. Drain checks compare the cached Arc identity as well as command/grant,
+and fail on control loss or unrelated invalidation. The old RootId-only
+invalidation API is not repurposed as a command processor. DFS is unchanged.
+
+Five missing-feature behavior REDs,404 passing library tests, strict Clippy/fmt,
+root-project all-feature tests, three feature builds and five independent VM
+ext4 passes support this interface slice. Fresh17-case actual VM foundation
+replay also passes with independently checked mount/data cleanup. Existing
+ignores and separate vendored-fuser higher-ABI failures remain outside these
+passing scopes. The original
+API compilation failures and unavailable stubs are retained separately. This
+does not prove open-handle/lock/process drainage, normal unmount, persistent
+command/cursor state or ACK honesty. Node consumer wiring, actual Agent fencing
+and full semantic/performance qualification remain open. See the evidence record
+for exact binary, snapshot and archive identities. Final independent review is
+still required.
+
 ## Open review gates
 
 - The additive command poll and exact ACK slice passes14 source controls and
@@ -45,7 +69,7 @@ individual variants has not been claimed.
   semantics are preserved. Scope, all failures and raw identities are in the
   evidence record. Final/independent review remains pending.
 - A valid ACK identity cannot prove truthful drainage. The Node producer must
-  still install exact-generation refusal, persist pending work before cursor
+  still wire the exact-generation refusal, persist pending work before cursor
   advance, fence actual managed users/references, normally detach and only then
   issue success. No runtime native admission follows from the new poll.
 - The subsequent native lock authority/release slice passes its four original

@@ -4,7 +4,65 @@ Issue: https://github.com/lelezi257/dms/issues/42. Plan: `native-bind-plan.md`.
 
 This is an intermediate slice, not feature completion, product acceptance or performance qualification. It does not enable native exports in Node. Default configuration does not enable native admission. The optional hint hook remains inert without a sink; ordinary directory identity refresh now reconciles cached descendants after an external move. Node/FUSE/P2P integration, cross-path locks/cache/mmap, full Node/Agent lifecycle recovery and ext4 performance comparison remain outstanding.
 
-## Current checkpoint: command feed and exact revocation ACKs (2026-10-01)
+## Current checkpoint: exact command refusal and operation drainage (2026-10-01)
+
+Source parent is `b2755eb`; the source candidate is retained at
+`native-refusal-candidate-20261001T075549`. RootManager now has a separate
+command-scoped refusal entry point. Before mutation it checks current Root,
+epoch, Home Node/session and access generation. Closing admission and counting
+admitted operations share the same root-state lock. Exact duplicate commands
+resume the same refusal; changed command identity, revision or target cannot
+borrow it. The token retains the complete captured RootGrant and root object.
+A replacement cache object, unrelated invalidation or lost control session
+cannot yield this command's current drain observation. The existing RootId-only
+local invalidation API retains its uses; it is not the control-command consumer.
+
+`native-refusal-api-red.log` retains the missing API compilation failure;
+`native-refusal-behavior-red.log` retains all5 positive-path failures with the
+temporary unavailable implementation. Those are missing-feature REDs, not a
+claim of reproducing five previous production bugs. After implementation,
+`native-refusal-green.log` passes all5 cases, including held operation guards,
+eight foreign/stale/malformed targets, duplicate/payload identity, retired
+cache-object rejection and control/global invalidation. The all-feature library
+run `native-refusal-library.log` passes404 tests with2 existing ignored.
+Strict workspace/all-target/all-feature Clippy and fmt checks pass. Compilation
+with no default features, OwnerFs-only and DFS-only passes; no-feature/DFS-only
+retain the two existing descriptor-helper warnings, not a per-variant lint pass.
+
+Independent VM replay `root-refusal-20261001T075556-595f8aeb` passes the same5
+cases on ext4 `/dev/sdb1` in a private mount namespace. Binary SHA256 is
+`97bf876d8d742dae4ae0e12932c51d8626f9f14f268874251042eb2450d6e99c`;
+raw archive SHA256 is
+`5f299865ade7082865e170b3fb77cb9472a01b69ec656f1edeae649d185ca154`.
+Independent archive inspection verifies all5 exact names/outcomes, input hashes,
+ext4 identity, distinct namespace, unchanged parent mounts and no temporary-data
+residuals. VM staging and raw evidence remain external to the source repository.
+
+This is a process-local admission/in-flight barrier. It does not drain open
+handles, dirty work, lock waiters/pins or native Agent processes, normally detach
+mounts, persist pending commands/cursors or produce an ACK. The production Node
+still does not call it. Those runtime integrations and full semantic/performance
+gates remain mandatory; operation count zero is not a revocation completion.
+`native-refusal-project.log` is overall PASS: all25 observed suite summaries
+are green, including the unchanged DFS lease-expiry test that failed in prior
+attempts. Its existing environmental ignores remain ignored, including the
+24 privileged Linux cases not executed by the WSL project command. Earlier
+failure/clock evidence is retained; this pass does not establish a WSL clock
+repair. Workspace-wide higher-ABI vendored-fuser test failures remain a separate
+unqualified scope; the root-project command does not execute dependency tests.
+
+Fresh actual VM foundation replay `foundation-20261001T080203-23704e40` passes
+all17 selected cases. Binary SHA256 is
+`047ff16a1643a51b1cb9d8977bd75672491f0d99834b8050f679d0f2fef763e2`;
+raw archive SHA256 is
+`192e10148fcf8fe0b2aab115d1c153a80c01041f9a246d14e88920a1c8146775`.
+Independent inspection verifies17 unchanged parent-mount pairs and17 empty
+temporary directories. The7 historical stronger old-directory diagnostics are
+explicitly NOT_RUN in this profile, not silently counted as passing. Foundation
+scope remains mount/cache/Home teardown/local kernel-flock, not production Node,
+network P2P, native POSIX locks/mmap, Agent fencing or performance qualification.
+
+## Previous checkpoint: command feed and exact revocation ACKs (2026-10-01)
 
 Source parent is `a463762`. Exact final source is retained in external snapshot
 `native-control-timeout-candidate-20261001T073450`; prior intermediate snapshots

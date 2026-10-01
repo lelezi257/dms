@@ -284,7 +284,11 @@ The user explicitly accepted the previously presented close-to-open and retained
   14 plus4 lock regressions on VM.399 library PASS/2 existing ignored, strict
   Clippy/fmt, feature compilation and45 native contracts PASS. WSL full-project
   remains FAIL at unchanged DFS expiry; the same39 Meta contracts PASS on VM.
-- [ ] Wire exact-generation Node refusal/drain, pending-command/cursor durability,
+- [x] Add exact-generation command refusal and current-object operation drainage
+  in RootManager. All5 missing-feature REDs become GREEN;404 library tests,
+  strict workspace Clippy/fmt and independent ext4 VM replay pass. This token
+  proves only process-local admission/counting, not runtime revocation completion.
+- [ ] Wire this barrier into the Node command consumer, pending-command/cursor durability,
   managed process supervision, normal detach and truthful ACK production.
   A finite poll or valid ACK identity does not establish those runtime gates.
 

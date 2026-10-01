@@ -23,10 +23,11 @@ use std::{
 use afs_error::{Error, Result};
 use fuser::Notifier;
 
+use self::native::OwnerLockTable;
 use self::root::{PresentedRootAccess, RootGrant, RootId, RootManager, RootRight};
 use super::{
     Backend,
-    locks::{LockError, LockRequest, LockTable, LockTableLimits, LockWaiterId, LockWaiterOutcome},
+    locks::{LockError, LockRequest, LockTableLimits, LockWaiterId, LockWaiterOutcome},
     types::{
         AttributeChange, BackendInode, CreatedFile, DirectoryEntry, DirectoryHandle, Entry,
         FileAttributes, FileHandle, FileKind, FileLockConflict, FileLockKind, FileLockOwner,
@@ -1196,7 +1197,7 @@ struct OwnerLockKey {
 enum OwnerLockTarget {
     Local {
         key: OwnerLockKey,
-        table: Arc<LockTable>,
+        table: Arc<OwnerLockTable>,
     },
     Remote {
         grant: Arc<RootGrant>,
@@ -1217,7 +1218,7 @@ struct OwnerLockRoute {
 #[derive(Default)]
 struct OwnerLockRegistry {
     admission_exhausted: bool,
-    tables: HashMap<OwnerLockKey, Arc<LockTable>>,
+    tables: HashMap<OwnerLockKey, Arc<OwnerLockTable>>,
     waiters: HashMap<LockWaiterId, OwnerLockRoute>,
     cancelled: HashSet<LockWaiterId>,
     closed_sessions: HashSet<String>,
@@ -1232,7 +1233,7 @@ const MAX_OWNER_LOCK_WAITERS: usize = 1024;
 const MAX_OWNER_LOCK_SCOPES: usize = 4096;
 
 impl OwnerLockRegistry {
-    fn table(&mut self, key: OwnerLockKey) -> Result<Arc<LockTable>> {
+    fn table(&mut self, key: OwnerLockKey, native: bool) -> Result<Arc<OwnerLockTable>> {
         if let Some(table) = self.tables.get(&key) {
             return Ok(table.clone());
         }
@@ -1244,11 +1245,14 @@ impl OwnerLockRegistry {
         if self.tables.len() >= MAX_OWNER_LOCK_TABLES {
             return Err(owner_lock_capacity());
         }
-        let table = Arc::new(LockTable::new(LockTableLimits {
-            max_locks: 1024,
-            max_waiters: 64,
-            max_cancelled_waiters: 128,
-        }));
+        let table = Arc::new(OwnerLockTable::new(
+            LockTableLimits {
+                max_locks: 1024,
+                max_waiters: 64,
+                max_cancelled_waiters: 128,
+            },
+            native,
+        ));
         self.tables.insert(key, table.clone());
         Ok(table)
     }
@@ -1390,11 +1394,16 @@ impl LocalOwnerFs {
                     identity,
                 };
                 drop(root_use);
+                let native = self
+                    .private_cache
+                    .lock()
+                    .map_err(|_| poisoned())?
+                    .native_eligible;
                 let table = self
                     .locks
                     .lock()
                     .map_err(|_| poisoned())?
-                    .table(key.clone())?;
+                    .table(key.clone(), native)?;
                 Ok(OwnerLockTarget::Local { key, table })
             }
             OpenFileHandle::Remote(file) => Ok(OwnerLockTarget::Remote {
@@ -1403,6 +1412,32 @@ impl LocalOwnerFs {
                 file: file.handle.clone(),
             }),
         }
+    }
+
+    fn prepare_native_flock(
+        &self,
+        handle: FileHandle,
+        table: &OwnerLockTable,
+        request: &LockRequest,
+    ) -> Result<()> {
+        if request.kind != FileLockKind::Flock || !table.native_flock() {
+            return Ok(());
+        }
+        let slot = self.open_file_handle(handle)?;
+        let descriptor = {
+            let guard = slot.lock().map_err(|_| poisoned())?;
+            guard.ensure_open()?;
+            let OpenFileHandle::Local(file) = &guard.file else {
+                return Err(stale("native flock requires a Home descriptor"));
+            };
+            file.handle
+                .file
+                .try_clone_descriptor()
+                .map_err(Error::from)?
+        };
+        table
+            .prepare_flock(handle, &request.owner, descriptor, Arc::downgrade(&slot))
+            .map_err(owner_lock_error)
     }
 
     fn validate_lock_target(&self, target: &OwnerLockTarget) -> Result<()> {
@@ -1496,11 +1531,14 @@ impl LocalOwnerFs {
                 if let Some(id) = &mut waiter {
                     id.ingress_session_id = owner_local_lock_scope(&id.ingress_session_id);
                 }
-                match waiter {
-                    Some(id) => table.setlk_blocking(request, id),
-                    None => table.setlk_nonblocking(request),
-                }
-                .map_err(owner_lock_error)
+                self.prepare_native_flock(handle, table, &request)
+                    .and_then(|()| {
+                        match waiter {
+                            Some(id) => table.setlk_blocking(request, id),
+                            None => table.setlk_nonblocking(request),
+                        }
+                        .map_err(owner_lock_error)
+                    })
             }
             OwnerLockTarget::Remote { grant, files, file } => {
                 files.setlk(grant, file, request, waiter)
@@ -1827,6 +1865,7 @@ impl LocalOwnerFs {
         let OwnerLockTarget::Local { table, .. } = &target else {
             unreachable!()
         };
+        self.prepare_native_flock(decode_file_handle(file)?, table, &request)?;
         if let Some(id) = &waiter {
             self.locks.lock().map_err(|_| poisoned())?.register_waiter(
                 id,
@@ -4006,12 +4045,29 @@ impl LocalOwnerFs {
         let mut file = file.lock().map_err(|_| poisoned())?;
         file.ensure_open()?;
         file.closed = true;
-        match &file.file {
+        let result = match &file.file {
             OpenFileHandle::Local(_) => Ok(()),
             OpenFileHandle::Remote(remote) => {
                 remote.files.release(&remote.grant, remote.handle.clone())
             }
+        };
+        // Never enter a flock coordinator with the file slot mutex held.
+        drop(file);
+        let tables = self
+            .locks
+            .lock()
+            .map_err(|_| poisoned())?
+            .tables
+            .values()
+            .cloned()
+            .collect::<Vec<_>>();
+        let mut first = result.err();
+        for table in tables {
+            if let Err(error) = table.release_handle(handle).map_err(owner_lock_error) {
+                first.get_or_insert(error);
+            }
         }
+        first.map_or(Ok(()), Err)
     }
 
     fn opendir(&self, inode: BackendInode) -> Result<DirectoryHandle> {
@@ -6266,7 +6322,11 @@ fn poisoned() -> Error {
     Error::coded(afs_error::RUNTIME_INTERNAL, "OwnerFs state lock poisoned")
 }
 
-fn release_owner_locks(table: &LockTable, owner: &FileLockOwner, kind: ReleaseKind) -> Result<()> {
+fn release_owner_locks(
+    table: &OwnerLockTable,
+    owner: &FileLockOwner,
+    kind: ReleaseKind,
+) -> Result<()> {
     match kind {
         ReleaseKind::PosixOwner => table.release_posix_owner(owner),
         ReleaseKind::FlockOwner => table.release_flock_owner(owner),
@@ -7324,6 +7384,573 @@ mod tests {
         ordinary.release(&ctx, file.handle).unwrap();
     }
 
+    #[test]
+    fn native_eligible_flock_arbitrates_with_actual_backing_description() {
+        let (_temp, ordinary, ctx) = fixture();
+        let local = ordinary.require_local().unwrap();
+        let fs = OwnerFs::new_native_eligible(local.roots.clone(), local.disk.clone(), None);
+        let root = fs
+            .mkdir(&ctx, fs.root_inode(), OsStr::new("agent-flock"), 0o755)
+            .unwrap();
+        let file = fs
+            .create(&ctx, root.inode, OsStr::new("file"), 0o644, libc::O_RDWR)
+            .unwrap();
+        let local = fs.require_local().unwrap();
+        let id = root::root_id_from_name(OsStr::new("agent-flock")).unwrap();
+        let authority = local.roots.enter_root(&id, RootRight::Read).unwrap();
+        let path = local
+            .disk
+            .root_path()
+            .join(authority.data_dir().as_path())
+            .join("file");
+        let native = std::fs::File::options()
+            .read(true)
+            .write(true)
+            .open(&path)
+            .unwrap();
+        native.try_lock().unwrap();
+        let mut request = test_owner_lock("flock-mount", 7, FileLockType::Write);
+        request.kind = FileLockKind::Flock;
+        let rejected = fs.setlk(&ctx, file.entry.inode, file.handle, request.clone(), None);
+        native.unlock().unwrap();
+        assert_eq!(
+            rejected.unwrap_err().code(),
+            Error::from(io::Error::from_raw_os_error(libc::EAGAIN)).code()
+        );
+        fs.setlk(&ctx, file.entry.inode, file.handle, request.clone(), None)
+            .unwrap();
+        assert!(matches!(
+            native.try_lock(),
+            Err(std::fs::TryLockError::WouldBlock)
+        ));
+        fs.release_locks(
+            &ctx,
+            file.entry.inode,
+            file.handle,
+            request.owner.clone(),
+            ReleaseKind::FlockOwner,
+        )
+        .unwrap();
+        native.try_lock().unwrap();
+        native.unlock().unwrap();
+        fs.release(&ctx, file.handle).unwrap();
+    }
+
+    #[test]
+    fn native_eligible_flock_release_session_and_file_close_drop_kernel_lock() {
+        let (_temp, ordinary, ctx) = fixture();
+        let local = ordinary.require_local().unwrap();
+        let fs = OwnerFs::new_native_eligible(local.roots.clone(), local.disk.clone(), None);
+        let root = fs
+            .mkdir(
+                &ctx,
+                fs.root_inode(),
+                OsStr::new("agent-flock-close"),
+                0o755,
+            )
+            .unwrap();
+        let file = fs
+            .create(&ctx, root.inode, OsStr::new("file"), 0o644, libc::O_RDWR)
+            .unwrap();
+        let local = fs.require_local().unwrap();
+        let id = root::root_id_from_name(OsStr::new("agent-flock-close")).unwrap();
+        let authority = local.roots.enter_root(&id, RootRight::Read).unwrap();
+        let path = local
+            .disk
+            .root_path()
+            .join(authority.data_dir().as_path())
+            .join("file");
+        let native = std::fs::File::options()
+            .read(true)
+            .write(true)
+            .open(&path)
+            .unwrap();
+        let mut request = test_owner_lock("flock-mount", 7, FileLockType::Write);
+        request.kind = FileLockKind::Flock;
+        fs.setlk(&ctx, file.entry.inode, file.handle, request.clone(), None)
+            .unwrap();
+        let held = native.try_lock();
+        if held.is_ok() {
+            native.unlock().unwrap();
+        }
+        fs.release_lock_session("flock-mount").unwrap();
+        assert!(
+            matches!(held, Err(std::fs::TryLockError::WouldBlock)),
+            "native must conflict before FUSE session cleanup"
+        );
+        native.try_lock().unwrap();
+        native.unlock().unwrap();
+        request.owner.ingress_session_id = "new-mount".into();
+        fs.setlk(&ctx, file.entry.inode, file.handle, request, None)
+            .unwrap();
+        fs.release(&ctx, file.handle).unwrap();
+        native
+            .try_lock()
+            .expect("final Home file release must not leave descriptor pins holding flock");
+        native.unlock().unwrap();
+    }
+
+    fn native_flock_fixture() -> (
+        tempfile::TempDir,
+        Arc<OwnerFs>,
+        RequestContext,
+        Entry,
+        CreatedFile,
+        fs::File,
+    ) {
+        let (temp, ordinary, ctx) = fixture();
+        let local = ordinary.require_local().unwrap();
+        let fs = Arc::new(OwnerFs::new_native_eligible(
+            local.roots.clone(),
+            local.disk.clone(),
+            None,
+        ));
+        let root = fs
+            .mkdir(&ctx, fs.root_inode(), OsStr::new("agent-flock"), 0o755)
+            .unwrap();
+        let file = fs
+            .create(&ctx, root.inode, OsStr::new("file"), 0o644, libc::O_RDWR)
+            .unwrap();
+        let authority = local
+            .roots
+            .enter_root(
+                &root::root_id_from_name(OsStr::new("agent-flock")).unwrap(),
+                RootRight::Read,
+            )
+            .unwrap();
+        let path = local
+            .disk
+            .root_path()
+            .join(authority.data_dir().as_path())
+            .join("file");
+        let native = fs::File::options()
+            .read(true)
+            .write(true)
+            .open(path)
+            .unwrap();
+        (temp, fs, ctx, root, file, native)
+    }
+
+    fn native_flock_request(scope: &str, owner: u64, kind: FileLockType) -> LockRequest {
+        let mut request = test_owner_lock(scope, owner, kind);
+        request.kind = FileLockKind::Flock;
+        request
+    }
+
+    fn wait_owner_lock_route(fs: &OwnerFs, id: &LockWaiterId) {
+        let deadline = std::time::Instant::now() + Duration::from_secs(2);
+        while !fs
+            .require_local()
+            .unwrap()
+            .locks
+            .lock()
+            .unwrap()
+            .waiters
+            .contains_key(id)
+        {
+            assert!(
+                std::time::Instant::now() < deadline,
+                "lock waiter did not reach Home routing"
+            );
+            std::thread::yield_now();
+        }
+    }
+
+    #[test]
+    fn native_eligible_flock_cancel_wait_does_not_unlock_native_holder() {
+        let (_temp, fs, ctx, _root, file, native) = native_flock_fixture();
+        native.try_lock().unwrap();
+        let id = LockWaiterId {
+            ingress_session_id: "waiting".into(),
+            request_id: 31,
+        };
+        let worker_fs = fs.clone();
+        let worker_ctx = ctx.clone();
+        let worker_id = id.clone();
+        let (tx, rx) = std::sync::mpsc::channel();
+        let worker = std::thread::spawn(move || {
+            tx.send(worker_fs.setlk(
+                &worker_ctx,
+                file.entry.inode,
+                file.handle,
+                native_flock_request("waiting", 8, FileLockType::Write),
+                Some(worker_id),
+            ))
+            .unwrap();
+        });
+        wait_owner_lock_route(&fs, &id);
+        assert_ne!(
+            fs.require_local().unwrap().cancel_file_lock(id).unwrap(),
+            LockWaiterOutcome::Granted
+        );
+        assert_eq!(
+            rx.recv_timeout(Duration::from_secs(2))
+                .unwrap()
+                .unwrap_err()
+                .code(),
+            Error::from(io::Error::from_raw_os_error(libc::EINTR)).code()
+        );
+        worker.join().unwrap();
+        let observer = native.try_clone().unwrap();
+        // A clone is the same OFD, so reacquisition succeeds for its holder.
+        observer.try_lock().unwrap();
+        let unrelated = fs.open(&ctx, file.entry.inode, libc::O_RDWR).unwrap();
+        assert_eq!(
+            fs.setlk(
+                &ctx,
+                file.entry.inode,
+                unrelated,
+                native_flock_request("other", 9, FileLockType::Write),
+                None
+            )
+            .unwrap_err()
+            .code(),
+            Error::from(io::Error::from_raw_os_error(libc::EAGAIN)).code()
+        );
+        native.unlock().unwrap();
+        fs.release(&ctx, unrelated).unwrap();
+        fs.release(&ctx, file.handle).unwrap();
+    }
+
+    #[test]
+    fn native_eligible_flock_native_unlock_wakes_waiting_home_request() {
+        let (_temp, fs, ctx, _root, file, native) = native_flock_fixture();
+        native.try_lock().unwrap();
+        let id = LockWaiterId {
+            ingress_session_id: "waiting".into(),
+            request_id: 32,
+        };
+        let worker_fs = fs.clone();
+        let worker_ctx = ctx.clone();
+        let worker_id = id.clone();
+        let (tx, rx) = std::sync::mpsc::channel();
+        let worker = std::thread::spawn(move || {
+            tx.send(worker_fs.setlk(
+                &worker_ctx,
+                file.entry.inode,
+                file.handle,
+                native_flock_request("waiting", 8, FileLockType::Write),
+                Some(worker_id),
+            ))
+            .unwrap();
+        });
+        wait_owner_lock_route(&fs, &id);
+        native.unlock().unwrap();
+        rx.recv_timeout(Duration::from_secs(2)).unwrap().unwrap();
+        worker.join().unwrap();
+        assert!(matches!(
+            native.try_lock(),
+            Err(fs::TryLockError::WouldBlock)
+        ));
+        fs.release(&ctx, file.handle).unwrap();
+        native.try_lock().unwrap();
+        native.unlock().unwrap();
+    }
+
+    #[test]
+    fn native_eligible_flock_waiting_session_cleanup_fences_late_grant() {
+        let (_temp, fs, ctx, _root, file, native) = native_flock_fixture();
+        native.try_lock().unwrap();
+        let id = LockWaiterId {
+            ingress_session_id: "waiting".into(),
+            request_id: 33,
+        };
+        let worker_fs = fs.clone();
+        let worker_ctx = ctx.clone();
+        let worker_id = id.clone();
+        let (tx, rx) = std::sync::mpsc::channel();
+        let worker = std::thread::spawn(move || {
+            tx.send(worker_fs.setlk(
+                &worker_ctx,
+                file.entry.inode,
+                file.handle,
+                native_flock_request("waiting", 8, FileLockType::Write),
+                Some(worker_id),
+            ))
+            .unwrap();
+        });
+        wait_owner_lock_route(&fs, &id);
+        fs.release_lock_session("waiting").unwrap();
+        native.unlock().unwrap();
+        assert_eq!(
+            rx.recv_timeout(Duration::from_secs(2))
+                .unwrap()
+                .unwrap_err()
+                .code(),
+            Error::from(io::Error::from_raw_os_error(libc::EINTR)).code()
+        );
+        worker.join().unwrap();
+        assert_eq!(
+            fs.setlk(
+                &ctx,
+                file.entry.inode,
+                file.handle,
+                native_flock_request("waiting", 8, FileLockType::Write),
+                None
+            )
+            .unwrap_err()
+            .code(),
+            Error::from(io::Error::from_raw_os_error(libc::EINTR)).code()
+        );
+        native.try_lock().unwrap();
+        native.unlock().unwrap();
+        fs.release(&ctx, file.handle).unwrap();
+    }
+
+    #[test]
+    fn native_eligible_flock_shared_upgrade_and_unlinked_object_match_kernel() {
+        let (_temp, fs, ctx, root, file, native) = native_flock_fixture();
+        native.try_lock_shared().unwrap();
+        fs.setlk(
+            &ctx,
+            file.entry.inode,
+            file.handle,
+            native_flock_request("first", 7, FileLockType::Read),
+            None,
+        )
+        .unwrap();
+        assert_eq!(
+            fs.setlk(
+                &ctx,
+                file.entry.inode,
+                file.handle,
+                native_flock_request("first", 7, FileLockType::Write),
+                None
+            )
+            .unwrap_err()
+            .code(),
+            Error::from(io::Error::from_raw_os_error(libc::EAGAIN)).code()
+        );
+        native.unlock().unwrap();
+        // Linux nonblocking flock upgrade drops the prior shared lock even
+        // when acquisition of the exclusive lock fails.
+        native.try_lock().unwrap();
+        native.unlock().unwrap();
+        fs.setlk(
+            &ctx,
+            file.entry.inode,
+            file.handle,
+            native_flock_request("first", 7, FileLockType::Write),
+            None,
+        )
+        .unwrap();
+        fs.unlink(&ctx, root.inode, OsStr::new("file")).unwrap();
+        let replacement = fs
+            .create(&ctx, root.inode, OsStr::new("file"), 0o644, libc::O_RDWR)
+            .unwrap();
+        fs.setlk(
+            &ctx,
+            replacement.entry.inode,
+            replacement.handle,
+            native_flock_request("replacement", 9, FileLockType::Write),
+            None,
+        )
+        .unwrap();
+        assert!(matches!(
+            native.try_lock(),
+            Err(fs::TryLockError::WouldBlock)
+        ));
+        fs.release(&ctx, replacement.handle).unwrap();
+        fs.release(&ctx, file.handle).unwrap();
+        native.try_lock().unwrap();
+        native.unlock().unwrap();
+    }
+
+    #[test]
+    fn native_eligible_flock_owner_release_changes_unacked_grant_outcome() {
+        let (_temp, fs, ctx, _root, file, native) = native_flock_fixture();
+        let request = native_flock_request("home-scope", 7, FileLockType::Write);
+        let local = fs.require_local().unwrap();
+        let OwnerLockTarget::Local { table, .. } =
+            local.lock_target(file.handle, Some(&request)).unwrap()
+        else {
+            panic!("not Home");
+        };
+        local
+            .prepare_native_flock(file.handle, &table, &request)
+            .unwrap();
+        let id = LockWaiterId {
+            ingress_session_id: "home-scope".into(),
+            request_id: 35,
+        };
+        table.setlk_blocking(request.clone(), id.clone()).unwrap();
+        assert!(matches!(
+            native.try_lock(),
+            Err(fs::TryLockError::WouldBlock)
+        ));
+        table.release_flock_owner(&request.owner).unwrap();
+        assert_eq!(
+            table.cancel_waiter_with_outcome(id.clone()).unwrap(),
+            LockWaiterOutcome::Cancelled,
+            "a released unacknowledged grant cannot still be reported live"
+        );
+        assert_eq!(
+            table.acknowledge_waiter(&id).unwrap(),
+            Some(LockWaiterOutcome::Cancelled)
+        );
+        native.try_lock().unwrap();
+        native.unlock().unwrap();
+        fs.release(&ctx, file.handle).unwrap();
+    }
+
+    #[test]
+    fn native_eligible_flock_root_revocation_reaps_kernel_lock() {
+        let (_temp, fs, ctx, _root, file, native) = native_flock_fixture();
+        fs.setlk(
+            &ctx,
+            file.entry.inode,
+            file.handle,
+            native_flock_request("holder", 7, FileLockType::Write),
+            None,
+        )
+        .unwrap();
+        assert!(matches!(
+            native.try_lock(),
+            Err(fs::TryLockError::WouldBlock)
+        ));
+        let local = fs.require_local().unwrap();
+        let record = local.record(file.entry.inode.value).unwrap();
+        local.roots.revoke_root(&record.root_id);
+        local.reap_lock_authorities().unwrap();
+        native.try_lock().unwrap();
+        native.unlock().unwrap();
+        fs.release(&ctx, file.handle).unwrap();
+    }
+
+    #[test]
+    fn native_eligible_flock_final_close_fences_waiting_description() {
+        let (_temp, fs, ctx, _root, file, native) = native_flock_fixture();
+        native.try_lock().unwrap();
+        let id = LockWaiterId {
+            ingress_session_id: "waiting".into(),
+            request_id: 36,
+        };
+        let worker_fs = fs.clone();
+        let worker_ctx = ctx.clone();
+        let worker_id = id.clone();
+        let (tx, rx) = std::sync::mpsc::channel();
+        let worker = std::thread::spawn(move || {
+            tx.send(worker_fs.setlk(
+                &worker_ctx,
+                file.entry.inode,
+                file.handle,
+                native_flock_request("waiting", 8, FileLockType::Write),
+                Some(worker_id),
+            ))
+            .unwrap();
+        });
+        wait_owner_lock_route(&fs, &id);
+        fs.release(&ctx, file.handle).unwrap();
+        native.unlock().unwrap();
+        assert!(
+            rx.recv_timeout(Duration::from_secs(2)).unwrap().is_err(),
+            "a closed Home description cannot receive a late grant"
+        );
+        worker.join().unwrap();
+        native.try_lock().unwrap();
+        native.unlock().unwrap();
+    }
+
+    #[test]
+    fn native_eligible_flock_authenticated_peer_scope_and_session_cleanup() {
+        let (_temp, fs, ctx, _root, file, native) = native_flock_fixture();
+        let local = fs.require_local().unwrap();
+        let record = local.record(file.entry.inode.value).unwrap();
+        let access = presented(&test_grant(record.root_id.clone()));
+        let (peer_file, _, _) = local
+            .peer_open_with_options(
+                "node-b",
+                &access,
+                OsStr::new("file"),
+                libc::O_RDWR,
+                Some(&record.identity),
+                OpenOptions::default(),
+            )
+            .unwrap();
+        let request = native_flock_request("remote-mount", 7, FileLockType::Write);
+        native.try_lock().unwrap();
+        let rejected =
+            local.peer_set_file_lock("node-b", &access, &peer_file, request.clone(), None);
+        native.unlock().unwrap();
+        assert_eq!(
+            rejected.unwrap_err().code(),
+            Error::from(io::Error::from_raw_os_error(libc::EAGAIN)).code()
+        );
+        let waiter = LockWaiterId {
+            ingress_session_id: "remote-mount".into(),
+            request_id: 37,
+        };
+        local
+            .peer_set_file_lock(
+                "node-b",
+                &access,
+                &peer_file,
+                request.clone(),
+                Some(waiter.clone()),
+            )
+            .unwrap();
+        assert!(matches!(
+            native.try_lock(),
+            Err(fs::TryLockError::WouldBlock)
+        ));
+        assert!(
+            local
+                .peer_release_file_lock_session("node-c", &access, "remote-mount")
+                .is_err()
+        );
+        assert!(matches!(
+            native.try_lock(),
+            Err(fs::TryLockError::WouldBlock)
+        ));
+        assert_eq!(
+            local
+                .peer_cancel_file_lock("node-b", &access, waiter.clone())
+                .unwrap(),
+            LockWaiterOutcome::Granted
+        );
+        local
+            .peer_release_file_locks(
+                "node-b",
+                &access,
+                &peer_file,
+                request.owner.clone(),
+                ReleaseKind::FlockOwner,
+            )
+            .unwrap();
+        // Release may retire routing, so query the authoritative inode table's
+        // retained terminal outcome until the authenticated ACK is applied.
+        let target = local
+            .peer_lock_target("node-b", &access, &peer_file, Some(&request))
+            .unwrap();
+        let OwnerLockTarget::Local { table, .. } = target else {
+            panic!("not Home");
+        };
+        let scoped_waiter = LockWaiterId {
+            ingress_session_id: owner_peer_lock_scope("node-b", &access, "remote-mount"),
+            request_id: 37,
+        };
+        assert_eq!(
+            table.cancel_waiter_with_outcome(scoped_waiter).unwrap(),
+            LockWaiterOutcome::Cancelled
+        );
+        local
+            .peer_acknowledge_lock_wait("node-b", &access, waiter)
+            .unwrap();
+        local
+            .peer_set_file_lock("node-b", &access, &peer_file, request, None)
+            .unwrap();
+        assert!(matches!(
+            native.try_lock(),
+            Err(fs::TryLockError::WouldBlock)
+        ));
+        local
+            .reap_peer_session("node-b", &access.session_id)
+            .unwrap();
+        native.try_lock().unwrap();
+        native.unlock().unwrap();
+        fs.release(&ctx, file.handle).unwrap();
+    }
+
     fn test_owner_lock(scope: &str, kernel_owner: u64, lock_type: FileLockType) -> LockRequest {
         LockRequest {
             kind: FileLockKind::Posix,
@@ -7342,11 +7969,14 @@ mod tests {
         let mut registry = OwnerLockRegistry::default();
         registry.admit_scope("live").unwrap();
         let table = registry
-            .table(OwnerLockKey {
-                root_id: RootId("root".into()),
-                epoch: 1,
-                identity: vec![1],
-            })
+            .table(
+                OwnerLockKey {
+                    root_id: RootId("root".into()),
+                    epoch: 1,
+                    identity: vec![1],
+                },
+                false,
+            )
             .unwrap();
         let held = test_owner_lock("live", 1, FileLockType::Write);
         table.setlk_nonblocking(held.clone()).unwrap();

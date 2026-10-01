@@ -205,3 +205,22 @@ The user explicitly accepted the previously presented close-to-open and retained
   pass; recorded historical diagnostic exclusions retain their original tests.
 - Production Node worker/ready interface and authority lease, Agent supervisor,
   network P2P locks/cache/mmap and full lifecycle/performance remain incomplete.
+
+## Home kernel-flock slice
+
+- Native-eligible OwnerFs now routes flock to duplicated actual Home backing
+  descriptions. It never reopens by name; ordinary OwnerFs and DFS retain the
+  existing userspace lock behavior. POSIX byte-range locks remain unresolved.
+- A bounded OwnerFs-only coordinator serializes grant/cancel/release, checks
+  closed file slots at each kernel attempt, and uses NB retries for native
+  unlocks. Root invalidation and authenticated peer/session/final-file cleanup
+  explicitly unlock pins; unacknowledged released grants become Cancelled.
+- Initial two native-arbitration behavior REDs and a separate released-outcome
+  RED precede their fixes.10 source regressions cover native/Home arbitration,
+  waiting/cancel/close/revocation, peer authentication/session cleanup, shared
+  upgrade and unlinked/replaced file identity. Actual VM mode0 control fails;
+  mode1 passes the new kernel-flock case.16 selected VM foundation cases pass.
+- Remaining: same-host old-FUSE/native POSIX process-owner boundary awaits the
+  explicit user decision; do not silently replace it with an OFD lock. Node,
+  final Agent namespace/authority readiness, network P2P, mmap, full managed
+  lifecycle and paired native-ext4 performance gates remain open.

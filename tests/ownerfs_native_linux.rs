@@ -5,6 +5,8 @@ use afs::node::vfs::ownerfs::native::{
     DirectoryIdentity, MountBackend, NativeMountManager, NativeState, WorkspaceIdentity,
     WorkspaceMount,
 };
+#[path = "ownerfs_native_linux/flock.rs"]
+mod flock;
 #[path = "ownerfs_native_linux/ownerfs_fixture.rs"]
 mod ownerfs_fixture;
 use std::{
@@ -18,6 +20,12 @@ fn dir_id(path: &std::path::Path) -> DirectoryIdentity {
         device: stat.dev(),
         inode: stat.ino(),
     }
+}
+
+#[test]
+#[ignore = "requires real FUSE and native bind; run in isolated VM namespace"]
+fn privileged_native_flock_kernel_arbitration() {
+    flock::run();
 }
 fn setup(dir: &tempfile::TempDir) -> (LinuxMountBackend, WorkspaceMount) {
     fs::create_dir(dir.path().join("source")).unwrap();

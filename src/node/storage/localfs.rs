@@ -248,6 +248,14 @@ pub struct LocalFile {
     file: File,
 }
 
+impl LocalFile {
+    /// Duplicates this exact open description, including after unlink/rename.
+    /// Native OwnerFs flock must arbitrate on this object, never a reopened path.
+    pub(crate) fn try_clone_descriptor(&self) -> io::Result<File> {
+        self.file.try_clone()
+    }
+}
+
 impl FileHandle for LocalFile {
     fn read_at(&self, offset: u64, buffer: &mut [u8]) -> io::Result<usize> {
         self.file.read_at(buffer, offset)

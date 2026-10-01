@@ -524,3 +524,69 @@ P2P, kernel-visible locks, supported mmap, authority/Agent fencing, complete
 recovery or performance. Raw logs/manifest/results are preserved in external
 `vm-native-foundation/raw-evidence.tar.gz`; RED/GREEN logs and exact source hashes
 are in `vm-native-ready-*/` and `native-readiness-inputs.json`.
+
+## Home kernel flock arbitration (2026-10-01)
+
+Two source behavior REDs prove that the old userspace table grants a FUSE/Home
+lock while a native exclusive flock is held, and vice versa. The initial
+unsafe-code lint error is preserved separately, not counted as a behavior RED.
+Native-eligible Home now duplicates the actual open backing description and
+uses Linux flock through Rust's safe file-lock interface. No pathname reopening
+or generic storage-trait/DFS lock change is involved. POSIX byte-range locking
+still uses the existing model and is not qualified for native admission.
+
+The coordinator bounds descriptions to1024, waiters to64, terminal/replay
+identities to128, and closed scopes to128 per inode. Outer registry limits remain
+512 inode tables/1024 routed waiters/4096 ingress scopes. Resource exhaustion
+fails admission rather than evicting replay fences. Cancellation/grant and
+cleanup share one mutex; the open slot stays locked through each NB kernel
+attempt. Native external unlock is detected by real kernel attempts scheduled
+at most every10ms during a blocked wait, never by a sleep-based grant. Pins are
+explicitly unlocked on owner/session/final-handle/root cleanup; failed unlocks
+retain pins for retry. A separate RED detected that released, unacknowledged
+grants still reported Granted; cleanup now changes them to Cancelled.
+
+10 source regressions PASS: bidirectional arbitration, cancelled waiting,
+native-unlock wake, session/final-file fencing, released-grant outcome, shared
+upgrade/old unlinked file identity, Root revocation and authenticated Home peer
+session cleanup. These are Linux source/backend tests, not network P2P evidence.
+
+Actual VM pair `directory-20261001T044050-cc08f387`, binary SHA256
+`7005881f6278a0352b466b7c26c5866a9660733582e5b4d74526e96f2840d3e5`, runs the exact
+`privileged_native_flock_kernel_arbitration` case in two fresh private namespaces
+on kernel6.8.0-142/ext4. Mode0 ordinary-table control FAILS as expected; mode1
+native-eligible PASS. Checks cover native-to-FUSE, FUSE-to-native, independent
+FUSE descriptions, shared locks, Linux failed-NB-upgrade semantics and retained
+object locks across native rename/replacement/unlink. Both normal teardown paths
+join FUSE sessions before asserting behavior; unchanged parent mounts and empty
+disposable data are independently verified even for the failing control.
+
+`foundation-20261001T044252-91f41aa0` replays16 foundation cases with that same
+binary, all PASS. The manifest classifies all23 discovered cases into16 selected
+foundation cases and7 unchanged historical stronger-directory diagnostics,
+explicitly NOT_RUN in this lane. Its scope now includes local kernel flock,
+not native POSIX locks, network P2P, mmap, Node/Agent admission, full lifecycle,
+performance or release acceptance. Full source snapshots/patch/hashes are in
+external `native-flock-first-candidate/`; raw pair and foundation archives are
+in `vm-native-flock-pair/` and `vm-native-flock-foundation/`.
+
+Strict workspace/all-target/all-feature Clippy and fmt PASS. The full
+`cargo test --workspace --all-features -- --test-threads=1` command FAILS in
+unchanged vendored fuser tests: `ll::request::tests::init` returns InsufficientData
+for its 7.8 INIT fixture under the larger all-feature ABI input layout;
+`reply::test::reply_create` passes flags0xcc, including FOPEN_PASSTHROUGH0x80,
+to an API that explicitly rejects that flag under abi-7-40, then its AssertSender
+panics again during reply cleanup and aborts. Each reproduces with standalone
+`cargo test -p fuser --all-features --lib TEST -- --exact --test-threads=1`,
+which does not compile or execute OwnerFs. Git confirms fuser and Cargo manifests
+are unchanged from the slice base. Preserve the complete failing workspace log
+and both isolated logs; do not classify the workspace command as PASS or remove
+these failures. afs/library365 PASS/2 ignored and other executed suites preceding
+the abort pass, but the aborted remainder/doc tests are not thereby verified.
+
+The normal project command `cargo test --all-features -- --test-threads=1`
+subsequently PASSes with its configured fuser ABI feature set:365 afs/library
+PASS/2 existing ignored, project integration suites and doc-test traversal
+complete. Environment-dependent ignored cases retain their names and reasons
+in `native-flock-root-project.log`; this does not qualify them or turn the
+separate failing workspace/all-feature fuser run into a pass.

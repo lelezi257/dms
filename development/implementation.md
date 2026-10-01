@@ -14,6 +14,8 @@ Only first-stage scope is required: do not pre-build Meta HA, DFS SDK, VerifiedC
 
 Before each implementation slice, identify acceptance cases, current code, missing behavior, design and a short failing test or reproducer. Define user-visible behavior before selecting abstractions. Include RPC count/roles, durability boundary, identity, error propagation and bounded resource ownership where relevant.
 
+Choose validation scope using [validation.md](validation.md): small edits use the original failure, related module regressions and necessary compilation; related batches add affected core integrations; stage completion or batch integration adds the full Linux source gate. Expand earlier for public interfaces, data formats and cross-module contracts. Reuse valid frozen evidence with exact identities; deployment-script-only work does not repeat unchanged Rust gates. Keep local regression, stage gate and formal acceptance results distinct.
+
 Record significant directory/module/interface/data-format changes in the execution change log: problem, alternative, decision, affected callers, compatibility and evidence. Consolidate these changes for the final human review. Update final-design architecture pages when design changes; execution progress belongs outside product architecture pages.
 
 ## Autonomy and stopping conditions

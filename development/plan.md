@@ -19,6 +19,8 @@
 
 P1/P2/P3 are vertical slices, not permission handoffs. Add smaller dependent tasks when code inspection identifies missing design, preserving the target. P0 prerequisites constrain performance tuning; independent functionality work may proceed while external downloads build. Do not count ENV-01 complete before reference mounts/probes/suites work.
 
+Use the [impact-based validation strategy](validation.md#feedback-stages) within each task. A short exit allows development to advance; it is not a full source or formal acceptance gate. Complete the source gate at stage/batch boundaries, reuse unchanged qualified inputs and keep full POSIX, 8 GiB, performance matrices and long stability tests in their scheduled acceptance stages.
+
 
 ## Detailed dependent tasks and short exits
 

@@ -6,7 +6,9 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import platform
+import shlex
 import sys
 from pathlib import Path
 from typing import Any
@@ -14,12 +16,20 @@ from typing import Any
 STATUS_ORDER = {"PASS": 0, "BLOCKED": 1, "FAIL": 2}
 EXPECTED_KERNEL = "6.8.0-142-generic"
 EXPECTED_IMAGE_SHA = "1ea801e659d2f5035ac294e0faab0aac9b6ba66753df933ba5c7beab0c689bd0"
+EXPECTED_NETWORK_PROBE_SHA = "3db932a4c1a72d450edbcc222ae8ae4010061fac84b5c012f061c91186e79612"
+EXPECTED_NETWORK_FAULT_SOURCE_SHA = "a485c56bf184087f4cbdc2b3dc63b3b3085a537f43f743a2b992ba4c78813353"
 GIB = 1024**3
 EXPECTED_VMS = {
     "afs-accept-ctl": {"cpus": 2, "memory": 4 * GIB, "disk": 24 * GIB, "volume": "afsctlstate", "volume_gib": 8, "ip": "192.168.109.11", "inventory": "inventory-ctl.json"},
     "afs-accept-a": {"cpus": 2, "memory": 6 * GIB, "disk": 24 * GIB, "volume": "afsadata", "volume_gib": 32, "ip": "192.168.109.12", "inventory": "inventory-a.json"},
     "afs-accept-b": {"cpus": 2, "memory": 6 * GIB, "disk": 24 * GIB, "volume": "afsbdata", "volume_gib": 32, "ip": "192.168.109.13", "inventory": "inventory-b.json"},
     "afs-accept-c": {"cpus": 2, "memory": 6 * GIB, "disk": 24 * GIB, "volume": "afscdata", "volume_gib": 32, "ip": "192.168.109.14", "inventory": "inventory-c-rxe.json"},
+}
+NETWORK_NODES = {
+    "ctl": {"vm": "afs-accept-ctl", "hostname": "lima-afs-accept-ctl", "ip": "192.168.109.11", "dns": "afs-env-ctl"},
+    "a": {"vm": "afs-accept-a", "hostname": "lima-afs-accept-a", "ip": "192.168.109.12", "dns": "afs-env-a"},
+    "b": {"vm": "afs-accept-b", "hostname": "lima-afs-accept-b", "ip": "192.168.109.13", "dns": "afs-env-b"},
+    "c": {"vm": "afs-accept-c", "hostname": "lima-afs-accept-c", "ip": "192.168.109.14", "dns": "afs-env-c"},
 }
 DEFERRED = {
     "network-tls-fault-recovery": "complete four-way TCP/UDP, TLS negative and controlled fault recovery semantics are not validated",
@@ -125,6 +135,20 @@ def read_jsonl_ref(root: Path, refs: dict[str, str], rel: str) -> tuple[str, lis
     return "OK", rows
 
 
+def read_text_ref(root: Path, refs: dict[str, str], rel: str) -> tuple[str, str]:
+    if rel not in refs:
+        return "MISSING", ""
+    path = checked_path(root, rel)
+    if not path.is_file():
+        return "MISSING", ""
+    if sha256_file(path) != refs[rel]:
+        return "TAMPERED", ""
+    try:
+        return "OK", path.read_text(encoding="utf-8")
+    except UnicodeDecodeError:
+        return "MALFORMED", ""
+
+
 def parse_stdout_json(record: Any) -> Any | None:
     if not isinstance(record, dict) or not isinstance(record.get("stdout"), str) or record.get("returncode") != 0 or record.get("status") != "OBSERVED":
         return None
@@ -132,6 +156,383 @@ def parse_stdout_json(record: Any) -> Any | None:
         return json.loads(record["stdout"])
     except json.JSONDecodeError:
         return None
+
+
+def is_positive_int(value: Any) -> bool:
+    return type(value) is int and value > 0
+
+
+def is_finite_seconds(value: Any, maximum: float = 3.0) -> bool:
+    return type(value) in {int, float} and math.isfinite(float(value)) and 0 <= float(value) <= maximum
+
+
+def port_tuple(value: Any, ip: str, port: int | None = None) -> bool:
+    return isinstance(value, list) and len(value) == 2 and value[0] == ip and type(value[1]) is int and (port is None or value[1] == port)
+
+
+def is_sha256_hex(value: Any) -> bool:
+    return isinstance(value, str) and len(value) == 64 and all(char in "0123456789abcdef" for char in value)
+
+
+def normalize_iptables(text: str) -> list[str]:
+    return [line for line in text.splitlines() if line and not line.startswith("#")]
+
+
+def network_pair_rel(prefix: str, src: str, dst: str) -> str:
+    return f"{prefix}/{src}/logs/pair-{src}-{dst}.json"
+
+
+def add_network_problem(problems: list[dict[str, str]], status: str, detail: str) -> None:
+    problems.append({"status": status, "detail": detail})
+
+
+def network_status_from(problems: list[dict[str, str]]) -> str:
+    if any(problem["status"] == "FAIL" for problem in problems):
+        return "FAIL"
+    if problems:
+        return "BLOCKED"
+    return "PASS"
+
+
+def require_json_ref(root: Path, refs: dict[str, str], rel: str, problems: list[dict[str, str]]) -> dict[str, Any] | None:
+    status, value = read_json_ref(root, refs, rel)
+    if status == "OK" and isinstance(value, dict):
+        return value
+    add_network_problem(problems, "BLOCKED" if status == "MISSING" else "FAIL", f"{rel}: {status}")
+    return None
+
+
+def require_text_ref(root: Path, refs: dict[str, str], rel: str, problems: list[dict[str, str]]) -> str | None:
+    status, value = read_text_ref(root, refs, rel)
+    if status == "OK":
+        return value
+    add_network_problem(problems, "BLOCKED" if status == "MISSING" else "FAIL", f"{rel}: {status}")
+    return None
+
+
+def shell_command(row: dict[str, Any], expected_vm: str, expected_rc: int) -> str | None:
+    argv = row.get("argv")
+    if not isinstance(argv, list) or row.get("returncode") != expected_rc:
+        return None
+    expected_prefix = ["limactl", "shell", "--workdir", "/home/lzc.guest", expected_vm, "--", "sudo", "bash", "-lc"]
+    if len(argv) != len(expected_prefix) + 1 or argv[:len(expected_prefix)] != expected_prefix:
+        return None
+    shell = argv[-1]
+    if not isinstance(shell, str) or shell.lstrip().startswith("echo "):
+        return None
+    return shell
+
+
+def shell_tokens(shell: str) -> list[str] | None:
+    try:
+        return shlex.split(shell)
+    except ValueError:
+        return None
+
+
+def unique_flag(tokens: list[str], flag: str) -> str | None:
+    positions = [index for index, token in enumerate(tokens) if token == flag]
+    if len(positions) != 1:
+        return None
+    index = positions[0]
+    if index + 1 >= len(tokens):
+        return None
+    return tokens[index + 1]
+
+
+def exact_client_command(row: dict[str, Any], src: str, dst: str, output: str, expected_rc: int, *, require_negatives: bool) -> bool:
+    shell = shell_command(row, NETWORK_NODES[src]["vm"], expected_rc)
+    if shell is None:
+        return False
+    tokens = shell_tokens(shell)
+    if tokens is None or len(tokens) < 5:
+        return False
+    if tokens[:3] != ["python3", "/var/lib/afs-acceptance/network-v67-r2/env_network.py", "client"]:
+        return False
+    expected_values = {
+        "--source-ip": NETWORK_NODES[src]["ip"],
+        "--target-ip": NETWORK_NODES[dst]["ip"],
+        "--port": "19566",
+        "--tls-port": "19567",
+        "--ca": "/var/lib/afs-acceptance/network-v67-r2/tls/ca.pem",
+        "--client-cert": f"/var/lib/afs-acceptance/network-v67-r2/tls/{src}.pem",
+        "--client-key": f"/var/lib/afs-acceptance/network-v67-r2/tls/{src}.key",
+        "--server-hostname": NETWORK_NODES[dst]["dns"],
+        "--timeout": "2",
+        "--check": "all",
+    }
+    if src == "ctl":
+        expected_values["--client-cert"] = "/var/lib/afs-acceptance/network-v67-r2/tls/ctl.pem"
+        expected_values["--client-key"] = "/var/lib/afs-acceptance/network-v67-r2/tls/ctl.key"
+    for flag, expected in expected_values.items():
+        if unique_flag(tokens, flag) != expected:
+            return False
+    if ">" not in tokens or "2>" not in tokens:
+        return False
+    if unique_flag(tokens, ">") != f"/var/lib/afs-acceptance/network-v67-r2/{output}":
+        return False
+    if unique_flag(tokens, "2>") != f"/var/lib/afs-acceptance/network-v67-r2/{output.removesuffix('.json')}.stderr":
+        return False
+    negative_flags = {"--untrusted-ca", "--bad-ca", "--wrong-hostname", "--missing-client-cert"}
+    if require_negatives:
+        if "--untrusted-ca" not in tokens or "--wrong-hostname" not in tokens or "--missing-client-cert" not in tokens:
+            return False
+        if unique_flag(tokens, "--bad-ca") != "/var/lib/afs-acceptance/network-v67-r2/tls/untrusted.pem":
+            return False
+    elif any(flag in tokens for flag in negative_flags):
+        return False
+    return True
+
+
+def network_check_positive(result: dict[str, Any], src: str, dst: str, problems: list[dict[str, str]], rel: str, *, require_negatives: bool = True) -> bool:
+    src_ip, dst_ip = NETWORK_NODES[src]["ip"], NETWORK_NODES[dst]["ip"]
+    if result.get("status") != "PASS" or result.get("source_bind") != src_ip or result.get("target") != dst_ip:
+        add_network_problem(problems, "FAIL", f"{rel}: source/target/status mismatch")
+        return False
+    if type(result.get("token_bytes")) is not int or result.get("token_bytes") != 32 or not is_sha256_hex(result.get("token_sha256")):
+        add_network_problem(problems, "FAIL", f"{rel}: invalid nonce")
+        return False
+    checks = result.get("checks")
+    if not isinstance(checks, dict):
+        add_network_problem(problems, "FAIL", f"{rel}: missing checks")
+        return False
+    ok = True
+    tcp = checks.get("tcp")
+    if not isinstance(tcp, dict) or tcp.get("status") != "PASS" or tcp.get("bytes") != 32 or not port_tuple(tcp.get("local"), src_ip) or not port_tuple(tcp.get("peer"), dst_ip, 19566) or not is_finite_seconds(tcp.get("elapsed_seconds")):
+        add_network_problem(problems, "FAIL", f"{rel}: invalid TCP exchange")
+        ok = False
+    udp = checks.get("udp")
+    if not isinstance(udp, dict) or udp.get("status") != "PASS" or udp.get("bytes") != 32 or not port_tuple(udp.get("local"), src_ip) or not port_tuple(udp.get("sender"), dst_ip, 19566) or not is_finite_seconds(udp.get("elapsed_seconds")):
+        add_network_problem(problems, "FAIL", f"{rel}: invalid UDP exchange")
+        ok = False
+    tls = checks.get("tls")
+    names = tls.get("server_cert_names") if isinstance(tls, dict) else None
+    if not isinstance(tls, dict) or tls.get("status") != "PASS" or tls.get("bytes") != 32 or not port_tuple(tls.get("local"), src_ip) or not port_tuple(tls.get("peer"), dst_ip, 19567) or tls.get("tls_version") not in {"TLSv1.2", "TLSv1.3"} or not is_finite_seconds(tls.get("elapsed_seconds")) or not isinstance(names, list) or dst_ip not in names or NETWORK_NODES[dst]["dns"] not in names:
+        add_network_problem(problems, "FAIL", f"{rel}: invalid mTLS exchange")
+        ok = False
+    if require_negatives:
+        expected_negatives = {
+            "tls_untrusted_ca": ("untrusted_ca", "19"),
+            "tls_wrong_hostname": ("wrong_hostname", "62"),
+            "tls_missing_client_cert": ("missing_client_cert", None),
+        }
+        for key, (reason, verify_code) in expected_negatives.items():
+            negative = checks.get(key)
+            observed = negative.get("observed") if isinstance(negative, dict) else None
+            detail = observed.get("detail", "") if isinstance(observed, dict) else ""
+            if not isinstance(negative, dict) or negative.get("status") != "PASS" or negative.get("negative") != reason or not isinstance(observed, dict) or observed.get("status") != "FAIL" or observed.get("reason") != reason:
+                add_network_problem(problems, "FAIL", f"{rel}: invalid {key}")
+                ok = False
+            if verify_code is not None and isinstance(observed, dict) and observed.get("verify_code") != verify_code:
+                add_network_problem(problems, "FAIL", f"{rel}: invalid {key} verify code")
+                ok = False
+            if key == "tls_missing_client_cert" and "certificate required" not in str(detail).lower():
+                add_network_problem(problems, "FAIL", f"{rel}: missing-client negative lacks certificate-required alert")
+                ok = False
+    return ok
+
+
+def network_check_fault_result(result: dict[str, Any], expected_status: str, problems: list[dict[str, str]], rel: str) -> None:
+    if expected_status == "PASS":
+        network_check_positive(result, "a", "b", problems, rel, require_negatives=False)
+        return
+    if result.get("status") != "FAIL" or result.get("source_bind") != NETWORK_NODES["a"]["ip"] or result.get("target") != NETWORK_NODES["b"]["ip"]:
+        add_network_problem(problems, "FAIL", f"{rel}: fault result source/target/status mismatch")
+        return
+    checks = result.get("checks")
+    if not isinstance(checks, dict):
+        add_network_problem(problems, "FAIL", f"{rel}: missing fault checks")
+        return
+    for key in ("tcp", "udp", "tls"):
+        item = checks.get(key)
+        if not isinstance(item, dict) or item.get("status") != "FAIL" or item.get("reason") != "timeout" or not is_finite_seconds(item.get("elapsed_seconds"), 3.0):
+            add_network_problem(problems, "FAIL", f"{rel}: invalid bounded {key} fault")
+
+
+def evaluate_network(bundle: dict[str, Any], artifact_root: Path, refs: dict[str, str]) -> dict[str, Any]:
+    problems: list[dict[str, str]] = []
+    evidence: dict[str, Any] = {"scope": "network/TLS and directed fault preparation predicate only"}
+    network = bundle.get("network")
+    if not isinstance(network, dict):
+        return check("network-tls-fault-recovery", "BLOCKED", "network evidence bundle is missing")
+    prefix = network.get("prefix")
+    if prefix != "network":
+        return check("network-tls-fault-recovery", "BLOCKED", "network.prefix must be 'network'", {"prefix": prefix})
+    for field in ("probe_source", "commands", "fault_source"):
+        rel = network.get(field)
+        if not isinstance(rel, str):
+            return check("network-tls-fault-recovery", "BLOCKED", f"network.{field} is missing")
+        try:
+            checked_path(artifact_root, rel)
+        except InvalidEvidence as exc:
+            return check("network-tls-fault-recovery", "BLOCKED", str(exc))
+        if rel not in refs:
+            add_network_problem(problems, "BLOCKED", f"{rel}: MISSING")
+    probe_path = checked_path(artifact_root, network["probe_source"])
+    if not probe_path.is_file():
+        add_network_problem(problems, "BLOCKED", "network probe source file is missing")
+    else:
+        probe_sha = sha256_file(probe_path)
+        if network["probe_source"] in refs and probe_sha != refs[network["probe_source"]]:
+            add_network_problem(problems, "FAIL", "network probe source reference is tampered")
+        if probe_sha != EXPECTED_NETWORK_PROBE_SHA:
+            add_network_problem(problems, "FAIL", "network probe source is not the frozen observed probe")
+    if network["fault_source"] in refs:
+        fault_path = checked_path(artifact_root, network["fault_source"])
+        if not fault_path.is_file():
+            add_network_problem(problems, "BLOCKED", "fault source file is missing")
+        else:
+            fault_sha = sha256_file(fault_path)
+            if fault_sha != refs[network["fault_source"]]:
+                add_network_problem(problems, "FAIL", "fault source reference is tampered")
+            if fault_sha != EXPECTED_NETWORK_FAULT_SOURCE_SHA:
+                add_network_problem(problems, "FAIL", "fault source is not the supported directed-fault recipe")
+    command_status, commands = read_jsonl_ref(artifact_root, refs, network["commands"])
+    if command_status != "OK" or not commands:
+        add_network_problem(problems, "BLOCKED" if command_status == "MISSING" else "FAIL", f"{network['commands']}: {command_status or 'EMPTY'}")
+    commands_available = command_status == "OK" and bool(commands)
+    commands_malformed = any(not isinstance(row.get("argv"), list) or any(not isinstance(part, str) for part in row.get("argv", [])) or not is_finite_seconds(row.get("time_unix_ms"), 10**13) for row in commands)
+    if commands_malformed:
+        add_network_problem(problems, "FAIL", "command transcript has malformed argv or timestamp")
+    if commands_available and not commands_malformed and any(commands[i]["time_unix_ms"] > commands[i + 1]["time_unix_ms"] for i in range(len(commands) - 1)):
+        add_network_problem(problems, "FAIL", "command transcript timestamps are not ordered")
+
+    ready: dict[str, dict[str, Any]] = {}
+    boots: set[str] = set()
+    machines: set[str] = set()
+    for name, node in NETWORK_NODES.items():
+        rel = f"{prefix}/{name}/ready.json"
+        item = require_json_ref(artifact_root, refs, rel, problems)
+        if item is None:
+            continue
+        ready[name] = item
+        script_rel = f"{prefix}/{name}/env_network.py"
+        script_path = checked_path(artifact_root, script_rel)
+        if script_rel not in refs or not script_path.is_file():
+            add_network_problem(problems, "BLOCKED", f"{script_rel}: MISSING")
+        elif sha256_file(script_path) != refs[script_rel] or sha256_file(script_path) != EXPECTED_NETWORK_PROBE_SHA:
+            add_network_problem(problems, "FAIL", f"{script_rel}: unexpected source")
+        probe_input = require_text_ref(artifact_root, refs, f"{prefix}/{name}/logs/probe-input.sha256", problems)
+        if probe_input is not None and EXPECTED_NETWORK_PROBE_SHA not in probe_input:
+            add_network_problem(problems, "FAIL", f"{name}: probe input SHA mismatch")
+        boot, machine = item.get("boot_id"), item.get("machine_id")
+        if item.get("status") != "READY" or item.get("hostname") != node["hostname"] or item.get("source_ip") != node["ip"] or not is_positive_int(item.get("pid")) or not is_positive_int(item.get("start_ticks")) or not isinstance(boot, str) or not boot or not isinstance(machine, str) or not machine:
+            add_network_problem(problems, "FAIL", f"{rel}: malformed ready identity")
+        if item.get("script_sha256") != EXPECTED_NETWORK_PROBE_SHA:
+            add_network_problem(problems, "FAIL", f"{rel}: script SHA mismatch")
+        for key, port in (("tcp", 19566), ("udp", 19566), ("tls", 19567)):
+            value = item.get(key)
+            if not isinstance(value, dict) or value.get("bind_ip") != node["ip"] or value.get("port") != port:
+                add_network_problem(problems, "FAIL", f"{rel}: invalid {key} listener")
+        if not isinstance(item.get("tls"), dict) or item["tls"].get("mtls") is not True:
+            add_network_problem(problems, "FAIL", f"{rel}: mTLS disabled")
+        if isinstance(boot, str):
+            boots.add(boot)
+        if isinstance(machine, str):
+            machines.add(machine)
+    if len(ready) == len(NETWORK_NODES) and (len(boots) != len(NETWORK_NODES) or len(machines) != len(NETWORK_NODES)):
+        add_network_problem(problems, "FAIL", "guest boot and machine identities must be nonempty and unique")
+
+    nonces: set[str] = set()
+    pair_missing = False
+    for src in NETWORK_NODES:
+        for dst in NETWORK_NODES:
+            if src == dst:
+                continue
+            rel = network_pair_rel(prefix, src, dst)
+            item = require_json_ref(artifact_root, refs, rel, problems)
+            if item is None:
+                pair_missing = True
+            elif network_check_positive(item, src, dst, problems, rel):
+                nonce = item["token_sha256"]
+                if nonce in nonces:
+                    add_network_problem(problems, "FAIL", f"{rel}: duplicate nonce")
+                nonces.add(nonce)
+    if not pair_missing and len(nonces) != 12:
+        add_network_problem(problems, "FAIL", "expected twelve unique pair nonces")
+
+    wrong = require_json_ref(artifact_root, refs, f"{prefix}/a/logs/wrong-client.json", problems)
+    if wrong is not None:
+        checks = wrong.get("checks")
+        observed = checks.get("tls_untrusted_client_cert", {}).get("observed") if isinstance(checks, dict) else None
+        tls = checks.get("tls") if isinstance(checks, dict) else None
+        names = tls.get("server_cert_names") if isinstance(tls, dict) else None
+        if wrong.get("status") != "PASS" or wrong.get("source_bind") != NETWORK_NODES["a"]["ip"] or wrong.get("target") != NETWORK_NODES["b"]["ip"] or type(wrong.get("token_bytes")) is not int or wrong.get("token_bytes") != 32 or not is_sha256_hex(wrong.get("token_sha256")):
+            add_network_problem(problems, "FAIL", "wrong-client positive identity is malformed")
+        if not isinstance(tls, dict) or tls.get("status") != "PASS" or tls.get("bytes") != 32 or not port_tuple(tls.get("local"), NETWORK_NODES["a"]["ip"]) or not port_tuple(tls.get("peer"), NETWORK_NODES["b"]["ip"], 19567) or tls.get("tls_version") not in {"TLSv1.2", "TLSv1.3"} or not is_finite_seconds(tls.get("elapsed_seconds")) or not isinstance(names, list) or NETWORK_NODES["b"]["ip"] not in names or NETWORK_NODES["b"]["dns"] not in names:
+            add_network_problem(problems, "FAIL", "wrong-client mTLS positive exchange is malformed")
+        if not isinstance(observed, dict) or observed.get("status") != "FAIL" or observed.get("reason") != "untrusted_ca" or "unknown ca" not in str(observed.get("detail", "")).lower():
+            add_network_problem(problems, "FAIL", "wrong-client rejection is not unknown-CA mTLS failure")
+
+    for rel, expected in (("fault-before.json", "PASS"), ("fault-injected.json", "FAIL"), ("fault-restored.json", "PASS")):
+        item = require_json_ref(artifact_root, refs, f"{prefix}/a/logs/{rel}", problems)
+        if item is not None:
+            network_check_fault_result(item, expected, problems, f"{prefix}/a/logs/{rel}")
+
+    hit = require_text_ref(artifact_root, refs, f"{prefix}/b/logs/iptables-hit.txt", problems)
+    if hit is not None:
+        tagged = [line for line in hit.splitlines() if "DROP" in line and "afs-env-v67-only" in line]
+        tcp_hit = any(" 6 " in f" {line} " and "192.168.109.12" in line and "192.168.109.13" in line and "19566,19567" in line and line.split()[0].isdigit() and int(line.split()[0]) > 0 for line in tagged)
+        udp_hit = any(" 17 " in f" {line} " and "192.168.109.12" in line and "192.168.109.13" in line and "19566" in line and line.split()[0].isdigit() and int(line.split()[0]) > 0 for line in tagged)
+        if len(tagged) != 2 or not tcp_hit or not udp_hit:
+            add_network_problem(problems, "FAIL", "directed DROP counters are not exact and nonzero")
+    before_rules = require_text_ref(artifact_root, refs, f"{prefix}/b/logs/iptables-before.txt", problems)
+    final_rules = require_text_ref(artifact_root, refs, f"{prefix}/b/logs/iptables-final-restored.txt", problems)
+    if before_rules is not None and final_rules is not None:
+        if "*nat" not in before_rules or "COMMIT" not in before_rules or normalize_iptables(before_rules) != normalize_iptables(final_rules):
+            add_network_problem(problems, "FAIL", "iptables final rules differ from original rules")
+
+    for name, node in NETWORK_NODES.items():
+        before = require_json_ref(artifact_root, refs, f"{prefix}/{name}/logs/preserved-before.json", problems)
+        after = require_json_ref(artifact_root, refs, f"{prefix}/{name}/logs/preserved-after.json", problems)
+        if before is not None and after is not None:
+            for key in ("processes", "mountinfo", "iptables"):
+                left = normalize_iptables(before.get(key, "")) if key == "iptables" and isinstance(before.get(key), str) else before.get(key)
+                right = normalize_iptables(after.get(key, "")) if key == "iptables" and isinstance(after.get(key), str) else after.get(key)
+                if left != right:
+                    add_network_problem(problems, "FAIL", f"{name}: preserved {key} changed")
+            if before.get("hostname") != node["hostname"] or after.get("hostname") != node["hostname"] or (name in ready and (before.get("boot_id") != ready[name].get("boot_id") or after.get("boot_id") != ready[name].get("boot_id") or before.get("machine_id") != ready[name].get("machine_id") or after.get("machine_id") != ready[name].get("machine_id"))):
+                add_network_problem(problems, "FAIL", f"{name}: preserved identity mismatch")
+        live = require_json_ref(artifact_root, refs, f"{prefix}/{name}/logs/server-live-after.json", problems)
+        stopped = require_json_ref(artifact_root, refs, f"{prefix}/{name}/logs/server-stopped.json", problems)
+        if live is not None and name in ready:
+            if live.get("status") != "LIVE" or live.get("pid") != ready[name].get("pid") or live.get("start_ticks") != ready[name].get("start_ticks") or live.get("boot_id") != ready[name].get("boot_id") or live.get("script_sha256") != EXPECTED_NETWORK_PROBE_SHA:
+                add_network_problem(problems, "FAIL", f"{name}: live server identity mismatch")
+        if stopped is not None and name in ready:
+            if stopped.get("status") != "STOPPED" or stopped.get("pid") != ready[name].get("pid") or stopped.get("start_ticks") != ready[name].get("start_ticks"):
+                add_network_problem(problems, "FAIL", f"{name}: server stop identity mismatch")
+        listeners = require_text_ref(artifact_root, refs, f"{prefix}/{name}/logs/listeners-after.txt", problems)
+        if listeners is not None and (":19566" in listeners or ":19567" in listeners):
+            add_network_problem(problems, "FAIL", f"{name}: probe listeners still present after cleanup")
+
+    if commands_available and not commands_malformed:
+        for src in NETWORK_NODES:
+            for dst in NETWORK_NODES:
+                if src == dst:
+                    continue
+                output = f"logs/pair-{src}-{dst}.json"
+                if not any(exact_client_command(row, src, dst, output, 0, require_negatives=True) for row in commands):
+                    add_network_problem(problems, "FAIL", f"missing exact command transcript for {src}->{dst}")
+        required_fault = [
+            (lambda row: exact_client_command(row, "a", "b", "logs/fault-before.json", 0, require_negatives=False), "fault-before"),
+            (lambda row: shell_command(row, NETWORK_NODES["b"]["vm"], 0) == "bash /tmp/afs-v67-fault.sh install", "fault-install"),
+            (lambda row: exact_client_command(row, "a", "b", "logs/fault-injected.json", 1, require_negatives=False), "fault-injected"),
+            (lambda row: shell_command(row, NETWORK_NODES["b"]["vm"], 0) == "bash /tmp/afs-v67-fault.sh inspect; bash /tmp/afs-v67-fault.sh restore", "fault-restore"),
+            (lambda row: exact_client_command(row, "a", "b", "logs/fault-restored.json", 0, require_negatives=False), "fault-restored"),
+        ]
+        pos = -1
+        for predicate, name in required_fault:
+            matches = [i for i, row in enumerate(commands) if i > pos and predicate(row)]
+            if not matches:
+                add_network_problem(problems, "FAIL", f"missing ordered command transcript step: {name}")
+                break
+            pos = matches[0]
+
+    evidence["problems"] = problems[:20]
+    evidence["pair_nonces"] = len(nonces)
+    status = network_status_from(problems)
+    detail = "hash-bound raw network/TLS exchanges and directed fault restoration validated" if status == "PASS" else "network evidence is incomplete or inconsistent"
+    return check("network-tls-fault-recovery", status, detail, evidence)
 
 
 def memtotal_bytes(inventory: dict[str, Any]) -> int | None:
@@ -296,6 +697,12 @@ def _evaluate_environment(lock: dict, bundle: dict, artifact_root: Path) -> dict
 
     checks.append(check("topology-total-quota", "PASS" if sum((lima.get(n, {}).get("cpus") or 0) for n in EXPECTED_VMS) == 8 and sum((lima.get(n, {}).get("memory") or 0) for n in EXPECTED_VMS) == 22 * GIB else "FAIL", "fixed topology totals are 8 vCPU and 22 GiB"))
     for name, detail in DEFERRED.items():
+        if name == "network-tls-fault-recovery":
+            network_check = evaluate_network(bundle, artifact_root, refs)
+            checks.append(network_check)
+            if network_check["status"] != "PASS":
+                limitations.append(detail)
+            continue
         checks.append(check(name, "BLOCKED", detail))
         limitations.append(detail)
     status = worst_status(checks)

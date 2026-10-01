@@ -71,9 +71,9 @@ actual acceptance file; the lock's `contract.sha256` binds the accepted content.
 Host initial reserve is UNKNOWN if no observation from before provisioning is
 available; current free capacity cannot substitute for it.
 
-The partial evaluator checks selected metadata and retains separate outstanding
-semantic prerequisites. It cannot produce complete ENV-01 qualification:
-network/TLS/fault restoration, backend restart, cross-VM verbs, reference
+The partial evaluator checks selected metadata and hash-bound network exchanges,
+and retains separate outstanding semantic prerequisites. It cannot produce
+complete ENV-01 qualification: backend restart, cross-VM verbs, reference
 accounting, actual comparator mount I/O, frozen inputs and run contracts still
 need dedicated validators and live checks. This limitation is not a change to
 the acceptance standard. A comparator mount check and its later fair durable
@@ -87,5 +87,35 @@ failure classification and socket/thread cleanup. It uses isolated probe
 credentials and ports; it does not authorize product RPCs or qualify RDMA.
 Linux invocation and captured identities are documented in the
 [network preparation evidence](../evidence/20261001-network-preparation/README.md).
-The runner's environment predicate remains deferred until a dedicated semantic
-validator binds this evidence into the complete environment contract.
+The environment bundle can reference these observations:
+
+```json
+{
+  "network": {
+    "prefix": "network",
+    "probe_source": "network/probe.py",
+    "commands": "network/commands.jsonl",
+    "fault_source": "network/fault.sh"
+  }
+}
+```
+
+Every consumed file must be listed in the bundle's `artifact_references` with
+its SHA-256. The evaluator checks supported probe source, four guest identities,
+twelve ordered pair exchanges, actual endpoints, TLS rejection details, command
+identity/order, directed DROP counters, exact rule restoration and listener
+cleanup. Missing proof is BLOCKED; altered or contradictory proof is FAIL.
+Generic PASS summaries are insufficient. Original wire observations retain
+their frozen source identity when reused; a later source change cannot relabel
+them as a fresh run.
+
+`fault_source` binds the supported declared fault recipe. The historical run
+did not capture its executed-file hash at injection time; this field cannot
+retroactively provide that attestation. Actual directed DROP counters, failed
+exchanges, command order and final rule restoration supply the fault evidence.
+
+This predicate proves the recorded TCP/UDP/mTLS and directed-fault preparation
+slice. Recovery by the main flow is separate from independent watchdog recovery;
+a completion marker does not prove the latter. Full ENV, product RPC trust,
+cross-VM verbs and formal reliability require their own evidence. All remaining
+prerequisites must pass before the environment can be qualified.

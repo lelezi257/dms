@@ -61,6 +61,13 @@ artifacts, then evaluates mandatory environment predicates independently of
 declared `FROZEN/PASS` fields. Missing, changed or unsupported proof blocks full
 dispatch. A generic JSON record saying PASS is not environment qualification.
 
+Optional `bundle.network` references relative probe, command and guest artifact
+paths. Each consumed artifact is hash-bound by `artifact_references`. The
+network evaluator independently checks the original exchange identities,
+TLS errors, precise directed fault and restoration, rather than importing an
+audit summary. A network preparation PASS does not establish independent
+watchdog recovery, product authorization, verbs or the remaining ENV predicates.
+
 The preparation evaluator is a separate Linux CLI. It does not modify the
 lock or formal cases. It reports observed resource/storage facts and outstanding
 checks. Complete network/TLS/fault, backend restart, verbs, reference-suite,

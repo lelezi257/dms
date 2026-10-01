@@ -31,7 +31,8 @@ bind/MooseFS → production integration](../development/native-bind-validation-p
 Architecture acceptance has not passed. Same-path and retained-reference mount
 primitives have evidence, but the same-process POSIX lock-owner conflict has no
 approved exemption, mmap/watch and managed switch/fencing still need decisive
-combination evidence, and performance has not been measured. A bounded current
+combination evidence. P1 local performance diagnostics now show a decisive
+absolute-path regression; bulk/remote performance has not been measured. A bounded current
 candidate network-P2P object/close-to-open experiment is now recorded below;
 full network concurrency/lock/lifecycle qualification remains open.
 Third-stage handle-cleanup WIP is preserved separately; verified source remains
@@ -78,7 +79,66 @@ Home append offset, and its inode lock does not arbitrate unmodified native
 ext4 writers. Full append/cursor requirements remain in force. Protocol/kernel
 mediation or a changed writer-ownership contract needs explicit alignment and
 mechanism proof; no transparent userspace-only fix is claimed. Phase1 has not
-passed; performance and production integration remain deferred.
+passed; production integration remains deferred. P1 visibility timing below
+is diagnostic evidence, not advance approval of architecture/performance gates.
+
+[E16](../development/native-bind-evidence.md#e16-mixed-ordinary-remote-with-native-home)
+adds a bounded mixed-client proof: the same newly built Linux test Node runs
+native-eligible on A and ordinary on B; actual authenticated remote close/reopen
+sees native overwrite and same-name replacement, including a714ms replacement
+window. Ordinary remote objects already use direct I/O/zero attr TTL, unlike
+ordinary Home-private cached objects. This slice does not prove complete mixed
+namespace/permission behavior or mode admission, and does not imply that all
+remote Nodes must globally select native-eligible construction. Test-only
+constructor selection remains absent from release configuration. A4 and the
+whole architecture stage remain open, including the append/POSIX conflicts.
+
+[Current bind architecture/performance conclusions](../development/native-bind-performance.md)
+and [complete P1 samples](../development/acceptance/results/native-bind-p1-20261001.json)
+now record optimized DMS versus ext4 and stock single-copy MooseFS on the same
+Linux VM/Home ext4 volume. Five paired metadata/small-file tasks give native/ext4
+ratios19.276/4.161 for absolute paths at concurrency1/8; native cwd relative
+ratios0.992/1.036 are close to ext4 but do not qualify every strict per-case gate.
+Absolute paths still cross FUSE ancestors. The first full timing run retains
+its Actor-timeout runner FAIL; independently verified timing is diagnostic only.
+A short, normally cleaned-up replay supplies missing goal1 MooseFS samples.
+Strong durability parity, sequential/random/remote timing and whole-stage
+acceptance remain incomplete. Generic reliability is assigned to the other AI;
+this branch focuses on bind architecture, path performance and necessary glue.
+
+The core container Agent lane now has independent C0/C1/P1 evidence:
+`network-probe-20261001T125205-fc4c5860` uses actual runc OCI containers inside
+the Linux VM, resolving the original ready export in the verified Node namespace
+and binding only `/ownerfs/agent1`. Native and ext4 controls expose the same
+physical source inode; final namespaces differ from Node, native mountinfo
+contains ext4 and no FUSE mount. Readonly container parent enumerates only
+agent1; known host/sibling/backing/proc-root and escaping-symlink data are
+inaccessible, while own reads/writes work, with empty capabilities/NoNewPrivs.
+This is bounded host-data isolation for that spec, not path-metadata secrecy,
+arbitrary UID/user-namespace parity or a hostile-container security audit.
+Five paired container P1 task ratios are1.050/1.019 for absolute paths at
+concurrency1/8 and1.003/0.995 for relative paths; the host's4–19x ancestor
+penalty is absent, but16 of24 phase/shape medians exceed1, so strict native
+performance has not passed. Original runner/normal teardown and independent
+archive/source/spec/runtime-response verification pass; the first observer
+failure remains FAIL. [Complete container samples](../development/acceptance/results/native-bind-container-p1-20261001.json)
+and [scope/provenance](../development/native-bind-performance.md) preserve the
+positive and negative evidence. Container bulk IO/lifecycle now has E19:
+`network-probe-20261001T131137-5e41ff06` completes30 sequential/random shapes,
+360 actual tasks with checked guest-cold/hot preconditions and correct bytes.
+Paired median ratios range0.834–1.135;17/30 exceed1, so strict native performance
+has not passed. Normal detach of the original export succeeds while the
+independent native container still reads/writes the same ext4 source. This
+disproves original-umount-as-container-drain; final runtime mounts must be
+tracked and stopped/unmounted before backing reuse. Both containers then stop/
+delete and Node/Meta exit normally. [Full local IO samples](../development/acceptance/results/native-bind-container-io-20261001.json)
+retain all workloads; four same-file attribution cases are a bounded supplement,
+not replacement. The first cache-precondition failure remains FAIL. These are
+diagnostics while architecture remains open; remote timing, MooseFS IO and
+strong-durability parity and complete
+architecture/performance remain unqualified. Production Docker/Podman/Agent
+READY integration remains absent; a private Node path alone is insufficient
+for a host daemon to mount the correct object.
 
 An additional A1 combination probe on the independent ext4 VM verifies actual
 kernel EPERM on physical activation, FuseOnly/no native claim, continued FUSE

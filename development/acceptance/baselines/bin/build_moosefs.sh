@@ -22,10 +22,18 @@ mkdir -p "$GUEST_ROOT" "$EVIDENCE_DIR"
     require_cmd "$cmd"
   done
 
-  if [[ ! -d "$SRC_DIR/.git" ]]; then
+  if [[ "${AFS_BASELINE_OFFLINE:-0}" == 1 ]]; then
+    # VM may have no GitHub route. Accept only a transported checkout already
+    # at the locked commit, then apply the same stock build/identity checks.
+    [[ -d "$SRC_DIR/.git" ]]
+    assert_git_head "$SRC_DIR" "$AFS_BASELINE_MOOSEFS_REF"
+    [[ -z "$(git -C "$SRC_DIR" status --porcelain)" ]]
+  elif [[ ! -d "$SRC_DIR/.git" ]]; then
     git clone https://github.com/moosefs/moosefs.git "$SRC_DIR"
   fi
-  git -C "$SRC_DIR" fetch --tags origin "$AFS_BASELINE_MOOSEFS_REF"
+  if [[ "${AFS_BASELINE_OFFLINE:-0}" != 1 ]]; then
+    git -C "$SRC_DIR" fetch --tags origin "$AFS_BASELINE_MOOSEFS_REF"
+  fi
   git -C "$SRC_DIR" checkout --detach "$AFS_BASELINE_MOOSEFS_REF"
   assert_git_head "$SRC_DIR" "$AFS_BASELINE_MOOSEFS_REF"
   git -C "$SRC_DIR" status --short

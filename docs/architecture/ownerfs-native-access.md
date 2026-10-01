@@ -17,6 +17,16 @@
 
 这个顺序避免本地 Agent 在创建与 bind 的过渡窗口获得旧 FUSE 引用。远端 Agent 仍使用 FUSE/P2P，因此仍需了解下述目录边界。
 
+### 容器 Agent：只暴露已就绪的 workspace
+
+这是核心使用场景：管理面仍通过 OwnerFs 根创建 `/ownerfs/agent1`，完成 native 准备后，容器运行时仅把这个 workspace 挂入 Agent 容器的 `/ownerfs/agent1`。容器内的父目录属于容器自身；不把宿主整个 OwnerFs 根、其他 workspace、backing 父目录或宿主 root/proc 暴露给 Agent。Agent 在 workspace 内可以正常读写，通过 `..` 或 symlink 不能访问宿主的父级数据。
+
+管理面必须核验容器最终取得的 source inode、Root/epoch/Home、mount namespace 与挂载策略，不能仅把一个路径字符串传给 daemon 就认为 native 已就绪。Node 的私有 namespace 中已经挂好，不代表宿主 daemon 看得到；运行时误挂 FUSE、空目录或旧对象都不能进入 native ready。实验性 OCI 验证和当前性能能力见[实现状态](../status.md)，不是已完成 Docker/Podman 管理集成的承诺。
+
+容器内父路径可使用其自身的 native rootfs，因此绝对访问这个 workspace 可以避开宿主 OwnerFs FUSE 祖先查询；它必须单独测量，不能用宿主路径或相对路径的成绩替代。目录隔离检查针对宿主数据的读取/枚举；Linux mountinfo 的 mount-root 字符串仍可能暴露源路径元数据，不能把数据隔离宣称为完全隐藏元数据或任意容器配置的安全保证。
+
+删除、回收或切换时，管理面还必须处理最终容器 namespace 中的 bind 和 Agent 引用；只检查原 export 的 mountinfo 不足以证明容器已停止访问。不得在未知容器引用仍存活时删除或复用 backing。
+
 ## 文件合同：close-to-open
 
 native 与 FUSE/P2P 访问同一 backing；它们是不同访问路径，不因位于同一个 mount namespace 就共享全部内核缓存或目录状态。
@@ -98,8 +108,12 @@ FUSE 文件读写、子项查找和 P2P 授权仍拒绝失效的 grant。不能�
 返回负 LOOKUP 或使其 dentry 失效来模拟卸载：内核可能移除子挂载，但旧
 native 引用仍然存在，无法据此认定已排空。
 
-**必须：** 有忙引用时正常卸载得到 EBUSY，物理挂载和管理记录保留；引用
-关闭后正常卸载并核验完成。凭证释放后不再保留撤销根的元数据入口。
+**必须：** 原挂载自身有忙引用时，正常卸载的 EBUSY 应保留物理挂载和管理
+记录；引用关闭后正常卸载并核验完成。另一个 mount namespace 中的独立
+容器 bind 是不同的挂载对象：E19 实测原 export 正常卸载成功后，容器仍能
+读取、创建和写入同一个 ext4 source。因此必须登记并停止/卸载这些容器
+挂载，核验最终 Agent 引用已消失，才能完成回收或切换；不能用原 export
+的 umount 成功代替这一步。凭证释放后不再保留撤销根的元数据入口。
 目录存在、RootGrant 失效、挂载点从 mountinfo 消失，都不是 backing
 可删除或可复用的充分证据。实际 Node/Agent fencing 仍需独立验收。
 

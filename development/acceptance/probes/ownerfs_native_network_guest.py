@@ -93,6 +93,7 @@ def launch(base):
                                    text=True).strip() == "ext4"
     for port in cfg["ports"]:
         with socket.socket() as check:
+            check.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             check.bind(("0.0.0.0", port))
     assert not (base / "supervisor.json").exists(), "fresh run only"
     (base / "parent-mountinfo-before.txt").write_text(Path("/proc/self/mountinfo").read_text())
@@ -264,6 +265,30 @@ def actor(base, actor_name):
                         else:
                             segments[-1][2] += 1
                     value = {"size": size, "sha256": hashlib.sha256(data).hexdigest(), "segments": segments}
+                elif operation == "observe-read":
+                    started = time.monotonic_ns()
+                    try:
+                        fd = os.open(name, os.O_RDONLY, dir_fd=root)
+                        try:
+                            data = os.pread(fd, 65536, 0).decode()
+                            stat = os.fstat(fd)
+                            view = {"ok": True, "data": data, "size": stat.st_size,
+                                    "device": stat.st_dev, "inode": stat.st_ino}
+                        finally:
+                            os.close(fd)
+                    except OSError as error:
+                        view = {"ok": False, "errno": error.errno, "error": repr(error)}
+                    value = {"started_ns": started, "finished_ns": time.monotonic_ns(), "view": view}
+                elif operation == "atomic-replace":
+                    temporary = name + ".replacement"
+                    fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600, dir_fd=root)
+                    try:
+                        data = command["data"].encode()
+                        assert os.write(fd, data) == len(data)
+                    finally:
+                        os.close(fd)
+                    os.rename(temporary, name, src_dir_fd=root, dst_dir_fd=root)
+                    value = len(data)
                 elif operation == "write":
                     fd = handles[key] if key is not None else os.open(
                         name, os.O_WRONLY | os.O_CREAT, 0o600, dir_fd=root)
@@ -329,6 +354,70 @@ def stop(base):
     return result
 
 
+def metadata_performance(base, command):
+    cfg = role_config(base)
+    assert cfg["role"] == "a" and cfg["constructor"] == "native-eligible"
+    benchmark = base / "benchmark"
+    assert digest(benchmark) == cfg["inputs"]["benchmark"]
+    expected = command["source"]
+    backing = None
+    for directory, children, files in os.walk(base / "data"):
+        stat = os.stat(directory)
+        if dict(device=stat.st_dev, inode=stat.st_ino) == expected:
+            assert backing is None, "ambiguous backing"
+            backing = Path(directory)
+    assert backing is not None, "source identity missing"
+    native = base / "mount/agent1"
+    native_stat = json.loads(in_namespace(base, [sys.executable, "-c",
+        "import os,json; s=os.stat(__import__('sys').argv[1]); print(json.dumps(dict(device=s.st_dev,inode=s.st_ino)))", str(native)]).stdout)
+    assert native_stat == expected
+    current = node(base)
+    lanes = {"ext4":backing, "native":native}
+    if command.get("moosefs_mount"):
+        moosefs = Path(command["moosefs_mount"])
+        assert str(moosefs).startswith("/mnt/afsdata/ownerfs-native-moosefs/")
+        assert moosefs.name == "mount"
+        observed = json.loads(in_namespace(base, ["findmnt", "-T", str(moosefs), "--json"]).stdout)
+        mounted = observed["filesystems"][0]
+        assert mounted["fstype"] in ("fuse", "fuse.mfs")
+        assert mounted["target"] == str(moosefs)
+        assert mounted["source"] == "mfs#10.77.30.11:19421"
+        lanes["moosefs"] = moosefs
+    slice_name = command.get("slice", "full")
+    assert slice_name in ("full", "absolute-c1-repair")
+    forms = ("absolute", "relative") if slice_name == "full" else ("absolute",)
+    concurrencies = (1, 8) if slice_name == "full" else (1,)
+    measured_rounds = 5 if slice_name == "full" else 2
+    result = {"source": expected, "ext4_path":str(backing), "native_path":str(native),
+              "node":current, "warmup_rounds":1, "measured_rounds":measured_rounds,
+              "slice":slice_name,
+              "scope":"P1 local paired metadata/small-file; visibility endpoint; no performance-stage verdict",
+              "samples":[]}
+    (base / "performance-host.json").write_text(subprocess.check_output(
+        [sys.executable, "-c", "import os,json,pathlib; print(json.dumps(dict(cpu=os.cpu_count(),kernel=os.uname().release,meminfo=pathlib.Path('/proc/meminfo').read_text(),diskstats=pathlib.Path('/proc/diskstats').read_text())))"], text=True))
+    for form in forms:
+        for concurrency in concurrencies:
+            for round_number in range(1 + measured_rounds):
+                order = tuple(lanes) if round_number % 2 == 0 else tuple(reversed(lanes))
+                for lane in order:
+                    path = lanes[lane] / f"perf-{base.name}-{form}-{concurrency}-{round_number}-{lane}"
+                    before = {"node_stat":Path(f"/proc/{current['pid']}/stat").read_text(),
+                              "node_io":Path(f"/proc/{current['pid']}/io").read_text(),
+                              "diskstats":Path("/proc/diskstats").read_text(),
+                              "meminfo":Path("/proc/meminfo").read_text()}
+                    completed = in_namespace(base, [str(benchmark), str(path), form, str(concurrency)])
+                    sample = {"lane":lane, "round":round_number, "warmup":round_number == 0,
+                              "path":str(path), "result":json.loads(completed.stdout),
+                              "resources_before":before,
+                              "resources_after":{"node_stat":Path(f"/proc/{current['pid']}/stat").read_text(),
+                                  "node_io":Path(f"/proc/{current['pid']}/io").read_text(),
+                                  "diskstats":Path("/proc/diskstats").read_text(),
+                                  "meminfo":Path("/proc/meminfo").read_text()}}
+                    result["samples"].append(sample)
+                    save(base / "metadata-performance.json", result)
+    return result
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("base", type=Path)
@@ -350,6 +439,7 @@ def main():
         else:
             command = ["unshare", "--mount", "--propagation", "private", "--fork", "env",
                        "AFS_NATIVE_PRIVATE_NAMESPACE=1",
+                       "AFS_NATIVE_VALIDATION_CONSTRUCTOR=" + cfg.get("constructor", "native-eligible"),
                        f"AFS_NATIVE_VALIDATION_CONFIG={base}/config.toml",
                        f"AFS_NATIVE_VALIDATION_CONTROL={base}/control",
                        str(base / "node-tests"), "--ignored", "--exact",
@@ -361,6 +451,11 @@ def main():
         result = node_ready(base)
     elif op == "driver":
         result = driver_command(base, json.load(sys.stdin))
+    elif op == "container-performance":
+        from ownerfs_native_container import run
+        result = run(base, json.load(sys.stdin), sys.modules[__name__])
+    elif op == "metadata-performance":
+        result = metadata_performance(base, json.load(sys.stdin))
     elif op == "seed":
         result = in_namespace(base, [sys.executable, "-c",
             "from pathlib import Path; p=Path(__import__('sys').argv[1]); "
@@ -418,7 +513,7 @@ def main():
         result = stop(base)
     elif op == "archive":
         assert (base / "node-exit.json").exists(), "stop before freezing evidence"
-        paths = sorted(path for path in base.rglob("*") if path.is_file()
+        paths = sorted(path for path in base.rglob("*") if not path.is_symlink() and path.is_file()
                        and "data" not in path.relative_to(base).parts
                        and path.name not in ("node-tests", "afs-meta", "raw.tar.gz", "evidence-files.sha256"))
         (base / "evidence-files.sha256").write_text("".join(

@@ -1,0 +1,951 @@
+{
+  "scope": "actual OCI container P1 warm visibility diagnostics",
+  "stage_pass": false,
+  "run": "network-probe-20261001T125205-fc4c5860",
+  "original_runner_passed": true,
+  "result_sha256": "03e48f40072bbf685c0d006490a05196040eb1464767e9758d6045b3f5d8a86a",
+  "raw_sha256": {
+    "b": "437c62148f28459db18860bfd57899260d6719bd927ae5b225511bcbfe039d67",
+    "a": "e39f2f77b90ac0b2b0049c22ede0b1d64666ce73246223c158cbe03e5017a566",
+    "ctl": "aee67cd89ea1f8b57d7ae1657986aea3522a02f038f5f4990a98be4ff1b58449"
+  },
+  "input_sha256": {
+    "node-tests": "409363724228d3a1de051158d6ec9e627452c55af0b95d9f4607feb5c3eb5c72",
+    "afs-meta": "77b9435f23c198de3e53d3552979ce2beca1ad79f05e8fafdc19bdfab6796cfe",
+    "guest.py": "a5b629e0e4f72104298e5438fcfc2d31af5b30715c847af7d35161deb7077792",
+    "controller.py": "21f03cb02ae82a24f5a1ed02663107de23f4f86a280ffc46ab0c22e596fc42a1",
+    "benchmark": "a5a7c66a2c38e521d23d0f857b4bd732dd0e3a33f74c7b136c1fa879bcaf7ff3",
+    "container-probe": "dcacaa08aff4edf5cdbd2c6e04ba3a3d2872a17c11209f58dc959328c3e8ff94",
+    "ownerfs_native_container.py": "a687f267fae59ab2932579e154c71eec130d000045ac343710e40f9823a0bd09"
+  },
+  "source": {
+    "device": 2065,
+    "inode": 1049463
+  },
+  "identity": {
+    "epoch": 1,
+    "home_node_id": "native-a-fc4c5860",
+    "home_session_id": "e371def6-1df7-4a97-a500-3df733695b65",
+    "namespace": {
+      "device": 4,
+      "inode": 4026532176
+    },
+    "root_id": "root-6167656e7431"
+  },
+  "runtime": {
+    "path": "/usr/sbin/runc",
+    "version": "runc version 1.3.4-0ubuntu1~24.04.1\nspec: 1.2.1\ngo: go1.24.4\nlibseccomp: 2.5.5\n",
+    "sha256": "bdce4d45b2dd217491db8a98c8484b161e225ce49c15ebc1ba42077fb7c07d50"
+  },
+  "containers": {
+    "ext4": {
+      "id": "network-probe-20261001T125205-fc4c5860-ext4",
+      "process": {
+        "pid": 79943,
+        "start_tick": "6018072",
+        "boot_id": "d195705c-1a96-47ce-8d35-454ead00990d",
+        "exe": "/container-probe",
+        "sha256": "dcacaa08aff4edf5cdbd2c6e04ba3a3d2872a17c11209f58dc959328c3e8ff94",
+        "namespace": "mnt:[4026532177]",
+        "cmdline": "/container-probe --idle "
+      },
+      "state": {
+        "ociVersion": "1.2.1",
+        "id": "network-probe-20261001T125205-fc4c5860-ext4",
+        "pid": 79943,
+        "status": "running",
+        "bundle": "/mnt/afsdata/ownerfs-native-network/network-probe-20261001T125205-fc4c5860/oci-ext4",
+        "rootfs": "/mnt/afsdata/ownerfs-native-network/network-probe-20261001T125205-fc4c5860/container-rootfs",
+        "created": "2026-10-01T12:52:15.747608044Z",
+        "owner": ""
+      },
+      "namespaces": {
+        "mnt": "mnt:[4026532177]",
+        "pid": "pid:[4026532182]",
+        "net": "net:[4026532184]",
+        "ipc": "ipc:[4026532181]",
+        "uts": "uts:[4026532179]",
+        "cgroup": "cgroup:[4026532183]"
+      },
+      "source_path": "/mnt/afsdata/ownerfs-native-network/network-probe-20261001T125205-fc4c5860/data/ownerfs/root-6167656e7431-e1",
+      "source": {
+        "device": 2065,
+        "inode": 1049463
+      },
+      "config_sha256": "f3413ccca4239973eefa537ecccc4c912efc8b6353ccced1de305412649d7423",
+      "isolation": {
+        "workspace": {
+          "device": 2065,
+          "inode": 1049463
+        },
+        "fstype_magic": 61267,
+        "parent": {
+          "device": 2065,
+          "inode": 1049494,
+          "entries": [
+            "agent1"
+          ],
+          "write_errno": 30
+        },
+        "pid": 6,
+        "host_paths": [
+          {
+            "path": "/ownerfs/agent1/../agent2/outside-sibling-marker",
+            "errno": 2
+          },
+          {
+            "path": "/ownerfs/agent1/../outside-parent-marker",
+            "errno": 2
+          },
+          {
+            "path": "/mnt/afsdata/ownerfs-native-network/network-probe-20261001T125205-fc4c5860/outside-parent-marker",
+            "errno": 2
+          },
+          {
+            "path": "/mnt/afsdata/ownerfs-native-network/network-probe-20261001T125205-fc4c5860/mount/agent2/outside-sibling-marker",
+            "errno": 2
+          },
+          {
+            "path": "/mnt/afsdata/ownerfs-native-network/network-probe-20261001T125205-fc4c5860/data/ownerfs/outside-backing-marker",
+            "errno": 2
+          },
+          {
+            "path": "/proc/79220/root/mnt/afsdata/ownerfs-native-network/network-probe-20261001T125205-fc4c5860/outside-parent-marker",
+            "errno": 2
+          },
+          {
+            "path": "/proc/1/root/mnt/afsdata/ownerfs-native-network/network-probe-20261001T125205-fc4c5860/outside-parent-marker",
+            "errno": 2
+          },
+          {
+            "path": "/mnt/afsdata/ownerfs-native-network/network-probe-20261001T125205-fc4c5860",
+            "errno": 2
+          }
+        ],
+        "symlink_paths": [
+          {
+            "path": "/ownerfs/agent1/escape-4",
+            "errno": 2
+          },
+          {
+            "path": "/ownerfs/agent1/escape-5",
+            "errno": 2
+          },
+          {
+            "path": "/ownerfs/agent1/escape-6",
+            "errno": 2
+          }
+        ],
+        "mountinfo": "456 415 8:17 /ownerfs-native-network/network-probe-20261001T125205-fc4c5860/container-rootfs / ro,noatime - ext4 /dev/sdb1 rw\n458 456 0:56 / /proc rw,nosuid,nodev,noexec,relatime - proc proc rw\n459 456 8:17 /ownerfs-native-network/network-probe-20261001T125205-fc4c5860/data/ownerfs/root-6167656e7431-e1 /ownerfs/agent1 rw,nosuid,nodev,noatime - ext4 /dev/sdb1 rw\n",
+        "status": "Name:\tcontainer-probe\nUmask:\t0022\nState:\tR (running)\nTgid:\t6\nNgid:\t0\nPid:\t6\nPPid:\t0\nTracerPid:\t0\nUid:\t0\t0\t0\t0\nGid:\t0\t0\t0\t0\nFDSize:\t64\nGroups:\t \nNStgid:\t6\nNSpid:\t6\nNSpgid:\t6\nNSsid:\t6\nKthread:\t0\nVmPeak:\t    2684 kB\nVmSize:\t    2684 kB\nVmLck:\t       0 kB\nVmPin:\t       0 kB\nVmHWM:\t    1804 kB\nVmRSS:\t    1804 kB\nRssAnon:\t     168 kB\nRssFile:\t    1636 kB\nRssShmem:\t       0 kB\nVmData:\t     224 kB\nVmStk:\t     132 kB\nVmExe:\t       4 kB\nVmLib:\t    1752 kB\nVmPTE:\t      48 kB\nVmSwap:\t       0 kB\nHugetlbPages:\t       0 kB\nCoreDumping:\t0\nTHP_enabled:\t1\nuntag_mask:\t0xffffffffffffffff\nThreads:\t1\nSigQ:\t1/23364\nSigPnd:\t0000000000000000\nShdPnd:\t0000000000000000\nSigBlk:\t0000000000000000\nSigIgn:\t0000000000000000\nSigCgt:\t0000000000000000\nCapInh:\t0000000000000000\nCapPrm:\t0000000000000000\nCapEff:\t0000000000000000\nCapBnd:\t0000000000000000\nCapAmb:\t0000000000000000\nNoNewPrivs:\t1\nSeccomp:\t0\nSeccomp_filters:\t0\nSpeculation_Store_Bypass:\tthread vulnerable\nSpeculationIndirectBranch:\tconditional enabled\nCpus_allowed:\t3\nCpus_allowed_list:\t0-1\nMems_allowed:\t00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000001\nMems_allowed_list:\t0\nvoluntary_ctxt_switches:\t9\nnonvoluntary_ctxt_switches:\t7\nx86_Thread_features:\t\nx86_Thread_features_locked:\t\n"
+      }
+    },
+    "native": {
+      "id": "network-probe-20261001T125205-fc4c5860-native",
+      "process": {
+        "pid": 79989,
+        "start_tick": "6018083",
+        "boot_id": "d195705c-1a96-47ce-8d35-454ead00990d",
+        "exe": "/container-probe",
+        "sha256": "dcacaa08aff4edf5cdbd2c6e04ba3a3d2872a17c11209f58dc959328c3e8ff94",
+        "namespace": "mnt:[4026532251]",
+        "cmdline": "/container-probe --idle "
+      },
+      "state": {
+        "ociVersion": "1.2.1",
+        "id": "network-probe-20261001T125205-fc4c5860-native",
+        "pid": 79989,
+        "status": "running",
+        "bundle": "/mnt/afsdata/ownerfs-native-network/network-probe-20261001T125205-fc4c5860/oci-native",
+        "rootfs": "/mnt/afsdata/ownerfs-native-network/network-probe-20261001T125205-fc4c5860/container-rootfs",
+        "created": "2026-10-01T12:52:15.858510109Z",
+        "owner": ""
+      },
+      "namespaces": {
+        "mnt": "mnt:[4026532251]",
+        "pid": "pid:[4026532254]",
+        "net": "net:[4026532256]",
+        "ipc": "ipc:[4026532253]",
+        "uts": "uts:[4026532252]",
+        "cgroup": "cgroup:[4026532255]"
+      },
+      "source_path": "/mnt/afsdata/ownerfs-native-network/network-probe-20261001T125205-fc4c5860/mount/agent1",
+      "source": {
+        "device": 2065,
+        "inode": 1049463
+      },
+      "config_sha256": "2af49f4bf9efa0300536a032f11a049fdf81adf0d4527ceba9ebc0a876d9406f",
+      "isolation": {
+        "workspace": {
+          "device": 2065,
+          "inode": 1049463
+        },
+        "fstype_magic": 61267,
+        "parent": {
+          "device": 2065,
+          "inode": 1049494,
+          "entries": [
+            "agent1"
+          ],
+          "write_errno": 30
+        },
+        "pid": 6,
+        "host_paths": [
+          {
+            "path": "/ownerfs/agent1/../agent2/outside-sibling-marker",
+            "errno": 2
+          },
+          {
+            "path": "/ownerfs/agent1/../outside-parent-marker",
+            "errno": 2
+          },
+          {
+            "path": "/mnt/afsdata/ownerfs-native-network/network-probe-20261001T125205-fc4c5860/outside-parent-marker",
+            "errno": 2
+          },
+          {
+            "path": "/mnt/afsdata/ownerfs-native-network/network-probe-20261001T125205-fc4c5860/mount/agent2/outside-sibling-marker",
+            "errno": 2
+          },
+          {
+            "path": "/mnt/afsdata/ownerfs-native-network/network-probe-20261001T125205-fc4c5860/data/ownerfs/outside-backing-marker",
+            "errno": 2
+          },
+          {
+            "path": "/proc/79220/root/mnt/afsdata/ownerfs-native-network/network-probe-20261001T125205-fc4c5860/outside-parent-marker",
+            "errno": 2
+          },
+          {
+            "path": "/proc/1/root/mnt/afsdata/ownerfs-native-network/network-probe-20261001T125205-fc4c5860/outside-parent-marker",
+            "errno": 2
+          },
+          {
+            "path": "/mnt/afsdata/ownerfs-native-network/network-probe-20261001T125205-fc4c5860",
+            "errno": 2
+          }
+        ],
+        "symlink_paths": [
+          {
+            "path": "/ownerfs/agent1/escape-4",
+            "errno": 2
+          },
+          {
+            "path": "/ownerfs/agent1/escape-5",
+            "errno": 2
+          },
+          {
+            "path": "/ownerfs/agent1/escape-6",
+            "errno": 2
+          }
+        ],
+        "mountinfo": "461 416 8:17 /ownerfs-native-network/network-probe-20261001T125205-fc4c5860/container-rootfs / ro,noatime - ext4 /dev/sdb1 rw\n463 461 0:58 / /proc rw,nosuid,nodev,noexec,relatime - proc proc rw\n464 461 8:17 /ownerfs-native-network/network-probe-20261001T125205-fc4c5860/data/ownerfs/root-6167656e7431-e1 /ownerfs/agent1 rw,nosuid,nodev,noatime - ext4 /dev/sdb1 rw\n",
+        "status": "Name:\tcontainer-probe\nUmask:\t0022\nState:\tR (running)\nTgid:\t6\nNgid:\t0\nPid:\t6\nPPid:\t0\nTracerPid:\t0\nUid:\t0\t0\t0\t0\nGid:\t0\t0\t0\t0\nFDSize:\t64\nGroups:\t \nNStgid:\t6\nNSpid:\t6\nNSpgid:\t6\nNSsid:\t6\nKthread:\t0\nVmPeak:\t    2684 kB\nVmSize:\t    2684 kB\nVmLck:\t       0 kB\nVmPin:\t       0 kB\nVmHWM:\t    1804 kB\nVmRSS:\t    1804 kB\nRssAnon:\t     168 kB\nRssFile:\t    1636 kB\nRssShmem:\t       0 kB\nVmData:\t     224 kB\nVmStk:\t     132 kB\nVmExe:\t       4 kB\nVmLib:\t    1752 kB\nVmPTE:\t      48 kB\nVmSwap:\t       0 kB\nHugetlbPages:\t       0 kB\nCoreDumping:\t0\nTHP_enabled:\t1\nuntag_mask:\t0xffffffffffffffff\nThreads:\t1\nSigQ:\t1/23364\nSigPnd:\t0000000000000000\nShdPnd:\t0000000000000000\nSigBlk:\t0000000000000000\nSigIgn:\t0000000000000000\nSigCgt:\t0000000000000000\nCapInh:\t0000000000000000\nCapPrm:\t0000000000000000\nCapEff:\t0000000000000000\nCapBnd:\t0000000000000000\nCapAmb:\t0000000000000000\nNoNewPrivs:\t1\nSeccomp:\t0\nSeccomp_filters:\t0\nSpeculation_Store_Bypass:\tthread vulnerable\nSpeculationIndirectBranch:\tconditional enabled\nCpus_allowed:\t3\nCpus_allowed_list:\t0-1\nMems_allowed:\t00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000001\nMems_allowed_list:\t0\nvoluntary_ctxt_switches:\t10\nnonvoluntary_ctxt_switches:\t11\nx86_Thread_features:\t\nx86_Thread_features_locked:\t\n"
+      }
+    },
+    "moosefs": {
+      "id": "network-probe-20261001T125205-fc4c5860-moosefs",
+      "process": {
+        "pid": 80036,
+        "start_tick": "6018094",
+        "boot_id": "d195705c-1a96-47ce-8d35-454ead00990d",
+        "exe": "/container-probe",
+        "sha256": "dcacaa08aff4edf5cdbd2c6e04ba3a3d2872a17c11209f58dc959328c3e8ff94",
+        "namespace": "mnt:[4026532321]",
+        "cmdline": "/container-probe --idle "
+      },
+      "state": {
+        "ociVersion": "1.2.1",
+        "id": "network-probe-20261001T125205-fc4c5860-moosefs",
+        "pid": 80036,
+        "status": "running",
+        "bundle": "/mnt/afsdata/ownerfs-native-network/network-probe-20261001T125205-fc4c5860/oci-moosefs",
+        "rootfs": "/mnt/afsdata/ownerfs-native-network/network-probe-20261001T125205-fc4c5860/container-rootfs",
+        "created": "2026-10-01T12:52:15.964339091Z",
+        "owner": ""
+      },
+      "namespaces": {
+        "mnt": "mnt:[4026532321]",
+        "pid": "pid:[4026532324]",
+        "net": "net:[4026532326]",
+        "ipc": "ipc:[4026532323]",
+        "uts": "uts:[4026532322]",
+        "cgroup": "cgroup:[4026532325]"
+      },
+      "source_path": "/mnt/afsdata/ownerfs-native-moosefs/moosefs-20261001T120404/mount/network-probe-20261001T125205-fc4c5860-container",
+      "source": {
+        "device": 46,
+        "inode": 270031
+      },
+      "config_sha256": "411edf0ccfd153d03fddbb5c9f88f744e72808827551176a8ca42b6eaf2aa6df",
+      "isolation": {
+        "workspace": {
+          "device": 46,
+          "inode": 270031
+        },
+        "fstype_magic": 1702057286,
+        "parent": {
+          "device": 2065,
+          "inode": 1049494,
+          "entries": [
+            "agent1"
+          ],
+          "write_errno": 30
+        },
+        "pid": 6,
+        "host_paths": [
+          {
+            "path": "/ownerfs/agent1/../agent2/outside-sibling-marker",
+            "errno": 2
+          },
+          {
+            "path": "/ownerfs/agent1/../outside-parent-marker",
+            "errno": 2
+          },
+          {
+            "path": "/mnt/afsdata/ownerfs-native-network/network-probe-20261001T125205-fc4c5860/outside-parent-marker",
+            "errno": 2
+          },
+          {
+            "path": "/mnt/afsdata/ownerfs-native-network/network-probe-20261001T125205-fc4c5860/mount/agent2/outside-sibling-marker",
+            "errno": 2
+          },
+          {
+            "path": "/mnt/afsdata/ownerfs-native-network/network-probe-20261001T125205-fc4c5860/data/ownerfs/outside-backing-marker",
+            "errno": 2
+          },
+          {
+            "path": "/proc/79220/root/mnt/afsdata/ownerfs-native-network/network-probe-20261001T125205-fc4c5860/outside-parent-marker",
+            "errno": 2
+          },
+          {
+            "path": "/proc/1/root/mnt/afsdata/ownerfs-native-network/network-probe-20261001T125205-fc4c5860/outside-parent-marker",
+            "errno": 2
+          },
+          {
+            "path": "/mnt/afsdata/ownerfs-native-network/network-probe-20261001T125205-fc4c5860",
+            "errno": 2
+          }
+        ],
+        "symlink_paths": [
+          {
+            "path": "/ownerfs/agent1/escape-4",
+            "errno": 2
+          },
+          {
+            "path": "/ownerfs/agent1/escape-5",
+            "errno": 2
+          },
+          {
+            "path": "/ownerfs/agent1/escape-6",
+            "errno": 2
+          }
+        ],
+        "mountinfo": "466 417 8:17 /ownerfs-native-network/network-probe-20261001T125205-fc4c5860/container-rootfs / ro,noatime - ext4 /dev/sdb1 rw\n468 466 0:60 / /proc rw,nosuid,nodev,noexec,relatime - proc proc rw\n469 466 0:46 /network-probe-20261001T125205-fc4c5860-container /ownerfs/agent1 rw,nosuid,nodev,relatime - fuse mfs\\04310.77.30.11:19421 rw,user_id=0,group_id=0,allow_other\n",
+        "status": "Name:\tcontainer-probe\nUmask:\t0022\nState:\tR (running)\nTgid:\t6\nNgid:\t0\nPid:\t6\nPPid:\t0\nTracerPid:\t0\nUid:\t0\t0\t0\t0\nGid:\t0\t0\t0\t0\nFDSize:\t64\nGroups:\t \nNStgid:\t6\nNSpid:\t6\nNSpgid:\t6\nNSsid:\t6\nKthread:\t0\nVmPeak:\t    2684 kB\nVmSize:\t    2684 kB\nVmLck:\t       0 kB\nVmPin:\t       0 kB\nVmHWM:\t    1804 kB\nVmRSS:\t    1804 kB\nRssAnon:\t     168 kB\nRssFile:\t    1636 kB\nRssShmem:\t       0 kB\nVmData:\t     224 kB\nVmStk:\t     132 kB\nVmExe:\t       4 kB\nVmLib:\t    1752 kB\nVmPTE:\t      44 kB\nVmSwap:\t       0 kB\nHugetlbPages:\t       0 kB\nCoreDumping:\t0\nTHP_enabled:\t1\nuntag_mask:\t0xffffffffffffffff\nThreads:\t1\nSigQ:\t1/23364\nSigPnd:\t0000000000000000\nShdPnd:\t0000000000000000\nSigBlk:\t0000000000000000\nSigIgn:\t0000000000000000\nSigCgt:\t0000000000000000\nCapInh:\t0000000000000000\nCapPrm:\t0000000000000000\nCapEff:\t0000000000000000\nCapBnd:\t0000000000000000\nCapAmb:\t0000000000000000\nNoNewPrivs:\t1\nSeccomp:\t0\nSeccomp_filters:\t0\nSpeculation_Store_Bypass:\tthread vulnerable\nSpeculationIndirectBranch:\tconditional enabled\nCpus_allowed:\t3\nCpus_allowed_list:\t0-1\nMems_allowed:\t00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000001\nMems_allowed_list:\t0\nvoluntary_ctxt_switches:\t41\nnonvoluntary_ctxt_switches:\t7\nx86_Thread_features:\t\nx86_Thread_features_locked:\t\n"
+      }
+    }
+  },
+  "cleanup": [
+    {
+      "lane": "moosefs",
+      "state": {
+        "ociVersion": "1.2.1",
+        "id": "network-probe-20261001T125205-fc4c5860-moosefs",
+        "pid": 0,
+        "status": "stopped",
+        "bundle": "/mnt/afsdata/ownerfs-native-network/network-probe-20261001T125205-fc4c5860/oci-moosefs",
+        "rootfs": "/mnt/afsdata/ownerfs-native-network/network-probe-20261001T125205-fc4c5860/container-rootfs",
+        "created": "2026-10-01T12:52:15.964339091Z",
+        "owner": ""
+      },
+      "deleted": true
+    },
+    {
+      "lane": "native",
+      "state": {
+        "ociVersion": "1.2.1",
+        "id": "network-probe-20261001T125205-fc4c5860-native",
+        "pid": 0,
+        "status": "stopped",
+        "bundle": "/mnt/afsdata/ownerfs-native-network/network-probe-20261001T125205-fc4c5860/oci-native",
+        "rootfs": "/mnt/afsdata/ownerfs-native-network/network-probe-20261001T125205-fc4c5860/container-rootfs",
+        "created": "2026-10-01T12:52:15.858510109Z",
+        "owner": ""
+      },
+      "deleted": true
+    },
+    {
+      "lane": "ext4",
+      "state": {
+        "ociVersion": "1.2.1",
+        "id": "network-probe-20261001T125205-fc4c5860-ext4",
+        "pid": 0,
+        "status": "stopped",
+        "bundle": "/mnt/afsdata/ownerfs-native-network/network-probe-20261001T125205-fc4c5860/oci-ext4",
+        "rootfs": "/mnt/afsdata/ownerfs-native-network/network-probe-20261001T125205-fc4c5860/container-rootfs",
+        "created": "2026-10-01T12:52:15.747608044Z",
+        "owner": ""
+      },
+      "deleted": true
+    }
+  ],
+  "missing": [
+    "P2/P3 container IO",
+    "remote timing",
+    "MooseFS strong durability parity",
+    "production Agent/READY integration",
+    "full architecture acceptance"
+  ],
+  "rows": [
+    {
+      "path_form": "absolute",
+      "concurrency": 1,
+      "phase": "create_write_close",
+      "ext4_median_ms": 125.985562,
+      "native_median_ms": 129.972411,
+      "native_ext4_paired_ratios": [
+        1.110718606203753,
+        0.9937838273880939,
+        1.0150444676444041,
+        0.9985831789588278,
+        1.0579498130193656
+      ],
+      "native_ext4_ratio_median": 1.0150444676444041,
+      "moosefs_median_ms": 15095.070749,
+      "native_moosefs_ratio_median": 0.00861662773848218
+    },
+    {
+      "path_form": "absolute",
+      "concurrency": 1,
+      "phase": "stat",
+      "ext4_median_ms": 7.735403,
+      "native_median_ms": 8.022215,
+      "native_ext4_paired_ratios": [
+        1.0520443761460119,
+        1.0326960340657105,
+        0.902148399059428,
+        1.12043633756643,
+        1.09222727113765
+      ],
+      "native_ext4_ratio_median": 1.0520443761460119,
+      "moosefs_median_ms": 2404.606706,
+      "native_moosefs_ratio_median": 0.003414540891774358
+    },
+    {
+      "path_form": "absolute",
+      "concurrency": 1,
+      "phase": "read_close",
+      "ext4_median_ms": 17.000513,
+      "native_median_ms": 17.351355,
+      "native_ext4_paired_ratios": [
+        1.0559720047471821,
+        1.0246381811113234,
+        0.9367546519916484,
+        1.0530450463465426,
+        0.9705673918257476
+      ],
+      "native_ext4_ratio_median": 1.0246381811113234,
+      "moosefs_median_ms": 6447.587758,
+      "native_moosefs_ratio_median": 0.0025968292747005645
+    },
+    {
+      "path_form": "absolute",
+      "concurrency": 1,
+      "phase": "readdir",
+      "ext4_median_ms": 1.561978,
+      "native_median_ms": 1.594477,
+      "native_ext4_paired_ratios": [
+        1.0208063109723697,
+        0.9498211897799533,
+        0.9718714904239381,
+        1.1156562310216387,
+        1.0540100620508543
+      ],
+      "native_ext4_ratio_median": 1.0208063109723697,
+      "moosefs_median_ms": 6.004418,
+      "native_moosefs_ratio_median": 0.26774263424266953
+    },
+    {
+      "path_form": "absolute",
+      "concurrency": 1,
+      "phase": "rename",
+      "ext4_median_ms": 118.764922,
+      "native_median_ms": 116.727866,
+      "native_ext4_paired_ratios": [
+        1.0472866870434399,
+        0.8869012342498381,
+        0.9828479995128528,
+        1.0741707463510903,
+        1.052143080993001
+      ],
+      "native_ext4_ratio_median": 1.0472866870434399,
+      "moosefs_median_ms": 7127.360766,
+      "native_moosefs_ratio_median": 0.016680448677266067
+    },
+    {
+      "path_form": "absolute",
+      "concurrency": 1,
+      "phase": "unlink",
+      "ext4_median_ms": 54.82721,
+      "native_median_ms": 53.845977,
+      "native_ext4_paired_ratios": [
+        1.0478251772432556,
+        0.9690866168461939,
+        0.8932628048095984,
+        1.1065968339443135,
+        1.1232272953510933
+      ],
+      "native_ext4_ratio_median": 1.0478251772432556,
+      "moosefs_median_ms": 4646.780085,
+      "native_moosefs_ratio_median": 0.011486380050045866
+    },
+    {
+      "path_form": "absolute",
+      "concurrency": 1,
+      "phase": "whole_task",
+      "ext4_median_ms": 333.076328,
+      "native_median_ms": 330.029882,
+      "native_ext4_paired_ratios": [
+        1.0728349119668563,
+        0.9514606894597706,
+        0.9748061591455998,
+        1.050144320475038,
+        1.0623892058565578
+      ],
+      "native_ext4_ratio_median": 1.050144320475038,
+      "moosefs_median_ms": 36059.09495,
+      "native_moosefs_ratio_median": 0.009152472696766894
+    },
+    {
+      "path_form": "absolute",
+      "concurrency": 8,
+      "phase": "create_write_close",
+      "ext4_median_ms": 131.992751,
+      "native_median_ms": 130.072857,
+      "native_ext4_paired_ratios": [
+        1.1139281443913793,
+        0.9418338208588439,
+        1.0150862646663295,
+        0.9752191203950016,
+        1.0173896360832544
+      ],
+      "native_ext4_ratio_median": 1.0150862646663295,
+      "moosefs_median_ms": 5783.324867,
+      "native_moosefs_ratio_median": 0.022491016844342182
+    },
+    {
+      "path_form": "absolute",
+      "concurrency": 8,
+      "phase": "stat",
+      "ext4_median_ms": 4.974927,
+      "native_median_ms": 5.42586,
+      "native_ext4_paired_ratios": [
+        1.0263745924553505,
+        1.0002801352408672,
+        1.0781240872170448,
+        0.9470459740791589,
+        1.2128200072081459
+      ],
+      "native_ext4_ratio_median": 1.0263745924553505,
+      "moosefs_median_ms": 343.679598,
+      "native_moosefs_ratio_median": 0.014616966885164081
+    },
+    {
+      "path_form": "absolute",
+      "concurrency": 8,
+      "phase": "read_close",
+      "ext4_median_ms": 11.238582,
+      "native_median_ms": 11.347631,
+      "native_ext4_paired_ratios": [
+        0.9225220196915692,
+        0.8742492623748238,
+        1.1046990130133025,
+        1.1463508474645645,
+        1.0210833391446754
+      ],
+      "native_ext4_ratio_median": 1.0210833391446754,
+      "moosefs_median_ms": 1193.64138,
+      "native_moosefs_ratio_median": 0.009692716225688618
+    },
+    {
+      "path_form": "absolute",
+      "concurrency": 8,
+      "phase": "readdir",
+      "ext4_median_ms": 1.728344,
+      "native_median_ms": 1.67738,
+      "native_ext4_paired_ratios": [
+        0.9859266329207598,
+        0.8788105840041103,
+        1.0410549449458208,
+        1.2355618757080045,
+        0.9084427531614327
+      ],
+      "native_ext4_ratio_median": 0.9859266329207598,
+      "moosefs_median_ms": 7.940201,
+      "native_moosefs_ratio_median": 0.25771877985512776
+    },
+    {
+      "path_form": "absolute",
+      "concurrency": 8,
+      "phase": "rename",
+      "ext4_median_ms": 139.487921,
+      "native_median_ms": 142.781318,
+      "native_ext4_paired_ratios": [
+        1.0048700440569989,
+        0.9894385510783517,
+        1.0236106250375614,
+        1.071676811954964,
+        0.9772413508463414
+      ],
+      "native_ext4_ratio_median": 1.0048700440569989,
+      "moosefs_median_ms": 7769.637569,
+      "native_moosefs_ratio_median": 0.017489168689682685
+    },
+    {
+      "path_form": "absolute",
+      "concurrency": 8,
+      "phase": "unlink",
+      "ext4_median_ms": 49.235773,
+      "native_median_ms": 48.039115,
+      "native_ext4_paired_ratios": [
+        1.048071406104162,
+        1.058447401648391,
+        0.9931464192101541,
+        0.9480467193851267,
+        0.8750656185825507
+      ],
+      "native_ext4_ratio_median": 0.9931464192101541,
+      "moosefs_median_ms": 5487.290305,
+      "native_moosefs_ratio_median": 0.008637046984454218
+    },
+    {
+      "path_form": "absolute",
+      "concurrency": 8,
+      "phase": "whole_task",
+      "ext4_median_ms": 337.181929,
+      "native_median_ms": 343.53842,
+      "native_ext4_paired_ratios": [
+        1.0509188880841993,
+        0.9765465487952166,
+        1.019308375116941,
+        1.0188518139713234,
+        0.9806652892654846
+      ],
+      "native_ext4_ratio_median": 1.0188518139713234,
+      "moosefs_median_ms": 20866.042117,
+      "native_moosefs_ratio_median": 0.015928268263865442
+    },
+    {
+      "path_form": "relative",
+      "concurrency": 1,
+      "phase": "create_write_close",
+      "ext4_median_ms": 144.681086,
+      "native_median_ms": 133.941668,
+      "native_ext4_paired_ratios": [
+        1.316288258517215,
+        0.9161459216827239,
+        1.0290736104150848,
+        0.8929498358893988,
+        1.015123210021024
+      ],
+      "native_ext4_ratio_median": 1.015123210021024,
+      "moosefs_median_ms": 15193.27595,
+      "native_moosefs_ratio_median": 0.008815851725512825
+    },
+    {
+      "path_form": "relative",
+      "concurrency": 1,
+      "phase": "stat",
+      "ext4_median_ms": 8.31166,
+      "native_median_ms": 8.638232,
+      "native_ext4_paired_ratios": [
+        1.2218419823139355,
+        0.9492269895544332,
+        1.1564044985512982,
+        0.9293298224651796,
+        1.0606293373147817
+      ],
+      "native_ext4_ratio_median": 1.0606293373147817,
+      "moosefs_median_ms": 2371.514757,
+      "native_moosefs_ratio_median": 0.003402647422953433
+    },
+    {
+      "path_form": "relative",
+      "concurrency": 1,
+      "phase": "read_close",
+      "ext4_median_ms": 18.193706,
+      "native_median_ms": 16.749833,
+      "native_ext4_paired_ratios": [
+        1.1427517961760303,
+        0.9281200667456296,
+        0.9539990297923958,
+        0.9206388736852184,
+        0.9826870662827011
+      ],
+      "native_ext4_ratio_median": 0.9539990297923958,
+      "moosefs_median_ms": 6088.401878,
+      "native_moosefs_ratio_median": 0.0028091604422323868
+    },
+    {
+      "path_form": "relative",
+      "concurrency": 1,
+      "phase": "readdir",
+      "ext4_median_ms": 1.830615,
+      "native_median_ms": 1.639933,
+      "native_ext4_paired_ratios": [
+        1.1565170703699401,
+        0.9220469623596441,
+        0.9925767657728816,
+        0.8808783575459446,
+        1.005215622047399
+      ],
+      "native_ext4_ratio_median": 0.9925767657728816,
+      "moosefs_median_ms": 6.796431,
+      "native_moosefs_ratio_median": 0.2612759273402306
+    },
+    {
+      "path_form": "relative",
+      "concurrency": 1,
+      "phase": "rename",
+      "ext4_median_ms": 127.308146,
+      "native_median_ms": 116.432036,
+      "native_ext4_paired_ratios": [
+        1.0624070384171092,
+        0.9180049608340394,
+        0.9772223549213389,
+        0.9017915082982986,
+        1.009886129636506
+      ],
+      "native_ext4_ratio_median": 0.9772223549213389,
+      "moosefs_median_ms": 7238.703198,
+      "native_moosefs_ratio_median": 0.01608465395185277
+    },
+    {
+      "path_form": "relative",
+      "concurrency": 1,
+      "phase": "unlink",
+      "ext4_median_ms": 59.614781,
+      "native_median_ms": 57.938271,
+      "native_ext4_paired_ratios": [
+        1.008294832954713,
+        0.9417679257236647,
+        1.0606767671548738,
+        0.9240004085563948,
+        0.9602160023445354
+      ],
+      "native_ext4_ratio_median": 0.9602160023445354,
+      "moosefs_median_ms": 5062.746397,
+      "native_moosefs_ratio_median": 0.011444039747740895
+    },
+    {
+      "path_form": "relative",
+      "concurrency": 1,
+      "phase": "whole_task",
+      "ext4_median_ms": 360.174314,
+      "native_median_ms": 339.224188,
+      "native_ext4_paired_ratios": [
+        1.164128385084234,
+        0.922177038064425,
+        1.0150259052675588,
+        0.9034107551600695,
+        1.00278816022324
+      ],
+      "native_ext4_ratio_median": 1.00278816022324,
+      "moosefs_median_ms": 36287.027492,
+      "native_moosefs_ratio_median": 0.009104828989744386
+    },
+    {
+      "path_form": "relative",
+      "concurrency": 8,
+      "phase": "create_write_close",
+      "ext4_median_ms": 131.668095,
+      "native_median_ms": 136.705495,
+      "native_ext4_paired_ratios": [
+        1.0382583191470949,
+        1.2309113824379847,
+        0.9666115931067891,
+        1.0378608173806672,
+        0.9688165411628261
+      ],
+      "native_ext4_ratio_median": 1.0378608173806672,
+      "moosefs_median_ms": 5995.758718,
+      "native_moosefs_ratio_median": 0.022800366297194948
+    },
+    {
+      "path_form": "relative",
+      "concurrency": 8,
+      "phase": "stat",
+      "ext4_median_ms": 5.096181,
+      "native_median_ms": 5.469499,
+      "native_ext4_paired_ratios": [
+        1.1563232149660112,
+        1.6696596922283569,
+        1.0698472372017176,
+        0.5773345017710129,
+        1.2145351285618986
+      ],
+      "native_ext4_ratio_median": 1.1563232149660112,
+      "moosefs_median_ms": 413.629064,
+      "native_moosefs_ratio_median": 0.013959307754190528
+    },
+    {
+      "path_form": "relative",
+      "concurrency": 8,
+      "phase": "read_close",
+      "ext4_median_ms": 11.228561,
+      "native_median_ms": 11.374026,
+      "native_ext4_paired_ratios": [
+        0.7607167414752133,
+        1.447080806579451,
+        0.9405659879616224,
+        0.7660268419742574,
+        1.1164451081487645
+      ],
+      "native_ext4_ratio_median": 0.9405659879616224,
+      "moosefs_median_ms": 1212.144259,
+      "native_moosefs_ratio_median": 0.009792282167173483
+    },
+    {
+      "path_form": "relative",
+      "concurrency": 8,
+      "phase": "readdir",
+      "ext4_median_ms": 1.61916,
+      "native_median_ms": 1.666588,
+      "native_ext4_paired_ratios": [
+        0.9130008833838668,
+        1.2382544473858415,
+        0.9602274242430819,
+        1.2451005798806722,
+        1.0292917315151067
+      ],
+      "native_ext4_ratio_median": 1.0292917315151067,
+      "moosefs_median_ms": 8.188389,
+      "native_moosefs_ratio_median": 0.2035306334371755
+    },
+    {
+      "path_form": "relative",
+      "concurrency": 8,
+      "phase": "rename",
+      "ext4_median_ms": 140.571361,
+      "native_median_ms": 137.631842,
+      "native_ext4_paired_ratios": [
+        0.9529819022967533,
+        1.8127834303318726,
+        0.9413648078030573,
+        0.9603480308424582,
+        1.004902878505545
+      ],
+      "native_ext4_ratio_median": 0.9603480308424582,
+      "moosefs_median_ms": 8059.061353,
+      "native_moosefs_ratio_median": 0.017402412801089968
+    },
+    {
+      "path_form": "relative",
+      "concurrency": 8,
+      "phase": "unlink",
+      "ext4_median_ms": 49.290587,
+      "native_median_ms": 50.21477,
+      "native_ext4_paired_ratios": [
+        1.1783279144799936,
+        1.48488155350665,
+        0.798328862919173,
+        1.0303530069384124,
+        0.9919465759253384
+      ],
+      "native_ext4_ratio_median": 1.0303530069384124,
+      "moosefs_median_ms": 5363.059427,
+      "native_moosefs_ratio_median": 0.009682156894409941
+    },
+    {
+      "path_form": "relative",
+      "concurrency": 8,
+      "phase": "whole_task",
+      "ext4_median_ms": 343.00359,
+      "native_median_ms": 339.042713,
+      "native_ext4_paired_ratios": [
+        1.0097802970517014,
+        1.5280773003842787,
+        0.9291214310707943,
+        0.9857716439996537,
+        0.995296734154038
+      ],
+      "native_ext4_ratio_median": 0.995296734154038,
+      "moosefs_median_ms": 21560.621848,
+      "native_moosefs_ratio_median": 0.01606439134463688
+    }
+  ],
+  "samples": [
+    {"lane": "ext4", "round": 0, "warmup": true, "path": "/ownerfs/agent1/perf-absolute-1-00-ext4", "result": {"files": 10000, "file_bytes": 4096, "concurrency": 1, "path_form": "absolute", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 119355538, "client_cpu_ns": 119336069, "operations": 10000, "p50_ns": 10912, "p95_ns": 14688, "p99_ns": 36964}, {"name": "stat", "wall_ns": 7714353, "client_cpu_ns": 7672849, "operations": 10000, "p50_ns": 594, "p95_ns": 813, "p99_ns": 978}, {"name": "read_close", "wall_ns": 16548596, "client_cpu_ns": 16498429, "operations": 10000, "p50_ns": 1429, "p95_ns": 1740, "p99_ns": 2007}, {"name": "readdir", "wall_ns": 1579740, "client_cpu_ns": 1574895, "operations": 1}, {"name": "rename", "wall_ns": 117259033, "client_cpu_ns": 116845936, "operations": 10000, "p50_ns": 10968, "p95_ns": 14504, "p99_ns": 28159}, {"name": "unlink", "wall_ns": 49860529, "client_cpu_ns": 48183243, "operations": 10000, "p50_ns": 4270, "p95_ns": 6036, "p99_ns": 8700}]}},
+    {"lane": "native", "round": 0, "warmup": true, "path": "/ownerfs/agent1/perf-absolute-1-00-bind", "result": {"files": 10000, "file_bytes": 4096, "concurrency": 1, "path_form": "absolute", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 121162653, "client_cpu_ns": 120680480, "operations": 10000, "p50_ns": 11043, "p95_ns": 15649, "p99_ns": 36988}, {"name": "stat", "wall_ns": 7606837, "client_cpu_ns": 7578692, "operations": 10000, "p50_ns": 587, "p95_ns": 778, "p99_ns": 865}, {"name": "read_close", "wall_ns": 15874230, "client_cpu_ns": 15862981, "operations": 10000, "p50_ns": 1393, "p95_ns": 1662, "p99_ns": 1820}, {"name": "readdir", "wall_ns": 1571669, "client_cpu_ns": 1571103, "operations": 1}, {"name": "rename", "wall_ns": 112847900, "client_cpu_ns": 112342257, "operations": 10000, "p50_ns": 10459, "p95_ns": 14249, "p99_ns": 26308}, {"name": "unlink", "wall_ns": 51704374, "client_cpu_ns": 50009496, "operations": 10000, "p50_ns": 4190, "p95_ns": 6214, "p99_ns": 13229}]}},
+    {"lane": "moosefs", "round": 0, "warmup": true, "path": "/ownerfs/agent1/perf-absolute-1-00-mfs0", "result": {"files": 10000, "file_bytes": 4096, "concurrency": 1, "path_form": "absolute", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 13805905856, "client_cpu_ns": 573091143, "operations": 10000, "p50_ns": 1320285, "p95_ns": 1911123, "p99_ns": 2451280}, {"name": "stat", "wall_ns": 2344487878, "client_cpu_ns": 103200828, "operations": 10000, "p50_ns": 209035, "p95_ns": 380340, "p99_ns": 592100}, {"name": "read_close", "wall_ns": 6054368938, "client_cpu_ns": 456578661, "operations": 10000, "p50_ns": 561497, "p95_ns": 874158, "p99_ns": 1206248}, {"name": "readdir", "wall_ns": 6510033, "client_cpu_ns": 1024938, "operations": 1}, {"name": "rename", "wall_ns": 7898229160, "client_cpu_ns": 313135476, "operations": 10000, "p50_ns": 750408, "p95_ns": 1182851, "p99_ns": 1489357}, {"name": "unlink", "wall_ns": 5415766621, "client_cpu_ns": 249015656, "operations": 10000, "p50_ns": 511379, "p95_ns": 818959, "p99_ns": 1111732}]}},
+    {"lane": "moosefs", "round": 1, "warmup": false, "path": "/ownerfs/agent1/perf-absolute-1-01-mfs0", "result": {"files": 10000, "file_bytes": 4096, "concurrency": 1, "path_form": "absolute", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 15701800415, "client_cpu_ns": 643944950, "operations": 10000, "p50_ns": 1461629, "p95_ns": 2331334, "p99_ns": 3436693}, {"name": "stat", "wall_ns": 2590468894, "client_cpu_ns": 111836345, "operations": 10000, "p50_ns": 239082, "p95_ns": 400405, "p99_ns": 624987}, {"name": "read_close", "wall_ns": 7157681819, "client_cpu_ns": 523513319, "operations": 10000, "p50_ns": 652695, "p95_ns": 1123980, "p99_ns": 1583750}, {"name": "readdir", "wall_ns": 5955260, "client_cpu_ns": 828299, "operations": 1}, {"name": "rename", "wall_ns": 6960040359, "client_cpu_ns": 268784248, "operations": 10000, "p50_ns": 644278, "p95_ns": 1078257, "p99_ns": 1445287}, {"name": "unlink", "wall_ns": 4529609397, "client_cpu_ns": 218052819, "operations": 10000, "p50_ns": 414132, "p95_ns": 712002, "p99_ns": 977414}]}},
+    {"lane": "native", "round": 1, "warmup": false, "path": "/ownerfs/agent1/perf-absolute-1-01-bind", "result": {"files": 10000, "file_bytes": 4096, "concurrency": 1, "path_form": "absolute", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 135296569, "client_cpu_ns": 131617090, "operations": 10000, "p50_ns": 11689, "p95_ns": 17386, "p99_ns": 43291}, {"name": "stat", "wall_ns": 8022215, "client_cpu_ns": 7975144, "operations": 10000, "p50_ns": 606, "p95_ns": 823, "p99_ns": 936}, {"name": "read_close", "wall_ns": 17351355, "client_cpu_ns": 17319331, "operations": 10000, "p50_ns": 1542, "p95_ns": 1810, "p99_ns": 1982}, {"name": "readdir", "wall_ns": 1594477, "client_cpu_ns": 1590069, "operations": 1}, {"name": "rename", "wall_ns": 116096596, "client_cpu_ns": 115740698, "operations": 10000, "p50_ns": 10811, "p95_ns": 14268, "p99_ns": 26284}, {"name": "unlink", "wall_ns": 53023745, "client_cpu_ns": 51167085, "operations": 10000, "p50_ns": 4329, "p95_ns": 6411, "p99_ns": 13400}]}},
+    {"lane": "ext4", "round": 1, "warmup": false, "path": "/ownerfs/agent1/perf-absolute-1-01-ext4", "result": {"files": 10000, "file_bytes": 4096, "concurrency": 1, "path_form": "absolute", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 121809942, "client_cpu_ns": 121338896, "operations": 10000, "p50_ns": 11096, "p95_ns": 15334, "p99_ns": 36323}, {"name": "stat", "wall_ns": 7625358, "client_cpu_ns": 7639131, "operations": 10000, "p50_ns": 587, "p95_ns": 786, "p99_ns": 897}, {"name": "read_close", "wall_ns": 16431643, "client_cpu_ns": 16437188, "operations": 10000, "p50_ns": 1452, "p95_ns": 1722, "p99_ns": 1990}, {"name": "readdir", "wall_ns": 1561978, "client_cpu_ns": 1547356, "operations": 1}, {"name": "rename", "wall_ns": 110854647, "client_cpu_ns": 110465455, "operations": 10000, "p50_ns": 10465, "p95_ns": 13686, "p99_ns": 23462}, {"name": "unlink", "wall_ns": 50603618, "client_cpu_ns": 48309790, "operations": 10000, "p50_ns": 4190, "p95_ns": 5906, "p99_ns": 11985}]}},
+    {"lane": "ext4", "round": 2, "warmup": false, "path": "/ownerfs/agent1/perf-absolute-1-02-ext4", "result": {"files": 10000, "file_bytes": 4096, "concurrency": 1, "path_form": "absolute", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 125985562, "client_cpu_ns": 123236651, "operations": 10000, "p50_ns": 11344, "p95_ns": 15217, "p99_ns": 35007}, {"name": "stat", "wall_ns": 7735403, "client_cpu_ns": 7693276, "operations": 10000, "p50_ns": 602, "p95_ns": 810, "p99_ns": 937}, {"name": "read_close", "wall_ns": 17349495, "client_cpu_ns": 17331495, "operations": 10000, "p50_ns": 1504, "p95_ns": 1786, "p99_ns": 1990}, {"name": "readdir", "wall_ns": 1625746, "client_cpu_ns": 1625344, "operations": 1}, {"name": "rename", "wall_ns": 127119725, "client_cpu_ns": 126436900, "operations": 10000, "p50_ns": 11570, "p95_ns": 15811, "p99_ns": 34833}, {"name": "unlink", "wall_ns": 55563637, "client_cpu_ns": 53605555, "operations": 10000, "p50_ns": 4708, "p95_ns": 6647, "p99_ns": 10631}]}},
+    {"lane": "native", "round": 2, "warmup": false, "path": "/ownerfs/agent1/perf-absolute-1-02-bind", "result": {"files": 10000, "file_bytes": 4096, "concurrency": 1, "path_form": "absolute", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 125202414, "client_cpu_ns": 124832771, "operations": 10000, "p50_ns": 11469, "p95_ns": 16395, "p99_ns": 36038}, {"name": "stat", "wall_ns": 7988320, "client_cpu_ns": 7905440, "operations": 10000, "p50_ns": 599, "p95_ns": 809, "p99_ns": 973}, {"name": "read_close", "wall_ns": 17776955, "client_cpu_ns": 17725816, "operations": 10000, "p50_ns": 1488, "p95_ns": 1772, "p99_ns": 2671}, {"name": "readdir", "wall_ns": 1544168, "client_cpu_ns": 1543469, "operations": 1}, {"name": "rename", "wall_ns": 112742641, "client_cpu_ns": 112365139, "operations": 10000, "p50_ns": 10521, "p95_ns": 14067, "p99_ns": 26746}, {"name": "unlink", "wall_ns": 53845977, "client_cpu_ns": 51018294, "operations": 10000, "p50_ns": 4453, "p95_ns": 6256, "p99_ns": 13879}]}},
+    {"lane": "moosefs", "round": 2, "warmup": false, "path": "/ownerfs/agent1/perf-absolute-1-02-mfs0", "result": {"files": 10000, "file_bytes": 4096, "concurrency": 1, "path_form": "absolute", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 14887020737, "client_cpu_ns": 610186805, "operations": 10000, "p50_ns": 1342792, "p95_ns": 2284499, "p99_ns": 3976796}, {"name": "stat", "wall_ns": 2404606706, "client_cpu_ns": 108296587, "operations": 10000, "p50_ns": 218221, "p95_ns": 379954, "p99_ns": 588970}, {"name": "read_close", "wall_ns": 6609723294, "client_cpu_ns": 493898187, "operations": 10000, "p50_ns": 617954, "p95_ns": 993290, "p99_ns": 1315145}, {"name": "readdir", "wall_ns": 6890141, "client_cpu_ns": 948810, "operations": 1}, {"name": "rename", "wall_ns": 8704269102, "client_cpu_ns": 353220631, "operations": 10000, "p50_ns": 800260, "p95_ns": 1363373, "p99_ns": 1809076}, {"name": "unlink", "wall_ns": 5241005067, "client_cpu_ns": 244664335, "operations": 10000, "p50_ns": 487549, "p95_ns": 807964, "p99_ns": 1083651}]}},
+    {"lane": "moosefs", "round": 3, "warmup": false, "path": "/ownerfs/agent1/perf-absolute-1-03-mfs0", "result": {"files": 10000, "file_bytes": 4096, "concurrency": 1, "path_form": "absolute", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 14325681416, "client_cpu_ns": 576231311, "operations": 10000, "p50_ns": 1322803, "p95_ns": 2063337, "p99_ns": 4124037}, {"name": "stat", "wall_ns": 2184172444, "client_cpu_ns": 94996976, "operations": 10000, "p50_ns": 194643, "p95_ns": 345036, "p99_ns": 503653}, {"name": "read_close", "wall_ns": 6421931223, "client_cpu_ns": 475460490, "operations": 10000, "p50_ns": 596599, "p95_ns": 954159, "p99_ns": 1333345}, {"name": "readdir", "wall_ns": 7955759, "client_cpu_ns": 1292237, "operations": 1}, {"name": "rename", "wall_ns": 6665773715, "client_cpu_ns": 259460436, "operations": 10000, "p50_ns": 616717, "p95_ns": 1005070, "p99_ns": 1373171}, {"name": "unlink", "wall_ns": 4556214906, "client_cpu_ns": 211090803, "operations": 10000, "p50_ns": 423142, "p95_ns": 691307, "p99_ns": 961709}]}},
+    {"lane": "native", "round": 3, "warmup": false, "path": "/ownerfs/agent1/perf-absolute-1-03-bind", "result": {"files": 10000, "file_bytes": 4096, "concurrency": 1, "path_form": "absolute", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 129553539, "client_cpu_ns": 126935073, "operations": 10000, "p50_ns": 11202, "p95_ns": 17492, "p99_ns": 40065}, {"name": "stat", "wall_ns": 7838163, "client_cpu_ns": 7830631, "operations": 10000, "p50_ns": 619, "p95_ns": 821, "p99_ns": 956}, {"name": "read_close", "wall_ns": 16676659, "client_cpu_ns": 16458421, "operations": 10000, "p50_ns": 1444, "p95_ns": 1718, "p99_ns": 1890}, {"name": "readdir", "wall_ns": 1554213, "client_cpu_ns": 1538187, "operations": 1}, {"name": "rename", "wall_ns": 116727866, "client_cpu_ns": 116138806, "operations": 10000, "p50_ns": 10946, "p95_ns": 14259, "p99_ns": 26704}, {"name": "unlink", "wall_ns": 52334416, "client_cpu_ns": 50391414, "operations": 10000, "p50_ns": 4496, "p95_ns": 6339, "p99_ns": 8539}]}},
+    {"lane": "ext4", "round": 3, "warmup": false, "path": "/ownerfs/agent1/perf-absolute-1-03-ext4", "result": {"files": 10000, "file_bytes": 4096, "concurrency": 1, "path_form": "absolute", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 127633363, "client_cpu_ns": 126480936, "operations": 10000, "p50_ns": 11437, "p95_ns": 17338, "p99_ns": 40137}, {"name": "stat", "wall_ns": 8688330, "client_cpu_ns": 8666049, "operations": 10000, "p50_ns": 640, "p95_ns": 854, "p99_ns": 1240}, {"name": "read_close", "wall_ns": 17802590, "client_cpu_ns": 17520627, "operations": 10000, "p50_ns": 1481, "p95_ns": 1768, "p99_ns": 2881}, {"name": "readdir", "wall_ns": 1599196, "client_cpu_ns": 1598765, "operations": 1}, {"name": "rename", "wall_ns": 118764922, "client_cpu_ns": 118116844, "operations": 10000, "p50_ns": 10934, "p95_ns": 14722, "p99_ns": 32306}, {"name": "unlink", "wall_ns": 58587927, "client_cpu_ns": 56176267, "operations": 10000, "p50_ns": 4566, "p95_ns": 7374, "p99_ns": 19396}]}},
+    {"lane": "ext4", "round": 4, "warmup": false, "path": "/ownerfs/agent1/perf-absolute-1-04-ext4", "result": {"files": 10000, "file_bytes": 4096, "concurrency": 1, "path_form": "absolute", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 130416612, "client_cpu_ns": 126826606, "operations": 10000, "p50_ns": 11442, "p95_ns": 17950, "p99_ns": 39798}, {"name": "stat", "wall_ns": 7548926, "client_cpu_ns": 7547826, "operations": 10000, "p50_ns": 607, "p95_ns": 798, "p99_ns": 901}, {"name": "read_close", "wall_ns": 17000513, "client_cpu_ns": 16977839, "operations": 10000, "p50_ns": 1449, "p95_ns": 1938, "p99_ns": 2833}, {"name": "readdir", "wall_ns": 1519823, "client_cpu_ns": 1514627, "operations": 1}, {"name": "rename", "wall_ns": 122772568, "client_cpu_ns": 122212448, "operations": 10000, "p50_ns": 10937, "p95_ns": 17607, "p99_ns": 37758}, {"name": "unlink", "wall_ns": 54827210, "client_cpu_ns": 52815654, "operations": 10000, "p50_ns": 4499, "p95_ns": 6575, "p99_ns": 17532}]}},
+    {"lane": "native", "round": 4, "warmup": false, "path": "/ownerfs/agent1/perf-absolute-1-04-bind", "result": {"files": 10000, "file_bytes": 4096, "concurrency": 1, "path_form": "absolute", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 130231835, "client_cpu_ns": 129013990, "operations": 10000, "p50_ns": 11733, "p95_ns": 15835, "p99_ns": 37747}, {"name": "stat", "wall_ns": 8458091, "client_cpu_ns": 8429751, "operations": 10000, "p50_ns": 641, "p95_ns": 844, "p99_ns": 976}, {"name": "read_close", "wall_ns": 17902306, "client_cpu_ns": 17872753, "operations": 10000, "p50_ns": 1524, "p95_ns": 1800, "p99_ns": 2859}, {"name": "readdir", "wall_ns": 1695600, "client_cpu_ns": 1682555, "operations": 1}, {"name": "rename", "wall_ns": 131878701, "client_cpu_ns": 131411381, "operations": 10000, "p50_ns": 11756, "p95_ns": 16572, "p99_ns": 40241}, {"name": "unlink", "wall_ns": 60671617, "client_cpu_ns": 58125457, "operations": 10000, "p50_ns": 5046, "p95_ns": 7058, "p99_ns": 16554}]}},
+    {"lane": "moosefs", "round": 4, "warmup": false, "path": "/ownerfs/agent1/perf-absolute-1-04-mfs0", "result": {"files": 10000, "file_bytes": 4096, "concurrency": 1, "path_form": "absolute", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 15095070749, "client_cpu_ns": 618890754, "operations": 10000, "p50_ns": 1358374, "p95_ns": 2463696, "p99_ns": 4303773}, {"name": "stat", "wall_ns": 2477080014, "client_cpu_ns": 116902537, "operations": 10000, "p50_ns": 219921, "p95_ns": 393733, "p99_ns": 619697}, {"name": "read_close", "wall_ns": 5901965188, "client_cpu_ns": 437518592, "operations": 10000, "p50_ns": 546711, "p95_ns": 837407, "p99_ns": 1330268}, {"name": "readdir", "wall_ns": 6004418, "client_cpu_ns": 825686, "operations": 1}, {"name": "rename", "wall_ns": 7401219235, "client_cpu_ns": 293850740, "operations": 10000, "p50_ns": 705110, "p95_ns": 1079315, "p99_ns": 1470436}, {"name": "unlink", "wall_ns": 4646780085, "client_cpu_ns": 221854593, "operations": 10000, "p50_ns": 429323, "p95_ns": 696568, "p99_ns": 973706}]}},
+    {"lane": "moosefs", "round": 5, "warmup": false, "path": "/ownerfs/agent1/perf-absolute-1-05-mfs0", "result": {"files": 10000, "file_bytes": 4096, "concurrency": 1, "path_form": "absolute", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 15100016920, "client_cpu_ns": 619487526, "operations": 10000, "p50_ns": 1361839, "p95_ns": 2291935, "p99_ns": 4475099}, {"name": "stat", "wall_ns": 2288137447, "client_cpu_ns": 105637157, "operations": 10000, "p50_ns": 208665, "p95_ns": 357885, "p99_ns": 512752}, {"name": "read_close", "wall_ns": 6447587758, "client_cpu_ns": 481022545, "operations": 10000, "p50_ns": 574333, "p95_ns": 1070838, "p99_ns": 1614358}, {"name": "readdir", "wall_ns": 5414305, "client_cpu_ns": 853009, "operations": 1}, {"name": "rename", "wall_ns": 7127360766, "client_cpu_ns": 278273850, "operations": 10000, "p50_ns": 680370, "p95_ns": 1103479, "p99_ns": 1478383}, {"name": "unlink", "wall_ns": 5090577754, "client_cpu_ns": 247239274, "operations": 10000, "p50_ns": 469874, "p95_ns": 804867, "p99_ns": 1060997}]}},
+    {"lane": "native", "round": 5, "warmup": false, "path": "/ownerfs/agent1/perf-absolute-1-05-bind", "result": {"files": 10000, "file_bytes": 4096, "concurrency": 1, "path_form": "absolute", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 129972411, "client_cpu_ns": 126868790, "operations": 10000, "p50_ns": 11461, "p95_ns": 17684, "p99_ns": 39570}, {"name": "stat", "wall_ns": 8557498, "client_cpu_ns": 8565116, "operations": 10000, "p50_ns": 676, "p95_ns": 905, "p99_ns": 1152}, {"name": "read_close", "wall_ns": 16453732, "client_cpu_ns": 16412581, "operations": 10000, "p50_ns": 1473, "p95_ns": 1722, "p99_ns": 1880}, {"name": "readdir", "wall_ns": 1596196, "client_cpu_ns": 1595811, "operations": 1}, {"name": "rename", "wall_ns": 117582512, "client_cpu_ns": 116768875, "operations": 10000, "p50_ns": 10722, "p95_ns": 14870, "p99_ns": 32808}, {"name": "unlink", "wall_ns": 55867533, "client_cpu_ns": 53434113, "operations": 10000, "p50_ns": 4391, "p95_ns": 8260, "p99_ns": 17363}]}},
+    {"lane": "ext4", "round": 5, "warmup": false, "path": "/ownerfs/agent1/perf-absolute-1-05-ext4", "result": {"files": 10000, "file_bytes": 4096, "concurrency": 1, "path_form": "absolute", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 122853097, "client_cpu_ns": 120088638, "operations": 10000, "p50_ns": 10931, "p95_ns": 16223, "p99_ns": 35919}, {"name": "stat", "wall_ns": 7834906, "client_cpu_ns": 7808833, "operations": 10000, "p50_ns": 651, "p95_ns": 820, "p99_ns": 925}, {"name": "read_close", "wall_ns": 16952694, "client_cpu_ns": 16922706, "operations": 10000, "p50_ns": 1441, "p95_ns": 1906, "p99_ns": 2729}, {"name": "readdir", "wall_ns": 1514403, "client_cpu_ns": 1513555, "operations": 1}, {"name": "rename", "wall_ns": 111755249, "client_cpu_ns": 110892278, "operations": 10000, "p50_ns": 10183, "p95_ns": 14063, "p99_ns": 31162}, {"name": "unlink", "wall_ns": 49738404, "client_cpu_ns": 47576084, "operations": 10000, "p50_ns": 4189, "p95_ns": 6060, "p99_ns": 8356}]}},
+    {"lane": "ext4", "round": 0, "warmup": true, "path": "/ownerfs/agent1/perf-absolute-8-00-ext4", "result": {"files": 10000, "file_bytes": 4096, "concurrency": 8, "path_form": "absolute", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 116134802, "client_cpu_ns": 186398566, "operations": 10000, "p50_ns": 17882, "p95_ns": 40898, "p99_ns": 2727737}, {"name": "stat", "wall_ns": 4728306, "client_cpu_ns": 7681225, "operations": 10000, "p50_ns": 625, "p95_ns": 800, "p99_ns": 919}, {"name": "read_close", "wall_ns": 9787529, "client_cpu_ns": 18228234, "operations": 10000, "p50_ns": 1630, "p95_ns": 1936, "p99_ns": 2156}, {"name": "readdir", "wall_ns": 1422219, "client_cpu_ns": 1421803, "operations": 1}, {"name": "rename", "wall_ns": 136428125, "client_cpu_ns": 189691715, "operations": 10000, "p50_ns": 15652, "p95_ns": 38268, "p99_ns": 3269040}, {"name": "unlink", "wall_ns": 44521860, "client_cpu_ns": 74060420, "operations": 10000, "p50_ns": 6438, "p95_ns": 11897, "p99_ns": 458269}]}},
+    {"lane": "native", "round": 0, "warmup": true, "path": "/ownerfs/agent1/perf-absolute-8-00-bind", "result": {"files": 10000, "file_bytes": 4096, "concurrency": 8, "path_form": "absolute", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 124126963, "client_cpu_ns": 187577263, "operations": 10000, "p50_ns": 17614, "p95_ns": 47745, "p99_ns": 3049067}, {"name": "stat", "wall_ns": 5276398, "client_cpu_ns": 8543738, "operations": 10000, "p50_ns": 649, "p95_ns": 841, "p99_ns": 1055}, {"name": "read_close", "wall_ns": 9920489, "client_cpu_ns": 19320446, "operations": 10000, "p50_ns": 1705, "p95_ns": 2038, "p99_ns": 2278}, {"name": "readdir", "wall_ns": 1531304, "client_cpu_ns": 1519676, "operations": 1}, {"name": "rename", "wall_ns": 134179210, "client_cpu_ns": 194460140, "operations": 10000, "p50_ns": 19119, "p95_ns": 36753, "p99_ns": 3224369}, {"name": "unlink", "wall_ns": 43215266, "client_cpu_ns": 73589419, "operations": 10000, "p50_ns": 6427, "p95_ns": 10956, "p99_ns": 1026971}]}},
+    {"lane": "moosefs", "round": 0, "warmup": true, "path": "/ownerfs/agent1/perf-absolute-8-00-mfs0", "result": {"files": 10000, "file_bytes": 4096, "concurrency": 8, "path_form": "absolute", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 6093896055, "client_cpu_ns": 640427012, "operations": 10000, "p50_ns": 4625431, "p95_ns": 7401246, "p99_ns": 12983336}, {"name": "stat", "wall_ns": 349325304, "client_cpu_ns": 87253666, "operations": 10000, "p50_ns": 250742, "p95_ns": 424312, "p99_ns": 746765}, {"name": "read_close", "wall_ns": 1307801080, "client_cpu_ns": 293807477, "operations": 10000, "p50_ns": 934350, "p95_ns": 1663514, "p99_ns": 2595430}, {"name": "readdir", "wall_ns": 9926703, "client_cpu_ns": 1147304, "operations": 1}, {"name": "rename", "wall_ns": 7939934595, "client_cpu_ns": 900510218, "operations": 10000, "p50_ns": 8074317, "p95_ns": 14588711, "p99_ns": 17422534}, {"name": "unlink", "wall_ns": 5408378102, "client_cpu_ns": 716417659, "operations": 10000, "p50_ns": 5784765, "p95_ns": 9978288, "p99_ns": 12354755}]}},
+    {"lane": "moosefs", "round": 1, "warmup": false, "path": "/ownerfs/agent1/perf-absolute-8-01-mfs0", "result": {"files": 10000, "file_bytes": 4096, "concurrency": 8, "path_form": "absolute", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 5733749501, "client_cpu_ns": 613460568, "operations": 10000, "p50_ns": 4404783, "p95_ns": 6651947, "p99_ns": 11249547}, {"name": "stat", "wall_ns": 343679598, "client_cpu_ns": 86352148, "operations": 10000, "p50_ns": 252521, "p95_ns": 428959, "p99_ns": 693015}, {"name": "read_close", "wall_ns": 1141489624, "client_cpu_ns": 248644883, "operations": 10000, "p50_ns": 848111, "p95_ns": 1389039, "p99_ns": 1836401}, {"name": "readdir", "wall_ns": 6761820, "client_cpu_ns": 1039346, "operations": 1}, {"name": "rename", "wall_ns": 7609168344, "client_cpu_ns": 835830682, "operations": 10000, "p50_ns": 7673132, "p95_ns": 14621421, "p99_ns": 18214653}, {"name": "unlink", "wall_ns": 6031193230, "client_cpu_ns": 806952149, "operations": 10000, "p50_ns": 6018016, "p95_ns": 11633992, "p99_ns": 14675741}]}},
+    {"lane": "native", "round": 1, "warmup": false, "path": "/ownerfs/agent1/perf-absolute-8-01-bind", "result": {"files": 10000, "file_bytes": 4096, "concurrency": 8, "path_form": "absolute", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 151248504, "client_cpu_ns": 238808780, "operations": 10000, "p50_ns": 21743, "p95_ns": 57425, "p99_ns": 3503580}, {"name": "stat", "wall_ns": 5484836, "client_cpu_ns": 9120966, "operations": 10000, "p50_ns": 719, "p95_ns": 908, "p99_ns": 1039}, {"name": "read_close", "wall_ns": 11064135, "client_cpu_ns": 20767211, "operations": 10000, "p50_ns": 1845, "p95_ns": 2189, "p99_ns": 2486}, {"name": "readdir", "wall_ns": 1742648, "client_cpu_ns": 1736252, "operations": 1}, {"name": "rename", "wall_ns": 144511798, "client_cpu_ns": 205386390, "operations": 10000, "p50_ns": 16842, "p95_ns": 43747, "p99_ns": 3651850}, {"name": "unlink", "wall_ns": 54129288, "client_cpu_ns": 80991032, "operations": 10000, "p50_ns": 7049, "p95_ns": 11560, "p99_ns": 548031}]}},
+    {"lane": "ext4", "round": 1, "warmup": false, "path": "/ownerfs/agent1/perf-absolute-8-01-ext4", "result": {"files": 10000, "file_bytes": 4096, "concurrency": 8, "path_form": "absolute", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 135779408, "client_cpu_ns": 220910160, "operations": 10000, "p50_ns": 20677, "p95_ns": 56660, "p99_ns": 3267014}, {"name": "stat", "wall_ns": 5343893, "client_cpu_ns": 9057514, "operations": 10000, "p50_ns": 713, "p95_ns": 909, "p99_ns": 1043}, {"name": "read_close", "wall_ns": 11993356, "client_cpu_ns": 22282781, "operations": 10000, "p50_ns": 1913, "p95_ns": 2292, "p99_ns": 2894}, {"name": "readdir", "wall_ns": 1767523, "client_cpu_ns": 1752431, "operations": 1}, {"name": "rename", "wall_ns": 143811430, "client_cpu_ns": 195942752, "operations": 10000, "p50_ns": 16081, "p95_ns": 39573, "p99_ns": 3420022}, {"name": "unlink", "wall_ns": 51646565, "client_cpu_ns": 86916701, "operations": 10000, "p50_ns": 7266, "p95_ns": 16962, "p99_ns": 1028448}]}},
+    {"lane": "ext4", "round": 2, "warmup": false, "path": "/ownerfs/agent1/perf-absolute-8-02-ext4", "result": {"files": 10000, "file_bytes": 4096, "concurrency": 8, "path_form": "absolute", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 131992751, "client_cpu_ns": 215959639, "operations": 10000, "p50_ns": 20675, "p95_ns": 50372, "p99_ns": 3189758}, {"name": "stat", "wall_ns": 4794113, "client_cpu_ns": 9100694, "operations": 10000, "p50_ns": 707, "p95_ns": 940, "p99_ns": 1135}, {"name": "read_close", "wall_ns": 11267918, "client_cpu_ns": 21028494, "operations": 10000, "p50_ns": 1833, "p95_ns": 2204, "p99_ns": 2564}, {"name": "readdir", "wall_ns": 1728344, "client_cpu_ns": 1714041, "operations": 1}, {"name": "rename", "wall_ns": 136301090, "client_cpu_ns": 190582688, "operations": 10000, "p50_ns": 15513, "p95_ns": 35298, "p99_ns": 3521256}, {"name": "unlink", "wall_ns": 49235773, "client_cpu_ns": 79435609, "operations": 10000, "p50_ns": 6973, "p95_ns": 14037, "p99_ns": 1020824}]}},
+    {"lane": "native", "round": 2, "warmup": false, "path": "/ownerfs/agent1/perf-absolute-8-02-bind", "result": {"files": 10000, "file_bytes": 4096, "concurrency": 8, "path_form": "absolute", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 124315237, "client_cpu_ns": 195632741, "operations": 10000, "p50_ns": 19085, "p95_ns": 41483, "p99_ns": 2899782}, {"name": "stat", "wall_ns": 4795456, "client_cpu_ns": 8195458, "operations": 10000, "p50_ns": 662, "p95_ns": 831, "p99_ns": 955}, {"name": "read_close", "wall_ns": 9850969, "client_cpu_ns": 19102009, "operations": 10000, "p50_ns": 1707, "p95_ns": 2019, "p99_ns": 2288}, {"name": "readdir", "wall_ns": 1518887, "client_cpu_ns": 1518546, "operations": 1}, {"name": "rename", "wall_ns": 134861553, "client_cpu_ns": 196553638, "operations": 10000, "p50_ns": 19165, "p95_ns": 37166, "p99_ns": 3208680}, {"name": "unlink", "wall_ns": 52113476, "client_cpu_ns": 76166658, "operations": 10000, "p50_ns": 6526, "p95_ns": 10653, "p99_ns": 656126}]}},
+    {"lane": "moosefs", "round": 2, "warmup": false, "path": "/ownerfs/agent1/perf-absolute-8-02-mfs0", "result": {"files": 10000, "file_bytes": 4096, "concurrency": 8, "path_form": "absolute", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 6442831594, "client_cpu_ns": 681434014, "operations": 10000, "p50_ns": 4528419, "p95_ns": 9812144, "p99_ns": 15365341}, {"name": "stat", "wall_ns": 338302709, "client_cpu_ns": 86723655, "operations": 10000, "p50_ns": 244769, "p95_ns": 427955, "p99_ns": 647928}, {"name": "read_close", "wall_ns": 1136417593, "client_cpu_ns": 260475039, "operations": 10000, "p50_ns": 828121, "p95_ns": 1383662, "p99_ns": 1883066}, {"name": "readdir", "wall_ns": 8133732, "client_cpu_ns": 1128164, "operations": 1}, {"name": "rename", "wall_ns": 7711147133, "client_cpu_ns": 866276035, "operations": 10000, "p50_ns": 7407847, "p95_ns": 14811402, "p99_ns": 17646462}, {"name": "unlink", "wall_ns": 5075317057, "client_cpu_ns": 670477161, "operations": 10000, "p50_ns": 5164002, "p95_ns": 9995872, "p99_ns": 13002863}]}},
+    {"lane": "moosefs", "round": 3, "warmup": false, "path": "/ownerfs/agent1/perf-absolute-8-03-mfs0", "result": {"files": 10000, "file_bytes": 4096, "concurrency": 8, "path_form": "absolute", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 5612728933, "client_cpu_ns": 567865449, "operations": 10000, "p50_ns": 4221184, "p95_ns": 6232931, "p99_ns": 13571319}, {"name": "stat", "wall_ns": 371202866, "client_cpu_ns": 97386115, "operations": 10000, "p50_ns": 265006, "p95_ns": 484554, "p99_ns": 730425}, {"name": "read_close", "wall_ns": 1197166527, "client_cpu_ns": 253195385, "operations": 10000, "p50_ns": 887552, "p95_ns": 1512124, "p99_ns": 2055548}, {"name": "readdir", "wall_ns": 8248622, "client_cpu_ns": 1065576, "operations": 1}, {"name": "rename", "wall_ns": 8498706294, "client_cpu_ns": 986333982, "operations": 10000, "p50_ns": 8169526, "p95_ns": 16140666, "p99_ns": 19650469}, {"name": "unlink", "wall_ns": 6341593024, "client_cpu_ns": 791830563, "operations": 10000, "p50_ns": 6157637, "p95_ns": 12195745, "p99_ns": 15199475}]}},
+    {"lane": "native", "round": 3, "warmup": false, "path": "/ownerfs/agent1/perf-absolute-8-03-bind", "result": {"files": 10000, "file_bytes": 4096, "concurrency": 8, "path_form": "absolute", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 140304786, "client_cpu_ns": 211588859, "operations": 10000, "p50_ns": 20575, "p95_ns": 48770, "p99_ns": 3216244}, {"name": "stat", "wall_ns": 5425860, "client_cpu_ns": 9008395, "operations": 10000, "p50_ns": 709, "p95_ns": 913, "p99_ns": 1030}, {"name": "read_close", "wall_ns": 11874835, "client_cpu_ns": 21213757, "operations": 10000, "p50_ns": 1881, "p95_ns": 2217, "p99_ns": 2532}, {"name": "readdir", "wall_ns": 1677380, "client_cpu_ns": 1668912, "operations": 1}, {"name": "rename", "wall_ns": 142781318, "client_cpu_ns": 195100151, "operations": 10000, "p50_ns": 15493, "p95_ns": 39925, "p99_ns": 3471178}, {"name": "unlink", "wall_ns": 48039115, "client_cpu_ns": 79225171, "operations": 10000, "p50_ns": 6997, "p95_ns": 11995, "p99_ns": 533532}]}},
+    {"lane": "ext4", "round": 3, "warmup": false, "path": "/ownerfs/agent1/perf-absolute-8-03-ext4", "result": {"files": 10000, "file_bytes": 4096, "concurrency": 8, "path_form": "absolute", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 138219569, "client_cpu_ns": 223024133, "operations": 10000, "p50_ns": 19790, "p95_ns": 61949, "p99_ns": 3126755}, {"name": "stat", "wall_ns": 5032686, "client_cpu_ns": 8576987, "operations": 10000, "p50_ns": 679, "p95_ns": 877, "p99_ns": 997}, {"name": "read_close", "wall_ns": 10749385, "client_cpu_ns": 20134214, "operations": 10000, "p50_ns": 1789, "p95_ns": 2117, "p99_ns": 2400}, {"name": "readdir", "wall_ns": 1611231, "client_cpu_ns": 1605067, "operations": 1}, {"name": "rename", "wall_ns": 139487921, "client_cpu_ns": 187138705, "operations": 10000, "p50_ns": 14831, "p95_ns": 39436, "p99_ns": 3516817}, {"name": "unlink", "wall_ns": 48370627, "client_cpu_ns": 80122197, "operations": 10000, "p50_ns": 6918, "p95_ns": 12063, "p99_ns": 842279}]}},
+    {"lane": "ext4", "round": 4, "warmup": false, "path": "/ownerfs/agent1/perf-absolute-8-04-ext4", "result": {"files": 10000, "file_bytes": 4096, "concurrency": 8, "path_form": "absolute", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 129908948, "client_cpu_ns": 196194106, "operations": 10000, "p50_ns": 18622, "p95_ns": 48724, "p99_ns": 3043196}, {"name": "stat", "wall_ns": 4766512, "client_cpu_ns": 8544871, "operations": 10000, "p50_ns": 673, "p95_ns": 898, "p99_ns": 1208}, {"name": "read_close", "wall_ns": 11238582, "client_cpu_ns": 20919303, "operations": 10000, "p50_ns": 1818, "p95_ns": 2226, "p99_ns": 2780}, {"name": "readdir", "wall_ns": 1742574, "client_cpu_ns": 1724302, "operations": 1}, {"name": "rename", "wall_ns": 142516732, "client_cpu_ns": 188732835, "operations": 10000, "p50_ns": 15129, "p95_ns": 38967, "p99_ns": 3288304}, {"name": "unlink", "wall_ns": 47008581, "client_cpu_ns": 79816156, "operations": 10000, "p50_ns": 6959, "p95_ns": 11142, "p99_ns": 1019007}]}},
+    {"lane": "native", "round": 4, "warmup": false, "path": "/ownerfs/agent1/perf-absolute-8-04-bind", "result": {"files": 10000, "file_bytes": 4096, "concurrency": 8, "path_form": "absolute", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 126689690, "client_cpu_ns": 201011829, "operations": 10000, "p50_ns": 19204, "p95_ns": 45751, "p99_ns": 3010589}, {"name": "stat", "wall_ns": 4514106, "client_cpu_ns": 8642523, "operations": 10000, "p50_ns": 675, "p95_ns": 873, "p99_ns": 995}, {"name": "read_close", "wall_ns": 12883358, "client_cpu_ns": 24287814, "operations": 10000, "p50_ns": 1873, "p95_ns": 2288, "p99_ns": 11291}, {"name": "readdir", "wall_ns": 2153058, "client_cpu_ns": 1805935, "operations": 1}, {"name": "rename", "wall_ns": 152731877, "client_cpu_ns": 223618121, "operations": 10000, "p50_ns": 19944, "p95_ns": 39130, "p99_ns": 3930194}, {"name": "unlink", "wall_ns": 44566331, "client_cpu_ns": 75500939, "operations": 10000, "p50_ns": 6760, "p95_ns": 10578, "p99_ns": 492620}]}},
+    {"lane": "moosefs", "round": 4, "warmup": false, "path": "/ownerfs/agent1/perf-absolute-8-04-mfs0", "result": {"files": 10000, "file_bytes": 4096, "concurrency": 8, "path_form": "absolute", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 6281951551, "client_cpu_ns": 655048157, "operations": 10000, "p50_ns": 4421262, "p95_ns": 10104003, "p99_ns": 16788681}, {"name": "stat", "wall_ns": 331275164, "client_cpu_ns": 85172217, "operations": 10000, "p50_ns": 239884, "p95_ns": 413171, "p99_ns": 678931}, {"name": "read_close", "wall_ns": 1193641380, "client_cpu_ns": 283340693, "operations": 10000, "p50_ns": 868832, "p95_ns": 1462943, "p99_ns": 2013791}, {"name": "readdir", "wall_ns": 7940201, "client_cpu_ns": 1190705, "operations": 1}, {"name": "rename", "wall_ns": 8138669975, "client_cpu_ns": 970563385, "operations": 10000, "p50_ns": 7908635, "p95_ns": 15785393, "p99_ns": 19147499}, {"name": "unlink", "wall_ns": 5487290305, "client_cpu_ns": 772252965, "operations": 10000, "p50_ns": 5479121, "p95_ns": 10582584, "p99_ns": 13509234}]}},
+    {"lane": "moosefs", "round": 5, "warmup": false, "path": "/ownerfs/agent1/perf-absolute-8-05-mfs0", "result": {"files": 10000, "file_bytes": 4096, "concurrency": 8, "path_form": "absolute", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 5783324867, "client_cpu_ns": 597613514, "operations": 10000, "p50_ns": 4306175, "p95_ns": 6491049, "p99_ns": 14298314}, {"name": "stat", "wall_ns": 378924682, "client_cpu_ns": 82923922, "operations": 10000, "p50_ns": 277112, "p95_ns": 498382, "p99_ns": 771746}, {"name": "read_close", "wall_ns": 1210178491, "client_cpu_ns": 228658602, "operations": 10000, "p50_ns": 880603, "p95_ns": 1608304, "p99_ns": 2511522}, {"name": "readdir", "wall_ns": 4299545, "client_cpu_ns": 850196, "operations": 1}, {"name": "rename", "wall_ns": 7769637569, "client_cpu_ns": 984768667, "operations": 10000, "p50_ns": 7667184, "p95_ns": 14894659, "p99_ns": 18409138}, {"name": "unlink", "wall_ns": 5483338123, "client_cpu_ns": 748656832, "operations": 10000, "p50_ns": 5668767, "p95_ns": 10411338, "p99_ns": 13171183}]}},
+    {"lane": "native", "round": 5, "warmup": false, "path": "/ownerfs/agent1/perf-absolute-8-05-bind", "result": {"files": 10000, "file_bytes": 4096, "concurrency": 8, "path_form": "absolute", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 130072857, "client_cpu_ns": 205844412, "operations": 10000, "p50_ns": 18652, "p95_ns": 51871, "p99_ns": 2967654}, {"name": "stat", "wall_ns": 6033691, "client_cpu_ns": 8612428, "operations": 10000, "p50_ns": 676, "p95_ns": 868, "p99_ns": 1174}, {"name": "read_close", "wall_ns": 11347631, "client_cpu_ns": 20357225, "operations": 10000, "p50_ns": 1782, "p95_ns": 2127, "p99_ns": 2469}, {"name": "readdir", "wall_ns": 1518294, "client_cpu_ns": 1517958, "operations": 1}, {"name": "rename", "wall_ns": 132263126, "client_cpu_ns": 180919540, "operations": 10000, "p50_ns": 15014, "p95_ns": 34850, "p99_ns": 3013236}, {"name": "unlink", "wall_ns": 47359849, "client_cpu_ns": 69988807, "operations": 10000, "p50_ns": 6377, "p95_ns": 9637, "p99_ns": 195548}]}},
+    {"lane": "ext4", "round": 5, "warmup": false, "path": "/ownerfs/agent1/perf-absolute-8-05-ext4", "result": {"files": 10000, "file_bytes": 4096, "concurrency": 8, "path_form": "absolute", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 127849599, "client_cpu_ns": 200541168, "operations": 10000, "p50_ns": 18918, "p95_ns": 46035, "p99_ns": 3069891}, {"name": "stat", "wall_ns": 4974927, "client_cpu_ns": 8310173, "operations": 10000, "p50_ns": 668, "p95_ns": 841, "p99_ns": 946}, {"name": "read_close", "wall_ns": 11113325, "client_cpu_ns": 20563754, "operations": 10000, "p50_ns": 1789, "p95_ns": 2185, "p99_ns": 2641}, {"name": "readdir", "wall_ns": 1671315, "client_cpu_ns": 1649733, "operations": 1}, {"name": "rename", "wall_ns": 135343358, "client_cpu_ns": 192077719, "operations": 10000, "p50_ns": 18168, "p95_ns": 39335, "p99_ns": 3304748}, {"name": "unlink", "wall_ns": 54121483, "client_cpu_ns": 82559575, "operations": 10000, "p50_ns": 6850, "p95_ns": 13450, "p99_ns": 720599}]}},
+    {"lane": "ext4", "round": 0, "warmup": true, "path": "/ownerfs/agent1/perf-relative-1-00-ext4", "result": {"files": 10000, "file_bytes": 4096, "concurrency": 1, "path_form": "relative", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 144406612, "client_cpu_ns": 141223752, "operations": 10000, "p50_ns": 12600, "p95_ns": 17820, "p99_ns": 47826}, {"name": "stat", "wall_ns": 8579593, "client_cpu_ns": 8482400, "operations": 10000, "p50_ns": 656, "p95_ns": 853, "p99_ns": 982}, {"name": "read_close", "wall_ns": 18043886, "client_cpu_ns": 17959829, "operations": 10000, "p50_ns": 1555, "p95_ns": 1861, "p99_ns": 2159}, {"name": "readdir", "wall_ns": 2034643, "client_cpu_ns": 2018303, "operations": 1}, {"name": "rename", "wall_ns": 124088455, "client_cpu_ns": 122897461, "operations": 10000, "p50_ns": 11683, "p95_ns": 15266, "p99_ns": 26108}, {"name": "unlink", "wall_ns": 61541586, "client_cpu_ns": 58819039, "operations": 10000, "p50_ns": 4976, "p95_ns": 7598, "p99_ns": 14235}]}},
+    {"lane": "native", "round": 0, "warmup": true, "path": "/ownerfs/agent1/perf-relative-1-00-bind", "result": {"files": 10000, "file_bytes": 4096, "concurrency": 1, "path_form": "relative", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 132065134, "client_cpu_ns": 130314073, "operations": 10000, "p50_ns": 11976, "p95_ns": 17183, "p99_ns": 37535}, {"name": "stat", "wall_ns": 7636743, "client_cpu_ns": 7606486, "operations": 10000, "p50_ns": 627, "p95_ns": 788, "p99_ns": 899}, {"name": "read_close", "wall_ns": 16353159, "client_cpu_ns": 16209976, "operations": 10000, "p50_ns": 1440, "p95_ns": 1686, "p99_ns": 1842}, {"name": "readdir", "wall_ns": 1656384, "client_cpu_ns": 1648889, "operations": 1}, {"name": "rename", "wall_ns": 120507903, "client_cpu_ns": 119907321, "operations": 10000, "p50_ns": 11221, "p95_ns": 15104, "p99_ns": 27728}, {"name": "unlink", "wall_ns": 55664853, "client_cpu_ns": 53293018, "operations": 10000, "p50_ns": 4668, "p95_ns": 6951, "p99_ns": 12455}]}},
+    {"lane": "moosefs", "round": 0, "warmup": true, "path": "/ownerfs/agent1/perf-relative-1-00-mfs0", "result": {"files": 10000, "file_bytes": 4096, "concurrency": 1, "path_form": "relative", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 15016078038, "client_cpu_ns": 585644916, "operations": 10000, "p50_ns": 1358568, "p95_ns": 2216592, "p99_ns": 5404917}, {"name": "stat", "wall_ns": 2492727585, "client_cpu_ns": 114548736, "operations": 10000, "p50_ns": 222908, "p95_ns": 403047, "p99_ns": 606491}, {"name": "read_close", "wall_ns": 6222651335, "client_cpu_ns": 456827101, "operations": 10000, "p50_ns": 571588, "p95_ns": 942549, "p99_ns": 1506843}, {"name": "readdir", "wall_ns": 8159981, "client_cpu_ns": 1075831, "operations": 1}, {"name": "rename", "wall_ns": 8863911435, "client_cpu_ns": 366187489, "operations": 10000, "p50_ns": 784392, "p95_ns": 1590979, "p99_ns": 2131020}, {"name": "unlink", "wall_ns": 5370259796, "client_cpu_ns": 254996803, "operations": 10000, "p50_ns": 500096, "p95_ns": 815558, "p99_ns": 1108403}]}},
+    {"lane": "moosefs", "round": 1, "warmup": false, "path": "/ownerfs/agent1/perf-relative-1-01-mfs0", "result": {"files": 10000, "file_bytes": 4096, "concurrency": 1, "path_form": "relative", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 14762353545, "client_cpu_ns": 570647644, "operations": 10000, "p50_ns": 1326630, "p95_ns": 2192280, "p99_ns": 5026530}, {"name": "stat", "wall_ns": 2323502564, "client_cpu_ns": 99103546, "operations": 10000, "p50_ns": 211473, "p95_ns": 365707, "p99_ns": 571868}, {"name": "read_close", "wall_ns": 6088401878, "client_cpu_ns": 432628364, "operations": 10000, "p50_ns": 568081, "p95_ns": 894296, "p99_ns": 1371376}, {"name": "readdir", "wall_ns": 6796431, "client_cpu_ns": 1049457, "operations": 1}, {"name": "rename", "wall_ns": 7183197608, "client_cpu_ns": 276294290, "operations": 10000, "p50_ns": 670766, "p95_ns": 1085757, "p99_ns": 1498454}, {"name": "unlink", "wall_ns": 5767312850, "client_cpu_ns": 270969760, "operations": 10000, "p50_ns": 531216, "p95_ns": 935941, "p99_ns": 1256305}]}},
+    {"lane": "native", "round": 1, "warmup": false, "path": "/ownerfs/agent1/perf-relative-1-01-bind", "result": {"files": 10000, "file_bytes": 4096, "concurrency": 1, "path_form": "relative", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 251391729, "client_cpu_ns": 244685688, "operations": 10000, "p50_ns": 18294, "p95_ns": 51128, "p99_ns": 163986}, {"name": "stat", "wall_ns": 11533052, "client_cpu_ns": 11313560, "operations": 10000, "p50_ns": 869, "p95_ns": 1141, "p99_ns": 1472}, {"name": "read_close", "wall_ns": 23757651, "client_cpu_ns": 23744484, "operations": 10000, "p50_ns": 2026, "p95_ns": 2326, "p99_ns": 2759}, {"name": "readdir", "wall_ns": 2638692, "client_cpu_ns": 2565716, "operations": 1}, {"name": "rename", "wall_ns": 175684601, "client_cpu_ns": 174890459, "operations": 10000, "p50_ns": 16192, "p95_ns": 22455, "p99_ns": 44388}, {"name": "unlink", "wall_ns": 79728493, "client_cpu_ns": 76032614, "operations": 10000, "p50_ns": 6499, "p95_ns": 9636, "p99_ns": 24975}]}},
+    {"lane": "ext4", "round": 1, "warmup": false, "path": "/ownerfs/agent1/perf-relative-1-01-ext4", "result": {"files": 10000, "file_bytes": 4096, "concurrency": 1, "path_form": "relative", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 190985316, "client_cpu_ns": 190274292, "operations": 10000, "p50_ns": 16832, "p95_ns": 27771, "p99_ns": 68784}, {"name": "stat", "wall_ns": 9439070, "client_cpu_ns": 9429267, "operations": 10000, "p50_ns": 772, "p95_ns": 954, "p99_ns": 1075}, {"name": "read_close", "wall_ns": 20789861, "client_cpu_ns": 20772050, "operations": 10000, "p50_ns": 1798, "p95_ns": 2096, "p99_ns": 2373}, {"name": "readdir", "wall_ns": 2281585, "client_cpu_ns": 2273402, "operations": 1}, {"name": "rename", "wall_ns": 165364681, "client_cpu_ns": 164617490, "operations": 10000, "p50_ns": 14996, "p95_ns": 21566, "p99_ns": 47943}, {"name": "unlink", "wall_ns": 79072599, "client_cpu_ns": 75367542, "operations": 10000, "p50_ns": 6318, "p95_ns": 9593, "p99_ns": 29101}]}},
+    {"lane": "ext4", "round": 2, "warmup": false, "path": "/ownerfs/agent1/perf-relative-1-02-ext4", "result": {"files": 10000, "file_bytes": 4096, "concurrency": 1, "path_form": "relative", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 160943621, "client_cpu_ns": 158392482, "operations": 10000, "p50_ns": 14419, "p95_ns": 24415, "p99_ns": 48339}, {"name": "stat", "wall_ns": 8311660, "client_cpu_ns": 8266957, "operations": 10000, "p50_ns": 679, "p95_ns": 842, "p99_ns": 957}, {"name": "read_close", "wall_ns": 18889027, "client_cpu_ns": 18469186, "operations": 10000, "p50_ns": 1612, "p95_ns": 1884, "p99_ns": 2130}, {"name": "readdir", "wall_ns": 1830615, "client_cpu_ns": 1830070, "operations": 1}, {"name": "rename", "wall_ns": 136964469, "client_cpu_ns": 134711500, "operations": 10000, "p50_ns": 12445, "p95_ns": 16944, "p99_ns": 40446}, {"name": "unlink", "wall_ns": 61520752, "client_cpu_ns": 58005284, "operations": 10000, "p50_ns": 5021, "p95_ns": 7372, "p99_ns": 16873}]}},
+    {"lane": "native", "round": 2, "warmup": false, "path": "/ownerfs/agent1/perf-relative-1-02-bind", "result": {"files": 10000, "file_bytes": 4096, "concurrency": 1, "path_form": "relative", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 147447842, "client_cpu_ns": 140255119, "operations": 10000, "p50_ns": 12773, "p95_ns": 20049, "p99_ns": 47484}, {"name": "stat", "wall_ns": 7889652, "client_cpu_ns": 7846744, "operations": 10000, "p50_ns": 650, "p95_ns": 808, "p99_ns": 925}, {"name": "read_close", "wall_ns": 17531285, "client_cpu_ns": 16691722, "operations": 10000, "p50_ns": 1456, "p95_ns": 1736, "p99_ns": 1964}, {"name": "readdir", "wall_ns": 1687913, "client_cpu_ns": 1670649, "operations": 1}, {"name": "rename", "wall_ns": 125734062, "client_cpu_ns": 124632586, "operations": 10000, "p50_ns": 11217, "p95_ns": 16919, "p99_ns": 37889}, {"name": "unlink", "wall_ns": 57938271, "client_cpu_ns": 54642544, "operations": 10000, "p50_ns": 4721, "p95_ns": 6832, "p99_ns": 12904}]}},
+    {"lane": "moosefs", "round": 2, "warmup": false, "path": "/ownerfs/agent1/perf-relative-1-02-mfs0", "result": {"files": 10000, "file_bytes": 4096, "concurrency": 1, "path_form": "relative", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 15429770050, "client_cpu_ns": 604265236, "operations": 10000, "p50_ns": 1409041, "p95_ns": 2233923, "p99_ns": 4453632}, {"name": "stat", "wall_ns": 2318680433, "client_cpu_ns": 105767122, "operations": 10000, "p50_ns": 209880, "p95_ns": 376350, "p99_ns": 579994}, {"name": "read_close", "wall_ns": 6240756041, "client_cpu_ns": 453602877, "operations": 10000, "p50_ns": 574873, "p95_ns": 944161, "p99_ns": 1365065}, {"name": "readdir", "wall_ns": 7000397, "client_cpu_ns": 974122, "operations": 1}, {"name": "rename", "wall_ns": 7228074174, "client_cpu_ns": 289029578, "operations": 10000, "p50_ns": 683262, "p95_ns": 1070847, "p99_ns": 1506289}, {"name": "unlink", "wall_ns": 5062746397, "client_cpu_ns": 234974680, "operations": 10000, "p50_ns": 481130, "p95_ns": 737646, "p99_ns": 1075942}]}},
+    {"lane": "moosefs", "round": 3, "warmup": false, "path": "/ownerfs/agent1/perf-relative-1-03-mfs0", "result": {"files": 10000, "file_bytes": 4096, "concurrency": 1, "path_form": "relative", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 15193275950, "client_cpu_ns": 597743357, "operations": 10000, "p50_ns": 1388656, "p95_ns": 2288188, "p99_ns": 4492729}, {"name": "stat", "wall_ns": 3608831308, "client_cpu_ns": 166806923, "operations": 10000, "p50_ns": 315287, "p95_ns": 640673, "p99_ns": 969200}, {"name": "read_close", "wall_ns": 6664513109, "client_cpu_ns": 484301699, "operations": 10000, "p50_ns": 596508, "p95_ns": 1087741, "p99_ns": 1544655}, {"name": "readdir", "wall_ns": 6050611, "client_cpu_ns": 871845, "operations": 1}, {"name": "rename", "wall_ns": 7238703198, "client_cpu_ns": 284824162, "operations": 10000, "p50_ns": 662694, "p95_ns": 1126923, "p99_ns": 1495273}, {"name": "unlink", "wall_ns": 4705377182, "client_cpu_ns": 224219753, "operations": 10000, "p50_ns": 440655, "p95_ns": 685074, "p99_ns": 972688}]}},
+    {"lane": "native", "round": 3, "warmup": false, "path": "/ownerfs/agent1/perf-relative-1-03-bind", "result": {"files": 10000, "file_bytes": 4096, "concurrency": 1, "path_form": "relative", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 133941668, "client_cpu_ns": 129534479, "operations": 10000, "p50_ns": 11841, "p95_ns": 16026, "p99_ns": 38220}, {"name": "stat", "wall_ns": 9349328, "client_cpu_ns": 8985709, "operations": 10000, "p50_ns": 662, "p95_ns": 1105, "p99_ns": 1281}, {"name": "read_close", "wall_ns": 16682561, "client_cpu_ns": 16659856, "operations": 10000, "p50_ns": 1475, "p95_ns": 1712, "p99_ns": 1883}, {"name": "readdir", "wall_ns": 1580879, "client_cpu_ns": 1580292, "operations": 1}, {"name": "rename", "wall_ns": 116432036, "client_cpu_ns": 115820275, "operations": 10000, "p50_ns": 10662, "p95_ns": 14655, "p99_ns": 31553}, {"name": "unlink", "wall_ns": 61237716, "client_cpu_ns": 57262048, "operations": 10000, "p50_ns": 4899, "p95_ns": 6964, "p99_ns": 17220}]}},
+    {"lane": "ext4", "round": 3, "warmup": false, "path": "/ownerfs/agent1/perf-relative-1-03-ext4", "result": {"files": 10000, "file_bytes": 4096, "concurrency": 1, "path_form": "relative", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 130157519, "client_cpu_ns": 130116089, "operations": 10000, "p50_ns": 11989, "p95_ns": 15552, "p99_ns": 39146}, {"name": "stat", "wall_ns": 8084825, "client_cpu_ns": 7971158, "operations": 10000, "p50_ns": 647, "p95_ns": 867, "p99_ns": 1020}, {"name": "read_close", "wall_ns": 17486979, "client_cpu_ns": 17459211, "operations": 10000, "p50_ns": 1565, "p95_ns": 1834, "p99_ns": 2043}, {"name": "readdir", "wall_ns": 1592702, "client_cpu_ns": 1592126, "operations": 1}, {"name": "rename", "wall_ns": 119145899, "client_cpu_ns": 116543714, "operations": 10000, "p50_ns": 10808, "p95_ns": 14835, "p99_ns": 33348}, {"name": "unlink", "wall_ns": 57734569, "client_cpu_ns": 53908088, "operations": 10000, "p50_ns": 4699, "p95_ns": 6566, "p99_ns": 12988}]}},
+    {"lane": "ext4", "round": 4, "warmup": false, "path": "/ownerfs/agent1/perf-relative-1-04-ext4", "result": {"files": 10000, "file_bytes": 4096, "concurrency": 1, "path_form": "relative", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 144681086, "client_cpu_ns": 140605113, "operations": 10000, "p50_ns": 12461, "p95_ns": 21287, "p99_ns": 56331}, {"name": "stat", "wall_ns": 8514893, "client_cpu_ns": 8341556, "operations": 10000, "p50_ns": 679, "p95_ns": 885, "p99_ns": 992}, {"name": "read_close", "wall_ns": 18193706, "client_cpu_ns": 18181864, "operations": 10000, "p50_ns": 1587, "p95_ns": 1874, "p99_ns": 2134}, {"name": "readdir", "wall_ns": 1861702, "client_cpu_ns": 1860894, "operations": 1}, {"name": "rename", "wall_ns": 127308146, "client_cpu_ns": 126182243, "operations": 10000, "p50_ns": 11543, "p95_ns": 17327, "p99_ns": 33406}, {"name": "unlink", "wall_ns": 59614781, "client_cpu_ns": 56286452, "operations": 10000, "p50_ns": 4807, "p95_ns": 6799, "p99_ns": 17599}]}},
+    {"lane": "native", "round": 4, "warmup": false, "path": "/ownerfs/agent1/perf-relative-1-04-bind", "result": {"files": 10000, "file_bytes": 4096, "concurrency": 1, "path_form": "relative", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 129192952, "client_cpu_ns": 127495861, "operations": 10000, "p50_ns": 11684, "p95_ns": 15957, "p99_ns": 38382}, {"name": "stat", "wall_ns": 7913144, "client_cpu_ns": 7637716, "operations": 10000, "p50_ns": 621, "p95_ns": 808, "p99_ns": 910}, {"name": "read_close", "wall_ns": 16749833, "client_cpu_ns": 16601931, "operations": 10000, "p50_ns": 1456, "p95_ns": 1715, "p99_ns": 1977}, {"name": "readdir", "wall_ns": 1639933, "client_cpu_ns": 1589626, "operations": 1}, {"name": "rename", "wall_ns": 114805405, "client_cpu_ns": 114079187, "operations": 10000, "p50_ns": 10668, "p95_ns": 14166, "p99_ns": 28720}, {"name": "unlink", "wall_ns": 55084082, "client_cpu_ns": 51922881, "operations": 10000, "p50_ns": 4528, "p95_ns": 6374, "p99_ns": 13923}]}},
+    {"lane": "moosefs", "round": 4, "warmup": false, "path": "/ownerfs/agent1/perf-relative-1-04-mfs0", "result": {"files": 10000, "file_bytes": 4096, "concurrency": 1, "path_form": "relative", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 16514572311, "client_cpu_ns": 661200951, "operations": 10000, "p50_ns": 1471906, "p95_ns": 2697505, "p99_ns": 4782914}, {"name": "stat", "wall_ns": 2371514757, "client_cpu_ns": 104200970, "operations": 10000, "p50_ns": 217265, "p95_ns": 372460, "p99_ns": 576899}, {"name": "read_close", "wall_ns": 6025561689, "client_cpu_ns": 437315217, "operations": 10000, "p50_ns": 557329, "p95_ns": 909636, "p99_ns": 1354056}, {"name": "readdir", "wall_ns": 9423623, "client_cpu_ns": 1285839, "operations": 1}, {"name": "rename", "wall_ns": 8118226669, "client_cpu_ns": 308495283, "operations": 10000, "p50_ns": 733140, "p95_ns": 1345384, "p99_ns": 1848570}, {"name": "unlink", "wall_ns": 5234437895, "client_cpu_ns": 250799079, "operations": 10000, "p50_ns": 493467, "p95_ns": 791958, "p99_ns": 1053254}]}},
+    {"lane": "moosefs", "round": 5, "warmup": false, "path": "/ownerfs/agent1/perf-relative-1-05-mfs0", "result": {"files": 10000, "file_bytes": 4096, "concurrency": 1, "path_form": "relative", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 14770970115, "client_cpu_ns": 585231787, "operations": 10000, "p50_ns": 1311225, "p95_ns": 2405344, "p99_ns": 4542019}, {"name": "stat", "wall_ns": 2520885120, "client_cpu_ns": 109899945, "operations": 10000, "p50_ns": 231407, "p95_ns": 391649, "p99_ns": 631874}, {"name": "read_close", "wall_ns": 5709970479, "client_cpu_ns": 415358422, "operations": 10000, "p50_ns": 527126, "p95_ns": 834730, "p99_ns": 1257026}, {"name": "readdir", "wall_ns": 6225916, "client_cpu_ns": 909991, "operations": 1}, {"name": "rename", "wall_ns": 7688515920, "client_cpu_ns": 303670316, "operations": 10000, "p50_ns": 714324, "p95_ns": 1182907, "p99_ns": 1556935}, {"name": "unlink", "wall_ns": 4974182155, "client_cpu_ns": 237973885, "operations": 10000, "p50_ns": 466921, "p95_ns": 743215, "p99_ns": 993977}]}},
+    {"lane": "native", "round": 5, "warmup": false, "path": "/ownerfs/agent1/perf-relative-1-05-bind", "result": {"files": 10000, "file_bytes": 4096, "concurrency": 1, "path_form": "relative", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 126681563, "client_cpu_ns": 126453387, "operations": 10000, "p50_ns": 11545, "p95_ns": 15932, "p99_ns": 36751}, {"name": "stat", "wall_ns": 8638232, "client_cpu_ns": 8618309, "operations": 10000, "p50_ns": 653, "p95_ns": 872, "p99_ns": 1027}, {"name": "read_close", "wall_ns": 16530071, "client_cpu_ns": 16509936, "operations": 10000, "p50_ns": 1476, "p95_ns": 1713, "p99_ns": 1868}, {"name": "readdir", "wall_ns": 1636292, "client_cpu_ns": 1635712, "operations": 1}, {"name": "rename", "wall_ns": 115216935, "client_cpu_ns": 114684467, "operations": 10000, "p50_ns": 10919, "p95_ns": 14193, "p99_ns": 23193}, {"name": "unlink", "wall_ns": 56072983, "client_cpu_ns": 53395163, "operations": 10000, "p50_ns": 4685, "p95_ns": 6564, "p99_ns": 11388}]}},
+    {"lane": "ext4", "round": 5, "warmup": false, "path": "/ownerfs/agent1/perf-relative-1-05-ext4", "result": {"files": 10000, "file_bytes": 4096, "concurrency": 1, "path_form": "relative", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 124794273, "client_cpu_ns": 124667378, "operations": 10000, "p50_ns": 11693, "p95_ns": 14991, "p99_ns": 28470}, {"name": "stat", "wall_ns": 8144440, "client_cpu_ns": 7853478, "operations": 10000, "p50_ns": 632, "p95_ns": 824, "p99_ns": 937}, {"name": "read_close", "wall_ns": 16821297, "client_cpu_ns": 16365211, "operations": 10000, "p50_ns": 1438, "p95_ns": 1686, "p99_ns": 1875}, {"name": "readdir", "wall_ns": 1627802, "client_cpu_ns": 1623540, "operations": 1}, {"name": "rename", "wall_ns": 114089036, "client_cpu_ns": 112667671, "operations": 10000, "p50_ns": 10619, "p95_ns": 13931, "p99_ns": 25016}, {"name": "unlink", "wall_ns": 58396218, "client_cpu_ns": 55442076, "operations": 10000, "p50_ns": 4611, "p95_ns": 6610, "p99_ns": 20495}]}},
+    {"lane": "ext4", "round": 0, "warmup": true, "path": "/ownerfs/agent1/perf-relative-8-00-ext4", "result": {"files": 10000, "file_bytes": 4096, "concurrency": 8, "path_form": "relative", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 120776363, "client_cpu_ns": 190621505, "operations": 10000, "p50_ns": 18490, "p95_ns": 41001, "p99_ns": 3012011}, {"name": "stat", "wall_ns": 5217395, "client_cpu_ns": 8231796, "operations": 10000, "p50_ns": 632, "p95_ns": 829, "p99_ns": 956}, {"name": "read_close", "wall_ns": 16055528, "client_cpu_ns": 17906788, "operations": 10000, "p50_ns": 1580, "p95_ns": 1942, "p99_ns": 2254}, {"name": "readdir", "wall_ns": 1560932, "client_cpu_ns": 1517770, "operations": 1}, {"name": "rename", "wall_ns": 127906145, "client_cpu_ns": 178008845, "operations": 10000, "p50_ns": 14493, "p95_ns": 36224, "p99_ns": 3650414}, {"name": "unlink", "wall_ns": 46932385, "client_cpu_ns": 80115033, "operations": 10000, "p50_ns": 6715, "p95_ns": 12611, "p99_ns": 871702}]}},
+    {"lane": "native", "round": 0, "warmup": true, "path": "/ownerfs/agent1/perf-relative-8-00-bind", "result": {"files": 10000, "file_bytes": 4096, "concurrency": 8, "path_form": "relative", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 130426208, "client_cpu_ns": 196958144, "operations": 10000, "p50_ns": 19180, "p95_ns": 41932, "p99_ns": 3278872}, {"name": "stat", "wall_ns": 4818591, "client_cpu_ns": 8542342, "operations": 10000, "p50_ns": 665, "p95_ns": 873, "p99_ns": 981}, {"name": "read_close", "wall_ns": 11146128, "client_cpu_ns": 20717440, "operations": 10000, "p50_ns": 1813, "p95_ns": 2144, "p99_ns": 2416}, {"name": "readdir", "wall_ns": 1645508, "client_cpu_ns": 1626394, "operations": 1}, {"name": "rename", "wall_ns": 131993053, "client_cpu_ns": 182677517, "operations": 10000, "p50_ns": 14554, "p95_ns": 36703, "p99_ns": 2937571}, {"name": "unlink", "wall_ns": 48244279, "client_cpu_ns": 77390179, "operations": 10000, "p50_ns": 6872, "p95_ns": 11005, "p99_ns": 980824}]}},
+    {"lane": "moosefs", "round": 0, "warmup": true, "path": "/ownerfs/agent1/perf-relative-8-00-mfs0", "result": {"files": 10000, "file_bytes": 4096, "concurrency": 8, "path_form": "relative", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 5558904117, "client_cpu_ns": 580476763, "operations": 10000, "p50_ns": 4206032, "p95_ns": 6375584, "p99_ns": 12095218}, {"name": "stat", "wall_ns": 350085372, "client_cpu_ns": 85023078, "operations": 10000, "p50_ns": 254991, "p95_ns": 435687, "p99_ns": 653430}, {"name": "read_close", "wall_ns": 1551597686, "client_cpu_ns": 358703591, "operations": 10000, "p50_ns": 1136949, "p95_ns": 2028190, "p99_ns": 2844800}, {"name": "readdir", "wall_ns": 7317472, "client_cpu_ns": 1212422, "operations": 1}, {"name": "rename", "wall_ns": 7800986846, "client_cpu_ns": 963275910, "operations": 10000, "p50_ns": 7820322, "p95_ns": 15070392, "p99_ns": 18022691}, {"name": "unlink", "wall_ns": 5256575572, "client_cpu_ns": 700835573, "operations": 10000, "p50_ns": 5362953, "p95_ns": 10559991, "p99_ns": 13554181}]}},
+    {"lane": "moosefs", "round": 1, "warmup": false, "path": "/ownerfs/agent1/perf-relative-8-01-mfs0", "result": {"files": 10000, "file_bytes": 4096, "concurrency": 8, "path_form": "relative", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 5995758718, "client_cpu_ns": 625010904, "operations": 10000, "p50_ns": 4509551, "p95_ns": 6977511, "p99_ns": 13147046}, {"name": "stat", "wall_ns": 391817352, "client_cpu_ns": 92423939, "operations": 10000, "p50_ns": 279259, "p95_ns": 522188, "p99_ns": 951251}, {"name": "read_close", "wall_ns": 1161529642, "client_cpu_ns": 286755069, "operations": 10000, "p50_ns": 856856, "p95_ns": 1401961, "p99_ns": 1913975}, {"name": "readdir", "wall_ns": 7093950, "client_cpu_ns": 1078001, "operations": 1}, {"name": "rename", "wall_ns": 8474951988, "client_cpu_ns": 1079515730, "operations": 10000, "p50_ns": 7593632, "p95_ns": 18309753, "p99_ns": 22334279}, {"name": "unlink", "wall_ns": 5529470198, "client_cpu_ns": 709506132, "operations": 10000, "p50_ns": 5592898, "p95_ns": 10565234, "p99_ns": 13523561}]}},
+    {"lane": "native", "round": 1, "warmup": false, "path": "/ownerfs/agent1/perf-relative-8-01-bind", "result": {"files": 10000, "file_bytes": 4096, "concurrency": 8, "path_form": "relative", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 136705495, "client_cpu_ns": 209684749, "operations": 10000, "p50_ns": 19701, "p95_ns": 53642, "p99_ns": 2960585}, {"name": "stat", "wall_ns": 5469499, "client_cpu_ns": 8580804, "operations": 10000, "p50_ns": 661, "p95_ns": 855, "p99_ns": 971}, {"name": "read_close", "wall_ns": 11374026, "client_cpu_ns": 20280191, "operations": 10000, "p50_ns": 1781, "p95_ns": 2161, "p99_ns": 2934}, {"name": "readdir", "wall_ns": 1640207, "client_cpu_ns": 1640075, "operations": 1}, {"name": "rename", "wall_ns": 137631842, "client_cpu_ns": 186790127, "operations": 10000, "p50_ns": 15135, "p95_ns": 36911, "p99_ns": 3366752}, {"name": "unlink", "wall_ns": 53537198, "client_cpu_ns": 78281828, "operations": 10000, "p50_ns": 6701, "p95_ns": 12820, "p99_ns": 777754}]}},
+    {"lane": "ext4", "round": 1, "warmup": false, "path": "/ownerfs/agent1/perf-relative-8-01-ext4", "result": {"files": 10000, "file_bytes": 4096, "concurrency": 8, "path_form": "relative", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 131668095, "client_cpu_ns": 202146989, "operations": 10000, "p50_ns": 19540, "p95_ns": 48462, "p99_ns": 2832000}, {"name": "stat", "wall_ns": 4730078, "client_cpu_ns": 8715675, "operations": 10000, "p50_ns": 656, "p95_ns": 864, "p99_ns": 1025}, {"name": "read_close", "wall_ns": 14951723, "client_cpu_ns": 20631734, "operations": 10000, "p50_ns": 1718, "p95_ns": 2147, "p99_ns": 5657}, {"name": "readdir", "wall_ns": 1796501, "client_cpu_ns": 1694492, "operations": 1}, {"name": "rename", "wall_ns": 144422304, "client_cpu_ns": 188812272, "operations": 10000, "p50_ns": 14627, "p95_ns": 41225, "p99_ns": 3470847}, {"name": "unlink", "wall_ns": 45434889, "client_cpu_ns": 76778061, "operations": 10000, "p50_ns": 6911, "p95_ns": 10933, "p99_ns": 510324}]}},
+    {"lane": "ext4", "round": 2, "warmup": false, "path": "/ownerfs/agent1/perf-relative-8-02-ext4", "result": {"files": 10000, "file_bytes": 4096, "concurrency": 8, "path_form": "relative", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 125059816, "client_cpu_ns": 194873437, "operations": 10000, "p50_ns": 19056, "p95_ns": 42108, "p99_ns": 2908821}, {"name": "stat", "wall_ns": 5096181, "client_cpu_ns": 8869521, "operations": 10000, "p50_ns": 649, "p95_ns": 1019, "p99_ns": 1334}, {"name": "read_close", "wall_ns": 11006876, "client_cpu_ns": 20394343, "operations": 10000, "p50_ns": 1773, "p95_ns": 2126, "p99_ns": 2951}, {"name": "readdir", "wall_ns": 1551417, "client_cpu_ns": 1551098, "operations": 1}, {"name": "rename", "wall_ns": 140571361, "client_cpu_ns": 199980246, "operations": 10000, "p50_ns": 19383, "p95_ns": 41220, "p99_ns": 3349556}, {"name": "unlink", "wall_ns": 51819643, "client_cpu_ns": 81305263, "operations": 10000, "p50_ns": 6953, "p95_ns": 15566, "p99_ns": 1189640}]}},
+    {"lane": "native", "round": 2, "warmup": false, "path": "/ownerfs/agent1/perf-relative-8-02-bind", "result": {"files": 10000, "file_bytes": 4096, "concurrency": 8, "path_form": "relative", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 153937551, "client_cpu_ns": 244327762, "operations": 10000, "p50_ns": 20061, "p95_ns": 119051, "p99_ns": 2830929}, {"name": "stat", "wall_ns": 8508888, "client_cpu_ns": 13737809, "operations": 10000, "p50_ns": 764, "p95_ns": 1254, "p99_ns": 15391}, {"name": "read_close", "wall_ns": 15927839, "client_cpu_ns": 27514552, "operations": 10000, "p50_ns": 1946, "p95_ns": 3283, "p99_ns": 21630}, {"name": "readdir", "wall_ns": 1921049, "client_cpu_ns": 1883561, "operations": 1}, {"name": "rename", "wall_ns": 254825434, "client_cpu_ns": 335427531, "operations": 10000, "p50_ns": 24185, "p95_ns": 153308, "p99_ns": 4952421}, {"name": "unlink", "wall_ns": 76946032, "client_cpu_ns": 114599277, "operations": 10000, "p50_ns": 9682, "p95_ns": 22136, "p99_ns": 1431097}]}},
+    {"lane": "moosefs", "round": 2, "warmup": false, "path": "/ownerfs/agent1/perf-relative-8-02-mfs0", "result": {"files": 10000, "file_bytes": 4096, "concurrency": 8, "path_form": "relative", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 5589424234, "client_cpu_ns": 587763634, "operations": 10000, "p50_ns": 4185260, "p95_ns": 6692564, "p99_ns": 13004956}, {"name": "stat", "wall_ns": 413629064, "client_cpu_ns": 108357500, "operations": 10000, "p50_ns": 296466, "p95_ns": 530691, "p99_ns": 812421}, {"name": "read_close", "wall_ns": 1477772871, "client_cpu_ns": 364963138, "operations": 10000, "p50_ns": 1077709, "p95_ns": 1857489, "p99_ns": 2658923}, {"name": "readdir", "wall_ns": 6245308, "client_cpu_ns": 1100938, "operations": 1}, {"name": "rename", "wall_ns": 8487583602, "client_cpu_ns": 1123227999, "operations": 10000, "p50_ns": 8172142, "p95_ns": 16539811, "p99_ns": 20006239}, {"name": "unlink", "wall_ns": 5778663816, "client_cpu_ns": 826071993, "operations": 10000, "p50_ns": 5788142, "p95_ns": 11038062, "p99_ns": 14127794}]}},
+    {"lane": "moosefs", "round": 3, "warmup": false, "path": "/ownerfs/agent1/perf-relative-8-03-mfs0", "result": {"files": 10000, "file_bytes": 4096, "concurrency": 8, "path_form": "relative", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 8114021870, "client_cpu_ns": 838317105, "operations": 10000, "p50_ns": 5271646, "p95_ns": 13749922, "p99_ns": 23827289}, {"name": "stat", "wall_ns": 434505198, "client_cpu_ns": 107392629, "operations": 10000, "p50_ns": 313496, "p95_ns": 579523, "p99_ns": 886777}, {"name": "read_close", "wall_ns": 1486213856, "client_cpu_ns": 331178407, "operations": 10000, "p50_ns": 1051255, "p95_ns": 1866673, "p99_ns": 2871910}, {"name": "readdir", "wall_ns": 9520299, "client_cpu_ns": 1352152, "operations": 1}, {"name": "rename", "wall_ns": 7637335254, "client_cpu_ns": 1015987558, "operations": 10000, "p50_ns": 7006217, "p95_ns": 15228699, "p99_ns": 21119470}, {"name": "unlink", "wall_ns": 4658715059, "client_cpu_ns": 597914804, "operations": 10000, "p50_ns": 4686512, "p95_ns": 8596692, "p99_ns": 11442549}]}},
+    {"lane": "native", "round": 3, "warmup": false, "path": "/ownerfs/agent1/perf-relative-8-03-bind", "result": {"files": 10000, "file_bytes": 4096, "concurrency": 8, "path_form": "relative", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 122371050, "client_cpu_ns": 201090096, "operations": 10000, "p50_ns": 19049, "p95_ns": 43981, "p99_ns": 3165760}, {"name": "stat", "wall_ns": 5211733, "client_cpu_ns": 8379719, "operations": 10000, "p50_ns": 641, "p95_ns": 831, "p99_ns": 948}, {"name": "read_close", "wall_ns": 10517945, "client_cpu_ns": 20346628, "operations": 10000, "p50_ns": 1771, "p95_ns": 2096, "p99_ns": 2390}, {"name": "readdir", "wall_ns": 1548360, "client_cpu_ns": 1532849, "operations": 1}, {"name": "rename", "wall_ns": 137989966, "client_cpu_ns": 192465494, "operations": 10000, "p50_ns": 17924, "p95_ns": 36720, "p99_ns": 3326984}, {"name": "unlink", "wall_ns": 45195752, "client_cpu_ns": 77083808, "operations": 10000, "p50_ns": 6768, "p95_ns": 10765, "p99_ns": 265328}]}},
+    {"lane": "ext4", "round": 3, "warmup": false, "path": "/ownerfs/agent1/perf-relative-8-03-ext4", "result": {"files": 10000, "file_bytes": 4096, "concurrency": 8, "path_form": "relative", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 126597954, "client_cpu_ns": 205740643, "operations": 10000, "p50_ns": 19296, "p95_ns": 47066, "p99_ns": 3213118}, {"name": "stat", "wall_ns": 4871474, "client_cpu_ns": 8429963, "operations": 10000, "p50_ns": 656, "p95_ns": 850, "p99_ns": 977}, {"name": "read_close", "wall_ns": 11182570, "client_cpu_ns": 20766040, "operations": 10000, "p50_ns": 1805, "p95_ns": 2146, "p99_ns": 2560}, {"name": "readdir", "wall_ns": 1612493, "client_cpu_ns": 1596773, "operations": 1}, {"name": "rename", "wall_ns": 146585006, "client_cpu_ns": 191197191, "operations": 10000, "p50_ns": 14526, "p95_ns": 42391, "p99_ns": 3546463}, {"name": "unlink", "wall_ns": 56612950, "client_cpu_ns": 73930425, "operations": 10000, "p50_ns": 6594, "p95_ns": 10740, "p99_ns": 646232}]}},
+    {"lane": "ext4", "round": 4, "warmup": false, "path": "/ownerfs/agent1/perf-relative-8-04-ext4", "result": {"files": 10000, "file_bytes": 4096, "concurrency": 8, "path_form": "relative", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 133739400, "client_cpu_ns": 214126354, "operations": 10000, "p50_ns": 19895, "p95_ns": 47510, "p99_ns": 3198507}, {"name": "stat", "wall_ns": 7327163, "client_cpu_ns": 8462565, "operations": 10000, "p50_ns": 653, "p95_ns": 849, "p99_ns": 968}, {"name": "read_close", "wall_ns": 13912613, "client_cpu_ns": 18859483, "operations": 10000, "p50_ns": 1646, "p95_ns": 2065, "p99_ns": 2331}, {"name": "readdir", "wall_ns": 1670861, "client_cpu_ns": 1670419, "operations": 1}, {"name": "rename", "wall_ns": 138550824, "client_cpu_ns": 191912298, "operations": 10000, "p50_ns": 15891, "p95_ns": 40163, "p99_ns": 3328659}, {"name": "unlink", "wall_ns": 48735501, "client_cpu_ns": 80212866, "operations": 10000, "p50_ns": 6973, "p95_ns": 13596, "p99_ns": 1078372}]}},
+    {"lane": "native", "round": 4, "warmup": false, "path": "/ownerfs/agent1/perf-relative-8-04-bind", "result": {"files": 10000, "file_bytes": 4096, "concurrency": 8, "path_form": "relative", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 138802883, "client_cpu_ns": 217216938, "operations": 10000, "p50_ns": 20200, "p95_ns": 55876, "p99_ns": 2705945}, {"name": "stat", "wall_ns": 4230224, "client_cpu_ns": 8081825, "operations": 10000, "p50_ns": 644, "p95_ns": 826, "p99_ns": 945}, {"name": "read_close", "wall_ns": 10657435, "client_cpu_ns": 19813101, "operations": 10000, "p50_ns": 1745, "p95_ns": 2051, "p99_ns": 2408}, {"name": "readdir", "wall_ns": 2080390, "client_cpu_ns": 2074705, "operations": 1}, {"name": "rename", "wall_ns": 133057011, "client_cpu_ns": 192281820, "operations": 10000, "p50_ns": 19009, "p95_ns": 34908, "p99_ns": 3619793}, {"name": "unlink", "wall_ns": 50214770, "client_cpu_ns": 78404219, "operations": 10000, "p50_ns": 6718, "p95_ns": 13524, "p99_ns": 697104}]}},
+    {"lane": "moosefs", "round": 4, "warmup": false, "path": "/ownerfs/agent1/perf-relative-8-04-mfs0", "result": {"files": 10000, "file_bytes": 4096, "concurrency": 8, "path_form": "relative", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 5560021179, "client_cpu_ns": 561677821, "operations": 10000, "p50_ns": 4147293, "p95_ns": 6207390, "p99_ns": 14310494}, {"name": "stat", "wall_ns": 362223618, "client_cpu_ns": 86332236, "operations": 10000, "p50_ns": 264395, "p95_ns": 451723, "p99_ns": 782583}, {"name": "read_close", "wall_ns": 1200210612, "client_cpu_ns": 276538552, "operations": 10000, "p50_ns": 891875, "p95_ns": 1517145, "p99_ns": 2045039}, {"name": "readdir", "wall_ns": 11233634, "client_cpu_ns": 1313003, "operations": 1}, {"name": "rename", "wall_ns": 7645894424, "client_cpu_ns": 1000194151, "operations": 10000, "p50_ns": 7259306, "p95_ns": 15183765, "p99_ns": 18652679}, {"name": "unlink", "wall_ns": 5363059427, "client_cpu_ns": 715542651, "operations": 10000, "p50_ns": 5415353, "p95_ns": 10106597, "p99_ns": 12322266}]}},
+    {"lane": "moosefs", "round": 5, "warmup": false, "path": "/ownerfs/agent1/perf-relative-8-05-mfs0", "result": {"files": 10000, "file_bytes": 4096, "concurrency": 8, "path_form": "relative", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 6614666349, "client_cpu_ns": 688343682, "operations": 10000, "p50_ns": 4570179, "p95_ns": 10039226, "p99_ns": 19514694}, {"name": "stat", "wall_ns": 427840574, "client_cpu_ns": 97859002, "operations": 10000, "p50_ns": 306613, "p95_ns": 587967, "p99_ns": 921329}, {"name": "read_close", "wall_ns": 1212144259, "client_cpu_ns": 304204927, "operations": 10000, "p50_ns": 878501, "p95_ns": 1555798, "p99_ns": 2408205}, {"name": "readdir", "wall_ns": 8188389, "client_cpu_ns": 1174571, "operations": 1}, {"name": "rename", "wall_ns": 8059061353, "client_cpu_ns": 922364968, "operations": 10000, "p50_ns": 7824613, "p95_ns": 15295711, "p99_ns": 19216278}, {"name": "unlink", "wall_ns": 5066993827, "client_cpu_ns": 713878416, "operations": 10000, "p50_ns": 5423065, "p95_ns": 9655258, "p99_ns": 12292654}]}},
+    {"lane": "native", "round": 5, "warmup": false, "path": "/ownerfs/agent1/perf-relative-8-05-bind", "result": {"files": 10000, "file_bytes": 4096, "concurrency": 8, "path_form": "relative", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 132890544, "client_cpu_ns": 188959558, "operations": 10000, "p50_ns": 17721, "p95_ns": 43730, "p99_ns": 3065692}, {"name": "stat", "wall_ns": 6261197, "client_cpu_ns": 7922673, "operations": 10000, "p50_ns": 621, "p95_ns": 803, "p99_ns": 917}, {"name": "read_close", "wall_ns": 12536072, "client_cpu_ns": 18216132, "operations": 10000, "p50_ns": 1617, "p95_ns": 1962, "p99_ns": 2249}, {"name": "readdir", "wall_ns": 1666588, "client_cpu_ns": 1658264, "operations": 1}, {"name": "rename", "wall_ns": 130948874, "client_cpu_ns": 175873853, "operations": 10000, "p50_ns": 13912, "p95_ns": 37454, "p99_ns": 3222850}, {"name": "unlink", "wall_ns": 48893629, "client_cpu_ns": 79007647, "operations": 10000, "p50_ns": 6836, "p95_ns": 11381, "p99_ns": 1046419}]}},
+    {"lane": "ext4", "round": 5, "warmup": false, "path": "/ownerfs/agent1/perf-relative-8-05-ext4", "result": {"files": 10000, "file_bytes": 4096, "concurrency": 8, "path_form": "relative", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 137167914, "client_cpu_ns": 203055217, "operations": 10000, "p50_ns": 19171, "p95_ns": 48107, "p99_ns": 3187758}, {"name": "stat", "wall_ns": 5155221, "client_cpu_ns": 7969663, "operations": 10000, "p50_ns": 631, "p95_ns": 812, "p99_ns": 921}, {"name": "read_close", "wall_ns": 11228561, "client_cpu_ns": 19651738, "operations": 10000, "p50_ns": 1738, "p95_ns": 2095, "p99_ns": 2889}, {"name": "readdir", "wall_ns": 1619160, "client_cpu_ns": 1615371, "operations": 1}, {"name": "rename", "wall_ns": 130309980, "client_cpu_ns": 176744014, "operations": 10000, "p50_ns": 13932, "p95_ns": 36732, "p99_ns": 3189368}, {"name": "unlink", "wall_ns": 49290587, "client_cpu_ns": 74723935, "operations": 10000, "p50_ns": 6636, "p95_ns": 10330, "p99_ns": 560467}]}}
+  ]
+}

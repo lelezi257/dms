@@ -1595,3 +1595,244 @@ still pass the extended verifier. Python compile and whitespace checks pass;
 no Rust rebuild or full-suite claim is made. Windows evidence copies and VM
 paths follow E13/E14 conventions. Raw failures and original source inputs
 remain retained without revision.
+
+### E16: mixed ordinary remote with native Home
+
+`network-probe-20261001T114559-ccf39fe1`, source snapshot
+`native-network-native-candidate-20261001T114558`, parent `33c9304` plus frozen
+test-driver/Python patch. The Linux-test-only driver now permits an explicit
+`AFS_NATIVE_VALIDATION_CONSTRUCTOR=ordinary|native-eligible`; absent selection
+retains the prior native-eligible experiment default. Selection is fixed before
+Node bootstrap, invalid input is rejected, and actual selected construction is
+published in driver.json. Release/non-Linux Node behavior is unchanged; this is
+not production configuration, root-mode negotiation or readiness integration.
+
+Both A and B execute the **same newly built Node test binary**. A selects
+native-eligible; B selects ordinary. Exact role configs and archived driver
+records independently confirm those choices. Real current Meta/TLS/P2P and
+Home authority/native physical activation use the established experiment
+chain. The only Rust change is test-only construction selection needed to
+verify the mixed-client question without borrowing an older client binary.
+
+Observations from actual syscall open/read/close calls:
+
+1. B reads/closes `data` as `original-A-data`/15B. Native writes and closes
+   `NEW-DATA`/8B. B reopens from its stable root, reads exact new bytes and
+   length, with the same file inode3.
+2. B reads/closes `identity` as `original-object`/15B, inode4. Native writes
+   another object, closes it and atomically replaces that name. B opens the
+   current name and reads `replacement-object`/18B, inode6.
+3. B's local monotonic clock bounds the entire warm-read-through-replacement
+   read interval at713961234ns, less than its source-policy1s entry TTL. No
+   clocks from different hosts are compared. This bounds the case timing; it
+   does not assert that every lookup skipped revalidation or that a TTL itself
+   provides coherence.
+
+Source `OwnerFs::with_fuse_policy` already gives ordinary **remote/shared**
+file paths zero attr TTL and direct I/O, while entry TTL remains1s. The
+positive result contradicts a blanket inference that ordinary remote file
+reopens necessarily retain stale pages or that every remote Node must use the
+global native-eligible constructor. It does not contradict the old ordinary
+**Home-private cached** counterexample E6. In particular, "ordinary" and
+"private cached" are not interchangeable classifications for remote objects.
+Full mixed namespace, directory/permission/negative-entry behavior and mode
+admission/transition still require their applicable evidence; E16 closes only
+the data and same-name replacement slice. A4 remains unchecked.
+
+VM runner terminal0/passed=true and independent offline verification PASS.
+All Actors explicitly close/quit, normal detach yields Detached/no observed
+mount, A/B Nodes and Meta exit0, parent mounts remain unchanged. OwnerFiles
+A-server/B-client Open6/Lookup7/Getattr22 and process-owned B→A TCP establish
+the actual route. Small-file reads can be served by Open prefetch; absence of
+a Read duration count is not absence of real reads. Actor observations are
+cross-checked against archived actual replies, not only result.json claims.
+
+Build `native-network-mixed-driver-build.log` terminal0; strict
+`native-network-mixed-clippy.log`, `native-network-mixed-fmt.log` terminal0;
+`native-network-mixed-lib.log` reports414 passed/0 failed/3 ignored. The
+additional ignored test is the explicit privileged architecture driver, not a
+silent removal of coverage. Python compile and git whitespace checks pass.
+The existing Cargo global-cache cleanup LICENSE permission warning remains;
+no unrelated environment repair is claimed. These lib checks are not the full
+workspace/integration/release gates; historical fuser ABI-fixture and clock
+failure records retain their original scope.
+
+Executed Node SHA
+`68673d77771ea4348d01aa7424e8726e0a1f8ae50d9788f4747a9ed1b6fa12cc`,
+unstripped `5dd401f3f77ad6491f2c9470c634e72de8bf4f1084773bb2c1dcf4f8c7b88b99`.
+Meta retains its E13 frozen artifact. Guest/controller SHA:
+`2df4f14dcfd6d0c44bd69059ce3551a51b15e6349ad00dc18df87b042d60d4b9` /
+`3a1372a4876df763cf7d1ac9fb2f44d364b8352212284f46567ab3a1f9414939`.
+Archives A `d729060b054e97c672123563097104ad23abb8ca776fc7e432d61a48ef896927`,
+B `f1652f8c72a2d670bb74318aa615266fb5ed1599ab73d4ac7f0d52643629c9e0`,
+ctl `0bea5a374dad16d1818e82c9e5c3743df8a5072868022c179f4ec956f3bbfab0`.
+Verifier SHA `ddba4ba567fb795cc7fa1633df04dda44da0a76317b0d4bd4ef3db266b6497c9`;
+artifact audit accepts original evidence and rejects bad archive SHA/read
+reply, flipped mixed semantic verdict and a falsely changed B constructor.
+Evidence paths follow E13/E14 conventions. Prior frozen binary digests remain
+authoritative for those runs; the Cargo cache filename now contains E16's
+different test driver artifact.
+
+Architecture phase1 remains unaccepted, including E4 POSIX owner and E15
+append/cursor conflicts. Performance and production reliability stay deferred;
+no new exemption, production mode or all-client cache guarantee is inferred.
+
+## E17 optimized local P1 timing and bind ancestor cost
+
+The subsequent user direction prioritizes explicit bind architecture judgments
+and measured data, leaving generic reliability to the other AI. The current
+[architecture/performance report](native-bind-performance.md) and
+[all P1 measurements](acceptance/results/native-bind-p1-20261001.json) contain
+the result and bounded scope, without claiming stage acceptance.
+
+`native-performance-build-20261001T115511` produces optimized test Node/Meta;
+both build exits0. Node executed SHA409363724228d3a1de051158d6ec9e627452c55af0b95d9f4607feb5c3eb5c72,
+Meta77b9435f23c198de3e53d3552979ce2beca1ad79f05e8fafdc19bdfab6796cfe;
+source snapshots distinguish unstripped inputs and transferred ELF. GCC-O2
+benchmark actual ext4 self-check and strict compiler diagnostics pass.
+
+Full timing `network-probe-20261001T120749-90422701` completes72 task samples.
+Its300s semantic Actor lifetime expires during the long run; original runner
+remainsFAIL. All actor logs explicitly identify that timeout, actual Node/Meta
+exit0, normal detach and unchanged parent mounts are independently verified.
+The timing payload exactly matches archived results and actual guest reply.
+This is forensic timing qualification only, not a retroactive experiment PASS.
+
+MooseFS stock4.59.2-1/build2106 is compiled from fixedac106b2 on C after
+transporting the clean locked source because C cannot reach GitHub. The original
+network build failure is retained. Transport/stock offline build is the only
+baseline script change. The deprecated setgoal command did not select goal1;
+the explicit single-copy class is created/verified. Original absolute/c1
+rounds1/2 are excluded from MFS comparison; finite supplemental
+`network-probe-20261001T122407-211d5bd3` supplies warmup plus2 valid pairs and
+normal teardown. Short-lived bootstrap actors are explicitly closed before
+timing; this repairs only the test harness, not production drainage. Earlier
+P0 collection runs120605 (generic fuse subtype observer mismatch) and120706
+(TIME_WAIT mistaken for listener occupancy) remain failed. Preflight now uses
+SO_REUSEADDR and exact MFS source/target checks.
+
+Five native/ext4 pairs per combination show stable absolute-path task ratios
+19.276(c1)/4.161(c8), versus relative0.992/1.036. Per-phase/client CPU/operation
+quantiles, exact all81 original/supplemental task samples and paired identities
+are published. Ext4/native use the same source inode; MFS sole Home A shares
+the same ext4 volume. Stock close/flush is measured, not qualified physical
+data/CRC/metadata durability. Host caches/path-depth constraints are explicit.
+The absolute-path native targetFAIL is decisive; relative results are close to
+ext4, not a waiver of the strict per-case<=1.0 rule. P2/P3/P4 remainNOT_RUN.
+
+Verifierc7e63f53b1a63dea3fbb5313d21c41ffc6ad8cd1f8548dd185a8eab42a07cc7e
+accepts the bounded original timing and supplemental evidence, rejecting wrong
+archiveSHA/read reply/timing. E13/E14/E15/E16 fresh offline replay retains
+their original verdicts, including E15 semanticFAIL. Published JSON SHA
+950eff5a50f5aff6ef0ff21bc001c1226be639abd3284eac3e238beecce6d701.
+No architecture/performance stage, production admission or final PR review
+approval follows from E17.
+
+## E18: actual OCI Agent workspace isolation and P1
+
+Run `network-probe-20261001T125205-fc4c5860` resolves the original ready export
+inside the verified Node namespace, then binds only that workspace into actual
+runc containers at `/ownerfs/agent1`. Native/ext4 final source is device2065,
+inode1049463, ext4/no FUSE. Container mount/PID/network/IPC/UTS/cgroup namespaces
+are distinct, caps empty, NoNewPrivs set, readonly parent lists only agent1.
+Known host sibling/parent/backing data cannot be read using parent/direct/
+symlink/proc-root paths; own contents and written marker match the source.
+This closes bounded host-data isolation for that spec, not arbitrary UID/userns
+or mountinfo-path secrecy/hostile-code security. Production daemon publication
+and final Agent READY remain unimplemented.
+
+The three-way P1 matrix completes72 tasks with normal container stop/delete,
+original detach and Node/Meta/short-Actor exits0. Five paired whole-task ratios
+native/ext4 are1.050/1.019 absolute c1/c8 and1.003/0.995 relative. Host's4–19x
+ancestor penalty is absent;16/24 phase medians exceed1, so strict performance
+does not pass. All samples/quantiles and scope are in the performance report.
+Stock single-copy MooseFS close/flush is visibility-only; B001 remains open.
+
+Published container JSON SHA193107e6b3ae4586d1e5915d92f8fef85673fb95a707b9e2da117fbdb4772de8.
+Raw A/B/ctl SHAs e39f2f77b90ac0b2b0049c22ede0b1d64666ce73246223c158cbe03e5017a566,
+437c62148f28459db18860bfd57899260d6719bd927ae5b225511bcbfe039d67,
+aee67cd89ea1f8b57d7ae1657986aea3522a02f038f5f4990a98be4ff1b58449.
+Snapshot native-network-native-candidate-20261001T125157; runc1.3.4 SHA
+bdce4d45b2dd217491db8a98c8484b161e225ce49c15ebc1ba42077fb7c07d50;
+probe SHA dcacaa08aff4edf5cdbd2c6e04ba3a3d2872a17c11209f58dc959328c3e8ff94.
+Node/Meta/benchmark retain E17 optimized identities. Independent verifier
+eebda943aa6876db8abb5f62a5308c5d994f97715e95753724fa9e1948c027f7
+accepts exact original replies/spec/source/matrix and rejects bad archive,
+read reply, timing, source and isolation claims.
+
+First124743-f5c49050 remains FAIL with zero timing: inherited detached-init
+pipes, PID1 sleep default TERM behavior and followed /dev/core archive symlink
+are observer problems. Identified process cleanup/Node/Meta exits and recovery
+A archive SHA aa3c90ff621d65b386fa16fd934ca23cea34677e99ea96e452873c4802a1ddce
+are preserved, not a promoted passing run. Fixes only change the experimental
+observer: file output, TERM-aware init and non-following archive hashing.
+
+## E19: container sequential/random IO and cloned-mount lifecycle
+
+Run `network-probe-20261001T131137-5e41ff06` completes30 local ext4/native IO
+shapes, warmup plus five paired rounds,360 tasks. Sequential1MiB/8GiB and
+random4/64KiB/512MiB IO cover c1/c8, guest-cold/repeat/hot, close/fdatasync/fsync.
+Timing includes open/thread work/one final file barrier/close, excludes target
+cache conditioning and post-close write-content replay. Reads compare bytes;
+writes reopen/verify every requested offset/size. Guest-cold requires target
+mincore0 before the timer after bounded fsync/DONTNEED; hot requires full
+residency. Repeat8GiB exceeds guest RAM and is not labelled fully hot. Host
+caches, directory durability/crash and per-write sync are not qualified.
+
+Median paired task ratios0.834–1.135,17/30 above1, do not pass strict <=1.0.
+Full rows/360 samples/CPU/barrier/operation quantiles in published IO JSON SHA
+7daf3b73eeef166a5b1de1b918059eeaf2495d4496ed13bb66250c224b6f6ff6.
+Different data-file layouts remain a confound, so only four preselected same-file
+inode c1 cases are supplemental attribution; no replacement of this matrix.
+No MooseFS P2/P3, remote timing or B001 parity follows from E19.
+
+With both containers alive, actual manager normal detach returns Detached;
+native container then reads and creates/writes the same ext4 source, device2065/
+inode1049727. This disproves original-umount-equals-container-drain: independent
+runtime mounts must be registered and stopped/unmounted before source reuse.
+Both containers subsequently stop/delete; Node/Meta/bootstrap Actors exit0 and
+outer namespace mounts match. It is decisive lifecycle evidence, not production
+fencing integration or complete recovery qualification.
+
+Snapshot native-network-native-candidate-20261001T131136; executed IOv2 SHA
+6e15d4733ec839a3ea27ff33df5c686bc3f9522c5fdbc948601bc445fd6abdcd.
+Raw A/B/ctl SHAs1a04778c5ebe3e20d63547721e4ec786f82eb6eca166fd79a2cdc2fa905c50a6,
+215a9e9666def03113df6b692cbe776c0bd65546f0d0265ce5796c93d4b5c3f2,
+ff96328a6df7c9009b934e8e733efb29d1019cd1ec5f66b073d55bea56d0f02a.
+Verifier7bd95e9d9b3467736a8903a4920e375fdd816d8c18d20cd549f5285ca023e3d4
+checks original artifacts/complete matrix/cache/actual runtime replies/normal
+detach/post-detach probe. Mutated archive/read/timing/source/isolation fail.
+Strict GCC and36 positive/negative IO precondition/content controls pass.
+
+Initial130434-d53bf068 remains FAIL: after global sync/drop_caches only, fifth
+sample has864256 target-resident bytes. Four earlier rows and actual fifth
+reply are retained, never merged as valid cold data. Exact residual busy/dirty
+cause is not proven. Target conditioning/check happens before timing; no
+tolerance is introduced. Failed-run controlled teardown succeeds; only six
+known newly-created workload files under verified device/inode are cleaned,
+retaining cache investigation and cleanup records separately from original
+archives. IOv3 adds file_object identity solely for bounded same-file attribution;
+the full run is still bound to original IOv2 frozen source/binary. No architecture
+or whole-performance phase pass is implied.
+
+The finite same-file supplement `network-probe-20261001T133647-d0e86248`
+completes48 tasks/four preselected c1 cases. Every native/ext4 pair has identical
+device/inode and visible path, with independently restored guest cache premise.
+Seq fsync write/cold4KiB random read/hot64KiB random read/hot64KiB close write
+ratios are0.990/1.035/1.076/0.983. File layout alone cannot explain all residual
+differences; no fixed bind penalty or DMS bug cause is established. Full360
+rows are not replaced;2/4 supplement medians exceed1 and strict acceptance
+remains open. Original detach still allows container IO on source2065/1049833,
+then containers stop/delete and Node/Meta exit0.
+Published supplement SHA94dff8c5ff7898c887b8b5aa4c2406c7057dc69f60d64628048b306d58e62d6f;
+snapshot native-network-native-candidate-20261001T133646, IOv3 SHA
+93a34610fa9fe7d08b2343a3a01889abcf40b0faa3c4eaa49b7fc7081e331942.
+Raw A/B/ctl SHAs038db0aae3db4dd3505a6f9d63bb6933ef6c89da584632c250943a18302f66b4,
+1babe563c0a0058c421726f1d53755ba3c193536e316fa6169097b8f9e8399b3,
+2156d93eca2f0de365b7b6186956d590b22122b67f3dc3ecba42e197585e9a49.
+Latest artifact audit additionally rejects fabricated cold-cache residency and
+shared-file identity, alongside archive/read/timing/source/isolation mutation.
+Fresh final source verification matches157 Rust/proto/Cargo inputs, the exact
+build-parent/Rust patch, optimized executable SHAs and both build exits0.
+Rust has not changed since the optimized build; this is not a new full Rust
+test-suite execution or qualification of later main.

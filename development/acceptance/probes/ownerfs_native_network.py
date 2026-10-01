@@ -38,9 +38,24 @@ def main():
     parser.add_argument("--meta-bin", type=Path, required=True)
     parser.add_argument("--snapshot", type=Path, required=True)
     parser.add_argument("--expect", choices=("ordinary", "native"), required=True)
-    parser.add_argument("--case", choices=("a2", "flock", "append"), default="a2")
+    parser.add_argument("--case", choices=("a2", "flock", "append", "mixed", "metadata-perf", "container-perf", "container-bulk"), default="a2")
+    parser.add_argument("--benchmark-bin", type=Path)
+    parser.add_argument("--container-probe-bin", type=Path)
+    parser.add_argument("--io-bin", type=Path)
+    parser.add_argument("--moosefs-mount", type=Path)
+    parser.add_argument("--performance-slice", choices=("full", "absolute-c1-repair", "shared-file-attribution"), default="full")
     args = parser.parse_args()
+    container_case = args.case in ("container-perf", "container-bulk")
+    container_inputs = ("container-probe", "ownerfs_native_container.py") + (("io", "ownerfs_native_container_io.py") if args.case == "container-bulk" else ())
     assert args.case == "a2" or args.expect == "native"
+    if args.case in ("metadata-perf", "container-perf", "container-bulk"):
+        assert args.benchmark_bin is not None
+    if container_case:
+        assert args.container_probe_bin is not None
+    if args.case == "container-bulk":
+        assert args.io_bin is not None
+    if args.performance_slice == "shared-file-attribution":
+        assert args.case == "container-bulk"
     stamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%S")
     nonce = uuid.uuid4().hex[:8]
     run = f"network-probe-{stamp}-{nonce}"
@@ -57,6 +72,14 @@ def main():
             shutil.copyfile(stripped, out / name)
     shutil.copyfile(Path(__file__).with_name("ownerfs_native_network_guest.py"), out / "guest.py")
     shutil.copyfile(__file__, out / "controller.py")
+    if args.benchmark_bin:
+        shutil.copyfile(args.benchmark_bin, out / "benchmark")
+    if container_case:
+        shutil.copyfile(args.container_probe_bin, out / "container-probe")
+        shutil.copyfile(Path(__file__).with_name("ownerfs_native_container.py"), out / "ownerfs_native_container.py")
+    if args.case == "container-bulk":
+        shutil.copyfile(args.io_bin, out / "io")
+        shutil.copyfile(Path(__file__).with_name("ownerfs_native_container_io.py"), out / "ownerfs_native_container_io.py")
     shutil.copytree(args.snapshot, out / "source-inputs")
     options = ["-i", args.key, "-o", "BatchMode=yes", "-o", "ConnectTimeout=10",
                "-o", "UserKnownHostsFile=" + args.known_hosts]
@@ -70,13 +93,23 @@ def main():
     sequence = 0
     result = {"run_id": run, "expected_constructor": args.expect,
               "case_profile": {"a2": "a2-close-reopen-unlink-recreate", "flock": "a3-flock-object",
-                               "append": "a3-single-write-append"}[args.case],
+                               "append": "a3-single-write-append", "mixed": "a4-mixed-constructor-cache", "metadata-perf": "p1-local-native-ext4", "container-perf": "p1-container-native-ext4", "container-bulk": "p23-container-native-ext4"}[args.case],
               "scope": "actual Node bootstrap/Meta/TLS/P2P; test-only mount driver; bounded architecture cases, not performance",
               "input_sha256": {name: digest(out / name) for name in
                                ("node-tests", "afs-meta", "guest.py", "controller.py")},
               "snapshot": args.snapshot.name, "hosts": roles, "phase_pass": False}
     result["unstripped_binary_sha256"] = original_sha256
+    result["node_constructors"] = {role: ("ordinary" if args.expect == "ordinary" or
+                                         (args.case == "mixed" and role == "b") else "native-eligible")
+                                   for role in ("a", "b")}
     result["binary_transform"] = "strip --strip-debug; architecture-only debug builds"
+    if args.case in ("metadata-perf", "container-perf", "container-bulk"):
+        result["scope"] = "optimized test-driver candidate: P1 local paired visibility workloads; not full performance acceptance"
+        result["binary_transform"] = "strip --strip-debug; release profile caller must supply frozen optimized inputs"
+        result["input_sha256"]["benchmark"] = digest(out / "benchmark")
+    if container_case:
+        result["input_sha256"].update({name: digest(out / name) for name in container_inputs})
+        result["scope"] = "actual OCI containers; native source and host-data isolation; local paired diagnostic"
     (out / "inputs.json").write_text(json.dumps(result, indent=2) + "\n")
 
     def execute(command, *, data=None, timeout=45):
@@ -87,8 +120,8 @@ def main():
             raise RuntimeError(f"command failed {completed.returncode}: {completed.stderr[-1200:]}")
         return completed.stdout
 
-    def ssh(role, command, data=None):
-        return execute([args.ssh, *options, "lzc@" + roles[role], command], data=data)
+    def ssh(role, command, data=None, timeout=45):
+        return execute([args.ssh, *options, "lzc@" + roles[role], command], data=data, timeout=timeout)
 
     def local_path(path):
         if args.scp.lower().endswith(".exe"):
@@ -102,7 +135,8 @@ def main():
                  shlex.quote(bases[role]) + " " + shlex.quote(operation)
         if extra is not None:
             remote += " " + shlex.quote(extra)
-        output = ssh(role, remote, None if command is None else json.dumps(command))
+        output = ssh(role, remote, None if command is None else json.dumps(command),
+                     timeout=(7200 if args.case == "container-bulk" else 1200) if operation in ("metadata-performance", "container-performance") else 45)
         return json.loads(output)
 
     def request(role, operation, **fields):
@@ -190,6 +224,12 @@ def main():
             cfg = dict(role=role, ports=[port, port + 1], tls=tls, cert=cert,
                        inputs={name: result["input_sha256"][name] for name in
                                ("guest.py", "afs-meta" if role == "ctl" else "node-tests")})
+            if role != "ctl":
+                cfg["constructor"] = result["node_constructors"][role]
+                if args.benchmark_bin:
+                    cfg["inputs"]["benchmark"] = result["input_sha256"]["benchmark"]
+                if container_case:
+                    cfg["inputs"].update({name: result["input_sha256"][name] for name in container_inputs})
             directory = out / role
             directory.mkdir()
             (directory / "role.json").write_text(json.dumps(cfg) + "\n")
@@ -215,6 +255,15 @@ def main():
                            directory / "config.toml", directory / "role.json"):
                 execute([args.scp, *options, local_path(source), "lzc@" + roles[role] + ":" + base + "/" + source.name],
                         timeout=90)
+            if role != "ctl" and args.benchmark_bin:
+                execute([args.scp, *options, local_path(out / "benchmark"), "lzc@" + roles[role] + ":" + base + "/benchmark"])
+                ssh(role, "chmod 0755 " + shlex.quote(base + "/benchmark"))
+            if role != "ctl" and container_case:
+                for name in container_inputs:
+                    execute([args.scp, *options, local_path(out / name), "lzc@" + roles[role] + ":" + base + "/" + name])
+                ssh(role, "chmod 0755 " + shlex.quote(base + "/container-probe"))
+                if args.case == "container-bulk":
+                    ssh(role, "chmod 0755 " + shlex.quote(base + "/io"))
             ssh(role, "chmod 0755 " + shlex.quote(base + "/" + ("afs-meta" if role == "ctl" else "node-tests")))
             guest(role, "launch")
             active.append(role)
@@ -251,7 +300,29 @@ def main():
             native = start_actor("a", "native")
             assert native["root"] == result["activated"]["source"], (native, result["activated"])
             assert native["root"]["device"] != result["actors"]["a-oldfuse"]["root"]["device"]
-            if args.case == "a2":
+            if args.case in ("metadata-perf", "container-perf", "container-bulk"):
+                # P1 has no retained-Actor semantics. Release these short-lived
+                # bootstrap controls before a long benchmark, retaining their
+                # ready/exit evidence. Each timed process enters the verified
+                # Node namespace directly and closes its own descriptors.
+                for role, actor in (("a", "oldfuse"), ("b", "remote")):
+                    request(role, "close", actor=actor, handle="old")
+                result["bootstrap_actor_exits"] = {}
+                for role, actor in reversed(actors):
+                    request(role, "quit", actor=actor)
+                    exited = guest(role, "actor-wait", actor)
+                    assert exited["exit"] == 0
+                    result["bootstrap_actor_exits"][role + "-" + actor] = exited
+                actors.clear()
+                result["container_performance" if container_case else "metadata_performance"] = guest("a", "container-performance" if container_case else "metadata-performance", command={
+                    "source": result["activated"]["source"],
+                    "workload": "bulk" if args.case == "container-bulk" else "metadata",
+                    "moosefs_mount":str(args.moosefs_mount) if args.moosefs_mount else None,
+                    "slice":args.performance_slice})
+                result["mechanism_result"] = "local paired timing; remote and MooseFS strong durability not qualified by this profile"
+                if container_case and result["container_performance"].get("manager_detached"):
+                    export = False
+            elif args.case == "a2":
                 for text in ("same-length-ABC", "short", "", "longer-native-value-after-empty"):
                     request("a", "write", actor="native", name="data", data=text)
                     fresh_read("b", "remote", "data", text)
@@ -323,7 +394,7 @@ def main():
                 for actor, handle in (("native", "old"), ("nativepeer", "old"), ("nativepeer", "new")):
                     request("a", "close", actor=actor, handle=handle)
                 result["mechanism_result"] = "actual native/local FUSE/remote P2P nonblocking flock and retained-object isolation"
-            else:
+            elif args.case == "append":
                 start_actor("a", "nativepeer")
                 assert append_lane("native-control", "a", "nativepeer"), "native control violates assumed contract"
                 result["append_semantics_ok"] = append_lane("remote-append", "b", "remote")
@@ -345,13 +416,39 @@ def main():
                                                "position_ok": distant["positions"] == [12]}
                 result["append_semantics_ok"] &= result["sequential_append"]["position_ok"]
                 result["mechanism_result"] = "single 2MiB append versus native 1KiB appends, native/native control and actual remote chain"
-        for role, actor in (("a", "oldfuse"), ("b", "remote")):
-            request(role, "close", actor=actor, handle="old")
-        result["cases_ok"] = result.get("append_semantics_ok", True)
+            else:
+                # Observe ordinary B behavior without turning semantic errno
+                # failures into harness exceptions or silent admission waivers.
+                warm_data = request("b", "observe-read", actor="remote", name="data")
+                assert warm_data["view"]["ok"] and warm_data["view"]["data"] == "original-A-data"
+                request("a", "write", actor="native", name="data", data="NEW-DATA")
+                changed_data = request("b", "observe-read", actor="remote", name="data")
+                warm_identity = request("b", "observe-read", actor="remote", name="identity")
+                assert warm_identity["view"]["ok"] and warm_identity["view"]["data"] == "original-object"
+                request("a", "atomic-replace", actor="native", name="identity", data="replacement-object")
+                replaced_identity = request("b", "observe-read", actor="remote", name="identity")
+                # Bounds on one VM clock: even the earliest lookup in the
+                # warm call is less than one second old at the later call.
+                window = replaced_identity["finished_ns"] - warm_identity["started_ns"]
+                result["mixed_observations"] = {"warm_data": warm_data, "changed_data": changed_data,
+                    "warm_identity": warm_identity, "replaced_identity": replaced_identity,
+                    "replacement_window_ns": window, "within_entry_ttl": window < 1_000_000_000}
+                result["mixed_semantics_ok"] = (changed_data["view"].get("data") == "NEW-DATA" and
+                    changed_data["view"].get("size") == 8 and
+                    replaced_identity["view"].get("data") == "replacement-object" and
+                    replaced_identity["view"].get("size") == 18)
+                result["mechanism_result"] = "native-eligible Home with ordinary remote; close/reopen data and cached-name replacement"
+        if args.case not in ("metadata-perf", "container-perf", "container-bulk"):
+            for role, actor in (("a", "oldfuse"), ("b", "remote")):
+                request(role, "close", actor=actor, handle="old")
+        result["cases_ok"] = result.get("append_semantics_ok", True) and result.get("mixed_semantics_ok", True)
     except Exception as error:
         result["error"] = repr(error)
     finally:
         cleanup = []
+        if result.get("container_performance", {}).get("manager_detached"):
+            cleanup.append({"role": "a", "detach": result["container_performance"]["container_lifecycle"]["original_export_detach"]["result"],
+                            "scope": "post-timing container namespace lifecycle probe"})
         for role in active:
             try:
                 cleanup.append({"role": role, "capture": guest(role, "capture")})

@@ -1,0 +1,1872 @@
+{
+  "scope": "P1 local warm metadata/small-file visibility diagnostics",
+  "stage_pass": false,
+  "missing": [
+    "sequential IO",
+    "random IO",
+    "remote timing",
+    "strong durability parity",
+    "full architecture acceptance"
+  ],
+  "runs": [
+    {
+      "run": "network-probe-20261001T120749-90422701",
+      "original_runner_passed": false,
+      "result_sha256": "c1b1b9578b20d34c5db703169c2fb3ddc733bd04c2b917687277e73203a431da",
+      "input_sha256": {
+        "node-tests": "409363724228d3a1de051158d6ec9e627452c55af0b95d9f4607feb5c3eb5c72",
+        "afs-meta": "77b9435f23c198de3e53d3552979ce2beca1ad79f05e8fafdc19bdfab6796cfe",
+        "guest.py": "ba30ce5cce4669e70fcbd8d6c10c411aff2a127f2cddb2e895fd023323000d8a",
+        "controller.py": "cf79727671dbcfbc6a257425d472f5084119a7cdba1a11e321920fd1e129688a",
+        "benchmark": "a5a7c66a2c38e521d23d0f857b4bd732dd0e3a33f74c7b136c1fa879bcaf7ff3"
+      },
+      "raw_sha256": {
+        "b": "f8ec11d432027bd1f181f06c25fbb5dba08ae6b16e4901450441eae8c6d60a8b",
+        "a": "52da4206014c9970eef3d92b9a9cda5b17fac11de1585e846b7e06e331f6039b",
+        "ctl": "6365a1dde0e96cff324f66d11c9ed84d6e8e55cb53c5730478a86a17b0532cc5"
+      },
+      "forensic_checks_ok": true,
+      "performance_recovery": true,
+      "source": {
+        "device": 2065,
+        "inode": 1049197
+      },
+      "identity": {
+        "epoch": 1,
+        "home_node_id": "native-a-90422701",
+        "home_session_id": "a76a3682-a3fd-40eb-98f9-39fae41827cc",
+        "namespace": {
+          "device": 4,
+          "inode": 4026532176
+        },
+        "root_id": "root-6167656e7431"
+      }
+    },
+    {
+      "run": "network-probe-20261001T122407-211d5bd3",
+      "original_runner_passed": true,
+      "result_sha256": "8751dba6a81b145d801b72314c9e1c382e8a2221d8b72d3567f1579a11afd3f2",
+      "input_sha256": {
+        "node-tests": "409363724228d3a1de051158d6ec9e627452c55af0b95d9f4607feb5c3eb5c72",
+        "afs-meta": "77b9435f23c198de3e53d3552979ce2beca1ad79f05e8fafdc19bdfab6796cfe",
+        "guest.py": "b271709b520e0260df5da601b9addd27cc2b3aa16dc778b587817964d8978f68",
+        "controller.py": "8ec2ba299d72a4191a0b1c1ed771564909a2e6d30318dea4d03eaab4cef8e3d2",
+        "benchmark": "a5a7c66a2c38e521d23d0f857b4bd732dd0e3a33f74c7b136c1fa879bcaf7ff3"
+      },
+      "raw_sha256": {
+        "b": "8dcdedbb96338bd28823c2baa05e6c3a13da975357c4a68297fadeecf4f6fd59",
+        "a": "148a62509b55e36879b31f60777a13965c6a36fabb1aff5b0bb9f60867d10143",
+        "ctl": "47d9b65aab04e357d9a593ca4bb65071b81ec82ea83a21be23d31568d8c44319"
+      },
+      "forensic_checks_ok": true,
+      "performance_recovery": false,
+      "source": {
+        "device": 2065,
+        "inode": 1049299
+      },
+      "identity": {
+        "epoch": 1,
+        "home_node_id": "native-a-211d5bd3",
+        "home_session_id": "95504023-4b19-46e0-b94f-2328129d3fd6",
+        "namespace": {
+          "device": 4,
+          "inode": 4026532176
+        },
+        "root_id": "root-6167656e7431"
+      }
+    }
+  ],
+  "rows": [
+    {
+      "path_form": "absolute",
+      "concurrency": 1,
+      "phase": "create_write_close",
+      "ext4_median_ms": 127.821178,
+      "native_median_ms": 1193.361621,
+      "native_ext4_paired_ratios": [
+        8.953629580823382,
+        9.549407626332469,
+        9.401567762745351,
+        8.677901813773799,
+        9.350796956193413
+      ],
+      "native_ext4_ratio_median": 9.350796956193413,
+      "native_ext4_pair_ids": [
+        [
+          "network-probe-20261001T120749-90422701",
+          1
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          2
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          3
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          4
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          5
+        ]
+      ],
+      "moosefs_median_ms": 14165.525,
+      "native_moosefs_ratio_median": 0.08424407997585688,
+      "moosefs_aligned_pair_ids": [
+        [
+          "network-probe-20261001T120749-90422701",
+          3
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          4
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          5
+        ],
+        [
+          "network-probe-20261001T122407-211d5bd3",
+          1
+        ],
+        [
+          "network-probe-20261001T122407-211d5bd3",
+          2
+        ]
+      ]
+    },
+    {
+      "path_form": "absolute",
+      "concurrency": 1,
+      "phase": "stat",
+      "ext4_median_ms": 9.428952,
+      "native_median_ms": 984.401759,
+      "native_ext4_paired_ratios": [
+        109.25533081513194,
+        108.83054349615395,
+        89.01762644654987,
+        118.01421219997326,
+        99.73769034658734
+      ],
+      "native_ext4_ratio_median": 108.83054349615395,
+      "native_ext4_pair_ids": [
+        [
+          "network-probe-20261001T120749-90422701",
+          1
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          2
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          3
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          4
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          5
+        ]
+      ],
+      "moosefs_median_ms": 2417.905466,
+      "native_moosefs_ratio_median": 0.3901450171061567,
+      "moosefs_aligned_pair_ids": [
+        [
+          "network-probe-20261001T120749-90422701",
+          3
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          4
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          5
+        ],
+        [
+          "network-probe-20261001T122407-211d5bd3",
+          1
+        ],
+        [
+          "network-probe-20261001T122407-211d5bd3",
+          2
+        ]
+      ]
+    },
+    {
+      "path_form": "absolute",
+      "concurrency": 1,
+      "phase": "read_close",
+      "ext4_median_ms": 19.292621,
+      "native_median_ms": 1044.465846,
+      "native_ext4_paired_ratios": [
+        57.47583276749118,
+        51.59256913341872,
+        51.61588686653202,
+        69.29805192973252,
+        49.87698602486412
+      ],
+      "native_ext4_ratio_median": 51.61588686653202,
+      "native_ext4_pair_ids": [
+        [
+          "network-probe-20261001T120749-90422701",
+          1
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          2
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          3
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          4
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          5
+        ]
+      ],
+      "moosefs_median_ms": 5956.565892,
+      "native_moosefs_ratio_median": 0.16667477271376552,
+      "moosefs_aligned_pair_ids": [
+        [
+          "network-probe-20261001T120749-90422701",
+          3
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          4
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          5
+        ],
+        [
+          "network-probe-20261001T122407-211d5bd3",
+          1
+        ],
+        [
+          "network-probe-20261001T122407-211d5bd3",
+          2
+        ]
+      ]
+    },
+    {
+      "path_form": "absolute",
+      "concurrency": 1,
+      "phase": "readdir",
+      "ext4_median_ms": 1.73652,
+      "native_median_ms": 1.715793,
+      "native_ext4_paired_ratios": [
+        0.9974714515772599,
+        0.718607820070967,
+        0.8922897593566754,
+        1.2827090963536267,
+        1.0516962486813901
+      ],
+      "native_ext4_ratio_median": 0.9974714515772599,
+      "native_ext4_pair_ids": [
+        [
+          "network-probe-20261001T120749-90422701",
+          1
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          2
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          3
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          4
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          5
+        ]
+      ],
+      "moosefs_median_ms": 6.12716,
+      "native_moosefs_ratio_median": 0.28654959878340996,
+      "moosefs_aligned_pair_ids": [
+        [
+          "network-probe-20261001T120749-90422701",
+          3
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          4
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          5
+        ],
+        [
+          "network-probe-20261001T122407-211d5bd3",
+          1
+        ],
+        [
+          "network-probe-20261001T122407-211d5bd3",
+          2
+        ]
+      ]
+    },
+    {
+      "path_form": "absolute",
+      "concurrency": 1,
+      "phase": "rename",
+      "ext4_median_ms": 121.592768,
+      "native_median_ms": 2103.895014,
+      "native_ext4_paired_ratios": [
+        19.74831355924063,
+        17.904741138861848,
+        16.413442655090265,
+        19.688732975864294,
+        17.65255938342927
+      ],
+      "native_ext4_ratio_median": 17.904741138861848,
+      "native_ext4_pair_ids": [
+        [
+          "network-probe-20261001T120749-90422701",
+          1
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          2
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          3
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          4
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          5
+        ]
+      ],
+      "moosefs_median_ms": 7295.639568,
+      "native_moosefs_ratio_median": 0.3163165871512844,
+      "moosefs_aligned_pair_ids": [
+        [
+          "network-probe-20261001T120749-90422701",
+          3
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          4
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          5
+        ],
+        [
+          "network-probe-20261001T122407-211d5bd3",
+          1
+        ],
+        [
+          "network-probe-20261001T122407-211d5bd3",
+          2
+        ]
+      ]
+    },
+    {
+      "path_form": "absolute",
+      "concurrency": 1,
+      "phase": "unlink",
+      "ext4_median_ms": 57.529187,
+      "native_median_ms": 1112.592678,
+      "native_ext4_paired_ratios": [
+        23.15400505004336,
+        20.042062840206658,
+        17.60928246054227,
+        16.938942499514525,
+        18.30985643947889
+      ],
+      "native_ext4_ratio_median": 18.30985643947889,
+      "native_ext4_pair_ids": [
+        [
+          "network-probe-20261001T120749-90422701",
+          1
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          2
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          3
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          4
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          5
+        ]
+      ],
+      "moosefs_median_ms": 5283.70599,
+      "native_moosefs_ratio_median": 0.1921221875178562,
+      "moosefs_aligned_pair_ids": [
+        [
+          "network-probe-20261001T120749-90422701",
+          3
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          4
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          5
+        ],
+        [
+          "network-probe-20261001T122407-211d5bd3",
+          1
+        ],
+        [
+          "network-probe-20261001T122407-211d5bd3",
+          2
+        ]
+      ]
+    },
+    {
+      "path_form": "absolute",
+      "concurrency": 1,
+      "phase": "whole_task",
+      "ext4_median_ms": 332.749495,
+      "native_median_ms": 6496.203136,
+      "native_ext4_paired_ratios": [
+        20.922877166199758,
+        19.27625953320119,
+        17.76312800127593,
+        20.260943041271695,
+        18.606881873314773
+      ],
+      "native_ext4_ratio_median": 19.27625953320119,
+      "native_ext4_pair_ids": [
+        [
+          "network-probe-20261001T120749-90422701",
+          1
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          2
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          3
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          4
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          5
+        ]
+      ],
+      "moosefs_median_ms": 35924.315624,
+      "native_moosefs_ratio_median": 0.19766200583672308,
+      "moosefs_aligned_pair_ids": [
+        [
+          "network-probe-20261001T120749-90422701",
+          3
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          4
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          5
+        ],
+        [
+          "network-probe-20261001T122407-211d5bd3",
+          1
+        ],
+        [
+          "network-probe-20261001T122407-211d5bd3",
+          2
+        ]
+      ]
+    },
+    {
+      "path_form": "absolute",
+      "concurrency": 8,
+      "phase": "create_write_close",
+      "ext4_median_ms": 131.199194,
+      "native_median_ms": 298.410378,
+      "native_ext4_paired_ratios": [
+        2.188615787457608,
+        2.6542209486270805,
+        2.274483317328916,
+        2.613739361450825,
+        1.8386673752726688
+      ],
+      "native_ext4_ratio_median": 2.274483317328916,
+      "native_ext4_pair_ids": [
+        [
+          "network-probe-20261001T120749-90422701",
+          1
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          2
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          3
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          4
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          5
+        ]
+      ],
+      "moosefs_median_ms": 5836.350093,
+      "native_moosefs_ratio_median": 0.05279630803587134,
+      "moosefs_aligned_pair_ids": [
+        [
+          "network-probe-20261001T120749-90422701",
+          1
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          2
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          3
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          4
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          5
+        ]
+      ]
+    },
+    {
+      "path_form": "absolute",
+      "concurrency": 8,
+      "phase": "stat",
+      "ext4_median_ms": 5.981109,
+      "native_median_ms": 186.932048,
+      "native_ext4_paired_ratios": [
+        21.52423331973939,
+        35.23898502878752,
+        33.254001359106546,
+        40.34988565284817,
+        24.914887690560395
+      ],
+      "native_ext4_ratio_median": 33.254001359106546,
+      "native_ext4_pair_ids": [
+        [
+          "network-probe-20261001T120749-90422701",
+          1
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          2
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          3
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          4
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          5
+        ]
+      ],
+      "moosefs_median_ms": 365.52806,
+      "native_moosefs_ratio_median": 0.5341454564124481,
+      "moosefs_aligned_pair_ids": [
+        [
+          "network-probe-20261001T120749-90422701",
+          1
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          2
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          3
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          4
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          5
+        ]
+      ]
+    },
+    {
+      "path_form": "absolute",
+      "concurrency": 8,
+      "phase": "read_close",
+      "ext4_median_ms": 12.9595,
+      "native_median_ms": 195.47416,
+      "native_ext4_paired_ratios": [
+        12.02081058906208,
+        16.638360682457982,
+        15.471537038017603,
+        15.257796597090937,
+        14.148167451419077
+      ],
+      "native_ext4_ratio_median": 15.257796597090937,
+      "native_ext4_pair_ids": [
+        [
+          "network-probe-20261001T120749-90422701",
+          1
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          2
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          3
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          4
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          5
+        ]
+      ],
+      "moosefs_median_ms": 1109.676062,
+      "native_moosefs_ratio_median": 0.17796195692544428,
+      "moosefs_aligned_pair_ids": [
+        [
+          "network-probe-20261001T120749-90422701",
+          1
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          2
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          3
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          4
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          5
+        ]
+      ]
+    },
+    {
+      "path_form": "absolute",
+      "concurrency": 8,
+      "phase": "readdir",
+      "ext4_median_ms": 1.643781,
+      "native_median_ms": 1.646598,
+      "native_ext4_paired_ratios": [
+        1.0450231715365252,
+        1.0095548189453696,
+        1.0017137319387437,
+        1.1219403694914294,
+        0.8956953339762148
+      ],
+      "native_ext4_ratio_median": 1.0095548189453696,
+      "native_ext4_pair_ids": [
+        [
+          "network-probe-20261001T120749-90422701",
+          1
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          2
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          3
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          4
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          5
+        ]
+      ],
+      "moosefs_median_ms": 6.966533,
+      "native_moosefs_ratio_median": 0.2503206212273311,
+      "moosefs_aligned_pair_ids": [
+        [
+          "network-probe-20261001T120749-90422701",
+          1
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          2
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          3
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          4
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          5
+        ]
+      ]
+    },
+    {
+      "path_form": "absolute",
+      "concurrency": 8,
+      "phase": "rename",
+      "ext4_median_ms": 136.651675,
+      "native_median_ms": 425.880328,
+      "native_ext4_paired_ratios": [
+        2.958986903950747,
+        3.2653883280797564,
+        3.5460588463332043,
+        3.2077665673996156,
+        2.9233293523466526
+      ],
+      "native_ext4_ratio_median": 3.2077665673996156,
+      "native_ext4_pair_ids": [
+        [
+          "network-probe-20261001T120749-90422701",
+          1
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          2
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          3
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          4
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          5
+        ]
+      ],
+      "moosefs_median_ms": 8368.056801,
+      "native_moosefs_ratio_median": 0.050832730718219706,
+      "moosefs_aligned_pair_ids": [
+        [
+          "network-probe-20261001T120749-90422701",
+          1
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          2
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          3
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          4
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          5
+        ]
+      ]
+    },
+    {
+      "path_form": "absolute",
+      "concurrency": 8,
+      "phase": "unlink",
+      "ext4_median_ms": 53.833248,
+      "native_median_ms": 210.4805,
+      "native_ext4_paired_ratios": [
+        3.2032842000854136,
+        3.9310981965732035,
+        4.737047021016516,
+        4.384415739702184,
+        3.909860686837993
+      ],
+      "native_ext4_ratio_median": 3.9310981965732035,
+      "native_ext4_pair_ids": [
+        [
+          "network-probe-20261001T120749-90422701",
+          1
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          2
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          3
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          4
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          5
+        ]
+      ],
+      "moosefs_median_ms": 5296.225086,
+      "native_moosefs_ratio_median": 0.03974160776444009,
+      "moosefs_aligned_pair_ids": [
+        [
+          "network-probe-20261001T120749-90422701",
+          1
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          2
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          3
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          4
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          5
+        ]
+      ]
+    },
+    {
+      "path_form": "absolute",
+      "concurrency": 8,
+      "phase": "whole_task",
+      "ext4_median_ms": 353.547175,
+      "native_median_ms": 1328.503233,
+      "native_ext4_paired_ratios": [
+        3.523036109678998,
+        4.176131177741947,
+        4.160512862313868,
+        4.267257552611976,
+        3.429754906201957
+      ],
+      "native_ext4_ratio_median": 4.160512862313868,
+      "native_ext4_pair_ids": [
+        [
+          "network-probe-20261001T120749-90422701",
+          1
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          2
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          3
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          4
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          5
+        ]
+      ],
+      "moosefs_median_ms": 21255.032274,
+      "native_moosefs_ratio_median": 0.06202994452766469,
+      "moosefs_aligned_pair_ids": [
+        [
+          "network-probe-20261001T120749-90422701",
+          1
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          2
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          3
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          4
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          5
+        ]
+      ]
+    },
+    {
+      "path_form": "relative",
+      "concurrency": 1,
+      "phase": "create_write_close",
+      "ext4_median_ms": 128.963784,
+      "native_median_ms": 126.756265,
+      "native_ext4_paired_ratios": [
+        0.973150048167203,
+        0.9927888341244591,
+        1.0003862237074974,
+        0.9842583170481412,
+        1.045497183353781
+      ],
+      "native_ext4_ratio_median": 0.9927888341244591,
+      "native_ext4_pair_ids": [
+        [
+          "network-probe-20261001T120749-90422701",
+          1
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          2
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          3
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          4
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          5
+        ]
+      ],
+      "moosefs_median_ms": 15720.261725,
+      "native_moosefs_ratio_median": 0.008391566711421827,
+      "moosefs_aligned_pair_ids": [
+        [
+          "network-probe-20261001T120749-90422701",
+          1
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          2
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          3
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          4
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          5
+        ]
+      ]
+    },
+    {
+      "path_form": "relative",
+      "concurrency": 1,
+      "phase": "stat",
+      "ext4_median_ms": 7.531729,
+      "native_median_ms": 8.048158,
+      "native_ext4_paired_ratios": [
+        1.0795225513574649,
+        0.9771420007630544,
+        0.9343844049173697,
+        1.0739313642325687,
+        0.9648682944341982
+      ],
+      "native_ext4_ratio_median": 0.9771420007630544,
+      "native_ext4_pair_ids": [
+        [
+          "network-probe-20261001T120749-90422701",
+          1
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          2
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          3
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          4
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          5
+        ]
+      ],
+      "moosefs_median_ms": 2527.370912,
+      "native_moosefs_ratio_median": 0.0031620536494850818,
+      "moosefs_aligned_pair_ids": [
+        [
+          "network-probe-20261001T120749-90422701",
+          1
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          2
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          3
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          4
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          5
+        ]
+      ]
+    },
+    {
+      "path_form": "relative",
+      "concurrency": 1,
+      "phase": "read_close",
+      "ext4_median_ms": 17.498965,
+      "native_median_ms": 16.672213,
+      "native_ext4_paired_ratios": [
+        0.9933459222207827,
+        1.105592022783274,
+        0.9481803066638512,
+        0.9388318225234094,
+        0.921967162747532
+      ],
+      "native_ext4_ratio_median": 0.9481803066638512,
+      "native_ext4_pair_ids": [
+        [
+          "network-probe-20261001T120749-90422701",
+          1
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          2
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          3
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          4
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          5
+        ]
+      ],
+      "moosefs_median_ms": 6346.42462,
+      "native_moosefs_ratio_median": 0.0026198348265089053,
+      "moosefs_aligned_pair_ids": [
+        [
+          "network-probe-20261001T120749-90422701",
+          1
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          2
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          3
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          4
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          5
+        ]
+      ]
+    },
+    {
+      "path_form": "relative",
+      "concurrency": 1,
+      "phase": "readdir",
+      "ext4_median_ms": 1.613087,
+      "native_median_ms": 1.576553,
+      "native_ext4_paired_ratios": [
+        1.0109725145276323,
+        0.9720544082450389,
+        1.5768696914673541,
+        0.9916282017614738,
+        1.0785015913613178
+      ],
+      "native_ext4_ratio_median": 1.0109725145276323,
+      "native_ext4_pair_ids": [
+        [
+          "network-probe-20261001T120749-90422701",
+          1
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          2
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          3
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          4
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          5
+        ]
+      ],
+      "moosefs_median_ms": 7.638215,
+      "native_moosefs_ratio_median": 0.22463442138216402,
+      "moosefs_aligned_pair_ids": [
+        [
+          "network-probe-20261001T120749-90422701",
+          1
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          2
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          3
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          4
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          5
+        ]
+      ]
+    },
+    {
+      "path_form": "relative",
+      "concurrency": 1,
+      "phase": "rename",
+      "ext4_median_ms": 116.406228,
+      "native_median_ms": 119.436253,
+      "native_ext4_paired_ratios": [
+        0.9740895220829593,
+        1.0658402229368005,
+        1.048889248170292,
+        1.0062975097770186,
+        0.9867138718333204
+      ],
+      "native_ext4_ratio_median": 1.0062975097770186,
+      "native_ext4_pair_ids": [
+        [
+          "network-probe-20261001T120749-90422701",
+          1
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          2
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          3
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          4
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          5
+        ]
+      ],
+      "moosefs_median_ms": 7590.980075,
+      "native_moosefs_ratio_median": 0.015358376173295874,
+      "moosefs_aligned_pair_ids": [
+        [
+          "network-probe-20261001T120749-90422701",
+          1
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          2
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          3
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          4
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          5
+        ]
+      ]
+    },
+    {
+      "path_form": "relative",
+      "concurrency": 1,
+      "phase": "unlink",
+      "ext4_median_ms": 58.78671,
+      "native_median_ms": 56.397538,
+      "native_ext4_paired_ratios": [
+        0.9947548008725101,
+        1.0844024552310503,
+        0.9248389137500277,
+        0.9842396248348082,
+        0.872358253576999
+      ],
+      "native_ext4_ratio_median": 0.9842396248348082,
+      "native_ext4_pair_ids": [
+        [
+          "network-probe-20261001T120749-90422701",
+          1
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          2
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          3
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          4
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          5
+        ]
+      ],
+      "moosefs_median_ms": 4944.674319,
+      "native_moosefs_ratio_median": 0.011359571809242954,
+      "moosefs_aligned_pair_ids": [
+        [
+          "network-probe-20261001T120749-90422701",
+          1
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          2
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          3
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          4
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          5
+        ]
+      ]
+    },
+    {
+      "path_form": "relative",
+      "concurrency": 1,
+      "phase": "whole_task",
+      "ext4_median_ms": 328.477748,
+      "native_median_ms": 328.116316,
+      "native_ext4_paired_ratios": [
+        0.9809071604798073,
+        1.039915334872341,
+        1.0016113265820008,
+        0.9918066778757871,
+        0.9849850059288188
+      ],
+      "native_ext4_ratio_median": 0.9918066778757871,
+      "native_ext4_pair_ids": [
+        [
+          "network-probe-20261001T120749-90422701",
+          1
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          2
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          3
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          4
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          5
+        ]
+      ],
+      "moosefs_median_ms": 37461.682694,
+      "native_moosefs_ratio_median": 0.009080310303448483,
+      "moosefs_aligned_pair_ids": [
+        [
+          "network-probe-20261001T120749-90422701",
+          1
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          2
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          3
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          4
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          5
+        ]
+      ]
+    },
+    {
+      "path_form": "relative",
+      "concurrency": 8,
+      "phase": "create_write_close",
+      "ext4_median_ms": 123.908597,
+      "native_median_ms": 126.259813,
+      "native_ext4_paired_ratios": [
+        0.9843185376394827,
+        1.066234454021493,
+        0.9665347482342711,
+        1.2228171422911702,
+        1.0235467475472948
+      ],
+      "native_ext4_ratio_median": 1.0235467475472948,
+      "native_ext4_pair_ids": [
+        [
+          "network-probe-20261001T120749-90422701",
+          1
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          2
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          3
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          4
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          5
+        ]
+      ],
+      "moosefs_median_ms": 5817.567939,
+      "native_moosefs_ratio_median": 0.022070039554329568,
+      "moosefs_aligned_pair_ids": [
+        [
+          "network-probe-20261001T120749-90422701",
+          1
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          2
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          3
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          4
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          5
+        ]
+      ]
+    },
+    {
+      "path_form": "relative",
+      "concurrency": 8,
+      "phase": "stat",
+      "ext4_median_ms": 4.748104,
+      "native_median_ms": 4.816347,
+      "native_ext4_paired_ratios": [
+        1.0323994892391468,
+        1.109452501896481,
+        1.0603973712454486,
+        0.9842326111406116,
+        1.0072719873885285
+      ],
+      "native_ext4_ratio_median": 1.0323994892391468,
+      "native_ext4_pair_ids": [
+        [
+          "network-probe-20261001T120749-90422701",
+          1
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          2
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          3
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          4
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          5
+        ]
+      ],
+      "moosefs_median_ms": 368.26868,
+      "native_moosefs_ratio_median": 0.013495443847492263,
+      "moosefs_aligned_pair_ids": [
+        [
+          "network-probe-20261001T120749-90422701",
+          1
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          2
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          3
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          4
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          5
+        ]
+      ]
+    },
+    {
+      "path_form": "relative",
+      "concurrency": 8,
+      "phase": "read_close",
+      "ext4_median_ms": 10.758649,
+      "native_median_ms": 10.880006,
+      "native_ext4_paired_ratios": [
+        1.0932085708280643,
+        0.8686808238293726,
+        1.0361887773423772,
+        1.1635495387975667,
+        1.011279947881932
+      ],
+      "native_ext4_ratio_median": 1.0361887773423772,
+      "native_ext4_pair_ids": [
+        [
+          "network-probe-20261001T120749-90422701",
+          1
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          2
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          3
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          4
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          5
+        ]
+      ],
+      "moosefs_median_ms": 1117.448894,
+      "native_moosefs_ratio_median": 0.009726683449207775,
+      "moosefs_aligned_pair_ids": [
+        [
+          "network-probe-20261001T120749-90422701",
+          1
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          2
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          3
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          4
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          5
+        ]
+      ]
+    },
+    {
+      "path_form": "relative",
+      "concurrency": 8,
+      "phase": "readdir",
+      "ext4_median_ms": 1.580821,
+      "native_median_ms": 1.628193,
+      "native_ext4_paired_ratios": [
+        0.9418506974449559,
+        1.0557448927586301,
+        1.0195360512037732,
+        1.1575735011231494,
+        1.048834421028696
+      ],
+      "native_ext4_ratio_median": 1.048834421028696,
+      "native_ext4_pair_ids": [
+        [
+          "network-probe-20261001T120749-90422701",
+          1
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          2
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          3
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          4
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          5
+        ]
+      ],
+      "moosefs_median_ms": 6.516821,
+      "native_moosefs_ratio_median": 0.24731444979077988,
+      "moosefs_aligned_pair_ids": [
+        [
+          "network-probe-20261001T120749-90422701",
+          1
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          2
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          3
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          4
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          5
+        ]
+      ]
+    },
+    {
+      "path_form": "relative",
+      "concurrency": 8,
+      "phase": "rename",
+      "ext4_median_ms": 137.713575,
+      "native_median_ms": 132.782978,
+      "native_ext4_paired_ratios": [
+        1.0513150039169081,
+        0.9867948364364788,
+        0.8599370395797238,
+        1.2654853146250797,
+        0.9626652637548622
+      ],
+      "native_ext4_ratio_median": 0.9867948364364788,
+      "native_ext4_pair_ids": [
+        [
+          "network-probe-20261001T120749-90422701",
+          1
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          2
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          3
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          4
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          5
+        ]
+      ],
+      "moosefs_median_ms": 8304.401469,
+      "native_moosefs_ratio_median": 0.01622829978907923,
+      "moosefs_aligned_pair_ids": [
+        [
+          "network-probe-20261001T120749-90422701",
+          1
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          2
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          3
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          4
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          5
+        ]
+      ]
+    },
+    {
+      "path_form": "relative",
+      "concurrency": 8,
+      "phase": "unlink",
+      "ext4_median_ms": 46.961973,
+      "native_median_ms": 52.90514,
+      "native_ext4_paired_ratios": [
+        1.1326611069482455,
+        1.3111435927106385,
+        1.072074865737424,
+        1.357543196751151,
+        0.9542840267869099
+      ],
+      "native_ext4_ratio_median": 1.1326611069482455,
+      "native_ext4_pair_ids": [
+        [
+          "network-probe-20261001T120749-90422701",
+          1
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          2
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          3
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          4
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          5
+        ]
+      ],
+      "moosefs_median_ms": 5457.795328,
+      "native_moosefs_ratio_median": 0.00990894220534761,
+      "moosefs_aligned_pair_ids": [
+        [
+          "network-probe-20261001T120749-90422701",
+          1
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          2
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          3
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          4
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          5
+        ]
+      ]
+    },
+    {
+      "path_form": "relative",
+      "concurrency": 8,
+      "phase": "whole_task",
+      "ext4_median_ms": 332.899322,
+      "native_median_ms": 328.38145,
+      "native_ext4_paired_ratios": [
+        1.0364516815532105,
+        1.0619803969843686,
+        0.9365124693155774,
+        1.255249313082421,
+        0.9863350307454216
+      ],
+      "native_ext4_ratio_median": 1.0364516815532105,
+      "native_ext4_pair_ids": [
+        [
+          "network-probe-20261001T120749-90422701",
+          1
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          2
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          3
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          4
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          5
+        ]
+      ],
+      "moosefs_median_ms": 21705.581712,
+      "native_moosefs_ratio_median": 0.016186772366345994,
+      "moosefs_aligned_pair_ids": [
+        [
+          "network-probe-20261001T120749-90422701",
+          1
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          2
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          3
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          4
+        ],
+        [
+          "network-probe-20261001T120749-90422701",
+          5
+        ]
+      ]
+    }
+  ],
+  "samples": [
+    {"run": "network-probe-20261001T120749-90422701", "lane": "ext4", "round": 0, "warmup": true, "moosefs_configuration_aligned": false, "result": {"files": 10000, "file_bytes": 4096, "concurrency": 1, "path_form": "absolute", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 127966688, "client_cpu_ns": 127943678, "operations": 10000, "p50_ns": 11171, "p95_ns": 17358, "p99_ns": 48448}, {"name": "stat", "wall_ns": 9154755, "client_cpu_ns": 8909383, "operations": 10000, "p50_ns": 714, "p95_ns": 921, "p99_ns": 1075}, {"name": "read_close", "wall_ns": 17720607, "client_cpu_ns": 17705321, "operations": 10000, "p50_ns": 1578, "p95_ns": 1853, "p99_ns": 2024}, {"name": "readdir", "wall_ns": 1735480, "client_cpu_ns": 1735004, "operations": 1}, {"name": "rename", "wall_ns": 119950854, "client_cpu_ns": 119308595, "operations": 10000, "p50_ns": 11281, "p95_ns": 14792, "p99_ns": 24411}, {"name": "unlink", "wall_ns": 54933767, "client_cpu_ns": 53160355, "operations": 10000, "p50_ns": 4520, "p95_ns": 6735, "p99_ns": 14377}]}},
+    {"run": "network-probe-20261001T120749-90422701", "lane": "native", "round": 0, "warmup": true, "moosefs_configuration_aligned": false, "result": {"files": 10000, "file_bytes": 4096, "concurrency": 1, "path_form": "absolute", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 1269820855, "client_cpu_ns": 341306413, "operations": 10000, "p50_ns": 112497, "p95_ns": 206588, "p99_ns": 293302}, {"name": "stat", "wall_ns": 928760954, "client_cpu_ns": 138578534, "operations": 10000, "p50_ns": 87529, "p95_ns": 145213, "p99_ns": 199766}, {"name": "read_close", "wall_ns": 1463932564, "client_cpu_ns": 264565827, "operations": 10000, "p50_ns": 132863, "p95_ns": 253081, "p99_ns": 315289}, {"name": "readdir", "wall_ns": 2890658, "client_cpu_ns": 2683892, "operations": 1}, {"name": "rename", "wall_ns": 3290629231, "client_cpu_ns": 714740598, "operations": 10000, "p50_ns": 273037, "p95_ns": 642883, "p99_ns": 976577}, {"name": "unlink", "wall_ns": 1061324789, "client_cpu_ns": 255963637, "operations": 10000, "p50_ns": 93219, "p95_ns": 172397, "p99_ns": 252161}]}},
+    {"run": "network-probe-20261001T120749-90422701", "lane": "moosefs", "round": 0, "warmup": true, "moosefs_configuration_aligned": false, "result": {"files": 10000, "file_bytes": 4096, "concurrency": 1, "path_form": "absolute", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 15605351950, "client_cpu_ns": 635280369, "operations": 10000, "p50_ns": 1389233, "p95_ns": 2658323, "p99_ns": 3654976}, {"name": "stat", "wall_ns": 2407169627, "client_cpu_ns": 107254597, "operations": 10000, "p50_ns": 220901, "p95_ns": 377993, "p99_ns": 579312}, {"name": "read_close", "wall_ns": 7044866036, "client_cpu_ns": 519756256, "operations": 10000, "p50_ns": 659670, "p95_ns": 1037194, "p99_ns": 1444522}, {"name": "readdir", "wall_ns": 6354362, "client_cpu_ns": 1029717, "operations": 1}, {"name": "rename", "wall_ns": 7948229084, "client_cpu_ns": 314619812, "operations": 10000, "p50_ns": 757421, "p95_ns": 1171504, "p99_ns": 1513446}, {"name": "unlink", "wall_ns": 5587379101, "client_cpu_ns": 254319281, "operations": 10000, "p50_ns": 524534, "p95_ns": 830715, "p99_ns": 1100239}]}},
+    {"run": "network-probe-20261001T120749-90422701", "lane": "moosefs", "round": 1, "warmup": false, "moosefs_configuration_aligned": false, "result": {"files": 10000, "file_bytes": 4096, "concurrency": 1, "path_form": "absolute", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 15405271941, "client_cpu_ns": 603119093, "operations": 10000, "p50_ns": 1440470, "p95_ns": 2194529, "p99_ns": 3772806}, {"name": "stat", "wall_ns": 2426644385, "client_cpu_ns": 113828295, "operations": 10000, "p50_ns": 217936, "p95_ns": 386802, "p99_ns": 553598}, {"name": "read_close", "wall_ns": 6491226107, "client_cpu_ns": 476588390, "operations": 10000, "p50_ns": 589926, "p95_ns": 1016094, "p99_ns": 1362803}, {"name": "readdir", "wall_ns": 11786245, "client_cpu_ns": 2684680, "operations": 1}, {"name": "rename", "wall_ns": 9203849347, "client_cpu_ns": 358952633, "operations": 10000, "p50_ns": 849739, "p95_ns": 1529923, "p99_ns": 1910546}, {"name": "unlink", "wall_ns": 5409727538, "client_cpu_ns": 261110624, "operations": 10000, "p50_ns": 507808, "p95_ns": 814749, "p99_ns": 1082358}]}},
+    {"run": "network-probe-20261001T120749-90422701", "lane": "native", "round": 1, "warmup": false, "moosefs_configuration_aligned": false, "result": {"files": 10000, "file_bytes": 4096, "concurrency": 1, "path_form": "absolute", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 1112456117, "client_cpu_ns": 302800419, "operations": 10000, "p50_ns": 100400, "p95_ns": 172351, "p99_ns": 238214}, {"name": "stat", "wall_ns": 1030163270, "client_cpu_ns": 146035872, "operations": 10000, "p50_ns": 99342, "p95_ns": 187935, "p99_ns": 249742}, {"name": "read_close", "wall_ns": 1106075099, "client_cpu_ns": 175219842, "operations": 10000, "p50_ns": 104849, "p95_ns": 185905, "p99_ns": 254006}, {"name": "readdir", "wall_ns": 1633952, "client_cpu_ns": 1611033, "operations": 1}, {"name": "rename", "wall_ns": 2401252109, "client_cpu_ns": 472672459, "operations": 10000, "p50_ns": 214398, "p95_ns": 413699, "p99_ns": 689606}, {"name": "unlink", "wall_ns": 1310496264, "client_cpu_ns": 302827822, "operations": 10000, "p50_ns": 119076, "p95_ns": 218801, "p99_ns": 335210}]}},
+    {"run": "network-probe-20261001T120749-90422701", "lane": "ext4", "round": 1, "warmup": false, "moosefs_configuration_aligned": false, "result": {"files": 10000, "file_bytes": 4096, "concurrency": 1, "path_form": "absolute", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 124246386, "client_cpu_ns": 124223259, "operations": 10000, "p50_ns": 11302, "p95_ns": 15097, "p99_ns": 36318}, {"name": "stat", "wall_ns": 9428952, "client_cpu_ns": 9297275, "operations": 10000, "p50_ns": 725, "p95_ns": 922, "p99_ns": 1024}, {"name": "read_close", "wall_ns": 19244177, "client_cpu_ns": 19198137, "operations": 10000, "p50_ns": 1622, "p95_ns": 1996, "p99_ns": 3030}, {"name": "readdir", "wall_ns": 1638094, "client_cpu_ns": 1637256, "operations": 1}, {"name": "rename", "wall_ns": 121592768, "client_cpu_ns": 121142454, "operations": 10000, "p50_ns": 10987, "p95_ns": 18192, "p99_ns": 32229}, {"name": "unlink", "wall_ns": 56599118, "client_cpu_ns": 54496485, "operations": 10000, "p50_ns": 4658, "p95_ns": 6937, "p99_ns": 13874}]}},
+    {"run": "network-probe-20261001T120749-90422701", "lane": "ext4", "round": 2, "warmup": false, "moosefs_configuration_aligned": false, "result": {"files": 10000, "file_bytes": 4096, "concurrency": 1, "path_form": "absolute", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 127821178, "client_cpu_ns": 127578432, "operations": 10000, "p50_ns": 11619, "p95_ns": 15697, "p99_ns": 38956}, {"name": "stat", "wall_ns": 9045271, "client_cpu_ns": 9024736, "operations": 10000, "p50_ns": 732, "p95_ns": 934, "p99_ns": 1043}, {"name": "read_close", "wall_ns": 18405498, "client_cpu_ns": 18222805, "operations": 10000, "p50_ns": 1620, "p95_ns": 1917, "p99_ns": 2243}, {"name": "readdir", "wall_ns": 2394633, "client_cpu_ns": 2393710, "operations": 1}, {"name": "rename", "wall_ns": 117504911, "client_cpu_ns": 117039751, "operations": 10000, "p50_ns": 10945, "p95_ns": 14694, "p99_ns": 27673}, {"name": "unlink", "wall_ns": 57529187, "client_cpu_ns": 55624393, "operations": 10000, "p50_ns": 4648, "p95_ns": 7519, "p99_ns": 17718}]}},
+    {"run": "network-probe-20261001T120749-90422701", "lane": "native", "round": 2, "warmup": false, "moosefs_configuration_aligned": false, "result": {"files": 10000, "file_bytes": 4096, "concurrency": 1, "path_form": "absolute", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 1220616532, "client_cpu_ns": 320052688, "operations": 10000, "p50_ns": 109857, "p95_ns": 213043, "p99_ns": 280457}, {"name": "stat", "wall_ns": 984401759, "client_cpu_ns": 140270243, "operations": 10000, "p50_ns": 91903, "p95_ns": 163928, "p99_ns": 235592}, {"name": "read_close", "wall_ns": 949586928, "client_cpu_ns": 152208059, "operations": 10000, "p50_ns": 91292, "p95_ns": 147364, "p99_ns": 228349}, {"name": "readdir", "wall_ns": 1720802, "client_cpu_ns": 1625975, "operations": 1}, {"name": "rename", "wall_ns": 2103895014, "client_cpu_ns": 404835972, "operations": 10000, "p50_ns": 199102, "p95_ns": 317674, "p99_ns": 515147}, {"name": "unlink", "wall_ns": 1153003581, "client_cpu_ns": 257629039, "operations": 10000, "p50_ns": 104998, "p95_ns": 235275, "p99_ns": 380643}]}},
+    {"run": "network-probe-20261001T120749-90422701", "lane": "moosefs", "round": 2, "warmup": false, "moosefs_configuration_aligned": false, "result": {"files": 10000, "file_bytes": 4096, "concurrency": 1, "path_form": "absolute", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 16100688834, "client_cpu_ns": 639269074, "operations": 10000, "p50_ns": 1476763, "p95_ns": 2417870, "p99_ns": 5027100}, {"name": "stat", "wall_ns": 2334180709, "client_cpu_ns": 112068191, "operations": 10000, "p50_ns": 213465, "p95_ns": 349778, "p99_ns": 534422}, {"name": "read_close", "wall_ns": 5911863072, "client_cpu_ns": 438087088, "operations": 10000, "p50_ns": 554651, "p95_ns": 848689, "p99_ns": 1194509}, {"name": "readdir", "wall_ns": 7794511, "client_cpu_ns": 1099881, "operations": 1}, {"name": "rename", "wall_ns": 7621949765, "client_cpu_ns": 301744987, "operations": 10000, "p50_ns": 722790, "p95_ns": 1111685, "p99_ns": 1505725}, {"name": "unlink", "wall_ns": 5237382258, "client_cpu_ns": 246859058, "operations": 10000, "p50_ns": 487561, "p95_ns": 815351, "p99_ns": 1068783}]}},
+    {"run": "network-probe-20261001T120749-90422701", "lane": "moosefs", "round": 3, "warmup": false, "moosefs_configuration_aligned": true, "result": {"files": 10000, "file_bytes": 4096, "concurrency": 1, "path_form": "absolute", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 13931594134, "client_cpu_ns": 552882188, "operations": 10000, "p50_ns": 1298514, "p95_ns": 1972305, "p99_ns": 3891572}, {"name": "stat", "wall_ns": 3730252704, "client_cpu_ns": 193637719, "operations": 10000, "p50_ns": 334445, "p95_ns": 648890, "p99_ns": 918475}, {"name": "read_close", "wall_ns": 6485812218, "client_cpu_ns": 488285080, "operations": 10000, "p50_ns": 600321, "p95_ns": 968575, "p99_ns": 1421737}, {"name": "readdir", "wall_ns": 6650508, "client_cpu_ns": 1065542, "operations": 1}, {"name": "rename", "wall_ns": 8846118160, "client_cpu_ns": 350039415, "operations": 10000, "p50_ns": 803494, "p95_ns": 1470461, "p99_ns": 1841974}, {"name": "unlink", "wall_ns": 5837014199, "client_cpu_ns": 276223616, "operations": 10000, "p50_ns": 546886, "p95_ns": 913473, "p99_ns": 1234664}]}},
+    {"run": "network-probe-20261001T120749-90422701", "lane": "native", "round": 3, "warmup": false, "moosefs_configuration_aligned": true, "result": {"files": 10000, "file_bytes": 4096, "concurrency": 1, "path_form": "absolute", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 1342859788, "client_cpu_ns": 382280716, "operations": 10000, "p50_ns": 123995, "p95_ns": 215252, "p99_ns": 342134}, {"name": "stat", "wall_ns": 901814696, "client_cpu_ns": 132075168, "operations": 10000, "p50_ns": 84845, "p95_ns": 144320, "p99_ns": 203210}, {"name": "read_close", "wall_ns": 1044465846, "client_cpu_ns": 174709545, "operations": 10000, "p50_ns": 96749, "p95_ns": 175851, "p99_ns": 254361}, {"name": "readdir", "wall_ns": 1626671, "client_cpu_ns": 1575811, "operations": 1}, {"name": "rename", "wall_ns": 2092843457, "client_cpu_ns": 408970520, "operations": 10000, "p50_ns": 190413, "p95_ns": 349102, "p99_ns": 572529}, {"name": "unlink", "wall_ns": 1112592678, "client_cpu_ns": 256550579, "operations": 10000, "p50_ns": 102690, "p95_ns": 183429, "p99_ns": 286703}]}},
+    {"run": "network-probe-20261001T120749-90422701", "lane": "ext4", "round": 3, "warmup": false, "moosefs_configuration_aligned": true, "result": {"files": 10000, "file_bytes": 4096, "concurrency": 1, "path_form": "absolute", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 142833602, "client_cpu_ns": 140884308, "operations": 10000, "p50_ns": 12806, "p95_ns": 19287, "p99_ns": 41936}, {"name": "stat", "wall_ns": 10130743, "client_cpu_ns": 10104204, "operations": 10000, "p50_ns": 810, "p95_ns": 1006, "p99_ns": 1200}, {"name": "read_close", "wall_ns": 20235356, "client_cpu_ns": 20195870, "operations": 10000, "p50_ns": 1748, "p95_ns": 2047, "p99_ns": 5751}, {"name": "readdir", "wall_ns": 1823030, "client_cpu_ns": 1822573, "operations": 1}, {"name": "rename", "wall_ns": 127507891, "client_cpu_ns": 126923921, "operations": 10000, "p50_ns": 11898, "p95_ns": 15624, "p99_ns": 31131}, {"name": "unlink", "wall_ns": 63182170, "client_cpu_ns": 58430620, "operations": 10000, "p50_ns": 4906, "p95_ns": 7606, "p99_ns": 15137}]}},
+    {"run": "network-probe-20261001T120749-90422701", "lane": "ext4", "round": 4, "warmup": false, "moosefs_configuration_aligned": true, "result": {"files": 10000, "file_bytes": 4096, "concurrency": 1, "path_form": "absolute", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 136309445, "client_cpu_ns": 136176513, "operations": 10000, "p50_ns": 12328, "p95_ns": 16844, "p99_ns": 44363}, {"name": "stat", "wall_ns": 9572480, "client_cpu_ns": 9527456, "operations": 10000, "p50_ns": 785, "p95_ns": 969, "p99_ns": 1081}, {"name": "read_close", "wall_ns": 19672545, "client_cpu_ns": 19643907, "operations": 10000, "p50_ns": 1721, "p95_ns": 2023, "p99_ns": 2314}, {"name": "readdir", "wall_ns": 1736520, "client_cpu_ns": 1736089, "operations": 1}, {"name": "rename", "wall_ns": 127892102, "client_cpu_ns": 127214591, "operations": 10000, "p50_ns": 11863, "p95_ns": 15925, "p99_ns": 31571}, {"name": "unlink", "wall_ns": 64843696, "client_cpu_ns": 62024477, "operations": 10000, "p50_ns": 5188, "p95_ns": 7224, "p99_ns": 21152}]}},
+    {"run": "network-probe-20261001T120749-90422701", "lane": "native", "round": 4, "warmup": false, "moosefs_configuration_aligned": true, "result": {"files": 10000, "file_bytes": 4096, "concurrency": 1, "path_form": "absolute", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 1182879980, "client_cpu_ns": 310227953, "operations": 10000, "p50_ns": 106772, "p95_ns": 188003, "p99_ns": 264302}, {"name": "stat", "wall_ns": 1129688686, "client_cpu_ns": 163239533, "operations": 10000, "p50_ns": 103337, "p95_ns": 199008, "p99_ns": 275110}, {"name": "read_close", "wall_ns": 1363269045, "client_cpu_ns": 224584371, "operations": 10000, "p50_ns": 124677, "p95_ns": 230986, "p99_ns": 331701}, {"name": "readdir", "wall_ns": 2227450, "client_cpu_ns": 2054931, "operations": 1}, {"name": "rename", "wall_ns": 2518033446, "client_cpu_ns": 488783352, "operations": 10000, "p50_ns": 241797, "p95_ns": 381203, "p99_ns": 539603}, {"name": "unlink", "wall_ns": 1098383638, "client_cpu_ns": 227313501, "operations": 10000, "p50_ns": 103396, "p95_ns": 164841, "p99_ns": 258107}]}},
+    {"run": "network-probe-20261001T120749-90422701", "lane": "moosefs", "round": 4, "warmup": false, "moosefs_configuration_aligned": true, "result": {"files": 10000, "file_bytes": 4096, "concurrency": 1, "path_form": "absolute", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 14392753346, "client_cpu_ns": 583509864, "operations": 10000, "p50_ns": 1340903, "p95_ns": 2038837, "p99_ns": 3720296}, {"name": "stat", "wall_ns": 2313755277, "client_cpu_ns": 107366714, "operations": 10000, "p50_ns": 208692, "p95_ns": 363736, "p99_ns": 542612}, {"name": "read_close", "wall_ns": 5919778088, "client_cpu_ns": 438580857, "operations": 10000, "p50_ns": 562330, "p95_ns": 824120, "p99_ns": 1162026}, {"name": "readdir", "wall_ns": 6127160, "client_cpu_ns": 949016, "operations": 1}, {"name": "rename", "wall_ns": 7295639568, "client_cpu_ns": 293240860, "operations": 10000, "p50_ns": 671463, "p95_ns": 1111177, "p99_ns": 1471063}, {"name": "unlink", "wall_ns": 6914872965, "client_cpu_ns": 351874993, "operations": 10000, "p50_ns": 625468, "p95_ns": 1134670, "p99_ns": 1579185}]}},
+    {"run": "network-probe-20261001T120749-90422701", "lane": "moosefs", "round": 5, "warmup": false, "moosefs_configuration_aligned": true, "result": {"files": 10000, "file_bytes": 4096, "concurrency": 1, "path_form": "absolute", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 14165525000, "client_cpu_ns": 569592542, "operations": 10000, "p50_ns": 1282999, "p95_ns": 2170619, "p99_ns": 4150011}, {"name": "stat", "wall_ns": 2417905466, "client_cpu_ns": 112513940, "operations": 10000, "p50_ns": 216297, "p95_ns": 419687, "p99_ns": 577687}, {"name": "read_close", "wall_ns": 5956565892, "client_cpu_ns": 447051500, "operations": 10000, "p50_ns": 548087, "p95_ns": 902995, "p99_ns": 1193334}, {"name": "readdir", "wall_ns": 5285685, "client_cpu_ns": 884447, "operations": 1}, {"name": "rename", "wall_ns": 7266475982, "client_cpu_ns": 283050391, "operations": 10000, "p50_ns": 692790, "p95_ns": 1039310, "p99_ns": 1365402}, {"name": "unlink", "wall_ns": 4731960669, "client_cpu_ns": 230122696, "operations": 10000, "p50_ns": 444151, "p95_ns": 689540, "p99_ns": 957819}]}},
+    {"run": "network-probe-20261001T120749-90422701", "lane": "native", "round": 5, "warmup": false, "moosefs_configuration_aligned": true, "result": {"files": 10000, "file_bytes": 4096, "concurrency": 1, "path_form": "absolute", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 1193361621, "client_cpu_ns": 329402442, "operations": 10000, "p50_ns": 109458, "p95_ns": 201976, "p99_ns": 278125}, {"name": "stat", "wall_ns": 903392881, "client_cpu_ns": 132833584, "operations": 10000, "p50_ns": 90371, "p95_ns": 134937, "p99_ns": 205593}, {"name": "read_close", "wall_ns": 962257788, "client_cpu_ns": 155904592, "operations": 10000, "p50_ns": 93512, "p95_ns": 157608, "p99_ns": 226505}, {"name": "readdir", "wall_ns": 1715793, "client_cpu_ns": 1626423, "operations": 1}, {"name": "rename", "wall_ns": 2060533406, "client_cpu_ns": 413599315, "operations": 10000, "p50_ns": 198542, "p95_ns": 324632, "p99_ns": 513824}, {"name": "unlink", "wall_ns": 1037448056, "client_cpu_ns": 230794195, "operations": 10000, "p50_ns": 100248, "p95_ns": 165487, "p99_ns": 309274}]}},
+    {"run": "network-probe-20261001T120749-90422701", "lane": "ext4", "round": 5, "warmup": false, "moosefs_configuration_aligned": true, "result": {"files": 10000, "file_bytes": 4096, "concurrency": 1, "path_form": "absolute", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 127621381, "client_cpu_ns": 125749418, "operations": 10000, "p50_ns": 11554, "p95_ns": 15712, "p99_ns": 40061}, {"name": "stat", "wall_ns": 9057688, "client_cpu_ns": 9058501, "operations": 10000, "p50_ns": 777, "p95_ns": 942, "p99_ns": 1044}, {"name": "read_close", "wall_ns": 19292621, "client_cpu_ns": 19279935, "operations": 10000, "p50_ns": 1641, "p95_ns": 1932, "p99_ns": 2622}, {"name": "readdir", "wall_ns": 1631453, "client_cpu_ns": 1623439, "operations": 1}, {"name": "rename", "wall_ns": 116727176, "client_cpu_ns": 116124120, "operations": 10000, "p50_ns": 10953, "p95_ns": 14365, "p99_ns": 25534}, {"name": "unlink", "wall_ns": 56660633, "client_cpu_ns": 54274950, "operations": 10000, "p50_ns": 4689, "p95_ns": 6743, "p99_ns": 16243}]}},
+    {"run": "network-probe-20261001T120749-90422701", "lane": "ext4", "round": 0, "warmup": true, "moosefs_configuration_aligned": true, "result": {"files": 10000, "file_bytes": 4096, "concurrency": 8, "path_form": "absolute", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 132214752, "client_cpu_ns": 179402055, "operations": 10000, "p50_ns": 16144, "p95_ns": 42599, "p99_ns": 2816953}, {"name": "stat", "wall_ns": 6665510, "client_cpu_ns": 10191647, "operations": 10000, "p50_ns": 814, "p95_ns": 1012, "p99_ns": 1161}, {"name": "read_close", "wall_ns": 11304694, "client_cpu_ns": 21376679, "operations": 10000, "p50_ns": 1900, "p95_ns": 2280, "p99_ns": 2669}, {"name": "readdir", "wall_ns": 1650109, "client_cpu_ns": 1638960, "operations": 1}, {"name": "rename", "wall_ns": 134944084, "client_cpu_ns": 200531587, "operations": 10000, "p50_ns": 19911, "p95_ns": 43256, "p99_ns": 3205595}, {"name": "unlink", "wall_ns": 50861099, "client_cpu_ns": 81319044, "operations": 10000, "p50_ns": 6923, "p95_ns": 12534, "p99_ns": 710281}]}},
+    {"run": "network-probe-20261001T120749-90422701", "lane": "native", "round": 0, "warmup": true, "moosefs_configuration_aligned": true, "result": {"files": 10000, "file_bytes": 4096, "concurrency": 8, "path_form": "absolute", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 290738128, "client_cpu_ns": 225029232, "operations": 10000, "p50_ns": 193793, "p95_ns": 427920, "p99_ns": 712370}, {"name": "stat", "wall_ns": 202678238, "client_cpu_ns": 70574978, "operations": 10000, "p50_ns": 140560, "p95_ns": 300165, "p99_ns": 444419}, {"name": "read_close", "wall_ns": 157982753, "client_cpu_ns": 85980407, "operations": 10000, "p50_ns": 109992, "p95_ns": 216978, "p99_ns": 316516}, {"name": "readdir", "wall_ns": 1697947, "client_cpu_ns": 1613525, "operations": 1}, {"name": "rename", "wall_ns": 396132945, "client_cpu_ns": 256747722, "operations": 10000, "p50_ns": 283829, "p95_ns": 531358, "p99_ns": 833047}, {"name": "unlink", "wall_ns": 243318857, "client_cpu_ns": 145236893, "operations": 10000, "p50_ns": 168781, "p95_ns": 355326, "p99_ns": 554267}]}},
+    {"run": "network-probe-20261001T120749-90422701", "lane": "moosefs", "round": 0, "warmup": true, "moosefs_configuration_aligned": true, "result": {"files": 10000, "file_bytes": 4096, "concurrency": 8, "path_form": "absolute", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 6107681651, "client_cpu_ns": 608178972, "operations": 10000, "p50_ns": 4571218, "p95_ns": 7660432, "p99_ns": 13012912}, {"name": "stat", "wall_ns": 350914515, "client_cpu_ns": 89695191, "operations": 10000, "p50_ns": 247634, "p95_ns": 481571, "p99_ns": 841817}, {"name": "read_close", "wall_ns": 1111802355, "client_cpu_ns": 247933089, "operations": 10000, "p50_ns": 825064, "p95_ns": 1344709, "p99_ns": 1828601}, {"name": "readdir", "wall_ns": 5758811, "client_cpu_ns": 980431, "operations": 1}, {"name": "rename", "wall_ns": 8311789660, "client_cpu_ns": 861513000, "operations": 10000, "p50_ns": 8551853, "p95_ns": 15716914, "p99_ns": 18797171}, {"name": "unlink", "wall_ns": 5368708758, "client_cpu_ns": 647214354, "operations": 10000, "p50_ns": 5521853, "p95_ns": 10312770, "p99_ns": 12920167}]}},
+    {"run": "network-probe-20261001T120749-90422701", "lane": "moosefs", "round": 1, "warmup": false, "moosefs_configuration_aligned": true, "result": {"files": 10000, "file_bytes": 4096, "concurrency": 8, "path_form": "absolute", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 6111940158, "client_cpu_ns": 589498900, "operations": 10000, "p50_ns": 4499072, "p95_ns": 7076102, "p99_ns": 16244938}, {"name": "stat", "wall_ns": 479382621, "client_cpu_ns": 112894250, "operations": 10000, "p50_ns": 347209, "p95_ns": 603857, "p99_ns": 921398}, {"name": "read_close", "wall_ns": 1158924288, "client_cpu_ns": 256521045, "operations": 10000, "p50_ns": 864298, "p95_ns": 1471656, "p99_ns": 1961178}, {"name": "readdir", "wall_ns": 6511271, "client_cpu_ns": 1007952, "operations": 1}, {"name": "rename", "wall_ns": 8122382603, "client_cpu_ns": 874896530, "operations": 10000, "p50_ns": 7635532, "p95_ns": 15665180, "p99_ns": 18004290}, {"name": "unlink", "wall_ns": 5565316837, "client_cpu_ns": 694180473, "operations": 10000, "p50_ns": 5678042, "p95_ns": 10644116, "p99_ns": 13208459}]}},
+    {"run": "network-probe-20261001T120749-90422701", "lane": "native", "round": 1, "warmup": false, "moosefs_configuration_aligned": true, "result": {"files": 10000, "file_bytes": 4096, "concurrency": 8, "path_form": "absolute", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 285810852, "client_cpu_ns": 217685512, "operations": 10000, "p50_ns": 186003, "p95_ns": 407805, "p99_ns": 1004209}, {"name": "stat", "wall_ns": 166148226, "client_cpu_ns": 67408286, "operations": 10000, "p50_ns": 114441, "p95_ns": 233032, "p99_ns": 366376}, {"name": "read_close", "wall_ns": 191797839, "client_cpu_ns": 80310749, "operations": 10000, "p50_ns": 125543, "p95_ns": 279011, "p99_ns": 667716}, {"name": "readdir", "wall_ns": 1711749, "client_cpu_ns": 1627023, "operations": 1}, {"name": "rename", "wall_ns": 399965813, "client_cpu_ns": 235378760, "operations": 10000, "p50_ns": 270975, "p95_ns": 579591, "p99_ns": 1024154}, {"name": "unlink", "wall_ns": 200124985, "client_cpu_ns": 118951464, "operations": 10000, "p50_ns": 138166, "p95_ns": 292186, "p99_ns": 483986}]}},
+    {"run": "network-probe-20261001T120749-90422701", "lane": "ext4", "round": 1, "warmup": false, "moosefs_configuration_aligned": true, "result": {"files": 10000, "file_bytes": 4096, "concurrency": 8, "path_form": "absolute", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 130589779, "client_cpu_ns": 191442138, "operations": 10000, "p50_ns": 18511, "p95_ns": 42701, "p99_ns": 3185512}, {"name": "stat", "wall_ns": 7719124, "client_cpu_ns": 10631854, "operations": 10000, "p50_ns": 798, "p95_ns": 1075, "p99_ns": 3274}, {"name": "read_close", "wall_ns": 15955483, "client_cpu_ns": 22105059, "operations": 10000, "p50_ns": 1766, "p95_ns": 2762, "p99_ns": 9559}, {"name": "readdir", "wall_ns": 1638001, "client_cpu_ns": 1622121, "operations": 1}, {"name": "rename", "wall_ns": 135169849, "client_cpu_ns": 183380975, "operations": 10000, "p50_ns": 14794, "p95_ns": 40921, "p99_ns": 3255180}, {"name": "unlink", "wall_ns": 62474939, "client_cpu_ns": 95914509, "operations": 10000, "p50_ns": 8914, "p95_ns": 13624, "p99_ns": 1046109}]}},
+    {"run": "network-probe-20261001T120749-90422701", "lane": "ext4", "round": 2, "warmup": false, "moosefs_configuration_aligned": true, "result": {"files": 10000, "file_bytes": 4096, "concurrency": 8, "path_form": "absolute", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 118088111, "client_cpu_ns": 192794493, "operations": 10000, "p50_ns": 18625, "p95_ns": 39275, "p99_ns": 3114765}, {"name": "stat", "wall_ns": 5631608, "client_cpu_ns": 9937916, "operations": 10000, "p50_ns": 788, "p95_ns": 989, "p99_ns": 1217}, {"name": "read_close", "wall_ns": 11325591, "client_cpu_ns": 20938794, "operations": 10000, "p50_ns": 1840, "p95_ns": 2176, "p99_ns": 2533}, {"name": "readdir", "wall_ns": 1599821, "client_cpu_ns": 1563072, "operations": 1}, {"name": "rename", "wall_ns": 130422567, "client_cpu_ns": 181497009, "operations": 10000, "p50_ns": 14975, "p95_ns": 40033, "p99_ns": 3137268}, {"name": "unlink", "wall_ns": 51050478, "client_cpu_ns": 79808900, "operations": 10000, "p50_ns": 6780, "p95_ns": 14371, "p99_ns": 919367}]}},
+    {"run": "network-probe-20261001T120749-90422701", "lane": "native", "round": 2, "warmup": false, "moosefs_configuration_aligned": true, "result": {"files": 10000, "file_bytes": 4096, "concurrency": 8, "path_form": "absolute", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 313431938, "client_cpu_ns": 227601872, "operations": 10000, "p50_ns": 202904, "p95_ns": 487039, "p99_ns": 954550}, {"name": "stat", "wall_ns": 198452150, "client_cpu_ns": 67881903, "operations": 10000, "p50_ns": 133830, "p95_ns": 300862, "p99_ns": 500086}, {"name": "read_close", "wall_ns": 188439268, "client_cpu_ns": 76418616, "operations": 10000, "p50_ns": 130558, "p95_ns": 275111, "p99_ns": 401105}, {"name": "readdir", "wall_ns": 1615107, "client_cpu_ns": 1537911, "operations": 1}, {"name": "rename", "wall_ns": 425880328, "client_cpu_ns": 257546084, "operations": 10000, "p50_ns": 297768, "p95_ns": 609653, "p99_ns": 1144347}, {"name": "unlink", "wall_ns": 200684442, "client_cpu_ns": 133932431, "operations": 10000, "p50_ns": 134283, "p95_ns": 281358, "p99_ns": 658799}]}},
+    {"run": "network-probe-20261001T120749-90422701", "lane": "moosefs", "round": 2, "warmup": false, "moosefs_configuration_aligned": true, "result": {"files": 10000, "file_bytes": 4096, "concurrency": 8, "path_form": "absolute", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 5579623914, "client_cpu_ns": 563637369, "operations": 10000, "p50_ns": 4188987, "p95_ns": 6220473, "p99_ns": 13552081}, {"name": "stat", "wall_ns": 363438093, "client_cpu_ns": 88852458, "operations": 10000, "p50_ns": 262254, "p95_ns": 470586, "p99_ns": 781765}, {"name": "read_close", "wall_ns": 1058873881, "client_cpu_ns": 217581262, "operations": 10000, "p50_ns": 803120, "p95_ns": 1266122, "p99_ns": 1820462}, {"name": "readdir", "wall_ns": 7146364, "client_cpu_ns": 1128278, "operations": 1}, {"name": "rename", "wall_ns": 8600729776, "client_cpu_ns": 1125367501, "operations": 10000, "p50_ns": 8093245, "p95_ns": 16450899, "p99_ns": 18854311}, {"name": "unlink", "wall_ns": 5807315508, "client_cpu_ns": 774117483, "operations": 10000, "p50_ns": 5598581, "p95_ns": 11470615, "p99_ns": 14293282}]}},
+    {"run": "network-probe-20261001T120749-90422701", "lane": "moosefs", "round": 3, "warmup": false, "moosefs_configuration_aligned": true, "result": {"files": 10000, "file_bytes": 4096, "concurrency": 8, "path_form": "absolute", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 5652106920, "client_cpu_ns": 550136048, "operations": 10000, "p50_ns": 4147706, "p95_ns": 5999549, "p99_ns": 17243032}, {"name": "stat", "wall_ns": 349964688, "client_cpu_ns": 80894898, "operations": 10000, "p50_ns": 249119, "p95_ns": 451323, "p99_ns": 921980}, {"name": "read_close", "wall_ns": 1068231716, "client_cpu_ns": 245846446, "operations": 10000, "p50_ns": 791154, "p95_ns": 1289368, "p99_ns": 1826485}, {"name": "readdir", "wall_ns": 6966533, "client_cpu_ns": 1284452, "operations": 1}, {"name": "rename", "wall_ns": 7836844359, "client_cpu_ns": 870761472, "operations": 10000, "p50_ns": 7461950, "p95_ns": 15576182, "p99_ns": 18183394}, {"name": "unlink", "wall_ns": 5216595221, "client_cpu_ns": 655254890, "operations": 10000, "p50_ns": 5496116, "p95_ns": 10115387, "p99_ns": 12224384}]}},
+    {"run": "network-probe-20261001T120749-90422701", "lane": "native", "round": 3, "warmup": false, "moosefs_configuration_aligned": true, "result": {"files": 10000, "file_bytes": 4096, "concurrency": 8, "path_form": "absolute", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 298410378, "client_cpu_ns": 213454415, "operations": 10000, "p50_ns": 201581, "p95_ns": 454000, "p99_ns": 918361}, {"name": "stat", "wall_ns": 186932048, "client_cpu_ns": 68359968, "operations": 10000, "p50_ns": 123507, "p95_ns": 294382, "p99_ns": 464876}, {"name": "read_close", "wall_ns": 195474160, "client_cpu_ns": 75874762, "operations": 10000, "p50_ns": 123966, "p95_ns": 276475, "p99_ns": 566053}, {"name": "readdir", "wall_ns": 1646598, "client_cpu_ns": 1567252, "operations": 1}, {"name": "rename", "wall_ns": 484574881, "client_cpu_ns": 258137212, "operations": 10000, "p50_ns": 313246, "p95_ns": 737984, "p99_ns": 1638087}, {"name": "unlink", "wall_ns": 247735655, "client_cpu_ns": 134197032, "operations": 10000, "p50_ns": 162178, "p95_ns": 382248, "p99_ns": 910338}]}},
+    {"run": "network-probe-20261001T120749-90422701", "lane": "ext4", "round": 3, "warmup": false, "moosefs_configuration_aligned": true, "result": {"files": 10000, "file_bytes": 4096, "concurrency": 8, "path_form": "absolute", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 131199194, "client_cpu_ns": 212435967, "operations": 10000, "p50_ns": 20023, "p95_ns": 47839, "p99_ns": 3071196}, {"name": "stat", "wall_ns": 5621340, "client_cpu_ns": 10715731, "operations": 10000, "p50_ns": 866, "p95_ns": 1076, "p99_ns": 1240}, {"name": "read_close", "wall_ns": 12634437, "client_cpu_ns": 22109726, "operations": 10000, "p50_ns": 1968, "p95_ns": 2383, "p99_ns": 2937}, {"name": "readdir", "wall_ns": 1643781, "client_cpu_ns": 1626288, "operations": 1}, {"name": "rename", "wall_ns": 136651675, "client_cpu_ns": 200200822, "operations": 10000, "p50_ns": 20203, "p95_ns": 38571, "p99_ns": 3328932}, {"name": "unlink", "wall_ns": 52297487, "client_cpu_ns": 78634070, "operations": 10000, "p50_ns": 6823, "p95_ns": 12845, "p99_ns": 872265}]}},
+    {"run": "network-probe-20261001T120749-90422701", "lane": "ext4", "round": 4, "warmup": false, "moosefs_configuration_aligned": true, "result": {"files": 10000, "file_bytes": 4096, "concurrency": 8, "path_form": "absolute", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 131993092, "client_cpu_ns": 212108197, "operations": 10000, "p50_ns": 19641, "p95_ns": 52798, "p99_ns": 3069491}, {"name": "stat", "wall_ns": 6433479, "client_cpu_ns": 10680527, "operations": 10000, "p50_ns": 862, "p95_ns": 1068, "p99_ns": 1194}, {"name": "read_close", "wall_ns": 12959500, "client_cpu_ns": 23536498, "operations": 10000, "p50_ns": 2035, "p95_ns": 2470, "p99_ns": 4532}, {"name": "readdir", "wall_ns": 1658983, "client_cpu_ns": 1658565, "operations": 1}, {"name": "rename", "wall_ns": 148584045, "client_cpu_ns": 211034183, "operations": 10000, "p50_ns": 19635, "p95_ns": 46643, "p99_ns": 3400781}, {"name": "unlink", "wall_ns": 53993169, "client_cpu_ns": 83308023, "operations": 10000, "p50_ns": 7418, "p95_ns": 11645, "p99_ns": 476640}]}},
+    {"run": "network-probe-20261001T120749-90422701", "lane": "native", "round": 4, "warmup": false, "moosefs_configuration_aligned": true, "result": {"files": 10000, "file_bytes": 4096, "concurrency": 8, "path_form": "absolute", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 344995540, "client_cpu_ns": 278429281, "operations": 10000, "p50_ns": 222497, "p95_ns": 562917, "p99_ns": 1237767}, {"name": "stat", "wall_ns": 259590142, "client_cpu_ns": 68493388, "operations": 10000, "p50_ns": 159134, "p95_ns": 353107, "p99_ns": 706470}, {"name": "read_close", "wall_ns": 197733415, "client_cpu_ns": 87418731, "operations": 10000, "p50_ns": 132709, "p95_ns": 283578, "p99_ns": 510242}, {"name": "readdir", "wall_ns": 1861280, "client_cpu_ns": 1798390, "operations": 1}, {"name": "rename", "wall_ns": 476622932, "client_cpu_ns": 263696502, "operations": 10000, "p50_ns": 332009, "p95_ns": 657843, "p99_ns": 1314204}, {"name": "unlink", "wall_ns": 236728500, "client_cpu_ns": 166372463, "operations": 10000, "p50_ns": 157768, "p95_ns": 333293, "p99_ns": 702040}]}},
+    {"run": "network-probe-20261001T120749-90422701", "lane": "moosefs", "round": 4, "warmup": false, "moosefs_configuration_aligned": true, "result": {"files": 10000, "file_bytes": 4096, "concurrency": 8, "path_form": "absolute", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 5836350093, "client_cpu_ns": 551900729, "operations": 10000, "p50_ns": 4285422, "p95_ns": 6412807, "p99_ns": 16717595}, {"name": "stat", "wall_ns": 366564773, "client_cpu_ns": 85026955, "operations": 10000, "p50_ns": 266259, "p95_ns": 462031, "p99_ns": 768812}, {"name": "read_close", "wall_ns": 1109676062, "client_cpu_ns": 234491621, "operations": 10000, "p50_ns": 814630, "p95_ns": 1366843, "p99_ns": 1932520}, {"name": "readdir", "wall_ns": 6980416, "client_cpu_ns": 1119587, "operations": 1}, {"name": "rename", "wall_ns": 8752975172, "client_cpu_ns": 1164753014, "operations": 10000, "p50_ns": 8836424, "p95_ns": 16573470, "p99_ns": 18931198}, {"name": "unlink", "wall_ns": 5182485758, "client_cpu_ns": 638127907, "operations": 10000, "p50_ns": 5435678, "p95_ns": 10142732, "p99_ns": 12749740}]}},
+    {"run": "network-probe-20261001T120749-90422701", "lane": "moosefs", "round": 5, "warmup": false, "moosefs_configuration_aligned": true, "result": {"files": 10000, "file_bytes": 4096, "concurrency": 8, "path_form": "absolute", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 5866925794, "client_cpu_ns": 561693790, "operations": 10000, "p50_ns": 4298754, "p95_ns": 6859382, "p99_ns": 15736773}, {"name": "stat", "wall_ns": 365528060, "client_cpu_ns": 82119968, "operations": 10000, "p50_ns": 268087, "p95_ns": 467455, "p99_ns": 752555}, {"name": "read_close", "wall_ns": 1134665775, "client_cpu_ns": 267343907, "operations": 10000, "p50_ns": 848289, "p95_ns": 1382773, "p99_ns": 1852942}, {"name": "readdir", "wall_ns": 6460115, "client_cpu_ns": 1134209, "operations": 1}, {"name": "rename", "wall_ns": 8368056801, "client_cpu_ns": 980383121, "operations": 10000, "p50_ns": 7927523, "p95_ns": 16414421, "p99_ns": 19399962}, {"name": "unlink", "wall_ns": 5296225086, "client_cpu_ns": 691816643, "operations": 10000, "p50_ns": 5390735, "p95_ns": 10508493, "p99_ns": 13127546}]}},
+    {"run": "network-probe-20261001T120749-90422701", "lane": "native", "round": 5, "warmup": false, "moosefs_configuration_aligned": true, "result": {"files": 10000, "file_bytes": 4096, "concurrency": 8, "path_form": "absolute", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 261697807, "client_cpu_ns": 210282763, "operations": 10000, "p50_ns": 173956, "p95_ns": 395762, "p99_ns": 860041}, {"name": "stat", "wall_ns": 149018659, "client_cpu_ns": 59084871, "operations": 10000, "p50_ns": 102214, "p95_ns": 209947, "p99_ns": 330920}, {"name": "read_close", "wall_ns": 198491404, "client_cpu_ns": 75258104, "operations": 10000, "p50_ns": 135261, "p95_ns": 292754, "p99_ns": 596127}, {"name": "readdir", "wall_ns": 1617100, "client_cpu_ns": 1533720, "operations": 1}, {"name": "rename", "wall_ns": 425371178, "client_cpu_ns": 246614185, "operations": 10000, "p50_ns": 287410, "p95_ns": 638108, "p99_ns": 1143308}, {"name": "unlink", "wall_ns": 210480500, "client_cpu_ns": 128496855, "operations": 10000, "p50_ns": 143666, "p95_ns": 311543, "p99_ns": 532435}]}},
+    {"run": "network-probe-20261001T120749-90422701", "lane": "ext4", "round": 5, "warmup": false, "moosefs_configuration_aligned": true, "result": {"files": 10000, "file_bytes": 4096, "concurrency": 8, "path_form": "absolute", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 142330152, "client_cpu_ns": 229763200, "operations": 10000, "p50_ns": 21399, "p95_ns": 58348, "p99_ns": 3178360}, {"name": "stat", "wall_ns": 5981109, "client_cpu_ns": 10920575, "operations": 10000, "p50_ns": 903, "p95_ns": 1089, "p99_ns": 1209}, {"name": "read_close", "wall_ns": 14029478, "client_cpu_ns": 23965819, "operations": 10000, "p50_ns": 2112, "p95_ns": 2511, "p99_ns": 3796}, {"name": "readdir", "wall_ns": 1805413, "client_cpu_ns": 1791777, "operations": 1}, {"name": "rename", "wall_ns": 145509153, "client_cpu_ns": 208469449, "operations": 10000, "p50_ns": 20771, "p95_ns": 44281, "p99_ns": 2940666}, {"name": "unlink", "wall_ns": 53833248, "client_cpu_ns": 79533336, "operations": 10000, "p50_ns": 7094, "p95_ns": 11572, "p99_ns": 1023974}]}},
+    {"run": "network-probe-20261001T120749-90422701", "lane": "ext4", "round": 0, "warmup": true, "moosefs_configuration_aligned": true, "result": {"files": 10000, "file_bytes": 4096, "concurrency": 1, "path_form": "relative", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 129685579, "client_cpu_ns": 129051491, "operations": 10000, "p50_ns": 11837, "p95_ns": 15583, "p99_ns": 37375}, {"name": "stat", "wall_ns": 7498769, "client_cpu_ns": 7415579, "operations": 10000, "p50_ns": 622, "p95_ns": 777, "p99_ns": 886}, {"name": "read_close", "wall_ns": 17905230, "client_cpu_ns": 17758617, "operations": 10000, "p50_ns": 1460, "p95_ns": 1785, "p99_ns": 3121}, {"name": "readdir", "wall_ns": 1704495, "client_cpu_ns": 1703800, "operations": 1}, {"name": "rename", "wall_ns": 113445265, "client_cpu_ns": 112352043, "operations": 10000, "p50_ns": 10564, "p95_ns": 13856, "p99_ns": 27221}, {"name": "unlink", "wall_ns": 56789480, "client_cpu_ns": 53849795, "operations": 10000, "p50_ns": 4576, "p95_ns": 6961, "p99_ns": 18400}]}},
+    {"run": "network-probe-20261001T120749-90422701", "lane": "native", "round": 0, "warmup": true, "moosefs_configuration_aligned": true, "result": {"files": 10000, "file_bytes": 4096, "concurrency": 1, "path_form": "relative", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 121809213, "client_cpu_ns": 121429381, "operations": 10000, "p50_ns": 11325, "p95_ns": 14763, "p99_ns": 34633}, {"name": "stat", "wall_ns": 7665206, "client_cpu_ns": 7590921, "operations": 10000, "p50_ns": 612, "p95_ns": 782, "p99_ns": 911}, {"name": "read_close", "wall_ns": 16094847, "client_cpu_ns": 15968784, "operations": 10000, "p50_ns": 1383, "p95_ns": 1633, "p99_ns": 1807}, {"name": "readdir", "wall_ns": 1534692, "client_cpu_ns": 1534153, "operations": 1}, {"name": "rename", "wall_ns": 111372742, "client_cpu_ns": 110282301, "operations": 10000, "p50_ns": 10247, "p95_ns": 13988, "p99_ns": 29528}, {"name": "unlink", "wall_ns": 56269719, "client_cpu_ns": 53054217, "operations": 10000, "p50_ns": 4511, "p95_ns": 6872, "p99_ns": 17437}]}},
+    {"run": "network-probe-20261001T120749-90422701", "lane": "moosefs", "round": 0, "warmup": true, "moosefs_configuration_aligned": true, "result": {"files": 10000, "file_bytes": 4096, "concurrency": 1, "path_form": "relative", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 16075554400, "client_cpu_ns": 587920317, "operations": 10000, "p50_ns": 1434387, "p95_ns": 2408870, "p99_ns": 6622308}, {"name": "stat", "wall_ns": 2493317204, "client_cpu_ns": 107766513, "operations": 10000, "p50_ns": 230117, "p95_ns": 381551, "p99_ns": 624002}, {"name": "read_close", "wall_ns": 6430610514, "client_cpu_ns": 446313311, "operations": 10000, "p50_ns": 599507, "p95_ns": 957523, "p99_ns": 1426441}, {"name": "readdir", "wall_ns": 9935990, "client_cpu_ns": 1365089, "operations": 1}, {"name": "rename", "wall_ns": 8621016842, "client_cpu_ns": 342399093, "operations": 10000, "p50_ns": 764298, "p95_ns": 1486785, "p99_ns": 2046679}, {"name": "unlink", "wall_ns": 5053143404, "client_cpu_ns": 236894520, "operations": 10000, "p50_ns": 463985, "p95_ns": 794992, "p99_ns": 1121921}]}},
+    {"run": "network-probe-20261001T120749-90422701", "lane": "moosefs", "round": 1, "warmup": false, "moosefs_configuration_aligned": true, "result": {"files": 10000, "file_bytes": 4096, "concurrency": 1, "path_form": "relative", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 15105196605, "client_cpu_ns": 565099413, "operations": 10000, "p50_ns": 1378077, "p95_ns": 2125371, "p99_ns": 5338190}, {"name": "stat", "wall_ns": 2545231325, "client_cpu_ns": 107590831, "operations": 10000, "p50_ns": 227249, "p95_ns": 406927, "p99_ns": 676843}, {"name": "read_close", "wall_ns": 6190213896, "client_cpu_ns": 432001024, "operations": 10000, "p50_ns": 578507, "p95_ns": 899321, "p99_ns": 1381360}, {"name": "readdir", "wall_ns": 5984455, "client_cpu_ns": 905041, "operations": 1}, {"name": "rename", "wall_ns": 7382947632, "client_cpu_ns": 276992750, "operations": 10000, "p50_ns": 688045, "p95_ns": 1106575, "p99_ns": 1519766}, {"name": "unlink", "wall_ns": 4545496117, "client_cpu_ns": 206306037, "operations": 10000, "p50_ns": 419492, "p95_ns": 691039, "p99_ns": 992831}]}},
+    {"run": "network-probe-20261001T120749-90422701", "lane": "native", "round": 1, "warmup": false, "moosefs_configuration_aligned": true, "result": {"files": 10000, "file_bytes": 4096, "concurrency": 1, "path_form": "relative", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 126756265, "client_cpu_ns": 125646104, "operations": 10000, "p50_ns": 11594, "p95_ns": 15461, "p99_ns": 39302}, {"name": "stat", "wall_ns": 8048158, "client_cpu_ns": 7904994, "operations": 10000, "p50_ns": 629, "p95_ns": 789, "p99_ns": 912}, {"name": "read_close", "wall_ns": 16599312, "client_cpu_ns": 16477398, "operations": 10000, "p50_ns": 1424, "p95_ns": 1686, "p99_ns": 2181}, {"name": "readdir", "wall_ns": 1576553, "client_cpu_ns": 1548774, "operations": 1}, {"name": "rename", "wall_ns": 113390087, "client_cpu_ns": 112413733, "operations": 10000, "p50_ns": 10580, "p95_ns": 14108, "p99_ns": 24401}, {"name": "unlink", "wall_ns": 58478362, "client_cpu_ns": 54808759, "operations": 10000, "p50_ns": 4668, "p95_ns": 6956, "p99_ns": 16812}]}},
+    {"run": "network-probe-20261001T120749-90422701", "lane": "ext4", "round": 1, "warmup": false, "moosefs_configuration_aligned": true, "result": {"files": 10000, "file_bytes": 4096, "concurrency": 1, "path_form": "relative", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 130253567, "client_cpu_ns": 128606018, "operations": 10000, "p50_ns": 11776, "p95_ns": 15907, "p99_ns": 39767}, {"name": "stat", "wall_ns": 7455294, "client_cpu_ns": 7444654, "operations": 10000, "p50_ns": 637, "p95_ns": 785, "p99_ns": 890}, {"name": "read_close", "wall_ns": 16710505, "client_cpu_ns": 16701353, "operations": 10000, "p50_ns": 1465, "p95_ns": 1731, "p99_ns": 1928}, {"name": "readdir", "wall_ns": 1559442, "client_cpu_ns": 1550690, "operations": 1}, {"name": "rename", "wall_ns": 116406228, "client_cpu_ns": 115038424, "operations": 10000, "p50_ns": 10714, "p95_ns": 14548, "p99_ns": 30581}, {"name": "unlink", "wall_ns": 58786710, "client_cpu_ns": 55392649, "operations": 10000, "p50_ns": 4545, "p95_ns": 9339, "p99_ns": 17008}]}},
+    {"run": "network-probe-20261001T120749-90422701", "lane": "ext4", "round": 2, "warmup": false, "moosefs_configuration_aligned": true, "result": {"files": 10000, "file_bytes": 4096, "concurrency": 1, "path_form": "relative", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 125442129, "client_cpu_ns": 124126995, "operations": 10000, "p50_ns": 11445, "p95_ns": 16104, "p99_ns": 36485}, {"name": "stat", "wall_ns": 7433284, "client_cpu_ns": 7391840, "operations": 10000, "p50_ns": 613, "p95_ns": 758, "p99_ns": 854}, {"name": "read_close", "wall_ns": 15370574, "client_cpu_ns": 15348970, "operations": 10000, "p50_ns": 1369, "p95_ns": 1613, "p99_ns": 1746}, {"name": "readdir", "wall_ns": 1615711, "client_cpu_ns": 1607185, "operations": 1}, {"name": "rename", "wall_ns": 115651431, "client_cpu_ns": 114539914, "operations": 10000, "p50_ns": 10534, "p95_ns": 14499, "p99_ns": 31132}, {"name": "unlink", "wall_ns": 55750191, "client_cpu_ns": 52876946, "operations": 10000, "p50_ns": 4532, "p95_ns": 6972, "p99_ns": 14308}]}},
+    {"run": "network-probe-20261001T120749-90422701", "lane": "native", "round": 2, "warmup": false, "moosefs_configuration_aligned": true, "result": {"files": 10000, "file_bytes": 4096, "concurrency": 1, "path_form": "relative", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 124537545, "client_cpu_ns": 124217396, "operations": 10000, "p50_ns": 11173, "p95_ns": 15983, "p99_ns": 37625}, {"name": "stat", "wall_ns": 7263374, "client_cpu_ns": 7248896, "operations": 10000, "p50_ns": 611, "p95_ns": 763, "p99_ns": 877}, {"name": "read_close", "wall_ns": 16993584, "client_cpu_ns": 16878636, "operations": 10000, "p50_ns": 1403, "p95_ns": 1684, "p99_ns": 2815}, {"name": "readdir", "wall_ns": 1570559, "client_cpu_ns": 1564361, "operations": 1}, {"name": "rename", "wall_ns": 123265947, "client_cpu_ns": 122545464, "operations": 10000, "p50_ns": 11115, "p95_ns": 15503, "p99_ns": 39875}, {"name": "unlink", "wall_ns": 60455644, "client_cpu_ns": 57448631, "operations": 10000, "p50_ns": 4977, "p95_ns": 6976, "p99_ns": 16688}]}},
+    {"run": "network-probe-20261001T120749-90422701", "lane": "moosefs", "round": 2, "warmup": false, "moosefs_configuration_aligned": true, "result": {"files": 10000, "file_bytes": 4096, "concurrency": 1, "path_form": "relative", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 16170290155, "client_cpu_ns": 627110821, "operations": 10000, "p50_ns": 1452784, "p95_ns": 2590137, "p99_ns": 5004559}, {"name": "stat", "wall_ns": 2527370912, "client_cpu_ns": 114366427, "operations": 10000, "p50_ns": 231868, "p95_ns": 400211, "p99_ns": 625132}, {"name": "read_close", "wall_ns": 6847400867, "client_cpu_ns": 493515818, "operations": 10000, "p50_ns": 612410, "p95_ns": 1159778, "p99_ns": 1572685}, {"name": "readdir", "wall_ns": 7638215, "client_cpu_ns": 1113578, "operations": 1}, {"name": "rename", "wall_ns": 8186040920, "client_cpu_ns": 324091870, "operations": 10000, "p50_ns": 768975, "p95_ns": 1271490, "p99_ns": 1707277}, {"name": "unlink", "wall_ns": 5226336475, "client_cpu_ns": 245823346, "operations": 10000, "p50_ns": 492020, "p95_ns": 782742, "p99_ns": 1097603}]}},
+    {"run": "network-probe-20261001T120749-90422701", "lane": "moosefs", "round": 3, "warmup": false, "moosefs_configuration_aligned": true, "result": {"files": 10000, "file_bytes": 4096, "concurrency": 1, "path_form": "relative", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 17648027843, "client_cpu_ns": 661361914, "operations": 10000, "p50_ns": 1626844, "p95_ns": 2649632, "p99_ns": 5244534}, {"name": "stat", "wall_ns": 2281619521, "client_cpu_ns": 93392420, "operations": 10000, "p50_ns": 209406, "p95_ns": 362262, "p99_ns": 513583}, {"name": "read_close", "wall_ns": 6346424620, "client_cpu_ns": 438666558, "operations": 10000, "p50_ns": 569328, "p95_ns": 1038934, "p99_ns": 1415513}, {"name": "readdir", "wall_ns": 5700611, "client_cpu_ns": 849209, "operations": 1}, {"name": "rename", "wall_ns": 7814139317, "client_cpu_ns": 279190208, "operations": 10000, "p50_ns": 744876, "p95_ns": 1169042, "p99_ns": 1507151}, {"name": "unlink", "wall_ns": 4944674319, "client_cpu_ns": 221505450, "operations": 10000, "p50_ns": 467445, "p95_ns": 755492, "p99_ns": 1046447}]}},
+    {"run": "network-probe-20261001T120749-90422701", "lane": "native", "round": 3, "warmup": false, "moosefs_configuration_aligned": true, "result": {"files": 10000, "file_bytes": 4096, "concurrency": 1, "path_form": "relative", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 125592309, "client_cpu_ns": 124088981, "operations": 10000, "p50_ns": 11291, "p95_ns": 15016, "p99_ns": 37710}, {"name": "stat", "wall_ns": 7782569, "client_cpu_ns": 7534474, "operations": 10000, "p50_ns": 617, "p95_ns": 778, "p99_ns": 892}, {"name": "read_close", "wall_ns": 16592174, "client_cpu_ns": 16501736, "operations": 10000, "p50_ns": 1442, "p95_ns": 1710, "p99_ns": 1937}, {"name": "readdir", "wall_ns": 2543628, "client_cpu_ns": 2538884, "operations": 1}, {"name": "rename", "wall_ns": 119436253, "client_cpu_ns": 117525876, "operations": 10000, "p50_ns": 10566, "p95_ns": 18130, "p99_ns": 37351}, {"name": "unlink", "wall_ns": 56169383, "client_cpu_ns": 52405351, "operations": 10000, "p50_ns": 4451, "p95_ns": 7123, "p99_ns": 13685}]}},
+    {"run": "network-probe-20261001T120749-90422701", "lane": "ext4", "round": 3, "warmup": false, "moosefs_configuration_aligned": true, "result": {"files": 10000, "file_bytes": 4096, "concurrency": 1, "path_form": "relative", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 125543821, "client_cpu_ns": 124553563, "operations": 10000, "p50_ns": 11289, "p95_ns": 17338, "p99_ns": 37103}, {"name": "stat", "wall_ns": 8329087, "client_cpu_ns": 8317680, "operations": 10000, "p50_ns": 624, "p95_ns": 954, "p99_ns": 1250}, {"name": "read_close", "wall_ns": 17498965, "client_cpu_ns": 17270173, "operations": 10000, "p50_ns": 1448, "p95_ns": 2449, "p99_ns": 2718}, {"name": "readdir", "wall_ns": 1613087, "client_cpu_ns": 1604351, "operations": 1}, {"name": "rename", "wall_ns": 113869270, "client_cpu_ns": 112935236, "operations": 10000, "p50_ns": 10545, "p95_ns": 13823, "p99_ns": 28804}, {"name": "unlink", "wall_ns": 60734234, "client_cpu_ns": 56624169, "operations": 10000, "p50_ns": 4580, "p95_ns": 9316, "p99_ns": 18509}]}},
+    {"run": "network-probe-20261001T120749-90422701", "lane": "ext4", "round": 4, "warmup": false, "moosefs_configuration_aligned": true, "result": {"files": 10000, "file_bytes": 4096, "concurrency": 1, "path_form": "relative", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 128963784, "client_cpu_ns": 125528710, "operations": 10000, "p50_ns": 11295, "p95_ns": 17032, "p99_ns": 39491}, {"name": "stat", "wall_ns": 7531729, "client_cpu_ns": 7480609, "operations": 10000, "p50_ns": 615, "p95_ns": 769, "p99_ns": 871}, {"name": "read_close", "wall_ns": 17758466, "client_cpu_ns": 17752869, "operations": 10000, "p50_ns": 1452, "p95_ns": 2332, "p99_ns": 3037}, {"name": "readdir", "wall_ns": 1584128, "client_cpu_ns": 1584220, "operations": 1}, {"name": "rename", "wall_ns": 117977427, "client_cpu_ns": 117590023, "operations": 10000, "p50_ns": 10813, "p95_ns": 14717, "p99_ns": 31434}, {"name": "unlink", "wall_ns": 54662214, "client_cpu_ns": 51694995, "operations": 10000, "p50_ns": 4507, "p95_ns": 6375, "p99_ns": 14674}]}},
+    {"run": "network-probe-20261001T120749-90422701", "lane": "native", "round": 4, "warmup": false, "moosefs_configuration_aligned": true, "result": {"files": 10000, "file_bytes": 4096, "concurrency": 1, "path_form": "relative", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 126933677, "client_cpu_ns": 125205933, "operations": 10000, "p50_ns": 11297, "p95_ns": 16777, "p99_ns": 41546}, {"name": "stat", "wall_ns": 8088560, "client_cpu_ns": 8006339, "operations": 10000, "p50_ns": 621, "p95_ns": 803, "p99_ns": 1221}, {"name": "read_close", "wall_ns": 16672213, "client_cpu_ns": 16317747, "operations": 10000, "p50_ns": 1421, "p95_ns": 1657, "p99_ns": 1925}, {"name": "readdir", "wall_ns": 1570866, "client_cpu_ns": 1570626, "operations": 1}, {"name": "rename", "wall_ns": 118720391, "client_cpu_ns": 117274223, "operations": 10000, "p50_ns": 10603, "p95_ns": 15381, "p99_ns": 39038}, {"name": "unlink", "wall_ns": 53800717, "client_cpu_ns": 50906665, "operations": 10000, "p50_ns": 4486, "p95_ns": 6484, "p99_ns": 10925}]}},
+    {"run": "network-probe-20261001T120749-90422701", "lane": "moosefs", "round": 4, "warmup": false, "moosefs_configuration_aligned": true, "result": {"files": 10000, "file_bytes": 4096, "concurrency": 1, "path_form": "relative", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 14979753577, "client_cpu_ns": 565658140, "operations": 10000, "p50_ns": 1379671, "p95_ns": 2093444, "p99_ns": 4953946}, {"name": "stat", "wall_ns": 2470196153, "client_cpu_ns": 107559296, "operations": 10000, "p50_ns": 221438, "p95_ns": 400107, "p99_ns": 629156}, {"name": "read_close", "wall_ns": 6363841274, "client_cpu_ns": 443396706, "operations": 10000, "p50_ns": 581066, "p95_ns": 975464, "p99_ns": 1441992}, {"name": "readdir", "wall_ns": 8389588, "client_cpu_ns": 1055300, "operations": 1}, {"name": "rename", "wall_ns": 6855935878, "client_cpu_ns": 269791505, "operations": 10000, "p50_ns": 646549, "p95_ns": 985739, "p99_ns": 1320204}, {"name": "unlink", "wall_ns": 4816903198, "client_cpu_ns": 220241034, "operations": 10000, "p50_ns": 455589, "p95_ns": 697895, "p99_ns": 1006223}]}},
+    {"run": "network-probe-20261001T120749-90422701", "lane": "moosefs", "round": 5, "warmup": false, "moosefs_configuration_aligned": true, "result": {"files": 10000, "file_bytes": 4096, "concurrency": 1, "path_form": "relative", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 15720261725, "client_cpu_ns": 601854205, "operations": 10000, "p50_ns": 1442823, "p95_ns": 2272413, "p99_ns": 5524340}, {"name": "stat", "wall_ns": 3132686339, "client_cpu_ns": 143724677, "operations": 10000, "p50_ns": 264172, "p95_ns": 587244, "p99_ns": 967985}, {"name": "read_close", "wall_ns": 5906647143, "client_cpu_ns": 412344112, "operations": 10000, "p50_ns": 551536, "p95_ns": 843833, "p99_ns": 1315157}, {"name": "readdir", "wall_ns": 8049363, "client_cpu_ns": 907626, "operations": 1}, {"name": "rename", "wall_ns": 7590980075, "client_cpu_ns": 288795891, "operations": 10000, "p50_ns": 705384, "p95_ns": 1153518, "p99_ns": 1600696}, {"name": "unlink", "wall_ns": 5103058049, "client_cpu_ns": 241045632, "operations": 10000, "p50_ns": 479509, "p95_ns": 741010, "p99_ns": 1028601}]}},
+    {"run": "network-probe-20261001T120749-90422701", "lane": "native", "round": 5, "warmup": false, "moosefs_configuration_aligned": true, "result": {"files": 10000, "file_bytes": 4096, "concurrency": 1, "path_form": "relative", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 143583501, "client_cpu_ns": 142243929, "operations": 10000, "p50_ns": 12890, "p95_ns": 17749, "p99_ns": 45823}, {"name": "stat", "wall_ns": 8401362, "client_cpu_ns": 8401683, "operations": 10000, "p50_ns": 679, "p95_ns": 867, "p99_ns": 970}, {"name": "read_close", "wall_ns": 18028830, "client_cpu_ns": 17751011, "operations": 10000, "p50_ns": 1560, "p95_ns": 1816, "p99_ns": 1990}, {"name": "readdir", "wall_ns": 1808164, "client_cpu_ns": 1802584, "operations": 1}, {"name": "rename", "wall_ns": 126410968, "client_cpu_ns": 125577281, "operations": 10000, "p50_ns": 11681, "p95_ns": 15493, "p99_ns": 33361}, {"name": "unlink", "wall_ns": 56397538, "client_cpu_ns": 53538945, "operations": 10000, "p50_ns": 4681, "p95_ns": 6594, "p99_ns": 11726}]}},
+    {"run": "network-probe-20261001T120749-90422701", "lane": "ext4", "round": 5, "warmup": false, "moosefs_configuration_aligned": true, "result": {"files": 10000, "file_bytes": 4096, "concurrency": 1, "path_form": "relative", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 137335139, "client_cpu_ns": 137044752, "operations": 10000, "p50_ns": 12278, "p95_ns": 18451, "p99_ns": 44800}, {"name": "stat", "wall_ns": 8707263, "client_cpu_ns": 8526805, "operations": 10000, "p50_ns": 659, "p95_ns": 859, "p99_ns": 991}, {"name": "read_close", "wall_ns": 19554742, "client_cpu_ns": 19315613, "operations": 10000, "p50_ns": 1534, "p95_ns": 1862, "p99_ns": 2902}, {"name": "readdir", "wall_ns": 1676552, "client_cpu_ns": 1676106, "operations": 1}, {"name": "rename", "wall_ns": 128113095, "client_cpu_ns": 126947261, "operations": 10000, "p50_ns": 11720, "p95_ns": 15863, "p99_ns": 36731}, {"name": "unlink", "wall_ns": 64649515, "client_cpu_ns": 60659125, "operations": 10000, "p50_ns": 5109, "p95_ns": 7205, "p99_ns": 23997}]}},
+    {"run": "network-probe-20261001T120749-90422701", "lane": "ext4", "round": 0, "warmup": true, "moosefs_configuration_aligned": true, "result": {"files": 10000, "file_bytes": 4096, "concurrency": 8, "path_form": "relative", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 134499097, "client_cpu_ns": 198185409, "operations": 10000, "p50_ns": 19675, "p95_ns": 46757, "p99_ns": 2738924}, {"name": "stat", "wall_ns": 5205971, "client_cpu_ns": 8328073, "operations": 10000, "p50_ns": 654, "p95_ns": 842, "p99_ns": 966}, {"name": "read_close", "wall_ns": 11901263, "client_cpu_ns": 20791095, "operations": 10000, "p50_ns": 1794, "p95_ns": 2176, "p99_ns": 3468}, {"name": "readdir", "wall_ns": 1692961, "client_cpu_ns": 1688614, "operations": 1}, {"name": "rename", "wall_ns": 141531610, "client_cpu_ns": 188852812, "operations": 10000, "p50_ns": 14983, "p95_ns": 41169, "p99_ns": 3410737}, {"name": "unlink", "wall_ns": 45443184, "client_cpu_ns": 77068583, "operations": 10000, "p50_ns": 6795, "p95_ns": 10691, "p99_ns": 765889}]}},
+    {"run": "network-probe-20261001T120749-90422701", "lane": "native", "round": 0, "warmup": true, "moosefs_configuration_aligned": true, "result": {"files": 10000, "file_bytes": 4096, "concurrency": 8, "path_form": "relative", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 124376726, "client_cpu_ns": 199010305, "operations": 10000, "p50_ns": 19109, "p95_ns": 46795, "p99_ns": 2986082}, {"name": "stat", "wall_ns": 5002200, "client_cpu_ns": 8292038, "operations": 10000, "p50_ns": 636, "p95_ns": 874, "p99_ns": 1138}, {"name": "read_close", "wall_ns": 10452797, "client_cpu_ns": 19535527, "operations": 10000, "p50_ns": 1704, "p95_ns": 2030, "p99_ns": 2401}, {"name": "readdir", "wall_ns": 1636110, "client_cpu_ns": 1629305, "operations": 1}, {"name": "rename", "wall_ns": 133179323, "client_cpu_ns": 187879333, "operations": 10000, "p50_ns": 15739, "p95_ns": 38992, "p99_ns": 3376983}, {"name": "unlink", "wall_ns": 45683958, "client_cpu_ns": 75096024, "operations": 10000, "p50_ns": 6609, "p95_ns": 10742, "p99_ns": 518791}]}},
+    {"run": "network-probe-20261001T120749-90422701", "lane": "moosefs", "round": 0, "warmup": true, "moosefs_configuration_aligned": true, "result": {"files": 10000, "file_bytes": 4096, "concurrency": 8, "path_form": "relative", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 5819073265, "client_cpu_ns": 554781993, "operations": 10000, "p50_ns": 4334410, "p95_ns": 6596722, "p99_ns": 14811381}, {"name": "stat", "wall_ns": 345402747, "client_cpu_ns": 78866150, "operations": 10000, "p50_ns": 252732, "p95_ns": 436971, "p99_ns": 770514}, {"name": "read_close", "wall_ns": 1089427441, "client_cpu_ns": 215092224, "operations": 10000, "p50_ns": 792703, "p95_ns": 1365246, "p99_ns": 1969962}, {"name": "readdir", "wall_ns": 11174799, "client_cpu_ns": 2106671, "operations": 1}, {"name": "rename", "wall_ns": 7982016499, "client_cpu_ns": 959464782, "operations": 10000, "p50_ns": 7702746, "p95_ns": 15472971, "p99_ns": 18491389}, {"name": "unlink", "wall_ns": 5590829783, "client_cpu_ns": 741239202, "operations": 10000, "p50_ns": 5507545, "p95_ns": 10796815, "p99_ns": 13047854}]}},
+    {"run": "network-probe-20261001T120749-90422701", "lane": "moosefs", "round": 1, "warmup": false, "moosefs_configuration_aligned": true, "result": {"files": 10000, "file_bytes": 4096, "concurrency": 8, "path_form": "relative", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 6635809481, "client_cpu_ns": 650445705, "operations": 10000, "p50_ns": 4736761, "p95_ns": 8914329, "p99_ns": 17097852}, {"name": "stat", "wall_ns": 356503968, "client_cpu_ns": 82901060, "operations": 10000, "p50_ns": 253710, "p95_ns": 492867, "p99_ns": 788716}, {"name": "read_close", "wall_ns": 1117448894, "client_cpu_ns": 267592892, "operations": 10000, "p50_ns": 831347, "p95_ns": 1340156, "p99_ns": 1753919}, {"name": "readdir", "wall_ns": 5337498, "client_cpu_ns": 849488, "operations": 1}, {"name": "rename", "wall_ns": 8722435654, "client_cpu_ns": 1099347736, "operations": 10000, "p50_ns": 7490403, "p95_ns": 17979034, "p99_ns": 21000330}, {"name": "unlink", "wall_ns": 4944095140, "client_cpu_ns": 664768746, "operations": 10000, "p50_ns": 4673277, "p95_ns": 9710680, "p99_ns": 12748658}]}},
+    {"run": "network-probe-20261001T120749-90422701", "lane": "native", "round": 1, "warmup": false, "moosefs_configuration_aligned": true, "result": {"files": 10000, "file_bytes": 4096, "concurrency": 8, "path_form": "relative", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 121965529, "client_cpu_ns": 189290918, "operations": 10000, "p50_ns": 18410, "p95_ns": 41062, "p99_ns": 3020178}, {"name": "stat", "wall_ns": 4816347, "client_cpu_ns": 8034730, "operations": 10000, "p50_ns": 635, "p95_ns": 842, "p99_ns": 978}, {"name": "read_close", "wall_ns": 11593830, "client_cpu_ns": 19001273, "operations": 10000, "p50_ns": 1661, "p95_ns": 2043, "p99_ns": 2358}, {"name": "readdir", "wall_ns": 1483380, "client_cpu_ns": 1474365, "operations": 1}, {"name": "rename", "wall_ns": 131872404, "client_cpu_ns": 177460416, "operations": 10000, "p50_ns": 14618, "p95_ns": 35661, "p99_ns": 2936084}, {"name": "unlink", "wall_ns": 48990753, "client_cpu_ns": 72472971, "operations": 10000, "p50_ns": 6470, "p95_ns": 9975, "p99_ns": 1018314}]}},
+    {"run": "network-probe-20261001T120749-90422701", "lane": "ext4", "round": 1, "warmup": false, "moosefs_configuration_aligned": true, "result": {"files": 10000, "file_bytes": 4096, "concurrency": 8, "path_form": "relative", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 123908597, "client_cpu_ns": 191878020, "operations": 10000, "p50_ns": 18307, "p95_ns": 40609, "p99_ns": 2906962}, {"name": "stat", "wall_ns": 4665197, "client_cpu_ns": 7679332, "operations": 10000, "p50_ns": 615, "p95_ns": 787, "p99_ns": 904}, {"name": "read_close", "wall_ns": 10605323, "client_cpu_ns": 17996627, "operations": 10000, "p50_ns": 1572, "p95_ns": 1913, "p99_ns": 2558}, {"name": "readdir", "wall_ns": 1574963, "client_cpu_ns": 1563232, "operations": 1}, {"name": "rename", "wall_ns": 125435672, "client_cpu_ns": 172368047, "operations": 10000, "p50_ns": 13974, "p95_ns": 33154, "p99_ns": 3348389}, {"name": "unlink", "wall_ns": 43252790, "client_cpu_ns": 76774007, "operations": 10000, "p50_ns": 6673, "p95_ns": 10997, "p99_ns": 806429}]}},
+    {"run": "network-probe-20261001T120749-90422701", "lane": "ext4", "round": 2, "warmup": false, "moosefs_configuration_aligned": true, "result": {"files": 10000, "file_bytes": 4096, "concurrency": 8, "path_form": "relative", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 118416557, "client_cpu_ns": 186812032, "operations": 10000, "p50_ns": 18406, "p95_ns": 36118, "p99_ns": 2994841}, {"name": "stat", "wall_ns": 4902501, "client_cpu_ns": 8804871, "operations": 10000, "p50_ns": 639, "p95_ns": 842, "p99_ns": 1152}, {"name": "read_close", "wall_ns": 11956068, "client_cpu_ns": 20627651, "operations": 10000, "p50_ns": 1686, "p95_ns": 2920, "p99_ns": 3796}, {"name": "readdir", "wall_ns": 1542222, "client_cpu_ns": 1532976, "operations": 1}, {"name": "rename", "wall_ns": 134559863, "client_cpu_ns": 184979384, "operations": 10000, "p50_ns": 15258, "p95_ns": 34681, "p99_ns": 3232374}, {"name": "unlink", "wall_ns": 46961973, "client_cpu_ns": 83095401, "operations": 10000, "p50_ns": 6953, "p95_ns": 16279, "p99_ns": 897845}]}},
+    {"run": "network-probe-20261001T120749-90422701", "lane": "native", "round": 2, "warmup": false, "moosefs_configuration_aligned": true, "result": {"files": 10000, "file_bytes": 4096, "concurrency": 8, "path_form": "relative", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 126259813, "client_cpu_ns": 198118778, "operations": 10000, "p50_ns": 19262, "p95_ns": 42305, "p99_ns": 3131664}, {"name": "stat", "wall_ns": 5439092, "client_cpu_ns": 8424807, "operations": 10000, "p50_ns": 642, "p95_ns": 837, "p99_ns": 969}, {"name": "read_close", "wall_ns": 10386007, "client_cpu_ns": 19434884, "operations": 10000, "p50_ns": 1709, "p95_ns": 2036, "p99_ns": 2904}, {"name": "readdir", "wall_ns": 1628193, "client_cpu_ns": 1620539, "operations": 1}, {"name": "rename", "wall_ns": 132782978, "client_cpu_ns": 186959385, "operations": 10000, "p50_ns": 18447, "p95_ns": 34605, "p99_ns": 3047450}, {"name": "unlink", "wall_ns": 61573890, "client_cpu_ns": 70339670, "operations": 10000, "p50_ns": 5897, "p95_ns": 11679, "p99_ns": 1138954}]}},
+    {"run": "network-probe-20261001T120749-90422701", "lane": "moosefs", "round": 2, "warmup": false, "moosefs_configuration_aligned": true, "result": {"files": 10000, "file_bytes": 4096, "concurrency": 8, "path_form": "relative", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 5885366806, "client_cpu_ns": 557362169, "operations": 10000, "p50_ns": 4327517, "p95_ns": 7238702, "p99_ns": 15030326}, {"name": "stat", "wall_ns": 403031724, "client_cpu_ns": 87951026, "operations": 10000, "p50_ns": 296295, "p95_ns": 508574, "p99_ns": 775705}, {"name": "read_close", "wall_ns": 1155807801, "client_cpu_ns": 253989123, "operations": 10000, "p50_ns": 846540, "p95_ns": 1470313, "p99_ns": 2165790}, {"name": "readdir", "wall_ns": 7770265, "client_cpu_ns": 1152617, "operations": 1}, {"name": "rename", "wall_ns": 8182186657, "client_cpu_ns": 1073243378, "operations": 10000, "p50_ns": 7832667, "p95_ns": 16439484, "p99_ns": 19364579}, {"name": "unlink", "wall_ns": 5116332213, "client_cpu_ns": 702035985, "operations": 10000, "p50_ns": 5289230, "p95_ns": 10088766, "p99_ns": 12867127}]}},
+    {"run": "network-probe-20261001T120749-90422701", "lane": "moosefs", "round": 3, "warmup": false, "moosefs_configuration_aligned": true, "result": {"files": 10000, "file_bytes": 4096, "concurrency": 8, "path_form": "relative", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 5724988199, "client_cpu_ns": 532558197, "operations": 10000, "p50_ns": 4212838, "p95_ns": 6159406, "p99_ns": 17280238}, {"name": "stat", "wall_ns": 383662170, "client_cpu_ns": 86567221, "operations": 10000, "p50_ns": 269056, "p95_ns": 497864, "p99_ns": 1187135}, {"name": "read_close", "wall_ns": 1107116013, "client_cpu_ns": 275467847, "operations": 10000, "p50_ns": 812905, "p95_ns": 1308451, "p99_ns": 1747804}, {"name": "readdir", "wall_ns": 6516821, "client_cpu_ns": 1077873, "operations": 1}, {"name": "rename", "wall_ns": 7606946119, "client_cpu_ns": 981753318, "operations": 10000, "p50_ns": 7365390, "p95_ns": 14453919, "p99_ns": 17931581}, {"name": "unlink", "wall_ns": 5457795328, "client_cpu_ns": 771947498, "operations": 10000, "p50_ns": 5489432, "p95_ns": 10729222, "p99_ns": 13646716}]}},
+    {"run": "network-probe-20261001T120749-90422701", "lane": "native", "round": 3, "warmup": false, "moosefs_configuration_aligned": true, "result": {"files": 10000, "file_bytes": 4096, "concurrency": 8, "path_form": "relative", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 126350716, "client_cpu_ns": 192875775, "operations": 10000, "p50_ns": 18496, "p95_ns": 44711, "p99_ns": 2840987}, {"name": "stat", "wall_ns": 5034877, "client_cpu_ns": 8236616, "operations": 10000, "p50_ns": 635, "p95_ns": 818, "p99_ns": 976}, {"name": "read_close", "wall_ns": 10768567, "client_cpu_ns": 19476434, "operations": 10000, "p50_ns": 1675, "p95_ns": 2054, "p99_ns": 3400}, {"name": "readdir", "wall_ns": 1611704, "client_cpu_ns": 1592814, "operations": 1}, {"name": "rename", "wall_ns": 134686330, "client_cpu_ns": 177671116, "operations": 10000, "p50_ns": 13850, "p95_ns": 36736, "p99_ns": 3243490}, {"name": "unlink", "wall_ns": 49929256, "client_cpu_ns": 71220187, "operations": 10000, "p50_ns": 6372, "p95_ns": 10500, "p99_ns": 219743}]}},
+    {"run": "network-probe-20261001T120749-90422701", "lane": "ext4", "round": 3, "warmup": false, "moosefs_configuration_aligned": true, "result": {"files": 10000, "file_bytes": 4096, "concurrency": 8, "path_form": "relative", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 130725477, "client_cpu_ns": 197644918, "operations": 10000, "p50_ns": 18739, "p95_ns": 46735, "p99_ns": 2474018}, {"name": "stat", "wall_ns": 4748104, "client_cpu_ns": 8149168, "operations": 10000, "p50_ns": 639, "p95_ns": 809, "p99_ns": 924}, {"name": "read_close", "wall_ns": 10392476, "client_cpu_ns": 19716517, "operations": 10000, "p50_ns": 1733, "p95_ns": 2081, "p99_ns": 2409}, {"name": "readdir", "wall_ns": 1580821, "client_cpu_ns": 1565709, "operations": 1}, {"name": "rename", "wall_ns": 156623478, "client_cpu_ns": 183510518, "operations": 10000, "p50_ns": 14437, "p95_ns": 35464, "p99_ns": 3435644}, {"name": "unlink", "wall_ns": 46572546, "client_cpu_ns": 79416811, "operations": 10000, "p50_ns": 7004, "p95_ns": 11482, "p99_ns": 1053363}]}},
+    {"run": "network-probe-20261001T120749-90422701", "lane": "ext4", "round": 4, "warmup": false, "moosefs_configuration_aligned": true, "result": {"files": 10000, "file_bytes": 4096, "concurrency": 8, "path_form": "relative", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 128799749, "client_cpu_ns": 203836164, "operations": 10000, "p50_ns": 19426, "p95_ns": 40451, "p99_ns": 3248906}, {"name": "stat", "wall_ns": 4851152, "client_cpu_ns": 8789476, "operations": 10000, "p50_ns": 651, "p95_ns": 993, "p99_ns": 1296}, {"name": "read_close", "wall_ns": 11442264, "client_cpu_ns": 21220511, "operations": 10000, "p50_ns": 1808, "p95_ns": 2241, "p99_ns": 3891}, {"name": "readdir", "wall_ns": 1611540, "client_cpu_ns": 1611009, "operations": 1}, {"name": "rename", "wall_ns": 146048195, "client_cpu_ns": 190873335, "operations": 10000, "p50_ns": 15004, "p95_ns": 42285, "p99_ns": 3469045}, {"name": "unlink", "wall_ns": 50870203, "client_cpu_ns": 82914326, "operations": 10000, "p50_ns": 7179, "p95_ns": 12968, "p99_ns": 1106589}]}},
+    {"run": "network-probe-20261001T120749-90422701", "lane": "native", "round": 4, "warmup": false, "moosefs_configuration_aligned": true, "result": {"files": 10000, "file_bytes": 4096, "concurrency": 8, "path_form": "relative", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 157498541, "client_cpu_ns": 232136097, "operations": 10000, "p50_ns": 21338, "p95_ns": 61090, "p99_ns": 3253033}, {"name": "stat", "wall_ns": 4774662, "client_cpu_ns": 9058444, "operations": 10000, "p50_ns": 690, "p95_ns": 887, "p99_ns": 1009}, {"name": "read_close", "wall_ns": 13313641, "client_cpu_ns": 22848699, "operations": 10000, "p50_ns": 1917, "p95_ns": 2417, "p99_ns": 3762}, {"name": "readdir", "wall_ns": 1865476, "client_cpu_ns": 1865201, "operations": 1}, {"name": "rename", "wall_ns": 184821846, "client_cpu_ns": 255187676, "operations": 10000, "p50_ns": 19673, "p95_ns": 87790, "p99_ns": 4193018}, {"name": "unlink", "wall_ns": 69058498, "client_cpu_ns": 99401875, "operations": 10000, "p50_ns": 8394, "p95_ns": 17693, "p99_ns": 1076093}]}},
+    {"run": "network-probe-20261001T120749-90422701", "lane": "moosefs", "round": 4, "warmup": false, "moosefs_configuration_aligned": true, "result": {"files": 10000, "file_bytes": 4096, "concurrency": 8, "path_form": "relative", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 5817567939, "client_cpu_ns": 550211587, "operations": 10000, "p50_ns": 4271915, "p95_ns": 6800701, "p99_ns": 15820581}, {"name": "stat", "wall_ns": 350373755, "client_cpu_ns": 77805616, "operations": 10000, "p50_ns": 248006, "p95_ns": 483940, "p99_ns": 809360}, {"name": "read_close", "wall_ns": 1109438077, "client_cpu_ns": 252448799, "operations": 10000, "p50_ns": 827202, "p95_ns": 1346748, "p99_ns": 1709024}, {"name": "readdir", "wall_ns": 7552491, "client_cpu_ns": 1082476, "operations": 1}, {"name": "rename", "wall_ns": 8304401469, "client_cpu_ns": 1118741630, "operations": 10000, "p50_ns": 7516349, "p95_ns": 16914360, "p99_ns": 20139268}, {"name": "unlink", "wall_ns": 6116247981, "client_cpu_ns": 909104612, "operations": 10000, "p50_ns": 5844467, "p95_ns": 11892371, "p99_ns": 14821318}]}},
+    {"run": "network-probe-20261001T120749-90422701", "lane": "moosefs", "round": 5, "warmup": false, "moosefs_configuration_aligned": true, "result": {"files": 10000, "file_bytes": 4096, "concurrency": 8, "path_form": "relative", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 5586579507, "client_cpu_ns": 526979511, "operations": 10000, "p50_ns": 4069317, "p95_ns": 6037871, "p99_ns": 17072230}, {"name": "stat", "wall_ns": 368268680, "client_cpu_ns": 76824948, "operations": 10000, "p50_ns": 265968, "p95_ns": 474587, "p99_ns": 827961}, {"name": "read_close", "wall_ns": 1155516552, "client_cpu_ns": 234857642, "operations": 10000, "p50_ns": 853282, "p95_ns": 1409631, "p99_ns": 2016443}, {"name": "readdir", "wall_ns": 3967511, "client_cpu_ns": 741074, "operations": 1}, {"name": "rename", "wall_ns": 9074025917, "client_cpu_ns": 1178469121, "operations": 10000, "p50_ns": 8517348, "p95_ns": 18296625, "p99_ns": 22042031}, {"name": "unlink", "wall_ns": 6398737291, "client_cpu_ns": 922926450, "operations": 10000, "p50_ns": 5848132, "p95_ns": 13071092, "p99_ns": 16503309}]}},
+    {"run": "network-probe-20261001T120749-90422701", "lane": "native", "round": 5, "warmup": false, "moosefs_configuration_aligned": true, "result": {"files": 10000, "file_bytes": 4096, "concurrency": 8, "path_form": "relative", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 125733288, "client_cpu_ns": 188784924, "operations": 10000, "p50_ns": 17995, "p95_ns": 45794, "p99_ns": 2938303}, {"name": "stat", "wall_ns": 4534671, "client_cpu_ns": 8411147, "operations": 10000, "p50_ns": 643, "p95_ns": 837, "p99_ns": 1036}, {"name": "read_close", "wall_ns": 10880006, "client_cpu_ns": 19649460, "operations": 10000, "p50_ns": 1739, "p95_ns": 2094, "p99_ns": 2363}, {"name": "readdir", "wall_ns": 1725083, "client_cpu_ns": 1593165, "operations": 1}, {"name": "rename", "wall_ns": 132572075, "client_cpu_ns": 178606906, "operations": 10000, "p50_ns": 14269, "p95_ns": 34273, "p99_ns": 3110083}, {"name": "unlink", "wall_ns": 52905140, "client_cpu_ns": 78198752, "operations": 10000, "p50_ns": 6784, "p95_ns": 12012, "p99_ns": 1072485}]}},
+    {"run": "network-probe-20261001T120749-90422701", "lane": "ext4", "round": 5, "warmup": false, "moosefs_configuration_aligned": true, "result": {"files": 10000, "file_bytes": 4096, "concurrency": 8, "path_form": "relative", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 122840787, "client_cpu_ns": 191295008, "operations": 10000, "p50_ns": 18672, "p95_ns": 40682, "p99_ns": 2567192}, {"name": "stat", "wall_ns": 4501933, "client_cpu_ns": 7991114, "operations": 10000, "p50_ns": 633, "p95_ns": 813, "p99_ns": 928}, {"name": "read_close", "wall_ns": 10758649, "client_cpu_ns": 20041228, "operations": 10000, "p50_ns": 1757, "p95_ns": 2075, "p99_ns": 2341}, {"name": "readdir", "wall_ns": 1644762, "client_cpu_ns": 1644353, "operations": 1}, {"name": "rename", "wall_ns": 137713575, "client_cpu_ns": 186456248, "operations": 10000, "p50_ns": 14962, "p95_ns": 38689, "p99_ns": 3312148}, {"name": "unlink", "wall_ns": 55439616, "client_cpu_ns": 79822574, "operations": 10000, "p50_ns": 6834, "p95_ns": 12094, "p99_ns": 783370}]}},
+    {"run": "network-probe-20261001T122407-211d5bd3", "lane": "ext4", "round": 0, "warmup": true, "moosefs_configuration_aligned": true, "result": {"files": 10000, "file_bytes": 4096, "concurrency": 1, "path_form": "absolute", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 122928176, "client_cpu_ns": 122554952, "operations": 10000, "p50_ns": 10879, "p95_ns": 16327, "p99_ns": 42316}, {"name": "stat", "wall_ns": 8885477, "client_cpu_ns": 8873600, "operations": 10000, "p50_ns": 692, "p95_ns": 894, "p99_ns": 1060}, {"name": "read_close", "wall_ns": 17617634, "client_cpu_ns": 17435961, "operations": 10000, "p50_ns": 1562, "p95_ns": 1803, "p99_ns": 1984}, {"name": "readdir", "wall_ns": 1527181, "client_cpu_ns": 1526514, "operations": 1}, {"name": "rename", "wall_ns": 117369902, "client_cpu_ns": 116661671, "operations": 10000, "p50_ns": 10617, "p95_ns": 15076, "p99_ns": 33756}, {"name": "unlink", "wall_ns": 58592048, "client_cpu_ns": 56509769, "operations": 10000, "p50_ns": 4680, "p95_ns": 6908, "p99_ns": 22723}]}},
+    {"run": "network-probe-20261001T122407-211d5bd3", "lane": "native", "round": 0, "warmup": true, "moosefs_configuration_aligned": true, "result": {"files": 10000, "file_bytes": 4096, "concurrency": 1, "path_form": "absolute", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 1298750892, "client_cpu_ns": 354973458, "operations": 10000, "p50_ns": 121437, "p95_ns": 198468, "p99_ns": 272981}, {"name": "stat", "wall_ns": 993999446, "client_cpu_ns": 152049189, "operations": 10000, "p50_ns": 89668, "p95_ns": 161646, "p99_ns": 236011}, {"name": "read_close", "wall_ns": 1044284155, "client_cpu_ns": 173870717, "operations": 10000, "p50_ns": 92710, "p95_ns": 173297, "p99_ns": 224733}, {"name": "readdir", "wall_ns": 1611263, "client_cpu_ns": 1536088, "operations": 1}, {"name": "rename", "wall_ns": 1956622328, "client_cpu_ns": 393924969, "operations": 10000, "p50_ns": 179924, "p95_ns": 307574, "p99_ns": 431693}, {"name": "unlink", "wall_ns": 1284806333, "client_cpu_ns": 279822703, "operations": 10000, "p50_ns": 120510, "p95_ns": 209257, "p99_ns": 288419}]}},
+    {"run": "network-probe-20261001T122407-211d5bd3", "lane": "moosefs", "round": 0, "warmup": true, "moosefs_configuration_aligned": true, "result": {"files": 10000, "file_bytes": 4096, "concurrency": 1, "path_form": "absolute", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 13905372817, "client_cpu_ns": 572993745, "operations": 10000, "p50_ns": 1318222, "p95_ns": 1943663, "p99_ns": 2621572}, {"name": "stat", "wall_ns": 2392157198, "client_cpu_ns": 113957660, "operations": 10000, "p50_ns": 222983, "p95_ns": 358507, "p99_ns": 537521}, {"name": "read_close", "wall_ns": 6228915461, "client_cpu_ns": 445748117, "operations": 10000, "p50_ns": 586569, "p95_ns": 900266, "p99_ns": 1201330}, {"name": "readdir", "wall_ns": 6760441, "client_cpu_ns": 1055616, "operations": 1}, {"name": "rename", "wall_ns": 7409874624, "client_cpu_ns": 282085873, "operations": 10000, "p50_ns": 696528, "p95_ns": 1103609, "p99_ns": 1441219}, {"name": "unlink", "wall_ns": 5736369430, "client_cpu_ns": 266422398, "operations": 10000, "p50_ns": 538859, "p95_ns": 895708, "p99_ns": 1148570}]}},
+    {"run": "network-probe-20261001T122407-211d5bd3", "lane": "moosefs", "round": 1, "warmup": false, "moosefs_configuration_aligned": true, "result": {"files": 10000, "file_bytes": 4096, "concurrency": 1, "path_form": "absolute", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 15001728161, "client_cpu_ns": 588517024, "operations": 10000, "p50_ns": 1383753, "p95_ns": 2222456, "p99_ns": 3596548}, {"name": "stat", "wall_ns": 2799432155, "client_cpu_ns": 132439889, "operations": 10000, "p50_ns": 255810, "p95_ns": 441127, "p99_ns": 645072}, {"name": "read_close", "wall_ns": 6199882696, "client_cpu_ns": 453815283, "operations": 10000, "p50_ns": 579193, "p95_ns": 888692, "p99_ns": 1239227}, {"name": "readdir", "wall_ns": 7516384, "client_cpu_ns": 1099418, "operations": 1}, {"name": "rename", "wall_ns": 7385912564, "client_cpu_ns": 294060852, "operations": 10000, "p50_ns": 687505, "p95_ns": 1133907, "p99_ns": 1505122}, {"name": "unlink", "wall_ns": 4529843664, "client_cpu_ns": 219813273, "operations": 10000, "p50_ns": 422773, "p95_ns": 658500, "p99_ns": 927079}]}},
+    {"run": "network-probe-20261001T122407-211d5bd3", "lane": "native", "round": 1, "warmup": false, "moosefs_configuration_aligned": true, "result": {"files": 10000, "file_bytes": 4096, "concurrency": 1, "path_form": "absolute", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 1260495796, "client_cpu_ns": 340439082, "operations": 10000, "p50_ns": 113790, "p95_ns": 199366, "p99_ns": 323588}, {"name": "stat", "wall_ns": 1092184506, "client_cpu_ns": 155968324, "operations": 10000, "p50_ns": 95855, "p95_ns": 203904, "p99_ns": 287412}, {"name": "read_close", "wall_ns": 1090719597, "client_cpu_ns": 179745604, "operations": 10000, "p50_ns": 96716, "p95_ns": 217790, "p99_ns": 329770}, {"name": "readdir", "wall_ns": 2047442, "client_cpu_ns": 1678890, "operations": 1}, {"name": "rename", "wall_ns": 2446169670, "client_cpu_ns": 457554644, "operations": 10000, "p50_ns": 218718, "p95_ns": 433597, "p99_ns": 685229}, {"name": "unlink", "wall_ns": 1220085847, "client_cpu_ns": 284889240, "operations": 10000, "p50_ns": 112876, "p95_ns": 205848, "p99_ns": 290592}]}},
+    {"run": "network-probe-20261001T122407-211d5bd3", "lane": "ext4", "round": 1, "warmup": false, "moosefs_configuration_aligned": true, "result": {"files": 10000, "file_bytes": 4096, "concurrency": 1, "path_form": "absolute", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 134680366, "client_cpu_ns": 131363958, "operations": 10000, "p50_ns": 11815, "p95_ns": 17271, "p99_ns": 42291}, {"name": "stat", "wall_ns": 8826405, "client_cpu_ns": 8749715, "operations": 10000, "p50_ns": 701, "p95_ns": 901, "p99_ns": 1011}, {"name": "read_close", "wall_ns": 17971394, "client_cpu_ns": 17742596, "operations": 10000, "p50_ns": 1606, "p95_ns": 1859, "p99_ns": 2021}, {"name": "readdir", "wall_ns": 1553197, "client_cpu_ns": 1552806, "operations": 1}, {"name": "rename", "wall_ns": 117917181, "client_cpu_ns": 116545610, "operations": 10000, "p50_ns": 10997, "p95_ns": 14496, "p99_ns": 25842}, {"name": "unlink", "wall_ns": 52711640, "client_cpu_ns": 50901831, "operations": 10000, "p50_ns": 4514, "p95_ns": 6269, "p99_ns": 11573}]}},
+    {"run": "network-probe-20261001T122407-211d5bd3", "lane": "ext4", "round": 2, "warmup": false, "moosefs_configuration_aligned": true, "result": {"files": 10000, "file_bytes": 4096, "concurrency": 1, "path_form": "absolute", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 122122357, "client_cpu_ns": 120952550, "operations": 10000, "p50_ns": 11089, "p95_ns": 14353, "p99_ns": 35384}, {"name": "stat", "wall_ns": 8807266, "client_cpu_ns": 8582878, "operations": 10000, "p50_ns": 680, "p95_ns": 861, "p99_ns": 968}, {"name": "read_close", "wall_ns": 18028544, "client_cpu_ns": 18000729, "operations": 10000, "p50_ns": 1581, "p95_ns": 1836, "p99_ns": 1992}, {"name": "readdir", "wall_ns": 1544356, "client_cpu_ns": 1543626, "operations": 1}, {"name": "rename", "wall_ns": 112919371, "client_cpu_ns": 112254035, "operations": 10000, "p50_ns": 10645, "p95_ns": 13984, "p99_ns": 23890}, {"name": "unlink", "wall_ns": 51908858, "client_cpu_ns": 50085018, "operations": 10000, "p50_ns": 4422, "p95_ns": 6201, "p99_ns": 11793}]}},
+    {"run": "network-probe-20261001T122407-211d5bd3", "lane": "native", "round": 2, "warmup": false, "moosefs_configuration_aligned": true, "result": {"files": 10000, "file_bytes": 4096, "concurrency": 1, "path_form": "absolute", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 1369402976, "client_cpu_ns": 374796930, "operations": 10000, "p50_ns": 120475, "p95_ns": 239954, "p99_ns": 376800}, {"name": "stat", "wall_ns": 1106573042, "client_cpu_ns": 165395164, "operations": 10000, "p50_ns": 101477, "p95_ns": 197099, "p99_ns": 304501}, {"name": "read_close", "wall_ns": 983699636, "client_cpu_ns": 165987584, "operations": 10000, "p50_ns": 93348, "p95_ns": 151850, "p99_ns": 211630}, {"name": "readdir", "wall_ns": 1678517, "client_cpu_ns": 1571865, "operations": 1}, {"name": "rename", "wall_ns": 2255970604, "client_cpu_ns": 424693529, "operations": 10000, "p50_ns": 213096, "p95_ns": 362979, "p99_ns": 525044}, {"name": "unlink", "wall_ns": 1015117153, "client_cpu_ns": 214374662, "operations": 10000, "p50_ns": 94897, "p95_ns": 162794, "p99_ns": 242728}]}},
+    {"run": "network-probe-20261001T122407-211d5bd3", "lane": "moosefs", "round": 2, "warmup": false, "moosefs_configuration_aligned": true, "result": {"files": 10000, "file_bytes": 4096, "concurrency": 1, "path_form": "absolute", "barrier": "close visibility; durability unqualified", "phases": [{"name": "create_write_close", "wall_ns": 13507296508, "client_cpu_ns": 529501115, "operations": 10000, "p50_ns": 1243504, "p95_ns": 1977490, "p99_ns": 3673978}, {"name": "stat", "wall_ns": 2229601245, "client_cpu_ns": 103316120, "operations": 10000, "p50_ns": 201380, "p95_ns": 352997, "p99_ns": 574542}, {"name": "read_close", "wall_ns": 5901910769, "client_cpu_ns": 426711118, "operations": 10000, "p50_ns": 548646, "p95_ns": 863544, "p99_ns": 1332613}, {"name": "readdir", "wall_ns": 5857684, "client_cpu_ns": 889153, "operations": 1}, {"name": "rename", "wall_ns": 7132002227, "client_cpu_ns": 285992689, "operations": 10000, "p50_ns": 662564, "p95_ns": 1090285, "p99_ns": 1468846}, {"name": "unlink", "wall_ns": 5283705990, "client_cpu_ns": 249079601, "operations": 10000, "p50_ns": 483616, "p95_ns": 833180, "p99_ns": 1196543}]}}
+  ]
+}

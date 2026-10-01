@@ -1,0 +1,720 @@
+{
+  "scope": "actual OCI container buffered sequential/random IO diagnostics",
+  "stage_pass": false,
+  "run": "network-probe-20261001T133647-d0e86248",
+  "slice": "shared-file-attribution",
+  "original_runner_passed": true,
+  "result_sha256": "8ad76c179ac6de5da26579463848d45e314f84dd628e77b1d719a713262293e2",
+  "raw_sha256": {
+    "b": "1babe563c0a0058c421726f1d53755ba3c193536e316fa6169097b8f9e8399b3",
+    "a": "038db0aae3db4dd3505a6f9d63bb6933ef6c89da584632c250943a18302f66b4",
+    "ctl": "2156d93eca2f0de365b7b6186956d590b22122b67f3dc3ecba42e197585e9a49"
+  },
+  "input_sha256": {
+    "node-tests": "409363724228d3a1de051158d6ec9e627452c55af0b95d9f4607feb5c3eb5c72",
+    "afs-meta": "77b9435f23c198de3e53d3552979ce2beca1ad79f05e8fafdc19bdfab6796cfe",
+    "guest.py": "a5b629e0e4f72104298e5438fcfc2d31af5b30715c847af7d35161deb7077792",
+    "controller.py": "b8a0ad3e0ad11360953bbba97873ba29cdf65267ec9f052435a2e530156cf55f",
+    "benchmark": "a5a7c66a2c38e521d23d0f857b4bd732dd0e3a33f74c7b136c1fa879bcaf7ff3",
+    "container-probe": "dcacaa08aff4edf5cdbd2c6e04ba3a3d2872a17c11209f58dc959328c3e8ff94",
+    "ownerfs_native_container.py": "0c1935337a1353c02c0b68797d776263b5c3c1442b57e461462baf5824a34797",
+    "io": "93a34610fa9fe7d08b2343a3a01889abcf40b0faa3c4eaa49b7fc7081e331942",
+    "ownerfs_native_container_io.py": "34c6807a36e7cf638591c35eb98f191c3763078578d8dd1afec75d0d9a6e1edc"
+  },
+  "source": {
+    "device": 2065,
+    "inode": 1049833
+  },
+  "identity": {
+    "epoch": 1,
+    "home_node_id": "native-a-d0e86248",
+    "home_session_id": "a1bab1e6-c52b-436d-a4d3-cdbc7e336558",
+    "namespace": {
+      "device": 4,
+      "inode": 4026532176
+    },
+    "root_id": "root-6167656e7431"
+  },
+  "runtime": {
+    "path": "/usr/sbin/runc",
+    "version": "runc version 1.3.4-0ubuntu1~24.04.1\nspec: 1.2.1\ngo: go1.24.4\nlibseccomp: 2.5.5\n",
+    "sha256": "bdce4d45b2dd217491db8a98c8484b161e225ce49c15ebc1ba42077fb7c07d50"
+  },
+  "containers": {
+    "ext4": {
+      "id": "network-probe-20261001T133647-d0e86248-ext4",
+      "process": {
+        "pid": 109436,
+        "start_tick": "6287322",
+        "boot_id": "d195705c-1a96-47ce-8d35-454ead00990d",
+        "exe": "/container-probe",
+        "sha256": "dcacaa08aff4edf5cdbd2c6e04ba3a3d2872a17c11209f58dc959328c3e8ff94",
+        "namespace": "mnt:[4026532177]",
+        "cmdline": "/container-probe --idle "
+      },
+      "state": {
+        "ociVersion": "1.2.1",
+        "id": "network-probe-20261001T133647-d0e86248-ext4",
+        "pid": 109436,
+        "status": "running",
+        "bundle": "/mnt/afsdata/ownerfs-native-network/network-probe-20261001T133647-d0e86248/oci-ext4",
+        "rootfs": "/mnt/afsdata/ownerfs-native-network/network-probe-20261001T133647-d0e86248/container-rootfs",
+        "created": "2026-10-01T13:37:08.242752149Z",
+        "owner": ""
+      },
+      "namespaces": {
+        "mnt": "mnt:[4026532177]",
+        "pid": "pid:[4026532182]",
+        "net": "net:[4026532184]",
+        "ipc": "ipc:[4026532181]",
+        "uts": "uts:[4026532179]",
+        "cgroup": "cgroup:[4026532183]"
+      },
+      "source_path": "/mnt/afsdata/ownerfs-native-network/network-probe-20261001T133647-d0e86248/data/ownerfs/root-6167656e7431-e1",
+      "source": {
+        "device": 2065,
+        "inode": 1049833
+      },
+      "config_sha256": "878a4f0d0e803d2a30cebea6759201d5c9c9723d992d16ed97150108c8e8e32c",
+      "isolation": {
+        "workspace": {
+          "device": 2065,
+          "inode": 1049833
+        },
+        "fstype_magic": 61267,
+        "parent": {
+          "device": 2065,
+          "inode": 1049864,
+          "entries": [
+            "agent1"
+          ],
+          "write_errno": 30
+        },
+        "pid": 6,
+        "host_paths": [
+          {
+            "path": "/ownerfs/agent1/../agent2/outside-sibling-marker",
+            "errno": 2
+          },
+          {
+            "path": "/ownerfs/agent1/../outside-parent-marker",
+            "errno": 2
+          },
+          {
+            "path": "/mnt/afsdata/ownerfs-native-network/network-probe-20261001T133647-d0e86248/outside-parent-marker",
+            "errno": 2
+          },
+          {
+            "path": "/mnt/afsdata/ownerfs-native-network/network-probe-20261001T133647-d0e86248/mount/agent2/outside-sibling-marker",
+            "errno": 2
+          },
+          {
+            "path": "/mnt/afsdata/ownerfs-native-network/network-probe-20261001T133647-d0e86248/data/ownerfs/outside-backing-marker",
+            "errno": 2
+          },
+          {
+            "path": "/proc/108662/root/mnt/afsdata/ownerfs-native-network/network-probe-20261001T133647-d0e86248/outside-parent-marker",
+            "errno": 2
+          },
+          {
+            "path": "/proc/1/root/mnt/afsdata/ownerfs-native-network/network-probe-20261001T133647-d0e86248/outside-parent-marker",
+            "errno": 2
+          },
+          {
+            "path": "/mnt/afsdata/ownerfs-native-network/network-probe-20261001T133647-d0e86248",
+            "errno": 2
+          }
+        ],
+        "symlink_paths": [
+          {
+            "path": "/ownerfs/agent1/escape-4",
+            "errno": 2
+          },
+          {
+            "path": "/ownerfs/agent1/escape-5",
+            "errno": 2
+          },
+          {
+            "path": "/ownerfs/agent1/escape-6",
+            "errno": 2
+          }
+        ],
+        "mountinfo": "456 415 8:17 /ownerfs-native-network/network-probe-20261001T133647-d0e86248/container-rootfs / ro,noatime - ext4 /dev/sdb1 rw\n458 456 0:56 / /proc rw,nosuid,nodev,noexec,relatime - proc proc rw\n459 456 8:17 /ownerfs-native-network/network-probe-20261001T133647-d0e86248/data/ownerfs/root-6167656e7431-e1 /ownerfs/agent1 rw,nosuid,nodev,noatime - ext4 /dev/sdb1 rw\n",
+        "status": "Name:\tcontainer-probe\nUmask:\t0022\nState:\tR (running)\nTgid:\t6\nNgid:\t0\nPid:\t6\nPPid:\t0\nTracerPid:\t0\nUid:\t0\t0\t0\t0\nGid:\t0\t0\t0\t0\nFDSize:\t64\nGroups:\t \nNStgid:\t6\nNSpid:\t6\nNSpgid:\t6\nNSsid:\t6\nKthread:\t0\nVmPeak:\t    2684 kB\nVmSize:\t    2684 kB\nVmLck:\t       0 kB\nVmPin:\t       0 kB\nVmHWM:\t    1804 kB\nVmRSS:\t    1804 kB\nRssAnon:\t     168 kB\nRssFile:\t    1636 kB\nRssShmem:\t       0 kB\nVmData:\t     224 kB\nVmStk:\t     132 kB\nVmExe:\t       4 kB\nVmLib:\t    1752 kB\nVmPTE:\t      44 kB\nVmSwap:\t       0 kB\nHugetlbPages:\t       0 kB\nCoreDumping:\t0\nTHP_enabled:\t1\nuntag_mask:\t0xffffffffffffffff\nThreads:\t1\nSigQ:\t1/23364\nSigPnd:\t0000000000000000\nShdPnd:\t0000000000000000\nSigBlk:\t0000000000000000\nSigIgn:\t0000000000000000\nSigCgt:\t0000000000000000\nCapInh:\t0000000000000000\nCapPrm:\t0000000000000000\nCapEff:\t0000000000000000\nCapBnd:\t0000000000000000\nCapAmb:\t0000000000000000\nNoNewPrivs:\t1\nSeccomp:\t0\nSeccomp_filters:\t0\nSpeculation_Store_Bypass:\tthread vulnerable\nSpeculationIndirectBranch:\tconditional enabled\nCpus_allowed:\t3\nCpus_allowed_list:\t0-1\nMems_allowed:\t00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000001\nMems_allowed_list:\t0\nvoluntary_ctxt_switches:\t9\nnonvoluntary_ctxt_switches:\t13\nx86_Thread_features:\t\nx86_Thread_features_locked:\t\n"
+      }
+    },
+    "native": {
+      "id": "network-probe-20261001T133647-d0e86248-native",
+      "process": {
+        "pid": 109483,
+        "start_tick": "6287333",
+        "boot_id": "d195705c-1a96-47ce-8d35-454ead00990d",
+        "exe": "/container-probe",
+        "sha256": "dcacaa08aff4edf5cdbd2c6e04ba3a3d2872a17c11209f58dc959328c3e8ff94",
+        "namespace": "mnt:[4026532251]",
+        "cmdline": "/container-probe --idle "
+      },
+      "state": {
+        "ociVersion": "1.2.1",
+        "id": "network-probe-20261001T133647-d0e86248-native",
+        "pid": 109483,
+        "status": "running",
+        "bundle": "/mnt/afsdata/ownerfs-native-network/network-probe-20261001T133647-d0e86248/oci-native",
+        "rootfs": "/mnt/afsdata/ownerfs-native-network/network-probe-20261001T133647-d0e86248/container-rootfs",
+        "created": "2026-10-01T13:37:08.35888986Z",
+        "owner": ""
+      },
+      "namespaces": {
+        "mnt": "mnt:[4026532251]",
+        "pid": "pid:[4026532254]",
+        "net": "net:[4026532256]",
+        "ipc": "ipc:[4026532253]",
+        "uts": "uts:[4026532252]",
+        "cgroup": "cgroup:[4026532255]"
+      },
+      "source_path": "/mnt/afsdata/ownerfs-native-network/network-probe-20261001T133647-d0e86248/mount/agent1",
+      "source": {
+        "device": 2065,
+        "inode": 1049833
+      },
+      "config_sha256": "8bce493ce3e85539e83376d7c566335bbe4a0586f257058d6f3f16a57903683d",
+      "isolation": {
+        "workspace": {
+          "device": 2065,
+          "inode": 1049833
+        },
+        "fstype_magic": 61267,
+        "parent": {
+          "device": 2065,
+          "inode": 1049864,
+          "entries": [
+            "agent1"
+          ],
+          "write_errno": 30
+        },
+        "pid": 6,
+        "host_paths": [
+          {
+            "path": "/ownerfs/agent1/../agent2/outside-sibling-marker",
+            "errno": 2
+          },
+          {
+            "path": "/ownerfs/agent1/../outside-parent-marker",
+            "errno": 2
+          },
+          {
+            "path": "/mnt/afsdata/ownerfs-native-network/network-probe-20261001T133647-d0e86248/outside-parent-marker",
+            "errno": 2
+          },
+          {
+            "path": "/mnt/afsdata/ownerfs-native-network/network-probe-20261001T133647-d0e86248/mount/agent2/outside-sibling-marker",
+            "errno": 2
+          },
+          {
+            "path": "/mnt/afsdata/ownerfs-native-network/network-probe-20261001T133647-d0e86248/data/ownerfs/outside-backing-marker",
+            "errno": 2
+          },
+          {
+            "path": "/proc/108662/root/mnt/afsdata/ownerfs-native-network/network-probe-20261001T133647-d0e86248/outside-parent-marker",
+            "errno": 2
+          },
+          {
+            "path": "/proc/1/root/mnt/afsdata/ownerfs-native-network/network-probe-20261001T133647-d0e86248/outside-parent-marker",
+            "errno": 2
+          },
+          {
+            "path": "/mnt/afsdata/ownerfs-native-network/network-probe-20261001T133647-d0e86248",
+            "errno": 2
+          }
+        ],
+        "symlink_paths": [
+          {
+            "path": "/ownerfs/agent1/escape-4",
+            "errno": 2
+          },
+          {
+            "path": "/ownerfs/agent1/escape-5",
+            "errno": 2
+          },
+          {
+            "path": "/ownerfs/agent1/escape-6",
+            "errno": 2
+          }
+        ],
+        "mountinfo": "461 416 8:17 /ownerfs-native-network/network-probe-20261001T133647-d0e86248/container-rootfs / ro,noatime - ext4 /dev/sdb1 rw\n463 461 0:58 / /proc rw,nosuid,nodev,noexec,relatime - proc proc rw\n464 461 8:17 /ownerfs-native-network/network-probe-20261001T133647-d0e86248/data/ownerfs/root-6167656e7431-e1 /ownerfs/agent1 rw,nosuid,nodev,noatime - ext4 /dev/sdb1 rw\n",
+        "status": "Name:\tcontainer-probe\nUmask:\t0022\nState:\tR (running)\nTgid:\t6\nNgid:\t0\nPid:\t6\nPPid:\t0\nTracerPid:\t0\nUid:\t0\t0\t0\t0\nGid:\t0\t0\t0\t0\nFDSize:\t64\nGroups:\t \nNStgid:\t6\nNSpid:\t6\nNSpgid:\t6\nNSsid:\t6\nKthread:\t0\nVmPeak:\t    2684 kB\nVmSize:\t    2684 kB\nVmLck:\t       0 kB\nVmPin:\t       0 kB\nVmHWM:\t    1808 kB\nVmRSS:\t    1808 kB\nRssAnon:\t     172 kB\nRssFile:\t    1636 kB\nRssShmem:\t       0 kB\nVmData:\t     224 kB\nVmStk:\t     132 kB\nVmExe:\t       4 kB\nVmLib:\t    1752 kB\nVmPTE:\t      48 kB\nVmSwap:\t       0 kB\nHugetlbPages:\t       0 kB\nCoreDumping:\t0\nTHP_enabled:\t1\nuntag_mask:\t0xffffffffffffffff\nThreads:\t1\nSigQ:\t1/23364\nSigPnd:\t0000000000000000\nShdPnd:\t0000000000000000\nSigBlk:\t0000000000000000\nSigIgn:\t0000000000000000\nSigCgt:\t0000000000000000\nCapInh:\t0000000000000000\nCapPrm:\t0000000000000000\nCapEff:\t0000000000000000\nCapBnd:\t0000000000000000\nCapAmb:\t0000000000000000\nNoNewPrivs:\t1\nSeccomp:\t0\nSeccomp_filters:\t0\nSpeculation_Store_Bypass:\tthread vulnerable\nSpeculationIndirectBranch:\tconditional enabled\nCpus_allowed:\t3\nCpus_allowed_list:\t0-1\nMems_allowed:\t00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000001\nMems_allowed_list:\t0\nvoluntary_ctxt_switches:\t10\nnonvoluntary_ctxt_switches:\t9\nx86_Thread_features:\t\nx86_Thread_features_locked:\t\n"
+      }
+    }
+  },
+  "cache_limit": "guest drop_caches/mincore only; host Hyper-V cache is uncontrolled; 8GiB repeated read is not called fully hot",
+  "dataset_setup": [
+    {
+      "lane": "ext4",
+      "dataset": "seq",
+      "path": "/ownerfs/agent1/io-seq-data",
+      "result": {
+        "operation": "seq-write",
+        "file_bytes": 8589934592,
+        "io_bytes": 8589934592,
+        "block_bytes": 1048576,
+        "concurrency": 1,
+        "barrier": "fsync",
+        "pattern_byte": 90,
+        "seed": 257,
+        "operations": 8192,
+        "wall_ns": 4176455775,
+        "client_cpu_ns": 3734464933,
+        "barrier_ns": 219083829,
+        "p50_ns": 428297,
+        "p95_ns": 809589,
+        "p99_ns": 1805220,
+        "resident_before_bytes": 0,
+        "resident_after_bytes": 4234145792,
+        "content_ok": true,
+        "cache_requested": "unchecked",
+        "cache_prepare_attempts": 0,
+        "file_object": {
+          "device": 2065,
+          "inode": 1049905
+        }
+      }
+    },
+    {
+      "lane": "ext4",
+      "dataset": "hot",
+      "path": "/ownerfs/agent1/io-hot-data",
+      "result": {
+        "operation": "seq-write",
+        "file_bytes": 536870912,
+        "io_bytes": 536870912,
+        "block_bytes": 1048576,
+        "concurrency": 1,
+        "barrier": "fsync",
+        "pattern_byte": 90,
+        "seed": 257,
+        "operations": 512,
+        "wall_ns": 418604581,
+        "client_cpu_ns": 214269259,
+        "barrier_ns": 237165338,
+        "p50_ns": 318971,
+        "p95_ns": 495107,
+        "p99_ns": 788291,
+        "resident_before_bytes": 0,
+        "resident_after_bytes": 536870912,
+        "content_ok": true,
+        "cache_requested": "unchecked",
+        "cache_prepare_attempts": 0,
+        "file_object": {
+          "device": 2065,
+          "inode": 1049904
+        }
+      }
+    },
+    {
+      "lane": "ext4",
+      "dataset": "write",
+      "path": "/ownerfs/agent1/io-write-data",
+      "result": {
+        "operation": "seq-write",
+        "file_bytes": 536870912,
+        "io_bytes": 536870912,
+        "block_bytes": 1048576,
+        "concurrency": 1,
+        "barrier": "fsync",
+        "pattern_byte": 90,
+        "seed": 257,
+        "operations": 512,
+        "wall_ns": 412405343,
+        "client_cpu_ns": 218603678,
+        "barrier_ns": 229190696,
+        "p50_ns": 318291,
+        "p95_ns": 472024,
+        "p99_ns": 1098211,
+        "resident_before_bytes": 0,
+        "resident_after_bytes": 536870912,
+        "content_ok": true,
+        "cache_requested": "unchecked",
+        "cache_prepare_attempts": 0,
+        "file_object": {
+          "device": 2065,
+          "inode": 1049907
+        }
+      }
+    }
+  ],
+  "workload_cleanup": [
+    {
+      "lane": "ext4",
+      "dataset": "seq",
+      "path": "/ownerfs/agent1/io-seq-data",
+      "inode": 1049905,
+      "file_bytes": 8589934592,
+      "unlinked": true
+    },
+    {
+      "lane": "ext4",
+      "dataset": "hot",
+      "path": "/ownerfs/agent1/io-hot-data",
+      "inode": 1049904,
+      "file_bytes": 536870912,
+      "unlinked": true
+    },
+    {
+      "lane": "ext4",
+      "dataset": "write",
+      "path": "/ownerfs/agent1/io-write-data",
+      "inode": 1049907,
+      "file_bytes": 536870912,
+      "unlinked": true
+    }
+  ],
+  "container_lifecycle": {
+    "original_export_detach": {
+      "id": "container-final-detach",
+      "ok": true,
+      "result": {
+        "covered_target": {
+          "device": 47,
+          "inode": 2
+        },
+        "identity": {
+          "epoch": 1,
+          "home_node_id": "native-a-d0e86248",
+          "home_session_id": "a1bab1e6-c52b-436d-a4d3-cdbc7e336558",
+          "namespace": {
+            "device": 4,
+            "inode": 4026532176
+          },
+          "root_id": "root-6167656e7431"
+        },
+        "observed": null,
+        "scope": "validation manager observation, not production READY/ACK",
+        "source": {
+          "device": 2065,
+          "inode": 1049833
+        },
+        "state": "Detached"
+      }
+    },
+    "after_original_detach": {
+      "workspace": {
+        "device": 2065,
+        "inode": 1049833
+      },
+      "fstype_magic": 61267,
+      "parent": {
+        "device": 2065,
+        "inode": 1049864,
+        "entries": [
+          "agent1"
+        ],
+        "write_errno": 30
+      },
+      "pid": 265,
+      "host_paths": [
+        {
+          "path": "/ownerfs/agent1/../agent2/outside-sibling-marker",
+          "errno": 2
+        },
+        {
+          "path": "/ownerfs/agent1/../outside-parent-marker",
+          "errno": 2
+        },
+        {
+          "path": "/mnt/afsdata/ownerfs-native-network/network-probe-20261001T133647-d0e86248/outside-parent-marker",
+          "errno": 2
+        },
+        {
+          "path": "/mnt/afsdata/ownerfs-native-network/network-probe-20261001T133647-d0e86248/mount/agent2/outside-sibling-marker",
+          "errno": 2
+        },
+        {
+          "path": "/mnt/afsdata/ownerfs-native-network/network-probe-20261001T133647-d0e86248/data/ownerfs/outside-backing-marker",
+          "errno": 2
+        },
+        {
+          "path": "/proc/108662/root/mnt/afsdata/ownerfs-native-network/network-probe-20261001T133647-d0e86248/outside-parent-marker",
+          "errno": 2
+        },
+        {
+          "path": "/proc/1/root/mnt/afsdata/ownerfs-native-network/network-probe-20261001T133647-d0e86248/outside-parent-marker",
+          "errno": 2
+        },
+        {
+          "path": "/mnt/afsdata/ownerfs-native-network/network-probe-20261001T133647-d0e86248",
+          "errno": 2
+        }
+      ],
+      "symlink_paths": [
+        {
+          "path": "/ownerfs/agent1/escape-4",
+          "errno": 2
+        },
+        {
+          "path": "/ownerfs/agent1/escape-5",
+          "errno": 2
+        },
+        {
+          "path": "/ownerfs/agent1/escape-6",
+          "errno": 2
+        }
+      ],
+      "mountinfo": "461 416 8:17 /ownerfs-native-network/network-probe-20261001T133647-d0e86248/container-rootfs / ro,noatime - ext4 /dev/sdb1 rw\n463 461 0:58 / /proc rw,nosuid,nodev,noexec,relatime - proc proc rw\n464 461 8:17 /ownerfs-native-network/network-probe-20261001T133647-d0e86248/data/ownerfs/root-6167656e7431-e1 /ownerfs/agent1 rw,nosuid,nodev,noatime - ext4 /dev/sdb1 rw\n",
+      "status": "Name:\tcontainer-probe\nUmask:\t0022\nState:\tR (running)\nTgid:\t265\nNgid:\t0\nPid:\t265\nPPid:\t0\nTracerPid:\t0\nUid:\t0\t0\t0\t0\nGid:\t0\t0\t0\t0\nFDSize:\t64\nGroups:\t \nNStgid:\t265\nNSpid:\t265\nNSpgid:\t265\nNSsid:\t265\nKthread:\t0\nVmPeak:\t    2684 kB\nVmSize:\t    2684 kB\nVmLck:\t       0 kB\nVmPin:\t       0 kB\nVmHWM:\t    1792 kB\nVmRSS:\t    1792 kB\nRssAnon:\t     168 kB\nRssFile:\t    1624 kB\nRssShmem:\t       0 kB\nVmData:\t     224 kB\nVmStk:\t     132 kB\nVmExe:\t       4 kB\nVmLib:\t    1752 kB\nVmPTE:\t      48 kB\nVmSwap:\t       0 kB\nHugetlbPages:\t       0 kB\nCoreDumping:\t0\nTHP_enabled:\t1\nuntag_mask:\t0xffffffffffffffff\nThreads:\t1\nSigQ:\t1/23364\nSigPnd:\t0000000000000000\nShdPnd:\t0000000000000000\nSigBlk:\t0000000000000000\nSigIgn:\t0000000000000000\nSigCgt:\t0000000000000000\nCapInh:\t0000000000000000\nCapPrm:\t0000000000000000\nCapEff:\t0000000000000000\nCapBnd:\t0000000000000000\nCapAmb:\t0000000000000000\nNoNewPrivs:\t1\nSeccomp:\t0\nSeccomp_filters:\t0\nSpeculation_Store_Bypass:\tthread vulnerable\nSpeculationIndirectBranch:\tconditional enabled\nCpus_allowed:\t3\nCpus_allowed_list:\t0-1\nMems_allowed:\t00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000001\nMems_allowed_list:\t0\nvoluntary_ctxt_switches:\t11\nnonvoluntary_ctxt_switches:\t13\nx86_Thread_features:\t\nx86_Thread_features_locked:\t\n"
+    },
+    "limit": "original normal umount is not container drain/fencing; managed container must stop/unmount before backing reuse"
+  },
+  "cleanup": [
+    {
+      "lane": "native",
+      "state": {
+        "ociVersion": "1.2.1",
+        "id": "network-probe-20261001T133647-d0e86248-native",
+        "pid": 0,
+        "status": "stopped",
+        "bundle": "/mnt/afsdata/ownerfs-native-network/network-probe-20261001T133647-d0e86248/oci-native",
+        "rootfs": "/mnt/afsdata/ownerfs-native-network/network-probe-20261001T133647-d0e86248/container-rootfs",
+        "created": "2026-10-01T13:37:08.35888986Z",
+        "owner": ""
+      },
+      "deleted": true
+    },
+    {
+      "lane": "ext4",
+      "state": {
+        "ociVersion": "1.2.1",
+        "id": "network-probe-20261001T133647-d0e86248-ext4",
+        "pid": 0,
+        "status": "stopped",
+        "bundle": "/mnt/afsdata/ownerfs-native-network/network-probe-20261001T133647-d0e86248/oci-ext4",
+        "rootfs": "/mnt/afsdata/ownerfs-native-network/network-probe-20261001T133647-d0e86248/container-rootfs",
+        "created": "2026-10-01T13:37:08.242752149Z",
+        "owner": ""
+      },
+      "deleted": true
+    }
+  ],
+  "timing_scope": "open/pthread IO/one final barrier/close; content replay outside timer; resource windows also include verification/runtime",
+  "missing": [
+    "MooseFS P2/P3 and strong durability parity",
+    "remote timing",
+    "production Agent/READY integration",
+    "full architecture acceptance"
+  ],
+  "rows": [
+    {
+      "case_id": 0,
+      "case": {
+        "operation": "seq-write",
+        "file_bytes": 8589934592,
+        "block_bytes": 1048576,
+        "concurrency": 1,
+        "barrier": "fsync",
+        "io_bytes": 8589934592,
+        "cache": "guest-cold",
+        "dataset": "seq"
+      },
+      "lanes": {
+        "ext4": {
+          "wall_median_ms": 4201.769658,
+          "throughput_median_mib_s": 1949.6547090349807,
+          "client_cpu_median_ms": 3448.127004,
+          "barrier_median_ms": 201.031581,
+          "operation_p50_median_us": 349.584,
+          "operation_p95_median_us": 706.988,
+          "operation_p99_median_us": 2341.293
+        },
+        "native": {
+          "wall_median_ms": 4202.955362,
+          "throughput_median_mib_s": 1949.104688112079,
+          "client_cpu_median_ms": 3469.786121,
+          "barrier_median_ms": 214.505071,
+          "operation_p50_median_us": 380.45,
+          "operation_p95_median_us": 705.194,
+          "operation_p99_median_us": 1652.065
+        }
+      },
+      "native_ext4_paired_ratios": [
+        1.0164488057712564,
+        0.9862691222679246,
+        1.0424676785893718,
+        0.9902648105218279,
+        0.8819836735050478
+      ],
+      "native_ext4_ratio_median": 0.9902648105218279
+    },
+    {
+      "case_id": 1,
+      "case": {
+        "operation": "random-read",
+        "file_bytes": 8589934592,
+        "block_bytes": 4096,
+        "concurrency": 1,
+        "barrier": "close",
+        "io_bytes": 536870912,
+        "cache": "guest-cold",
+        "dataset": "seq"
+      },
+      "lanes": {
+        "ext4": {
+          "wall_median_ms": 19197.207533,
+          "throughput_median_mib_s": 26.67054565721978,
+          "client_cpu_median_ms": 1436.648293,
+          "barrier_median_ms": 0.000401,
+          "operation_p50_median_us": 131.679,
+          "operation_p95_median_us": 226.278,
+          "operation_p99_median_us": 379.202
+        },
+        "native": {
+          "wall_median_ms": 19943.883407,
+          "throughput_median_mib_s": 25.67203134672838,
+          "client_cpu_median_ms": 1542.594095,
+          "barrier_median_ms": 0.000539,
+          "operation_p50_median_us": 135.848,
+          "operation_p95_median_us": 246.362,
+          "operation_p99_median_us": 414.867
+        }
+      },
+      "native_ext4_paired_ratios": [
+        1.1153628381174518,
+        0.9946194776130264,
+        0.9639279942767913,
+        1.0349300855675743,
+        1.1814783510205926
+      ],
+      "native_ext4_ratio_median": 1.0349300855675743
+    },
+    {
+      "case_id": 2,
+      "case": {
+        "operation": "random-read",
+        "file_bytes": 536870912,
+        "block_bytes": 65536,
+        "concurrency": 1,
+        "barrier": "close",
+        "io_bytes": 536870912,
+        "cache": "hot",
+        "dataset": "hot"
+      },
+      "lanes": {
+        "ext4": {
+          "wall_median_ms": 46.741934,
+          "throughput_median_mib_s": 10953.761562369242,
+          "client_cpu_median_ms": 46.744419,
+          "barrier_median_ms": 0.000429,
+          "operation_p50_median_us": 5.466,
+          "operation_p95_median_us": 6.158,
+          "operation_p99_median_us": 11.59
+        },
+        "native": {
+          "wall_median_ms": 51.560094,
+          "throughput_median_mib_s": 9930.160329032758,
+          "client_cpu_median_ms": 51.507287,
+          "barrier_median_ms": 0.00051,
+          "operation_p50_median_us": 5.757,
+          "operation_p95_median_us": 7.122,
+          "operation_p99_median_us": 16.104
+        }
+      },
+      "native_ext4_paired_ratios": [
+        1.0455547519953503,
+        1.1056370253868424,
+        0.9796758088785971,
+        1.110731858293019,
+        1.0762591896446427
+      ],
+      "native_ext4_ratio_median": 1.0762591896446427
+    },
+    {
+      "case_id": 3,
+      "case": {
+        "operation": "random-write",
+        "file_bytes": 536870912,
+        "block_bytes": 65536,
+        "concurrency": 1,
+        "barrier": "close",
+        "io_bytes": 536870912,
+        "cache": "hot",
+        "dataset": "write"
+      },
+      "lanes": {
+        "ext4": {
+          "wall_median_ms": 82.405721,
+          "throughput_median_mib_s": 6213.160855664378,
+          "client_cpu_median_ms": 82.037703,
+          "barrier_median_ms": 0.000525,
+          "operation_p50_median_us": 9.546,
+          "operation_p95_median_us": 12.264,
+          "operation_p99_median_us": 22.991
+        },
+        "native": {
+          "wall_median_ms": 81.6456,
+          "throughput_median_mib_s": 6271.00541854062,
+          "client_cpu_median_ms": 81.551022,
+          "barrier_median_ms": 0.000525,
+          "operation_p50_median_us": 9.526,
+          "operation_p95_median_us": 12.192,
+          "operation_p99_median_us": 22.054
+        }
+      },
+      "native_ext4_paired_ratios": [
+        0.9825072217983506,
+        1.032636040772535,
+        0.9678667048831114,
+        0.9410401728356439,
+        0.994022976280518
+      ],
+      "native_ext4_ratio_median": 0.9825072217983506
+    }
+  ],
+  "samples": [
+    {"case": 0, "lane": "ext4", "round": 0, "warmup": true, "path": "/ownerfs/agent1/io-seq-data", "result": {"operation": "seq-write", "file_bytes": 8589934592, "io_bytes": 8589934592, "block_bytes": 1048576, "concurrency": 1, "barrier": "fsync", "pattern_byte": 32, "seed": 257, "operations": 8192, "wall_ns": 5200992926, "client_cpu_ns": 4093431090, "barrier_ns": 142310527, "p50_ns": 395319, "p95_ns": 850094, "p99_ns": 5164746, "resident_before_bytes": 0, "resident_after_bytes": 4238819328, "content_ok": true, "cache_requested": "guest-cold", "cache_prepare_attempts": 1, "file_object": {"device": 2065, "inode": 1049905}}},
+    {"case": 0, "lane": "native", "round": 0, "warmup": true, "path": "/ownerfs/agent1/io-seq-data", "result": {"operation": "seq-write", "file_bytes": 8589934592, "io_bytes": 8589934592, "block_bytes": 1048576, "concurrency": 1, "barrier": "fsync", "pattern_byte": 128, "seed": 257, "operations": 8192, "wall_ns": 4216087975, "client_cpu_ns": 3394982674, "barrier_ns": 210663996, "p50_ns": 347913, "p95_ns": 672777, "p99_ns": 2844949, "resident_before_bytes": 0, "resident_after_bytes": 4255068160, "content_ok": true, "cache_requested": "guest-cold", "cache_prepare_attempts": 1, "file_object": {"device": 2065, "inode": 1049905}}},
+    {"case": 0, "lane": "native", "round": 1, "warmup": false, "path": "/ownerfs/agent1/io-seq-data", "result": {"operation": "seq-write", "file_bytes": 8589934592, "io_bytes": 8589934592, "block_bytes": 1048576, "concurrency": 1, "barrier": "fsync", "pattern_byte": 129, "seed": 257, "operations": 8192, "wall_ns": 4270883751, "client_cpu_ns": 3427400751, "barrier_ns": 214505071, "p50_ns": 353660, "p95_ns": 705194, "p99_ns": 1652065, "resident_before_bytes": 0, "resident_after_bytes": 4225785856, "content_ok": true, "cache_requested": "guest-cold", "cache_prepare_attempts": 1, "file_object": {"device": 2065, "inode": 1049905}}},
+    {"case": 0, "lane": "ext4", "round": 1, "warmup": false, "path": "/ownerfs/agent1/io-seq-data", "result": {"operation": "seq-write", "file_bytes": 8589934592, "io_bytes": 8589934592, "block_bytes": 1048576, "concurrency": 1, "barrier": "fsync", "pattern_byte": 33, "seed": 257, "operations": 8192, "wall_ns": 4201769658, "client_cpu_ns": 3448127004, "barrier_ns": 209828801, "p50_ns": 349584, "p95_ns": 706988, "p99_ns": 2127980, "resident_before_bytes": 0, "resident_after_bytes": 4260745216, "content_ok": true, "cache_requested": "guest-cold", "cache_prepare_attempts": 1, "file_object": {"device": 2065, "inode": 1049905}}},
+    {"case": 0, "lane": "ext4", "round": 2, "warmup": false, "path": "/ownerfs/agent1/io-seq-data", "result": {"operation": "seq-write", "file_bytes": 8589934592, "io_bytes": 8589934592, "block_bytes": 1048576, "concurrency": 1, "barrier": "fsync", "pattern_byte": 34, "seed": 257, "operations": 8192, "wall_ns": 4169198657, "client_cpu_ns": 3214600965, "barrier_ns": 284963528, "p50_ns": 364301, "p95_ns": 648957, "p99_ns": 1063756, "resident_before_bytes": 0, "resident_after_bytes": 4224847872, "content_ok": true, "cache_requested": "guest-cold", "cache_prepare_attempts": 1, "file_object": {"device": 2065, "inode": 1049905}}},
+    {"case": 0, "lane": "native", "round": 2, "warmup": false, "path": "/ownerfs/agent1/io-seq-data", "result": {"operation": "seq-write", "file_bytes": 8589934592, "io_bytes": 8589934592, "block_bytes": 1048576, "concurrency": 1, "barrier": "fsync", "pattern_byte": 130, "seed": 257, "operations": 8192, "wall_ns": 4111951900, "client_cpu_ns": 3332296647, "barrier_ns": 233091644, "p50_ns": 380450, "p95_ns": 674976, "p99_ns": 1198184, "resident_before_bytes": 0, "resident_after_bytes": 4253659136, "content_ok": true, "cache_requested": "guest-cold", "cache_prepare_attempts": 1, "file_object": {"device": 2065, "inode": 1049905}}},
+    {"case": 0, "lane": "native", "round": 3, "warmup": false, "path": "/ownerfs/agent1/io-seq-data", "result": {"operation": "seq-write", "file_bytes": 8589934592, "io_bytes": 8589934592, "block_bytes": 1048576, "concurrency": 1, "barrier": "fsync", "pattern_byte": 131, "seed": 257, "operations": 8192, "wall_ns": 4202955362, "client_cpu_ns": 3469786121, "barrier_ns": 195443555, "p50_ns": 375758, "p95_ns": 703418, "p99_ns": 1826429, "resident_before_bytes": 0, "resident_after_bytes": 4262629376, "content_ok": true, "cache_requested": "guest-cold", "cache_prepare_attempts": 1, "file_object": {"device": 2065, "inode": 1049905}}},
+    {"case": 0, "lane": "ext4", "round": 3, "warmup": false, "path": "/ownerfs/agent1/io-seq-data", "result": {"operation": "seq-write", "file_bytes": 8589934592, "io_bytes": 8589934592, "block_bytes": 1048576, "concurrency": 1, "barrier": "fsync", "pattern_byte": 35, "seed": 257, "operations": 8192, "wall_ns": 4031736857, "client_cpu_ns": 3516878216, "barrier_ns": 199967041, "p50_ns": 324432, "p95_ns": 753261, "p99_ns": 2341293, "resident_before_bytes": 0, "resident_after_bytes": 4263702528, "content_ok": true, "cache_requested": "guest-cold", "cache_prepare_attempts": 1, "file_object": {"device": 2065, "inode": 1049905}}},
+    {"case": 0, "lane": "ext4", "round": 4, "warmup": false, "path": "/ownerfs/agent1/io-seq-data", "result": {"operation": "seq-write", "file_bytes": 8589934592, "io_bytes": 8589934592, "block_bytes": 1048576, "concurrency": 1, "barrier": "fsync", "pattern_byte": 36, "seed": 257, "operations": 8192, "wall_ns": 4209269074, "client_cpu_ns": 3623121401, "barrier_ns": 201031581, "p50_ns": 366859, "p95_ns": 701095, "p99_ns": 2478802, "resident_before_bytes": 0, "resident_after_bytes": 4239286272, "content_ok": true, "cache_requested": "guest-cold", "cache_prepare_attempts": 1, "file_object": {"device": 2065, "inode": 1049905}}},
+    {"case": 0, "lane": "native", "round": 4, "warmup": false, "path": "/ownerfs/agent1/io-seq-data", "result": {"operation": "seq-write", "file_bytes": 8589934592, "io_bytes": 8589934592, "block_bytes": 1048576, "concurrency": 1, "barrier": "fsync", "pattern_byte": 132, "seed": 257, "operations": 8192, "wall_ns": 4168291042, "client_cpu_ns": 3698894330, "barrier_ns": 222842460, "p50_ns": 403636, "p95_ns": 753320, "p99_ns": 1458159, "resident_before_bytes": 0, "resident_after_bytes": 4275691520, "content_ok": true, "cache_requested": "guest-cold", "cache_prepare_attempts": 1, "file_object": {"device": 2065, "inode": 1049905}}},
+    {"case": 0, "lane": "native", "round": 5, "warmup": false, "path": "/ownerfs/agent1/io-seq-data", "result": {"operation": "seq-write", "file_bytes": 8589934592, "io_bytes": 8589934592, "block_bytes": 1048576, "concurrency": 1, "barrier": "fsync", "pattern_byte": 133, "seed": 257, "operations": 8192, "wall_ns": 4293470191, "client_cpu_ns": 3855866993, "barrier_ns": 117240024, "p50_ns": 386254, "p95_ns": 776709, "p99_ns": 2440736, "resident_before_bytes": 0, "resident_after_bytes": 4243714048, "content_ok": true, "cache_requested": "guest-cold", "cache_prepare_attempts": 1, "file_object": {"device": 2065, "inode": 1049905}}},
+    {"case": 0, "lane": "ext4", "round": 5, "warmup": false, "path": "/ownerfs/agent1/io-seq-data", "result": {"operation": "seq-write", "file_bytes": 8589934592, "io_bytes": 8589934592, "block_bytes": 1048576, "concurrency": 1, "barrier": "fsync", "pattern_byte": 37, "seed": 257, "operations": 8192, "wall_ns": 4867970145, "client_cpu_ns": 3313471929, "barrier_ns": 197427905, "p50_ns": 345559, "p95_ns": 744483, "p99_ns": 7037561, "resident_before_bytes": 0, "resident_after_bytes": 4274868224, "content_ok": true, "cache_requested": "guest-cold", "cache_prepare_attempts": 1, "file_object": {"device": 2065, "inode": 1049905}}},
+    {"case": 1, "lane": "ext4", "round": 0, "warmup": true, "path": "/ownerfs/agent1/io-seq-data", "result": {"operation": "random-read", "file_bytes": 8589934592, "io_bytes": 536870912, "block_bytes": 4096, "concurrency": 1, "barrier": "close", "pattern_byte": 37, "seed": 257, "operations": 131072, "wall_ns": 20202719416, "client_cpu_ns": 1641814977, "barrier_ns": 476, "p50_ns": 132611, "p95_ns": 270545, "p99_ns": 496045, "resident_before_bytes": 0, "resident_after_bytes": 521863168, "content_ok": true, "cache_requested": "guest-cold", "cache_prepare_attempts": 1, "file_object": {"device": 2065, "inode": 1049905}}},
+    {"case": 1, "lane": "native", "round": 0, "warmup": true, "path": "/ownerfs/agent1/io-seq-data", "result": {"operation": "random-read", "file_bytes": 8589934592, "io_bytes": 536870912, "block_bytes": 4096, "concurrency": 1, "barrier": "close", "pattern_byte": 37, "seed": 257, "operations": 131072, "wall_ns": 19206835437, "client_cpu_ns": 1348404250, "barrier_ns": 604, "p50_ns": 130268, "p95_ns": 227982, "p99_ns": 437035, "resident_before_bytes": 0, "resident_after_bytes": 521863168, "content_ok": true, "cache_requested": "guest-cold", "cache_prepare_attempts": 1, "file_object": {"device": 2065, "inode": 1049905}}},
+    {"case": 1, "lane": "native", "round": 1, "warmup": false, "path": "/ownerfs/agent1/io-seq-data", "result": {"operation": "random-read", "file_bytes": 8589934592, "io_bytes": 536870912, "block_bytes": 4096, "concurrency": 1, "barrier": "close", "pattern_byte": 37, "seed": 257, "operations": 131072, "wall_ns": 21832529977, "client_cpu_ns": 1941195627, "barrier_ns": 496, "p50_ns": 138345, "p95_ns": 332833, "p99_ns": 599409, "resident_before_bytes": 0, "resident_after_bytes": 521863168, "content_ok": true, "cache_requested": "guest-cold", "cache_prepare_attempts": 1, "file_object": {"device": 2065, "inode": 1049905}}},
+    {"case": 1, "lane": "ext4", "round": 1, "warmup": false, "path": "/ownerfs/agent1/io-seq-data", "result": {"operation": "random-read", "file_bytes": 8589934592, "io_bytes": 536870912, "block_bytes": 4096, "concurrency": 1, "barrier": "close", "pattern_byte": 37, "seed": 257, "operations": 131072, "wall_ns": 19574374572, "client_cpu_ns": 1530624283, "barrier_ns": 504, "p50_ns": 131882, "p95_ns": 232000, "p99_ns": 396010, "resident_before_bytes": 0, "resident_after_bytes": 521863168, "content_ok": true, "cache_requested": "guest-cold", "cache_prepare_attempts": 1, "file_object": {"device": 2065, "inode": 1049905}}},
+    {"case": 1, "lane": "ext4", "round": 2, "warmup": false, "path": "/ownerfs/agent1/io-seq-data", "result": {"operation": "random-read", "file_bytes": 8589934592, "io_bytes": 536870912, "block_bytes": 4096, "concurrency": 1, "barrier": "close", "pattern_byte": 37, "seed": 257, "operations": 131072, "wall_ns": 18884535867, "client_cpu_ns": 1436648293, "barrier_ns": 401, "p50_ns": 128236, "p95_ns": 226278, "p99_ns": 379202, "resident_before_bytes": 0, "resident_after_bytes": 521863168, "content_ok": true, "cache_requested": "guest-cold", "cache_prepare_attempts": 1, "file_object": {"device": 2065, "inode": 1049905}}},
+    {"case": 1, "lane": "native", "round": 2, "warmup": false, "path": "/ownerfs/agent1/io-seq-data", "result": {"operation": "random-read", "file_bytes": 8589934592, "io_bytes": 536870912, "block_bytes": 4096, "concurrency": 1, "barrier": "close", "pattern_byte": 37, "seed": 257, "operations": 131072, "wall_ns": 18782927199, "client_cpu_ns": 1501369909, "barrier_ns": 592, "p50_ns": 128226, "p95_ns": 224077, "p99_ns": 397458, "resident_before_bytes": 0, "resident_after_bytes": 521863168, "content_ok": true, "cache_requested": "guest-cold", "cache_prepare_attempts": 1, "file_object": {"device": 2065, "inode": 1049905}}},
+    {"case": 1, "lane": "native", "round": 3, "warmup": false, "path": "/ownerfs/agent1/io-seq-data", "result": {"operation": "random-read", "file_bytes": 8589934592, "io_bytes": 536870912, "block_bytes": 4096, "concurrency": 1, "barrier": "close", "pattern_byte": 37, "seed": 257, "operations": 131072, "wall_ns": 18504725753, "client_cpu_ns": 1369326858, "barrier_ns": 539, "p50_ns": 124508, "p95_ns": 214740, "p99_ns": 374899, "resident_before_bytes": 0, "resident_after_bytes": 521863168, "content_ok": true, "cache_requested": "guest-cold", "cache_prepare_attempts": 1, "file_object": {"device": 2065, "inode": 1049905}}},
+    {"case": 1, "lane": "ext4", "round": 3, "warmup": false, "path": "/ownerfs/agent1/io-seq-data", "result": {"operation": "random-read", "file_bytes": 8589934592, "io_bytes": 536870912, "block_bytes": 4096, "concurrency": 1, "barrier": "close", "pattern_byte": 37, "seed": 257, "operations": 131072, "wall_ns": 19197207533, "client_cpu_ns": 1477500820, "barrier_ns": 394, "p50_ns": 134015, "p95_ns": 228591, "p99_ns": 375188, "resident_before_bytes": 0, "resident_after_bytes": 521863168, "content_ok": true, "cache_requested": "guest-cold", "cache_prepare_attempts": 1, "file_object": {"device": 2065, "inode": 1049905}}},
+    {"case": 1, "lane": "ext4", "round": 4, "warmup": false, "path": "/ownerfs/agent1/io-seq-data", "result": {"operation": "random-read", "file_bytes": 8589934592, "io_bytes": 536870912, "block_bytes": 4096, "concurrency": 1, "barrier": "close", "pattern_byte": 37, "seed": 257, "operations": 131072, "wall_ns": 19270754310, "client_cpu_ns": 1418653847, "barrier_ns": 426, "p50_ns": 131679, "p95_ns": 224795, "p99_ns": 397618, "resident_before_bytes": 0, "resident_after_bytes": 521863168, "content_ok": true, "cache_requested": "guest-cold", "cache_prepare_attempts": 1, "file_object": {"device": 2065, "inode": 1049905}}},
+    {"case": 1, "lane": "native", "round": 4, "warmup": false, "path": "/ownerfs/agent1/io-seq-data", "result": {"operation": "random-read", "file_bytes": 8589934592, "io_bytes": 536870912, "block_bytes": 4096, "concurrency": 1, "barrier": "close", "pattern_byte": 37, "seed": 257, "operations": 131072, "wall_ns": 19943883407, "client_cpu_ns": 1590879470, "barrier_ns": 552, "p50_ns": 135848, "p95_ns": 246362, "p99_ns": 423784, "resident_before_bytes": 0, "resident_after_bytes": 521863168, "content_ok": true, "cache_requested": "guest-cold", "cache_prepare_attempts": 1, "file_object": {"device": 2065, "inode": 1049905}}},
+    {"case": 1, "lane": "native", "round": 5, "warmup": false, "path": "/ownerfs/agent1/io-seq-data", "result": {"operation": "random-read", "file_bytes": 8589934592, "io_bytes": 536870912, "block_bytes": 4096, "concurrency": 1, "barrier": "close", "pattern_byte": 37, "seed": 257, "operations": 131072, "wall_ns": 20024757710, "client_cpu_ns": 1542594095, "barrier_ns": 409, "p50_ns": 138625, "p95_ns": 247635, "p99_ns": 414867, "resident_before_bytes": 0, "resident_after_bytes": 521863168, "content_ok": true, "cache_requested": "guest-cold", "cache_prepare_attempts": 1, "file_object": {"device": 2065, "inode": 1049905}}},
+    {"case": 1, "lane": "ext4", "round": 5, "warmup": false, "path": "/ownerfs/agent1/io-seq-data", "result": {"operation": "random-read", "file_bytes": 8589934592, "io_bytes": 536870912, "block_bytes": 4096, "concurrency": 1, "barrier": "close", "pattern_byte": 37, "seed": 257, "operations": 131072, "wall_ns": 16948899396, "client_cpu_ns": 1125791651, "barrier_ns": 397, "p50_ns": 119547, "p95_ns": 183765, "p99_ns": 326557, "resident_before_bytes": 0, "resident_after_bytes": 521863168, "content_ok": true, "cache_requested": "guest-cold", "cache_prepare_attempts": 1, "file_object": {"device": 2065, "inode": 1049905}}},
+    {"case": 2, "lane": "ext4", "round": 0, "warmup": true, "path": "/ownerfs/agent1/io-hot-data", "result": {"operation": "random-read", "file_bytes": 536870912, "io_bytes": 536870912, "block_bytes": 65536, "concurrency": 1, "barrier": "close", "pattern_byte": 90, "seed": 257, "operations": 8192, "wall_ns": 51885060, "client_cpu_ns": 51864263, "barrier_ns": 826, "p50_ns": 6083, "p95_ns": 6930, "p99_ns": 12322, "resident_before_bytes": 536870912, "resident_after_bytes": 536870912, "content_ok": true, "cache_requested": "hot", "cache_prepare_attempts": 0, "file_object": {"device": 2065, "inode": 1049904}}},
+    {"case": 2, "lane": "native", "round": 0, "warmup": true, "path": "/ownerfs/agent1/io-hot-data", "result": {"operation": "random-read", "file_bytes": 536870912, "io_bytes": 536870912, "block_bytes": 65536, "concurrency": 1, "barrier": "close", "pattern_byte": 90, "seed": 257, "operations": 8192, "wall_ns": 50282061, "client_cpu_ns": 49625226, "barrier_ns": 554, "p50_ns": 5804, "p95_ns": 6369, "p99_ns": 15579, "resident_before_bytes": 536870912, "resident_after_bytes": 536870912, "content_ok": true, "cache_requested": "hot", "cache_prepare_attempts": 0, "file_object": {"device": 2065, "inode": 1049904}}},
+    {"case": 2, "lane": "native", "round": 1, "warmup": false, "path": "/ownerfs/agent1/io-hot-data", "result": {"operation": "random-read", "file_bytes": 536870912, "io_bytes": 536870912, "block_bytes": 65536, "concurrency": 1, "barrier": "close", "pattern_byte": 90, "seed": 257, "operations": 8192, "wall_ns": 48369639, "client_cpu_ns": 48347383, "barrier_ns": 439, "p50_ns": 5542, "p95_ns": 6086, "p99_ns": 12705, "resident_before_bytes": 536870912, "resident_after_bytes": 536870912, "content_ok": true, "cache_requested": "hot", "cache_prepare_attempts": 0, "file_object": {"device": 2065, "inode": 1049904}}},
+    {"case": 2, "lane": "ext4", "round": 1, "warmup": false, "path": "/ownerfs/agent1/io-hot-data", "result": {"operation": "random-read", "file_bytes": 536870912, "io_bytes": 536870912, "block_bytes": 65536, "concurrency": 1, "barrier": "close", "pattern_byte": 90, "seed": 257, "operations": 8192, "wall_ns": 46262177, "client_cpu_ns": 46129369, "barrier_ns": 429, "p50_ns": 5466, "p95_ns": 5928, "p99_ns": 10628, "resident_before_bytes": 536870912, "resident_after_bytes": 536870912, "content_ok": true, "cache_requested": "hot", "cache_prepare_attempts": 0, "file_object": {"device": 2065, "inode": 1049904}}},
+    {"case": 2, "lane": "ext4", "round": 2, "warmup": false, "path": "/ownerfs/agent1/io-hot-data", "result": {"operation": "random-read", "file_bytes": 536870912, "io_bytes": 536870912, "block_bytes": 65536, "concurrency": 1, "barrier": "close", "pattern_byte": 90, "seed": 257, "operations": 8192, "wall_ns": 48039255, "client_cpu_ns": 47545720, "barrier_ns": 428, "p50_ns": 5565, "p95_ns": 6161, "p99_ns": 15215, "resident_before_bytes": 536870912, "resident_after_bytes": 536870912, "content_ok": true, "cache_requested": "hot", "cache_prepare_attempts": 0, "file_object": {"device": 2065, "inode": 1049904}}},
+    {"case": 2, "lane": "native", "round": 2, "warmup": false, "path": "/ownerfs/agent1/io-hot-data", "result": {"operation": "random-read", "file_bytes": 536870912, "io_bytes": 536870912, "block_bytes": 65536, "concurrency": 1, "barrier": "close", "pattern_byte": 90, "seed": 257, "operations": 8192, "wall_ns": 53113979, "client_cpu_ns": 52452679, "barrier_ns": 510, "p50_ns": 5757, "p95_ns": 9641, "p99_ns": 21448, "resident_before_bytes": 536870912, "resident_after_bytes": 536870912, "content_ok": true, "cache_requested": "hot", "cache_prepare_attempts": 0, "file_object": {"device": 2065, "inode": 1049904}}},
+    {"case": 2, "lane": "native", "round": 3, "warmup": false, "path": "/ownerfs/agent1/io-hot-data", "result": {"operation": "random-read", "file_bytes": 536870912, "io_bytes": 536870912, "block_bytes": 65536, "concurrency": 1, "barrier": "close", "pattern_byte": 90, "seed": 257, "operations": 8192, "wall_ns": 45791942, "client_cpu_ns": 45639730, "barrier_ns": 414, "p50_ns": 5389, "p95_ns": 5853, "p99_ns": 10608, "resident_before_bytes": 536870912, "resident_after_bytes": 536870912, "content_ok": true, "cache_requested": "hot", "cache_prepare_attempts": 0, "file_object": {"device": 2065, "inode": 1049904}}},
+    {"case": 2, "lane": "ext4", "round": 3, "warmup": false, "path": "/ownerfs/agent1/io-hot-data", "result": {"operation": "random-read", "file_bytes": 536870912, "io_bytes": 536870912, "block_bytes": 65536, "concurrency": 1, "barrier": "close", "pattern_byte": 90, "seed": 257, "operations": 8192, "wall_ns": 46741934, "client_cpu_ns": 46744419, "barrier_ns": 474, "p50_ns": 5396, "p95_ns": 6158, "p99_ns": 11590, "resident_before_bytes": 536870912, "resident_after_bytes": 536870912, "content_ok": true, "cache_requested": "hot", "cache_prepare_attempts": 0, "file_object": {"device": 2065, "inode": 1049904}}},
+    {"case": 2, "lane": "ext4", "round": 4, "warmup": false, "path": "/ownerfs/agent1/io-hot-data", "result": {"operation": "random-read", "file_bytes": 536870912, "io_bytes": 536870912, "block_bytes": 65536, "concurrency": 1, "barrier": "close", "pattern_byte": 90, "seed": 257, "operations": 8192, "wall_ns": 46419929, "client_cpu_ns": 46242487, "barrier_ns": 378, "p50_ns": 5439, "p95_ns": 5928, "p99_ns": 11256, "resident_before_bytes": 536870912, "resident_after_bytes": 536870912, "content_ok": true, "cache_requested": "hot", "cache_prepare_attempts": 0, "file_object": {"device": 2065, "inode": 1049904}}},
+    {"case": 2, "lane": "native", "round": 4, "warmup": false, "path": "/ownerfs/agent1/io-hot-data", "result": {"operation": "random-read", "file_bytes": 536870912, "io_bytes": 536870912, "block_bytes": 65536, "concurrency": 1, "barrier": "close", "pattern_byte": 90, "seed": 257, "operations": 8192, "wall_ns": 51560094, "client_cpu_ns": 51507287, "barrier_ns": 664, "p50_ns": 5806, "p95_ns": 7122, "p99_ns": 16104, "resident_before_bytes": 536870912, "resident_after_bytes": 536870912, "content_ok": true, "cache_requested": "hot", "cache_prepare_attempts": 0, "file_object": {"device": 2065, "inode": 1049904}}},
+    {"case": 2, "lane": "native", "round": 5, "warmup": false, "path": "/ownerfs/agent1/io-hot-data", "result": {"operation": "random-read", "file_bytes": 536870912, "io_bytes": 536870912, "block_bytes": 65536, "concurrency": 1, "barrier": "close", "pattern_byte": 90, "seed": 257, "operations": 8192, "wall_ns": 52623819, "client_cpu_ns": 51864648, "barrier_ns": 703, "p50_ns": 5964, "p95_ns": 7150, "p99_ns": 18208, "resident_before_bytes": 536870912, "resident_after_bytes": 536870912, "content_ok": true, "cache_requested": "hot", "cache_prepare_attempts": 0, "file_object": {"device": 2065, "inode": 1049904}}},
+    {"case": 2, "lane": "ext4", "round": 5, "warmup": false, "path": "/ownerfs/agent1/io-hot-data", "result": {"operation": "random-read", "file_bytes": 536870912, "io_bytes": 536870912, "block_bytes": 65536, "concurrency": 1, "barrier": "close", "pattern_byte": 90, "seed": 257, "operations": 8192, "wall_ns": 48895117, "client_cpu_ns": 48373623, "barrier_ns": 814, "p50_ns": 5607, "p95_ns": 6331, "p99_ns": 14757, "resident_before_bytes": 536870912, "resident_after_bytes": 536870912, "content_ok": true, "cache_requested": "hot", "cache_prepare_attempts": 0, "file_object": {"device": 2065, "inode": 1049904}}},
+    {"case": 3, "lane": "ext4", "round": 0, "warmup": true, "path": "/ownerfs/agent1/io-write-data", "result": {"operation": "random-write", "file_bytes": 536870912, "io_bytes": 536870912, "block_bytes": 65536, "concurrency": 1, "barrier": "close", "pattern_byte": 161, "seed": 257, "operations": 8192, "wall_ns": 85104914, "client_cpu_ns": 84829050, "barrier_ns": 526, "p50_ns": 10046, "p95_ns": 12645, "p99_ns": 21279, "resident_before_bytes": 536870912, "resident_after_bytes": 536870912, "content_ok": true, "cache_requested": "hot", "cache_prepare_attempts": 0, "file_object": {"device": 2065, "inode": 1049907}}},
+    {"case": 3, "lane": "native", "round": 0, "warmup": true, "path": "/ownerfs/agent1/io-write-data", "result": {"operation": "random-write", "file_bytes": 536870912, "io_bytes": 536870912, "block_bytes": 65536, "concurrency": 1, "barrier": "close", "pattern_byte": 225, "seed": 257, "operations": 8192, "wall_ns": 91629881, "client_cpu_ns": 91110236, "barrier_ns": 517, "p50_ns": 10711, "p95_ns": 13525, "p99_ns": 23921, "resident_before_bytes": 536870912, "resident_after_bytes": 536870912, "content_ok": true, "cache_requested": "hot", "cache_prepare_attempts": 0, "file_object": {"device": 2065, "inode": 1049907}}},
+    {"case": 3, "lane": "native", "round": 1, "warmup": false, "path": "/ownerfs/agent1/io-write-data", "result": {"operation": "random-write", "file_bytes": 536870912, "io_bytes": 536870912, "block_bytes": 65536, "concurrency": 1, "barrier": "close", "pattern_byte": 226, "seed": 257, "operations": 8192, "wall_ns": 80964216, "client_cpu_ns": 80693248, "barrier_ns": 632, "p50_ns": 9514, "p95_ns": 11920, "p99_ns": 19772, "resident_before_bytes": 536870912, "resident_after_bytes": 536870912, "content_ok": true, "cache_requested": "hot", "cache_prepare_attempts": 0, "file_object": {"device": 2065, "inode": 1049907}}},
+    {"case": 3, "lane": "ext4", "round": 1, "warmup": false, "path": "/ownerfs/agent1/io-write-data", "result": {"operation": "random-write", "file_bytes": 536870912, "io_bytes": 536870912, "block_bytes": 65536, "concurrency": 1, "barrier": "close", "pattern_byte": 162, "seed": 257, "operations": 8192, "wall_ns": 82405721, "client_cpu_ns": 82037703, "barrier_ns": 689, "p50_ns": 9546, "p95_ns": 12134, "p99_ns": 22161, "resident_before_bytes": 536870912, "resident_after_bytes": 536870912, "content_ok": true, "cache_requested": "hot", "cache_prepare_attempts": 0, "file_object": {"device": 2065, "inode": 1049907}}},
+    {"case": 3, "lane": "ext4", "round": 2, "warmup": false, "path": "/ownerfs/agent1/io-write-data", "result": {"operation": "random-write", "file_bytes": 536870912, "io_bytes": 536870912, "block_bytes": 65536, "concurrency": 1, "barrier": "close", "pattern_byte": 163, "seed": 257, "operations": 8192, "wall_ns": 78721620, "client_cpu_ns": 78586323, "barrier_ns": 848, "p50_ns": 9403, "p95_ns": 11566, "p99_ns": 17436, "resident_before_bytes": 536870912, "resident_after_bytes": 536870912, "content_ok": true, "cache_requested": "hot", "cache_prepare_attempts": 0, "file_object": {"device": 2065, "inode": 1049907}}},
+    {"case": 3, "lane": "native", "round": 2, "warmup": false, "path": "/ownerfs/agent1/io-write-data", "result": {"operation": "random-write", "file_bytes": 536870912, "io_bytes": 536870912, "block_bytes": 65536, "concurrency": 1, "barrier": "close", "pattern_byte": 227, "seed": 257, "operations": 8192, "wall_ns": 81290782, "client_cpu_ns": 80795099, "barrier_ns": 525, "p50_ns": 9485, "p95_ns": 12034, "p99_ns": 22054, "resident_before_bytes": 536870912, "resident_after_bytes": 536870912, "content_ok": true, "cache_requested": "hot", "cache_prepare_attempts": 0, "file_object": {"device": 2065, "inode": 1049907}}},
+    {"case": 3, "lane": "native", "round": 3, "warmup": false, "path": "/ownerfs/agent1/io-write-data", "result": {"operation": "random-write", "file_bytes": 536870912, "io_bytes": 536870912, "block_bytes": 65536, "concurrency": 1, "barrier": "close", "pattern_byte": 228, "seed": 257, "operations": 8192, "wall_ns": 83562036, "client_cpu_ns": 83431144, "barrier_ns": 455, "p50_ns": 9760, "p95_ns": 12316, "p99_ns": 22775, "resident_before_bytes": 536870912, "resident_after_bytes": 536870912, "content_ok": true, "cache_requested": "hot", "cache_prepare_attempts": 0, "file_object": {"device": 2065, "inode": 1049907}}},
+    {"case": 3, "lane": "ext4", "round": 3, "warmup": false, "path": "/ownerfs/agent1/io-write-data", "result": {"operation": "random-write", "file_bytes": 536870912, "io_bytes": 536870912, "block_bytes": 65536, "concurrency": 1, "barrier": "close", "pattern_byte": 164, "seed": 257, "operations": 8192, "wall_ns": 86336306, "client_cpu_ns": 85590803, "barrier_ns": 525, "p50_ns": 10006, "p95_ns": 13081, "p99_ns": 24871, "resident_before_bytes": 536870912, "resident_after_bytes": 536870912, "content_ok": true, "cache_requested": "hot", "cache_prepare_attempts": 0, "file_object": {"device": 2065, "inode": 1049907}}},
+    {"case": 3, "lane": "ext4", "round": 4, "warmup": false, "path": "/ownerfs/agent1/io-write-data", "result": {"operation": "random-write", "file_bytes": 536870912, "io_bytes": 536870912, "block_bytes": 65536, "concurrency": 1, "barrier": "close", "pattern_byte": 165, "seed": 257, "operations": 8192, "wall_ns": 87813368, "client_cpu_ns": 86824051, "barrier_ns": 484, "p50_ns": 10050, "p95_ns": 13339, "p99_ns": 28070, "resident_before_bytes": 536870912, "resident_after_bytes": 536870912, "content_ok": true, "cache_requested": "hot", "cache_prepare_attempts": 0, "file_object": {"device": 2065, "inode": 1049907}}},
+    {"case": 3, "lane": "native", "round": 4, "warmup": false, "path": "/ownerfs/agent1/io-write-data", "result": {"operation": "random-write", "file_bytes": 536870912, "io_bytes": 536870912, "block_bytes": 65536, "concurrency": 1, "barrier": "close", "pattern_byte": 229, "seed": 257, "operations": 8192, "wall_ns": 82635907, "client_cpu_ns": 81833675, "barrier_ns": 537, "p50_ns": 9526, "p95_ns": 12535, "p99_ns": 22496, "resident_before_bytes": 536870912, "resident_after_bytes": 536870912, "content_ok": true, "cache_requested": "hot", "cache_prepare_attempts": 0, "file_object": {"device": 2065, "inode": 1049907}}},
+    {"case": 3, "lane": "native", "round": 5, "warmup": false, "path": "/ownerfs/agent1/io-write-data", "result": {"operation": "random-write", "file_bytes": 536870912, "io_bytes": 536870912, "block_bytes": 65536, "concurrency": 1, "barrier": "close", "pattern_byte": 230, "seed": 257, "operations": 8192, "wall_ns": 81645600, "client_cpu_ns": 81551022, "barrier_ns": 438, "p50_ns": 9544, "p95_ns": 12192, "p99_ns": 21611, "resident_before_bytes": 536870912, "resident_after_bytes": 536870912, "content_ok": true, "cache_requested": "hot", "cache_prepare_attempts": 0, "file_object": {"device": 2065, "inode": 1049907}}},
+    {"case": 3, "lane": "ext4", "round": 5, "warmup": false, "path": "/ownerfs/agent1/io-write-data", "result": {"operation": "random-write", "file_bytes": 536870912, "io_bytes": 536870912, "block_bytes": 65536, "concurrency": 1, "barrier": "close", "pattern_byte": 166, "seed": 257, "operations": 8192, "wall_ns": 82136532, "client_cpu_ns": 81402097, "barrier_ns": 447, "p50_ns": 9540, "p95_ns": 12264, "p99_ns": 22991, "resident_before_bytes": 536870912, "resident_after_bytes": 536870912, "content_ok": true, "cache_requested": "hot", "cache_prepare_attempts": 0, "file_object": {"device": 2065, "inode": 1049907}}}
+  ]
+}

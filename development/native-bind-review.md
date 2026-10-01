@@ -4,6 +4,42 @@ Issue: [#42](https://github.com/lelezi257/dms/issues/42).
 Scope: isolated `feat/ownerfs-native-bind` branch. This records an intermediate
 implementation review; full feature and independent PR review remain pending.
 
+## Focused architecture/performance delivery checkpoint (2026-10-01)
+
+The user has assigned generic reliability to another AI. This branch now focuses
+on bind architecture, actual ext4/native/MooseFS performance data, and changes
+necessary to validate or implement that feature. Do not resume the separately
+parked drain/reaper/retry WIP or expand shared-module repairs. A no-merge PR is
+the delivery vehicle after concrete conclusions/data, not evidence of acceptance.
+
+E13 closes retained-object/close-to-open A2 on actual authenticated VM peers;
+E14 proves the selected nonblocking flock combinations; E16 proves two reopen
+cases with a native-eligible Home and ordinary remote constructor. E15 is a
+qualified semantic failure: a single remote append can be interleaved with native
+writes and report the wrong file position. The unchanged standard FUSE/P2P
+boundary cannot provide the required syscall-wide arbitration/append endpoint.
+Neither generic retry nor a userspace per-request mutex closes that conflict.
+Classic POSIX process ownership also remains unresolved. No new semantic
+exemption has been approved. The architecture stage has not passed and native
+performance has not yet been measured.
+
+Subsequent E17 provides optimized actual P1 timings: absolute-path task ratios
+19.276/4.161(c1/c8) decisively miss the native goal; native-cwd relative
+0.992/1.036 is close to ext4 without qualifying every strict gate. The full
+timing run retains its Actor-timeout FAIL; forensic timing checks and the short
+clean supplemental run are distinguished. Stock goal1 MFS data is visibility
+diagnostic only, with excluded pre-configuration samples; B001 durability and
+P2/P3/P4 remain open. The report supersedes the earlier “not measured” checkpoint
+for P1 only. Generic reliability is still outside current work.
+
+Review overlap explicitly: older bind groundwork touches Root grant/command
+APIs, Meta owner_roots/store/RPC, Node rpc/meta, shared FUSE adapter and LockError.
+These are included historical foundations, not permission to keep expanding
+general reliability. Production Node still constructs ordinary OwnerFs; the
+native network driver is Linux-test-build-only. Final independent review must
+distinguish experimental mechanisms, required production glue, and work owned by
+the other AI. See the current validation plan and evidence for scope/provenance.
+
 ## Native flock retirement and kernel error interface
 
 The retirement bug retained terminal/session history after global invalidation,
@@ -145,3 +181,59 @@ still required.
 
 No full-feature, production admission, performance or merge approval follows
 from this intermediate review record.
+
+## E18: core container Agent mechanism and P1 performance
+
+Actual OCI containers resolve the original verified ready export inside the Node
+mount namespace, then bind only that workspace at `/ownerfs/agent1`. Native and
+ext4 controls have the same physical source inode; final native mountinfo has
+ext4/no FUSE. C0/C1 checks cover distinct namespaces, empty capabilities,
+NoNewPrivs, readonly parent containing only agent1, known host/sibling/backing
+data inaccessible via direct/parent/symlink/proc paths, and own read/write.
+This proves bounded host-data isolation for the tested spec; it does not hide
+mount-root metadata or qualify arbitrary UID mappings/hostile code.
+
+Run `network-probe-20261001T125205-fc4c5860` completed72 P1 tasks, normal
+container/Node/Meta teardown and independent checks of frozen artifacts/specs/
+actual runtime replies. Absolute native/ext4 paired medians1.050/1.019 and
+relative1.003/0.995 remove the host's order-of-magnitude ancestor penalty;
+16 of24 phase/shape medians exceed1 and uncertainty crosses1, so strict native
+performance is not passed. Stock MooseFS remains visibility-only/B001
+unqualified. All samples and precise identities are in the performance report.
+The zero-timing observer failure is retained separately, not promoted to PASS.
+E19 now adds30 local sequential/random IO shapes/360 tasks, with cache conditions
+checked before timing, bytes verified and independent raw-artifact verification.
+Median paired ratios0.834–1.135,17/30 above1, do not pass strict native performance.
+Original normal detach returns Detached while the independent native container
+still reads/writes the same source: final container mounts require tracking and
+stop/unmount before reuse. Both containers then stop/delete and Node/Meta exit0.
+The initial cache-premise FAIL is preserved; four same-file cases are finite
+attribution, not replacement. Full three-way/remote timing and production daemon
+publication/Agent READY/fencing remain unqualified.
+
+Read-only origin/main audit at `16e855468f2ef36405044b4136e7febe646a5dd4`
+finds overlap with the pre-existing bind foundation in meta.proto, Meta RPC/store,
+Node constructor/meta RPC, OwnerFs/root and architecture/operations/status docs.
+The tested feature candidate remains based on7824577, not the later main
+runtime. No rebase/merge or generic reliability edits are performed to hide this
+integration boundary. A draft PR must disclose these paths and source identity;
+the other AI's review must resolve integration and rerun any affected proof.
+
+## Bounded container evidence review and draft delivery
+
+A read-only reviewer inspected the new OCI/IO/observer code, cache/timing/content
+checks, source namespace/spec, full360 paired results and lifecycle wording.
+No blocking issue was found for draft evidence delivery. Optional provenance
+hardening now directly links the rootfs benchmark/probe/IO SHA to frozen input
+SHA; original archived copies already matched, so no timing sample was changed.
+Final observer rechecks the completed container runs and rejects archive/read/
+timing/source/isolation/cache/shared-file mutations. Six portable raw packages
+include the E15 semanticFAIL, E17 runnerFAIL plus supplement and E18/E19 original
+artifacts/frozen source, retaining original verdicts.
+
+Declined-to-judge scopes are explicit: production integration/merge readiness,
+generic reliability, inherited foundation, complete POSIX owner/append repairs,
+hostile-container security, host physical cold cache, power-loss durability and
+remote/MooseFS full performance. They remain open requirements, not exclusions
+or approval. Another AI's integration review is still required; this branch
+and full architecture/performance goal are not ready to merge/complete.

@@ -13,7 +13,9 @@
 
 2026-10-01 验证优先级调整：上述“已完成”指原机制穿刺，不代表当前候选满足完整架构合同。按[架构、性能、生产集成验证计划](../../development/native-bind-validation-plan.md)复用证据、补决定性组合验证；先前关于 mmap/watch/inode 等风险描述不能当作用户已批准的语义豁免。同进程 native/旧 FUSE 的 POSIX owner 冲突尚未关闭；未证明必须升级内核，亦不以启用 passthrough 代替锁/一致性证明。
 
-当前A3的[E15决定性反例](../../development/native-bind-evidence.md#e15-single-syscall-append-conflict)还证明：短记录追加通过不能推广到普通完整追加语义。真实远端一次2MiB `write(O_APPEND)` 被native写入分隔；顺序小文件追加也出现 `SEEK_CUR=8`、实际追加终点12。现有FUSE内核按分块请求及返回字节数维护偏移，Home ext4追加位置和仲裁不与客户端FUSE inode共享。完整要求仍保留；改变仲裁/内核或客户端协作路线、或修改写入者合同均需明确对齐，不宣称只靠用户态补丁可完整解决。阶段一未通过，暂不进入性能或生产集成补齐。
+当前A3的[E15决定性反例](../../development/native-bind-evidence.md#e15-single-syscall-append-conflict)还证明：短记录追加通过不能推广到普通完整追加语义。真实远端一次2MiB `write(O_APPEND)` 被native写入分隔；顺序小文件追加也出现 `SEEK_CUR=8`、实际追加终点12。现有FUSE内核按分块请求及返回字节数维护偏移，Home ext4追加位置和仲裁不与客户端FUSE inode共享。完整要求仍保留；改变仲裁/内核或客户端协作路线、或修改写入者合同均需明确对齐，不宣称只靠用户态补丁可完整解决。阶段一未通过，生产集成补齐暂缓。
+
+用户随后明确聚焦 bind 架构与实际性能数据。现已完成[首轮真实 VM 的元数据/小文件诊断](../../development/native-bind-performance.md)：绝对路径完整任务的 native/ext4 成对耗时比，并发1为19.276、并发8为4.161；native cwd 相对路径分别0.992、1.036。当前零 TTL/FUSE 祖先访问未达到完整原路径 native 性能。这个诊断不表示架构或性能阶段通过；顺序、随机、远端时间及持久性对等性仍未完成。沿用现有 RFC 继续关闭祖先路径与混合访问仲裁，不用 bind 成功或相对路径接近原生代替完整目标。
 
 推荐采用“创建后异步挂载、过渡请求访问同一 backing directory、从创建起使用共享缓存策略、由管理入口卸载”的方案。首版适合 Home 固定、Agent 生命周期可管理的工作区。若要求任意程序始终使用普通 `rmdir/rename` 管理 workspace 根目录，或者依靠每次 RootGrant 检查立即撤销原生句柄，则本方案无法满足，应保留 FUSE。
 
@@ -54,6 +56,16 @@ native 与 FUSE/P2P 之间采用 close-to-open：writer 成功写入并 close �
 长期持有的旧 FUSE cwd/dirfd 不承诺即时追踪另一访问路径的目录移动/删除，getcwd、`..` 和 fd 路径可以与 native 旧引用不同。需要当前目录树时，从稳定 workspace 根重新解析；在旧 dirfd 上重新 open 相对路径不一定刷新父关系。此约束同时涉及 bind 前本地引用与长期远端 FUSE 引用。管理面先挂载再启动可避免本地 Agent 的常见提前引用场景，但不会把远端 FUSE 变为 native。
 
 这次合同调整不豁免锁、权限、普通 rename/unlink/append/EXCL、支持的 mmap、显式同步、受管卸载与 fencing。历史旧目录强等价反例保留；不再以旧 FUSE cwd 的即时透明追踪作为本 profile 的产品准入条件。
+
+### 1.2 核心容器 Agent 场景
+
+用户于2026-10-01明确增补：管理面创建 workspace 并确认 native 后，将这一个 workspace 挂给容器 Agent；容器不能访问宿主 workspace 外部数据。目标路径仍为 `/ownerfs/agent1`，父路径使用容器自身目录；不挂整个 OwnerFs 根或 backing 父级。实际 runtime 必须解析已就绪的原 export，并核对最终容器 source/namespace；私有 Node namespace 中的路径不能直接当作宿主 Docker daemon 的可见路径。
+
+[容器 P1 实测](../../development/native-bind-performance.md#核心容器-agent-场景c0c1-与容器-p1)已验证真实 OCI 容器中的原 source、ext4 类型与上述配置的数据隔离。绝对访问并发1/8的 native/ext4 成对比值为1.050/1.019，相对为1.003/0.995，消除了宿主路径的数量级退化，但不是全部严格门槛通过。容器祖先路径独立于宿主 FUSE 根，因而这条交付链路有机制价值；宿主绝对路径失败仍保留，完整追加/偏移等架构缺口也不改变。
+
+生产 READY/Agent 启动及 daemon 集成仍未完成。E19在真实容器实证：原export正常卸载成功后，容器独立bind仍可读写同一source。回收必须跟踪并停止/卸载最终runtime/Agent挂载，核验所有受管使用者已排空，不能只凭原export消失或normal umount就复用backing。目录数据隔离不宣称隐藏mountinfo元数据或完成恶意容器安全资格化。
+
+[容器顺序/随机实测](../../development/native-bind-performance.md#容器顺序随机-io-与跨-namespace-卸载e19)已有30组本地ext4/native对照、360任务，计时前核验guest冷/热条件且校验内容，成对中位比值0.834～1.135；17/30大于1，严格性能未全部通过。四个同文件inode补充限于归因，不覆盖完整结果。MooseFS同负载及远端计时、强持久性和完整阶段仍未资格化。
 
 ### 2. `mkdir` 与挂载的时序
 

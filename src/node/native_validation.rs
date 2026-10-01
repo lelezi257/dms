@@ -26,9 +26,10 @@ use std::{
 };
 
 static OWNER: OnceLock<mpsc::Sender<Arc<OwnerFs>>> = OnceLock::new();
+static NATIVE_ELIGIBLE: OnceLock<bool> = OnceLock::new();
 
 pub(super) fn enabled() -> bool {
-    OWNER.get().is_some()
+    OWNER.get().is_some() && NATIVE_ELIGIBLE.get().copied().unwrap_or(false)
 }
 
 pub(super) fn publish_owner(owner: Arc<OwnerFs>) {
@@ -160,7 +161,7 @@ fn worker(
     };
     write_json(&directory, "driver.json", &serde_json::json!({
         "pid":std::process::id(), "namespace":fs::read_link("/proc/self/ns/mnt").map_err(|e| e.to_string())?,
-        "constructor":"native-eligible test-only; default/release Node remains ordinary",
+        "constructor":if enabled() { "native-eligible" } else { "ordinary" },
         "scope":"test-build-only current Node/Meta/TLS/P2P driver"})).map_err(|e| e.to_string())?;
     while !stop.load(Ordering::Acquire) {
         let input = directory.join("request.json");
@@ -228,6 +229,15 @@ fn privileged_native_validation_node() {
         .clone()
         .expect("explicit OwnerFs mount required");
     let (sender, receiver) = mpsc::channel();
+    let native_eligible = match std::env::var("AFS_NATIVE_VALIDATION_CONSTRUCTOR") {
+        Err(std::env::VarError::NotPresent) => true,
+        Ok(value) if value == "native-eligible" => true,
+        Ok(value) if value == "ordinary" => false,
+        _ => panic!("validation constructor must be ordinary or native-eligible"),
+    };
+    NATIVE_ELIGIBLE
+        .set(native_eligible)
+        .expect("one validation constructor per process");
     OWNER.set(sender).expect("one validation Node per process");
     let stop = Arc::new(AtomicBool::new(false));
     let worker_stop = stop.clone();

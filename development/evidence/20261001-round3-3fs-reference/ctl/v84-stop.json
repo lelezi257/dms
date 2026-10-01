@@ -1,0 +1,44 @@
+{
+  "action": "stop",
+  "role": "ctl",
+  "root": "/mnt/lima-afsctlstate/3fs-round3-v84",
+  "status": "PASS",
+  "stopped": [
+    {
+      "final_state": null,
+      "identity": {
+        "exe": "/opt/afs-3fs-round3-v84/bin/meta_main",
+        "pid": 1422428,
+        "sha256": "86b614a83b5f7e42bcc21c8c756eec19c65828728d33d3609cfc969003eba411",
+        "start_ticks": "11015275"
+      },
+      "pid": 1422428,
+      "service": "meta",
+      "terminated": true
+    },
+    {
+      "final_state": null,
+      "identity": {
+        "exe": "/opt/afs-3fs-round3-v84/bin/mgmtd_main",
+        "pid": 1422402,
+        "sha256": "4289d2f14d53bc81410a9650695e64295642075a07d5f6183e182224d7880bb3",
+        "start_ticks": "11015064"
+      },
+      "pid": 1422402,
+      "service": "mgmtd",
+      "terminated": true
+    },
+    {
+      "final_state": "Z",
+      "identity": {
+        "exe": "/opt/afs-3fs-round3-v84/bin/fdbserver",
+        "pid": 1422373,
+        "sha256": "cddf55256ba2ca1249f98481d6c9995fd7fda091d23bc0551b96c1ae9537128c",
+        "start_ticks": "11014016"
+      },
+      "pid": 1422373,
+      "service": "fdb",
+      "terminated": true
+    }
+  ]
+}

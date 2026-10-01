@@ -1,0 +1,30 @@
+{
+  "action": "stop",
+  "role": "a",
+  "root": "/mnt/lima-afsadata/3fs-round3-v84",
+  "status": "PASS",
+  "stopped": [
+    {
+      "mount": "/mnt/lima-afsadata/3fs-round3-v84/mount",
+      "umount": "not_mounted"
+    },
+    {
+      "already_terminated": true,
+      "pid": 752292,
+      "service": "fuse",
+      "state": null
+    },
+    {
+      "final_state": null,
+      "identity": {
+        "exe": "/opt/afs-3fs-round3-v84/bin/storage_main",
+        "pid": 751957,
+        "sha256": "bb8c2546f609059cf419a2e06ec0297d44084ca4570b313569a93d505e18ca85",
+        "start_ticks": "11050967"
+      },
+      "pid": 751957,
+      "service": "storage",
+      "terminated": true
+    }
+  ]
+}

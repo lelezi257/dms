@@ -1,0 +1,113 @@
+{
+  "action": "prepare",
+  "config_sha256": {
+    "admin_cli.toml": "20aed6c00735713401a298bb84eb0003efd0c68607c80bd8141f5bad1130201c",
+    "fdb.cluster": "8be610d0e1f1c364f5ea2d6da8bae5b31c186548d8f4595cae943824b856c964",
+    "hf3fs_fuse_main.toml": "dd363cf1fb90703a4d37cac25c6ff0df75a7ec6a065385661f3fd1e3a5f64807",
+    "hf3fs_fuse_main_launcher.toml": "9d0db4ef5214a06a9d43ccaa870eaf05d57d7347ea5b05546521e8f58a269aa9",
+    "meta_bench.toml": "6d873d1e904059b3266e3387264c4d3fcf08fbdbcb65680f4baf02336b96ffd7",
+    "meta_main.toml": "3b84059eac182d093c45ecf2cc01bf4a9daac4adb28860380fa7febf2f07f3fc",
+    "meta_main_app.toml": "5148b9064846010e146277beb412b596479d0d743251299488982e2eb7364cef",
+    "meta_main_launcher.toml": "8efbfbd2dd9cf9262acccaa10df4295f72b234a319f4f2abc408225add3ce5d1",
+    "mgmtd_main.toml": "5d27c30af6c3a7b10eb00eff4e3a7f486f8c29c93c4b0ef8c9745818ef768f23",
+    "mgmtd_main_app.toml": "58323f28fad622ace0c8c5427d46ab0f5e1eea089bbad39353358a11efa02951",
+    "mgmtd_main_launcher.toml": "f3829250ba044ec81b0042759fe7814a77a790d4f5d8dde41f900847bf419395",
+    "pjdfstest.toml": "95fb869e813219132ec01688e196b4e497b9f23f326aa054771d0dd2a93b0980",
+    "storage_main.toml": "3eaf21b3f0a4fe575c43791fee6c4005f9b4c20a6b3aa4427ec758a0fccc8810",
+    "storage_main_app.toml": "f9fd4b1fa59ca3b5f1117a555581fc20b94106ad5af300885032756f6b7a3f8c",
+    "storage_main_launcher.toml": "8efbfbd2dd9cf9262acccaa10df4295f72b234a319f4f2abc408225add3ce5d1",
+    "token": "9d41062d0ef188b3ff9e6f20648a9e9aa487bf60b0437588e30e02923d1b25c4"
+  },
+  "preflight": {
+    "bin_root": "/opt/afs-3fs-round3-v84/bin",
+    "binary_sha256": {
+      "admin_cli": "f833c75c548ab19238be877df84357f596fc8dfe98de2010d7a85cb4c5dace73",
+      "hf3fs_fuse_main": "45f09c3b808bfb8ab77d06c0fd0de12b9d7176e4db35d33b0b3783f86e5f3fbf",
+      "storage_main": "bb8c2546f609059cf419a2e06ec0297d44084ca4570b313569a93d505e18ca85"
+    },
+    "lib_root": "/opt/afs-3fs-round3-v84/lib",
+    "manifest": {
+      "checked": {
+        "/opt/afs-3fs-round3-v84/bin/admin_cli": "f833c75c548ab19238be877df84357f596fc8dfe98de2010d7a85cb4c5dace73",
+        "/opt/afs-3fs-round3-v84/bin/fdbcli": "52685cd06041737fda906f740e937a98bd1925ecb7d1981bc61b16f56a2d8aa6",
+        "/opt/afs-3fs-round3-v84/bin/fdbserver": "cddf55256ba2ca1249f98481d6c9995fd7fda091d23bc0551b96c1ae9537128c",
+        "/opt/afs-3fs-round3-v84/bin/hf3fs_fuse_main": "45f09c3b808bfb8ab77d06c0fd0de12b9d7176e4db35d33b0b3783f86e5f3fbf",
+        "/opt/afs-3fs-round3-v84/bin/meta_main": "86b614a83b5f7e42bcc21c8c756eec19c65828728d33d3609cfc969003eba411",
+        "/opt/afs-3fs-round3-v84/bin/mgmtd_main": "4289d2f14d53bc81410a9650695e64295642075a07d5f6183e182224d7880bb3",
+        "/opt/afs-3fs-round3-v84/bin/storage_main": "bb8c2546f609059cf419a2e06ec0297d44084ca4570b313569a93d505e18ca85",
+        "/opt/afs-3fs-round3-v84/lib/libaio.so.1t64": "34a7d0e9f59834c5d2dfe195e00fa2851f6a4d9873406e6427f85c7f70f60e6f",
+        "/opt/afs-3fs-round3-v84/lib/libatomic.so.1": "2896f2608b49113496e6872c77cb591f51f4e646fec01e59f517a971199979fe",
+        "/opt/afs-3fs-round3-v84/lib/libboost_atomic.so.1.83.0": "1a9d92196492e21283de0a1aba3bf7b1dd7cec7de5602ef9b446e12f4d756675",
+        "/opt/afs-3fs-round3-v84/lib/libboost_context.so.1.83.0": "dbb26bfcca7941dcc7eab09dece217084265b6ae82523b9d3916e5d48876dbf1",
+        "/opt/afs-3fs-round3-v84/lib/libboost_filesystem.so.1.83.0": "8c90582a3f32cf5164da45951a83285db960da362cb4707f07215bc0dfb0d7f6",
+        "/opt/afs-3fs-round3-v84/lib/libboost_program_options.so.1.83.0": "1683ee66213dc2df1e2f595eafba2c41f89e19ad75b0ffd867171fc3b01d27c7",
+        "/opt/afs-3fs-round3-v84/lib/libboost_regex.so.1.83.0": "ab8827c753f22eff83bf0bab365a433d4f3dd6d27d38675e0495f5962043ac0e",
+        "/opt/afs-3fs-round3-v84/lib/libboost_system.so.1.83.0": "1f0372c5d62d2b35c55df9e4a66760ff6b30c0f54430bfef3d4f7854e4768964",
+        "/opt/afs-3fs-round3-v84/lib/libboost_thread.so.1.83.0": "3e96786c0958227791966d25f2a1289da77922172bf09c09a9f2b418abbe964c",
+        "/opt/afs-3fs-round3-v84/lib/libcrypto.so.3": "b27a2396652ee28629c94d59d667c417dbffdf2dee84e5bf140bd17d3eedb7d9",
+        "/opt/afs-3fs-round3-v84/lib/libdouble-conversion.so.3": "1f86e3feb9750c64af092b08d51ab55e9a6f5dfe70b69f73ec72fa84a6e8f9f7",
+        "/opt/afs-3fs-round3-v84/lib/libdwarf.so.1": "9b2ae0d524bd339fa451597c2ee7a8d91f9a306079e5bafda786e517693bb2c7",
+        "/opt/afs-3fs-round3-v84/lib/libelf.so.1": "cb8f5d9cc966fcf008e443541eba7f493167bca2901172abd4b76660d62cdae4",
+        "/opt/afs-3fs-round3-v84/lib/libevent-2.1.so.7": "930690b0f2a219ccf09574c0edcc1c2dbfcfb2775f0fb3184d07331277891a1d",
+        "/opt/afs-3fs-round3-v84/lib/libfdb_c.so": "962c16bcc96f6d9308c19733e1b6d2d9e8f5e4d7a9617d73f0884e639f366ab3",
+        "/opt/afs-3fs-round3-v84/lib/libfuse3.so.3": "da6a2acb7de4dfaf3cf09d4772311e5c9f4d3a76b7415d1a2346b0f3903086c6",
+        "/opt/afs-3fs-round3-v84/lib/libgflags.so.2.2": "12c1a59becb95656a5de91fe6eee06f50e0eae4c217624399ee5c5c669a6ffbf",
+        "/opt/afs-3fs-round3-v84/lib/libglog.so.1": "0564c8f486c7d507fb87efbc350a8094874c78a3d42139dec6c530cc565c1d09",
+        "/opt/afs-3fs-round3-v84/lib/libibverbs.so.1": "84e987a9131e90bf7933614bf2f415ea0e928d5614328685461cf646cdb384e4",
+        "/opt/afs-3fs-round3-v84/lib/libjemalloc.so.2": "39c59a40497eb25b3ec67c806caf5df784f5c40db4be0d70167333e1a3b263f1",
+        "/opt/afs-3fs-round3-v84/lib/liblz4.so.1": "d1482a2f74152881d8b83708fedae7bca039f5608024f1178dc21a17df9887a7",
+        "/opt/afs-3fs-round3-v84/lib/liblzma.so.5": "47ea0f43683ef829cda43bfe1862c1b06f085fbd813bb58d2d142477f5380139",
+        "/opt/afs-3fs-round3-v84/lib/libnl-3.so.200": "a4e331c8189a300460ef3da8c3fc6e58e46787ce028775a93dd772514bfa1f89",
+        "/opt/afs-3fs-round3-v84/lib/libnl-route-3.so.200": "25b0138e696273db55d4c0eec19335841311cbde995d50caeef9c853c835f5c8",
+        "/opt/afs-3fs-round3-v84/lib/libnuma.so.1": "e9fd01b52d2f4ea331a562cf5f1ea40de57a2c968e7948bad5f349cc8a82a21c",
+        "/opt/afs-3fs-round3-v84/lib/libprofiler.so.0": "64b52c20bf1794570c9012a49a62f4b954b9d3559396f1cb363a433b1c9f0a9f",
+        "/opt/afs-3fs-round3-v84/lib/libsnappy.so.1": "67c6ba9a23e9ba9f18dda64025a22606cbcba98c5f2aff5d690c713d36032b4c",
+        "/opt/afs-3fs-round3-v84/lib/libssl.so.3": "cd89f6e6eea72583e1f1f98f8ea6b0f5e9281d7a0e4262a2e36f648be789d565",
+        "/opt/afs-3fs-round3-v84/lib/libtcmalloc.so.4": "160eb851b5875152256a3f9b30d0452a63d20d09034a24a07333629213f35a06",
+        "/opt/afs-3fs-round3-v84/lib/libunwind.so.8": "0b507266c28b564c22334b089318888fe04fcdf8221085e7081374be1d704e09",
+        "/opt/afs-3fs-round3-v84/lib/libz.so.1": "e3bc90ee8cce46778c2f46c2a3e580d3b930f7b455910f25ea400a0b797fb9dc",
+        "/opt/afs-3fs-round3-v84/lib/libzstd.so.1": "fe726238b170b83aa83bf1f8a79109b8b61b9eb45234304511d093bbe5f5fb20"
+      },
+      "manifest": "/opt/afs-3fs-round3-v84/manifest.json"
+    },
+    "role": "b",
+    "root": "/mnt/lima-afsbdata/3fs-round3-v84",
+    "source_sha256": "7fb7367bfa76b7792043d26d948121579246ab896bdacc790461e08993a8a489",
+    "template_sha256": {
+      "admin_cli.toml": "3d7f82af090fcd5d0a437f1c375033435423e4d6eb10c2b4eee5088cde041a66",
+      "hf3fs_fuse_main.toml": "d941d61536fb0b46fe294970adbb4141e053c63bdd333d2540bcc85b2cf56113",
+      "hf3fs_fuse_main_launcher.toml": "aeb8c34e2a6d8ccf3ac8e0ca8c0440c30577364e230f03d76648db443a2affc4",
+      "meta_bench.toml": "b993a09a4d0714d6305f264a8d2b02db81b21e088fa0918326683cbef1b273be",
+      "meta_main.toml": "6ed71df6c42127103ab1d1ae625393af00dc17d9b85f9d7120d25c890eb698ca",
+      "meta_main_app.toml": "5148b9064846010e146277beb412b596479d0d743251299488982e2eb7364cef",
+      "meta_main_launcher.toml": "379e621099e6447b05952d57cfc43da734afd0b58dad98f742cc062156dba157",
+      "mgmtd_main.toml": "17a040e4e167f3a0b0e4c86dbf3e3c35a49b0c43808a1d53a8334b59ad5d838e",
+      "mgmtd_main_app.toml": "58323f28fad622ace0c8c5427d46ab0f5e1eea089bbad39353358a11efa02951",
+      "mgmtd_main_launcher.toml": "020c640b719c823efdef2abcadece8c7d4eb98eaad227ff2a6def64ff2f998c0",
+      "pjdfstest.toml": "c18e03cba434aebfc7593c1b9a7f257dc9f30a6019f9bf5b4a9f509dc65c1cbd",
+      "storage_main.toml": "65f8e2e3a5e24ba4a7fce65aa069a00cdcfc7daa7cd9446422869091621216e7",
+      "storage_main_app.toml": "907f6938dd146a8ce266a067615ca6f5ae7c89d5723fb2009c4ebc7011752804",
+      "storage_main_launcher.toml": "379e621099e6447b05952d57cfc43da734afd0b58dad98f742cc062156dba157"
+    },
+    "volume_guard": {
+      "available_bytes": 25540407296,
+      "required_bytes": 4294967296,
+      "volume": "/mnt/lima-afsbdata"
+    }
+  },
+  "role": "b",
+  "root": "/mnt/lima-afsbdata/3fs-round3-v84",
+  "status": "PASS",
+  "topology": {
+    "cluster_file": "round3:afs_3fs_round3_v84@192.168.109.11:19000",
+    "node_id": 10001,
+    "ports": {
+      "fdb": 19000,
+      "meta": 19002,
+      "mgmtd": 19001,
+      "storage": 19003
+    },
+    "role": "b",
+    "role_ip": "192.168.109.13"
+  }
+}

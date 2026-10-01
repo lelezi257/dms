@@ -1,0 +1,101 @@
+FoundationDB 7.3 (v7.3.63)
+Usage: /opt/afs-3fs-round3-v84/bin/fdbserver -p ADDRESS [OPTIONS]
+
+  -p ADDRESS, --public-address ADDRESS
+                 Public address, specified as `IP_ADDRESS:PORT' or `auto:PORT'.
+  -l ADDRESS, --listen-address ADDRESS
+                 Listen address, specified as `IP_ADDRESS:PORT' (defaults to
+                 public address).
+  -C CONNFILE, --cluster-file CONNFILE
+                 The path of a file containing the connection string for the
+                 FoundationDB cluster. The default is first the value of the
+                 FDB_CLUSTER_FILE environment variable, then `./fdb.cluster',
+                 then `/etc/foundationdb/fdb.cluster'.
+  --seed-cluster-file SEEDCONNFILE
+                 The path of a seed cluster file which will be used to connect
+                 if the -C cluster file does not exist. If the server connects
+                 successfully using the seed file, then it copies the file to
+                 the -C file location.
+  --seed-connection-string SEEDCONNSTRING
+                 The path of a seed connection string which will be used to
+                 connect if the -C cluster file does not exist. If the server
+                 connects successfully using the seed string, then it copies the
+                 string to the -C file location.
+  --data-filesystem PATH
+                 Turns on validation that all data files are written to a drive
+                 mounted at the specified PATH. This checks that the device at
+                 PATH is currently mounted and that any data files get written
+                 to the same device.
+  -d PATH, --datadir PATH
+                 Store data files in the given folder (must be unique for each
+                 fdbserver instance on a given machine).
+  -L PATH, --logdir PATH
+                 Store log files in the given folder (default is `.').
+  --logsize SIZE
+                 Roll over to a new log file after the current log file exceeds
+                 SIZE bytes. The default value is 10MiB.
+  --maxlogs SIZE, --maxlogssize SIZE
+                 Delete the oldest log file when the total size of all log files
+                 exceeds SIZE bytes. If set to 0, old log files will not be
+                 deleted. The default value is 100MiB.
+  --loggroup LOG_GROUP
+                 Sets the LogGroup field with the specified value for all events
+                 in the trace output (defaults to `default').
+  --trace-format FORMAT
+                 Select the format of the log files. xml (the default) and json
+                 are supported.
+  --tracer       TRACER
+                 Select a tracer for transaction tracing. Currently disabled
+                 (the default) and log_file are supported.
+  -i ID, --machine-id ID
+                 Machine and zone identifier key (up to 16 hex characters).
+                 Defaults to a random value shared by all fdbserver processes on
+                 this machine.
+  -a ID, --datacenter-id ID
+                 Data center identifier key (up to 16 hex characters).
+  --locality-LOCALITYKEY LOCALITYVALUE
+                 Define a locality key. LOCALITYKEY is case-insensitive though
+                 LOCALITYVALUE is not.
+  -m SIZE, --memory SIZE
+                 Resident memory limit. The default value is 8GiB. When
+                 specified without a unit, MiB is assumed.
+  --memory-vsize SIZE
+                 Virtual memory limit. The default value is unlimited. When
+                 specified without a unit, MiB is assumed.
+  -M SIZE, --storage-memory SIZE
+                 Maximum amount of memory used for storage. The default value is
+                 1GiB. When specified without a unit, MB is assumed.
+  --cache-memory SIZE
+                 The amount of memory to use for caching disk pages. The default
+                 value is 2GiB. When specified without a unit, MiB is assumed.
+  -c CLASS, --class CLASS
+                 Machine class (valid options are storage, transaction,
+                 resolution, grv_proxy, commit_proxy, master, test, unset,
+                 stateless, log, router, and cluster_controller).
+  --profiler-
+                 Set an actor profiler option. Supported options are: collector
+                 -- None or FluentD (FluentD requires collector_endpoint to be
+                 set) collector_endpoint -- IP:PORT of the fluentd server
+                 collector_protocol -- UDP or TCP (default is UDP)
+  --tls-certificate-file CERTFILE
+                 The path of a file containing the TLS certificate and CA
+                 chain.
+  --tls-ca-file CERTAUTHFILE
+                 The path of a file containing the CA certificates chain.
+  --tls-key-file KEYFILE
+                 The path of a file containing the private key corresponding
+                 to the TLS certificate.
+  --tls-password PASSCODE
+                 The passphrase of encrypted private key
+  --tls-verify-peers CONSTRAINTS
+                 The constraints by which to validate TLS peers. The contents
+                 and format of CONSTRAINTS are plugin-specific.
+  -v, --version
+                 Print version information and exit.
+  -h, -?, --help
+                 Display this help and exit.
+  --dev-help
+                 Display developer-specific help and exit.
+
+SIZE parameters may use one of the multiplicative suffixes B=1, KB=10^3,
+KiB=2^10, MB=10^6, MiB=2^20, GB=10^9, GiB=2^30, TB=10^12, or TiB=2^40.

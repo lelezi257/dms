@@ -16,6 +16,8 @@ Current round: **3, performance/resources, then persistent backends**, under the
 
 The [first round3 short resource diagnostic](../development/evidence/20261001-round3-resource-diagnostic/README.md) passes 8 MiB Owner local/remote and DFS sync/close, four sequential exact reads and2,048 ranges, actual two-copy repair/required RXE and normal cleanup. Cached DFS process-read amplification is measured; sustained resource limits and fair ratios remain unqualified. Current priorities are actual fair comparator mounts/durability/resource isolation and attribution of measured costs, followed by etcd/Redis parity and persistent recovery. No ratio or performance tuning is qualified before fair baselines. Complete POSIX, installation matrix, 8 GiB and soak remain later gates. **Formal69 NOT_RUN / ENV PREPARING**; the [issue ledger](../development/issues.md) records severity, scope and next evidence. AGENTS and handoff are unchanged.
 
+The [patched3FS reference slice](../development/evidence/20261001-round3-3fs-reference/README.md) proves normal32MiB write/A-B reads,64×3 exact physical slots and retained-state full process restart, with normal final cleanup. Original post-restart timeout/transient SYNCING remain unqualified recovery-time observations. The strong barrier/ACK comparison remains BLOCKED; successful directory fsync is not proof of an implemented FUSE directory barrier. Independent resource attribution, prepared comparator reads and backend work continue without promoting formal status.
+
 ## Current Capability Matrix
 
 | Area | Status | Evidence and limit |

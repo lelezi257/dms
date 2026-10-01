@@ -1,0 +1,24 @@
+{
+  "action": "stop",
+  "role": "c",
+  "root": "/mnt/lima-afscdata/3fs-round3-v84",
+  "status": "PASS",
+  "stopped": [
+    {
+      "final_state": null,
+      "forced_kill": false,
+      "identity": {
+        "exe": "/opt/afs-3fs-round3-v84/bin/storage_main",
+        "pid": 3967,
+        "sha256": "bb8c2546f609059cf419a2e06ec0297d44084ca4570b313569a93d505e18ca85",
+        "start_ticks": "953324"
+      },
+      "pid": 3967,
+      "service": "storage",
+      "signals_sent": [
+        "SIGTERM"
+      ],
+      "terminated": true
+    }
+  ]
+}

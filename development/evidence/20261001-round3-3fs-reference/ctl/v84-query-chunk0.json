@@ -1,0 +1,237 @@
+[
+  {
+    "value": {
+      "target": {
+        "targetId": 1000001001,
+        "path": "/mnt/lima-afsadata/3fs-round3-v84/data/storage/data1/1000001001",
+        "diskError": false,
+        "lowSpace": false,
+        "rejectCreateChunk": false,
+        "isHead": true,
+        "isTail": false,
+        "vChainId": {
+          "chainId": 1,
+          "chainVer": 1
+        },
+        "localState": "UPTODATE",
+        "publicState": "SERVING",
+        "successor": {
+          "nodeInfo": {
+            "app": {
+              "nodeId": 10001,
+              "hostname": "lima-afs-accept-b",
+              "pid": 155003,
+              "serviceGroups": [
+                {
+                  "services": [
+                    "StorageSerde"
+                  ],
+                  "endpoints": [
+                    "RDMA://192.168.109.13:19003"
+                  ]
+                },
+                {
+                  "services": [
+                    "Core"
+                  ],
+                  "endpoints": [
+                    "TCP://192.168.109.13:36821"
+                  ]
+                }
+              ],
+              "releaseVersion": {
+                "majorVersion": 1,
+                "minorVersion": 0,
+                "patchVersion": 0,
+                "commitHashShort": 586981445,
+                "buildTimeInSeconds": 1074721076543489,
+                "buildPipelineId": 999999
+              },
+              "podname": ""
+            },
+            "type": "STORAGE",
+            "status": "HEARTBEAT_CONNECTED",
+            "lastHeartbeatTs": "2026-10-01 21:14:09",
+            "tags": [],
+            "configVersion": 0,
+            "configStatus": "NORMAL"
+          },
+          "targetInfo": {
+            "targetId": 1000101001,
+            "publicState": "SERVING",
+            "localState": "UPTODATE",
+            "chainId": 1,
+            "nodeId": 10001,
+            "diskIndex": 0,
+            "usedSize": 0
+          }
+        },
+        "diskIndex": 0,
+        "chainId": 1,
+        "offlineUponUserRequest": false,
+        "useChunkEngine": false
+      },
+      "meta": {
+        "value": {
+          "commitVer": 1,
+          "updateVer": 1,
+          "chainVer": 1,
+          "size": 524288,
+          "chunkState": "COMMIT",
+          "recycleState": "NORMAL",
+          "checksumType": "CRC32C",
+          "checksumValue": 2824478849,
+          "lastNodeId": 0,
+          "lastRequestId": 1,
+          "innerOffset": "0",
+          "innerFileId": {
+            "chunkSize": 524288,
+            "chunkIdx": 0
+          },
+          "lastClientUuid": "1d105cfb-6c88-4081-ac4c-02ab6d5e46b8",
+          "timestamp": "2026-10-01 21:15:32"
+        }
+      }
+    }
+  },
+  {
+    "value": {
+      "target": {
+        "targetId": 1000101001,
+        "path": "/mnt/lima-afsbdata/3fs-round3-v84/data/storage/data1/1000101001",
+        "diskError": false,
+        "lowSpace": false,
+        "rejectCreateChunk": false,
+        "isHead": false,
+        "isTail": false,
+        "vChainId": {
+          "chainId": 1,
+          "chainVer": 1
+        },
+        "localState": "UPTODATE",
+        "publicState": "SERVING",
+        "successor": {
+          "nodeInfo": {
+            "app": {
+              "nodeId": 10002,
+              "hostname": "lima-afs-accept-c",
+              "pid": 3644,
+              "serviceGroups": [
+                {
+                  "services": [
+                    "StorageSerde"
+                  ],
+                  "endpoints": [
+                    "RDMA://192.168.109.14:19003"
+                  ]
+                },
+                {
+                  "services": [
+                    "Core"
+                  ],
+                  "endpoints": [
+                    "TCP://192.168.109.14:44005"
+                  ]
+                }
+              ],
+              "releaseVersion": {
+                "majorVersion": 1,
+                "minorVersion": 0,
+                "patchVersion": 0,
+                "commitHashShort": 586981445,
+                "buildTimeInSeconds": 1074721076543489,
+                "buildPipelineId": 999999
+              },
+              "podname": ""
+            },
+            "type": "STORAGE",
+            "status": "HEARTBEAT_CONNECTED",
+            "lastHeartbeatTs": "2026-10-01 21:14:09",
+            "tags": [],
+            "configVersion": 0,
+            "configStatus": "NORMAL"
+          },
+          "targetInfo": {
+            "targetId": 1000201001,
+            "publicState": "SERVING",
+            "localState": "UPTODATE",
+            "chainId": 1,
+            "nodeId": 10002,
+            "diskIndex": 0,
+            "usedSize": 0
+          }
+        },
+        "diskIndex": 0,
+        "chainId": 1,
+        "offlineUponUserRequest": false,
+        "useChunkEngine": false
+      },
+      "meta": {
+        "value": {
+          "commitVer": 1,
+          "updateVer": 1,
+          "chainVer": 1,
+          "size": 524288,
+          "chunkState": "COMMIT",
+          "recycleState": "NORMAL",
+          "checksumType": "CRC32C",
+          "checksumValue": 2824478849,
+          "lastNodeId": 0,
+          "lastRequestId": 1,
+          "innerOffset": "0",
+          "innerFileId": {
+            "chunkSize": 524288,
+            "chunkIdx": 0
+          },
+          "lastClientUuid": "1d105cfb-6c88-4081-ac4c-02ab6d5e46b8",
+          "timestamp": "2026-10-01 21:15:32"
+        }
+      }
+    }
+  },
+  {
+    "value": {
+      "target": {
+        "targetId": 1000201001,
+        "path": "/mnt/lima-afscdata/3fs-round3-v84/data/storage/data1/1000201001",
+        "diskError": false,
+        "lowSpace": false,
+        "rejectCreateChunk": false,
+        "isHead": false,
+        "isTail": true,
+        "vChainId": {
+          "chainId": 1,
+          "chainVer": 1
+        },
+        "localState": "UPTODATE",
+        "publicState": "SERVING",
+        "successor": null,
+        "diskIndex": 0,
+        "chainId": 1,
+        "offlineUponUserRequest": false,
+        "useChunkEngine": false
+      },
+      "meta": {
+        "value": {
+          "commitVer": 1,
+          "updateVer": 1,
+          "chainVer": 1,
+          "size": 524288,
+          "chunkState": "COMMIT",
+          "recycleState": "NORMAL",
+          "checksumType": "CRC32C",
+          "checksumValue": 2824478849,
+          "lastNodeId": 0,
+          "lastRequestId": 1,
+          "innerOffset": "0",
+          "innerFileId": {
+            "chunkSize": 524288,
+            "chunkIdx": 0
+          },
+          "lastClientUuid": "1d105cfb-6c88-4081-ac4c-02ab6d5e46b8",
+          "timestamp": "2026-10-01 21:15:32"
+        }
+      }
+    }
+  }
+]

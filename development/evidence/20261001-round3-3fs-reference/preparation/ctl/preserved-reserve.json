@@ -1,0 +1,218 @@
+{
+  "utc": 1790859796.112643,
+  "source": "/mnt/lima-afsctlstate/afs-delivery/p1b/state/etcd",
+  "preserved_at": "/var/lib/afs-historical-preserved-v84/ctl/etcd",
+  "files": {
+    "member": {
+      "mode": 16832,
+      "uid": 501,
+      "gid": 1000
+    },
+    "member/snap": {
+      "mode": 16832,
+      "uid": 501,
+      "gid": 1000
+    },
+    "member/snap/db": {
+      "mode": 33152,
+      "uid": 0,
+      "gid": 0,
+      "bytes": 1214926848,
+      "sha256": "54686f04af580dd942d17e690f56ecf184db88b6f89da537dbe5b729a7719b36"
+    },
+    "member/wal": {
+      "mode": 16832,
+      "uid": 501,
+      "gid": 1000
+    },
+    "member/wal/0.tmp": {
+      "mode": 33152,
+      "uid": 0,
+      "gid": 0,
+      "bytes": 6086656,
+      "sha256": "e9c039934ba3dbea6bdbd3ccaedfabe2df2f9569896dcbc524fc2a65b5f40927"
+    },
+    "member/wal/0000000000000000-0000000000000000.wal": {
+      "mode": 33152,
+      "uid": 501,
+      "gid": 1000,
+      "bytes": 64336872,
+      "sha256": "24576aacc596ec5d4c2a0b7a891f5bdb3f5b4132eda3e1b1caf5d6f47b957b5c"
+    },
+    "member/wal/0000000000000001-0000000000000103.wal": {
+      "mode": 33152,
+      "uid": 501,
+      "gid": 1000,
+      "bytes": 64227368,
+      "sha256": "e277d29a4a491e0071d1a98f9448c70c8a716a95ec9ffffcb7ee485fc8f0c9e0"
+    },
+    "member/wal/0000000000000002-0000000000000171.wal": {
+      "mode": 33152,
+      "uid": 501,
+      "gid": 1000,
+      "bytes": 64335152,
+      "sha256": "a21f294f32e5c48e284f0f2bff6eb322eec1c5503f9d6df956cc165eae5092ec"
+    },
+    "member/wal/0000000000000003-00000000000001c6.wal": {
+      "mode": 33152,
+      "uid": 501,
+      "gid": 1000,
+      "bytes": 64162992,
+      "sha256": "c304b0824bacbaf81b9f9cc9499ec57b1149ccc10aa161d5ff0dbd9319a73002"
+    },
+    "member/wal/0000000000000004-000000000000020e.wal": {
+      "mode": 33152,
+      "uid": 501,
+      "gid": 1000,
+      "bytes": 64483936,
+      "sha256": "8eb330a78daa2d6b2fd949daf62649b4fbe86fca595a13a07f55807054c661ab"
+    },
+    "member/wal/0000000000000005-000000000000024e.wal": {
+      "mode": 33152,
+      "uid": 501,
+      "gid": 1000,
+      "bytes": 64907216,
+      "sha256": "85453dde98f149ad3885d4f9ddb348b977c1c0e3eb0534fc2ece5b1a5feab6ec"
+    },
+    "member/wal/0000000000000006-0000000000000288.wal": {
+      "mode": 33152,
+      "uid": 501,
+      "gid": 1000,
+      "bytes": 65322976,
+      "sha256": "f91cfef950ace9ed713ee3a6df5a3bd88d3d7761bb105434908d077cac71cfdf"
+    },
+    "member/wal/0000000000000007-00000000000002bb.wal": {
+      "mode": 33152,
+      "uid": 501,
+      "gid": 1000,
+      "bytes": 64495040,
+      "sha256": "3268f367fa3c675d4d7d0dff18a0be12c7863073edf58891b4617178bc8470a2"
+    },
+    "member/wal/0000000000000008-00000000000002e9.wal": {
+      "mode": 33152,
+      "uid": 501,
+      "gid": 1000,
+      "bytes": 64774176,
+      "sha256": "55f29164cd3d259fad0cb7226c69d3007fffac3caa33643416b4208e9cf01265"
+    },
+    "member/wal/0000000000000009-0000000000000315.wal": {
+      "mode": 33152,
+      "uid": 501,
+      "gid": 1000,
+      "bytes": 65541224,
+      "sha256": "9e4d49f72114ae5628a1143c79a98f538b571bfa4024b27f1a9b611d0b1bc9ca"
+    },
+    "member/wal/000000000000000a-0000000000000340.wal": {
+      "mode": 33152,
+      "uid": 501,
+      "gid": 1000,
+      "bytes": 65638736,
+      "sha256": "badaed35f88e428831b00b63f058c4177d649618593da08eb30997f067558129"
+    },
+    "member/wal/000000000000000b-000000000000036c.wal": {
+      "mode": 33152,
+      "uid": 0,
+      "gid": 0,
+      "bytes": 65558808,
+      "sha256": "acc9d8ed1cd40dd15a6ea9dde52e62416fef0f0bab1c07d945c9081165458383"
+    },
+    "member/wal/000000000000000c-0000000000000393.wal": {
+      "mode": 33152,
+      "uid": 0,
+      "gid": 0,
+      "bytes": 64478840,
+      "sha256": "a4a9a98e2d09beb4bf378b41ac975976dcf10ac724e04dc2aee515ff65b825ab"
+    },
+    "member/wal/000000000000000d-00000000000003b7.wal": {
+      "mode": 33152,
+      "uid": 0,
+      "gid": 0,
+      "bytes": 65524944,
+      "sha256": "3eac4f7fe2162c55825c5411c9850a6a875a27fa1209431f1d9dd7d04c8f6eb7"
+    },
+    "member/wal/000000000000000e-00000000000003da.wal": {
+      "mode": 33152,
+      "uid": 0,
+      "gid": 0,
+      "bytes": 65892184,
+      "sha256": "444fafd47f11880aee094b4034b471ab278eefcc7abb6f082e440d54ac74a79b"
+    },
+    "member/wal/000000000000000f-00000000000003fc.wal": {
+      "mode": 33152,
+      "uid": 0,
+      "gid": 0,
+      "bytes": 66024496,
+      "sha256": "607b43e5d8ff9ce72c170bb51f5c34c8e15eb740778eed33ce517285c08634c7"
+    },
+    "member/wal/0000000000000010-000000000000041d.wal": {
+      "mode": 33152,
+      "uid": 0,
+      "gid": 0,
+      "bytes": 65862640,
+      "sha256": "87b10e86aae01b07bb90730e1f75a6fb5e183f9fa69e37ed215f3b401dc1e96d"
+    },
+    "member/wal/0000000000000011-000000000000043d.wal": {
+      "mode": 33152,
+      "uid": 0,
+      "gid": 0,
+      "bytes": 65489672,
+      "sha256": "29716d6ed344e5b94bcd43560aafc77e67497b2f6c13edae0b5ff8ea787fe7ff"
+    },
+    "member/wal/0000000000000012-000000000000045c.wal": {
+      "mode": 33152,
+      "uid": 0,
+      "gid": 0,
+      "bytes": 64950456,
+      "sha256": "180c5a704d4441a00710a7949c38ef2c5776835ba8d5b6abc5b1f038c55bbfb8"
+    },
+    "member/wal/0000000000000013-000000000000047a.wal": {
+      "mode": 33152,
+      "uid": 0,
+      "gid": 0,
+      "bytes": 64252192,
+      "sha256": "16db64b505213798d846453448cefcd494db6aaf8128e5e5d1afbf345c976a9f"
+    },
+    "member/wal/0000000000000014-0000000000000497.wal": {
+      "mode": 33152,
+      "uid": 0,
+      "gid": 0,
+      "bytes": 65694096,
+      "sha256": "a301a433613d3bd8339f48e04501b4b50559f6934164849be3cf6daae751377f"
+    },
+    "member/wal/0000000000000015-00000000000004b4.wal": {
+      "mode": 33152,
+      "uid": 0,
+      "gid": 0,
+      "bytes": 64797424,
+      "sha256": "b188f9a3f214327fd036e2e94ebff92f5940c7d03a8b96d3588c3ab374011356"
+    },
+    "member/wal/0000000000000016-00000000000004d0.wal": {
+      "mode": 33152,
+      "uid": 0,
+      "gid": 0,
+      "bytes": 66142384,
+      "sha256": "3569b2b5e788ac996bf7346f099748dbd18318661742814bf3f8a67f60f84071"
+    },
+    "member/wal/0000000000000017-00000000000004ec.wal": {
+      "mode": 33152,
+      "uid": 0,
+      "gid": 0,
+      "bytes": 65053912,
+      "sha256": "6b94e2675206921837717f72c49ab028705fe3ab794e6ac7ae447bdff27688e8"
+    },
+    "member/wal/0000000000000018-0000000000000507.wal": {
+      "mode": 33152,
+      "uid": 0,
+      "gid": 0,
+      "bytes": 64000000,
+      "sha256": "3045943dea13ff5f263f84ce433fd4c0a248c7a28a641452c11047d05c27504d"
+    }
+  },
+  "regular_bytes": 2846961240,
+  "source_is_symlink": true,
+  "source_resolves_to": "/var/lib/afs-historical-preserved-v84/ctl/etcd",
+  "volume_available_bytes": 7234187264,
+  "status": "PASS",
+  "scope": "historical archive relocation; not acceptance data placement",
+  "formal_acceptance": "NOT_RUN"
+}

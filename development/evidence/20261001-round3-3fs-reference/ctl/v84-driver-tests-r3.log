@@ -1,0 +1,14 @@
+test_fdb_configured_marker_prevents_reconfigure_after_bootstrap_failure (test_round3_3fs.Round3Tests.test_fdb_configured_marker_prevents_reconfigure_after_bootstrap_failure) ... ok
+test_init_chain_writes_single_abc_chain_row (test_round3_3fs.Round3Tests.test_init_chain_writes_single_abc_chain_row) ... ok
+test_main_stop_bypasses_preflight_and_volume_guard (test_round3_3fs.Round3Tests.test_main_stop_bypasses_preflight_and_volume_guard) ... ok
+test_prepare_writes_cluster_after_parent_creation (test_round3_3fs.Round3Tests.test_prepare_writes_cluster_after_parent_creation) ... ok
+test_read_loops_partial_os_read_until_eof (test_round3_3fs.Round3Tests.test_read_loops_partial_os_read_until_eof) ... ok
+test_require_owned_mount_rejects_absent_mount (test_round3_3fs.Round3Tests.test_require_owned_mount_rejects_absent_mount) ... ok
+test_stop_fails_when_process_survives_sigkill (test_round3_3fs.Round3Tests.test_stop_fails_when_process_survives_sigkill) ... ok
+test_stop_tolerates_processlookup_race_only_after_termination (test_round3_3fs.Round3Tests.test_stop_tolerates_processlookup_race_only_after_termination) ... ok
+test_write_records_directory_fsync_enosys_gap (test_round3_3fs.Round3Tests.test_write_records_directory_fsync_enosys_gap) ... ok
+
+----------------------------------------------------------------------
+Ran 9 tests in 0.008s
+
+OK

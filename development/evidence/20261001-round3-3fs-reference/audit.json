@@ -1,0 +1,80 @@
+{
+  "status": "PASS",
+  "scope": "patched-reference normal IO/physical copies/retained-state restart only",
+  "checks": 914,
+  "physical_slots_before": 192,
+  "physical_slots_after": 192,
+  "range_checks": 192,
+  "artifacts": 107,
+  "local_links": 95,
+  "compiler_inputs_reused": 143,
+  "process_resources": {
+    "ctl": {
+      "fdb": {
+        "Name": "fdbserver",
+        "State": "S (sleeping)",
+        "Threads": "7",
+        "VmHWM": "89924 kB",
+        "VmRSS": "89804 kB",
+        "VmSize": "230020 kB"
+      },
+      "meta": {
+        "Name": "meta_main",
+        "State": "S (sleeping)",
+        "Threads": "54",
+        "VmHWM": "407324 kB",
+        "VmRSS": "398208 kB",
+        "VmSize": "907108 kB"
+      },
+      "mgmtd": {
+        "Name": "mgmtd_main",
+        "State": "S (sleeping)",
+        "Threads": "27",
+        "VmHWM": "193704 kB",
+        "VmRSS": "193704 kB",
+        "VmSize": "463404 kB"
+      }
+    },
+    "a": {
+      "storage": {
+        "Name": "storage_main",
+        "State": "S (sleeping)",
+        "Threads": "232",
+        "VmHWM": "1651716 kB",
+        "VmRSS": "1651716 kB",
+        "VmSize": "3211876 kB"
+      }
+    },
+    "b": {
+      "fuse": {
+        "Name": "hf3fs_fuse_main",
+        "State": "S (sleeping)",
+        "Threads": "38",
+        "VmHWM": "300896 kB",
+        "VmRSS": "276516 kB",
+        "VmSize": "648836 kB"
+      },
+      "storage": {
+        "Name": "storage_main",
+        "State": "S (sleeping)",
+        "Threads": "233",
+        "VmHWM": "1676644 kB",
+        "VmRSS": "1676644 kB",
+        "VmSize": "3247972 kB"
+      }
+    },
+    "c": {
+      "storage": {
+        "Name": "storage_main",
+        "State": "S (sleeping)",
+        "Threads": "232",
+        "VmHWM": "1670484 kB",
+        "VmRSS": "1670484 kB",
+        "VmSize": "3235928 kB"
+      }
+    }
+  },
+  "strong_durable_comparison": "BLOCKED",
+  "formal_acceptance": "NOT_RUN",
+  "environment": "PREPARING"
+}

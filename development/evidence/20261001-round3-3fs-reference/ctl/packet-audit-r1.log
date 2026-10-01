@@ -1,0 +1,7 @@
+Traceback (most recent call last):
+  File "/workspace/dms/source/development/evidence/20261001-round3-3fs-reference/probes/audit.py", line 56, in <module>
+    check(role + " no requested processes", snapshot["status"] == "PASS" and snapshot["processes"] == {})
+  File "/workspace/dms/source/development/evidence/20261001-round3-3fs-reference/probes/audit.py", line 19, in check
+    assert value, name
+           ^^^^^
+AssertionError: ctl no requested processes

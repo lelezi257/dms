@@ -1,0 +1,472 @@
+{
+  "action": "read",
+  "bytes": 33554432,
+  "file": "/mnt/lima-afsbdata/3fs-round3-v84/mount/test/qualifier32m.bin",
+  "fixed_ranges_exact": [
+    {
+      "index": 0,
+      "offset": 0,
+      "sha256": "9275bb2b305b8ffa5babd29d38c00cdd523ae8d8561bfcdbc0dbe9ce333dcc16",
+      "size": 4096
+    },
+    {
+      "index": 1,
+      "offset": 104729,
+      "sha256": "1229a00b654efff785527f17eb11b939ba2cba53ea635ed051b2cfd32a6d5183",
+      "size": 65536
+    },
+    {
+      "index": 2,
+      "offset": 209458,
+      "sha256": "c2bd58880cf1bd193cde7499d61d1bfcd8aff7cf4ad2961c6384d36c80e73885",
+      "size": 4096
+    },
+    {
+      "index": 3,
+      "offset": 314187,
+      "sha256": "5863fc4d3cb3a3d2301427da323c023362cb986a91553b3d98f6f9c73ae21a40",
+      "size": 65536
+    },
+    {
+      "index": 4,
+      "offset": 418916,
+      "sha256": "fc7177c599ade0e3ef448dd6467b3d1df77088e434166e76c2d9709aadf04506",
+      "size": 4096
+    },
+    {
+      "index": 5,
+      "offset": 523645,
+      "sha256": "eccddea1703a7cbb64414339607beb685fc8e9d41d2440f904c19eead7d43db3",
+      "size": 65536
+    },
+    {
+      "index": 6,
+      "offset": 628374,
+      "sha256": "57de249498f2081d645536d51a10bc69ba6a1d7c8dbe84a68ea3624fa5fef904",
+      "size": 4096
+    },
+    {
+      "index": 7,
+      "offset": 733103,
+      "sha256": "15bb5ad5fe8b446b56bd164efef0d15edcceb804b5eb61bfa02bb1f43c13afe4",
+      "size": 65536
+    },
+    {
+      "index": 8,
+      "offset": 837832,
+      "sha256": "915ce5e3c6a0f1a8cf3d1297b5fe854b39c48922c2041c9c040c6bcaa77dd96f",
+      "size": 4096
+    },
+    {
+      "index": 9,
+      "offset": 942561,
+      "sha256": "2b1808dcee32f0a681a5084397e4cc7ec3fe3358e7165af3b8e03959405694ec",
+      "size": 65536
+    },
+    {
+      "index": 10,
+      "offset": 1047290,
+      "sha256": "71ad81aff2faf053a845955ee42e45d598489b19b11c578d117d777fd4d0466c",
+      "size": 4096
+    },
+    {
+      "index": 11,
+      "offset": 1152019,
+      "sha256": "958a3c133aa5a6c2fca2d3b6553118a37816e1ff193f3311bbedbc8ba697e9c8",
+      "size": 65536
+    },
+    {
+      "index": 12,
+      "offset": 1256748,
+      "sha256": "6bd611ee45ee2eb96b2019b484f89d00644d191810a3d2f2e3e689c3ce85d701",
+      "size": 4096
+    },
+    {
+      "index": 13,
+      "offset": 1361477,
+      "sha256": "450e50dac98376d4ff397ad0d176ecac1dd98e7e39b807ae1ed849232a28f5fc",
+      "size": 65536
+    },
+    {
+      "index": 14,
+      "offset": 1466206,
+      "sha256": "f66bef5d8b5c800ad6c7c157a372503e9427e25c258cbb1022ac278ddf9e3fab",
+      "size": 4096
+    },
+    {
+      "index": 15,
+      "offset": 1570935,
+      "sha256": "5673ec1e7ab2cde67da377f9b482b413b719a190130d3ae35d7af1332c241a1b",
+      "size": 65536
+    },
+    {
+      "index": 16,
+      "offset": 1675664,
+      "sha256": "ad0fcb82ebf6bb10c80b2a11c9886e027e995fb7a1a04c953886e06670b463e1",
+      "size": 4096
+    },
+    {
+      "index": 17,
+      "offset": 1780393,
+      "sha256": "c674170e156f4d08f41afdb2f229de3ba227119c659145a2f7b01f570e7244ea",
+      "size": 65536
+    },
+    {
+      "index": 18,
+      "offset": 1885122,
+      "sha256": "148868a973e56637c475cc37e9b2efe33578d87bf7c1886bcc47647d065f8ad9",
+      "size": 4096
+    },
+    {
+      "index": 19,
+      "offset": 1989851,
+      "sha256": "6fed4f53ee51380e9edd6ddf1567907367545eb7d3393cd1418f2a676375c95e",
+      "size": 65536
+    },
+    {
+      "index": 20,
+      "offset": 2094580,
+      "sha256": "8ee1dba0b112cacdca4fe2b989e068c507978f0d4b70d90657b2cf76b12d1b7c",
+      "size": 4096
+    },
+    {
+      "index": 21,
+      "offset": 2199309,
+      "sha256": "6b60ab177fb9170462cea1634f3ad9cd0edad3a8f4205a86abfdbd70650993ae",
+      "size": 65536
+    },
+    {
+      "index": 22,
+      "offset": 2304038,
+      "sha256": "c36b0890fc0698142f4cf50a3ffc2107b4a0898cddb0f8e2d64989e75f111b6a",
+      "size": 4096
+    },
+    {
+      "index": 23,
+      "offset": 2408767,
+      "sha256": "5788dc4a83a45be88a48d3c4bef09416204383e0f0ac01f882ab1d74a45a240a",
+      "size": 65536
+    },
+    {
+      "index": 24,
+      "offset": 2513496,
+      "sha256": "c827471d13a3916f00b155ac0a3667f9f63944cec6a0d471258d131b75fa6a2b",
+      "size": 4096
+    },
+    {
+      "index": 25,
+      "offset": 2618225,
+      "sha256": "e661f7573a979391cb1e283fd59e23cb070b1740f59e75479202ed9c90a2eeb7",
+      "size": 65536
+    },
+    {
+      "index": 26,
+      "offset": 2722954,
+      "sha256": "db56a7f70af66090faa81744ea43e22425c58cb7d70191c42a421dd8e5b78cf4",
+      "size": 4096
+    },
+    {
+      "index": 27,
+      "offset": 2827683,
+      "sha256": "caba5398f51073b5d23423f701715e643d80710378de7e17705eac58078fb150",
+      "size": 65536
+    },
+    {
+      "index": 28,
+      "offset": 2932412,
+      "sha256": "e94b95904179cf7be783ea995813308aa8d92d4a1d3c0c7aae79b362aa9f4df4",
+      "size": 4096
+    },
+    {
+      "index": 29,
+      "offset": 3037141,
+      "sha256": "d4db7200b7e04aa49f408ed31b69152b2796b40d8474c89642e7c76ab20260c1",
+      "size": 65536
+    },
+    {
+      "index": 30,
+      "offset": 3141870,
+      "sha256": "39a7d6ff56a7a74fbbbf2e2f2cd9f2a3ffdad93b1d6c471a3b4d47c17b955957",
+      "size": 4096
+    },
+    {
+      "index": 31,
+      "offset": 3246599,
+      "sha256": "e8d59034c111837de1c473cf18ba1907bad78aed15b993364376ebb56e95dd05",
+      "size": 65536
+    },
+    {
+      "index": 32,
+      "offset": 3351328,
+      "sha256": "55d7f97438bf8816989db11d79891c27b5682aec7fd82cbe00f9783063e35bf2",
+      "size": 4096
+    },
+    {
+      "index": 33,
+      "offset": 3456057,
+      "sha256": "475a7c00d6100eadb481163e943d247b8efd28dbb1349cd58b6138a946f91da0",
+      "size": 65536
+    },
+    {
+      "index": 34,
+      "offset": 3560786,
+      "sha256": "00b0b3811aebb9721dc1090967b66024fab235a588014bd700ee3fbd08865736",
+      "size": 4096
+    },
+    {
+      "index": 35,
+      "offset": 3665515,
+      "sha256": "670447d3dc69a93697ddb6a6c3aae036951871eec2df4b0957efa6c7ea4e159f",
+      "size": 65536
+    },
+    {
+      "index": 36,
+      "offset": 3770244,
+      "sha256": "3bb299eb014fb0c8550ecee450b0947904ca460378e77bdb8ac2b5984c2b03ec",
+      "size": 4096
+    },
+    {
+      "index": 37,
+      "offset": 3874973,
+      "sha256": "eedb10b74d0a39413c4c5c19a86b52077640b05db19d99072c5dcbc9f2fc1054",
+      "size": 65536
+    },
+    {
+      "index": 38,
+      "offset": 3979702,
+      "sha256": "82b9e7d1caa95b5c9b79eaf52063ffc98fe8aac2e437e53ed89c7fa3befc9762",
+      "size": 4096
+    },
+    {
+      "index": 39,
+      "offset": 4084431,
+      "sha256": "812591aac56115a5199836094a51d1da7d158f5616a42bc47b8d3aa06e9d9c9a",
+      "size": 65536
+    },
+    {
+      "index": 40,
+      "offset": 4189160,
+      "sha256": "10188459fcaa83ac916fcfd6e360b721b29b690562cf95d773329ab4e6942bfb",
+      "size": 4096
+    },
+    {
+      "index": 41,
+      "offset": 4293889,
+      "sha256": "493558447cbb5217a335a3fccb95129ea89b10cb0d68c0da015957fc75da0c70",
+      "size": 65536
+    },
+    {
+      "index": 42,
+      "offset": 4398618,
+      "sha256": "32adb4b4f201ea586eb6b8ae09177f5fa7162d6239bc87386ab17ea9e8a53400",
+      "size": 4096
+    },
+    {
+      "index": 43,
+      "offset": 4503347,
+      "sha256": "73daead81728942f72721e2c272f1db59c0f9aa20ceddd8004e620d1e269eb83",
+      "size": 65536
+    },
+    {
+      "index": 44,
+      "offset": 4608076,
+      "sha256": "96da4d60d0ff76c40cd5e0e1e6d5d5cb3d14d3bac012adc505f0ac9083e99dca",
+      "size": 4096
+    },
+    {
+      "index": 45,
+      "offset": 4712805,
+      "sha256": "b8a4e99a95d4f66b2714487c3c5fc8a77620ed0c6471eb05b331a54eaee6990a",
+      "size": 65536
+    },
+    {
+      "index": 46,
+      "offset": 4817534,
+      "sha256": "38b28a4af27d2fc9f6cbc956d71955206a970d4d83ce7cd120670a8cc51897ce",
+      "size": 4096
+    },
+    {
+      "index": 47,
+      "offset": 4922263,
+      "sha256": "2b381f49f701c4c4421b8c8b539f4a61953103e6a6d0e1d04688658d1b0a3390",
+      "size": 65536
+    },
+    {
+      "index": 48,
+      "offset": 5026992,
+      "sha256": "2aee356d2ffe035c757f1406c957503e8671373fadf78cf385da588be7c79596",
+      "size": 4096
+    },
+    {
+      "index": 49,
+      "offset": 5131721,
+      "sha256": "0585c5705e528bf3a082d3937695e4bd1b0b6c5df066b0c28df357bff8e0172a",
+      "size": 65536
+    },
+    {
+      "index": 50,
+      "offset": 5236450,
+      "sha256": "f267d9465da3418f4d28f3c906375de13be91cd3a42dc9462635dad632144a1c",
+      "size": 4096
+    },
+    {
+      "index": 51,
+      "offset": 5341179,
+      "sha256": "70663e226608cddc6603c5a3ebcf218a3ff3f072c02cdd9c44426af1a32c5645",
+      "size": 65536
+    },
+    {
+      "index": 52,
+      "offset": 5445908,
+      "sha256": "73f089fd3f74275e2395f3064efe33d604488a7adafc003f49c4f61db3f5362d",
+      "size": 4096
+    },
+    {
+      "index": 53,
+      "offset": 5550637,
+      "sha256": "534f0da745fb222ba41bea5df65621e31f23354c024b0bc1bc242125b1ceda9a",
+      "size": 65536
+    },
+    {
+      "index": 54,
+      "offset": 5655366,
+      "sha256": "7c4713eba2007f3a571159672e3d83a70eb4fd54a6cffb721556520c4bdb887b",
+      "size": 4096
+    },
+    {
+      "index": 55,
+      "offset": 5760095,
+      "sha256": "290dd2a7b0eb73ffe279d01fa7cbb269e99d28c7eb9cef570c91b2c9d79123f0",
+      "size": 65536
+    },
+    {
+      "index": 56,
+      "offset": 5864824,
+      "sha256": "a862d41b4f63068dbcd17f773480e1f34fa44a2bdefa577d7ecc115cc4b0d3ba",
+      "size": 4096
+    },
+    {
+      "index": 57,
+      "offset": 5969553,
+      "sha256": "1bb384a151ebdae84df020f1915ff7de0c3c67a61ea0d09f204d405c1349252f",
+      "size": 65536
+    },
+    {
+      "index": 58,
+      "offset": 6074282,
+      "sha256": "c20064bdac04315deecde2b196bf3e2b0a2b58a32f9e583fa86a6e1dfd03049e",
+      "size": 4096
+    },
+    {
+      "index": 59,
+      "offset": 6179011,
+      "sha256": "b8ae232c9496973feee1a9081bdcad6e890f8f694a4ca9e9ead02713055ee323",
+      "size": 65536
+    },
+    {
+      "index": 60,
+      "offset": 6283740,
+      "sha256": "2743d95e4e76e5fb04eb2ed3f4d65c07e5be48745f9c2cafa1ed936e271ec9cc",
+      "size": 4096
+    },
+    {
+      "index": 61,
+      "offset": 6388469,
+      "sha256": "e892ce9ab2b6ee89e17a165004edd2be58469e0133b1da21fa7f48a7c52fe365",
+      "size": 65536
+    },
+    {
+      "index": 62,
+      "offset": 6493198,
+      "sha256": "a590a4db0ca6f1dcb8dcf5c1f5e9469be73e19beb0e0d13231998e9ef77a5710",
+      "size": 4096
+    },
+    {
+      "index": 63,
+      "offset": 6597927,
+      "sha256": "1002b36d84661d976602692e402d25e90395b16700c63f923816e3ba7bc7e7de",
+      "size": 65536
+    }
+  ],
+  "prerequisites": {
+    "bin_root": "/opt/afs-3fs-round3-v84/bin",
+    "binary_sha256": {
+      "admin_cli": "f833c75c548ab19238be877df84357f596fc8dfe98de2010d7a85cb4c5dace73",
+      "hf3fs_fuse_main": "45f09c3b808bfb8ab77d06c0fd0de12b9d7176e4db35d33b0b3783f86e5f3fbf",
+      "storage_main": "bb8c2546f609059cf419a2e06ec0297d44084ca4570b313569a93d505e18ca85"
+    },
+    "lib_root": "/opt/afs-3fs-round3-v84/lib",
+    "manifest": {
+      "checked": {
+        "/opt/afs-3fs-round3-v84/bin/admin_cli": "f833c75c548ab19238be877df84357f596fc8dfe98de2010d7a85cb4c5dace73",
+        "/opt/afs-3fs-round3-v84/bin/fdbcli": "52685cd06041737fda906f740e937a98bd1925ecb7d1981bc61b16f56a2d8aa6",
+        "/opt/afs-3fs-round3-v84/bin/fdbserver": "cddf55256ba2ca1249f98481d6c9995fd7fda091d23bc0551b96c1ae9537128c",
+        "/opt/afs-3fs-round3-v84/bin/hf3fs_fuse_main": "45f09c3b808bfb8ab77d06c0fd0de12b9d7176e4db35d33b0b3783f86e5f3fbf",
+        "/opt/afs-3fs-round3-v84/bin/meta_main": "86b614a83b5f7e42bcc21c8c756eec19c65828728d33d3609cfc969003eba411",
+        "/opt/afs-3fs-round3-v84/bin/mgmtd_main": "4289d2f14d53bc81410a9650695e64295642075a07d5f6183e182224d7880bb3",
+        "/opt/afs-3fs-round3-v84/bin/storage_main": "bb8c2546f609059cf419a2e06ec0297d44084ca4570b313569a93d505e18ca85",
+        "/opt/afs-3fs-round3-v84/lib/libaio.so.1t64": "34a7d0e9f59834c5d2dfe195e00fa2851f6a4d9873406e6427f85c7f70f60e6f",
+        "/opt/afs-3fs-round3-v84/lib/libatomic.so.1": "2896f2608b49113496e6872c77cb591f51f4e646fec01e59f517a971199979fe",
+        "/opt/afs-3fs-round3-v84/lib/libboost_atomic.so.1.83.0": "1a9d92196492e21283de0a1aba3bf7b1dd7cec7de5602ef9b446e12f4d756675",
+        "/opt/afs-3fs-round3-v84/lib/libboost_context.so.1.83.0": "dbb26bfcca7941dcc7eab09dece217084265b6ae82523b9d3916e5d48876dbf1",
+        "/opt/afs-3fs-round3-v84/lib/libboost_filesystem.so.1.83.0": "8c90582a3f32cf5164da45951a83285db960da362cb4707f07215bc0dfb0d7f6",
+        "/opt/afs-3fs-round3-v84/lib/libboost_program_options.so.1.83.0": "1683ee66213dc2df1e2f595eafba2c41f89e19ad75b0ffd867171fc3b01d27c7",
+        "/opt/afs-3fs-round3-v84/lib/libboost_regex.so.1.83.0": "ab8827c753f22eff83bf0bab365a433d4f3dd6d27d38675e0495f5962043ac0e",
+        "/opt/afs-3fs-round3-v84/lib/libboost_system.so.1.83.0": "1f0372c5d62d2b35c55df9e4a66760ff6b30c0f54430bfef3d4f7854e4768964",
+        "/opt/afs-3fs-round3-v84/lib/libboost_thread.so.1.83.0": "3e96786c0958227791966d25f2a1289da77922172bf09c09a9f2b418abbe964c",
+        "/opt/afs-3fs-round3-v84/lib/libcrypto.so.3": "b27a2396652ee28629c94d59d667c417dbffdf2dee84e5bf140bd17d3eedb7d9",
+        "/opt/afs-3fs-round3-v84/lib/libdouble-conversion.so.3": "1f86e3feb9750c64af092b08d51ab55e9a6f5dfe70b69f73ec72fa84a6e8f9f7",
+        "/opt/afs-3fs-round3-v84/lib/libdwarf.so.1": "9b2ae0d524bd339fa451597c2ee7a8d91f9a306079e5bafda786e517693bb2c7",
+        "/opt/afs-3fs-round3-v84/lib/libelf.so.1": "cb8f5d9cc966fcf008e443541eba7f493167bca2901172abd4b76660d62cdae4",
+        "/opt/afs-3fs-round3-v84/lib/libevent-2.1.so.7": "930690b0f2a219ccf09574c0edcc1c2dbfcfb2775f0fb3184d07331277891a1d",
+        "/opt/afs-3fs-round3-v84/lib/libfdb_c.so": "962c16bcc96f6d9308c19733e1b6d2d9e8f5e4d7a9617d73f0884e639f366ab3",
+        "/opt/afs-3fs-round3-v84/lib/libfuse3.so.3": "da6a2acb7de4dfaf3cf09d4772311e5c9f4d3a76b7415d1a2346b0f3903086c6",
+        "/opt/afs-3fs-round3-v84/lib/libgflags.so.2.2": "12c1a59becb95656a5de91fe6eee06f50e0eae4c217624399ee5c5c669a6ffbf",
+        "/opt/afs-3fs-round3-v84/lib/libglog.so.1": "0564c8f486c7d507fb87efbc350a8094874c78a3d42139dec6c530cc565c1d09",
+        "/opt/afs-3fs-round3-v84/lib/libibverbs.so.1": "84e987a9131e90bf7933614bf2f415ea0e928d5614328685461cf646cdb384e4",
+        "/opt/afs-3fs-round3-v84/lib/libjemalloc.so.2": "39c59a40497eb25b3ec67c806caf5df784f5c40db4be0d70167333e1a3b263f1",
+        "/opt/afs-3fs-round3-v84/lib/liblz4.so.1": "d1482a2f74152881d8b83708fedae7bca039f5608024f1178dc21a17df9887a7",
+        "/opt/afs-3fs-round3-v84/lib/liblzma.so.5": "47ea0f43683ef829cda43bfe1862c1b06f085fbd813bb58d2d142477f5380139",
+        "/opt/afs-3fs-round3-v84/lib/libnl-3.so.200": "a4e331c8189a300460ef3da8c3fc6e58e46787ce028775a93dd772514bfa1f89",
+        "/opt/afs-3fs-round3-v84/lib/libnl-route-3.so.200": "25b0138e696273db55d4c0eec19335841311cbde995d50caeef9c853c835f5c8",
+        "/opt/afs-3fs-round3-v84/lib/libnuma.so.1": "e9fd01b52d2f4ea331a562cf5f1ea40de57a2c968e7948bad5f349cc8a82a21c",
+        "/opt/afs-3fs-round3-v84/lib/libprofiler.so.0": "64b52c20bf1794570c9012a49a62f4b954b9d3559396f1cb363a433b1c9f0a9f",
+        "/opt/afs-3fs-round3-v84/lib/libsnappy.so.1": "67c6ba9a23e9ba9f18dda64025a22606cbcba98c5f2aff5d690c713d36032b4c",
+        "/opt/afs-3fs-round3-v84/lib/libssl.so.3": "cd89f6e6eea72583e1f1f98f8ea6b0f5e9281d7a0e4262a2e36f648be789d565",
+        "/opt/afs-3fs-round3-v84/lib/libtcmalloc.so.4": "160eb851b5875152256a3f9b30d0452a63d20d09034a24a07333629213f35a06",
+        "/opt/afs-3fs-round3-v84/lib/libunwind.so.8": "0b507266c28b564c22334b089318888fe04fcdf8221085e7081374be1d704e09",
+        "/opt/afs-3fs-round3-v84/lib/libz.so.1": "e3bc90ee8cce46778c2f46c2a3e580d3b930f7b455910f25ea400a0b797fb9dc",
+        "/opt/afs-3fs-round3-v84/lib/libzstd.so.1": "fe726238b170b83aa83bf1f8a79109b8b61b9eb45234304511d093bbe5f5fb20"
+      },
+      "manifest": "/opt/afs-3fs-round3-v84/manifest.json"
+    },
+    "role": "b",
+    "root": "/mnt/lima-afsbdata/3fs-round3-v84",
+    "source_sha256": "09f007b04b1f931137f810fb5e3f66b43ef76517ae4a42232fa695eb8c577438",
+    "template_sha256": {
+      "admin_cli.toml": "3d7f82af090fcd5d0a437f1c375033435423e4d6eb10c2b4eee5088cde041a66",
+      "hf3fs_fuse_main.toml": "d941d61536fb0b46fe294970adbb4141e053c63bdd333d2540bcc85b2cf56113",
+      "hf3fs_fuse_main_launcher.toml": "aeb8c34e2a6d8ccf3ac8e0ca8c0440c30577364e230f03d76648db443a2affc4",
+      "meta_bench.toml": "b993a09a4d0714d6305f264a8d2b02db81b21e088fa0918326683cbef1b273be",
+      "meta_main.toml": "6ed71df6c42127103ab1d1ae625393af00dc17d9b85f9d7120d25c890eb698ca",
+      "meta_main_app.toml": "5148b9064846010e146277beb412b596479d0d743251299488982e2eb7364cef",
+      "meta_main_launcher.toml": "379e621099e6447b05952d57cfc43da734afd0b58dad98f742cc062156dba157",
+      "mgmtd_main.toml": "17a040e4e167f3a0b0e4c86dbf3e3c35a49b0c43808a1d53a8334b59ad5d838e",
+      "mgmtd_main_app.toml": "58323f28fad622ace0c8c5427d46ab0f5e1eea089bbad39353358a11efa02951",
+      "mgmtd_main_launcher.toml": "020c640b719c823efdef2abcadece8c7d4eb98eaad227ff2a6def64ff2f998c0",
+      "pjdfstest.toml": "c18e03cba434aebfc7593c1b9a7f257dc9f30a6019f9bf5b4a9f509dc65c1cbd",
+      "storage_main.toml": "65f8e2e3a5e24ba4a7fce65aa069a00cdcfc7daa7cd9446422869091621216e7",
+      "storage_main_app.toml": "907f6938dd146a8ce266a067615ca6f5ae7c89d5723fb2009c4ebc7011752804",
+      "storage_main_launcher.toml": "379e621099e6447b05952d57cfc43da734afd0b58dad98f742cc062156dba157"
+    },
+    "volume_guard": {
+      "available_bytes": 25002631168,
+      "required_bytes": 4294967296,
+      "volume": "/mnt/lima-afsbdata"
+    }
+  },
+  "role": "b",
+  "root": "/mnt/lima-afsbdata/3fs-round3-v84",
+  "sha256": "626f47ade3da8112941c844a3a1d8a02b94c5e134a9c3391a3375aa22cd1dbc7",
+  "status": "PASS"
+}

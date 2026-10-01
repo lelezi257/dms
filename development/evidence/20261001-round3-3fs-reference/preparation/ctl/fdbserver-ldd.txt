@@ -1,0 +1,6 @@
+	linux-vdso.so.1 (0x0000f19e8a457000)
+	liblzma.so.5 => /opt/afs-3fs-round3-v84/lib/liblzma.so.5 (0x0000f19e8a3c0000)
+	libz.so.1 => /opt/afs-3fs-round3-v84/lib/libz.so.1 (0x0000f19e8a380000)
+	libm.so.6 => /lib/aarch64-linux-gnu/libm.so.6 (0x0000f19e8a2d0000)
+	libc.so.6 => /lib/aarch64-linux-gnu/libc.so.6 (0x0000f19e8a110000)
+	/lib/ld-linux-aarch64.so.1 (0x0000f19e8a410000)

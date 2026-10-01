@@ -11,9 +11,6 @@ import test_environment
 
 
 FIXTURE = Path(__file__).resolve().parent.parent / "evidence/20261001-network-preparation"
-if not FIXTURE.is_dir():
-    # Research-workspace mirror uses the same committed, immutable fixture.
-    FIXTURE = Path(__file__).resolve().parents[2] / "source/development/evidence/20261001-network-preparation"
 
 
 class NetworkEnvironmentTests(unittest.TestCase):

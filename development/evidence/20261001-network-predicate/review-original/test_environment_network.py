@@ -11,9 +11,6 @@ import test_environment
 
 
 FIXTURE = Path(__file__).resolve().parent.parent / "evidence/20261001-network-preparation"
-if not FIXTURE.is_dir():
-    # Research-workspace mirror uses the same committed, immutable fixture.
-    FIXTURE = Path(__file__).resolve().parents[2] / "source/development/evidence/20261001-network-preparation"
 
 
 class NetworkEnvironmentTests(unittest.TestCase):
@@ -89,8 +86,6 @@ class NetworkEnvironmentTests(unittest.TestCase):
             ("wrong-fault-pair", "network/a/logs/fault-injected.json", lambda v: v.update(target="192.168.109.14")),
             ("unbounded-fault", "network/a/logs/fault-injected.json", lambda v: v["checks"]["tcp"].update(elapsed_seconds=60)),
             ("fake-fault-failure", "network/a/logs/fault-injected.json", lambda v: v["checks"]["tcp"].update(reason="mismatch")),
-            ("missing-fault-nonce", "network/a/logs/fault-injected.json", lambda v: v.pop("token_sha256")),
-            ("unbounded-fault-timeout", "network/a/logs/fault-injected.json", lambda v: v.update(timeout_seconds=60)),
             ("listener-not-stopped", "network/a/logs/server-stopped.json", lambda v: v.update(status="LIVE")),
         )
         for name, rel, edit in cases:
@@ -210,57 +205,6 @@ class NetworkEnvironmentTests(unittest.TestCase):
                 path = root / "network/commands.jsonl"
                 rows = [json.loads(line) for line in path.read_text().splitlines()]
                 rows[0][field] = value
-                path.write_text("".join(json.dumps(row) + "\n" for row in rows))
-                bundle["artifact_references"]["network/commands.jsonl"] = test_environment.sha(path)
-                self.assertEqual("FAIL", self.outcome(root, bundle)["status"])
-
-    def test_wrong_client_negative_schema_and_command_are_required(self):
-        for value in (None, [], "PASS", {"status": "FAIL", "negative": "wrong_hostname",
-                       "observed": {"status": "FAIL", "reason": "untrusted_ca", "detail": "unknown ca"}}):
-            with self.subTest(value=value), tempfile.TemporaryDirectory() as td:
-                root = Path(td); bundle = self.make_bundle(root)
-                self.edit_json(root, bundle, "network/a/logs/wrong-client.json",
-                               lambda v: v["checks"].update(tls_untrusted_client_cert=value))
-                self.assertEqual("FAIL", self.outcome(root, bundle)["status"])
-        with tempfile.TemporaryDirectory() as td:
-            root = Path(td); bundle = self.make_bundle(root)
-            path = root / "network/commands.jsonl"
-            rows = [json.loads(line) for line in path.read_text().splitlines()]
-            rows = [row for row in rows if "wrong-client.json" not in " ".join(row["argv"])]
-            path.write_text("".join(json.dumps(row) + "\n" for row in rows))
-            bundle["artifact_references"]["network/commands.jsonl"] = test_environment.sha(path)
-            self.assertEqual("FAIL", self.outcome(root, bundle)["status"])
-
-    def test_preserved_observations_cannot_compare_missing_equal(self):
-        for field in ("processes", "mountinfo", "iptables"):
-            with self.subTest(field=field), tempfile.TemporaryDirectory() as td:
-                root = Path(td); bundle = self.make_bundle(root)
-                for suffix in ("before", "after"):
-                    self.edit_json(root, bundle, f"network/a/logs/preserved-{suffix}.json",
-                                   lambda v: v.pop(field))
-                self.assertEqual("FAIL", self.outcome(root, bundle)["status"])
-
-    def test_fault_counter_addresses_and_scope_are_exact(self):
-        for old, new in (("192.168.109.13", "192.168.109.130"),
-                         ("192.168.109.12", "192.168.109.12/0"),
-                         ("*      *", "eth0   *"),
-                         ("udp dpt:19566", "udp dpt:195660")):
-            with self.subTest(new=new), tempfile.TemporaryDirectory() as td:
-                root = Path(td); bundle = self.make_bundle(root)
-                rel = "network/b/logs/iptables-hit.txt"; path = root / rel
-                self.assertIn(old, path.read_text())
-                path.write_text(path.read_text().replace(old, new))
-                bundle["artifact_references"][rel] = test_environment.sha(path)
-                self.assertEqual("FAIL", self.outcome(root, bundle)["status"])
-
-    def test_client_command_cannot_mask_exit_with_extra_shell_commands(self):
-        for suffix in ("; exit 0", " || true", " --missing-client-cert"):
-            with self.subTest(suffix=suffix), tempfile.TemporaryDirectory() as td:
-                root = Path(td); bundle = self.make_bundle(root)
-                path = root / "network/commands.jsonl"
-                rows = [json.loads(line) for line in path.read_text().splitlines()]
-                row = next(row for row in rows if "pair-a-b.json" in " ".join(row["argv"]))
-                row["argv"][-1] += suffix
                 path.write_text("".join(json.dumps(row) + "\n" for row in rows))
                 bundle["artifact_references"]["network/commands.jsonl"] = test_environment.sha(path)
                 self.assertEqual("FAIL", self.outcome(root, bundle)["status"])

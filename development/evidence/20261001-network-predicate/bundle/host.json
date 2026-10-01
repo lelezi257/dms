@@ -1,0 +1,15 @@
+{
+  "arch": "arm64",
+  "available_bytes": 48752078848,
+  "cpu_count": 10,
+  "initial_available_bytes": null,
+  "initial_reserve_note": "No pre-provisioning observation is bound in this slice. Current reserve is not initial reserve.",
+  "observed_at_unix": 1790831915.610354,
+  "ram_bytes": 34359738368,
+  "raw_metadata_files": [
+    "../host-arch.log",
+    "../host-cpu.log",
+    "../host-ram.log",
+    "../host-df.log"
+  ]
+}

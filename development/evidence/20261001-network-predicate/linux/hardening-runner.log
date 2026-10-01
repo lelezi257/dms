@@ -1,0 +1,31 @@
+test_attestation_declared_sha_is_ignored_actual_file_hash_wins (test_runner.RunnerTests.test_attestation_declared_sha_is_ignored_actual_file_hash_wins) ... ok
+test_attestation_without_paths_cannot_fake_observed_identity (test_runner.RunnerTests.test_attestation_without_paths_cannot_fake_observed_identity) ... ok
+test_changed_actual_contract_cannot_pass_with_old_contract_hash (test_runner.RunnerTests.test_changed_actual_contract_cannot_pass_with_old_contract_hash) ... ok
+test_check_level_excluded_requires_approved_exclusion (test_runner.RunnerTests.test_check_level_excluded_requires_approved_exclusion) ... ok
+test_contract_provenance_commit_does_not_replace_actual_contract_digest (test_runner.RunnerTests.test_contract_provenance_commit_does_not_replace_actual_contract_digest) ... ok
+test_dirty_git_source_tree_blocks_full_release (test_runner.RunnerTests.test_dirty_git_source_tree_blocks_full_release) ... ok
+test_driver_owned_axis_rejects_wrong_coverage_profile (test_runner.RunnerTests.test_driver_owned_axis_rejects_wrong_coverage_profile) ... ok
+test_driver_owned_axis_requires_every_value (test_runner.RunnerTests.test_driver_owned_axis_requires_every_value) ... ok
+test_driver_start_oserror_generates_failure_artifact (test_runner.RunnerTests.test_driver_start_oserror_generates_failure_artifact) ... ok
+test_exit_zero_without_structured_proof_is_blocked (test_runner.RunnerTests.test_exit_zero_without_structured_proof_is_blocked) ... ok
+test_frozen_lock_runner_sha_mismatch_blocks_full (test_runner.RunnerTests.test_frozen_lock_runner_sha_mismatch_blocks_full) ... ok
+test_full_flags_and_four_hashes_without_environment_cannot_pass (test_runner.RunnerTests.test_full_flags_and_four_hashes_without_environment_cannot_pass) ... ok
+test_full_requires_frozen_verified_lock (test_runner.RunnerTests.test_full_requires_frozen_verified_lock) ... ok
+test_full_selected_pass_does_not_release_pass_when_active_case_missing (test_runner.RunnerTests.test_full_selected_pass_does_not_release_pass_when_active_case_missing) ... ok
+test_lock_verified_boolean_alone_is_not_release_ready (test_runner.RunnerTests.test_lock_verified_boolean_alone_is_not_release_ready) ... ok
+test_missing_actual_contract_blocks_full_but_not_local_smoke (test_runner.RunnerTests.test_missing_actual_contract_blocks_full_but_not_local_smoke) ... ok
+test_missing_ready_command_is_blocked (test_runner.RunnerTests.test_missing_ready_command_is_blocked) ... ok
+test_pass_check_requires_evidence_or_artifact (test_runner.RunnerTests.test_pass_check_requires_evidence_or_artifact) ... ok
+test_scalar_or_empty_artifact_is_not_evidence (test_runner.RunnerTests.test_scalar_or_empty_artifact_is_not_evidence) ... ok
+test_smoke_pass_is_not_full_release_pass_and_records_missing_coverage (test_runner.RunnerTests.test_smoke_pass_is_not_full_release_pass_and_records_missing_coverage) ... ok
+test_structured_failure_remains_fail (test_runner.RunnerTests.test_structured_failure_remains_fail) ... ok
+test_timeout_is_blocked_and_captures_logs (test_runner.RunnerTests.test_timeout_is_blocked_and_captures_logs) ... ok
+test_timeout_terminates_process_group_children (test_runner.RunnerTests.test_timeout_terminates_process_group_children) ... ok
+test_todo_driver_is_blocked_not_pass (test_runner.RunnerTests.test_todo_driver_is_blocked_not_pass) ... ok
+test_unimplemented_matrix_axes_are_missing_full_coverage (test_runner.RunnerTests.test_unimplemented_matrix_axes_are_missing_full_coverage) ... ok
+test_wrong_proof_identity_is_blocked (test_runner.RunnerTests.test_wrong_proof_identity_is_blocked) ... ok
+
+----------------------------------------------------------------------
+Ran 26 tests in 7.723s
+
+OK

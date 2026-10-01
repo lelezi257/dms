@@ -1,0 +1,5 @@
+lima-afs-accept-ctl
+aarch64
+Python 3.12.3
+Filesystem     Type   1B-blocks       Used   Available Use% Mounted on
+/dev/vda1      ext4 23843045376 8902291456 14923976704  38% /

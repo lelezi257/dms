@@ -70,8 +70,8 @@ watchdog recovery, product authorization, verbs or the remaining ENV predicates.
 
 The preparation evaluator is a separate Linux CLI. It does not modify the
 lock or formal cases. It reports observed resource/storage facts and outstanding
-checks. Complete network/TLS/fault, backend restart, verbs, reference-suite,
-comparator mount and frozen-input semantic verification is still required;
+checks. Fresh live environment qualification, backend restart, verbs,
+reference-suite, comparator mount and frozen-input semantic verification is still required;
 the current partial evaluator cannot qualify full acceptance. A future frozen
 verifier must also check live identities instead of treating old inventories as
 current observations.

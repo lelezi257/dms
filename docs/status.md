@@ -25,6 +25,15 @@ The [delivery acceptance contract](acceptance.md) requires JuiceFS default same-
 
 ## Current Validation Checkpoint
 
+The [network preparation evaluator](../development/evidence/20261001-network-predicate/README.md)
+passes 34 related Linux regressions and 26 affected runner checks. It validates
+hash-bound recorded TCP/UDP/mTLS and directed-fault observations; the actual
+combined report remains BLOCKED with 36 passed predicates and ten outstanding
+prerequisites. A real evaluator/runner consumer fixture blocks full dispatch.
+This is acceptance-tool validation, not product or formal acceptance. Rust
+inputs, the original source gate, PREPARING lock and all 69 NOT_RUN cases remain
+unchanged. The handoff is not refreshed.
+
 The [exact FileVersion reply-loss batch](../development/evidence/20261001-file-commit/README.md) passes the v64 Linux stage gate: 190 related regressions, 399 library tests, 58 contracts, four shared errors, nine local API tests and five privileged FUSE tests; two existing library environment ignores remain. Format, strict workspace Clippy, feature checks and binaries pass, with 143 exact input hashes. Meta binds the full commit request to its operation identity and rejects changed-body replay. Real memory Meta commits before the reply is withheld; Node keeps its exact request, blocks later mutations only for that inode, allows another inode in the same engine to progress, and closes/reopens with correct bytes and EOF after confirmation. Legacy direct outcomes remain readable but cannot authorize an unprovable replay. This is plain loopback/R1 development evidence, not persistent-backend crash recovery, TLS/RDMA faults or formal acceptance.
 
 The [earlier repair reply-loss proof](../development/evidence/20261001-repair-unknown-ack/README.md) retains its v63 identity: exact claim/report retries preserve outcomes/revisions and transfer 64 KiB only once. Existing deployed runtimes and earlier RXE results retain their original identities; this source gate does not qualify them as v64 deployments.

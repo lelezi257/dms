@@ -424,3 +424,22 @@ RED. Cleanup and final format/build/strict-Clippy/fmt-check all complete.
 Earlier repeated runs remain tied to their earlier SHA, not reassigned to
 this final candidate. Final raw evidence/input hashes are indexed by
 `unlinked-alias-final-analysis.json` / `unlinked-alias-final-inputs.json`.
+
+## First getcwd before any repair callback (historical diagnostic)
+
+The 20-case binary SHA256 `017932c8613bdf3d7a6e3bee623347accd604379c57461313caa578df4dbc10f`
+adds `privileged_native_move_first_getcwd_probe`. Native move and old-name
+replacement occur before either prepared cwd actor first asks for its path.
+The FUSE actor returns `left/moving`, the native actor `right/moving`;
+moving-directory GETATTR count stays 4 before and after. Thus this operation
+cannot be repaired by waiting for a FUSE callback that it does not issue.
+The unchanged strong-equivalence assertion fails after owned actor cleanup.
+
+Run `directory-20261001T032414-5552aea2` records repair-off 13 PASS/7 FAIL and
+repair-on 17 PASS/3 FAIL, none ignored; test exit101 and collection exit0
+are distinct. Parent mounts are unchanged and disposable data empty in both.
+fmt/build/strict Clippy/fmt-check succeeded. Raw copies and input hashes are
+under external `vm-first-getcwd/` and `first-getcwd-inputs.json`.
+With the subsequently user-accepted native profile this first-getcwd mismatch
+is boundary evidence, not a current requirement for immediate old-directory
+tracking and not a product acceptance pass. No production policy was changed.

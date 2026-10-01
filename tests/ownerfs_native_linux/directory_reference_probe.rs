@@ -79,6 +79,7 @@ struct ProbeState {
     repair_unlinked: bool,
     coalesced: bool,
     cwd_race: bool,
+    moving_getattrs: std::sync::atomic::AtomicUsize,
     cwd_observers: Mutex<Vec<CwdObserver>>,
     cwd_results: Mutex<Vec<serde_json::Value>>,
     race_parent: Mutex<Option<Arc<File>>>,
@@ -350,6 +351,11 @@ impl Filesystem for ProbeFs {
     }
     fn getattr(&mut self, req: &Request<'_>, ino: u64, _fh: Option<u64>, reply: ReplyAttr) {
         let context = ctx(req);
+        if ino == self.0.moving.value {
+            self.0
+                .moving_getattrs
+                .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        }
         if ino == self.0.moving.value && self.0.helpers.lock().unwrap().contains(&context.pid) {
             println!("directory_helper_header_tid={}", context.pid);
         }
@@ -437,7 +443,7 @@ impl Filesystem for ProbeFs {
         }
     }
 }
-pub fn run(deleted: bool, moved: bool, coalesced: bool, cwd_race: bool) {
+pub fn run(deleted: bool, moved: bool, coalesced: bool, cwd_race: bool, cwd_first: bool) {
     assert_eq!(
         std::env::var("AFS_NATIVE_PRIVATE_NAMESPACE").as_deref(),
         Ok("1")
@@ -498,6 +504,7 @@ pub fn run(deleted: bool, moved: bool, coalesced: bool, cwd_race: bool) {
         repair_unlinked: std::env::var("AFS_NATIVE_UNLINKED_ALIAS_REPAIR").as_deref() == Ok("1"),
         coalesced,
         cwd_race,
+        moving_getattrs: std::sync::atomic::AtomicUsize::new(0),
         cwd_observers: Mutex::new(Vec::new()),
         cwd_results: Mutex::new(Vec::new()),
         race_parent: Mutex::new(None),
@@ -582,7 +589,7 @@ os.close(legacy)
     output.read_line(&mut line).unwrap();
     let ready: serde_json::Value = serde_json::from_str(&line).unwrap();
     assert_eq!(ready["ready"], true);
-    if cwd_race {
+    if cwd_race || cwd_first {
         let observer_script = r#"
 import os,sys,json
 print(json.dumps({'ready':True,'pid':os.getpid()}),flush=True)
@@ -657,6 +664,33 @@ print(json.dumps(result),flush=True)
         fs::create_dir(target.join("left/moving")).unwrap();
         fs::write(target.join("left/moving/data"), b"replacement directory").unwrap();
     }
+    // Probe a kernel-only FIRST observation before the main actor makes any
+    // old-reference read/stat/getattr that could trigger automatic repair.
+    let first_getattr_counts = if cwd_first {
+        let before = state
+            .moving_getattrs
+            .load(std::sync::atomic::Ordering::SeqCst);
+        let mut observers = state.cwd_observers.lock().unwrap();
+        for observer in observers.iter_mut() {
+            writeln!(observer.actor.0.stdin.as_mut().unwrap(), "observe").unwrap();
+            let mut line = String::new();
+            observer.output.read_line(&mut line).unwrap();
+            let result: serde_json::Value = serde_json::from_str(&line).unwrap();
+            state.cwd_results.lock().unwrap().push(result);
+            assert!(observer.actor.0.wait().unwrap().success());
+        }
+        observers.clear();
+        let after = state
+            .moving_getattrs
+            .load(std::sync::atomic::Ordering::SeqCst);
+        println!(
+            "directory_first_getcwd before_getattr={before} after_getattr={after} results={}",
+            serde_json::to_string(&*state.cwd_results.lock().unwrap()).unwrap()
+        );
+        Some((before, after))
+    } else {
+        None
+    };
     writeln!(actor.0.stdin.as_mut().unwrap(), "renamed").unwrap();
     line.clear();
     output.read_line(&mut line).unwrap();
@@ -702,9 +736,29 @@ print(json.dumps(result),flush=True)
     );
     drop(session);
     println!(
-        "directory_reference_probe deleted={deleted} moved={moved} coalesced={coalesced} cwd_race={cwd_race} repair={} pin_attrs={} unlinked_repair={} actor={ready} observed={observed} second={second}",
+        "directory_reference_probe deleted={deleted} moved={moved} coalesced={coalesced} cwd_race={cwd_race} cwd_first={cwd_first} repair={} pin_attrs={} unlinked_repair={} actor={ready} observed={observed} second={second}",
         state.repair, state.pin_attrs, state.repair_unlinked
     );
+    if let Some((before, after)) = first_getattr_counts {
+        assert_eq!(
+            before, after,
+            "first getcwd must not be concealed by a moving-directory GETATTR repair"
+        );
+        let results = state.cwd_results.lock().unwrap();
+        assert_eq!(
+            results.len(),
+            2,
+            "two first-observation cwd actors required"
+        );
+        assert_eq!(
+            results[1]["path"], "right/moving",
+            "native moved cwd oracle"
+        );
+        assert_eq!(
+            results[0], results[1],
+            "FIRST getcwd must follow native directory move without caller relookup"
+        );
+    }
     assert_eq!(
         observed["native_parent"]["data"],
         if moved { "RIGHT" } else { "LEFT" }

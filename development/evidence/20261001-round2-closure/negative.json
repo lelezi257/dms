@@ -1,0 +1,15 @@
+{
+  "status": "PASS",
+  "count": 9,
+  "negative_tests": [
+    "cold read corruption",
+    "transport fallback",
+    "no real RDMA bytes",
+    "no restart",
+    "short reserve",
+    "failed consistency",
+    "lost copies",
+    "compiler delta",
+    "bad caller status"
+  ]
+}

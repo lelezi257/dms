@@ -1,0 +1,33 @@
+{
+  "status": "PASS",
+  "count": 27,
+  "checks": [
+    "valid observed flat schema",
+    "posted operation",
+    "posted bytes",
+    "posted data_wr_id",
+    "posted poisoned",
+    "posted qp",
+    "missing posted",
+    "failed inferior",
+    "reversed timing",
+    "different process",
+    "missing posted thread",
+    "lost paused MR",
+    "wrong device",
+    "retained MR with no live owner",
+    "changed resource identity",
+    "nested unsupported JSON",
+    "missing completion",
+    "duplicate completion",
+    "wrong content claim",
+    "replay claim",
+    "arbitrary cancellation is not a deadline",
+    "missing deadline",
+    "source MR retired before drain",
+    "unexplained absent late write",
+    "fixture close must be explicit",
+    "source must remain alive",
+    "server endpoint removed before drain"
+  ]
+}

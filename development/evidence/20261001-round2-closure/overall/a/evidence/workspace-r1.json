@@ -1,0 +1,33 @@
+{
+  "status": "PASS",
+  "which": "a",
+  "action": "workspace",
+  "utc": "2026-10-01T12:32:42Z",
+  "formal_acceptance": "NOT_RUN",
+  "result": {
+    "workspace": "workspace-round2-v82",
+    "home": {
+      "checked_at_unix_ms": 1790857962089,
+      "home_data_addr": "https://192.168.109.12:20582",
+      "home_grpc_addr": "https://192.168.109.12:20582",
+      "home_lease_epoch": 1,
+      "home_node_id": "round1-a",
+      "home_rest_addr": "http://192.168.109.12:20583",
+      "home_serving": true,
+      "home_session_expires_at_unix_ms": 1790857985445,
+      "home_session_id": "b6e850d7-7c0b-4fbc-9785-817b3a58054d",
+      "owner": "round1-a",
+      "revision": 5,
+      "root_epoch": 1,
+      "root_id": "root-776f726b73706163652d726f756e64322d763832",
+      "status": "serving"
+    },
+    "identity": {
+      "pid": 749518,
+      "start_ticks": "10806097",
+      "boot_id": "36a572e0-859b-4a94-adc7-789210a83fc8",
+      "sha256": "a3fe6573fc5f5a41c30b823855cfe2fdd1428950f878f1e29756e7bfc0d7e9d9",
+      "exe": "/var/lib/afs-acceptance/candidates/eio-v80-r2/prefix/bin/afs-node"
+    }
+  }
+}

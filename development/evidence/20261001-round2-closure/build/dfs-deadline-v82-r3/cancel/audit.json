@@ -1,0 +1,94 @@
+{
+  "status": "PASS",
+  "level": "local regression",
+  "test": "node::rpc::data::tests::dfs_replica_posted_rdma_deadline_has_unknown_outcome",
+  "profile": "dfs-deadline",
+  "caller_error": {
+    "code": 16908290,
+    "kind": "DeadlineExceeded",
+    "message": "DFS RDMA replica total deadline exceeded"
+  },
+  "posted": {
+    "event": "posted",
+    "pid": 5922,
+    "thread": [
+      5922,
+      5935,
+      0
+    ],
+    "gdb_thread": 8,
+    "operation": 1,
+    "bytes": 4096,
+    "data_wr_id": 1,
+    "poisoned": false,
+    "qp": 19,
+    "monotonic": 3457.46157098
+  },
+  "resource_identities": {
+    "qp": {
+      "connected": [
+        18,
+        19
+      ],
+      "closed_paused": [
+        18,
+        19
+      ],
+      "drained": []
+    },
+    "mr": {
+      "connected": [
+        1,
+        2
+      ],
+      "closed_paused": [
+        1,
+        2
+      ],
+      "drained": []
+    },
+    "cq": {
+      "connected": [
+        2,
+        3
+      ],
+      "closed_paused": [
+        2,
+        3
+      ],
+      "drained": []
+    },
+    "pd": {
+      "connected": [
+        2,
+        3
+      ],
+      "closed_paused": [
+        2,
+        3
+      ],
+      "drained": []
+    },
+    "ctx": {
+      "connected": [
+        1,
+        2
+      ],
+      "closed_paused": [
+        1,
+        2
+      ],
+      "drained": []
+    }
+  },
+  "formal_acceptance": "NOT_RUN",
+  "environment": "PREPARING",
+  "limits": [
+    "DFS replica public adapter deadline with same-VM loopback business handler and fixture-authorized peer",
+    "Not a new installed cross-VM fault deployment",
+    "Posted and unconsumed does not prove physical DMA pending",
+    "Pausing before CQ polling does not exercise native CQ timeout",
+    "DFS profile explicitly closes the registry while retaining the pooled source MR",
+    "No exceptional provider-destroy or hardware failure qualification"
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "binary": "/home/lzc.guest/afs-build/target/debug/deps/afs-586e1b701367e588",
+  "binary_sha256": "1b6ce184b9fda887bd010786cf4b774f4606af70cca82748521f5ab08ba19378",
+  "native_source_sha256": "b73f13da7441589d3f1e6286658840ee68bc6eaf02d18454172faef657226efa",
+  "runner_sha256": "d43613cc24c4002d526a1b6a7b3b3ac8e418676552e5490da140075f41b77cc3",
+  "device": "rxe0",
+  "profile": "dfs-deadline",
+  "checkpoint_line": 339,
+  "command": [
+    "gdb",
+    "-nx",
+    "-q",
+    "-x",
+    "/home/lzc.guest/afs-build/evidence/dfs-deadline-v82-r3/cancel/checkpoint.gdb",
+    "/home/lzc.guest/afs-build/target/debug/deps/afs-586e1b701367e588"
+  ]
+}

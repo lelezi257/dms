@@ -1,0 +1,12 @@
+{
+  "status": "PASS",
+  "artifact_hashes": 198,
+  "local_links_and_anchors": 95,
+  "compiler_inputs": 143,
+  "production_inputs_changed": 0,
+  "protected_files": "unchanged",
+  "semantic_checks": 67,
+  "negative_checks": 9,
+  "round2": "REPRESENTATIVE_SCOPE_PASS",
+  "formal_acceptance": "NOT_RUN"
+}

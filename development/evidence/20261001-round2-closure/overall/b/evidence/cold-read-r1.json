@@ -1,0 +1,22 @@
+{
+  "status": "PASS",
+  "which": "b",
+  "action": "read",
+  "utc": "2026-10-01T12:35:29Z",
+  "formal_acceptance": "NOT_RUN",
+  "result": {
+    "read": {
+      "outcome": "success",
+      "bytes": 65536,
+      "sha256": "05f451384fb2ef7425a61766a6a6354c2b576816f42ba7bf284c23a47b02d742",
+      "eof": true
+    },
+    "identity": {
+      "pid": 153517,
+      "start_ticks": "9888327",
+      "boot_id": "3adebcd0-cb31-4df0-b18a-e970786ab7fb",
+      "sha256": "a3fe6573fc5f5a41c30b823855cfe2fdd1428950f878f1e29756e7bfc0d7e9d9",
+      "exe": "/var/lib/afs-acceptance/candidates/eio-v80-r2/prefix/bin/afs-node"
+    }
+  }
+}

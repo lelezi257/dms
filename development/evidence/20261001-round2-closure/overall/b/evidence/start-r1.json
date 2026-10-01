@@ -1,0 +1,34 @@
+{
+  "status": "PASS",
+  "which": "b",
+  "action": "start",
+  "utc": "2026-10-01T12:32:36Z",
+  "formal_acceptance": "NOT_RUN",
+  "result": {
+    "controller": {
+      "argv": [
+        "/mnt/lima-afsbdata/afs-delivery/round2-overall-v82/prefix/bin/afs-processctl",
+        "--prefix",
+        "/mnt/lima-afsbdata/afs-delivery/round2-overall-v82/prefix",
+        "--config-dir",
+        "/mnt/lima-afsbdata/afs-delivery/round2-overall-v82/etc",
+        "--run-dir",
+        "/mnt/lima-afsbdata/afs-delivery/round2-overall-v82/run",
+        "--log-dir",
+        "/mnt/lima-afsbdata/afs-delivery/round2-overall-v82/log",
+        "start",
+        "node"
+      ],
+      "exit": 0,
+      "stdout": "started node pid=152962 ready=true\n",
+      "stderr": ""
+    },
+    "identity": {
+      "pid": 152962,
+      "start_ticks": "9872706",
+      "boot_id": "3adebcd0-cb31-4df0-b18a-e970786ab7fb",
+      "sha256": "a3fe6573fc5f5a41c30b823855cfe2fdd1428950f878f1e29756e7bfc0d7e9d9",
+      "exe": "/var/lib/afs-acceptance/candidates/eio-v80-r2/prefix/bin/afs-node"
+    }
+  }
+}

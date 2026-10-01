@@ -3969,6 +3969,8 @@ mod tests {
     use super::*;
     #[cfg(feature = "ownerfs")]
     use super::{make_owner_files_server, make_owner_files_server_with_handler};
+    #[cfg(feature = "dfs")]
+    use crate::node::chunk::ChunkStore;
     use crate::node::rpc::{
         control::make_control_server,
         peer::{DataClientOptions, DataMode, connect_data_client},
@@ -5454,7 +5456,7 @@ mod tests {
             RequestOutcome, Store, StoreOperation, TxnCondition, TxnMutation,
             memory::MemoryBackend,
         };
-        use crate::node::chunk::{ChunkStore, StagedChunk};
+        use crate::node::chunk::StagedChunk;
         let temp = tempfile::tempdir().unwrap();
         let local = Arc::new(LocalChunkStore::open(temp.path(), "receiver").unwrap());
         let staged = StagedChunk::new(OperationId::new("read-fixture"), vec![9; 150 * 1024]);
@@ -5929,6 +5931,337 @@ mod tests {
     }
 
     #[cfg(all(feature = "dfs", feature = "rdma"))]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[ignore = "requires Linux RXE, GDB posted checkpoint, and explicit resume marker"]
+    async fn dfs_replica_posted_rdma_deadline_has_unknown_outcome() {
+        use crate::node::chunk::StagedChunk;
+        use crate::node::rpc::peer::{DfsRdmaPool, PeerConnectionPool, make_replica_data_plane};
+        let device = std::env::var("AFS_TEST_RDMA_DEVICE")
+            .expect("set AFS_TEST_RDMA_DEVICE to the Linux RXE device");
+        let checkpoint = std::path::PathBuf::from(
+            std::env::var("AFS_TEST_RDMA_CHECKPOINT")
+                .expect("set AFS_TEST_RDMA_CHECKPOINT to the GDB evidence directory"),
+        );
+        save_dfs_rdma_resources(&checkpoint, "baseline");
+
+        let (meta, local, _temp, _read) = memory_read_authority_fixture().await;
+        let validator = Arc::new(MemoryReadGrantValidator {
+            service: meta.dfs.as_ref().unwrap().clone(),
+            runtime: tokio::runtime::Handle::current(),
+            calls: std::sync::atomic::AtomicUsize::new(0),
+            unavailable: std::sync::atomic::AtomicBool::new(false),
+        });
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let endpoint = format!("http://{}", listener.local_addr().unwrap());
+        let staged = StagedChunk::new(
+            crate::dfs::OperationId::new("rdma-deadline"),
+            dfs_deadline_payload(4096),
+        );
+        let target = crate::dfs::ReplicaTarget {
+            node_id: "receiver".into(),
+            node_epoch: 1,
+            data_endpoint: endpoint.clone(),
+            device: local.device_descriptor().unwrap(),
+        };
+        let op = crate::node::replication::ReplicaPeerOp {
+            chunk_id: staged.chunk.id.clone(),
+            placement_revision: 1,
+            placement_epoch: 1,
+            replica_group_id: crate::dfs::ReplicaGroupId::new("deadline-fixture"),
+            initiator_node_id: "reader".into(),
+            initiator_node_epoch: 1,
+            ordered_targets: vec![target.clone()],
+            sync_target_count: 1,
+            target_index: 0,
+            target,
+            chain_tail: vec![],
+            repair_claim: None,
+        };
+        let registry = afs_metrics::Registry::new();
+        let metrics = DfsPayloadMetrics::register(&registry).unwrap();
+        let rdma_registry = super::super::control::RdmaSessionRegistry::new(Some(device.clone()));
+        let service = make_dfs_chunks_server_with_transport(
+            Some(local.clone()),
+            Arc::new(AllowDfsTestPeer),
+            Arc::new(CachedDfsReadAuthorizer::new(
+                validator,
+                "receiver".into(),
+                1,
+            )),
+            Arc::new(FixtureReplicaGrant(op.clone())),
+            None,
+            std::time::Duration::from_secs(10),
+            DfsChunkTransportResources {
+                rdma_sessions: rdma_registry.clone(),
+                payload_metrics: Some(metrics.clone()),
+            },
+        );
+        let server = tokio::spawn(async move {
+            Server::builder()
+                .add_service(service)
+                .serve_with_incoming(TcpListenerStream::new(listener))
+                .await
+                .unwrap();
+        });
+        let peers = Arc::new(
+            PeerConnectionPool::new(
+                afs_transport::GrpcConfig::default(),
+                afs_transport::TlsConfig::Disabled,
+                16,
+            )
+            .unwrap(),
+        );
+        let pool = Arc::new(
+            DfsRdmaPool::new(peers.clone(), device, std::time::Duration::from_secs(4)).unwrap(),
+        );
+        let writer = make_replica_data_plane(
+            super::super::peer::DataMode::Rdma,
+            peers,
+            std::time::Duration::from_secs(4),
+            Some(pool.clone()),
+        )
+        .unwrap();
+        let saved = staged.clone();
+        let saved_op = op.clone();
+        let mut write_task = tokio::task::spawn_blocking(move || {
+            writer
+                .put_peer_replica(&saved_op, &saved)
+                .map(|acks| acks.len())
+        });
+        wait_for_dfs_rdma_checkpoint(&checkpoint.join("posted")).await;
+        save_dfs_rdma_resources(&checkpoint, "connected");
+
+        let identity = super::super::control::PeerSessionIdentity::new("reader".into(), 1).unwrap();
+        let session = rdma_registry.session_for(1, &identity).await.unwrap();
+        let retained_endpoint = Arc::downgrade(&session.endpoint);
+        drop(session);
+        let error = tokio::time::timeout(std::time::Duration::from_secs(10), &mut write_task)
+            .await
+            .expect("posted DFS replica write must return the caller deadline")
+            .unwrap()
+            .expect_err("posted DFS replica write must not report success before resume");
+        std::fs::write(
+            checkpoint.join("caller-error.json"),
+            serde_json::to_vec_pretty(&serde_json::json!({
+                "code": error.code().raw(),
+                "kind": format!("{:?}", error.kind()),
+                "message": error.message(),
+            }))
+            .unwrap(),
+        )
+        .expect("save the actual DFS deadline classification");
+        assert_dfs_replica_deadline(&error);
+        assert!(
+            dfs_chunk_content(&local, &staged).is_none(),
+            "replica must not be persisted while the native worker is paused"
+        );
+        assert_eq!(dfs_payload_bytes(&metrics, "grpc", "recv", "replica"), 0);
+        assert_eq!(dfs_payload_bytes(&metrics, "rdma", "recv", "replica"), 0);
+        close_dfs_rdma_session(&endpoint, 1, 1).await;
+        wait_for_dfs_rdma_lookup_removed(&rdma_registry, 1, &identity).await;
+        {
+            let endpoint = retained_endpoint
+                .upgrade()
+                .expect("blocked worker retains server endpoint after lookup removal");
+            assert!(
+                endpoint.try_lock().is_err(),
+                "native worker still owns the server endpoint while paused"
+            );
+        }
+        save_dfs_rdma_resources(&checkpoint, "closed-paused");
+        eprintln!(
+            "AFS_DFS_REPLICA_DEADLINE caller=TIMEOUT lookup=STALE server=RETAINED content=PENDING replay=ABSENT client=RETAINED close=EXPLICIT"
+        );
+        std::fs::write(checkpoint.join("resume"), b"resume native worker\n")
+            .expect("write GDB resume marker");
+
+        wait_for_dfs_endpoint_release(retained_endpoint).await;
+        let bytes = wait_for_dfs_exact_content(&local, &staged).await;
+        assert_eq!(bytes, staged.bytes());
+        assert_eq!(dfs_payload_bytes(&metrics, "rdma", "recv", "replica"), 4096);
+        assert_eq!(dfs_payload_bytes(&metrics, "grpc", "recv", "replica"), 0);
+        drop(pool);
+        save_dfs_rdma_resources(&checkpoint, "drained");
+        eprintln!(
+            "AFS_DFS_REPLICA_DEADLINE drain=COMPLETE content=EXACT endpoint=RELEASED replay=ABSENT client=EXPLICITLY_RETIRED"
+        );
+        server.abort();
+    }
+
+    #[cfg(all(feature = "dfs", feature = "rdma"))]
+    fn dfs_deadline_payload(len: usize) -> Vec<u8> {
+        (0..len)
+            .map(|index| ((index.wrapping_mul(41).wrapping_add(index / 127)) & 0xff) as u8)
+            .collect()
+    }
+
+    #[cfg(all(feature = "dfs", feature = "rdma"))]
+    async fn wait_for_dfs_rdma_checkpoint(path: &std::path::Path) {
+        tokio::time::timeout(std::time::Duration::from_secs(20), async {
+            while !path.exists() {
+                tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+            }
+        })
+        .await
+        .expect("GDB must prove DFS replica data WQE posted before the caller deadline");
+    }
+
+    #[cfg(all(feature = "dfs", feature = "rdma"))]
+    fn save_dfs_rdma_resources(directory: &std::path::Path, phase: &str) {
+        let tids: Vec<u32> = std::fs::read_dir("/proc/self/task")
+            .expect("Linux thread inventory")
+            .map(|entry| {
+                entry
+                    .unwrap()
+                    .file_name()
+                    .to_string_lossy()
+                    .parse()
+                    .unwrap()
+            })
+            .collect();
+        std::fs::write(
+            directory.join(format!("{phase}-process.json")),
+            serde_json::to_vec(&serde_json::json!({"pid": std::process::id(), "tids": tids}))
+                .unwrap(),
+        )
+        .expect("save process identity");
+        for kind in ["qp", "mr", "cq", "pd", "ctx"] {
+            let output = std::process::Command::new("rdma")
+                .args(["-j", "resource", "show", kind])
+                .output()
+                .expect("rdma resource inventory");
+            assert!(output.status.success(), "RDMA {kind} inventory failed");
+            std::fs::write(
+                directory.join(format!("{phase}-{kind}.json")),
+                output.stdout,
+            )
+            .expect("save exact RDMA resources");
+        }
+    }
+
+    #[cfg(all(feature = "dfs", feature = "rdma"))]
+    fn assert_dfs_replica_deadline(error: &afs_error::Error) {
+        assert!(
+            error.kind() == afs_error::ErrorKind::DeadlineExceeded
+                || (error.code() == afs_error::CLIENT_REMOTE_STATUS
+                    && error.kind() == afs_error::ErrorKind::Cancelled
+                    && error.message() == "Timeout expired"),
+            "posted DFS replica write must fail with the request deadline, got {error:?}"
+        );
+    }
+
+    #[cfg(all(feature = "dfs", feature = "rdma"))]
+    async fn close_dfs_rdma_session(endpoint: &str, session_id: u64, peer_node_epoch: u64) {
+        let mut client = afs_protocol::node_data::dfs_chunks_client::DfsChunksClient::connect(
+            endpoint.to_owned(),
+        )
+        .await
+        .expect("connect DFS close client");
+        let mut request = Request::new(DfsCloseRdmaRequest {
+            session_id,
+            peer_node_epoch,
+        });
+        request.set_timeout(std::time::Duration::from_secs(4));
+        client
+            .close_rdma(request)
+            .await
+            .expect("explicit fixture close removes registry lookup while native worker is paused");
+    }
+
+    #[cfg(all(feature = "dfs", feature = "rdma"))]
+    async fn wait_for_dfs_rdma_lookup_removed(
+        registry: &super::super::control::RdmaSessionRegistry,
+        session_id: u64,
+        identity: &super::super::control::PeerSessionIdentity,
+    ) {
+        tokio::time::timeout(std::time::Duration::from_secs(10), async {
+            loop {
+                match registry.session_for(session_id, identity).await {
+                    Ok(_) => tokio::time::sleep(std::time::Duration::from_millis(10)).await,
+                    Err(status) => {
+                        assert_eq!(status.code(), tonic::Code::FailedPrecondition);
+                        if status.message() == "RDMA session poisoned" {
+                            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+                            continue;
+                        }
+                        assert!(
+                            status.message().contains("unknown RDMA session"),
+                            "stale lookup must prove removal, not a live poisoned session: {status:?}"
+                        );
+                        break;
+                    }
+                }
+            }
+        })
+        .await
+        .expect("explicit DFS client teardown must remove the server registry lookup");
+    }
+
+    #[cfg(all(feature = "dfs", feature = "rdma"))]
+    async fn wait_for_dfs_endpoint_release(
+        endpoint: std::sync::Weak<super::super::control::RdmaServerEndpoint>,
+    ) {
+        tokio::time::timeout(std::time::Duration::from_secs(10), async {
+            while endpoint.upgrade().is_some() {
+                tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+            }
+        })
+        .await
+        .expect("server endpoint must release after the paused native transfer resolves");
+    }
+
+    #[cfg(all(feature = "dfs", feature = "rdma"))]
+    async fn wait_for_dfs_exact_content(
+        local: &LocalChunkStore,
+        staged: &crate::node::chunk::StagedChunk,
+    ) -> Vec<u8> {
+        tokio::time::timeout(std::time::Duration::from_secs(10), async {
+            loop {
+                if let Some(bytes) = dfs_chunk_content(local, staged) {
+                    return bytes;
+                }
+                tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+            }
+        })
+        .await
+        .expect("resumed DFS RDMA READ should persist the exact staged Chunk")
+    }
+
+    #[cfg(all(feature = "dfs", feature = "rdma"))]
+    fn dfs_chunk_content(
+        local: &LocalChunkStore,
+        staged: &crate::node::chunk::StagedChunk,
+    ) -> Option<Vec<u8>> {
+        let mut bytes = vec![0; staged.bytes().len()];
+        match local.read_at(&staged.chunk.id, 0, &mut bytes) {
+            Ok(read) => {
+                assert_eq!(read, bytes.len());
+                Some(bytes)
+            }
+            Err(error) => {
+                assert!(
+                    error.message().contains("not cataloged"),
+                    "unexpected replica read error: {error:?}"
+                );
+                None
+            }
+        }
+    }
+
+    #[cfg(all(feature = "dfs", feature = "rdma"))]
+    fn dfs_payload_bytes(
+        metrics: &DfsPayloadMetrics,
+        transport: &str,
+        direction: &str,
+        purpose: &str,
+    ) -> u64 {
+        metrics
+            .bytes
+            .with_label_values(&[transport, direction, purpose])
+            .get()
+    }
+
+    #[cfg(all(feature = "dfs", feature = "rdma"))]
     async fn dfs_product_rdma_replica_and_read_real_verbs_with_mode(
         mode: super::super::peer::DataMode,
         server_rdma: bool,
@@ -6245,7 +6578,7 @@ mod tests {
     #[cfg(feature = "dfs")]
     #[test]
     fn dfs_corrupt_range_publishes_no_grpc_frames_or_rdma_completions() {
-        use crate::node::chunk::{ChunkStore, StagedChunk};
+        use crate::node::chunk::StagedChunk;
         let temp = tempfile::tempdir().unwrap();
         let local = LocalChunkStore::open(temp.path(), "node").unwrap();
         let staged = StagedChunk::new(crate::dfs::OperationId::new("corrupt"), vec![42; 150_000]);
@@ -6277,7 +6610,7 @@ mod tests {
     #[cfg(feature = "dfs")]
     #[tokio::test]
     async fn dfs_range_service_requires_authority_and_streams_bounded_frames() {
-        use crate::node::chunk::{ChunkStore, StagedChunk};
+        use crate::node::chunk::StagedChunk;
         use tokio_stream::StreamExt;
         let temp = tempfile::tempdir().unwrap();
         let local = Arc::new(LocalChunkStore::open(temp.path(), "node").unwrap());

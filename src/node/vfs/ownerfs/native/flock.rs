@@ -4,6 +4,7 @@
 use std::{
     collections::{HashMap, HashSet},
     fs::{File, TryLockError},
+    io,
     sync::{Condvar, Mutex, Weak},
     time::Duration,
 };
@@ -120,9 +121,7 @@ impl NativeFlocks {
                 match request.lock_type {
                     FileLockType::Read => description.file.try_lock_shared().map_err(map_try_lock),
                     FileLockType::Write => description.file.try_lock().map_err(map_try_lock),
-                    FileLockType::Unlock => {
-                        description.file.unlock().map_err(|_| LockError::Poisoned)
-                    }
+                    FileLockType::Unlock => description.file.unlock().map_err(map_io_error),
                 }
             });
             match result {
@@ -208,15 +207,18 @@ impl NativeFlocks {
             .filter(|(owner, description)| matches(owner, description))
             .map(|(owner, _)| owner.clone())
             .collect::<HashSet<_>>();
-        let mut failed = false;
+        let mut failure = None;
         for owner in &owners {
             let description = &state.descriptions[owner];
-            if description.file.unlock().is_ok() {
-                state.descriptions.remove(owner);
-            } else {
-                // Keep the pin for retry; dropping a clone does not release a
-                // lock while the original Home descriptor is still open.
-                failed = true;
+            match description.file.unlock() {
+                Ok(()) => {
+                    state.descriptions.remove(owner);
+                }
+                Err(error) => {
+                    // Keep the pin for retry; dropping a clone does not release
+                    // a lock while the original description is still open.
+                    failure.get_or_insert_with(|| map_io_error(error));
+                }
             }
         }
         let waiting = state
@@ -239,11 +241,7 @@ impl NativeFlocks {
             }
         }
         self.cv.notify_all();
-        if failed {
-            Err(LockError::Poisoned)
-        } else {
-            Ok(())
-        }
+        failure.map_or(Ok(()), Err)
     }
 
     pub(super) fn release_owner(&self, owner: &FileLockOwner) -> Result<(), LockError> {
@@ -257,6 +255,12 @@ impl NativeFlocks {
     pub(super) fn release_session(&self, scope: &str) -> Result<(), LockError> {
         {
             let mut state = self.state.lock().map_err(|_| LockError::Poisoned)?;
+            if state.invalidated {
+                drop(state);
+                // Cleanup may retry a failed unlock, but cannot repopulate
+                // session history after the entire table has been fenced.
+                return self.release_matching(|owner, _| owner.ingress_session_id == scope);
+            }
             if !state.closed_scopes.contains(scope)
                 && state.closed_scopes.len() >= MAX_CLOSED_SCOPES
             {
@@ -280,7 +284,18 @@ impl NativeFlocks {
             .lock()
             .map_err(|_| LockError::Poisoned)?
             .invalidated = true;
-        self.release_matching(|_, _| true)
+        let result = self.release_matching(|_, _| true);
+        let mut state = self.state.lock().map_err(|_| LockError::Poisoned)?;
+        // Permanent invalidation fences every replay. Exact terminal/session
+        // history is no longer needed, and blocked threads must not recreate
+        // it when waking. Failed unlock descriptions remain pinned for retry.
+        state.waiters.clear();
+        state.outcomes.clear();
+        state.retired.clear();
+        state.closed_scopes.clear();
+        state.admission_closed = false;
+        self.cv.notify_all();
+        result
     }
 
     pub(super) fn is_idle(&self) -> Result<bool, LockError> {
@@ -315,6 +330,153 @@ fn terminal_budget(state: &State) -> usize {
 fn map_try_lock(error: TryLockError) -> LockError {
     match error {
         TryLockError::WouldBlock => LockError::WouldBlock,
-        TryLockError::Error(_) => LockError::Poisoned,
+        TryLockError::Error(error) => map_io_error(error),
+    }
+}
+
+fn map_io_error(error: io::Error) -> LockError {
+    match error.kind() {
+        io::ErrorKind::WouldBlock => LockError::WouldBlock,
+        io::ErrorKind::Interrupted => LockError::Interrupted,
+        _ => LockError::Kernel(error.raw_os_error().unwrap_or(libc::EIO)),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::node::vfs::{
+        Backend,
+        ownerfs::{OpenFileHandle, tests::native_flock_fixture},
+        types::{FileLockKind, FileLockRange},
+    };
+    use std::{io, sync::Arc, time::Instant};
+
+    #[test]
+    fn native_flock_kernel_errno_survives_conversion() {
+        for errno in [
+            libc::EBADF,
+            libc::ENOLCK,
+            libc::EINTR,
+            libc::ENOSYS,
+            libc::EINVAL,
+            libc::EAGAIN,
+            libc::EOPNOTSUPP,
+            libc::ENOMEM,
+        ] {
+            let error = map_try_lock(TryLockError::Error(io::Error::from_raw_os_error(errno)));
+            assert_eq!(error.errno(), errno);
+            let public = crate::node::vfs::ownerfs::owner_lock_error(error);
+            assert_eq!(crate::error::errno(&public), errno);
+        }
+        assert_eq!(map_try_lock(TryLockError::WouldBlock).errno(), libc::EAGAIN);
+    }
+
+    #[test]
+    fn native_flock_invalidated_closed_scope_capacity_is_reclaimable() {
+        let flock = NativeFlocks::default();
+        for scope in 0..=MAX_CLOSED_SCOPES {
+            flock.release_session(&format!("scope-{scope}")).unwrap();
+        }
+        assert!(!flock.is_idle().unwrap());
+        flock.invalidate().unwrap();
+        assert!(flock.is_idle().unwrap());
+        assert_eq!(
+            flock.cancel(LockWaiterId {
+                ingress_session_id: "scope-0".into(),
+                request_id: 1,
+            }),
+            Err(LockError::Interrupted)
+        );
+    }
+
+    #[test]
+    fn native_flock_failed_unlock_keeps_pin_and_reports_kernel_errno() {
+        use std::os::{fd::AsRawFd, unix::fs::OpenOptionsExt};
+        let (_temp, fs, ctx, _root, file, native) = native_flock_fixture();
+        let slot = fs
+            .require_local()
+            .unwrap()
+            .open_file_handle(file.handle)
+            .unwrap();
+        // An actual valid O_PATH descriptor: flock/unlock fail with EBADF.
+        // Do not close a Rust-owned fd behind its back or fake an unlock ACK.
+        let path_only = File::options()
+            .read(true)
+            .custom_flags(libc::O_PATH)
+            .open(format!("/proc/self/fd/{}", native.as_raw_fd()))
+            .unwrap();
+        let owner = FileLockOwner {
+            ingress_session_id: "fault".into(),
+            kernel_owner: 7,
+        };
+        let flock = NativeFlocks::default();
+        flock
+            .prepare(file.handle, &owner, path_only, Arc::downgrade(&slot))
+            .unwrap();
+        assert_eq!(flock.invalidate().unwrap_err().errno(), libc::EBADF);
+        assert!(!flock.is_idle().unwrap(), "failed unlock pin was discarded");
+        assert_eq!(
+            flock.release_session("fault").unwrap_err().errno(),
+            libc::EBADF
+        );
+        assert!(!flock.is_idle().unwrap());
+        fs.release(&ctx, file.handle).unwrap();
+    }
+
+    #[test]
+    fn native_flock_invalidate_drains_blocked_waiter_without_recreating_outcome() {
+        let (_temp, fs, ctx, _root, file, native) = native_flock_fixture();
+        let local = fs.require_local().unwrap();
+        let slot = local.open_file_handle(file.handle).unwrap();
+        let descriptor = {
+            let slot = slot.lock().unwrap();
+            let OpenFileHandle::Local(open) = &slot.file else {
+                panic!("not local");
+            };
+            open.handle.file.try_clone_descriptor().unwrap()
+        };
+        let owner = FileLockOwner {
+            ingress_session_id: "blocked".into(),
+            kernel_owner: 7,
+        };
+        let id = LockWaiterId {
+            ingress_session_id: "blocked".into(),
+            request_id: 1,
+        };
+        let flock = Arc::new(NativeFlocks::default());
+        flock
+            .prepare(file.handle, &owner, descriptor, Arc::downgrade(&slot))
+            .unwrap();
+        native.try_lock().unwrap();
+        let request = LockRequest {
+            kind: FileLockKind::Flock,
+            owner,
+            pid: 7,
+            range: FileLockRange {
+                start: 0,
+                end: u64::MAX,
+            },
+            lock_type: FileLockType::Write,
+        };
+        let worker_flock = flock.clone();
+        let worker_id = id.clone();
+        let worker = std::thread::spawn(move || worker_flock.setlk(request, Some(worker_id)));
+        let deadline = Instant::now() + Duration::from_secs(2);
+        while !flock.state.lock().unwrap().waiters.contains_key(&id) {
+            assert!(
+                Instant::now() < deadline,
+                "waiter did not enter kernel retry loop"
+            );
+            std::thread::yield_now();
+        }
+        flock.invalidate().unwrap();
+        assert_eq!(worker.join().unwrap(), Err(LockError::Interrupted));
+        assert!(
+            flock.is_idle().unwrap(),
+            "fenced waiter recreated terminal state"
+        );
+        native.unlock().unwrap();
+        fs.release(&ctx, file.handle).unwrap();
     }
 }

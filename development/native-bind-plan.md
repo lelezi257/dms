@@ -257,3 +257,27 @@ The user explicitly accepted the previously presented close-to-open and retained
   recovered current permits, full Meta deletion/reclaim/switch lifecycle,
   applicable POSIX/P2P/mmap and paired native-ext4 performance. Mountpoint
   metadata retention and a revoked RootGrant do not stop native fd I/O.
+
+## Native flock retirement and errno slice
+
+- [x] Reproduce retained outcome/retired/session state making invalidated native
+  tables unreclaimable, including all512 inode-table slots and blocked waiters.
+- [x] Preserve permanent replay fencing while clearing obsolete terminal/session
+  history. Failed kernel unlocks retain their descriptor pins and prevent idle
+  reclamation; later session cleanup can retry without repopulating history.
+- [x] Preserve kernel errno through acquisition/unlock and public OwnerFs error
+  conversion. Shared LockError gains a kernel-errno variant; the shared userspace
+  model and DFS do not emit it or change their state transitions. Existing Node
+  VFS unsupported classification carries ENOSYS without changing the catalog.
+- [x] Run all-feature library regressions381 PASS/2 existing ignored and current
+  VM foundation17 PASS. Full-project and lint verification outcomes belong in
+  the corresponding evidence checkpoint; none prove Node/Agent readiness.
+- [ ] Before Node native admission, consume current authority control and compare
+  exact Root/epoch/Home session/generation on revocation. The existing Meta
+  WatchRootCommands RPC returns one finite filtered batch, not a live watch.
+  Cursor/high-watermark progress and compaction must be handled explicitly;
+  EOF or an empty response cannot by itself establish a healthy ongoing lease.
+- [ ] Complete native lock authority revalidation, precise failed-release terminal
+  outcomes, applicable POSIX ownership and actual network peer/fault coverage.
+  Production Agent fencing, complete lifecycle and paired ext4 performance
+  remain required by the original goal.

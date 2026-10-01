@@ -1356,6 +1356,9 @@ impl OwnerLockRegistry {
 }
 
 fn owner_lock_error(error: LockError) -> Error {
+    if error == LockError::Kernel(libc::ENOSYS) {
+        return Error::coded(afs_error::NODE_VFS_UNIMPLEMENTED, error.to_string());
+    }
     Error::from(io::Error::from_raw_os_error(error.errno()))
 }
 fn owner_lock_capacity() -> Error {
@@ -7556,7 +7559,7 @@ mod tests {
         native.unlock().unwrap();
     }
 
-    fn native_flock_fixture() -> (
+    pub(super) fn native_flock_fixture() -> (
         tempfile::TempDir,
         Arc<OwnerFs>,
         RequestContext,
@@ -8386,6 +8389,58 @@ mod tests {
         local.admit_native_file(open, RootRight::Read).unwrap();
         drop(slot);
         fs.release(&ctx, file.handle).unwrap();
+    }
+
+    #[test]
+    fn native_invalidated_flock_tables_release_registry_capacity_without_replay() {
+        let mut registry = OwnerLockRegistry::default();
+        let id = LockWaiterId {
+            ingress_session_id: "old-session".into(),
+            request_id: 1,
+        };
+        for inode in 0..MAX_OWNER_LOCK_TABLES {
+            let table = registry
+                .table(
+                    OwnerLockKey {
+                        root_id: RootId("retired-root".into()),
+                        epoch: 1,
+                        identity: inode.to_le_bytes().to_vec(),
+                    },
+                    true,
+                )
+                .unwrap();
+            // Exercise both unacknowledged and acknowledged terminal state.
+            table.cancel_waiter_with_outcome(id.clone()).unwrap();
+            table.acknowledge_waiter(&id).unwrap();
+            table
+                .cancel_waiter_with_outcome(LockWaiterId {
+                    request_id: 2,
+                    ..id.clone()
+                })
+                .unwrap();
+            table.invalidate().unwrap();
+            assert_eq!(
+                table.setlk_nonblocking(native_flock_request(
+                    "old-session",
+                    1,
+                    FileLockType::Write
+                )),
+                Err(LockError::Interrupted)
+            );
+        }
+        let new_table = registry.table(
+            OwnerLockKey {
+                root_id: RootId("current-root".into()),
+                epoch: 2,
+                identity: vec![0],
+            },
+            true,
+        );
+        assert!(
+            new_table.is_ok(),
+            "retired native tables exhausted inode capacity"
+        );
+        assert_eq!(registry.tables.len(), 1);
     }
 
     fn test_owner_lock(scope: &str, kernel_owner: u64, lock_type: FileLockType) -> LockRequest {

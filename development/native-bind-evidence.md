@@ -4,7 +4,78 @@ Issue: https://github.com/lelezi257/dms/issues/42. Plan: `native-bind-plan.md`.
 
 This is an intermediate slice, not feature completion, product acceptance or performance qualification. It does not enable native exports in Node. Default configuration does not enable native admission. The optional hint hook remains inert without a sink; ordinary directory identity refresh now reconciles cached descendants after an external move. Node/FUSE/P2P integration, cross-path locks/cache/mmap, full Node/Agent lifecycle recovery and ext4 performance comparison remain outstanding.
 
-## Current checkpoint: revoked Home authority and normal teardown (2026-10-01)
+## Current checkpoint: native flock retirement and errno (2026-10-01)
+
+Source parent is `54d6f59cc881d987afd26ebd57cd5e26e688f18d`; exact tested dirty
+inputs are retained in external snapshot
+`native-flock-retirement-candidate-20261001T062706`. This remains a foundation
+slice. Node native admission, managed Agent fencing, applicable POSIX/network
+P2P/mmap, full deletion/reclaim/switch/recovery and native-ext4 performance are
+not complete; no PR has been created or merged.
+
+Five new regressions cover all512 retired inode-table slots, exhausted session
+history, blocked-waiter invalidation without recreated outcomes, errno conversion
+through the public OwnerFs/FUSE mapping, and actual failed kernel unlock with
+retained cleanup pins. Permanent invalidation rejects new locking and replay,
+clears obsolete terminal/session history, and wakes blocked threads. Descriptions
+whose unlock failed remain pinned and non-idle; session cleanup retries them
+without creating new history. An actual valid O_PATH fd produces EBADF on
+unlock; neither unsafe fd reuse nor a synthetic successful unlock was used.
+
+Initial malformed-test compiler errors and a corrected cleanup-API assertion
+are preserved separately. Actual behavior REDs:
+`native-flock-retirement-red.log` reports both unreclaimable invalidation cases
+and EIO substituted for EBADF; `native-flock-registry-red.log` proves all512
+retired tables prevent a new inode from being admitted;
+`native-flock-unlock-errno-red.log` reproduces the actual unlock errno loss.
+The intermediate `native-flock-retirement-green.log` is an overall FAIL:
+26 cases pass after retirement cleanup, while the separate errno case still
+fails. The name is not a successful outcome; its exit record remains1.
+
+The final `native-flock-retirement-lib.log` records381 all-feature library PASS
+and2 existing ignored. The full root-project command
+`cargo test --all-features --message-format=short` exits0 in
+`native-flock-retirement-project.log`, including39 Meta tests and45 native
+contract/event/journal/transaction tests. Ignored kernel/FUSE/RDMA/Redis cases
+remain ignored. Per-suite accounting is saved alongside the log. The earlier
+DFS expiry failure and realtime/monotonic observations remain unchanged evidence;
+this successful run does not establish a clock fix. Earlier third-party fuser
+full-workspace/all-ABI test failures also remain unqualified by a root-project
+run. Strict workspace/all-target/all-feature Clippy and fmt check PASS.
+`cargo check --all-targets` also exits0 for no features, OwnerFs-only and
+DFS-only. No-feature and DFS-only checks emit the two existing OwnerFs-only
+`try_clone_descriptor` dead-code warnings in localfs.rs; these runs are
+compilation checks, not a claim of warning-free strict lint for every variant.
+
+The source interface change is limited to an added `LockError::Kernel(errno)`
+variant plus native OwnerFs conversion. The shared userspace lock model and
+DFS do not produce the new variant or change their state transitions. Standard
+flock errno cases EBADF/ENOLCK/EINTR/EINVAL/EAGAIN/EOPNOTSUPP/ENOMEM are checked
+through existing stable domain codes and FUSE errno conversion. Kernel ENOSYS
+uses the existing Node VFS unimplemented classification. Kernel syscall errors
+are not mislabeled as poisoned mutex state. This does not introduce a general
+raw-errno extension to the shared wire protocol or error catalog.
+
+Current VM binary: default-feature `ownerfs_native_linux-79c664a798ade2c9`, SHA256
+`24edd642eb2d8dd46684a54613c8bd57e15049bd840c6fa9249943498f15fae3`.
+`foundation-20261001T062715-d249d32a` records17 classified private-namespace
+foundation cases PASS, including native/Home flock arbitration and Home-grant
+revoke/busy/normal detach. All17 parent mountinfo pairs match and all17
+disposable-data directories are empty in independent raw-archive inspection.
+Archive SHA256:
+`bf46eb10063fc9b853dafe4439839f18cb477ef7402afbca5bea0a27228c262f`.
+Seven stronger-directory diagnostics are explicitly NOT_RUN. These are in-process
+Home/Meta fixtures, not actual production Node/network peer/Agent/performance
+qualification.
+
+Next integration prerequisites are recorded in the plan: exact native lock
+Home-authority revalidation and failed-release terminal outcomes, plus Node
+consumption of a bounded current-authority control feed. The existing Meta
+WatchRootCommands RPC returns one finite filtered batch; an empty/ended stream
+is not by itself an ongoing authority lease. Compaction and cursor advancement
+must be addressed before relying on it for native Agent admission/fencing.
+
+## Previous checkpoint: revoked Home authority and normal teardown (2026-10-01)
 
 Source parent is `034a188dfc40495d941f6756bc6d616344248092`; the tested dirty
 inputs are preserved in external snapshot

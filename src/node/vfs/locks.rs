@@ -39,6 +39,9 @@ pub enum LockError {
     DuplicateWaiter,
     InvalidRange,
     Poisoned,
+    /// A kernel-backed coordinator reports the actual syscall failure.
+    /// The userspace OwnerFs/DFS model does not produce this variant.
+    Kernel(i32),
 }
 
 impl LockError {
@@ -51,6 +54,7 @@ impl LockError {
             Self::DuplicateWaiter => libc::EINVAL,
             Self::InvalidRange => libc::EINVAL,
             Self::Poisoned => libc::EIO,
+            Self::Kernel(errno) => *errno,
         }
     }
 }
@@ -65,6 +69,7 @@ impl fmt::Display for LockError {
             Self::DuplicateWaiter => "duplicate live file lock waiter id",
             Self::InvalidRange => "invalid file lock range",
             Self::Poisoned => "file lock table is poisoned",
+            Self::Kernel(errno) => return write!(f, "kernel file lock failed (errno {errno})"),
         })
     }
 }

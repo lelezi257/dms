@@ -45,9 +45,13 @@ construction, calls the existing Home authority/mount manager, and starts a
 native Actor after verifying physical activation. Same-length overwrite,
 shortening, empty files, remote writeback, retained FUSE/P2P fd identity after
 native rename replacement, and writes to that old object all pass; normal
-detach and every Actor/Node/Meta exit are verified. This does not qualify
-production configuration/READY, unlink-and-recreate negative lookup, concurrency,
-locks, mmap/watch, managed fencing or performance. [E12 raw input identities,
+detach and every Actor/Node/Meta exit are verified. E13 adds fresh ENOENT after
+unlink on native/local-FUSE/remote-FUSE paths, same-name recreation, continued
+old-object isolation, and close/reopen after retaining a warmed reader across
+attachment and native changes. A2 is closed for this native-eligible A/B chain.
+This does not qualify production configuration/READY, ordinary/mixed client
+cache policy, concurrency, locks, mmap/watch, managed fencing or performance.
+[E12/E13 raw input identities,
 failed collection and offline verification](../development/native-bind-evidence.md#current-node-cross-vm-native-object-probe-2026-10-01)
 preserve the exact experimental scope. Release Node still uses ordinary OwnerFs;
 the test driver is absent from release and non-Linux builds.

@@ -108,20 +108,32 @@ def main():
         detach = next(row["detach"] for row in result["cleanup"] if "detach" in row)
         assert detach["state"] == "Detached" and detach["observed"] is None
         reads = []
+        missing = []
+        extended = result.get("case_profile") == "a2-close-reopen-unlink-recreate"
         for line in (directory / "transcript.jsonl").read_text().splitlines():
             row = json.loads(line)
             if not row.get("input"):
                 continue
             command = json.loads(row["input"])
             reply = json.loads(row["stdout"])
-            assert row["exit"] == 0 and command["id"] == reply["id"] and reply["ok"]
+            assert row["exit"] == 0 and command["id"] == reply["id"]
+            ip = row["command"][-2].removeprefix("lzc@")
+            role = next(role for role, host in result["hosts"].items() if host == ip)
+            if command.get("handle") == "missing":
+                assert extended and command["operation"] == "open" and command["name"] == "identity"
+                assert not reply["ok"] and reply["errno"] == 2
+                missing.append((role, command["actor"]))
+                continue
+            assert reply["ok"]
             if command["operation"] == "read":
-                ip = row["command"][-2].removeprefix("lzc@")
-                role = next(role for role, host in result["hosts"].items() if host == ip)
                 reads.append((role, command["actor"], command["handle"], reply["result"]))
         expected_reads = [("b", "remote", "fresh", "original-A-data")]
+        if extended:
+            expected_reads += [("b", "remote", "warmed", "original-A-data")]
         for text in ("same-length-ABC", "short", "", "longer-native-value-after-empty"):
             expected_reads += [("b", "remote", "fresh", text), ("a", "oldfuse", "fresh", text)]
+        if extended:
+            expected_reads += [("b", "remote", "fresh", "longer-native-value-after-empty")]
         expected_reads += [("a", "native", "fresh", "remote-to-native"),
             ("a", "oldfuse", "old", "original-object"),
             ("a", "oldfuse", "fresh", "replacement-object"),
@@ -131,6 +143,15 @@ def main():
             ("a", "native", "fresh", "replacement-object"),
             ("a", "oldfuse", "old", "old-object-through-P2P"),
             ("b", "remote", "old", "old-object-through-P2P")]
+        if extended:
+            expected_reads += [("b", "remote", "fresh", "recreated-object"),
+                ("a", "oldfuse", "fresh", "recreated-object"),
+                ("a", "oldfuse", "old", "old-object-through-P2P"),
+                ("b", "remote", "old", "old-object-through-P2P"),
+                ("a", "oldfuse", "old", "old-still-isolated"),
+                ("a", "native", "fresh", "recreated-object")]
+            assert missing == [("a", "native"), ("a", "oldfuse"), ("b", "remote")]
+            summary["fresh_missing_errno_verified"] = "ENOENT on native/local FUSE/remote FUSE"
         assert reads == expected_reads, reads
         summary["actual_read_assertions"] = len(reads)
     else:

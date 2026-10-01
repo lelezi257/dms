@@ -66,6 +66,7 @@ def main():
     export = False
     sequence = 0
     result = {"run_id": run, "expected_constructor": args.expect,
+              "case_profile": "a2-close-reopen-unlink-recreate",
               "scope": "actual Node bootstrap/Meta/TLS/P2P; test-only mount driver; A2 not performance",
               "input_sha256": {name: digest(out / name) for name in
                                ("node-tests", "afs-meta", "guest.py", "controller.py")},
@@ -121,6 +122,14 @@ def main():
         finally:
             request(role, "close", actor=actor, handle="fresh")
 
+    def expect_missing(role, actor, name):
+        nonlocal sequence
+        sequence += 1
+        reply = guest(role, "actor-command", command={"id": f"c{sequence}",
+                      "operation": "open", "actor": actor, "name": name, "handle": "missing"})
+        assert not reply["ok"] and reply["errno"] == 2, reply
+        result.setdefault("fresh_missing", []).append({"role": role, "actor": actor, "reply": reply})
+
     try:
         for role in roles:
             base = bases[role]
@@ -174,6 +183,9 @@ def main():
         fresh_read("b", "remote", "data", "original-A-data")
         request("a", "open", actor="oldfuse", name="identity", handle="old", flags="O_RDWR")
         request("b", "open", actor="remote", name="identity", handle="old", flags="O_RDWR")
+        if args.expect == "native":
+            request("b", "open", actor="remote", name="data", handle="warmed")
+            assert request("b", "read", actor="remote", handle="warmed") == "original-A-data"
         if args.expect == "ordinary":
             sequence += 1
             reply = guest("a", "driver", command={"id": f"c{sequence}", "operation": "prepare", "name": "agent1"})
@@ -192,6 +204,9 @@ def main():
                 request("a", "write", actor="native", name="data", data=text)
                 fresh_read("b", "remote", "data", text)
                 fresh_read("a", "oldfuse", "data", text)
+            # No live-refresh/snapshot assertion while this reader is open.
+            request("b", "close", actor="remote", handle="warmed")
+            fresh_read("b", "remote", "data", "longer-native-value-after-empty")
             request("b", "write", actor="remote", name="data", data="remote-to-native")
             fresh_read("a", "native", "data", "remote-to-native")
             request("a", "write", actor="native", name="replacement", data="replacement-object")
@@ -205,6 +220,16 @@ def main():
             request("a", "unlink", actor="native", name="identity")
             for role, actor in (("a", "oldfuse"), ("b", "remote")):
                 assert request(role, "read", actor=actor, handle="old") == "old-object-through-P2P"
+            for role, actor in (("a", "native"), ("a", "oldfuse"), ("b", "remote")):
+                expect_missing(role, actor, "identity")
+            request("a", "write", actor="native", name="identity", data="recreated-object")
+            fresh_read("b", "remote", "identity", "recreated-object")
+            fresh_read("a", "oldfuse", "identity", "recreated-object")
+            for role, actor in (("a", "oldfuse"), ("b", "remote")):
+                assert request(role, "read", actor=actor, handle="old") == "old-object-through-P2P"
+            request("b", "write", actor="remote", handle="old", data="old-still-isolated")
+            assert request("a", "read", actor="oldfuse", handle="old") == "old-still-isolated"
+            fresh_read("a", "native", "identity", "recreated-object")
             result["mechanism_result"] = "A2 retained objects and close-to-open candidate evidence"
         for role, actor in (("a", "oldfuse"), ("b", "remote")):
             request(role, "close", actor=actor, handle="old")

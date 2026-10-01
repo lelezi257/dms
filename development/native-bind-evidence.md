@@ -1347,10 +1347,65 @@ VM directories: `/mnt/afsdata/ownerfs-native-network/<run>/` on A/B and
 `/mnt/afsstate/ownerfs-native-network/<run>/` on ctl. Source/build snapshots:
 `/home/lzc/workspace/dms/evidence/ownerfs-native-bind/20261001/`.
 
-Remaining A2 decisive cases are fresh ENOENT/negative lookup after unlink,
+At the E12 checkpoint, remaining A2 decisive cases are fresh ENOENT/negative lookup after unlink,
 same-name recreation and an already-open warmed reader closed/reopened after
 native change. Paused in-flight callbacks, concurrent append/EXCL/locks,
 mmap/watch/permissions, managed epoch/Home switch/fencing, death/recovery and
 all performance gates are still open. No additional semantic exemption is
 inferred, and A2/phase1 remain unchecked until their finite closing conditions
 are satisfied.
+
+### E13: A2 final close/reopen and unlink/recreate combination
+
+`network-probe-20261001T102555-4c76fce1`, snapshot
+`native-network-native-candidate-20261001T102553`, source parent `a7b3aa2`,
+uses newly built Node input matching the committed Linux-only driver and
+formatting. Only the Python experiment's finite cases change. The Meta artifact
+continues to use the explicitly frozen E12 input/SHA; no new Meta behavior or
+etcd/Meta-failure claim is inferred. VM runner terminal0 and offline verification
+PASS. The source AST checks PASS; Node final build and existing strict
+all-feature lib/test Clippy/fmt checks are terminal0.
+
+The original E12 cases are preserved. Additional decisive observations:
+
+1. B opens and reads `data` before A prepares/attaches. That reader stays open
+   across native same-length/short/empty/long modifications. We make no live
+   refresh or snapshot assertion during that interval. B explicitly closes it,
+   then reopens from the stable remote root and reads the full latest value.
+2. After native replacement unlink, fresh open on A native, A retained FUSE
+   dirfd and B remote FUSE all returns exact errno2/ENOENT. These are actual
+   syscalls, not absence inferred from a controller state. Failed opens retain
+   no file handle.
+3. A native recreates the same `identity` name. B and retained local FUSE dirfd
+   fresh opens read `recreated-object`; both old fds still read
+   `old-object-through-P2P`. A further B write through the old fd changes only
+   that old object to `old-still-isolated`; native fresh open of the same name
+   still reads `recreated-object`.
+4. All three Actors explicitly close/quit; normal manager detach records
+   Detached/observed=None. A/B Node and Meta terminal exits0; per-host parent
+   mountinfo is unchanged. Process-owned B→A TCP plus matched A-server/B-client
+   Open11, Read3 and Write3 counters qualify the actual route, not performance.
+
+Root `root-6167656e7431`, epoch1, Home `native-a-4c76fce1`; native source
+device2065/inode1048731, covered FUSE device46/inode2, unique mount id4294979446.
+The three VM boot IDs, PID/start ticks and exact namespaces remain separately
+recorded; ordinary mount id399/namespace inode numbers can repeat across runs
+and are not globally unique identity.
+
+Executed Node SHA:
+`e2a827fa579e5a74e10d3d693fe5defa18a34366aa045e1a6cd141c1b9da0b68`
+(unstripped `1b06ffa884027c9f177799975224c63ef197ef74a3e3e221b29be7daf74b3c5d`).
+Meta executed SHA remains
+`97acaa577443671449a3cac8d25bdbf9b965748c0814d52f468c1bb3486330d6`.
+Raw archives: A
+`6ca5ed92e6172214121ac6ad09a43f986d48b2b0b40000ea23c283875b9abadd`,
+B `91300681c53f6bdd9e703bef6811dab092941ad8c1066459d437cf3938fc4fb5`,
+ctl `964f6db0d4ac1e386c094a9d72b3f817b55a420eeaa9b9202936b880f5d79c2c`.
+
+**A2 closes** using E5's explicitly accepted directory boundary plus
+E2/E6/E12/E13 object/close-to-open evidence. This is not an additional waiver.
+Both actual FUSE clients are native-eligible from construction; mixed ordinary
+client/cache negotiation remains an explicit A4 question, not an excluded
+requirement or an inferred PASS. A1 paused callback/production-ready proof,
+A3 full locks/concurrency, A4 mmap/watch/permissions/cache compatibility,
+A5 managed reclaim/switch, A6 death/namespace recovery and phase2/3 remain open.

@@ -245,7 +245,8 @@ def actor(base, actor_name):
                     raise ValueError("unknown actor operation")
                 result = {"id": command["id"], "ok": True, "result": value}
             except Exception as error:
-                result = {"id": command["id"], "ok": False, "error": repr(error)}
+                result = {"id": command["id"], "ok": False, "error": repr(error),
+                          "errno": getattr(error, "errno", None)}
             save(directory / f"reply-{command['id']}.json", result)
             if operation == "quit" and result["ok"]:
                 return

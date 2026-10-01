@@ -16,6 +16,8 @@ struct FakeState {
     unmounts: usize,
     bind_error: Option<i32>,
     unmount_error: Option<i32>,
+    policy_error: Option<i32>,
+    policy_checks: usize,
     partial_bind: bool,
     foreign_after_bind_error: bool,
 }
@@ -57,6 +59,17 @@ impl MountBackend for FakeBackend {
         } else {
             None
         })
+    }
+    fn verify_policy(&self, _: &WorkspaceMount, mounted: &MountIdentity) -> io::Result<()> {
+        let mut state = self.0.lock().unwrap();
+        state.policy_checks += 1;
+        if state.mounted.as_ref() != Some(mounted) {
+            return Err(io::Error::from_raw_os_error(libc::ESTALE));
+        }
+        if let Some(errno) = state.policy_error {
+            return Err(io::Error::from_raw_os_error(errno));
+        }
+        Ok(())
     }
     fn unmount(&self, _: &WorkspaceMount, _: &MountIdentity) -> io::Result<()> {
         let mut state = self.0.lock().unwrap();
@@ -386,4 +399,38 @@ fn recycled_mountinfo_id_does_not_make_a_replacement_mount_ours() {
         Some(libc::ESTALE)
     );
     assert_eq!(backend.0.lock().unwrap().unmounts, 0);
+}
+
+#[test]
+fn duplicate_activation_revalidates_effective_policy_before_ready() {
+    let (manager, backend) = manager();
+    let spec = spec(1);
+    manager.register(spec.clone()).unwrap();
+    let first = manager.activate(&spec.identity).unwrap();
+    backend.0.lock().unwrap().policy_error = Some(libc::EPERM);
+    let error = manager.activate(&spec.identity).unwrap_err();
+    assert_eq!(error.raw_os_error(), Some(libc::EPERM));
+    let status = manager.status(&spec.identity.root_id).unwrap().unwrap();
+    assert_eq!(status.state, NativeState::Recovering);
+    assert_eq!(status.observed, first.observed);
+    let state = backend.0.lock().unwrap();
+    assert_eq!(state.binds, 1);
+    assert_eq!(state.unmounts, 0);
+    assert!(state.policy_checks >= 2);
+}
+
+#[test]
+fn first_activation_policy_failure_preserves_claim_without_ready_ack() {
+    let (manager, backend) = manager();
+    let spec = spec(1);
+    manager.register(spec.clone()).unwrap();
+    backend.0.lock().unwrap().policy_error = Some(libc::EPERM);
+    let error = manager.activate(&spec.identity).unwrap_err();
+    assert_eq!(error.raw_os_error(), Some(libc::EPERM));
+    let status = manager.status(&spec.identity.root_id).unwrap().unwrap();
+    assert_eq!(status.state, NativeState::Recovering);
+    assert!(status.observed.is_some());
+    let state = backend.0.lock().unwrap();
+    assert_eq!(state.binds, 1);
+    assert_eq!(state.unmounts, 0);
 }

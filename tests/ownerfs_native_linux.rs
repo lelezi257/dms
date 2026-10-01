@@ -280,6 +280,13 @@ impl MountBackend for CrashBackend {
     ) -> std::io::Result<Option<afs::node::vfs::ownerfs::native::MountIdentity>> {
         self.inner.attached_claim(spec)
     }
+    fn verify_policy(
+        &self,
+        spec: &WorkspaceMount,
+        mount: &afs::node::vfs::ownerfs::native::MountIdentity,
+    ) -> std::io::Result<()> {
+        self.inner.verify_policy(spec, mount)
+    }
     fn unmount(
         &self,
         spec: &WorkspaceMount,
@@ -1185,4 +1192,71 @@ mod close_to_open;
 #[ignore = "requires real /dev/fuse, CAP_SYS_ADMIN, private VM namespace and Linux >= 6.8"]
 fn privileged_native_close_to_open_profile() {
     close_to_open::run();
+}
+
+#[test]
+#[ignore = "requires CAP_SYS_ADMIN, private VM namespace, Linux >= 6.8 and VM ext4"]
+fn privileged_duplicate_ready_rejects_changed_mount_policy() {
+    assert_eq!(
+        std::env::var("AFS_NATIVE_PRIVATE_NAMESPACE").as_deref(),
+        Ok("1")
+    );
+    let dir = tempfile::tempdir().unwrap();
+    let (backend, spec) = setup(&dir);
+    let target = dir.path().join("parent/agent1");
+    let source = dir.path().join("source");
+    fs::write(source.join("file"), b"preserved").unwrap();
+    let manager = NativeMountManager::new(spec.identity.namespace, 8, backend).unwrap();
+    manager.register(spec.clone()).unwrap();
+    let first = manager.activate(&spec.identity).unwrap();
+    let mounted = first.observed.clone().unwrap();
+    assert!(
+        std::process::Command::new("mount")
+            .args(["-o", "remount,bind,ro,nosuid,nodev"])
+            .arg(&target)
+            .status()
+            .unwrap()
+            .success()
+    );
+    let changed = afs::node::vfs::ownerfs::native::MountInfo::parse(
+        &fs::read("/proc/self/mountinfo").unwrap(),
+    )
+    .unwrap();
+    assert!(
+        changed
+            .iter()
+            .find(|m| m.mount_id == mounted.mount_id)
+            .unwrap()
+            .mount_options
+            .iter()
+            .any(|flag| flag == "ro")
+    );
+    let duplicate = manager.activate(&spec.identity);
+    let rejected_state = manager.status(&spec.identity.root_id).unwrap().unwrap();
+    // Restore the trusted policy and reconcile the retained ownership claim.
+    // All assertions about the old READY defect occur after owned cleanup.
+    assert!(
+        std::process::Command::new("mount")
+            .args(["-o", "remount,bind,rw,nosuid,nodev"])
+            .arg(&target)
+            .status()
+            .unwrap()
+            .success()
+    );
+    assert_eq!(
+        manager.reconcile(&spec).unwrap().state,
+        NativeState::NativeActive
+    );
+    manager.quiesce(&spec.identity).unwrap();
+    assert_eq!(
+        manager.detach(&spec.identity).unwrap().state,
+        NativeState::Detached
+    );
+    assert_eq!(fs::read(source.join("file")).unwrap(), b"preserved");
+    println!(
+        "native_ready_policy initial={first:?} duplicate={duplicate:?} rejected={rejected_state:?}"
+    );
+    assert_eq!(duplicate.unwrap_err().raw_os_error(), Some(libc::EPERM));
+    assert_eq!(rejected_state.state, NativeState::Recovering);
+    assert_eq!(rejected_state.observed, Some(mounted));
 }

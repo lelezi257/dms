@@ -194,3 +194,14 @@ The user explicitly accepted the previously presented close-to-open and retained
   Full production Node/P2P/lifecycle/lock/mmap and performance gates remain open.
 - Native entry TTL behavior RED preceded the fix.355 library PASS/2 existing
   ignored, strict Clippy/fmt and VM source/binary/cleanup evidence are retained.
+
+## Current-policy readiness slice
+
+- First and duplicate activation now require live effective-policy verification
+  before NativeActive ACK. Policy failures retain owned physical claims in
+  Recovering; restoration/reconciliation then permits normal teardown.
+- Two controller REDs and an actual changed-policy VM RED precede the fix.
+  45 native targeted tests plus15 independently isolated VM foundation cases
+  pass; recorded historical diagnostic exclusions retain their original tests.
+- Production Node worker/ready interface and authority lease, Agent supervisor,
+  network P2P locks/cache/mmap and full lifecycle/performance remain incomplete.

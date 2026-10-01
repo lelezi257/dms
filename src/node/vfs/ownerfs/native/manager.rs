@@ -256,7 +256,12 @@ impl<D: MountBackend> NativeMountManager<D> {
         };
         record.status.observed = actual.clone();
         if record.status.state == NativeState::NativeActive {
-            if actual.is_some() && actual == record.owned_mount {
+            if let Some(mounted) = actual.as_ref()
+                && actual == record.owned_mount
+            {
+                if let Err(error) = self.backend.verify_policy(&record.spec, mounted) {
+                    return self.reject(&mut record, NativeState::Recovering, error);
+                }
                 return Ok(record.status.clone());
             }
             return self.reject(&mut record, NativeState::Recovering, errno(libc::ESTALE));
@@ -291,7 +296,14 @@ impl<D: MountBackend> NativeMountManager<D> {
                 if !mounted.matches(&spec) {
                     return self.reject(&mut record, NativeState::Recovering, errno(libc::ESTALE));
                 }
-                record.owned_mount = Some(mounted);
+                record.owned_mount = Some(mounted.clone());
+                // Identity alone cannot authorize a READY response: remounts
+                // can change effective restrictions without changing the ID.
+                // Retain our claim on verification error for reconciliation;
+                // never misreport FUSE-only or delete backing after attachment.
+                if let Err(error) = self.backend.verify_policy(&spec, &mounted) {
+                    return self.reject(&mut record, NativeState::Recovering, error);
+                }
                 record.success(NativeState::NativeActive);
                 self.finish(&mut record)
             }

@@ -486,3 +486,41 @@ runs; none of the historical stronger directory assertions was removed.
 External inputs: `native-cache-profile-inputs.json`, discovery and
 `vm-native-cto-final/`. Reproduce with eligible cache enabled and the recorded
 binary: `AFS_NATIVE_ELIGIBLE_CACHE=1 ownerfs_native_mount.sh BINARY FRESH_EXT4_DIR SHA privileged_native_close_to_open_profile`.
+
+## Current-policy verification before first or duplicate native READY
+
+A manager defect returned NativeActive for a matching mount identity even after
+that mount was remounted read-only against an expected read/write policy. Actual
+VM RED `directory-20261001T040836-28ba457b` reproduces this twice, preserving mount
+ID/source identity, backing contents and independently verified cleanup. Two
+controller RED tests also prove first and duplicate ACKs lacked policy checks.
+
+Every activation ACK now calls the backend's live effective-policy verification,
+after matching its physical identity. A first post-attach policy error preserves
+the owned claim and observation in Recovering; no false FUSE-only response or
+backing deletion follows. Duplicate policy failure likewise reports an error
+without stacking/removing the mount. After restoring the trusted flags, verified
+reconciliation and normal teardown succeed. The VM wrapper delegates real policy
+checks even in helper-crash tests.
+
+45 targeted native tests pass:18 controller,5 event,10 journal,12 transaction.
+Strict all-target/all-feature Clippy, fmt and integration build pass. Final22-case
+binary SHA256 `98866ee20e8ebd5f3d5db4e9ef2810cb4d2affbc3a62b64a1c01dca08ebbd2ff`; GREEN
+`directory-20261001T041340-d2d10563` repeats the exact ready-policy case twice.
+No claims of Node/Agent authority admission follow from controller readiness.
+
+`foundation-20261001T041347-628e067e` replays15 mount/cache/readiness foundation
+cases individually in fresh private VM namespaces, all PASS, none ignored. Each
+portable case checks unchanged parent mountinfo and empty disposable data. The
+tracked profile manifest partitions all22 discovered tests into15 selected
+foundation cases and7 retained historical strong-directory diagnostics; any
+missing/new/unclassified test rejects replay. The latter are explicitly NOT_RUN
+in this foundation replay, never relabeled as passes. The original unfiltered
+probe still executes them and retains their original assertions.
+
+`ownerfs_native_profile.py` is a foundation regression driver, not full native
+product acceptance. It does not cover production Node bootstrap, remote network
+P2P, kernel-visible locks, supported mmap, authority/Agent fencing, complete
+recovery or performance. Raw logs/manifest/results are preserved in external
+`vm-native-foundation/raw-evidence.tar.gz`; RED/GREEN logs and exact source hashes
+are in `vm-native-ready-*/` and `native-readiness-inputs.json`.

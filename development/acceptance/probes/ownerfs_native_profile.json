@@ -1,0 +1,32 @@
+{
+  "version": 1,
+  "scope": "Mount, cache and readiness foundation only; not Node/P2P, locks/mmap, full lifecycle, performance or release acceptance",
+  "contract": "docs/architecture/ownerfs-native-access.md",
+  "required": [
+    "backend_pins_source_inode_across_source_rename",
+    "backend_rejects_unprepared_or_rebound_spec",
+    "prepared_backend_rejects_replacement_and_symlink_targets",
+    "privileged_duplicate_ready_rejects_changed_mount_policy",
+    "privileged_existing_mount_cannot_be_registered_as_covered_directory",
+    "privileged_fd_mount_over_real_ownerfs_directory",
+    "privileged_journal_maintenance_preserves_active_export_and_data",
+    "privileged_native_close_to_open_profile",
+    "privileged_native_crash_recovery",
+    "privileged_native_lifecycle",
+    "privileged_native_retained_reference_busy_matrix",
+    "privileged_ownerfs_post_reply_workspace_hints_do_not_wait_for_consumer",
+    "privileged_readonly_noexec_policy_and_foreign_mount",
+    "privileged_recovery_does_not_admit_rw_export_under_new_readonly_policy",
+    "privileged_release_retains_live_claim_and_fences_reprepared_epoch"
+  ],
+  "historical_strong_directory_diagnostics": [
+    "privileged_deleted_directory_coalesced_lookup_probe",
+    "privileged_deleted_directory_getcwd_window_probe",
+    "privileged_deleted_directory_reference_worker_probe",
+    "privileged_directory_reference_worker_probe",
+    "privileged_inplace_deleted_directory_reference_worker_probe",
+    "privileged_native_move_first_getcwd_probe",
+    "privileged_old_fuse_directory_tracks_native_rename"
+  ],
+  "diagnostic_reason": "Preserved old-FUSE-reference strong-equivalence probes. Run the original unfiltered probe for those observations; do not relabel their failures as passes."
+}

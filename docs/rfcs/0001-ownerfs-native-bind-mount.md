@@ -41,6 +41,8 @@ Home 普通文件目录：/data/ownerfs/<root-id>-e<epoch>
 
 不是把 FUSE 的 `/ownerfs/agent1` bind 到其他目录；那仍然访问 FUSE。路径保持不变，但 `st_dev/st_ino` 等身份、挂载边界和已有 watch/句柄并不完全透明。
 
+覆盖 workspace 并不覆盖它的父目录 `/ownerfs`。当前零 TTL 策略下，绝对路径解析仍会经 FUSE 查询祖先，再进入 native 子挂载；从已取得的 native cwd/dirfd 开始的相对操作可以避开这部分查询。A1 的[实际请求证据](../../development/native-bind-evidence.md)已确认该区别。两种路径都必须纳入性能穿刺；不能仅凭目标 inode 为 ext4 就承诺完整绝对路径没有 FUSE 开销。
+
 ### 1.1 已接受的 Agent 启动顺序与一致性边界
 
 典型流程为 **管理面创建 workspace → 在 Agent 最终 namespace 中确认 bind 身份和 native ready → 再启动 Agent 并向它暴露挂载**。Agent 在 ready 后才解析路径、取得 cwd/dirfd/file fd；不能继承 bind 前的 FUSE 目录引用。mkdir 返回成功不代表 ready，完整时序与实际 case 见[用户合同](../architecture/ownerfs-native-access.md)。

@@ -35,6 +35,7 @@
 | E7 | E2 retained-reference matrix：独立 native cwd、dirfd、MAP_SHARED/PRIVATE VMA-only 子进程导致正常 umount EBUSY，精确停止该子进程后成功。它不是远端映射一致性或完整 Node fencing。 |
 | E8 | `operation-lifetime-20261001T083318-1affca08` 及 caec0fa 源码：xattr 全调用 RootUse、目录 opening grant/readdir 校验。只能证明相应 admission 边界，不证明实际文件引用排空。 |
 | E9 | `phase1-inventory-20261001T092403`：当前 A/B/ctl 只读清单，逐机保存 command、exit、日志 SHA；A VM headers 确认 bit36 已存在，资源/卷与进程状态如下。不是 mmap 或性能 PASS。 |
+| E10 | `path-probe-20261001T093405-bf9a8b23`：当前生产 FUSE adapter、ready 后子进程、实际 strace请求。16轮绝对路径有192次根元数据请求，native cwd/dirfd为0；旧FUSE对照432。只关闭A1访问路径计数问题，不是性能/Node/P2P资格化。首次观察器失败与纠正后复验均保留。 |
 
 Windows 证据副本：`C:/workspace/code/dms/local/native-bind-vm/<run>/`；VM：`/mnt/afsdata/ownerfs-native-bind/<run>/`。源码输入/构建日志：`/home/lzc/workspace/dms/evidence/ownerfs-native-bind/20261001/`。证据文件必须按摘要校验后使用。
 
@@ -61,7 +62,7 @@ Windows 证据副本：`C:/workspace/code/dms/local/native-bind-vm/<run>/`；VM�
 
 | 关键问题 | 当前分类及证据 | 尚缺的决定性证据 |
 | --- | --- | --- |
-| 同路径新访问与最终 Agent namespace | 已验证可行：E1/E2 原路径落到同一 ext4 source，ready 后子进程 inode/namespace 匹配。实现遗漏：`src/node.rs` 仍构建 ordinary OwnerFs，native worker 未生产接入。 | 使用当前候选、真实 Node/P2P 的最小验证链路，证明 ready 后启动、失败不 ready；绝对路径与 dirfd/cwd 相对路径分别记录 Home FUSE 请求，不能只靠 inode 证明所有路径成本。 |
+| 同路径新访问与最终 Agent namespace | 已验证可行：E1/E2 原路径落到同一 ext4 source，ready 后子进程 inode/namespace 匹配。E10确认绝对路径仍有FUSE祖先查询，相对路径操作为0，文件数据均走native。实现遗漏：`src/node.rs` 仍构建 ordinary OwnerFs，native worker 未生产接入。 | 使用当前候选、真实 Node/P2P 的最小验证链路，证明 ready 后启动、失败不 ready；祖先查询成本须在阶段二实测，若研究缓存替代必须保持权限/epoch/生命周期，不能只测相对路径。 |
 | mkdir 与挂载过渡 | 已验证可行：E1 后回复挂载，过渡读写仍操作同一 backing；E2 post-reply 事件不等待消费者。架构事实：已经分派的 FUSE 请求不会自动改走 ext4。 | 用受控屏障延迟/失败 bind，让 create/open/write 跨过窗口，证明既没有第二份对象也没有死锁、错误 ready 或回退丢失。 |
 | 旧 cwd/dirfd/文件句柄 | 旧目录即时等价为架构限制/已接受边界：E5。文件对象保留与重开可行：E2/E6，当前基线只有独立 Home FUSE fixture。 | 真实远端在 warmed lookup、同长度覆盖、缩短、空文件、替换/unlink 后：旧 fd 不改绑，关闭后稳定根重开准确；保留旧目录反例作边界展示。 |
 | 本地/远端并发及锁 | 原基线 append/EXCL/独立区域并发可行：E1；本地 kernel flock 可行：E2。实现遗漏：native POSIX 仍软件模型。**当前简单 Home 代理不满足同 PID 锁合同：E4。** | 用户决定保留全部锁合同则必须证明能代表原 POSIX owner 的替代架构；不能用不同 PID 普通互斥通过替代同 PID 降锁/解锁/任意 fd close。当前候选还需认证跨 VM 争用。 |
@@ -75,6 +76,7 @@ Windows 证据副本：`C:/workspace/code/dms/local/native-bind-vm/<run>/`；VM�
 
 - [x] **A0 授权/证据审计**：固定基线、找出原用户同意、隔离第三阶段 WIP；锁范围选择尚待回答，不算合同全部关闭。
 - [ ] **A1 同路径/过渡**：受控 mkdir→延迟 bind→ready→启动 Actor；失败回退；最终 namespace 身份与绝对/相对路径请求计数。关闭条件：同一 backing、过渡操作正确、不死锁/错误 ready；路径成本归因明确。
+  - 访问路径计数已由E10关闭：真实绝对路径16轮有192次祖先元数据查询，cwd/dirfd相对操作为0；导航启动成本单列。延迟/失败过渡及实际Node时序仍待验证，A1整体保持未完成。
 - [ ] **A2 对象/重新打开**：当前候选真实 A native、保留本地 FUSE、B 远端；内容/EOF、同长度修改、替换/unlink、稳定根查找。关闭条件：满足已同意 close-to-open/对象身份；旧目录边界按原始反例说明。
 - [ ] **A3 并发/锁**：复用 E4 拒绝简单代理；实际跨路径 append/EXCL、flock、POSIX owner/close/fork/dup 与 native/native 控制。关闭条件：所需锁机制有正向证明，或用户明确修改范围；不得默认豁免失败组合。
 - [ ] **A4 映射/兼容性**：固定当前 ABI 与内核；MAP_SHARED/PRIVATE、msync/fsync、native 写后 fresh remote reader、P2P mode/symlink/xattr，以及 watch/inode 边界核对。关闭条件：适用要求有可行路线和关键机制证据；未获批准的例外不能关闭。

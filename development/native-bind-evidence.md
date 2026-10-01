@@ -1,10 +1,89 @@
 # Native bind development evidence: mount transactions, references and journal maintenance
 
-Issue: https://github.com/lelezi257/dms/issues/42. Plan: `native-bind-plan.md`.
+Issue: https://github.com/lelezi257/dms/issues/42. Current priority: [architecture → performance → production](native-bind-validation-plan.md); original implementation tasks: `native-bind-plan.md`.
 
 This is an intermediate slice, not feature completion, product acceptance or performance qualification. It does not enable native exports in Node. Default configuration does not enable native admission. The optional hint hook remains inert without a sink; ordinary directory identity refresh now reconciles cached descendants after an external move. Node/FUSE/P2P integration, cross-path locks/cache/mmap, full Node/Agent lifecycle recovery and ext4 performance comparison remain outstanding.
 
-## Current checkpoint: xattr call lifetime and captured directory authority (2026-10-01)
+## Current architecture checkpoint: A1 absolute-path request cost (2026-10-01)
+
+No production Rust behavior changed. New standalone integration probe
+`tests/ownerfs_native_path_probe.rs` uses the production OwnerFs FUSE adapter,
+native-eligible cache policy, existing authoritative in-process Home fixture,
+actual `LinuxMountBackend` and a child actor launched after verified same-path
+activation in its final inherited private namespace. It keeps a pre-bind FUSE
+directory fd as a positive control. This is not executable Node/network P2P,
+mount-race/failure qualification or a timed benchmark.
+
+For each of five access phases the child performs16 rounds of identical
+read/stat/create/write/rename/unlink, verifies content and shared directory state,
+and emits syscall phase markers. External strace6.8 captures actual `/dev/fuse`
+requests. The observer checks the packet/header, originating actor PID, phase,
+node IDs and LOOKUP names; native mutation/data requests must be absent while
+the old-FUSE control must contain16 READ and16 CREATE calls.
+
+Fresh VM run `path-probe-20261001T093405-bf9a8b23` has terminal runner exit0,
+Linux6.8.0-142, `/dev/sdb1` ext4, binary SHA256
+`f8c02a139d24a8dc61ddb84fe8c0decc70190376258d13ffec4bae2f87644d77`.
+Source parent `89a223d`, snapshot `native-path-probe-candidate-20261001T093356`;
+all production Rust is the caec0fa baseline. The new probe build, targeted strict
+Clippy and fmt pass; no new whole-project or complete native gate is claimed.
+Raw archive SHA256 is
+`beb757de7f53570f27f32a43b845ea507aaa9a0c89c0b796aaebaa4d258c6418`;
+observer SHA256 is
+`9557649e8979ba1c861b0e6d3a5d5747eecd4767a54544569042e89ed3edd72c`.
+
+| Access phase | Actual actor FUSE requests in16 rounds |
+| --- | --- |
+| Absolute `/ownerfs/agent1/...` | 192:96 root(node1) GETATTR +96 root LOOKUP for `agent1`; zero FUSE file data/mutations |
+| Ready native cwd + relative names | 0; initial chdir is outside the measured phase |
+| Ready native dirfd + openat/stat/renameat/unlinkat | 0; acquiring dirfd is outside the measured phase |
+| Direct backing dirfd | 0 |
+| Retained old FUSE dirfd control | 432, including16 READ/WRITE/CREATE/RENAME/UNLINK and32 FLUSH |
+
+**Decision:** bind removes the workspace's file-operation FUSE path, but the
+current zero-TTL policy leaves absolute pathname ancestors on FUSE. Native inode
+identity alone does not prove zero FUSE cost. Performance must retain both path
+forms and separate startup/navigation from recurring operations. This is a
+confirmed current-policy cost mechanism, not measured slowdown and not proof
+that every managed-ancestor cache policy is impossible. Any ancestor-cache
+alternative must independently preserve permissions, root/epoch invalidation,
+busy-mount anchoring and fresh-path correctness; increasing every workspace
+TTL or reporting only cwd-relative performance would not satisfy the goal.
+The observed LOOKUP/GETATTR split is consistent with Linux6.8
+[expired dentry revalidation and default-permissions attribute refresh](https://github.com/torvalds/linux/blob/v6.8/fs/fuse/dir.c),
+and the actual native-eligible zero-entry/attribute-TTL reply policy. It is not
+evidence of a failed bind or redirected file data.
+
+The first capture `path-probe-20261001T093051-304b9ae4` records a successful kernel
+probe but overall runner exit1: the observer did not decode strace's hex-encoded,
+nested `<char 10:229>` device annotation and its mandatory FUSE positive control
+rejected the result. Original logs/status remain unchanged. Corrected offline
+analysis of that same raw trace and one controlled fresh replay agree on all
+five phase counts. Independent checks retain binary/archive/observer hashes,
+match parent mountinfo before/after, confirm empty temporary data and private
+namespace, and reject evidence with omitted FUSE-device frames or wrong actor
+identity. Raw evidence lives under the usual VM/Windows `<run>` directories.
+
+A1's request-path question is now closed; delayed/failed transitions and actual
+Node/P2P readiness remain open. Stage one and performance acceptance have not
+passed. The parked third-stage handle-cleanup WIP is unchanged.
+
+Portable replay: build `cargo test --all-features --test ownerfs_native_path_probe --no-run`
+on Linux; copy the exact executable and both tracked scripts to the VM. As root,
+with a fresh ext4 evidence directory and the executable's recorded SHA256:
+
+```sh
+strace -f -yy -xx -s4096 -e trace=read,write,writev -o "$trace" \
+  bash ownerfs_native_mount.sh "$binary" "$fresh_evidence" "$sha256" \
+  privileged_native_path_request_probe
+python3 ownerfs_native_path_observer.py "$trace" "$fresh_evidence/tests.log"
+```
+
+The mount script supplies the private namespace, timeout and cleanup checks.
+The standalone probe is deliberately separate from the17-case foundation
+manifest so a new diagnostic does not silently expand that PASS scope.
+
+## Previous implementation checkpoint: xattr call lifetime and captured directory authority (2026-10-01)
 
 Source parent is `0d66794`; candidate snapshot is
 `native-operation-lifetime-candidate-20261001T083311`. Local and Home peer

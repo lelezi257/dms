@@ -36,6 +36,15 @@ Third-stage handle-cleanup WIP is preserved separately; verified source remains
 caec0fa. Historical tests below keep their stated scope and do not establish
 stage completion. The stock MooseFS durable-write baseline remains unqualified.
 
+The current A1 request-path probe on the independent ext4 VM confirms native
+file operations but exposes remaining ancestor cost:16 rounds using absolute
+workspace paths issue96 root GETATTR and96 workspace-root LOOKUP requests.
+Ready native cwd/dirfd-relative operations issue zero, with a retained FUSE dirfd
+positive control. No timings were collected and no native-performance conclusion
+is established. [Raw identities and observer failure/replay](../development/native-bind-evidence.md)
+remain recorded; performance must include both path forms. This probe adds only
+experiment code and leaves production behavior and parked handle cleanup intact.
+
 The native-bind branch now retains local/peer xattr admission through syscall
 completion and captures opening authority on native Home directory handles.
 Readdir validates that capture, including empty directories, and remains counted

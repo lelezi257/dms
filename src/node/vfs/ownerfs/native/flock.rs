@@ -513,6 +513,86 @@ mod tests {
     }
 
     #[test]
+    fn native_lock_drain_failed_unlock_retains_pin_and_retries_actual_cleanup() {
+        use crate::node::vfs::ownerfs::{OwnerLockTarget, tests::native_lock_drain_command};
+        use std::os::{fd::AsRawFd, unix::fs::OpenOptionsExt};
+        let (_temp, fs, ctx, _root, file, native) = native_flock_fixture();
+        let local = fs.require_local().unwrap();
+        let id = local.record(file.entry.inode.value).unwrap().root_id;
+        let command = native_lock_drain_command(&fs, &id);
+        let request = LockRequest {
+            kind: FileLockKind::Flock,
+            owner: FileLockOwner {
+                ingress_session_id: "drain-fault".into(),
+                kernel_owner: 95,
+            },
+            pid: 95,
+            range: FileLockRange {
+                start: 0,
+                end: u64::MAX,
+            },
+            lock_type: FileLockType::Write,
+        };
+        fs.setlk(&ctx, file.entry.inode, file.handle, request.clone(), None)
+            .unwrap();
+        let OwnerLockTarget::Local { table, .. } =
+            local.lock_target(file.handle, Some(&request)).unwrap()
+        else {
+            panic!("not Home");
+        };
+        let flock = table.flock.as_ref().unwrap();
+        let slot = local.open_file_handle(file.handle).unwrap();
+        let original = {
+            let slot = slot.lock().unwrap();
+            let OpenFileHandle::Local(open) = &slot.file else {
+                panic!("not Home");
+            };
+            open.handle.file.try_clone_descriptor().unwrap()
+        };
+        let path_only = File::options()
+            .read(true)
+            .custom_flags(libc::O_PATH)
+            .open(format!("/proc/self/fd/{}", native.as_raw_fd()))
+            .unwrap();
+        flock
+            .state
+            .lock()
+            .unwrap()
+            .descriptions
+            .values_mut()
+            .next()
+            .unwrap()
+            .file = path_only;
+        let refusal = fs.begin_native_root_refusal(&command).unwrap();
+        let failed = fs.drain_native_root_locks(&refusal);
+        let retained = !table.is_idle().unwrap();
+        let held = matches!(native.try_lock(), Err(TryLockError::WouldBlock));
+        flock
+            .state
+            .lock()
+            .unwrap()
+            .descriptions
+            .values_mut()
+            .next()
+            .unwrap()
+            .file = original;
+        let retried = fs.drain_native_root_locks(&refusal);
+        let idle = table.is_idle().unwrap();
+        fs.release(&ctx, file.handle).unwrap();
+        native.try_lock().unwrap();
+        native.unlock().unwrap();
+        assert_eq!(crate::error::errno(&failed.unwrap_err()), libc::EBADF);
+        assert!(
+            retained && held,
+            "failed release discarded cleanup debt or kernel ownership"
+        );
+        assert!(
+            retried.unwrap() && idle,
+            "retry did not complete actual kernel cleanup"
+        );
+    }
+
+    #[test]
     fn native_flock_invalidate_drains_blocked_waiter_without_recreating_outcome() {
         let (_temp, fs, ctx, _root, file, native) = native_flock_fixture();
         let local = fs.require_local().unwrap();

@@ -4,7 +4,77 @@ Issue: https://github.com/lelezi257/dms/issues/42. Plan: `native-bind-plan.md`.
 
 This is an intermediate slice, not feature completion, product acceptance or performance qualification. It does not enable native exports in Node. Default configuration does not enable native admission. The optional hint hook remains inert without a sink; ordinary directory identity refresh now reconciles cached descendants after an external move. Node/FUSE/P2P integration, cross-path locks/cache/mmap, full Node/Agent lifecycle recovery and ext4 performance comparison remain outstanding.
 
-## Current checkpoint: exact command refusal and operation drainage (2026-10-01)
+## Current checkpoint: Home native lock refusal/drain (2026-10-01)
+
+Source parent is `1b472b5`; candidate snapshot is
+`native-lock-drain-candidate-20261001T081332`. Native-eligible local and
+Home-side peer lock calls now retain RootUse from actual operation admission
+through waiting/acquisition/completion. Previously only target selection and
+descriptor preparation were counted. `native-lock-drain-count-red.log` records
+two actual original-behavior failures: both blocked callers were reported
+drained while still waiting on an independently held kernel lock. The tests
+cleaned up/joined their workers before asserting the recorded counter failure.
+
+OwnerFs adds native-only command refusal and exact-authority lock drainage
+entry points. Cleanup invalidates matching full-authority lock tables, attempts
+all matching releases, preserves failed pins/errors for retry, then rescans
+operations, tables and routes. A zero counter is not a precondition to cancel
+waiters; cancellation is how they exit and release their guards. Completed
+fenced peer routes retire without requiring an impossible post-revocation ACK.
+Another workspace's same-agent locks, a recovered authority and ordinary
+FUSE-only policy are not repurposed by these APIs. Shared registry scope/session
+fencing history is not declared fully reclaimed by this table/route check.
+
+`native-lock-drain-api-red.log` is an intermediate behavior run with an
+unimplemented cleanup stub, not a missing-API compiler error:2 PASS/4 FAIL.
+Its unsupported errno is not a claim of an original kernel errno bug. Final
+`native-lock-drain-green.log` passes all6 cases, including both original counter
+regressions, exact-root release with another root still locked, retired-token
+refusal plus a positive recovered-token cleanup, ordinary-mount refusal and an
+actual O_PATH/EBADF unlock failure with retained ownership followed by retry.
+`native-lock-drain-library.log` passes410 all-feature library tests with2
+existing ignored; strict workspace/all-target/all-feature Clippy and fmt pass.
+`native-lock-drain-project.log` is overall PASS with25 green observed suite
+summaries, including39 Meta contracts and the unchanged DFS expiry case.
+No-feature, OwnerFs-only and DFS-only compilation pass; no-feature/DFS-only
+retain the two existing descriptor-helper warnings, not a per-variant strict
+lint pass. Existing environmental ignores remain ignored. Prior WSL clock/
+expiry failures and separate vendored-fuser higher-ABI failures are not erased
+or qualified by this root-project pass.
+
+Independent VM replay `lock-drain-20261001T081340-710c6ebe` passes all6 cases on
+ext4 `/dev/sdb1` in a private mount namespace. Binary SHA256 is
+`ac76b836cbbf4163a2432dfe8bff1a181dc00042c6b91853c28c349b699c7765`;
+raw archive SHA256 is
+`1219cb0d5bbc3c5c2ae61af595a1d3b607f2f93edcae3bd1a689a6c466151d2a`.
+Independent inspection matches exact test names/outcomes, binary/runner hashes,
+ext4 identity, distinct namespaces, unchanged parent mounts and empty temporary
+data. These are direct Home/peer-handler fixtures with actual kernel locks,
+not production Node/network P2P or TLS runs. Open handles, dirty work, native
+POSIX compatibility/mmap, Agent supervision, normal mount teardown, durable
+commands/cursors and truthful ACK production remain separate required gates.
+No native Node bootstrap, READY or performance claim follows from this slice.
+
+Fresh actual VM foundation replay `foundation-20261001T082019-bd5c812b` passes
+all17 selected cases, with binary SHA256
+`ada0f0ee25464834dc7af81ae82d2a3e53102f3a034997a6a6465a83c7213dab`
+and archive SHA256
+`8cc85795a7d5e4af2180a090c921b16cb2797609969ba16ad419e2f620cbf95c`.
+Independent inspection confirms17 unchanged mount pairs and17 empty temporary
+directories. The7 historical stronger directory diagnostics remain explicitly
+NOT_RUN, not counted as passes. Foundation scope remains actual mount/cache/
+Home teardown/local kernel-flock; it does not qualify production Node, network
+P2P, native POSIX ownership/mmap, Agent lifecycle or performance.
+
+Further lifetime inspection finds `local_entry_for_xattr` returns a pathname
+after dropping its RootUse, and successful local `opendir` initially checks
+admission without retaining that returned guard through handle publication.
+Those are remaining full-operation drain audit items, not counted as repaired
+by the lock-call fix or the green suite. The current barrier observes retained
+guards; it must not be promoted into proof that every filesystem syscall or
+reference has drained until those paths and actual handle cleanup are covered.
+
+## Previous checkpoint: exact command refusal and operation drainage (2026-10-01)
 
 Source parent is `b2755eb`; the source candidate is retained at
 `native-refusal-candidate-20261001T075549`. RootManager now has a separate

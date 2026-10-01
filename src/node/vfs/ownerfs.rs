@@ -252,6 +252,80 @@ impl OwnerFs {
         first_error.map_or(Ok(reclaimed), Err)
     }
 
+    /// Close current native-eligible Home admission for this exact command.
+    /// The returned process-local barrier is not an ACK or Agent/mount proof.
+    pub fn begin_native_root_refusal(
+        &self,
+        command: &root::RootRevocationCommand,
+    ) -> Result<root::RootRefusal> {
+        let local = self.require_local()?;
+        if !local.native_eligible {
+            return Err(stale("OwnerFs is not native eligible"));
+        }
+        local.roots.begin_command_refusal(command)
+    }
+
+    /// Cancel this authority's lock waits and release its kernel/model locks.
+    /// Retry failed unlocks without discarding pins; unrelated authorities and
+    /// workspaces retain their locks. True covers admitted operations, lock
+    /// tables and their routes, not open handles, native processes or exports.
+    pub fn drain_native_root_locks(&self, refusal: &root::RootRefusal) -> Result<bool> {
+        let local = self.require_local()?;
+        if !local.native_eligible {
+            return Err(stale("OwnerFs is not native eligible"));
+        }
+        // Validate even when operations have not drained: invalidation is what
+        // wakes blocked lock calls so their operation guards can subsequently
+        // drop. Do not wait for zero before attempting cancellation.
+        local.roots.refused_operations_drained(refusal)?;
+        let tables = local
+            .locks
+            .lock()
+            .map_err(|_| poisoned())?
+            .tables
+            .iter()
+            .filter(|(key, _)| key.matches_native_grant(refusal.grant()))
+            .map(|(_, table)| table.clone())
+            .collect::<Vec<_>>();
+        let mut first_error = None;
+        for table in tables {
+            if let Err(error) = table.invalidate().map_err(owner_lock_error) {
+                first_error.get_or_insert(error);
+            }
+        }
+        if let Some(error) = first_error {
+            return Err(error);
+        }
+        // Rescan under the registry lock. A target selected before refusal can
+        // be registered late, but every actual native lock call holds RootUse
+        // through completion and cannot newly enter after refusal.
+        let mut locks = local.locks.lock().map_err(|_| poisoned())?;
+        if !local.roots.refused_operations_drained(refusal)? {
+            return Ok(false);
+        }
+        for (key, table) in &locks.tables {
+            if key.matches_native_grant(refusal.grant())
+                && !table.is_idle().map_err(owner_lock_error)?
+            {
+                return Ok(false);
+            }
+        }
+        locks.waiters.retain(|_, route| {
+            !(route.completed && native_route_matches_grant(&route.target, refusal.grant()))
+        });
+        if locks
+            .waiters
+            .values()
+            .any(|route| native_route_matches_grant(&route.target, refusal.grant()))
+        {
+            return Ok(false);
+        }
+        locks
+            .tables
+            .retain(|key, _| !key.matches_native_grant(refusal.grant()));
+        Ok(true)
+    }
+
     /// Hold the cache lock through the FUSE reply. Otherwise a peer could
     /// invalidate, then a delayed local reply could reintroduce a private TTL.
     pub(crate) fn with_fuse_cache_policy<T>(
@@ -1241,6 +1315,21 @@ struct OwnerLockKey {
     native_authority: Option<OwnerNativeAuthority>,
 }
 
+impl OwnerLockKey {
+    fn matches_native_grant(&self, grant: &RootGrant) -> bool {
+        self.root_id == grant.id
+            && self.epoch == grant.epoch
+            && self
+                .native_authority
+                .as_ref()
+                .is_some_and(|authority| authority.matches(grant))
+    }
+}
+
+fn native_route_matches_grant(target: &OwnerLockTarget, grant: &RootGrant) -> bool {
+    matches!(target, OwnerLockTarget::Local { key, .. } if key.matches_native_grant(grant))
+}
+
 #[derive(Clone)]
 enum OwnerLockTarget {
     Local {
@@ -1518,12 +1607,32 @@ impl LocalOwnerFs {
         Ok(())
     }
 
+    /// Native lock calls must stay counted while waiting, acquiring and
+    /// reporting completion. Merely counting target selection or descriptor
+    /// preparation would let a blocked operation disappear from drainage.
+    fn admit_native_lock_call(&self, target: &OwnerLockTarget) -> Result<Option<RootUse>> {
+        let OwnerLockTarget::Local { key, .. } = target else {
+            return Ok(None);
+        };
+        if key.native_authority.is_none() {
+            return Ok(None);
+        }
+        let admitted = self.roots.enter_root(&key.root_id, RootRight::Lookup)?;
+        if !key.matches_native_grant(admitted.grant()) {
+            return Err(stale(
+                "Owner native lock authority changed before operation admission",
+            ));
+        }
+        Ok(Some(admitted))
+    }
+
     fn get_file_lock(
         &self,
         handle: FileHandle,
         mut request: LockRequest,
     ) -> Result<Option<FileLockConflict>> {
         let target = self.lock_target(handle, None)?;
+        let _native_operation = self.admit_native_lock_call(&target)?;
         match target {
             OwnerLockTarget::Local { table, .. } => {
                 request.owner.ingress_session_id =
@@ -1545,6 +1654,7 @@ impl LocalOwnerFs {
         mut waiter: Option<LockWaiterId>,
     ) -> Result<()> {
         let target = self.lock_target(handle, Some(&request))?;
+        let _native_operation = self.admit_native_lock_call(&target)?;
         let raw_scope = request.owner.ingress_session_id.clone();
         // Local wrappers retain raw ingress identities for interrupt routing;
         // Home prefixes peer requests separately after authentication.
@@ -1895,6 +2005,7 @@ impl LocalOwnerFs {
         mut request: LockRequest,
     ) -> Result<Option<FileLockConflict>> {
         let target = self.peer_lock_target(peer, access, file, None)?;
+        let _native_operation = self.admit_native_lock_call(&target)?;
         request.owner.ingress_session_id =
             self.peer_lock_scope(peer, access, &request.owner.ingress_session_id)?;
         let OwnerLockTarget::Local { table, .. } = target else {
@@ -1912,6 +2023,7 @@ impl LocalOwnerFs {
         mut waiter: Option<LockWaiterId>,
     ) -> Result<()> {
         let target = self.peer_lock_target(peer, access, file, Some(&request))?;
+        let _native_operation = self.admit_native_lock_call(&target)?;
         let scope = self.peer_lock_scope(peer, access, &request.owner.ingress_session_id)?;
         if let Some(id) = &mut waiter {
             if id.ingress_session_id != request.owner.ingress_session_id {
@@ -7663,6 +7775,243 @@ mod tests {
             );
             std::thread::yield_now();
         }
+    }
+
+    pub(super) fn native_lock_drain_command(
+        fs: &OwnerFs,
+        root: &RootId,
+    ) -> root::RootRevocationCommand {
+        let admitted = fs
+            .require_local()
+            .unwrap()
+            .roots
+            .enter_root(root, RootRight::Lookup)
+            .unwrap();
+        let grant = admitted.grant();
+        root::RootRevocationCommand {
+            command_id: "lock-drain-command".into(),
+            root_id: grant.id.clone(),
+            root_epoch: grant.epoch,
+            home_node_id: grant.home_node_id.clone(),
+            home_session_id: grant.home_session_id.clone(),
+            access_generation: grant.access_generation,
+            revision: 91,
+        }
+    }
+
+    #[test]
+    fn native_lock_drain_local_waiter_remains_counted_until_it_exits() {
+        let (_temp, fs, ctx, _root, file, native) = native_flock_fixture();
+        let local = fs.require_local().unwrap();
+        let root_id = local.record(file.entry.inode.value).unwrap().root_id;
+        let command = native_lock_drain_command(&fs, &root_id);
+        native.try_lock().unwrap();
+        let id = LockWaiterId {
+            ingress_session_id: "native-drain-local".into(),
+            request_id: 91,
+        };
+        let worker_fs = fs.clone();
+        let worker_ctx = ctx.clone();
+        let worker_id = id.clone();
+        let (tx, rx) = std::sync::mpsc::channel();
+        let worker = std::thread::spawn(move || {
+            tx.send(worker_fs.setlk(
+                &worker_ctx,
+                file.entry.inode,
+                file.handle,
+                native_flock_request("native-drain-local", 91, FileLockType::Write),
+                Some(worker_id),
+            ))
+            .unwrap();
+        });
+        wait_owner_lock_route(&fs, &id);
+        let refusal = local.roots.begin_command_refusal(&command).unwrap();
+        let prematurely_drained = local.roots.refused_operations_drained(&refusal).unwrap();
+        fs.drain_native_root_locks(&refusal).unwrap();
+        let rejected = rx.recv_timeout(Duration::from_secs(2)).unwrap().is_err();
+        worker.join().unwrap();
+        let finally_drained = local.roots.refused_operations_drained(&refusal).unwrap();
+        assert!(fs.drain_native_root_locks(&refusal).unwrap());
+        native.unlock().unwrap();
+        fs.release(&ctx, file.handle).unwrap();
+        assert!(
+            !prematurely_drained,
+            "blocked local lock call disappeared from operation drainage"
+        );
+        assert!(rejected && finally_drained);
+    }
+
+    #[test]
+    fn native_lock_drain_peer_waiter_remains_counted_until_it_exits() {
+        let (_temp, fs, ctx, _root, file, native) = native_flock_fixture();
+        let local = fs.require_local().unwrap();
+        let record = local.record(file.entry.inode.value).unwrap();
+        let command = native_lock_drain_command(&fs, &record.root_id);
+        let access = presented(&test_grant(record.root_id.clone()));
+        let (peer_file, _, _) = local
+            .peer_open_with_options(
+                "node-b",
+                &access,
+                OsStr::new("file"),
+                libc::O_RDWR,
+                Some(&record.identity),
+                OpenOptions::default(),
+            )
+            .unwrap();
+        let peer_handle = decode_file_handle(&peer_file).unwrap();
+        native.try_lock().unwrap();
+        let scoped = LockWaiterId {
+            ingress_session_id: owner_peer_lock_scope("node-b", &access, "native-drain-peer"),
+            request_id: 92,
+        };
+        let worker_fs = fs.clone();
+        let (tx, rx) = std::sync::mpsc::channel();
+        let worker = std::thread::spawn(move || {
+            tx.send(worker_fs.require_local().unwrap().peer_set_file_lock(
+                "node-b",
+                &access,
+                &peer_file,
+                native_flock_request("native-drain-peer", 92, FileLockType::Write),
+                Some(LockWaiterId {
+                    ingress_session_id: "native-drain-peer".into(),
+                    request_id: 92,
+                }),
+            ))
+            .unwrap();
+        });
+        wait_owner_lock_route(&fs, &scoped);
+        let refusal = local.roots.begin_command_refusal(&command).unwrap();
+        let prematurely_drained = local.roots.refused_operations_drained(&refusal).unwrap();
+        fs.drain_native_root_locks(&refusal).unwrap();
+        let rejected = rx.recv_timeout(Duration::from_secs(2)).unwrap().is_err();
+        worker.join().unwrap();
+        let finally_drained = local.roots.refused_operations_drained(&refusal).unwrap();
+        assert!(fs.drain_native_root_locks(&refusal).unwrap());
+        assert!(
+            !local.locks.lock().unwrap().waiters.contains_key(&scoped),
+            "completed revoked peer route still requires an impossible post-revocation ACK"
+        );
+        native.unlock().unwrap();
+        fs.release(&ctx, peer_handle).unwrap();
+        fs.release(&ctx, file.handle).unwrap();
+        assert!(
+            !prematurely_drained,
+            "blocked peer lock call disappeared from Home operation drainage"
+        );
+        assert!(rejected && finally_drained);
+    }
+
+    #[test]
+    fn native_lock_drain_releases_exact_root_but_preserves_other_root_kernel_lock() {
+        let (_temp, fs, ctx, _root, file, native) = native_flock_fixture();
+        let local = fs.require_local().unwrap();
+        let id = local.record(file.entry.inode.value).unwrap().root_id;
+        let command = native_lock_drain_command(&fs, &id);
+        let other_root = fs
+            .mkdir(&ctx, fs.root_inode(), OsStr::new("other-root"), 0o755)
+            .unwrap();
+        let other = fs
+            .create(
+                &ctx,
+                other_root.inode,
+                OsStr::new("file"),
+                0o644,
+                libc::O_RDWR,
+            )
+            .unwrap();
+        let descriptor = {
+            let slot = local.open_file_handle(other.handle).unwrap();
+            let slot = slot.lock().unwrap();
+            let OpenFileHandle::Local(open) = &slot.file else {
+                panic!("not Home");
+            };
+            open.handle.file.try_clone_descriptor().unwrap()
+        };
+        let other_native = fs::File::options()
+            .read(true)
+            .write(true)
+            .open(format!("/proc/self/fd/{}", descriptor.as_raw_fd()))
+            .unwrap();
+        for current in [&file, &other] {
+            fs.setlk(
+                &ctx,
+                current.entry.inode,
+                current.handle,
+                native_flock_request("same-agent", 93, FileLockType::Write),
+                None,
+            )
+            .unwrap();
+        }
+        assert!(matches!(
+            native.try_lock(),
+            Err(fs::TryLockError::WouldBlock)
+        ));
+        assert!(matches!(
+            other_native.try_lock(),
+            Err(fs::TryLockError::WouldBlock)
+        ));
+        let refusal = fs.begin_native_root_refusal(&command).unwrap();
+        let drained = fs.drain_native_root_locks(&refusal);
+        let first_released = native.try_lock().is_ok();
+        if first_released {
+            native.unlock().unwrap();
+        }
+        let other_held = matches!(other_native.try_lock(), Err(fs::TryLockError::WouldBlock));
+        fs.release(&ctx, file.handle).unwrap();
+        fs.release(&ctx, other.handle).unwrap();
+        other_native.try_lock().unwrap();
+        other_native.unlock().unwrap();
+        assert!(
+            drained.unwrap() && first_released,
+            "exact refused root kept its kernel lock"
+        );
+        assert!(other_held, "another root's same-agent lock was released");
+    }
+
+    #[test]
+    fn native_lock_drain_retired_refusal_cannot_unlock_recovered_authority() {
+        let (_temp, fs, ctx, _root, file, native) = native_flock_fixture();
+        let local = fs.require_local().unwrap();
+        let id = local.record(file.entry.inode.value).unwrap().root_id;
+        let command = native_lock_drain_command(&fs, &id);
+        let retired = fs.begin_native_root_refusal(&command).unwrap();
+        local.roots.reconcile_on_startup().unwrap();
+        let fresh = fs.open(&ctx, file.entry.inode, libc::O_RDWR).unwrap();
+        fs.setlk(
+            &ctx,
+            file.entry.inode,
+            fresh,
+            native_flock_request("recovered", 94, FileLockType::Write),
+            None,
+        )
+        .unwrap();
+        let rejected = fs.drain_native_root_locks(&retired).is_err();
+        let still_held = matches!(native.try_lock(), Err(fs::TryLockError::WouldBlock));
+        let current_command = native_lock_drain_command(&fs, &id);
+        let current = fs.begin_native_root_refusal(&current_command).unwrap();
+        let current_drained = fs.drain_native_root_locks(&current).unwrap();
+        let current_released = native.try_lock().is_ok();
+        if current_released {
+            native.unlock().unwrap();
+        }
+        fs.release(&ctx, fresh).unwrap();
+        fs.release(&ctx, file.handle).unwrap();
+        native.try_lock().unwrap();
+        native.unlock().unwrap();
+        assert!(rejected && still_held && current_drained && current_released);
+    }
+
+    #[test]
+    fn native_lock_drain_ordinary_mount_refuses_native_command_without_closing_grant() {
+        let (_temp, fs, ctx) = fixture();
+        let root = fs
+            .mkdir(&ctx, fs.root_inode(), OsStr::new("ordinary"), 0o755)
+            .unwrap();
+        let local = fs.require_local().unwrap();
+        let id = local.record(root.inode.value).unwrap().root_id;
+        let command = native_lock_drain_command(&fs, &id);
+        assert!(fs.begin_native_root_refusal(&command).is_err());
+        assert!(local.roots.enter_root(&id, RootRight::Lookup).is_ok());
     }
 
     #[test]

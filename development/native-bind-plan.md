@@ -292,6 +292,20 @@ The user explicitly accepted the previously presented close-to-open and retained
   managed process supervision, normal detach and truthful ACK production.
   A finite poll or valid ACK identity does not establish those runtime gates.
 
+- [x] Reproduce blocked local/peer native lock calls disappearing from the actual
+  operation count. Retain RootUse through their full call lifetime and expose
+  exact-authority OwnerFs lock drainage with real failed-unlock retry, kernel
+  ownership, another-root preservation and terminal peer-route retirement.
+  Six focused cases,410 library tests and independent VM ext4 replay pass;
+  strict workspace Clippy/fmt pass. This is not whole-reference/Agent drainage.
+- [ ] Add actual open-handle/dirty-work drainage, durable Node command consumption
+  and managed Agent fencing. Only combine these with verified normal detach
+  before ACK; do not promote a successful lock-only drain into lifecycle success.
+- [ ] Finish full-operation RootUse lifetime audit before whole-root drainage.
+  Path-returning xattr helpers and successful local opendir currently release
+  admission before the caller's remaining work/publication; retain authority
+  through the actual operation and verify delayed completion/refusal interleavings.
+
 ## Native lock Home authority and release outcome evidence
 
 - [x] Reproduce four behavior failures using production Home recovery and an

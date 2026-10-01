@@ -26,6 +26,16 @@ The [delivery acceptance contract](acceptance.md) requires JuiceFS default same-
 
 ## Current Validation Checkpoint
 
+The native-bind branch now counts native Home local/peer lock calls through
+their actual completion and offers exact-authority lock cleanup for a current
+refusal. Two original blocked-wait counter failures become green; all6 focused
+cases,410 library tests (two existing ignored), strict Clippy/fmt, root-project
+tests, three feature builds and independent ext4 VM replay pass. Fresh actual
+VM foundation17 also passes. Actual failed unlock retains its pin/errno until retry;
+another workspace or recovered authority is not unlocked by an old command.
+This is not open-handle, native Agent, mount or ACK drainage. Node command
+consumption, complete semantics/performance and the no-merge PR remain open.
+
 The native-bind branch now has a command-scoped RootManager refusal and actual
 admitted-operation barrier. Five focused regressions,404 all-feature library
 tests (two existing ignored), strict workspace Clippy/fmt, root-project tests,

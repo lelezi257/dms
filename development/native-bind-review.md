@@ -31,6 +31,32 @@ source/binary/archive identities and exact scope. Feature-off/DFS-only builds
 retain two descriptor-helper dead-code warnings; strict lint under those
 individual variants has not been claimed.
 
+## Home native lock request lifetime and drain interface
+
+The two original blocked-call counter failures are reproduced with actual kernel
+locks. Local and Home-side peer get/set lock calls retain a RootUse for the full
+native-authority operation lifetime. Ordinary keys and remote dispatch retain
+their existing paths. OwnerFs adds native-only refusal and lock-drain methods
+with a current RootRefusal, full grant-key matching, attempted cleanup of every
+matching table, error/pin retention and final table/route/operation rescan. Failed
+unlock remains failed; terminal fenced peer routes no longer wait for an ACK
+that cannot be admitted after refusal. Other roots and recovered authority
+retain their locks. No new RPC or native Node bootstrap is enabled.
+
+Six focused cases and their independent ext4 VM replay,410 passing library
+tests, strict Clippy/fmt, root-project all-feature tests, three feature builds
+and fresh17-case actual VM foundation support this slice; exact source/binary/archive and
+original failures are in the evidence record. True covers current admitted
+operations and matching lock tables/routes only. It does not drain open handles,
+dirty work, native Agent processes/exports or declare shared scope history fully
+reclaimed. Applicable native POSIX ownership, network P2P, Node consumer/cursor
+durability, actual fencing and normal detach/ACK remain required. Final
+independent review is pending.
+Inspection also identifies unqualified xattr-helper and local-opendir admission
+lifetimes. The retained-guard count is not a whole-filesystem syscall/reference
+drain proof until those paths and actual open-handle cleanup are repaired and
+tested. The current green lock slice does not waive that gate.
+
 ## Command-scoped Home refusal interface
 
 RootManager adds `begin_command_refusal` and `refused_operations_drained` with

@@ -34,6 +34,8 @@ Default paths:
 
 Backend and TLS options stay in TOML and are passed directly to `afs-meta` or `afs-node`. The templates keep `local-file`, `etcd` and Redis backend fields visible; a backend lane is usable only when the installed binary and the selected backend pass the corresponding acceptance cases.
 
+Listen addresses and mount paths are read from single-line configuration values during controller preflight and readiness. Literal strings with single quotes and basic strings with double quotes can have trailing comments; spaces, `#` and `=` inside a quoted value are preserved. A parse error or out-of-range listen port fails before creating a managed launch. The [implementation status](../status.md) records remaining configuration syntax limits.
+
 ## Mounts
 
 Run OwnerFs and DFS as separate mounts. Each mount has its own FUSE session, inode table, handle table and cache policy.

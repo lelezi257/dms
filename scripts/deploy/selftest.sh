@@ -65,7 +65,10 @@ int main(int argc, char **argv) {
   FILE *f = fopen(argv[2], "r");
   if (!f) return 2;
   char line[512]; unsigned port = 0;
-  while (fgets(line, sizeof line, f)) sscanf(line, "rest_listen = \"127.0.0.1:%u", &port);
+  while (fgets(line, sizeof line, f)) {
+    if (sscanf(line, "rest_listen = \"127.0.0.1:%u", &port) != 1)
+      sscanf(line, "rest_listen = '127.0.0.1:%u", &port);
+  }
   fclose(f);
   signal(SIGTERM, stop);
   int s = socket(AF_INET, SOCK_STREAM, 0), one = 1;
@@ -111,6 +114,48 @@ else
   cat "$TMP/start.err" >&2
   fail "processctl reports mount readiness failure"
 fi
+
+
+# Valid deployed TOML can use either string delimiter and trailing comments.
+# Use Meta readiness so actual HTTP readiness is exercised without fake mounts.
+mkdir -p "$TMP/quotes/prefix/bin" "$TMP/quotes/etc" "$TMP/quotes/run" "$TMP/quotes/log"
+cp "$TMP/prefix/bin/afs-node" "$TMP/quotes/prefix/bin/afs-meta"
+for delimiter in "'" '"'; do
+  QUOTE_PORT=$(free_port)
+  cat > "$TMP/quotes/etc/meta.toml" <<EOF
+grpc_listen = ${delimiter}127.0.0.1:0${delimiter} # no grpc fixture
+rest_listen = ${delimiter}127.0.0.1:$QUOTE_PORT${delimiter} # health endpoint
+EOF
+  "$ROOT/afs-processctl" --prefix "$TMP/quotes/prefix" --config-dir "$TMP/quotes/etc" \
+    --run-dir "$TMP/quotes/run" --log-dir "$TMP/quotes/log" --timeout 2 \
+    start meta >"$TMP/quotes/start.out" 2>"$TMP/quotes/start.err" || {
+      cat "$TMP/quotes/start.out" "$TMP/quotes/start.err" >&2
+      fail "processctl accepts TOML literal/basic listen strings with comments"
+    }
+  curl -fsS "http://127.0.0.1:$QUOTE_PORT/health" >/dev/null
+  "$ROOT/afs-processctl" --prefix "$TMP/quotes/prefix" --config-dir "$TMP/quotes/etc" \
+    --run-dir "$TMP/quotes/run" --log-dir "$TMP/quotes/log" --timeout 2 \
+    stop meta >"$TMP/quotes/stop.out" 2>"$TMP/quotes/stop.err"
+  if ss -H -ltn "sport = :$QUOTE_PORT" | grep -q .; then
+    fail "quoted listen fixture has stopped"
+  fi
+done
+pass "processctl accepts TOML literal/basic listen strings with comments"
+
+mkdir -p "$TMP/invalid/prefix/bin" "$TMP/invalid/etc" "$TMP/invalid/run" "$TMP/invalid/log"
+cp "$TMP/prefix/bin/afs-node" "$TMP/invalid/prefix/bin/afs-meta"
+for invalid in "'127.0.0.1:40000" '"127.0.0.1:70000"'; do
+  printf 'rest_listen = %s\n' "$invalid" >"$TMP/invalid/etc/meta.toml"
+  if "$ROOT/afs-processctl" --prefix "$TMP/invalid/prefix" --config-dir "$TMP/invalid/etc" \
+    --run-dir "$TMP/invalid/run" --log-dir "$TMP/invalid/log" --timeout 2 \
+    start meta >"$TMP/invalid/start.out" 2>"$TMP/invalid/start.err"; then
+    fail "invalid listen configuration must fail before launching product"
+  fi
+  [ ! -f "$TMP/invalid/run/meta.pid" ] && [ ! -f "$TMP/invalid/run/meta.launch" ] || \
+    fail "invalid listen configuration leaves no managed child"
+  [ -z "$(ls -A "$TMP/invalid/run")" ] || fail "invalid listen configuration leaves no launch directory"
+done
+pass "invalid listen configuration fails before creating a managed launch"
 
 
 # PID identity must include more than executable path. A pid file pointing to a

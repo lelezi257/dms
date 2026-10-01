@@ -1,0 +1,2 @@
+ok - dep02-smoke rejects ordinary /tmp
+ok - processctl rejects ready REST without AFS mount

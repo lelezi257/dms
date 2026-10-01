@@ -1,0 +1,7 @@
+{
+  "status": "BLOCKED",
+  "phase": "prepare",
+  "reason": "fresh runtime directories created by sudo were root-owned; limactl copy returned23 permission denied on A controller path",
+  "product_processes_started": false,
+  "old_runtime_changed": false
+}

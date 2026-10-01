@@ -1,0 +1,18 @@
+id = 'memory-node-a'
+fs = 'all'
+meta_endpoint = 'https://192.168.109.12:18280'
+advertise_endpoint = 'https://192.168.109.12:18282'
+grpc_listen = '0.0.0.0:18282'
+rest_listen = '0.0.0.0:18283'
+data_dir = '/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v51/state/node'
+uds_path = '/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v51/run/node.sock'
+ownerfs_mount = '/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v51/mount-ownerfs'
+dfs_mount = '/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v51/mount-dfs'
+data_mode = 'grpc'
+tls_ca_certificate = '/mnt/lima-afsadata/afs-delivery/p1b/tls/ca.pem'
+tls_identity_certificate = '/mnt/lima-afsadata/afs-delivery/p1b/tls/node-a.pem'
+tls_identity_private_key = '/mnt/lima-afsadata/afs-delivery/p1b/tls/node-a-key.pem'
+tls_server_name = 'afs-cluster'
+trusted_node_certs = { memory-node-a = '/mnt/lima-afsadata/afs-delivery/p1b/tls/node-a.pem', memory-node-b = '/mnt/lima-afsadata/afs-delivery/p1b/tls/node-b.pem' }
+log_level = 'info'
+trace_enabled = false

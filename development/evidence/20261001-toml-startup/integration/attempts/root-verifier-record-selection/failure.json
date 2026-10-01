@@ -1,0 +1,6 @@
+{
+  "status": "INCONCLUSIVE",
+  "reason": "generic pid+sha selection also included native Linux test-worker Python identities; these are not AFS product processes",
+  "first_worker_pid": 722987,
+  "changed_product_state": false
+}

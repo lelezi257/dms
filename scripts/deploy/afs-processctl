@@ -189,24 +189,57 @@ pid_identity_matches() {
 }
 
 service_port_values() {
+  local cfg key listen port
   cfg=$(service_config "$1")
   [ -f "$cfg" ] || return 0
-  awk -F= '
-    $1 ~ /^[[:space:]]*(grpc_listen|rest_listen)[[:space:]]*$/ {
-      gsub(/[[:space:]"]/, "", $2);
-      n = split($2, p, ":");
-      if (n > 1) print p[n];
+  for key in grpc_listen rest_listen; do
+    listen=$(config_value "$key" "$cfg") || return 1
+    [ -n "$listen" ] || continue
+    port=${listen##*:}
+    [[ "$port" =~ ^[0-9]+$ ]] && [ "$port" -le 65535 ] || {
+      echo "invalid $key port in $cfg" >&2
+      return 1
     }
-  ' "$cfg"
+    printf '%s\n' "$port"
+  done
 }
 
 config_value() {
-  key=$1
-  cfg=$2
-  awk -F= -v key="$key" '
-    $1 ~ "^[[:space:]]*" key "[[:space:]]*$" {
-      gsub(/^[[:space:]"]+|[[:space:]"]+$/, "", $2);
-      print $2;
+  local key=$1 cfg=$2
+  # Read one deployment scalar, preserving whitespace, # and = inside strings.
+  # TOML literal strings and basic strings can both have trailing comments.
+  awk -v key="$key" '
+    $0 ~ "^[[:space:]]*" key "[[:space:]]*=" {
+      value = substr($0, index($0, "=") + 1);
+      sub(/^[[:space:]]*/, "", value);
+      quote = substr(value, 1, 1);
+      if (quote == "\"" || quote == "\047") {
+        result = "";
+        for (i = 2; i <= length(value); i++) {
+          c = substr(value, i, 1);
+          if (c == quote) {
+            suffix = substr(value, i + 1);
+            if (suffix !~ /^[[:space:]]*(#.*)?$/) exit 2;
+            print result;
+            exit;
+          }
+          if (quote == "\"" && c == "\\") {
+            i++;
+            c = substr(value, i, 1);
+            if (c == "t") c = "\t";
+            else if (c == "n") c = "\n";
+            else if (c == "r") c = "\r";
+            else if (c == "b") c = "\b";
+            else if (c == "f") c = "\f";
+            else if (c != "\"" && c != "\\") exit 2;
+          }
+          result = result c;
+        }
+        exit 2;
+      }
+      sub(/#.*/, "", value);
+      sub(/[[:space:]]*$/, "", value);
+      print value;
       exit;
     }
   ' "$cfg"
@@ -389,7 +422,20 @@ assert_ready_to_start() {
     rm -f "$(pid_file "$service")" "$(identity_file "$service")" "$RUN_DIR/$(process_service "$service").launch"
   fi
 
-  for port in $(service_port_values "$service"); do
+  # Substitution in a for-list would discard parse failure. Validate before
+  # creating the managed launch, including mount strings used by readiness.
+  local ports key
+  ports=$(service_port_values "$service") || {
+    echo "$service cannot read listen values from $cfg" >&2
+    return 1
+  }
+  for key in dfs_mount ownerfs_mount; do
+    config_value "$key" "$cfg" >/dev/null || {
+      echo "$service cannot read $key from $cfg" >&2
+      return 1
+    }
+  done
+  for port in $ports; do
     if port_in_use "$port"; then
       echo "$service port already in use: $port" >&2
       exit 1

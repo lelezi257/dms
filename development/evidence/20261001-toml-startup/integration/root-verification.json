@@ -1,0 +1,237 @@
+{
+  "status": "PASS",
+  "captured_product_records": 248,
+  "rust_compile_inputs_matching": 143,
+  "stage": {
+    "status": "PASS",
+    "rust_source_base_commit": "2643baa935a0b4bc57f6f4680da52c33aa3c97ae",
+    "binaries": {
+      "node": "97d735243d741ef98d917f05a965c9e02703b3b05468ba42e7b1d7c5f2c38e31",
+      "meta": "00cb99fe46f20024ab3b476978dd0e16d9e8a2c0535b95d5c8febc3aa863cf2d"
+    },
+    "controller_sha256": "945cba0c6febdd329f50996f3a59586ae9f51be4c29d2ca9b66175b8253dc2a8",
+    "runtime": {
+      "a": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v51",
+      "b": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v51"
+    },
+    "identities": {
+      "a": {
+        "platform": "Linux-6.8.0-142-generic-aarch64-with-glibc2.39",
+        "boot_id": "36a572e0-859b-4a94-adc7-789210a83fc8",
+        "processes": {
+          "meta": {
+            "pid": 722421,
+            "start_ticks": "6782793",
+            "state": "S",
+            "exe": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v51/prefix/bin/afs-meta",
+            "sha256": "00cb99fe46f20024ab3b476978dd0e16d9e8a2c0535b95d5c8febc3aa863cf2d"
+          },
+          "node": {
+            "pid": 722590,
+            "start_ticks": "6782808",
+            "state": "S",
+            "exe": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v51/prefix/bin/afs-node",
+            "sha256": "97d735243d741ef98d917f05a965c9e02703b3b05468ba42e7b1d7c5f2c38e31"
+          }
+        },
+        "old_processes": {
+          "meta": {
+            "pid": 707560,
+            "start_ticks": "6127754",
+            "state": "S",
+            "exe": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/bin/afs-meta",
+            "sha256": "f96b6a06047da02bf186ea8d89457ee74c454d6c437915f5c32a20a9b909f312"
+          },
+          "node": {
+            "pid": 707590,
+            "start_ticks": "6127772",
+            "state": "S",
+            "exe": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/bin/afs-node",
+            "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39"
+          }
+        },
+        "config_sha256": {
+          "meta": "32669de9a3c949937131f58d567322a846e16931d23b49c331ab3c9b849c8ed2",
+          "node": "067e708a98f84354759e925fb88c5960cb21e92e3a2822f65dfa5d2c0e8c196c"
+        },
+        "mounts": [
+          {
+            "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v51/mount-ownerfs",
+            "source": "afs-ownerfs",
+            "fstype": "fuse"
+          },
+          {
+            "target": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v51/mount-dfs",
+            "source": "afs-dfs",
+            "fstype": "fuse"
+          }
+        ],
+        "data_volume": {
+          "target": "/mnt/lima-afsadata",
+          "source": "/dev/vdb1",
+          "fstype": "ext4"
+        }
+      },
+      "b": {
+        "platform": "Linux-6.8.0-142-generic-aarch64-with-glibc2.39",
+        "boot_id": "3adebcd0-cb31-4df0-b18a-e970786ab7fb",
+        "processes": {
+          "node": {
+            "pid": 131467,
+            "start_ticks": "5849378",
+            "state": "S",
+            "exe": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v51/prefix/bin/afs-node",
+            "sha256": "97d735243d741ef98d917f05a965c9e02703b3b05468ba42e7b1d7c5f2c38e31"
+          }
+        },
+        "old_processes": {
+          "node": {
+            "pid": 67588,
+            "start_ticks": "5197272",
+            "state": "S",
+            "exe": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v48/bin/afs-node",
+            "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39"
+          }
+        },
+        "config_sha256": {
+          "node": "ed6f38e5745df6a4312b7188ef80117961607f1c548ae077f3358f6449cee264"
+        },
+        "mounts": [
+          {
+            "target": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v51/mount-ownerfs",
+            "source": "afs-ownerfs",
+            "fstype": "fuse"
+          },
+          {
+            "target": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v51/mount-dfs",
+            "source": "afs-dfs",
+            "fstype": "fuse"
+          }
+        ],
+        "data_volume": {
+          "target": "/mnt/lima-afsbdata",
+          "source": "/dev/vdb1",
+          "fstype": "ext4"
+        }
+      }
+    },
+    "roles": "memory/R1/gRPC/TLS",
+    "limits": "isolated development; controller has reviewed narrow source change; release lock PREPARING"
+  },
+  "fresh_guest_check": {
+    "a": {
+      "processes": {
+        "meta": {
+          "pid": 722421,
+          "start_ticks": "6782793",
+          "sha256": "00cb99fe46f20024ab3b476978dd0e16d9e8a2c0535b95d5c8febc3aa863cf2d",
+          "exe": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v51/prefix/bin/afs-meta"
+        },
+        "node": {
+          "pid": 722590,
+          "start_ticks": "6782808",
+          "sha256": "97d735243d741ef98d917f05a965c9e02703b3b05468ba42e7b1d7c5f2c38e31",
+          "exe": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v51/prefix/bin/afs-node"
+        }
+      },
+      "old_processes": {
+        "meta": {
+          "pid": 707560,
+          "start_ticks": "6127754",
+          "sha256": "f96b6a06047da02bf186ea8d89457ee74c454d6c437915f5c32a20a9b909f312",
+          "exe": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/bin/afs-meta"
+        },
+        "node": {
+          "pid": 707590,
+          "start_ticks": "6127772",
+          "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+          "exe": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/bin/afs-node"
+        }
+      },
+      "health": {
+        "18281": {
+          "id": "memory-meta-a",
+          "role": "meta",
+          "scope": "foundation",
+          "status": "ready"
+        },
+        "18283": {
+          "dfs": true,
+          "id": "memory-node-a",
+          "ownerfs": true,
+          "role": "node",
+          "scope": "foundation",
+          "status": "ready"
+        }
+      },
+      "runtime_record_files": {
+        "meta.launch": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v51/run/meta.lifecycle.4UW7Fl\n",
+        "node.launch": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v51/run/node.lifecycle.J3oXMq\n",
+        "meta.pid": "722421\n",
+        "node.identity": "pid=722590\nexe=/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v51/prefix/bin/afs-node\nconfig=/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v51/etc/node.toml\nstart_ticks=6782808\nboot_id=36a572e0-859b-4a94-adc7-789210a83fc8\nlifecycle=/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v51/run/node.lifecycle.J3oXMq\nsupervisor_pid=722574\ncmdline=/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v51/prefix/bin/afs-node --config /mnt/lima-afsadata/afs-delivery/p2-memory-lane-v51/etc/node.toml\n",
+        "meta.identity": "pid=722421\nexe=/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v51/prefix/bin/afs-meta\nconfig=/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v51/etc/meta.toml\nstart_ticks=6782793\nboot_id=36a572e0-859b-4a94-adc7-789210a83fc8\nlifecycle=/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v51/run/meta.lifecycle.4UW7Fl\nsupervisor_pid=722405\ncmdline=/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v51/prefix/bin/afs-meta --config /mnt/lima-afsadata/afs-delivery/p2-memory-lane-v51/etc/meta.toml\n",
+        "node.sock.lock": "",
+        "node.pid": "722590\n",
+        "meta.lifecycle.4UW7Fl/child": "pid=722421\nexe=/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v51/prefix/bin/afs-meta\nconfig=/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v51/etc/meta.toml\nstart_ticks=6782793\nboot_id=36a572e0-859b-4a94-adc7-789210a83fc8\nlifecycle=/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v51/run/meta.lifecycle.4UW7Fl\nsupervisor_pid=722405\n",
+        "meta.lifecycle.4UW7Fl/go": "",
+        "meta.lifecycle.4UW7Fl/ready": "supervisor_pid=722405\n",
+        "meta.lifecycle.dOJw0R/child": "pid=722023\nexe=/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v51/prefix/bin/afs-meta\nconfig=/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v51/etc/meta.toml\nstart_ticks=6740437\nboot_id=36a572e0-859b-4a94-adc7-789210a83fc8\nlifecycle=/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v51/run/meta.lifecycle.dOJw0R\nsupervisor_pid=722007\n",
+        "meta.lifecycle.dOJw0R/exit": "pid=722023\nexe=/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v51/prefix/bin/afs-meta\nconfig=/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v51/etc/meta.toml\nstart_ticks=6740437\nboot_id=36a572e0-859b-4a94-adc7-789210a83fc8\nlifecycle=/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v51/run/meta.lifecycle.dOJw0R\nsupervisor_pid=722007\nexit_code=0\n",
+        "meta.lifecycle.dOJw0R/go": "",
+        "meta.lifecycle.dOJw0R/ready": "supervisor_pid=722007\n",
+        "node.lifecycle.J3oXMq/child": "pid=722590\nexe=/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v51/prefix/bin/afs-node\nconfig=/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v51/etc/node.toml\nstart_ticks=6782808\nboot_id=36a572e0-859b-4a94-adc7-789210a83fc8\nlifecycle=/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v51/run/node.lifecycle.J3oXMq\nsupervisor_pid=722574\n",
+        "node.lifecycle.J3oXMq/go": "",
+        "node.lifecycle.J3oXMq/ready": "supervisor_pid=722574\n"
+      },
+      "worker_sha256": {
+        "consistency_cross.py": "0128e177c3b580ebaa8d65d8cd63fc00a53bb1eb3420e98550cbcf794f4b0db8",
+        "locks_cross.py": "a63c5f9282b0a8a7c69824045ebfee2f88b8089411c00e70c3277f0022706fea",
+        "locks_smoke.py": "f83f367b4fe81dd6f6f7276184c15c7b396357101d3d9252955405a4aef83073"
+      }
+    },
+    "b": {
+      "processes": {
+        "node": {
+          "pid": 131467,
+          "start_ticks": "5849378",
+          "sha256": "97d735243d741ef98d917f05a965c9e02703b3b05468ba42e7b1d7c5f2c38e31",
+          "exe": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v51/prefix/bin/afs-node"
+        }
+      },
+      "old_processes": {
+        "node": {
+          "pid": 67588,
+          "start_ticks": "5197272",
+          "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39",
+          "exe": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v48/bin/afs-node"
+        }
+      },
+      "health": {
+        "18285": {
+          "dfs": true,
+          "id": "memory-node-b",
+          "ownerfs": true,
+          "role": "node",
+          "scope": "foundation",
+          "status": "ready"
+        }
+      },
+      "runtime_record_files": {
+        "node.identity": "pid=131467\nexe=/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v51/prefix/bin/afs-node\nconfig=/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v51/etc/node.toml\nstart_ticks=5849378\nboot_id=3adebcd0-cb31-4df0-b18a-e970786ab7fb\nlifecycle=/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v51/run/node.lifecycle.7Ehyze\nsupervisor_pid=131451\ncmdline=/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v51/prefix/bin/afs-node --config /mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v51/etc/node.toml\n",
+        "node.sock.lock": "",
+        "node.launch": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v51/run/node.lifecycle.7Ehyze\n",
+        "node.pid": "131467\n",
+        "node.lifecycle.7Ehyze/child": "pid=131467\nexe=/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v51/prefix/bin/afs-node\nconfig=/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v51/etc/node.toml\nstart_ticks=5849378\nboot_id=3adebcd0-cb31-4df0-b18a-e970786ab7fb\nlifecycle=/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v51/run/node.lifecycle.7Ehyze\nsupervisor_pid=131451\n",
+        "node.lifecycle.7Ehyze/ready": "supervisor_pid=131451\n",
+        "node.lifecycle.7Ehyze/go": ""
+      },
+      "worker_sha256": {
+        "consistency_cross.py": "0128e177c3b580ebaa8d65d8cd63fc00a53bb1eb3420e98550cbcf794f4b0db8",
+        "locks_cross.py": "a63c5f9282b0a8a7c69824045ebfee2f88b8089411c00e70c3277f0022706fea",
+        "locks_smoke.py": "f83f367b4fe81dd6f6f7276184c15c7b396357101d3d9252955405a4aef83073"
+      }
+    }
+  },
+  "handoff_unchanged": true,
+  "scope": "identified memory R1/gRPC A/B development matrix only; no full release gate"
+}

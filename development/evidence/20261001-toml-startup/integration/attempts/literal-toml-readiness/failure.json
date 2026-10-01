@@ -1,0 +1,11 @@
+{
+  "status": "FAIL",
+  "component": "afs-processctl",
+  "controller_sha256": "b5dd0fa011475fb94658d3b1322ed8395c69aa1f85fbff5b5e1e4a307eec83a1",
+  "runtime": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v51",
+  "actual_meta_ready": true,
+  "controller_exit": 1,
+  "timeout_seconds": 20,
+  "error": "18280 and18281 parse includes trailing single quote, controller cannot construct healthURL; Meta is stopped after false failed readiness",
+  "product_node_started": false
+}

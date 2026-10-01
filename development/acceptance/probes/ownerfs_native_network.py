@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""Finite cross-VM A2 experiment around the current test-only Node driver.
+"""Finite cross-VM architecture experiments using the test-only Node driver.
 
 WSL builds, Ubuntu VMs execute. The controller can invoke Windows OpenSSH with
 explicit paths; no WSL key permission workaround or shared backing shortcuts.
 --expect ordinary records the required negative admission control. --expect
-native records retained-object/close-to-open evidence, never a performance PASS.
+native records A2 retained-object/close-to-open or A3 nonblocking flock evidence,
+selected by --case; neither profile is a performance or whole-stage PASS.
 """
 import argparse
 import datetime
@@ -37,7 +38,9 @@ def main():
     parser.add_argument("--meta-bin", type=Path, required=True)
     parser.add_argument("--snapshot", type=Path, required=True)
     parser.add_argument("--expect", choices=("ordinary", "native"), required=True)
+    parser.add_argument("--case", choices=("a2", "flock"), default="a2")
     args = parser.parse_args()
+    assert args.case == "a2" or args.expect == "native"
     stamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%S")
     nonce = uuid.uuid4().hex[:8]
     run = f"network-probe-{stamp}-{nonce}"
@@ -66,8 +69,8 @@ def main():
     export = False
     sequence = 0
     result = {"run_id": run, "expected_constructor": args.expect,
-              "case_profile": "a2-close-reopen-unlink-recreate",
-              "scope": "actual Node bootstrap/Meta/TLS/P2P; test-only mount driver; A2 not performance",
+              "case_profile": "a2-close-reopen-unlink-recreate" if args.case == "a2" else "a3-flock-object",
+              "scope": "actual Node bootstrap/Meta/TLS/P2P; test-only mount driver; bounded architecture cases, not performance",
               "input_sha256": {name: digest(out / name) for name in
                                ("node-tests", "afs-meta", "guest.py", "controller.py")},
               "snapshot": args.snapshot.name, "hosts": roles, "phase_pass": False}
@@ -130,6 +133,18 @@ def main():
         assert not reply["ok"] and reply["errno"] == 2, reply
         result.setdefault("fresh_missing", []).append({"role": role, "actor": actor, "reply": reply})
 
+    def flock(role, actor, handle, mode, errno):
+        nonlocal sequence
+        sequence += 1
+        reply = guest(role, "actor-command", command={"id": f"c{sequence}",
+                      "operation": "flock", "actor": actor, "handle": handle, "mode": mode})
+        if errno:
+            assert not reply["ok"] and reply["errno"] == errno, reply
+        else:
+            assert reply["ok"], reply
+        result.setdefault("flock_results", []).append({"role": role, "actor": actor,
+                      "handle": handle, "mode": mode, "errno": errno, "reply": reply})
+
     try:
         for role in roles:
             base = bases[role]
@@ -183,7 +198,7 @@ def main():
         fresh_read("b", "remote", "data", "original-A-data")
         request("a", "open", actor="oldfuse", name="identity", handle="old", flags="O_RDWR")
         request("b", "open", actor="remote", name="identity", handle="old", flags="O_RDWR")
-        if args.expect == "native":
+        if args.expect == "native" and args.case == "a2":
             request("b", "open", actor="remote", name="data", handle="warmed")
             assert request("b", "read", actor="remote", handle="warmed") == "original-A-data"
         if args.expect == "ordinary":
@@ -200,37 +215,78 @@ def main():
             native = start_actor("a", "native")
             assert native["root"] == result["activated"]["source"], (native, result["activated"])
             assert native["root"]["device"] != result["actors"]["a-oldfuse"]["root"]["device"]
-            for text in ("same-length-ABC", "short", "", "longer-native-value-after-empty"):
-                request("a", "write", actor="native", name="data", data=text)
-                fresh_read("b", "remote", "data", text)
-                fresh_read("a", "oldfuse", "data", text)
-            # No live-refresh/snapshot assertion while this reader is open.
-            request("b", "close", actor="remote", handle="warmed")
-            fresh_read("b", "remote", "data", "longer-native-value-after-empty")
-            request("b", "write", actor="remote", name="data", data="remote-to-native")
-            fresh_read("a", "native", "data", "remote-to-native")
-            request("a", "write", actor="native", name="replacement", data="replacement-object")
-            request("a", "rename", actor="native", name="replacement", target="identity")
-            for role, actor in (("a", "oldfuse"), ("b", "remote")):
-                assert request(role, "read", actor=actor, handle="old") == "original-object"
-                fresh_read(role, actor, "identity", "replacement-object")
-            request("b", "write", actor="remote", handle="old", data="old-object-through-P2P")
-            assert request("a", "read", actor="oldfuse", handle="old") == "old-object-through-P2P"
-            fresh_read("a", "native", "identity", "replacement-object")
-            request("a", "unlink", actor="native", name="identity")
-            for role, actor in (("a", "oldfuse"), ("b", "remote")):
-                assert request(role, "read", actor=actor, handle="old") == "old-object-through-P2P"
-            for role, actor in (("a", "native"), ("a", "oldfuse"), ("b", "remote")):
-                expect_missing(role, actor, "identity")
-            request("a", "write", actor="native", name="identity", data="recreated-object")
-            fresh_read("b", "remote", "identity", "recreated-object")
-            fresh_read("a", "oldfuse", "identity", "recreated-object")
-            for role, actor in (("a", "oldfuse"), ("b", "remote")):
-                assert request(role, "read", actor=actor, handle="old") == "old-object-through-P2P"
-            request("b", "write", actor="remote", handle="old", data="old-still-isolated")
-            assert request("a", "read", actor="oldfuse", handle="old") == "old-still-isolated"
-            fresh_read("a", "native", "identity", "recreated-object")
-            result["mechanism_result"] = "A2 retained objects and close-to-open candidate evidence"
+            if args.case == "a2":
+                for text in ("same-length-ABC", "short", "", "longer-native-value-after-empty"):
+                    request("a", "write", actor="native", name="data", data=text)
+                    fresh_read("b", "remote", "data", text)
+                    fresh_read("a", "oldfuse", "data", text)
+                # No live-refresh/snapshot assertion while this reader is open.
+                request("b", "close", actor="remote", handle="warmed")
+                fresh_read("b", "remote", "data", "longer-native-value-after-empty")
+                request("b", "write", actor="remote", name="data", data="remote-to-native")
+                fresh_read("a", "native", "data", "remote-to-native")
+                request("a", "write", actor="native", name="replacement", data="replacement-object")
+                request("a", "rename", actor="native", name="replacement", target="identity")
+                for role, actor in (("a", "oldfuse"), ("b", "remote")):
+                    assert request(role, "read", actor=actor, handle="old") == "original-object"
+                    fresh_read(role, actor, "identity", "replacement-object")
+                request("b", "write", actor="remote", handle="old", data="old-object-through-P2P")
+                assert request("a", "read", actor="oldfuse", handle="old") == "old-object-through-P2P"
+                fresh_read("a", "native", "identity", "replacement-object")
+                request("a", "unlink", actor="native", name="identity")
+                for role, actor in (("a", "oldfuse"), ("b", "remote")):
+                    assert request(role, "read", actor=actor, handle="old") == "old-object-through-P2P"
+                for role, actor in (("a", "native"), ("a", "oldfuse"), ("b", "remote")):
+                    expect_missing(role, actor, "identity")
+                request("a", "write", actor="native", name="identity", data="recreated-object")
+                fresh_read("b", "remote", "identity", "recreated-object")
+                fresh_read("a", "oldfuse", "identity", "recreated-object")
+                for role, actor in (("a", "oldfuse"), ("b", "remote")):
+                    assert request(role, "read", actor=actor, handle="old") == "old-object-through-P2P"
+                request("b", "write", actor="remote", handle="old", data="old-still-isolated")
+                assert request("a", "read", actor="oldfuse", handle="old") == "old-still-isolated"
+                fresh_read("a", "native", "identity", "recreated-object")
+                result["mechanism_result"] = "A2 retained objects and close-to-open candidate evidence"
+            else:
+                start_actor("a", "nativepeer")
+                request("a", "open", actor="native", name="identity", handle="old", flags="O_RDWR")
+                request("a", "open", actor="nativepeer", name="identity", handle="old", flags="O_RDWR")
+                # Four distinct open descriptions, same Home object. Every
+                # attempted acquisition is nonblocking and records actual errno.
+                flock("a", "native", "old", "EX", 0)
+                flock("a", "nativepeer", "old", "EX", 11)
+                flock("b", "remote", "old", "EX", 11)
+                flock("a", "oldfuse", "old", "EX", 11)
+                flock("a", "native", "old", "UN", 0)
+                flock("b", "remote", "old", "EX", 0)
+                flock("a", "native", "old", "EX", 11)
+                flock("a", "oldfuse", "old", "EX", 11)
+                flock("b", "remote", "old", "UN", 0)
+                flock("a", "native", "old", "SH", 0)
+                flock("b", "remote", "old", "SH", 0)
+                flock("a", "nativepeer", "old", "EX", 11)
+                flock("b", "remote", "old", "UN", 0)
+                flock("a", "native", "old", "UN", 0)
+                flock("b", "remote", "old", "EX", 0)
+                request("a", "write", actor="native", name="replacement", data="replacement-object")
+                request("a", "rename", actor="native", name="replacement", target="identity")
+                request("a", "open", actor="native", name="identity", handle="new", flags="O_RDWR")
+                flock("a", "native", "new", "EX", 0)
+                flock("a", "native", "old", "EX", 11)
+                assert request("b", "read", actor="remote", handle="old") == "original-object"
+                fresh_read("a", "native", "identity", "replacement-object")
+                flock("b", "remote", "old", "UN", 0)
+                flock("a", "native", "old", "EX", 0)
+                flock("b", "remote", "old", "EX", 11)
+                flock("a", "native", "old", "UN", 0)
+                # Native final close must release the replacement's OFD lock.
+                request("a", "close", actor="native", handle="new")
+                request("a", "open", actor="nativepeer", name="identity", handle="new", flags="O_RDWR")
+                flock("a", "nativepeer", "new", "EX", 0)
+                flock("a", "nativepeer", "new", "UN", 0)
+                for actor, handle in (("native", "old"), ("nativepeer", "old"), ("nativepeer", "new")):
+                    request("a", "close", actor=actor, handle=handle)
+                result["mechanism_result"] = "actual native/local FUSE/remote P2P nonblocking flock and retained-object isolation"
         for role, actor in (("a", "oldfuse"), ("b", "remote")):
             request(role, "close", actor=actor, handle="old")
         result["cases_ok"] = True

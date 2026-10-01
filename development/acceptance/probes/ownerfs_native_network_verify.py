@@ -102,13 +102,22 @@ def main():
         assert active["observed"]["source"] == active["source"]
         assert active["observed"]["covered_target"] == active["covered_target"]
         assert active["observed"]["namespace"] == active["identity"]["namespace"]
-        assert a.get("read-server", 0) >= 2 and b.get("read-client", 0) >= 2
-        assert a.get("write-server", 0) >= 2 and b.get("write-client", 0) >= 2
+        flock_profile = result.get("case_profile") == "a3-flock-object"
+        if flock_profile:
+            # Locks use authenticated NodeControl.OwnerSetLock, not the
+            # OwnerFiles duration histogram. Reciprocal actual syscall
+            # conflicts below qualify arbitration; no invented metric count.
+            summary["lock_route_limit"] = "NodeControl locks have no OwnerFiles duration count; actual syscall conflicts and authenticated peer socket are checked"
+            assert result["actors"]["a-nativepeer"]["root"] == active["source"]
+        else:
+            assert a.get("read-server", 0) >= 2 and b.get("read-client", 0) >= 2
+            assert a.get("write-server", 0) >= 2 and b.get("write-client", 0) >= 2
         summary["metrics_limit"] = "small-file read may use Open prefetch; Read RPC counts are not read syscall counts"
         detach = next(row["detach"] for row in result["cleanup"] if "detach" in row)
         assert detach["state"] == "Detached" and detach["observed"] is None
         reads = []
         missing = []
+        flocks = []
         extended = result.get("case_profile") == "a2-close-reopen-unlink-recreate"
         for line in (directory / "transcript.jsonl").read_text().splitlines():
             row = json.loads(line)
@@ -119,6 +128,12 @@ def main():
             assert row["exit"] == 0 and command["id"] == reply["id"]
             ip = row["command"][-2].removeprefix("lzc@")
             role = next(role for role, host in result["hosts"].items() if host == ip)
+            if command["operation"] == "flock":
+                assert flock_profile
+                errno = 0 if reply["ok"] else reply["errno"]
+                assert errno in (0, 11)
+                flocks.append((role, command["actor"], command["handle"], command["mode"], errno))
+                continue
             if command.get("handle") == "missing":
                 assert extended and command["operation"] == "open" and command["name"] == "identity"
                 assert not reply["ok"] and reply["errno"] == 2
@@ -152,6 +167,41 @@ def main():
                 ("a", "native", "fresh", "recreated-object")]
             assert missing == [("a", "native"), ("a", "oldfuse"), ("b", "remote")]
             summary["fresh_missing_errno_verified"] = "ENOENT on native/local FUSE/remote FUSE"
+        if flock_profile:
+            expected_reads = [("b", "remote", "fresh", "original-A-data"),
+                              ("b", "remote", "old", "original-object"),
+                              ("a", "native", "fresh", "replacement-object")]
+            expected_flocks = [
+                ("a", "native", "old", "EX", 0),
+                ("a", "nativepeer", "old", "EX", 11),
+                ("b", "remote", "old", "EX", 11),
+                ("a", "oldfuse", "old", "EX", 11),
+                ("a", "native", "old", "UN", 0),
+                ("b", "remote", "old", "EX", 0),
+                ("a", "native", "old", "EX", 11),
+                ("a", "oldfuse", "old", "EX", 11),
+                ("b", "remote", "old", "UN", 0),
+                ("a", "native", "old", "SH", 0),
+                ("b", "remote", "old", "SH", 0),
+                ("a", "nativepeer", "old", "EX", 11),
+                ("b", "remote", "old", "UN", 0),
+                ("a", "native", "old", "UN", 0),
+                ("b", "remote", "old", "EX", 0),
+                ("a", "native", "new", "EX", 0),
+                ("a", "native", "old", "EX", 11),
+                ("b", "remote", "old", "UN", 0),
+                ("a", "native", "old", "EX", 0),
+                ("b", "remote", "old", "EX", 11),
+                ("a", "native", "old", "UN", 0),
+                ("a", "nativepeer", "new", "EX", 0),
+                ("a", "nativepeer", "new", "UN", 0),
+            ]
+            assert flocks == expected_flocks, flocks
+            summary["flock_scope_verified"] = "nonblocking native/local FUSE/remote P2P; shared/exclusive; object replacement; native close"
+            summary["flock_limit"] = "not POSIX process locks, blocking waiter recovery, or remote final-close drain"
+            summary["actual_flock_assertions"] = len(flocks)
+        else:
+            assert not flocks
         assert reads == expected_reads, reads
         summary["actual_read_assertions"] = len(reads)
     else:

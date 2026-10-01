@@ -1409,3 +1409,65 @@ client/cache negotiation remains an explicit A4 question, not an excluded
 requirement or an inferred PASS. A1 paused callback/production-ready proof,
 A3 full locks/concurrency, A4 mmap/watch/permissions/cache compatibility,
 A5 managed reclaim/switch, A6 death/namespace recovery and phase2/3 remain open.
+
+### E14: actual cross-VM nonblocking flock arbitration
+
+`network-probe-20261001T112518-369f8d1e`, snapshot
+`native-network-native-candidate-20261001T112516`, source parent `2a3956b` plus
+the frozen Python probe patch. Node/Meta executed and unstripped SHA values are
+exactly the E13 frozen artifacts above; no Rust production behavior or platform
+change is made. The new `--case flock --expect native` profile reuses startup,
+authority, TLS/P2P and normal teardown without repeating the A2 case family.
+VM runner terminal0 and corrected independent offline verification PASS.
+
+Four actual Actors open independent descriptions of the same Home object:
+post-activation native and native peer, pre-activation local FUSE, and B remote
+FUSE. Actual nonblocking `fcntl.flock` results prove:
+
+- Native exclusive lock rejects all three competitors with errno11/EAGAIN.
+  After native unlock, B exclusive lock succeeds and rejects native/local FUSE.
+- Native and B shared locks coexist; a second native exclusive request fails.
+- B holds an exclusive lock on the original object while native replaces its
+  name. Native can lock the replacement and still cannot lock the old object.
+  B reads the original bytes; a fresh native open reads the replacement bytes.
+  Releasing B's old lock permits native to lock the old object and reject B.
+- Closing the locked native replacement descriptor allows a fresh independent
+  native descriptor to acquire its lock. Remote final-close release/drain is
+  **not** qualified by this case.
+
+All Actors explicitly unlock/close/quit and terminal exit0. Normal detach gives
+Detached/observed=None; both Nodes and Meta exit0; parent mounts are unchanged.
+Boot/PID/start/executable/namespace identities and owned B→A TCP are checked.
+OwnerFiles Open2/Read1 on A and B establish the existing file route. Locks use
+authenticated `NodeControl.OwnerSetLock` in `src/node/rpc/peer.rs` and Home
+handler `src/node/rpc/control.rs`; that route is not included in the
+OwnerFiles duration histogram. The reciprocal actual syscall results establish
+shared arbitration, not a fabricated lock metric count or a throughput claim.
+
+The first offline verifier incorrectly required `setlk-server/client` in that
+histogram and failed. `verify-initial-flock.log` and the initial verifier input
+remain frozen. Source routing and raw metrics explain the error; only the
+offline observation is corrected, without replaying or rewriting VM outcomes.
+Final verifier SHA
+`d4c9c6660fe0f3dad0560df39a28f5844c7ace1084dfdf0f14d1966b9467c357`;
+artifact audit accepts the original archive and rejects independently corrupted
+archive SHA, read reply, and a conflict changed to successful acquisition.
+E13's complete A2 evidence still passes the extended verifier. Python compile
+checks and git diff whitespace checks PASS; no Rust rebuild/full-suite rerun is
+claimed for this Python-only experiment.
+
+Root `root-6167656e7431`, epoch1, Home `native-a-369f8d1e`; source
+device2065/inode1048827, covered FUSE device46/inode2,
+unique mount id4294979634. Guest/controller SHA values:
+`0b89cb54861b266374266c32b57793797753583a9507f01856a977d9f4c21bf7` /
+`bf5bcfb7ba96afeb8bc08ae479ea4a825836b966b89a719e7915e748a4dcf981`.
+Raw archives A
+`19492400309df8b853fb79fa30ac489f9d0c659667dc486b974b110ed79f5dcd`,
+B `702e6b9f6b322f0705aa9259fb5ff6a8efbfe63ddd9dbf76709b615a19fddcfe`,
+ctl `bd1e325bbbea303444968054967d4c8bcf3f136021f4b4e29d28c4509b211b04`.
+Windows evidence is in `local/native-bind-vm/<run>/`; guest/source snapshot
+locations follow E13. **Only the A3 nonblocking flock mechanism question is
+closed.** POSIX owner compatibility has no new exemption; blocking wait/cancel,
+remote final-close drain, append/EXCL and concurrent I/O remain open. A3 and
+architecture stage1 remain unchecked; performance and production reliability
+remain deferred.

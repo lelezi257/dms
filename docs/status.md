@@ -56,6 +56,16 @@ failed collection and offline verification](../development/native-bind-evidence.
 preserve the exact experimental scope. Release Node still uses ordinary OwnerFs;
 the test driver is absent from release and non-Linux builds.
 
+E14 closes the bounded actual native/local-FUSE/remote-P2P nonblocking flock
+arbitration question on the same three-VM chain: reciprocal exclusive conflicts,
+shared coexistence, retained-object locks after name replacement, and native
+final-close release pass. The frozen Node/Meta artifacts are reused; only the
+experiment driver changes. Locks use NodeControl, whose calls are absent from
+the OwnerFiles duration histogram; the initial offline observer failure and its
+correction remain recorded in [E14](../development/native-bind-evidence.md#e14-actual-cross-vm-nonblocking-flock-arbitration).
+This does not close POSIX owner compatibility, blocking waiter recovery, remote
+final-close drain, other concurrency or the whole architecture stage.
+
 An additional A1 combination probe on the independent ext4 VM verifies actual
 kernel EPERM on physical activation, FuseOnly/no native claim, continued FUSE
 access to the same prepared backing, successful retry and normal-detach fallback.

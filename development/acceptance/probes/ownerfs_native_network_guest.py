@@ -6,6 +6,7 @@ matching executable digest, start tick and boot id. Actors retain real FUSE or
 native directory/file references; control files never represent Agent input.
 """
 import argparse
+import fcntl
 import hashlib
 import json
 import os
@@ -213,6 +214,11 @@ def actor(base, actor_name):
                     value = {"device": stat.st_dev, "inode": stat.st_ino}
                 elif operation == "read":
                     value = os.pread(handles[key], 65536, 0).decode()
+                elif operation == "flock":
+                    mode = command["mode"]
+                    assert mode in ("EX", "SH", "UN")
+                    # Bounded probes only: no actor/controller can hang on a lock.
+                    fcntl.flock(handles[key], getattr(fcntl, "LOCK_" + mode) | fcntl.LOCK_NB)
                 elif operation == "write":
                     fd = handles[key] if key is not None else os.open(
                         name, os.O_WRONLY | os.O_CREAT, 0o600, dir_fd=root)

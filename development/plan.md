@@ -6,7 +6,7 @@
 
 Current round: **ROUND2, major faults and recovery**. [ROUND1 closure](evidence/20261001-round1-corrected-package/README.md) covers fresh corrected-package R1/async installations, local zero-peer writes, Home/remote access, actual repair completion and ten cross-node consistency flows. Previous RN2/three transports and source gate retain their original identities and are reused under matching production/controller and 143 compiler inputs. Formal 69 NOT_RUN / ENV PREPARING remains unchanged.
 
-First fault batch retains central memory Meta and tests a Home/DFS-source Node interruption: explicit Owner errors, DFS surviving-copy reads matching acknowledged content, original-disk restart/Home/session/repair, then actual target outage/rejoin. Follow with unknown replies, corruption, product network and physical ENOSPC, and business RDMA faults. Choose priorities from [issues](issues.md) by whole-system consequences.
+The [first integrated Node fault batch](evidence/20261001-round2-node-recovery/README.md) passes actual A/Home/source interruption, Owner error versus cold DFS surviving-copy read, B/C replacement, original-disk restart/Home/session recovery and actual C target outage/rejoin. Central memory Meta remains unchanged; C outage after replacement retains enough copies and does not create new debt. Next cover product network and physical ENOSPC/corruption, unknown replies and remaining business RDMA faults. Choose priorities from [issues](issues.md) by whole-system consequences. ROUND2 remains incomplete.
 
 ## Whole-system rounds
 

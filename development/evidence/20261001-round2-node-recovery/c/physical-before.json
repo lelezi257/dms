@@ -1,0 +1,29 @@
+{
+  "which": "c",
+  "action": "physical",
+  "utc": "2026-10-01T10:46:15Z",
+  "runtime": "/mnt/lima-afscdata/afs-delivery/round1-mainline-v77-archive-async",
+  "formal_acceptance": "NOT_RUN",
+  "environment": "PREPARING",
+  "identity": {
+    "pid": 2240,
+    "role": "node",
+    "exe": "/mnt/lima-afscdata/afs-delivery/round1-mainline-v77-archive-async/prefix/bin/afs-node",
+    "sha256": "d28d17faa8bb71eb8c0a28241e8556396e440b204cf0242d2af8133700f6a494",
+    "start_ticks": "71041",
+    "boot_id": "0cf26d13-bc67-4f98-999e-7aeac4cc9b30"
+  },
+  "chunks": [
+    {
+      "name": "blake3-4e94e6f582581a0f3855f3ce504b153e951e65036fe9e2f010b7e25473c54f98-4194304",
+      "bytes": 4194304,
+      "sha256": "a117210941a0b00dcb2d8577e680d84b6fa0eaf760d2afc654c953b9859d54fa"
+    },
+    {
+      "name": "blake3-63c31766464b0c4931ff8b7406a2c1d8140d08b94328ccd7cf3b431d94cc690f-17",
+      "bytes": 17,
+      "sha256": "31c8d139409af3a7ca3e686ff4409927e9f34154a1e6b24070b847a7b0f30111"
+    }
+  ],
+  "status": "PASS"
+}

@@ -1,0 +1,128 @@
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+{"msg":"Mounting /mnt/lima-afsbdata/afs-delivery/round1-mainline-v77-archive-async/mount/ownerfs","level":"INFO","ts":"2026-10-01T10:34:42.763379384Z","instance":"round1-b","service_name":"afs-node"}
+{"msg":"Mounting /mnt/lima-afsbdata/afs-delivery/round1-mainline-v77-archive-async/mount/dfs","level":"INFO","ts":"2026-10-01T10:34:42.763405383Z","instance":"round1-b","service_name":"afs-node"}
+{"msg":"node.ready","level":"INFO","ts":"2026-10-01T10:34:42.763410425Z","instance":"round1-b","service_name":"afs-node","dfs":true,"ownerfs":true,"uds":"/mnt/lima-afsbdata/afs-delivery/round1-mainline-v77-archive-async/run/node.sock","rest":"192.168.109.13:19985","grpc":"0.0.0.0:19984"}
+{"msg":"[Not Implemented] ioctl(ino: 0x2, fh: 1, flags: 0, cmd: 21505, in_data.len(): 0, out_size: 0)","level":"WARN","ts":"2026-10-01T10:35:05.677285516Z","instance":"round1-b","service_name":"afs-node"}
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+{"msg":"[Not Implemented] ioctl(ino: 0x2, fh: 2, flags: 0, cmd: 21505, in_data.len(): 0, out_size: 0)","level":"WARN","ts":"2026-10-01T10:35:07.628380755Z","instance":"round1-b","service_name":"afs-node"}
+{"msg":"[Not Implemented] ioctl(ino: 0x3, fh: 1, flags: 0, cmd: 21505, in_data.len(): 0, out_size: 0)","level":"WARN","ts":"2026-10-01T10:35:09.239103999Z","instance":"round1-b","service_name":"afs-node"}
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+{"msg":"[Not Implemented] ioctl(ino: 0x3, fh: 2, flags: 0, cmd: 21505, in_data.len(): 0, out_size: 0)","level":"WARN","ts":"2026-10-01T10:35:09.336366266Z","instance":"round1-b","service_name":"afs-node"}
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+{"msg":"services.stopped","level":"INFO","ts":"2026-10-01T10:46:10.172118712Z","instance":"round1-b","service_name":"afs-node"}
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+{"msg":"Mounting /mnt/lima-afsbdata/afs-delivery/round1-mainline-v77-archive-async/mount/ownerfs","level":"INFO","ts":"2026-10-01T10:46:10.380616785Z","instance":"round1-b","service_name":"afs-node"}
+{"msg":"Mounting /mnt/lima-afsbdata/afs-delivery/round1-mainline-v77-archive-async/mount/dfs","level":"INFO","ts":"2026-10-01T10:46:10.38063628Z","instance":"round1-b","service_name":"afs-node"}
+{"msg":"node.ready","level":"INFO","ts":"2026-10-01T10:46:10.381620176Z","instance":"round1-b","service_name":"afs-node","dfs":true,"ownerfs":true,"uds":"/mnt/lima-afsbdata/afs-delivery/round1-mainline-v77-archive-async/run/node.sock","rest":"192.168.109.13:19985","grpc":"0.0.0.0:19984"}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-01T10:46:31.267466524Z","instance":"round1-b","service_name":"afs-node","message":"tcp connect error","kind":"Unavailable","code":16973827}
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_COMPLETE op=READ bytes=4194304
+AFS_RDMA_COMPLETE op=READ bytes=17
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+{"msg":"services.stopped","level":"INFO","ts":"2026-10-01T10:48:39.108664078Z","instance":"round1-b","service_name":"afs-node"}
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+{"msg":"Mounting /mnt/lima-afsbdata/afs-delivery/round1-mainline-v77-archive-async/mount/ownerfs","level":"INFO","ts":"2026-10-01T10:48:39.313678267Z","instance":"round1-b","service_name":"afs-node"}
+{"msg":"Mounting /mnt/lima-afsbdata/afs-delivery/round1-mainline-v77-archive-async/mount/dfs","level":"INFO","ts":"2026-10-01T10:48:39.314462414Z","instance":"round1-b","service_name":"afs-node"}
+{"msg":"node.ready","level":"INFO","ts":"2026-10-01T10:48:39.317435301Z","instance":"round1-b","service_name":"afs-node","dfs":true,"ownerfs":true,"uds":"/mnt/lima-afsbdata/afs-delivery/round1-mainline-v77-archive-async/run/node.sock","rest":"192.168.109.13:19985","grpc":"0.0.0.0:19984"}
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete

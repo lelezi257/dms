@@ -1,0 +1,44 @@
+{
+  "status": "PASS",
+  "results": [
+    {
+      "name": "valid scoped fault packet",
+      "ok": true
+    },
+    {
+      "name": "false killed proof",
+      "ok": true,
+      "rejected": "a actual SIGKILL identity"
+    },
+    {
+      "name": "different Meta",
+      "ok": true,
+      "rejected": "identity-final.json authority continuity"
+    },
+    {
+      "name": "uncold initial source",
+      "ok": true,
+      "rejected": "B initial storage cold"
+    },
+    {
+      "name": "Owner false success",
+      "ok": true,
+      "rejected": "Owner explicit unavailable error"
+    },
+    {
+      "name": "bad read bytes",
+      "ok": true,
+      "rejected": "b/dfs-source-down.json complete correct read"
+    },
+    {
+      "name": "incomplete repair",
+      "ok": true,
+      "rejected": "blake3-4e94e6f582581a0f3855f3ce504b153e951e65036fe9e2f010b7e25473c54f98-4194304 replacement completed"
+    },
+    {
+      "name": "wrong physical chunk",
+      "ok": true,
+      "rejected": "c/physical-restarted.json physical hashes"
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "which": "c",
+  "action": "kill",
+  "utc": "2026-10-01T10:48:24Z",
+  "runtime": "/mnt/lima-afscdata/afs-delivery/round1-mainline-v77-archive-async",
+  "formal_acceptance": "NOT_RUN",
+  "environment": "PREPARING",
+  "identity": {
+    "pid": 2240,
+    "role": "node",
+    "exe": "/mnt/lima-afscdata/afs-delivery/round1-mainline-v77-archive-async/prefix/bin/afs-node",
+    "sha256": "d28d17faa8bb71eb8c0a28241e8556396e440b204cf0242d2af8133700f6a494",
+    "start_ticks": "71041",
+    "boot_id": "0cf26d13-bc67-4f98-999e-7aeac4cc9b30"
+  },
+  "signal": "SIGKILL",
+  "dead": true,
+  "status": "PASS"
+}

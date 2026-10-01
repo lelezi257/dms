@@ -1,0 +1,443 @@
+{
+  "which": "ctl",
+  "action": "snapshot",
+  "utc": "2026-10-01T10:49:12Z",
+  "runtime": "/mnt/lima-afsctlstate/afs-delivery/round1-mainline-v77-archive-async",
+  "formal_acceptance": "NOT_RUN",
+  "environment": "PREPARING",
+  "home": {
+    "checked_at_unix_ms": 1790851752329,
+    "home_data_addr": "https://192.168.109.12:19982",
+    "home_grpc_addr": "https://192.168.109.12:19982",
+    "home_lease_epoch": 2,
+    "home_node_id": "round1-a",
+    "home_rest_addr": "http://192.168.109.12:19983",
+    "home_serving": true,
+    "home_session_expires_at_unix_ms": 1790851781758,
+    "home_session_id": "dfcee72f-d7c0-4bc0-9047-712784e608ba",
+    "owner": "round1-a",
+    "revision": 251,
+    "root_epoch": 1,
+    "root_id": "root-776f726b73706163652d726f756e64312d763737",
+    "status": "serving"
+  },
+  "replication": [
+    {
+      "available_copies": 3,
+      "checked_at_unix_ms": 1790851752337,
+      "chunk_id": "blake3-4e94e6f582581a0f3855f3ce504b153e951e65036fe9e2f010b7e25473c54f98-4194304",
+      "copies": [
+        {
+          "available": true,
+          "record": {
+            "chunk_id": "blake3-4e94e6f582581a0f3855f3ce504b153e951e65036fe9e2f010b7e25473c54f98-4194304",
+            "id": "round1-a:1:local-0:blake3-4e94e6f582581a0f3855f3ce504b153e951e65036fe9e2f010b7e25473c54f98-4194304",
+            "location": {
+              "Node": {
+                "catalog_revision": 1,
+                "device_epoch": 1790850852541641323,
+                "device_id": "local-0",
+                "node_epoch": 1,
+                "node_id": "round1-a"
+              }
+            },
+            "persisted_bytes": 4194304,
+            "role": "DurableReplica",
+            "state": "Ready",
+            "verified_digest": {
+              "algorithm": "Blake3",
+              "bytes": [
+                78,
+                148,
+                230,
+                245,
+                130,
+                88,
+                26,
+                15,
+                56,
+                85,
+                243,
+                206,
+                80,
+                75,
+                21,
+                62,
+                149,
+                30,
+                101,
+                3,
+                111,
+                233,
+                226,
+                240,
+                16,
+                183,
+                226,
+                84,
+                115,
+                197,
+                79,
+                152
+              ]
+            }
+          }
+        },
+        {
+          "available": true,
+          "record": {
+            "chunk_id": "blake3-4e94e6f582581a0f3855f3ce504b153e951e65036fe9e2f010b7e25473c54f98-4194304",
+            "id": "round1-c:1:local-0:blake3-4e94e6f582581a0f3855f3ce504b153e951e65036fe9e2f010b7e25473c54f98-4194304",
+            "location": {
+              "Node": {
+                "catalog_revision": 2,
+                "device_epoch": 1790850882754039099,
+                "device_id": "local-0",
+                "node_epoch": 1,
+                "node_id": "round1-c"
+              }
+            },
+            "persisted_bytes": 4194304,
+            "role": "DurableReplica",
+            "state": "Ready",
+            "verified_digest": {
+              "algorithm": "Blake3",
+              "bytes": [
+                78,
+                148,
+                230,
+                245,
+                130,
+                88,
+                26,
+                15,
+                56,
+                85,
+                243,
+                206,
+                80,
+                75,
+                21,
+                62,
+                149,
+                30,
+                101,
+                3,
+                111,
+                233,
+                226,
+                240,
+                16,
+                183,
+                226,
+                84,
+                115,
+                197,
+                79,
+                152
+              ]
+            }
+          }
+        },
+        {
+          "available": true,
+          "record": {
+            "chunk_id": "blake3-4e94e6f582581a0f3855f3ce504b153e951e65036fe9e2f010b7e25473c54f98-4194304",
+            "id": "round1-b:2:local-0:blake3-4e94e6f582581a0f3855f3ce504b153e951e65036fe9e2f010b7e25473c54f98-4194304",
+            "location": {
+              "Node": {
+                "catalog_revision": 1,
+                "device_epoch": 1790850882710423150,
+                "device_id": "local-0",
+                "node_epoch": 2,
+                "node_id": "round1-b"
+              }
+            },
+            "persisted_bytes": 4194304,
+            "role": "DurableReplica",
+            "state": "Ready",
+            "verified_digest": {
+              "algorithm": "Blake3",
+              "bytes": [
+                78,
+                148,
+                230,
+                245,
+                130,
+                88,
+                26,
+                15,
+                56,
+                85,
+                243,
+                206,
+                80,
+                75,
+                21,
+                62,
+                149,
+                30,
+                101,
+                3,
+                111,
+                233,
+                226,
+                240,
+                16,
+                183,
+                226,
+                84,
+                115,
+                197,
+                79,
+                152
+              ]
+            }
+          }
+        }
+      ],
+      "health": "Satisfied",
+      "loss_confirmed": false,
+      "placement": {
+        "chunk_id": "blake3-4e94e6f582581a0f3855f3ce504b153e951e65036fe9e2f010b7e25473c54f98-4194304",
+        "copies": [
+          "round1-a:1:local-0:blake3-4e94e6f582581a0f3855f3ce504b153e951e65036fe9e2f010b7e25473c54f98-4194304",
+          "round1-c:1:local-0:blake3-4e94e6f582581a0f3855f3ce504b153e951e65036fe9e2f010b7e25473c54f98-4194304",
+          "round1-b:2:local-0:blake3-4e94e6f582581a0f3855f3ce504b153e951e65036fe9e2f010b7e25473c54f98-4194304"
+        ],
+        "desired_copies": 2,
+        "health": "Satisfied",
+        "placement_epoch": 15513496149078780282,
+        "replica_group_id": "group:d74b028db63b297a"
+      },
+      "revision": 236,
+      "tasks": [
+        {
+          "attempt": 2,
+          "chunk_id": "blake3-4e94e6f582581a0f3855f3ce504b153e951e65036fe9e2f010b7e25473c54f98-4194304",
+          "claim": null,
+          "desired_copies": 2,
+          "existing_copies": [
+            "round1-a:1:local-0:blake3-4e94e6f582581a0f3855f3ce504b153e951e65036fe9e2f010b7e25473c54f98-4194304",
+            "round1-c:1:local-0:blake3-4e94e6f582581a0f3855f3ce504b153e951e65036fe9e2f010b7e25473c54f98-4194304",
+            "round1-b:2:local-0:blake3-4e94e6f582581a0f3855f3ce504b153e951e65036fe9e2f010b7e25473c54f98-4194304"
+          ],
+          "id": "repair:blake3-4e94e6f582581a0f3855f3ce504b153e951e65036fe9e2f010b7e25473c54f98-4194304",
+          "last_error": null,
+          "next_retry_unix_ms": 0,
+          "placement_epoch": 15513496149078780282,
+          "state": "Completed"
+        }
+      ]
+    },
+    {
+      "available_copies": 3,
+      "checked_at_unix_ms": 1790851752344,
+      "chunk_id": "blake3-63c31766464b0c4931ff8b7406a2c1d8140d08b94328ccd7cf3b431d94cc690f-17",
+      "copies": [
+        {
+          "available": true,
+          "record": {
+            "chunk_id": "blake3-63c31766464b0c4931ff8b7406a2c1d8140d08b94328ccd7cf3b431d94cc690f-17",
+            "id": "round1-a:1:local-0:blake3-63c31766464b0c4931ff8b7406a2c1d8140d08b94328ccd7cf3b431d94cc690f-17",
+            "location": {
+              "Node": {
+                "catalog_revision": 1,
+                "device_epoch": 1790850852541641323,
+                "device_id": "local-0",
+                "node_epoch": 1,
+                "node_id": "round1-a"
+              }
+            },
+            "persisted_bytes": 17,
+            "role": "DurableReplica",
+            "state": "Ready",
+            "verified_digest": {
+              "algorithm": "Blake3",
+              "bytes": [
+                99,
+                195,
+                23,
+                102,
+                70,
+                75,
+                12,
+                73,
+                49,
+                255,
+                139,
+                116,
+                6,
+                162,
+                193,
+                216,
+                20,
+                13,
+                8,
+                185,
+                67,
+                40,
+                204,
+                215,
+                207,
+                59,
+                67,
+                29,
+                148,
+                204,
+                105,
+                15
+              ]
+            }
+          }
+        },
+        {
+          "available": true,
+          "record": {
+            "chunk_id": "blake3-63c31766464b0c4931ff8b7406a2c1d8140d08b94328ccd7cf3b431d94cc690f-17",
+            "id": "round1-c:1:local-0:blake3-63c31766464b0c4931ff8b7406a2c1d8140d08b94328ccd7cf3b431d94cc690f-17",
+            "location": {
+              "Node": {
+                "catalog_revision": 2,
+                "device_epoch": 1790850882754039099,
+                "device_id": "local-0",
+                "node_epoch": 1,
+                "node_id": "round1-c"
+              }
+            },
+            "persisted_bytes": 17,
+            "role": "DurableReplica",
+            "state": "Ready",
+            "verified_digest": {
+              "algorithm": "Blake3",
+              "bytes": [
+                99,
+                195,
+                23,
+                102,
+                70,
+                75,
+                12,
+                73,
+                49,
+                255,
+                139,
+                116,
+                6,
+                162,
+                193,
+                216,
+                20,
+                13,
+                8,
+                185,
+                67,
+                40,
+                204,
+                215,
+                207,
+                59,
+                67,
+                29,
+                148,
+                204,
+                105,
+                15
+              ]
+            }
+          }
+        },
+        {
+          "available": true,
+          "record": {
+            "chunk_id": "blake3-63c31766464b0c4931ff8b7406a2c1d8140d08b94328ccd7cf3b431d94cc690f-17",
+            "id": "round1-b:2:local-0:blake3-63c31766464b0c4931ff8b7406a2c1d8140d08b94328ccd7cf3b431d94cc690f-17",
+            "location": {
+              "Node": {
+                "catalog_revision": 2,
+                "device_epoch": 1790850882710423150,
+                "device_id": "local-0",
+                "node_epoch": 2,
+                "node_id": "round1-b"
+              }
+            },
+            "persisted_bytes": 17,
+            "role": "DurableReplica",
+            "state": "Ready",
+            "verified_digest": {
+              "algorithm": "Blake3",
+              "bytes": [
+                99,
+                195,
+                23,
+                102,
+                70,
+                75,
+                12,
+                73,
+                49,
+                255,
+                139,
+                116,
+                6,
+                162,
+                193,
+                216,
+                20,
+                13,
+                8,
+                185,
+                67,
+                40,
+                204,
+                215,
+                207,
+                59,
+                67,
+                29,
+                148,
+                204,
+                105,
+                15
+              ]
+            }
+          }
+        }
+      ],
+      "health": "Satisfied",
+      "loss_confirmed": false,
+      "placement": {
+        "chunk_id": "blake3-63c31766464b0c4931ff8b7406a2c1d8140d08b94328ccd7cf3b431d94cc690f-17",
+        "copies": [
+          "round1-a:1:local-0:blake3-63c31766464b0c4931ff8b7406a2c1d8140d08b94328ccd7cf3b431d94cc690f-17",
+          "round1-c:1:local-0:blake3-63c31766464b0c4931ff8b7406a2c1d8140d08b94328ccd7cf3b431d94cc690f-17",
+          "round1-b:2:local-0:blake3-63c31766464b0c4931ff8b7406a2c1d8140d08b94328ccd7cf3b431d94cc690f-17"
+        ],
+        "desired_copies": 2,
+        "health": "Satisfied",
+        "placement_epoch": 15513496149078780282,
+        "replica_group_id": "group:d74b028db63b297a"
+      },
+      "revision": 238,
+      "tasks": [
+        {
+          "attempt": 2,
+          "chunk_id": "blake3-63c31766464b0c4931ff8b7406a2c1d8140d08b94328ccd7cf3b431d94cc690f-17",
+          "claim": null,
+          "desired_copies": 2,
+          "existing_copies": [
+            "round1-a:1:local-0:blake3-63c31766464b0c4931ff8b7406a2c1d8140d08b94328ccd7cf3b431d94cc690f-17",
+            "round1-c:1:local-0:blake3-63c31766464b0c4931ff8b7406a2c1d8140d08b94328ccd7cf3b431d94cc690f-17",
+            "round1-b:2:local-0:blake3-63c31766464b0c4931ff8b7406a2c1d8140d08b94328ccd7cf3b431d94cc690f-17"
+          ],
+          "id": "repair:blake3-63c31766464b0c4931ff8b7406a2c1d8140d08b94328ccd7cf3b431d94cc690f-17",
+          "last_error": null,
+          "next_retry_unix_ms": 0,
+          "placement_epoch": 15513496149078780282,
+          "state": "Completed"
+        }
+      ]
+    }
+  ],
+  "status": "PASS"
+}

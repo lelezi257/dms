@@ -122,3 +122,28 @@ Files: new OwnerFs-native lock mechanism where possible; narrow integration in O
 - 2026-10-01 maintenance checkpoint:38 unit/transaction passes and12 actual VM/portable passes. Bounded same-identity orphan cleanup has fresh export checks and an unlink/directory-fsync uncertainty barrier. Foreign/future/unknown files remain evidence; no source data is deleted. Node/boot-loss lifecycle integration is still pending.
 - RED/GREEN: another root's journal rename failure left an existing root's duplicate registration returning stale success. Duplicate ACK now checks global journal health and rejects EIO until reopen; the reproduction and recovery control are retained.
 - Design rejection observed on VM: native same-process POSIX downgrade succeeds, but a helper inheriting its fd and supplying its PID or using an OFD lock gets EAGAIN. Do not implement the naive proxy and claim full owner semantics. Passthrough I/O/mmap is not evidence that POSIX/flock delegation is solved. The tracked counterprobe and required owner case remain Task4 inputs.
+
+## Post-reply runtime event slice
+
+Before Node activation, wire a bounded workspace-created hint channel into the
+real OwnerFs FUSE mkdir reply. Publish only after reply and only for a direct
+child of the OwnerFs root. Preserve raw byte names and opaque backend inode;
+neither is an authority grant or a persistent identity. A worker must reacquire
+trusted current authority and physical prepared identities before manager calls.
+
+The producer never waits for the consumer. Overflow marks an explicit rescan
+requirement; the consumer clears it before scanning the current authoritative
+inventory, and concurrent overflow during that scan requests another pass.
+Disconnect remains observable and does not enable a native path. Install once
+before mount in the future opt-in bootstrap; default constructors have no sink.
+No native eligibility/cache policy, manager worker, or native admission follows
+from this notification slice alone.
+
+RED tests: invalid capacity, non-UTF-8 byte-preserving payload, full-queue
+rescan/rearm, disconnected producer, duplicate sink installation, and actual
+VM FUSE mkdir/nested mkdir/full-queue operation without an active consumer.
+Then implement events and narrow OwnerFs/FUSE hooks; run targeted/all-target
+checks and execute real kernel FUSE cases in the independent private VM lane.
+
+- 2026-10-01 event checkpoint:5 channel tests plus38 controller/journal tests pass; real VM and portable13/13 pass. The FUSE adapter sends root-created hints after reply, without waiting for the consumer; nested mkdir is excluded and full queue requests rescan. Existing library258/2-ignored rerun, fmt and strict Clippy pass. Independent trusted-authority worker/native eligibility/Node activation remain pending.
+- Main coordination: a read-only fetch found origin/main at7824577, including a joined FUSE cleanup result, callback drain and OwnerFs surviving-hardlink alias fix. Preserve the current event checkpoint and evidence before rebasing only this isolated feature branch onto that committed main. Never transfer old evidence to the new candidate without scoped revalidation. The canonical checkout and the other machine's branch remain untouched.

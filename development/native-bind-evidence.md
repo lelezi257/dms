@@ -2,29 +2,30 @@
 
 Issue: https://github.com/lelezi257/dms/issues/42. Plan: `native-bind-plan.md`.
 
-This is an intermediate slice, not feature completion, product acceptance or performance qualification. It does not enable native exports in Node. Existing OwnerFs behavior is unchanged beyond an unused module declaration. Node/FUSE/P2P integration, cross-path locks/cache/mmap, full Node/Agent lifecycle recovery and ext4 performance comparison remain outstanding.
+This is an intermediate slice, not feature completion, product acceptance or performance qualification. It does not enable native exports in Node. Default OwnerFs behavior is unchanged; the optional post-reply hint hook does not enable native admission. Node/FUSE/P2P integration, cross-path locks/cache/mmap, full Node/Agent lifecycle recovery and ext4 performance comparison remain outstanding.
 
 ## Tested candidate
 
 - Base: `6bcabe8f30040bc6cc3b518bd271e7e2461e1e1d`; branch `feat/ownerfs-native-bind`. Feature worktree is isolated from the canonical checkout and the other machine's main branch.
 - Rust1.95 x86_64 Linux. WSL6.6 builds/tests the controller and journal; actual mount backend is run in Linux6.8 VM A on `/dev/sdb1`, ext4 UUID `6fa5e173-b766-4c27-872b-8f40e91bed27`.
-- VM test binary SHA256 `f1152c87afdd64d91c23975a3a3b22dda176dd74dc0f0e36f46add5e1acceec4` (maintenance candidate before checkpoint commit; exact build inputs preserved in local manifest).
+- VM test binary SHA256 `6ed5e1e1dab827c686aa3430159cd2d82bd4c04d3aec132612e592a6cb63b06e` (post-reply event candidate before checkpoint commit; exact build inputs preserved in local manifest).
 - Private mount namespaces; test data confined to uniquely created directories. Parent namespace mountinfo is byte-for-byte unchanged afterward. Most covered test directories are disposable ext4 directories. One test now uses the real OwnerFs FUSE adapter and RootManager with an in-process Meta fixture; it does not run production Node/P2P or enable native policy.
 
 ## Outcomes
 
 | Check | Result | Meaning |
 | --- | --- | --- |
+| Workspace event channel | 5 PASS | Bounded capacity, raw-byte names, full-queue rescan/rearm, disconnect and one-time sink installation |
 | Controller regressions | 16 PASS | Idempotent export, stale identities, busy retry, foreign ownership, recycled-ID protection, bounded admission |
 | Journal regressions | 10 PASS | Exclusive writer, strict decode, symlink/hardlink protection, immutable old epoch, atomic replace, uncertain directory-sync failure |
 | Journal/controller transactions | 12 PASS | Pre-attach exclusive clone intent, durable ACK, unmount intent, restart without stacking, same-epoch retired-session fencing, bounded orphan cleanup, uncertain unlink/fsync and duplicate-ACK health |
-| VM Linux backend | 12 PASS | The prior11 plus journal maintenance preserving an active export, mount identity and data |
+| VM Linux backend/FUSE hooks | 13 PASS | The prior12 plus real post-reply root hints, nested-directory exclusion and full-queue progress |
 | Existing library regressions | 258 PASS, 2 ignored | Existing OwnerFs/DFS tests, serial run; ignored tests remain outside this claim |
 | fmt / strict all-targets Clippy | PASS | Candidate formatting and diagnostics |
-| Portable VM probe | PASS | `acceptance/probes/ownerfs_native_mount.sh` reproduced the same current12-test candidate, with a bounded180s child process group and identified Python3.12.3 |
+| Portable VM probe | PASS | `acceptance/probes/ownerfs_native_mount.sh` reproduced the same current13-test candidate, with a bounded180s child process group and identified Python3.12.3 |
 | OwnerFs FUSE/native/P2P integration and performance | NOT_RUN | Mount primitive proof is insufficient |
 
-WSL cannot supply STATX_MNT_ID_UNIQUE on kernel6.6; the backend returns ENOTSUP. All12 real-backend tests are explicitly ignored for the ordinary build-host run, then explicitly executed (none ignored) by the VM probe. Kernel unique IDs are required; recyclable mountinfo IDs never substitute for ownership.
+WSL cannot supply STATX_MNT_ID_UNIQUE on kernel6.6; the backend returns ENOTSUP. All13 real-backend/FUSE tests are explicitly ignored for the ordinary build-host run, then explicitly executed (none ignored) by the VM probe. Kernel unique IDs are required; recyclable mountinfo IDs never substitute for ownership.
 
 ## Failures retained
 
@@ -75,3 +76,41 @@ Current WSL controller/journal/transaction regressions:38 passed (16+10+12), wit
 Tracked reproduction: `acceptance/probes/ownerfs_native_lock_owner.py`, invoked with a fresh absolute ext4 evidence directory. VM run `owner-lock-20260930T203148-aeeed453` used Linux6.8.0-142. The native process can downgrade its own POSIX write lock through its second fd. A child proxy inheriting the same file description cannot do that: POSIX SETLK with the parent's supplied l_pid returns EAGAIN, as does an OFD read-lock proxy. This is `observed_design_rejection`, not an OwnerFs locking PASS and not proof that every design is impossible. The probe retains its data and exact process/kernel/result identities.
 
 Consequently a Home helper or OFD proxy alone cannot preserve same-process lock conversion/unlock across native and an old local FUSE path. The final matrix must include this case. Linux6.9 passthrough data-I/O/mmap support by itself is not a lock solution; its FUSE lock handlers still use FUSE locking paths (source: <https://github.com/torvalds/linux/blob/v6.9/fs/fuse/file.c>). No production lock mechanism, platform change, Node activation or full-feature/performance qualification is claimed here.
+
+## Post-reply workspace event checkpoint
+
+OwnerFs can now install a `WorkspaceEventSender` once. Default constructors have
+no sink; installing this metadata hint sink does not change cache/permission
+policy or native eligibility. The FUSE mkdir adapter publishes only after its
+successful reply and only for a direct OwnerFs root child. It preserves the raw
+component and opaque backend inode; the hint has no grant, epoch, physical path
+or mount claim. The forthcoming worker must independently resolve current
+authority and prepared directory identities. No callback executes a mount or
+waits for a worker response.
+
+Capacity is limited to4096 hints. Overflow retains the queued hint and marks a
+required inventory rescan; `begin_rescan` clears the flag before an authoritative
+scan so concurrent overflow re-arms it. A failed scan must remain pending in the
+worker. Disconnect is observable through the sender's error/rescan state. The
+channel is not itself a durable event journal or a recovery/admission proof.
+
+Missing APIs first failed compilation. The real VM test then failed with a
+missing post-reply hint (12 pass/1 fail) before the FUSE hook was implemented.
+The final kernel test leaves the consumer idle through two root mkdirs, nested
+mkdir and file writes; both root requests complete, only root hints are emitted,
+and overflow requests rescan. A subsequent FUSE create provides the callback
+order barrier before inspecting the post-reply flag. A first source-edit guard
+matched another struct's similar field and stopped before writing OwnerFs;
+the edit was narrowed to the actual OwnerFs declaration, preserving that failure.
+
+Current WSL regressions43 passed (5 event+16 controller+10 journal+12 transaction),
+with13 explicitly ignored VM-only tests. Existing library258 passed/2 ignored
+was rerun on this candidate. fmt and strict all-targets/all-features Clippy
+passed. VM `mount-20261001T010728-773145a1` and portable `portable-20261001T010750-7c26c87e` each ran13/13, none ignored;
+parent mounts were unchanged and disposable test data was empty. Binary SHA256
+`6ed5e1e1dab827c686aa3430159cd2d82bd4c04d3aec132612e592a6cb63b06e`. Source inputs and all RED/GREEN logs remain external.
+
+This connects notification to the real FUSE adapter; it is not the independent
+Node manager/authority worker or full native feature. Native bootstrap,
+capability/cache/lock contracts, P2P integration, Agent/authority lifecycle,
+daemon/boot-loss recovery and performance remain required.

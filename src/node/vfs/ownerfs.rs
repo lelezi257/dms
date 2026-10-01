@@ -16,7 +16,7 @@ use std::{
         },
     },
     path::{Path, PathBuf},
-    sync::{Arc, Mutex},
+    sync::{Arc, Mutex, OnceLock},
     time::{Duration, UNIX_EPOCH},
 };
 
@@ -53,6 +53,7 @@ const OWNERFS_ROOT_INODE: u64 = 1;
 pub struct OwnerFs {
     local: Option<Arc<LocalOwnerFs>>,
     private_cache: Arc<Mutex<PrivateFuseCache>>,
+    workspace_events: OnceLock<native::WorkspaceEventSender>,
 }
 
 // Kernel page/attribute cache is profitable only while this node is the sole
@@ -87,6 +88,7 @@ impl OwnerFs {
         Self {
             local: None,
             private_cache: Arc::new(Mutex::new(PrivateFuseCache::new())),
+            workspace_events: OnceLock::new(),
         }
     }
 
@@ -106,6 +108,7 @@ impl OwnerFs {
                 private_cache.clone(),
             ))),
             private_cache,
+            workspace_events: OnceLock::new(),
         }
     }
 
@@ -125,6 +128,31 @@ impl OwnerFs {
                 private_cache.clone(),
             ))),
             private_cache,
+            workspace_events: OnceLock::new(),
+        }
+    }
+
+    /// Install the post-reply hint sink once, before the future opt-in mount
+    /// bootstrap. This does not change cache policy or grant native admission.
+    pub fn register_workspace_events(
+        &self,
+        sender: native::WorkspaceEventSender,
+    ) -> io::Result<()> {
+        self.workspace_events
+            .set(sender)
+            .map_err(|_| io::Error::from_raw_os_error(libc::EALREADY))
+    }
+
+    /// Called by the FUSE adapter only after a successful root mkdir reply.
+    /// Publishing performs no authority lookup, mount, or manager transaction.
+    pub(crate) fn workspace_created(&self, inode: BackendInode, name: &OsStr) {
+        if let Some(sender) = self.workspace_events.get() {
+            // Full/disconnected publication sets the observable rescan flag.
+            // The successful mkdir is not revoked by a failed optional hint.
+            let _ = sender.try_publish(native::WorkspaceCreated {
+                name: name.to_os_string(),
+                inode,
+            });
         }
     }
 

@@ -5,11 +5,15 @@
 //! are prerequisites of the OwnerFs lifecycle integration. A detached export
 //! must never be reported as a reclaimed workspace solely from this state.
 
+mod events;
 mod journal;
 mod linux;
 mod manager;
 mod mountinfo;
 
+pub use events::{
+    WorkspaceCreated, WorkspaceEventReceiver, WorkspaceEventSender, workspace_event_channel,
+};
 pub use journal::{JournalRecord, JournalSnapshot, MountJournal, OrphanMaintenance};
 pub use linux::{LinuxMountBackend, MountPolicy};
 pub use manager::{MountBackend, NativeMountManager};

@@ -860,3 +860,55 @@ fn privileged_journal_maintenance_preserves_active_export_and_data() {
         b"backing retained"
     );
 }
+
+#[test]
+#[ignore = "requires real /dev/fuse, CAP_SYS_ADMIN and private VM namespace"]
+fn privileged_ownerfs_post_reply_workspace_hints_do_not_wait_for_consumer() {
+    use afs::node::vfs::ownerfs::native::workspace_event_channel;
+    assert_eq!(
+        std::env::var("AFS_NATIVE_PRIVATE_NAMESPACE").as_deref(),
+        Ok("1")
+    );
+    let dir = tempfile::tempdir().unwrap();
+    let mount_path = dir.path().join("ownerfs");
+    fs::create_dir(&mount_path).unwrap();
+    let (disk, roots, ownerfs) = ownerfs_fixture::ownerfs_fixture(&dir.path().join("data"));
+    let (sender, receiver) = workspace_event_channel(1).unwrap();
+    ownerfs.register_workspace_events(sender).unwrap();
+    let session = afs::node::fuse::mount_ownerfs(ownerfs.clone(), &mount_path).unwrap();
+    // Consumer remains idle while two real root mkdir requests and a nested
+    // mkdir complete. A blocking send would deadlock the second root creation.
+    fs::create_dir(mount_path.join("agent1")).unwrap();
+    fs::create_dir(mount_path.join("agent1/nested")).unwrap();
+    fs::write(mount_path.join("agent1/nested/data"), b"still FUSE").unwrap();
+    fs::create_dir(mount_path.join("agent2")).unwrap();
+    // A following real FUSE create is a callback-order barrier: mkdir's reply
+    // can reach its caller just before post-reply hint publication finishes.
+    fs::write(mount_path.join("agent2/barrier"), b"callback passed").unwrap();
+    let first = receiver.recv_timeout(std::time::Duration::from_secs(2));
+    let overflow = receiver.rescan_required();
+    let next = receiver.try_recv();
+    let bytes = fs::read(mount_path.join("agent1/nested/data")).unwrap();
+    // Always clean the real mount before asserting the missing-hook RED case.
+    assert!(
+        std::process::Command::new("umount")
+            .arg(&mount_path)
+            .status()
+            .unwrap()
+            .success()
+    );
+    drop(session);
+    drop(ownerfs);
+    drop(roots);
+    drop(disk);
+    let first = first.expect("successful top-level mkdir must emit a post-reply hint");
+    assert_eq!(first.name, std::ffi::OsString::from("agent1"));
+    assert_ne!(first.inode.value, 1);
+    assert!(
+        overflow,
+        "second top-level hint must request authoritative rescan"
+    );
+    assert_eq!(next.unwrap_err(), std::sync::mpsc::TryRecvError::Empty);
+    assert_eq!(bytes, b"still FUSE");
+    assert!(receiver.begin_rescan());
+}

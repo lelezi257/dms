@@ -796,6 +796,12 @@ impl Filesystem for AfsFuse {
             Ok(entry) => {
                 let ino = self.state.lock().unwrap().remember_lookup(&entry);
                 reply.entry(&TTL, &file_attr(ino, &entry.attributes), 0);
+                #[cfg(feature = "ownerfs")]
+                if parent == ROOT_INO
+                    && let Some(ownerfs) = &self.ownerfs
+                {
+                    ownerfs.workspace_created(entry.inode, name);
+                }
             }
             Err(error) => reply.error(error),
         }

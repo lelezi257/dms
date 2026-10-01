@@ -12,7 +12,7 @@ use fuser::{
 };
 use std::{
     collections::HashSet,
-    ffi::OsStr,
+    ffi::{OsStr, OsString},
     fs::{self, File},
     io::{self, BufRead, Write},
     os::{fd::AsRawFd, unix::fs::MetadataExt},
@@ -60,6 +60,10 @@ fn err(e: afs_error::Error) -> i32 {
 fn fd_path(file: &File) -> io::Result<PathBuf> {
     fs::read_link(format!("/proc/self/fd/{}", file.as_raw_fd()))
 }
+struct CwdObserver {
+    actor: RetainedReference,
+    output: io::BufReader<std::process::ChildStdout>,
+}
 struct ProbeState {
     owner: Arc<OwnerFs>,
     moving: BackendInode,
@@ -72,6 +76,16 @@ struct ProbeState {
     workers: Mutex<Vec<JoinHandle<()>>>,
     repair: bool,
     pin_attrs: bool,
+    repair_unlinked: bool,
+    coalesced: bool,
+    cwd_race: bool,
+    cwd_observers: Mutex<Vec<CwdObserver>>,
+    cwd_results: Mutex<Vec<serde_json::Value>>,
+    race_parent: Mutex<Option<Arc<File>>>,
+    race_waits: Mutex<Vec<(u32, String, String)>>,
+    race_results: Mutex<Vec<Result<u64, i32>>>,
+    notifier: Mutex<Option<fuser::Notifier>>,
+    synthetic: Mutex<Option<(u32, u64, OsString)>>,
 }
 impl ProbeState {
     fn needs_repair(&self, ino: u64, pid: u32) -> bool {
@@ -83,6 +97,9 @@ impl ProbeState {
     fn reconcile(&self) -> io::Result<()> {
         let meta = self.source_object.metadata()?;
         if meta.nlink() == 0 {
+            if self.repair_unlinked && self.pin_attrs {
+                return self.reconcile_deleted();
+            }
             return Err(io::Error::from_raw_os_error(libc::ENOENT));
         }
         if (meta.dev(), meta.ino()) != (self.identity.device, self.identity.inode) {
@@ -124,6 +141,127 @@ impl ProbeState {
         *self.last_path.lock().unwrap() = observed;
         Ok(())
     }
+    fn ttl(&self, ino: u64) -> Duration {
+        // Only this concurrency counterprobe caches its stationary parent
+        // attributes, so the observer reaches the in-progress child lookup
+        // without first blocking on unrelated parent permission GETATTR.
+        if self.coalesced && ino != self.moving.value {
+            Duration::from_secs(60)
+        } else {
+            Duration::ZERO
+        }
+    }
+    fn pinned_attr(&self, ino: u64) -> FileAttr {
+        let m = self.source_object.metadata().unwrap();
+        assert_eq!(
+            (m.dev(), m.ino()),
+            (self.identity.device, self.identity.inode)
+        );
+        FileAttr {
+            ino,
+            size: m.len(),
+            blocks: m.blocks(),
+            atime: m.accessed().unwrap(),
+            mtime: m.modified().unwrap(),
+            ctime: UNIX_EPOCH
+                + Duration::new(
+                    m.ctime().try_into().unwrap(),
+                    m.ctime_nsec().try_into().unwrap(),
+                ),
+            crtime: UNIX_EPOCH,
+            kind: FileType::Directory,
+            perm: (m.mode() & 0o7777) as u16,
+            nlink: m.nlink().try_into().unwrap(),
+            uid: m.uid(),
+            gid: m.gid(),
+            rdev: 0,
+            blksize: m.blksize().try_into().unwrap(),
+            flags: 0,
+        }
+    }
+    fn reconcile_deleted(&self) -> io::Result<()> {
+        // Test-only capability probe: no backend pathname is created. A
+        // single exact helper lookup supplies the pinned inode, then a
+        // synchronous invalidation removes that name before replying.
+        // This does not qualify concurrent lookup visibility or authority.
+        let object_meta = self.source_object.metadata()?;
+        if (object_meta.dev(), object_meta.ino()) != (self.identity.device, self.identity.inode)
+            || object_meta.nlink() != 0
+        {
+            return Err(io::Error::from_raw_os_error(libc::ESTALE));
+        }
+        let observed = fd_path(&self.source_object)?;
+        let parent = File::open(format!(
+            "/proc/self/fd/{}/..",
+            self.source_object.as_raw_fd()
+        ))?;
+        let parent_meta = parent.metadata()?;
+        let parent_path = fd_path(&parent)?;
+        let root = fd_path(&self.source_root)?;
+        let relative = parent_path
+            .strip_prefix(&root)
+            .map_err(|_| io::Error::from_raw_os_error(libc::EXDEV))?;
+        // Fixed fixture name, not a generic deleted-path parser.
+        let name = OsStr::new("moving");
+        match fs::symlink_metadata(
+            PathBuf::from(format!("/proc/self/fd/{}", parent.as_raw_fd())).join(name),
+        ) {
+            Err(e) if e.kind() == io::ErrorKind::NotFound => {}
+            Err(e) => return Err(e),
+            Ok(_) => return Err(io::Error::from_raw_os_error(libc::EEXIST)),
+        }
+        let covered = self.covered.lock().unwrap().as_ref().unwrap().clone();
+        let covered_parent =
+            PathBuf::from(format!("/proc/self/fd/{}", covered.as_raw_fd())).join(relative);
+        let virtual_parent = fs::metadata(&covered_parent)?;
+        if self.coalesced {
+            *self.race_parent.lock().unwrap() = Some(Arc::new(File::open(&covered_parent)?));
+        }
+        let task = fs::read_link("/proc/thread-self")?;
+        let tid: u32 = task.file_name().unwrap().to_str().unwrap().parse().unwrap();
+        self.helpers.lock().unwrap().insert(tid);
+        *self.synthetic.lock().unwrap() = Some((tid, virtual_parent.ino(), name.to_os_string()));
+        let lookup = fs::metadata(covered_parent.join(name));
+        self.synthetic.lock().unwrap().take();
+        self.helpers.lock().unwrap().remove(&tid);
+        if self.cwd_race {
+            // Hold the exact post-alias/pre-invalidation window. getcwd is
+            // kernel-only; the receive thread stays available throughout.
+            let mut observers = self.cwd_observers.lock().unwrap();
+            for observer in observers.iter_mut() {
+                writeln!(observer.actor.0.stdin.as_mut().unwrap(), "observe")?;
+                let mut line = String::new();
+                observer.output.read_line(&mut line)?;
+                let result: serde_json::Value = serde_json::from_str(&line).unwrap();
+                println!("directory_cwd_window result={result}");
+                self.cwd_results.lock().unwrap().push(result);
+                assert!(observer.actor.0.wait()?.success());
+            }
+            observers.clear();
+        }
+        let notifier = self.notifier.lock().unwrap().as_ref().unwrap().clone();
+        notifier.inval_entry(virtual_parent.ino(), name)?;
+        let looked = lookup?;
+        let current_parent = fs::metadata(format!(
+            "/proc/self/fd/{}/..",
+            self.source_object.as_raw_fd()
+        ))?;
+        if !looked.is_dir()
+            || looked.ino() != self.moving.value
+            || looked.nlink() != 0
+            || fd_path(&self.source_object)? != observed
+            || (parent_meta.dev(), parent_meta.ino())
+                != (current_parent.dev(), current_parent.ino())
+        {
+            return Err(io::Error::from_raw_os_error(libc::ESTALE));
+        }
+        println!(
+            "directory_deleted_reconciled parent={parent_path:?} fuse_parent={} helper_tid={tid}",
+            virtual_parent.ino()
+        );
+        *self.last_path.lock().unwrap() = observed;
+        Ok(())
+    }
     fn reply_attr(&self, context: &RequestContext, ino: u64, reply: ReplyAttr) {
         // Diagnostic control only: the pinned deleted object remains readable
         // even though no backend path names it. This does not relocate its
@@ -131,34 +269,7 @@ impl ProbeState {
         if self.pin_attrs && ino == self.moving.value {
             let m = self.source_object.metadata().unwrap();
             if m.nlink() == 0 {
-                assert_eq!(
-                    (m.dev(), m.ino()),
-                    (self.identity.device, self.identity.inode)
-                );
-                reply.attr(
-                    &Duration::ZERO,
-                    &FileAttr {
-                        ino,
-                        size: m.len(),
-                        blocks: m.blocks(),
-                        atime: m.accessed().unwrap(),
-                        mtime: m.modified().unwrap(),
-                        ctime: UNIX_EPOCH
-                            + Duration::new(
-                                m.ctime().try_into().unwrap(),
-                                m.ctime_nsec().try_into().unwrap(),
-                            ),
-                        crtime: UNIX_EPOCH,
-                        kind: FileType::Directory,
-                        perm: (m.mode() & 0o7777) as u16,
-                        nlink: m.nlink().try_into().unwrap(),
-                        uid: m.uid(),
-                        gid: m.gid(),
-                        rdev: 0,
-                        blksize: m.blksize().try_into().unwrap(),
-                        flags: 0,
-                    },
-                );
+                reply.attr(&Duration::ZERO, &self.pinned_attr(ino));
                 return;
             }
         }
@@ -166,7 +277,7 @@ impl ProbeState {
             .owner
             .getattr(context, BackendInode { value: ino }, None)
         {
-            Ok(a) => reply.attr(&Duration::ZERO, &attr(ino, &a)),
+            Ok(a) => reply.attr(&self.ttl(ino), &attr(ino, &a)),
             Err(e) => reply.error(err(e)),
         }
     }
@@ -174,12 +285,66 @@ impl ProbeState {
 struct ProbeFs(Arc<ProbeState>);
 impl Filesystem for ProbeFs {
     fn lookup(&mut self, req: &Request<'_>, parent: u64, name: &OsStr, reply: ReplyEntry) {
+        let synthetic = self.0.synthetic.lock().unwrap().clone();
+        if synthetic
+            .as_ref()
+            .is_some_and(|(tid, p, n)| *tid == req.pid() && *p == parent && n == name)
+        {
+            println!(
+                "directory_deleted_helper_lookup tid={} parent={parent} name={name:?}",
+                req.pid()
+            );
+            if self.0.coalesced {
+                let state = self.0.clone();
+                let directory = state.race_parent.lock().unwrap().as_ref().unwrap().clone();
+                let child_name = name.to_os_string();
+                let (sender, receiver) = std::sync::mpsc::channel();
+                let observer = std::thread::spawn(move || {
+                    let task = fs::read_link("/proc/thread-self").unwrap();
+                    let tid: u32 = task.file_name().unwrap().to_str().unwrap().parse().unwrap();
+                    sender.send(tid).unwrap();
+                    let result = fs::metadata(
+                        PathBuf::from(format!("/proc/self/fd/{}", directory.as_raw_fd()))
+                            .join(child_name),
+                    )
+                    .map(|m| m.nlink())
+                    .map_err(|e| e.raw_os_error().unwrap_or(libc::EIO));
+                    println!("directory_coalesced_observer tid={tid} result={result:?}");
+                    state.race_results.lock().unwrap().push(result);
+                });
+                let tid = receiver.recv_timeout(Duration::from_secs(2)).unwrap();
+                let deadline = std::time::Instant::now() + Duration::from_secs(2);
+                let mut wait = String::new();
+                while std::time::Instant::now() < deadline {
+                    wait = fs::read_to_string(format!("/proc/self/task/{tid}/wchan"))
+                        .unwrap_or_default();
+                    if matches!(wait.trim(), "d_wait_lookup" | "d_alloc_parallel") {
+                        break;
+                    }
+                    std::thread::sleep(Duration::from_millis(1));
+                }
+                // The Ubuntu kernel inlines d_wait_lookup into its caller.
+                // Capture the actual stack while the helper reply is held,
+                // before waking the observer; this is a verified wait.
+                let stack =
+                    fs::read_to_string(format!("/proc/self/task/{tid}/stack")).unwrap_or_default();
+                println!("directory_coalesced_wait tid={tid} wchan={wait:?} stack={stack:?}");
+                self.0.race_waits.lock().unwrap().push((tid, wait, stack));
+                self.0.workers.lock().unwrap().push(observer);
+            }
+            reply.entry(&Duration::ZERO, &self.0.pinned_attr(self.0.moving.value), 0);
+            return;
+        }
         match self
             .0
             .owner
             .lookup(&ctx(req), BackendInode { value: parent }, name)
         {
-            Ok(e) => reply.entry(&Duration::ZERO, &attr(e.inode.value, &e.attributes), 0),
+            Ok(e) => reply.entry(
+                &self.0.ttl(e.inode.value),
+                &attr(e.inode.value, &e.attributes),
+                0,
+            ),
             Err(e) => reply.error(err(e)),
         }
     }
@@ -191,7 +356,7 @@ impl Filesystem for ProbeFs {
         let pinned_deleted = self.0.pin_attrs
             && ino == self.0.moving.value
             && self.0.source_object.metadata().unwrap().nlink() == 0;
-        if !pinned_deleted && self.0.needs_repair(ino, context.pid) {
+        if (!pinned_deleted || self.0.repair_unlinked) && self.0.needs_repair(ino, context.pid) {
             let state = self.0.clone();
             let worker = std::thread::spawn(move || match state.reconcile() {
                 Ok(()) => state.reply_attr(&context, ino, reply),
@@ -272,7 +437,7 @@ impl Filesystem for ProbeFs {
         }
     }
 }
-pub fn run(deleted: bool, moved: bool) {
+pub fn run(deleted: bool, moved: bool, coalesced: bool, cwd_race: bool) {
     assert_eq!(
         std::env::var("AFS_NATIVE_PRIVATE_NAMESPACE").as_deref(),
         Ok("1")
@@ -330,6 +495,16 @@ pub fn run(deleted: bool, moved: bool) {
         workers: Mutex::new(Vec::new()),
         repair: std::env::var("AFS_NATIVE_REFERENCE_REPAIR").as_deref() == Ok("1"),
         pin_attrs: std::env::var("AFS_NATIVE_PINNED_DIRECTORY_ATTR").as_deref() == Ok("1"),
+        repair_unlinked: std::env::var("AFS_NATIVE_UNLINKED_ALIAS_REPAIR").as_deref() == Ok("1"),
+        coalesced,
+        cwd_race,
+        cwd_observers: Mutex::new(Vec::new()),
+        cwd_results: Mutex::new(Vec::new()),
+        race_parent: Mutex::new(None),
+        race_waits: Mutex::new(Vec::new()),
+        race_results: Mutex::new(Vec::new()),
+        notifier: Mutex::new(None),
+        synthetic: Mutex::new(None),
     });
     let mount = temp.path().join("ownerfs");
     fs::create_dir(&mount).unwrap();
@@ -342,6 +517,7 @@ pub fn run(deleted: bool, moved: bool) {
         ],
     )
     .unwrap();
+    *state.notifier.lock().unwrap() = Some(session.notifier());
     let target = mount.join("agent1");
     *state.covered.lock().unwrap() = Some(Arc::new(File::open(&target).unwrap()));
     let script = r#"
@@ -349,6 +525,11 @@ import os, sys, json, stat
 os.chdir(sys.argv[1])
 legacy = os.open('.', os.O_RDONLY | os.O_DIRECTORY)
 native = os.open(sys.argv[2], os.O_RDONLY | os.O_DIRECTORY)
+legacy_root_path = os.path.dirname(os.path.dirname(sys.argv[1]))
+native_root_path = os.path.dirname(os.path.dirname(sys.argv[2]))
+legacy_root = os.open(legacy_root_path, os.O_RDONLY | os.O_DIRECTORY)
+native_root = os.open(native_root_path, os.O_RDONLY | os.O_DIRECTORY)
+visible_name = 'right/moving' if sys.argv[4] == 'moved' else 'left/moving'
 print(json.dumps({'ready':True,'pid':os.getpid()}), flush=True)
 assert sys.stdin.readline().strip() == 'renamed'
 def read_at(directory, name):
@@ -362,13 +543,24 @@ def attrs(directory):
         a = os.fstat(directory)
         return {'nlink':a.st_nlink, 'mode':stat.S_IMODE(a.st_mode), 'is_dir':stat.S_ISDIR(a.st_mode)}
     except OSError as e: return {'errno':e.errno}
+def path_at(directory, root):
+    try: return {'path':os.path.relpath(os.readlink('/proc/self/fd/'+str(directory)), root)}
+    except OSError as e: return {'errno':e.errno}
+def cwd_at(root):
+    try: return {'path':os.path.relpath(os.getcwd(),root)}
+    except OSError as e: return {'errno':e.errno}
+def visible(directory, name):
+    try: return {'exists':stat.S_ISDIR(os.stat(name,dir_fd=directory).st_mode)}
+    except OSError as e: return {'errno':e.errno}
 # Parent-only operation comes first, with no caller new-path lookup.
 def observation():
-    return {'legacy_parent':read_at(legacy,'../parent-id'),'native_parent':read_at(native,'../parent-id'),'cwd_parent':read_at(None,'../parent-id'),'legacy_data':read_at(legacy,'data'),'native_data':read_at(native,'data'),'legacy_attrs':attrs(legacy),'native_attrs':attrs(native)}
+    return {'legacy_parent':read_at(legacy,'../parent-id'),'native_parent':read_at(native,'../parent-id'),'cwd_parent':read_at(None,'../parent-id'),'legacy_data':read_at(legacy,'data'),'native_data':read_at(native,'data'),'legacy_attrs':attrs(legacy),'native_attrs':attrs(native),'legacy_path':path_at(legacy,legacy_root_path),'native_path':path_at(native,native_root_path),'cwd':cwd_at(legacy_root_path),'legacy_visible':visible(legacy_root,visible_name),'native_visible':visible(native_root,visible_name)}
 print(json.dumps(observation()), flush=True)
 if sys.argv[3] == 'named':
     assert sys.stdin.readline().strip() == 'renamed-again'
     print(json.dumps(observation()), flush=True)
+os.close(native_root)
+os.close(legacy_root)
 os.close(native)
 os.close(legacy)
 "#;
@@ -379,6 +571,7 @@ os.close(legacy)
             .arg(target.join("left/moving"))
             .arg(&object)
             .arg(if deleted { "deleted" } else { "named" })
+            .arg(if moved { "moved" } else { "inplace" })
             .stdin(std::process::Stdio::piped())
             .stdout(std::process::Stdio::piped())
             .spawn()
@@ -389,6 +582,45 @@ os.close(legacy)
     output.read_line(&mut line).unwrap();
     let ready: serde_json::Value = serde_json::from_str(&line).unwrap();
     assert_eq!(ready["ready"], true);
+    if cwd_race {
+        let observer_script = r#"
+import os,sys,json
+print(json.dumps({'ready':True,'pid':os.getpid()}),flush=True)
+assert sys.stdin.readline().strip() == 'observe'
+try: result={'path':os.path.relpath(os.getcwd(),sys.argv[1])}
+except OSError as e: result={'errno':e.errno}
+print(json.dumps(result),flush=True)
+"#;
+        for (cwd, root_path) in [
+            (target.join("left/moving"), target.clone()),
+            (object.clone(), source.clone()),
+        ] {
+            let mut child = RetainedReference(
+                std::process::Command::new("python3")
+                    // Isolated Python does not scan the intentionally minimal
+                    // probe FUSE cwd for imports before running getcwd.
+                    .arg("-I")
+                    .arg("-c")
+                    .arg(observer_script)
+                    .arg(root_path)
+                    .current_dir(cwd)
+                    .stdin(std::process::Stdio::piped())
+                    .stdout(std::process::Stdio::piped())
+                    .spawn()
+                    .unwrap(),
+            );
+            let mut output = io::BufReader::new(child.0.stdout.take().unwrap());
+            let mut line = String::new();
+            output.read_line(&mut line).unwrap();
+            let ready: serde_json::Value = serde_json::from_str(&line).unwrap();
+            assert_eq!(ready["ready"], true);
+            println!("directory_cwd_window_ready {ready}");
+            state.cwd_observers.lock().unwrap().push(CwdObserver {
+                actor: child,
+                output,
+            });
+        }
+    }
     let namespace = LinuxMountBackend::current_namespace().unwrap();
     let grant = authority.grant();
     let spec = WorkspaceMount {
@@ -454,6 +686,8 @@ os.close(legacy)
     for worker in state.workers.lock().unwrap().drain(..) {
         worker.join().unwrap();
     }
+    state.cwd_observers.lock().unwrap().clear();
+    state.race_parent.lock().unwrap().take();
     state.covered.lock().unwrap().take();
     backend.unmount(&spec, &mounted).unwrap();
     backend.release_prepared(&spec).unwrap();
@@ -468,8 +702,8 @@ os.close(legacy)
     );
     drop(session);
     println!(
-        "directory_reference_probe deleted={deleted} moved={moved} repair={} pin_attrs={} actor={ready} observed={observed} second={second}",
-        state.repair, state.pin_attrs
+        "directory_reference_probe deleted={deleted} moved={moved} coalesced={coalesced} cwd_race={cwd_race} repair={} pin_attrs={} unlinked_repair={} actor={ready} observed={observed} second={second}",
+        state.repair, state.pin_attrs, state.repair_unlinked
     );
     assert_eq!(
         observed["native_parent"]["data"],
@@ -499,6 +733,52 @@ os.close(legacy)
         "retained directory fstat"
     );
     if deleted {
+        if cwd_race && state.repair && state.repair_unlinked {
+            let results = state.cwd_results.lock().unwrap();
+            assert_eq!(results.len(), 2, "both exact cwd observers required");
+            assert_eq!(
+                results[1]["errno"],
+                libc::ENOENT,
+                "native deleted cwd oracle"
+            );
+            assert_eq!(
+                results[0], results[1],
+                "concurrent getcwd must match native during repair window"
+            );
+        }
+        if coalesced && state.repair && state.repair_unlinked {
+            let waits = state.race_waits.lock().unwrap();
+            assert_eq!(waits.len(), 1, "exact observer required");
+            assert!(
+                matches!(waits[0].1.trim(), "d_wait_lookup" | "d_alloc_parallel"),
+                "observer must actually coalesce on the helper lookup: {:?}",
+                waits[0]
+            );
+            assert!(
+                waits[0].2.contains("d_alloc_parallel") && waits[0].2.contains("lookup_slow"),
+                "actual observer kernel stack must prove pending path lookup: {:?}",
+                waits[0]
+            );
+            assert_eq!(
+                *state.race_results.lock().unwrap(),
+                vec![Err(libc::ENOENT)],
+                "ordinary coalesced lookup must not expose deleted directory"
+            );
+        }
+        assert_eq!(
+            observed["cwd"]["errno"],
+            libc::ENOENT,
+            "deleted cwd must stay unreachable by name"
+        );
+        assert_eq!(
+            observed["legacy_path"], observed["native_path"],
+            "deleted directory path identity"
+        );
+        assert_eq!(
+            observed["legacy_visible"], observed["native_visible"],
+            "deleted name must stay absent"
+        );
+        assert_eq!(observed["native_visible"]["errno"], libc::ENOENT);
         return;
     }
     assert_eq!(second["native_parent"]["data"], "LEFT");

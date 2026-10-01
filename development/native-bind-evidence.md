@@ -8,7 +8,7 @@ This is an intermediate slice, not feature completion, product acceptance or per
 
 - Current base: `78245771167643d5883491052e7cebcaba8c3be2` (original base `6bcabe8f30040bc6cc3b518bd271e7e2461e1e1d`); branch `feat/ownerfs-native-bind`. Feature worktree is isolated from the canonical checkout and the other machine's main branch.
 - Rust1.95 x86_64 Linux. WSL6.6 builds/tests the controller and journal; actual mount backend is run in Linux6.8 VM A on `/dev/sdb1`, ext4 UUID `6fa5e173-b766-4c27-872b-8f40e91bed27`.
-- Current VM test binary SHA256 `0f1524c3599011d1a8e27f3d3e4cf0933c24bbfad98e36bb51c595398992d409` (17 cases, including read-only named/deleted-directory mechanism probes; full semantics remains RED).
+- Current VM test binary SHA256 `cbce155edfffe9e758004b0708a312509b1176a3441999695d32e4c5738de02c` (19 cases; read-only directory repair and deterministic concurrency counterprobes; full semantics remains RED).
 - Private mount namespaces; test data confined to uniquely created directories. Earlier successful probes checked parent namespace mountinfo byte-for-byte. The ordinary RED driver exits before its cleanup markers; the paired portable RED replay independently verifies parent mounts and disposable-data cleanup. Most covered test directories are disposable ext4 directories. One test now uses the real OwnerFs FUSE adapter and RootManager with an in-process Meta fixture; it does not run production Node/P2P or enable native policy.
 
 ## Outcomes
@@ -19,13 +19,13 @@ This is an intermediate slice, not feature completion, product acceptance or per
 | Controller regressions | 16 PASS | Idempotent export, stale identities, busy retry, foreign ownership, recycled-ID protection, bounded admission |
 | Journal regressions | 10 PASS | Exclusive writer, strict decode, symlink/hardlink protection, immutable old epoch, atomic replace, uncertain directory-sync failure |
 | Journal/controller transactions | 12 PASS | Pre-attach exclusive clone intent, durable ACK, unmount intent, restart without stacking, same-epoch retired-session fencing, bounded orphan cleanup, uncertain unlink/fsync and duplicate-ACK health |
-| Current VM Linux backend/FUSE/directory mechanism | RED: pinned-attribute control15 PASS/2 FAIL with repair; default control14 PASS/3 FAIL with repair | Named-directory mechanism passes; deleted-after-move and production old-directory semantics remain unresolved |
+| Current VM Linux backend/FUSE/directory mechanism | RED: proposed unlinked repair17 PASS/2 FAIL; pinned-attribute control14 PASS/5 FAIL with repair | Serial directory probes pass, but deterministic getcwd window and production old-directory case fail |
 | Current library regressions | 353 PASS, 2 ignored | Main-aligned OwnerFs/DFS regression plus external-directory refresh; ignored tests remain outside this claim |
 | fmt / strict all-targets Clippy | PASS | Candidate formatting and diagnostics |
-| Portable VM probe | Current17-case, four controls, RED | Same binary: default repair-off13/4, repair-on14/3; pinned attributes repair-off14/3, repair-on15/2; all independently verify cleanup |
+| Portable VM probe | Current19-case controls plus repeated counterexample, RED | One binary: repair-off13/6; repair-on14/5 without unlinked repair,17/2 with it; all independently verify cleanup |
 | OwnerFs FUSE/native/P2P integration and performance | NOT_RUN | Mount primitive proof is insufficient |
 
-WSL cannot supply STATX_MNT_ID_UNIQUE on kernel6.6; the backend returns ENOTSUP. All17 current kernel/backend/FUSE/prototype tests are explicitly ignored for the ordinary build-host run, then explicitly executed (none ignored) by the VM probe. Kernel unique IDs are required; recyclable mountinfo IDs never substitute for ownership.
+WSL cannot supply STATX_MNT_ID_UNIQUE on kernel6.6; the backend returns ENOTSUP. All19 current kernel/backend/FUSE/prototype tests are explicitly ignored for the ordinary build-host run, then explicitly executed (none ignored) by the VM probe. Kernel unique IDs are required; recyclable mountinfo IDs never substitute for ownership.
 
 ## Failures retained
 
@@ -330,3 +330,91 @@ concurrency, bounded object leases, production/P2P integration, locks/cache,
 lifecycle and performance remain unqualified. Deleted objects are not
 excluded from the goal; a production solution must preserve their current
 parent relationship without resurrecting a visible pathname.
+
+## Unlinked alias repair: serial mechanism and rejected atomicity
+
+The separate read-only test adapter adds `AFS_NATIVE_UNLINKED_ALIAS_REPAIR=1`,
+used only together with repair and pinned metadata flags. It pins the deleted
+directory, opens its actual `..` through that fd, checks current parent identity
+and source-root membership, then looks up the covered FUSE parent off the
+receive thread. One live helper TID, exact parent inode and fixed fixture name
+`moving` receive a zero-TTL entry for the pinned deleted inode. Ordinary
+lookups retain the real backend result. No backing file/name is created.
+After that lookup completes, synchronous entry invalidation unhashes the alias
+before the original GETATTR reply. The fixture name is known; this is not a
+generic parser of `/proc` deleted-name suffixes or an authorization design.
+
+Serial named, moved/deleted and in-place/deleted cases now match their native
+fd oracle: parent and child reads, nlink0 attributes, relative fd path with
+` (deleted)`, unreachable getcwd, and missing visible name. These observations
+are useful kernel mechanism evidence but do not qualify this two-step repair.
+
+The coalesced-lookup counterprobe holds the helper's entry reply while a
+separate thread stats the same absent name. Stationary parent attrs alone
+have60s TTL in this counterprobe; the moving object/entry stays zero TTL.
+Actual observer stack is captured before the reply: `d_alloc_parallel`,
+`__lookup_slow` and statx. The thread coalesces on the pending helper lookup,
+then returns ENOENT. The exact observer is joined before owned cleanup.
+The first assertion incorrectly expected the non-inlined `d_wait_lookup`
+symbol. Ubuntu's kernel reports its caller; the corrected check requires
+both the observed wait and pending-path kernel stack. That earlier harness
+RED is retained, not relabeled as a semantics failure. Relevant source:
+[Linux6.8 dcache](https://github.com/torvalds/linux/blob/v6.8/fs/dcache.c).
+
+**The deterministic getcwd counterprobe rejects production use.** Two exact
+Python children establish FUSE cwd and physical ext4 cwd before bind. After
+native move+delete, the worker pauses after alias relocation but BEFORE entry
+invalidation and asks each child for getcwd. FUSE returns `right/moving`,
+whereas ext4 returns ENOENT. This is a real scheduler-visible interval, widened
+by an explicit test handshake, not a timeout assumption. Receive-thread
+availability and zero TTL do not gate this kernel-only operation. Both child
+PIDs are identified and reaped before owned cleanup; later original actor
+observations match only after the interval closes. Do not remove this
+assertion, exclude concurrent cwd, or claim faster invalidation guarantees
+correctness. Kernel implementation:
+[Linux6.8 d_path/getcwd](https://github.com/torvalds/linux/blob/v6.8/fs/d_path.c).
+
+Python initially tried to search its FUSE cwd for imports and hit the minimal
+adapter's unsupported readdir. Only the observer harness now uses Python `-I`
+to remove cwd import searching. That run is a retained startup failure, not
+functional evidence. The fixed harness reproduces the semantic mismatch.
+
+Earlier19-case binary controls: `directory-20261001T031454-a4ddbc85` has the
+unlinked repair flag off,13 PASS/6 FAIL with repair0 and14 PASS/5 FAIL with
+repair1. Enabled runs `directory-20261001T031336-5c0703f2` and repeated
+`directory-20261001T031514-d27f2099` each have13 PASS/6 FAIL and17 PASS/2 FAIL.
+One identical binary is used throughout. Enabled failures are production
+old-directory handling and the new getcwd window. Every case executes,
+none ignored; tests/probe exit101. Collection driver0 requires independently
+unchanged parent mountinfo and empty disposable test data. Inputs and raw
+evidence are indexed externally by `unlinked-alias-analysis.json` and
+`unlinked-alias-inputs.json`. Format/build/strict Clippy/fmt-check pass;
+library/unit counts remain their earlier production-change scope.
+
+Reproduce by adding `AFS_NATIVE_PINNED_DIRECTORY_ATTR=1` and
+`AFS_NATIVE_UNLINKED_ALIAS_REPAIR=1` to the serial portable commands above.
+Omitting the latter retains the pinned-attribute negative control. These
+flags affect only the custom probe. No production adapter, Node admission,
+RPC, kernel installation or accepted contract was changed.
+
+The next design must make parent relocation and deleted-name visibility
+atomic for relevant observers. Standard6.8 notification enumeration has
+invalidation/delete but no atomic reparent notification:
+[Linux6.8 FUSE UAPI](https://github.com/torvalds/linux/blob/v6.8/include/uapi/linux/fuse.h).
+This source inspection plus counterprobe rejects this implementation, not
+every possible native-bind architecture. Kernel/bridge alternatives require
+separate feasibility evidence; none is currently approved or implemented.
+Current full-goal cache, mixed lock-owner, directory leases/P2P, authority,
+lifecycle, durability decisions and performance requirements remain open.
+
+Final visible-name check selects the actually deleted name in each fixture:
+`left/moving` for in-place deletion and `right/moving` after a move. This
+strengthens the in-place absence control instead of checking only RIGHT.
+Final matching-binary19-case runs `directory-20261001T031823-5175d363`
+(unlinked repair0) and `directory-20261001T031801-623c3ec3` (repair1) reproduce
+13/6,14/5 and13/6,17/2 respectively. Serial deleted-name controls and
+coalesced observer pass with repair; the deterministic cwd interval remains
+RED. Cleanup and final format/build/strict-Clippy/fmt-check all complete.
+Earlier repeated runs remain tied to their earlier SHA, not reassigned to
+this final candidate. Final raw evidence/input hashes are indexed by
+`unlinked-alias-final-analysis.json` / `unlinked-alias-final-inputs.json`.

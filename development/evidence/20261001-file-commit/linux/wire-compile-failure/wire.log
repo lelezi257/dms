@@ -1,0 +1,92 @@
+   Compiling afs v0.1.0 (/home/lzc.guest/afs-build/work/root-merged-v64-r1)
+error[E0107]: type alias takes 1 generic argument but 2 generic arguments were supplied
+    --> src/node/vfs/dfs.rs:8701:30
+     |
+8701 |         ) -> std::task::Poll<Result<(), Self::Error>> {
+     |                              ^^^^^^   ------------- help: remove the unnecessary generic argument
+     |                              |
+     |                              expected 1 generic argument
+     |
+note: type alias defined here, with 1 generic parameter: `T`
+    --> common/error/src/lib.rs:79:10
+     |
+  79 | pub type Result<T> = std::result::Result<T, Error>;
+     |          ^^^^^^ -
+
+error[E0107]: type alias takes 1 generic argument but 2 generic arguments were supplied
+    --> src/node/vfs/dfs.rs:8695:50
+     |
+8695 |             Box<dyn std::future::Future<Output = Result<Self::Response, Self::Error>> + Send>,
+     |                                                  ^^^^^^               ------------- help: remove the unnecessary generic argument
+     |                                                  |
+     |                                                  expected 1 generic argument
+     |
+note: type alias defined here, with 1 generic parameter: `T`
+    --> common/error/src/lib.rs:79:10
+     |
+  79 | pub type Result<T> = std::result::Result<T, Error>;
+     |          ^^^^^^ -
+
+error[E0053]: method `poll_ready` has an incompatible type for trait
+    --> src/node/vfs/dfs.rs:8701:14
+     |
+8701 |         ) -> std::task::Poll<Result<(), Self::Error>> {
+     |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected associated type, found `afs_error::Error`
+     |
+     = note: expected signature `fn(&mut HoldCommitRepliesService<_>, &mut Context<'_>) -> Poll<std::result::Result<_, <S as Service<axum::http::Request<B>>>::Error>>`
+                found signature `fn(&mut HoldCommitRepliesService<_>, &mut Context<'_>) -> Poll<std::result::Result<_, afs_error::Error>>`
+help: change the output type to match the trait
+     |
+8701 -         ) -> std::task::Poll<Result<(), Self::Error>> {
+8701 +         ) -> Poll<std::result::Result<(), <S as Service<axum::http::Request<B>>>::Error>> {
+     |
+
+error[E0308]: mismatched types
+    --> src/node/vfs/dfs.rs:8986:13
+     |
+8983 |         let read_engine = Arc::new(crate::node::dfs_read::DfsReadEngine::new(
+     |                                    ----------------------------------------- arguments to this function are incorrect
+...
+8986 |             chunks.clone(),
+     |             ^^^^^^^^^^^^^^ expected `Arc<LocalChunkStore>`, found `Arc<CountingChunkStore>`
+     |
+     = note: expected struct `std::sync::Arc<chunk::LocalChunkStore>`
+                found struct `std::sync::Arc<CountingChunkStore>`
+note: associated function defined here
+    --> src/node/dfs_read.rs:235:12
+     |
+ 235 |     pub fn new(
+     |            ^^^
+...
+ 238 |         local: Arc<LocalChunkStore>,
+     |         ---------------------------
+
+error[E0308]: mismatched types
+    --> src/node/vfs/dfs.rs:8702:13
+     |
+8701 |         ) -> std::task::Poll<Result<(), Self::Error>> {
+     |              ---------------------------------------- expected `Poll<std::result::Result<(), afs_error::Error>>` because of return type
+8702 |             self.inner.poll_ready(cx)
+     |             ^^^^^^^^^^^^^^^^^^^^^^^^^ expected `Poll<Result<(), Error>>`, found `Poll<Result<(), ...>>`
+     |
+     = note: expected enum `Poll<std::result::Result<_, afs_error::Error>>`
+                found enum `Poll<std::result::Result<_, <S as Service<axum::http::Request<B>>>::Error>>`
+help: consider constraining the associated type `<S as Service<axum::http::Request<B>>>::Error` to `afs_error::Error`
+     |
+8686 |         S: tower::Service<tonic::codegen::http::Request<B>, Error = afs_error::Error> + Clone + Send + 'static,
+     |                                                           ++++++++++++++++++++++++++
+
+warning: variable does not need to be mutable
+    --> src/node/vfs/dfs.rs:9280:13
+     |
+9280 |         let mut replay = {
+     |             ----^^^^^^
+     |             |
+     |             help: remove this `mut`
+     |
+     = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+Some errors have detailed explanations: E0053, E0107, E0308.
+For more information about an error, try `rustc --explain E0053`.
+warning: `afs` (lib test) generated 1 warning
+error: could not compile `afs` (lib test) due to 5 previous errors; 1 warning emitted

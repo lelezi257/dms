@@ -8563,6 +8563,944 @@ mod tests {
         (temp, meta, fs)
     }
 
+    #[cfg(feature = "dfs")]
+    struct CountingChunkStore {
+        inner: Arc<dyn ChunkStore>,
+        put_batches: AtomicUsize,
+    }
+
+    #[cfg(feature = "dfs")]
+    impl CountingChunkStore {
+        fn new(inner: Arc<dyn ChunkStore>) -> Self {
+            Self {
+                inner,
+                put_batches: AtomicUsize::new(0),
+            }
+        }
+
+        fn put_batch_count(&self) -> usize {
+            self.put_batches.load(Ordering::SeqCst)
+        }
+    }
+
+    #[cfg(feature = "dfs")]
+    impl ChunkStore for CountingChunkStore {
+        fn put_batch(&self, staged: Vec<StagedChunk>) -> Result<Vec<crate::dfs::ChunkReceipt>> {
+            self.put_batches.fetch_add(1, Ordering::SeqCst);
+            self.inner.put_batch(staged)
+        }
+
+        fn read_at(
+            &self,
+            chunk_id: &crate::dfs::ChunkId,
+            offset: u64,
+            out: &mut [u8],
+        ) -> Result<usize> {
+            self.inner.read_at(chunk_id, offset, out)
+        }
+    }
+
+    #[cfg(feature = "dfs")]
+    #[derive(Clone)]
+    struct HoldCommitRepliesLayer {
+        gate: Arc<HoldCommitRepliesGate>,
+    }
+
+    #[cfg(feature = "dfs")]
+    struct HoldCommitRepliesGate {
+        first_delay: Duration,
+        hits: AtomicUsize,
+        first_done: AtomicBool,
+        first_done_notify: tokio::sync::Notify,
+        second_reached: AtomicBool,
+        second_reached_notify: tokio::sync::Notify,
+        release_second: AtomicBool,
+        release_second_notify: tokio::sync::Notify,
+    }
+
+    #[cfg(feature = "dfs")]
+    impl HoldCommitRepliesLayer {
+        fn new(first_delay: Duration) -> Self {
+            Self {
+                gate: Arc::new(HoldCommitRepliesGate {
+                    first_delay,
+                    hits: AtomicUsize::new(0),
+                    first_done: AtomicBool::new(false),
+                    first_done_notify: tokio::sync::Notify::new(),
+                    second_reached: AtomicBool::new(false),
+                    second_reached_notify: tokio::sync::Notify::new(),
+                    release_second: AtomicBool::new(false),
+                    release_second_notify: tokio::sync::Notify::new(),
+                }),
+            }
+        }
+
+        async fn wait_first_committed(&self, timeout: Duration) {
+            let notified = self.gate.first_done_notify.notified();
+            if self.gate.first_done.load(Ordering::SeqCst) {
+                return;
+            }
+            tokio::time::timeout(timeout, notified)
+                .await
+                .expect("first CommitFileVersion did not reach post-handler delay");
+        }
+
+        async fn wait_second_reached(&self, timeout: Duration) {
+            let notified = self.gate.second_reached_notify.notified();
+            if self.gate.second_reached.load(Ordering::SeqCst) {
+                return;
+            }
+            tokio::time::timeout(timeout, notified)
+                .await
+                .expect("second CommitFileVersion replay did not reach explicit response gate");
+        }
+
+        fn release_second(&self) {
+            self.gate.release_second.store(true, Ordering::SeqCst);
+            self.gate.release_second_notify.notify_waiters();
+        }
+    }
+
+    #[cfg(feature = "dfs")]
+    impl<S> tower::Layer<S> for HoldCommitRepliesLayer {
+        type Service = HoldCommitRepliesService<S>;
+
+        fn layer(&self, inner: S) -> Self::Service {
+            HoldCommitRepliesService {
+                inner,
+                gate: self.gate.clone(),
+            }
+        }
+    }
+
+    #[cfg(feature = "dfs")]
+    #[derive(Clone)]
+    struct HoldCommitRepliesService<S> {
+        inner: S,
+        gate: Arc<HoldCommitRepliesGate>,
+    }
+
+    #[cfg(feature = "dfs")]
+    impl<S, B> tower::Service<tonic::codegen::http::Request<B>> for HoldCommitRepliesService<S>
+    where
+        S: tower::Service<tonic::codegen::http::Request<B>> + Clone + Send + 'static,
+        S::Future: Send + 'static,
+        S::Response: Send + 'static,
+        S::Error: Send + 'static,
+        B: Send + 'static,
+    {
+        type Response = S::Response;
+        type Error = S::Error;
+        type Future = std::pin::Pin<
+            Box<
+                dyn std::future::Future<Output = std::result::Result<Self::Response, Self::Error>>
+                    + Send,
+            >,
+        >;
+
+        fn poll_ready(
+            &mut self,
+            cx: &mut std::task::Context<'_>,
+        ) -> std::task::Poll<std::result::Result<(), Self::Error>> {
+            self.inner.poll_ready(cx)
+        }
+
+        fn call(&mut self, request: tonic::codegen::http::Request<B>) -> Self::Future {
+            let path = request.uri().path().to_owned();
+            let future = self.inner.call(request);
+            let gate = self.gate.clone();
+            Box::pin(async move {
+                let response = future.await?;
+                if path == "/afs.meta.v1.DfsMeta/CommitFileVersion" {
+                    match gate.hits.fetch_add(1, Ordering::SeqCst) {
+                        0 => {
+                            gate.first_done.store(true, Ordering::SeqCst);
+                            gate.first_done_notify.notify_waiters();
+                            tokio::time::sleep(gate.first_delay).await;
+                        }
+                        1 => {
+                            gate.second_reached.store(true, Ordering::SeqCst);
+                            gate.second_reached_notify.notify_waiters();
+                            while !gate.release_second.load(Ordering::SeqCst) {
+                                let notified = gate.release_second_notify.notified();
+                                if gate.release_second.load(Ordering::SeqCst) {
+                                    break;
+                                }
+                                notified.await;
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+                Ok(response)
+            })
+        }
+    }
+
+    #[cfg(feature = "dfs")]
+    struct CapturingDfsMeta {
+        inner: Arc<crate::node::rpc::meta::GrpcDfsMeta>,
+        commits: Mutex<Vec<CommitFileVersion>>,
+    }
+
+    #[cfg(feature = "dfs")]
+    impl CapturingDfsMeta {
+        fn new(inner: crate::node::rpc::meta::GrpcDfsMeta) -> Self {
+            Self {
+                inner: Arc::new(inner),
+                commits: Mutex::new(Vec::new()),
+            }
+        }
+
+        fn commits(&self) -> Vec<CommitFileVersion> {
+            self.commits.lock().unwrap().clone()
+        }
+    }
+
+    #[cfg(feature = "dfs")]
+    impl DfsMeta for CapturingDfsMeta {
+        fn lookup(&self, parent: &InodeId, name: &[u8]) -> Result<Option<InodeRecord>> {
+            DfsMeta::lookup(self.inner.as_ref(), parent, name)
+        }
+
+        fn create(
+            &self,
+            operation_id: &OperationId,
+            parent: &InodeId,
+            name: &[u8],
+            attributes: InodeAttributes,
+        ) -> Result<(InodeRecord, WriteLease)> {
+            DfsMeta::create(self.inner.as_ref(), operation_id, parent, name, attributes)
+        }
+
+        fn get_inode(&self, inode_id: &InodeId) -> Result<InodeRecord> {
+            DfsMeta::get_inode(self.inner.as_ref(), inode_id)
+        }
+
+        fn get_file_version(
+            &self,
+            version_id: &FileVersionId,
+        ) -> Result<(FileVersion, LayoutRoot)> {
+            DfsMeta::get_file_version(self.inner.as_ref(), version_id)
+        }
+
+        fn open_write(&self, inode_id: &InodeId) -> Result<(InodeRecord, WriteLease)> {
+            DfsMeta::open_write(self.inner.as_ref(), inode_id)
+        }
+
+        fn renew_write_lease(&self, lease: WriteLease) -> Result<WriteLease> {
+            DfsMeta::renew_write_lease(self.inner.as_ref(), lease)
+        }
+
+        fn renew_write_lease_with_timeout(
+            &self,
+            lease: WriteLease,
+            timeout: Duration,
+        ) -> Result<WriteLease> {
+            DfsMeta::renew_write_lease_with_timeout(self.inner.as_ref(), lease, timeout)
+        }
+
+        fn sync_inode_metadata(&self, sync: SyncInodeMetadata) -> Result<InodeRecord> {
+            DfsMeta::sync_inode_metadata(self.inner.as_ref(), sync)
+        }
+
+        fn sync_inode_metadata_with_timeout(
+            &self,
+            sync: SyncInodeMetadata,
+            timeout: Duration,
+        ) -> Result<InodeRecord> {
+            DfsMeta::sync_inode_metadata_with_timeout(self.inner.as_ref(), sync, timeout)
+        }
+
+        fn commit_file_version(&self, commit: CommitFileVersion) -> Result<InodeRecord> {
+            self.commits.lock().unwrap().push(commit.clone());
+            DfsMeta::commit_file_version(self.inner.as_ref(), commit)
+        }
+
+        fn commit_file_version_with_timeout(
+            &self,
+            commit: CommitFileVersion,
+            timeout: Duration,
+        ) -> Result<InodeRecord> {
+            self.commits.lock().unwrap().push(commit.clone());
+            DfsMeta::commit_file_version_with_timeout(self.inner.as_ref(), commit, timeout)
+        }
+
+        fn lookup_node_location(&self, node_id: &str) -> Result<Option<DfsNodeLocation>> {
+            DfsMeta::lookup_node_location(self.inner.as_ref(), node_id)
+        }
+
+        fn current_node_session(&self, node_id: &str) -> Result<Option<String>> {
+            DfsMeta::current_node_session(self.inner.as_ref(), node_id)
+        }
+
+        fn current_node_session_with_timeout(
+            &self,
+            node_id: &str,
+            timeout: Duration,
+        ) -> Result<Option<String>> {
+            DfsMeta::current_node_session_with_timeout(self.inner.as_ref(), node_id, timeout)
+        }
+
+        fn mkdir(
+            &self,
+            operation_id: &OperationId,
+            parent: &InodeId,
+            name: &[u8],
+            attributes: InodeAttributes,
+            caller: CallerContext,
+        ) -> Result<InodeRecord> {
+            DfsMeta::mkdir(
+                self.inner.as_ref(),
+                operation_id,
+                parent,
+                name,
+                attributes,
+                caller,
+            )
+        }
+
+        fn read_dir(&self, parent: &InodeId) -> Result<Vec<DentryRecord>> {
+            DfsMeta::read_dir(self.inner.as_ref(), parent)
+        }
+
+        fn link(
+            &self,
+            operation_id: &OperationId,
+            inode_id: &InodeId,
+            expected_inode_revision: u64,
+            parent: &InodeId,
+            name: &[u8],
+            caller: CallerContext,
+        ) -> Result<InodeRecord> {
+            DfsMeta::link(
+                self.inner.as_ref(),
+                operation_id,
+                inode_id,
+                expected_inode_revision,
+                parent,
+                name,
+                caller,
+            )
+        }
+
+        fn symlink(&self, request: SymlinkRequest) -> Result<InodeRecord> {
+            DfsMeta::symlink(self.inner.as_ref(), request)
+        }
+
+        fn mknod(&self, request: MknodRequest) -> Result<InodeRecord> {
+            DfsMeta::mknod(self.inner.as_ref(), request)
+        }
+
+        fn read_link(&self, request: ReadLinkRequest) -> Result<Vec<u8>> {
+            DfsMeta::read_link(self.inner.as_ref(), request)
+        }
+
+        fn set_inode_attributes(&self, request: SetInodeAttrRequest) -> Result<InodeRecord> {
+            DfsMeta::set_inode_attributes(self.inner.as_ref(), request)
+        }
+
+        fn get_xattr(&self, request: GetXattrRequest) -> Result<Vec<u8>> {
+            DfsMeta::get_xattr(self.inner.as_ref(), request)
+        }
+
+        fn list_xattr(&self, request: ListXattrRequest) -> Result<Vec<Vec<u8>>> {
+            DfsMeta::list_xattr(self.inner.as_ref(), request)
+        }
+
+        fn set_xattr(&self, request: SetXattrRequest) -> Result<InodeRecord> {
+            DfsMeta::set_xattr(self.inner.as_ref(), request)
+        }
+
+        fn remove_xattr(&self, request: RemoveXattrRequest) -> Result<InodeRecord> {
+            DfsMeta::remove_xattr(self.inner.as_ref(), request)
+        }
+
+        fn unlink(
+            &self,
+            operation_id: &OperationId,
+            parent: &InodeId,
+            name: &[u8],
+            caller: CallerContext,
+        ) -> Result<InodeRecord> {
+            DfsMeta::unlink(self.inner.as_ref(), operation_id, parent, name, caller)
+        }
+
+        fn rmdir(
+            &self,
+            operation_id: &OperationId,
+            parent: &InodeId,
+            name: &[u8],
+            caller: CallerContext,
+        ) -> Result<InodeRecord> {
+            DfsMeta::rmdir(self.inner.as_ref(), operation_id, parent, name, caller)
+        }
+
+        fn rename(
+            &self,
+            operation_id: &OperationId,
+            old_parent: &InodeId,
+            old_name: &[u8],
+            new_parent: &InodeId,
+            new_name: &[u8],
+            mode: RenameMode,
+            caller: CallerContext,
+        ) -> Result<RenameOutcome> {
+            DfsMeta::rename(
+                self.inner.as_ref(),
+                operation_id,
+                old_parent,
+                old_name,
+                new_parent,
+                new_name,
+                mode,
+                caller,
+            )
+        }
+    }
+
+    #[cfg(feature = "dfs")]
+    async fn grpc_dfs_test_fs(
+        node_id: &str,
+        session_id: &str,
+        meta_endpoint: &str,
+        local: Arc<LocalChunkStore>,
+        timeout: Duration,
+    ) -> (
+        Arc<CapturingDfsMeta>,
+        Arc<CountingChunkStore>,
+        DistributedFs,
+    ) {
+        let meta = Arc::new(CapturingDfsMeta::new(
+            crate::node::rpc::meta::GrpcDfsMeta::new(
+                meta_endpoint,
+                node_id.to_owned(),
+                session_id.to_owned(),
+                NamespaceId::new("default"),
+                timeout,
+                afs_transport::TlsConfig::Disabled,
+            )
+            .unwrap(),
+        ));
+        let peers = Arc::new(
+            crate::node::rpc::peer::PeerConnectionPool::new(
+                afs_transport::GrpcConfig::default(),
+                afs_transport::TlsConfig::Disabled,
+                4,
+            )
+            .unwrap(),
+        );
+        let data_plane =
+            Arc::new(crate::node::rpc::peer::GrpcReplicaDataPlane::new(peers, timeout).unwrap());
+        // Use the product R1 path and Meta placement authority. The test-only
+        // LocalChunkStore trait adapter fabricates a group for mock Meta tests.
+        let chunks = Arc::new(CountingChunkStore::new(Arc::new(
+            crate::node::replication::DfsChunkStore::new_with_epoch(
+                node_id.to_owned(),
+                1,
+                local.clone(),
+                meta.inner.clone(),
+                data_plane,
+            ),
+        )));
+        let read_engine = Arc::new(crate::node::dfs_read::DfsReadEngine::new(
+            NamespaceId::new("default"),
+            node_id.to_owned(),
+            local,
+            Arc::new(crate::node::dfs_read::UnimplementedReadSourceProvider),
+            Arc::new(crate::node::dfs_read::UnimplementedChunkTransfer),
+            crate::node::dfs_read::DfsReadConfig::default(),
+        ));
+        (
+            meta.clone(),
+            chunks.clone(),
+            DistributedFs::new(
+                NamespaceId::new("default"),
+                node_id,
+                session_id,
+                meta,
+                chunks,
+                read_engine,
+            ),
+        )
+    }
+
+    #[cfg(feature = "dfs")]
+    async fn real_grpc_meta_fixture() -> (
+        tempfile::TempDir,
+        String,
+        HoldCommitRepliesLayer,
+        tokio::task::JoinHandle<()>,
+        Arc<dyn crate::meta::store::MetaStore>,
+        Arc<LocalChunkStore>,
+    ) {
+        use crate::meta::{
+            Meta,
+            store::{MetaRead, NodeSessionLease, RequestKey, Store, memory::MemoryBackend},
+        };
+        use tokio::net::TcpListener;
+        use tokio_stream::wrappers::TcpListenerStream;
+        use tonic::transport::Server;
+
+        let temp = tempfile::tempdir().unwrap();
+        let local_a =
+            Arc::new(LocalChunkStore::open(temp.path().join("node-a"), "node-a").unwrap());
+        let store: Arc<dyn crate::meta::store::MetaStore> = Arc::new(
+            Store::open(Arc::new(MemoryBackend::default()))
+                .await
+                .unwrap(),
+        );
+        store
+            .register_node_session(
+                RequestKey::new("node-a", "register-node-a"),
+                NodeSessionLease {
+                    node_id: "node-a".into(),
+                    session_id: "session-a".into(),
+                    grpc_addr: "http://127.0.0.1:1".into(),
+                    data_addr: "http://127.0.0.1:1".into(),
+                    rest_addr: "http://127.0.0.1:1".into(),
+                    storage_devices: vec![local_a.device_descriptor().unwrap()],
+                    lease_ttl: Duration::from_secs(30),
+                },
+            )
+            .await
+            .unwrap();
+        let meta = Meta::with_store(
+            "meta-unknown-file-ack".into(),
+            crate::runtime::Observability::new().unwrap(),
+            store.clone(),
+        );
+        meta.dfs
+            .as_ref()
+            .unwrap()
+            .initialize_replication_config()
+            .await
+            .unwrap();
+        assert!(
+            store
+                .read(MetaRead::DfsReplicationConfig)
+                .await
+                .unwrap()
+                .entity
+                .is_some()
+        );
+        let meta = Arc::new(meta);
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let meta_endpoint = format!("http://{}", listener.local_addr().unwrap());
+        let gate = HoldCommitRepliesLayer::new(Duration::from_secs(3));
+        let server_gate = gate.clone();
+        let server = tokio::spawn(async move {
+            Server::builder()
+                .layer(server_gate)
+                .add_service(afs_protocol::meta::dfs_meta_server::DfsMetaServer::new(
+                    crate::meta::rpc::DfsMetaRpc(meta),
+                ))
+                .serve_with_incoming(TcpListenerStream::new(listener))
+                .await
+                .unwrap();
+        });
+        (temp, meta_endpoint, gate, server, store, local_a)
+    }
+
+    #[cfg(feature = "dfs")]
+    struct ReleaseCommitGateOnDrop(HoldCommitRepliesLayer);
+
+    #[cfg(feature = "dfs")]
+    impl Drop for ReleaseCommitGateOnDrop {
+        fn drop(&mut self) {
+            self.0.release_second();
+        }
+    }
+
+    #[cfg(feature = "dfs")]
+    #[derive(Clone, Debug, Eq, PartialEq)]
+    struct InodeMutationSnapshot {
+        logical_length: u64,
+        dirty: bool,
+        dirty_extent_count: usize,
+        visible_write_seq: u64,
+        durable_write_seq: u64,
+        committed_write_seq: u64,
+        pending_operation_id: OperationId,
+        pending_version_id: FileVersionId,
+        pending_layout_id: LayoutRootId,
+    }
+
+    #[cfg(feature = "dfs")]
+    fn pending_file_commit_snapshot(
+        fs: &DistributedFs,
+        inode_id: &InodeId,
+    ) -> (PendingFileCommit, InodeMutationSnapshot) {
+        let cell = fs.write_state(inode_id).unwrap().unwrap();
+        let state = cell.lock().unwrap();
+        let pending = match state.in_flight.as_ref().unwrap() {
+            InFlightCommit::File(pending) => pending.as_ref().clone(),
+            _ => panic!("expected pending file commit"),
+        };
+        let snapshot = InodeMutationSnapshot {
+            logical_length: state.logical_length,
+            dirty: state.dirty,
+            dirty_extent_count: state.dirty_extents.extents.len(),
+            visible_write_seq: state.visible_write_seq,
+            durable_write_seq: state.durable_write_seq,
+            committed_write_seq: state.committed_write_seq,
+            pending_operation_id: pending.batch.commit.operation_id.clone(),
+            pending_version_id: pending.batch.commit.file_version.id.clone(),
+            pending_layout_id: pending.batch.commit.layout_root.id.clone(),
+        };
+        (pending, snapshot)
+    }
+
+    #[cfg(feature = "dfs")]
+    fn read_exact_from(fs: &DistributedFs, handle: FileHandle, offset: u64, len: usize) -> Vec<u8> {
+        let mut bytes = vec![0; len];
+        let read = fs.read(&context(), handle, offset, &mut bytes).unwrap();
+        bytes.truncate(read);
+        bytes
+    }
+
+    #[cfg(feature = "dfs")]
+    async fn run_blocking<T: Send + 'static>(action: impl FnOnce() -> T + Send + 'static) -> T {
+        tokio::time::timeout(Duration::from_secs(5), tokio::task::spawn_blocking(action))
+            .await
+            .expect("blocking DFS test operation timed out")
+            .unwrap()
+    }
+
+    #[cfg(feature = "dfs")]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn real_grpc_unknown_file_commit_ack_blocks_inode_and_replays_exact_request() {
+        use crate::meta::store::{
+            MetaEntity, MetaRead, OperationResult, RequestKey, StoreOperation,
+        };
+
+        let (_temp, meta_endpoint, gate, server, store, local_a) = real_grpc_meta_fixture().await;
+        let (meta_a, chunks_a, fs_a_raw) = grpc_dfs_test_fs(
+            "node-a",
+            "session-a",
+            &meta_endpoint,
+            local_a,
+            Duration::from_secs(2),
+        )
+        .await;
+        let fs_a = Arc::new(fs_a_raw);
+
+        let created_a = {
+            let fs = fs_a.clone();
+            run_blocking(move || {
+                fs.create(
+                    &context(),
+                    fs.root_inode(),
+                    OsStr::new("unknown-file-ack-a.bin"),
+                    0o640,
+                    libc::O_RDWR,
+                )
+            })
+            .await
+            .unwrap()
+        };
+        let inode_backend_a = created_a.entry.inode;
+        let handle_a = created_a.handle;
+        let inode_a = fs_a.inode_id(inode_backend_a).unwrap();
+        {
+            let fs = fs_a.clone();
+            run_blocking(move || fs.write(&context(), handle_a, 0, b"alpha"))
+                .await
+                .unwrap();
+        }
+
+        let created_b = {
+            let fs = fs_a.clone();
+            run_blocking(move || {
+                fs.create(
+                    &context(),
+                    fs.root_inode(),
+                    OsStr::new("unknown-file-ack-b.bin"),
+                    0o640,
+                    libc::O_RDWR,
+                )
+            })
+            .await
+            .unwrap()
+        };
+        let handle_b = created_b.handle;
+
+        let first_error = {
+            let fs = fs_a.clone();
+            run_blocking(move || fs.fsync(&context(), handle_a, SyncMode::Full))
+                .await
+                .unwrap_err()
+        };
+        // The endpoint and outer client deadlines race, just as in the
+        // adapter deadline regression. Both leave the commit unconfirmed.
+        assert!(
+            first_error.code() == afs_error::CLIENT_DEADLINE_EXCEEDED
+                || (first_error.code() == afs_error::CLIENT_REMOTE_STATUS
+                    && first_error.kind() == afs_error::ErrorKind::Cancelled
+                    && first_error.message() == "Timeout expired"),
+            "unexpected first commit error: {first_error:?}"
+        );
+        gate.wait_first_committed(Duration::from_secs(1)).await;
+
+        let (pending, blocked_before_replay) = pending_file_commit_snapshot(&fs_a, &inode_a);
+        assert_eq!(chunks_a.put_batch_count(), 1);
+        assert_eq!(pending.frozen.through_seq, 1);
+        assert_eq!(pending.frozen.logical_length, 5);
+        assert_eq!(pending.batch.through_seq, 1);
+        assert_eq!(pending.batch.commit.layout_root.file_length, 5);
+        assert_eq!(pending.batch.commit.file_version.length, 5);
+        assert_eq!(pending.batch.commit.chunk_receipts.len(), 1);
+
+        let stored_inode = store
+            .read(MetaRead::DfsInode(inode_a.clone()))
+            .await
+            .unwrap();
+        let stored_inode = match stored_inode.entity.unwrap() {
+            MetaEntity::DfsInode(inode) => inode,
+            _ => panic!("expected stored inode"),
+        };
+        assert_eq!(
+            stored_inode.head_version,
+            Some(pending.batch.commit.file_version.id.clone())
+        );
+        let stored_version = store
+            .read(MetaRead::DfsFileVersion(
+                pending.batch.commit.file_version.id.clone(),
+            ))
+            .await
+            .unwrap();
+        let stored_version = match stored_version.entity.unwrap() {
+            MetaEntity::DfsFileVersion(version) => version,
+            _ => panic!("expected stored file version"),
+        };
+        assert_eq!(stored_version, pending.batch.commit.file_version);
+        let stored_layout = store
+            .read(MetaRead::DfsLayoutRoot(
+                pending.batch.commit.layout_root.id.clone(),
+            ))
+            .await
+            .unwrap();
+        let stored_layout = match stored_layout.entity.unwrap() {
+            MetaEntity::DfsLayoutRoot(layout) => layout,
+            _ => panic!("expected stored layout root"),
+        };
+        assert_eq!(stored_layout, pending.batch.commit.layout_root);
+        let outcome = store
+            .read(MetaRead::RequestOutcome(RequestKey::new(
+                "node-a",
+                pending.batch.commit.operation_id.0.clone(),
+            )))
+            .await
+            .unwrap()
+            .request_outcome
+            .expect("commit outcome must be durable before reply release");
+        assert_eq!(outcome.operation, StoreOperation::DfsCommitFileVersion);
+        match outcome.result.clone() {
+            OperationResult::DfsNamespace {
+                request_digest,
+                result,
+            } if request_digest != [0; 32]
+                && matches!(
+                    result.as_ref(),
+                    OperationResult::DfsInode(inode)
+                        if inode.head_version == Some(pending.batch.commit.file_version.id.clone())
+                ) => {}
+            other => panic!("unexpected commit outcome: {other:?}"),
+        }
+
+        let replay = {
+            let fs = fs_a.clone();
+            tokio::task::spawn_blocking(move || fs.fsync(&context(), handle_a, SyncMode::Full))
+        };
+        gate.wait_second_reached(Duration::from_secs(1)).await;
+        let release_gate_on_drop = ReleaseCommitGateOnDrop(gate.clone());
+
+        let replayed_inode = store
+            .read(MetaRead::DfsInode(inode_a.clone()))
+            .await
+            .unwrap();
+        assert_eq!(
+            replayed_inode.entity,
+            Some(MetaEntity::DfsInode(stored_inode))
+        );
+        let replayed_version = store
+            .read(MetaRead::DfsFileVersion(
+                pending.batch.commit.file_version.id.clone(),
+            ))
+            .await
+            .unwrap();
+        assert_eq!(
+            replayed_version.entity,
+            Some(MetaEntity::DfsFileVersion(stored_version))
+        );
+        let replayed_layout = store
+            .read(MetaRead::DfsLayoutRoot(
+                pending.batch.commit.layout_root.id.clone(),
+            ))
+            .await
+            .unwrap();
+        assert_eq!(
+            replayed_layout.entity,
+            Some(MetaEntity::DfsLayoutRoot(stored_layout))
+        );
+        let replayed_outcome = store
+            .read(MetaRead::RequestOutcome(RequestKey::new(
+                "node-a",
+                pending.batch.commit.operation_id.0.clone(),
+            )))
+            .await
+            .unwrap();
+        assert_eq!(replayed_outcome.request_outcome, Some(outcome));
+
+        let mut blocked_write = {
+            let fs = fs_a.clone();
+            tokio::task::spawn_blocking(move || fs.write(&context(), handle_a, 5, b"!"))
+        };
+        let mut blocked_resize = {
+            let fs = fs_a.clone();
+            tokio::task::spawn_blocking(move || {
+                fs.setattr(
+                    &context(),
+                    inode_backend_a,
+                    Some(handle_a),
+                    &AttributeChange {
+                        size: Some(7),
+                        ..AttributeChange::default()
+                    },
+                )
+            })
+        };
+        let mut blocked_sync = {
+            let fs = fs_a.clone();
+            tokio::task::spawn_blocking(move || fs.fsync(&context(), handle_a, SyncMode::Full))
+        };
+        assert!(
+            tokio::time::timeout(Duration::from_millis(100), &mut blocked_write)
+                .await
+                .is_err()
+        );
+        assert!(
+            tokio::time::timeout(Duration::from_millis(100), &mut blocked_resize)
+                .await
+                .is_err()
+        );
+        assert!(
+            tokio::time::timeout(Duration::from_millis(100), &mut blocked_sync)
+                .await
+                .is_err()
+        );
+        let (still_pending, blocked_after_wait) = pending_file_commit_snapshot(&fs_a, &inode_a);
+        assert_eq!(still_pending.batch.commit, pending.batch.commit);
+        assert_eq!(blocked_after_wait, blocked_before_replay);
+        assert_eq!(chunks_a.put_batch_count(), 1);
+        let captured_commits = meta_a.commits();
+        assert_eq!(captured_commits.len(), 2);
+        assert_eq!(captured_commits[0], pending.batch.commit);
+        assert_eq!(captured_commits[1], pending.batch.commit);
+
+        {
+            let fs = fs_a.clone();
+            run_blocking(move || fs.write(&context(), handle_b, 0, b"bravo"))
+                .await
+                .unwrap();
+        }
+        {
+            let fs = fs_a.clone();
+            run_blocking(move || fs.fsync(&context(), handle_b, SyncMode::Full))
+                .await
+                .unwrap();
+        }
+        assert_eq!(chunks_a.put_batch_count(), 2);
+        let b_bytes = {
+            let fs = fs_a.clone();
+            run_blocking(move || read_exact_from(&fs, handle_b, 0, 8)).await
+        };
+        assert_eq!(b_bytes, b"bravo".to_vec());
+        let a_bytes = {
+            let fs = fs_a.clone();
+            run_blocking(move || read_exact_from(&fs, handle_a, 0, 8)).await
+        };
+        assert_eq!(a_bytes, b"alpha".to_vec());
+
+        gate.release_second();
+        drop(release_gate_on_drop);
+        tokio::time::timeout(Duration::from_secs(2), replay)
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            tokio::time::timeout(Duration::from_secs(2), blocked_write)
+                .await
+                .unwrap()
+                .unwrap()
+                .unwrap(),
+            1
+        );
+        assert_eq!(
+            tokio::time::timeout(Duration::from_secs(2), blocked_resize)
+                .await
+                .unwrap()
+                .unwrap()
+                .unwrap()
+                .size,
+            7
+        );
+        tokio::time::timeout(Duration::from_secs(2), blocked_sync)
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap();
+        {
+            let fs = fs_a.clone();
+            run_blocking(move || fs.fsync(&context(), handle_a, SyncMode::Full))
+                .await
+                .unwrap();
+        }
+        {
+            let fs = fs_a.clone();
+            run_blocking(move || fs.flush(&context(), handle_a))
+                .await
+                .unwrap();
+        }
+        {
+            let fs = fs_a.clone();
+            run_blocking(move || fs.release(&context(), handle_a))
+                .await
+                .unwrap();
+        }
+
+        let reopened = {
+            let fs = fs_a.clone();
+            run_blocking(move || fs.open(&context(), inode_backend_a, libc::O_RDONLY))
+                .await
+                .unwrap()
+        };
+        let final_read = {
+            let fs = fs_a.clone();
+            run_blocking(move || {
+                let mut final_bytes = vec![0; 8];
+                let read = fs.read(&context(), reopened, 0, &mut final_bytes).unwrap();
+                final_bytes.truncate(read);
+                let eof = fs
+                    .read(&context(), reopened, read as u64, &mut [0; 8])
+                    .unwrap();
+                fs.release(&context(), reopened).unwrap();
+                (final_bytes, eof)
+            })
+            .await
+        };
+        assert_eq!(final_read.0, b"alpha!\0".to_vec());
+        assert_eq!(final_read.1, 0);
+        {
+            let fs = fs_a.clone();
+            run_blocking(move || fs.release(&context(), handle_b))
+                .await
+                .unwrap();
+        }
+        server.abort();
+    }
+
     #[test]
     fn killpriv_positive_write_clears_suid_and_executable_sgid_until_commit() {
         let (_temp, meta, fs) = test_fs();

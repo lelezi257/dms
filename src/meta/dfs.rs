@@ -2676,6 +2676,7 @@ impl DfsService {
         caller_id: String,
         commit: CommitFileVersion,
     ) -> Result<InodeRecord> {
+        let request_digest = namespace_request_digest(&commit)?;
         require_id(&caller_id, "caller_id")?;
         require_id(&commit.operation_id.0, "operation_id")?;
         require_id(&commit.inode_id.0, "inode_id")?;
@@ -2690,10 +2691,11 @@ impl DfsService {
         require_id(&commit.file_version.id.0, "file_version.id")?;
         require_id(&commit.layout_root.id.0, "layout_root.id")?;
         if let Some(inode) = self
-            .replayed_inode(
+            .replayed_namespace_inode(
                 &caller_id,
                 &commit.operation_id,
                 StoreOperation::DfsCommitFileVersion,
+                request_digest,
             )
             .await?
         {
@@ -2811,7 +2813,7 @@ impl DfsService {
         let outcome = RequestOutcome {
             request: request.clone(),
             operation: StoreOperation::DfsCommitFileVersion,
-            result: OperationResult::DfsInode(updated.clone()),
+            result: namespace_result(request_digest, OperationResult::DfsInode(updated.clone())),
         };
         let mut txn = MetaTxn::new(request.clone(), StoreOperation::DfsCommitFileVersion);
         txn.conditions.extend([
@@ -2875,7 +2877,7 @@ impl DfsService {
             TxnMutation::RecordRequestOutcome(outcome),
         ]);
         inode_outcome(
-            self.store.compare_and_commit(txn).await?,
+            validate_namespace_outcome(self.store.compare_and_commit(txn).await?, request_digest)?,
             StoreOperation::DfsCommitFileVersion,
         )
     }
@@ -4964,6 +4966,86 @@ mod read_recovery_tests {
             .unwrap();
     }
 
+    async fn legacy_direct_commit_fixture() -> (
+        DfsService,
+        Arc<Store>,
+        InodeRecord,
+        FileVersion,
+        LayoutRoot,
+        RequestKey,
+    ) {
+        let store = Arc::new(
+            Store::open(Arc::new(MemoryBackend::default()))
+                .await
+                .unwrap(),
+        );
+        let service = DfsService::new(store.clone());
+        let mut inode = root_inode(NamespaceId::new("default"));
+        inode.inode_id = InodeId::new("legacy-file");
+        inode.kind = InodeKind::Regular;
+        inode.head_version = Some(FileVersionId::new("legacy-version"));
+        inode.revision = 2;
+        let version = FileVersion {
+            id: FileVersionId::new("legacy-version"),
+            inode_id: inode.inode_id.clone(),
+            parent_version: None,
+            length: 0,
+            layout_root: LayoutRootId::new("legacy-layout"),
+            created_at_unix_ms: 1,
+        };
+        let layout = LayoutRoot {
+            id: LayoutRootId::new("legacy-layout"),
+            file_length: 0,
+            inline_extents: Vec::new(),
+        };
+        let key = RequestKey::new("legacy-node", "legacy-commit");
+        let mut txn = MetaTxn::new(key.clone(), StoreOperation::DfsCommitFileVersion);
+        txn.conditions
+            .push(TxnCondition::RequestAbsent(key.clone()));
+        txn.mutations.extend([
+            TxnMutation::Put(MetaEntity::DfsInode(inode.clone())),
+            TxnMutation::Put(MetaEntity::DfsFileVersion(version.clone())),
+            TxnMutation::Put(MetaEntity::DfsLayoutRoot(layout.clone())),
+            TxnMutation::RecordRequestOutcome(RequestOutcome {
+                request: key.clone(),
+                operation: StoreOperation::DfsCommitFileVersion,
+                result: OperationResult::DfsInode(inode.clone()),
+            }),
+        ]);
+        store.compare_and_commit(txn).await.unwrap();
+        (service, store, inode, version, layout, key)
+    }
+
+    fn commit_for_stored_version(
+        operation_id: OperationId,
+        inode: &InodeRecord,
+        version: FileVersion,
+        layout: LayoutRoot,
+    ) -> CommitFileVersion {
+        CommitFileVersion {
+            operation_id,
+            inode_id: inode.inode_id.clone(),
+            write_lease: WriteLease {
+                inode_id: inode.inode_id.clone(),
+                owner_node_id: "legacy-node".into(),
+                owner_session_id: "legacy-session".into(),
+                lease_epoch: 1,
+                expires_at_unix_ms: 1,
+            },
+            expected_inode_revision: inode.revision,
+            expected_head_version: None,
+            file_version: version,
+            layout_root: layout,
+            chunk_receipts: Vec::new(),
+            metadata_delta: crate::dfs::CommitMetadataDelta {
+                mode: CommitMetadataMode::DataOnly,
+                mtime_unix_ms: None,
+                ctime_unix_ms: None,
+                kill_suidgid: false,
+            },
+        }
+    }
+
     async fn fixture() -> Fixture {
         let temp = tempfile::tempdir().unwrap();
         let local = LocalChunkStore::open(temp.path(), "receiver").unwrap();
@@ -5060,6 +5142,81 @@ mod read_recovery_tests {
             },
             copy,
         }
+    }
+
+    #[tokio::test]
+    async fn legacy_direct_commit_outcome_rejects_replay_but_keeps_state_readable() {
+        let (service, _store, inode, version, layout, key) = legacy_direct_commit_fixture().await;
+
+        assert_eq!(
+            service.get_inode(inode.inode_id.clone()).await.unwrap(),
+            inode
+        );
+        assert_eq!(
+            service.get_file_version(version.id.clone()).await.unwrap(),
+            (version.clone(), layout.clone())
+        );
+
+        let err = service
+            .commit_file_version(
+                key.caller_id.clone(),
+                commit_for_stored_version(
+                    OperationId::new(key.request_id.clone()),
+                    &inode,
+                    version,
+                    layout,
+                ),
+            )
+            .await
+            .unwrap_err();
+        assert_eq!(err.code(), afs_error::META_CATALOG_INVALID_REQUEST);
+        assert!(err.message().contains("lacks its identity proof"));
+    }
+
+    #[tokio::test]
+    async fn namespace_outcome_validates_condition_failed_existing_digest() {
+        let (_service, store, inode, _version, _layout, _key) =
+            legacy_direct_commit_fixture().await;
+        let key = RequestKey::new("digest-node", "digest-commit");
+        let digest = [7; 32];
+        let outcome = RequestOutcome {
+            request: key.clone(),
+            operation: StoreOperation::DfsCommitFileVersion,
+            result: namespace_result(digest, OperationResult::DfsInode(inode.clone())),
+        };
+        let mut seed = MetaTxn::new(key.clone(), StoreOperation::DfsCommitFileVersion);
+        seed.conditions
+            .push(TxnCondition::RequestAbsent(key.clone()));
+        seed.mutations
+            .push(TxnMutation::RecordRequestOutcome(outcome.clone()));
+        store.compare_and_commit(seed).await.unwrap();
+
+        let mut replay = MetaTxn::new(key.clone(), StoreOperation::DfsCommitFileVersion);
+        replay.conditions.push(TxnCondition::RequestAbsent(key));
+        replay
+            .mutations
+            .push(TxnMutation::RecordRequestOutcome(outcome));
+        let raced = store.compare_and_commit(replay).await.unwrap();
+        assert!(matches!(
+            raced,
+            TxnOutcome::ConditionFailed {
+                existing_outcome: Some(_),
+                ..
+            }
+        ));
+        let validated = validate_namespace_outcome(raced.clone(), digest).unwrap();
+        assert_eq!(
+            inode_outcome(validated, StoreOperation::DfsCommitFileVersion).unwrap(),
+            inode
+        );
+
+        let mismatched = validate_namespace_outcome(raced, [8; 32]).unwrap_err();
+        assert_eq!(mismatched.code(), afs_error::META_CATALOG_INVALID_REQUEST);
+        assert!(
+            mismatched
+                .message()
+                .contains("differs from the recorded request")
+        );
     }
 
     #[tokio::test]

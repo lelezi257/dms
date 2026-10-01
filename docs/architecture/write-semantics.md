@@ -84,6 +84,12 @@ Close-time flush follows the same uncertainty rule. Application timeout or descr
 
 This rule prevents a later dirty batch from being ordered after an unknown version head. It also gives retry logic a precise idempotence key instead of relying on timeout interpretation.
 
+Meta binds that identity to the complete commit request, including the lease,
+expected head, candidate version, layout, replica receipts and metadata. Repeating
+the same request returns its recorded result; reusing its identity with different
+contents is rejected. Confirming a retry does not create another version or
+persist the same chunks again.
+
 ## Node Shutdown
 
 Shutdown closes FUSE request admission and waits for accepted callbacks before the final dirty drain. Background writeback can skip a busy inode; it cannot overtake an active commit or discard an unresolved request. The global inode table is not held while waiting for a single inode.

@@ -8,7 +8,7 @@ use afs::{
         dfs::DfsService,
         rpc,
         store::{
-            MetaEntity, MetaRead, MetaStore, RootRight as StoreRootRight, Store,
+            MetaEntity, MetaRead, MetaStore, RequestKey, RootRight as StoreRootRight, Store,
             local_file::LocalFileBackend, memory::MemoryBackend,
         },
     },
@@ -2427,35 +2427,36 @@ async fn dfs_data_commit_allows_metadata_revision_drift_without_losing_attrs() {
     assert_eq!(renamed.inode_id, initial.inode_id);
     assert_eq!(renamed.revision, linked.revision + 1);
 
-    let committed = dfs
-        .commit_file_version(Request::new(CommitFileVersionRequest {
-            caller_id: "node-a".into(),
-            operation_id: "commit-cas-drift".into(),
+    let commit_request = CommitFileVersionRequest {
+        caller_id: "node-a".into(),
+        operation_id: "commit-cas-drift".into(),
+        inode_id: initial.inode_id.clone(),
+        expected_inode_revision: initial.revision,
+        expected_head_version_id: String::new(),
+        version: Some(DfsFileVersion {
+            version_id: "version-cas-drift".into(),
             inode_id: initial.inode_id.clone(),
-            expected_inode_revision: initial.revision,
-            expected_head_version_id: String::new(),
-            version: Some(DfsFileVersion {
-                version_id: "version-cas-drift".into(),
-                inode_id: initial.inode_id.clone(),
-                parent_version_id: String::new(),
-                length: 0,
-                layout_root_id: "layout-cas-drift".into(),
-                created_at_unix_ms: 11,
-            }),
-            layout: Some(DfsLayoutRoot {
-                layout_root_id: "layout-cas-drift".into(),
-                file_length: 0,
-                inline_extents: Vec::new(),
-            }),
-            chunk_receipts: Vec::new(),
-            write_lease: Some(lease.clone()),
-            metadata_delta: Some(DfsCommitMetadataDelta {
-                kill_suidgid: false,
-                mode: DfsCommitMetadataMode::DataOnly.into(),
-                mtime_unix_ms: 0,
-                ctime_unix_ms: 0,
-            }),
-        }))
+            parent_version_id: String::new(),
+            length: 0,
+            layout_root_id: "layout-cas-drift".into(),
+            created_at_unix_ms: 11,
+        }),
+        layout: Some(DfsLayoutRoot {
+            layout_root_id: "layout-cas-drift".into(),
+            file_length: 0,
+            inline_extents: Vec::new(),
+        }),
+        chunk_receipts: Vec::new(),
+        write_lease: Some(lease.clone()),
+        metadata_delta: Some(DfsCommitMetadataDelta {
+            kill_suidgid: false,
+            mode: DfsCommitMetadataMode::DataOnly.into(),
+            mtime_unix_ms: 0,
+            ctime_unix_ms: 0,
+        }),
+    };
+    let committed = dfs
+        .commit_file_version(Request::new(commit_request.clone()))
         .await
         .unwrap()
         .into_inner()
@@ -2469,41 +2470,75 @@ async fn dfs_data_commit_allows_metadata_revision_drift_without_losing_attrs() {
     assert_eq!(committed.xattrs[0].value, b"keep".to_vec());
 
     let replay = dfs
-        .commit_file_version(Request::new(CommitFileVersionRequest {
-            caller_id: "node-a".into(),
-            operation_id: "commit-cas-drift".into(),
+        .commit_file_version(Request::new(commit_request.clone()))
+        .await
+        .unwrap()
+        .into_inner()
+        .inode
+        .unwrap();
+    assert_eq!(replay, committed);
+
+    let committed_version = dfs
+        .get_file_version(Request::new(afs_protocol::meta::GetFileVersionRequest {
+            version_id: "version-cas-drift".into(),
+        }))
+        .await
+        .unwrap()
+        .into_inner();
+    let outcome_before_bad_replay = dfs
+        .0
+        .store
+        .as_ref()
+        .unwrap()
+        .read(MetaRead::RequestOutcome(RequestKey::new(
+            "node-a",
+            "commit-cas-drift",
+        )))
+        .await
+        .unwrap()
+        .request_outcome;
+    let mut sparse_replay = commit_request.clone();
+    sparse_replay.version.as_mut().unwrap().length = 1;
+    sparse_replay.layout.as_mut().unwrap().file_length = 1;
+    let sparse_replay_error = dfs
+        .commit_file_version(Request::new(sparse_replay))
+        .await
+        .unwrap_err();
+    assert_eq!(sparse_replay_error.code(), Code::InvalidArgument);
+    let inode_after_bad_replay = dfs
+        .get_inode(Request::new(afs_protocol::meta::GetDfsInodeRequest {
             inode_id: initial.inode_id.clone(),
-            expected_inode_revision: initial.revision,
-            expected_head_version_id: String::new(),
-            version: Some(DfsFileVersion {
-                version_id: "version-cas-drift".into(),
-                inode_id: initial.inode_id.clone(),
-                parent_version_id: String::new(),
-                length: 0,
-                layout_root_id: "layout-cas-drift".into(),
-                created_at_unix_ms: 11,
-            }),
-            layout: Some(DfsLayoutRoot {
-                layout_root_id: "layout-cas-drift".into(),
-                file_length: 0,
-                inline_extents: Vec::new(),
-            }),
-            chunk_receipts: Vec::new(),
-            write_lease: Some(lease.clone()),
-            metadata_delta: Some(DfsCommitMetadataDelta {
-                kill_suidgid: false,
-                mode: DfsCommitMetadataMode::DataOnly.into(),
-                mtime_unix_ms: 0,
-                ctime_unix_ms: 0,
-            }),
         }))
         .await
         .unwrap()
         .into_inner()
         .inode
         .unwrap();
-    assert_eq!(replay.revision, committed.revision);
-    assert_eq!(replay.xattrs, committed.xattrs);
+    assert_eq!(inode_after_bad_replay.head_version_id, "version-cas-drift");
+    assert_eq!(inode_after_bad_replay.revision, committed.revision);
+    assert_eq!(
+        dfs.get_file_version(Request::new(afs_protocol::meta::GetFileVersionRequest {
+            version_id: "version-cas-drift".into(),
+        }))
+        .await
+        .unwrap()
+        .into_inner(),
+        committed_version
+    );
+    assert_eq!(
+        dfs.0
+            .store
+            .as_ref()
+            .unwrap()
+            .read(MetaRead::RequestOutcome(RequestKey::new(
+                "node-a",
+                "commit-cas-drift",
+            )))
+            .await
+            .unwrap()
+            .request_outcome,
+        outcome_before_bad_replay
+    );
 
     let old_head = dfs
         .commit_file_version(Request::new(CommitFileVersionRequest {

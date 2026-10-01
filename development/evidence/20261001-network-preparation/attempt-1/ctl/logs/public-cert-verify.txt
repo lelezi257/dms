@@ -1,0 +1,4 @@
+/var/lib/afs-acceptance/network-v67/tls/ctl.pem: OK
+/var/lib/afs-acceptance/network-v67/tls/a.pem: OK
+/var/lib/afs-acceptance/network-v67/tls/b.pem: OK
+/var/lib/afs-acceptance/network-v67/tls/c.pem: OK

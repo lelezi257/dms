@@ -1,0 +1,235 @@
+{
+  "scope": "Standalone network/TLS environment preparation only; not full ENV, RoCE/product RDMA, product authorization or REL10",
+  "status": "PASS",
+  "checks": [
+    {
+      "name": "ctl-identity",
+      "status": "PASS",
+      "detail": "same guest boot and machine identity"
+    },
+    {
+      "name": "ctl-preserved",
+      "status": "PASS",
+      "detail": "AFS PID/start/exe/config, mounts and existing rules unchanged"
+    },
+    {
+      "name": "ctl-probe-sha",
+      "status": "PASS",
+      "detail": "same frozen probe source"
+    },
+    {
+      "name": "ctl-a-positive",
+      "status": "PASS",
+      "detail": "fixed-IP TCP/UDP/mTLS exact 32-byte exchange"
+    },
+    {
+      "name": "ctl-a-negative",
+      "status": "PASS",
+      "detail": "TLS rejection, not arbitrary socket timeout"
+    },
+    {
+      "name": "ctl-b-positive",
+      "status": "PASS",
+      "detail": "fixed-IP TCP/UDP/mTLS exact 32-byte exchange"
+    },
+    {
+      "name": "ctl-b-negative",
+      "status": "PASS",
+      "detail": "TLS rejection, not arbitrary socket timeout"
+    },
+    {
+      "name": "ctl-c-positive",
+      "status": "PASS",
+      "detail": "fixed-IP TCP/UDP/mTLS exact 32-byte exchange"
+    },
+    {
+      "name": "ctl-c-negative",
+      "status": "PASS",
+      "detail": "TLS rejection, not arbitrary socket timeout"
+    },
+    {
+      "name": "a-identity",
+      "status": "PASS",
+      "detail": "same guest boot and machine identity"
+    },
+    {
+      "name": "a-preserved",
+      "status": "PASS",
+      "detail": "AFS PID/start/exe/config, mounts and existing rules unchanged"
+    },
+    {
+      "name": "a-probe-sha",
+      "status": "PASS",
+      "detail": "same frozen probe source"
+    },
+    {
+      "name": "a-ctl-positive",
+      "status": "PASS",
+      "detail": "fixed-IP TCP/UDP/mTLS exact 32-byte exchange"
+    },
+    {
+      "name": "a-ctl-negative",
+      "status": "PASS",
+      "detail": "TLS rejection, not arbitrary socket timeout"
+    },
+    {
+      "name": "a-b-positive",
+      "status": "PASS",
+      "detail": "fixed-IP TCP/UDP/mTLS exact 32-byte exchange"
+    },
+    {
+      "name": "a-b-negative",
+      "status": "PASS",
+      "detail": "TLS rejection, not arbitrary socket timeout"
+    },
+    {
+      "name": "a-c-positive",
+      "status": "PASS",
+      "detail": "fixed-IP TCP/UDP/mTLS exact 32-byte exchange"
+    },
+    {
+      "name": "a-c-negative",
+      "status": "PASS",
+      "detail": "TLS rejection, not arbitrary socket timeout"
+    },
+    {
+      "name": "b-identity",
+      "status": "PASS",
+      "detail": "same guest boot and machine identity"
+    },
+    {
+      "name": "b-preserved",
+      "status": "PASS",
+      "detail": "AFS PID/start/exe/config, mounts and existing rules unchanged"
+    },
+    {
+      "name": "b-probe-sha",
+      "status": "PASS",
+      "detail": "same frozen probe source"
+    },
+    {
+      "name": "b-ctl-positive",
+      "status": "PASS",
+      "detail": "fixed-IP TCP/UDP/mTLS exact 32-byte exchange"
+    },
+    {
+      "name": "b-ctl-negative",
+      "status": "PASS",
+      "detail": "TLS rejection, not arbitrary socket timeout"
+    },
+    {
+      "name": "b-a-positive",
+      "status": "PASS",
+      "detail": "fixed-IP TCP/UDP/mTLS exact 32-byte exchange"
+    },
+    {
+      "name": "b-a-negative",
+      "status": "PASS",
+      "detail": "TLS rejection, not arbitrary socket timeout"
+    },
+    {
+      "name": "b-c-positive",
+      "status": "PASS",
+      "detail": "fixed-IP TCP/UDP/mTLS exact 32-byte exchange"
+    },
+    {
+      "name": "b-c-negative",
+      "status": "PASS",
+      "detail": "TLS rejection, not arbitrary socket timeout"
+    },
+    {
+      "name": "c-identity",
+      "status": "PASS",
+      "detail": "same guest boot and machine identity"
+    },
+    {
+      "name": "c-preserved",
+      "status": "PASS",
+      "detail": "AFS PID/start/exe/config, mounts and existing rules unchanged"
+    },
+    {
+      "name": "c-probe-sha",
+      "status": "PASS",
+      "detail": "same frozen probe source"
+    },
+    {
+      "name": "c-ctl-positive",
+      "status": "PASS",
+      "detail": "fixed-IP TCP/UDP/mTLS exact 32-byte exchange"
+    },
+    {
+      "name": "c-ctl-negative",
+      "status": "PASS",
+      "detail": "TLS rejection, not arbitrary socket timeout"
+    },
+    {
+      "name": "c-a-positive",
+      "status": "PASS",
+      "detail": "fixed-IP TCP/UDP/mTLS exact 32-byte exchange"
+    },
+    {
+      "name": "c-a-negative",
+      "status": "PASS",
+      "detail": "TLS rejection, not arbitrary socket timeout"
+    },
+    {
+      "name": "c-b-positive",
+      "status": "PASS",
+      "detail": "fixed-IP TCP/UDP/mTLS exact 32-byte exchange"
+    },
+    {
+      "name": "c-b-negative",
+      "status": "PASS",
+      "detail": "TLS rejection, not arbitrary socket timeout"
+    },
+    {
+      "name": "four-independent-machines",
+      "status": "PASS",
+      "detail": "four actual machine IDs"
+    },
+    {
+      "name": "fresh-pair-nonces",
+      "status": "PASS",
+      "detail": "twelve distinct fresh nonce digests"
+    },
+    {
+      "name": "wrong-client-cert",
+      "status": "PASS",
+      "detail": "untrusted client rejected with authenticated server"
+    },
+    {
+      "name": "fault-before",
+      "status": "PASS",
+      "detail": "same-pair exact exchange"
+    },
+    {
+      "name": "fault-restored",
+      "status": "PASS",
+      "detail": "same-pair exact exchange"
+    },
+    {
+      "name": "fault-bounded-failure",
+      "status": "PASS",
+      "detail": "all intended protocol checks fail under actual directed DROP"
+    },
+    {
+      "name": "fault-hit",
+      "status": "PASS",
+      "detail": "TCP and UDP targeted rule counters are nonzero"
+    },
+    {
+      "name": "fault-rule-restored",
+      "status": "PASS",
+      "detail": "exact original rule set restored"
+    },
+    {
+      "name": "watchdog-complete",
+      "status": "PASS",
+      "detail": "independent bounded cleanup ran"
+    }
+  ],
+  "counts": {
+    "pass": 45,
+    "fail": 0
+  }
+}

@@ -1,0 +1,28 @@
+test_bind_helpers_close_created_socket_on_setup_failure (test_env_network.EnvNetworkUnitTest.test_bind_helpers_close_created_socket_on_setup_failure) ... 
+  test_bind_helpers_close_created_socket_on_setup_failure (test_env_network.EnvNetworkUnitTest.test_bind_helpers_close_created_socket_on_setup_failure) (helper='_bind_tcp') ... FAIL
+  test_bind_helpers_close_created_socket_on_setup_failure (test_env_network.EnvNetworkUnitTest.test_bind_helpers_close_created_socket_on_setup_failure) (helper='_bind_udp') ... FAIL
+
+======================================================================
+FAIL: test_bind_helpers_close_created_socket_on_setup_failure (test_env_network.EnvNetworkUnitTest.test_bind_helpers_close_created_socket_on_setup_failure) (helper='_bind_tcp')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/afs-network-v67-local/bind-original/test_env_network.py", line 29, in test_bind_helpers_close_created_socket_on_setup_failure
+    sock.close.assert_called_once()
+  File "/usr/lib/python3.12/unittest/mock.py", line 923, in assert_called_once
+    raise AssertionError(msg)
+AssertionError: Expected 'close' to have been called once. Called 0 times.
+
+======================================================================
+FAIL: test_bind_helpers_close_created_socket_on_setup_failure (test_env_network.EnvNetworkUnitTest.test_bind_helpers_close_created_socket_on_setup_failure) (helper='_bind_udp')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/afs-network-v67-local/bind-original/test_env_network.py", line 29, in test_bind_helpers_close_created_socket_on_setup_failure
+    sock.close.assert_called_once()
+  File "/usr/lib/python3.12/unittest/mock.py", line 923, in assert_called_once
+    raise AssertionError(msg)
+AssertionError: Expected 'close' to have been called once. Called 0 times.
+
+----------------------------------------------------------------------
+Ran 1 test in 0.004s
+
+FAILED (failures=2)

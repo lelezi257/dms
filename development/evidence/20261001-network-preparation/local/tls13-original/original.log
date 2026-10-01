@@ -1,0 +1,17 @@
+test_tls13_post_handshake_rejection_retains_ssl_classification (test_env_network.EnvNetworkUnitTest.test_tls13_post_handshake_rejection_retains_ssl_classification) ... FAIL
+
+======================================================================
+FAIL: test_tls13_post_handshake_rejection_retains_ssl_classification (test_env_network.EnvNetworkUnitTest.test_tls13_post_handshake_rejection_retains_ssl_classification)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/afs-network-v67-local/tls13-original/test_env_network.py", line 31, in test_tls13_post_handshake_rejection_retains_ssl_classification
+    self.assertEqual("missing_client_cert", result["reason"])
+AssertionError: 'missing_client_cert' != 'socket_error'
+- missing_client_cert
++ socket_error
+
+
+----------------------------------------------------------------------
+Ran 1 test in 0.001s
+
+FAILED (failures=1)

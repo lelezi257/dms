@@ -1,0 +1,28 @@
+test_bind_helpers_close_created_socket_on_setup_failure (test_env_network.EnvNetworkUnitTest.test_bind_helpers_close_created_socket_on_setup_failure) ... ok
+test_bounded_frame_rejects_oversize (test_env_network.EnvNetworkUnitTest.test_bounded_frame_rejects_oversize) ... ok
+test_check_selection_defaults_to_all_without_vacuous_empty (test_env_network.EnvNetworkUnitTest.test_check_selection_defaults_to_all_without_vacuous_empty) ... ok
+test_connect_tcp_closes_socket_on_connect_failure (test_env_network.EnvNetworkUnitTest.test_connect_tcp_closes_socket_on_connect_failure) ... ok
+test_good_echo (test_env_network.EnvNetworkUnitTest.test_good_echo) ... ok
+test_mismatch_echo_fails (test_env_network.EnvNetworkUnitTest.test_mismatch_echo_fails) ... ok
+test_partial_bind_failure_closes_prior_listener (test_env_network.EnvNetworkUnitTest.test_partial_bind_failure_closes_prior_listener) ... ok
+test_ready_write_failure_closes_started_resources (test_env_network.EnvNetworkUnitTest.test_ready_write_failure_closes_started_resources) ... ok
+test_timeout_fails (test_env_network.EnvNetworkUnitTest.test_timeout_fails) ... ok
+test_tls13_post_handshake_rejection_retains_ssl_classification (test_env_network.EnvNetworkUnitTest.test_tls13_post_handshake_rejection_retains_ssl_classification) ... ok
+test_tls_negative_classification (test_env_network.EnvNetworkUnitTest.test_tls_negative_classification) ... ok
+test_wrong_check_selection_is_rejected_by_parser (test_env_network.EnvNetworkUnitTest.test_wrong_check_selection_is_rejected_by_parser) ... usage: python3 -m unittest client [-h] --source-ip SOURCE_IP --target-ip
+                                  TARGET_IP --port PORT --tls-port TLS_PORT
+                                  --ca CA --client-cert CLIENT_CERT
+                                  --client-key CLIENT_KEY --server-hostname
+                                  SERVER_HOSTNAME [--timeout TIMEOUT]
+                                  [--check {all,tcp,udp,tls}] [--untrusted-ca]
+                                  [--bad-ca BAD_CA] [--untrusted-client-cert]
+                                  [--bad-client-cert BAD_CLIENT_CERT]
+                                  [--bad-client-key BAD_CLIENT_KEY]
+                                  [--wrong-hostname] [--missing-client-cert]
+python3 -m unittest client: error: argument --check: invalid choice: 'bogus' (choose from 'all', 'tcp', 'udp', 'tls')
+ok
+
+----------------------------------------------------------------------
+Ran 12 tests in 0.055s
+
+OK

@@ -78,3 +78,14 @@ accounting, actual comparator mount I/O, frozen inputs and run contracts still
 need dedicated validators and live checks. This limitation is not a change to
 the acceptance standard. A comparator mount check and its later fair durable
 performance qualification have separate evidence and results.
+
+## Standalone network preparation probe
+
+`probes/env_network.py` provides bounded fixed-IP TCP/UDP/mTLS echo checks and
+TLS rejection checks in Linux ARM64. `probes/test_env_network.py` covers framing,
+failure classification and socket/thread cleanup. It uses isolated probe
+credentials and ports; it does not authorize product RPCs or qualify RDMA.
+Linux invocation and captured identities are documented in the
+[network preparation evidence](../evidence/20261001-network-preparation/README.md).
+The runner's environment predicate remains deferred until a dedicated semantic
+validator binds this evidence into the complete environment contract.

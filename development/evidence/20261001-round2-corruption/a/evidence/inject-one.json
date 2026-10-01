@@ -1,0 +1,15 @@
+{
+  "status": "PASS",
+  "which": "a",
+  "action": "inject",
+  "utc": "2026-10-01T11:59:21Z",
+  "formal_acceptance": "NOT_RUN",
+  "result": {
+    "before_sha256": "b6496242665e276011d0334acf659722eed00dee3d8f26a7387726b6e011f60f",
+    "after_sha256": "a0209a4fc6cbae2e125f7fbf6e455afecc1d7dda216212c2bc0f00004b720e45",
+    "physical_inode": 1578775,
+    "chunk": "blake3-c405e5c7776826291312a9d73a6f778c976701337877f0f2725a5ccdcd8a35a2-65536",
+    "length": 65536,
+    "backup": "/mnt/lima-afsadata/afs-delivery/round2-corruption-v81/evidence/backup-one-bad-v81.bin.chunk"
+  }
+}

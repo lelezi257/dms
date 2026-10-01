@@ -1,0 +1,42 @@
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+{"msg":"Mounting /mnt/lima-afsbdata/afs-delivery/round2-corruption-v81/mount/ownerfs","level":"INFO","ts":"2026-10-01T11:58:53.13963904Z","instance":"round1-b","service_name":"afs-node"}
+{"msg":"Mounting /mnt/lima-afsbdata/afs-delivery/round2-corruption-v81/mount/dfs","level":"INFO","ts":"2026-10-01T11:58:53.145970585Z","instance":"round1-b","service_name":"afs-node"}
+{"msg":"node.ready","level":"INFO","ts":"2026-10-01T11:58:53.145985793Z","instance":"round1-b","service_name":"afs-node","dfs":true,"ownerfs":true,"uds":"/mnt/lima-afsbdata/afs-delivery/round2-corruption-v81/run/node.sock","rest":"192.168.109.13:20385","grpc":"0.0.0.0:20384"}
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_COMPLETE op=READ bytes=65536
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_COMPLETE op=WRITE bytes=65536
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+{"msg":"dfs.replication_task_reported","level":"INFO","ts":"2026-10-01T11:59:23.411195454Z","instance":"round1-b","service_name":"afs-node","attempt":2,"state":"Completed","task":"repair:blake3-c405e5c7776826291312a9d73a6f778c976701337877f0f2725a5ccdcd8a35a2-65536"}
+AFS_RDMA_COMPLETE op=READ bytes=65536
+{"msg":"services.stopped","level":"INFO","ts":"2026-10-01T12:00:02.377637938Z","instance":"round1-b","service_name":"afs-node"}
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+{"msg":"Mounting /mnt/lima-afsbdata/afs-delivery/round2-corruption-v81/mount/ownerfs","level":"INFO","ts":"2026-10-01T12:00:13.512260175Z","instance":"round1-b","service_name":"afs-node"}
+{"msg":"Mounting /mnt/lima-afsbdata/afs-delivery/round2-corruption-v81/mount/dfs","level":"INFO","ts":"2026-10-01T12:00:13.516071685Z","instance":"round1-b","service_name":"afs-node"}
+{"msg":"node.ready","level":"INFO","ts":"2026-10-01T12:00:13.516085976Z","instance":"round1-b","service_name":"afs-node","dfs":true,"ownerfs":true,"uds":"/mnt/lima-afsbdata/afs-delivery/round2-corruption-v81/run/node.sock","rest":"192.168.109.13:20385","grpc":"0.0.0.0:20384"}
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-01T12:00:13.993494037Z","instance":"round1-b","service_name":"afs-node","message":"local Chunk 'blake3-b8cbbf4b2dbd2ff62813968732fee35c974b3170701937242dd8c29b1162958a-65536' local copy is quarantined","kind":"DataLoss","code":33816578}
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_PROBE send_complete
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-01T12:00:14.005489596Z","instance":"round1-b","service_name":"afs-node","message":"local Chunk 'blake3-b8cbbf4b2dbd2ff62813968732fee35c974b3170701937242dd8c29b1162958a-65536' local copy is quarantined","kind":"DataLoss","code":33816578}
+{"msg":"dfs.local_corruption_reported","level":"WARN","ts":"2026-10-01T12:00:14.523490372Z","instance":"round1-b","service_name":"afs-node","catalog_revision":3,"chunk":"blake3-b8cbbf4b2dbd2ff62813968732fee35c974b3170701937242dd8c29b1162958a-65536"}
+{"msg":"services.stopped","level":"INFO","ts":"2026-10-01T12:01:38.043304314Z","instance":"round1-b","service_name":"afs-node"}
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+{"msg":"Mounting /mnt/lima-afsbdata/afs-delivery/round2-corruption-v81/mount/ownerfs","level":"INFO","ts":"2026-10-01T12:01:38.246865589Z","instance":"round1-b","service_name":"afs-node"}
+{"msg":"Mounting /mnt/lima-afsbdata/afs-delivery/round2-corruption-v81/mount/dfs","level":"INFO","ts":"2026-10-01T12:01:38.249055015Z","instance":"round1-b","service_name":"afs-node"}
+{"msg":"node.ready","level":"INFO","ts":"2026-10-01T12:01:38.249075975Z","instance":"round1-b","service_name":"afs-node","dfs":true,"ownerfs":true,"uds":"/mnt/lima-afsbdata/afs-delivery/round2-corruption-v81/run/node.sock","rest":"192.168.109.13:20385","grpc":"0.0.0.0:20384"}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-01T12:01:38.73624375Z","instance":"round1-b","service_name":"afs-node","message":"committed Chunk has no readable copy","kind":"DataLoss","code":33816578}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-01T12:01:38.737270791Z","instance":"round1-b","service_name":"afs-node","message":"committed Chunk has no readable copy","kind":"DataLoss","code":33816578}
+{"msg":"dfs.local_corruption_reported","level":"WARN","ts":"2026-10-01T12:01:39.259050055Z","instance":"round1-b","service_name":"afs-node","catalog_revision":3,"chunk":"blake3-b8cbbf4b2dbd2ff62813968732fee35c974b3170701937242dd8c29b1162958a-65536"}
+{"msg":"services.stopped","level":"INFO","ts":"2026-10-01T12:02:01.411390178Z","instance":"round1-b","service_name":"afs-node"}

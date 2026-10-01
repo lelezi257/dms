@@ -1,0 +1,47 @@
+{
+  "status": "PASS",
+  "which": "ctl",
+  "action": "prepare",
+  "utc": "2026-10-01T11:58:40Z",
+  "formal_acceptance": "NOT_RUN",
+  "result": {
+    "configuration": {
+      "fs": "all",
+      "log_level": "info",
+      "tls_ca_certificate": "/mnt/lima-afsctlstate/afs-delivery/round1-mainline-v77-archive-async/etc/tls/ca.pem",
+      "tls_identity_certificate": "/mnt/lima-afsctlstate/afs-delivery/round1-mainline-v77-archive-async/etc/tls/meta.pem",
+      "tls_identity_private_key": "/mnt/lima-afsctlstate/afs-delivery/round1-mainline-v77-archive-async/etc/tls/meta-key.pem",
+      "tls_server_name": "afs-cluster",
+      "trusted_node_certs": {
+        "round1-a": "/mnt/lima-afsctlstate/afs-delivery/round1-mainline-v77-archive-async/etc/tls/round1-a.pem",
+        "round1-b": "/mnt/lima-afsctlstate/afs-delivery/round1-mainline-v77-archive-async/etc/tls/round1-b.pem",
+        "round1-c": "/mnt/lima-afsctlstate/afs-delivery/round1-mainline-v77-archive-async/etc/tls/round1-c.pem"
+      },
+      "dfs_desired_copies": 2,
+      "dfs_sync_required_copies": 1,
+      "dfs_min_distinct_nodes": 1,
+      "dfs_min_distinct_failure_domains": 1,
+      "dfs_local_copy": "required",
+      "id": "round1-meta",
+      "meta_store": "memory",
+      "grpc_listen": "0.0.0.0:20380",
+      "rest_listen": "192.168.109.11:20381",
+      "data_dir": "/mnt/lima-afsctlstate/afs-delivery/round2-corruption-v81/state/meta"
+    },
+    "config_sha256": "ab586873c1e98e3ee277b9fb08d8e650a53b0afd6507e5b117ae5aa5051f5088",
+    "before": {
+      "free_bytes": 4850450432,
+      "available_bytes": 4404281344,
+      "fragment_bytes": 4096
+    },
+    "after": {
+      "free_bytes": 4850417664,
+      "available_bytes": 4404248576,
+      "fragment_bytes": 4096
+    },
+    "candidate_hashes": {
+      "node": "a3fe6573fc5f5a41c30b823855cfe2fdd1428950f878f1e29756e7bfc0d7e9d9",
+      "meta": "895f39fd660b7f7d9735eaaa4f3a082c3692a409d954c4aa8b5b0cc515a700ad"
+    }
+  }
+}

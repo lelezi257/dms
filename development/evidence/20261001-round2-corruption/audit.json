@@ -1,0 +1,86 @@
+{
+  "status": "PASS",
+  "level": "SCOPED_FAULT_INTEGRATION",
+  "checks": [
+    "distinct-exclusive-chunks",
+    "ctl-candidate",
+    "ctl-exact-config",
+    "ctl-ready",
+    "ctl-policy",
+    "ctl-stopped",
+    "ctl-reserve-old-cohort",
+    "central-continuous-memory-authority",
+    "a-candidate",
+    "a-exact-config",
+    "a-ready",
+    "a-policy",
+    "a-stopped",
+    "a-reserve-old-cohort",
+    "a-required-rxe",
+    "a-independent-FUSE",
+    "b-candidate",
+    "b-exact-config",
+    "b-ready",
+    "b-policy",
+    "b-stopped",
+    "b-reserve-old-cohort",
+    "b-required-rxe",
+    "b-independent-FUSE",
+    "one-physical-injection",
+    "one-cold-exact",
+    "one-new-physical-inode",
+    "one-durable-quarantine-repair",
+    "one-meta-effective-copies",
+    "one-rdma-read-payload",
+    "one-rdma-repair-payload",
+    "zero-grpc-file-payload",
+    "a-all-physical-corruption",
+    "a-all-persisted-quarantine",
+    "a-cold-all-EIO-zero-bytes",
+    "a-bad-after-quarantine-restart-EIO-zero-bytes",
+    "a-healthy-after-all-bad-exact",
+    "a-healthy-after-quarantine-restart-exact",
+    "a-new-incarnation-after-quarantine",
+    "b-all-physical-corruption",
+    "b-all-persisted-quarantine",
+    "b-cold-all-EIO-zero-bytes",
+    "b-bad-after-quarantine-restart-EIO-zero-bytes",
+    "b-healthy-after-all-bad-exact",
+    "b-healthy-after-quarantine-restart-exact",
+    "b-new-incarnation-after-quarantine",
+    "all-meta-zero-BlockedNoSource",
+    "no-permanent-loss-inferred",
+    "early-stale-healthy-not-qualified"
+  ],
+  "negative_tests": [
+    {
+      "case": "bad-bytes-returned",
+      "rejected": true
+    },
+    {
+      "case": "wrong-cold-checksum",
+      "rejected": true
+    },
+    {
+      "case": "gRPC-fallback",
+      "rejected": true
+    },
+    {
+      "case": "no-physical-repair",
+      "rejected": true
+    },
+    {
+      "case": "changed-Meta",
+      "rejected": true
+    },
+    {
+      "case": "bad-copy-marked-available",
+      "rejected": true
+    }
+  ],
+  "compiler_inputs": 143,
+  "reused_source_gate": "20261001-owner-sync-eio",
+  "current_source_exact_unknown_result_tests": "PASS in source gate; plain-loopback/memory/R1 scope",
+  "round2": "INCOMPLETE",
+  "formal_acceptance": "NOT_RUN"
+}

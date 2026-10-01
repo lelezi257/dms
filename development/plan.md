@@ -12,6 +12,8 @@ The [network/capacity batch](evidence/20261001-round2-network-capacity/README.md
 
 [Owner hard-error batch](evidence/20261001-owner-sync-eio/README.md) fixes fatal EIO being consumed before close and remote resize-only skipping Home flush. Current Linux69 Owner regressions,421 library/65 interfaces/4 errors/9 LocalAPI/5 real FUSE, strict Clippy/features/build pass. Actual local/remote dm EIO, cold acknowledged watermark, explicit new-handle rewrite, Home resize-close fdatasync and normal restart pass. Original production and overstrict fixture failures are retained. The new runtime is gRPC and isolated memory Meta; older healthy/transport evidence retains its original identities. Continue current corruption/unknown-result/business RDMA fault gaps before round-end overall regression; no formal promotion.
 
+Current corruption batch: [current installed candidate](evidence/20261001-round2-corruption/README.md) passes single/all-bad physical-copy faults, required-RXE read/repair counters, Meta health convergence and quarantine restart/unaffected reads. Current exact unknown-result real-gRPC tests are reused from the unchanged source gate under their memory/loopback scope. Remaining round2 priorities are business RDMA faults and any required installed unknown-result slice, followed by overall regression and consequence review. No new full Rust gate is needed for probe-only work.
+
 ## Whole-system rounds
 
 | Round | Scope and order | Exit evidence and remaining boundary |

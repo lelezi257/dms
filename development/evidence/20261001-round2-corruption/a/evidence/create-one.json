@@ -1,0 +1,26 @@
+{
+  "status": "PASS",
+  "which": "a",
+  "action": "create",
+  "utc": "2026-10-01T11:58:58Z",
+  "formal_acceptance": "NOT_RUN",
+  "result": {
+    "file": "one-bad-v81.bin",
+    "chunk": "blake3-c405e5c7776826291312a9d73a6f778c976701337877f0f2725a5ccdcd8a35a2-65536",
+    "sha256": "b6496242665e276011d0334acf659722eed00dee3d8f26a7387726b6e011f60f",
+    "length": 65536,
+    "read": {
+      "bytes": 65536,
+      "sha256": "b6496242665e276011d0334acf659722eed00dee3d8f26a7387726b6e011f60f",
+      "inode": 2,
+      "length": 65536
+    },
+    "identity": {
+      "pid": 747379,
+      "start_ticks": "10707979",
+      "boot_id": "36a572e0-859b-4a94-adc7-789210a83fc8",
+      "sha256": "a3fe6573fc5f5a41c30b823855cfe2fdd1428950f878f1e29756e7bfc0d7e9d9",
+      "exe": "/var/lib/afs-acceptance/candidates/eio-v80-r2/prefix/bin/afs-node"
+    }
+  }
+}

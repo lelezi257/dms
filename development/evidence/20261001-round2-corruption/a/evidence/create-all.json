@@ -1,0 +1,26 @@
+{
+  "status": "PASS",
+  "which": "a",
+  "action": "create",
+  "utc": "2026-10-01T11:59:50Z",
+  "formal_acceptance": "NOT_RUN",
+  "result": {
+    "file": "all-bad-v81.bin",
+    "chunk": "blake3-b8cbbf4b2dbd2ff62813968732fee35c974b3170701937242dd8c29b1162958a-65536",
+    "sha256": "e9cb4dc5148bf2beca2717147af3cedb07e578b280fa6772f44bb2c1fae964a9",
+    "length": 65536,
+    "read": {
+      "bytes": 65536,
+      "sha256": "e9cb4dc5148bf2beca2717147af3cedb07e578b280fa6772f44bb2c1fae964a9",
+      "inode": 3,
+      "length": 65536
+    },
+    "identity": {
+      "pid": 747901,
+      "start_ticks": "10710894",
+      "boot_id": "36a572e0-859b-4a94-adc7-789210a83fc8",
+      "sha256": "a3fe6573fc5f5a41c30b823855cfe2fdd1428950f878f1e29756e7bfc0d7e9d9",
+      "exe": "/var/lib/afs-acceptance/candidates/eio-v80-r2/prefix/bin/afs-node"
+    }
+  }
+}

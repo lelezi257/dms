@@ -1,0 +1,207 @@
+{
+  "status": "PASS",
+  "which": "b",
+  "action": "physical",
+  "utc": "2026-10-01T12:00:32Z",
+  "formal_acceptance": "NOT_RUN",
+  "result": {
+    "chunk": "blake3-b8cbbf4b2dbd2ff62813968732fee35c974b3170701937242dd8c29b1162958a-65536",
+    "sha256": "419c9dc3ad0b80b9e6c5a7275949f802c4cac80bfc3b1d3356126136412f1ae7",
+    "physical_inode": 1312208,
+    "records": [
+      {
+        "chunk": {
+          "id": "blake3-b8cbbf4b2dbd2ff62813968732fee35c974b3170701937242dd8c29b1162958a-65536",
+          "length": 65536,
+          "content_digest": {
+            "algorithm": "Blake3",
+            "bytes": [
+              184,
+              203,
+              191,
+              75,
+              45,
+              189,
+              47,
+              246,
+              40,
+              19,
+              150,
+              135,
+              50,
+              254,
+              227,
+              92,
+              151,
+              75,
+              49,
+              112,
+              112,
+              25,
+              55,
+              36,
+              45,
+              216,
+              194,
+              155,
+              17,
+              98,
+              149,
+              138
+            ]
+          },
+          "encoding": "Raw"
+        },
+        "stored_length": 65536,
+        "stored_checksum": {
+          "algorithm": "Blake3",
+          "bytes": [
+            184,
+            203,
+            191,
+            75,
+            45,
+            189,
+            47,
+            246,
+            40,
+            19,
+            150,
+            135,
+            50,
+            254,
+            227,
+            92,
+            151,
+            75,
+            49,
+            112,
+            112,
+            25,
+            55,
+            36,
+            45,
+            216,
+            194,
+            155,
+            17,
+            98,
+            149,
+            138
+          ]
+        },
+        "device_id": "local-0",
+        "device_epoch": 1790855933110714230,
+        "location": {
+          "PerChunkFile": {
+            "relative_path": "chunks/blake3-b8cbbf4b2dbd2ff62813968732fee35c974b3170701937242dd8c29b1162958a-65536"
+          }
+        },
+        "encoding": "Raw",
+        "state": "Durable",
+        "catalog_revision": 2,
+        "txn_revision": 2
+      },
+      {
+        "chunk": {
+          "id": "blake3-b8cbbf4b2dbd2ff62813968732fee35c974b3170701937242dd8c29b1162958a-65536",
+          "length": 65536,
+          "content_digest": {
+            "algorithm": "Blake3",
+            "bytes": [
+              184,
+              203,
+              191,
+              75,
+              45,
+              189,
+              47,
+              246,
+              40,
+              19,
+              150,
+              135,
+              50,
+              254,
+              227,
+              92,
+              151,
+              75,
+              49,
+              112,
+              112,
+              25,
+              55,
+              36,
+              45,
+              216,
+              194,
+              155,
+              17,
+              98,
+              149,
+              138
+            ]
+          },
+          "encoding": "Raw"
+        },
+        "stored_length": 65536,
+        "stored_checksum": {
+          "algorithm": "Blake3",
+          "bytes": [
+            184,
+            203,
+            191,
+            75,
+            45,
+            189,
+            47,
+            246,
+            40,
+            19,
+            150,
+            135,
+            50,
+            254,
+            227,
+            92,
+            151,
+            75,
+            49,
+            112,
+            112,
+            25,
+            55,
+            36,
+            45,
+            216,
+            194,
+            155,
+            17,
+            98,
+            149,
+            138
+          ]
+        },
+        "device_id": "local-0",
+        "device_epoch": 1790855933110714230,
+        "location": {
+          "PerChunkFile": {
+            "relative_path": "chunks/blake3-b8cbbf4b2dbd2ff62813968732fee35c974b3170701937242dd8c29b1162958a-65536"
+          }
+        },
+        "encoding": "Raw",
+        "state": "Quarantined",
+        "catalog_revision": 3,
+        "txn_revision": 3
+      }
+    ],
+    "identity": {
+      "pid": 151886,
+      "start_ticks": "9782628",
+      "boot_id": "3adebcd0-cb31-4df0-b18a-e970786ab7fb",
+      "sha256": "a3fe6573fc5f5a41c30b823855cfe2fdd1428950f878f1e29756e7bfc0d7e9d9",
+      "exe": "/var/lib/afs-acceptance/candidates/eio-v80-r2/prefix/bin/afs-node"
+    }
+  }
+}

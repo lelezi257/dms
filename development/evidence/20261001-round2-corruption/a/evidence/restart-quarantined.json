@@ -1,0 +1,34 @@
+{
+  "status": "PASS",
+  "which": "a",
+  "action": "restart",
+  "utc": "2026-10-01T12:01:37Z",
+  "formal_acceptance": "NOT_RUN",
+  "result": {
+    "controller": {
+      "argv": [
+        "/mnt/lima-afsadata/afs-delivery/round2-corruption-v81/prefix/bin/afs-processctl",
+        "--prefix",
+        "/mnt/lima-afsadata/afs-delivery/round2-corruption-v81/prefix",
+        "--config-dir",
+        "/mnt/lima-afsadata/afs-delivery/round2-corruption-v81/etc",
+        "--run-dir",
+        "/mnt/lima-afsadata/afs-delivery/round2-corruption-v81/run",
+        "--log-dir",
+        "/mnt/lima-afsadata/afs-delivery/round2-corruption-v81/log",
+        "restart",
+        "node"
+      ],
+      "exit": 0,
+      "stdout": "node stopped exit_code=0\nstarted node pid=748973 ready=true\n",
+      "stderr": "removing stale pid file for node: 748450\n"
+    },
+    "identity": {
+      "pid": 748973,
+      "start_ticks": "10724485",
+      "boot_id": "36a572e0-859b-4a94-adc7-789210a83fc8",
+      "sha256": "a3fe6573fc5f5a41c30b823855cfe2fdd1428950f878f1e29756e7bfc0d7e9d9",
+      "exe": "/var/lib/afs-acceptance/candidates/eio-v80-r2/prefix/bin/afs-node"
+    }
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "status": "PASS",
+  "which": "b",
+  "action": "stop",
+  "utc": "2026-10-01T12:02:01Z",
+  "formal_acceptance": "NOT_RUN",
+  "result": {
+    "controller": {
+      "argv": [
+        "/mnt/lima-afsbdata/afs-delivery/round2-corruption-v81/prefix/bin/afs-processctl",
+        "--prefix",
+        "/mnt/lima-afsbdata/afs-delivery/round2-corruption-v81/prefix",
+        "--config-dir",
+        "/mnt/lima-afsbdata/afs-delivery/round2-corruption-v81/etc",
+        "--run-dir",
+        "/mnt/lima-afsbdata/afs-delivery/round2-corruption-v81/run",
+        "--log-dir",
+        "/mnt/lima-afsbdata/afs-delivery/round2-corruption-v81/log",
+        "stop",
+        "node"
+      ],
+      "exit": 0,
+      "stdout": "node stopped exit_code=0\n",
+      "stderr": ""
+    }
+  }
+}

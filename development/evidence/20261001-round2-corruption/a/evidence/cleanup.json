@@ -1,0 +1,24 @@
+{
+  "status": "PASS",
+  "stopped_pid": 748973,
+  "mounts_gone": true,
+  "data_available_bytes": 4387094528,
+  "old_cohort": {
+    "pid": 741501,
+    "start_ticks": "10280859",
+    "sha256": "d28d17faa8bb71eb8c0a28241e8556396e440b204cf0242d2af8133700f6a494",
+    "argv": [
+      "/mnt/lima-afsadata/afs-delivery/round1-mainline-v77-archive-async/prefix/bin/afs-node",
+      "--config",
+      "/mnt/lima-afsadata/afs-delivery/round1-mainline-v77-archive-async/etc/node.toml"
+    ],
+    "health": {
+      "dfs": true,
+      "id": "round1-a",
+      "ownerfs": true,
+      "role": "node",
+      "scope": "foundation",
+      "status": "ready"
+    }
+  }
+}

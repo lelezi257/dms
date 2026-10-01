@@ -1,0 +1,17 @@
+{
+  "artifact_references": {
+    "acceptance.md": "bdb2b697d4764d9cde21bdc46d5d8a6a8c0f891a20d7d6153b52cc75ce3c428e",
+    "host.json": "3de64f07ee38dfa0f149a48610e8e2eb25a8ef787d91eb3f532a8d4639b294b4",
+    "inventory-a.json": "10aab55059600fb16603b9ddc0ee611890ff004b2df612fd09f2c8af35ac1f65",
+    "inventory-b.json": "5072f4b69916d68f8e0781a53d9b2cb0b4f15eff6e1668858b45fc53ca545250",
+    "inventory-c-rxe.json": "9602d79126802b25a0be6cd0bf1e162f1e95f32a7aad626e3a7f230850cd62f0",
+    "inventory-ctl.json": "57ca5fddaa0ee13ed3bf83c735a464add6915ab87ebc254a0fad27a472f9b0df",
+    "lima-after.jsonl": "8f1da34fd30d03664c4e3c9ae2e691d5466b6ed81b089eb3231fc08151573f3e"
+  },
+  "contract": {
+    "path": "acceptance.md",
+    "sha256": "bdb2b697d4764d9cde21bdc46d5d8a6a8c0f891a20d7d6153b52cc75ce3c428e"
+  },
+  "schema_version": 1,
+  "scope": "Preparation evaluation over reused v65 observations and current host/Lima metadata; no live ENV qualification."
+}

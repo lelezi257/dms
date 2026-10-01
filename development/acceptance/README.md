@@ -1,12 +1,13 @@
 # AFS Acceptance Experiment Manifest
 
-This directory holds the first-stage AFS acceptance manifest derived from `source/docs/acceptance.md`.
+This directory holds the first-stage AFS acceptance manifest derived from [docs/acceptance.md](../../docs/acceptance.md).
 
 ## Files
 
 - `cases.json` records contract case IDs, applicability, smoke/full boundaries and driver readiness. Formal driver registration remains TODO. Case status stays `NOT_RUN`; results are separate immutable artifacts.
 - `acceptance.lock.json` remains `PREPARING`: the image and four guest inventories exist, and network/RXE probes have partial evidence. Comparator mounts, complete reference suites, faults, and release identities are still required before freezing it.
 - `runner.py` dispatches registered drivers and verifies structured results and matrix coverage. `test_runner.py` exercises conservative failure handling; runner self-check success is not product acceptance.
+- `environment.py` evaluates hash-bound preparation observations. It reports missing or unsupported predicates and does not freeze the lock or change case status. Full dispatch requires environment qualification in addition to actual contract/source/binary/runner/manifest identity; generic PASS fields cannot substitute for proof.
 - `results/` is reserved for future runner output. Result files should be immutable run artifacts containing commands, logs, JSON/JUnit, seeds, environment identity, success watermarks and raw evidence. Results must not be written back into `cases.json`.
 
 ## Active Scope
@@ -51,4 +52,29 @@ Standard suite exclusions are not incremented by this manifest. Exclusion counts
 
 ## Execution Boundary
 
-The runner exists, but formal driver bindings and the full environment are still being prepared. `drivers/standard.py` implements pjdfstest execution, accounting and guarded remote orchestration; its Linux selftests and captured development runs are recorded in `../evidence/`. The STD-01 manifest entry remains TODO until its release environment and backend bindings are complete. TODO registrations return BLOCKED. An unfrozen lock blocks full acceptance. Development probes outside the manifest retain their own scope and identities, never substituting for a product case PASS. Concrete runs belong in `results/`; do not overwrite case statuses with preparation claims.
+The runner exists, but formal driver bindings and the full environment are still being prepared. `drivers/standard.py` implements pjdfstest execution, accounting and guarded remote orchestration; its Linux selftests and captured development runs are recorded in product `development/evidence/`. The STD-01 manifest entry remains TODO until its release environment and backend bindings are complete. TODO registrations return BLOCKED. An unfrozen lock blocks full acceptance. Development probes outside the manifest retain their own scope and identities, never substituting for a product case PASS. Concrete runs belong in `results/`; do not overwrite case statuses with preparation claims.
+
+## Preparation evaluation
+
+Run in Linux ARM64 with copied immutable inputs:
+
+```bash
+python3 environment.py --lock preparing.lock.json \
+  --bundle bundle/bundle.json --contract bundle/acceptance.md \
+  --output preparation.json
+```
+
+The bundle has `artifact_references`, a map of relative raw artifact paths to
+SHA256 digests. Its observations include `host.json`, `lima-after.jsonl` and the
+four guest inventories. `contract` binds a relative `path` and `sha256` to the
+actual acceptance file; the lock's `contract.sha256` binds the accepted content.
+Host initial reserve is UNKNOWN if no observation from before provisioning is
+available; current free capacity cannot substitute for it.
+
+The partial evaluator checks selected metadata and retains separate outstanding
+semantic prerequisites. It cannot produce complete ENV-01 qualification:
+network/TLS/fault restoration, backend restart, cross-VM verbs, reference
+accounting, actual comparator mount I/O, frozen inputs and run contracts still
+need dedicated validators and live checks. This limitation is not a change to
+the acceptance standard. A comparator mount check and its later fair durable
+performance qualification have separate evidence and results.

@@ -43,7 +43,6 @@ class RunnerTests(unittest.TestCase):
         cases_path = root / "cases.json"
         lock_path = root / "acceptance.lock.json"
         results = root / "results"
-        (root / "acceptance.md").write_text("accepted requirements\n", encoding="utf-8")
         write_json(cases_path, manifest)
         write_json(lock_path, lock)
         return temp, root, manifest, lock, cases_path, lock_path, results
@@ -62,7 +61,6 @@ class RunnerTests(unittest.TestCase):
             "profile": "smoke",
             "timeout": 5,
             "identity_attestation": None,
-            "contract": str(cases_path.parent / "acceptance.md"),
         }
         values.update(overrides)
         return Namespace(**values)
@@ -85,7 +83,6 @@ class RunnerTests(unittest.TestCase):
             "runner": {"sha256": runner_sha},
             "manifest": {"sha256": runner.sha256_file(cases_path)},
             "contract_sha": "abc123",
-            "contract": {"sha256": runner.sha256_file(root / "acceptance.md")},
         }
         write_json(lock_path, lock)
         return attestation_path
@@ -377,10 +374,7 @@ class RunnerTests(unittest.TestCase):
         manifest["cases"].append(second)
         write_json(cases_path, manifest)
         attestation_path = self.write_attestation_and_lock(root, cases_path, lock_path)
-        # Isolate dispatch/coverage semantics; this fixture is not qualified ENV evidence.
-        with temp, mock.patch("runner.is_linux_arm64", return_value=True), mock.patch(
-            "runner.environment.qualification_errors", return_value=[],
-        ):
+        with temp, mock.patch("runner.is_linux_arm64", return_value=True):
             report = runner.run_acceptance(
                 self.args(
                     cases_path,
@@ -436,10 +430,7 @@ class RunnerTests(unittest.TestCase):
         lock["contract"] = {"sha256": runner.sha256_file(contract)}
         write_json(lock_path, lock)
         contract.write_text("altered requirements\n", encoding="utf-8")
-        # Isolate contract validation; the environment guard is tested separately.
-        with temp, mock.patch("runner.is_linux_arm64", return_value=True), mock.patch(
-            "runner.environment.qualification_errors", return_value=[],
-        ):
+        with temp, mock.patch("runner.is_linux_arm64", return_value=True):
             report = runner.run_acceptance(self.args(
                 cases_path, lock_path, results, backend="DFS", meta="etcd", transport="TCP",
                 profile="full", identity_attestation=str(attestation), contract=str(contract),
@@ -447,46 +438,6 @@ class RunnerTests(unittest.TestCase):
         self.assertEqual(report["summary"]["status"], "BLOCKED")
         self.assertFalse(report["summary"]["full_release_gate_pass"])
         self.assertIn("contract sha256 mismatch", report["results"][0]["reason"])
-
-    def test_missing_actual_contract_blocks_full_but_not_local_smoke(self):
-        temp, root, manifest, _lock, cases_path, lock_path, results = self.make_workspace()
-        self.write_full_passing_case(root, manifest, cases_path)
-        attestation = self.write_attestation_and_lock(root, cases_path, lock_path)
-        (root / "acceptance.md").unlink()
-        with temp, mock.patch("runner.is_linux_arm64", return_value=True), mock.patch(
-            "runner.environment.qualification_errors", return_value=[],
-        ):
-            full = runner.run_acceptance(self.args(
-                cases_path, lock_path, results, backend="DFS", meta="etcd", transport="TCP",
-                profile="full", identity_attestation=str(attestation),
-            ))
-            self.assertEqual(full["summary"]["status"], "BLOCKED")
-            self.assertIn("contract path does not exist", full["results"][0]["reason"])
-            passing = self.write_driver(root, "smoke.py", self.pass_proof())
-            manifest["cases"][0]["driver"]["command"] = [sys.executable, str(passing)]
-            write_json(cases_path, manifest)
-            smoke = runner.run_acceptance(self.args(
-                cases_path, lock_path, results, backend="DFS", meta="etcd", transport="TCP",
-            ))
-            self.assertEqual(smoke["summary"]["status"], "PASS")
-            self.assertFalse(smoke["summary"]["full_release_gate_pass"])
-
-    def test_contract_provenance_commit_does_not_replace_actual_contract_digest(self):
-        temp, root, manifest, _lock, cases_path, lock_path, results = self.make_workspace()
-        self.write_full_passing_case(root, manifest, cases_path)
-        attestation = self.write_attestation_and_lock(root, cases_path, lock_path)
-        lock = runner.load_json(lock_path)
-        del lock["contract"]
-        write_json(lock_path, lock)
-        with temp, mock.patch("runner.is_linux_arm64", return_value=True), mock.patch(
-            "runner.environment.qualification_errors", return_value=[],
-        ):
-            report = runner.run_acceptance(self.args(
-                cases_path, lock_path, results, backend="DFS", meta="etcd", transport="TCP",
-                profile="full", identity_attestation=str(attestation),
-            ))
-        self.assertEqual(report["summary"]["status"], "BLOCKED")
-        self.assertIn("lock contract identity is missing", report["results"][0]["reason"])
 
     def test_lock_verified_boolean_alone_is_not_release_ready(self):
         temp, root, manifest, _lock, cases_path, lock_path, results = self.make_workspace()

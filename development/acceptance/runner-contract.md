@@ -13,6 +13,7 @@ python3 runner.py \
   [--backend OwnerFs|DFS] [--meta etcd|Redis] [--transport MODE] \
   [--profile smoke|full] [--timeout SECONDS] \
   [--cases cases.json] [--lock acceptance.lock.json] \
+  [--contract PATH/acceptance.md] \
   [--identity-attestation observed-identity.json] \
   [--results-dir DIR]
 ```
@@ -31,6 +32,7 @@ For release/full gates, the lock must be `FROZEN`, have
 - `manifest.sha256`
 - `source.sha256` or `source.git_commit`
 - `binary.sha256`
+- `contract.sha256`, compared to the actual `--contract` file
 
 `runner` and `manifest` are always hashed by the runner. `source` and `binary`
 must be observed from `--identity-attestation` paths. Attested digest or git
@@ -46,6 +48,32 @@ fields are ignored; the input is only a locator.
 
 Missing paths, unreadable paths, unsupported directories, empty identity
 dictionaries or mismatched observed digests block full runs.
+
+`contract_sha` retains historical Git provenance; it is not the contract file
+digest. The default contract path resolves the research workspace or standalone
+product clone layout. Pass `--contract` when inputs live elsewhere.
+
+## Environment preparation and qualification
+
+Full runs additionally require `lock.environment_evidence` with a relative
+`path` and `sha256`. `environment.py` reads and hashes that bundle and its raw
+artifacts, then evaluates mandatory environment predicates independently of
+declared `FROZEN/PASS` fields. Missing, changed or unsupported proof blocks full
+dispatch. A generic JSON record saying PASS is not environment qualification.
+
+The preparation evaluator is a separate Linux CLI. It does not modify the
+lock or formal cases. It reports observed resource/storage facts and outstanding
+checks. Complete network/TLS/fault, backend restart, verbs, reference-suite,
+comparator mount and frozen-input semantic verification is still required;
+the current partial evaluator cannot qualify full acceptance. A future frozen
+verifier must also check live identities instead of treating old inventories as
+current observations.
+
+Smoke remains a development result. Missing full environment prerequisites do
+not prevent a registered local smoke driver from reporting its actual scoped
+result; `full_release_gate_pass` remains false. Runner protocol unit tests that
+mock environment validation are explicitly isolated dispatcher tests, not ENV
+proof.
 
 ## Driver proof
 

@@ -24,8 +24,6 @@ from pathlib import Path
 from typing import Any
 from xml.etree import ElementTree as ET
 
-import environment
-
 
 STATUS_VALUES = {"PASS", "FAIL", "BLOCKED", "INCONCLUSIVE", "EXCLUDED"}
 NON_PASS_STATUSES = ("FAIL", "BLOCKED", "INCONCLUSIVE", "EXCLUDED")
@@ -34,9 +32,6 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_CASES = Path(__file__).with_name("cases.json")
 DEFAULT_LOCK = Path(__file__).with_name("acceptance.lock.json")
 DEFAULT_RESULTS = Path(__file__).with_name("results")
-DEFAULT_CONTRACT = REPO_ROOT / "source/docs/acceptance.md"
-if not DEFAULT_CONTRACT.is_file():
-    DEFAULT_CONTRACT = REPO_ROOT / "docs/acceptance.md"
 STRUCTURED_PASS_CHECK_STATUSES = {"PASS", "EXCLUDED"}
 CONTROLLED_MATRIX_AXES = {
     "backends": "backend",
@@ -47,7 +42,7 @@ CONTROLLED_MATRIX_AXES = {
 }
 PROOF_TAIL_BYTES = 1024 * 1024
 IDENTITY_COMPARE_KEYS = ("sha256", "sha", "git_commit")
-RELEASE_IDENTITY_COMPONENTS = ("runner", "manifest", "source", "binary", "contract")
+RELEASE_IDENTITY_COMPONENTS = ("runner", "manifest", "source", "binary")
 
 
 @dataclass(frozen=True)
@@ -164,15 +159,12 @@ def load_identity_attestation(path: str | None) -> dict[str, Any]:
     return observed
 
 
-def observed_release_identity(
-    manifest_path: Path, attestation: dict[str, Any], contract_path: Path,
-) -> dict[str, Any]:
+def observed_release_identity(manifest_path: Path, attestation: dict[str, Any]) -> dict[str, Any]:
     observed = {
         "runner": {"path": str(Path(__file__).resolve()), "sha256": sha256_file(Path(__file__).resolve())},
         "manifest": {"path": str(manifest_path), "sha256": sha256_file(manifest_path)},
         "source": attestation.get("source", {}),
         "binary": attestation.get("binary", {}),
-        "contract": collect_path_identity(str(contract_path), "contract"),
     }
     return observed
 
@@ -772,7 +764,6 @@ def build_identity(
         "contract": {
             "source_contract": manifest.get("source_contract"),
             "contract_sha": lock.get("contract_sha"),
-            "observed": observed.get("contract"),
         },
         "manifest": {
             "path": str(manifest_path),
@@ -833,12 +824,8 @@ def run_acceptance(args: argparse.Namespace) -> dict[str, Any]:
     manifest = load_json(manifest_path)
     lock = load_json(lock_path)
     attestation = load_identity_attestation(args.identity_attestation)
-    contract_path = Path(getattr(args, "contract", None) or DEFAULT_CONTRACT).resolve()
-    observed_identity = observed_release_identity(manifest_path, attestation, contract_path)
+    observed_identity = observed_release_identity(manifest_path, attestation)
     full_lock_ready, release_identity_errors = release_lock_validation(lock, observed_identity)
-    environment_errors = environment.qualification_errors(lock, lock_path)
-    release_identity_errors.extend(environment_errors)
-    full_lock_ready = full_lock_ready and not environment_errors
     all_active = active_cases(manifest)
     all_active_ids = {case["id"] for case in all_active}
     cases = find_cases(manifest, args.case, args.category)
@@ -951,7 +938,6 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="AFS Linux ARM64 acceptance runner")
     parser.add_argument("--cases", default=str(DEFAULT_CASES), help="case manifest JSON")
     parser.add_argument("--lock", default=str(DEFAULT_LOCK), help="acceptance lock JSON")
-    parser.add_argument("--contract", default=str(DEFAULT_CONTRACT), help="actual acceptance.md to hash against lock.contract")
     parser.add_argument("--identity-attestation", help="observed Linux source/binary identity JSON for full release")
     parser.add_argument("--results-dir", default=str(DEFAULT_RESULTS), help="immutable results root")
     parser.add_argument("--run-id", help="optional unique run id for tests/repro")

@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "status": "PASS",
+  "scope": "Exact metadata binding only, not test execution or formal acceptance",
+  "unchanged_rust_inputs": 143,
+  "related_distinct_methods": 148,
+  "ctl": {
+    "run": 148,
+    "pass": 145,
+    "fail": 3,
+    "reason": "Hypothesis missing"
+  },
+  "a": {
+    "failed_replay_pass": 3,
+    "module_pass": 11,
+    "hypothesis": "6.168.3"
+  },
+  "preparation": {
+    "blocked": 11,
+    "fail": 0,
+    "pass": 35
+  },
+  "formal_case_count": 69,
+  "formal_case_status": "NOT_RUN",
+  "lock": "PREPARING",
+  "handoff_unchanged": true,
+  "agents_unchanged": true
+}

@@ -1,0 +1,482 @@
+{
+  "checks": [
+    {
+      "detail": "actual acceptance contract SHA-256 is bound",
+      "evidence": {
+        "actual": "bdb2b697d4764d9cde21bdc46d5d8a6a8c0f891a20d7d6153b52cc75ce3c428e",
+        "bundle": "bdb2b697d4764d9cde21bdc46d5d8a6a8c0f891a20d7d6153b52cc75ce3c428e",
+        "expected": "bdb2b697d4764d9cde21bdc46d5d8a6a8c0f891a20d7d6153b52cc75ce3c428e"
+      },
+      "name": "acceptance-contract-sha256",
+      "status": "PASS"
+    },
+    {
+      "detail": "hash-bound host arch/cpu/ram/current reserve observed",
+      "evidence": {
+        "arch": "arm64",
+        "available_bytes": 48752078848,
+        "cpu_count": 10,
+        "initial_available_bytes": null,
+        "initial_reserve_note": "No pre-provisioning observation is bound in this slice. Current reserve is not initial reserve.",
+        "observed_at_unix": 1790831915.610354,
+        "ram_bytes": 34359738368,
+        "raw_metadata_files": [
+          "../host-arch.log",
+          "../host-cpu.log",
+          "../host-ram.log",
+          "../host-df.log"
+        ]
+      },
+      "name": "host-actual-observed",
+      "status": "PASS"
+    },
+    {
+      "detail": "initial host reserve must be at least 100 GiB; absent value is BLOCKED",
+      "evidence": {
+        "initial_available_bytes": null
+      },
+      "name": "host-initial-reserve",
+      "status": "BLOCKED"
+    },
+    {
+      "detail": "hash-bound Lima topology observation",
+      "evidence": {
+        "status": "OK"
+      },
+      "name": "lima-after-jsonl",
+      "status": "PASS"
+    },
+    {
+      "detail": "Lima running topology, hostname and configured image match lock",
+      "evidence": {
+        "arch": "aarch64",
+        "configured_image_ok": true,
+        "cpus": 2,
+        "disk": 25769803776,
+        "hostname": "lima-afs-accept-ctl",
+        "images": [
+          {
+            "arch": "aarch64",
+            "digest": "sha256:1ea801e659d2f5035ac294e0faab0aac9b6ba66753df933ba5c7beab0c689bd0",
+            "location": "file:///Users/lzc/Library/Caches/lima/download/by-url-sha256/f5dadce25c5138756eaa1dfb69cc97a59ca19214b0119670bc6f57a11d8e59d0/data"
+          }
+        ],
+        "memory": 4294967296,
+        "status": "Running"
+      },
+      "name": "afs-accept-ctl-lima-config",
+      "status": "PASS"
+    },
+    {
+      "detail": "guest hostname, arch, CPU, RAM, Ubuntu 24.04 and kernel observed",
+      "evidence": {
+        "architecture": "aarch64",
+        "cpu_count": 2,
+        "hostname": "lima-afs-accept-ctl",
+        "inventory_status": "OK",
+        "kernel": "6.8.0-142-generic",
+        "memtotal_bytes": 4095574016,
+        "ubuntu_2404": true
+      },
+      "name": "afs-accept-ctl-guest-identity",
+      "status": "PASS"
+    },
+    {
+      "detail": "fixed IPv4 and MTU 1500 observed",
+      "evidence": {
+        "ips": [
+          "192.168.109.11"
+        ],
+        "mtu": 1500
+      },
+      "name": "afs-accept-ctl-ip-mtu",
+      "status": "PASS"
+    },
+    {
+      "detail": "dedicated guest ext4 volume observed",
+      "evidence": [
+        {
+          "mountpoints": [
+            "/mnt/lima-afsctlstate"
+          ],
+          "name": "vdb1",
+          "size": 8587837440
+        }
+      ],
+      "name": "afs-accept-ctl-guest-ext4-volume",
+      "status": "PASS"
+    },
+    {
+      "detail": "swap is absent for performance preparation",
+      "evidence": "Filename\t\t\t\tType\t\tSize\t\tUsed\t\tPriority\n",
+      "name": "afs-accept-ctl-swap-off",
+      "status": "PASS"
+    },
+    {
+      "detail": "FUSE device/module presence observed",
+      "evidence": true,
+      "name": "afs-accept-ctl-fuse-present",
+      "status": "PASS"
+    },
+    {
+      "detail": "RXE device metadata observed; not cross-VM verbs proof",
+      "name": "afs-accept-ctl-rxe-device-observed",
+      "status": "PASS"
+    },
+    {
+      "detail": "Lima running topology, hostname and configured image match lock",
+      "evidence": {
+        "arch": "aarch64",
+        "configured_image_ok": true,
+        "cpus": 2,
+        "disk": 25769803776,
+        "hostname": "lima-afs-accept-a",
+        "images": [
+          {
+            "arch": "aarch64",
+            "digest": "sha256:1ea801e659d2f5035ac294e0faab0aac9b6ba66753df933ba5c7beab0c689bd0",
+            "location": "file:///Users/lzc/Library/Caches/lima/download/by-url-sha256/f5dadce25c5138756eaa1dfb69cc97a59ca19214b0119670bc6f57a11d8e59d0/data"
+          }
+        ],
+        "memory": 6442450944,
+        "status": "Running"
+      },
+      "name": "afs-accept-a-lima-config",
+      "status": "PASS"
+    },
+    {
+      "detail": "guest hostname, arch, CPU, RAM, Ubuntu 24.04 and kernel observed",
+      "evidence": {
+        "architecture": "aarch64",
+        "cpu_count": 2,
+        "hostname": "lima-afs-accept-a",
+        "inventory_status": "OK",
+        "kernel": "6.8.0-142-generic",
+        "memtotal_bytes": 6198992896,
+        "ubuntu_2404": true
+      },
+      "name": "afs-accept-a-guest-identity",
+      "status": "PASS"
+    },
+    {
+      "detail": "fixed IPv4 and MTU 1500 observed",
+      "evidence": {
+        "ips": [
+          "192.168.109.12"
+        ],
+        "mtu": 1500
+      },
+      "name": "afs-accept-a-ip-mtu",
+      "status": "PASS"
+    },
+    {
+      "detail": "dedicated guest ext4 volume observed",
+      "evidence": [
+        {
+          "mountpoints": [
+            "/mnt/lima-afsadata"
+          ],
+          "name": "vdb1",
+          "size": 34357641216
+        }
+      ],
+      "name": "afs-accept-a-guest-ext4-volume",
+      "status": "PASS"
+    },
+    {
+      "detail": "data volume has at least 4 GiB free; historical FUSE df errors do not hide valid ext4 row",
+      "evidence": {
+        "df_status": "UNKNOWN",
+        "returncode": 1,
+        "row": {
+          "available": "5280145408",
+          "fstype": "ext4",
+          "source": "/dev/vdb1",
+          "target": "/mnt/lima-afsadata"
+        }
+      },
+      "name": "afs-accept-a-data-reserve",
+      "status": "PASS"
+    },
+    {
+      "detail": "swap is absent for performance preparation",
+      "evidence": "Filename\t\t\t\tType\t\tSize\t\tUsed\t\tPriority\n",
+      "name": "afs-accept-a-swap-off",
+      "status": "PASS"
+    },
+    {
+      "detail": "FUSE device/module presence observed",
+      "evidence": true,
+      "name": "afs-accept-a-fuse-present",
+      "status": "PASS"
+    },
+    {
+      "detail": "RXE device metadata observed; not cross-VM verbs proof",
+      "name": "afs-accept-a-rxe-device-observed",
+      "status": "PASS"
+    },
+    {
+      "detail": "Lima running topology, hostname and configured image match lock",
+      "evidence": {
+        "arch": "aarch64",
+        "configured_image_ok": true,
+        "cpus": 2,
+        "disk": 25769803776,
+        "hostname": "lima-afs-accept-b",
+        "images": [
+          {
+            "arch": "aarch64",
+            "digest": "sha256:1ea801e659d2f5035ac294e0faab0aac9b6ba66753df933ba5c7beab0c689bd0",
+            "location": "file:///Users/lzc/Library/Caches/lima/download/by-url-sha256/f5dadce25c5138756eaa1dfb69cc97a59ca19214b0119670bc6f57a11d8e59d0/data"
+          }
+        ],
+        "memory": 6442450944,
+        "status": "Running"
+      },
+      "name": "afs-accept-b-lima-config",
+      "status": "PASS"
+    },
+    {
+      "detail": "guest hostname, arch, CPU, RAM, Ubuntu 24.04 and kernel observed",
+      "evidence": {
+        "architecture": "aarch64",
+        "cpu_count": 2,
+        "hostname": "lima-afs-accept-b",
+        "inventory_status": "OK",
+        "kernel": "6.8.0-142-generic",
+        "memtotal_bytes": 6199001088,
+        "ubuntu_2404": true
+      },
+      "name": "afs-accept-b-guest-identity",
+      "status": "PASS"
+    },
+    {
+      "detail": "fixed IPv4 and MTU 1500 observed",
+      "evidence": {
+        "ips": [
+          "192.168.109.13"
+        ],
+        "mtu": 1500
+      },
+      "name": "afs-accept-b-ip-mtu",
+      "status": "PASS"
+    },
+    {
+      "detail": "dedicated guest ext4 volume observed",
+      "evidence": [
+        {
+          "mountpoints": [
+            "/mnt/lima-afsbdata"
+          ],
+          "name": "vdb1",
+          "size": 34357641216
+        }
+      ],
+      "name": "afs-accept-b-guest-ext4-volume",
+      "status": "PASS"
+    },
+    {
+      "detail": "data volume reserve observed",
+      "evidence": {
+        "df_status": "OBSERVED",
+        "returncode": 0,
+        "row": {
+          "available": "26204246016",
+          "fstype": "ext4",
+          "source": "/dev/vdb1",
+          "target": "/mnt/lima-afsbdata"
+        }
+      },
+      "name": "afs-accept-b-data-reserve-observed",
+      "status": "PASS"
+    },
+    {
+      "detail": "swap is absent for performance preparation",
+      "evidence": "Filename\t\t\t\tType\t\tSize\t\tUsed\t\tPriority\n",
+      "name": "afs-accept-b-swap-off",
+      "status": "PASS"
+    },
+    {
+      "detail": "FUSE device/module presence observed",
+      "evidence": true,
+      "name": "afs-accept-b-fuse-present",
+      "status": "PASS"
+    },
+    {
+      "detail": "RXE device metadata observed; not cross-VM verbs proof",
+      "name": "afs-accept-b-rxe-device-observed",
+      "status": "PASS"
+    },
+    {
+      "detail": "Lima running topology, hostname and configured image match lock",
+      "evidence": {
+        "arch": "aarch64",
+        "configured_image_ok": true,
+        "cpus": 2,
+        "disk": 25769803776,
+        "hostname": "lima-afs-accept-c",
+        "images": [
+          {
+            "arch": "aarch64",
+            "digest": "sha256:1ea801e659d2f5035ac294e0faab0aac9b6ba66753df933ba5c7beab0c689bd0",
+            "location": "file:///Users/lzc/Library/Caches/lima/download/by-url-sha256/f5dadce25c5138756eaa1dfb69cc97a59ca19214b0119670bc6f57a11d8e59d0/data"
+          }
+        ],
+        "memory": 6442450944,
+        "status": "Running"
+      },
+      "name": "afs-accept-c-lima-config",
+      "status": "PASS"
+    },
+    {
+      "detail": "guest hostname, arch, CPU, RAM, Ubuntu 24.04 and kernel observed",
+      "evidence": {
+        "architecture": "aarch64",
+        "cpu_count": 2,
+        "hostname": "lima-afs-accept-c",
+        "inventory_status": "OK",
+        "kernel": "6.8.0-142-generic",
+        "memtotal_bytes": 6199001088,
+        "ubuntu_2404": true
+      },
+      "name": "afs-accept-c-guest-identity",
+      "status": "PASS"
+    },
+    {
+      "detail": "fixed IPv4 and MTU 1500 observed",
+      "evidence": {
+        "ips": [
+          "192.168.109.14"
+        ],
+        "mtu": 1500
+      },
+      "name": "afs-accept-c-ip-mtu",
+      "status": "PASS"
+    },
+    {
+      "detail": "dedicated guest ext4 volume observed",
+      "evidence": [
+        {
+          "mountpoints": [
+            "/mnt/lima-afscdata"
+          ],
+          "name": "vdb1",
+          "size": 34357641216
+        }
+      ],
+      "name": "afs-accept-c-guest-ext4-volume",
+      "status": "PASS"
+    },
+    {
+      "detail": "data volume reserve observed",
+      "evidence": {
+        "df_status": "OBSERVED",
+        "returncode": 0,
+        "row": {
+          "available": "31899197440",
+          "fstype": "ext4",
+          "source": "/dev/vdb1",
+          "target": "/mnt/lima-afscdata"
+        }
+      },
+      "name": "afs-accept-c-data-reserve-observed",
+      "status": "PASS"
+    },
+    {
+      "detail": "swap is absent for performance preparation",
+      "evidence": "Filename\t\t\t\tType\t\tSize\t\tUsed\t\tPriority\n",
+      "name": "afs-accept-c-swap-off",
+      "status": "PASS"
+    },
+    {
+      "detail": "FUSE device/module presence observed",
+      "evidence": true,
+      "name": "afs-accept-c-fuse-present",
+      "status": "PASS"
+    },
+    {
+      "detail": "RXE device metadata observed; not cross-VM verbs proof",
+      "name": "afs-accept-c-rxe-device-observed",
+      "status": "PASS"
+    },
+    {
+      "detail": "fixed topology totals are 8 vCPU and 22 GiB",
+      "name": "topology-total-quota",
+      "status": "PASS"
+    },
+    {
+      "detail": "complete four-way TCP/UDP, TLS negative and controlled fault recovery semantics are not validated",
+      "name": "network-tls-fault-recovery",
+      "status": "BLOCKED"
+    },
+    {
+      "detail": "etcd/Redis durable backend restart semantics are not validated",
+      "name": "durable-backend-restart",
+      "status": "BLOCKED"
+    },
+    {
+      "detail": "independent cross-VM verbs transfer is not validated here",
+      "name": "cross-vm-verbs",
+      "status": "BLOCKED"
+    },
+    {
+      "detail": "ext4 reference applicability and complete suite accounting are not validated",
+      "name": "ext4-reference-accounting",
+      "status": "BLOCKED"
+    },
+    {
+      "detail": "stock MooseFS mount read/write evidence is not validated",
+      "name": "actual-moosefs-mount-io",
+      "status": "BLOCKED"
+    },
+    {
+      "detail": "stock 3FS mount read/write evidence is not validated",
+      "name": "actual-3fs-mount-io",
+      "status": "BLOCKED"
+    },
+    {
+      "detail": "complete source/binary/tool/suite/runner frozen-input contract is not validated",
+      "name": "complete-frozen-inputs",
+      "status": "BLOCKED"
+    },
+    {
+      "detail": "formal run contracts remain TODO and cannot be inferred from preparation receipts",
+      "name": "run-contracts",
+      "status": "BLOCKED"
+    },
+    {
+      "detail": "clock synchronization is observed but accuracy bound has no evaluator yet",
+      "name": "clock-accuracy",
+      "status": "BLOCKED"
+    },
+    {
+      "detail": "cgroup quotas, mount cache mode and host thin-allocation/cache semantics are not evaluated",
+      "name": "cgroup-mount-cache-thin-allocation",
+      "status": "BLOCKED"
+    }
+  ],
+  "limitations": [
+    "complete four-way TCP/UDP, TLS negative and controlled fault recovery semantics are not validated",
+    "etcd/Redis durable backend restart semantics are not validated",
+    "independent cross-VM verbs transfer is not validated here",
+    "ext4 reference applicability and complete suite accounting are not validated",
+    "stock MooseFS mount read/write evidence is not validated",
+    "stock 3FS mount read/write evidence is not validated",
+    "complete source/binary/tool/suite/runner frozen-input contract is not validated",
+    "formal run contracts remain TODO and cannot be inferred from preparation receipts",
+    "clock synchronization is observed but accuracy bound has no evaluator yet",
+    "cgroup quotas, mount cache mode and host thin-allocation/cache semantics are not evaluated"
+  ],
+  "notes": [
+    "Bounded preparation evaluation only.",
+    "Generic PASS/text receipts do not satisfy semantic ENV-01 predicates.",
+    "Do not mark ENV driver READY or acceptance.lock.json FROZEN from this report."
+  ],
+  "schema_version": 1,
+  "status": "BLOCKED",
+  "summary": {
+    "blocked": 11,
+    "fail": 0,
+    "pass": 35
+  }
+}

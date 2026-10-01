@@ -1,0 +1,8 @@
+test_failure_preserves_raw_prefix (test_random_fs_driver.RandomFsDriverTests.test_failure_preserves_raw_prefix) ... ok
+test_full_reference_fixture_is_blocked (test_random_fs_driver.RandomFsDriverTests.test_full_reference_fixture_is_blocked) ... ok
+test_full_with_cap_is_blocked_not_pass (test_random_fs_driver.RandomFsDriverTests.test_full_with_cap_is_blocked_not_pass) ... ok
+
+----------------------------------------------------------------------
+Ran 3 tests in 0.336s
+
+OK

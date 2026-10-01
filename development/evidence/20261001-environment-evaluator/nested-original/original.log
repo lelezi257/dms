@@ -1,0 +1,77 @@
+test_nested_malformed_evidence_returns_blockers_without_exception (test_environment.EnvironmentEvaluatorTests.test_nested_malformed_evidence_returns_blockers_without_exception) ... 
+  test_nested_malformed_evidence_returns_blockers_without_exception (test_environment.EnvironmentEvaluatorTests.test_nested_malformed_evidence_returns_blockers_without_exception) (artifact='host.json', field='cpu_count') ... ERROR
+  test_nested_malformed_evidence_returns_blockers_without_exception (test_environment.EnvironmentEvaluatorTests.test_nested_malformed_evidence_returns_blockers_without_exception) (artifact='host.json', field='ram_bytes') ... ERROR
+  test_nested_malformed_evidence_returns_blockers_without_exception (test_environment.EnvironmentEvaluatorTests.test_nested_malformed_evidence_returns_blockers_without_exception) (artifact='inventory-a.json', field='rdma_device') ... ERROR
+test_contract_path_escape_returns_blocker_without_exception (test_environment.EnvironmentEvaluatorTests.test_contract_path_escape_returns_blocker_without_exception) ... ERROR
+
+======================================================================
+ERROR: test_nested_malformed_evidence_returns_blockers_without_exception (test_environment.EnvironmentEvaluatorTests.test_nested_malformed_evidence_returns_blockers_without_exception) (artifact='host.json', field='cpu_count')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/afs-environment-v66/nested-original/test_environment.py", line 89, in test_nested_malformed_evidence_returns_blockers_without_exception
+    self.assertTrue(environment.qualification_errors(lck, root / "lock.json"))
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/afs-environment-v66/nested-original/environment.py", line 306, in qualification_errors
+    report = evaluate_environment(lock, bundle, bundle_path.parent)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/afs-environment-v66/nested-original/environment.py", line 234, in evaluate_environment
+    host_ok = host.get("arch") in {"aarch64", "arm64"} and host.get("cpu_count", 0) >= 10 and host.get("ram_bytes", 0) >= 32 * GIB
+                                                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: '>=' not supported between instances of 'NoneType' and 'int'
+
+======================================================================
+ERROR: test_nested_malformed_evidence_returns_blockers_without_exception (test_environment.EnvironmentEvaluatorTests.test_nested_malformed_evidence_returns_blockers_without_exception) (artifact='host.json', field='ram_bytes')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/afs-environment-v66/nested-original/test_environment.py", line 89, in test_nested_malformed_evidence_returns_blockers_without_exception
+    self.assertTrue(environment.qualification_errors(lck, root / "lock.json"))
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/afs-environment-v66/nested-original/environment.py", line 306, in qualification_errors
+    report = evaluate_environment(lock, bundle, bundle_path.parent)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/afs-environment-v66/nested-original/environment.py", line 234, in evaluate_environment
+    host_ok = host.get("arch") in {"aarch64", "arm64"} and host.get("cpu_count", 0) >= 10 and host.get("ram_bytes", 0) >= 32 * GIB
+                                                                                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: '>=' not supported between instances of 'str' and 'int'
+
+======================================================================
+ERROR: test_nested_malformed_evidence_returns_blockers_without_exception (test_environment.EnvironmentEvaluatorTests.test_nested_malformed_evidence_returns_blockers_without_exception) (artifact='inventory-a.json', field='rdma_device')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/afs-environment-v66/nested-original/test_environment.py", line 89, in test_nested_malformed_evidence_returns_blockers_without_exception
+    self.assertTrue(environment.qualification_errors(lck, root / "lock.json"))
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/afs-environment-v66/nested-original/environment.py", line 306, in qualification_errors
+    report = evaluate_environment(lock, bundle, bundle_path.parent)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/afs-environment-v66/nested-original/environment.py", line 274, in evaluate_environment
+    rdma_text = " ".join(str((inventory.get(k) or {}).get("stdout", "")) for k in ("rdma_device", "rdma_links"))
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/afs-environment-v66/nested-original/environment.py", line 274, in <genexpr>
+    rdma_text = " ".join(str((inventory.get(k) or {}).get("stdout", "")) for k in ("rdma_device", "rdma_links"))
+                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'list' object has no attribute 'get'
+
+======================================================================
+ERROR: test_contract_path_escape_returns_blocker_without_exception (test_environment.EnvironmentEvaluatorTests.test_contract_path_escape_returns_blocker_without_exception)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/afs-environment-v66/nested-original/test_environment.py", line 99, in test_contract_path_escape_returns_blocker_without_exception
+    self.assertTrue(environment.qualification_errors(lck, root / "lock.json"))
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/afs-environment-v66/nested-original/environment.py", line 306, in qualification_errors
+    report = evaluate_environment(lock, bundle, bundle_path.parent)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/afs-environment-v66/nested-original/environment.py", line 230, in evaluate_environment
+    check_contract(lock, bundle, artifact_root, checks)
+  File "/tmp/afs-environment-v66/nested-original/environment.py", line 215, in check_contract
+    path = checked_path(root, contract["path"])
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/afs-environment-v66/nested-original/environment.py", line 67, in checked_path
+    raise InvalidEvidence(f"path escapes evidence root: {rel}")
+environment.InvalidEvidence: path escapes evidence root: ../acceptance.md
+
+----------------------------------------------------------------------
+Ran 2 tests in 0.008s
+
+FAILED (errors=4)

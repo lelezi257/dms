@@ -1,0 +1,13 @@
+Traceback (most recent call last):
+  File "/tmp/afs-owner-v72-audit/owner-crossvm-v72/audit.py", line 119, in <module>
+    main()
+  File "/tmp/afs-owner-v72-audit/owner-crossvm-v72/audit.py", line 85, in main
+    frozen = json.loads(pathlib.Path(args.qualified_inputs).read_text())
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/pathlib.py", line 1029, in read_text
+    with self.open(mode='r', encoding=encoding, errors=errors) as f:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/pathlib.py", line 1015, in open
+    return io.open(self, mode, buffering, encoding, errors, newline)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: '/tmp/afs-owner-v71-audit/source/development/evidence/20261001-owner-rdma/owner-linux-r5/inputs-r5.json'

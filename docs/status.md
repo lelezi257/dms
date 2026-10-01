@@ -34,9 +34,22 @@ with 143 exact input hashes. Production Owner peer clients use the configured
 transport; Owner control and file handlers authorize separate bounded RDMA
 windows. Two actual RXE fixtures write, sync, cold reopen and compare 4 MiB +
 17 bytes through raw RPC and production OwnerPeerClient. Observed resources
-are released after the fixture process exits. Cross-VM production Node/FUSE
-Owner RDMA, posted-DMA cancellation and the full fault/performance matrices
-remain unqualified. The formal lock remains PREPARING and all 69 cases NOT_RUN.
+are released after the fixture process exits. Posted-DMA cancellation and the
+full fault/performance matrices remain unqualified.
+
+The [cross-VM production OwnerFs flow](../development/evidence/20261001-owner-rdma-runtime/README.md)
+uses these same frozen inputs and Linux-built binaries with memory Meta, mTLS
+and required RXE. B writes and syncs 4 MiB + 17 bytes to Home A; two normal B
+Node restarts precede full cold reads, including a 4 KiB overwrite. Content,
+length, EOF and A's physical file match. Actual server completion logs record
+4,198,417 RDMA READ bytes and 8,388,642 RDMA WRITE bytes. Seven probe regressions
+and seven evidence rejection checks pass; the unchanged source gate is reused.
+Both new Nodes and Meta exit normally, leaving no mounts or observed owned
+verbs resources. These idle/post-exit observations do not qualify peak bounds,
+cancellation, exceptional provider teardown, Home faults or Meta recovery.
+Owner RDMA client read/write bypass the existing RPC timing metric, and Owner
+payloads have no dedicated Prometheus counter; observability remains open.
+The formal lock remains PREPARING and all 69 cases NOT_RUN.
 
 The [verbs environment consumer](../development/evidence/20261001-verbs-predicate/README.md)
 passes 17 dedicated Linux regressions and 60 related environment/network/runner

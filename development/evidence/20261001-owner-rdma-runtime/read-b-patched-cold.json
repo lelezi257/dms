@@ -1,0 +1,41 @@
+{
+  "action": "read-patched",
+  "bytes": 4194321,
+  "sha256": "33752442cf488a550283e95caed9fe804542daf32d6fcdda6df43c11e68f2d9b",
+  "home": {
+    "checked_at_unix_ms": 1790841061146,
+    "home_data_addr": "https://192.168.109.12:18782",
+    "home_grpc_addr": "https://192.168.109.12:18782",
+    "home_lease_epoch": 1,
+    "home_node_id": "owner-rdma-node-a",
+    "home_rest_addr": "http://0.0.0.0:18783",
+    "home_serving": true,
+    "home_session_expires_at_unix_ms": 1790841088304,
+    "home_session_id": "ca8a8fb8-4392-42a1-a156-ab4f84de9312",
+    "owner": "owner-rdma-node-a",
+    "revision": 4,
+    "root_epoch": 1,
+    "root_id": "root-6f776e65722d72646d612d763732",
+    "status": "serving"
+  },
+  "identity": {
+    "run": "/mnt/lima-afsbdata/afs-delivery/owner-rdma-v72-b",
+    "boot_id": "3adebcd0-cb31-4df0-b18a-e970786ab7fb",
+    "processes": {
+      "node": {
+        "pid": 140163,
+        "start_ticks": "8287384",
+        "sha256": "8105b3d66f2e93a1110b442ccbda24a2d4c2ab5f97d0bbd5d9f0c9e1b97f6238"
+      }
+    },
+    "configs": {
+      "node": "c0dd5c94b19383c64e77dd622f00f35279b863595e4fd6f9a9abe8dadf47567b"
+    },
+    "mount": {
+      "target": "/mnt/lima-afsbdata/afs-delivery/owner-rdma-v72-b/mount-ownerfs",
+      "source": "afs-ownerfs",
+      "fstype": "fuse"
+    },
+    "rdma_link": "link rxe0/1 state ACTIVE physical_state LINK_UP netdev eth0 \n"
+  }
+}

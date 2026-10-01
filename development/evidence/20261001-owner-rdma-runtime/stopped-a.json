@@ -1,0 +1,34 @@
+{
+  "run": "/mnt/lima-afsadata/afs-delivery/owner-rdma-v72-a",
+  "boot_id": "36a572e0-859b-4a94-adc7-789210a83fc8",
+  "receipts": {
+    "meta": {
+      "pid": "734609",
+      "exe": "/mnt/lima-afsadata/afs-delivery/owner-rdma-v72-a/prefix/bin/afs-meta",
+      "config": "/mnt/lima-afsadata/afs-delivery/owner-rdma-v72-a/etc/meta.toml",
+      "start_ticks": "9210530",
+      "boot_id": "36a572e0-859b-4a94-adc7-789210a83fc8",
+      "lifecycle": "/mnt/lima-afsadata/afs-delivery/owner-rdma-v72-a/run/meta.lifecycle.JSF8TQ",
+      "supervisor_pid": "734593",
+      "exit_code": "0"
+    },
+    "node": {
+      "pid": "734790",
+      "exe": "/mnt/lima-afsadata/afs-delivery/owner-rdma-v72-a/prefix/bin/afs-node",
+      "config": "/mnt/lima-afsadata/afs-delivery/owner-rdma-v72-a/etc/node.toml",
+      "start_ticks": "9210544",
+      "boot_id": "36a572e0-859b-4a94-adc7-789210a83fc8",
+      "lifecycle": "/mnt/lima-afsadata/afs-delivery/owner-rdma-v72-a/run/node.lifecycle.g1DQzs",
+      "supervisor_pid": "734774",
+      "exit_code": "0"
+    }
+  },
+  "mount_absent": true,
+  "owned_retained": {
+    "qp": [],
+    "cq": [],
+    "mr": [],
+    "pd": [],
+    "ctx": []
+  }
+}

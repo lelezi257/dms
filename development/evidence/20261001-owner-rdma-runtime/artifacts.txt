@@ -1,0 +1,7 @@
+28a284be26bc3c2b6bbb94ac06c57cf766f3d1dc561792f4ee01b360c945ee1d  /home/lzc.guest/afs-build/target/debug/afs-node
+b6cc65a5b77a492209ea9fddaf45dbd1215b33801e49ab8df3ffb3addd29d6dc  /home/lzc.guest/afs-build/target/debug/afs-meta
+8105b3d66f2e93a1110b442ccbda24a2d4c2ab5f97d0bbd5d9f0c9e1b97f6238  /home/lzc.guest/afs-build/artifacts/owner-v71-r5/afs-node
+3345187a3915cbc27651f7027d4dcb093f82af5b9ca3ffc213f08cef8a30c905  /home/lzc.guest/afs-build/artifacts/owner-v71-r5/afs-meta
+total 106M
+-rwxrwxr-x 1 lzc lzc 39M Oct  1 15:46 afs-meta
+-rwxrwxr-x 1 lzc lzc 68M Oct  1 15:46 afs-node

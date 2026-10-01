@@ -1,0 +1,3 @@
+24d38237f87dccb7fc24a51dabf0c0f28b7f06b446acb0c1c4aa1ec1723cc432  source/development/acceptance/environment.py
+45da0b621d66c446f0a59a310da258832dbce559a846ad0a5942284f3e8c7444  source/development/acceptance/test_environment_verbs.py
+421ac95282a0eebe52af8bb8122fc46a8925d60682e7222bd493f6e2ff4f3200  source/development/acceptance/probes/env_verbs.py

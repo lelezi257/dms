@@ -25,12 +25,21 @@ The [delivery acceptance contract](acceptance.md) requires JuiceFS default same-
 
 ## Current Validation Checkpoint
 
+The [verbs environment consumer](../development/evidence/20261001-verbs-predicate/README.md)
+passes 17 dedicated Linux regressions and 60 related environment/network/runner
+checks. Its actual retained bundle passes the verbs predicate; the overall
+preparation report remains BLOCKED with 37 PASS and 9 BLOCKED prerequisites.
+The real runner refuses full dispatch with those nine unresolved requirements.
+Original failures are retained. Transport captures and the unchanged Rust
+source gate are reused under their original identities. Formal cases remain
+NOT_RUN; the lock remains PREPARING.
+
 The [independent cross-VM verbs preparation](../development/evidence/20261001-verbs-preparation/README.md)
 records twelve directed four-guest RXE exchanges and a 65,535-byte boundary
 exchange using a pinned stock rdma-core tool. Full READ/WRITE contents,
 control SEND descriptors, completions and protected service/resource checks
 pass 127 Linux audit predicates. Fourteen probe regressions pass. Original
-parser/audit failures are retained. The ENV evaluator still defers verbs;
+parser/audit failures are retained. These records underpin the verbs predicate;
 these observations do not qualify product lifecycle, fallback, security,
 performance or formal acceptance. Unchanged Rust evidence is reused.
 

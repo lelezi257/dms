@@ -1,0 +1,399 @@
+test_checker_collector_and_observer_identity_are_fixed (test_environment_verbs.VerbsEnvironmentTests.test_checker_collector_and_observer_identity_are_fixed) ... 
+  test_checker_collector_and_observer_identity_are_fixed (test_environment_verbs.VerbsEnvironmentTests.test_checker_collector_and_observer_identity_are_fixed) (rel='verbs/inputs/env_verbs-checker.py') ... FAIL
+  test_checker_collector_and_observer_identity_are_fixed (test_environment_verbs.VerbsEnvironmentTests.test_checker_collector_and_observer_identity_are_fixed) (rel='verbs/inputs/env_verbs.py') ... FAIL
+  test_checker_collector_and_observer_identity_are_fixed (test_environment_verbs.VerbsEnvironmentTests.test_checker_collector_and_observer_identity_are_fixed) (rel='verbs/inputs/observe.py') ... FAIL
+  test_checker_collector_and_observer_identity_are_fixed (test_environment_verbs.VerbsEnvironmentTests.test_checker_collector_and_observer_identity_are_fixed) (rel='verbs/runtime/a/env_verbs.py') ... FAIL
+  test_checker_collector_and_observer_identity_are_fixed (test_environment_verbs.VerbsEnvironmentTests.test_checker_collector_and_observer_identity_are_fixed) (rel='verbs/runtime/a/observe.py') ... FAIL
+test_cleanup_and_protected_state_are_required (test_environment_verbs.VerbsEnvironmentTests.test_cleanup_and_protected_state_are_required) ... 
+  test_cleanup_and_protected_state_are_required (test_environment_verbs.VerbsEnvironmentTests.test_cleanup_and_protected_state_are_required) (name='process-changed') ... FAIL
+  test_cleanup_and_protected_state_are_required (test_environment_verbs.VerbsEnvironmentTests.test_cleanup_and_protected_state_are_required) (name='mount-changed') ... FAIL
+  test_cleanup_and_protected_state_are_required (test_environment_verbs.VerbsEnvironmentTests.test_cleanup_and_protected_state_are_required) (name='cm-leftover') ... FAIL
+test_command_identity_is_bound (test_environment_verbs.VerbsEnvironmentTests.test_command_identity_is_bound) ... 
+  test_command_identity_is_bound (test_environment_verbs.VerbsEnvironmentTests.test_command_identity_is_bound) (mutation='wrong-guest') ... FAIL
+  test_command_identity_is_bound (test_environment_verbs.VerbsEnvironmentTests.test_command_identity_is_bound) (mutation='failed-call') ... FAIL
+  test_command_identity_is_bound (test_environment_verbs.VerbsEnvironmentTests.test_command_identity_is_bound) (mutation='wrong-bind') ... FAIL
+  test_command_identity_is_bound (test_environment_verbs.VerbsEnvironmentTests.test_command_identity_is_bound) (mutation='missing-listen') ... FAIL
+  test_command_identity_is_bound (test_environment_verbs.VerbsEnvironmentTests.test_command_identity_is_bound) (mutation='echo-listen') ... FAIL
+  test_command_identity_is_bound (test_environment_verbs.VerbsEnvironmentTests.test_command_identity_is_bound) (mutation='argv-none') ... FAIL
+test_duplicate_or_missing_direction_fails (test_environment_verbs.VerbsEnvironmentTests.test_duplicate_or_missing_direction_fails) ... 
+  test_duplicate_or_missing_direction_fails (test_environment_verbs.VerbsEnvironmentTests.test_duplicate_or_missing_direction_fails) (mutation='duplicate') ... FAIL
+  test_duplicate_or_missing_direction_fails (test_environment_verbs.VerbsEnvironmentTests.test_duplicate_or_missing_direction_fails) (mutation='missing') ... FAIL
+test_generic_pass_receipt_is_not_verbs_evidence (test_environment_verbs.VerbsEnvironmentTests.test_generic_pass_receipt_is_not_verbs_evidence) ... ok
+test_malformed_shapes_return_named_failure_without_exception (test_environment_verbs.VerbsEnvironmentTests.test_malformed_shapes_return_named_failure_without_exception) ... 
+  test_malformed_shapes_return_named_failure_without_exception (test_environment_verbs.VerbsEnvironmentTests.test_malformed_shapes_return_named_failure_without_exception) (mutation='jsonl-none-argv') ... FAIL
+  test_malformed_shapes_return_named_failure_without_exception (test_environment_verbs.VerbsEnvironmentTests.test_malformed_shapes_return_named_failure_without_exception) (mutation='jsonl-bad-time') ... FAIL
+  test_malformed_shapes_return_named_failure_without_exception (test_environment_verbs.VerbsEnvironmentTests.test_malformed_shapes_return_named_failure_without_exception) (mutation='json-array') ... FAIL
+test_manifest_and_matrix_are_semantic_inputs (test_environment_verbs.VerbsEnvironmentTests.test_manifest_and_matrix_are_semantic_inputs) ... 
+  test_manifest_and_matrix_are_semantic_inputs (test_environment_verbs.VerbsEnvironmentTests.test_manifest_and_matrix_are_semantic_inputs) (rel='verbs/matrix.json') ... FAIL
+  test_manifest_and_matrix_are_semantic_inputs (test_environment_verbs.VerbsEnvironmentTests.test_manifest_and_matrix_are_semantic_inputs) (rel='verbs/audit.json') ... FAIL
+  test_manifest_and_matrix_are_semantic_inputs (test_environment_verbs.VerbsEnvironmentTests.test_manifest_and_matrix_are_semantic_inputs) (rel='verbs/protected-files.json') ... FAIL
+test_missing_artifacts_are_blocked (test_environment_verbs.VerbsEnvironmentTests.test_missing_artifacts_are_blocked) ... ok
+test_negative_no_listener_cannot_be_faked (test_environment_verbs.VerbsEnvironmentTests.test_negative_no_listener_cannot_be_faked) ... 
+  test_negative_no_listener_cannot_be_faked (test_environment_verbs.VerbsEnvironmentTests.test_negative_no_listener_cannot_be_faked) (name='rc0') ... FAIL
+  test_negative_no_listener_cannot_be_faked (test_environment_verbs.VerbsEnvironmentTests.test_negative_no_listener_cannot_be_faked) (name='success-log') ... FAIL
+  test_negative_no_listener_cannot_be_faked (test_environment_verbs.VerbsEnvironmentTests.test_negative_no_listener_cannot_be_faked) (name='wrong-pair') ... FAIL
+test_rehashed_bad_endpoint_semantics_fail (test_environment_verbs.VerbsEnvironmentTests.test_rehashed_bad_endpoint_semantics_fail) ... 
+  test_rehashed_bad_endpoint_semantics_fail (test_environment_verbs.VerbsEnvironmentTests.test_rehashed_bad_endpoint_semantics_fail) (name='wrong-role') ... FAIL
+  test_rehashed_bad_endpoint_semantics_fail (test_environment_verbs.VerbsEnvironmentTests.test_rehashed_bad_endpoint_semantics_fail) (name='wrong-bind') ... FAIL
+  test_rehashed_bad_endpoint_semantics_fail (test_environment_verbs.VerbsEnvironmentTests.test_rehashed_bad_endpoint_semantics_fail) (name='bool-pid') ... FAIL
+  test_rehashed_bad_endpoint_semantics_fail (test_environment_verbs.VerbsEnvironmentTests.test_rehashed_bad_endpoint_semantics_fail) (name='missing-mr') ... FAIL
+  test_rehashed_bad_endpoint_semantics_fail (test_environment_verbs.VerbsEnvironmentTests.test_rehashed_bad_endpoint_semantics_fail) (name='wrong-size') ... FAIL
+test_retained_valid_verbs_observations_pass_only_verbs_predicate (test_environment_verbs.VerbsEnvironmentTests.test_retained_valid_verbs_observations_pass_only_verbs_predicate) ... FAIL
+test_tampered_hash_bound_artifact_fails (test_environment_verbs.VerbsEnvironmentTests.test_tampered_hash_bound_artifact_fails) ... FAIL
+
+======================================================================
+FAIL: test_checker_collector_and_observer_identity_are_fixed (test_environment_verbs.VerbsEnvironmentTests.test_checker_collector_and_observer_identity_are_fixed) (rel='verbs/inputs/env_verbs-checker.py')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/afs-verbs-predicate-v70/source/development/acceptance/test_environment_verbs.py", line 175, in test_checker_collector_and_observer_identity_are_fixed
+    self.assertEqual("FAIL", self.outcome(root, bundle)["status"])
+AssertionError: 'FAIL' != 'BLOCKED'
+- FAIL
++ BLOCKED
+
+
+======================================================================
+FAIL: test_checker_collector_and_observer_identity_are_fixed (test_environment_verbs.VerbsEnvironmentTests.test_checker_collector_and_observer_identity_are_fixed) (rel='verbs/inputs/env_verbs.py')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/afs-verbs-predicate-v70/source/development/acceptance/test_environment_verbs.py", line 175, in test_checker_collector_and_observer_identity_are_fixed
+    self.assertEqual("FAIL", self.outcome(root, bundle)["status"])
+AssertionError: 'FAIL' != 'BLOCKED'
+- FAIL
++ BLOCKED
+
+
+======================================================================
+FAIL: test_checker_collector_and_observer_identity_are_fixed (test_environment_verbs.VerbsEnvironmentTests.test_checker_collector_and_observer_identity_are_fixed) (rel='verbs/inputs/observe.py')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/afs-verbs-predicate-v70/source/development/acceptance/test_environment_verbs.py", line 175, in test_checker_collector_and_observer_identity_are_fixed
+    self.assertEqual("FAIL", self.outcome(root, bundle)["status"])
+AssertionError: 'FAIL' != 'BLOCKED'
+- FAIL
++ BLOCKED
+
+
+======================================================================
+FAIL: test_checker_collector_and_observer_identity_are_fixed (test_environment_verbs.VerbsEnvironmentTests.test_checker_collector_and_observer_identity_are_fixed) (rel='verbs/runtime/a/env_verbs.py')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/afs-verbs-predicate-v70/source/development/acceptance/test_environment_verbs.py", line 175, in test_checker_collector_and_observer_identity_are_fixed
+    self.assertEqual("FAIL", self.outcome(root, bundle)["status"])
+AssertionError: 'FAIL' != 'BLOCKED'
+- FAIL
++ BLOCKED
+
+
+======================================================================
+FAIL: test_checker_collector_and_observer_identity_are_fixed (test_environment_verbs.VerbsEnvironmentTests.test_checker_collector_and_observer_identity_are_fixed) (rel='verbs/runtime/a/observe.py')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/afs-verbs-predicate-v70/source/development/acceptance/test_environment_verbs.py", line 175, in test_checker_collector_and_observer_identity_are_fixed
+    self.assertEqual("FAIL", self.outcome(root, bundle)["status"])
+AssertionError: 'FAIL' != 'BLOCKED'
+- FAIL
++ BLOCKED
+
+
+======================================================================
+FAIL: test_cleanup_and_protected_state_are_required (test_environment_verbs.VerbsEnvironmentTests.test_cleanup_and_protected_state_are_required) (name='process-changed')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/afs-verbs-predicate-v70/source/development/acceptance/test_environment_verbs.py", line 154, in test_cleanup_and_protected_state_are_required
+    self.assertEqual("FAIL", self.outcome(root, bundle)["status"])
+AssertionError: 'FAIL' != 'BLOCKED'
+- FAIL
++ BLOCKED
+
+
+======================================================================
+FAIL: test_cleanup_and_protected_state_are_required (test_environment_verbs.VerbsEnvironmentTests.test_cleanup_and_protected_state_are_required) (name='mount-changed')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/afs-verbs-predicate-v70/source/development/acceptance/test_environment_verbs.py", line 154, in test_cleanup_and_protected_state_are_required
+    self.assertEqual("FAIL", self.outcome(root, bundle)["status"])
+AssertionError: 'FAIL' != 'BLOCKED'
+- FAIL
++ BLOCKED
+
+
+======================================================================
+FAIL: test_cleanup_and_protected_state_are_required (test_environment_verbs.VerbsEnvironmentTests.test_cleanup_and_protected_state_are_required) (name='cm-leftover')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/afs-verbs-predicate-v70/source/development/acceptance/test_environment_verbs.py", line 154, in test_cleanup_and_protected_state_are_required
+    self.assertEqual("FAIL", self.outcome(root, bundle)["status"])
+AssertionError: 'FAIL' != 'BLOCKED'
+- FAIL
++ BLOCKED
+
+
+======================================================================
+FAIL: test_command_identity_is_bound (test_environment_verbs.VerbsEnvironmentTests.test_command_identity_is_bound) (mutation='wrong-guest')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/afs-verbs-predicate-v70/source/development/acceptance/test_environment_verbs.py", line 142, in test_command_identity_is_bound
+    self.assertEqual("FAIL", self.outcome(root, bundle)["status"])
+AssertionError: 'FAIL' != 'BLOCKED'
+- FAIL
++ BLOCKED
+
+
+======================================================================
+FAIL: test_command_identity_is_bound (test_environment_verbs.VerbsEnvironmentTests.test_command_identity_is_bound) (mutation='failed-call')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/afs-verbs-predicate-v70/source/development/acceptance/test_environment_verbs.py", line 142, in test_command_identity_is_bound
+    self.assertEqual("FAIL", self.outcome(root, bundle)["status"])
+AssertionError: 'FAIL' != 'BLOCKED'
+- FAIL
++ BLOCKED
+
+
+======================================================================
+FAIL: test_command_identity_is_bound (test_environment_verbs.VerbsEnvironmentTests.test_command_identity_is_bound) (mutation='wrong-bind')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/afs-verbs-predicate-v70/source/development/acceptance/test_environment_verbs.py", line 142, in test_command_identity_is_bound
+    self.assertEqual("FAIL", self.outcome(root, bundle)["status"])
+AssertionError: 'FAIL' != 'BLOCKED'
+- FAIL
++ BLOCKED
+
+
+======================================================================
+FAIL: test_command_identity_is_bound (test_environment_verbs.VerbsEnvironmentTests.test_command_identity_is_bound) (mutation='missing-listen')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/afs-verbs-predicate-v70/source/development/acceptance/test_environment_verbs.py", line 142, in test_command_identity_is_bound
+    self.assertEqual("FAIL", self.outcome(root, bundle)["status"])
+AssertionError: 'FAIL' != 'BLOCKED'
+- FAIL
++ BLOCKED
+
+
+======================================================================
+FAIL: test_command_identity_is_bound (test_environment_verbs.VerbsEnvironmentTests.test_command_identity_is_bound) (mutation='echo-listen')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/afs-verbs-predicate-v70/source/development/acceptance/test_environment_verbs.py", line 142, in test_command_identity_is_bound
+    self.assertEqual("FAIL", self.outcome(root, bundle)["status"])
+AssertionError: 'FAIL' != 'BLOCKED'
+- FAIL
++ BLOCKED
+
+
+======================================================================
+FAIL: test_command_identity_is_bound (test_environment_verbs.VerbsEnvironmentTests.test_command_identity_is_bound) (mutation='argv-none')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/afs-verbs-predicate-v70/source/development/acceptance/test_environment_verbs.py", line 142, in test_command_identity_is_bound
+    self.assertEqual("FAIL", self.outcome(root, bundle)["status"])
+AssertionError: 'FAIL' != 'BLOCKED'
+- FAIL
++ BLOCKED
+
+
+======================================================================
+FAIL: test_duplicate_or_missing_direction_fails (test_environment_verbs.VerbsEnvironmentTests.test_duplicate_or_missing_direction_fails) (mutation='duplicate')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/afs-verbs-predicate-v70/source/development/acceptance/test_environment_verbs.py", line 120, in test_duplicate_or_missing_direction_fails
+    self.assertEqual("FAIL", self.outcome(root, bundle)["status"])
+AssertionError: 'FAIL' != 'BLOCKED'
+- FAIL
++ BLOCKED
+
+
+======================================================================
+FAIL: test_duplicate_or_missing_direction_fails (test_environment_verbs.VerbsEnvironmentTests.test_duplicate_or_missing_direction_fails) (mutation='missing')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/afs-verbs-predicate-v70/source/development/acceptance/test_environment_verbs.py", line 120, in test_duplicate_or_missing_direction_fails
+    self.assertEqual("FAIL", self.outcome(root, bundle)["status"])
+AssertionError: 'FAIL' != 'BLOCKED'
+- FAIL
++ BLOCKED
+
+
+======================================================================
+FAIL: test_malformed_shapes_return_named_failure_without_exception (test_environment_verbs.VerbsEnvironmentTests.test_malformed_shapes_return_named_failure_without_exception) (mutation='jsonl-none-argv')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/afs-verbs-predicate-v70/source/development/acceptance/test_environment_verbs.py", line 196, in test_malformed_shapes_return_named_failure_without_exception
+    self.assertEqual("FAIL", self.outcome(root, bundle)["status"])
+AssertionError: 'FAIL' != 'BLOCKED'
+- FAIL
++ BLOCKED
+
+
+======================================================================
+FAIL: test_malformed_shapes_return_named_failure_without_exception (test_environment_verbs.VerbsEnvironmentTests.test_malformed_shapes_return_named_failure_without_exception) (mutation='jsonl-bad-time')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/afs-verbs-predicate-v70/source/development/acceptance/test_environment_verbs.py", line 196, in test_malformed_shapes_return_named_failure_without_exception
+    self.assertEqual("FAIL", self.outcome(root, bundle)["status"])
+AssertionError: 'FAIL' != 'BLOCKED'
+- FAIL
++ BLOCKED
+
+
+======================================================================
+FAIL: test_malformed_shapes_return_named_failure_without_exception (test_environment_verbs.VerbsEnvironmentTests.test_malformed_shapes_return_named_failure_without_exception) (mutation='json-array')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/afs-verbs-predicate-v70/source/development/acceptance/test_environment_verbs.py", line 196, in test_malformed_shapes_return_named_failure_without_exception
+    self.assertEqual("FAIL", self.outcome(root, bundle)["status"])
+AssertionError: 'FAIL' != 'BLOCKED'
+- FAIL
++ BLOCKED
+
+
+======================================================================
+FAIL: test_manifest_and_matrix_are_semantic_inputs (test_environment_verbs.VerbsEnvironmentTests.test_manifest_and_matrix_are_semantic_inputs) (rel='verbs/matrix.json')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/afs-verbs-predicate-v70/source/development/acceptance/test_environment_verbs.py", line 207, in test_manifest_and_matrix_are_semantic_inputs
+    self.assertEqual("FAIL", self.outcome(root, bundle)["status"])
+AssertionError: 'FAIL' != 'BLOCKED'
+- FAIL
++ BLOCKED
+
+
+======================================================================
+FAIL: test_manifest_and_matrix_are_semantic_inputs (test_environment_verbs.VerbsEnvironmentTests.test_manifest_and_matrix_are_semantic_inputs) (rel='verbs/audit.json')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/afs-verbs-predicate-v70/source/development/acceptance/test_environment_verbs.py", line 207, in test_manifest_and_matrix_are_semantic_inputs
+    self.assertEqual("FAIL", self.outcome(root, bundle)["status"])
+AssertionError: 'FAIL' != 'BLOCKED'
+- FAIL
++ BLOCKED
+
+
+======================================================================
+FAIL: test_manifest_and_matrix_are_semantic_inputs (test_environment_verbs.VerbsEnvironmentTests.test_manifest_and_matrix_are_semantic_inputs) (rel='verbs/protected-files.json')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/afs-verbs-predicate-v70/source/development/acceptance/test_environment_verbs.py", line 207, in test_manifest_and_matrix_are_semantic_inputs
+    self.assertEqual("FAIL", self.outcome(root, bundle)["status"])
+AssertionError: 'FAIL' != 'BLOCKED'
+- FAIL
++ BLOCKED
+
+
+======================================================================
+FAIL: test_negative_no_listener_cannot_be_faked (test_environment_verbs.VerbsEnvironmentTests.test_negative_no_listener_cannot_be_faked) (name='rc0')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/afs-verbs-predicate-v70/source/development/acceptance/test_environment_verbs.py", line 167, in test_negative_no_listener_cannot_be_faked
+    self.assertEqual("FAIL", self.outcome(root, bundle)["status"])
+AssertionError: 'FAIL' != 'BLOCKED'
+- FAIL
++ BLOCKED
+
+
+======================================================================
+FAIL: test_negative_no_listener_cannot_be_faked (test_environment_verbs.VerbsEnvironmentTests.test_negative_no_listener_cannot_be_faked) (name='success-log')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/afs-verbs-predicate-v70/source/development/acceptance/test_environment_verbs.py", line 167, in test_negative_no_listener_cannot_be_faked
+    self.assertEqual("FAIL", self.outcome(root, bundle)["status"])
+AssertionError: 'FAIL' != 'BLOCKED'
+- FAIL
++ BLOCKED
+
+
+======================================================================
+FAIL: test_negative_no_listener_cannot_be_faked (test_environment_verbs.VerbsEnvironmentTests.test_negative_no_listener_cannot_be_faked) (name='wrong-pair')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/afs-verbs-predicate-v70/source/development/acceptance/test_environment_verbs.py", line 167, in test_negative_no_listener_cannot_be_faked
+    self.assertEqual("FAIL", self.outcome(root, bundle)["status"])
+AssertionError: 'FAIL' != 'BLOCKED'
+- FAIL
++ BLOCKED
+
+
+======================================================================
+FAIL: test_rehashed_bad_endpoint_semantics_fail (test_environment_verbs.VerbsEnvironmentTests.test_rehashed_bad_endpoint_semantics_fail) (name='wrong-role')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/afs-verbs-predicate-v70/source/development/acceptance/test_environment_verbs.py", line 108, in test_rehashed_bad_endpoint_semantics_fail
+    self.assertEqual("FAIL", self.outcome(root, bundle)["status"])
+AssertionError: 'FAIL' != 'BLOCKED'
+- FAIL
++ BLOCKED
+
+
+======================================================================
+FAIL: test_rehashed_bad_endpoint_semantics_fail (test_environment_verbs.VerbsEnvironmentTests.test_rehashed_bad_endpoint_semantics_fail) (name='wrong-bind')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/afs-verbs-predicate-v70/source/development/acceptance/test_environment_verbs.py", line 108, in test_rehashed_bad_endpoint_semantics_fail
+    self.assertEqual("FAIL", self.outcome(root, bundle)["status"])
+AssertionError: 'FAIL' != 'BLOCKED'
+- FAIL
++ BLOCKED
+
+
+======================================================================
+FAIL: test_rehashed_bad_endpoint_semantics_fail (test_environment_verbs.VerbsEnvironmentTests.test_rehashed_bad_endpoint_semantics_fail) (name='bool-pid')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/afs-verbs-predicate-v70/source/development/acceptance/test_environment_verbs.py", line 108, in test_rehashed_bad_endpoint_semantics_fail
+    self.assertEqual("FAIL", self.outcome(root, bundle)["status"])
+AssertionError: 'FAIL' != 'BLOCKED'
+- FAIL
++ BLOCKED
+
+
+======================================================================
+FAIL: test_rehashed_bad_endpoint_semantics_fail (test_environment_verbs.VerbsEnvironmentTests.test_rehashed_bad_endpoint_semantics_fail) (name='missing-mr')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/afs-verbs-predicate-v70/source/development/acceptance/test_environment_verbs.py", line 108, in test_rehashed_bad_endpoint_semantics_fail
+    self.assertEqual("FAIL", self.outcome(root, bundle)["status"])
+AssertionError: 'FAIL' != 'BLOCKED'
+- FAIL
++ BLOCKED
+
+
+======================================================================
+FAIL: test_rehashed_bad_endpoint_semantics_fail (test_environment_verbs.VerbsEnvironmentTests.test_rehashed_bad_endpoint_semantics_fail) (name='wrong-size')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/afs-verbs-predicate-v70/source/development/acceptance/test_environment_verbs.py", line 108, in test_rehashed_bad_endpoint_semantics_fail
+    self.assertEqual("FAIL", self.outcome(root, bundle)["status"])
+AssertionError: 'FAIL' != 'BLOCKED'
+- FAIL
++ BLOCKED
+
+
+======================================================================
+FAIL: test_retained_valid_verbs_observations_pass_only_verbs_predicate (test_environment_verbs.VerbsEnvironmentTests.test_retained_valid_verbs_observations_pass_only_verbs_predicate)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/afs-verbs-predicate-v70/source/development/acceptance/test_environment_verbs.py", line 66, in test_retained_valid_verbs_observations_pass_only_verbs_predicate
+    self.assertEqual("PASS", self.outcome(root, bundle)["status"])
+AssertionError: 'PASS' != 'BLOCKED'
+- PASS
++ BLOCKED
+
+
+======================================================================
+FAIL: test_tampered_hash_bound_artifact_fails (test_environment_verbs.VerbsEnvironmentTests.test_tampered_hash_bound_artifact_fails)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/afs-verbs-predicate-v70/source/development/acceptance/test_environment_verbs.py", line 93, in test_tampered_hash_bound_artifact_fails
+    self.assertEqual("FAIL", self.outcome(root, bundle)["status"])
+AssertionError: 'FAIL' != 'BLOCKED'
+- FAIL
++ BLOCKED
+
+
+----------------------------------------------------------------------
+Ran 12 tests in 0.384s
+
+FAILED (failures=32)

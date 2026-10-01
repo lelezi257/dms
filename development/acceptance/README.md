@@ -71,9 +71,9 @@ actual acceptance file; the lock's `contract.sha256` binds the accepted content.
 Host initial reserve is UNKNOWN if no observation from before provisioning is
 available; current free capacity cannot substitute for it.
 
-The partial evaluator checks selected metadata and hash-bound network exchanges,
+The partial evaluator checks selected metadata and hash-bound network and verbs exchanges,
 and retains separate outstanding semantic prerequisites. It cannot produce
-complete ENV-01 qualification: backend restart, cross-VM verbs, reference
+complete ENV-01 qualification: backend restart, reference
 accounting, actual comparator mount I/O, frozen inputs and run contracts still
 need dedicated validators and live checks. This limitation is not a change to
 the acceptance standard. A comparator mount check and its later fair durable
@@ -96,8 +96,17 @@ full required topology belong in the collected run evidence.
 
 The [cross-VM preparation evidence](../evidence/20261001-verbs-preparation/README.md)
 contains exact invocation, twelve directions, a boundary payload and an
-absent-listener failure. This standalone tool is not yet an environment
-bundle predicate or a formal case driver. ENV remains PREPARING; product RDMA
+absent-listener failure. The optional environment bundle block
+`verbs={prefix:"verbs"}` supplies these immutable files to the dedicated
+`cross-vm-verbs` predicate. It verifies sources, reports, raw contents,
+commands, guest/process identities, descriptors and cleanup rather than
+trusting a PASS receipt. Missing evidence remains BLOCKED.
+Exact client/server and absent-listener commands must cover their endpoint
+capture intervals. Record matching allows an explicit 50 ms host/guest clock
+skew; this does not qualify the separate ENV clock-accuracy requirement.
+The [consumer evidence](../evidence/20261001-verbs-predicate/README.md)
+records its regression and full-dispatch guard checks. This is preparation,
+not a formal case driver. ENV remains PREPARING; product RDMA
 file I/O, fallback, lifetime and security have separate acceptance gates.
 
 ## Standalone network preparation probe

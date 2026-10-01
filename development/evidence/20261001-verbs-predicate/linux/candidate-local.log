@@ -1,0 +1,100 @@
+test_checker_collector_and_observer_identity_are_fixed (test_environment_verbs.VerbsEnvironmentTests.test_checker_collector_and_observer_identity_are_fixed) ... ok
+test_cleanup_and_protected_state_are_required (test_environment_verbs.VerbsEnvironmentTests.test_cleanup_and_protected_state_are_required) ... ok
+test_command_identity_is_bound (test_environment_verbs.VerbsEnvironmentTests.test_command_identity_is_bound) ... ok
+test_duplicate_or_missing_direction_fails (test_environment_verbs.VerbsEnvironmentTests.test_duplicate_or_missing_direction_fails) ... ok
+test_generic_pass_receipt_is_not_verbs_evidence (test_environment_verbs.VerbsEnvironmentTests.test_generic_pass_receipt_is_not_verbs_evidence) ... ok
+test_malformed_shapes_return_named_failure_without_exception (test_environment_verbs.VerbsEnvironmentTests.test_malformed_shapes_return_named_failure_without_exception) ... ok
+test_manifest_and_matrix_are_semantic_inputs (test_environment_verbs.VerbsEnvironmentTests.test_manifest_and_matrix_are_semantic_inputs) ... ok
+test_missing_artifacts_are_blocked (test_environment_verbs.VerbsEnvironmentTests.test_missing_artifacts_are_blocked) ... 
+  test_missing_artifacts_are_blocked (test_environment_verbs.VerbsEnvironmentTests.test_missing_artifacts_are_blocked) (rel='verbs/runs.jsonl') ... FAIL
+  test_missing_artifacts_are_blocked (test_environment_verbs.VerbsEnvironmentTests.test_missing_artifacts_are_blocked) (rel='verbs/matrix.json') ... FAIL
+  test_missing_artifacts_are_blocked (test_environment_verbs.VerbsEnvironmentTests.test_missing_artifacts_are_blocked) (rel='verbs/commands.jsonl') ... FAIL
+  test_missing_artifacts_are_blocked (test_environment_verbs.VerbsEnvironmentTests.test_missing_artifacts_are_blocked) (rel='verbs/inputs/env_verbs-checker.py') ... FAIL
+  test_missing_artifacts_are_blocked (test_environment_verbs.VerbsEnvironmentTests.test_missing_artifacts_are_blocked) (rel='verbs/runtime/a/pairs/a-b-256/142edaab-04ea-4d80-82c1-0ef5e184225d-client.json') ... FAIL
+  test_missing_artifacts_are_blocked (test_environment_verbs.VerbsEnvironmentTests.test_missing_artifacts_are_blocked) (rel='verbs/runtime/a/pairs/a-b-256/142edaab-04ea-4d80-82c1-0ef5e184225d-client.raw.log') ... FAIL
+test_negative_no_listener_cannot_be_faked (test_environment_verbs.VerbsEnvironmentTests.test_negative_no_listener_cannot_be_faked) ... ok
+test_rehashed_bad_endpoint_semantics_fail (test_environment_verbs.VerbsEnvironmentTests.test_rehashed_bad_endpoint_semantics_fail) ... ok
+test_retained_valid_verbs_observations_pass_only_verbs_predicate (test_environment_verbs.VerbsEnvironmentTests.test_retained_valid_verbs_observations_pass_only_verbs_predicate) ... FAIL
+test_tampered_hash_bound_artifact_fails (test_environment_verbs.VerbsEnvironmentTests.test_tampered_hash_bound_artifact_fails) ... ok
+
+======================================================================
+FAIL: test_missing_artifacts_are_blocked (test_environment_verbs.VerbsEnvironmentTests.test_missing_artifacts_are_blocked) (rel='verbs/runs.jsonl')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/afs-verbs-predicate-v70/source/development/acceptance/test_environment_verbs.py", line 87, in test_missing_artifacts_are_blocked
+    self.assertEqual("BLOCKED", self.outcome(root, bundle)["status"])
+AssertionError: 'BLOCKED' != 'FAIL'
+- BLOCKED
++ FAIL
+
+
+======================================================================
+FAIL: test_missing_artifacts_are_blocked (test_environment_verbs.VerbsEnvironmentTests.test_missing_artifacts_are_blocked) (rel='verbs/matrix.json')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/afs-verbs-predicate-v70/source/development/acceptance/test_environment_verbs.py", line 87, in test_missing_artifacts_are_blocked
+    self.assertEqual("BLOCKED", self.outcome(root, bundle)["status"])
+AssertionError: 'BLOCKED' != 'FAIL'
+- BLOCKED
++ FAIL
+
+
+======================================================================
+FAIL: test_missing_artifacts_are_blocked (test_environment_verbs.VerbsEnvironmentTests.test_missing_artifacts_are_blocked) (rel='verbs/commands.jsonl')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/afs-verbs-predicate-v70/source/development/acceptance/test_environment_verbs.py", line 87, in test_missing_artifacts_are_blocked
+    self.assertEqual("BLOCKED", self.outcome(root, bundle)["status"])
+AssertionError: 'BLOCKED' != 'FAIL'
+- BLOCKED
++ FAIL
+
+
+======================================================================
+FAIL: test_missing_artifacts_are_blocked (test_environment_verbs.VerbsEnvironmentTests.test_missing_artifacts_are_blocked) (rel='verbs/inputs/env_verbs-checker.py')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/afs-verbs-predicate-v70/source/development/acceptance/test_environment_verbs.py", line 87, in test_missing_artifacts_are_blocked
+    self.assertEqual("BLOCKED", self.outcome(root, bundle)["status"])
+AssertionError: 'BLOCKED' != 'FAIL'
+- BLOCKED
++ FAIL
+
+
+======================================================================
+FAIL: test_missing_artifacts_are_blocked (test_environment_verbs.VerbsEnvironmentTests.test_missing_artifacts_are_blocked) (rel='verbs/runtime/a/pairs/a-b-256/142edaab-04ea-4d80-82c1-0ef5e184225d-client.json')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/afs-verbs-predicate-v70/source/development/acceptance/test_environment_verbs.py", line 87, in test_missing_artifacts_are_blocked
+    self.assertEqual("BLOCKED", self.outcome(root, bundle)["status"])
+AssertionError: 'BLOCKED' != 'FAIL'
+- BLOCKED
++ FAIL
+
+
+======================================================================
+FAIL: test_missing_artifacts_are_blocked (test_environment_verbs.VerbsEnvironmentTests.test_missing_artifacts_are_blocked) (rel='verbs/runtime/a/pairs/a-b-256/142edaab-04ea-4d80-82c1-0ef5e184225d-client.raw.log')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/afs-verbs-predicate-v70/source/development/acceptance/test_environment_verbs.py", line 87, in test_missing_artifacts_are_blocked
+    self.assertEqual("BLOCKED", self.outcome(root, bundle)["status"])
+AssertionError: 'BLOCKED' != 'FAIL'
+- BLOCKED
++ FAIL
+
+
+======================================================================
+FAIL: test_retained_valid_verbs_observations_pass_only_verbs_predicate (test_environment_verbs.VerbsEnvironmentTests.test_retained_valid_verbs_observations_pass_only_verbs_predicate)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/afs-verbs-predicate-v70/source/development/acceptance/test_environment_verbs.py", line 66, in test_retained_valid_verbs_observations_pass_only_verbs_predicate
+    self.assertEqual("PASS", self.outcome(root, bundle)["status"])
+AssertionError: 'PASS' != 'FAIL'
+- PASS
++ FAIL
+
+
+----------------------------------------------------------------------
+Ran 12 tests in 1.740s
+
+FAILED (failures=7)

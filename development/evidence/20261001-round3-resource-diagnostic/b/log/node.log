@@ -1,0 +1,1104 @@
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+{"msg":"Mounting /mnt/lima-afsbdata/afs-delivery/round3-small-v83/mount/ownerfs","level":"INFO","ts":"2026-10-01T12:52:42.135481836Z","instance":"round1-b","service_name":"afs-node"}
+{"msg":"Mounting /mnt/lima-afsbdata/afs-delivery/round3-small-v83/mount/dfs","level":"INFO","ts":"2026-10-01T12:52:42.143969206Z","instance":"round1-b","service_name":"afs-node"}
+{"msg":"node.ready","level":"INFO","ts":"2026-10-01T12:52:42.143987497Z","instance":"round1-b","service_name":"afs-node","dfs":true,"ownerfs":true,"uds":"/mnt/lima-afsbdata/afs-delivery/round3-small-v83/run/node.sock","rest":"192.168.109.13:20785","grpc":"0.0.0.0:20784"}
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-01T12:52:50.734936781Z","instance":"round1-b","service_name":"afs-node","message":"No such file or directory (os error 2)","kind":"NotFound","code":67305473}
+{"msg":"fuse.create","level":"INFO","ts":"2026-10-01T12:52:50.734958364Z","instance":"round1-b","service_name":"afs-node","name":"remote.bin","parent":2}
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_COMPLETE op=READ bytes=4194304
+AFS_RDMA_COMPLETE op=READ bytes=4194304
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
+AFS_RDMA_PROBE send_complete
+{"msg":"services.stopped","level":"INFO","ts":"2026-10-01T12:55:51.035839065Z","instance":"round1-b","service_name":"afs-node"}

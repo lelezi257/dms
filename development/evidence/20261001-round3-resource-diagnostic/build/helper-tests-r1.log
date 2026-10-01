@@ -1,0 +1,26 @@
+..EF........
+======================================================================
+ERROR: test_command_error (__main__.ResourceTests.test_command_error)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/dms/experiments/afs-acceptance/probes/test_round3_resource.py", line 27, in test_command_error
+    r=probe.run_command(['x']);self.assertEqual(r['status'],'ERROR');self.assertEqual(r['exit'],1)
+                                                                                      ~^^^^^^^^
+KeyError: 'exit'
+
+======================================================================
+FAIL: test_command_missing (__main__.ResourceTests.test_command_missing)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/dms/experiments/afs-acceptance/probes/test_round3_resource.py", line 30, in test_command_missing
+    r=probe.run_command(['x']);self.assertEqual(r['status'],'UNAVAILABLE')
+                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'ERROR' != 'UNAVAILABLE'
+- ERROR
++ UNAVAILABLE
+
+
+----------------------------------------------------------------------
+Ran 12 tests in 0.008s
+
+FAILED (failures=1, errors=1)

@@ -1,0 +1,4 @@
+  File "/workspace/dms/source/development/evidence/20261001-round3-resource-diagnostic/probes/audit.py", line 72
+    result={'status':'PASS','scope':'bounded development diagnostic only','checks':len(checks),'ranges':total_ranges,'local_links':links,'compiler_inputs_reused':143,'artifacts':
+           ^
+SyntaxError: '{' was never closed

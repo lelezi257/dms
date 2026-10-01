@@ -1,0 +1,11 @@
+{
+  "stopped_pid": 1421832,
+  "mounts_gone": true,
+  "data_available_bytes": 4403785728,
+  "status": "PASS",
+  "utc": "2026-10-01T12:55:56Z",
+  "which": "ctl",
+  "action": "cleanup",
+  "formal_acceptance": "NOT_RUN",
+  "environment": "PREPARING"
+}

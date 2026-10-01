@@ -1,0 +1,26 @@
+{
+  "controller": {
+    "argv": [
+      "/mnt/lima-afsctlstate/afs-delivery/round3-small-v83/prefix/bin/afs-processctl",
+      "--prefix",
+      "/mnt/lima-afsctlstate/afs-delivery/round3-small-v83/prefix",
+      "--config-dir",
+      "/mnt/lima-afsctlstate/afs-delivery/round3-small-v83/etc",
+      "--run-dir",
+      "/mnt/lima-afsctlstate/afs-delivery/round3-small-v83/run",
+      "--log-dir",
+      "/mnt/lima-afsctlstate/afs-delivery/round3-small-v83/log",
+      "stop",
+      "meta"
+    ],
+    "exit": 0,
+    "stdout": "meta stopped exit_code=0\n",
+    "stderr": ""
+  },
+  "status": "PASS",
+  "utc": "2026-10-01T12:55:51Z",
+  "which": "ctl",
+  "action": "stop",
+  "formal_acceptance": "NOT_RUN",
+  "environment": "PREPARING"
+}

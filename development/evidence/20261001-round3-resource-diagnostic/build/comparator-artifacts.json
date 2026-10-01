@@ -1,0 +1,33 @@
+{
+  "utc": 1790859453.2220068,
+  "scope": "build artifacts only; mount/durability/paired performance NOT QUALIFIED",
+  "artifacts": {
+    "moosefs-install/bin/mfsmount": {
+      "exists": true,
+      "bytes": 3070208,
+      "sha256": "5752f91e2d174cc8a0a53df7b3713b3bed31fde5fe72a6f38cd86237ae3ebc37"
+    },
+    "moosefs-install/sbin/mfsmaster": {
+      "exists": true,
+      "bytes": 4119248,
+      "sha256": "9febf4e7a9ae5285c4e792024f98d8a5531ae325f19268e103693981be509b70"
+    },
+    "moosefs-install/sbin/mfschunkserver": {
+      "exists": true,
+      "bytes": 2409944,
+      "sha256": "422a36b7e31a6aa0bfbef08efe083d9d55003aca0a9a7bd0121b730c33f97303"
+    },
+    "3fs-arm64-scratch/build/bin/hf3fs_fuse_main": {
+      "exists": false
+    },
+    "3fs-arm64-scratch/build/bin/storage_main": {
+      "exists": false
+    },
+    "3fs-arm64-scratch/build/bin/meta_main": {
+      "exists": false
+    },
+    "3fs-arm64-scratch/build/bin/mgmtd_main": {
+      "exists": false
+    }
+  }
+}

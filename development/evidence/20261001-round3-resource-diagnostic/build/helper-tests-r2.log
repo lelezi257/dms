@@ -1,0 +1,4 @@
+  File "/workspace/dms/experiments/afs-acceptance/probes/test_round3_resource.py", line 44
+    def test_nonroot_rejec
+                          ^
+SyntaxError: expected '('

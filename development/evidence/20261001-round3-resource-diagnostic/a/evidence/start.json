@@ -1,0 +1,41 @@
+{
+  "controller": {
+    "argv": [
+      "/mnt/lima-afsadata/afs-delivery/round3-small-v83/prefix/bin/afs-processctl",
+      "--prefix",
+      "/mnt/lima-afsadata/afs-delivery/round3-small-v83/prefix",
+      "--config-dir",
+      "/mnt/lima-afsadata/afs-delivery/round3-small-v83/etc",
+      "--run-dir",
+      "/mnt/lima-afsadata/afs-delivery/round3-small-v83/run",
+      "--log-dir",
+      "/mnt/lima-afsadata/afs-delivery/round3-small-v83/log",
+      "start",
+      "node"
+    ],
+    "exit": 0,
+    "stdout": "started node pid=751230 ready=true\n",
+    "stderr": ""
+  },
+  "identity": {
+    "pid": 751230,
+    "start_ticks": "10926600",
+    "boot_id": "36a572e0-859b-4a94-adc7-789210a83fc8",
+    "sha256": "a3fe6573fc5f5a41c30b823855cfe2fdd1428950f878f1e29756e7bfc0d7e9d9",
+    "exe": "/var/lib/afs-acceptance/candidates/eio-v80-r2/prefix/bin/afs-node"
+  },
+  "health": {
+    "dfs": true,
+    "id": "round1-a",
+    "ownerfs": true,
+    "role": "node",
+    "scope": "foundation",
+    "status": "ready"
+  },
+  "status": "PASS",
+  "utc": "2026-10-01T12:52:40Z",
+  "which": "a",
+  "action": "start",
+  "formal_acceptance": "NOT_RUN",
+  "environment": "PREPARING"
+}

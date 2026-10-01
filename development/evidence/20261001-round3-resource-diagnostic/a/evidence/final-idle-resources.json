@@ -1,0 +1,444 @@
+{
+  "collector": {
+    "argv": [
+      "/home/lzc.guest/round3-resource-probe.py",
+      "--pid-file",
+      "node=/mnt/lima-afsadata/afs-delivery/round3-small-v83/run/node.pid",
+      "--volume",
+      "/mnt/lima-afsadata",
+      "--output",
+      "/mnt/lima-afsadata/afs-delivery/round3-small-v83/evidence/final-idle-resources.json"
+    ],
+    "pid": 751567,
+    "timeout_seconds_per_subprocess": 5,
+    "uid": 0
+  },
+  "environment": "PREPARING",
+  "formal_acceptance": "NOT_RUN",
+  "machine": {
+    "boot": {
+      "boot_id": {
+        "path": "/proc/sys/kernel/random/boot_id",
+        "status": "OBSERVED",
+        "value": "36a572e0-859b-4a94-adc7-789210a83fc8"
+      },
+      "uptime": {
+        "path": "/proc/uptime",
+        "status": "OBSERVED",
+        "value": "109317.85 199506.14"
+      }
+    },
+    "kernel": {
+      "release": "6.8.0-142-generic",
+      "version": "#142-Ubuntu SMP PREEMPT_DYNAMIC Wed Sep  2 14:30:29 UTC 2026"
+    },
+    "machine": {
+      "architecture": "aarch64",
+      "cpu_count": 2,
+      "hostname": "lima-afs-accept-a",
+      "loadavg": [
+        0.02734375,
+        0.05078125,
+        0.07763671875
+      ],
+      "meminfo": {
+        "path": "/proc/meminfo",
+        "status": "OBSERVED",
+        "value": "MemTotal:        6053704 kB\nMemFree:          207396 kB\nMemAvailable:    4711592 kB\nBuffers:           67624 kB\nCached:          4337228 kB\nSwapCached:            0 kB\nActive:          2446544 kB\nInactive:        2925680 kB\nActive(anon):     935700 kB\nInactive(anon):    40260 kB\nActive(file):    1510844 kB\nInactive(file):  2885420 kB\nUnevictable:       26360 kB\nMlocked:           26360 kB\nSwapTotal:             0 kB\nSwapFree:              0 kB\nZswap:                 0 kB\nZswapped:              0 kB\nDirty:               684 kB\nWriteback:             0 kB\nAnonPages:        993788 kB\nMapped:           300520 kB\nShmem:              1092 kB\nKReclaimable:     303020 kB\nSlab:             382288 kB\nSReclaimable:     303020 kB\nSUnreclaim:        79268 kB\nKernelStack:        4384 kB\nShadowCallStack:    1104 kB\nPageTables:         6776 kB\nSecPageTables:         0 kB\nNFS_Unstable:          0 kB\nBounce:                0 kB\nWritebackTmp:          0 kB\nCommitLimit:     3026852 kB\nCommitted_AS:    1747460 kB\nVmallocTotal:   133141626880 kB\nVmallocUsed:       17924 kB\nVmallocChunk:          0 kB\nPercpu:              944 kB\nHardwareCorrupted:     0 kB\nAnonHugePages:         0 kB\nShmemHugePages:        0 kB\nShmemPmdMapped:        0 kB\nFileHugePages:         0 kB\nFilePmdMapped:         0 kB\nCmaTotal:          32768 kB\nCmaFree:               0 kB\nHugePages_Total:       0\nHugePages_Free:        0\nHugePages_Rsvd:        0\nHugePages_Surp:        0\nHugepagesize:       2048 kB\nHugetlb:               0 kB"
+      }
+    },
+    "utc": "2026-10-01T12:53:32Z"
+  },
+  "processes": {
+    "node": {
+      "cgroup": {
+        "ancestors": [
+          {
+            "fields": {
+              "cpu.max": {
+                "path": "/sys/fs/cgroup/user.slice/user-501.slice/session-4.scope/cpu.max",
+                "status": "OBSERVED",
+                "value": "max 100000"
+              },
+              "memory.current": {
+                "path": "/sys/fs/cgroup/user.slice/user-501.slice/session-4.scope/memory.current",
+                "status": "OBSERVED",
+                "value": "5359632384"
+              },
+              "memory.max": {
+                "path": "/sys/fs/cgroup/user.slice/user-501.slice/session-4.scope/memory.max",
+                "status": "OBSERVED",
+                "value": "max"
+              },
+              "pids.current": {
+                "path": "/sys/fs/cgroup/user.slice/user-501.slice/session-4.scope/pids.current",
+                "status": "OBSERVED",
+                "value": "118"
+              },
+              "pids.max": {
+                "path": "/sys/fs/cgroup/user.slice/user-501.slice/session-4.scope/pids.max",
+                "status": "OBSERVED",
+                "value": "max"
+              }
+            },
+            "path": "/sys/fs/cgroup/user.slice/user-501.slice/session-4.scope"
+          },
+          {
+            "fields": {
+              "cpu.max": {
+                "path": "/sys/fs/cgroup/user.slice/user-501.slice/cpu.max",
+                "status": "OBSERVED",
+                "value": "max 100000"
+              },
+              "memory.current": {
+                "path": "/sys/fs/cgroup/user.slice/user-501.slice/memory.current",
+                "status": "OBSERVED",
+                "value": "5365174272"
+              },
+              "memory.max": {
+                "path": "/sys/fs/cgroup/user.slice/user-501.slice/memory.max",
+                "status": "OBSERVED",
+                "value": "max"
+              },
+              "pids.current": {
+                "path": "/sys/fs/cgroup/user.slice/user-501.slice/pids.current",
+                "status": "OBSERVED",
+                "value": "121"
+              },
+              "pids.max": {
+                "path": "/sys/fs/cgroup/user.slice/user-501.slice/pids.max",
+                "status": "OBSERVED",
+                "value": "15339"
+              }
+            },
+            "path": "/sys/fs/cgroup/user.slice/user-501.slice"
+          },
+          {
+            "fields": {
+              "cpu.max": {
+                "path": "/sys/fs/cgroup/user.slice/cpu.max",
+                "status": "OBSERVED",
+                "value": "max 100000"
+              },
+              "memory.current": {
+                "path": "/sys/fs/cgroup/user.slice/memory.current",
+                "status": "OBSERVED",
+                "value": "5365182464"
+              },
+              "memory.max": {
+                "path": "/sys/fs/cgroup/user.slice/memory.max",
+                "status": "OBSERVED",
+                "value": "max"
+              },
+              "pids.current": {
+                "path": "/sys/fs/cgroup/user.slice/pids.current",
+                "status": "OBSERVED",
+                "value": "121"
+              },
+              "pids.max": {
+                "path": "/sys/fs/cgroup/user.slice/pids.max",
+                "status": "OBSERVED",
+                "value": "max"
+              }
+            },
+            "path": "/sys/fs/cgroup/user.slice"
+          },
+          {
+            "fields": {
+              "cpu.max": {
+                "path": "/sys/fs/cgroup/cpu.max",
+                "reason": "[Errno 2] No such file or directory: '/sys/fs/cgroup/cpu.max'",
+                "status": "UNAVAILABLE"
+              },
+              "memory.current": {
+                "path": "/sys/fs/cgroup/memory.current",
+                "reason": "[Errno 2] No such file or directory: '/sys/fs/cgroup/memory.current'",
+                "status": "UNAVAILABLE"
+              },
+              "memory.max": {
+                "path": "/sys/fs/cgroup/memory.max",
+                "reason": "[Errno 2] No such file or directory: '/sys/fs/cgroup/memory.max'",
+                "status": "UNAVAILABLE"
+              },
+              "pids.current": {
+                "path": "/sys/fs/cgroup/pids.current",
+                "reason": "[Errno 2] No such file or directory: '/sys/fs/cgroup/pids.current'",
+                "status": "UNAVAILABLE"
+              },
+              "pids.max": {
+                "path": "/sys/fs/cgroup/pids.max",
+                "reason": "[Errno 2] No such file or directory: '/sys/fs/cgroup/pids.max'",
+                "status": "UNAVAILABLE"
+              }
+            },
+            "path": "/sys/fs/cgroup"
+          }
+        ],
+        "status": "OBSERVED",
+        "version": 2
+      },
+      "fd_count": {
+        "count": 33,
+        "path": "/proc/751230/fd",
+        "status": "OBSERVED"
+      },
+      "identity": {
+        "exe_dev": 64769,
+        "exe_inode": 1572936,
+        "exe_path": "/var/lib/afs-acceptance/candidates/eio-v80-r2/prefix/bin/afs-node",
+        "exe_sha256": "a3fe6573fc5f5a41c30b823855cfe2fdd1428950f878f1e29756e7bfc0d7e9d9",
+        "pid": 751230,
+        "stable_pre_post": true,
+        "start_ticks": 10926600
+      },
+      "io": {
+        "fields": {
+          "cancelled_write_bytes": 0,
+          "rchar": 1449173344,
+          "read_bytes": 0,
+          "syscr": 23351,
+          "syscw": 6773,
+          "wchar": 68429298,
+          "write_bytes": 25260032
+        },
+        "path": "/proc/751230/io",
+        "status": "OBSERVED"
+      },
+      "pid_file": "/mnt/lima-afsadata/afs-delivery/round3-small-v83/run/node.pid",
+      "role": "node",
+      "stat_ticks": {
+        "stime": 29,
+        "utime": 831
+      },
+      "status_fields": {
+        "Name": "afs-node",
+        "State": "S (sleeping)",
+        "Threads": "43",
+        "VmHWM": "98580 kB",
+        "VmRSS": "98580 kB",
+        "VmSize": "1158352 kB"
+      },
+      "task_count": {
+        "count": 43,
+        "path": "/proc/751230/task",
+        "status": "OBSERVED"
+      }
+    }
+  },
+  "qualification_limits": [
+    "top-level PASS only means requested process identities stayed stable while sampled",
+    "partial RDMA resource command failures remain explicit and do not fail stable process capture",
+    "volume observations are filesystem metadata snapshots, not durability or performance qualification"
+  ],
+  "rdma": {
+    "error_types": [],
+    "resources": {
+      "cq": {
+        "command": {
+          "argv": [
+            "rdma",
+            "res",
+            "show",
+            "cq",
+            "-j"
+          ],
+          "duration_seconds": 0.0002706669911276549,
+          "exit_code": 0,
+          "status": "OBSERVED",
+          "stderr": "",
+          "stdout": "[{\"ifindex\":0,\"ifname\":\"rxe0\",\"cqn\":0,\"cqe\":1023,\"users\":2,\"poll-ctx\":\"WORKQUEUE\",\"adaptive-moderation\":false,\"comm\":\"ib_core\"},{\"ifindex\":0,\"ifname\":\"rxe0\",\"cqn\":1087,\"cqe\":31,\"users\":2,\"adaptive-moderation\":false,\"ctxn\":883,\"pid\":751238,\"comm\":\"tokio-rt-worker\"}]\n"
+        },
+        "parsed": [
+          {
+            "adaptive-moderation": false,
+            "comm": "ib_core",
+            "cqe": 1023,
+            "cqn": 0,
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "poll-ctx": "WORKQUEUE",
+            "users": 2
+          },
+          {
+            "adaptive-moderation": false,
+            "comm": "tokio-rt-worker",
+            "cqe": 31,
+            "cqn": 1087,
+            "ctxn": 883,
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "pid": 751238,
+            "users": 2
+          }
+        ]
+      },
+      "ctx": {
+        "command": {
+          "argv": [
+            "rdma",
+            "res",
+            "show",
+            "ctx",
+            "-j"
+          ],
+          "duration_seconds": 0.0002271389967063442,
+          "exit_code": 0,
+          "status": "OBSERVED",
+          "stderr": "",
+          "stdout": "[{\"ifindex\":0,\"ifname\":\"rxe0\",\"ctxn\":883,\"pid\":751238,\"comm\":\"tokio-rt-worker\"}]\n"
+        },
+        "parsed": [
+          {
+            "comm": "tokio-rt-worker",
+            "ctxn": 883,
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "pid": 751238
+          }
+        ]
+      },
+      "mr": {
+        "command": {
+          "argv": [
+            "rdma",
+            "res",
+            "show",
+            "mr",
+            "-j"
+          ],
+          "duration_seconds": 0.00037609299761243165,
+          "exit_code": 0,
+          "status": "OBSERVED",
+          "stderr": "",
+          "stdout": "[{\"ifindex\":0,\"ifname\":\"rxe0\",\"mrn\":1407,\"rkey\":\"581e8\",\"lkey\":\"581e8\",\"mrlen\":4194304,\"pdn\":863,\"pid\":751238,\"comm\":\"tokio-rt-worker\"}]\n"
+        },
+        "parsed": [
+          {
+            "comm": "tokio-rt-worker",
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "lkey": "581e8",
+            "mrlen": 4194304,
+            "mrn": 1407,
+            "pdn": 863,
+            "pid": 751238,
+            "rkey": "581e8"
+          }
+        ]
+      },
+      "pd": {
+        "command": {
+          "argv": [
+            "rdma",
+            "res",
+            "show",
+            "pd",
+            "-j"
+          ],
+          "duration_seconds": 0.00023613599478267133,
+          "exit_code": 0,
+          "status": "OBSERVED",
+          "stderr": "",
+          "stdout": "[{\"ifindex\":0,\"ifname\":\"rxe0\",\"pdn\":0,\"local_dma_lkey\":\"1cc\",\"users\":1,\"comm\":\"ib_core\"},{\"ifindex\":0,\"ifname\":\"rxe0\",\"pdn\":863,\"local_dma_lkey\":\"0\",\"users\":2,\"ctxn\":883,\"pid\":751238,\"comm\":\"tokio-rt-worker\"}]\n"
+        },
+        "parsed": [
+          {
+            "comm": "ib_core",
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "local_dma_lkey": "1cc",
+            "pdn": 0,
+            "users": 1
+          },
+          {
+            "comm": "tokio-rt-worker",
+            "ctxn": 883,
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "local_dma_lkey": "0",
+            "pdn": 863,
+            "pid": 751238,
+            "users": 2
+          }
+        ]
+      },
+      "qp": {
+        "command": {
+          "argv": [
+            "rdma",
+            "res",
+            "show",
+            "qp",
+            "-j"
+          ],
+          "duration_seconds": 0.0018591830012155697,
+          "exit_code": 0,
+          "status": "OBSERVED",
+          "stderr": "",
+          "stdout": "[{\"ifindex\":0,\"ifname\":\"rxe0\",\"port\":1,\"lqpn\":1103,\"rqpn\":544,\"type\":\"RC\",\"state\":\"RTS\",\"rq-psn\":8192,\"sq-psn\":1,\"path-mig-state\":\"MIGRATED\",\"pdn\":863,\"pid\":751238,\"comm\":\"tokio-rt-worker\"},{\"ifindex\":0,\"ifname\":\"rxe0\",\"port\":1,\"lqpn\":1,\"type\":\"GSI\",\"state\":\"RTS\",\"sq-psn\":24,\"comm\":\"ib_core\"}]\n"
+        },
+        "parsed": [
+          {
+            "comm": "tokio-rt-worker",
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "lqpn": 1103,
+            "path-mig-state": "MIGRATED",
+            "pdn": 863,
+            "pid": 751238,
+            "port": 1,
+            "rq-psn": 8192,
+            "rqpn": 544,
+            "sq-psn": 1,
+            "state": "RTS",
+            "type": "RC"
+          },
+          {
+            "comm": "ib_core",
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "lqpn": 1,
+            "port": 1,
+            "sq-psn": 24,
+            "state": "RTS",
+            "type": "GSI"
+          }
+        ]
+      }
+    },
+    "status": "OBSERVED"
+  },
+  "schema": "afs-round3-resource-probe/v1",
+  "scope": "unqualified development resource snapshot",
+  "status": "PASS",
+  "volumes": {
+    "/mnt/lima-afsadata": {
+      "mount": {
+        "fs_type": "ext4",
+        "major_minor": "253:17",
+        "mount_id": "243",
+        "mount_options": "rw,relatime",
+        "mount_point": "/mnt/lima-afsadata",
+        "parent_id": "32",
+        "root": "/",
+        "source": "/dev/vdb1",
+        "status": "OBSERVED",
+        "super_options": "rw"
+      },
+      "path": "/mnt/lima-afsadata",
+      "status": "OBSERVED",
+      "statvfs": {
+        "f_bavail": 1064616,
+        "f_bfree": 1488116,
+        "f_blocks": 8211396,
+        "f_bsize": 4096,
+        "f_favail": 2017988,
+        "f_ffree": 2017988,
+        "f_files": 2097152,
+        "f_flag": 4096,
+        "f_frsize": 4096,
+        "f_namemax": 255
+      }
+    }
+  }
+}

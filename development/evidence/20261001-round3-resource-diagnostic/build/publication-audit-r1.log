@@ -1,0 +1,8 @@
+Traceback (most recent call last):
+  File "/workspace/dms/source/development/evidence/20261001-round3-resource-diagnostic/probes/audit.py", line 64, in <module>
+    check('link '+target,dest.exists());links+=1
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/dms/source/development/evidence/20261001-round3-resource-diagnostic/probes/audit.py", line 10, in check
+    assert value, name
+           ^^^^^
+AssertionError: link audit.json

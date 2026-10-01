@@ -16,6 +16,7 @@
 - [Local Storage and COW](architecture/local-storage.md)
 - [Read, Cache and Spill](architecture/read-cache-spill.md)
 - [OwnerFs](architecture/ownerfs.md)
+- [OwnerFs Native Access: Workflow and Consistency Cases](architecture/ownerfs-native-access.md)
 - [Meta and Transactions](architecture/meta.md)
 - [Module Map](architecture/module-map.md)
 

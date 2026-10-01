@@ -1,6 +1,6 @@
 # RFC 0001：OwnerFs workspace 同路径原生 bind mount
 
-- 状态：待决策的方案；未实现产品功能，未改变已接受的架构或发布验收要求。
+- 状态：已接受同路径 native 方向、受管 Agent 启动顺序和下述 native profile 一致性边界；完整产品功能与验收尚未完成。
 - 日期：2026-09-30。
 - 穿刺基线：`6ee3f177a43ee85cc6b79666502330095d445fdb`。
 - 关联：[OwnerFs 架构](../architecture/ownerfs.md)、[实现状态](../status.md)、[发布验收](../acceptance.md)。
@@ -39,6 +39,16 @@ Home 普通文件目录：/data/ownerfs/<root-id>-e<epoch>
 
 不是把 FUSE 的 `/ownerfs/agent1` bind 到其他目录；那仍然访问 FUSE。路径保持不变，但 `st_dev/st_ino` 等身份、挂载边界和已有 watch/句柄并不完全透明。
 
+### 1.1 已接受的 Agent 启动顺序与一致性边界
+
+典型流程为 **管理面创建 workspace → 在 Agent 最终 namespace 中确认 bind 身份和 native ready → 再启动 Agent 并向它暴露挂载**。Agent 在 ready 后才解析路径、取得 cwd/dirfd/file fd；不能继承 bind 前的 FUSE 目录引用。mkdir 返回成功不代表 ready，完整时序与实际 case 见[用户合同](../architecture/ownerfs-native-access.md)。
+
+native 与 FUSE/P2P 之间采用 close-to-open：writer 成功写入并 close 后，从当前有效路径新 open 的 reader 应看到修改；已打开的跨路径 reader 不保证实时刷新，也不提供快照隔离。旧文件 fd 保留对象身份。native 普通 close 不替代 fsync/fdatasync 持久化屏障。普通 FUSE-only/DFS 原合同保留。
+
+长期持有的旧 FUSE cwd/dirfd 不承诺即时追踪另一访问路径的目录移动/删除，getcwd、`..` 和 fd 路径可以与 native 旧引用不同。需要当前目录树时，从稳定 workspace 根重新解析；在旧 dirfd 上重新 open 相对路径不一定刷新父关系。此约束同时涉及 bind 前本地引用与长期远端 FUSE 引用。管理面先挂载再启动可避免本地 Agent 的常见提前引用场景，但不会把远端 FUSE 变为 native。
+
+这次合同调整不豁免锁、权限、普通 rename/unlink/append/EXCL、支持的 mmap、显式同步、受管卸载与 fencing。历史旧目录强等价反例保留；不再以旧 FUSE cwd 的即时透明追踪作为本 profile 的产品准入条件。
+
 ### 2. `mkdir` 与挂载的时序
 
 **不在未返回的 `mkdir` 回调里等待同路径 bind 成功。** 在本次 Linux 6.8 穿刺中，同线程执行 `mount --bind`、异步 helper 但等待 helper、直接 `mount(2)` syscall，都出现了等待 `mkdir` 完成的阻塞。取消或结束未完成的 FUSE 操作后才解除。直接 syscall 排除了仅由 `mount` 命令前置 `stat` 引发的问题，但不把这一结果泛化为所有内核和挂载 API 的不可行性证明。
@@ -56,7 +66,7 @@ Home 普通文件目录：/data/ownerfs/<root-id>-e<epoch>
 - 在从未远端共享的 workspace 上，旧 FUSE fd 先读到 `BEFORE`；bind 后原生写入 `AFTERN`；旧 fd 仍读到 `BEFORE`。
 - workspace 已发生远端访问后，简单的三路径覆盖读写可以相互看到；但保留更早打开的本地缓存 fd，在 rename/unlink 后原生继续写入，旧本地 FUSE fd 仍读旧值，远端 fd 能读到新值。
 
-当前实现的 `PrivateFuseCache` 在首次 peer admission 时切换共享策略并失效缓存；这不能被视为旧缓存句柄持续与任意原生写入保持一致的证明。不能仅在 bind 前调用一次失效，然后保留旧缓存 fd。
+当前实现的 `PrivateFuseCache` 在首次 peer admission 时切换共享策略并失效缓存；这不能保证跨 native/FUSE 的 close-to-open，尤其不能允许关闭后重新打开仍读到旧缓存。已打开的跨路径 reader 即时刷新不属于已接受的 native profile 保证。不能仅在 bind 前调用一次失效，然后保留旧缓存 fd。
 
 建议为 **native-eligible workspace** 从创建开始启用共享访问策略：
 
@@ -65,7 +75,7 @@ Home 普通文件目录：/data/ownerfs/<root-id>-e<epoch>
 - root 对应的 FUSE inode、目标 dentry 和 epoch 在 bind 生命周期内保持稳定；不因普通属性刷新重建 workspace 身份。
 - 当前已有缓存句柄的 workspace 不直接热切换：先停止/排空使用者，处理映射与脏页，再在可控的挂载生命周期中转换。不能仅统计 fd 就宣称已排空所有 `mmap` 引用。
 
-无缓存 passthrough 玩具穿刺通过了旧 FUSE fd 与新原生 fd 的双向读写、rename/unlink 后保留 fd 等用例。它验证了设计方向，没有替代真实 OwnerFs 的实现验收。真实 OwnerFs 的上述缓存失败必须在后续实现中修复并重新验证。
+无缓存 passthrough 玩具穿刺通过了旧 FUSE fd 与新原生 fd 的双向读写、rename/unlink 后保留 fd 等用例。它验证了设计方向，没有替代真实 OwnerFs 的实现验收。上述旧 reader 观察保留为历史证据；在已接受的 native profile 下，必须另外验证 writer 成功 close 后，关闭旧 reader 并从当前路径重新 open 能得到最新数据和长度。旧 reader 未实时刷新本身不再判为本 profile 失败；重开仍读旧值或旧 fd 被改绑仍是必须修复的 bug。
 
 ### 4. 文件语义与兼容性范围
 
@@ -253,8 +263,8 @@ P 归档 SHA-256：`02dfeec6bb302f5d223087feb0e1e3698a55865dee89fd81ca7fc4781634
 
 这些是产品实现后的验收要求，不是本次穿刺已经实现的功能：
 
-1. **先接受适用合同。** 固定 Home、受管 Agent 生命周期；同路径新访问原生，旧引用可保持旧路径；workspace 根由管理入口删除/回收/切换；确定目标应用对锁、mmap、元数据、watch 的需求。
-2. **先建立一致的 fallback。** native-eligible root 从创建开始使用共享策略；为已复现的两个真实缓存失败编写回归用例；覆盖即时访问与 mount 失败，禁止两个存储副本。
+1. **先接受适用合同。** 固定 Home、受管 Agent 生命周期；采用第1.1节与用户合同中的先挂载后启动、跨路径 close-to-open、旧文件对象身份及旧 FUSE 目录引用边界；同路径新访问原生，旧引用可保持旧路径；workspace 根由管理入口删除/回收/切换；确定目标应用对锁、mmap、元数据、watch 的需求。
+2. **先建立一致的 fallback。** native-eligible root 从创建开始使用共享策略；保留已复现缓存观察，并按 native profile 验证 writer close 后新 open 不返回旧缓存；旧跨路径 reader 的即时刷新作为边界观察。覆盖即时访问与 mount 失败，禁止两个存储副本。
 3. **再实现 MountManager。** 按 root/epoch 和 namespace 串行、幂等地管理出口；确认 mount ID 和源身份；验证目标 dentry 生命周期、路径替换竞态、迟到 helper、重复请求和崩溃中间状态。
 4. **实现受管回收与 fencing。** 普通 busy 和 lazy draining 明确可见；停止/排空使用者后才能删除、复用名字或切换 Home/epoch；用保留 fd/dirfd/cwd/mmap 的测试证明旧引用不能污染新实例。
 5. **满足应用兼容性。** 文件锁必须真的与原生内核锁互斥；若应用依赖 symlink、chmod、xattr 或 watch，过渡 FUSE 和远端路径都必须补齐，否则同一操作会因挂载时序而改变结果。需要跨路径 mmap 时另行设计，不能仅取消 direct I/O。

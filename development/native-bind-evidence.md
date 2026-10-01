@@ -4,6 +4,12 @@ Issue: https://github.com/lelezi257/dms/issues/42. Plan: `native-bind-plan.md`.
 
 This is an intermediate slice, not feature completion, product acceptance or performance qualification. It does not enable native exports in Node. Default configuration does not enable native admission. The optional hint hook remains inert without a sink; ordinary directory identity refresh now reconciles cached descendants after an external move. Node/FUSE/P2P integration, cross-path locks/cache/mmap, full Node/Agent lifecycle recovery and ext4 performance comparison remain outstanding.
 
+## Accepted native contract (2026-10-01)
+
+The user accepted the [native profile and concrete cases](../docs/architecture/ownerfs-native-access.md): management verifies the export in the final Agent namespace before starting the Agent; cross-path file visibility is close-to-open; retained FUSE directory references need not immediately track native rename/delete. Native plain close is a visibility endpoint, while explicit applicable sync establishes durability. Ordinary FUSE-only/DFS defaults remain unchanged. Earlier strong directory/cache diagnostics retain their actual assertions and results; they are boundary evidence, not product acceptance passes. Production admission, applicable cache/locks/lifecycle and performance work remain incomplete.
+
+The candidate and outcomes below describe recorded historical checkpoints, not qualification against the revised profile.
+
 ## Tested candidate
 
 - Current base: `78245771167643d5883491052e7cebcaba8c3be2` (original base `6bcabe8f30040bc6cc3b518bd271e7e2461e1e1d`); branch `feat/ownerfs-native-bind`. Feature worktree is isolated from the canonical checkout and the other machine's main branch.
@@ -39,7 +45,7 @@ WSL cannot supply STATX_MNT_ID_UNIQUE on kernel6.6; the backend returns ENOTSUP.
 
 Raw logs/exit codes/commands and source-input hashes are local under `/home/lzc/workspace/dms/evidence/ownerfs-native-bind/20261001`. VM copies also reside under the Windows `local/native-bind-vm` run directories. Raw failed attempts are retained, not relabeled as passes. Private keys and GitHub credentials are not repository artifacts.
 
-Durability decision remains pending: current acceptance requires successful OwnerFs close to synchronize, while the older RFC uses native ext4 plain-close semantics. No native Node activation is permitted until the selected contract is explicit. The journal now brackets attach/unmount transactions and helper restart reconciliation. A persisted claim still requires independently supplied current Root authority and fresh physical kernel reobservation. Native admission also rechecks effective mount policy. These tests preserve the same live mount namespace and parent; Node/FUSE daemon death, namespace/boot loss, Agent drainage and backing reclamation remain unproved.
+At this historical checkpoint the durability decision was pending. The accepted native contract above now separates native close visibility from explicit-sync durability; ordinary FUSE-only/DFS policies remain unchanged. This contract decision does not establish production native admission or recovery qualification. The journal now brackets attach/unmount transactions and helper restart reconciliation. A persisted claim still requires independently supplied current Root authority and fresh physical kernel reobservation. Native admission also rechecks effective mount policy. These tests preserve the same live mount namespace and parent; Node/FUSE daemon death, namespace/boot loss, Agent drainage and backing reclamation remain unproved.
 
 ## Transaction checkpoint
 

@@ -60,6 +60,10 @@ The store interface supports alternate persistence backends. An etcd cluster's o
 
 Management tools query OwnerFs Home placement through `GET /v1/roots/{root_id}` on Meta. Node identity, root epoch and catalog revision describe placement; Home availability must be reported separately. Scheduling a workload on Home enables local access, while another node forwards operations to Home. This management path does not proxy file bytes or automatically migrate the workspace.
 
+### Native workspace admission
+
+The accepted native workflow creates the workspace, verifies the actual export and its identity in the Agent's final mount namespace, then starts the Agent and exposes the mount. Do not treat mkdir success or a fixed delay as native readiness, and do not hand an Agent a pre-bind FUSE cwd/dirfd. Failed native preparation may use explicitly selected FUSE-only operation; it cannot report native readiness. Native mode availability is recorded in [implementation status](../status.md). See the [workflow, close-to-open contract and old-reference cases](../architecture/ownerfs-native-access.md) before using this profile.
+
 ## Node Local Storage
 
 Local chunk directories contain staged and finalized objects. Staged objects are not readable. Startup reconciliation must verify local records before serving them.

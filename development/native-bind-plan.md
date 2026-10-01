@@ -15,19 +15,19 @@
 - Retain completed probe evidence. Rerun only affected assumptions and product regressions; do not count historical failures as fixes.
 - Preserve `/ownerfs/<workspace>`, one backing directory, fixed Home and managed Agent lifecycle. No copy/symlink substitution.
 - Never wait for same-path bind before the FUSE mkdir reply. Old fd/dirfd/cwd do not become native merely because a mount completed.
-- No silent cache, lock, permissions, mmap or durability regression; complete applicable acceptance cases remain requirements.
+- Implement the user-accepted native profile in `docs/architecture/ownerfs-native-access.md`: cross-path close-to-open, retained file-object identity and explicit old-FUSE-directory boundaries. Preserve ordinary FUSE-only/DFS defaults and all applicable lock/permission/mmap/lifecycle gates.
 - Match root/epoch/Home session/namespace and physical directory/mount identities. Unrelated mounts/processes/data are never cleanup targets.
 - Default configuration preserves existing behavior; enable native explicitly. No hot conversion of existing cached/mapped references.
 - Failure/busy/unknown states stay visible. Lazy detach is not access revocation or permission to delete/reuse data.
 - VM ext4 holds tested data. WSL is build/source regression only. x86 feature evidence does not qualify original ARM64 formal release or MooseFS/3FS baselines.
 - Pair native and ext4 workloads on the same VM/volume with identical data, flags, sync policy and host-load accounting; report every repetition and uncertainty, not a selected fastest result or artificial tolerance.
-- Current acceptance close-sync contract conflicts with the older RFC's native plain-close statement. An explicit user decision is pending; do not activate a native path that silently violates the final selected contract.
+- Native profile plain close confirms visibility, not durability; explicit applicable file/parent-directory sync establishes recovery watermarks. User accepted this visibility/durability separation. Ordinary FUSE-only/DFS close policies remain unchanged; measurements compare identical visible/durable endpoints.
 
 ## Review focus
 
 1. An old asynchronous operation arrives after cancellation or same-name/epoch change: reject it without touching the newer root.
 2. Target has stacked/foreign mount, symlink replacement or wrong namespace: refuse mount/unmount; never claim native readiness from path text alone.
-3. Native write after old FUSE fd open, rename/unlink/replacement, or held mmap: content and object identity must not become stale or rebound by path.
+3. Native write followed by successful close and a fresh current-path FUSE open must not return stale data/length. Retained file fd identity must not be rebound by rename/unlink/replacement; already-open cross-path reader freshness and retained directory references follow the accepted native profile. Verify supported mmap separately.
 4. Native fcntl/flock competes with local/remote FUSE; close, cancellation and dead peers: use the Home kernel inode and retain precise owner/waiter lifetime, including same-process native/old-FUSE lock conversion and unlock.
 5. Mount/fencing/persistence failure, retained cwd/dirfd/mmap, Node death and restart: retain recoverable identity/state and forbid premature deletion/reuse.
 
@@ -60,8 +60,8 @@ Interfaces: `LinuxMountBackend` consumes configured source/target directory desc
 Files: modify narrow hooks in `src/config.rs`, `src/node.rs`, `src/node/fuse.rs`, `ownerfs.rs` and root/catalog only where needed; add OwnerFs-specific policy/cache regression tests.
 
 - [ ] Add RED tests for default-off behavior, invalid configuration, new eligible root policy from creation, immediate mkdir→create/read, bind failure and native→FUSE fallback.
-- [ ] Configure the independent manager/worker and publish a trusted ready-workspace event after mkdir reply. Do not hold authority or FUSE locks while executing mount.
-- [ ] Repair both RFC stale-cache counterexamples. Validate held file/dir handles and mappings; no partial enablement while an unresolved cache/semantic case remains.
+- [ ] Configure the independent manager/worker after the mkdir reply; publish native readiness only after trusted authority, mount identity and policy checks in the final Agent namespace. Start/expose the Agent only after readiness; failure must not emit a ready ACK. Do not hold authority or FUSE locks while executing mount.
+- [ ] Validate close-to-open after writer close and cached-reader close/reopen, file-object identity across replacement/unlink, stable-root fresh directory lookup and the actual ready-before-Agent workflow. Preserve historical already-open-reader and old-FUSE-directory diagnostics as boundary evidence. Validate supported mappings; unresolved applicable semantics still gate native admission.
 - [ ] Verify real local-native/old-local-FUSE/remote-FUSE/P2P against the same Home objects, plus simultaneous DFS mount isolation.
 
 ## Task 4: kernel-visible locks and complete supported file semantics
@@ -90,6 +90,8 @@ Files: new OwnerFs-native lock mechanism where possible; narrow integration in O
 - [ ] Update RFC/status/implementation/evidence index. Perform final fresh review, address material findings, push isolated branch and create PR linking #42. Attach PR to this chat. Do not merge, enable auto-merge or alter the other machine's main branch.
 
 ## Execution ledger
+
+Entries below preserve the contract and next steps used at each historical checkpoint. The accepted native profile revision at the end supersedes earlier pending durability decisions and requirements for instantaneous old-FUSE-directory repair; those historical next-step statements are not current implementation instructions.
 
 - Pre-flight: controller identities feed kernel/journal; accepted durability/cache/lock contracts gate integration; all functional evidence gates performance; only tested final candidate gates PR claims.
 - Ruling: native App work uses the already-approved managed lifecycle/fixed Home RFC, while complete applicable semantics remain the goal; mount-only results cannot mark the goal complete.
@@ -169,3 +171,14 @@ checks and execute real kernel FUSE cases in the independent private VM lane.
 - Next: identify and prove an atomic current-parent/deleted-alias mechanism, retaining both directory identity and absent-name semantics for kernel-only observers. Existing6.8 UAPI has no atomic reparent notification. Consider kernel/bridge alternatives as new feasibility work, not an assumed permission to change platform/architecture or weaken old-reference requirements. Other independent goal work may continue while design decisions remain pending.
 
 - Final control correction verifies the actual deleted name LEFT for in-place deletion, RIGHT after native move. Matching19-case VM pair retains13/6 and14/5 without unlinked repair,13/6 and17/2 with it. The getcwd atomicity counterexample still fails; serial and coalesced controls pass. Preserve final source/SHA separately from preceding repeated evidence.
+
+## Accepted native profile revision (2026-10-01)
+
+The user explicitly accepted the previously presented close-to-open and retained-FUSE-directory constraints and supplied the main workflow: management creates/prepares workspace, then starts Agent and exposes the ready mount. Product contract and concrete cases now live in `docs/architecture/ownerfs-native-access.md`, linked from RFC, architecture, operations, acceptance and status. This changes the applicable native contract, not the overall delivery goal or other backends' defaults.
+
+- Required: readiness must verify Root/epoch/Home/export identity and policy in the final Agent namespace before Agent cwd/dirfd acquisition; no inherited pre-bind FUSE directory reference. Creation ACK is not readiness. Explicit FUSE-only fallback must not claim native ready.
+- Required: cross-path successful writer close followed by a fresh current-path open returns completed data/length; stale caches after reopen remain bugs. File fd identity survives rename/unlink/replacement. Ordinary native POSIX, cross-path locking, permission, supported mmap/sync and managed lifecycle remain gates.
+- Accepted boundary: old cross-path readers need not update immediately; old FUSE cwd/dirfd getcwd/parent traversal/path display need not instantly follow native directory changes. Fresh file open relative to stale `..` is not current-tree revalidation; reacquire directory from stable workspace root. Native references retain native semantics.
+- Historical first-parent, first-getcwd and deleted-alias/getcwd-window strong-equivalence diagnostics retain original assertions/logs. They explain the boundary and must not be silently counted as product acceptance passes; the current prototype still is not production integration. Stop seeking kernel extensions solely to enforce these now-excluded old-directory guarantees. Remaining lock/mmap mechanisms need their own evidence.
+- Replace strong cross-path-live-cache gate with CTO plus object-lifetime tests. Add actual management ready-before-Agent case, immediate post-ready native file operations, final-namespace identity/failure-before-start, cached-reader close/reopen CTO, stable-root fresh directory lookup, replacement/unlink old file handles, sync recovery and managed busy/fencing cases. These are not yet implemented/qualified.
+- Preserve all prior evidence with the contract/version it tested. Native full-feature and performance/PR delivery remain incomplete. Do not modify handoff without explicit request.

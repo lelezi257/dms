@@ -55,11 +55,21 @@ etcd 可使用三成员持久后端；etcd 自身的成员选主不等于 AFS Me
 
 同一 inode 的 write/resize/sync/close-flush 由 owner 串行协调。Meta 结果未知时保留 OperationId、版本、布局、receipts 和精确请求，阻塞该 inode 后续修改；应用超时不清除内部 pending。其他 inode 和合法固定版本读取不应被全局阻塞。
 
+### 2.1.1 OwnerFs native profile
+
+仅对显式启用的 OwnerFs native workspace，采用[已接受的 native 使用合同与案例](architecture/ownerfs-native-access.md)。普通 FUSE-only、同一 FUSE mount 内的既有可见性要求和 DFS 保留第2.1节合同。
+
+native 与 FUSE/P2P 之间以 close-to-open 为文件可见性边界；已打开的跨路径 reader 不要求实时刷新或快照隔离，旧文件 fd 必须保留原对象。native 普通 close 不替代文件/父目录显式同步；native profile 的重启/故障恢复水位以成功的适用 fsync/fdatasync 为准，不能把普通 close 当 durable ACK。性能对照必须匹配这个 profile 的 visible/durable 终点。
+
+长期持有的旧 FUSE cwd/dirfd 不要求即时追踪 native rename/delete 后的 getcwd、`..` 或 fd 路径。从稳定 workspace 根重新解析当前路径仍需正确；同一 native 路径内部的普通 POSIX 行为继续以 ext4 为参考。旧引用边界不豁免锁、权限、append/EXCL、支持的 mmap/同步、对象身份、生命周期和 fencing。
+
+native 主 lane 必须先证明管理面创建、最终 Agent namespace 中核验 native ready、然后启动 Agent；不能传递旧 FUSE 目录引用。挂载失败不得错误发布 ready。边界 lane 单独记录提前持有 FUSE 引用和长期远端目录引用的实际差异，不能将历史强合同反例改称产品通过。此 profile 的正向功能和性能验收仍须完成。
+
 ### 2.2 POSIX 覆盖集合
 
 先用 Linux guest ext4 跑相同 harness，作为返回值、errno、属性和数据的参考。覆盖：目录与路径解析、create/open flags、read/write/pread/pwrite、append、truncate、seek/EOF/hole、rename、unlink-open、hardlink/symlink、权限/uid/gid/umask、stat/时间、xattr、目录枚举、flock/fcntl 锁、mmap 与同步屏障。
 
-FUSE 支持的普通文件 POSIX 行为是必测。Linux 专有扩展（例如特定 fallocate 模式、OFD locks、特殊文件或特定 ioctl）逐项登记为支持或明确不支持；不支持必须返回正确 errno。不得据此排除普通 rename、锁、mmap、权限或 close-to-open。不能将一个测试集通过描述为对所有 POSIX 条款的形式化证明。
+FUSE 支持的普通文件 POSIX 行为是必测。Linux 专有扩展（例如特定 fallocate 模式、OFD locks、特殊文件或特定 ioctl）逐项登记为支持或明确不支持；不支持必须返回正确 errno。不得据此排除普通 rename、锁、mmap、权限或 close-to-open。OwnerFs native 的跨路径与旧目录引用边界仅按第2.1.1节判定，不能扩大为普通文件操作的豁免。不能将一个测试集通过描述为对所有 POSIX 条款的形式化证明。
 
 ## 3. 固定验收环境
 

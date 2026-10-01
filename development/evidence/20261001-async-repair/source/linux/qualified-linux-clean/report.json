@@ -1,0 +1,200 @@
+{
+  "status": "PASS",
+  "platform": "Linux-6.8.0-106-generic-aarch64-with-glibc2.39",
+  "input_count": 143,
+  "checks": [
+    {
+      "label": "fmt",
+      "argv": [
+        "timeout",
+        "60",
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "returncode": 0,
+      "elapsed_seconds": 0.38899992700316943
+    },
+    {
+      "label": "clippy",
+      "argv": [
+        "timeout",
+        "240",
+        "cargo",
+        "clippy",
+        "--workspace",
+        "--all-targets",
+        "--all-features",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "returncode": 0,
+      "elapsed_seconds": 5.028587955006515
+    },
+    {
+      "label": "library",
+      "argv": [
+        "timeout",
+        "240",
+        "cargo",
+        "test",
+        "--all-features",
+        "--lib",
+        "--",
+        "--nocapture"
+      ],
+      "returncode": 0,
+      "elapsed_seconds": 22.864374192999094
+    },
+    {
+      "label": "contracts",
+      "argv": [
+        "timeout",
+        "240",
+        "cargo",
+        "test",
+        "--all-features",
+        "--test",
+        "config_contract",
+        "--test",
+        "error_contract",
+        "--test",
+        "fuse_contract",
+        "--test",
+        "meta_contract",
+        "--test",
+        "ownerfs_peer_contract",
+        "--test",
+        "rest_contract",
+        "--test",
+        "vfs_contract",
+        "--",
+        "--nocapture"
+      ],
+      "returncode": 0,
+      "elapsed_seconds": 38.48714294299134
+    },
+    {
+      "label": "error",
+      "argv": [
+        "timeout",
+        "180",
+        "cargo",
+        "test",
+        "-p",
+        "afs-error",
+        "--",
+        "--nocapture"
+      ],
+      "returncode": 0,
+      "elapsed_seconds": 0.2738808860012796
+    },
+    {
+      "label": "local-api",
+      "argv": [
+        "timeout",
+        "180",
+        "cargo",
+        "test",
+        "--all-features",
+        "--test",
+        "local_sdk",
+        "--",
+        "--nocapture"
+      ],
+      "returncode": 0,
+      "elapsed_seconds": 4.316892159011331
+    },
+    {
+      "label": "fuse-build",
+      "argv": [
+        "timeout",
+        "120",
+        "cargo",
+        "test",
+        "--all-features",
+        "--test",
+        "fuse_contract",
+        "--no-run",
+        "--message-format=json"
+      ],
+      "returncode": 0,
+      "elapsed_seconds": 0.0978756199911004
+    },
+    {
+      "label": "real-root-fuse",
+      "argv": [
+        "timeout",
+        "120",
+        "sudo",
+        "/home/lzc.guest/afs-build/target/debug/deps/fuse_contract-5880fa7c0a8b9650",
+        "--ignored",
+        "--test-threads=1",
+        "--nocapture"
+      ],
+      "returncode": 0,
+      "elapsed_seconds": 0.13282265499583445
+    },
+    {
+      "label": "feature-none",
+      "argv": [
+        "timeout",
+        "120",
+        "cargo",
+        "check",
+        "--no-default-features"
+      ],
+      "returncode": 0,
+      "elapsed_seconds": 3.5190505080099683
+    },
+    {
+      "label": "feature-ownerfs",
+      "argv": [
+        "timeout",
+        "120",
+        "cargo",
+        "check",
+        "--no-default-features",
+        "--features",
+        "ownerfs"
+      ],
+      "returncode": 0,
+      "elapsed_seconds": 1.964502351009287
+    },
+    {
+      "label": "feature-dfs",
+      "argv": [
+        "timeout",
+        "120",
+        "cargo",
+        "check",
+        "--no-default-features",
+        "--features",
+        "dfs"
+      ],
+      "returncode": 0,
+      "elapsed_seconds": 2.2551751410064753
+    },
+    {
+      "label": "build",
+      "argv": [
+        "timeout",
+        "180",
+        "cargo",
+        "build",
+        "--all-features",
+        "--bins"
+      ],
+      "returncode": 0,
+      "elapsed_seconds": 20.2555343540007
+    }
+  ],
+  "binary_sha256": {
+    "afs-node": "fda4102cc742267f20325097fc33e876449b48ff0caef6605b7a24666dd6e060",
+    "afs-meta": "d57423534870f9258ec7a76bf627c49b3296b418fcab503b27e7291b00029aeb"
+  },
+  "artifacts": "/home/lzc.guest/afs-build/artifacts/v56-qualified"
+}

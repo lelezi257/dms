@@ -41,6 +41,40 @@ Each target still uses local chunk finalization: stage bytes, verify digest, mak
 
 Async repair can improve placement after a local-first success. It cannot retroactively make a weaker success mean a stronger synchronous durability contract.
 
+## Asynchronous Repair
+
+With desired copies N and synchronous minimum M, a file barrier commits after M
+durable copies. Meta records the remaining work as a `ReplicationTask` in the
+same file commit. The file's version and extent layout do not change when repair
+adds copies.
+
+1. A Node holding a live durable source asks Meta for a task. Meta records a
+   fenced `ReplicationClaim` containing the exact source, chunk, worker session,
+   device identities and source-first target chain.
+2. The worker verifies the local immutable chunk and transfers it through the
+   existing replica data path. Receivers validate the exact claim before
+   persisting; gRPC and RDMA carry the same authority and receipt semantics.
+3. The worker reports the complete target receipts. Meta atomically records the
+   copies and completes the task. Unreported physical copies are not treated as
+   published replicas.
+
+Unknown claim or report results retain the original request identity. Retrying
+a report does not retransmit data. An expired lease prevents starting a new
+transfer; an exact report for the still-current claim can complete after its
+deadline. Once a claim is replaced, its reports cannot promote copies. Generic
+CAS conflicts keep the pending report; only an explicit superseded result ends
+that claim.
+
+Unavailable nodes and confirmed corrupt copies are distinct. No live source
+means `BlockedNoSource`, not confirmed permanent loss. Recovered devices can
+serve their retained copies after the current session and catalog evidence are
+validated. A Node polling for repair detects lost availability and reactivates
+repair work; this is independent of an application's next read.
+
+`GET /v1/dfs/chunks/{chunk_id}/replication` reports current available copies,
+placement and tasks from one Meta read view. It checks backend health and never
+infers permanent loss solely from unavailable nodes.
+
 
 ## RPC Budget
 
@@ -50,7 +84,8 @@ The file layer batches work at durability boundaries, including close-time flush
 | --- | --- | --- | --- |
 | local-owner `write` | 0 | 0 | updates inode dirty state; remote-owner access adds one forwarding RPC |
 | R=1 changed-data sync | 1 final commit | 0 | cached placement and valid lease; refresh/renew may add RPCs |
-| R=N changed-data sync | 1 final commit | N-1 chain-link transfers per chunk, with batching | only replication below `ChunkStore` changes |
+| M synchronous copies | 1 final commit, plus M-1 receiver-authority checks per chunk | M-1 chain-link transfers per chunk | placement refresh/lease renewal are additional control calls |
+| repair to N copies | 1 claim + N-1 receiver-authority checks + 1 report per chunk | N-1 chain-link transfers | source-first full chain; empty polls and retries add maintenance calls |
 | read-only `open` | head lookup + version/layout lookup, up to 2 without cache | 0 | resolves the current view; does not create a lifetime snapshot |
 | fixed-version peer read | 0 on valid source cache; source refresh otherwise | 1 range-read batch per selected peer/context | each operation retains its authorization |
 

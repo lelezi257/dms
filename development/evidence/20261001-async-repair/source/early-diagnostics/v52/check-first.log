@@ -1,0 +1,76 @@
+   Compiling fuser v0.16.0 (/home/lzc.guest/afs-build/work/root-merged-v52/third_party/fuser)
+   Compiling afs-protocol v0.1.0 (/home/lzc.guest/afs-build/work/root-merged-v52/common/protocol)
+   Compiling afs-transport v0.1.0 (/home/lzc.guest/afs-build/work/root-merged-v52/common/transport)
+    Checking afs-tracing v0.1.0 (/home/lzc.guest/afs-build/work/root-merged-v52/common/tracing)
+    Checking afs-error v0.1.0 (/home/lzc.guest/afs-build/work/root-merged-v52/common/error)
+    Checking afs-logging v0.1.0 (/home/lzc.guest/afs-build/work/root-merged-v52/common/logging)
+    Checking afs-client v0.1.0 (/home/lzc.guest/afs-build/work/root-merged-v52/client)
+    Checking afs v0.1.0 (/home/lzc.guest/afs-build/work/root-merged-v52)
+error[E0382]: use of partially moved value: `dfs_meta`
+   --> src/node.rs:713:41
+    |
+645 |         Some(meta) => Arc::new(rpc::data::MetaReplicaAuthorizer {
+    |              ---- value partially moved here
+...
+713 |     if let (Some(meta), Some(local)) = (dfs_meta, local_chunk_store) {
+    |                                         ^^^^^^^^ value used here after partial move
+    |
+    = note: partial move occurs because value has type `Arc<GrpcDfsMeta>`, which does not implement the `Copy` trait
+help: borrow this binding in the pattern to avoid moving the value
+    |
+645 |         Some(ref meta) => Arc::new(rpc::data::MetaReplicaAuthorizer {
+    |              +++
+
+error[E0382]: use of moved value: `dfs_replica_plane`
+   --> src/node.rs:720:13
+    |
+287 |     let dfs_replica_plane = rpc::peer::make_replica_data_plane(
+    |         ----------------- move occurs because `dfs_replica_plane` has type `Arc<dyn ReplicaDataPlane>`, which does not implement the `Copy` trait
+...
+658 |         Some(dfs_replica_plane),
+    |              ----------------- value moved here
+...
+720 |             dfs_replica_plane,
+    |             ^^^^^^^^^^^^^^^^^ value used here after move
+    |
+help: clone the value to increment its reference count
+    |
+658 |         Some(dfs_replica_plane.clone()),
+    |                               ++++++++
+
+error[E0382]: use of partially moved value: `dfs_meta`
+   --> src/node.rs:713:41
+    |
+645 |         Some(meta) => Arc::new(rpc::data::MetaReplicaAuthorizer {
+    |              ---- value partially moved here
+...
+713 |     if let (Some(meta), Some(local)) = (dfs_meta, local_chunk_store) {
+    |                                         ^^^^^^^^ value used here after partial move
+    |
+    = note: partial move occurs because value has type `std::sync::Arc<node::rpc::meta::GrpcDfsMeta>`, which does not implement the `Copy` trait
+help: borrow this binding in the pattern to avoid moving the value
+    |
+645 |         Some(ref meta) => Arc::new(rpc::data::MetaReplicaAuthorizer {
+    |              +++
+
+error[E0382]: use of moved value: `dfs_replica_plane`
+   --> src/node.rs:720:13
+    |
+287 |     let dfs_replica_plane = rpc::peer::make_replica_data_plane(
+    |         ----------------- move occurs because `dfs_replica_plane` has type `std::sync::Arc<dyn replication::ReplicaDataPlane>`, which does not implement the `Copy` trait
+...
+658 |         Some(dfs_replica_plane),
+    |              ----------------- value moved here
+...
+720 |             dfs_replica_plane,
+    |             ^^^^^^^^^^^^^^^^^ value used here after move
+    |
+help: clone the value to increment its reference count
+    |
+658 |         Some(dfs_replica_plane.clone()),
+    |                               ++++++++
+
+For more information about this error, try `rustc --explain E0382`.
+error: could not compile `afs` (lib) due to 2 previous errors
+warning: build failed, waiting for other jobs to finish...
+error: could not compile `afs` (lib test) due to 2 previous errors

@@ -1,0 +1,92 @@
+{
+  "after": {
+    "boot_id": "3adebcd0-cb31-4df0-b18a-e970786ab7fb",
+    "config_sha256": {
+      "node": "a184952349bec7d728f6147e227c4bae95c635b4749732516aed43de3034fbe6"
+    },
+    "data_volume": {
+      "fstype": "ext4",
+      "source": "/dev/vdb1",
+      "target": "/mnt/lima-afsbdata"
+    },
+    "mounts": {
+      "mount-dfs": {
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other",
+        "source": "afs-dfs",
+        "target": "/mnt/lima-afsbdata/afs-delivery/repair-v55-b/mount-dfs"
+      },
+      "mount-ownerfs": {
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other",
+        "source": "afs-ownerfs",
+        "target": "/mnt/lima-afsbdata/afs-delivery/repair-v55-b/mount-ownerfs"
+      }
+    },
+    "platform": "Linux-6.8.0-142-generic-aarch64-with-glibc2.39",
+    "processes": {
+      "node": {
+        "exe": "/mnt/lima-afsbdata/afs-delivery/repair-v55-b/prefix/bin/afs-node",
+        "pid": 132831,
+        "sha256": "8cfea1e4a3b3df1498620f4d3b1420d0b9621fe8415bc8b7df2be838af388023",
+        "start_ticks": "6261673",
+        "state": "S"
+      }
+    },
+    "runtime": "/mnt/lima-afsbdata/afs-delivery/repair-v55-b"
+  },
+  "before": {
+    "boot_id": "3adebcd0-cb31-4df0-b18a-e970786ab7fb",
+    "config_sha256": {
+      "node": "a184952349bec7d728f6147e227c4bae95c635b4749732516aed43de3034fbe6"
+    },
+    "data_volume": {
+      "fstype": "ext4",
+      "source": "/dev/vdb1",
+      "target": "/mnt/lima-afsbdata"
+    },
+    "mounts": {
+      "mount-dfs": {
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other",
+        "source": "afs-dfs",
+        "target": "/mnt/lima-afsbdata/afs-delivery/repair-v55-b/mount-dfs"
+      },
+      "mount-ownerfs": {
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other",
+        "source": "afs-ownerfs",
+        "target": "/mnt/lima-afsbdata/afs-delivery/repair-v55-b/mount-ownerfs"
+      }
+    },
+    "platform": "Linux-6.8.0-142-generic-aarch64-with-glibc2.39",
+    "processes": {
+      "node": {
+        "exe": "/mnt/lima-afsbdata/afs-delivery/repair-v55-b/prefix/bin/afs-node",
+        "pid": 132336,
+        "sha256": "8cfea1e4a3b3df1498620f4d3b1420d0b9621fe8415bc8b7df2be838af388023",
+        "start_ticks": "6259926",
+        "state": "S"
+      }
+    },
+    "runtime": "/mnt/lima-afsbdata/afs-delivery/repair-v55-b"
+  },
+  "content": {
+    "inventory": [
+      {
+        "path": "state/node/dfs/chunks/blake3-1aee92b63c686e65a8ae67852d8710eff4e46e63f0161e22282b9cd2ae2cc285-1048576",
+        "sha256": "3f8a853cfd1416af3ab78fd914f7574dd86045f3f132294cf9ba47717130d3a8",
+        "size": 1048576
+      }
+    ],
+    "matched_chunk_files": [
+      {
+        "path": "state/node/dfs/chunks/blake3-1aee92b63c686e65a8ae67852d8710eff4e46e63f0161e22282b9cd2ae2cc285-1048576",
+        "sha256": "3f8a853cfd1416af3ab78fd914f7574dd86045f3f132294cf9ba47717130d3a8",
+        "size": 1048576
+      }
+    ],
+    "remote_fuse_path": "/mnt/lima-afsbdata/afs-delivery/repair-v55-b/mount-dfs/repair-v55-deterministic-1m.bin",
+    "remote_fuse_sha256": "3f8a853cfd1416af3ab78fd914f7574dd86045f3f132294cf9ba47717130d3a8"
+  }
+}

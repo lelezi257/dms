@@ -1,0 +1,17 @@
+   Compiling afs v0.1.0 (/home/lzc.guest/afs-build/work/root-merged-v56)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 3.27s
+     Running tests/local_sdk.rs (/home/lzc.guest/afs-build/target/debug/deps/local_sdk-621381324405ad20)
+
+running 9 tests
+test dfs_sdk_buffers_and_fixed_version_validate_ownership_inputs ... ok
+test local_api_rejects_missing_shm_grant_without_data_fallback ... ok
+test local_api_socket_is_owner_only ... ok
+test local_sdk_rejects_oversized_write_without_grpc_data_fallback ... ok
+test diagnostic_local_sdk_writes_and_reads_eight_bytes_through_shm ... ok
+test server_shutdown_removes_owned_socket ... ok
+test dfs_local_sdk_is_typed_and_never_falls_through_to_diagnostics_storage ... ok
+test cancelled_sdk_calls_do_not_exhaust_static_shm_slots ... ok
+test missing_file_preserves_rpc_error_and_releases_broker_before_return ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.02s
+

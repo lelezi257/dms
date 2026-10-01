@@ -286,6 +286,10 @@ pub(crate) fn replica_header(
         target_index: op.target_index as u32,
         initiator_node_id: op.initiator_node_id.clone(),
         initiator_node_epoch: op.initiator_node_epoch,
+        repair_claim: op
+            .repair_claim
+            .as_ref()
+            .map(|claim| Box::new(super::meta::wire_replication_claim(claim))),
     })
 }
 

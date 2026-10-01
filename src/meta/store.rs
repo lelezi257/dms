@@ -23,8 +23,8 @@ use tokio::sync::{RwLock, mpsc, oneshot};
 
 use crate::dfs::{
     ChunkObject, CopyRecord, Dentry, DentryKey, FileVersion, FileVersionId, InodeId, InodeRecord,
-    LayoutRoot, LayoutRootId, NamespaceId, PlacementRecord, RenameOutcome, ReplicationConfig,
-    ReplicationTask, ReplicationTaskId, StorageDeviceDescriptor, WriteLease,
+    LayoutRoot, LayoutRootId, NamespaceId, PlacementRecord, RenameOutcome, ReplicationClaim,
+    ReplicationConfig, ReplicationTask, ReplicationTaskId, StorageDeviceDescriptor, WriteLease,
 };
 
 pub mod etcd;
@@ -301,9 +301,11 @@ pub enum MetaRead {
     DfsLayoutRoot(LayoutRootId),
     DfsChunk(crate::dfs::ChunkId),
     DfsPlacement(crate::dfs::ChunkId),
+    DfsPlacements,
     DfsCopy(crate::dfs::CopyId),
     DfsReplicationConfig,
     DfsReplicationTask(ReplicationTaskId),
+    DfsReplicationTasks,
     DfsWriteLease(InodeId),
 }
 
@@ -450,6 +452,8 @@ pub enum StoreOperation {
     DfsSyncInodeMetadata,
     DfsCommitFileVersion,
     DfsInitializeReplicationConfig,
+    DfsClaimReplicationTask,
+    DfsReportReplicationTask,
 }
 
 /// Operation result that can be replayed to idempotent callers.
@@ -474,6 +478,11 @@ pub enum OperationResult {
         lease: WriteLease,
     },
     DfsWriteLease(WriteLease),
+    DfsReplicationClaim {
+        request_digest: [u8; 32],
+        claim: Option<ReplicationClaim>,
+    },
+    DfsReplicationTask(ReplicationTask),
     DfsRename(RenameOutcome),
     Empty,
 }
@@ -1200,6 +1209,7 @@ impl MetaStore for StoreState {
                 MetaRead::DfsPlacement(id) => {
                     state.entities.get(&MetaKey::DfsPlacement(id.clone()))
                 }
+                MetaRead::DfsPlacements => None,
                 MetaRead::DfsChunk(id) => state.entities.get(&MetaKey::DfsChunk(id.clone())),
                 MetaRead::DfsCopy(id) => state.entities.get(&MetaKey::DfsCopy(id.clone())),
                 MetaRead::DfsReplicationConfig => {
@@ -1208,6 +1218,7 @@ impl MetaStore for StoreState {
                 MetaRead::DfsReplicationTask(id) => {
                     state.entities.get(&MetaKey::DfsReplicationTask(id.clone()))
                 }
+                MetaRead::DfsReplicationTasks => None,
                 MetaRead::DfsWriteLease(id) => {
                     state.entities.get(&MetaKey::DfsWriteLease(id.clone()))
                 }
@@ -1271,6 +1282,53 @@ impl MetaStore for StoreState {
                         sessions
                             .into_iter()
                             .map(|(_, _, versioned)| versioned.entity)
+                            .collect(),
+                    )
+                }
+                MetaRead::DfsPlacements => {
+                    let mut placements = state
+                        .entities
+                        .iter()
+                        .filter_map(|(key, versioned)| match (key, &versioned.entity) {
+                            (MetaKey::DfsPlacement(chunk_id), MetaEntity::DfsPlacement(_)) => {
+                                Some((chunk_id.clone(), versioned.clone()))
+                            }
+                            _ => None,
+                        })
+                        .collect::<Vec<_>>();
+                    placements.sort_by(|left, right| left.0.cmp(&right.0));
+                    let revision = placements
+                        .iter()
+                        .fold(state.revision, |max, (_, entity)| max.max(entity.revision));
+                    (
+                        revision,
+                        placements
+                            .into_iter()
+                            .map(|(_, versioned)| versioned.entity)
+                            .collect(),
+                    )
+                }
+                MetaRead::DfsReplicationTasks => {
+                    let mut tasks = state
+                        .entities
+                        .iter()
+                        .filter_map(|(key, versioned)| match (key, &versioned.entity) {
+                            (
+                                MetaKey::DfsReplicationTask(id),
+                                MetaEntity::DfsReplicationTask(_),
+                            ) => Some((id.clone(), versioned.clone())),
+                            _ => None,
+                        })
+                        .collect::<Vec<_>>();
+                    tasks.sort_by(|left, right| left.0.cmp(&right.0));
+                    let revision = tasks
+                        .iter()
+                        .fold(state.revision, |max, (_, entity)| max.max(entity.revision));
+                    (
+                        revision,
+                        tasks
+                            .into_iter()
+                            .map(|(_, versioned)| versioned.entity)
                             .collect(),
                     )
                 }

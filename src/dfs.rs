@@ -487,6 +487,8 @@ pub struct ValidateReplicaWriteRequest {
     pub replica_group_id: ReplicaGroupId,
     pub target_index: u32,
     pub ordered_targets: Vec<ReplicaTarget>,
+    #[serde(default)]
+    pub repair_claim: Option<ReplicationClaim>,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -652,6 +654,22 @@ pub enum ReplicationTaskState {
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct ReplicationClaim {
+    pub task_id: ReplicationTaskId,
+    pub operation_id: OperationId,
+    pub worker_node_id: String,
+    pub worker_node_epoch: u64,
+    pub worker_session_id: String,
+    pub expires_at_unix_ms: u64,
+    pub fence: u64,
+    pub chunk: ChunkObject,
+    pub source_copy_id: CopyId,
+    pub placement_revision: u64,
+    pub replica_group: ReplicaGroup,
+    pub replication: ReplicationConfig,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct ReplicationTask {
     pub id: ReplicationTaskId,
     pub chunk_id: ChunkId,
@@ -662,6 +680,29 @@ pub struct ReplicationTask {
     pub attempt: u32,
     pub next_retry_unix_ms: u64,
     pub last_error: Option<String>,
+    #[serde(default)]
+    pub claim: Option<Box<ReplicationClaim>>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct ClaimReplicationTask {
+    pub caller_id: String,
+    pub caller_session_id: String,
+    pub caller_node_epoch: u64,
+    pub operation_id: OperationId,
+    pub lease_seconds: u64,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct ReportReplicationTask {
+    pub caller_id: String,
+    pub caller_session_id: String,
+    pub caller_node_epoch: u64,
+    pub operation_id: OperationId,
+    pub claim: ReplicationClaim,
+    pub durable_acks: Vec<ReplicaAck>,
+    pub error: Option<String>,
+    pub source_invalid: bool,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]

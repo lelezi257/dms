@@ -205,7 +205,140 @@ async fn health_uses_backend_probe_not_cached_read_view() {
     assert_eq!(health_status, StatusCode::SERVICE_UNAVAILABLE);
     assert_eq!(health_body["error"]["kind"], "Unavailable");
 
-    let (root_status, root_body) = get_json(meta, "/v1/roots/workspace-live").await;
+    let (root_status, root_body) = get_json(meta.clone(), "/v1/roots/workspace-live").await;
     assert_eq!(root_status, StatusCode::SERVICE_UNAVAILABLE);
     assert_eq!(root_body["error"]["kind"], "Unavailable");
+
+    let (replication_status, replication_body) =
+        get_json(meta, "/v1/dfs/chunks/unknown/replication").await;
+    assert_eq!(replication_status, StatusCode::SERVICE_UNAVAILABLE);
+    assert_eq!(replication_body["error"]["kind"], "Unavailable");
+}
+
+#[tokio::test]
+async fn chunk_replication_reports_observed_availability_without_claiming_data_loss() {
+    use afs::dfs::*;
+    use afs::meta::store::{
+        MetaEntity, MetaStore, MetaTxn, OperationResult, RequestOutcome, StoreOperation,
+        TxnCondition, TxnMutation,
+    };
+    let (meta, store) = meta_with_memory_store().await;
+    let device = StorageDeviceDescriptor {
+        device_id: "disk-a".into(),
+        device_epoch: 1,
+        catalog_revision: 1,
+        failure_domain: "node-a".into(),
+    };
+    let register = |session: &str, descriptor: StorageDeviceDescriptor| NodeSessionLease {
+        node_id: "node-a".into(),
+        session_id: session.into(),
+        grpc_addr: "http://node-a:7400".into(),
+        data_addr: "http://node-a:7500".into(),
+        rest_addr: "http://node-a:7600".into(),
+        storage_devices: vec![descriptor],
+        lease_ttl: Duration::from_secs(30),
+    };
+    store
+        .register_node_session(
+            RequestKey::new("node-a", "rest-register-1"),
+            register("source-1", device.clone()),
+        )
+        .await
+        .unwrap();
+    let id = ChunkId::new("rest-chunk");
+    let copy_id = CopyId::new("rest-copy");
+    let copy = CopyRecord {
+        id: copy_id.clone(),
+        chunk_id: id.clone(),
+        role: CopyRole::DurableReplica,
+        state: CopyState::Ready,
+        location: CopyLocation::Node {
+            node_id: "node-a".into(),
+            node_epoch: 1,
+            device_id: "disk-a".into(),
+            device_epoch: 1,
+            catalog_revision: 1,
+        },
+        persisted_bytes: 4,
+        verified_digest: ContentDigest {
+            algorithm: DigestAlgorithm::Blake3,
+            bytes: [7; 32],
+        },
+    };
+    let placement = PlacementRecord {
+        chunk_id: id.clone(),
+        replica_group_id: ReplicaGroupId::new("rest-group"),
+        placement_epoch: 1,
+        desired_copies: 2,
+        copies: vec![copy_id.clone()],
+        health: PlacementHealth::UnderReplicated,
+    };
+    let task = ReplicationTask {
+        id: ReplicationTaskId::new("rest-task"),
+        chunk_id: id.clone(),
+        placement_epoch: 1,
+        desired_copies: 2,
+        existing_copies: vec![copy_id],
+        state: ReplicationTaskState::Pending,
+        attempt: 0,
+        next_retry_unix_ms: 0,
+        last_error: None,
+        claim: None,
+    };
+    let request = RequestKey::new("fixture", "rest-replication");
+    let mut txn = MetaTxn::new(request.clone(), StoreOperation::DfsCommitFileVersion);
+    txn.conditions
+        .push(TxnCondition::RequestAbsent(request.clone()));
+    txn.mutations.extend([
+        TxnMutation::Put(MetaEntity::DfsChunk(ChunkObject {
+            id: id.clone(),
+            length: 4,
+            content_digest: copy.verified_digest.clone(),
+            encoding: ChunkEncoding::Raw,
+        })),
+        TxnMutation::Put(MetaEntity::DfsCopy(copy)),
+        TxnMutation::Put(MetaEntity::DfsPlacement(placement)),
+        TxnMutation::Put(MetaEntity::DfsReplicationTask(task)),
+        TxnMutation::RecordRequestOutcome(RequestOutcome {
+            request,
+            operation: StoreOperation::DfsCommitFileVersion,
+            result: OperationResult::Empty,
+        }),
+    ]);
+    store.compare_and_commit(txn).await.unwrap();
+    let path = "/v1/dfs/chunks/rest-chunk/replication";
+    let (status, body) = get_json(meta.clone(), path).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["health"], "UnderReplicated");
+    assert_eq!(body["available_copies"], 1);
+    assert_eq!(body["tasks"][0]["state"], "Pending");
+    assert_eq!(body["loss_confirmed"], false);
+
+    let mut replaced = device.clone();
+    replaced.device_epoch = 2;
+    store
+        .register_node_session(
+            RequestKey::new("node-a", "rest-register-2"),
+            register("source-2", replaced),
+        )
+        .await
+        .unwrap();
+    let (status, body) = get_json(meta.clone(), path).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["health"], "BlockedNoSource");
+    assert_eq!(body["available_copies"], 0);
+    assert_eq!(body["copies"][0]["record"]["state"], "Ready");
+    assert_eq!(body["loss_confirmed"], false);
+
+    store
+        .register_node_session(
+            RequestKey::new("node-a", "rest-register-3"),
+            register("source-3", device),
+        )
+        .await
+        .unwrap();
+    let (_, body) = get_json(meta.clone(), path).await;
+    assert_eq!(body["available_copies"], 1);
+    let (status, _) = get_json(meta, "/v1/dfs/chunks/missing/replication").await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
 }

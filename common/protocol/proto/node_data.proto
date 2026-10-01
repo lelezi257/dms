@@ -1,6 +1,8 @@
 syntax = "proto3";
 package afs.node.data.v1;
 
+import "meta.proto";
+
 // Node 的 data 面同时承载传输诊断和文件业务命令；OwnerFiles 与 DfsChunks
 // 各自保持独立 service/消息，Handler 不与诊断 Storage 混用。
 // 控制面的根授权由 Meta 协调，传输会话由 node_control.proto 管理。
@@ -69,6 +71,9 @@ message DfsPutReplicaHeader {
   uint32 target_index = 10;
   string initiator_node_id = 11;
   uint64 initiator_node_epoch = 12;
+  // Only background repair carries this persisted task authority. File writes
+  // keep their existing placement validation and synchronous prefix.
+  afs.meta.v1.DfsReplicationClaim repair_claim = 13;
 }
 
 enum DfsDigestAlgorithm {

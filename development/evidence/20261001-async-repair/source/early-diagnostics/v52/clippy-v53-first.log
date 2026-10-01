@@ -1,0 +1,79 @@
+   Compiling afs-protocol v0.1.0 (/home/lzc.guest/afs-build/work/root-merged-v53/common/protocol)
+    Checking afs-transport v0.1.0 (/home/lzc.guest/afs-build/work/root-merged-v53/common/transport)
+    Checking afs v0.1.0 (/home/lzc.guest/afs-build/work/root-merged-v53)
+    Checking afs-client v0.1.0 (/home/lzc.guest/afs-build/work/root-merged-v53/client)
+error[E0599]: no function or associated item named `from_bytes` found for struct `node::chunk::StagedChunk` in the current scope
+    --> src/node/replication.rs:1639:26
+     |
+1639 |             StagedChunk::from_bytes(claim.operation_id.clone(), b"repair-payload".to_vec())
+     |                          ^^^^^^^^^^ function or associated item not found in `node::chunk::StagedChunk`
+     |
+    ::: src/node/chunk.rs:65:1
+     |
+  65 | pub struct StagedChunk {
+     | ---------------------- function or associated item `from_bytes` not found for this struct
+     |
+note: if you're trying to build a new `node::chunk::StagedChunk`, consider using `node::chunk::StagedChunk::new` which returns `node::chunk::StagedChunk`
+    --> src/node/chunk.rs:72:5
+     |
+  72 |     pub fn new(operation_id: OperationId, bytes: Vec<u8>) -> Self {
+     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+     = help: items from traits can only be used if the trait is implemented and in scope
+     = note: the following traits define an item `from_bytes`, perhaps you need to implement one of them:
+             candidate #1: `std::os::unix::ffi::OsStrExt`
+             candidate #2: `tonic::metadata::encoding::value_encoding::Sealed`
+help: there is a method `bytes` with a similar name, but with different arguments
+    --> src/node/chunk.rs:92:5
+     |
+  92 |     pub fn bytes(&self) -> &[u8] {
+     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: large size difference between variants
+   --> src/meta/store.rs:324:1
+    |
+324 | /  pub enum TxnCondition {
+325 | |      Missing(MetaKey),
+326 | |/     RevisionEquals {
+327 | ||         key: MetaKey,
+328 | ||         revision: StoreRevision,
+329 | ||     },
+    | ||_____- the second-largest variant contains at least 88 bytes
+...   |
+337 | |      EntityEquals(MetaEntity),
+    | |      ------------------------ the largest variant contains at least 408 bytes
+...   |
+360 | |      },
+361 | |  }
+    | |__^ the entire enum is at least 408 bytes
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.95.0/index.html#large_enum_variant
+    = note: `-D clippy::large-enum-variant` implied by `-D clippy::all`
+    = help: to override `-D clippy::all` add `#[allow(clippy::large_enum_variant)]`
+help: consider boxing the large fields or introducing indirection in some other way to reduce the total size of the enum
+    |
+337 -     EntityEquals(MetaEntity),
+337 +     EntityEquals(Box<MetaEntity>),
+    |
+
+error: large size difference between variants
+   --> src/node/replication.rs:693:1
+    |
+693 | / enum PendingRepair {
+694 | |     Claiming(crate::dfs::ClaimReplicationTask),
+    | |     ------------------------------------------ the second-largest variant contains at least 88 bytes
+695 | |     Reporting(crate::dfs::ReportReplicationTask),
+    | |     -------------------------------------------- the largest variant contains at least 424 bytes
+696 | | }
+    | |_^ the entire enum is at least 424 bytes
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.95.0/index.html#large_enum_variant
+help: consider boxing the large fields or introducing indirection in some other way to reduce the total size of the enum
+    |
+695 -     Reporting(crate::dfs::ReportReplicationTask),
+695 +     Reporting(Box<crate::dfs::ReportReplicationTask>),
+    |
+
+error: could not compile `afs` (lib) due to 2 previous errors
+warning: build failed, waiting for other jobs to finish...
+For more information about this error, try `rustc --explain E0599`.
+error: could not compile `afs` (lib test) due to 1 previous error

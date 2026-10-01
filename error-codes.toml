@@ -362,6 +362,14 @@ subsystem = "DistributedFs"
 description = "同一有效租约续租持续竞争，调用者可保留当前权威并重试；不表示 owner 已被隔离"
 
 [[error]]
+name = "META_DFS_REPAIR_SUPERSEDED"
+value = "0x03030003"
+kind = "FailedPrecondition"
+component = "Meta"
+subsystem = "DistributedFs"
+description = "复制修复任务已离开 Running 或精确 claim 已被替换，原 worker 可结束该 claim；普通 CAS 冲突不得按此处理"
+
+[[error]]
 name = "META_STORE_UNIMPLEMENTED"
 value = "0x03020001"
 kind = "Unimplemented"

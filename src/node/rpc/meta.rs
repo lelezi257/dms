@@ -661,6 +661,56 @@ impl GrpcDfsMeta {
             .into_inner();
         domain_replica_write_grant(required(reply.grant, "ValidateReplicaWrite.grant")?)
     }
+
+    pub fn claim_replication_task(
+        &self,
+        request: crate::dfs::ClaimReplicationTask,
+    ) -> afs_error::Result<Option<crate::dfs::ReplicationClaim>> {
+        let reply = self
+            .run(self.client().claim_replication_task(
+                afs_protocol::meta::ClaimDfsReplicationTaskRequest {
+                    caller_id: request.caller_id,
+                    caller_session_id: request.caller_session_id,
+                    caller_node_epoch: request.caller_node_epoch,
+                    operation_id: request.operation_id.0,
+                    lease_seconds: request.lease_seconds,
+                },
+            ))?
+            .into_inner();
+        if !reply.claimed {
+            return Ok(None);
+        }
+        required(reply.claim, "ClaimReplicationTask.claim")
+            .and_then(domain_replication_claim)
+            .map(Some)
+    }
+
+    pub fn report_replication_task(
+        &self,
+        request: crate::dfs::ReportReplicationTask,
+    ) -> afs_error::Result<crate::dfs::ReplicationTask> {
+        let reply = self
+            .run(
+                self.client().report_replication_task(
+                    afs_protocol::meta::ReportDfsReplicationTaskRequest {
+                        caller_id: request.caller_id,
+                        caller_session_id: request.caller_session_id,
+                        caller_node_epoch: request.caller_node_epoch,
+                        operation_id: request.operation_id.0,
+                        claim: Some(wire_replication_claim(&request.claim)),
+                        durable_acks: request
+                            .durable_acks
+                            .into_iter()
+                            .map(wire_replica_ack)
+                            .collect(),
+                        error: request.error,
+                        source_invalid: request.source_invalid,
+                    },
+                ),
+            )?
+            .into_inner();
+        required(reply.task, "ReportReplicationTask.task").and_then(domain_replication_task)
+    }
 }
 
 #[cfg(feature = "dfs")]
@@ -705,6 +755,23 @@ impl crate::node::replication::PlacementProvider for GrpcDfsMeta {
             )
         })? = Some(snapshot.clone());
         Ok(snapshot)
+    }
+}
+
+#[cfg(feature = "dfs")]
+impl crate::node::replication::ReplicationTaskAuthority for GrpcDfsMeta {
+    fn claim(
+        &self,
+        request: crate::dfs::ClaimReplicationTask,
+    ) -> afs_error::Result<Option<crate::dfs::ReplicationClaim>> {
+        GrpcDfsMeta::claim_replication_task(self, request)
+    }
+
+    fn report(
+        &self,
+        request: crate::dfs::ReportReplicationTask,
+    ) -> afs_error::Result<crate::dfs::ReplicationTask> {
+        GrpcDfsMeta::report_replication_task(self, request)
     }
 }
 
@@ -1548,6 +1615,7 @@ fn wire_validate_replica_write_request(
             .into_iter()
             .map(wire_replica_target)
             .collect(),
+        repair_claim: request.repair_claim.as_ref().map(wire_replication_claim),
     }
 }
 
@@ -1600,6 +1668,68 @@ fn wire_replica_ack(ack: crate::dfs::ReplicaAck) -> afs_protocol::meta::DfsRepli
         persisted_bytes: ack.persisted_bytes,
         verified_digest: ack.verified_digest.bytes.to_vec(),
         verified_digest_algorithm: wire_digest_algorithm(ack.verified_digest.algorithm),
+    }
+}
+
+#[cfg(feature = "dfs")]
+fn wire_replication_config(
+    replication: crate::dfs::ReplicationConfig,
+) -> afs_protocol::meta::DfsReplicationConfig {
+    afs_protocol::meta::DfsReplicationConfig {
+        desired_copies: u32::from(replication.desired_copies),
+        sync_required_copies: u32::from(replication.sync_required_copies),
+        min_distinct_nodes: u32::from(replication.min_distinct_nodes),
+        min_distinct_failure_domains: u32::from(replication.min_distinct_failure_domains),
+        local_copy: match replication.local_copy {
+            crate::dfs::LocalCopyPolicy::Required => {
+                afs_protocol::meta::DfsLocalCopyPolicy::Required as i32
+            }
+            crate::dfs::LocalCopyPolicy::Preferred => {
+                afs_protocol::meta::DfsLocalCopyPolicy::Preferred as i32
+            }
+            crate::dfs::LocalCopyPolicy::NotRequired => {
+                afs_protocol::meta::DfsLocalCopyPolicy::NotRequired as i32
+            }
+        },
+    }
+}
+
+#[cfg(feature = "dfs")]
+fn wire_replica_group(group: crate::dfs::ReplicaGroup) -> afs_protocol::meta::DfsReplicaGroup {
+    afs_protocol::meta::DfsReplicaGroup {
+        replica_group_id: group.id.0,
+        placement_epoch: group.placement_epoch,
+        targets: group.targets.into_iter().map(wire_replica_target).collect(),
+    }
+}
+
+#[cfg(feature = "dfs")]
+fn wire_chunk_object(chunk: crate::dfs::ChunkObject) -> afs_protocol::meta::DfsChunkObject {
+    afs_protocol::meta::DfsChunkObject {
+        chunk_id: chunk.id.0,
+        length: chunk.length,
+        content_digest: chunk.content_digest.bytes.to_vec(),
+        content_digest_algorithm: wire_digest_algorithm(chunk.content_digest.algorithm),
+    }
+}
+
+#[cfg(feature = "dfs")]
+pub(crate) fn wire_replication_claim(
+    claim: &crate::dfs::ReplicationClaim,
+) -> afs_protocol::meta::DfsReplicationClaim {
+    afs_protocol::meta::DfsReplicationClaim {
+        task_id: claim.task_id.0.clone(),
+        operation_id: claim.operation_id.0.clone(),
+        worker_node_id: claim.worker_node_id.clone(),
+        worker_node_epoch: claim.worker_node_epoch,
+        worker_session_id: claim.worker_session_id.clone(),
+        expires_at_unix_ms: claim.expires_at_unix_ms,
+        fence: claim.fence,
+        chunk: Some(wire_chunk_object(claim.chunk.clone())),
+        source_copy_id: claim.source_copy_id.0.clone(),
+        placement_revision: claim.placement_revision,
+        replica_group: Some(wire_replica_group(claim.replica_group.clone())),
+        replication: Some(wire_replication_config(claim.replication.clone())),
     }
 }
 
@@ -1662,6 +1792,107 @@ fn domain_replica_write_grant(
         expires_at_unix_ms: grant.expires_at_unix_ms,
         fence: grant.fence,
         token: grant.token,
+    })
+}
+
+#[cfg(feature = "dfs")]
+fn domain_chunk_object(
+    chunk: afs_protocol::meta::DfsChunkObject,
+) -> afs_error::Result<crate::dfs::ChunkObject> {
+    let digest: [u8; 32] = chunk.content_digest.try_into().map_err(|_| {
+        Error::coded(
+            CLIENT_PROTOCOL_VIOLATION,
+            "DfsChunkObject digest must contain 32 bytes",
+        )
+    })?;
+    Ok(crate::dfs::ChunkObject {
+        id: crate::dfs::ChunkId::new(chunk.chunk_id),
+        length: chunk.length,
+        content_digest: crate::dfs::ContentDigest {
+            algorithm: domain_digest_algorithm(chunk.content_digest_algorithm)?,
+            bytes: digest,
+        },
+        encoding: crate::dfs::ChunkEncoding::Raw,
+    })
+}
+
+#[cfg(feature = "dfs")]
+pub(crate) fn domain_replication_claim(
+    claim: afs_protocol::meta::DfsReplicationClaim,
+) -> afs_error::Result<crate::dfs::ReplicationClaim> {
+    Ok(crate::dfs::ReplicationClaim {
+        task_id: crate::dfs::ReplicationTaskId::new(claim.task_id),
+        operation_id: crate::dfs::OperationId::new(claim.operation_id),
+        worker_node_id: claim.worker_node_id,
+        worker_node_epoch: claim.worker_node_epoch,
+        worker_session_id: claim.worker_session_id,
+        expires_at_unix_ms: claim.expires_at_unix_ms,
+        fence: claim.fence,
+        chunk: domain_chunk_object(required(claim.chunk, "DfsReplicationClaim.chunk")?)?,
+        source_copy_id: crate::dfs::CopyId::new(claim.source_copy_id),
+        placement_revision: claim.placement_revision,
+        replica_group: domain_replica_group(required(
+            claim.replica_group,
+            "DfsReplicationClaim.replica_group",
+        )?)?,
+        replication: domain_replication_config(required(
+            claim.replication,
+            "DfsReplicationClaim.replication",
+        )?)?,
+    })
+}
+
+#[cfg(feature = "dfs")]
+fn domain_replication_task(
+    task: afs_protocol::meta::DfsReplicationTask,
+) -> afs_error::Result<crate::dfs::ReplicationTask> {
+    let state = match afs_protocol::meta::DfsReplicationTaskState::try_from(task.state) {
+        Ok(afs_protocol::meta::DfsReplicationTaskState::Pending) => {
+            crate::dfs::ReplicationTaskState::Pending
+        }
+        Ok(afs_protocol::meta::DfsReplicationTaskState::Running) => {
+            crate::dfs::ReplicationTaskState::Running
+        }
+        Ok(afs_protocol::meta::DfsReplicationTaskState::RetryWaiting) => {
+            crate::dfs::ReplicationTaskState::RetryWaiting
+        }
+        Ok(afs_protocol::meta::DfsReplicationTaskState::Completed) => {
+            crate::dfs::ReplicationTaskState::Completed
+        }
+        Ok(afs_protocol::meta::DfsReplicationTaskState::BlockedNoSource) => {
+            crate::dfs::ReplicationTaskState::BlockedNoSource
+        }
+        _ => {
+            return Err(Error::coded(
+                CLIENT_PROTOCOL_VIOLATION,
+                "DfsReplicationTask has an invalid state",
+            ));
+        }
+    };
+    Ok(crate::dfs::ReplicationTask {
+        id: crate::dfs::ReplicationTaskId::new(task.task_id),
+        chunk_id: crate::dfs::ChunkId::new(task.chunk_id),
+        placement_epoch: task.placement_epoch,
+        desired_copies: u16::try_from(task.desired_copies).map_err(|_| {
+            Error::coded(
+                CLIENT_PROTOCOL_VIOLATION,
+                "DfsReplicationTask desired_copies exceeds u16",
+            )
+        })?,
+        existing_copies: task
+            .existing_copy_ids
+            .into_iter()
+            .map(crate::dfs::CopyId::new)
+            .collect(),
+        state,
+        attempt: task.attempt,
+        next_retry_unix_ms: task.next_retry_unix_ms,
+        last_error: task.last_error,
+        claim: task
+            .claim
+            .map(domain_replication_claim)
+            .transpose()?
+            .map(Box::new),
     })
 }
 
@@ -1980,6 +2211,106 @@ mod tests {
                 kill_suidgid: false,
             },
         }
+    }
+
+    fn test_digest(byte: u8) -> crate::dfs::ContentDigest {
+        crate::dfs::ContentDigest {
+            algorithm: crate::dfs::DigestAlgorithm::Blake3,
+            bytes: [byte; 32],
+        }
+    }
+
+    fn test_replica_target(node: &str, index: u64) -> crate::dfs::ReplicaTarget {
+        crate::dfs::ReplicaTarget {
+            node_id: node.into(),
+            node_epoch: index + 10,
+            data_endpoint: format!("https://{node}:19000"),
+            device: crate::dfs::StorageDeviceDescriptor {
+                device_id: format!("device-{node}"),
+                device_epoch: index + 20,
+                catalog_revision: index + 30,
+                failure_domain: format!("rack-{index}"),
+            },
+        }
+    }
+
+    fn test_replication_claim() -> crate::dfs::ReplicationClaim {
+        crate::dfs::ReplicationClaim {
+            task_id: crate::dfs::ReplicationTaskId::new("task:claim"),
+            operation_id: crate::dfs::OperationId::new("op:claim"),
+            worker_node_id: "node-a".into(),
+            worker_node_epoch: 11,
+            worker_session_id: "session-a".into(),
+            expires_at_unix_ms: 123_456,
+            fence: 9,
+            chunk: crate::dfs::ChunkObject {
+                id: crate::dfs::ChunkId::new("chunk:claim"),
+                length: 4096,
+                content_digest: test_digest(7),
+                encoding: crate::dfs::ChunkEncoding::Raw,
+            },
+            source_copy_id: crate::dfs::CopyId::new("copy:source"),
+            placement_revision: 77,
+            replica_group: crate::dfs::ReplicaGroup {
+                id: crate::dfs::ReplicaGroupId::new("group:claim"),
+                placement_epoch: 88,
+                targets: vec![
+                    test_replica_target("node-a", 1),
+                    test_replica_target("node-b", 2),
+                ],
+            },
+            replication: crate::dfs::ReplicationConfig {
+                desired_copies: 2,
+                sync_required_copies: 2,
+                min_distinct_nodes: 2,
+                min_distinct_failure_domains: 1,
+                local_copy: crate::dfs::LocalCopyPolicy::Preferred,
+            },
+        }
+    }
+
+    #[test]
+    fn replication_claim_wire_round_trip_preserves_authority_identity() {
+        let claim = test_replication_claim();
+        let wire = wire_replication_claim(&claim);
+
+        assert_eq!(wire.task_id, "task:claim");
+        assert_eq!(wire.operation_id, "op:claim");
+        assert_eq!(wire.worker_node_id, "node-a");
+        assert_eq!(wire.worker_session_id, "session-a");
+        assert_eq!(wire.source_copy_id, "copy:source");
+
+        let decoded = domain_replication_claim(wire).unwrap();
+        assert_eq!(decoded, claim);
+    }
+
+    #[test]
+    fn replication_claim_rejects_invalid_chunk_digest_length() {
+        let claim = test_replication_claim();
+        let mut wire = wire_replication_claim(&claim);
+        wire.chunk.as_mut().unwrap().content_digest = vec![1, 2, 3];
+
+        let error = domain_replication_claim(wire).expect_err("invalid digest should fail");
+        assert_eq!(error.code(), afs_error::CLIENT_PROTOCOL_VIOLATION);
+    }
+
+    #[test]
+    fn replication_task_rejects_unspecified_state() {
+        let task = afs_protocol::meta::DfsReplicationTask {
+            task_id: "task:bad".into(),
+            chunk_id: "chunk:bad".into(),
+            placement_epoch: 1,
+            desired_copies: 1,
+            existing_copy_ids: Vec::new(),
+            state: afs_protocol::meta::DfsReplicationTaskState::Unspecified as i32,
+            attempt: 0,
+            next_retry_unix_ms: 0,
+            last_error: None,
+            claim: None,
+        };
+
+        let error = domain_replication_task(task).expect_err("unspecified state should fail");
+        assert_eq!(error.code(), afs_error::CLIENT_PROTOCOL_VIOLATION);
     }
 
     async fn assert_deadline_elapsed(

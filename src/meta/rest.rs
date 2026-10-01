@@ -21,6 +21,10 @@ pub fn router(meta: Arc<Meta>) -> Router {
         .route("/health", get(health))
         .route("/v1/ping", get(ping))
         .route("/v1/roots/{root_id}", get(root_location))
+        .route(
+            "/v1/dfs/chunks/{chunk_id}/replication",
+            get(chunk_replication),
+        )
         .route("/metrics", get(metrics))
         .with_state(meta)
 }
@@ -121,5 +125,89 @@ async fn root_location(
         "home_rest_addr": home_rest_addr,
         "checked_at_unix_ms": now,
         "revision": snapshot.revision.0,
+    })))
+}
+
+/// Observed availability is derived from one linearizable view, including live
+/// sessions and recovered device floors. No live source means unavailable, not
+/// proof of permanent data loss. Persisted receipt evidence remains unchanged.
+async fn chunk_replication(
+    State(meta): State<Arc<Meta>>,
+    Path(chunk_id): Path<String>,
+) -> Result<Json<Value>, crate::error::RestError> {
+    let store = meta
+        .store
+        .as_deref()
+        .ok_or_else(|| crate::error::RestError(unavailable_meta_store()))?;
+    store.health().await?;
+    let view = store.read_view().await?;
+    let id = crate::dfs::ChunkId::new(chunk_id);
+    let snapshot = view.read(MetaRead::DfsPlacement(id.clone())).await?;
+    let Some(MetaEntity::DfsPlacement(placement)) = snapshot.entity else {
+        return Err(crate::error::RestError(afs_error::Error::coded(
+            afs_error::NODE_VFS_NOT_FOUND,
+            "DFS chunk placement was not found",
+        )));
+    };
+    let Some(MetaEntity::DfsChunk(chunk)) = view.read(MetaRead::DfsChunk(id.clone())).await?.entity
+    else {
+        return Err(crate::error::RestError(afs_error::Error::coded(
+            afs_error::NODE_STORAGE_INVALID,
+            "DFS placement references missing chunk metadata",
+        )));
+    };
+    let now = now_unix_ms();
+    let mut copies = Vec::new();
+    let mut live_nodes = std::collections::HashSet::new();
+    for copy_id in &placement.copies {
+        if let Some(MetaEntity::DfsCopy(copy)) =
+            view.read(MetaRead::DfsCopy(copy_id.clone())).await?.entity
+        {
+            let mut available = false;
+            if let crate::dfs::CopyLocation::Node { node_id, .. } = &copy.location
+                && let Some(MetaEntity::NodeSession(session)) = view
+                    .read(MetaRead::CurrentNodeSession {
+                        node_id: node_id.clone(),
+                    })
+                    .await?
+                    .entity
+                && copy.chunk_id == id
+                && copy.persisted_bytes == chunk.length
+                && copy.verified_digest == chunk.content_digest
+                && super::dfs::serving_read_copy(&copy, &session, now).is_some()
+            {
+                available = true;
+                live_nodes.insert(node_id.clone());
+            }
+            copies.push(json!({"record":copy,"available":available}));
+        }
+    }
+    let tasks = view
+        .read(MetaRead::DfsReplicationTasks)
+        .await?
+        .entities
+        .into_iter()
+        .filter_map(|entity| match entity {
+            MetaEntity::DfsReplicationTask(task) if task.chunk_id == id => Some(task),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let health = if live_nodes.is_empty() {
+        crate::dfs::PlacementHealth::BlockedNoSource
+    } else if live_nodes.len() < usize::from(placement.desired_copies) {
+        crate::dfs::PlacementHealth::UnderReplicated
+    } else {
+        crate::dfs::PlacementHealth::Satisfied
+    };
+    Ok(Json(json!({
+        "chunk_id":id,
+        "health":health,
+        "available_copies":live_nodes.len(),
+        "placement":placement,
+        "copies":copies,
+        "tasks":tasks,
+        "checked_at_unix_ms":now,
+        "revision":snapshot.revision.0,
+        "loss_confirmed":false,
     })))
 }

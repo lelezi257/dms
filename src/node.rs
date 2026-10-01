@@ -641,7 +641,7 @@ async fn run_node(
         None => Arc::new(rpc::data::DenyDfsReadAuthorizer),
     };
     #[cfg(feature = "dfs")]
-    let dfs_replica_authorizer: Arc<dyn rpc::data::DfsReplicaAuthorizer> = match dfs_meta {
+    let dfs_replica_authorizer: Arc<dyn rpc::data::DfsReplicaAuthorizer> = match dfs_meta.clone() {
         Some(meta) => Arc::new(rpc::data::MetaReplicaAuthorizer {
             meta,
             node_id: cfg.id.clone(),
@@ -655,7 +655,7 @@ async fn run_node(
         Arc::new(rpc::data::MtlsPeerAuthenticator::new(dfs_trusted.clone())?),
         dfs_read_authorizer,
         dfs_replica_authorizer,
-        Some(dfs_replica_plane),
+        Some(dfs_replica_plane.clone()),
         timeout,
         rpc::data::DfsChunkTransportResources {
             rdma_sessions: sessions.clone(),
@@ -709,6 +709,52 @@ async fn run_node(
             .await
             .map_err(Into::into)
     });
+    #[cfg(feature = "dfs")]
+    if let (Some(meta), Some(local)) = (dfs_meta, local_chunk_store) {
+        let worker = Arc::new(replication::ReplicationWorker::new(
+            cfg.id.clone(),
+            registered_node_epoch,
+            state.session_id.clone(),
+            local,
+            meta,
+            dfs_replica_plane,
+        ));
+        let stop = services.stop.subscribe();
+        services.spawn(async move {
+            let shutdown = cancelled(stop);
+            tokio::pin!(shutdown);
+            let mut delay = std::time::Duration::from_secs(1);
+            loop {
+                tokio::select! {
+                    _ = &mut shutdown => return Ok(()),
+                    _ = tokio::time::sleep(delay) => {}
+                }
+                let worker = worker.clone();
+                // The worker owns an exact pending request until its Meta
+                // outcome is confirmed. A started blocking transfer is not
+                // detached on a tick or replaced by another task.
+                match tokio::task::spawn_blocking(move || worker.run_once()).await {
+                    Ok(Ok(Some(task))) => {
+                        afs_logging::info!("dfs.replication_task_reported";
+                            "task" => task.id.0,
+                            "state" => format!("{:?}", task.state),
+                            "attempt" => task.attempt);
+                        delay = std::time::Duration::from_millis(1);
+                    }
+                    Ok(Ok(None)) => delay = std::time::Duration::from_secs(1),
+                    Ok(Err(error)) => {
+                        afs_logging::warn!("dfs.replication_task_retry"; "error" => error.to_string());
+                        delay = std::time::Duration::from_secs(1);
+                    }
+                    Err(error) => {
+                        // A panic can invalidate the worker's exact state.
+                        // Fail the service instead of launching a duplicate.
+                        return Err(error.into());
+                    }
+                }
+            }
+        });
+    }
     #[cfg(feature = "dfs")]
     let dfs_for_drain = state.dfs.clone();
     let stop = services.stop.subscribe();

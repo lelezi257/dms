@@ -1248,6 +1248,7 @@ async fn dfs_replica_write_grant_accepts_frozen_target_catalog_floor() {
             replica_group_id: group.id.clone(),
             target_index: 1,
             ordered_targets: group.targets.clone(),
+            repair_claim: None,
         })
         .await
         .unwrap();

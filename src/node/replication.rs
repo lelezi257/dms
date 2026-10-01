@@ -68,6 +68,8 @@ pub struct ReplicaPeerOp {
     pub target_index: usize,
     pub target: ReplicaTarget,
     pub chain_tail: Vec<ReplicaTarget>,
+    /// Persisted Meta task authority, carried unchanged at every repair hop.
+    pub repair_claim: Option<crate::dfs::ReplicationClaim>,
 }
 
 impl ReplicaPeerOp {
@@ -113,6 +115,7 @@ impl ReplicaPeerOp {
             target_index,
             target,
             chain_tail: plan.ordered_targets[target_index + 1..sync_target_count].to_vec(),
+            repair_claim: None,
         };
         result.validate_shape()?;
         Ok(result)
@@ -165,6 +168,18 @@ impl ReplicaPeerOp {
                     "replica operation has an invalid or duplicate target",
                 ));
             }
+        }
+        if let Some(claim) = &self.repair_claim
+            && (claim.chunk.id != self.chunk_id
+                || claim.worker_node_id != self.initiator_node_id
+                || claim.worker_node_epoch != self.initiator_node_epoch
+                || claim.placement_revision != self.placement_revision
+                || claim.replica_group.id != self.replica_group_id
+                || claim.replica_group.placement_epoch != self.placement_epoch
+                || claim.replica_group.targets != self.ordered_targets
+                || self.sync_target_count != self.ordered_targets.len())
+        {
+            return Err(invalid("repair operation differs from its frozen claim"));
         }
         Ok(())
     }
@@ -287,6 +302,7 @@ impl ReplicationPlan {
             target_index,
             target: target.clone(),
             chain_tail: self.ordered_targets[target_index + 1..sync_target_count].to_vec(),
+            repair_claim: None,
         }))
     }
 
@@ -657,6 +673,280 @@ fn validate_acks(
 
 fn invalid(message: impl Into<String>) -> Error {
     Error::coded(afs_error::NODE_STORAGE_INVALID, message)
+}
+
+/// Background repair uses Meta's durable task identity rather than an inode
+/// write lease. Only a node with an existing live source copy claims the task;
+/// no file bytes pass through Meta and no FileVersion is changed by repair.
+pub trait ReplicationTaskAuthority: Send + Sync {
+    fn claim(
+        &self,
+        request: crate::dfs::ClaimReplicationTask,
+    ) -> Result<Option<crate::dfs::ReplicationClaim>>;
+    fn report(
+        &self,
+        request: crate::dfs::ReportReplicationTask,
+    ) -> Result<crate::dfs::ReplicationTask>;
+}
+
+#[derive(Clone)]
+enum PendingRepair {
+    Claiming(crate::dfs::ClaimReplicationTask),
+    Reporting(Box<crate::dfs::ReportReplicationTask>),
+}
+
+/// One task and one bounded chunk buffer per worker. An unknown Meta response
+/// retains the exact request; restarting a node leaves the persisted claim to
+/// expire/reassign. A receiver ACK alone never promotes a Meta copy record.
+pub struct ReplicationWorker {
+    node_id: String,
+    node_epoch: u64,
+    session_id: String,
+    local: Arc<LocalChunkStore>,
+    authority: Arc<dyn ReplicationTaskAuthority>,
+    data_plane: Arc<dyn ReplicaDataPlane>,
+    pending: std::sync::Mutex<Option<PendingRepair>>,
+    sequence: std::sync::atomic::AtomicU64,
+}
+
+impl ReplicationWorker {
+    pub fn new(
+        node_id: String,
+        node_epoch: u64,
+        session_id: String,
+        local: Arc<LocalChunkStore>,
+        authority: Arc<dyn ReplicationTaskAuthority>,
+        data_plane: Arc<dyn ReplicaDataPlane>,
+    ) -> Self {
+        Self {
+            node_id,
+            node_epoch,
+            session_id,
+            local,
+            authority,
+            data_plane,
+            pending: std::sync::Mutex::new(None),
+            sequence: std::sync::atomic::AtomicU64::new(1),
+        }
+    }
+
+    fn operation_id(&self, kind: &str) -> crate::dfs::OperationId {
+        use std::sync::atomic::Ordering;
+        crate::dfs::OperationId::new(format!(
+            "repair-{kind}:{}:{}",
+            self.session_id,
+            self.sequence.fetch_add(1, Ordering::Relaxed)
+        ))
+    }
+
+    /// Called from a blocking worker, never from the Tokio reactor. Serialize
+    /// this worker's claim/report requests so a timeout cannot launch another
+    /// transfer while the original outcome is unknown.
+    pub fn run_once(&self) -> Result<Option<crate::dfs::ReplicationTask>> {
+        let mut pending = self
+            .pending
+            .lock()
+            .map_err(|_| invalid("replication worker state lock is poisoned"))?;
+        let current = pending.get_or_insert_with(|| {
+            PendingRepair::Claiming(crate::dfs::ClaimReplicationTask {
+                caller_id: self.node_id.clone(),
+                caller_session_id: self.session_id.clone(),
+                caller_node_epoch: self.node_epoch,
+                operation_id: self.operation_id("claim"),
+                lease_seconds: 120,
+            })
+        });
+        if let PendingRepair::Claiming(request) = current {
+            let claim = match self.authority.claim(request.clone()) {
+                Ok(Some(claim)) => claim,
+                Ok(None) => {
+                    *pending = None;
+                    return Ok(None);
+                }
+                Err(error) => {
+                    if repair_request_definitively_rejected(&error) {
+                        *pending = None;
+                    }
+                    return Err(error);
+                }
+            };
+            if claim.operation_id != request.operation_id
+                || claim.worker_node_id != self.node_id
+                || claim.worker_node_epoch != self.node_epoch
+                || claim.worker_session_id != self.session_id
+            {
+                // A mismatched authority result must never become a transfer.
+                return Err(invalid("Meta repair claim does not bind this request"));
+            }
+            let now = unix_ms()?;
+            if claim.expires_at_unix_ms <= now {
+                // Exact replay can confirm a previously accepted but now stale
+                // claim. Start a fresh poll; do not transfer under that claim.
+                *pending = None;
+                return Ok(None);
+            }
+            let (durable_acks, error, source_invalid) = match self.replicate(&claim) {
+                Ok(acks) => (acks, None, false),
+                Err((error, source_invalid)) => {
+                    (Vec::new(), Some(error.to_string()), source_invalid)
+                }
+            };
+            *pending = Some(PendingRepair::Reporting(Box::new(
+                crate::dfs::ReportReplicationTask {
+                    caller_id: self.node_id.clone(),
+                    caller_session_id: self.session_id.clone(),
+                    caller_node_epoch: self.node_epoch,
+                    operation_id: self.operation_id("report"),
+                    claim,
+                    durable_acks,
+                    error,
+                    source_invalid,
+                },
+            )));
+        }
+        let Some(PendingRepair::Reporting(request)) = pending.as_ref() else {
+            return Err(invalid("repair worker lost the original claim"));
+        };
+        match self.authority.report(request.as_ref().clone()) {
+            Ok(task) => {
+                if task.id != request.claim.task_id
+                    || task.chunk_id != request.claim.chunk.id
+                    || (task.state == crate::dfs::ReplicationTaskState::Completed
+                        && task.placement_epoch != request.claim.replica_group.placement_epoch)
+                    || usize::from(task.desired_copies) != request.claim.replica_group.targets.len()
+                    || !matches!(
+                        task.state,
+                        crate::dfs::ReplicationTaskState::Completed
+                            | crate::dfs::ReplicationTaskState::RetryWaiting
+                            | crate::dfs::ReplicationTaskState::BlockedNoSource
+                    )
+                {
+                    // Keep the exact report pending: an unrelated response does
+                    // not confirm this transfer or authorize the next task.
+                    return Err(invalid("Meta repair report does not bind this task"));
+                }
+                *pending = None;
+                Ok(Some(task))
+            }
+            Err(error) => {
+                if error.code() == afs_error::META_DFS_REPAIR_SUPERSEDED
+                    || matches!(
+                        error.kind(),
+                        afs_error::ErrorKind::InvalidArgument
+                            | afs_error::ErrorKind::PermissionDenied
+                            | afs_error::ErrorKind::Unauthenticated
+                    )
+                {
+                    *pending = None;
+                }
+                Err(error)
+            }
+        }
+    }
+
+    fn replicate(
+        &self,
+        claim: &crate::dfs::ReplicationClaim,
+    ) -> std::result::Result<Vec<ReplicaAck>, (Error, bool)> {
+        let length = usize::try_from(claim.chunk.length)
+            .map_err(|_| (invalid("repair chunk length overflows this node"), false))?;
+        if length == 0 || length > crate::node::chunk::MAX_STAGED_CHUNK_BYTES {
+            return Err((invalid("repair chunk exceeds the staging budget"), false));
+        }
+        // Local source failures cannot be conflated with remote transport or
+        // capacity errors. Mark corrupt only for missing/invalid durable data,
+        // not permission, transient I/O, ENOSPC, or an unavailable peer.
+        let reader = self.local.open_verified(&claim.chunk.id).map_err(|error| {
+            let source_invalid = error.code() == afs_error::NODE_STORAGE_INVALID
+                || error.kind() == afs_error::ErrorKind::NotFound
+                || error.kind() == afs_error::ErrorKind::DataLoss;
+            (error, source_invalid)
+        })?;
+        let mut bytes = vec![0; length];
+        let mut offset = 0;
+        while offset < length {
+            let count = reader
+                .read_at(offset as u64, &mut bytes[offset..])
+                .map_err(|error| (error, false))?;
+            if count == 0 {
+                return Err((
+                    invalid("repair source ended before its immutable length"),
+                    true,
+                ));
+            }
+            offset += count;
+        }
+        let staged = StagedChunk::new(claim.operation_id.clone(), bytes);
+        if staged.chunk != claim.chunk {
+            return Err((invalid("repair source identity or digest differs"), true));
+        }
+        let plan = ReplicationPlan {
+            chunk_id: claim.chunk.id.clone(),
+            placement_revision: claim.placement_revision,
+            placement_epoch: claim.replica_group.placement_epoch,
+            replica_group_id: claim.replica_group.id.clone(),
+            config: claim.replication.clone(),
+            ordered_targets: claim.replica_group.targets.clone(),
+        };
+        plan.validate_initiator(&self.node_id)
+            .map_err(|error| (error, false))?;
+        if !plan.ordered_targets.first().is_some_and(|target| {
+            target.node_id == self.node_id && target.node_epoch == self.node_epoch
+        }) || plan.sync_target_count().map_err(|error| (error, false))?
+            != plan.ordered_targets.len()
+        {
+            return Err((
+                invalid("repair claim does not execute its full source-first chain"),
+                false,
+            ));
+        }
+        let mut peer_op = plan
+            .selected_peer_op(&self.node_id, self.node_epoch)
+            .map_err(|error| (error, false))?;
+        if let Some(op) = peer_op.as_mut() {
+            op.repair_claim = Some(claim.clone());
+            self.data_plane
+                .prepare_peer(op)
+                .map_err(|error| (error, false))?;
+        }
+        let mut acks = self
+            .local
+            .persist_batch(
+                std::slice::from_ref(&staged),
+                &plan.ordered_targets[0],
+                plan.placement_revision,
+                plan.placement_epoch,
+            )
+            .map_err(|error| (error, false))?;
+        if let Some(op) = peer_op {
+            acks.extend(
+                self.data_plane
+                    .put_peer_replica(&op, &staged)
+                    .map_err(|error| (error, false))?,
+            );
+        }
+        validate_acks(&plan, &staged, &acks, &self.node_id).map_err(|error| (error, false))?;
+        Ok(acks)
+    }
+}
+
+fn repair_request_definitively_rejected(error: &Error) -> bool {
+    matches!(
+        error.kind(),
+        afs_error::ErrorKind::InvalidArgument
+            | afs_error::ErrorKind::PermissionDenied
+            | afs_error::ErrorKind::Unauthenticated
+            | afs_error::ErrorKind::FailedPrecondition
+            | afs_error::ErrorKind::Aborted
+            | afs_error::ErrorKind::NotFound
+    )
+}
+
+fn unix_ms() -> Result<u64> {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|time| time.as_millis() as u64)
+        .map_err(|_| invalid("system clock is before epoch"))
 }
 
 #[cfg(test)]
@@ -1200,5 +1490,316 @@ mod tests {
             assert_eq!(reopened.read_at(&item.chunk.id, 0, &mut bytes).unwrap(), 13);
             assert_eq!(&bytes, b"durable-chain");
         }
+    }
+
+    struct RepairFixtureAuthority {
+        claim: crate::dfs::ReplicationClaim,
+        claims: Mutex<Vec<crate::dfs::ClaimReplicationTask>>,
+        reports: Mutex<Vec<crate::dfs::ReportReplicationTask>>,
+        fail_claim_once: std::sync::atomic::AtomicBool,
+        fail_report_once: std::sync::atomic::AtomicBool,
+        wrong_report_once: std::sync::atomic::AtomicBool,
+        conflict_report_once: std::sync::atomic::AtomicBool,
+        superseded_report_once: std::sync::atomic::AtomicBool,
+    }
+
+    impl ReplicationTaskAuthority for RepairFixtureAuthority {
+        fn claim(
+            &self,
+            request: crate::dfs::ClaimReplicationTask,
+        ) -> Result<Option<crate::dfs::ReplicationClaim>> {
+            use std::sync::atomic::Ordering;
+            self.claims.lock().unwrap().push(request.clone());
+            if self.fail_claim_once.swap(false, Ordering::Relaxed) {
+                return Err(Error::coded(
+                    afs_error::CLIENT_DEADLINE_EXCEEDED,
+                    "claim ACK lost",
+                ));
+            }
+            let mut claim = self.claim.clone();
+            claim.operation_id = request.operation_id;
+            Ok(Some(claim))
+        }
+
+        fn report(
+            &self,
+            request: crate::dfs::ReportReplicationTask,
+        ) -> Result<crate::dfs::ReplicationTask> {
+            use std::sync::atomic::Ordering;
+            self.reports.lock().unwrap().push(request.clone());
+            if self.fail_report_once.swap(false, Ordering::Relaxed) {
+                return Err(Error::coded(
+                    afs_error::CLIENT_CONNECTION_UNAVAILABLE,
+                    "report ACK lost",
+                ));
+            }
+            if self.conflict_report_once.swap(false, Ordering::Relaxed) {
+                return Err(Error::coded(
+                    afs_error::META_DFS_CONFLICT,
+                    "report CAS raced",
+                ));
+            }
+            if self.superseded_report_once.swap(false, Ordering::Relaxed) {
+                return Err(Error::coded(
+                    afs_error::META_DFS_REPAIR_SUPERSEDED,
+                    "claim replaced",
+                ));
+            }
+            let wrong = self.wrong_report_once.swap(false, Ordering::Relaxed);
+            Ok(crate::dfs::ReplicationTask {
+                id: if wrong {
+                    crate::dfs::ReplicationTaskId::new("unrelated-task")
+                } else {
+                    request.claim.task_id.clone()
+                },
+                chunk_id: request.claim.chunk.id.clone(),
+                placement_epoch: request.claim.replica_group.placement_epoch,
+                desired_copies: 2,
+                existing_copies: Vec::new(),
+                state: if request.error.is_none() {
+                    crate::dfs::ReplicationTaskState::Completed
+                } else {
+                    crate::dfs::ReplicationTaskState::RetryWaiting
+                },
+                attempt: 1,
+                next_retry_unix_ms: 0,
+                last_error: request.error,
+                claim: Some(Box::new(request.claim)),
+            })
+        }
+    }
+
+    fn repair_fixture(
+        payload: &str,
+    ) -> (
+        tempfile::TempDir,
+        Arc<LocalChunkStore>,
+        Arc<RepairFixtureAuthority>,
+        Arc<FakeDataPlane>,
+    ) {
+        let temp = tempfile::tempdir().unwrap();
+        let local = Arc::new(LocalChunkStore::open(temp.path(), "a").unwrap());
+        let item = staged(payload);
+        let source = target("a", local.device_descriptor().unwrap());
+        local
+            .persist_batch(std::slice::from_ref(&item), &source, 1, 1)
+            .unwrap();
+        let claim = crate::dfs::ReplicationClaim {
+            task_id: crate::dfs::ReplicationTaskId::new("repair-task"),
+            operation_id: OperationId::new("placeholder"),
+            worker_node_id: "a".into(),
+            worker_node_epoch: 1,
+            worker_session_id: "source-session".into(),
+            expires_at_unix_ms: unix_ms().unwrap() + 120_000,
+            fence: 1,
+            chunk: item.chunk,
+            source_copy_id: crate::dfs::CopyId::new("source-copy"),
+            placement_revision: 9,
+            replica_group: ReplicaGroup {
+                id: ReplicaGroupId::new("repair-group"),
+                placement_epoch: 8,
+                targets: vec![source, target("b", remote_device("disk-b"))],
+            },
+            // Meta's repair plan strengthens M=1 to a full N=2 transfer.
+            replication: config(2),
+        };
+        let authority = Arc::new(RepairFixtureAuthority {
+            claim,
+            claims: Mutex::new(Vec::new()),
+            reports: Mutex::new(Vec::new()),
+            fail_claim_once: std::sync::atomic::AtomicBool::new(false),
+            fail_report_once: std::sync::atomic::AtomicBool::new(false),
+            wrong_report_once: std::sync::atomic::AtomicBool::new(false),
+            conflict_report_once: std::sync::atomic::AtomicBool::new(false),
+            superseded_report_once: std::sync::atomic::AtomicBool::new(false),
+        });
+        (temp, local, authority, Arc::new(FakeDataPlane::default()))
+    }
+
+    fn repair_worker(
+        local: Arc<LocalChunkStore>,
+        authority: Arc<RepairFixtureAuthority>,
+        plane: Arc<FakeDataPlane>,
+    ) -> ReplicationWorker {
+        ReplicationWorker::new(
+            "a".into(),
+            1,
+            "source-session".into(),
+            local,
+            authority,
+            plane,
+        )
+    }
+
+    #[test]
+    fn repair_claim_survives_common_grpc_and_rdma_replica_header() {
+        let (_temp, _local, authority, _plane) = repair_fixture("repair-payload");
+        let claim = authority.claim.clone();
+        let staged = StagedChunk::new(claim.operation_id.clone(), b"repair-payload".to_vec());
+        let plan = ReplicationPlan {
+            chunk_id: claim.chunk.id.clone(),
+            placement_revision: claim.placement_revision,
+            placement_epoch: claim.replica_group.placement_epoch,
+            replica_group_id: claim.replica_group.id.clone(),
+            config: claim.replication.clone(),
+            ordered_targets: claim.replica_group.targets.clone(),
+        };
+        let mut op = plan.selected_peer_op("a", 1).unwrap().unwrap();
+        op.repair_claim = Some(claim.clone());
+        let header = crate::node::rpc::peer::replica_header(&op, &staged).unwrap();
+        assert_eq!(header.operation_id, claim.operation_id.0);
+        assert_eq!(
+            crate::node::rpc::meta::domain_replication_claim(*header.repair_claim.unwrap())
+                .unwrap(),
+            claim
+        );
+        op.repair_claim.as_mut().unwrap().worker_node_epoch += 1;
+        assert!(crate::node::rpc::peer::replica_header(&op, &staged).is_err());
+    }
+
+    #[test]
+    fn repair_worker_preserves_claim_identity_after_unknown_ack() {
+        use std::sync::atomic::Ordering;
+        let (_temp, local, authority, plane) = repair_fixture("repair-payload");
+        authority.fail_claim_once.store(true, Ordering::Relaxed);
+        let worker = repair_worker(local, authority.clone(), plane.clone());
+        assert!(worker.run_once().is_err());
+        assert!(plane.prepared.lock().unwrap().is_empty());
+        assert_eq!(
+            worker.run_once().unwrap().unwrap().state,
+            crate::dfs::ReplicationTaskState::Completed
+        );
+        let claims = authority.claims.lock().unwrap();
+        assert_eq!(claims.len(), 2);
+        assert_eq!(claims[0], claims[1]);
+        let reports = authority.reports.lock().unwrap();
+        assert_eq!(reports[0].durable_acks.len(), 2);
+        assert_eq!(reports[0].claim.operation_id, claims[0].operation_id);
+        assert_eq!(plane.prepared.lock().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn repair_worker_replays_report_without_retransferring_chunk() {
+        use std::sync::atomic::Ordering;
+        let (_temp, local, authority, plane) = repair_fixture("repair-payload");
+        authority.fail_report_once.store(true, Ordering::Relaxed);
+        let worker = repair_worker(local, authority.clone(), plane.clone());
+        assert!(worker.run_once().is_err());
+        assert_eq!(
+            worker.run_once().unwrap().unwrap().state,
+            crate::dfs::ReplicationTaskState::Completed
+        );
+        let reports = authority.reports.lock().unwrap();
+        assert_eq!(reports.len(), 2);
+        assert_eq!(reports[0], reports[1]);
+        assert_eq!(authority.claims.lock().unwrap().len(), 1);
+        assert_eq!(plane.prepared.lock().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn repair_worker_retains_report_after_unrelated_reply() {
+        use std::sync::atomic::Ordering;
+        let (_temp, local, authority, plane) = repair_fixture("repair-payload");
+        authority.wrong_report_once.store(true, Ordering::Relaxed);
+        let worker = repair_worker(local, authority.clone(), plane.clone());
+        assert!(worker.run_once().is_err());
+        assert_eq!(
+            worker.run_once().unwrap().unwrap().state,
+            crate::dfs::ReplicationTaskState::Completed
+        );
+        let reports = authority.reports.lock().unwrap();
+        assert_eq!(reports.len(), 2);
+        assert_eq!(reports[0], reports[1]);
+        assert_eq!(authority.claims.lock().unwrap().len(), 1);
+        assert_eq!(plane.prepared.lock().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn repair_worker_retains_exact_report_after_generic_cas_conflict() {
+        use std::sync::atomic::Ordering;
+        let (_temp, local, authority, plane) = repair_fixture("repair-payload");
+        authority
+            .conflict_report_once
+            .store(true, Ordering::Relaxed);
+        let worker = repair_worker(local, authority.clone(), plane.clone());
+        assert!(worker.run_once().is_err());
+        assert_eq!(
+            worker.run_once().unwrap().unwrap().state,
+            crate::dfs::ReplicationTaskState::Completed
+        );
+        let reports = authority.reports.lock().unwrap();
+        assert_eq!(reports.len(), 2);
+        assert_eq!(reports[0], reports[1]);
+        assert_eq!(authority.claims.lock().unwrap().len(), 1);
+        assert_eq!(plane.prepared.lock().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn repair_worker_advances_only_after_specific_superseded_proof() {
+        use std::sync::atomic::Ordering;
+        let (_temp, local, authority, plane) = repair_fixture("repair-payload");
+        authority
+            .superseded_report_once
+            .store(true, Ordering::Relaxed);
+        let worker = repair_worker(local, authority.clone(), plane.clone());
+        assert_eq!(
+            worker.run_once().unwrap_err().code(),
+            afs_error::META_DFS_REPAIR_SUPERSEDED
+        );
+        assert_eq!(
+            worker.run_once().unwrap().unwrap().state,
+            crate::dfs::ReplicationTaskState::Completed
+        );
+        let claims = authority.claims.lock().unwrap();
+        assert_eq!(claims.len(), 2);
+        assert_ne!(claims[0].operation_id, claims[1].operation_id);
+        let reports = authority.reports.lock().unwrap();
+        assert_ne!(reports[0].claim.operation_id, reports[1].claim.operation_id);
+        assert_eq!(plane.prepared.lock().unwrap().len(), 2);
+    }
+
+    #[test]
+    fn repair_worker_reports_missing_source_without_peer_bytes() {
+        let (temp, local, authority, plane) = repair_fixture("repair-payload");
+        std::fs::remove_file(temp.path().join("chunks").join(&authority.claim.chunk.id.0)).unwrap();
+        let worker = repair_worker(local, authority.clone(), plane.clone());
+        assert_eq!(
+            worker.run_once().unwrap().unwrap().state,
+            crate::dfs::ReplicationTaskState::RetryWaiting
+        );
+        let reports = authority.reports.lock().unwrap();
+        assert!(reports[0].source_invalid);
+        assert!(reports[0].error.is_some());
+        assert!(reports[0].durable_acks.is_empty());
+        assert!(plane.prepared.lock().unwrap().is_empty());
+    }
+
+    #[test]
+    fn repair_worker_refuses_expired_claim_without_transfer_or_report() {
+        let (_temp, local, mut authority, plane) = repair_fixture("repair-payload");
+        Arc::get_mut(&mut authority)
+            .unwrap()
+            .claim
+            .expires_at_unix_ms = 1;
+        let worker = repair_worker(local, authority.clone(), plane.clone());
+        assert!(worker.run_once().unwrap().is_none());
+        assert!(authority.reports.lock().unwrap().is_empty());
+        assert!(plane.prepared.lock().unwrap().is_empty());
+    }
+
+    #[test]
+    fn repair_worker_refuses_oversized_chunk_before_allocating_or_transfer() {
+        let (_temp, local, mut authority, plane) = repair_fixture("repair-payload");
+        Arc::get_mut(&mut authority).unwrap().claim.chunk.length =
+            crate::node::chunk::MAX_STAGED_CHUNK_BYTES as u64 + 1;
+        let worker = repair_worker(local, authority.clone(), plane.clone());
+        assert_eq!(
+            worker.run_once().unwrap().unwrap().state,
+            crate::dfs::ReplicationTaskState::RetryWaiting
+        );
+        let reports = authority.reports.lock().unwrap();
+        assert!(!reports[0].source_invalid);
+        assert!(reports[0].durable_acks.is_empty());
+        assert!(plane.prepared.lock().unwrap().is_empty());
     }
 }

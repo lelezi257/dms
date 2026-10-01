@@ -1,0 +1,76 @@
+[
+  {
+    "label": "fmt",
+    "argv": [
+      "timeout",
+      "60",
+      "cargo",
+      "fmt",
+      "--all",
+      "--",
+      "--check"
+    ],
+    "returncode": 0,
+    "elapsed_seconds": 0.3906184879888315
+  },
+  {
+    "label": "clippy",
+    "argv": [
+      "timeout",
+      "240",
+      "cargo",
+      "clippy",
+      "--workspace",
+      "--all-targets",
+      "--all-features",
+      "--",
+      "-D",
+      "warnings"
+    ],
+    "returncode": 0,
+    "elapsed_seconds": 0.08843823100323789
+  },
+  {
+    "label": "library",
+    "argv": [
+      "timeout",
+      "240",
+      "cargo",
+      "test",
+      "--all-features",
+      "--lib",
+      "--",
+      "--nocapture"
+    ],
+    "returncode": 0,
+    "elapsed_seconds": 24.460611136993975
+  },
+  {
+    "label": "contracts",
+    "argv": [
+      "timeout",
+      "240",
+      "cargo",
+      "test",
+      "--all-features",
+      "--test",
+      "config_contract",
+      "--test",
+      "error_contract",
+      "--test",
+      "fuse_contract",
+      "--test",
+      "meta_contract",
+      "--test",
+      "ownerfs_peer_contract",
+      "--test",
+      "rest_contract",
+      "--test",
+      "vfs_contract",
+      "--",
+      "--nocapture"
+    ],
+    "returncode": 101,
+    "elapsed_seconds": 32.82288094700198
+  }
+]

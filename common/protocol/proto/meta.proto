@@ -326,6 +326,8 @@ service DfsMeta {
   rpc GetFileVersion(GetFileVersionRequest) returns (GetFileVersionReply);
   rpc GetPlacementSnapshot(GetDfsPlacementSnapshotRequest) returns (GetDfsPlacementSnapshotReply);
   rpc ValidateReplicaWrite(ValidateDfsReplicaWriteRequest) returns (ValidateDfsReplicaWriteReply);
+  rpc ClaimReplicationTask(ClaimDfsReplicationTaskRequest) returns (ClaimDfsReplicationTaskReply);
+  rpc ReportReplicationTask(ReportDfsReplicationTaskRequest) returns (ReportDfsReplicationTaskReply);
   rpc GetChunkSources(GetDfsChunkSourcesRequest) returns (GetDfsChunkSourcesReply);
   rpc ValidateReadGrants(ValidateDfsReadGrantsRequest) returns (ValidateDfsReadGrantsReply);
   rpc SyncInodeMetadata(SyncDfsInodeMetadataRequest) returns (SyncDfsInodeMetadataReply);
@@ -407,6 +409,78 @@ message DfsReplicaAck {
   uint64 persisted_bytes = 10;
   bytes verified_digest = 11;
   DfsDigestAlgorithm verified_digest_algorithm = 12;
+}
+
+message DfsChunkObject {
+  string chunk_id = 1;
+  uint64 length = 2;
+  bytes content_digest = 3;
+  DfsDigestAlgorithm content_digest_algorithm = 4;
+}
+
+message DfsReplicationClaim {
+  string task_id = 1;
+  string operation_id = 2;
+  string worker_node_id = 3;
+  uint64 worker_node_epoch = 4;
+  string worker_session_id = 5;
+  uint64 expires_at_unix_ms = 6;
+  uint64 fence = 7;
+  DfsChunkObject chunk = 8;
+  string source_copy_id = 9;
+  uint64 placement_revision = 10;
+  DfsReplicaGroup replica_group = 11;
+  DfsReplicationConfig replication = 12;
+}
+
+enum DfsReplicationTaskState {
+  DFS_REPLICATION_TASK_STATE_UNSPECIFIED = 0;
+  DFS_REPLICATION_TASK_STATE_PENDING = 1;
+  DFS_REPLICATION_TASK_STATE_RUNNING = 2;
+  DFS_REPLICATION_TASK_STATE_RETRY_WAITING = 3;
+  DFS_REPLICATION_TASK_STATE_COMPLETED = 4;
+  DFS_REPLICATION_TASK_STATE_BLOCKED_NO_SOURCE = 5;
+}
+
+message DfsReplicationTask {
+  string task_id = 1;
+  string chunk_id = 2;
+  uint64 placement_epoch = 3;
+  uint32 desired_copies = 4;
+  repeated string existing_copy_ids = 5;
+  DfsReplicationTaskState state = 6;
+  uint32 attempt = 7;
+  uint64 next_retry_unix_ms = 8;
+  optional string last_error = 9;
+  DfsReplicationClaim claim = 10;
+}
+
+message ClaimDfsReplicationTaskRequest {
+  string caller_id = 1;
+  string caller_session_id = 2;
+  uint64 caller_node_epoch = 3;
+  string operation_id = 4;
+  uint64 lease_seconds = 5;
+}
+
+message ClaimDfsReplicationTaskReply {
+  bool claimed = 1;
+  DfsReplicationClaim claim = 2;
+}
+
+message ReportDfsReplicationTaskRequest {
+  string caller_id = 1;
+  string caller_session_id = 2;
+  uint64 caller_node_epoch = 3;
+  string operation_id = 4;
+  DfsReplicationClaim claim = 5;
+  repeated DfsReplicaAck durable_acks = 6;
+  optional string error = 7;
+  bool source_invalid = 8;
+}
+
+message ReportDfsReplicationTaskReply {
+  DfsReplicationTask task = 1;
 }
 
 enum DfsDigestAlgorithm {
@@ -828,6 +902,7 @@ message ValidateDfsReplicaWriteRequest {
   string replica_group_id = 12;
   uint32 target_index = 13;
   repeated DfsReplicaTarget ordered_targets = 14;
+  DfsReplicationClaim repair_claim = 15;
 }
 
 message ValidateDfsReplicaWriteReply {

@@ -1,0 +1,13 @@
+{
+  "scope": "frozen catalog correction only",
+  "mode": "read-only source inspection",
+  "blockers": 0,
+  "verdict": "narrow removal sound; normal grants preserve frozen floors and receivers enforce them; repair receipts still enforce frozen claim floors",
+  "evidence": [
+    "src/meta/dfs.rs normal validate_replica_write and validate_chunk_receipt",
+    "src/meta/dfs.rs replica_targets_match_requested_floor and validate_repair_acks",
+    "src/node/chunk.rs put_replica frozen grant floor and emitted actual catalog ACK",
+    "tests/meta_contract.rs dfs_commit_accepts_durable_ack_after_unrelated_catalog_advance"
+  ],
+  "limits": "No reviewer build/LSP/runtime evidence; integrated review follows separately"
+}

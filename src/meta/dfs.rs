@@ -9,14 +9,15 @@ use std::{
 use afs_error::{Error, Result};
 
 use crate::dfs::{
-    CallerContext, ChunkSources, CommitFileVersion, CommitMetadataMode, CopyId, CopyLocation,
-    CopyRecord, CopyRole, CopyState, Dentry, DentryKey, DentryRecord, DfsChunkSourcesReply,
-    DfsChunkSourcesRequest, DfsReadGrant, FileVersion, FileVersionId, GetXattrRequest,
-    InodeAttributes, InodeId, InodeKind, InodeRecord, LayoutRoot, LinkRequest, ListXattrRequest,
-    LocalCopyPolicy, MkdirRequest, MknodRequest, NamespaceId, OperationId, PlacementHealth,
-    PlacementRecord, PlacementSnapshot, ReadLinkRequest, RemoveXattrRequest, RenameMode,
-    RenameOutcome, RenameRequest, ReplicaGroup, ReplicaGroupId, ReplicaTarget, ReplicaWriteGrant,
-    ReplicationConfig, ReplicationTask, ReplicationTaskId, ReplicationTaskState, RmdirRequest,
+    CallerContext, ChunkObject, ChunkSources, ClaimReplicationTask, CommitFileVersion,
+    CommitMetadataMode, CopyId, CopyLocation, CopyRecord, CopyRole, CopyState, Dentry, DentryKey,
+    DentryRecord, DfsChunkSourcesReply, DfsChunkSourcesRequest, DfsReadGrant, FileVersion,
+    FileVersionId, GetXattrRequest, InodeAttributes, InodeId, InodeKind, InodeRecord, LayoutRoot,
+    LinkRequest, ListXattrRequest, LocalCopyPolicy, MkdirRequest, MknodRequest, NamespaceId,
+    OperationId, PlacementHealth, PlacementRecord, PlacementSnapshot, ReadLinkRequest,
+    RemoveXattrRequest, RenameMode, RenameOutcome, RenameRequest, ReplicaAck, ReplicaGroup,
+    ReplicaGroupId, ReplicaTarget, ReplicaWriteGrant, ReplicationClaim, ReplicationConfig,
+    ReplicationTask, ReplicationTaskId, ReplicationTaskState, ReportReplicationTask, RmdirRequest,
     SetInodeAttrRequest, SetXattrRequest, SourceCandidate, SpecialNodeKind, SymlinkRequest,
     SyncInodeMetadata, UnlinkRequest, ValidateReplicaWriteRequest, WriteLease, XattrSetMode,
 };
@@ -195,6 +196,9 @@ impl DfsService {
         if request.ordered_targets.is_empty() {
             return Err(invalid("DFS replica write ordered_targets are required"));
         }
+        if request.repair_claim.is_some() {
+            return self.validate_repair_replica_write(request).await;
+        }
 
         let initiator_snapshot = self
             .store
@@ -271,6 +275,419 @@ impl DfsService {
             fence,
             token,
         })
+    }
+
+    pub async fn claim_replication_task(
+        &self,
+        request: ClaimReplicationTask,
+    ) -> Result<Option<ReplicationClaim>> {
+        let request_digest = namespace_request_digest(&request)?;
+        require_id(&request.caller_id, "caller_id")?;
+        require_id(&request.caller_session_id, "caller_session_id")?;
+        require_id(&request.operation_id.0, "operation_id")?;
+        if request.caller_node_epoch == 0 {
+            return Err(invalid("caller_node_epoch is required"));
+        }
+        if let Some(claim) = self
+            .replayed_replication_claim(
+                &request.caller_id,
+                &request.operation_id,
+                StoreOperation::DfsClaimReplicationTask,
+                request_digest,
+            )
+            .await?
+        {
+            return Ok(claim);
+        }
+        let lease_seconds = request.lease_seconds.clamp(1, 120);
+        let now = now_unix_ms();
+        let caller_session = self
+            .current_session(
+                &request.caller_id,
+                request.caller_node_epoch,
+                Some(&request.caller_session_id),
+                now,
+            )
+            .await?;
+        if caller_session.storage_devices.is_empty() {
+            return Err(conflict(
+                "replication worker has no registered storage device",
+            ));
+        }
+        let replication = self.current_replication_config().await?;
+        let placements = self
+            .store
+            .read(MetaRead::DfsPlacements)
+            .await?
+            .entities
+            .into_iter()
+            .filter_map(|entity| match entity {
+                MetaEntity::DfsPlacement(placement) => Some(placement),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        let tasks = self
+            .store
+            .read(MetaRead::DfsReplicationTasks)
+            .await?
+            .entities
+            .into_iter()
+            .filter_map(|entity| match entity {
+                MetaEntity::DfsReplicationTask(task) => Some(task),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+
+        let mut candidates = tasks
+            .iter()
+            .filter(|task| task.state != ReplicationTaskState::Completed)
+            .cloned()
+            .collect::<Vec<_>>();
+        candidates.sort_by(|left, right| left.id.cmp(&right.id));
+        for placement in placements {
+            if placement.desired_copies <= placement.copies.len() as u16
+                && placement.health == PlacementHealth::Satisfied
+                && self.live_ready_copy_count(&placement, now).await?
+                    >= usize::from(placement.desired_copies)
+            {
+                continue;
+            }
+            let task_id = repair_task_id(&placement.chunk_id);
+            if candidates
+                .iter()
+                .any(|task| task.chunk_id == placement.chunk_id)
+            {
+                continue;
+            }
+            if let Some(completed) = tasks.iter().find(|task| task.id == task_id) {
+                let mut reactivated = completed.clone();
+                reactivated.chunk_id = placement.chunk_id.clone();
+                reactivated.placement_epoch = placement.placement_epoch;
+                reactivated.desired_copies = placement.desired_copies;
+                reactivated.existing_copies = placement.copies.clone();
+                reactivated.state = ReplicationTaskState::Pending;
+                reactivated.next_retry_unix_ms = now;
+                reactivated.last_error = None;
+                reactivated.claim = None;
+                candidates.push(reactivated);
+            } else {
+                candidates.push(ReplicationTask {
+                    id: task_id,
+                    chunk_id: placement.chunk_id.clone(),
+                    placement_epoch: placement.placement_epoch,
+                    desired_copies: placement.desired_copies,
+                    existing_copies: placement.copies.clone(),
+                    state: ReplicationTaskState::Pending,
+                    attempt: 0,
+                    next_retry_unix_ms: now,
+                    last_error: None,
+                    claim: None,
+                });
+            }
+        }
+        candidates.sort_by(|left, right| left.id.cmp(&right.id));
+
+        for task in candidates {
+            if !task_is_claimable(&task, now) {
+                continue;
+            }
+            if let Some(claim) = task.claim.as_ref()
+                && claim.expires_at_unix_ms > now
+                && self
+                    .current_session(
+                        &claim.worker_node_id,
+                        claim.worker_node_epoch,
+                        Some(&claim.worker_session_id),
+                        now,
+                    )
+                    .await
+                    .is_ok()
+            {
+                continue;
+            }
+            let placement = match self.placement(&task.chunk_id).await {
+                Ok(placement) => placement,
+                Err(_) => continue,
+            };
+            if self.live_ready_copy_count(&placement, now).await? == 0 {
+                if task.state != ReplicationTaskState::BlockedNoSource
+                    || placement.health != PlacementHealth::BlockedNoSource
+                {
+                    let mut blocked_task = task.clone();
+                    blocked_task.state = ReplicationTaskState::BlockedNoSource;
+                    blocked_task.claim = None;
+                    blocked_task.next_retry_unix_ms = now.saturating_add(5_000);
+                    blocked_task.last_error = Some("no live source for replication repair".into());
+                    let mut blocked_placement = placement.clone();
+                    blocked_placement.health = PlacementHealth::BlockedNoSource;
+                    let request_key =
+                        RequestKey::new(request.caller_id.clone(), request.operation_id.0.clone());
+                    let outcome = RequestOutcome {
+                        request: request_key.clone(),
+                        operation: StoreOperation::DfsClaimReplicationTask,
+                        result: OperationResult::DfsReplicationClaim {
+                            request_digest,
+                            claim: None,
+                        },
+                    };
+                    let mut txn =
+                        MetaTxn::new(request_key.clone(), StoreOperation::DfsClaimReplicationTask);
+                    txn.conditions.extend([
+                        TxnCondition::RequestAbsent(request_key),
+                        TxnCondition::EntityEquals(MetaEntity::DfsPlacement(placement)),
+                        TxnCondition::NodeSessionCurrent {
+                            node_id: request.caller_id.clone(),
+                            session_id: request.caller_session_id.clone(),
+                        },
+                    ]);
+                    match self
+                        .store
+                        .read(MetaRead::DfsReplicationTask(task.id.clone()))
+                        .await?
+                        .entity
+                    {
+                        Some(MetaEntity::DfsReplicationTask(current))
+                            if current == task || task_reactivates_completed(&task, &current) =>
+                        {
+                            txn.conditions.push(TxnCondition::EntityEquals(
+                                MetaEntity::DfsReplicationTask(current),
+                            ))
+                        }
+                        None => {
+                            txn.conditions
+                                .push(TxnCondition::Missing(MetaKey::DfsReplicationTask(
+                                    task.id.clone(),
+                                )))
+                        }
+                        _ => continue,
+                    }
+                    txn.mutations.extend([
+                        TxnMutation::Put(MetaEntity::DfsPlacement(blocked_placement)),
+                        TxnMutation::Put(MetaEntity::DfsReplicationTask(blocked_task)),
+                        TxnMutation::RecordRequestOutcome(outcome),
+                    ]);
+                    return replication_claim_outcome(
+                        self.store.compare_and_commit(txn).await?,
+                        request_digest,
+                    );
+                }
+                continue;
+            }
+            let Some(selection) = self
+                .build_replication_claim(
+                    &request,
+                    &caller_session,
+                    &task,
+                    &replication,
+                    lease_seconds,
+                    now,
+                )
+                .await?
+            else {
+                continue;
+            };
+            let (claim, updated_task, conditions) = selection;
+            let request_key =
+                RequestKey::new(request.caller_id.clone(), request.operation_id.0.clone());
+            let outcome = RequestOutcome {
+                request: request_key.clone(),
+                operation: StoreOperation::DfsClaimReplicationTask,
+                result: OperationResult::DfsReplicationClaim {
+                    request_digest,
+                    claim: Some(claim.clone()),
+                },
+            };
+            let mut txn =
+                MetaTxn::new(request_key.clone(), StoreOperation::DfsClaimReplicationTask);
+            txn.conditions
+                .push(TxnCondition::RequestAbsent(request_key));
+            txn.conditions.extend(conditions);
+            txn.conditions.push(TxnCondition::EntityEquals(
+                MetaEntity::DfsReplicationConfig(replication.clone()),
+            ));
+            txn.conditions.push(TxnCondition::NodeSessionCurrent {
+                node_id: request.caller_id.clone(),
+                session_id: request.caller_session_id.clone(),
+            });
+            txn.mutations.extend([
+                TxnMutation::Put(MetaEntity::DfsReplicationTask(updated_task)),
+                TxnMutation::RecordRequestOutcome(outcome),
+            ]);
+            return replication_claim_outcome(
+                self.store.compare_and_commit(txn).await?,
+                request_digest,
+            );
+        }
+
+        Ok(None)
+    }
+
+    pub async fn report_replication_task(
+        &self,
+        request: ReportReplicationTask,
+    ) -> Result<ReplicationTask> {
+        let request_digest = namespace_request_digest(&request)?;
+        require_id(&request.caller_id, "caller_id")?;
+        require_id(&request.caller_session_id, "caller_session_id")?;
+        require_id(&request.operation_id.0, "operation_id")?;
+        if request.caller_node_epoch == 0 {
+            return Err(invalid("caller_node_epoch is required"));
+        }
+        if let Some(task) = self
+            .replayed_replication_task(
+                &request.caller_id,
+                &request.operation_id,
+                StoreOperation::DfsReportReplicationTask,
+                request_digest,
+            )
+            .await?
+        {
+            return Ok(task);
+        }
+        let now = now_unix_ms();
+        let caller_session = self
+            .current_session(
+                &request.caller_id,
+                request.caller_node_epoch,
+                Some(&request.caller_session_id),
+                now,
+            )
+            .await?;
+        let task = self.replication_task(&request.claim.task_id).await?;
+        if task.state != ReplicationTaskState::Running
+            || task.claim.as_deref() != Some(&request.claim)
+        {
+            return Err(Error::coded(
+                afs_error::META_DFS_REPAIR_SUPERSEDED,
+                "replication report does not match the current claim",
+            ));
+        }
+        if request.claim.worker_node_id != request.caller_id
+            || request.claim.worker_node_epoch != request.caller_node_epoch
+            || request.claim.worker_session_id != request.caller_session_id
+        {
+            return Err(permission_denied(
+                "replication report caller does not own the claim",
+            ));
+        }
+        let placement = self.placement(&request.claim.chunk.id).await?;
+        let chunk = self.chunk(&request.claim.chunk.id).await?;
+        if chunk != request.claim.chunk {
+            return Err(conflict("replication report references a changed chunk"));
+        }
+        let source_copy = self.copy(&request.claim.source_copy_id).await?;
+        let replication = self.current_replication_config().await?;
+        let mut updated_task = task.clone();
+        let mut mutations = Vec::new();
+        let mut conditions = vec![
+            TxnCondition::EntityEquals(MetaEntity::DfsReplicationTask(task)),
+            TxnCondition::EntityEquals(MetaEntity::DfsPlacement(placement.clone())),
+            TxnCondition::EntityEquals(MetaEntity::DfsChunk(chunk)),
+            TxnCondition::EntityEquals(MetaEntity::DfsCopy(source_copy.clone())),
+            TxnCondition::EntityEquals(MetaEntity::DfsReplicationConfig(replication)),
+            TxnCondition::NodeSessionCurrent {
+                node_id: request.caller_id.clone(),
+                session_id: request.caller_session_id.clone(),
+            },
+        ];
+        if request.source_invalid {
+            if !copy_is_on_node(&source_copy, &request.caller_id)
+                || !copy_matches_chunk(&source_copy, &request.claim.chunk)
+                || serving_read_copy(&source_copy, &caller_session, now).is_none()
+            {
+                return Err(permission_denied(
+                    "source_invalid can only mark the worker's bound source copy",
+                ));
+            }
+            let mut corrupt = source_copy.clone();
+            corrupt.state = CopyState::Corrupt;
+            mutations.push(TxnMutation::Put(MetaEntity::DfsCopy(corrupt)));
+            let remaining_live_sources = self
+                .live_ready_copy_count_excluding(&placement, now, Some(&source_copy.id))
+                .await?;
+            let mut updated_placement = placement.clone();
+            if remaining_live_sources == 0 {
+                updated_task.state = ReplicationTaskState::BlockedNoSource;
+                updated_placement.health = PlacementHealth::BlockedNoSource;
+            } else {
+                updated_task.state = ReplicationTaskState::RetryWaiting;
+                updated_placement.health = PlacementHealth::UnderReplicated;
+            }
+            mutations.push(TxnMutation::Put(MetaEntity::DfsPlacement(
+                updated_placement,
+            )));
+            updated_task.claim = None;
+            updated_task.last_error = Some("source copy failed local verification".into());
+            updated_task.next_retry_unix_ms =
+                now.saturating_add(retry_backoff_ms(updated_task.attempt));
+        } else if let Some(error) = request.error.clone() {
+            updated_task.state = ReplicationTaskState::RetryWaiting;
+            updated_task.claim = None;
+            updated_task.last_error = Some(error);
+            updated_task.next_retry_unix_ms =
+                now.saturating_add(retry_backoff_ms(updated_task.attempt));
+        } else {
+            let accepted = self
+                .validate_repair_acks(&request.claim, &request.durable_acks, now, &mut conditions)
+                .await?;
+            let mut copy_ids = placement.copies.clone();
+            for copy in accepted {
+                if !copy_ids.contains(&copy.id) {
+                    copy_ids.push(copy.id.clone());
+                }
+                mutations.push(TxnMutation::Put(MetaEntity::DfsCopy(copy)));
+            }
+            if copy_ids.len() < usize::from(request.claim.replication.desired_copies) {
+                return Err(invalid(
+                    "replication report does not include the full repaired target set",
+                ));
+            }
+            mutations.push(TxnMutation::Put(MetaEntity::DfsPlacement(
+                PlacementRecord {
+                    chunk_id: placement.chunk_id.clone(),
+                    replica_group_id: request.claim.replica_group.id.clone(),
+                    placement_epoch: request.claim.replica_group.placement_epoch,
+                    desired_copies: request.claim.replication.desired_copies,
+                    copies: copy_ids.clone(),
+                    health: PlacementHealth::Satisfied,
+                },
+            )));
+            updated_task.state = ReplicationTaskState::Completed;
+            updated_task.placement_epoch = request.claim.replica_group.placement_epoch;
+            updated_task.desired_copies = request.claim.replication.desired_copies;
+            updated_task.existing_copies = copy_ids;
+            updated_task.claim = None;
+            updated_task.last_error = None;
+            updated_task.next_retry_unix_ms = 0;
+        }
+
+        let request_key =
+            RequestKey::new(request.caller_id.clone(), request.operation_id.0.clone());
+        let outcome = RequestOutcome {
+            request: request_key.clone(),
+            operation: StoreOperation::DfsReportReplicationTask,
+            result: namespace_result(
+                request_digest,
+                OperationResult::DfsReplicationTask(updated_task.clone()),
+            ),
+        };
+        let mut txn = MetaTxn::new(
+            request_key.clone(),
+            StoreOperation::DfsReportReplicationTask,
+        );
+        txn.conditions
+            .push(TxnCondition::RequestAbsent(request_key));
+        txn.conditions.extend(conditions);
+        mutations.push(TxnMutation::Put(MetaEntity::DfsReplicationTask(
+            updated_task,
+        )));
+        mutations.push(TxnMutation::RecordRequestOutcome(outcome));
+        txn.mutations = mutations;
+        replication_task_outcome(
+            self.store.compare_and_commit(txn).await?,
+            StoreOperation::DfsReportReplicationTask,
+            request_digest,
+        )
     }
 
     pub async fn lookup(
@@ -2117,10 +2534,7 @@ impl DfsService {
                 txn.mutations
                     .push(TxnMutation::Put(MetaEntity::DfsReplicationTask(
                         ReplicationTask {
-                            id: ReplicationTaskId::new(format!(
-                                "repair:{}:{}",
-                                commit.operation_id.0, receipt.chunk.id.0
-                            )),
+                            id: repair_task_id(&receipt.chunk.id),
                             chunk_id: receipt.chunk.id.clone(),
                             placement_epoch: receipt.placement_epoch,
                             desired_copies: replication.desired_copies,
@@ -2129,6 +2543,7 @@ impl DfsService {
                             attempt: 0,
                             next_retry_unix_ms: now_unix_ms(),
                             last_error: None,
+                            claim: None,
                         },
                     )));
             }
@@ -2207,16 +2622,21 @@ impl DfsService {
                     "ChunkReceipt contains duplicate Node acknowledgements",
                 ));
             }
-            if !group.targets.iter().any(|target| {
-                target.node_id == ack.node_id
-                    && target.node_epoch == ack.node_epoch
-                    && target.device.device_id == ack.device_id
-                    && target.device.device_epoch == ack.device_epoch
-            }) {
-                return Err(conflict(
-                    "ReplicaAck target is not assigned by the current ReplicaGroup",
-                ));
-            }
+            group
+                .targets
+                .iter()
+                .find(|target| {
+                    target.node_id == ack.node_id
+                        && target.node_epoch == ack.node_epoch
+                        && target.device.device_id == ack.device_id
+                        && target.device.device_epoch == ack.device_epoch
+                })
+                .ok_or_else(|| {
+                    conflict("ReplicaAck target is not assigned by the current ReplicaGroup")
+                })?;
+            // This snapshot may include unrelated catalog advances after the
+            // write grant. The receiver enforces the frozen grant's floor;
+            // comparing that ACK against today's floor would reject valid data.
             let session_snapshot = self
                 .store
                 .read(MetaRead::CurrentNodeSession {
@@ -2267,6 +2687,377 @@ impl DfsService {
             return Err(invalid(
                 "ChunkReceipt does not satisfy Node, failure-domain or local-copy constraints",
             ));
+        }
+        Ok(copies)
+    }
+
+    async fn validate_repair_replica_write(
+        &self,
+        request: ValidateReplicaWriteRequest,
+    ) -> Result<ReplicaWriteGrant> {
+        let claim = request
+            .repair_claim
+            .clone()
+            .ok_or_else(|| invalid("repair claim is required"))?;
+        if claim.operation_id != request.operation_id
+            || claim.worker_node_id != request.initiator_node_id
+            || claim.worker_node_epoch != request.initiator_node_epoch
+            || claim.chunk.id != request.chunk_id
+            || claim.chunk.length != request.chunk_length
+            || claim.chunk.content_digest != request.content_digest
+            || claim.placement_revision != request.placement_revision
+            || claim.replica_group.id != request.replica_group_id
+            || claim.replica_group.placement_epoch != request.placement_epoch
+            || claim.replica_group.targets != request.ordered_targets
+        {
+            return Err(conflict("repair replica write does not match its claim"));
+        }
+        let now = now_unix_ms();
+        if claim.expires_at_unix_ms <= now {
+            return Err(conflict("repair claim expired"));
+        }
+        let task = self.replication_task(&claim.task_id).await?;
+        if task.state != ReplicationTaskState::Running || task.claim.as_deref() != Some(&claim) {
+            return Err(conflict("repair claim is not the current running claim"));
+        }
+        self.current_session(
+            &claim.worker_node_id,
+            claim.worker_node_epoch,
+            Some(&claim.worker_session_id),
+            now,
+        )
+        .await?;
+        let target_index = usize::try_from(request.target_index)
+            .map_err(|_| invalid("DFS replica write target_index is invalid"))?;
+        let target = claim
+            .replica_group
+            .targets
+            .get(target_index)
+            .ok_or_else(|| invalid("DFS replica write target_index is out of range"))?;
+        if target.node_id != request.requester_node_id
+            || target.node_epoch != request.requester_node_epoch
+        {
+            return Err(permission_denied(
+                "repair replica write requester is not the assigned target",
+            ));
+        }
+        self.current_session(&target.node_id, target.node_epoch, None, now)
+            .await?;
+        if target_index > 0 {
+            let sender = &claim.replica_group.targets[target_index - 1];
+            if sender.node_id != request.initiator_node_id
+                && request.initiator_node_id != claim.worker_node_id
+            {
+                return Err(permission_denied(
+                    "repair replica write sender does not match claim chain",
+                ));
+            }
+        }
+        let fence = task.attempt.into();
+        let token = replica_write_token(&request, fence, claim.expires_at_unix_ms);
+        Ok(ReplicaWriteGrant {
+            requester_node_id: request.requester_node_id,
+            requester_node_epoch: request.requester_node_epoch,
+            initiator_node_id: request.initiator_node_id,
+            initiator_node_epoch: request.initiator_node_epoch,
+            operation_id: request.operation_id,
+            chunk_id: request.chunk_id,
+            chunk_length: request.chunk_length,
+            content_digest: request.content_digest,
+            placement_revision: request.placement_revision,
+            placement_epoch: request.placement_epoch,
+            replica_group_id: request.replica_group_id,
+            target_index: request.target_index,
+            replication: claim.replication,
+            replica_group: claim.replica_group,
+            expires_at_unix_ms: claim.expires_at_unix_ms,
+            fence,
+            token,
+        })
+    }
+
+    async fn current_session(
+        &self,
+        node_id: &str,
+        epoch: u64,
+        session_id: Option<&str>,
+        now: u64,
+    ) -> Result<NodeSession> {
+        let session = self.current_live_session(node_id, now).await?;
+        if session.lease_epoch == epoch && session_id.is_none_or(|id| session.session_id == id) {
+            Ok(session)
+        } else {
+            Err(conflict("Node session is not current"))
+        }
+    }
+
+    async fn current_live_session(&self, node_id: &str, now: u64) -> Result<NodeSession> {
+        let snapshot = self
+            .store
+            .read(MetaRead::CurrentNodeSession {
+                node_id: node_id.to_owned(),
+            })
+            .await?;
+        match snapshot.entity {
+            Some(MetaEntity::NodeSession(session)) if session.is_live_at_unix_ms(now) => {
+                Ok(session)
+            }
+            _ => Err(conflict("Node session is not current")),
+        }
+    }
+
+    async fn chunk(&self, chunk_id: &crate::dfs::ChunkId) -> Result<ChunkObject> {
+        match self
+            .store
+            .read(MetaRead::DfsChunk(chunk_id.clone()))
+            .await?
+            .entity
+        {
+            Some(MetaEntity::DfsChunk(chunk)) => Ok(chunk),
+            _ => Err(not_found("DFS chunk is missing")),
+        }
+    }
+
+    async fn copy(&self, copy_id: &CopyId) -> Result<CopyRecord> {
+        match self
+            .store
+            .read(MetaRead::DfsCopy(copy_id.clone()))
+            .await?
+            .entity
+        {
+            Some(MetaEntity::DfsCopy(copy)) => Ok(copy),
+            _ => Err(not_found("DFS copy is missing")),
+        }
+    }
+
+    async fn placement(&self, chunk_id: &crate::dfs::ChunkId) -> Result<PlacementRecord> {
+        match self
+            .store
+            .read(MetaRead::DfsPlacement(chunk_id.clone()))
+            .await?
+            .entity
+        {
+            Some(MetaEntity::DfsPlacement(placement)) => Ok(placement),
+            _ => Err(not_found("DFS placement is missing")),
+        }
+    }
+
+    async fn replication_task(&self, task_id: &ReplicationTaskId) -> Result<ReplicationTask> {
+        match self
+            .store
+            .read(MetaRead::DfsReplicationTask(task_id.clone()))
+            .await?
+            .entity
+        {
+            Some(MetaEntity::DfsReplicationTask(task)) => Ok(task),
+            _ => Err(not_found("DFS replication task is missing")),
+        }
+    }
+
+    async fn live_ready_copy_count(&self, placement: &PlacementRecord, now: u64) -> Result<usize> {
+        self.live_ready_copy_count_excluding(placement, now, None)
+            .await
+    }
+
+    async fn live_ready_copy_count_excluding(
+        &self,
+        placement: &PlacementRecord,
+        now: u64,
+        excluded_copy_id: Option<&CopyId>,
+    ) -> Result<usize> {
+        let chunk = self.chunk(&placement.chunk_id).await?;
+        let mut nodes = HashSet::new();
+        for copy_id in &placement.copies {
+            if excluded_copy_id.is_some_and(|excluded| excluded == copy_id) {
+                continue;
+            }
+            let copy = self.copy(copy_id).await?;
+            if !copy_matches_chunk(&copy, &chunk) {
+                continue;
+            }
+            if let CopyLocation::Node { node_id, .. } = &copy.location
+                && let Ok(session) = self.current_live_session(node_id, now).await
+                && let Some(serving_copy) = serving_read_copy(&copy, &session, now)
+                && let CopyLocation::Node { node_id, .. } = serving_copy.location
+            {
+                nodes.insert(node_id);
+            }
+        }
+        Ok(nodes.len())
+    }
+
+    async fn build_replication_claim(
+        &self,
+        request: &ClaimReplicationTask,
+        caller_session: &NodeSession,
+        task: &ReplicationTask,
+        replication: &ReplicationConfig,
+        lease_seconds: u64,
+        now: u64,
+    ) -> Result<Option<(ReplicationClaim, ReplicationTask, Vec<TxnCondition>)>> {
+        let chunk = self.chunk(&task.chunk_id).await?;
+        let placement = match self.placement(&task.chunk_id).await {
+            Ok(placement) => placement,
+            Err(_) => return Ok(None),
+        };
+        if placement.placement_epoch != task.placement_epoch {
+            return Ok(None);
+        }
+        let mut source = None;
+        for copy_id in &placement.copies {
+            let copy = self.copy(copy_id).await?;
+            if !copy_matches_chunk(&copy, &chunk) {
+                continue;
+            }
+            if let CopyLocation::Node { node_id, .. } = &copy.location
+                && node_id == &request.caller_id
+                && serving_read_copy(&copy, caller_session, now).is_some()
+            {
+                source = Some(copy);
+                break;
+            }
+        }
+        let Some(source) = source else {
+            return Ok(None);
+        };
+        let mut repair_replication = replication.clone();
+        repair_replication.sync_required_copies = repair_replication.desired_copies;
+        repair_replication.local_copy = LocalCopyPolicy::Required;
+        let sessions_snapshot = self.store.read(MetaRead::CurrentNodeSessions).await?;
+        let mut storage_sessions = sessions_snapshot
+            .entities
+            .into_iter()
+            .filter_map(|entity| match entity {
+                MetaEntity::NodeSession(session)
+                    if session.is_live_at_unix_ms(now) && !session.storage_devices.is_empty() =>
+                {
+                    Some(session)
+                }
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        storage_sessions.sort_by(|left, right| left.node_id.cmp(&right.node_id));
+        let groups =
+            build_replica_groups(&request.caller_id, &repair_replication, &storage_sessions)?;
+        let group = groups
+            .into_iter()
+            .find(|group| {
+                group.targets.first().is_some_and(|target| {
+                    target.node_id == request.caller_id
+                        && target.node_epoch == request.caller_node_epoch
+                })
+            })
+            .ok_or_else(|| conflict("no repair replica group starts with the source worker"))?;
+        if group.targets.len() < usize::from(repair_replication.desired_copies) {
+            return Err(conflict("repair placement cannot satisfy desired replicas"));
+        }
+        let claim = ReplicationClaim {
+            task_id: task.id.clone(),
+            operation_id: request.operation_id.clone(),
+            worker_node_id: request.caller_id.clone(),
+            worker_node_epoch: request.caller_node_epoch,
+            worker_session_id: request.caller_session_id.clone(),
+            expires_at_unix_ms: now.saturating_add(lease_seconds.saturating_mul(1000)),
+            fence: task.attempt.saturating_add(1).into(),
+            chunk,
+            source_copy_id: source.id.clone(),
+            placement_revision: sessions_snapshot.revision.0,
+            replica_group: group,
+            replication: repair_replication,
+        };
+        let mut updated = task.clone();
+        updated.state = ReplicationTaskState::Running;
+        updated.attempt = updated.attempt.saturating_add(1);
+        updated.claim = Some(Box::new(claim.clone()));
+        updated.last_error = None;
+        updated.next_retry_unix_ms = claim.expires_at_unix_ms;
+        let task_condition = match self
+            .store
+            .read(MetaRead::DfsReplicationTask(task.id.clone()))
+            .await?
+            .entity
+        {
+            Some(MetaEntity::DfsReplicationTask(current))
+                if current == *task || task_reactivates_completed(task, &current) =>
+            {
+                TxnCondition::EntityEquals(MetaEntity::DfsReplicationTask(current))
+            }
+            None => TxnCondition::Missing(MetaKey::DfsReplicationTask(task.id.clone())),
+            _ => return Ok(None),
+        };
+        let conditions = vec![
+            task_condition,
+            TxnCondition::EntityEquals(MetaEntity::DfsPlacement(placement)),
+            TxnCondition::EntityEquals(MetaEntity::DfsChunk(claim.chunk.clone())),
+            TxnCondition::EntityEquals(MetaEntity::DfsCopy(source)),
+        ];
+        Ok(Some((claim, updated, conditions)))
+    }
+
+    async fn validate_repair_acks(
+        &self,
+        claim: &ReplicationClaim,
+        durable_acks: &[ReplicaAck],
+        now: u64,
+        conditions: &mut Vec<TxnCondition>,
+    ) -> Result<Vec<CopyRecord>> {
+        if durable_acks.len() < usize::from(claim.replication.desired_copies) {
+            return Err(invalid(
+                "repair report has fewer ACKs than desired replicas",
+            ));
+        }
+        let mut nodes = HashSet::new();
+        let mut domains = HashSet::new();
+        let mut copies = Vec::with_capacity(durable_acks.len());
+        for ack in durable_acks {
+            if ack.operation_id != claim.operation_id
+                || ack.chunk_id != claim.chunk.id
+                || ack.placement_revision != claim.placement_revision
+                || ack.placement_epoch != claim.replica_group.placement_epoch
+                || ack.persisted_bytes != claim.chunk.length
+                || ack.verified_digest != claim.chunk.content_digest
+            {
+                return Err(invalid("repair ReplicaAck does not prove the claim chunk"));
+            }
+            if !nodes.insert(ack.node_id.clone()) {
+                return Err(invalid("repair report contains duplicate Node ACKs"));
+            }
+            let target = claim
+                .replica_group
+                .targets
+                .iter()
+                .find(|target| {
+                    target.node_id == ack.node_id
+                        && target.node_epoch == ack.node_epoch
+                        && target.device.device_id == ack.device_id
+                        && target.device.device_epoch == ack.device_epoch
+                })
+                .ok_or_else(|| conflict("repair ACK target is not in the claim group"))?;
+            let session = self
+                .current_session(&ack.node_id, ack.node_epoch, None, now)
+                .await?;
+            conditions.push(TxnCondition::NodeSessionCurrent {
+                node_id: session.node_id.clone(),
+                session_id: session.session_id.clone(),
+            });
+            let device = session
+                .storage_devices
+                .iter()
+                .find(|device| {
+                    device.device_id == ack.device_id && device.device_epoch == ack.device_epoch
+                })
+                .ok_or_else(|| conflict("repair ACK references a stale storage device"))?;
+            if ack.catalog_revision < target.device.catalog_revision {
+                return Err(conflict("repair ACK catalog is below claim floor"));
+            }
+            domains.insert(device.failure_domain.clone());
+            copies.push(replica_ack_copy_record(ack, &claim.chunk));
+        }
+        if nodes.len() < usize::from(claim.replication.min_distinct_nodes)
+            || domains.len() < usize::from(claim.replication.min_distinct_failure_domains)
+            || !nodes.contains(&claim.worker_node_id)
+        {
+            return Err(invalid("repair ACKs do not satisfy placement constraints"));
         }
         Ok(copies)
     }
@@ -2508,6 +3299,74 @@ impl DfsService {
             _ => Err(invalid("DFS operation replay returned the wrong result")),
         }
     }
+
+    async fn replayed_replication_claim(
+        &self,
+        caller_id: &str,
+        operation_id: &OperationId,
+        operation: StoreOperation,
+        request_digest: [u8; 32],
+    ) -> Result<Option<Option<ReplicationClaim>>> {
+        let key = RequestKey::new(caller_id, operation_id.0.clone());
+        let snapshot = self.store.read(MetaRead::RequestOutcome(key)).await?;
+        let Some(outcome) = snapshot.request_outcome else {
+            return Ok(None);
+        };
+        if outcome.operation != operation {
+            return Err(invalid(
+                "DFS operation_id was already used for another operation",
+            ));
+        }
+        match outcome.result {
+            OperationResult::DfsReplicationClaim {
+                request_digest: found,
+                claim,
+            } if found == request_digest => Ok(Some(claim)),
+            OperationResult::DfsReplicationClaim { .. } => Err(invalid(
+                "DFS replication claim replay request does not match original",
+            )),
+            _ => Err(invalid(
+                "DFS replication claim replay returned the wrong result",
+            )),
+        }
+    }
+
+    async fn replayed_replication_task(
+        &self,
+        caller_id: &str,
+        operation_id: &OperationId,
+        operation: StoreOperation,
+        request_digest: [u8; 32],
+    ) -> Result<Option<ReplicationTask>> {
+        let key = RequestKey::new(caller_id, operation_id.0.clone());
+        let snapshot = self.store.read(MetaRead::RequestOutcome(key)).await?;
+        let Some(outcome) = snapshot.request_outcome else {
+            return Ok(None);
+        };
+        if outcome.operation != operation {
+            return Err(invalid(
+                "DFS operation_id was already used for another operation",
+            ));
+        }
+        match outcome.result {
+            OperationResult::DfsNamespace {
+                request_digest: found,
+                result,
+            } if found == request_digest => match *result {
+                OperationResult::DfsReplicationTask(task) => Ok(Some(task)),
+                _ => Err(invalid(
+                    "DFS replication task replay returned the wrong result",
+                )),
+            },
+            OperationResult::DfsNamespace { .. } => Err(invalid(
+                "DFS replication report replay request does not match original",
+            )),
+            OperationResult::DfsReplicationTask(task) => Ok(Some(task)),
+            _ => Err(invalid(
+                "DFS replication task replay returned the wrong result",
+            )),
+        }
+    }
 }
 
 fn namespace_request_digest(request: &impl serde::Serialize) -> Result<[u8; 32]> {
@@ -2640,6 +3499,65 @@ fn lease_outcome(outcome: TxnOutcome, operation: StoreOperation) -> Result<Write
     match stored.result {
         OperationResult::DfsWriteLease(lease) => Ok(lease),
         _ => Err(invalid("DFS metadata operation replayed the wrong result")),
+    }
+}
+
+fn replication_claim_outcome(
+    outcome: TxnOutcome,
+    request_digest: [u8; 32],
+) -> Result<Option<ReplicationClaim>> {
+    match outcome {
+        TxnOutcome::Committed { outcome, .. }
+        | TxnOutcome::ConditionFailed {
+            existing_outcome: Some(outcome),
+            ..
+        } => {
+            if outcome.operation != StoreOperation::DfsClaimReplicationTask {
+                return Err(invalid(
+                    "DFS replication claim replay used another operation",
+                ));
+            }
+            match outcome.result {
+                OperationResult::DfsReplicationClaim {
+                    request_digest: found,
+                    claim,
+                } if found == request_digest => Ok(claim),
+                OperationResult::DfsReplicationClaim { .. } => Err(invalid(
+                    "DFS replication claim replay request does not match original",
+                )),
+                _ => Err(invalid("DFS replication claim outcome has wrong result")),
+            }
+        }
+        TxnOutcome::ConditionFailed { .. } => {
+            Err(conflict("DFS replication claim changed during commit"))
+        }
+    }
+}
+
+fn replication_task_outcome(
+    outcome: TxnOutcome,
+    operation: StoreOperation,
+    request_digest: [u8; 32],
+) -> Result<ReplicationTask> {
+    match outcome {
+        TxnOutcome::Committed { outcome, .. }
+        | TxnOutcome::ConditionFailed {
+            existing_outcome: Some(outcome),
+            ..
+        } => {
+            if outcome.operation != operation {
+                return Err(invalid(
+                    "DFS replication task replay used another operation",
+                ));
+            }
+            match namespace_result_inner(outcome.result, request_digest)? {
+                OperationResult::DfsReplicationTask(task) => Ok(task),
+                _ => Err(invalid("DFS replication task outcome has wrong result")),
+            }
+        }
+        TxnOutcome::ConditionFailed { .. } => {
+            Err(conflict("DFS replication task changed during commit"))
+        }
     }
 }
 
@@ -3057,6 +3975,72 @@ fn caller_in_group(caller: &CallerContext, gid: u32) -> bool {
     caller.gid == gid || caller.supplementary_gids.contains(&gid)
 }
 
+fn task_is_claimable(task: &ReplicationTask, now: u64) -> bool {
+    match task.state {
+        ReplicationTaskState::Pending => true,
+        ReplicationTaskState::RetryWaiting => task.next_retry_unix_ms <= now,
+        ReplicationTaskState::Running => task
+            .claim
+            .as_ref()
+            .is_none_or(|claim| claim.expires_at_unix_ms <= now),
+        ReplicationTaskState::Completed => false,
+        ReplicationTaskState::BlockedNoSource => task.next_retry_unix_ms <= now,
+    }
+}
+
+fn repair_task_id(chunk_id: &crate::dfs::ChunkId) -> ReplicationTaskId {
+    ReplicationTaskId::new(format!("repair:{}", chunk_id.0))
+}
+
+fn task_reactivates_completed(task: &ReplicationTask, current: &ReplicationTask) -> bool {
+    current.id == task.id
+        && current.chunk_id == task.chunk_id
+        && current.state == ReplicationTaskState::Completed
+        && task.state == ReplicationTaskState::Pending
+}
+
+fn retry_backoff_ms(attempt: u32) -> u64 {
+    let shift = attempt.min(6);
+    1_000u64.saturating_mul(1u64 << shift)
+}
+
+fn copy_is_on_node(copy: &CopyRecord, node_id: &str) -> bool {
+    matches!(
+        &copy.location,
+        CopyLocation::Node {
+            node_id: copy_node,
+            ..
+        } if copy_node == node_id
+    )
+}
+
+fn copy_matches_chunk(copy: &CopyRecord, chunk: &ChunkObject) -> bool {
+    copy.chunk_id == chunk.id
+        && copy.persisted_bytes == chunk.length
+        && copy.verified_digest == chunk.content_digest
+}
+
+fn replica_ack_copy_record(ack: &ReplicaAck, chunk: &ChunkObject) -> CopyRecord {
+    CopyRecord {
+        id: CopyId::new(format!(
+            "{}:{}:{}:{}",
+            ack.node_id, ack.node_epoch, ack.device_id, chunk.id.0
+        )),
+        chunk_id: chunk.id.clone(),
+        role: CopyRole::DurableReplica,
+        location: CopyLocation::Node {
+            node_id: ack.node_id.clone(),
+            node_epoch: ack.node_epoch,
+            device_id: ack.device_id.clone(),
+            device_epoch: ack.device_epoch,
+            catalog_revision: ack.catalog_revision,
+        },
+        state: CopyState::Ready,
+        persisted_bytes: ack.persisted_bytes,
+        verified_digest: ack.verified_digest.clone(),
+    }
+}
+
 fn build_replica_groups(
     caller_id: &str,
     replication: &ReplicationConfig,
@@ -3386,7 +4370,11 @@ fn conflict(message: impl Into<String>) -> Error {
 /// additional floor is required only across process epochs. This projection
 /// is read-only: neither persisted copy evidence nor write/replica fencing is
 /// changed. Signing the projected epoch rejects old grants on a new process.
-fn serving_read_copy(copy: &CopyRecord, session: &NodeSession, now: u64) -> Option<CopyRecord> {
+pub(super) fn serving_read_copy(
+    copy: &CopyRecord,
+    session: &NodeSession,
+    now: u64,
+) -> Option<CopyRecord> {
     let CopyLocation::Node {
         node_id,
         node_epoch,
@@ -3755,6 +4743,362 @@ mod read_recovery_tests {
         };
         assert_eq!(session.storage_devices[0].catalog_revision, 0);
         assert!(serving_read_copy(&fixture.copy, &session, now_unix_ms()).is_some());
+    }
+
+    fn repair_replication() -> ReplicationConfig {
+        ReplicationConfig {
+            desired_copies: 2,
+            sync_required_copies: 2,
+            min_distinct_nodes: 1,
+            min_distinct_failure_domains: 1,
+            local_copy: LocalCopyPolicy::Required,
+        }
+    }
+
+    async fn underreplicated_fixture() -> Fixture {
+        let fixture = fixture().await;
+        register(
+            &fixture.store,
+            "target",
+            "target-original",
+            vec![StorageDeviceDescriptor {
+                device_id: "target-device".into(),
+                device_epoch: 1,
+                catalog_revision: 0,
+                failure_domain: "target-fd".into(),
+            }],
+        )
+        .await;
+        let service =
+            DfsService::with_replication_config(fixture.store.clone(), repair_replication());
+        service.initialize_replication_config().await.unwrap();
+        let key = RequestKey::new("fixture", "mark-underreplicated");
+        let mut txn = MetaTxn::new(key.clone(), StoreOperation::DfsCommitFileVersion);
+        txn.conditions
+            .push(TxnCondition::RequestAbsent(key.clone()));
+        txn.mutations.extend([
+            TxnMutation::Put(MetaEntity::DfsPlacement(PlacementRecord {
+                chunk_id: fixture.copy.chunk_id.clone(),
+                replica_group_id: ReplicaGroupId::new("repair-r2"),
+                placement_epoch: 2,
+                desired_copies: 2,
+                copies: vec![fixture.copy.id.clone()],
+                health: PlacementHealth::UnderReplicated,
+            })),
+            TxnMutation::RecordRequestOutcome(RequestOutcome {
+                request: key,
+                operation: StoreOperation::DfsCommitFileVersion,
+                result: OperationResult::Empty,
+            }),
+        ]);
+        fixture.store.compare_and_commit(txn).await.unwrap();
+        Fixture { service, ..fixture }
+    }
+
+    fn claim_request(operation_id: &str) -> ClaimReplicationTask {
+        ClaimReplicationTask {
+            caller_id: "receiver".into(),
+            caller_session_id: "receiver-original".into(),
+            caller_node_epoch: 1,
+            operation_id: OperationId::new(operation_id),
+            lease_seconds: 30,
+        }
+    }
+
+    fn repair_acks(claim: &ReplicationClaim) -> Vec<ReplicaAck> {
+        claim
+            .replica_group
+            .targets
+            .iter()
+            .take(usize::from(claim.replication.desired_copies))
+            .map(|target| ReplicaAck {
+                operation_id: claim.operation_id.clone(),
+                chunk_id: claim.chunk.id.clone(),
+                placement_revision: claim.placement_revision,
+                placement_epoch: claim.replica_group.placement_epoch,
+                node_id: target.node_id.clone(),
+                node_epoch: target.node_epoch,
+                device_id: target.device.device_id.clone(),
+                device_epoch: target.device.device_epoch,
+                catalog_revision: target.device.catalog_revision,
+                persisted_bytes: claim.chunk.length,
+                verified_digest: claim.chunk.content_digest.clone(),
+            })
+            .collect()
+    }
+
+    async fn overwrite_task(store: &Store, task: ReplicationTask, operation_id: &str) {
+        let key = RequestKey::new("fixture", operation_id);
+        let mut txn = MetaTxn::new(key.clone(), StoreOperation::DfsCommitFileVersion);
+        txn.conditions
+            .push(TxnCondition::RequestAbsent(key.clone()));
+        txn.mutations.extend([
+            TxnMutation::Put(MetaEntity::DfsReplicationTask(task)),
+            TxnMutation::RecordRequestOutcome(RequestOutcome {
+                request: key,
+                operation: StoreOperation::DfsCommitFileVersion,
+                result: OperationResult::Empty,
+            }),
+        ]);
+        store.compare_and_commit(txn).await.unwrap();
+    }
+
+    async fn overwrite_copy(store: &Store, copy: CopyRecord, operation_id: &str) {
+        let key = RequestKey::new("fixture", operation_id);
+        let mut txn = MetaTxn::new(key.clone(), StoreOperation::DfsCommitFileVersion);
+        txn.conditions
+            .push(TxnCondition::RequestAbsent(key.clone()));
+        txn.mutations.extend([
+            TxnMutation::Put(MetaEntity::DfsCopy(copy)),
+            TxnMutation::RecordRequestOutcome(RequestOutcome {
+                request: key,
+                operation: StoreOperation::DfsCommitFileVersion,
+                result: OperationResult::Empty,
+            }),
+        ]);
+        store.compare_and_commit(txn).await.unwrap();
+    }
+
+    async fn task_record(fixture: &Fixture, claim: &ReplicationClaim) -> ReplicationTask {
+        match fixture
+            .store
+            .read(MetaRead::DfsReplicationTask(claim.task_id.clone()))
+            .await
+            .unwrap()
+            .entity
+        {
+            Some(MetaEntity::DfsReplicationTask(task)) => task,
+            _ => panic!("replication task missing"),
+        }
+    }
+
+    #[tokio::test]
+    async fn replication_claim_is_idempotent_and_digest_bound() {
+        let fixture = underreplicated_fixture().await;
+        let request = claim_request("claim-repair");
+        let claim = fixture
+            .service
+            .claim_replication_task(request.clone())
+            .await
+            .unwrap()
+            .expect("underreplicated chunk should be claimable by its source");
+        assert_eq!(claim.task_id, repair_task_id(&fixture.copy.chunk_id));
+        assert_eq!(claim.source_copy_id, fixture.copy.id);
+        assert_eq!(claim.replication.desired_copies, 2);
+        assert_eq!(claim.replication.sync_required_copies, 2);
+        assert_eq!(claim.replication.local_copy, LocalCopyPolicy::Required);
+        assert_eq!(
+            fixture
+                .service
+                .claim_replication_task(request.clone())
+                .await
+                .unwrap(),
+            Some(claim.clone())
+        );
+        let mut changed = request;
+        changed.lease_seconds = 31;
+        assert!(
+            fixture
+                .service
+                .claim_replication_task(changed)
+                .await
+                .is_err()
+        );
+    }
+
+    #[tokio::test]
+    async fn restored_source_device_can_claim_repair_with_new_epoch() {
+        let fixture = underreplicated_fixture().await;
+        let session = fixture
+            .restart(fixture.local.device_descriptor().unwrap())
+            .await;
+        let claim = fixture
+            .service
+            .claim_replication_task(ClaimReplicationTask {
+                caller_id: "receiver".into(),
+                caller_session_id: session.session_id.clone(),
+                caller_node_epoch: session.lease_epoch,
+                operation_id: OperationId::new("claim-after-restart"),
+                lease_seconds: 30,
+            })
+            .await
+            .unwrap()
+            .expect("recovered source device should remain repair-readable");
+        assert_eq!(claim.source_copy_id, fixture.copy.id);
+        assert_eq!(claim.worker_node_epoch, session.lease_epoch);
+    }
+
+    #[tokio::test]
+    async fn repair_report_requires_full_desired_receipts() {
+        let fixture = underreplicated_fixture().await;
+        let claim = fixture
+            .service
+            .claim_replication_task(claim_request("claim-short-report"))
+            .await
+            .unwrap()
+            .unwrap();
+        let err = fixture
+            .service
+            .report_replication_task(ReportReplicationTask {
+                caller_id: "receiver".into(),
+                caller_session_id: "receiver-original".into(),
+                caller_node_epoch: 1,
+                operation_id: OperationId::new("report-short"),
+                claim,
+                durable_acks: Vec::new(),
+                error: None,
+                source_invalid: false,
+            })
+            .await
+            .unwrap_err();
+        assert!(err.to_string().contains("fewer ACKs"));
+    }
+
+    #[tokio::test]
+    async fn source_invalid_marks_only_proven_source_and_blocks_without_live_source() {
+        let fixture = underreplicated_fixture().await;
+        let claim = fixture
+            .service
+            .claim_replication_task(claim_request("claim-bad-source"))
+            .await
+            .unwrap()
+            .unwrap();
+        let task = fixture
+            .service
+            .report_replication_task(ReportReplicationTask {
+                caller_id: "receiver".into(),
+                caller_session_id: "receiver-original".into(),
+                caller_node_epoch: 1,
+                operation_id: OperationId::new("report-bad-source"),
+                claim: claim.clone(),
+                durable_acks: Vec::new(),
+                error: None,
+                source_invalid: true,
+            })
+            .await
+            .unwrap();
+        assert_eq!(task.state, ReplicationTaskState::BlockedNoSource);
+        assert!(task.claim.is_none());
+        assert!(matches!(
+            fixture
+                .store
+                .read(MetaRead::DfsCopy(claim.source_copy_id.clone()))
+                .await
+                .unwrap()
+                .entity,
+            Some(MetaEntity::DfsCopy(CopyRecord {
+                state: CopyState::Corrupt,
+                ..
+            }))
+        ));
+        assert!(matches!(
+            fixture
+                .store
+                .read(MetaRead::DfsPlacement(fixture.copy.chunk_id.clone()))
+                .await
+                .unwrap()
+                .entity,
+            Some(MetaEntity::DfsPlacement(PlacementRecord {
+                health: PlacementHealth::BlockedNoSource,
+                ..
+            }))
+        ));
+    }
+
+    #[tokio::test]
+    async fn late_exact_report_with_full_receipts_completes_and_replays() {
+        let fixture = underreplicated_fixture().await;
+        let mut claim = fixture
+            .service
+            .claim_replication_task(claim_request("claim-late-report"))
+            .await
+            .unwrap()
+            .unwrap();
+        let mut task = task_record(&fixture, &claim).await;
+        claim.expires_at_unix_ms = 1;
+        task.claim = Some(Box::new(claim.clone()));
+        task.next_retry_unix_ms = 1;
+        overwrite_task(&fixture.store, task, "expire-running-claim").await;
+
+        let report = ReportReplicationTask {
+            caller_id: "receiver".into(),
+            caller_session_id: "receiver-original".into(),
+            caller_node_epoch: 1,
+            operation_id: OperationId::new("report-late-success"),
+            durable_acks: repair_acks(&claim),
+            error: None,
+            source_invalid: false,
+            claim: claim.clone(),
+        };
+        let task = fixture
+            .service
+            .report_replication_task(report.clone())
+            .await
+            .unwrap();
+        assert_eq!(task.state, ReplicationTaskState::Completed);
+        assert_eq!(task.placement_epoch, claim.replica_group.placement_epoch);
+        assert_eq!(task.desired_copies, claim.replication.desired_copies);
+        assert_eq!(
+            fixture
+                .service
+                .report_replication_task(report)
+                .await
+                .unwrap(),
+            task
+        );
+    }
+
+    #[tokio::test]
+    async fn stale_reassigned_report_returns_superseded_code() {
+        let fixture = underreplicated_fixture().await;
+        let mut old_claim = fixture
+            .service
+            .claim_replication_task(claim_request("claim-old"))
+            .await
+            .unwrap()
+            .unwrap();
+        let mut task = task_record(&fixture, &old_claim).await;
+        old_claim.expires_at_unix_ms = 1;
+        task.claim = Some(Box::new(old_claim.clone()));
+        task.next_retry_unix_ms = 1;
+        overwrite_task(&fixture.store, task, "expire-old-claim").await;
+        let new_claim = fixture
+            .service
+            .claim_replication_task(claim_request("claim-new"))
+            .await
+            .unwrap()
+            .unwrap();
+        assert_ne!(new_claim.operation_id, old_claim.operation_id);
+
+        let err = fixture
+            .service
+            .report_replication_task(ReportReplicationTask {
+                caller_id: "receiver".into(),
+                caller_session_id: "receiver-original".into(),
+                caller_node_epoch: 1,
+                operation_id: OperationId::new("report-stale"),
+                durable_acks: repair_acks(&old_claim),
+                error: None,
+                source_invalid: false,
+                claim: old_claim,
+            })
+            .await
+            .unwrap_err();
+        assert_eq!(err.code(), afs_error::META_DFS_REPAIR_SUPERSEDED);
+    }
+
+    #[tokio::test]
+    async fn mismatched_source_copy_is_not_claimable() {
+        let fixture = underreplicated_fixture().await;
+        let mut bad = fixture.copy.clone();
+        bad.persisted_bytes = bad.persisted_bytes.saturating_add(1);
+        overwrite_copy(&fixture.store, bad, "mismatch-source-copy").await;
+        let claim = fixture
+            .service
+            .claim_replication_task(claim_request("claim-mismatch-source"))
+            .await
+            .unwrap();
+        assert!(claim.is_none());
     }
 
     #[tokio::test]

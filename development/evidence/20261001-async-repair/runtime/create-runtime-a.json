@@ -1,0 +1,8 @@
+{
+  "created": true,
+  "roles": [
+    "meta",
+    "node"
+  ],
+  "runtime": "/mnt/lima-afsadata/afs-delivery/repair-v55-a"
+}

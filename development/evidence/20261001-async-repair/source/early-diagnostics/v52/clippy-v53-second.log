@@ -1,0 +1,4 @@
+    Checking afs v0.1.0 (/home/lzc.guest/afs-build/work/root-merged-v53)
+    Checking afs-client v0.1.0 (/home/lzc.guest/afs-build/work/root-merged-v53/client)
+    Checking afs-transport v0.1.0 (/home/lzc.guest/afs-build/work/root-merged-v53/common/transport)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 4.48s

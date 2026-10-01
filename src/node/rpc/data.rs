@@ -364,6 +364,11 @@ impl DfsReplicaAuthorizer for MetaReplicaAuthorizer {
             replica_group_id: ReplicaGroupId::new(header.replica_group_id.clone()),
             target_index: header.target_index,
             ordered_targets: targets,
+            repair_claim: header
+                .repair_claim
+                .clone()
+                .map(|claim| super::meta::domain_replication_claim(*claim))
+                .transpose()?,
         };
         let grant = self.meta.validate_replica_write(request.clone())?;
         if grant.requester_node_id != request.requester_node_id
@@ -385,7 +390,9 @@ impl DfsReplicaAuthorizer for MetaReplicaAuthorizer {
             ));
         }
         ensure_replica_grant_live(grant.expires_at_unix_ms)?;
-        let op = crate::node::replication::ReplicaPeerOp::from_grant(&grant)?;
+        let mut op = crate::node::replication::ReplicaPeerOp::from_grant(&grant)?;
+        op.repair_claim = request.repair_claim;
+        op.validate_shape()?;
         op.validate_sender(peer)?;
         Ok(AuthorizedReplicaWrite {
             op,
@@ -3916,6 +3923,7 @@ mod tests {
             target_index: 0,
             target,
             chain_tail: vec![],
+            repair_claim: None,
         };
         let service = make_dfs_chunks_server_with_replication(
             Some(local.clone()),
@@ -4077,6 +4085,7 @@ mod tests {
             target_index: 0,
             target: targets[0].clone(),
             chain_tail: targets[1..].to_vec(),
+            repair_claim: None,
         };
         let mut ops = vec![op.clone()];
         ops.push(ops[0].next_hop().unwrap().unwrap());
@@ -4745,6 +4754,7 @@ mod tests {
             target_index: 0,
             target,
             chain_tail: vec![],
+            repair_claim: None,
         };
         let registry = afs_metrics::Registry::new();
         let metrics = DfsPayloadMetrics::register(&registry).unwrap();

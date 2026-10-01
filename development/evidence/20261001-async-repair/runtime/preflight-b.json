@@ -1,0 +1,17 @@
+{
+  "available_bytes": 26420547584,
+  "data_volume": {
+    "fstype": "ext4",
+    "source": "/dev/vdb1",
+    "target": "/mnt/lima-afsbdata"
+  },
+  "ports_clear": [
+    18384,
+    18385
+  ],
+  "roles": [
+    "node"
+  ],
+  "runtime": "/mnt/lima-afsbdata/afs-delivery/repair-v55-b",
+  "template": "/mnt/lima-afsbdata/afs-delivery/p2-memory-peer-v51"
+}

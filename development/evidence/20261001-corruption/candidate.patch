@@ -1,0 +1,1913 @@
+diff --git a/common/protocol/proto/meta.proto b/common/protocol/proto/meta.proto
+index 52debbc..f9d945f 100644
+--- a/common/protocol/proto/meta.proto
++++ b/common/protocol/proto/meta.proto
+@@ -328,6 +328,7 @@ service DfsMeta {
+   rpc ValidateReplicaWrite(ValidateDfsReplicaWriteRequest) returns (ValidateDfsReplicaWriteReply);
+   rpc ClaimReplicationTask(ClaimDfsReplicationTaskRequest) returns (ClaimDfsReplicationTaskReply);
+   rpc ReportReplicationTask(ReportDfsReplicationTaskRequest) returns (ReportDfsReplicationTaskReply);
++  rpc ReportChunkCorruption(ReportDfsChunkCorruptionRequest) returns (ReportDfsChunkCorruptionReply);
+   rpc GetChunkSources(GetDfsChunkSourcesRequest) returns (GetDfsChunkSourcesReply);
+   rpc ValidateReadGrants(ValidateDfsReadGrantsRequest) returns (ValidateDfsReadGrantsReply);
+   rpc SyncInodeMetadata(SyncDfsInodeMetadataRequest) returns (SyncDfsInodeMetadataReply);
+@@ -483,6 +484,19 @@ message ReportDfsReplicationTaskReply {
+   DfsReplicationTask task = 1;
+ }
+ 
++message ReportDfsChunkCorruptionRequest {
++  string caller_id = 1;
++  string caller_session_id = 2;
++  uint64 caller_node_epoch = 3;
++  string operation_id = 4;
++  string chunk_id = 5;
++  string device_id = 6;
++  uint64 device_epoch = 7;
++  uint64 catalog_revision = 8;
++}
++
++message ReportDfsChunkCorruptionReply {}
++
+ enum DfsDigestAlgorithm {
+   DFS_DIGEST_ALGORITHM_UNSPECIFIED = 0;
+   DFS_DIGEST_ALGORITHM_BLAKE3 = 1;
+diff --git a/src/dfs.rs b/src/dfs.rs
+index 52d0a82..3fa8b1e 100644
+--- a/src/dfs.rs
++++ b/src/dfs.rs
+@@ -705,6 +705,18 @@ pub struct ReportReplicationTask {
+     pub source_invalid: bool,
+ }
+ 
++#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
++pub struct ReportChunkCorruption {
++    pub caller_id: String,
++    pub caller_session_id: String,
++    pub caller_node_epoch: u64,
++    pub operation_id: OperationId,
++    pub chunk_id: ChunkId,
++    pub device_id: String,
++    pub device_epoch: u64,
++    pub catalog_revision: u64,
++}
++
+ #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+ pub struct WriteLease {
+     pub inode_id: InodeId,
+diff --git a/src/meta/dfs.rs b/src/meta/dfs.rs
+index ca3ea8a..81a21c8 100644
+--- a/src/meta/dfs.rs
++++ b/src/meta/dfs.rs
+@@ -17,9 +17,10 @@ use crate::dfs::{
+     OperationId, PlacementHealth, PlacementRecord, PlacementSnapshot, ReadLinkRequest,
+     RemoveXattrRequest, RenameMode, RenameOutcome, RenameRequest, ReplicaAck, ReplicaGroup,
+     ReplicaGroupId, ReplicaTarget, ReplicaWriteGrant, ReplicationClaim, ReplicationConfig,
+-    ReplicationTask, ReplicationTaskId, ReplicationTaskState, ReportReplicationTask, RmdirRequest,
+-    SetInodeAttrRequest, SetXattrRequest, SourceCandidate, SpecialNodeKind, SymlinkRequest,
+-    SyncInodeMetadata, UnlinkRequest, ValidateReplicaWriteRequest, WriteLease, XattrSetMode,
++    ReplicationTask, ReplicationTaskId, ReplicationTaskState, ReportChunkCorruption,
++    ReportReplicationTask, RmdirRequest, SetInodeAttrRequest, SetXattrRequest, SourceCandidate,
++    SpecialNodeKind, SymlinkRequest, SyncInodeMetadata, UnlinkRequest, ValidateReplicaWriteRequest,
++    WriteLease, XattrSetMode,
+ };
+ 
+ use super::store::{
+@@ -776,6 +777,239 @@ impl DfsService {
+         )
+     }
+ 
++    pub async fn report_chunk_corruption(&self, request: ReportChunkCorruption) -> Result<()> {
++        let request_digest = namespace_request_digest(&request)?;
++        require_id(&request.caller_id, "caller_id")?;
++        require_id(&request.caller_session_id, "caller_session_id")?;
++        require_id(&request.operation_id.0, "operation_id")?;
++        require_id(&request.chunk_id.0, "chunk_id")?;
++        require_id(&request.device_id, "device_id")?;
++        if request.caller_node_epoch == 0 {
++            return Err(invalid("caller_node_epoch is required"));
++        }
++        if request.device_epoch == 0 {
++            return Err(invalid("device_epoch is required"));
++        }
++        if request.catalog_revision == 0 {
++            return Err(invalid("catalog_revision is required"));
++        }
++        if self
++            .replayed_namespace_result(
++                &request.caller_id,
++                &request.operation_id,
++                StoreOperation::DfsReportChunkCorruption,
++                request_digest,
++            )
++            .await?
++            .is_some()
++        {
++            return Ok(());
++        }
++
++        let now = now_unix_ms();
++        let caller_session = self
++            .current_session(
++                &request.caller_id,
++                request.caller_node_epoch,
++                Some(&request.caller_session_id),
++                now,
++            )
++            .await?;
++        if !caller_session.storage_devices.iter().any(|device| {
++            device.device_id == request.device_id && device.device_epoch == request.device_epoch
++        }) {
++            return Err(permission_denied(
++                "corruption report device is not owned by the live caller session",
++            ));
++        }
++        let chunk = self.chunk(&request.chunk_id).await?;
++        let placement = self.placement(&request.chunk_id).await?;
++        let replication = self.current_replication_config().await?;
++        let task_id = repair_task_id(&request.chunk_id);
++        let task_snapshot = self
++            .store
++            .read(MetaRead::DfsReplicationTask(task_id.clone()))
++            .await?;
++        let observed_task = match task_snapshot.entity {
++            Some(MetaEntity::DfsReplicationTask(task)) => Some(task),
++            None => None,
++            Some(_) => return Err(invalid("DFS repair task record has wrong type")),
++        };
++
++        let mut observed_copies = Vec::with_capacity(placement.copies.len());
++        let mut same_device_seen = false;
++        let mut has_superseding_same_device = false;
++        let mut changed_copies = Vec::new();
++        let mut changed_copy_ids = HashSet::new();
++        for copy_id in &placement.copies {
++            let copy = self.copy(copy_id).await?;
++            if copy_matches_chunk(&copy, &chunk)
++                && copy.role == CopyRole::DurableReplica
++                && let CopyLocation::Node {
++                    node_id,
++                    device_id,
++                    device_epoch,
++                    catalog_revision,
++                    ..
++                } = &copy.location
++                && node_id == &request.caller_id
++                && device_id == &request.device_id
++                && *device_epoch == request.device_epoch
++            {
++                same_device_seen = true;
++                if *catalog_revision >= request.catalog_revision || copy.state == CopyState::Corrupt
++                {
++                    has_superseding_same_device = true;
++                }
++                if copy.state == CopyState::Ready && *catalog_revision < request.catalog_revision {
++                    let mut corrupt = copy.clone();
++                    corrupt.state = CopyState::Corrupt;
++                    changed_copy_ids.insert(copy.id.clone());
++                    changed_copies.push(corrupt);
++                }
++            }
++            observed_copies.push(copy);
++        }
++        if !same_device_seen {
++            return Err(permission_denied(
++                "corruption report found no caller-owned durable copy on the reported device",
++            ));
++        }
++
++        let remaining_live_sources = live_ready_copy_count_from_observed_excluding(
++            &observed_copies,
++            &changed_copy_ids,
++            self,
++            now,
++        )
++        .await?;
++        let repair_state = if remaining_live_sources == 0 {
++            ReplicationTaskState::BlockedNoSource
++        } else {
++            ReplicationTaskState::Pending
++        };
++        let repair_health = if remaining_live_sources == 0 {
++            PlacementHealth::BlockedNoSource
++        } else {
++            PlacementHealth::UnderReplicated
++        };
++
++        let mut updated_placement = placement.clone();
++        if !changed_copies.is_empty() || updated_placement.health != repair_health {
++            updated_placement.health = repair_health;
++        }
++        let updated_task = ReplicationTask {
++            id: task_id.clone(),
++            chunk_id: request.chunk_id.clone(),
++            placement_epoch: placement.placement_epoch,
++            desired_copies: placement.desired_copies,
++            existing_copies: placement.copies.clone(),
++            state: repair_state,
++            attempt: observed_task.as_ref().map_or(0, |task| task.attempt),
++            next_retry_unix_ms: if repair_state == ReplicationTaskState::BlockedNoSource {
++                now.saturating_add(5_000)
++            } else {
++                now
++            },
++            last_error: Some(format!(
++                "corruption reported by {} on device {} at catalog revision {}",
++                request.caller_id, request.device_id, request.catalog_revision
++            )),
++            claim: None,
++        };
++
++        if changed_copies.is_empty() {
++            if !has_superseding_same_device {
++                return Err(invalid(
++                    "corruption report found no Ready same-device copy below the reported catalog revision",
++                ));
++            }
++            let mut ack_conditions = vec![
++                TxnCondition::EntityEquals(MetaEntity::NodeSession(caller_session.clone())),
++                TxnCondition::NodeSessionCurrent {
++                    node_id: request.caller_id.clone(),
++                    session_id: request.caller_session_id.clone(),
++                },
++                TxnCondition::EntityEquals(MetaEntity::DfsChunk(chunk.clone())),
++                TxnCondition::EntityEquals(MetaEntity::DfsPlacement(placement.clone())),
++                TxnCondition::EntityEquals(MetaEntity::DfsReplicationConfig(replication.clone())),
++            ];
++            match &observed_task {
++                Some(task) => ack_conditions.push(TxnCondition::EntityEquals(
++                    MetaEntity::DfsReplicationTask(task.clone()),
++                )),
++                None => ack_conditions.push(TxnCondition::Missing(MetaKey::DfsReplicationTask(
++                    task_id.clone(),
++                ))),
++            }
++            for copy in &observed_copies {
++                ack_conditions.push(TxnCondition::EntityEquals(MetaEntity::DfsCopy(
++                    copy.clone(),
++                )));
++            }
++            return self
++                .record_empty_namespace_outcome(
++                    &request.caller_id,
++                    &request.operation_id,
++                    StoreOperation::DfsReportChunkCorruption,
++                    request_digest,
++                    ack_conditions,
++                )
++                .await;
++        }
++
++        let request_key =
++            RequestKey::new(request.caller_id.clone(), request.operation_id.0.clone());
++        let mut txn = MetaTxn::new(
++            request_key.clone(),
++            StoreOperation::DfsReportChunkCorruption,
++        );
++        txn.conditions.extend([
++            TxnCondition::RequestAbsent(request_key.clone()),
++            TxnCondition::EntityEquals(MetaEntity::NodeSession(caller_session)),
++            TxnCondition::NodeSessionCurrent {
++                node_id: request.caller_id.clone(),
++                session_id: request.caller_session_id.clone(),
++            },
++            TxnCondition::EntityEquals(MetaEntity::DfsChunk(chunk)),
++            TxnCondition::EntityEquals(MetaEntity::DfsPlacement(placement)),
++            TxnCondition::EntityEquals(MetaEntity::DfsReplicationConfig(replication)),
++        ]);
++        match observed_task {
++            Some(task) => {
++                txn.conditions
++                    .push(TxnCondition::EntityEquals(MetaEntity::DfsReplicationTask(
++                        task,
++                    )))
++            }
++            None => txn
++                .conditions
++                .push(TxnCondition::Missing(MetaKey::DfsReplicationTask(task_id))),
++        }
++        for copy in observed_copies {
++            txn.conditions
++                .push(TxnCondition::EntityEquals(MetaEntity::DfsCopy(copy)));
++        }
++        for copy in changed_copies {
++            txn.mutations
++                .push(TxnMutation::Put(MetaEntity::DfsCopy(copy)));
++        }
++        txn.mutations.extend([
++            TxnMutation::Put(MetaEntity::DfsPlacement(updated_placement)),
++            TxnMutation::Put(MetaEntity::DfsReplicationTask(updated_task)),
++            TxnMutation::RecordRequestOutcome(RequestOutcome {
++                request: request_key,
++                operation: StoreOperation::DfsReportChunkCorruption,
++                result: namespace_result(request_digest, OperationResult::Empty),
++            }),
++        ]);
++        empty_namespace_outcome(
++            self.store.compare_and_commit(txn).await?,
++            StoreOperation::DfsReportChunkCorruption,
++            request_digest,
++        )
++    }
++
+     pub async fn lookup(
+         &self,
+         namespace_id: NamespaceId,
+@@ -3459,6 +3693,32 @@ impl DfsService {
+             )),
+         }
+     }
++
++    async fn record_empty_namespace_outcome(
++        &self,
++        caller_id: &str,
++        operation_id: &OperationId,
++        operation: StoreOperation,
++        request_digest: [u8; 32],
++        mut conditions: Vec<TxnCondition>,
++    ) -> Result<()> {
++        let request_key = RequestKey::new(caller_id, operation_id.0.clone());
++        let mut txn = MetaTxn::new(request_key.clone(), operation);
++        txn.conditions
++            .push(TxnCondition::RequestAbsent(request_key.clone()));
++        txn.conditions.append(&mut conditions);
++        txn.mutations
++            .push(TxnMutation::RecordRequestOutcome(RequestOutcome {
++                request: request_key,
++                operation,
++                result: namespace_result(request_digest, OperationResult::Empty),
++            }));
++        empty_namespace_outcome(
++            self.store.compare_and_commit(txn).await?,
++            operation,
++            request_digest,
++        )
++    }
+ }
+ 
+ fn namespace_request_digest(request: &impl serde::Serialize) -> Result<[u8; 32]> {
+@@ -3653,6 +3913,31 @@ fn replication_task_outcome(
+     }
+ }
+ 
++fn empty_namespace_outcome(
++    outcome: TxnOutcome,
++    operation: StoreOperation,
++    request_digest: [u8; 32],
++) -> Result<()> {
++    match outcome {
++        TxnOutcome::Committed { outcome, .. }
++        | TxnOutcome::ConditionFailed {
++            existing_outcome: Some(outcome),
++            ..
++        } => {
++            if outcome.operation != operation {
++                return Err(invalid("DFS empty replay used another operation"));
++            }
++            match namespace_result_inner(outcome.result, request_digest)? {
++                OperationResult::Empty => Ok(()),
++                _ => Err(invalid("DFS empty outcome has wrong result")),
++            }
++        }
++        TxnOutcome::ConditionFailed { .. } => {
++            Err(conflict("DFS empty operation changed during commit"))
++        }
++    }
++}
++
+ fn inode_and_lease_outcome(
+     outcome: TxnOutcome,
+     operation: StoreOperation,
+@@ -4519,6 +4804,33 @@ async fn live_read_session(
+     }
+ }
+ 
++async fn live_ready_copy_count_from_observed_excluding(
++    copies: &[CopyRecord],
++    excluded: &HashSet<CopyId>,
++    service: &DfsService,
++    now: u64,
++) -> Result<usize> {
++    let mut nodes = HashSet::new();
++    for copy in copies {
++        if excluded.contains(&copy.id) {
++            continue;
++        }
++        if let CopyLocation::Node { node_id, .. } = &copy.location {
++            let session = match service.current_live_session(node_id, now).await {
++                Ok(session) => session,
++                Err(error) if error.code() == afs_error::META_DFS_CONFLICT => continue,
++                Err(error) => return Err(error),
++            };
++            if let Some(serving_copy) = serving_read_copy(copy, &session, now)
++                && let CopyLocation::Node { node_id, .. } = serving_copy.location
++            {
++                nodes.insert(node_id);
++            }
++        }
++    }
++    Ok(nodes.len())
++}
++
+ fn read_chunk_intervals(
+     layout: &LayoutRoot,
+     chunk: &crate::dfs::ChunkObject,
+@@ -4950,6 +5262,83 @@ mod read_recovery_tests {
+         store.compare_and_commit(txn).await.unwrap();
+     }
+ 
++    async fn stored_copy(fixture: &Fixture, copy_id: &CopyId) -> CopyRecord {
++        match fixture
++            .store
++            .read(MetaRead::DfsCopy(copy_id.clone()))
++            .await
++            .unwrap()
++            .entity
++        {
++            Some(MetaEntity::DfsCopy(copy)) => copy,
++            _ => panic!("copy missing"),
++        }
++    }
++
++    async fn stored_placement(fixture: &Fixture) -> PlacementRecord {
++        match fixture
++            .store
++            .read(MetaRead::DfsPlacement(fixture.copy.chunk_id.clone()))
++            .await
++            .unwrap()
++            .entity
++        {
++            Some(MetaEntity::DfsPlacement(placement)) => placement,
++            _ => panic!("placement missing"),
++        }
++    }
++
++    async fn stored_repair_task(fixture: &Fixture) -> ReplicationTask {
++        match fixture
++            .store
++            .read(MetaRead::DfsReplicationTask(repair_task_id(
++                &fixture.copy.chunk_id,
++            )))
++            .await
++            .unwrap()
++            .entity
++        {
++            Some(MetaEntity::DfsReplicationTask(task)) => task,
++            _ => panic!("repair task missing"),
++        }
++    }
++
++    fn node_catalog_revision(copy: &CopyRecord) -> u64 {
++        match &copy.location {
++            CopyLocation::Node {
++                catalog_revision, ..
++            } => *catalog_revision,
++            CopyLocation::External { .. } => panic!("expected node copy"),
++        }
++    }
++
++    fn corruption_report(
++        operation_id: &str,
++        copy: &CopyRecord,
++        catalog_revision: u64,
++    ) -> ReportChunkCorruption {
++        let CopyLocation::Node {
++            node_id,
++            node_epoch,
++            device_id,
++            device_epoch,
++            ..
++        } = &copy.location
++        else {
++            panic!("expected node copy");
++        };
++        ReportChunkCorruption {
++            caller_id: node_id.clone(),
++            caller_session_id: format!("{node_id}-original"),
++            caller_node_epoch: *node_epoch,
++            operation_id: OperationId::new(operation_id),
++            chunk_id: copy.chunk_id.clone(),
++            device_id: device_id.clone(),
++            device_epoch: *device_epoch,
++            catalog_revision,
++        }
++    }
++
+     async fn task_record(fixture: &Fixture, claim: &ReplicationClaim) -> ReplicationTask {
+         match fixture
+             .store
+@@ -5315,6 +5704,287 @@ mod read_recovery_tests {
+         ));
+     }
+ 
++    #[tokio::test]
++    async fn corruption_report_excludes_bad_own_copy_and_persists_repair_debt() {
++        let fixture = underreplicated_fixture().await;
++        let claim = fixture
++            .service
++            .claim_replication_task(claim_request("claim-before-corruption-report"))
++            .await
++            .unwrap()
++            .unwrap();
++        fixture
++            .service
++            .report_replication_task(ReportReplicationTask {
++                caller_id: claim.worker_node_id.clone(),
++                caller_session_id: claim.worker_session_id.clone(),
++                caller_node_epoch: claim.worker_node_epoch,
++                operation_id: OperationId::new("complete-before-corruption-report"),
++                durable_acks: repair_acks(&claim),
++                error: None,
++                source_invalid: false,
++                claim,
++            })
++            .await
++            .unwrap();
++        let pre_report_placement = stored_placement(&fixture).await;
++        let report = corruption_report(
++            "report-own-corruption",
++            &fixture.copy,
++            node_catalog_revision(&fixture.copy).saturating_add(1),
++        );
++        fixture
++            .service
++            .report_chunk_corruption(report.clone())
++            .await
++            .unwrap();
++
++        let copy = stored_copy(&fixture, &fixture.copy.id).await;
++        assert_eq!(copy.state, CopyState::Corrupt);
++        let placement = stored_placement(&fixture).await;
++        assert_eq!(placement.health, PlacementHealth::UnderReplicated);
++        assert_eq!(placement.copies, pre_report_placement.copies);
++        let mut observed_copies = Vec::new();
++        for copy_id in &placement.copies {
++            observed_copies.push(stored_copy(&fixture, copy_id).await);
++        }
++        let mut excluded = std::collections::HashSet::new();
++        excluded.insert(fixture.copy.id.clone());
++        assert_eq!(
++            live_ready_copy_count_from_observed_excluding(
++                &observed_copies,
++                &excluded,
++                &fixture.service,
++                now_unix_ms(),
++            )
++            .await
++            .unwrap(),
++            1
++        );
++        let task = stored_repair_task(&fixture).await;
++        assert_eq!(task.state, ReplicationTaskState::Pending);
++        assert!(task.claim.is_none());
++        assert_eq!(task.existing_copies, placement.copies);
++        assert_eq!(
++            fixture
++                .service
++                .report_chunk_corruption(report)
++                .await
++                .unwrap(),
++            ()
++        );
++    }
++
++    #[tokio::test]
++    async fn corruption_report_rejects_forged_identity_device_revision_and_session() {
++        let fixture = underreplicated_fixture().await;
++        let mut other_node = corruption_report(
++            "report-forged-node",
++            &fixture.copy,
++            node_catalog_revision(&fixture.copy).saturating_add(1),
++        );
++        other_node.caller_id = "target".into();
++        other_node.caller_session_id = "target-original".into();
++        assert!(
++            fixture
++                .service
++                .report_chunk_corruption(other_node)
++                .await
++                .is_err()
++        );
++
++        let mut other_device = corruption_report(
++            "report-forged-device",
++            &fixture.copy,
++            node_catalog_revision(&fixture.copy).saturating_add(1),
++        );
++        other_device.device_id = "other-device".into();
++        assert!(
++            fixture
++                .service
++                .report_chunk_corruption(other_device)
++                .await
++                .is_err()
++        );
++
++        let mut zero_revision = corruption_report("report-zero-revision", &fixture.copy, 0);
++        assert!(
++            fixture
++                .service
++                .report_chunk_corruption(zero_revision.clone())
++                .await
++                .is_err()
++        );
++
++        zero_revision.operation_id = OperationId::new("report-forged-session");
++        zero_revision.catalog_revision = node_catalog_revision(&fixture.copy).saturating_add(1);
++        zero_revision.caller_session_id = "stale-session".into();
++        assert!(
++            fixture
++                .service
++                .report_chunk_corruption(zero_revision)
++                .await
++                .is_err()
++        );
++    }
++
++    #[tokio::test]
++    async fn corruption_report_exact_replay_does_not_remark_newer_repaired_copy() {
++        let fixture = fixture().await;
++        fixture
++            .service
++            .initialize_replication_config()
++            .await
++            .unwrap();
++        let report_revision = node_catalog_revision(&fixture.copy).saturating_add(1);
++        let report = corruption_report("report-replay-corruption", &fixture.copy, report_revision);
++        fixture
++            .service
++            .report_chunk_corruption(report.clone())
++            .await
++            .unwrap();
++
++        let mut repaired = fixture.copy.clone();
++        repaired.state = CopyState::Ready;
++        if let CopyLocation::Node {
++            catalog_revision, ..
++        } = &mut repaired.location
++        {
++            *catalog_revision = report_revision.saturating_add(1);
++        }
++        overwrite_copy(
++            &fixture.store,
++            repaired.clone(),
++            "overwrite-newer-repaired-copy",
++        )
++        .await;
++        fixture
++            .service
++            .report_chunk_corruption(report)
++            .await
++            .unwrap();
++        assert_eq!(stored_copy(&fixture, &fixture.copy.id).await, repaired);
++    }
++
++    #[tokio::test]
++    async fn corruption_report_fresh_stale_quarantine_ack_preserves_newer_repair() {
++        let fixture = fixture().await;
++        fixture
++            .service
++            .initialize_replication_config()
++            .await
++            .unwrap();
++        let report_revision = node_catalog_revision(&fixture.copy).saturating_add(1);
++        let report = corruption_report("report-before-fresh-stale", &fixture.copy, report_revision);
++        fixture
++            .service
++            .report_chunk_corruption(report)
++            .await
++            .unwrap();
++
++        let mut repaired = fixture.copy.clone();
++        repaired.state = CopyState::Ready;
++        if let CopyLocation::Node {
++            catalog_revision, ..
++        } = &mut repaired.location
++        {
++            *catalog_revision = report_revision.saturating_add(1);
++        }
++        overwrite_copy(
++            &fixture.store,
++            repaired.clone(),
++            "overwrite-newer-repaired-copy-before-fresh-stale",
++        )
++        .await;
++
++        let mut stale = corruption_report(
++            "report-fresh-stale-quarantine",
++            &fixture.copy,
++            report_revision,
++        );
++        fixture
++            .service
++            .report_chunk_corruption(stale.clone())
++            .await
++            .unwrap();
++        assert_eq!(stored_copy(&fixture, &fixture.copy.id).await, repaired);
++
++        fixture
++            .service
++            .report_chunk_corruption(stale.clone())
++            .await
++            .unwrap();
++        stale.catalog_revision = node_catalog_revision(&repaired).saturating_add(1);
++        assert!(
++            fixture
++                .service
++                .report_chunk_corruption(stale)
++                .await
++                .is_err()
++        );
++        assert_eq!(stored_copy(&fixture, &fixture.copy.id).await, repaired);
++    }
++
++    #[tokio::test]
++    async fn corruption_report_rejects_modified_request_reusing_same_operation() {
++        let fixture = fixture().await;
++        fixture
++            .service
++            .initialize_replication_config()
++            .await
++            .unwrap();
++        let mut report = corruption_report(
++            "report-digest-bound",
++            &fixture.copy,
++            node_catalog_revision(&fixture.copy).saturating_add(1),
++        );
++        fixture
++            .service
++            .report_chunk_corruption(report.clone())
++            .await
++            .unwrap();
++        report.catalog_revision = report.catalog_revision.saturating_add(1);
++        assert!(
++            fixture
++                .service
++                .report_chunk_corruption(report)
++                .await
++                .is_err()
++        );
++    }
++
++    #[tokio::test]
++    async fn corruption_report_blocks_when_all_sources_are_bad() {
++        let fixture = fixture().await;
++        fixture
++            .service
++            .initialize_replication_config()
++            .await
++            .unwrap();
++        let report = corruption_report(
++            "report-only-source-corruption",
++            &fixture.copy,
++            node_catalog_revision(&fixture.copy).saturating_add(1),
++        );
++        fixture
++            .service
++            .report_chunk_corruption(report)
++            .await
++            .unwrap();
++        assert_eq!(
++            stored_copy(&fixture, &fixture.copy.id).await.state,
++            CopyState::Corrupt
++        );
++        assert_eq!(
++            stored_placement(&fixture).await.health,
++            PlacementHealth::BlockedNoSource
++        );
++        assert_eq!(
++            stored_repair_task(&fixture).await.state,
++            ReplicationTaskState::BlockedNoSource
++        );
++    }
++
+     #[tokio::test]
+     async fn late_exact_report_with_full_receipts_completes_and_replays() {
+         let fixture = underreplicated_fixture().await;
+diff --git a/src/meta/rpc.rs b/src/meta/rpc.rs
+index 41ff6c2..2ea16e0 100644
+--- a/src/meta/rpc.rs
++++ b/src/meta/rpc.rs
+@@ -1360,6 +1360,35 @@ impl DfsMetaService for DfsMetaRpc {
+         ))
+     }
+ 
++    async fn report_chunk_corruption(
++        &self,
++        request: Request<afs_protocol::meta::ReportDfsChunkCorruptionRequest>,
++    ) -> Result<Response<afs_protocol::meta::ReportDfsChunkCorruptionReply>, Status> {
++        let authenticated = authenticated_node_id(&self.0, &request)?;
++        let request = request.into_inner();
++        validate_caller(authenticated.as_deref(), &request.caller_id)?;
++        require_text(&request.caller_session_id, "caller_session_id")?;
++        require_text(&request.operation_id, "operation_id")?;
++        require_text(&request.chunk_id, "chunk_id")?;
++        require_text(&request.device_id, "device_id")?;
++        dfs_service(&self.0)?
++            .report_chunk_corruption(crate::dfs::ReportChunkCorruption {
++                caller_id: request.caller_id,
++                caller_session_id: request.caller_session_id,
++                caller_node_epoch: request.caller_node_epoch,
++                operation_id: crate::dfs::OperationId::new(request.operation_id),
++                chunk_id: crate::dfs::ChunkId::new(request.chunk_id),
++                device_id: request.device_id,
++                device_epoch: request.device_epoch,
++                catalog_revision: request.catalog_revision,
++            })
++            .await
++            .map_err(afs_transport::grpc::error_status::error_to_status)?;
++        Ok(Response::new(
++            afs_protocol::meta::ReportDfsChunkCorruptionReply {},
++        ))
++    }
++
+     async fn validate_read_grants(
+         &self,
+         request: Request<afs_protocol::meta::ValidateDfsReadGrantsRequest>,
+diff --git a/src/meta/store.rs b/src/meta/store.rs
+index 0574226..ebe177a 100644
+--- a/src/meta/store.rs
++++ b/src/meta/store.rs
+@@ -454,6 +454,7 @@ pub enum StoreOperation {
+     DfsInitializeReplicationConfig,
+     DfsClaimReplicationTask,
+     DfsReportReplicationTask,
++    DfsReportChunkCorruption,
+ }
+ 
+ /// Operation result that can be replayed to idempotent callers.
+diff --git a/src/node/chunk.rs b/src/node/chunk.rs
+index af3e0a4..db4711f 100644
+--- a/src/node/chunk.rs
++++ b/src/node/chunk.rs
+@@ -150,18 +150,28 @@ pub struct PinnedChunkReader {
+ 
+ impl PinnedChunkReader {
+     pub fn read_at(&self, offset: u64, out: &mut [u8]) -> Result<usize> {
+-        if offset >= self.chunk.length {
++        if offset >= self.chunk.length || out.is_empty() {
+             return Ok(0);
+         }
+         let allowed = usize::try_from((self.chunk.length - offset).min(out.len() as u64))
+             .map_err(|_| invalid("Chunk read length is too large"))?;
+-        read_positioned(&self.file, offset, &mut out[..allowed])
++        // A pinned descriptor protects identity across rename, not integrity
++        // after disk damage. Return the exact bytes covered by this digest,
++        // rather than verifying and then issuing another unverified read.
++        let bytes = verified_range(&self.file, &self.chunk, offset, allowed)?;
++        out[..allowed].copy_from_slice(&bytes);
++        Ok(allowed)
+     }
+ }
+ 
+ #[cfg(unix)]
+ fn read_positioned(file: &File, offset: u64, out: &mut [u8]) -> Result<usize> {
+-    file.read_at(out, offset).map_err(Error::from)
++    loop {
++        match file.read_at(out, offset) {
++            Err(error) if error.kind() == std::io::ErrorKind::Interrupted => continue,
++            result => return result.map_err(Error::from),
++        }
++    }
+ }
+ 
+ #[cfg(not(unix))]
+@@ -297,14 +307,12 @@ impl LocalChunkStore {
+                 report.removed_staging_files = report.removed_staging_files.saturating_add(1);
+             }
+         }
+-        let catalog = self
++        let mut catalog = self
+             .catalog
+             .lock()
+             .map_err(|_| invalid("local chunk catalog lock is poisoned"))?;
++        let mut damaged = Vec::new();
+         for record in catalog.records.values() {
+-            if record.state != LocalChunkState::Durable {
+-                continue;
+-            }
+             if record.device_id != self.device_id
+                 || record.device_epoch != self.device_epoch
+                 || record.stored_length != record.chunk.length
+@@ -314,17 +322,23 @@ impl LocalChunkStore {
+                     "durable local Chunk record is internally inconsistent",
+                 ));
+             }
+-            let path = self.path_for_record(record)?;
+-            if !path.is_file() {
+-                return Err(invalid(format!(
+-                    "durable local Chunk '{}' is missing",
+-                    record.chunk.id.0
+-                )));
++            if record.state != LocalChunkState::Durable {
++                continue;
+             }
+-            if path.metadata().map_err(Error::from)?.len() != record.chunk.length {
+-                return Err(corrupt(&record.chunk.id, "length mismatch during recovery"));
++            let path = self.path_for_record(record)?;
++            match path.metadata() {
++                Ok(metadata) if metadata.is_file() && metadata.len() == record.chunk.length => {
++                    report.durable_chunks = report.durable_chunks.saturating_add(1);
++                }
++                Ok(_) => damaged.push(record.clone()),
++                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
++                    damaged.push(record.clone());
++                }
++                Err(error) => return Err(Error::from(error)),
+             }
+-            report.durable_chunks = report.durable_chunks.saturating_add(1);
++        }
++        if !damaged.is_empty() {
++            self.quarantine_records(&mut catalog, damaged)?;
+         }
+         for entry in fs::read_dir(&self.chunks).map_err(Error::from)? {
+             let entry = entry.map_err(Error::from)?;
+@@ -383,14 +397,22 @@ impl LocalChunkStore {
+         let mut new_chunks = Vec::new();
+         let mut installed_chunk_ids = HashSet::new();
+         for item in staged {
++            let mut replace_existing = false;
+             if let Some(existing) = catalog.records.get(&item.chunk.id) {
+-                if existing.chunk != item.chunk || existing.state != LocalChunkState::Durable {
++                if existing.chunk != item.chunk {
+                     return Err(invalid(
+                         "immutable Chunk ID collides with another local record",
+                     ));
+                 }
+-                verify_file(&self.path_for_record(existing)?, &item.chunk)?;
+-                continue;
++                if existing.state == LocalChunkState::Quarantined {
++                    replace_existing = true;
++                } else {
++                    match verify_file(&self.path_for_record(existing)?, &item.chunk) {
++                        Ok(()) => continue,
++                        Err(error) if verified_copy_is_invalid(&error) => replace_existing = true,
++                        Err(error) => return Err(error),
++                    }
++                }
+             }
+             let temp_path = self.staging.join(format!(
+                 "{}.{}.tmp",
+@@ -405,14 +427,21 @@ impl LocalChunkStore {
+             file.write_all(item.bytes()).map_err(Error::from)?;
+             file.sync_all().map_err(Error::from)?;
+             let final_path = self.chunk_path(&item.chunk.id);
+-            match fs::hard_link(&temp_path, &final_path) {
+-                Ok(()) => {}
+-                Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+-                    verify_file(&final_path, &item.chunk)?;
++            if replace_existing {
++                // Publish a new inode; never truncate a file held by readers.
++                // Its immutable content identity is unchanged. Directory and
++                // catalog barriers below still precede the durable ACK.
++                fs::rename(&temp_path, &final_path).map_err(Error::from)?;
++            } else {
++                match fs::hard_link(&temp_path, &final_path) {
++                    Ok(()) => {}
++                    Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
++                        verify_file(&final_path, &item.chunk)?;
++                    }
++                    Err(error) => return Err(Error::from(error)),
+                 }
+-                Err(error) => return Err(Error::from(error)),
++                fs::remove_file(&temp_path).map_err(Error::from)?;
+             }
+-            fs::remove_file(&temp_path).map_err(Error::from)?;
+             if installed_chunk_ids.insert(item.chunk.id.clone()) {
+                 new_chunks.push(item.chunk.clone());
+             }
+@@ -485,7 +514,13 @@ impl LocalChunkStore {
+     }
+ 
+     pub fn read_at(&self, chunk_id: &ChunkId, offset: u64, out: &mut [u8]) -> Result<usize> {
+-        self.open_verified(chunk_id)?.read_at(offset, out)
++        self.open_verified(chunk_id)?
++            .read_at(offset, out)
++            .inspect_err(|error| {
++                if verified_copy_is_invalid(error) {
++                    self.try_quarantine(chunk_id);
++                }
++            })
+     }
+ 
+     pub fn open_verified(&self, chunk_id: &ChunkId) -> Result<PinnedChunkReader> {
+@@ -498,15 +533,106 @@ impl LocalChunkStore {
+             .cloned()
+             .ok_or_else(|| invalid(format!("local Chunk '{}' is not cataloged", chunk_id.0)))?;
+         if record.state != LocalChunkState::Durable {
+-            return Err(invalid("local Chunk is not readable"));
++            return Err(corrupt(chunk_id, "local copy is quarantined"));
+         }
+         let path = self.path_for_record(&record)?;
+-        verify_file(&path, &record.chunk)?;
++        let file = File::open(path).map_err(Error::from).and_then(|file| {
++            verified_range(&file, &record.chunk, 0, 0)?;
++            Ok(file)
++        });
++        let file = match file {
++            Ok(file) => file,
++            Err(error) => {
++                if verified_copy_is_invalid(&error) {
++                    self.try_quarantine(chunk_id);
++                }
++                return Err(error);
++            }
++        };
+         Ok(PinnedChunkReader {
+-            file: File::open(path).map_err(Error::from)?,
++            file,
+             chunk: record.chunk,
+         })
+     }
++
++    /// Recheck the current physical file under the publication lock. An old
++    /// failed reader must not quarantine a healthy replacement inode.
++    pub(crate) fn quarantine_if_invalid(&self, chunk_id: &ChunkId) -> Result<()> {
++        let mut catalog = self
++            .catalog
++            .lock()
++            .map_err(|_| invalid("local chunk catalog lock is poisoned"))?;
++        let Some(record) = catalog.records.get(chunk_id).cloned() else {
++            return Ok(());
++        };
++        if record.state == LocalChunkState::Quarantined {
++            return Ok(());
++        }
++        match verify_file(&self.path_for_record(&record)?, &record.chunk) {
++            Ok(()) => Ok(()),
++            Err(error) if verified_copy_is_invalid(&error) => {
++                self.quarantine_records(&mut catalog, vec![record])
++            }
++            Err(error) => Err(error),
++        }
++    }
++
++    pub(crate) fn try_quarantine(&self, chunk_id: &ChunkId) {
++        if let Err(error) = self.quarantine_if_invalid(chunk_id) {
++            // Read fallback can still succeed. No durable quarantine or report
++            // is claimed if its catalog barrier fails; every read rechecks.
++            afs_logging::warn!("dfs.local_quarantine_failed";
++                "chunk" => chunk_id.0.clone(), "error" => error.to_string());
++        }
++    }
++
++    pub(crate) fn quarantined_chunks(&self) -> Result<Vec<LocalChunkRecord>> {
++        let catalog = self
++            .catalog
++            .lock()
++            .map_err(|_| invalid("local chunk catalog lock is poisoned"))?;
++        let mut records: Vec<_> = catalog
++            .records
++            .values()
++            .filter(|record| record.state == LocalChunkState::Quarantined)
++            .cloned()
++            .collect();
++        records.sort_by(|left, right| {
++            (left.catalog_revision, &left.chunk.id).cmp(&(right.catalog_revision, &right.chunk.id))
++        });
++        Ok(records)
++    }
++
++    fn quarantine_records(
++        &self,
++        catalog: &mut LocalCatalog,
++        mut records: Vec<LocalChunkRecord>,
++    ) -> Result<()> {
++        let revision = catalog
++            .revision
++            .checked_add(1)
++            .ok_or_else(|| invalid("local catalog revision exhausted"))?;
++        for record in &mut records {
++            record.state = LocalChunkState::Quarantined;
++            record.catalog_revision = revision;
++        }
++        append_catalog_txn(
++            &self.catalog_path,
++            &CatalogTxn::new(revision, records.clone())?,
++        )?;
++        for record in records {
++            catalog.records.insert(record.chunk.id.clone(), record);
++        }
++        catalog.revision = revision;
++        Ok(())
++    }
++}
++
++fn verified_copy_is_invalid(error: &Error) -> bool {
++    matches!(
++        error.kind(),
++        afs_error::ErrorKind::DataLoss | afs_error::ErrorKind::NotFound
++    )
+ }
+ 
+ #[cfg(test)]
+@@ -597,13 +723,47 @@ fn open_device_epoch(root: &Path) -> Result<u64> {
+ }
+ 
+ fn verify_file(path: &Path, chunk: &ChunkObject) -> Result<()> {
+-    let mut file = File::open(path).map_err(Error::from)?;
+-    let metadata = file.metadata().map_err(Error::from)?;
+-    if metadata.len() != chunk.length {
++    let file = File::open(path).map_err(Error::from)?;
++    verified_range(&file, chunk, 0, 0).map(|_| ())
++}
++
++/// Hash the pinned file once and retain only the requested overlap. The
++/// temporary range is bounded by the caller's output; scan memory is 64KiB.
++/// Nothing is published to the caller until all content checks pass.
++fn verified_range(file: &File, chunk: &ChunkObject, offset: u64, length: usize) -> Result<Vec<u8>> {
++    let end = offset
++        .checked_add(length as u64)
++        .filter(|end| *end <= chunk.length)
++        .ok_or_else(|| invalid("verified Chunk range exceeds its length"))?;
++    if file.metadata().map_err(Error::from)?.len() != chunk.length {
+         return Err(corrupt(&chunk.id, "length mismatch"));
+     }
++    let mut bytes = vec![0; length];
++    let mut scratch = [0; 64 * 1024];
+     let mut hasher = blake3::Hasher::new();
+-    std::io::copy(&mut file, &mut hasher).map_err(Error::from)?;
++    let mut position = 0;
++    while position < chunk.length {
++        let limit = (chunk.length - position).min(scratch.len() as u64) as usize;
++        let count = read_positioned(file, position, &mut scratch[..limit])?;
++        if count == 0 {
++            return Err(corrupt(&chunk.id, "ended during verification"));
++        }
++        hasher.update(&scratch[..count]);
++        let next = position + count as u64;
++        let overlap_start = position.max(offset);
++        let overlap_end = next.min(end);
++        if overlap_start < overlap_end {
++            bytes[(overlap_start - offset) as usize..(overlap_end - offset) as usize]
++                .copy_from_slice(
++                    &scratch
++                        [(overlap_start - position) as usize..(overlap_end - position) as usize],
++                );
++        }
++        position = next;
++    }
++    if file.metadata().map_err(Error::from)?.len() != chunk.length {
++        return Err(corrupt(&chunk.id, "length changed during verification"));
++    }
+     let actual = ContentDigest {
+         algorithm: DigestAlgorithm::Blake3,
+         bytes: *hasher.finalize().as_bytes(),
+@@ -611,7 +771,7 @@ fn verify_file(path: &Path, chunk: &ChunkObject) -> Result<()> {
+     if actual != chunk.content_digest {
+         return Err(corrupt(&chunk.id, "digest mismatch"));
+     }
+-    Ok(())
++    Ok(bytes)
+ }
+ 
+ fn digest(bytes: &[u8]) -> ContentDigest {
+@@ -657,6 +817,150 @@ fn invalid(message: impl Into<String>) -> Error {
+ mod replica_replay_tests {
+     use super::*;
+ 
++    #[test]
++    fn corrupt_cataloged_chunk_is_replaced_by_immutable_retry() {
++        let temp = tempfile::tempdir().unwrap();
++        let store = LocalChunkStore::open(temp.path(), "node-a").unwrap();
++        let staged = StagedChunk::new(OperationId::new("retry-corrupt"), b"abcdef".to_vec());
++        let first = store.put(staged.clone()).unwrap();
++        let pin = store.open_verified(&staged.chunk.id).unwrap();
++        fs::write(
++            temp.path().join("chunks").join(&staged.chunk.id.0),
++            b"abXdef",
++        )
++        .unwrap();
++        let repaired = store.put(staged.clone()).unwrap();
++        assert!(repaired.durable_acks[0].catalog_revision > first.durable_acks[0].catalog_revision);
++        let mut out = [9; 6];
++        assert!(pin.read_at(0, &mut out).is_err());
++        assert_eq!(out, [9; 6]);
++        // Revalidating an old pin cannot quarantine the newer healthy file.
++        store.quarantine_if_invalid(&staged.chunk.id).unwrap();
++        assert!(store.quarantined_chunks().unwrap().is_empty());
++        assert_eq!(store.read_at(&staged.chunk.id, 0, &mut out).unwrap(), 6);
++        assert_eq!(&out, b"abcdef");
++        drop(store);
++        let recovered = LocalChunkStore::open(temp.path(), "node-a").unwrap();
++        assert_eq!(recovered.read_at(&staged.chunk.id, 0, &mut out).unwrap(), 6);
++        assert_eq!(&out, b"abcdef");
++    }
++
++    #[test]
++    fn quarantine_survives_restart_and_verified_replacement_clears_it() {
++        let temp = tempfile::tempdir().unwrap();
++        let store = LocalChunkStore::open(temp.path(), "node-a").unwrap();
++        let staged = StagedChunk::new(OperationId::new("quarantine"), b"abcdef".to_vec());
++        store.put(staged.clone()).unwrap();
++        fs::write(
++            temp.path().join("chunks").join(&staged.chunk.id.0),
++            b"abXdef",
++        )
++        .unwrap();
++        assert!(store.open_verified(&staged.chunk.id).is_err());
++        let records = store.quarantined_chunks().unwrap();
++        assert_eq!(records.len(), 1);
++        let quarantine_revision = records[0].catalog_revision;
++        drop(store);
++        let recovered = LocalChunkStore::open(temp.path(), "node-a").unwrap();
++        assert_eq!(recovered.quarantined_chunks().unwrap(), records);
++        assert!(recovered.open_verified(&staged.chunk.id).is_err());
++        let receipt = recovered.put(staged.clone()).unwrap();
++        assert!(receipt.durable_acks[0].catalog_revision > quarantine_revision);
++        assert!(recovered.quarantined_chunks().unwrap().is_empty());
++        let mut out = [0; 6];
++        recovered.read_at(&staged.chunk.id, 0, &mut out).unwrap();
++        assert_eq!(&out, b"abcdef");
++    }
++
++    #[test]
++    fn recovery_quarantines_missing_or_truncated_chunks_without_losing_healthy_files() {
++        let temp = tempfile::tempdir().unwrap();
++        let store = LocalChunkStore::open(temp.path(), "node-a").unwrap();
++        let items: Vec<_> = ["missing", "truncated", "healthy"]
++            .into_iter()
++            .map(|name| StagedChunk::new(OperationId::new(name), name.as_bytes().to_vec()))
++            .collect();
++        for item in &items {
++            store.put(item.clone()).unwrap();
++        }
++        fs::remove_file(temp.path().join("chunks").join(&items[0].chunk.id.0)).unwrap();
++        fs::write(temp.path().join("chunks").join(&items[1].chunk.id.0), b"x").unwrap();
++        drop(store);
++        let recovered = LocalChunkStore::open(temp.path(), "node-a").unwrap();
++        assert_eq!(recovered.quarantined_chunks().unwrap().len(), 2);
++        let mut out = [0; 7];
++        recovered.read_at(&items[2].chunk.id, 0, &mut out).unwrap();
++        assert_eq!(&out, b"healthy");
++        for item in &items[..2] {
++            recovered.put(item.clone()).unwrap();
++        }
++        assert!(recovered.quarantined_chunks().unwrap().is_empty());
++    }
++
++    #[test]
++    fn pinned_reader_verifies_partial_ranges_and_rejects_damage_outside_them() {
++        let temp = tempfile::tempdir().unwrap();
++        let store = LocalChunkStore::open(temp.path(), "node-a").unwrap();
++        let bytes: Vec<_> = (0..131_073).map(|index| (index % 251) as u8).collect();
++        let staged = StagedChunk::new(OperationId::new("range"), bytes.clone());
++        store.put(staged.clone()).unwrap();
++        let reader = store.open_verified(&staged.chunk.id).unwrap();
++        let mut out = [9; 19];
++        assert_eq!(reader.read_at(65_531, &mut out).unwrap(), 19);
++        assert_eq!(&out, &bytes[65_531..65_550]);
++        let path = temp.path().join("chunks").join(&staged.chunk.id.0);
++        let mut damaged = bytes;
++        damaged[131_072] ^= 1;
++        fs::write(path, damaged).unwrap();
++        out.fill(9);
++        assert_eq!(
++            reader.read_at(65_531, &mut out).unwrap_err().code(),
++            afs_error::NODE_TRANSFER_CORRUPT_DATA
++        );
++        assert_eq!(out, [9; 19]);
++    }
++
++    #[test]
++    fn pinned_reader_rejects_truncation_without_publishing_a_partial_read() {
++        let temp = tempfile::tempdir().unwrap();
++        let store = LocalChunkStore::open(temp.path(), "node-a").unwrap();
++        let staged = StagedChunk::new(OperationId::new("truncate"), b"abcdef".to_vec());
++        store.put(staged.clone()).unwrap();
++        let reader = store.open_verified(&staged.chunk.id).unwrap();
++        fs::write(temp.path().join("chunks").join(&staged.chunk.id.0), b"abc").unwrap();
++        let mut out = [9; 6];
++        assert_eq!(
++            reader.read_at(0, &mut out).unwrap_err().code(),
++            afs_error::NODE_TRANSFER_CORRUPT_DATA
++        );
++        assert_eq!(out, [9; 6]);
++    }
++
++    #[test]
++    fn pinned_reader_preserves_descriptor_identity_and_eof_behavior() {
++        let temp = tempfile::tempdir().unwrap();
++        let store = LocalChunkStore::open(temp.path(), "node-a").unwrap();
++        let staged = StagedChunk::new(OperationId::new("pin"), b"abcdef".to_vec());
++        store.put(staged.clone()).unwrap();
++        let reader = store.open_verified(&staged.chunk.id).unwrap();
++        let replacement = temp.path().join("replacement");
++        fs::write(&replacement, b"abXdef").unwrap();
++        fs::rename(
++            replacement,
++            temp.path().join("chunks").join(&staged.chunk.id.0),
++        )
++        .unwrap();
++        let mut out = [9; 8];
++        assert_eq!(reader.read_at(0, &mut out).unwrap(), 6);
++        assert_eq!(&out, &[b'a', b'b', b'c', b'd', b'e', b'f', 9, 9]);
++        out.fill(9);
++        assert_eq!(reader.read_at(4, &mut out).unwrap(), 2);
++        assert_eq!(&out, &[b'e', b'f', 9, 9, 9, 9, 9, 9]);
++        assert_eq!(reader.read_at(u64::MAX, &mut out).unwrap(), 0);
++        assert_eq!(reader.read_at(0, &mut []).unwrap(), 0);
++        assert!(store.open_verified(&staged.chunk.id).is_err());
++    }
++
+     #[test]
+     fn immutable_chunk_retry_preserves_content_after_catalog_advances_and_restart() {
+         let temp = tempfile::tempdir().unwrap();
+diff --git a/src/node/dfs_read.rs b/src/node/dfs_read.rs
+index ec9d939..fe53266 100644
+--- a/src/node/dfs_read.rs
++++ b/src/node/dfs_read.rs
+@@ -282,7 +282,20 @@ impl DfsReadEngine {
+             if op.length == 0 {
+                 continue;
+             }
+-            if self.read_local(op, out).is_err() {
++            if let Err(error) = self.read_local(op, out) {
++                if matches!(
++                    error.kind(),
++                    afs_error::ErrorKind::DataLoss | afs_error::ErrorKind::NotFound
++                ) {
++                    self.local.try_quarantine(&op.chunk_id);
++                }
++                // A cached pin can outlive a corrupt file's replacement.
++                // Drop it on failure so the next attempt opens the current
++                // physical copy instead of retrying the retired descriptor.
++                self.readers
++                    .lock()
++                    .map_err(|_| unavailable("DFS local reader cache is poisoned"))?
++                    .remove(&op.chunk_id);
+                 remote_ops.push(op.clone());
+             }
+         }
+@@ -462,9 +475,8 @@ impl DfsReadEngine {
+             let mut groups: Vec<Vec<usize>> = Vec::new();
+             for &index in &pending {
+                 let Some(source) = candidates[index].get(next[index]) else {
+-                    return Err(
+-                        last_error.unwrap_or_else(|| unavailable("DFS read has no usable source"))
+-                    );
++                    return Err(last_error
++                        .unwrap_or_else(|| corrupt("committed Chunk has no readable copy")));
+                 };
+                 if let Some(group) = groups.iter_mut().find(|group| {
+                     let first = group[0];
+@@ -710,6 +722,128 @@ mod tests {
+         assert_eq!(*sources.calls.lock().unwrap(), 0);
+     }
+ 
++    #[test]
++    fn diagnostic_cold_corrupted_local_copy_uses_healthy_peer() {
++        diagnostic_corrupted_local_copy(false);
++    }
++
++    #[test]
++    fn diagnostic_warm_corrupted_local_copy_uses_healthy_peer() {
++        diagnostic_corrupted_local_copy(true);
++    }
++
++    fn diagnostic_corrupted_local_copy(warm: bool) {
++        let temp = tempfile::tempdir().unwrap();
++        let local = Arc::new(LocalChunkStore::open(temp.path(), "node-a").unwrap());
++        let mut builder = ChunkBuilder::default();
++        builder.replace(b"abcdef".to_vec());
++        let staged = builder.stage(OperationId::new("diagnostic"));
++        let chunk_id = staged.chunk.id.clone();
++        local.put(staged).unwrap();
++        let sources = Arc::new(StaticSources::new(DfsChunkSourcesReply {
++            revision: 1,
++            chunks: vec![ChunkSources {
++                chunk_id: chunk_id.clone(),
++                sources: vec![source("healthy-b", &chunk_id, "node-b")],
++            }],
++        }));
++        let engine = DfsReadEngine::new(
++            crate::dfs::NamespaceId::new("default"),
++            "node-a".into(),
++            local.clone(),
++            sources.clone(),
++            Arc::new(StaticTransfer {
++                bytes: b"abcdef".to_vec(),
++                fail_first: Mutex::new(false),
++            }),
++            DfsReadConfig::default(),
++        );
++        let batch = ReadBatch {
++            file_version_id: Some(FileVersionId::new("version")),
++            layout_root_id: LayoutRootId::new("layout"),
++            ops: vec![ChunkReadOp {
++                chunk_id: chunk_id.clone(),
++                chunk_offset: 0,
++                length: 6,
++                output_offset: 0,
++            }],
++        };
++        let mut out = [0; 6];
++        if warm {
++            engine.read_batch(&batch, &mut out).unwrap();
++            assert_eq!(&out, b"abcdef");
++            assert_eq!(*sources.calls.lock().unwrap(), 0);
++        }
++        let path = temp.path().join("chunks").join(&chunk_id.0);
++        std::fs::write(&path, b"abXdef").unwrap();
++        std::fs::File::open(&path).unwrap().sync_all().unwrap();
++        out.fill(9);
++        engine.read_batch(&batch, &mut out).unwrap();
++        assert_eq!(
++            &out, b"abcdef",
++            "corrupted cached local bytes must not reach the caller"
++        );
++        assert_eq!(*sources.calls.lock().unwrap(), 1);
++        assert!(engine.readers.lock().unwrap().is_empty());
++        // Replacement keeps the identity but creates a new physical inode.
++        // The failed pin must not trap later reads on the retired corrupt fd.
++        local
++            .put(crate::node::chunk::StagedChunk::new(
++                OperationId::new("restore"),
++                b"abcdef".to_vec(),
++            ))
++            .unwrap();
++        out.fill(9);
++        engine.read_batch(&batch, &mut out).unwrap();
++        assert_eq!(&out, b"abcdef");
++        assert_eq!(*sources.calls.lock().unwrap(), 1);
++        assert_eq!(engine.readers.lock().unwrap().len(), 1);
++        assert!(local.quarantined_chunks().unwrap().is_empty());
++    }
++
++    #[test]
++    fn quarantined_local_copy_and_no_readable_peer_return_eio_without_output() {
++        let temp = tempfile::tempdir().unwrap();
++        let local = Arc::new(LocalChunkStore::open(temp.path(), "node-a").unwrap());
++        let staged =
++            crate::node::chunk::StagedChunk::new(OperationId::new("all-bad"), b"abcdef".to_vec());
++        let chunk_id = staged.chunk.id.clone();
++        local.put(staged).unwrap();
++        std::fs::write(temp.path().join("chunks").join(&chunk_id.0), b"abXdef").unwrap();
++        let sources = Arc::new(StaticSources::new(DfsChunkSourcesReply {
++            revision: 1,
++            chunks: vec![ChunkSources {
++                chunk_id: chunk_id.clone(),
++                sources: Vec::new(),
++            }],
++        }));
++        let engine = DfsReadEngine::new(
++            crate::dfs::NamespaceId::new("default"),
++            "node-a".into(),
++            local.clone(),
++            sources,
++            Arc::new(UnimplementedChunkTransfer),
++            DfsReadConfig::default(),
++        );
++        let batch = ReadBatch {
++            file_version_id: Some(FileVersionId::new("version")),
++            layout_root_id: LayoutRootId::new("layout"),
++            ops: vec![ChunkReadOp {
++                chunk_id,
++                chunk_offset: 0,
++                length: 6,
++                output_offset: 0,
++            }],
++        };
++        let mut out = [9; 6];
++        for _ in 0..2 {
++            let error = engine.read_batch(&batch, &mut out).unwrap_err();
++            assert_eq!(crate::error::errno(&error), libc::EIO);
++            assert_eq!(out, [9; 6]);
++        }
++        assert_eq!(local.quarantined_chunks().unwrap().len(), 1);
++    }
++
+     #[test]
+     fn remote_read_uses_scratch_and_falls_back_between_sources() {
+         let temp = tempfile::tempdir().unwrap();
+diff --git a/src/node/replication.rs b/src/node/replication.rs
+index 5e971df..8aaa4ff 100644
+--- a/src/node/replication.rs
++++ b/src/node/replication.rs
+@@ -684,6 +684,7 @@ fn invalid(message: impl Into<String>) -> Error {
+ /// write lease. Only a node with an existing live source copy claims the task;
+ /// no file bytes pass through Meta and no FileVersion is changed by repair.
+ pub trait ReplicationTaskAuthority: Send + Sync {
++    fn report_corrupt_chunk(&self, request: crate::dfs::ReportChunkCorruption) -> Result<()>;
+     fn claim(
+         &self,
+         request: crate::dfs::ClaimReplicationTask,
+@@ -696,6 +697,7 @@ pub trait ReplicationTaskAuthority: Send + Sync {
+ 
+ #[derive(Clone)]
+ enum PendingRepair {
++    Corruption(Box<crate::dfs::ReportChunkCorruption>),
+     Claiming(crate::dfs::ClaimReplicationTask),
+     Reporting(Box<crate::dfs::ReportReplicationTask>),
+ }
+@@ -711,6 +713,7 @@ pub struct ReplicationWorker {
+     authority: Arc<dyn ReplicationTaskAuthority>,
+     data_plane: Arc<dyn ReplicaDataPlane>,
+     pending: std::sync::Mutex<Option<PendingRepair>>,
++    reported_quarantines: std::sync::Mutex<HashSet<(ChunkId, u64)>>,
+     sequence: std::sync::atomic::AtomicU64,
+ }
+ 
+@@ -731,6 +734,7 @@ impl ReplicationWorker {
+             authority,
+             data_plane,
+             pending: std::sync::Mutex::new(None),
++            reported_quarantines: std::sync::Mutex::new(HashSet::new()),
+             sequence: std::sync::atomic::AtomicU64::new(1),
+         }
+     }
+@@ -752,6 +756,67 @@ impl ReplicationWorker {
+             .pending
+             .lock()
+             .map_err(|_| invalid("replication worker state lock is poisoned"))?;
++        if pending.is_none() {
++            let records = self.local.quarantined_chunks()?;
++            let active: HashSet<_> = records
++                .iter()
++                .map(|record| (record.chunk.id.clone(), record.catalog_revision))
++                .collect();
++            let mut reported = self
++                .reported_quarantines
++                .lock()
++                .map_err(|_| invalid("corruption report state lock is poisoned"))?;
++            reported.retain(|key| active.contains(key));
++            if let Some(record) = records.iter().find(|record| {
++                !reported.contains(&(record.chunk.id.clone(), record.catalog_revision))
++            }) {
++                *pending = Some(PendingRepair::Corruption(Box::new(
++                    crate::dfs::ReportChunkCorruption {
++                        caller_id: self.node_id.clone(),
++                        caller_session_id: self.session_id.clone(),
++                        caller_node_epoch: self.node_epoch,
++                        operation_id: self.operation_id("corrupt"),
++                        chunk_id: record.chunk.id.clone(),
++                        device_id: record.device_id.clone(),
++                        device_epoch: record.device_epoch,
++                        catalog_revision: record.catalog_revision,
++                    },
++                )));
++            }
++        }
++        if let Some(PendingRepair::Corruption(request)) = pending.as_ref() {
++            // Unknown ACK, timeout or CAS conflict retains this exact request.
++            // It cannot accuse another node and contains no file bytes.
++            if let Err(error) = self
++                .authority
++                .report_corrupt_chunk(request.as_ref().clone())
++            {
++                if corruption_report_definitively_rejected(&error) {
++                    // A definitive refusal is not an unknown commit. Keep the
++                    // local quarantine, suppress this identity for this worker
++                    // incarnation and allow other repair work to progress.
++                    self.reported_quarantines
++                        .lock()
++                        .map_err(|_| invalid("corruption report state lock is poisoned"))?
++                        .insert((request.chunk_id.clone(), request.catalog_revision));
++                    afs_logging::warn!("dfs.local_corruption_report_rejected";
++                        "chunk" => request.chunk_id.0.clone(),
++                        "catalog_revision" => request.catalog_revision,
++                        "error" => error.to_string());
++                    *pending = None;
++                }
++                return Err(error);
++            }
++            self.reported_quarantines
++                .lock()
++                .map_err(|_| invalid("corruption report state lock is poisoned"))?
++                .insert((request.chunk_id.clone(), request.catalog_revision));
++            afs_logging::warn!("dfs.local_corruption_reported";
++                "chunk" => request.chunk_id.0.clone(),
++                "catalog_revision" => request.catalog_revision);
++            *pending = None;
++            return Ok(None);
++        }
+         let current = pending.get_or_insert_with(|| {
+             PendingRepair::Claiming(crate::dfs::ClaimReplicationTask {
+                 caller_id: self.node_id.clone(),
+@@ -872,7 +937,14 @@ impl ReplicationWorker {
+         while offset < length {
+             let count = reader
+                 .read_at(offset as u64, &mut bytes[offset..])
+-                .map_err(|error| (error, false))?;
++                .map_err(|error| {
++                    let source_invalid = error.kind() == afs_error::ErrorKind::DataLoss
++                        || error.kind() == afs_error::ErrorKind::NotFound;
++                    if source_invalid {
++                        self.local.try_quarantine(&claim.chunk.id);
++                    }
++                    (error, source_invalid)
++                })?;
+             if count == 0 {
+                 return Err((
+                     invalid("repair source ended before its immutable length"),
+@@ -935,6 +1007,20 @@ impl ReplicationWorker {
+     }
+ }
+ 
++fn corruption_report_definitively_rejected(error: &Error) -> bool {
++    // Meta CAS conflicts are retryable even though their error kind is
++    // FailedPrecondition. Aborted and transport failures retain exact identity.
++    error.code() != afs_error::META_DFS_CONFLICT
++        && matches!(
++            error.kind(),
++            afs_error::ErrorKind::InvalidArgument
++                | afs_error::ErrorKind::PermissionDenied
++                | afs_error::ErrorKind::Unauthenticated
++                | afs_error::ErrorKind::FailedPrecondition
++                | afs_error::ErrorKind::NotFound
++        )
++}
++
+ fn repair_request_definitively_rejected(error: &Error) -> bool {
+     matches!(
+         error.kind(),
+@@ -1623,9 +1709,28 @@ mod tests {
+         wrong_report_once: std::sync::atomic::AtomicBool,
+         conflict_report_once: std::sync::atomic::AtomicBool,
+         superseded_report_once: std::sync::atomic::AtomicBool,
++        corruption_reports: Mutex<Vec<crate::dfs::ReportChunkCorruption>>,
++        fail_corruption_once: std::sync::atomic::AtomicBool,
++        corruption_error_once: Mutex<Option<Error>>,
+     }
+ 
+     impl ReplicationTaskAuthority for RepairFixtureAuthority {
++        fn report_corrupt_chunk(&self, request: crate::dfs::ReportChunkCorruption) -> Result<()> {
++            self.corruption_reports.lock().unwrap().push(request);
++            if let Some(error) = self.corruption_error_once.lock().unwrap().take() {
++                return Err(error);
++            }
++            if self
++                .fail_corruption_once
++                .swap(false, std::sync::atomic::Ordering::Relaxed)
++            {
++                return Err(Error::coded(
++                    afs_error::CLIENT_DEADLINE_EXCEEDED,
++                    "corruption ACK lost",
++                ));
++            }
++            Ok(())
++        }
+         fn claim(
+             &self,
+             request: crate::dfs::ClaimReplicationTask,
+@@ -1734,6 +1839,9 @@ mod tests {
+             wrong_report_once: std::sync::atomic::AtomicBool::new(false),
+             conflict_report_once: std::sync::atomic::AtomicBool::new(false),
+             superseded_report_once: std::sync::atomic::AtomicBool::new(false),
++            corruption_reports: Mutex::new(Vec::new()),
++            fail_corruption_once: std::sync::atomic::AtomicBool::new(false),
++            corruption_error_once: Mutex::new(None),
+         });
+         (temp, local, authority, Arc::new(FakeDataPlane::default()))
+     }
+@@ -1896,6 +2004,94 @@ mod tests {
+         assert!(plane.prepared.lock().unwrap().is_empty());
+     }
+ 
++    #[test]
++    fn corruption_worker_retains_exact_report_and_does_not_resend_after_ack() {
++        let (temp, local, authority, plane) = repair_fixture("repair-payload");
++        let path = temp.path().join("chunks").join(&authority.claim.chunk.id.0);
++        std::fs::write(path, b"repair-payloXd").unwrap();
++        assert!(local.open_verified(&authority.claim.chunk.id).is_err());
++        authority
++            .fail_corruption_once
++            .store(true, std::sync::atomic::Ordering::Relaxed);
++        let worker = repair_worker(local, authority.clone(), plane.clone());
++        assert!(worker.run_once().is_err());
++        assert!(worker.run_once().unwrap().is_none());
++        let reports = authority.corruption_reports.lock().unwrap();
++        assert_eq!(reports.len(), 2);
++        assert_eq!(reports[0], reports[1]);
++        drop(reports);
++        // The next tick may claim ordinary repair but must not issue another
++        // corruption operation for the acknowledged quarantine revision.
++        worker.run_once().unwrap();
++        assert_eq!(authority.corruption_reports.lock().unwrap().len(), 2);
++        assert!(plane.prepared.lock().unwrap().is_empty());
++    }
++
++    #[test]
++    fn corruption_worker_retries_cas_with_exact_identity() {
++        let (temp, local, authority, plane) = repair_fixture("repair-payload");
++        std::fs::write(
++            temp.path().join("chunks").join(&authority.claim.chunk.id.0),
++            b"repair-payloXd",
++        )
++        .unwrap();
++        assert!(local.open_verified(&authority.claim.chunk.id).is_err());
++        *authority.corruption_error_once.lock().unwrap() = Some(Error::coded(
++            afs_error::META_DFS_CONFLICT,
++            "observed copy changed",
++        ));
++        let worker = repair_worker(local, authority.clone(), plane);
++        assert_eq!(
++            worker.run_once().unwrap_err().code(),
++            afs_error::META_DFS_CONFLICT
++        );
++        assert!(worker.run_once().unwrap().is_none());
++        let reports = authority.corruption_reports.lock().unwrap();
++        assert_eq!(reports.len(), 2);
++        assert_eq!(reports[0], reports[1]);
++    }
++
++    #[test]
++    fn corruption_worker_keeps_quarantine_but_does_not_wedge_on_definitive_rejection() {
++        let (temp, local, authority, plane) = repair_fixture("repair-payload");
++        std::fs::write(
++            temp.path().join("chunks").join(&authority.claim.chunk.id.0),
++            b"repair-payloXd",
++        )
++        .unwrap();
++        assert!(local.open_verified(&authority.claim.chunk.id).is_err());
++        *authority.corruption_error_once.lock().unwrap() = Some(invalid("unknown physical copy"));
++        let worker = repair_worker(local.clone(), authority.clone(), plane);
++        assert_eq!(
++            worker.run_once().unwrap_err().kind(),
++            afs_error::ErrorKind::InvalidArgument
++        );
++        assert_eq!(local.quarantined_chunks().unwrap().len(), 1);
++        assert!(worker.run_once().unwrap().is_some());
++        assert_eq!(authority.corruption_reports.lock().unwrap().len(), 1);
++        assert_eq!(authority.claims.lock().unwrap().len(), 1);
++    }
++
++    #[test]
++    fn repair_worker_reports_corrupt_source_without_peer_bytes() {
++        let (temp, local, authority, plane) = repair_fixture("repair-payload");
++        std::fs::write(
++            temp.path().join("chunks").join(&authority.claim.chunk.id.0),
++            b"repair-payloXd",
++        )
++        .unwrap();
++        let worker = repair_worker(local, authority.clone(), plane.clone());
++        assert_eq!(
++            worker.run_once().unwrap().unwrap().state,
++            crate::dfs::ReplicationTaskState::RetryWaiting
++        );
++        let reports = authority.reports.lock().unwrap();
++        assert!(reports[0].source_invalid);
++        assert!(reports[0].error.is_some());
++        assert!(reports[0].durable_acks.is_empty());
++        assert!(plane.prepared.lock().unwrap().is_empty());
++    }
++
+     #[test]
+     fn repair_worker_refuses_expired_claim_without_transfer_or_report() {
+         let (_temp, local, mut authority, plane) = repair_fixture("repair-payload");
+diff --git a/src/node/rpc/data.rs b/src/node/rpc/data.rs
+index cd653b5..12c7494 100644
+--- a/src/node/rpc/data.rs
++++ b/src/node/rpc/data.rs
+@@ -1445,9 +1445,23 @@ fn stream_dfs_ranges(
+         if sender.is_closed() {
+             return Ok(());
+         }
+-        let reader = local
+-            .open_verified(&crate::dfs::ChunkId::new(op.chunk_id.clone()))
+-            .map_err(error_to_status)?;
++        // Verify one bounded range before framing it. Each read_at checks the
++        // whole Chunk; issuing it per frame would amplify disk/hash work.
++        let mut verified = vec![0; op.length as usize];
++        if local
++            .read_at(
++                &crate::dfs::ChunkId::new(op.chunk_id.clone()),
++                op.chunk_offset,
++                &mut verified,
++            )
++            .map_err(error_to_status)?
++            != verified.len()
++        {
++            return Err(coded_status(
++                afs_error::NODE_TRANSFER_CORRUPT_DATA,
++                "local Chunk ended before the requested DFS range",
++            ));
++        }
+         send(dfs_read_ranges_frame::Body::Header(DfsReadRangesHeader {
+             read_id: request.read_id.clone(),
+             attempt_id: request.attempt_id.clone(),
+@@ -1464,16 +1478,7 @@ fn stream_dfs_ranges(
+                 return Ok(());
+             }
+             let length = (op.length - offset).min(64 * 1024) as usize;
+-            let mut data = vec![0; length];
+-            let read = reader
+-                .read_at(op.chunk_offset + offset, &mut data)
+-                .map_err(error_to_status)?;
+-            if read != length {
+-                return Err(coded_status(
+-                    afs_error::NODE_TRANSFER_CORRUPT_DATA,
+-                    "local Chunk ended before the requested DFS range",
+-                ));
+-            }
++            let data = verified[offset as usize..offset as usize + length].to_vec();
+             checksum.update(&data);
+             send(dfs_read_ranges_frame::Body::Data(data))?;
+             if let Some(metrics) = metrics {
+@@ -3392,12 +3397,13 @@ fn read_packed_dfs_ranges(
+     for op in &request.operations {
+         let start = op.destination_offset as usize;
+         let end = start + op.length as usize;
+-        let reader = local
+-            .open_verified(&crate::dfs::ChunkId::new(op.chunk_id.clone()))
+-            .map_err(error_to_status)?;
+         let range = &mut bytes[start..end];
+-        if reader
+-            .read_at(op.chunk_offset, range)
++        if local
++            .read_at(
++                &crate::dfs::ChunkId::new(op.chunk_id.clone()),
++                op.chunk_offset,
++                range,
++            )
+             .map_err(error_to_status)?
+             != range.len()
+         {
+@@ -4972,6 +4978,38 @@ mod tests {
+         }
+     }
+ 
++    #[cfg(feature = "dfs")]
++    #[test]
++    fn dfs_corrupt_range_publishes_no_grpc_frames_or_rdma_completions() {
++        use crate::node::chunk::{ChunkStore, StagedChunk};
++        let temp = tempfile::tempdir().unwrap();
++        let local = LocalChunkStore::open(temp.path(), "node").unwrap();
++        let staged = StagedChunk::new(crate::dfs::OperationId::new("corrupt"), vec![42; 150_000]);
++        local.put(staged.clone()).unwrap();
++        let path = temp.path().join("chunks").join(&staged.chunk.id.0);
++        let mut damaged = staged.bytes().to_vec();
++        damaged[149_999] ^= 1;
++        std::fs::write(path, damaged).unwrap();
++        let mut request = dfs_read_request(staged.chunk.id.0.clone(), 75_000);
++        request.operations[0].chunk_offset = 1;
++        validate_dfs_read_request(&request).unwrap();
++        let (sender, mut receiver) = tokio::sync::mpsc::channel(8);
++        assert_eq!(
++            stream_dfs_ranges(&local, &request, &sender, None)
++                .unwrap_err()
++                .code(),
++            tonic::Code::DataLoss
++        );
++        assert!(receiver.try_recv().is_err());
++        #[cfg(feature = "rdma")]
++        assert_eq!(
++            read_packed_dfs_ranges(&local, &request, 75_000)
++                .unwrap_err()
++                .code(),
++            tonic::Code::DataLoss
++        );
++    }
++
+     #[cfg(feature = "dfs")]
+     #[tokio::test]
+     async fn dfs_range_service_requires_authority_and_streams_bounded_frames() {
+diff --git a/src/node/rpc/meta.rs b/src/node/rpc/meta.rs
+index 95eb8e6..14eb94f 100644
+--- a/src/node/rpc/meta.rs
++++ b/src/node/rpc/meta.rs
+@@ -711,6 +711,32 @@ impl GrpcDfsMeta {
+             .into_inner();
+         required(reply.task, "ReportReplicationTask.task").and_then(domain_replication_task)
+     }
++
++    pub fn report_chunk_corruption(
++        &self,
++        request: crate::dfs::ReportChunkCorruption,
++    ) -> afs_error::Result<()> {
++        self.run(self.client().report_chunk_corruption(
++            afs_protocol::meta::ReportDfsChunkCorruptionRequest {
++                caller_id: request.caller_id,
++                caller_session_id: request.caller_session_id,
++                caller_node_epoch: request.caller_node_epoch,
++                operation_id: request.operation_id.0,
++                chunk_id: request.chunk_id.0,
++                device_id: request.device_id,
++                device_epoch: request.device_epoch,
++                catalog_revision: request.catalog_revision,
++            },
++        ))?;
++        Ok(())
++    }
++
++    pub fn report_corrupt_chunk(
++        &self,
++        request: crate::dfs::ReportChunkCorruption,
++    ) -> afs_error::Result<()> {
++        self.report_chunk_corruption(request)
++    }
+ }
+ 
+ #[cfg(feature = "dfs")]
+@@ -773,6 +799,13 @@ impl crate::node::replication::ReplicationTaskAuthority for GrpcDfsMeta {
+     ) -> afs_error::Result<crate::dfs::ReplicationTask> {
+         GrpcDfsMeta::report_replication_task(self, request)
+     }
++
++    fn report_corrupt_chunk(
++        &self,
++        request: crate::dfs::ReportChunkCorruption,
++    ) -> afs_error::Result<()> {
++        GrpcDfsMeta::report_corrupt_chunk(self, request)
++    }
+ }
+ 
+ #[cfg(feature = "dfs")]

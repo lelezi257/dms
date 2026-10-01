@@ -1,0 +1,21 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "afs-accept-a",
+    "--",
+    "sudo",
+    "timeout",
+    "--kill-after=2s",
+    "25s",
+    "python3",
+    "-c",
+    "RUN='/mnt/lima-afsadata/afs-delivery/corrupt-v62-a'\nCHUNK='blake3-0a64063502fb78b16a5203088bf9df9c299f1425d1e197549140657f7b330f3f-65536'\nSHA='3490ca8622e462509b4214eab0ee7c2b94cff2c355a35feb5af3a2361cff0eb0'\nFILE='one-bad-dba81f2a-c1ad-4918-a2ac-ec76fe62dab4.bin'\nBACKUP='dba81f2a-c1ad-4918-a2ac-ec76fe62dab4-one-bad-dba81f2a-c1ad-4918-a2ac-ec76fe62dab4.bin.chunk'\n\nimport hashlib,json,pathlib\nr=pathlib.Path(RUN);p=r/'state/node/dfs/chunks'/CHUNK\ntransactions=[json.loads(line) for line in (r/'state/node/dfs/catalog.wal').read_text().splitlines() if line.strip()]\nrecords=[dict(record,txn_revision=t['revision']) for t in transactions for record in t['records'] if record['chunk']['id']==CHUNK]\nprint(json.dumps({'chunk':CHUNK,'physical_sha256':hashlib.sha256(p.read_bytes()).hexdigest(),'records':records,'physical_inode':p.stat().st_ino}))\n"
+  ],
+  "duration_ms": 51,
+  "returncode": 0,
+  "stderr": "",
+  "stdout": "{\"chunk\": \"blake3-0a64063502fb78b16a5203088bf9df9c299f1425d1e197549140657f7b330f3f-65536\", \"physical_sha256\": \"3d34458e507f929a6501d293a0b8d102dd8ca41387cb6be50f9579e6837fac50\", \"records\": [{\"chunk\": {\"id\": \"blake3-0a64063502fb78b16a5203088bf9df9c299f1425d1e197549140657f7b330f3f-65536\", \"length\": 65536, \"content_digest\": {\"algorithm\": \"Blake3\", \"bytes\": [10, 100, 6, 53, 2, 251, 120, 177, 106, 82, 3, 8, 139, 249, 223, 156, 41, 159, 20, 37, 209, 225, 151, 84, 145, 64, 101, 127, 123, 51, 15, 63]}, \"encoding\": \"Raw\"}, \"stored_length\": 65536, \"stored_checksum\": {\"algorithm\": \"Blake3\", \"bytes\": [10, 100, 6, 53, 2, 251, 120, 177, 106, 82, 3, 8, 139, 249, 223, 156, 41, 159, 20, 37, 209, 225, 151, 84, 145, 64, 101, 127, 123, 51, 15, 63]}, \"device_id\": \"local-0\", \"device_epoch\": 1790826918753082302, \"location\": {\"PerChunkFile\": {\"relative_path\": \"chunks/blake3-0a64063502fb78b16a5203088bf9df9c299f1425d1e197549140657f7b330f3f-65536\"}}, \"encoding\": \"Raw\", \"state\": \"Durable\", \"catalog_revision\": 5, \"txn_revision\": 5}, {\"chunk\": {\"id\": \"blake3-0a64063502fb78b16a5203088bf9df9c299f1425d1e197549140657f7b330f3f-65536\", \"length\": 65536, \"content_digest\": {\"algorithm\": \"Blake3\", \"bytes\": [10, 100, 6, 53, 2, 251, 120, 177, 106, 82, 3, 8, 139, 249, 223, 156, 41, 159, 20, 37, 209, 225, 151, 84, 145, 64, 101, 127, 123, 51, 15, 63]}, \"encoding\": \"Raw\"}, \"stored_length\": 65536, \"stored_checksum\": {\"algorithm\": \"Blake3\", \"bytes\": [10, 100, 6, 53, 2, 251, 120, 177, 106, 82, 3, 8, 139, 249, 223, 156, 41, 159, 20, 37, 209, 225, 151, 84, 145, 64, 101, 127, 123, 51, 15, 63]}, \"device_id\": \"local-0\", \"device_epoch\": 1790826918753082302, \"location\": {\"PerChunkFile\": {\"relative_path\": \"chunks/blake3-0a64063502fb78b16a5203088bf9df9c299f1425d1e197549140657f7b330f3f-65536\"}}, \"encoding\": \"Raw\", \"state\": \"Quarantined\", \"catalog_revision\": 6, \"txn_revision\": 6}], \"physical_inode\": 1577964}\n",
+  "time_unix_ms": 1790827002141,
+  "timeout_seconds": 40
+}

@@ -1,0 +1,6 @@
+{
+  "errno": 5,
+  "message": "[Errno 5] Input/output error",
+  "read": "ERROR",
+  "returned_bytes": 0
+}

@@ -1,0 +1,18 @@
+{
+  "status": "FAIL",
+  "diagnostic_harness": "PASS",
+  "returncode": 101,
+  "argv": [
+    "timeout",
+    "180",
+    "cargo",
+    "test",
+    "--all-features",
+    "--lib",
+    "diagnostic_cataloged_corrupt_copy_retry_restores_bytes",
+    "--",
+    "--nocapture"
+  ],
+  "seconds": 18.69039762200555,
+  "scope": "original cataloged bad-copy retransmission fails digest verification; not a fixed-product or formal gate"
+}

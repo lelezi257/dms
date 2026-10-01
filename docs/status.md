@@ -67,6 +67,27 @@ The remote STD-01 driver passes 48 Linux selftests and an actual B DFS smoke run
 
 The formal 69-case release manifest remains NOT_RUN and the environment lock PREPARING. No mandatory release or performance gate is declared complete by these short checks.
 
+## Corruption recovery development evidence
+
+The [corruption recovery batch](../development/evidence/20261001-corruption/README.md)
+passes its complete ARM64 Linux source gate: 395 library tests with two existing
+environmental ignores, 58 interface contracts, four shared-error tests, nine
+local API tests and five privileged FUSE tests. Formatting, strict workspace
+Clippy, supported feature builds and binaries are bound to 143 exact inputs.
+Local regressions cover verified pinned readers, durable quarantine, immutable
+replacement, exact corruption-report retry and own-device Meta authority.
+
+A fresh isolated A/B ext4, memory-backed Meta, mTLS/gRPC N=2/M=1 integration
+passes two short flows: one corrupted local copy returns healthy peer bytes on
+the first cold FUSE read and is automatically replaced with a new inode and
+Durable receipt; corruption of both copies returns EIO and records
+BlockedNoSource without claiming permanent loss. A separate live audit checks
+both mounts, physical bytes, processes, configuration and Meta health.
+These are stage evidence; formal REL-09/backend/RXE/resource matrices remain
+unrun. Each range currently scans the full Chunk for integrity; performance
+qualification and an efficient integrity format remain open. Nodes using the
+new corruption-report RPC require an upgraded Meta before deployment.
+
 ## Known Open Items
 
 - Complete the wider owner-open ACK-loss, remote cleanup/resource and network-fault matrix, cooperative whole-writeback-pass budgets and complete shutdown/controller deployment matrices. The native process deadline reports forced failure; it does not prove every worker cooperatively stops.

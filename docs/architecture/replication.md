@@ -79,6 +79,16 @@ A task lease cannot keep a retired worker in charge. Reassignment freezes the
 observed Node session and its revision, while a matching live worker retains
 its claim. A stale worker cannot publish receipts after reassignment.
 
+A normal checksum failure also creates repair debt. The affected Node durably
+quarantines its local copy and reports its own device and quarantine revision
+through `ReportChunkCorruption`. Meta marks only matching older physical-copy
+records `Corrupt`, records the canonical repair task and acknowledges the exact
+operation atomically. A delayed report cannot invalidate a newer repaired copy.
+Unknown acknowledgements and CAS conflicts retain the original report; a
+definitive rejection keeps quarantine, logs the error and allows other repair
+work to progress. Repair replaces the bad physical file with verified immutable
+bytes and a newer durable catalog receipt.
+
 `GET /v1/dfs/chunks/{chunk_id}/replication` reports current available copies,
 placement and tasks from one Meta read view. It checks backend health and never
 infers permanent loss solely from unavailable nodes.
@@ -93,6 +103,7 @@ The file layer batches work at durability boundaries, including close-time flush
 | local-owner `write` | 0 | 0 | updates inode dirty state; remote-owner access adds one forwarding RPC |
 | R=1 changed-data sync | 1 final commit | 0 | cached placement and valid lease; refresh/renew may add RPCs |
 | N desired copies, M synchronous copies, N > 1 | 1 placement refresh per changed-chunk batch + 1 final commit, plus M-1 receiver-authority checks per chunk | M-1 chain-link transfers per chunk | refreshed epochs prevent indefinite reuse of a restarted target's old layout; lease renewal adds control calls |
+| detected local corruption | 1 own-device report per quarantine revision, followed by normal repair RPCs | 0 for the report | healthy reads do not add a corruption RPC; retries preserve the operation identity |
 | repair to N copies | 1 claim + N-1 receiver-authority checks + 1 report per chunk | N-1 chain-link transfers | source-first full chain; empty polls and retries add maintenance calls |
 | read-only `open` | head lookup + version/layout lookup, up to 2 without cache | 0 | resolves the current view; does not create a lifetime snapshot |
 | fixed-version peer read | 0 on valid source cache; source refresh otherwise | 1 range-read batch per selected peer/context | each operation retains its authorization |

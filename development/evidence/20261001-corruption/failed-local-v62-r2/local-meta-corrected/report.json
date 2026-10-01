@@ -1,0 +1,7 @@
+{
+  "status": "FAIL",
+  "returncode": 101,
+  "passed": 18,
+  "failed": 1,
+  "scope": "corrected filter exposed new-test historical CopyID-count assertion; code and raw output retained"
+}

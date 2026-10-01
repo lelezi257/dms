@@ -282,7 +282,20 @@ impl DfsReadEngine {
             if op.length == 0 {
                 continue;
             }
-            if self.read_local(op, out).is_err() {
+            if let Err(error) = self.read_local(op, out) {
+                if matches!(
+                    error.kind(),
+                    afs_error::ErrorKind::DataLoss | afs_error::ErrorKind::NotFound
+                ) {
+                    self.local.try_quarantine(&op.chunk_id);
+                }
+                // A cached pin can outlive a corrupt file's replacement.
+                // Drop it on failure so the next attempt opens the current
+                // physical copy instead of retrying the retired descriptor.
+                self.readers
+                    .lock()
+                    .map_err(|_| unavailable("DFS local reader cache is poisoned"))?
+                    .remove(&op.chunk_id);
                 remote_ops.push(op.clone());
             }
         }
@@ -462,9 +475,8 @@ impl DfsReadEngine {
             let mut groups: Vec<Vec<usize>> = Vec::new();
             for &index in &pending {
                 let Some(source) = candidates[index].get(next[index]) else {
-                    return Err(
-                        last_error.unwrap_or_else(|| unavailable("DFS read has no usable source"))
-                    );
+                    return Err(last_error
+                        .unwrap_or_else(|| corrupt("committed Chunk has no readable copy")));
                 };
                 if let Some(group) = groups.iter_mut().find(|group| {
                     let first = group[0];
@@ -708,6 +720,128 @@ mod tests {
             .unwrap();
         assert_eq!(&out, b"cde");
         assert_eq!(*sources.calls.lock().unwrap(), 0);
+    }
+
+    #[test]
+    fn diagnostic_cold_corrupted_local_copy_uses_healthy_peer() {
+        diagnostic_corrupted_local_copy(false);
+    }
+
+    #[test]
+    fn diagnostic_warm_corrupted_local_copy_uses_healthy_peer() {
+        diagnostic_corrupted_local_copy(true);
+    }
+
+    fn diagnostic_corrupted_local_copy(warm: bool) {
+        let temp = tempfile::tempdir().unwrap();
+        let local = Arc::new(LocalChunkStore::open(temp.path(), "node-a").unwrap());
+        let mut builder = ChunkBuilder::default();
+        builder.replace(b"abcdef".to_vec());
+        let staged = builder.stage(OperationId::new("diagnostic"));
+        let chunk_id = staged.chunk.id.clone();
+        local.put(staged).unwrap();
+        let sources = Arc::new(StaticSources::new(DfsChunkSourcesReply {
+            revision: 1,
+            chunks: vec![ChunkSources {
+                chunk_id: chunk_id.clone(),
+                sources: vec![source("healthy-b", &chunk_id, "node-b")],
+            }],
+        }));
+        let engine = DfsReadEngine::new(
+            crate::dfs::NamespaceId::new("default"),
+            "node-a".into(),
+            local.clone(),
+            sources.clone(),
+            Arc::new(StaticTransfer {
+                bytes: b"abcdef".to_vec(),
+                fail_first: Mutex::new(false),
+            }),
+            DfsReadConfig::default(),
+        );
+        let batch = ReadBatch {
+            file_version_id: Some(FileVersionId::new("version")),
+            layout_root_id: LayoutRootId::new("layout"),
+            ops: vec![ChunkReadOp {
+                chunk_id: chunk_id.clone(),
+                chunk_offset: 0,
+                length: 6,
+                output_offset: 0,
+            }],
+        };
+        let mut out = [0; 6];
+        if warm {
+            engine.read_batch(&batch, &mut out).unwrap();
+            assert_eq!(&out, b"abcdef");
+            assert_eq!(*sources.calls.lock().unwrap(), 0);
+        }
+        let path = temp.path().join("chunks").join(&chunk_id.0);
+        std::fs::write(&path, b"abXdef").unwrap();
+        std::fs::File::open(&path).unwrap().sync_all().unwrap();
+        out.fill(9);
+        engine.read_batch(&batch, &mut out).unwrap();
+        assert_eq!(
+            &out, b"abcdef",
+            "corrupted cached local bytes must not reach the caller"
+        );
+        assert_eq!(*sources.calls.lock().unwrap(), 1);
+        assert!(engine.readers.lock().unwrap().is_empty());
+        // Replacement keeps the identity but creates a new physical inode.
+        // The failed pin must not trap later reads on the retired corrupt fd.
+        local
+            .put(crate::node::chunk::StagedChunk::new(
+                OperationId::new("restore"),
+                b"abcdef".to_vec(),
+            ))
+            .unwrap();
+        out.fill(9);
+        engine.read_batch(&batch, &mut out).unwrap();
+        assert_eq!(&out, b"abcdef");
+        assert_eq!(*sources.calls.lock().unwrap(), 1);
+        assert_eq!(engine.readers.lock().unwrap().len(), 1);
+        assert!(local.quarantined_chunks().unwrap().is_empty());
+    }
+
+    #[test]
+    fn quarantined_local_copy_and_no_readable_peer_return_eio_without_output() {
+        let temp = tempfile::tempdir().unwrap();
+        let local = Arc::new(LocalChunkStore::open(temp.path(), "node-a").unwrap());
+        let staged =
+            crate::node::chunk::StagedChunk::new(OperationId::new("all-bad"), b"abcdef".to_vec());
+        let chunk_id = staged.chunk.id.clone();
+        local.put(staged).unwrap();
+        std::fs::write(temp.path().join("chunks").join(&chunk_id.0), b"abXdef").unwrap();
+        let sources = Arc::new(StaticSources::new(DfsChunkSourcesReply {
+            revision: 1,
+            chunks: vec![ChunkSources {
+                chunk_id: chunk_id.clone(),
+                sources: Vec::new(),
+            }],
+        }));
+        let engine = DfsReadEngine::new(
+            crate::dfs::NamespaceId::new("default"),
+            "node-a".into(),
+            local.clone(),
+            sources,
+            Arc::new(UnimplementedChunkTransfer),
+            DfsReadConfig::default(),
+        );
+        let batch = ReadBatch {
+            file_version_id: Some(FileVersionId::new("version")),
+            layout_root_id: LayoutRootId::new("layout"),
+            ops: vec![ChunkReadOp {
+                chunk_id,
+                chunk_offset: 0,
+                length: 6,
+                output_offset: 0,
+            }],
+        };
+        let mut out = [9; 6];
+        for _ in 0..2 {
+            let error = engine.read_batch(&batch, &mut out).unwrap_err();
+            assert_eq!(crate::error::errno(&error), libc::EIO);
+            assert_eq!(out, [9; 6]);
+        }
+        assert_eq!(local.quarantined_chunks().unwrap().len(), 1);
     }
 
     #[test]

@@ -1,0 +1,14 @@
+{
+  "status": "APPROVE",
+  "mode": "READ_ONLY",
+  "scope": "v62 frozen-source and fresh short A/B corruption proof",
+  "blockers": 0,
+  "checks": [
+    "Original source, selection and runtime failures retained under original identities",
+    "Cold one-bad fallback precedes automatic physical replacement; new inode and Quarantined-to-Durable journal precede final REST assertion",
+    "All-bad cold reads return EIO with zero returned bytes; local journals quarantine and Meta reports zero sources/BlockedNoSource without permanent-loss claim",
+    "Independent live audit binds both nodes, mounts, physical/FUSE bytes, REST and 143 source inputs",
+    "Local/stage claims remain distinct from 69 NOT_RUN formal cases and PREPARING environment"
+  ],
+  "limits": "Reviewer ran no tests or mutations; root owns Linux validation. Memory/mTLS/gRPC short proof does not qualify durable backend, actual RXE corruption, performance or long stability."
+}

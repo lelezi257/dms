@@ -1,0 +1,11 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.05s
+     Running unittests src/lib.rs (/home/lzc.guest/afs-build/target/debug/deps/afs-586e1b701367e588)
+
+running 4 tests
+test node::chunk::replica_replay_tests::pinned_reader_rejects_truncation_without_publishing_a_partial_read ... ok
+test node::chunk::replica_replay_tests::pinned_reader_preserves_descriptor_identity_and_eof_behavior ... ok
+test node::chunk::replica_replay_tests::pinned_reader_verifies_partial_ranges_and_rejects_damage_outside_them ... ok
+test node::chunk::replica_replay_tests::immutable_chunk_retry_preserves_content_after_catalog_advances_and_restart ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 380 filtered out; finished in 0.02s
+

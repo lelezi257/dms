@@ -684,6 +684,7 @@ fn invalid(message: impl Into<String>) -> Error {
 /// write lease. Only a node with an existing live source copy claims the task;
 /// no file bytes pass through Meta and no FileVersion is changed by repair.
 pub trait ReplicationTaskAuthority: Send + Sync {
+    fn report_corrupt_chunk(&self, request: crate::dfs::ReportChunkCorruption) -> Result<()>;
     fn claim(
         &self,
         request: crate::dfs::ClaimReplicationTask,
@@ -696,6 +697,7 @@ pub trait ReplicationTaskAuthority: Send + Sync {
 
 #[derive(Clone)]
 enum PendingRepair {
+    Corruption(Box<crate::dfs::ReportChunkCorruption>),
     Claiming(crate::dfs::ClaimReplicationTask),
     Reporting(Box<crate::dfs::ReportReplicationTask>),
 }
@@ -711,6 +713,7 @@ pub struct ReplicationWorker {
     authority: Arc<dyn ReplicationTaskAuthority>,
     data_plane: Arc<dyn ReplicaDataPlane>,
     pending: std::sync::Mutex<Option<PendingRepair>>,
+    reported_quarantines: std::sync::Mutex<HashSet<(ChunkId, u64)>>,
     sequence: std::sync::atomic::AtomicU64,
 }
 
@@ -731,6 +734,7 @@ impl ReplicationWorker {
             authority,
             data_plane,
             pending: std::sync::Mutex::new(None),
+            reported_quarantines: std::sync::Mutex::new(HashSet::new()),
             sequence: std::sync::atomic::AtomicU64::new(1),
         }
     }
@@ -752,6 +756,67 @@ impl ReplicationWorker {
             .pending
             .lock()
             .map_err(|_| invalid("replication worker state lock is poisoned"))?;
+        if pending.is_none() {
+            let records = self.local.quarantined_chunks()?;
+            let active: HashSet<_> = records
+                .iter()
+                .map(|record| (record.chunk.id.clone(), record.catalog_revision))
+                .collect();
+            let mut reported = self
+                .reported_quarantines
+                .lock()
+                .map_err(|_| invalid("corruption report state lock is poisoned"))?;
+            reported.retain(|key| active.contains(key));
+            if let Some(record) = records.iter().find(|record| {
+                !reported.contains(&(record.chunk.id.clone(), record.catalog_revision))
+            }) {
+                *pending = Some(PendingRepair::Corruption(Box::new(
+                    crate::dfs::ReportChunkCorruption {
+                        caller_id: self.node_id.clone(),
+                        caller_session_id: self.session_id.clone(),
+                        caller_node_epoch: self.node_epoch,
+                        operation_id: self.operation_id("corrupt"),
+                        chunk_id: record.chunk.id.clone(),
+                        device_id: record.device_id.clone(),
+                        device_epoch: record.device_epoch,
+                        catalog_revision: record.catalog_revision,
+                    },
+                )));
+            }
+        }
+        if let Some(PendingRepair::Corruption(request)) = pending.as_ref() {
+            // Unknown ACK, timeout or CAS conflict retains this exact request.
+            // It cannot accuse another node and contains no file bytes.
+            if let Err(error) = self
+                .authority
+                .report_corrupt_chunk(request.as_ref().clone())
+            {
+                if corruption_report_definitively_rejected(&error) {
+                    // A definitive refusal is not an unknown commit. Keep the
+                    // local quarantine, suppress this identity for this worker
+                    // incarnation and allow other repair work to progress.
+                    self.reported_quarantines
+                        .lock()
+                        .map_err(|_| invalid("corruption report state lock is poisoned"))?
+                        .insert((request.chunk_id.clone(), request.catalog_revision));
+                    afs_logging::warn!("dfs.local_corruption_report_rejected";
+                        "chunk" => request.chunk_id.0.clone(),
+                        "catalog_revision" => request.catalog_revision,
+                        "error" => error.to_string());
+                    *pending = None;
+                }
+                return Err(error);
+            }
+            self.reported_quarantines
+                .lock()
+                .map_err(|_| invalid("corruption report state lock is poisoned"))?
+                .insert((request.chunk_id.clone(), request.catalog_revision));
+            afs_logging::warn!("dfs.local_corruption_reported";
+                "chunk" => request.chunk_id.0.clone(),
+                "catalog_revision" => request.catalog_revision);
+            *pending = None;
+            return Ok(None);
+        }
         let current = pending.get_or_insert_with(|| {
             PendingRepair::Claiming(crate::dfs::ClaimReplicationTask {
                 caller_id: self.node_id.clone(),
@@ -872,7 +937,14 @@ impl ReplicationWorker {
         while offset < length {
             let count = reader
                 .read_at(offset as u64, &mut bytes[offset..])
-                .map_err(|error| (error, false))?;
+                .map_err(|error| {
+                    let source_invalid = error.kind() == afs_error::ErrorKind::DataLoss
+                        || error.kind() == afs_error::ErrorKind::NotFound;
+                    if source_invalid {
+                        self.local.try_quarantine(&claim.chunk.id);
+                    }
+                    (error, source_invalid)
+                })?;
             if count == 0 {
                 return Err((
                     invalid("repair source ended before its immutable length"),
@@ -933,6 +1005,20 @@ impl ReplicationWorker {
         validate_acks(&plan, &staged, &acks, &self.node_id).map_err(|error| (error, false))?;
         Ok(acks)
     }
+}
+
+fn corruption_report_definitively_rejected(error: &Error) -> bool {
+    // Meta CAS conflicts are retryable even though their error kind is
+    // FailedPrecondition. Aborted and transport failures retain exact identity.
+    error.code() != afs_error::META_DFS_CONFLICT
+        && matches!(
+            error.kind(),
+            afs_error::ErrorKind::InvalidArgument
+                | afs_error::ErrorKind::PermissionDenied
+                | afs_error::ErrorKind::Unauthenticated
+                | afs_error::ErrorKind::FailedPrecondition
+                | afs_error::ErrorKind::NotFound
+        )
 }
 
 fn repair_request_definitively_rejected(error: &Error) -> bool {
@@ -1623,9 +1709,28 @@ mod tests {
         wrong_report_once: std::sync::atomic::AtomicBool,
         conflict_report_once: std::sync::atomic::AtomicBool,
         superseded_report_once: std::sync::atomic::AtomicBool,
+        corruption_reports: Mutex<Vec<crate::dfs::ReportChunkCorruption>>,
+        fail_corruption_once: std::sync::atomic::AtomicBool,
+        corruption_error_once: Mutex<Option<Error>>,
     }
 
     impl ReplicationTaskAuthority for RepairFixtureAuthority {
+        fn report_corrupt_chunk(&self, request: crate::dfs::ReportChunkCorruption) -> Result<()> {
+            self.corruption_reports.lock().unwrap().push(request);
+            if let Some(error) = self.corruption_error_once.lock().unwrap().take() {
+                return Err(error);
+            }
+            if self
+                .fail_corruption_once
+                .swap(false, std::sync::atomic::Ordering::Relaxed)
+            {
+                return Err(Error::coded(
+                    afs_error::CLIENT_DEADLINE_EXCEEDED,
+                    "corruption ACK lost",
+                ));
+            }
+            Ok(())
+        }
         fn claim(
             &self,
             request: crate::dfs::ClaimReplicationTask,
@@ -1734,6 +1839,9 @@ mod tests {
             wrong_report_once: std::sync::atomic::AtomicBool::new(false),
             conflict_report_once: std::sync::atomic::AtomicBool::new(false),
             superseded_report_once: std::sync::atomic::AtomicBool::new(false),
+            corruption_reports: Mutex::new(Vec::new()),
+            fail_corruption_once: std::sync::atomic::AtomicBool::new(false),
+            corruption_error_once: Mutex::new(None),
         });
         (temp, local, authority, Arc::new(FakeDataPlane::default()))
     }
@@ -1884,6 +1992,94 @@ mod tests {
     fn repair_worker_reports_missing_source_without_peer_bytes() {
         let (temp, local, authority, plane) = repair_fixture("repair-payload");
         std::fs::remove_file(temp.path().join("chunks").join(&authority.claim.chunk.id.0)).unwrap();
+        let worker = repair_worker(local, authority.clone(), plane.clone());
+        assert_eq!(
+            worker.run_once().unwrap().unwrap().state,
+            crate::dfs::ReplicationTaskState::RetryWaiting
+        );
+        let reports = authority.reports.lock().unwrap();
+        assert!(reports[0].source_invalid);
+        assert!(reports[0].error.is_some());
+        assert!(reports[0].durable_acks.is_empty());
+        assert!(plane.prepared.lock().unwrap().is_empty());
+    }
+
+    #[test]
+    fn corruption_worker_retains_exact_report_and_does_not_resend_after_ack() {
+        let (temp, local, authority, plane) = repair_fixture("repair-payload");
+        let path = temp.path().join("chunks").join(&authority.claim.chunk.id.0);
+        std::fs::write(path, b"repair-payloXd").unwrap();
+        assert!(local.open_verified(&authority.claim.chunk.id).is_err());
+        authority
+            .fail_corruption_once
+            .store(true, std::sync::atomic::Ordering::Relaxed);
+        let worker = repair_worker(local, authority.clone(), plane.clone());
+        assert!(worker.run_once().is_err());
+        assert!(worker.run_once().unwrap().is_none());
+        let reports = authority.corruption_reports.lock().unwrap();
+        assert_eq!(reports.len(), 2);
+        assert_eq!(reports[0], reports[1]);
+        drop(reports);
+        // The next tick may claim ordinary repair but must not issue another
+        // corruption operation for the acknowledged quarantine revision.
+        worker.run_once().unwrap();
+        assert_eq!(authority.corruption_reports.lock().unwrap().len(), 2);
+        assert!(plane.prepared.lock().unwrap().is_empty());
+    }
+
+    #[test]
+    fn corruption_worker_retries_cas_with_exact_identity() {
+        let (temp, local, authority, plane) = repair_fixture("repair-payload");
+        std::fs::write(
+            temp.path().join("chunks").join(&authority.claim.chunk.id.0),
+            b"repair-payloXd",
+        )
+        .unwrap();
+        assert!(local.open_verified(&authority.claim.chunk.id).is_err());
+        *authority.corruption_error_once.lock().unwrap() = Some(Error::coded(
+            afs_error::META_DFS_CONFLICT,
+            "observed copy changed",
+        ));
+        let worker = repair_worker(local, authority.clone(), plane);
+        assert_eq!(
+            worker.run_once().unwrap_err().code(),
+            afs_error::META_DFS_CONFLICT
+        );
+        assert!(worker.run_once().unwrap().is_none());
+        let reports = authority.corruption_reports.lock().unwrap();
+        assert_eq!(reports.len(), 2);
+        assert_eq!(reports[0], reports[1]);
+    }
+
+    #[test]
+    fn corruption_worker_keeps_quarantine_but_does_not_wedge_on_definitive_rejection() {
+        let (temp, local, authority, plane) = repair_fixture("repair-payload");
+        std::fs::write(
+            temp.path().join("chunks").join(&authority.claim.chunk.id.0),
+            b"repair-payloXd",
+        )
+        .unwrap();
+        assert!(local.open_verified(&authority.claim.chunk.id).is_err());
+        *authority.corruption_error_once.lock().unwrap() = Some(invalid("unknown physical copy"));
+        let worker = repair_worker(local.clone(), authority.clone(), plane);
+        assert_eq!(
+            worker.run_once().unwrap_err().kind(),
+            afs_error::ErrorKind::InvalidArgument
+        );
+        assert_eq!(local.quarantined_chunks().unwrap().len(), 1);
+        assert!(worker.run_once().unwrap().is_some());
+        assert_eq!(authority.corruption_reports.lock().unwrap().len(), 1);
+        assert_eq!(authority.claims.lock().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn repair_worker_reports_corrupt_source_without_peer_bytes() {
+        let (temp, local, authority, plane) = repair_fixture("repair-payload");
+        std::fs::write(
+            temp.path().join("chunks").join(&authority.claim.chunk.id.0),
+            b"repair-payloXd",
+        )
+        .unwrap();
         let worker = repair_worker(local, authority.clone(), plane.clone());
         assert_eq!(
             worker.run_once().unwrap().unwrap().state,

@@ -150,18 +150,28 @@ pub struct PinnedChunkReader {
 
 impl PinnedChunkReader {
     pub fn read_at(&self, offset: u64, out: &mut [u8]) -> Result<usize> {
-        if offset >= self.chunk.length {
+        if offset >= self.chunk.length || out.is_empty() {
             return Ok(0);
         }
         let allowed = usize::try_from((self.chunk.length - offset).min(out.len() as u64))
             .map_err(|_| invalid("Chunk read length is too large"))?;
-        read_positioned(&self.file, offset, &mut out[..allowed])
+        // A pinned descriptor protects identity across rename, not integrity
+        // after disk damage. Return the exact bytes covered by this digest,
+        // rather than verifying and then issuing another unverified read.
+        let bytes = verified_range(&self.file, &self.chunk, offset, allowed)?;
+        out[..allowed].copy_from_slice(&bytes);
+        Ok(allowed)
     }
 }
 
 #[cfg(unix)]
 fn read_positioned(file: &File, offset: u64, out: &mut [u8]) -> Result<usize> {
-    file.read_at(out, offset).map_err(Error::from)
+    loop {
+        match file.read_at(out, offset) {
+            Err(error) if error.kind() == std::io::ErrorKind::Interrupted => continue,
+            result => return result.map_err(Error::from),
+        }
+    }
 }
 
 #[cfg(not(unix))]
@@ -297,14 +307,12 @@ impl LocalChunkStore {
                 report.removed_staging_files = report.removed_staging_files.saturating_add(1);
             }
         }
-        let catalog = self
+        let mut catalog = self
             .catalog
             .lock()
             .map_err(|_| invalid("local chunk catalog lock is poisoned"))?;
+        let mut damaged = Vec::new();
         for record in catalog.records.values() {
-            if record.state != LocalChunkState::Durable {
-                continue;
-            }
             if record.device_id != self.device_id
                 || record.device_epoch != self.device_epoch
                 || record.stored_length != record.chunk.length
@@ -314,17 +322,23 @@ impl LocalChunkStore {
                     "durable local Chunk record is internally inconsistent",
                 ));
             }
+            if record.state != LocalChunkState::Durable {
+                continue;
+            }
             let path = self.path_for_record(record)?;
-            if !path.is_file() {
-                return Err(invalid(format!(
-                    "durable local Chunk '{}' is missing",
-                    record.chunk.id.0
-                )));
+            match path.metadata() {
+                Ok(metadata) if metadata.is_file() && metadata.len() == record.chunk.length => {
+                    report.durable_chunks = report.durable_chunks.saturating_add(1);
+                }
+                Ok(_) => damaged.push(record.clone()),
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                    damaged.push(record.clone());
+                }
+                Err(error) => return Err(Error::from(error)),
             }
-            if path.metadata().map_err(Error::from)?.len() != record.chunk.length {
-                return Err(corrupt(&record.chunk.id, "length mismatch during recovery"));
-            }
-            report.durable_chunks = report.durable_chunks.saturating_add(1);
+        }
+        if !damaged.is_empty() {
+            self.quarantine_records(&mut catalog, damaged)?;
         }
         for entry in fs::read_dir(&self.chunks).map_err(Error::from)? {
             let entry = entry.map_err(Error::from)?;
@@ -383,14 +397,22 @@ impl LocalChunkStore {
         let mut new_chunks = Vec::new();
         let mut installed_chunk_ids = HashSet::new();
         for item in staged {
+            let mut replace_existing = false;
             if let Some(existing) = catalog.records.get(&item.chunk.id) {
-                if existing.chunk != item.chunk || existing.state != LocalChunkState::Durable {
+                if existing.chunk != item.chunk {
                     return Err(invalid(
                         "immutable Chunk ID collides with another local record",
                     ));
                 }
-                verify_file(&self.path_for_record(existing)?, &item.chunk)?;
-                continue;
+                if existing.state == LocalChunkState::Quarantined {
+                    replace_existing = true;
+                } else {
+                    match verify_file(&self.path_for_record(existing)?, &item.chunk) {
+                        Ok(()) => continue,
+                        Err(error) if verified_copy_is_invalid(&error) => replace_existing = true,
+                        Err(error) => return Err(error),
+                    }
+                }
             }
             let temp_path = self.staging.join(format!(
                 "{}.{}.tmp",
@@ -405,14 +427,21 @@ impl LocalChunkStore {
             file.write_all(item.bytes()).map_err(Error::from)?;
             file.sync_all().map_err(Error::from)?;
             let final_path = self.chunk_path(&item.chunk.id);
-            match fs::hard_link(&temp_path, &final_path) {
-                Ok(()) => {}
-                Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
-                    verify_file(&final_path, &item.chunk)?;
+            if replace_existing {
+                // Publish a new inode; never truncate a file held by readers.
+                // Its immutable content identity is unchanged. Directory and
+                // catalog barriers below still precede the durable ACK.
+                fs::rename(&temp_path, &final_path).map_err(Error::from)?;
+            } else {
+                match fs::hard_link(&temp_path, &final_path) {
+                    Ok(()) => {}
+                    Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+                        verify_file(&final_path, &item.chunk)?;
+                    }
+                    Err(error) => return Err(Error::from(error)),
                 }
-                Err(error) => return Err(Error::from(error)),
+                fs::remove_file(&temp_path).map_err(Error::from)?;
             }
-            fs::remove_file(&temp_path).map_err(Error::from)?;
             if installed_chunk_ids.insert(item.chunk.id.clone()) {
                 new_chunks.push(item.chunk.clone());
             }
@@ -485,7 +514,13 @@ impl LocalChunkStore {
     }
 
     pub fn read_at(&self, chunk_id: &ChunkId, offset: u64, out: &mut [u8]) -> Result<usize> {
-        self.open_verified(chunk_id)?.read_at(offset, out)
+        self.open_verified(chunk_id)?
+            .read_at(offset, out)
+            .inspect_err(|error| {
+                if verified_copy_is_invalid(error) {
+                    self.try_quarantine(chunk_id);
+                }
+            })
     }
 
     pub fn open_verified(&self, chunk_id: &ChunkId) -> Result<PinnedChunkReader> {
@@ -498,15 +533,106 @@ impl LocalChunkStore {
             .cloned()
             .ok_or_else(|| invalid(format!("local Chunk '{}' is not cataloged", chunk_id.0)))?;
         if record.state != LocalChunkState::Durable {
-            return Err(invalid("local Chunk is not readable"));
+            return Err(corrupt(chunk_id, "local copy is quarantined"));
         }
         let path = self.path_for_record(&record)?;
-        verify_file(&path, &record.chunk)?;
+        let file = File::open(path).map_err(Error::from).and_then(|file| {
+            verified_range(&file, &record.chunk, 0, 0)?;
+            Ok(file)
+        });
+        let file = match file {
+            Ok(file) => file,
+            Err(error) => {
+                if verified_copy_is_invalid(&error) {
+                    self.try_quarantine(chunk_id);
+                }
+                return Err(error);
+            }
+        };
         Ok(PinnedChunkReader {
-            file: File::open(path).map_err(Error::from)?,
+            file,
             chunk: record.chunk,
         })
     }
+
+    /// Recheck the current physical file under the publication lock. An old
+    /// failed reader must not quarantine a healthy replacement inode.
+    pub(crate) fn quarantine_if_invalid(&self, chunk_id: &ChunkId) -> Result<()> {
+        let mut catalog = self
+            .catalog
+            .lock()
+            .map_err(|_| invalid("local chunk catalog lock is poisoned"))?;
+        let Some(record) = catalog.records.get(chunk_id).cloned() else {
+            return Ok(());
+        };
+        if record.state == LocalChunkState::Quarantined {
+            return Ok(());
+        }
+        match verify_file(&self.path_for_record(&record)?, &record.chunk) {
+            Ok(()) => Ok(()),
+            Err(error) if verified_copy_is_invalid(&error) => {
+                self.quarantine_records(&mut catalog, vec![record])
+            }
+            Err(error) => Err(error),
+        }
+    }
+
+    pub(crate) fn try_quarantine(&self, chunk_id: &ChunkId) {
+        if let Err(error) = self.quarantine_if_invalid(chunk_id) {
+            // Read fallback can still succeed. No durable quarantine or report
+            // is claimed if its catalog barrier fails; every read rechecks.
+            afs_logging::warn!("dfs.local_quarantine_failed";
+                "chunk" => chunk_id.0.clone(), "error" => error.to_string());
+        }
+    }
+
+    pub(crate) fn quarantined_chunks(&self) -> Result<Vec<LocalChunkRecord>> {
+        let catalog = self
+            .catalog
+            .lock()
+            .map_err(|_| invalid("local chunk catalog lock is poisoned"))?;
+        let mut records: Vec<_> = catalog
+            .records
+            .values()
+            .filter(|record| record.state == LocalChunkState::Quarantined)
+            .cloned()
+            .collect();
+        records.sort_by(|left, right| {
+            (left.catalog_revision, &left.chunk.id).cmp(&(right.catalog_revision, &right.chunk.id))
+        });
+        Ok(records)
+    }
+
+    fn quarantine_records(
+        &self,
+        catalog: &mut LocalCatalog,
+        mut records: Vec<LocalChunkRecord>,
+    ) -> Result<()> {
+        let revision = catalog
+            .revision
+            .checked_add(1)
+            .ok_or_else(|| invalid("local catalog revision exhausted"))?;
+        for record in &mut records {
+            record.state = LocalChunkState::Quarantined;
+            record.catalog_revision = revision;
+        }
+        append_catalog_txn(
+            &self.catalog_path,
+            &CatalogTxn::new(revision, records.clone())?,
+        )?;
+        for record in records {
+            catalog.records.insert(record.chunk.id.clone(), record);
+        }
+        catalog.revision = revision;
+        Ok(())
+    }
+}
+
+fn verified_copy_is_invalid(error: &Error) -> bool {
+    matches!(
+        error.kind(),
+        afs_error::ErrorKind::DataLoss | afs_error::ErrorKind::NotFound
+    )
 }
 
 #[cfg(test)]
@@ -597,13 +723,47 @@ fn open_device_epoch(root: &Path) -> Result<u64> {
 }
 
 fn verify_file(path: &Path, chunk: &ChunkObject) -> Result<()> {
-    let mut file = File::open(path).map_err(Error::from)?;
-    let metadata = file.metadata().map_err(Error::from)?;
-    if metadata.len() != chunk.length {
+    let file = File::open(path).map_err(Error::from)?;
+    verified_range(&file, chunk, 0, 0).map(|_| ())
+}
+
+/// Hash the pinned file once and retain only the requested overlap. The
+/// temporary range is bounded by the caller's output; scan memory is 64KiB.
+/// Nothing is published to the caller until all content checks pass.
+fn verified_range(file: &File, chunk: &ChunkObject, offset: u64, length: usize) -> Result<Vec<u8>> {
+    let end = offset
+        .checked_add(length as u64)
+        .filter(|end| *end <= chunk.length)
+        .ok_or_else(|| invalid("verified Chunk range exceeds its length"))?;
+    if file.metadata().map_err(Error::from)?.len() != chunk.length {
         return Err(corrupt(&chunk.id, "length mismatch"));
     }
+    let mut bytes = vec![0; length];
+    let mut scratch = [0; 64 * 1024];
     let mut hasher = blake3::Hasher::new();
-    std::io::copy(&mut file, &mut hasher).map_err(Error::from)?;
+    let mut position = 0;
+    while position < chunk.length {
+        let limit = (chunk.length - position).min(scratch.len() as u64) as usize;
+        let count = read_positioned(file, position, &mut scratch[..limit])?;
+        if count == 0 {
+            return Err(corrupt(&chunk.id, "ended during verification"));
+        }
+        hasher.update(&scratch[..count]);
+        let next = position + count as u64;
+        let overlap_start = position.max(offset);
+        let overlap_end = next.min(end);
+        if overlap_start < overlap_end {
+            bytes[(overlap_start - offset) as usize..(overlap_end - offset) as usize]
+                .copy_from_slice(
+                    &scratch
+                        [(overlap_start - position) as usize..(overlap_end - position) as usize],
+                );
+        }
+        position = next;
+    }
+    if file.metadata().map_err(Error::from)?.len() != chunk.length {
+        return Err(corrupt(&chunk.id, "length changed during verification"));
+    }
     let actual = ContentDigest {
         algorithm: DigestAlgorithm::Blake3,
         bytes: *hasher.finalize().as_bytes(),
@@ -611,7 +771,7 @@ fn verify_file(path: &Path, chunk: &ChunkObject) -> Result<()> {
     if actual != chunk.content_digest {
         return Err(corrupt(&chunk.id, "digest mismatch"));
     }
-    Ok(())
+    Ok(bytes)
 }
 
 fn digest(bytes: &[u8]) -> ContentDigest {
@@ -656,6 +816,150 @@ fn invalid(message: impl Into<String>) -> Error {
 #[cfg(test)]
 mod replica_replay_tests {
     use super::*;
+
+    #[test]
+    fn corrupt_cataloged_chunk_is_replaced_by_immutable_retry() {
+        let temp = tempfile::tempdir().unwrap();
+        let store = LocalChunkStore::open(temp.path(), "node-a").unwrap();
+        let staged = StagedChunk::new(OperationId::new("retry-corrupt"), b"abcdef".to_vec());
+        let first = store.put(staged.clone()).unwrap();
+        let pin = store.open_verified(&staged.chunk.id).unwrap();
+        fs::write(
+            temp.path().join("chunks").join(&staged.chunk.id.0),
+            b"abXdef",
+        )
+        .unwrap();
+        let repaired = store.put(staged.clone()).unwrap();
+        assert!(repaired.durable_acks[0].catalog_revision > first.durable_acks[0].catalog_revision);
+        let mut out = [9; 6];
+        assert!(pin.read_at(0, &mut out).is_err());
+        assert_eq!(out, [9; 6]);
+        // Revalidating an old pin cannot quarantine the newer healthy file.
+        store.quarantine_if_invalid(&staged.chunk.id).unwrap();
+        assert!(store.quarantined_chunks().unwrap().is_empty());
+        assert_eq!(store.read_at(&staged.chunk.id, 0, &mut out).unwrap(), 6);
+        assert_eq!(&out, b"abcdef");
+        drop(store);
+        let recovered = LocalChunkStore::open(temp.path(), "node-a").unwrap();
+        assert_eq!(recovered.read_at(&staged.chunk.id, 0, &mut out).unwrap(), 6);
+        assert_eq!(&out, b"abcdef");
+    }
+
+    #[test]
+    fn quarantine_survives_restart_and_verified_replacement_clears_it() {
+        let temp = tempfile::tempdir().unwrap();
+        let store = LocalChunkStore::open(temp.path(), "node-a").unwrap();
+        let staged = StagedChunk::new(OperationId::new("quarantine"), b"abcdef".to_vec());
+        store.put(staged.clone()).unwrap();
+        fs::write(
+            temp.path().join("chunks").join(&staged.chunk.id.0),
+            b"abXdef",
+        )
+        .unwrap();
+        assert!(store.open_verified(&staged.chunk.id).is_err());
+        let records = store.quarantined_chunks().unwrap();
+        assert_eq!(records.len(), 1);
+        let quarantine_revision = records[0].catalog_revision;
+        drop(store);
+        let recovered = LocalChunkStore::open(temp.path(), "node-a").unwrap();
+        assert_eq!(recovered.quarantined_chunks().unwrap(), records);
+        assert!(recovered.open_verified(&staged.chunk.id).is_err());
+        let receipt = recovered.put(staged.clone()).unwrap();
+        assert!(receipt.durable_acks[0].catalog_revision > quarantine_revision);
+        assert!(recovered.quarantined_chunks().unwrap().is_empty());
+        let mut out = [0; 6];
+        recovered.read_at(&staged.chunk.id, 0, &mut out).unwrap();
+        assert_eq!(&out, b"abcdef");
+    }
+
+    #[test]
+    fn recovery_quarantines_missing_or_truncated_chunks_without_losing_healthy_files() {
+        let temp = tempfile::tempdir().unwrap();
+        let store = LocalChunkStore::open(temp.path(), "node-a").unwrap();
+        let items: Vec<_> = ["missing", "truncated", "healthy"]
+            .into_iter()
+            .map(|name| StagedChunk::new(OperationId::new(name), name.as_bytes().to_vec()))
+            .collect();
+        for item in &items {
+            store.put(item.clone()).unwrap();
+        }
+        fs::remove_file(temp.path().join("chunks").join(&items[0].chunk.id.0)).unwrap();
+        fs::write(temp.path().join("chunks").join(&items[1].chunk.id.0), b"x").unwrap();
+        drop(store);
+        let recovered = LocalChunkStore::open(temp.path(), "node-a").unwrap();
+        assert_eq!(recovered.quarantined_chunks().unwrap().len(), 2);
+        let mut out = [0; 7];
+        recovered.read_at(&items[2].chunk.id, 0, &mut out).unwrap();
+        assert_eq!(&out, b"healthy");
+        for item in &items[..2] {
+            recovered.put(item.clone()).unwrap();
+        }
+        assert!(recovered.quarantined_chunks().unwrap().is_empty());
+    }
+
+    #[test]
+    fn pinned_reader_verifies_partial_ranges_and_rejects_damage_outside_them() {
+        let temp = tempfile::tempdir().unwrap();
+        let store = LocalChunkStore::open(temp.path(), "node-a").unwrap();
+        let bytes: Vec<_> = (0..131_073).map(|index| (index % 251) as u8).collect();
+        let staged = StagedChunk::new(OperationId::new("range"), bytes.clone());
+        store.put(staged.clone()).unwrap();
+        let reader = store.open_verified(&staged.chunk.id).unwrap();
+        let mut out = [9; 19];
+        assert_eq!(reader.read_at(65_531, &mut out).unwrap(), 19);
+        assert_eq!(&out, &bytes[65_531..65_550]);
+        let path = temp.path().join("chunks").join(&staged.chunk.id.0);
+        let mut damaged = bytes;
+        damaged[131_072] ^= 1;
+        fs::write(path, damaged).unwrap();
+        out.fill(9);
+        assert_eq!(
+            reader.read_at(65_531, &mut out).unwrap_err().code(),
+            afs_error::NODE_TRANSFER_CORRUPT_DATA
+        );
+        assert_eq!(out, [9; 19]);
+    }
+
+    #[test]
+    fn pinned_reader_rejects_truncation_without_publishing_a_partial_read() {
+        let temp = tempfile::tempdir().unwrap();
+        let store = LocalChunkStore::open(temp.path(), "node-a").unwrap();
+        let staged = StagedChunk::new(OperationId::new("truncate"), b"abcdef".to_vec());
+        store.put(staged.clone()).unwrap();
+        let reader = store.open_verified(&staged.chunk.id).unwrap();
+        fs::write(temp.path().join("chunks").join(&staged.chunk.id.0), b"abc").unwrap();
+        let mut out = [9; 6];
+        assert_eq!(
+            reader.read_at(0, &mut out).unwrap_err().code(),
+            afs_error::NODE_TRANSFER_CORRUPT_DATA
+        );
+        assert_eq!(out, [9; 6]);
+    }
+
+    #[test]
+    fn pinned_reader_preserves_descriptor_identity_and_eof_behavior() {
+        let temp = tempfile::tempdir().unwrap();
+        let store = LocalChunkStore::open(temp.path(), "node-a").unwrap();
+        let staged = StagedChunk::new(OperationId::new("pin"), b"abcdef".to_vec());
+        store.put(staged.clone()).unwrap();
+        let reader = store.open_verified(&staged.chunk.id).unwrap();
+        let replacement = temp.path().join("replacement");
+        fs::write(&replacement, b"abXdef").unwrap();
+        fs::rename(
+            replacement,
+            temp.path().join("chunks").join(&staged.chunk.id.0),
+        )
+        .unwrap();
+        let mut out = [9; 8];
+        assert_eq!(reader.read_at(0, &mut out).unwrap(), 6);
+        assert_eq!(&out, &[b'a', b'b', b'c', b'd', b'e', b'f', 9, 9]);
+        out.fill(9);
+        assert_eq!(reader.read_at(4, &mut out).unwrap(), 2);
+        assert_eq!(&out, &[b'e', b'f', 9, 9, 9, 9, 9, 9]);
+        assert_eq!(reader.read_at(u64::MAX, &mut out).unwrap(), 0);
+        assert_eq!(reader.read_at(0, &mut []).unwrap(), 0);
+        assert!(store.open_verified(&staged.chunk.id).is_err());
+    }
 
     #[test]
     fn immutable_chunk_retry_preserves_content_after_catalog_advances_and_restart() {

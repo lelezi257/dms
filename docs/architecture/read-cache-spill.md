@@ -68,6 +68,10 @@ LegacyStaging -> removed
 - `Deleting` copies are no longer selected for new reads while in-flight reader pins drain.
 - `LegacyStaging` is a decode-only compatibility state for old catalog entries; new code does not create or serve it.
 
+Ordinary read failures can discover a bad durable copy without a pre-existing repair claim. The Node durably quarantines the local copy, then reports its own device identity and quarantine revision through Meta control RPC. Exact pending reports survive unknown acknowledgements. Meta changes the matching older copy to `Corrupt` and records repair debt in the same transaction; a newer verified replacement is protected from late reports. Healthy sources can repair the quarantined target through the existing replica write path. These transitions do not create a FileVersion.
+
+When all eligible copies fail integrity checks, a read returns `EIO` and publishes no partial buffer or hole bytes. Transport and authorization failures keep their own error identities; inability to read is not automatically a claim of permanent data loss.
+
 ## Seed And Eviction
 
 A node can advertise a seed only for a complete `Ready` durable copy or a complete verified cache copy. Seed leases expire or are withdrawn before eviction. Eviction is legal only when Meta can still find enough durable or explicitly accepted external copies for the configured policy. Cache pressure cannot delete the only valid source for a committed chunk.

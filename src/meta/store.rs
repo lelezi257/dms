@@ -454,6 +454,7 @@ pub enum StoreOperation {
     DfsInitializeReplicationConfig,
     DfsClaimReplicationTask,
     DfsReportReplicationTask,
+    DfsReportChunkCorruption,
 }
 
 /// Operation result that can be replayed to idempotent callers.

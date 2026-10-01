@@ -1,0 +1,9 @@
+{
+  "status": "PASS",
+  "start_unix": 1790825786.1682818,
+  "end_unix": 1790825878.315938,
+  "sleep_or_darkwake_events": [],
+  "foreground_guard_pid": 74614,
+  "samples": 8,
+  "scope": "unchanged v60 binaries/configs, two nodes survive multiple30s lease windows under awake host; not exclusive-cause proof, no soak or v61 runtime qualification"
+}

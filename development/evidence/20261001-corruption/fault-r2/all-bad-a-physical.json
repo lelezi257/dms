@@ -1,0 +1,193 @@
+{
+  "chunk": "blake3-2047d275de9bcdb73a86aa74587cd6d7f3c38b99cab92e39b47efaacc5c77f0f-65536",
+  "physical_inode": 1577964,
+  "physical_sha256": "3bda63f6fbb01eea8dad79dac2bce2d40a4834941c2a6a82927d17d50686d5eb",
+  "records": [
+    {
+      "catalog_revision": 8,
+      "chunk": {
+        "content_digest": {
+          "algorithm": "Blake3",
+          "bytes": [
+            32,
+            71,
+            210,
+            117,
+            222,
+            155,
+            205,
+            183,
+            58,
+            134,
+            170,
+            116,
+            88,
+            124,
+            214,
+            215,
+            243,
+            195,
+            139,
+            153,
+            202,
+            185,
+            46,
+            57,
+            180,
+            126,
+            250,
+            172,
+            197,
+            199,
+            127,
+            15
+          ]
+        },
+        "encoding": "Raw",
+        "id": "blake3-2047d275de9bcdb73a86aa74587cd6d7f3c38b99cab92e39b47efaacc5c77f0f-65536",
+        "length": 65536
+      },
+      "device_epoch": 1790826918753082302,
+      "device_id": "local-0",
+      "encoding": "Raw",
+      "location": {
+        "PerChunkFile": {
+          "relative_path": "chunks/blake3-2047d275de9bcdb73a86aa74587cd6d7f3c38b99cab92e39b47efaacc5c77f0f-65536"
+        }
+      },
+      "state": "Durable",
+      "stored_checksum": {
+        "algorithm": "Blake3",
+        "bytes": [
+          32,
+          71,
+          210,
+          117,
+          222,
+          155,
+          205,
+          183,
+          58,
+          134,
+          170,
+          116,
+          88,
+          124,
+          214,
+          215,
+          243,
+          195,
+          139,
+          153,
+          202,
+          185,
+          46,
+          57,
+          180,
+          126,
+          250,
+          172,
+          197,
+          199,
+          127,
+          15
+        ]
+      },
+      "stored_length": 65536,
+      "txn_revision": 8
+    },
+    {
+      "catalog_revision": 9,
+      "chunk": {
+        "content_digest": {
+          "algorithm": "Blake3",
+          "bytes": [
+            32,
+            71,
+            210,
+            117,
+            222,
+            155,
+            205,
+            183,
+            58,
+            134,
+            170,
+            116,
+            88,
+            124,
+            214,
+            215,
+            243,
+            195,
+            139,
+            153,
+            202,
+            185,
+            46,
+            57,
+            180,
+            126,
+            250,
+            172,
+            197,
+            199,
+            127,
+            15
+          ]
+        },
+        "encoding": "Raw",
+        "id": "blake3-2047d275de9bcdb73a86aa74587cd6d7f3c38b99cab92e39b47efaacc5c77f0f-65536",
+        "length": 65536
+      },
+      "device_epoch": 1790826918753082302,
+      "device_id": "local-0",
+      "encoding": "Raw",
+      "location": {
+        "PerChunkFile": {
+          "relative_path": "chunks/blake3-2047d275de9bcdb73a86aa74587cd6d7f3c38b99cab92e39b47efaacc5c77f0f-65536"
+        }
+      },
+      "state": "Quarantined",
+      "stored_checksum": {
+        "algorithm": "Blake3",
+        "bytes": [
+          32,
+          71,
+          210,
+          117,
+          222,
+          155,
+          205,
+          183,
+          58,
+          134,
+          170,
+          116,
+          88,
+          124,
+          214,
+          215,
+          243,
+          195,
+          139,
+          153,
+          202,
+          185,
+          46,
+          57,
+          180,
+          126,
+          250,
+          172,
+          197,
+          199,
+          127,
+          15
+        ]
+      },
+      "stored_length": 65536,
+      "txn_revision": 9
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.05s
+     Running unittests src/lib.rs (/home/lzc.guest/afs-build/target/debug/deps/afs-586e1b701367e588)
+
+running 19 tests
+test node::rpc::data::tests::dfs_product_rdma_replica_and_read_real_verbs ... ignored, requires explicit Linux RXE device; product payload, not diagnostic NodeData
+test node::rpc::data::tests::dfs_range_request_rejects_expired_grants_and_unbounded_batches ... ok
+test node::rpc::data::tests::dfs_rdma_packed_ranges_reject_gaps_capacity_and_wrong_caller ... ok
+test node::rpc::data::tests::auto_without_rdma_device_falls_back_to_grpc ... ok
+test node::rpc::data::tests::dfs_range_service_requires_authority_and_streams_bounded_frames ... ok
+test node::rpc::data::tests::dfs_corrupt_range_publishes_no_grpc_frames_or_rdma_completions ... ok
+test node::rpc::data::tests::dfs_read_authority_batch_cache_and_adversarial_identity ... ok
+test node::rpc::data::tests::dfs_read_authority_session_rotation_is_bounded_by_original_cache_lease ... ok
+test node::rpc::data::tests::dfs_read_authority_tolerates_meta_clock_skew_without_extending_cache ... ok
+test node::rpc::data::tests::forced_rdma_without_device_does_not_fallback_to_grpc ... ok
+test node::rpc::data::tests::grpc_inline_write_then_read_uses_storage ... ok
+test node::rpc::data::tests::owner_files_attr_dir_and_fsync_rpcs_are_registered_but_not_faked ... ok
+test node::rpc::data::tests::owner_files_namespace_rpcs_forward_caller_and_expected_identity ... ok
+test node::rpc::data::tests::owner_files_service_is_registered_but_not_faked ... ok
+test node::rpc::data::tests::public_grpc_client_and_servers_move_eight_bytes ... ok
+test node::rpc::data::tests::rdma_read_validates_session_before_touching_storage ... ok
+test node::rpc::data::tests::dfs_read_grants_meta_and_peer_grpc_stream_real_authority ... ok
+test node::rpc::data::tests::dfs_replica_grpc_stream_durable_retry_and_malformed_body ... ok
+test node::rpc::data::tests::dfs_replica_grpc_three_hops_retry_missing_tail ... ok
+
+test result: ok. 18 passed; 0 failed; 1 ignored; 0 measured; 378 filtered out; finished in 2.15s
+

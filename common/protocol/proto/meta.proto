@@ -328,6 +328,7 @@ service DfsMeta {
   rpc ValidateReplicaWrite(ValidateDfsReplicaWriteRequest) returns (ValidateDfsReplicaWriteReply);
   rpc ClaimReplicationTask(ClaimDfsReplicationTaskRequest) returns (ClaimDfsReplicationTaskReply);
   rpc ReportReplicationTask(ReportDfsReplicationTaskRequest) returns (ReportDfsReplicationTaskReply);
+  rpc ReportChunkCorruption(ReportDfsChunkCorruptionRequest) returns (ReportDfsChunkCorruptionReply);
   rpc GetChunkSources(GetDfsChunkSourcesRequest) returns (GetDfsChunkSourcesReply);
   rpc ValidateReadGrants(ValidateDfsReadGrantsRequest) returns (ValidateDfsReadGrantsReply);
   rpc SyncInodeMetadata(SyncDfsInodeMetadataRequest) returns (SyncDfsInodeMetadataReply);
@@ -482,6 +483,19 @@ message ReportDfsReplicationTaskRequest {
 message ReportDfsReplicationTaskReply {
   DfsReplicationTask task = 1;
 }
+
+message ReportDfsChunkCorruptionRequest {
+  string caller_id = 1;
+  string caller_session_id = 2;
+  uint64 caller_node_epoch = 3;
+  string operation_id = 4;
+  string chunk_id = 5;
+  string device_id = 6;
+  uint64 device_epoch = 7;
+  uint64 catalog_revision = 8;
+}
+
+message ReportDfsChunkCorruptionReply {}
 
 enum DfsDigestAlgorithm {
   DFS_DIGEST_ALGORITHM_UNSPECIFIED = 0;

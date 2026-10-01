@@ -1,0 +1,28 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "afs-accept-a",
+    "--",
+    "sudo",
+    "/mnt/lima-afsadata/afs-delivery/repair-v60-a/prefix/bin/afs-processctl",
+    "--prefix",
+    "/mnt/lima-afsadata/afs-delivery/repair-v60-a/prefix",
+    "--config-dir",
+    "/mnt/lima-afsadata/afs-delivery/repair-v60-a/etc",
+    "--run-dir",
+    "/mnt/lima-afsadata/afs-delivery/repair-v60-a/run",
+    "--log-dir",
+    "/mnt/lima-afsadata/afs-delivery/repair-v60-a/log",
+    "--timeout",
+    "20",
+    "start",
+    "node"
+  ],
+  "duration_ms": 218,
+  "returncode": 0,
+  "stderr": "removing stale pid file for node: 725651\n",
+  "stdout": "started node pid=726203 ready=true\n",
+  "time_unix_ms": 1790824181568,
+  "timeout_seconds": 45
+}

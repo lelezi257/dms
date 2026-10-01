@@ -1,0 +1,8 @@
+{
+  "base_commit": "982398afa8f32acec7c95303c2f89bd20a1d123e",
+  "patch_sha256": "ad3b5cfde04208deeb45b1b077c2f86dc6eafa8203a3911e00ba7c7462b26c18",
+  "published": false,
+  "level": "LOCAL_REGRESSION",
+  "stage_gate": "NOT_RUN on v61; v60 gate retains separate identity",
+  "formal_cases": "NOT_RUN; ENV PREPARING"
+}

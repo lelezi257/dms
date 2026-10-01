@@ -1,0 +1,41 @@
+{
+  "status": "FAIL",
+  "diagnostic_harness": "PASS",
+  "checks": [
+    {
+      "name": "diagnostic_cold_corrupted_local_copy_uses_healthy_peer",
+      "argv": [
+        "timeout",
+        "180",
+        "cargo",
+        "test",
+        "--all-features",
+        "--lib",
+        "diagnostic_cold_corrupted_local_copy_uses_healthy_peer",
+        "--",
+        "--nocapture"
+      ],
+      "returncode": 0,
+      "expected_original_returncode": 0,
+      "seconds": 20.132776186001138
+    },
+    {
+      "name": "diagnostic_warm_corrupted_local_copy_uses_healthy_peer",
+      "argv": [
+        "timeout",
+        "180",
+        "cargo",
+        "test",
+        "--all-features",
+        "--lib",
+        "diagnostic_warm_corrupted_local_copy_uses_healthy_peer",
+        "--",
+        "--nocapture"
+      ],
+      "returncode": 101,
+      "expected_original_returncode": 101,
+      "seconds": 0.08916987699922174
+    }
+  ],
+  "scope": "warm pinned reader returns corrupted bytes; not complete REL-09 or fixed-product qualification"
+}

@@ -1360,6 +1360,35 @@ impl DfsMetaService for DfsMetaRpc {
         ))
     }
 
+    async fn report_chunk_corruption(
+        &self,
+        request: Request<afs_protocol::meta::ReportDfsChunkCorruptionRequest>,
+    ) -> Result<Response<afs_protocol::meta::ReportDfsChunkCorruptionReply>, Status> {
+        let authenticated = authenticated_node_id(&self.0, &request)?;
+        let request = request.into_inner();
+        validate_caller(authenticated.as_deref(), &request.caller_id)?;
+        require_text(&request.caller_session_id, "caller_session_id")?;
+        require_text(&request.operation_id, "operation_id")?;
+        require_text(&request.chunk_id, "chunk_id")?;
+        require_text(&request.device_id, "device_id")?;
+        dfs_service(&self.0)?
+            .report_chunk_corruption(crate::dfs::ReportChunkCorruption {
+                caller_id: request.caller_id,
+                caller_session_id: request.caller_session_id,
+                caller_node_epoch: request.caller_node_epoch,
+                operation_id: crate::dfs::OperationId::new(request.operation_id),
+                chunk_id: crate::dfs::ChunkId::new(request.chunk_id),
+                device_id: request.device_id,
+                device_epoch: request.device_epoch,
+                catalog_revision: request.catalog_revision,
+            })
+            .await
+            .map_err(afs_transport::grpc::error_status::error_to_status)?;
+        Ok(Response::new(
+            afs_protocol::meta::ReportDfsChunkCorruptionReply {},
+        ))
+    }
+
     async fn validate_read_grants(
         &self,
         request: Request<afs_protocol::meta::ValidateDfsReadGrantsRequest>,

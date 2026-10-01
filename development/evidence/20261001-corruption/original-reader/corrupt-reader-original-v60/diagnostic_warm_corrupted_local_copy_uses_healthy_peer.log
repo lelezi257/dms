@@ -1,0 +1,20 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.06s
+     Running unittests src/lib.rs (/home/lzc.guest/afs-build/target/debug/deps/afs-586e1b701367e588)
+
+running 1 test
+
+thread 'node::dfs_read::tests::diagnostic_warm_corrupted_local_copy_uses_healthy_peer' (481835) panicked at src/node/dfs_read.rs:761:9:
+assertion `left == right` failed: corrupted cached local bytes must not reach the caller
+  left: [97, 98, 88, 100, 101, 102]
+ right: [97, 98, 99, 100, 101, 102]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test node::dfs_read::tests::diagnostic_warm_corrupted_local_copy_uses_healthy_peer ... FAILED
+
+failures:
+
+failures:
+    node::dfs_read::tests::diagnostic_warm_corrupted_local_copy_uses_healthy_peer
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 378 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `--lib`

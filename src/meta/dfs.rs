@@ -17,9 +17,10 @@ use crate::dfs::{
     OperationId, PlacementHealth, PlacementRecord, PlacementSnapshot, ReadLinkRequest,
     RemoveXattrRequest, RenameMode, RenameOutcome, RenameRequest, ReplicaAck, ReplicaGroup,
     ReplicaGroupId, ReplicaTarget, ReplicaWriteGrant, ReplicationClaim, ReplicationConfig,
-    ReplicationTask, ReplicationTaskId, ReplicationTaskState, ReportReplicationTask, RmdirRequest,
-    SetInodeAttrRequest, SetXattrRequest, SourceCandidate, SpecialNodeKind, SymlinkRequest,
-    SyncInodeMetadata, UnlinkRequest, ValidateReplicaWriteRequest, WriteLease, XattrSetMode,
+    ReplicationTask, ReplicationTaskId, ReplicationTaskState, ReportChunkCorruption,
+    ReportReplicationTask, RmdirRequest, SetInodeAttrRequest, SetXattrRequest, SourceCandidate,
+    SpecialNodeKind, SymlinkRequest, SyncInodeMetadata, UnlinkRequest, ValidateReplicaWriteRequest,
+    WriteLease, XattrSetMode,
 };
 
 use super::store::{
@@ -772,6 +773,239 @@ impl DfsService {
         replication_task_outcome(
             self.store.compare_and_commit(txn).await?,
             StoreOperation::DfsReportReplicationTask,
+            request_digest,
+        )
+    }
+
+    pub async fn report_chunk_corruption(&self, request: ReportChunkCorruption) -> Result<()> {
+        let request_digest = namespace_request_digest(&request)?;
+        require_id(&request.caller_id, "caller_id")?;
+        require_id(&request.caller_session_id, "caller_session_id")?;
+        require_id(&request.operation_id.0, "operation_id")?;
+        require_id(&request.chunk_id.0, "chunk_id")?;
+        require_id(&request.device_id, "device_id")?;
+        if request.caller_node_epoch == 0 {
+            return Err(invalid("caller_node_epoch is required"));
+        }
+        if request.device_epoch == 0 {
+            return Err(invalid("device_epoch is required"));
+        }
+        if request.catalog_revision == 0 {
+            return Err(invalid("catalog_revision is required"));
+        }
+        if self
+            .replayed_namespace_result(
+                &request.caller_id,
+                &request.operation_id,
+                StoreOperation::DfsReportChunkCorruption,
+                request_digest,
+            )
+            .await?
+            .is_some()
+        {
+            return Ok(());
+        }
+
+        let now = now_unix_ms();
+        let caller_session = self
+            .current_session(
+                &request.caller_id,
+                request.caller_node_epoch,
+                Some(&request.caller_session_id),
+                now,
+            )
+            .await?;
+        if !caller_session.storage_devices.iter().any(|device| {
+            device.device_id == request.device_id && device.device_epoch == request.device_epoch
+        }) {
+            return Err(permission_denied(
+                "corruption report device is not owned by the live caller session",
+            ));
+        }
+        let chunk = self.chunk(&request.chunk_id).await?;
+        let placement = self.placement(&request.chunk_id).await?;
+        let replication = self.current_replication_config().await?;
+        let task_id = repair_task_id(&request.chunk_id);
+        let task_snapshot = self
+            .store
+            .read(MetaRead::DfsReplicationTask(task_id.clone()))
+            .await?;
+        let observed_task = match task_snapshot.entity {
+            Some(MetaEntity::DfsReplicationTask(task)) => Some(task),
+            None => None,
+            Some(_) => return Err(invalid("DFS repair task record has wrong type")),
+        };
+
+        let mut observed_copies = Vec::with_capacity(placement.copies.len());
+        let mut same_device_seen = false;
+        let mut has_superseding_same_device = false;
+        let mut changed_copies = Vec::new();
+        let mut changed_copy_ids = HashSet::new();
+        for copy_id in &placement.copies {
+            let copy = self.copy(copy_id).await?;
+            if copy_matches_chunk(&copy, &chunk)
+                && copy.role == CopyRole::DurableReplica
+                && let CopyLocation::Node {
+                    node_id,
+                    device_id,
+                    device_epoch,
+                    catalog_revision,
+                    ..
+                } = &copy.location
+                && node_id == &request.caller_id
+                && device_id == &request.device_id
+                && *device_epoch == request.device_epoch
+            {
+                same_device_seen = true;
+                if *catalog_revision >= request.catalog_revision || copy.state == CopyState::Corrupt
+                {
+                    has_superseding_same_device = true;
+                }
+                if copy.state == CopyState::Ready && *catalog_revision < request.catalog_revision {
+                    let mut corrupt = copy.clone();
+                    corrupt.state = CopyState::Corrupt;
+                    changed_copy_ids.insert(copy.id.clone());
+                    changed_copies.push(corrupt);
+                }
+            }
+            observed_copies.push(copy);
+        }
+        if !same_device_seen {
+            return Err(permission_denied(
+                "corruption report found no caller-owned durable copy on the reported device",
+            ));
+        }
+
+        let remaining_live_sources = live_ready_copy_count_from_observed_excluding(
+            &observed_copies,
+            &changed_copy_ids,
+            self,
+            now,
+        )
+        .await?;
+        let repair_state = if remaining_live_sources == 0 {
+            ReplicationTaskState::BlockedNoSource
+        } else {
+            ReplicationTaskState::Pending
+        };
+        let repair_health = if remaining_live_sources == 0 {
+            PlacementHealth::BlockedNoSource
+        } else {
+            PlacementHealth::UnderReplicated
+        };
+
+        let mut updated_placement = placement.clone();
+        if !changed_copies.is_empty() || updated_placement.health != repair_health {
+            updated_placement.health = repair_health;
+        }
+        let updated_task = ReplicationTask {
+            id: task_id.clone(),
+            chunk_id: request.chunk_id.clone(),
+            placement_epoch: placement.placement_epoch,
+            desired_copies: placement.desired_copies,
+            existing_copies: placement.copies.clone(),
+            state: repair_state,
+            attempt: observed_task.as_ref().map_or(0, |task| task.attempt),
+            next_retry_unix_ms: if repair_state == ReplicationTaskState::BlockedNoSource {
+                now.saturating_add(5_000)
+            } else {
+                now
+            },
+            last_error: Some(format!(
+                "corruption reported by {} on device {} at catalog revision {}",
+                request.caller_id, request.device_id, request.catalog_revision
+            )),
+            claim: None,
+        };
+
+        if changed_copies.is_empty() {
+            if !has_superseding_same_device {
+                return Err(invalid(
+                    "corruption report found no Ready same-device copy below the reported catalog revision",
+                ));
+            }
+            let mut ack_conditions = vec![
+                TxnCondition::EntityEquals(MetaEntity::NodeSession(caller_session.clone())),
+                TxnCondition::NodeSessionCurrent {
+                    node_id: request.caller_id.clone(),
+                    session_id: request.caller_session_id.clone(),
+                },
+                TxnCondition::EntityEquals(MetaEntity::DfsChunk(chunk.clone())),
+                TxnCondition::EntityEquals(MetaEntity::DfsPlacement(placement.clone())),
+                TxnCondition::EntityEquals(MetaEntity::DfsReplicationConfig(replication.clone())),
+            ];
+            match &observed_task {
+                Some(task) => ack_conditions.push(TxnCondition::EntityEquals(
+                    MetaEntity::DfsReplicationTask(task.clone()),
+                )),
+                None => ack_conditions.push(TxnCondition::Missing(MetaKey::DfsReplicationTask(
+                    task_id.clone(),
+                ))),
+            }
+            for copy in &observed_copies {
+                ack_conditions.push(TxnCondition::EntityEquals(MetaEntity::DfsCopy(
+                    copy.clone(),
+                )));
+            }
+            return self
+                .record_empty_namespace_outcome(
+                    &request.caller_id,
+                    &request.operation_id,
+                    StoreOperation::DfsReportChunkCorruption,
+                    request_digest,
+                    ack_conditions,
+                )
+                .await;
+        }
+
+        let request_key =
+            RequestKey::new(request.caller_id.clone(), request.operation_id.0.clone());
+        let mut txn = MetaTxn::new(
+            request_key.clone(),
+            StoreOperation::DfsReportChunkCorruption,
+        );
+        txn.conditions.extend([
+            TxnCondition::RequestAbsent(request_key.clone()),
+            TxnCondition::EntityEquals(MetaEntity::NodeSession(caller_session)),
+            TxnCondition::NodeSessionCurrent {
+                node_id: request.caller_id.clone(),
+                session_id: request.caller_session_id.clone(),
+            },
+            TxnCondition::EntityEquals(MetaEntity::DfsChunk(chunk)),
+            TxnCondition::EntityEquals(MetaEntity::DfsPlacement(placement)),
+            TxnCondition::EntityEquals(MetaEntity::DfsReplicationConfig(replication)),
+        ]);
+        match observed_task {
+            Some(task) => {
+                txn.conditions
+                    .push(TxnCondition::EntityEquals(MetaEntity::DfsReplicationTask(
+                        task,
+                    )))
+            }
+            None => txn
+                .conditions
+                .push(TxnCondition::Missing(MetaKey::DfsReplicationTask(task_id))),
+        }
+        for copy in observed_copies {
+            txn.conditions
+                .push(TxnCondition::EntityEquals(MetaEntity::DfsCopy(copy)));
+        }
+        for copy in changed_copies {
+            txn.mutations
+                .push(TxnMutation::Put(MetaEntity::DfsCopy(copy)));
+        }
+        txn.mutations.extend([
+            TxnMutation::Put(MetaEntity::DfsPlacement(updated_placement)),
+            TxnMutation::Put(MetaEntity::DfsReplicationTask(updated_task)),
+            TxnMutation::RecordRequestOutcome(RequestOutcome {
+                request: request_key,
+                operation: StoreOperation::DfsReportChunkCorruption,
+                result: namespace_result(request_digest, OperationResult::Empty),
+            }),
+        ]);
+        empty_namespace_outcome(
+            self.store.compare_and_commit(txn).await?,
+            StoreOperation::DfsReportChunkCorruption,
             request_digest,
         )
     }
@@ -3459,6 +3693,32 @@ impl DfsService {
             )),
         }
     }
+
+    async fn record_empty_namespace_outcome(
+        &self,
+        caller_id: &str,
+        operation_id: &OperationId,
+        operation: StoreOperation,
+        request_digest: [u8; 32],
+        mut conditions: Vec<TxnCondition>,
+    ) -> Result<()> {
+        let request_key = RequestKey::new(caller_id, operation_id.0.clone());
+        let mut txn = MetaTxn::new(request_key.clone(), operation);
+        txn.conditions
+            .push(TxnCondition::RequestAbsent(request_key.clone()));
+        txn.conditions.append(&mut conditions);
+        txn.mutations
+            .push(TxnMutation::RecordRequestOutcome(RequestOutcome {
+                request: request_key,
+                operation,
+                result: namespace_result(request_digest, OperationResult::Empty),
+            }));
+        empty_namespace_outcome(
+            self.store.compare_and_commit(txn).await?,
+            operation,
+            request_digest,
+        )
+    }
 }
 
 fn namespace_request_digest(request: &impl serde::Serialize) -> Result<[u8; 32]> {
@@ -3649,6 +3909,31 @@ fn replication_task_outcome(
         }
         TxnOutcome::ConditionFailed { .. } => {
             Err(conflict("DFS replication task changed during commit"))
+        }
+    }
+}
+
+fn empty_namespace_outcome(
+    outcome: TxnOutcome,
+    operation: StoreOperation,
+    request_digest: [u8; 32],
+) -> Result<()> {
+    match outcome {
+        TxnOutcome::Committed { outcome, .. }
+        | TxnOutcome::ConditionFailed {
+            existing_outcome: Some(outcome),
+            ..
+        } => {
+            if outcome.operation != operation {
+                return Err(invalid("DFS empty replay used another operation"));
+            }
+            match namespace_result_inner(outcome.result, request_digest)? {
+                OperationResult::Empty => Ok(()),
+                _ => Err(invalid("DFS empty outcome has wrong result")),
+            }
+        }
+        TxnOutcome::ConditionFailed { .. } => {
+            Err(conflict("DFS empty operation changed during commit"))
         }
     }
 }
@@ -4519,6 +4804,33 @@ async fn live_read_session(
     }
 }
 
+async fn live_ready_copy_count_from_observed_excluding(
+    copies: &[CopyRecord],
+    excluded: &HashSet<CopyId>,
+    service: &DfsService,
+    now: u64,
+) -> Result<usize> {
+    let mut nodes = HashSet::new();
+    for copy in copies {
+        if excluded.contains(&copy.id) {
+            continue;
+        }
+        if let CopyLocation::Node { node_id, .. } = &copy.location {
+            let session = match service.current_live_session(node_id, now).await {
+                Ok(session) => session,
+                Err(error) if error.code() == afs_error::META_DFS_CONFLICT => continue,
+                Err(error) => return Err(error),
+            };
+            if let Some(serving_copy) = serving_read_copy(copy, &session, now)
+                && let CopyLocation::Node { node_id, .. } = serving_copy.location
+            {
+                nodes.insert(node_id);
+            }
+        }
+    }
+    Ok(nodes.len())
+}
+
 fn read_chunk_intervals(
     layout: &LayoutRoot,
     chunk: &crate::dfs::ChunkObject,
@@ -4950,6 +5262,83 @@ mod read_recovery_tests {
         store.compare_and_commit(txn).await.unwrap();
     }
 
+    async fn stored_copy(fixture: &Fixture, copy_id: &CopyId) -> CopyRecord {
+        match fixture
+            .store
+            .read(MetaRead::DfsCopy(copy_id.clone()))
+            .await
+            .unwrap()
+            .entity
+        {
+            Some(MetaEntity::DfsCopy(copy)) => copy,
+            _ => panic!("copy missing"),
+        }
+    }
+
+    async fn stored_placement(fixture: &Fixture) -> PlacementRecord {
+        match fixture
+            .store
+            .read(MetaRead::DfsPlacement(fixture.copy.chunk_id.clone()))
+            .await
+            .unwrap()
+            .entity
+        {
+            Some(MetaEntity::DfsPlacement(placement)) => placement,
+            _ => panic!("placement missing"),
+        }
+    }
+
+    async fn stored_repair_task(fixture: &Fixture) -> ReplicationTask {
+        match fixture
+            .store
+            .read(MetaRead::DfsReplicationTask(repair_task_id(
+                &fixture.copy.chunk_id,
+            )))
+            .await
+            .unwrap()
+            .entity
+        {
+            Some(MetaEntity::DfsReplicationTask(task)) => task,
+            _ => panic!("repair task missing"),
+        }
+    }
+
+    fn node_catalog_revision(copy: &CopyRecord) -> u64 {
+        match &copy.location {
+            CopyLocation::Node {
+                catalog_revision, ..
+            } => *catalog_revision,
+            CopyLocation::External { .. } => panic!("expected node copy"),
+        }
+    }
+
+    fn corruption_report(
+        operation_id: &str,
+        copy: &CopyRecord,
+        catalog_revision: u64,
+    ) -> ReportChunkCorruption {
+        let CopyLocation::Node {
+            node_id,
+            node_epoch,
+            device_id,
+            device_epoch,
+            ..
+        } = &copy.location
+        else {
+            panic!("expected node copy");
+        };
+        ReportChunkCorruption {
+            caller_id: node_id.clone(),
+            caller_session_id: format!("{node_id}-original"),
+            caller_node_epoch: *node_epoch,
+            operation_id: OperationId::new(operation_id),
+            chunk_id: copy.chunk_id.clone(),
+            device_id: device_id.clone(),
+            device_epoch: *device_epoch,
+            catalog_revision,
+        }
+    }
+
     async fn task_record(fixture: &Fixture, claim: &ReplicationClaim) -> ReplicationTask {
         match fixture
             .store
@@ -5313,6 +5702,287 @@ mod read_recovery_tests {
                 ..
             }))
         ));
+    }
+
+    #[tokio::test]
+    async fn corruption_report_excludes_bad_own_copy_and_persists_repair_debt() {
+        let fixture = underreplicated_fixture().await;
+        let claim = fixture
+            .service
+            .claim_replication_task(claim_request("claim-before-corruption-report"))
+            .await
+            .unwrap()
+            .unwrap();
+        fixture
+            .service
+            .report_replication_task(ReportReplicationTask {
+                caller_id: claim.worker_node_id.clone(),
+                caller_session_id: claim.worker_session_id.clone(),
+                caller_node_epoch: claim.worker_node_epoch,
+                operation_id: OperationId::new("complete-before-corruption-report"),
+                durable_acks: repair_acks(&claim),
+                error: None,
+                source_invalid: false,
+                claim,
+            })
+            .await
+            .unwrap();
+        let pre_report_placement = stored_placement(&fixture).await;
+        let report = corruption_report(
+            "report-own-corruption",
+            &fixture.copy,
+            node_catalog_revision(&fixture.copy).saturating_add(1),
+        );
+        fixture
+            .service
+            .report_chunk_corruption(report.clone())
+            .await
+            .unwrap();
+
+        let copy = stored_copy(&fixture, &fixture.copy.id).await;
+        assert_eq!(copy.state, CopyState::Corrupt);
+        let placement = stored_placement(&fixture).await;
+        assert_eq!(placement.health, PlacementHealth::UnderReplicated);
+        assert_eq!(placement.copies, pre_report_placement.copies);
+        let mut observed_copies = Vec::new();
+        for copy_id in &placement.copies {
+            observed_copies.push(stored_copy(&fixture, copy_id).await);
+        }
+        let mut excluded = std::collections::HashSet::new();
+        excluded.insert(fixture.copy.id.clone());
+        assert_eq!(
+            live_ready_copy_count_from_observed_excluding(
+                &observed_copies,
+                &excluded,
+                &fixture.service,
+                now_unix_ms(),
+            )
+            .await
+            .unwrap(),
+            1
+        );
+        let task = stored_repair_task(&fixture).await;
+        assert_eq!(task.state, ReplicationTaskState::Pending);
+        assert!(task.claim.is_none());
+        assert_eq!(task.existing_copies, placement.copies);
+        assert_eq!(
+            fixture
+                .service
+                .report_chunk_corruption(report)
+                .await
+                .unwrap(),
+            ()
+        );
+    }
+
+    #[tokio::test]
+    async fn corruption_report_rejects_forged_identity_device_revision_and_session() {
+        let fixture = underreplicated_fixture().await;
+        let mut other_node = corruption_report(
+            "report-forged-node",
+            &fixture.copy,
+            node_catalog_revision(&fixture.copy).saturating_add(1),
+        );
+        other_node.caller_id = "target".into();
+        other_node.caller_session_id = "target-original".into();
+        assert!(
+            fixture
+                .service
+                .report_chunk_corruption(other_node)
+                .await
+                .is_err()
+        );
+
+        let mut other_device = corruption_report(
+            "report-forged-device",
+            &fixture.copy,
+            node_catalog_revision(&fixture.copy).saturating_add(1),
+        );
+        other_device.device_id = "other-device".into();
+        assert!(
+            fixture
+                .service
+                .report_chunk_corruption(other_device)
+                .await
+                .is_err()
+        );
+
+        let mut zero_revision = corruption_report("report-zero-revision", &fixture.copy, 0);
+        assert!(
+            fixture
+                .service
+                .report_chunk_corruption(zero_revision.clone())
+                .await
+                .is_err()
+        );
+
+        zero_revision.operation_id = OperationId::new("report-forged-session");
+        zero_revision.catalog_revision = node_catalog_revision(&fixture.copy).saturating_add(1);
+        zero_revision.caller_session_id = "stale-session".into();
+        assert!(
+            fixture
+                .service
+                .report_chunk_corruption(zero_revision)
+                .await
+                .is_err()
+        );
+    }
+
+    #[tokio::test]
+    async fn corruption_report_exact_replay_does_not_remark_newer_repaired_copy() {
+        let fixture = fixture().await;
+        fixture
+            .service
+            .initialize_replication_config()
+            .await
+            .unwrap();
+        let report_revision = node_catalog_revision(&fixture.copy).saturating_add(1);
+        let report = corruption_report("report-replay-corruption", &fixture.copy, report_revision);
+        fixture
+            .service
+            .report_chunk_corruption(report.clone())
+            .await
+            .unwrap();
+
+        let mut repaired = fixture.copy.clone();
+        repaired.state = CopyState::Ready;
+        if let CopyLocation::Node {
+            catalog_revision, ..
+        } = &mut repaired.location
+        {
+            *catalog_revision = report_revision.saturating_add(1);
+        }
+        overwrite_copy(
+            &fixture.store,
+            repaired.clone(),
+            "overwrite-newer-repaired-copy",
+        )
+        .await;
+        fixture
+            .service
+            .report_chunk_corruption(report)
+            .await
+            .unwrap();
+        assert_eq!(stored_copy(&fixture, &fixture.copy.id).await, repaired);
+    }
+
+    #[tokio::test]
+    async fn corruption_report_fresh_stale_quarantine_ack_preserves_newer_repair() {
+        let fixture = fixture().await;
+        fixture
+            .service
+            .initialize_replication_config()
+            .await
+            .unwrap();
+        let report_revision = node_catalog_revision(&fixture.copy).saturating_add(1);
+        let report = corruption_report("report-before-fresh-stale", &fixture.copy, report_revision);
+        fixture
+            .service
+            .report_chunk_corruption(report)
+            .await
+            .unwrap();
+
+        let mut repaired = fixture.copy.clone();
+        repaired.state = CopyState::Ready;
+        if let CopyLocation::Node {
+            catalog_revision, ..
+        } = &mut repaired.location
+        {
+            *catalog_revision = report_revision.saturating_add(1);
+        }
+        overwrite_copy(
+            &fixture.store,
+            repaired.clone(),
+            "overwrite-newer-repaired-copy-before-fresh-stale",
+        )
+        .await;
+
+        let mut stale = corruption_report(
+            "report-fresh-stale-quarantine",
+            &fixture.copy,
+            report_revision,
+        );
+        fixture
+            .service
+            .report_chunk_corruption(stale.clone())
+            .await
+            .unwrap();
+        assert_eq!(stored_copy(&fixture, &fixture.copy.id).await, repaired);
+
+        fixture
+            .service
+            .report_chunk_corruption(stale.clone())
+            .await
+            .unwrap();
+        stale.catalog_revision = node_catalog_revision(&repaired).saturating_add(1);
+        assert!(
+            fixture
+                .service
+                .report_chunk_corruption(stale)
+                .await
+                .is_err()
+        );
+        assert_eq!(stored_copy(&fixture, &fixture.copy.id).await, repaired);
+    }
+
+    #[tokio::test]
+    async fn corruption_report_rejects_modified_request_reusing_same_operation() {
+        let fixture = fixture().await;
+        fixture
+            .service
+            .initialize_replication_config()
+            .await
+            .unwrap();
+        let mut report = corruption_report(
+            "report-digest-bound",
+            &fixture.copy,
+            node_catalog_revision(&fixture.copy).saturating_add(1),
+        );
+        fixture
+            .service
+            .report_chunk_corruption(report.clone())
+            .await
+            .unwrap();
+        report.catalog_revision = report.catalog_revision.saturating_add(1);
+        assert!(
+            fixture
+                .service
+                .report_chunk_corruption(report)
+                .await
+                .is_err()
+        );
+    }
+
+    #[tokio::test]
+    async fn corruption_report_blocks_when_all_sources_are_bad() {
+        let fixture = fixture().await;
+        fixture
+            .service
+            .initialize_replication_config()
+            .await
+            .unwrap();
+        let report = corruption_report(
+            "report-only-source-corruption",
+            &fixture.copy,
+            node_catalog_revision(&fixture.copy).saturating_add(1),
+        );
+        fixture
+            .service
+            .report_chunk_corruption(report)
+            .await
+            .unwrap();
+        assert_eq!(
+            stored_copy(&fixture, &fixture.copy.id).await.state,
+            CopyState::Corrupt
+        );
+        assert_eq!(
+            stored_placement(&fixture).await.health,
+            PlacementHealth::BlockedNoSource
+        );
+        assert_eq!(
+            stored_repair_task(&fixture).await.state,
+            ReplicationTaskState::BlockedNoSource
+        );
     }
 
     #[tokio::test]

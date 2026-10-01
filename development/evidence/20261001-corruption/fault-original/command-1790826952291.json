@@ -1,0 +1,21 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "afs-accept-a",
+    "--",
+    "sudo",
+    "timeout",
+    "--kill-after=2s",
+    "25s",
+    "python3",
+    "-c",
+    "RUN='/mnt/lima-afsadata/afs-delivery/corrupt-v62-a'\nCHUNK='blake3-86b848f86a13437da46a760853bdf9a786f0957a9cb460a0a2269db7d0b9212d-65536'\nSHA='ca4009f811110d89e0012dc80199e60931f49b0cd92b4eed4f57668c3f177a49'\nFILE='one-bad-05f0c41c-32ac-4d45-a60b-20d0093fdf3c.bin'\nBACKUP='05f0c41c-32ac-4d45-a60b-20d0093fdf3c-one-bad-05f0c41c-32ac-4d45-a60b-20d0093fdf3c.bin.chunk'\n\nimport hashlib,json,os,pathlib\nr=pathlib.Path(RUN);p=r/'state/node/dfs/chunks'/CHUNK;b=p.read_bytes()\nassert hashlib.sha256(b).hexdigest()==SHA and len(b)==65536\nfolder=r/'corruption-backups';folder.mkdir(exist_ok=True);backup=folder/BACKUP\nwith backup.open('xb') as fh:fh.write(b);fh.flush();os.fsync(fh.fileno())\nino=p.stat().st_ino\nwith p.open('r+b') as fh:fh.seek(8192);fh.write(bytes([b[8192]^255]));fh.flush();os.fsync(fh.fileno())\nchanged=p.read_bytes();assert len(changed)==len(b) and changed!=b and p.stat().st_ino==ino\nprint(json.dumps({'chunk':CHUNK,'before_sha256':SHA,'after_sha256':hashlib.sha256(changed).hexdigest(),'inode':ino,'bytes':len(changed),'backup':str(backup)}))\n"
+  ],
+  "duration_ms": 64,
+  "returncode": 0,
+  "stderr": "",
+  "stdout": "{\"chunk\": \"blake3-86b848f86a13437da46a760853bdf9a786f0957a9cb460a0a2269db7d0b9212d-65536\", \"before_sha256\": \"ca4009f811110d89e0012dc80199e60931f49b0cd92b4eed4f57668c3f177a49\", \"after_sha256\": \"ced40fe6649054674a4a0601bce947a0412b5d81147d713363b7a2e261228dbc\", \"inode\": 1577964, \"bytes\": 65536, \"backup\": \"/mnt/lima-afsadata/afs-delivery/corrupt-v62-a/corruption-backups/05f0c41c-32ac-4d45-a60b-20d0093fdf3c-one-bad-05f0c41c-32ac-4d45-a60b-20d0093fdf3c.bin.chunk\"}\n",
+  "time_unix_ms": 1790826952291,
+  "timeout_seconds": 40
+}

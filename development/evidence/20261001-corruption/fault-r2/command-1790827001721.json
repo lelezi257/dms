@@ -1,0 +1,28 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "afs-accept-a",
+    "--",
+    "sudo",
+    "/mnt/lima-afsadata/afs-delivery/corrupt-v62-a/prefix/bin/afs-processctl",
+    "--prefix",
+    "/mnt/lima-afsadata/afs-delivery/corrupt-v62-a/prefix",
+    "--config-dir",
+    "/mnt/lima-afsadata/afs-delivery/corrupt-v62-a/etc",
+    "--run-dir",
+    "/mnt/lima-afsadata/afs-delivery/corrupt-v62-a/run",
+    "--log-dir",
+    "/mnt/lima-afsadata/afs-delivery/corrupt-v62-a/log",
+    "--timeout",
+    "20",
+    "start",
+    "node"
+  ],
+  "duration_ms": 231,
+  "returncode": 0,
+  "stderr": "removing stale pid file for node: 727860\n",
+  "stdout": "started node pid=728426 ready=true\n",
+  "time_unix_ms": 1790827001721,
+  "timeout_seconds": 45
+}

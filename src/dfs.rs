@@ -706,6 +706,18 @@ pub struct ReportReplicationTask {
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct ReportChunkCorruption {
+    pub caller_id: String,
+    pub caller_session_id: String,
+    pub caller_node_epoch: u64,
+    pub operation_id: OperationId,
+    pub chunk_id: ChunkId,
+    pub device_id: String,
+    pub device_epoch: u64,
+    pub catalog_revision: u64,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct WriteLease {
     pub inode_id: InodeId,
     pub owner_node_id: String,

@@ -711,6 +711,32 @@ impl GrpcDfsMeta {
             .into_inner();
         required(reply.task, "ReportReplicationTask.task").and_then(domain_replication_task)
     }
+
+    pub fn report_chunk_corruption(
+        &self,
+        request: crate::dfs::ReportChunkCorruption,
+    ) -> afs_error::Result<()> {
+        self.run(self.client().report_chunk_corruption(
+            afs_protocol::meta::ReportDfsChunkCorruptionRequest {
+                caller_id: request.caller_id,
+                caller_session_id: request.caller_session_id,
+                caller_node_epoch: request.caller_node_epoch,
+                operation_id: request.operation_id.0,
+                chunk_id: request.chunk_id.0,
+                device_id: request.device_id,
+                device_epoch: request.device_epoch,
+                catalog_revision: request.catalog_revision,
+            },
+        ))?;
+        Ok(())
+    }
+
+    pub fn report_corrupt_chunk(
+        &self,
+        request: crate::dfs::ReportChunkCorruption,
+    ) -> afs_error::Result<()> {
+        self.report_chunk_corruption(request)
+    }
 }
 
 #[cfg(feature = "dfs")]
@@ -772,6 +798,13 @@ impl crate::node::replication::ReplicationTaskAuthority for GrpcDfsMeta {
         request: crate::dfs::ReportReplicationTask,
     ) -> afs_error::Result<crate::dfs::ReplicationTask> {
         GrpcDfsMeta::report_replication_task(self, request)
+    }
+
+    fn report_corrupt_chunk(
+        &self,
+        request: crate::dfs::ReportChunkCorruption,
+    ) -> afs_error::Result<()> {
+        GrpcDfsMeta::report_corrupt_chunk(self, request)
     }
 }
 

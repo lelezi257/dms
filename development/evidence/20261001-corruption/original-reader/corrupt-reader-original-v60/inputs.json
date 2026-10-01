@@ -1,0 +1,5 @@
+{
+  "baseline_sha256": "f6561978b7787c9e71703d2d205c1c7231c5087280693c154bf4dd482e261adc",
+  "diagnostic_sha256": "719e679e05afcd670910d1e4444499582f408f713e60f74fb6a735a8d1f1fb2e",
+  "scope": "only added two test fixtures in separate Linux source copy; product source unchanged"
+}

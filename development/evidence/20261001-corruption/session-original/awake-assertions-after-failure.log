@@ -1,0 +1,27 @@
+2026-10-01 11:29:36 +0800 
+Assertion status system-wide:
+   BackgroundTask                 0
+   ApplePushServiceTask           0
+   UserIsActive                   1
+   PreventUserIdleDisplaySleep    0
+   SoftwareUpdateTask             0
+   PreventSystemSleep             0
+   PreventSystemSleepSecurityIndicator 0
+   ExternalMedia                  0
+   PreventUserIdleSystemSleep     1
+   NetworkClientActive            0
+Listed by owning process:
+   pid 74370(AddressBookSourceSync): [0x00056bff00019c74] 00:00:56 PreventUserIdleSystemSleep named: "Address Book Source Sync"  
+	Timeout will fire in 1743 secs Action=TimeoutActionTurnOff
+   pid 362(powerd): [0x00056b0f00019c4c] 00:04:56 PreventUserIdleSystemSleep named: "Powerd - Prevent sleep while display is on"  
+   pid 362(powerd): [0x00056b0f00099c49] 00:04:56 UserIsActive named: "com.apple.powermanagement.kernel.useractive AppleHIDKeyboardEventDriverV2:sleepDisplayTickle kIOMessageSyste"  
+	Timeout will fire in 304 secs Action=TimeoutActionRelease
+   pid 74219(caffeinate): [0x00056b2c00019c58] 00:04:27 PreventUserIdleSystemSleep named: "caffeinate command-line tool"  
+	Details: caffeinate asserting forever
+	Localized=THE CAFFEINATE TOOL IS PREVENTING SLEEP.
+   pid 74219(caffeinate): [0x00056b2c00079c59] 00:04:27 PreventSystemSleep named: "caffeinate command-line tool"  
+	Details: caffeinate asserting forever
+	Localized=THE CAFFEINATE TOOL IS PREVENTING SLEEP.
+   pid 418(WindowServer): [0x00056b0f00099c4a] 00:03:53 UserIsActive named: "com.apple.iohideventsystem.queue.tickle serviceID:100000cbd service:AppleMultitouchDevice product:Apple Internal Keyboard / Trackpad eventType:11"  
+	Timeout will fire in 367 secs Action=TimeoutActionRelease
+No kernel assertions.

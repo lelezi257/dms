@@ -1445,9 +1445,23 @@ fn stream_dfs_ranges(
         if sender.is_closed() {
             return Ok(());
         }
-        let reader = local
-            .open_verified(&crate::dfs::ChunkId::new(op.chunk_id.clone()))
-            .map_err(error_to_status)?;
+        // Verify one bounded range before framing it. Each read_at checks the
+        // whole Chunk; issuing it per frame would amplify disk/hash work.
+        let mut verified = vec![0; op.length as usize];
+        if local
+            .read_at(
+                &crate::dfs::ChunkId::new(op.chunk_id.clone()),
+                op.chunk_offset,
+                &mut verified,
+            )
+            .map_err(error_to_status)?
+            != verified.len()
+        {
+            return Err(coded_status(
+                afs_error::NODE_TRANSFER_CORRUPT_DATA,
+                "local Chunk ended before the requested DFS range",
+            ));
+        }
         send(dfs_read_ranges_frame::Body::Header(DfsReadRangesHeader {
             read_id: request.read_id.clone(),
             attempt_id: request.attempt_id.clone(),
@@ -1464,16 +1478,7 @@ fn stream_dfs_ranges(
                 return Ok(());
             }
             let length = (op.length - offset).min(64 * 1024) as usize;
-            let mut data = vec![0; length];
-            let read = reader
-                .read_at(op.chunk_offset + offset, &mut data)
-                .map_err(error_to_status)?;
-            if read != length {
-                return Err(coded_status(
-                    afs_error::NODE_TRANSFER_CORRUPT_DATA,
-                    "local Chunk ended before the requested DFS range",
-                ));
-            }
+            let data = verified[offset as usize..offset as usize + length].to_vec();
             checksum.update(&data);
             send(dfs_read_ranges_frame::Body::Data(data))?;
             if let Some(metrics) = metrics {
@@ -3392,12 +3397,13 @@ fn read_packed_dfs_ranges(
     for op in &request.operations {
         let start = op.destination_offset as usize;
         let end = start + op.length as usize;
-        let reader = local
-            .open_verified(&crate::dfs::ChunkId::new(op.chunk_id.clone()))
-            .map_err(error_to_status)?;
         let range = &mut bytes[start..end];
-        if reader
-            .read_at(op.chunk_offset, range)
+        if local
+            .read_at(
+                &crate::dfs::ChunkId::new(op.chunk_id.clone()),
+                op.chunk_offset,
+                range,
+            )
             .map_err(error_to_status)?
             != range.len()
         {
@@ -4970,6 +4976,38 @@ mod tests {
                 }),
             }],
         }
+    }
+
+    #[cfg(feature = "dfs")]
+    #[test]
+    fn dfs_corrupt_range_publishes_no_grpc_frames_or_rdma_completions() {
+        use crate::node::chunk::{ChunkStore, StagedChunk};
+        let temp = tempfile::tempdir().unwrap();
+        let local = LocalChunkStore::open(temp.path(), "node").unwrap();
+        let staged = StagedChunk::new(crate::dfs::OperationId::new("corrupt"), vec![42; 150_000]);
+        local.put(staged.clone()).unwrap();
+        let path = temp.path().join("chunks").join(&staged.chunk.id.0);
+        let mut damaged = staged.bytes().to_vec();
+        damaged[149_999] ^= 1;
+        std::fs::write(path, damaged).unwrap();
+        let mut request = dfs_read_request(staged.chunk.id.0.clone(), 75_000);
+        request.operations[0].chunk_offset = 1;
+        validate_dfs_read_request(&request).unwrap();
+        let (sender, mut receiver) = tokio::sync::mpsc::channel(8);
+        assert_eq!(
+            stream_dfs_ranges(&local, &request, &sender, None)
+                .unwrap_err()
+                .code(),
+            tonic::Code::DataLoss
+        );
+        assert!(receiver.try_recv().is_err());
+        #[cfg(feature = "rdma")]
+        assert_eq!(
+            read_packed_dfs_ranges(&local, &request, 75_000)
+                .unwrap_err()
+                .code(),
+            tonic::Code::DataLoss
+        );
     }
 
     #[cfg(feature = "dfs")]

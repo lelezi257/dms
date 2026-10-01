@@ -1,0 +1,6 @@
+{
+  "original_result": "FAIL",
+  "classification": "HARNESS_OBSERVATION_RACE",
+  "evidence": "First cold A read returned correct B bytes and journal showed Quarantined3. Immediate REST still exposed the prior Completed repair; later actual A log reported Q3 and B log completed attempt2.",
+  "correction": "Fresh distinct payload/run, bound physical checksum + new inode + Q-to-Durable journal first, then restored Meta health. Reuse exact qualified Rust; do not rewrite original result."
+}

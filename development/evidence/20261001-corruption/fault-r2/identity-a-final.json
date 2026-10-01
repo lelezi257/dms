@@ -1,0 +1,44 @@
+{
+  "boot_id": "36a572e0-859b-4a94-adc7-789210a83fc8",
+  "config_sha256": {
+    "meta": "34d0e4288e20e8d2497c5e81c72ef8f7ee035be2855e2bef7e3cb250f9886637",
+    "node": "c2669ee558100693bc423fb493729d8ef5c06b4c3d83ffca67149599954370c9"
+  },
+  "data_volume": {
+    "fstype": "ext4",
+    "source": "/dev/vdb1",
+    "target": "/mnt/lima-afsadata"
+  },
+  "mounts": {
+    "mount-dfs": {
+      "fstype": "fuse",
+      "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other",
+      "source": "afs-dfs",
+      "target": "/mnt/lima-afsadata/afs-delivery/corrupt-v62-a/mount-dfs"
+    },
+    "mount-ownerfs": {
+      "fstype": "fuse",
+      "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other",
+      "source": "afs-ownerfs",
+      "target": "/mnt/lima-afsadata/afs-delivery/corrupt-v62-a/mount-ownerfs"
+    }
+  },
+  "platform": "Linux-6.8.0-142-generic-aarch64-with-glibc2.39",
+  "processes": {
+    "meta": {
+      "exe": "/mnt/lima-afsadata/afs-delivery/corrupt-v62-a/prefix/bin/afs-meta",
+      "pid": 727122,
+      "sha256": "d10d5683935aa70c2e8d3968be9818a83df9cb1267d1b9a29f6494a1d146865c",
+      "start_ticks": "7806618",
+      "state": "S"
+    },
+    "node": {
+      "exe": "/mnt/lima-afsadata/afs-delivery/corrupt-v62-a/prefix/bin/afs-node",
+      "pid": 728990,
+      "sha256": "6afabb84e1e830c0dca452557c50308b1cabc9f748fc31566fe3525fe1f3ea8f",
+      "start_ticks": "7815386",
+      "state": "S"
+    }
+  },
+  "runtime": "/mnt/lima-afsadata/afs-delivery/corrupt-v62-a"
+}

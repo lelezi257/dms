@@ -1,0 +1,5 @@
+9bd2fa7dc973590340d8b7674edcb27f9f41db1b475f930525e9e08c8fe6a930  /mnt/lima-afsadata/afs-delivery/owner-metrics-v73-a/prefix/bin/afs-meta
+e4647269edc913e9ae04f5df8089c1ef96799274e8e7449e014fedc8530fae49  /mnt/lima-afsadata/afs-delivery/owner-metrics-v73-a/prefix/bin/afs-node
+78949590bfdf12f6db0977ac5756702312e85e1d91c8f59903d4490222488f2b  /mnt/lima-afsadata/afs-delivery/owner-metrics-v73-a/prefix/bin/afs-processctl
+started meta pid=735525 ready=true
+started node pid=735706 ready=true

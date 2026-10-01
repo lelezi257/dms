@@ -1,0 +1,13 @@
+{
+  "prepared": "/mnt/lima-afsbdata/afs-delivery/owner-metrics-v73-b",
+  "volume": {
+    "target": "/mnt/lima-afsbdata",
+    "source": "/dev/vdb1",
+    "fstype": "ext4"
+  },
+  "ports": [
+    18884,
+    18885
+  ],
+  "available_bytes": 26132983808
+}

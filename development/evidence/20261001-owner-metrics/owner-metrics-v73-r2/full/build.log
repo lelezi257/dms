@@ -1,0 +1,4 @@
+   Compiling afs-transport v0.1.0 (/home/lzc.guest/afs-build/work/owner-metrics-v73-r2/common/transport)
+   Compiling fuser v0.16.0 (/home/lzc.guest/afs-build/work/owner-metrics-v73-r2/third_party/fuser)
+   Compiling afs v0.1.0 (/home/lzc.guest/afs-build/work/owner-metrics-v73-r2)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 19.19s

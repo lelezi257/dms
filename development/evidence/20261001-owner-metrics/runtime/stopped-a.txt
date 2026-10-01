@@ -1,0 +1,11 @@
+pid=735706
+exe=/mnt/lima-afsadata/afs-delivery/owner-metrics-v73-a/prefix/bin/afs-node
+config=/mnt/lima-afsadata/afs-delivery/owner-metrics-v73-a/etc/node.toml
+start_ticks=9370268
+boot_id=36a572e0-859b-4a94-adc7-789210a83fc8
+lifecycle=/mnt/lima-afsadata/afs-delivery/owner-metrics-v73-a/run/node.lifecycle.9rUDf6
+supervisor_pid=735690
+cmdline=/mnt/lima-afsadata/afs-delivery/owner-metrics-v73-a/prefix/bin/afs-node --config /mnt/lima-afsadata/afs-delivery/owner-metrics-v73-a/etc/node.toml
+/mnt/lima-afsadata/afs-delivery/owner-metrics-v73-a/run/node.lifecycle.9rUDf6
+node stopped exit_code=0
+meta stopped exit_code=0

@@ -372,6 +372,31 @@ fn owner_payload(len: usize) -> Vec<u8> {
 }
 
 #[cfg(feature = "rdma")]
+fn owner_payload_bytes(
+    registry: &afs_metrics::Registry,
+    side: &str,
+    direction: &str,
+    plane: &str,
+) -> u64 {
+    afs_metrics::encode_text(registry)
+        .expect("encode metrics")
+        .lines()
+        .find_map(|line| {
+            if line.starts_with("afs_ownerfiles_payload_bytes_total{")
+                && line.contains(&format!("side=\"{side}\""))
+                && line.contains(&format!("direction=\"{direction}\""))
+                && line.contains(&format!("plane=\"{plane}\""))
+            {
+                line.rsplit_once(' ')
+                    .and_then(|(_, value)| value.parse::<u64>().ok())
+            } else {
+                None
+            }
+        })
+        .unwrap_or(0)
+}
+
+#[cfg(feature = "rdma")]
 async fn owner_rdma_fixture(device: Option<String>, root_name: &str) -> OwnerRdmaFixture {
     owner_rdma_fixture_with_authority(device, root_name, ContractMeta::default()).await
 }
@@ -1156,17 +1181,27 @@ async fn ownerpeerclient_rdma_without_device_rejects_read_write_without_mutation
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn ownerpeerclient_auto_without_device_falls_back_before_rdma_dispatch() {
     let fixture = owner_rdma_fixture(None, "job-client-auto-none").await;
+    let registry = afs_metrics::Registry::new();
+    let metrics = afs::node::rpc::OwnerRpcMetrics::register(&registry).expect("Owner metrics");
     let result = tokio::task::spawn_blocking({
         let channel = fixture.channel.clone();
         let grant = fixture.grant.clone();
         let ctx = fixture.ctx.clone();
+        let metrics = metrics.clone();
+        let runtime = tokio::runtime::Handle::current();
         move || -> afs_error::Result<()> {
             let setup = owner_files_client_from_channel(channel.clone());
-            let auto = owner_files_client_from_channel(channel).with_data_transport(
-                ClientDataMode::Auto,
-                None,
-                Duration::from_millis(250),
-            );
+            let auto =
+                afs::node::rpc::peer::owner_files_client_from_channel_with_runtime_and_metrics(
+                    channel,
+                    runtime,
+                    Some(metrics),
+                )
+                .with_data_transport(
+                    ClientDataMode::Auto,
+                    None,
+                    Duration::from_millis(250),
+                );
             let root_parent = setup.lookup(&grant, OsStr::new(""), None)?.identity;
             let created = setup.create(
                 &ctx,
@@ -1196,6 +1231,10 @@ async fn ownerpeerclient_auto_without_device_falls_back_before_rdma_dispatch() {
     .await
     .expect("auto no-device client ops");
     result.expect("auto no-device client assertions");
+    assert_eq!(owner_payload_bytes(&registry, "client", "write", "grpc"), 4);
+    assert_eq!(owner_payload_bytes(&registry, "client", "read", "grpc"), 4);
+    assert_eq!(owner_payload_bytes(&registry, "client", "write", "rdma"), 0);
+    assert_eq!(owner_payload_bytes(&registry, "client", "read", "rdma"), 0);
     fixture.server.abort();
 }
 
@@ -1205,6 +1244,8 @@ async fn ownerpeerclient_auto_without_device_falls_back_before_rdma_dispatch() {
 async fn ownerpeerclient_rdma_large_write_fsync_cold_read_roundtrip_preserves_payload() {
     let device = rdma_device().expect("explicit RXE tests require AFS_TEST_RDMA_DEVICE");
     let fixture = owner_rdma_fixture(Some(device.clone()), "job-client-rdma").await;
+    let registry = afs_metrics::Registry::new();
+    let metrics = afs::node::rpc::OwnerRpcMetrics::register(&registry).expect("Owner metrics");
     let payload = owner_payload(4 * 1024 * 1024 + 17);
     let expected_hash = blake3::hash(&payload);
     let result = tokio::task::spawn_blocking({
@@ -1212,12 +1253,20 @@ async fn ownerpeerclient_rdma_large_write_fsync_cold_read_roundtrip_preserves_pa
         let grant = fixture.grant.clone();
         let ctx = fixture.ctx.clone();
         let payload = payload.clone();
+        let metrics = metrics.clone();
+        let runtime = tokio::runtime::Handle::current();
         move || -> afs_error::Result<(usize, usize, Vec<u8>)> {
-            let client = owner_files_client_from_channel(channel).with_data_transport(
-                ClientDataMode::Rdma,
-                Some(device),
-                Duration::from_secs(10),
-            );
+            let client =
+                afs::node::rpc::peer::owner_files_client_from_channel_with_runtime_and_metrics(
+                    channel,
+                    runtime,
+                    Some(metrics),
+                )
+                .with_data_transport(
+                    ClientDataMode::Rdma,
+                    Some(device),
+                    Duration::from_secs(10),
+                );
             let root_parent = client.lookup(&grant, OsStr::new(""), None)?.identity;
             let created = client.create(
                 &ctx,
@@ -1275,6 +1324,16 @@ async fn ownerpeerclient_rdma_large_write_fsync_cold_read_roundtrip_preserves_pa
     assert_eq!(result.1, expected_windows);
     assert_eq!(blake3::hash(&result.2), expected_hash);
     assert_eq!(result.2, payload);
+    assert_eq!(
+        owner_payload_bytes(&registry, "client", "write", "rdma"),
+        payload.len() as u64
+    );
+    assert_eq!(
+        owner_payload_bytes(&registry, "client", "read", "rdma"),
+        payload.len() as u64
+    );
+    assert_eq!(owner_payload_bytes(&registry, "client", "read", "grpc"), 0);
+    assert_eq!(owner_payload_bytes(&registry, "client", "write", "grpc"), 0);
     fixture.server.abort();
 }
 

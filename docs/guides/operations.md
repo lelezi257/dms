@@ -38,6 +38,29 @@ Backend and TLS options stay in TOML and are passed directly to `afs-meta` or `a
 
 Listen addresses and mount paths are read from single-line configuration values during controller preflight and readiness. Literal strings with single quotes and basic strings with double quotes can have trailing comments; spaces, `#` and `=` inside a quoted value are preserved. A parse error or out-of-range listen port fails before creating a managed launch. The [implementation status](../status.md) records remaining configuration syntax limits.
 
+## OwnerFs Peer Metrics
+
+Node exposes OwnerFs peer metrics from its process-owned registry:
+
+| Metric | Meaning |
+| --- | --- |
+| `afs_ownerfiles_rpc_duration_seconds` | Client method duration or Home handler duration; remote client read/write include data-plane negotiation, completion checks and transport close |
+| `afs_ownerfiles_payload_bytes_total` | Successfully completed logical file bytes, labeled by `side=client\|server`, `direction=read\|write` and `plane=grpc\|rdma` |
+
+Client read/write timings use `method=read` and `method=write`; server timings use
+`method=OwnerFiles.Read` and `method=OwnerFiles.Write`. Cache-only prefetch reads
+do not perform a Peer RPC and do not increment client RPC or payload metrics.
+Payload counters use actual completed lengths, including short I/O; EOF adds
+zero. Handshakes, control messages and invalid or failed completions add no
+successful file bytes. No inode, path, handle or session identity is a metric
+label.
+
+These counters measure successful logical operations at each endpoint, not
+physical wire traffic or RDMA completions. A server can finish before its reply
+is lost, while a client cannot acknowledge that uncertain outcome; retries can
+also create different endpoint totals. Correlate counters with errors, traces
+and actual verbs completion evidence when diagnosing transport behavior.
+
 ## Mounts
 
 Run OwnerFs and DFS as separate mounts. Each mount has its own FUSE session, inode table, handle table and cache policy.

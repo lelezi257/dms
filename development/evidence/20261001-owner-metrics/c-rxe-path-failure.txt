@@ -1,0 +1,7 @@
+Recorded orchestration failure (Linux command, before fresh runtime IO):
+limactl shell --workdir /tmp afs-accept-c sudo bash /mnt/lima-afscdata/afs-delivery/configure-rxe.sh
+exit_code=127
+bash: /mnt/lima-afscdata/afs-delivery/configure-rxe.sh: No such file or directory
+
+The unchanged repository script was subsequently copied to /tmp and run.
+runtime/c-rxe-restored.txt records the successful RXE observation.

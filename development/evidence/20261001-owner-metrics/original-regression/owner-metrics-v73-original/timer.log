@@ -1,0 +1,29 @@
+   Compiling afs-protocol v0.1.0 (/home/lzc.guest/afs-build/work/owner-metrics-v73-original/common/protocol)
+   Compiling afs-metrics v0.1.0 (/home/lzc.guest/afs-build/work/owner-metrics-v73-original/common/metrics)
+   Compiling afs-transport v0.1.0 (/home/lzc.guest/afs-build/work/owner-metrics-v73-original/common/transport)
+   Compiling afs-tracing v0.1.0 (/home/lzc.guest/afs-build/work/owner-metrics-v73-original/common/tracing)
+   Compiling afs-error v0.1.0 (/home/lzc.guest/afs-build/work/owner-metrics-v73-original/common/error)
+   Compiling fuser v0.16.0 (/home/lzc.guest/afs-build/work/owner-metrics-v73-original/third_party/fuser)
+   Compiling afs-logging v0.1.0 (/home/lzc.guest/afs-build/work/owner-metrics-v73-original/common/logging)
+   Compiling afs-client v0.1.0 (/home/lzc.guest/afs-build/work/owner-metrics-v73-original/client)
+   Compiling afs v0.1.0 (/home/lzc.guest/afs-build/work/owner-metrics-v73-original)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 25.30s
+     Running unittests src/lib.rs (/home/lzc.guest/afs-build/target/debug/deps/afs-586e1b701367e588)
+
+running 1 test
+
+thread 'node::rpc::peer::tests::owner_rdma_missing_device_errors_are_counted_by_client_timer' (8351) panicked at src/node/rpc/peer.rs:4341:9:
+assertion `left == right` failed
+  left: 0
+ right: 1
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test node::rpc::peer::tests::owner_rdma_missing_device_errors_are_counted_by_client_timer ... FAILED
+
+failures:
+
+failures:
+    node::rpc::peer::tests::owner_rdma_missing_device_errors_are_counted_by_client_timer
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 405 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `--lib`

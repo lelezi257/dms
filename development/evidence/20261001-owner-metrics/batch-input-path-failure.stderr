@@ -1,0 +1,5 @@
+Traceback (most recent call last):
+  File "/tmp/owner-metrics-v73-batch/owner-metrics-v73/audit_batch.py", line 15, in <module>
+    assert len(host) == frozen['file_count'] == 143
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError

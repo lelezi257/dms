@@ -3244,6 +3244,7 @@ async fn owner_rdma_write_from_client(
             worker.poisoned.store(true, Ordering::SeqCst);
             return Err(error);
         }
+        let request_len = request.length;
         request.data = data;
         request.plane = Some(DataPlane {
             transfer: DataTransfer::GrpcInline.into(),
@@ -3257,6 +3258,13 @@ async fn owner_rdma_write_from_client(
                 return Err(error);
             }
         };
+        if reply.written > request_len {
+            worker.poisoned.store(true, Ordering::SeqCst);
+            return Err(coded_status(
+                afs_error::NODE_TRANSFER_INVALID,
+                "OwnerFiles RDMA write reply count exceeds request length",
+            ));
+        }
         guard.disarm();
         Ok(reply)
     })
@@ -3544,6 +3552,7 @@ impl OwnerFiles for OwnerFilesService {
             let checksum = checksum_blake3(&reply.data);
             owner_rdma_write_to_client(session, reply.data).await?;
             if let Some(metrics) = &self.metrics {
+                metrics.record_payload("server", "read", "rdma", reply.read as u64);
                 metrics.observe("server", operation, started.elapsed());
             }
             rpc_guard.disarm();
@@ -3575,6 +3584,7 @@ impl OwnerFiles for OwnerFilesService {
         })?
         .map_err(error_to_status)?;
         if let Some(metrics) = &self.metrics {
+            metrics.record_payload("server", "read", "grpc", reply.read as u64);
             metrics.observe("server", operation, started.elapsed());
         }
         Ok(Response::new(reply))
@@ -3633,6 +3643,7 @@ impl OwnerFiles for OwnerFilesService {
             let started = std::time::Instant::now();
             let reply = owner_rdma_write_from_client(session, handler, peer, request).await?;
             if let Some(metrics) = &self.metrics {
+                metrics.record_payload("server", "write", "rdma", reply.written as u64);
                 metrics.observe("server", operation, started.elapsed());
             }
             rpc_guard.disarm();
@@ -3645,6 +3656,7 @@ impl OwnerFiles for OwnerFilesService {
         } else if !request.data_checksum.is_empty() {
             verify_owner_checksum(&request.data, &request.data_checksum)?;
         }
+        let request_length = request.length;
         let started = std::time::Instant::now();
         let reply = tokio::task::spawn_blocking(move || handler.write(&peer, request))
             .await
@@ -3655,7 +3667,14 @@ impl OwnerFiles for OwnerFilesService {
                 )
             })?
             .map_err(error_to_status)?;
+        if reply.written > request_length {
+            return Err(coded_status(
+                afs_error::NODE_TRANSFER_INVALID,
+                "OwnerFiles inline write reply count exceeds request length",
+            ));
+        }
         if let Some(metrics) = &self.metrics {
+            metrics.record_payload("server", "write", "grpc", reply.written as u64);
             metrics.observe("server", operation, started.elapsed());
         }
         Ok(Response::new(reply))

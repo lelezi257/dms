@@ -25,6 +25,22 @@ The [delivery acceptance contract](acceptance.md) requires JuiceFS default same-
 
 ## Current Validation Checkpoint
 
+The [Owner transport observability batch](../development/evidence/20261001-owner-metrics/README.md)
+passes the r2 Linux source gate: 407 library tests, 65 contracts, four shared
+errors, nine local API and five actual privileged FUSE tests, formatting, strict
+workspace Clippy, five feature configurations and binary builds. Required-RDMA
+failure timing, actual successful byte lengths, malformed replies, cache hits
+and Auto fallback have focused regressions. Fresh Linux binaries pass an RXE
+OwnerPeerClient fixture and an A/B production FUSE flow with 4 MiB + 17 bytes,
+two B cold restarts and a 4 KiB patch. Both endpoints' bounded logical payload
+counters and client read/write timing match the observed process incarnations;
+A's actual DMA completion logs independently match the transferred bytes.
+Seven probe and ten evidence checks pass. Original failures are retained.
+The new processes exit normally. Native lifetime implementation is unchanged;
+this healthy integration does not qualify cancellation, provider faults,
+backend parity, performance or formal acceptance. ENV remains PREPARING and
+all 69 formal cases remain NOT_RUN.
+
 The [OwnerFs RDMA batch](../development/evidence/20261001-owner-rdma/README.md)
 passes the complete r5 Linux source gate: 403 library tests, 65 interface
 contracts, four shared-error tests, nine local API tests and five privileged
@@ -47,8 +63,8 @@ and seven evidence rejection checks pass; the unchanged source gate is reused.
 Both new Nodes and Meta exit normally, leaving no mounts or observed owned
 verbs resources. These idle/post-exit observations do not qualify peak bounds,
 cancellation, exceptional provider teardown, Home faults or Meta recovery.
-Owner RDMA client read/write bypass the existing RPC timing metric, and Owner
-payloads have no dedicated Prometheus counter; observability remains open.
+That frozen candidate bypasses client read/write timing and lacks Owner payload
+counters; the separately identified observability batch above closes this gap.
 The formal lock remains PREPARING and all 69 cases NOT_RUN.
 
 The [verbs environment consumer](../development/evidence/20261001-verbs-predicate/README.md)

@@ -1912,9 +1912,9 @@ enum DataPeerClientInner {
 
 /// OwnerFs 的 node-to-node 文件客户端。
 ///
-/// 它实现 `RemoteFiles`，供非 Home 节点把根内文件操作转发到 Home。当前只启用
-/// gRPC inline 数据路径；RDMA one-sided 需要 OwnerFiles 专用的数据窗口协商，
-/// 不能直接复用 diagnostics `NodeData` 会话。
+/// 它实现 `RemoteFiles`，供非 Home 节点把根内文件操作转发到 Home。read/write
+/// 可以使用 gRPC inline 或 OwnerFiles 专用的 one-sided RDMA 数据窗口；不能直接
+/// 复用 diagnostics `NodeData` 会话。
 #[cfg(feature = "ownerfs")]
 pub struct OwnerPeerClient {
     client: StdMutex<OwnerFilesClient<Channel>>,
@@ -3095,56 +3095,73 @@ impl RemoteFiles for OwnerPeerClient {
             out[..end - start].copy_from_slice(&bytes[start..end]);
             return Ok(end - start);
         }
-        if !out.is_empty() && matches!(self.data_mode, DataMode::Rdma | DataMode::Auto) {
-            let negotiated = self.runtime.block_on(self.negotiate_owner_rdma(grant));
-            match (self.data_mode, negotiated) {
-                (_, Ok(window)) => {
-                    return self
-                        .runtime
-                        .block_on(
+        let started = std::time::Instant::now();
+        let result = (|| -> PeerResult<usize> {
+            if !out.is_empty() && matches!(self.data_mode, DataMode::Rdma | DataMode::Auto) {
+                let negotiated = self.runtime.block_on(self.negotiate_owner_rdma(grant));
+                match (self.data_mode, negotiated) {
+                    (_, Ok(window)) => {
+                        let read = self.runtime.block_on(
                             self.owner_read_with_rdma_window(window, grant, file, offset, out),
-                        )
-                        .map_err(|error| error.0);
+                        )?;
+                        if let Some(metrics) = &self.metrics {
+                            metrics.record_payload("client", "read", "rdma", read as u64);
+                        }
+                        return Ok(read);
+                    }
+                    (DataMode::Rdma, Err(error)) => return Err(error),
+                    (DataMode::Auto, Err(error))
+                        if error.code() == afs_error::NODE_TRANSFER_UNSUPPORTED =>
+                    {
+                        afs_logging::warn!(
+                            "ownerfs.rdma_read_fallback";
+                            "code" => error.code().to_string(),
+                            "error" => error.to_string()
+                        );
+                    }
+                    (DataMode::Auto, Err(error)) => return Err(error),
+                    (DataMode::Grpc, _) => unreachable!("checked above"),
                 }
-                (DataMode::Rdma, Err(error)) => return Err(error.0),
-                (DataMode::Auto, Err(error))
-                    if error.code() == afs_error::NODE_TRANSFER_UNSUPPORTED =>
-                {
-                    afs_logging::warn!(
-                        "ownerfs.rdma_read_fallback";
-                        "code" => error.code().to_string(),
-                        "error" => error.to_string()
-                    );
-                }
-                (DataMode::Auto, Err(error)) => return Err(error.0),
-                (DataMode::Grpc, _) => unreachable!("checked above"),
             }
-        }
-        let length = out.len();
-        let reply = owner_rpc!(
-            self,
-            read,
-            OwnerReadRequest {
-                access: Some(root_access(grant)),
-                handle: Some(file_handle(file)),
-                offset,
-                length: length as u32,
-                plane: Some(grpc_plane()),
+            let length = out.len();
+            let mut client = self.cloned_client()?;
+            let reply = self.runtime.block_on(async move {
+                client
+                    .read(request_with_current_context(OwnerReadRequest {
+                        access: Some(root_access(grant)),
+                        handle: Some(file_handle(file)),
+                        offset,
+                        length: length as u32,
+                        plane: Some(grpc_plane()),
+                    }))
+                    .await
+                    .map_err(PeerError::from)
+                    .map(|reply| reply.into_inner())
+            })?;
+            if reply.read as usize != reply.data.len() || reply.data.len() > length {
+                return Err(PeerError::coded(
+                    afs_error::CLIENT_PROTOCOL_VIOLATION,
+                    "OwnerReadReply shape mismatch",
+                ));
             }
-        );
-        if reply.read as usize != reply.data.len() || reply.data.len() > length {
-            return Err(protocol_error("OwnerReadReply shape mismatch"));
+            if !reply.data_checksum.is_empty()
+                && blake3::hash(&reply.data).as_bytes().as_slice() != reply.data_checksum.as_slice()
+            {
+                return Err(PeerError::coded(
+                    afs_error::NODE_TRANSFER_CORRUPT_DATA,
+                    "OwnerReadReply checksum mismatch",
+                ));
+            }
+            out[..reply.data.len()].copy_from_slice(&reply.data);
+            if let Some(metrics) = &self.metrics {
+                metrics.record_payload("client", "read", "grpc", reply.data.len() as u64);
+            }
+            Ok(reply.data.len())
+        })();
+        if let Some(metrics) = &self.metrics {
+            metrics.observe("client", "read", started.elapsed());
         }
-        if !reply.data_checksum.is_empty()
-            && blake3::hash(&reply.data).as_bytes().as_slice() != reply.data_checksum.as_slice()
-        {
-            return Err(afs_error::Error::coded(
-                afs_error::NODE_TRANSFER_CORRUPT_DATA,
-                "OwnerReadReply checksum mismatch",
-            ));
-        }
-        out[..reply.data.len()].copy_from_slice(&reply.data);
-        Ok(reply.data.len())
+        result.map_err(|error| error.0)
     }
 
     fn write_with_options(
@@ -3156,56 +3173,71 @@ impl RemoteFiles for OwnerPeerClient {
         options: WriteOptions,
     ) -> afs_error::Result<usize> {
         validate_length(data.len()).map_err(|error| error.0)?;
-        if !data.is_empty() && matches!(self.data_mode, DataMode::Rdma | DataMode::Auto) {
-            let negotiated = self.runtime.block_on(self.negotiate_owner_rdma(grant));
-            match (self.data_mode, negotiated) {
-                (_, Ok(window)) => {
-                    return self
-                        .runtime
-                        .block_on(self.owner_write_with_rdma_window(
+        let started = std::time::Instant::now();
+        let result = (|| -> PeerResult<usize> {
+            if !data.is_empty() && matches!(self.data_mode, DataMode::Rdma | DataMode::Auto) {
+                let negotiated = self.runtime.block_on(self.negotiate_owner_rdma(grant));
+                match (self.data_mode, negotiated) {
+                    (_, Ok(window)) => {
+                        let written = self.runtime.block_on(self.owner_write_with_rdma_window(
                             window, grant, file, offset, data, options,
-                        ))
-                        .map_err(|error| error.0);
+                        ))?;
+                        if let Some(metrics) = &self.metrics {
+                            metrics.record_payload("client", "write", "rdma", written as u64);
+                        }
+                        return Ok(written);
+                    }
+                    (DataMode::Rdma, Err(error)) => return Err(error),
+                    (DataMode::Auto, Err(error))
+                        if error.code() == afs_error::NODE_TRANSFER_UNSUPPORTED =>
+                    {
+                        afs_logging::warn!(
+                            "ownerfs.rdma_write_fallback";
+                            "code" => error.code().to_string(),
+                            "error" => error.to_string()
+                        );
+                    }
+                    (DataMode::Auto, Err(error)) => return Err(error),
+                    (DataMode::Grpc, _) => unreachable!("checked above"),
                 }
-                (DataMode::Rdma, Err(error)) => return Err(error.0),
-                (DataMode::Auto, Err(error))
-                    if error.code() == afs_error::NODE_TRANSFER_UNSUPPORTED =>
-                {
-                    afs_logging::warn!(
-                        "ownerfs.rdma_write_fallback";
-                        "code" => error.code().to_string(),
-                        "error" => error.to_string()
-                    );
-                }
-                (DataMode::Auto, Err(error)) => return Err(error.0),
-                (DataMode::Grpc, _) => unreachable!("checked above"),
             }
-        }
-        let len = data.len();
-        let reply = owner_rpc!(
-            self,
-            write,
-            OwnerWriteRequest {
-                access: Some(root_access(grant)),
-                handle: Some(file_handle(file)),
-                offset,
-                data: data.to_vec(),
-                length: len as u32,
-                plane: Some(grpc_plane()),
-                kill_suidgid: options.kill_suidgid,
-                data_checksum: if data.is_empty() {
-                    Vec::new()
-                } else {
-                    blake3::hash(data).as_bytes().to_vec()
-                },
+            let len = data.len();
+            let mut client = self.cloned_client()?;
+            let reply = self.runtime.block_on(async move {
+                client
+                    .write(request_with_current_context(OwnerWriteRequest {
+                        access: Some(root_access(grant)),
+                        handle: Some(file_handle(file)),
+                        offset,
+                        data: data.to_vec(),
+                        length: len as u32,
+                        plane: Some(grpc_plane()),
+                        kill_suidgid: options.kill_suidgid,
+                        data_checksum: if data.is_empty() {
+                            Vec::new()
+                        } else {
+                            blake3::hash(data).as_bytes().to_vec()
+                        },
+                    }))
+                    .await
+                    .map_err(PeerError::from)
+                    .map(|reply| reply.into_inner())
+            })?;
+            if reply.written as usize > len {
+                return Err(PeerError::coded(
+                    afs_error::CLIENT_PROTOCOL_VIOLATION,
+                    "OwnerWriteReply count exceeds request length",
+                ));
             }
-        );
-        if reply.written as usize > len {
-            return Err(protocol_error(
-                "OwnerWriteReply count exceeds request length",
-            ));
+            if let Some(metrics) = &self.metrics {
+                metrics.record_payload("client", "write", "grpc", reply.written as u64);
+            }
+            Ok(reply.written as usize)
+        })();
+        if let Some(metrics) = &self.metrics {
+            metrics.observe("client", "write", started.elapsed());
         }
-        Ok(reply.written as usize)
+        result.map_err(|error| error.0)
     }
 
     fn flush(&self, grant: &RootGrant, file: &RemoteFile) -> afs_error::Result<()> {
@@ -4145,6 +4177,7 @@ mod tests {
     #[cfg(feature = "ownerfs")]
     use crate::node::rpc::data::{
         OwnerFilesHandler, PeerAuthenticator, make_owner_files_server_with_handler,
+        make_owner_files_server_with_handler_and_metrics,
     };
     #[cfg(feature = "ownerfs")]
     use crate::node::vfs::ownerfs::{
@@ -4152,11 +4185,13 @@ mod tests {
         remote::RemoteFiles,
         root::{RootGrant, RootId, RootRight},
     };
-    #[cfg(feature = "ownerfs")]
-    use afs_protocol::node_data::OwnerReleaseReply;
     use afs_protocol::node_data::{
         DataReadReply, DataWriteReply,
         node_data_server::{NodeData, NodeDataServer},
+    };
+    #[cfg(feature = "ownerfs")]
+    use afs_protocol::node_data::{
+        OwnerReadReply, OwnerReadRequest, OwnerReleaseReply, OwnerWriteReply, OwnerWriteRequest,
     };
     #[cfg(feature = "ownerfs")]
     use std::sync::atomic::{AtomicUsize as TestAtomicUsize, Ordering as TestOrdering};
@@ -4313,6 +4348,124 @@ mod tests {
         assert_eq!(error.code(), afs_error::NODE_RDMA_CAPACITY);
     }
 
+    #[cfg(all(feature = "ownerfs", feature = "rdma"))]
+    #[tokio::test]
+    async fn owner_rdma_missing_device_errors_are_counted_by_client_timer() {
+        let registry = afs_metrics::Registry::new();
+        let metrics = crate::node::rpc::OwnerRpcMetrics::register(&registry).unwrap();
+        let channel = Endpoint::from_static("http://127.0.0.1:1").connect_lazy();
+        let client = owner_files_client_from_channel_with_runtime_and_metrics(
+            channel,
+            tokio::runtime::Handle::current(),
+            Some(metrics),
+        )
+        .with_data_transport(DataMode::Rdma, None, Duration::from_millis(1));
+        let grant = test_grant();
+        let file = test_remote_file(b"handle-rdma-missing".to_vec());
+
+        tokio::task::spawn_blocking(move || {
+            let mut one = [0_u8; 1];
+            let read = client.read(&grant, &file, 0, &mut one).unwrap_err();
+            assert_eq!(read.code(), afs_error::NODE_TRANSFER_UNSUPPORTED);
+            let write = client.write(&grant, &file, 0, b"x").unwrap_err();
+            assert_eq!(write.code(), afs_error::NODE_TRANSFER_UNSUPPORTED);
+        })
+        .await
+        .expect("missing-device regression worker");
+
+        assert_eq!(owner_rpc_histogram_count(&registry, "client", "read"), 1);
+        assert_eq!(owner_rpc_histogram_count(&registry, "client", "write"), 1);
+    }
+
+    #[cfg(feature = "ownerfs")]
+    #[tokio::test]
+    async fn owner_grpc_payload_bytes_count_successful_logical_bytes() {
+        let registry = afs_metrics::Registry::new();
+        let metrics = crate::node::rpc::OwnerRpcMetrics::register(&registry).unwrap();
+        let handler = std::sync::Arc::new(PayloadMetricsHandler::success());
+        let (channel, server) = spawn_owner_payload_server(handler, metrics.clone()).await;
+        let client = owner_files_client_from_channel_with_runtime_and_metrics(
+            channel,
+            tokio::runtime::Handle::current(),
+            Some(metrics),
+        );
+        let grant = test_grant();
+        let file = test_remote_file(b"handle-payload".to_vec());
+
+        tokio::task::spawn_blocking(move || {
+            let mut out = [0_u8; 8];
+            assert_eq!(client.read(&grant, &file, 0, &mut out).unwrap(), 3);
+            assert_eq!(&out[..3], b"abc");
+            assert_eq!(client.write(&grant, &file, 0, b"hello").unwrap(), 2);
+        })
+        .await
+        .expect("payload metrics worker");
+
+        assert_eq!(owner_payload_bytes(&registry, "client", "read", "grpc"), 3);
+        assert_eq!(owner_payload_bytes(&registry, "server", "read", "grpc"), 3);
+        assert_eq!(owner_payload_bytes(&registry, "client", "write", "grpc"), 2);
+        assert_eq!(owner_payload_bytes(&registry, "server", "write", "grpc"), 2);
+        server.abort();
+    }
+
+    #[cfg(feature = "ownerfs")]
+    #[tokio::test]
+    async fn owner_grpc_malformed_replies_do_not_count_successful_payload_bytes() {
+        let registry = afs_metrics::Registry::new();
+        let metrics = crate::node::rpc::OwnerRpcMetrics::register(&registry).unwrap();
+        let handler = std::sync::Arc::new(PayloadMetricsHandler::malformed());
+        let (channel, server) = spawn_owner_payload_server(handler, metrics.clone()).await;
+        let client = owner_files_client_from_channel_with_runtime_and_metrics(
+            channel,
+            tokio::runtime::Handle::current(),
+            Some(metrics),
+        );
+        let grant = test_grant();
+        let file = test_remote_file(b"handle-payload-bad".to_vec());
+
+        tokio::task::spawn_blocking(move || {
+            let mut out = [0_u8; 8];
+            let read = client.read(&grant, &file, 0, &mut out).unwrap_err();
+            assert_eq!(read.code(), afs_error::NODE_TRANSFER_INVALID);
+            let write = client.write(&grant, &file, 0, b"abc").unwrap_err();
+            assert_eq!(write.code(), afs_error::NODE_TRANSFER_INVALID);
+        })
+        .await
+        .expect("malformed payload metrics worker");
+
+        for side in ["client", "server"] {
+            assert_eq!(owner_payload_bytes(&registry, side, "read", "grpc"), 0);
+            assert_eq!(owner_payload_bytes(&registry, side, "write", "grpc"), 0);
+        }
+        server.abort();
+    }
+
+    #[cfg(feature = "ownerfs")]
+    #[tokio::test]
+    async fn owner_prefetch_cache_hits_do_not_count_as_client_rpc_or_payload() {
+        let registry = afs_metrics::Registry::new();
+        let metrics = crate::node::rpc::OwnerRpcMetrics::register(&registry).unwrap();
+        let channel = Endpoint::from_static("http://127.0.0.1:1").connect_lazy();
+        let client = owner_files_client_from_channel_with_runtime_and_metrics(
+            channel,
+            tokio::runtime::Handle::current(),
+            Some(metrics),
+        );
+        let grant = test_grant();
+        let file = test_remote_file(b"prefetched-handle".to_vec());
+        client
+            .prefetched_reads
+            .lock()
+            .unwrap()
+            .insert(file.handle.clone(), b"cached".to_vec());
+
+        let mut out = [0_u8; 6];
+        assert_eq!(client.read(&grant, &file, 0, &mut out).unwrap(), 6);
+        assert_eq!(&out, b"cached");
+        assert_eq!(owner_rpc_histogram_count(&registry, "client", "read"), 0);
+        assert_eq!(owner_payload_bytes(&registry, "client", "read", "grpc"), 0);
+    }
+
     #[cfg(feature = "rdma")]
     #[test]
     fn cancellation_guard_poisons_unfinished_session_and_disarm_preserves_it() {
@@ -4359,6 +4512,71 @@ mod tests {
     enum ReleaseFailureMode {
         Transient { remaining: TestAtomicUsize },
         Stale,
+    }
+
+    #[cfg(feature = "ownerfs")]
+    enum PayloadMetricsMode {
+        Success,
+        Malformed,
+    }
+
+    #[cfg(feature = "ownerfs")]
+    struct PayloadMetricsHandler {
+        mode: PayloadMetricsMode,
+    }
+
+    #[cfg(feature = "ownerfs")]
+    impl PayloadMetricsHandler {
+        fn success() -> Self {
+            Self {
+                mode: PayloadMetricsMode::Success,
+            }
+        }
+
+        fn malformed() -> Self {
+            Self {
+                mode: PayloadMetricsMode::Malformed,
+            }
+        }
+    }
+
+    #[cfg(feature = "ownerfs")]
+    impl OwnerFilesHandler for PayloadMetricsHandler {
+        fn read(
+            &self,
+            peer: &str,
+            _request: OwnerReadRequest,
+        ) -> afs_error::Result<OwnerReadReply> {
+            assert_eq!(peer, "node-b");
+            match self.mode {
+                PayloadMetricsMode::Success => Ok(OwnerReadReply {
+                    data: b"abc".to_vec(),
+                    read: 3,
+                    eof: true,
+                    data_checksum: Vec::new(),
+                }),
+                PayloadMetricsMode::Malformed => Ok(OwnerReadReply {
+                    data: b"abc".to_vec(),
+                    read: 4,
+                    eof: false,
+                    data_checksum: Vec::new(),
+                }),
+            }
+        }
+
+        fn write(
+            &self,
+            peer: &str,
+            request: OwnerWriteRequest,
+        ) -> afs_error::Result<OwnerWriteReply> {
+            assert_eq!(peer, "node-b");
+            match self.mode {
+                PayloadMetricsMode::Success => Ok(OwnerWriteReply { written: 2 }),
+                PayloadMetricsMode::Malformed => Ok(OwnerWriteReply {
+                    written: request.length + 1,
+                }),
+            }
+        }
     }
 
     #[cfg(feature = "ownerfs")]
@@ -4460,6 +4678,80 @@ mod tests {
             .await
             .unwrap();
         (channel, server)
+    }
+
+    #[cfg(feature = "ownerfs")]
+    async fn spawn_owner_payload_server(
+        handler: std::sync::Arc<PayloadMetricsHandler>,
+        metrics: crate::node::rpc::OwnerRpcMetrics,
+    ) -> (Channel, tokio::task::JoinHandle<()>) {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let endpoint = format!("http://{}", listener.local_addr().unwrap());
+        let server = tokio::spawn(async move {
+            Server::builder()
+                .add_service(make_owner_files_server_with_handler_and_metrics(
+                    handler,
+                    std::sync::Arc::new(AllowPeer),
+                    metrics,
+                ))
+                .serve_with_incoming(TcpListenerStream::new(listener))
+                .await
+                .unwrap();
+        });
+        let channel = Endpoint::from_shared(endpoint)
+            .unwrap()
+            .connect()
+            .await
+            .unwrap();
+        (channel, server)
+    }
+
+    #[cfg(feature = "ownerfs")]
+    fn owner_rpc_histogram_count(
+        registry: &afs_metrics::Registry,
+        side: &str,
+        method: &str,
+    ) -> u64 {
+        afs_metrics::encode_text(registry)
+            .unwrap()
+            .lines()
+            .find_map(|line| {
+                if line.starts_with("afs_ownerfiles_rpc_duration_seconds_count{")
+                    && line.contains(&format!("side=\"{side}\""))
+                    && line.contains(&format!("method=\"{method}\""))
+                {
+                    line.rsplit_once(' ')
+                        .and_then(|(_, value)| value.parse::<u64>().ok())
+                } else {
+                    None
+                }
+            })
+            .unwrap_or(0)
+    }
+
+    #[cfg(feature = "ownerfs")]
+    fn owner_payload_bytes(
+        registry: &afs_metrics::Registry,
+        side: &str,
+        direction: &str,
+        plane: &str,
+    ) -> u64 {
+        afs_metrics::encode_text(registry)
+            .unwrap()
+            .lines()
+            .find_map(|line| {
+                if line.starts_with("afs_ownerfiles_payload_bytes_total{")
+                    && line.contains(&format!("side=\"{side}\""))
+                    && line.contains(&format!("direction=\"{direction}\""))
+                    && line.contains(&format!("plane=\"{plane}\""))
+                {
+                    line.rsplit_once(' ')
+                        .and_then(|(_, value)| value.parse::<u64>().ok())
+                } else {
+                    None
+                }
+            })
+            .unwrap_or(0)
     }
 
     #[cfg(feature = "ownerfs")]

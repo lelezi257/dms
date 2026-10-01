@@ -13,7 +13,7 @@ use std::{
         fd::{AsRawFd, FromRawFd, RawFd},
         unix::{ffi::OsStrExt, fs::MetadataExt},
     },
-    sync::{Mutex, MutexGuard},
+    sync::{Arc, Mutex, MutexGuard},
 };
 
 const OPEN_TREE_CLONE: u32 = 1;
@@ -39,6 +39,7 @@ struct Prepared {
     covered_unique_mount_id: u64,
     policy: MountPolicy,
     attached: Option<MountIdentity>,
+    _home_authority: Option<Arc<super::HomeExportAuthority>>,
 }
 
 pub struct LinuxMountBackend {
@@ -134,9 +135,53 @@ impl LinuxMountBackend {
                 covered_unique_mount_id,
                 policy,
                 attached: None,
+                _home_authority: None,
             },
         );
         Ok(())
+    }
+
+    /// Prepare from the issuing Home's exact pinned source, never a caller's
+    /// source pathname. Parent is a trusted, exclusively managed deployment
+    /// descriptor; this method does not authenticate an arbitrary parent or
+    /// qualify the final Agent namespace. Keep the metadata anchor until normal
+    /// teardown and release_prepared (or controller shutdown) have completed.
+    pub fn prepare_for_home(
+        &self,
+        owner: &crate::node::vfs::ownerfs::OwnerFs,
+        authority: &Arc<super::HomeExportAuthority>,
+        parent: File,
+        policy: MountPolicy,
+    ) -> afs_error::Result<WorkspaceMount> {
+        authority.verify_current(owner)?;
+        self.check_namespace()?;
+        if authority.identity().namespace != self.namespace {
+            return Err(errno(libc::ESTALE).into());
+        }
+        let name = CString::new(authority.name().as_bytes()).map_err(|_| errno(libc::EINVAL))?;
+        let target = open_child(&parent, &name)?;
+        let spec = WorkspaceMount {
+            identity: authority.identity().clone(),
+            source: authority.source_identity(),
+            target: directory_identity(&target)?,
+        };
+        drop(target);
+        self.prepare(
+            spec.clone(),
+            authority.source_descriptor()?,
+            parent,
+            authority.name(),
+            policy,
+        )?;
+        {
+            let mut entries = lock(&self.prepared)?;
+            get_mut(&mut entries, &spec)?._home_authority = Some(authority.clone());
+        }
+        if let Err(error) = authority.verify_current(owner) {
+            let _ = self.release_prepared(&spec);
+            return Err(error);
+        }
+        Ok(spec)
     }
 
     /// Release pinned preparation descriptors only after the export is absent.
@@ -228,6 +273,7 @@ impl LinuxMountBackend {
                 covered_unique_mount_id,
                 policy,
                 attached: None,
+                _home_authority: None,
             },
         );
         // Not owned yet: the controller must explicitly reobserve and adopt

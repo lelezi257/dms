@@ -4,20 +4,77 @@ Issue: https://github.com/lelezi257/dms/issues/42. Plan: `native-bind-plan.md`.
 
 This is an intermediate slice, not feature completion, product acceptance or performance qualification. It does not enable native exports in Node. Default configuration does not enable native admission. The optional hint hook remains inert without a sink; ordinary directory identity refresh now reconciles cached descendants after an external move. Node/FUSE/P2P integration, cross-path locks/cache/mmap, full Node/Agent lifecycle recovery and ext4 performance comparison remain outstanding.
 
+## Current checkpoint: revoked Home authority and normal teardown (2026-10-01)
+
+Source parent is `034a188dfc40495d941f6756bc6d616344248092`; the tested dirty
+inputs are preserved in external snapshot
+`native-home-authority-candidate-20261001T060529`. The current default-feature
+VM binary is `ownerfs_native_linux-79c664a798ade2c9`, SHA256
+`78b2f290b70cb26a75a863f0878a20fa2eb4f7af4c328d046bce6087a583d504`.
+This checkpoint remains a foundation slice, not production feature completion.
+
+- Default-feature library:374 PASS/1 existing ignored. All-feature library:
+  376 PASS/2 existing ignored. Strict workspace/all-target/all-feature Clippy
+  and final fmt check PASS. The separate default-feature native controller,
+  event, journal and transaction suites record45 PASS in
+  `native-home-anchor-contracts.log`. Whole-project/workspace failures recorded below
+  remain failures; this targeted verification does not qualify their remainder.
+- Real VM paired Home-authority case:
+  `directory-20261001T060722-20345151`, both mode0 ordinary-policy rejection and
+  mode1 native lifecycle PASS. Revoke rejects old FUSE file reads and new
+  native admission. With a held native fd, normal unmount returns EBUSY and
+  the physical mount stays present. After that fd closes, normal detach succeeds,
+  backing bytes remain unchanged, and released metadata anchors no longer
+  expose the revoked Root. Native fds themselves are not revoked by RootGrant;
+  actual Agent process fencing still needs independent implementation/validation.
+- All17 classified foundation cases PASS, each in its own private VM namespace:
+  `foundation-20261001T060800-c10c83fd`. Seven historical stronger-directory
+  diagnostics are explicitly NOT_RUN, not relabeled as passes. Independent
+  raw-archive inspection verifies17 unchanged parent mountinfo pairs and17
+  empty disposable-data directories. Archive SHA256:
+  `d47f76909efcdaf13565c75ffd35bf6784f3bd1cc597137f1538f9d33eacb921`.
+
+The new source-bound preparation API uses the opaque permit's actual source
+fd and retains its metadata anchor in the Linux prepared record. Positive
+Root lookup/getattr metadata remains available only while management retains
+that anchor. It does not confer data rights, peer admission, a native lease,
+or permission to reclaim backing. Native-eligible local file operations capture
+Home authority on open and re-admit on read/write/fd metadata/truncate, comparing
+Root/epoch/Home/holder sessions, generation and fencing token. The admission
+remains in flight through I/O. Previously accepted dirty bytes may still be
+synced during retirement, and handles can be released. Ordinary OwnerFs/DFS
+behavior stays on its existing policy.
+
+Behavior REDs are preserved: `directory-20261001T053718-f8a77ce3` and
+`directory-20261001T054658-bb3a8eb6` show Root revocation followed by FUSE
+revalidation losing the submount implicitly; held native references survive.
+The first anchor fix, `directory-20261001T055207-9be8dac9`, retains the busy
+mount and allows normal teardown but FAILS because old FUSE reads still work.
+`native-home-anchor-data-red.log` independently reproduces that read denial
+assertion before the fix. Earlier malformed-test compiler failures are retained
+separately and are not behavior REDs. Three new library regressions cover root
+metadata anchor release, rejected read/write/metadata/truncate with successful
+retirement flush/fsync/release, and retired authority identity rejection.
+
+Production Node/Agent namespace readiness, POSIX-lock ownership decision and
+implementation, actual network P2P/mmap, full deletion/reclaim/switch/fencing,
+boot/namespace/daemon recovery and paired native-ext4 performance remain open.
+No PR has been created or merged at this checkpoint.
+
 ## Accepted native contract (2026-10-01)
 
 The user accepted the [native profile and concrete cases](../docs/architecture/ownerfs-native-access.md): management verifies the export in the final Agent namespace before starting the Agent; cross-path file visibility is close-to-open; retained FUSE directory references need not immediately track native rename/delete. Native plain close is a visibility endpoint, while explicit applicable sync establishes durability. Ordinary FUSE-only/DFS defaults remain unchanged. Earlier strong directory/cache diagnostics retain their actual assertions and results; they are boundary evidence, not product acceptance passes. Production admission, applicable cache/locks/lifecycle and performance work remain incomplete.
 
 The candidate and outcomes below describe recorded historical checkpoints, not qualification against the revised profile.
 
-## Tested candidate
+## Historical candidate before the accepted profile
 
 - Current base: `78245771167643d5883491052e7cebcaba8c3be2` (original base `6bcabe8f30040bc6cc3b518bd271e7e2461e1e1d`); branch `feat/ownerfs-native-bind`. Feature worktree is isolated from the canonical checkout and the other machine's main branch.
 - Rust1.95 x86_64 Linux. WSL6.6 builds/tests the controller and journal; actual mount backend is run in Linux6.8 VM A on `/dev/sdb1`, ext4 UUID `6fa5e173-b766-4c27-872b-8f40e91bed27`.
 - Current VM test binary SHA256 `cbce155edfffe9e758004b0708a312509b1176a3441999695d32e4c5738de02c` (19 cases; read-only directory repair and deterministic concurrency counterprobes; full semantics remains RED).
 - Private mount namespaces; test data confined to uniquely created directories. Earlier successful probes checked parent namespace mountinfo byte-for-byte. The ordinary RED driver exits before its cleanup markers; the paired portable RED replay independently verifies parent mounts and disposable-data cleanup. Most covered test directories are disposable ext4 directories. One test now uses the real OwnerFs FUSE adapter and RootManager with an in-process Meta fixture; it does not run production Node/P2P or enable native policy.
 
-## Outcomes
+## Historical outcomes before the accepted profile
 
 | Check | Result | Meaning |
 | --- | --- | --- |

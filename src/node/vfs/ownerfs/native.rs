@@ -17,6 +17,7 @@ pub use events::{
     WorkspaceCreated, WorkspaceEventReceiver, WorkspaceEventSender, workspace_event_channel,
 };
 pub use home::HomeExportAuthority;
+pub(super) use home::RootAnchor;
 pub use journal::{JournalRecord, JournalSnapshot, MountJournal, OrphanMaintenance};
 pub use linux::{LinuxMountBackend, MountPolicy};
 pub use manager::{MountBackend, NativeMountManager};

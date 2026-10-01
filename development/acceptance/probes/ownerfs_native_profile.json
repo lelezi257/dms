@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "scope": "Mount, cache, readiness and local kernel-flock foundation only; not Node/network P2P, native POSIX locks/mmap, full lifecycle, performance or release acceptance",
+  "scope": "Mount, cache, Home authority teardown, readiness and local kernel-flock foundation only; not Node/network P2P, native POSIX locks/mmap, full lifecycle, performance or release acceptance",
   "contract": "docs/architecture/ownerfs-native-access.md",
   "required": [
     "backend_pins_source_inode_across_source_rename",
@@ -12,6 +12,7 @@
     "privileged_journal_maintenance_preserves_active_export_and_data",
     "privileged_native_close_to_open_profile",
     "privileged_native_flock_kernel_arbitration",
+    "privileged_native_home_authority_lifecycle",
     "privileged_native_crash_recovery",
     "privileged_native_lifecycle",
     "privileged_native_retained_reference_busy_matrix",

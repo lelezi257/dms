@@ -16,7 +16,7 @@ use std::{
         },
     },
     path::{Path, PathBuf},
-    sync::{Arc, Mutex, OnceLock},
+    sync::{Arc, Mutex, OnceLock, Weak},
     time::{Duration, UNIX_EPOCH},
 };
 
@@ -24,7 +24,7 @@ use afs_error::{Error, Result};
 use fuser::Notifier;
 
 use self::native::OwnerLockTable;
-use self::root::{PresentedRootAccess, RootGrant, RootId, RootManager, RootRight};
+use self::root::{PresentedRootAccess, RootGrant, RootId, RootManager, RootRight, RootUse};
 use super::{
     Backend,
     locks::{LockError, LockRequest, LockTableLimits, LockWaiterId, LockWaiterOutcome},
@@ -66,6 +66,9 @@ struct PrivateFuseCache {
     // permission to mount or evidence of native readiness. No runtime setter:
     // private cached/mapped handles cannot be safely converted in place.
     native_eligible: bool,
+    // Metadata-only mountpoint anchors. A revoked data grant must not make
+    // FUSE revalidation invalidate a still-owned busy native submount.
+    native_roots: HashMap<RootId, Weak<native::RootAnchor>>,
     shared_roots: HashSet<RootId>,
     notifier: Option<Notifier>,
     next_fuse_ino: u64,
@@ -75,6 +78,7 @@ impl PrivateFuseCache {
     fn new() -> Self {
         Self {
             native_eligible: false,
+            native_roots: HashMap::new(),
             shared_roots: HashSet::new(),
             notifier: None,
             next_fuse_ino: 4,
@@ -926,6 +930,11 @@ impl Backend for OwnerFs {
     }
 
     fn lookup(&self, _: &RequestContext, parent: BackendInode, name: &OsStr) -> Result<Entry> {
+        if parent == self.root_inode()
+            && let Some(entry) = self.native_root_entry(name)?
+        {
+            return Ok(entry);
+        }
         self.require_local()?.lookup(parent, name)
     }
 
@@ -935,6 +944,11 @@ impl Backend for OwnerFs {
         inode: BackendInode,
         handle: Option<FileHandle>,
     ) -> Result<FileAttributes> {
+        if handle.is_none()
+            && let Some(entry) = self.native_root_attributes(inode)?
+        {
+            return Ok(entry.attributes);
+        }
         self.require_local()?.getattr(inode, handle)
     }
 
@@ -1165,6 +1179,7 @@ impl Backend for OwnerFs {
 }
 
 struct LocalOwnerFs {
+    native_eligible: bool,
     roots: Arc<RootManager>,
     disk: Arc<LocalFs>,
     remote_factory: Option<Arc<dyn RemoteFilesFactory>>,
@@ -2068,6 +2083,10 @@ impl LocalOwnerFs {
         remote_factory: Option<Arc<dyn RemoteFilesFactory>>,
         private_cache: Arc<Mutex<PrivateFuseCache>>,
     ) -> Self {
+        let native_eligible = private_cache
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .native_eligible;
         let mut state = OwnerState::new();
         for root in roots.cached_local_roots().unwrap_or_default() {
             if let Ok(attributes) = disk
@@ -2084,6 +2103,7 @@ impl LocalOwnerFs {
             }
         }
         Self {
+            native_eligible,
             roots,
             disk,
             remote_factory,
@@ -2099,6 +2119,32 @@ impl LocalOwnerFs {
     fn private_root_for_inode(&self, inode: u64) -> Option<RootId> {
         let id = self.state.lock().ok()?.inodes.get(&inode)?.root_id.clone();
         self.roots.has_active_local_root(&id).then_some(id)
+    }
+
+    // Native-eligible handles retain object identity, but never retain an old
+    // authority across revocation, recovery, or a new Home epoch. Keep RootUse
+    // alive throughout the operation so lifecycle drain sees in-flight I/O.
+    fn admit_native_file(&self, file: &OpenLocalFile, right: RootRight) -> Result<Option<RootUse>> {
+        let Some(opened) = &file.native_authority else {
+            return Ok(None);
+        };
+        let current = self.roots.enter_root(&file.handle.root_id, right)?;
+        let grant = current.grant();
+        if opened.id != grant.id
+            || opened.epoch != grant.epoch
+            || opened.home_node_id != grant.home_node_id
+            || opened.home_session_id != grant.home_session_id
+            || opened.holder_node_id != grant.holder_node_id
+            || opened.session_id != grant.session_id
+            || opened.access_generation != grant.access_generation
+            || opened.fencing_token != grant.fencing_token
+        {
+            return Err(Error::coded(
+                afs_error::NODE_OWNER_INVALID_GRANT,
+                "open file belongs to retired Home authority",
+            ));
+        }
+        Ok(Some(current))
     }
 
     fn remote_for_record(&self, record: &NodeRecord, right: RootRight) -> Result<RemoteRoot> {
@@ -2430,6 +2476,7 @@ impl LocalOwnerFs {
             needs_flush,
             write_sync,
             flags,
+            self.native_eligible.then(|| root_use.grant().clone()),
         );
         Ok(remote::RemoteCreatedFile {
             entry: files::OwnerEntry {
@@ -3146,6 +3193,7 @@ impl LocalOwnerFs {
             needs_flush,
             write_sync,
             flags,
+            self.native_eligible.then(|| root_use.grant().clone()),
         );
         Ok((
             remote_file(access, identity, handle),
@@ -3386,6 +3434,12 @@ impl LocalOwnerFs {
                 }
             };
             if matches {
+                let _authority = match &slot.file {
+                    OpenFileHandle::Local(local) => {
+                        self.admit_native_file(local, RootRight::Lookup)?
+                    }
+                    OpenFileHandle::Remote(_) => None,
+                };
                 return slot.attributes().map(Some);
             }
         }
@@ -3397,6 +3451,10 @@ impl LocalOwnerFs {
         if let Some(handle) = handle {
             let file = self.open_file_handle(handle)?;
             let file = file.lock().map_err(|_| poisoned())?;
+            let _authority = match &file.file {
+                OpenFileHandle::Local(local) => self.admit_native_file(local, RootRight::Lookup)?,
+                OpenFileHandle::Remote(_) => None,
+            };
             return file.attributes();
         }
         if inode.value == OWNERFS_ROOT_INODE {
@@ -3462,6 +3520,7 @@ impl LocalOwnerFs {
             file.ensure_open()?;
             match &mut file.file {
                 OpenFileHandle::Local(file) => {
+                    let _authority = self.admit_native_file(file, RootRight::Write)?;
                     let current = attributes_from_metadata(
                         file.handle.file.metadata().map_err(Error::from)?,
                     )?;
@@ -3821,6 +3880,7 @@ impl LocalOwnerFs {
             needs_flush,
             write_sync,
             flags,
+            self.native_eligible.then(|| root_use.grant().clone()),
         );
         Ok(CreatedFile {
             entry: Entry {
@@ -3925,6 +3985,7 @@ impl LocalOwnerFs {
             needs_flush,
             write_sync,
             flags,
+            self.native_eligible.then(|| root_use.grant().clone()),
         ))
     }
 
@@ -3934,6 +3995,7 @@ impl LocalOwnerFs {
         file.ensure_open()?;
         match &file.file {
             OpenFileHandle::Local(file) => {
+                let _authority = self.admit_native_file(file, RootRight::Read)?;
                 file.handle.file.read_at(offset, out).map_err(Error::from)
             }
             OpenFileHandle::Remote(file) => file.files.read(&file.grant, &file.handle, offset, out),
@@ -3952,6 +4014,7 @@ impl LocalOwnerFs {
         file.ensure_open()?;
         match &mut file.file {
             OpenFileHandle::Local(file) => {
+                let _authority = self.admit_native_file(file, RootRight::Write)?;
                 if !file.writable {
                     return Err(bad_file_descriptor("file handle is not open for writing"));
                 }
@@ -5418,9 +5481,11 @@ impl OwnerState {
         needs_flush: bool,
         write_sync: WriteSyncMode,
         flags: i32,
+        native_authority: Option<RootGrant>,
     ) -> FileHandle {
         self.insert_open_file(OpenFileHandle::Local(OpenLocalFile {
             handle,
+            native_authority,
             needs_flush,
             write_sync,
             writable: flags_allow_write(flags),
@@ -5527,6 +5592,7 @@ impl OpenFileHandleSlot {
 
 #[derive(Debug)]
 struct OpenLocalFile {
+    native_authority: Option<RootGrant>,
     readable: bool,
     handle: files::LocalOpenFile,
     needs_flush: bool,
@@ -8210,6 +8276,115 @@ mod tests {
             native::NativeState::Detached
         );
         assert!(backend.active.lock().unwrap().is_none());
+        fs.release(&ctx, file.handle).unwrap();
+    }
+
+    #[test]
+    fn native_home_export_anchor_preserves_only_root_metadata_until_release() {
+        let (_temp, fs, ctx, root, file, _native) = native_flock_fixture();
+        let permit = fs
+            .native_home_export(
+                OsStr::new("agent-flock"),
+                native::LinuxMountBackend::current_namespace().unwrap(),
+            )
+            .unwrap();
+        let local = fs.require_local().unwrap();
+        local
+            .roots
+            .revoke_root(&RootId(permit.identity().root_id.clone()));
+        assert_eq!(
+            fs.lookup(&ctx, fs.root_inode(), OsStr::new("agent-flock"))
+                .unwrap()
+                .inode,
+            root.inode
+        );
+        fs.getattr(&ctx, root.inode, None).unwrap();
+        assert!(fs.lookup(&ctx, root.inode, OsStr::new("file")).is_err());
+        let mut out = [0u8; 1];
+        assert!(fs.read(&ctx, file.handle, 0, &mut out).is_err());
+        assert!(
+            fs.native_home_export(OsStr::new("agent-flock"), permit.identity().namespace)
+                .is_err()
+        );
+        drop(permit);
+        assert!(
+            fs.lookup(&ctx, fs.root_inode(), OsStr::new("agent-flock"))
+                .is_err()
+        );
+        assert!(fs.getattr(&ctx, root.inode, None).is_err());
+        fs.release(&ctx, file.handle).unwrap();
+    }
+
+    #[test]
+    fn native_file_revoke_rejects_data_and_metadata_but_allows_retirement_cleanup() {
+        use std::os::unix::fs::FileExt;
+        let (_temp, fs, ctx, root, file, native) = native_flock_fixture();
+        assert_eq!(fs.write(&ctx, file.handle, 0, b"accepted").unwrap(), 8);
+        // Exercise getattr's retained unlinked-object fallback, too.
+        fs.unlink(&ctx, root.inode, OsStr::new("file")).unwrap();
+        let local = fs.require_local().unwrap();
+        let id = root::root_id_from_name(OsStr::new("agent-flock")).unwrap();
+        local.roots.revoke_root(&id);
+        let mut out = [0; 8];
+        assert!(fs.read(&ctx, file.handle, 0, &mut out).is_err());
+        assert!(fs.write(&ctx, file.handle, 0, b"rejected").is_err());
+        assert!(
+            fs.getattr(&ctx, file.entry.inode, Some(file.handle))
+                .is_err()
+        );
+        assert!(fs.getattr(&ctx, file.entry.inode, None).is_err());
+        assert!(
+            fs.setattr(
+                &ctx,
+                file.entry.inode,
+                Some(file.handle),
+                &AttributeChange {
+                    size: Some(0),
+                    ..AttributeChange::default()
+                },
+            )
+            .is_err()
+        );
+        fs.flush(&ctx, file.handle).unwrap();
+        fs.fsync(&ctx, file.handle, SyncMode::Full).unwrap();
+        fs.release(&ctx, file.handle).unwrap();
+        assert_eq!(native.read_at(&mut out, 0).unwrap(), out.len());
+        assert_eq!(&out, b"accepted");
+        assert_eq!(native.metadata().unwrap().len(), 8);
+    }
+
+    #[test]
+    fn native_file_retired_authority_cannot_borrow_current_grant() {
+        let (_temp, fs, ctx, _root, file, _native) = native_flock_fixture();
+        let local = fs.require_local().unwrap();
+        let slot = local.open_file_handle(file.handle).unwrap();
+        let mut slot = slot.lock().unwrap();
+        let OpenFileHandle::Local(open) = &mut slot.file else {
+            panic!("not local");
+        };
+        let original = open.native_authority.clone().unwrap();
+        for field in 0..8 {
+            let mut retired = original.clone();
+            match field {
+                0 => retired.id = RootId("retired-root".into()),
+                1 => retired.epoch += 1,
+                2 => retired.home_node_id.push_str("-retired"),
+                3 => retired.home_session_id.push_str("-retired"),
+                4 => retired.holder_node_id.push_str("-retired"),
+                5 => retired.session_id.push_str("-retired"),
+                6 => retired.access_generation += 1,
+                7 => retired.fencing_token.push_str("-retired"),
+                _ => unreachable!(),
+            }
+            open.native_authority = Some(retired);
+            assert!(
+                local.admit_native_file(open, RootRight::Read).is_err(),
+                "field {field}"
+            );
+        }
+        open.native_authority = Some(original);
+        local.admit_native_file(open, RootRight::Read).unwrap();
+        drop(slot);
         fs.release(&ctx, file.handle).unwrap();
     }
 
@@ -10987,6 +11162,7 @@ mod tests {
                 false,
                 WriteSyncMode::None,
                 libc::O_RDONLY,
+                None,
             )
         };
         fs.flush(&ctx, read_only).unwrap();
@@ -11010,6 +11186,7 @@ mod tests {
                 false,
                 WriteSyncMode::None,
                 libc::O_RDWR,
+                None,
             )
         };
         assert_eq!(fs.write(&ctx, writable, 0, b"hello").unwrap(), 5);

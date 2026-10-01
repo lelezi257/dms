@@ -123,6 +123,17 @@ desired state、observed state、操作序号、最后一次错误
 
 挂载幂等性必须由记录和实际身份保证：重复 `mount --bind` 会形成叠加挂载，本次叠两层后一次 umount 仍然是原生目录。不能把重复 mount 当作无副作用重试。
 
+受管出口还需在正常卸载完成前保持其挂载点的正向 FUSE 身份；RootGrant
+失效继续拒绝数据操作和新 admission，不能让挂载点 LOOKUP 失败充当卸载。
+Linux6.8 的 [FUSE 重验证](https://raw.githubusercontent.com/torvalds/linux/v6.8/fs/fuse/dir.c)
+会把部分 lookup 错误视为 dentry 无效，
+[d_invalidate](https://raw.githubusercontent.com/torvalds/linux/v6.8/fs/dcache.c)
+又会处理该 dentry 的子挂载。实际 Home 撤权用例已复现未执行正常卸载时
+挂载从 mountinfo 消失而旧 native fd 仍存活。元数据 anchor 只保留固定根
+对象的目录身份，不授权子项或文件 I/O；凭证/准备记录须保留到正常 teardown
+结束再释放。用户可见边界见上述合同的 Case7。Node/Agent fencing 不能由
+这层元数据保护代替。
+
 源目录和目标目录需要使用受控目录引用、严格的路径解析与身份校验，避免符号链接替换和同名 root 重建的竞态。具体 FD mount API 尚未穿刺，不能把它当作已验证的 `mkdir` 死锁解法。实现时必须针对选定 API 重新验证时序和 TOCTOU。
 
 ### 6. 卸载、删除、回收、切换

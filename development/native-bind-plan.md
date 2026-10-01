@@ -240,3 +240,20 @@ The user explicitly accepted the previously presented close-to-open and retained
   pinned source to production descriptor preparation and actual VM admission
   tests is still required. Full Agent/Meta lifecycle, POSIX/P2P/mmap and paired
   native-ext4 performance gates remain open.
+
+## Home authority teardown checkpoint
+
+- [x] Connect the opaque Home permit's exact directory fd to Linux preparation;
+  retain a metadata-only Root anchor until normal teardown/preparation release.
+- [x] Reproduce implicit kernel submount loss on revoked FUSE Root revalidation,
+  then retain positive mountpoint identity without retaining data authority.
+- [x] Reproduce old FUSE file reads after revocation; native-eligible open handles
+  now capture Home authority and re-admit data/metadata mutations. Preserve
+  previously accepted dirty-data sync and retirement cleanup. Ordinary defaults
+  remain unchanged.
+- [x] Replay the real VM revoke/busy/normal-detach case and all17 required
+  foundation cases. Historical stronger-directory diagnostics remain NOT_RUN.
+- [ ] Wire production Node/Agent readiness and supervised process fencing,
+  recovered current permits, full Meta deletion/reclaim/switch lifecycle,
+  applicable POSIX/P2P/mmap and paired native-ext4 performance. Mountpoint
+  metadata retention and a revoked RootGrant do not stop native fd I/O.

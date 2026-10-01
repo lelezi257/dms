@@ -75,6 +75,23 @@ Agent 仍持有 native fd、cwd 或 mmap；管理面请求回收 `/ownerfs/agent
 
 **必须：** 停止新 admission，排空/停止受管 Agent 并处理远端引用，完成 fencing 和正常卸载，再删除或切换。busy 时保留可诊断的 draining 状态。不能把 lazy detach 当作旧写入者已经消失，也不能用普通 `rm -rf` 代替 workspace 管理入口。
 
+### Case 7：Home 授权失效，挂载仍有忙引用
+
+管理器已把 workspace 挂好，进程还持有 native 文件 fd；此时 Home
+RootGrant 被撤销。管理器必须拒绝新 native admission，并通过受管进程的
+停止/排空完成 fencing。旧 native fd 的权限不会因 RootGrant 自动消失。
+
+挂载生命周期仍需保留该 workspace 挂载点的正向 FUSE 身份和目录元数据，
+直到正常卸载结束并释放最后一个管理凭证。这里保留的是挂载点元数据，
+FUSE 文件读写、子项查找和 P2P 授权仍拒绝失效的 grant。不能通过对挂载点
+返回负 LOOKUP 或使其 dentry 失效来模拟卸载：内核可能移除子挂载，但旧
+native 引用仍然存在，无法据此认定已排空。
+
+**必须：** 有忙引用时正常卸载得到 EBUSY，物理挂载和管理记录保留；引用
+关闭后正常卸载并核验完成。凭证释放后不再保留撤销根的元数据入口。
+目录存在、RootGrant 失效、挂载点从 mountinfo 消失，都不是 backing
+可删除或可复用的充分证据。实际 Node/Agent fencing 仍需独立验收。
+
 ## 验收与可用性
 
 正向验收以管理面创建 → Agent namespace native ready → 启动 Agent 为主 lane，并覆盖 close-to-open、同名替换/旧文件 fd、从稳定根重新解析、挂载失败与受管回收。另保留提前持有 FUSE 引用的边界 lane，让用户能理解差异。

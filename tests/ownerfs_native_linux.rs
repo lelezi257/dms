@@ -923,6 +923,22 @@ fn privileged_old_fuse_directory_tracks_native_rename() {
         Ok("1")
     );
     let dir = tempfile::tempdir().unwrap();
+    // Optional request tracing is confined to this isolated kernel probe.
+    // It uses the existing process logger and never changes mount/cache policy.
+    let trace_path = dir.path().join("directory-requests.jsonl");
+    let trace_guard =
+        (std::env::var("AFS_NATIVE_TRACE_DIRECTORY").as_deref() == Ok("1")).then(|| {
+            afs_logging::init_process_logging(
+                &afs_logging::LoggingConfig {
+                    level: afs_logging::slog::Level::Debug,
+                    output: afs_logging::LogOutput::File(trace_path.clone()),
+                    overflow: afs_logging::OverflowPolicy::Block,
+                    ..Default::default()
+                },
+                afs_logging::ProcessIdentity::new("native-directory-probe", "isolated-vm"),
+            )
+            .unwrap()
+        });
     let mount_path = dir.path().join("ownerfs");
     fs::create_dir(&mount_path).unwrap();
     let (disk, roots, ownerfs) = ownerfs_fixture::ownerfs_fixture(&dir.path().join("data"));
@@ -950,6 +966,26 @@ fn privileged_old_fuse_directory_tracks_native_rename() {
         source: dir_id(&source),
         target: dir_id(&target),
     };
+    let shared_control = std::env::var("AFS_NATIVE_DIRECTORY_SHARED_CONTROL").as_deref() == Ok("1");
+    if shared_control {
+        // Use the existing authenticated peer cache barrier as a diagnostic,
+        // not a native admission API or a deployed P2P correctness claim.
+        let access = afs::node::vfs::ownerfs::root::PresentedRootAccess {
+            id: grant.id.clone(),
+            epoch: grant.epoch,
+            home_node_id: grant.home_node_id.clone(),
+            home_session_id: grant.home_session_id.clone(),
+            holder_node_id: "node-b".into(),
+            session_id: "session-b".into(),
+            access_generation: grant.access_generation,
+            fencing_token: grant.fencing_token.clone(),
+        };
+        ownerfs
+            .peer_executor()
+            .unwrap()
+            .getattr("node-b", &access, std::ffi::OsStr::new(""), None, None)
+            .unwrap();
+    }
     let script = r#"
 import os, sys, json
 os.chdir(sys.argv[1])
@@ -964,7 +1000,14 @@ def read_at(descriptor, relative):
         try: return {'data': os.read(fd, 1024).decode('ascii')}
         finally: os.close(fd)
     except OSError as error: return {'errno': error.errno}
+print(json.dumps({'legacy_parent': read_at(legacy, '../parent-id'), 'native_parent': read_at(native, '../parent-id'), 'cwd_parent': read_at(None, '../parent-id')}), flush=True)
+assert sys.stdin.readline().strip() == 'children'
 print(json.dumps({'legacy_data': read_at(legacy, 'data'), 'native_data': read_at(native, 'data'), 'legacy_parent': read_at(legacy, '../parent-id'), 'native_parent': read_at(native, '../parent-id'), 'cwd_parent': read_at(None, '../parent-id')}), flush=True)
+assert sys.stdin.readline().strip() == 'expired'
+# Bound the ordinary private TTL control; no scan or new-name lookup occurs.
+import time
+time.sleep(1.2)
+print(json.dumps({'legacy_data': read_at(legacy, 'data'), 'legacy_parent': read_at(legacy, '../parent-id'), 'cwd_parent': read_at(None, '../parent-id')}), flush=True)
 assert sys.stdin.readline().strip() == 'relookup'
 try:
     refreshed = os.stat('right/moving', dir_fd=covered)
@@ -1005,10 +1048,22 @@ os.close(covered)
         .unwrap();
     let mounted = backend.bind(&spec).unwrap();
     fs::rename(target.join("left/moving"), target.join("right/moving")).unwrap();
+    afs_logging::info!("directory_probe_phase parent-only-begin");
     writeln!(actor.0.stdin.as_mut().unwrap(), "renamed").unwrap();
     line.clear();
     output.read_line(&mut line).unwrap();
+    let parent_only: serde_json::Value = serde_json::from_str(&line).unwrap();
+    afs_logging::info!("directory_probe_phase parent-only-end");
+    writeln!(actor.0.stdin.as_mut().unwrap(), "children").unwrap();
+    line.clear();
+    output.read_line(&mut line).unwrap();
     let observed: serde_json::Value = serde_json::from_str(&line).unwrap();
+    afs_logging::info!("directory_probe_phase first-observation-end");
+    writeln!(actor.0.stdin.as_mut().unwrap(), "expired").unwrap();
+    line.clear();
+    output.read_line(&mut line).unwrap();
+    let after_expiry: serde_json::Value = serde_json::from_str(&line).unwrap();
+    afs_logging::info!("directory_probe_phase expiry-control-end");
     // Diagnostic control only: force a lookup through the already-held covered
     // FUSE root, to distinguish kernel alias relocation from backend path state.
     // Correctness still requires the FIRST observation without any extra lookup.
@@ -1033,8 +1088,14 @@ os.close(covered)
     drop(ownerfs);
     drop(roots);
     drop(disk);
+    drop(trace_guard);
+    if trace_path.exists() {
+        println!("directory_request_trace_begin");
+        print!("{}", fs::read_to_string(&trace_path).unwrap());
+        println!("directory_request_trace_end");
+    }
     println!(
-        "legacy_directory_ready={ready} legacy_directory_namespace={observed} forced_alias_control={alias_control}"
+        "legacy_directory_ready={ready} shared_cache_control={shared_control} parent_only={parent_only} after_expiry={after_expiry} legacy_directory_namespace={observed} forced_alias_control={alias_control}"
     );
     assert_eq!(
         observed["native_data"]["data"], "same directory",
@@ -1055,6 +1116,14 @@ os.close(covered)
     assert_eq!(
         alias_control["cwd_parent"], observed["native_parent"],
         "forced lookup cwd alias relocation control"
+    );
+    assert_eq!(
+        parent_only["legacy_parent"], parent_only["native_parent"],
+        "first parent-only access through old FUSE dirfd must observe current parent"
+    );
+    assert_eq!(
+        parent_only["cwd_parent"], parent_only["native_parent"],
+        "first parent-only access through old FUSE cwd must observe current parent"
     );
     assert_eq!(
         observed["legacy_data"], observed["native_data"],

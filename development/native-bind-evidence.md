@@ -8,8 +8,8 @@ This is an intermediate slice, not feature completion, product acceptance or per
 
 - Current base: `78245771167643d5883491052e7cebcaba8c3be2` (original base `6bcabe8f30040bc6cc3b518bd271e7e2461e1e1d`); branch `feat/ownerfs-native-bind`. Feature worktree is isolated from the canonical checkout and the other machine's main branch.
 - Rust1.95 x86_64 Linux. WSL6.6 builds/tests the controller and journal; actual mount backend is run in Linux6.8 VM A on `/dev/sdb1`, ext4 UUID `6fa5e173-b766-4c27-872b-8f40e91bed27`.
-- Current VM test binary SHA256 `78762710746474d8fbe976ea168273c2f74202a4f7c30ea43176a12fcf6ae24a` (directory-refresh candidate; full14-case suite is RED, exact source inputs preserved externally).
-- Private mount namespaces; test data confined to uniquely created directories. Earlier successful probes checked parent namespace mountinfo byte-for-byte. The current RED suite exits before the driver cleanup markers; no driver-level post-run cleanup PASS is claimed for it. Most covered test directories are disposable ext4 directories. One test now uses the real OwnerFs FUSE adapter and RootManager with an in-process Meta fixture; it does not run production Node/P2P or enable native policy.
+- Current VM test binary SHA256 `f8689bbb02bccbc9736a7c570d8836a2d2907cc5888bfebe56a73edc3464bc15` (directory-refresh candidate; full14-case suite is RED, exact source inputs preserved externally).
+- Private mount namespaces; test data confined to uniquely created directories. Earlier successful probes checked parent namespace mountinfo byte-for-byte. The ordinary RED driver exits before its cleanup markers; the paired portable RED replay independently verifies parent mounts and disposable-data cleanup. Most covered test directories are disposable ext4 directories. One test now uses the real OwnerFs FUSE adapter and RootManager with an in-process Meta fixture; it does not run production Node/P2P or enable native policy.
 
 ## Outcomes
 
@@ -22,7 +22,7 @@ This is an intermediate slice, not feature completion, product acceptance or per
 | Current VM Linux backend/FUSE/old-directory semantics | RED: 13 PASS, 1 FAIL | Original cases pass; retained old FUSE dirfd/cwd do not automatically track a native directory move |
 | Current library regressions | 353 PASS, 2 ignored | Main-aligned OwnerFs/DFS regression plus external-directory refresh; ignored tests remain outside this claim |
 | fmt / strict all-targets Clippy | PASS | Candidate formatting and diagnostics |
-| Portable VM probe | Historical13-case PASS; current14-case replay NOT_RUN | Main-aligned binary replayed successfully before adding the directory semantic counterexample; it does not qualify the current RED candidate |
+| Portable VM probe | Current14-case RED in both cache controls; prior13-case PASS | Both current replays execute13 PASS/1 FAIL and separately verify unchanged parent mounts and empty disposable data; earlier13-case PASS does not qualify full semantics |
 | OwnerFs FUSE/native/P2P integration and performance | NOT_RUN | Mount primitive proof is insufficient |
 
 WSL cannot supply STATX_MNT_ID_UNIQUE on kernel6.6; the backend returns ENOTSUP. All14 current real-backend/FUSE tests are explicitly ignored for the ordinary build-host run, then explicitly executed (none ignored) by the VM probe. Kernel unique IDs are required; recyclable mountinfo IDs never substitute for ownership.
@@ -153,3 +153,68 @@ Automatic source-object/alias consistency, cache/mmap/locks, authority/Agent
 drainage, Node/P2P integration and measured performance remain outstanding.
 Close durability and proposed separate6.9+ feature-platform decisions remain
 unanswered; no production native activation or kernel upgrade was performed.
+
+## Directory cache and callback-sequence checkpoint
+
+The old-reference case now has an optional, test-only request trace using the
+existing process logger. It reads the old parent before trying child data,
+then repeats after the normal private TTL expires, and finally runs the
+explicit fresh-lookup diagnostic. All original first-observation assertions
+remain, with explicit assertions for the first parent-only result before the
+combined-observation assertions. `AFS_NATIVE_TRACE_DIRECTORY=1` enables JSON request output;
+`AFS_NATIVE_DIRECTORY_SHARED_CONTROL=1` first uses the authenticated fixture
+peer executor and its existing cache-invalidation barrier. This is not a
+native admission API or deployed remote/P2P qualification. Default runtime
+code and cache policy were not changed in this checkpoint.
+
+Paired full-suite replay `directory-20261001T021638-580ff24d` uses one binary SHA256 `f8689bbb02bccbc9736a7c570d8836a2d2907cc5888bfebe56a73edc3464bc15`,
+the unchanged tracked portable probe SHA256
+`a497ae739fff6824d6651654da4200fddb4369dfc00f44434a517b4884d380ad`, serial tests, the same VM/kernel/ext4
+and separate fresh private namespaces/data directories. Both modes execute
+14 cases:13 PASS/1 FAIL. Independent post-run checks confirm unchanged parent
+mountinfo and empty disposable data for both failing suites. Driver exit0
+means evidence collection/cleanup succeeded; each test/probe exit101 remains
+RED. Ordinary untraced run `mount-20261001T021657-f9c9a06a` independently remains13 PASS/1 FAIL.
+
+| Diagnostic | Ordinary private cache | Existing peer shared-cache barrier |
+| --- | --- | --- |
+| Moving-directory GETATTR during first parent-only reads | 0 | 2 |
+| Old dirfd/cwd parent observation | LEFT (stale) | ENOENT (stale backend path) |
+| Native retained-dirfd parent control | RIGHT | RIGHT |
+| Moving-directory GETATTR after1.2s expiry control | 3 | 3 |
+| Old data/parent/cwd after expiry | ENOENT | ENOENT |
+| Forced new-path lookup control | Same data, RIGHT parent/cwd | Same data, RIGHT parent/cwd |
+
+This changes the next action: native exposure needs an explicit cache barrier
+before admission, object identity/lifetime rather than stale canonical paths,
+and automatic kernel alias reconciliation. Zero TTL alone is insufficient.
+It is an opportunity to reconcile before an old directory traversal, not
+proof that reconciliation is complete. Source inspection also shows current
+nofh GETATTR runs on the FUSE receive thread; blocking recursive lookup through
+that FUSE mount must not be inserted there. Worker dispatch, reference bounds,
+authority validation, deleted/moved parents and concurrent native mutation
+need their own regression/VM proof before integration.
+
+Kernel source independently explains the observations: `handle_dots`/
+`follow_dotdot` select the in-kernel dentry parent; default-permissions FUSE
+refreshes expired attributes. `fuse_time_to_jiffies(0,0)` returns0, so zero TTL
+does not create a same-jiffy grace period. An initially added20ms diagnostic
+delay based on that assumption was removed before this final paired run.
+Sources: [Linux6.8 namei.c](https://github.com/torvalds/linux/blob/v6.8/fs/namei.c),
+[Linux6.8 FUSE dir.c](https://github.com/torvalds/linux/blob/v6.8/fs/fuse/dir.c).
+
+Replay on an independent root-capable Linux VM with the matching binary and
+tracked `acceptance/probes/ownerfs_native_mount.sh`, fresh ext4 evidence paths:
+
+```bash
+sudo env RUST_TEST_THREADS=1 AFS_NATIVE_TRACE_DIRECTORY=1 AFS_NATIVE_DIRECTORY_SHARED_CONTROL=0 bash PROBE BINARY FRESH_PRIVATE_EVIDENCE SHA256
+sudo env RUST_TEST_THREADS=1 AFS_NATIVE_TRACE_DIRECTORY=1 AFS_NATIVE_DIRECTORY_SHARED_CONTROL=1 bash PROBE BINARY FRESH_SHARED_EVIDENCE SHA256
+```
+
+Expected current classification is a retained full-semantics counterexample,
+not a green gate. Exact logs, source hashes and per-phase counts are external
+under `directory-cache-analysis.json` and `directory-cache-inputs.json`.
+fmt and strict all-targets/all-features Clippy pass. Previous353 library/43
+native unit results belong to the prior directory-refresh candidate; no new
+production Rust code was changed here. Full feature and performance remain
+incomplete, and pending durability/platform decisions still gate activation.

@@ -1,0 +1,36 @@
+warning: unused import: `crate::node::replication::ReplicaDataPlane`
+    --> src/node/rpc/data.rs:6104:13
+     |
+6104 |         use crate::node::replication::ReplicaDataPlane;
+     |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+     |
+     = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `ChunkTransfer`
+    --> src/node/rpc/data.rs:6103:50
+     |
+6103 |         use crate::node::dfs_read::{ChunkReadOp, ChunkTransfer, PeerReadBatch, ResolvedReadOp};
+     |                                                  ^^^^^^^^^^^^^
+
+warning: `afs` (lib test) generated 2 warnings
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.05s
+     Running unittests src/lib.rs (/home/lzc.guest/afs-build/target/debug/deps/afs-586e1b701367e588)
+
+running 1 test
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.1 family=ipv4
+
+thread 'node::rpc::data::tests::dfs_auto_prefers_rdma_replica_and_read_real_verbs' (2714) panicked at src/node/rpc/data.rs:6244:9:
+assertion `left == right` failed
+  left: 0
+ right: 8388608
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test node::rpc::data::tests::dfs_auto_prefers_rdma_replica_and_read_real_verbs ... FAILED
+
+failures:
+
+failures:
+    node::rpc::data::tests::dfs_auto_prefers_rdma_replica_and_read_real_verbs
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 413 filtered out; finished in 0.21s
+
+error: test failed, to rerun pass `--lib`

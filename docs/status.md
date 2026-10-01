@@ -191,9 +191,29 @@ Fresh same-VM real RXE DFS replica/read and production Owner4MiB+17 integrations
 pass on the final inputs. Five lifecycle tests pass, but the cancellation
 fixture posts no data DMA. This is a scoped stage gate; actual posted-DMA
 cancellation, exceptional native reclamation, peak resources and full fault
-matrices remain open. DFS Auto factories still select gRPC, including when an
-RDMA pool is provided; correcting automatic preference is a separate pending
-task. No formal case is promoted and no handoff refresh is performed.
+matrices remain open. Automatic DFS selection is covered by the batch below.
+No formal case is promoted and no handoff refresh is performed.
+
+## DFS Automatic Transport
+
+The [automatic selection batch](../development/evidence/20261001-dfs-auto/README.md)
+prepares configured RDMA in Node `auto` mode and selects it through the existing
+DFS replica/read factories. Only canonical authenticated unsupported negotiation
+before the first data command permits gRPC fallback. Required mode refuses it;
+a business error cannot authorize replay, and a read batch cannot restart after
+an RDMA window.
+
+The final Linux source gate passes414 library tests,65 contracts,4 shared-error,
+9 localAPI and5 rootFUSE tests, formatting, strict workspace Clippy, five feature
+checks and binary build. Six library environment ignores remain explicit.
+Selected real RXE Auto/required native paths, Auto unsupported gRPC fallback,
+required unsupported read/write rejection, malformed reply regression and Owner
+4MiB+17 client flow pass.54 audit checks bind143 compiler inputs and real bytes.
+
+This is a scoped stage gate, not formal acceptance. No new cross-VM Auto Node
+runtime is deployed. Postdispatch unsupported, later-window failure, exhausted
+deadline, posted-DMA cancellation, exceptional reclamation, resource peaks and
+full fault matrices remain open.69 formal cases remain NOT_RUN; ENV PREPARING.
 
 ## Known Open Items
 

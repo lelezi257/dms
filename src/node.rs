@@ -305,30 +305,29 @@ async fn run_node(
         None
     };
     #[cfg(feature = "dfs")]
-    let dfs_rdma_pool = if cfg.dfs && cfg.data_mode == "rdma" {
-        let peers = peer_connections.clone();
-        let device = cfg.rdma_device.clone().ok_or_else(|| {
-            afs_error::Error::coded(afs_error::CONFIG_INVALID, "DFS RDMA requires rdma_device")
-        })?;
-        Some(Arc::new(
-            tokio::task::spawn_blocking(move || {
-                rpc::peer::DfsRdmaPool::new(peers, device, timeout)
-            })
-            .await??,
-        ))
+    let dfs_data_mode = parse_data_mode(&cfg.data_mode);
+    #[cfg(feature = "dfs")]
+    let dfs_rdma_pool = if cfg.dfs {
+        if let Some(device) = dfs_rdma_startup_device(dfs_data_mode, cfg.rdma_device.as_deref())? {
+            let peers = peer_connections.clone();
+            Some(Arc::new(
+                tokio::task::spawn_blocking(move || {
+                    rpc::peer::DfsRdmaPool::new(peers, device, timeout)
+                })
+                .await??,
+            ))
+        } else {
+            None
+        }
     } else {
         None
     };
     #[cfg(feature = "dfs")]
     let dfs_replica_plane = rpc::peer::make_replica_data_plane(
-        match if cfg.dfs {
-            cfg.data_mode.as_str()
+        if cfg.dfs {
+            dfs_data_mode
         } else {
-            "grpc"
-        } {
-            "grpc" => rpc::peer::DataMode::Grpc,
-            "rdma" => rpc::peer::DataMode::Rdma,
-            _ => rpc::peer::DataMode::Auto,
+            rpc::peer::DataMode::Grpc
         },
         peer_connections.clone(),
         timeout,
@@ -345,11 +344,6 @@ async fn run_node(
             .as_ref()
             .expect("DFS local ChunkStore was opened before registration")
             .clone();
-        let data_mode = match cfg.data_mode.as_str() {
-            "grpc" => rpc::peer::DataMode::Grpc,
-            "rdma" => rpc::peer::DataMode::Rdma,
-            _ => rpc::peer::DataMode::Auto,
-        };
         let chunk_store = Arc::new(replication::DfsChunkStore::new_with_epoch(
             cfg.id.clone(),
             registered_node_epoch,
@@ -369,7 +363,7 @@ async fn run_node(
             chunks,
             meta.clone(),
             rpc::peer::make_chunk_transfer(
-                data_mode,
+                dfs_data_mode,
                 peer_connections.clone(),
                 timeout,
                 dfs_rdma_pool.clone(),
@@ -939,6 +933,59 @@ fn remember_shutdown_error(first: &mut Option<BoxError>, error: BoxError) {
     }
 }
 
+#[cfg(feature = "dfs")]
+fn parse_data_mode(value: &str) -> rpc::peer::DataMode {
+    match value {
+        "grpc" => rpc::peer::DataMode::Grpc,
+        "rdma" => rpc::peer::DataMode::Rdma,
+        _ => rpc::peer::DataMode::Auto,
+    }
+}
+
+#[cfg(feature = "dfs")]
+fn dfs_rdma_startup_device(
+    mode: rpc::peer::DataMode,
+    device: Option<&str>,
+) -> afs_error::Result<Option<String>> {
+    match mode {
+        rpc::peer::DataMode::Grpc => Ok(None),
+        rpc::peer::DataMode::Rdma => {
+            device
+                .map(|value| value.to_owned())
+                .map(Some)
+                .ok_or_else(|| {
+                    afs_error::Error::coded(
+                        afs_error::CONFIG_INVALID,
+                        "DFS RDMA requires rdma_device",
+                    )
+                })
+        }
+        rpc::peer::DataMode::Auto => {
+            #[cfg(feature = "rdma")]
+            {
+                if let Some(value) = device {
+                    Ok(Some(value.to_owned()))
+                } else {
+                    afs_logging::warn!(
+                        "dfs.rdma_auto_disabled";
+                        "reason" => "rdma_device is not configured"
+                    );
+                    Ok(None)
+                }
+            }
+            #[cfg(not(feature = "rdma"))]
+            {
+                let _ = device;
+                afs_logging::warn!(
+                    "dfs.rdma_auto_disabled";
+                    "reason" => "rdma feature is not compiled"
+                );
+                Ok(None)
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod shutdown_tests {
     #[test]
@@ -972,5 +1019,47 @@ mod shutdown_tests {
             std::io::Error::other("local shutdown failed").into(),
         );
         assert_eq!(first.unwrap().to_string(), "drain failed");
+    }
+
+    #[cfg(feature = "dfs")]
+    #[test]
+    fn dfs_auto_rdma_startup_uses_device_only_when_available() {
+        assert_eq!(
+            super::dfs_rdma_startup_device(crate::node::rpc::peer::DataMode::Grpc, Some("rxe0"))
+                .unwrap(),
+            None
+        );
+        assert!(
+            super::dfs_rdma_startup_device(crate::node::rpc::peer::DataMode::Rdma, None).is_err()
+        );
+
+        #[cfg(feature = "rdma")]
+        {
+            assert_eq!(
+                super::dfs_rdma_startup_device(
+                    crate::node::rpc::peer::DataMode::Auto,
+                    Some("rxe0")
+                )
+                .unwrap(),
+                Some("rxe0".to_owned())
+            );
+            assert_eq!(
+                super::dfs_rdma_startup_device(crate::node::rpc::peer::DataMode::Auto, None)
+                    .unwrap(),
+                None
+            );
+        }
+
+        #[cfg(not(feature = "rdma"))]
+        {
+            assert_eq!(
+                super::dfs_rdma_startup_device(
+                    crate::node::rpc::peer::DataMode::Auto,
+                    Some("rxe0")
+                )
+                .unwrap(),
+                None
+            );
+        }
     }
 }

@@ -1,0 +1,18 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.05s
+     Running unittests src/lib.rs (/home/lzc.guest/afs-build/target/debug/deps/afs-586e1b701367e588)
+
+running 11 tests
+test node::rpc::control::tests::closed_rdma_endpoints_retain_admission_until_last_owner_drops ... ignored, requires a Linux RXE device from AFS_RDMA_DEVICE
+test node::rpc::control::tests::dfs_and_owner_peer_session_identities_do_not_alias ... ok
+test node::rpc::control::tests::dfs_peer_negotiation_without_rdma_device_returns_canonical_unsupported ... ok
+test node::rpc::control::tests::legacy_handshake_is_rejected_before_allocating_rdma_resources ... ok
+test node::rpc::control::tests::owner_peer_session_identity_is_structured_not_colon_encoded ... ok
+test node::rpc::control::tests::owner_peer_session_identity_binds_every_root_access_field ... ok
+test node::rpc::control::tests::ping_returns_pong_for_literal_ping ... ok
+test node::rpc::control::tests::concurrent_rdma_admission_is_bounded_per_registry ... ok
+test node::rpc::control::tests::rdma_admission_is_per_registry_and_recovers_on_permit_drop ... ok
+test node::rpc::control::tests::failed_rdma_native_allocation_releases_admission ... ok
+test node::rpc::control::tests::unknown_and_closed_sessions_are_rejected ... ok
+
+test result: ok. 10 passed; 0 failed; 1 ignored; 0 measured; 407 filtered out; finished in 0.00s
+

@@ -61,6 +61,18 @@ is lost, while a client cannot acknowledge that uncertain outcome; retries can
 also create different endpoint totals. Correlate counters with errors, traces
 and actual verbs completion evidence when diagnosing transport behavior.
 
+## DFS Auto Selection
+
+Configure `data_mode=auto` and `rdma_device` to prefer RDMA for DFS peer reads
+and replica writes. With no local RDMA feature or device, startup records the
+reason and selects gRPC. A configured device that fails initialization produces
+an explicit startup error.
+
+Peer fallback records a bounded transport reason. It is permitted only before
+data dispatch when negotiation reports unsupported. A timeout or error after
+dispatch keeps its original outcome; it does not start a second write on gRPC.
+Use actual payload and verbs completion counters to confirm the selected path.
+
 ## RDMA Admission
 
 Each server RDMA registry admits at most 64 owned endpoints or pending endpoint

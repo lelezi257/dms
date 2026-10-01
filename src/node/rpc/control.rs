@@ -163,11 +163,20 @@ pub async fn negotiate_for_peer(
             "unsupported RDMA handshake version",
         ));
     }
-    let device = registry
-        .device
-        .clone()
-        .ok_or_else(|| Status::unimplemented("RDMA is not configured"))?;
+    let Some(device) = registry.device.clone() else {
+        return Ok(Response::new(rdma_unsupported_reply()));
+    };
     negotiate_rdma(registry, device, request, Some(identity)).await
+}
+
+fn rdma_unsupported_reply() -> NegotiateDataReply {
+    NegotiateDataReply {
+        session_id: 0,
+        server_info: Vec::new(),
+        capacity: 0,
+        rdma_supported: false,
+        handshake_version: RDMA_HANDSHAKE_VERSION,
+    }
 }
 
 /// 服务端 RDMA session 表。
@@ -909,13 +918,7 @@ impl NodeControl for NodeControlService {
             ));
         }
         let Some(device) = self.registry.device.clone() else {
-            return Ok(Response::new(NegotiateDataReply {
-                session_id: 0,
-                server_info: Vec::new(),
-                capacity: 0,
-                rdma_supported: false,
-                handshake_version: RDMA_HANDSHAKE_VERSION,
-            }));
+            return Ok(Response::new(rdma_unsupported_reply()));
         };
         negotiate_rdma(&self.registry, device, request, None).await
     }
@@ -977,13 +980,7 @@ impl NodeControl for NodeControlService {
                 .as_ref()
                 .ok_or_else(|| Status::unimplemented("OwnerFiles RDMA is not configured"))?;
             let Some(device) = registry.device.clone() else {
-                return Ok(Response::new(NegotiateDataReply {
-                    session_id: 0,
-                    server_info: Vec::new(),
-                    capacity: 0,
-                    rdma_supported: false,
-                    handshake_version: RDMA_HANDSHAKE_VERSION,
-                }));
+                return Ok(Response::new(rdma_unsupported_reply()));
             };
             negotiate_rdma(registry, device, negotiation, Some(identity)).await
         }
@@ -1664,6 +1661,32 @@ mod tests {
             session_error_code(&registry, 99).await,
             tonic::Code::FailedPrecondition
         );
+    }
+
+    #[cfg(feature = "dfs")]
+    #[tokio::test]
+    async fn dfs_peer_negotiation_without_rdma_device_returns_canonical_unsupported() {
+        let registry = RdmaSessionRegistry::new(None);
+        let identity = PeerSessionIdentity::new("peer-a".into(), 7).unwrap();
+
+        let reply = negotiate_for_peer(
+            &registry,
+            identity,
+            NegotiateDataRequest {
+                client_info: Vec::new(),
+                capacity: 0,
+                handshake_version: RDMA_HANDSHAKE_VERSION,
+            },
+        )
+        .await
+        .expect("missing device reports unsupported, not transport failure")
+        .into_inner();
+
+        assert!(!reply.rdma_supported);
+        assert_eq!(reply.session_id, 0);
+        assert!(reply.server_info.is_empty());
+        assert_eq!(reply.capacity, 0);
+        assert_eq!(reply.handshake_version, RDMA_HANDSHAKE_VERSION);
     }
 
     #[cfg(feature = "rdma")]

@@ -33,3 +33,21 @@
 - Read batching, attempts and source selection are Node runtime concerns.
 - Cache and spill must use copy role/state rules before serving or evicting data.
 - NodeControl owns Owner RDMA negotiation and transport close. OwnerFiles owns file commands and payload descriptors. Owner sessions are isolated from DFS and diagnostic sessions; transport identity never replaces file authorization.
+
+## DFS Transport Selection
+
+`grpc` carries file bytes through the existing bounded streams. `rdma` requires
+an available configured device and keeps every transport failure explicit.
+`auto` prepares RDMA when the local feature and device are available, and prefers
+it for chunk replication and fixed-version reads.
+
+An authenticated peer can report that RDMA is unsupported during negotiation.
+Auto may then use gRPC before sending a data command, within the same operation
+deadline and with the same authority. Capacity, authorization, protocol,
+integrity and uncertain completion errors do not permit write replay.
+
+A read batch may contain several RDMA windows. Once any window's data command
+has been sent, the batch cannot restart through gRPC. The read engine handles
+failed source attempts using its fixed-version and scratch-buffer contract.
+Actual completed byte counters identify the data path; a preferred mode alone
+does not prove RDMA traffic.

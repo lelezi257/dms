@@ -1,0 +1,211 @@
+    #[cfg(all(feature = "dfs", feature = "rdma"))]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[ignore = "requires explicit Linux RXE device; product payload, not diagnostic NodeData"]
+    async fn dfs_auto_prefers_rdma_replica_and_read_real_verbs() {
+        use crate::node::chunk::StagedChunk;
+        use crate::node::dfs_read::{ChunkReadOp, ChunkTransfer, PeerReadBatch, ResolvedReadOp};
+        use crate::node::replication::ReplicaDataPlane;
+        use crate::node::rpc::peer::{
+            DfsRdmaPool, PeerConnectionPool, DataMode, make_replica_data_plane, make_chunk_transfer,
+        };
+        let device = std::env::var("AFS_TEST_RDMA_DEVICE")
+            .expect("set AFS_TEST_RDMA_DEVICE to the Linux RXE device");
+        let (meta, local, _temp, read) = memory_read_authority_fixture().await;
+        let validator = Arc::new(MemoryReadGrantValidator {
+            service: meta.dfs.as_ref().unwrap().clone(),
+            runtime: tokio::runtime::Handle::current(),
+            calls: std::sync::atomic::AtomicUsize::new(0),
+            unavailable: std::sync::atomic::AtomicBool::new(false),
+        });
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let endpoint = format!("http://{}", listener.local_addr().unwrap());
+        let staged = StagedChunk::new(
+            crate::dfs::OperationId::new("rdma-product"),
+            vec![37; crate::node::chunk::MAX_STAGED_CHUNK_BYTES],
+        );
+        let target = crate::dfs::ReplicaTarget {
+            node_id: "receiver".into(),
+            node_epoch: 1,
+            data_endpoint: endpoint.clone(),
+            device: local.device_descriptor().unwrap(),
+        };
+        let op = crate::node::replication::ReplicaPeerOp {
+            chunk_id: staged.chunk.id.clone(),
+            placement_revision: 1,
+            placement_epoch: 1,
+            replica_group_id: crate::dfs::ReplicaGroupId::new("fixture"),
+            initiator_node_id: "reader".into(),
+            initiator_node_epoch: 1,
+            ordered_targets: vec![target.clone()],
+            sync_target_count: 1,
+            target_index: 0,
+            target,
+            chain_tail: vec![],
+            repair_claim: None,
+        };
+        let registry = afs_metrics::Registry::new();
+        let metrics = DfsPayloadMetrics::register(&registry).unwrap();
+        let service = make_dfs_chunks_server_with_transport(
+            Some(local.clone()),
+            Arc::new(AllowDfsTestPeer),
+            Arc::new(CachedDfsReadAuthorizer::new(
+                validator,
+                "receiver".into(),
+                1,
+            )),
+            Arc::new(FixtureReplicaGrant(op.clone())),
+            None,
+            std::time::Duration::from_secs(10),
+            DfsChunkTransportResources {
+                rdma_sessions: super::super::control::RdmaSessionRegistry::new(Some(
+                    device.clone(),
+                )),
+                payload_metrics: Some(metrics.clone()),
+            },
+        );
+        let server = tokio::spawn(async move {
+            Server::builder()
+                .add_service(service)
+                .serve_with_incoming(TcpListenerStream::new(listener))
+                .await
+                .unwrap();
+        });
+        let peers = Arc::new(
+            PeerConnectionPool::new(
+                afs_transport::GrpcConfig::default(),
+                afs_transport::TlsConfig::Disabled,
+                16,
+            )
+            .unwrap(),
+        );
+        let pool =
+            Arc::new(DfsRdmaPool::new(peers.clone(), device, std::time::Duration::from_secs(10)).unwrap());
+        let writer = make_replica_data_plane(DataMode::Auto, peers.clone(), std::time::Duration::from_secs(10), Some(pool.clone())).unwrap();
+        let saved = staged.clone();
+        let saved_op = op.clone();
+        let acks = tokio::task::spawn_blocking(move || {
+            let acks = writer.put_peer_replica(&saved_op, &saved).unwrap();
+            writer.put_peer_replica(&saved_op, &saved).unwrap();
+            acks
+        })
+        .await
+        .unwrap();
+        assert_eq!(
+            acks[0].persisted_bytes,
+            crate::node::chunk::MAX_STAGED_CHUNK_BYTES as u64
+        );
+        let wire = read.operations[0].grant.as_ref().unwrap();
+        let item = &read.operations[0];
+        let batch = PeerReadBatch {
+            file_version_id: crate::dfs::FileVersionId::new(read.file_version_id.clone()),
+            layout_root_id: crate::dfs::LayoutRootId::new(read.layout_root_id.clone()),
+            operations: vec![ResolvedReadOp {
+                op: ChunkReadOp {
+                    chunk_id: crate::dfs::ChunkId::new(item.chunk_id.clone()),
+                    chunk_offset: item.chunk_offset,
+                    length: item.length,
+                    output_offset: 0,
+                },
+                source: crate::dfs::SourceCandidate {
+                    copy_id: crate::dfs::CopyId::new(item.source_copy_id.clone()),
+                    chunk_id: crate::dfs::ChunkId::new(item.chunk_id.clone()),
+                    role: crate::dfs::CopyRole::DurableReplica,
+                    state: crate::dfs::CopyState::Ready,
+                    location: crate::dfs::CopyLocation::Node {
+                        node_id: "receiver".into(),
+                        node_epoch: 1,
+                        device_id: op.target.device.device_id.clone(),
+                        device_epoch: op.target.device.device_epoch,
+                        catalog_revision: op.target.device.catalog_revision,
+                    },
+                    data_endpoint: Some(endpoint.clone()),
+                    load_hint: 0,
+                    read_grant: crate::dfs::DfsReadGrant {
+                        namespace_id: crate::dfs::NamespaceId::new(wire.namespace_id.clone()),
+                        file_version_id: crate::dfs::FileVersionId::new(
+                            wire.file_version_id.clone(),
+                        ),
+                        layout_root_id: crate::dfs::LayoutRootId::new(wire.layout_root_id.clone()),
+                        caller_node_id: wire.caller_node_id.clone(),
+                        caller_node_epoch: wire.caller_node_epoch,
+                        expires_at_unix_ms: wire.expires_at_unix_ms,
+                        fence: wire.fence,
+                        token: wire.token.clone(),
+                    },
+                },
+            }],
+        };
+        let transfer = make_chunk_transfer(DataMode::Auto, peers, std::time::Duration::from_secs(10), Some(pool)).unwrap();
+        let bytes = tokio::task::spawn_blocking(move || {
+            let mut bytes = vec![0; 75_000];
+            transfer.read_ranges(&batch, &mut bytes).unwrap();
+            bytes
+        })
+        .await
+        .unwrap();
+        assert_eq!(bytes, vec![9; 75_000]);
+        assert_eq!(
+            metrics
+                .bytes
+                .with_label_values(&["rdma", "recv", "replica"])
+                .get(),
+            2 * crate::node::chunk::MAX_STAGED_CHUNK_BYTES as u64
+        );
+        assert_eq!(
+            metrics
+                .bytes
+                .with_label_values(&["rdma", "send", "read"])
+                .get(),
+            75_000
+        );
+        assert_eq!(
+            metrics
+                .bytes
+                .with_label_values(&["grpc", "recv", "replica"])
+                .get(),
+            0
+        );
+        assert_eq!(
+            metrics
+                .bytes
+                .with_label_values(&["grpc", "send", "read"])
+                .get(),
+            0
+        );
+        let mut client =
+            afs_protocol::node_data::dfs_chunks_client::DfsChunksClient::connect(endpoint)
+                .await
+                .unwrap();
+        let mut forged = read;
+        forged.operations[0].grant.as_mut().unwrap().token = "forged".into();
+        assert_eq!(
+            client
+                .negotiate_rdma(DfsNegotiateRdmaRequest {
+                    client_info: vec![],
+                    capacity: crate::node::chunk::MAX_STAGED_CHUNK_BYTES as u32,
+                    handshake_version: super::super::control::RDMA_HANDSHAKE_VERSION,
+                    authority: Some(
+                        afs_protocol::node_data::dfs_negotiate_rdma_request::Authority::ReadRequest(
+                            forged
+                        )
+                    )
+                })
+                .await
+                .unwrap_err()
+                .code(),
+            tonic::Code::PermissionDenied
+        );
+        assert_eq!(
+            metrics
+                .bytes
+                .with_label_values(&["rdma", "send", "read"])
+                .get(),
+            75_000
+        );
+        println!(
+            "DFS_AUTO_RDMA replica_bytes={} read_bytes=75000 grpc_payload_bytes=0 exact_retry=PASS forged_grant=DENIED",
+            2 * crate::node::chunk::MAX_STAGED_CHUNK_BYTES
+        );
+        server.abort();
+    }
+

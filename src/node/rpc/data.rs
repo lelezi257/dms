@@ -5888,11 +5888,55 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     #[ignore = "requires explicit Linux RXE device; product payload, not diagnostic NodeData"]
     async fn dfs_product_rdma_replica_and_read_real_verbs() {
+        dfs_product_rdma_replica_and_read_real_verbs_with_mode(
+            super::super::peer::DataMode::Rdma,
+            true,
+        )
+        .await;
+    }
+
+    #[cfg(all(feature = "dfs", feature = "rdma"))]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[ignore = "requires explicit Linux RXE device; product payload, not diagnostic NodeData"]
+    async fn dfs_auto_prefers_rdma_replica_and_read_real_verbs() {
+        dfs_product_rdma_replica_and_read_real_verbs_with_mode(
+            super::super::peer::DataMode::Auto,
+            true,
+        )
+        .await;
+    }
+
+    #[cfg(all(feature = "dfs", feature = "rdma"))]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[ignore = "requires Linux RXE client; receiver deliberately has no RDMA device"]
+    async fn dfs_auto_unsupported_peer_uses_grpc_before_dispatch() {
+        dfs_product_rdma_replica_and_read_real_verbs_with_mode(
+            super::super::peer::DataMode::Auto,
+            false,
+        )
+        .await;
+    }
+
+    #[cfg(all(feature = "dfs", feature = "rdma"))]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[ignore = "requires Linux RXE client; receiver deliberately has no RDMA device"]
+    async fn dfs_required_unsupported_peer_never_uses_grpc() {
+        dfs_product_rdma_replica_and_read_real_verbs_with_mode(
+            super::super::peer::DataMode::Rdma,
+            false,
+        )
+        .await;
+    }
+
+    #[cfg(all(feature = "dfs", feature = "rdma"))]
+    async fn dfs_product_rdma_replica_and_read_real_verbs_with_mode(
+        mode: super::super::peer::DataMode,
+        server_rdma: bool,
+    ) {
         use crate::node::chunk::StagedChunk;
-        use crate::node::dfs_read::{ChunkReadOp, ChunkTransfer, PeerReadBatch, ResolvedReadOp};
-        use crate::node::replication::ReplicaDataPlane;
+        use crate::node::dfs_read::{ChunkReadOp, PeerReadBatch, ResolvedReadOp};
         use crate::node::rpc::peer::{
-            DfsRdmaPool, PeerConnectionPool, RdmaChunkTransfer, RdmaReplicaDataPlane,
+            DfsRdmaPool, PeerConnectionPool, make_chunk_transfer, make_replica_data_plane,
         };
         let device = std::env::var("AFS_TEST_RDMA_DEVICE")
             .expect("set AFS_TEST_RDMA_DEVICE to the Linux RXE device");
@@ -5943,9 +5987,9 @@ mod tests {
             None,
             std::time::Duration::from_secs(10),
             DfsChunkTransportResources {
-                rdma_sessions: super::super::control::RdmaSessionRegistry::new(Some(
-                    device.clone(),
-                )),
+                rdma_sessions: super::super::control::RdmaSessionRegistry::new(
+                    server_rdma.then(|| device.clone()),
+                ),
                 payload_metrics: Some(metrics.clone()),
             },
         );
@@ -5964,22 +6008,38 @@ mod tests {
             )
             .unwrap(),
         );
-        let pool =
-            Arc::new(DfsRdmaPool::new(peers, device, std::time::Duration::from_secs(10)).unwrap());
-        let writer = RdmaReplicaDataPlane::new(pool.clone()).unwrap();
+        let pool = Arc::new(
+            DfsRdmaPool::new(peers.clone(), device, std::time::Duration::from_secs(10)).unwrap(),
+        );
+        let writer = make_replica_data_plane(
+            mode,
+            peers.clone(),
+            std::time::Duration::from_secs(10),
+            Some(pool.clone()),
+        )
+        .unwrap();
         let saved = staged.clone();
         let saved_op = op.clone();
         let acks = tokio::task::spawn_blocking(move || {
+            if !server_rdma && mode == super::super::peer::DataMode::Rdma {
+                let error = writer.put_peer_replica(&saved_op, &saved).unwrap_err();
+                assert_eq!(error.code(), afs_error::NODE_TRANSFER_UNSUPPORTED);
+                return None;
+            }
             let acks = writer.put_peer_replica(&saved_op, &saved).unwrap();
             writer.put_peer_replica(&saved_op, &saved).unwrap();
-            acks
+            Some(acks)
         })
         .await
         .unwrap();
-        assert_eq!(
-            acks[0].persisted_bytes,
-            crate::node::chunk::MAX_STAGED_CHUNK_BYTES as u64
-        );
+        if let Some(acks) = &acks {
+            assert_eq!(
+                acks[0].persisted_bytes,
+                crate::node::chunk::MAX_STAGED_CHUNK_BYTES as u64
+            );
+        }
+        let plane = if server_rdma { "rdma" } else { "grpc" };
+        let other_plane = if server_rdma { "grpc" } else { "rdma" };
         let wire = read.operations[0].grant.as_ref().unwrap();
         let item = &read.operations[0];
         let batch = PeerReadBatch {
@@ -6021,7 +6081,44 @@ mod tests {
                 },
             }],
         };
-        let transfer = RdmaChunkTransfer::new(pool).unwrap();
+        if acks.is_none() {
+            let transfer =
+                make_chunk_transfer(mode, peers, std::time::Duration::from_secs(10), Some(pool))
+                    .unwrap();
+            let bytes = tokio::task::spawn_blocking(move || {
+                let mut bytes = vec![0; 75_000];
+                let error = transfer.read_ranges(&batch, &mut bytes).unwrap_err();
+                assert_eq!(error.code(), afs_error::NODE_TRANSFER_UNSUPPORTED);
+                bytes
+            })
+            .await
+            .unwrap();
+            assert_eq!(bytes, vec![0; 75_000]);
+            for transport in ["rdma", "grpc"] {
+                assert_eq!(
+                    metrics
+                        .bytes
+                        .with_label_values(&[transport, "recv", "replica"])
+                        .get(),
+                    0
+                );
+                assert_eq!(
+                    metrics
+                        .bytes
+                        .with_label_values(&[transport, "send", "read"])
+                        .get(),
+                    0
+                );
+            }
+            println!(
+                "DFS_REQUIRED_UNSUPPORTED write=REJECTED read=REJECTED error=NODE_TRANSFER_UNSUPPORTED grpc_payload_bytes=0 rdma_payload_bytes=0"
+            );
+            server.abort();
+            return;
+        }
+        let transfer =
+            make_chunk_transfer(mode, peers, std::time::Duration::from_secs(10), Some(pool))
+                .unwrap();
         let bytes = tokio::task::spawn_blocking(move || {
             let mut bytes = vec![0; 75_000];
             transfer.read_ranges(&batch, &mut bytes).unwrap();
@@ -6033,28 +6130,28 @@ mod tests {
         assert_eq!(
             metrics
                 .bytes
-                .with_label_values(&["rdma", "recv", "replica"])
+                .with_label_values(&[plane, "recv", "replica"])
                 .get(),
             2 * crate::node::chunk::MAX_STAGED_CHUNK_BYTES as u64
         );
         assert_eq!(
             metrics
                 .bytes
-                .with_label_values(&["rdma", "send", "read"])
+                .with_label_values(&[plane, "send", "read"])
                 .get(),
             75_000
         );
         assert_eq!(
             metrics
                 .bytes
-                .with_label_values(&["grpc", "recv", "replica"])
+                .with_label_values(&[other_plane, "recv", "replica"])
                 .get(),
             0
         );
         assert_eq!(
             metrics
                 .bytes
-                .with_label_values(&["grpc", "send", "read"])
+                .with_label_values(&[other_plane, "send", "read"])
                 .get(),
             0
         );
@@ -6084,12 +6181,12 @@ mod tests {
         assert_eq!(
             metrics
                 .bytes
-                .with_label_values(&["rdma", "send", "read"])
+                .with_label_values(&[plane, "send", "read"])
                 .get(),
             75_000
         );
         println!(
-            "DFS_PRODUCT_RDMA replica_bytes={} read_bytes=75000 grpc_payload_bytes=0 exact_retry=PASS forged_grant=DENIED",
+            "DFS_PRODUCT_TRANSPORT mode={mode:?} plane={plane} replica_bytes={} read_bytes=75000 other_payload_bytes=0 exact_retry=PASS forged_grant=DENIED",
             2 * crate::node::chunk::MAX_STAGED_CHUNK_BYTES
         );
         server.abort();

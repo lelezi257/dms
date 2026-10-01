@@ -1,0 +1,1 @@
+timeout 180 cargo test --offline --all-features --test config_contract --test error_contract --test fuse_contract --test meta_contract --test ownerfs_peer_contract --test rest_contract --test vfs_contract -- --nocapture 

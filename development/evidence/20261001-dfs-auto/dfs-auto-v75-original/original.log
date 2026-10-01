@@ -1,0 +1,42 @@
+   Compiling afs-protocol v0.1.0 (/home/lzc.guest/afs-build/work/dfs-auto-v75-original/common/protocol)
+   Compiling afs-metrics v0.1.0 (/home/lzc.guest/afs-build/work/dfs-auto-v75-original/common/metrics)
+   Compiling afs-transport v0.1.0 (/home/lzc.guest/afs-build/work/dfs-auto-v75-original/common/transport)
+   Compiling afs-tracing v0.1.0 (/home/lzc.guest/afs-build/work/dfs-auto-v75-original/common/tracing)
+   Compiling fuser v0.16.0 (/home/lzc.guest/afs-build/work/dfs-auto-v75-original/third_party/fuser)
+   Compiling afs-error v0.1.0 (/home/lzc.guest/afs-build/work/dfs-auto-v75-original/common/error)
+   Compiling afs-logging v0.1.0 (/home/lzc.guest/afs-build/work/dfs-auto-v75-original/common/logging)
+   Compiling afs-client v0.1.0 (/home/lzc.guest/afs-build/work/dfs-auto-v75-original/client)
+   Compiling afs v0.1.0 (/home/lzc.guest/afs-build/work/dfs-auto-v75-original)
+warning: unused import: `crate::node::replication::ReplicaDataPlane`
+    --> src/node/rpc/data.rs:6104:13
+     |
+6104 |         use crate::node::replication::ReplicaDataPlane;
+     |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+     |
+     = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `ChunkTransfer`
+    --> src/node/rpc/data.rs:6103:50
+     |
+6103 |         use crate::node::dfs_read::{ChunkReadOp, ChunkTransfer, PeerReadBatch, ResolvedReadOp};
+     |                                                  ^^^^^^^^^^^^^
+
+warning: `afs` (lib test) generated 2 warnings
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 27.10s
+     Running unittests src/lib.rs (/home/lzc.guest/afs-build/target/debug/deps/afs-586e1b701367e588)
+
+running 1 test
+
+thread 'node::rpc::data::tests::dfs_auto_prefers_rdma_replica_and_read_real_verbs' (1609) panicked at src/node/rpc/data.rs:6179:98:
+called `Result::unwrap()` on an `Err` value: Error { code: ErrorCode(33816579), kind: Unavailable, message: "open RDMA endpoint failed (device/port/resources) (errno=0)" }
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test node::rpc::data::tests::dfs_auto_prefers_rdma_replica_and_read_real_verbs ... FAILED
+
+failures:
+
+failures:
+    node::rpc::data::tests::dfs_auto_prefers_rdma_replica_and_read_real_verbs
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 413 filtered out; finished in 0.04s
+
+error: test failed, to rerun pass `--lib`

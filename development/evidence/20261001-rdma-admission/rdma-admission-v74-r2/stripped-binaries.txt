@@ -1,0 +1,2 @@
+32b3030e131215a2f676d98cccadf005da72b8da33eea9eb0c19981ee49db435  /home/lzc.guest/afs-build/artifacts/rdma-admission-v74-r2/afs-node
+edd27444f109d5176d71c393b586a934089b421bd92dfe28d7f6df93537bc9fd  /home/lzc.guest/afs-build/artifacts/rdma-admission-v74-r2/afs-meta

@@ -1,0 +1,1 @@
+timeout180 cargo test --offline --all-features --lib node::rpc::control::tests -- --nocapture

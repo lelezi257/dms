@@ -1,0 +1,1 @@
+env AFS_TEST_RDMA_DEVICE=rxe0 timeout 180 cargo test --offline --all-features --test ownerfs_peer_contract ownerpeerclient_rdma_large_write_fsync_cold_read_roundtrip_preserves_payload -- --ignored --nocapture 

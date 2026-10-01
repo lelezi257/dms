@@ -16,7 +16,7 @@ The [delivery acceptance contract](acceptance.md) requires JuiceFS default same-
 | OwnerFs | Experimental | Home-local files, P2P access to Home, root grants, handle checks and cleanup exist. Dirty local close flush performs data sync; remote flush reaches the Home boundary. Identified Linux TLS/etcd-backed local and remote-Home mounts pass 11 POSIX and 4 multi-user short checks. Ordinary test fixtures live inside a workspace; deleting the workspace authority root is not implemented as ordinary rmdir. Full fault/POSIX coverage remains incomplete. |
 | DFS R=1 write path | Experimental | DFS mount, shared inode dirty state, serialized mutation/commit, exact uncertain-request replay, truncate and sparse-file paths exist for local owner scenarios. Definite commit rejection blocks later mutations until owner recovery. Identified A/B memory-backed mounts pass short remote-owner writes, handleless resize, same-mount dirty reads and owner-handover scenarios. Complete fault and backend coverage remains unqualified. |
 | FileVersion and layout model | Experimental | `FileVersion`, `LayoutRoot`, `Extent`, `ChunkObject`, CAS commit and base-chunk inheritance exist. Extent tree and compaction policy are not complete. |
-| Replication | Experimental gRPC chain | Configurable replica targets/synchronous minimum, global placement, authenticated receiver write grants, bounded staging and ordered durable chain acknowledgements exist. Real localhost missing-tail/exact-retry tests pass; asynchronous claim/report RPCs and a source-owning worker now exist. Identified A/B memory-backed N=2/M=1 gRPC repair grows one durable copy to two and survives B restart; full multi-VM fault/resource matrices remain incomplete. The shared RDMA header carries repair identity but actual RXE repair is unqualified. |
+| Replication | Experimental chain | Configurable targets/synchronous minimum, placement, receiver grants, bounded staging and durable chain acknowledgements exist. Localhost missing-tail/exact-retry and actual A/B memory-backed gRPC/RXE repair short flows pass under their recorded identities; full multi-VM fault/resource matrices remain incomplete. |
 | Local chunk engine | Experimental foundation | BLAKE3 identity, per-chunk files, local catalog, finalize and startup recovery exist. Pack backend, relocation, GC and full crash matrix are not complete. |
 | File reads and default consistency | Local experimental | Ordinary readonly handles share the local inode dirty view; each read pairs one base version/layout. Writable close flush commits recovery state, retains uncertain requests and reports errors. DFS cached write-through passes a real Linux warm readonly/MAP_SHARED-read/overwrite/append/shrink-grow slice. Remote owner forwarding of data and attributes passes the identified eight-case A/B short probe, including write-only providers and retained-state handover. Full concurrency and permission matrices remain incomplete. `DfsReadEngine`, bounded peer batches and connection pool exist; authenticated batched Meta read-grant validation and bounded receiver caches pass Linux source and localhost streaming regressions; the identified A/B handover and peer-read short probe passes. Full security and fault matrices remain incomplete. |
 | Native SDK | Foundation | `DfsLocalData` protocol and typed DFS client identity framework exist. The default Node service returns `UNIMPLEMENTED`; diagnostic `LocalData` remains separate and does not become OwnerFs. |
@@ -176,6 +176,24 @@ file-payload counters remain zero. Corruption of both copies returns EIO and
 BlockedNoSource on fresh mounts. Live identity/content/REST and per-incarnation
 counter audits pass. This scoped stage reuses the unchanged Rust source gate;
 full RDMA lifecycle/fault/backend/resource and formal acceptance remain open.
+
+## RDMA Server Admission
+
+The [admission batch](../development/evidence/20261001-rdma-admission/README.md)
+fixes a reproducible limit bypass:64 retained endpoint Arcs after session close
+allowed a65th negotiation. Reservations now precede native allocation and live
+with the endpoint's last Arc owner. Concurrent admission, allocation failure
+recovery and the original real RXE regression pass. The final Linux gate passes
+410 library,65 contract,4 shared-error,9 localAPI and5 rootFUSE tests, formatting,
+strict workspace Clippy, five feature configurations and binary build.
+
+Fresh same-VM real RXE DFS replica/read and production Owner4MiB+17 integrations
+pass on the final inputs. Five lifecycle tests pass, but the cancellation
+fixture posts no data DMA. This is a scoped stage gate; actual posted-DMA
+cancellation, exceptional native reclamation, peak resources and full fault
+matrices remain open. DFS Auto factories still select gRPC, including when an
+RDMA pool is provided; correcting automatic preference is a separate pending
+task. No formal case is promoted and no handoff refresh is performed.
 
 ## Known Open Items
 

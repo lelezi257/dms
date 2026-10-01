@@ -1,0 +1,5 @@
+   Compiling afs-protocol v0.1.0 (/home/lzc.guest/afs-build/work/rdma-admission-v74-r2/common/protocol)
+   Compiling fuser v0.16.0 (/home/lzc.guest/afs-build/work/rdma-admission-v74-r2/third_party/fuser)
+   Compiling afs-transport v0.1.0 (/home/lzc.guest/afs-build/work/rdma-admission-v74-r2/common/transport)
+   Compiling afs v0.1.0 (/home/lzc.guest/afs-build/work/rdma-admission-v74-r2)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 20.48s

@@ -52,8 +52,6 @@ use tonic::{Request, Response, Status};
 #[cfg(feature = "rdma")]
 use afs_transport::rdma::{INFO_BYTES, MAX_CAPACITY, RdmaEndpoint};
 #[cfg(feature = "rdma")]
-use std::ops::Deref;
-#[cfg(feature = "rdma")]
 use std::sync::atomic::AtomicU64;
 
 #[cfg(feature = "rdma")]
@@ -175,21 +173,13 @@ pub async fn negotiate_for_peer(
 /// 它把 control proto 里的 `session_id` 映射到服务端持有的 `RdmaEndpoint`。
 /// data.rs 每次 RDMA read/write 都先通过这里校验：session 存在、已 Ready、未 poisoned。
 /// poisoned 表示这条 RDMA 路径结果可能不明，后续请求必须 fail closed。
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct RdmaSessionRegistry {
     inner: Arc<Mutex<HashMap<u64, Arc<RdmaSession>>>>,
     #[cfg(feature = "rdma")]
     next_id: Arc<AtomicU64>,
-    #[cfg(feature = "rdma")]
-    admission: Arc<tokio::sync::Semaphore>,
     device: Option<String>,
     ttl: Duration,
-}
-
-impl Default for RdmaSessionRegistry {
-    fn default() -> Self {
-        Self::new(None)
-    }
 }
 
 impl RdmaSessionRegistry {
@@ -204,8 +194,6 @@ impl RdmaSessionRegistry {
             inner: Arc::new(Mutex::new(HashMap::new())),
             #[cfg(feature = "rdma")]
             next_id: Arc::new(AtomicU64::new(1)),
-            #[cfg(feature = "rdma")]
-            admission: Arc::new(tokio::sync::Semaphore::new(MAX_RDMA_SESSIONS)),
             device,
             ttl,
         }
@@ -302,20 +290,27 @@ impl RdmaSessionRegistry {
     }
 
     #[cfg(feature = "rdma")]
-    async fn reserve_admission(&self) -> Result<tokio::sync::OwnedSemaphorePermit, Status> {
+    pub async fn ensure_capacity(&self) -> Result<(), Status> {
         self.cleanup_expired().await;
-        self.admission.clone().try_acquire_owned().map_err(|_| {
-            coded_status(
+        if self.inner.lock().await.len() >= MAX_RDMA_SESSIONS {
+            return Err(coded_status(
                 afs_error::NODE_RDMA_CAPACITY,
-                "too many RDMA endpoints in this registry",
-            )
-        })
+                "too many RDMA sessions",
+            ));
+        }
+        Ok(())
     }
 
     #[cfg(feature = "rdma")]
     async fn insert(&self, session: RdmaSession) -> Result<u64, Status> {
         self.cleanup_expired().await;
         let mut sessions = self.inner.lock().await;
+        if sessions.len() >= MAX_RDMA_SESSIONS {
+            return Err(coded_status(
+                afs_error::NODE_RDMA_CAPACITY,
+                "too many RDMA sessions",
+            ));
+        }
         let id = self.next_id.fetch_add(1, Ordering::SeqCst);
         sessions.insert(id, Arc::new(session));
         Ok(id)
@@ -360,47 +355,18 @@ impl RdmaSessionRegistry {
 pub struct RdmaSession {
     peer_identity: Option<PeerSessionIdentity>,
     #[cfg(feature = "rdma")]
-    pub endpoint: Arc<RdmaServerEndpoint>,
+    pub endpoint: Arc<Mutex<RdmaEndpoint>>,
     ready: AtomicBool,
     pub poisoned: AtomicBool,
     last_used: StdMutex<Instant>,
 }
 
-#[cfg(feature = "rdma")]
-pub struct RdmaServerEndpoint {
-    // Field order is intentional: the native endpoint must close before the
-    // per-registry admission permit is released for reuse. The permit bounds
-    // live AFS endpoint owners; a broken provider Drop can still leak native
-    // resources outside what this admission counter can prove.
-    endpoint: Mutex<RdmaEndpoint>,
-    _admission: tokio::sync::OwnedSemaphorePermit,
-}
-
-#[cfg(feature = "rdma")]
-impl RdmaServerEndpoint {
-    fn new(endpoint: RdmaEndpoint, admission: tokio::sync::OwnedSemaphorePermit) -> Self {
-        Self {
-            endpoint: Mutex::new(endpoint),
-            _admission: admission,
-        }
-    }
-}
-
-#[cfg(feature = "rdma")]
-impl Deref for RdmaServerEndpoint {
-    type Target = Mutex<RdmaEndpoint>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.endpoint
-    }
-}
-
 impl RdmaSession {
     #[cfg(feature = "rdma")]
-    fn new(endpoint: RdmaServerEndpoint, peer_identity: Option<PeerSessionIdentity>) -> Self {
+    fn new(endpoint: RdmaEndpoint, peer_identity: Option<PeerSessionIdentity>) -> Self {
         Self {
             peer_identity,
-            endpoint: Arc::new(endpoint),
+            endpoint: Arc::new(Mutex::new(endpoint)),
             ready: AtomicBool::new(false),
             poisoned: AtomicBool::new(false),
             last_used: StdMutex::new(Instant::now()),
@@ -1306,7 +1272,7 @@ async fn negotiate_rdma(
             format!("client capacity must be within 1..={MAX_CAPACITY} bytes"),
         ));
     }
-    let admission = registry.reserve_admission().await?;
+    registry.ensure_capacity().await?;
     let client_info = request.client_info;
     let (endpoint, info) = tokio::task::spawn_blocking(move || {
         let mut endpoint =
@@ -1315,7 +1281,7 @@ async fn negotiate_rdma(
         // 必须先投递 RECV 再向客户端公开 endpoint，避免客户端探测到达时没有接收槽。
         endpoint.prepare_probe().map_err(native_status)?;
         endpoint.connect(&client_info).map_err(native_status)?;
-        Ok::<_, Status>((RdmaServerEndpoint::new(endpoint, admission), info))
+        Ok::<_, Status>((endpoint, info))
     })
     .await
     .map_err(|error| coded_status(afs_error::NODE_TRANSFER_INTERNAL, error.to_string()))??;
@@ -1664,198 +1630,6 @@ mod tests {
             session_error_code(&registry, 99).await,
             tonic::Code::FailedPrecondition
         );
-    }
-
-    #[cfg(feature = "rdma")]
-    #[tokio::test]
-    async fn rdma_admission_is_per_registry_and_recovers_on_permit_drop() {
-        let first = RdmaSessionRegistry::new(None);
-        let second = RdmaSessionRegistry::new(None);
-        let default = RdmaSessionRegistry::default();
-        let mut retained = Vec::new();
-
-        drop(
-            default
-                .reserve_admission()
-                .await
-                .expect("default registry has admission capacity"),
-        );
-        for _ in 0..MAX_RDMA_SESSIONS {
-            retained.push(first.reserve_admission().await.expect("admission"));
-        }
-
-        let error = first
-            .reserve_admission()
-            .await
-            .expect_err("first registry must be full");
-        assert_eq!(
-            afs_transport::grpc::error_status::status_to_error(error).code(),
-            afs_error::NODE_RDMA_CAPACITY
-        );
-
-        let second_permit = second
-            .reserve_admission()
-            .await
-            .expect("capacity is per registry");
-        drop(second_permit);
-        drop(retained.pop().expect("one retained permit"));
-        let recovered = first
-            .reserve_admission()
-            .await
-            .expect("admission recovers when a permit drops");
-        drop(recovered);
-        assert_eq!(first.admission.available_permits(), 1);
-    }
-
-    #[cfg(feature = "rdma")]
-    #[tokio::test]
-    async fn failed_rdma_native_allocation_releases_admission() {
-        let registry =
-            RdmaSessionRegistry::new(Some("afs-missing-rdma-device-for-admission-test".into()));
-        assert_eq!(registry.admission.available_permits(), MAX_RDMA_SESSIONS);
-
-        let error = negotiate_rdma(
-            &registry,
-            "afs-missing-rdma-device-for-admission-test".into(),
-            NegotiateDataRequest {
-                client_info: vec![0; INFO_BYTES],
-                capacity: 1,
-                handshake_version: RDMA_HANDSHAKE_VERSION,
-            },
-            None,
-        )
-        .await
-        .expect_err("missing device should fail native allocation");
-        assert_eq!(error.code(), tonic::Code::Unavailable);
-        assert_eq!(
-            afs_transport::grpc::error_status::status_to_error(error).code(),
-            afs_error::NODE_TRANSFER_UNAVAILABLE
-        );
-        assert_eq!(registry.admission.available_permits(), MAX_RDMA_SESSIONS);
-    }
-
-    #[cfg(feature = "rdma")]
-    #[tokio::test]
-    async fn concurrent_rdma_admission_is_bounded_per_registry() {
-        let registry = Arc::new(RdmaSessionRegistry::new(None));
-        let barrier = Arc::new(tokio::sync::Barrier::new(MAX_RDMA_SESSIONS + 1));
-        let mut handles = Vec::new();
-
-        for _ in 0..(MAX_RDMA_SESSIONS * 2) {
-            let registry = registry.clone();
-            let barrier = barrier.clone();
-            handles.push(tokio::spawn(async move {
-                match registry.reserve_admission().await {
-                    Ok(permit) => {
-                        barrier.wait().await;
-                        Some(permit)
-                    }
-                    Err(error) => {
-                        assert_eq!(
-                            afs_transport::grpc::error_status::status_to_error(error).code(),
-                            afs_error::NODE_RDMA_CAPACITY
-                        );
-                        None
-                    }
-                }
-            }));
-        }
-
-        tokio::time::timeout(Duration::from_secs(5), barrier.wait())
-            .await
-            .expect("64 concurrent reservations should reach the barrier");
-        let mut retained = Vec::new();
-        let mut rejected = 0usize;
-        for handle in handles {
-            match handle.await.expect("admission task joined") {
-                Some(permit) => retained.push(permit),
-                None => rejected += 1,
-            }
-        }
-        assert_eq!(retained.len(), MAX_RDMA_SESSIONS);
-        assert_eq!(rejected, MAX_RDMA_SESSIONS);
-    }
-
-    #[cfg(feature = "rdma")]
-    #[tokio::test]
-    #[ignore = "requires a Linux RXE device from AFS_RDMA_DEVICE"]
-    async fn closed_rdma_endpoints_retain_admission_until_last_owner_drops() {
-        let device = std::env::var("AFS_RDMA_DEVICE")
-            .or_else(|_| std::env::var("AFS_TEST_RDMA_DEVICE"))
-            .expect("set AFS_RDMA_DEVICE or AFS_TEST_RDMA_DEVICE to a Linux RXE device");
-        let registry = RdmaSessionRegistry::new(Some(device.clone()));
-        let mut client = tokio::task::spawn_blocking({
-            let device = device.clone();
-            move || RdmaEndpoint::open_with_capacity(&device, 1)
-        })
-        .await
-        .expect("client task joined")
-        .expect("client endpoint");
-        let client_info = client.info().expect("client info").to_vec();
-        let mut retained = Vec::new();
-
-        for _ in 0..MAX_RDMA_SESSIONS {
-            let reply = negotiate_rdma(
-                &registry,
-                device.clone(),
-                NegotiateDataRequest {
-                    client_info: client_info.clone(),
-                    capacity: 1,
-                    handshake_version: RDMA_HANDSHAKE_VERSION,
-                },
-                None,
-            )
-            .await
-            .expect("negotiate")
-            .into_inner();
-            let session = registry
-                .inner
-                .lock()
-                .await
-                .get(&reply.session_id)
-                .cloned()
-                .expect("session entry");
-            retained.push(session.endpoint.clone());
-            registry
-                .remove(reply.session_id)
-                .await
-                .expect("close entry");
-            drop(session);
-        }
-
-        let error = negotiate_rdma(
-            &registry,
-            device.clone(),
-            NegotiateDataRequest {
-                client_info: client_info.clone(),
-                capacity: 1,
-                handshake_version: RDMA_HANDSHAKE_VERSION,
-            },
-            None,
-        )
-        .await
-        .expect_err("retained endpoints must keep admission at capacity");
-        assert_eq!(
-            afs_transport::grpc::error_status::status_to_error(error).code(),
-            afs_error::NODE_RDMA_CAPACITY
-        );
-
-        drop(retained);
-        let reply = negotiate_rdma(
-            &registry,
-            device,
-            NegotiateDataRequest {
-                client_info,
-                capacity: 1,
-                handshake_version: RDMA_HANDSHAKE_VERSION,
-            },
-            None,
-        )
-        .await
-        .expect("admission recovers after endpoint owners drop")
-        .into_inner();
-        registry.remove(reply.session_id).await.expect("cleanup");
-        drop(client);
     }
 
     #[cfg(not(feature = "rdma"))]

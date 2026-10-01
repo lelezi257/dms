@@ -1,0 +1,16 @@
+--- /home/lzc.guest/afs-build/work/rdma-admission-v74-r1/src/node/rpc/control.rs	2026-10-01 16:32:24.312949203 +0800
++++ src/node/rpc/control.rs	2026-10-01 16:34:44.409511066 +0800
+@@ -1699,10 +1699,12 @@
+             .expect("capacity is per registry");
+         drop(second_permit);
+         drop(retained.pop().expect("one retained permit"));
+-        first
++        let recovered = first
+             .reserve_admission()
+             .await
+             .expect("admission recovers when a permit drops");
++        drop(recovered);
++        assert_eq!(first.admission.available_permits(), 1);
+     }
+ 
+     #[cfg(feature = "rdma")]

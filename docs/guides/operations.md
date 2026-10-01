@@ -61,6 +61,21 @@ is lost, while a client cannot acknowledge that uncertain outcome; retries can
 also create different endpoint totals. Correlate counters with errors, traces
 and actual verbs completion evidence when diagnosing transport behavior.
 
+## RDMA Admission
+
+Each server RDMA registry admits at most 64 owned endpoints or pending endpoint
+allocations. Negotiation reserves a slot before opening native resources. A
+closed, expired or poisoned session rejects new requests, but a worker that
+already owns its endpoint keeps the slot until the last endpoint owner drops.
+Close and TTL cleanup are not transfer drain barriers.
+
+At capacity, negotiation returns `NODE_RDMA_CAPACITY`. Cleanup cannot make a
+busy endpoint's slot reusable. Owner and DFS/diagnostic registries have separate
+budgets; 64 is not a combined Node-wide limit. Native endpoint destruction runs
+before its reservation is released. Exceptional provider teardown failures and
+resource reclamation still require lifecycle qualification; admission accounting
+does not establish that cancellation interrupts posted DMA.
+
 ## Mounts
 
 Run OwnerFs and DFS as separate mounts. Each mount has its own FUSE session, inode table, handle table and cache policy.

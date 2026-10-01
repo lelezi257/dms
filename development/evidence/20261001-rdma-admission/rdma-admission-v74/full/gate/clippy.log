@@ -1,0 +1,26 @@
+   Compiling fuser v0.16.0 (/home/lzc.guest/afs-build/work/rdma-admission-v74-r1/third_party/fuser)
+   Compiling afs-protocol v0.1.0 (/home/lzc.guest/afs-build/work/rdma-admission-v74-r1/common/protocol)
+    Checking afs-metrics v0.1.0 (/home/lzc.guest/afs-build/work/rdma-admission-v74-r1/common/metrics)
+   Compiling afs-transport v0.1.0 (/home/lzc.guest/afs-build/work/rdma-admission-v74-r1/common/transport)
+    Checking afs-tracing v0.1.0 (/home/lzc.guest/afs-build/work/rdma-admission-v74-r1/common/tracing)
+    Checking afs-error v0.1.0 (/home/lzc.guest/afs-build/work/rdma-admission-v74-r1/common/error)
+    Checking afs-logging v0.1.0 (/home/lzc.guest/afs-build/work/rdma-admission-v74-r1/common/logging)
+    Checking afs-client v0.1.0 (/home/lzc.guest/afs-build/work/rdma-admission-v74-r1/client)
+    Checking afs v0.1.0 (/home/lzc.guest/afs-build/work/rdma-admission-v74-r1)
+error: unused `tokio::sync::OwnedSemaphorePermit` that must be used
+    --> src/node/rpc/control.rs:1702:9
+     |
+1702 | /         first
+1703 | |             .reserve_admission()
+1704 | |             .await
+1705 | |             .expect("admission recovers when a permit drops");
+     | |_____________________________________________________________^
+     |
+     = note: `-D unused-must-use` implied by `-D warnings`
+     = help: to override `-D warnings` add `#[allow(unused_must_use)]`
+help: use `let _ = ...` to ignore the resulting value
+     |
+1702 |         let _ = first
+     |         +++++++
+
+error: could not compile `afs` (lib test) due to 1 previous error

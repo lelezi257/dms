@@ -1,0 +1,90 @@
+warning: unused `OwnedSemaphorePermit` that must be used
+    --> src/node/rpc/control.rs:1702:9
+     |
+1702 | /         first
+1703 | |             .reserve_admission()
+1704 | |             .await
+1705 | |             .expect("admission recovers when a permit drops");
+     | |_____________________________________________________________^
+     |
+     = note: `#[warn(unused_must_use)]` (part of `#[warn(unused)]`) on by default
+help: use `let _ = ...` to ignore the resulting value
+     |
+1702 |         let _ = first
+     |         +++++++
+
+warning: `afs` (lib test) generated 1 warning
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.06s
+     Running unittests src/lib.rs (/home/lzc.guest/afs-build/target/debug/deps/afs-586e1b701367e588)
+
+running 1 test
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.1 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.1 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.1 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.1 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.1 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.1 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.1 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.1 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.1 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.1 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.1 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.1 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.1 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.1 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.1 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.1 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.1 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.1 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.1 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.1 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.1 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.1 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.1 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.1 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.1 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.1 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.1 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.1 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.1 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.1 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.1 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.1 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.1 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.1 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.1 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.1 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.1 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.1 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.1 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.1 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.1 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.1 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.1 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.1 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.1 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.1 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.1 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.1 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.1 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.1 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.1 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.1 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.1 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.1 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.1 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.1 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.1 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.1 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.1 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.1 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.1 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.1 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.1 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.1 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.1 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.1 family=ipv4
+test node::rpc::control::tests::closed_rdma_endpoints_retain_admission_until_last_owner_drops ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 412 filtered out; finished in 0.02s
+

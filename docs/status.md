@@ -26,6 +26,16 @@ The [delivery acceptance contract](acceptance.md) requires JuiceFS default same-
 
 ## Current Validation Checkpoint
 
+The native-bind goal now follows [architecture validation → measured ext4/native
+bind/MooseFS → production integration](../development/native-bind-validation-plan.md).
+Architecture acceptance has not passed. Same-path and retained-reference mount
+primitives have evidence, but the same-process POSIX lock-owner conflict has no
+approved exemption, current-candidate network-P2P/mmap and managed switch/fencing
+need decisive combination evidence, and performance has not been measured.
+Third-stage handle-cleanup WIP is preserved separately; verified source remains
+caec0fa. Historical tests below keep their stated scope and do not establish
+stage completion. The stock MooseFS durable-write baseline remains unqualified.
+
 The native-bind branch now retains local/peer xattr admission through syscall
 completion and captures opening authority on native Home directory handles.
 Readdir validates that capture, including empty directories, and remains counted

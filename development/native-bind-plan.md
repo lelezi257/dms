@@ -1,5 +1,7 @@
 # OwnerFs native bind implementation plan
 
+**Current execution priority (2026-10-01):** follow the [architecture → performance → production validation plan](native-bind-validation-plan.md). Tasks and checkpoints below remain source/history; do not continue production handle cleanup or individual fixes before the architecture and measured performance gates. The new plan audits human approval of semantic exceptions and bounds the experiment list.
+
 > For agentic workers: use superpowers:executing-plans inline. Preserve the existing RFC and completed probes. Use failing Linux regressions before implementation. Submit a PR for review; do not merge it.
 
 **Goal:** Complete the same-path native OwnerFs feature with correct applicable filesystem/lifecycle semantics and measured native-ext4-level local performance. A mount-only manager is an intermediate result, not completion.

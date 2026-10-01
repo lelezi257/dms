@@ -11,6 +11,8 @@
 
 本方案决策所需的挂载时序、过渡读写、真实 OwnerFs/P2P、并发、缓存、常用文件操作和生命周期穿刺已完成。结果支持**同路径原生访问这一机制**，也证明**当前 OwnerFs 不能仅增加 bind mount 就获得完整的本地/远端语义等价**。缓存、锁、元数据和生命周期存在可复现的缺口；失败结果也是穿刺结论，不能计为功能通过。
 
+2026-10-01 验证优先级调整：上述“已完成”指原机制穿刺，不代表当前候选满足完整架构合同。按[架构、性能、生产集成验证计划](../../development/native-bind-validation-plan.md)复用证据、补决定性组合验证；先前关于 mmap/watch/inode 等风险描述不能当作用户已批准的语义豁免。同进程 native/旧 FUSE 的 POSIX owner 冲突尚未关闭；未证明必须升级内核，亦不以启用 passthrough 代替锁/一致性证明。
+
 推荐采用“创建后异步挂载、过渡请求访问同一 backing directory、从创建起使用共享缓存策略、由管理入口卸载”的方案。首版适合 Home 固定、Agent 生命周期可管理的工作区。若要求任意程序始终使用普通 `rmdir/rename` 管理 workspace 根目录，或者依靠每次 RootGrant 检查立即撤销原生句柄，则本方案无法满足，应保留 FUSE。
 
 ## Contract
@@ -78,6 +80,8 @@ native 与 FUSE/P2P 之间采用 close-to-open：writer 成功写入并 close �
 无缓存 passthrough 玩具穿刺通过了旧 FUSE fd 与新原生 fd 的双向读写、rename/unlink 后保留 fd 等用例。它验证了设计方向，没有替代真实 OwnerFs 的实现验收。上述旧 reader 观察保留为历史证据；在已接受的 native profile 下，必须另外验证 writer 成功 close 后，关闭旧 reader 并从当前路径重新 open 能得到最新数据和长度。旧 reader 未实时刷新本身不再判为本 profile 失败；重开仍读旧值或旧 fd 被改绑仍是必须修复的 bug。
 
 ### 4. 文件语义与兼容性范围
+
+本节“当前”与失败 errno 指上述 2026-09-30 穿刺基线，不表示现有分支仍缺相同接口；现有能力按 status 与验证计划核对。表中风险或“不承诺”不是未经用户确认就可采用的新增语义豁免。
 
 | 范围 | 方案要求及边界 |
 | --- | --- |

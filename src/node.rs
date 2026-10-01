@@ -22,6 +22,9 @@ pub mod rpc;
 pub mod storage;
 pub mod vfs;
 
+#[cfg(all(test, feature = "ownerfs", target_os = "linux"))]
+mod native_validation;
+
 use crate::{
     config::Config,
     runtime::{BoxError, Observability, Services, cancelled},
@@ -246,11 +249,18 @@ async fn run_node(
             })
             .await??,
         );
-        Some(Arc::new(vfs::ownerfs::OwnerFs::new_local_with_remote(
-            roots,
-            disk,
-            remote_factory,
-        )))
+        #[cfg(all(test, target_os = "linux"))]
+        let owner = if native_validation::enabled() {
+            vfs::ownerfs::OwnerFs::new_native_eligible(roots, disk, Some(remote_factory))
+        } else {
+            vfs::ownerfs::OwnerFs::new_local_with_remote(roots, disk, remote_factory)
+        };
+        #[cfg(not(all(test, target_os = "linux")))]
+        let owner = vfs::ownerfs::OwnerFs::new_local_with_remote(roots, disk, remote_factory);
+        let owner = Arc::new(owner);
+        #[cfg(all(test, target_os = "linux"))]
+        native_validation::publish_owner(owner.clone());
+        Some(owner)
     } else {
         None
     };

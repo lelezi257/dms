@@ -1229,3 +1229,128 @@ snapshots and hashes are saved in external `native-home-authority-candidate-*`.
 No new VM admission or performance claim follows; the prior16 VM foundation
 cases retain their eafdabf-slice inputs and binary identity above. Production
 Node/Agent, applicable POSIX/P2P/mmap, lifecycle and performance gates remain open.
+
+## Current Node cross-VM native object probe (2026-10-01)
+
+This closes the missing **actual current Node/Meta/authenticated cross-VM access
+chain** and supplies bounded A2 object/close-to-open evidence. It does not close
+architecture acceptance, qualify performance, or deliver production native
+configuration/READY. The finite stage plan remains authoritative.
+
+### Inputs and scope
+
+- Source parent `e581086`; production OwnerFs/native runtime remains the
+  `caec0fa` implementation. Full tracked-file digests, dirty patch and untracked
+  driver/probe contents are frozen in external snapshots below.
+- ctl `10.77.30.11` runs the current `afs-meta`, isolated local-file Meta store;
+  A `10.77.30.12` and B `10.77.30.13` run current `run_with_shutdown`/Node
+  bootstrap, real RootManager/GrpcRootMeta, real FUSE adapter, existing mTLS peer
+  authenticator and production OwnerFiles/P2P handlers. Config uses OwnerFs and
+  `data_mode=grpc`, not the in-process ContractMeta fixture or shared backing.
+- The ignored Linux lib-test entry is
+  `node::native_validation::privileged_native_validation_node`. Its trusted
+  private control thread obtains the actual OwnerFs instance and invokes the
+  existing `native_home_export`, `prepare_for_home`, `activate_for_home` and
+  normal detach. Only this test entry selects native-eligible at construction.
+  Default test/bootstrap and release Node still construct ordinary OwnerFs.
+  The driver is gated out on non-Linux builds; no non-Linux compile PASS is
+  inferred from that source condition.
+- Each run has unique role IDs, ports18500–18505 and fresh ctl/A/B directories.
+  Existing env-rebuild services/config/data are untouched. Existing public
+  certificates are fingerprinted; private keys are only referenced, not copied
+  into evidence. Node/Actor mount namespaces are private. PID/start tick/boot
+  id/executable SHA, config, public certificate identity, grant/Home/session,
+  source/covered inode, unique mount id and process-owned TCP sockets are saved.
+- B retains a real FUSE root dirfd. A retains a pre-bind FUSE root dirfd and
+  old file fd, then starts a separate native Actor only after activation and
+  exact source/namespace verification. Those are validation Actors, not the
+  production Agent lifecycle or a durable READY publication.
+- Debug binaries have only DWARF removed with `strip --strip-debug` for transfer.
+  Original and executed SHA values are distinct. This is not release performance
+  data. After the VM run, formatting and Linux-only test cfg guards changed;
+  the frozen VM snapshot is the compiled input, not the final commit's bytewise
+  source identity. These later edits do not change the Linux test branch or
+  production construction behavior. Final Clippy verifies those source guards.
+
+### Negative admission and preserved collection failures
+
+`network-probe-20261001T100355-17818530` never starts a service: Windows OpenSSH
+receives key/known-host paths with removed backslashes at the WSL boundary.
+Its original result/transcript remain failed. Passing forward-slash Windows
+paths corrects the experimental invocation; it is not a product behavior fix.
+
+`network-probe-20261001T100519-94443847`, snapshot
+`native-network-ordinary-candidate-20261001T100518`, proves real B→A cold read
+and returns `PermissionDenied: Operation not permitted (os error 1)` from Home
+native export using ordinary cache construction. All Actors/Nodes/Meta exit0;
+parent mountinfo is unchanged. The overall runner remains **failed** because
+writing tar inside its source directory makes tar report directory change on
+A/B. Those already-stopped trees were recovered to archives outside the source
+directory, without changing `result.json` or replaying cases. Offline verifier
+distinguishes the successful admission-control mechanism from overall failure.
+
+Executed ordinary Node SHA:
+`0d3c429b7a22dbffbc5df36e3867ed0e6938649d3530afbd6180bb573b3ea528`.
+Recovered A archive SHA:
+`936861da7be16ec680775030c37abf59da0cc687622c000566fdd00a9d2eaf1c`.
+Recovered B archive SHA:
+`815fa8c4d3d672a86c982cae2a4c3ddd630ca17d79b0dbb97b99c4c589a22c92`.
+ctl archive SHA:
+`a7dfef419c7eaf0f3eff9805beef80b1173b37642bfda2c896d9510cc268ad3c`.
+
+### Positive native/P2P combination
+
+`network-probe-20261001T101117-f3ebb95a`, snapshot
+`native-network-native-candidate-20261001T101116`, returns terminal0, all case
+assertions and owned teardown PASS. Only the test bootstrap now selects the
+existing native-eligible construction; no new production cache/lock/lifecycle
+implementation was added.
+
+| Observation | Decisive evidence |
+| --- | --- |
+| Same path, same authoritative backing, Actor after attach | Root `root-6167656e7431`, epoch1, Home `native-a-f3ebb95a`; A native root device2065/inode1048647 equals permit/observed source. Covered FUSE target device46/inode2 stays the old Actor's root. Manager records NativeActive before native Actor creation; mount/namespace matches. |
+| Remote close-to-open content and EOF | After a warm B read, A overwrites data with same-length15B, short5B, empty0B and a longer value. Every B fresh open/read/close and retained local FUSE-dirfd fresh open sees exactly the new bytes and EOF. |
+| Remote write reaches native source | B writes/closes `data`; A native fresh read returns `remote-to-native`. |
+| Old fd does not follow replacement name | Pre-bind local FUSE and B/P2P fds stay on `original-object` after native rename replacement. Fresh opens see `replacement-object`. |
+| Write old unlinked object does not overwrite new object | B writes `old-object-through-P2P` through its retained old fd; local old FUSE fd reads it, while native fresh `identity` still reads `replacement-object`. After unlinking that replacement, both old fds retain their original object/content. |
+| Real network route | Distinct ctl/A/B boot IDs; B process owns established TCP10.77.30.13→10.77.30.12:18502. A server/B client both record8 Open,2 Read and2 Write calls. Current small-file `Open` prefetch explains why RPC Read counts differ from application read assertions; it is not bypass proof or a payload byte counter. |
+| Normal owned teardown | Actor explicit close/quit exits0; manager normal detach gives Detached/observed=None. A/B Node tests and Meta all exit0. Per-host parent mountinfo before/after is bytewise unchanged. No lazy unmount is used. |
+
+Executed native Node SHA:
+`9030af772a03e60522601604d4db53892cc2577c9aa0451560be03a6975aa508`
+(unstripped `9ccb4d14b6c7bc9bdbd9acf0bbe102b1ea05a618496a35335044472fe0c54a0f`).
+Executed Meta SHA:
+`97acaa577443671449a3cac8d25bdbf9b965748c0814d52f468c1bb3486330d6`
+(unstripped `dd03186677540027394b2d6eb9deb638db5b67899232dfffc494ae2634ff12bb`).
+Raw archives: A
+`96a4b2172c545dd2cdeaa44c8ae2ec233b9e691582e46ebefa5128db0a75d6f4`,
+B `b79fde6a25be2e0dda3ede54f7121f699d2d0bd1fe2c84149dcb3bc2982c00ab`,
+ctl `ce75cb4cd0ffcb774190c17d0c08e0e18feab857ca73ab66ce693ca35c65307a`.
+
+The offline verifier checks archive/per-file digests, exact executable and
+process/config/namespace identities, actor exits, matched Home/source/target,
+owned network connection, explicit normal detach, and the complete ordered
+actual read replies against case expectations. It initially used the wrong
+post-detach name `FuseReady`; current manager source and raw reply both say
+`Detached`. Correcting that offline assertion does not replay or change the
+successful VM result. Its original input version is retained in the snapshot.
+
+Build logs `native-network-driver-build.log` (ordinary),
+`native-network-driver-build-green.log` and `native-network-meta-build.log`
+all terminal0; final `native-network-driver-clippy-final.log` is strict
+all-feature lib/test Clippy PASS. Rust fmt check and all three Python probe AST
+parses PASS. The known Cargo global-cache cleanup permission warning remains
+an environment warning, not a code failure or a separately repaired feature.
+
+Windows copies: `C:/workspace/code/dms/local/native-bind-vm/<run>/`.
+VM directories: `/mnt/afsdata/ownerfs-native-network/<run>/` on A/B and
+`/mnt/afsstate/ownerfs-native-network/<run>/` on ctl. Source/build snapshots:
+`/home/lzc/workspace/dms/evidence/ownerfs-native-bind/20261001/`.
+
+Remaining A2 decisive cases are fresh ENOENT/negative lookup after unlink,
+same-name recreation and an already-open warmed reader closed/reopened after
+native change. Paused in-flight callbacks, concurrent append/EXCL/locks,
+mmap/watch/permissions, managed epoch/Home switch/fencing, death/recovery and
+all performance gates are still open. No additional semantic exemption is
+inferred, and A2/phase1 remain unchecked until their finite closing conditions
+are satisfied.

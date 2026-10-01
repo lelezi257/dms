@@ -30,11 +30,27 @@ The native-bind goal now follows [architecture validation → measured ext4/nati
 bind/MooseFS → production integration](../development/native-bind-validation-plan.md).
 Architecture acceptance has not passed. Same-path and retained-reference mount
 primitives have evidence, but the same-process POSIX lock-owner conflict has no
-approved exemption, current-candidate network-P2P/mmap and managed switch/fencing
-need decisive combination evidence, and performance has not been measured.
+approved exemption, mmap/watch and managed switch/fencing still need decisive
+combination evidence, and performance has not been measured. A bounded current
+candidate network-P2P object/close-to-open experiment is now recorded below;
+full network concurrency/lock/lifecycle qualification remains open.
 Third-stage handle-cleanup WIP is preserved separately; verified source remains
 caec0fa. Historical tests below keep their stated scope and do not establish
 stage completion. The stock MooseFS durable-write baseline remains unqualified.
+
+The bounded A2 experiment now uses three actual Linux VMs: current Meta with
+isolated local-file storage, A/Home and B running the real Node bootstrap and
+authenticated TLS/P2P. A Linux-test-build-only driver selects native-eligible
+construction, calls the existing Home authority/mount manager, and starts a
+native Actor after verifying physical activation. Same-length overwrite,
+shortening, empty files, remote writeback, retained FUSE/P2P fd identity after
+native rename replacement, and writes to that old object all pass; normal
+detach and every Actor/Node/Meta exit are verified. This does not qualify
+production configuration/READY, unlink-and-recreate negative lookup, concurrency,
+locks, mmap/watch, managed fencing or performance. [E12 raw input identities,
+failed collection and offline verification](../development/native-bind-evidence.md#current-node-cross-vm-native-object-probe-2026-10-01)
+preserve the exact experimental scope. Release Node still uses ordinary OwnerFs;
+the test driver is absent from release and non-Linux builds.
 
 An additional A1 combination probe on the independent ext4 VM verifies actual
 kernel EPERM on physical activation, FuseOnly/no native claim, continued FUSE

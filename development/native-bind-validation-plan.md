@@ -37,6 +37,7 @@
 | E9 | `phase1-inventory-20261001T092403`：当前 A/B/ctl 只读清单，逐机保存 command、exit、日志 SHA；A VM headers 确认 bit36 已存在，资源/卷与进程状态如下。不是 mmap 或性能 PASS。 |
 | E10 | `path-probe-20261001T093405-bf9a8b23`：当前生产 FUSE adapter、ready 后子进程、实际 strace请求。16轮绝对路径有192次根元数据请求，native cwd/dirfd为0；旧FUSE对照432。只关闭A1访问路径计数问题，不是性能/Node/P2P资格化。首次观察器失败与纠正后复验均保留。 |
 | E11 | `transition-probe-20261001T094349-512d3e25`：真实FUSE、当前Home permit和kernel backend组合；临时仅去掉实验线程挂载能力导致真实EPERM，状态FuseOnly/无native claim；延迟、失败、恢复挂载、正常卸载及旧FUSE引用均验证同backing。不是生产Node READY/P2P或暂停中的回调验证。 |
+| E12 | `network-probe-20261001T101117-f3ebb95a`：ctl/A/B三台实际VM、当前Meta/Node bootstrap和TLS/P2P；仅测试构建选择native-eligible，并用现有Home permit/manager挂载。原路径native、B关闭重开与旧FUSE/P2P文件对象均通过，正常detach/全部进程退出。ordinary拒绝对照与收证失败保留。不是生产配置/READY、锁/mmap/回收或性能资格化。 |
 
 Windows 证据副本：`C:/workspace/code/dms/local/native-bind-vm/<run>/`；VM：`/mnt/afsdata/ownerfs-native-bind/<run>/`。源码输入/构建日志：`/home/lzc/workspace/dms/evidence/ownerfs-native-bind/20261001/`。证据文件必须按摘要校验后使用。
 
@@ -63,9 +64,9 @@ Windows 证据副本：`C:/workspace/code/dms/local/native-bind-vm/<run>/`；VM�
 
 | 关键问题 | 当前分类及证据 | 尚缺的决定性证据 |
 | --- | --- | --- |
-| 同路径新访问与最终 Agent namespace | 已验证可行：E1/E2 原路径落到同一 ext4 source，ready 后子进程 inode/namespace 匹配。E10确认绝对路径仍有FUSE祖先查询，相对路径操作为0，文件数据均走native。实现遗漏：`src/node.rs` 仍构建 ordinary OwnerFs，native worker 未生产接入。 | 使用当前候选、真实 Node/P2P 的最小验证链路，证明 ready 后启动、失败不 ready；祖先查询成本须在阶段二实测，若研究缓存替代必须保持权限/epoch/生命周期，不能只测相对路径。 |
+| 同路径新访问与最终 Agent namespace | 已验证可行：E1/E2原路径落到同一ext4 source，ready后子进程inode/namespace匹配。E10确认绝对路径仍有FUSE祖先查询，相对路径操作为0，文件数据均走native。E12在实际Node/P2P链路中复验原路径/最终namespace与同一source。实现遗漏：生产 `src/node.rs` 仍构建ordinary OwnerFs，native worker未生产接入；实验入口只在Linux测试构建选native-eligible。 | 生产native READY发布有可行的身份核验原语，但仍需受管启动/拒绝失败的组合证明；祖先查询成本须在阶段二实测，若研究缓存替代必须保持权限/epoch/生命周期，不能只测相对路径。 |
 | mkdir 与挂载过渡 | 已验证可行：E1 后回复挂载、E2 post-reply事件、E11实际延迟/EPERM失败/恢复/卸载及旧引用均使用同一backing；失败管理状态无native claim。架构事实：已分派FUSE请求不会自动改走ext4。 | 补暂停中的FUSE回调与实际Node/P2P组合；验证失败不能导致生产READY。E11管理原语状态不是实际Node ACK。 |
-| 旧 cwd/dirfd/文件句柄 | 旧目录即时等价为架构限制/已接受边界：E5。文件对象保留与重开可行：E2/E6，当前基线只有独立 Home FUSE fixture。 | 真实远端在 warmed lookup、同长度覆盖、缩短、空文件、替换/unlink 后：旧 fd 不改绑，关闭后稳定根重开准确；保留旧目录反例作边界展示。 |
+| 旧 cwd/dirfd/文件句柄 | 旧目录即时等价为架构限制/已接受边界：E5。文件对象保留与重开可行：E2/E6；E12补齐当前认证跨VM组合，同长度覆盖/缩短/空文件、双向写回、rename替换后旧fd仍指向旧对象，写旧对象不污染新路径。 | unlink后的fresh ENOENT/同名重新创建与warmed已打开reader关闭后重开，仍需在当前真实链路中补充；保留旧目录反例作边界展示。 |
 | 本地/远端并发及锁 | 原基线 append/EXCL/独立区域并发可行：E1；本地 kernel flock 可行：E2。实现遗漏：native POSIX 仍软件模型。**当前简单 Home 代理不满足同 PID 锁合同：E4。** | 用户决定保留全部锁合同则必须证明能代表原 POSIX owner 的替代架构；不能用不同 PID 普通互斥通过替代同 PID 降锁/解锁/任意 fd close。当前候选还需认证跨 VM 争用。 |
 | mmap、缓存、元数据/watch | close-to-open 普通 I/O 机制可行：E6。原远端 MAP_SHARED ENODEV、watch 无 native 事件：E1；当前部分 chmod/symlink/xattr 已实现，历史 ENOSYS 不是当前事实。 | 当前 ABI/capabilities 下的 MAP_SHARED/PRIVATE、msync/fsync/重新打开和映射脏数据证明；实际 P2P 权限/链接/xattr；watch 需求与事件桥可行性。零 TTL/direct I/O 不自动解决映射。 |
 | 删除/回收/切换 | busy 与 source/target/epoch 防混淆可行：E2/E7。实现遗漏：完整受管 Agent/peer 排空未接入。架构限制：RootGrant 不能即时撤销已打开 native fd；挂载根 ordinary rmdir/rename 可先 EBUSY 而不进入 FUSE。 | 受管 Actor + 远端在途写；先拒绝 admission，再排空/停止，正常卸载，最后切换新 epoch/Home；延迟旧请求不得写新实例。必须证明实际引用消失，不用 RootUse=0 替代。 |
@@ -80,6 +81,7 @@ Windows 证据副本：`C:/workspace/code/dms/local/native-bind-vm/<run>/`；VM�
   - 访问路径计数已由E10关闭：真实绝对路径16轮有192次祖先元数据查询，cwd/dirfd相对操作为0；导航启动成本单列。A1整体保持未完成。
   - E11关闭实际挂载失败/延迟/恢复与旧引用的同backing组合；控制状态为FuseOnly而非ready。尚未暂停真实回调跨挂载，也未资格化实际Node/P2P READY，A1整体仍未完成。
 - [ ] **A2 对象/重新打开**：当前候选真实 A native、保留本地 FUSE、B 远端；内容/EOF、同长度修改、替换/unlink、稳定根查找。关闭条件：满足已同意 close-to-open/对象身份；旧目录边界按原始反例说明。
+  - E12关闭实际Node/认证跨VM链路缺口，并验证同长度覆盖、缩短、空文件、B写回、native替换与旧对象不改绑。仍缺unlink后fresh ENOENT/同名重建、已打开reader关闭后重开的组合，A2不整体打勾。
 - [ ] **A3 并发/锁**：复用 E4 拒绝简单代理；实际跨路径 append/EXCL、flock、POSIX owner/close/fork/dup 与 native/native 控制。关闭条件：所需锁机制有正向证明，或用户明确修改范围；不得默认豁免失败组合。
 - [ ] **A4 映射/兼容性**：固定当前 ABI 与内核；MAP_SHARED/PRIVATE、msync/fsync、native 写后 fresh remote reader、P2P mode/symlink/xattr，以及 watch/inode 边界核对。关闭条件：适用要求有可行路线和关键机制证据；未获批准的例外不能关闭。
 - [ ] **A5 受管回收/切换**：复用 busy matrix；增加真实 managed native Actor、remote fd/在途请求、同名新 epoch 与切换 Home 的最小控制。关闭条件：旧写入在新实例就绪前被 fenced；失败保持 draining，不删除/复用 backing。
@@ -105,6 +107,8 @@ ext4：A 同卷独立实验目录，使用相同 Actor/数据/屏障
 ```
 
 最低限度只加入实验专用启动/构造选择或驱动，沿用既有生产 RPC 和真实进程；不得用 in-process Meta fixture 或绕过 P2P 的文件函数当远端性能。生产 Node 的完整配置/worker/Agent-ready/cursor/ACK 不作为提前全面开发的理由。实验驱动也不能冒充已经发布的产品 native READY。
+
+E12已跑通该链路中的当前Meta/Node/TLS/P2P与原路径export：Meta使用独立local-file存储，Node是debug lib-test产物，仅实验构造选择不同。它解决阶段一真实访问链路，不满足P0正式性能条件；阶段二还需冻结优化构建、同条件资源/数据/屏障，并跑通固定MooseFS及其B001合同。
 
 只读盘点（2026-10-01）：A/B 均 Linux6.8.0-142、2 vCPU、约5925MiB RAM；A `/mnt/afsdata` 为 `/dev/sdb1` ext4，32GiB/约29GiB可用；ctl 有 env-rebuild etcd，A/B 未观察到运行中的 AFS/MooseFS 服务。`mfsmount/mfsmaster/mfschunkserver/fio` 未在 A 的 PATH 找到，B 未找到 mfsmount/fio；不能据此声称系统所有路径都不存在。原环境包/配置/TLS 仍在，不重建 VM。
 
@@ -143,7 +147,7 @@ P0 完成前不计正式性能：核对版本/SHA、PID+start tick、Root/epoch/
 4. 泛化权限/路径/对象审计、其他不阻碍实验的回归修补和重构；不扩展到普通 OwnerFs/DFS 无关模块。
 5. 全量生产 POSIX/故障/部署回归、包装发布、最终 review 和不合入 PR。先前基础回归结果保持原范围。
 
-已隔离 WIP：stash `1694e88261f70154beec1d3980928cc0249471f6`，完整副本 `native-stage3-deferred-20261001T090918`。包含句柄 drain/reaper/sync retry 候选及一个**仍失败**的 pinned-descriptor duplicate peer RELEASE 用例；不称为已验证提交，不在阶段一继续它。Cargo 缓存 lib executable 来自这份 WIP，不能当 caec0fa 二进制使用。
+已隔离 WIP：stash `1694e88261f70154beec1d3980928cc0249471f6`，完整副本 `native-stage3-deferred-20261001T090918`。包含句柄 drain/reaper/sync retry 候选及一个**仍失败**的 pinned-descriptor duplicate peer RELEASE 用例；不称为已验证提交，不在阶段一继续它。计划起始时Cargo缓存lib executable来自这份WIP；之后已被E12实验构建替换。必须按各run的源码快照/实际SHA区分，不能按同一个缓存文件名判定源码身份。
 
 **阶段三结束条件：** 补齐接受合同的生产入口/实际排空/失败恢复，完成适用 Linux 回归和最终审查，更新状态及案例；push 隔离分支，创建并附加链接 issue #42 的 PR 供另一 AI review，不 merge/auto-merge。当前 goal 直到交付实际达到才 complete。
 

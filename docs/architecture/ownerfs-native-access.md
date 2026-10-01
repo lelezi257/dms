@@ -37,6 +37,17 @@ native 与 FUSE/P2P 访问同一 backing；它们是不同访问路径，不因�
 
 ## 实际使用案例
 
+### 当前未满足的要求：跨路径追加与文件偏移
+
+这是[E15真实VM诊断](../../development/native-bind-evidence.md#e15-single-syscall-append-conflict)发现的缺口，**不是已批准的语义豁免**。即使管理面先挂好workspace再启动本地Agent，普通远端写入者仍可能遇到：
+
+1. 文件先有4字节，远端以`O_APPEND`打开它。
+2. 本地native再追加4字节。
+3. 远端随后追加4字节，返回写入成功。
+4. 最终内容正确、长度12，但远端查询当前文件偏移得到8，应为自身追加终点12。
+
+另一个案例中，远端一次2MiB追加被FUSE拆成多个请求，本地native的小追加插入了这一次写入中；native/native对照的同一次写入保持连续。它不依赖本地继承bind前的FUSE引用，也不属于已打开reader的刷新边界。完整追加、偏移和锁合同仍是要求；当前版本不能声称全功能等价，路线变更或额外约束需要明确对齐并验证。
+
 ### Case 1：常规 Agent，创建就绪后启动
 
 管理面准备 `/ownerfs/agent1` 并确认挂载身份，随后启动 Agent；Agent 才执行 `chdir("/ownerfs/agent1")` 和 open。

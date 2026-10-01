@@ -1471,3 +1471,127 @@ closed.** POSIX owner compatibility has no new exemption; blocking wait/cancel,
 remote final-close drain, append/EXCL and concurrent I/O remain open. A3 and
 architecture stage1 remain unchecked; performance and production reliability
 remain deferred.
+
+### E15: single-syscall append conflict
+
+Two finite current-candidate runs, with no production Rust changes:
+
+| Run | Source snapshot / parent | Semantic result |
+| --- | --- | --- |
+| `network-probe-20261001T113150-53a44079` | `native-network-native-candidate-20261001T113149` / `15ea350` plus frozen probe patch | FAIL: fragmented single append and wrong cursor. |
+| `network-probe-20261001T113405-7b405c2c` | `native-network-native-candidate-20261001T113404` / `15ea350` plus frozen probe patch | FAIL: same large-write conflict; additional sequential small-write cursor counterexample. |
+
+The second run is the one permitted controlled reproduction, not a search for
+a passing timing. Both runners return1, `cases_ok=false`, `passed=false`, no
+infrastructure error. Every Actor/Node/Meta exits0 after explicit closes and
+normal detach; parent mountinfo stays unchanged. Forensic `checks_ok=true`
+proves the failure evidence, not successful semantics or architecture PASS.
+
+`--case append --expect native` reuses the frozen E13 Node/Meta executable
+digests. Native and an independent native Actor form the control; native and
+B remote FUSE form the candidate. The small writer makes500 actual1024B
+`os.write` calls with O_APPEND. The large writer makes **one**2097152B
+`os.write`, checks its full byte return, then queries actual SEEK_CUR. The
+small writer's first actual write is observed before launching the large
+writer; both before/after native bytes are required. Delays create the finite
+interleaving opportunity; elapsed time never proves correctness. VM monotonic
+timestamps are not compared across hosts.
+
+The complete final file is captured through the native path after both writers
+close, hashed, and included in the checksum-protected raw archive. It contains
+exactly512000 native bytes plus2097152 large-writer bytes in each lane. The
+offline verifier recomputes byte counts/contiguity directly from those bytes,
+checks actual reply JSON against archived replies, and independently compares
+the returned cursor with the last byte written by the large writer.
+
+| Observation | First run | Controlled reproduction |
+| --- | --- | --- |
+| native/native large append | One contiguous2097152B region; cursor2339840 equals its end. | One contiguous region; cursor2356224 equals its end. |
+| remote large append regions |1048528B,1048576B,48B, with native3072B and2048B inserted between. | Same region sizes, with native3072B and1024B inserted between. |
+| remote cursor / actual large-byte end |2097152 /2374656 |2097152 /2356224 |
+| route | A-server/B-client OwnerFiles.Write3, actual owned B→A socket. | Write4 including the small sequential append, actual owned B→A socket. |
+
+The additional sequential case has **no overlapping write syscalls**:
+native creates `NNNN`; B opens O_APPEND; native appends `NNNN` and returns
+cursor8; B appends `RRRR` and returns cursor8, although final bytes are
+`NNNNNNNNRRRR` (length12). The expected cursor12 is derived from the actual
+append location, not from final file size during another concurrent write.
+This separates stale client-position state from the large-write grouping
+problem. Both are required semantics; read-only close-to-open relaxation does
+not authorize either failure.
+
+#### Mechanism and bounded architecture conclusion
+
+Current source uses `config.set_max_write(1024*1024)` in `src/node/fuse.rs`;
+the write callback returns only written bytes. `src/node/storage/localfs.rs`
+opens backing handles with O_APPEND and uses positioned writes; Home therefore
+appends each received payload on the actual ext4 object. Native writers bypass
+the FUSE frontend and userspace dispatch locks.
+
+[Upstream Linux6.8 FUSE direct I/O](https://github.com/torvalds/linux/blob/v6.8/fs/fuse/file.c#L1337)
+splits a syscall according to negotiated bytes/pages, sends each chunk, and
+advances the client position by returned byte counts. Its append inode lock is
+on the client's FUSE inode; native Home ext4 writes use a different inode.
+[The UAPI](https://github.com/torvalds/linux/blob/v6.8/include/uapi/linux/fuse.h#L762)
+carries a chunk offset/size but no whole-syscall group/total/end marker;
+WRITE replies provide size, not the Home append endpoint.
+[SEEK_CUR](https://github.com/torvalds/linux/blob/v6.8/fs/fuse/file.c#L2547)
+uses the client file position without a userspace LSEEK callback. These are
+upstream mechanism references, not a claim that the Ubuntu6.8.0-142 source is
+bit-identical; the actual VM observations above establish its behavior.
+
+**Classification:** current implementation fails the required ordinary append
+contract. Under the existing standard FUSE request/reply boundary plus
+unmediated native ext4 writers, userspace-only chunk dispatch does not supply
+the missing syscall grouping, shared kernel arbitration or cursor result.
+This is an architecture conflict for this combination, not proof that every
+possible native/P2P architecture is impossible. Attribute invalidation can
+address some stale metadata but cannot move an already-completed client fd's
+cursor or make native honor a userspace mutex. Increasing max-write only moves
+the boundary. Holding the first synchronous FUSE reply while waiting for all
+later chunks risks waiting for chunks the kernel has not sent.
+
+Routes requiring explicit alignment and new decisive proof:
+
+1. Preserve full append/POSIX-owner requirements and evaluate mediation at the
+   client/kernel boundary: convey whole-operation identity/length and actual
+   append endpoint, arbitrate with native on Home, and address process-owner
+   identity. A kernel/client protocol candidate is **not already proven**;
+   no kernel replacement/module/upgrade is performed or implicitly approved.
+2. Change the writer contract to exclusive same-file writer ownership with
+   close/reopen on ownership transfer, and qualify its admission/fencing/cache
+   behavior. This restricts currently required mixed writers and possibly old
+   fd use; it has **no user approval** and is not the current success criterion.
+3. Restrict syscall sizes, require application locking/seek workarounds, waive
+   cursors, or retain all local writes in FUSE. These each change a requirement;
+   they are not adopted as invisible fixes or native-performance equivalents.
+
+E4 POSIX-owner conflict stays open. E15 consumes the finite append diagnostic
+and controlled reproduction; do not rerun until timing happens to pass. Other
+independent phase1 evidence can proceed, but phase1 cannot pass and performance
+cannot begin by ignoring these failures.
+
+#### Input and verification identities
+
+Executed Node SHA `e2a827fa579e5a74e10d3d693fe5defa18a34366aa045e1a6cd141c1b9da0b68`,
+Meta `97acaa577443671449a3cac8d25bdbf9b965748c0814d52f468c1bb3486330d6`;
+unstripped digests remain E13's frozen values. Guest SHA both runs
+`7e02870b44606dc6ee963c027426e3350b0778ba0ebacb351449067e4d027445`.
+Controller SHA first/reproduction:
+`88b5fbfdb0f6ae85da124ffe9903b2344e832b6e276cbf0cb59796e3b6e7badb` /
+`94b1460ddff3a7d70e35719d9ddc4a0a6cf27a1a60da0d263c59f98752dcdb5b`.
+
+| Raw archive | First run SHA256 | Reproduction SHA256 |
+| --- | --- | --- |
+| A | `609e69ea33d5309b8751dbc45adfbe2a97ab21fc903ecb51a6e753c035f1c4d7` | `701e9497a5d3bd2ff89ecfa3be97ff5f4515fab18c14f01dc47939518b3c603c` |
+| B | `520986975071a8200fd6266a7f42a2758c9636b9010c4a18bf347a7905a7c042` | `b62085de144b9c14f5e5a7cf235cb6274cd60620095d336909428d32a4d2297b` |
+| ctl | `b2128c970d8c92f1c24064f52b86b5f7f1fdec2a99116fb912e79f1bf1a748a7` | `78e6223a0c57caccb83de3fe75ca1b51439b5c942dd19101e7f1f339499e1114` |
+
+Final verifier SHA
+`7b24043686732243f3318a4c012e28b9d7f9583651afcec00683ba2e5c453a69`.
+It verifies the observed failure while rejecting wrong archive SHA, altered
+read replies and a semantic verdict flipped to PASS. E13 A2 and E14 flock
+still pass the extended verifier. Python compile and whitespace checks pass;
+no Rust rebuild or full-suite claim is made. Windows evidence copies and VM
+paths follow E13/E14 conventions. Raw failures and original source inputs
+remain retained without revision.

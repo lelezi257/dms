@@ -23,13 +23,22 @@ def main():
     args = parser.parse_args()
     directory = args.directory
     result = json.loads((directory / "result.json").read_text())
-    assert result["cases_ok"] and not result.get("phase_pass")
+    append_profile = result.get("case_profile") == "a3-single-write-append"
+    assert not result.get("phase_pass")
+    if append_profile:
+        assert "append_semantics_ok" in result and result["cases_ok"] == result["append_semantics_ok"]
+        assert not result.get("error")
+        assert not any(any(key.endswith("error") for key in row) for row in result["cleanup"])
+    else:
+        assert result["cases_ok"]
     recovery = directory / "archive-recovery.json"
     recovery = json.loads(recovery.read_text()) if recovery.exists() else {}
     summary = {"run_id": result["run_id"], "constructor": result["expected_constructor"],
                "architecture_phase_pass": False, "roles": {}}
     boot_ids = set()
     node_ids = {}
+    append_contents = {}
+    actor_replies = {}
     for role in ("ctl", "a", "b"):
         archive_name = recovery.get(role, {}).get("archive", role + "-raw.tar.gz")
         expected = recovery.get(role, {}).get("sha256", result["raw_sha256"].get(role))
@@ -79,6 +88,15 @@ def main():
                     assert actor["process"]["namespace"] == record["namespace"]
                     assert actor["process"]["boot_id"] == record["boot_id"]
                     assert json.loads(read(f"actor-{name}/actor-exit.json"))["exit"] == 0
+                if append_profile and role == "a":
+                    for name in ("native-control", "remote-append"):
+                        append_contents[name] = read(f"actor-native/content-{name}.bin")
+                    if "sequential_append" in result:
+                        assert read("actor-native/content-sequential-append.bin") == b"NNNNNNNNRRRR"
+                for name in members:
+                    match = re.fullmatch(r"actor-([a-zA-Z0-9_-]+)/reply-(c[0-9]+)\.json", name)
+                    if match:
+                        actor_replies[(role, match[1], match[2])] = json.loads(read(name))
             summary["roles"][role] = {"archive_sha256": expected, "process": record["pid"],
                                        "rpc_counts": counts}
             if "owned-tcp.json" in members:
@@ -93,7 +111,7 @@ def main():
     b = summary["roles"]["b"]["rpc_counts"]
     assert a.get("open-server", 0) > 0 and b.get("open-client", 0) > 0
     if result["expected_constructor"] == "native":
-        assert result["passed"]
+        assert result["passed"] == result["cases_ok"]
         active = result["activated"]
         assert active["state"] == "NativeActive"
         assert active["identity"]["home_node_id"] == node_ids["a"]
@@ -109,6 +127,9 @@ def main():
             # conflicts below qualify arbitration; no invented metric count.
             summary["lock_route_limit"] = "NodeControl locks have no OwnerFiles duration count; actual syscall conflicts and authenticated peer socket are checked"
             assert result["actors"]["a-nativepeer"]["root"] == active["source"]
+        elif append_profile:
+            assert a.get("write-server", 0) >= 2 and b.get("write-client", 0) >= 2
+            assert result["actors"]["a-nativepeer"]["root"] == active["source"]
         else:
             assert a.get("read-server", 0) >= 2 and b.get("read-client", 0) >= 2
             assert a.get("write-server", 0) >= 2 and b.get("write-client", 0) >= 2
@@ -118,6 +139,7 @@ def main():
         reads = []
         missing = []
         flocks = []
+        append_replies = {}
         extended = result.get("case_profile") == "a2-close-reopen-unlink-recreate"
         for line in (directory / "transcript.jsonl").read_text().splitlines():
             row = json.loads(line)
@@ -128,6 +150,17 @@ def main():
             assert row["exit"] == 0 and command["id"] == reply["id"]
             ip = row["command"][-2].removeprefix("lzc@")
             role = next(role for role, host in result["hosts"].items() if host == ip)
+            if "actor" in command and "ok" in reply:
+                assert actor_replies[(role, command["actor"], command["id"])] == reply
+            if append_profile and ("submitted" in reply or "operation" not in command):
+                if "submitted" in reply:
+                    assert reply["submitted"] and command["operation"] == "append-series"
+                elif "first_write" in reply:
+                    assert reply["first_write"]
+                else:
+                    assert reply["ok"]
+                    append_replies[reply["id"]] = reply
+                continue
             if command["operation"] == "flock":
                 assert flock_profile
                 errno = 0 if reply["ok"] else reply["errno"]
@@ -167,7 +200,46 @@ def main():
                 ("a", "native", "fresh", "recreated-object")]
             assert missing == [("a", "native"), ("a", "oldfuse"), ("b", "remote")]
             summary["fresh_missing_errno_verified"] = "ENOENT on native/local FUSE/remote FUSE"
-        if flock_profile:
+        if append_profile:
+            assert not flocks and not missing
+            expected_reads = [("b", "remote", "fresh", "original-A-data")]
+            outcomes = {}
+            for name, content in append_contents.items():
+                lane = result["append_lanes"][name]
+                assert len(content) == 2609152 and content.count(b"N") == 512000
+                assert content.count(b"R") == 2097152
+                assert sha(content) == lane["content"]["sha256"]
+                first, last = content.index(b"R"), content.rindex(b"R")
+                assert first > 0 and last < len(content) - 1, "append program did not bracket the large writer"
+                contiguous = content[first:last + 1] == b"R" * 2097152
+                assert append_replies[lane["small"]["id"]] == lane["small"]
+                assert append_replies[lane["large"]["id"]] == lane["large"]
+                assert lane["small"]["result"]["writes"] == 500
+                assert lane["small"]["result"]["bytes_each"] == 1024
+                assert lane["large"]["result"]["writes"] == 1
+                assert lane["large"]["result"]["bytes_each"] == 2097152
+                position_ok = lane["large"]["result"]["positions"] == [last + 1]
+                assert contiguous == lane["one_contiguous_append"]
+                assert position_ok == lane["write_position_matches_end"]
+                outcomes[name] = {"contiguous": contiguous, "position_matches_end": position_ok,
+                                  "actual_position": lane["large"]["result"]["positions"][0],
+                                  "last_large_byte_end": last + 1}
+            assert outcomes["native-control"]["contiguous"] and outcomes["native-control"]["position_matches_end"]
+            remote = outcomes["remote-append"]
+            semantic_ok = remote["contiguous"] and remote["position_matches_end"]
+            if "sequential_append" in result:
+                sequential = result["sequential_append"]
+                assert sequential["native"]["positions"] == [8]
+                position_ok = sequential["remote"]["positions"] == [12]
+                assert sequential["position_ok"] == position_ok
+                semantic_ok &= position_ok
+                summary["sequential_append_outcome"] = {"actual_position": sequential["remote"]["positions"][0],
+                                                         "required_position": 12, "position_ok": position_ok}
+            assert result["append_semantics_ok"] == semantic_ok
+            summary["append_outcomes"] = outcomes
+            summary["semantic_case_passed"] = result["append_semantics_ok"]
+            summary["append_limit"] = "one bounded interleaving; forensic checks_ok does not turn a semantic failure into PASS"
+        elif flock_profile:
             expected_reads = [("b", "remote", "fresh", "original-A-data"),
                               ("b", "remote", "old", "original-object"),
                               ("a", "native", "fresh", "replacement-object")]

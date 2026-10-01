@@ -66,6 +66,20 @@ correction remain recorded in [E14](../development/native-bind-evidence.md#e14-a
 This does not close POSIX owner compatibility, blocking waiter recovery, remote
 final-close drain, other concurrency or the whole architecture stage.
 
+[E15](../development/native-bind-evidence.md#e15-single-syscall-append-conflict)
+now disproves complete append equivalence in the current architecture. In two
+actual three-VM runs, native/native single2MiB append is contiguous with the
+correct cursor, while the remote single write is interleaved with native appends
+and leaves the wrong cursor. A sequential4B control also writes the right bytes
+but returns SEEK_CUR8 where the append ends at12. Both semantic runs remain
+FAIL; archival/forensic verification and normal shutdown pass. The standard
+FUSE request/reply boundary does not provide a whole-syscall grouping or final
+Home append offset, and its inode lock does not arbitrate unmodified native
+ext4 writers. Full append/cursor requirements remain in force. Protocol/kernel
+mediation or a changed writer-ownership contract needs explicit alignment and
+mechanism proof; no transparent userspace-only fix is claimed. Phase1 has not
+passed; performance and production integration remain deferred.
+
 An additional A1 combination probe on the independent ext4 VM verifies actual
 kernel EPERM on physical activation, FuseOnly/no native claim, continued FUSE
 access to the same prepared backing, successful retry and normal-detach fallback.

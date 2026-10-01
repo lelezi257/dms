@@ -13,6 +13,8 @@
 
 2026-10-01 验证优先级调整：上述“已完成”指原机制穿刺，不代表当前候选满足完整架构合同。按[架构、性能、生产集成验证计划](../../development/native-bind-validation-plan.md)复用证据、补决定性组合验证；先前关于 mmap/watch/inode 等风险描述不能当作用户已批准的语义豁免。同进程 native/旧 FUSE 的 POSIX owner 冲突尚未关闭；未证明必须升级内核，亦不以启用 passthrough 代替锁/一致性证明。
 
+当前A3的[E15决定性反例](../../development/native-bind-evidence.md#e15-single-syscall-append-conflict)还证明：短记录追加通过不能推广到普通完整追加语义。真实远端一次2MiB `write(O_APPEND)` 被native写入分隔；顺序小文件追加也出现 `SEEK_CUR=8`、实际追加终点12。现有FUSE内核按分块请求及返回字节数维护偏移，Home ext4追加位置和仲裁不与客户端FUSE inode共享。完整要求仍保留；改变仲裁/内核或客户端协作路线、或修改写入者合同均需明确对齐，不宣称只靠用户态补丁可完整解决。阶段一未通过，暂不进入性能或生产集成补齐。
+
 推荐采用“创建后异步挂载、过渡请求访问同一 backing directory、从创建起使用共享缓存策略、由管理入口卸载”的方案。首版适合 Home 固定、Agent 生命周期可管理的工作区。若要求任意程序始终使用普通 `rmdir/rename` 管理 workspace 根目录，或者依靠每次 RootGrant 检查立即撤销原生句柄，则本方案无法满足，应保留 FUSE。
 
 ## Contract
@@ -211,7 +213,7 @@ WSL Ubuntu 24.04 构建；Hyper-V `dms-smoke` VM 验证：Ubuntu 24.04、x86_64�
 | 缓存负对照 | 缓存 probe 旧读未更新；真实 OwnerFs 旧 fd 返回 `BEFORE` | 缓存必须在 native 暴露前处理 | F、R |
 | 真实远端 P2P | 远端读到 Home 数据，原生与远端写入互见 | 基本 P2P 数据路径可保留 | R |
 | 两进程普通操作 | 200 次独立区域写及 200 组 create/rename/unlink，两路径最终字节符合预期 | 已覆盖有限并发用例 | R |
-| 并发 append / EXCL | 200 条完整唯一记录；独占创建一方成功，另一方 `EEXIST` | 已覆盖相应基本原子性 | R |
+| 并发 append / EXCL | 原基线200条短记录完整唯一；独占创建一方成功另一方`EEXIST`。当前E15单次大追加连续性及小追加偏移FAIL | 基本样例不构成完整append等价；EXCL仍按原范围保留 | R、[E15](../../development/native-bind-evidence.md#e15-single-syscall-append-conflict) |
 | 原生 rename/unlink + 旧 fd | 远端旧 fd 保留对象；早期本地缓存 fd 出现旧值 | 保留对象语义可行，旧缓存未解决 | R |
 | 原子替换 | 旧远端 fd 为 `OLD`，新 open 为 `NEW` | 身份不能只按路径重绑 | R |
 | mode / chmod | 远端 stat 看见原生 mode；远端 chmod 为 `ENOSYS` | 元数据操作不等价 | R |

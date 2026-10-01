@@ -40,6 +40,7 @@
 | E12 | `network-probe-20261001T101117-f3ebb95a`：ctl/A/B三台实际VM、当前Meta/Node bootstrap和TLS/P2P；仅测试构建选择native-eligible，并用现有Home permit/manager挂载。原路径native、B关闭重开与旧FUSE/P2P文件对象均通过，正常detach/全部进程退出。ordinary拒绝对照与收证失败保留。不是生产配置/READY、锁/mmap/回收或性能资格化。 |
 | E13 | `network-probe-20261001T102555-4c76fce1`：同一实际三VM链路、新构建且与当前Linux测试driver源码匹配的Node；补齐已打开warmed reader关闭重开、三路径unlink后fresh ENOENT、同名重建以及旧fd再次写入不污染新对象。原始/逐文件SHA、真实RPC/TCP与正常退出均核验。关闭A2；其余实验族不因此通过。 |
 | E14 | `network-probe-20261001T112518-369f8d1e`：复用冻结的实际Node/Meta、三VM认证链路；native/另一个native/旧本地FUSE/远端FUSE的非阻塞flock双向互斥、共享锁、rename替换后新旧对象隔离及native final-close释放通过。只关闭A3非阻塞flock组合证据；POSIX owner、阻塞等待/远端close排空、其他并发仍未关闭。离线观察器误用OwnerFiles锁指标的失败与纠正均保留。 |
+| E15 | `network-probe-20261001T113150-53a44079`及一次受控复现`network-probe-20261001T113405-7b405c2c`：native/native单次2MiB追加连续且偏移正确；真实远端单次追加被native数据插入，SEEK_CUR也错误。复现另证顺序4B追加内容正确但远端偏移8/应为12。两次语义结果均FAIL、清理正常、独立归档/内容/原始回复核验通过。详见E15机制与路线；不能由短记录append通过推断完整语义。 |
 
 Windows 证据副本：`C:/workspace/code/dms/local/native-bind-vm/<run>/`；VM：`/mnt/afsdata/ownerfs-native-bind/<run>/`。源码输入/构建日志：`/home/lzc/workspace/dms/evidence/ownerfs-native-bind/20261001/`。证据文件必须按摘要校验后使用。
 
@@ -69,7 +70,7 @@ Windows 证据副本：`C:/workspace/code/dms/local/native-bind-vm/<run>/`；VM�
 | 同路径新访问与最终 Agent namespace | 已验证可行：E1/E2原路径落到同一ext4 source，ready后子进程inode/namespace匹配。E10确认绝对路径仍有FUSE祖先查询，相对路径操作为0，文件数据均走native。E12在实际Node/P2P链路中复验原路径/最终namespace与同一source。实现遗漏：生产 `src/node.rs` 仍构建ordinary OwnerFs，native worker未生产接入；实验入口只在Linux测试构建选native-eligible。 | 生产native READY发布有可行的身份核验原语，但仍需受管启动/拒绝失败的组合证明；祖先查询成本须在阶段二实测，若研究缓存替代必须保持权限/epoch/生命周期，不能只测相对路径。 |
 | mkdir 与挂载过渡 | 已验证可行：E1 后回复挂载、E2 post-reply事件、E11实际延迟/EPERM失败/恢复/卸载及旧引用均使用同一backing；失败管理状态无native claim。架构事实：已分派FUSE请求不会自动改走ext4。 | 补暂停中的FUSE回调与实际Node/P2P组合；验证失败不能导致生产READY。E11管理原语状态不是实际Node ACK。 |
 | 旧 cwd/dirfd/文件句柄 | 旧目录即时等价为架构限制/已接受边界：E5。文件对象保留与重开可行：E2/E6；E12/E13补齐当前认证跨VM组合，同长度覆盖/缩短/空文件、双向写回、rename替换、unlink/同名重建与已打开reader关闭重开；旧fd始终保留旧对象。 | A2所需对象/重开机制证据已齐。当前A/B从构造起采用native-eligible；ordinary/mixed客户端的缓存兼容与模式协商不能由此推断，归入A4。保留旧目录反例作边界展示，不扩大已有豁免。 |
-| 本地/远端并发及锁 | 原基线 append/EXCL/独立区域并发可行：E1；本地 kernel flock 可行：E2；E14补齐当前认证跨VM非阻塞flock双向仲裁/对象替换。实现遗漏：native POSIX 仍软件模型。**当前简单 Home 代理不满足同 PID 锁合同：E4。** | 用户决定保留全部锁合同则必须证明能代表原 POSIX owner 的替代架构；不能用不同 PID 普通互斥通过替代同 PID 降锁/解锁/任意 fd close。阻塞等待/取消和远端final-close排空、当前候选append/EXCL/并发写仍需组合证据。 |
+| 本地/远端并发及锁 | E1仅证明短记录append/EXCL/独立区域；E14当前非阻塞flock可行。**E15否定当前组合的完整append等价：单次远端写被拆分插入，写后偏移也错误。**实现遗漏：native POSIX仍软件模型；简单Home代理不满足同PID锁合同（E4）。架构限制：现有FUSE请求无整次syscall边界，回复无实际追加结束偏移，本地native不受其inode锁/用户态锁约束。 | 保留现有合同就需改变仲裁/客户端内核边界并给出机制证明；原协议用户态小补丁不是已证明路线。任何互斥写入者/切换重开、限制追加尺寸或偏移豁免均未获同意。POSIX owner、阻塞等待/取消/远端final-close、当前EXCL/其他并发仍开放；不再重跑E15到偶然通过。 |
 | mmap、缓存、元数据/watch | native-eligible客户端close-to-open普通I/O可行：E6/E13。原远端MAP_SHARED ENODEV、watch无native事件：E1；当前部分chmod/symlink/xattr已实现，历史ENOSYS不是当前事实。 | 当前ABI/capabilities下的MAP_SHARED/PRIVATE、msync/fsync/重新打开和映射脏数据证明；实际P2P权限/链接/xattr；ordinary/mixed客户端缓存及模式协商；watch需求与事件桥可行性。零TTL/direct I/O不自动解决映射，也不证明未选择该策略的客户端。 |
 | 删除/回收/切换 | busy 与 source/target/epoch 防混淆可行：E2/E7。实现遗漏：完整受管 Agent/peer 排空未接入。架构限制：RootGrant 不能即时撤销已打开 native fd；挂载根 ordinary rmdir/rename 可先 EBUSY 而不进入 FUSE。 | 受管 Actor + 远端在途写；先拒绝 admission，再排空/停止，正常卸载，最后切换新 epoch/Home；延迟旧请求不得写新实例。必须证明实际引用消失，不用 RootUse=0 替代。 |
 | 异常后重建与长期演进 | 现有 journal/helper crash 在**同一个存活 namespace**内可行：E2。尚未验证：Node/FUSE death、Agent namespace 消失、boot/session 更换与 Home 迁移的组合。 | 受控 daemon death/namespace-loss 的最小机制证明；旧 native fd 仍可写时不 ready、不复用；重观察权威和挂载身份，不把 journal 当当前内核事实。完整 retry/durable ACK 工程留阶段三。 |
@@ -87,6 +88,7 @@ Windows 证据副本：`C:/workspace/code/dms/local/native-bind-vm/<run>/`；VM�
   - 后续E13补齐上述最后组合，A2关闭；限于从构造起native-eligible的实际A/B链路，普通/mixed策略的接入与兼容属于A4，未默认为通过。
 - [ ] **A3 并发/锁**：复用 E4 拒绝简单代理；实际跨路径 append/EXCL、flock、POSIX owner/close/fork/dup 与 native/native 控制。关闭条件：所需锁机制有正向证明，或用户明确修改范围；不得默认豁免失败组合。
   - E14关闭当前认证跨VM非阻塞flock的共享/排他及对象替换问题；不重复扩大这个案例族。阻塞等待/取消、远端final-close以及其他并发仍保留，POSIX owner要求未获得豁免。
+  - E15完成append决定性反例与一次受控复现。维持单次write的原子追加和正确偏移要求；下一步是仲裁/协议/平台路线对齐，禁止靠缩短请求、强制应用加锁或忽略SEEK_CUR自行关闭此问题。
 - [ ] **A4 映射/兼容性**：固定当前ABI与内核；MAP_SHARED/PRIVATE、msync/fsync、native写后fresh remote reader、P2P mode/symlink/xattr、ordinary/mixed客户端缓存及模式协商，以及watch/inode边界核对。关闭条件：适用要求有可行路线和关键机制证据；未获批准的例外不能关闭。
 - [ ] **A5 受管回收/切换**：复用 busy matrix；增加真实 managed native Actor、remote fd/在途请求、同名新 epoch 与切换 Home 的最小控制。关闭条件：旧写入在新实例就绪前被 fenced；失败保持 draining，不删除/复用 backing。
 - [ ] **A6 崩溃/namespace 边界**：已有同 namespace helper 恢复不重做；受控 Node/FUSE death、最终 Agent namespace loss 各一组。关闭条件：可正确辨认和拒绝未知旧状态、恢复路径可实现；完整自动恢复留阶段三。

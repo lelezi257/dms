@@ -38,7 +38,7 @@ def main():
     parser.add_argument("--meta-bin", type=Path, required=True)
     parser.add_argument("--snapshot", type=Path, required=True)
     parser.add_argument("--expect", choices=("ordinary", "native"), required=True)
-    parser.add_argument("--case", choices=("a2", "flock"), default="a2")
+    parser.add_argument("--case", choices=("a2", "flock", "append"), default="a2")
     args = parser.parse_args()
     assert args.case == "a2" or args.expect == "native"
     stamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%S")
@@ -69,7 +69,8 @@ def main():
     export = False
     sequence = 0
     result = {"run_id": run, "expected_constructor": args.expect,
-              "case_profile": "a2-close-reopen-unlink-recreate" if args.case == "a2" else "a3-flock-object",
+              "case_profile": {"a2": "a2-close-reopen-unlink-recreate", "flock": "a3-flock-object",
+                               "append": "a3-single-write-append"}[args.case],
               "scope": "actual Node bootstrap/Meta/TLS/P2P; test-only mount driver; bounded architecture cases, not performance",
               "input_sha256": {name: digest(out / name) for name in
                                ("node-tests", "afs-meta", "guest.py", "controller.py")},
@@ -144,6 +145,41 @@ def main():
             assert reply["ok"], reply
         result.setdefault("flock_results", []).append({"role": role, "actor": actor,
                       "handle": handle, "mode": mode, "errno": errno, "reply": reply})
+
+    def submit(role, actor, **fields):
+        nonlocal sequence
+        sequence += 1
+        command = {"id": f"c{sequence}", "actor": actor, **fields}
+        reply = guest(role, "actor-submit", command=command)
+        assert reply == {"id": command["id"], "submitted": True}
+        return {"id": command["id"], "actor": actor}
+
+    def append_lane(name, large_role, large_actor):
+        request("a", "write", actor="native", name=name, data="")
+        for role, actor in (("a", "native"), (large_role, large_actor)):
+            request(role, "open", actor=actor, name=name, handle="append", flags=["O_RDWR", "O_APPEND"])
+        small = submit("a", "native", operation="append-series", handle="append",
+                       count=500, repeat=1024, byte="N", delay=.002)
+        assert guest("a", "actor-progress", command=small)["first_write"]
+        large = submit(large_role, large_actor, operation="append-series", handle="append",
+                       count=1, repeat=2 * 1024 * 1024, byte="R")
+        small_reply = guest("a", "actor-result", command=small)
+        large_reply = guest(large_role, "actor-result", command=large)
+        assert small_reply["ok"] and large_reply["ok"], (small_reply, large_reply)
+        for role, actor in (("a", "native"), (large_role, large_actor)):
+            request(role, "close", actor=actor, handle="append")
+        content = request("a", "inspect-append", actor="native", name=name)
+        assert content["size"] == 500 * 1024 + 2 * 1024 * 1024, content
+        assert sum(length for byte, _, length in content["segments"] if byte == "N") == 500 * 1024
+        assert sum(length for byte, _, length in content["segments"] if byte == "R") == 2 * 1024 * 1024
+        regions = [segment for segment in content["segments"] if segment[0] == "R"]
+        large_end = max(offset + length for _, offset, length in regions)
+        lane = {"large_role": large_role, "large_actor": large_actor, "content": content,
+                "small": small_reply, "large": large_reply,
+                "one_contiguous_append": len(regions) == 1,
+                "write_position_matches_end": large_reply["result"]["positions"] == [large_end]}
+        result.setdefault("append_lanes", {})[name] = lane
+        return lane["one_contiguous_append"] and lane["write_position_matches_end"]
 
     try:
         for role in roles:
@@ -247,7 +283,7 @@ def main():
                 assert request("a", "read", actor="oldfuse", handle="old") == "old-still-isolated"
                 fresh_read("a", "native", "identity", "recreated-object")
                 result["mechanism_result"] = "A2 retained objects and close-to-open candidate evidence"
-            else:
+            elif args.case == "flock":
                 start_actor("a", "nativepeer")
                 request("a", "open", actor="native", name="identity", handle="old", flags="O_RDWR")
                 request("a", "open", actor="nativepeer", name="identity", handle="old", flags="O_RDWR")
@@ -287,9 +323,31 @@ def main():
                 for actor, handle in (("native", "old"), ("nativepeer", "old"), ("nativepeer", "new")):
                     request("a", "close", actor=actor, handle=handle)
                 result["mechanism_result"] = "actual native/local FUSE/remote P2P nonblocking flock and retained-object isolation"
+            else:
+                start_actor("a", "nativepeer")
+                assert append_lane("native-control", "a", "nativepeer"), "native control violates assumed contract"
+                result["append_semantics_ok"] = append_lane("remote-append", "b", "remote")
+                # Controlled follow-up: cursor divergence without chunking or
+                # concurrent in-flight writes. Hand-derived final offset is12.
+                request("a", "write", actor="native", name="sequential-append", data="NNNN")
+                request("b", "open", actor="remote", name="sequential-append", handle="append",
+                        flags=["O_RDWR", "O_APPEND"])
+                request("a", "open", actor="native", name="sequential-append", handle="append",
+                        flags=["O_RDWR", "O_APPEND"])
+                local = request("a", "append-series", actor="native", handle="append", count=1, repeat=4, byte="N")
+                distant = request("b", "append-series", actor="remote", handle="append", count=1, repeat=4, byte="R")
+                assert local["positions"] == [8]
+                for role, actor in (("a", "native"), ("b", "remote")):
+                    request(role, "close", actor=actor, handle="append")
+                content = request("a", "inspect-append", actor="native", name="sequential-append")
+                assert content["segments"] == [["N", 0, 8], ["R", 8, 4]]
+                result["sequential_append"] = {"native": local, "remote": distant, "content": content,
+                                               "position_ok": distant["positions"] == [12]}
+                result["append_semantics_ok"] &= result["sequential_append"]["position_ok"]
+                result["mechanism_result"] = "single 2MiB append versus native 1KiB appends, native/native control and actual remote chain"
         for role, actor in (("a", "oldfuse"), ("b", "remote")):
             request(role, "close", actor=actor, handle="old")
-        result["cases_ok"] = True
+        result["cases_ok"] = result.get("append_semantics_ok", True)
     except Exception as error:
         result["error"] = repr(error)
     finally:

@@ -172,11 +172,13 @@ def actor_start(base, actor_name):
     return result
 
 
-def actor_command(base, command):
+def actor_command(base, command, wait=True):
     directory = base / ("actor-" + command.pop("actor"))
     ready = json.loads((directory / "ready.json").read_text())
     verify(ready["process"])
     save(directory / "request.json", command)
+    if not wait:
+        return {"id": command["id"], "submitted": True}
     result = wait_file(directory / f"reply-{command['id']}.json")
     assert result["id"] == command["id"]
     return result
@@ -206,7 +208,12 @@ def actor(base, actor_name):
                 value = None
                 key = command.get("handle")
                 if operation == "open":
-                    flags = getattr(os, command.get("flags", "O_RDONLY"))
+                    requested = command.get("flags", "O_RDONLY")
+                    requested = requested if isinstance(requested, list) else [requested]
+                    flags = 0
+                    for flag in requested:
+                        assert flag in ("O_RDONLY", "O_RDWR", "O_WRONLY", "O_APPEND")
+                        flags |= getattr(os, flag)
                     if command.get("create"):
                         flags |= os.O_CREAT | os.O_EXCL
                     handles[key] = os.open(name, flags, 0o600, dir_fd=root)
@@ -219,6 +226,44 @@ def actor(base, actor_name):
                     assert mode in ("EX", "SH", "UN")
                     # Bounded probes only: no actor/controller can hang on a lock.
                     fcntl.flock(handles[key], getattr(fcntl, "LOCK_" + mode) | fcntl.LOCK_NB)
+                elif operation == "append-series":
+                    count, repeat = command["count"], command["repeat"]
+                    delay = command.get("delay", 0)
+                    assert 1 <= count <= 1000 and 1 <= repeat <= 2 * 1024 * 1024
+                    assert 0 <= delay <= .01 and command["byte"] in ("N", "R")
+                    fd = handles[key]
+                    assert fcntl.fcntl(fd, fcntl.F_GETFL) & os.O_APPEND
+                    os.lseek(fd, 0, os.SEEK_SET)
+                    data = command["byte"].encode() * repeat
+                    positions = []
+                    started = time.monotonic_ns()
+                    for index in range(count):
+                        assert os.write(fd, data) == len(data), "short write is a distinct outcome"
+                        positions.append(os.lseek(fd, 0, os.SEEK_CUR))
+                        if index == 0:
+                            save(directory / f"progress-{command['id']}.json", {"id": command["id"], "first_write": True})
+                        if delay:
+                            time.sleep(delay)
+                    value = {"writes": count, "bytes_each": len(data), "positions": positions,
+                             "started_ns": started, "finished_ns": time.monotonic_ns()}
+                elif operation == "inspect-append":
+                    fd = os.open(name, os.O_RDONLY, dir_fd=root)
+                    try:
+                        size = os.fstat(fd).st_size
+                        assert size <= 4 * 1024 * 1024
+                        data = os.pread(fd, size, 0)
+                        assert len(data) == size
+                    finally:
+                        os.close(fd)
+                    (directory / f"content-{name}.bin").write_bytes(data)
+                    segments = []
+                    for offset, byte in enumerate(data):
+                        assert byte in (78, 82)
+                        if not segments or segments[-1][0] != chr(byte):
+                            segments.append([chr(byte), offset, 1])
+                        else:
+                            segments[-1][2] += 1
+                    value = {"size": size, "sha256": hashlib.sha256(data).hexdigest(), "segments": segments}
                 elif operation == "write":
                     fd = handles[key] if key is not None else os.open(
                         name, os.O_WRONLY | os.O_CREAT, 0o600, dir_fd=root)
@@ -325,6 +370,14 @@ def main():
         result = actor_start(base, args.extra)
     elif op == "actor-command":
         result = actor_command(base, json.load(sys.stdin))
+    elif op == "actor-submit":
+        result = actor_command(base, json.load(sys.stdin), wait=False)
+    elif op in ("actor-progress", "actor-result"):
+        command = json.load(sys.stdin)
+        assert re.fullmatch(r"c[0-9]+", command["id"])
+        assert re.fullmatch(r"[a-zA-Z0-9_-]+", command["actor"])
+        prefix = "progress" if op == "actor-progress" else "reply"
+        result = wait_file(base / ("actor-" + command["actor"]) / f"{prefix}-{command['id']}.json")
     elif op in ("actor-wait", "actor-stop"):
         directory = base / ("actor-" + args.extra)
         if op == "actor-stop" and not (directory / "actor-exit.json").exists():

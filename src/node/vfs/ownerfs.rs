@@ -1202,10 +1202,43 @@ struct RemoteRoot {
 }
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
+struct OwnerNativeAuthority {
+    home_node_id: String,
+    home_session_id: String,
+    holder_node_id: String,
+    session_id: String,
+    access_generation: u64,
+    fencing_token: String,
+}
+
+impl OwnerNativeAuthority {
+    fn from_grant(grant: &RootGrant) -> Self {
+        Self {
+            home_node_id: grant.home_node_id.clone(),
+            home_session_id: grant.home_session_id.clone(),
+            holder_node_id: grant.holder_node_id.clone(),
+            session_id: grant.session_id.clone(),
+            access_generation: grant.access_generation,
+            fencing_token: grant.fencing_token.clone(),
+        }
+    }
+
+    fn matches(&self, grant: &RootGrant) -> bool {
+        self.home_node_id == grant.home_node_id
+            && self.home_session_id == grant.home_session_id
+            && self.holder_node_id == grant.holder_node_id
+            && self.session_id == grant.session_id
+            && self.access_generation == grant.access_generation
+            && self.fencing_token == grant.fencing_token
+    }
+}
+
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
 struct OwnerLockKey {
     root_id: RootId,
     epoch: u64,
     identity: Vec<u8>,
+    native_authority: Option<OwnerNativeAuthority>,
 }
 
 #[derive(Clone)]
@@ -1404,24 +1437,25 @@ impl LocalOwnerFs {
                 }
                 let root_id = file.handle.root_id.clone();
                 let identity = file.handle.identity.0.clone();
+                let root_use = match self.admit_native_file(file, RootRight::Lookup)? {
+                    Some(root_use) => root_use,
+                    None => self.roots.enter_root(&root_id, RootRight::Lookup)?,
+                };
                 drop(slot);
-                let root_use = self.roots.enter_root(&root_id, RootRight::Lookup)?;
                 let key = OwnerLockKey {
                     root_id,
                     epoch: root_use.grant().epoch,
                     identity,
+                    native_authority: self
+                        .native_eligible
+                        .then(|| OwnerNativeAuthority::from_grant(root_use.grant())),
                 };
                 drop(root_use);
-                let native = self
-                    .private_cache
-                    .lock()
-                    .map_err(|_| poisoned())?
-                    .native_eligible;
                 let table = self
                     .locks
                     .lock()
                     .map_err(|_| poisoned())?
-                    .table(key.clone(), native)?;
+                    .table(key.clone(), self.native_eligible)?;
                 Ok(OwnerLockTarget::Local { key, table })
             }
             OpenFileHandle::Remote(file) => Ok(OwnerLockTarget::Remote {
@@ -1448,6 +1482,7 @@ impl LocalOwnerFs {
             let OpenFileHandle::Local(file) = &guard.file else {
                 return Err(stale("native flock requires a Home descriptor"));
             };
+            let _root_use = self.admit_native_file(file, RootRight::Lookup)?;
             file.handle
                 .file
                 .try_clone_descriptor()
@@ -1464,10 +1499,15 @@ impl LocalOwnerFs {
                 .roots
                 .enter_root(&key.root_id, RootRight::Lookup)
                 .and_then(|root_use| {
-                    if root_use.grant().epoch == key.epoch {
+                    if root_use.grant().epoch == key.epoch
+                        && key
+                            .native_authority
+                            .as_ref()
+                            .is_none_or(|authority| authority.matches(root_use.grant()))
+                    {
                         Ok(())
                     } else {
-                        Err(stale("Owner lock root epoch changed"))
+                        Err(stale("Owner lock root authority changed"))
                     }
                 });
             if valid.is_err() {
@@ -8405,6 +8445,7 @@ mod tests {
                         root_id: RootId("retired-root".into()),
                         epoch: 1,
                         identity: inode.to_le_bytes().to_vec(),
+                        native_authority: None,
                     },
                     true,
                 )
@@ -8433,6 +8474,7 @@ mod tests {
                 root_id: RootId("current-root".into()),
                 epoch: 2,
                 identity: vec![0],
+                native_authority: None,
             },
             true,
         );
@@ -8441,6 +8483,121 @@ mod tests {
             "retired native tables exhausted inode capacity"
         );
         assert_eq!(registry.tables.len(), 1);
+    }
+
+    #[test]
+    fn native_lock_authority_recovery_refuses_old_file_and_admits_fresh_file() {
+        let (_temp, fs, ctx, _root, file, native) = native_flock_fixture();
+        fs.require_local()
+            .unwrap()
+            .roots
+            .reconcile_on_startup()
+            .unwrap();
+        let rejected = fs
+            .setlk(
+                &ctx,
+                file.entry.inode,
+                file.handle,
+                native_flock_request("retired", 1, FileLockType::Write),
+                None,
+            )
+            .is_err();
+        fs.release(&ctx, file.handle).unwrap();
+        let fresh = fs.open(&ctx, file.entry.inode, libc::O_RDWR).unwrap();
+        fs.setlk(
+            &ctx,
+            file.entry.inode,
+            fresh,
+            native_flock_request("fresh", 2, FileLockType::Write),
+            None,
+        )
+        .unwrap();
+        assert!(matches!(
+            native.try_lock(),
+            Err(fs::TryLockError::WouldBlock)
+        ));
+        fs.release(&ctx, fresh).unwrap();
+        assert!(
+            rejected,
+            "old open capability borrowed recovered Home authority"
+        );
+    }
+
+    #[test]
+    fn native_lock_authority_recovery_retires_old_target_and_routes_new_table() {
+        let (_temp, fs, ctx, _root, file, _native) = native_flock_fixture();
+        let local = fs.require_local().unwrap();
+        let target = local.lock_target(file.handle, None).unwrap();
+        local.roots.reconcile_on_startup().unwrap();
+        let rejected = local.validate_lock_target(&target).is_err();
+        let fresh = fs.open(&ctx, file.entry.inode, libc::O_RDWR).unwrap();
+        let fresh_target = local.lock_target(fresh, None).unwrap();
+        let (OwnerLockTarget::Local { table: old, .. }, OwnerLockTarget::Local { table: new, .. }) =
+            (&target, &fresh_target)
+        else {
+            panic!("not Home");
+        };
+        let reused = Arc::ptr_eq(old, new);
+        let accepted = fs
+            .setlk(
+                &ctx,
+                file.entry.inode,
+                fresh,
+                native_flock_request("fresh", 2, FileLockType::Write),
+                None,
+            )
+            .is_ok();
+        fs.release(&ctx, fresh).unwrap();
+        fs.release(&ctx, file.handle).unwrap();
+        assert!(
+            rejected,
+            "epoch-only target check accepted retired Home fencing token"
+        );
+        assert!(!reused, "new authority reused invalidated inode table");
+        assert!(accepted, "fresh authority could not acquire a kernel lock");
+    }
+
+    #[test]
+    fn native_lock_authority_change_during_wait_rejects_grant_and_unlocks_pin() {
+        let (_temp, fs, ctx, _root, file, native) = native_flock_fixture();
+        native.try_lock().unwrap();
+        let id = LockWaiterId {
+            ingress_session_id: "old-home".into(),
+            request_id: 101,
+        };
+        let worker_fs = fs.clone();
+        let worker_ctx = ctx.clone();
+        let worker_id = id.clone();
+        let worker = std::thread::spawn(move || {
+            worker_fs.setlk(
+                &worker_ctx,
+                file.entry.inode,
+                file.handle,
+                native_flock_request("old-home", 1, FileLockType::Write),
+                Some(worker_id),
+            )
+        });
+        wait_owner_lock_route(&fs, &id);
+        fs.require_local()
+            .unwrap()
+            .roots
+            .reconcile_on_startup()
+            .unwrap();
+        native.unlock().unwrap();
+        let refused = worker.join().unwrap().is_err();
+        let released = native.try_lock().is_ok();
+        if released {
+            native.unlock().unwrap();
+        }
+        fs.release(&ctx, file.handle).unwrap();
+        assert!(
+            refused,
+            "blocking lock acknowledged after Home authority changed"
+        );
+        assert!(
+            released,
+            "rejected grant left the old Home kernel lock held"
+        );
     }
 
     fn test_owner_lock(scope: &str, kernel_owner: u64, lock_type: FileLockType) -> LockRequest {
@@ -8466,6 +8623,7 @@ mod tests {
                     root_id: RootId("root".into()),
                     epoch: 1,
                     identity: vec![1],
+                    native_authority: None,
                 },
                 false,
             )

@@ -26,6 +26,16 @@ The [delivery acceptance contract](acceptance.md) requires JuiceFS default same-
 
 ## Current Validation Checkpoint
 
+The latest native lock authority/release candidate has385 passing all-feature
+library tests (two existing ignored), including32 targeted native cases and
+four regressions that reproduced the original authority/outcome failures.
+Fmt, strict workspace Clippy and root-project all-feature tests pass. Fresh
+independent VM replay passes17 foundation cases and all4 new regressions on
+ext4; binaries, raw outcomes and independently checked mount/data cleanup retain
+their exact identities in the evidence index. Node/Agent lifecycle, applicable POSIX/network-P2P
+and native-ext4 performance qualification remain open; no PR has been created.
+The checkpoints below are historical evidence with their original scope.
+
 The isolated native-bind branch has10 passing Home flock regressions and16
 passing VM mount/cache/readiness/local-flock foundation cases. Its strict
 workspace/all-target/all-feature Clippy and fmt checks pass. The broader

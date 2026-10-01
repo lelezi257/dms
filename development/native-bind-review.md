@@ -33,9 +33,17 @@ individual variants has not been claimed.
 
 ## Open review gates
 
-- Exact native lock Home authority revalidation and precise terminal outcomes
-  when a normal owner release fails; source regressions do not replace network
-  peer/session fault tests.
+- The subsequent native lock authority/release slice passes its four original
+  behavior failures and all385 all-feature library tests (two existing ignored).
+  Native keys distinguish recovered Home authority even at the same epoch;
+  old open capabilities cannot borrow a recovered grant, post-wait validation
+  retires the old table, and a failed normal unlock preserves its granted
+  outcome and pin for retry. Ordinary keys remain epoch-based. Exact source
+  snapshot and RED/GREEN logs are in the evidence record. Strict lint, root-project
+  checks,17 VM foundation cases and all4 new regressions on VM ext4 PASS. Exact
+  binaries/archive hashes and independent namespace/data cleanup checks are
+  indexed in the evidence record. These fixtures do not replace network
+  peer/session fault tests or full review.
 - POSIX process-owner arbitration and the pending old-FUSE/native same-process
   ownership boundary. Do not silently replace classic POSIX ownership with OFD.
 - Node current-authority control feed, bounded hint/inventory worker, effective

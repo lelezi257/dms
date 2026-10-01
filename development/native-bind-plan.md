@@ -258,6 +258,23 @@ The user explicitly accepted the previously presented close-to-open and retained
   applicable POSIX/P2P/mmap and paired native-ext4 performance. Mountpoint
   metadata retention and a revoked RootGrant do not stop native fd I/O.
 
+## Native lock Home authority and release outcome slice
+
+- [x] Reproduce four behavior failures using production Home recovery and an
+  actual failed kernel unlock with retained original lock and independent native
+  contender. Preserve REDs and cleanup evidence.
+- [x] Admit the captured native file authority before choosing a target or
+  cloning its descriptor, bind table identity to the full current Home grant,
+  reject retired targets after wait and allow fresh recovered authority.
+- [x] Preserve granted outcomes/pins when normal owner unlock fails; only a
+  successful kernel release changes granted to cancelled.
+- [x] Run32 targeted native tests and all-feature library385 PASS/2 existing
+  ignored, with fmt check PASS. Preserve exact source snapshot and logs.
+- [x] Complete candidate strict lint, root-project checks and independent VM
+  replay:17 foundation cases and all4 new regressions on ext4 PASS. Independently
+  inspect binary/archive identity and unchanged mounts/empty temporary data.
+  These Home/kernel fixtures do not qualify actual P2P or Agent lifecycle.
+
 ## Native flock retirement and errno slice
 
 - [x] Reproduce retained outcome/retired/session state making invalidated native

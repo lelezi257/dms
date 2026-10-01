@@ -208,11 +208,13 @@ impl NativeFlocks {
             .map(|(owner, _)| owner.clone())
             .collect::<HashSet<_>>();
         let mut failure = None;
+        let mut released_owners = HashSet::new();
         for owner in &owners {
             let description = &state.descriptions[owner];
             match description.file.unlock() {
                 Ok(()) => {
                     state.descriptions.remove(owner);
+                    released_owners.insert(owner.clone());
                 }
                 Err(error) => {
                     // Keep the pin for retry; dropping a clone does not release
@@ -235,7 +237,9 @@ impl NativeFlocks {
         }
         for (outcome, owner) in state.outcomes.values_mut() {
             if *outcome == LockWaiterOutcome::Granted
-                && owner.as_ref().is_some_and(|owner| owners.contains(owner))
+                && owner
+                    .as_ref()
+                    .is_some_and(|owner| released_owners.contains(owner))
             {
                 *outcome = LockWaiterOutcome::Cancelled;
             }
@@ -422,6 +426,90 @@ mod tests {
         );
         assert!(!flock.is_idle().unwrap());
         fs.release(&ctx, file.handle).unwrap();
+    }
+
+    #[test]
+    fn native_flock_failed_release_preserves_granted_outcome_until_retry() {
+        use std::os::{fd::AsRawFd, unix::fs::OpenOptionsExt};
+        let (_temp, fs, ctx, _root, file, native) = native_flock_fixture();
+        let slot = fs
+            .require_local()
+            .unwrap()
+            .open_file_handle(file.handle)
+            .unwrap();
+        let clone_backing = || {
+            let slot = slot.lock().unwrap();
+            let OpenFileHandle::Local(open) = &slot.file else {
+                panic!("not local");
+            };
+            open.handle.file.try_clone_descriptor().unwrap()
+        };
+        let owner = FileLockOwner {
+            ingress_session_id: "fault".into(),
+            kernel_owner: 7,
+        };
+        let id = LockWaiterId {
+            ingress_session_id: "fault".into(),
+            request_id: 1,
+        };
+        let flock = NativeFlocks::default();
+        flock
+            .prepare(file.handle, &owner, clone_backing(), Arc::downgrade(&slot))
+            .unwrap();
+        flock
+            .setlk(
+                LockRequest {
+                    kind: FileLockKind::Flock,
+                    owner: owner.clone(),
+                    pid: 7,
+                    range: FileLockRange {
+                        start: 0,
+                        end: u64::MAX,
+                    },
+                    lock_type: FileLockType::Write,
+                },
+                Some(id.clone()),
+            )
+            .unwrap();
+        let path_only = File::options()
+            .read(true)
+            .custom_flags(libc::O_PATH)
+            .open(format!("/proc/self/fd/{}", native.as_raw_fd()))
+            .unwrap();
+        // Fault injection uses a real failing syscall. The original open-file
+        // description still owns the kernel lock; no Rust-owned fd is reused.
+        flock
+            .state
+            .lock()
+            .unwrap()
+            .descriptions
+            .get_mut(&owner)
+            .unwrap()
+            .file = path_only;
+        let failure = flock.release_owner(&owner).unwrap_err().errno();
+        let outcome = flock.cancel(id.clone()).unwrap();
+        let held = matches!(native.try_lock(), Err(TryLockError::WouldBlock));
+        flock
+            .state
+            .lock()
+            .unwrap()
+            .descriptions
+            .get_mut(&owner)
+            .unwrap()
+            .file = clone_backing();
+        flock.release_owner(&owner).unwrap();
+        let retired = flock.cancel(id).unwrap();
+        native.try_lock().unwrap();
+        native.unlock().unwrap();
+        fs.release(&ctx, file.handle).unwrap();
+        assert_eq!(failure, libc::EBADF);
+        assert!(held);
+        assert_eq!(
+            outcome,
+            LockWaiterOutcome::Granted,
+            "failed unlock was reported as cancellation"
+        );
+        assert_eq!(retired, LockWaiterOutcome::Cancelled);
     }
 
     #[test]

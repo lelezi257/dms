@@ -4,7 +4,58 @@ Issue: https://github.com/lelezi257/dms/issues/42. Plan: `native-bind-plan.md`.
 
 This is an intermediate slice, not feature completion, product acceptance or performance qualification. It does not enable native exports in Node. Default configuration does not enable native admission. The optional hint hook remains inert without a sink; ordinary directory identity refresh now reconciles cached descendants after an external move. Node/FUSE/P2P integration, cross-path locks/cache/mmap, full Node/Agent lifecycle recovery and ext4 performance comparison remain outstanding.
 
-## Current checkpoint: native flock retirement and errno (2026-10-01)
+## Current checkpoint: native lock Home authority and release outcomes (2026-10-01)
+
+Source parent is `0fdedce`; exact tested dirty source is preserved in external
+snapshot `native-lock-authority-candidate-20261001T064614`. The actual behavior
+RED in `native-lock-authority-red.log` records28 PASS/4 FAIL: an old open
+capability borrows recovered Home authority, an epoch-only target accepts the
+retired fencing token, a blocking acquisition acknowledges after recovery, and
+a failed normal owner unlock is reported as cancellation while the kernel lock
+remains held. Recovery cases call the production `reconcile_on_startup` path;
+the unlock case substitutes an actual same-object O_PATH descriptor in the test
+coordinator, retains the original locked description, and checks an independent
+native contender before and after retry. Cleanup precedes the assertions.
+
+Native lock keys now include the admitted Home/holder sessions, nodes,
+access_generation and fencing token as well as Root/epoch/file identity.
+Local and authenticated Home peer routes use the Home grant. Old native-eligible
+open capabilities are revalidated before choosing a target or cloning its
+descriptor; post-wait validation fences the exact retired table. Fresh recovered
+authority selects a new table. Ordinary OwnerFs keys remain epoch-based.
+Normal release changes granted outcomes to Cancelled only for descriptions
+whose kernel unlock succeeds; failed pins and granted outcomes survive for retry.
+
+`native-lock-authority-green.log` records all32 native library cases PASS,
+including all4 original failures. `native-lock-authority-lib.log` records385
+all-feature library PASS/2 existing ignored. Strict workspace/all-target/all-feature
+Clippy and fmt check PASS. `native-lock-authority-project.log` records exit0 for
+the root-project all-feature test command and all25 executed suite summaries
+PASS; ignored environment-dependent cases remain ignored. The earlier separate
+workspace/all-ABI fuser failures and DFS clock diagnostics remain preserved.
+No-feature, OwnerFs-only and DFS-only `cargo check --all-targets` also PASS.
+No-feature/DFS-only variants retain the two existing descriptor-helper
+dead-code warnings; strict per-variant lint has not been claimed.
+
+Fresh VM replay `foundation-20261001T065423-3a76f7aa` records17 foundation PASS,
+using the all-feature `ownerfs_native_linux-18984ae9bfa33684` binary SHA256
+`1faa8b4e60512e38805343f415b5dbd911e0ec6d25333741f3cea63b9cf47870`.
+Independent archive inspection verifies17 unchanged parent mountinfo pairs and
+17 empty disposable-data directories. Archive SHA256:
+`858bde97d3a7418f93004846d6a3ac398ddae9d46d9d62cc3714d149cc91282b`.
+Seven stronger-directory diagnostics remain explicitly NOT_RUN.
+
+The four new library regressions also PASS on actual VM ext4 `/dev/sdb1` under
+an independently confirmed private namespace:
+`lock-authority-20261001T065532-a2b3629a`. Exact all-feature library executable
+SHA256 is `2dad2501d9990fb3ebfd13cc60326e686a3e4b8e68f5e99eff6f71ae278d431b`.
+Independent inspection checks the3+1 test outcomes, unchanged parent mounts,
+empty temporary data and ext4 source. Archive SHA256:
+`ea61d191c81ade066fe41d88c032da24251d13138dc7458109c98ddd21bdb6e2`.
+These are Home/kernel fixtures, not actual Node/Agent/network-P2P qualification.
+The full feature goal and no-merge PR remain open.
+
+## Previous checkpoint: native flock retirement and errno (2026-10-01)
 
 Source parent is `54d6f59cc881d987afd26ebd57cd5e26e688f18d`; exact tested dirty
 inputs are retained in external snapshot

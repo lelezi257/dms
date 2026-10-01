@@ -8,7 +8,7 @@ This is an intermediate slice, not feature completion, product acceptance or per
 
 - Current base: `78245771167643d5883491052e7cebcaba8c3be2` (original base `6bcabe8f30040bc6cc3b518bd271e7e2461e1e1d`); branch `feat/ownerfs-native-bind`. Feature worktree is isolated from the canonical checkout and the other machine's main branch.
 - Rust1.95 x86_64 Linux. WSL6.6 builds/tests the controller and journal; actual mount backend is run in Linux6.8 VM A on `/dev/sdb1`, ext4 UUID `6fa5e173-b766-4c27-872b-8f40e91bed27`.
-- Current VM test binary SHA256 `f8689bbb02bccbc9736a7c570d8836a2d2907cc5888bfebe56a73edc3464bc15` (directory-refresh candidate; full14-case suite is RED, exact source inputs preserved externally).
+- Current VM test binary SHA256 `c8329a13482634ea1c087deef54a2a2dbadd5d36a11ca43537b0bd2980965270` (15 cases, including a custom read-only directory-reference mechanism probe; full semantics remains RED).
 - Private mount namespaces; test data confined to uniquely created directories. Earlier successful probes checked parent namespace mountinfo byte-for-byte. The ordinary RED driver exits before its cleanup markers; the paired portable RED replay independently verifies parent mounts and disposable-data cleanup. Most covered test directories are disposable ext4 directories. One test now uses the real OwnerFs FUSE adapter and RootManager with an in-process Meta fixture; it does not run production Node/P2P or enable native policy.
 
 ## Outcomes
@@ -19,13 +19,13 @@ This is an intermediate slice, not feature completion, product acceptance or per
 | Controller regressions | 16 PASS | Idempotent export, stale identities, busy retry, foreign ownership, recycled-ID protection, bounded admission |
 | Journal regressions | 10 PASS | Exclusive writer, strict decode, symlink/hardlink protection, immutable old epoch, atomic replace, uncertain directory-sync failure |
 | Journal/controller transactions | 12 PASS | Pre-attach exclusive clone intent, durable ACK, unmount intent, restart without stacking, same-epoch retired-session fencing, bounded orphan cleanup, uncertain unlink/fsync and duplicate-ACK health |
-| Current VM Linux backend/FUSE/old-directory semantics | RED: 13 PASS, 1 FAIL | Original cases pass; retained old FUSE dirfd/cwd do not automatically track a native directory move |
+| Current VM Linux backend/FUSE/directory mechanism | RED: 14 PASS, 1 FAIL with probe enabled; 13 PASS, 2 FAIL with probe disabled | New test-only automatic repair passes; production old-directory case still fails |
 | Current library regressions | 353 PASS, 2 ignored | Main-aligned OwnerFs/DFS regression plus external-directory refresh; ignored tests remain outside this claim |
 | fmt / strict all-targets Clippy | PASS | Candidate formatting and diagnostics |
-| Portable VM probe | Current14-case RED in both cache controls; prior13-case PASS | Both current replays execute13 PASS/1 FAIL and separately verify unchanged parent mounts and empty disposable data; earlier13-case PASS does not qualify full semantics |
+| Portable VM probe | Current15-case paired RED | Matching binary: probe disabled13/2; enabled14/1; both have independent unchanged-parent-mount and empty-data checks |
 | OwnerFs FUSE/native/P2P integration and performance | NOT_RUN | Mount primitive proof is insufficient |
 
-WSL cannot supply STATX_MNT_ID_UNIQUE on kernel6.6; the backend returns ENOTSUP. All14 current real-backend/FUSE tests are explicitly ignored for the ordinary build-host run, then explicitly executed (none ignored) by the VM probe. Kernel unique IDs are required; recyclable mountinfo IDs never substitute for ownership.
+WSL cannot supply STATX_MNT_ID_UNIQUE on kernel6.6; the backend returns ENOTSUP. All15 current kernel/backend/FUSE/prototype tests are explicitly ignored for the ordinary build-host run, then explicitly executed (none ignored) by the VM probe. Kernel unique IDs are required; recyclable mountinfo IDs never substitute for ownership.
 
 ## Failures retained
 
@@ -218,3 +218,68 @@ fmt and strict all-targets/all-features Clippy pass. Previous353 library/43
 native unit results belong to the prior directory-refresh candidate; no new
 production Rust code was changed here. Full feature and performance remain
 incomplete, and pending durability/platform decisions still gate activation.
+
+## Automatic directory-reference mechanism checkpoint
+
+Tracked test-only module `tests/ownerfs_native_linux/directory_reference_probe.rs`
+uses the real OwnerFs backend and fixed in-process Meta fixture, but a separate
+minimal read-only FUSE adapter. It is not production `AfsFuse`, a directory RPC
+protocol, a native admission API or a full filesystem implementation. The custom
+adapter replies with zero TTL and pins exactly one backing directory plus its
+source root and covered FUSE workspace root before attachment.
+
+After native rename, a worker reads the backing descriptor's current path,
+checks its pinned dev/ino and root membership, then performs a new-name lookup
+through the already-held covered FUSE root before replying to the caller's
+GETATTR. That lookup uses the existing OwnerFs subtree-reconciliation fix and
+allows the kernel to move the old FUSE alias. The receive thread remains free
+to answer helper requests. Recursive helper identification uses only its live
+thread ID; daemon-process-wide exemption was removed. Actual FUSE header TIDs
+match the two worker TIDs in the final VM trace. Linux source uses
+`task_pid(current)` for this header field:
+[Linux6.8 FUSE dev.c](https://github.com/torvalds/linux/blob/v6.8/fs/fuse/dev.c).
+
+The caller opens old FUSE dirfd/cwd before bind. Native moves the directory
+left→right, reuses the old name for a new directory with different bytes,
+and the caller's FIRST operation is a parent-only read. No caller new-name
+lookup, sleep, scan or inotify event is needed to repair that observation.
+Only after it completes does the test look up the replacement name as a
+positive control. It then removes that replacement and moves the original
+directory right→left. Both phases compare parent, cwd and child data with
+the original native directory fd, preserving the original backing identity.
+
+Initial missing `open_flags` adapter argument was a compile error, corrected
+before behavioral claims. With automatic repair disabled, the no-replacement
+case returned ENOENT; old-name reuse strengthened the control to ESTALE. With
+repair enabled, FIRST old dirfd/cwd reads observe RIGHT and the original data;
+the second move observes LEFT and the same original data. The replacement-name
+control reads its different bytes. Single-case RED/GREEN logs remain historical
+and are not substituted for the final TID-only candidate.
+
+Final paired full replay `directory-20261001T024545-fced027f`, binary SHA256 `c8329a13482634ea1c087deef54a2a2dbadd5d36a11ca43537b0bd2980965270`, executes15
+cases with the unchanged tracked portable probe. Mode0 disables the prototype
+and has13 PASS/2 FAIL. Mode1 enables it and has14 PASS/1 FAIL. The remaining
+failure is still the production OwnerFs/AfsFuse old-directory case. Each replay
+returns test/probe101; the collection driver returns0 only after independently
+checking unchanged parent mountinfo and empty disposable data. The actor is
+reaped and exact worker threads are joined before owned normal unmount and
+pin release. Raw logs, helper TIDs, source-input hashes and summary live under
+`directory-worker-analysis.json` / `directory-worker-inputs.json` externally.
+
+Replay modes through the existing VM probe, in serial fresh ext4 lanes:
+
+```bash
+sudo env RUST_TEST_THREADS=1 AFS_NATIVE_REFERENCE_REPAIR=0 bash PROBE BINARY FRESH_DISABLED_EVIDENCE SHA256
+sudo env RUST_TEST_THREADS=1 AFS_NATIVE_REFERENCE_REPAIR=1 bash PROBE BINARY FRESH_ENABLED_EVIDENCE SHA256
+```
+
+This demonstrates a viable kernel mechanism for the tested named-directory
+moves, not complete object/alias semantics. Deleted directories and parents,
+source-root changes, nested moves, concurrent native mutation, credentials,
+lookup/forget and open-handle pin bounds, crash/epoch/fencing, directory RPCs,
+cache/mmap/locks and performance remain required. Production dispatch,
+reference registry and cache/admission barriers are not wired. The adapter's
+limited helper/handle logic and read-only flush are not reusable production
+contracts. No Node native activation or platform/durability change occurred.
+fmt and strict all-targets/all-features Clippy passed; previous production
+library/unit counts remain their earlier scope.

@@ -1138,3 +1138,12 @@ os.close(covered)
         "old FUSE cwd must observe its current parent"
     );
 }
+
+#[path = "ownerfs_native_linux/directory_reference_probe.rs"]
+mod directory_reference_probe;
+
+#[test]
+#[ignore = "read-only directory-reference mechanism probe; private VM FUSE/ext4 and Python3; not production adapter"]
+fn privileged_directory_reference_worker_probe() {
+    directory_reference_probe::run();
+}

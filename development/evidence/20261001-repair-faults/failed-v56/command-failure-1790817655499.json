@@ -1,0 +1,21 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "afs-accept-a",
+    "--",
+    "sudo",
+    "timeout",
+    "--kill-after=2s",
+    "30s",
+    "python3",
+    "-c",
+    "RUN='/mnt/lima-afsadata/afs-delivery/repair-v55-a'\nFILE_NAME='repair-v56-source-loss.bin'\nSIZE=1048576\n\nimport hashlib, json, os, pathlib\nrun=pathlib.Path(RUN)\ntarget=run/'mount-dfs'/FILE_NAME\ndata=bytes(((i*193)+41)%251 for i in range(SIZE))\nwith open(target,'xb') as fh:\n    fh.write(data)\n    fh.flush()\n    os.fsync(fh.fileno())\ndigest=hashlib.sha256(data).hexdigest()\nchunk_root=run/'state/node/dfs/chunks'\ninventory=[]\nmatches=[]\nfor path in sorted(chunk_root.iterdir()):\n    if not path.is_file():\n        continue\n    size=path.stat().st_size\n    if size <= 0 or size > 128*1024*1024:\n        continue\n    sha=hashlib.sha256(path.read_bytes()).hexdigest()\n    item={'path':str(path.relative_to(run)),'name':path.name,'size':size,'sha256':sha}\n    inventory.append(item)\n    if size == len(data) and sha == digest:\n        matches.append(item)\nif len(matches) != 1:\n    raise SystemExit(json.dumps({'error':'expected exactly one physical chunk match for new source-loss file','file_sha256':digest,'matches':matches,'inventory':inventory}, indent=2))\nprint(json.dumps({'file':str(target),'size':len(data),'sha256':digest,'chunk':matches[0],'inventory':inventory}))\n"
+  ],
+  "duration_ms": 208,
+  "returncode": 1,
+  "stderr": "Traceback (most recent call last):\n  File \"<string>\", line 12, in <module>\nOSError: [Errno 16] Device or resource busy\n\nDuring handling of the above exception, another exception occurred:\n\nTraceback (most recent call last):\n  File \"<string>\", line 9, in <module>\nOSError: [Errno 16] Device or resource busy\n",
+  "stdout": "",
+  "time_unix_ms": 1790817655499,
+  "timeout_seconds": 45
+}

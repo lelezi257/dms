@@ -71,6 +71,14 @@ serve their retained copies after the current session and catalog evidence are
 validated. A Node polling for repair detects lost availability and reactivates
 repair work; this is independent of an application's next read.
 
+Repair debt is recorded even when no replacement target is available. A lost
+replica creates a missing canonical task or reactivates a completed task as
+`Pending`, and marks its placement `UnderReplicated`; adding eligible capacity
+allows a later claim to execute it.
+A task lease cannot keep a retired worker in charge. Reassignment freezes the
+observed Node session and its revision, while a matching live worker retains
+its claim. A stale worker cannot publish receipts after reassignment.
+
 `GET /v1/dfs/chunks/{chunk_id}/replication` reports current available copies,
 placement and tasks from one Meta read view. It checks backend health and never
 infers permanent loss solely from unavailable nodes.
@@ -84,12 +92,19 @@ The file layer batches work at durability boundaries, including close-time flush
 | --- | --- | --- | --- |
 | local-owner `write` | 0 | 0 | updates inode dirty state; remote-owner access adds one forwarding RPC |
 | R=1 changed-data sync | 1 final commit | 0 | cached placement and valid lease; refresh/renew may add RPCs |
-| M synchronous copies | 1 final commit, plus M-1 receiver-authority checks per chunk | M-1 chain-link transfers per chunk | placement refresh/lease renewal are additional control calls |
+| N desired copies, M synchronous copies, N > 1 | 1 placement refresh per changed-chunk batch + 1 final commit, plus M-1 receiver-authority checks per chunk | M-1 chain-link transfers per chunk | refreshed epochs prevent indefinite reuse of a restarted target's old layout; lease renewal adds control calls |
 | repair to N copies | 1 claim + N-1 receiver-authority checks + 1 report per chunk | N-1 chain-link transfers | source-first full chain; empty polls and retries add maintenance calls |
 | read-only `open` | head lookup + version/layout lookup, up to 2 without cache | 0 | resolves the current view; does not create a lifetime snapshot |
 | fixed-version peer read | 0 on valid source cache; source refresh otherwise | 1 range-read batch per selected peer/context | each operation retains its authorization |
 
 The exact transport can be request/response, streaming, RDMA descriptors or another data-plane mechanism. The contract is that small data can be carried inline, while large data should move through a data path that avoids unnecessary copies and still returns the same receipt semantics.
+
+A refreshed layout does not reserve the target processes through commit. A
+target that restarts during transfer can invalidate the receipts; Meta keeps
+epoch checks and rejects stale authority. A commit with an unknown result still
+retries its exact original identity and request, rather than replacing its plan.
+The first batch can also fetch placement to populate an empty policy cache;
+the table's per-batch refresh count describes the warm steady path.
 
 
 ## Peer Connection Reuse

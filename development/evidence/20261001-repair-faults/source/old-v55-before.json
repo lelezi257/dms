@@ -1,0 +1,35 @@
+{
+  "a": {
+    "processes": {
+      "meta": {
+        "pid": 723627,
+        "ticks": "7187988",
+        "exe": "/mnt/lima-afsadata/afs-delivery/repair-v55-a/prefix/bin/afs-meta",
+        "sha256": "f08de71b873f9e9f5564acdd09ce58ab62b62472b36db7a8b0a514c2d47849fb"
+      },
+      "node": {
+        "pid": 723796,
+        "ticks": "7188004",
+        "exe": "/mnt/lima-afsadata/afs-delivery/repair-v55-a/prefix/bin/afs-node",
+        "sha256": "8cfea1e4a3b3df1498620f4d3b1420d0b9621fe8415bc8b7df2be838af388023"
+      }
+    },
+    "config_sha256": {
+      "meta": "a2bd1b5750ccf7b5d1cb85f6ec54f2b1500e32648433c242d7e53d1ae1fcedf7",
+      "node": "3e94cebbb82dec076742a9a3027d8f0142eb57c783c9c386e3f5c2101eaa36e7"
+    }
+  },
+  "b": {
+    "processes": {
+      "node": {
+        "pid": 133405,
+        "ticks": "6353838",
+        "exe": "/mnt/lima-afsbdata/afs-delivery/repair-v55-b/prefix/bin/afs-node",
+        "sha256": "8cfea1e4a3b3df1498620f4d3b1420d0b9621fe8415bc8b7df2be838af388023"
+      }
+    },
+    "config_sha256": {
+      "node": "a184952349bec7d728f6147e227c4bae95c635b4749732516aed43de3034fbe6"
+    }
+  }
+}

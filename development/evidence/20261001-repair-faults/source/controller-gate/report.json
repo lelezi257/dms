@@ -1,0 +1,43 @@
+{
+  "status": "PASS",
+  "platform": "Linux-6.8.0-106-generic-aarch64-with-glibc2.39",
+  "checks": [
+    {
+      "lane": "original",
+      "returncode": 1,
+      "elapsed_seconds": 6.023956208999152,
+      "passing_groups": 4,
+      "argv": [
+        "timeout",
+        "--kill-after=3s",
+        "240s",
+        "bash",
+        "/home/lzc.guest/afs-build/probes/repair-v60/controller-qualified/original/selftest.sh"
+      ]
+    },
+    {
+      "lane": "fixed",
+      "returncode": 0,
+      "elapsed_seconds": 30.085181795002427,
+      "passing_groups": 19,
+      "argv": [
+        "timeout",
+        "--kill-after=3s",
+        "240s",
+        "bash",
+        "/home/lzc.guest/afs-build/probes/repair-v60/controller-qualified/fixed/selftest.sh"
+      ]
+    }
+  ],
+  "inputs": {
+    "original": {
+      "afs-processctl": "945cba0c6febdd329f50996f3a59586ae9f51be4c29d2ca9b66175b8253dc2a8",
+      "selftest.sh": "590eaed55ac22493ac99be080a6482f96694ec788f599454f166df1c015a1514"
+    },
+    "fixed": {
+      "afs-processctl": "78949590bfdf12f6db0977ac5756702312e85e1d91c8f59903d4490222488f2b",
+      "selftest.sh": "590eaed55ac22493ac99be080a6482f96694ec788f599454f166df1c015a1514"
+    }
+  },
+  "scope": "Linux deployment regressions; not full DEP acceptance"
+}

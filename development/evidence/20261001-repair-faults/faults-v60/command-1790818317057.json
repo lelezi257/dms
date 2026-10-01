@@ -1,0 +1,21 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "afs-accept-a",
+    "--",
+    "sudo",
+    "timeout",
+    "--kill-after=2s",
+    "20s",
+    "python3",
+    "-c",
+    "RUN='/mnt/lima-afsadata/afs-delivery/repair-v60-a'\nROLES=['meta', 'node']\nEXPECTED={'meta': '37218622c1cfd1cfadc696269f0ea01a2570052ec460528c748d525fe982ef9d', 'node': '53da41fb54bcabbfe567bef91096891274ea36b3d28d989dba372fc6940c12ea'}\n\nimport hashlib, json, os, pathlib, platform, subprocess\nrun=pathlib.Path(RUN)\nroles=ROLES\nexpected=EXPECTED\nresult={'runtime':str(run),'platform':platform.platform(),'boot_id':pathlib.Path('/proc/sys/kernel/random/boot_id').read_text().strip(),'processes':{},'config_sha256':{},'mounts':{}}\nfor role in roles:\n    pid=int((run/'run'/(role+'.pid')).read_text())\n    proc=pathlib.Path('/proc')/str(pid)\n    fields=(proc/'stat').read_text().rsplit(') ',1)[1].split()\n    exe=os.readlink(proc/'exe')\n    sha=hashlib.sha256((proc/'exe').read_bytes()).hexdigest()\n    expected_exe=str(run/'prefix/bin'/('afs-'+role))\n    assert exe == expected_exe, {'role':role,'exe':exe,'expected':expected_exe}\n    assert sha == expected[role], {'role':role,'sha256':sha,'expected':expected[role]}\n    result['processes'][role]={'pid':pid,'start_ticks':fields[19],'state':fields[0],'exe':exe,'sha256':sha}\n    result['config_sha256'][role]=hashlib.sha256((run/'etc'/(role+'.toml')).read_bytes()).hexdigest()\nfor name in ('mount-ownerfs','mount-dfs'):\n    target=str(run/name)\n    data=json.loads(subprocess.check_output(['findmnt','-J','-M',target,'-o','TARGET,SOURCE,FSTYPE,OPTIONS'],text=True))\n    mount=data['filesystems'][0]\n    expected_source='afs-ownerfs' if name == 'mount-ownerfs' else 'afs-dfs'\n    assert mount['target'] == target, mount\n    assert mount['source'] == expected_source, mount\n    assert str(mount['fstype']).startswith('fuse'), mount\n    result['mounts'][name]=mount\nresult['data_volume']=json.loads(subprocess.check_output(['findmnt','-J','-T',str(run),'-o','TARGET,SOURCE,FSTYPE'],text=True))['filesystems'][0]\nassert result['data_volume']['fstype'] == 'ext4', result['data_volume']\nprint(json.dumps(result))\n"
+  ],
+  "duration_ms": 161,
+  "returncode": 0,
+  "stderr": "",
+  "stdout": "{\"runtime\": \"/mnt/lima-afsadata/afs-delivery/repair-v60-a\", \"platform\": \"Linux-6.8.0-142-generic-aarch64-with-glibc2.39\", \"boot_id\": \"36a572e0-859b-4a94-adc7-789210a83fc8\", \"processes\": {\"meta\": {\"pid\": 724361, \"start_ticks\": \"7349623\", \"state\": \"S\", \"exe\": \"/mnt/lima-afsadata/afs-delivery/repair-v60-a/prefix/bin/afs-meta\", \"sha256\": \"37218622c1cfd1cfadc696269f0ea01a2570052ec460528c748d525fe982ef9d\"}, \"node\": {\"pid\": 724530, \"start_ticks\": \"7349639\", \"state\": \"S\", \"exe\": \"/mnt/lima-afsadata/afs-delivery/repair-v60-a/prefix/bin/afs-node\", \"sha256\": \"53da41fb54bcabbfe567bef91096891274ea36b3d28d989dba372fc6940c12ea\"}}, \"config_sha256\": {\"meta\": \"428a7669008dcbbc5aafe1ef5db407be84a2525d29aa406f8b9b01184ebbf347\", \"node\": \"eb478363b4455b7428bb4806cf7c3aafe429091363dab1eb19234df164c8aefc\"}, \"mounts\": {\"mount-ownerfs\": {\"target\": \"/mnt/lima-afsadata/afs-delivery/repair-v60-a/mount-ownerfs\", \"source\": \"afs-ownerfs\", \"fstype\": \"fuse\", \"options\": \"rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other\"}, \"mount-dfs\": {\"target\": \"/mnt/lima-afsadata/afs-delivery/repair-v60-a/mount-dfs\", \"source\": \"afs-dfs\", \"fstype\": \"fuse\", \"options\": \"rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other\"}}, \"data_volume\": {\"target\": \"/mnt/lima-afsadata\", \"source\": \"/dev/vdb1\", \"fstype\": \"ext4\"}}\n",
+  "time_unix_ms": 1790818317057,
+  "timeout_seconds": 35
+}

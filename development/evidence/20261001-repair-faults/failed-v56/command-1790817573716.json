@@ -1,0 +1,28 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "afs-accept-b",
+    "--",
+    "sudo",
+    "/mnt/lima-afsbdata/afs-delivery/repair-v55-b/prefix/bin/afs-processctl",
+    "--prefix",
+    "/mnt/lima-afsbdata/afs-delivery/repair-v55-b/prefix",
+    "--config-dir",
+    "/mnt/lima-afsbdata/afs-delivery/repair-v55-b/etc",
+    "--run-dir",
+    "/mnt/lima-afsbdata/afs-delivery/repair-v55-b/run",
+    "--log-dir",
+    "/mnt/lima-afsbdata/afs-delivery/repair-v55-b/log",
+    "--timeout",
+    "20",
+    "stop",
+    "node"
+  ],
+  "duration_ms": 125,
+  "returncode": 0,
+  "stderr": "",
+  "stdout": "node stopped exit_code=0\n",
+  "time_unix_ms": 1790817573716,
+  "timeout_seconds": 90
+}

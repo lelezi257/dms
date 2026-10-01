@@ -1,0 +1,25 @@
+{
+  "chunk": {
+    "name": "blake3-66c97e9d1156ebfd6d9dc3057da4c04dacfc04905187a914f3ea819776e3948f-1048576",
+    "path": "state/node/dfs/chunks/blake3-66c97e9d1156ebfd6d9dc3057da4c04dacfc04905187a914f3ea819776e3948f-1048576",
+    "sha256": "f1798f2fe9ada47bd0b5b0afd7f3527436667d28fa136c87b692da680db1c9b6",
+    "size": 1048576
+  },
+  "file": "/mnt/lima-afsadata/afs-delivery/repair-v60-a/mount-dfs/repair-v60-source-loss.bin",
+  "inventory": [
+    {
+      "name": "blake3-1aee92b63c686e65a8ae67852d8710eff4e46e63f0161e22282b9cd2ae2cc285-1048576",
+      "path": "state/node/dfs/chunks/blake3-1aee92b63c686e65a8ae67852d8710eff4e46e63f0161e22282b9cd2ae2cc285-1048576",
+      "sha256": "3f8a853cfd1416af3ab78fd914f7574dd86045f3f132294cf9ba47717130d3a8",
+      "size": 1048576
+    },
+    {
+      "name": "blake3-66c97e9d1156ebfd6d9dc3057da4c04dacfc04905187a914f3ea819776e3948f-1048576",
+      "path": "state/node/dfs/chunks/blake3-66c97e9d1156ebfd6d9dc3057da4c04dacfc04905187a914f3ea819776e3948f-1048576",
+      "sha256": "f1798f2fe9ada47bd0b5b0afd7f3527436667d28fa136c87b692da680db1c9b6",
+      "size": 1048576
+    }
+  ],
+  "sha256": "f1798f2fe9ada47bd0b5b0afd7f3527436667d28fa136c87b692da680db1c9b6",
+  "size": 1048576
+}

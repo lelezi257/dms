@@ -1,0 +1,50 @@
+{
+  "files": {
+    "command-1790821958429.json": {
+      "bytes": 3741,
+      "sha256": "6bf96dd909b6a1ca6d63e6a79614cdc8d6f1bff0d21295c02eaf7120c7ad730a"
+    },
+    "command-1790821958594.json": {
+      "bytes": 3338,
+      "sha256": "e97dce58d0974ab9fe1e3a70a214bd1dec34bd7d31c0463b40e016adaf90ea19"
+    },
+    "command-1790821958689.json": {
+      "bytes": 2269,
+      "sha256": "13d73a54b5354f79b74f2ed6c6d846c61293cf75c7b9c102fde7dc1e616938f2"
+    },
+    "command-1790821959294.json": {
+      "bytes": 2251,
+      "sha256": "6eeca13a32f26e0b39c0050341e58ec2e7a30153140edd1163bc84034b2b1ada"
+    },
+    "command-1790821959427.json": {
+      "bytes": 1646,
+      "sha256": "b1c91a9f728d439cb57cc63cb7eb2a1b272fb93552b63a3c04d76ad88769e463"
+    },
+    "command-1790821959633.json": {
+      "bytes": 1633,
+      "sha256": "df5194409b7dbe2548a167ac519eab6ebce20ce9e9449754ad2f799767a77678"
+    },
+    "identity-a-preflight.json": {
+      "bytes": 1535,
+      "sha256": "dcbcf7fe31a38c9f1f1ec3deaa30915347185cde12b166c145118d484fedf589"
+    },
+    "identity-b-preflight.json": {
+      "bytes": 1197,
+      "sha256": "33e0a31e6e4e720d68addc5016ca29a3a2e9a39bfe21220783408c09fcce728d"
+    },
+    "preflight-run-start.json": {
+      "bytes": 78,
+      "sha256": "0c4b93986e7eb13bc197722b3e431bb44c7df4211809d69197968dae7418fee3"
+    },
+    "preflight.complete.json": {
+      "bytes": 878,
+      "sha256": "96745bc21758d28ad28500968f466a0e252a54bc625c10b706583880f059b83a"
+    },
+    "unrelated-snapshot-preflight.json": {
+      "bytes": 4226,
+      "sha256": "d5469e2de788ea1f4bd6cfb6046a6a8cfe8dc6e730d7b3783d68611e5e26c96f"
+    }
+  },
+  "run_id": "2cac30b0-549b-408d-bab9-95cfe125ca77",
+  "status": "PASS"
+}

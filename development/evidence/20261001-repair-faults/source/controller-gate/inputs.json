@@ -1,0 +1,10 @@
+{
+  "original": {
+    "afs-processctl": "945cba0c6febdd329f50996f3a59586ae9f51be4c29d2ca9b66175b8253dc2a8",
+    "selftest.sh": "590eaed55ac22493ac99be080a6482f96694ec788f599454f166df1c015a1514"
+  },
+  "fixed": {
+    "afs-processctl": "78949590bfdf12f6db0977ac5756702312e85e1d91c8f59903d4490222488f2b",
+    "selftest.sh": "590eaed55ac22493ac99be080a6482f96694ec788f599454f166df1c015a1514"
+  }
+}

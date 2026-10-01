@@ -1,0 +1,5 @@
+ok - dep02-smoke rejects ordinary /tmp
+ok - processctl rejects ready REST without AFS mount
+ok - processctl accepts TOML literal/basic listen strings with comments
+ok - invalid listen configuration fails before creating a managed launch
+not ok - stale recovery uses bounded FUSE detach

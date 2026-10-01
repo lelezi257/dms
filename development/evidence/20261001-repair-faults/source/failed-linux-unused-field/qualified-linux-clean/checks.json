@@ -1,0 +1,33 @@
+[
+  {
+    "label": "fmt",
+    "argv": [
+      "timeout",
+      "60",
+      "cargo",
+      "fmt",
+      "--all",
+      "--",
+      "--check"
+    ],
+    "returncode": 0,
+    "elapsed_seconds": 0.3884879249962978
+  },
+  {
+    "label": "clippy",
+    "argv": [
+      "timeout",
+      "240",
+      "cargo",
+      "clippy",
+      "--workspace",
+      "--all-targets",
+      "--all-features",
+      "--",
+      "-D",
+      "warnings"
+    ],
+    "returncode": 101,
+    "elapsed_seconds": 4.746169716992881
+  }
+]

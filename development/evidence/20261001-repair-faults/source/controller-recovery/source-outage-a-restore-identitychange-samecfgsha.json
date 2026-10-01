@@ -1,0 +1,97 @@
+{
+  "after": {
+    "boot_id": "36a572e0-859b-4a94-adc7-789210a83fc8",
+    "config_sha256": {
+      "meta": "428a7669008dcbbc5aafe1ef5db407be84a2525d29aa406f8b9b01184ebbf347",
+      "node": "eb478363b4455b7428bb4806cf7c3aafe429091363dab1eb19234df164c8aefc"
+    },
+    "data_volume": {
+      "fstype": "ext4",
+      "source": "/dev/vdb1",
+      "target": "/mnt/lima-afsadata"
+    },
+    "mounts": {
+      "mount-dfs": {
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other",
+        "source": "afs-dfs",
+        "target": "/mnt/lima-afsadata/afs-delivery/repair-v60-a/mount-dfs"
+      },
+      "mount-ownerfs": {
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other",
+        "source": "afs-ownerfs",
+        "target": "/mnt/lima-afsadata/afs-delivery/repair-v60-a/mount-ownerfs"
+      }
+    },
+    "platform": "Linux-6.8.0-142-generic-aarch64-with-glibc2.39",
+    "processes": {
+      "meta": {
+        "exe": "/mnt/lima-afsadata/afs-delivery/repair-v60-a/prefix/bin/afs-meta",
+        "pid": 724361,
+        "sha256": "37218622c1cfd1cfadc696269f0ea01a2570052ec460528c748d525fe982ef9d",
+        "start_ticks": "7349623",
+        "state": "S"
+      },
+      "node": {
+        "exe": "/mnt/lima-afsadata/afs-delivery/repair-v60-a/prefix/bin/afs-node",
+        "pid": 725163,
+        "sha256": "53da41fb54bcabbfe567bef91096891274ea36b3d28d989dba372fc6940c12ea",
+        "start_ticks": "7485845",
+        "state": "S"
+      }
+    },
+    "runtime": "/mnt/lima-afsadata/afs-delivery/repair-v60-a"
+  },
+  "before": {
+    "boot_id": "36a572e0-859b-4a94-adc7-789210a83fc8",
+    "config_sha256": {
+      "meta": "428a7669008dcbbc5aafe1ef5db407be84a2525d29aa406f8b9b01184ebbf347",
+      "node": "eb478363b4455b7428bb4806cf7c3aafe429091363dab1eb19234df164c8aefc"
+    },
+    "data_volume": {
+      "fstype": "ext4",
+      "source": "/dev/vdb1",
+      "target": "/mnt/lima-afsadata"
+    },
+    "mounts": {
+      "mount-dfs": {
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other",
+        "source": "afs-dfs",
+        "target": "/mnt/lima-afsadata/afs-delivery/repair-v60-a/mount-dfs"
+      },
+      "mount-ownerfs": {
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other",
+        "source": "afs-ownerfs",
+        "target": "/mnt/lima-afsadata/afs-delivery/repair-v60-a/mount-ownerfs"
+      }
+    },
+    "platform": "Linux-6.8.0-142-generic-aarch64-with-glibc2.39",
+    "processes": {
+      "meta": {
+        "exe": "/mnt/lima-afsadata/afs-delivery/repair-v60-a/prefix/bin/afs-meta",
+        "pid": 724361,
+        "sha256": "37218622c1cfd1cfadc696269f0ea01a2570052ec460528c748d525fe982ef9d",
+        "start_ticks": "7349623",
+        "state": "S"
+      },
+      "node": {
+        "exe": "/mnt/lima-afsadata/afs-delivery/repair-v60-a/prefix/bin/afs-node",
+        "pid": 724530,
+        "sha256": "53da41fb54bcabbfe567bef91096891274ea36b3d28d989dba372fc6940c12ea",
+        "start_ticks": "7349639",
+        "state": "S"
+      }
+    },
+    "runtime": "/mnt/lima-afsadata/afs-delivery/repair-v60-a"
+  },
+  "checks": {
+    "meta_identity_unchanged": true,
+    "meta_same_config": true,
+    "node_identity_changed": true,
+    "node_same_binary": true,
+    "node_same_config": true
+  }
+}

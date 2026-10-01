@@ -1,0 +1,28 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "afs-accept-a",
+    "--",
+    "sudo",
+    "/mnt/lima-afsadata/afs-delivery/repair-v60-a/prefix/bin/afs-processctl",
+    "--prefix",
+    "/mnt/lima-afsadata/afs-delivery/repair-v60-a/prefix",
+    "--config-dir",
+    "/mnt/lima-afsadata/afs-delivery/repair-v60-a/etc",
+    "--run-dir",
+    "/mnt/lima-afsadata/afs-delivery/repair-v60-a/run",
+    "--log-dir",
+    "/mnt/lima-afsadata/afs-delivery/repair-v60-a/log",
+    "--timeout",
+    "20",
+    "start",
+    "node"
+  ],
+  "duration_ms": 71,
+  "returncode": 1,
+  "stderr": "removing stale pid file for node: 724530\nmkdir: cannot stat \u2018/mnt/lima-afsadata/afs-delivery/repair-v60-a/mount-dfs\u2019: Transport endpoint is not connected\n",
+  "stdout": "",
+  "time_unix_ms": 1790818317431,
+  "timeout_seconds": 90
+}

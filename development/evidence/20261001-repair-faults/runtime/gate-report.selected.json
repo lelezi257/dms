@@ -1,0 +1,8 @@
+{
+  "candidate": "v60",
+  "hashes": {
+    "meta": "d455aa075b046d1325aa809fae3f4207f22174cc89b022f70d8fc29c9de3000a",
+    "node": "3bcbc789d94cd6b3ff021ac586a016cebc5f152926a55e160175c40b8a7b2ee1"
+  },
+  "report_path": "/home/lzc.guest/afs-build/probes/repair-v60/qualified-linux-clean-r2/report.json"
+}

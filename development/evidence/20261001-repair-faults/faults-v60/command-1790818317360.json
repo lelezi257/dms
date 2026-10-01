@@ -1,0 +1,21 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "afs-accept-b",
+    "--",
+    "sudo",
+    "timeout",
+    "--kill-after=2s",
+    "30s",
+    "python3",
+    "-c",
+    "RUN='/mnt/lima-afsbdata/afs-delivery/repair-v60-b'\nFILE_NAME='repair-v60-source-loss.bin'\nEXPECTED_SIZE=1048576\nEXPECTED_SHA='f1798f2fe9ada47bd0b5b0afd7f3527436667d28fa136c87b692da680db1c9b6'\n\nimport hashlib, json, pathlib\ntarget=pathlib.Path(RUN)/'mount-dfs'/FILE_NAME\ndata=target.read_bytes()\nsha=hashlib.sha256(data).hexdigest()\nassert len(data) == EXPECTED_SIZE, {'path':str(target),'size':len(data),'expected_size':EXPECTED_SIZE}\nif EXPECTED_SHA:\n    assert sha == EXPECTED_SHA, {'path':str(target),'sha256':sha,'expected_sha256':EXPECTED_SHA}\nprint(json.dumps({'path':str(target),'bytes':len(data),'sha256':sha}))\n"
+  ],
+  "duration_ms": 69,
+  "returncode": 0,
+  "stderr": "",
+  "stdout": "{\"path\": \"/mnt/lima-afsbdata/afs-delivery/repair-v60-b/mount-dfs/repair-v60-source-loss.bin\", \"bytes\": 1048576, \"sha256\": \"f1798f2fe9ada47bd0b5b0afd7f3527436667d28fa136c87b692da680db1c9b6\"}\n",
+  "time_unix_ms": 1790818317360,
+  "timeout_seconds": 45
+}

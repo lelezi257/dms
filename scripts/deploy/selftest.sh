@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 TMP=${TMPDIR:-/tmp}/afs-deploy-selftest-$$
 cleanup() {
-  for pid in ${FAKE_PID:-} ${TERM_PID:-}; do
+  for pid in ${FAKE_PID:-} ${TERM_PID:-} ${MOUNT_RECOVERY_PIDS:-}; do
     if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
       kill "$pid" 2>/dev/null || true
       sleep 1
@@ -156,6 +156,161 @@ for invalid in "'127.0.0.1:40000" '"127.0.0.1:70000"'; do
   [ -z "$(ls -A "$TMP/invalid/run")" ] || fail "invalid listen configuration leaves no launch directory"
 done
 pass "invalid listen configuration fails before creating a managed launch"
+
+mkdir -p "$TMP/mount-recovery/bin"
+cat > "$TMP/mount-recovery/bin/findmnt" <<'FAKE_FINDMNT'
+#!/usr/bin/env bash
+set -euo pipefail
+state=$(cat "$AFS_FAKE_MOUNT_STATE_FILE")
+mount=
+column=
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --mountpoint) mount=$2; shift 2 ;;
+    -o) column=$2; shift 2 ;;
+    *) shift ;;
+  esac
+done
+[ "$state" != absent ] || exit 1
+[ -n "$mount" ] || exit 1
+target=$mount
+fstype=fuse
+case "$mount" in
+  *owner*) source=afs-ownerfs ;;
+  *) source=afs-dfs ;;
+esac
+case "$state" in
+  foreign-source) source=foreign ;;
+  foreign-fstype) fstype=ext4 ;;
+  wrong-target) target="${mount}-other" ;;
+esac
+case "$column" in
+  TARGET) printf '%s\n' "$target" ;;
+  FSTYPE) printf '%s\n' "$fstype" ;;
+  SOURCE) printf '%s\n' "$source" ;;
+  *) printf '%s\n' "$target" ;;
+esac
+FAKE_FINDMNT
+cat > "$TMP/mount-recovery/bin/stat" <<'FAKE_STAT'
+#!/usr/bin/env bash
+set -euo pipefail
+state=$(cat "$AFS_FAKE_MOUNT_STATE_FILE")
+path=${@: -1}
+case "$state" in
+  dead) echo "stat: cannot statx '$path': Transport endpoint is not connected" >&2; exit 1 ;;
+  timeout-enotconn) echo "stat: cannot statx '$path': Transport endpoint is not connected" >&2; exit 1 ;;
+  unknown-stat) echo "stat: cannot statx '$path': Permission denied" >&2; exit 1 ;;
+  *) echo directory; exit 0 ;;
+esac
+FAKE_STAT
+cat > "$TMP/mount-recovery/bin/timeout" <<'FAKE_TIMEOUT'
+#!/usr/bin/env bash
+set -euo pipefail
+state=$(cat "$AFS_FAKE_MOUNT_STATE_FILE")
+case "${1:-}" in --kill-after=*) shift ;; esac
+[ "$#" -gt 0 ] || exit 125
+shift
+[ "$#" -gt 0 ] || exit 125
+if [ "$state" = timeout-enotconn ] && [ "$(basename "$1")" = stat ]; then
+  path=${@: -1}
+  echo "stat: cannot statx '$path': Transport endpoint is not connected" >&2
+  exit 124
+fi
+exec "$@"
+FAKE_TIMEOUT
+cat > "$TMP/mount-recovery/bin/fusermount3" <<'FAKE_FUSERMOUNT'
+#!/usr/bin/env bash
+set -euo pipefail
+printf 'fusermount3 %s\n' "$*" >> "$AFS_FAKE_UNMOUNT_LOG"
+printf 'absent\n' > "$AFS_FAKE_MOUNT_STATE_FILE"
+FAKE_FUSERMOUNT
+cat > "$TMP/mount-recovery/bin/umount" <<'FAKE_UMOUNT'
+#!/usr/bin/env bash
+set -euo pipefail
+printf 'umount %s\n' "$*" >> "$AFS_FAKE_UNMOUNT_LOG"
+printf 'absent\n' > "$AFS_FAKE_MOUNT_STATE_FILE"
+FAKE_UMOUNT
+chmod +x "$TMP/mount-recovery/bin/findmnt" "$TMP/mount-recovery/bin/stat" "$TMP/mount-recovery/bin/timeout" "$TMP/mount-recovery/bin/fusermount3" "$TMP/mount-recovery/bin/umount"
+
+mount_recovery_lane() {
+  lane=$1
+  port=$2
+  dir="$TMP/mount-recovery/$lane"
+  mkdir -p "$dir/prefix/bin" "$dir/etc" "$dir/run" "$dir/log" "$dir/mount-dfs" "$dir/mount-owner"
+  cp "$TMP/prefix/bin/afs-node" "$dir/prefix/bin/afs-node"
+  cat > "$dir/etc/node.toml" <<EOF
+grpc_listen = "127.0.0.1:0"
+rest_listen = "127.0.0.1:$port"
+dfs_mount = "$dir/mount-dfs"
+ownerfs_mount = "$dir/mount-owner"
+EOF
+  printf '999999\n' > "$dir/run/node.pid"
+  cat > "$dir/run/node.identity" <<EOF
+pid=999999
+exe=$(readlink -f "$dir/prefix/bin/afs-node")
+config=$(readlink -f "$dir/etc/node.toml")
+start_ticks=1
+boot_id=$(cat /proc/sys/kernel/random/boot_id 2>/dev/null || true)
+lifecycle=$dir/run/node.lifecycle.old
+cmdline=old
+EOF
+  printf '%s\n' "$dir"
+}
+
+run_mount_recovery_case() {
+  mode=$1
+  expected=$2
+  lane=$3
+  pid_state=${4:-with-pid}
+  port=$(free_port)
+  dir=$(mount_recovery_lane "$lane" "$port")
+  if [ "$pid_state" = no-pid ]; then
+    rm -f "$dir/run/node.pid" "$dir/run/node.identity"
+  fi
+  state="$dir/state"
+  unmount_log="$dir/unmount.log"
+  printf '%s\n' "$mode" > "$state"
+  : > "$unmount_log"
+  set +e
+  PATH="$TMP/mount-recovery/bin:$PATH" \
+    AFS_FAKE_MOUNT_STATE_FILE="$state" \
+    AFS_FAKE_UNMOUNT_LOG="$unmount_log" \
+    "$ROOT/afs-processctl" --prefix "$dir/prefix" --config-dir "$dir/etc" \
+      --run-dir "$dir/run" --log-dir "$dir/log" --timeout 2 --no-readiness \
+      start dfs >"$dir/start.out" 2>"$dir/start.err"
+  rc=$?
+  set -e
+  if [ "$rc" -eq 0 ] && [ -f "$dir/run/node.pid" ]; then
+    MOUNT_RECOVERY_PIDS="${MOUNT_RECOVERY_PIDS:-} $(cat "$dir/run/node.pid")"
+  fi
+  if [ "$expected" = pass ]; then
+    [ "$rc" -eq 0 ] || { cat "$dir/start.out" "$dir/start.err" >&2; fail "stale disconnected AFS mount is recovered"; }
+    grep -q 'fusermount3 -uz' "$unmount_log" || { cat "$unmount_log" >&2; fail "stale recovery uses bounded FUSE detach"; }
+    [ "$(cat "$state")" = absent ] || fail "stale recovery clears fake mount state"
+    "$ROOT/afs-processctl" --prefix "$dir/prefix" --config-dir "$dir/etc" \
+      --run-dir "$dir/run" --log-dir "$dir/log" --timeout 2 --no-readiness \
+      stop dfs >"$dir/stop.out" 2>"$dir/stop.err" || {
+        cat "$dir/stop.out" "$dir/stop.err" >&2
+        fail "stale recovery fixture stops cleanly"
+      }
+  else
+    [ "$rc" -ne 0 ] || fail "$lane refuses unsafe stale mount recovery"
+    if [ "$pid_state" = with-pid ]; then
+      [ -f "$dir/run/node.pid" ] && [ -f "$dir/run/node.identity" ] || fail "$lane preserves stale evidence on refusal"
+    fi
+    [ ! -s "$unmount_log" ] || { cat "$unmount_log" >&2; fail "$lane does not unmount unsafe target"; }
+  fi
+}
+
+run_mount_recovery_case dead pass disconnected
+run_mount_recovery_case dead pass disconnected-no-pid no-pid
+run_mount_recovery_case live fail healthy
+run_mount_recovery_case wrong-target fail wrong-target
+run_mount_recovery_case foreign-source fail foreign-source
+run_mount_recovery_case foreign-fstype fail foreign-fstype
+run_mount_recovery_case timeout-enotconn fail timeout-enotconn
+run_mount_recovery_case unknown-stat fail unknown-stat
+pass "processctl recovers only positively disconnected exact AFS FUSE mounts"
 
 
 # PID identity must include more than executable path. A pid file pointing to a

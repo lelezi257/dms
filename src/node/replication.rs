@@ -355,11 +355,15 @@ impl ReplicationEngine {
         }
     }
 
-    fn put_batch(&self, staged: Vec<StagedChunk>) -> Result<Vec<ChunkReceipt>> {
+    fn put_replicated_batch(
+        &self,
+        staged: Vec<StagedChunk>,
+        minimum_revision: u64,
+    ) -> Result<Vec<ChunkReceipt>> {
         if staged.is_empty() {
             return Ok(Vec::new());
         }
-        let snapshot = self.placement.snapshot()?;
+        let snapshot = self.placement.refresh(minimum_revision)?;
         let plans = staged
             .iter()
             .map(|item| ReplicationPlan::derive(item, &snapshot))
@@ -531,7 +535,8 @@ impl ChunkStore for DfsChunkStore {
         if snapshot.replication.is_local_fast_path() {
             self.put_local_batch(staged, &snapshot)
         } else {
-            self.replication.put_batch(staged)
+            self.replication
+                .put_replicated_batch(staged, snapshot.revision)
         }
     }
 
@@ -971,6 +976,24 @@ mod tests {
         }
     }
 
+    struct RefreshingPlacement {
+        cached: Arc<PlacementSnapshot>,
+        fresh: Arc<PlacementSnapshot>,
+        refreshes: std::sync::atomic::AtomicUsize,
+    }
+
+    impl PlacementProvider for RefreshingPlacement {
+        fn snapshot(&self) -> Result<Arc<PlacementSnapshot>> {
+            Ok(self.cached.clone())
+        }
+
+        fn refresh(&self, _: u64) -> Result<Arc<PlacementSnapshot>> {
+            self.refreshes
+                .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            Ok(self.fresh.clone())
+        }
+    }
+
     #[derive(Default)]
     struct FakeDataPlane {
         prepared: Mutex<Vec<(ChunkId, String)>>,
@@ -1027,6 +1050,16 @@ mod tests {
             data_endpoint: format!("http://{node_id}"),
             device,
         }
+    }
+
+    fn target_with_epoch(
+        node_id: &str,
+        node_epoch: u64,
+        device: StorageDeviceDescriptor,
+    ) -> ReplicaTarget {
+        let mut target = target(node_id, device);
+        target.node_epoch = node_epoch;
+        target
     }
 
     fn remote_device(device_id: &str) -> StorageDeviceDescriptor {
@@ -1154,6 +1187,95 @@ mod tests {
         let mut out = [0; 1];
         assert!(local.read_at(&item.chunk.id, 0, &mut out).is_err());
     }
+
+    #[test]
+    fn rn_write_batch_refreshes_placement_before_replica_receipts() {
+        assert_fresh_placement_write(1, 1);
+        assert_fresh_placement_write(2, 2);
+        assert_fresh_placement_write(2, 3);
+    }
+
+    fn assert_fresh_placement_write(sync_required_copies: u16, chunk_count: usize) {
+        let temp = tempfile::tempdir().unwrap();
+        let local = Arc::new(LocalChunkStore::open(temp.path(), "node-a").unwrap());
+        let local_device = local.device_descriptor().unwrap();
+        let policy = ReplicationConfig {
+            desired_copies: 2,
+            sync_required_copies,
+            min_distinct_nodes: sync_required_copies,
+            min_distinct_failure_domains: 1,
+            local_copy: LocalCopyPolicy::Required,
+        };
+        let cached = Arc::new(PlacementSnapshot {
+            revision: 7,
+            replication: policy.clone(),
+            replica_groups: vec![ReplicaGroup {
+                id: ReplicaGroupId::new("group"),
+                placement_epoch: 70,
+                targets: vec![
+                    target("node-a", local_device.clone()),
+                    target_with_epoch("node-b", 1, remote_device("remote-b")),
+                ],
+            }],
+        });
+        let fresh = Arc::new(PlacementSnapshot {
+            revision: 8,
+            replication: policy,
+            replica_groups: vec![ReplicaGroup {
+                id: ReplicaGroupId::new("group"),
+                placement_epoch: 71,
+                targets: vec![
+                    target("node-a", local_device),
+                    target_with_epoch("node-b", 2, remote_device("remote-b")),
+                ],
+            }],
+        });
+        let placement = Arc::new(RefreshingPlacement {
+            cached,
+            fresh,
+            refreshes: std::sync::atomic::AtomicUsize::new(0),
+        });
+        let plane = Arc::new(FakeDataPlane::default());
+        let store =
+            DfsChunkStore::new_with_epoch("node-a".into(), 1, local, placement.clone(), plane);
+
+        let chunks = (0..chunk_count)
+            .map(|index| staged(&format!("fresh-placement-{sync_required_copies}-{index}")))
+            .collect::<Vec<_>>();
+        let receipts = store.put_batch(chunks).unwrap();
+
+        assert_eq!(receipts.len(), chunk_count);
+        for receipt in receipts {
+            assert_eq!(receipt.placement_revision, 8);
+            assert_eq!(receipt.placement_epoch, 71);
+            assert_eq!(
+                receipt.durable_acks.len(),
+                usize::from(sync_required_copies)
+            );
+            assert!(receipt.durable_acks.iter().any(|ack| {
+                ack.node_id == "node-a" && ack.node_epoch == 1 && ack.placement_epoch == 71
+            }));
+            if sync_required_copies == 1 {
+                assert!(
+                    receipt
+                        .durable_acks
+                        .iter()
+                        .all(|ack| ack.node_id == "node-a")
+                );
+            } else {
+                assert!(receipt.durable_acks.iter().any(|ack| {
+                    ack.node_id == "node-b" && ack.node_epoch == 2 && ack.placement_epoch == 71
+                }));
+            }
+        }
+        assert_eq!(
+            placement
+                .refreshes
+                .load(std::sync::atomic::Ordering::Relaxed),
+            1
+        );
+    }
+
     #[test]
     fn configurable_two_and_four_copy_chains_return_distinct_durable_acks() {
         for copies in [2_u16, 4] {

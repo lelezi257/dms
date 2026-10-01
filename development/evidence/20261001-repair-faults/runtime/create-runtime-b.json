@@ -1,0 +1,7 @@
+{
+  "created": true,
+  "roles": [
+    "node"
+  ],
+  "runtime": "/mnt/lima-afsbdata/afs-delivery/repair-v60-b"
+}

@@ -1,0 +1,21 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "afs-accept-a",
+    "--",
+    "sudo",
+    "timeout",
+    "--kill-after=2s",
+    "30s",
+    "python3",
+    "-c",
+    "RUN='/mnt/lima-afsadata/afs-delivery/repair-v60-a'\nFILE_NAME='repair-v60-deterministic-1m.bin'\nEXPECTED_SIZE=1048576\nEXPECTED_SHA='3f8a853cfd1416af3ab78fd914f7574dd86045f3f132294cf9ba47717130d3a8'\n\nimport hashlib, json, pathlib\ntarget=pathlib.Path(RUN)/'mount-dfs'/FILE_NAME\ndata=target.read_bytes()\nsha=hashlib.sha256(data).hexdigest()\nassert len(data) == EXPECTED_SIZE, {'path':str(target),'size':len(data),'expected_size':EXPECTED_SIZE}\nif EXPECTED_SHA:\n    assert sha == EXPECTED_SHA, {'path':str(target),'sha256':sha,'expected_sha256':EXPECTED_SHA}\nprint(json.dumps({'path':str(target),'bytes':len(data),'sha256':sha}))\n"
+  ],
+  "duration_ms": 151,
+  "returncode": 0,
+  "stderr": "",
+  "stdout": "{\"path\": \"/mnt/lima-afsadata/afs-delivery/repair-v60-a/mount-dfs/repair-v60-deterministic-1m.bin\", \"bytes\": 1048576, \"sha256\": \"3f8a853cfd1416af3ab78fd914f7574dd86045f3f132294cf9ba47717130d3a8\"}\n",
+  "time_unix_ms": 1790818313591,
+  "timeout_seconds": 45
+}

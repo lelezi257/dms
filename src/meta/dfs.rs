@@ -391,19 +391,47 @@ impl DfsService {
             if !task_is_claimable(&task, now) {
                 continue;
             }
+            // A task lease outlives the worker's Node lease. Reassignment is
+            // allowed once that exact process is retired, without waiting for
+            // the longer task lease. Read failures are not proof of retirement.
+            let mut retired_worker_conditions = Vec::new();
             if let Some(claim) = task.claim.as_ref()
                 && claim.expires_at_unix_ms > now
-                && self
-                    .current_session(
-                        &claim.worker_node_id,
-                        claim.worker_node_epoch,
-                        Some(&claim.worker_session_id),
-                        now,
-                    )
-                    .await
-                    .is_ok()
             {
-                continue;
+                let worker_snapshot = self
+                    .store
+                    .read(MetaRead::CurrentNodeSession {
+                        node_id: claim.worker_node_id.clone(),
+                    })
+                    .await?;
+                match worker_snapshot.entity {
+                    Some(MetaEntity::NodeSession(session)) => {
+                        if session.session_id == claim.worker_session_id
+                            && session.lease_epoch == claim.worker_node_epoch
+                            && session.is_live_at_unix_ms(now)
+                        {
+                            continue;
+                        }
+                        // Freeze both the current pointer and lease contents:
+                        // a heartbeat/re-registration racing this decision must
+                        // cause CAS rejection, not two active repair workers.
+                        retired_worker_conditions.extend([
+                            TxnCondition::RevisionEquals {
+                                key: MetaKey::CurrentNodeSession {
+                                    node_id: session.node_id.clone(),
+                                },
+                                revision: worker_snapshot.revision,
+                            },
+                            TxnCondition::EntityEquals(MetaEntity::NodeSession(session)),
+                        ]);
+                    }
+                    None => retired_worker_conditions.push(TxnCondition::Missing(
+                        MetaKey::CurrentNodeSession {
+                            node_id: claim.worker_node_id.clone(),
+                        },
+                    )),
+                    Some(_) => return Err(invalid("repair worker session record has wrong type")),
+                }
             }
             let placement = match self.placement(&task.chunk_id).await {
                 Ok(placement) => placement,
@@ -432,6 +460,7 @@ impl DfsService {
                     };
                     let mut txn =
                         MetaTxn::new(request_key.clone(), StoreOperation::DfsClaimReplicationTask);
+                    txn.conditions.extend(retired_worker_conditions.clone());
                     txn.conditions.extend([
                         TxnCondition::RequestAbsent(request_key),
                         TxnCondition::EntityEquals(MetaEntity::DfsPlacement(placement)),
@@ -484,7 +513,63 @@ impl DfsService {
                 )
                 .await?
             else {
-                continue;
+                // Repair debt exists independently of eligible replacement
+                // capacity. A completed (or absent) task must not hide a lost
+                // replica while there are too few nodes to issue a claim.
+                if task.state != ReplicationTaskState::Pending {
+                    continue;
+                }
+                let task_condition = match self
+                    .store
+                    .read(MetaRead::DfsReplicationTask(task.id.clone()))
+                    .await?
+                    .entity
+                {
+                    Some(MetaEntity::DfsReplicationTask(current))
+                        if task_reactivates_completed(&task, &current)
+                            || (current == task
+                                && placement.health != PlacementHealth::UnderReplicated) =>
+                    {
+                        TxnCondition::EntityEquals(MetaEntity::DfsReplicationTask(current))
+                    }
+                    None => TxnCondition::Missing(MetaKey::DfsReplicationTask(task.id.clone())),
+                    _ => continue,
+                };
+                let mut pending_placement = placement.clone();
+                pending_placement.health = PlacementHealth::UnderReplicated;
+                let request_key =
+                    RequestKey::new(request.caller_id.clone(), request.operation_id.0.clone());
+                let mut txn =
+                    MetaTxn::new(request_key.clone(), StoreOperation::DfsClaimReplicationTask);
+                txn.conditions.extend(retired_worker_conditions);
+                txn.conditions.extend([
+                    TxnCondition::RequestAbsent(request_key.clone()),
+                    task_condition,
+                    TxnCondition::EntityEquals(MetaEntity::DfsPlacement(placement)),
+                    TxnCondition::EntityEquals(MetaEntity::DfsReplicationConfig(
+                        replication.clone(),
+                    )),
+                    TxnCondition::NodeSessionCurrent {
+                        node_id: request.caller_id.clone(),
+                        session_id: request.caller_session_id.clone(),
+                    },
+                ]);
+                txn.mutations.extend([
+                    TxnMutation::Put(MetaEntity::DfsPlacement(pending_placement)),
+                    TxnMutation::Put(MetaEntity::DfsReplicationTask(task)),
+                    TxnMutation::RecordRequestOutcome(RequestOutcome {
+                        request: request_key,
+                        operation: StoreOperation::DfsClaimReplicationTask,
+                        result: OperationResult::DfsReplicationClaim {
+                            request_digest,
+                            claim: None,
+                        },
+                    }),
+                ]);
+                return replication_claim_outcome(
+                    self.store.compare_and_commit(txn).await?,
+                    request_digest,
+                );
             };
             let (claim, updated_task, conditions) = selection;
             let request_key =
@@ -501,6 +586,7 @@ impl DfsService {
                 MetaTxn::new(request_key.clone(), StoreOperation::DfsClaimReplicationTask);
             txn.conditions
                 .push(TxnCondition::RequestAbsent(request_key));
+            txn.conditions.extend(retired_worker_conditions);
             txn.conditions.extend(conditions);
             txn.conditions.push(TxnCondition::EntityEquals(
                 MetaEntity::DfsReplicationConfig(replication.clone()),
@@ -2937,8 +3023,14 @@ impl DfsService {
             })
             .collect::<Vec<_>>();
         storage_sessions.sort_by(|left, right| left.node_id.cmp(&right.node_id));
-        let groups =
-            build_replica_groups(&request.caller_id, &repair_replication, &storage_sessions)?;
+        // Insufficient live capacity is a normal repair wait state. Backend
+        // failures above still propagate; this pure placement computation
+        // only checks whether the initialized policy can be satisfied now.
+        let Ok(groups) =
+            build_replica_groups(&request.caller_id, &repair_replication, &storage_sessions)
+        else {
+            return Ok(None);
+        };
         let group = groups
             .into_iter()
             .find(|group| {
@@ -3979,10 +4071,9 @@ fn task_is_claimable(task: &ReplicationTask, now: u64) -> bool {
     match task.state {
         ReplicationTaskState::Pending => true,
         ReplicationTaskState::RetryWaiting => task.next_retry_unix_ms <= now,
-        ReplicationTaskState::Running => task
-            .claim
-            .as_ref()
-            .is_none_or(|claim| claim.expires_at_unix_ms <= now),
+        // The caller checks precise worker liveness and freezes that evidence
+        // in the claim transaction; time alone cannot decide this state.
+        ReplicationTaskState::Running => true,
         ReplicationTaskState::Completed => false,
         ReplicationTaskState::BlockedNoSource => task.next_retry_unix_ms <= now,
     }
@@ -4926,6 +5017,225 @@ mod read_recovery_tests {
             .expect("recovered source device should remain repair-readable");
         assert_eq!(claim.source_copy_id, fixture.copy.id);
         assert_eq!(claim.worker_node_epoch, session.lease_epoch);
+    }
+
+    #[tokio::test]
+    async fn restarted_worker_reclaims_unexpired_repair_without_waiting_for_task_lease() {
+        let fixture = underreplicated_fixture().await;
+        let first = fixture
+            .service
+            .claim_replication_task(claim_request("claim-before-worker-restart"))
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(first.expires_at_unix_ms > now_unix_ms());
+        // A live matching worker keeps ownership even when another poll arrives.
+        assert!(
+            fixture
+                .service
+                .claim_replication_task(claim_request("claim-live-worker-again"))
+                .await
+                .unwrap()
+                .is_none()
+        );
+        let session = fixture
+            .restart(fixture.local.device_descriptor().unwrap())
+            .await;
+        let replacement = fixture
+            .service
+            .claim_replication_task(ClaimReplicationTask {
+                caller_id: "receiver".into(),
+                caller_session_id: session.session_id.clone(),
+                caller_node_epoch: session.lease_epoch,
+                operation_id: OperationId::new("claim-restarted-unexpired"),
+                lease_seconds: 30,
+            })
+            .await
+            .unwrap()
+            .expect("a retired process cannot retain a repair lease on its recovered device");
+        assert_ne!(replacement.operation_id, first.operation_id);
+        assert_eq!(replacement.worker_node_epoch, session.lease_epoch);
+        assert_eq!(replacement.source_copy_id, fixture.copy.id);
+        assert!(first.expires_at_unix_ms > now_unix_ms());
+        let stale = fixture
+            .service
+            .report_replication_task(ReportReplicationTask {
+                caller_id: first.worker_node_id.clone(),
+                caller_session_id: first.worker_session_id.clone(),
+                caller_node_epoch: first.worker_node_epoch,
+                operation_id: OperationId::new("report-retired-worker"),
+                durable_acks: repair_acks(&first),
+                error: None,
+                source_invalid: false,
+                claim: first,
+            })
+            .await;
+        assert!(
+            stale.is_err(),
+            "the retired process must not promote its old report"
+        );
+    }
+
+    #[tokio::test]
+    async fn expired_worker_blocks_without_source_before_repair_lease_expires() {
+        let fixture = underreplicated_fixture().await;
+        let claim = fixture
+            .service
+            .claim_replication_task(claim_request("claim-before-worker-expiry"))
+            .await
+            .unwrap()
+            .unwrap();
+        // Expire the worker through the real registration/lease path. Keep the
+        // CurrentNodeSession pointer present, as happens after process death.
+        fixture
+            .store
+            .register_node_session(
+                RequestKey::new("receiver", "shorten-worker-lease"),
+                NodeSessionLease {
+                    node_id: "receiver".into(),
+                    session_id: "receiver-original".into(),
+                    grpc_addr: "http://127.0.0.1:1".into(),
+                    data_addr: "http://127.0.0.1:2".into(),
+                    rest_addr: "http://127.0.0.1:3".into(),
+                    storage_devices: vec![fixture.local.device_descriptor().unwrap()],
+                    lease_ttl: std::time::Duration::from_millis(50),
+                },
+            )
+            .await
+            .unwrap();
+        tokio::time::sleep(std::time::Duration::from_millis(75)).await;
+        assert!(claim.expires_at_unix_ms > now_unix_ms());
+        let result = fixture
+            .service
+            .claim_replication_task(ClaimReplicationTask {
+                caller_id: "target".into(),
+                caller_session_id: "target-original".into(),
+                caller_node_epoch: 1,
+                operation_id: OperationId::new("observe-expired-worker"),
+                lease_seconds: 30,
+            })
+            .await
+            .unwrap();
+        assert!(result.is_none());
+        let task = task_record(&fixture, &claim).await;
+        assert_eq!(task.state, ReplicationTaskState::BlockedNoSource);
+        assert!(task.claim.is_none());
+    }
+
+    #[tokio::test]
+    async fn lost_target_persists_repair_debt_before_replacement_is_available() {
+        for missing_task in [false, true] {
+            let fixture = underreplicated_fixture().await;
+            let claim = fixture
+                .service
+                .claim_replication_task(claim_request("claim-full-copy-set"))
+                .await
+                .unwrap()
+                .unwrap();
+            fixture
+                .service
+                .report_replication_task(ReportReplicationTask {
+                    caller_id: claim.worker_node_id.clone(),
+                    caller_session_id: claim.worker_session_id.clone(),
+                    caller_node_epoch: claim.worker_node_epoch,
+                    operation_id: OperationId::new("report-full-copy-set"),
+                    durable_acks: repair_acks(&claim),
+                    error: None,
+                    source_invalid: false,
+                    claim: claim.clone(),
+                })
+                .await
+                .unwrap();
+            if missing_task {
+                let key = RequestKey::new("fixture", "remove-completed-task");
+                let mut txn = MetaTxn::new(key.clone(), StoreOperation::DfsCommitFileVersion);
+                txn.conditions
+                    .push(TxnCondition::RequestAbsent(key.clone()));
+                txn.mutations.extend([
+                    TxnMutation::Delete(MetaKey::DfsReplicationTask(claim.task_id.clone())),
+                    TxnMutation::RecordRequestOutcome(RequestOutcome {
+                        request: key,
+                        operation: StoreOperation::DfsCommitFileVersion,
+                        result: OperationResult::Empty,
+                    }),
+                ]);
+                fixture.store.compare_and_commit(txn).await.unwrap();
+            }
+            fixture
+                .store
+                .register_node_session(
+                    RequestKey::new("target", "expire-target"),
+                    NodeSessionLease {
+                        node_id: "target".into(),
+                        session_id: "target-original".into(),
+                        grpc_addr: "http://127.0.0.1:1".into(),
+                        data_addr: "http://127.0.0.1:2".into(),
+                        rest_addr: "http://127.0.0.1:3".into(),
+                        storage_devices: vec![StorageDeviceDescriptor {
+                            device_id: "target-device".into(),
+                            device_epoch: 1,
+                            catalog_revision: 0,
+                            failure_domain: "target-fd".into(),
+                        }],
+                        lease_ttl: std::time::Duration::from_millis(50),
+                    },
+                )
+                .await
+                .unwrap();
+            tokio::time::sleep(std::time::Duration::from_millis(75)).await;
+            let request = claim_request("observe-lost-target");
+            assert!(
+                fixture
+                    .service
+                    .claim_replication_task(request.clone())
+                    .await
+                    .unwrap()
+                    .is_none()
+            );
+            assert!(
+                fixture
+                    .service
+                    .claim_replication_task(request)
+                    .await
+                    .unwrap()
+                    .is_none()
+            );
+            let task = task_record(&fixture, &claim).await;
+            assert_eq!(task.state, ReplicationTaskState::Pending);
+            assert!(task.claim.is_none());
+            assert!(matches!(
+                fixture
+                    .store
+                    .read(MetaRead::DfsPlacement(fixture.copy.chunk_id.clone()))
+                    .await
+                    .unwrap()
+                    .entity,
+                Some(MetaEntity::DfsPlacement(PlacementRecord {
+                    health: PlacementHealth::UnderReplicated,
+                    ..
+                }))
+            ));
+            register(
+                &fixture.store,
+                "target",
+                "target-restored",
+                vec![StorageDeviceDescriptor {
+                    device_id: "target-device".into(),
+                    device_epoch: 1,
+                    catalog_revision: 0,
+                    failure_domain: "target-fd".into(),
+                }],
+            )
+            .await;
+            assert!(
+                fixture
+                    .service
+                    .claim_replication_task(claim_request("claim-after-target-restored"))
+                    .await
+                    .unwrap()
+                    .is_some()
+            );
+        }
     }
 
     #[tokio::test]

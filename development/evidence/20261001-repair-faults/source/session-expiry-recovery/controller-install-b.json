@@ -1,0 +1,5 @@
+{
+  "backup": "/mnt/lima-afsbdata/afs-delivery/repair-v60-b/prefix/bin/afs-processctl.before-stale-recovery",
+  "new_controller_sha256": "78949590bfdf12f6db0977ac5756702312e85e1d91c8f59903d4490222488f2b",
+  "old_node_proc_absent": true
+}

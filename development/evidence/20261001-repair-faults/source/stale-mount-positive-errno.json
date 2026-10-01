@@ -1,0 +1,17 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "afs-accept-a",
+    "--",
+    "sudo",
+    "timeout",
+    "10",
+    "bash",
+    "-c",
+    "r=/mnt/lima-afsadata/afs-delivery/repair-v60-a; for mount_path in \"$r/mount-dfs\" \"$r/mount-ownerfs\"; do findmnt -rn --mountpoint \"$mount_path\" -o TARGET,FSTYPE,SOURCE; LC_ALL=C stat -- \"$mount_path\" 2>&1 || true; done"
+  ],
+  "returncode": 0,
+  "stdout": "/mnt/lima-afsadata/afs-delivery/repair-v60-a/mount-dfs fuse afs-dfs\nstat: cannot statx '/mnt/lima-afsadata/afs-delivery/repair-v60-a/mount-dfs': Transport endpoint is not connected\n/mnt/lima-afsadata/afs-delivery/repair-v60-a/mount-ownerfs fuse afs-ownerfs\nstat: cannot statx '/mnt/lima-afsadata/afs-delivery/repair-v60-a/mount-ownerfs': Transport endpoint is not connected\n",
+  "stderr": ""
+}

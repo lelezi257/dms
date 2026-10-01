@@ -1,0 +1,24 @@
+{
+  "candidate": "v60",
+  "ports": {
+    "a_grpc": 18482,
+    "a_rest": 18483,
+    "b_grpc": 18484,
+    "b_rest": 18485,
+    "meta_grpc": 18480,
+    "meta_rest": 18481
+  },
+  "processctl_sha256": "945cba0c6febdd329f50996f3a59586ae9f51be4c29d2ca9b66175b8253dc2a8",
+  "replication": {
+    "dfs_desired_copies": 2,
+    "dfs_min_distinct_failure_domains": 1,
+    "dfs_min_distinct_nodes": 1,
+    "dfs_sync_required_copies": 1
+  },
+  "runtime": {
+    "a": "/mnt/lima-afsadata/afs-delivery/repair-v60-a",
+    "b": "/mnt/lima-afsbdata/afs-delivery/repair-v60-b"
+  },
+  "source_commit": "b758b7b5f606f65107437188c2ca8b81cbafec34",
+  "status": "prepared"
+}

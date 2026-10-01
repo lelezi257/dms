@@ -1,0 +1,26 @@
+{
+  "reviewer": "fault_proof_review",
+  "mode": "read-only",
+  "verdict": "approve B-controller provenance correction",
+  "run_id": "2cac30b0-549b-408d-bab9-95cfe125ca77",
+  "checks": [
+    "B old process absent before install",
+    "B new controller matches qualified source hash",
+    "B restart preserves binary/config and changes PID/ticks",
+    "fresh A/B controller hashes",
+    "root audit v2 PASS"
+  ],
+  "earlier_review_corrections": [
+    "prevent reused PASS markers using fresh run directories and UUID/file inventory",
+    "bind candidate v60 explicitly",
+    "audit B controller and restart identity"
+  ],
+  "limits": [
+    "short memory/TLS/gRPC N2/M1 only"
+  ],
+  "not_run": [
+    "build",
+    "tests",
+    "runtime"
+  ]
+}

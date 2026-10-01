@@ -1,0 +1,4 @@
+d455aa075b046d1325aa809fae3f4207f22174cc89b022f70d8fc29c9de3000a  /home/lzc.guest/afs-build/artifacts/v60-qualified/afs-meta
+3bcbc789d94cd6b3ff021ac586a016cebc5f152926a55e160175c40b8a7b2ee1  /home/lzc.guest/afs-build/artifacts/v60-qualified/afs-node
+37218622c1cfd1cfadc696269f0ea01a2570052ec460528c748d525fe982ef9d  /home/lzc.guest/afs-build/artifacts/v60-qualified-stripped/afs-meta
+53da41fb54bcabbfe567bef91096891274ea36b3d28d989dba372fc6940c12ea  /home/lzc.guest/afs-build/artifacts/v60-qualified-stripped/afs-node

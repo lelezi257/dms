@@ -319,6 +319,13 @@ pub struct LocalDirectory {
     dir: File,
 }
 
+impl LocalDirectory {
+    /// Pin the exact confined directory object for a native Home export.
+    pub(crate) fn try_clone_descriptor(&self) -> io::Result<File> {
+        self.dir.try_clone()
+    }
+}
+
 impl DirectoryHandle for LocalDirectory {
     fn metadata(&self) -> io::Result<fs::Metadata> {
         self.dir.metadata()

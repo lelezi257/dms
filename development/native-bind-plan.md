@@ -224,3 +224,19 @@ The user explicitly accepted the previously presented close-to-open and retained
   explicit user decision; do not silently replace it with an OFD lock. Node,
   final Agent namespace/authority readiness, network P2P, mmap, full managed
   lifecycle and paired native-ext4 performance gates remain open.
+
+## Home authority admission slice
+
+- Issue an opaque, instance-bound export permit only from a current local Home
+  grant with Lookup/Read/Write and construction-time native cache eligibility.
+  Pin the exact confined backing directory; recheck current namespace, grant
+  fencing/session/rights, configured directory and source object identity.
+- Guard physical manager activation with the registered Root/epoch/Home/source
+  match and authority checks before and after attachment. Lost authority allows
+  only normal owned-export teardown; EBUSY retains its claim and Draining state.
+  A foreign OwnerFs caller must be rejected before any cleanup mutation.
+- This is a Home admission bridge, not a Node worker, final Agent namespace
+  readiness, continuous authority lease or reclamation API. Connecting the
+  pinned source to production descriptor preparation and actual VM admission
+  tests is still required. Full Agent/Meta lifecycle, POSIX/P2P/mmap and paired
+  native-ext4 performance gates remain open.

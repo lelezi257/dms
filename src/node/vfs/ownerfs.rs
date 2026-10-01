@@ -7951,6 +7951,268 @@ mod tests {
         fs.release(&ctx, file.handle).unwrap();
     }
 
+    struct HomeAuthorityMountProbe {
+        active: Mutex<Option<native::MountIdentity>>,
+        binds: AtomicUsize,
+        revoke_on_bind: Option<Arc<RootManager>>,
+        busy_on_unmount: std::sync::atomic::AtomicBool,
+    }
+
+    impl native::MountBackend for Arc<HomeAuthorityMountProbe> {
+        fn inspect(&self, _: &native::WorkspaceMount) -> io::Result<Option<native::MountIdentity>> {
+            Ok(self.active.lock().unwrap().clone())
+        }
+        fn bind(&self, spec: &native::WorkspaceMount) -> io::Result<native::MountIdentity> {
+            self.binds.fetch_add(1, Ordering::SeqCst);
+            let mount = native::MountIdentity {
+                mount_id: 10,
+                unique_mount_id: 100,
+                namespace: spec.identity.namespace,
+                source: spec.source,
+                covered_target: spec.target,
+            };
+            *self.active.lock().unwrap() = Some(mount.clone());
+            if let Some(roots) = &self.revoke_on_bind {
+                roots.revoke_root(&RootId(spec.identity.root_id.clone()));
+            }
+            Ok(mount)
+        }
+        fn verify_policy(
+            &self,
+            _: &native::WorkspaceMount,
+            _: &native::MountIdentity,
+        ) -> io::Result<()> {
+            Ok(())
+        }
+        fn unmount(&self, _: &native::WorkspaceMount, _: &native::MountIdentity) -> io::Result<()> {
+            if self.busy_on_unmount.load(Ordering::SeqCst) {
+                return Err(io::Error::from_raw_os_error(libc::EBUSY));
+            }
+            *self.active.lock().unwrap() = None;
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn native_home_export_requires_preexisting_native_cache_policy() {
+        let (_temp, ordinary, ctx) = fixture();
+        ordinary
+            .mkdir(&ctx, ordinary.root_inode(), OsStr::new("agent1"), 0o755)
+            .unwrap();
+        let ns = native::LinuxMountBackend::current_namespace().unwrap();
+        assert!(
+            ordinary
+                .native_home_export(OsStr::new("agent1"), ns)
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn native_home_export_checks_current_namespace_and_root_authority() {
+        let (_temp, fs, ctx, _root, file, _native) = native_flock_fixture();
+        let ns = native::LinuxMountBackend::current_namespace().unwrap();
+        let wrong = native::NamespaceIdentity {
+            inode: ns.inode + 1,
+            ..ns
+        };
+        assert!(
+            fs.native_home_export(OsStr::new("agent-flock"), wrong)
+                .is_err()
+        );
+        assert!(
+            fs.native_home_export(OsStr::new("../agent-flock"), ns)
+                .is_err()
+        );
+        let permit = fs
+            .native_home_export(OsStr::new("agent-flock"), ns)
+            .unwrap();
+        assert_eq!(permit.identity().home_node_id, "node-a");
+        assert_eq!(permit.identity().home_session_id, "session-a");
+        permit.verify_current(&fs).unwrap();
+        let local = fs.require_local().unwrap();
+        local
+            .roots
+            .revoke_root(&RootId(permit.identity().root_id.clone()));
+        assert!(permit.verify_current(&fs).is_err());
+        assert!(
+            fs.native_home_export(OsStr::new("agent-flock"), ns)
+                .is_err()
+        );
+        fs.release(&ctx, file.handle).unwrap();
+    }
+
+    #[test]
+    fn native_home_export_refuses_source_directory_replacement() {
+        let (_temp, fs, ctx, _root, file, _native) = native_flock_fixture();
+        let ns = native::LinuxMountBackend::current_namespace().unwrap();
+        let permit = fs
+            .native_home_export(OsStr::new("agent-flock"), ns)
+            .unwrap();
+        let local = fs.require_local().unwrap();
+        let authority = local
+            .roots
+            .enter_root(&RootId(permit.identity().root_id.clone()), RootRight::Write)
+            .unwrap();
+        let source = local.disk.root_path().join(authority.data_dir().as_path());
+        let retained = source.with_extension("retained");
+        fs::rename(&source, &retained).unwrap();
+        fs::create_dir(&source).unwrap();
+        assert!(
+            permit.verify_current(&fs).is_err(),
+            "a matching grant/path cannot authorize a different directory object"
+        );
+        fs::remove_dir(&source).unwrap();
+        fs::rename(&retained, &source).unwrap();
+        permit.verify_current(&fs).unwrap();
+        fs.release(&ctx, file.handle).unwrap();
+    }
+
+    fn home_authority_mount_probe(
+        permit: &native::HomeExportAuthority,
+        revoke: Option<Arc<RootManager>>,
+    ) -> (
+        Arc<HomeAuthorityMountProbe>,
+        native::NativeMountManager<Arc<HomeAuthorityMountProbe>>,
+        native::WorkspaceMount,
+    ) {
+        let backend = Arc::new(HomeAuthorityMountProbe {
+            active: Mutex::new(None),
+            binds: AtomicUsize::new(0),
+            revoke_on_bind: revoke,
+            busy_on_unmount: std::sync::atomic::AtomicBool::new(false),
+        });
+        let manager =
+            native::NativeMountManager::new(permit.identity().namespace, 8, backend.clone())
+                .unwrap();
+        let spec = native::WorkspaceMount {
+            identity: permit.identity().clone(),
+            source: permit.source_identity(),
+            target: native::DirectoryIdentity {
+                device: 50,
+                inode: 60,
+            },
+        };
+        (backend, manager, spec)
+    }
+
+    #[test]
+    fn native_home_export_stale_grant_never_invokes_bind() {
+        let (_temp, fs, ctx, _root, file, _native) = native_flock_fixture();
+        let ns = native::LinuxMountBackend::current_namespace().unwrap();
+        let permit = fs
+            .native_home_export(OsStr::new("agent-flock"), ns)
+            .unwrap();
+        let (backend, manager, spec) = home_authority_mount_probe(&permit, None);
+        manager.register(spec).unwrap();
+        fs.require_local()
+            .unwrap()
+            .roots
+            .revoke_root(&RootId(permit.identity().root_id.clone()));
+        assert!(manager.activate_for_home(&fs, &permit).is_err());
+        assert_eq!(backend.binds.load(Ordering::SeqCst), 0);
+        assert!(backend.active.lock().unwrap().is_none());
+        fs.release(&ctx, file.handle).unwrap();
+    }
+
+    #[test]
+    fn native_home_export_wrong_source_spec_never_invokes_bind() {
+        let (_temp, fs, ctx, _root, file, _native) = native_flock_fixture();
+        let ns = native::LinuxMountBackend::current_namespace().unwrap();
+        let permit = fs
+            .native_home_export(OsStr::new("agent-flock"), ns)
+            .unwrap();
+        let (backend, manager, mut spec) = home_authority_mount_probe(&permit, None);
+        spec.source.inode += 1;
+        manager.register(spec).unwrap();
+        assert!(manager.activate_for_home(&fs, &permit).is_err());
+        assert_eq!(backend.binds.load(Ordering::SeqCst), 0);
+        fs.release(&ctx, file.handle).unwrap();
+    }
+
+    #[test]
+    fn native_home_export_revalidates_after_bind_and_rolls_back_lost_grant() {
+        let (_temp, fs, ctx, _root, file, _native) = native_flock_fixture();
+        let ns = native::LinuxMountBackend::current_namespace().unwrap();
+        let permit = fs
+            .native_home_export(OsStr::new("agent-flock"), ns)
+            .unwrap();
+        let (backend, manager, spec) =
+            home_authority_mount_probe(&permit, Some(fs.require_local().unwrap().roots.clone()));
+        manager.register(spec).unwrap();
+        assert!(
+            manager.activate_for_home(&fs, &permit).is_err(),
+            "losing Home authority during attach must not return successful activation"
+        );
+        assert_eq!(backend.binds.load(Ordering::SeqCst), 1);
+        assert!(backend.active.lock().unwrap().is_none());
+        assert_eq!(
+            manager
+                .status(&permit.identity().root_id)
+                .unwrap()
+                .unwrap()
+                .state,
+            native::NativeState::Detached
+        );
+        fs.release(&ctx, file.handle).unwrap();
+    }
+
+    #[test]
+    fn native_home_export_foreign_owner_cannot_detach_valid_export() {
+        let (_temp, fs, ctx, _root, file, _native) = native_flock_fixture();
+        let ns = native::LinuxMountBackend::current_namespace().unwrap();
+        let permit = fs
+            .native_home_export(OsStr::new("agent-flock"), ns)
+            .unwrap();
+        let (backend, manager, spec) = home_authority_mount_probe(&permit, None);
+        manager.register(spec).unwrap();
+        manager.activate_for_home(&fs, &permit).unwrap();
+        let local = fs.require_local().unwrap();
+        let foreign = OwnerFs::new_native_eligible(local.roots.clone(), local.disk.clone(), None);
+        assert!(manager.activate_for_home(&foreign, &permit).is_err());
+        assert!(
+            backend.active.lock().unwrap().is_some(),
+            "a permit from another OwnerFs instance must not mutate this valid export"
+        );
+        assert_eq!(
+            manager
+                .status(&permit.identity().root_id)
+                .unwrap()
+                .unwrap()
+                .state,
+            native::NativeState::NativeActive
+        );
+        manager.quiesce(permit.identity()).unwrap();
+        manager.detach(permit.identity()).unwrap();
+        fs.release(&ctx, file.handle).unwrap();
+    }
+
+    #[test]
+    fn native_home_export_lost_grant_busy_rollback_retains_claim() {
+        let (_temp, fs, ctx, _root, file, _native) = native_flock_fixture();
+        let ns = native::LinuxMountBackend::current_namespace().unwrap();
+        let permit = fs
+            .native_home_export(OsStr::new("agent-flock"), ns)
+            .unwrap();
+        let (backend, manager, spec) =
+            home_authority_mount_probe(&permit, Some(fs.require_local().unwrap().roots.clone()));
+        manager.register(spec).unwrap();
+        backend.busy_on_unmount.store(true, Ordering::SeqCst);
+        assert!(manager.activate_for_home(&fs, &permit).is_err());
+        assert!(backend.active.lock().unwrap().is_some());
+        let status = manager.status(&permit.identity().root_id).unwrap().unwrap();
+        assert_eq!(status.state, native::NativeState::Draining);
+        assert_eq!(status.desired, native::NativeDesiredState::Detached);
+        assert_eq!(status.last_errno, Some(libc::EBUSY));
+        assert!(status.observed.is_some());
+        backend.busy_on_unmount.store(false, Ordering::SeqCst);
+        assert_eq!(
+            manager.detach(permit.identity()).unwrap().state,
+            native::NativeState::Detached
+        );
+        assert!(backend.active.lock().unwrap().is_none());
+        fs.release(&ctx, file.handle).unwrap();
+    }
+
     fn test_owner_lock(scope: &str, kernel_owner: u64, lock_type: FileLockType) -> LockRequest {
         LockRequest {
             kind: FileLockKind::Posix,

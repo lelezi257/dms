@@ -35,6 +35,17 @@ ABI feature set, also reproduced by running that package alone. See
 [native evidence](../development/native-bind-evidence.md) for raw identities and
 scope; this checkpoint does not establish full native or release acceptance.
 
+The subsequent Home-authority bridge has8 passing source regressions,373
+passing library tests (two existing ignored),45 passing native controller,
+journal and event contracts, and passing strict workspace Clippy/fmt. The new
+project-wide test attempt FAILS at
+`dfs_renewal_cannot_resurrect_expired_or_reassigned_authority`; it also fails in
+isolation. Read-only WSL clock measurements observed realtime jumps while
+monotonic time advanced normally. This is retained diagnostic evidence, not a
+waived assertion or a green project run. The remaining project suites/doc tests
+were not reached in that run. The8 new regressions use a mount-backend probe;
+they do not extend the prior16 actual VM passes to Home/Agent admission.
+
 The current controller parses literal/basic single-line listen and mount values, preserves quoted content and rejects malformed listen values before launch. [Startup and A/B evidence](../development/evidence/20261001-toml-startup/README.md) retains the original false-readiness failure, a failing Linux regression and18 passing regression groups, including54 existing native lifecycle command records. Single/double quotes with comments and malformed/out-of-range preflight checks pass. Shellcheck was unavailable; Unicode escapes and multiline deployment scalars are not supported by this reader.
 
 New A/B runtimes use the v51 Rust binaries below and controller945cba0c. Memory/R1/gRPC/TLS OwnerFs/DFS pass10 consistency scenarios and7 cross-node lock steps per backend with the unchanged35/55-second bounds. Root matches248 captured product PID/executable/hash/start-tick records,143 Rust compile inputs, current config/controller/worker hashes, exact FUSE mounts and live readiness. Earlier v48 processes retain their original identities. This is a short development matrix; the full upstream run below remains qualified only for v48, and all69 formal release cases remain NOT_RUN with environment PREPARING. Host preparation and verifier-selection errors remain explicit unqualified attempts.

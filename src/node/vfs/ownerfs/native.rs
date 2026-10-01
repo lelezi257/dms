@@ -7,6 +7,7 @@
 
 mod events;
 mod flock;
+mod home;
 mod journal;
 mod linux;
 mod manager;
@@ -15,6 +16,7 @@ mod mountinfo;
 pub use events::{
     WorkspaceCreated, WorkspaceEventReceiver, WorkspaceEventSender, workspace_event_channel,
 };
+pub use home::HomeExportAuthority;
 pub use journal::{JournalRecord, JournalSnapshot, MountJournal, OrphanMaintenance};
 pub use linux::{LinuxMountBackend, MountPolicy};
 pub use manager::{MountBackend, NativeMountManager};

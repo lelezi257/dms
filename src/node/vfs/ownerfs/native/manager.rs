@@ -351,6 +351,39 @@ impl<D: MountBackend> NativeMountManager<D> {
         }
     }
 
+    /// Authorize physical activation with the current Home grant and exact
+    /// backing object. Success is not Agent readiness or lifecycle fencing.
+    /// If authority is lost, normal rollback may remain DRAINING (EBUSY);
+    /// callers must observe status and must not admit an Agent after an error.
+    pub fn activate_for_home(
+        &self,
+        owner: &crate::node::vfs::ownerfs::OwnerFs,
+        permit: &super::HomeExportAuthority,
+    ) -> afs_error::Result<NativeStatus> {
+        permit.verify_owner(owner)?;
+        let id = permit.identity();
+        {
+            let shared = self.record(&id.root_id)?;
+            let record = lock(&shared)?;
+            record.check(id)?;
+            if record.spec.source != permit.source_identity() {
+                return Err(errno(libc::ESTALE).into());
+            }
+        }
+        if let Err(error) = permit.verify_current(owner) {
+            // Only the exact matching registered export may be quiesced. A
+            // concurrent epoch replacement makes these operations fail stale.
+            let _ = self.quiesce(id).and_then(|_| self.detach(id));
+            return Err(error);
+        }
+        let status = self.activate(id)?;
+        if let Err(error) = permit.verify_current(owner) {
+            let _ = self.quiesce(id).and_then(|_| self.detach(id));
+            return Err(error);
+        }
+        Ok(status)
+    }
+
     /// Requires current trusted grant plus freshly prepared physical identities.
     /// No mutation/adoption follows the stored journal alone.
     pub fn reconcile(&self, trusted_spec: &WorkspaceMount) -> io::Result<NativeStatus> {

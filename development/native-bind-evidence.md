@@ -590,3 +590,54 @@ PASS/2 existing ignored, project integration suites and doc-test traversal
 complete. Environment-dependent ignored cases retain their names and reasons
 in `native-flock-root-project.log`; this does not qualify them or turn the
 separate failing workspace/all-feature fuser run into a pass.
+
+## Home authority admission bridge (2026-10-01)
+
+An opaque permit now binds its issuing OwnerFs instance, current Home grant,
+namespace and confined backing directory object. Issuance requires prior
+construction-time native cache eligibility and Home Lookup/Read/Write. The
+actual directory descriptor is pinned; current grant fencing/session/rights,
+configured directory and reopened object identity are revalidated. Retaining
+this permit does not retain an in-flight RootUse or grant a native-access lease.
+
+Guarded physical activation requires the registered Root/epoch/Home/source
+match and current authority before and after attachment. Lost authority uses
+normal owned-export rollback; EBUSY retains the mount and Draining claim.
+This is not production descriptor preparation, Node admission, Agent readiness,
+continuous authority fencing or reclamation. Those integrations remain open.
+
+The initial `native-home-authority-api-red.log` is an API-missing compiler RED,
+not a behavior failure. A subsequent actual behavior RED in
+`native-home-authority-foreign-owner-red.log` showed that a foreign OwnerFs
+caller could trigger cleanup of another instance's valid export. The fixed
+origin check now runs before any mutation, including cleanup. All8 final
+source regressions PASS: ordinary cache-policy rejection, namespace/name/current
+grant checks, source replacement rejection, stale grant and wrong-spec no-bind,
+post-bind authority loss rollback, foreign-instance no-detach, and busy rollback
+claim retention followed by normal teardown. These use a mount-backend probe,
+not a real kernel Home-grant attach or an Agent supervisor.
+
+`native-home-authority-project.log` records373 library PASS/2 existing ignored,
+including all8 new cases, then an overall FAIL in the unchanged DFS test
+`dfs_renewal_cannot_resurrect_expired_or_reassigned_authority` at
+`tests/meta_contract.rs:186`. The exact test independently FAILS in
+`native-home-authority-dfs-expiry-isolated.log`. Git verifies that the Meta test,
+DFS implementation and Cargo manifests have no changes in this slice.
+
+The test waits1100ms using Tokio's timer and tests expiry using SystemTime. An
+initial read-only WSL observation measured602ms realtime advancement against
+1100ms monotonic advancement. `native-home-authority-clock.log` preserves five
+further intervals, including realtime jumps of+8668ms and-6950ms while each
+monotonic interval remained about1100ms. These observations support a clock
+domain explanation for the expiry assumption; the source of the clock steps
+has not been established. No system clock/service or Meta assertion was changed.
+Keep the original failed run and do not classify its unexecuted remainder/doc
+tests as passing or remove the expiry case.
+
+The separate `native-home-authority-contracts.log` records45 native contract,
+event, journal and transaction tests PASS; strict workspace/all-target/all-feature
+Clippy PASS in `native-home-authority-clippy.log`, with fmt PASS. Current source
+snapshots and hashes are saved in external `native-home-authority-candidate-*`.
+No new VM admission or performance claim follows; the prior16 VM foundation
+cases retain their eafdabf-slice inputs and binary identity above. Production
+Node/Agent, applicable POSIX/P2P/mmap, lifecycle and performance gates remain open.

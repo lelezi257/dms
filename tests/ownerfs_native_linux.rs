@@ -1145,5 +1145,17 @@ mod directory_reference_probe;
 #[test]
 #[ignore = "read-only directory-reference mechanism probe; private VM FUSE/ext4 and Python3; not production adapter"]
 fn privileged_directory_reference_worker_probe() {
-    directory_reference_probe::run();
+    directory_reference_probe::run(false, true);
+}
+
+#[test]
+#[ignore = "read-only deleted-directory mechanism probe; private VM FUSE/ext4 and Python3; not production adapter"]
+fn privileged_deleted_directory_reference_worker_probe() {
+    directory_reference_probe::run(true, true);
+}
+
+#[test]
+#[ignore = "read-only in-place deleted-directory control; private VM FUSE/ext4 and Python3; not production adapter"]
+fn privileged_inplace_deleted_directory_reference_worker_probe() {
+    directory_reference_probe::run(true, false);
 }

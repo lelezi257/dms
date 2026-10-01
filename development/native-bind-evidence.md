@@ -8,7 +8,7 @@ This is an intermediate slice, not feature completion, product acceptance or per
 
 - Current base: `78245771167643d5883491052e7cebcaba8c3be2` (original base `6bcabe8f30040bc6cc3b518bd271e7e2461e1e1d`); branch `feat/ownerfs-native-bind`. Feature worktree is isolated from the canonical checkout and the other machine's main branch.
 - Rust1.95 x86_64 Linux. WSL6.6 builds/tests the controller and journal; actual mount backend is run in Linux6.8 VM A on `/dev/sdb1`, ext4 UUID `6fa5e173-b766-4c27-872b-8f40e91bed27`.
-- Current VM test binary SHA256 `c8329a13482634ea1c087deef54a2a2dbadd5d36a11ca43537b0bd2980965270` (15 cases, including a custom read-only directory-reference mechanism probe; full semantics remains RED).
+- Current VM test binary SHA256 `0f1524c3599011d1a8e27f3d3e4cf0933c24bbfad98e36bb51c595398992d409` (17 cases, including read-only named/deleted-directory mechanism probes; full semantics remains RED).
 - Private mount namespaces; test data confined to uniquely created directories. Earlier successful probes checked parent namespace mountinfo byte-for-byte. The ordinary RED driver exits before its cleanup markers; the paired portable RED replay independently verifies parent mounts and disposable-data cleanup. Most covered test directories are disposable ext4 directories. One test now uses the real OwnerFs FUSE adapter and RootManager with an in-process Meta fixture; it does not run production Node/P2P or enable native policy.
 
 ## Outcomes
@@ -19,13 +19,13 @@ This is an intermediate slice, not feature completion, product acceptance or per
 | Controller regressions | 16 PASS | Idempotent export, stale identities, busy retry, foreign ownership, recycled-ID protection, bounded admission |
 | Journal regressions | 10 PASS | Exclusive writer, strict decode, symlink/hardlink protection, immutable old epoch, atomic replace, uncertain directory-sync failure |
 | Journal/controller transactions | 12 PASS | Pre-attach exclusive clone intent, durable ACK, unmount intent, restart without stacking, same-epoch retired-session fencing, bounded orphan cleanup, uncertain unlink/fsync and duplicate-ACK health |
-| Current VM Linux backend/FUSE/directory mechanism | RED: 14 PASS, 1 FAIL with probe enabled; 13 PASS, 2 FAIL with probe disabled | New test-only automatic repair passes; production old-directory case still fails |
+| Current VM Linux backend/FUSE/directory mechanism | RED: pinned-attribute control15 PASS/2 FAIL with repair; default control14 PASS/3 FAIL with repair | Named-directory mechanism passes; deleted-after-move and production old-directory semantics remain unresolved |
 | Current library regressions | 353 PASS, 2 ignored | Main-aligned OwnerFs/DFS regression plus external-directory refresh; ignored tests remain outside this claim |
 | fmt / strict all-targets Clippy | PASS | Candidate formatting and diagnostics |
-| Portable VM probe | Current15-case paired RED | Matching binary: probe disabled13/2; enabled14/1; both have independent unchanged-parent-mount and empty-data checks |
+| Portable VM probe | Current17-case, four controls, RED | Same binary: default repair-off13/4, repair-on14/3; pinned attributes repair-off14/3, repair-on15/2; all independently verify cleanup |
 | OwnerFs FUSE/native/P2P integration and performance | NOT_RUN | Mount primitive proof is insufficient |
 
-WSL cannot supply STATX_MNT_ID_UNIQUE on kernel6.6; the backend returns ENOTSUP. All15 current kernel/backend/FUSE/prototype tests are explicitly ignored for the ordinary build-host run, then explicitly executed (none ignored) by the VM probe. Kernel unique IDs are required; recyclable mountinfo IDs never substitute for ownership.
+WSL cannot supply STATX_MNT_ID_UNIQUE on kernel6.6; the backend returns ENOTSUP. All17 current kernel/backend/FUSE/prototype tests are explicitly ignored for the ordinary build-host run, then explicitly executed (none ignored) by the VM probe. Kernel unique IDs are required; recyclable mountinfo IDs never substitute for ownership.
 
 ## Failures retained
 
@@ -283,3 +283,50 @@ limited helper/handle logic and read-only flush are not reusable production
 contracts. No Node native activation or platform/durability change occurred.
 fmt and strict all-targets/all-features Clippy passed; previous production
 library/unit counts remain their earlier scope.
+
+## Deleted-directory counterexample and pinned-attribute control
+
+The test-only adapter now includes deletion after a native move, plus an
+in-place deletion control. The caller retains the old FUSE dirfd/cwd and an
+ext4 directory fd before bind. Native deletes the data file and directory
+before the caller's first observation. No fresh-name caller lookup occurs.
+After the exact actor exits and workers join, owned mounts and pins are
+released before semantic assertions. No product interface changes follow.
+
+In the moved/deleted case, the native fd still reads RIGHT through `..`;
+`fstat` succeeds with directory mode0755 and nlink0; child lookup is ENOENT.
+Both ordinary path-based attributes and the earlier named-directory worker
+instead return ENOENT for the old FUSE parent traversal and fstat. The
+worker explicitly rejects nlink0 and cannot repair via a nonexistent name.
+
+`AFS_NATIVE_PINNED_DIRECTORY_ATTR=1` is an explicit test-only diagnostic:
+it replies from the pinned object's metadata, with the retained dev/ino
+checked, for this single deleted directory. Fstat then matches ext4 and
+child lookup remains ENOENT, but the old FUSE dirfd/cwd parent is LEFT,
+while ext4 is RIGHT. The in-place-deletion control matches ext4 with this
+attribute control: both parent reads are LEFT, fstat matches, child is
+ENOENT. This isolates object survival from kernel parent relocation;
+correct fd attributes alone cannot close the moved/deleted case.
+
+Final17-case source is tested with one matching binary in four serial fresh
+VM namespaces. Runs `directory-20261001T025945-dcb3a7cd` (pin attributes0)
+and `directory-20261001T025902-f64d89e9` (pin attributes1) use repair0/1.
+Results respectively13 PASS/4 FAIL,14 PASS/3 FAIL and14 PASS/3 FAIL,
+15 PASS/2 FAIL. All execute every case, none ignored. Tests/probe exit101;
+driver0 only records successful collection plus independent unchanged
+parent mountinfo and empty disposable data. Production old-directory
+case and moved/deleted mechanism case remain RED with both controls.
+External `deleted-directory-analysis.json` / `deleted-directory-inputs.json`
+record observations, source hashes, binary identity and raw evidence.
+Earlier16-case runs025508/025751 are retained as intermediate reproduction,
+not results for this final17-case candidate. Format, integration-test build,
+strict all-targets/all-features Clippy and format check pass on final inputs.
+
+Reproduce the pinned control by adding `AFS_NATIVE_PINNED_DIRECTORY_ATTR=1`
+to each serial portable invocation above, using fresh evidence directories.
+Omitting it retains the original path-based attribute behavior. This flag
+exists only in the probe adapter. Root identity/authority, credentials,
+concurrency, bounded object leases, production/P2P integration, locks/cache,
+lifecycle and performance remain unqualified. Deleted objects are not
+excluded from the goal; a production solution must preserve their current
+parent relationship without resurrecting a visible pathname.

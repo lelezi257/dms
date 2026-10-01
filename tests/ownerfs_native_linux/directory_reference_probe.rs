@@ -71,6 +71,7 @@ struct ProbeState {
     helpers: Mutex<HashSet<u32>>,
     workers: Mutex<Vec<JoinHandle<()>>>,
     repair: bool,
+    pin_attrs: bool,
 }
 impl ProbeState {
     fn needs_repair(&self, ino: u64, pid: u32) -> bool {
@@ -124,6 +125,43 @@ impl ProbeState {
         Ok(())
     }
     fn reply_attr(&self, context: &RequestContext, ino: u64, reply: ReplyAttr) {
+        // Diagnostic control only: the pinned deleted object remains readable
+        // even though no backend path names it. This does not relocate its
+        // kernel parent or authorize a production request.
+        if self.pin_attrs && ino == self.moving.value {
+            let m = self.source_object.metadata().unwrap();
+            if m.nlink() == 0 {
+                assert_eq!(
+                    (m.dev(), m.ino()),
+                    (self.identity.device, self.identity.inode)
+                );
+                reply.attr(
+                    &Duration::ZERO,
+                    &FileAttr {
+                        ino,
+                        size: m.len(),
+                        blocks: m.blocks(),
+                        atime: m.accessed().unwrap(),
+                        mtime: m.modified().unwrap(),
+                        ctime: UNIX_EPOCH
+                            + Duration::new(
+                                m.ctime().try_into().unwrap(),
+                                m.ctime_nsec().try_into().unwrap(),
+                            ),
+                        crtime: UNIX_EPOCH,
+                        kind: FileType::Directory,
+                        perm: (m.mode() & 0o7777) as u16,
+                        nlink: m.nlink().try_into().unwrap(),
+                        uid: m.uid(),
+                        gid: m.gid(),
+                        rdev: 0,
+                        blksize: m.blksize().try_into().unwrap(),
+                        flags: 0,
+                    },
+                );
+                return;
+            }
+        }
         match self
             .owner
             .getattr(context, BackendInode { value: ino }, None)
@@ -150,7 +188,10 @@ impl Filesystem for ProbeFs {
         if ino == self.0.moving.value && self.0.helpers.lock().unwrap().contains(&context.pid) {
             println!("directory_helper_header_tid={}", context.pid);
         }
-        if self.0.needs_repair(ino, context.pid) {
+        let pinned_deleted = self.0.pin_attrs
+            && ino == self.0.moving.value
+            && self.0.source_object.metadata().unwrap().nlink() == 0;
+        if !pinned_deleted && self.0.needs_repair(ino, context.pid) {
             let state = self.0.clone();
             let worker = std::thread::spawn(move || match state.reconcile() {
                 Ok(()) => state.reply_attr(&context, ino, reply),
@@ -231,7 +272,7 @@ impl Filesystem for ProbeFs {
         }
     }
 }
-pub fn run() {
+pub fn run(deleted: bool, moved: bool) {
     assert_eq!(
         std::env::var("AFS_NATIVE_PRIVATE_NAMESPACE").as_deref(),
         Ok("1")
@@ -288,6 +329,7 @@ pub fn run() {
         helpers: Mutex::new(HashSet::new()),
         workers: Mutex::new(Vec::new()),
         repair: std::env::var("AFS_NATIVE_REFERENCE_REPAIR").as_deref() == Ok("1"),
+        pin_attrs: std::env::var("AFS_NATIVE_PINNED_DIRECTORY_ATTR").as_deref() == Ok("1"),
     });
     let mount = temp.path().join("ownerfs");
     fs::create_dir(&mount).unwrap();
@@ -303,7 +345,7 @@ pub fn run() {
     let target = mount.join("agent1");
     *state.covered.lock().unwrap() = Some(Arc::new(File::open(&target).unwrap()));
     let script = r#"
-import os, sys, json
+import os, sys, json, stat
 os.chdir(sys.argv[1])
 legacy = os.open('.', os.O_RDONLY | os.O_DIRECTORY)
 native = os.open(sys.argv[2], os.O_RDONLY | os.O_DIRECTORY)
@@ -315,12 +357,18 @@ def read_at(directory, name):
         try: return {'data':os.read(fd,1024).decode('ascii')}
         finally: os.close(fd)
     except OSError as e: return {'errno':e.errno}
+def attrs(directory):
+    try:
+        a = os.fstat(directory)
+        return {'nlink':a.st_nlink, 'mode':stat.S_IMODE(a.st_mode), 'is_dir':stat.S_ISDIR(a.st_mode)}
+    except OSError as e: return {'errno':e.errno}
 # Parent-only operation comes first, with no caller new-path lookup.
 def observation():
-    return {'legacy_parent':read_at(legacy,'../parent-id'),'native_parent':read_at(native,'../parent-id'),'cwd_parent':read_at(None,'../parent-id'),'legacy_data':read_at(legacy,'data'),'native_data':read_at(native,'data')}
+    return {'legacy_parent':read_at(legacy,'../parent-id'),'native_parent':read_at(native,'../parent-id'),'cwd_parent':read_at(None,'../parent-id'),'legacy_data':read_at(legacy,'data'),'native_data':read_at(native,'data'),'legacy_attrs':attrs(legacy),'native_attrs':attrs(native)}
 print(json.dumps(observation()), flush=True)
-assert sys.stdin.readline().strip() == 'renamed-again'
-print(json.dumps(observation()), flush=True)
+if sys.argv[3] == 'named':
+    assert sys.stdin.readline().strip() == 'renamed-again'
+    print(json.dumps(observation()), flush=True)
 os.close(native)
 os.close(legacy)
 "#;
@@ -330,6 +378,7 @@ os.close(legacy)
             .arg(script)
             .arg(target.join("left/moving"))
             .arg(&object)
+            .arg(if deleted { "deleted" } else { "named" })
             .stdin(std::process::Stdio::piped())
             .stdout(std::process::Stdio::piped())
             .spawn()
@@ -364,31 +413,43 @@ os.close(legacy)
         )
         .unwrap();
     let mounted = backend.bind(&spec).unwrap();
-    fs::rename(target.join("left/moving"), target.join("right/moving")).unwrap();
-    // Reusing the old name must not redirect the retained directory reference.
-    fs::create_dir(target.join("left/moving")).unwrap();
-    fs::write(target.join("left/moving/data"), b"replacement directory").unwrap();
+    if moved {
+        fs::rename(target.join("left/moving"), target.join("right/moving")).unwrap();
+    }
+    if deleted {
+        let deleted_path = target.join(if moved { "right/moving" } else { "left/moving" });
+        fs::remove_file(deleted_path.join("data")).unwrap();
+        fs::remove_dir(deleted_path).unwrap();
+    } else {
+        // Reusing the old name must not redirect the retained directory reference.
+        fs::create_dir(target.join("left/moving")).unwrap();
+        fs::write(target.join("left/moving/data"), b"replacement directory").unwrap();
+    }
     writeln!(actor.0.stdin.as_mut().unwrap(), "renamed").unwrap();
     line.clear();
     output.read_line(&mut line).unwrap();
     let observed: serde_json::Value = serde_json::from_str(&line).unwrap();
-    // This fresh-name control runs AFTER the first user observations, so it
-    // cannot conceal a missing automatic repair of the initial old reference.
-    let covered = state.covered.lock().unwrap().as_ref().unwrap().clone();
-    let replacement_path =
-        PathBuf::from(format!("/proc/self/fd/{}", covered.as_raw_fd())).join("left/moving/data");
-    assert_eq!(
-        fs::read(&replacement_path).unwrap(),
-        b"replacement directory"
-    );
-    drop(covered);
-    fs::remove_file(target.join("left/moving/data")).unwrap();
-    fs::remove_dir(target.join("left/moving")).unwrap();
-    fs::rename(target.join("right/moving"), target.join("left/moving")).unwrap();
-    writeln!(actor.0.stdin.as_mut().unwrap(), "renamed-again").unwrap();
-    line.clear();
-    output.read_line(&mut line).unwrap();
-    let second: serde_json::Value = serde_json::from_str(&line).unwrap();
+    let second = if deleted {
+        serde_json::Value::Null
+    } else {
+        // This fresh-name control runs AFTER the first user observations, so it
+        // cannot conceal a missing automatic repair of the initial old reference.
+        let covered = state.covered.lock().unwrap().as_ref().unwrap().clone();
+        let replacement_path = PathBuf::from(format!("/proc/self/fd/{}", covered.as_raw_fd()))
+            .join("left/moving/data");
+        assert_eq!(
+            fs::read(&replacement_path).unwrap(),
+            b"replacement directory"
+        );
+        drop(covered);
+        fs::remove_file(target.join("left/moving/data")).unwrap();
+        fs::remove_dir(target.join("left/moving")).unwrap();
+        fs::rename(target.join("right/moving"), target.join("left/moving")).unwrap();
+        writeln!(actor.0.stdin.as_mut().unwrap(), "renamed-again").unwrap();
+        line.clear();
+        output.read_line(&mut line).unwrap();
+        serde_json::from_str::<serde_json::Value>(&line).unwrap()
+    };
     assert!(actor.0.wait().unwrap().success());
     for worker in state.workers.lock().unwrap().drain(..) {
         worker.join().unwrap();
@@ -407,11 +468,20 @@ os.close(legacy)
     );
     drop(session);
     println!(
-        "directory_reference_probe repair={} actor={ready} observed={observed} second={second}",
-        state.repair
+        "directory_reference_probe deleted={deleted} moved={moved} repair={} pin_attrs={} actor={ready} observed={observed} second={second}",
+        state.repair, state.pin_attrs
     );
-    assert_eq!(observed["native_parent"]["data"], "RIGHT");
-    assert_eq!(observed["native_data"]["data"], "same directory");
+    assert_eq!(
+        observed["native_parent"]["data"],
+        if moved { "RIGHT" } else { "LEFT" }
+    );
+    if deleted {
+        assert_eq!(observed["native_data"]["errno"], libc::ENOENT);
+        assert_eq!(observed["native_attrs"]["nlink"], 0);
+        assert_eq!(observed["native_attrs"]["is_dir"], true);
+    } else {
+        assert_eq!(observed["native_data"]["data"], "same directory");
+    }
     assert_eq!(
         observed["legacy_parent"], observed["native_parent"],
         "automatic first parent traversal"
@@ -424,6 +494,13 @@ os.close(legacy)
         observed["legacy_data"], observed["native_data"],
         "automatic old-directory child traversal"
     );
+    assert_eq!(
+        observed["legacy_attrs"], observed["native_attrs"],
+        "retained directory fstat"
+    );
+    if deleted {
+        return;
+    }
     assert_eq!(second["native_parent"]["data"], "LEFT");
     assert_eq!(second["native_data"]["data"], "same directory");
     assert_eq!(

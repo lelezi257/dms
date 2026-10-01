@@ -36,6 +36,14 @@ Third-stage handle-cleanup WIP is preserved separately; verified source remains
 caec0fa. Historical tests below keep their stated scope and do not establish
 stage completion. The stock MooseFS durable-write baseline remains unqualified.
 
+An additional A1 combination probe on the independent ext4 VM verifies actual
+kernel EPERM on physical activation, FuseOnly/no native claim, continued FUSE
+access to the same prepared backing, successful retry and normal-detach fallback.
+Retained FUSE fd/dirfd operations stay on that backing after native attachment;
+a ready-after-activation child observes the verified native inode/namespace.
+This uses current Home authority with an in-process Meta fixture. It does not
+qualify paused in-flight callbacks or production Node/P2P READY publication.
+
 The current A1 request-path probe on the independent ext4 VM confirms native
 file operations but exposes remaining ancestor cost:16 rounds using absolute
 workspace paths issue96 root GETATTR and96 workspace-root LOOKUP requests.

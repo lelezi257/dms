@@ -4,7 +4,56 @@ Issue: https://github.com/lelezi257/dms/issues/42. Current priority: [architectu
 
 This is an intermediate slice, not feature completion, product acceptance or performance qualification. It does not enable native exports in Node. Default configuration does not enable native admission. The optional hint hook remains inert without a sink; ordinary directory identity refresh now reconciles cached descendants after an external move. Node/FUSE/P2P integration, cross-path locks/cache/mmap, full Node/Agent lifecycle recovery and ext4 performance comparison remain outstanding.
 
-## Current architecture checkpoint: A1 absolute-path request cost (2026-10-01)
+## Current architecture checkpoint: A1 failed-mount fallback combination (2026-10-01)
+
+`tests/ownerfs_native_transition_probe.rs` combines the production FUSE adapter,
+native-eligible policy, post-reply event, current `HomeExportAuthority`, fd-confined
+prepared backend and native manager. The authoritative Meta remains an in-process
+fixture; no production Node bootstrap/P2P READY claim is made.
+
+An actual mkdir reply and following file callback complete before the management
+test consumes its creation hint. While activation is intentionally delayed,
+operations through a retained FUSE file and directory fd write the prepared
+Home backing. After preparation, only the test thread temporarily removes its
+effective CAP_SYS_ADMIN; permitted/inheritable capabilities and daemon threads
+remain unchanged. The real kernel refuses the mount clone with EPERM. The test
+restores capabilities before assertions, observes FuseOnly/no mount claim and
+the original FUSE device, then repeats writes and checks the same backing bytes.
+Restored physical activation revalidates the Home permit and exposes its exact
+source inode at the original path. Retained FUSE references still perform file
+operations against that source; a new child actor is started only after observed
+NativeActive and confirms its native inode/final namespace. Normal detach then
+returns the same files through FUSE. No sleeps establish ordering.
+
+VM run `transition-probe-20261001T094349-512d3e25` exits0, with one executed
+mechanism probe on Linux6.8.0-142 `/dev/sdb1` ext4. Binary SHA256
+`61cc87adf8d9bf6278f1bfb0ccb665f760e8538d0ad8eb060020f51ddae776e9`,
+archive SHA256
+`df2b8aedcfc5f6b77edeb1fb8fe0a2f3185815ce6ae7b16874b77274a78013cd`.
+Source parent `068965a`, input snapshot
+`native-transition-probe-candidate-20261001T094334`; production Rust unchanged
+from caec0fa. Independent inspection verifies terminal outcomes, mountinfo
+unchanged, empty temporary data and native actor identity/namespace. Targeted
+strict Clippy and fmt pass. The initial build's missing Arc argument and deny-
+unsafe annotations were corrected in test code; its original build log is
+preserved. No production behavior or parked handle-cleanup WIP changed.
+
+**Closed question:** a physically failed bind leaves the current manager in
+FUSE_ONLY without a native claim, and delay/failure/success/normal-detach accesses
+use the same prepared backing. This extends prior successful mount and isolated
+fake-backend failure evidence; it does not prove production READY publication,
+actual P2P or a callback deliberately paused across physical attachment. Those
+A1 combination gaps remain open; architecture/performance have not passed.
+
+Portable replay: Linux build
+`cargo test --all-features --test ownerfs_native_transition_probe --no-run`; copy
+the exact executable and `ownerfs_native_mount.sh` to the VM. As root invoke the
+mount script with that executable, fresh ext4 evidence directory, recorded SHA256
+and exact filter `privileged_native_failed_transition_preserves_backing`. The
+script supplies the private namespace, timeout and cleanup checks. This separate
+diagnostic does not expand the17-case foundation manifest.
+
+## A1 absolute-path request cost (2026-10-01)
 
 No production Rust behavior changed. New standalone integration probe
 `tests/ownerfs_native_path_probe.rs` uses the production OwnerFs FUSE adapter,

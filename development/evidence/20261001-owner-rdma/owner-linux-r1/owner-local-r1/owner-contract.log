@@ -1,0 +1,17 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.05s
+     Running tests/ownerfs_peer_contract.rs (/home/lzc.guest/afs-build/target/debug/deps/ownerfs_peer_contract-7ec0db08fd55e38d)
+
+running 10 tests
+test ownerfiles_rdma_large_write_fsync_cold_read_roundtrip_preserves_payload ... ignored, requires AFS_TEST_RDMA_DEVICE with a working RXE/RDMA device
+test mtls_authenticator_is_available_for_exact_der_mapping ... ok
+test ownerfiles_rdma_authority_validation_may_block_on_tokio_handle ... ok
+test ownerfiles_rdma_oversize_read_rejects_before_handler_allocation ... ok
+test ownerfiles_rdma_missing_device_fails_before_file_write ... ok
+test ownerpeerclient_rdma_large_write_fsync_cold_read_roundtrip_preserves_payload ... ignored, requires AFS_TEST_RDMA_DEVICE with a working RXE/RDMA device
+test ownerpeerclient_auto_without_device_falls_back_before_rdma_dispatch ... ok
+test ownerfiles_rejects_rdma_plane_without_negotiated_owner_session_before_write ... ok
+test ownerpeerclient_rdma_without_device_rejects_read_write_without_mutation ... ok
+test mtls_ownerfiles_grpc_roundtrip_uses_real_ownerfs_backend ... ok
+
+test result: ok. 8 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 5.25s
+

@@ -245,6 +245,24 @@ pub struct OwnerFsPeerExecutor {
 }
 
 impl OwnerFsPeerExecutor {
+    pub fn authorize_transport(
+        &self,
+        peer_node_id: &str,
+        access: &PresentedRootAccess,
+    ) -> Result<()> {
+        self.local.peer_authorize_transport(peer_node_id, access)
+    }
+
+    pub fn authorize_data_write(
+        &self,
+        peer_node_id: &str,
+        access: &PresentedRootAccess,
+        file: &files::RemoteFile,
+    ) -> Result<()> {
+        self.local
+            .peer_authorize_data_write(peer_node_id, access, file)
+    }
+
     pub fn getlk(
         &self,
         peer: &str,
@@ -2012,6 +2030,13 @@ impl LocalOwnerFs {
             .check_peer(peer_node_id, access, identity)
     }
 
+    fn check_peer_file_handle_writable(&self, handle: FileHandle) -> Result<()> {
+        self.open_file_handle(handle)?
+            .lock()
+            .map_err(|_| poisoned())?
+            .check_writable()
+    }
+
     fn check_peer_directory_handle(
         &self,
         handle: DirectoryHandle,
@@ -3057,6 +3082,19 @@ impl LocalOwnerFs {
         self.write_with_options(handle, offset, data, options)
     }
 
+    fn peer_authorize_data_write(
+        &self,
+        peer_node_id: &str,
+        access: &PresentedRootAccess,
+        file: &files::RemoteFile,
+    ) -> Result<()> {
+        self.validate_peer(access, peer_node_id, RootRight::Write)?;
+        check_remote_file_scope(access, file)?;
+        let handle = decode_file_handle(file)?;
+        self.check_peer_file_handle(handle, peer_node_id, access, &file.identity)?;
+        self.check_peer_file_handle_writable(handle)
+    }
+
     fn peer_flush(
         &self,
         peer_node_id: &str,
@@ -3149,6 +3187,16 @@ impl LocalOwnerFs {
             }
         }
         Ok(grant)
+    }
+
+    fn peer_authorize_transport(
+        &self,
+        peer_node_id: &str,
+        access: &PresentedRootAccess,
+    ) -> Result<()> {
+        self.roots
+            .validate_peer_root_transport(access, peer_node_id)?;
+        Ok(())
     }
 
     fn refresh_cached_inode_at(
@@ -5357,6 +5405,17 @@ impl OpenFileHandleSlot {
                 .is_none_or(|scope| scope.node_id != peer_node_id || scope.access != *access)
         {
             return Err(stale("peer file handle belongs to another open or grant"));
+        }
+        Ok(())
+    }
+
+    fn check_writable(&self) -> Result<()> {
+        self.ensure_open()?;
+        let OpenFileHandle::Local(local) = &self.file else {
+            return Err(stale("peer file handle is not local to Home"));
+        };
+        if !local.writable {
+            return Err(stale("peer file handle is not writable"));
         }
         Ok(())
     }

@@ -1,0 +1,25 @@
+    Checking afs v0.1.0 (/home/lzc.guest/afs-build/work/owner-rdma-v71)
+warning: unused import: `DataPlane`
+  --> src/node/rpc/data.rs:29:5
+   |
+29 |     DataPlane, DataReadReply, DataReadRequest, DataTransfer, DataWriteReply, DataWriteRequest,
+   |     ^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused imports: `OwnerCloseDataRequest` and `OwnerNegotiateDataRequest`
+  --> src/node/rpc/peer.rs:37:45
+   |
+37 |     CloseDataRequest, NegotiateDataRequest, OwnerCloseDataRequest, OwnerNegotiateDataRequest,
+   |                                             ^^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `owner_rdma_error` is never used
+    --> src/node/rpc/peer.rs:4028:4
+     |
+4028 | fn owner_rdma_error(error: afs_transport::rdma::RdmaError) -> PeerError {
+     |    ^^^^^^^^^^^^^^^^
+     |
+     = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `afs` (lib) generated 3 warnings (run `cargo fix --lib -p afs` to apply 2 suggestions)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 1.99s

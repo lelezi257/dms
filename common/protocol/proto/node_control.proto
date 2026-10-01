@@ -23,6 +23,8 @@ service NodeControl {
 
   rpc NegotiateData(NegotiateDataRequest) returns (NegotiateDataReply);
   rpc CloseData(CloseDataRequest) returns (CloseDataReply);
+  rpc OwnerNegotiateData(OwnerNegotiateDataRequest) returns (NegotiateDataReply);
+  rpc OwnerCloseData(OwnerCloseDataRequest) returns (CloseDataReply);
   rpc Ping(PingRequest) returns (PingReply);
 
   // DFS owner lifecycle is control-plane: these calls create/inspect/drop a
@@ -59,6 +61,16 @@ message CloseDataRequest {
 }
 
 message CloseDataReply {}
+
+message OwnerNegotiateDataRequest {
+  afs.node.data.v1.RootAccess access = 1;
+  NegotiateDataRequest negotiation = 2;
+}
+
+message OwnerCloseDataRequest {
+  afs.node.data.v1.RootAccess access = 1;
+  uint64 session_id = 2;
+}
 
 message PingRequest {
   string payload = 1;

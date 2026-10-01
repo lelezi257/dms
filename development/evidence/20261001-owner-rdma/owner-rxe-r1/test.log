@@ -1,0 +1,122 @@
+
+running 2 tests
+test ownerfiles_rdma_large_write_fsync_cold_read_roundtrip_preserves_payload ... AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_COMPLETE op=READ bytes=1048576
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_COMPLETE op=READ bytes=1048576
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_COMPLETE op=READ bytes=1048576
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_COMPLETE op=READ bytes=1048576
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_COMPLETE op=READ bytes=17
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_COMPLETE op=WRITE bytes=1048576
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_COMPLETE op=WRITE bytes=1048576
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_COMPLETE op=WRITE bytes=1048576
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_COMPLETE op=WRITE bytes=1048576
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_COMPLETE op=WRITE bytes=17
+
+thread 'ownerfiles_rdma_large_write_fsync_cold_read_roundtrip_preserves_payload' (733992) panicked at tests/ownerfs_peer_contract.rs:713:9:
+assertion `left == right` failed
+  left: false
+ right: true
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+test ownerpeerclient_rdma_large_write_fsync_cold_read_roundtrip_preserves_payload ... AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_COMPLETE op=READ bytes=1048576
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_COMPLETE op=READ bytes=1048576
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_COMPLETE op=READ bytes=1048576
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_COMPLETE op=READ bytes=1048576
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_COMPLETE op=READ bytes=17
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_COMPLETE op=WRITE bytes=1048576
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_COMPLETE op=WRITE bytes=1048576
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_COMPLETE op=WRITE bytes=1048576
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_COMPLETE op=WRITE bytes=1048576
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_COMPLETE op=WRITE bytes=17
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE receive_complete
+ok
+
+failures:
+
+failures:
+    ownerfiles_rdma_large_write_fsync_cold_read_roundtrip_preserves_payload
+
+test result: FAILED. 1 passed; 1 failed; 0 ignored; 0 measured; 8 filtered out; finished in 0.56s
+

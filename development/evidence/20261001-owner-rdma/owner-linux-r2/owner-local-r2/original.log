@@ -1,0 +1,9 @@
+   Compiling afs v0.1.0 (/home/lzc.guest/afs-build/work/owner-rdma-v71)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 20.37s
+     Running tests/ownerfs_peer_contract.rs (/home/lzc.guest/afs-build/target/debug/deps/ownerfs_peer_contract-7ec0db08fd55e38d)
+
+running 1 test
+test ownerfiles_rejects_rdma_plane_without_negotiated_owner_session_before_write ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 10 filtered out; finished in 0.03s
+

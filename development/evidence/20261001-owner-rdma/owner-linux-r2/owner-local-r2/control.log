@@ -1,0 +1,14 @@
+   Compiling afs v0.1.0 (/home/lzc.guest/afs-build/work/owner-rdma-v71)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 20.09s
+     Running unittests src/lib.rs (/home/lzc.guest/afs-build/target/debug/deps/afs-586e1b701367e588)
+
+running 6 tests
+test node::rpc::control::tests::dfs_and_owner_peer_session_identities_do_not_alias ... ok
+test node::rpc::control::tests::owner_peer_session_identity_is_structured_not_colon_encoded ... ok
+test node::rpc::control::tests::owner_peer_session_identity_binds_every_root_access_field ... ok
+test node::rpc::control::tests::ping_returns_pong_for_literal_ping ... ok
+test node::rpc::control::tests::legacy_handshake_is_rejected_before_allocating_rdma_resources ... ok
+test node::rpc::control::tests::unknown_and_closed_sessions_are_rejected ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 399 filtered out; finished in 0.00s
+

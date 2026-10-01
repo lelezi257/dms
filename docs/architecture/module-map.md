@@ -32,3 +32,4 @@
 - DFS chunk replication lives below the file layout layer.
 - Read batching, attempts and source selection are Node runtime concerns.
 - Cache and spill must use copy role/state rules before serving or evicting data.
+- NodeControl owns Owner RDMA negotiation and transport close. OwnerFiles owns file commands and payload descriptors. Owner sessions are isolated from DFS and diagnostic sessions; transport identity never replaces file authorization.

@@ -20,11 +20,13 @@ use afs_transport::grpc::error_status::{coded_status, error_to_status};
 #[cfg(feature = "dfs")]
 use std::pin::Pin;
 use std::sync::Arc;
-#[cfg(feature = "rdma")]
+#[cfg(any(feature = "rdma", feature = "ownerfs"))]
 use std::sync::atomic::Ordering;
 use std::{collections::HashMap, net::SocketAddr};
 use tonic::metadata::MetadataMap;
 
+#[cfg(feature = "ownerfs")]
+use afs_protocol::node_data::DataPlane;
 use afs_protocol::node_data::{
     DataReadReply, DataReadRequest, DataTransfer, DataWriteReply, DataWriteRequest,
     node_data_server::{NodeData, NodeDataServer},
@@ -1806,6 +1808,15 @@ pub trait OwnerFilesHandler: Send + Sync + 'static {
         let _ = (authenticated_peer_node_id, request);
         Err(owner_handler_unimplemented("OwnerFiles.Write"))
     }
+    fn authorize_data_write(
+        &self,
+        authenticated_peer_node_id: &str,
+        access: &PresentedRootAccess,
+        file: &RemoteFile,
+    ) -> afs_error::Result<()> {
+        let _ = (authenticated_peer_node_id, access, file);
+        Err(owner_handler_unimplemented("OwnerFiles.AuthorizeDataWrite"))
+    }
     fn flush(
         &self,
         authenticated_peer_node_id: &str,
@@ -2270,7 +2281,8 @@ impl OwnerFilesHandler for OwnerFsPeerHandler {
         let options = OpenOptions {
             kill_suidgid: request.kill_suidgid,
         };
-        let (file, attributes, prefetched_data) = self.executor.open_with_options(
+        let disable_prefetch = request.disable_prefetch;
+        let (file, attributes, mut prefetched_data) = self.executor.open_with_options(
             authenticated_peer_node_id,
             &access,
             &path_os(request.path),
@@ -2278,6 +2290,9 @@ impl OwnerFilesHandler for OwnerFsPeerHandler {
             expected.as_ref(),
             options,
         )?;
+        if disable_prefetch {
+            prefetched_data = None;
+        }
         Ok(OwnerOpenReply {
             handle: Some(afs_protocol::node_data::OwnerHandle {
                 opaque: file.handle,
@@ -2311,6 +2326,7 @@ impl OwnerFilesHandler for OwnerFsPeerHandler {
             data: out,
             read: read as u32,
             eof: read < request.length as usize,
+            data_checksum: Vec::new(),
         })
     }
 
@@ -2322,8 +2338,10 @@ impl OwnerFilesHandler for OwnerFsPeerHandler {
         let access = presented_access(request.access)?;
         let handle = required_handle(request.handle, "OwnerWriteRequest missing handle")?;
         let length = request.length as usize;
-        if request.data.len() < length {
-            return Err(protocol_error("OwnerWriteRequest data shorter than length"));
+        if request.data.len() != length {
+            return Err(protocol_error(
+                "OwnerWriteRequest inline data length mismatch",
+            ));
         }
         let options = WriteOptions {
             kill_suidgid: request.kill_suidgid,
@@ -2339,6 +2357,16 @@ impl OwnerFilesHandler for OwnerFsPeerHandler {
         Ok(OwnerWriteReply {
             written: written as u32,
         })
+    }
+
+    fn authorize_data_write(
+        &self,
+        authenticated_peer_node_id: &str,
+        access: &PresentedRootAccess,
+        file: &RemoteFile,
+    ) -> afs_error::Result<()> {
+        self.executor
+            .authorize_data_write(authenticated_peer_node_id, access, file)
     }
 
     fn flush(
@@ -2859,6 +2887,7 @@ pub struct OwnerFilesService {
     handler: Option<Arc<dyn OwnerFilesHandler>>,
     authenticator: Option<Arc<dyn PeerAuthenticator>>,
     metrics: Option<super::OwnerRpcMetrics>,
+    rdma_sessions: Option<RdmaSessionRegistry>,
 }
 
 #[cfg(feature = "ownerfs")]
@@ -2872,6 +2901,7 @@ impl OwnerFilesService {
             handler: Some(handler),
             authenticator: Some(authenticator),
             metrics: None,
+            rdma_sessions: None,
         }
     }
 
@@ -2879,6 +2909,17 @@ impl OwnerFilesService {
     pub fn with_metrics(mut self, metrics: super::OwnerRpcMetrics) -> Self {
         self.metrics = Some(metrics);
         self
+    }
+
+    #[must_use]
+    pub fn with_rdma_registry(mut self, sessions: RdmaSessionRegistry) -> Self {
+        self.rdma_sessions = Some(sessions);
+        self
+    }
+
+    #[must_use]
+    pub fn with_rdma_sessions(self, sessions: RdmaSessionRegistry) -> Self {
+        self.with_rdma_registry(sessions)
     }
 
     async fn dispatch<Req, Reply, F>(
@@ -2939,6 +2980,305 @@ impl OwnerFilesService {
             .map_err(error_to_status)?;
         Ok(Response::new(reply))
     }
+
+    fn require_handler(
+        &self,
+        operation: &'static str,
+    ) -> Result<Arc<dyn OwnerFilesHandler>, Status> {
+        self.handler
+            .clone()
+            .ok_or_else(|| owner_files_unimplemented(operation))
+    }
+
+    fn require_authenticator(
+        &self,
+        operation: &'static str,
+    ) -> Result<Arc<dyn PeerAuthenticator>, Status> {
+        self.authenticator.clone().ok_or_else(|| {
+            coded_status(
+                afs_error::NODE_OWNER_INVALID_GRANT,
+                format!("{operation} has no authenticated peer identity source"),
+            )
+        })
+    }
+
+    fn owner_peer<T>(
+        &self,
+        operation: &'static str,
+        request: &Request<T>,
+    ) -> Result<String, Status> {
+        authenticate_peer(self.require_authenticator(operation)?.as_ref(), request)
+    }
+
+    fn rdma_sessions(&self, operation: &'static str) -> Result<RdmaSessionRegistry, Status> {
+        self.rdma_sessions.clone().ok_or_else(|| {
+            coded_status(
+                afs_error::NODE_TRANSFER_UNSUPPORTED,
+                format!("{operation} has no OwnerFs RDMA session registry"),
+            )
+        })
+    }
+}
+
+#[cfg(feature = "ownerfs")]
+fn owner_data_plane(plane: Option<DataPlane>) -> Result<DataPlane, Status> {
+    let plane = plane.unwrap_or(DataPlane {
+        transfer: DataTransfer::GrpcInline.into(),
+        rdma_session_id: 0,
+        buffer_offset: 0,
+    });
+    let transfer = transfer_mode(plane.transfer)?;
+    if transfer == DataTransfer::Unspecified {
+        return Err(coded_status(
+            afs_error::NODE_TRANSFER_INVALID,
+            "OwnerFiles data plane transfer is required",
+        ));
+    }
+    match transfer {
+        DataTransfer::GrpcInline => {
+            if plane.rdma_session_id != 0 || plane.buffer_offset != 0 {
+                return Err(coded_status(
+                    afs_error::NODE_TRANSFER_INVALID,
+                    "OwnerFiles inline plane must not carry an RDMA descriptor",
+                ));
+            }
+        }
+        DataTransfer::RdmaOneSided => {
+            if plane.rdma_session_id == 0 || plane.buffer_offset != 0 {
+                return Err(coded_status(
+                    afs_error::NODE_TRANSFER_INVALID,
+                    "OwnerFiles RDMA requires a nonzero session and zero buffer offset",
+                ));
+            }
+        }
+        DataTransfer::Unspecified => unreachable!("checked above"),
+    }
+    Ok(plane)
+}
+
+#[cfg(feature = "ownerfs")]
+fn checksum_blake3(data: &[u8]) -> Vec<u8> {
+    blake3::hash(data).as_bytes().to_vec()
+}
+
+#[cfg(feature = "ownerfs")]
+fn verify_owner_checksum(data: &[u8], expected: &[u8]) -> Result<(), Status> {
+    if expected.len() != 32 {
+        return Err(coded_status(
+            afs_error::NODE_TRANSFER_INVALID,
+            "OwnerFiles RDMA write requires a 32-byte data checksum",
+        ));
+    }
+    if checksum_blake3(data) != expected {
+        return Err(coded_status(
+            afs_error::NODE_TRANSFER_CORRUPT_DATA,
+            "OwnerFiles RDMA payload checksum mismatch",
+        ));
+    }
+    Ok(())
+}
+
+#[cfg(feature = "ownerfs")]
+struct OwnerServerRdmaGuard {
+    session: Arc<super::control::RdmaSession>,
+    disarmed: bool,
+}
+
+#[cfg(feature = "ownerfs")]
+impl OwnerServerRdmaGuard {
+    fn new(session: Arc<super::control::RdmaSession>) -> Self {
+        Self {
+            session,
+            disarmed: false,
+        }
+    }
+
+    fn disarm(mut self) {
+        self.disarmed = true;
+    }
+}
+
+#[cfg(feature = "ownerfs")]
+impl Drop for OwnerServerRdmaGuard {
+    fn drop(&mut self) {
+        if !self.disarmed {
+            self.session.poisoned.store(true, Ordering::SeqCst);
+        }
+    }
+}
+
+#[cfg(all(feature = "ownerfs", feature = "rdma"))]
+async fn owner_rdma_session(
+    sessions: &RdmaSessionRegistry,
+    peer: String,
+    access: &afs_protocol::node_data::RootAccess,
+    session_id: u64,
+) -> Result<Arc<super::control::RdmaSession>, Status> {
+    let identity = super::control::owner_rdma_identity_from_wire(peer, access.clone())?;
+    sessions.session_for(session_id, &identity).await
+}
+
+#[cfg(all(feature = "ownerfs", not(feature = "rdma")))]
+async fn owner_rdma_session(
+    _sessions: &RdmaSessionRegistry,
+    _peer: String,
+    _access: &afs_protocol::node_data::RootAccess,
+    _session_id: u64,
+) -> Result<Arc<super::control::RdmaSession>, Status> {
+    Err(coded_status(
+        afs_error::NODE_TRANSFER_UNSUPPORTED,
+        "RDMA feature is not enabled",
+    ))
+}
+
+#[cfg(all(feature = "ownerfs", feature = "rdma"))]
+async fn owner_rdma_write_to_client(
+    session: Arc<super::control::RdmaSession>,
+    data: Vec<u8>,
+) -> Result<(), Status> {
+    let worker = session.clone();
+    let result = tokio::task::spawn_blocking(move || {
+        let mut endpoint = worker.endpoint.blocking_lock();
+        let guard = OwnerServerRdmaGuard::new(worker.clone());
+        if worker.poisoned.load(Ordering::SeqCst) {
+            return Err(coded_status(
+                afs_error::NODE_RDMA_SESSION_POISONED,
+                "OwnerFiles RDMA session is poisoned",
+            ));
+        }
+        if data.len() > endpoint.capacity() {
+            return Err(coded_status(
+                afs_error::NODE_TRANSFER_INVALID,
+                "OwnerFiles RDMA read exceeds endpoint capacity",
+            ));
+        }
+        if let Err(error) = endpoint
+            .put_local(&data)
+            .and_then(|_| endpoint.transfer_write(data.len()))
+        {
+            worker.poisoned.store(true, Ordering::SeqCst);
+            return Err(rdma_status(error));
+        }
+        guard.disarm();
+        Ok(())
+    })
+    .await
+    .map_err(|error| coded_status(afs_error::NODE_TRANSFER_INTERNAL, error.to_string()))?;
+    if result.is_err() {
+        session.poisoned.store(true, Ordering::SeqCst);
+    }
+    result
+}
+
+#[cfg(all(feature = "ownerfs", feature = "rdma"))]
+async fn owner_rdma_capacity(session: Arc<super::control::RdmaSession>) -> Result<usize, Status> {
+    let worker = session.clone();
+    tokio::task::spawn_blocking(move || {
+        let endpoint = worker.endpoint.blocking_lock();
+        if worker.poisoned.load(Ordering::SeqCst) {
+            return Err(coded_status(
+                afs_error::NODE_RDMA_SESSION_POISONED,
+                "OwnerFiles RDMA session is poisoned",
+            ));
+        }
+        Ok(endpoint.capacity())
+    })
+    .await
+    .map_err(|error| coded_status(afs_error::NODE_TRANSFER_INTERNAL, error.to_string()))?
+}
+
+#[cfg(all(feature = "ownerfs", not(feature = "rdma")))]
+async fn owner_rdma_capacity(_session: Arc<super::control::RdmaSession>) -> Result<usize, Status> {
+    Err(coded_status(
+        afs_error::NODE_TRANSFER_UNSUPPORTED,
+        "RDMA feature is not enabled",
+    ))
+}
+
+#[cfg(all(feature = "ownerfs", not(feature = "rdma")))]
+async fn owner_rdma_write_to_client(
+    _session: Arc<super::control::RdmaSession>,
+    _data: Vec<u8>,
+) -> Result<(), Status> {
+    Err(coded_status(
+        afs_error::NODE_TRANSFER_UNSUPPORTED,
+        "RDMA feature is not enabled",
+    ))
+}
+
+#[cfg(all(feature = "ownerfs", feature = "rdma"))]
+async fn owner_rdma_write_from_client(
+    session: Arc<super::control::RdmaSession>,
+    handler: Arc<dyn OwnerFilesHandler>,
+    peer: String,
+    mut request: OwnerWriteRequest,
+) -> Result<OwnerWriteReply, Status> {
+    let worker = session.clone();
+    let result = tokio::task::spawn_blocking(move || {
+        let len = request.length as usize;
+        let mut endpoint = worker.endpoint.blocking_lock();
+        let guard = OwnerServerRdmaGuard::new(worker.clone());
+        if worker.poisoned.load(Ordering::SeqCst) {
+            return Err(coded_status(
+                afs_error::NODE_RDMA_SESSION_POISONED,
+                "OwnerFiles RDMA session is poisoned",
+            ));
+        }
+        if len > endpoint.capacity() {
+            return Err(coded_status(
+                afs_error::NODE_TRANSFER_INVALID,
+                "OwnerFiles RDMA write exceeds endpoint capacity",
+            ));
+        }
+        let data = match endpoint
+            .transfer_read(len)
+            .and_then(|_| endpoint.get_local(len))
+        {
+            Ok(data) => data,
+            Err(error) => {
+                worker.poisoned.store(true, Ordering::SeqCst);
+                return Err(rdma_status(error));
+            }
+        };
+        if let Err(error) = verify_owner_checksum(&data, &request.data_checksum) {
+            worker.poisoned.store(true, Ordering::SeqCst);
+            return Err(error);
+        }
+        request.data = data;
+        request.plane = Some(DataPlane {
+            transfer: DataTransfer::GrpcInline.into(),
+            rdma_session_id: 0,
+            buffer_offset: 0,
+        });
+        let reply = match handler.write(&peer, request).map_err(error_to_status) {
+            Ok(reply) => reply,
+            Err(error) => {
+                worker.poisoned.store(true, Ordering::SeqCst);
+                return Err(error);
+            }
+        };
+        guard.disarm();
+        Ok(reply)
+    })
+    .await
+    .map_err(|error| coded_status(afs_error::NODE_TRANSFER_INTERNAL, error.to_string()))?;
+    if result.is_err() {
+        session.poisoned.store(true, Ordering::SeqCst);
+    }
+    result
+}
+
+#[cfg(all(feature = "ownerfs", not(feature = "rdma")))]
+async fn owner_rdma_write_from_client(
+    _session: Arc<super::control::RdmaSession>,
+    _handler: Arc<dyn OwnerFilesHandler>,
+    _peer: String,
+    _request: OwnerWriteRequest,
+) -> Result<OwnerWriteReply, Status> {
+    Err(coded_status(
+        afs_error::NODE_TRANSFER_UNSUPPORTED,
+        "RDMA feature is not enabled",
+    ))
 }
 
 #[must_use]
@@ -2964,6 +3304,33 @@ pub fn make_owner_files_server_with_handler_and_metrics(
     metrics: super::OwnerRpcMetrics,
 ) -> OwnerFilesServer<OwnerFilesService> {
     OwnerFilesServer::new(OwnerFilesService::new(handler, authenticator).with_metrics(metrics))
+}
+
+#[must_use]
+#[cfg(feature = "ownerfs")]
+pub fn make_owner_files_server_with_handler_and_transport(
+    handler: Arc<dyn OwnerFilesHandler>,
+    authenticator: Arc<dyn PeerAuthenticator>,
+    rdma_sessions: RdmaSessionRegistry,
+) -> OwnerFilesServer<OwnerFilesService> {
+    OwnerFilesServer::new(
+        OwnerFilesService::new(handler, authenticator).with_rdma_registry(rdma_sessions),
+    )
+}
+
+#[must_use]
+#[cfg(feature = "ownerfs")]
+pub fn make_owner_files_server_with_handler_metrics_and_rdma(
+    handler: Arc<dyn OwnerFilesHandler>,
+    authenticator: Arc<dyn PeerAuthenticator>,
+    metrics: super::OwnerRpcMetrics,
+    rdma_sessions: RdmaSessionRegistry,
+) -> OwnerFilesServer<OwnerFilesService> {
+    OwnerFilesServer::new(
+        OwnerFilesService::new(handler, authenticator)
+            .with_metrics(metrics)
+            .with_rdma_sessions(rdma_sessions),
+    )
 }
 
 #[tonic::async_trait]
@@ -3125,20 +3492,173 @@ impl OwnerFiles for OwnerFilesService {
         &self,
         request: Request<OwnerReadRequest>,
     ) -> Result<Response<OwnerReadReply>, Status> {
-        self.dispatch(request, "OwnerFiles.Read", |handler, peer, request| {
-            handler.read(&peer, request)
+        let operation = "OwnerFiles.Read";
+        let handler = self.require_handler(operation)?;
+        let peer = self.owner_peer(operation, &request)?;
+        let mut request = request.into_inner();
+        validate_length(request.length)?;
+        let plane = owner_data_plane(request.plane)?;
+        let transfer = transfer_mode(plane.transfer)?;
+        if transfer == DataTransfer::RdmaOneSided {
+            let access = request
+                .access
+                .as_ref()
+                .ok_or_else(|| Status::permission_denied("OwnerFiles RDMA requires RootAccess"))?
+                .clone();
+            let session = owner_rdma_session(
+                &self.rdma_sessions(operation)?,
+                peer.clone(),
+                &access,
+                plane.rdma_session_id,
+            )
+            .await?;
+            let rpc_guard = OwnerServerRdmaGuard::new(session.clone());
+            let capacity = owner_rdma_capacity(session.clone()).await?;
+            if request.length as usize > capacity {
+                return Err(coded_status(
+                    afs_error::NODE_TRANSFER_INVALID,
+                    "OwnerFiles RDMA read exceeds endpoint capacity",
+                ));
+            }
+            request.plane = Some(DataPlane {
+                transfer: DataTransfer::GrpcInline.into(),
+                rdma_session_id: 0,
+                buffer_offset: 0,
+            });
+            let started = std::time::Instant::now();
+            let reply = tokio::task::spawn_blocking(move || handler.read(&peer, request))
+                .await
+                .map_err(|error| {
+                    coded_status(
+                        afs_error::CLIENT_WORKER_FAILED,
+                        format!("{operation} blocking worker failed: {error}"),
+                    )
+                })?
+                .map_err(error_to_status)?;
+            if reply.read as usize != reply.data.len() {
+                return Err(coded_status(
+                    afs_error::NODE_TRANSFER_INVALID,
+                    "OwnerFiles read reply length differs from payload",
+                ));
+            }
+            let checksum = checksum_blake3(&reply.data);
+            owner_rdma_write_to_client(session, reply.data).await?;
+            if let Some(metrics) = &self.metrics {
+                metrics.observe("server", operation, started.elapsed());
+            }
+            rpc_guard.disarm();
+            return Ok(Response::new(OwnerReadReply {
+                data: Vec::new(),
+                read: reply.read,
+                eof: reply.eof,
+                data_checksum: checksum,
+            }));
+        }
+        let started = std::time::Instant::now();
+        let reply = tokio::task::spawn_blocking(move || {
+            let mut reply = handler.read(&peer, request)?;
+            if reply.read as usize != reply.data.len() {
+                return Err(afs_error::Error::coded(
+                    afs_error::NODE_TRANSFER_INVALID,
+                    "OwnerFiles read reply length differs from payload",
+                ));
+            }
+            reply.data_checksum = Vec::new();
+            Ok(reply)
         })
         .await
+        .map_err(|error| {
+            coded_status(
+                afs_error::CLIENT_WORKER_FAILED,
+                format!("{operation} blocking worker failed: {error}"),
+            )
+        })?
+        .map_err(error_to_status)?;
+        if let Some(metrics) = &self.metrics {
+            metrics.observe("server", operation, started.elapsed());
+        }
+        Ok(Response::new(reply))
     }
 
     async fn write(
         &self,
         request: Request<OwnerWriteRequest>,
     ) -> Result<Response<OwnerWriteReply>, Status> {
-        self.dispatch(request, "OwnerFiles.Write", |handler, peer, request| {
-            handler.write(&peer, request)
-        })
-        .await
+        let operation = "OwnerFiles.Write";
+        let handler = self.require_handler(operation)?;
+        let peer = self.owner_peer(operation, &request)?;
+        let request = request.into_inner();
+        validate_length(request.length)?;
+        let plane = owner_data_plane(request.plane)?;
+        let transfer = transfer_mode(plane.transfer)?;
+        if transfer == DataTransfer::RdmaOneSided {
+            if !request.data.is_empty() {
+                return Err(coded_status(
+                    afs_error::NODE_TRANSFER_INVALID,
+                    "OwnerFiles RDMA write must not include inline data",
+                ));
+            }
+            if request.data_checksum.len() != 32 {
+                return Err(coded_status(
+                    afs_error::NODE_TRANSFER_INVALID,
+                    "OwnerFiles RDMA write requires a 32-byte data checksum",
+                ));
+            }
+            let access = request
+                .access
+                .as_ref()
+                .ok_or_else(|| Status::permission_denied("OwnerFiles RDMA requires RootAccess"))?
+                .clone();
+            let presented = presented_access(Some(access.clone())).map_err(error_to_status)?;
+            let handle =
+                required_handle(request.handle.clone(), "OwnerWriteRequest missing handle")
+                    .map_err(error_to_status)?;
+            let remote = remote_file_for_handle(&presented, handle.opaque);
+            let auth_handler = handler.clone();
+            let auth_peer = peer.clone();
+            tokio::task::spawn_blocking(move || {
+                auth_handler.authorize_data_write(&auth_peer, &presented, &remote)
+            })
+            .await
+            .map_err(|error| Status::internal(error.to_string()))?
+            .map_err(error_to_status)?;
+            let session = owner_rdma_session(
+                &self.rdma_sessions(operation)?,
+                peer.clone(),
+                &access,
+                plane.rdma_session_id,
+            )
+            .await?;
+            let rpc_guard = OwnerServerRdmaGuard::new(session.clone());
+            let started = std::time::Instant::now();
+            let reply = owner_rdma_write_from_client(session, handler, peer, request).await?;
+            if let Some(metrics) = &self.metrics {
+                metrics.observe("server", operation, started.elapsed());
+            }
+            rpc_guard.disarm();
+            return Ok(Response::new(reply));
+        } else if request.length as usize != request.data.len() {
+            return Err(coded_status(
+                afs_error::NODE_TRANSFER_INVALID,
+                "OwnerFiles inline write length/data mismatch",
+            ));
+        } else if !request.data_checksum.is_empty() {
+            verify_owner_checksum(&request.data, &request.data_checksum)?;
+        }
+        let started = std::time::Instant::now();
+        let reply = tokio::task::spawn_blocking(move || handler.write(&peer, request))
+            .await
+            .map_err(|error| {
+                coded_status(
+                    afs_error::CLIENT_WORKER_FAILED,
+                    format!("{operation} blocking worker failed: {error}"),
+                )
+            })?
+            .map_err(error_to_status)?;
+        if let Some(metrics) = &self.metrics {
+            metrics.observe("server", operation, started.elapsed());
+        }
+        Ok(Response::new(reply))
     }
 
     async fn flush(
@@ -3586,6 +4106,7 @@ mod tests {
                 mode: 0,
                 expected_file_identity: None,
                 kill_suidgid: false,
+                disable_prefetch: false,
             })
             .await
             .unwrap_err();

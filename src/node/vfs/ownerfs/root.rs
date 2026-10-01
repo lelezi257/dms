@@ -562,6 +562,27 @@ impl RootManager {
         authenticated_peer_node_id: &str,
         right: RootRight,
     ) -> Result<RootGrant> {
+        self.validate_peer_root_access_with_right(
+            presented,
+            authenticated_peer_node_id,
+            Some(right),
+        )
+    }
+
+    pub fn validate_peer_root_transport(
+        &self,
+        presented: &PresentedRootAccess,
+        authenticated_peer_node_id: &str,
+    ) -> Result<RootGrant> {
+        self.validate_peer_root_access_with_right(presented, authenticated_peer_node_id, None)
+    }
+
+    fn validate_peer_root_access_with_right(
+        &self,
+        presented: &PresentedRootAccess,
+        authenticated_peer_node_id: &str,
+        right: Option<RootRight>,
+    ) -> Result<RootGrant> {
         self.check_presented_shape(presented, authenticated_peer_node_id)?;
         if !self.control_valid.load(Ordering::Acquire) {
             return Err(unavailable_grant("Meta control session is invalid"));
@@ -588,7 +609,9 @@ impl RootManager {
             self.check_peer_not_fenced(&state, presented)?;
             if let Some(cached) = state.validated_peer_grants.get(&key) {
                 self.check_authoritative_matches_presented(cached, presented)?;
-                self.check_grant_right(cached, right)?;
+                if let Some(right) = right {
+                    self.check_grant_right(cached, right)?;
+                }
                 return Ok(cached.clone());
             }
         }
@@ -597,7 +620,9 @@ impl RootManager {
             .meta
             .validate_root_access(presented, authenticated_peer_node_id)?;
         self.check_authoritative_matches_presented(&authoritative, presented)?;
-        self.check_grant_right(&authoritative, right)?;
+        if let Some(right) = right {
+            self.check_grant_right(&authoritative, right)?;
+        }
 
         let mut state = root
             .state

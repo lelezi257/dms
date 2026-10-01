@@ -36,6 +36,8 @@ use tokio_stream::StreamExt;
 use afs_protocol::node_control::{
     CloseDataRequest, NegotiateDataRequest, node_control_client::NodeControlClient,
 };
+#[cfg(all(feature = "ownerfs", feature = "rdma"))]
+use afs_protocol::node_control::{OwnerCloseDataRequest, OwnerNegotiateDataRequest};
 #[cfg(feature = "ownerfs")]
 use afs_protocol::node_data::{
     DataPlane, FileIdentity as PbFileIdentity, OwnerCreateRequest, OwnerDirectoryHandle,
@@ -91,6 +93,8 @@ const RELEASE_MAX_ATTEMPTS: usize = 4;
 const RELEASE_INITIAL_BACKOFF: Duration = Duration::from_millis(2);
 #[cfg(feature = "ownerfs")]
 const RELEASE_MAX_BACKOFF: Duration = Duration::from_millis(20);
+#[cfg(feature = "ownerfs")]
+pub const OWNER_RDMA_MAX_CLIENT_WINDOWS: usize = 64;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum DataMode {
@@ -1047,11 +1051,13 @@ impl<'a> ReadFrameDecoder<'a> {
                     || completion.transferred_bytes != (active.end - active.start) as u64
                     || completion.range_checksum_algorithm
                         != afs_protocol::node_data::DfsDigestAlgorithm::Blake3 as i32
-                    || completion.range_checksum.as_slice() != active.checksum.finalize().as_bytes()
                 {
                     return Err(dfs_protocol_error(
-                        "peer read completion identity/length/checksum mismatch",
+                        "peer read completion identity/length mismatch",
                     ));
+                }
+                if completion.range_checksum.as_slice() != active.checksum.finalize().as_bytes() {
+                    return Err(dfs_corrupt_error("peer read completion checksum mismatch"));
                 }
                 self.completed[active.index] = true;
             }
@@ -1090,6 +1096,11 @@ fn wire_dfs_read_grant(grant: &crate::dfs::DfsReadGrant) -> PbDfsReadGrant {
 #[cfg(feature = "dfs")]
 fn dfs_protocol_error(message: impl Into<String>) -> afs_error::Error {
     afs_error::Error::coded(afs_error::CLIENT_PROTOCOL_VIOLATION, message)
+}
+
+#[cfg(feature = "dfs")]
+fn dfs_corrupt_error(message: impl Into<String>) -> afs_error::Error {
+    afs_error::Error::coded(afs_error::NODE_TRANSFER_CORRUPT_DATA, message)
 }
 
 #[cfg(feature = "dfs")]
@@ -1265,11 +1276,13 @@ fn validate_dfs_rdma_read_reply(
             || completion.transferred_bytes != op.length
             || completion.range_checksum_algorithm
                 != afs_protocol::node_data::DfsDigestAlgorithm::Blake3 as i32
-            || completion.range_checksum.as_slice() != blake3::hash(range).as_bytes()
         {
             return Err(dfs_protocol_error(
-                "RDMA read completion identity/length/checksum differs",
+                "RDMA read completion identity/length differs",
             ));
+        }
+        if completion.range_checksum.as_slice() != blake3::hash(range).as_bytes() {
+            return Err(dfs_corrupt_error("RDMA read completion checksum differs"));
         }
     }
     Ok(())
@@ -1913,7 +1926,11 @@ pub struct OwnerPeerClient {
     // removed at release and never reused for another open of the same path.
     prefetched_reads: StdMutex<HashMap<Vec<u8>, Vec<u8>>>,
     pending_releases: Arc<AtomicUsize>,
+    rdma_admission: Arc<tokio::sync::Semaphore>,
     metrics: Option<super::OwnerRpcMetrics>,
+    data_mode: DataMode,
+    rdma_device: Option<String>,
+    timeout: Duration,
 }
 
 /// Runtime used by synchronous OwnerFs/FUSE callbacks to drive async tonic RPCs.
@@ -1958,14 +1975,14 @@ impl OwnerRuntime {
 
 #[cfg(feature = "ownerfs")]
 pub async fn connect_owner_files_client(options: DataClientOptions) -> PeerResult<OwnerPeerClient> {
-    if options.mode != DataMode::Grpc {
-        return Err(PeerError::coded(
-            afs_error::NODE_TRANSFER_UNSUPPORTED,
-            "OwnerFiles currently supports only gRPC inline transfer",
-        ));
-    }
     let channel = connect_channel(&options.endpoint, options.timeout).await?;
-    Ok(owner_files_client_from_channel(channel))
+    Ok(
+        owner_files_client_from_channel(channel).with_data_transport(
+            options.mode,
+            options.rdma_device,
+            options.timeout,
+        ),
+    )
 }
 
 /// Build an OwnerFiles client from an already configured tonic channel.
@@ -1994,7 +2011,11 @@ pub fn owner_files_client_from_channel_result(channel: Channel) -> PeerResult<Ow
         runtime: OwnerRuntime::current_or_new()?,
         prefetched_reads: StdMutex::new(HashMap::new()),
         pending_releases: Arc::new(AtomicUsize::new(0)),
+        rdma_admission: Arc::new(tokio::sync::Semaphore::new(OWNER_RDMA_MAX_CLIENT_WINDOWS)),
         metrics: None,
+        data_mode: DataMode::Grpc,
+        rdma_device: None,
+        timeout: Duration::from_secs(5),
     })
 }
 
@@ -2024,7 +2045,11 @@ pub fn owner_files_client_from_channel_with_runtime_and_metrics(
         runtime: OwnerRuntime::Existing(runtime),
         prefetched_reads: StdMutex::new(HashMap::new()),
         pending_releases: Arc::new(AtomicUsize::new(0)),
+        rdma_admission: Arc::new(tokio::sync::Semaphore::new(OWNER_RDMA_MAX_CLIENT_WINDOWS)),
         metrics,
+        data_mode: DataMode::Grpc,
+        rdma_device: None,
+        timeout: Duration::from_secs(5),
     }
 }
 
@@ -2061,6 +2086,28 @@ impl OwnerPeerClient {
         self
     }
 
+    pub fn with_data_transport(
+        mut self,
+        mode: DataMode,
+        device: Option<String>,
+        timeout: Duration,
+    ) -> Self {
+        if mode != DataMode::Grpc
+            && let Ok(mut prefetched) = self.prefetched_reads.lock()
+        {
+            prefetched.clear();
+        }
+        self.data_mode = mode;
+        self.rdma_device = device;
+        self.timeout = timeout;
+        self
+    }
+
+    pub fn with_rdma_admission(mut self, admission: Arc<tokio::sync::Semaphore>) -> Self {
+        self.rdma_admission = admission;
+        self
+    }
+
     fn cloned_client(&self) -> PeerResult<OwnerFilesClient<Channel>> {
         Ok(self
             .client
@@ -2072,6 +2119,308 @@ impl OwnerPeerClient {
                 )
             })?
             .clone())
+    }
+
+    #[cfg(feature = "rdma")]
+    async fn negotiate_owner_rdma(&self, grant: &RootGrant) -> PeerResult<OwnerRdmaWindow> {
+        let device = self.rdma_device.clone().ok_or_else(|| {
+            PeerError::coded(
+                afs_error::NODE_TRANSFER_UNSUPPORTED,
+                "OwnerFiles RDMA requires rdma_device",
+            )
+        })?;
+        let permit = self
+            .rdma_admission
+            .clone()
+            .try_acquire_owned()
+            .map_err(|_| {
+                PeerError::coded(
+                    afs_error::NODE_RDMA_CAPACITY,
+                    "OwnerFiles RDMA client admission is full",
+                )
+            })?;
+        let (resource, info, capacity) = tokio::task::spawn_blocking(move || {
+            let mut endpoint = RdmaEndpoint::open(&device)?;
+            let info = endpoint.info()?.to_vec();
+            let capacity = endpoint.capacity();
+            let resource = OwnerRdmaEndpointResource {
+                endpoint,
+                _permit: permit,
+            };
+            Ok::<_, afs_transport::rdma::RdmaError>((resource, info, capacity))
+        })
+        .await
+        .map_err(|error| PeerError::coded(afs_error::CLIENT_WORKER_FAILED, error.to_string()))?
+        .map_err(owner_rdma_error)?;
+        let mut control = self.lock_control.clone();
+        let mut request = request_with_current_context(OwnerNegotiateDataRequest {
+            access: Some(root_access(grant)),
+            negotiation: Some(NegotiateDataRequest {
+                client_info: info,
+                capacity: capacity as u32,
+                handshake_version: RDMA_HANDSHAKE_VERSION,
+            }),
+        });
+        request.set_timeout(self.timeout);
+        let reply = control.owner_negotiate_data(request).await?.into_inner();
+        if !reply.rdma_supported {
+            if reply.session_id == 0
+                && reply.server_info.is_empty()
+                && reply.capacity == 0
+                && reply.handshake_version == RDMA_HANDSHAKE_VERSION
+            {
+                return Err(PeerError::coded(
+                    afs_error::NODE_TRANSFER_UNSUPPORTED,
+                    "OwnerFiles RDMA is not supported by peer",
+                ));
+            }
+            return Err(PeerError::coded(
+                afs_error::CLIENT_PROTOCOL_VIOLATION,
+                "OwnerFiles RDMA negotiation unsupported reply is malformed",
+            ));
+        }
+        let mut cleanup = OwnerRdmaCloseGuard {
+            control: control.clone(),
+            access: root_access(grant),
+            session_id: reply.session_id,
+            timeout: self.timeout,
+            armed: true,
+        };
+        if reply.session_id == 0
+            || reply.handshake_version != RDMA_HANDSHAKE_VERSION
+            || reply.capacity as usize != capacity
+        {
+            return Err(PeerError::coded(
+                afs_error::CLIENT_PROTOCOL_VIOLATION,
+                "OwnerFiles RDMA negotiation reply is invalid",
+            ));
+        }
+        let server_info = reply.server_info;
+        let resource = tokio::task::spawn_blocking(move || {
+            let mut resource = resource;
+            resource.endpoint.connect(&server_info)?;
+            resource.endpoint.send_probe(5000)?;
+            Ok::<_, afs_transport::rdma::RdmaError>(resource)
+        })
+        .await
+        .map_err(|error| PeerError::coded(afs_error::CLIENT_WORKER_FAILED, error.to_string()))?
+        .map_err(owner_rdma_error)?;
+        cleanup.armed = false;
+        Ok(OwnerRdmaWindow {
+            resource,
+            session_id: reply.session_id,
+            close: OwnerRdmaCloseGuard {
+                control,
+                access: root_access(grant),
+                session_id: reply.session_id,
+                timeout: self.timeout,
+                armed: true,
+            },
+        })
+    }
+
+    #[cfg(not(feature = "rdma"))]
+    async fn negotiate_owner_rdma(&self, _grant: &RootGrant) -> PeerResult<OwnerRdmaWindow> {
+        Err(PeerError::coded(
+            afs_error::NODE_TRANSFER_UNSUPPORTED,
+            "RDMA feature is not enabled",
+        ))
+    }
+
+    #[cfg(feature = "rdma")]
+    async fn owner_read_with_rdma_window(
+        &self,
+        window: OwnerRdmaWindow,
+        grant: &RootGrant,
+        file: &RemoteFile,
+        offset: u64,
+        out: &mut [u8],
+    ) -> PeerResult<usize> {
+        let OwnerRdmaWindow {
+            resource,
+            session_id,
+            mut close,
+        } = window;
+        let mut client = self.cloned_client()?;
+        let mut request = request_with_current_context(OwnerReadRequest {
+            access: Some(root_access(grant)),
+            handle: Some(file_handle(file)),
+            offset,
+            length: out.len() as u32,
+            plane: Some(rdma_plane(session_id)),
+        });
+        request.set_timeout(self.timeout);
+        let reply = client.read(request).await?.into_inner();
+        if !reply.data.is_empty() || reply.read as usize > out.len() {
+            return Err(PeerError::coded(
+                afs_error::CLIENT_PROTOCOL_VIOLATION,
+                "OwnerFiles RDMA read reply shape mismatch",
+            ));
+        }
+        let len = reply.read as usize;
+        let (resource_guard, bytes) = tokio::task::spawn_blocking(move || {
+            let mut resource = resource;
+            let bytes = resource.endpoint.get_local(len)?;
+            Ok::<_, afs_transport::rdma::RdmaError>((resource, bytes))
+        })
+        .await
+        .map_err(|error| PeerError::coded(afs_error::CLIENT_WORKER_FAILED, error.to_string()))?
+        .map_err(owner_rdma_error)?;
+        if blake3::hash(&bytes).as_bytes().as_slice() != reply.data_checksum.as_slice() {
+            return Err(PeerError::coded(
+                afs_error::NODE_TRANSFER_CORRUPT_DATA,
+                "OwnerFiles RDMA read checksum mismatch",
+            ));
+        }
+        out[..len].copy_from_slice(&bytes);
+        close.armed = false;
+        let _ = owner_close_rdma(close).await;
+        drop(resource_guard);
+        Ok(len)
+    }
+
+    #[cfg(not(feature = "rdma"))]
+    async fn owner_read_with_rdma_window(
+        &self,
+        _window: OwnerRdmaWindow,
+        _grant: &RootGrant,
+        _file: &RemoteFile,
+        _offset: u64,
+        _out: &mut [u8],
+    ) -> PeerResult<usize> {
+        Err(PeerError::coded(
+            afs_error::NODE_TRANSFER_UNSUPPORTED,
+            "RDMA feature is not enabled",
+        ))
+    }
+
+    #[cfg(feature = "rdma")]
+    async fn owner_write_with_rdma_window(
+        &self,
+        window: OwnerRdmaWindow,
+        grant: &RootGrant,
+        file: &RemoteFile,
+        offset: u64,
+        data: &[u8],
+        options: WriteOptions,
+    ) -> PeerResult<usize> {
+        let OwnerRdmaWindow {
+            resource,
+            session_id,
+            mut close,
+        } = window;
+        let payload = data.to_vec();
+        let checksum = blake3::hash(&payload).as_bytes().to_vec();
+        let resource_guard = tokio::task::spawn_blocking({
+            let payload = payload.clone();
+            move || {
+                let mut resource = resource;
+                resource.endpoint.put_local(&payload)?;
+                Ok::<_, afs_transport::rdma::RdmaError>(resource)
+            }
+        })
+        .await
+        .map_err(|error| PeerError::coded(afs_error::CLIENT_WORKER_FAILED, error.to_string()))?
+        .map_err(owner_rdma_error)?;
+        let mut client = self.cloned_client()?;
+        let mut request = request_with_current_context(OwnerWriteRequest {
+            access: Some(root_access(grant)),
+            handle: Some(file_handle(file)),
+            offset,
+            data: Vec::new(),
+            length: payload.len() as u32,
+            plane: Some(rdma_plane(session_id)),
+            kill_suidgid: options.kill_suidgid,
+            data_checksum: checksum,
+        });
+        request.set_timeout(self.timeout);
+        let reply = client.write(request).await?.into_inner();
+        if reply.written as usize > payload.len() {
+            return Err(PeerError::coded(
+                afs_error::CLIENT_PROTOCOL_VIOLATION,
+                "OwnerFiles RDMA write count exceeds request length",
+            ));
+        }
+        close.armed = false;
+        let _ = owner_close_rdma(close).await;
+        drop(resource_guard);
+        Ok(reply.written as usize)
+    }
+
+    #[cfg(not(feature = "rdma"))]
+    async fn owner_write_with_rdma_window(
+        &self,
+        _window: OwnerRdmaWindow,
+        _grant: &RootGrant,
+        _file: &RemoteFile,
+        _offset: u64,
+        _data: &[u8],
+        _options: WriteOptions,
+    ) -> PeerResult<usize> {
+        Err(PeerError::coded(
+            afs_error::NODE_TRANSFER_UNSUPPORTED,
+            "RDMA feature is not enabled",
+        ))
+    }
+}
+
+#[cfg(feature = "ownerfs")]
+struct OwnerRdmaWindow {
+    #[cfg(feature = "rdma")]
+    resource: OwnerRdmaEndpointResource,
+    #[cfg(feature = "rdma")]
+    session_id: u64,
+    #[cfg(feature = "rdma")]
+    close: OwnerRdmaCloseGuard,
+}
+
+#[cfg(all(feature = "ownerfs", feature = "rdma"))]
+struct OwnerRdmaEndpointResource {
+    endpoint: RdmaEndpoint,
+    _permit: tokio::sync::OwnedSemaphorePermit,
+}
+
+#[cfg(all(feature = "ownerfs", feature = "rdma"))]
+struct OwnerRdmaCloseGuard {
+    control: afs_protocol::node_control::node_control_client::NodeControlClient<Channel>,
+    access: RootAccess,
+    session_id: u64,
+    timeout: Duration,
+    armed: bool,
+}
+
+#[cfg(all(feature = "ownerfs", feature = "rdma"))]
+async fn owner_close_rdma(mut close: OwnerRdmaCloseGuard) -> PeerResult<()> {
+    let mut request = request_with_current_context(OwnerCloseDataRequest {
+        access: Some(close.access.clone()),
+        session_id: close.session_id,
+    });
+    request.set_timeout(close.timeout);
+    close.control.owner_close_data(request).await?;
+    close.armed = false;
+    Ok(())
+}
+
+#[cfg(all(feature = "ownerfs", feature = "rdma"))]
+impl Drop for OwnerRdmaCloseGuard {
+    fn drop(&mut self) {
+        if !self.armed {
+            return;
+        }
+        if let Ok(handle) = tokio::runtime::Handle::try_current() {
+            let mut control = self.control.clone();
+            let access = self.access.clone();
+            let session_id = self.session_id;
+            let timeout = self.timeout;
+            handle.spawn(async move {
+                let mut request = request_with_current_context(OwnerCloseDataRequest {
+                    access: Some(access),
+                    session_id,
+                });
+                request.set_timeout(timeout);
+                let _ = control.owner_close_data(request).await;
+            });
+        }
     }
 }
 
@@ -2627,6 +2976,7 @@ impl RemoteFiles for OwnerPeerClient {
                 mode: 0,
                 expected_file_identity: expected_identity.map(file_identity),
                 kill_suidgid: options.kill_suidgid,
+                disable_prefetch: self.data_mode != DataMode::Grpc,
             }
         );
         let identity = reply
@@ -2640,7 +2990,9 @@ impl RemoteFiles for OwnerPeerClient {
                 .attr
                 .ok_or_else(|| protocol_error("OwnerOpenReply missing attr"))?,
         )?;
-        if let Some(bytes) = reply.prefetched_data {
+        if self.data_mode == DataMode::Grpc
+            && let Some(bytes) = reply.prefetched_data
+        {
             self.prefetched_reads
                 .lock()
                 .map_err(|_| protocol_error("OwnerFiles prefetch cache lock poisoned"))?
@@ -2729,11 +3081,12 @@ impl RemoteFiles for OwnerPeerClient {
         out: &mut [u8],
     ) -> afs_error::Result<usize> {
         validate_length(out.len()).map_err(|error| error.0)?;
-        if let Some(bytes) = self
-            .prefetched_reads
-            .lock()
-            .map_err(|_| protocol_error("OwnerFiles prefetch cache lock poisoned"))?
-            .get(&file.handle)
+        if self.data_mode == DataMode::Grpc
+            && let Some(bytes) = self
+                .prefetched_reads
+                .lock()
+                .map_err(|_| protocol_error("OwnerFiles prefetch cache lock poisoned"))?
+                .get(&file.handle)
         {
             let start = usize::try_from(offset)
                 .unwrap_or(usize::MAX)
@@ -2741,6 +3094,31 @@ impl RemoteFiles for OwnerPeerClient {
             let end = start.saturating_add(out.len()).min(bytes.len());
             out[..end - start].copy_from_slice(&bytes[start..end]);
             return Ok(end - start);
+        }
+        if !out.is_empty() && matches!(self.data_mode, DataMode::Rdma | DataMode::Auto) {
+            let negotiated = self.runtime.block_on(self.negotiate_owner_rdma(grant));
+            match (self.data_mode, negotiated) {
+                (_, Ok(window)) => {
+                    return self
+                        .runtime
+                        .block_on(
+                            self.owner_read_with_rdma_window(window, grant, file, offset, out),
+                        )
+                        .map_err(|error| error.0);
+                }
+                (DataMode::Rdma, Err(error)) => return Err(error.0),
+                (DataMode::Auto, Err(error))
+                    if error.code() == afs_error::NODE_TRANSFER_UNSUPPORTED =>
+                {
+                    afs_logging::warn!(
+                        "ownerfs.rdma_read_fallback";
+                        "code" => error.code().to_string(),
+                        "error" => error.to_string()
+                    );
+                }
+                (DataMode::Auto, Err(error)) => return Err(error.0),
+                (DataMode::Grpc, _) => unreachable!("checked above"),
+            }
         }
         let length = out.len();
         let reply = owner_rpc!(
@@ -2757,6 +3135,14 @@ impl RemoteFiles for OwnerPeerClient {
         if reply.read as usize != reply.data.len() || reply.data.len() > length {
             return Err(protocol_error("OwnerReadReply shape mismatch"));
         }
+        if !reply.data_checksum.is_empty()
+            && blake3::hash(&reply.data).as_bytes().as_slice() != reply.data_checksum.as_slice()
+        {
+            return Err(afs_error::Error::coded(
+                afs_error::NODE_TRANSFER_CORRUPT_DATA,
+                "OwnerReadReply checksum mismatch",
+            ));
+        }
         out[..reply.data.len()].copy_from_slice(&reply.data);
         Ok(reply.data.len())
     }
@@ -2770,6 +3156,31 @@ impl RemoteFiles for OwnerPeerClient {
         options: WriteOptions,
     ) -> afs_error::Result<usize> {
         validate_length(data.len()).map_err(|error| error.0)?;
+        if !data.is_empty() && matches!(self.data_mode, DataMode::Rdma | DataMode::Auto) {
+            let negotiated = self.runtime.block_on(self.negotiate_owner_rdma(grant));
+            match (self.data_mode, negotiated) {
+                (_, Ok(window)) => {
+                    return self
+                        .runtime
+                        .block_on(self.owner_write_with_rdma_window(
+                            window, grant, file, offset, data, options,
+                        ))
+                        .map_err(|error| error.0);
+                }
+                (DataMode::Rdma, Err(error)) => return Err(error.0),
+                (DataMode::Auto, Err(error))
+                    if error.code() == afs_error::NODE_TRANSFER_UNSUPPORTED =>
+                {
+                    afs_logging::warn!(
+                        "ownerfs.rdma_write_fallback";
+                        "code" => error.code().to_string(),
+                        "error" => error.to_string()
+                    );
+                }
+                (DataMode::Auto, Err(error)) => return Err(error.0),
+                (DataMode::Grpc, _) => unreachable!("checked above"),
+            }
+        }
         let len = data.len();
         let reply = owner_rpc!(
             self,
@@ -2782,8 +3193,18 @@ impl RemoteFiles for OwnerPeerClient {
                 length: len as u32,
                 plane: Some(grpc_plane()),
                 kill_suidgid: options.kill_suidgid,
+                data_checksum: if data.is_empty() {
+                    Vec::new()
+                } else {
+                    blake3::hash(data).as_bytes().to_vec()
+                },
             }
         );
+        if reply.written as usize > len {
+            return Err(protocol_error(
+                "OwnerWriteReply count exceeds request length",
+            ));
+        }
         Ok(reply.written as usize)
     }
 
@@ -3472,6 +3893,15 @@ fn grpc_plane() -> DataPlane {
     }
 }
 
+#[cfg(all(feature = "ownerfs", feature = "rdma"))]
+fn rdma_plane(session_id: u64) -> DataPlane {
+    DataPlane {
+        transfer: DataTransfer::RdmaOneSided.into(),
+        rdma_session_id: session_id,
+        buffer_offset: 0,
+    }
+}
+
 #[cfg(feature = "ownerfs")]
 fn owner_special_node(kind: SpecialFileKind) -> afs_protocol::node_data::OwnerSpecialNode {
     let (kind, rdev) = match kind {
@@ -3640,6 +4070,11 @@ fn validate_open(closed: bool, poisoned: &AtomicBool) -> PeerResult<()> {
         ));
     }
     Ok(())
+}
+
+#[cfg(all(feature = "ownerfs", feature = "rdma"))]
+fn owner_rdma_error(error: afs_transport::rdma::RdmaError) -> PeerError {
+    PeerError::coded(afs_error::NODE_TRANSFER_UNAVAILABLE, error.to_string())
 }
 
 #[cfg(feature = "rdma")]
@@ -3846,6 +4281,36 @@ mod tests {
         assert_eq!(handler.attempts(), 1);
         assert_eq!(handler.seen_handles(), vec![b"handle-stale".to_vec()]);
         server.abort();
+    }
+
+    #[cfg(all(feature = "ownerfs", feature = "rdma"))]
+    #[tokio::test]
+    async fn owner_rdma_client_admission_rejects_before_endpoint_open() {
+        let channel = Endpoint::from_static("http://127.0.0.1:1").connect_lazy();
+        let client = owner_files_client_from_channel(channel)
+            .with_data_transport(
+                DataMode::Rdma,
+                Some("__afs_rdma_must_not_open__".to_owned()),
+                Duration::from_millis(1),
+            )
+            .with_rdma_admission(Arc::new(tokio::sync::Semaphore::new(0)));
+        let grant = RootGrant {
+            id: RootId("job-admission".to_owned()),
+            epoch: 1,
+            home_node_id: "node-a".to_owned(),
+            home_session_id: "home-session".to_owned(),
+            holder_node_id: "node-b".to_owned(),
+            session_id: "grant-session".to_owned(),
+            access_generation: 1,
+            rights: vec![RootRight::Read, RootRight::Write],
+            fencing_token: "fence".to_owned(),
+        };
+
+        let error = match client.negotiate_owner_rdma(&grant).await {
+            Ok(_) => panic!("zero client admission must fail before opening an endpoint"),
+            Err(error) => error,
+        };
+        assert_eq!(error.code(), afs_error::NODE_RDMA_CAPACITY);
     }
 
     #[cfg(feature = "rdma")]
@@ -4144,7 +4609,12 @@ mod tests {
             let mut decoder = ReadFrameDecoder::new(&request);
             decoder.accept(frames.remove(0), &mut out).unwrap();
             decoder.accept(frames.remove(0), &mut out).unwrap();
-            assert!(decoder.accept(frames.remove(0), &mut out).is_err());
+            let error = decoder.accept(frames.remove(0), &mut out).unwrap_err();
+            if malformed == 2 {
+                assert_eq!(error.code(), afs_error::NODE_TRANSFER_CORRUPT_DATA);
+            } else {
+                assert_eq!(error.code(), afs_error::CLIENT_PROTOCOL_VIOLATION);
+            }
         }
     }
 
@@ -4228,16 +4698,36 @@ mod dfs_rdma_tests {
             }],
         };
         validate_dfs_rdma_read_reply(&request, &reply, b"abc").unwrap();
-        assert!(validate_dfs_rdma_read_reply(&request, &reply, b"abd").is_err());
+        assert_eq!(
+            validate_dfs_rdma_read_reply(&request, &reply, b"abd")
+                .unwrap_err()
+                .code(),
+            afs_error::NODE_TRANSFER_CORRUPT_DATA
+        );
         let mut wrong = reply.clone();
         wrong.attempt_id = "another".into();
-        assert!(validate_dfs_rdma_read_reply(&request, &wrong, b"abc").is_err());
+        assert_eq!(
+            validate_dfs_rdma_read_reply(&request, &wrong, b"abc")
+                .unwrap_err()
+                .code(),
+            afs_error::CLIENT_PROTOCOL_VIOLATION
+        );
         let mut wrong = reply.clone();
         wrong.completions[0].source_copy_id = "another".into();
-        assert!(validate_dfs_rdma_read_reply(&request, &wrong, b"abc").is_err());
+        assert_eq!(
+            validate_dfs_rdma_read_reply(&request, &wrong, b"abc")
+                .unwrap_err()
+                .code(),
+            afs_error::CLIENT_PROTOCOL_VIOLATION
+        );
         let mut wrong = reply;
         wrong.completions[0].transferred_bytes = 2;
-        assert!(validate_dfs_rdma_read_reply(&request, &wrong, b"abc").is_err());
+        assert_eq!(
+            validate_dfs_rdma_read_reply(&request, &wrong, b"abc")
+                .unwrap_err()
+                .code(),
+            afs_error::CLIENT_PROTOCOL_VIOLATION
+        );
     }
 
     #[test]

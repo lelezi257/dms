@@ -556,6 +556,7 @@ message OwnerOpenRequest {
   uint32 mode = 4;
   FileIdentity expected_file_identity = 5;
   bool kill_suidgid = 6;
+  bool disable_prefetch = 7;
 }
 
 message OwnerOpenReply {
@@ -590,6 +591,7 @@ message OwnerReadReply {
   bytes data = 1;
   uint32 read = 2;
   bool eof = 3;
+  bytes data_checksum = 4;
 }
 
 message OwnerWriteRequest {
@@ -600,6 +602,7 @@ message OwnerWriteRequest {
   uint32 length = 5;
   DataPlane plane = 6;
   bool kill_suidgid = 7;
+  bytes data_checksum = 8;
 }
 
 message OwnerWriteReply {

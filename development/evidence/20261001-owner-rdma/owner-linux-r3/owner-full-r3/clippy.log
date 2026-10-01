@@ -1,0 +1,90 @@
+   Compiling afs-protocol v0.1.0 (/home/lzc.guest/afs-build/work/owner-rdma-v71/common/protocol)
+    Checking afs-transport v0.1.0 (/home/lzc.guest/afs-build/work/owner-rdma-v71/common/transport)
+    Checking afs-client v0.1.0 (/home/lzc.guest/afs-build/work/owner-rdma-v71/client)
+    Checking afs v0.1.0 (/home/lzc.guest/afs-build/work/owner-rdma-v71)
+error: using `clone` on type `Option<DataPlane>` which implements the `Copy` trait
+    --> src/node/rpc/data.rs:3500:38
+     |
+3500 |         let plane = owner_data_plane(request.plane.clone())?;
+     |                                      ^^^^^^^^^^^^^^^^^^^^^ help: try removing the `clone` call: `request.plane`
+     |
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.95.0/index.html#clone_on_copy
+     = note: `-D clippy::clone-on-copy` implied by `-D clippy::all`
+     = help: to override `-D clippy::all` add `#[allow(clippy::clone_on_copy)]`
+
+error: using `clone` on type `Option<DataPlane>` which implements the `Copy` trait
+    --> src/node/rpc/data.rs:3592:38
+     |
+3592 |         let plane = owner_data_plane(request.plane.clone())?;
+     |                                      ^^^^^^^^^^^^^^^^^^^^^ help: try removing the `clone` call: `request.plane`
+     |
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.95.0/index.html#clone_on_copy
+
+error: this `if` statement can be collapsed
+    --> src/node/rpc/peer.rs:2095:9
+     |
+2095 | /         if mode != DataMode::Grpc {
+2096 | |             if let Ok(mut prefetched) = self.prefetched_reads.lock() {
+2097 | |                 prefetched.clear();
+2098 | |             }
+2099 | |         }
+     | |_________^
+     |
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.95.0/index.html#collapsible_if
+     = note: `-D clippy::collapsible-if` implied by `-D clippy::all`
+     = help: to override `-D clippy::all` add `#[allow(clippy::collapsible_if)]`
+help: collapse nested if block
+     |
+2095 ~         if mode != DataMode::Grpc
+2096 ~             && let Ok(mut prefetched) = self.prefetched_reads.lock() {
+2097 |                 prefetched.clear();
+2098 ~             }
+     |
+
+error: this `if` statement can be collapsed
+    --> src/node/rpc/peer.rs:2993:9
+     |
+2993 | /         if self.data_mode == DataMode::Grpc {
+2994 | |             if let Some(bytes) = reply.prefetched_data {
+2995 | |                 self.prefetched_reads
+2996 | |                     .lock()
+...    |
+3000 | |         }
+     | |_________^
+     |
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.95.0/index.html#collapsible_if
+help: collapse nested if block
+     |
+2993 ~         if self.data_mode == DataMode::Grpc
+2994 ~             && let Some(bytes) = reply.prefetched_data {
+2995 |                 self.prefetched_reads
+ ...
+2998 |                     .insert(handle.opaque.clone(), bytes);
+2999 ~             }
+     |
+
+error: this `if` statement can be collapsed
+    --> src/node/rpc/peer.rs:3084:9
+     |
+3084 | /         if self.data_mode == DataMode::Grpc {
+3085 | |             if let Some(bytes) = self
+3086 | |                 .prefetched_reads
+3087 | |                 .lock()
+...    |
+3098 | |         }
+     | |_________^
+     |
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.95.0/index.html#collapsible_if
+help: collapse nested if block
+     |
+3084 ~         if self.data_mode == DataMode::Grpc
+3085 ~             && let Some(bytes) = self
+3086 |                 .prefetched_reads
+ ...
+3096 |                 return Ok(end - start);
+3097 ~             }
+     |
+
+error: could not compile `afs` (lib) due to 5 previous errors
+warning: build failed, waiting for other jobs to finish...
+error: could not compile `afs` (lib test) due to 5 previous errors

@@ -7,6 +7,12 @@ use std::{
     time::Duration,
 };
 
+#[cfg(feature = "rdma")]
+use afs::node::rpc::{
+    control::{RDMA_HANDSHAKE_VERSION, RdmaSessionRegistry},
+    data::{OwnerFilesHandler, OwnerFilesService},
+    peer::DataMode as ClientDataMode,
+};
 use afs::node::{
     rpc::{
         data::{
@@ -30,11 +36,24 @@ use afs::node::{
         types::{BackendInode, RenameFlags, RequestContext},
     },
 };
+#[cfg(feature = "rdma")]
+use afs_protocol::node_control::{
+    NegotiateDataRequest, OwnerCloseDataRequest, OwnerNegotiateDataRequest,
+    node_control_client::NodeControlClient,
+};
 use afs_protocol::node_data::{
-    FileIdentity, OwnerCaller, OwnerCreateRequest, OwnerLookupRequest, OwnerOpenRequest,
-    OwnerReleaseRequest, OwnerRenameRequest, OwnerRmdirRequest, OwnerUnlinkRequest, RootAccess,
+    DataPlane, DataTransfer, FileIdentity, OwnerCaller, OwnerCreateRequest, OwnerGetAttrRequest,
+    OwnerLookupRequest, OwnerOpenRequest, OwnerReadRequest, OwnerReleaseRequest,
+    OwnerRenameRequest, OwnerRmdirRequest, OwnerUnlinkRequest, OwnerWriteRequest, RootAccess,
     owner_files_client::OwnerFilesClient,
 };
+#[cfg(feature = "rdma")]
+use afs_protocol::node_data::{
+    OwnerFileAttr, OwnerFileKind, OwnerFsyncRequest, OwnerHandle, OwnerOpenReply, OwnerReadReply,
+    owner_files_server::OwnerFilesServer,
+};
+#[cfg(feature = "rdma")]
+use afs_transport::rdma::RdmaEndpoint;
 use tokio::net::TcpListener;
 use tokio_stream::wrappers::TcpListenerStream;
 use tonic::{
@@ -166,9 +185,17 @@ zNEGIq4pivkTMT3xJGFmgGqs
 struct ContractMeta {
     active: Mutex<Option<RootGrant>>,
     validate_calls: Mutex<usize>,
+    block_on_validation: bool,
 }
 
 impl ContractMeta {
+    fn with_block_on_validation() -> Self {
+        Self {
+            block_on_validation: true,
+            ..Self::default()
+        }
+    }
+
     fn grant_for(&self, holder: &str, session: &str, right: RootRight) -> RootGrant {
         let active = self
             .active
@@ -277,6 +304,9 @@ impl RootMeta for ContractMeta {
     ) -> afs_error::Result<RootGrant> {
         assert_eq!(authenticated_peer_node_id, "node-b");
         assert_eq!(presented.holder_node_id, "node-b");
+        if self.block_on_validation {
+            tokio::runtime::Handle::current().block_on(async {});
+        }
         *self.validate_calls.lock().unwrap() += 1;
         Ok(self.grant_for(
             &presented.holder_node_id,
@@ -315,6 +345,1111 @@ impl PeerAuthenticator for RequireMtlsNodeB {
         }
         Ok("node-b".to_owned())
     }
+}
+
+#[cfg(feature = "rdma")]
+struct OwnerRdmaFixture {
+    _temp: tempfile::TempDir,
+    meta: Arc<ContractMeta>,
+    ctx: RequestContext,
+    grant: RootGrant,
+    channel: Channel,
+    server: tokio::task::JoinHandle<()>,
+}
+
+#[cfg(feature = "rdma")]
+fn rdma_device() -> Option<String> {
+    std::env::var("AFS_TEST_RDMA_DEVICE")
+        .ok()
+        .filter(|value| !value.is_empty())
+}
+
+#[cfg(feature = "rdma")]
+fn owner_payload(len: usize) -> Vec<u8> {
+    (0..len)
+        .map(|index| ((index.wrapping_mul(37).wrapping_add(index / 251)) & 0xff) as u8)
+        .collect()
+}
+
+#[cfg(feature = "rdma")]
+async fn owner_rdma_fixture(device: Option<String>, root_name: &str) -> OwnerRdmaFixture {
+    owner_rdma_fixture_with_authority(device, root_name, ContractMeta::default()).await
+}
+
+#[cfg(feature = "rdma")]
+async fn owner_rdma_fixture_with_authority(
+    device: Option<String>,
+    root_name: &str,
+    authority: ContractMeta,
+) -> OwnerRdmaFixture {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let disk = Arc::new(LocalFs::open(temp.path()).expect("localfs"));
+    let meta = Arc::new(authority);
+    let roots = Arc::new(RootManager::new(
+        "node-a".to_owned(),
+        "session-a".to_owned(),
+        meta.clone(),
+        disk.clone(),
+    ));
+    let fs = Arc::new(OwnerFs::new_local(roots, disk));
+    let ctx = RequestContext {
+        uid: temp.path().metadata().expect("fixture metadata").uid(),
+        gid: temp.path().metadata().expect("fixture metadata").gid(),
+        pid: 42,
+        umask: 0,
+        supplementary_gids: Vec::new(),
+    };
+    let owner_root = BackendInode { value: 1 };
+    fs.mkdir(&ctx, owner_root, OsStr::new(root_name), 0o755)
+        .expect("create home root");
+    let root_id = root_id_from_name(OsStr::new(root_name)).expect("root id");
+    let grant = meta
+        .acquire_root(&root_id, RootRight::Write)
+        .expect("remote grant");
+
+    let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind");
+    let endpoint = format!(
+        "https://localhost:{}",
+        listener.local_addr().unwrap().port()
+    );
+    let executor = fs.peer_executor().expect("peer executor");
+    let authenticator = Arc::new(RequireMtlsNodeB);
+    let rdma_registry = RdmaSessionRegistry::new(device);
+    let control = afs::node::rpc::control::NodeControlService::new(RdmaSessionRegistry::new(None))
+        .with_owner_locks(executor.clone(), authenticator.clone())
+        .with_owner_rdma_registry(rdma_registry.clone())
+        .into_server();
+    let handler = make_owner_files_handler(executor);
+    let owner_files = OwnerFilesServer::new(
+        OwnerFilesService::new(handler, authenticator).with_rdma_registry(rdma_registry),
+    );
+    let server_tls = ServerTlsConfig::new()
+        .client_ca_root(Certificate::from_pem(CA_PEM))
+        .identity(Identity::from_pem(SERVER_CERT_PEM, SERVER_KEY_PEM));
+    let server = tokio::spawn(async move {
+        Server::builder()
+            .tls_config(server_tls)
+            .expect("server tls")
+            .add_service(control)
+            .add_service(owner_files)
+            .serve_with_incoming(TcpListenerStream::new(listener))
+            .await
+            .expect("owner RDMA files server");
+    });
+
+    let client_tls = ClientTlsConfig::new()
+        .ca_certificate(Certificate::from_pem(CA_PEM))
+        .identity(Identity::from_pem(CLIENT_CERT_PEM, CLIENT_KEY_PEM))
+        .domain_name("localhost");
+    let channel: Channel = Endpoint::from_shared(endpoint)
+        .expect("endpoint")
+        .timeout(Duration::from_secs(10))
+        .tls_config(client_tls)
+        .expect("client tls")
+        .connect()
+        .await
+        .expect("connect");
+
+    OwnerRdmaFixture {
+        _temp: temp,
+        meta,
+        ctx,
+        grant,
+        channel,
+        server,
+    }
+}
+
+#[cfg(feature = "rdma")]
+#[derive(Default)]
+struct PrefetchDespiteDisableHandler {
+    open_disable_prefetch: Mutex<Vec<bool>>,
+    read_calls: Mutex<usize>,
+}
+
+#[cfg(feature = "rdma")]
+impl OwnerFilesHandler for PrefetchDespiteDisableHandler {
+    fn open(
+        &self,
+        authenticated_peer_node_id: &str,
+        request: OwnerOpenRequest,
+    ) -> afs_error::Result<OwnerOpenReply> {
+        assert_eq!(authenticated_peer_node_id, "node-b");
+        self.open_disable_prefetch
+            .lock()
+            .unwrap()
+            .push(request.disable_prefetch);
+        let identity = FileIdentity {
+            opaque: b"prefetch-identity".to_vec(),
+        };
+        Ok(OwnerOpenReply {
+            handle: Some(OwnerHandle {
+                opaque: b"prefetch-handle".to_vec(),
+            }),
+            file_identity: Some(identity.clone()),
+            owner_session_id: "owner-session-prefetch".to_owned(),
+            attr: Some(OwnerFileAttr {
+                identity: Some(identity),
+                kind: OwnerFileKind::Regular.into(),
+                mode: 0o644,
+                uid: 1,
+                gid: 1,
+                size: 6,
+                blocks: 1,
+                atime_ns: 0,
+                mtime_ns: 0,
+                ctime_ns: 0,
+                nlink: 1,
+                blksize: 4096,
+                special_node: None,
+            }),
+            prefetched_data: Some(b"cached".to_vec()),
+        })
+    }
+
+    fn read(
+        &self,
+        authenticated_peer_node_id: &str,
+        _request: OwnerReadRequest,
+    ) -> afs_error::Result<OwnerReadReply> {
+        assert_eq!(authenticated_peer_node_id, "node-b");
+        *self.read_calls.lock().unwrap() += 1;
+        Ok(OwnerReadReply {
+            data: b"cached".to_vec(),
+            read: 6,
+            eof: true,
+            data_checksum: blake3::hash(b"cached").as_bytes().to_vec(),
+        })
+    }
+}
+
+#[cfg(feature = "rdma")]
+async fn prefetch_despite_disable_server(
+    handler: Arc<PrefetchDespiteDisableHandler>,
+) -> (Channel, tokio::task::JoinHandle<()>) {
+    let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind");
+    let endpoint = format!(
+        "https://localhost:{}",
+        listener.local_addr().unwrap().port()
+    );
+    let server_tls = ServerTlsConfig::new()
+        .client_ca_root(Certificate::from_pem(CA_PEM))
+        .identity(Identity::from_pem(SERVER_CERT_PEM, SERVER_KEY_PEM));
+    let service_handler: Arc<dyn OwnerFilesHandler> = handler;
+    let owner_files = OwnerFilesServer::new(OwnerFilesService::new(
+        service_handler,
+        Arc::new(RequireMtlsNodeB),
+    ));
+    let server = tokio::spawn(async move {
+        Server::builder()
+            .tls_config(server_tls)
+            .expect("server tls")
+            .add_service(owner_files)
+            .serve_with_incoming(TcpListenerStream::new(listener))
+            .await
+            .expect("prefetch OwnerFiles server");
+    });
+
+    let client_tls = ClientTlsConfig::new()
+        .ca_certificate(Certificate::from_pem(CA_PEM))
+        .identity(Identity::from_pem(CLIENT_CERT_PEM, CLIENT_KEY_PEM))
+        .domain_name("localhost");
+    let channel = Endpoint::from_shared(endpoint)
+        .expect("endpoint")
+        .timeout(Duration::from_secs(10))
+        .tls_config(client_tls)
+        .expect("client tls")
+        .connect()
+        .await
+        .expect("connect");
+    (channel, server)
+}
+
+#[cfg(feature = "rdma")]
+fn prefetch_test_grant() -> RootGrant {
+    RootGrant {
+        id: RootId("job-prefetch-trust".to_owned()),
+        epoch: 1,
+        home_node_id: "node-a".to_owned(),
+        home_session_id: "home-session".to_owned(),
+        holder_node_id: "node-b".to_owned(),
+        session_id: "grant-session".to_owned(),
+        access_generation: 1,
+        rights: vec![RootRight::Lookup, RootRight::Read],
+        fencing_token: "fence".to_owned(),
+    }
+}
+
+#[cfg(feature = "rdma")]
+async fn negotiate_owner_rdma_window(
+    channel: Channel,
+    access: RootAccess,
+    device: String,
+) -> (RdmaEndpoint, u64) {
+    let mut endpoint = tokio::task::spawn_blocking(move || RdmaEndpoint::open(&device))
+        .await
+        .expect("open RDMA endpoint worker")
+        .expect("open RDMA endpoint");
+    let client_info = endpoint.info().expect("client RDMA info").to_vec();
+    let capacity = endpoint.capacity();
+    let mut control = NodeControlClient::new(channel);
+    let reply = control
+        .owner_negotiate_data(tonic::Request::new(OwnerNegotiateDataRequest {
+            access: Some(access),
+            negotiation: Some(NegotiateDataRequest {
+                client_info,
+                capacity: capacity as u32,
+                handshake_version: RDMA_HANDSHAKE_VERSION,
+            }),
+        }))
+        .await
+        .expect("Owner RDMA negotiate")
+        .into_inner();
+    assert!(
+        reply.rdma_supported,
+        "Owner RDMA negotiation did not enable RDMA"
+    );
+    assert_ne!(reply.session_id, 0);
+    assert_eq!(reply.handshake_version, RDMA_HANDSHAKE_VERSION);
+    assert_eq!(reply.capacity as usize, capacity);
+    endpoint = tokio::task::spawn_blocking(move || {
+        endpoint.connect(&reply.server_info)?;
+        endpoint.send_probe(5000)?;
+        Ok::<_, afs_transport::rdma::RdmaError>(endpoint)
+    })
+    .await
+    .expect("connect RDMA endpoint worker")
+    .expect("connect RDMA endpoint");
+    (endpoint, reply.session_id)
+}
+
+#[cfg(feature = "rdma")]
+async fn close_owner_rdma_window(channel: Channel, access: RootAccess, session_id: u64) {
+    NodeControlClient::new(channel)
+        .owner_close_data(tonic::Request::new(OwnerCloseDataRequest {
+            access: Some(access),
+            session_id,
+        }))
+        .await
+        .expect("close Owner RDMA window");
+}
+
+#[cfg(feature = "rdma")]
+async fn owner_rdma_write_window(
+    raw: &mut OwnerFilesClient<Channel>,
+    control_channel: Channel,
+    access: RootAccess,
+    handle: afs_protocol::node_data::OwnerHandle,
+    offset: u64,
+    data: &[u8],
+    device: String,
+) {
+    let (mut endpoint, session_id) =
+        negotiate_owner_rdma_window(control_channel.clone(), access.clone(), device).await;
+    let payload = data.to_vec();
+    let _endpoint = tokio::task::spawn_blocking({
+        let payload = payload.clone();
+        move || {
+            endpoint.put_local(&payload)?;
+            Ok::<_, afs_transport::rdma::RdmaError>(endpoint)
+        }
+    })
+    .await
+    .expect("stage Owner RDMA write worker")
+    .expect("stage Owner RDMA write payload");
+    let reply = raw
+        .write(OwnerWriteRequest {
+            access: Some(access.clone()),
+            handle: Some(handle),
+            offset,
+            data: Vec::new(),
+            length: payload.len() as u32,
+            plane: Some(DataPlane {
+                transfer: DataTransfer::RdmaOneSided.into(),
+                rdma_session_id: session_id,
+                buffer_offset: 0,
+            }),
+            kill_suidgid: false,
+            data_checksum: blake3::hash(&payload).as_bytes().to_vec(),
+        })
+        .await
+        .expect("Owner RDMA write RPC")
+        .into_inner();
+    assert_eq!(reply.written as usize, payload.len());
+    close_owner_rdma_window(control_channel, access, session_id).await;
+}
+
+#[cfg(feature = "rdma")]
+async fn owner_rdma_read_window(
+    raw: &mut OwnerFilesClient<Channel>,
+    control_channel: Channel,
+    access: RootAccess,
+    handle: afs_protocol::node_data::OwnerHandle,
+    offset: u64,
+    length: usize,
+    device: String,
+) -> (Vec<u8>, bool) {
+    let (mut endpoint, session_id) =
+        negotiate_owner_rdma_window(control_channel.clone(), access.clone(), device).await;
+    let reply = raw
+        .read(OwnerReadRequest {
+            access: Some(access.clone()),
+            handle: Some(handle),
+            offset,
+            length: length as u32,
+            plane: Some(DataPlane {
+                transfer: DataTransfer::RdmaOneSided.into(),
+                rdma_session_id: session_id,
+                buffer_offset: 0,
+            }),
+        })
+        .await
+        .expect("Owner RDMA read RPC")
+        .into_inner();
+    assert!(
+        reply.data.is_empty(),
+        "RDMA read must not return inline data"
+    );
+    assert!(reply.read as usize <= length);
+    let read_len = reply.read as usize;
+    let bytes = tokio::task::spawn_blocking(move || endpoint.get_local(read_len))
+        .await
+        .expect("collect Owner RDMA read worker")
+        .expect("collect Owner RDMA read payload");
+    assert_eq!(
+        blake3::hash(&bytes).as_bytes().as_slice(),
+        reply.data_checksum.as_slice()
+    );
+    close_owner_rdma_window(control_channel, access, session_id).await;
+    (bytes, reply.eof)
+}
+
+#[cfg(feature = "rdma")]
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+#[ignore = "requires AFS_TEST_RDMA_DEVICE with a working RXE/RDMA device"]
+async fn ownerfiles_rdma_large_write_fsync_cold_read_roundtrip_preserves_payload() {
+    let device = rdma_device().expect("explicit RXE tests require AFS_TEST_RDMA_DEVICE");
+    let fixture = owner_rdma_fixture(Some(device.clone()), "job-rdma").await;
+    let access = root_access_for(&fixture.grant);
+    let mut raw = OwnerFilesClient::new(fixture.channel.clone());
+    let root = raw
+        .lookup(OwnerLookupRequest {
+            access: Some(access.clone()),
+            path: Vec::new(),
+            expected_parent_identity: None,
+        })
+        .await
+        .expect("lookup root")
+        .into_inner()
+        .attr
+        .expect("root attr")
+        .identity
+        .expect("root identity");
+    let created = raw
+        .create(OwnerCreateRequest {
+            access: Some(access.clone()),
+            path: b"rdma-large.bin".to_vec(),
+            flags: libc::O_RDWR as u32,
+            mode: 0o644,
+            expected_parent: Some(root),
+            caller: Some(OwnerCaller {
+                uid: fixture.ctx.uid,
+                gid: fixture.ctx.gid,
+                pid: fixture.ctx.pid,
+                umask: fixture.ctx.umask,
+                supplementary_gids: fixture.ctx.supplementary_gids.clone(),
+            }),
+            kill_suidgid: false,
+        })
+        .await
+        .expect("create RDMA file")
+        .into_inner();
+    let payload = owner_payload(4 * 1024 * 1024 + 17);
+    let expected_hash = blake3::hash(&payload);
+    let write_window = 1024 * 1024;
+    let expected_windows = payload.chunks(write_window).count();
+    let mut rdma_write_windows = 0usize;
+    for (index, chunk) in payload.chunks(write_window).enumerate() {
+        owner_rdma_write_window(
+            &mut raw,
+            fixture.channel.clone(),
+            access.clone(),
+            created.handle.clone().expect("created handle"),
+            (index * write_window) as u64,
+            chunk,
+            device.clone(),
+        )
+        .await;
+        rdma_write_windows += 1;
+    }
+    assert_eq!(rdma_write_windows, expected_windows);
+    raw.fsync(OwnerFsyncRequest {
+        access: Some(access.clone()),
+        handle: created.handle.clone(),
+        datasync: false,
+    })
+    .await
+    .expect("fsync RDMA file");
+    raw.release(OwnerReleaseRequest {
+        access: Some(access.clone()),
+        handle: created.handle,
+    })
+    .await
+    .expect("release written RDMA file");
+
+    let opened = raw
+        .open(OwnerOpenRequest {
+            access: Some(access.clone()),
+            path: b"rdma-large.bin".to_vec(),
+            flags: libc::O_RDONLY as u32,
+            mode: 0,
+            expected_file_identity: created.attr.and_then(|attr| attr.identity),
+            kill_suidgid: false,
+            disable_prefetch: true,
+        })
+        .await
+        .expect("cold reopen RDMA file")
+        .into_inner();
+    assert!(opened.prefetched_data.is_none());
+    let read_handle = opened.handle.clone().expect("read handle");
+    let mut read_back = Vec::with_capacity(payload.len());
+    let mut rdma_read_windows = 0usize;
+    while read_back.len() < payload.len() {
+        let remaining = payload.len() - read_back.len();
+        let (bytes, eof) = owner_rdma_read_window(
+            &mut raw,
+            fixture.channel.clone(),
+            access.clone(),
+            read_handle.clone(),
+            read_back.len() as u64,
+            remaining.min(write_window),
+            device.clone(),
+        )
+        .await;
+        assert!(
+            !bytes.is_empty(),
+            "Owner RDMA read hit EOF before full payload"
+        );
+        rdma_read_windows += 1;
+        read_back.extend_from_slice(&bytes);
+        assert!(
+            !eof,
+            "full Owner RDMA read should not claim EOF; explicit zero read below proves EOF"
+        );
+    }
+    let eof = raw
+        .read(OwnerReadRequest {
+            access: Some(access.clone()),
+            handle: Some(read_handle.clone()),
+            offset: payload.len() as u64,
+            length: 1,
+            plane: Some(DataPlane {
+                transfer: DataTransfer::GrpcInline.into(),
+                rdma_session_id: 0,
+                buffer_offset: 0,
+            }),
+        })
+        .await
+        .expect("EOF read after Owner RDMA payload")
+        .into_inner();
+    assert_eq!(eof.read, 0);
+    assert!(eof.data.is_empty());
+    assert!(eof.eof);
+    assert_eq!(rdma_read_windows, expected_windows);
+    assert_eq!(blake3::hash(&read_back), expected_hash);
+    assert_eq!(read_back, payload);
+    raw.release(OwnerReleaseRequest {
+        access: Some(access),
+        handle: Some(read_handle),
+    })
+    .await
+    .expect("release read handle");
+    assert!(*fixture.meta.validate_calls.lock().unwrap() >= 1);
+    fixture.server.abort();
+}
+
+#[cfg(feature = "rdma")]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn ownerfiles_rdma_missing_device_fails_before_file_write() {
+    let fixture = owner_rdma_fixture(None, "job-rdma-missing").await;
+    let access = root_access_for(&fixture.grant);
+    let mut raw = OwnerFilesClient::new(fixture.channel.clone());
+    let root = raw
+        .lookup(OwnerLookupRequest {
+            access: Some(access.clone()),
+            path: Vec::new(),
+            expected_parent_identity: None,
+        })
+        .await
+        .expect("lookup root")
+        .into_inner()
+        .attr
+        .expect("root attr")
+        .identity
+        .expect("root identity");
+    let created = raw
+        .create(OwnerCreateRequest {
+            access: Some(access.clone()),
+            path: b"missing-rdma-device.bin".to_vec(),
+            flags: libc::O_RDWR as u32,
+            mode: 0o644,
+            expected_parent: Some(root),
+            caller: Some(OwnerCaller {
+                uid: fixture.ctx.uid,
+                gid: fixture.ctx.gid,
+                pid: fixture.ctx.pid,
+                umask: fixture.ctx.umask,
+                supplementary_gids: fixture.ctx.supplementary_gids.clone(),
+            }),
+            kill_suidgid: false,
+        })
+        .await
+        .expect("create missing-device target")
+        .into_inner();
+    let missing = "__afs_missing_owner_rdma_device__".to_owned();
+    let open = tokio::task::spawn_blocking(move || RdmaEndpoint::open(&missing))
+        .await
+        .expect("missing-device open worker");
+    assert!(
+        open.is_err(),
+        "test fixture unexpectedly opened fake RDMA device"
+    );
+    let attr = raw
+        .get_attr(OwnerGetAttrRequest {
+            access: Some(access.clone()),
+            path: b"missing-rdma-device.bin".to_vec(),
+            expected_file_identity: created.attr.and_then(|attr| attr.identity),
+            handle: created.handle.clone(),
+        })
+        .await
+        .expect("getattr after missing RDMA device")
+        .into_inner()
+        .attr
+        .expect("attr after missing RDMA device");
+    assert_eq!(attr.size, 0);
+    let read = raw
+        .read(OwnerReadRequest {
+            access: Some(access.clone()),
+            handle: created.handle.clone(),
+            offset: 0,
+            length: 1,
+            plane: Some(DataPlane {
+                transfer: DataTransfer::GrpcInline.into(),
+                rdma_session_id: 0,
+                buffer_offset: 0,
+            }),
+        })
+        .await
+        .expect("read after missing RDMA device")
+        .into_inner();
+    assert_eq!(read.read, 0);
+    assert!(read.data.is_empty());
+    raw.release(OwnerReleaseRequest {
+        access: Some(access),
+        handle: created.handle,
+    })
+    .await
+    .expect("release missing-device handle");
+    assert!(*fixture.meta.validate_calls.lock().unwrap() >= 1);
+    fixture.server.abort();
+}
+
+#[cfg(feature = "rdma")]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn ownerfiles_rdma_authority_validation_may_block_on_tokio_handle() {
+    let fixture = owner_rdma_fixture_with_authority(
+        None,
+        "job-rdma-authority-block-on",
+        ContractMeta::with_block_on_validation(),
+    )
+    .await;
+    let mut access = root_access_for(&fixture.grant);
+    access.session_id = "session-fresh-negotiate".to_owned();
+    let before = *fixture.meta.validate_calls.lock().unwrap();
+    let reply = NodeControlClient::new(fixture.channel.clone())
+        .owner_negotiate_data(tonic::Request::new(OwnerNegotiateDataRequest {
+            access: Some(access),
+            negotiation: Some(NegotiateDataRequest {
+                client_info: Vec::new(),
+                capacity: 0,
+                handshake_version: RDMA_HANDSHAKE_VERSION,
+            }),
+        }))
+        .await
+        .expect("authority validation should run without Tokio block_on panic")
+        .into_inner();
+    assert!(!reply.rdma_supported);
+    assert_eq!(reply.session_id, 0);
+    assert_eq!(reply.capacity, 0);
+    assert_eq!(reply.handshake_version, RDMA_HANDSHAKE_VERSION);
+    assert_eq!(*fixture.meta.validate_calls.lock().unwrap(), before + 1);
+    fixture.server.abort();
+}
+
+#[cfg(feature = "rdma")]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn ownerfiles_rdma_oversize_read_rejects_before_handler_allocation() {
+    let fixture = owner_rdma_fixture(
+        Some("__unused_oversize_device__".to_owned()),
+        "job-rdma-oversize",
+    )
+    .await;
+    let access = root_access_for(&fixture.grant);
+    let mut raw = OwnerFilesClient::new(fixture.channel.clone());
+    let root = raw
+        .lookup(OwnerLookupRequest {
+            access: Some(access.clone()),
+            path: Vec::new(),
+            expected_parent_identity: None,
+        })
+        .await
+        .expect("lookup root")
+        .into_inner()
+        .attr
+        .expect("root attr")
+        .identity
+        .expect("root identity");
+    let created = raw
+        .create(OwnerCreateRequest {
+            access: Some(access.clone()),
+            path: b"oversize-read.bin".to_vec(),
+            flags: libc::O_RDWR as u32,
+            mode: 0o644,
+            expected_parent: Some(root),
+            caller: Some(OwnerCaller {
+                uid: fixture.ctx.uid,
+                gid: fixture.ctx.gid,
+                pid: fixture.ctx.pid,
+                umask: fixture.ctx.umask,
+                supplementary_gids: fixture.ctx.supplementary_gids.clone(),
+            }),
+            kill_suidgid: false,
+        })
+        .await
+        .expect("create oversize target")
+        .into_inner();
+    let before = *fixture.meta.validate_calls.lock().unwrap();
+    let status = raw
+        .read(OwnerReadRequest {
+            access: Some(access.clone()),
+            handle: created.handle.clone(),
+            offset: 0,
+            length: u32::MAX,
+            plane: Some(DataPlane {
+                transfer: DataTransfer::RdmaOneSided.into(),
+                rdma_session_id: 1,
+                buffer_offset: 0,
+            }),
+        })
+        .await
+        .expect_err("oversize Owner RDMA read must reject before handler allocation");
+    assert!(
+        status.message().contains("transfer exceeds")
+            || status.message().contains("1MiB")
+            || status.message().contains("invalid"),
+        "unexpected oversize read status: {status:?}"
+    );
+    assert_eq!(
+        *fixture.meta.validate_calls.lock().unwrap(),
+        before,
+        "oversize read must fail before handler authority validation and allocation"
+    );
+    raw.release(OwnerReleaseRequest {
+        access: Some(access),
+        handle: created.handle,
+    })
+    .await
+    .expect("release oversize handle");
+    fixture.server.abort();
+}
+
+#[cfg(feature = "rdma")]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn ownerpeerclient_rdma_without_device_ignores_forbidden_prefetch() {
+    let handler = Arc::new(PrefetchDespiteDisableHandler::default());
+    let (channel, server) = prefetch_despite_disable_server(handler.clone()).await;
+    let result = tokio::task::spawn_blocking({
+        let grant = prefetch_test_grant();
+        move || -> afs_error::Result<()> {
+            let client = owner_files_client_from_channel(channel).with_data_transport(
+                ClientDataMode::Rdma,
+                None,
+                Duration::from_millis(250),
+            );
+            let (file, attrs) =
+                client.open(&grant, OsStr::new("prefetch.txt"), libc::O_RDONLY, None)?;
+            assert_eq!(attrs.size, 6);
+            let mut buf = [0_u8; 6];
+            let error = client
+                .read(&grant, &file, 0, &mut buf)
+                .expect_err("RDMA-required read without a device must not use prefetched bytes");
+            assert_eq!(error.code(), afs_error::NODE_TRANSFER_UNSUPPORTED);
+            assert_eq!(buf, [0_u8; 6]);
+            Ok(())
+        }
+    })
+    .await
+    .expect("RDMA no-device prefetch regression task");
+    result.expect("RDMA no-device prefetch regression assertions");
+    assert_eq!(
+        handler.open_disable_prefetch.lock().unwrap().as_slice(),
+        &[true]
+    );
+    assert_eq!(*handler.read_calls.lock().unwrap(), 0);
+    server.abort();
+}
+
+#[cfg(feature = "rdma")]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn ownerpeerclient_rdma_without_device_rejects_read_write_without_mutation() {
+    let fixture = owner_rdma_fixture(None, "job-client-rdma-none").await;
+    let result = tokio::task::spawn_blocking({
+        let channel = fixture.channel.clone();
+        let grant = fixture.grant.clone();
+        let ctx = fixture.ctx.clone();
+        move || -> afs_error::Result<()> {
+            let setup = owner_files_client_from_channel(channel.clone());
+            let rdma = owner_files_client_from_channel(channel).with_data_transport(
+                ClientDataMode::Rdma,
+                None,
+                Duration::from_millis(250),
+            );
+            let root_parent = setup.lookup(&grant, OsStr::new(""), None)?.identity;
+            let created = setup.create(
+                &ctx,
+                &grant,
+                OsStr::new("client-rdma-none.bin"),
+                libc::O_RDWR,
+                0o644,
+                &root_parent,
+            )?;
+
+            let write_error = rdma
+                .write(&grant, &created.file, 0, b"bad")
+                .expect_err("strict OwnerPeerClient RDMA without device must reject write");
+            assert_eq!(write_error.code(), afs_error::NODE_TRANSFER_UNSUPPORTED);
+            let after_write = setup.getattr(
+                &grant,
+                OsStr::new("client-rdma-none.bin"),
+                Some(&created.entry.identity),
+                Some(&created.file),
+            )?;
+            assert_eq!(after_write.attributes.size, 0);
+
+            let mut one = [0_u8; 1];
+            let read_error = rdma
+                .read(&grant, &created.file, 0, &mut one)
+                .expect_err("strict OwnerPeerClient RDMA without device must reject read");
+            assert_eq!(read_error.code(), afs_error::NODE_TRANSFER_UNSUPPORTED);
+            assert_eq!(setup.read(&grant, &created.file, 0, &mut one)?, 0);
+            setup.release(&grant, created.file)?;
+            Ok(())
+        }
+    })
+    .await
+    .expect("strict no-device client ops");
+    result.expect("strict no-device client assertions");
+    fixture.server.abort();
+}
+
+#[cfg(feature = "rdma")]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn ownerpeerclient_auto_without_device_falls_back_before_rdma_dispatch() {
+    let fixture = owner_rdma_fixture(None, "job-client-auto-none").await;
+    let result = tokio::task::spawn_blocking({
+        let channel = fixture.channel.clone();
+        let grant = fixture.grant.clone();
+        let ctx = fixture.ctx.clone();
+        move || -> afs_error::Result<()> {
+            let setup = owner_files_client_from_channel(channel.clone());
+            let auto = owner_files_client_from_channel(channel).with_data_transport(
+                ClientDataMode::Auto,
+                None,
+                Duration::from_millis(250),
+            );
+            let root_parent = setup.lookup(&grant, OsStr::new(""), None)?.identity;
+            let created = setup.create(
+                &ctx,
+                &grant,
+                OsStr::new("client-auto-fallback.bin"),
+                libc::O_RDWR,
+                0o644,
+                &root_parent,
+            )?;
+
+            assert_eq!(auto.write(&grant, &created.file, 0, b"auto")?, 4);
+            let after_write = setup.getattr(
+                &grant,
+                OsStr::new("client-auto-fallback.bin"),
+                Some(&created.entry.identity),
+                Some(&created.file),
+            )?;
+            assert_eq!(after_write.attributes.size, 4);
+
+            let mut data = [0_u8; 4];
+            assert_eq!(auto.read(&grant, &created.file, 0, &mut data)?, 4);
+            assert_eq!(&data, b"auto");
+            setup.release(&grant, created.file)?;
+            Ok(())
+        }
+    })
+    .await
+    .expect("auto no-device client ops");
+    result.expect("auto no-device client assertions");
+    fixture.server.abort();
+}
+
+#[cfg(feature = "rdma")]
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+#[ignore = "requires AFS_TEST_RDMA_DEVICE with a working RXE/RDMA device"]
+async fn ownerpeerclient_rdma_large_write_fsync_cold_read_roundtrip_preserves_payload() {
+    let device = rdma_device().expect("explicit RXE tests require AFS_TEST_RDMA_DEVICE");
+    let fixture = owner_rdma_fixture(Some(device.clone()), "job-client-rdma").await;
+    let payload = owner_payload(4 * 1024 * 1024 + 17);
+    let expected_hash = blake3::hash(&payload);
+    let result = tokio::task::spawn_blocking({
+        let channel = fixture.channel.clone();
+        let grant = fixture.grant.clone();
+        let ctx = fixture.ctx.clone();
+        let payload = payload.clone();
+        move || -> afs_error::Result<(usize, usize, Vec<u8>)> {
+            let client = owner_files_client_from_channel(channel).with_data_transport(
+                ClientDataMode::Rdma,
+                Some(device),
+                Duration::from_secs(10),
+            );
+            let root_parent = client.lookup(&grant, OsStr::new(""), None)?.identity;
+            let created = client.create(
+                &ctx,
+                &grant,
+                OsStr::new("client-rdma-large.bin"),
+                libc::O_RDWR,
+                0o644,
+                &root_parent,
+            )?;
+            let window = 1024 * 1024;
+            let mut write_windows = 0usize;
+            for (index, chunk) in payload.chunks(window).enumerate() {
+                assert_eq!(
+                    client.write(&grant, &created.file, (index * window) as u64, chunk)?,
+                    chunk.len()
+                );
+                write_windows += 1;
+            }
+            client.fsync(&grant, &created.file, false)?;
+            client.release(&grant, created.file.clone())?;
+
+            let (cold, _attrs) = client.open(
+                &grant,
+                OsStr::new("client-rdma-large.bin"),
+                libc::O_RDONLY,
+                Some(&created.entry.identity),
+            )?;
+            let mut read_back = vec![0_u8; payload.len()];
+            let mut read = 0usize;
+            let mut read_windows = 0usize;
+            while read < read_back.len() {
+                let end = read.saturating_add(window).min(read_back.len());
+                let count = client.read(&grant, &cold, read as u64, &mut read_back[read..end])?;
+                assert_ne!(
+                    count, 0,
+                    "OwnerPeerClient RDMA read hit EOF before full payload"
+                );
+                read += count;
+                read_windows += 1;
+            }
+            let mut eof = [0_u8; 1];
+            assert_eq!(
+                client.read(&grant, &cold, payload.len() as u64, &mut eof)?,
+                0
+            );
+            client.release(&grant, cold)?;
+            Ok((write_windows, read_windows, read_back))
+        }
+    })
+    .await
+    .expect("production RDMA client ops")
+    .expect("production RDMA client assertions");
+    let expected_windows = payload.chunks(1024 * 1024).count();
+    assert_eq!(result.0, expected_windows);
+    assert_eq!(result.1, expected_windows);
+    assert_eq!(blake3::hash(&result.2), expected_hash);
+    assert_eq!(result.2, payload);
+    fixture.server.abort();
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn ownerfiles_rejects_rdma_plane_without_negotiated_owner_session_before_write() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let disk = Arc::new(LocalFs::open(temp.path()).expect("localfs"));
+    let meta = Arc::new(ContractMeta::default());
+    let roots = Arc::new(RootManager::new(
+        "node-a".to_owned(),
+        "session-a".to_owned(),
+        meta.clone(),
+        disk.clone(),
+    ));
+    let fs = Arc::new(OwnerFs::new_local(roots, disk));
+    let ctx = RequestContext {
+        uid: temp.path().metadata().expect("fixture metadata").uid(),
+        gid: temp.path().metadata().expect("fixture metadata").gid(),
+        pid: 42,
+        umask: 0,
+        supplementary_gids: Vec::new(),
+    };
+    let owner_root = BackendInode { value: 1 };
+    fs.mkdir(&ctx, owner_root, OsStr::new("job-plane"), 0o755)
+        .expect("create home root");
+    let root_id = root_id_from_name(OsStr::new("job-plane")).expect("root id");
+    let grant = meta
+        .acquire_root(&root_id, RootRight::Write)
+        .expect("remote grant");
+
+    let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind");
+    let endpoint = format!(
+        "https://localhost:{}",
+        listener.local_addr().unwrap().port()
+    );
+    let executor = fs.peer_executor().expect("peer executor");
+    let control = afs::node::rpc::control::NodeControlService::new(
+        afs::node::rpc::control::RdmaSessionRegistry::new(None),
+    )
+    .with_owner_locks(executor.clone(), Arc::new(RequireMtlsNodeB))
+    .into_server();
+    let handler = make_owner_files_handler(executor);
+    let server_tls = ServerTlsConfig::new()
+        .client_ca_root(Certificate::from_pem(CA_PEM))
+        .identity(Identity::from_pem(SERVER_CERT_PEM, SERVER_KEY_PEM));
+    let server = tokio::spawn(async move {
+        Server::builder()
+            .tls_config(server_tls)
+            .expect("server tls")
+            .add_service(control)
+            .add_service(make_owner_files_server_with_handler(
+                handler,
+                Arc::new(RequireMtlsNodeB),
+            ))
+            .serve_with_incoming(TcpListenerStream::new(listener))
+            .await
+            .expect("owner files server");
+    });
+
+    let client_tls = ClientTlsConfig::new()
+        .ca_certificate(Certificate::from_pem(CA_PEM))
+        .identity(Identity::from_pem(CLIENT_CERT_PEM, CLIENT_KEY_PEM))
+        .domain_name("localhost");
+    let channel: Channel = Endpoint::from_shared(endpoint)
+        .expect("endpoint")
+        .timeout(Duration::from_secs(5))
+        .tls_config(client_tls)
+        .expect("client tls")
+        .connect()
+        .await
+        .expect("connect");
+    let mut raw = OwnerFilesClient::new(channel);
+    let access = root_access_for(&grant);
+    let root = raw
+        .lookup(OwnerLookupRequest {
+            access: Some(access.clone()),
+            path: Vec::new(),
+            expected_parent_identity: None,
+        })
+        .await
+        .expect("lookup root")
+        .into_inner()
+        .attr
+        .expect("root attr")
+        .identity
+        .expect("root identity");
+    let created = raw
+        .create(OwnerCreateRequest {
+            access: Some(access.clone()),
+            path: b"rdma-plane-reject.bin".to_vec(),
+            flags: libc::O_RDWR as u32,
+            mode: 0o644,
+            expected_parent: Some(root),
+            caller: Some(OwnerCaller {
+                uid: ctx.uid,
+                gid: ctx.gid,
+                pid: ctx.pid,
+                umask: ctx.umask,
+                supplementary_gids: ctx.supplementary_gids.clone(),
+            }),
+            kill_suidgid: false,
+        })
+        .await
+        .expect("create file")
+        .into_inner();
+    let handle = created.handle.expect("created handle");
+    let identity = created
+        .attr
+        .as_ref()
+        .and_then(|attr| attr.identity.clone())
+        .expect("created identity");
+
+    let status = raw
+        .write(OwnerWriteRequest {
+            access: Some(access.clone()),
+            handle: Some(handle.clone()),
+            offset: 0,
+            data: b"bad".to_vec(),
+            length: 3,
+            plane: Some(DataPlane {
+                transfer: DataTransfer::RdmaOneSided.into(),
+                rdma_session_id: 0,
+                buffer_offset: u64::MAX,
+            }),
+            kill_suidgid: false,
+            ..Default::default()
+        })
+        .await
+        .expect_err("unnegotiated Owner RDMA data plane must fail before write");
+    let status_message = status.message().to_ascii_lowercase();
+    assert!(
+        status_message.contains("rdma")
+            || status_message.contains("data plane")
+            || status_message.contains("session"),
+        "unexpected RDMA rejection status: {status:?}"
+    );
+
+    let attr = raw
+        .get_attr(OwnerGetAttrRequest {
+            access: Some(access.clone()),
+            path: b"rdma-plane-reject.bin".to_vec(),
+            expected_file_identity: Some(identity),
+            handle: Some(handle.clone()),
+        })
+        .await
+        .expect("getattr after rejected write")
+        .into_inner()
+        .attr
+        .expect("attr after rejected write");
+    assert_eq!(attr.size, 0);
+    let read = raw
+        .read(OwnerReadRequest {
+            access: Some(access.clone()),
+            handle: Some(handle.clone()),
+            offset: 0,
+            length: 1,
+            plane: Some(DataPlane {
+                transfer: DataTransfer::GrpcInline.into(),
+                rdma_session_id: 0,
+                buffer_offset: 0,
+            }),
+        })
+        .await
+        .expect("read after rejected write")
+        .into_inner();
+    assert_eq!(read.read, 0);
+    assert!(read.data.is_empty());
+    raw.release(OwnerReleaseRequest {
+        access: Some(access),
+        handle: Some(handle),
+    })
+    .await
+    .expect("release handle");
+    assert_eq!(*meta.validate_calls.lock().unwrap(), 1);
+    server.abort();
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -719,6 +1854,7 @@ async fn mtls_ownerfiles_grpc_roundtrip_uses_real_ownerfs_backend() {
                 mode: 0,
                 expected_file_identity: None,
                 kill_suidgid: false,
+                ..Default::default()
             })
             .await
             .expect("open for prefetch contract")

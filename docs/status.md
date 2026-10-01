@@ -25,6 +25,19 @@ The [delivery acceptance contract](acceptance.md) requires JuiceFS default same-
 
 ## Current Validation Checkpoint
 
+The [OwnerFs RDMA batch](../development/evidence/20261001-owner-rdma/README.md)
+passes the complete r5 Linux source gate: 403 library tests, 65 interface
+contracts, four shared-error tests, nine local API tests and five privileged
+FUSE tests. Two existing library environment ignores remain. Formatting,
+strict workspace Clippy, five feature configurations and binary builds pass
+with 143 exact input hashes. Production Owner peer clients use the configured
+transport; Owner control and file handlers authorize separate bounded RDMA
+windows. Two actual RXE fixtures write, sync, cold reopen and compare 4 MiB +
+17 bytes through raw RPC and production OwnerPeerClient. Observed resources
+are released after the fixture process exits. Cross-VM production Node/FUSE
+Owner RDMA, posted-DMA cancellation and the full fault/performance matrices
+remain unqualified. The formal lock remains PREPARING and all 69 cases NOT_RUN.
+
 The [verbs environment consumer](../development/evidence/20261001-verbs-predicate/README.md)
 passes 17 dedicated Linux regressions and 60 related environment/network/runner
 checks. Its actual retained bundle passes the verbs predicate; the overall

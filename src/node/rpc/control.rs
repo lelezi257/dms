@@ -71,8 +71,21 @@ pub struct NodeControlConfig {
 /// registration epoch. File grants and inode leases remain separate authority.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PeerSessionIdentity {
-    node_id: String,
-    node_epoch: u64,
+    scope: PeerSessionScope,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+#[allow(dead_code)]
+enum PeerSessionScope {
+    Dfs {
+        node_id: String,
+        node_epoch: u64,
+    },
+    #[cfg(feature = "ownerfs")]
+    Owner {
+        node_id: String,
+        access: crate::node::vfs::ownerfs::root::PresentedRootAccess,
+    },
 }
 
 impl PeerSessionIdentity {
@@ -83,10 +96,56 @@ impl PeerSessionIdentity {
             ));
         }
         Ok(Self {
-            node_id: authenticated_node_id,
-            node_epoch: verified_node_epoch,
+            scope: PeerSessionScope::Dfs {
+                node_id: authenticated_node_id,
+                node_epoch: verified_node_epoch,
+            },
         })
     }
+
+    #[cfg(feature = "ownerfs")]
+    pub fn for_owner(
+        authenticated_node_id: String,
+        access: crate::node::vfs::ownerfs::root::PresentedRootAccess,
+    ) -> Result<Self, Status> {
+        if authenticated_node_id.is_empty()
+            || access.holder_node_id != authenticated_node_id
+            || access.id.0.is_empty()
+            || access.epoch == 0
+            || access.home_node_id.is_empty()
+            || access.home_session_id.is_empty()
+            || access.session_id.is_empty()
+            || access.access_generation == 0
+            || access.fencing_token.is_empty()
+        {
+            return Err(Status::permission_denied(
+                "Owner RDMA peer root scope is incomplete",
+            ));
+        }
+        Ok(Self {
+            scope: PeerSessionScope::Owner {
+                node_id: authenticated_node_id,
+                access,
+            },
+        })
+    }
+}
+
+#[cfg(feature = "ownerfs")]
+pub fn owner_rdma_identity_from_wire(
+    authenticated_node_id: String,
+    access: afs_protocol::node_data::RootAccess,
+) -> Result<PeerSessionIdentity, Status> {
+    let access = super::data::presented_access(Some(access)).map_err(error_to_status)?;
+    PeerSessionIdentity::for_owner(authenticated_node_id, access)
+}
+
+#[cfg(feature = "ownerfs")]
+pub fn owner_rdma_identity(
+    authenticated_node_id: String,
+    access: &afs_protocol::node_data::RootAccess,
+) -> Result<PeerSessionIdentity, Status> {
+    owner_rdma_identity_from_wire(authenticated_node_id, access.clone())
 }
 
 /// Authenticated business transports use this entry point after validating the
@@ -415,6 +474,8 @@ const MAX_BLOCKING_LOCK_CONTROL_RPCS: usize = 128;
 #[derive(Clone)]
 pub struct NodeControlService {
     registry: RdmaSessionRegistry,
+    #[cfg(feature = "ownerfs")]
+    owner_rdma_registry: Option<RdmaSessionRegistry>,
     #[cfg(feature = "dfs")]
     dfs_owner: Option<Arc<dyn DfsOwnerLifecycleHandler>>,
     #[cfg(feature = "dfs")]
@@ -436,6 +497,13 @@ impl NodeControlService {
     ) -> Self {
         self.owner_locks = Some(handler);
         self.owner_authenticator = Some(authenticator);
+        self
+    }
+
+    #[cfg(feature = "ownerfs")]
+    #[must_use]
+    pub fn with_owner_rdma_registry(mut self, registry: RdmaSessionRegistry) -> Self {
+        self.owner_rdma_registry = Some(registry);
         self
     }
 
@@ -509,6 +577,8 @@ impl NodeControlService {
     pub fn new(registry: RdmaSessionRegistry) -> Self {
         Self {
             registry,
+            #[cfg(feature = "ownerfs")]
+            owner_rdma_registry: None,
             #[cfg(feature = "dfs")]
             dfs_owner: None,
             #[cfg(feature = "dfs")]
@@ -531,6 +601,8 @@ impl NodeControlService {
     ) -> Self {
         Self {
             registry,
+            #[cfg(feature = "ownerfs")]
+            owner_rdma_registry: None,
             dfs_owner: Some(handler),
             dfs_authenticator: Some(authenticator),
             lock_waits: Arc::new(Semaphore::new(MAX_BLOCKING_LOCK_CONTROL_RPCS)),
@@ -818,10 +890,98 @@ impl NodeControl for NodeControlService {
         &self,
         request: Request<CloseDataRequest>,
     ) -> Result<Response<CloseDataReply>, Status> {
-        self.registry
-            .remove(request.into_inner().session_id)
-            .await?;
+        let request = request.into_inner();
+        self.registry.remove(request.session_id).await?;
         Ok(Response::new(CloseDataReply {}))
+    }
+
+    async fn owner_negotiate_data(
+        &self,
+        request: Request<afs_protocol::node_control::OwnerNegotiateDataRequest>,
+    ) -> Result<Response<NegotiateDataReply>, Status> {
+        #[cfg(not(feature = "ownerfs"))]
+        {
+            let _ = request;
+            Err(Status::permission_denied("OwnerFs is not enabled"))
+        }
+        #[cfg(feature = "ownerfs")]
+        {
+            let authenticator = self.owner_authenticator.as_ref().ok_or_else(|| {
+                Status::permission_denied("OwnerFiles RDMA requires authenticated peer")
+            })?;
+            let peer = authenticate_peer(authenticator.as_ref(), &request)?;
+            let body = request.into_inner();
+            let access = body
+                .access
+                .ok_or_else(|| Status::permission_denied("OwnerFiles RDMA access is required"))?;
+            let presented_access =
+                super::data::presented_access(Some(access.clone())).map_err(error_to_status)?;
+            let handler = self
+                .owner_locks
+                .clone()
+                .ok_or_else(|| Status::unimplemented("OwnerFs peer authority is not wired"))?;
+            let auth_peer = peer.clone();
+            let auth_access = presented_access.clone();
+            tokio::task::spawn_blocking(move || {
+                handler.authorize_transport(&auth_peer, &auth_access)
+            })
+            .await
+            .map_err(|error| Status::internal(error.to_string()))?
+            .map_err(error_to_status)?;
+            let identity = PeerSessionIdentity::for_owner(peer, presented_access)?;
+            let negotiation = body.negotiation.ok_or_else(|| {
+                Status::invalid_argument("OwnerFiles RDMA negotiation is required")
+            })?;
+            if negotiation.handshake_version != RDMA_HANDSHAKE_VERSION {
+                return Err(coded_status(
+                    afs_error::NODE_RDMA_HANDSHAKE_VERSION,
+                    "unsupported RDMA handshake version",
+                ));
+            }
+            let registry = self
+                .owner_rdma_registry
+                .as_ref()
+                .ok_or_else(|| Status::unimplemented("OwnerFiles RDMA is not configured"))?;
+            let Some(device) = registry.device.clone() else {
+                return Ok(Response::new(NegotiateDataReply {
+                    session_id: 0,
+                    server_info: Vec::new(),
+                    capacity: 0,
+                    rdma_supported: false,
+                    handshake_version: RDMA_HANDSHAKE_VERSION,
+                }));
+            };
+            negotiate_rdma(registry, device, negotiation, Some(identity)).await
+        }
+    }
+
+    async fn owner_close_data(
+        &self,
+        request: Request<afs_protocol::node_control::OwnerCloseDataRequest>,
+    ) -> Result<Response<CloseDataReply>, Status> {
+        #[cfg(not(feature = "ownerfs"))]
+        {
+            let _ = request;
+            Err(Status::permission_denied("OwnerFs is not enabled"))
+        }
+        #[cfg(feature = "ownerfs")]
+        {
+            let authenticator = self.owner_authenticator.as_ref().ok_or_else(|| {
+                Status::permission_denied("OwnerFiles RDMA requires authenticated peer")
+            })?;
+            let peer = authenticate_peer(authenticator.as_ref(), &request)?;
+            let body = request.into_inner();
+            let access = body
+                .access
+                .ok_or_else(|| Status::permission_denied("OwnerFiles RDMA access is required"))?;
+            let identity = owner_rdma_identity_from_wire(peer, access)?;
+            let registry = self
+                .owner_rdma_registry
+                .as_ref()
+                .ok_or_else(|| Status::unimplemented("OwnerFiles RDMA is not configured"))?;
+            registry.close_for(body.session_id, &identity).await?;
+            Ok(Response::new(CloseDataReply {}))
+        }
     }
 
     async fn ping(&self, request: Request<PingRequest>) -> Result<Response<PingReply>, Status> {
@@ -1522,5 +1682,120 @@ mod tests {
         assert!(registry.session_for(7, &owner).await.is_ok());
         registry.close_for(7, &owner).await.unwrap();
         assert!(registry.session_for(7, &owner).await.is_err());
+    }
+
+    #[cfg(feature = "ownerfs")]
+    fn owner_access() -> crate::node::vfs::ownerfs::root::PresentedRootAccess {
+        crate::node::vfs::ownerfs::root::PresentedRootAccess {
+            id: crate::node::vfs::ownerfs::root::RootId("root-a".into()),
+            epoch: 11,
+            home_node_id: "home-a".into(),
+            home_session_id: "home-session-a".into(),
+            holder_node_id: "node-b".into(),
+            session_id: "holder-session-a".into(),
+            access_generation: 17,
+            fencing_token: "fence-a".into(),
+        }
+    }
+
+    #[cfg(feature = "ownerfs")]
+    fn owner_identity(
+        peer: &str,
+        access: crate::node::vfs::ownerfs::root::PresentedRootAccess,
+    ) -> PeerSessionIdentity {
+        PeerSessionIdentity::for_owner(peer.to_owned(), access).unwrap()
+    }
+
+    #[cfg(feature = "ownerfs")]
+    #[test]
+    fn owner_peer_session_identity_binds_every_root_access_field() {
+        let base_access = owner_access();
+        let base = owner_identity("node-b", base_access.clone());
+
+        let mut changed = base_access.clone();
+        changed.id = crate::node::vfs::ownerfs::root::RootId("root-b".into());
+        assert_ne!(base, owner_identity("node-b", changed));
+
+        let mut changed = base_access.clone();
+        changed.epoch += 1;
+        assert_ne!(base, owner_identity("node-b", changed));
+
+        let mut changed = base_access.clone();
+        changed.home_node_id = "home-b".into();
+        assert_ne!(base, owner_identity("node-b", changed));
+
+        let mut changed = base_access.clone();
+        changed.home_session_id = "home-session-b".into();
+        assert_ne!(base, owner_identity("node-b", changed));
+
+        let mut changed = base_access.clone();
+        changed.holder_node_id = "node-c".into();
+        assert_ne!(base, owner_identity("node-c", changed));
+
+        let mut changed = base_access.clone();
+        changed.session_id = "holder-session-b".into();
+        assert_ne!(base, owner_identity("node-b", changed));
+
+        let mut changed = base_access.clone();
+        changed.access_generation += 1;
+        assert_ne!(base, owner_identity("node-b", changed));
+
+        let mut changed = base_access.clone();
+        changed.fencing_token = "fence-b".into();
+        assert_ne!(base, owner_identity("node-b", changed));
+    }
+
+    #[cfg(feature = "ownerfs")]
+    #[test]
+    fn owner_peer_session_identity_is_structured_not_colon_encoded() {
+        let mut left = owner_access();
+        left.id = crate::node::vfs::ownerfs::root::RootId("root:with".into());
+        left.home_node_id = "home".into();
+
+        let mut right = owner_access();
+        right.id = crate::node::vfs::ownerfs::root::RootId("root".into());
+        right.home_node_id = "with:home".into();
+
+        assert_ne!(
+            owner_identity("node-b", left),
+            owner_identity("node-b", right)
+        );
+    }
+
+    #[cfg(feature = "ownerfs")]
+    #[test]
+    fn dfs_and_owner_peer_session_identities_do_not_alias() {
+        let access = owner_access();
+        assert_ne!(
+            PeerSessionIdentity::new("node-b".into(), access.epoch).unwrap(),
+            owner_identity("node-b", access)
+        );
+    }
+
+    #[cfg(all(feature = "ownerfs", not(feature = "rdma")))]
+    #[tokio::test]
+    async fn owner_bound_session_rejects_forged_scope_lookup_and_close() {
+        let registry = RdmaSessionRegistry::new(None);
+        let owner = owner_identity("node-b", owner_access());
+        registry.inner.lock().await.insert(
+            8,
+            Arc::new(RdmaSession {
+                peer_identity: Some(owner.clone()),
+                ready: AtomicBool::new(true),
+                poisoned: AtomicBool::new(false),
+                last_used: StdMutex::new(Instant::now()),
+            }),
+        );
+
+        let mut forged_access = owner_access();
+        forged_access.fencing_token = "forged-fence".into();
+        let forged = owner_identity("node-b", forged_access);
+
+        assert!(registry.session(8).await.is_err());
+        assert!(registry.session_for(8, &forged).await.is_err());
+        assert!(registry.close_for(8, &forged).await.is_err());
+        assert!(registry.session_for(8, &owner).await.is_ok());
+        registry.close_for(8, &owner).await.unwrap();
+        assert!(registry.session_for(8, &owner).await.is_err());
     }
 }

@@ -1,0 +1,11 @@
+Linux lima-afs-accept-c 6.8.0-142-generic #142-Ubuntu SMP PREEMPT_DYNAMIC Wed Sep  2 14:30:29 UTC 2026 aarch64 aarch64 aarch64 GNU/Linux
+02b06f0b-4677-4abb-9b2a-757666220528
+180c1789613a45409c8e5a793aaf0b07
+2
+               total        used        free      shared  buff/cache   available
+Mem:      6199001088   356884480  5713195008     1040384   289718272  5842116608
+Swap:              0           0           0
+lo               UNKNOWN        127.0.0.1/8 ::1/128 
+eth0             UP             192.168.109.14/24 metric 200 fe80::5055:55ff:feea:21f2/64 
+link rxe0/1 state ACTIVE physical_state LINK_UP netdev eth0 
+/dev/vdb1 ext4   /mnt/lima-afscdata

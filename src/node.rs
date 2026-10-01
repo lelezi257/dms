@@ -32,15 +32,19 @@ use std::sync::Arc;
 /// OwnerFs business layer; this adapter only turns Meta's authenticated node
 /// endpoint into a cached OwnerFiles transport client.
 #[cfg(feature = "ownerfs")]
-struct GrpcOwnerFilesFactory {
+struct OwnerFilesFactory {
     meta: Arc<rpc::meta::GrpcRootMeta>,
     peers: Arc<rpc::peer::PeerConnectionPool>,
     runtime: tokio::runtime::Handle,
     metrics: rpc::OwnerRpcMetrics,
+    data_mode: rpc::peer::DataMode,
+    rdma_device: Option<String>,
+    timeout: std::time::Duration,
+    rdma_admission: Arc<tokio::sync::Semaphore>,
 }
 
 #[cfg(feature = "ownerfs")]
-impl vfs::ownerfs::RemoteFilesFactory for GrpcOwnerFilesFactory {
+impl vfs::ownerfs::RemoteFilesFactory for OwnerFilesFactory {
     fn supports_advisory_locks(&self) -> bool {
         true
     }
@@ -66,6 +70,8 @@ impl vfs::ownerfs::RemoteFilesFactory for GrpcOwnerFilesFactory {
                 self.runtime.clone(),
                 Some(self.metrics.clone()),
             )
+            .with_data_transport(self.data_mode, self.rdma_device.clone(), self.timeout)
+            .with_rdma_admission(self.rdma_admission.clone())
             .with_long_wait_channel(long_wait_channel),
         ))
     }
@@ -229,11 +235,41 @@ async fn run_node(
         let recovery_disk = disk.clone();
         let recovery_node_id = cfg.id.clone();
         let recovery_session_id = session_id.clone();
-        let remote_factory = Arc::new(GrpcOwnerFilesFactory {
+        let owner_data_mode = match cfg.data_mode.as_str() {
+            "grpc" => rpc::peer::DataMode::Grpc,
+            "rdma" => rpc::peer::DataMode::Rdma,
+            _ => rpc::peer::DataMode::Auto,
+        };
+        if owner_data_mode == rpc::peer::DataMode::Rdma && cfg.rdma_device.is_none() {
+            return Err(afs_error::Error::coded(
+                afs_error::CONFIG_INVALID,
+                "OwnerFs RDMA requires rdma_device",
+            )
+            .into());
+        }
+        #[cfg(feature = "rdma")]
+        if owner_data_mode == rpc::peer::DataMode::Rdma {
+            let device = cfg
+                .rdma_device
+                .clone()
+                .expect("OwnerFs RDMA checked rdma_device");
+            tokio::task::spawn_blocking(move || afs_transport::rdma::RdmaEndpoint::open(&device))
+                .await?
+                .map_err(|error| {
+                    afs_error::Error::coded(afs_error::NODE_TRANSFER_UNAVAILABLE, error.to_string())
+                })?;
+        }
+        let remote_factory = Arc::new(OwnerFilesFactory {
             meta: root_meta.clone(),
             peers: peer_connections.clone(),
             runtime: tokio::runtime::Handle::current(),
             metrics: owner_rpc_metrics.clone(),
+            data_mode: owner_data_mode,
+            rdma_device: cfg.rdma_device.clone(),
+            timeout,
+            rdma_admission: Arc::new(tokio::sync::Semaphore::new(
+                rpc::peer::OWNER_RDMA_MAX_CLIENT_WINDOWS,
+            )),
         });
         let roots = Arc::new(
             tokio::task::spawn_blocking(move || {
@@ -362,6 +398,8 @@ async fn run_node(
     // diagnostics is a separate test object directory, not an OwnerFs or DFS data path.
     let diagnostic_storage = Arc::new(storage::Storage::new(cfg.data_dir.join("diagnostics"))?);
     let sessions = rpc::control::RdmaSessionRegistry::new(cfg.rdma_device.clone());
+    #[cfg(feature = "ownerfs")]
+    let owner_rdma_sessions = rpc::control::RdmaSessionRegistry::new(cfg.rdma_device.clone());
     let local = api::local::serve_local_api_with_options(
         diagnostic_storage.clone(),
         &cfg.uds_path,
@@ -622,10 +660,12 @@ async fn run_node(
     let control = rpc::control::NodeControlService::new(sessions.clone());
     #[cfg(feature = "ownerfs")]
     let control = if let Some(owner) = state.ownerfs.as_ref() {
-        control.with_owner_locks(
-            owner.peer_executor()?,
-            Arc::new(rpc::data::MtlsPeerAuthenticator::new(dfs_trusted.clone())?),
-        )
+        control
+            .with_owner_locks(
+                owner.peer_executor()?,
+                Arc::new(rpc::data::MtlsPeerAuthenticator::new(dfs_trusted.clone())?),
+            )
+            .with_owner_rdma_registry(owner_rdma_sessions.clone())
     } else {
         control
     };
@@ -675,10 +715,11 @@ async fn run_node(
             .collect::<afs_error::Result<Vec<_>>>()?;
         let authenticator = Arc::new(rpc::data::MtlsPeerAuthenticator::new(trusted)?);
         let handler = rpc::data::make_owner_files_handler(ownerfs.peer_executor()?);
-        rpc::data::make_owner_files_server_with_handler_and_metrics(
+        rpc::data::make_owner_files_server_with_handler_metrics_and_rdma(
             handler,
             authenticator,
             owner_rpc_metrics.clone(),
+            owner_rdma_sessions.clone(),
         )
     } else {
         rpc::data::make_owner_files_server()
@@ -765,11 +806,20 @@ async fn run_node(
             .map_err(Into::into)
     });
     let stop = services.stop.subscribe();
+    #[cfg(feature = "ownerfs")]
+    let owner_rdma_cleanup = owner_rdma_sessions.clone();
     services.spawn(async move {
         let mut tick = tokio::time::interval(std::time::Duration::from_secs(5));
         tokio::pin! {let shutdown=cancelled(stop);}
         loop {
-            tokio::select! {_=tick.tick()=>sessions.cleanup_expired().await,_=&mut shutdown=>break}
+            tokio::select! {
+                _ = tick.tick() => {
+                    sessions.cleanup_expired().await;
+                    #[cfg(feature = "ownerfs")]
+                    owner_rdma_cleanup.cleanup_expired().await;
+                }
+                _ = &mut shutdown => break,
+            }
         }
         Ok(())
     });

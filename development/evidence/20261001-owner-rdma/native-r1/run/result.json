@@ -1,0 +1,1417 @@
+{
+  "level": "LOCAL_REGRESSION",
+  "command": [
+    "/tmp/afs-rdma-v71-native-r1/rdma_probe",
+    "--ignored",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "binary_sha256": "0a494902d940d8b6ef919f92d4381a2be49e86d603d9252047f8d287c8bf431e",
+  "observer_sha256": "3d04aa3fca40be59e4a0593c889282c43a1739238dc81c6201897bb0ff52baa5",
+  "platform": "Linux-6.8.0-142-generic-aarch64-with-glibc2.39",
+  "device": "rxe0",
+  "pid": 733757,
+  "observed_task_ids": [
+    733757,
+    733766,
+    733787
+  ],
+  "start_time_ns": 1790838235254823256,
+  "end_time_ns": 1790838235416087457,
+  "exit_code": 101,
+  "before": {
+    "qp": [
+      {
+        "ifindex": 0,
+        "ifname": "rxe0",
+        "port": 1,
+        "lqpn": 370,
+        "rqpn": 51,
+        "type": "RC",
+        "state": "RTS",
+        "rq-psn": 0,
+        "sq-psn": 1,
+        "path-mig-state": "MIGRATED",
+        "pdn": 121,
+        "pid": 730780,
+        "comm": "tokio-rt-worker"
+      },
+      {
+        "ifindex": 0,
+        "ifname": "rxe0",
+        "port": 1,
+        "lqpn": 1,
+        "type": "GSI",
+        "state": "RTS",
+        "sq-psn": 24,
+        "comm": "ib_core"
+      }
+    ],
+    "cq": [
+      {
+        "ifindex": 0,
+        "ifname": "rxe0",
+        "cqn": 0,
+        "cqe": 1023,
+        "users": 2,
+        "poll-ctx": "WORKQUEUE",
+        "adaptive-moderation": false,
+        "comm": "ib_core"
+      },
+      {
+        "ifindex": 0,
+        "ifname": "rxe0",
+        "cqn": 354,
+        "cqe": 31,
+        "users": 2,
+        "adaptive-moderation": false,
+        "ctxn": 137,
+        "pid": 730780,
+        "comm": "tokio-rt-worker"
+      }
+    ],
+    "mr": [
+      {
+        "ifindex": 0,
+        "ifname": "rxe0",
+        "mrn": 650,
+        "rkey": "28c09",
+        "lkey": "28c09",
+        "mrlen": 4194304,
+        "pdn": 121,
+        "pid": 730780,
+        "comm": "tokio-rt-worker"
+      }
+    ],
+    "pd": [
+      {
+        "ifindex": 0,
+        "ifname": "rxe0",
+        "pdn": 0,
+        "local_dma_lkey": "1cc",
+        "users": 1,
+        "comm": "ib_core"
+      },
+      {
+        "ifindex": 0,
+        "ifname": "rxe0",
+        "pdn": 121,
+        "local_dma_lkey": "0",
+        "users": 2,
+        "ctxn": 137,
+        "pid": 730780,
+        "comm": "tokio-rt-worker"
+      }
+    ],
+    "ctx": [
+      {
+        "ifindex": 0,
+        "ifname": "rxe0",
+        "ctxn": 137,
+        "pid": 730780,
+        "comm": "tokio-rt-worker"
+      }
+    ]
+  },
+  "samples": [
+    {
+      "time_ns": 1790838235254992756,
+      "resources": {
+        "qp": [
+          {
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "port": 1,
+            "lqpn": 370,
+            "rqpn": 51,
+            "type": "RC",
+            "state": "RTS",
+            "rq-psn": 0,
+            "sq-psn": 1,
+            "path-mig-state": "MIGRATED",
+            "pdn": 121,
+            "pid": 730780,
+            "comm": "tokio-rt-worker"
+          },
+          {
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "port": 1,
+            "lqpn": 1,
+            "type": "GSI",
+            "state": "RTS",
+            "sq-psn": 24,
+            "comm": "ib_core"
+          }
+        ],
+        "cq": [
+          {
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "cqn": 0,
+            "cqe": 1023,
+            "users": 2,
+            "poll-ctx": "WORKQUEUE",
+            "adaptive-moderation": false,
+            "comm": "ib_core"
+          },
+          {
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "cqn": 354,
+            "cqe": 31,
+            "users": 2,
+            "adaptive-moderation": false,
+            "ctxn": 137,
+            "pid": 730780,
+            "comm": "tokio-rt-worker"
+          },
+          {
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "cqn": 384,
+            "cqe": 31,
+            "users": 0,
+            "adaptive-moderation": false,
+            "ctxn": 180,
+            "pid": 733759,
+            "comm": "rdma_probe_reje"
+          }
+        ],
+        "mr": [
+          {
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "mrn": 650,
+            "rkey": "28c09",
+            "lkey": "28c09",
+            "mrlen": 4194304,
+            "pdn": 121,
+            "pid": 730780,
+            "comm": "tokio-rt-worker"
+          },
+          {
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "mrn": 704,
+            "rkey": "2c24e",
+            "lkey": "2c24e",
+            "mrlen": 1048576,
+            "pdn": 160,
+            "pid": 733759,
+            "comm": "rdma_probe_reje"
+          },
+          {
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "mrn": 705,
+            "rkey": "2c387",
+            "lkey": "2c387",
+            "mrlen": 1048576,
+            "pdn": 161,
+            "pid": 733759,
+            "comm": "rdma_probe_reje"
+          }
+        ],
+        "pd": [
+          {
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "pdn": 0,
+            "local_dma_lkey": "1cc",
+            "users": 1,
+            "comm": "ib_core"
+          },
+          {
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "pdn": 121,
+            "local_dma_lkey": "0",
+            "users": 2,
+            "ctxn": 137,
+            "pid": 730780,
+            "comm": "tokio-rt-worker"
+          },
+          {
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "pdn": 160,
+            "local_dma_lkey": "0",
+            "users": 2,
+            "ctxn": 180,
+            "pid": 733759,
+            "comm": "rdma_probe_reje"
+          },
+          {
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "pdn": 161,
+            "local_dma_lkey": "0",
+            "users": 2,
+            "ctxn": 181,
+            "pid": 733759,
+            "comm": "rdma_probe_reje"
+          }
+        ],
+        "ctx": [
+          {
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "ctxn": 137,
+            "pid": 730780,
+            "comm": "tokio-rt-worker"
+          },
+          {
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "ctxn": 182,
+            "pid": 733763,
+            "comm": "rdma_probe_repe"
+          },
+          {
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "ctxn": 183,
+            "pid": 733763,
+            "comm": "rdma_probe_repe"
+          }
+        ]
+      }
+    },
+    {
+      "time_ns": 1790838235280304766,
+      "resources": {
+        "qp": [
+          {
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "port": 1,
+            "lqpn": 370,
+            "rqpn": 51,
+            "type": "RC",
+            "state": "RTS",
+            "rq-psn": 0,
+            "sq-psn": 1,
+            "path-mig-state": "MIGRATED",
+            "pdn": 121,
+            "pid": 730780,
+            "comm": "tokio-rt-worker"
+          },
+          {
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "port": 1,
+            "lqpn": 412,
+            "rqpn": 413,
+            "type": "RC",
+            "state": "RTS",
+            "rq-psn": 0,
+            "sq-psn": 1,
+            "path-mig-state": "MIGRATED",
+            "pdn": 172,
+            "pid": 733766,
+            "comm": "rdma_probe_tran"
+          },
+          {
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "port": 1,
+            "lqpn": 413,
+            "rqpn": 412,
+            "type": "RC",
+            "state": "RTS",
+            "rq-psn": 1,
+            "sq-psn": 0,
+            "path-mig-state": "MIGRATED",
+            "pdn": 173,
+            "pid": 733766,
+            "comm": "rdma_probe_tran"
+          },
+          {
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "port": 1,
+            "lqpn": 1,
+            "type": "GSI",
+            "state": "RTS",
+            "sq-psn": 24,
+            "comm": "ib_core"
+          }
+        ],
+        "cq": [
+          {
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "cqn": 0,
+            "cqe": 1023,
+            "users": 2,
+            "poll-ctx": "WORKQUEUE",
+            "adaptive-moderation": false,
+            "comm": "ib_core"
+          },
+          {
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "cqn": 354,
+            "cqe": 31,
+            "users": 2,
+            "adaptive-moderation": false,
+            "ctxn": 137,
+            "pid": 730780,
+            "comm": "tokio-rt-worker"
+          },
+          {
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "cqn": 396,
+            "cqe": 31,
+            "users": 2,
+            "adaptive-moderation": false,
+            "ctxn": 192,
+            "pid": 733766,
+            "comm": "rdma_probe_tran"
+          },
+          {
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "cqn": 397,
+            "cqe": 31,
+            "users": 2,
+            "adaptive-moderation": false,
+            "ctxn": 193,
+            "pid": 733766,
+            "comm": "rdma_probe_tran"
+          }
+        ],
+        "mr": [
+          {
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "mrn": 650,
+            "rkey": "28c09",
+            "lkey": "28c09",
+            "mrlen": 4194304,
+            "pdn": 121,
+            "pid": 730780,
+            "comm": "tokio-rt-worker"
+          },
+          {
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "mrn": 716,
+            "rkey": "2cee6",
+            "lkey": "2cee6",
+            "mrlen": 4194304,
+            "pdn": 172,
+            "pid": 733766,
+            "comm": "rdma_probe_tran"
+          },
+          {
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "mrn": 717,
+            "rkey": "2cfdc",
+            "lkey": "2cfdc",
+            "mrlen": 4194304,
+            "pdn": 173,
+            "pid": 733766,
+            "comm": "rdma_probe_tran"
+          }
+        ],
+        "pd": [
+          {
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "pdn": 0,
+            "local_dma_lkey": "1cc",
+            "users": 1,
+            "comm": "ib_core"
+          },
+          {
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "pdn": 121,
+            "local_dma_lkey": "0",
+            "users": 2,
+            "ctxn": 137,
+            "pid": 730780,
+            "comm": "tokio-rt-worker"
+          },
+          {
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "pdn": 172,
+            "local_dma_lkey": "0",
+            "users": 2,
+            "ctxn": 192,
+            "pid": 733766,
+            "comm": "rdma_probe_tran"
+          },
+          {
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "pdn": 173,
+            "local_dma_lkey": "0",
+            "users": 2,
+            "ctxn": 193,
+            "pid": 733766,
+            "comm": "rdma_probe_tran"
+          }
+        ],
+        "ctx": [
+          {
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "ctxn": 137,
+            "pid": 730780,
+            "comm": "tokio-rt-worker"
+          },
+          {
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "ctxn": 192,
+            "pid": 733766,
+            "comm": "rdma_probe_tran"
+          },
+          {
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "ctxn": 193,
+            "pid": 733766,
+            "comm": "rdma_probe_tran"
+          }
+        ]
+      }
+    },
+    {
+      "time_ns": 1790838235305670692,
+      "resources": {
+        "qp": [
+          {
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "port": 1,
+            "lqpn": 370,
+            "rqpn": 51,
+            "type": "RC",
+            "state": "RTS",
+            "rq-psn": 0,
+            "sq-psn": 1,
+            "path-mig-state": "MIGRATED",
+            "pdn": 121,
+            "pid": 730780,
+            "comm": "tokio-rt-worker"
+          },
+          {
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "port": 1,
+            "lqpn": 412,
+            "rqpn": 413,
+            "type": "RC",
+            "state": "RTS",
+            "rq-psn": 0,
+            "sq-psn": 1,
+            "path-mig-state": "MIGRATED",
+            "pdn": 172,
+            "pid": 733766,
+            "comm": "rdma_probe_tran"
+          },
+          {
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "port": 1,
+            "lqpn": 413,
+            "rqpn": 412,
+            "type": "RC",
+            "state": "RTS",
+            "rq-psn": 1,
+            "sq-psn": 0,
+            "path-mig-state": "MIGRATED",
+            "pdn": 173,
+            "pid": 733766,
+            "comm": "rdma_probe_tran"
+          },
+          {
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "port": 1,
+            "lqpn": 1,
+            "type": "GSI",
+            "state": "RTS",
+            "sq-psn": 24,
+            "comm": "ib_core"
+          }
+        ],
+        "cq": [
+          {
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "cqn": 0,
+            "cqe": 1023,
+            "users": 2,
+            "poll-ctx": "WORKQUEUE",
+            "adaptive-moderation": false,
+            "comm": "ib_core"
+          },
+          {
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "cqn": 354,
+            "cqe": 31,
+            "users": 2,
+            "adaptive-moderation": false,
+            "ctxn": 137,
+            "pid": 730780,
+            "comm": "tokio-rt-worker"
+          },
+          {
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "cqn": 396,
+            "cqe": 31,
+            "users": 2,
+            "adaptive-moderation": false,
+            "ctxn": 192,
+            "pid": 733766,
+            "comm": "rdma_probe_tran"
+          },
+          {
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "cqn": 397,
+            "cqe": 31,
+            "users": 2,
+            "adaptive-moderation": false,
+            "ctxn": 193,
+            "pid": 733766,
+            "comm": "rdma_probe_tran"
+          }
+        ],
+        "mr": [
+          {
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "mrn": 650,
+            "rkey": "28c09",
+            "lkey": "28c09",
+            "mrlen": 4194304,
+            "pdn": 121,
+            "pid": 730780,
+            "comm": "tokio-rt-worker"
+          },
+          {
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "mrn": 716,
+            "rkey": "2cee6",
+            "lkey": "2cee6",
+            "mrlen": 4194304,
+            "pdn": 172,
+            "pid": 733766,
+            "comm": "rdma_probe_tran"
+          },
+          {
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "mrn": 717,
+            "rkey": "2cfdc",
+            "lkey": "2cfdc",
+            "mrlen": 4194304,
+            "pdn": 173,
+            "pid": 733766,
+            "comm": "rdma_probe_tran"
+          }
+        ],
+        "pd": [
+          {
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "pdn": 0,
+            "local_dma_lkey": "1cc",
+            "users": 1,
+            "comm": "ib_core"
+          },
+          {
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "pdn": 121,
+            "local_dma_lkey": "0",
+            "users": 2,
+            "ctxn": 137,
+            "pid": 730780,
+            "comm": "tokio-rt-worker"
+          },
+          {
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "pdn": 172,
+            "local_dma_lkey": "0",
+            "users": 2,
+            "ctxn": 192,
+            "pid": 733766,
+            "comm": "rdma_probe_tran"
+          },
+          {
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "pdn": 173,
+            "local_dma_lkey": "0",
+            "users": 2,
+            "ctxn": 193,
+            "pid": 733766,
+            "comm": "rdma_probe_tran"
+          }
+        ],
+        "ctx": [
+          {
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "ctxn": 137,
+            "pid": 730780,
+            "comm": "tokio-rt-worker"
+          },
+          {
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "ctxn": 192,
+            "pid": 733766,
+            "comm": "rdma_probe_tran"
+          },
+          {
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "ctxn": 193,
+            "pid": 733766,
+            "comm": "rdma_probe_tran"
+          }
+        ]
+      }
+    },
+    {
+      "time_ns": 1790838235336652046,
+      "resources": {
+        "qp": [
+          {
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "port": 1,
+            "lqpn": 370,
+            "rqpn": 51,
+            "type": "RC",
+            "state": "RTS",
+            "rq-psn": 0,
+            "sq-psn": 1,
+            "path-mig-state": "MIGRATED",
+            "pdn": 121,
+            "pid": 730780,
+            "comm": "tokio-rt-worker"
+          },
+          {
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "port": 1,
+            "lqpn": 412,
+            "rqpn": 413,
+            "type": "RC",
+            "state": "RTS",
+            "rq-psn": 4096,
+            "sq-psn": 1,
+            "path-mig-state": "MIGRATED",
+            "pdn": 172,
+            "pid": 733766,
+            "comm": "rdma_probe_tran"
+          },
+          {
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "port": 1,
+            "lqpn": 413,
+            "rqpn": 412,
+            "type": "RC",
+            "state": "RTS",
+            "rq-psn": 1,
+            "sq-psn": 4096,
+            "path-mig-state": "MIGRATED",
+            "pdn": 173,
+            "pid": 733766,
+            "comm": "rdma_probe_tran"
+          },
+          {
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "port": 1,
+            "lqpn": 1,
+            "type": "GSI",
+            "state": "RTS",
+            "sq-psn": 24,
+            "comm": "ib_core"
+          }
+        ],
+        "cq": [
+          {
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "cqn": 0,
+            "cqe": 1023,
+            "users": 2,
+            "poll-ctx": "WORKQUEUE",
+            "adaptive-moderation": false,
+            "comm": "ib_core"
+          },
+          {
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "cqn": 354,
+            "cqe": 31,
+            "users": 2,
+            "adaptive-moderation": false,
+            "ctxn": 137,
+            "pid": 730780,
+            "comm": "tokio-rt-worker"
+          },
+          {
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "cqn": 396,
+            "cqe": 31,
+            "users": 2,
+            "adaptive-moderation": false,
+            "ctxn": 192,
+            "pid": 733766,
+            "comm": "rdma_probe_tran"
+          },
+          {
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "cqn": 397,
+            "cqe": 31,
+            "users": 2,
+            "adaptive-moderation": false,
+            "ctxn": 193,
+            "pid": 733766,
+            "comm": "rdma_probe_tran"
+          }
+        ],
+        "mr": [
+          {
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "mrn": 650,
+            "rkey": "28c09",
+            "lkey": "28c09",
+            "mrlen": 4194304,
+            "pdn": 121,
+            "pid": 730780,
+            "comm": "tokio-rt-worker"
+          },
+          {
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "mrn": 716,
+            "rkey": "2cee6",
+            "lkey": "2cee6",
+            "mrlen": 4194304,
+            "pdn": 172,
+            "pid": 733766,
+            "comm": "rdma_probe_tran"
+          },
+          {
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "mrn": 717,
+            "rkey": "2cfdc",
+            "lkey": "2cfdc",
+            "mrlen": 4194304,
+            "pdn": 173,
+            "pid": 733766,
+            "comm": "rdma_probe_tran"
+          }
+        ],
+        "pd": [
+          {
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "pdn": 0,
+            "local_dma_lkey": "1cc",
+            "users": 1,
+            "comm": "ib_core"
+          },
+          {
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "pdn": 121,
+            "local_dma_lkey": "0",
+            "users": 2,
+            "ctxn": 137,
+            "pid": 730780,
+            "comm": "tokio-rt-worker"
+          },
+          {
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "pdn": 172,
+            "local_dma_lkey": "0",
+            "users": 2,
+            "ctxn": 192,
+            "pid": 733766,
+            "comm": "rdma_probe_tran"
+          },
+          {
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "pdn": 173,
+            "local_dma_lkey": "0",
+            "users": 2,
+            "ctxn": 193,
+            "pid": 733766,
+            "comm": "rdma_probe_tran"
+          }
+        ],
+        "ctx": [
+          {
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "ctxn": 137,
+            "pid": 730780,
+            "comm": "tokio-rt-worker"
+          },
+          {
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "ctxn": 192,
+            "pid": 733766,
+            "comm": "rdma_probe_tran"
+          },
+          {
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "ctxn": 193,
+            "pid": 733766,
+            "comm": "rdma_probe_tran"
+          }
+        ]
+      }
+    },
+    {
+      "time_ns": 1790838235363542976,
+      "resources": {
+        "qp": [
+          {
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "port": 1,
+            "lqpn": 370,
+            "rqpn": 51,
+            "type": "RC",
+            "state": "RTS",
+            "rq-psn": 0,
+            "sq-psn": 1,
+            "path-mig-state": "MIGRATED",
+            "pdn": 121,
+            "pid": 730780,
+            "comm": "tokio-rt-worker"
+          },
+          {
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "port": 1,
+            "lqpn": 412,
+            "rqpn": 413,
+            "type": "RC",
+            "state": "RTS",
+            "rq-psn": 4096,
+            "sq-psn": 1,
+            "path-mig-state": "MIGRATED",
+            "pdn": 172,
+            "pid": 733766,
+            "comm": "rdma_probe_tran"
+          },
+          {
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "port": 1,
+            "lqpn": 413,
+            "rqpn": 412,
+            "type": "RC",
+            "state": "RTS",
+            "rq-psn": 1,
+            "sq-psn": 4096,
+            "path-mig-state": "MIGRATED",
+            "pdn": 173,
+            "pid": 733766,
+            "comm": "rdma_probe_tran"
+          },
+          {
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "port": 1,
+            "lqpn": 1,
+            "type": "GSI",
+            "state": "RTS",
+            "sq-psn": 24,
+            "comm": "ib_core"
+          }
+        ],
+        "cq": [
+          {
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "cqn": 0,
+            "cqe": 1023,
+            "users": 2,
+            "poll-ctx": "WORKQUEUE",
+            "adaptive-moderation": false,
+            "comm": "ib_core"
+          },
+          {
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "cqn": 354,
+            "cqe": 31,
+            "users": 2,
+            "adaptive-moderation": false,
+            "ctxn": 137,
+            "pid": 730780,
+            "comm": "tokio-rt-worker"
+          },
+          {
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "cqn": 396,
+            "cqe": 31,
+            "users": 2,
+            "adaptive-moderation": false,
+            "ctxn": 192,
+            "pid": 733766,
+            "comm": "rdma_probe_tran"
+          },
+          {
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "cqn": 397,
+            "cqe": 31,
+            "users": 2,
+            "adaptive-moderation": false,
+            "ctxn": 193,
+            "pid": 733766,
+            "comm": "rdma_probe_tran"
+          }
+        ],
+        "mr": [
+          {
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "mrn": 650,
+            "rkey": "28c09",
+            "lkey": "28c09",
+            "mrlen": 4194304,
+            "pdn": 121,
+            "pid": 730780,
+            "comm": "tokio-rt-worker"
+          },
+          {
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "mrn": 716,
+            "rkey": "2cee6",
+            "lkey": "2cee6",
+            "mrlen": 4194304,
+            "pdn": 172,
+            "pid": 733766,
+            "comm": "rdma_probe_tran"
+          },
+          {
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "mrn": 717,
+            "rkey": "2cfdc",
+            "lkey": "2cfdc",
+            "mrlen": 4194304,
+            "pdn": 173,
+            "pid": 733766,
+            "comm": "rdma_probe_tran"
+          }
+        ],
+        "pd": [
+          {
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "pdn": 0,
+            "local_dma_lkey": "1cc",
+            "users": 1,
+            "comm": "ib_core"
+          },
+          {
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "pdn": 121,
+            "local_dma_lkey": "0",
+            "users": 2,
+            "ctxn": 137,
+            "pid": 730780,
+            "comm": "tokio-rt-worker"
+          },
+          {
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "pdn": 172,
+            "local_dma_lkey": "0",
+            "users": 2,
+            "ctxn": 192,
+            "pid": 733766,
+            "comm": "rdma_probe_tran"
+          },
+          {
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "pdn": 173,
+            "local_dma_lkey": "0",
+            "users": 2,
+            "ctxn": 193,
+            "pid": 733766,
+            "comm": "rdma_probe_tran"
+          }
+        ],
+        "ctx": [
+          {
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "ctxn": 137,
+            "pid": 730780,
+            "comm": "tokio-rt-worker"
+          },
+          {
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "ctxn": 192,
+            "pid": 733766,
+            "comm": "rdma_probe_tran"
+          },
+          {
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "ctxn": 193,
+            "pid": 733766,
+            "comm": "rdma_probe_tran"
+          }
+        ]
+      }
+    },
+    {
+      "time_ns": 1790838235389025902,
+      "resources": {
+        "qp": [
+          {
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "port": 1,
+            "lqpn": 370,
+            "rqpn": 51,
+            "type": "RC",
+            "state": "RTS",
+            "rq-psn": 0,
+            "sq-psn": 1,
+            "path-mig-state": "MIGRATED",
+            "pdn": 121,
+            "pid": 730780,
+            "comm": "tokio-rt-worker"
+          },
+          {
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "port": 1,
+            "lqpn": 414,
+            "rqpn": 415,
+            "type": "RC",
+            "state": "RTS",
+            "rq-psn": 0,
+            "sq-psn": 0,
+            "path-mig-state": "MIGRATED",
+            "pdn": 174,
+            "pid": 733787,
+            "comm": "rdma_probe_wait"
+          },
+          {
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "port": 1,
+            "lqpn": 415,
+            "rqpn": 414,
+            "type": "RC",
+            "state": "RTS",
+            "rq-psn": 0,
+            "sq-psn": 0,
+            "path-mig-state": "MIGRATED",
+            "pdn": 175,
+            "pid": 733787,
+            "comm": "rdma_probe_wait"
+          },
+          {
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "port": 1,
+            "lqpn": 1,
+            "type": "GSI",
+            "state": "RTS",
+            "sq-psn": 24,
+            "comm": "ib_core"
+          }
+        ],
+        "cq": [
+          {
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "cqn": 0,
+            "cqe": 1023,
+            "users": 2,
+            "poll-ctx": "WORKQUEUE",
+            "adaptive-moderation": false,
+            "comm": "ib_core"
+          },
+          {
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "cqn": 354,
+            "cqe": 31,
+            "users": 2,
+            "adaptive-moderation": false,
+            "ctxn": 137,
+            "pid": 730780,
+            "comm": "tokio-rt-worker"
+          },
+          {
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "cqn": 398,
+            "cqe": 31,
+            "users": 2,
+            "adaptive-moderation": false,
+            "ctxn": 194,
+            "pid": 733787,
+            "comm": "rdma_probe_wait"
+          },
+          {
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "cqn": 399,
+            "cqe": 31,
+            "users": 2,
+            "adaptive-moderation": false,
+            "ctxn": 195,
+            "pid": 733787,
+            "comm": "rdma_probe_wait"
+          }
+        ],
+        "mr": [
+          {
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "mrn": 650,
+            "rkey": "28c09",
+            "lkey": "28c09",
+            "mrlen": 4194304,
+            "pdn": 121,
+            "pid": 730780,
+            "comm": "tokio-rt-worker"
+          },
+          {
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "mrn": 718,
+            "rkey": "2d012",
+            "lkey": "2d012",
+            "mrlen": 1048576,
+            "pdn": 174,
+            "pid": 733787,
+            "comm": "rdma_probe_wait"
+          },
+          {
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "mrn": 719,
+            "rkey": "2d1e9",
+            "lkey": "2d1e9",
+            "mrlen": 1048576,
+            "pdn": 175,
+            "pid": 733787,
+            "comm": "rdma_probe_wait"
+          }
+        ],
+        "pd": [
+          {
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "pdn": 0,
+            "local_dma_lkey": "1cc",
+            "users": 1,
+            "comm": "ib_core"
+          },
+          {
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "pdn": 121,
+            "local_dma_lkey": "0",
+            "users": 2,
+            "ctxn": 137,
+            "pid": 730780,
+            "comm": "tokio-rt-worker"
+          },
+          {
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "pdn": 174,
+            "local_dma_lkey": "0",
+            "users": 2,
+            "ctxn": 194,
+            "pid": 733787,
+            "comm": "rdma_probe_wait"
+          },
+          {
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "pdn": 175,
+            "local_dma_lkey": "0",
+            "users": 2,
+            "ctxn": 195,
+            "pid": 733787,
+            "comm": "rdma_probe_wait"
+          }
+        ],
+        "ctx": [
+          {
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "ctxn": 137,
+            "pid": 730780,
+            "comm": "tokio-rt-worker"
+          },
+          {
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "ctxn": 194,
+            "pid": 733787,
+            "comm": "rdma_probe_wait"
+          },
+          {
+            "ifindex": 0,
+            "ifname": "rxe0",
+            "ctxn": 195,
+            "pid": 733787,
+            "comm": "rdma_probe_wait"
+          }
+        ]
+      }
+    }
+  ],
+  "after": {
+    "qp": [
+      {
+        "ifindex": 0,
+        "ifname": "rxe0",
+        "port": 1,
+        "lqpn": 370,
+        "rqpn": 51,
+        "type": "RC",
+        "state": "RTS",
+        "rq-psn": 0,
+        "sq-psn": 1,
+        "path-mig-state": "MIGRATED",
+        "pdn": 121,
+        "pid": 730780,
+        "comm": "tokio-rt-worker"
+      },
+      {
+        "ifindex": 0,
+        "ifname": "rxe0",
+        "port": 1,
+        "lqpn": 1,
+        "type": "GSI",
+        "state": "RTS",
+        "sq-psn": 24,
+        "comm": "ib_core"
+      }
+    ],
+    "cq": [
+      {
+        "ifindex": 0,
+        "ifname": "rxe0",
+        "cqn": 0,
+        "cqe": 1023,
+        "users": 2,
+        "poll-ctx": "WORKQUEUE",
+        "adaptive-moderation": false,
+        "comm": "ib_core"
+      },
+      {
+        "ifindex": 0,
+        "ifname": "rxe0",
+        "cqn": 354,
+        "cqe": 31,
+        "users": 2,
+        "adaptive-moderation": false,
+        "ctxn": 137,
+        "pid": 730780,
+        "comm": "tokio-rt-worker"
+      }
+    ],
+    "mr": [
+      {
+        "ifindex": 0,
+        "ifname": "rxe0",
+        "mrn": 650,
+        "rkey": "28c09",
+        "lkey": "28c09",
+        "mrlen": 4194304,
+        "pdn": 121,
+        "pid": 730780,
+        "comm": "tokio-rt-worker"
+      }
+    ],
+    "pd": [
+      {
+        "ifindex": 0,
+        "ifname": "rxe0",
+        "pdn": 0,
+        "local_dma_lkey": "1cc",
+        "users": 1,
+        "comm": "ib_core"
+      },
+      {
+        "ifindex": 0,
+        "ifname": "rxe0",
+        "pdn": 121,
+        "local_dma_lkey": "0",
+        "users": 2,
+        "ctxn": 137,
+        "pid": 730780,
+        "comm": "tokio-rt-worker"
+      }
+    ],
+    "ctx": [
+      {
+        "ifindex": 0,
+        "ifname": "rxe0",
+        "ctxn": 137,
+        "pid": 730780,
+        "comm": "tokio-rt-worker"
+      }
+    ]
+  },
+  "owned_peak": {
+    "qp": 2,
+    "cq": 2,
+    "mr": 2,
+    "pd": 2,
+    "ctx": 2
+  },
+  "owned_retained": {
+    "qp": [],
+    "cq": [],
+    "mr": [],
+    "pd": [],
+    "ctx": []
+  },
+  "status": "FAIL",
+  "scope": "selected tests and PID-owned resources after process exit; not posted-DMA cancellation, exceptional provider teardown, cross-VM OwnerFs, full stage gate or formal acceptance"
+}

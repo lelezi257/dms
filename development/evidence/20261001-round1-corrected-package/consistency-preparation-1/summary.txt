@@ -1,0 +1,1 @@
+status=FAIL cross_mount_qualified=False steps=0 failed=1 evidence=/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/round1-corrected-v77/consistency

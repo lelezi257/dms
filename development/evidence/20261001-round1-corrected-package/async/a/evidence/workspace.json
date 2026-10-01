@@ -1,0 +1,19 @@
+{
+  "created": "workspace-round1-v77",
+  "root": {
+    "checked_at_unix_ms": 1790850852684,
+    "home_data_addr": "https://192.168.109.12:19982",
+    "home_grpc_addr": "https://192.168.109.12:19982",
+    "home_lease_epoch": 1,
+    "home_node_id": "round1-a",
+    "home_rest_addr": "http://192.168.109.12:19983",
+    "home_serving": true,
+    "home_session_expires_at_unix_ms": 1790850882581,
+    "home_session_id": "9dcd6814-aa3b-42cf-a776-06fbef10b6db",
+    "owner": "round1-a",
+    "revision": 4,
+    "root_epoch": 1,
+    "root_id": "root-776f726b73706163652d726f756e64312d763737",
+    "status": "serving"
+  }
+}

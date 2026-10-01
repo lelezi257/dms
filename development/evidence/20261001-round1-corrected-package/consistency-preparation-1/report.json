@@ -1,0 +1,95 @@
+{
+  "commands": [
+    {
+      "argv": [
+        "limactl",
+        "shell",
+        "--workdir=/home/lzc.guest",
+        "afs-accept-a",
+        "--",
+        "sudo",
+        "python3",
+        "/home/lzc.guest/round1-consistency-v77.py",
+        "worker",
+        "worker",
+        "--op",
+        "identity",
+        "--path",
+        "/mnt/lima-afsadata/afs-delivery/round1-mainline-v77-archive-r1/mount/ownerfs/workspace-round1-v77"
+      ],
+      "duration_ms": 114.197,
+      "json_events": [],
+      "op": "identity",
+      "returncode": 2,
+      "stderr": "usage: round1-consistency-v77.py [-h] {host,worker,selftest} ...\nround1-consistency-v77.py: error: unrecognized arguments: worker\n",
+      "stdout": "",
+      "worker": "A"
+    }
+  ],
+  "created_at": "2026-10-01T10:27:59Z",
+  "failures": [
+    {
+      "exception": "RuntimeError",
+      "message": "{\"message\": \"worker emitted no JSON\", \"record\": {\"argv\": [\"limactl\", \"shell\", \"--workdir=/home/lzc.guest\", \"afs-accept-a\", \"--\", \"sudo\", \"python3\", \"/home/lzc.guest/round1-consistency-v77.py\", \"worker\", \"worker\", \"--op\", \"identity\", \"--path\", \"/mnt/lima-afsadata/afs-delivery/round1-mainline-v77-archive-r1/mount/ownerfs/workspace-round1-v77\"], \"duration_ms\": 114.197, \"json_events\": [], \"op\": \"identity\", \"returncode\": 2, \"stderr\": \"usage: round1-consistency-v77.py [-h] {host,worker,selftest} ...\\nround1-consistency-v77.py: error: unrecognized arguments: worker\\n\", \"stdout\": \"\", \"worker\": \"A\"}}",
+      "name": "setup_or_runner",
+      "ok": false,
+      "traceback": "Traceback (most recent call last):\n  File \"/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/experiments/afs-acceptance/probes/consistency_cross.py\", line 922, in _host_main\n    controller.setup()\n  File \"/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/experiments/afs-acceptance/probes/consistency_cross.py\", line 728, in setup\n    owner_a = self.event(self.run_cmd(\"A\", \"identity\", self.args.owner_root_a))\n              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/experiments/afs-acceptance/probes/consistency_cross.py\", line 668, in event\n    raise RuntimeError(json.dumps({\"message\": \"worker emitted no JSON\", \"record\": record}, sort_keys=True))\nRuntimeError: {\"message\": \"worker emitted no JSON\", \"record\": {\"argv\": [\"limactl\", \"shell\", \"--workdir=/home/lzc.guest\", \"afs-accept-a\", \"--\", \"sudo\", \"python3\", \"/home/lzc.guest/round1-consistency-v77.py\", \"worker\", \"worker\", \"--op\", \"identity\", \"--path\", \"/mnt/lima-afsadata/afs-delivery/round1-mainline-v77-archive-r1/mount/ownerfs/workspace-round1-v77\"], \"duration_ms\": 114.197, \"json_events\": [], \"op\": \"identity\", \"returncode\": 2, \"stderr\": \"usage: round1-consistency-v77.py [-h] {host,worker,selftest} ...\\nround1-consistency-v77.py: error: unrecognized arguments: worker\\n\", \"stdout\": \"\", \"worker\": \"A\"}}\n"
+    }
+  ],
+  "host": {
+    "boot_id": null,
+    "machine": "arm64",
+    "python": "3.12.13",
+    "release": "27.0.0",
+    "system": "Darwin"
+  },
+  "identity": {},
+  "mount_roots": {
+    "dfs_root_a": "/mnt/lima-afsadata/afs-delivery/round1-mainline-v77-archive-r1/mount/dfs",
+    "dfs_root_b": "/mnt/lima-afsbdata/afs-delivery/round1-mainline-v77-archive-r1/mount/dfs",
+    "owner_root_a": "/mnt/lima-afsadata/afs-delivery/round1-mainline-v77-archive-r1/mount/ownerfs/workspace-round1-v77",
+    "owner_root_b": "/mnt/lima-afsbdata/afs-delivery/round1-mainline-v77-archive-r1/mount/ownerfs/workspace-round1-v77"
+  },
+  "notes": [
+    "All product file IO is performed by Linux worker subprocesses.",
+    "Close-to-open checks use one fresh open after an explicit stdin GO orchestration point; no read retry is used to hide stale results.",
+    "The controller does not restart, signal, pause, or reconfigure product runtime processes.",
+    "The DFS handover case intentionally idles before B writable open, performs one A fresh-open verification after B close, then verifies the former local owner can perform a provider write without retained stale state shadowing it.",
+    "The OwnerFs rename regression overwrites dst with src while a dst hardlink survives, then checks the surviving hardlink inode, nlink, and content without retry.",
+    "The DFS provider regression keeps a B writable handle open, performs handleless truncate(path), writes through the original handle without sync, checks same-B readonly visibility before close, then checks A fresh-open visibility after close."
+  ],
+  "run_id": "archive-r1-ab",
+  "schema": "afs.consistency_cross.v1",
+  "status": "FAIL",
+  "steps": [],
+  "summary": {
+    "commands": 1,
+    "failed": 1,
+    "passed": 0,
+    "steps": 0
+  },
+  "worker_commands": {
+    "A": [
+      "limactl",
+      "shell",
+      "--workdir=/home/lzc.guest",
+      "afs-accept-a",
+      "--",
+      "sudo",
+      "python3",
+      "/home/lzc.guest/round1-consistency-v77.py",
+      "worker"
+    ],
+    "B": [
+      "limactl",
+      "shell",
+      "--workdir=/home/lzc.guest",
+      "afs-accept-b",
+      "--",
+      "sudo",
+      "python3",
+      "/home/lzc.guest/round1-consistency-v77.py",
+      "worker"
+    ]
+  }
+}

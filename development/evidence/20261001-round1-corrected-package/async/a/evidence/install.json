@@ -1,0 +1,48 @@
+{
+  "level": "mainline preparation",
+  "installed": "a",
+  "package_sha256": "e13bc12e2d51ea70287a935c4f2a92b6b5313979ac94a2b080e0ec89fbaac8b5",
+  "manifest": {
+    "schema": "afs.release-package.v1",
+    "name": "afs",
+    "version": "0.1.0",
+    "target": "linux-aarch64",
+    "source_commit": "370cba91a15999a7edd7edb644a852c2b2dfd89b",
+    "features": "ownerfs,dfs,rdma",
+    "rust_toolchain": "1.95.0",
+    "binaries": {
+      "afs-meta": {
+        "sha256": "64d85fc3933637ccd7fdf4eafded5e5c8cb2354e73b4c8d1a27b2b8d43f4c7e7"
+      },
+      "afs-node": {
+        "sha256": "d28d17faa8bb71eb8c0a28241e8556396e440b204cf0242d2af8133700f6a494"
+      }
+    },
+    "contains": [
+      "afs-meta",
+      "afs-node",
+      "afs-processctl",
+      "dep02-smoke.sh"
+    ],
+    "installer": "install.sh",
+    "notes": "Built from existing Linux release binaries; no Cargo or Git required on target guests."
+  },
+  "available_bytes_before": 4660588544,
+  "command": [
+    "bash",
+    "/mnt/lima-afsadata/afs-delivery/round1-mainline-v77-archive-async/package/afs-0.1.0-linux-aarch64/install.sh",
+    "--prefix",
+    "/mnt/lima-afsadata/afs-delivery/round1-mainline-v77-archive-async/prefix",
+    "--config-dir",
+    "/mnt/lima-afsadata/afs-delivery/round1-mainline-v77-archive-async/etc",
+    "--state-dir",
+    "/mnt/lima-afsadata/afs-delivery/round1-mainline-v77-archive-async/state",
+    "--run-dir",
+    "/mnt/lima-afsadata/afs-delivery/round1-mainline-v77-archive-async/run",
+    "--log-dir",
+    "/mnt/lima-afsadata/afs-delivery/round1-mainline-v77-archive-async/log",
+    "--mount-root",
+    "/mnt/lima-afsadata/afs-delivery/round1-mainline-v77-archive-async/mount"
+  ],
+  "formal_acceptance": "NOT_RUN"
+}

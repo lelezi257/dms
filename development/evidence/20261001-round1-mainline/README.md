@@ -33,7 +33,7 @@ OwnerFs and DFS are independent mounts in each Node; mTLS binds individual Nodes
 | Normal B restart | [restart](b/restart.log), before/after identities, [Owner read](b/owner-after-restart.json), [DFS read](b/dfs-after-restart.json), [replica health](b/replicas-after-restart.json) |
 | Normal small-file semantics | OwnerFs/DFS A/B same-mount visibility, close-only commit, sparse growth, truncate/rewrite and cross-node fresh open; each named JSON checks bytes/length/error rather than only exit status |
 | Auto RXE through production Node/FUSE | [A peer-read counters](a/metrics-after-peer-reads.txt), [B replica counters](b/metrics-after-cold-read.txt), native completion logs: actual RDMA payload, zero gRPC file payload |
-| Explicit gRPC | Separate process incarnations/configs under `grpc/`: remote Owner write/read and DFS replica/read payloads use gRPC; initial and second-incarnation counters are separate |
+| Explicit gRPC | Separate process incarnations/configs under `grpc/` cover remote Owner write/read operations; retained payload counters directly prove DFS replica/read and Owner write gRPC bytes. Owner read operations pass, but their captured counters do not independently prove transferred bytes; initial and second-incarnation counters are separate |
 | Required RDMA | `rdma-required/` configs, identities and remote Owner/DFS operations; 44-byte new payload uses actual verbs, gRPC file payload is zero |
 | Normal shutdown | All Node phases and final Meta stop exit0; final statuses stopped and own mounts/listeners absent. Global verbs inventory can include preserved old services; it is not a zero-global-resources or peak/lifetime qualification |
 

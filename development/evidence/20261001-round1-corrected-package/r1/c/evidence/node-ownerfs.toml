@@ -1,0 +1,24 @@
+fs = "all"
+grpc_listen = "0.0.0.0:19986"
+rest_listen = "192.168.109.14:19987"
+log_level = "info"
+tls_ca_certificate = "/mnt/lima-afscdata/afs-delivery/round1-mainline-v77-archive-r1/etc/tls/ca.pem"
+tls_identity_certificate = "/mnt/lima-afscdata/afs-delivery/round1-mainline-v77-archive-r1/etc/tls/round1-c.pem"
+tls_identity_private_key = "/mnt/lima-afscdata/afs-delivery/round1-mainline-v77-archive-r1/etc/tls/round1-c-key.pem"
+tls_server_name = "afs-cluster"
+trusted_node_certs = { "round1-a" = "/mnt/lima-afscdata/afs-delivery/round1-mainline-v77-archive-r1/etc/tls/round1-a.pem", "round1-b" = "/mnt/lima-afscdata/afs-delivery/round1-mainline-v77-archive-r1/etc/tls/round1-b.pem", "round1-c" = "/mnt/lima-afscdata/afs-delivery/round1-mainline-v77-archive-r1/etc/tls/round1-c.pem" }
+dfs_desired_copies = 1
+dfs_sync_required_copies = 1
+dfs_min_distinct_nodes = 1
+dfs_min_distinct_failure_domains = 1
+dfs_local_copy = "required"
+id = "round1-c"
+meta_endpoint = "https://192.168.109.11:19980"
+advertise_endpoint = "https://192.168.109.14:19986"
+data_dir = "/mnt/lima-afscdata/afs-delivery/round1-mainline-v77-archive-r1/state/node"
+uds_path = "/mnt/lima-afscdata/afs-delivery/round1-mainline-v77-archive-r1/run/node.sock"
+ownerfs_mount = "/mnt/lima-afscdata/afs-delivery/round1-mainline-v77-archive-r1/mount/ownerfs"
+dfs_mount = "/mnt/lima-afscdata/afs-delivery/round1-mainline-v77-archive-r1/mount/dfs"
+data_mode = "auto"
+rdma_device = "rxe0"
+timeout_ms = 10000

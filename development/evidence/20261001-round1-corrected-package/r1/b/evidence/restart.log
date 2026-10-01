@@ -1,0 +1,3 @@
+node stopped exit_code=0
+removing stale pid file for node: 146368
+started node pid=146847 ready=true

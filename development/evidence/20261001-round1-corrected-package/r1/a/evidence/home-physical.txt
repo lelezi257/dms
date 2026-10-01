@@ -1,0 +1,2 @@
+7fa1366968edf9a8490fffac3eab7e0b1619480a152d8e75c7471f753a8c1231  /mnt/lima-afsadata/afs-delivery/round1-mainline-v77-archive-r1/state/node/ownerfs/root-776f726b73706163652d726f756e64312d763737-e1/data.bin
+7fa1366968edf9a8490fffac3eab7e0b1619480a152d8e75c7471f753a8c1231  /mnt/lima-afsadata/afs-delivery/round1-mainline-v77-archive-r1/state/node/ownerfs/root-776f726b73706163652d726f756e64312d763737-e1/remote.bin

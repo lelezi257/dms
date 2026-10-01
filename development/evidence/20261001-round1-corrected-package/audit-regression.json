@@ -1,0 +1,44 @@
+{
+  "status": "PASS",
+  "results": [
+    {
+      "name": "retained valid packet",
+      "ok": true
+    },
+    {
+      "name": "wrong archive",
+      "ok": true,
+      "rejected": "r1/a/evidence/archive"
+    },
+    {
+      "name": "wrong R1 policy",
+      "ok": true,
+      "rejected": "actual R1 placement"
+    },
+    {
+      "name": "bad data",
+      "ok": true,
+      "rejected": "async/b/dfs bytes"
+    },
+    {
+      "name": "no async debt",
+      "ok": true,
+      "rejected": "async acknowledged local copy plus debt"
+    },
+    {
+      "name": "missing completion",
+      "ok": true,
+      "rejected": "blake3-4e94e6f582581a0f3855f3ce504b153e951e65036fe9e2f010b7e25473c54f98-4194304 receipts"
+    },
+    {
+      "name": "false suite pass",
+      "ok": true,
+      "rejected": "whole-system consistency"
+    },
+    {
+      "name": "wrong central Meta",
+      "ok": true,
+      "rejected": "meta_after_suite"
+    }
+  ]
+}

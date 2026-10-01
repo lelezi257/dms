@@ -2,14 +2,14 @@
 
 Issue: https://github.com/lelezi257/dms/issues/42. Plan: `native-bind-plan.md`.
 
-This is an intermediate slice, not feature completion, product acceptance or performance qualification. It does not enable native exports in Node. Default OwnerFs behavior is unchanged; the optional post-reply hint hook does not enable native admission. Node/FUSE/P2P integration, cross-path locks/cache/mmap, full Node/Agent lifecycle recovery and ext4 performance comparison remain outstanding.
+This is an intermediate slice, not feature completion, product acceptance or performance qualification. It does not enable native exports in Node. Default configuration does not enable native admission. The optional hint hook remains inert without a sink; ordinary directory identity refresh now reconciles cached descendants after an external move. Node/FUSE/P2P integration, cross-path locks/cache/mmap, full Node/Agent lifecycle recovery and ext4 performance comparison remain outstanding.
 
 ## Tested candidate
 
-- Base: `6bcabe8f30040bc6cc3b518bd271e7e2461e1e1d`; branch `feat/ownerfs-native-bind`. Feature worktree is isolated from the canonical checkout and the other machine's main branch.
+- Current base: `78245771167643d5883491052e7cebcaba8c3be2` (original base `6bcabe8f30040bc6cc3b518bd271e7e2461e1e1d`); branch `feat/ownerfs-native-bind`. Feature worktree is isolated from the canonical checkout and the other machine's main branch.
 - Rust1.95 x86_64 Linux. WSL6.6 builds/tests the controller and journal; actual mount backend is run in Linux6.8 VM A on `/dev/sdb1`, ext4 UUID `6fa5e173-b766-4c27-872b-8f40e91bed27`.
-- VM test binary SHA256 `6ed5e1e1dab827c686aa3430159cd2d82bd4c04d3aec132612e592a6cb63b06e` (post-reply event candidate before checkpoint commit; exact build inputs preserved in local manifest).
-- Private mount namespaces; test data confined to uniquely created directories. Parent namespace mountinfo is byte-for-byte unchanged afterward. Most covered test directories are disposable ext4 directories. One test now uses the real OwnerFs FUSE adapter and RootManager with an in-process Meta fixture; it does not run production Node/P2P or enable native policy.
+- Current VM test binary SHA256 `78762710746474d8fbe976ea168273c2f74202a4f7c30ea43176a12fcf6ae24a` (directory-refresh candidate; full14-case suite is RED, exact source inputs preserved externally).
+- Private mount namespaces; test data confined to uniquely created directories. Earlier successful probes checked parent namespace mountinfo byte-for-byte. The current RED suite exits before the driver cleanup markers; no driver-level post-run cleanup PASS is claimed for it. Most covered test directories are disposable ext4 directories. One test now uses the real OwnerFs FUSE adapter and RootManager with an in-process Meta fixture; it does not run production Node/P2P or enable native policy.
 
 ## Outcomes
 
@@ -19,13 +19,13 @@ This is an intermediate slice, not feature completion, product acceptance or per
 | Controller regressions | 16 PASS | Idempotent export, stale identities, busy retry, foreign ownership, recycled-ID protection, bounded admission |
 | Journal regressions | 10 PASS | Exclusive writer, strict decode, symlink/hardlink protection, immutable old epoch, atomic replace, uncertain directory-sync failure |
 | Journal/controller transactions | 12 PASS | Pre-attach exclusive clone intent, durable ACK, unmount intent, restart without stacking, same-epoch retired-session fencing, bounded orphan cleanup, uncertain unlink/fsync and duplicate-ACK health |
-| VM Linux backend/FUSE hooks | 13 PASS | The prior12 plus real post-reply root hints, nested-directory exclusion and full-queue progress |
-| Existing library regressions | 258 PASS, 2 ignored | Existing OwnerFs/DFS tests, serial run; ignored tests remain outside this claim |
+| Current VM Linux backend/FUSE/old-directory semantics | RED: 13 PASS, 1 FAIL | Original cases pass; retained old FUSE dirfd/cwd do not automatically track a native directory move |
+| Current library regressions | 353 PASS, 2 ignored | Main-aligned OwnerFs/DFS regression plus external-directory refresh; ignored tests remain outside this claim |
 | fmt / strict all-targets Clippy | PASS | Candidate formatting and diagnostics |
-| Portable VM probe | PASS | `acceptance/probes/ownerfs_native_mount.sh` reproduced the same current13-test candidate, with a bounded180s child process group and identified Python3.12.3 |
+| Portable VM probe | Historical13-case PASS; current14-case replay NOT_RUN | Main-aligned binary replayed successfully before adding the directory semantic counterexample; it does not qualify the current RED candidate |
 | OwnerFs FUSE/native/P2P integration and performance | NOT_RUN | Mount primitive proof is insufficient |
 
-WSL cannot supply STATX_MNT_ID_UNIQUE on kernel6.6; the backend returns ENOTSUP. All13 real-backend/FUSE tests are explicitly ignored for the ordinary build-host run, then explicitly executed (none ignored) by the VM probe. Kernel unique IDs are required; recyclable mountinfo IDs never substitute for ownership.
+WSL cannot supply STATX_MNT_ID_UNIQUE on kernel6.6; the backend returns ENOTSUP. All14 current real-backend/FUSE tests are explicitly ignored for the ordinary build-host run, then explicitly executed (none ignored) by the VM probe. Kernel unique IDs are required; recyclable mountinfo IDs never substitute for ownership.
 
 ## Failures retained
 
@@ -114,3 +114,42 @@ This connects notification to the real FUSE adapter; it is not the independent
 Node manager/authority worker or full native feature. Native bootstrap,
 capability/cache/lock contracts, P2P integration, Agent/authority lifecycle,
 daemon/boot-loss recovery and performance remain required.
+
+## Main alignment and directory semantics checkpoint
+
+Only the isolated feature branch was rebased onto main7824577. The old event
+tip b38b0d8 survives in `backup/ownerfs-native-bind-pre-main-20261001`; the
+rebased event tip is6ad14a9. Canonical checkout/main were not changed. On that
+rebased candidate the library352/2-ignored, native43/13-ignored, strict Clippy,
+fmt and none/ownerfs/dfs checks passed. VM `mount-20261001T011309-fc242a47`
+and portable `portable-20261001T011648-ec2b2fe0` each passed13/13 with binary
+SHA256 `f06e6cfda95fe106a621dbd7e345ba84dde01d2a5a0f1927258b95eb77eeed20`.
+Those results precede the additional full-semantics case below.
+
+The new real-FUSE case retains a pre-bind directory fd and cwd, then moves
+that directory through the same-path native export. Initial old-FUSE child
+lookup returns ENOENT and `..` still resolves LEFT; the native retained fd
+reads the same directory data and current RIGHT parent. A diagnostic lookup
+of the new path through a retained covered-FUSE root moves the kernel alias
+to RIGHT, but originally child lookup still failed. This separates kernel
+alias relocation from stale backend canonical/descendant paths. Neither an
+extra user lookup nor a periodic scan is an accepted correctness requirement.
+
+A failing OwnerFs library regression reproduced the latter defect. Fresh
+identity-matched directory lookup now reconciles the cached subtree through
+the existing rename-path operation. Regular-file hardlink canonical selection
+remains unchanged. This is explicit-lookup repair, not automatic old-reference
+coherence, inode-reuse protection, remote-object lifetime or full native admission.
+
+Current library353/2-ignored and native43/14-ignored pass; fmt, strict Clippy and
+none/ownerfs/dfs checks pass. VM `mount-20261001T015705-82191594` executes14 cases:13 pass and1
+fails. Forced-lookup controls now explicitly pass data, dirfd-parent and cwd-parent
+assertions, then the original first-observation requirement still fails. The
+actor is reaped and both owned exports are normally unmounted before assertions;
+the failing suite driver exits before its separate cleanup markers. Failed
+runs012136/013406 and the current partial-fix result are retained externally.
+
+Automatic source-object/alias consistency, cache/mmap/locks, authority/Agent
+drainage, Node/P2P integration and measured performance remain outstanding.
+Close durability and proposed separate6.9+ feature-platform decisions remain
+unanswered; no production native activation or kernel upgrade was performed.

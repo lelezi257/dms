@@ -8,7 +8,7 @@
 
 **Tech stack:** Rust1.95, existing libc/serde/fuser, Linux guest ext4, mount identities and descriptor-based mount API; independent Home/peer Node mounts. No new third-party dependency unless a demonstrated gap requires it.
 
-**Spec:** `docs/rfcs/0001-ownerfs-native-bind-mount.md`, user-approved complete-semantics/native-ext4 goals, GitHub issue #42. Baseline main `6bcabe8f30040bc6cc3b518bd271e7e2461e1e1d`.
+**Spec:** `docs/rfcs/0001-ownerfs-native-bind-mount.md`, user-approved complete-semantics/native-ext4 goals, GitHub issue #42. Original baseline main `6bcabe8f30040bc6cc3b518bd271e7e2461e1e1d`; isolated feature rebased onto `78245771167643d5883491052e7cebcaba8c3be2`.
 
 ## Global constraints
 
@@ -147,3 +147,7 @@ checks and execute real kernel FUSE cases in the independent private VM lane.
 
 - 2026-10-01 event checkpoint:5 channel tests plus38 controller/journal tests pass; real VM and portable13/13 pass. The FUSE adapter sends root-created hints after reply, without waiting for the consumer; nested mkdir is excluded and full queue requests rescan. Existing library258/2-ignored rerun, fmt and strict Clippy pass. Independent trusted-authority worker/native eligibility/Node activation remain pending.
 - Main coordination: a read-only fetch found origin/main at7824577, including a joined FUSE cleanup result, callback drain and OwnerFs surviving-hardlink alias fix. Preserve the current event checkpoint and evidence before rebasing only this isolated feature branch onto that committed main. Never transfer old evidence to the new candidate without scoped revalidation. The canonical checkout and the other machine's branch remain untouched.
+
+- 2026-10-01 main alignment completed: only feature branch rebased; backup retains the old event tip. Scoped352 library/43 native and13 VM/portable cases passed before the new counterexample. No changes to canonical main or the other machine's branch.
+- 2026-10-01 directory counterexample: an old FUSE dirfd/cwd does not automatically follow native rename; first access is ENOENT/old parent. Forced lookup can relocate the kernel alias. A RED library test proved fresh lookup still left descendant paths stale; subtree reconciliation fixes that explicit-refresh defect. Current353 library/43 native checks pass, but full VM14 suite remains13 PASS/1 FAIL. Automatic source-object/alias repair remains required; retain the first-observation assertions.
+- Next: probe an automatic repair mechanism with actual old directory references and concurrent native mutation, preserving source-object identity and kernel parent semantics. Do not substitute a user relookup, weaker assertion, inotify timing assumption or copied-path fallback. Keep Node activation gated while cache/locks/durability and authority lifecycle contracts are unresolved.

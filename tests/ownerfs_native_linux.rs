@@ -912,3 +912,160 @@ fn privileged_ownerfs_post_reply_workspace_hints_do_not_wait_for_consumer() {
     assert_eq!(bytes, b"still FUSE");
     assert!(receiver.begin_rescan());
 }
+
+#[test]
+#[ignore = "requires real OwnerFs FUSE, Python3, private VM namespace and ext4; full-semantics RED case"]
+fn privileged_old_fuse_directory_tracks_native_rename() {
+    use afs::node::vfs::ownerfs::root::{RootRight, root_id_from_name};
+    use std::io::{BufRead, Write};
+    assert_eq!(
+        std::env::var("AFS_NATIVE_PRIVATE_NAMESPACE").as_deref(),
+        Ok("1")
+    );
+    let dir = tempfile::tempdir().unwrap();
+    let mount_path = dir.path().join("ownerfs");
+    fs::create_dir(&mount_path).unwrap();
+    let (disk, roots, ownerfs) = ownerfs_fixture::ownerfs_fixture(&dir.path().join("data"));
+    let session = afs::node::fuse::mount_ownerfs(ownerfs.clone(), &mount_path).unwrap();
+    let target = mount_path.join("agent1");
+    fs::create_dir(&target).unwrap();
+    fs::create_dir_all(target.join("left/moving")).unwrap();
+    fs::create_dir(target.join("right")).unwrap();
+    fs::write(target.join("left/parent-id"), b"LEFT").unwrap();
+    fs::write(target.join("right/parent-id"), b"RIGHT").unwrap();
+    fs::write(target.join("left/moving/data"), b"same directory").unwrap();
+    let id = root_id_from_name(std::ffi::OsStr::new("agent1")).unwrap();
+    let authority = roots.enter_root(&id, RootRight::Write).unwrap();
+    let source = disk.root_path().join(authority.data_dir().as_path());
+    let namespace = LinuxMountBackend::current_namespace().unwrap();
+    let grant = authority.grant();
+    let spec = WorkspaceMount {
+        identity: WorkspaceIdentity {
+            root_id: grant.id.0.clone(),
+            epoch: grant.epoch,
+            home_node_id: grant.home_node_id.clone(),
+            home_session_id: grant.home_session_id.clone(),
+            namespace,
+        },
+        source: dir_id(&source),
+        target: dir_id(&target),
+    };
+    let script = r#"
+import os, sys, json
+os.chdir(sys.argv[1])
+legacy = os.open('.', os.O_RDONLY | os.O_DIRECTORY)
+native = os.open(sys.argv[2], os.O_RDONLY | os.O_DIRECTORY)
+covered = os.open(sys.argv[3], os.O_RDONLY | os.O_DIRECTORY)
+print(json.dumps({'ready': True, 'pid': os.getpid(), 'legacy_dir': [os.fstat(legacy).st_dev, os.fstat(legacy).st_ino], 'native_dir': [os.fstat(native).st_dev, os.fstat(native).st_ino]}), flush=True)
+assert sys.stdin.readline().strip() == 'renamed'
+def read_at(descriptor, relative):
+    try:
+        fd = os.open(relative, os.O_RDONLY, dir_fd=descriptor)
+        try: return {'data': os.read(fd, 1024).decode('ascii')}
+        finally: os.close(fd)
+    except OSError as error: return {'errno': error.errno}
+print(json.dumps({'legacy_data': read_at(legacy, 'data'), 'native_data': read_at(native, 'data'), 'legacy_parent': read_at(legacy, '../parent-id'), 'native_parent': read_at(native, '../parent-id'), 'cwd_parent': read_at(None, '../parent-id')}), flush=True)
+assert sys.stdin.readline().strip() == 'relookup'
+try:
+    refreshed = os.stat('right/moving', dir_fd=covered)
+    relookup = {'ino': refreshed.st_ino}
+except OSError as error:
+    relookup = {'errno': error.errno}
+print(json.dumps({'relookup': relookup, 'legacy_data': read_at(legacy, 'data'), 'legacy_parent': read_at(legacy, '../parent-id'), 'cwd_parent': read_at(None, '../parent-id')}), flush=True)
+os.close(legacy)
+os.close(native)
+os.close(covered)
+"#;
+    let mut actor = RetainedReference(
+        std::process::Command::new("python3")
+            .arg("-c")
+            .arg(script)
+            .arg(target.join("left/moving"))
+            .arg(source.join("left/moving"))
+            .arg(&target)
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .spawn()
+            .unwrap(),
+    );
+    let mut output = std::io::BufReader::new(actor.0.stdout.take().unwrap());
+    let mut line = String::new();
+    output.read_line(&mut line).unwrap();
+    let ready: serde_json::Value = serde_json::from_str(&line).unwrap();
+    assert_eq!(ready["ready"], true);
+    let backend = LinuxMountBackend::new(namespace, 8).unwrap();
+    backend
+        .prepare(
+            spec.clone(),
+            File::open(&source).unwrap(),
+            File::open(&mount_path).unwrap(),
+            std::ffi::OsStr::new("agent1"),
+            MountPolicy::default(),
+        )
+        .unwrap();
+    let mounted = backend.bind(&spec).unwrap();
+    fs::rename(target.join("left/moving"), target.join("right/moving")).unwrap();
+    writeln!(actor.0.stdin.as_mut().unwrap(), "renamed").unwrap();
+    line.clear();
+    output.read_line(&mut line).unwrap();
+    let observed: serde_json::Value = serde_json::from_str(&line).unwrap();
+    // Diagnostic control only: force a lookup through the already-held covered
+    // FUSE root, to distinguish kernel alias relocation from backend path state.
+    // Correctness still requires the FIRST observation without any extra lookup.
+    writeln!(actor.0.stdin.as_mut().unwrap(), "relookup").unwrap();
+    line.clear();
+    output.read_line(&mut line).unwrap();
+    let alias_control: serde_json::Value = serde_json::from_str(&line).unwrap();
+    assert!(actor.0.wait().unwrap().success());
+    // Cleanup before asserting the semantic RED, retaining the full observation.
+    backend.unmount(&spec, &mounted).unwrap();
+    backend.release_prepared(&spec).unwrap();
+    drop(backend);
+    drop(authority);
+    assert!(
+        std::process::Command::new("umount")
+            .arg(&mount_path)
+            .status()
+            .unwrap()
+            .success()
+    );
+    drop(session);
+    drop(ownerfs);
+    drop(roots);
+    drop(disk);
+    println!(
+        "legacy_directory_ready={ready} legacy_directory_namespace={observed} forced_alias_control={alias_control}"
+    );
+    assert_eq!(
+        observed["native_data"]["data"], "same directory",
+        "native fd positive control"
+    );
+    assert_eq!(
+        observed["native_parent"]["data"], "RIGHT",
+        "native parent positive control"
+    );
+    assert_eq!(
+        alias_control["legacy_data"], observed["native_data"],
+        "fresh directory lookup must reconcile cached descendant paths"
+    );
+    assert_eq!(
+        alias_control["legacy_parent"], observed["native_parent"],
+        "forced lookup kernel alias relocation control"
+    );
+    assert_eq!(
+        alias_control["cwd_parent"], observed["native_parent"],
+        "forced lookup cwd alias relocation control"
+    );
+    assert_eq!(
+        observed["legacy_data"], observed["native_data"],
+        "old FUSE dirfd must retain the moved directory object"
+    );
+    assert_eq!(
+        observed["legacy_parent"], observed["native_parent"],
+        "old FUSE dirfd must observe its current parent"
+    );
+    assert_eq!(
+        observed["cwd_parent"], observed["native_parent"],
+        "old FUSE cwd must observe its current parent"
+    );
+}

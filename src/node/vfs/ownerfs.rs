@@ -5143,6 +5143,19 @@ impl OwnerState {
                 .get(&inode)
                 .is_some_and(|record| record.root_id == root_id && record.identity == identity)
         {
+            // Directory hardlinks are not supported: finding this directory's
+            // identity at a different path means its cached subtree moved. Native
+            // writes bypass rename_path, so reconcile every known descendant here
+            // before retaining the inode for the newly observed name.
+            let moved_from = self.inodes.get(&inode).and_then(|record| {
+                (kind == FileKind::Directory
+                    && record.kind == FileKind::Directory
+                    && record.relative != relative)
+                    .then(|| record.relative.clone())
+            });
+            if let Some(from) = moved_from {
+                self.rename_path(root_id.clone(), from, relative.clone());
+            }
             let had_active_path = self.active_path_for_inode(&root_id, inode).is_some();
             self.paths.insert(key, inode);
             if let Some(record) = self.inodes.get_mut(&inode) {
@@ -8481,6 +8494,54 @@ mod tests {
         let remaining = fs.lookup(&ctx, workspace.inode, OsStr::new("a")).unwrap();
         assert_eq!(remaining.inode, created.entry.inode);
         assert_eq!(fs.getattr(&ctx, remaining.inode, None).unwrap().nlink, 1);
+    }
+
+    #[test]
+    fn lookup_of_externally_moved_directory_rebinds_cached_descendants() {
+        let (_temp, fs, ctx) = fixture();
+        let workspace = fs
+            .mkdir(
+                &ctx,
+                BackendInode {
+                    value: OWNERFS_ROOT_INODE,
+                },
+                OsStr::new("native-move"),
+                0o755,
+            )
+            .unwrap();
+        let left = fs
+            .mkdir(&ctx, workspace.inode, OsStr::new("left"), 0o755)
+            .unwrap();
+        let right = fs
+            .mkdir(&ctx, workspace.inode, OsStr::new("right"), 0o755)
+            .unwrap();
+        let moving = fs
+            .mkdir(&ctx, left.inode, OsStr::new("moving"), 0o755)
+            .unwrap();
+        let child = fs
+            .create(&ctx, moving.inode, OsStr::new("data"), 0o644, libc::O_RDWR)
+            .unwrap();
+        fs.write(&ctx, child.handle, 0, b"same object").unwrap();
+        fs.release(&ctx, child.handle).unwrap();
+        let local = fs.require_local().unwrap();
+        let record = local.record(workspace.inode.value).unwrap();
+        let authority = local
+            .roots
+            .enter_root(&record.root_id, RootRight::Write)
+            .unwrap();
+        let data = local.disk.root_path().join(authority.data_dir().as_path());
+        std::fs::rename(data.join("left/moving"), data.join("right/moving")).unwrap();
+        // Diagnostic refresh is explicit here; automatic old-dirfd/cwd repair
+        // remains a separate native contract case, not claimed by this test.
+        let refreshed = fs.lookup(&ctx, right.inode, OsStr::new("moving")).unwrap();
+        assert_eq!(refreshed.inode, moving.inode);
+        let retained_child = fs.lookup(&ctx, moving.inode, OsStr::new("data")).unwrap();
+        assert_eq!(retained_child.inode, child.entry.inode);
+        let handle = fs.open(&ctx, child.entry.inode, libc::O_RDONLY).unwrap();
+        let mut bytes = [0_u8; 64];
+        let count = fs.read(&ctx, handle, 0, &mut bytes).unwrap();
+        assert_eq!(&bytes[..count], b"same object");
+        fs.release(&ctx, handle).unwrap();
     }
 
     #[test]

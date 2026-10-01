@@ -1,0 +1,21 @@
+./DEPENDENCIES.md: OK
+./bin/afs-meta: OK
+./bin/afs-node: OK
+./bin/afs-processctl: OK
+./bin/dep02-smoke.sh: OK
+./install.sh: OK
+./ldd.txt: OK
+./manifest.json: OK
+./templates/meta.toml: OK
+./templates/node-dfs.toml: OK
+./templates/node-ownerfs.toml: OK
+./templates/node.toml: OK
+created local TLS bootstrap files: /mnt/lima-afsadata/afs-delivery/round1-mainline-v77-rn/etc/tls
+created config: /mnt/lima-afsadata/afs-delivery/round1-mainline-v77-rn/etc/meta.toml
+created config: /mnt/lima-afsadata/afs-delivery/round1-mainline-v77-rn/etc/node.toml
+created compatibility config: /mnt/lima-afsadata/afs-delivery/round1-mainline-v77-rn/etc/node-dfs.toml -> node.toml
+created compatibility config: /mnt/lima-afsadata/afs-delivery/round1-mainline-v77-rn/etc/node-ownerfs.toml -> node.toml
+installed AFS package under /mnt/lima-afsadata/afs-delivery/round1-mainline-v77-rn/prefix
+config: /mnt/lima-afsadata/afs-delivery/round1-mainline-v77-rn/etc
+state:  /mnt/lima-afsadata/afs-delivery/round1-mainline-v77-rn/state
+mount:  /mnt/lima-afsadata/afs-delivery/round1-mainline-v77-rn/mount

@@ -1,0 +1,1 @@
+[{"ifindex":0,"ifname":"rxe0","pdn":0,"local_dma_lkey":"151","users":1,"comm":"ib_core"},{"ifindex":0,"ifname":"rxe0","pdn":7,"local_dma_lkey":"0","users":2,"ctxn":6,"pid":1887,"comm":"tokio-rt-worker"},{"ifindex":0,"ifname":"rxe0","pdn":8,"local_dma_lkey":"0","users":2,"ctxn":7,"pid":1887,"comm":"tokio-rt-worker"}]

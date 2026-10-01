@@ -10,6 +10,8 @@ Record exact source and binary identity, environment lock, mount/backend/replica
 
 ## Feedback stages
 
+The four [delivery rounds](plan.md#whole-system-rounds) determine coverage and priority; the feedback stages below determine validation cost within each round. They are not sequential module-completion gates. Each round checks the whole system and maintains [the issue list](issues.md). At round end run the overall regression for that round's integrated candidate, assess coverage and unresolved consequences, and select the next priorities. Preserve valid old evidence under its original source and runtime identity.
+
 1. Environment: pin images/dependencies, verify volumes/network/TLS/backends/RXE, ext4 reference suites, actual MooseFS/3FS mounts and baselines. Missing prerequisites are BLOCKED, not PASS.
 2. Small change: replay the original failure, run regressions for the affected modules and perform necessary compile checks. Advance to the next development task when this scope passes. Use small fixtures for chunk boundaries, streaming, memory limits and errors; do not repeat the full source gate for each edit.
 3. Related feature or repair batch: run the affected core integrations after the batch forms a working end-to-end flow. Select file write/read/sync/close/reopen, consistency, commit idempotency, replica recovery and RPC authorization according to the changed contracts and callers.
@@ -35,10 +37,13 @@ At batch end, complete the full source gate for the final candidate. A shell-onl
 | Level | What it establishes | What it does not establish |
 | --- | --- | --- |
 | Local regression PASS | The identified failing case, selected module regressions and necessary compilation pass | Other modules, the full source gate or release acceptance |
+| Mainline flow PASS | The explicitly identified installation/deployment and healthy end-to-end flows work on the candidate and configuration tested | A complete source gate, fault recovery, untested axes or formal delivery |
 | Stage gate PASS | The frozen candidate satisfies its complete source gate and the selected affected core integrations | Unrun formal cases, other backend/transport axes, performance or long stability gates |
 | Formal acceptance PASS | A required case passed its declared matrix in the qualified environment with complete identity and semantic evidence | Other cases or overall delivery while any mandatory gate remains unresolved |
 
 Overall delivery requires all mandatory acceptance gates. Keep local/stage results separate from formal case status; neither can turn a formal `NOT_RUN` into `PASS`.
+
+Report current round, healthy coverage, stage-gate identity, formal status and deferred issues separately. A round can advance after its defined whole-system scope and regression pass with nonblocking issues assigned to later rounds; it cannot defer a known incorrect success, corruption, authorization failure, commit-order violation or normal-use resource leak. Full-source validation remains due at batch/round boundaries. Do not rerun the same unaffected gate for every small correction.
 
 Core filesystem development uses a memory-backed Meta first, so POSIX, layout, visibility, replication and transport defects can be reproduced without persistent-backend variables. Keep existing etcd/Redis integration work and validate it in separate lanes. Memory-backed runs do not prove Meta restart durability or qualify a performance comparison that requires durable metadata. Backend parity and persistent recovery are completed after the core functional and performance development gates.
 

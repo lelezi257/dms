@@ -1,0 +1,437 @@
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+{"msg":"Mounting /mnt/lima-afsadata/afs-delivery/round1-mainline-v77-rn/mount/ownerfs","level":"INFO","ts":"2026-10-01T10:02:16.171723935Z","instance":"round1-a","service_name":"afs-node"}
+{"msg":"Mounting /mnt/lima-afsadata/afs-delivery/round1-mainline-v77-rn/mount/dfs","level":"INFO","ts":"2026-10-01T10:02:16.17759033Z","instance":"round1-a","service_name":"afs-node"}
+{"msg":"node.ready","level":"INFO","ts":"2026-10-01T10:02:16.177610163Z","instance":"round1-a","service_name":"afs-node","dfs":true,"ownerfs":true,"uds":"/mnt/lima-afsadata/afs-delivery/round1-mainline-v77-rn/run/node.sock","rest":"192.168.109.12:19983","grpc":"0.0.0.0:19982"}
+{"msg":"node.meta_heartbeat_retry","level":"WARN","ts":"2026-10-01T10:02:36.2067798Z","instance":"round1-a","service_name":"afs-node","error":"0x01020001 Unavailable: transport error"}
+{"msg":"dfs.replication_task_retry","level":"WARN","ts":"2026-10-01T10:02:36.3456379Z","instance":"round1-a","service_name":"afs-node","error":"0x01030003 Unavailable: tcp connect error"}
+{"msg":"node.meta_heartbeat_retry","level":"WARN","ts":"2026-10-01T10:02:37.211617026Z","instance":"round1-a","service_name":"afs-node","error":"0x01020001 Unavailable: transport error"}
+{"msg":"dfs.replication_task_retry","level":"WARN","ts":"2026-10-01T10:02:37.348138576Z","instance":"round1-a","service_name":"afs-node","error":"0x01030003 Unavailable: tcp connect error"}
+{"msg":"services.stopped","level":"INFO","ts":"2026-10-01T10:02:37.36046916Z","instance":"round1-a","service_name":"afs-node"}
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+{"msg":"Mounting /mnt/lima-afsadata/afs-delivery/round1-mainline-v77-rn/mount/ownerfs","level":"INFO","ts":"2026-10-01T10:04:33.629114127Z","instance":"round1-a","service_name":"afs-node"}
+{"msg":"Mounting /mnt/lima-afsadata/afs-delivery/round1-mainline-v77-rn/mount/dfs","level":"INFO","ts":"2026-10-01T10:04:33.631565969Z","instance":"round1-a","service_name":"afs-node"}
+{"msg":"node.ready","level":"INFO","ts":"2026-10-01T10:04:33.637973159Z","instance":"round1-a","service_name":"afs-node","dfs":true,"ownerfs":true,"uds":"/mnt/lima-afsadata/afs-delivery/round1-mainline-v77-rn/run/node.sock","rest":"192.168.109.12:19983","grpc":"0.0.0.0:19982"}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-01T10:04:34.083774147Z","instance":"round1-a","service_name":"afs-node","message":"OwnerFs root is not registered in Meta","kind":"NotFound","code":34078721}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-01T10:04:34.145026238Z","instance":"round1-a","service_name":"afs-node","message":"No such file or directory (os error 2)","kind":"NotFound","code":67305473}
+{"msg":"fuse.create","level":"INFO","ts":"2026-10-01T10:04:34.14505628Z","instance":"round1-a","service_name":"afs-node","name":"data.bin","parent":2}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-01T10:04:34.145372323Z","instance":"round1-a","service_name":"afs-node","message":"OwnerFs currently supports only user.* xattrs","kind":"FailedPrecondition","code":67305489}
+{"msg":"[Not Implemented] ioctl(ino: 0x3, fh: 2, flags: 0, cmd: 21505, in_data.len(): 0, out_size: 0)","level":"WARN","ts":"2026-10-01T10:04:34.155867401Z","instance":"round1-a","service_name":"afs-node"}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-01T10:04:34.197253714Z","instance":"round1-a","service_name":"afs-node","message":"DFS dentry not found","kind":"NotFound","code":34078721}
+{"msg":"fuse.create","level":"INFO","ts":"2026-10-01T10:04:34.197334756Z","instance":"round1-a","service_name":"afs-node","name":"data.bin","parent":1}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-01T10:04:34.205532368Z","instance":"round1-a","service_name":"afs-node","message":"DFS currently supports only user.* xattrs","kind":"FailedPrecondition","code":67305489}
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE send_complete
+{"msg":"[Not Implemented] ioctl(ino: 0x2, fh: 2, flags: 0, cmd: 21505, in_data.len(): 0, out_size: 0)","level":"WARN","ts":"2026-10-01T10:04:34.305572513Z","instance":"round1-a","service_name":"afs-node"}
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_COMPLETE op=WRITE bytes=1046224
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_COMPLETE op=WRITE bytes=1048576
+AFS_RDMA_COMPLETE op=WRITE bytes=1046224
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_COMPLETE op=WRITE bytes=1048576
+AFS_RDMA_COMPLETE op=WRITE bytes=1048576
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_COMPLETE op=WRITE bytes=1048576
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_COMPLETE op=WRITE bytes=1048576
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_COMPLETE op=WRITE bytes=2352
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_COMPLETE op=WRITE bytes=17
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_COMPLETE op=WRITE bytes=1048576
+AFS_RDMA_COMPLETE op=WRITE bytes=1046160
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_COMPLETE op=WRITE bytes=2352
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_COMPLETE op=WRITE bytes=17
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_COMPLETE op=WRITE bytes=1048576
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_COMPLETE op=WRITE bytes=1046160
+AFS_RDMA_COMPLETE op=WRITE bytes=1048576
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_COMPLETE op=WRITE bytes=1048576
+AFS_RDMA_COMPLETE op=WRITE bytes=1048576
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_COMPLETE op=WRITE bytes=2433
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_COMPLETE op=WRITE bytes=1048576
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_COMPLETE op=WRITE bytes=1048576
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_COMPLETE op=WRITE bytes=2433
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_COMPLETE op=WRITE bytes=131072
+AFS_RDMA_COMPLETE op=WRITE bytes=131072
+AFS_RDMA_COMPLETE op=WRITE bytes=131072
+AFS_RDMA_COMPLETE op=WRITE bytes=131072
+AFS_RDMA_COMPLETE op=WRITE bytes=131072
+AFS_RDMA_COMPLETE op=WRITE bytes=131072
+AFS_RDMA_COMPLETE op=WRITE bytes=131072
+AFS_RDMA_COMPLETE op=WRITE bytes=131072
+AFS_RDMA_COMPLETE op=WRITE bytes=131072
+AFS_RDMA_COMPLETE op=WRITE bytes=131072
+AFS_RDMA_COMPLETE op=WRITE bytes=131072
+AFS_RDMA_COMPLETE op=WRITE bytes=131072
+AFS_RDMA_COMPLETE op=WRITE bytes=131072
+AFS_RDMA_COMPLETE op=WRITE bytes=131072
+AFS_RDMA_COMPLETE op=WRITE bytes=131072
+AFS_RDMA_COMPLETE op=WRITE bytes=131072
+AFS_RDMA_COMPLETE op=WRITE bytes=131072
+AFS_RDMA_COMPLETE op=WRITE bytes=131072
+AFS_RDMA_COMPLETE op=WRITE bytes=131072
+AFS_RDMA_COMPLETE op=WRITE bytes=131072
+AFS_RDMA_COMPLETE op=WRITE bytes=131072
+AFS_RDMA_COMPLETE op=WRITE bytes=131072
+AFS_RDMA_COMPLETE op=WRITE bytes=131072
+AFS_RDMA_COMPLETE op=WRITE bytes=131072
+AFS_RDMA_COMPLETE op=WRITE bytes=131072
+AFS_RDMA_COMPLETE op=WRITE bytes=131072
+AFS_RDMA_COMPLETE op=WRITE bytes=131072
+AFS_RDMA_COMPLETE op=WRITE bytes=131072
+AFS_RDMA_COMPLETE op=WRITE bytes=131072
+AFS_RDMA_COMPLETE op=WRITE bytes=131072
+AFS_RDMA_COMPLETE op=WRITE bytes=131072
+AFS_RDMA_COMPLETE op=WRITE bytes=131072
+AFS_RDMA_COMPLETE op=WRITE bytes=17
+AFS_RDMA_COMPLETE op=WRITE bytes=131072
+AFS_RDMA_COMPLETE op=WRITE bytes=131072
+AFS_RDMA_COMPLETE op=WRITE bytes=131072
+AFS_RDMA_COMPLETE op=WRITE bytes=131072
+AFS_RDMA_COMPLETE op=WRITE bytes=131072
+AFS_RDMA_COMPLETE op=WRITE bytes=131072
+AFS_RDMA_COMPLETE op=WRITE bytes=131072
+AFS_RDMA_COMPLETE op=WRITE bytes=131072
+AFS_RDMA_COMPLETE op=WRITE bytes=131072
+AFS_RDMA_COMPLETE op=WRITE bytes=131072
+AFS_RDMA_COMPLETE op=WRITE bytes=131072
+AFS_RDMA_COMPLETE op=WRITE bytes=131072
+AFS_RDMA_COMPLETE op=WRITE bytes=131072
+AFS_RDMA_COMPLETE op=WRITE bytes=131072
+AFS_RDMA_COMPLETE op=WRITE bytes=131072
+AFS_RDMA_COMPLETE op=WRITE bytes=131072
+AFS_RDMA_COMPLETE op=WRITE bytes=131072
+AFS_RDMA_COMPLETE op=WRITE bytes=131072
+AFS_RDMA_COMPLETE op=WRITE bytes=131072
+AFS_RDMA_COMPLETE op=WRITE bytes=131072
+AFS_RDMA_COMPLETE op=WRITE bytes=131072
+AFS_RDMA_COMPLETE op=WRITE bytes=131072
+AFS_RDMA_COMPLETE op=WRITE bytes=131072
+AFS_RDMA_COMPLETE op=WRITE bytes=131072
+AFS_RDMA_COMPLETE op=WRITE bytes=131072
+AFS_RDMA_COMPLETE op=WRITE bytes=131072
+AFS_RDMA_COMPLETE op=WRITE bytes=131072
+AFS_RDMA_COMPLETE op=WRITE bytes=131072
+AFS_RDMA_COMPLETE op=WRITE bytes=131072
+AFS_RDMA_COMPLETE op=WRITE bytes=131072
+AFS_RDMA_COMPLETE op=WRITE bytes=131072
+AFS_RDMA_COMPLETE op=WRITE bytes=131072
+AFS_RDMA_COMPLETE op=WRITE bytes=17
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_COMPLETE op=READ bytes=1045792
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_COMPLETE op=READ bytes=2784
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_COMPLETE op=READ bytes=1045792
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_COMPLETE op=READ bytes=2784
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_COMPLETE op=READ bytes=1045792
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_COMPLETE op=READ bytes=2784
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_COMPLETE op=READ bytes=1045792
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_COMPLETE op=READ bytes=2784
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_COMPLETE op=READ bytes=17
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_COMPLETE op=WRITE bytes=1045792
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_COMPLETE op=WRITE bytes=1048576
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_COMPLETE op=WRITE bytes=1048576
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_COMPLETE op=WRITE bytes=1048576
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_COMPLETE op=WRITE bytes=2801
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_COMPLETE op=WRITE bytes=1046224
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_COMPLETE op=WRITE bytes=1048576
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_COMPLETE op=WRITE bytes=1048576
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_COMPLETE op=WRITE bytes=1048576
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_COMPLETE op=WRITE bytes=2352
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_COMPLETE op=WRITE bytes=17
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_COMPLETE op=WRITE bytes=1046160
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_COMPLETE op=WRITE bytes=1048576
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_COMPLETE op=WRITE bytes=1048576
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_COMPLETE op=WRITE bytes=1048576
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_COMPLETE op=WRITE bytes=2433
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE receive_complete
+{"msg":"[Not Implemented] ioctl(ino: 0x4, fh: 3, flags: 0, cmd: 21505, in_data.len(): 0, out_size: 0)","level":"WARN","ts":"2026-10-01T10:08:00.851454852Z","instance":"round1-a","service_name":"afs-node"}
+{"msg":"[Not Implemented] ioctl(ino: 0x4, fh: 4, flags: 0, cmd: 21505, in_data.len(): 0, out_size: 0)","level":"WARN","ts":"2026-10-01T10:08:00.855171828Z","instance":"round1-a","service_name":"afs-node"}
+{"msg":"[Not Implemented] ioctl(ino: 0x3, fh: 3, flags: 0, cmd: 21505, in_data.len(): 0, out_size: 0)","level":"WARN","ts":"2026-10-01T10:08:00.894919113Z","instance":"round1-a","service_name":"afs-node"}
+{"msg":"[Not Implemented] ioctl(ino: 0x3, fh: 4, flags: 0, cmd: 21505, in_data.len(): 0, out_size: 0)","level":"WARN","ts":"2026-10-01T10:08:01.648005153Z","instance":"round1-a","service_name":"afs-node"}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-01T10:08:21.472647239Z","instance":"round1-a","service_name":"afs-node","message":"No such file or directory (os error 2)","kind":"NotFound","code":67305473}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-01T10:08:21.4727889Z","instance":"round1-a","service_name":"afs-node","message":"No such file or directory (os error 2)","kind":"NotFound","code":67305473}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-01T10:08:21.473098972Z","instance":"round1-a","service_name":"afs-node","message":"No such file or directory (os error 2)","kind":"NotFound","code":67305473}
+{"msg":"fuse.create","level":"INFO","ts":"2026-10-01T10:08:21.473113513Z","instance":"round1-a","service_name":"afs-node","name":"a-same-mount.txt","parent":2}
+{"msg":"[Not Implemented] ioctl(ino: 0x5, fh: 5, flags: 0, cmd: 21505, in_data.len(): 0, out_size: 0)","level":"WARN","ts":"2026-10-01T10:08:21.473356462Z","instance":"round1-a","service_name":"afs-node"}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-01T10:08:21.47769242Z","instance":"round1-a","service_name":"afs-node","message":"OwnerFs currently supports only user.* xattrs","kind":"FailedPrecondition","code":67305489}
+{"msg":"[Not Implemented] ioctl(ino: 0x5, fh: 8, flags: 0, cmd: 21505, in_data.len(): 0, out_size: 0)","level":"WARN","ts":"2026-10-01T10:08:21.478754921Z","instance":"round1-a","service_name":"afs-node"}
+{"msg":"[Not Implemented] ioctl(ino: 0x5, fh: 9, flags: 0, cmd: 21505, in_data.len(): 0, out_size: 0)","level":"WARN","ts":"2026-10-01T10:08:21.47946156Z","instance":"round1-a","service_name":"afs-node"}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-01T10:08:21.510293666Z","instance":"round1-a","service_name":"afs-node","message":"No such file or directory (os error 2)","kind":"NotFound","code":67305473}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-01T10:08:21.510453452Z","instance":"round1-a","service_name":"afs-node","message":"No such file or directory (os error 2)","kind":"NotFound","code":67305473}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-01T10:08:21.510797355Z","instance":"round1-a","service_name":"afs-node","message":"No such file or directory (os error 2)","kind":"NotFound","code":67305473}
+{"msg":"fuse.create","level":"INFO","ts":"2026-10-01T10:08:21.510833687Z","instance":"round1-a","service_name":"afs-node","name":"a-close.txt","parent":2}
+{"msg":"[Not Implemented] ioctl(ino: 0x6, fh: 11, flags: 0, cmd: 21505, in_data.len(): 0, out_size: 0)","level":"WARN","ts":"2026-10-01T10:08:21.511869105Z","instance":"round1-a","service_name":"afs-node"}
+{"msg":"[Not Implemented] ioctl(ino: 0x6, fh: 12, flags: 0, cmd: 21505, in_data.len(): 0, out_size: 0)","level":"WARN","ts":"2026-10-01T10:08:21.512573703Z","instance":"round1-a","service_name":"afs-node"}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-01T10:08:21.538724698Z","instance":"round1-a","service_name":"afs-node","message":"No such file or directory (os error 2)","kind":"NotFound","code":67305473}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-01T10:08:21.538927231Z","instance":"round1-a","service_name":"afs-node","message":"No such file or directory (os error 2)","kind":"NotFound","code":67305473}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-01T10:08:21.539346382Z","instance":"round1-a","service_name":"afs-node","message":"No such file or directory (os error 2)","kind":"NotFound","code":67305473}
+{"msg":"fuse.create","level":"INFO","ts":"2026-10-01T10:08:21.539404713Z","instance":"round1-a","service_name":"afs-node","name":"a-sparse.txt","parent":2}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-01T10:08:21.539768949Z","instance":"round1-a","service_name":"afs-node","message":"OwnerFs currently supports only user.* xattrs","kind":"FailedPrecondition","code":67305489}
+{"msg":"[Not Implemented] ioctl(ino: 0x7, fh: 14, flags: 0, cmd: 21505, in_data.len(): 0, out_size: 0)","level":"WARN","ts":"2026-10-01T10:08:21.54086374Z","instance":"round1-a","service_name":"afs-node"}
+{"msg":"[Not Implemented] ioctl(ino: 0x7, fh: 15, flags: 0, cmd: 21505, in_data.len(): 0, out_size: 0)","level":"WARN","ts":"2026-10-01T10:08:21.541725957Z","instance":"round1-a","service_name":"afs-node"}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-01T10:08:21.568504594Z","instance":"round1-a","service_name":"afs-node","message":"No such file or directory (os error 2)","kind":"NotFound","code":67305473}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-01T10:08:21.568657046Z","instance":"round1-a","service_name":"afs-node","message":"No such file or directory (os error 2)","kind":"NotFound","code":67305473}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-01T10:08:21.568783042Z","instance":"round1-a","service_name":"afs-node","message":"No such file or directory (os error 2)","kind":"NotFound","code":67305473}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-01T10:08:21.568897162Z","instance":"round1-a","service_name":"afs-node","message":"No such file or directory (os error 2)","kind":"NotFound","code":67305473}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-01T10:08:21.569009783Z","instance":"round1-a","service_name":"afs-node","message":"No such file or directory (os error 2)","kind":"NotFound","code":67305473}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-01T10:08:21.569122279Z","instance":"round1-a","service_name":"afs-node","message":"No such file or directory (os error 2)","kind":"NotFound","code":67305473}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-01T10:08:21.569262357Z","instance":"round1-a","service_name":"afs-node","message":"No such file or directory (os error 2)","kind":"NotFound","code":67305473}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-01T10:08:21.569384102Z","instance":"round1-a","service_name":"afs-node","message":"No such file or directory (os error 2)","kind":"NotFound","code":67305473}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-01T10:08:21.569496681Z","instance":"round1-a","service_name":"afs-node","message":"No such file or directory (os error 2)","kind":"NotFound","code":67305473}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-01T10:08:21.569623718Z","instance":"round1-a","service_name":"afs-node","message":"No such file or directory (os error 2)","kind":"NotFound","code":67305473}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-01T10:08:21.570508017Z","instance":"round1-a","service_name":"afs-node","message":"No such file or directory (os error 2)","kind":"NotFound","code":67305473}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-01T10:08:21.570625762Z","instance":"round1-a","service_name":"afs-node","message":"No such file or directory (os error 2)","kind":"NotFound","code":67305473}
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_COMPLETE op=READ bytes=17
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_COMPLETE op=WRITE bytes=17
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_COMPLETE op=READ bytes=5
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_COMPLETE op=READ bytes=10
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_COMPLETE op=WRITE bytes=9
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_COMPLETE op=WRITE bytes=9
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_COMPLETE op=WRITE bytes=9
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_COMPLETE op=READ bytes=8
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_COMPLETE op=WRITE bytes=8
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_COMPLETE op=WRITE bytes=8
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_COMPLETE op=READ bytes=8
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_COMPLETE op=WRITE bytes=8193
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_COMPLETE op=WRITE bytes=8193
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE receive_complete
+{"msg":"[Not Implemented] ioctl(ino: 0x6, fh: 16, flags: 0, cmd: 21505, in_data.len(): 0, out_size: 0)","level":"WARN","ts":"2026-10-01T10:08:42.938045746Z","instance":"round1-a","service_name":"afs-node"}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-01T10:08:42.941058384Z","instance":"round1-a","service_name":"afs-node","message":"OwnerFs currently supports only user.* xattrs","kind":"FailedPrecondition","code":67305489}
+{"msg":"[Not Implemented] ioctl(ino: 0x6, fh: 18, flags: 0, cmd: 21505, in_data.len(): 0, out_size: 0)","level":"WARN","ts":"2026-10-01T10:08:42.946228776Z","instance":"round1-a","service_name":"afs-node"}
+{"msg":"[Not Implemented] ioctl(ino: 0x6, fh: 19, flags: 0, cmd: 21505, in_data.len(): 0, out_size: 0)","level":"WARN","ts":"2026-10-01T10:08:42.951290298Z","instance":"round1-a","service_name":"afs-node"}
+{"msg":"[Not Implemented] ioctl(ino: 0x6, fh: 20, flags: 0, cmd: 21505, in_data.len(): 0, out_size: 0)","level":"WARN","ts":"2026-10-01T10:08:42.953549506Z","instance":"round1-a","service_name":"afs-node"}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-01T10:08:43.00637897Z","instance":"round1-a","service_name":"afs-node","message":"DFS dentry not found","kind":"NotFound","code":34078721}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-01T10:08:43.008809963Z","instance":"round1-a","service_name":"afs-node","message":"DFS dentry not found","kind":"NotFound","code":34078721}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-01T10:08:43.01065327Z","instance":"round1-a","service_name":"afs-node","message":"DFS dentry not found","kind":"NotFound","code":34078721}
+{"msg":"fuse.create","level":"INFO","ts":"2026-10-01T10:08:43.010672895Z","instance":"round1-a","service_name":"afs-node","name":"a-same-mount.txt","parent":1}
+{"msg":"[Not Implemented] ioctl(ino: 0x4, fh: 5, flags: 0, cmd: 21505, in_data.len(): 0, out_size: 0)","level":"WARN","ts":"2026-10-01T10:08:43.01951111Z","instance":"round1-a","service_name":"afs-node"}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-01T10:08:43.020244083Z","instance":"round1-a","service_name":"afs-node","message":"DFS currently supports only user.* xattrs","kind":"FailedPrecondition","code":67305489}
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE send_complete
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-01T10:08:43.055321497Z","instance":"round1-a","service_name":"afs-node","message":"DFS currently supports only user.* xattrs","kind":"FailedPrecondition","code":67305489}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-01T10:08:43.057086016Z","instance":"round1-a","service_name":"afs-node","message":"DFS currently supports only user.* xattrs","kind":"FailedPrecondition","code":67305489}
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE send_complete
+{"msg":"[Not Implemented] ioctl(ino: 0x4, fh: 8, flags: 0, cmd: 21505, in_data.len(): 0, out_size: 0)","level":"WARN","ts":"2026-10-01T10:08:43.080675228Z","instance":"round1-a","service_name":"afs-node"}
+{"msg":"[Not Implemented] ioctl(ino: 0x4, fh: 9, flags: 0, cmd: 21505, in_data.len(): 0, out_size: 0)","level":"WARN","ts":"2026-10-01T10:08:43.086181067Z","instance":"round1-a","service_name":"afs-node"}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-01T10:08:43.123532564Z","instance":"round1-a","service_name":"afs-node","message":"DFS dentry not found","kind":"NotFound","code":34078721}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-01T10:08:43.124511111Z","instance":"round1-a","service_name":"afs-node","message":"DFS dentry not found","kind":"NotFound","code":34078721}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-01T10:08:43.125801313Z","instance":"round1-a","service_name":"afs-node","message":"DFS dentry not found","kind":"NotFound","code":34078721}
+{"msg":"fuse.create","level":"INFO","ts":"2026-10-01T10:08:43.125813396Z","instance":"round1-a","service_name":"afs-node","name":"a-close.txt","parent":1}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-01T10:08:43.134351956Z","instance":"round1-a","service_name":"afs-node","message":"DFS currently supports only user.* xattrs","kind":"FailedPrecondition","code":67305489}
+{"msg":"[Not Implemented] ioctl(ino: 0x5, fh: 11, flags: 0, cmd: 21505, in_data.len(): 0, out_size: 0)","level":"WARN","ts":"2026-10-01T10:08:43.149808219Z","instance":"round1-a","service_name":"afs-node"}
+{"msg":"[Not Implemented] ioctl(ino: 0x5, fh: 12, flags: 0, cmd: 21505, in_data.len(): 0, out_size: 0)","level":"WARN","ts":"2026-10-01T10:08:43.156913582Z","instance":"round1-a","service_name":"afs-node"}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-01T10:08:43.186109588Z","instance":"round1-a","service_name":"afs-node","message":"DFS dentry not found","kind":"NotFound","code":34078721}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-01T10:08:43.186839145Z","instance":"round1-a","service_name":"afs-node","message":"DFS dentry not found","kind":"NotFound","code":34078721}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-01T10:08:43.188299216Z","instance":"round1-a","service_name":"afs-node","message":"DFS dentry not found","kind":"NotFound","code":34078721}
+{"msg":"fuse.create","level":"INFO","ts":"2026-10-01T10:08:43.188310215Z","instance":"round1-a","service_name":"afs-node","name":"a-sparse.txt","parent":1}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-01T10:08:43.197546749Z","instance":"round1-a","service_name":"afs-node","message":"DFS currently supports only user.* xattrs","kind":"FailedPrecondition","code":67305489}
+{"msg":"[Not Implemented] ioctl(ino: 0x6, fh: 14, flags: 0, cmd: 21505, in_data.len(): 0, out_size: 0)","level":"WARN","ts":"2026-10-01T10:08:43.215894614Z","instance":"round1-a","service_name":"afs-node"}
+{"msg":"[Not Implemented] ioctl(ino: 0x6, fh: 15, flags: 0, cmd: 21505, in_data.len(): 0, out_size: 0)","level":"WARN","ts":"2026-10-01T10:08:43.222445372Z","instance":"round1-a","service_name":"afs-node"}
+{"msg":"[Not Implemented] ioctl(ino: 0x5, fh: 16, flags: 0, cmd: 21505, in_data.len(): 0, out_size: 0)","level":"WARN","ts":"2026-10-01T10:08:43.255755727Z","instance":"round1-a","service_name":"afs-node"}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-01T10:08:43.268560296Z","instance":"round1-a","service_name":"afs-node","message":"DFS currently supports only user.* xattrs","kind":"FailedPrecondition","code":67305489}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-01T10:08:43.276943612Z","instance":"round1-a","service_name":"afs-node","message":"DFS currently supports only user.* xattrs","kind":"FailedPrecondition","code":67305489}
+{"msg":"[Not Implemented] ioctl(ino: 0x5, fh: 18, flags: 0, cmd: 21505, in_data.len(): 0, out_size: 0)","level":"WARN","ts":"2026-10-01T10:08:43.280080788Z","instance":"round1-a","service_name":"afs-node"}
+{"msg":"[Not Implemented] ioctl(ino: 0x5, fh: 19, flags: 0, cmd: 21505, in_data.len(): 0, out_size: 0)","level":"WARN","ts":"2026-10-01T10:08:43.299948888Z","instance":"round1-a","service_name":"afs-node"}
+{"msg":"[Not Implemented] ioctl(ino: 0x5, fh: 20, flags: 0, cmd: 21505, in_data.len(): 0, out_size: 0)","level":"WARN","ts":"2026-10-01T10:08:43.306689597Z","instance":"round1-a","service_name":"afs-node"}
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_COMPLETE op=WRITE bytes=8
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_COMPLETE op=READ bytes=9
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_COMPLETE op=WRITE bytes=9
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_COMPLETE op=WRITE bytes=9
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_COMPLETE op=WRITE bytes=9
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_COMPLETE op=READ bytes=5
+AFS_RDMA_COMPLETE op=READ bytes=8
+AFS_RDMA_COMPLETE op=READ bytes=9
+{"msg":"[Not Implemented] ioctl(ino: 0x8, fh: 21, flags: 0, cmd: 21505, in_data.len(): 0, out_size: 0)","level":"WARN","ts":"2026-10-01T10:09:00.777871279Z","instance":"round1-a","service_name":"afs-node"}
+{"msg":"[Not Implemented] ioctl(ino: 0x8, fh: 22, flags: 0, cmd: 21505, in_data.len(): 0, out_size: 0)","level":"WARN","ts":"2026-10-01T10:09:00.778762081Z","instance":"round1-a","service_name":"afs-node"}
+{"msg":"[Not Implemented] ioctl(ino: 0x7, fh: 21, flags: 0, cmd: 21505, in_data.len(): 0, out_size: 0)","level":"WARN","ts":"2026-10-01T10:09:00.821980119Z","instance":"round1-a","service_name":"afs-node"}
+{"msg":"[Not Implemented] ioctl(ino: 0x7, fh: 22, flags: 0, cmd: 21505, in_data.len(): 0, out_size: 0)","level":"WARN","ts":"2026-10-01T10:09:00.835243812Z","instance":"round1-a","service_name":"afs-node"}
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_COMPLETE op=WRITE bytes=9
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_COMPLETE op=WRITE bytes=9
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE receive_complete
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
+AFS_RDMA_PROBE receive_complete
+{"msg":"services.stopped","level":"INFO","ts":"2026-10-01T10:09:01.530635455Z","instance":"round1-a","service_name":"afs-node"}
+{"msg":"Mounting /mnt/lima-afsadata/afs-delivery/round1-mainline-v77-rn/mount/ownerfs","level":"INFO","ts":"2026-10-01T10:09:20.682657909Z","instance":"round1-a","service_name":"afs-node"}
+{"msg":"Mounting /mnt/lima-afsadata/afs-delivery/round1-mainline-v77-rn/mount/dfs","level":"INFO","ts":"2026-10-01T10:09:20.686634856Z","instance":"round1-a","service_name":"afs-node"}
+{"msg":"node.ready","level":"INFO","ts":"2026-10-01T10:09:20.687985351Z","instance":"round1-a","service_name":"afs-node","dfs":true,"ownerfs":true,"uds":"/mnt/lima-afsadata/afs-delivery/round1-mainline-v77-rn/run/node.sock","rest":"192.168.109.12:19983","grpc":"0.0.0.0:19982"}
+{"msg":"services.stopped","level":"INFO","ts":"2026-10-01T10:09:36.723364549Z","instance":"round1-a","service_name":"afs-node"}

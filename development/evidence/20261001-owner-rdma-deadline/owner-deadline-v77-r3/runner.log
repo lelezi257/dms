@@ -1,0 +1,10 @@
+Traceback (most recent call last):
+  File "/home/lzc.guest/afs-build/work/owner-deadline-v77-r3/scripts/check-rdma-cancellation.py", line 212, in <module>
+    main()
+  File "/home/lzc.guest/afs-build/work/owner-deadline-v77-r3/scripts/check-rdma-cancellation.py", line 206, in main
+    report = audit(directory, args.device, args.profile)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/lzc.guest/afs-build/work/owner-deadline-v77-r3/scripts/check-rdma-cancellation.py", line 47, in audit
+    assert exits[0]["code"] == 0
+           ^^^^^^^^^^^^^^^^^^^^^
+AssertionError

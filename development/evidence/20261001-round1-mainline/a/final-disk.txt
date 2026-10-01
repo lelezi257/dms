@@ -1,0 +1,2 @@
+Filesystem       1B-blocks        Used  Available Use% Mounted on
+/dev/vdb1      33633878016 27094044672 4805177344  85% /mnt/lima-afsadata

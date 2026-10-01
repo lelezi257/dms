@@ -1,0 +1,1 @@
+{"event": "posted", "pid": 1650, "thread": [1650, 1655, 0], "gdb_thread": 5, "operation": 1, "bytes": 4096, "data_wr_id": 1, "poisoned": false, "qp": 20, "monotonic": 572.880889322}

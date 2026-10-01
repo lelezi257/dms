@@ -1,0 +1,7 @@
+ok - dep02-smoke rejects ordinary /tmp
+ok - processctl rejects ready REST without AFS mount
+ok - processctl accepts TOML literal/basic listen strings with comments
+removing stale pid file for meta: 3182
+meta did not become ready within 2s; see /tmp/afs-deploy-selftest-2451/quotes/log/meta.log
+/home/lzc.guest/round1-script-checks/afs-processctl: line 140: /proc/3568/cmdline: No such file or directory
+not ok - processctl probes local readiness directly despite inherited proxy

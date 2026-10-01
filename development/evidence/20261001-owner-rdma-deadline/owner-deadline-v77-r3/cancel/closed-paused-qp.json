@@ -1,0 +1,1 @@
+[{"ifindex":0,"ifname":"rxe0","port":1,"lqpn":22,"rqpn":21,"type":"RC","state":"RTS","rq-psn":1,"sq-psn":4,"path-mig-state":"MIGRATED","pdn":6,"pid":1762,"comm":"tokio-rt-worker"},{"ifindex":0,"ifname":"rxe0","port":1,"lqpn":1,"type":"GSI","state":"RTS","sq-psn":0,"comm":"ib_core"}]

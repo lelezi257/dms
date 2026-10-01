@@ -1,0 +1,57 @@
+Reading symbols from /home/lzc.guest/afs-build/artifacts/owner-deadline-v77/owner-contract-r3...
+warning: Missing auto-load script at offset 0 in section .debug_gdb_scripts
+of file /home/lzc.guest/afs-build/artifacts/owner-deadline-v77/owner-contract-r3.
+Use `info auto-load python-scripts [REGEXP]' to list them.
+Breakpoint 1 at 0x982be0: file native/rdma.c, line 339.
+[Thread debugging using libthread_db enabled]
+Using host libthread_db library "/lib/aarch64-linux-gnu/libthread_db.so.1".
+
+running 1 test
+test ownerpeerclient_posted_rdma_deadline_has_unknown_outcome ... [Detaching after vfork from child process 1766]
+[Detaching after vfork from child process 1767]
+[Detaching after vfork from child process 1768]
+[Detaching after vfork from child process 1769]
+[Detaching after vfork from child process 1770]
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.1 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.1 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE receive_complete
+
+Thread 3 "tokio-rt-worker" hit Breakpoint 1, afs_rdma_transfer (
+    opaque=0xffffe8011a50, operation=1, len=4096, timeout_ms=5000, 
+    err=0xfffff79bcd50 "", errlen=256) at native/rdma.c:339
+339	    uint64_t deadline=monotonic_ms()+timeout_ms;
+(gdb) [Detaching after vfork from child process 1773]
+[Detaching after vfork from child process 1774]
+[Detaching after vfork from child process 1775]
+[Detaching after vfork from child process 1776]
+[Detaching after vfork from child process 1777]
+[Detaching after vfork from child process 1778]
+[Detaching after vfork from child process 1779]
+[Detaching after vfork from child process 1780]
+[Detaching after vfork from child process 1781]
+[Detaching after vfork from child process 1782]
+AFS_OWNER_DEADLINE caller=TIMEOUT lookup=STALE server=RETAINED file=EMPTY replay=ABSENT
+[Switching to thread 3 (Thread 0xfffff79bef60 (LWP 1762))]
+#0  afs_rdma_transfer (opaque=0xffffe8011a50, operation=1, len=4096, 
+    timeout_ms=5000, err=0xfffff79bcd50 "", errlen=256) at native/rdma.c:339
+339	    uint64_t deadline=monotonic_ms()+timeout_ms;
+(gdb) Continuing.
+AFS_RDMA_COMPLETE op=READ bytes=4096
+
+thread 'ownerpeerclient_posted_rdma_deadline_has_unknown_outcome' (1761) panicked at tests/ownerfs_peer_contract.rs:1597:5:
+assertion `left == right` failed
+  left: 0
+ right: 4096
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    ownerpeerclient_posted_rdma_deadline_has_unknown_outcome
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 11 filtered out; finished in 4.12s
+
+[Inferior 1 (process 1759) exited with code 0145]
+(gdb) 

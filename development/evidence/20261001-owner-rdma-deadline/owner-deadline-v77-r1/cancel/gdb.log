@@ -1,0 +1,32 @@
+Reading symbols from /home/lzc.guest/afs-build/artifacts/owner-deadline-v77/owner-contract...
+warning: Missing auto-load script at offset 0 in section .debug_gdb_scripts
+of file /home/lzc.guest/afs-build/artifacts/owner-deadline-v77/owner-contract.
+Use `info auto-load python-scripts [REGEXP]' to list them.
+Breakpoint 1 at 0x981df4: file native/rdma.c, line 339.
+[Thread debugging using libthread_db enabled]
+Using host libthread_db library "/lib/aarch64-linux-gnu/libthread_db.so.1".
+
+running 1 test
+test ownerpeerclient_posted_rdma_deadline_has_unknown_outcome ... [Detaching after vfork from child process 1519]
+[Detaching after vfork from child process 1520]
+[Detaching after vfork from child process 1521]
+[Detaching after vfork from child process 1522]
+[Detaching after vfork from child process 1523]
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.1 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.1 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE receive_complete
+
+Thread 4 "tokio-rt-worker" hit Breakpoint 1, afs_rdma_transfer (
+    opaque=0xffffec00f630, operation=1, len=4096, timeout_ms=5000, 
+    err=0xfffff77acd50 "", errlen=256) at native/rdma.c:339
+339	    uint64_t deadline=monotonic_ms()+timeout_ms;
+(gdb) [Detaching after vfork from child process 1526]
+[Detaching after vfork from child process 1527]
+[Detaching after vfork from child process 1528]
+[Detaching after vfork from child process 1529]
+[Detaching after vfork from child process 1530]
+
+thread 'ownerpeerclient_posted_rdma_deadline_has_unknown_outcome' (1514) panicked at tests/ownerfs_peer_contract.rs:513:5:
+posted OwnerPeerClient write must fail with the request deadline, got Error { code: ErrorCode(16973827), kind: Cancelled, message: "Timeout expired" }
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace

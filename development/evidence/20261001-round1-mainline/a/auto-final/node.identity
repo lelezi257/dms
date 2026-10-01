@@ -1,0 +1,8 @@
+pid=737601
+exe=/mnt/lima-afsadata/afs-delivery/round1-mainline-v77-rn/prefix/bin/afs-node
+config=/mnt/lima-afsadata/afs-delivery/round1-mainline-v77-rn/etc/node.toml
+start_ticks=10022100
+boot_id=36a572e0-859b-4a94-adc7-789210a83fc8
+lifecycle=/mnt/lima-afsadata/afs-delivery/round1-mainline-v77-rn/run/node.lifecycle.AYwEqO
+supervisor_pid=737585
+cmdline=/mnt/lima-afsadata/afs-delivery/round1-mainline-v77-rn/prefix/bin/afs-node --config /mnt/lima-afsadata/afs-delivery/round1-mainline-v77-rn/etc/node.toml

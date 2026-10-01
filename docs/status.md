@@ -6,6 +6,12 @@ This page is the only implementation-status page. Architecture pages describe th
 
 The [delivery acceptance contract](acceptance.md) requires JuiceFS default same-mount visibility and close-to-open semantics. A dedicated Linux environment, suite manifest, runner and acceptance Skill are prepared for development; reference suites and comparator prerequisites are still incomplete. Short regressions are not proof that release gates pass.
 
+## Delivery execution status
+
+The [delivery plan](../development/plan.md#whole-system-rounds) executes four rounds covering the whole system. Current round: **1, healthy mainline**, not yet complete. The [identified healthy cohort](../development/evidence/20261001-round1-mainline/README.md) passes four isolated installs, memory Meta, workspace/Home REST, Owner local/remote operations, DFS synchronous N2, small-file visibility/close/resize, actual cross-VM Auto/required RDMA and gRPC, and normal restart/stop. A readiness proxy defect is corrected and regression-tested. The controller was replaced explicitly after installation; corrected archive installation, current healthy async repair and round-end regression remain open. [Active issues](../development/issues.md) separates these gaps from later-round qualifications.
+
+The [Owner posted-deadline fixture](../development/evidence/20261001-owner-rdma-deadline/README.md) passes local regression, including actual RXE, nine default Owner contracts and checker rejection checks. A caller deadline can coexist with later completion of the original admitted write; no replay or rollback is assumed. Its final inputs also pass the [batch source gate](../development/evidence/20261001-round1-mainline/README.md): 414 library/65 contract/4 shared-error/9 local API/5 privileged FUSE tests, fmt, strict Clippy, five feature configurations and builds. Production binaries match v75/v76 exactly. Neither stage validation nor the healthy subset completes formal acceptance: all69 cases remain NOT_RUN and ENV PREPARING.
+
 ## Current Capability Matrix
 
 | Area | Status | Evidence and limit |

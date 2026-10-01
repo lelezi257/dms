@@ -1,0 +1,3 @@
+   Compiling afs v0.1.0 (/home/lzc.guest/afs-build/work/owner-deadline-v77-r2)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 3.48s
+  Executable tests/ownerfs_peer_contract.rs (/home/lzc.guest/afs-build/target/debug/deps/ownerfs_peer_contract-7ec0db08fd55e38d)

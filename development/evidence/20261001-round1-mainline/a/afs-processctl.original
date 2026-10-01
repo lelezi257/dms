@@ -1,0 +1,813 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Private entry: only the process that owns wait(2) may publish an exit status.
+# Each launch has its own directory; an old supervisor cannot overwrite a new
+# launch's PID, identity or receipt. All descriptors are detached by the caller.
+if [ "${1:-}" = __supervise ]; then
+  binary=$2
+  cfg=$3
+  lifecycle=$4
+  boot_id=$(cat /proc/sys/kernel/random/boot_id)
+  printf 'supervisor_pid=%s\n' "$$" >"$lifecycle/ready.tmp"
+  mv "$lifecycle/ready.tmp" "$lifecycle/ready"
+  # Before go, a cancelled bootstrap cannot have launched a product child.
+  while [ ! -f "$lifecycle/go" ]; do sleep 0.02; done
+  "$binary" --config "$cfg" &
+  child=$!
+  ticks=$(sed 's/.*) //' "/proc/$child/stat" 2>/dev/null | awk '{print $20}' || true)
+  {
+    printf 'pid=%s\nexe=%s\nconfig=%s\nstart_ticks=%s\nboot_id=%s\nlifecycle=%s\n' \
+      "$child" "$binary" "$cfg" "$ticks" "$boot_id" "$lifecycle"
+    printf 'supervisor_pid=%s\n' "$$"
+  } >"$lifecycle/child.tmp"
+  mv "$lifecycle/child.tmp" "$lifecycle/child"
+  code=0
+  wait "$child" || code=$?
+  { cat "$lifecycle/child"; printf 'exit_code=%s\n' "$code"; } >"$lifecycle/exit.tmp"
+  mv "$lifecycle/exit.tmp" "$lifecycle/exit"
+  exit 0
+fi
+
+usage() {
+  cat <<'USAGE'
+Usage: afs-processctl [options] <start|stop|restart|status|uninstall> <meta|node|dfs|ownerfs|all>
+
+Options:
+  --prefix DIR        Program prefix. Default: /opt/afs
+  --config-dir DIR    Config directory. Default: /etc/afs
+  --run-dir DIR       PID directory. Default: /run/afs
+  --log-dir DIR       Log directory. Default: /var/log/afs
+  --timeout SEC       Stop/start wait timeout. Default: 20
+  --json              Emit machine-readable status where supported.
+  --no-readiness      Start process without REST or mount readiness checks.
+USAGE
+}
+
+PREFIX=/opt/afs
+CONFIG_DIR=/etc/afs
+RUN_DIR=/run/afs
+LOG_DIR=/var/log/afs
+TIMEOUT=20
+JSON=0
+READINESS=1
+
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --prefix) PREFIX=${2:-}; shift 2 ;;
+    --config-dir) CONFIG_DIR=${2:-}; shift 2 ;;
+    --run-dir) RUN_DIR=${2:-}; shift 2 ;;
+    --log-dir) LOG_DIR=${2:-}; shift 2 ;;
+    --timeout) TIMEOUT=${2:-}; shift 2 ;;
+    --json) JSON=1; shift ;;
+    --no-readiness) READINESS=0; shift ;;
+    -h|--help) usage; exit 0 ;;
+    start|stop|restart|status|uninstall) ACTION=$1; shift; break ;;
+    *) echo "unknown argument: $1" >&2; usage >&2; exit 2 ;;
+  esac
+done
+
+ACTION=${ACTION:-}
+TARGET=${1:-}
+if [ -z "$ACTION" ] || [ -z "$TARGET" ]; then
+  usage >&2
+  exit 2
+fi
+
+case "$TARGET" in
+  meta|node|dfs|ownerfs|all) ;;
+  *) echo "target must be meta, node, dfs, ownerfs or all" >&2; exit 2 ;;
+esac
+
+[[ "$TIMEOUT" =~ ^[0-9]+$ ]] || { echo "timeout must be a nonnegative integer" >&2; exit 2; }
+mkdir -p "$RUN_DIR" "$LOG_DIR"
+RUN_DIR=$(readlink -f "$RUN_DIR")
+
+process_service() {
+  case "$1" in
+    meta) printf 'meta\n' ;;
+    node|dfs|ownerfs) printf 'node\n' ;;
+  esac
+}
+
+service_binary() {
+  case "$(process_service "$1")" in
+    meta) printf '%s/bin/afs-meta\n' "$PREFIX" ;;
+    node) printf '%s/bin/afs-node\n' "$PREFIX" ;;
+  esac
+}
+
+service_config() {
+  case "$(process_service "$1")" in
+    meta) printf '%s/meta.toml\n' "$CONFIG_DIR" ;;
+    node) printf '%s/node.toml\n' "$CONFIG_DIR" ;;
+  esac
+}
+
+pid_file() {
+  printf '%s/%s.pid\n' "$RUN_DIR" "$(process_service "$1")"
+}
+
+identity_file() {
+  printf '%s/%s.identity\n' "$RUN_DIR" "$(process_service "$1")"
+}
+
+log_file() {
+  printf '%s/%s.log\n' "$LOG_DIR" "$(process_service "$1")"
+}
+
+is_running_pid() {
+  local pid=$1 state
+  [[ "$pid" =~ ^[1-9][0-9]*$ ]] || return 1
+  kill -0 "$pid" 2>/dev/null || return 1
+  # An unreaped zombie has exited; wait-status proof is still required below.
+  state=$(sed 's/.*) //' "/proc/$pid/stat" 2>/dev/null | awk '{print $1}' || true)
+  [ "$state" != Z ] && [ -n "$state" ]
+}
+
+read_pid() {
+  file=$(pid_file "$1")
+  [ -f "$file" ] && sed -n '1p' "$file" || true
+}
+
+proc_start_ticks() {
+  local pid=$1
+  sed 's/.*) //' "/proc/$pid/stat" 2>/dev/null | awk '{print $20}' || true
+}
+
+proc_cmdline() {
+  local pid=$1
+  tr '\0' ' ' < "/proc/$pid/cmdline" 2>/dev/null | sed 's/[[:space:]]*$//' || true
+}
+
+write_identity() {
+  local service=$1 lifecycle=$2 pid ident ticks cmdline=
+  pid=$(identity_value pid "$lifecycle/child")
+  ticks=$(identity_value start_ticks "$lifecycle/child")
+  if [ -n "$ticks" ] && [ "$(proc_start_ticks "$pid")" = "$ticks" ]; then
+    cmdline=$(proc_cmdline "$pid")
+    [ "$(proc_start_ticks "$pid")" = "$ticks" ] || cmdline=
+  fi
+  ident=$(identity_file "$service")
+  # The wait owner's original incarnation is authoritative. Never replace its
+  # ticks with a fresh /proc sample that might belong to a reused numeric PID.
+  {
+    cat "$lifecycle/child"
+    printf 'cmdline=%s\n' "$cmdline"
+  } >"$ident.tmp"
+  mv "$ident.tmp" "$ident"
+}
+
+identity_value() {
+  key=$1
+  file=$2
+  sed -n "s/^$key=//p" "$file" 2>/dev/null | head -n 1
+}
+
+pid_identity_matches() {
+  service=$1
+  pid=$2
+  ident=$(identity_file "$service")
+  [ -f "$ident" ] || return 1
+  [ "$(identity_value pid "$ident")" = "$pid" ] || return 1
+  if [ -n "$(identity_value boot_id "$ident")" ]; then
+    [ "$(identity_value boot_id "$ident")" = "$(cat /proc/sys/kernel/random/boot_id)" ] || return 1
+  fi
+  expected_exe=$(identity_value exe "$ident")
+  expected_cfg=$(identity_value config "$ident")
+  expected_ticks=$(identity_value start_ticks "$ident")
+  expected_cmd=$(identity_value cmdline "$ident")
+  actual_exe=$(readlink -f "/proc/$pid/exe" 2>/dev/null || true)
+  actual_exe_clean=${actual_exe% (deleted)}
+  actual_ticks=$(proc_start_ticks "$pid")
+  actual_cmd=$(proc_cmdline "$pid")
+  cfg=$(readlink -f "$(service_config "$service")")
+  [ -n "$actual_exe_clean" ] && [ "$actual_exe_clean" = "$expected_exe" ] && \
+    [ "$cfg" = "$expected_cfg" ] && \
+    [ -n "$actual_ticks" ] && [ "$actual_ticks" = "$expected_ticks" ] && \
+    [ -n "$actual_cmd" ] && [ "$actual_cmd" = "$expected_cmd" ]
+}
+
+service_port_values() {
+  local cfg key listen port
+  cfg=$(service_config "$1")
+  [ -f "$cfg" ] || return 0
+  for key in grpc_listen rest_listen; do
+    listen=$(config_value "$key" "$cfg") || return 1
+    [ -n "$listen" ] || continue
+    port=${listen##*:}
+    [[ "$port" =~ ^[0-9]+$ ]] && [ "$port" -le 65535 ] || {
+      echo "invalid $key port in $cfg" >&2
+      return 1
+    }
+    printf '%s\n' "$port"
+  done
+}
+
+config_value() {
+  local key=$1 cfg=$2
+  # Read one deployment scalar, preserving whitespace, # and = inside strings.
+  # TOML literal strings and basic strings can both have trailing comments.
+  awk -v key="$key" '
+    $0 ~ "^[[:space:]]*" key "[[:space:]]*=" {
+      value = substr($0, index($0, "=") + 1);
+      sub(/^[[:space:]]*/, "", value);
+      quote = substr(value, 1, 1);
+      if (quote == "\"" || quote == "\047") {
+        result = "";
+        for (i = 2; i <= length(value); i++) {
+          c = substr(value, i, 1);
+          if (c == quote) {
+            suffix = substr(value, i + 1);
+            if (suffix !~ /^[[:space:]]*(#.*)?$/) exit 2;
+            print result;
+            exit;
+          }
+          if (quote == "\"" && c == "\\") {
+            i++;
+            c = substr(value, i, 1);
+            if (c == "t") c = "\t";
+            else if (c == "n") c = "\n";
+            else if (c == "r") c = "\r";
+            else if (c == "b") c = "\b";
+            else if (c == "f") c = "\f";
+            else if (c != "\"" && c != "\\") exit 2;
+          }
+          result = result c;
+        }
+        exit 2;
+      }
+      sub(/#.*/, "", value);
+      sub(/[[:space:]]*$/, "", value);
+      print value;
+      exit;
+    }
+  ' "$cfg"
+}
+
+rest_url() {
+  cfg=$(service_config "$1")
+  rest=$(config_value rest_listen "$cfg")
+  [ -n "$rest" ] || return 1
+  case "$rest" in
+    0.0.0.0:*) rest="127.0.0.1:${rest##*:}" ;;
+    "[::]:"*) rest="127.0.0.1:${rest##*:}" ;;
+  esac
+  printf 'http://%s/health\n' "$rest"
+}
+
+mount_paths_for_target() {
+  cfg=$(service_config "$1")
+  case "$1" in
+    dfs) printf 'dfs:%s\n' "$(config_value dfs_mount "$cfg")" ;;
+    ownerfs) printf 'ownerfs:%s\n' "$(config_value ownerfs_mount "$cfg")" ;;
+    node)
+      printf 'dfs:%s\n' "$(config_value dfs_mount "$cfg")"
+      printf 'ownerfs:%s\n' "$(config_value ownerfs_mount "$cfg")"
+      ;;
+    meta) return 0 ;;
+  esac
+}
+
+mount_source() {
+  case "$1" in
+    dfs) printf 'afs-dfs\n' ;;
+    ownerfs) printf 'afs-ownerfs\n' ;;
+    meta|node) return 0 ;;
+  esac
+}
+
+verify_service_mount() {
+  local mount_service=$1
+  mount=$2
+  expected_source=$(mount_source "$mount_service" || true)
+  [ -n "$mount" ] || return 0
+  command -v findmnt >/dev/null 2>&1 || {
+    echo "findmnt is required to verify $mount_service mount readiness" >&2
+    return 1
+  }
+  target=$(findmnt -rn --mountpoint "$mount" -o TARGET 2>/dev/null || true)
+  fstype=$(findmnt -rn --mountpoint "$mount" -o FSTYPE 2>/dev/null || true)
+  source=$(findmnt -rn --mountpoint "$mount" -o SOURCE 2>/dev/null || true)
+  if [ -z "$target" ]; then
+    echo "$mount_service mount is not an exact mount point: $mount" >&2
+    return 1
+  fi
+  real_mount=$(readlink -f "$mount")
+  real_target=$(readlink -f "$target" 2>/dev/null || true)
+  if [ -z "$real_target" ] || [ "$real_target" != "$real_mount" ]; then
+    echo "$mount_service mount point mismatch for $mount: found $target" >&2
+    return 1
+  fi
+  case "$fstype" in
+    fuse|fuse.*) ;;
+    *) echo "$mount_service mount is not FUSE at $mount: fstype=$fstype" >&2; return 1 ;;
+  esac
+  if [ "$source" != "$expected_source" ]; then
+    echo "$mount_service mount source mismatch at $mount: expected $expected_source got $source" >&2
+    return 1
+  fi
+}
+
+verify_exact_afs_mount_metadata() {
+  local mount_service=$1 purpose=$2
+  mount=$3
+  expected_source=$(mount_source "$mount_service" || true)
+  command -v findmnt >/dev/null 2>&1 || {
+    echo "findmnt is required to verify $mount_service $purpose" >&2
+    return 2
+  }
+  target=$(findmnt -rn --mountpoint "$mount" -o TARGET 2>/dev/null || true)
+  fstype=$(findmnt -rn --mountpoint "$mount" -o FSTYPE 2>/dev/null || true)
+  source=$(findmnt -rn --mountpoint "$mount" -o SOURCE 2>/dev/null || true)
+  if [ -z "$target" ]; then
+    return 1
+  fi
+  real_mount=$(readlink -m "$mount")
+  real_target=$(readlink -m "$target" 2>/dev/null || true)
+  if [ -z "$real_target" ] || [ "$real_target" != "$real_mount" ]; then
+    echo "refusing $purpose for $mount_service at $mount: found mount target $target" >&2
+    return 2
+  fi
+  case "$fstype" in
+    fuse|fuse.*) ;;
+    *) echo "refusing $purpose for $mount_service at $mount: fstype=$fstype" >&2; return 2 ;;
+  esac
+  if [ "$source" != "$expected_source" ]; then
+    echo "refusing $purpose for $mount_service at $mount: source=$source expected=$expected_source" >&2
+    return 2
+  fi
+}
+
+stat_proves_disconnected_mount() {
+  local mount_service=$1
+  mount=$2
+  set +e
+  stat_output=$(LC_ALL=C timeout --kill-after=1s 2s stat -c %F -- "$mount" 2>&1)
+  stat_status=$?
+  set -e
+  case "$stat_status" in
+    0)
+    echo "refusing stale recovery for $mount_service at $mount: mount is still responsive" >&2
+    return 1
+      ;;
+    1)
+      case "$stat_output" in
+        *"Transport endpoint is not connected"*) return 0 ;;
+      esac
+      ;;
+  esac
+  echo "refusing stale recovery for $mount_service at $mount: stat did not prove ENOTCONN (rc=$stat_status): $stat_output" >&2
+  return 1
+}
+
+bounded_unmount_command() {
+  timeout --kill-after=1s 2s "$@"
+}
+
+port_in_use() {
+  port=$1
+  if command -v ss >/dev/null 2>&1; then
+    ss -H -ltn "sport = :$port" | grep -q .
+  else
+    return 1
+  fi
+}
+
+unmount_service_mount() {
+  local mount_service=$1
+  mount=$2
+  [ -n "$mount" ] || return 0
+  if verify_exact_afs_mount_metadata "$mount_service" unmount "$mount"; then
+    :
+  else
+    rc=$?
+    case "$rc" in
+      1) return 0 ;;
+      *) return 1 ;;
+    esac
+  fi
+  if command -v fusermount3 >/dev/null 2>&1; then
+    bounded_unmount_command fusermount3 -u "$mount" 2>/dev/null || bounded_unmount_command umount "$mount"
+  elif command -v fusermount >/dev/null 2>&1; then
+    bounded_unmount_command fusermount -u "$mount" 2>/dev/null || bounded_unmount_command umount "$mount"
+  else
+    bounded_unmount_command umount "$mount"
+  fi
+  if findmnt -rn --mountpoint "$mount" >/dev/null 2>&1; then
+    echo "$mount_service mount still present after unmount: $mount" >&2
+    return 1
+  fi
+}
+
+recover_disconnected_target_mounts() {
+  service=$1
+  [ "$(process_service "$service")" = node ] || return 0
+  while IFS=: read -r mount_service mount; do
+    [ -n "$mount" ] || continue
+    if verify_exact_afs_mount_metadata "$mount_service" "stale recovery" "$mount"; then
+      :
+    else
+      rc=$?
+      case "$rc" in
+        1) continue ;;
+        *) return 1 ;;
+      esac
+    fi
+    stat_proves_disconnected_mount "$mount_service" "$mount" || return 1
+    echo "recovering disconnected $mount_service mount at $mount" >&2
+    if command -v fusermount3 >/dev/null 2>&1; then
+      bounded_unmount_command fusermount3 -uz "$mount" 2>/dev/null || bounded_unmount_command fusermount3 -u "$mount" 2>/dev/null || bounded_unmount_command umount "$mount" 2>/dev/null || bounded_unmount_command umount -l "$mount"
+    elif command -v fusermount >/dev/null 2>&1; then
+      bounded_unmount_command fusermount -uz "$mount" 2>/dev/null || bounded_unmount_command fusermount -u "$mount" 2>/dev/null || bounded_unmount_command umount "$mount" 2>/dev/null || bounded_unmount_command umount -l "$mount"
+    else
+      bounded_unmount_command umount "$mount" 2>/dev/null || bounded_unmount_command umount -l "$mount"
+    fi
+    if findmnt -rn --mountpoint "$mount" >/dev/null 2>&1; then
+      echo "$mount_service mount still present after stale recovery: $mount" >&2
+      return 1
+    fi
+  done <<EOF_MOUNTS
+$(mount_paths_for_target node || true)
+EOF_MOUNTS
+}
+
+unmount_target_mounts() {
+  service=$1
+  while IFS=: read -r mount_service mount; do
+    [ -n "$mount" ] || continue
+    unmount_service_mount "$mount_service" "$mount"
+  done <<EOF_MOUNTS
+$(mount_paths_for_target "$service" || true)
+EOF_MOUNTS
+}
+
+wait_readiness() {
+  service=$1
+  pid=$2
+  url=$(rest_url "$service" || true)
+  deadline=$((SECONDS + TIMEOUT))
+  while [ "$SECONDS" -lt "$deadline" ]; do
+    if ! is_running_pid "$pid"; then
+      echo "$service exited during startup; see $(log_file "$service")" >&2
+      return 1
+    fi
+    if [ -n "$url" ] && command -v curl >/dev/null 2>&1; then
+      if curl -fsS --max-time 2 "$url" 2>/dev/null | grep -q '"status":"ready"'; then
+        mounts_ok=1
+        while IFS=: read -r mount_service mount; do
+          [ -n "$mount" ] || continue
+          verify_service_mount "$mount_service" "$mount" || { mounts_ok=0; break; }
+        done <<EOF_MOUNTS
+$(mount_paths_for_target "$service" || true)
+EOF_MOUNTS
+        if [ "$mounts_ok" -eq 1 ]; then return 0; fi
+        sleep 1
+        continue
+      fi
+    elif [ -z "$url" ]; then
+      return 0
+    fi
+    sleep 1
+  done
+  echo "$service did not become ready within ${TIMEOUT}s; see $(log_file "$service")" >&2
+  return 1
+}
+
+assert_ready_to_start() {
+  service=$1
+  binary=$(service_binary "$service")
+  cfg=$(service_config "$service")
+  stale_pid=
+  [ -x "$binary" ] || { echo "missing executable: $binary" >&2; exit 1; }
+  [ -f "$cfg" ] || { echo "missing config: $cfg" >&2; exit 1; }
+
+  pid=$(read_pid "$service")
+  if is_running_pid "$pid"; then
+    if pid_identity_matches "$service" "$pid"; then
+      echo "$service already running with pid $pid" >&2
+      exit 1
+    fi
+    echo "$service pid file points to another live process: $pid" >&2
+    exit 1
+  fi
+  if [ -z "$pid" ] && [ -f "$RUN_DIR/$(process_service "$service").launch" ]; then
+    echo "$service has an unresolved startup; use stop to inspect its managed launch" >&2
+    return 1
+  fi
+  if [ -n "$pid" ]; then
+    echo "removing stale pid file for $service: $pid" >&2
+    stale_pid=$pid
+  fi
+
+  # Substitution in a for-list would discard parse failure. Validate before
+  # creating the managed launch, including mount strings used by readiness.
+  local ports key
+  ports=$(service_port_values "$service") || {
+    echo "$service cannot read listen values from $cfg" >&2
+    return 1
+  }
+  for key in dfs_mount ownerfs_mount; do
+    config_value "$key" "$cfg" >/dev/null || {
+      echo "$service cannot read $key from $cfg" >&2
+      return 1
+    }
+  done
+  for port in $ports; do
+    if port_in_use "$port"; then
+      echo "$service port already in use: $port" >&2
+      exit 1
+    fi
+  done
+
+  recover_disconnected_target_mounts "$service"
+
+  if [ -n "$stale_pid" ]; then
+    # Completed generations need not accumulate on ordinary restarts. Unknown
+    # generations are retained for diagnosis; they never qualify a new launch.
+    if exit_status "$service" "$stale_pid" >/dev/null; then
+      previous=$(identity_value lifecycle "$(identity_file "$service")")
+      rm -f "$previous/child" "$previous/exit" "$previous/ready" "$previous/go"
+      rmdir "$previous" 2>/dev/null || true
+    fi
+    rm -f "$(pid_file "$service")" "$(identity_file "$service")" "$RUN_DIR/$(process_service "$service").launch"
+  fi
+}
+
+start_one() {
+  service=$1
+  assert_ready_to_start "$service"
+  binary=$(service_binary "$service")
+  cfg=$(service_config "$service")
+  log=$(log_file "$service")
+  if [ "$(id -u)" -eq 0 ] && [ "$(process_service "$service")" != "meta" ]; then
+    while IFS=: read -r _ mount; do [ -n "$mount" ] && mkdir -p "$mount"; done <<EOF_MOUNTS
+$(mount_paths_for_target node || true)
+EOF_MOUNTS
+  fi
+  binary=$(readlink -f "$binary")
+  cfg=$(readlink -f "$cfg")
+  [ "$TIMEOUT" -gt 0 ] || { echo "$service did not become ready within 0s" >&2; return 1; }
+  lifecycle=$(mktemp -d "$RUN_DIR/$(process_service "$service").lifecycle.XXXXXX")
+  printf '%s\n' "$lifecycle" >"$RUN_DIR/$(process_service "$service").launch"
+  nohup bash "$(readlink -f "${BASH_SOURCE[0]}")" __supervise "$binary" "$cfg" "$lifecycle" \
+    </dev/null >>"$log" 2>&1 &
+  supervisor=$!
+  deadline=$((SECONDS + TIMEOUT))
+  while [ ! -f "$lifecycle/ready" ]; do
+    if ! is_running_pid "$supervisor" || [ "$SECONDS" -ge "$deadline" ]; then
+      # This direct child never received go, so it cannot have spawned Node.
+      # Even SIGSTOP cannot hold this pre-go child past the cleanup bound.
+      kill -9 "$supervisor" 2>/dev/null || true
+      cleanup_deadline=$((SECONDS + 1))
+      while is_running_pid "$supervisor" && [ "$SECONDS" -lt "$cleanup_deadline" ]; do sleep 0.02; done
+      if is_running_pid "$supervisor"; then
+        echo "$service bootstrap cleanup unknown; retained managed launch $lifecycle" >&2
+        return 1
+      fi
+      wait "$supervisor" 2>/dev/null || true
+      rm -f "$RUN_DIR/$(process_service "$service").launch"
+      echo "$service supervisor bootstrap failed before product launch; see $lifecycle and $log" >&2
+      return 1
+    fi
+    sleep 0.05
+  done
+  touch "$lifecycle/go"
+  while [ ! -f "$lifecycle/child" ]; do
+    if ! is_running_pid "$supervisor" || [ "$SECONDS" -ge "$deadline" ]; then
+      # Retain launch intent: later stop must recover the exact child or report
+      # unknown, never treat absent PID publication as a successful stop.
+      echo "$service child identity unavailable; retained managed launch $lifecycle" >&2
+      return 1
+    fi
+    sleep 0.05
+  done
+  pid=$(identity_value pid "$lifecycle/child")
+  printf '%s\n' "$pid" >"$(pid_file "$service")"
+  write_identity "$service" "$lifecycle"
+  while ! pid_identity_matches "$service" "$pid"; do
+    if ! is_running_pid "$pid"; then
+      echo "$service exited during startup; see $log" >&2
+      rm -f "$(pid_file "$service")" "$(identity_file "$service")" "$RUN_DIR/$(process_service "$service").launch"
+      return 1
+    fi
+    if [ "$(proc_start_ticks "$pid")" != "$(identity_value start_ticks "$lifecycle/child")" ] || [ "$SECONDS" -ge "$deadline" ]; then
+      echo "$service startup identity mismatch; retained managed launch" >&2
+      return 1
+    fi
+    sleep 0.02
+    write_identity "$service" "$lifecycle"
+  done
+  if [ "$READINESS" -eq 1 ]; then
+    if ! wait_readiness "$service" "$pid"; then
+      if pid_identity_matches "$service" "$pid"; then
+        kill "$pid" 2>/dev/null || true
+        sleep 1
+        pid_identity_matches "$service" "$pid" && kill -9 "$pid" 2>/dev/null || true
+      fi
+      if is_running_pid "$pid"; then
+        echo "$service startup cleanup incomplete; retained managed launch" >&2
+        return 1
+      fi
+      rm -f "$(pid_file "$service")" "$(identity_file "$service")" "$RUN_DIR/$(process_service "$service").launch"
+      exit 1
+    fi
+    if ! pid_identity_matches "$service" "$pid"; then
+      echo "$service readiness identity changed; retained managed launch" >&2
+      return 1
+    fi
+    echo "started $service pid=$pid ready=true"
+  else
+    sleep 1
+    if ! is_running_pid "$pid"; then
+      echo "$service exited during startup; see $log" >&2
+      rm -f "$(pid_file "$service")" "$(identity_file "$service")" "$RUN_DIR/$(process_service "$service").launch"
+      exit 1
+    fi
+    if ! pid_identity_matches "$service" "$pid"; then
+      echo "$service startup identity changed; retained managed launch" >&2
+      return 1
+    fi
+    echo "started $service pid=$pid ready=skipped"
+  fi
+}
+
+# A receipt is usable only for the exact managed incarnation, never merely
+# because the PID disappeared or another launch wrote an exit_code=0.
+exit_status() {
+  local service=$1 pid=$2 ident lifecycle receipt key expected code
+  ident=$(identity_file "$service")
+  [ -f "$ident" ] || return 1
+  [ "$(identity_value pid "$ident")" = "$pid" ] || return 1
+  lifecycle=$(identity_value lifecycle "$ident")
+  case "$lifecycle" in "$RUN_DIR/$(process_service "$service").lifecycle."*) ;; *) return 1 ;; esac
+  receipt="$lifecycle/exit"
+  [ -f "$receipt" ] || return 1
+  for key in pid exe config start_ticks boot_id lifecycle; do
+    expected=$(identity_value "$key" "$ident")
+    [ -n "$expected" ] && [ "$(identity_value "$key" "$receipt")" = "$expected" ] || return 1
+  done
+  code=$(identity_value exit_code "$receipt")
+  [[ "$code" =~ ^[0-9]+$ ]] && [ "$code" -le 255 ] || return 1
+  printf '%s\n' "$code"
+}
+
+report_exit() {
+  local service=$1 pid=$2 code
+  if ! code=$(exit_status "$service" "$pid"); then
+    echo "$service exit status unknown; retained identity and lifecycle evidence" >&2
+    return 1
+  fi
+  if [ "$code" -ne 0 ]; then
+    echo "$service failed exit_code=$code; retained identity and lifecycle evidence" >&2
+    return "$code"
+  fi
+  echo "$service stopped exit_code=0"
+}
+
+stop_one() {
+  local service=$1 pid deadline lifecycle
+  pid=$(read_pid "$service")
+  if [ -z "$pid" ] && [ -f "$RUN_DIR/$(process_service "$service").launch" ]; then
+    lifecycle=$(cat "$RUN_DIR/$(process_service "$service").launch")
+    case "$lifecycle" in "$RUN_DIR/$(process_service "$service").lifecycle."*) ;; *) echo "$service invalid managed launch" >&2; return 1 ;; esac
+    [ -f "$lifecycle/child" ] || { echo "$service startup child unknown; retained managed launch" >&2; return 1; }
+    pid=$(identity_value pid "$lifecycle/child")
+    printf '%s\n' "$pid" >"$(pid_file "$service")"
+    write_identity "$service" "$lifecycle"
+  fi
+  if [ -z "$pid" ]; then
+    # Never managed, or startup already reported failure and removed its PID.
+    [ ! -f "$(identity_file "$service")" ] || { echo "$service missing managed pid; exit status unknown" >&2; return 1; }
+    echo "$service stopped"
+    return 0
+  fi
+  deadline=$((SECONDS + TIMEOUT))
+  if is_running_pid "$pid"; then
+    if ! pid_identity_matches "$service" "$pid"; then
+      if is_running_pid "$pid"; then
+        echo "$service pid file points to another live process: $pid" >&2
+        return 1
+      fi
+    else
+      kill "$pid" 2>/dev/null || true
+    fi
+  fi
+  while [ "$SECONDS" -lt "$deadline" ]; do
+    if ! is_running_pid "$pid"; then
+      if exit_status "$service" "$pid" >/dev/null; then
+        report_exit "$service" "$pid"
+        return $?
+      fi
+      # The wait owner can need a moment to publish its atomic receipt.
+    fi
+    sleep 0.05
+  done
+  if ! is_running_pid "$pid" && [ "$TIMEOUT" -ne 0 ]; then
+    report_exit "$service" "$pid"
+    return $?
+  fi
+  echo "$service did not stop within ${TIMEOUT}s" >&2
+  return 1
+}
+
+status_one() {
+  local service=$1 pid state code=
+  pid=$(read_pid "$service")
+  state=stopped
+  if is_running_pid "$pid"; then
+    if pid_identity_matches "$service" "$pid"; then
+      state=running
+    else
+      state=pid-mismatch
+    fi
+  elif [ -n "$pid" ]; then
+    if code=$(exit_status "$service" "$pid"); then
+      [ "$code" -eq 0 ] || state=failed
+    else
+      state=exit-unknown
+    fi
+    pid=
+  elif [ -f "$(identity_file "$service")" ] || [ -f "$RUN_DIR/$(process_service "$service").launch" ]; then
+    state=exit-unknown
+  fi
+  if [ "$JSON" -eq 1 ]; then
+    printf '{"service":"%s","state":"%s","pid":"%s","config":"%s","log":"%s","exit_code":"%s"}\n' \
+      "$service" "$state" "$pid" "$(service_config "$service")" "$(log_file "$service")" "$code"
+  else
+    printf '%s %s' "$service" "$state"
+    [ -n "$pid" ] && printf ' pid=%s' "$pid"
+    [ -n "$code" ] && printf ' exit_code=%s' "$code"
+    printf '\n'
+  fi
+}
+
+remove_program_files() {
+  rm -f     "$PREFIX/bin/afs-meta"     "$PREFIX/bin/afs-node"     "$PREFIX/bin/dep02-smoke.sh"     "$PREFIX/manifest.json"     "$PREFIX/DEPENDENCIES.md"
+  rm -f "$PREFIX/bin/afs-processctl"
+}
+
+targets_start() {
+  if [ "$TARGET" = all ]; then
+    printf 'meta\nnode\n'
+  else
+    printf '%s\n' "$TARGET"
+  fi
+}
+
+targets_stop() {
+  if [ "$TARGET" = all ]; then
+    printf 'node\nmeta\n'
+  else
+    printf '%s\n' "$TARGET"
+  fi
+}
+
+targets_mounts() {
+  if [ "$TARGET" = all ]; then
+    printf 'node\n'
+  else
+    printf '%s\n' "$TARGET"
+  fi
+}
+
+# node, dfs and ownerfs are aliases of one process. Hold canonical locks for
+# the complete command (both services for all), so restart has no unlocked gap.
+locks=()
+release_locks() {
+  local lock
+  for lock in "${locks[@]}"; do rmdir "$lock" 2>/dev/null || true; done
+}
+if [ "$ACTION" != status ]; then
+  trap release_locks EXIT
+  for service in $(targets_start); do
+    lock="$RUN_DIR/$(process_service "$service").start.lock"
+    if ! mkdir "$lock" 2>/dev/null; then
+      echo "$service lifecycle command is already in progress" >&2
+      exit 1
+    fi
+    locks+=("$lock")
+  done
+fi
+
+case "$ACTION" in
+  start)
+    for service in $(targets_start); do start_one "$service"; done
+    ;;
+  stop)
+    for service in $(targets_stop); do stop_one "$service"; done
+    ;;
+  restart)
+    for service in $(targets_stop); do stop_one "$service"; done
+    for service in $(targets_start); do start_one "$service"; done
+    ;;
+  status)
+    for service in $(targets_start); do status_one "$service"; done
+    ;;
+  uninstall)
+    for service in $(targets_stop); do stop_one "$service"; done
+    for service in $(targets_mounts); do unmount_target_mounts "$service"; done
+    remove_program_files
+    echo "program files removed; persistent data and config preserved"
+    ;;
+esac

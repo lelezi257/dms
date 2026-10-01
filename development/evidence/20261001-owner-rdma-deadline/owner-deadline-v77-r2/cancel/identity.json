@@ -1,0 +1,17 @@
+{
+  "binary": "/home/lzc.guest/afs-build/artifacts/owner-deadline-v77/owner-contract-r2",
+  "binary_sha256": "b94e9782b4e70475107ecbbaf70fab4e99a3670ffe95f1e44654ff9c1ed4aaab",
+  "native_source_sha256": "b73f13da7441589d3f1e6286658840ee68bc6eaf02d18454172faef657226efa",
+  "runner_sha256": "074984954cdf69c37a3ece3a94397d83eb93b12b1c83a7b217f0f6185be231df",
+  "device": "rxe0",
+  "profile": "owner-deadline",
+  "checkpoint_line": 339,
+  "command": [
+    "gdb",
+    "-nx",
+    "-q",
+    "-x",
+    "/home/lzc.guest/afs-build/evidence/owner-deadline-v77-r2/cancel/checkpoint.gdb",
+    "/home/lzc.guest/afs-build/artifacts/owner-deadline-v77/owner-contract-r2"
+  ]
+}

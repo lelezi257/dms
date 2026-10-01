@@ -10,7 +10,17 @@ Keep rpc/control.rs, data.rs, meta.rs and peer.rs responsibilities. Meta owns au
 
 Only first-stage scope is required: do not pre-build Meta HA, DFS SDK, VerifiedCache/Seed or Spill. Preserve useful existing implementations. Add fields or focused interfaces as needed; avoid unrelated refactoring and speculative abstractions.
 
-## Design and changes
+## Whole-system convergence
+
+Follow the four rounds in [plan.md](plan.md): healthy whole-system use, major faults and recovery, performance/resources followed by persistent backends, then formal delivery acceptance. Each round visits deployment, management, OwnerFs, DFS, replication, transport and observability. Existing task IDs are work labels and dependencies; they do not require completing every edge of one module before entering another.
+
+Use [issues.md](issues.md) as the single active issue list. Record the affected scenario, consequence/severity, whether it blocks the current round, temporary handling, planned round and acceptance cases. At round end review whole-system evidence and reorder remaining issues. Do not select the next task merely because it was discovered most recently.
+
+Immediately repair mainline blockers, erroneous success, silent corruption, permission failures, broken commit ordering and resource exhaustion under normal use. Defer only issues whose consequences permit normal correct use and current integration; calling an issue an edge case does not justify deferral. A workaround must preserve the accepted contract and have explicit limits.
+
+Use small fixtures early to expose major functional and performance problems. Keep costly file sizes, full matrices and long runs in their scheduled acceptance rounds. Memory Meta is the primary functional lane; its restart does not promise namespace persistence. Validate durable Meta restart with etcd/Redis in round 3.
+
+## Slice design
 
 Before each implementation slice, identify acceptance cases, current code, missing behavior, design and a short failing test or reproducer. Define user-visible behavior before selecting abstractions. Include RPC count/roles, durability boundary, identity, error propagation and bounded resource ownership where relevant.
 

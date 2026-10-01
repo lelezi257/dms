@@ -182,3 +182,15 @@ The user explicitly accepted the previously presented close-to-open and retained
 - Historical first-parent, first-getcwd and deleted-alias/getcwd-window strong-equivalence diagnostics retain original assertions/logs. They explain the boundary and must not be silently counted as product acceptance passes; the current prototype still is not production integration. Stop seeking kernel extensions solely to enforce these now-excluded old-directory guarantees. Remaining lock/mmap mechanisms need their own evidence.
 - Replace strong cross-path-live-cache gate with CTO plus object-lifetime tests. Add actual management ready-before-Agent case, immediate post-ready native file operations, final-namespace identity/failure-before-start, cached-reader close/reopen CTO, stable-root fresh directory lookup, replacement/unlink old file handles, sync recovery and managed busy/fencing cases. These are not yet implemented/qualified.
 - Preserve all prior evidence with the contract/version it tested. Native full-feature and performance/PR delivery remain incomplete. Do not modify handoff without explicit request.
+
+## Native cache integration slice
+
+- Construction-only native-eligible OwnerFs policy now uses direct I/O and zero
+  entry/attribute TTL; ordinary instances retain existing behavior. No config
+  opt-in, Node activation or ready ACK is introduced by this slice.
+- Actual VM journaled native/independent Home-FUSE fixture verifies CTO, retained
+  file identity, stable-root fresh lookup, fallback and ready-before-Agent
+  spawning; final selected case passes, ordinary-private control remains RED.
+  Full production Node/P2P/lifecycle/lock/mmap and performance gates remain open.
+- Native entry TTL behavior RED preceded the fix.355 library PASS/2 existing
+  ignored, strict Clippy/fmt and VM source/binary/cleanup evidence are retained.

@@ -147,6 +147,13 @@ impl RootMeta for ContractMeta {
 }
 
 pub fn ownerfs_fixture(data: &std::path::Path) -> (Arc<LocalFs>, Arc<RootManager>, Arc<OwnerFs>) {
+    ownerfs_fixture_with_cache(data, false)
+}
+
+pub fn ownerfs_fixture_with_cache(
+    data: &std::path::Path,
+    native_eligible: bool,
+) -> (Arc<LocalFs>, Arc<RootManager>, Arc<OwnerFs>) {
     let disk = Arc::new(LocalFs::open(data).unwrap());
     let roots = Arc::new(RootManager::new(
         "node-a".into(),
@@ -154,6 +161,10 @@ pub fn ownerfs_fixture(data: &std::path::Path) -> (Arc<LocalFs>, Arc<RootManager
         Arc::new(ContractMeta::default()),
         disk.clone(),
     ));
-    let fs = Arc::new(OwnerFs::new_local(roots.clone(), disk.clone()));
+    let fs = Arc::new(if native_eligible {
+        OwnerFs::new_native_eligible(roots.clone(), disk.clone(), None)
+    } else {
+        OwnerFs::new_local(roots.clone(), disk.clone())
+    });
     (disk, roots, fs)
 }

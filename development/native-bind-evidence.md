@@ -443,3 +443,46 @@ under external `vm-first-getcwd/` and `first-getcwd-inputs.json`.
 With the subsequently user-accepted native profile this first-getcwd mismatch
 is boundary evidence, not a current requirement for immediate old-directory
 tracking and not a product acceptance pass. No production policy was changed.
+
+## Native cache profile and close-to-open regression
+
+`OwnerFs::new_native_eligible` now selects direct-I/O ordinary file replies and
+zero entry/attribute TTL from construction, for every root in that OwnerFs
+instance. It has no runtime setter, authority grant, automatic mount or native
+ready ACK. Existing ordinary instances retain their private/shared policies.
+Authenticated peer grant validation remains in place; native-eligible instances
+need no first-share cache invalidation because they never issued private replies.
+
+Two unit tests verify new-root and recovered-root policy plus absence of hot
+conversion. A behavior RED observed native LOOKUP entry TTL still1s with attr0;
+the final lookup policy fixes entry TTL to0 while preserving ordinary shared
+entry TTL1s. Initial missing-constructor diagnostics and an earlier compiler
+renderer/test-context failure are retained separately from that behavior RED.
+Final library:355 PASS/2 existing ignored; strict all-target/all-feature Clippy,
+fmt, integration build, shell syntax and diff whitespace checks pass.
+
+Final21-case binary SHA256 `325ba24bf3f55a324e8a5cad64678b355e368494120c3a6520e6a25dcafd5fd9`; run
+`directory-20261001T040518-8ed09be5` selects exactly
+`privileged_native_close_to_open_profile` (1 executed,20 filtered,none ignored).
+Native profile PASS; ordinary-private diagnostic control FAIL. The latter first
+opens OBJECT-A after growing from a previously empty file and reads zero bytes:
+this is a fresh-reader close-to-open counterexample, not an assertion that an
+already-open reader must refresh instantly. Both modes independently leave
+parent mountinfo unchanged and disposable data empty. Collection exit0 does
+not relabel the control test exit101.
+
+The fixture uses real OwnerFs/FUSE, a journaled mount controller, and two Home
+FUSE sessions over one authoritative backing. It checks growth/shrink/empty
+data and lengths, same-name replacement/new open, retained original file fd,
+stable-root directory reopen after native move, missing name after unlink and
+unmount-to-FUSE fallback. The management fixture verifies the native export
+before spawning a Python Agent; its cwd device/inode and inherited mount
+namespace match the native source. This is not production Node orchestration,
+network P2P, shared-lock/mmap qualification or a performance measurement.
+
+The portable probe accepts an optional EXACT_TEST_NAME and records full
+discovery plus selection. Without it the original full diagnostic suite still
+runs; none of the historical stronger directory assertions was removed.
+External inputs: `native-cache-profile-inputs.json`, discovery and
+`vm-native-cto-final/`. Reproduce with eligible cache enabled and the recorded
+binary: `AFS_NATIVE_ELIGIBLE_CACHE=1 ownerfs_native_mount.sh BINARY FRESH_EXT4_DIR SHA privileged_native_close_to_open_profile`.

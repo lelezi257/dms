@@ -61,6 +61,10 @@ pub struct OwnerFs {
 // known FUSE inodes before granting that access. The state stays shared for the
 // rest of this daemon session; there is no speculative switch back to private.
 struct PrivateFuseCache {
+    // Fixed at construction, before any FUSE reply. Native eligibility is not
+    // permission to mount or evidence of native readiness. No runtime setter:
+    // private cached/mapped handles cannot be safely converted in place.
+    native_eligible: bool,
     shared_roots: HashSet<RootId>,
     notifier: Option<Notifier>,
     next_fuse_ino: u64,
@@ -69,6 +73,7 @@ struct PrivateFuseCache {
 impl PrivateFuseCache {
     fn new() -> Self {
         Self {
+            native_eligible: false,
             shared_roots: HashSet::new(),
             notifier: None,
             next_fuse_ino: 4,
@@ -125,6 +130,36 @@ impl OwnerFs {
                 roots,
                 disk,
                 Some(remote_factory),
+                private_cache.clone(),
+            ))),
+            private_cache,
+            workspace_events: OnceLock::new(),
+        }
+    }
+
+    /// Prepare an OwnerFs instance for future native exports, before mounting
+    /// its FUSE session. All roots use zero TTL and direct I/O from their first
+    /// reply, including transition access and failed-bind fallback. Remote
+    /// dispatch still uses the ordinary authenticated Home/P2P backend.
+    ///
+    /// This selects cache policy only. It grants no export authority, starts
+    /// no manager/Agent and cannot acknowledge native readiness. Production
+    /// bootstrap must also satisfy the native admission/lifecycle contract.
+    #[must_use]
+    pub fn new_native_eligible(
+        roots: Arc<RootManager>,
+        disk: Arc<LocalFs>,
+        remote_factory: Option<Arc<dyn RemoteFilesFactory>>,
+    ) -> Self {
+        let private_cache = Arc::new(Mutex::new(PrivateFuseCache {
+            native_eligible: true,
+            ..PrivateFuseCache::new()
+        }));
+        Self {
+            local: Some(Arc::new(LocalOwnerFs::new(
+                roots,
+                disk,
+                remote_factory,
                 private_cache.clone(),
             ))),
             private_cache,
@@ -219,21 +254,46 @@ impl OwnerFs {
         inode: BackendInode,
         reply: impl FnOnce(Duration, bool) -> T,
     ) -> T {
+        self.with_fuse_policy(inode, |_, attr, private| reply(attr, private))
+    }
+
+    pub(crate) fn with_fuse_lookup_policy<T>(
+        &self,
+        inode: BackendInode,
+        reply: impl FnOnce(Duration, Duration) -> T,
+    ) -> T {
+        self.with_fuse_policy(inode, |entry, attr, _| reply(entry, attr))
+    }
+
+    fn with_fuse_policy<T>(
+        &self,
+        inode: BackendInode,
+        reply: impl FnOnce(Duration, Duration, bool) -> T,
+    ) -> T {
         let cache = self
             .private_cache
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
-        let private = self
-            .local
-            .as_ref()
-            .and_then(|local| local.private_root_for_inode(inode.value))
-            .is_some_and(|id| !cache.shared_roots.contains(&id));
-        let ttl = if private {
+        let private = !cache.native_eligible
+            && self
+                .local
+                .as_ref()
+                .and_then(|local| local.private_root_for_inode(inode.value))
+                .is_some_and(|id| !cache.shared_roots.contains(&id));
+        let attr_ttl = if private {
             Duration::from_secs(1)
         } else {
             Duration::ZERO
         };
-        reply(ttl, private)
+        // Ordinary shared/remote FUSE retains its existing short entry TTL.
+        // Native-eligible roots must revalidate both namespace and attributes
+        // against mutations that bypass FUSE entirely.
+        let entry_ttl = if cache.native_eligible {
+            Duration::ZERO
+        } else {
+            Duration::from_secs(1)
+        };
+        reply(entry_ttl, attr_ttl, private)
     }
 
     fn require_local(&self) -> Result<&LocalOwnerFs> {
@@ -3158,7 +3218,7 @@ impl LocalOwnerFs {
         let _share = self.share_lock.lock().map_err(|_| poisoned())?;
         let (notifier, next_fuse_ino) = {
             let mut cache = self.private_cache.lock().map_err(|_| poisoned())?;
-            if !cache.shared_roots.insert(access.id.clone()) {
+            if cache.native_eligible || !cache.shared_roots.insert(access.id.clone()) {
                 return Ok(grant);
             }
             (cache.notifier.clone(), cache.next_fuse_ino)
@@ -7200,6 +7260,68 @@ mod tests {
         ));
         let ctx = test_context_for_path(temp.path());
         (temp, OwnerFs::new_local(roots, disk), ctx)
+    }
+
+    #[test]
+    fn native_eligible_cache_is_shared_before_first_root_and_peer() {
+        let (_temp, ordinary, ctx) = fixture();
+        let local = ordinary.require_local().unwrap();
+        let native = OwnerFs::new_native_eligible(local.roots.clone(), local.disk.clone(), None);
+        for name in ["agent1", "agent2"] {
+            let root = native
+                .mkdir(&ctx, native.root_inode(), OsStr::new(name), 0o755)
+                .unwrap();
+            let file = native
+                .create(&ctx, root.inode, OsStr::new("result"), 0o644, libc::O_RDWR)
+                .unwrap();
+            assert!(native.is_local_inode(file.entry.inode));
+            for inode in [root.inode, file.entry.inode] {
+                assert_eq!(
+                    native.with_fuse_cache_policy(inode, |ttl, private| (ttl, private)),
+                    (Duration::ZERO, false)
+                );
+                assert_eq!(
+                    native.with_fuse_lookup_policy(inode, |entry, attr| (entry, attr)),
+                    (Duration::ZERO, Duration::ZERO)
+                );
+            }
+            native.write(&ctx, file.handle, 0, b"visible").unwrap();
+            native.flush(&ctx, file.handle).unwrap();
+            native.release(&ctx, file.handle).unwrap();
+        }
+        assert!(native.private_cache.lock().unwrap().shared_roots.is_empty());
+    }
+
+    #[test]
+    fn native_cache_construction_does_not_convert_existing_fuse_instance() {
+        let (_temp, ordinary, ctx) = fixture();
+        let root = ordinary
+            .mkdir(&ctx, ordinary.root_inode(), OsStr::new("agent1"), 0o755)
+            .unwrap();
+        let file = ordinary
+            .create(&ctx, root.inode, OsStr::new("result"), 0o644, libc::O_RDWR)
+            .unwrap();
+        assert_eq!(
+            ordinary.with_fuse_cache_policy(file.entry.inode, |ttl, private| (ttl, private)),
+            (Duration::from_secs(1), true)
+        );
+        let local = ordinary.require_local().unwrap();
+        let native = OwnerFs::new_native_eligible(local.roots.clone(), local.disk.clone(), None);
+        let restored = native
+            .lookup(&ctx, native.root_inode(), OsStr::new("agent1"))
+            .unwrap();
+        let restored_file = native
+            .lookup(&ctx, restored.inode, OsStr::new("result"))
+            .unwrap();
+        assert_eq!(
+            native.with_fuse_cache_policy(restored_file.inode, |ttl, private| (ttl, private)),
+            (Duration::ZERO, false)
+        );
+        assert_eq!(
+            ordinary.with_fuse_cache_policy(file.entry.inode, |ttl, private| (ttl, private)),
+            (Duration::from_secs(1), true)
+        );
+        ordinary.release(&ctx, file.handle).unwrap();
     }
 
     fn test_owner_lock(scope: &str, kernel_owner: u64, lock_type: FileLockType) -> LockRequest {

@@ -1177,3 +1177,12 @@ fn privileged_deleted_directory_getcwd_window_probe() {
 fn privileged_native_move_first_getcwd_probe() {
     directory_reference_probe::run(false, true, false, false, true);
 }
+
+#[path = "ownerfs_native_linux/close_to_open.rs"]
+mod close_to_open;
+
+#[test]
+#[ignore = "requires real /dev/fuse, CAP_SYS_ADMIN, private VM namespace and Linux >= 6.8"]
+fn privileged_native_close_to_open_profile() {
+    close_to_open::run();
+}

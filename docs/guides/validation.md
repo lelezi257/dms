@@ -23,3 +23,22 @@ bash tests/feature-matrix.sh
 ## Evidence Rule
 
 A capability claim should include command, environment, behavior checked and untested boundary. Performance reports should include workload, sample count, p50 and tail data, and matching durability/visibility conditions.
+
+## Posted RDMA Cancellation
+
+The Linux diagnostic runner [check-rdma-cancellation.py](../../scripts/check-rdma-cancellation.py)
+requires GDB, root-visible `rdma` resource inventories, a working RXE device and
+an unstripped native-debug test binary. Build it with
+`cargo test --all-features --test rdma_lifecycle --no-run`, then run:
+
+```sh
+sudo python3 scripts/check-rdma-cancellation.py \
+  --binary /absolute/path/to/rdma_lifecycle-test-binary \
+  --source "$PWD" --device rxe0 \
+  --evidence /absolute/path/to/new-evidence-directory
+```
+
+It pauses a real posted data WQE before CQ consumption, cancels the caller,
+checks retained resources, resumes the worker and checks normal release before
+process exit. It uses diagnostic NodeData; it does not qualify OwnerFs/DFS fault
+matrices or prove physical DMA is still pending. See the [scoped evidence](../../development/evidence/20261001-posted-rdma-cancellation/README.md).

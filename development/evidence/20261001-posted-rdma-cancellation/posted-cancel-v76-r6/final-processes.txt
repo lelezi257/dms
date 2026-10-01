@@ -1,0 +1,132 @@
+    PID STAT COMMAND         COMMAND
+      1 Ss   systemd         /sbin/init
+      2 S    kthreadd        [kthreadd]
+      3 S    pool_workqueue_ [pool_workqueue_release]
+      4 I<   kworker/R-rcu_g [kworker/R-rcu_g]
+      5 I<   kworker/R-rcu_p [kworker/R-rcu_p]
+      6 I<   kworker/R-slub_ [kworker/R-slub_]
+      7 I<   kworker/R-netns [kworker/R-netns]
+      9 I<   kworker/0:0H-ev [kworker/0:0H-events_highpri]
+     10 I    kworker/0:1-eve [kworker/0:1-events]
+     11 I    kworker/u8:0-ev [kworker/u8:0-events_power_efficient]
+     12 I<   kworker/R-mm_pe [kworker/R-mm_pe]
+     13 I    rcu_tasks_kthre [rcu_tasks_kthread]
+     14 I    rcu_tasks_rude_ [rcu_tasks_rude_kthread]
+     15 I    rcu_tasks_trace [rcu_tasks_trace_kthread]
+     16 S    ksoftirqd/0     [ksoftirqd/0]
+     17 I    rcu_preempt     [rcu_preempt]
+     18 S    migration/0     [migration/0]
+     19 S    idle_inject/0   [idle_inject/0]
+     20 S    cpuhp/0         [cpuhp/0]
+     21 S    cpuhp/1         [cpuhp/1]
+     22 S    idle_inject/1   [idle_inject/1]
+     23 S    migration/1     [migration/1]
+     24 S    ksoftirqd/1     [ksoftirqd/1]
+     25 I    kworker/1:0-cgr [kworker/1:0-cgroup_free]
+     26 I<   kworker/1:0H-ev [kworker/1:0H-events_highpri]
+     27 S    cpuhp/2         [cpuhp/2]
+     28 S    idle_inject/2   [idle_inject/2]
+     29 S    migration/2     [migration/2]
+     30 S    ksoftirqd/2     [ksoftirqd/2]
+     31 I    kworker/2:0-eve [kworker/2:0-events]
+     32 I<   kworker/2:0H-ev [kworker/2:0H-events_highpri]
+     33 S    cpuhp/3         [cpuhp/3]
+     34 S    idle_inject/3   [idle_inject/3]
+     35 S    migration/3     [migration/3]
+     36 S    ksoftirqd/3     [ksoftirqd/3]
+     37 I    kworker/3:0-cgw [kworker/3:0-cgwb_release]
+     38 I<   kworker/3:0H-ev [kworker/3:0H-events_highpri]
+     39 S    kdevtmpfs       [kdevtmpfs]
+     40 I<   kworker/R-inet_ [kworker/R-inet_]
+     41 S    kauditd         [kauditd]
+     42 S    khungtaskd      [khungtaskd]
+     43 I    kworker/u8:1-fl [kworker/u8:1-flush-253:0]
+     44 S    oom_reaper      [oom_reaper]
+     45 I<   kworker/R-write [kworker/R-write]
+     46 S    kcompactd0      [kcompactd0]
+     47 SN   ksmd            [ksmd]
+     48 I    kworker/3:1-eve [kworker/3:1-events]
+     49 SN   khugepaged      [khugepaged]
+     50 I<   kworker/R-kinte [kworker/R-kinte]
+     51 I<   kworker/R-kbloc [kworker/R-kbloc]
+     52 I<   kworker/R-blkcg [kworker/R-blkcg]
+     53 I<   kworker/R-tpm_d [kworker/R-tpm_d]
+     54 I<   kworker/R-ata_s [kworker/R-ata_s]
+     55 I<   kworker/R-md    [kworker/R-md]
+     56 I<   kworker/R-md_bi [kworker/R-md_bi]
+     57 I<   kworker/R-edac- [kworker/R-edac-]
+     58 I<   kworker/R-devfr [kworker/R-devfr]
+     59 S    watchdogd       [watchdogd]
+     60 I<   kworker/R-quota [kworker/R-quota]
+     61 I<   kworker/3:1H-kb [kworker/3:1H-kblockd]
+     62 S    kswapd0         [kswapd0]
+     63 S    ecryptfs-kthrea [ecryptfs-kthread]
+     64 I<   kworker/R-kthro [kworker/R-kthro]
+     65 I<   kworker/R-acpi_ [kworker/R-acpi_]
+     67 S    khvcd           [khvcd]
+     68 I<   kworker/R-mld   [kworker/R-mld]
+     69 I<   kworker/R-ipv6_ [kworker/R-ipv6_]
+     76 I<   kworker/R-kstrp [kworker/R-kstrp]
+     80 I<   kworker/u9:0    [kworker/u9:0]
+     84 I<   kworker/R-charg [kworker/R-charg]
+     85 S    irq/13-ACPI:Eve [irq/13-ACPI:Event]
+    111 I<   kworker/1:1H-kb [kworker/1:1H-kblockd]
+    117 I<   kworker/2:1H-kb [kworker/2:1H-kblockd]
+    140 I<   kworker/0:1H-kb [kworker/0:1H-kblockd]
+    142 S    hwrng           [hwrng]
+    143 I    kworker/1:2-eve [kworker/1:2-events]
+    169 I    kworker/0:2-cgr [kworker/0:2-cgroup_free]
+    189 I<   kworker/R-raid5 [kworker/R-raid5]
+    231 S    jbd2/vda1-8     [jbd2/vda1-8]
+    232 I<   kworker/R-ext4- [kworker/R-ext4-]
+    305 S<s  systemd-journal /usr/lib/systemd/systemd-journald
+    327 I<   kworker/R-kmpat [kworker/R-kmpat]
+    328 I<   kworker/R-kmpat [kworker/R-kmpat]
+    352 SLsl multipathd      /sbin/multipathd -d -s
+    360 Ss   systemd-udevd   /usr/lib/systemd/systemd-udevd
+    379 S    psimon          [psimon]
+    438 S    jbd2/vda16-8    [jbd2/vda16-8]
+    439 I<   kworker/R-ext4- [kworker/R-ext4-]
+    491 Ss   systemd-resolve /usr/lib/systemd/systemd-resolved
+    507 I    kworker/2:3-cgr [kworker/2:3-cgroup_free]
+    514 Ssl  systemd-timesyn /usr/lib/systemd/systemd-timesyncd
+    614 Ss   systemd-network /usr/lib/systemd/systemd-networkd
+    624 I<   kworker/R-cfg80 [kworker/R-cfg80]
+    680 Ss   cron            /usr/sbin/cron -f -P
+    681 Ss   dbus-daemon     @dbus-daemon --system --address=systemd: --nofork --nopidfile --systemd-activation --syslog-only
+    686 Ssl  lima-guestagent /usr/local/bin/lima-guestagent daemon --vsock-port 2222 --runtime-dir=/run/lima-guestagent
+    688 Ssl  polkitd         /usr/lib/polkit-1/polkitd --no-debug
+    696 Ss   systemd-logind  /usr/lib/systemd/systemd-logind
+    697 Ss   fdbmonitor      /usr/lib/foundationdb/fdbmonitor --conffile /etc/foundationdb/foundationdb.conf --lockfile /var/run/fdbmonitor.pid --daemonize
+    702 Sl   backup_agent    /usr/lib/foundationdb/backup_agent/backup_agent --cluster-file /etc/foundationdb/fdb.cluster --logdir /var/log/foundationdb
+    703 Sl   fdbserver       /usr/sbin/fdbserver --cluster-file /etc/foundationdb/fdb.cluster --datadir /var/lib/foundationdb/data/4500 --listen-address public --logdir /var/log/foundationdb --public-address auto:4500
+    708 Ssl  udisksd         /usr/libexec/udisks2/udisksd
+    737 Ssl  rsyslogd        /usr/sbin/rsyslogd -n -iNONE
+    750 Ss+  agetty          /sbin/agetty -o -p -- \u --keep-baud 115200,57600,38400,9600 - vt220
+    753 Ssl  unattended-upgr /usr/bin/python3 /usr/share/unattended-upgrades/unattended-upgrade-shutdown --wait-for-signal
+    766 Ssl  ModemManager    /usr/sbin/ModemManager
+    768 Ss+  agetty          /sbin/agetty -o -p -- \u --noclear - linux
+    775 Ss   systemd         /usr/lib/systemd/systemd --user
+    781 S    (sd-pam)        (sd-pam)
+    867 I<   kworker/R-dio/v [kworker/R-dio/v]
+   1059 S    psimon          [psimon]
+   1130 Ss   sshd            sshd: /usr/sbin/sshd -D [listener] 0 of 10-100 startups
+   1288 Ss   sshd            sshd: lzc [priv]
+   1335 S    sshd            sshd: lzc@notty
+   1358 I<   kworker/R-ib-co [kworker/R-ib-co]
+   1359 I<   kworker/R-ib-co [kworker/R-ib-co]
+   1360 I<   kworker/R-ib_mc [kworker/R-ib_mc]
+   1361 I<   kworker/R-ib_nl [kworker/R-ib_nl]
+   1370 I    kworker/u8:4-ev [kworker/u8:4-events_power_efficient]
+   1394 I<   kworker/R-ib_ma [kworker/R-ib_ma]
+   1402 Ss   rdma-ndd        /usr/sbin/rdma-ndd --systemd
+   1404 I<   kworker/R-iw_cm [kworker/R-iw_cm]
+   1405 I<   kworker/R-rdma_ [kworker/R-rdma_]
+   1406 I<   kworker/R-iscsi [kworker/R-iscsi]
+   1412 I<   kworker/R-rpcio [kworker/R-rpcio]
+   1413 I<   kworker/R-xprti [kworker/R-xprti]
+   3616 I    kworker/3:2-cgr [kworker/3:2-cgroup_free]
+   3617 I    kworker/3:3     [kworker/3:3]
+   3618 I    kworker/u8:2-wr [kworker/u8:2-writeback]
+   3619 Ss   sh              sh -c for kind in qp mr cq pd ctx; do sudo rdma -j resource show "$kind" > "/home/lzc.guest/afs-build/evidence/posted-cancel-v76-r6/global-final-$kind.json"; done; ps -eo pid,stat,comm,args > /home/lzc.guest/afs-build/evidence/posted-cancel-v76-r6/final-processes.txt
+   3636 R    ps              ps -eo pid,stat,comm,args

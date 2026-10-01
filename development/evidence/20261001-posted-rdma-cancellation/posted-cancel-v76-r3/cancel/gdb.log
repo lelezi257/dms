@@ -1,0 +1,52 @@
+Reading symbols from /home/lzc.guest/afs-build/target/debug/deps/rdma_lifecycle-eea104b028b9190b...
+warning: Missing auto-load script at offset 0 in section .debug_gdb_scripts
+of file /home/lzc.guest/afs-build/target/debug/deps/rdma_lifecycle-eea104b028b9190b.
+Use `info auto-load python-scripts [REGEXP]' to list them.
+Breakpoint 1 at 0x420530: file native/rdma.c, line 339.
+[Thread debugging using libthread_db enabled]
+Using host libthread_db library "/lib/aarch64-linux-gnu/libthread_db.so.1".
+
+running 1 test
+test posted_rdma_cancel_keeps_endpoint_until_worker_drains ... [Detaching after vfork from child process 1946]
+[Detaching after vfork from child process 1947]
+[Detaching after vfork from child process 1948]
+[Detaching after vfork from child process 1949]
+[Detaching after vfork from child process 1950]
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.1 family=ipv4
+AFS_RDMA_GID index=1 address=::ffff:192.168.109.1 family=ipv4
+AFS_RDMA_PROBE send_complete
+AFS_RDMA_PROBE receive_complete
+[Detaching after vfork from child process 1952]
+[Detaching after vfork from child process 1953]
+[Detaching after vfork from child process 1954]
+[Detaching after vfork from child process 1955]
+[Detaching after vfork from child process 1956]
+
+Thread 5 "tokio-rt-worker" hit Breakpoint 1, afs_rdma_transfer (
+    opaque=0xffffe0000cf0, operation=1, len=4096, timeout_ms=5000, 
+    err=0xfffff70fb3e0 "", errlen=256) at native/rdma.c:339
+339	    uint64_t deadline=monotonic_ms()+timeout_ms;
+(gdb) [Detaching after vfork from child process 1957]
+[Detaching after vfork from child process 1958]
+[Detaching after vfork from child process 1959]
+[Detaching after vfork from child process 1960]
+[Detaching after vfork from child process 1961]
+AFS_RDMA_CANCEL lookup=STALE client=POISONED endpoint=RETAINED storage=UNTOUCHED
+[Switching to thread 5 (Thread 0xfffff70fcf80 (LWP 1951))]
+#0  afs_rdma_transfer (opaque=0xffffe0000cf0, operation=1, len=4096, 
+    timeout_ms=5000, err=0xfffff70fb3e0 "", errlen=256) at native/rdma.c:339
+339	    uint64_t deadline=monotonic_ms()+timeout_ms;
+(gdb) Continuing.
+AFS_RDMA_COMPLETE op=READ bytes=4096
+[Detaching after vfork from child process 1962]
+[Detaching after vfork from child process 1963]
+[Detaching after vfork from child process 1964]
+[Detaching after vfork from child process 1965]
+[Detaching after vfork from child process 1966]
+AFS_RDMA_CANCEL drain=COMPLETE content=EXACT endpoint=RELEASED replay=ABSENT
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 0.08s
+
+[Inferior 1 (process 1941) exited normally]
+(gdb) 

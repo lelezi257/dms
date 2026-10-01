@@ -135,13 +135,12 @@ async fn posted_rdma_cancel_keeps_endpoint_until_worker_drains() {
     save_rdma_resources(&checkpoint, "connected");
 
     let payload: Vec<u8> = (0..4096).map(|i| (i * 37 + 19) as u8).collect();
-    let posted = checkpoint.join("posted");
     {
         let write = client.write("cancelled.bin", 0, payload.clone());
         tokio::pin!(write);
         tokio::select! {
             result = &mut write => panic!("write finished before posted checkpoint: {result:?}"),
-            () = wait_for_rdma_checkpoint(&posted) => {}
+            () = wait_for_rdma_checkpoint(&checkpoint.join("posted")) => {}
         }
         // Dropping the caller future poisons it; its detached operation owns
         // the client MR and operation lock until the real command completes.

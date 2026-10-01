@@ -229,3 +229,22 @@ full fault matrices remain open.69 formal cases remain NOT_RUN; ENV PREPARING.
 - Run final 8 GiB, full FSx/random-operation seeds and eight-hour soak; source or short-mount regression success is insufficient.
 - Read-grant protocol changes require coordinated upgrade: request-level grant field 5 is reserved, each operation uses grant field 7, and `DfsReadGrant.caller_epoch` remains field 5. Existing persisted copy records require explicit migration to `CopyLocation`; no automatic old-format migration is provided.
 - DFS SDK, product cache/spill and Meta election/HA remain outside the first-stage gates, as recorded in the [post-acceptance TODO](acceptance.md#10-第一阶段验收后-todo).
+
+## Diagnostic Posted-DMA Cancellation
+
+A [real Linux RXE diagnostic](../development/evidence/20261001-posted-rdma-cancellation/README.md)
+pauses a successfully posted4096-byte data WQE before CQ consumption. Cancellation
+poisons the client; independent close removes the old lookup while both endpoints
+retain their exact QP/MR/CQ/PD/context IDs. After worker resume, the admitted write
+completes with exact content and no replay; those IDs are absent before process
+exit. This proves posted/unconsumed work, not physically pending DMA or rollback.
+
+Twelve distinct related tests and20 checker checks pass. One final source gate
+passes414 library/6 explicit ignores,65 contracts,4 shared-error,9 localAPI,
+5 rootFUSE, strict workspace Clippy, formatting, five features and binaries.
+Production inputs/binaries match the prior candidate; only the test and external
+runner are added.44 identity checks bind143 inputs and raw resource evidence.
+
+This is a scoped stage gate. OwnerFs/DFS posted cancellation, actual data
+completion timeout, exceptional provider teardown, resource peaks and full
+fault matrices remain unqualified.69 formal cases remain NOT_RUN; ENV PREPARING.

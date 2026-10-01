@@ -1,0 +1,85 @@
+{
+  "status": "PASS",
+  "level": "local regression",
+  "test": "posted_rdma_cancel_keeps_endpoint_until_worker_drains",
+  "posted": {
+    "event": "posted",
+    "pid": 1941,
+    "thread": [
+      1941,
+      1951,
+      0
+    ],
+    "gdb_thread": 5,
+    "operation": 1,
+    "bytes": 4096,
+    "data_wr_id": 1,
+    "poisoned": false,
+    "qp": 20,
+    "monotonic": 298.211486563
+  },
+  "resource_identities": {
+    "qp": {
+      "connected": [
+        19,
+        20
+      ],
+      "closed_paused": [
+        19,
+        20
+      ],
+      "drained": []
+    },
+    "mr": {
+      "connected": [
+        2,
+        3
+      ],
+      "closed_paused": [
+        2,
+        3
+      ],
+      "drained": []
+    },
+    "cq": {
+      "connected": [
+        3,
+        4
+      ],
+      "closed_paused": [
+        3,
+        4
+      ],
+      "drained": []
+    },
+    "pd": {
+      "connected": [
+        3,
+        4
+      ],
+      "closed_paused": [
+        3,
+        4
+      ],
+      "drained": []
+    },
+    "ctx": {
+      "connected": [
+        2,
+        3
+      ],
+      "closed_paused": [
+        2,
+        3
+      ],
+      "drained": []
+    }
+  },
+  "formal_acceptance": "NOT_RUN",
+  "environment": "PREPARING",
+  "limits": [
+    "Diagnostic transport, not a new OwnerFs/DFS fault deployment",
+    "Posted and unconsumed does not prove physical DMA pending",
+    "No exceptional provider-destroy or hardware failure qualification"
+  ]
+}

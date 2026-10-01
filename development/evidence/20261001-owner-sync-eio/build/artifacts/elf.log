@@ -1,0 +1,2 @@
+afs-build/artifacts/owner-eio-v80-final/afs-meta: ELF 64-bit LSB pie executable, ARM aarch64, version 1 (SYSV), dynamically linked, interpreter /lib/ld-linux-aarch64.so.1, BuildID[sha1]=22bbc4a43f030ba15b760600d9de41521214a4bc, for GNU/Linux 3.7.0, not stripped
+afs-build/artifacts/owner-eio-v80-final/afs-node: ELF 64-bit LSB pie executable, ARM aarch64, version 1 (SYSV), dynamically linked, interpreter /lib/ld-linux-aarch64.so.1, BuildID[sha1]=ad011124746aba9d10bbff0481604dcb9e7d2d0d, for GNU/Linux 3.7.0, not stripped

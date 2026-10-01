@@ -3395,13 +3395,20 @@ impl LocalOwnerFs {
                     let mut non_size_change = change.clone();
                     non_size_change.size = None;
                     authorize_setattr_with_options(ctx, &current, &non_size_change, options)?;
+                    if change.size.is_some() {
+                        file.check_no_fatal_sync_error()?;
+                    }
                     apply_local_file_attr_change(&file.handle.file, change)?;
                     if options.kill_suidgid && apply_killpriv_to_change(change) {
                         clear_suidgid_on_file(&file.handle.file)?;
                     }
                     if change.size.is_some() {
                         file.needs_flush = true;
-                        file.write_sync.sync(&file.handle.file)?;
+                        let sync_result = file.write_sync.sync(&file.handle.file);
+                        if let Err(error) = &sync_result {
+                            file.remember_fatal_sync_error(error);
+                        }
+                        sync_result?;
                         if file.write_sync != WriteSyncMode::None {
                             file.needs_flush = false;
                         }
@@ -3409,18 +3416,24 @@ impl LocalOwnerFs {
                     return file.attributes();
                 }
                 OpenFileHandle::Remote(file) => {
-                    return Ok(file
-                        .files
-                        .setattr_with_options(
-                            ctx,
-                            &file.grant,
-                            OsStr::new(""),
-                            Some(&file.handle.identity),
-                            Some(&file.handle),
-                            change,
-                            options,
-                        )?
-                        .attributes);
+                    file.check_no_fatal_sync_error()?;
+                    let setattr_result = file.files.setattr_with_options(
+                        ctx,
+                        &file.grant,
+                        OsStr::new(""),
+                        Some(&file.handle.identity),
+                        Some(&file.handle),
+                        change,
+                        options,
+                    );
+                    if let Err(error) = &setattr_result {
+                        file.remember_fatal_sync_error(error);
+                    }
+                    let attributes = setattr_result?.attributes;
+                    if change.size.is_some() {
+                        file.needs_flush = true;
+                    }
+                    return Ok(attributes);
                 }
             }
         }
@@ -3875,17 +3888,22 @@ impl LocalOwnerFs {
                 if !file.writable {
                     return Err(bad_file_descriptor("file handle is not open for writing"));
                 }
-                let written = file
-                    .handle
-                    .file
-                    .write_at(offset, data)
-                    .map_err(Error::from)?;
+                file.check_no_fatal_sync_error()?;
+                let write_result = file.handle.file.write_at(offset, data).map_err(Error::from);
+                if let Err(error) = &write_result {
+                    file.remember_fatal_sync_error(error);
+                }
+                let written = write_result?;
                 if written > 0 {
                     if options.kill_suidgid {
                         clear_suidgid_on_file(&file.handle.file)?;
                     }
                     file.needs_flush = true;
-                    file.write_sync.sync(&file.handle.file)?;
+                    let sync_result = file.write_sync.sync(&file.handle.file);
+                    if let Err(error) = &sync_result {
+                        file.remember_fatal_sync_error(error);
+                    }
+                    sync_result?;
                     if file.write_sync != WriteSyncMode::None {
                         file.needs_flush = false;
                     }
@@ -3896,13 +3914,14 @@ impl LocalOwnerFs {
                 if !file.writable {
                     return Err(bad_file_descriptor("file handle is not open for writing"));
                 }
-                let written = file.files.write_with_options(
-                    &file.grant,
-                    &file.handle,
-                    offset,
-                    data,
-                    options,
-                )?;
+                file.check_no_fatal_sync_error()?;
+                let write_result =
+                    file.files
+                        .write_with_options(&file.grant, &file.handle, offset, data, options);
+                if let Err(error) = &write_result {
+                    file.remember_fatal_sync_error(error);
+                }
+                let written = write_result?;
                 if written > 0 {
                     file.needs_flush = true;
                 }
@@ -3917,17 +3936,27 @@ impl LocalOwnerFs {
         file.ensure_open()?;
         match &mut file.file {
             OpenFileHandle::Local(file) if file.needs_flush => {
-                file.handle.file.sync_data().map_err(Error::from)?;
+                file.check_no_fatal_sync_error()?;
+                let sync_result = file.handle.file.sync_data().map_err(Error::from);
+                if let Err(error) = &sync_result {
+                    file.remember_fatal_sync_error(error);
+                }
+                sync_result?;
                 file.needs_flush = false;
                 Ok(())
             }
-            OpenFileHandle::Local(_) => Ok(()),
+            OpenFileHandle::Local(file) => file.check_no_fatal_sync_error(),
             OpenFileHandle::Remote(file) if file.needs_flush => {
-                file.files.flush(&file.grant, &file.handle)?;
+                file.check_no_fatal_sync_error()?;
+                let sync_result = file.files.flush(&file.grant, &file.handle);
+                if let Err(error) = &sync_result {
+                    file.remember_fatal_sync_error(error);
+                }
+                sync_result?;
                 file.needs_flush = false;
                 Ok(())
             }
-            OpenFileHandle::Remote(_) => Ok(()),
+            OpenFileHandle::Remote(file) => file.check_no_fatal_sync_error(),
         }
     }
 
@@ -3936,18 +3965,27 @@ impl LocalOwnerFs {
         let mut file = file.lock().map_err(|_| poisoned())?;
         file.ensure_open()?;
         match &mut file.file {
-            OpenFileHandle::Local(file) => match mode {
-                SyncMode::DataOnly => file.handle.file.sync_data(),
-                SyncMode::Full => file.handle.file.sync_all(),
+            OpenFileHandle::Local(file) => {
+                file.check_no_fatal_sync_error()?;
+                match mode {
+                    SyncMode::DataOnly => file.handle.file.sync_data(),
+                    SyncMode::Full => file.handle.file.sync_all(),
+                }
+                .map_err(Error::from)
+                .inspect_err(|error| file.remember_fatal_sync_error(error))
+                .map(|()| file.needs_flush = false)
             }
-            .map_err(Error::from)
-            .map(|()| file.needs_flush = false),
             OpenFileHandle::Remote(file) => {
-                file.files.fsync(
+                file.check_no_fatal_sync_error()?;
+                let sync_result = file.files.fsync(
                     &file.grant,
                     &file.handle,
                     matches!(mode, SyncMode::DataOnly),
-                )?;
+                );
+                if let Err(error) = &sync_result {
+                    file.remember_fatal_sync_error(error);
+                }
+                sync_result?;
                 file.needs_flush = false;
                 Ok(())
             }
@@ -5315,6 +5353,7 @@ impl OwnerState {
             write_sync,
             writable: flags_allow_write(flags),
             readable: flags & libc::O_ACCMODE != libc::O_WRONLY,
+            fatal_sync_error: None,
         }))
     }
 
@@ -5332,6 +5371,7 @@ impl OwnerState {
             handle,
             needs_flush,
             writable,
+            fatal_sync_error: None,
         }))
     }
 
@@ -5433,6 +5473,7 @@ struct OpenLocalFile {
     needs_flush: bool,
     write_sync: WriteSyncMode,
     writable: bool,
+    fatal_sync_error: Option<Error>,
 }
 
 struct OpenRemoteFile {
@@ -5441,6 +5482,7 @@ struct OpenRemoteFile {
     handle: files::RemoteFile,
     needs_flush: bool,
     writable: bool,
+    fatal_sync_error: Option<Error>,
 }
 
 impl OpenFileHandle {
@@ -5467,6 +5509,36 @@ impl OpenLocalFile {
             .metadata()
             .map_err(Error::from)
             .and_then(attributes_from_metadata)
+    }
+
+    fn check_no_fatal_sync_error(&self) -> Result<()> {
+        if let Some(error) = &self.fatal_sync_error {
+            Err(error.clone())
+        } else {
+            Ok(())
+        }
+    }
+
+    fn remember_fatal_sync_error(&mut self, error: &Error) {
+        if self.fatal_sync_error.is_none() && is_fatal_sync_error(error) {
+            self.fatal_sync_error = Some(error.clone());
+        }
+    }
+}
+
+impl OpenRemoteFile {
+    fn check_no_fatal_sync_error(&self) -> Result<()> {
+        if let Some(error) = &self.fatal_sync_error {
+            Err(error.clone())
+        } else {
+            Ok(())
+        }
+    }
+
+    fn remember_fatal_sync_error(&mut self, error: &Error) {
+        if self.fatal_sync_error.is_none() && is_fatal_sync_error(error) {
+            self.fatal_sync_error = Some(error.clone());
+        }
     }
 }
 
@@ -6204,6 +6276,14 @@ fn write_sync_mode_from_flags(flags: i32) -> WriteSyncMode {
     }
 }
 
+fn is_fatal_sync_error(error: &Error) -> bool {
+    error.code() == afs_error::IO_OTHER
+        || matches!(
+            error.kind(),
+            afs_error::ErrorKind::Internal | afs_error::ErrorKind::DataLoss
+        )
+}
+
 fn stale(message: &'static str) -> Error {
     Error::coded(afs_error::NODE_OWNER_STALE_HANDLE, message)
 }
@@ -6253,6 +6333,22 @@ mod tests {
     use std::{env, process::Command};
 
     use crate::node::vfs::ownerfs::root::{PreparedRoot, RootGrant, RootMeta, RootReservation};
+
+    struct NoopLockedLocalRootCatalog;
+
+    impl catalog::LockedLocalRootCatalog for NoopLockedLocalRootCatalog {
+        fn persist_prepared_root(&self, _: &catalog::LocalRootRecord) -> Result<()> {
+            Ok(())
+        }
+
+        fn remove_prepared_root(&self, _: &catalog::LocalRootRecord) -> Result<()> {
+            Ok(())
+        }
+
+        fn scan_roots(&self) -> Result<Vec<catalog::LocalRootRecord>> {
+            Ok(Vec::new())
+        }
+    }
 
     struct LocalMeta {
         node_id: String,
@@ -6509,8 +6605,12 @@ mod tests {
         max_active_writes: AtomicUsize,
         started_writes: AtomicUsize,
         flush_calls: AtomicUsize,
+        fsync_calls: AtomicUsize,
+        setattr_calls: AtomicUsize,
         release_calls: AtomicUsize,
         lock_session_release_calls: AtomicUsize,
+        fail_flush_once: AtomicBool,
+        fail_fsync_once: AtomicBool,
         fail_lock_session_release: AtomicBool,
         last_write_killpriv: AtomicBool,
         write_delay: Duration,
@@ -6524,8 +6624,12 @@ mod tests {
                 max_active_writes: AtomicUsize::new(0),
                 started_writes: AtomicUsize::new(0),
                 flush_calls: AtomicUsize::new(0),
+                fsync_calls: AtomicUsize::new(0),
+                setattr_calls: AtomicUsize::new(0),
                 release_calls: AtomicUsize::new(0),
                 lock_session_release_calls: AtomicUsize::new(0),
+                fail_flush_once: AtomicBool::new(false),
+                fail_fsync_once: AtomicBool::new(false),
                 fail_lock_session_release: AtomicBool::new(false),
                 last_write_killpriv: AtomicBool::new(false),
                 write_delay,
@@ -6584,11 +6688,24 @@ mod tests {
             _: &RequestContext,
             _: &RootGrant,
             _: &OsStr,
-            _: Option<&files::FileIdentity>,
-            _: Option<&files::RemoteFile>,
-            _: &AttributeChange,
+            expected: Option<&files::FileIdentity>,
+            file: Option<&files::RemoteFile>,
+            change: &AttributeChange,
         ) -> Result<files::OwnerEntry> {
-            self.unsupported()
+            self.setattr_calls.fetch_add(1, Ordering::SeqCst);
+            let identity = file
+                .map(|file| file.identity.clone())
+                .or_else(|| expected.cloned())
+                .unwrap_or_else(|| files::FileIdentity(vec![0]));
+            let mut attributes = test_attrs(FileKind::Regular);
+            if let Some(size) = change.size {
+                attributes.size = size;
+            }
+            Ok(files::OwnerEntry {
+                root_id: self.root_id.clone(),
+                identity,
+                attributes,
+            })
         }
 
         fn getxattr(
@@ -6789,10 +6906,23 @@ mod tests {
 
         fn flush(&self, _: &RootGrant, _: &files::RemoteFile) -> Result<()> {
             self.flush_calls.fetch_add(1, Ordering::SeqCst);
+            if self.fail_flush_once.swap(false, Ordering::SeqCst) {
+                return Err(Error::coded(
+                    afs_error::IO_OTHER,
+                    "injected hard flush failure",
+                ));
+            }
             Ok(())
         }
 
         fn fsync(&self, _: &RootGrant, _: &files::RemoteFile, _: bool) -> Result<()> {
+            self.fsync_calls.fetch_add(1, Ordering::SeqCst);
+            if self.fail_fsync_once.swap(false, Ordering::SeqCst) {
+                return Err(Error::coded(
+                    afs_error::IO_OTHER,
+                    "injected hard fsync failure",
+                ));
+            }
             Ok(())
         }
 
@@ -7215,6 +7345,30 @@ mod tests {
             meta,
             disk.clone(),
         ));
+        let ctx = test_context_for_path(temp.path());
+        (temp, OwnerFs::new_local(roots, disk), ctx)
+    }
+
+    fn fixture_without_catalog_io() -> (tempfile::TempDir, OwnerFs, RequestContext) {
+        let temp = tempfile::tempdir().unwrap();
+        let disk = Arc::new(LocalFs::open(temp.path()).unwrap());
+        let meta = Arc::new(LocalMeta {
+            node_id: "node-a".into(),
+            session_id: "session-a".into(),
+            next_epoch: Mutex::new(1),
+            recover_calls: Mutex::new(0),
+            active: Mutex::new(HashMap::new()),
+        });
+        let roots = Arc::new(
+            RootManager::open_with_catalog(
+                "node-a".into(),
+                "session-a".into(),
+                meta,
+                disk.clone(),
+                Box::new(NoopLockedLocalRootCatalog),
+            )
+            .unwrap(),
+        );
         let ctx = test_context_for_path(temp.path());
         (temp, OwnerFs::new_local(roots, disk), ctx)
     }
@@ -9652,6 +9806,39 @@ mod tests {
         fs.release(&ctx, local_file.handle).unwrap();
     }
 
+    fn assert_eio(error: &Error) {
+        assert_eq!(error.code(), afs_error::IO_OTHER, "{error:?}");
+        assert_eq!(crate::error::errno(error), libc::EIO, "{error:?}");
+    }
+
+    fn run_strace_injected_child(
+        child_env: &str,
+        exact_test: &str,
+        trace_name: &str,
+        inject: &str,
+    ) -> String {
+        let temp = tempfile::tempdir().unwrap();
+        let trace = temp.path().join(trace_name);
+        let status = Command::new("strace")
+            .arg("-qq")
+            .arg("-f")
+            .arg("-e")
+            .arg("trace=fdatasync,fsync,ftruncate,pwrite64")
+            .arg("-e")
+            .arg(inject)
+            .arg("-o")
+            .arg(&trace)
+            .env(child_env, "1")
+            .arg(env::current_exe().unwrap())
+            .arg("--exact")
+            .arg(exact_test)
+            .arg("--nocapture")
+            .status()
+            .expect("strace must be installed in the Linux validation environment");
+        assert!(status.success(), "trace child failed with {status}");
+        fs::read_to_string(&trace).unwrap()
+    }
+
     fn insert_slow_remote_handle(
         fs: &OwnerFs,
         remote: Arc<SlowRemoteFiles>,
@@ -9782,6 +9969,99 @@ mod tests {
     }
 
     #[test]
+    fn remote_resize_only_marks_handle_dirty_for_flush() {
+        let (_temp, fs, ctx) = fixture();
+        let root_id = root::root_id_from_name(OsStr::new("job-42")).unwrap();
+        let remote = Arc::new(SlowRemoteFiles::new(root_id, Duration::ZERO));
+        let handle = insert_slow_remote_handle(&fs, remote.clone(), 1);
+
+        fs.setattr_with_options(
+            &ctx,
+            backend_inode(42),
+            Some(handle),
+            &AttributeChange {
+                size: Some(8192),
+                ..AttributeChange::default()
+            },
+            SetAttrOptions::default(),
+        )
+        .unwrap();
+        assert_eq!(remote.setattr_calls.load(Ordering::SeqCst), 1);
+
+        fs.flush(&ctx, handle).unwrap();
+        assert_eq!(remote.flush_calls.load(Ordering::SeqCst), 1);
+
+        fs.release(&ctx, handle).unwrap();
+    }
+
+    #[test]
+    fn remote_resize_flush_error_is_retained_by_caller_handle() {
+        let (_temp, fs, ctx) = fixture();
+        let root_id = root::root_id_from_name(OsStr::new("job-42")).unwrap();
+        let remote = Arc::new(SlowRemoteFiles::new(root_id, Duration::ZERO));
+        remote.fail_flush_once.store(true, Ordering::SeqCst);
+        let handle = insert_slow_remote_handle(&fs, remote.clone(), 1);
+
+        fs.setattr_with_options(
+            &ctx,
+            backend_inode(42),
+            Some(handle),
+            &AttributeChange {
+                size: Some(8192),
+                ..AttributeChange::default()
+            },
+            SetAttrOptions::default(),
+        )
+        .unwrap();
+        assert_eq!(remote.setattr_calls.load(Ordering::SeqCst), 1);
+
+        let first = fs.flush(&ctx, handle).unwrap_err();
+        assert_eq!(first.code(), afs_error::IO_OTHER);
+        let second = fs.flush(&ctx, handle).unwrap_err();
+        assert_eq!(second.code(), afs_error::IO_OTHER);
+        assert_eq!(remote.flush_calls.load(Ordering::SeqCst), 1);
+
+        fs.release(&ctx, handle).unwrap();
+    }
+
+    #[test]
+    fn remote_flush_hard_error_is_retained_by_caller_handle() {
+        let (_temp, fs, ctx) = fixture();
+        let root_id = root::root_id_from_name(OsStr::new("job-42")).unwrap();
+        let remote = Arc::new(SlowRemoteFiles::new(root_id, Duration::ZERO));
+        remote.fail_flush_once.store(true, Ordering::SeqCst);
+        let handle = insert_slow_remote_handle(&fs, remote.clone(), 1);
+
+        assert_eq!(fs.write(&ctx, handle, 0, b"data").unwrap(), 4);
+        let first = fs.flush(&ctx, handle).unwrap_err();
+        assert_eq!(first.code(), afs_error::IO_OTHER);
+        let second = fs.flush(&ctx, handle).unwrap_err();
+        assert_eq!(second.code(), afs_error::IO_OTHER);
+        assert_eq!(remote.flush_calls.load(Ordering::SeqCst), 1);
+
+        fs.release(&ctx, handle).unwrap();
+        assert_eq!(remote.release_calls.load(Ordering::SeqCst), 1);
+    }
+
+    #[test]
+    fn remote_fsync_hard_error_is_retained_by_caller_handle() {
+        let (_temp, fs, ctx) = fixture();
+        let root_id = root::root_id_from_name(OsStr::new("job-42")).unwrap();
+        let remote = Arc::new(SlowRemoteFiles::new(root_id, Duration::ZERO));
+        remote.fail_fsync_once.store(true, Ordering::SeqCst);
+        let handle = insert_slow_remote_handle(&fs, remote.clone(), 1);
+
+        let first = fs.fsync(&ctx, handle, SyncMode::Full).unwrap_err();
+        assert_eq!(first.code(), afs_error::IO_OTHER);
+        let second = fs.fsync(&ctx, handle, SyncMode::DataOnly).unwrap_err();
+        assert_eq!(second.code(), afs_error::IO_OTHER);
+        assert_eq!(remote.fsync_calls.load(Ordering::SeqCst), 1);
+
+        fs.release(&ctx, handle).unwrap();
+        assert_eq!(remote.release_calls.load(Ordering::SeqCst), 1);
+    }
+
+    #[test]
     fn remote_lookup_refreshes_cached_grant_after_home_restart() {
         let (_temp, fs, ctx, meta, remote, _root_id) = remote_fixture();
         let root = BackendInode {
@@ -9886,6 +10166,135 @@ mod tests {
         assert_eq!(fs.read(&ctx, created.handle, 0, &mut out).unwrap(), 5);
         assert_eq!(&out, b"hello");
         fs.release(&ctx, created.handle).unwrap();
+    }
+
+    #[test]
+    fn fatal_sync_error_classification_keeps_retryable_errors_unpoisoned() {
+        let eio = Error::from(io::Error::from_raw_os_error(libc::EIO));
+        assert_eq!(eio.code(), afs_error::IO_OTHER);
+        assert!(is_fatal_sync_error(&eio));
+
+        let enospc = Error::from(io::Error::from_raw_os_error(libc::ENOSPC));
+        assert_eq!(enospc.code(), afs_error::IO_CAPACITY);
+        assert!(!is_fatal_sync_error(&enospc));
+
+        let unavailable = Error::coded(afs_error::IO_UNAVAILABLE, "retryable transport outage");
+        assert!(!is_fatal_sync_error(&unavailable));
+    }
+
+    #[test]
+    fn local_fdatasync_eio_poison_blocks_later_barriers_and_mutations() {
+        const CHILD_ENV: &str = "AFS_OWNERFS_FDATASYNC_EIO_CHILD";
+        if env::var_os(CHILD_ENV).is_some() {
+            run_local_fdatasync_eio_poison_child();
+            return;
+        }
+
+        let raw = run_strace_injected_child(
+            CHILD_ENV,
+            "node::vfs::ownerfs::tests::local_fdatasync_eio_poison_blocks_later_barriers_and_mutations",
+            "ownerfs-fdatasync-eio.strace",
+            "inject=fdatasync:error=EIO:when=1",
+        );
+        assert!(
+            raw.contains("fdatasync(") && raw.contains("EIO"),
+            "OwnerFs test did not exercise injected fdatasync EIO:\n{raw}"
+        );
+    }
+
+    fn run_local_fdatasync_eio_poison_child() {
+        let (_temp, fs, ctx) = fixture();
+        let root = backend_inode(OWNERFS_ROOT_INODE);
+        let workspace = fs.mkdir(&ctx, root, OsStr::new("job-42"), 0o755).unwrap();
+        let created = fs
+            .create(
+                &ctx,
+                workspace.inode,
+                OsStr::new("log.txt"),
+                0o644,
+                libc::O_RDWR,
+            )
+            .unwrap();
+
+        assert_eq!(fs.write(&ctx, created.handle, 0, b"hello").unwrap(), 5);
+        assert_eio(
+            &fs.fsync(&ctx, created.handle, SyncMode::DataOnly)
+                .unwrap_err(),
+        );
+        assert_eio(&fs.fsync(&ctx, created.handle, SyncMode::Full).unwrap_err());
+        assert_eio(&fs.flush(&ctx, created.handle).unwrap_err());
+        assert_eio(&fs.write(&ctx, created.handle, 5, b"!").unwrap_err());
+        assert_eio(
+            &fs.setattr_with_options(
+                &ctx,
+                created.entry.inode,
+                Some(created.handle),
+                &AttributeChange {
+                    size: Some(2),
+                    ..AttributeChange::default()
+                },
+                SetAttrOptions::default(),
+            )
+            .unwrap_err(),
+        );
+
+        let attrs = fs
+            .getattr(&ctx, created.entry.inode, Some(created.handle))
+            .unwrap();
+        assert_eq!(attrs.size, 5);
+        let mut out = [0_u8; 5];
+        assert_eq!(fs.read(&ctx, created.handle, 0, &mut out).unwrap(), 5);
+        assert_eq!(&out, b"hello");
+        fs.release(&ctx, created.handle).unwrap();
+    }
+
+    #[test]
+    fn local_osync_eio_poison_is_reported_by_followup_flush() {
+        const CHILD_ENV: &str = "AFS_OWNERFS_OSYNC_EIO_CHILD";
+        if env::var_os(CHILD_ENV).is_some() {
+            run_local_osync_eio_poison_child();
+            return;
+        }
+
+        let raw = run_strace_injected_child(
+            CHILD_ENV,
+            "node::vfs::ownerfs::tests::local_osync_eio_poison_is_reported_by_followup_flush",
+            "ownerfs-osync-eio.strace",
+            "inject=fsync:error=EIO:when=1",
+        );
+        assert!(
+            raw.contains("fsync(") && raw.contains("EIO"),
+            "OwnerFs test did not exercise injected O_SYNC fsync EIO:\n{raw}"
+        );
+    }
+
+    fn run_local_osync_eio_poison_child() {
+        let (_temp, fs, ctx) = fixture_without_catalog_io();
+        let root_id = root::root_id_from_name(OsStr::new("job-42")).unwrap();
+        let handle = {
+            let local = fs.require_local().unwrap();
+            let path = StoragePath::new("sync.log").unwrap();
+            let file = local
+                .disk
+                .open_file(&path, OpenSpec::new(libc::O_RDWR | libc::O_CREAT, 0o644))
+                .unwrap();
+            let identity = identity_from_metadata(&file.metadata().unwrap()).unwrap();
+            local.state.lock().unwrap().insert_file_handle(
+                files::LocalOpenFile {
+                    root_id,
+                    identity,
+                    file,
+                    peer: None,
+                },
+                false,
+                WriteSyncMode::Full,
+                libc::O_RDWR | libc::O_SYNC,
+            )
+        };
+
+        assert_eio(&fs.write(&ctx, handle, 0, b"sync").unwrap_err());
+        assert_eio(&fs.flush(&ctx, handle).unwrap_err());
+        fs.release(&ctx, handle).unwrap();
     }
 
     #[test]

@@ -1,0 +1,33 @@
+{
+  "action": "restart",
+  "which": "a",
+  "utc": "2026-10-01T11:20:01Z",
+  "formal_acceptance": "NOT_RUN",
+  "environment": "PREPARING",
+  "controller": {
+    "argv": [
+      "/mnt/lima-afsadata/afs-delivery/round2-eio-v80/prefix/bin/afs-processctl",
+      "--prefix",
+      "/mnt/lima-afsadata/afs-delivery/round2-eio-v80/prefix",
+      "--config-dir",
+      "/mnt/lima-afsadata/afs-delivery/round2-eio-v80/etc",
+      "--run-dir",
+      "/mnt/lima-afsadata/afs-delivery/round2-eio-v80/run",
+      "--log-dir",
+      "/mnt/lima-afsadata/afs-delivery/round2-eio-v80/log",
+      "restart",
+      "node"
+    ],
+    "exit": 0,
+    "stdout": "node stopped exit_code=0\nstarted node pid=744347 ready=true\n",
+    "stderr": "removing stale pid file for node: 743867\n"
+  },
+  "identity": {
+    "pid": 744347,
+    "start_ticks": "10474860",
+    "boot_id": "36a572e0-859b-4a94-adc7-789210a83fc8",
+    "sha256": "d28d17faa8bb71eb8c0a28241e8556396e440b204cf0242d2af8133700f6a494",
+    "exe": "/mnt/lima-afsadata/afs-delivery/round1-mainline-v77-archive-async/prefix/bin/afs-node"
+  },
+  "status": "PASS"
+}

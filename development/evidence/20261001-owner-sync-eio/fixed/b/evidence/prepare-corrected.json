@@ -1,0 +1,38 @@
+{
+  "status": "PASS",
+  "configuration": {
+    "fs": "ownerfs",
+    "grpc_listen": "0.0.0.0:20284",
+    "rest_listen": "192.168.109.13:20285",
+    "log_level": "info",
+    "tls_ca_certificate": "/mnt/lima-afsbdata/afs-delivery/round1-mainline-v77-archive-async/etc/tls/ca.pem",
+    "tls_identity_certificate": "/mnt/lima-afsbdata/afs-delivery/round1-mainline-v77-archive-async/etc/tls/round1-b.pem",
+    "tls_identity_private_key": "/mnt/lima-afsbdata/afs-delivery/round1-mainline-v77-archive-async/etc/tls/round1-b-key.pem",
+    "tls_server_name": "afs-cluster",
+    "trusted_node_certs": {
+      "round1-a": "/mnt/lima-afsbdata/afs-delivery/round1-mainline-v77-archive-async/etc/tls/round1-a.pem",
+      "round1-b": "/mnt/lima-afsbdata/afs-delivery/round1-mainline-v77-archive-async/etc/tls/round1-b.pem",
+      "round1-c": "/mnt/lima-afsbdata/afs-delivery/round1-mainline-v77-archive-async/etc/tls/round1-c.pem"
+    },
+    "dfs_desired_copies": 2,
+    "dfs_sync_required_copies": 1,
+    "dfs_min_distinct_nodes": 1,
+    "dfs_min_distinct_failure_domains": 1,
+    "dfs_local_copy": "required",
+    "id": "round1-b",
+    "meta_endpoint": "https://192.168.109.11:20280",
+    "advertise_endpoint": "https://192.168.109.13:20284",
+    "data_dir": "/mnt/lima-afsbdata/afs-delivery/owner-eio-v80-r2-b/state/node",
+    "uds_path": "/mnt/lima-afsbdata/afs-delivery/owner-eio-v80-r2-b/run/node.sock",
+    "ownerfs_mount": "/mnt/lima-afsbdata/afs-delivery/owner-eio-v80-r2-b/mount/ownerfs",
+    "data_mode": "grpc",
+    "timeout_ms": 10000
+  },
+  "configuration_sha256": "da51e82089be8fe6f19f981e590d6447a2396a59b6a18912108778944dcf68c3",
+  "binaries": {
+    "node": "a3fe6573fc5f5a41c30b823855cfe2fdd1428950f878f1e29756e7bfc0d7e9d9",
+    "meta": "895f39fd660b7f7d9735eaaa4f3a082c3692a409d954c4aa8b5b0cc515a700ad"
+  },
+  "utc": "2026-10-01T11:41:24Z",
+  "correction": "remove DFS mount from explicitly Owner-only fixture"
+}

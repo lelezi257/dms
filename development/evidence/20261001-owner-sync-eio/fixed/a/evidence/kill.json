@@ -1,0 +1,16 @@
+{
+  "action": "kill",
+  "which": "a",
+  "utc": "2026-10-01T11:41:11Z",
+  "formal_acceptance": "NOT_RUN",
+  "environment": "PREPARING",
+  "identity": {
+    "pid": 744940,
+    "start_ticks": "10601063",
+    "boot_id": "36a572e0-859b-4a94-adc7-789210a83fc8",
+    "sha256": "a3fe6573fc5f5a41c30b823855cfe2fdd1428950f878f1e29756e7bfc0d7e9d9",
+    "exe": "/var/lib/afs-acceptance/candidates/eio-v80-r2/prefix/bin/afs-node"
+  },
+  "signal": "SIGKILL",
+  "status": "PASS"
+}

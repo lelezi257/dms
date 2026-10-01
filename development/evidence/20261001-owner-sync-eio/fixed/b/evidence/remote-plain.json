@@ -1,0 +1,32 @@
+[
+  {
+    "operation": "write",
+    "outcome": "success",
+    "value": 8192,
+    "elapsed_seconds": 0.0008103229920379817
+  },
+  {
+    "operation": "fdatasync",
+    "outcome": "error",
+    "errno": 5,
+    "errno_name": "EIO",
+    "error": "[Errno 5] Input/output error",
+    "elapsed_seconds": 0.0014652730023954064
+  },
+  {
+    "operation": "fsync",
+    "outcome": "error",
+    "errno": 5,
+    "errno_name": "EIO",
+    "error": "[Errno 5] Input/output error",
+    "elapsed_seconds": 7.59570102673024e-05
+  },
+  {
+    "operation": "close",
+    "outcome": "error",
+    "errno": 5,
+    "errno_name": "EIO",
+    "error": "[Errno 5] Input/output error",
+    "elapsed_seconds": 0.0012302340037422255
+  }
+]

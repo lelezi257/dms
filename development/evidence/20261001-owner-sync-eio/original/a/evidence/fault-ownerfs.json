@@ -1,0 +1,39 @@
+{
+  "identity": {
+    "pid": 743455,
+    "start_ticks": "10467829",
+    "boot_id": "36a572e0-859b-4a94-adc7-789210a83fc8",
+    "sha256": "d28d17faa8bb71eb8c0a28241e8556396e440b204cf0242d2af8133700f6a494",
+    "exe": "/mnt/lima-afsadata/afs-delivery/round1-mainline-v77-archive-async/prefix/bin/afs-node"
+  },
+  "operations": [
+    {
+      "operation": "write",
+      "outcome": "success",
+      "value": 8192,
+      "elapsed_seconds": 0.00017579398991074413
+    },
+    {
+      "operation": "fdatasync",
+      "outcome": "error",
+      "errno": 5,
+      "errno_name": "EIO",
+      "error": "[Errno 5] Input/output error",
+      "elapsed_seconds": 7.475100574083626e-05
+    },
+    {
+      "operation": "fsync",
+      "outcome": "error",
+      "errno": 5,
+      "errno_name": "EIO",
+      "error": "[Errno 5] Input/output error",
+      "elapsed_seconds": 7.925101090222597e-05
+    },
+    {
+      "operation": "close",
+      "outcome": "success",
+      "value": null,
+      "elapsed_seconds": 3.458399442024529e-05
+    }
+  ]
+}

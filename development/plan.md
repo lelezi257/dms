@@ -10,6 +10,8 @@ The [first integrated Node fault batch](evidence/20261001-round2-node-recovery/R
 
 The [network/capacity batch](evidence/20261001-round2-network-capacity/README.md) adds actual B-to-A business TCP isolation, bounded Owner failure, unaffected local DFS/C route and same-process recovery. A separate bounded guest ext4 fixture proves physical ENOSPC: Owner append rejection, DFS buffered write versus failed fdatasync/fsync/close, original committed content after cold reload while full, then successful recovery/normal restart. This is single-Node/gRPC capacity proof and does not qualify RoCE link interruption, EIO or full fault matrices. Linux64 semantic/10 audit regressions pass; all143 compiler inputs remain unchanged and the source gate is reused. Next cover physical EIO/corruption, exact unknown replies and remaining business RDMA faults. Choose priorities from [issues](issues.md) by whole-system consequences. ROUND2 remains incomplete.
 
+[Owner hard-error batch](evidence/20261001-owner-sync-eio/README.md) fixes fatal EIO being consumed before close and remote resize-only skipping Home flush. Current Linux69 Owner regressions,421 library/65 interfaces/4 errors/9 LocalAPI/5 real FUSE, strict Clippy/features/build pass. Actual local/remote dm EIO, cold acknowledged watermark, explicit new-handle rewrite, Home resize-close fdatasync and normal restart pass. Original production and overstrict fixture failures are retained. The new runtime is gRPC and isolated memory Meta; older healthy/transport evidence retains its original identities. Continue current corruption/unknown-result/business RDMA fault gaps before round-end overall regression; no formal promotion.
+
 ## Whole-system rounds
 
 | Round | Scope and order | Exit evidence and remaining boundary |

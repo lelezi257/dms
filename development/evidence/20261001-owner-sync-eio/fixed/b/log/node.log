@@ -1,0 +1,19 @@
+Error: Error { code: ErrorCode(67174401), kind: InvalidArgument, message: "dfs_mount requires fs=dfs or fs=all" }
+{"msg":"Mounting /mnt/lima-afsbdata/afs-delivery/owner-eio-v80-r2-b/mount/ownerfs","level":"INFO","ts":"2026-10-01T11:42:14.921923002Z","instance":"round1-b","service_name":"afs-node"}
+{"msg":"node.ready","level":"INFO","ts":"2026-10-01T11:42:14.929970233Z","instance":"round1-b","service_name":"afs-node","dfs":false,"ownerfs":true,"uds":"/mnt/lima-afsbdata/afs-delivery/owner-eio-v80-r2-b/run/node.sock","rest":"192.168.109.13:20285","grpc":"0.0.0.0:20284"}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-01T11:42:29.510623186Z","instance":"round1-b","service_name":"afs-node","message":"OwnerFs currently supports only user.* xattrs","kind":"FailedPrecondition","code":67305489}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-01T11:42:51.80060973Z","instance":"round1-b","service_name":"afs-node","message":"Input/output error (os error 5)","kind":"Internal","code":67305480}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-01T11:42:51.800812019Z","instance":"round1-b","service_name":"afs-node","message":"Input/output error (os error 5)","kind":"Internal","code":67305480}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-01T11:42:51.80092535Z","instance":"round1-b","service_name":"afs-node","message":"Input/output error (os error 5)","kind":"Internal","code":67305480}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-01T11:42:51.801128973Z","instance":"round1-b","service_name":"afs-node","message":"Input/output error (os error 5)","kind":"Internal","code":67305480}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-01T11:42:51.804454929Z","instance":"round1-b","service_name":"afs-node","message":"Input/output error (os error 5)","kind":"Internal","code":67305480}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-01T11:42:51.804581635Z","instance":"round1-b","service_name":"afs-node","message":"Input/output error (os error 5)","kind":"Internal","code":67305480}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-01T11:42:51.804719092Z","instance":"round1-b","service_name":"afs-node","message":"Input/output error (os error 5)","kind":"Internal","code":67305480}
+{"msg":"services.stopped","level":"INFO","ts":"2026-10-01T11:44:24.351468837Z","instance":"round1-b","service_name":"afs-node"}
+{"msg":"Mounting /mnt/lima-afsbdata/afs-delivery/owner-eio-v80-r2-b/mount/ownerfs","level":"INFO","ts":"2026-10-01T11:45:25.83419115Z","instance":"round1-b","service_name":"afs-node"}
+{"msg":"node.ready","level":"INFO","ts":"2026-10-01T11:45:25.838864705Z","instance":"round1-b","service_name":"afs-node","dfs":false,"ownerfs":true,"uds":"/mnt/lima-afsbdata/afs-delivery/owner-eio-v80-r2-b/run/node.sock","rest":"192.168.109.13:20285","grpc":"0.0.0.0:20284"}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-01T11:45:25.902680494Z","instance":"round1-b","service_name":"afs-node","message":"OwnerFs currently supports only user.* xattrs","kind":"FailedPrecondition","code":67305489}
+{"msg":"services.stopped","level":"INFO","ts":"2026-10-01T11:46:41.381837986Z","instance":"round1-b","service_name":"afs-node"}
+{"msg":"Mounting /mnt/lima-afsbdata/afs-delivery/owner-eio-v80-r2-b/mount/ownerfs","level":"INFO","ts":"2026-10-01T11:47:01.193812112Z","instance":"round1-b","service_name":"afs-node"}
+{"msg":"node.ready","level":"INFO","ts":"2026-10-01T11:47:01.196445611Z","instance":"round1-b","service_name":"afs-node","dfs":false,"ownerfs":true,"uds":"/mnt/lima-afsbdata/afs-delivery/owner-eio-v80-r2-b/run/node.sock","rest":"192.168.109.13:20285","grpc":"0.0.0.0:20284"}
+{"msg":"services.stopped","level":"INFO","ts":"2026-10-01T11:47:01.578571433Z","instance":"round1-b","service_name":"afs-node"}

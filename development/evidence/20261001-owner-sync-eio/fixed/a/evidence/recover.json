@@ -1,0 +1,9 @@
+{
+  "action": "recover",
+  "which": "a",
+  "utc": "2026-10-01T11:41:23Z",
+  "formal_acceptance": "NOT_RUN",
+  "environment": "PREPARING",
+  "status": "FAIL",
+  "error": "OSError(16, 'Device or resource busy')"
+}

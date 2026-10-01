@@ -1,0 +1,40 @@
+{
+  "action": "remount",
+  "which": "a",
+  "utc": "2026-10-01T11:41:11Z",
+  "formal_acceptance": "NOT_RUN",
+  "environment": "PREPARING",
+  "commands": [
+    {
+      "argv": [
+        "umount",
+        "/mnt/lima-afsadata/afs-delivery/round2-eio-v80-r2/volume"
+      ],
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "mount",
+        "/dev/mapper/afs_round2_eio_v80_r2",
+        "/mnt/lima-afsadata/afs-delivery/round2-eio-v80-r2/volume"
+      ],
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "findmnt",
+        "-J",
+        "-M",
+        "/mnt/lima-afsadata/afs-delivery/round2-eio-v80-r2/volume"
+      ],
+      "exit": 0,
+      "stdout": "{\n   \"filesystems\": [\n      {\n         \"target\": \"/mnt/lima-afsadata/afs-delivery/round2-eio-v80-r2/volume\",\n         \"source\": \"/dev/mapper/afs_round2_eio_v80_r2\",\n         \"fstype\": \"ext4\",\n         \"options\": \"rw,relatime\"\n      }\n   ]\n}\n",
+      "stderr": ""
+    }
+  ],
+  "status": "PASS"
+}

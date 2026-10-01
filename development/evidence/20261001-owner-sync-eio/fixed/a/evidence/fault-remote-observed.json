@@ -1,0 +1,121 @@
+{
+  "identity": {
+    "pid": 745832,
+    "start_ticks": "10608253",
+    "boot_id": "36a572e0-859b-4a94-adc7-789210a83fc8",
+    "sha256": "a3fe6573fc5f5a41c30b823855cfe2fdd1428950f878f1e29756e7bfc0d7e9d9",
+    "exe": "/var/lib/afs-acceptance/candidates/eio-v80-r2/prefix/bin/afs-node"
+  },
+  "watchdog": {
+    "pid": 746018,
+    "ttl_seconds": 90,
+    "uuid": "AFS-round2-eio-v80-r2-owned",
+    "normal_cleanup_exit": -15
+  },
+  "activate": [
+    {
+      "argv": [
+        "dmsetup",
+        "suspend",
+        "--noflush",
+        "afs_round2_eio_v80_r2"
+      ],
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "dmsetup",
+        "reload",
+        "afs_round2_eio_v80_r2",
+        "--table",
+        "0 65536 error"
+      ],
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "dmsetup",
+        "resume",
+        "afs_round2_eio_v80_r2"
+      ],
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "dmsetup",
+        "table",
+        "afs_round2_eio_v80_r2"
+      ],
+      "exit": 0,
+      "stdout": "0 65536 error \n",
+      "stderr": ""
+    }
+  ],
+  "activated_utc": "2026-10-01T11:42:50Z",
+  "kernel": {
+    "argv": [
+      "journalctl",
+      "-k",
+      "--since",
+      "@1790854970",
+      "--no-pager",
+      "-o",
+      "short-iso"
+    ],
+    "exit": 0,
+    "stdout": "2026-10-01T19:42:50+08:00 lima-afs-accept-a kernel: Buffer I/O error on dev dm-0, logical block 4, async page read\n2026-10-01T19:42:50+08:00 lima-afs-accept-a kernel: Buffer I/O error on dev dm-0, logical block 4, async page read\n2026-10-01T19:42:51+08:00 lima-afs-accept-a kernel: EXT4-fs warning (device dm-0): ext4_end_bio:353: I/O error 10 writing to inode 27 starting block 2590)\n2026-10-01T19:42:51+08:00 lima-afs-accept-a kernel: Buffer I/O error on device dm-0, logical block 2590\n2026-10-01T19:42:51+08:00 lima-afs-accept-a kernel: Buffer I/O error on device dm-0, logical block 2591\n2026-10-01T19:42:57+08:00 lima-afs-accept-a kernel: Aborting journal on device dm-0-8.\n2026-10-01T19:42:57+08:00 lima-afs-accept-a kernel: Buffer I/O error on dev dm-0, logical block 11, lost sync page write\n2026-10-01T19:42:57+08:00 lima-afs-accept-a kernel: JBD2: I/O error when updating journal superblock for dm-0-8.\n",
+    "stderr": ""
+  },
+  "restore": [
+    {
+      "argv": [
+        "dmsetup",
+        "suspend",
+        "--noflush",
+        "afs_round2_eio_v80_r2"
+      ],
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "dmsetup",
+        "reload",
+        "afs_round2_eio_v80_r2",
+        "--table",
+        "0 65536 linear /dev/loop0 0"
+      ],
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "dmsetup",
+        "resume",
+        "afs_round2_eio_v80_r2"
+      ],
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "dmsetup",
+        "table",
+        "afs_round2_eio_v80_r2"
+      ],
+      "exit": 0,
+      "stdout": "0 65536 linear 7:0 0\n",
+      "stderr": ""
+    }
+  ],
+  "restored_utc": "2026-10-01T11:43:06Z"
+}

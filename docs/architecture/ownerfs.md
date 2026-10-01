@@ -35,4 +35,8 @@ Client admission is shared by the Node's peer clients and limits concurrent regi
 
 OwnerFs durability is the Home node local filesystem durability plus the Meta state that grants and tracks the workspace. Remote peer access is a transport path to Home, not an extra durable copy. If Home fails permanently, recovery depends on the deployment's local disk and Meta recovery policy.
 
+An accepted ordinary write is not a durability acknowledgement. A successful size change through a remote open handle also requires the Home close-time barrier, even if that handle has issued no write. A fatal storage sync error remains attached to that open handle: later write, handle resize, flush and sync return the original error until release. Consuming a native writeback error does not turn a later close into a successful durability barrier. Reads and release remain possible; remote handles retain the same Home error. Retryable capacity and transport errors keep their existing retry rules.
+
+After repairing the storage fault, open a new handle, explicitly rewrite any unconfirmed content and sync it. OwnerFs uses mutable local files: a failed sync does not promise rollback of accepted bytes. A successful earlier barrier defines the acknowledged watermark; overwritten bytes without a successful later barrier have no atomic rollback guarantee.
+
 There is no automatic OwnerFs-to-DFS snapshot conversion in the base design.

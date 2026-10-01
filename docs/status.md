@@ -88,6 +88,19 @@ unrun. Each range currently scans the full Chunk for integrity; performance
 qualification and an efficient integrity format remain open. Nodes using the
 new corruption-report RPC require an upgraded Meta before deployment.
 
+## Actual RXE repair development evidence
+
+The [short RXE repair flow](../development/evidence/20261001-rxe-repair/README.md)
+uses the same qualified v62-r3 Rust inputs and binaries with explicit RDMA on
+isolated A/B Linux/ext4 mounts. A-only 1 MiB sync creates repair debt; B joins,
+receives 1 MiB through actual verbs and holds checksum-identical data. Cold
+fallback from one corrupted copy transfers 64 KiB through RDMA read; automatic
+physical replacement receives 64 KiB through RDMA replication. Recorded gRPC
+file-payload counters remain zero. Corruption of both copies returns EIO and
+BlockedNoSource on fresh mounts. Live identity/content/REST and per-incarnation
+counter audits pass. This scoped stage reuses the unchanged Rust source gate;
+full RDMA lifecycle/fault/backend/resource and formal acceptance remain open.
+
 ## Known Open Items
 
 - Complete the wider owner-open ACK-loss, remote cleanup/resource and network-fault matrix, cooperative whole-writeback-pass budgets and complete shutdown/controller deployment matrices. The native process deadline reports forced failure; it does not prove every worker cooperatively stops.

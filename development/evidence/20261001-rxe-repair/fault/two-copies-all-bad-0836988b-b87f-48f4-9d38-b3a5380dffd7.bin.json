@@ -1,0 +1,258 @@
+{
+  "bound_seconds": 45,
+  "chunk_id": "blake3-6d9af72558549f7f7fed883ddc9b1b77e5195241f2ed30de015056a9cf746ef7-65536",
+  "mode": "available2_completed",
+  "polls": [
+    {
+      "json": {
+        "available_copies": 1,
+        "checked_at_unix_ms": 1790827600662,
+        "chunk_id": "blake3-6d9af72558549f7f7fed883ddc9b1b77e5195241f2ed30de015056a9cf746ef7-65536",
+        "copies": [
+          {
+            "available": true,
+            "record": {
+              "chunk_id": "blake3-6d9af72558549f7f7fed883ddc9b1b77e5195241f2ed30de015056a9cf746ef7-65536",
+              "id": "repair-node-a:2:local-0:blake3-6d9af72558549f7f7fed883ddc9b1b77e5195241f2ed30de015056a9cf746ef7-65536",
+              "location": {
+                "Node": {
+                  "catalog_revision": 5,
+                  "device_epoch": 1790827554754820322,
+                  "device_id": "local-0",
+                  "node_epoch": 2,
+                  "node_id": "repair-node-a"
+                }
+              },
+              "persisted_bytes": 65536,
+              "role": "DurableReplica",
+              "state": "Ready",
+              "verified_digest": {
+                "algorithm": "Blake3",
+                "bytes": [
+                  109,
+                  154,
+                  247,
+                  37,
+                  88,
+                  84,
+                  159,
+                  127,
+                  127,
+                  237,
+                  136,
+                  61,
+                  220,
+                  155,
+                  27,
+                  119,
+                  229,
+                  25,
+                  82,
+                  65,
+                  242,
+                  237,
+                  48,
+                  222,
+                  1,
+                  80,
+                  86,
+                  169,
+                  207,
+                  116,
+                  110,
+                  247
+                ]
+              }
+            }
+          }
+        ],
+        "health": "UnderReplicated",
+        "loss_confirmed": false,
+        "placement": {
+          "chunk_id": "blake3-6d9af72558549f7f7fed883ddc9b1b77e5195241f2ed30de015056a9cf746ef7-65536",
+          "copies": [
+            "repair-node-a:2:local-0:blake3-6d9af72558549f7f7fed883ddc9b1b77e5195241f2ed30de015056a9cf746ef7-65536"
+          ],
+          "desired_copies": 2,
+          "health": "UnderReplicated",
+          "placement_epoch": 5578125340144586724,
+          "replica_group_id": "group:4d697b7153ec4fe4"
+        },
+        "revision": 25,
+        "tasks": [
+          {
+            "attempt": 0,
+            "chunk_id": "blake3-6d9af72558549f7f7fed883ddc9b1b77e5195241f2ed30de015056a9cf746ef7-65536",
+            "claim": null,
+            "desired_copies": 2,
+            "existing_copies": [
+              "repair-node-a:2:local-0:blake3-6d9af72558549f7f7fed883ddc9b1b77e5195241f2ed30de015056a9cf746ef7-65536"
+            ],
+            "id": "repair:blake3-6d9af72558549f7f7fed883ddc9b1b77e5195241f2ed30de015056a9cf746ef7-65536",
+            "last_error": null,
+            "next_retry_unix_ms": 1790827600589,
+            "placement_epoch": 5578125340144586724,
+            "state": "Pending"
+          }
+        ]
+      },
+      "status": 200,
+      "time_unix_ms": 1790827600662
+    },
+    {
+      "json": {
+        "available_copies": 2,
+        "checked_at_unix_ms": 1790827601666,
+        "chunk_id": "blake3-6d9af72558549f7f7fed883ddc9b1b77e5195241f2ed30de015056a9cf746ef7-65536",
+        "copies": [
+          {
+            "available": true,
+            "record": {
+              "chunk_id": "blake3-6d9af72558549f7f7fed883ddc9b1b77e5195241f2ed30de015056a9cf746ef7-65536",
+              "id": "repair-node-a:2:local-0:blake3-6d9af72558549f7f7fed883ddc9b1b77e5195241f2ed30de015056a9cf746ef7-65536",
+              "location": {
+                "Node": {
+                  "catalog_revision": 5,
+                  "device_epoch": 1790827554754820322,
+                  "device_id": "local-0",
+                  "node_epoch": 2,
+                  "node_id": "repair-node-a"
+                }
+              },
+              "persisted_bytes": 65536,
+              "role": "DurableReplica",
+              "state": "Ready",
+              "verified_digest": {
+                "algorithm": "Blake3",
+                "bytes": [
+                  109,
+                  154,
+                  247,
+                  37,
+                  88,
+                  84,
+                  159,
+                  127,
+                  127,
+                  237,
+                  136,
+                  61,
+                  220,
+                  155,
+                  27,
+                  119,
+                  229,
+                  25,
+                  82,
+                  65,
+                  242,
+                  237,
+                  48,
+                  222,
+                  1,
+                  80,
+                  86,
+                  169,
+                  207,
+                  116,
+                  110,
+                  247
+                ]
+              }
+            }
+          },
+          {
+            "available": true,
+            "record": {
+              "chunk_id": "blake3-6d9af72558549f7f7fed883ddc9b1b77e5195241f2ed30de015056a9cf746ef7-65536",
+              "id": "repair-node-b:1:local-0:blake3-6d9af72558549f7f7fed883ddc9b1b77e5195241f2ed30de015056a9cf746ef7-65536",
+              "location": {
+                "Node": {
+                  "catalog_revision": 3,
+                  "device_epoch": 1790827563384322673,
+                  "device_id": "local-0",
+                  "node_epoch": 1,
+                  "node_id": "repair-node-b"
+                }
+              },
+              "persisted_bytes": 65536,
+              "role": "DurableReplica",
+              "state": "Ready",
+              "verified_digest": {
+                "algorithm": "Blake3",
+                "bytes": [
+                  109,
+                  154,
+                  247,
+                  37,
+                  88,
+                  84,
+                  159,
+                  127,
+                  127,
+                  237,
+                  136,
+                  61,
+                  220,
+                  155,
+                  27,
+                  119,
+                  229,
+                  25,
+                  82,
+                  65,
+                  242,
+                  237,
+                  48,
+                  222,
+                  1,
+                  80,
+                  86,
+                  169,
+                  207,
+                  116,
+                  110,
+                  247
+                ]
+              }
+            }
+          }
+        ],
+        "health": "Satisfied",
+        "loss_confirmed": false,
+        "placement": {
+          "chunk_id": "blake3-6d9af72558549f7f7fed883ddc9b1b77e5195241f2ed30de015056a9cf746ef7-65536",
+          "copies": [
+            "repair-node-a:2:local-0:blake3-6d9af72558549f7f7fed883ddc9b1b77e5195241f2ed30de015056a9cf746ef7-65536",
+            "repair-node-b:1:local-0:blake3-6d9af72558549f7f7fed883ddc9b1b77e5195241f2ed30de015056a9cf746ef7-65536"
+          ],
+          "desired_copies": 2,
+          "health": "Satisfied",
+          "placement_epoch": 3200228830093401427,
+          "replica_group_id": "group:2c697f2a59ae5d53"
+        },
+        "revision": 27,
+        "tasks": [
+          {
+            "attempt": 1,
+            "chunk_id": "blake3-6d9af72558549f7f7fed883ddc9b1b77e5195241f2ed30de015056a9cf746ef7-65536",
+            "claim": null,
+            "desired_copies": 2,
+            "existing_copies": [
+              "repair-node-a:2:local-0:blake3-6d9af72558549f7f7fed883ddc9b1b77e5195241f2ed30de015056a9cf746ef7-65536",
+              "repair-node-b:1:local-0:blake3-6d9af72558549f7f7fed883ddc9b1b77e5195241f2ed30de015056a9cf746ef7-65536"
+            ],
+            "id": "repair:blake3-6d9af72558549f7f7fed883ddc9b1b77e5195241f2ed30de015056a9cf746ef7-65536",
+            "last_error": null,
+            "next_retry_unix_ms": 0,
+            "placement_epoch": 3200228830093401427,
+            "state": "Completed"
+          }
+        ]
+      },
+      "status": 200,
+      "time_unix_ms": 1790827601667
+    }
+  ],
+  "status": "satisfied"
+}

@@ -1,0 +1,93 @@
+{
+  "final_identities": {
+    "a": {
+      "boot_id": "36a572e0-859b-4a94-adc7-789210a83fc8",
+      "config_sha256": {
+        "meta": "8f5be55abf013292293c0021507c429cbb57c92c2297dc8bc8b52424def960be",
+        "node": "0c14b46f66e45691f15c7fe5bb7760c1a9374fbf9209372e0e3492e5c680e139"
+      },
+      "data_volume": {
+        "fstype": "ext4",
+        "source": "/dev/vdb1",
+        "target": "/mnt/lima-afsadata"
+      },
+      "mounts": {
+        "mount-dfs": {
+          "fstype": "fuse",
+          "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other",
+          "source": "afs-dfs",
+          "target": "/mnt/lima-afsadata/afs-delivery/rxe-repair-v62-a/mount-dfs"
+        },
+        "mount-ownerfs": {
+          "fstype": "fuse",
+          "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other",
+          "source": "afs-ownerfs",
+          "target": "/mnt/lima-afsadata/afs-delivery/rxe-repair-v62-a/mount-ownerfs"
+        }
+      },
+      "platform": "Linux-6.8.0-142-generic-aarch64-with-glibc2.39",
+      "processes": {
+        "meta": {
+          "exe": "/mnt/lima-afsadata/afs-delivery/rxe-repair-v62-a/prefix/bin/afs-meta",
+          "pid": 729413,
+          "sha256": "d10d5683935aa70c2e8d3968be9818a83df9cb1267d1b9a29f6494a1d146865c",
+          "start_ticks": "7870207",
+          "state": "S"
+        },
+        "node": {
+          "exe": "/mnt/lima-afsadata/afs-delivery/rxe-repair-v62-a/prefix/bin/afs-node",
+          "pid": 730770,
+          "sha256": "6afabb84e1e830c0dca452557c50308b1cabc9f748fc31566fe3525fe1f3ea8f",
+          "start_ticks": "7874976",
+          "state": "S"
+        }
+      },
+      "runtime": "/mnt/lima-afsadata/afs-delivery/rxe-repair-v62-a"
+    },
+    "b": {
+      "boot_id": "3adebcd0-cb31-4df0-b18a-e970786ab7fb",
+      "config_sha256": {
+        "node": "fd423d8afb2fe62dfc67a6f88ddde1dbcd6a1964352bc2a78f23fab0b3110389"
+      },
+      "data_volume": {
+        "fstype": "ext4",
+        "source": "/dev/vdb1",
+        "target": "/mnt/lima-afsbdata"
+      },
+      "mounts": {
+        "mount-dfs": {
+          "fstype": "fuse",
+          "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other",
+          "source": "afs-dfs",
+          "target": "/mnt/lima-afsbdata/afs-delivery/rxe-repair-v62-b/mount-dfs"
+        },
+        "mount-ownerfs": {
+          "fstype": "fuse",
+          "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other",
+          "source": "afs-ownerfs",
+          "target": "/mnt/lima-afsbdata/afs-delivery/rxe-repair-v62-b/mount-ownerfs"
+        }
+      },
+      "platform": "Linux-6.8.0-142-generic-aarch64-with-glibc2.39",
+      "processes": {
+        "node": {
+          "exe": "/mnt/lima-afsbdata/afs-delivery/rxe-repair-v62-b/prefix/bin/afs-node",
+          "pid": 137921,
+          "sha256": "6afabb84e1e830c0dca452557c50308b1cabc9f748fc31566fe3525fe1f3ea8f",
+          "start_ticks": "6941537",
+          "state": "S"
+        }
+      },
+      "runtime": "/mnt/lima-afsbdata/afs-delivery/rxe-repair-v62-b"
+    }
+  },
+  "level": "AFFECTED_INTEGRATION",
+  "limits": "short memory/mTLS/RXE-required N2/M1 only; no durable backend, full RDMA/REL-09/resource matrix or long stability/performance claim",
+  "run_id": "0836988b-b87f-48f4-9d38-b3a5380dffd7",
+  "scenarios": [
+    "one bad copy cold FUSE fallback and automatic COW repair",
+    "all bad copies EIO/zero bytes/persisted quarantine/BlockedNoSource"
+  ],
+  "source_inputs": 143,
+  "status": "PASS"
+}

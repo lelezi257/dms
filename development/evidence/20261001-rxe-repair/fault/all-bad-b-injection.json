@@ -1,0 +1,8 @@
+{
+  "after_sha256": "e9d2533010dda4a30cc2fe3e2718413e0ae6325419b2eb2f2239cdb4b0b2f995",
+  "backup": "/mnt/lima-afsbdata/afs-delivery/rxe-repair-v62-b/corruption-backups/0836988b-b87f-48f4-9d38-b3a5380dffd7-all-bad-0836988b-b87f-48f4-9d38-b3a5380dffd7.bin.chunk",
+  "before_sha256": "38f6faf6caff985e3dfc5dbf1a262d35f07122c335d54214446f1d7123adc9af",
+  "bytes": 65536,
+  "chunk": "blake3-6d9af72558549f7f7fed883ddc9b1b77e5195241f2ed30de015056a9cf746ef7-65536",
+  "inode": 1311554
+}

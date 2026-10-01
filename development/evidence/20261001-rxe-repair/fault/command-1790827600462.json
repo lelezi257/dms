@@ -1,0 +1,21 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "afs-accept-a",
+    "--",
+    "sudo",
+    "timeout",
+    "--kill-after=2s",
+    "12s",
+    "python3",
+    "-c",
+    "PORT=18683\nRUN='/mnt/lima-afsadata/afs-delivery/rxe-repair-v62-a'\n\nimport json,pathlib,re,subprocess,urllib.request\nwith urllib.request.urlopen('http://127.0.0.1:'+str(PORT)+'/metrics',timeout=3) as response:text=response.read().decode()\nrows={}\nfor line in text.splitlines():\n if not line.startswith('afs_dfs_payload_bytes_total{'):continue\n label_text,value=line.split('} ');labels=dict(re.findall(r'(\\w+)=\"([^\"]+)\"',label_text))\n rows[labels['transport']+'/'+labels['direction']+'/'+labels['operation']]=int(float(value))\nassert set(rows)=={'grpc/recv/replica','grpc/send/read','rdma/recv/replica','rdma/send/read'},rows\nassert rows['grpc/recv/replica']==0 and rows['grpc/send/read']==0,rows\npid=int((pathlib.Path(RUN)/'run/node.pid').read_text());proc=pathlib.Path('/proc',str(pid))\nprint(json.dumps({'counters':rows,'node_pid':pid,'start_ticks':(proc/'stat').read_text().rsplit(') ',1)[1].split()[19],'rdma_links':subprocess.check_output(['rdma','link','show'],text=True),'ipv4_gid':pathlib.Path('/sys/class/infiniband/rxe0/ports/1/gids/1').read_text().strip(),'locked_memory_limit':[x for x in (proc/'limits').read_text().splitlines() if 'locked memory' in x]}))\n"
+  ],
+  "duration_ms": 74,
+  "returncode": 0,
+  "stderr": "",
+  "stdout": "{\"counters\": {\"grpc/recv/replica\": 0, \"rdma/recv/replica\": 65536, \"grpc/send/read\": 0, \"rdma/send/read\": 0}, \"node_pid\": 730196, \"start_ticks\": \"7874529\", \"rdma_links\": \"link rxe0/1 state ACTIVE physical_state LINK_UP netdev eth0 \\n\", \"ipv4_gid\": \"0000:0000:0000:0000:0000:ffff:c0a8:6d0c\", \"locked_memory_limit\": [\"Max locked memory         774873088            774873088            bytes     \"]}\n",
+  "time_unix_ms": 1790827600462,
+  "timeout_seconds": 27
+}

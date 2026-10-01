@@ -1,0 +1,43 @@
+{
+  "actual_rdma_cold_read": {
+    "counters": {
+      "grpc/recv/replica": 0,
+      "grpc/send/read": 0,
+      "rdma/recv/replica": 1114112,
+      "rdma/send/read": 65536
+    },
+    "ipv4_gid": "0000:0000:0000:0000:0000:ffff:c0a8:6d0d",
+    "locked_memory_limit": [
+      "Max locked memory         774873088            774873088            bytes     "
+    ],
+    "node_pid": 137388,
+    "rdma_links": "link rxe0/1 state ACTIVE physical_state LINK_UP netdev eth0 \n",
+    "start_ticks": "6937628"
+  },
+  "actual_rdma_repair": {
+    "counters": {
+      "grpc/recv/replica": 0,
+      "grpc/send/read": 0,
+      "rdma/recv/replica": 65536,
+      "rdma/send/read": 0
+    },
+    "ipv4_gid": "0000:0000:0000:0000:0000:ffff:c0a8:6d0c",
+    "locked_memory_limit": [
+      "Max locked memory         774873088            774873088            bytes     "
+    ],
+    "node_pid": 730196,
+    "rdma_links": "link rxe0/1 state ACTIVE physical_state LINK_UP netdev eth0 \n",
+    "start_ticks": "7874529"
+  },
+  "automatic_cow_repair": true,
+  "chunk": "blake3-10526d88e6f93748770158bc01156fc94155947c76ae1bc6fe8ef1f976dd2bc8-65536",
+  "cold_read": {
+    "bytes": 65536,
+    "read": "OK",
+    "sha256": "863d9fad7d1989c10530f57d312eea58fe589380ecf94ed145a5faa33cb35651"
+  },
+  "expected_sha256": "863d9fad7d1989c10530f57d312eea58fe589380ecf94ed145a5faa33cb35651",
+  "file": "one-bad-0836988b-b87f-48f4-9d38-b3a5380dffd7.bin",
+  "run_id": "0836988b-b87f-48f4-9d38-b3a5380dffd7",
+  "status": "PASS"
+}

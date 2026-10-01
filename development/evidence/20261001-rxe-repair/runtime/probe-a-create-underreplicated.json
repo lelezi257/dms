@@ -1,0 +1,213 @@
+{
+  "accepted": [
+    {
+      "chunk_id": "blake3-1aee92b63c686e65a8ae67852d8710eff4e46e63f0161e22282b9cd2ae2cc285-1048576",
+      "json": {
+        "available_copies": 1,
+        "checked_at_unix_ms": 1790827563216,
+        "chunk_id": "blake3-1aee92b63c686e65a8ae67852d8710eff4e46e63f0161e22282b9cd2ae2cc285-1048576",
+        "copies": [
+          {
+            "available": true,
+            "record": {
+              "chunk_id": "blake3-1aee92b63c686e65a8ae67852d8710eff4e46e63f0161e22282b9cd2ae2cc285-1048576",
+              "id": "repair-node-a:1:local-0:blake3-1aee92b63c686e65a8ae67852d8710eff4e46e63f0161e22282b9cd2ae2cc285-1048576",
+              "location": {
+                "Node": {
+                  "catalog_revision": 1,
+                  "device_epoch": 1790827554754820322,
+                  "device_id": "local-0",
+                  "node_epoch": 1,
+                  "node_id": "repair-node-a"
+                }
+              },
+              "persisted_bytes": 1048576,
+              "role": "DurableReplica",
+              "state": "Ready",
+              "verified_digest": {
+                "algorithm": "Blake3",
+                "bytes": [
+                  26,
+                  238,
+                  146,
+                  182,
+                  60,
+                  104,
+                  110,
+                  101,
+                  168,
+                  174,
+                  103,
+                  133,
+                  45,
+                  135,
+                  16,
+                  239,
+                  244,
+                  228,
+                  110,
+                  99,
+                  240,
+                  22,
+                  30,
+                  34,
+                  40,
+                  43,
+                  156,
+                  210,
+                  174,
+                  44,
+                  194,
+                  133
+                ]
+              }
+            }
+          }
+        ],
+        "health": "UnderReplicated",
+        "loss_confirmed": false,
+        "placement": {
+          "chunk_id": "blake3-1aee92b63c686e65a8ae67852d8710eff4e46e63f0161e22282b9cd2ae2cc285-1048576",
+          "copies": [
+            "repair-node-a:1:local-0:blake3-1aee92b63c686e65a8ae67852d8710eff4e46e63f0161e22282b9cd2ae2cc285-1048576"
+          ],
+          "desired_copies": 2,
+          "health": "UnderReplicated",
+          "placement_epoch": 17515512227719462767,
+          "replica_group_id": "group:f3139991e83abf6f"
+        },
+        "revision": 5,
+        "tasks": [
+          {
+            "attempt": 0,
+            "chunk_id": "blake3-1aee92b63c686e65a8ae67852d8710eff4e46e63f0161e22282b9cd2ae2cc285-1048576",
+            "claim": null,
+            "desired_copies": 2,
+            "existing_copies": [
+              "repair-node-a:1:local-0:blake3-1aee92b63c686e65a8ae67852d8710eff4e46e63f0161e22282b9cd2ae2cc285-1048576"
+            ],
+            "id": "repair:blake3-1aee92b63c686e65a8ae67852d8710eff4e46e63f0161e22282b9cd2ae2cc285-1048576",
+            "last_error": null,
+            "next_retry_unix_ms": 1790827563204,
+            "placement_epoch": 17515512227719462767,
+            "state": "Pending"
+          }
+        ]
+      },
+      "status": 200,
+      "task_states": [
+        "Pending"
+      ]
+    }
+  ],
+  "created_this_attempt": true,
+  "file": "/mnt/lima-afsadata/afs-delivery/rxe-repair-v62-a/mount-dfs/rxe-repair-v62-initial-1m.bin",
+  "inventory": [
+    {
+      "name": "blake3-1aee92b63c686e65a8ae67852d8710eff4e46e63f0161e22282b9cd2ae2cc285-1048576",
+      "path": "state/node/dfs/chunks/blake3-1aee92b63c686e65a8ae67852d8710eff4e46e63f0161e22282b9cd2ae2cc285-1048576",
+      "sha256": "3f8a853cfd1416af3ab78fd914f7574dd86045f3f132294cf9ba47717130d3a8",
+      "size": 1048576
+    }
+  ],
+  "responses": [
+    {
+      "chunk_id": "blake3-1aee92b63c686e65a8ae67852d8710eff4e46e63f0161e22282b9cd2ae2cc285-1048576",
+      "json": {
+        "available_copies": 1,
+        "checked_at_unix_ms": 1790827563216,
+        "chunk_id": "blake3-1aee92b63c686e65a8ae67852d8710eff4e46e63f0161e22282b9cd2ae2cc285-1048576",
+        "copies": [
+          {
+            "available": true,
+            "record": {
+              "chunk_id": "blake3-1aee92b63c686e65a8ae67852d8710eff4e46e63f0161e22282b9cd2ae2cc285-1048576",
+              "id": "repair-node-a:1:local-0:blake3-1aee92b63c686e65a8ae67852d8710eff4e46e63f0161e22282b9cd2ae2cc285-1048576",
+              "location": {
+                "Node": {
+                  "catalog_revision": 1,
+                  "device_epoch": 1790827554754820322,
+                  "device_id": "local-0",
+                  "node_epoch": 1,
+                  "node_id": "repair-node-a"
+                }
+              },
+              "persisted_bytes": 1048576,
+              "role": "DurableReplica",
+              "state": "Ready",
+              "verified_digest": {
+                "algorithm": "Blake3",
+                "bytes": [
+                  26,
+                  238,
+                  146,
+                  182,
+                  60,
+                  104,
+                  110,
+                  101,
+                  168,
+                  174,
+                  103,
+                  133,
+                  45,
+                  135,
+                  16,
+                  239,
+                  244,
+                  228,
+                  110,
+                  99,
+                  240,
+                  22,
+                  30,
+                  34,
+                  40,
+                  43,
+                  156,
+                  210,
+                  174,
+                  44,
+                  194,
+                  133
+                ]
+              }
+            }
+          }
+        ],
+        "health": "UnderReplicated",
+        "loss_confirmed": false,
+        "placement": {
+          "chunk_id": "blake3-1aee92b63c686e65a8ae67852d8710eff4e46e63f0161e22282b9cd2ae2cc285-1048576",
+          "copies": [
+            "repair-node-a:1:local-0:blake3-1aee92b63c686e65a8ae67852d8710eff4e46e63f0161e22282b9cd2ae2cc285-1048576"
+          ],
+          "desired_copies": 2,
+          "health": "UnderReplicated",
+          "placement_epoch": 17515512227719462767,
+          "replica_group_id": "group:f3139991e83abf6f"
+        },
+        "revision": 5,
+        "tasks": [
+          {
+            "attempt": 0,
+            "chunk_id": "blake3-1aee92b63c686e65a8ae67852d8710eff4e46e63f0161e22282b9cd2ae2cc285-1048576",
+            "claim": null,
+            "desired_copies": 2,
+            "existing_copies": [
+              "repair-node-a:1:local-0:blake3-1aee92b63c686e65a8ae67852d8710eff4e46e63f0161e22282b9cd2ae2cc285-1048576"
+            ],
+            "id": "repair:blake3-1aee92b63c686e65a8ae67852d8710eff4e46e63f0161e22282b9cd2ae2cc285-1048576",
+            "last_error": null,
+            "next_retry_unix_ms": 1790827563204,
+            "placement_epoch": 17515512227719462767,
+            "state": "Pending"
+          }
+        ]
+      },
+      "status": 200
+    }
+  ],
+  "sha256": "3f8a853cfd1416af3ab78fd914f7574dd86045f3f132294cf9ba47717130d3a8",
+  "size": 1048576
+}

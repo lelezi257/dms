@@ -1,0 +1,22 @@
+{
+  "available_bytes": 1090826240,
+  "data_volume": {
+    "fstype": "ext4",
+    "source": "/dev/vdb1",
+    "target": "/mnt/lima-afsadata"
+  },
+  "ports_clear": [
+    18680,
+    18681,
+    18682,
+    18683,
+    18684,
+    18685
+  ],
+  "roles": [
+    "meta",
+    "node"
+  ],
+  "runtime": "/mnt/lima-afsadata/afs-delivery/rxe-repair-v62-a",
+  "template": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v51"
+}

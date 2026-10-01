@@ -1,0 +1,8 @@
+{
+  "candidate": "v62-r3",
+  "hashes": {
+    "meta": "22758d378708a969cc59015a120c63b841070c18e096f92c372ddb8965ac98db",
+    "node": "cb0f016ea2a264cb10230c2494e96c03bf5fd0488d63d417a578d4f794e63d28"
+  },
+  "report_path": "evidence/afs-delivery/corrupt-lifecycle-v62-r3/full/report.json"
+}

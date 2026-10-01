@@ -1,0 +1,21 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "afs-accept-b",
+    "--",
+    "sudo",
+    "timeout",
+    "--kill-after=2s",
+    "25s",
+    "python3",
+    "-c",
+    "RUN='/mnt/lima-afsbdata/afs-delivery/rxe-repair-v62-b'\nONE_CHUNK='blake3-10526d88e6f93748770158bc01156fc94155947c76ae1bc6fe8ef1f976dd2bc8-65536'\nONE_FILE='one-bad-0836988b-b87f-48f4-9d38-b3a5380dffd7.bin'\nONE_SHA='863d9fad7d1989c10530f57d312eea58fe589380ecf94ed145a5faa33cb35651'\nBAD_CHUNK='blake3-6d9af72558549f7f7fed883ddc9b1b77e5195241f2ed30de015056a9cf746ef7-65536'\nBAD_FILE='all-bad-0836988b-b87f-48f4-9d38-b3a5380dffd7.bin'\n\nimport hashlib,json,os,pathlib,tomllib,urllib.parse,urllib.request\nr=pathlib.Path(RUN);cfg=tomllib.loads((r/'etc/node.toml').read_text());assert cfg['dfs_desired_copies']==2 and cfg['dfs_sync_required_copies']==1\nassert cfg['data_mode']=='rdma' and cfg['rdma_device']=='rxe0'\nresult={'config_replication':{'N':cfg['dfs_desired_copies'],'M':cfg['dfs_sync_required_copies']},'chunks':{}}\nfor chunk,name,expected in [(ONE_CHUNK,ONE_FILE,ONE_SHA),(BAD_CHUNK,BAD_FILE,None)]:\n p=r/'state/node/dfs/chunks'/chunk;entries=[json.loads(line) for line in (r/'state/node/dfs/catalog.wal').read_text().splitlines() if line.strip()];records=[record for t in entries for record in t['records'] if record['chunk']['id']==chunk]\n item={'physical_sha256':hashlib.sha256(p.read_bytes()).hexdigest(),'catalog_states':[x['state'] for x in records],'catalog_revisions':[x['catalog_revision'] for x in records]}\n try:\n  fd=os.open(r/'mount-dfs'/name,os.O_RDONLY)\n  try:data=os.read(fd,65536)\n  finally:os.close(fd)\n  item['fuse']={'bytes':len(data),'sha256':hashlib.sha256(data).hexdigest()}\n except OSError as e:item['fuse']={'errno':e.errno,'returned_bytes':0}\n if expected:\n  assert item['physical_sha256']==expected and item['fuse']['sha256']==expected and item['fuse']['bytes']==65536 and records[-1]['state']=='Durable',item\n else:assert item['fuse']['errno']==5 and records[-1]['state']=='Quarantined',item\n result['chunks'][chunk]=item\nprint(json.dumps(result))\n"
+  ],
+  "duration_ms": 69,
+  "returncode": 0,
+  "stderr": "",
+  "stdout": "{\"config_replication\": {\"N\": 2, \"M\": 1}, \"chunks\": {\"blake3-10526d88e6f93748770158bc01156fc94155947c76ae1bc6fe8ef1f976dd2bc8-65536\": {\"physical_sha256\": \"863d9fad7d1989c10530f57d312eea58fe589380ecf94ed145a5faa33cb35651\", \"catalog_states\": [\"Durable\"], \"catalog_revisions\": [2], \"fuse\": {\"bytes\": 65536, \"sha256\": \"863d9fad7d1989c10530f57d312eea58fe589380ecf94ed145a5faa33cb35651\"}}, \"blake3-6d9af72558549f7f7fed883ddc9b1b77e5195241f2ed30de015056a9cf746ef7-65536\": {\"physical_sha256\": \"e9d2533010dda4a30cc2fe3e2718413e0ae6325419b2eb2f2239cdb4b0b2f995\", \"catalog_states\": [\"Durable\", \"Quarantined\"], \"catalog_revisions\": [3, 4], \"fuse\": {\"errno\": 5, \"returned_bytes\": 0}}}}\n",
+  "time_unix_ms": 1790827624095,
+  "timeout_seconds": 40
+}

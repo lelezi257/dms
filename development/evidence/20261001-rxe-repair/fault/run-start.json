@@ -1,0 +1,10 @@
+{
+  "M": 1,
+  "N": 2,
+  "backend": "memory",
+  "level": "AFFECTED_INTEGRATION",
+  "run_id": "0836988b-b87f-48f4-9d38-b3a5380dffd7",
+  "source_inputs": 143,
+  "status": "RUNNING",
+  "transport": "RXE-required/mTLS"
+}

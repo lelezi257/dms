@@ -1,0 +1,49 @@
+{
+  "cold_peer_read": {
+    "counters": {
+      "grpc/recv/replica": 0,
+      "grpc/send/read": 0,
+      "rdma/recv/replica": 1114112,
+      "rdma/send/read": 65536
+    },
+    "ipv4_gid": "0000:0000:0000:0000:0000:ffff:c0a8:6d0d",
+    "locked_memory_limit": [
+      "Max locked memory         774873088            774873088            bytes     "
+    ],
+    "node_pid": 137388,
+    "rdma_links": "link rxe0/1 state ACTIVE physical_state LINK_UP netdev eth0 \n",
+    "start_ticks": "6937628"
+  },
+  "corrupt_target_repair": {
+    "counters": {
+      "grpc/recv/replica": 0,
+      "grpc/send/read": 0,
+      "rdma/recv/replica": 65536,
+      "rdma/send/read": 0
+    },
+    "ipv4_gid": "0000:0000:0000:0000:0000:ffff:c0a8:6d0c",
+    "locked_memory_limit": [
+      "Max locked memory         774873088            774873088            bytes     "
+    ],
+    "node_pid": 730196,
+    "rdma_links": "link rxe0/1 state ACTIVE physical_state LINK_UP netdev eth0 \n",
+    "start_ticks": "7874529"
+  },
+  "initial_async_replica": {
+    "counters": {
+      "grpc/recv/replica": 0,
+      "grpc/send/read": 0,
+      "rdma/recv/replica": 1048576,
+      "rdma/send/read": 0
+    },
+    "ipv4_gid": "0000:0000:0000:0000:0000:ffff:c0a8:6d0d",
+    "locked_memory_limit": [
+      "Max locked memory         774873088            774873088            bytes     "
+    ],
+    "node_pid": 137388,
+    "rdma_links": "link rxe0/1 state ACTIVE physical_state LINK_UP netdev eth0 \n",
+    "start_ticks": "6937628"
+  },
+  "limits": "per-incarnation product counters recorded after actual verbs completion; no hardware performance/resource-lifetime claim",
+  "status": "PASS"
+}

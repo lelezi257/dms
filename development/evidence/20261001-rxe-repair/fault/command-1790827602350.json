@@ -1,0 +1,28 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "afs-accept-b",
+    "--",
+    "sudo",
+    "/mnt/lima-afsbdata/afs-delivery/rxe-repair-v62-b/prefix/bin/afs-processctl",
+    "--prefix",
+    "/mnt/lima-afsbdata/afs-delivery/rxe-repair-v62-b/prefix",
+    "--config-dir",
+    "/mnt/lima-afsbdata/afs-delivery/rxe-repair-v62-b/etc",
+    "--run-dir",
+    "/mnt/lima-afsbdata/afs-delivery/rxe-repair-v62-b/run",
+    "--log-dir",
+    "/mnt/lima-afsbdata/afs-delivery/rxe-repair-v62-b/log",
+    "--timeout",
+    "20",
+    "start",
+    "node"
+  ],
+  "duration_ms": 220,
+  "returncode": 0,
+  "stderr": "removing stale pid file for node: 137388\n",
+  "stdout": "started node pid=137921 ready=true\n",
+  "time_unix_ms": 1790827602350,
+  "timeout_seconds": 45
+}

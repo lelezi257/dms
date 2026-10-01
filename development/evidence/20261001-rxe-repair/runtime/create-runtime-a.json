@@ -1,0 +1,8 @@
+{
+  "created": true,
+  "roles": [
+    "meta",
+    "node"
+  ],
+  "runtime": "/mnt/lima-afsadata/afs-delivery/rxe-repair-v62-a"
+}

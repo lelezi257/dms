@@ -79,6 +79,27 @@ need dedicated validators and live checks. This limitation is not a change to
 the acceptance standard. A comparator mount check and its later fair durable
 performance qualification have separate evidence and results.
 
+## Standalone verbs preparation probe
+
+`probes/env_verbs.py` collects an independent Linux ARM64 stock `rping`
+exchange. It pins the installed rdma-core binary and records guest, process,
+provider, route, GID, MTU, command and raw-log identities. Start a bounded
+server before its explicitly source-bound client, then use `evaluate-pair`
+on their JSON records. Linux regressions are in `probes/test_env_verbs.py`.
+
+The probe checks complete READ and WRITE echo contents and successful verbs
+completions. SEND carries 16-byte MR descriptors and go-ahead control; paired
+descriptor digests are reconstructed from advertised/received fields, not a
+packet capture or a bulk SEND content test. Installed provider hashes do not
+attest a dynamically loaded provider. Cleanup/resource observations and the
+full required topology belong in the collected run evidence.
+
+The [cross-VM preparation evidence](../evidence/20261001-verbs-preparation/README.md)
+contains exact invocation, twelve directions, a boundary payload and an
+absent-listener failure. This standalone tool is not yet an environment
+bundle predicate or a formal case driver. ENV remains PREPARING; product RDMA
+file I/O, fallback, lifetime and security have separate acceptance gates.
+
 ## Standalone network preparation probe
 
 `probes/env_network.py` provides bounded fixed-IP TCP/UDP/mTLS echo checks and

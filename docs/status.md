@@ -25,6 +25,15 @@ The [delivery acceptance contract](acceptance.md) requires JuiceFS default same-
 
 ## Current Validation Checkpoint
 
+The [independent cross-VM verbs preparation](../development/evidence/20261001-verbs-preparation/README.md)
+records twelve directed four-guest RXE exchanges and a 65,535-byte boundary
+exchange using a pinned stock rdma-core tool. Full READ/WRITE contents,
+control SEND descriptors, completions and protected service/resource checks
+pass 127 Linux audit predicates. Fourteen probe regressions pass. Original
+parser/audit failures are retained. The ENV evaluator still defers verbs;
+these observations do not qualify product lifecycle, fallback, security,
+performance or formal acceptance. Unchanged Rust evidence is reused.
+
 The [network preparation evaluator](../development/evidence/20261001-network-predicate/README.md)
 passes 34 related Linux regressions and 26 affected runner checks. It validates
 hash-bound recorded TCP/UDP/mTLS and directed-fault observations; the actual

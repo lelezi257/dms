@@ -1,0 +1,1 @@
+inventory error: pid 729413 identity is not readable: [Errno 13] Permission denied: '/proc/729413/exe'

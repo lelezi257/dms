@@ -1,0 +1,1 @@
+b14a1adfa0f03805e07df9030e9f62a45588f78ff9c0ab8153a6bf72a17c54b6  /tmp/afs-env-v63-inventory/inventory.py

@@ -1,0 +1,29 @@
+{
+  "base_commit": "351107c1ef9b022b749d447bfd5a66392ff571c5",
+  "changes": "test-only real repair claim/report post-commit reply withholding; observed inventory enrichment",
+  "local_regression": "PASS",
+  "stage_source_gate": "PASS",
+  "formal_acceptance": "NOT_RUN",
+  "environment": "PREPARING",
+  "counts": {
+    "selected_distinct": 83,
+    "library_pass": 396,
+    "library_existing_ignored": 2,
+    "contracts_pass": 58,
+    "shared_error_pass": 4,
+    "local_api_pass": 9,
+    "privileged_fuse_pass": 5,
+    "inventory_script_pass": 9
+  },
+  "full_source_gate_invocations": 1,
+  "verified_compile_inputs": 143,
+  "remaining_scope": [
+    "FileVersion commit unknown-result blocking",
+    "durable backends",
+    "TLS/RXE lost acknowledgement and resource matrix",
+    "full POSIX",
+    "qualified comparator baselines",
+    "8 GiB and long stability"
+  ],
+  "handoff_sha256": "8941901e6b6f8b8b10e057a7477695dfa9b1fc4876b5762e71b66d8930eb7216"
+}

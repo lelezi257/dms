@@ -1,0 +1,46 @@
+    Checking afs v0.1.0 (/home/lzc.guest/afs-build/work/root-merged-v63-r1)
+error: this `if` can be collapsed into the outer `match`
+    --> src/node/rpc/data.rs:4265:25
+     |
+4265 | /                         if claim.swap(false, std::sync::atomic::Ordering::SeqCst) {
+4266 | |                             claim_hits.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+4267 | |                             true
+4268 | |                         } else {
+4269 | |                             false
+4270 | |                         }
+     | |_________________________^
+     |
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.95.0/index.html#collapsible_match
+     = note: `-D clippy::collapsible-match` implied by `-D clippy::all`
+     = help: to override `-D clippy::all` add `#[allow(clippy::collapsible_match)]`
+help: collapse nested if block
+     |
+4264 ~                     "/afs.meta.v1.DfsMeta/ClaimReplicationTask"
+4265 ~                         if claim.swap(false, std::sync::atomic::Ordering::SeqCst) => {
+4266 |                             claim_hits.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+4267 |                             true
+4268 ~                         }
+     |
+
+error: this `if` can be collapsed into the outer `match`
+    --> src/node/rpc/data.rs:4273:25
+     |
+4273 | /                         if report.swap(false, std::sync::atomic::Ordering::SeqCst) {
+4274 | |                             report_hits.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+4275 | |                             true
+4276 | |                         } else {
+4277 | |                             false
+4278 | |                         }
+     | |_________________________^
+     |
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.95.0/index.html#collapsible_match
+help: collapse nested if block
+     |
+4272 ~                     "/afs.meta.v1.DfsMeta/ReportReplicationTask"
+4273 ~                         if report.swap(false, std::sync::atomic::Ordering::SeqCst) => {
+4274 |                             report_hits.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+4275 |                             true
+4276 ~                         }
+     |
+
+error: could not compile `afs` (lib test) due to 2 previous errors

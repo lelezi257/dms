@@ -4172,6 +4172,633 @@ mod tests {
     }
 
     #[cfg(feature = "dfs")]
+    #[derive(Clone)]
+    struct DelayFirstMetaReplyLayer {
+        claim: Arc<std::sync::atomic::AtomicBool>,
+        report: Arc<std::sync::atomic::AtomicBool>,
+        claim_hits: Arc<std::sync::atomic::AtomicUsize>,
+        report_hits: Arc<std::sync::atomic::AtomicUsize>,
+        delay: std::time::Duration,
+    }
+
+    #[cfg(feature = "dfs")]
+    impl DelayFirstMetaReplyLayer {
+        fn new(delay: std::time::Duration) -> Self {
+            Self {
+                claim: Arc::new(std::sync::atomic::AtomicBool::new(true)),
+                report: Arc::new(std::sync::atomic::AtomicBool::new(true)),
+                claim_hits: Arc::new(std::sync::atomic::AtomicUsize::new(0)),
+                report_hits: Arc::new(std::sync::atomic::AtomicUsize::new(0)),
+                delay,
+            }
+        }
+
+        fn claim_hits(&self) -> usize {
+            self.claim_hits.load(std::sync::atomic::Ordering::SeqCst)
+        }
+
+        fn report_hits(&self) -> usize {
+            self.report_hits.load(std::sync::atomic::Ordering::SeqCst)
+        }
+    }
+
+    #[cfg(feature = "dfs")]
+    impl<S> tower::Layer<S> for DelayFirstMetaReplyLayer {
+        type Service = DelayFirstMetaReplyService<S>;
+
+        fn layer(&self, inner: S) -> Self::Service {
+            DelayFirstMetaReplyService {
+                inner,
+                claim: self.claim.clone(),
+                report: self.report.clone(),
+                claim_hits: self.claim_hits.clone(),
+                report_hits: self.report_hits.clone(),
+                delay: self.delay,
+            }
+        }
+    }
+
+    #[cfg(feature = "dfs")]
+    #[derive(Clone)]
+    struct DelayFirstMetaReplyService<S> {
+        inner: S,
+        claim: Arc<std::sync::atomic::AtomicBool>,
+        report: Arc<std::sync::atomic::AtomicBool>,
+        claim_hits: Arc<std::sync::atomic::AtomicUsize>,
+        report_hits: Arc<std::sync::atomic::AtomicUsize>,
+        delay: std::time::Duration,
+    }
+
+    #[cfg(feature = "dfs")]
+    impl<S, B> tower::Service<tonic::codegen::http::Request<B>> for DelayFirstMetaReplyService<S>
+    where
+        S: tower::Service<tonic::codegen::http::Request<B>> + Clone + Send + 'static,
+        S::Future: Send + 'static,
+        S::Response: Send + 'static,
+        S::Error: Send + 'static,
+        B: Send + 'static,
+    {
+        type Response = S::Response;
+        type Error = S::Error;
+        type Future =
+            Pin<Box<dyn std::future::Future<Output = Result<Self::Response, Self::Error>> + Send>>;
+
+        fn poll_ready(
+            &mut self,
+            cx: &mut std::task::Context<'_>,
+        ) -> std::task::Poll<Result<(), Self::Error>> {
+            self.inner.poll_ready(cx)
+        }
+
+        fn call(&mut self, request: tonic::codegen::http::Request<B>) -> Self::Future {
+            let path = request.uri().path().to_owned();
+            let future = self.inner.call(request);
+            let claim = self.claim.clone();
+            let report = self.report.clone();
+            let claim_hits = self.claim_hits.clone();
+            let report_hits = self.report_hits.clone();
+            let delay = self.delay;
+            Box::pin(async move {
+                let response = future.await?;
+                let should_delay = match path.as_str() {
+                    "/afs.meta.v1.DfsMeta/ClaimReplicationTask"
+                        if claim.swap(false, std::sync::atomic::Ordering::SeqCst) =>
+                    {
+                        claim_hits.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                        true
+                    }
+                    "/afs.meta.v1.DfsMeta/ReportReplicationTask"
+                        if report.swap(false, std::sync::atomic::Ordering::SeqCst) =>
+                    {
+                        report_hits.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                        true
+                    }
+                    _ => false,
+                };
+                if should_delay {
+                    tokio::time::sleep(delay).await;
+                }
+                Ok(response)
+            })
+        }
+    }
+
+    #[cfg(feature = "dfs")]
+    async fn grpc_unknown_repair_fixture() -> (
+        tempfile::TempDir,
+        Arc<LocalChunkStore>,
+        Arc<LocalChunkStore>,
+        afs_metrics::Registry,
+        crate::dfs::ChunkObject,
+        Arc<dyn crate::meta::store::MetaStore>,
+        String,
+        DelayFirstMetaReplyLayer,
+        tokio::task::JoinHandle<()>,
+        tokio::task::JoinHandle<()>,
+    ) {
+        use crate::dfs::*;
+        use crate::meta::store::{
+            MetaEntity, MetaStore, MetaTxn, NodeSessionLease, OperationResult, RequestKey,
+            RequestOutcome, Store, StoreOperation, TxnCondition, TxnMutation,
+            memory::MemoryBackend,
+        };
+        use crate::node::chunk::StagedChunk;
+
+        let temp = tempfile::tempdir().unwrap();
+        let source_store =
+            Arc::new(LocalChunkStore::open(temp.path().join("source"), "source").unwrap());
+        let target_store =
+            Arc::new(LocalChunkStore::open(temp.path().join("target"), "target").unwrap());
+        let target_listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let target_endpoint = format!("http://{}", target_listener.local_addr().unwrap());
+
+        let staged = StagedChunk::new(OperationId::new("grpc-unknown-source"), vec![23; 64 * 1024]);
+        let source_target = ReplicaTarget {
+            node_id: "source".into(),
+            node_epoch: 1,
+            data_endpoint: "http://127.0.0.1:1".into(),
+            device: source_store.device_descriptor().unwrap(),
+        };
+        let source_acks = source_store
+            .persist_batch(std::slice::from_ref(&staged), &source_target, 1, 1)
+            .unwrap();
+        let source_ack = source_acks.into_iter().next().unwrap();
+        let source_copy = CopyRecord {
+            id: CopyId::new(format!(
+                "source:1:{}:{}",
+                source_ack.device_id, staged.chunk.id.0
+            )),
+            chunk_id: staged.chunk.id.clone(),
+            role: CopyRole::DurableReplica,
+            location: CopyLocation::Node {
+                node_id: "source".into(),
+                node_epoch: 1,
+                device_id: source_ack.device_id.clone(),
+                device_epoch: source_ack.device_epoch,
+                catalog_revision: source_ack.catalog_revision,
+            },
+            state: CopyState::Ready,
+            persisted_bytes: source_ack.persisted_bytes,
+            verified_digest: source_ack.verified_digest,
+        };
+
+        let store: Arc<dyn MetaStore> = Arc::new(
+            Store::open(Arc::new(MemoryBackend::default()))
+                .await
+                .unwrap(),
+        );
+        for (node_id, data_addr, device) in [
+            (
+                "source",
+                "http://127.0.0.1:1".to_owned(),
+                source_store.device_descriptor().unwrap(),
+            ),
+            (
+                "target",
+                target_endpoint.clone(),
+                target_store.device_descriptor().unwrap(),
+            ),
+        ] {
+            store
+                .register_node_session(
+                    RequestKey::new(node_id, "register"),
+                    NodeSessionLease {
+                        node_id: node_id.into(),
+                        session_id: format!("{node_id}-session"),
+                        grpc_addr: data_addr.clone(),
+                        data_addr,
+                        rest_addr: "http://127.0.0.1:1".into(),
+                        storage_devices: vec![device],
+                        lease_ttl: std::time::Duration::from_secs(30),
+                    },
+                )
+                .await
+                .unwrap();
+        }
+        let dfs = crate::meta::dfs::DfsService::with_replication_config(
+            store.clone(),
+            ReplicationConfig {
+                desired_copies: 2,
+                sync_required_copies: 2,
+                min_distinct_nodes: 1,
+                min_distinct_failure_domains: 1,
+                local_copy: LocalCopyPolicy::Required,
+            },
+        );
+        dfs.initialize_replication_config().await.unwrap();
+        let key = RequestKey::new("fixture", "seed-underreplicated");
+        let task_id = ReplicationTaskId::new(format!("repair:{}", staged.chunk.id.0));
+        let mut txn = MetaTxn::new(key.clone(), StoreOperation::DfsCommitFileVersion);
+        txn.conditions
+            .push(TxnCondition::RequestAbsent(key.clone()));
+        txn.mutations.extend([
+            TxnMutation::Put(MetaEntity::DfsChunk(staged.chunk.clone())),
+            TxnMutation::Put(MetaEntity::DfsCopy(source_copy.clone())),
+            TxnMutation::Put(MetaEntity::DfsPlacement(PlacementRecord {
+                chunk_id: staged.chunk.id.clone(),
+                replica_group_id: ReplicaGroupId::new("repair-grpc"),
+                placement_epoch: 1,
+                desired_copies: 2,
+                copies: vec![source_copy.id.clone()],
+                health: PlacementHealth::UnderReplicated,
+            })),
+            TxnMutation::Put(MetaEntity::DfsReplicationTask(ReplicationTask {
+                id: task_id,
+                chunk_id: staged.chunk.id.clone(),
+                placement_epoch: 1,
+                desired_copies: 2,
+                existing_copies: vec![source_copy.id],
+                state: ReplicationTaskState::Pending,
+                attempt: 0,
+                next_retry_unix_ms: 0,
+                last_error: None,
+                claim: None,
+            })),
+            TxnMutation::RecordRequestOutcome(RequestOutcome {
+                request: key,
+                operation: StoreOperation::DfsCommitFileVersion,
+                result: OperationResult::Empty,
+            }),
+        ]);
+        store.compare_and_commit(txn).await.unwrap();
+
+        let meta = Arc::new(crate::meta::Meta {
+            id: "meta-grpc-unknown".into(),
+            observability: crate::runtime::Observability::new().unwrap(),
+            store: Some(store.clone()),
+            owner_roots: Arc::new(crate::meta::owner_roots::StoreOwnerRootAuthority::new(
+                store.clone(),
+            )),
+            dfs: Some(dfs),
+            trusted_nodes_by_der: Arc::new(std::collections::HashMap::new()),
+            enforce_peer_identity: false,
+        });
+        let meta_listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let meta_endpoint = format!("http://{}", meta_listener.local_addr().unwrap());
+        let delay_layer = DelayFirstMetaReplyLayer::new(std::time::Duration::from_secs(2));
+        let meta_delay_probe = delay_layer.clone();
+        let meta_server = tokio::spawn(async move {
+            Server::builder()
+                .layer(delay_layer)
+                .add_service(afs_protocol::meta::dfs_meta_server::DfsMetaServer::new(
+                    crate::meta::rpc::DfsMetaRpc(meta),
+                ))
+                .serve_with_incoming(TcpListenerStream::new(meta_listener))
+                .await
+                .unwrap();
+        });
+
+        let meta_for_target = Arc::new(
+            super::super::meta::GrpcDfsMeta::new(
+                &meta_endpoint,
+                "target".into(),
+                "target-session".into(),
+                NamespaceId::new("default"),
+                std::time::Duration::from_secs(2),
+                afs_transport::TlsConfig::Disabled,
+            )
+            .unwrap(),
+        );
+        let registry = afs_metrics::Registry::new();
+        let metrics = DfsPayloadMetrics::register(&registry).unwrap();
+        let target_service = make_dfs_chunks_server_with_transport(
+            Some(target_store.clone()),
+            Arc::new(FixtureReplicaPeer("source".into())),
+            Arc::new(DenyDfsReadAuthorizer),
+            Arc::new(MetaReplicaAuthorizer {
+                meta: meta_for_target,
+                node_id: "target".into(),
+                node_epoch: 1,
+            }),
+            None,
+            std::time::Duration::from_secs(2),
+            DfsChunkTransportResources {
+                rdma_sessions: super::super::control::RdmaSessionRegistry::new(None),
+                payload_metrics: Some(metrics),
+            },
+        );
+        let target_server = tokio::spawn(async move {
+            Server::builder()
+                .add_service(target_service)
+                .serve_with_incoming(TcpListenerStream::new(target_listener))
+                .await
+                .unwrap();
+        });
+
+        (
+            temp,
+            source_store,
+            target_store.clone(),
+            registry,
+            staged.chunk,
+            store,
+            meta_endpoint,
+            meta_delay_probe,
+            meta_server,
+            target_server,
+        )
+    }
+
+    #[cfg(feature = "dfs")]
+    async fn stored_replication_task(
+        store: &dyn crate::meta::store::MetaStore,
+        chunk: &crate::dfs::ChunkObject,
+    ) -> crate::dfs::ReplicationTask {
+        read_repair_meta_snapshot(store, chunk).await.task
+    }
+
+    #[cfg(feature = "dfs")]
+    #[derive(Clone, Debug, Eq, PartialEq)]
+    struct RepairMetaSnapshot {
+        task_revision: crate::meta::store::StoreRevision,
+        placement_revision: crate::meta::store::StoreRevision,
+        claim_outcome_revision: crate::meta::store::StoreRevision,
+        report_outcome_revision: Option<crate::meta::store::StoreRevision>,
+        task: crate::dfs::ReplicationTask,
+        placement: crate::dfs::PlacementRecord,
+        copies: Vec<(
+            crate::dfs::CopyId,
+            crate::meta::store::StoreRevision,
+            crate::dfs::CopyRecord,
+        )>,
+        claim_outcome: crate::meta::store::RequestOutcome,
+        report_outcome: Option<crate::meta::store::RequestOutcome>,
+    }
+
+    #[cfg(feature = "dfs")]
+    async fn read_repair_meta_snapshot(
+        store: &dyn crate::meta::store::MetaStore,
+        chunk: &crate::dfs::ChunkObject,
+    ) -> RepairMetaSnapshot {
+        use crate::meta::store::{MetaEntity, MetaRead, RequestKey};
+        let task_snapshot = store
+            .read(MetaRead::DfsReplicationTask(
+                crate::dfs::ReplicationTaskId::new(format!("repair:{}", chunk.id.0)),
+            ))
+            .await
+            .unwrap();
+        let task = match task_snapshot.entity {
+            Some(MetaEntity::DfsReplicationTask(task)) => task,
+            _ => panic!("replication task missing"),
+        };
+        let placement_snapshot = store
+            .read(MetaRead::DfsPlacement(chunk.id.clone()))
+            .await
+            .unwrap();
+        let placement = match placement_snapshot.entity {
+            Some(MetaEntity::DfsPlacement(placement)) => placement,
+            _ => panic!("placement missing"),
+        };
+        let mut copies = Vec::new();
+        let mut copy_ids = placement.copies.clone();
+        copy_ids.sort();
+        for copy_id in copy_ids {
+            let copy_snapshot = store
+                .read(MetaRead::DfsCopy(copy_id.clone()))
+                .await
+                .unwrap();
+            let copy = match copy_snapshot.entity {
+                Some(MetaEntity::DfsCopy(copy)) => copy,
+                _ => panic!("copy missing"),
+            };
+            copies.push((copy_id, copy_snapshot.revision, copy));
+        }
+        let claim_outcome_snapshot = store
+            .read(MetaRead::RequestOutcome(RequestKey::new(
+                "source",
+                "repair-claim:source-session:1",
+            )))
+            .await
+            .unwrap();
+        let claim_outcome = claim_outcome_snapshot
+            .request_outcome
+            .expect("claim request outcome missing");
+        let report_outcome_snapshot = store
+            .read(MetaRead::RequestOutcome(RequestKey::new(
+                "source",
+                "repair-report:source-session:2",
+            )))
+            .await
+            .unwrap();
+        RepairMetaSnapshot {
+            task_revision: task_snapshot.revision,
+            placement_revision: placement_snapshot.revision,
+            claim_outcome_revision: claim_outcome_snapshot.revision,
+            report_outcome_revision: report_outcome_snapshot
+                .request_outcome
+                .as_ref()
+                .map(|_| report_outcome_snapshot.revision),
+            task,
+            placement,
+            copies,
+            claim_outcome,
+            report_outcome: report_outcome_snapshot.request_outcome,
+        }
+    }
+
+    #[cfg(feature = "dfs")]
+    async fn run_repair_tick(
+        worker: Arc<crate::node::replication::ReplicationWorker>,
+    ) -> afs_error::Result<Option<crate::dfs::ReplicationTask>> {
+        tokio::time::timeout(
+            std::time::Duration::from_secs(10),
+            tokio::task::spawn_blocking(move || worker.run_once()),
+        )
+        .await
+        .expect("repair worker tick timed out")
+        .unwrap()
+    }
+
+    #[cfg(feature = "dfs")]
+    fn read_whole_chunk(store: &LocalChunkStore, chunk: &crate::dfs::ChunkObject) -> Vec<u8> {
+        let mut bytes = vec![0; chunk.length as usize];
+        assert_eq!(
+            crate::node::chunk::ChunkStore::read_at(store, &chunk.id, 0, &mut bytes).unwrap(),
+            bytes.len()
+        );
+        bytes
+    }
+
+    #[cfg(feature = "dfs")]
+    fn grpc_replica_payload_bytes(registry: &afs_metrics::Registry) -> u64 {
+        afs_metrics::encode_text(registry)
+            .unwrap()
+            .lines()
+            .find_map(|line| {
+                if line.starts_with("afs_dfs_payload_bytes_total{")
+                    && line.contains("direction=\"recv\"")
+                    && line.contains("operation=\"replica\"")
+                    && line.contains("transport=\"grpc\"")
+                {
+                    line.rsplit_once(' ')
+                        .and_then(|(_, value)| value.parse::<u64>().ok())
+                } else {
+                    None
+                }
+            })
+            .unwrap_or(0)
+    }
+
+    #[cfg(feature = "dfs")]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn repair_worker_replays_real_grpc_claim_and_report_after_lost_ack() {
+        use crate::meta::store::{OperationResult, RequestKey, StoreOperation};
+        use crate::node::replication::ReplicationWorker;
+        let (
+            _temp,
+            source_store,
+            target_store,
+            registry,
+            chunk,
+            store,
+            meta_endpoint,
+            meta_delay_probe,
+            meta_server,
+            target_server,
+        ) = grpc_unknown_repair_fixture().await;
+        let authority = Arc::new(
+            super::super::meta::GrpcDfsMeta::new(
+                &meta_endpoint,
+                "source".into(),
+                "source-session".into(),
+                crate::dfs::NamespaceId::new("default"),
+                std::time::Duration::from_millis(200),
+                afs_transport::TlsConfig::Disabled,
+            )
+            .unwrap(),
+        );
+        let data_plane = Arc::new(
+            super::super::peer::GrpcReplicaDataPlane::new(
+                Arc::new(
+                    super::super::peer::PeerConnectionPool::new(
+                        afs_transport::GrpcConfig::default(),
+                        afs_transport::TlsConfig::Disabled,
+                        4,
+                    )
+                    .unwrap(),
+                ),
+                std::time::Duration::from_secs(2),
+            )
+            .unwrap(),
+        );
+        let worker = Arc::new(ReplicationWorker::new(
+            "source".into(),
+            1,
+            "source-session".into(),
+            source_store,
+            authority,
+            data_plane,
+        ));
+
+        let first = run_repair_tick(worker.clone()).await;
+        assert!(first.is_err());
+        assert_eq!(meta_delay_probe.claim_hits(), 1);
+        assert_eq!(meta_delay_probe.report_hits(), 0);
+        assert_eq!(grpc_replica_payload_bytes(&registry), 0);
+        let running = stored_replication_task(store.as_ref(), &chunk).await;
+        assert_eq!(running.state, crate::dfs::ReplicationTaskState::Running);
+        let running_claim = running
+            .claim
+            .as_deref()
+            .expect("claim committed before timeout");
+        assert_eq!(
+            running_claim.operation_id.0,
+            "repair-claim:source-session:1"
+        );
+        assert_eq!(running_claim.worker_node_id, "source");
+        assert_eq!(running_claim.worker_session_id, "source-session");
+        let after_claim_unknown = read_repair_meta_snapshot(store.as_ref(), &chunk).await;
+        assert_eq!(
+            after_claim_unknown.claim_outcome.request,
+            RequestKey::new("source", "repair-claim:source-session:1")
+        );
+        assert_eq!(
+            after_claim_unknown.claim_outcome.operation,
+            StoreOperation::DfsClaimReplicationTask
+        );
+        assert_eq!(after_claim_unknown.report_outcome, None);
+        assert_eq!(after_claim_unknown.report_outcome_revision, None);
+        match &after_claim_unknown.claim_outcome.result {
+            OperationResult::DfsReplicationClaim {
+                claim: Some(claim), ..
+            } => {
+                assert_eq!(claim.operation_id.0, "repair-claim:source-session:1");
+            }
+            other => panic!("unexpected claim outcome: {other:?}"),
+        }
+
+        let second = run_repair_tick(worker.clone()).await;
+        assert!(second.is_err());
+        assert_eq!(meta_delay_probe.claim_hits(), 1);
+        assert_eq!(meta_delay_probe.report_hits(), 1);
+        assert_eq!(grpc_replica_payload_bytes(&registry), chunk.length);
+        assert_eq!(
+            read_whole_chunk(target_store.as_ref(), &chunk),
+            vec![23; chunk.length as usize]
+        );
+        let after_report_unknown = read_repair_meta_snapshot(store.as_ref(), &chunk).await;
+        assert_eq!(
+            after_report_unknown.claim_outcome_revision,
+            after_claim_unknown.claim_outcome_revision.next()
+        );
+        assert_eq!(
+            after_report_unknown.task.state,
+            crate::dfs::ReplicationTaskState::Completed
+        );
+        assert_eq!(after_report_unknown.task.claim, None);
+        assert_eq!(after_report_unknown.task.attempt, 1);
+        assert_eq!(after_report_unknown.task.existing_copies.len(), 2);
+        assert_eq!(
+            after_report_unknown.placement.health,
+            crate::dfs::PlacementHealth::Satisfied
+        );
+        assert_eq!(after_report_unknown.placement.copies.len(), 2);
+        for (_, _, copy) in &after_report_unknown.copies {
+            assert_eq!(copy.state, crate::dfs::CopyState::Ready);
+            assert_eq!(copy.persisted_bytes, chunk.length);
+            assert_eq!(copy.verified_digest, chunk.content_digest);
+        }
+        let report_outcome = after_report_unknown.report_outcome.as_ref().unwrap();
+        assert_eq!(
+            report_outcome.request,
+            RequestKey::new("source", "repair-report:source-session:2")
+        );
+        assert_eq!(
+            report_outcome.operation,
+            StoreOperation::DfsReportReplicationTask
+        );
+        assert!(after_report_unknown.report_outcome_revision.is_some());
+        match &report_outcome.result {
+            OperationResult::DfsNamespace { result, .. } => match result.as_ref() {
+                OperationResult::DfsReplicationTask(task) => {
+                    assert_eq!(task.state, crate::dfs::ReplicationTaskState::Completed);
+                    assert_eq!(
+                        task.existing_copies,
+                        after_report_unknown.task.existing_copies
+                    );
+                }
+                other => panic!("unexpected report outcome: {other:?}"),
+            },
+            other => panic!("unexpected report outcome wrapper: {other:?}"),
+        }
+
+        let third = run_repair_tick(worker.clone()).await.unwrap();
+        assert_eq!(third.unwrap(), after_report_unknown.task);
+        assert_eq!(meta_delay_probe.claim_hits(), 1);
+        assert_eq!(meta_delay_probe.report_hits(), 1);
+        assert_eq!(grpc_replica_payload_bytes(&registry), chunk.length);
+        assert_eq!(
+            read_whole_chunk(target_store.as_ref(), &chunk),
+            vec![23; chunk.length as usize]
+        );
+        let after_report_replay = read_repair_meta_snapshot(store.as_ref(), &chunk).await;
+        assert_eq!(after_report_replay, after_report_unknown);
+
+        target_server.abort();
+        meta_server.abort();
+    }
+
+    #[cfg(feature = "dfs")]
     struct MemoryReadGrantValidator {
         service: crate::meta::dfs::DfsService,
         runtime: tokio::runtime::Handle,

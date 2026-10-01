@@ -28,8 +28,8 @@ use afs_protocol::meta::{
     LookupRootReply, LookupRootRequest, NodeDescriptor, NodeEndpoint, OpenDfsWriteReply,
     OpenDfsWriteRequest, PingReply, PingRequest, PresentedRootAccess, RecoverRootReply,
     RecoverRootRequest, RegisterNodeReply, RegisterNodeRequest, RenewDfsWriteLeaseRequest,
-    ReserveRootReply, ReserveRootRequest, RootCommand, RootCommandType, RootLocation,
-    RootReservation, RootRight as PbRootRight, SyncDfsInodeMetadataReply,
+    ReserveRootReply, ReserveRootRequest, RootCommand, RootCommandPage, RootCommandType,
+    RootLocation, RootReservation, RootRight as PbRootRight, SyncDfsInodeMetadataReply,
     SyncDfsInodeMetadataRequest, ValidateDfsReplicaWriteReply, ValidateDfsReplicaWriteRequest,
     ValidateRootAccessReply, ValidateRootAccessRequest, WatchRootCommandsRequest,
     dfs_meta_server::DfsMeta as DfsMetaService, meta_server::Meta as MetaService,
@@ -621,6 +621,44 @@ impl OwnerRootsService for OwnerRootsRpc {
             .map(|command| Ok(command_from_record(command.command, command.revision)))
             .collect::<Vec<_>>();
         Ok(Response::new(Box::pin(tokio_stream::iter(commands))))
+    }
+
+    async fn poll_root_commands(
+        &self,
+        request: Request<WatchRootCommandsRequest>,
+    ) -> Result<Response<RootCommandPage>, Status> {
+        let authenticated = authenticated_node_id(&self.0, &request)?;
+        let request = request.into_inner();
+        require_text(&request.node_id, "node_id")?;
+        require_text(&request.session_id, "session_id")?;
+        if let Some(authenticated) = authenticated
+            && authenticated != request.node_id
+        {
+            return Err(permission_denied(
+                "authenticated node does not match command poll node_id",
+            ));
+        }
+        let page = self
+            .0
+            .owner_roots
+            .poll_root_commands(super::owner_roots::WatchRootCommandsInput {
+                node_id: request.node_id,
+                session_id: request.session_id,
+                after_revision: request.after_revision,
+            })
+            .await
+            .map_err(afs_transport::grpc::error_status::error_to_status)?;
+        Ok(Response::new(RootCommandPage {
+            node_id: page.node_id,
+            session_id: page.session_id,
+            resume_after_revision: page.resume_after_revision,
+            authority_revision: page.authority_revision,
+            commands: page
+                .commands
+                .into_iter()
+                .map(|command| command_from_record(command.command, command.revision))
+                .collect(),
+        }))
     }
 
     async fn ack_revocation(

@@ -258,7 +258,37 @@ The user explicitly accepted the previously presented close-to-open and retained
   applicable POSIX/P2P/mmap and paired native-ext4 performance. Mountpoint
   metadata retention and a revoked RootGrant do not stop native fd I/O.
 
-## Native lock Home authority and release outcome slice
+## Node control-feed prerequisite
+
+- Preserve the legacy finite command stream for compatibility. Add an explicit
+  bounded poll response carrying commands, a processed-prefix resume cursor and
+  the pinned authority revision with the checked current Home Node session.
+  Unrelated events must advance the processed cursor without skipping later
+  commands; a future cursor, expired/wrong session, malformed batch or compacted
+  history fails closed. A single poll is an authority observation, not an ongoing
+  grant/Agent lease. Persist refusal/pending cleanup before advancing a cursor.
+- Bind revocation ACK transactions to the exact durable command using an atomic
+  entity comparison. A successful ACK for another Root/epoch/access_generation
+  must never satisfy the commit barrier. Request replay must match the original
+  ACK payload. This does not by itself prove actual managed Agent drainage.
+- After these interfaces pass, connect the Node worker and exact-generation
+  refusal/drain proof. Native readiness remains unavailable until final namespace
+  checks and actual Agent supervision/fencing are wired and qualified.
+
+- [x] Reproduce and fix exact-command ACK admission, changed-payload replay,
+  wrong-root commit barriers and exact receipt replay after command retirement.
+- [x] Add the bounded current-session poll RPC and Node caller/decoder. Preserve
+  complete transaction prefixes, pinned global snapshot watermarks, and progress
+  over unrelated/receipt-only revisions; retain the legacy stream unchanged.
+- [x] Verify14 source controls, real loopback gRPC and timeout errors; rerun those
+  14 plus4 lock regressions on VM.399 library PASS/2 existing ignored, strict
+  Clippy/fmt, feature compilation and45 native contracts PASS. WSL full-project
+  remains FAIL at unchanged DFS expiry; the same39 Meta contracts PASS on VM.
+- [ ] Wire exact-generation Node refusal/drain, pending-command/cursor durability,
+  managed process supervision, normal detach and truthful ACK production.
+  A finite poll or valid ACK identity does not establish those runtime gates.
+
+## Native lock Home authority and release outcome evidence
 
 - [x] Reproduce four behavior failures using production Home recovery and an
   actual failed kernel unlock with retained original lock and independent native

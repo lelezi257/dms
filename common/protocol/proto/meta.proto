@@ -79,6 +79,9 @@ service OwnerRoots {
   rpc AcquireRoot(AcquireRootRequest) returns (AcquireRootReply);
   rpc ValidateRootAccess(ValidateRootAccessRequest) returns (ValidateRootAccessReply);
   rpc WatchRootCommands(WatchRootCommandsRequest) returns (stream RootCommand);
+  // A finite, current-session snapshot with an explicit processed-prefix cursor.
+  // An empty reply is not an ongoing grant or Agent-access lease.
+  rpc PollRootCommands(WatchRootCommandsRequest) returns (RootCommandPage);
   rpc AckRevocation(AckRevocationRequest) returns (AckRevocationReply);
   rpc RecoverRoot(RecoverRootRequest) returns (RecoverRootReply);
 }
@@ -262,6 +265,16 @@ message RootCommand {
   RootCommandType command_type = 2;
   RootAccess access = 3;
   uint64 revision = 4;
+}
+
+message RootCommandPage {
+  string node_id = 1;
+  string session_id = 2;
+  // Resume only after commands have been applied and pending cleanup persisted.
+  uint64 resume_after_revision = 3;
+  // Snapshot high watermark; it may exceed the processed-prefix cursor.
+  uint64 authority_revision = 4;
+  repeated RootCommand commands = 5;
 }
 
 message AckRevocationRequest {

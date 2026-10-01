@@ -30,6 +30,12 @@ pub trait OwnerRootAuthority: Send + Sync {
         &self,
         input: WatchRootCommandsInput,
     ) -> MetaFuture<'_, Vec<WatchedRootCommand>>;
+    fn poll_root_commands(
+        &self,
+        _input: WatchRootCommandsInput,
+    ) -> MetaFuture<'_, RootCommandPage> {
+        Box::pin(async { Err(unavailable_meta_store()) })
+    }
     fn ack_revocation(&self, input: AckRevocationInput) -> MetaFuture<'_, u64>;
     fn recover_root(&self, input: RecoverRootInput) -> MetaFuture<'_, RootAccessGrant>;
 }
@@ -463,6 +469,80 @@ impl OwnerRootAuthority for StoreOwnerRootAuthority {
         })
     }
 
+    fn poll_root_commands(&self, input: WatchRootCommandsInput) -> MetaFuture<'_, RootCommandPage> {
+        Box::pin(async move {
+            const LIMIT: usize = 1024;
+            let view = self.store.read_view().await?;
+            let authority_revision = view.revision()?.0;
+            let current = view
+                .read(MetaRead::CurrentNodeSession {
+                    node_id: input.node_id.clone(),
+                })
+                .await?;
+            let Some(MetaEntity::NodeSession(session)) = current.entity else {
+                return Err(invalid("command poll requires a registered Node session"));
+            };
+            if session.session_id != input.session_id || !session.is_live_at_unix_ms(now_unix_ms())
+            {
+                return Err(invalid(
+                    "command poll requires the current live Node session",
+                ));
+            }
+            if input.after_revision > authority_revision {
+                return Err(invalid("command poll cursor is ahead of authority"));
+            }
+            let batch = view
+                .watch(StoreRevision(input.after_revision), LIMIT)
+                .await?;
+            batch.validate_order()?;
+            let WatchBatch::Events {
+                start_revision,
+                next_revision,
+                events,
+            } = batch
+            else {
+                return Err(invalid(
+                    "command history was compacted; native admission requires reconciliation",
+                ));
+            };
+            if start_revision.0 != input.after_revision
+                || next_revision.0 <= start_revision.0
+                || next_revision.0 > authority_revision.saturating_add(1)
+            {
+                return Err(invalid("command poll returned an invalid processed prefix"));
+            }
+            let commands = events
+                .into_iter()
+                .filter_map(|event| match event.change {
+                    WatchChange::Put(MetaEntity::RootCommand(command))
+                        if command.home_node_id == input.node_id
+                            && command.home_session_id == input.session_id =>
+                    {
+                        Some(WatchedRootCommand {
+                            command,
+                            revision: event.revision,
+                        })
+                    }
+                    _ => None,
+                })
+                .collect::<Vec<_>>();
+            // Store event limits preserve complete transactions and are soft.
+            // Never truncate a command transaction or advance past unreturned work.
+            if commands.len() > LIMIT {
+                return Err(invalid(
+                    "atomic command batch exceeds the bounded consumer capacity",
+                ));
+            }
+            Ok(RootCommandPage {
+                node_id: input.node_id,
+                session_id: input.session_id,
+                resume_after_revision: next_revision.0 - 1,
+                authority_revision,
+                commands,
+            })
+        })
+    }
+
     fn watch_root_commands(
         &self,
         input: WatchRootCommandsInput,
@@ -511,9 +591,41 @@ impl OwnerRootAuthority for StoreOwnerRootAuthority {
                 format!("{}/{}", input.node_id, input.session_id),
                 input.request_id,
             );
+            let previous = self
+                .store
+                .read(MetaRead::RequestOutcome(key.clone()))
+                .await?;
+            if let Some(previous) = previous.request_outcome {
+                if previous.operation != StoreOperation::AckRootCommand
+                    || previous.result != OperationResult::RootCommandAck(ack.clone())
+                {
+                    return Err(invalid(
+                        "ACK request replay does not match its recorded payload",
+                    ));
+                }
+                return Ok(now_unix_ms());
+            }
+            let command = self
+                .store
+                .read(MetaRead::RootCommand {
+                    command_id: ack.command_id.clone(),
+                })
+                .await?;
+            let Some(MetaEntity::RootCommand(command)) = command.entity else {
+                return Err(invalid("revocation command was not found"));
+            };
+            if command.home_node_id != ack.node_id
+                || command.home_session_id != ack.session_id
+                || command.root_id != ack.root_id
+                || command.root_epoch != ack.root_epoch
+                || command.old_access_generation != ack.access_generation
+            {
+                return Err(invalid("ACK does not match the pending revocation command"));
+            }
             let mut txn = MetaTxn::new(key.clone(), StoreOperation::AckRootCommand);
             txn.conditions.extend([
                 TxnCondition::RequestAbsent(key),
+                TxnCondition::EntityEquals(MetaEntity::RootCommand(command)),
                 TxnCondition::NodeSessionCurrent {
                     node_id: ack.node_id.clone(),
                     session_id: ack.session_id.clone(),
@@ -529,10 +641,15 @@ impl OwnerRootAuthority for StoreOwnerRootAuthority {
                 TxnMutation::RecordRequestOutcome(super::store::RequestOutcome {
                     request: txn.request.clone(),
                     operation: txn.operation,
-                    result: OperationResult::RootCommandAck(ack),
+                    result: OperationResult::RootCommandAck(ack.clone()),
                 }),
             ]);
-            let _ = commit_or_replay(self.store.as_ref(), txn).await?;
+            let recorded = commit_or_replay(self.store.as_ref(), txn).await?;
+            if recorded != OperationResult::RootCommandAck(ack) {
+                return Err(invalid(
+                    "ACK request replay does not match its recorded payload",
+                ));
+            }
             Ok(now_unix_ms())
         })
     }
@@ -693,6 +810,16 @@ pub struct WatchedRootCommand {
     pub revision: StoreRevision,
 }
 
+/// One current-session authority observation, not an ongoing native-access lease.
+/// A consumer must apply and persist the commands before advancing the cursor.
+pub struct RootCommandPage {
+    pub node_id: String,
+    pub session_id: String,
+    pub resume_after_revision: u64,
+    pub authority_revision: u64,
+    pub commands: Vec<WatchedRootCommand>,
+}
+
 pub struct AckRevocationInput {
     pub request_id: String,
     pub command_id: String,
@@ -807,4 +934,404 @@ fn now_unix_ms() -> u64 {
         .map_or(0, |duration| {
             u64::try_from(duration.as_millis()).unwrap_or(u64::MAX)
         })
+}
+
+#[cfg(test)]
+pub(crate) mod native_control_tests {
+    use super::*;
+    use crate::meta::store::{NodeSessionLease, RequestOutcome, Store, memory::MemoryBackend};
+    use std::time::Duration;
+
+    pub(crate) async fn fixture() -> (Arc<Store>, StoreOwnerRootAuthority, RootCommandRecord) {
+        let store = Arc::new(
+            Store::open(Arc::new(MemoryBackend::default()))
+                .await
+                .unwrap(),
+        );
+        store
+            .register_node_session(
+                RequestKey::new("node-a", "register"),
+                NodeSessionLease {
+                    node_id: "node-a".into(),
+                    session_id: "session-a".into(),
+                    grpc_addr: "http://node-a:7400".into(),
+                    data_addr: "http://node-a:7500".into(),
+                    rest_addr: "http://node-a:7600".into(),
+                    storage_devices: Vec::new(),
+                    lease_ttl: Duration::from_secs(1800),
+                },
+            )
+            .await
+            .unwrap();
+        let command = RootCommandRecord {
+            command_id: "revoke-1".into(),
+            home_node_id: "node-a".into(),
+            home_session_id: "session-a".into(),
+            root_id: "workspace-a".into(),
+            root_epoch: 7,
+            old_access_generation: 11,
+        };
+        put(
+            &store,
+            "seed-command",
+            StoreOperation::BeginRootRevocation,
+            MetaEntity::RootCommand(command.clone()),
+            OperationResult::RootCommand(command.clone()),
+        )
+        .await;
+        let service = StoreOwnerRootAuthority::new(store.clone());
+        (store, service, command)
+    }
+
+    async fn put(
+        store: &Store,
+        request: &str,
+        operation: StoreOperation,
+        entity: MetaEntity,
+        result: OperationResult,
+    ) {
+        let request = RequestKey::new("fixture", request);
+        let mut txn = MetaTxn::new(request.clone(), operation);
+        txn.conditions
+            .push(TxnCondition::RequestAbsent(request.clone()));
+        txn.mutations.extend([
+            TxnMutation::Put(entity),
+            TxnMutation::RecordRequestOutcome(RequestOutcome {
+                request,
+                operation,
+                result,
+            }),
+        ]);
+        assert!(matches!(
+            store.compare_and_commit(txn).await.unwrap(),
+            TxnOutcome::Committed { .. }
+        ));
+    }
+
+    fn ack(command: &RootCommandRecord, request: &str) -> AckRevocationInput {
+        AckRevocationInput {
+            request_id: request.into(),
+            command_id: command.command_id.clone(),
+            node_id: command.home_node_id.clone(),
+            session_id: command.home_session_id.clone(),
+            root_id: command.root_id.clone(),
+            root_epoch: command.root_epoch,
+            access_generation: command.old_access_generation,
+            success: true,
+            message: "drained".into(),
+        }
+    }
+
+    fn poll(after_revision: u64) -> WatchRootCommandsInput {
+        WatchRootCommandsInput {
+            node_id: "node-a".into(),
+            session_id: "session-a".into(),
+            after_revision,
+        }
+    }
+
+    async fn put_commands(store: &Store, request: &str, commands: Vec<RootCommandRecord>) {
+        let request = RequestKey::new("fixture", request);
+        let operation = StoreOperation::BeginRootRevocation;
+        let mut txn = MetaTxn::new(request.clone(), operation);
+        txn.conditions
+            .push(TxnCondition::RequestAbsent(request.clone()));
+        let result = OperationResult::RootCommand(commands.last().unwrap().clone());
+        txn.mutations.extend(
+            commands
+                .into_iter()
+                .map(|c| TxnMutation::Put(MetaEntity::RootCommand(c))),
+        );
+        txn.mutations
+            .push(TxnMutation::RecordRequestOutcome(RequestOutcome {
+                request,
+                operation,
+                result,
+            }));
+        assert!(matches!(
+            store.compare_and_commit(txn).await.unwrap(),
+            TxnOutcome::Committed { .. }
+        ));
+    }
+
+    #[tokio::test]
+    async fn native_control_poll_advances_filtered_prefix_without_skipping_later_command() {
+        let (store, service, command) = fixture().await;
+        let start = store.read_view().await.unwrap().revision().unwrap().0;
+        let unrelated = (0..1024)
+            .map(|index| RootCommandRecord {
+                command_id: format!("other-{index}"),
+                home_node_id: "node-b".into(),
+                ..command.clone()
+            })
+            .collect();
+        put_commands(&store, "unrelated", unrelated).await;
+        let later = RootCommandRecord {
+            command_id: "later-command".into(),
+            ..command
+        };
+        put_commands(&store, "later", vec![later.clone()]).await;
+        let first = service.poll_root_commands(poll(start)).await.unwrap();
+        assert!(first.commands.is_empty());
+        assert!(first.resume_after_revision > start);
+        assert!(first.resume_after_revision < first.authority_revision);
+        let second = service
+            .poll_root_commands(poll(first.resume_after_revision))
+            .await
+            .unwrap();
+        assert_eq!(second.commands.len(), 1);
+        assert_eq!(second.commands[0].command, later);
+        assert_eq!(second.resume_after_revision, second.authority_revision);
+        let empty = service
+            .poll_root_commands(poll(second.resume_after_revision))
+            .await
+            .unwrap();
+        assert!(empty.commands.is_empty());
+        assert_eq!(empty.resume_after_revision, second.resume_after_revision);
+    }
+
+    #[tokio::test]
+    async fn native_control_poll_refuses_future_cursor_and_replaced_node_session() {
+        let (store, service, _command) = fixture().await;
+        service.poll_root_commands(poll(0)).await.unwrap();
+        let current = store.read_view().await.unwrap().revision().unwrap();
+        assert!(
+            service
+                .poll_root_commands(poll(current.0 + 1))
+                .await
+                .is_err()
+        );
+        store
+            .register_node_session(
+                RequestKey::new("node-a", "replace-session"),
+                NodeSessionLease {
+                    node_id: "node-a".into(),
+                    session_id: "new-session".into(),
+                    grpc_addr: "http://node-a:7400".into(),
+                    data_addr: "http://node-a:7500".into(),
+                    rest_addr: "http://node-a:7600".into(),
+                    storage_devices: Vec::new(),
+                    lease_ttl: Duration::from_secs(1800),
+                },
+            )
+            .await
+            .unwrap();
+        assert!(service.poll_root_commands(poll(0)).await.is_err());
+    }
+
+    #[tokio::test]
+    async fn native_control_poll_refuses_oversized_atomic_command_batch() {
+        let (store, service, command) = fixture().await;
+        service.poll_root_commands(poll(0)).await.unwrap();
+        let start = store.read_view().await.unwrap().revision().unwrap().0;
+        put_commands(
+            &store,
+            "oversized",
+            (0..1025)
+                .map(|index| RootCommandRecord {
+                    command_id: format!("revoke-{index}"),
+                    ..command.clone()
+                })
+                .collect(),
+        )
+        .await;
+        assert!(
+            service.poll_root_commands(poll(start)).await.is_err(),
+            "truncated or unbounded command batch admitted"
+        );
+    }
+
+    #[tokio::test]
+    async fn native_control_pinned_revision_and_watch_do_not_follow_later_commits() {
+        let (store, _service, command) = fixture().await;
+        let view = store.read_view().await.unwrap();
+        let pinned = view.revision().unwrap();
+        let session_mod = view
+            .read(MetaRead::CurrentNodeSession {
+                node_id: "node-a".into(),
+            })
+            .await
+            .unwrap()
+            .revision;
+        assert!(
+            session_mod < pinned,
+            "entity mod revision was confused with snapshot watermark"
+        );
+        put_commands(
+            &store,
+            "later-view",
+            vec![RootCommandRecord {
+                command_id: "later-view".into(),
+                ..command
+            }],
+        )
+        .await;
+        assert_eq!(view.revision().unwrap(), pinned);
+        assert!(store.read_view().await.unwrap().revision().unwrap() > pinned);
+        let WatchBatch::Events {
+            events,
+            next_revision,
+            ..
+        } = view.watch(pinned, 1024).await.unwrap()
+        else {
+            panic!("pinned snapshot must remain readable");
+        };
+        assert!(events.is_empty());
+        assert_eq!(next_revision, pinned.next());
+    }
+
+    #[tokio::test]
+    async fn native_control_poll_advances_committed_revisions_without_entity_events() {
+        let (store, service, command) = fixture().await;
+        let after = store.read_view().await.unwrap().revision().unwrap().0;
+        let request = RequestKey::new("management", "receipt-only");
+        let mut txn = MetaTxn::new(request.clone(), StoreOperation::BeginRootRevocation);
+        txn.conditions
+            .push(TxnCondition::RequestAbsent(request.clone()));
+        txn.mutations
+            .push(TxnMutation::RecordRequestOutcome(RequestOutcome {
+                request,
+                operation: StoreOperation::BeginRootRevocation,
+                result: OperationResult::RootCommand(command),
+            }));
+        assert!(matches!(
+            store.compare_and_commit(txn).await.unwrap(),
+            TxnOutcome::Committed { .. }
+        ));
+        let page = service.poll_root_commands(poll(after)).await.unwrap();
+        assert!(page.commands.is_empty());
+        assert!(page.authority_revision > after);
+        assert_eq!(
+            page.resume_after_revision, page.authority_revision,
+            "empty logical revisions stalled the processed-prefix cursor"
+        );
+    }
+
+    #[tokio::test]
+    async fn native_revocation_ack_refuses_other_command_root_epoch_or_generation() {
+        for field in 0..4 {
+            let (_store, service, command) = fixture().await;
+            let mut input = ack(&command, "wrong");
+            match field {
+                0 => input.command_id = "absent-command".into(),
+                1 => input.root_id = "workspace-b".into(),
+                2 => input.root_epoch += 1,
+                3 => input.access_generation += 1,
+                _ => unreachable!(),
+            }
+            assert!(
+                service.ack_revocation(input).await.is_err(),
+                "accepted mismatched ACK field {field}"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn native_revocation_ack_replays_exact_payload_but_refuses_changed_payload() {
+        let (_store, service, command) = fixture().await;
+        service.ack_revocation(ack(&command, "ack")).await.unwrap();
+        service.ack_revocation(ack(&command, "ack")).await.unwrap();
+        let mut changed = ack(&command, "ack");
+        changed.success = false;
+        assert!(
+            service.ack_revocation(changed).await.is_err(),
+            "request replay accepted changed ACK outcome"
+        );
+    }
+
+    #[tokio::test]
+    async fn native_revocation_ack_exact_replay_survives_command_retirement() {
+        let (store, service, command) = fixture().await;
+        service.ack_revocation(ack(&command, "ack")).await.unwrap();
+        let request = RequestKey::new("management", "retire-command");
+        let mut txn = MetaTxn::new(request.clone(), StoreOperation::CommitRootRevocation);
+        txn.conditions.extend([
+            TxnCondition::RequestAbsent(request.clone()),
+            TxnCondition::RootCommandAcked {
+                command_id: command.command_id.clone(),
+                node_id: command.home_node_id.clone(),
+                session_id: command.home_session_id.clone(),
+            },
+        ]);
+        txn.mutations.extend([
+            TxnMutation::Delete(MetaKey::RootCommand {
+                command_id: command.command_id.clone(),
+            }),
+            TxnMutation::RecordRequestOutcome(RequestOutcome {
+                request,
+                operation: StoreOperation::CommitRootRevocation,
+                result: OperationResult::RootCommand(command.clone()),
+            }),
+        ]);
+        assert!(matches!(
+            store.compare_and_commit(txn).await.unwrap(),
+            TxnOutcome::Committed { .. }
+        ));
+        service
+            .ack_revocation(ack(&command, "ack"))
+            .await
+            .expect("exact historical ACK receipt must remain replayable");
+        assert!(
+            service
+                .ack_revocation(ack(&command, "new-ack"))
+                .await
+                .is_err(),
+            "new ACK created for retired command"
+        );
+    }
+
+    #[tokio::test]
+    async fn native_revocation_commit_requires_ack_for_exact_pending_command() {
+        for field in 0..4 {
+            let (store, _service, command) = fixture().await;
+            let mut bad = RootCommandAck {
+                command_id: command.command_id.clone(),
+                node_id: command.home_node_id.clone(),
+                session_id: command.home_session_id.clone(),
+                root_id: command.root_id.clone(),
+                root_epoch: command.root_epoch,
+                access_generation: command.old_access_generation,
+                success: true,
+                message: "drained".into(),
+            };
+            match field {
+                0 => bad.root_id = "workspace-b".into(),
+                1 => bad.root_epoch += 1,
+                2 => bad.access_generation += 1,
+                3 => bad.success = false,
+                _ => unreachable!(),
+            }
+            put(
+                &store,
+                "inject-ack",
+                StoreOperation::AckRootCommand,
+                MetaEntity::RootCommandAck(bad.clone()),
+                OperationResult::RootCommandAck(bad),
+            )
+            .await;
+            let request = RequestKey::new("management", "commit");
+            let mut txn = MetaTxn::new(request.clone(), StoreOperation::CommitRootRevocation);
+            txn.conditions.extend([
+                TxnCondition::RequestAbsent(request.clone()),
+                TxnCondition::RootCommandAcked {
+                    command_id: command.command_id.clone(),
+                    node_id: command.home_node_id.clone(),
+                    session_id: command.home_session_id.clone(),
+                },
+            ]);
+            txn.mutations
+                .push(TxnMutation::RecordRequestOutcome(RequestOutcome {
+                    request,
+                    operation: StoreOperation::CommitRootRevocation,
+                    result: OperationResult::RootCommand(command),
+                }));
+            assert!(
+                matches!(
+                    store.compare_and_commit(txn).await.unwrap(),
+                    TxnOutcome::ConditionFailed { .. }
+                ),
+                "commit accepted mismatched ACK field {field}"
+            );
+        }
+    }
 }

@@ -270,6 +270,9 @@ pub enum MetaRead {
     RootReservation {
         root_id: String,
     },
+    RootCommand {
+        command_id: String,
+    },
     RootGrantByHolder {
         root_id: String,
         holder_node_id: String,
@@ -672,8 +675,68 @@ pub struct MetaReadView {
 }
 
 impl MetaReadView {
+    /// The pinned snapshot watermark, distinct from any entity's mod revision.
+    pub fn revision(&self) -> Result<StoreRevision> {
+        let state = self
+            .state
+            .state
+            .lock()
+            .map_err(|_| invalid_contract("meta store lock poisoned"))?;
+        Ok(state.revision)
+    }
+
     pub async fn read(&self, read: MetaRead) -> Result<MetaSnapshot> {
         self.state.read(read).await
+    }
+
+    /// Reads a complete-revision prefix from the same pinned authority snapshot.
+    /// At the end of the log, include committed revisions without entity events.
+    /// The legacy store watch API keeps its existing cursor semantics.
+    pub async fn watch(&self, after_revision: StoreRevision, limit: usize) -> Result<WatchBatch> {
+        let state = self
+            .state
+            .state
+            .lock()
+            .map_err(|_| invalid_contract("meta store lock poisoned"))?;
+        if after_revision > state.revision {
+            return Err(invalid_contract(
+                "watch cursor is ahead of pinned authority",
+            ));
+        }
+        let mut events: Vec<WatchEvent> = Vec::new();
+        let mut complete = true;
+        for event in state
+            .events
+            .iter()
+            .filter(|event| event.revision > after_revision)
+        {
+            if limit > 0
+                && events.len() >= limit
+                && events
+                    .last()
+                    .is_some_and(|last| last.revision != event.revision)
+            {
+                complete = false;
+                break;
+            }
+            events.push(event.clone());
+        }
+        let next_revision = if complete {
+            state.revision.next()
+        } else {
+            events
+                .last()
+                .expect("limited prefix contains an event")
+                .revision
+                .next()
+        };
+        let batch = WatchBatch::Events {
+            start_revision: after_revision,
+            next_revision,
+            events,
+        };
+        batch.validate_order()?;
+        Ok(batch)
     }
 }
 
@@ -1143,6 +1206,9 @@ impl MetaStore for StoreState {
                         root_id: root_id.clone(),
                     })
                 }
+                MetaRead::RootCommand { command_id } => state.entities.get(&MetaKey::RootCommand {
+                    command_id: command_id.clone(),
+                }),
                 MetaRead::RootGrantByHolder {
                     root_id,
                     holder_node_id,
@@ -1665,19 +1731,7 @@ fn condition_matches(state: &MemoryState, condition: &TxnCondition) -> bool {
             command_id,
             node_id,
             session_id,
-        } => state
-            .entities
-            .get(&MetaKey::RootCommandAck {
-                command_id: command_id.clone(),
-                home_node_id: node_id.clone(),
-                home_session_id: session_id.clone(),
-            })
-            .is_some_and(|entity| {
-                matches!(
-                    &entity.entity,
-                    MetaEntity::RootCommandAck(ack) if ack.success
-                )
-            }),
+        } => root_command_acked(state, command_id, node_id, session_id),
         TxnCondition::RequestAbsent(key) => !state.requests.contains_key(key),
         TxnCondition::DfsDirectoryEmpty {
             namespace_id,
@@ -1765,6 +1819,37 @@ fn current_session_matches(state: &MemoryState, node_id: &str, session_id: &str)
                         && session.is_live_at_unix_ms(now_ms)
             )
         })
+}
+
+fn root_command_acked(
+    state: &MemoryState,
+    command_id: &str,
+    node_id: &str,
+    session_id: &str,
+) -> bool {
+    let Some(command) = state.entities.get(&MetaKey::RootCommand {
+        command_id: command_id.to_owned(),
+    }) else {
+        return false;
+    };
+    let Some(ack) = state.entities.get(&MetaKey::RootCommandAck {
+        command_id: command_id.to_owned(),
+        home_node_id: node_id.to_owned(),
+        home_session_id: session_id.to_owned(),
+    }) else {
+        return false;
+    };
+    matches!((&command.entity, &ack.entity),
+        (MetaEntity::RootCommand(command), MetaEntity::RootCommandAck(ack))
+            if ack.success
+                && command.home_node_id == node_id
+                && command.home_session_id == session_id
+                && ack.command_id == command.command_id
+                && ack.node_id == command.home_node_id
+                && ack.session_id == command.home_session_id
+                && ack.root_id == command.root_id
+                && ack.root_epoch == command.root_epoch
+                && ack.access_generation == command.old_access_generation)
 }
 
 fn root_session_matches(

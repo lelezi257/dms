@@ -33,6 +33,21 @@ individual variants has not been claimed.
 
 ## Open review gates
 
+- The additive command poll and exact ACK slice passes14 source controls and
+  their VM replay, with4 retained lock regressions and39 Meta contracts separately
+  passing on VM.399 library tests, strict Clippy/fmt, feature compilation and45
+  native contracts pass; WSL project-wide expiry remains failed and later suites
+  unqualified. The public read selector gains RootCommand, the pinned read view
+  gains global revision/prefix reads, RootMeta gains a default-unsupported poll,
+  and OwnerRoots adds a unary RPC/message without changing legacy wire fields.
+  Legacy watch semantics and ordinary filesystem/DFS policy remain unchanged.
+  ACK replay compares exact payloads; existing tonic timeout/unknown-outcome
+  semantics are preserved. Scope, all failures and raw identities are in the
+  evidence record. Final/independent review remains pending.
+- A valid ACK identity cannot prove truthful drainage. The Node producer must
+  still install exact-generation refusal, persist pending work before cursor
+  advance, fence actual managed users/references, normally detach and only then
+  issue success. No runtime native admission follows from the new poll.
 - The subsequent native lock authority/release slice passes its four original
   behavior failures and all385 all-feature library tests (two existing ignored).
   Native keys distinguish recovered Home authority even at the same epoch;

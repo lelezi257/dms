@@ -4,7 +4,104 @@ Issue: https://github.com/lelezi257/dms/issues/42. Plan: `native-bind-plan.md`.
 
 This is an intermediate slice, not feature completion, product acceptance or performance qualification. It does not enable native exports in Node. Default configuration does not enable native admission. The optional hint hook remains inert without a sink; ordinary directory identity refresh now reconciles cached descendants after an external move. Node/FUSE/P2P integration, cross-path locks/cache/mmap, full Node/Agent lifecycle recovery and ext4 performance comparison remain outstanding.
 
-## Current checkpoint: native lock Home authority and release outcomes (2026-10-01)
+## Current checkpoint: command feed and exact revocation ACKs (2026-10-01)
+
+Source parent is `a463762`. Exact final source is retained in external snapshot
+`native-control-timeout-candidate-20261001T073450`; prior intermediate snapshots
+and all failed attempts remain preserved. This adds control prerequisites, not
+a running native Node worker, managed Agent fencing or native readiness.
+
+`PollRootCommands` is an additive OwnerRoots RPC using a pinned read view for
+the current live Node session, global authority watermark and complete-revision
+event prefix. Up to1024 commands are returned; oversized atomic command batches
+fail instead of being split or dropped. Store event limits remain soft at a
+transaction boundary. The new pinned-prefix reader avoids cloning all remaining
+events before slicing, but still scans retained history and has no strict
+execution-time claim. Unrelated events and receipt-only revisions advance the
+processed cursor. Entity mod revisions remain unchanged for conditional updates;
+the global read-view revision is distinct. Legacy watch semantics are unchanged.
+The Node caller rejects wrong sessions, invalid prefix bounds, stale/unknown/
+duplicate commands, invalid target facts and overflow. Same-revision commands
+remain valid. Command target facts are not converted into a RootGrant. A page is
+one authority observation, not an ongoing lease; applying/persisting pending
+commands before cursor advance and actual process fencing remain integration work.
+Compaction is a fail-closed interface boundary; no real compacted-backend or
+production reconnect/reconciliation run has been qualified by this slice.
+
+ACK admission now reads the exact command and conditionally compares that
+durable entity in the ACK transaction. Root/epoch/Home session/generation must
+match. `RootCommandAcked` also compares the successful ACK against its command,
+so a wrong-root ACK cannot approve a commit. Exact request payload replay reads
+the stored receipt even after command retirement; changed payloads or new ACKs
+for a retired command fail. The legacy response acceptance time remains response
+time, not a new durable timestamp. This guards ACK identity, not honesty of
+drainage: a native coordinator must still derive real process/ref/normal-unmount
+proof before issuing success.
+
+Actual behavior REDs in `native-control-ack-red.log` show all3 original ACK/
+barrier/replay errors. `native-control-behavior-red.log` separately proves exact
+ACK replay failed after command retirement; its unsupported poll failure and
+negative-only checks are not accepted poll coverage. API-missing compiler REDs
+are kept separately. `native-control-green.log` records the erroneous use of an
+entity mod revision as the global prefix bound (7 PASS/3 FAIL).
+`native-control-empty-revision-red.log` proves receipt-only revisions stalled
+the cursor (resume2 versus authority3). Final positive controls and failures
+before fixes are retained rather than rewritten as passing runs.
+
+The final `native-control-timeout-green.log` records14 source cases PASS.
+`native-control-library-final.log` records399 all-feature library PASS/2 existing
+ignored; strict workspace/all-target/all-feature Clippy, fmt and none/OwnerFs-only/
+DFS-only compilation PASS. No-feature/DFS-only compilation retains the two
+descriptor-helper warnings; strict per-variant lint has not been claimed.
+`native-control-contracts.log` separately records45 native controller/event/
+journal/transaction PASS.
+
+`native-control-project.log` is overall FAIL at unchanged
+`dfs_renewal_cannot_resurrect_expired_or_reassigned_authority`, with38 other Meta
+cases passing. Its unexecuted remainder and doc tests are not qualified by the
+preceding successes. The earlier realtime/monotonic observations remain a
+plausible explanation, with no established clock fix or altered DFS assertion.
+The separate failing vendored-fuser workspace/all-ABI run remains unqualified.
+
+Initial VM control run `control-interface-20261001T072132-26cbea57` records13 PASS/
+1 FAIL: the new timeout test wrongly assumed the outer timer always wins over
+the equal endpoint timer. Existing main semantics preserve tonic's untyped
+`CLIENT_REMOTE_STATUS` / Cancelled / `Timeout expired` as an unknown outcome.
+The corrected test accepts only that exact tuple or the outer deadline code,
+keeps the original2-second bound, and does not normalize runtime errors. The
+VM raw log confirms the complete tuple. The harness initially failed to archive
+after early exit because later logs were missing; exact guest evidence was
+recollected, and the runner now archives existing logs even after early failure.
+All4 later lock cases are NOT_RUN in the original failing run. Its archive
+SHA256 is `7b6847046adb6a6d6af15d16658888350fdd69dd9422bd275619723585a52b53`.
+
+Final VM `control-interface-20261001T073458-aca2f850` passes14 control cases and
+all4 retained lock-authority/release cases. Library executable SHA256:
+`9ade934322d37ec87f44f1561cd91291b48536f9963a5b255ea25965478c3657`.
+Archive SHA256:
+`57e147c1bd5cfc3acaf687599c7f32b6a02b5a3d6ae3315dd4b966457c64fbee`.
+These are memory-authority/Home/kernel fixtures plus real loopback gRPC, not
+production Node/network-P2P/Agent qualification. Independent inspection confirms
+the actual private namespace, ext4 `/dev/sdb1`, unchanged parent mounts and empty
+temporary data, including the failed run.
+
+The exact39-case Meta contract binary also passes on VM:
+`meta-contract-20261001T073756-cab46e17`, including the unchanged expiry case.
+Executable SHA256:
+`16b3e0320d3218ea300a1826e0640b84a8af097d1c72cc5dbceb6717837659bd`;
+archive SHA256:
+`4bc1abf86d360fda57056ccef8dc88711dfc721ab51611b222484139c17786ea`.
+Its generic runner scope wording was too broad; a separate correction identifies
+the39 Meta/DFS cases and preserves the original result. Independent namespace,
+mount and data cleanup inspection PASS. This VM result does not turn the failed
+WSL project run into a success or qualify unexecuted suites.
+
+Next: exact-generation Node refusal/drain proof, persisted pending commands and
+cursor, actual Agent supervision/fencing, guarded normal detach and truthful
+ACK production. Native admission, POSIX/P2P/mmap, complete lifecycle and paired
+native-ext4 performance remain open. No PR or merge has occurred.
+
+## Previous checkpoint: native lock Home authority and release outcomes (2026-10-01)
 
 Source parent is `0fdedce`; exact tested dirty source is preserved in external
 snapshot `native-lock-authority-candidate-20261001T064614`. The actual behavior

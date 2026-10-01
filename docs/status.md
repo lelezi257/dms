@@ -26,7 +26,19 @@ The [delivery acceptance contract](acceptance.md) requires JuiceFS default same-
 
 ## Current Validation Checkpoint
 
-The latest native lock authority/release candidate has385 passing all-feature
+The latest native-bind control prerequisite adds a current-session command poll
+with pinned prefix cursors and exact command/ACK/replay checks.399 all-feature
+library tests PASS (two existing ignored), strict Clippy/fmt and three feature
+compilation variants PASS, and45 native contracts PASS. Independent VM replay
+passes14 control cases plus4 lock regressions; the separate39 Meta contracts also
+PASS on VM. The WSL whole-project command remains FAIL at the unchanged DFS
+expiry case; its unexecuted remainder/doc tests are not thereby qualified.
+Failed attempts and original/corrected timeout semantics retain their evidence.
+The poll is one snapshot, not an ongoing lease; Node command consumption,
+managed Agent fencing/readiness, normal teardown and truthful ACK production
+remain unwired. Full semantic/performance gates and the no-merge PR remain open.
+
+The previous native lock authority/release candidate has385 passing all-feature
 library tests (two existing ignored), including32 targeted native cases and
 four regressions that reproduced the original authority/outcome failures.
 Fmt, strict workspace Clippy and root-project all-feature tests pass. Fresh

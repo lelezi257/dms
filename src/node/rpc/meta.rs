@@ -7,8 +7,8 @@
 use crate::node::vfs::ownerfs::{
     catalog::LocalRootRecord,
     root::{
-        OwnerRootInventory, PreparedRoot, PresentedRootAccess, RootGrant, RootId, RootLocation,
-        RootMeta, RootReservation, RootRight,
+        OwnerRootInventory, PreparedRoot, PresentedRootAccess, RootControlPage, RootGrant, RootId,
+        RootLocation, RootMeta, RootReservation, RootRevocationCommand, RootRight,
     },
 };
 #[cfg(any(feature = "ownerfs", feature = "dfs"))]
@@ -20,6 +20,7 @@ use afs_protocol::meta::{
     LookupNodeRequest, LookupRootRequest, RecoverRootRequest, ReserveConflictPolicy,
     ReserveRootRequest, ValidateRootAccessRequest, owner_roots_client::OwnerRootsClient,
 };
+
 use afs_protocol::meta::{PingRequest, RegisterNodeRequest, meta_client::MetaClient};
 use afs_transport::grpc::{GrpcConfig, SecurityManager, TlsConfig};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -249,6 +250,20 @@ fn reservation_wire(value: &RootReservation) -> afs_protocol::meta::RootReservat
 
 #[cfg(feature = "ownerfs")]
 impl RootMeta for GrpcRootMeta {
+    fn poll_root_commands(&self, after_revision: u64) -> Result<RootControlPage> {
+        let mut client = self.client();
+        let reply = self
+            .run(
+                client.poll_root_commands(afs_protocol::meta::WatchRootCommandsRequest {
+                    node_id: self.node_id.clone(),
+                    session_id: self.session_id.clone(),
+                    after_revision,
+                }),
+            )?
+            .into_inner();
+        decode_native_root_command_page(reply, &self.node_id, &self.session_id, after_revision)
+    }
+
     fn lookup_node_endpoint(&self, node_id: &str) -> Result<String> {
         GrpcRootMeta::lookup_node_endpoint(self, node_id)
     }
@@ -446,6 +461,64 @@ impl RootMeta for GrpcRootMeta {
             .into_inner();
         grant_from_wire(required(reply.access, "RecoverRoot.access")?)
     }
+}
+
+#[cfg(feature = "ownerfs")]
+fn decode_native_root_command_page(
+    page: afs_protocol::meta::RootCommandPage,
+    node_id: &str,
+    session_id: &str,
+    after_revision: u64,
+) -> Result<RootControlPage> {
+    let invalid = || Error::coded(CLIENT_PROTOCOL_VIOLATION, "invalid Root command page");
+    if page.node_id != node_id
+        || page.session_id != session_id
+        || page.resume_after_revision < after_revision
+        || page.resume_after_revision > page.authority_revision
+        || page.commands.len() > 1024
+    {
+        return Err(invalid());
+    }
+    let mut previous = after_revision;
+    let mut seen = std::collections::HashSet::new();
+    let mut commands = Vec::with_capacity(page.commands.len());
+    for command in page.commands {
+        if command.command_type != i32::from(afs_protocol::meta::RootCommandType::RevokeAccess)
+            || command.command_id.is_empty()
+            || !seen.insert(command.command_id.clone())
+            || command.revision <= after_revision
+            || command.revision < previous
+            || command.revision > page.resume_after_revision
+        {
+            return Err(invalid());
+        }
+        let access = required(command.access, "root command target")?;
+        if access.root_id.is_empty()
+            || access.root_epoch == 0
+            || access.access_generation == 0
+            || access.home_node_id != node_id
+            || access.home_session_id != session_id
+        {
+            return Err(invalid());
+        }
+        previous = command.revision;
+        commands.push(RootRevocationCommand {
+            command_id: command.command_id,
+            root_id: RootId(access.root_id),
+            root_epoch: access.root_epoch,
+            home_node_id: access.home_node_id,
+            home_session_id: access.home_session_id,
+            access_generation: access.access_generation,
+            revision: command.revision,
+        });
+    }
+    Ok(RootControlPage {
+        node_id: page.node_id,
+        session_id: page.session_id,
+        resume_after_revision: page.resume_after_revision,
+        authority_revision: page.authority_revision,
+        commands,
+    })
 }
 
 /// 新 Node 会话注册完成之前不能挂载或服务 OwnerFs 根。
@@ -2051,5 +2124,178 @@ mod tests {
         .await;
 
         listener.abort();
+    }
+}
+
+#[cfg(all(test, feature = "ownerfs"))]
+mod native_control_page_tests {
+    use super::*;
+    use afs_protocol::meta::{RootAccess, RootCommand, RootCommandPage, RootCommandType};
+
+    fn page() -> RootCommandPage {
+        RootCommandPage {
+            node_id: "node-a".into(),
+            session_id: "session-a".into(),
+            resume_after_revision: 4,
+            authority_revision: 6,
+            commands: (0..2)
+                .map(|index| RootCommand {
+                    command_id: format!("command-{index}"),
+                    command_type: RootCommandType::RevokeAccess.into(),
+                    revision: 3,
+                    access: Some(RootAccess {
+                        root_id: format!("workspace-{index}"),
+                        root_epoch: 7,
+                        home_node_id: "node-a".into(),
+                        home_session_id: "session-a".into(),
+                        access_generation: 11,
+                        ..Default::default()
+                    }),
+                })
+                .collect(),
+        }
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn native_control_poll_real_grpc_delivers_exact_home_command() {
+        use crate::meta::{Meta, rpc::OwnerRootsRpc};
+        use afs_protocol::meta::owner_roots_server::OwnerRootsServer;
+        let (store, _service, command) =
+            crate::meta::owner_roots::native_control_tests::fixture().await;
+        let meta = std::sync::Arc::new(Meta::with_store(
+            "meta-test".into(),
+            crate::runtime::Observability::new().unwrap(),
+            store,
+        ));
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let endpoint = format!("http://{}", listener.local_addr().unwrap());
+        let (stop, stopped) = tokio::sync::oneshot::channel();
+        let server = tokio::spawn(async move {
+            tonic::transport::Server::builder()
+                .add_service(OwnerRootsServer::new(OwnerRootsRpc(meta)))
+                .serve_with_incoming_shutdown(
+                    tokio_stream::wrappers::TcpListenerStream::new(listener),
+                    async {
+                        let _ = stopped.await;
+                    },
+                )
+                .await
+        });
+        let caller = GrpcRootMeta::new(
+            &endpoint,
+            "node-a".into(),
+            "session-a".into(),
+            Duration::from_secs(2),
+            TlsConfig::Disabled,
+        )
+        .unwrap();
+        let result = tokio::task::spawn_blocking(move || caller.poll_root_commands(0)).await;
+        let _ = stop.send(());
+        server.await.unwrap().unwrap();
+        let page = result.unwrap().unwrap();
+        assert_eq!(page.commands.len(), 1);
+        assert_eq!(page.commands[0].command_id, command.command_id);
+        assert_eq!(page.commands[0].root_id.0, command.root_id);
+        assert_eq!(
+            page.commands[0].access_generation,
+            command.old_access_generation
+        );
+        assert_eq!(page.resume_after_revision, page.authority_revision);
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn native_control_poll_silent_endpoint_respects_request_timeout() {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let endpoint = format!("http://{}", listener.local_addr().unwrap());
+        let server = tokio::spawn(async move {
+            let mut sockets = Vec::new();
+            while let Ok((socket, _)) = listener.accept().await {
+                sockets.push(socket);
+            }
+        });
+        let caller = GrpcRootMeta::new(
+            &endpoint,
+            "node-a".into(),
+            "session-a".into(),
+            Duration::from_millis(75),
+            TlsConfig::Disabled,
+        )
+        .unwrap();
+        let start = std::time::Instant::now();
+        let result = tokio::task::spawn_blocking(move || caller.poll_root_commands(0)).await;
+        server.abort();
+        let _ = server.await;
+        let error = result.unwrap().unwrap_err();
+        eprintln!("silent command endpoint: {error:?}");
+        // Equal endpoint and outer timers can win in either order. Preserve
+        // the existing untyped tonic timeout; do not recast unknown outcomes.
+        assert!(
+            error.code() == afs_error::CLIENT_DEADLINE_EXCEEDED
+                || (error.code() == afs_error::CLIENT_REMOTE_STATUS
+                    && error.kind() == afs_error::ErrorKind::Cancelled
+                    && error.message() == "Timeout expired"),
+            "unexpected silent-endpoint error: {error:?}"
+        );
+        assert!(start.elapsed() < Duration::from_secs(2));
+    }
+
+    #[test]
+    fn native_control_decode_keeps_same_revision_commands_and_partial_cursor() {
+        let parsed = decode_native_root_command_page(page(), "node-a", "session-a", 2).unwrap();
+        assert_eq!(parsed.commands.len(), 2);
+        assert_eq!(parsed.commands[0].root_id.0, "workspace-0");
+        assert_eq!(parsed.commands[0].access_generation, 11);
+        assert_eq!(parsed.resume_after_revision, 4);
+        assert_eq!(parsed.authority_revision, 6);
+    }
+
+    #[test]
+    fn native_control_decode_refuses_foreign_session_invalid_prefix_or_overflow() {
+        decode_native_root_command_page(page(), "node-a", "session-a", 2).unwrap();
+        for field in 0..5 {
+            let mut input = page();
+            match field {
+                0 => input.node_id = "node-b".into(),
+                1 => input.session_id = "old-session".into(),
+                2 => input.resume_after_revision = 1,
+                3 => input.authority_revision = 3,
+                4 => input.commands = vec![input.commands[0].clone(); 1025],
+                _ => unreachable!(),
+            }
+            assert!(
+                decode_native_root_command_page(input, "node-a", "session-a", 2).is_err(),
+                "field {field}"
+            );
+        }
+    }
+
+    #[test]
+    fn native_control_decode_refuses_unknown_stale_or_malformed_commands() {
+        decode_native_root_command_page(page(), "node-a", "session-a", 2).unwrap();
+        for field in 0..12 {
+            let mut input = page();
+            match field {
+                0 => input.commands[0].access = None,
+                1 => input.commands[0].command_type = 99,
+                2 => input.commands[0].revision = 2,
+                3 => input.commands[0].revision = 5,
+                4 => input.commands[0].command_id.clear(),
+                5 => input.commands[0].access.as_mut().unwrap().home_node_id = "node-b".into(),
+                6 => {
+                    input.commands[0].access.as_mut().unwrap().home_session_id =
+                        "old-session".into()
+                }
+                7 => input.commands[0].access.as_mut().unwrap().root_id.clear(),
+                8 => input.commands[0].access.as_mut().unwrap().root_epoch = 0,
+                9 => input.commands[0].access.as_mut().unwrap().access_generation = 0,
+                10 => input.commands[1].command_id = input.commands[0].command_id.clone(),
+                11 => input.commands[0].revision = 4,
+                _ => unreachable!(),
+            }
+            assert!(
+                decode_native_root_command_page(input, "node-a", "session-a", 2).is_err(),
+                "field {field}"
+            );
+        }
     }
 }

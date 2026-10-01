@@ -162,6 +162,15 @@ pub struct PresentedRootAccess {
 /// 只发生于创建、未命中和恢复等慢路径；适配器不得在 Tokio worker
 /// 上直接阻塞，也不得让调用方持有根状态锁等待网络。
 pub trait RootMeta: Send + Sync {
+    /// Finite current-session observation; neither EOF nor an empty page is an
+    /// ongoing control lease. Process and persist commands before resuming.
+    fn poll_root_commands(&self, after_revision: u64) -> Result<RootControlPage> {
+        let _ = after_revision;
+        Err(Error::coded(
+            afs_error::META_STORE_UNIMPLEMENTED,
+            "root command polling is not wired",
+        ))
+    }
     fn reserve_root(&self, id: &RootId, create_intent_id: &str) -> Result<RootReservation>;
     fn activate_root(&self, prepared: &PreparedRoot) -> Result<RootGrant>;
     fn abort_root(&self, reservation: &RootReservation) -> Result<()>;
@@ -210,6 +219,27 @@ pub trait RootMeta: Send + Sync {
         record: &super::catalog::LocalRootRecord,
         new_session_id: &str,
     ) -> Result<RootGrant>;
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RootRevocationCommand {
+    pub command_id: String,
+    pub root_id: RootId,
+    pub root_epoch: u64,
+    pub home_node_id: String,
+    pub home_session_id: String,
+    pub access_generation: u64,
+    pub revision: u64,
+}
+
+/// Command target facts are not a RootGrant or proof of Agent drainage.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RootControlPage {
+    pub node_id: String,
+    pub session_id: String,
+    pub resume_after_revision: u64,
+    pub authority_revision: u64,
+    pub commands: Vec<RootRevocationCommand>,
 }
 
 /// 缓存中的一个本机根；只在 Meta 已激活且身份校验通过后发布。

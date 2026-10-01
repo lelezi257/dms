@@ -301,10 +301,15 @@ The user explicitly accepted the previously presented close-to-open and retained
 - [ ] Add actual open-handle/dirty-work drainage, durable Node command consumption
   and managed Agent fencing. Only combine these with verified normal detach
   before ACK; do not promote a successful lock-only drain into lifecycle success.
-- [ ] Finish full-operation RootUse lifetime audit before whole-root drainage.
-  Path-returning xattr helpers and successful local opendir currently release
-  admission before the caller's remaining work/publication; retain authority
-  through the actual operation and verify delayed completion/refusal interleavings.
+- [x] Reproduce/fix local and peer xattr helper lifetime, revoked empty-directory
+  admission and retired directory borrowing recovered authority. Capture native
+  directory grants and retain enumeration/peer conversion guards. Four original
+  REDs,414 library tests, strict Clippy/fmt and independent ext4 VM replay pass.
+  Correct the initial opendir publication assessment: the existing second
+  RootUse already covered physical open/publication; that was not a proven bug.
+- [ ] Finish whole-operation/path-object race audit and actual open-handle/dirty
+  cleanup before whole-root drain/ACK. The four focused cases do not complete
+  the Node/network/Agent/lifecycle or full POSIX/mmap/performance matrix.
 
 ## Native lock Home authority and release outcome evidence
 

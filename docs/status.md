@@ -26,6 +26,17 @@ The [delivery acceptance contract](acceptance.md) requires JuiceFS default same-
 
 ## Current Validation Checkpoint
 
+The native-bind branch now retains local/peer xattr admission through syscall
+completion and captures opening authority on native Home directory handles.
+Readdir validates that capture, including empty directories, and remains counted
+through enumeration/peer response construction. All4 original behavior failures
+become green;414 library tests (two existing ignored), strict Clippy/fmt and
+independent ext4 VM replay pass. The previous opendir publication assessment is
+corrected: an existing second RootUse already covered physical open/publication.
+Whole-operation/path-object audit, actual handle/dirty cleanup, Node/Agent
+fencing, normal detach/ACK and full semantics/performance remain open; no native
+READY or PR completion is claimed.
+
 The native-bind branch now counts native Home local/peer lock calls through
 their actual completion and offers exact-authority lock cleanup for a current
 refusal. Two original blocked-wait counter failures become green; all6 focused

@@ -4,7 +4,64 @@ Issue: https://github.com/lelezi257/dms/issues/42. Plan: `native-bind-plan.md`.
 
 This is an intermediate slice, not feature completion, product acceptance or performance qualification. It does not enable native exports in Node. Default configuration does not enable native admission. The optional hint hook remains inert without a sink; ordinary directory identity refresh now reconciles cached descendants after an external move. Node/FUSE/P2P integration, cross-path locks/cache/mmap, full Node/Agent lifecycle recovery and ext4 performance comparison remain outstanding.
 
-## Current checkpoint: Home native lock refusal/drain (2026-10-01)
+## Current checkpoint: xattr call lifetime and captured directory authority (2026-10-01)
+
+Source parent is `0d66794`; candidate snapshot is
+`native-operation-lifetime-candidate-20261001T083311`. Local and Home peer
+xattr helpers return their RootUse with the resolved target; all eight get/list/
+set/remove callers retain that named guard through authorization and the actual
+syscall. Directory handles on native-eligible Home capture the full opening
+grant. Local readdir validates that captured authority before enumeration,
+including empty directories, and retains its guard through response construction.
+The peer handler retains an outer guard through its final metadata conversion.
+Ordinary directory handles have no native authority snapshot; default cache,
+permission and wire policy are not repurposed. DFS is unchanged.
+
+`native-operation-lifetime-red.log` records all4 original behavior failures:
+local/peer prepared xattrs appeared drained before their actual syscalls;
+revoked empty directories still read successfully; a retired directory borrowed
+recovered authority. The xattr tests pause at the real helper/caller boundary,
+check read/write admission separately and execute an actual accepted ext4 xattr
+read before dropping the returned target. Directory cases include prior/fresh
+positive controls and actual sync/close cleanup. These are focused Home handler
+interleavings, not a production network or all-public-call stress matrix.
+`native-operation-lifetime-green.log` passes all4; the library run passes414
+with2 existing ignored. Strict workspace/all-target/all-feature Clippy/fmt pass.
+The completed root-project all-feature run passes all25 executed suites, with
+existing dedicated-environment tests still ignored. No-default, OwnerFs-only
+and DFS-only feature builds pass; the no-default/DFS builds retain two existing
+unused-descriptor warnings. This is not a vendored-fuser workspace test claim.
+
+The rebuilt all-feature Linux binary also passes all17 selected foundation
+cases in VM run `foundation-20261001T084141-1a9652f7`, binary SHA256
+`8802ceaa703b5a089aca33306789608ec1af13c2a1160ae8088a9ce247842ea3`,
+archive SHA256
+`92f0736857b733c16049134f99bfad9d2861cf48baf9331bc31753f92506d7d5`.
+Independent inspection confirms the copied binary, terminal outcomes, all17
+unchanged-parent-mount pairs and empty temporary directories. The profile's
+historical stronger directory diagnostics remain outside this selected run;
+the foundation result does not qualify production integration or performance.
+
+Independent ext4 VM replay `operation-lifetime-20261001T083318-1affca08`
+passes all4, with binary SHA256
+`49d29a364d9d35d13bc295a26ed72f018d443e5a8dd277f25d93505a03ee6a9e`
+and archive SHA256
+`11e8fec341bc9406b2214267643d5717244224b2dc2f43be0e609ab6d218c79a`.
+Independent archive inspection verifies exact test names/outcomes, input hashes,
+ext4 `/dev/sdb1`, a distinct namespace, unchanged parent mounts and empty temporary
+data. This does not qualify complete syscall/path-object race coverage, actual
+open-handle/dirty-work drainage, Node consumption/cursor durability, Agent
+fencing, normal detach/ACK, P2P/POSIX/mmap or performance. Native READY remains
+unwired and unavailable from this slice.
+
+Correction to the prior opendir inspection: its successful local branch already
+had a second RootUse retained through physical open and handle publication. The
+initial precheck was not the entire admission path; no missing-publication-guard
+bug was reproduced or repaired. The actual directory gaps fixed here are
+captured authority and full readdir lifetime. Prior Git history retains the
+incorrect inspection; current evidence and plan explicitly correct it.
+
+## Previous checkpoint: Home native lock refusal/drain (2026-10-01)
 
 Source parent is `1b472b5`; candidate snapshot is
 `native-lock-drain-candidate-20261001T081332`. Native-eligible local and
@@ -66,13 +123,12 @@ NOT_RUN, not counted as passes. Foundation scope remains actual mount/cache/
 Home teardown/local kernel-flock; it does not qualify production Node, network
 P2P, native POSIX ownership/mmap, Agent lifecycle or performance.
 
-Further lifetime inspection finds `local_entry_for_xattr` returns a pathname
-after dropping its RootUse, and successful local `opendir` initially checks
-admission without retaining that returned guard through handle publication.
-Those are remaining full-operation drain audit items, not counted as repaired
-by the lock-call fix or the green suite. The current barrier observes retained
-guards; it must not be promoted into proof that every filesystem syscall or
-reference has drained until those paths and actual handle cleanup are covered.
+The lock checkpoint identified a real xattr path-return lifetime gap, repaired
+in the subsequent checkpoint above. Its initial local-opendir publication
+assessment was incomplete: an existing second RootUse already covered physical
+open/publication. Captured native directory authority and readdir lifetime were
+the actual further gaps. A retained-guard counter is still not complete proof
+of every syscall/reference; full audit and actual handle cleanup remain required.
 
 ## Previous checkpoint: exact command refusal and operation drainage (2026-10-01)
 

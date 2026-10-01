@@ -31,6 +31,30 @@ source/binary/archive identities and exact scope. Feature-off/DFS-only builds
 retain two descriptor-helper dead-code warnings; strict lint under those
 individual variants has not been claimed.
 
+## Xattr call lifetime and native directory authority
+
+Four actual original failures cover both path-returning xattr helpers, revoked
+empty-directory reads and retired directory capabilities borrowing recovery.
+Private xattr helper tuples now carry RootUse to all eight syscall callers.
+Native-eligible Home directory wrappers store the complete opening grant;
+local readdir admits that captured authority and retains its guard through
+enumeration/response, with an additional peer-handler guard through final row
+conversion. Directory sync/close cleanup is preserved. Ordinary directory policy,
+wire format and DFS are unchanged; ordinary local xattr bookkeeping also retains
+its already-admitted operation guard through completion.
+
+Four focused regressions and independent ext4 VM replay,414 library tests and
+strict Clippy/fmt pass. These do not establish complete public-call/network
+stress or path-object race coverage, whole-handle/dirty-work drainage, actual
+Node/Agent fencing or normal detach/ACK. Native POSIX/mmap and performance remain
+open. Exact identities and all original failures are in the evidence record.
+
+The prior opendir inspection is corrected: its successful local path already
+retained a second RootUse through physical open/publication. No publication
+counter bug was reproduced. The actual fixes are xattr caller lifetime and
+directory captured-authority/readdir lifetime. Final independent review remains
+pending.
+
 ## Home native lock request lifetime and drain interface
 
 The two original blocked-call counter failures are reproduced with actual kernel
@@ -52,10 +76,11 @@ dirty work, native Agent processes/exports or declare shared scope history fully
 reclaimed. Applicable native POSIX ownership, network P2P, Node consumer/cursor
 durability, actual fencing and normal detach/ACK remain required. Final
 independent review is pending.
-Inspection also identifies unqualified xattr-helper and local-opendir admission
-lifetimes. The retained-guard count is not a whole-filesystem syscall/reference
-drain proof until those paths and actual open-handle cleanup are repaired and
-tested. The current green lock slice does not waive that gate.
+The subsequent checkpoint repairs the xattr-helper gap and corrects the initial
+local-opendir publication assessment; the actual further directory gaps were
+captured authority and readdir lifetime. A retained-guard count is still not a
+whole-filesystem syscall/reference drain proof. Full audit and actual handle
+cleanup remain required; green lock/lifetime slices do not waive that gate.
 
 ## Command-scoped Home refusal interface
 

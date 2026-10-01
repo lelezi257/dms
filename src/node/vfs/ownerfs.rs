@@ -2789,7 +2789,7 @@ impl LocalOwnerFs {
         path: &OsStr,
         expected: &files::FileIdentity,
         right: RootRight,
-    ) -> Result<(StoragePath, FileAttributes)> {
+    ) -> Result<(StoragePath, FileAttributes, RootUse)> {
         self.validate_peer(access, peer_node_id, right)?;
         let relative = storage_path_from_os(path)?;
         let _namespace_guard = self.namespace_lock.lock().map_err(|_| poisoned())?;
@@ -2799,7 +2799,8 @@ impl LocalOwnerFs {
             .data_dir()
             .join_path(&relative)
             .map_err(Error::from)?;
-        Ok((physical, entry.attributes))
+        // Keep admission owned by the syscall caller, not just path resolution.
+        Ok((physical, entry.attributes, root_use))
     }
 
     fn peer_getxattr(
@@ -2812,7 +2813,7 @@ impl LocalOwnerFs {
         name: &OsStr,
     ) -> Result<Vec<u8>> {
         validate_user_xattr_name(name)?;
-        let (physical, attributes) =
+        let (physical, attributes, _root_use) =
             self.peer_xattr_target(peer_node_id, access, path, expected, RootRight::Read)?;
         authorize_read(ctx, &attributes)?;
         self.disk.get_xattr(&physical, name).map_err(Error::from)
@@ -2826,7 +2827,7 @@ impl LocalOwnerFs {
         path: &OsStr,
         expected: &files::FileIdentity,
     ) -> Result<Vec<u8>> {
-        let (physical, attributes) =
+        let (physical, attributes, _root_use) =
             self.peer_xattr_target(peer_node_id, access, path, expected, RootRight::Read)?;
         authorize_read(ctx, &attributes)?;
         let list = self.disk.list_xattr(&physical).map_err(Error::from)?;
@@ -2846,7 +2847,7 @@ impl LocalOwnerFs {
         flags: i32,
     ) -> Result<()> {
         validate_user_xattr_name(name)?;
-        let (physical, attributes) =
+        let (physical, attributes, _root_use) =
             self.peer_xattr_target(peer_node_id, access, path, expected, RootRight::Write)?;
         authorize_write(ctx, &attributes)?;
         self.disk
@@ -2864,7 +2865,7 @@ impl LocalOwnerFs {
         name: &OsStr,
     ) -> Result<()> {
         validate_user_xattr_name(name)?;
-        let (physical, attributes) =
+        let (physical, attributes, _root_use) =
             self.peer_xattr_target(peer_node_id, access, path, expected, RootRight::Write)?;
         authorize_write(ctx, &attributes)?;
         self.disk.remove_xattr(&physical, name).map_err(Error::from)
@@ -3180,6 +3181,7 @@ impl LocalOwnerFs {
                     access: access.clone(),
                 }),
             }),
+            self.native_eligible.then(|| root_use.grant().clone()),
         );
         Ok(remote_directory(access, entry.identity, handle))
     }
@@ -3196,6 +3198,14 @@ impl LocalOwnerFs {
         check_remote_directory_scope(access, directory)?;
         let handle = decode_directory_handle(directory)?;
         self.check_peer_directory_handle(handle, peer_node_id, access, &directory.identity)?;
+        let _native_operation = {
+            let state = self.state.lock().map_err(|_| poisoned())?;
+            let opened = state
+                .dir_handles
+                .get(&handle)
+                .ok_or_else(|| stale("unknown directory handle"))?;
+            self.admit_native_directory(opened)?
+        };
         let entries = self.readdir(handle, cookie, max_entries)?;
         entries
             .into_iter()
@@ -3780,7 +3790,7 @@ impl LocalOwnerFs {
         &self,
         inode: BackendInode,
         right: RootRight,
-    ) -> Result<(StoragePath, FileAttributes)> {
+    ) -> Result<(StoragePath, FileAttributes, RootUse)> {
         self.check_inode_namespace(inode)?;
         if inode.value == OWNERFS_ROOT_INODE {
             return Err(Error::coded(
@@ -3807,7 +3817,7 @@ impl LocalOwnerFs {
         let identity = identity_from_metadata(&metadata)?;
         check_expected_identity(Some(&record.identity), &identity)?;
         let attributes = attributes_from_metadata(metadata)?;
-        Ok((physical, attributes))
+        Ok((physical, attributes, root_use))
     }
 
     fn remote_entry_for_xattr(
@@ -3844,7 +3854,8 @@ impl LocalOwnerFs {
                 name,
             );
         }
-        let (physical, attributes) = self.local_entry_for_xattr(inode, RootRight::Read)?;
+        let (physical, attributes, _root_use) =
+            self.local_entry_for_xattr(inode, RootRight::Read)?;
         authorize_read(ctx, &attributes)?;
         self.disk.get_xattr(&physical, name).map_err(Error::from)
     }
@@ -3858,7 +3869,8 @@ impl LocalOwnerFs {
                 &record.identity,
             );
         }
-        let (physical, attributes) = self.local_entry_for_xattr(inode, RootRight::Read)?;
+        let (physical, attributes, _root_use) =
+            self.local_entry_for_xattr(inode, RootRight::Read)?;
         authorize_read(ctx, &attributes)?;
         let list = self.disk.list_xattr(&physical).map_err(Error::from)?;
         Ok(filter_user_xattr_list(list))
@@ -3884,7 +3896,8 @@ impl LocalOwnerFs {
                 flags,
             );
         }
-        let (physical, attributes) = self.local_entry_for_xattr(inode, RootRight::Write)?;
+        let (physical, attributes, _root_use) =
+            self.local_entry_for_xattr(inode, RootRight::Write)?;
         authorize_write(ctx, &attributes)?;
         self.disk
             .set_xattr(&physical, name, value, flags)
@@ -3902,7 +3915,8 @@ impl LocalOwnerFs {
                 name,
             );
         }
-        let (physical, attributes) = self.local_entry_for_xattr(inode, RootRight::Write)?;
+        let (physical, attributes, _root_use) =
+            self.local_entry_for_xattr(inode, RootRight::Write)?;
         authorize_write(ctx, &attributes)?;
         self.disk.remove_xattr(&physical, name).map_err(Error::from)
     }
@@ -4292,7 +4306,11 @@ impl LocalOwnerFs {
         self.check_inode_namespace(inode)?;
         if inode.value == OWNERFS_ROOT_INODE {
             let mut state = self.state.lock().map_err(|_| poisoned())?;
-            return Ok(state.insert_dir_handle(OWNERFS_ROOT_INODE, OpenLocalDirectory::OwnerRoot));
+            return Ok(state.insert_dir_handle(
+                OWNERFS_ROOT_INODE,
+                OpenLocalDirectory::OwnerRoot,
+                None,
+            ));
         }
         let record = self.record(inode.value)?.clone();
         if record.kind != FileKind::Directory {
@@ -4322,6 +4340,7 @@ impl LocalOwnerFs {
                         handle: opened
                             .ok_or_else(|| stale("remote opendir did not return a handle"))?,
                     }),
+                    None,
                 ));
             }
             return Err(error);
@@ -4341,7 +4360,24 @@ impl LocalOwnerFs {
                 directory,
                 peer: None,
             }),
+            self.native_eligible.then(|| root_use.grant().clone()),
         ))
+    }
+
+    /// Native directory capabilities preserve their captured Home authority,
+    /// just like native file handles. Keep the guard through enumeration and
+    /// response construction, including empty directories with no child lookup.
+    fn admit_native_directory(&self, directory: &OpenDirectoryHandle) -> Result<Option<RootUse>> {
+        let Some(authority) = &directory.native_authority else {
+            return Ok(None);
+        };
+        let admitted = self.roots.enter_root(&authority.id, RootRight::Lookup)?;
+        if admitted.grant() != authority {
+            return Err(stale(
+                "native directory handle belongs to retired Home authority",
+            ));
+        }
+        Ok(Some(admitted))
     }
 
     fn readdir(
@@ -4359,6 +4395,7 @@ impl LocalOwnerFs {
             match &directory.handle {
                 OpenLocalDirectory::OwnerRoot => drop(state),
                 OpenLocalDirectory::Local(open) => {
+                    let _native_operation = self.admit_native_directory(directory)?;
                     let names = open.directory.read_dir().map_err(Error::from)?;
                     let mut parent = state
                         .inodes
@@ -5673,11 +5710,22 @@ impl OwnerState {
         id
     }
 
-    fn insert_dir_handle(&mut self, inode: u64, handle: OpenLocalDirectory) -> DirectoryHandle {
+    fn insert_dir_handle(
+        &mut self,
+        inode: u64,
+        handle: OpenLocalDirectory,
+        native_authority: Option<RootGrant>,
+    ) -> DirectoryHandle {
         let id = DirectoryHandle(self.next_dir_handle);
         self.next_dir_handle += 1;
-        self.dir_handles
-            .insert(id, OpenDirectoryHandle { inode, handle });
+        self.dir_handles.insert(
+            id,
+            OpenDirectoryHandle {
+                inode,
+                handle,
+                native_authority,
+            },
+        );
         id
     }
 
@@ -5806,6 +5854,7 @@ struct OpenRemoteDirectory {
 struct OpenDirectoryHandle {
     inode: u64,
     handle: OpenLocalDirectory,
+    native_authority: Option<RootGrant>,
 }
 
 fn create_open_flags_for_backend(flags: i32) -> i32 {
@@ -8012,6 +8061,134 @@ mod tests {
         let command = native_lock_drain_command(&fs, &id);
         assert!(fs.begin_native_root_refusal(&command).is_err());
         assert!(local.roots.enter_root(&id, RootRight::Lookup).is_ok());
+    }
+
+    #[test]
+    fn native_operation_lifetime_local_xattr_target_stays_counted_through_syscall() {
+        for right in [RootRight::Read, RootRight::Write] {
+            let (_temp, fs, ctx, _root, file, _native) = native_flock_fixture();
+            let local = fs.require_local().unwrap();
+            let id = local.record(file.entry.inode.value).unwrap().root_id;
+            let command = native_lock_drain_command(&fs, &id);
+            let name = OsStr::new("user.native-lifetime");
+            fs.setxattr(&ctx, file.entry.inode, name, b"accepted", 0)
+                .unwrap();
+            // Pause at the actual helper/caller boundary, before the syscall.
+            // The returned admission must stay owned by its caller.
+            let target = local
+                .local_entry_for_xattr(file.entry.inode, right)
+                .unwrap();
+            let refusal = fs.begin_native_root_refusal(&command).unwrap();
+            let prematurely_drained = local.roots.refused_operations_drained(&refusal).unwrap();
+            assert_eq!(local.disk.get_xattr(&target.0, name).unwrap(), b"accepted");
+            drop(target);
+            let drained = local.roots.refused_operations_drained(&refusal).unwrap();
+            let fresh_denied = fs.getxattr(&ctx, file.entry.inode, name).is_err();
+            fs.release(&ctx, file.handle).unwrap();
+            assert!(
+                !prematurely_drained,
+                "prepared local xattr disappeared before its syscall"
+            );
+            assert!(drained && fresh_denied);
+        }
+    }
+
+    #[test]
+    fn native_operation_lifetime_peer_xattr_target_stays_counted_through_syscall() {
+        for right in [RootRight::Read, RootRight::Write] {
+            let (_temp, fs, ctx, _root, file, _native) = native_flock_fixture();
+            let local = fs.require_local().unwrap();
+            let record = local.record(file.entry.inode.value).unwrap();
+            let command = native_lock_drain_command(&fs, &record.root_id);
+            let access = presented(&test_grant(record.root_id.clone()));
+            let name = OsStr::new("user.native-peer-lifetime");
+            fs.setxattr(&ctx, file.entry.inode, name, b"accepted", 0)
+                .unwrap();
+            let target = local
+                .peer_xattr_target(
+                    "node-b",
+                    &access,
+                    OsStr::new("file"),
+                    &record.identity,
+                    right,
+                )
+                .unwrap();
+            let refusal = fs.begin_native_root_refusal(&command).unwrap();
+            let prematurely_drained = local.roots.refused_operations_drained(&refusal).unwrap();
+            assert_eq!(local.disk.get_xattr(&target.0, name).unwrap(), b"accepted");
+            drop(target);
+            let drained = local.roots.refused_operations_drained(&refusal).unwrap();
+            let fresh_denied = local
+                .peer_getxattr(
+                    &ctx,
+                    "node-b",
+                    &access,
+                    OsStr::new("file"),
+                    &record.identity,
+                    name,
+                )
+                .is_err();
+            fs.release(&ctx, file.handle).unwrap();
+            assert!(
+                !prematurely_drained,
+                "prepared peer xattr disappeared before its syscall"
+            );
+            assert!(drained && fresh_denied);
+        }
+    }
+
+    #[test]
+    fn native_operation_lifetime_revoked_empty_directory_rejects_readdir_but_allows_cleanup() {
+        let (_temp, fs, ctx, root, file, _native) = native_flock_fixture();
+        let empty = fs
+            .mkdir(&ctx, root.inode, OsStr::new("empty"), 0o755)
+            .unwrap();
+        let directory = fs.opendir(&ctx, empty.inode).unwrap();
+        assert!(fs.readdir(&ctx, directory, 0, 16).unwrap().is_empty());
+        let local = fs.require_local().unwrap();
+        let id = local.record(empty.inode.value).unwrap().root_id;
+        let command = native_lock_drain_command(&fs, &id);
+        let refusal = fs.begin_native_root_refusal(&command).unwrap();
+        let rejected = fs.readdir(&ctx, directory, 0, 16).is_err();
+        fs.fsyncdir(&ctx, directory, SyncMode::Full).unwrap();
+        fs.releasedir(&ctx, directory).unwrap();
+        fs.release(&ctx, file.handle).unwrap();
+        assert!(local.roots.refused_operations_drained(&refusal).unwrap());
+        assert!(
+            rejected,
+            "empty-directory read bypassed native authority refusal"
+        );
+    }
+
+    #[test]
+    fn native_operation_lifetime_retired_directory_cannot_borrow_recovered_grant() {
+        let (_temp, fs, ctx, root, file, _native) = native_flock_fixture();
+        let retired = fs.opendir(&ctx, root.inode).unwrap();
+        assert!(
+            fs.readdir(&ctx, retired, 0, 16)
+                .unwrap()
+                .iter()
+                .any(|row| row.name == "file")
+        );
+        fs.require_local()
+            .unwrap()
+            .roots
+            .reconcile_on_startup()
+            .unwrap();
+        let rejected = fs.readdir(&ctx, retired, 0, 16).is_err();
+        let fresh = fs.opendir(&ctx, root.inode).unwrap();
+        let accepted = fs
+            .readdir(&ctx, fresh, 0, 16)
+            .unwrap()
+            .iter()
+            .any(|row| row.name == "file");
+        fs.releasedir(&ctx, retired).unwrap();
+        fs.releasedir(&ctx, fresh).unwrap();
+        fs.release(&ctx, file.handle).unwrap();
+        assert!(
+            rejected && accepted,
+            "old directory capability borrowed recovered authority"
+        );
     }
 
     #[test]

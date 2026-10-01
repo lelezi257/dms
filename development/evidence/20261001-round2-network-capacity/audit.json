@@ -1,0 +1,265 @@
+{
+  "status": "PASS",
+  "level": "scoped fault integration",
+  "checks": [
+    {
+      "name": "ctl original process continuity",
+      "ok": true
+    },
+    {
+      "name": "a original process continuity",
+      "ok": true
+    },
+    {
+      "name": "c original process continuity",
+      "ok": true
+    },
+    {
+      "name": "network/b/identity-before.json command succeeded",
+      "ok": true
+    },
+    {
+      "name": "network/b/identity-cold.json command succeeded",
+      "ok": true
+    },
+    {
+      "name": "B cold Node before fault",
+      "ok": true
+    },
+    {
+      "name": "network/b/identity-final.json command succeeded",
+      "ok": true
+    },
+    {
+      "name": "B recovered without another restart",
+      "ok": true
+    },
+    {
+      "name": "actual owned business port",
+      "ok": true
+    },
+    {
+      "name": "bounded fault window",
+      "ok": true
+    },
+    {
+      "name": "real DROP hits",
+      "ok": true
+    },
+    {
+      "name": "tcp-before.json actual endpoint outcome",
+      "ok": true
+    },
+    {
+      "name": "tcp-blocked.json actual endpoint outcome",
+      "ok": true
+    },
+    {
+      "name": "tcp-after.json actual endpoint outcome",
+      "ok": true
+    },
+    {
+      "name": "network/b/owner-blocked.json command succeeded",
+      "ok": true
+    },
+    {
+      "name": "Owner unavailable within operation budget",
+      "ok": true
+    },
+    {
+      "name": "Owner failed inside injected window",
+      "ok": true
+    },
+    {
+      "name": "network/b/dfs-during.json command succeeded",
+      "ok": true
+    },
+    {
+      "name": "network/b/dfs-during.json complete correct bytes",
+      "ok": true
+    },
+    {
+      "name": "network/b/dfs-during.json exact reader and mounts",
+      "ok": true
+    },
+    {
+      "name": "DFS read inside injected window",
+      "ok": true
+    },
+    {
+      "name": "network/c/round2-network-v79b-c-during.json command succeeded",
+      "ok": true
+    },
+    {
+      "name": "network/c/round2-network-v79b-c-during.json complete correct bytes",
+      "ok": true
+    },
+    {
+      "name": "network/c/round2-network-v79b-c-during.json exact reader and mounts",
+      "ok": true
+    },
+    {
+      "name": "unaffected Home route during fault",
+      "ok": true
+    },
+    {
+      "name": "network/b/owner-recovered.json command succeeded",
+      "ok": true
+    },
+    {
+      "name": "network/b/owner-recovered.json complete correct bytes",
+      "ok": true
+    },
+    {
+      "name": "network/b/owner-recovered.json exact reader and mounts",
+      "ok": true
+    },
+    {
+      "name": "Owner recovery after rule removed",
+      "ok": true
+    },
+    {
+      "name": "network/b/dfs-recovered.json command succeeded",
+      "ok": true
+    },
+    {
+      "name": "network/b/dfs-recovered.json complete correct bytes",
+      "ok": true
+    },
+    {
+      "name": "network/b/dfs-recovered.json exact reader and mounts",
+      "ok": true
+    },
+    {
+      "name": "firewall rollback",
+      "ok": true
+    },
+    {
+      "name": "bounded detached watchdog",
+      "ok": true
+    },
+    {
+      "name": "network scope not inflated",
+      "ok": true
+    },
+    {
+      "name": "independent physical capacity cohort",
+      "ok": true
+    },
+    {
+      "name": "replication contract retained",
+      "ok": true
+    },
+    {
+      "name": "real ext4 fault filesystem",
+      "ok": true
+    },
+    {
+      "name": "ownerfs initial watermark",
+      "ok": true
+    },
+    {
+      "name": "dfs initial watermark",
+      "ok": true
+    },
+    {
+      "name": "actual physical ENOSPC, not sparse exhaustion",
+      "ok": true
+    },
+    {
+      "name": "filler automatic restoration armed",
+      "ok": true
+    },
+    {
+      "name": "ownerfs actual fault Node",
+      "ok": true
+    },
+    {
+      "name": "ownerfs all operation outcomes retained",
+      "ok": true
+    },
+    {
+      "name": "Owner no incorrect successful append",
+      "ok": true
+    },
+    {
+      "name": "dfs actual fault Node",
+      "ok": true
+    },
+    {
+      "name": "dfs all operation outcomes retained",
+      "ok": true
+    },
+    {
+      "name": "DFS write only buffered",
+      "ok": true
+    },
+    {
+      "name": "DFS fdatasync explicit ENOSPC",
+      "ok": true
+    },
+    {
+      "name": "DFS fsync explicit ENOSPC",
+      "ok": true
+    },
+    {
+      "name": "DFS close explicit ENOSPC",
+      "ok": true
+    },
+    {
+      "name": "dirty visibility is not durable success",
+      "ok": true
+    },
+    {
+      "name": "cold reload during capacity fault",
+      "ok": true
+    },
+    {
+      "name": "ownerfs original committed content retained",
+      "ok": true
+    },
+    {
+      "name": "dfs original committed content retained",
+      "ok": true
+    },
+    {
+      "name": "capacity authority continuous",
+      "ok": true
+    },
+    {
+      "name": "capacity freed before successful recovery",
+      "ok": true
+    },
+    {
+      "name": "successful writes survive later normal restart",
+      "ok": true
+    },
+    {
+      "name": "ownerfs recovered durable bytes",
+      "ok": true
+    },
+    {
+      "name": "dfs recovered durable bytes",
+      "ok": true
+    },
+    {
+      "name": "a capacity process normal stop",
+      "ok": true
+    },
+    {
+      "name": "ctl capacity process normal stop",
+      "ok": true
+    },
+    {
+      "name": "isolated fault volume cleaned",
+      "ok": true
+    },
+    {
+      "name": "physical data remains inspectable",
+      "ok": true
+    }
+  ],
+  "round2_complete": false,
+  "formal_acceptance": "NOT_RUN",
+  "environment": "PREPARING"
+}

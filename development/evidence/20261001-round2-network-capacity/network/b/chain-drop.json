@@ -1,0 +1,14 @@
+{
+  "argv": [
+    "iptables",
+    "-A",
+    "AFS_R2_V79B",
+    "-j",
+    "DROP"
+  ],
+  "exit": 0,
+  "stdout": "",
+  "stderr": "",
+  "elapsed_seconds": 0.0014490520115941763,
+  "utc": "2026-10-01T10:59:43Z"
+}

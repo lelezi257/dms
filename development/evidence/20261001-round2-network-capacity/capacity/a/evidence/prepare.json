@@ -1,0 +1,78 @@
+{
+  "action": "prepare",
+  "which": "a",
+  "utc": "2026-10-01T11:02:31Z",
+  "formal_acceptance": "NOT_RUN",
+  "environment": "PREPARING",
+  "prepare": {
+    "baseline": "/mnt/lima-afsadata/afs-delivery/round1-mainline-v77-archive-async",
+    "configuration_sha256": "5294d06c33054bc63d11873e604564da970480929c474c80b9f9546060f052a3",
+    "configuration": {
+      "fs": "all",
+      "log_level": "info",
+      "tls_ca_certificate": "/mnt/lima-afsadata/afs-delivery/round1-mainline-v77-archive-async/etc/tls/ca.pem",
+      "tls_identity_certificate": "/mnt/lima-afsadata/afs-delivery/round1-mainline-v77-archive-async/etc/tls/round1-a.pem",
+      "tls_identity_private_key": "/mnt/lima-afsadata/afs-delivery/round1-mainline-v77-archive-async/etc/tls/round1-a-key.pem",
+      "tls_server_name": "afs-cluster",
+      "trusted_node_certs": {
+        "round1-a": "/mnt/lima-afsadata/afs-delivery/round1-mainline-v77-archive-async/etc/tls/round1-a.pem",
+        "round1-b": "/mnt/lima-afsadata/afs-delivery/round1-mainline-v77-archive-async/etc/tls/round1-b.pem",
+        "round1-c": "/mnt/lima-afsadata/afs-delivery/round1-mainline-v77-archive-async/etc/tls/round1-c.pem"
+      },
+      "dfs_desired_copies": 2,
+      "dfs_sync_required_copies": 1,
+      "dfs_min_distinct_nodes": 1,
+      "dfs_min_distinct_failure_domains": 1,
+      "dfs_local_copy": "required",
+      "id": "round1-a",
+      "timeout_ms": 10000,
+      "grpc_listen": "0.0.0.0:20082",
+      "rest_listen": "192.168.109.12:20083",
+      "meta_endpoint": "https://192.168.109.11:20080",
+      "advertise_endpoint": "https://192.168.109.12:20082",
+      "data_dir": "/mnt/lima-afsadata/afs-delivery/round2-capacity-v79/volume/node",
+      "uds_path": "/mnt/lima-afsadata/afs-delivery/round2-capacity-v79/run/node.sock",
+      "ownerfs_mount": "/mnt/lima-afsadata/afs-delivery/round2-capacity-v79/mount/ownerfs",
+      "dfs_mount": "/mnt/lima-afsadata/afs-delivery/round2-capacity-v79/mount/dfs",
+      "data_mode": "grpc"
+    },
+    "host_volume_before": {
+      "free_bytes": 6254891008,
+      "available_bytes": 4520235008,
+      "fragment_bytes": 4096
+    },
+    "host_volume_after": {
+      "free_bytes": 6237896704,
+      "available_bytes": 4503240704,
+      "fragment_bytes": 4096
+    },
+    "commands": [
+      {
+        "argv": [
+          "mkfs.ext4",
+          "-F",
+          "-m",
+          "0",
+          "/mnt/lima-afsadata/afs-delivery/round2-capacity-v79/capacity.ext4"
+        ],
+        "exit": 0,
+        "stdout": "Discarding device blocks:     0/32768\b\b\b\b\b\b\b\b\b\b\b           \b\b\b\b\b\b\b\b\b\b\bdone                            \nCreating filesystem with 32768 4k blocks and 32768 inodes\n\nAllocating group tables: 0/1\b\b\b   \b\b\bdone                            \nWriting inode tables: 0/1\b\b\b   \b\b\bdone                            \nCreating journal (4096 blocks): done\nWriting superblocks and filesystem accounting information: 0/1\b\b\b   \b\b\bdone\n\n",
+        "stderr": "mke2fs 1.47.0 (5-Feb-2023)\n"
+      },
+      {
+        "argv": [
+          "mount",
+          "-o",
+          "loop",
+          "/mnt/lima-afsadata/afs-delivery/round2-capacity-v79/capacity.ext4",
+          "/mnt/lima-afsadata/afs-delivery/round2-capacity-v79/volume"
+        ],
+        "exit": 0,
+        "stdout": "",
+        "stderr": ""
+      }
+    ],
+    "device_matrix_qualification": false
+  },
+  "status": "PASS"
+}

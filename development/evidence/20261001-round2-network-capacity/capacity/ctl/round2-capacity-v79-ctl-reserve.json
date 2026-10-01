@@ -1,0 +1,552 @@
+{
+  "before": {
+    "path": "/mnt/lima-afsctlstate",
+    "device": 64785,
+    "available": 4207206400,
+    "total": 8348200960
+  },
+  "roots": [
+    "/mnt/lima-afsctlstate/afs-delivery/round1-mainline-v77/package",
+    "/mnt/lima-afsctlstate/afs-delivery/round1-mainline-v77-rn/package",
+    "/mnt/lima-afsctlstate/afs-delivery/round1-mainline-v77-archive-async/package"
+  ],
+  "migrations": [
+    {
+      "source": "/mnt/lima-afsctlstate/afs-delivery/round1-mainline-v77/package",
+      "archive": "/var/lib/afs-acceptance/archives/20261001-capacity-v79/round1-mainline-v77",
+      "entries": [
+        {
+          "path": ".",
+          "mode": 16877,
+          "uid": 0,
+          "gid": 0,
+          "mtime_ns": 1790848672297632849,
+          "xattrs": {}
+        },
+        {
+          "path": "afs-0.1.0-linux-aarch64",
+          "mode": 16877,
+          "uid": 0,
+          "gid": 0,
+          "mtime_ns": 1790848439000000000,
+          "xattrs": {}
+        },
+        {
+          "path": "afs-0.1.0-linux-aarch64/DEPENDENCIES.md",
+          "mode": 33188,
+          "uid": 0,
+          "gid": 0,
+          "mtime_ns": 1790848439000000000,
+          "xattrs": {},
+          "size": 1284,
+          "sha256": "cfa7e7d76368be0dad7e5aa5ddc021109d9835c71455169d3468015e93a90a98"
+        },
+        {
+          "path": "afs-0.1.0-linux-aarch64/SHA256SUMS",
+          "mode": 33188,
+          "uid": 0,
+          "gid": 0,
+          "mtime_ns": 1790848439000000000,
+          "xattrs": {},
+          "size": 1021,
+          "sha256": "aed13c96f2f3e990d0a0e06d1822381607294deca7b279eb390150aa12e3c713"
+        },
+        {
+          "path": "afs-0.1.0-linux-aarch64/bin",
+          "mode": 16877,
+          "uid": 0,
+          "gid": 0,
+          "mtime_ns": 1790848439000000000,
+          "xattrs": {}
+        },
+        {
+          "path": "afs-0.1.0-linux-aarch64/bin/afs-meta",
+          "mode": 33261,
+          "uid": 0,
+          "gid": 0,
+          "mtime_ns": 1790848439000000000,
+          "xattrs": {},
+          "size": 24262752,
+          "sha256": "64d85fc3933637ccd7fdf4eafded5e5c8cb2354e73b4c8d1a27b2b8d43f4c7e7"
+        },
+        {
+          "path": "afs-0.1.0-linux-aarch64/bin/afs-node",
+          "mode": 33261,
+          "uid": 0,
+          "gid": 0,
+          "mtime_ns": 1790848439000000000,
+          "xattrs": {},
+          "size": 41432992,
+          "sha256": "d28d17faa8bb71eb8c0a28241e8556396e440b204cf0242d2af8133700f6a494"
+        },
+        {
+          "path": "afs-0.1.0-linux-aarch64/bin/afs-processctl",
+          "mode": 33261,
+          "uid": 0,
+          "gid": 0,
+          "mtime_ns": 1790848439000000000,
+          "xattrs": {},
+          "size": 26979,
+          "sha256": "78949590bfdf12f6db0977ac5756702312e85e1d91c8f59903d4490222488f2b"
+        },
+        {
+          "path": "afs-0.1.0-linux-aarch64/bin/dep02-smoke.sh",
+          "mode": 33261,
+          "uid": 0,
+          "gid": 0,
+          "mtime_ns": 1790848439000000000,
+          "xattrs": {},
+          "size": 3313,
+          "sha256": "0a5d929c9a6da73235c3fe8e2e4623ea9813b5e6a59027d95a1cc9d2d886f0c2"
+        },
+        {
+          "path": "afs-0.1.0-linux-aarch64/install.sh",
+          "mode": 33261,
+          "uid": 0,
+          "gid": 0,
+          "mtime_ns": 1790848439000000000,
+          "xattrs": {},
+          "size": 5759,
+          "sha256": "91afebf9604bdc2a09e7c26f48eb52af386c61b650ce2d117239e37efa1c0960"
+        },
+        {
+          "path": "afs-0.1.0-linux-aarch64/ldd.txt",
+          "mode": 33188,
+          "uid": 0,
+          "gid": 0,
+          "mtime_ns": 1790848439000000000,
+          "xattrs": {},
+          "size": 1124,
+          "sha256": "d62d3e79c6cd881d74bf787f86c026bcd33c29719a0afdf86958823757a7fc5d"
+        },
+        {
+          "path": "afs-0.1.0-linux-aarch64/manifest.json",
+          "mode": 33188,
+          "uid": 0,
+          "gid": 0,
+          "mtime_ns": 1790848439000000000,
+          "xattrs": {},
+          "size": 654,
+          "sha256": "6e04de8279b65f7a881326d291c187fc25b4e040315466e20e6cf7f118e44a40"
+        },
+        {
+          "path": "afs-0.1.0-linux-aarch64/scripts",
+          "mode": 16877,
+          "uid": 0,
+          "gid": 0,
+          "mtime_ns": 1790848439000000000,
+          "xattrs": {}
+        },
+        {
+          "path": "afs-0.1.0-linux-aarch64/templates",
+          "mode": 16877,
+          "uid": 0,
+          "gid": 0,
+          "mtime_ns": 1790848439000000000,
+          "xattrs": {}
+        },
+        {
+          "path": "afs-0.1.0-linux-aarch64/templates/meta.toml",
+          "mode": 33188,
+          "uid": 0,
+          "gid": 0,
+          "mtime_ns": 1790848439000000000,
+          "xattrs": {},
+          "size": 846,
+          "sha256": "ffffb928c8d483aaccd7907665cb7c19f49510b71ba83f06a7e23a4f60ee4d28"
+        },
+        {
+          "path": "afs-0.1.0-linux-aarch64/templates/node-dfs.toml",
+          "mode": 33188,
+          "uid": 0,
+          "gid": 0,
+          "mtime_ns": 1790848439000000000,
+          "xattrs": {},
+          "size": 253,
+          "sha256": "476395c58108a65a6361fd658f5a35eb3dfdc0ae4f862fd489b285702bb9424c"
+        },
+        {
+          "path": "afs-0.1.0-linux-aarch64/templates/node-ownerfs.toml",
+          "mode": 33188,
+          "uid": 0,
+          "gid": 0,
+          "mtime_ns": 1790848439000000000,
+          "xattrs": {},
+          "size": 261,
+          "sha256": "f9cab784ec4d08d4d2cd7308d1c7aea67bafe03b77772119057367ce3099fc41"
+        },
+        {
+          "path": "afs-0.1.0-linux-aarch64/templates/node.toml",
+          "mode": 33188,
+          "uid": 0,
+          "gid": 0,
+          "mtime_ns": 1790848439000000000,
+          "xattrs": {},
+          "size": 746,
+          "sha256": "5233b9befc08d342d3033978de968e7a49b6a9d8295ca97dafd089bcabed7a7f"
+        }
+      ],
+      "logical_bytes": 65737984
+    },
+    {
+      "source": "/mnt/lima-afsctlstate/afs-delivery/round1-mainline-v77-rn/package",
+      "archive": "/var/lib/afs-acceptance/archives/20261001-capacity-v79/round1-mainline-v77-rn",
+      "entries": [
+        {
+          "path": ".",
+          "mode": 16877,
+          "uid": 0,
+          "gid": 0,
+          "mtime_ns": 1790848899348574844,
+          "xattrs": {}
+        },
+        {
+          "path": "afs-0.1.0-linux-aarch64",
+          "mode": 16877,
+          "uid": 0,
+          "gid": 0,
+          "mtime_ns": 1790848439000000000,
+          "xattrs": {}
+        },
+        {
+          "path": "afs-0.1.0-linux-aarch64/DEPENDENCIES.md",
+          "mode": 33188,
+          "uid": 0,
+          "gid": 0,
+          "mtime_ns": 1790848439000000000,
+          "xattrs": {},
+          "size": 1284,
+          "sha256": "cfa7e7d76368be0dad7e5aa5ddc021109d9835c71455169d3468015e93a90a98"
+        },
+        {
+          "path": "afs-0.1.0-linux-aarch64/SHA256SUMS",
+          "mode": 33188,
+          "uid": 0,
+          "gid": 0,
+          "mtime_ns": 1790848439000000000,
+          "xattrs": {},
+          "size": 1021,
+          "sha256": "aed13c96f2f3e990d0a0e06d1822381607294deca7b279eb390150aa12e3c713"
+        },
+        {
+          "path": "afs-0.1.0-linux-aarch64/bin",
+          "mode": 16877,
+          "uid": 0,
+          "gid": 0,
+          "mtime_ns": 1790848439000000000,
+          "xattrs": {}
+        },
+        {
+          "path": "afs-0.1.0-linux-aarch64/bin/afs-meta",
+          "mode": 33261,
+          "uid": 0,
+          "gid": 0,
+          "mtime_ns": 1790848439000000000,
+          "xattrs": {},
+          "size": 24262752,
+          "sha256": "64d85fc3933637ccd7fdf4eafded5e5c8cb2354e73b4c8d1a27b2b8d43f4c7e7"
+        },
+        {
+          "path": "afs-0.1.0-linux-aarch64/bin/afs-node",
+          "mode": 33261,
+          "uid": 0,
+          "gid": 0,
+          "mtime_ns": 1790848439000000000,
+          "xattrs": {},
+          "size": 41432992,
+          "sha256": "d28d17faa8bb71eb8c0a28241e8556396e440b204cf0242d2af8133700f6a494"
+        },
+        {
+          "path": "afs-0.1.0-linux-aarch64/bin/afs-processctl",
+          "mode": 33261,
+          "uid": 0,
+          "gid": 0,
+          "mtime_ns": 1790848439000000000,
+          "xattrs": {},
+          "size": 26979,
+          "sha256": "78949590bfdf12f6db0977ac5756702312e85e1d91c8f59903d4490222488f2b"
+        },
+        {
+          "path": "afs-0.1.0-linux-aarch64/bin/dep02-smoke.sh",
+          "mode": 33261,
+          "uid": 0,
+          "gid": 0,
+          "mtime_ns": 1790848439000000000,
+          "xattrs": {},
+          "size": 3313,
+          "sha256": "0a5d929c9a6da73235c3fe8e2e4623ea9813b5e6a59027d95a1cc9d2d886f0c2"
+        },
+        {
+          "path": "afs-0.1.0-linux-aarch64/install.sh",
+          "mode": 33261,
+          "uid": 0,
+          "gid": 0,
+          "mtime_ns": 1790848439000000000,
+          "xattrs": {},
+          "size": 5759,
+          "sha256": "91afebf9604bdc2a09e7c26f48eb52af386c61b650ce2d117239e37efa1c0960"
+        },
+        {
+          "path": "afs-0.1.0-linux-aarch64/ldd.txt",
+          "mode": 33188,
+          "uid": 0,
+          "gid": 0,
+          "mtime_ns": 1790848439000000000,
+          "xattrs": {},
+          "size": 1124,
+          "sha256": "d62d3e79c6cd881d74bf787f86c026bcd33c29719a0afdf86958823757a7fc5d"
+        },
+        {
+          "path": "afs-0.1.0-linux-aarch64/manifest.json",
+          "mode": 33188,
+          "uid": 0,
+          "gid": 0,
+          "mtime_ns": 1790848439000000000,
+          "xattrs": {},
+          "size": 654,
+          "sha256": "6e04de8279b65f7a881326d291c187fc25b4e040315466e20e6cf7f118e44a40"
+        },
+        {
+          "path": "afs-0.1.0-linux-aarch64/scripts",
+          "mode": 16877,
+          "uid": 0,
+          "gid": 0,
+          "mtime_ns": 1790848439000000000,
+          "xattrs": {}
+        },
+        {
+          "path": "afs-0.1.0-linux-aarch64/templates",
+          "mode": 16877,
+          "uid": 0,
+          "gid": 0,
+          "mtime_ns": 1790848439000000000,
+          "xattrs": {}
+        },
+        {
+          "path": "afs-0.1.0-linux-aarch64/templates/meta.toml",
+          "mode": 33188,
+          "uid": 0,
+          "gid": 0,
+          "mtime_ns": 1790848439000000000,
+          "xattrs": {},
+          "size": 846,
+          "sha256": "ffffb928c8d483aaccd7907665cb7c19f49510b71ba83f06a7e23a4f60ee4d28"
+        },
+        {
+          "path": "afs-0.1.0-linux-aarch64/templates/node-dfs.toml",
+          "mode": 33188,
+          "uid": 0,
+          "gid": 0,
+          "mtime_ns": 1790848439000000000,
+          "xattrs": {},
+          "size": 253,
+          "sha256": "476395c58108a65a6361fd658f5a35eb3dfdc0ae4f862fd489b285702bb9424c"
+        },
+        {
+          "path": "afs-0.1.0-linux-aarch64/templates/node-ownerfs.toml",
+          "mode": 33188,
+          "uid": 0,
+          "gid": 0,
+          "mtime_ns": 1790848439000000000,
+          "xattrs": {},
+          "size": 261,
+          "sha256": "f9cab784ec4d08d4d2cd7308d1c7aea67bafe03b77772119057367ce3099fc41"
+        },
+        {
+          "path": "afs-0.1.0-linux-aarch64/templates/node.toml",
+          "mode": 33188,
+          "uid": 0,
+          "gid": 0,
+          "mtime_ns": 1790848439000000000,
+          "xattrs": {},
+          "size": 746,
+          "sha256": "5233b9befc08d342d3033978de968e7a49b6a9d8295ca97dafd089bcabed7a7f"
+        }
+      ],
+      "logical_bytes": 65737984
+    },
+    {
+      "source": "/mnt/lima-afsctlstate/afs-delivery/round1-mainline-v77-archive-async/package",
+      "archive": "/var/lib/afs-acceptance/archives/20261001-capacity-v79/round1-mainline-v77-archive-async",
+      "entries": [
+        {
+          "path": ".",
+          "mode": 16877,
+          "uid": 0,
+          "gid": 0,
+          "mtime_ns": 1790850817841158442,
+          "xattrs": {}
+        },
+        {
+          "path": "afs-0.1.0-linux-aarch64",
+          "mode": 16877,
+          "uid": 0,
+          "gid": 0,
+          "mtime_ns": 1790850120000000000,
+          "xattrs": {}
+        },
+        {
+          "path": "afs-0.1.0-linux-aarch64/DEPENDENCIES.md",
+          "mode": 33188,
+          "uid": 0,
+          "gid": 0,
+          "mtime_ns": 1790850120000000000,
+          "xattrs": {},
+          "size": 1284,
+          "sha256": "cfa7e7d76368be0dad7e5aa5ddc021109d9835c71455169d3468015e93a90a98"
+        },
+        {
+          "path": "afs-0.1.0-linux-aarch64/SHA256SUMS",
+          "mode": 33188,
+          "uid": 0,
+          "gid": 0,
+          "mtime_ns": 1790850120000000000,
+          "xattrs": {},
+          "size": 1021,
+          "sha256": "0a842520e0314b6fafee0daab787b60e5e44d0abe4b8c03cfe72d2e5540c3a76"
+        },
+        {
+          "path": "afs-0.1.0-linux-aarch64/bin",
+          "mode": 16877,
+          "uid": 0,
+          "gid": 0,
+          "mtime_ns": 1790850120000000000,
+          "xattrs": {}
+        },
+        {
+          "path": "afs-0.1.0-linux-aarch64/bin/afs-meta",
+          "mode": 33261,
+          "uid": 0,
+          "gid": 0,
+          "mtime_ns": 1790850120000000000,
+          "xattrs": {},
+          "size": 24262752,
+          "sha256": "64d85fc3933637ccd7fdf4eafded5e5c8cb2354e73b4c8d1a27b2b8d43f4c7e7"
+        },
+        {
+          "path": "afs-0.1.0-linux-aarch64/bin/afs-node",
+          "mode": 33261,
+          "uid": 0,
+          "gid": 0,
+          "mtime_ns": 1790850120000000000,
+          "xattrs": {},
+          "size": 41432992,
+          "sha256": "d28d17faa8bb71eb8c0a28241e8556396e440b204cf0242d2af8133700f6a494"
+        },
+        {
+          "path": "afs-0.1.0-linux-aarch64/bin/afs-processctl",
+          "mode": 33261,
+          "uid": 0,
+          "gid": 0,
+          "mtime_ns": 1790850120000000000,
+          "xattrs": {},
+          "size": 26993,
+          "sha256": "01f38d32f34994f89bea3c75f57eecc506db6157309e74f3fe5425f64775601e"
+        },
+        {
+          "path": "afs-0.1.0-linux-aarch64/bin/dep02-smoke.sh",
+          "mode": 33261,
+          "uid": 0,
+          "gid": 0,
+          "mtime_ns": 1790850120000000000,
+          "xattrs": {},
+          "size": 3313,
+          "sha256": "0a5d929c9a6da73235c3fe8e2e4623ea9813b5e6a59027d95a1cc9d2d886f0c2"
+        },
+        {
+          "path": "afs-0.1.0-linux-aarch64/install.sh",
+          "mode": 33261,
+          "uid": 0,
+          "gid": 0,
+          "mtime_ns": 1790850120000000000,
+          "xattrs": {},
+          "size": 5759,
+          "sha256": "91afebf9604bdc2a09e7c26f48eb52af386c61b650ce2d117239e37efa1c0960"
+        },
+        {
+          "path": "afs-0.1.0-linux-aarch64/ldd.txt",
+          "mode": 33188,
+          "uid": 0,
+          "gid": 0,
+          "mtime_ns": 1790850120000000000,
+          "xattrs": {},
+          "size": 1124,
+          "sha256": "1f62b200942f75bf4de5a043579b7487083bfc83dd162522294440a5f69ec3a8"
+        },
+        {
+          "path": "afs-0.1.0-linux-aarch64/manifest.json",
+          "mode": 33188,
+          "uid": 0,
+          "gid": 0,
+          "mtime_ns": 1790850120000000000,
+          "xattrs": {},
+          "size": 654,
+          "sha256": "3e101be89e3dda4e58557ec69ffd03e7e8d401f53f94957a40fdd243f03d8bda"
+        },
+        {
+          "path": "afs-0.1.0-linux-aarch64/scripts",
+          "mode": 16877,
+          "uid": 0,
+          "gid": 0,
+          "mtime_ns": 1790850119000000000,
+          "xattrs": {}
+        },
+        {
+          "path": "afs-0.1.0-linux-aarch64/templates",
+          "mode": 16877,
+          "uid": 0,
+          "gid": 0,
+          "mtime_ns": 1790850120000000000,
+          "xattrs": {}
+        },
+        {
+          "path": "afs-0.1.0-linux-aarch64/templates/meta.toml",
+          "mode": 33188,
+          "uid": 0,
+          "gid": 0,
+          "mtime_ns": 1790850120000000000,
+          "xattrs": {},
+          "size": 846,
+          "sha256": "ffffb928c8d483aaccd7907665cb7c19f49510b71ba83f06a7e23a4f60ee4d28"
+        },
+        {
+          "path": "afs-0.1.0-linux-aarch64/templates/node-dfs.toml",
+          "mode": 33188,
+          "uid": 0,
+          "gid": 0,
+          "mtime_ns": 1790850120000000000,
+          "xattrs": {},
+          "size": 253,
+          "sha256": "476395c58108a65a6361fd658f5a35eb3dfdc0ae4f862fd489b285702bb9424c"
+        },
+        {
+          "path": "afs-0.1.0-linux-aarch64/templates/node-ownerfs.toml",
+          "mode": 33188,
+          "uid": 0,
+          "gid": 0,
+          "mtime_ns": 1790850120000000000,
+          "xattrs": {},
+          "size": 261,
+          "sha256": "f9cab784ec4d08d4d2cd7308d1c7aea67bafe03b77772119057367ce3099fc41"
+        },
+        {
+          "path": "afs-0.1.0-linux-aarch64/templates/node.toml",
+          "mode": 33188,
+          "uid": 0,
+          "gid": 0,
+          "mtime_ns": 1790850120000000000,
+          "xattrs": {},
+          "size": 746,
+          "sha256": "5233b9befc08d342d3033978de968e7a49b6a9d8295ca97dafd089bcabed7a7f"
+        }
+      ],
+      "logical_bytes": 65737998
+    }
+  ],
+  "after": {
+    "path": "/mnt/lima-afsctlstate",
+    "device": 64785,
+    "available": 4404584448,
+    "total": 8348200960
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "command": [
+    "sudo",
+    "timeout",
+    "--signal=TERM",
+    "--kill-after=1",
+    "29",
+    "python3",
+    "/home/lzc.guest/round2-mainline-v78.py",
+    "c",
+    "read",
+    "--kind",
+    "ownerfs"
+  ],
+  "exit": 0,
+  "stdout": "{\n  \"which\": \"c\",\n  \"action\": \"read\",\n  \"utc\": \"2026-10-01T10:59:51Z\",\n  \"runtime\": \"/mnt/lima-afscdata/afs-delivery/round1-mainline-v77-archive-async\",\n  \"formal_acceptance\": \"NOT_RUN\",\n  \"environment\": \"PREPARING\",\n  \"identity\": {\n    \"pid\": 2768,\n    \"role\": \"node\",\n    \"exe\": \"/mnt/lima-afscdata/afs-delivery/round1-mainline-v77-archive-async/prefix/bin/afs-node\",\n    \"sha256\": \"d28d17faa8bb71eb8c0a28241e8556396e440b204cf0242d2af8133700f6a494\",\n    \"start_ticks\": \"157876\",\n    \"boot_id\": \"0cf26d13-bc67-4f98-999e-7aeac4cc9b30\"\n  },\n  \"mounts\": [\n    {\n      \"target\": \"/mnt/lima-afscdata/afs-delivery/round1-mainline-v77-archive-async/mount/ownerfs\",\n      \"source\": \"afs-ownerfs\",\n      \"fstype\": \"fuse\"\n    },\n    {\n      \"target\": \"/mnt/lima-afscdata/afs-delivery/round1-mainline-v77-archive-async/mount/dfs\",\n      \"source\": \"afs-dfs\",\n      \"fstype\": \"fuse\"\n    }\n  ],\n  \"path\": \"/mnt/lima-afscdata/afs-delivery/round1-mainline-v77-archive-async/mount/ownerfs/workspace-round1-v77/data.bin\",\n  \"operation\": \"close\",\n  \"outcome\": \"success\",\n  \"bytes\": 4194321,\n  \"sha256\": \"7fa1366968edf9a8490fffac3eab7e0b1619480a152d8e75c7471f753a8c1231\",\n  \"elapsed_seconds\": 0.15501942299988514,\n  \"status\": \"PASS\"\n}\n",
+  "stderr": "",
+  "elapsed_seconds": 0.20205035300023155
+}

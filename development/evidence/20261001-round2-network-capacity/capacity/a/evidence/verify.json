@@ -1,0 +1,27 @@
+{
+  "action": "verify",
+  "which": "a",
+  "utc": "2026-10-01T11:05:16Z",
+  "formal_acceptance": "NOT_RUN",
+  "environment": "PREPARING",
+  "identity": {
+    "pid": 742877,
+    "start_ticks": "10386393",
+    "boot_id": "36a572e0-859b-4a94-adc7-789210a83fc8",
+    "sha256": "d28d17faa8bb71eb8c0a28241e8556396e440b204cf0242d2af8133700f6a494",
+    "exe": "/mnt/lima-afsadata/afs-delivery/round1-mainline-v77-archive-async/prefix/bin/afs-node"
+  },
+  "ownerfs": {
+    "bytes": 8192,
+    "sha256": "d4d0bd90fd628a80f43c9ad6c8a97725bd7da3c07676c68e17ecc899a4b1eafc",
+    "inode": 3,
+    "length": 8192
+  },
+  "dfs": {
+    "bytes": 8192,
+    "sha256": "d4d0bd90fd628a80f43c9ad6c8a97725bd7da3c07676c68e17ecc899a4b1eafc",
+    "inode": 2,
+    "length": 8192
+  },
+  "status": "PASS"
+}

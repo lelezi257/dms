@@ -1,0 +1,682 @@
+{
+  "artifacts": {
+    "development/evidence/20260930-resume/README.md": "d33afc54c979f1fef5686cd0883ccae261c0de7fa35f30a0f5fc6de8a3f6bf59",
+    "development/evidence/20261001-async-repair/README.md": "df07f4b261ef128a0b786c468e13bd355333268327561fdbe1be420d0d075649",
+    "development/evidence/20261001-authority/README.md": "3784c5105cbdf9eae7b13201554af95702f247368e1fdb143ba8bd1e6394a05d",
+    "development/evidence/20261001-corruption/README.md": "74068be698c5ab5519d7ceced633560a39f6fd788d1e359942c264627894e51e",
+    "development/evidence/20261001-dfs-auto/README.md": "3979e802bc47b9fe46c5f66885436d66c9da7e43fbae2665c0f44b9a8ba998a9",
+    "development/evidence/20261001-file-commit/README.md": "05e961771e3368a3d4cf296edcdbe3f68cac6e49519632f99e8470adf95193fe",
+    "development/evidence/20261001-network-predicate/README.md": "c12c0cc62e3ce094adca8e1899140790d6c3181d3860ccc431d59e9556a0018b",
+    "development/evidence/20261001-node-shutdown/README.md": "7dc17c424d633bfa7cb3fcd49ba086d48210759a063278241639c5519bc740d2",
+    "development/evidence/20261001-owner-metrics/README.md": "5a432cb64a0c3fbfa2b89e33dc7c608422ad9a5192cbe1a8dcf74ca940a4c061",
+    "development/evidence/20261001-owner-open/README.md": "e7fa073f1aaaa80ddd5a00a30e18c1d203749fd7040128b48f2c59f3298d8b68",
+    "development/evidence/20261001-owner-rdma/README.md": "9bac569db7f8707315f386bca4de9056fbf772c6d33f3f5b92bdb38992d23d77",
+    "development/evidence/20261001-owner-rdma-deadline/README.md": "a842e73d56fd853c63922b84317b2c847a39effc6a237101cc45d7bc44214570",
+    "development/evidence/20261001-owner-rdma-runtime/README.md": "f584773e7920fa69c7b4efeab6e1066e18eae0aa0d0cbe013b6d4d5b30c6681a",
+    "development/evidence/20261001-owner-recovery/README.md": "5ae2a82a10e60bb4be28fac649cc435481bbf76860d89f07318c68e6dea40a7f",
+    "development/evidence/20261001-owner-retirement/README.md": "8893e98e74bfb9d5f6d8f7542c60902ad9d30429a4200c0886643ca6cd26014a",
+    "development/evidence/20261001-posted-rdma-cancellation/README.md": "3cf0d896562bfd8fab845daf3734db23e9718bc2b1f3860e5c36d0a8cf7aca82",
+    "development/evidence/20261001-processctl/README.md": "8795a0dd2c02c94de412033f9727fd0d290a928fe28b85504b6652129a124814",
+    "development/evidence/20261001-rdma-admission/README.md": "f5b74df81e7c708d41682cc8012667956016f63c2b54f89d55209748c9c2a33f",
+    "development/evidence/20261001-release-retry/README.md": "c45f221e18d299be75a8503042cec232111e890c394e059db07df84114bc0ded",
+    "development/evidence/20261001-remote-full-timeout/README.md": "d55bc5bc5bc6673859de789f217b3099d0b267bd62f0fce7d342456a72f3de1d",
+    "development/evidence/20261001-remote-standard/README.md": "da1a7691e52bebfe78355baf1840cd11de75488afee36a36869cdf96a67ef779",
+    "development/evidence/20261001-repair-faults/README.md": "9098146bd562a4c9d7991aa3bd63639e523a2ea1de48f44e3c85764eb2e4d682",
+    "development/evidence/20261001-repair-unknown-ack/README.md": "b9ff64708aef9f4663437b20a5a24517d990933d7c08dacc5f5e0dcfbfc05ef3",
+    "development/evidence/20261001-repair-unknown-ack/environment/README.md": "a8bcc5ffdd68117089487b7aca76361f981d9cb4ef9c6dbbf3a3532d0df7039c",
+    "development/evidence/20261001-round1-corrected-package/README.md": "ac8e01313011ed27c0f17ed4ffc82e29ede67dafa57ef1fdbaa9d14c72f6d985",
+    "development/evidence/20261001-round1-mainline/README.md": "a74cb98a083f21aa92db204879177fcc0ce8786ff6799786f4d31ebdad24e690",
+    "development/evidence/20261001-round2-network-capacity/README.md": "560a62f5c2f25cafbcec25c46d8f9ae38cd350143808419fe172d2d5f15fa00a",
+    "development/evidence/20261001-round2-network-capacity/audit-regression.json": "c730945143f24e7be7a267481a788f06a6d04e9db93d866839690ea29ed59096",
+    "development/evidence/20261001-round2-network-capacity/audit-regression.py": "cfcc3db1f15b0d5c5a0d2c4796b2205809f7a0e19b425728afd5081a09b64988",
+    "development/evidence/20261001-round2-network-capacity/audit.json": "1b88041d47ad04035715d7fcde4eb0f82621d22824bff8c7b080cb046653a712",
+    "development/evidence/20261001-round2-network-capacity/audit.py": "860fbcab9e3ffc60465422736b67220a107cc35915b4bf6a51b75ff625187a00",
+    "development/evidence/20261001-round2-network-capacity/capacity/a/etc/node.toml": "5294d06c33054bc63d11873e604564da970480929c474c80b9f9546060f052a3",
+    "development/evidence/20261001-round2-network-capacity/capacity/a/evidence/cleanup.json": "4ad2456cbcc714687008d7ae8e7e11a1c183e91cd8debb5958a4c18ac65c50d1",
+    "development/evidence/20261001-round2-network-capacity/capacity/a/evidence/cold-committed-read.json": "6a959b64c2f01b3e97c31c1ab3d171eca8676e8dcbf12d3d5f3d13c619726eef",
+    "development/evidence/20261001-round2-network-capacity/capacity/a/evidence/fault-dfs.json": "4cc023640a9cd3a9348c4cb84bf4c9df68231b2511e895b64442091d5cc129b9",
+    "development/evidence/20261001-round2-network-capacity/capacity/a/evidence/fault-ownerfs.json": "2bb293e82c35446081b4547acac7a8b8c72370873c700e936997cb5dd491de92",
+    "development/evidence/20261001-round2-network-capacity/capacity/a/evidence/fill.json": "d58cdf4ac9c1eb6acc8e4d25aefa8719447bd001a80a19d9abcba231efaff8dd",
+    "development/evidence/20261001-round2-network-capacity/capacity/a/evidence/filler-watchdog.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "development/evidence/20261001-round2-network-capacity/capacity/a/evidence/post-error-kill.json": "17ecf48e3a8f91f892c14d2db2166b04927aab45207b61489573d33c5e3a6d8b",
+    "development/evidence/20261001-round2-network-capacity/capacity/a/evidence/prepare.json": "53415d7e117109f1f1f934682720bdca06b29a9d15805b6a3f5b2e80518b6552",
+    "development/evidence/20261001-round2-network-capacity/capacity/a/evidence/recover.json": "382d6a0c479abf6de99b5f99685d1a0c80eba6f8a8635882c06207c1ca64c279",
+    "development/evidence/20261001-round2-network-capacity/capacity/a/evidence/restart.json": "c173ec28df10840a6d72d838cbdf2a7725a6152debe135e2a485b96570865f67",
+    "development/evidence/20261001-round2-network-capacity/capacity/a/evidence/seed.json": "7d9ab670bffc8b47bd3752eeb5f60086daa06077b022007662ea30e8347b7a33",
+    "development/evidence/20261001-round2-network-capacity/capacity/a/evidence/start.json": "c7818de2d94ed274d3f685eef78927fa80aa3040eb7a369aec16004df407f5fe",
+    "development/evidence/20261001-round2-network-capacity/capacity/a/evidence/stop.json": "7d278b7a547ac062e5fbab1bae7825a97469ebf09c25bc2b7a48b8ccfb6f389c",
+    "development/evidence/20261001-round2-network-capacity/capacity/a/evidence/verify.json": "1671407109cb2f8a4c0a841a26f27879dd0c1f9c093fdd154b0bafbb52c949e2",
+    "development/evidence/20261001-round2-network-capacity/capacity/a/log/node.log": "0e12edb132fa991fdb5ff438ad1b9b3951baa70c91a5b79d401dc92f4516cea0",
+    "development/evidence/20261001-round2-network-capacity/capacity/a/round2-capacity-v79-final.py": "c51a3db8b575d684c09e16f83d533a392fb4ece0e45e9ee7ca0f530b849608d0",
+    "development/evidence/20261001-round2-network-capacity/capacity/a/round2-capacity-v79.py": "278e20da3f35afc89e0828477daec7066a56757c1691d859954f794f5d47ae7c",
+    "development/evidence/20261001-round2-network-capacity/capacity/ctl/etc/meta.toml": "a8242e019a4106d2596c58ffe566e2d5ebe22259c701beddcb3d4c9da5955a16",
+    "development/evidence/20261001-round2-network-capacity/capacity/ctl/evidence/identity.json": "b5c6bb2d9a25cf98b2626d6b80eb1e9d409137fca73e3c84334923a4c0f6a9c2",
+    "development/evidence/20261001-round2-network-capacity/capacity/ctl/evidence/prepare.json": "f97cb7747e14fe4986443e5648e21cc503cecd811f67c928db898fe8c4e5b633",
+    "development/evidence/20261001-round2-network-capacity/capacity/ctl/evidence/start.json": "c30c2c72b7e1aef0df744068c373bf3f47bb21db3f10d34f2b68f28857692ea4",
+    "development/evidence/20261001-round2-network-capacity/capacity/ctl/evidence/stop.json": "39ef6d4b18b0fbe509ea5c4d23d589cb0400fa6a0efbfaa5516bc153e032651e",
+    "development/evidence/20261001-round2-network-capacity/capacity/ctl/log/meta.log": "9acb23b7720d97371c16b09b0076863b5eaf0b4a21ebcfa97bd40ad9e1955981",
+    "development/evidence/20261001-round2-network-capacity/capacity/ctl/round2-capacity-v79-ctl-reserve.json": "bca401dbae37a6f355715ea5eae4f5d7a97a1946b4db79f92406f272df94d0d9",
+    "development/evidence/20261001-round2-network-capacity/capacity/ctl/round2-capacity-v79.py": "9f942494eed624e6e141441a8cabe09cabb581e2127ea11de37bd26762e2fb98",
+    "development/evidence/20261001-round2-network-capacity/network/a/identity-before-reused.json": "14a77b70db6fc3238fa17f13e77cedee116bfe94bd207b9a810c864f931d3d1f",
+    "development/evidence/20261001-round2-network-capacity/network/a/round2-network-v79b-a-identity-final.json": "b49e5ecb8200b569e7b0adc86dadd56fd3ed74efe0238692464e97b330ddb40c",
+    "development/evidence/20261001-round2-network-capacity/network/a/round2-network-v79b-a-metrics-before.txt": "d8c8ef41d69c5f3a2b7cadc0221e75a6cb1878c736069ef244a8497302e03ff8",
+    "development/evidence/20261001-round2-network-capacity/network/b/chain-create.json": "1f8986f317143a44fb54c58996a81e4eeedf666fe9deb50d52fc44cd20156e60",
+    "development/evidence/20261001-round2-network-capacity/network/b/chain-drop.json": "388ff7bb6c3a2e49b34867a91bfc9075548e43af7ba69d51efabfb38ab63ac51",
+    "development/evidence/20261001-round2-network-capacity/network/b/chain-flush.json": "66af485a32f5c09ed8c7c295c7fcb6a83c07fda30969ecbfd51cba0b77a5351d",
+    "development/evidence/20261001-round2-network-capacity/network/b/chain-guard.json": "c88b607f6a8dc249e84aa696dc9326a4f5f169053df25426d224a95870bcf650",
+    "development/evidence/20261001-round2-network-capacity/network/b/chain-remove.json": "3738dbebe6354ea6612586e35f05553cde4cfb475fa3ceaf6a141669913101bc",
+    "development/evidence/20261001-round2-network-capacity/network/b/cold-restart.json": "32aa9bcc22527b1dcf8035cb8e3df5878f5914e869af7ece1853f26bb387e95a",
+    "development/evidence/20261001-round2-network-capacity/network/b/dfs-during.json": "df3643e1666ff44fd99898d1cf839ea2dd0f1cf6010e39fa74dac6a1d6f1933b",
+    "development/evidence/20261001-round2-network-capacity/network/b/dfs-recovered.json": "c277cf4d8871658fec72aba29f3dd19e3a3dd288b48616fbbaf76766adc62868",
+    "development/evidence/20261001-round2-network-capacity/network/b/fault-active": "1c1bed8330ef55f2d34f363a8031e5f47851fa7cfea0de93fb6781bfe068a1d3",
+    "development/evidence/20261001-round2-network-capacity/network/b/fault-reads-complete": "ced74b2b6d88dfdeb4484b7d8880172dffd607a342fbd154fcd844f76132f914",
+    "development/evidence/20261001-round2-network-capacity/network/b/identity-before.json": "5ab7f3aa1a819b1c36e9976d06dbe2cbf46abe35bb47c3499bf989512bc7b1e1",
+    "development/evidence/20261001-round2-network-capacity/network/b/identity-cold.json": "6b87ff7d2ed601a89c24de7b8c03cda0f74f6ddb4ffb7aaac1da6b580aab3931",
+    "development/evidence/20261001-round2-network-capacity/network/b/identity-complete.json": "2697a8f87d8a19c36334e59efb48c0ec89d039357cfcac7016f49df08ec4f17c",
+    "development/evidence/20261001-round2-network-capacity/network/b/identity-final.json": "2979344fc7352ae16155aeaccc11a5fd5bbfbf149f6f5987811d580a92af6ffc",
+    "development/evidence/20261001-round2-network-capacity/network/b/iptables-after.json": "867022eb9e27de1962c2ae19c605d4185403aae2cb3ce43886bf550d6c2f44a1",
+    "development/evidence/20261001-round2-network-capacity/network/b/iptables-before.json": "18ed4e8462790cf70b66a17267a0353e55f896895e98b364729e3e5735f47e06",
+    "development/evidence/20261001-round2-network-capacity/network/b/iptables-during.json": "302383ccaf4525c93b3a6cb04ed5b6e8fbfc7ee7098e0de18be7a02ba1747258",
+    "development/evidence/20261001-round2-network-capacity/network/b/jump-install.json": "8dc8990a00bcf08b43e698417932521be84b40d7c7fd39c5942dec8d514da07b",
+    "development/evidence/20261001-round2-network-capacity/network/b/jump-remove.json": "1a8aae7de1c6369fc554f3dfe27ee8cbfa49a727d7a195cb83e30df4838ff00c",
+    "development/evidence/20261001-round2-network-capacity/network/b/owner-blocked.json": "b471e41c2af6a5fff89c2b460eff3534d088afd6bcc3169cb1f77eb5e79ee085",
+    "development/evidence/20261001-round2-network-capacity/network/b/owner-recovered.json": "e2e8014641e5ddb59e79482af37815d4bdd8e673d563447780a84914e3210c24",
+    "development/evidence/20261001-round2-network-capacity/network/b/result.json": "46d7248d47a6d5ba5c326d05259708b14ff02950660e9988e343f5d0b30c7e62",
+    "development/evidence/20261001-round2-network-capacity/network/b/rollback.json": "fa5ebb481c1bde966e3ae945c86e35e8d6f169085abaf8b6aafc3864aed6d7f7",
+    "development/evidence/20261001-round2-network-capacity/network/b/scope.json": "b25e56eaf824e31b2bcba357cf2c106d7732bf59a506f16a1ffce889bbad35e6",
+    "development/evidence/20261001-round2-network-capacity/network/b/tcp-after.json": "7269070b59007ea32e2f066a206dd39b24cc14de82560d637bab600c12becdf9",
+    "development/evidence/20261001-round2-network-capacity/network/b/tcp-before.json": "2ede370b74fb7a4b392fc16c407bea41a38c34949c1ee9c0ec4a7df0f6170bab",
+    "development/evidence/20261001-round2-network-capacity/network/b/tcp-blocked.json": "20723d125f0daa52d47f6feb299e05dec9bf6d8933e780588a512b5527e151e5",
+    "development/evidence/20261001-round2-network-capacity/network/b/watchdog.json": "ef72f7f0579389a0d04018009b11b33d309f8294a5db4da22c6cf2c609b03bb0",
+    "development/evidence/20261001-round2-network-capacity/network/b/watchdog.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "development/evidence/20261001-round2-network-capacity/network/c/identity-before-reused.json": "50c4f5a354adec739ce7effd01a916c6433a46e8916d330ac7af0b8e3fdc56b5",
+    "development/evidence/20261001-round2-network-capacity/network/c/round2-network-v79b-c-during.json": "8728d27a36218d1432757f48910bc55aeba4c82d6deeffb3e92539ea318b202f",
+    "development/evidence/20261001-round2-network-capacity/network/c/round2-network-v79b-c-identity-final.json": "30de8f0fb95f1511bbbce04f023ff435a2282dabea50a368782c40c6e41336d6",
+    "development/evidence/20261001-round2-network-capacity/network/c/round2-network-v79b-c-metrics-before.txt": "ee6f9cfea0d2e550d2ff3feef37b719df0508ee625140f07359efe6472003259",
+    "development/evidence/20261001-round2-network-capacity/network/ctl/identity-before-reused.json": "092587feb6dca48856131f1a07589a03542b878c1291de13fd7cbd562d23c17b",
+    "development/evidence/20261001-round2-network-capacity/network/ctl/round2-network-v79b-ctl-identity-final.json": "62fa13450fd8057383bfdb7483297ef9797926971f376052f6f6944f5f2844d9",
+    "development/evidence/20261001-round2-network-capacity/preparation-observations.json": "877ee3374d8e7afa6fcf9932f33880f26519506b94033714e6b649f525017821",
+    "development/evidence/20261001-round2-network-capacity/reproducers/archive-extractions-v65.py": "ff2f269999ccac4bc0dbe937f3a3df7aef1befe4958b3f1dce112a26ed479332",
+    "development/evidence/20261001-round2-network-capacity/reproducers/capacity-cold.py": "026b3122b7f63c4a21e319d1698eeb5d139cbf57e3af5acc739e12f0fb19d3a6",
+    "development/evidence/20261001-round2-network-capacity/reproducers/round2-capacity.py": "6d265f98d3b05a45e86ad18d3c2c342acb4aae84640371e588812fe4398552f1",
+    "development/evidence/20261001-round2-network-capacity/reproducers/round2-mainline.py": "be0f0b4aa6bd4f64600a8d2d23bf24be59808f8a4e35d7068092bf9f7c42d9c3",
+    "development/evidence/20261001-round2-network-capacity/reproducers/round2-network.py": "5c59101ea487eadf6e1316a3dbc10a93c59f3a47cca8a869c074cb41c64608b4",
+    "development/evidence/20261001-round2-network-capacity/reuse-verification.json": "b7c58e9315109ed7af6c11507e0b4a31bb674670cdf154feb996c2e5dd8684cd",
+    "development/evidence/20261001-round2-network-capacity/reused-gate.json": "0c2ce30bdb1f7e2f35ea6abed21260c1de45567b172146f99a9fcb1e549a1342",
+    "development/evidence/20261001-round2-node-recovery/README.md": "ef107e4594a1139e19e8158456ff944b45385102950b9e31eb728ae4914447d7",
+    "development/evidence/20261001-rxe-repair/README.md": "145e4827b131f542d010bf977c206c0cea76e13e1bd33605cd6e2f9a2d45559d",
+    "development/evidence/20261001-shutdown-signal/README.md": "728bd5c3628b7d05e054244d9a1ed1e26a92db824c50ec50f982f2cea09f4016",
+    "development/evidence/20261001-toml-startup/README.md": "fbc3df3db26d378ec89d6b4cdc1e628e3a9fcd3e4fe6517b9dfa86f110e200bc",
+    "development/evidence/20261001-verbs-predicate/README.md": "6ceebcacf4071b4e69386e96508d85cf99d8f3c9be1803dd512ed4aab5936764",
+    "development/evidence/20261001-verbs-preparation/README.md": "9bcdcb20938cb3fedaac398aa04fce2bbdb437452a0e5703b5708ae1aaf7dbaa",
+    "development/evidence/20261001-writeback/README.md": "ac7d4c0b0efb030df6bb75b6f7f385704b2792b549ae696dcae2c54e4821e3b7",
+    "development/implementation.md": "6d1e3f5ca31ac6198819fc5f93d9e8cac50fc94fbe9780c523e248e98c73b527",
+    "development/issues.md": "c0c46fdc6fddb7561e0afd49909c190cf5c989ee32bbfab73c1edba9b137030b",
+    "development/plan.md": "dad33eecb93cd0a2d63b4b55b6078490b4e07072135cb10f2a170550c6f45b2a",
+    "development/validation.md": "2e7132e6e714f6f559bc2d4ca245f27f7a58cc69a5e31326025e24626690ea77",
+    "docs/acceptance.md": "bdb2b697d4764d9cde21bdc46d5d8a6a8c0f891a20d7d6153b52cc75ce3c428e",
+    "docs/status.md": "26583caed8f1c2de41bb1d40b4e39a2da2a9481bf1f15a57a6153f231f16672f"
+  },
+  "links": [
+    {
+      "from": "development/evidence/20261001-round2-network-capacity/README.md",
+      "target": "../20261001-round2-node-recovery/README.md",
+      "resolved": "development/evidence/20261001-round2-node-recovery/README.md",
+      "label": "existing async cohort"
+    },
+    {
+      "from": "development/evidence/20261001-round2-network-capacity/README.md",
+      "target": "network/b/jump-install.json",
+      "resolved": "development/evidence/20261001-round2-network-capacity/network/b/jump-install.json",
+      "label": "Actual port isolation"
+    },
+    {
+      "from": "development/evidence/20261001-round2-network-capacity/README.md",
+      "target": "network/b/iptables-during.json",
+      "resolved": "development/evidence/20261001-round2-network-capacity/network/b/iptables-during.json",
+      "label": "DROP counters"
+    },
+    {
+      "from": "development/evidence/20261001-round2-network-capacity/README.md",
+      "target": "network/b/owner-blocked.json",
+      "resolved": "development/evidence/20261001-round2-network-capacity/network/b/owner-blocked.json",
+      "label": "B Owner open"
+    },
+    {
+      "from": "development/evidence/20261001-round2-network-capacity/README.md",
+      "target": "network/b/dfs-during.json",
+      "resolved": "development/evidence/20261001-round2-network-capacity/network/b/dfs-during.json",
+      "label": "B DFS read"
+    },
+    {
+      "from": "development/evidence/20261001-round2-network-capacity/README.md",
+      "target": "network/c/round2-network-v79b-c-during.json",
+      "resolved": "development/evidence/20261001-round2-network-capacity/network/c/round2-network-v79b-c-during.json",
+      "label": "C Owner read"
+    },
+    {
+      "from": "development/evidence/20261001-round2-network-capacity/README.md",
+      "target": "network/b/owner-recovered.json",
+      "resolved": "development/evidence/20261001-round2-network-capacity/network/b/owner-recovered.json",
+      "label": "B recovery"
+    },
+    {
+      "from": "development/evidence/20261001-round2-network-capacity/README.md",
+      "target": "network/b/rollback.json",
+      "resolved": "development/evidence/20261001-round2-network-capacity/network/b/rollback.json",
+      "label": "Rollback"
+    },
+    {
+      "from": "development/evidence/20261001-round2-network-capacity/README.md",
+      "target": "network/b/iptables-after.json",
+      "resolved": "development/evidence/20261001-round2-network-capacity/network/b/iptables-after.json",
+      "label": "firewall dump"
+    },
+    {
+      "from": "development/evidence/20261001-round2-network-capacity/README.md",
+      "target": "capacity/a/evidence/seed.json",
+      "resolved": "development/evidence/20261001-round2-network-capacity/capacity/a/evidence/seed.json",
+      "label": "Initial watermark"
+    },
+    {
+      "from": "development/evidence/20261001-round2-network-capacity/README.md",
+      "target": "capacity/a/evidence/fill.json",
+      "resolved": "development/evidence/20261001-round2-network-capacity/capacity/a/evidence/fill.json",
+      "label": "Actual capacity exhaustion"
+    },
+    {
+      "from": "development/evidence/20261001-round2-network-capacity/README.md",
+      "target": "capacity/a/evidence/fault-ownerfs.json",
+      "resolved": "development/evidence/20261001-round2-network-capacity/capacity/a/evidence/fault-ownerfs.json",
+      "label": "Owner append"
+    },
+    {
+      "from": "development/evidence/20261001-round2-network-capacity/README.md",
+      "target": "capacity/a/evidence/fault-dfs.json",
+      "resolved": "development/evidence/20261001-round2-network-capacity/capacity/a/evidence/fault-dfs.json",
+      "label": "DFS overwrite"
+    },
+    {
+      "from": "development/evidence/20261001-round2-network-capacity/README.md",
+      "target": "capacity/a/evidence/post-error-kill.json",
+      "resolved": "development/evidence/20261001-round2-network-capacity/capacity/a/evidence/post-error-kill.json",
+      "label": "Same-mount dirty read"
+    },
+    {
+      "from": "development/evidence/20261001-round2-network-capacity/README.md",
+      "target": "capacity/a/evidence/cold-committed-read.json",
+      "resolved": "development/evidence/20261001-round2-network-capacity/capacity/a/evidence/cold-committed-read.json",
+      "label": "Cold reload while still full"
+    },
+    {
+      "from": "development/evidence/20261001-round2-network-capacity/README.md",
+      "target": "capacity/a/evidence/recover.json",
+      "resolved": "development/evidence/20261001-round2-network-capacity/capacity/a/evidence/recover.json",
+      "label": "Capacity recovery"
+    },
+    {
+      "from": "development/evidence/20261001-round2-network-capacity/README.md",
+      "target": "capacity/a/evidence/verify.json",
+      "resolved": "development/evidence/20261001-round2-network-capacity/capacity/a/evidence/verify.json",
+      "label": "Later normal restart"
+    },
+    {
+      "from": "development/evidence/20261001-round2-network-capacity/README.md",
+      "target": "capacity/a/evidence/cleanup.json",
+      "resolved": "development/evidence/20261001-round2-network-capacity/capacity/a/evidence/cleanup.json",
+      "label": "Cleanup"
+    },
+    {
+      "from": "development/evidence/20261001-round2-network-capacity/README.md",
+      "target": "audit.json",
+      "resolved": "development/evidence/20261001-round2-network-capacity/audit.json",
+      "label": "Linux semantic audit"
+    },
+    {
+      "from": "development/evidence/20261001-round2-network-capacity/README.md",
+      "target": "audit-regression.json",
+      "resolved": "development/evidence/20261001-round2-network-capacity/audit-regression.json",
+      "label": "audit regressions"
+    },
+    {
+      "from": "development/evidence/20261001-round2-network-capacity/README.md",
+      "target": "reuse-verification.json",
+      "resolved": "development/evidence/20261001-round2-network-capacity/reuse-verification.json",
+      "label": "Reuse verification"
+    },
+    {
+      "from": "development/evidence/20261001-round2-network-capacity/README.md",
+      "target": "preparation-observations.json",
+      "resolved": "development/evidence/20261001-round2-network-capacity/preparation-observations.json",
+      "label": "Preparation observations"
+    },
+    {
+      "from": "development/evidence/20261001-round2-network-capacity/README.md",
+      "target": "capacity/ctl/round2-capacity-v79-ctl-reserve.json",
+      "resolved": "development/evidence/20261001-round2-network-capacity/capacity/ctl/round2-capacity-v79-ctl-reserve.json",
+      "label": "migration proof"
+    },
+    {
+      "from": "development/evidence/20261001-round2-network-capacity/README.md",
+      "target": "reproducers/capacity-cold.py",
+      "resolved": "development/evidence/20261001-round2-network-capacity/reproducers/capacity-cold.py",
+      "label": "replay helpers"
+    },
+    {
+      "from": "development/evidence/20261001-round2-network-capacity/README.md",
+      "target": "../../issues.md",
+      "resolved": "development/issues.md",
+      "label": "issues"
+    },
+    {
+      "from": "development/plan.md",
+      "target": "../docs/acceptance.md",
+      "resolved": "docs/acceptance.md",
+      "label": "Acceptance"
+    },
+    {
+      "from": "development/plan.md",
+      "target": "issues.md",
+      "resolved": "development/issues.md",
+      "label": "unified issue ledger"
+    },
+    {
+      "from": "development/plan.md",
+      "target": "evidence/20261001-round1-corrected-package/README.md",
+      "resolved": "development/evidence/20261001-round1-corrected-package/README.md",
+      "label": "ROUND1 closure"
+    },
+    {
+      "from": "development/plan.md",
+      "target": "evidence/20261001-round2-node-recovery/README.md",
+      "resolved": "development/evidence/20261001-round2-node-recovery/README.md",
+      "label": "first integrated Node fault batch"
+    },
+    {
+      "from": "development/plan.md",
+      "target": "evidence/20261001-round2-network-capacity/README.md",
+      "resolved": "development/evidence/20261001-round2-network-capacity/README.md",
+      "label": "network/capacity batch"
+    },
+    {
+      "from": "development/plan.md",
+      "target": "issues.md",
+      "resolved": "development/issues.md",
+      "label": "issues"
+    },
+    {
+      "from": "development/plan.md",
+      "target": "validation.md#feedback-stages",
+      "resolved": "development/validation.md",
+      "label": "impact-based validation strategy"
+    },
+    {
+      "from": "development/plan.md",
+      "target": "implementation.md",
+      "resolved": "development/implementation.md",
+      "label": "implementation rules"
+    },
+    {
+      "from": "development/plan.md",
+      "target": "evidence/20261001-round1-corrected-package/README.md",
+      "resolved": "development/evidence/20261001-round1-corrected-package/README.md",
+      "label": "ROUND1 closure"
+    },
+    {
+      "from": "development/plan.md",
+      "target": "../docs/status.md",
+      "resolved": "docs/status.md",
+      "label": "Implementation status"
+    },
+    {
+      "from": "development/plan.md",
+      "target": "evidence/20261001-processctl/README.md",
+      "resolved": "development/evidence/20261001-processctl/README.md",
+      "label": "processctl"
+    },
+    {
+      "from": "development/plan.md",
+      "target": "evidence/20261001-toml-startup/README.md",
+      "resolved": "development/evidence/20261001-toml-startup/README.md",
+      "label": "configuration/A-B integration"
+    },
+    {
+      "from": "development/plan.md",
+      "target": "evidence/20261001-owner-metrics/README.md",
+      "resolved": "development/evidence/20261001-owner-metrics/README.md",
+      "label": "v73-r2 Owner observability"
+    },
+    {
+      "from": "development/plan.md",
+      "target": "evidence/20261001-toml-startup/README.md",
+      "resolved": "development/evidence/20261001-toml-startup/README.md",
+      "label": "v51 A/B normal matrix"
+    },
+    {
+      "from": "development/plan.md",
+      "target": "evidence/20261001-async-repair/README.md",
+      "resolved": "development/evidence/20261001-async-repair/README.md",
+      "label": "v56 healthy repair"
+    },
+    {
+      "from": "development/plan.md",
+      "target": "evidence/20261001-repair-faults/README.md",
+      "resolved": "development/evidence/20261001-repair-faults/README.md",
+      "label": "v60 preparation/restart"
+    },
+    {
+      "from": "development/plan.md",
+      "target": "evidence/20261001-rxe-repair/README.md",
+      "resolved": "development/evidence/20261001-rxe-repair/README.md",
+      "label": "v62-r3 RXE repair"
+    },
+    {
+      "from": "development/plan.md",
+      "target": "evidence/20261001-dfs-auto/README.md",
+      "resolved": "development/evidence/20261001-dfs-auto/README.md",
+      "label": "v75-r3 DFS Auto"
+    },
+    {
+      "from": "development/plan.md",
+      "target": "evidence/20261001-posted-rdma-cancellation/README.md",
+      "resolved": "development/evidence/20261001-posted-rdma-cancellation/README.md",
+      "label": "v76 diagnostic"
+    },
+    {
+      "from": "development/issues.md",
+      "target": "../docs/acceptance.md",
+      "resolved": "docs/acceptance.md",
+      "label": "Acceptance"
+    },
+    {
+      "from": "development/issues.md",
+      "target": "plan.md",
+      "resolved": "development/plan.md",
+      "label": "Plan"
+    },
+    {
+      "from": "development/issues.md",
+      "target": "evidence/20261001-round1-corrected-package/README.md",
+      "resolved": "development/evidence/20261001-round1-corrected-package/README.md",
+      "label": "Round1 closure"
+    },
+    {
+      "from": "development/issues.md",
+      "target": "evidence/20261001-round2-node-recovery/README.md",
+      "resolved": "development/evidence/20261001-round2-node-recovery/README.md",
+      "label": "Node fault slice"
+    },
+    {
+      "from": "development/issues.md",
+      "target": "evidence/20261001-round2-network-capacity/README.md",
+      "resolved": "development/evidence/20261001-round2-network-capacity/README.md",
+      "label": "Network/capacity slice"
+    },
+    {
+      "from": "development/issues.md",
+      "target": "evidence/20261001-round1-mainline/README.md",
+      "resolved": "development/evidence/20261001-round1-mainline/README.md",
+      "label": "Original failure and corrected checks"
+    },
+    {
+      "from": "development/issues.md",
+      "target": "evidence/20261001-owner-metrics/README.md",
+      "resolved": "development/evidence/20261001-owner-metrics/README.md",
+      "label": "Owner healthy cross-VM flow"
+    },
+    {
+      "from": "development/issues.md",
+      "target": "evidence/20261001-dfs-auto/README.md",
+      "resolved": "development/evidence/20261001-dfs-auto/README.md",
+      "label": "DFS Auto adapters"
+    },
+    {
+      "from": "development/issues.md",
+      "target": "evidence/20261001-rxe-repair/README.md",
+      "resolved": "development/evidence/20261001-rxe-repair/README.md",
+      "label": "Actual RXE repair"
+    },
+    {
+      "from": "development/issues.md",
+      "target": "evidence/20261001-posted-rdma-cancellation/README.md",
+      "resolved": "development/evidence/20261001-posted-rdma-cancellation/README.md",
+      "label": "Diagnostic posted cancellation"
+    },
+    {
+      "from": "development/issues.md",
+      "target": "evidence/20261001-owner-rdma-deadline/README.md",
+      "resolved": "development/evidence/20261001-owner-rdma-deadline/README.md",
+      "label": "Owner posted deadline"
+    },
+    {
+      "from": "docs/status.md",
+      "target": "acceptance.md",
+      "resolved": "docs/acceptance.md",
+      "label": "delivery acceptance contract"
+    },
+    {
+      "from": "docs/status.md",
+      "target": "../development/plan.md#whole-system-rounds",
+      "resolved": "development/plan.md",
+      "label": "delivery plan"
+    },
+    {
+      "from": "docs/status.md",
+      "target": "../development/evidence/20261001-round1-corrected-package/README.md",
+      "resolved": "development/evidence/20261001-round1-corrected-package/README.md",
+      "label": "round1 closure"
+    },
+    {
+      "from": "docs/status.md",
+      "target": "../development/issues.md",
+      "resolved": "development/issues.md",
+      "label": "active issues"
+    },
+    {
+      "from": "docs/status.md",
+      "target": "../development/evidence/20261001-round2-node-recovery/README.md",
+      "resolved": "development/evidence/20261001-round2-node-recovery/README.md",
+      "label": "Node fault integration"
+    },
+    {
+      "from": "docs/status.md",
+      "target": "../development/evidence/20261001-round2-network-capacity/README.md",
+      "resolved": "development/evidence/20261001-round2-network-capacity/README.md",
+      "label": "network/capacity integration"
+    },
+    {
+      "from": "docs/status.md",
+      "target": "../development/evidence/20261001-owner-rdma-deadline/README.md",
+      "resolved": "development/evidence/20261001-owner-rdma-deadline/README.md",
+      "label": "Owner posted-deadline fixture"
+    },
+    {
+      "from": "docs/status.md",
+      "target": "../development/evidence/20261001-round1-mainline/README.md",
+      "resolved": "development/evidence/20261001-round1-mainline/README.md",
+      "label": "batch source gate"
+    },
+    {
+      "from": "docs/status.md",
+      "target": "../development/evidence/20261001-owner-metrics/README.md",
+      "resolved": "development/evidence/20261001-owner-metrics/README.md",
+      "label": "Owner transport observability batch"
+    },
+    {
+      "from": "docs/status.md",
+      "target": "../development/evidence/20261001-owner-rdma/README.md",
+      "resolved": "development/evidence/20261001-owner-rdma/README.md",
+      "label": "OwnerFs RDMA batch"
+    },
+    {
+      "from": "docs/status.md",
+      "target": "../development/evidence/20261001-owner-rdma-runtime/README.md",
+      "resolved": "development/evidence/20261001-owner-rdma-runtime/README.md",
+      "label": "cross-VM production OwnerFs flow"
+    },
+    {
+      "from": "docs/status.md",
+      "target": "../development/evidence/20261001-verbs-predicate/README.md",
+      "resolved": "development/evidence/20261001-verbs-predicate/README.md",
+      "label": "verbs environment consumer"
+    },
+    {
+      "from": "docs/status.md",
+      "target": "../development/evidence/20261001-verbs-preparation/README.md",
+      "resolved": "development/evidence/20261001-verbs-preparation/README.md",
+      "label": "independent cross-VM verbs preparation"
+    },
+    {
+      "from": "docs/status.md",
+      "target": "../development/evidence/20261001-network-predicate/README.md",
+      "resolved": "development/evidence/20261001-network-predicate/README.md",
+      "label": "network preparation evaluator"
+    },
+    {
+      "from": "docs/status.md",
+      "target": "../development/evidence/20261001-file-commit/README.md",
+      "resolved": "development/evidence/20261001-file-commit/README.md",
+      "label": "exact FileVersion reply-loss batch"
+    },
+    {
+      "from": "docs/status.md",
+      "target": "../development/evidence/20261001-repair-unknown-ack/README.md",
+      "resolved": "development/evidence/20261001-repair-unknown-ack/README.md",
+      "label": "earlier repair reply-loss proof"
+    },
+    {
+      "from": "docs/status.md",
+      "target": "../development/evidence/20261001-repair-unknown-ack/environment/README.md",
+      "resolved": "development/evidence/20261001-repair-unknown-ack/environment/README.md",
+      "label": "Inventory observations"
+    },
+    {
+      "from": "docs/status.md",
+      "target": "../development/evidence/20261001-repair-faults/README.md",
+      "resolved": "development/evidence/20261001-repair-faults/README.md",
+      "label": "Replica-fault evidence"
+    },
+    {
+      "from": "docs/status.md",
+      "target": "../development/evidence/20261001-async-repair/README.md",
+      "resolved": "development/evidence/20261001-async-repair/README.md",
+      "label": "Async-repair evidence"
+    },
+    {
+      "from": "docs/status.md",
+      "target": "../development/evidence/20261001-toml-startup/README.md",
+      "resolved": "development/evidence/20261001-toml-startup/README.md",
+      "label": "Startup and A/B evidence"
+    },
+    {
+      "from": "docs/status.md",
+      "target": "../development/evidence/20261001-shutdown-signal/README.md",
+      "resolved": "development/evidence/20261001-shutdown-signal/README.md",
+      "label": "Signal-deadline evidence"
+    },
+    {
+      "from": "docs/status.md",
+      "target": "../development/evidence/20261001-writeback/README.md",
+      "resolved": "development/evidence/20261001-writeback/README.md",
+      "label": "Writeback evidence"
+    },
+    {
+      "from": "docs/status.md",
+      "target": "../development/evidence/20261001-node-shutdown/README.md",
+      "resolved": "development/evidence/20261001-node-shutdown/README.md",
+      "label": "shutdown evidence"
+    },
+    {
+      "from": "docs/status.md",
+      "target": "../development/evidence/20261001-processctl/README.md",
+      "resolved": "development/evidence/20261001-processctl/README.md",
+      "label": "Controller evidence"
+    },
+    {
+      "from": "docs/status.md",
+      "target": "../development/evidence/20261001-owner-recovery/README.md",
+      "resolved": "development/evidence/20261001-owner-recovery/README.md",
+      "label": "Owner restart evidence"
+    },
+    {
+      "from": "docs/status.md",
+      "target": "../development/evidence/20261001-owner-open/README.md",
+      "resolved": "development/evidence/20261001-owner-open/README.md",
+      "label": "v43 open admission/provider lifetime"
+    },
+    {
+      "from": "docs/status.md",
+      "target": "../development/evidence/20261001-owner-retirement/README.md",
+      "resolved": "development/evidence/20261001-owner-retirement/README.md",
+      "label": "v44 session retirement"
+    },
+    {
+      "from": "docs/status.md",
+      "target": "../development/evidence/20261001-release-retry/README.md",
+      "resolved": "development/evidence/20261001-release-retry/README.md",
+      "label": "Earlier v41 release-retry evidence"
+    },
+    {
+      "from": "docs/status.md",
+      "target": "../development/evidence/20261001-remote-full-timeout/README.md",
+      "resolved": "development/evidence/20261001-remote-full-timeout/README.md",
+      "label": "v40 full remote run"
+    },
+    {
+      "from": "docs/status.md",
+      "target": "../development/evidence/20261001-authority/README.md",
+      "resolved": "development/evidence/20261001-authority/README.md",
+      "label": "Earlier v36 evidence"
+    },
+    {
+      "from": "docs/status.md",
+      "target": "../development/evidence/20260930-resume/README.md",
+      "resolved": "development/evidence/20260930-resume/README.md",
+      "label": "The earlier DFS v26 full result"
+    },
+    {
+      "from": "docs/status.md",
+      "target": "../development/evidence/20261001-remote-standard/README.md",
+      "resolved": "development/evidence/20261001-remote-standard/README.md",
+      "label": "Driver evidence"
+    },
+    {
+      "from": "docs/status.md",
+      "target": "../development/evidence/20261001-corruption/README.md",
+      "resolved": "development/evidence/20261001-corruption/README.md",
+      "label": "corruption recovery batch"
+    },
+    {
+      "from": "docs/status.md",
+      "target": "../development/evidence/20261001-rxe-repair/README.md",
+      "resolved": "development/evidence/20261001-rxe-repair/README.md",
+      "label": "short RXE repair flow"
+    },
+    {
+      "from": "docs/status.md",
+      "target": "../development/evidence/20261001-rdma-admission/README.md",
+      "resolved": "development/evidence/20261001-rdma-admission/README.md",
+      "label": "admission batch"
+    },
+    {
+      "from": "docs/status.md",
+      "target": "../development/evidence/20261001-dfs-auto/README.md",
+      "resolved": "development/evidence/20261001-dfs-auto/README.md",
+      "label": "automatic selection batch"
+    },
+    {
+      "from": "docs/status.md",
+      "target": "acceptance.md#10-\u7b2c\u4e00\u9636\u6bb5\u9a8c\u6536\u540e-todo",
+      "resolved": "docs/acceptance.md",
+      "label": "post-acceptance TODO"
+    },
+    {
+      "from": "docs/status.md",
+      "target": "../development/evidence/20261001-posted-rdma-cancellation/README.md",
+      "resolved": "development/evidence/20261001-posted-rdma-cancellation/README.md",
+      "label": "real Linux RXE diagnostic"
+    }
+  ],
+  "scope": "exact scoped artifacts and direct local file links; fragments not independently verified",
+  "formal_acceptance": "NOT_RUN"
+}

@@ -1,0 +1,47 @@
+{
+  "action": "prepare",
+  "which": "ctl",
+  "utc": "2026-10-01T11:03:11Z",
+  "formal_acceptance": "NOT_RUN",
+  "environment": "PREPARING",
+  "prepare": {
+    "baseline": "/mnt/lima-afsctlstate/afs-delivery/round1-mainline-v77-archive-async",
+    "configuration_sha256": "a8242e019a4106d2596c58ffe566e2d5ebe22259c701beddcb3d4c9da5955a16",
+    "configuration": {
+      "fs": "all",
+      "log_level": "info",
+      "tls_ca_certificate": "/mnt/lima-afsctlstate/afs-delivery/round1-mainline-v77-archive-async/etc/tls/ca.pem",
+      "tls_identity_certificate": "/mnt/lima-afsctlstate/afs-delivery/round1-mainline-v77-archive-async/etc/tls/meta.pem",
+      "tls_identity_private_key": "/mnt/lima-afsctlstate/afs-delivery/round1-mainline-v77-archive-async/etc/tls/meta-key.pem",
+      "tls_server_name": "afs-cluster",
+      "trusted_node_certs": {
+        "round1-a": "/mnt/lima-afsctlstate/afs-delivery/round1-mainline-v77-archive-async/etc/tls/round1-a.pem",
+        "round1-b": "/mnt/lima-afsctlstate/afs-delivery/round1-mainline-v77-archive-async/etc/tls/round1-b.pem",
+        "round1-c": "/mnt/lima-afsctlstate/afs-delivery/round1-mainline-v77-archive-async/etc/tls/round1-c.pem"
+      },
+      "dfs_desired_copies": 2,
+      "dfs_sync_required_copies": 1,
+      "dfs_min_distinct_nodes": 1,
+      "dfs_min_distinct_failure_domains": 1,
+      "dfs_local_copy": "required",
+      "id": "round1-meta",
+      "meta_store": "memory",
+      "grpc_listen": "0.0.0.0:20080",
+      "rest_listen": "192.168.109.11:20081",
+      "data_dir": "/mnt/lima-afsctlstate/afs-delivery/round2-capacity-v79/state/meta"
+    },
+    "host_volume_before": {
+      "free_bytes": 4850753536,
+      "available_bytes": 4404584448,
+      "fragment_bytes": 4096
+    },
+    "host_volume_after": {
+      "free_bytes": 4850716672,
+      "available_bytes": 4404547584,
+      "fragment_bytes": 4096
+    },
+    "commands": [],
+    "device_matrix_qualification": false
+  },
+  "status": "PASS"
+}

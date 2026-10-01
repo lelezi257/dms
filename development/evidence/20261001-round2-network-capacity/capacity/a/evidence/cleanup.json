@@ -1,0 +1,67 @@
+{
+  "auto_detached": true,
+  "read_only_inspection": {
+    "argv": [
+      "mount",
+      "-o",
+      "loop,ro",
+      "/mnt/lima-afsadata/afs-delivery/round2-capacity-v79/capacity.ext4",
+      "/mnt/lima-afsadata/afs-delivery/round2-capacity-v79/volume"
+    ],
+    "exit": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  "physical": [
+    {
+      "path": "node/dfs/catalog.wal",
+      "size": 1646,
+      "sha256": "5212a9e18938cbef1d85c974a085009b9fe0357fe98162f456d9f5e5fc32a711"
+    },
+    {
+      "path": "node/dfs/chunks/blake3-5af22719c42cfbe6951f4b1161bea8cd7ff6503e43786f30755cfb5631d51afb-8192",
+      "size": 8192,
+      "sha256": "d4d0bd90fd628a80f43c9ad6c8a97725bd7da3c07676c68e17ecc899a4b1eafc"
+    },
+    {
+      "path": "node/dfs/chunks/blake3-ec318eb18bd970e12ebf0eb2b25aff220654a5dbe81d016120d55aed85f303ef-8192",
+      "size": 8192,
+      "sha256": "34f3a65c0a388c191f0110ed1b5c204a17bffbc5213f0855579c87b9c1ad74b2"
+    },
+    {
+      "path": "node/dfs/device_epoch",
+      "size": 20,
+      "sha256": "03c0a44dfb8234cc3c73bd0c3b3da21ff059567eff53a645519c3b0ea443c274"
+    },
+    {
+      "path": "node/ownerfs/.ownerfs-root-catalog.lock",
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "node/ownerfs/.ownerfs-roots/root-776f726b73706163652d63617061636974792d763739.json",
+      "size": 522,
+      "sha256": "607f842e814f279dc43e9745e8324bfbbf2bea9a04948ccf8599b9ea64603cc6"
+    },
+    {
+      "path": "node/ownerfs/root-776f726b73706163652d63617061636974792d763739-e1/data.bin",
+      "size": 8192,
+      "sha256": "d4d0bd90fd628a80f43c9ad6c8a97725bd7da3c07676c68e17ecc899a4b1eafc"
+    }
+  ],
+  "umount": {
+    "argv": [
+      "umount",
+      "/mnt/lima-afsadata/afs-delivery/round2-capacity-v79/volume"
+    ],
+    "exit": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  "host_volume_after": {
+    "free_bytes": 6131589120,
+    "available_bytes": 4396933120,
+    "fragment_bytes": 4096
+  },
+  "image_sha256": "dfc79fe8f79bef28575af4f0156786243ab28fd15f1f64a855e9fada449af9dc"
+}

@@ -1,0 +1,11 @@
+{
+  "status": "PASS",
+  "compiler_inputs": 143,
+  "protected": {
+    "AGENTS.md": "539ff7119bf3cde494478921db7967e8c152c8ef64c9c43c3ee3a64e1bdb7f6f",
+    "docs/handoff.md": "8941901e6b6f8b8b10e057a7477695dfa9b1fc4876b5762e71b66d8930eb7216"
+  },
+  "python_sources_compiled": 10,
+  "new_Rust_gate": false,
+  "formal_acceptance": "NOT_RUN"
+}

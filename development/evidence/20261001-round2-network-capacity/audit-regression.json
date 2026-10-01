@@ -1,0 +1,54 @@
+{
+  "status": "PASS",
+  "results": [
+    {
+      "name": "valid scoped packet",
+      "ok": true
+    },
+    {
+      "name": "wrong authority",
+      "ok": true,
+      "rejected": "ctl original process continuity"
+    },
+    {
+      "name": "no real DROP",
+      "ok": true,
+      "rejected": "real DROP hits"
+    },
+    {
+      "name": "firewall not restored",
+      "ok": true,
+      "rejected": "firewall rollback"
+    },
+    {
+      "name": "wrong business port",
+      "ok": true,
+      "rejected": "tcp-blocked.json actual endpoint outcome"
+    },
+    {
+      "name": "no physical fault",
+      "ok": true,
+      "rejected": "actual physical ENOSPC, not sparse exhaustion"
+    },
+    {
+      "name": "sparse filler",
+      "ok": true,
+      "rejected": "actual physical ENOSPC, not sparse exhaustion"
+    },
+    {
+      "name": "false DFS sync success",
+      "ok": true,
+      "rejected": "DFS fdatasync explicit ENOSPC"
+    },
+    {
+      "name": "failed write published",
+      "ok": true,
+      "rejected": "dfs original committed content retained"
+    },
+    {
+      "name": "bad successful recovered data",
+      "ok": true,
+      "rejected": "dfs recovered durable bytes"
+    }
+  ]
+}

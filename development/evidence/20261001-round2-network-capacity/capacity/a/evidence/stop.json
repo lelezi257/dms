@@ -1,0 +1,26 @@
+{
+  "action": "stop",
+  "which": "a",
+  "utc": "2026-10-01T11:05:16Z",
+  "formal_acceptance": "NOT_RUN",
+  "environment": "PREPARING",
+  "controller": {
+    "argv": [
+      "/mnt/lima-afsadata/afs-delivery/round2-capacity-v79/prefix/bin/afs-processctl",
+      "--prefix",
+      "/mnt/lima-afsadata/afs-delivery/round2-capacity-v79/prefix",
+      "--config-dir",
+      "/mnt/lima-afsadata/afs-delivery/round2-capacity-v79/etc",
+      "--run-dir",
+      "/mnt/lima-afsadata/afs-delivery/round2-capacity-v79/run",
+      "--log-dir",
+      "/mnt/lima-afsadata/afs-delivery/round2-capacity-v79/log",
+      "stop",
+      "node"
+    ],
+    "exit": 0,
+    "stdout": "node stopped exit_code=0\n",
+    "stderr": ""
+  },
+  "status": "PASS"
+}

@@ -1,0 +1,7 @@
+{
+  "destination": "192.168.109.12",
+  "port": 19982,
+  "outcome": "connected",
+  "error": null,
+  "elapsed_seconds": 0.000505445001181215
+}

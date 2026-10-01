@@ -1,0 +1,39 @@
+{
+  "action": "fill",
+  "which": "a",
+  "utc": "2026-10-01T11:03:41Z",
+  "formal_acceptance": "NOT_RUN",
+  "environment": "PREPARING",
+  "identity": {
+    "pid": 741876,
+    "start_ticks": "10374626",
+    "boot_id": "36a572e0-859b-4a94-adc7-789210a83fc8",
+    "sha256": "d28d17faa8bb71eb8c0a28241e8556396e440b204cf0242d2af8133700f6a494",
+    "exe": "/mnt/lima-afsadata/afs-delivery/round1-mainline-v77-archive-async/prefix/bin/afs-node"
+  },
+  "before": {
+    "free_bytes": 2678784,
+    "available_bytes": 0,
+    "fragment_bytes": 4096
+  },
+  "write_errno": 28,
+  "filler_sync": {
+    "operation": "filler-fsync",
+    "outcome": "success",
+    "value": null,
+    "elapsed_seconds": 0.004840718989726156
+  },
+  "written_bytes": 106205184,
+  "allocated_bytes": 106209280,
+  "after": {
+    "free_bytes": 2678784,
+    "available_bytes": 0,
+    "fragment_bytes": 4096
+  },
+  "watchdog": {
+    "pid": 742076,
+    "ttl_seconds": 180,
+    "owned_filler": "/mnt/lima-afsadata/afs-delivery/round2-capacity-v79/volume/owned-capacity-filler"
+  },
+  "status": "PASS"
+}

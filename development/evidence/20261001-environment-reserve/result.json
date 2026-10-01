@@ -1,0 +1,18 @@
+{
+  "result_level": "local preparation regression",
+  "linux_script_tests": 9,
+  "original_migration_tests": 7,
+  "migration_source": "linux/executed-archive-extractions-v65.py",
+  "trees": 8,
+  "data_available_before": 1089331200,
+  "data_available_after": 5280145408,
+  "unchanged_compile_inputs": 143,
+  "reused_gate": "../20261001-file-commit/README.md",
+  "handoff_sha256": "8941901e6b6f8b8b10e057a7477695dfa9b1fc4876b5762e71b66d8930eb7216",
+  "AGENTS_sha256": "539ff7119bf3cde494478921db7967e8c152c8ef64c9c43c3ee3a64e1bdb7f6f",
+  "formal_cases": "69 NOT_RUN",
+  "environment": "PREPARING",
+  "goal": "ACTIVE",
+  "acceptance_sha256": "bdb2b697d4764d9cde21bdc46d5d8a6a8c0f891a20d7d6153b52cc75ce3c428e",
+  "reused_rust_gate_base_commit": "4b0cca1ae3da3ce891755aa6c6cb368e92e0168e"
+}

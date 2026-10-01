@@ -1,0 +1,12 @@
+test_copy_link_and_manual_restore_preserve_all_recorded_attributes (test_archive_extractions_v65.ArchiveTests.test_copy_link_and_manual_restore_preserve_all_recorded_attributes) ... ok
+test_corrupted_copy_keeps_original_path_unchanged (test_archive_extractions_v65.ArchiveTests.test_corrupted_copy_keeps_original_path_unchanged) ... ok
+test_existing_destination_is_never_overwritten (test_archive_extractions_v65.ArchiveTests.test_existing_destination_is_never_overwritten) ... ok
+test_link_install_failure_restores_original_directory (test_archive_extractions_v65.ArchiveTests.test_link_install_failure_restores_original_directory) ... ok
+test_live_fd_blocks_before_copy_or_rename (test_archive_extractions_v65.ArchiveTests.test_live_fd_blocks_before_copy_or_rename) ... ok
+test_manifest_detects_same_size_content_and_metadata_changes (test_archive_extractions_v65.ArchiveTests.test_manifest_detects_same_size_content_and_metadata_changes) ... ok
+test_special_and_hardlinked_files_are_rejected (test_archive_extractions_v65.ArchiveTests.test_special_and_hardlinked_files_are_rejected) ... ok
+
+----------------------------------------------------------------------
+Ran 7 tests in 0.056s
+
+OK

@@ -257,3 +257,40 @@ main overlap; no rebase or merge is authorized here.
 
 
 2026-10-06最终五路径诊断收口：120 metadata、240 IO固定任务完整采集；native本地多数接近ext4，保留10.6% seq-close、25.1% random-fdatasync两项差距及屏障/CPU分解。远端metadata与热小读有明显差距，index查询放大／DIRECT_IO与baseline缓存策略已有有限机制归因，未继续修复。原10k remote失败、cache/B001未资格化及完整合同反例保留。最终结论、实际表、原始包与实现移交以有界穿刺报告为准，不以本注释宣告任何正式阶段PASS。
+
+
+## 2026-10-06 final independent investigation review
+
+Fresh read-only reviewer assessed the whole-branch package7824577..df077aa,
+with detailed focus on the latest bounded evidence and inherited proof/contracts.
+No Critical or Important blocker for draft investigation/handoff was found.
+The reviewer independently verified all13 bundle/archive/file hashes, six old
+observers, both new observers with four negative controls each, exact28metadata
+and eightIO summaries, and optimized executable identities. Latest investigation
+delta has no src/common/Cargo modifications. Ready for draft evidence delivery;
+NOT ready to merge or approve the product feature.
+
+Minor deferred: random-write content_ok checks only generated/touched offsets,
+not preservation of untouched regions. Timings remain valid; full-file integrity
+coverage belongs to later functional implementation/testing. The reproduction
+guide discloses this limit; no probe or production algorithm was changed.
+
+Declined-to-judge scopes remain OPEN:
+1. Entire inherited Meta/Root/RPC/OwnerFs production foundation and integration
+   with overlapping main: selected relevant paths reviewed, not every production
+   path; implementing AI must integrate and rerun affected proofs.
+2. Production admission/Agent READY, complete reference drainage, Home/epoch
+   migration and crash recovery: deferred engineering, not proven by these tools.
+3. Repairs/final feasibility of append/cursor, classic POSIX owner and applicable
+   mmap/watch: negative evidence stays binding; no approved exemption/solution.
+4. Full mixed-client permissions/concurrency and hostile-container security:
+   controlled mechanism/spec probes are insufficient for these claims.
+5. Full-scale remote/MooseFS performance, physical durability/cache matching,
+   host cold-cache state and precise physical causes of residual timings:
+   unqualified; smaller/phase-window diagnostics cannot close them.
+6. ARM64/RDMA release qualification and merge approval: not delivered here.
+
+Ruling: keep all six scopes explicitly unmet/deferred under the user's bounded
+investigation exit. Cost if mistaken: integration, semantic or release claims
+would exceed evidence; no deployment/merge/full-stage PASS is authorized.
+GitHub issue/PR state is independently checked by the executor, not this reviewer.

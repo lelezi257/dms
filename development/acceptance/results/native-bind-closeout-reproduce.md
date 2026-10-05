@@ -12,6 +12,8 @@ python3 development/acceptance/probes/ownerfs_native_closeout_verify.py /path/to
 
 观察器从归档读取常规文件，核对 archive SHA、逐文件 SHA、输入 SHA、实际 runtime 返回、完整固定矩阵、原生源对象、缓存证明和 stop/delete。`checks_ok=true`只表示证据可信，输出保留`semantic_acceptance=false`或`performance_acceptance=false`。E20 shared mmap/watch 的负向结果有正向控制，不能把 runner PASS 解释为功能PASS。E21明确是`bounded-five-lane-v1`而不是完整规模性能门槛。
 
+随机写的 `content_ok` 只证明本次生成的触达偏移已写入预期内容，没有核对全部未触达区域的完整性；不能据此宣布整个文件无损。该限制不改变已采时间，完整功能验证由接手AI补齐。
+
 原 runner FAIL 的包也有 archive/input 完整性记录，但不能送入“完整矩阵”观察器后要求PASS。10k remote原失败仍有原stderr、三条完整预热、当时RPC指标、source snapshot和五容器正常清理事实。旧 E15–E19 使用原 `ownerfs_native_network_verify.py`，原 FAIL 的限定规则不改变。
 
 ## 重跑受控 VM 实验

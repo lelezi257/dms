@@ -10,6 +10,20 @@
 
 **Spec:** [RFC 0001](../docs/rfcs/0001-ownerfs-native-bind-mount.md)、[用户合同](../docs/architecture/ownerfs-native-access.md)、[发布验收](../docs/acceptance.md)、issue [#42](https://github.com/lelezi257/dms/issues/42)。本计划优先于[原实现计划](native-bind-plan.md)中任务的执行顺序，不覆盖历史结果。
 
+## 2026-10-06 有界穿刺交付（优先于原生产实现出口）
+
+用户明确将本任务调整为四项穿刺及 issue/MR 交接，真实生产实现由另一 AI 接手。
+完成的证据可以是可行、实现遗漏、尚未验证或明确反例；不要求把反例修到通过。
+性能差距有证据的有限归因后继续交付，不调优、不反复采样直到通过。
+核心容器本地性能目前接近 native，完整性能资格及宿主绝对路径结论保持原范围。
+
+1. A-closeout：复用 E1–E19；仅补跨挂载在途操作、native/旧FUSE/远端的 mmap/watch/基础权限链接机制和容器回收切换约束。append/POSIX owner 交根因及候选路线，不写生产修复。未知完整组合必须明确标注。
+2. P-closeout：复用现有虚拟机、优化二进制和固定负载；补本地三方/远端两方元数据、顺序及随机读写，明确 guest cache/自身缓存和 stock MooseFS B001 屏障资格。可比成功端点与不合格耐久端点分开报告，不借诊断数字宣称 release PASS。
+3. R-closeout：容器 ext4/native 同 backing、同文件、相同可见路径和资源的有限控制；判明可识别的机制成本及测量/环境残余，不要求消除差距。
+4. H-closeout：更新现有 RFC/报告/issue #42/草稿 PR #43；列可复现输入、负向证据、生产实现清单和主线冲突。不得合入或关闭 issue，不改 docs/handoff.md。
+
+完成条件是四项结论/数据/限制/交接可审查，**不是阶段一至三或所有性能门槛 PASS**。原产品合同不降低。
+
 ## 全局约束与当前检查点
 
 ### 2026-10-01 工作归属与交付重点调整

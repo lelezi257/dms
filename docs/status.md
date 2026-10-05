@@ -279,3 +279,24 @@ The formal 69-case release manifest remains NOT_RUN and the environment lock PRE
 - Run final 8 GiB, full FSx/random-operation seeds and eight-hour soak; source or short-mount regression success is insufficient.
 - Read-grant protocol changes require coordinated upgrade: request-level grant field 5 is reserved, each operation uses grant field 7, and `DfsReadGrant.caller_epoch` remains field 5. Existing persisted copy records require explicit migration to `CopyLocation`; no automatic old-format migration is provided.
 - DFS SDK, product cache/spill and Meta election/HA remain outside the first-stage gates, as recorded in the [post-acceptance TODO](acceptance.md#10-第一阶段验收后-todo).
+
+
+### OwnerFs native bind investigation — 2026-10-06
+
+The user assigned production implementation to another AI. This isolated branch
+delivers a bounded [architecture/performance/handoff investigation](../development/native-bind-closeout.md),
+not a completed product feature. E20 adds actual pending Home write across bind,
+native mmap writeback and private-map/basic-metadata controls. Retained FUSE and
+remote shared mmap remain ENODEV; native mutation does not reach their watchers.
+E4/E15 append/POSIX-owner conflicts and production/lifecycle integrations remain
+open. Existing container-local data are close to ext4 with retained per-case gaps;
+full comparative and release acceptance are separate. No production Rust default,
+generic reliability or main changes accompany this closeout.
+
+
+E21 now also records actual five-way OCI diagnostics (120 metadata and240 IO),
+using the same smaller workload on all lanes. Local native IO ratios0.973–1.251;
+remote metadata and hot small reads retain substantial gaps. Full-scale/cache/
+physical-durability gates remain unqualified. The10k remote warmup failed and is
+published unchanged; smaller evidence does not replace it. See the closeout
+report/finite attribution for data and production handoff, not feature approval.

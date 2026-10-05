@@ -451,6 +451,12 @@ def main():
         result = node_ready(base)
     elif op == "driver":
         result = driver_command(base, json.load(sys.stdin))
+    elif op == "closeout-performance":
+        from ownerfs_native_closeout_performance import run
+        result = run(base, json.load(sys.stdin), sys.modules[__name__])
+    elif op == "closeout":
+        from ownerfs_native_closeout_guest import run
+        result = run(base, json.load(sys.stdin), sys.modules[__name__])
     elif op == "container-performance":
         from ownerfs_native_container import run
         result = run(base, json.load(sys.stdin), sys.modules[__name__])

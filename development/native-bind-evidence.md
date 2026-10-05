@@ -1836,3 +1836,17 @@ Fresh final source verification matches157 Rust/proto/Cargo inputs, the exact
 build-parent/Rust patch, optimized executable SHAs and both build exits0.
 Rust has not changed since the optimized build; this is not a new full Rust
 test-suite execution or qualification of later main.
+
+
+## E20 — 2026-10-06 有界架构收口
+
+原始 run `network-probe-20261005T162710-11936566`（UTC），本地日期 2026-10-06。三 VM 真实 Meta/Node/TLS/P2P；Rust 候选与 E19 相同，新增部分为 Python 架构实验。strace 延迟实际 Home pwrite64 返回，physical 已有 transition-data 且远端回复未产生；manager activate 后回复仍待返回；移除注入后同一次 actor 写成功，native/保留旧 FUSE/remote 重开数据相同。
+
+native shared mmap 修改后 msync/fsync 与重读通过；old-FUSE/remote shared mmap errno19，三路径 private 修改不写回通过，mode640/user.xattr/symlink 小机制通过。native inotify 有事件，old-FUSE/remote 先各自验证正向 FUSE 控制，再观测 native 修改无事件。此为能力缺口事实，未获豁免。归档 checksum/文件清单/实际 SSH 回复/负向事实及伪造 pending/mapping/watch 拒绝自检已验证。
+
+工具原 FAIL `network-probe-20261005T162439-900ea5b1`：8秒注入在 peer retry 的多个 worker 首次 pwrite 重复延迟，超过 actor 等待。只改实验结束注入的时机；没有改产品 timeout/retry，原日志保留。E20 不证明 syscall-wide append、完整 managed READY/ACK 或所有在途组合。
+
+任务出口由用户改为四项调查及移交，见 [收口报告](native-bind-closeout.md)；负向结论可以作为调查成果，不能变成产品验收 PASS。
+
+
+2026-10-06最终五路径诊断收口：120 metadata、240 IO固定任务完整采集；native本地多数接近ext4，保留10.6% seq-close、25.1% random-fdatasync两项差距及屏障/CPU分解。远端metadata与热小读有明显差距，index查询放大／DIRECT_IO与baseline缓存策略已有有限机制归因，未继续修复。原10k remote失败、cache/B001未资格化及完整合同反例保留。最终结论、实际表、原始包与实现移交以有界穿刺报告为准，不以本注释宣告任何正式阶段PASS。

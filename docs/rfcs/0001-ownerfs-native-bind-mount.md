@@ -309,3 +309,15 @@ P 归档 SHA-256：`02dfeec6bb302f5d223087feb0e1e3698a55865dee89fd81ca7fc4781634
 - Linux：[mount(2)](https://man7.org/linux/man-pages/man2/mount.2.html)、[umount(2)](https://man7.org/linux/man-pages/man2/umount.2.html)、[mount_namespaces(7)](https://man7.org/linux/man-pages/man7/mount_namespaces.7.html)、[close(2)](https://man7.org/linux/man-pages/man2/close.2.html)。
 - 内核路径实现参考：[Linux v6.8 namei.c](https://github.com/torvalds/linux/blob/v6.8/fs/namei.c)、[Linux v6.8 FUSE dir.c](https://github.com/torvalds/linux/blob/v6.8/fs/fuse/dir.c)。
 - 缓存与替代方向：[FUSE I/O modes](https://docs.kernel.org/6.7/filesystems/fuse-io.html)、[FUSE passthrough 官方文档](https://docs.kernel.org/filesystems/fuse/fuse-passthrough.html)。
+
+
+## 2026-10-06：有界穿刺与实现移交
+
+用户将本分支的完成目标调整为功能可行性结论、真实比较性能、有限差距归因及 issue/MR 交接；实际生产实现由另一 AI 接手。性能发现有证据的原因后继续交付，不要求当前分支消除差距。此调整改变任务出口，不改变已接受的用户合同或正式验收标准。
+
+统一结论、实现路线与范围见 [有界穿刺报告](../../development/native-bind-closeout.md)。E20 补齐实际认证 P2P Home 写回复在挂载前后等待的一个固定偏移案例，重开数据一致；native shared mmap 写回和三个路径的 private mapping/基础 mode/xattr/symlink 机制通过。旧 FUSE/远端 shared mapping 均 ENODEV，native 修改不投递到旧 FUSE/远端 watcher 的正向控制反例也已保留。不能从 runner 成功推断这些语义已支持。
+
+E4/E15 的 classic POSIX owner/追加及客户端游标冲突保持开放；standard FUSE/P2P 原样加用户态 mutex 不是完整解决路线。容器只 bind 一个已准备 workspace 的机制可行且本地性能接近 ext4，但最终容器 mount 必须独立管理，原 export Detached 不等于排空。当前原组合不能完整满足合同，任何客户端/内核或限制用户模型的候选均需独立证明/明确授权。草稿 PR 不合入，不自动关闭 issue，不宣告生产实现完成。
+
+
+2026-10-06最终五路径诊断收口：120 metadata、240 IO固定任务完整采集；native本地多数接近ext4，保留10.6% seq-close、25.1% random-fdatasync两项差距及屏障/CPU分解。远端metadata与热小读有明显差距，index查询放大／DIRECT_IO与baseline缓存策略已有有限机制归因，未继续修复。原10k remote失败、cache/B001未资格化及完整合同反例保留。最终结论、实际表、原始包与实现移交以有界穿刺报告为准，不以本注释宣告任何正式阶段PASS。

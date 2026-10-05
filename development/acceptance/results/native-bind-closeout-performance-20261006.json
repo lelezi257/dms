@@ -1,0 +1,636 @@
+{
+  "run": "network-probe-20261005T170023-06e15509",
+  "profile": "bounded-five-lane-v1",
+  "metadata_files": 1000,
+  "metadata_samples": 120,
+  "io_samples": 240,
+  "original_runner_passed": true,
+  "checks": {
+    "checks_ok": true,
+    "scope": "qualified investigation evidence only",
+    "metadata_samples": 120,
+    "io_samples": 240,
+    "content_checked": true,
+    "cache_and_durability_limits_retained": true,
+    "performance_acceptance": false,
+    "negative_observer_controls": 4
+  },
+  "phase_pass": false,
+  "scope": "fixed bounded five-way investigation; original 10k and full large-data remote/MFS gates unqualified",
+  "ratio": "median of five per-round wall-time pairs; >1 means slower; excluded one warmup, all formal rounds retained",
+  "cache_limit": "guest-only cold, uncontrolled Hyper-V host cache; FUSE residency absent and userspace MooseFS cache not qualified empty",
+  "durability": "stock MooseFS B001 unqualified; timing matching syscall replies is not proof of equal physical durability",
+  "metadata": [
+    {
+      "form": "absolute",
+      "concurrency": 1,
+      "phase": "all",
+      "native_ext4": 0.9116488351605685,
+      "mfs_local_ext4": 95.37221710349031,
+      "remote_dms_mfs": 9.519486079998218,
+      "median_seconds": {
+        "ext4": 0.038512619,
+        "native": 0.033500904,
+        "mfs-local": 3.861364866,
+        "dms-remote": 40.935038421,
+        "mfs-remote": 4.249791375
+      }
+    },
+    {
+      "form": "absolute",
+      "concurrency": 1,
+      "phase": "create_write_close",
+      "native_ext4": 0.9073668670279874,
+      "mfs_local_ext4": 108.41275451597782,
+      "remote_dms_mfs": 4.9486315191742225,
+      "median_seconds": {
+        "ext4": 0.014045025,
+        "native": 0.012662483,
+        "mfs-local": 1.478085293,
+        "dms-remote": 9.470750928,
+        "mfs-remote": 1.84654754
+      }
+    },
+    {
+      "form": "absolute",
+      "concurrency": 1,
+      "phase": "stat",
+      "native_ext4": 0.8550027405538729,
+      "mfs_local_ext4": 222.53992073474953,
+      "remote_dms_mfs": 17.917862745612677,
+      "median_seconds": {
+        "ext4": 0.001138456,
+        "native": 0.000974853,
+        "mfs-local": 0.258907478,
+        "dms-remote": 5.541051399,
+        "mfs-remote": 0.263171722
+      }
+    },
+    {
+      "form": "absolute",
+      "concurrency": 1,
+      "phase": "read_close",
+      "native_ext4": 0.849393928096534,
+      "mfs_local_ext4": 300.6711717555829,
+      "remote_dms_mfs": 7.89854519232335,
+      "median_seconds": {
+        "ext4": 0.002011725,
+        "native": 0.001708747,
+        "mfs-local": 0.604867713,
+        "dms-remote": 6.576452268,
+        "mfs-remote": 0.80953334
+      }
+    },
+    {
+      "form": "absolute",
+      "concurrency": 1,
+      "phase": "readdir",
+      "native_ext4": 1.0331003100860534,
+      "mfs_local_ext4": 7.667925950520015,
+      "remote_dms_mfs": 1057.9987597320912,
+      "median_seconds": {
+        "ext4": 0.000222878,
+        "native": 0.00022522,
+        "mfs-local": 0.001709012,
+        "dms-remote": 1.555945876,
+        "mfs-remote": 0.00147065
+      }
+    },
+    {
+      "form": "absolute",
+      "concurrency": 1,
+      "phase": "rename",
+      "native_ext4": 0.9476567699770562,
+      "mfs_local_ext4": 53.21583946905546,
+      "remote_dms_mfs": 15.488944028414647,
+      "median_seconds": {
+        "ext4": 0.014577102,
+        "native": 0.012603725,
+        "mfs-local": 0.832634922,
+        "dms-remote": 12.374730348,
+        "mfs-remote": 0.793055932
+      }
+    },
+    {
+      "form": "absolute",
+      "concurrency": 1,
+      "phase": "unlink",
+      "native_ext4": 0.906369130749439,
+      "mfs_local_ext4": 94.25390210724703,
+      "remote_dms_mfs": 9.167173523835134,
+      "median_seconds": {
+        "ext4": 0.006120681,
+        "native": 0.005363243,
+        "mfs-local": 0.524472606,
+        "dms-remote": 4.896861148,
+        "mfs-remote": 0.546079012
+      }
+    },
+    {
+      "form": "absolute",
+      "concurrency": 8,
+      "phase": "all",
+      "native_ext4": 1.0604372143603016,
+      "mfs_local_ext4": 66.91963227222618,
+      "remote_dms_mfs": 13.879532085653526,
+      "median_seconds": {
+        "ext4": 0.034017114,
+        "native": 0.034351837,
+        "mfs-local": 2.147364664,
+        "dms-remote": 31.670386389,
+        "mfs-remote": 2.175246234
+      }
+    },
+    {
+      "form": "absolute",
+      "concurrency": 8,
+      "phase": "create_write_close",
+      "native_ext4": 0.995037285066749,
+      "mfs_local_ext4": 46.645679716842146,
+      "remote_dms_mfs": 10.11345328231388,
+      "median_seconds": {
+        "ext4": 0.012557038,
+        "native": 0.012353663,
+        "mfs-local": 0.588714636,
+        "dms-remote": 6.16124209,
+        "mfs-remote": 0.597441771
+      }
+    },
+    {
+      "form": "absolute",
+      "concurrency": 8,
+      "phase": "stat",
+      "native_ext4": 1.0397450403731425,
+      "mfs_local_ext4": 44.17696950869706,
+      "remote_dms_mfs": 94.45107656263494,
+      "median_seconds": {
+        "ext4": 0.000797099,
+        "native": 0.000917078,
+        "mfs-local": 0.037357389,
+        "dms-remote": 3.546930085,
+        "mfs-remote": 0.039049604
+      }
+    },
+    {
+      "form": "absolute",
+      "concurrency": 8,
+      "phase": "read_close",
+      "native_ext4": 1.109649291080862,
+      "mfs_local_ext4": 82.60322614617706,
+      "remote_dms_mfs": 31.718842457186025,
+      "median_seconds": {
+        "ext4": 0.001434071,
+        "native": 0.001677499,
+        "mfs-local": 0.117661196,
+        "dms-remote": 4.082055847,
+        "mfs-remote": 0.135224983
+      }
+    },
+    {
+      "form": "absolute",
+      "concurrency": 8,
+      "phase": "readdir",
+      "native_ext4": 0.9638469017943958,
+      "mfs_local_ext4": 7.595988682174425,
+      "remote_dms_mfs": 774.2696971969046,
+      "median_seconds": {
+        "ext4": 0.000209197,
+        "native": 0.000209902,
+        "mfs-local": 0.001645925,
+        "dms-remote": 1.562898614,
+        "mfs-remote": 0.002118321
+      }
+    },
+    {
+      "form": "absolute",
+      "concurrency": 8,
+      "phase": "rename",
+      "native_ext4": 1.052684932807881,
+      "mfs_local_ext4": 63.523556064153404,
+      "remote_dms_mfs": 11.51722063109693,
+      "median_seconds": {
+        "ext4": 0.013772002,
+        "native": 0.014182064,
+        "mfs-local": 0.854057453,
+        "dms-remote": 10.54227441,
+        "mfs-remote": 0.888093365
+      }
+    },
+    {
+      "form": "absolute",
+      "concurrency": 8,
+      "phase": "unlink",
+      "native_ext4": 1.073954129748156,
+      "mfs_local_ext4": 131.31949639692283,
+      "remote_dms_mfs": 8.769539967127022,
+      "median_seconds": {
+        "ext4": 0.005054829,
+        "native": 0.00535583,
+        "mfs-local": 0.59141259,
+        "dms-remote": 4.603165469,
+        "mfs-remote": 0.503095478
+      }
+    },
+    {
+      "form": "relative",
+      "concurrency": 1,
+      "phase": "all",
+      "native_ext4": 0.9680976003013345,
+      "mfs_local_ext4": 107.76582520248618,
+      "remote_dms_mfs": 8.332768596653594,
+      "median_seconds": {
+        "ext4": 0.034215796,
+        "native": 0.033353269,
+        "mfs-local": 3.711328913,
+        "dms-remote": 35.333913856,
+        "mfs-remote": 4.035507972
+      }
+    },
+    {
+      "form": "relative",
+      "concurrency": 1,
+      "phase": "create_write_close",
+      "native_ext4": 0.9547613552852153,
+      "mfs_local_ext4": 124.8862655671809,
+      "remote_dms_mfs": 4.4378083167567075,
+      "median_seconds": {
+        "ext4": 0.013057302,
+        "native": 0.013011187,
+        "mfs-local": 1.613346219,
+        "dms-remote": 7.978720612,
+        "mfs-remote": 1.850764636
+      }
+    },
+    {
+      "form": "relative",
+      "concurrency": 1,
+      "phase": "stat",
+      "native_ext4": 0.9101525055473907,
+      "mfs_local_ext4": 241.65844145782768,
+      "remote_dms_mfs": 14.866907608340025,
+      "median_seconds": {
+        "ext4": 0.000882915,
+        "native": 0.00085307,
+        "mfs-local": 0.253665153,
+        "dms-remote": 4.49764744,
+        "mfs-remote": 0.277195069
+      }
+    },
+    {
+      "form": "relative",
+      "concurrency": 1,
+      "phase": "read_close",
+      "native_ext4": 0.9719604371839586,
+      "mfs_local_ext4": 369.15720176824163,
+      "remote_dms_mfs": 8.739022635833201,
+      "median_seconds": {
+        "ext4": 0.001603627,
+        "native": 0.001628082,
+        "mfs-local": 0.591990456,
+        "dms-remote": 6.951713505,
+        "mfs-remote": 0.779801555
+      }
+    },
+    {
+      "form": "relative",
+      "concurrency": 1,
+      "phase": "readdir",
+      "native_ext4": 0.959005652176063,
+      "mfs_local_ext4": 8.28315877381022,
+      "remote_dms_mfs": 1031.326029951313,
+      "median_seconds": {
+        "ext4": 0.000204343,
+        "native": 0.000193933,
+        "mfs-local": 0.001557209,
+        "dms-remote": 1.620508285,
+        "mfs-remote": 0.001542187
+      }
+    },
+    {
+      "form": "relative",
+      "concurrency": 1,
+      "phase": "rename",
+      "native_ext4": 0.9383616233062462,
+      "mfs_local_ext4": 55.924708957542,
+      "remote_dms_mfs": 13.658328235708625,
+      "median_seconds": {
+        "ext4": 0.013740238,
+        "native": 0.012630374,
+        "mfs-local": 0.751057005,
+        "dms-remote": 9.697639414,
+        "mfs-remote": 0.699110964
+      }
+    },
+    {
+      "form": "relative",
+      "concurrency": 1,
+      "phase": "unlink",
+      "native_ext4": 1.0392728728385265,
+      "mfs_local_ext4": 93.98071853298805,
+      "remote_dms_mfs": 8.200986769751083,
+      "median_seconds": {
+        "ext4": 0.005455827,
+        "native": 0.005670093,
+        "mfs-local": 0.495147798,
+        "dms-remote": 3.953810319,
+        "mfs-remote": 0.480798211
+      }
+    },
+    {
+      "form": "relative",
+      "concurrency": 8,
+      "phase": "all",
+      "native_ext4": 0.9967341126746037,
+      "mfs_local_ext4": 58.75250089633933,
+      "remote_dms_mfs": 11.879634751632889,
+      "median_seconds": {
+        "ext4": 0.038091043,
+        "native": 0.039449753,
+        "mfs-local": 2.311912124,
+        "dms-remote": 29.080213921,
+        "mfs-remote": 2.447904715
+      }
+    },
+    {
+      "form": "relative",
+      "concurrency": 8,
+      "phase": "create_write_close",
+      "native_ext4": 0.9572942088569765,
+      "mfs_local_ext4": 39.302534739238126,
+      "remote_dms_mfs": 7.228368124009417,
+      "median_seconds": {
+        "ext4": 0.014251567,
+        "native": 0.013693548,
+        "mfs-local": 0.562200357,
+        "dms-remote": 4.846292905,
+        "mfs-remote": 0.650290781
+      }
+    },
+    {
+      "form": "relative",
+      "concurrency": 8,
+      "phase": "stat",
+      "native_ext4": 1.0436774471536472,
+      "mfs_local_ext4": 47.86650403000963,
+      "remote_dms_mfs": 76.68637085439889,
+      "median_seconds": {
+        "ext4": 0.000804354,
+        "native": 0.000893955,
+        "mfs-local": 0.039451621,
+        "dms-remote": 3.532763653,
+        "mfs-remote": 0.042928788
+      }
+    },
+    {
+      "form": "relative",
+      "concurrency": 8,
+      "phase": "read_close",
+      "native_ext4": 1.2595556586238277,
+      "mfs_local_ext4": 80.24796266940544,
+      "remote_dms_mfs": 32.69801029327925,
+      "median_seconds": {
+        "ext4": 0.001467828,
+        "native": 0.001799227,
+        "mfs-local": 0.119195639,
+        "dms-remote": 4.815172343,
+        "mfs-remote": 0.151291487
+      }
+    },
+    {
+      "form": "relative",
+      "concurrency": 8,
+      "phase": "readdir",
+      "native_ext4": 1.0556396206731267,
+      "mfs_local_ext4": 7.806999179704996,
+      "remote_dms_mfs": 964.2571739586745,
+      "median_seconds": {
+        "ext4": 0.000212798,
+        "native": 0.000224638,
+        "mfs-local": 0.001551321,
+        "dms-remote": 1.750487106,
+        "mfs-remote": 0.001919786
+      }
+    },
+    {
+      "form": "relative",
+      "concurrency": 8,
+      "phase": "rename",
+      "native_ext4": 0.9997776793803184,
+      "mfs_local_ext4": 58.59407972540933,
+      "remote_dms_mfs": 9.656579235868334,
+      "median_seconds": {
+        "ext4": 0.015905792,
+        "native": 0.01618923,
+        "mfs-local": 0.948803972,
+        "dms-remote": 9.410609312,
+        "mfs-remote": 0.974528255
+      }
+    },
+    {
+      "form": "relative",
+      "concurrency": 8,
+      "phase": "unlink",
+      "native_ext4": 0.9812532347829114,
+      "mfs_local_ext4": 110.345002102234,
+      "remote_dms_mfs": 6.592552188971205,
+      "median_seconds": {
+        "ext4": 0.005201953,
+        "native": 0.005559416,
+        "mfs-local": 0.603362336,
+        "dms-remote": 3.736029487,
+        "mfs-remote": 0.599040435
+      }
+    }
+  ],
+  "io": [
+    {
+      "case": {
+        "operation": "seq-read",
+        "block_bytes": 1048576,
+        "concurrency": 1,
+        "cache": "guest-cold",
+        "barrier": "close",
+        "dataset": "seq",
+        "file_bytes": 67108864,
+        "io_bytes": 67108864
+      },
+      "native_ext4": 0.9959948624973485,
+      "mfs_local_ext4": 3.6785430390078555,
+      "remote_dms_mfs": 1.7061563538534485,
+      "median_seconds": {
+        "ext4": 0.028715119,
+        "native": 0.028600111,
+        "mfs-local": 0.101558077,
+        "dms-remote": 0.180795434,
+        "mfs-remote": 0.102099703
+      }
+    },
+    {
+      "case": {
+        "operation": "seq-read",
+        "block_bytes": 1048576,
+        "concurrency": 8,
+        "cache": "hot",
+        "barrier": "close",
+        "dataset": "seq",
+        "file_bytes": 67108864,
+        "io_bytes": 67108864
+      },
+      "native_ext4": 0.9914217433709582,
+      "mfs_local_ext4": 0.9821622467369723,
+      "remote_dms_mfs": 14.340752073728657,
+      "median_seconds": {
+        "ext4": 0.010694947,
+        "native": 0.01077444,
+        "mfs-local": 0.011448752,
+        "dms-remote": 0.148353602,
+        "mfs-remote": 0.010853206
+      }
+    },
+    {
+      "case": {
+        "operation": "seq-write",
+        "block_bytes": 1048576,
+        "concurrency": 1,
+        "cache": "guest-cold",
+        "barrier": "close",
+        "dataset": "seq",
+        "file_bytes": 67108864,
+        "io_bytes": 67108864
+      },
+      "native_ext4": 1.1059798231507483,
+      "mfs_local_ext4": 3.3864651317800645,
+      "remote_dms_mfs": 3.311941347014607,
+      "median_seconds": {
+        "ext4": 0.020889882,
+        "native": 0.023103788,
+        "mfs-local": 0.070742857,
+        "dms-remote": 0.195081655,
+        "mfs-remote": 0.058902509
+      }
+    },
+    {
+      "case": {
+        "operation": "seq-write",
+        "block_bytes": 1048576,
+        "concurrency": 8,
+        "cache": "guest-cold",
+        "barrier": "fsync",
+        "dataset": "seq",
+        "file_bytes": 67108864,
+        "io_bytes": 67108864
+      },
+      "native_ext4": 0.9958283261467639,
+      "mfs_local_ext4": 1.4291546181723584,
+      "remote_dms_mfs": 3.1270285545819596,
+      "median_seconds": {
+        "ext4": 0.063556982,
+        "native": 0.060209941,
+        "mfs-local": 0.088515393,
+        "dms-remote": 0.233156984,
+        "mfs-remote": 0.074561834
+      }
+    },
+    {
+      "case": {
+        "operation": "random-read",
+        "block_bytes": 4096,
+        "concurrency": 1,
+        "cache": "hot",
+        "barrier": "close",
+        "dataset": "hot",
+        "file_bytes": 16777216,
+        "io_bytes": 16777216
+      },
+      "native_ext4": 0.987308484392471,
+      "mfs_local_ext4": 1.254431351153665,
+      "remote_dms_mfs": 763.5017993960437,
+      "median_seconds": {
+        "ext4": 0.002321441,
+        "native": 0.002282238,
+        "mfs-local": 0.002928124,
+        "dms-remote": 2.024031945,
+        "mfs-remote": 0.002661105
+      }
+    },
+    {
+      "case": {
+        "operation": "random-read",
+        "block_bytes": 65536,
+        "concurrency": 8,
+        "cache": "guest-cold",
+        "barrier": "close",
+        "dataset": "hot",
+        "file_bytes": 16777216,
+        "io_bytes": 16777216
+      },
+      "native_ext4": 0.9882027896173147,
+      "mfs_local_ext4": 5.234466279776457,
+      "remote_dms_mfs": 3.5520071688640114,
+      "median_seconds": {
+        "ext4": 0.009525098,
+        "native": 0.009152084,
+        "mfs-local": 0.05629896,
+        "dms-remote": 0.179535192,
+        "mfs-remote": 0.061206908
+      }
+    },
+    {
+      "case": {
+        "operation": "random-write",
+        "block_bytes": 4096,
+        "concurrency": 1,
+        "cache": "hot",
+        "barrier": "fdatasync",
+        "dataset": "write",
+        "file_bytes": 16777216,
+        "io_bytes": 16777216
+      },
+      "native_ext4": 1.250886884846859,
+      "mfs_local_ext4": 9.51056264392238,
+      "remote_dms_mfs": 5.022927229520002,
+      "median_seconds": {
+        "ext4": 0.012883296,
+        "native": 0.016115546,
+        "mfs-local": 0.112284337,
+        "dms-remote": 2.326623187,
+        "mfs-remote": 0.421571302
+      }
+    },
+    {
+      "case": {
+        "operation": "random-write",
+        "block_bytes": 65536,
+        "concurrency": 8,
+        "cache": "hot",
+        "barrier": "fsync",
+        "dataset": "write",
+        "file_bytes": 16777216,
+        "io_bytes": 16777216
+      },
+      "native_ext4": 0.9733820688907036,
+      "mfs_local_ext4": 2.7552225921514117,
+      "remote_dms_mfs": 8.20141556398362,
+      "median_seconds": {
+        "ext4": 0.012985557,
+        "native": 0.012341844,
+        "mfs-local": 0.031590991,
+        "dms-remote": 0.24308233,
+        "mfs-remote": 0.029987244
+      }
+    }
+  ],
+  "raw_file": "raw/network-probe-20261005T170023-06e15509.tar.gz",
+  "input_sha256": {
+    "node-tests": "409363724228d3a1de051158d6ec9e627452c55af0b95d9f4607feb5c3eb5c72",
+    "afs-meta": "77b9435f23c198de3e53d3552979ce2beca1ad79f05e8fafdc19bdfab6796cfe",
+    "guest.py": "1278e67dcb6e63fd374a48b214551523015ab3646bcb33b5b71153492f2dca41",
+    "controller.py": "df15b5dae6b843caa60e37a470e9c306e2c3dfb8855566b6aa2b3f2e7afdcef5",
+    "benchmark": "45887dce29ad6c246cc5e51dfe9b3b66c7ac9cd995ede9a27eeb7289b661c01a",
+    "ownerfs_native_closeout_guest.py": "d1809e93838d1dcbbcbd2257f56baa6b57e6f49068acf735c2e3cf993ae5c35d",
+    "ownerfs_native_closeout_performance.py": "b30294e5d357073924b710b3558169ff393434940b2a15935f4094024323c9a9",
+    "ownerfs_native_closeout_controller.py": "535c8136f20f7f49ff1edd83128c06ed90e866d1b2737ecdf9f928a4af0bcb42",
+    "io-closeout": "8b7abea69e1cf9f67501084ad9c29f3c7a4535f5718260bcfccb8116e1ee2f41",
+    "container-probe": "dcacaa08aff4edf5cdbd2c6e04ba3a3d2872a17c11209f58dc959328c3e8ff94"
+  }
+}

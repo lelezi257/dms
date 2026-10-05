@@ -1,0 +1,61 @@
+{
+  "scope": "phase location from original unchanged samples; no new measurement or claim of sole physical root cause",
+  "cases": [
+    {
+      "case": {
+        "operation": "seq-write",
+        "block_bytes": 1048576,
+        "concurrency": 1,
+        "cache": "guest-cold",
+        "barrier": "close",
+        "dataset": "seq",
+        "file_bytes": 67108864,
+        "io_bytes": 67108864
+      },
+      "rows": [
+        {
+          "lane": "ext4",
+          "wall_ms": 20.889882,
+          "barrier_ms": 0.000509,
+          "nonbarrier_ms": 20.88935,
+          "cpu_ms": 19.309297
+        },
+        {
+          "lane": "native",
+          "wall_ms": 23.103788,
+          "barrier_ms": 0.000522,
+          "nonbarrier_ms": 23.103211,
+          "cpu_ms": 21.213156
+        }
+      ]
+    },
+    {
+      "case": {
+        "operation": "random-write",
+        "block_bytes": 4096,
+        "concurrency": 1,
+        "cache": "hot",
+        "barrier": "fdatasync",
+        "dataset": "write",
+        "file_bytes": 16777216,
+        "io_bytes": 16777216
+      },
+      "rows": [
+        {
+          "lane": "ext4",
+          "wall_ms": 12.883296,
+          "barrier_ms": 8.869613,
+          "nonbarrier_ms": 3.778199,
+          "cpu_ms": 6.524851
+        },
+        {
+          "lane": "native",
+          "wall_ms": 16.115546,
+          "barrier_ms": 12.48566,
+          "nonbarrier_ms": 3.626198,
+          "cpu_ms": 5.353108
+        }
+      ]
+    }
+  ]
+}

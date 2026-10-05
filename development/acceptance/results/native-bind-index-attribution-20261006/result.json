@@ -1,0 +1,28 @@
+{
+  "scope": "WSL CPU mechanism probe; exact production rebuild body with minimal types; not a VM performance lane or a production fix",
+  "source_function_sha256": "6fd3a7444f2823d7f68b878a841de9297f0f1f4626bdc926bbbc23dafa80aab8",
+  "probe_sha256": "2630013d784b4bab0bae28f67d319c17726aa2e11569c16ad752c2aa3d5ac8ab",
+  "samples": [
+    {
+      "paths": 100,
+      "repeats": 200,
+      "rebuild_total_ns": 1534775,
+      "attribute_only_total_ns": 1575,
+      "index_count_ok": true
+    },
+    {
+      "paths": 1000,
+      "repeats": 200,
+      "rebuild_total_ns": 18822347,
+      "attribute_only_total_ns": 1562,
+      "index_count_ok": true
+    },
+    {
+      "paths": 10000,
+      "repeats": 200,
+      "rebuild_total_ns": 226261070,
+      "attribute_only_total_ns": 1670,
+      "index_count_ok": true
+    }
+  ]
+}

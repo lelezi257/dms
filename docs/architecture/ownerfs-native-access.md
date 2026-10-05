@@ -117,6 +117,12 @@ native 引用仍然存在，无法据此认定已排空。
 目录存在、RootGrant 失效、挂载点从 mountinfo 消失，都不是 backing
 可删除或可复用的充分证据。实际 Node/Agent fencing 仍需独立验收。
 
+### Case 8：应用依赖 shared mmap 或跨路径通知
+
+本地容器 Agent 对工作区文件使用 shared mmap/msync，或远端 Agent 用 watch 等待本地 native 产物更新。
+
+**必须核对：** native 文件访问和跨view close-to-open不自动证明旧FUSE/remote共享映射与事件投递可用。适用的映射写回、同步和watch需求应单独证明，不能作为旧cwd边界的附带豁免；管理面先挂载再启动Agent也不解决远端watch域的问题。native Agent 观察远端修改的事件同样需按实际链路验证。当前能力和正负向证据见[状态](../status.md)及[有界穿刺](../../development/native-bind-closeout.md)，本页不新增禁止这些API的永久使用限制。
+
 ## 验收与可用性
 
 正向验收以管理面创建 → Agent namespace native ready → 启动 Agent 为主 lane，并覆盖 close-to-open、同名替换/旧文件 fd、从稳定根重新解析、挂载失败与受管回收。另保留提前持有 FUSE 引用的边界 lane，让用户能理解差异。

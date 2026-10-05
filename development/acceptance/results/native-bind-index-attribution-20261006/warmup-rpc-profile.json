@@ -1,0 +1,30 @@
+{
+  "a": {
+    "role": "a",
+    "observed_unix_ns": 1791219134107246432,
+    "node": {
+      "pid": 124378,
+      "start_tick": "8310540",
+      "boot_id": "d195705c-1a96-47ce-8d35-454ead00990d",
+      "exe": "/mnt/afsdata/ownerfs-native-network/network-probe-20261005T163740-2ed29486/node-tests",
+      "sha256": "409363724228d3a1de051158d6ec9e627452c55af0b95d9f4607feb5c3eb5c72",
+      "namespace": "mnt:[4026532176]",
+      "cmdline": "/mnt/afsdata/ownerfs-native-network/network-probe-20261005T163740-2ed29486/node-tests --ignored --exact node::native_validation::privileged_native_validation_node --nocapture --test-threads=1 "
+    },
+    "scope": "read-only RPC attribution during discarded P1 warmup"
+  },
+  "b": {
+    "role": "b",
+    "observed_unix_ns": 1791219134905417729,
+    "node": {
+      "pid": 39603,
+      "start_tick": "8311004",
+      "boot_id": "a85cbae4-51d1-4fb1-a803-49556510ff10",
+      "exe": "/mnt/afsdata/ownerfs-native-network/network-probe-20261005T163740-2ed29486/node-tests",
+      "sha256": "409363724228d3a1de051158d6ec9e627452c55af0b95d9f4607feb5c3eb5c72",
+      "namespace": "mnt:[4026532176]",
+      "cmdline": "/mnt/afsdata/ownerfs-native-network/network-probe-20261005T163740-2ed29486/node-tests --ignored --exact node::native_validation::privileged_native_validation_node --nocapture --test-threads=1 "
+    },
+    "scope": "read-only RPC attribution during discarded P1 warmup"
+  }
+}

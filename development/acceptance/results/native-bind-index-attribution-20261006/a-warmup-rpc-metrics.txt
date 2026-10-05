@@ -1,0 +1,149 @@
+# HELP afs_dfs_payload_bytes_total Actual DFS file payload bytes transferred; descriptors are excluded.
+# TYPE afs_dfs_payload_bytes_total counter
+afs_dfs_payload_bytes_total{direction="recv",operation="replica",transport="grpc"} 0
+afs_dfs_payload_bytes_total{direction="recv",operation="replica",transport="rdma"} 0
+afs_dfs_payload_bytes_total{direction="send",operation="read",transport="grpc"} 0
+afs_dfs_payload_bytes_total{direction="send",operation="read",transport="rdma"} 0
+# HELP afs_ownerfiles_rpc_duration_seconds OwnerFiles client round trip and Home handler duration by method.
+# TYPE afs_ownerfiles_rpc_duration_seconds histogram
+afs_ownerfiles_rpc_duration_seconds_bucket{method="OwnerFiles.Create",side="server",le="0.00005"} 0
+afs_ownerfiles_rpc_duration_seconds_bucket{method="OwnerFiles.Create",side="server",le="0.0001"} 531
+afs_ownerfiles_rpc_duration_seconds_bucket{method="OwnerFiles.Create",side="server",le="0.0002"} 9748
+afs_ownerfiles_rpc_duration_seconds_bucket{method="OwnerFiles.Create",side="server",le="0.0004"} 9981
+afs_ownerfiles_rpc_duration_seconds_bucket{method="OwnerFiles.Create",side="server",le="0.0008"} 9995
+afs_ownerfiles_rpc_duration_seconds_bucket{method="OwnerFiles.Create",side="server",le="0.0016"} 9998
+afs_ownerfiles_rpc_duration_seconds_bucket{method="OwnerFiles.Create",side="server",le="0.0032"} 10000
+afs_ownerfiles_rpc_duration_seconds_bucket{method="OwnerFiles.Create",side="server",le="0.0064"} 10000
+afs_ownerfiles_rpc_duration_seconds_bucket{method="OwnerFiles.Create",side="server",le="0.0128"} 10000
+afs_ownerfiles_rpc_duration_seconds_bucket{method="OwnerFiles.Create",side="server",le="+Inf"} 10000
+afs_ownerfiles_rpc_duration_seconds_sum{method="OwnerFiles.Create",side="server"} 1.2886525439999987
+afs_ownerfiles_rpc_duration_seconds_count{method="OwnerFiles.Create",side="server"} 10000
+afs_ownerfiles_rpc_duration_seconds_bucket{method="OwnerFiles.Flush",side="server",le="0.00005"} 1
+afs_ownerfiles_rpc_duration_seconds_bucket{method="OwnerFiles.Flush",side="server",le="0.0001"} 1
+afs_ownerfiles_rpc_duration_seconds_bucket{method="OwnerFiles.Flush",side="server",le="0.0002"} 1
+afs_ownerfiles_rpc_duration_seconds_bucket{method="OwnerFiles.Flush",side="server",le="0.0004"} 1
+afs_ownerfiles_rpc_duration_seconds_bucket{method="OwnerFiles.Flush",side="server",le="0.0008"} 1
+afs_ownerfiles_rpc_duration_seconds_bucket{method="OwnerFiles.Flush",side="server",le="0.0016"} 2153
+afs_ownerfiles_rpc_duration_seconds_bucket{method="OwnerFiles.Flush",side="server",le="0.0032"} 9903
+afs_ownerfiles_rpc_duration_seconds_bucket{method="OwnerFiles.Flush",side="server",le="0.0064"} 9982
+afs_ownerfiles_rpc_duration_seconds_bucket{method="OwnerFiles.Flush",side="server",le="0.0128"} 9996
+afs_ownerfiles_rpc_duration_seconds_bucket{method="OwnerFiles.Flush",side="server",le="+Inf"} 10001
+afs_ownerfiles_rpc_duration_seconds_sum{method="OwnerFiles.Flush",side="server"} 19.01508181400011
+afs_ownerfiles_rpc_duration_seconds_count{method="OwnerFiles.Flush",side="server"} 10001
+afs_ownerfiles_rpc_duration_seconds_bucket{method="OwnerFiles.GetAttr",side="server",le="0.00005"} 269
+afs_ownerfiles_rpc_duration_seconds_bucket{method="OwnerFiles.GetAttr",side="server",le="0.0001"} 1380
+afs_ownerfiles_rpc_duration_seconds_bucket{method="OwnerFiles.GetAttr",side="server",le="0.0002"} 3806
+afs_ownerfiles_rpc_duration_seconds_bucket{method="OwnerFiles.GetAttr",side="server",le="0.0004"} 7655
+afs_ownerfiles_rpc_duration_seconds_bucket{method="OwnerFiles.GetAttr",side="server",le="0.0008"} 14699
+afs_ownerfiles_rpc_duration_seconds_bucket{method="OwnerFiles.GetAttr",side="server",le="0.0016"} 24859
+afs_ownerfiles_rpc_duration_seconds_bucket{method="OwnerFiles.GetAttr",side="server",le="0.0032"} 80579
+afs_ownerfiles_rpc_duration_seconds_bucket{method="OwnerFiles.GetAttr",side="server",le="0.0064"} 85613
+afs_ownerfiles_rpc_duration_seconds_bucket{method="OwnerFiles.GetAttr",side="server",le="0.0128"} 85632
+afs_ownerfiles_rpc_duration_seconds_bucket{method="OwnerFiles.GetAttr",side="server",le="+Inf"} 85634
+afs_ownerfiles_rpc_duration_seconds_sum{method="OwnerFiles.GetAttr",side="server"} 172.64537327899674
+afs_ownerfiles_rpc_duration_seconds_count{method="OwnerFiles.GetAttr",side="server"} 85634
+afs_ownerfiles_rpc_duration_seconds_bucket{method="OwnerFiles.Lookup",side="server",le="0.00005"} 93
+afs_ownerfiles_rpc_duration_seconds_bucket{method="OwnerFiles.Lookup",side="server",le="0.0001"} 8065
+afs_ownerfiles_rpc_duration_seconds_bucket{method="OwnerFiles.Lookup",side="server",le="0.0002"} 10887
+afs_ownerfiles_rpc_duration_seconds_bucket{method="OwnerFiles.Lookup",side="server",le="0.0004"} 11919
+afs_ownerfiles_rpc_duration_seconds_bucket{method="OwnerFiles.Lookup",side="server",le="0.0008"} 13817
+afs_ownerfiles_rpc_duration_seconds_bucket{method="OwnerFiles.Lookup",side="server",le="0.0016"} 16428
+afs_ownerfiles_rpc_duration_seconds_bucket{method="OwnerFiles.Lookup",side="server",le="0.0032"} 47099
+afs_ownerfiles_rpc_duration_seconds_bucket{method="OwnerFiles.Lookup",side="server",le="0.0064"} 50408
+afs_ownerfiles_rpc_duration_seconds_bucket{method="OwnerFiles.Lookup",side="server",le="0.0128"} 50419
+afs_ownerfiles_rpc_duration_seconds_bucket{method="OwnerFiles.Lookup",side="server",le="+Inf"} 50421
+afs_ownerfiles_rpc_duration_seconds_sum{method="OwnerFiles.Lookup",side="server"} 94.27208241400027
+afs_ownerfiles_rpc_duration_seconds_count{method="OwnerFiles.Lookup",side="server"} 50421
+afs_ownerfiles_rpc_duration_seconds_bucket{method="OwnerFiles.Mkdir",side="server",le="0.00005"} 0
+afs_ownerfiles_rpc_duration_seconds_bucket{method="OwnerFiles.Mkdir",side="server",le="0.0001"} 0
+afs_ownerfiles_rpc_duration_seconds_bucket{method="OwnerFiles.Mkdir",side="server",le="0.0002"} 0
+afs_ownerfiles_rpc_duration_seconds_bucket{method="OwnerFiles.Mkdir",side="server",le="0.0004"} 0
+afs_ownerfiles_rpc_duration_seconds_bucket{method="OwnerFiles.Mkdir",side="server",le="0.0008"} 0
+afs_ownerfiles_rpc_duration_seconds_bucket{method="OwnerFiles.Mkdir",side="server",le="0.0016"} 0
+afs_ownerfiles_rpc_duration_seconds_bucket{method="OwnerFiles.Mkdir",side="server",le="0.0032"} 0
+afs_ownerfiles_rpc_duration_seconds_bucket{method="OwnerFiles.Mkdir",side="server",le="0.0064"} 1
+afs_ownerfiles_rpc_duration_seconds_bucket{method="OwnerFiles.Mkdir",side="server",le="0.0128"} 1
+afs_ownerfiles_rpc_duration_seconds_bucket{method="OwnerFiles.Mkdir",side="server",le="+Inf"} 1
+afs_ownerfiles_rpc_duration_seconds_sum{method="OwnerFiles.Mkdir",side="server"} 0.00384084
+afs_ownerfiles_rpc_duration_seconds_count{method="OwnerFiles.Mkdir",side="server"} 1
+afs_ownerfiles_rpc_duration_seconds_bucket{method="OwnerFiles.Open",side="server",le="0.00005"} 2
+afs_ownerfiles_rpc_duration_seconds_bucket{method="OwnerFiles.Open",side="server",le="0.0001"} 2
+afs_ownerfiles_rpc_duration_seconds_bucket{method="OwnerFiles.Open",side="server",le="0.0002"} 2
+afs_ownerfiles_rpc_duration_seconds_bucket{method="OwnerFiles.Open",side="server",le="0.0004"} 2
+afs_ownerfiles_rpc_duration_seconds_bucket{method="OwnerFiles.Open",side="server",le="0.0008"} 2
+afs_ownerfiles_rpc_duration_seconds_bucket{method="OwnerFiles.Open",side="server",le="0.0016"} 2
+afs_ownerfiles_rpc_duration_seconds_bucket{method="OwnerFiles.Open",side="server",le="0.0032"} 4666
+afs_ownerfiles_rpc_duration_seconds_bucket{method="OwnerFiles.Open",side="server",le="0.0064"} 5209
+afs_ownerfiles_rpc_duration_seconds_bucket{method="OwnerFiles.Open",side="server",le="0.0128"} 5209
+afs_ownerfiles_rpc_duration_seconds_bucket{method="OwnerFiles.Open",side="server",le="+Inf"} 5209
+afs_ownerfiles_rpc_duration_seconds_sum{method="OwnerFiles.Open",side="server"} 13.673189672000005
+afs_ownerfiles_rpc_duration_seconds_count{method="OwnerFiles.Open",side="server"} 5209
+afs_ownerfiles_rpc_duration_seconds_bucket{method="OwnerFiles.Opendir",side="server",le="0.00005"} 1
+afs_ownerfiles_rpc_duration_seconds_bucket{method="OwnerFiles.Opendir",side="server",le="0.0001"} 1
+afs_ownerfiles_rpc_duration_seconds_bucket{method="OwnerFiles.Opendir",side="server",le="0.0002"} 1
+afs_ownerfiles_rpc_duration_seconds_bucket{method="OwnerFiles.Opendir",side="server",le="0.0004"} 1
+afs_ownerfiles_rpc_duration_seconds_bucket{method="OwnerFiles.Opendir",side="server",le="0.0008"} 1
+afs_ownerfiles_rpc_duration_seconds_bucket{method="OwnerFiles.Opendir",side="server",le="0.0016"} 1
+afs_ownerfiles_rpc_duration_seconds_bucket{method="OwnerFiles.Opendir",side="server",le="0.0032"} 1
+afs_ownerfiles_rpc_duration_seconds_bucket{method="OwnerFiles.Opendir",side="server",le="0.0064"} 1
+afs_ownerfiles_rpc_duration_seconds_bucket{method="OwnerFiles.Opendir",side="server",le="0.0128"} 1
+afs_ownerfiles_rpc_duration_seconds_bucket{method="OwnerFiles.Opendir",side="server",le="+Inf"} 1
+afs_ownerfiles_rpc_duration_seconds_sum{method="OwnerFiles.Opendir",side="server"} 0.00004043
+afs_ownerfiles_rpc_duration_seconds_count{method="OwnerFiles.Opendir",side="server"} 1
+afs_ownerfiles_rpc_duration_seconds_bucket{method="OwnerFiles.Release",side="server",le="0.00005"} 7689
+afs_ownerfiles_rpc_duration_seconds_bucket{method="OwnerFiles.Release",side="server",le="0.0001"} 7839
+afs_ownerfiles_rpc_duration_seconds_bucket{method="OwnerFiles.Release",side="server",le="0.0002"} 8027
+afs_ownerfiles_rpc_duration_seconds_bucket{method="OwnerFiles.Release",side="server",le="0.0004"} 8373
+afs_ownerfiles_rpc_duration_seconds_bucket{method="OwnerFiles.Release",side="server",le="0.0008"} 9118
+afs_ownerfiles_rpc_duration_seconds_bucket{method="OwnerFiles.Release",side="server",le="0.0016"} 10928
+afs_ownerfiles_rpc_duration_seconds_bucket{method="OwnerFiles.Release",side="server",le="0.0032"} 15029
+afs_ownerfiles_rpc_duration_seconds_bucket{method="OwnerFiles.Release",side="server",le="0.0064"} 15208
+afs_ownerfiles_rpc_duration_seconds_bucket{method="OwnerFiles.Release",side="server",le="0.0128"} 15209
+afs_ownerfiles_rpc_duration_seconds_bucket{method="OwnerFiles.Release",side="server",le="+Inf"} 15209
+afs_ownerfiles_rpc_duration_seconds_sum{method="OwnerFiles.Release",side="server"} 12.95556395099998
+afs_ownerfiles_rpc_duration_seconds_count{method="OwnerFiles.Release",side="server"} 15209
+afs_ownerfiles_rpc_duration_seconds_bucket{method="OwnerFiles.Write",side="server",le="0.00005"} 3444
+afs_ownerfiles_rpc_duration_seconds_bucket{method="OwnerFiles.Write",side="server",le="0.0001"} 9749
+afs_ownerfiles_rpc_duration_seconds_bucket{method="OwnerFiles.Write",side="server",le="0.0002"} 9988
+afs_ownerfiles_rpc_duration_seconds_bucket{method="OwnerFiles.Write",side="server",le="0.0004"} 9997
+afs_ownerfiles_rpc_duration_seconds_bucket{method="OwnerFiles.Write",side="server",le="0.0008"} 10000
+afs_ownerfiles_rpc_duration_seconds_bucket{method="OwnerFiles.Write",side="server",le="0.0016"} 10000
+afs_ownerfiles_rpc_duration_seconds_bucket{method="OwnerFiles.Write",side="server",le="0.0032"} 10000
+afs_ownerfiles_rpc_duration_seconds_bucket{method="OwnerFiles.Write",side="server",le="0.0064"} 10000
+afs_ownerfiles_rpc_duration_seconds_bucket{method="OwnerFiles.Write",side="server",le="0.0128"} 10000
+afs_ownerfiles_rpc_duration_seconds_bucket{method="OwnerFiles.Write",side="server",le="+Inf"} 10000
+afs_ownerfiles_rpc_duration_seconds_sum{method="OwnerFiles.Write",side="server"} 0.589742587999998
+afs_ownerfiles_rpc_duration_seconds_count{method="OwnerFiles.Write",side="server"} 10000
+# HELP afs_trace_dropped_spans_total Spans dropped before OTLP export.
+# TYPE afs_trace_dropped_spans_total counter
+afs_trace_dropped_spans_total{reason="queue_full"} 0
+# HELP afs_trace_export_duration_seconds OTLP batch export latency in seconds.
+# TYPE afs_trace_export_duration_seconds histogram
+afs_trace_export_duration_seconds_bucket{le="0.0001"} 0
+afs_trace_export_duration_seconds_bucket{le="0.00025"} 0
+afs_trace_export_duration_seconds_bucket{le="0.0005"} 0
+afs_trace_export_duration_seconds_bucket{le="0.001"} 0
+afs_trace_export_duration_seconds_bucket{le="0.0025"} 0
+afs_trace_export_duration_seconds_bucket{le="0.005"} 0
+afs_trace_export_duration_seconds_bucket{le="0.01"} 0
+afs_trace_export_duration_seconds_bucket{le="0.025"} 0
+afs_trace_export_duration_seconds_bucket{le="0.05"} 0
+afs_trace_export_duration_seconds_bucket{le="0.1"} 0
+afs_trace_export_duration_seconds_bucket{le="0.25"} 0
+afs_trace_export_duration_seconds_bucket{le="0.5"} 0
+afs_trace_export_duration_seconds_bucket{le="1"} 0
+afs_trace_export_duration_seconds_bucket{le="2.5"} 0
+afs_trace_export_duration_seconds_bucket{le="5"} 0
+afs_trace_export_duration_seconds_bucket{le="+Inf"} 0
+afs_trace_export_duration_seconds_sum 0
+afs_trace_export_duration_seconds_count 0
+# HELP afs_trace_export_queue_depth Sampled spans waiting in the process export queue.
+# TYPE afs_trace_export_queue_depth gauge
+afs_trace_export_queue_depth 0
+# HELP afs_trace_exported_spans_total Spans successfully exported through OTLP.
+# TYPE afs_trace_exported_spans_total counter
+afs_trace_exported_spans_total 0
+# HELP afs_trace_last_success_timestamp_seconds Unix timestamp of the most recent successful OTLP export.
+# TYPE afs_trace_last_success_timestamp_seconds gauge
+afs_trace_last_success_timestamp_seconds 0
+# EOF

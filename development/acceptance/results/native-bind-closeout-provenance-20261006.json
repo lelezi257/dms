@@ -1,0 +1,34 @@
+{
+  "snapshot_head": "fcf6eedb3f6560696ddc382ec06db9700f48886d",
+  "source_inputs_checked": 157,
+  "rust_sources_unchanged": true,
+  "optimized_artifacts": [
+    {
+      "path": "/home/lzc/workspace/dms/cache/ownerfs-native-bind-target/release/deps/afs-6218e26b91cca75c",
+      "sha256": "89ae34954a8fadcb0217decf02d3be2ad3d9d508df27fc4924678691a9eec316"
+    },
+    {
+      "path": "/home/lzc/workspace/dms/cache/ownerfs-native-bind-target/release/afs-meta",
+      "sha256": "f97b5d1faf281a84d2eaa0d97b86cb7839589e607cc4f50ec16bfb0052155c9c"
+    }
+  ],
+  "build_exit": {
+    "node-tests": 0,
+    "meta": 0
+  },
+  "main": "b259c44f82be90ae07158501295ddbc5359e7a35",
+  "merge_base": "78245771167643d5883491052e7cebcaba8c3be2",
+  "overlapping_paths": [
+    "common/protocol/proto/meta.proto",
+    "docs/architecture/ownerfs.md",
+    "docs/guides/operations.md",
+    "docs/status.md",
+    "src/meta/rpc.rs",
+    "src/meta/store.rs",
+    "src/node.rs",
+    "src/node/rpc/meta.rs",
+    "src/node/vfs/ownerfs.rs",
+    "src/node/vfs/ownerfs/root.rs"
+  ],
+  "scope": "fresh existing binary/source identity and read-only main overlap; no new Rust test run or integration claim"
+}

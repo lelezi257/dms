@@ -49,3 +49,14 @@ FAIL、缓存前提FAIL的原始副本仍在本地证据库，具体身份/SHA�
 最终核对157个Rust/proto/Cargo输入与优化构建一致；后续main的通用可靠性
 改动没有被合入或资格化。最终runtime/Agent READY、daemon发布、任意UID
 映射、完整回收、远端及MooseFS IO/持久性性能矩阵仍开放。
+
+
+## 2026-10-06 有界穿刺补充
+
+[交接报告](../../native-bind-closeout.md)汇总E20架构正负向结果和E21实际五路径数据；[有限归因](../../native-bind-attribution.md)保留源码/RPC机制、屏障窗口和未定位残差。
+
+- [五路径摘要](native-bind-closeout-performance-20261006.json)：统一较小负载120 metadata /240 IO，保留每项paired ratio和各lane绝对耗时。不是原10k/8GiB完整规模资格化。
+- [归因分解](native-bind-closeout-attribution-20261006.json)、[157源码/优化产物/main重叠核对](native-bind-closeout-provenance-20261006.json)。
+- [复现与接手验收](native-bind-closeout-reproduce.md)、[可移植交付核验](native-bind-closeout-delivery-verification-20261006.json)。
+
+raw/manifest现在共13包：原6包完全保留，新增E20原FAIL/完成诊断、三个准备／路径碰撞FAIL、原10k remote FAIL、E21完成的较小负载。成功runner仅表示诊断采集完成，完整功能和正式性能都不因此PASS。新包使用closeout_verify；原FAIL只核对归档／输入完整性，不包装成完整矩阵PASS。包内源／脚本／程序SHA绑定实际执行对象，source snapshot不冒充后来main。

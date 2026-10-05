@@ -1,0 +1,14 @@
+{
+  "python_syntax": true,
+  "diff_check": true,
+  "metadata_loop_unchanged": true,
+  "timed_io_loop_unchanged": true,
+  "portable_packages": 13,
+  "checks": {
+    "existing-qualified-diagnostic": 6,
+    "closeout-original-failure-retained": 5,
+    "closeout-qualified-diagnostic": 2
+  },
+  "new_production_changes": false,
+  "scope": "investigation delivery verification; not Rust/full semantic/performance release acceptance"
+}

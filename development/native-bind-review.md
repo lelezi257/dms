@@ -237,3 +237,23 @@ hostile-container security, host physical cold cache, power-loss durability and
 remote/MooseFS full performance. They remain open requirements, not exclusions
 or approval. Another AI's integration review is still required; this branch
 and full architecture/performance goal are not ready to merge/complete.
+
+
+## 2026-10-06 investigation/handoff scope
+
+The human explicitly changed the task exit to four-item architectural evidence,
+actual comparative performance, finite attribution, and issue/MR handoff. This
+is not a semantic exemption or a requirement to implement production integration.
+E20 now records one actual pending authenticated Home fixed-offset write across
+manager activation, native shared/private mapping controls, retained-FUSE/remote
+shared-mapping ENODEV, basic mode/xattr/symlink controls, and native-event absence
+on FUSE watchers with positive controls. The original injection-induced timeout
+is retained. Production and generic reliability changes remain deferred.
+
+Final review must distinguish investigation completion from full functionality,
+strong-durability performance, production enablement, and merge approval. Review
+the closeout report, exact input identities, all failed/unfinished samples and
+main overlap; no rebase or merge is authorized here.
+
+
+2026-10-06最终五路径诊断收口：120 metadata、240 IO固定任务完整采集；native本地多数接近ext4，保留10.6% seq-close、25.1% random-fdatasync两项差距及屏障/CPU分解。远端metadata与热小读有明显差距，index查询放大／DIRECT_IO与baseline缓存策略已有有限机制归因，未继续修复。原10k remote失败、cache/B001未资格化及完整合同反例保留。最终结论、实际表、原始包与实现移交以有界穿刺报告为准，不以本注释宣告任何正式阶段PASS。

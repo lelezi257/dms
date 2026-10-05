@@ -38,7 +38,7 @@ def main():
     parser.add_argument("--meta-bin", type=Path, required=True)
     parser.add_argument("--snapshot", type=Path, required=True)
     parser.add_argument("--expect", choices=("ordinary", "native"), required=True)
-    parser.add_argument("--case", choices=("a2", "flock", "append", "mixed", "metadata-perf", "container-perf", "container-bulk"), default="a2")
+    parser.add_argument("--case", choices=("a2", "flock", "append", "mixed", "metadata-perf", "container-perf", "container-bulk", "closeout-architecture", "closeout-performance"), default="a2")
     parser.add_argument("--benchmark-bin", type=Path)
     parser.add_argument("--container-probe-bin", type=Path)
     parser.add_argument("--io-bin", type=Path)
@@ -48,7 +48,7 @@ def main():
     container_case = args.case in ("container-perf", "container-bulk")
     container_inputs = ("container-probe", "ownerfs_native_container.py") + (("io", "ownerfs_native_container_io.py") if args.case == "container-bulk" else ())
     assert args.case == "a2" or args.expect == "native"
-    if args.case in ("metadata-perf", "container-perf", "container-bulk"):
+    if args.case in ("metadata-perf", "container-perf", "container-bulk", "closeout-performance"):
         assert args.benchmark_bin is not None
     if container_case:
         assert args.container_probe_bin is not None
@@ -80,6 +80,15 @@ def main():
     if args.case == "container-bulk":
         shutil.copyfile(args.io_bin, out / "io")
         shutil.copyfile(Path(__file__).with_name("ownerfs_native_container_io.py"), out / "ownerfs_native_container_io.py")
+    closeout = args.case in ("closeout-architecture", "closeout-performance")
+    performance_closeout = args.case == "closeout-performance"
+    if closeout:
+        shutil.copyfile(Path(__file__).with_name("ownerfs_native_closeout_guest.py"), out / "ownerfs_native_closeout_guest.py")
+    if performance_closeout:
+        for name in ("ownerfs_native_closeout_performance.py", "ownerfs_native_closeout_controller.py"):
+            shutil.copyfile(Path(__file__).with_name(name),out/name)
+        shutil.copyfile(args.io_bin,out/"io-closeout")
+        shutil.copyfile(args.container_probe_bin,out/"container-probe")
     shutil.copytree(args.snapshot, out / "source-inputs")
     options = ["-i", args.key, "-o", "BatchMode=yes", "-o", "ConnectTimeout=10",
                "-o", "UserKnownHostsFile=" + args.known_hosts]
@@ -93,7 +102,7 @@ def main():
     sequence = 0
     result = {"run_id": run, "expected_constructor": args.expect,
               "case_profile": {"a2": "a2-close-reopen-unlink-recreate", "flock": "a3-flock-object",
-                               "append": "a3-single-write-append", "mixed": "a4-mixed-constructor-cache", "metadata-perf": "p1-local-native-ext4", "container-perf": "p1-container-native-ext4", "container-bulk": "p23-container-native-ext4"}[args.case],
+                               "append": "a3-single-write-append", "mixed": "a4-mixed-constructor-cache", "metadata-perf": "p1-local-native-ext4", "container-perf": "p1-container-native-ext4", "container-bulk": "p23-container-native-ext4", "closeout-architecture": "architecture-closeout", "closeout-performance": "performance-closeout"}[args.case],
               "scope": "actual Node bootstrap/Meta/TLS/P2P; test-only mount driver; bounded architecture cases, not performance",
               "input_sha256": {name: digest(out / name) for name in
                                ("node-tests", "afs-meta", "guest.py", "controller.py")},
@@ -103,13 +112,20 @@ def main():
                                          (args.case == "mixed" and role == "b") else "native-eligible")
                                    for role in ("a", "b")}
     result["binary_transform"] = "strip --strip-debug; architecture-only debug builds"
-    if args.case in ("metadata-perf", "container-perf", "container-bulk"):
+    if args.case in ("metadata-perf", "container-perf", "container-bulk", "closeout-performance"):
         result["scope"] = "optimized test-driver candidate: P1 local paired visibility workloads; not full performance acceptance"
         result["binary_transform"] = "strip --strip-debug; release profile caller must supply frozen optimized inputs"
         result["input_sha256"]["benchmark"] = digest(out / "benchmark")
+    if performance_closeout:
+        result["scope"] = "optimized actual five-lane OCI diagnostics; profile/counts define workload; not formal acceptance"
     if container_case:
         result["input_sha256"].update({name: digest(out / name) for name in container_inputs})
         result["scope"] = "actual OCI containers; native source and host-data isolation; local paired diagnostic"
+    if closeout:
+        result["input_sha256"]["ownerfs_native_closeout_guest.py"] = digest(out / "ownerfs_native_closeout_guest.py")
+    if performance_closeout:
+        for name in ("ownerfs_native_closeout_performance.py", "ownerfs_native_closeout_controller.py", "io-closeout", "container-probe"):
+            result["input_sha256"][name]=digest(out/name)
     (out / "inputs.json").write_text(json.dumps(result, indent=2) + "\n")
 
     def execute(command, *, data=None, timeout=45):
@@ -136,7 +152,7 @@ def main():
         if extra is not None:
             remote += " " + shlex.quote(extra)
         output = ssh(role, remote, None if command is None else json.dumps(command),
-                     timeout=(7200 if args.case == "container-bulk" else 1200) if operation in ("metadata-performance", "container-performance") else 45)
+                     timeout=1800 if operation == "closeout-performance" else ((7200 if args.case == "container-bulk" else 1200) if operation in ("metadata-performance", "container-performance") else 45))
         return json.loads(output)
 
     def request(role, operation, **fields):
@@ -230,6 +246,11 @@ def main():
                     cfg["inputs"]["benchmark"] = result["input_sha256"]["benchmark"]
                 if container_case:
                     cfg["inputs"].update({name: result["input_sha256"][name] for name in container_inputs})
+            if closeout and role != "ctl":
+                cfg["inputs"]["ownerfs_native_closeout_guest.py"] = result["input_sha256"]["ownerfs_native_closeout_guest.py"]
+            if performance_closeout and role != "ctl":
+                for name in ("ownerfs_native_closeout_performance.py", "io-closeout", "container-probe"):
+                    cfg["inputs"][name]=result["input_sha256"][name]
             directory = out / role
             directory.mkdir()
             (directory / "role.json").write_text(json.dumps(cfg) + "\n")
@@ -265,6 +286,12 @@ def main():
                 if args.case == "container-bulk":
                     ssh(role, "chmod 0755 " + shlex.quote(base + "/io"))
             ssh(role, "chmod 0755 " + shlex.quote(base + "/" + ("afs-meta" if role == "ctl" else "node-tests")))
+            if closeout and role != "ctl":
+                execute([args.scp, *options, local_path(out / "ownerfs_native_closeout_guest.py"), "lzc@" + roles[role] + ":" + base + "/ownerfs_native_closeout_guest.py"])
+            if performance_closeout and role != "ctl":
+                for name in ("ownerfs_native_closeout_performance.py", "io-closeout", "container-probe"):
+                    execute([args.scp,*options,local_path(out/name),"lzc@"+roles[role]+":"+base+"/"+name])
+                ssh(role,"chmod 0755 "+shlex.quote(base+"/io-closeout")+" "+shlex.quote(base+"/container-probe"))
             guest(role, "launch")
             active.append(role)
             until = time.monotonic() + 35
@@ -295,12 +322,34 @@ def main():
         else:
             result["prepared"] = request("a", "prepare", name="agent1")
             export = True
+            if args.case == "closeout-architecture":
+                result['inflight_trace_start'] = guest('a','closeout',command=dict(action='trace-start'))
+                inflight = submit('b','remote',operation='write',name='data',data='transition-data',truncate=False)['id']
+                deadline=time.monotonic()+5
+                while True:
+                    physical=guest('a','closeout',command=dict(action='physical-check',source=result['prepared']['source'],data='transition-data'))
+                    if physical['matches']: break
+                    assert time.monotonic()<deadline, physical
+                    time.sleep(.05)
+                before=guest('b','closeout',command=dict(action='pending',actor='remote',id=inflight))
+                assert not before['reply_exists'], before
+                result['inflight_before_mount']=before
             result["activated"] = request("a", "activate")
+            if args.case == "closeout-architecture":
+                after=guest('b','closeout',command=dict(action='pending',actor='remote',id=inflight))
+                assert not after['reply_exists'], after
+                result['inflight_after_mount']=after
+                result['inflight_trace_stop']=guest('a','closeout',command=dict(action='trace-stop'))
+                assert result['inflight_trace_stop']['delayed']
+                reply=guest('b','actor-result',command=dict(actor='remote',id=inflight))
+                assert reply['ok'] and reply['result']==15, reply
+                result['inflight_reply']=reply
+
             assert result["activated"]["state"] == "NativeActive"
             native = start_actor("a", "native")
             assert native["root"] == result["activated"]["source"], (native, result["activated"])
             assert native["root"]["device"] != result["actors"]["a-oldfuse"]["root"]["device"]
-            if args.case in ("metadata-perf", "container-perf", "container-bulk"):
+            if args.case in ("metadata-perf", "container-perf", "container-bulk", "closeout-performance"):
                 # P1 has no retained-Actor semantics. Release these short-lived
                 # bootstrap controls before a long benchmark, retaining their
                 # ready/exit evidence. Each timed process enters the verified
@@ -314,7 +363,11 @@ def main():
                     assert exited["exit"] == 0
                     result["bootstrap_actor_exits"][role + "-" + actor] = exited
                 actors.clear()
-                result["container_performance" if container_case else "metadata_performance"] = guest("a", "container-performance" if container_case else "metadata-performance", command={
+                if performance_closeout:
+                    from ownerfs_native_closeout_controller import run
+                    result['closeout_performance']=run(out,result,guest,args)
+                else:
+                    result["container_performance" if container_case else "metadata_performance"] = guest("a", "container-performance" if container_case else "metadata-performance", command={
                     "source": result["activated"]["source"],
                     "workload": "bulk" if args.case == "container-bulk" else "metadata",
                     "moosefs_mount":str(args.moosefs_mount) if args.moosefs_mount else None,
@@ -322,6 +375,15 @@ def main():
                 result["mechanism_result"] = "local paired timing; remote and MooseFS strong durability not qualified by this profile"
                 if container_case and result["container_performance"].get("manager_detached"):
                     export = False
+            elif closeout:
+                fresh_read('a','native','data','transition-data')
+                fresh_read('a','oldfuse','data','transition-data')
+                fresh_read('b','remote','data','transition-data')
+                result['syscall_matrix']={role:guest(role,'closeout',command=dict(action='syscalls',source=result['activated']['source'])) for role in ('a','b')}
+                result['remote_watch_ready']=guest('b','closeout',command=dict(action='watch-start'))
+                guest('a','closeout',command=dict(action='watch-mutate'))
+                result['remote_watch']=guest('b','closeout',command=dict(action='watch-finish'))
+                result['mechanism_result']='actual Home write reply delayed across manager activation; old/native/remote reopen same data; mapping/watch evidence retains failures'
             elif args.case == "a2":
                 for text in ("same-length-ABC", "short", "", "longer-native-value-after-empty"):
                     request("a", "write", actor="native", name="data", data=text)
@@ -438,7 +500,7 @@ def main():
                     replaced_identity["view"].get("data") == "replacement-object" and
                     replaced_identity["view"].get("size") == 18)
                 result["mechanism_result"] = "native-eligible Home with ordinary remote; close/reopen data and cached-name replacement"
-        if args.case not in ("metadata-perf", "container-perf", "container-bulk"):
+        if args.case not in ("metadata-perf", "container-perf", "container-bulk", "closeout-performance"):
             for role, actor in (("a", "oldfuse"), ("b", "remote")):
                 request(role, "close", actor=actor, handle="old")
         result["cases_ok"] = result.get("append_semantics_ok", True) and result.get("mixed_semantics_ok", True)

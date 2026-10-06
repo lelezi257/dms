@@ -6,9 +6,11 @@
 
 **事实：** 已交付g1.5试用包的G1为8/8完成。当前代码包含此后Owner索引/目录维护、DFS同批次完整校验共享、local-file恢复、写权限/未知结果处理、健康/容量语义、安装自检及native私有基础。当前源码与历史g1.5包不是同一输入，不用旧包的通过结果替代本检查点验证。
 
-**待验证：** G2尚未完成当前候选完整pjdfstest、固定LTP基础子集、短FSx、安装后跨节点/local-file组合恢复与ext4/MooseFS/3FS核心性能对照；本次源码测试不关闭这些出口。G2共27项：3个限定成果已完成、2个bind项进行中、22项待验收。G3的13项后置。
+**续跑证据（产品输入仍为本发布锚点）：** [当前E2E账本](evidence/20261006-e2e-current/README.md)记录Owner完整pjdfstest、Owner固定LTP、Owner/DFS短FSx通过；小读/写功能PASS但性能FAIL（0.5709/0.6297×ext4），小删除完成报告出口。DFS pjdfstest/LTP因statfs ENOSYS未进入断言，不计通过。G1保持8/8；G2逐行状态见[主表](trial-release-goals.md)，[双VM核心/中心恢复及DFS一写两读功能](evidence/20261006-e2e-current/crossvm-r1/README.md)已通过；正式比较/新性能包仍未完成，G3后置。旧发布回执原样保留；本轮文档/证据与R1整改一起版本化，产品154编译输入未改。
 
 **决策：** OwnerFs优先；DFS首先一写多读。先小规模读/写/删除，再扩规模/并发/时间；按case自身依赖推进。Owner local吞吐≥90%ext4，remote与MooseFS持平，DFS在同FUSE/POSIX及三同步durable副本下与3FS持平；噪声容差测前固定。普通使用中的损坏、错误成功、权限绕过和核心恢复错误及时修复。
+
+**同源release补充：** [独立结果](evidence/20261006-e2e-current/release-r1/README.md)：122秒构建，Owner完整pjdfstest及64MiB基础/单机中心有序恢复PASS；小读/写仍性能FAIL0.3477/0.5879，保留原dev失败。release DFS/双VM/LTP/FSx尚未新跑。最新用户性能优先容器workspace挂载访问，普通性能专项暂缓；[R1整改](repository-remediation.md)恢复/夹具验证已过，R2上游API缺口单列阻塞，不修改历史结论。
 
 ## 当前组合验证
 
@@ -68,7 +70,7 @@ fd2dbca678dcba28ec07665ddf7d9bcf3e98636af6842a58ca435cfb4ce02c5b  parent-fd-pair
 
 ## 下一步
 
-G0代码/文档发布完成后，按主表先G2.04/06/08的Owner标准与必要恢复，再G2.09–11小规模local读/写/删除。bind两个出口独立推进，不阻塞OFF版本；remote后进入DFS时先G2.21一写多读。etcd暂2GiB专题与Redis最后，完整G2继续进行。
+当前G2.04/07/08/11及Owner LTP分支按已记录范围复用；同源码release构建/Owner标准及单机恢复已过，小读写仍FAIL，原dev及release数据都保留，普通路径专项优化暂缓。先完成独立R1仓库整改；R2官方fuser公开API缺口单列阻塞，不能冒称迁移完成。随后pjdfstest功能完备性；性能优先容器workspace挂载G2.12必要功能出口→G2.13。DFS statfs缺口单列，不由一写两读功能PASS替代。bind默认OFF；大规模/复杂可靠性/etcd2GiB专题与Redis后置。
 
 ## Review boundary
 

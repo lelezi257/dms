@@ -1,0 +1,52 @@
+2026-10-06 22:27:39,878 - kirk.events:144 - INFO - Register event: 'suite_started'
+2026-10-06 22:27:39,878 - kirk.events:144 - INFO - Register event: 'test_completed'
+2026-10-06 22:27:39,878 - kirk.events:144 - INFO - Register event: 'session_restore'
+2026-10-06 22:27:39,878 - kirk.events:144 - INFO - Register event: 'session_started'
+2026-10-06 22:27:39,878 - kirk.events:144 - INFO - Register event: 'session_stopped'
+2026-10-06 22:27:39,878 - kirk.events:144 - INFO - Register event: 'sut_start'
+2026-10-06 22:27:39,878 - kirk.events:144 - INFO - Register event: 'sut_stop'
+2026-10-06 22:27:39,878 - kirk.events:144 - INFO - Register event: 'sut_restart'
+2026-10-06 22:27:39,878 - kirk.events:144 - INFO - Register event: 'run_cmd_start'
+2026-10-06 22:27:39,878 - kirk.events:144 - INFO - Register event: 'run_cmd_stdout'
+2026-10-06 22:27:39,878 - kirk.events:144 - INFO - Register event: 'run_cmd_stop'
+2026-10-06 22:27:39,878 - kirk.events:144 - INFO - Register event: 'suite_started'
+2026-10-06 22:27:39,878 - kirk.events:144 - INFO - Register event: 'suite_completed'
+2026-10-06 22:27:39,878 - kirk.events:144 - INFO - Register event: 'suite_timeout'
+2026-10-06 22:27:39,878 - kirk.events:144 - INFO - Register event: 'session_warning'
+2026-10-06 22:27:39,878 - kirk.events:144 - INFO - Register event: 'session_error'
+2026-10-06 22:27:39,878 - kirk.events:144 - INFO - Register event: 'session_completed'
+2026-10-06 22:27:39,878 - kirk.events:144 - INFO - Register event: 'internal_error'
+2026-10-06 22:27:39,878 - kirk.events:144 - INFO - Register event: 'printf'
+2026-10-06 22:27:39,878 - kirk.events:144 - INFO - Register event: 'sut_not_responding'
+2026-10-06 22:27:39,878 - kirk.events:144 - INFO - Register event: 'kernel_panic'
+2026-10-06 22:27:39,878 - kirk.events:144 - INFO - Register event: 'kernel_tainted'
+2026-10-06 22:27:39,878 - kirk.events:144 - INFO - Register event: 'test_timed_out'
+2026-10-06 22:27:39,878 - kirk.events:144 - INFO - Register event: 'test_started'
+2026-10-06 22:27:39,878 - kirk.events:144 - INFO - Register event: 'test_completed'
+2026-10-06 22:27:39,878 - asyncio:64 - DEBUG - Using selector: EpollSelector
+2026-10-06 22:27:39,878 - kirk.events:250 - INFO - Starting event loop
+2026-10-06 22:27:39,878 - kirk.shell:147 - INFO - Executing command: 'test -d /opt/ltp/testcases/bin'
+2026-10-06 22:27:39,879 - kirk.shell:80 - INFO - Kill process 99448
+2026-10-06 22:27:39,879 - kirk.shell:211 - DEBUG - return data={'command': 'test -d /opt/ltp/testcases/bin', 'stdout': '', 'returncode': 1, 'exec_time': 0.00010943412780761719}
+2026-10-06 22:27:39,879 - kirk.shell:213 - INFO - Command executed
+2026-10-06 22:27:39,879 - kirk.shell:147 - INFO - Executing command: 'cd '/var/tmp/afs-e2e-20261006-r1/mount/dfs/g2-e2e-dfs/.le5a046ed/0001/w' && export LTPROOT='/var/tmp/afs-e2e-20261006-r1/suites/ltp-small-install' && export PATH='/var/tmp/afs-e2e-20261006-r1/suites/ltp-small-install/testcases/bin:/var/tmp/afs-e2e-20261006-r1/suites/ltp-small-install/bin':"$PATH" && export TMPDIR='/var/tmp/afs-e2e-20261006-r1/mount/dfs/g2-e2e-dfs/.le5a046ed/0001/t' && export TMP='/var/tmp/afs-e2e-20261006-r1/mount/dfs/g2-e2e-dfs/.le5a046ed/0001/t' && export TEMP='/var/tmp/afs-e2e-20261006-r1/mount/dfs/g2-e2e-dfs/.le5a046ed/0001/t' && open01'
+2026-10-06 22:27:40,265 - kirk.shell:80 - INFO - Kill process 99450
+2026-10-06 22:27:40,265 - kirk.shell:211 - DEBUG - return data={'command': 'cd \'/var/tmp/afs-e2e-20261006-r1/mount/dfs/g2-e2e-dfs/.le5a046ed/0001/w\' && export LTPROOT=\'/var/tmp/afs-e2e-20261006-r1/suites/ltp-small-install\' && export PATH=\'/var/tmp/afs-e2e-20261006-r1/suites/ltp-small-install/testcases/bin:/var/tmp/afs-e2e-20261006-r1/suites/ltp-small-install/bin\':"$PATH" && export TMPDIR=\'/var/tmp/afs-e2e-20261006-r1/mount/dfs/g2-e2e-dfs/.le5a046ed/0001/t\' && export TMP=\'/var/tmp/afs-e2e-20261006-r1/mount/dfs/g2-e2e-dfs/.le5a046ed/0001/t\' && export TEMP=\'/var/tmp/afs-e2e-20261006-r1/mount/dfs/g2-e2e-dfs/.le5a046ed/0001/t\' && open01', 'stdout': 'tst_fs_type.c:20: TBROK: tst_fs_type: Failed to statfs(/var/tmp/afs-e2e-20261006-r1/mount/dfs/g2-e2e-dfs/.le5a046ed/0001/t/LTP_opecSUPBh): ENOSYS (38)\n\nSummary:\npassed   0\nfailed   0\nbroken   1\nskipped  0\nwarnings 0\n', 'returncode': 2, 'exec_time': 0.3857567310333252}
+2026-10-06 22:27:40,265 - kirk.shell:213 - INFO - Command executed
+2026-10-06 22:27:40,265 - kirk.suite_scheduler:469 - INFO - Stopping suites execution
+2026-10-06 22:27:40,265 - kirk.test_scheduler:206 - INFO - Stopping tests execution
+2026-10-06 22:27:40,265 - kirk.test_scheduler:221 - INFO - Wait for running tests to be completed
+2026-10-06 22:27:40,265 - kirk.test_scheduler:229 - INFO - All tests have been completed
+2026-10-06 22:27:40,265 - kirk.suite_scheduler:481 - INFO - Suites execution has stopped
+2026-10-06 22:27:40,265 - kirk.shell:110 - INFO - Stopping shell communication
+2026-10-06 22:27:40,265 - kirk.shell:132 - INFO - Shell communication has stopped
+2026-10-06 22:27:40,265 - kirk.events:226 - INFO - Stopping event loop
+2026-10-06 22:27:40,265 - kirk.events:255 - INFO - Event loop completed
+2026-10-06 22:27:40,265 - kirk.events:240 - INFO - Event loop stopped
+2026-10-06 22:27:40,266 - kirk.suite_scheduler:469 - INFO - Stopping suites execution
+2026-10-06 22:27:40,266 - kirk.test_scheduler:206 - INFO - Stopping tests execution
+2026-10-06 22:27:40,266 - kirk.test_scheduler:221 - INFO - Wait for running tests to be completed
+2026-10-06 22:27:40,266 - kirk.test_scheduler:229 - INFO - All tests have been completed
+2026-10-06 22:27:40,266 - kirk.suite_scheduler:481 - INFO - Suites execution has stopped
+2026-10-06 22:27:40,266 - kirk.events:226 - INFO - Stopping event loop
+2026-10-06 22:27:40,266 - kirk.events:240 - INFO - Event loop stopped

@@ -1,0 +1,9 @@
+{
+  "pair": 1,
+  "target": "owner",
+  "operations": 100,
+  "wall_ns": 7175686,
+  "ops_per_second": 13935.949817202147,
+  "mean_unlink_ns": 71756.86,
+  "correctness": "PASS"
+}

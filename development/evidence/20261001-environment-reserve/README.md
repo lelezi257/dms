@@ -39,11 +39,11 @@ live process mount namespace for mounts in either original or archive paths.
 Existing disconnected FUSE fixtures remain untouched; A inventory retains their
 `df` error instead of reporting an overall clean filesystem probe.
 
-The actual migration used [this executed script](linux/executed-archive-extractions-v65.py).
+The actual migration used [this executed script](https://github.com/lelezi257/dms/blob/e925c5bcf0408851ebfa08a59df29953374da9e9/development/evidence/20261001-environment-reserve/linux/executed-archive-extractions-v65.py).
 A later [static review](static-review.md) requested stronger all-process mount
 namespace checks, pre-mutation capacity estimates and destination-filesystem
-checks. The [strengthened helper](linux/archive-extractions-v65.py) and
-[tests](linux/test_archive_extractions_v65.py) include those protections. It was
+checks. The [strengthened helper](https://github.com/lelezi257/dms/blob/e925c5bcf0408851ebfa08a59df29953374da9e9/development/evidence/20261001-environment-reserve/linux/archive-extractions-v65.py) and
+[tests](https://github.com/lelezi257/dms/blob/e925c5bcf0408851ebfa08a59df29953374da9e9/development/evidence/20261001-environment-reserve/linux/test_archive_extractions_v65.py) include those protections. It was
 regressed on Linux; the already completed 4 GiB migration was not repeated.
 Its fresh manifest/mount audit passed. Original executed inputs and results
 retain their own hashes.

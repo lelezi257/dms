@@ -1,0 +1,5 @@
+Using file fsxfile
+command line: /var/tmp/afs-e2e-20261006-r1/suites/secfs.test/tools/bin/fsx -N 1000 -S 1 -P /var/tmp/afs-e2e-20261006-r1/results/dfs-fsx-r1/artifacts/std-03-fsx/seeds/01-seed-1 fsxfile
+Seed set to 1
+truncating to largest ever: 0x40000
+All operations - 1073 - completed A-OK!

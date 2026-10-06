@@ -54,7 +54,7 @@ Unstripped Meta SHA256:
 - [v56 cache attempt](source/failed-v56-cache/qualified-linux/error.log) reused a
   test artifact embedding the old catalog despite updated inputs. A targeted
   `cargo clean -p afs-error` removed83 cache files/14.6MiB, followed by a complete
-  fresh [gate](source/gate.py). Original failure remains; no test was skipped.
+  fresh [gate](https://github.com/lelezi257/dms/blob/e925c5bcf0408851ebfa08a59df29953374da9e9/development/evidence/20261001-async-repair/source/gate.py). Original failure remains; no test was skipped.
 - The authority subagent reported an unqualified macOS `cargo check --features
   dfs`/format attempt. It failed at the Linux-only fuser build script and is not
   validation evidence. All accepted formatting/build checks are the Linux gate.

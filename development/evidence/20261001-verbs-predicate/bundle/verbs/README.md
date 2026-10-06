@@ -31,9 +31,9 @@ Payload digests include the trailing NUL. MTU records distinguish Ethernet
 
 [Selection](selection.md), [matrix](matrix.json), [command transcript](commands.jsonl)
 and [run index](runs.jsonl) bind exact commands, UUIDs and endpoints.
-The frozen [wire collector](inputs/env_verbs.py) and
+The frozen [wire collector](https://github.com/lelezi257/dms/blob/e925c5bcf0408851ebfa08a59df29953374da9e9/development/evidence/20261001-verbs-predicate/bundle/verbs/inputs/env_verbs.py) and
 [executed orchestrator](inputs/orchestrate-executed.mjs) remain under their
-original hashes. The [final checker](inputs/env_verbs-checker.py) corrects
+original hashes. The [final checker](https://github.com/lelezi257/dms/blob/e925c5bcf0408851ebfa08a59df29953374da9e9/development/evidence/20261001-verbs-predicate/bundle/verbs/inputs/env_verbs-checker.py) corrects
 parser/evaluator behavior only; transport capture was not rerun or relabeled
 as executing the new source. Binary/guest/kernel/GID/route/provider/process
 observations and raw logs are under [runtime](runtime/).

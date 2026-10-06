@@ -1,0 +1,33 @@
+Linux lima-afs-g1-clean 6.8.0-106-generic #106-Ubuntu SMP PREEMPT_DYNAMIC Fri Mar  6 07:44:40 UTC 2026 aarch64 aarch64 aarch64 GNU/Linux
+/usr/bin/git
+/usr/bin/python3
+/usr/bin/prove
+/usr/bin/timeout
+/usr/bin/findmnt
+/usr/bin/sha256sum
+d25636a227606f8960e5179741d8f4ad7030ef41
+83f27ae21a4de5c2dabc447238c83f21c1a17558e61762ec52fe7ffbcf61f780  /var/tmp/afs-e2e-20261006-r1/suites/pjdfstest/pjdfstest
+04b68193d7cdd04dea8c861f07e47336be05281de11a91e9ea8f3890123d1900  /proc/23171/exe
+38f0e76a5b4c4afc3efdde3ee7bfa96b0e7e01a0403d556343ec385a86b20d45  /proc/22920/exe
+{
+   "filesystems": [
+      {
+         "target": "/var/tmp/afs-e2e-20261006-r1/mount/dfs",
+         "source": "afs-dfs",
+         "fstype": "fuse",
+         "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+      }
+   ]
+}
+{
+   "filesystems": [
+      {
+         "target": "/",
+         "source": "/dev/vda1",
+         "fstype": "ext4",
+         "options": "rw,relatime,discard,errors=remount-ro,commit=30"
+      }
+   ]
+}
+Filesystem       1B-blocks       Used  Available Use% Mounted on
+/dev/vda1      15523123200 7283773440 8222572544  47% /

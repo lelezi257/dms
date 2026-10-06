@@ -1,0 +1,3 @@
+meta stopped exit_code=0
+removing stale pid file for meta: 100186
+started meta pid=100880 ready=true

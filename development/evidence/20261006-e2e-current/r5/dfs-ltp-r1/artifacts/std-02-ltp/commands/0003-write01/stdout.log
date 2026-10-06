@@ -1,0 +1,21 @@
+Host information
+	Hostname:   lima-afs-g1-clean
+	Python:     3.12.3 (main, Mar  3 2026, 12:15:18) [GCC 13.3.0]
+	Directory:  /var/tmp/afs-e2e-20261006-r1/results/dfs-ltp-r1/artifacts/std-02-ltp/commands/0003-write01/kirk-tmp/kirk.root/tmppfd005iz
+
+Connecting to SUT: default
+
+cd '/var/tmp/afs-e2e-20261006-r1/mount/dfs/g2-e2e-dfs/.le5a046ed/0003/w' && export LTPROOT='/var/tmp/afs-e2e-20261006-r1/suites/ltp-small-install' && export PATH='/var/tmp/afs-e2e-20261006-r1/suites/ltp-small-install/testcases/bin:/var/tmp/afs-e2e-20261006-r1/suites/ltp-small-install/bin':"$PATH" && export TMPDIR='/var/tmp/afs-e2e-20261006-r1/mount/dfs/g2-e2e-dfs/.le5a046ed/0003/t' && export TMP='/var/tmp/afs-e2e-20261006-r1/mount/dfs/g2-e2e-dfs/.le5a046ed/0003/t' && export TEMP='/var/tmp/afs-e2e-20261006-r1/mount/dfs/g2-e2e-dfs/.le5a046ed/0003/t' && write01
+tst_fs_type.c:20: TBROK: tst_fs_type: Failed to statfs(/var/tmp/afs-e2e-20261006-r1/mount/dfs/g2-e2e-dfs/.le5a046ed/0003/t/LTP_wrikZAc8D): ENOSYS (38)
+
+Summary:
+passed   0
+failed   0
+broken   1
+skipped  0
+warnings 0
+
+Exit code: 2
+
+Disconnecting from SUT: default
+Session stopped

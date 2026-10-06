@@ -1,0 +1,19 @@
+{
+  "case_id": "g2-cross-owner-e925c5b",
+  "data_file": "g1-stream.bin",
+  "elapsed_seconds": 0.459394,
+  "input_manifest": "/var/tmp/afs-e2e-cross-20261006-r1/results/owner-b-patch/manifest.json",
+  "mount": "/var/tmp/afs-e2e-cross-20261006-r1/mount/ownerfs",
+  "mount_info": {
+    "fstype": "fuse",
+    "source": "afs-ownerfs",
+    "target": "/var/tmp/afs-e2e-cross-20261006-r1/mount/ownerfs"
+  },
+  "reference": false,
+  "schema": "afs.g1.trial.read-result.v1",
+  "sha256": "d6f76d374e0df094f5455a2fffe9bdc3011b00db6ba30b56132f3745acc0a66f",
+  "size": 67108864,
+  "status": "PASS",
+  "total_elapsed_seconds": 0.462113,
+  "workspace": "g2-cross-owner"
+}

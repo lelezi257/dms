@@ -26,7 +26,7 @@ Node SHA256: `dbbf2ccd5eb47f06178bfc3140599865c1b7ad5f28851e244e728fbcdfc136af`.
 
 ## Reproduction and limits
 
-On the Linux build guest with native C compiler/Python dependencies, copy the five `scripts/deploy/` scripts together, run `bash -n` on them and execute `./selftest.sh`. [Product orchestrator](reproducers/processctl-runtime-probe.py) captures the research-workspace reproduction; it requires the documented Lima VM identities, existing qualified binaries/public TLS setup and isolated ext4 runtime. Preparation refuses an existing runtime instead of removing data. It is an environment-specific development probe, not the standalone release installer.
+On the Linux build guest with native C compiler/Python dependencies, copy the five `scripts/deploy/` scripts together, run `bash -n` on them and execute `./selftest.sh`. [Product orchestrator](https://github.com/lelezi257/dms/blob/e925c5bcf0408851ebfa08a59df29953374da9e9/development/evidence/20261001-processctl/reproducers/processctl-runtime-probe.py) captures the research-workspace reproduction; it requires the documented Lima VM identities, existing qualified binaries/public TLS setup and isolated ext4 runtime. Preparation refuses an existing runtime instead of removing data. It is an environment-specific development probe, not the standalone release installer.
 
 Full DEP/offline/idempotent installation, wider fault/backend/R=N/RDMA matrices, performance baselines, large-file and soak gates remain unqualified. Formal69-case release manifest remains NOT_RUN; ENV remains PREPARING. Overall goal is active. TLS private keys and binaries are absent from this evidence bundle. `docs/handoff.md` is unchanged.
 

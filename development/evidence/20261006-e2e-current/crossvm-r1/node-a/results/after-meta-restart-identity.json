@@ -1,0 +1,38 @@
+{
+  "hostname": "lima-afs-g1-clean",
+  "phase": "after-meta-restart",
+  "processes": {
+    "meta": {
+      "pid": 100880,
+      "starttick": 7932231,
+      "elf_sha256": "38f0e76a5b4c4afc3efdde3ee7bfa96b0e7e01a0403d556343ec385a86b20d45"
+    },
+    "node": {
+      "pid": 100376,
+      "starttick": 7916209,
+      "elf_sha256": "04b68193d7cdd04dea8c861f07e47336be05281de11a91e9ea8f3890123d1900"
+    }
+  },
+  "mounts": {
+    "ownerfs": {
+      "filesystems": [
+        {
+          "target": "/var/tmp/afs-e2e-cross-20261006-r1/mount/ownerfs",
+          "source": "afs-ownerfs",
+          "fstype": "fuse",
+          "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+        }
+      ]
+    },
+    "dfs": {
+      "filesystems": [
+        {
+          "target": "/var/tmp/afs-e2e-cross-20261006-r1/mount/dfs",
+          "source": "afs-dfs",
+          "fstype": "fuse",
+          "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+        }
+      ]
+    }
+  }
+}

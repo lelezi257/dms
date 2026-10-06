@@ -1,0 +1,8 @@
+pid=101358
+exe=/var/tmp/afs-e2e-20261006-r1/prefix/bin/afs-meta
+config=/var/tmp/afs-e2e-cross-20261006-r1/etc/meta.toml
+start_ticks=7973641
+boot_id=11484faf-9d34-4967-86e0-940daea1fffc
+lifecycle=/var/tmp/afs-e2e-cross-20261006-r1/run/meta.lifecycle.3JxUPi
+supervisor_pid=101342
+exit_code=0

@@ -1,0 +1,25 @@
+id = "node-b"
+fs = "all"
+meta_endpoint = "https://192.168.109.3:20400"
+grpc_listen = "0.0.0.0:20500"
+rest_listen = "0.0.0.0:20501"
+advertise_endpoint = "https://192.168.109.1:20500"
+data_dir = "/var/tmp/afs-e2e-cross-20261006-r1/state/node"
+uds_path = "/var/tmp/afs-e2e-cross-20261006-r1/run/node.sock"
+dfs_mount = "/var/tmp/afs-e2e-cross-20261006-r1/mount/dfs"
+ownerfs_mount = "/var/tmp/afs-e2e-cross-20261006-r1/mount/ownerfs"
+data_mode = "grpc"
+allow_volatile_meta = false
+dfs_desired_copies = 2
+dfs_sync_required_copies = 2
+dfs_min_distinct_nodes = 2
+dfs_min_distinct_failure_domains = 2
+dfs_local_copy = "required"
+log_level = "info"
+trace_enabled = false
+
+tls_ca_certificate = "/var/tmp/afs-e2e-cross-20261006-r1/etc/tls/ca.pem"
+tls_identity_certificate = "/var/tmp/afs-e2e-cross-20261006-r1/etc/tls/node-b.pem"
+tls_identity_private_key = "/var/tmp/afs-e2e-cross-20261006-r1/etc/tls/node-b-key.pem"
+tls_server_name = "afs-meta"
+trusted_node_certs = { node-a = "/var/tmp/afs-e2e-cross-20261006-r1/etc/tls/node-a.pem", node-b = "/var/tmp/afs-e2e-cross-20261006-r1/etc/tls/node-b.pem" }

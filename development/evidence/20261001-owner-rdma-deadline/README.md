@@ -19,14 +19,14 @@ A timeout is an unknown write outcome, not a rollback. This same-VM business-ada
 | --- | --- |
 | Focused local regression | [Actual posted/deadline audit](owner-deadline-v77-r4/cancel/audit.json), [GDB](owner-deadline-v77-r4/cancel/gdb.log), [runner](owner-deadline-v77-r4/runner.log) |
 | Related regression | [Owner contracts](owner-deadline-v77-r4/owner-contract.log): 9 PASS / 3 explicit environment ignores; [healthy RXE](owner-deadline-v77-r4/owner-healthy.log) separately exercises one existing ignored case |
-| Checker rejection checks | [Owner24](owner-deadline-v77-r4/owner-checker.json), [unchanged diagnostic20](owner-deadline-v77-r4/diagnostic-checker.json), [program](audit-regression.py) |
+| Checker rejection checks | [Owner24](owner-deadline-v77-r4/owner-checker.json), [unchanged diagnostic20](owner-deadline-v77-r4/diagnostic-checker.json), [program](https://github.com/lelezi257/dms/blob/e925c5bcf0408851ebfa08a59df29953374da9e9/development/evidence/20261001-owner-rdma-deadline/audit-regression.py) |
 | Compilation / static checks | [Compile](owner-deadline-v77-r4/compile.log), [affected Clippy](owner-deadline-v77-r4/clippy.log), [fmt](owner-deadline-v77-r4/fmt.log), [Linux Python compile](owner-deadline-v77-r4/python-compile.log) |
 | Stage gate | No new full source gate. [v76 gate](../20261001-posted-rdma-cancellation/README.md) remains valid for its original inputs; production inputs/binaries unchanged. Fresh final candidate full gate remains due at batch/round closure |
 | Formal acceptance | NOT_RUN / environment PREPARING |
 
 ## Identity and retained failures
 
-The [executed test input](owner-deadline-v77-r4/test-input.rs.txt), [runner input](owner-deadline-v77-r4/runner-input.py), [fixture binary hash](owner-deadline-v77-r4/binary.txt) and [runtime identities](owner-deadline-v77-r4/cancel/identity.json) bind this run. Only test/checker code changes; no production Rust/C/protocol, persistence format or architecture change.
+The [executed test input](owner-deadline-v77-r4/test-input.rs.txt), [runner input](https://github.com/lelezi257/dms/blob/e925c5bcf0408851ebfa08a59df29953374da9e9/development/evidence/20261001-owner-rdma-deadline/owner-deadline-v77-r4/runner-input.py), [fixture binary hash](owner-deadline-v77-r4/binary.txt) and [runtime identities](owner-deadline-v77-r4/cancel/identity.json) bind this run. Only test/checker code changes; no production Rust/C/protocol, persistence format or architecture change.
 
 The original attempts are retained: r1 assumed all deadlines have error kind DeadlineExceeded; r2 incorrectly rejected the transient poisoned lookup before asynchronous close; r3 expected an RPC success metric after its awaiting RPC had timed out. These are fixture assertion errors, not evidence of a production defect. The final fixture requires actual native CQ completion and physical exact content separately from RPC success metrics.
 

@@ -1,0 +1,37 @@
+{
+  "node": "node-a",
+  "address": "192.168.109.3",
+  "peer": "192.168.109.1",
+  "kernel": "6.8.0-106-generic",
+  "dependencies": {
+    "bash": "/usr/bin/bash",
+    "python3": "/usr/bin/python3",
+    "openssl": "/usr/bin/openssl",
+    "timeout": "/usr/bin/timeout",
+    "findmnt": "/usr/bin/findmnt",
+    "fusermount3": "/usr/bin/fusermount3"
+  },
+  "binary_sha256": {
+    "afs-meta": "38f0e76a5b4c4afc3efdde3ee7bfa96b0e7e01a0403d556343ec385a86b20d45",
+    "afs-node": "04b68193d7cdd04dea8c861f07e47336be05281de11a91e9ea8f3890123d1900"
+  },
+  "peer_tcp": "SSH-2.0-OpenSSH_9.6p1 Ubuntu-3ubuntu13.19",
+  "ports": "AVAILABLE",
+  "certificate_public_identity": {
+    "meta": "subject=CN = afs-meta\nX509v3 Subject Alternative Name: \n    DNS:afs-meta, DNS:meta, IP Address:192.168.109.3, DNS:node-a, IP Address:192.168.109.3, DNS:node-b, IP Address:192.168.109.1, DNS:127.0.0.1, IP Address:127.0.0.1\n",
+    "node-a": "subject=CN = node-a\nX509v3 Subject Alternative Name: \n    DNS:afs-meta, DNS:meta, IP Address:192.168.109.3, DNS:node-a, IP Address:192.168.109.3, DNS:node-b, IP Address:192.168.109.1, DNS:127.0.0.1, IP Address:127.0.0.1\n",
+    "node-b": "subject=CN = node-b\nX509v3 Subject Alternative Name: \n    DNS:afs-meta, DNS:meta, IP Address:192.168.109.3, DNS:node-a, IP Address:192.168.109.3, DNS:node-b, IP Address:192.168.109.1, DNS:127.0.0.1, IP Address:127.0.0.1\n"
+  },
+  "free_bytes": 8218714112,
+  "filesystem": {
+    "filesystems": [
+      {
+        "target": "/",
+        "source": "/dev/vda1",
+        "fstype": "ext4",
+        "options": "rw,relatime,discard,errors=remount-ro,commit=30"
+      }
+    ]
+  },
+  "status": "PASS"
+}

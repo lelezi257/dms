@@ -1,0 +1,27 @@
+{
+  "node": "node-a",
+  "hostname": "lima-afs-g1-clean",
+  "harness_pid": 101480,
+  "argv": [
+    "/var/tmp/afs-e2e-20261006-r1/prefix/bin/afs-selfcheck",
+    "--mount",
+    "/var/tmp/afs-e2e-cross-20261006-r1/mount/dfs",
+    "--workspace",
+    "g2-cross-dfs",
+    "--phase",
+    "read",
+    "--input",
+    "/var/tmp/afs-e2e-cross-20261006-r1/results/dfs-a-write/manifest.json",
+    "--output",
+    "/var/tmp/afs-e2e-cross-20261006-r1/results/dfs-reader-a-after-meta",
+    "--deadline",
+    "180"
+  ],
+  "requested_start_unix_seconds": 0.0,
+  "start_unix_ns": 1791298020122504309,
+  "end_unix_ns": 1791298032377479434,
+  "elapsed_ns": 12254981625,
+  "returncode": 0,
+  "status": "PASS",
+  "scope": "functional independent reader; wall-clock alignment is not performance clock qualification"
+}

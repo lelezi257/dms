@@ -1,0 +1,50 @@
+{
+  "base_seed": "g2-cross-owner-e925c5b:base:67108864",
+  "case_id": "g2-cross-owner-e925c5b",
+  "coverage": [
+    "streaming-write",
+    "fsync",
+    "close-reopen",
+    "streaming-read",
+    "EOF",
+    "create-openflags-read-write-append-truncate-rename-unlink",
+    "chmod-mode",
+    "basic-fcntl-lock",
+    "basic-mmap-msync"
+  ],
+  "created_unix": 1791297457,
+  "data_file": "g1-stream.bin",
+  "elapsed_seconds": 0.258996,
+  "mount": "/var/tmp/afs-e2e-cross-20261006-r1/mount/ownerfs",
+  "mount_info": {
+    "fstype": "fuse",
+    "source": "afs-ownerfs",
+    "target": "/var/tmp/afs-e2e-cross-20261006-r1/mount/ownerfs"
+  },
+  "not_full_posix": true,
+  "patches": [
+    {
+      "length": 524288,
+      "offset": 5242880,
+      "seed": "g2-cross-owner-e925c5b:patch-a"
+    },
+    {
+      "length": 1048576,
+      "offset": 17825792,
+      "seed": "g2-cross-owner-e925c5b:patch-b"
+    },
+    {
+      "length": 786432,
+      "offset": 65011712,
+      "seed": "g2-cross-owner-e925c5b:patch-tail"
+    }
+  ],
+  "reference": false,
+  "schema": "afs.g1.trial.selfcheck.v1",
+  "sha256": "e7ca82b9cad3af1446775d75d66a29862bb7efe04a326624aaa796cfbbb764d6",
+  "size": 67108864,
+  "status": "PASS",
+  "stream_block": 1048576,
+  "total_elapsed_seconds": 0.260926,
+  "workspace": "g2-cross-owner"
+}

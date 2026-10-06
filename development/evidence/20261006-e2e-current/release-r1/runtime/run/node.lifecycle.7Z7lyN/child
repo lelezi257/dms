@@ -1,0 +1,7 @@
+pid=102502
+exe=/var/tmp/afs-e2e-release-20261006-r1/prefix/bin/afs-node
+config=/var/tmp/afs-e2e-release-20261006-r1/etc/node.toml
+start_ticks=8102618
+boot_id=11484faf-9d34-4967-86e0-940daea1fffc
+lifecycle=/var/tmp/afs-e2e-release-20261006-r1/run/node.lifecycle.7Z7lyN
+supervisor_pid=102486

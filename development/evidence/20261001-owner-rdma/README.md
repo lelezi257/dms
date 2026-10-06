@@ -71,7 +71,7 @@ original identity; r3-r5 changes narrow imports and make equivalent lint-only
 edits. Final r5 library/contracts repeat affected all-feature tests and final
 RXE rechecks actual bytes. Earlier intermediate runs are not relabeled r5.
 
-The [Linux audit](audit.py) validates the retained receipts, hashes, counts and
+The [Linux audit](https://github.com/lelezi257/dms/blob/e925c5bcf0408851ebfa08a59df29953374da9e9/development/evidence/20261001-owner-rdma/audit.py) validates the retained receipts, hashes, counts and
 RDMA byte totals. Build work temporarily stopped idle C; [restored topology](environment/topology-restored.txt)
 and [fresh C boot/RXE observation](environment/c-restored.txt) show ctl/A/B/C
 running and build stopped. The new C observation does not qualify old transfer

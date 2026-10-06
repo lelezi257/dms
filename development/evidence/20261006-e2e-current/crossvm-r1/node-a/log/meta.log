@@ -1,0 +1,7 @@
+{"msg":"meta.ready","level":"INFO","ts":"2026-10-06T14:37:25.204791562Z","instance":"meta-ctl","service_name":"afs-meta","rest":"0.0.0.0:20401","grpc":"0.0.0.0:20400"}
+{"msg":"request failed","level":"ERRO","ts":"2026-10-06T14:38:29.790659916Z","instance":"meta-ctl","service_name":"afs-meta","message":"root g2-cross-owner is not registered","kind":"NotFound","code":67305473}
+{"msg":"services.stopped","level":"INFO","ts":"2026-10-06T14:40:05.401760754Z","instance":"meta-ctl","service_name":"afs-meta"}
+{"msg":"meta.ready","level":"INFO","ts":"2026-10-06T14:40:05.592060381Z","instance":"meta-ctl","service_name":"afs-meta","rest":"0.0.0.0:20401","grpc":"0.0.0.0:20400"}
+{"msg":"services.stopped","level":"INFO","ts":"2026-10-06T14:46:59.494755763Z","instance":"meta-ctl","service_name":"afs-meta"}
+{"msg":"meta.ready","level":"INFO","ts":"2026-10-06T14:46:59.790979628Z","instance":"meta-ctl","service_name":"afs-meta","rest":"0.0.0.0:20401","grpc":"0.0.0.0:20400"}
+{"msg":"services.stopped","level":"INFO","ts":"2026-10-06T14:55:58.767212227Z","instance":"meta-ctl","service_name":"afs-meta"}

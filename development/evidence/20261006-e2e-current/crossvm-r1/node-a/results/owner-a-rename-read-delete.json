@@ -1,0 +1,1 @@
+{"status": "PASS", "old_name_absent": true, "renamed_size": 67108864, "renamed_sha256": "d6f76d374e0df094f5455a2fffe9bdc3011b00db6ba30b56132f3745acc0a66f", "unlink_then_directory_fsync": "PASS"}

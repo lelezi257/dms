@@ -10,7 +10,11 @@ G2 is active. The completed G2 items are bounded internal outputs: OwnerFs index
 
 G3 is deferred. Long soak, broad random/POSIX matrices, complex fault matrices, multi-Meta/HA, etcd 2 GiB topic and Redis are not the next blockers for small usable progress.
 
+**High-priority independent maintenance:** the release slice has finished and stopped. Publish [R1 evidence cleanup / R2 upstream gap report](repository-remediation.md), then continue independent E2E items; R2 stays BLOCKED pending the lock support decision. G1 and historical conclusions remain unchanged.
+
 ## Immediate sequence
+
+Latest user override: pjdfstest targets functional completeness; after high-priority repository remediation, performance priority is the Issue42/PR43 container-mounted workspace path (G2.12 prerequisite qualification, then G2.13). Ordinary read/write baselines retain data and defer targeted optimization. The original sequence below remains a dependency/reference map, not an instruction to optimize every ordinary case first.
 
 | Order | Checklist item | Exit |
 | --- | --- | --- |

@@ -1,0 +1,46 @@
+{
+  "artifacts": {
+    "stderr": "seeds/01-seed-1/stderr.log",
+    "stdout": "seeds/01-seed-1/stdout.log"
+  },
+  "classification": {
+    "completion_marker": true,
+    "operations_completed": 1073,
+    "reason": "fsx completed with A-OK marker",
+    "result": "PASS",
+    "stderr_bytes": 0,
+    "stdout_bytes": 295
+  },
+  "command": [
+    "/var/tmp/afs-e2e-20261006-r1/suites/secfs.test/tools/bin/fsx",
+    "-N",
+    "1000",
+    "-S",
+    "1",
+    "-P",
+    "/var/tmp/afs-e2e-20261006-r1/results/owner-fsx-r1/artifacts/std-03-fsx/seeds/01-seed-1",
+    "fsxfile"
+  ],
+  "fixture": "/var/tmp/afs-e2e-20261006-r1/mount/ownerfs/g2-e2e-owner/.afs-std03-fsx-20261006T140624Z-48ca1ea1/seed-1",
+  "index": 1,
+  "process": {
+    "argv": [
+      "/var/tmp/afs-e2e-20261006-r1/suites/secfs.test/tools/bin/fsx",
+      "-N",
+      "1000",
+      "-S",
+      "1",
+      "-P",
+      "/var/tmp/afs-e2e-20261006-r1/results/owner-fsx-r1/artifacts/std-03-fsx/seeds/01-seed-1",
+      "fsxfile"
+    ],
+    "cwd": "/var/tmp/afs-e2e-20261006-r1/mount/ownerfs/g2-e2e-owner/.afs-std03-fsx-20261006T140624Z-48ca1ea1/seed-1",
+    "duration_seconds": 0.114,
+    "returncode": 0,
+    "timed_out": false,
+    "timeout_seconds": 60
+  },
+  "profile": "smoke",
+  "seed": 1,
+  "test_file": "/var/tmp/afs-e2e-20261006-r1/mount/ownerfs/g2-e2e-owner/.afs-std03-fsx-20261006T140624Z-48ca1ea1/seed-1/fsxfile"
+}

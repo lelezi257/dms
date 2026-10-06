@@ -1,0 +1,1 @@
+{"status": "PASS", "operation": "rename_then_directory_fsync", "from": "g1-stream.bin", "to": "g1-stream-renamed.bin"}

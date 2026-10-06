@@ -11,7 +11,7 @@ qualify a product release, a formal RDMA case or the complete environment.
 | Related environment/network/runner regressions | 60 methods PASS | [Final batch log](linux/final-fixed-related.log) |
 | Necessary Python compilation | PASS | [Compile exit](linux/final-fixed-compile.exit), [invocations](commands.jsonl) |
 | Actual retained preparation bundle | 37 PASS / 9 BLOCKED / 0 FAIL; overall BLOCKED | [Preparation report](linux/final-fixed-preparation.json) |
-| Real evaluator/runner consumer | PASS: nine qualification errors, no driver execution | [Consumer result](linux/consumer.json), [Linux harness](linux/consumer_check.py) |
+| Real evaluator/runner consumer | PASS: nine qualification errors, no driver execution | [Consumer result](linux/consumer.json), [Linux harness](https://github.com/lelezi257/dms/blob/e925c5bcf0408851ebfa08a59df29953374da9e9/development/evidence/20261001-verbs-predicate/linux/consumer_check.py) |
 | Unchanged original Rust gate | Reused under its original identity | [143 input hashes](rust-reuse.json) |
 | Static independent review | No identified blocking findings after repair | [Review](review.md) |
 
@@ -67,8 +67,8 @@ evidence. Installed provider hashes do not prove loaded provider mappings.
 - [Final run](linux/final-fixed-local.log): all 17 methods PASS. Earlier
   candidate snapshots and input manifests retain their original identities.
 
-The final [acceptance input snapshot](acceptance-final/environment.py) and
-[dedicated tests](acceptance-final/test_environment_verbs.py) match the Linux
+The final [acceptance input snapshot](https://github.com/lelezi257/dms/blob/e925c5bcf0408851ebfa08a59df29953374da9e9/development/evidence/20261001-verbs-predicate/acceptance-final/environment.py) and
+[dedicated tests](https://github.com/lelezi257/dms/blob/e925c5bcf0408851ebfa08a59df29953374da9e9/development/evidence/20261001-verbs-predicate/acceptance-final/test_environment_verbs.py) match the Linux
 hash manifest. The [host orchestration helper](validate.mjs) invokes all Python
 inside the Linux guest. The [Linux identity](linux/identity.txt), raw logs,
 exit statuses and [command journal](commands.jsonl) are retained. The runner's

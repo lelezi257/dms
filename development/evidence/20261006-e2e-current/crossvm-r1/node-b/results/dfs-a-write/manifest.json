@@ -1,0 +1,50 @@
+{
+  "base_seed": "g2-cross-dfs-e925c5b:base:67108864",
+  "case_id": "g2-cross-dfs-e925c5b",
+  "coverage": [
+    "streaming-write",
+    "fsync",
+    "close-reopen",
+    "streaming-read",
+    "EOF",
+    "create-openflags-read-write-append-truncate-rename-unlink",
+    "chmod-mode",
+    "basic-fcntl-lock",
+    "basic-mmap-msync"
+  ],
+  "created_unix": 1791297783,
+  "data_file": "g1-stream.bin",
+  "elapsed_seconds": 13.953106,
+  "mount": "/var/tmp/afs-e2e-cross-20261006-r1/mount/dfs",
+  "mount_info": {
+    "fstype": "fuse",
+    "source": "afs-dfs",
+    "target": "/var/tmp/afs-e2e-cross-20261006-r1/mount/dfs"
+  },
+  "not_full_posix": true,
+  "patches": [
+    {
+      "length": 524288,
+      "offset": 5242880,
+      "seed": "g2-cross-dfs-e925c5b:patch-a"
+    },
+    {
+      "length": 1048576,
+      "offset": 17825792,
+      "seed": "g2-cross-dfs-e925c5b:patch-b"
+    },
+    {
+      "length": 786432,
+      "offset": 65011712,
+      "seed": "g2-cross-dfs-e925c5b:patch-tail"
+    }
+  ],
+  "reference": false,
+  "schema": "afs.g1.trial.selfcheck.v1",
+  "sha256": "3f45dcf1bd0c5be241ccd846c3fc66c05fec8b7b1557bb054078c3969fea94eb",
+  "size": 67108864,
+  "status": "PASS",
+  "stream_block": 1048576,
+  "total_elapsed_seconds": 13.958265,
+  "workspace": "g2-cross-dfs"
+}

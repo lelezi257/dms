@@ -1,0 +1,239 @@
+{
+  "status": "PASS",
+  "source_commit": "e925c5bcf0408851ebfa08a59df29953374da9e9",
+  "scope": "Owner two-VM core and orderly central recovery; DFS R2 one writer/two Node reader views and orderly central recovery",
+  "checks": [
+    {
+      "name": "node-a-preflight",
+      "status": "PASS",
+      "evidence": "preflight.json"
+    },
+    {
+      "name": "node-a-replica-policy",
+      "status": "PASS",
+      "evidence": "node.toml: R2/2/2, not R3 comparator"
+    },
+    {
+      "name": "node-a-before-meta-restart-node-unchanged",
+      "status": "PASS",
+      "evidence": [
+        "before-meta-restart-identity.json",
+        "after-meta-restart-identity.json"
+      ]
+    },
+    {
+      "name": "node-a-before-meta-restart-mount-unchanged",
+      "status": "PASS",
+      "evidence": [
+        "before-meta-restart-identity.json",
+        "after-meta-restart-identity.json"
+      ]
+    },
+    {
+      "name": "before-meta-restart-meta-restarted",
+      "status": "PASS",
+      "evidence": [
+        "before-meta-restart-identity.json",
+        "after-meta-restart-identity.json"
+      ]
+    },
+    {
+      "name": "node-a-before-dfs-meta-restart-node-unchanged",
+      "status": "PASS",
+      "evidence": [
+        "before-dfs-meta-restart-identity.json",
+        "after-dfs-meta-restart-identity.json"
+      ]
+    },
+    {
+      "name": "node-a-before-dfs-meta-restart-mount-unchanged",
+      "status": "PASS",
+      "evidence": [
+        "before-dfs-meta-restart-identity.json",
+        "after-dfs-meta-restart-identity.json"
+      ]
+    },
+    {
+      "name": "before-dfs-meta-restart-meta-restarted",
+      "status": "PASS",
+      "evidence": [
+        "before-dfs-meta-restart-identity.json",
+        "after-dfs-meta-restart-identity.json"
+      ]
+    },
+    {
+      "name": "node-a-owner-directory-barrier",
+      "status": "PASS",
+      "evidence": "before-meta-restart-identity.json"
+    },
+    {
+      "name": "node-b-preflight",
+      "status": "PASS",
+      "evidence": "preflight.json"
+    },
+    {
+      "name": "node-b-replica-policy",
+      "status": "PASS",
+      "evidence": "node.toml: R2/2/2, not R3 comparator"
+    },
+    {
+      "name": "node-b-before-meta-restart-node-unchanged",
+      "status": "PASS",
+      "evidence": [
+        "before-meta-restart-identity.json",
+        "after-meta-restart-identity.json"
+      ]
+    },
+    {
+      "name": "node-b-before-meta-restart-mount-unchanged",
+      "status": "PASS",
+      "evidence": [
+        "before-meta-restart-identity.json",
+        "after-meta-restart-identity.json"
+      ]
+    },
+    {
+      "name": "node-b-before-dfs-meta-restart-node-unchanged",
+      "status": "PASS",
+      "evidence": [
+        "before-dfs-meta-restart-identity.json",
+        "after-dfs-meta-restart-identity.json"
+      ]
+    },
+    {
+      "name": "node-b-before-dfs-meta-restart-mount-unchanged",
+      "status": "PASS",
+      "evidence": [
+        "before-dfs-meta-restart-identity.json",
+        "after-dfs-meta-restart-identity.json"
+      ]
+    },
+    {
+      "name": "node-b-owner-directory-barrier",
+      "status": "PASS",
+      "evidence": "before-meta-restart-identity.json"
+    },
+    {
+      "name": "owner-B-read-A-write",
+      "status": "PASS",
+      "evidence": [
+        "node-a/owner-a-write",
+        "node-b/owner-b-read"
+      ]
+    },
+    {
+      "name": "owner-B-actually-modified",
+      "status": "PASS",
+      "evidence": "owner-b-patch/manifest.json"
+    },
+    {
+      "name": "owner-a-read-patch",
+      "status": "PASS",
+      "evidence": "owner-a-read-patch/manifest.json"
+    },
+    {
+      "name": "owner-a-after-meta",
+      "status": "PASS",
+      "evidence": "owner-a-after-meta/manifest.json"
+    },
+    {
+      "name": "owner-b-after-meta",
+      "status": "PASS",
+      "evidence": "owner-b-after-meta/manifest.json"
+    },
+    {
+      "name": "owner-home-before",
+      "status": "PASS",
+      "evidence": "owner-home-before.json"
+    },
+    {
+      "name": "owner-home-after",
+      "status": "PASS",
+      "evidence": "owner-home-after.json"
+    },
+    {
+      "name": "owner-rename",
+      "status": "PASS",
+      "evidence": "owner-b-rename.json"
+    },
+    {
+      "name": "owner-renamed-content-and-delete",
+      "status": "PASS",
+      "evidence": "owner-a-rename-read-delete.json"
+    },
+    {
+      "name": "owner-delete-visible-B",
+      "status": "PASS",
+      "evidence": "owner-b-delete-visible.json"
+    },
+    {
+      "name": "dfs-writer-A",
+      "status": "PASS",
+      "evidence": "dfs-a-write/manifest.json"
+    },
+    {
+      "name": "dfs-reader-a",
+      "status": "PASS",
+      "evidence": [
+        "dfs-reader-a/manifest.json",
+        "dfs-reader-a-process.json"
+      ]
+    },
+    {
+      "name": "dfs-reader-a-after-meta",
+      "status": "PASS",
+      "evidence": [
+        "dfs-reader-a-after-meta/manifest.json",
+        "dfs-reader-a-after-meta-process.json"
+      ]
+    },
+    {
+      "name": "dfs-reader-b",
+      "status": "PASS",
+      "evidence": [
+        "dfs-reader-b/manifest.json",
+        "dfs-reader-b-process.json"
+      ]
+    },
+    {
+      "name": "dfs-reader-b-after-meta",
+      "status": "PASS",
+      "evidence": [
+        "dfs-reader-b-after-meta/manifest.json",
+        "dfs-reader-b-after-meta-process.json"
+      ]
+    },
+    {
+      "name": "dfs-independent-readers",
+      "status": "PASS",
+      "evidence": [
+        "dfs-reader-a-process.json",
+        "dfs-reader-b-process.json"
+      ]
+    },
+    {
+      "name": "dfs-observed-reader-overlap",
+      "status": "PASS",
+      "evidence": {
+        "observed_wall_clock_overlap_ns": 12041414644,
+        "not_performance_clock_qualification": true
+      }
+    },
+    {
+      "name": "dfs-directory-barrier",
+      "status": "PASS",
+      "evidence": "dfs-directory-before-meta.json"
+    }
+  ],
+  "owner_sha256_after_remote_patch": "d6f76d374e0df094f5455a2fffe9bdc3011b00db6ba30b56132f3745acc0a66f",
+  "dfs_sha256": "3f45dcf1bd0c5be241ccd846c3fc66c05fec8b7b1557bb054078c3969fea94eb",
+  "performance": "NOT_QUALIFIED",
+  "excluded_claims": [
+    "full POSIX",
+    "Node crash recovery",
+    "three-sync-durable 3FS parity",
+    "MooseFS parity",
+    "bind ON",
+    "G2.27 performance release"
+  ]
+}

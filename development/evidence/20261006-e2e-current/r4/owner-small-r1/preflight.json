@@ -1,0 +1,30 @@
+{
+  "status": "PASS",
+  "kernel": "6.8.0-106-generic",
+  "identities": {
+    "node": {
+      "pid": 23171,
+      "elf_sha256": "04b68193d7cdd04dea8c861f07e47336be05281de11a91e9ea8f3890123d1900"
+    },
+    "meta": {
+      "pid": 22920,
+      "elf_sha256": "38f0e76a5b4c4afc3efdde3ee7bfa96b0e7e01a0403d556343ec385a86b20d45"
+    }
+  },
+  "owner_mount": {
+    "target": "/var/tmp/afs-e2e-20261006-r1/mount/ownerfs",
+    "source": "afs-ownerfs",
+    "fstype": "fuse",
+    "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+  },
+  "data_disk": {
+    "target": "/",
+    "source": "/dev/vda1",
+    "fstype": "ext4",
+    "options": "rw,relatime,discard,errors=remount-ro,commit=30"
+  },
+  "free_bytes": 9568948224,
+  "tool_sha256": "a2a56e4cddecf4129f32d449562e7455a050fdd0d018f19f716ced7bd06d6054",
+  "script_sha256": "c70d8eb908ad8a58518161ff7af460475ee433ec173b3e372525a50bb6d7d775",
+  "workload_help": "usage:\n  posix-workload --help\n  posix-workload prepare --root DIR --family FAMILY --total-bytes N --block-bytes N --concurrency 1|8 --generation N --trace FILE\n  posix-workload run --root DIR --family FAMILY --total-bytes N --block-bytes N --concurrency 1|8 --generation N --barrier read-close|owner-close|ext4-close-compensating-fdatasync|fdatasync|fsync --target owner|ext4 --trace FILE\n  posix-workload verify --root DIR --family FAMILY --total-bytes N --block-bytes N --concurrency 1|8 --generation N --trace FILE\nfamilies: seq-read, seq-write, random-read, random-overwrite\nstdout: one JSON summary. trace: JSON lines header, worker lifecycle records, and one record per I/O operation.\n"
+}

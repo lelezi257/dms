@@ -52,7 +52,7 @@ identities are distinct and its process-owned metrics reset at each restart.
 Home A and memory Meta keep their identities. A's native CQ logs independently
 record RDMA READ 4,198,417 bytes for remote writes and RDMA WRITE 8,388,642 bytes
 for remote reads. Exact content, length, EOF and physical Home file hashes
-match; B has no physical Home file. The [audit](runtime/audit.py) checks these
+match; B has no physical Home file. The [audit](https://github.com/lelezi257/dms/blob/e925c5bcf0408851ebfa08a59df29953374da9e9/development/evidence/20261001-owner-metrics/runtime/audit.py) checks these
 facts together rather than inferring DMA from a counter alone.
 
 The [143 frozen inputs](build-inputs.json) and [binary hashes](owner-metrics-v73-r2/artifacts.txt)
@@ -98,7 +98,7 @@ regressions; `full` and `features` supply the batch gate. Explicitly run the
 ignored `ownerpeerclient_rdma_large_write_fsync_cold_read_roundtrip_preserves_payload`
 test with `AFS_TEST_RDMA_DEVICE=rxe0` for actual client integration.
 
-Run the [runtime probe](runtime/owner-metrics-runtime-v73.py) as root in A/B.
+Run the [runtime probe](https://github.com/lelezi257/dms/blob/e925c5bcf0408851ebfa08a59df29953374da9e9/development/evidence/20261001-owner-metrics/runtime/owner-metrics-runtime-v73.py) as root in A/B.
 Prepare fresh ext4 paths, install the recorded binaries and unchanged process
 controller, then create at A and perform B write/read/patch/read-patched with
 two normal B restarts. Collect each process incarnation before restart. Save

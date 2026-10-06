@@ -1,0 +1,7 @@
+pid=92385
+exe=/home/lzc.guest/afs-build/target/debug/afs-node
+config=/var/tmp/afs-e2e-cross-20261006-r1/etc/node.toml
+start_ticks=7582260
+boot_id=86db457d-bc5b-4427-b241-dcf641b68dc5
+lifecycle=/var/tmp/afs-e2e-cross-20261006-r1/run/node.lifecycle.LYMpZn
+supervisor_pid=92369

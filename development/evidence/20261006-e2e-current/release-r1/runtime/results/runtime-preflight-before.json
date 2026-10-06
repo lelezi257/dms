@@ -1,0 +1,126 @@
+{
+  "status": "PASS",
+  "source_commit": "e925c5bcf0408851ebfa08a59df29953374da9e9",
+  "profile": "release",
+  "phase": "before",
+  "checks": {
+    "linux-root": {
+      "status": "PASS",
+      "value": [
+        "Linux",
+        "aarch64",
+        0
+      ]
+    },
+    "dependencies": {
+      "status": "PASS",
+      "value": {
+        "python3": "/usr/bin/python3",
+        "bash": "/usr/bin/bash",
+        "timeout": "/usr/bin/timeout",
+        "openssl": "/usr/bin/openssl",
+        "findmnt": "/usr/bin/findmnt",
+        "fusermount3": "/usr/bin/fusermount3",
+        "ldd": "/usr/bin/ldd",
+        "git": "/usr/bin/git",
+        "prove": "/usr/bin/prove",
+        "df": "/usr/bin/df",
+        "perl": "/usr/bin/perl",
+        "sh": "/usr/bin/sh"
+      }
+    },
+    "fuse-device": {
+      "status": "PASS",
+      "value": "/dev/fuse"
+    },
+    "afs-meta-sha256": {
+      "status": "PASS",
+      "value": "9cfdf8f01def1a45383baea834598a0a6ff572f3a2a0b4aa9af6a1523963bea9"
+    },
+    "afs-meta-libraries": {
+      "status": "PASS",
+      "value": "\tlinux-vdso.so.1 (0x0000e89e58b15000)\n\tlibibverbs.so.1 => /lib/aarch64-linux-gnu/libibverbs.so.1 (0x0000e89e57ff0000)\n\tlibgcc_s.so.1 => /lib/aarch64-linux-gnu/libgcc_s.so.1 (0x0000e89e57fb0000)\n\tlibm.so.6 => /lib/aarch64-linux-gnu/libm.so.6 (0x0000e89e57f00000)\n\tlibc.so.6 => /lib/aarch64-linux-gnu/libc.so.6 (0x0000e89e57d40000)\n\t/lib/ld-linux-aarch64.so.1 (0x0000e89e58ad0000)\n\tlibnl-route-3.so.200 => /lib/aarch64-linux-gnu/libnl-route-3.so.200 (0x0000e89e57c90000)\n\tlibnl-3.so.200 => /lib/aarch64-linux-gnu/libnl-3.so.200 (0x0000e89e57c40000)\n"
+    },
+    "afs-node-sha256": {
+      "status": "PASS",
+      "value": "926ada2800093b5b7682ed37a978549eaf2704a25b5ebfc7cc346244cbd689a7"
+    },
+    "afs-node-libraries": {
+      "status": "PASS",
+      "value": "\tlinux-vdso.so.1 (0x0000ffeb21204000)\n\tlibibverbs.so.1 => /lib/aarch64-linux-gnu/libibverbs.so.1 (0x0000ffeb20050000)\n\tlibgcc_s.so.1 => /lib/aarch64-linux-gnu/libgcc_s.so.1 (0x0000ffeb20010000)\n\tlibm.so.6 => /lib/aarch64-linux-gnu/libm.so.6 (0x0000ffeb1ff60000)\n\tlibc.so.6 => /lib/aarch64-linux-gnu/libc.so.6 (0x0000ffeb1fda0000)\n\t/lib/ld-linux-aarch64.so.1 (0x0000ffeb211c0000)\n\tlibnl-route-3.so.200 => /lib/aarch64-linux-gnu/libnl-route-3.so.200 (0x0000ffeb1fcf0000)\n\tlibnl-3.so.200 => /lib/aarch64-linux-gnu/libnl-3.so.200 (0x0000ffeb1fca0000)\n"
+    },
+    "posix-workload-sha256": {
+      "status": "PASS",
+      "value": "a2a56e4cddecf4129f32d449562e7455a050fdd0d018f19f716ced7bd06d6054"
+    },
+    "posix-workload-libraries": {
+      "status": "PASS",
+      "value": "\tlinux-vdso.so.1 (0x0000f5c1f41eb000)\n\tlibc.so.6 => /lib/aarch64-linux-gnu/libc.so.6 (0x0000f5c1f3fb0000)\n\t/lib/ld-linux-aarch64.so.1 (0x0000f5c1f41a0000)\n"
+    },
+    "ports-free": {
+      "status": "PASS",
+      "value": [
+        21400,
+        21401,
+        21500,
+        21501
+      ]
+    },
+    "meta-dedicated-path": {
+      "status": "PASS",
+      "value": "/var/tmp/afs-e2e-release-20261006-r1/state/meta"
+    },
+    "meta-grpc": {
+      "status": "PASS",
+      "value": null
+    },
+    "local-file-meta": {
+      "status": "PASS",
+      "value": "local-file"
+    },
+    "meta-certificate": {
+      "status": "PASS",
+      "value": "/var/tmp/afs-e2e-release-20261006-r1/etc/tls/meta.pem"
+    },
+    "node-dedicated-path": {
+      "status": "PASS",
+      "value": "/var/tmp/afs-e2e-release-20261006-r1/state/node"
+    },
+    "node-grpc": {
+      "status": "PASS",
+      "value": "grpc"
+    },
+    "node-certificate": {
+      "status": "PASS",
+      "value": "/var/tmp/afs-e2e-release-20261006-r1/etc/tls/node-a.pem"
+    },
+    "ext4": {
+      "status": "PASS",
+      "value": {
+        "filesystems": [
+          {
+            "target": "/",
+            "source": "/dev/vda1",
+            "fstype": "ext4",
+            "options": "rw,relatime,discard,errors=remount-ro,commit=30"
+          }
+        ]
+      }
+    },
+    "capacity": {
+      "status": "PASS",
+      "value": {
+        "free_bytes": 8065130496,
+        "minimum_bytes": 3221225472
+      }
+    },
+    "pjdfstest-pin": {
+      "status": "PASS",
+      "value": "d25636a227606f8960e5179741d8f4ad7030ef41"
+    },
+    "pjdfstest-binary": {
+      "status": "PASS",
+      "value": "83f27ae21a4de5c2dabc447238c83f21c1a17558e61762ec52fe7ffbcf61f780"
+    }
+  }
+}

@@ -1,0 +1,95 @@
+{
+  "argv": [
+    "/var/tmp/afs-e2e-20261006-r1/suites/ltp-small-install/kirk",
+    "--no-colors",
+    "--tmp-dir",
+    "/var/tmp/afs-e2e-20261006-r1/results/dfs-ltp-r1/artifacts/std-02-ltp/commands/0005-chmod01/kirk-tmp",
+    "--json-report",
+    "/var/tmp/afs-e2e-20261006-r1/results/dfs-ltp-r1/artifacts/std-02-ltp/commands/0005-chmod01/kirk-report.json",
+    "--run-command",
+    "cd '/var/tmp/afs-e2e-20261006-r1/mount/dfs/g2-e2e-dfs/.le5a046ed/0005/w' && export LTPROOT='/var/tmp/afs-e2e-20261006-r1/suites/ltp-small-install' && export PATH='/var/tmp/afs-e2e-20261006-r1/suites/ltp-small-install/testcases/bin:/var/tmp/afs-e2e-20261006-r1/suites/ltp-small-install/bin':\"$PATH\" && export TMPDIR='/var/tmp/afs-e2e-20261006-r1/mount/dfs/g2-e2e-dfs/.le5a046ed/0005/t' && export TMP='/var/tmp/afs-e2e-20261006-r1/mount/dfs/g2-e2e-dfs/.le5a046ed/0005/t' && export TEMP='/var/tmp/afs-e2e-20261006-r1/mount/dfs/g2-e2e-dfs/.le5a046ed/0005/t' && chmod01",
+    "--exec-timeout",
+    "120",
+    "--suite-timeout",
+    "240",
+    "--workers",
+    "1"
+  ],
+  "classification": {
+    "kirk_json_present": false,
+    "kirk_json_top_keys": null,
+    "ltp_event_counts": {
+      "TBROK": 1,
+      "TCONF": 0,
+      "TFAIL": 0,
+      "TINFO": 1,
+      "TPASS": 0,
+      "TWARN": 0
+    },
+    "ltp_events": [
+      {
+        "case_index": null,
+        "line": 9,
+        "message": "Test is using guarded buffers",
+        "prefix": "tst_buffers.c:57:",
+        "raw": "tst_buffers.c:57: TINFO: Test is using guarded buffers",
+        "source": "tst_buffers.c:57",
+        "status": "TINFO"
+      },
+      {
+        "case_index": null,
+        "line": 10,
+        "message": "tst_fs_type: Failed to statfs(/var/tmp/afs-e2e-20261006-r1/mount/dfs/g2-e2e-dfs/.le5a046ed/0005/t/LTP_chm2RF8Si): ENOSYS (38)",
+        "prefix": "tst_fs_type.c:20:",
+        "raw": "tst_fs_type.c:20: TBROK: tst_fs_type: Failed to statfs(/var/tmp/afs-e2e-20261006-r1/mount/dfs/g2-e2e-dfs/.le5a046ed/0005/t/LTP_chm2RF8Si): ENOSYS (38)",
+        "source": "tst_fs_type.c:20",
+        "status": "TBROK"
+      }
+    ],
+    "ltp_token_counts": {
+      "TBROK": 1,
+      "TCONF": 0,
+      "TFAIL": 0,
+      "TINFO": 1,
+      "TPASS": 0,
+      "TWARN": 0
+    },
+    "result": "TBROK"
+  },
+  "execution_payload": "chmod01",
+  "record": {
+    "command": "chmod01 chmod01",
+    "selector": "syscalls-file-related",
+    "test_id": "chmod01"
+  },
+  "result": {
+    "argv": [
+      "/var/tmp/afs-e2e-20261006-r1/suites/ltp-small-install/kirk",
+      "--no-colors",
+      "--tmp-dir",
+      "/var/tmp/afs-e2e-20261006-r1/results/dfs-ltp-r1/artifacts/std-02-ltp/commands/0005-chmod01/kirk-tmp",
+      "--json-report",
+      "/var/tmp/afs-e2e-20261006-r1/results/dfs-ltp-r1/artifacts/std-02-ltp/commands/0005-chmod01/kirk-report.json",
+      "--run-command",
+      "cd '/var/tmp/afs-e2e-20261006-r1/mount/dfs/g2-e2e-dfs/.le5a046ed/0005/w' && export LTPROOT='/var/tmp/afs-e2e-20261006-r1/suites/ltp-small-install' && export PATH='/var/tmp/afs-e2e-20261006-r1/suites/ltp-small-install/testcases/bin:/var/tmp/afs-e2e-20261006-r1/suites/ltp-small-install/bin':\"$PATH\" && export TMPDIR='/var/tmp/afs-e2e-20261006-r1/mount/dfs/g2-e2e-dfs/.le5a046ed/0005/t' && export TMP='/var/tmp/afs-e2e-20261006-r1/mount/dfs/g2-e2e-dfs/.le5a046ed/0005/t' && export TEMP='/var/tmp/afs-e2e-20261006-r1/mount/dfs/g2-e2e-dfs/.le5a046ed/0005/t' && chmod01",
+      "--exec-timeout",
+      "120",
+      "--suite-timeout",
+      "240",
+      "--workers",
+      "1"
+    ],
+    "cwd": "/var/tmp/afs-e2e-20261006-r1/suites/ltp-small-install",
+    "duration_seconds": 0.536,
+    "returncode": 0,
+    "timed_out": false,
+    "timeout_seconds": 245
+  },
+  "shell_command": "cd '/var/tmp/afs-e2e-20261006-r1/mount/dfs/g2-e2e-dfs/.le5a046ed/0005/w' && export LTPROOT='/var/tmp/afs-e2e-20261006-r1/suites/ltp-small-install' && export PATH='/var/tmp/afs-e2e-20261006-r1/suites/ltp-small-install/testcases/bin:/var/tmp/afs-e2e-20261006-r1/suites/ltp-small-install/bin':\"$PATH\" && export TMPDIR='/var/tmp/afs-e2e-20261006-r1/mount/dfs/g2-e2e-dfs/.le5a046ed/0005/t' && export TMP='/var/tmp/afs-e2e-20261006-r1/mount/dfs/g2-e2e-dfs/.le5a046ed/0005/t' && export TEMP='/var/tmp/afs-e2e-20261006-r1/mount/dfs/g2-e2e-dfs/.le5a046ed/0005/t' && chmod01",
+  "timeout": {
+    "exec_timeout_seconds": 120,
+    "process_timeout_seconds": 245,
+    "source": "default",
+    "suite_timeout_seconds": 240
+  }
+}

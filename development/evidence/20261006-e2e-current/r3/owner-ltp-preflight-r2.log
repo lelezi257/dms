@@ -1,0 +1,22 @@
+Linux lima-afs-g1-clean 6.8.0-106-generic #106-Ubuntu SMP PREEMPT_DYNAMIC Fri Mar  6 07:44:40 UTC 2026 aarch64 aarch64 aarch64 GNU/Linux
+/usr/bin/git
+/usr/bin/python3
+/usr/bin/prove
+/usr/bin/timeout
+/usr/bin/findmnt
+/usr/bin/sha256sum
+kirk, 4.1.0
+3a64d78f58bdceba93ed321e91215fb969a047ed
+93d60fb5b90e134a46129e5a773c7013b022adae5f8d68af422e37af03cc8ff4  /var/tmp/afs-e2e-20261006-r1/suites/ltp-filesystem-expanded.tsv
+be765b2849d2e31e274eacc6e7b8e4f180a3934fe001743c79c68790532ccbd1  /var/tmp/afs-e2e-20261006-r1/suites/ltp-small-install/testcases/bin/open01
+c52e9776a4e121a61f3f518977146e51a1425aeaa472260c3bec0c3cd8fcf390  /var/tmp/afs-e2e-20261006-r1/suites/ltp-small-install/testcases/bin/read01
+9e11b6d314a64022f34b33d5ff1c7eb1c29b7fcbf130be8f04a89d73a72da770  /var/tmp/afs-e2e-20261006-r1/suites/ltp-small-install/testcases/bin/write01
+1e77e026b066c53af78b0ed7434a9aaae5dd6badc675286bb1247bea81445c7c  /var/tmp/afs-e2e-20261006-r1/suites/ltp-small-install/testcases/bin/stat01
+18515f2a1e984276ff92243d8cb9cb3f817aa10042734f098f3c49bc3f5ed3d3  /var/tmp/afs-e2e-20261006-r1/suites/ltp-small-install/testcases/bin/chmod01
+44ec3816a0ad3f7593b00bb05e2aff55160cfbe9b4e67464a8434aa994567959  /var/tmp/afs-e2e-20261006-r1/suites/ltp-small-install/testcases/bin/fcntl14
+04b68193d7cdd04dea8c861f07e47336be05281de11a91e9ea8f3890123d1900  /proc/23171/exe
+38f0e76a5b4c4afc3efdde3ee7bfa96b0e7e01a0403d556343ec385a86b20d45  /proc/22920/exe
+/var/tmp/afs-e2e-20261006-r1/mount/ownerfs afs-ownerfs fuse rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other
+/ /dev/vda1 ext4 rw,relatime,discard,errors=remount-ro,commit=30
+Filesystem       1B-blocks       Used  Available Use% Mounted on
+/dev/vda1      15523123200 5933015040 9573330944  39% /

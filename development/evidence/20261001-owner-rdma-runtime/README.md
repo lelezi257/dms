@@ -10,7 +10,7 @@ original identity; deployment and probe changes receive fresh Linux validation.
 | Check | Result | Evidence |
 | --- | --- | --- |
 | Linux probe regression | 7 PASS and compilation | [Probe tests](script-tests-final.log) |
-| Evidence rejection checks | 7 PASS | [Audit tests](audit-tests.log), [validator](audit.py) |
+| Evidence rejection checks | 7 PASS | [Audit tests](audit-tests.log), [validator](https://github.com/lelezi257/dms/blob/e925c5bcf0408851ebfa08a59df29953374da9e9/development/evidence/20261001-owner-rdma-runtime/audit.py) |
 | Initial remote write/sync/close | 4 MiB + 17 bytes, exact physical Home file | [B write](write-b-r3.json), [A storage](collect-a-after-write.json) |
 | Cold reopen after B restart | Full content, length and EOF match | [Restart](restart-b.log), [B read](read-b-cold.json), [A DMA](collect-a-after-read.json) |
 | 4 KiB patch and second cold restart | Full patched content and EOF match | [Patch](patch-b.json), [restart](restart-b-after-patch.log), [read](read-b-patched-cold.json) |
@@ -79,7 +79,7 @@ Neither AGENTS nor the user-controlled handoff document was refreshed.
 
 ## Reproduce selected checks
 
-Run [owner-rdma-runtime-v72.py](owner-rdma-runtime-v72.py) only as root in the
+Run [owner-rdma-runtime-v72.py](https://github.com/lelezi257/dms/blob/e925c5bcf0408851ebfa08a59df29953374da9e9/development/evidence/20261001-owner-rdma-runtime/owner-rdma-runtime-v72.py) only as root in the
 declared ARM64 Linux guests. `prepare` rejects existing runtime directories,
 busy ports, non-ext4 storage, insufficient reserve or inactive RXE. Copy the
 identified Linux artifacts and unchanged `afs-processctl`, then use its existing

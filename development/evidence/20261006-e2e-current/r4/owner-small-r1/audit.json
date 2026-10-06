@@ -1,0 +1,14 @@
+{
+  "status": "PASS",
+  "claim": "existing result accounting and identity verified, no workload rerun",
+  "io_actions": 60,
+  "measured_io_samples": 20,
+  "delete_samples": 10,
+  "semantic_io": "64MiB content/length/EOF, 64 operations, successful open/barrier/close",
+  "product_identity": "same PID/ELF and mount before and after",
+  "performance": {
+    "G2.09": "FAIL",
+    "G2.10": "FAIL"
+  },
+  "driver_limitation": "original runner exit0 meant all cases attempted; it did not mean performance PASS. Fixed future runner exits3 for failed gates; original bytes retained."
+}

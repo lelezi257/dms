@@ -1,0 +1,73 @@
+{
+  "status": "PASS",
+  "hostname": "lima-afs-g1-clean",
+  "run_root": "/var/tmp/afs-e2e-cross-20261006-r1",
+  "checks": [
+    {
+      "name": "managed-stop-exit",
+      "status": "PASS",
+      "evidence": "stop.exit"
+    },
+    {
+      "name": "all-managed-services-stopped",
+      "status": "PASS",
+      "evidence": "stopped-status.jsonl"
+    },
+    {
+      "name": "meta-original-process-gone",
+      "status": "PASS",
+      "evidence": {
+        "pid": 101358,
+        "starttick": 7973641,
+        "elf_sha256": "38f0e76a5b4c4afc3efdde3ee7bfa96b0e7e01a0403d556343ec385a86b20d45"
+      }
+    },
+    {
+      "name": "meta-pidfile-has-no-new-process",
+      "status": "PASS",
+      "evidence": "run/meta.pid"
+    },
+    {
+      "name": "node-original-process-gone",
+      "status": "PASS",
+      "evidence": {
+        "pid": 100376,
+        "starttick": 7916209,
+        "elf_sha256": "04b68193d7cdd04dea8c861f07e47336be05281de11a91e9ea8f3890123d1900"
+      }
+    },
+    {
+      "name": "node-pidfile-has-no-new-process",
+      "status": "PASS",
+      "evidence": "run/node.pid"
+    },
+    {
+      "name": "ownerfs-unmounted",
+      "status": "PASS",
+      "evidence": {
+        "command": [
+          "findmnt",
+          "-J",
+          "--mountpoint",
+          "/var/tmp/afs-e2e-cross-20261006-r1/mount/ownerfs"
+        ],
+        "exit": 1,
+        "stderr": ""
+      }
+    },
+    {
+      "name": "dfs-unmounted",
+      "status": "PASS",
+      "evidence": {
+        "command": [
+          "findmnt",
+          "-J",
+          "--mountpoint",
+          "/var/tmp/afs-e2e-cross-20261006-r1/mount/dfs"
+        ],
+        "exit": 1,
+        "stderr": ""
+      }
+    }
+  ]
+}

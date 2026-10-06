@@ -6,7 +6,7 @@
 
 Frozen installed v80 binaries run in an isolated memory-Meta cohort on the locked ARM64 Linux ctl/A/B guests, guest ext4, mutual TLS, required RXE, separate OwnerFs/DFS mounts and desired2/sync1 replicas. C is not part of this short diagnostic. The [exact binary hashes](probes/eio-v80-r2-binaries.json), [A configuration](a/etc/node.toml), [B configuration](b/etc/node.toml) and [Meta configuration](ctl/etc/meta.toml) bind the result. Existing unrelated cohorts remain outside this run.
 
-Three 8 MiB writes cover Owner Home-local, Owner remote-to-Home and DFS data/metadata sync and close. Four sequential reads check exact bytes and EOF; four eight-worker reads execute 2,048 fixed-seed 4 KiB/64 KiB range checks. Each operation captures stable PID/start-time/executable identity, CPU ticks, RSS/HWM, descriptors/threads, process IO, cgroup budgets, volume metadata, verbs resources and transport metrics before/after. The [driver](probes/round3-small-mainline.py) saves timing as an unqualified diagnostic, not a benchmark.
+Three 8 MiB writes cover Owner Home-local, Owner remote-to-Home and DFS data/metadata sync and close. Four sequential reads check exact bytes and EOF; four eight-worker reads execute 2,048 fixed-seed 4 KiB/64 KiB range checks. Each operation captures stable PID/start-time/executable identity, CPU ticks, RSS/HWM, descriptors/threads, process IO, cgroup budgets, volume metadata, verbs resources and transport metrics before/after. The [driver](https://github.com/lelezi257/dms/blob/e925c5bcf0408851ebfa08a59df29953374da9e9/development/evidence/20261001-round3-resource-diagnostic/probes/round3-small-mainline.py) saves timing as an unqualified diagnostic, not a benchmark.
 
 [Meta replication state](a/evidence/physical-replication.json) shows two 4 MiB chunks, each with two available Ready DurableReplica copies and Completed repair tasks. [B physical hashes](b/evidence/physical-copies.json) match A exactly. [B metrics](b/evidence/final-idle-metrics.txt) record 8 MiB RDMA replica receive and 8 MiB Owner RDMA write; gRPC replica payload is zero. DFS reads in this cohort use local verified copies; this run does not add a new peer-read RDMA claim.
 
@@ -27,7 +27,7 @@ The sampled DFS reads have `read_bytes=0`: the underlying reads were served from
 
 ## Validation and evidence reuse
 
-[Resource helper](probes/round3-resource-probe.py) reports unavailable observations explicitly; its top-level PASS means stable requested process identities only. Linux [13 helper regressions](build/helper-tests-r3.log) pass. Initial test-schema failures and a mutable-share syntax-read failure remain in r1/r2 logs; r3 runs immutable guest copies.
+[Resource helper](https://github.com/lelezi257/dms/blob/e925c5bcf0408851ebfa08a59df29953374da9e9/development/evidence/20261001-round3-resource-diagnostic/probes/round3-resource-probe.py) reports unavailable observations explicitly; its top-level PASS means stable requested process identities only. Linux [13 helper regressions](build/helper-tests-r3.log) pass. Initial test-schema failures and a mutable-share syntax-read failure remain in r1/r2 logs; r3 runs immutable guest copies.
 
 No product code, protocol or persistent format changes in this diagnostic. The [round2 closure](../20261001-round2-closure/README.md) complete Linux source gate is reused only after all143 compiler-input hashes match. Protected AGENTS.md and handoff hashes remain unchanged. [Packet audit](audit.json) and [artifact identities](artifact-hashes.json) bind the evidence.
 

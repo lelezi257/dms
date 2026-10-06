@@ -1,0 +1,39 @@
+{
+  "processes": {
+    "node": {
+      "pid": 102502,
+      "starttick": 8102618,
+      "sha256": "926ada2800093b5b7682ed37a978549eaf2704a25b5ebfc7cc346244cbd689a7"
+    },
+    "meta": {
+      "pid": 166079,
+      "starttick": 8151276,
+      "sha256": "9cfdf8f01def1a45383baea834598a0a6ff572f3a2a0b4aa9af6a1523963bea9"
+    }
+  },
+  "mounts": {
+    "ownerfs": {
+      "filesystems": [
+        {
+          "target": "/var/tmp/afs-e2e-release-20261006-r1/mount/ownerfs",
+          "source": "afs-ownerfs",
+          "fstype": "fuse",
+          "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+        }
+      ]
+    },
+    "dfs": {
+      "filesystems": [
+        {
+          "target": "/var/tmp/afs-e2e-release-20261006-r1/mount/dfs",
+          "source": "afs-dfs",
+          "fstype": "fuse",
+          "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+        }
+      ]
+    }
+  },
+  "status": "PASS",
+  "scope": "Owner 64MiB orderly central local-file Meta restart",
+  "sha256": "335177c3de61720f56bc96a8a8f7c567eb91d72dbf85be1dcb5d7284b5a74aaa"
+}

@@ -89,7 +89,7 @@ These observations do not establish production defects or change the accepted
 contract.
 
 The cold operations were executed from bounded Linux inline commands; equivalent
-[replay helpers](reproducers/capacity-cold.py) are reconstructed from those commands:
+[replay helpers](https://github.com/lelezi257/dms/blob/e925c5bcf0408851ebfa08a59df29953374da9e9/development/evidence/20261001-round2-network-capacity/reproducers/capacity-cold.py) are reconstructed from those commands:
 obtain the
 worker's actual `/proc` identity, retain the dirty read, use `os.pidfd_open` plus
 `signal.pidfd_send_signal(SIGKILL)`, run installed `afs-processctl start node`,

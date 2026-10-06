@@ -1,0 +1,148 @@
+{
+  "comparison": "official crates.io fuser 0.16.0 archive vs current vendored tree",
+  "source_commit": "e925c5bcf0408851ebfa08a59df29953374da9e9",
+  "official_crate_vcs": {
+    "git": {
+      "sha1": "d39b15200d2509db6bf712346d2cceade3a3f2fd"
+    },
+    "path_in_vcs": ""
+  },
+  "official_files": 56,
+  "vendor_files": 51,
+  "differences": [
+    {
+      "path": ".cargo_vcs_info.json",
+      "official_sha256": "2514b110de5bb3f14f300a859f6e6658fb5fdd5181be3f06c88381f5b5bb6355",
+      "vendored_sha256": null,
+      "status": "omitted-official"
+    },
+    {
+      "path": ".cirrus.yml",
+      "official_sha256": "2e4b9360f665e3823bd77a84e58be90691679397656693f67f948a76a3d46395",
+      "vendored_sha256": null,
+      "status": "omitted-official"
+    },
+    {
+      "path": ".dockerignore",
+      "official_sha256": "83ca1b11c46f1f811c4d34674f7606202cf80999b61a6e61e533936649217762",
+      "vendored_sha256": null,
+      "status": "omitted-official"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "official_sha256": "573f095f72b11f563b5c9659b00eb0e47ee1d5e371d5d7380277dbdfdd1c65a6",
+      "vendored_sha256": null,
+      "status": "omitted-official"
+    },
+    {
+      "path": ".gitignore",
+      "official_sha256": "231f42b4a226ac17025fe103a69078570fd464f865c77911e1c5bf6400a96e49",
+      "vendored_sha256": null,
+      "status": "omitted-official"
+    },
+    {
+      "path": "AFS-PATCH.md",
+      "official_sha256": null,
+      "vendored_sha256": "6ebf99d4b42cb0f3d30826a85ff38266c4d6fdffe7d08803fee878adfe0a7c55",
+      "status": "vendor-only"
+    },
+    {
+      "path": "Cargo.lock",
+      "official_sha256": "5ca49d4c40881956c5b920a845d4170ab6be794f7a362f36fa799d8bcf946fbd",
+      "vendored_sha256": null,
+      "status": "omitted-official"
+    },
+    {
+      "path": "Cargo.toml",
+      "official_sha256": "4ae3e61f086a0ac8d9dca8b3f9a0e0e0e6bfe79aac48b3523f19c76ef05374cc",
+      "vendored_sha256": "0cac441d79547e6a238ac3ddbed53547aa15065e162193e26398dcc351669e7c",
+      "status": "modified"
+    },
+    {
+      "path": "deny.toml",
+      "official_sha256": "6fb71fad0784a84f9e5fea6f49f6a2e6d9f226623fb5ee35c34cb101d84b9847",
+      "vendored_sha256": "83969b7f35961c5b5bb730d24147c7a0eddd3446532d19731510a1d787f17774",
+      "status": "modified"
+    },
+    {
+      "path": "examples/notify_inval_inode.rs",
+      "official_sha256": "f7f4a0e8ecdc68b75865b485797b214e5214d0b8575979937818f381ee86a79e",
+      "vendored_sha256": "ac60d4f6624b2aa687da76c1c57941a849047a16a94ea95cf13b640a8ce08ecf",
+      "status": "modified"
+    },
+    {
+      "path": "examples/passthrough.rs",
+      "official_sha256": "5639883fc3c03b3640877ac1752ef29e1c9edb66e737ce5942fe712619eb3915",
+      "vendored_sha256": "e27528ea569a0d03aa291412e2dc8588d61017cbbb12d283d691cbbc4763b6c6",
+      "status": "modified"
+    },
+    {
+      "path": "examples/poll.rs",
+      "official_sha256": "15aef7c339944ef5d74df21c6764c557bfb99e59603231dd49c7bb773dce97ed",
+      "vendored_sha256": "c77b9f5613d263c79fddc4937a58d6dea7bd6914974694c0daab4f5c7c18e919",
+      "status": "modified"
+    },
+    {
+      "path": "examples/simple.rs",
+      "official_sha256": "b82faeb268a132264ccaef52de6eed780c0bd784e63639d5acd9f57486e39465",
+      "vendored_sha256": "b690bd63746e966d04de1714bc38bbe9345d94e4fc54ce8c54bb325555330324",
+      "status": "modified"
+    },
+    {
+      "path": "src/channel.rs",
+      "official_sha256": "060aa8025b8857dcd3bbaa4c880889f5e73acb700910ad6742693337fd3b4488",
+      "vendored_sha256": "39819bcf0d6ca783c64435569a83f21f83b79fac59d8867b40f6cb711b649f5f",
+      "status": "modified"
+    },
+    {
+      "path": "src/lib.rs",
+      "official_sha256": "b1b31b4008cf0513c00e23f1b09570ebd2851ae1e8edc626cad3f7e23fa59630",
+      "vendored_sha256": "d1951948338323d7c9f8b555d8008f7726d6e7152d76631dd692453cc347eb84",
+      "status": "modified"
+    },
+    {
+      "path": "src/ll/fuse_abi.rs",
+      "official_sha256": "02d6fc558bc2d39fc8cb91e8a750626d8edd3ceff1b5ce3be7e349b469545835",
+      "vendored_sha256": "bc8c33eca3c065171f2e01a02da680c2095d2e0a55c9119caf025a19e2d44730",
+      "status": "modified"
+    },
+    {
+      "path": "src/ll/request.rs",
+      "official_sha256": "cbb9a8c60d7bfd420aa6a68dc5ee2a4ccf848ac9a4796537f410370f54392df0",
+      "vendored_sha256": "4635226f69b4bc902e7b267bd16e33480d0059d53e65e3b9b2d6d6f3b6fc93b8",
+      "status": "modified"
+    },
+    {
+      "path": "src/mnt/fuse_pure.rs",
+      "official_sha256": "98985d6d379b2bb42bbebc5274677f207be160e3f8f2a93b8deedeab937ea51e",
+      "vendored_sha256": "d8665f1d62e6316f5ff27d26eb3f758ffb49012e4ac2c288dc76dfcefb13e071",
+      "status": "modified"
+    },
+    {
+      "path": "src/reply.rs",
+      "official_sha256": "dea571f7ffee9588d945e1e04dc800cfe556957563fc75e002fc0746d84e58cf",
+      "vendored_sha256": "c8638bf3eb5fdf5f32f7bc8543cc7f76e37a9d9ae312a97ce5e24b9b713eca51",
+      "status": "modified"
+    },
+    {
+      "path": "src/request.rs",
+      "official_sha256": "cba7d11c358e011d58767e53f9cdae5f451ac8dd06a2c17ec2156a286d5d43f4",
+      "vendored_sha256": "75cec8bb24f363b8a5d616e3f4b5e1360166bf7dc994f819c1f59dff578ac4ee",
+      "status": "modified"
+    },
+    {
+      "path": "src/session.rs",
+      "official_sha256": "09eb6d57411c29d23f28d19c0709e3c59ce19e2bf7f14bdf9c46f44cc31f59f3",
+      "vendored_sha256": "26f6c3cb2a97f8a1356785cdb158f5b96fde2fced51de2d57a4d466d33b2e46d",
+      "status": "modified"
+    }
+  ],
+  "official_release_0_18_vcs": {
+    "git": {
+      "sha1": "9c957f74efe715112049298cdf1d601781829c8d"
+    },
+    "path_in_vcs": ""
+  },
+  "inspected_master": "c0420fc49d3f1ce09603beb127f392eb2726c2a1",
+  "no_upstream_migration_performed": true
+}

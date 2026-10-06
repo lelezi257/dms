@@ -1,0 +1,27 @@
+Host information
+	Hostname:   lima-afs-g1-clean
+	Python:     3.12.3 (main, Mar  3 2026, 12:15:18) [GCC 13.3.0]
+	Directory:  /var/tmp/afs-e2e-20261006-r1/results/owner-ltp-r1/artifacts/std-02-ltp/commands/0001-open01/kirk-tmp/kirk.root/tmp17q0wc04
+
+Connecting to SUT: default
+
+cd '/var/tmp/afs-e2e-20261006-r1/mount/ownerfs/g2-e2e-owner/.lca0c596c/0001/w' && export LTPROOT='/var/tmp/afs-e2e-20261006-r1/suites/ltp-small-install' && export PATH='/var/tmp/afs-e2e-20261006-r1/suites/ltp-small-install/testcases/bin:/var/tmp/afs-e2e-20261006-r1/suites/ltp-small-install/bin':"$PATH" && export TMPDIR='/var/tmp/afs-e2e-20261006-r1/mount/ownerfs/g2-e2e-owner/.lca0c596c/0001/t' && export TMP='/var/tmp/afs-e2e-20261006-r1/mount/ownerfs/g2-e2e-owner/.lca0c596c/0001/t' && export TEMP='/var/tmp/afs-e2e-20261006-r1/mount/ownerfs/g2-e2e-owner/.lca0c596c/0001/t' && open01
+tst_tmpdir.c:308: TINFO: Using /var/tmp/afs-e2e-20261006-r1/mount/ownerfs/g2-e2e-owner/.lca0c596c/0001/t/LTP_opeYwcEhv as tmpdir (fuse filesystem)
+tst_test.c:2042: TINFO: LTP version: 20260529
+tst_test.c:2045: TINFO: Tested kernel: 6.8.0-106-generic #106-Ubuntu SMP PREEMPT_DYNAMIC Fri Mar  6 07:44:40 UTC 2026 aarch64
+tst_kconfig.c:90: TINFO: Parsing kernel config '/lib/modules/6.8.0-106-generic/build/.config'
+tst_test.c:1870: TINFO: Overall timeout per run is 0h 00m 30s
+open01.c:56: TPASS: sticky bit is set as expected
+open01.c:56: TPASS: directory bit is set as expected
+
+Summary:
+passed   2
+failed   0
+broken   0
+skipped  0
+warnings 0
+
+Exit code: 0
+
+Disconnecting from SUT: default
+Session stopped

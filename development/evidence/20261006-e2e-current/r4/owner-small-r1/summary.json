@@ -1,0 +1,254 @@
+[
+  {
+    "case_id": "G2.09",
+    "correctness": "PASS",
+    "performance": "FAIL",
+    "target_ratio": 0.9,
+    "observed_ratio": 0.5709073288321572,
+    "median_mib_per_second": {
+      "owner": 4109.255867696344,
+      "ext4": 7197.763385000154
+    },
+    "samples": [
+      {
+        "pair": 0,
+        "target": "ext4",
+        "wall_ns": 21606472,
+        "mib_per_second": 2962.0754373967206
+      },
+      {
+        "pair": 0,
+        "target": "owner",
+        "wall_ns": 16606325,
+        "mib_per_second": 3853.9532376970824
+      },
+      {
+        "pair": 1,
+        "target": "owner",
+        "wall_ns": 16091627,
+        "mib_per_second": 3977.223682850715
+      },
+      {
+        "pair": 1,
+        "target": "ext4",
+        "wall_ns": 8891651,
+        "mib_per_second": 7197.763385000154
+      },
+      {
+        "pair": 2,
+        "target": "ext4",
+        "wall_ns": 7465721,
+        "mib_per_second": 8572.51429567218
+      },
+      {
+        "pair": 2,
+        "target": "owner",
+        "wall_ns": 15222312,
+        "mib_per_second": 4204.354765557295
+      },
+      {
+        "pair": 3,
+        "target": "owner",
+        "wall_ns": 15574596,
+        "mib_per_second": 4109.255867696344
+      },
+      {
+        "pair": 3,
+        "target": "ext4",
+        "wall_ns": 15442099,
+        "mib_per_second": 4144.514291742334
+      },
+      {
+        "pair": 4,
+        "target": "ext4",
+        "wall_ns": 4962148,
+        "mib_per_second": 12897.640296097577
+      },
+      {
+        "pair": 4,
+        "target": "owner",
+        "wall_ns": 13071147,
+        "mib_per_second": 4896.2803340823875
+      }
+    ],
+    "scope": "64MiB C1 buffered; read includes content validation; write includes open/write/fdatasync/close; directory fsync and fresh-open verify outside timer"
+  },
+  {
+    "case_id": "G2.10",
+    "correctness": "PASS",
+    "performance": "FAIL",
+    "target_ratio": 0.9,
+    "observed_ratio": 0.6297465560969945,
+    "median_mib_per_second": {
+      "owner": 1046.2026635796713,
+      "ext4": 1661.3074790972476
+    },
+    "samples": [
+      {
+        "pair": 0,
+        "target": "ext4",
+        "wall_ns": 35234983,
+        "mib_per_second": 1816.3766390918934
+      },
+      {
+        "pair": 0,
+        "target": "owner",
+        "wall_ns": 61173616,
+        "mib_per_second": 1046.2026635796713
+      },
+      {
+        "pair": 1,
+        "target": "owner",
+        "wall_ns": 60722751,
+        "mib_per_second": 1053.9706937849373
+      },
+      {
+        "pair": 1,
+        "target": "ext4",
+        "wall_ns": 39283025,
+        "mib_per_second": 1629.202435403078
+      },
+      {
+        "pair": 2,
+        "target": "ext4",
+        "wall_ns": 41400565,
+        "mib_per_second": 1545.8726227528537
+      },
+      {
+        "pair": 2,
+        "target": "owner",
+        "wall_ns": 86677509,
+        "mib_per_second": 738.3691656390356
+      },
+      {
+        "pair": 3,
+        "target": "owner",
+        "wall_ns": 64567130,
+        "mib_per_second": 991.2164285449887
+      },
+      {
+        "pair": 3,
+        "target": "ext4",
+        "wall_ns": 36823534,
+        "mib_per_second": 1738.0189527708014
+      },
+      {
+        "pair": 4,
+        "target": "ext4",
+        "wall_ns": 38523874,
+        "mib_per_second": 1661.3074790972476
+      },
+      {
+        "pair": 4,
+        "target": "owner",
+        "wall_ns": 43128988,
+        "mib_per_second": 1483.9207449059552
+      }
+    ],
+    "scope": "64MiB C1 buffered; read includes content validation; write includes open/write/fdatasync/close; directory fsync and fresh-open verify outside timer"
+  },
+  {
+    "case_id": "G2.11",
+    "status": "PASS",
+    "correctness": "PASS",
+    "performance": "REPORTED_NO_RATIO_GATE",
+    "median_ops_per_second": {
+      "owner": 13599.554587388155,
+      "ext4": 159641.63645448696
+    },
+    "observed_ratio": 0.08518801792203703,
+    "samples": [
+      {
+        "pair": 0,
+        "target": "ext4",
+        "operations": 100,
+        "wall_ns": 645237,
+        "ops_per_second": 154981.81288425802,
+        "mean_unlink_ns": 6452.37,
+        "correctness": "PASS"
+      },
+      {
+        "pair": 0,
+        "target": "owner",
+        "operations": 100,
+        "wall_ns": 7434638,
+        "ops_per_second": 13450.554014869318,
+        "mean_unlink_ns": 74346.38,
+        "correctness": "PASS"
+      },
+      {
+        "pair": 1,
+        "target": "owner",
+        "operations": 100,
+        "wall_ns": 7175686,
+        "ops_per_second": 13935.949817202147,
+        "mean_unlink_ns": 71756.86,
+        "correctness": "PASS"
+      },
+      {
+        "pair": 1,
+        "target": "ext4",
+        "operations": 100,
+        "wall_ns": 626403,
+        "ops_per_second": 159641.63645448696,
+        "mean_unlink_ns": 6264.03,
+        "correctness": "PASS"
+      },
+      {
+        "pair": 2,
+        "target": "ext4",
+        "operations": 100,
+        "wall_ns": 636612,
+        "ops_per_second": 157081.55045773563,
+        "mean_unlink_ns": 6366.12,
+        "correctness": "PASS"
+      },
+      {
+        "pair": 2,
+        "target": "owner",
+        "operations": 100,
+        "wall_ns": 7191768,
+        "ops_per_second": 13904.786695010183,
+        "mean_unlink_ns": 71917.68,
+        "correctness": "PASS"
+      },
+      {
+        "pair": 3,
+        "target": "owner",
+        "operations": 100,
+        "wall_ns": 7446555,
+        "ops_per_second": 13429.028591073322,
+        "mean_unlink_ns": 74465.55,
+        "correctness": "PASS"
+      },
+      {
+        "pair": 3,
+        "target": "ext4",
+        "operations": 100,
+        "wall_ns": 607113,
+        "ops_per_second": 164713.9824052524,
+        "mean_unlink_ns": 6071.13,
+        "correctness": "PASS"
+      },
+      {
+        "pair": 4,
+        "target": "ext4",
+        "operations": 100,
+        "wall_ns": 599321,
+        "ops_per_second": 166855.49146450733,
+        "mean_unlink_ns": 5993.21,
+        "correctness": "PASS"
+      },
+      {
+        "pair": 4,
+        "target": "owner",
+        "operations": 100,
+        "wall_ns": 7353182,
+        "ops_per_second": 13599.554587388155,
+        "mean_unlink_ns": 73531.82,
+        "correctness": "PASS"
+      }
+    ],
+    "scope": "100x4KiB files per sample; unlink loop timed; prepare/file sync/directory sync/final empty check outside timer; no new throughput gate"
+  }
+]

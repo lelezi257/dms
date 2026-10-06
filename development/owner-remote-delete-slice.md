@@ -1,5 +1,7 @@
 # OwnerFs 远端小删除：正常收尾出口
 
+**实际出口：** [G2.16完整实跑和正常收尾](evidence/20261007-owner-remote-delete-small/README.md)已完成；12sample/600独立路径/6wait0，G2为10限定完成。下面保留执行前范围和判据，不再重复本slice。下一[DFS同步读阶段](dfs-manyread-sync-slice.md)。
+
 2026-10-07，G2.16独立小项。产品6d51aeb/map66dbbe3e/157输入和已有release ELF未变，Owner-only/local-file Meta/gRPC/native OFF。A为远端客户端，B为Owner Home及唯一Moose chunk节点。旧[删除数据/跨Home正确](evidence/20261007-owner-remote-small/README.md)及Moose客户端真实wait1 FAIL保持原样，不能仅靠另一个运行的成功退出改写它。
 
 本项使用fresh `owner-remote-delete-6d-bhome-20261007-r1`夹具、独立端口及fresh输出，仅执行维护驱动`--case delete`，不重测读写或改产品。复用[后续写夹具正常卸载](evidence/20261007-owner-remote-write-small/README.md)的准入方式：固定fusermount3真实help/version、exact已验证mount/source正常`-u`、真实Moose子进程wait0，再停Home服务。

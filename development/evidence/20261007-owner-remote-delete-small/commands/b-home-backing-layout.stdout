@@ -1,0 +1,27 @@
+[
+  {
+    "path": ".ownerfs-root-catalog.lock",
+    "is_dir": false,
+    "inode": 1315538
+  },
+  {
+    "path": ".ownerfs-roots",
+    "is_dir": true,
+    "inode": 1315539
+  },
+  {
+    "path": "root-67322d72656d6f74652d64656c6574652d36642d62686f6d652d7231-e1",
+    "is_dir": true,
+    "inode": 1315812
+  },
+  {
+    "path": ".ownerfs-roots/root-67322d72656d6f74652d64656c6574652d36642d62686f6d652d7231.json",
+    "is_dir": false,
+    "inode": 1315813
+  },
+  {
+    "path": "root-67322d72656d6f74652d64656c6574652d36642d62686f6d652d7231-e1/small-delete-r1",
+    "is_dir": true,
+    "inode": 1315814
+  }
+]

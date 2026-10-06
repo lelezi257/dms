@@ -1,6 +1,6 @@
-**当前切片（2026-10-07）：** 固定6d51aeb/map66dbbe3e/157产品输入未改。DFS历史本地R1标准PASS经逐输入和OFF配置/启动审计限定复用（148同/3新增/6变化，两个固定Git身份零差异）；不是6d重新实跑全集。当前6d OFF安装/64MiB/中心有序恢复35checks PASS仍独立保留。经典锁仅Linux内核原语6PASS、维护工具6个guard有回执；混合产品锁仍FAIL，bind默认OFF，不增加正式计数。 [标准复用证据](evidence/20261007-standard-reuse/README.md)、[锁原语及边界](native-classic-lock-boundary.md)。
+**当前切片（2026-10-07）：** 固定6d51aeb/map66dbbe3e/157产品输入及release ELF未改。G2.16 Owner远端小删除当前实跑完成：A远端/B-Home，100×4KiB、1预热5配对，12samples PASS；B600路径ENOENT，3AFS+3Moose真实wait0、无owned进程/挂载、旧incarnation/mount保持。中位Owner1049.602/Moose1542.929ops/s、配对比0.680266；计时仅unlink、缓存UNOBSERVED、没有删除硬比例。旧wait1 FAIL不改。 [完整证据](evidence/20261007-owner-remote-delete-small/README.md)。
 
-**下一项：** 先收口OwnerFs远端小删除G2.16：固定6d/local-file/gRPC、A远端/B-Home/sole Moose chunk B，100×4KiB、1预热5配对；fresh独立夹具，仅删除、不重测读写，复用已验证的正常卸载方式，保留旧wait1失败。删除要求正确性和量化报告、无新增比值门槛；正常收尾齐全后才能计完成。随后DFS小规模一写两读的同步读阶段计时；不计三同步/3FS持平。容器append/经典锁在明确机制限制处收口，watch单列；不无输入重测或微调普通性能。G1历史8/8、G2 9限定完成/2普通性能FAIL/2bind进行中/14待验收不变。R2官方fuser、Moose强持久基线及三同步3FS独立阻塞；大规模/复杂可靠性/etcd/Redis后置。
+**下一项：** DFS小规模一写两读同步读阶段计时，64MiB/R2、fresh夹具及共同启动屏障；不计三同步或3FS持平。DFS历史本地R1标准按原身份限定复用，不重复当前未变路径；OFF安装恢复35checks及同包复现已过。容器性能数据保留，append/经典锁/watch必要语义缺口单列、bind默认OFF；不重复诊断或微调普通性能。G1历史8/8；G2 10限定完成/2普通性能FAIL/2bind进行中/13待验收。R2官方fuser、Moose强持久及三同步3FS独立阻塞；大规模/长时/复杂可靠性/etcd/Redis后置。
 
 **历史说明：** 下方旧检查点按原版本/范围保存；其旧下一动作由上方当前入口和验收主表覆盖。当前native偏移/经典锁/watch失败与普通性能失败原始记录均保留。
 

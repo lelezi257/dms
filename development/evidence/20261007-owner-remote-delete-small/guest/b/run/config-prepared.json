@@ -1,0 +1,10 @@
+{
+  "role": "b",
+  "root": "/mnt/lima-afsbdata/afs-delivery/owner-remote-delete-6d-bhome-20261007-r1",
+  "config_sha256": {
+    "/mnt/lima-afsbdata/afs-delivery/owner-remote-delete-6d-bhome-20261007-r1/etc/node.toml": "5b91cda666fc3129c0f11b2767bb32935e4a3e429601f90c077722a75896f25a",
+    "/mnt/lima-afsbdata/afs-delivery/owner-remote-delete-6d-bhome-20261007-r1/config/mfschunkserver.cfg": "c8cdcd8b05875ca1f8fc40217e0c7a7ef0fd5cc34136b0265f86c679cbc79623",
+    "/mnt/lima-afsbdata/afs-delivery/owner-remote-delete-6d-bhome-20261007-r1/config/mfshdd.cfg": "5c001a58d46cfa87e5414ba148b746d7e0851ed95003946e86121d11c47ee347"
+  },
+  "original_sha256": "435c97c0ac91d9e35870869b48824a1a08c4c4b71f979686858745a835349621"
+}

@@ -1,0 +1,13 @@
+{
+  "product_source": "6d51aeb45c1ed8669d80f612b3817e6d1bdabe04",
+  "compiler_input_map": "66dbbe3e0071fcec1efc9cf370c709a99f025d39acd4f37ba57582c874429304",
+  "compiler_inputs": 157,
+  "helper_source_commit": "40a83b9bef580f3be96ed5ca3e0b50cc0f34d6f7",
+  "helper_proof": "../20261007-owner-delete-fixture/README.md",
+  "tools": {
+    "helper": "cd0c1616a788460f8b6e30c3fb94127adecbd06cb937575b7a8da0685269ad8c",
+    "driver": "d901442e19740143f84c106bd31d2ed6162fe0b278267cde5460a947584aaf98",
+    "driver_source": "development/acceptance/owner_remote_small.py"
+  },
+  "release_identity_reference": "../20261007-installed-off-6d/README.md"
+}

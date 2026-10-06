@@ -1,0 +1,373 @@
+{
+  "schema": "afs.owner_remote_fixture.v1",
+  "action": "preflight-config",
+  "role": "a",
+  "root": "/mnt/lima-afsadata/afs-delivery/owner-remote-delete-6d-bhome-20261007-r1",
+  "time_unix_ns": 1791328402421577873,
+  "commands": [
+    {
+      "argv": [
+        "ip",
+        "-j",
+        "-4",
+        "addr"
+      ],
+      "returncode": 0,
+      "stdout": "[{\"ifindex\":1,\"ifname\":\"lo\",\"flags\":[\"LOOPBACK\",\"UP\",\"LOWER_UP\"],\"mtu\":65536,\"qdisc\":\"noqueue\",\"operstate\":\"UNKNOWN\",\"group\":\"default\",\"txqlen\":1000,\"addr_info\":[{\"family\":\"inet\",\"local\":\"127.0.0.1\",\"prefixlen\":8,\"scope\":\"host\",\"label\":\"lo\",\"valid_life_time\":4294967295,\"preferred_life_time\":4294967295}]},{\"ifindex\":2,\"ifname\":\"eth0\",\"flags\":[\"BROADCAST\",\"MULTICAST\",\"UP\",\"LOWER_UP\"],\"mtu\":1500,\"qdisc\":\"fq_codel\",\"operstate\":\"UP\",\"group\":\"default\",\"txqlen\":1000,\"addr_info\":[{\"family\":\"inet\",\"local\":\"192.168.109.12\",\"prefixlen\":24,\"metric\":200,\"broadcast\":\"192.168.109.255\",\"scope\":\"global\",\"dynamic\":true,\"label\":\"eth0\",\"valid_life_time\":3243,\"preferred_life_time\":3243}]}]\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "ss",
+        "-ltnp"
+      ],
+      "returncode": 0,
+      "stdout": "State  Recv-Q Send-Q Local Address:Port  Peer Address:PortProcess                                                  \nLISTEN 0      4096       127.0.0.1:4500       0.0.0.0:*    users:((\"fdbserver\",pid=150904,fd=17))                  \nLISTEN 0      128          0.0.0.0:18580      0.0.0.0:*    users:((\"afs-meta\",pid=727122,fd=9))                    \nLISTEN 0      128          0.0.0.0:18581      0.0.0.0:*    users:((\"afs-meta\",pid=727122,fd=10))                   \nLISTEN 0      128          0.0.0.0:18680      0.0.0.0:*    users:((\"afs-meta\",pid=729413,fd=9))                    \nLISTEN 0      128          0.0.0.0:18681      0.0.0.0:*    users:((\"afs-meta\",pid=729413,fd=10))                   \nLISTEN 0      128          0.0.0.0:18480      0.0.0.0:*    users:((\"afs-meta\",pid=724361,fd=9))                    \nLISTEN 0      128          0.0.0.0:18481      0.0.0.0:*    users:((\"afs-meta\",pid=724361,fd=10))                   \nLISTEN 0      128          0.0.0.0:17980      0.0.0.0:*    users:((\"afs-meta\",pid=707560,fd=9))                    \nLISTEN 0      128          0.0.0.0:17981      0.0.0.0:*    users:((\"afs-meta\",pid=707560,fd=10))                   \nLISTEN 0      128          0.0.0.0:18380      0.0.0.0:*    users:((\"afs-meta\",pid=723627,fd=9))                    \nLISTEN 0      128          0.0.0.0:18381      0.0.0.0:*    users:((\"afs-meta\",pid=723627,fd=10))                   \nLISTEN 0      4096      127.0.0.54:53         0.0.0.0:*    users:((\"systemd-resolve\",pid=150891,fd=20))            \nLISTEN 0      128          0.0.0.0:18280      0.0.0.0:*    users:((\"afs-meta\",pid=722421,fd=9))                    \nLISTEN 0      128          0.0.0.0:18281      0.0.0.0:*    users:((\"afs-meta\",pid=722421,fd=10))                   \nLISTEN 0      128          0.0.0.0:17880      0.0.0.0:*    users:((\"afs-meta\",pid=706366,fd=9))                    \nLISTEN 0      128          0.0.0.0:17881      0.0.0.0:*    users:((\"afs-meta\",pid=706366,fd=10))                   \nLISTEN 0      4096   127.0.0.53%lo:53         0.0.0.0:*    users:((\"systemd-resolve\",pid=150891,fd=18))            \nLISTEN 0      4096         0.0.0.0:22         0.0.0.0:*    users:((\"sshd\",pid=150925,fd=3),(\"systemd\",pid=1,fd=87))\nLISTEN 0      4096            [::]:22            [::]:*    users:((\"sshd\",pid=150925,fd=4),(\"systemd\",pid=1,fd=88))\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "findmnt",
+        "-J",
+        "--mountpoint",
+        "/mnt/lima-afsadata/afs-delivery/owner-remote-delete-6d-bhome-20261007-r1/mount/ownerfs",
+        "-o",
+        "TARGET,SOURCE,FSTYPE,OPTIONS,ID"
+      ],
+      "returncode": 1,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "findmnt",
+        "-J",
+        "--mountpoint",
+        "/mnt/lima-afsadata/afs-delivery/owner-remote-delete-6d-bhome-20261007-r1/mount/moose",
+        "-o",
+        "TARGET,SOURCE,FSTYPE,OPTIONS,ID"
+      ],
+      "returncode": 1,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "ldd",
+        "/mnt/lima-afsadata/afs-delivery/owner-remote-delete-6d-bhome-20261007-r1/prefix/bin/afs-node"
+      ],
+      "returncode": 0,
+      "stdout": "\tlinux-vdso.so.1 (0x0000ff7ecbf2f000)\n\tlibibverbs.so.1 => /lib/aarch64-linux-gnu/libibverbs.so.1 (0x0000ff7ecad40000)\n\tlibgcc_s.so.1 => /lib/aarch64-linux-gnu/libgcc_s.so.1 (0x0000ff7ecad00000)\n\tlibm.so.6 => /lib/aarch64-linux-gnu/libm.so.6 (0x0000ff7ecac50000)\n\tlibc.so.6 => /lib/aarch64-linux-gnu/libc.so.6 (0x0000ff7ecaa90000)\n\t/lib/ld-linux-aarch64.so.1 (0x0000ff7ecbee0000)\n\tlibnl-route-3.so.200 => /lib/aarch64-linux-gnu/libnl-route-3.so.200 (0x0000ff7eca9e0000)\n\tlibnl-3.so.200 => /lib/aarch64-linux-gnu/libnl-3.so.200 (0x0000ff7eca990000)\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "ldd",
+        "/mnt/lima-afsadata/afs-delivery/owner-remote-delete-6d-bhome-20261007-r1/tools/io"
+      ],
+      "returncode": 0,
+      "stdout": "\tlinux-vdso.so.1 (0x0000f4cbd7d9e000)\n\tlibc.so.6 => /lib/aarch64-linux-gnu/libc.so.6 (0x0000f4cbd7b60000)\n\t/lib/ld-linux-aarch64.so.1 (0x0000f4cbd7d50000)\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "/usr/bin/fusermount3",
+        "-h"
+      ],
+      "returncode": 1,
+      "stdout": "/usr/bin/fusermount3: [options] mountpoint\nOptions:\n -h\t\t    print help\n -V\t\t    print version\n -o opt[,opt...]    mount options\n -u\t\t    unmount\n -q\t\t    quiet\n -z\t\t    lazy unmount\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "/usr/bin/fusermount3",
+        "-V"
+      ],
+      "returncode": 0,
+      "stdout": "fusermount3 version: 3.14.0\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "ldd",
+        "/usr/bin/fusermount3"
+      ],
+      "returncode": 0,
+      "stdout": "\tlinux-vdso.so.1 (0x0000f975f67a4000)\n\tlibc.so.6 => /lib/aarch64-linux-gnu/libc.so.6 (0x0000f975f6570000)\n\t/lib/ld-linux-aarch64.so.1 (0x0000f975f6760000)\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "ldd",
+        "/opt/afs-moose-round3-v85/bin/mfsmount"
+      ],
+      "returncode": 0,
+      "stdout": "\tlinux-vdso.so.1 (0x0000f747ac0b0000)\n\tlibfuse3.so.3 => /lib/aarch64-linux-gnu/libfuse3.so.3 (0x0000f747aae00000)\n\tlibc.so.6 => /lib/aarch64-linux-gnu/libc.so.6 (0x0000f747aac40000)\n\t/lib/ld-linux-aarch64.so.1 (0x0000f747ac060000)\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "/mnt/lima-afsadata/afs-delivery/owner-remote-delete-6d-bhome-20261007-r1/prefix/bin/afs-node",
+        "--config",
+        "/mnt/lima-afsadata/afs-delivery/owner-remote-delete-6d-bhome-20261007-r1/etc/node.toml",
+        "--print-config"
+      ],
+      "returncode": 0,
+      "stdout": "{\n  \"id\": \"remote-a-r1\",\n  \"grpc_listen\": \"0.0.0.0:23500\",\n  \"rest_listen\": \"0.0.0.0:23501\",\n  \"meta_endpoint\": \"https://192.168.109.11:23400\",\n  \"etcd_endpoint\": null,\n  \"redis_endpoint\": null,\n  \"meta_store\": \"etcd\",\n  \"allow_volatile_meta\": false,\n  \"peer_endpoint\": null,\n  \"advertise_endpoint\": \"https://192.168.109.12:23500\",\n  \"tls_ca_certificate\": \"/mnt/lima-afsadata/afs-delivery/owner-remote-delete-6d-bhome-20261007-r1/etc/tls/ca.pem\",\n  \"tls_identity_certificate\": \"/mnt/lima-afsadata/afs-delivery/owner-remote-delete-6d-bhome-20261007-r1/etc/tls/remote-a-r1.pem\",\n  \"tls_identity_private_key\": \"/mnt/lima-afsadata/afs-delivery/owner-remote-delete-6d-bhome-20261007-r1/etc/tls/remote-a-r1-key.pem\",\n  \"tls_server_name\": \"afs-meta\",\n  \"trusted_node_certs\": {\n    \"remote-b-r1\": \"/mnt/lima-afsadata/afs-delivery/owner-remote-delete-6d-bhome-20261007-r1/etc/tls/remote-b-r1.pem\",\n    \"remote-a-r1\": \"/mnt/lima-afsadata/afs-delivery/owner-remote-delete-6d-bhome-20261007-r1/etc/tls/remote-a-r1.pem\"\n  },\n  \"ownerfs\": true,\n  \"dfs\": false,\n  \"data_mode\": \"grpc\",\n  \"rdma_device\": null,\n  \"data_dir\": \"/mnt/lima-afsadata/afs-delivery/owner-remote-delete-6d-bhome-20261007-r1/state/node\",\n  \"uds_path\": \"/mnt/lima-afsadata/afs-delivery/owner-remote-delete-6d-bhome-20261007-r1/run/node.sock\",\n  \"ownerfs_mount\": \"/mnt/lima-afsadata/afs-delivery/owner-remote-delete-6d-bhome-20261007-r1/mount/ownerfs\",\n  \"experimental_native_workspace\": false,\n  \"native_workspace\": null,\n  \"dfs_mount\": null,\n  \"dfs_desired_copies\": 2,\n  \"dfs_sync_required_copies\": 2,\n  \"dfs_min_distinct_nodes\": 2,\n  \"dfs_min_distinct_failure_domains\": 2,\n  \"dfs_local_copy\": \"required\",\n  \"dfs_read_max_ops_per_batch\": 128,\n  \"dfs_read_max_inflight_bytes\": 8388608,\n  \"dfs_read_source_cache_ttl_ms\": 500,\n  \"timeout_ms\": 5000,\n  \"log_level\": \"info\",\n  \"trace_enabled\": false,\n  \"trace_endpoint\": \"http://127.0.0.1:4317\",\n  \"trace_sample_ratio\": 0.01\n}\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "openssl",
+        "verify",
+        "-CAfile",
+        "/mnt/lima-afsadata/afs-delivery/owner-remote-delete-6d-bhome-20261007-r1/etc/tls/ca.pem",
+        "/mnt/lima-afsadata/afs-delivery/owner-remote-delete-6d-bhome-20261007-r1/etc/tls/meta.pem"
+      ],
+      "returncode": 0,
+      "stdout": "/mnt/lima-afsadata/afs-delivery/owner-remote-delete-6d-bhome-20261007-r1/etc/tls/meta.pem: OK\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "openssl",
+        "verify",
+        "-CAfile",
+        "/mnt/lima-afsadata/afs-delivery/owner-remote-delete-6d-bhome-20261007-r1/etc/tls/ca.pem",
+        "/mnt/lima-afsadata/afs-delivery/owner-remote-delete-6d-bhome-20261007-r1/etc/tls/remote-a-r1.pem"
+      ],
+      "returncode": 0,
+      "stdout": "/mnt/lima-afsadata/afs-delivery/owner-remote-delete-6d-bhome-20261007-r1/etc/tls/remote-a-r1.pem: OK\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "openssl",
+        "verify",
+        "-CAfile",
+        "/mnt/lima-afsadata/afs-delivery/owner-remote-delete-6d-bhome-20261007-r1/etc/tls/ca.pem",
+        "/mnt/lima-afsadata/afs-delivery/owner-remote-delete-6d-bhome-20261007-r1/etc/tls/remote-b-r1.pem"
+      ],
+      "returncode": 0,
+      "stdout": "/mnt/lima-afsadata/afs-delivery/owner-remote-delete-6d-bhome-20261007-r1/etc/tls/remote-b-r1.pem: OK\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "openssl",
+        "verify",
+        "-CAfile",
+        "/mnt/lima-afsadata/afs-delivery/owner-remote-delete-6d-bhome-20261007-r1/etc/tls/ca.pem",
+        "-verify_ip",
+        "192.168.109.12",
+        "/mnt/lima-afsadata/afs-delivery/owner-remote-delete-6d-bhome-20261007-r1/etc/tls/remote-a-r1.pem"
+      ],
+      "returncode": 0,
+      "stdout": "/mnt/lima-afsadata/afs-delivery/owner-remote-delete-6d-bhome-20261007-r1/etc/tls/remote-a-r1.pem: OK\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "openssl",
+        "verify",
+        "-CAfile",
+        "/mnt/lima-afsadata/afs-delivery/owner-remote-delete-6d-bhome-20261007-r1/etc/tls/ca.pem",
+        "-verify_ip",
+        "192.168.109.13",
+        "/mnt/lima-afsadata/afs-delivery/owner-remote-delete-6d-bhome-20261007-r1/etc/tls/remote-b-r1.pem"
+      ],
+      "returncode": 0,
+      "stdout": "/mnt/lima-afsadata/afs-delivery/owner-remote-delete-6d-bhome-20261007-r1/etc/tls/remote-b-r1.pem: OK\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "openssl",
+        "verify",
+        "-CAfile",
+        "/mnt/lima-afsadata/afs-delivery/owner-remote-delete-6d-bhome-20261007-r1/etc/tls/ca.pem",
+        "-verify_hostname",
+        "afs-meta",
+        "/mnt/lima-afsadata/afs-delivery/owner-remote-delete-6d-bhome-20261007-r1/etc/tls/meta.pem"
+      ],
+      "returncode": 0,
+      "stdout": "/mnt/lima-afsadata/afs-delivery/owner-remote-delete-6d-bhome-20261007-r1/etc/tls/meta.pem: OK\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "openssl",
+        "x509",
+        "-in",
+        "/mnt/lima-afsadata/afs-delivery/owner-remote-delete-6d-bhome-20261007-r1/etc/tls/remote-a-r1.pem",
+        "-noout",
+        "-subject",
+        "-ext",
+        "subjectAltName"
+      ],
+      "returncode": 0,
+      "stdout": "subject=CN = remote-a-r1\nX509v3 Subject Alternative Name: \n    DNS:afs-meta, DNS:meta, IP Address:192.168.109.11, DNS:remote-a-r1, IP Address:192.168.109.12, DNS:remote-b-r1, IP Address:192.168.109.13, DNS:127.0.0.1, IP Address:127.0.0.1\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "openssl",
+        "x509",
+        "-in",
+        "/mnt/lima-afsadata/afs-delivery/owner-remote-delete-6d-bhome-20261007-r1/etc/tls/remote-a-r1.pem",
+        "-pubkey",
+        "-noout"
+      ],
+      "returncode": 0,
+      "stdout": "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA9Hb54t7JQUM3HjSLewZs\nuL/cH9hyfl6AePYoOgBF4NiZ/FtVuuMyYJRRQXsYzWfyfBds3DjAbwujtaqpyEZQ\n/xPDNDj/+qP2bb30w6kuZFiQU7bkxlpJNlPl6B0fQafMKU+d2wAS+p9sQWA24uC7\nxpA4Oyjih/O0HXcmvUXFX965TJ0nx9IlvxnVUX9aUP8O0gJudvDnaP/kVO4gXyGV\nSQOCNkgL9JSv8BVERCLEQT5bSkDzm5isdZKDmUjH0L9k4pVhrKHTxGshYx1tmp75\ngVQCBKVh7b7n2mCR+BWSCL4/m9wOW12pzITu0lI2dbRSerlcIs47d5u73EILvjo+\nvQIDAQAB\n-----END PUBLIC KEY-----\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "openssl",
+        "pkey",
+        "-in",
+        "/mnt/lima-afsadata/afs-delivery/owner-remote-delete-6d-bhome-20261007-r1/etc/tls/remote-a-r1-key.pem",
+        "-pubout"
+      ],
+      "returncode": 0,
+      "stdout": "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA9Hb54t7JQUM3HjSLewZs\nuL/cH9hyfl6AePYoOgBF4NiZ/FtVuuMyYJRRQXsYzWfyfBds3DjAbwujtaqpyEZQ\n/xPDNDj/+qP2bb30w6kuZFiQU7bkxlpJNlPl6B0fQafMKU+d2wAS+p9sQWA24uC7\nxpA4Oyjih/O0HXcmvUXFX965TJ0nx9IlvxnVUX9aUP8O0gJudvDnaP/kVO4gXyGV\nSQOCNkgL9JSv8BVERCLEQT5bSkDzm5isdZKDmUjH0L9k4pVhrKHTxGshYx1tmp75\ngVQCBKVh7b7n2mCR+BWSCL4/m9wOW12pzITu0lI2dbRSerlcIs47d5u73EILvjo+\nvQIDAQAB\n-----END PUBLIC KEY-----\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "findmnt",
+        "-J",
+        "--mountpoint",
+        "/mnt/lima-afsadata"
+      ],
+      "returncode": 0,
+      "stdout": "{\n   \"filesystems\": [\n      {\n         \"target\": \"/mnt/lima-afsadata\",\n         \"source\": \"/dev/vdb1\",\n         \"fstype\": \"ext4\",\n         \"options\": \"rw,relatime\"\n      }\n   ]\n}\n",
+      "stderr": ""
+    }
+  ],
+  "status": "PASS_CONFIG_ADMISSION_ONLY",
+  "identities": {
+    "node": {
+      "path": "/mnt/lima-afsadata/afs-delivery/owner-remote-delete-6d-bhome-20261007-r1/prefix/bin/afs-node",
+      "sha256": "2cf1f538fe7af332a711f3c66a074ace140c00773826a182709a6445b8ae2645",
+      "bytes": 25880120
+    },
+    "io": {
+      "path": "/mnt/lima-afsadata/afs-delivery/owner-remote-delete-6d-bhome-20261007-r1/tools/io",
+      "sha256": "70ac97c7634d406a177a74c783d446b62a2014ba198586132882a1d9228e55e8",
+      "bytes": 72400
+    },
+    "fusermount3": {
+      "path": "/usr/bin/fusermount3",
+      "sha256": "f02a72a71fe768cfe48238e247470d6e42efe39d66b1be2509ce0a34ede978ad",
+      "device": 64769,
+      "inode": 2179
+    },
+    "bin/mfsmount": {
+      "path": "/opt/afs-moose-round3-v85/bin/mfsmount",
+      "resolved_path": "/opt/afs-moose-round3-v85/bin/mfsmount",
+      "sha256": "5752f91e2d174cc8a0a53df7b3713b3bed31fde5fe72a6f38cd86237ae3ebc37"
+    },
+    "bin/mfscli": {
+      "path": "/opt/afs-moose-round3-v85/bin/mfscli",
+      "resolved_path": "/opt/afs-moose-round3-v85/bin/mfscli",
+      "sha256": "247194b8e45c6cbd7bf0ae95f9e5b709ee0f08e669739e4ffef46c7659ec09df"
+    },
+    "bin/mfscreatesclass": {
+      "path": "/opt/afs-moose-round3-v85/bin/mfscreatesclass",
+      "resolved_path": "/opt/afs-moose-round3-v85/bin/mfsscadmin",
+      "sha256": "a5aaa1875d9db7bcb36e2c0456285982965ff20ab79bedce701291b2a70993d0"
+    },
+    "bin/mfslistsclass": {
+      "path": "/opt/afs-moose-round3-v85/bin/mfslistsclass",
+      "resolved_path": "/opt/afs-moose-round3-v85/bin/mfsscadmin",
+      "sha256": "a5aaa1875d9db7bcb36e2c0456285982965ff20ab79bedce701291b2a70993d0"
+    },
+    "bin/mfssetsclass": {
+      "path": "/opt/afs-moose-round3-v85/bin/mfssetsclass",
+      "resolved_path": "/opt/afs-moose-round3-v85/bin/mfssclass",
+      "sha256": "7dc44d9383376bb456779516bb59ec65e4cc35e404c1a0ab82ffa781f703a7e3"
+    },
+    "bin/mfsgetsclass": {
+      "path": "/opt/afs-moose-round3-v85/bin/mfsgetsclass",
+      "resolved_path": "/opt/afs-moose-round3-v85/bin/mfssclass",
+      "sha256": "7dc44d9383376bb456779516bb59ec65e4cc35e404c1a0ab82ffa781f703a7e3"
+    },
+    "bin/mfsfileinfo": {
+      "path": "/opt/afs-moose-round3-v85/bin/mfsfileinfo",
+      "resolved_path": "/opt/afs-moose-round3-v85/bin/mfsdiagtools",
+      "sha256": "d58823c1c07aa8a65c55931e6007b8c20b88ffbc4eb825ae057dfe5a452c93b6"
+    },
+    "bin/mfscheckfile": {
+      "path": "/opt/afs-moose-round3-v85/bin/mfscheckfile",
+      "resolved_path": "/opt/afs-moose-round3-v85/bin/mfsdiagtools",
+      "sha256": "d58823c1c07aa8a65c55931e6007b8c20b88ffbc4eb825ae057dfe5a452c93b6"
+    }
+  },
+  "print_config": {
+    "id": "remote-a-r1",
+    "grpc_listen": "0.0.0.0:23500",
+    "rest_listen": "0.0.0.0:23501",
+    "meta_endpoint": "https://192.168.109.11:23400",
+    "etcd_endpoint": null,
+    "redis_endpoint": null,
+    "meta_store": "etcd",
+    "allow_volatile_meta": false,
+    "peer_endpoint": null,
+    "advertise_endpoint": "https://192.168.109.12:23500",
+    "tls_ca_certificate": "/mnt/lima-afsadata/afs-delivery/owner-remote-delete-6d-bhome-20261007-r1/etc/tls/ca.pem",
+    "tls_identity_certificate": "/mnt/lima-afsadata/afs-delivery/owner-remote-delete-6d-bhome-20261007-r1/etc/tls/remote-a-r1.pem",
+    "tls_identity_private_key": "/mnt/lima-afsadata/afs-delivery/owner-remote-delete-6d-bhome-20261007-r1/etc/tls/remote-a-r1-key.pem",
+    "tls_server_name": "afs-meta",
+    "trusted_node_certs": {
+      "remote-b-r1": "/mnt/lima-afsadata/afs-delivery/owner-remote-delete-6d-bhome-20261007-r1/etc/tls/remote-b-r1.pem",
+      "remote-a-r1": "/mnt/lima-afsadata/afs-delivery/owner-remote-delete-6d-bhome-20261007-r1/etc/tls/remote-a-r1.pem"
+    },
+    "ownerfs": true,
+    "dfs": false,
+    "data_mode": "grpc",
+    "rdma_device": null,
+    "data_dir": "/mnt/lima-afsadata/afs-delivery/owner-remote-delete-6d-bhome-20261007-r1/state/node",
+    "uds_path": "/mnt/lima-afsadata/afs-delivery/owner-remote-delete-6d-bhome-20261007-r1/run/node.sock",
+    "ownerfs_mount": "/mnt/lima-afsadata/afs-delivery/owner-remote-delete-6d-bhome-20261007-r1/mount/ownerfs",
+    "experimental_native_workspace": false,
+    "native_workspace": null,
+    "dfs_mount": null,
+    "dfs_desired_copies": 2,
+    "dfs_sync_required_copies": 2,
+    "dfs_min_distinct_nodes": 2,
+    "dfs_min_distinct_failure_domains": 2,
+    "dfs_local_copy": "required",
+    "dfs_read_max_ops_per_batch": 128,
+    "dfs_read_max_inflight_bytes": 8388608,
+    "dfs_read_source_cache_ttl_ms": 500,
+    "timeout_ms": 5000,
+    "log_level": "info",
+    "trace_enabled": false,
+    "trace_endpoint": "http://127.0.0.1:4317",
+    "trace_sample_ratio": 0.01
+  },
+  "config_sha256": {
+    "/mnt/lima-afsadata/afs-delivery/owner-remote-delete-6d-bhome-20261007-r1/etc/node.toml": "376b4048b4accde787d5674e9ff59f5a922a3b58cb4902e939892f75e44b0fb6"
+  },
+  "tls_sha256": {
+    "/mnt/lima-afsadata/afs-delivery/owner-remote-delete-6d-bhome-20261007-r1/etc/tls/ca.pem": "d1eb7921ab5bd3b60a8ca1df191a2c7e7afe4e0533de1c94fccb3f2a943fe0d8",
+    "/mnt/lima-afsadata/afs-delivery/owner-remote-delete-6d-bhome-20261007-r1/etc/tls/meta.pem": "e3c3f9ebfb0ee0823f8293eab72d2031bdef11b1d752b245b68f13f579291a27",
+    "/mnt/lima-afsadata/afs-delivery/owner-remote-delete-6d-bhome-20261007-r1/etc/tls/remote-a-r1.pem": "52a0453df814eb19a4a9e7b0e3b278069e7879db73af92c52c56ec7f3f5ff888",
+    "/mnt/lima-afsadata/afs-delivery/owner-remote-delete-6d-bhome-20261007-r1/etc/tls/remote-b-r1.pem": "ef2f4c490c18d33289c428cb9b0238cb3e31cc82aef6eb1070df3854bfb72cfe"
+  },
+  "capacity": {
+    "mount": {
+      "target": "/mnt/lima-afsadata",
+      "source": "/dev/vdb1",
+      "fstype": "ext4",
+      "options": "rw,relatime"
+    },
+    "available_bytes": 4185698304,
+    "owned_allocated_bytes": 52133888,
+    "working_budget_bytes": 268435456,
+    "remaining_free_floor_bytes": 1073741824
+  },
+  "remaining": "authenticated connectivity, live mount/Home/class/topology proofs belong to execution"
+}

@@ -1,0 +1,16 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "afs-accept-b",
+    "sudo",
+    "python3",
+    "-c",
+    "import sys,json,os\nfrom pathlib import Path\nr=Path(sys.argv[1]);backing=sys.argv[2];expected=sys.argv[3]=='true';p=r/'state/node/ownerfs'/backing;assert p.is_dir()==expected,(str(p),expected)\nif expected:\n assert (p/'small-delete-r1').is_dir();catalog=r/'state/node/ownerfs/.ownerfs-roots'/(backing.rsplit('-e',1)[0]+'.json');record=json.loads(catalog.read_text());assert record['root_id']==backing.rsplit('-e',1)[0]\nelse:record=None\nprint(json.dumps({'status':'PASS_HOME_BACKING_ROLE_BEFORE_DELETE','expected_backing':expected,'physical_backing':str(p),'root_catalog':record},indent=2))",
+    "/mnt/lima-afsbdata/afs-delivery/owner-remote-delete-6d-bhome-20261007-r1",
+    "root-67322d72656d6f74652d64656c6574652d36642d62686f6d652d7231-e1",
+    "true"
+  ],
+  "exit": 0,
+  "state": "TERMINAL"
+}

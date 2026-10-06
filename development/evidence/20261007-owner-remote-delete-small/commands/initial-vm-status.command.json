@@ -1,0 +1,9 @@
+{
+  "argv": [
+    "limactl",
+    "list",
+    "--json"
+  ],
+  "exit": 0,
+  "state": "TERMINAL"
+}

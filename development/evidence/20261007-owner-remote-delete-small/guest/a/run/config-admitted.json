@@ -1,0 +1,126 @@
+{
+  "status": "PASS_CONFIG_ADMISSION_ONLY",
+  "identities": {
+    "node": {
+      "path": "/mnt/lima-afsadata/afs-delivery/owner-remote-delete-6d-bhome-20261007-r1/prefix/bin/afs-node",
+      "sha256": "2cf1f538fe7af332a711f3c66a074ace140c00773826a182709a6445b8ae2645",
+      "bytes": 25880120
+    },
+    "io": {
+      "path": "/mnt/lima-afsadata/afs-delivery/owner-remote-delete-6d-bhome-20261007-r1/tools/io",
+      "sha256": "70ac97c7634d406a177a74c783d446b62a2014ba198586132882a1d9228e55e8",
+      "bytes": 72400
+    },
+    "fusermount3": {
+      "path": "/usr/bin/fusermount3",
+      "sha256": "f02a72a71fe768cfe48238e247470d6e42efe39d66b1be2509ce0a34ede978ad",
+      "device": 64769,
+      "inode": 2179
+    },
+    "bin/mfsmount": {
+      "path": "/opt/afs-moose-round3-v85/bin/mfsmount",
+      "resolved_path": "/opt/afs-moose-round3-v85/bin/mfsmount",
+      "sha256": "5752f91e2d174cc8a0a53df7b3713b3bed31fde5fe72a6f38cd86237ae3ebc37"
+    },
+    "bin/mfscli": {
+      "path": "/opt/afs-moose-round3-v85/bin/mfscli",
+      "resolved_path": "/opt/afs-moose-round3-v85/bin/mfscli",
+      "sha256": "247194b8e45c6cbd7bf0ae95f9e5b709ee0f08e669739e4ffef46c7659ec09df"
+    },
+    "bin/mfscreatesclass": {
+      "path": "/opt/afs-moose-round3-v85/bin/mfscreatesclass",
+      "resolved_path": "/opt/afs-moose-round3-v85/bin/mfsscadmin",
+      "sha256": "a5aaa1875d9db7bcb36e2c0456285982965ff20ab79bedce701291b2a70993d0"
+    },
+    "bin/mfslistsclass": {
+      "path": "/opt/afs-moose-round3-v85/bin/mfslistsclass",
+      "resolved_path": "/opt/afs-moose-round3-v85/bin/mfsscadmin",
+      "sha256": "a5aaa1875d9db7bcb36e2c0456285982965ff20ab79bedce701291b2a70993d0"
+    },
+    "bin/mfssetsclass": {
+      "path": "/opt/afs-moose-round3-v85/bin/mfssetsclass",
+      "resolved_path": "/opt/afs-moose-round3-v85/bin/mfssclass",
+      "sha256": "7dc44d9383376bb456779516bb59ec65e4cc35e404c1a0ab82ffa781f703a7e3"
+    },
+    "bin/mfsgetsclass": {
+      "path": "/opt/afs-moose-round3-v85/bin/mfsgetsclass",
+      "resolved_path": "/opt/afs-moose-round3-v85/bin/mfssclass",
+      "sha256": "7dc44d9383376bb456779516bb59ec65e4cc35e404c1a0ab82ffa781f703a7e3"
+    },
+    "bin/mfsfileinfo": {
+      "path": "/opt/afs-moose-round3-v85/bin/mfsfileinfo",
+      "resolved_path": "/opt/afs-moose-round3-v85/bin/mfsdiagtools",
+      "sha256": "d58823c1c07aa8a65c55931e6007b8c20b88ffbc4eb825ae057dfe5a452c93b6"
+    },
+    "bin/mfscheckfile": {
+      "path": "/opt/afs-moose-round3-v85/bin/mfscheckfile",
+      "resolved_path": "/opt/afs-moose-round3-v85/bin/mfsdiagtools",
+      "sha256": "d58823c1c07aa8a65c55931e6007b8c20b88ffbc4eb825ae057dfe5a452c93b6"
+    }
+  },
+  "print_config": {
+    "id": "remote-a-r1",
+    "grpc_listen": "0.0.0.0:23500",
+    "rest_listen": "0.0.0.0:23501",
+    "meta_endpoint": "https://192.168.109.11:23400",
+    "etcd_endpoint": null,
+    "redis_endpoint": null,
+    "meta_store": "etcd",
+    "allow_volatile_meta": false,
+    "peer_endpoint": null,
+    "advertise_endpoint": "https://192.168.109.12:23500",
+    "tls_ca_certificate": "/mnt/lima-afsadata/afs-delivery/owner-remote-delete-6d-bhome-20261007-r1/etc/tls/ca.pem",
+    "tls_identity_certificate": "/mnt/lima-afsadata/afs-delivery/owner-remote-delete-6d-bhome-20261007-r1/etc/tls/remote-a-r1.pem",
+    "tls_identity_private_key": "/mnt/lima-afsadata/afs-delivery/owner-remote-delete-6d-bhome-20261007-r1/etc/tls/remote-a-r1-key.pem",
+    "tls_server_name": "afs-meta",
+    "trusted_node_certs": {
+      "remote-b-r1": "/mnt/lima-afsadata/afs-delivery/owner-remote-delete-6d-bhome-20261007-r1/etc/tls/remote-b-r1.pem",
+      "remote-a-r1": "/mnt/lima-afsadata/afs-delivery/owner-remote-delete-6d-bhome-20261007-r1/etc/tls/remote-a-r1.pem"
+    },
+    "ownerfs": true,
+    "dfs": false,
+    "data_mode": "grpc",
+    "rdma_device": null,
+    "data_dir": "/mnt/lima-afsadata/afs-delivery/owner-remote-delete-6d-bhome-20261007-r1/state/node",
+    "uds_path": "/mnt/lima-afsadata/afs-delivery/owner-remote-delete-6d-bhome-20261007-r1/run/node.sock",
+    "ownerfs_mount": "/mnt/lima-afsadata/afs-delivery/owner-remote-delete-6d-bhome-20261007-r1/mount/ownerfs",
+    "experimental_native_workspace": false,
+    "native_workspace": null,
+    "dfs_mount": null,
+    "dfs_desired_copies": 2,
+    "dfs_sync_required_copies": 2,
+    "dfs_min_distinct_nodes": 2,
+    "dfs_min_distinct_failure_domains": 2,
+    "dfs_local_copy": "required",
+    "dfs_read_max_ops_per_batch": 128,
+    "dfs_read_max_inflight_bytes": 8388608,
+    "dfs_read_source_cache_ttl_ms": 500,
+    "timeout_ms": 5000,
+    "log_level": "info",
+    "trace_enabled": false,
+    "trace_endpoint": "http://127.0.0.1:4317",
+    "trace_sample_ratio": 0.01
+  },
+  "config_sha256": {
+    "/mnt/lima-afsadata/afs-delivery/owner-remote-delete-6d-bhome-20261007-r1/etc/node.toml": "376b4048b4accde787d5674e9ff59f5a922a3b58cb4902e939892f75e44b0fb6"
+  },
+  "tls_sha256": {
+    "/mnt/lima-afsadata/afs-delivery/owner-remote-delete-6d-bhome-20261007-r1/etc/tls/ca.pem": "d1eb7921ab5bd3b60a8ca1df191a2c7e7afe4e0533de1c94fccb3f2a943fe0d8",
+    "/mnt/lima-afsadata/afs-delivery/owner-remote-delete-6d-bhome-20261007-r1/etc/tls/meta.pem": "e3c3f9ebfb0ee0823f8293eab72d2031bdef11b1d752b245b68f13f579291a27",
+    "/mnt/lima-afsadata/afs-delivery/owner-remote-delete-6d-bhome-20261007-r1/etc/tls/remote-a-r1.pem": "52a0453df814eb19a4a9e7b0e3b278069e7879db73af92c52c56ec7f3f5ff888",
+    "/mnt/lima-afsadata/afs-delivery/owner-remote-delete-6d-bhome-20261007-r1/etc/tls/remote-b-r1.pem": "ef2f4c490c18d33289c428cb9b0238cb3e31cc82aef6eb1070df3854bfb72cfe"
+  },
+  "capacity": {
+    "mount": {
+      "target": "/mnt/lima-afsadata",
+      "source": "/dev/vdb1",
+      "fstype": "ext4",
+      "options": "rw,relatime"
+    },
+    "available_bytes": 4185698304,
+    "owned_allocated_bytes": 52133888,
+    "working_budget_bytes": 268435456,
+    "remaining_free_floor_bytes": 1073741824
+  },
+  "remaining": "authenticated connectivity, live mount/Home/class/topology proofs belong to execution"
+}

@@ -1,0 +1,19 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "afs-accept-ctl",
+    "sudo",
+    "curl",
+    "--noproxy",
+    "*",
+    "--fail",
+    "--silent",
+    "--show-error",
+    "--max-time",
+    "10",
+    "http://192.168.109.11:23401/v1/roots/root-67322d72656d6f74652d64656c6574652d36642d62686f6d652d7231"
+  ],
+  "exit": 0,
+  "state": "TERMINAL"
+}

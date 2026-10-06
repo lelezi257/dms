@@ -1,0 +1,16 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "afs-accept-b",
+    "sudo",
+    "python3",
+    "/mnt/lima-afsbdata/afs-delivery/owner-remote-delete-6d-bhome-20261007-r1/tools/owner_remote_fixture.py",
+    "preflight-config",
+    "b",
+    "--fixture",
+    "owner-remote-delete-6d-bhome-20261007-r1"
+  ],
+  "exit": 0,
+  "state": "TERMINAL"
+}

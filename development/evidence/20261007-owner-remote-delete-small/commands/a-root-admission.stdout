@@ -1,0 +1,92 @@
+{
+  "status": "PASS_ADMISSION_BEFORE_NEW_ROOT",
+  "role": "a",
+  "dependencies": {
+    "python3": "/usr/bin/python3",
+    "openssl": "/usr/bin/openssl",
+    "findmnt": "/usr/bin/findmnt",
+    "tar": "/usr/bin/tar",
+    "sha256sum": "/usr/bin/sha256sum",
+    "timeout": "/usr/bin/timeout",
+    "ldd": "/usr/bin/ldd",
+    "curl": "/usr/bin/curl",
+    "ss": "/usr/bin/ss",
+    "fusermount3": "/usr/bin/fusermount3"
+  },
+  "volume_mount": {
+    "target": "/mnt/lima-afsadata",
+    "source": "/dev/vdb1",
+    "fstype": "ext4",
+    "options": "rw,relatime"
+  },
+  "free": 4237844480,
+  "required": 1342177280,
+  "selected_ports": [
+    23500,
+    23501
+  ],
+  "actual_ipv4": [
+    "127.0.0.1",
+    "192.168.109.12"
+  ],
+  "root_absent": "/mnt/lima-afsadata/afs-delivery/owner-remote-delete-6d-bhome-20261007-r1",
+  "old_processes": [
+    {
+      "pid": 706366,
+      "exe": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v45/bin/afs-meta",
+      "start_ticks": "5849843",
+      "exe_dev": 64785,
+      "exe_ino": 1577324,
+      "cmdline": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v45/bin/afs-meta --config /mnt/lima-afsadata/afs-delivery/p2-memory-lane-v45/meta.toml "
+    },
+    {
+      "pid": 707560,
+      "exe": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/bin/afs-meta",
+      "start_ticks": "6127754",
+      "exe_dev": 64785,
+      "exe_ino": 1577498,
+      "cmdline": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/bin/afs-meta --config /mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/meta.toml "
+    },
+    {
+      "pid": 722421,
+      "exe": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v51/prefix/bin/afs-meta",
+      "start_ticks": "6782793",
+      "exe_dev": 64785,
+      "exe_ino": 1577698,
+      "cmdline": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v51/prefix/bin/afs-meta --config /mnt/lima-afsadata/afs-delivery/p2-memory-lane-v51/etc/meta.toml "
+    },
+    {
+      "pid": 723627,
+      "exe": "/mnt/lima-afsadata/afs-delivery/repair-v55-a/prefix/bin/afs-meta",
+      "start_ticks": "7187988",
+      "exe_dev": 64785,
+      "exe_ino": 1577844,
+      "cmdline": "/mnt/lima-afsadata/afs-delivery/repair-v55-a/prefix/bin/afs-meta --config /mnt/lima-afsadata/afs-delivery/repair-v55-a/etc/meta.toml "
+    },
+    {
+      "pid": 724361,
+      "exe": "/mnt/lima-afsadata/afs-delivery/repair-v60-a/prefix/bin/afs-meta",
+      "start_ticks": "7349623",
+      "exe_dev": 64785,
+      "exe_ino": 1577889,
+      "cmdline": "/mnt/lima-afsadata/afs-delivery/repair-v60-a/prefix/bin/afs-meta --config /mnt/lima-afsadata/afs-delivery/repair-v60-a/etc/meta.toml "
+    },
+    {
+      "pid": 727122,
+      "exe": "/mnt/lima-afsadata/afs-delivery/corrupt-v62-a/prefix/bin/afs-meta",
+      "start_ticks": "7806618",
+      "exe_dev": 64785,
+      "exe_ino": 1577934,
+      "cmdline": "/mnt/lima-afsadata/afs-delivery/corrupt-v62-a/prefix/bin/afs-meta --config /mnt/lima-afsadata/afs-delivery/corrupt-v62-a/etc/meta.toml "
+    },
+    {
+      "pid": 729413,
+      "exe": "/mnt/lima-afsadata/afs-delivery/rxe-repair-v62-a/prefix/bin/afs-meta",
+      "start_ticks": "7870207",
+      "exe_dev": 64785,
+      "exe_ino": 1577934,
+      "cmdline": "/mnt/lima-afsadata/afs-delivery/rxe-repair-v62-a/prefix/bin/afs-meta --config /mnt/lima-afsadata/afs-delivery/rxe-repair-v62-a/etc/meta.toml "
+    }
+  ],
+  "boot_id": "36a572e0-859b-4a94-adc7-789210a83fc8"
+}

@@ -1,0 +1,23 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "afs-accept-b",
+    "sudo",
+    "/mnt/lima-afsbdata/afs-delivery/owner-remote-delete-6d-bhome-20261007-r1/prefix/bin/afs-processctl",
+    "--prefix",
+    "/mnt/lima-afsbdata/afs-delivery/owner-remote-delete-6d-bhome-20261007-r1/prefix",
+    "--config-dir",
+    "/mnt/lima-afsbdata/afs-delivery/owner-remote-delete-6d-bhome-20261007-r1/etc",
+    "--run-dir",
+    "/mnt/lima-afsbdata/afs-delivery/owner-remote-delete-6d-bhome-20261007-r1/run",
+    "--log-dir",
+    "/mnt/lima-afsbdata/afs-delivery/owner-remote-delete-6d-bhome-20261007-r1/logs",
+    "--timeout",
+    "30",
+    "start",
+    "node"
+  ],
+  "exit": 0,
+  "state": "TERMINAL"
+}

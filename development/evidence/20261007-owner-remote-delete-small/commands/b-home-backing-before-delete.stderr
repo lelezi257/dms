@@ -1,0 +1,3 @@
+Traceback (most recent call last):
+  File "<string>", line 3, in <module>
+AssertionError: ('/mnt/lima-afsbdata/afs-delivery/owner-remote-delete-6d-bhome-20261007-r1/state/node/ownerfs/g2-remote-delete-6d-bhome-r1', True)

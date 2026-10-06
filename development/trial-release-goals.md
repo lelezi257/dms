@@ -1,6 +1,6 @@
-**当前切片（2026-10-07）：** 固定6d51aeb/map66dbbe3e/157产品输入未改。DFS历史本地R1标准PASS经逐输入和OFF配置/启动审计限定复用（148同/3新增/6变化，两个固定Git身份零差异）；不是6d重新实跑全集。当前6d OFF安装/64MiB/中心有序恢复35checks PASS仍独立保留。经典锁仅Linux内核原语6PASS、维护工具6个guard有回执；混合产品锁仍FAIL，bind默认OFF，不增加正式计数。 [标准复用证据](evidence/20261007-standard-reuse/README.md)、[锁原语及边界](native-classic-lock-boundary.md)。
+**当前切片（2026-10-07）：** 固定6d51aeb/map66dbbe3e/157产品输入及release ELF未改。G2.16 Owner远端小删除当前实跑完成：A远端/B-Home，100×4KiB、1预热5配对，12samples PASS；B600路径ENOENT，3AFS+3Moose真实wait0、无owned进程/挂载、旧incarnation/mount保持。中位Owner1049.602/Moose1542.929ops/s、配对比0.680266；计时仅unlink、缓存UNOBSERVED、没有删除硬比例。旧wait1 FAIL不改。 [完整证据](evidence/20261007-owner-remote-delete-small/README.md)。
 
-**下一项：** 先收口OwnerFs远端小删除G2.16：固定6d/local-file/gRPC、A远端/B-Home/sole Moose chunk B，100×4KiB、1预热5配对；fresh独立夹具，仅删除、不重测读写，复用已验证的正常卸载方式，保留旧wait1失败。删除要求正确性和量化报告、无新增比值门槛；正常收尾齐全后才能计完成。随后DFS小规模一写两读的同步读阶段计时；不计三同步/3FS持平。容器append/经典锁在明确机制限制处收口，watch单列；不无输入重测或微调普通性能。G1历史8/8、G2 9限定完成/2普通性能FAIL/2bind进行中/14待验收不变。R2官方fuser、Moose强持久基线及三同步3FS独立阻塞；大规模/复杂可靠性/etcd/Redis后置。
+**下一项：** DFS小规模一写两读同步读阶段计时，64MiB/R2、fresh夹具及共同启动屏障；不计三同步或3FS持平。DFS历史本地R1标准按原身份限定复用，不重复当前未变路径；OFF安装恢复35checks及同包复现已过。容器性能数据保留，append/经典锁/watch必要语义缺口单列、bind默认OFF；不重复诊断或微调普通性能。G1历史8/8；G2 10限定完成/2普通性能FAIL/2bind进行中/13待验收。R2官方fuser、Moose强持久及三同步3FS独立阻塞；大规模/长时/复杂可靠性/etcd/Redis后置。
 
 # AFS 三阶段目标与独立验收清单
 
@@ -68,7 +68,7 @@
 | G2.04 | 当前候选OwnerFs pjdfstest | 完整适用项、TAP/排除/版本/挂载身份可复核 | **完成（历史e925 Owner本地）**；e925c5b dev及release各236文件/8819checks/28TODO，0skip/意外失败；[release](evidence/20261006-e2e-current/release-r1/README.md)；[proof](evidence/20261006-e2e-current/r2/owner-pjdfstest-r2/artifacts/std-01-pjdfstest/proof.json) |
 | G2.05 | 当前候选DFS pjdfstest | 独立mount/state、完整适用项与逐项结果 | **完成（历史DFS本地R1；当前限定复用）**；0891cbfe/map6161e25b release：236文件/8819checks/28TODO，0skip/意外失败，正常关闭；[新proof](evidence/20261007-dfs-statfs/runtime-r2/std-01-pjdfstest-full/artifacts/std-01-pjdfstest/proof.json)。e925 ENOSYS/0TAP[原失败](evidence/20261006-e2e-current/r5/README.md)保留，非remote/RN标准资格；[6d差异审计/限定复用](evidence/20261007-standard-reuse/README.md)，非6d实跑 |
 | G2.06 | 当前候选LTP基础子集 | 固定基础文件/权限/锁清单，完整结果账本 | **完成（历史固定6项，版本分列；DFS限定复用）**；Owner e925固定6/6原PASS复用；DFS map6161e25b release固定6/6PASS，0TBROK/TCONF/FAIL/TIMEOUT；651库存未选；[DFS新proof](evidence/20261007-dfs-statfs/runtime-r2/std-02-ltp-smoke6/artifacts/std-02-ltp/proof.json)。旧6TBROK保留；不宣称新ELF Owner已实跑；[DFS限定复用](evidence/20261007-standard-reuse/README.md) |
-| G2.07 | 当前候选FSx短测试 | 固定种子/时长/文件上限，无内容/长度mismatch | **完成（当前短范围）**；e925c5b Owner/DFS均seed1/1000、默认262144字节上限、无mismatch；[Owner](evidence/20261006-e2e-current/r2/owner-fsx-r1/artifacts/std-03-fsx/proof.json)/[DFS](evidence/20261006-e2e-current/r5/dfs-fsx-r1/artifacts/std-03-fsx/proof.json) |
+| G2.07 | 当前候选FSx短测试 | 固定种子/时长/文件上限，无内容/长度mismatch | **历史通过（短范围，限定复用）**；e925c5b Owner/DFS均seed1/1000、默认262144字节上限、无mismatch；[Owner](evidence/20261006-e2e-current/r2/owner-fsx-r1/artifacts/std-03-fsx/proof.json)/[DFS](evidence/20261006-e2e-current/r5/dfs-fsx-r1/artifacts/std-03-fsx/proof.json) |
 | G2.08 | 当前候选基本组合/local-file恢复 | 受改动影响的Home/remote/DFS核心操作、中心重启、错误及正常关闭 | **完成（当前核心组合）**；e925c5b Owner双VM A写B读/B改A读、rename/delete及中心有序恢复；DFS R2一写两读/中心恢复，正常stop/卸载；[34项+关闭核验](evidence/20261006-e2e-current/crossvm-r1/README.md)。非Node崩溃矩阵，不重开G1 |
 | G2.09 | OwnerFs本地小规模读 | 与ext4同条件、内容/EOF正确并达本地目标 | **性能FAIL**；e925c5b 64MiB/C1/5对，功能PASS，dev0.5709/release0.3477×ext4<0.90，摸底数据保留、专项优化暂缓；[证据](evidence/20261006-e2e-current/r4/README.md)，不刷成绩 |
 | G2.10 | OwnerFs本地小规模写 | 相同持久屏障，计open/write/sync/close，读回正确并达标 | **性能FAIL**；e925c5b 64MiB/C1/5对，同fdatasync，功能PASS，dev0.6297/release0.5879×ext4<0.90，摸底数据保留、专项优化暂缓；[证据](evidence/20261006-e2e-current/r4/README.md) |
@@ -77,7 +77,7 @@
 | G2.13 | bind性能验收（独立开关） | 同候选OFF/ON/ext4配对；核心数据读写和元数据接近ext4，内容/语义正确 | **进行中**；[当前6d51aeb小配对诊断](evidence/20261007-container-perf/README.md)：OFF/ON各1预热+5轮，ON写/读耗时1.023/1.031×ext4、六元数据1.048–1.158×ext4；内容/清理通过，缓存/FUSE计数限制及锁/append/watch缺口保留，完整出口未过 |
 | G2.14 | OwnerFs远端小规模读 | 同Home/缓存/接口MooseFS对照，内容正确并持平 | **正式待验收；小数据已留**；6d B-Home/C1/64MiB/1预热5配对，内容PASS，427.371/14854.399MiB/s、配对比0.028803；缓存未观察/旧负载限制，不计持平；Moose客户端wait1清理FAIL保留。[证据](evidence/20261007-owner-remote-small/README.md) |
 | G2.15 | OwnerFs远端小规模写 | 同持久屏障/数据量，跨节点读回正确并持平 | **当前6d小功能/清理PASS、数据已留，正式待验收**；A远端/B-Home，64MiB/1预热5配对，12内容校验+B6fresh全量读、6正常退出PASS；234.630/430.767MiB/s，配对比0.528615。缓存未观察/波动、Moose强持久ACK基线独立BLOCKED，不计持平。[当前证据](evidence/20261007-owner-remote-write-small/README.md) |
-| G2.16 | OwnerFs远端删除 | 跨挂载可见性正确，操作性能对照报告 | **小数据/跨Home正确，完整出口待收口**；6d/100×4KiB/1预热5配对，1039.769/1241.516次/s、配对比0.842255，B600路径不存在；Moose客户端wait1清理FAIL独立保留，不改判据。[证据](evidence/20261007-owner-remote-small/README.md) |
+| G2.16 | OwnerFs远端删除 | 跨挂载可见性正确，操作性能对照报告 | **完成（当前限定小项）**；6d/100×4KiB/1预热5配对，12sample PASS、B600路径ENOENT、6实际wait0；Owner1049.602/Moose1542.929ops/s、配对比0.680266，无硬比例。旧wait1 FAIL保留。[完整证据](evidence/20261007-owner-remote-delete-small/README.md) |
 | G2.17 | OwnerFs本地大规模读 | 8GiB顺序核心case，内容正确并达本地目标 | **待验收** |
 | G2.18 | OwnerFs本地大规模写 | 8GiB同持久屏障，读回正确并达本地目标 | **待验收** |
 | G2.19 | OwnerFs远端大规模读 | 8GiB同条件MooseFS对照，正确并持平 | **待验收** |
@@ -92,7 +92,7 @@
 
 **决策：** native已知append、实际kernel锁、混合mmap/watch、最终namespace/Root/epoch及排空缺口属于G2.12启用前条件，不能延期后冒充通过。OFF版本和普通FUSE性能独立推进；开关不掩盖ON错误，当前不声称已有可用生产开关。
 
-**当前独立出口（2026-10-07）：** 容器配对性能、append偏移及经典锁原语/边界均已留数收口，ON必要语义缺口保留。DFS旧R1标准经审计限定复用，无标准重跑；当前OFF可下载试用、安装恢复及同包复现PASS。Owner远端读写删除、DFS独立一写两读数据已留；下一Owner远端小删除正常收尾出口，再DFS同步读阶段有界测量，不计系统持平或完整性能交付。
+**当前独立出口（2026-10-07）：** G2.16远端小删除正确性、量化报告及正常收尾完成。OFF限定版本可下载/安装恢复/复现通过；DFS旧本地R1标准限定复用。容器配对性能/append/锁边界留数，必要ON语义缺口保留。下一DFS同步读阶段有界测量，系统持平与完整性能交付仍待验收。
 
 **前序顺序（范围保留，当前动作以上述出口为准）：** 当前已启动release切片已测完并正常停止，普通读写未达标数据保留、专项优化暂缓；R1仓库整改验证完成并发布，R2原版fuser公开API缺口独立阻塞。DFS本地R1受影响标准回归已完成；其它标准项按功能范围复用或补齐，不为了性能反复跑标准集。性能优先G2.12容器workspace挂载的必要功能/安全出口→G2.13性能。其它核心性能按独立摸底项保留数据，不无限优化；大规模/复杂可靠性/后端仍后置。
 

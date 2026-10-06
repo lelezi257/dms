@@ -1,0 +1,8 @@
+{
+  "status": "PASS_CAPACITY_BOUND_AFTER_DELETE",
+  "tree_bytes_without_mounts": 96293877,
+  "allocated_bytes_without_mounts": 60710912,
+  "budget_bytes": 1073741824,
+  "free_bytes": 17726328832,
+  "floor_bytes": 4294967296
+}

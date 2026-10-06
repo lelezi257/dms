@@ -1,0 +1,13 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "afs-accept-a",
+    "sudo",
+    "/opt/afs-moose-round3-v85/bin/mfssetsclass",
+    "owner-remote-delete-1CP-20261007-r1",
+    "/mnt/lima-afsadata/afs-delivery/owner-remote-delete-6d-bhome-20261007-r1/mount/moose/small-delete-r1"
+  ],
+  "exit": 0,
+  "state": "TERMINAL"
+}

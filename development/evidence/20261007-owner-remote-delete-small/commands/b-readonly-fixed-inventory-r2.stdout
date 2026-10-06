@@ -1,0 +1,214 @@
+{
+  "status": "PASS_READONLY_FIXED_PAYLOAD_INVENTORY",
+  "role": "b",
+  "uname": [
+    "Linux",
+    "lima-afs-accept-b",
+    "6.8.0-142-generic",
+    "#142-Ubuntu SMP PREEMPT_DYNAMIC Wed Sep  2 14:30:29 UTC 2026",
+    "aarch64"
+  ],
+  "elfs": {
+    "/mnt/lima-afsbdata/afs-delivery/owner-remote-write-6d-bhome-20261007-r1/prefix/bin/afs-node": {
+      "resolved": "/mnt/lima-afsbdata/afs-delivery/owner-remote-write-6d-bhome-20261007-r1/prefix/bin/afs-node",
+      "sha256": "2cf1f538fe7af332a711f3c66a074ace140c00773826a182709a6445b8ae2645",
+      "dev": 64785,
+      "ino": 1315168,
+      "bytes": 25880120
+    },
+    "/mnt/lima-afsbdata/afs-delivery/owner-remote-write-6d-bhome-20261007-r1/prefix/bin/afs-processctl": {
+      "resolved": "/mnt/lima-afsbdata/afs-delivery/owner-remote-write-6d-bhome-20261007-r1/prefix/bin/afs-processctl",
+      "sha256": "1ea10552180c917da2c598bee9dd8fecee7be26ae9d70dcdcba2e4829150d896",
+      "dev": 64785,
+      "ino": 1315169,
+      "bytes": 27095
+    },
+    "/opt/afs-moose-round3-v85/sbin/mfsmaster": {
+      "resolved": "/opt/afs-moose-round3-v85/sbin/mfsmaster",
+      "sha256": "9febf4e7a9ae5285c4e792024f98d8a5531ae325f19268e103693981be509b70",
+      "dev": 64769,
+      "ino": 277276,
+      "bytes": 4119248
+    },
+    "/opt/afs-moose-round3-v85/sbin/mfschunkserver": {
+      "resolved": "/opt/afs-moose-round3-v85/sbin/mfschunkserver",
+      "sha256": "422a36b7e31a6aa0bfbef08efe083d9d55003aca0a9a7bd0121b730c33f97303",
+      "dev": 64769,
+      "ino": 277273,
+      "bytes": 2409944
+    },
+    "/opt/afs-moose-round3-v85/bin/mfsmount": {
+      "resolved": "/opt/afs-moose-round3-v85/bin/mfsmount",
+      "sha256": "5752f91e2d174cc8a0a53df7b3713b3bed31fde5fe72a6f38cd86237ae3ebc37",
+      "dev": 64769,
+      "ino": 277256,
+      "bytes": 3070208
+    },
+    "/opt/afs-moose-round3-v85/bin/mfscli": {
+      "resolved": "/opt/afs-moose-round3-v85/bin/mfscli",
+      "sha256": "247194b8e45c6cbd7bf0ae95f9e5b709ee0f08e669739e4ffef46c7659ec09df",
+      "dev": 64769,
+      "ino": 277207,
+      "bytes": 305516
+    }
+  },
+  "dependencies": {
+    "python3": {
+      "path": "/usr/bin/python3",
+      "resolved": "/usr/bin/python3.12",
+      "sha256": "c86f21d0da9290ece2d7d49a3f7ed52aed59cb029abdf0ea25c79634f6cbe960",
+      "dev": 64769,
+      "ino": 8165
+    },
+    "openssl": {
+      "path": "/usr/bin/openssl",
+      "resolved": "/usr/bin/openssl",
+      "sha256": "a2044013d30169104887d7823bf7a0a1d443eafc34d7501876e22da532f24f0e",
+      "dev": 64769,
+      "ino": 7912
+    },
+    "findmnt": {
+      "path": "/usr/bin/findmnt",
+      "resolved": "/usr/bin/findmnt",
+      "sha256": "0ce223f42a582d43fc2a43b6aa23cada2da2b3b8f69906b2c3c939c0336d9055",
+      "dev": 64769,
+      "ino": 1933
+    },
+    "tar": {
+      "path": "/usr/bin/tar",
+      "resolved": "/usr/bin/tar",
+      "sha256": "867ff0dfd2d702cfebcff6a64eee5835c928fe359b9deced92e442211362d16d",
+      "dev": 64769,
+      "ino": 1876
+    },
+    "sha256sum": {
+      "path": "/usr/bin/sha256sum",
+      "resolved": "/usr/bin/sha256sum",
+      "sha256": "f3d040161f5c29e4c7cd4e3d6bb513ce9a43b9d1bd06f456a6aab3d34d0f1e33",
+      "dev": 64769,
+      "ino": 2004
+    },
+    "timeout": {
+      "path": "/usr/bin/timeout",
+      "resolved": "/usr/bin/timeout",
+      "sha256": "2db30bc57746c940a0643581cd5e2671e505442bea16164143f0ea8ff4e36453",
+      "dev": 64769,
+      "ino": 2021
+    },
+    "ldd": {
+      "path": "/usr/bin/ldd",
+      "resolved": "/usr/bin/ldd",
+      "sha256": "a241b34559d0bf762359bdc120babccab6873b8e97b0fae206523fac30126f1e",
+      "dev": 64769,
+      "ino": 1925
+    },
+    "curl": {
+      "path": "/usr/bin/curl",
+      "resolved": "/usr/bin/curl",
+      "sha256": "896ed131e2e7f2f761ae144dd71cd8a12c6eaa0f9610c5582d265c34b81d8e7c",
+      "dev": 64769,
+      "ino": 88392
+    },
+    "ss": {
+      "path": "/usr/bin/ss",
+      "resolved": "/usr/bin/ss",
+      "sha256": "b80cfa2fefe769074de4099676819f83a0186bc17a0acf198252b4d63d99470f",
+      "dev": 64769,
+      "ino": 8903
+    },
+    "ip": {
+      "path": "/usr/sbin/ip",
+      "resolved": "/usr/bin/ip",
+      "sha256": "4430e2386b96f3614a14f5ef4b07b7547de95ede97d501bad2d0e381defcbb90",
+      "dev": 64769,
+      "ino": 8902
+    }
+  },
+  "commands": [
+    {
+      "argv": [
+        "uname",
+        "-a"
+      ],
+      "stdout": "Linux lima-afs-accept-b 6.8.0-142-generic #142-Ubuntu SMP PREEMPT_DYNAMIC Wed Sep  2 14:30:29 UTC 2026 aarch64 aarch64 aarch64 GNU/Linux\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "argv": [
+        "findmnt",
+        "-J",
+        "-o",
+        "TARGET,SOURCE,FSTYPE,ID,OPTIONS"
+      ],
+      "stdout": "{\n   \"filesystems\": [\n      {\n         \"target\": \"/\",\n         \"source\": \"/dev/vda1\",\n         \"fstype\": \"ext4\",\n         \"id\": 32,\n         \"options\": \"rw,relatime,discard,errors=remount-ro,commit=30\",\n         \"children\": [\n            {\n               \"target\": \"/sys\",\n               \"source\": \"sysfs\",\n               \"fstype\": \"sysfs\",\n               \"id\": 26,\n               \"options\": \"rw,nosuid,nodev,noexec,relatime\",\n               \"children\": [\n                  {\n                     \"target\": \"/sys/firmware/efi/efivars\",\n                     \"source\": \"efivarfs\",\n                     \"fstype\": \"efivarfs\",\n                     \"id\": 31,\n                     \"options\": \"rw,nosuid,nodev,noexec,relatime\"\n                  },{\n                     \"target\": \"/sys/kernel/security\",\n                     \"source\": \"securityfs\",\n                     \"fstype\": \"securityfs\",\n                     \"id\": 33,\n                     \"options\": \"rw,nosuid,nodev,noexec,relatime\"\n                  },{\n                     \"target\": \"/sys/fs/cgroup\",\n                     \"source\": \"cgroup2\",\n                     \"fstype\": \"cgroup2\",\n                     \"id\": 36,\n                     \"options\": \"rw,nosuid,nodev,noexec,relatime,nsdelegate,memory_recursiveprot\"\n                  },{\n                     \"target\": \"/sys/fs/pstore\",\n                     \"source\": \"pstore\",\n                     \"fstype\": \"pstore\",\n                     \"id\": 37,\n                     \"options\": \"rw,nosuid,nodev,noexec,relatime\"\n                  },{\n                     \"target\": \"/sys/fs/bpf\",\n                     \"source\": \"bpf\",\n                     \"fstype\": \"bpf\",\n                     \"id\": 38,\n                     \"options\": \"rw,nosuid,nodev,noexec,relatime,mode=700\"\n                  },{\n                     \"target\": \"/sys/kernel/debug\",\n                     \"source\": \"debugfs\",\n                     \"fstype\": \"debugfs\",\n                     \"id\": 42,\n                     \"options\": \"rw,nosuid,nodev,noexec,relatime\",\n                     \"children\": [\n                        {\n                           \"target\": \"/sys/kernel/debug/tracing\",\n                           \"source\": \"tracefs\",\n                           \"fstype\": \"tracefs\",\n                           \"id\": 129,\n                           \"options\": \"rw,nosuid,nodev,noexec,relatime\"\n                        }\n                     ]\n                  },{\n                     \"target\": \"/sys/kernel/tracing\",\n                     \"source\": \"tracefs\",\n                     \"fstype\": \"tracefs\",\n                     \"id\": 43,\n                     \"options\": \"rw,nosuid,nodev,noexec,relatime\"\n                  },{\n                     \"target\": \"/sys/fs/fuse/connections\",\n                     \"source\": \"fusectl\",\n                     \"fstype\": \"fusectl\",\n                     \"id\": 44,\n                     \"options\": \"rw,nosuid,nodev,noexec,relatime\"\n                  },{\n                     \"target\": \"/sys/kernel/config\",\n                     \"source\": \"configfs\",\n                     \"fstype\": \"configfs\",\n                     \"id\": 45,\n                     \"options\": \"rw,nosuid,nodev,noexec,relatime\"\n                  }\n               ]\n            },{\n               \"target\": \"/proc\",\n               \"source\": \"proc\",\n               \"fstype\": \"proc\",\n               \"id\": 27,\n               \"options\": \"rw,nosuid,nodev,noexec,relatime\",\n               \"children\": [\n                  {\n                     \"target\": \"/proc/sys/fs/binfmt_misc\",\n                     \"source\": \"systemd-1\",\n                     \"fstype\": \"autofs\",\n                     \"id\": 39,\n                     \"options\": \"rw,relatime,fd=32,pgrp=1,timeout=0,minproto=5,maxproto=5,direct,pipe_ino=5198\",\n                     \"children\": [\n                        {\n                           \"target\": \"/proc/sys/fs/binfmt_misc\",\n                           \"source\": \"binfmt_misc\",\n                           \"fstype\": \"binfmt_misc\",\n                           \"id\": 51,\n                           \"options\": \"rw,nosuid,nodev,noexec,relatime\"\n                        }\n                     ]\n                  }\n               ]\n            },{\n               \"target\": \"/dev\",\n               \"source\": \"udev\",\n               \"fstype\": \"devtmpfs\",\n               \"id\": 28,\n               \"options\": \"rw,nosuid,relatime,size=2974872k,nr_inodes=743718,mode=755,inode64\",\n               \"children\": [\n                  {\n                     \"target\": \"/dev/pts\",\n                     \"source\": \"devpts\",\n                     \"fstype\": \"devpts\",\n                     \"id\": 29,\n                     \"options\": \"rw,nosuid,noexec,relatime,gid=5,mode=620,ptmxmode=000\"\n                  },{\n                     \"target\": \"/dev/shm\",\n                     \"source\": \"tmpfs\",\n                     \"fstype\": \"tmpfs\",\n                     \"id\": 34,\n                     \"options\": \"rw,nosuid,nodev,inode64\"\n                  },{\n                     \"target\": \"/dev/hugepages\",\n                     \"source\": \"hugetlbfs\",\n                     \"fstype\": \"hugetlbfs\",\n                     \"id\": 40,\n                     \"options\": \"rw,nosuid,nodev,relatime,pagesize=2M\"\n                  },{\n                     \"target\": \"/dev/mqueue\",\n                     \"source\": \"mqueue\",\n                     \"fstype\": \"mqueue\",\n                     \"id\": 41,\n                     \"options\": \"rw,nosuid,nodev,noexec,relatime\"\n                  }\n               ]\n            },{\n               \"target\": \"/run\",\n               \"source\": \"tmpfs\",\n               \"fstype\": \"tmpfs\",\n               \"id\": 30,\n               \"options\": \"rw,nosuid,nodev,noexec,relatime,size=605372k,mode=755,inode64\",\n               \"children\": [\n                  {\n                     \"target\": \"/run/lock\",\n                     \"source\": \"tmpfs\",\n                     \"fstype\": \"tmpfs\",\n                     \"id\": 35,\n                     \"options\": \"rw,nosuid,nodev,noexec,relatime,size=5120k,inode64\"\n                  },{\n                     \"target\": \"/run/user/501\",\n                     \"source\": \"tmpfs\",\n                     \"fstype\": \"tmpfs\",\n                     \"id\": 58,\n                     \"options\": \"rw,nosuid,nodev,relatime,size=605368k,nr_inodes=151342,mode=700,uid=501,gid=1000,inode64\"\n                  }\n               ]\n            },{\n               \"target\": \"/boot\",\n               \"source\": \"/dev/vda16\",\n               \"fstype\": \"ext4\",\n               \"id\": 47,\n               \"options\": \"rw,relatime\",\n               \"children\": [\n                  {\n                     \"target\": \"/boot/efi\",\n                     \"source\": \"/dev/vda15\",\n                     \"fstype\": \"vfat\",\n                     \"id\": 49,\n                     \"options\": \"rw,relatime,fmask=0077,dmask=0077,codepage=437,iocharset=iso8859-1,shortname=mixed,errors=remount-ro\"\n                  }\n               ]\n            },{\n               \"target\": \"/mnt/lima-cidata\",\n               \"source\": \"/dev/vdc\",\n               \"fstype\": \"iso9660\",\n               \"id\": 91,\n               \"options\": \"ro,relatime,nojoliet,overriderockperm,check=s,map=n,blocksize=2048,uid=0,dmode=700,fmode=700,iocharset=utf8\"\n            },{\n               \"target\": \"/mnt/lima-afsbdata\",\n               \"source\": \"/dev/vdb1\",\n               \"fstype\": \"ext4\",\n               \"id\": 100,\n               \"options\": \"rw,relatime\"\n            }\n         ]\n      }\n   ]\n}\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "argv": [
+        "ss",
+        "-ltnp"
+      ],
+      "stdout": "State  Recv-Q Send-Q Local Address:Port Peer Address:PortProcess                                                 \nLISTEN 0      4096         0.0.0.0:22        0.0.0.0:*    users:((\"sshd\",pid=1147,fd=3),(\"systemd\",pid=1,fd=173))\nLISTEN 0      4096   127.0.0.53%lo:53        0.0.0.0:*    users:((\"systemd-resolve\",pid=463,fd=17))              \nLISTEN 0      4096      127.0.0.54:53        0.0.0.0:*    users:((\"systemd-resolve\",pid=463,fd=19))              \nLISTEN 0      4096            [::]:22           [::]:*    users:((\"sshd\",pid=1147,fd=4),(\"systemd\",pid=1,fd=174))\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "argv": [
+        "python3",
+        "--version"
+      ],
+      "stdout": "Python 3.12.3\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "argv": [
+        "openssl",
+        "version"
+      ],
+      "stdout": "OpenSSL 3.0.13 30 Jan 2024 (Library: OpenSSL 3.0.13 30 Jan 2024)\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "argv": [
+        "ldd",
+        "/mnt/lima-afsbdata/afs-delivery/owner-remote-write-6d-bhome-20261007-r1/prefix/bin/afs-node"
+      ],
+      "stdout": "\tlinux-vdso.so.1 (0x0000ef3b3e99d000)\n\tlibibverbs.so.1 => /lib/aarch64-linux-gnu/libibverbs.so.1 (0x0000ef3b3d7c0000)\n\tlibgcc_s.so.1 => /lib/aarch64-linux-gnu/libgcc_s.so.1 (0x0000ef3b3d780000)\n\tlibm.so.6 => /lib/aarch64-linux-gnu/libm.so.6 (0x0000ef3b3d6d0000)\n\tlibc.so.6 => /lib/aarch64-linux-gnu/libc.so.6 (0x0000ef3b3d510000)\n\t/lib/ld-linux-aarch64.so.1 (0x0000ef3b3e960000)\n\tlibnl-route-3.so.200 => /lib/aarch64-linux-gnu/libnl-route-3.so.200 (0x0000ef3b3d460000)\n\tlibnl-3.so.200 => /lib/aarch64-linux-gnu/libnl-3.so.200 (0x0000ef3b3d410000)\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "argv": [
+        "ldd",
+        "/opt/afs-moose-round3-v85/sbin/mfsmaster"
+      ],
+      "stdout": "\tlinux-vdso.so.1 (0x0000efdad10b0000)\n\tlibz.so.1 => /lib/aarch64-linux-gnu/libz.so.1 (0x0000efdacff00000)\n\tlibc.so.6 => /lib/aarch64-linux-gnu/libc.so.6 (0x0000efdacfd40000)\n\t/lib/ld-linux-aarch64.so.1 (0x0000efdad1060000)\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "argv": [
+        "ldd",
+        "/opt/afs-moose-round3-v85/sbin/mfschunkserver"
+      ],
+      "stdout": "\tlinux-vdso.so.1 (0x0000e45e5330e000)\n\tlibz.so.1 => /lib/aarch64-linux-gnu/libz.so.1 (0x0000e45e4b130000)\n\tlibc.so.6 => /lib/aarch64-linux-gnu/libc.so.6 (0x0000e45e4af70000)\n\t/lib/ld-linux-aarch64.so.1 (0x0000e45e532c0000)\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "argv": [
+        "ldd",
+        "/opt/afs-moose-round3-v85/bin/mfsmount"
+      ],
+      "stdout": "\tlinux-vdso.so.1 (0x0000f01f7459d000)\n\tlibfuse3.so.3 => /lib/aarch64-linux-gnu/libfuse3.so.3 (0x0000f01f73300000)\n\tlibc.so.6 => /lib/aarch64-linux-gnu/libc.so.6 (0x0000f01f73140000)\n\t/lib/ld-linux-aarch64.so.1 (0x0000f01f74560000)\n",
+      "stderr": "",
+      "returncode": 0
+    }
+  ],
+  "cpu_online": 2,
+  "meminfo": "MemTotal:        6053712 kB\nMemFree:          259032 kB\nMemAvailable:    5596760 kB\nBuffers:          136768 kB\nCached:          5128780 kB\nSwapCached:            0 kB\nActive:          2175224 kB\nInactive:        3181484 kB\nActive(anon):      81348 kB\nInactive(anon):    18272 kB\nActive(file):    2093876 kB\nInactive(file):  3163212 kB\nUnevictable:       26228 kB\nMlocked:           26228 kB\nSwapTotal:             0 kB\nSwapFree:              0 kB\nZswap:                 0 kB\nZswapped:              0 kB\nDirty:               224 kB\nWriteback:             0 kB\nAnonPages:        117396 kB\nMapped:            76764 kB\nShmem:              1016 kB\nKReclaimable:     275500 kB\nSlab:             356420 kB\nSReclaimable:     275500 kB\nSUnreclaim:        80920 kB\nKernelStack:        2344 kB\nShadowCallStack:     608 kB\nPageTables:         2604 kB\nSecPageTables:         0 kB\nNFS_Unstable:          0 kB\nBounce:                0 kB\nWritebackTmp:          0 kB\nCommitLimit:     3026856 kB\nCommitted_AS:     406388 kB\nVmallocTotal:   133141626880 kB\nVmallocUsed:       16368 kB\nVmallocChunk:          0 kB\nPercpu:             1560 kB\nHardwareCorrupted:     0 kB\nAnonHugePages:         0 kB\nShmemHugePages:        0 kB\nShmemPmdMapped:        0 kB\nFileHugePages:         0 kB\nFilePmdMapped:         0 kB\nCmaTotal:          32768 kB\nCmaFree:               0 kB\nHugePages_Total:       0\nHugePages_Free:        0\nHugePages_Rsvd:        0\nHugePages_Surp:        0\nHugepagesize:       2048 kB\nHugetlb:               0 kB\n"
+}

@@ -1,0 +1,17 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "afs-accept-ctl",
+    "sudo",
+    "python3",
+    "-c",
+    "import os,sys,json,subprocess,hashlib,shutil\nfrom pathlib import Path\nrole,volume,old,expected=sys.argv[1:5];expected=json.loads(expected);prefix=Path(volume)/'afs-delivery'/old/'prefix/bin';records=[]\ndef run(argv,allowed=(0,)):\n p=subprocess.run(argv,text=True,capture_output=True,timeout=15);r={'argv':argv,'stdout':p.stdout,'stderr':p.stderr,'returncode':p.returncode};records.append(r);assert p.returncode in allowed,r;return p.stdout\nrun(['uname','-a']);run(['findmnt','-J','-o','TARGET,SOURCE,FSTYPE,ID,OPTIONS']);run(['ss','-ltnp']);run(['python3','--version']);run(['openssl','version'])\nelfs={}\nfor relative,want in expected.items():\n p=prefix/relative if not relative.startswith('/opt/') else Path(relative)\n resolved=p.resolve(strict=True);digest=hashlib.sha256(resolved.read_bytes()).hexdigest();st=resolved.stat();assert digest==want,(str(p),digest,want);run(['ldd',str(p)])\n elfs[str(p)]={'resolved':str(resolved),'sha256':digest,'dev':st.st_dev,'ino':st.st_ino,'bytes':st.st_size}\ndeps={}\nfor tool in ['python3','openssl','findmnt','tar','sha256sum','timeout','ldd','curl','ss','ip']+(['fusermount3'] if role=='a' else []):\n p=shutil.which(tool);assert p,tool;f=Path(p).resolve(strict=True);st=f.stat();deps[tool]={'path':p,'resolved':str(f),'sha256':hashlib.sha256(f.read_bytes()).hexdigest(),'dev':st.st_dev,'ino':st.st_ino}\nprint(json.dumps({'status':'PASS_READONLY_FIXED_PAYLOAD_INVENTORY','role':role,'uname':os.uname()._asdict() if hasattr(os.uname(),'_asdict') else list(os.uname()),'elfs':elfs,'dependencies':deps,'commands':records,'cpu_online':os.cpu_count(),'meminfo':Path('/proc/meminfo').read_text()},indent=2))",
+    "ctl",
+    "/mnt/lima-afsctlstate",
+    "owner-remote-write-6d-bhome-20261007-r1",
+    "{\"afs-meta\": \"2c7b7d088b759e3b9375080002182aa484a424b4fa216da1fb79a1004e96168e\", \"afs-processctl\": \"1ea10552180c917da2c598bee9dd8fecee7be26ae9d70dcdcba2e4829150d896\", \"afs-trial-config\": \"c47783f9525826d4a0e137499bb1a779f94b3474c7355dd53aec0e615b98889b\", \"/opt/afs-moose-round3-v85/sbin/mfsmaster\": \"9febf4e7a9ae5285c4e792024f98d8a5531ae325f19268e103693981be509b70\", \"/opt/afs-moose-round3-v85/sbin/mfschunkserver\": \"422a36b7e31a6aa0bfbef08efe083d9d55003aca0a9a7bd0121b730c33f97303\", \"/opt/afs-moose-round3-v85/bin/mfsmount\": \"5752f91e2d174cc8a0a53df7b3713b3bed31fde5fe72a6f38cd86237ae3ebc37\", \"/opt/afs-moose-round3-v85/bin/mfscli\": \"247194b8e45c6cbd7bf0ae95f9e5b709ee0f08e669739e4ffef46c7659ec09df\"}"
+  ],
+  "exit": 1,
+  "state": "TERMINAL"
+}

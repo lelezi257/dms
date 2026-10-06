@@ -1,0 +1,21 @@
+{
+  "role": "a",
+  "fixture": "owner-remote-delete-6d-bhome-20261007-r1",
+  "root": "/mnt/lima-afsadata/afs-delivery/owner-remote-delete-6d-bhome-20261007-r1",
+  "argv": [
+    "/opt/afs-moose-round3-v85/bin/mfsmount",
+    "-f",
+    "-H",
+    "192.168.109.11",
+    "-P",
+    "23642",
+    "-o",
+    "allow_other,mfsnice=0,mfscachemode=AUTO,mfstimeout=30",
+    "/mnt/lima-afsadata/afs-delivery/owner-remote-delete-6d-bhome-20261007-r1/mount/moose"
+  ],
+  "config_sha256": {
+    "/mnt/lima-afsadata/afs-delivery/owner-remote-delete-6d-bhome-20261007-r1/etc/node.toml": "376b4048b4accde787d5674e9ff59f5a922a3b58cb4902e939892f75e44b0fb6"
+  },
+  "script_sha256": "cd0c1616a788460f8b6e30c3fb94127adecbd06cb937575b7a8da0685269ad8c",
+  "boot_id": "36a572e0-859b-4a94-adc7-789210a83fc8"
+}

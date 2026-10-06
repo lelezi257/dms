@@ -1,0 +1,8 @@
+{
+  "role": "a",
+  "root": "/mnt/lima-afsadata/afs-delivery/owner-remote-delete-6d-bhome-20261007-r1",
+  "config_sha256": {
+    "/mnt/lima-afsadata/afs-delivery/owner-remote-delete-6d-bhome-20261007-r1/etc/node.toml": "376b4048b4accde787d5674e9ff59f5a922a3b58cb4902e939892f75e44b0fb6"
+  },
+  "original_sha256": "749edba74aef532a895d9bcaf906b8f91993994de36130c6d04f41a4dd9723be"
+}

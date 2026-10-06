@@ -1,0 +1,131 @@
+{
+  "scope": "Owner remote small DELETE only; operational closure verified, parent owns formal acceptance and portable packet",
+  "fixture": "owner-remote-delete-6d-bhome-20261007-r1",
+  "source_commit": "6d51aeb45c1ed8669d80f612b3817e6d1bdabe04",
+  "source_inputs": 157,
+  "source_map_prefix": "66dbbe3e",
+  "candidate_meta_sha256": "2c7b7d088b759e3b9375080002182aa484a424b4fa216da1fb79a1004e96168e",
+  "candidate_node_sha256": "2cf1f538fe7af332a711f3c66a074ace140c00773826a182709a6445b8ae2645",
+  "results": "12/12 samples PASS; one warmup plus five alternating paired measurements; 100 x 4KiB files each",
+  "quantitative_artifact": "delete-quantitative-r1.json",
+  "timer_scope": "100 unlink calls only; preparation fdatasync/fresh-open verification/post-unlink parent fsync excluded",
+  "cache_state": "UNOBSERVED",
+  "strong_durable_write_qualification_required": false,
+  "b_600_absence_artifact": "commands/b-600-owner-paths-absent.stdout",
+  "normal_exit_artifacts": {
+    "ctl": "commands/ctl-independent-postcheck-r2.stdout",
+    "a": "commands/a-independent-postcheck-r2.stdout",
+    "b": "commands/b-independent-postcheck-r2.stdout"
+  },
+  "fixture_postchecks": {
+    "ctl": "commands/ctl-fixture-postcheck.stdout",
+    "a": "commands/a-fixture-postcheck.stdout",
+    "b": "commands/b-fixture-postcheck.stdout"
+  },
+  "services": {
+    "ctl": {
+      "afs_pid": "1683006",
+      "afs_actual_wait_exit": 0,
+      "moose_pid": 1683131,
+      "moose_actual_wait_exit": 0,
+      "owned_alive": [],
+      "mounts_under_root": []
+    },
+    "a": {
+      "afs_pid": "850076",
+      "afs_actual_wait_exit": 0,
+      "moose_pid": 850231,
+      "moose_actual_wait_exit": 0,
+      "owned_alive": [],
+      "mounts_under_root": []
+    },
+    "b": {
+      "afs_pid": "240245",
+      "afs_actual_wait_exit": 0,
+      "moose_pid": 240397,
+      "moose_actual_wait_exit": 0,
+      "owned_alive": [],
+      "mounts_under_root": []
+    }
+  },
+  "old_cohort": {
+    "ctl": {
+      "same_process_pids": [
+        1136874,
+        1418880
+      ],
+      "same_exact_mounts": []
+    },
+    "a": {
+      "same_process_pids": [
+        706366,
+        707560,
+        722421,
+        723627,
+        724361,
+        727122,
+        729413
+      ],
+      "same_exact_mounts": [
+        {
+          "target": "/mnt/lima-afsadata/afs-delivery/p2-shutdown-v47/mount-ownerfs",
+          "source": "afs-ownerfs",
+          "fstype": "fuse",
+          "id": 84,
+          "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+        },
+        {
+          "target": "/mnt/lima-afsadata/afs-delivery/p2-shutdown-v47/mount-dfs",
+          "source": "afs-dfs",
+          "fstype": "fuse",
+          "id": 163,
+          "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+        }
+      ]
+    },
+    "b": {
+      "same_process_pids": [],
+      "same_exact_mounts": []
+    }
+  },
+  "known_gaps": [
+    "No full performance gate, cache residency, strong durable write qualification, crash recovery or remote read/write rerun asserted.",
+    "Moose class policy/topology prove configured one-copy sole B chunk placement; transient per-file physical copy count was not observed before timed deletion."
+  ],
+  "collector_failures_retained": [
+    {
+      "raw": "commands/ctl-readonly-fixed-inventory.stderr",
+      "reason": "collector incorrectly ran ldd on official shell processctl; corrected ELF-only inventory r2 PASS"
+    },
+    {
+      "raw": "commands/{ctl,a,b}-create-owned-root.stderr",
+      "reason": "host collector omitted mkdir root before mkdir stage; no guest root was created; fresh r2 PASS"
+    },
+    {
+      "raw": "commands/b-home-backing-before-delete.stderr",
+      "reason": "collector guessed workspace-named physical directory; correct Meta root-id/epoch mapping r2 PASS"
+    }
+  ],
+  "host_orchestration": {
+    "/var/tmp/afs-owner-delete-export.py": "869a103dc9b66331217403ac1ef50888f8149ffdd6ecdad0c91368715e0835fc",
+    "/var/tmp/afs-owner-delete-build.py": "a47d8f0f1dc6cdd7619191a652127f3c5c01f441acc9897808a4c5e6febd47fa",
+    "/var/tmp/afs-owner-delete-backing-inventory.py": "5d2b50dcb3a40efe589e311ceced104ec0f0c70ca35fc7677701ca9ff5986303",
+    "/var/tmp/afs-owner-delete-final.py": "e33600098af27e802222e5cd9c2d121e9e4fba1fc15c5edc0c44702490f9e549",
+    "/var/tmp/afs-owner-delete-deploy-r2.py": "8c655aab036850e021aa60c39fe38da69e38a9c06856fcc67818d5381556f75b",
+    "/var/tmp/afs-owner-delete-check.py": "14cc01fe8e4f9bdd775db2821d59e85256f8f5870711ced305b04d5347f6dc4d",
+    "/var/tmp/afs-owner-delete-case.py": "6e16ed7ee3e404fd1c96b372cb1d688266b99b83dbacf54b893a8acb7dc3c790",
+    "/var/tmp/afs-owner-delete-config.py": "a3368999d21dd39ead4c3f26f961d0dcbfe7875ce20d7eac1566cd3c87e9ce3b",
+    "/var/tmp/afs-owner-delete-deploy.py": "5a15e09f3a54b346f339842cf6a606210d96002167bb4f074adf9a023c5b4a05",
+    "/var/tmp/afs-owner-delete-old-mount-check.py": "27b0755db4013a498e5d8e309ae2b2d8fe304c312497e56c4d2a992fc1b01e13",
+    "/var/tmp/afs-owner-delete-preflight.py": "b6b854561b02727571700a3796d959eaac5c87de8b1b2e5d4cc61fa2ea57d0d2",
+    "/var/tmp/afs-owner-delete-start.py": "9089f8a9a3ec9c5ac363938f6adac7b063585c2773c79e5e267892a050d641c1",
+    "/var/tmp/afs-owner-delete-inventory.py": "f4b61bdd830c148d4c1df48e91711068b38f872be08e4e67799ab3b2aa247c0f",
+    "/var/tmp/afs-owner-delete-postcheck-r2.py": "1da1f7ea9b19c8c7f0a8dc6d30b356f93d4168db553589df8474a2360364ae1f",
+    "/var/tmp/afs-owner-delete-proof.py": "f57333022949ce907e3f214b8c1d99cb0a1656c342d3cac7b3512d738b6f77a8",
+    "/var/tmp/afs-owner-delete-stop.py": "5ddf981e704ac661b93aa25d86cad5cc47fb69d7640fcc5a2df8f9b92b8c6584",
+    "/var/tmp/afs-owner-delete-run-r1.py": "e5f710ba70ed1fb5b0b6195bcf6a739f885e9d5fd1b844b851e303be2e8419a2",
+    "/var/tmp/afs-owner-delete-controller.py": "21efa589281f9729cb6fec5f6eb830dd84f35f0083d4ed7f4e15511ec83e7f2b"
+  },
+  "guest_export": "guest/{ctl,a,b}/ run, logs, config, etc TOML, evidence, results text only; no source tool copies",
+  "sensitive_local_transport_artifacts": "*-config.tar contain private TLS keys; do not publish or include in packet. Deployment/export tars are transports; use extracted guest text plus command raw/index."
+}

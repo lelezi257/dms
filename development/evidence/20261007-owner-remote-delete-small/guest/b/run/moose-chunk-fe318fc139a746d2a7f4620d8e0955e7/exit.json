@@ -1,0 +1,38 @@
+{
+  "role": "b",
+  "fixture": "owner-remote-delete-6d-bhome-20261007-r1",
+  "root": "/mnt/lima-afsbdata/afs-delivery/owner-remote-delete-6d-bhome-20261007-r1",
+  "pid": 240397,
+  "supervisor_pid": 240396,
+  "exit_code": 0,
+  "identity": {
+    "role": "b",
+    "fixture": "owner-remote-delete-6d-bhome-20261007-r1",
+    "root": "/mnt/lima-afsbdata/afs-delivery/owner-remote-delete-6d-bhome-20261007-r1",
+    "argv": [
+      "/opt/afs-moose-round3-v85/sbin/mfschunkserver",
+      "-f",
+      "-c",
+      "/mnt/lima-afsbdata/afs-delivery/owner-remote-delete-6d-bhome-20261007-r1/config/mfschunkserver.cfg",
+      "start"
+    ],
+    "config_sha256": {
+      "/mnt/lima-afsbdata/afs-delivery/owner-remote-delete-6d-bhome-20261007-r1/etc/node.toml": "5b91cda666fc3129c0f11b2767bb32935e4a3e429601f90c077722a75896f25a",
+      "/mnt/lima-afsbdata/afs-delivery/owner-remote-delete-6d-bhome-20261007-r1/config/mfschunkserver.cfg": "c8cdcd8b05875ca1f8fc40217e0c7a7ef0fd5cc34136b0265f86c679cbc79623",
+      "/mnt/lima-afsbdata/afs-delivery/owner-remote-delete-6d-bhome-20261007-r1/config/mfshdd.cfg": "5c001a58d46cfa87e5414ba148b746d7e0851ed95003946e86121d11c47ee347"
+    },
+    "script_sha256": "cd0c1616a788460f8b6e30c3fb94127adecbd06cb937575b7a8da0685269ad8c",
+    "boot_id": "3adebcd0-cb31-4df0-b18a-e970786ab7fb",
+    "state": "R",
+    "start_ticks": 56813902,
+    "exe_path": "/opt/afs-moose-round3-v85/sbin/mfschunkserver",
+    "exe_dev": 64769,
+    "exe_inode": 277273,
+    "pid": 240397,
+    "supervisor_pid": 240396,
+    "exe_sha256": "422a36b7e31a6aa0bfbef08efe083d9d55003aca0a9a7bd0121b730c33f97303"
+  },
+  "identity_error": null,
+  "wait_completed": true,
+  "time_unix_ns": 1791328541348048336
+}

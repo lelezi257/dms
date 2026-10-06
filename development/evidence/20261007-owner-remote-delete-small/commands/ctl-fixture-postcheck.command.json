@@ -1,0 +1,16 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "afs-accept-ctl",
+    "sudo",
+    "python3",
+    "/mnt/lima-afsctlstate/afs-delivery/owner-remote-delete-6d-bhome-20261007-r1/tools/owner_remote_fixture.py",
+    "postcheck",
+    "ctl",
+    "--fixture",
+    "owner-remote-delete-6d-bhome-20261007-r1"
+  ],
+  "exit": 0,
+  "state": "TERMINAL"
+}

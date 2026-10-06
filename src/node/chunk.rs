@@ -25,9 +25,12 @@ use std::os::unix::fs::FileExt;
 
 #[cfg(test)]
 use crate::dfs::ReplicaGroupId;
-use crate::dfs::{
-    ChunkEncoding, ChunkId, ChunkObject, ChunkReceipt, ContentDigest, DigestAlgorithm, OperationId,
-    ReplicaAck, ReplicaTarget, StorageDeviceDescriptor,
+use crate::{
+    dfs::{
+        ChunkEncoding, ChunkId, ChunkObject, ChunkReceipt, ContentDigest, DigestAlgorithm,
+        OperationId, ReplicaAck, ReplicaTarget, StorageDeviceDescriptor,
+    },
+    node::{storage::localfs::capacity_from_statvfs_fd, vfs::types::FilesystemCapacity},
 };
 
 #[derive(Debug, Default)]
@@ -104,6 +107,13 @@ pub trait ChunkStore: Send + Sync {
     }
 
     fn read_at(&self, chunk_id: &ChunkId, offset: u64, out: &mut [u8]) -> Result<usize>;
+
+    fn capacity(&self) -> Result<FilesystemCapacity> {
+        Err(Error::coded(
+            afs_error::NODE_VFS_UNIMPLEMENTED,
+            "ChunkStore capacity is unsupported for this backend",
+        ))
+    }
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -272,6 +282,7 @@ pub struct LocalChunkStore {
     device_id: String,
     device_epoch: u64,
     root: PathBuf,
+    root_dir: File,
     chunks: PathBuf,
     staging: PathBuf,
     catalog_path: PathBuf,
@@ -287,6 +298,7 @@ impl LocalChunkStore {
         fs::create_dir_all(&chunks).map_err(Error::from)?;
         fs::create_dir_all(&staging).map_err(Error::from)?;
         let device_epoch = open_device_epoch(&root)?;
+        let root_dir = File::open(&root).map_err(Error::from)?;
         let catalog_path = root.join("catalog.wal");
         let catalog = LocalCatalog::recover(&catalog_path)?;
         let store = Self {
@@ -294,6 +306,7 @@ impl LocalChunkStore {
             device_id: "local-0".into(),
             device_epoch,
             root,
+            root_dir,
             chunks,
             staging,
             catalog_path,
@@ -302,6 +315,10 @@ impl LocalChunkStore {
         };
         store.recover()?;
         Ok(store)
+    }
+
+    pub fn capacity(&self) -> Result<FilesystemCapacity> {
+        capacity_from_statvfs_fd(&self.root_dir).map_err(Error::from)
     }
 
     pub fn device_descriptor(&self) -> Result<StorageDeviceDescriptor> {
@@ -682,6 +699,10 @@ impl ChunkStore for LocalChunkStore {
     fn read_at(&self, chunk_id: &ChunkId, offset: u64, out: &mut [u8]) -> Result<usize> {
         LocalChunkStore::read_at(self, chunk_id, offset, out)
     }
+
+    fn capacity(&self) -> Result<FilesystemCapacity> {
+        LocalChunkStore::capacity(self)
+    }
 }
 
 fn append_catalog_txn(path: &Path, txn: &CatalogTxn) -> Result<()> {
@@ -912,6 +933,38 @@ mod replica_replay_tests {
         let recovered = LocalChunkStore::open(temp.path(), "node-a").unwrap();
         assert_eq!(recovered.read_at(&staged.chunk.id, 0, &mut out).unwrap(), 6);
         assert_eq!(&out, b"abcdef");
+    }
+
+    #[test]
+    fn capacity_reports_fd_backed_root_after_path_replacement_and_catalog_advance() {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path().join("store");
+        let store = LocalChunkStore::open(&root, "node-a").unwrap();
+        let first = store.capacity().unwrap();
+        assert!(first.bsize > 0);
+        assert!(first.frsize > 0);
+        assert!(first.namelen > 0);
+        assert!(first.blocks >= first.bfree);
+        assert!(first.bfree >= first.bavail);
+
+        store
+            .put(StagedChunk::new(
+                OperationId::new("capacity"),
+                b"bytes".to_vec(),
+            ))
+            .unwrap();
+        let descriptor_after_write = store.device_descriptor().unwrap();
+        assert!(descriptor_after_write.catalog_revision > 0);
+
+        let moved = temp.path().join("store-moved");
+        fs::rename(&root, &moved).unwrap();
+        // A path-based reopen must fail; the held directory FD remains valid.
+        std::os::unix::fs::symlink(temp.path().join("missing"), &root).unwrap();
+
+        let after_replacement = store.capacity().unwrap();
+        assert!(after_replacement.bsize > 0);
+        assert!(after_replacement.frsize > 0);
+        assert_eq!(store.device_descriptor().unwrap(), descriptor_after_write);
     }
 
     #[test]

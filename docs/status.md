@@ -1,3 +1,5 @@
+**最新候选（2026-10-07）：** map6161e25b，DFS本地R1容量/完整固定pjdfstest/固定LTP6及正常关闭通过；Owner历史证据仍按e925 ELF范围复用。[结果](../development/evidence/20261007-dfs-statfs/README.md)。G1保持8/8。
+
 # Implementation Status
 
 Updated 2026-10-06. [Three-stage acceptance checklist](../development/trial-release-goals.md) owns tasks and completion; [current code checkpoint](../development/current-checkpoint.md) binds this publication, validation and portable historical evidence.
@@ -5,7 +7,7 @@ Updated 2026-10-06. [Three-stage acceptance checklist](../development/trial-rele
 | Stage | Status | Scope |
 | --- | --- | --- |
 | G1 colleague trial | **DONE, 8/8** | Historical g1.5: Linux build/offline install, memory demonstration, OwnerFs local/remote, DFS basic cross-node I/O, central local-file Meta restart, selfcheck and ordered lifecycle |
-| G2 core performance version | **ACTIVE** | 27 independent tasks: 7 bounded outputs complete, 4 have failures, 2 bind tasks in progress, 14 awaiting acceptance. Current Owner standards and short Owner/DFS FSx qualified in recorded scope; local read/write below target; DFS statfs blocks pjdfstest/LTP; two-VM core recovery now passes; comparator qualification and new performance package remain open |
+| G2 core performance version | **ACTIVE** | 27 independent tasks: 9 bounded outputs complete, 2 have performance failures, 2 bind tasks in progress, 14 awaiting acceptance. Current Owner standards and short Owner/DFS FSx qualified in recorded scope; local read/write below target; local R1 DFS statfs and fixed standards now pass; two-VM core recovery now passes; comparator qualification and new performance package remain open |
 | G3 complex reliability/backends | **Deferred, 13 tasks** | Long-running/complex faults, expanded matrices/HA; etcd topic at 2GiB, Redis last |
 
 ## Current code capabilities
@@ -16,14 +18,14 @@ Updated 2026-10-06. [Three-stage acceptance checklist](../development/trial-rele
 | Meta | memory, local-file, etcd, Redis implementations; persistent capability is distinct from volatile state | G1 central local-file recovery is qualified on g1.5. Other backends have scoped historical tests; broad parity/faults remain G3 |
 | OwnerFs | Home files, remote routing, write-authority/lease checks, error propagation, ordered namespace/index maintenance | B1–B4 internal correctness/evaluator outputs complete in limited scope; current local pjdfstest and fixed six-test LTP pass; short FSx passes. 64MiB/C1 read/write correctness passes but performance fails at 0.5709/0.6297×ext4; MooseFS parity remains unqualified |
 | DFS | immutable chunks, version commits, replica policies, coherent read plans, streaming integrity and shared verification within one read batch | Batch CPU/read-amplification diagnostic complete; R2/64MiB one writer and two independent Node reader views pass, including orderly central Meta recovery; performance comparison and three-sync-durable 3FS parity remain unqualified |
-| Capacity/health | Observed backend capability and readiness, Owner local filesystem capacity/error handling | D20 local slice only; remote/DFS capacity authority and wider faults remain open |
+| Capacity/health | Observed backend capability and readiness, Owner local filesystem capacity/error handling | Owner D20 and current local R1 DFS real fstatvfs slices only; remote/replicated aggregate capacity and wider faults remain open |
 | Native Home | Private identity/permission anchors, server commands/watch foundation, private owned references and tests | Production admission remains disabled. Public feature switch/managed ON lifecycle/READY/complete drain are not qualified |
 | Packaging | Process control, offline package generation, trial configuration and selfcheck | g1.5 compiler-free installation qualified; this checkpoint is source publication, not a newly installed performance release |
 | Transport | gRPC and optional RDMA code plus scoped fault proofs | Actual RXE short results do not qualify the whole RDMA exception/resource matrix or physical NIC performance |
 
 ## Validation boundaries
 
-Historical full pjdfstest results belong to v37/v48. Current e925c5b Owner local pjdfstest passes 236 files/8819 checks (28 upstream TODO, zero skips/unexpected failures); this is not full POSIX certification. Current DFS pjdfstest has zero TAP checks because statfs returns ENOSYS; fixed DFS LTP has six TBROK. Owner/DFS short FSx passes seed1/1000 only. [Current raw ledger](../development/evidence/20261006-e2e-current/README.md) records the scope and failures. ext4 reference results are not AFS passes. The original full 69-case manifest remains NOT_RUN with environment PREPARING; it is the expanded final catalogue, not the G1 progress denominator.
+Historical full pjdfstest results belong to v37/v48. Current e925c5b Owner local pjdfstest passes 236 files/8819 checks (28 upstream TODO, zero skips/unexpected failures); this is not full POSIX certification. The e925 DFS ENOSYS/zero-TAP/six-TBROK failures remain historical receipts. The new map6161e25b release candidate passes local R1 DFS pjdfstest236/8819 with28TODO and zero skips/unexpected failures, plus fixed LTP6/6 (651 unselected), with normal stop/unmount. [Current candidate evidence](../development/evidence/20261007-dfs-statfs/README.md). Owner/DFS short FSx passes seed1/1000 only. [Current raw ledger](../development/evidence/20261006-e2e-current/README.md) records the scope and failures. ext4 reference results are not AFS passes. The original full 69-case manifest remains NOT_RUN with environment PREPARING; it is the expanded final catalogue, not the G1 progress denominator.
 
 See [checkpoint results](../development/checkpoints/20261006-current/results/README.md) for fresh combined-source checks. The historical 271-check g1.5 audit, DFS batch paired results, ext4 finite-tool positive results and complete parent-FD failed experiment are available in the repository. Other archived scopes are explicitly identified as external archives in the checkpoint page.
 

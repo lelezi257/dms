@@ -29,8 +29,8 @@ use super::{
     types::{
         AttributeChange, BackendInode, CreatedFile, DirectoryEntry, DirectoryHandle, Entry,
         FileAttributes, FileHandle, FileKind, FileLockConflict, FileLockKind, FileLockOwner,
-        FileLockRange, FileLockType, OpenOptions, ReleaseKind, RenameFlags, RequestContext,
-        SetAttrOptions, SpecialFileKind, SyncMode, WriteOptions,
+        FileLockRange, FileLockType, FilesystemCapacity, OpenOptions, ReleaseKind, RenameFlags,
+        RequestContext, SetAttrOptions, SpecialFileKind, SyncMode, WriteOptions,
     },
 };
 use crate::{
@@ -5252,6 +5252,15 @@ impl Backend for DistributedFs {
         true
     }
 
+    fn statfs(&self, _: &RequestContext, inode: BackendInode) -> Result<FilesystemCapacity> {
+        let inode_id = self.inode_id(inode)?;
+        let record = self.validate_inode(self.meta.get_inode(&inode_id)?)?;
+        if record.inode_id != inode_id {
+            return Err(invalid("Meta returned a different DFS inode for statfs"));
+        }
+        self.chunk_store.capacity()
+    }
+
     fn getlk(
         &self,
         _: &RequestContext,
@@ -8137,6 +8146,8 @@ mod tests {
         next_metadata_sync_error: Mutex<Option<Error>>,
         next_renew_error: Mutex<Option<Error>>,
         next_open_write_error: Mutex<Option<Error>>,
+        next_get_inode_error: Mutex<Option<Error>>,
+        next_get_inode_bad_id: Mutex<bool>,
         next_open_write_bad_namespace: Mutex<bool>,
         open_write_results: Mutex<std::collections::VecDeque<Result<(InodeRecord, WriteLease)>>>,
         renew_results: Mutex<std::collections::VecDeque<Result<WriteLease>>>,
@@ -8192,6 +8203,8 @@ mod tests {
                 next_metadata_sync_error: Mutex::new(None),
                 next_renew_error: Mutex::new(None),
                 next_open_write_error: Mutex::new(None),
+                next_get_inode_error: Mutex::new(None),
+                next_get_inode_bad_id: Mutex::new(false),
                 next_open_write_bad_namespace: Mutex::new(false),
                 open_write_results: Mutex::new(std::collections::VecDeque::new()),
                 renew_results: Mutex::new(std::collections::VecDeque::new()),
@@ -8255,6 +8268,14 @@ mod tests {
 
         fn fail_next_open_write_with(&self, error: Error) {
             *self.next_open_write_error.lock().unwrap() = Some(error);
+        }
+
+        fn fail_next_get_inode_with(&self, error: Error) {
+            *self.next_get_inode_error.lock().unwrap() = Some(error);
+        }
+
+        fn return_bad_inode_on_next_get_inode(&self) {
+            *self.next_get_inode_bad_id.lock().unwrap() = true;
         }
 
         fn return_bad_namespace_on_next_open_write(&self) {
@@ -8381,7 +8402,15 @@ mod tests {
         }
 
         fn get_inode(&self, _: &InodeId) -> Result<InodeRecord> {
-            Ok(self.inode.lock().unwrap().clone())
+            if let Some(error) = self.next_get_inode_error.lock().unwrap().take() {
+                return Err(error);
+            }
+            let mut inode = self.inode.lock().unwrap().clone();
+            if *self.next_get_inode_bad_id.lock().unwrap() {
+                *self.next_get_inode_bad_id.lock().unwrap() = false;
+                inode.inode_id = InodeId::new("inode:wrong");
+            }
+            Ok(inode)
         }
 
         fn get_file_version(
@@ -8724,30 +8753,40 @@ mod tests {
         let meta = Arc::new(RecordingMeta::new());
         let temp = tempfile::tempdir().unwrap();
         let chunks = Arc::new(LocalChunkStore::open(temp.path(), "node-a").unwrap());
+        let fs = distributed_fs_with_chunk_store(meta.clone(), chunks.clone(), chunks, budget);
+        (temp, meta, fs)
+    }
+
+    fn distributed_fs_with_chunk_store(
+        meta: Arc<RecordingMeta>,
+        local: Arc<LocalChunkStore>,
+        chunk_store: Arc<dyn ChunkStore>,
+        budget: u64,
+    ) -> DistributedFs {
         let read_engine = Arc::new(crate::node::dfs_read::DfsReadEngine::new(
             NamespaceId::new("default"),
             "node-a".into(),
-            chunks.clone(),
+            local,
             Arc::new(crate::node::dfs_read::UnimplementedReadSourceProvider),
             Arc::new(crate::node::dfs_read::UnimplementedChunkTransfer),
             crate::node::dfs_read::DfsReadConfig::default(),
         ));
-        let fs = DistributedFs::new(
+        DistributedFs::new(
             NamespaceId::new("default"),
             "node-a",
             "session-a",
-            meta.clone(),
-            chunks,
+            meta,
+            chunk_store,
             read_engine,
         )
-        .with_dirty_budget_bytes(budget);
-        (temp, meta, fs)
+        .with_dirty_budget_bytes(budget)
     }
 
     #[cfg(feature = "dfs")]
     struct CountingChunkStore {
         inner: Arc<dyn ChunkStore>,
         put_batches: AtomicUsize,
+        capacity_calls: AtomicUsize,
     }
 
     #[cfg(feature = "dfs")]
@@ -8756,11 +8795,16 @@ mod tests {
             Self {
                 inner,
                 put_batches: AtomicUsize::new(0),
+                capacity_calls: AtomicUsize::new(0),
             }
         }
 
         fn put_batch_count(&self) -> usize {
             self.put_batches.load(Ordering::SeqCst)
+        }
+
+        fn capacity_call_count(&self) -> usize {
+            self.capacity_calls.load(Ordering::SeqCst)
         }
     }
 
@@ -8779,6 +8823,126 @@ mod tests {
         ) -> Result<usize> {
             self.inner.read_at(chunk_id, offset, out)
         }
+
+        fn capacity(&self) -> Result<FilesystemCapacity> {
+            self.capacity_calls.fetch_add(1, Ordering::SeqCst);
+            self.inner.capacity()
+        }
+    }
+
+    #[cfg(feature = "dfs")]
+    struct UnsupportedCapacityChunkStore {
+        inner: Arc<dyn ChunkStore>,
+    }
+
+    #[cfg(feature = "dfs")]
+    impl ChunkStore for UnsupportedCapacityChunkStore {
+        fn put_batch(&self, staged: Vec<StagedChunk>) -> Result<Vec<crate::dfs::ChunkReceipt>> {
+            self.inner.put_batch(staged)
+        }
+
+        fn read_at(
+            &self,
+            chunk_id: &crate::dfs::ChunkId,
+            offset: u64,
+            out: &mut [u8],
+        ) -> Result<usize> {
+            self.inner.read_at(chunk_id, offset, out)
+        }
+    }
+
+    #[cfg(feature = "dfs")]
+    #[test]
+    fn statfs_validates_meta_inode_and_reads_chunk_store_capacity_without_writer() {
+        let meta = Arc::new(RecordingMeta::new());
+        let temp = tempfile::tempdir().unwrap();
+        let local = Arc::new(LocalChunkStore::open(temp.path(), "node-a").unwrap());
+        local
+            .put(StagedChunk::new(
+                OperationId::new("statfs-capacity"),
+                b"bytes".to_vec(),
+            ))
+            .unwrap();
+        let counting = Arc::new(CountingChunkStore::new(local.clone()));
+        let fs = distributed_fs_with_chunk_store(
+            meta.clone(),
+            local,
+            counting.clone(),
+            DEFAULT_DIRTY_DATA_BUDGET_BYTES,
+        );
+        let inode = fs.backend_inode(&InodeId::new("inode:test")).unwrap();
+        let open_writes_before = meta.open_write_calls.load(Ordering::SeqCst);
+
+        let capacity = fs.statfs(&context(), inode).unwrap();
+
+        assert!(capacity.bsize > 0);
+        assert!(capacity.frsize > 0);
+        assert!(capacity.blocks >= capacity.bfree);
+        assert_eq!(counting.capacity_call_count(), 1);
+        assert_eq!(
+            meta.open_write_calls.load(Ordering::SeqCst),
+            open_writes_before
+        );
+    }
+
+    #[cfg(feature = "dfs")]
+    #[test]
+    fn statfs_preserves_meta_failure_and_rejects_unknown_or_mismatched_inode() {
+        let (_temp, meta, fs) = test_fs();
+        let inode = fs.backend_inode(&InodeId::new("inode:test")).unwrap();
+
+        meta.fail_next_get_inode_with(unavailable("injected statfs get_inode failure"));
+        assert_eq!(
+            fs.statfs(&context(), inode).unwrap_err().code(),
+            afs_error::NODE_VFS_UNAVAILABLE
+        );
+
+        meta.return_bad_inode_on_next_get_inode();
+        assert_eq!(
+            fs.statfs(&context(), inode).unwrap_err().code(),
+            afs_error::NODE_VFS_INVALID
+        );
+
+        meta.inode.lock().unwrap().namespace_id = NamespaceId::new("wrong");
+        assert_eq!(
+            fs.statfs(&context(), inode).unwrap_err().code(),
+            afs_error::NODE_VFS_INVALID
+        );
+        meta.inode.lock().unwrap().namespace_id = NamespaceId::new("default");
+
+        assert_eq!(
+            fs.statfs(&context(), BackendInode { value: 999 })
+                .unwrap_err()
+                .code(),
+            afs_error::NODE_DFS_STALE_HANDLE
+        );
+    }
+
+    #[cfg(feature = "dfs")]
+    #[test]
+    fn statfs_returns_unsupported_when_chunk_backend_has_no_capacity_capability() {
+        let meta = Arc::new(RecordingMeta::new());
+        let temp = tempfile::tempdir().unwrap();
+        let local = Arc::new(LocalChunkStore::open(temp.path(), "node-a").unwrap());
+        let unsupported = Arc::new(UnsupportedCapacityChunkStore {
+            inner: local.clone(),
+        });
+        let fs = distributed_fs_with_chunk_store(
+            meta.clone(),
+            local,
+            unsupported,
+            DEFAULT_DIRTY_DATA_BUDGET_BYTES,
+        );
+        let inode = fs.backend_inode(&InodeId::new("inode:test")).unwrap();
+        let open_writes_before = meta.open_write_calls.load(Ordering::SeqCst);
+
+        let error = fs.statfs(&context(), inode).unwrap_err();
+
+        assert_eq!(error.code(), afs_error::NODE_VFS_UNIMPLEMENTED);
+        assert_eq!(
+            meta.open_write_calls.load(Ordering::SeqCst),
+            open_writes_before
+        );
     }
 
     #[cfg(feature = "dfs")]

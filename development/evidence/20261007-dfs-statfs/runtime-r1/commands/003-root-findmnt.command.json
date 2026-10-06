@@ -1,0 +1,13 @@
+{
+  "argv": [
+    "findmnt",
+    "-J",
+    "-T",
+    "/var/tmp/afs-dfs-statfs-runtime-20261007-r1"
+  ],
+  "cwd": "/home/lzc.guest",
+  "label": "root-findmnt",
+  "reserve_bytes": null,
+  "started_utc": "2026-10-06T16:11:57Z",
+  "timeout_seconds": 10
+}

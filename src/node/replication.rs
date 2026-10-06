@@ -13,7 +13,10 @@ use crate::{
         ChunkId, ChunkReceipt, LocalCopyPolicy, PlacementSnapshot, ReplicaAck, ReplicaGroup,
         ReplicaGroupId, ReplicaTarget, ReplicaWriteGrant, ReplicationConfig,
     },
-    node::chunk::{ChunkStore, LocalChunkStore, StagedChunk},
+    node::{
+        chunk::{ChunkStore, LocalChunkStore, StagedChunk},
+        vfs::types::FilesystemCapacity,
+    },
 };
 
 pub trait PlacementProvider: Send + Sync {
@@ -432,6 +435,7 @@ impl ReplicationEngine {
 
 pub struct DfsChunkStore {
     local_node_id: String,
+    local_node_epoch: Option<u64>,
     local: Arc<LocalChunkStore>,
     placement: Arc<dyn PlacementProvider>,
     replication: ReplicationEngine,
@@ -446,6 +450,7 @@ impl DfsChunkStore {
     ) -> Self {
         Self {
             local_node_id: local_node_id.clone(),
+            local_node_epoch: None,
             local: local.clone(),
             placement: placement.clone(),
             replication: ReplicationEngine::new(local_node_id, local, placement, data_plane),
@@ -461,6 +466,7 @@ impl DfsChunkStore {
     ) -> Self {
         Self {
             local_node_id: local_node_id.clone(),
+            local_node_epoch: Some(local_node_epoch),
             local: local.clone(),
             placement: placement.clone(),
             replication: ReplicationEngine::new_with_epoch(
@@ -471,6 +477,46 @@ impl DfsChunkStore {
                 data_plane,
             ),
         }
+    }
+
+    fn validate_local_capacity_authority(&self, snapshot: &PlacementSnapshot) -> Result<()> {
+        if !snapshot.replication.is_local_fast_path() {
+            return Err(unsupported_capacity(
+                "DFS capacity requires local R1 placement authority",
+            ));
+        }
+        if snapshot.replica_groups.is_empty() {
+            return Err(unsupported_capacity(
+                "DFS capacity requires a local placement authority",
+            ));
+        }
+        let local = self.local.device_descriptor()?;
+        for group in &snapshot.replica_groups {
+            if group.targets.len() != 1 {
+                return Err(unsupported_capacity(
+                    "DFS capacity is unsupported for replicated placement",
+                ));
+            }
+            let target = &group.targets[0];
+            if target.node_id != self.local_node_id
+                || self
+                    .local_node_epoch
+                    .is_some_and(|epoch| target.node_epoch != epoch)
+            {
+                return Err(unsupported_capacity(
+                    "DFS capacity requires local node placement authority",
+                ));
+            }
+            if target.device.device_id != local.device_id
+                || target.device.device_epoch != local.device_epoch
+                || target.device.failure_domain != local.failure_domain
+            {
+                return Err(invalid(
+                    "DFS capacity placement does not match the local storage device authority",
+                ));
+            }
+        }
+        Ok(())
     }
 
     fn put_local_batch(
@@ -542,6 +588,12 @@ impl ChunkStore for DfsChunkStore {
 
     fn read_at(&self, chunk_id: &ChunkId, offset: u64, out: &mut [u8]) -> Result<usize> {
         self.local.read_at(chunk_id, offset, out)
+    }
+
+    fn capacity(&self) -> Result<FilesystemCapacity> {
+        let snapshot = self.placement.snapshot()?;
+        self.validate_local_capacity_authority(&snapshot)?;
+        self.local.capacity()
     }
 }
 
@@ -678,6 +730,10 @@ fn validate_acks(
 
 fn invalid(message: impl Into<String>) -> Error {
     Error::coded(afs_error::NODE_STORAGE_INVALID, message)
+}
+
+fn unsupported_capacity(message: impl Into<String>) -> Error {
+    Error::coded(afs_error::NODE_VFS_UNIMPLEMENTED, message)
 }
 
 /// Background repair uses Meta's durable task identity rather than an inode
@@ -1181,6 +1237,96 @@ mod tests {
             min_distinct_nodes: copies,
             min_distinct_failure_domains: 1,
             local_copy: LocalCopyPolicy::Required,
+        }
+    }
+
+    #[test]
+    fn local_r1_capacity_forwards_after_catalog_advance_without_revision_equality() {
+        let temp = tempfile::tempdir().unwrap();
+        let local = Arc::new(LocalChunkStore::open(temp.path(), "node-a").unwrap());
+        let device_before_write = local.device_descriptor().unwrap();
+        local.put(staged("capacity-advance")).unwrap();
+        assert!(
+            local.device_descriptor().unwrap().catalog_revision
+                > device_before_write.catalog_revision
+        );
+        let snapshot = Arc::new(PlacementSnapshot {
+            revision: 11,
+            replication: config(1),
+            replica_groups: vec![ReplicaGroup {
+                id: ReplicaGroupId::new("group"),
+                placement_epoch: 12,
+                targets: vec![target_with_epoch("node-a", 1, device_before_write)],
+            }],
+        });
+        let store = DfsChunkStore::new_with_epoch(
+            "node-a".into(),
+            1,
+            local,
+            Arc::new(StaticPlacement { snapshot }),
+            Arc::new(FakeDataPlane::default()),
+        );
+
+        let capacity = store.capacity().unwrap();
+
+        assert!(capacity.bsize > 0);
+        assert!(capacity.frsize > 0);
+        assert!(capacity.blocks >= capacity.bfree);
+    }
+
+    #[test]
+    fn capacity_denies_replicated_or_remote_or_wrong_device_authority() {
+        let temp = tempfile::tempdir().unwrap();
+        let local = Arc::new(LocalChunkStore::open(temp.path(), "node-a").unwrap());
+        let local_device = local.device_descriptor().unwrap();
+        let cases = vec![
+            (
+                "replicated",
+                config(2),
+                vec![
+                    target_with_epoch("node-a", 1, local_device.clone()),
+                    target_with_epoch("node-b", 1, remote_device("remote-b")),
+                ],
+                afs_error::NODE_VFS_UNIMPLEMENTED,
+            ),
+            (
+                "remote",
+                config(1),
+                vec![target_with_epoch("node-b", 1, remote_device("remote-b"))],
+                afs_error::NODE_VFS_UNIMPLEMENTED,
+            ),
+            (
+                "wrong-device",
+                config(1),
+                vec![target_with_epoch("node-a", 1, remote_device("wrong-local"))],
+                afs_error::NODE_STORAGE_INVALID,
+            ),
+            (
+                "wrong-epoch",
+                config(1),
+                vec![target_with_epoch("node-a", 2, local_device.clone())],
+                afs_error::NODE_VFS_UNIMPLEMENTED,
+            ),
+        ];
+        for (name, replication, targets, code) in cases {
+            let snapshot = Arc::new(PlacementSnapshot {
+                revision: 11,
+                replication,
+                replica_groups: vec![ReplicaGroup {
+                    id: ReplicaGroupId::new(format!("group-{name}")),
+                    placement_epoch: 12,
+                    targets,
+                }],
+            });
+            let store = DfsChunkStore::new_with_epoch(
+                "node-a".into(),
+                1,
+                local.clone(),
+                Arc::new(StaticPlacement { snapshot }),
+                Arc::new(FakeDataPlane::default()),
+            );
+
+            assert_eq!(store.capacity().unwrap_err().code(), code, "case {name}");
         }
     }
 

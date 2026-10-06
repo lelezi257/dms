@@ -1,0 +1,98 @@
+{
+  "source_base": "2b5d35cc9a14abba225ddcfde8df02e1e9c28223",
+  "map_sha256": "6161e25b0c3a3e85f0e442193d2225fddbe78bedb4c9e94bd59139402646bd3b",
+  "profile": "release",
+  "commands": [
+    {
+      "label": "fmt",
+      "returncode": 0,
+      "elapsed_seconds": 2.002110656001605,
+      "minimum_free_bytes": 4726784000,
+      "stop_reason": null
+    },
+    {
+      "label": "targeted-statfs",
+      "returncode": 0,
+      "elapsed_seconds": 64.08923766099906,
+      "minimum_free_bytes": 4644769792,
+      "stop_reason": null
+    },
+    {
+      "label": "targeted-statvfs",
+      "returncode": 0,
+      "elapsed_seconds": 2.0113083189935423,
+      "minimum_free_bytes": 4664836096,
+      "stop_reason": null
+    },
+    {
+      "label": "targeted-capacity",
+      "returncode": 0,
+      "elapsed_seconds": 2.0120994769968092,
+      "minimum_free_bytes": 4664782848,
+      "stop_reason": null
+    },
+    {
+      "label": "lib",
+      "returncode": 0,
+      "elapsed_seconds": 6.019878891995177,
+      "minimum_free_bytes": 4664147968,
+      "stop_reason": null
+    },
+    {
+      "label": "contracts",
+      "returncode": 0,
+      "elapsed_seconds": 68.03719984399504,
+      "minimum_free_bytes": 4564398080,
+      "stop_reason": null
+    },
+    {
+      "label": "fuse-build",
+      "returncode": 0,
+      "elapsed_seconds": 2.00371146100224,
+      "minimum_free_bytes": 4550496256,
+      "stop_reason": null
+    },
+    {
+      "label": "fuse-real",
+      "returncode": 0,
+      "elapsed_seconds": 2.0025404110056115,
+      "minimum_free_bytes": 4550234112,
+      "stop_reason": null
+    },
+    {
+      "label": "dfs-only",
+      "returncode": 0,
+      "elapsed_seconds": 14.010041218003607,
+      "minimum_free_bytes": 4418060288,
+      "stop_reason": null
+    },
+    {
+      "label": "clippy",
+      "returncode": 0,
+      "elapsed_seconds": 14.011400200994103,
+      "minimum_free_bytes": 4323057664,
+      "stop_reason": null
+    },
+    {
+      "label": "build",
+      "returncode": 0,
+      "elapsed_seconds": 68.02866997198726,
+      "minimum_free_bytes": 4322975744,
+      "stop_reason": null
+    }
+  ],
+  "status": "PASS",
+  "inputs_unchanged": true,
+  "binaries": {
+    "afs-meta": {
+      "path": "/var/tmp/afs-e2e-release-20261006-r1/target/release/afs-meta",
+      "bytes": 15768296,
+      "sha256": "9267052b8892a427b948059aa727ca432f8cdd4cd381d66be3cf84a50f94495a"
+    },
+    "afs-node": {
+      "path": "/var/tmp/afs-e2e-release-20261006-r1/target/release/afs-node",
+      "bytes": 25603568,
+      "sha256": "01fb69b7b4d160e37a3f200b7b458bf5f6c1957890c6d791ceb7288f4dca288a"
+    }
+  }
+}

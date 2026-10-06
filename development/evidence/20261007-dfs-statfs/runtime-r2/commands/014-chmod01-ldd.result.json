@@ -1,0 +1,22 @@
+{
+  "argv": [
+    "ldd",
+    "/var/tmp/afs-e2e-20261006-r1/suites/ltp-small-install/testcases/bin/chmod01"
+  ],
+  "capacity_trace": "results/commands/014-chmod01-ldd.capacity.jsonl",
+  "cwd": "/home/lzc.guest",
+  "duration_seconds": 2.011,
+  "exit": "results/commands/014-chmod01-ldd.exit",
+  "finished_utc": "2026-10-06T16:14:16Z",
+  "label": "chmod01-ldd",
+  "reserve_bytes": null,
+  "returncode": 0,
+  "started_utc": "2026-10-06T16:14:14Z",
+  "stderr": "results/commands/014-chmod01-ldd.stderr",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "stdout": "results/commands/014-chmod01-ldd.stdout",
+  "stdout_sha256": "52982344f0355091c7e86a26801aa4dab4ac6e9953d7a100fe578cb7dbcbaf06",
+  "stop_reason": null,
+  "timed_out": false,
+  "timeout_seconds": 15
+}

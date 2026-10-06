@@ -1,0 +1,27 @@
+   Compiling bitflags v2.13.2
+   Compiling getrandom v0.4.3
+   Compiling rustix v1.1.5
+   Compiling linux-raw-sys v0.12.1
+   Compiling nix v0.29.0
+   Compiling afs-transport v0.1.0 (/var/tmp/afs-dfs-statfs-20261006-r1/source/common/transport)
+   Compiling fastrand v2.5.0
+   Compiling tempfile v3.27.0
+   Compiling fuser v0.16.0 (/var/tmp/afs-dfs-statfs-20261006-r1/source/third_party/fuser)
+   Compiling afs-client v0.1.0 (/var/tmp/afs-dfs-statfs-20261006-r1/source/client)
+   Compiling afs v0.1.0 (/var/tmp/afs-dfs-statfs-20261006-r1/source)
+    Finished `release` profile [optimized] target(s) in 1m 02s
+     Running unittests src/lib.rs (/var/tmp/afs-e2e-release-20261006-r1/target/release/deps/afs-993fcb88fd9e56b2)
+
+running 9 tests
+test node::vfs::ownerfs::tests::linux_fuse_owner_local_home_statfs_reports_backing_capacity ... ignored, requires Linux /dev/fuse, fusermount3 and python3
+test node::vfs::dfs::tests::statfs_returns_unsupported_when_chunk_backend_has_no_capacity_capability ... ok
+test node::vfs::dfs::tests::statfs_preserves_meta_failure_and_rejects_unknown_or_mismatched_inode ... ok
+test node::vfs::ownerfs::tests::local_home_statfs_authority_is_separate_from_posix_traversal_mode ... ok
+test node::vfs::dfs::tests::statfs_validates_meta_inode_and_reads_chunk_store_capacity_without_writer ... ok
+test node::vfs::ownerfs::tests::local_home_statfs_reports_backing_capacity_and_root_fails_closed ... ok
+test node::vfs::ownerfs::tests::remote_home_statfs_fails_closed_until_ownerfiles_rpc_exists ... ok
+test node::vfs::ownerfs::tests::local_home_statfs_requires_root_read_right ... ok
+test node::vfs::ownerfs::tests::local_home_statfs_rejects_revoked_or_invalid_root_authority ... ok
+
+test result: ok. 8 passed; 0 failed; 1 ignored; 0 measured; 556 filtered out; finished in 0.01s
+

@@ -1,0 +1,22 @@
+{
+  "argv": [
+    "ldd",
+    "/var/tmp/afs-dfs-statfs-runtime-20261007-r1/prefix/bin/afs-meta"
+  ],
+  "capacity_trace": "results/commands/004-ldd-afs-meta.capacity.jsonl",
+  "cwd": "/home/lzc.guest",
+  "duration_seconds": 2.007,
+  "exit": "results/commands/004-ldd-afs-meta.exit",
+  "finished_utc": "2026-10-06T16:12:01Z",
+  "label": "ldd-afs-meta",
+  "reserve_bytes": null,
+  "returncode": 0,
+  "started_utc": "2026-10-06T16:11:59Z",
+  "stderr": "results/commands/004-ldd-afs-meta.stderr",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "stdout": "results/commands/004-ldd-afs-meta.stdout",
+  "stdout_sha256": "7f6c6f1ba9a9bf00d51769b41ba6ad58c7ae08bd52eb4eff2ff0f725a28a3889",
+  "stop_reason": null,
+  "timed_out": false,
+  "timeout_seconds": 15
+}

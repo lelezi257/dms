@@ -1,3 +1,5 @@
+**最新源码增量（2026-10-07）：** 基于2b5d35c的四文件DFS statfs修复，154编译输入map6161e25b；Linux库553/实际FUSE8/feature/lint/build及新ELF DFS本地R1 pjdfstest236/8819、固定LTP6/6、正常关闭通过。[独立回执](evidence/20261007-dfs-statfs/README.md)。未继承新ELF Owner标准、多节点恢复或性能资格。
+
 # 2026-10-06 代码与目标检查点
 
 **决策：** 本次按用户授权，将当前累积产品代码和相关文档一起版本化、发布GitHub。该检查点的Git提交同时标识代码、目标、状态、操作说明和交接；从本仓根执行 `git rev-parse HEAD` 获取当前检出身份。任务进度唯一来源是[三阶段验收表](trial-release-goals.md)。
@@ -6,7 +8,7 @@
 
 **事实：** 已交付g1.5试用包的G1为8/8完成。当前代码包含此后Owner索引/目录维护、DFS同批次完整校验共享、local-file恢复、写权限/未知结果处理、健康/容量语义、安装自检及native私有基础。当前源码与历史g1.5包不是同一输入，不用旧包的通过结果替代本检查点验证。
 
-**续跑证据（产品输入仍为本发布锚点）：** [当前E2E账本](evidence/20261006-e2e-current/README.md)记录Owner完整pjdfstest、Owner固定LTP、Owner/DFS短FSx通过；小读/写功能PASS但性能FAIL（0.5709/0.6297×ext4），小删除完成报告出口。DFS pjdfstest/LTP因statfs ENOSYS未进入断言，不计通过。G1保持8/8；G2逐行状态见[主表](trial-release-goals.md)，[双VM核心/中心恢复及DFS一写两读功能](evidence/20261006-e2e-current/crossvm-r1/README.md)已通过；正式比较/新性能包仍未完成，G3后置。旧发布回执原样保留；本轮文档/证据与R1整改一起版本化，产品154编译输入未改。
+**旧e925/2b5d35c续跑证据（保持原版本）：** [当前E2E账本](evidence/20261006-e2e-current/README.md)记录Owner完整pjdfstest、Owner固定LTP、Owner/DFS短FSx通过；小读/写功能PASS但性能FAIL（0.5709/0.6297×ext4），小删除完成报告出口。DFS pjdfstest/LTP因statfs ENOSYS未进入断言，不计通过。G1保持8/8；G2逐行状态见[主表](trial-release-goals.md)，[双VM核心/中心恢复及DFS一写两读功能](evidence/20261006-e2e-current/crossvm-r1/README.md)已通过；正式比较/新性能包仍未完成，G3后置。旧发布回执原样保留；本轮文档/证据与R1整改一起版本化，产品154编译输入未改。
 
 **决策：** OwnerFs优先；DFS首先一写多读。先小规模读/写/删除，再扩规模/并发/时间；按case自身依赖推进。Owner local吞吐≥90%ext4，remote与MooseFS持平，DFS在同FUSE/POSIX及三同步durable副本下与3FS持平；噪声容差测前固定。普通使用中的损坏、错误成功、权限绕过和核心恢复错误及时修复。
 
@@ -70,7 +72,7 @@ fd2dbca678dcba28ec07665ddf7d9bcf3e98636af6842a58ca435cfb4ce02c5b  parent-fd-pair
 
 ## 下一步
 
-当前G2.04/07/08/11及Owner LTP分支按已记录范围复用；同源码release构建/Owner标准及单机恢复已过，小读写仍FAIL，原dev及release数据都保留，普通路径专项优化暂缓。先完成独立R1仓库整改；R2官方fuser公开API缺口单列阻塞，不能冒称迁移完成。随后pjdfstest功能完备性；性能优先容器workspace挂载G2.12必要功能出口→G2.13。DFS statfs缺口单列，不由一写两读功能PASS替代。bind默认OFF；大规模/复杂可靠性/etcd2GiB专题与Redis后置。
+当前G2.04/07/08/11及Owner LTP分支按已记录范围复用；同源码release构建/Owner标准及单机恢复已过，小读写仍FAIL，原dev及release数据都保留，普通路径专项优化暂缓。独立R1仓库整改已完成并发布；R2官方fuser公开API缺口单列阻塞，不能冒称迁移完成。当前DFS本地R1 statfs/固定标准回归已通过，旧失败保留；性能优先容器workspace挂载G2.12必要功能出口→G2.13。bind默认OFF；大规模/复杂可靠性/etcd2GiB专题与Redis后置。
 
 ## Review boundary
 

@@ -1,0 +1,14 @@
+{
+  "command": [
+    "sudo",
+    "timeout",
+    "180",
+    "/var/tmp/afs-e2e-release-20261006-r1/target/release/deps/fuse_contract-bb2f0fbb23a93206",
+    "--ignored",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "cwd": "/var/tmp/afs-dfs-statfs-20261006-r1/source",
+  "CARGO_TARGET_DIR": "/var/tmp/afs-e2e-release-20261006-r1/target",
+  "timeout_seconds": 180
+}

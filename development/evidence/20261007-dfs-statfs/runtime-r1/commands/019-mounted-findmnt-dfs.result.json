@@ -1,0 +1,24 @@
+{
+  "argv": [
+    "findmnt",
+    "-J",
+    "--mountpoint",
+    "/var/tmp/afs-dfs-statfs-runtime-20261007-r1/mount/dfs"
+  ],
+  "capacity_trace": "results/commands/019-mounted-findmnt-dfs.capacity.jsonl",
+  "cwd": "/home/lzc.guest",
+  "duration_seconds": 2.004,
+  "exit": "results/commands/019-mounted-findmnt-dfs.exit",
+  "finished_utc": "2026-10-06T16:12:31Z",
+  "label": "mounted-findmnt-dfs",
+  "reserve_bytes": null,
+  "returncode": 0,
+  "started_utc": "2026-10-06T16:12:29Z",
+  "stderr": "results/commands/019-mounted-findmnt-dfs.stderr",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "stdout": "results/commands/019-mounted-findmnt-dfs.stdout",
+  "stdout_sha256": "6f6320f1c38803b4e96628a1752d3c23684d09a6af637a61f2624ba0380a8745",
+  "stop_reason": null,
+  "timed_out": false,
+  "timeout_seconds": 10
+}

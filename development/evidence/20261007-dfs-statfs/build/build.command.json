@@ -1,0 +1,14 @@
+{
+  "command": [
+    "cargo",
+    "build",
+    "--release",
+    "--locked",
+    "--offline",
+    "--all-features",
+    "--bins"
+  ],
+  "cwd": "/var/tmp/afs-dfs-statfs-20261006-r1/source",
+  "CARGO_TARGET_DIR": "/var/tmp/afs-e2e-release-20261006-r1/target",
+  "timeout_seconds": 900
+}

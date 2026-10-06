@@ -1,0 +1,33 @@
+{
+  "argv": [
+    "/var/tmp/afs-dfs-statfs-runtime-20261007-r2/prefix/bin/afs-processctl",
+    "--prefix",
+    "/var/tmp/afs-dfs-statfs-runtime-20261007-r2/prefix",
+    "--config-dir",
+    "/var/tmp/afs-dfs-statfs-runtime-20261007-r2/etc",
+    "--run-dir",
+    "/var/tmp/afs-dfs-statfs-runtime-20261007-r2/run",
+    "--log-dir",
+    "/var/tmp/afs-dfs-statfs-runtime-20261007-r2/log",
+    "--timeout",
+    "30",
+    "status",
+    "all"
+  ],
+  "capacity_trace": "results/commands/026-finally-status-all.capacity.jsonl",
+  "cwd": "/home/lzc.guest",
+  "duration_seconds": 2.002,
+  "exit": "results/commands/026-finally-status-all.exit",
+  "finished_utc": "2026-10-06T16:21:14Z",
+  "label": "finally-status-all",
+  "reserve_bytes": null,
+  "returncode": 0,
+  "started_utc": "2026-10-06T16:21:12Z",
+  "stderr": "results/commands/026-finally-status-all.stderr",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "stdout": "results/commands/026-finally-status-all.stdout",
+  "stdout_sha256": "64d137261cbd3c806c7bb382e2cb1981fd8549087cd9de0af608c07a510561cb",
+  "stop_reason": null,
+  "timed_out": false,
+  "timeout_seconds": 30
+}

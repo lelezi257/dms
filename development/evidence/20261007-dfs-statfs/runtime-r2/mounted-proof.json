@@ -1,0 +1,125 @@
+{
+  "checks": {
+    "df-no-enosys": {
+      "evidence": {
+        "df": {
+          "argv": [
+            "df",
+            "-P",
+            "/var/tmp/afs-dfs-statfs-runtime-20261007-r2/mount/dfs"
+          ],
+          "capacity_trace": "results/commands/020-df-dfs.capacity.jsonl",
+          "cwd": "/home/lzc.guest",
+          "duration_seconds": 2.011,
+          "exit": "results/commands/020-df-dfs.exit",
+          "finished_utc": "2026-10-06T16:14:28Z",
+          "label": "df-dfs",
+          "reserve_bytes": null,
+          "returncode": 0,
+          "started_utc": "2026-10-06T16:14:26Z",
+          "stderr": "results/commands/020-df-dfs.stderr",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout": "results/commands/020-df-dfs.stdout",
+          "stdout_sha256": "23386c5a70a2dbf33fabcc2c74806b45e2a2f2dbe1d1d72646424e13bd8cf8e8",
+          "stop_reason": null,
+          "timed_out": false,
+          "timeout_seconds": 20
+        },
+        "text": "Filesystem     1024-blocks    Used Available Capacity Mounted on\nafs-dfs           15159300 8798324   6344592      59% /var/tmp/afs-dfs-statfs-runtime-20261007-r2/mount/dfs\n"
+      },
+      "status": "PASS"
+    },
+    "dfs-mount-source": {
+      "evidence": {
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other",
+        "source": "afs-dfs",
+        "target": "/var/tmp/afs-dfs-statfs-runtime-20261007-r2/mount/dfs"
+      },
+      "status": "PASS"
+    },
+    "fixture-scoped-.ltp-smoke6": {
+      "evidence": {
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other",
+        "source": "afs-dfs",
+        "target": "/var/tmp/afs-dfs-statfs-runtime-20261007-r2/mount/dfs"
+      },
+      "status": "PASS"
+    },
+    "fixture-scoped-std-01-pjdfstest-full-fixture": {
+      "evidence": {
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other",
+        "source": "afs-dfs",
+        "target": "/var/tmp/afs-dfs-statfs-runtime-20261007-r2/mount/dfs"
+      },
+      "status": "PASS"
+    }
+  },
+  "identities": {
+    "meta": {
+      "cmdline": "/var/tmp/afs-dfs-statfs-runtime-20261007-r2/prefix/bin/afs-meta --config /var/tmp/afs-dfs-statfs-runtime-20261007-r2/etc/meta.toml ",
+      "exe": "/var/tmp/afs-dfs-statfs-runtime-20261007-r2/prefix/bin/afs-meta",
+      "exe_sha256": "9267052b8892a427b948059aa727ca432f8cdd4cd381d66be3cf84a50f94495a",
+      "pid": 168290,
+      "role": "meta",
+      "start_ticks": "8497680"
+    },
+    "node": {
+      "cmdline": "/var/tmp/afs-dfs-statfs-runtime-20261007-r2/prefix/bin/afs-node --config /var/tmp/afs-dfs-statfs-runtime-20261007-r2/etc/node.toml ",
+      "exe": "/var/tmp/afs-dfs-statfs-runtime-20261007-r2/prefix/bin/afs-node",
+      "exe_sha256": "01fb69b7b4d160e37a3f200b7b458bf5f6c1957890c6d791ceb7288f4dca288a",
+      "pid": 168480,
+      "role": "node",
+      "start_ticks": "8497697"
+    }
+  },
+  "mount": {
+    "df": {
+      "argv": [
+        "df",
+        "-P",
+        "/var/tmp/afs-dfs-statfs-runtime-20261007-r2/mount/dfs"
+      ],
+      "capacity_trace": "results/commands/020-df-dfs.capacity.jsonl",
+      "cwd": "/home/lzc.guest",
+      "duration_seconds": 2.011,
+      "exit": "results/commands/020-df-dfs.exit",
+      "finished_utc": "2026-10-06T16:14:28Z",
+      "label": "df-dfs",
+      "reserve_bytes": null,
+      "returncode": 0,
+      "started_utc": "2026-10-06T16:14:26Z",
+      "stderr": "results/commands/020-df-dfs.stderr",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stdout": "results/commands/020-df-dfs.stdout",
+      "stdout_sha256": "23386c5a70a2dbf33fabcc2c74806b45e2a2f2dbe1d1d72646424e13bd8cf8e8",
+      "stop_reason": null,
+      "timed_out": false,
+      "timeout_seconds": 20
+    },
+    "findmnt": {
+      "fstype": "fuse",
+      "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other",
+      "source": "afs-dfs",
+      "target": "/var/tmp/afs-dfs-statfs-runtime-20261007-r2/mount/dfs"
+    },
+    "statvfs": {
+      "path": "/var/tmp/afs-dfs-statfs-runtime-20261007-r2/mount/dfs",
+      "statvfs": {
+        "f_bavail": 1586151,
+        "f_bfree": 1590247,
+        "f_blocks": 3789825,
+        "f_bsize": 4096,
+        "f_favail": 1864684,
+        "f_ffree": 1864684,
+        "f_files": 1966080,
+        "f_frsize": 4096,
+        "f_namemax": 255
+      }
+    }
+  },
+  "status": "PASS",
+  "updated_utc": "2026-10-06T16:14:32Z"
+}

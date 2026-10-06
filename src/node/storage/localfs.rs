@@ -53,35 +53,8 @@ impl LocalFs {
         &self.root_path
     }
 
-    #[allow(unsafe_code)]
     pub fn statvfs(&self) -> io::Result<FilesystemCapacity> {
-        let mut raw = MaybeUninit::<libc::statvfs>::uninit();
-        // SAFETY: `raw` points to valid writable memory for one `statvfs`
-        // result, and `self.root` is a live directory FD owned by LocalFs. The
-        // kernel writes the struct before returning 0 and does not retain the
-        // pointer after the call.
-        let result = unsafe { libc::fstatvfs(self.root.as_raw_fd(), raw.as_mut_ptr()) };
-        if result != 0 {
-            return Err(io::Error::last_os_error());
-        }
-        // SAFETY: a zero return from fstatvfs means the kernel initialized the
-        // entire statvfs struct.
-        let raw = unsafe { raw.assume_init() };
-        let bsize = u32::try_from(raw.f_bsize).unwrap_or(u32::MAX);
-        let frsize = match u32::try_from(raw.f_frsize).unwrap_or(u32::MAX) {
-            0 => bsize,
-            value => value,
-        };
-        Ok(FilesystemCapacity {
-            blocks: raw.f_blocks,
-            bfree: raw.f_bfree,
-            bavail: raw.f_bavail,
-            files: raw.f_files,
-            ffree: raw.f_ffree,
-            bsize,
-            namelen: u32::try_from(raw.f_namemax).unwrap_or(u32::MAX),
-            frsize,
-        })
+        capacity_from_statvfs_fd(&self.root)
     }
 
     fn open_parent(&self, path: &StoragePath) -> io::Result<(File, OsString)> {
@@ -110,6 +83,36 @@ impl LocalFs {
         }
         self.open_dir_components(&split_components(path)?)
     }
+}
+
+#[allow(unsafe_code)]
+pub(crate) fn capacity_from_statvfs_fd(file: &File) -> io::Result<FilesystemCapacity> {
+    let mut raw = MaybeUninit::<libc::statvfs>::uninit();
+    // SAFETY: `raw` points to valid writable memory for one `statvfs` result,
+    // and `file` is a live directory FD supplied by the caller. The kernel
+    // writes the struct before returning 0 and does not retain the pointer.
+    let result = unsafe { libc::fstatvfs(file.as_raw_fd(), raw.as_mut_ptr()) };
+    if result != 0 {
+        return Err(io::Error::last_os_error());
+    }
+    // SAFETY: a zero return from fstatvfs means the kernel initialized the
+    // entire statvfs struct.
+    let raw = unsafe { raw.assume_init() };
+    let bsize = u32::try_from(raw.f_bsize).unwrap_or(u32::MAX);
+    let frsize = match u32::try_from(raw.f_frsize).unwrap_or(u32::MAX) {
+        0 => bsize,
+        value => value,
+    };
+    Ok(FilesystemCapacity {
+        blocks: raw.f_blocks,
+        bfree: raw.f_bfree,
+        bavail: raw.f_bavail,
+        files: raw.f_files,
+        ffree: raw.f_ffree,
+        bsize,
+        namelen: u32::try_from(raw.f_namemax).unwrap_or(u32::MAX),
+        frsize,
+    })
 }
 
 impl FileStore for LocalFs {

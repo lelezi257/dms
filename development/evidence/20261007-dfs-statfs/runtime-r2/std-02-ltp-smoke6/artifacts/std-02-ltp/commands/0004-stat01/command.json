@@ -1,0 +1,230 @@
+{
+  "argv": [
+    "/var/tmp/afs-e2e-20261006-r1/suites/ltp-small-install/kirk",
+    "--no-colors",
+    "--tmp-dir",
+    "/var/tmp/afs-dfs-statfs-runtime-20261007-r2/results/std-02-ltp-smoke6/artifacts/std-02-ltp/commands/0004-stat01/kirk-tmp",
+    "--json-report",
+    "/var/tmp/afs-dfs-statfs-runtime-20261007-r2/results/std-02-ltp-smoke6/artifacts/std-02-ltp/commands/0004-stat01/kirk-report.json",
+    "--run-command",
+    "cd '/var/tmp/afs-dfs-statfs-runtime-20261007-r2/mount/dfs/.ltp-smoke6/.l7e545f6a/0004/w' && export LTPROOT='/var/tmp/afs-e2e-20261006-r1/suites/ltp-small-install' && export PATH='/var/tmp/afs-e2e-20261006-r1/suites/ltp-small-install/testcases/bin:/var/tmp/afs-e2e-20261006-r1/suites/ltp-small-install/bin':\"$PATH\" && export TMPDIR='/var/tmp/afs-dfs-statfs-runtime-20261007-r2/mount/dfs/.ltp-smoke6/.l7e545f6a/0004/t' && export TMP='/var/tmp/afs-dfs-statfs-runtime-20261007-r2/mount/dfs/.ltp-smoke6/.l7e545f6a/0004/t' && export TEMP='/var/tmp/afs-dfs-statfs-runtime-20261007-r2/mount/dfs/.ltp-smoke6/.l7e545f6a/0004/t' && stat01",
+    "--exec-timeout",
+    "120",
+    "--suite-timeout",
+    "240",
+    "--workers",
+    "1"
+  ],
+  "classification": {
+    "kirk_json_present": false,
+    "kirk_json_top_keys": null,
+    "ltp_event_counts": {
+      "TBROK": 0,
+      "TCONF": 0,
+      "TFAIL": 0,
+      "TINFO": 5,
+      "TPASS": 12,
+      "TWARN": 0
+    },
+    "ltp_events": [
+      {
+        "case_index": null,
+        "line": 9,
+        "message": "Using /var/tmp/afs-dfs-statfs-runtime-20261007-r2/mount/dfs/.ltp-smoke6/.l7e545f6a/0004/t/LTP_staZnhBu9 as tmpdir (fuse filesystem)",
+        "prefix": "tst_tmpdir.c:308:",
+        "raw": "tst_tmpdir.c:308: TINFO: Using /var/tmp/afs-dfs-statfs-runtime-20261007-r2/mount/dfs/.ltp-smoke6/.l7e545f6a/0004/t/LTP_staZnhBu9 as tmpdir (fuse filesystem)",
+        "source": "tst_tmpdir.c:308",
+        "status": "TINFO"
+      },
+      {
+        "case_index": null,
+        "line": 10,
+        "message": "LTP version: 20260529",
+        "prefix": "tst_test.c:2042:",
+        "raw": "tst_test.c:2042: TINFO: LTP version: 20260529",
+        "source": "tst_test.c:2042",
+        "status": "TINFO"
+      },
+      {
+        "case_index": null,
+        "line": 11,
+        "message": "Tested kernel: 6.8.0-106-generic #106-Ubuntu SMP PREEMPT_DYNAMIC Fri Mar  6 07:44:40 UTC 2026 aarch64",
+        "prefix": "tst_test.c:2045:",
+        "raw": "tst_test.c:2045: TINFO: Tested kernel: 6.8.0-106-generic #106-Ubuntu SMP PREEMPT_DYNAMIC Fri Mar  6 07:44:40 UTC 2026 aarch64",
+        "source": "tst_test.c:2045",
+        "status": "TINFO"
+      },
+      {
+        "case_index": null,
+        "line": 12,
+        "message": "Parsing kernel config '/lib/modules/6.8.0-106-generic/build/.config'",
+        "prefix": "tst_kconfig.c:90:",
+        "raw": "tst_kconfig.c:90: TINFO: Parsing kernel config '/lib/modules/6.8.0-106-generic/build/.config'",
+        "source": "tst_kconfig.c:90",
+        "status": "TINFO"
+      },
+      {
+        "case_index": null,
+        "line": 13,
+        "message": "Overall timeout per run is 0h 00m 30s",
+        "prefix": "tst_test.c:1870:",
+        "raw": "tst_test.c:1870: TINFO: Overall timeout per run is 0h 00m 30s",
+        "source": "tst_test.c:1870",
+        "status": "TINFO"
+      },
+      {
+        "case_index": null,
+        "line": 14,
+        "message": "stat(tc->pathname, &stat_buf) passed",
+        "prefix": "stat01.c:41:",
+        "raw": "stat01.c:41: TPASS: stat(tc->pathname, &stat_buf) passed",
+        "source": "stat01.c:41",
+        "status": "TPASS"
+      },
+      {
+        "case_index": null,
+        "line": 15,
+        "message": "stat_buf.st_uid == user_id (65534)",
+        "prefix": "stat01.c:43:",
+        "raw": "stat01.c:43: TPASS: stat_buf.st_uid == user_id (65534)",
+        "source": "stat01.c:43",
+        "status": "TPASS"
+      },
+      {
+        "case_index": null,
+        "line": 16,
+        "message": "stat_buf.st_gid == group_id (0)",
+        "prefix": "stat01.c:44:",
+        "raw": "stat01.c:44: TPASS: stat_buf.st_gid == group_id (0)",
+        "source": "stat01.c:44",
+        "status": "TPASS"
+      },
+      {
+        "case_index": null,
+        "line": 17,
+        "message": "stat_buf.st_size == FILE_SIZE (1024)",
+        "prefix": "stat01.c:45:",
+        "raw": "stat01.c:45: TPASS: stat_buf.st_size == FILE_SIZE (1024)",
+        "source": "stat01.c:45",
+        "status": "TPASS"
+      },
+      {
+        "case_index": null,
+        "line": 18,
+        "message": "stat_buf.st_mode & MASK == tc->mode (438)",
+        "prefix": "stat01.c:46:",
+        "raw": "stat01.c:46: TPASS: stat_buf.st_mode & MASK == tc->mode (438)",
+        "source": "stat01.c:46",
+        "status": "TPASS"
+      },
+      {
+        "case_index": null,
+        "line": 19,
+        "message": "stat_buf.st_nlink == 1 (1)",
+        "prefix": "stat01.c:47:",
+        "raw": "stat01.c:47: TPASS: stat_buf.st_nlink == 1 (1)",
+        "source": "stat01.c:47",
+        "status": "TPASS"
+      },
+      {
+        "case_index": null,
+        "line": 20,
+        "message": "stat(tc->pathname, &stat_buf) passed",
+        "prefix": "stat01.c:41:",
+        "raw": "stat01.c:41: TPASS: stat(tc->pathname, &stat_buf) passed",
+        "source": "stat01.c:41",
+        "status": "TPASS"
+      },
+      {
+        "case_index": null,
+        "line": 21,
+        "message": "stat_buf.st_uid == user_id (65534)",
+        "prefix": "stat01.c:43:",
+        "raw": "stat01.c:43: TPASS: stat_buf.st_uid == user_id (65534)",
+        "source": "stat01.c:43",
+        "status": "TPASS"
+      },
+      {
+        "case_index": null,
+        "line": 22,
+        "message": "stat_buf.st_gid == group_id (0)",
+        "prefix": "stat01.c:44:",
+        "raw": "stat01.c:44: TPASS: stat_buf.st_gid == group_id (0)",
+        "source": "stat01.c:44",
+        "status": "TPASS"
+      },
+      {
+        "case_index": null,
+        "line": 23,
+        "message": "stat_buf.st_size == FILE_SIZE (1024)",
+        "prefix": "stat01.c:45:",
+        "raw": "stat01.c:45: TPASS: stat_buf.st_size == FILE_SIZE (1024)",
+        "source": "stat01.c:45",
+        "status": "TPASS"
+      },
+      {
+        "case_index": null,
+        "line": 24,
+        "message": "stat_buf.st_mode & MASK == tc->mode (146)",
+        "prefix": "stat01.c:46:",
+        "raw": "stat01.c:46: TPASS: stat_buf.st_mode & MASK == tc->mode (146)",
+        "source": "stat01.c:46",
+        "status": "TPASS"
+      },
+      {
+        "case_index": null,
+        "line": 25,
+        "message": "stat_buf.st_nlink == 1 (1)",
+        "prefix": "stat01.c:47:",
+        "raw": "stat01.c:47: TPASS: stat_buf.st_nlink == 1 (1)",
+        "source": "stat01.c:47",
+        "status": "TPASS"
+      }
+    ],
+    "ltp_token_counts": {
+      "TBROK": 0,
+      "TCONF": 0,
+      "TFAIL": 0,
+      "TINFO": 5,
+      "TPASS": 12,
+      "TWARN": 0
+    },
+    "result": "PASS"
+  },
+  "execution_payload": "stat01",
+  "record": {
+    "command": "stat01 stat01",
+    "selector": "syscalls-file-related",
+    "test_id": "stat01"
+  },
+  "result": {
+    "argv": [
+      "/var/tmp/afs-e2e-20261006-r1/suites/ltp-small-install/kirk",
+      "--no-colors",
+      "--tmp-dir",
+      "/var/tmp/afs-dfs-statfs-runtime-20261007-r2/results/std-02-ltp-smoke6/artifacts/std-02-ltp/commands/0004-stat01/kirk-tmp",
+      "--json-report",
+      "/var/tmp/afs-dfs-statfs-runtime-20261007-r2/results/std-02-ltp-smoke6/artifacts/std-02-ltp/commands/0004-stat01/kirk-report.json",
+      "--run-command",
+      "cd '/var/tmp/afs-dfs-statfs-runtime-20261007-r2/mount/dfs/.ltp-smoke6/.l7e545f6a/0004/w' && export LTPROOT='/var/tmp/afs-e2e-20261006-r1/suites/ltp-small-install' && export PATH='/var/tmp/afs-e2e-20261006-r1/suites/ltp-small-install/testcases/bin:/var/tmp/afs-e2e-20261006-r1/suites/ltp-small-install/bin':\"$PATH\" && export TMPDIR='/var/tmp/afs-dfs-statfs-runtime-20261007-r2/mount/dfs/.ltp-smoke6/.l7e545f6a/0004/t' && export TMP='/var/tmp/afs-dfs-statfs-runtime-20261007-r2/mount/dfs/.ltp-smoke6/.l7e545f6a/0004/t' && export TEMP='/var/tmp/afs-dfs-statfs-runtime-20261007-r2/mount/dfs/.ltp-smoke6/.l7e545f6a/0004/t' && stat01",
+      "--exec-timeout",
+      "120",
+      "--suite-timeout",
+      "240",
+      "--workers",
+      "1"
+    ],
+    "cwd": "/var/tmp/afs-e2e-20261006-r1/suites/ltp-small-install",
+    "duration_seconds": 0.977,
+    "returncode": 0,
+    "timed_out": false,
+    "timeout_seconds": 245
+  },
+  "shell_command": "cd '/var/tmp/afs-dfs-statfs-runtime-20261007-r2/mount/dfs/.ltp-smoke6/.l7e545f6a/0004/w' && export LTPROOT='/var/tmp/afs-e2e-20261006-r1/suites/ltp-small-install' && export PATH='/var/tmp/afs-e2e-20261006-r1/suites/ltp-small-install/testcases/bin:/var/tmp/afs-e2e-20261006-r1/suites/ltp-small-install/bin':\"$PATH\" && export TMPDIR='/var/tmp/afs-dfs-statfs-runtime-20261007-r2/mount/dfs/.ltp-smoke6/.l7e545f6a/0004/t' && export TMP='/var/tmp/afs-dfs-statfs-runtime-20261007-r2/mount/dfs/.ltp-smoke6/.l7e545f6a/0004/t' && export TEMP='/var/tmp/afs-dfs-statfs-runtime-20261007-r2/mount/dfs/.ltp-smoke6/.l7e545f6a/0004/t' && stat01",
+  "timeout": {
+    "exec_timeout_seconds": 120,
+    "process_timeout_seconds": 245,
+    "source": "default",
+    "suite_timeout_seconds": 240
+  }
+}

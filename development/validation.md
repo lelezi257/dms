@@ -32,8 +32,8 @@ G2 starts with Owner-first standard fallback and small cases, then enters DFS st
 - Owner-relevant fixed LTP filesystem/permission/lock subset.
 - Owner-relevant short fixed-seed FSx.
 - Affected Owner basic operation and local-file recovery combination.
-- Owner local small read, write and delete against ext4, then remote read/write/delete against MooseFS parity.
-- Bind functional and bind performance tasks as explicit-switch, default-OFF items.
+- Performance priority: container-mounted workspace access from Issue42/PR43, with explicit-switch/default-OFF functional qualification before paired OFF/ON/ext4 measurements.
+- Ordinary Owner local/remote and DFS cases may baseline and retain raw data and FAIL; defer targeted tuning. Unchanged passing standard results are reused with their version/scope, not rerun as performance tests.
 - DFS pjdfstest, DFS-relevant LTP/FSx and DFS affected basic checks before DFS performance claims.
 - DFS one-writer/many-readers before broader DFS performance.
 

@@ -1,3 +1,5 @@
+**Latest functional output (2026-10-07):** local R1 DFS statfs and affected fixed standards now pass on map6161e25b release, with normal cleanup; [evidence](evidence/20261007-dfs-statfs/README.md). Do not repeat unchanged suites. Next implementation is managed container workspace access from Issue42/PR43; ordinary performance tuning stays deferred.
+
 # Delivery task map
 
 The active task map is [the three-stage acceptance checklist](trial-release-goals.md). This file gives execution order and dependencies; it does not replace the checklist or the full contract in [docs/acceptance.md](../docs/acceptance.md).

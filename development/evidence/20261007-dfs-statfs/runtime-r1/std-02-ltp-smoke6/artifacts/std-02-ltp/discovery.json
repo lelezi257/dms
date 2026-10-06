@@ -1,0 +1,49 @@
+{
+  "selected": [
+    {
+      "command": "open01 open01",
+      "selector": "syscalls-file-related",
+      "test_id": "open01"
+    },
+    {
+      "command": "read01 read01",
+      "selector": "syscalls-file-related",
+      "test_id": "read01"
+    },
+    {
+      "command": "write01 write01",
+      "selector": "syscalls-file-related",
+      "test_id": "write01"
+    },
+    {
+      "command": "stat01 stat01",
+      "selector": "syscalls-file-related",
+      "test_id": "stat01"
+    },
+    {
+      "command": "chmod01 chmod01",
+      "selector": "syscalls-file-related",
+      "test_id": "chmod01"
+    },
+    {
+      "command": "fcntl14 fcntl14",
+      "selector": "syscalls-file-related",
+      "test_id": "fcntl14"
+    }
+  ],
+  "selection": {
+    "missing_smoke_test_ids": [],
+    "mode": "smoke",
+    "requested_test_ids": [
+      "open01",
+      "read01",
+      "write01",
+      "stat01",
+      "chmod01",
+      "fcntl14"
+    ],
+    "selected_count": 6,
+    "total_commands": 657
+  },
+  "total_commands": 657
+}

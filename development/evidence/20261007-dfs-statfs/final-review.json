@@ -1,0 +1,19 @@
+{
+  "scope": "Final four-file DFS local-R1 statfs checkpoint and version-scoped evidence/docs",
+  "reviewer": "/root/e2e_standard_entry",
+  "verdict": "Bounded APPROVE",
+  "checks": {
+    "compiler_inputs": 154,
+    "portable_sha256_files": 444,
+    "runtime_tools": 5,
+    "local_links": "valid",
+    "new_elf_dfs_pjdfstest": "236 scripts / 8819 checks / 28 TODO / 0 skip or unexpected failures",
+    "new_elf_dfs_ltp": "fixed 6 PASS out of 657 inventory; 651 unselected",
+    "closure": "PASS"
+  },
+  "limits": [
+    "Read-only review; no new macOS product tests",
+    "No new-ELF Owner standards, multi-node recovery, full POSIX or performance qualification",
+    "Retained r1 fixture error and historical ENOSYS failures"
+  ]
+}

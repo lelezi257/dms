@@ -4,7 +4,7 @@
 
 ## 总纲与状态口径
 
-**最新用户优先级（2026-10-06）：** pjdfstest优先保证功能完备性。性能第一优先级是Issue42/PR43的容器内挂载workspace目录访问（G2.12必要功能/安全出口→G2.13性能），显式开关默认OFF。其它普通local/remote/DFS性能可先摸底留数据，未达标的专项优化暂缓，不无输入复测；目标阈值和原FAIL不改。[高优先级仓库整改](repository-remediation.md)R1已验证；R2原版fuser迁移因公开API缺口独立阻塞，其它功能/容器路径继续推进，不重开G1。
+**最新用户优先级（2026-10-07）：** pjdfstest优先保证功能完备性。性能第一优先级是Issue42/PR43的容器内挂载workspace目录访问（G2.12必要功能/安全出口→G2.13性能），显式开关默认OFF。其它普通local/remote/DFS性能可先摸底留数据，未达标的专项优化暂缓，不无输入复测；目标阈值和原FAIL不改。[高优先级仓库整改](repository-remediation.md)R1已验证；R2原版fuser迁移因公开API缺口独立阻塞，其它功能/容器路径继续推进，不重开G1。
 
 **决策：** 先交付简单稳定的试用版，再从小规模核心case提高性能，最后复杂可靠性。Meta：memory演示→local-file持久恢复→etcd→Redis；OwnerFs优先，DFS内部一写多读优先。正常使用的数据损坏、错误成功、越权或核心恢复缺陷立即修复。
 
@@ -15,7 +15,7 @@
 | 阶段 | 独立交付结果 | 当前可信状态 |
 | --- | --- | --- |
 | 阶段一 G1 | 同事独立安装OwnerFs/DFS；memory演示；中心local-file Meta可重启恢复 | **已完成，8/8；推荐g1.5**。新候选回归不重开G1；不是完整POSIX/69项认证 |
-| 阶段二 G2 | 标准回归；OwnerFs核心性能；DFS一写多读；可开关bind功能/性能 | **进行中，27项：7项限定完成、4项存在失败、2项bind进行中、14项待验收**。Owner小读/写性能FAIL，DFS标准statfs缺口；系统对照/新性能包未完成 |
+| 阶段二 G2 | 标准回归；OwnerFs核心性能；DFS一写多读；可开关bind功能/性能 | **进行中，27项：9项限定完成、2项存在性能失败、2项bind进行中、14项待验收**。Owner小读/写性能FAIL；DFS本地R1标准缺口已补齐，旧失败保留；系统对照/新性能包未完成 |
 | 阶段三 G3 | 长时间、复杂并发/故障、扩展矩阵和最后的后端 | **后置，13项**；局部证据保留，不称整体验收 |
 
 ## 启动前收尾（不重开阶段一）
@@ -58,8 +58,8 @@
 | G2.02 | DFS批次读放大优化 | 同批次共享完整校验，不掩盖错误，Linux/成对诊断/独审通过 | **完成（限定成果）**；[48次诊断/1766项审计](current-checkpoint.md#historical-evidence)；非3FS达标 |
 | G2.03 | 小尺度性能工具资格 | ext4正向/错误注入、返回/内容/生命周期校验 | **完成（有限工具）**；[15tests/24正向/46负控制](current-checkpoint.md#historical-evidence)；非完整正式评估器 |
 | G2.04 | 当前候选OwnerFs pjdfstest | 完整适用项、TAP/排除/版本/挂载身份可复核 | **完成（当前Owner本地）**；e925c5b dev及release各236文件/8819checks/28TODO，0skip/意外失败；[release](evidence/20261006-e2e-current/release-r1/README.md)；[proof](evidence/20261006-e2e-current/r2/owner-pjdfstest-r2/artifacts/std-01-pjdfstest/proof.json) |
-| G2.05 | 当前候选DFS pjdfstest | 独立mount/state、完整适用项与逐项结果 | **FAIL，标准前置能力缺口**；e925c5b 236脚本启动、0 TAP断言；statfs ENOSYS导致识别失败，[证据](evidence/20261006-e2e-current/r5/README.md)，不称POSIX跑完 |
-| G2.06 | 当前候选LTP基础子集 | 固定基础文件/权限/锁清单，完整结果账本 | **Owner分支PASS，DFS分支FAIL**；Owner固定6/6 PASS，DFS6TBROK/0TPASS（statfs ENOSYS）；651库存未选，[Owner](evidence/20261006-e2e-current/r3/owner-ltp-r1/artifacts/std-02-ltp/proof.json)/[DFS](evidence/20261006-e2e-current/r5/README.md) |
+| G2.05 | 当前候选DFS pjdfstest | 独立mount/state、完整适用项与逐项结果 | **完成（当前DFS本地R1）**；map6161e25b release：236文件/8819checks/28TODO，0skip/意外失败，正常关闭；[新proof](evidence/20261007-dfs-statfs/runtime-r2/std-01-pjdfstest-full/artifacts/std-01-pjdfstest/proof.json)。e925 ENOSYS/0TAP[原失败](evidence/20261006-e2e-current/r5/README.md)保留，非remote/RN标准资格 |
+| G2.06 | 当前候选LTP基础子集 | 固定基础文件/权限/锁清单，完整结果账本 | **完成（固定6项，版本分列）**；Owner e925固定6/6原PASS复用；DFS map6161e25b release固定6/6PASS，0TBROK/TCONF/FAIL/TIMEOUT；651库存未选；[DFS新proof](evidence/20261007-dfs-statfs/runtime-r2/std-02-ltp-smoke6/artifacts/std-02-ltp/proof.json)。旧6TBROK保留；不宣称新ELF Owner已实跑 |
 | G2.07 | 当前候选FSx短测试 | 固定种子/时长/文件上限，无内容/长度mismatch | **完成（当前短范围）**；e925c5b Owner/DFS均seed1/1000、默认262144字节上限、无mismatch；[Owner](evidence/20261006-e2e-current/r2/owner-fsx-r1/artifacts/std-03-fsx/proof.json)/[DFS](evidence/20261006-e2e-current/r5/dfs-fsx-r1/artifacts/std-03-fsx/proof.json) |
 | G2.08 | 当前候选基本组合/local-file恢复 | 受改动影响的Home/remote/DFS核心操作、中心重启、错误及正常关闭 | **完成（当前核心组合）**；e925c5b Owner双VM A写B读/B改A读、rename/delete及中心有序恢复；DFS R2一写两读/中心恢复，正常stop/卸载；[34项+关闭核验](evidence/20261006-e2e-current/crossvm-r1/README.md)。非Node崩溃矩阵，不重开G1 |
 | G2.09 | OwnerFs本地小规模读 | 与ext4同条件、内容/EOF正确并达本地目标 | **性能FAIL**；e925c5b 64MiB/C1/5对，功能PASS，dev0.5709/release0.3477×ext4<0.90，摸底数据保留、专项优化暂缓；[证据](evidence/20261006-e2e-current/r4/README.md)，不刷成绩 |
@@ -84,7 +84,7 @@
 
 **决策：** native已知append、实际kernel锁、混合mmap/watch、最终namespace/Root/epoch及排空缺口属于G2.12启用前条件，不能延期后冒充通过。OFF版本和普通FUSE性能独立推进；开关不掩盖ON错误，当前不声称已有可用生产开关。
 
-**下一顺序：** 当前已启动release切片已测完并正常停止，普通读写未达标数据保留、专项优化暂缓；R1仓库整改验证完成并发布，R2原版fuser公开API缺口独立阻塞。继续pjdfstest功能完备性及受影响回归；性能优先G2.12容器workspace挂载的必要功能/安全出口→G2.13性能。其它核心性能按独立摸底项保留数据，不无限优化；大规模/复杂可靠性/后端仍后置。
+**下一顺序：** 当前已启动release切片已测完并正常停止，普通读写未达标数据保留、专项优化暂缓；R1仓库整改验证完成并发布，R2原版fuser公开API缺口独立阻塞。DFS本地R1受影响标准回归已完成；其它标准项按功能范围复用或补齐，不为了性能反复跑标准集。性能优先G2.12容器workspace挂载的必要功能/安全出口→G2.13性能。其它核心性能按独立摸底项保留数据，不无限优化；大规模/复杂可靠性/后端仍后置。
 
 ## 阶段三 G3：复杂可靠性及最后的后端
 

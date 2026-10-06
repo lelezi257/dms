@@ -244,7 +244,7 @@ mod linux {
         root: &File,
     ) -> io::Result<(NamespaceIdentity, DirectoryIdentity, u64)> {
         in_mount_namespace(namespace, || {
-            let namespace_identity = current_namespace()?;
+            let namespace_identity = namespace_identity(namespace)?;
             let target = open_child(root, workspace_name())?;
             check_mount_policy(&target)?;
             Ok((
@@ -271,7 +271,8 @@ mod linux {
             }
             check_mount_policy(&target)?;
             drop(target);
-            normal_unmount(&workspace_proc_path(root)?)?;
+            change_directory(root)?;
+            normal_unmount(workspace_name())?;
             let restored = open_child(root, workspace_name())?;
             if directory_identity(&restored)? != covered
                 || unique_mount_id(&restored)? == expected_unique_mount_id
@@ -282,21 +283,17 @@ mod linux {
         })
     }
 
+    #[allow(unsafe_code)]
     fn check_mount_policy(target: &File) -> io::Result<()> {
-        let id = mount_id(target)?;
-        let contents = std::fs::read_to_string("/proc/thread-self/mountinfo")?;
-        let options = contents
-            .lines()
-            .find_map(|line| {
-                let fields: Vec<_> = line.split_ascii_whitespace().collect();
-                (fields.first().and_then(|field| field.parse::<u64>().ok()) == Some(id))
-                    .then(|| fields.get(5).copied())
-                    .flatten()
-            })
-            .ok_or_else(|| errno(libc::ESTALE))?;
-        if options.split(',').any(|option| option == "nosuid")
-            && options.split(',').any(|option| option == "nodev")
-        {
+        // Query the mount held by this descriptor, including per-mount flags.
+        // A stopped container's procfs cannot resolve this host thread.
+        let mut attributes: libc::statvfs = unsafe { std::mem::zeroed() };
+        // SAFETY: the descriptor and output storage remain live for the call.
+        if unsafe { libc::fstatvfs(target.as_raw_fd(), &mut attributes) } != 0 {
+            return Err(io::Error::last_os_error());
+        }
+        let required = libc::ST_NOSUID | libc::ST_NODEV;
+        if attributes.f_flag & required == required {
             Ok(())
         } else {
             Err(errno(libc::EPERM))
@@ -307,33 +304,32 @@ mod linux {
         c"workspace"
     }
 
-    fn workspace_proc_path(root: &File) -> io::Result<CString> {
-        CString::new(format!(
-            "/proc/thread-self/fd/{}/workspace",
-            root.as_raw_fd()
-        ))
-        .map_err(|_| errno(libc::EINVAL))
-    }
-
     fn in_mount_namespace<T>(
         namespace: &File,
         body: impl FnOnce() -> io::Result<T>,
     ) -> io::Result<T> {
-        let expected = namespace_identity(namespace)?;
         let original = File::open("/proc/thread-self/ns/mnt")?;
+        let original_directory = File::open(".")?;
+        // A successful setns with CLONE_NEWNS enters this exact held namespace
+        // descriptor. Do not consult the container's procfs after entry.
         setns_mount(namespace)?;
-        let result = current_namespace().and_then(|actual| {
-            if actual == expected {
-                body()
-            } else {
-                Err(errno(libc::ESTALE))
-            }
-        });
-        let restore = setns_mount(&original);
+        let result = body();
+        let restore = setns_mount(&original).and_then(|_| change_directory(&original_directory));
         match (result, restore) {
             (Ok(value), Ok(())) => Ok(value),
             (Err(error), Ok(())) => Err(error),
             (_, Err(error)) => Err(error),
+        }
+    }
+
+    #[allow(unsafe_code)]
+    fn change_directory(directory: &File) -> io::Result<()> {
+        // SAFETY: the directory descriptor is owned and live. This controller
+        // thread has its own CLONE_FS context; the outer scope restores cwd.
+        if unsafe { libc::fchdir(directory.as_raw_fd()) } == 0 {
+            Ok(())
+        } else {
+            Err(io::Error::last_os_error())
         }
     }
 
@@ -639,13 +635,15 @@ mod linux {
 
         #[test]
         #[ignore = "requires root Linux private mount namespace; run explicitly"]
-        fn final_clone_detach_rejects_wrong_identity_then_cleans_normally() {
+        fn final_clone_detach_rejects_wrong_identity_and_flags_with_proc_hidden() {
             assert!(
                 can_create_private_mount_namespace(),
                 "private mount namespace admission failed"
             );
             let controller_namespace = File::open("/proc/thread-self/ns/mnt").unwrap();
             let controller_identity = current_namespace().unwrap();
+            let controller_cwd = dir_fd(Path::new("."));
+            let controller_directory = directory_identity(&controller_cwd).unwrap();
             let temp = tempfile::tempdir().unwrap();
             fs::create_dir(temp.path().join("source")).unwrap();
             fs::create_dir(temp.path().join("root")).unwrap();
@@ -674,8 +672,14 @@ mod linux {
             );
             let final_root = dir_fd(&temp.path().join("root"));
             let final_namespace = File::open("/proc/thread-self/ns/mnt").unwrap();
+            hide_proc().unwrap();
+            assert_eq!(
+                File::open("/proc/thread-self/ns/mnt").unwrap_err().kind(),
+                io::ErrorKind::NotFound
+            );
 
             setns_mount(&controller_namespace).expect("restore controller namespace before probe");
+            change_directory(&controller_cwd).unwrap();
             let (observed_namespace, observed_source, observed_unique) =
                 inspect_final_clone(&final_namespace, &final_root).unwrap();
             assert_ne!(observed_namespace, claim.namespace);
@@ -732,6 +736,27 @@ mod linux {
             assert_eq!(still_source, claim.source);
             assert_eq!(still_unique, observed_unique);
             assert_eq!(current_namespace().unwrap(), controller_identity);
+            assert_eq!(
+                directory_identity(&dir_fd(Path::new("."))).unwrap(),
+                controller_directory
+            );
+            assert_eq!(
+                detach_final_clone(
+                    &final_namespace,
+                    &final_root,
+                    claim.source,
+                    observed_unique.wrapping_add(1),
+                    covered
+                )
+                .unwrap_err()
+                .raw_os_error(),
+                Some(libc::ESTALE)
+            );
+            assert_eq!(current_namespace().unwrap(), controller_identity);
+            assert_eq!(
+                directory_identity(&dir_fd(Path::new("."))).unwrap(),
+                controller_directory
+            );
 
             detach_final_clone(
                 &final_namespace,
@@ -742,6 +767,10 @@ mod linux {
             )
             .unwrap();
             assert_eq!(current_namespace().unwrap(), controller_identity);
+            assert_eq!(
+                directory_identity(&dir_fd(Path::new("."))).unwrap(),
+                controller_directory
+            );
             let (restored_source, restored_unique) = in_mount_namespace(&final_namespace, || {
                 let target = open_child(&final_root, workspace_name())?;
                 Ok((directory_identity(&target)?, unique_mount_id(&target)?))
@@ -757,6 +786,25 @@ mod linux {
             let restored = open_child(&root, workspace_name()).unwrap();
             assert_eq!(directory_identity(&restored).unwrap(), covered);
             assert!(!temp.path().join("root/workspace/file").exists());
+        }
+
+        #[allow(unsafe_code)]
+        fn hide_proc() -> io::Result<()> {
+            // Only this test's cloned private namespace loses its proc view.
+            if unsafe {
+                libc::mount(
+                    std::ptr::null(),
+                    c"/proc".as_ptr(),
+                    c"tmpfs".as_ptr(),
+                    0,
+                    std::ptr::null(),
+                )
+            } == 0
+            {
+                Ok(())
+            } else {
+                Err(io::Error::last_os_error())
+            }
         }
 
         #[allow(unsafe_code)]

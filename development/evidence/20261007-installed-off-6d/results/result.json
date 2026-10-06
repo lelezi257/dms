@@ -1,0 +1,338 @@
+{
+  "status": "PASS",
+  "scope": "current installed OFF small regression",
+  "source_commit": "6d51aeb45c1ed8669d80f612b3817e6d1bdabe04",
+  "tool_sha256": "2e857135d05e5e7380d3dc5f4cec51a80a7045541c7f5f3fc708c6dffc9c1bea",
+  "recovery": {
+    "status": "PASS",
+    "size_each": 67108864,
+    "sha256": {
+      "ownerfs": "71fa8d9f37ac7bf47653832d57a55d3b3d0c7c1bb4314ef6c0ed14f871b96bd1",
+      "dfs": "e03565250488acb476c6584b41dd367eafa88531320e61c934e836d8f22a0678"
+    }
+  },
+  "cleanup": "PASS",
+  "checks": {
+    "Linux-root": {
+      "status": "PASS",
+      "value": [
+        "Linux",
+        "aarch64",
+        0
+      ]
+    },
+    "dependencies": {
+      "status": "PASS",
+      "value": {
+        "bash": "/usr/bin/bash",
+        "python3": "/usr/bin/python3",
+        "timeout": "/usr/bin/timeout",
+        "openssl": "/usr/bin/openssl",
+        "findmnt": "/usr/bin/findmnt",
+        "fusermount3": "/usr/bin/fusermount3",
+        "ldd": "/usr/bin/ldd",
+        "sha256sum": "/usr/bin/sha256sum",
+        "tar": "/usr/bin/tar",
+        "ss": "/usr/bin/ss",
+        "curl": "/usr/bin/curl",
+        "flock": "/usr/bin/flock",
+        "sed": "/usr/bin/sed",
+        "awk": "/usr/bin/awk",
+        "grep": "/usr/bin/grep",
+        "mountpoint": "/usr/bin/mountpoint",
+        "install": "/usr/bin/install",
+        "readlink": "/usr/bin/readlink",
+        "setsid": "/usr/bin/setsid"
+      }
+    },
+    "compiler-free": {
+      "status": "PASS",
+      "value": {
+        "cargo": null,
+        "rustc": null,
+        "cc": null,
+        "gcc": null,
+        "clang": null
+      }
+    },
+    "dedicated-new-root": {
+      "status": "PASS",
+      "value": "/var/tmp/afs-off-6d-20261007-r1"
+    },
+    "capacity": {
+      "status": "PASS",
+      "value": {
+        "free_bytes": 5999067136,
+        "minimum_bytes": 1073741824
+      }
+    },
+    "fuse": {
+      "status": "PASS",
+      "value": "/dev/fuse"
+    },
+    "ext4": {
+      "status": "PASS",
+      "value": {
+        "filesystems": [
+          {
+            "target": "/",
+            "source": "/dev/vda1",
+            "fstype": "ext4",
+            "options": "rw,relatime,discard,errors=remount-ro,commit=30"
+          }
+        ]
+      }
+    },
+    "ports-free": {
+      "status": "PASS",
+      "value": [
+        22400,
+        22401,
+        22500,
+        22501
+      ]
+    },
+    "package-sha256": {
+      "status": "PASS",
+      "value": "ee25d5892c4e884e67c86d4e5b9c6ab551af4c46649edab6a05da06659d1aff9"
+    },
+    "no-source-in-package": {
+      "status": "PASS",
+      "value": [
+        "afs-0.1.0-g2-procfree-6d51aeb-linux-aarch64/",
+        "afs-0.1.0-g2-procfree-6d51aeb-linux-aarch64/DEPENDENCIES.md",
+        "afs-0.1.0-g2-procfree-6d51aeb-linux-aarch64/SHA256SUMS",
+        "afs-0.1.0-g2-procfree-6d51aeb-linux-aarch64/bin/",
+        "afs-0.1.0-g2-procfree-6d51aeb-linux-aarch64/bin/afs-meta",
+        "afs-0.1.0-g2-procfree-6d51aeb-linux-aarch64/bin/afs-node",
+        "afs-0.1.0-g2-procfree-6d51aeb-linux-aarch64/bin/afs-processctl",
+        "afs-0.1.0-g2-procfree-6d51aeb-linux-aarch64/bin/afs-selfcheck",
+        "afs-0.1.0-g2-procfree-6d51aeb-linux-aarch64/bin/afs-trial-config",
+        "afs-0.1.0-g2-procfree-6d51aeb-linux-aarch64/bin/dep02-smoke.sh",
+        "afs-0.1.0-g2-procfree-6d51aeb-linux-aarch64/docs/",
+        "afs-0.1.0-g2-procfree-6d51aeb-linux-aarch64/docs/guides/",
+        "afs-0.1.0-g2-procfree-6d51aeb-linux-aarch64/docs/guides/trial.md",
+        "afs-0.1.0-g2-procfree-6d51aeb-linux-aarch64/install.sh",
+        "afs-0.1.0-g2-procfree-6d51aeb-linux-aarch64/ldd.txt",
+        "afs-0.1.0-g2-procfree-6d51aeb-linux-aarch64/manifest.json",
+        "afs-0.1.0-g2-procfree-6d51aeb-linux-aarch64/scripts/",
+        "afs-0.1.0-g2-procfree-6d51aeb-linux-aarch64/templates/",
+        "afs-0.1.0-g2-procfree-6d51aeb-linux-aarch64/templates/meta.toml",
+        "afs-0.1.0-g2-procfree-6d51aeb-linux-aarch64/templates/node-dfs.toml",
+        "afs-0.1.0-g2-procfree-6d51aeb-linux-aarch64/templates/node-ownerfs.toml",
+        "afs-0.1.0-g2-procfree-6d51aeb-linux-aarch64/templates/node.toml"
+      ]
+    },
+    "one-package": {
+      "status": "PASS",
+      "value": [
+        "/var/tmp/afs-off-6d-20261007-r1/package/afs-0.1.0-g2-procfree-6d51aeb-linux-aarch64"
+      ]
+    },
+    "source-commit": {
+      "status": "PASS",
+      "value": {
+        "schema": "afs.release-package.v1",
+        "name": "afs",
+        "version": "0.1.0-g2-procfree-6d51aeb",
+        "target": "linux-aarch64",
+        "source_commit": "6d51aeb45c1ed8669d80f612b3817e6d1bdabe04",
+        "source_date_epoch": 0,
+        "features": "ownerfs,dfs,rdma",
+        "rust_toolchain": "1.95.0",
+        "binaries": {
+          "afs-meta": {
+            "sha256": "2c7b7d088b759e3b9375080002182aa484a424b4fa216da1fb79a1004e96168e"
+          },
+          "afs-node": {
+            "sha256": "2cf1f538fe7af332a711f3c66a074ace140c00773826a182709a6445b8ae2645"
+          }
+        },
+        "contains": [
+          "afs-meta",
+          "afs-node",
+          "afs-processctl",
+          "afs-trial-config",
+          "afs-selfcheck",
+          "dep02-smoke.sh",
+          "docs/guides/trial.md"
+        ],
+        "installer": "install.sh",
+        "notes": "Built from existing Linux release binaries; no Cargo or Git required on target guests."
+      }
+    },
+    "afs-meta-installed": {
+      "status": "PASS",
+      "value": "2c7b7d088b759e3b9375080002182aa484a424b4fa216da1fb79a1004e96168e"
+    },
+    "afs-meta-libraries": {
+      "status": "PASS",
+      "value": "\tlinux-vdso.so.1 (0x0000eb2b9aeec000)\n\tlibibverbs.so.1 => /lib/aarch64-linux-gnu/libibverbs.so.1 (0x0000eb2b9a3b0000)\n\tlibgcc_s.so.1 => /lib/aarch64-linux-gnu/libgcc_s.so.1 (0x0000eb2b9a370000)\n\tlibm.so.6 => /lib/aarch64-linux-gnu/libm.so.6 (0x0000eb2b9a2c0000)\n\tlibc.so.6 => /lib/aarch64-linux-gnu/libc.so.6 (0x0000eb2b9a100000)\n\t/lib/ld-linux-aarch64.so.1 (0x0000eb2b9aea0000)\n\tlibnl-route-3.so.200 => /lib/aarch64-linux-gnu/libnl-route-3.so.200 (0x0000eb2b9a050000)\n\tlibnl-3.so.200 => /lib/aarch64-linux-gnu/libnl-3.so.200 (0x0000eb2b9a000000)\n"
+    },
+    "afs-node-installed": {
+      "status": "PASS",
+      "value": "2cf1f538fe7af332a711f3c66a074ace140c00773826a182709a6445b8ae2645"
+    },
+    "afs-node-libraries": {
+      "status": "PASS",
+      "value": "\tlinux-vdso.so.1 (0x0000f55c5578b000)\n\tlibibverbs.so.1 => /lib/aarch64-linux-gnu/libibverbs.so.1 (0x0000f55c545a0000)\n\tlibgcc_s.so.1 => /lib/aarch64-linux-gnu/libgcc_s.so.1 (0x0000f55c54560000)\n\tlibm.so.6 => /lib/aarch64-linux-gnu/libm.so.6 (0x0000f55c544b0000)\n\tlibc.so.6 => /lib/aarch64-linux-gnu/libc.so.6 (0x0000f55c542f0000)\n\t/lib/ld-linux-aarch64.so.1 (0x0000f55c55740000)\n\tlibnl-route-3.so.200 => /lib/aarch64-linux-gnu/libnl-route-3.so.200 (0x0000f55c54240000)\n\tlibnl-3.so.200 => /lib/aarch64-linux-gnu/libnl-3.so.200 (0x0000f55c541f0000)\n"
+    },
+    "meta-native-OFF": {
+      "status": "PASS",
+      "value": false
+    },
+    "meta-data-isolated": {
+      "status": "PASS",
+      "value": "/var/tmp/afs-off-6d-20261007-r1/state/meta"
+    },
+    "local-file": {
+      "status": "PASS",
+      "value": "local-file"
+    },
+    "node-native-OFF": {
+      "status": "PASS",
+      "value": false
+    },
+    "node-data-isolated": {
+      "status": "PASS",
+      "value": "/var/tmp/afs-off-6d-20261007-r1/state/node"
+    },
+    "grpc": {
+      "status": "PASS",
+      "value": "grpc"
+    },
+    "meta-running": {
+      "status": "PASS",
+      "value": "2c7b7d088b759e3b9375080002182aa484a424b4fa216da1fb79a1004e96168e"
+    },
+    "meta-installed-process": {
+      "status": "PASS",
+      "value": {
+        "path": "/var/tmp/afs-off-6d-20261007-r1/prefix/bin/afs-meta",
+        "device": 64769,
+        "inode": 787704
+      }
+    },
+    "node-running": {
+      "status": "PASS",
+      "value": "2cf1f538fe7af332a711f3c66a074ace140c00773826a182709a6445b8ae2645"
+    },
+    "node-installed-process": {
+      "status": "PASS",
+      "value": {
+        "path": "/var/tmp/afs-off-6d-20261007-r1/prefix/bin/afs-node",
+        "device": 64769,
+        "inode": 787705
+      }
+    },
+    "ownerfs-mount": {
+      "status": "PASS",
+      "value": {
+        "filesystems": [
+          {
+            "target": "/var/tmp/afs-off-6d-20261007-r1/mount/ownerfs",
+            "source": "afs-ownerfs",
+            "fstype": "fuse",
+            "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other",
+            "id": 55
+          }
+        ]
+      }
+    },
+    "dfs-mount": {
+      "status": "PASS",
+      "value": {
+        "filesystems": [
+          {
+            "target": "/var/tmp/afs-off-6d-20261007-r1/mount/dfs",
+            "source": "afs-dfs",
+            "fstype": "fuse",
+            "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other",
+            "id": 104
+          }
+        ]
+      }
+    },
+    "managed-exit0": {
+      "status": "PASS",
+      "value": [
+        {
+          "service": "meta",
+          "state": "stopped",
+          "pid": "",
+          "config": "/var/tmp/afs-off-6d-20261007-r1/etc/meta.toml",
+          "log": "/var/tmp/afs-off-6d-20261007-r1/logs/meta.log",
+          "exit_code": "0"
+        },
+        {
+          "service": "node",
+          "state": "stopped",
+          "pid": "",
+          "config": "/var/tmp/afs-off-6d-20261007-r1/etc/node.toml",
+          "log": "/var/tmp/afs-off-6d-20261007-r1/logs/node.log",
+          "exit_code": "0"
+        }
+      ]
+    },
+    "ownerfs-removed": {
+      "status": "PASS",
+      "value": ""
+    },
+    "dfs-removed": {
+      "status": "PASS",
+      "value": ""
+    },
+    "before-meta-original-gone": {
+      "status": "PASS",
+      "value": {
+        "pid": 245512,
+        "starttick": 10230205,
+        "sha256": "2c7b7d088b759e3b9375080002182aa484a424b4fa216da1fb79a1004e96168e",
+        "executable": {
+          "path": "/var/tmp/afs-off-6d-20261007-r1/prefix/bin/afs-meta",
+          "device": 64769,
+          "inode": 787704
+        }
+      }
+    },
+    "before-node-original-gone": {
+      "status": "PASS",
+      "value": {
+        "pid": 245702,
+        "starttick": 10230221,
+        "sha256": "2cf1f538fe7af332a711f3c66a074ace140c00773826a182709a6445b8ae2645",
+        "executable": {
+          "path": "/var/tmp/afs-off-6d-20261007-r1/prefix/bin/afs-node",
+          "device": 64769,
+          "inode": 787705
+        }
+      }
+    },
+    "after-meta-original-gone": {
+      "status": "PASS",
+      "value": {
+        "pid": 246147,
+        "starttick": 10230425,
+        "sha256": "2c7b7d088b759e3b9375080002182aa484a424b4fa216da1fb79a1004e96168e",
+        "executable": {
+          "path": "/var/tmp/afs-off-6d-20261007-r1/prefix/bin/afs-meta",
+          "device": 64769,
+          "inode": 787704
+        }
+      }
+    },
+    "after-node-original-gone": {
+      "status": "PASS",
+      "value": {
+        "pid": 245702,
+        "starttick": 10230221,
+        "sha256": "2cf1f538fe7af332a711f3c66a074ace140c00773826a182709a6445b8ae2645",
+        "executable": {
+          "path": "/var/tmp/afs-off-6d-20261007-r1/prefix/bin/afs-node",
+          "device": 64769,
+          "inode": 787705
+        }
+      }
+    }
+  }
+}

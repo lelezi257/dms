@@ -1,0 +1,8 @@
+{
+  "path": "development/acceptance/installed-smoke-linux.py",
+  "sha256": "2e857135d05e5e7380d3dc5f4cec51a80a7045541c7f5f3fc708c6dffc9c1bea",
+  "unchanged_from_commit": "dc4840f68c64465d5f65193a6456ad1cc35cd77f",
+  "guards": "../20261007-installed-off/package-build/unit-final.stderr",
+  "guard_count": 7,
+  "guard_scope": "unchanged tool/predicate reused; actual new ELF install/recovery below"
+}

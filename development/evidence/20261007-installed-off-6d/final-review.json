@@ -1,0 +1,742 @@
+{
+  "conclusion": "No false-PASS or evidence mismatch found in the bounded installed OFF 6d review. The evidence supports exit 0, 35/35 PASS checks, real compiler-free Linux preflight, package/ELF hashes for source commit 6d51aeb45c1ed8669d80f612b3817e6d1bdabe04, generated native workspace OFF configs, OwnerFs and DFS 64MiB write/read EOF recovery, Meta-only restart with Meta PID/starttick change while Node identity and mount IDs stay unchanged, and normal cleanup/postcheck PASS.",
+  "facts": {
+    "check_summary": {
+      "non_pass": {},
+      "pass_checks": 35,
+      "preflight": {
+        "Linux-root": {
+          "status": "PASS",
+          "value": [
+            "Linux",
+            "aarch64",
+            0
+          ]
+        },
+        "capacity": {
+          "status": "PASS",
+          "value": {
+            "free_bytes": 5999067136,
+            "minimum_bytes": 1073741824
+          }
+        },
+        "compiler-free": {
+          "status": "PASS",
+          "value": {
+            "cargo": null,
+            "cc": null,
+            "clang": null,
+            "gcc": null,
+            "rustc": null
+          }
+        },
+        "dedicated-new-root": {
+          "status": "PASS",
+          "value": "/var/tmp/afs-off-6d-20261007-r1"
+        },
+        "dependencies": {
+          "status": "PASS",
+          "value": {
+            "awk": "/usr/bin/awk",
+            "bash": "/usr/bin/bash",
+            "curl": "/usr/bin/curl",
+            "findmnt": "/usr/bin/findmnt",
+            "flock": "/usr/bin/flock",
+            "fusermount3": "/usr/bin/fusermount3",
+            "grep": "/usr/bin/grep",
+            "install": "/usr/bin/install",
+            "ldd": "/usr/bin/ldd",
+            "mountpoint": "/usr/bin/mountpoint",
+            "openssl": "/usr/bin/openssl",
+            "python3": "/usr/bin/python3",
+            "readlink": "/usr/bin/readlink",
+            "sed": "/usr/bin/sed",
+            "setsid": "/usr/bin/setsid",
+            "sha256sum": "/usr/bin/sha256sum",
+            "ss": "/usr/bin/ss",
+            "tar": "/usr/bin/tar",
+            "timeout": "/usr/bin/timeout"
+          }
+        },
+        "ext4": {
+          "status": "PASS",
+          "value": {
+            "filesystems": [
+              {
+                "fstype": "ext4",
+                "options": "rw,relatime,discard,errors=remount-ro,commit=30",
+                "source": "/dev/vda1",
+                "target": "/"
+              }
+            ]
+          }
+        },
+        "fuse": {
+          "status": "PASS",
+          "value": "/dev/fuse"
+        },
+        "no-source-in-package": {
+          "status": "PASS",
+          "value": [
+            "afs-0.1.0-g2-procfree-6d51aeb-linux-aarch64/",
+            "afs-0.1.0-g2-procfree-6d51aeb-linux-aarch64/DEPENDENCIES.md",
+            "afs-0.1.0-g2-procfree-6d51aeb-linux-aarch64/SHA256SUMS",
+            "afs-0.1.0-g2-procfree-6d51aeb-linux-aarch64/bin/",
+            "afs-0.1.0-g2-procfree-6d51aeb-linux-aarch64/bin/afs-meta",
+            "afs-0.1.0-g2-procfree-6d51aeb-linux-aarch64/bin/afs-node",
+            "afs-0.1.0-g2-procfree-6d51aeb-linux-aarch64/bin/afs-processctl",
+            "afs-0.1.0-g2-procfree-6d51aeb-linux-aarch64/bin/afs-selfcheck",
+            "afs-0.1.0-g2-procfree-6d51aeb-linux-aarch64/bin/afs-trial-config",
+            "afs-0.1.0-g2-procfree-6d51aeb-linux-aarch64/bin/dep02-smoke.sh",
+            "afs-0.1.0-g2-procfree-6d51aeb-linux-aarch64/docs/",
+            "afs-0.1.0-g2-procfree-6d51aeb-linux-aarch64/docs/guides/",
+            "afs-0.1.0-g2-procfree-6d51aeb-linux-aarch64/docs/guides/trial.md",
+            "afs-0.1.0-g2-procfree-6d51aeb-linux-aarch64/install.sh",
+            "afs-0.1.0-g2-procfree-6d51aeb-linux-aarch64/ldd.txt",
+            "afs-0.1.0-g2-procfree-6d51aeb-linux-aarch64/manifest.json",
+            "afs-0.1.0-g2-procfree-6d51aeb-linux-aarch64/scripts/",
+            "afs-0.1.0-g2-procfree-6d51aeb-linux-aarch64/templates/",
+            "afs-0.1.0-g2-procfree-6d51aeb-linux-aarch64/templates/meta.toml",
+            "afs-0.1.0-g2-procfree-6d51aeb-linux-aarch64/templates/node-dfs.toml",
+            "afs-0.1.0-g2-procfree-6d51aeb-linux-aarch64/templates/node-ownerfs.toml",
+            "afs-0.1.0-g2-procfree-6d51aeb-linux-aarch64/templates/node.toml"
+          ]
+        },
+        "package-sha256": {
+          "status": "PASS",
+          "value": "ee25d5892c4e884e67c86d4e5b9c6ab551af4c46649edab6a05da06659d1aff9"
+        },
+        "ports-free": {
+          "status": "PASS",
+          "value": [
+            22400,
+            22401,
+            22500,
+            22501
+          ]
+        }
+      },
+      "total_checks": 35
+    },
+    "cleanup": {
+      "dfs_removed": {
+        "status": "PASS",
+        "value": ""
+      },
+      "managed_exit0": {
+        "status": "PASS",
+        "value": [
+          {
+            "config": "/var/tmp/afs-off-6d-20261007-r1/etc/meta.toml",
+            "exit_code": "0",
+            "log": "/var/tmp/afs-off-6d-20261007-r1/logs/meta.log",
+            "pid": "",
+            "service": "meta",
+            "state": "stopped"
+          },
+          {
+            "config": "/var/tmp/afs-off-6d-20261007-r1/etc/node.toml",
+            "exit_code": "0",
+            "log": "/var/tmp/afs-off-6d-20261007-r1/logs/node.log",
+            "pid": "",
+            "service": "node",
+            "state": "stopped"
+          }
+        ]
+      },
+      "ownerfs_removed": {
+        "status": "PASS",
+        "value": ""
+      },
+      "postcheck": {
+        "checks": [
+          {
+            "argv": [
+              "limactl",
+              "shell",
+              "afs-g1-clean",
+              "sudo",
+              "ps",
+              "-C",
+              "afs-node,afs-meta",
+              "-o",
+              "pid,comm,args"
+            ],
+            "exit": 1,
+            "pass": true,
+            "stderr": "",
+            "stdout": "    PID COMMAND         COMMAND\n"
+          },
+          {
+            "argv": [
+              "limactl",
+              "shell",
+              "afs-g1-clean",
+              "sudo",
+              "findmnt",
+              "-rn",
+              "--mountpoint",
+              "/var/tmp/afs-off-6d-20261007-r1/mount/ownerfs"
+            ],
+            "exit": 1,
+            "pass": true,
+            "stderr": "",
+            "stdout": ""
+          },
+          {
+            "argv": [
+              "limactl",
+              "shell",
+              "afs-g1-clean",
+              "sudo",
+              "findmnt",
+              "-rn",
+              "--mountpoint",
+              "/var/tmp/afs-off-6d-20261007-r1/mount/dfs"
+            ],
+            "exit": 1,
+            "pass": true,
+            "stderr": "",
+            "stdout": ""
+          }
+        ],
+        "status": "PASS"
+      },
+      "result_cleanup": "PASS"
+    },
+    "driver": {
+      "cleanup": "PASS",
+      "command": {
+        "argv": [
+          "limactl",
+          "shell",
+          "afs-g1-clean",
+          "sudo",
+          "python3",
+          "/var/tmp/afs-off-6d-20261007-r1-driver.py",
+          "--package",
+          "/var/tmp/afs-off-6d-20261007-r1-package.tar.gz",
+          "--root",
+          "/var/tmp/afs-off-6d-20261007-r1",
+          "--out",
+          "/var/tmp/afs-off-6d-20261007-r1-results",
+          "--package-sha256",
+          "ee25d5892c4e884e67c86d4e5b9c6ab551af4c46649edab6a05da06659d1aff9",
+          "--source-commit",
+          "6d51aeb45c1ed8669d80f612b3817e6d1bdabe04",
+          "--afs-meta-sha256",
+          "2c7b7d088b759e3b9375080002182aa484a424b4fa216da1fb79a1004e96168e",
+          "--afs-node-sha256",
+          "2cf1f538fe7af332a711f3c66a074ace140c00773826a182709a6445b8ae2645"
+        ],
+        "started_utc": "2026-10-06T21:03:04Z"
+      },
+      "exit": {
+        "elapsed_seconds": 5.155108667095192,
+        "exit": 0,
+        "finished_utc": "2026-10-06T21:03:09Z"
+      },
+      "scope": "current installed OFF small regression",
+      "source_commit": "6d51aeb45c1ed8669d80f612b3817e6d1bdabe04",
+      "status": "PASS",
+      "stdout_summary": "{\"status\": \"PASS\", \"scope\": \"current installed OFF small regression\", \"source_commit\": \"6d51aeb45c1ed8669d80f612b3817e6d1bdabe04\", \"tool_sha256\": \"2e857135d05e5e7380d3dc5f4cec51a80a7045541c7f5f3fc708c6dffc9c1bea\", \"recovery\": {\"status\": \"PASS\", \"size_each\": 67108864, \"sha256\": {\"ownerfs\": \"71fa8d9f37ac7bf47653832d57a55d3b3d0c7c1bb4314ef6c0ed14f871b96bd1\", \"dfs\": \"e03565250488acb476c6584b41dd367eafa88531320e61c934e836d8f22a0678\"}}, \"cleanup\": \"PASS\"}",
+      "tool_sha256": "2e857135d05e5e7380d3dc5f4cec51a80a7045541c7f5f3fc708c6dffc9c1bea"
+    },
+    "execution_identity_before_after": {
+      "after": {
+        "meta": {
+          "executable": {
+            "device": 64769,
+            "inode": 787704,
+            "path": "/var/tmp/afs-off-6d-20261007-r1/prefix/bin/afs-meta"
+          },
+          "pid": 246147,
+          "sha256": "2c7b7d088b759e3b9375080002182aa484a424b4fa216da1fb79a1004e96168e",
+          "starttick": 10230425
+        },
+        "mounts": {
+          "dfs": {
+            "filesystems": [
+              {
+                "fstype": "fuse",
+                "id": 104,
+                "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other",
+                "source": "afs-dfs",
+                "target": "/var/tmp/afs-off-6d-20261007-r1/mount/dfs"
+              }
+            ]
+          },
+          "ownerfs": {
+            "filesystems": [
+              {
+                "fstype": "fuse",
+                "id": 55,
+                "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other",
+                "source": "afs-ownerfs",
+                "target": "/var/tmp/afs-off-6d-20261007-r1/mount/ownerfs"
+              }
+            ]
+          }
+        },
+        "node": {
+          "executable": {
+            "device": 64769,
+            "inode": 787705,
+            "path": "/var/tmp/afs-off-6d-20261007-r1/prefix/bin/afs-node"
+          },
+          "pid": 245702,
+          "sha256": "2cf1f538fe7af332a711f3c66a074ace140c00773826a182709a6445b8ae2645",
+          "starttick": 10230221
+        }
+      },
+      "before": {
+        "meta": {
+          "executable": {
+            "device": 64769,
+            "inode": 787704,
+            "path": "/var/tmp/afs-off-6d-20261007-r1/prefix/bin/afs-meta"
+          },
+          "pid": 245512,
+          "sha256": "2c7b7d088b759e3b9375080002182aa484a424b4fa216da1fb79a1004e96168e",
+          "starttick": 10230205
+        },
+        "mounts": {
+          "dfs": {
+            "filesystems": [
+              {
+                "fstype": "fuse",
+                "id": 104,
+                "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other",
+                "source": "afs-dfs",
+                "target": "/var/tmp/afs-off-6d-20261007-r1/mount/dfs"
+              }
+            ]
+          },
+          "ownerfs": {
+            "filesystems": [
+              {
+                "fstype": "fuse",
+                "id": 55,
+                "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other",
+                "source": "afs-ownerfs",
+                "target": "/var/tmp/afs-off-6d-20261007-r1/mount/ownerfs"
+              }
+            ]
+          }
+        },
+        "node": {
+          "executable": {
+            "device": 64769,
+            "inode": 787705,
+            "path": "/var/tmp/afs-off-6d-20261007-r1/prefix/bin/afs-node"
+          },
+          "pid": 245702,
+          "sha256": "2cf1f538fe7af332a711f3c66a074ace140c00773826a182709a6445b8ae2645",
+          "starttick": 10230221
+        }
+      },
+      "before_after_checks_in_result": {
+        "after-meta-original-gone": {
+          "status": "PASS",
+          "value": {
+            "executable": {
+              "device": 64769,
+              "inode": 787704,
+              "path": "/var/tmp/afs-off-6d-20261007-r1/prefix/bin/afs-meta"
+            },
+            "pid": 246147,
+            "sha256": "2c7b7d088b759e3b9375080002182aa484a424b4fa216da1fb79a1004e96168e",
+            "starttick": 10230425
+          }
+        },
+        "after-node-original-gone": {
+          "status": "PASS",
+          "value": {
+            "executable": {
+              "device": 64769,
+              "inode": 787705,
+              "path": "/var/tmp/afs-off-6d-20261007-r1/prefix/bin/afs-node"
+            },
+            "pid": 245702,
+            "sha256": "2cf1f538fe7af332a711f3c66a074ace140c00773826a182709a6445b8ae2645",
+            "starttick": 10230221
+          }
+        },
+        "before-meta-original-gone": {
+          "status": "PASS",
+          "value": {
+            "executable": {
+              "device": 64769,
+              "inode": 787704,
+              "path": "/var/tmp/afs-off-6d-20261007-r1/prefix/bin/afs-meta"
+            },
+            "pid": 245512,
+            "sha256": "2c7b7d088b759e3b9375080002182aa484a424b4fa216da1fb79a1004e96168e",
+            "starttick": 10230205
+          }
+        },
+        "before-node-original-gone": {
+          "status": "PASS",
+          "value": {
+            "executable": {
+              "device": 64769,
+              "inode": 787705,
+              "path": "/var/tmp/afs-off-6d-20261007-r1/prefix/bin/afs-node"
+            },
+            "pid": 245702,
+            "sha256": "2cf1f538fe7af332a711f3c66a074ace140c00773826a182709a6445b8ae2645",
+            "starttick": 10230221
+          }
+        },
+        "meta-installed-process": {
+          "status": "PASS",
+          "value": {
+            "device": 64769,
+            "inode": 787704,
+            "path": "/var/tmp/afs-off-6d-20261007-r1/prefix/bin/afs-meta"
+          }
+        },
+        "node-installed-process": {
+          "status": "PASS",
+          "value": {
+            "device": 64769,
+            "inode": 787705,
+            "path": "/var/tmp/afs-off-6d-20261007-r1/prefix/bin/afs-node"
+          }
+        }
+      },
+      "dfs_mount_id_unchanged": true,
+      "meta_pid_changed": true,
+      "meta_same_executable_device_inode_path": true,
+      "meta_same_sha256": true,
+      "meta_starttick_increased": true,
+      "node_pid_unchanged": true,
+      "node_same_executable_device_inode_path": true,
+      "node_same_sha256": true,
+      "node_starttick_unchanged": true,
+      "ownerfs_mount_id_unchanged": true
+    },
+    "off_configuration": {
+      "grpc": {
+        "status": "PASS",
+        "value": "grpc"
+      },
+      "local_file": {
+        "status": "PASS",
+        "value": "local-file"
+      },
+      "meta_config_excerpt": "id = \"meta-ctl\"\nfs = \"all\"\nmeta_store = \"local-file\"\ndata_dir = \"/var/tmp/afs-off-6d-20261007-r1/state/meta\"\ngrpc_listen = \"127.0.0.1:22400\"\nrest_listen = \"127.0.0.1:22401\"\nlog_level = \"info\"\ntrace_enabled = false\ndfs_desired_copies = 1\ndfs_sync_required_copies = 1\ndfs_min_distinct_nodes = 1\ndfs_min_distinct_failure_domains = 1\ndfs_local_copy = \"required\"\n\ntls_ca_certificate = \"/var/tmp/afs-off-6d-20261007-r1/etc/tls/ca.pem\"\ntls_identity_certificate = \"/var/tmp/afs-off-6d-20261007-r1/etc/tls/meta.pem\"\ntls_identity_private_key = \"/var/tmp/afs-off-6d-20261007-r1/etc/tls/meta-key.pem\"\ntls_server_name = \"afs-meta\"\ntrusted_node_certs = { node-a = \"/var/tmp/afs-off-6d-20261007-r1/etc/tls/node-a.pem\" }\n",
+      "meta_native_off_check": {
+        "status": "PASS",
+        "value": false
+      },
+      "meta_toml_contains_experimental_native_workspace": false,
+      "node_config_excerpt": "id = \"node-a\"\nfs = \"all\"\nmeta_endpoint = \"https://127.0.0.1:22400\"\ngrpc_listen = \"127.0.0.1:22500\"\nrest_listen = \"127.0.0.1:22501\"\nadvertise_endpoint = \"https://127.0.0.1:22500\"\ndata_dir = \"/var/tmp/afs-off-6d-20261007-r1/state/node\"\nuds_path = \"/var/tmp/afs-off-6d-20261007-r1/run/node.sock\"\ndfs_mount = \"/var/tmp/afs-off-6d-20261007-r1/mount/dfs\"\nownerfs_mount = \"/var/tmp/afs-off-6d-20261007-r1/mount/ownerfs\"\ndata_mode = \"grpc\"\nallow_volatile_meta = false\ndfs_desired_copies = 1\ndfs_sync_required_copies = 1\ndfs_min_distinct_nodes = 1\ndfs_min_distinct_failure_domains = 1\ndfs_local_copy = \"required\"\nlog_level = \"info\"\ntrace_enabled = false\n\ntls_ca_certificate = \"/var/tmp/afs-off-6d-20261007-r1/etc/tls/ca.pem\"\ntls_identity_certificate = \"/var/tmp/afs-off-6d-20261007-r1/etc/tls/node-a.pem\"\ntls_identity_private_key = \"/var/tmp/afs-off-6d-20261007-r1/etc/tls/node-a-key.pem\"\ntls_server_name = \"afs-meta\"\ntrusted_node_certs = { node-a = \"/var/tmp/afs-off-6d-20261007-r1/etc/tls/node-a.pem\" }\n",
+      "node_native_off_check": {
+        "status": "PASS",
+        "value": false
+      },
+      "node_toml_contains_experimental_native_workspace": false
+    },
+    "owner_dfs_64MiB_readback": {
+      "dfs_read": {
+        "case_id": "installed-off-dfs",
+        "data_file": "g1-stream.bin",
+        "elapsed_seconds": 0.960558,
+        "input_manifest": "/var/tmp/afs-off-6d-20261007-r1-results/dfs-write.json",
+        "mount": "/var/tmp/afs-off-6d-20261007-r1/mount/dfs",
+        "mount_info": {
+          "fstype": "fuse",
+          "source": "afs-dfs",
+          "target": "/var/tmp/afs-off-6d-20261007-r1/mount/dfs"
+        },
+        "reference": false,
+        "schema": "afs.g1.trial.read-result.v1",
+        "sha256": "e03565250488acb476c6584b41dd367eafa88531320e61c934e836d8f22a0678",
+        "size": 67108864,
+        "status": "PASS",
+        "total_elapsed_seconds": 0.963845,
+        "workspace": "installed-off"
+      },
+      "dfs_size_and_sha_match": true,
+      "dfs_write": {
+        "base_seed": "installed-off-dfs:base:67108864",
+        "case_id": "installed-off-dfs",
+        "coverage": [
+          "streaming-write",
+          "fsync",
+          "close-reopen",
+          "streaming-read",
+          "EOF",
+          "create-openflags-read-write-append-truncate-rename-unlink",
+          "chmod-mode",
+          "basic-fcntl-lock",
+          "basic-mmap-msync"
+        ],
+        "created_unix": 1791320587,
+        "data_file": "g1-stream.bin",
+        "elapsed_seconds": 1.331731,
+        "mount": "/var/tmp/afs-off-6d-20261007-r1/mount/dfs",
+        "mount_info": {
+          "fstype": "fuse",
+          "source": "afs-dfs",
+          "target": "/var/tmp/afs-off-6d-20261007-r1/mount/dfs"
+        },
+        "not_full_posix": true,
+        "patches": [
+          {
+            "length": 524288,
+            "offset": 5242880,
+            "seed": "installed-off-dfs:patch-a"
+          },
+          {
+            "length": 1048576,
+            "offset": 17825792,
+            "seed": "installed-off-dfs:patch-b"
+          },
+          {
+            "length": 786432,
+            "offset": 65011712,
+            "seed": "installed-off-dfs:patch-tail"
+          }
+        ],
+        "reference": false,
+        "schema": "afs.g1.trial.selfcheck.v1",
+        "sha256": "e03565250488acb476c6584b41dd367eafa88531320e61c934e836d8f22a0678",
+        "size": 67108864,
+        "status": "PASS",
+        "stream_block": 1048576,
+        "total_elapsed_seconds": 1.335235,
+        "workspace": "installed-off"
+      },
+      "ownerfs_read": {
+        "case_id": "installed-off-ownerfs",
+        "data_file": "g1-stream.bin",
+        "elapsed_seconds": 0.108234,
+        "input_manifest": "/var/tmp/afs-off-6d-20261007-r1-results/ownerfs-write.json",
+        "mount": "/var/tmp/afs-off-6d-20261007-r1/mount/ownerfs",
+        "mount_info": {
+          "fstype": "fuse",
+          "source": "afs-ownerfs",
+          "target": "/var/tmp/afs-off-6d-20261007-r1/mount/ownerfs"
+        },
+        "reference": false,
+        "schema": "afs.g1.trial.read-result.v1",
+        "sha256": "71fa8d9f37ac7bf47653832d57a55d3b3d0c7c1bb4314ef6c0ed14f871b96bd1",
+        "size": 67108864,
+        "status": "PASS",
+        "total_elapsed_seconds": 0.110071,
+        "workspace": "installed-off"
+      },
+      "ownerfs_size_and_sha_match": true,
+      "ownerfs_write": {
+        "base_seed": "installed-off-ownerfs:base:67108864",
+        "case_id": "installed-off-ownerfs",
+        "coverage": [
+          "streaming-write",
+          "fsync",
+          "close-reopen",
+          "streaming-read",
+          "EOF",
+          "create-openflags-read-write-append-truncate-rename-unlink",
+          "chmod-mode",
+          "basic-fcntl-lock",
+          "basic-mmap-msync"
+        ],
+        "created_unix": 1791320586,
+        "data_file": "g1-stream.bin",
+        "elapsed_seconds": 0.276681,
+        "mount": "/var/tmp/afs-off-6d-20261007-r1/mount/ownerfs",
+        "mount_info": {
+          "fstype": "fuse",
+          "source": "afs-ownerfs",
+          "target": "/var/tmp/afs-off-6d-20261007-r1/mount/ownerfs"
+        },
+        "not_full_posix": true,
+        "patches": [
+          {
+            "length": 524288,
+            "offset": 5242880,
+            "seed": "installed-off-ownerfs:patch-a"
+          },
+          {
+            "length": 1048576,
+            "offset": 17825792,
+            "seed": "installed-off-ownerfs:patch-b"
+          },
+          {
+            "length": 786432,
+            "offset": 65011712,
+            "seed": "installed-off-ownerfs:patch-tail"
+          }
+        ],
+        "reference": false,
+        "schema": "afs.g1.trial.selfcheck.v1",
+        "sha256": "71fa8d9f37ac7bf47653832d57a55d3b3d0c7c1bb4314ef6c0ed14f871b96bd1",
+        "size": 67108864,
+        "status": "PASS",
+        "stream_block": 1048576,
+        "total_elapsed_seconds": 0.278316,
+        "workspace": "installed-off"
+      },
+      "result_recovery": {
+        "sha256": {
+          "dfs": "e03565250488acb476c6584b41dd367eafa88531320e61c934e836d8f22a0678",
+          "ownerfs": "71fa8d9f37ac7bf47653832d57a55d3b3d0c7c1bb4314ef6c0ed14f871b96bd1"
+        },
+        "size_each": 67108864,
+        "status": "PASS"
+      }
+    },
+    "package_and_environment": {
+      "compiler_free": {
+        "status": "PASS",
+        "value": {
+          "cargo": null,
+          "cc": null,
+          "clang": null,
+          "gcc": null,
+          "rustc": null
+        }
+      },
+      "dependencies": {
+        "status": "PASS",
+        "value": {
+          "awk": "/usr/bin/awk",
+          "bash": "/usr/bin/bash",
+          "curl": "/usr/bin/curl",
+          "findmnt": "/usr/bin/findmnt",
+          "flock": "/usr/bin/flock",
+          "fusermount3": "/usr/bin/fusermount3",
+          "grep": "/usr/bin/grep",
+          "install": "/usr/bin/install",
+          "ldd": "/usr/bin/ldd",
+          "mountpoint": "/usr/bin/mountpoint",
+          "openssl": "/usr/bin/openssl",
+          "python3": "/usr/bin/python3",
+          "readlink": "/usr/bin/readlink",
+          "sed": "/usr/bin/sed",
+          "setsid": "/usr/bin/setsid",
+          "sha256sum": "/usr/bin/sha256sum",
+          "ss": "/usr/bin/ss",
+          "tar": "/usr/bin/tar",
+          "timeout": "/usr/bin/timeout"
+        }
+      },
+      "driver_package_sha_check": {
+        "status": "PASS",
+        "value": "ee25d5892c4e884e67c86d4e5b9c6ab551af4c46649edab6a05da06659d1aff9"
+      },
+      "linux_root": {
+        "status": "PASS",
+        "value": [
+          "Linux",
+          "aarch64",
+          0
+        ]
+      },
+      "no_source_in_package": {
+        "status": "PASS",
+        "value": [
+          "afs-0.1.0-g2-procfree-6d51aeb-linux-aarch64/",
+          "afs-0.1.0-g2-procfree-6d51aeb-linux-aarch64/DEPENDENCIES.md",
+          "afs-0.1.0-g2-procfree-6d51aeb-linux-aarch64/SHA256SUMS",
+          "afs-0.1.0-g2-procfree-6d51aeb-linux-aarch64/bin/",
+          "afs-0.1.0-g2-procfree-6d51aeb-linux-aarch64/bin/afs-meta",
+          "afs-0.1.0-g2-procfree-6d51aeb-linux-aarch64/bin/afs-node",
+          "afs-0.1.0-g2-procfree-6d51aeb-linux-aarch64/bin/afs-processctl",
+          "afs-0.1.0-g2-procfree-6d51aeb-linux-aarch64/bin/afs-selfcheck",
+          "afs-0.1.0-g2-procfree-6d51aeb-linux-aarch64/bin/afs-trial-config",
+          "afs-0.1.0-g2-procfree-6d51aeb-linux-aarch64/bin/dep02-smoke.sh",
+          "afs-0.1.0-g2-procfree-6d51aeb-linux-aarch64/docs/",
+          "afs-0.1.0-g2-procfree-6d51aeb-linux-aarch64/docs/guides/",
+          "afs-0.1.0-g2-procfree-6d51aeb-linux-aarch64/docs/guides/trial.md",
+          "afs-0.1.0-g2-procfree-6d51aeb-linux-aarch64/install.sh",
+          "afs-0.1.0-g2-procfree-6d51aeb-linux-aarch64/ldd.txt",
+          "afs-0.1.0-g2-procfree-6d51aeb-linux-aarch64/manifest.json",
+          "afs-0.1.0-g2-procfree-6d51aeb-linux-aarch64/scripts/",
+          "afs-0.1.0-g2-procfree-6d51aeb-linux-aarch64/templates/",
+          "afs-0.1.0-g2-procfree-6d51aeb-linux-aarch64/templates/meta.toml",
+          "afs-0.1.0-g2-procfree-6d51aeb-linux-aarch64/templates/node-dfs.toml",
+          "afs-0.1.0-g2-procfree-6d51aeb-linux-aarch64/templates/node-ownerfs.toml",
+          "afs-0.1.0-g2-procfree-6d51aeb-linux-aarch64/templates/node.toml"
+        ]
+      },
+      "package_manifest": {
+        "binaries": {
+          "afs-meta": {
+            "sha256": "2c7b7d088b759e3b9375080002182aa484a424b4fa216da1fb79a1004e96168e"
+          },
+          "afs-node": {
+            "sha256": "2cf1f538fe7af332a711f3c66a074ace140c00773826a182709a6445b8ae2645"
+          }
+        },
+        "contains": [
+          "afs-meta",
+          "afs-node",
+          "afs-processctl",
+          "afs-trial-config",
+          "afs-selfcheck",
+          "dep02-smoke.sh",
+          "docs/guides/trial.md"
+        ],
+        "features": "ownerfs,dfs,rdma",
+        "installer": "install.sh",
+        "name": "afs",
+        "notes": "Built from existing Linux release binaries; no Cargo or Git required on target guests.",
+        "rust_toolchain": "1.95.0",
+        "schema": "afs.release-package.v1",
+        "source_commit": "6d51aeb45c1ed8669d80f612b3817e6d1bdabe04",
+        "source_date_epoch": 0,
+        "target": "linux-aarch64",
+        "version": "0.1.0-g2-procfree-6d51aeb"
+      },
+      "package_transfer": {
+        "argv": [
+          "limactl",
+          "copy",
+          "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/managed-workspace-20261007-r1/afs-0.1.0-g2-procfree-6d51aeb-linux-aarch64.tar.gz",
+          "afs-g1-clean:/var/tmp/afs-off-6d-20261007-r1-package.tar.gz"
+        ],
+        "exit": 0,
+        "stderr": "",
+        "stdout": ""
+      }
+    },
+    "tool_identity": {
+      "ast_parse_ok": true,
+      "current_installed_smoke_sha256": "2e857135d05e5e7380d3dc5f4cec51a80a7045541c7f5f3fc708c6dffc9c1bea",
+      "matches_result_tool_sha256": true,
+      "recorded_tool_reference": {
+        "guard_count": 7,
+        "guard_scope": "unchanged tool/predicate reused; actual new ELF install/recovery below",
+        "guards": "../20261007-installed-off/package-build/unit-final.stderr",
+        "path": "development/acceptance/installed-smoke-linux.py",
+        "sha256": "2e857135d05e5e7380d3dc5f4cec51a80a7045541c7f5f3fc708c6dffc9c1bea",
+        "unchanged_from_commit": "dc4840f68c64465d5f65193a6456ad1cc35cd77f"
+      },
+      "source_refs": {
+        "64MiB_owner_dfs_write_read": "source/development/acceptance/installed-smoke-linux.py:185",
+        "cleanup_and_original_process_gone_checks": "source/development/acceptance/installed-smoke-linux.py:224",
+        "compiler_free_and_package_sha_preflight": "source/development/acceptance/installed-smoke-linux.py:87",
+        "executable_device_inode_and_resolved_path_check": "source/development/acceptance/installed-smoke-linux.py:21",
+        "generated_config_native_off_check": "source/development/acceptance/installed-smoke-linux.py:147",
+        "recovery_requires_node_and_mounts_unchanged_meta_pid_changed_data_readback": "source/development/acceptance/installed-smoke-linux.py:31"
+      }
+    }
+  },
+  "files_reviewed": [
+    "evidence/afs-delivery/installed-off-6d-20261007-r1/",
+    "source/development/acceptance/installed-smoke-linux.py"
+  ],
+  "issues": [],
+  "limitations": [
+    "This evidence is an installed default-OFF package/install/recovery branch for the 6d51aeb package on afs-g1-clean; it is not a native-workspace ON qualification.",
+    "The successful OwnerFs and DFS checks are bounded 64MiB selfcheck write/read/recovery cases with listed coverage and not_full_posix=true; they do not prove full POSIX, full G2.27 standards, or performance.",
+    "The review reuses the unchanged installed-smoke-linux.py predicate and prior seven guard count recorded in tool-reference.json; it did not rerun product tests on macOS or perform broader source review.",
+    "Postcheck verifies absence of afs-node/afs-meta processes and OwnerFs/DFS mountpoints for this root after cleanup; it does not claim cleanup of unrelated systems or historical runs."
+  ],
+  "reviewed_at_utc": "2026-10-06T21:05:58.275822+00:00",
+  "scope": "Read-only review of installed OFF package/install/recovery evidence under evidence/afs-delivery/installed-off-6d-20261007-r1 plus unchanged installed-smoke-linux.py predicate. No product retest, no Mac runtime test, no G2.27 full performance or standards qualification.",
+  "verdict": "BOUNDED_APPROVE_INSTALLED_OFF_6D_EVIDENCE"
+}

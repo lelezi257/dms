@@ -1,3 +1,5 @@
+**当前新增通过（2026-10-07）：** 同Rust6d51aeb/map66dbbe3e/157输入，已有6d默认OFF包在无编译器ARM64 Linux afs-g1-clean独立安装；Owner/DFS各64MiB完整内容/EOF、中心local-file Meta有序恢复、执行文件inode/路径及挂载身份、正常退出/卸载均PASS，35checks/独立postcheck通过。[版本、命令与原始证据](../development/evidence/20261007-installed-off-6d/README.md)。未改产品或维护驱动，复用旧7个工具guards；未重跑标准/性能，不重开G1，不关闭G2.27全性能/ON出口。当前可交付限定OFF候选；下一独立项为同包复现及试用交付清单，append/锁/watch缺口保留OFF，停止无输入复测。
+
 **当前新增（2026-10-07）：** 相同Rust6d51aeb/map66dbbe3e/157输入，append-only r8补齐独立结果：顺序52B双路径内容、并发128唯一完整记录PASS；第三SEEK_CUR24/38及62个并发偏移不匹配FAIL，原生对照全部PASS，正常清理/独立postcheck PASS。[原始命令、版本和证明](../development/evidence/20261007-append-diagnostic/README.md)。原r6/锁/watch失败与性能摸底保留，不升级ON/G2.12/13；默认OFF，G1历史8/8和G2计数不变。本项诊断收口，偏移一致性待修；下一独立项为当前OFF试用包安装/核心恢复回执，不继续无输入复测本缺口或标准/性能。
 
 ## 前序检查点（原版本/范围；下一动作由上述当前入口覆盖）

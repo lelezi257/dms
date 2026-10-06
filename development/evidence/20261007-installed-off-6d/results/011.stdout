@@ -1,0 +1,11 @@
+{
+   "filesystems": [
+      {
+         "target": "/var/tmp/afs-off-6d-20261007-r1/mount/dfs",
+         "source": "afs-dfs",
+         "fstype": "fuse",
+         "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other",
+         "id": 104
+      }
+   ]
+}

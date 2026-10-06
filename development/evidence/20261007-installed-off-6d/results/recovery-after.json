@@ -1,0 +1,46 @@
+{
+  "meta": {
+    "pid": 246147,
+    "starttick": 10230425,
+    "sha256": "2c7b7d088b759e3b9375080002182aa484a424b4fa216da1fb79a1004e96168e",
+    "executable": {
+      "path": "/var/tmp/afs-off-6d-20261007-r1/prefix/bin/afs-meta",
+      "device": 64769,
+      "inode": 787704
+    }
+  },
+  "node": {
+    "pid": 245702,
+    "starttick": 10230221,
+    "sha256": "2cf1f538fe7af332a711f3c66a074ace140c00773826a182709a6445b8ae2645",
+    "executable": {
+      "path": "/var/tmp/afs-off-6d-20261007-r1/prefix/bin/afs-node",
+      "device": 64769,
+      "inode": 787705
+    }
+  },
+  "mounts": {
+    "ownerfs": {
+      "filesystems": [
+        {
+          "target": "/var/tmp/afs-off-6d-20261007-r1/mount/ownerfs",
+          "source": "afs-ownerfs",
+          "fstype": "fuse",
+          "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other",
+          "id": 55
+        }
+      ]
+    },
+    "dfs": {
+      "filesystems": [
+        {
+          "target": "/var/tmp/afs-off-6d-20261007-r1/mount/dfs",
+          "source": "afs-dfs",
+          "fstype": "fuse",
+          "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other",
+          "id": 104
+        }
+      ]
+    }
+  }
+}

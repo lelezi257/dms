@@ -1,10 +1,14 @@
 # Trial Package Guide
 
-The main25a8061 default-OFF package has a fresh compiler-free single-node
-local-file installation/basic64MiB/ordered Meta recovery regression for both
-OwnerFs and DFS. [Exact scope and evidence](../../development/evidence/20261007-installed-off/README.md).
-It excludes experimental container helper/control tools and does not qualify
-container ON, full POSIX or performance. Historical g1.5 acceptance remains intact.
+The current6d51aeb default-OFF package has a fresh compiler-free single-node
+local-file installation/basic64MiB/ordered Meta recovery regression for OwnerFs
+and DFS. [Current version, package hashes and bounded evidence](../../development/evidence/20261007-installed-off-6d/README.md).
+The earlier [25a8061 receipt](../../development/evidence/20261007-installed-off/README.md)
+keeps its original identity. The archive excludes experimental container helper/control
+tools. Mixed native append offsets, classic locks and watch remain failed; keep
+native OFF. This trial receipt does not qualify full POSIX, performance or complete G2.27.
+Historical g1.5 acceptance remains intact. Use Linux ARM64/ext4 and the package's
+ordinary installer/config/selfcheck tools; no build is required on trial machines.
 
 This guide is for the first colleague-trial package. It uses Linux binaries
 already present in the release archive. Trial machines do not need Cargo, Git or

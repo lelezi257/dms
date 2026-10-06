@@ -1,0 +1,410 @@
+[
+  {
+    "argv": [
+      "findmnt",
+      "-J",
+      "-T",
+      "/var/tmp"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0014962610002839938,
+    "stdout": "000.stdout",
+    "stderr": "000.stderr"
+  },
+  {
+    "argv": [
+      "tar",
+      "-tzf",
+      "/var/tmp/afs-off-6d-20261007-r1-package.tar.gz"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.21414913699845783,
+    "stdout": "001.stdout",
+    "stderr": "001.stderr"
+  },
+  {
+    "argv": [
+      "tar",
+      "-xzf",
+      "/var/tmp/afs-off-6d-20261007-r1-package.tar.gz",
+      "-C",
+      "/var/tmp/afs-off-6d-20261007-r1/package"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.21909999300260097,
+    "stdout": "002.stdout",
+    "stderr": "002.stderr"
+  },
+  {
+    "argv": [
+      "/var/tmp/afs-off-6d-20261007-r1/package/afs-0.1.0-g2-procfree-6d51aeb-linux-aarch64/install.sh",
+      "--prefix",
+      "/var/tmp/afs-off-6d-20261007-r1/prefix",
+      "--config-dir",
+      "/var/tmp/afs-off-6d-20261007-r1/etc",
+      "--state-dir",
+      "/var/tmp/afs-off-6d-20261007-r1/state",
+      "--run-dir",
+      "/var/tmp/afs-off-6d-20261007-r1/run",
+      "--log-dir",
+      "/var/tmp/afs-off-6d-20261007-r1/logs",
+      "--mount-root",
+      "/var/tmp/afs-off-6d-20261007-r1/mount"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.3925910920079332,
+    "stdout": "003.stdout",
+    "stderr": "003.stderr"
+  },
+  {
+    "argv": [
+      "ldd",
+      "/var/tmp/afs-off-6d-20261007-r1/prefix/bin/afs-meta"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.003679133005789481,
+    "stdout": "004.stdout",
+    "stderr": "004.stderr"
+  },
+  {
+    "argv": [
+      "ldd",
+      "/var/tmp/afs-off-6d-20261007-r1/prefix/bin/afs-node"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.003798755002208054,
+    "stdout": "005.stdout",
+    "stderr": "005.stderr"
+  },
+  {
+    "argv": [
+      "/var/tmp/afs-off-6d-20261007-r1/prefix/bin/afs-trial-config",
+      "single",
+      "--backend",
+      "local-file",
+      "--config-dir",
+      "/var/tmp/afs-off-6d-20261007-r1/etc",
+      "--state-dir",
+      "/var/tmp/afs-off-6d-20261007-r1/state",
+      "--run-dir",
+      "/var/tmp/afs-off-6d-20261007-r1/run",
+      "--mount-root",
+      "/var/tmp/afs-off-6d-20261007-r1/mount",
+      "--meta-grpc-port",
+      "22400",
+      "--meta-rest-port",
+      "22401",
+      "--node-grpc-port",
+      "22500",
+      "--node-rest-port",
+      "22501",
+      "--force"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.3400238799949875,
+    "stdout": "006.stdout",
+    "stderr": "006.stderr"
+  },
+  {
+    "argv": [
+      "openssl",
+      "verify",
+      "-CAfile",
+      "/var/tmp/afs-off-6d-20261007-r1/etc/tls/ca.pem",
+      "/var/tmp/afs-off-6d-20261007-r1/etc/tls/meta.pem"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0014756360033061355,
+    "stdout": "007.stdout",
+    "stderr": "007.stderr"
+  },
+  {
+    "argv": [
+      "openssl",
+      "verify",
+      "-CAfile",
+      "/var/tmp/afs-off-6d-20261007-r1/etc/tls/ca.pem",
+      "/var/tmp/afs-off-6d-20261007-r1/etc/tls/node-a.pem"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0014501780096907169,
+    "stdout": "008.stdout",
+    "stderr": "008.stderr"
+  },
+  {
+    "argv": [
+      "/var/tmp/afs-off-6d-20261007-r1/prefix/bin/afs-processctl",
+      "--prefix",
+      "/var/tmp/afs-off-6d-20261007-r1/prefix",
+      "--config-dir",
+      "/var/tmp/afs-off-6d-20261007-r1/etc",
+      "--run-dir",
+      "/var/tmp/afs-off-6d-20261007-r1/run",
+      "--log-dir",
+      "/var/tmp/afs-off-6d-20261007-r1/logs",
+      "start",
+      "all"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.3239075040037278,
+    "stdout": "009.stdout",
+    "stderr": "009.stderr"
+  },
+  {
+    "argv": [
+      "findmnt",
+      "-J",
+      "-o",
+      "TARGET,SOURCE,FSTYPE,OPTIONS,ID",
+      "--mountpoint",
+      "/var/tmp/afs-off-6d-20261007-r1/mount/ownerfs"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.001394888007780537,
+    "stdout": "010.stdout",
+    "stderr": "010.stderr"
+  },
+  {
+    "argv": [
+      "findmnt",
+      "-J",
+      "-o",
+      "TARGET,SOURCE,FSTYPE,OPTIONS,ID",
+      "--mountpoint",
+      "/var/tmp/afs-off-6d-20261007-r1/mount/dfs"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0016078420012490824,
+    "stdout": "011.stdout",
+    "stderr": "011.stderr"
+  },
+  {
+    "argv": [
+      "/var/tmp/afs-off-6d-20261007-r1/prefix/bin/afs-selfcheck",
+      "--mount",
+      "/var/tmp/afs-off-6d-20261007-r1/mount/ownerfs",
+      "--workspace",
+      "installed-off",
+      "--size",
+      "64MiB",
+      "--phase",
+      "write",
+      "--case-id",
+      "installed-off-ownerfs",
+      "--deadline",
+      "180",
+      "--output",
+      "/var/tmp/afs-off-6d-20261007-r1-results/ownerfs-write.json"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.31802037499437574,
+    "stdout": "012.stdout",
+    "stderr": "012.stderr"
+  },
+  {
+    "argv": [
+      "/var/tmp/afs-off-6d-20261007-r1/prefix/bin/afs-selfcheck",
+      "--mount",
+      "/var/tmp/afs-off-6d-20261007-r1/mount/dfs",
+      "--workspace",
+      "installed-off",
+      "--size",
+      "64MiB",
+      "--phase",
+      "write",
+      "--case-id",
+      "installed-off-dfs",
+      "--deadline",
+      "180",
+      "--output",
+      "/var/tmp/afs-off-6d-20261007-r1-results/dfs-write.json"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 1.4230735189921688,
+    "stdout": "013.stdout",
+    "stderr": "013.stderr"
+  },
+  {
+    "argv": [
+      "/var/tmp/afs-off-6d-20261007-r1/prefix/bin/afs-processctl",
+      "--prefix",
+      "/var/tmp/afs-off-6d-20261007-r1/prefix",
+      "--config-dir",
+      "/var/tmp/afs-off-6d-20261007-r1/etc",
+      "--run-dir",
+      "/var/tmp/afs-off-6d-20261007-r1/run",
+      "--log-dir",
+      "/var/tmp/afs-off-6d-20261007-r1/logs",
+      "restart",
+      "meta"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.27634023199789226,
+    "stdout": "014.stdout",
+    "stderr": "014.stderr"
+  },
+  {
+    "argv": [
+      "findmnt",
+      "-J",
+      "-o",
+      "TARGET,SOURCE,FSTYPE,OPTIONS,ID",
+      "--mountpoint",
+      "/var/tmp/afs-off-6d-20261007-r1/mount/ownerfs"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0015488019998883829,
+    "stdout": "015.stdout",
+    "stderr": "015.stderr"
+  },
+  {
+    "argv": [
+      "findmnt",
+      "-J",
+      "-o",
+      "TARGET,SOURCE,FSTYPE,OPTIONS,ID",
+      "--mountpoint",
+      "/var/tmp/afs-off-6d-20261007-r1/mount/dfs"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0015999259921954945,
+    "stdout": "016.stdout",
+    "stderr": "016.stderr"
+  },
+  {
+    "argv": [
+      "/var/tmp/afs-off-6d-20261007-r1/prefix/bin/afs-selfcheck",
+      "--mount",
+      "/var/tmp/afs-off-6d-20261007-r1/mount/ownerfs",
+      "--workspace",
+      "installed-off",
+      "--size",
+      "64MiB",
+      "--phase",
+      "read",
+      "--case-id",
+      "installed-off-ownerfs",
+      "--deadline",
+      "180",
+      "--output",
+      "/var/tmp/afs-off-6d-20261007-r1-results/ownerfs-read.json",
+      "--input",
+      "/var/tmp/afs-off-6d-20261007-r1-results/ownerfs-write.json"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.17065011498925742,
+    "stdout": "017.stdout",
+    "stderr": "017.stderr"
+  },
+  {
+    "argv": [
+      "/var/tmp/afs-off-6d-20261007-r1/prefix/bin/afs-selfcheck",
+      "--mount",
+      "/var/tmp/afs-off-6d-20261007-r1/mount/dfs",
+      "--workspace",
+      "installed-off",
+      "--size",
+      "64MiB",
+      "--phase",
+      "read",
+      "--case-id",
+      "installed-off-dfs",
+      "--deadline",
+      "180",
+      "--output",
+      "/var/tmp/afs-off-6d-20261007-r1-results/dfs-read.json",
+      "--input",
+      "/var/tmp/afs-off-6d-20261007-r1-results/dfs-write.json"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 1.0217896070098504,
+    "stdout": "018.stdout",
+    "stderr": "018.stderr"
+  },
+  {
+    "argv": [
+      "/var/tmp/afs-off-6d-20261007-r1/prefix/bin/afs-processctl",
+      "--prefix",
+      "/var/tmp/afs-off-6d-20261007-r1/prefix",
+      "--config-dir",
+      "/var/tmp/afs-off-6d-20261007-r1/etc",
+      "--run-dir",
+      "/var/tmp/afs-off-6d-20261007-r1/run",
+      "--log-dir",
+      "/var/tmp/afs-off-6d-20261007-r1/logs",
+      "stop",
+      "all"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.2231279100087704,
+    "stdout": "019.stdout",
+    "stderr": "019.stderr"
+  },
+  {
+    "argv": [
+      "/var/tmp/afs-off-6d-20261007-r1/prefix/bin/afs-processctl",
+      "--prefix",
+      "/var/tmp/afs-off-6d-20261007-r1/prefix",
+      "--config-dir",
+      "/var/tmp/afs-off-6d-20261007-r1/etc",
+      "--run-dir",
+      "/var/tmp/afs-off-6d-20261007-r1/run",
+      "--log-dir",
+      "/var/tmp/afs-off-6d-20261007-r1/logs",
+      "--json",
+      "status",
+      "all"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.031622057998902164,
+    "stdout": "020.stdout",
+    "stderr": "020.stderr"
+  },
+  {
+    "argv": [
+      "findmnt",
+      "-J",
+      "--mountpoint",
+      "/var/tmp/afs-off-6d-20261007-r1/mount/ownerfs"
+    ],
+    "exit": 1,
+    "timeout": false,
+    "elapsed_seconds": 0.0016280080017168075,
+    "stdout": "021.stdout",
+    "stderr": "021.stderr"
+  },
+  {
+    "argv": [
+      "findmnt",
+      "-J",
+      "--mountpoint",
+      "/var/tmp/afs-off-6d-20261007-r1/mount/dfs"
+    ],
+    "exit": 1,
+    "timeout": false,
+    "elapsed_seconds": 0.0014283039927249774,
+    "stdout": "022.stdout",
+    "stderr": "022.stderr"
+  }
+]

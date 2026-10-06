@@ -1,4 +1,4 @@
-**新增实际功能出口（2026-10-07）：** main6d51aeb/map66dbbe3e的实验受管OwnerFs单容器最终namespace/source/unique mount核验、64MiB全内容/权限及停止→Idle/正常卸载删除/Node和Meta退出清理PASS。[证据与原失败](evidence/20261007-managed-workspace/README.md)。仅G2.12基础生命周期分项；必要跨路径锁、append/SEEK_CUR、混合mmap/watch及权限错误随后检查，G2.12完整/生产READY/G2.13性能仍未通过，G1历史8/8和G2计数不变。下方旧候选记录保留原版本，未变标准/OFF结果限定复用。
+**当前容器小项（2026-10-07）：** Rust main6d51aeb/map66dbbe3e不变，实际受管单容器基础生命周期、64MiB及正常清理已通过；本轮短混合语义新增4KiB mmap双向数据及权限/错误PASS，锁冲突、append/SEEK_CUR和跨路径watch传播FAIL，[逐项原始证据](evidence/20261007-managed-semantics/README.md)。未执行的混合并发append不计通过；旧锁阻塞判据单列补强。完整G2.12/生产ON/G2.13仍未通过，默认OFF，G1历史8/8和G2计数不变。下一项容器workspace小规模性能仅作诊断留数，不用数字掩盖语义缺口；未变标准及普通性能不重复。下方旧记录保留原版本。
 
 **新增环境出口（2026-10-07）：** 用户授权后在隔离afs-g2-micro安装固定官方runc v1.5.2，SHA/资产digest/GPG及真实非root容器创建/执行/正常停止删除PASS。[证据](evidence/20261007-runc-runtime/README.md)。仅运行时准入；产品map8ef8b788/ELF未变，G2.12/13未闭合，G1和G2计数不变。下一项实际OwnerFs受管容器，使用干净受信rootfs，不重跑未变标准/普通性能。
 

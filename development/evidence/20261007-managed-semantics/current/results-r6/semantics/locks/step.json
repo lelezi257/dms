@@ -1,0 +1,10 @@
+{
+  "duration_ms": 953.701,
+  "exception": "AssertionError",
+  "message": "{\"details\": {\"failed\": 3, \"passed\": 5, \"status\": \"FAIL\", \"steps\": 8}, \"message\": \"locks_smoke passes\"}",
+  "name": "locks",
+  "out": "/var/tmp/afs-managed-workspace-20261007-r1/results-r6/semantics/locks",
+  "started_at": "2026-10-06T19:59:49Z",
+  "status": "FAIL",
+  "traceback": "Traceback (most recent call last):\n  File \"/var/tmp/afs-managed-workspace-20261007-r1/tools/development/acceptance/probes/native_mixed.py\", line 249, in step\n    details = func(step_dir)\n              ^^^^^^^^^^^^^^\n  File \"/var/tmp/afs-managed-workspace-20261007-r1/tools/development/acceptance/probes/native_mixed.py\", line 285, in locks_probe\n    expect(command[\"returncode\"] == 0 and report.get(\"summary\", {}).get(\"status\") == \"PASS\", \"locks_smoke passes\", report.get(\"summary\"))\n  File \"/var/tmp/afs-managed-workspace-20261007-r1/tools/development/acceptance/probes/native_mixed.py\", line 93, in expect\n    raise AssertionError(json.dumps({\"message\": message, \"details\": details}, sort_keys=True))\nAssertionError: {\"details\": {\"failed\": 3, \"passed\": 5, \"status\": \"FAIL\", \"steps\": 8}, \"message\": \"locks_smoke passes\"}\n"
+}

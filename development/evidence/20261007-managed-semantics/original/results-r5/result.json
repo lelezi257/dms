@@ -1,0 +1,8 @@
+{
+  "status": "FAIL",
+  "scope": "single experimental managed OwnerFs workspace; not full G2.12/13",
+  "source_commit": "6d51aeb45c1ed8669d80f612b3817e6d1bdabe04",
+  "driver_sha256": "ff6c148eac737c37767fca38d15f43b3445b7eed6789acc49ee6f6345c4b7b1c",
+  "error": "ValueError('semantics')",
+  "cleanup": "PASS"
+}

@@ -56,6 +56,8 @@ class Run(base.Run):
         self.check('ports', True, [24400, 24401, 24500, 24501])
         self.check('package', base.sha(self.args.package) == self.args.package_sha256, base.sha(self.args.package))
         self.check('runtime', base.sha('/usr/local/sbin/runc') == self.args.runtime_sha256, base.sha('/usr/local/sbin/runc'))
+        if self.args.semantics_probe:
+            self.check('semantics-tool', self.args.semantics_probe.is_file(), str(self.args.semantics_probe))
         self.command(['/usr/local/sbin/runc', '--version'])
         self.save('preflight.json', self.checks)
 
@@ -181,6 +183,18 @@ class Run(base.Run):
             self.check('host-read-full-content', content_matches(workspace / 'renamed', 64 * 2**20 + 4, expected), expected)
             st = (workspace / 'renamed').stat()
             self.check('workload-owner-mode', (st.st_uid, st.st_gid, stat.S_IMODE(st.st_mode)) == (501, 501, 0o600), [st.st_uid, st.st_gid, oct(st.st_mode)])
+            if self.args.semantics_probe:
+                self.save('semantics-tool.json', {'path': str(self.args.semantics_probe),
+                          'sha256': base.sha(self.args.semantics_probe)})
+                native_path = f'/proc/{pid}/root/workspace'
+                for label, primary in (('semantics-reference', native_path), ('semantics', workspace)):
+                    self.command(['python3', self.args.semantics_probe, '--primary', primary,
+                        '--secondary', native_path, '--controller', self.args.controller,
+                        '--socket', self.root / 'control/control.sock', '--out', self.out / label,
+                        '--groups', *self.args.semantics_groups],
+                        timeout=120, allowed=(0, 1))
+                    semantics = json.loads((self.out / label / 'result.json').read_text())
+                    self.check(label, semantics.get('status') == 'PASS', semantics)
             self.check('stop', self.native('stop-first', 'stop').get('status') == 'Stopped', 'Stopped')
             self.check('idle-after-stop', self.native('after-stop', 'status')['state'] == 'Idle', 'Idle')
             self.check('container-pid-gone', not Path(f'/proc/{pid}').exists(), pid)
@@ -226,6 +240,11 @@ def main():
         parser.add_argument('--' + name, type=Path, required=True)
     for name in ('source-commit', 'package-sha256', 'runtime-sha256', 'afs-meta-sha256', 'afs-node-sha256'):
         parser.add_argument('--' + name, required=True)
+    parser.add_argument('--semantics-probe', type=Path, help='optional short mixed-path checks before normal stop')
+    parser.add_argument('--semantics-groups', nargs='+',
+                        choices=('locks', 'append', 'mmap_inotify', 'permissions_errno'),
+                        default=['locks', 'append', 'mmap_inotify', 'permissions_errno'],
+                        help='only run affected groups; omitted groups retain their original evidence')
     return Run(parser.parse_args()).run()
 
 

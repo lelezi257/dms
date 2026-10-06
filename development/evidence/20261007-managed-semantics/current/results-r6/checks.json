@@ -1,0 +1,1339 @@
+{
+  "Linux-root": {
+    "status": "PASS",
+    "value": [
+      "Linux",
+      "aarch64",
+      0
+    ]
+  },
+  "new-owned-root": {
+    "status": "PASS",
+    "value": "/opt/afs-managed-workspace-20261007-r6"
+  },
+  "dependencies": {
+    "status": "PASS",
+    "value": {
+      "bash": "/usr/bin/bash",
+      "python3": "/usr/bin/python3",
+      "tar": "/usr/bin/tar",
+      "ldd": "/usr/bin/ldd",
+      "openssl": "/usr/bin/openssl",
+      "findmnt": "/usr/bin/findmnt",
+      "fusermount3": "/usr/bin/fusermount3",
+      "curl": "/usr/bin/curl",
+      "flock": "/usr/bin/flock",
+      "ss": "/usr/bin/ss",
+      "sed": "/usr/bin/sed",
+      "awk": "/usr/bin/awk",
+      "mountpoint": "/usr/bin/mountpoint",
+      "setsid": "/usr/bin/setsid",
+      "nsenter": "/usr/bin/nsenter"
+    }
+  },
+  "fuse": {
+    "status": "PASS",
+    "value": "/dev/fuse"
+  },
+  "ext4": {
+    "status": "PASS",
+    "value": {
+      "filesystems": [
+        {
+          "target": "/",
+          "source": "/dev/vda1",
+          "fstype": "ext4",
+          "options": "rw,relatime,discard,errors=remount-ro,commit=30"
+        }
+      ]
+    }
+  },
+  "capacity": {
+    "status": "PASS",
+    "value": 11779887104
+  },
+  "ports": {
+    "status": "PASS",
+    "value": [
+      24400,
+      24401,
+      24500,
+      24501
+    ]
+  },
+  "package": {
+    "status": "PASS",
+    "value": "ee25d5892c4e884e67c86d4e5b9c6ab551af4c46649edab6a05da06659d1aff9"
+  },
+  "runtime": {
+    "status": "PASS",
+    "value": "d10ecae898361832a059be2089bab92d158aec54661b18ed7346ed79628b46b0"
+  },
+  "semantics-tool": {
+    "status": "PASS",
+    "value": "/var/tmp/afs-managed-workspace-20261007-r1/tools/development/acceptance/probes/native_mixed.py"
+  },
+  "one-package": {
+    "status": "PASS",
+    "value": [
+      "/opt/afs-managed-workspace-20261007-r6/package/afs-0.1.0-g2-procfree-6d51aeb-linux-aarch64"
+    ]
+  },
+  "source-commit": {
+    "status": "PASS",
+    "value": {
+      "schema": "afs.release-package.v1",
+      "name": "afs",
+      "version": "0.1.0-g2-procfree-6d51aeb",
+      "target": "linux-aarch64",
+      "source_commit": "6d51aeb45c1ed8669d80f612b3817e6d1bdabe04",
+      "source_date_epoch": 0,
+      "features": "ownerfs,dfs,rdma",
+      "rust_toolchain": "1.95.0",
+      "binaries": {
+        "afs-meta": {
+          "sha256": "2c7b7d088b759e3b9375080002182aa484a424b4fa216da1fb79a1004e96168e"
+        },
+        "afs-node": {
+          "sha256": "2cf1f538fe7af332a711f3c66a074ace140c00773826a182709a6445b8ae2645"
+        }
+      },
+      "contains": [
+        "afs-meta",
+        "afs-node",
+        "afs-processctl",
+        "afs-trial-config",
+        "afs-selfcheck",
+        "dep02-smoke.sh",
+        "docs/guides/trial.md"
+      ],
+      "installer": "install.sh",
+      "notes": "Built from existing Linux release binaries; no Cargo or Git required on target guests."
+    }
+  },
+  "meta-ELF": {
+    "status": "PASS",
+    "value": "2c7b7d088b759e3b9375080002182aa484a424b4fa216da1fb79a1004e96168e"
+  },
+  "meta-libraries": {
+    "status": "PASS",
+    "value": "\tlinux-vdso.so.1 (0x0000f111d1a87000)\n\tlibibverbs.so.1 => /lib/aarch64-linux-gnu/libibverbs.so.1 (0x0000f111d0f50000)\n\tlibgcc_s.so.1 => /lib/aarch64-linux-gnu/libgcc_s.so.1 (0x0000f111d0f10000)\n\tlibm.so.6 => /lib/aarch64-linux-gnu/libm.so.6 (0x0000f111d0e60000)\n\tlibc.so.6 => /lib/aarch64-linux-gnu/libc.so.6 (0x0000f111d0ca0000)\n\t/lib/ld-linux-aarch64.so.1 (0x0000f111d1a40000)\n\tlibnl-route-3.so.200 => /lib/aarch64-linux-gnu/libnl-route-3.so.200 (0x0000f111d0bf0000)\n\tlibnl-3.so.200 => /lib/aarch64-linux-gnu/libnl-3.so.200 (0x0000f111d0ba0000)\n"
+  },
+  "node-ELF": {
+    "status": "PASS",
+    "value": "2cf1f538fe7af332a711f3c66a074ace140c00773826a182709a6445b8ae2645"
+  },
+  "node-libraries": {
+    "status": "PASS",
+    "value": "\tlinux-vdso.so.1 (0x0000f9f77c25d000)\n\tlibibverbs.so.1 => /lib/aarch64-linux-gnu/libibverbs.so.1 (0x0000f9f77b080000)\n\tlibgcc_s.so.1 => /lib/aarch64-linux-gnu/libgcc_s.so.1 (0x0000f9f77b040000)\n\tlibm.so.6 => /lib/aarch64-linux-gnu/libm.so.6 (0x0000f9f77af90000)\n\tlibc.so.6 => /lib/aarch64-linux-gnu/libc.so.6 (0x0000f9f77add0000)\n\t/lib/ld-linux-aarch64.so.1 (0x0000f9f77c220000)\n\tlibnl-route-3.so.200 => /lib/aarch64-linux-gnu/libnl-route-3.so.200 (0x0000f9f77ad20000)\n\tlibnl-3.so.200 => /lib/aarch64-linux-gnu/libnl-3.so.200 (0x0000f9f77acd0000)\n"
+  },
+  "input-afs-workspace-probe": {
+    "status": "PASS",
+    "value": {
+      "sha256": "c9c9fd1a3568c872fb975add7595df43f46016c674647ef48ac2103db979ddb7",
+      "bytes": 560000,
+      "uid": 0,
+      "mode": "0o755"
+    }
+  },
+  "input-bin/busybox": {
+    "status": "PASS",
+    "value": {
+      "sha256": "52151e7f322f926b64049cdaa1410dc3ea6485525e0624b05813791c219ae933",
+      "bytes": 1914704,
+      "uid": 0,
+      "mode": "0o755"
+    }
+  },
+  "input-bin/sh": {
+    "status": "PASS",
+    "value": {
+      "sha256": "52151e7f322f926b64049cdaa1410dc3ea6485525e0624b05813791c219ae933",
+      "bytes": 1914704,
+      "uid": 0,
+      "mode": "0o755"
+    }
+  },
+  "input-lib/ld-linux-aarch64.so.1": {
+    "status": "PASS",
+    "value": {
+      "sha256": "393384096ffa869e1be20d2f91fdf08dfadb9f3e531dfe724085d8501d3f85d9",
+      "bytes": 203968,
+      "uid": 0,
+      "mode": "0o755"
+    }
+  },
+  "input-lib/aarch64-linux-gnu/libgcc_s.so.1": {
+    "status": "PASS",
+    "value": {
+      "sha256": "f2d3ad2bf0b61f6bc944cc37d7b6ab7f88d2582b41ff989ca164803f56cc5f20",
+      "bytes": 133696,
+      "uid": 0,
+      "mode": "0o755"
+    }
+  },
+  "input-lib/aarch64-linux-gnu/libc.so.6": {
+    "status": "PASS",
+    "value": {
+      "sha256": "fe5966a43e068ad7cb389c3affa069f4ee6f296e07d7ccc0398a23cfde4f0b7e",
+      "bytes": 1722920,
+      "uid": 0,
+      "mode": "0o755"
+    }
+  },
+  "meta-live-ELF": {
+    "status": "PASS",
+    "value": {
+      "pid": 7967,
+      "starttick": 4740249,
+      "sha256": "2c7b7d088b759e3b9375080002182aa484a424b4fa216da1fb79a1004e96168e",
+      "installed": {
+        "path": "/opt/afs-managed-workspace-20261007-r6/prefix/bin/afs-meta",
+        "device": 64769,
+        "inode": 525673
+      }
+    }
+  },
+  "node-live-ELF": {
+    "status": "PASS",
+    "value": {
+      "pid": 8151,
+      "starttick": 4740264,
+      "sha256": "2cf1f538fe7af332a711f3c66a074ace140c00773826a182709a6445b8ae2645",
+      "installed": {
+        "path": "/opt/afs-managed-workspace-20261007-r6/prefix/bin/afs-node",
+        "device": 64769,
+        "inode": 525674
+      }
+    }
+  },
+  "OwnerFs-mount": {
+    "status": "PASS",
+    "value": {
+      "filesystems": [
+        {
+          "target": "/opt/afs-managed-workspace-20261007-r6/mount/ownerfs",
+          "source": "afs-ownerfs",
+          "fstype": "fuse",
+          "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other",
+          "id": 61
+        }
+      ]
+    }
+  },
+  "control-mode": {
+    "status": "PASS",
+    "value": "0700/0600"
+  },
+  "initial-response": {
+    "status": "PASS",
+    "value": {
+      "production_ready": false,
+      "state": "Idle"
+    }
+  },
+  "initial-idle": {
+    "status": "PASS",
+    "value": "Idle"
+  },
+  "unsafe-path-response": {
+    "status": "PASS",
+    "value": {
+      "active": {
+        "production_ready": false,
+        "state": "Idle"
+      },
+      "error": "Invalid argument (os error 22)",
+      "production_ready": false,
+      "status": "ERROR"
+    }
+  },
+  "absent-root-response": {
+    "status": "PASS",
+    "value": {
+      "active": {
+        "production_ready": false,
+        "state": "Idle"
+      },
+      "error": "0x020b0002 Unavailable: root grant not cached",
+      "production_ready": false,
+      "status": "ERROR"
+    }
+  },
+  "first-response": {
+    "status": "PASS",
+    "value": {
+      "error": "operation id was reused with different input",
+      "production_ready": false,
+      "status": "ERROR"
+    }
+  },
+  "final-verified": {
+    "status": "PASS",
+    "value": {
+      "access_generation": 1,
+      "container": "afs-native-first",
+      "epoch": 1,
+      "home_node": "node-a",
+      "home_session": "48601e72-900d-4240-9fb1-6ba39806f62d",
+      "production_ready": false,
+      "root": "root-776f726b7370616365",
+      "scope": "single managed experimental container; not READY or revocation ACK",
+      "state": "FinalVerified"
+    }
+  },
+  "start-replay": {
+    "status": "PASS",
+    "value": {
+      "access_generation": 1,
+      "container": "afs-native-first",
+      "epoch": 1,
+      "home_node": "node-a",
+      "home_session": "48601e72-900d-4240-9fb1-6ba39806f62d",
+      "production_ready": false,
+      "root": "root-776f726b7370616365",
+      "scope": "single managed experimental container; not READY or revocation ACK",
+      "state": "FinalVerified"
+    }
+  },
+  "busy-response": {
+    "status": "PASS",
+    "value": {
+      "active": {
+        "access_generation": 1,
+        "container": "afs-native-first",
+        "epoch": 1,
+        "home_node": "node-a",
+        "home_session": "48601e72-900d-4240-9fb1-6ba39806f62d",
+        "production_ready": false,
+        "root": "root-776f726b7370616365",
+        "scope": "single managed experimental container; not READY or revocation ACK",
+        "state": "FinalVerified"
+      },
+      "error": "Device or resource busy (os error 16)",
+      "production_ready": false,
+      "status": "ERROR"
+    }
+  },
+  "real-storage-source": {
+    "status": "PASS",
+    "value": [
+      "/opt/afs-managed-workspace-20261007-r6/state/node/ownerfs/root-776f726b7370616365-e1"
+    ]
+  },
+  "work-response": {
+    "status": "PASS",
+    "value": {
+      "production_ready": false,
+      "status": "Executed",
+      "stdout_bytes": 140
+    }
+  },
+  "executed": {
+    "status": "PASS",
+    "value": {
+      "production_ready": false,
+      "status": "Executed",
+      "stdout_bytes": 140
+    }
+  },
+  "host-read-full-content": {
+    "status": "PASS",
+    "value": "47ac80e6c3bf536ea0de31a11ff7f6b074ffca87668c6cf3261e5e22d3c7f072"
+  },
+  "workload-owner-mode": {
+    "status": "PASS",
+    "value": [
+      501,
+      501,
+      "0o100600"
+    ]
+  },
+  "semantics-reference": {
+    "status": "PASS",
+    "value": {
+      "cleanup": {
+        "owned_paths": [
+          {
+            "path": "/proc/8317/root/workspace/.afs-native-mixed-8420-1791316786217695524-append-concurrent.log",
+            "status": "removed"
+          },
+          {
+            "path": "/proc/8317/root/workspace/.afs-native-mixed-8420-1791316786217695524-watch-secondary.done",
+            "status": "removed"
+          },
+          {
+            "path": "/proc/8317/root/workspace/.afs-native-mixed-8420-1791316786217695524-root-owned-0600.txt",
+            "status": "removed"
+          },
+          {
+            "path": "/proc/8317/root/workspace/.afs-native-mixed-8420-1791316786217695524-watch-secondary.tmp",
+            "status": "absent"
+          },
+          {
+            "path": "/proc/8317/root/workspace/.afs-native-mixed-8420-1791316786217695524-watch-primary.done",
+            "status": "removed"
+          },
+          {
+            "path": "/proc/8317/root/workspace/.afs-native-mixed-8420-1791316786217695524-append-start.flag",
+            "status": "removed"
+          },
+          {
+            "path": "/proc/8317/root/workspace/.afs-native-mixed-8420-1791316786217695524-watch-primary.tmp",
+            "status": "absent"
+          },
+          {
+            "path": "/proc/8317/root/workspace/.afs-native-mixed-8420-1791316786217695524-exclusive.txt",
+            "status": "removed"
+          },
+          {
+            "path": "/proc/8317/root/workspace/.afs-native-mixed-8420-1791316786217695524-append.log",
+            "status": "removed"
+          },
+          {
+            "path": "/proc/8317/root/workspace/.afs-native-mixed-8420-1791316786217695524-locks.bin",
+            "status": "removed"
+          },
+          {
+            "path": "/proc/8317/root/workspace/.afs-native-mixed-8420-1791316786217695524-mmap.bin",
+            "status": "removed"
+          }
+        ]
+      },
+      "created_at": "2026-10-06T19:59:46Z",
+      "failures": [],
+      "path_identity": {
+        "primary": {
+          "dev": 64769,
+          "gid": 501,
+          "ino": 525763,
+          "mode": "0o700",
+          "mtime_ns": 1791316785929307520,
+          "path": "/proc/8317/root/workspace",
+          "size": 4096,
+          "uid": 501
+        },
+        "secondary": {
+          "dev": 64769,
+          "gid": 501,
+          "ino": 525763,
+          "mode": "0o700",
+          "mtime_ns": 1791316785929307520,
+          "path": "/proc/8317/root/workspace",
+          "size": 4096,
+          "uid": 501
+        }
+      },
+      "paths": {
+        "primary": "/proc/8317/root/workspace",
+        "secondary": "/proc/8317/root/workspace"
+      },
+      "platform": {
+        "gid": 0,
+        "machine": "aarch64",
+        "python": "3.12.3",
+        "release": "6.8.0-106-generic",
+        "system": "Linux",
+        "uid": 0
+      },
+      "run_id": "native-mixed-8420-1791316786217694899",
+      "schema": "afs.native_mixed.v1",
+      "scope": "short managed OwnerFs mixed FUSE/native probe; not full POSIX or production ON qualification",
+      "status": "PASS",
+      "steps": [
+        {
+          "details": {
+            "command": {
+              "argv": [
+                "/usr/bin/python3",
+                "/var/tmp/afs-managed-workspace-20261007-r1/tools/development/acceptance/probes/locks_smoke.py",
+                "--path",
+                "/proc/8317/root/workspace/.afs-native-mixed-8420-1791316786217695524-locks.bin",
+                "--second-path",
+                "/proc/8317/root/workspace/.afs-native-mixed-8420-1791316786217695524-locks.bin",
+                "--evidence",
+                "/var/tmp/afs-managed-workspace-20261007-r1/results-r6/semantics-reference/locks/locks-smoke",
+                "--child-timeout",
+                "5"
+              ],
+              "duration_ms": 1049.695,
+              "returncode": 0,
+              "stderr": "",
+              "stdout": "status=PASS evidence=/var/tmp/afs-managed-workspace-20261007-r1/results-r6/semantics-reference/locks/locks-smoke primary=/proc/8317/root/workspace/.afs-native-mixed-8420-1791316786217695524-locks.bin secondary=/proc/8317/root/workspace/.afs-native-mixed-8420-1791316786217695524-locks.bin\n",
+              "timed_out": false,
+              "timeout_seconds": 45
+            },
+            "primary_path": "/proc/8317/root/workspace/.afs-native-mixed-8420-1791316786217695524-locks.bin",
+            "report_path": "/var/tmp/afs-managed-workspace-20261007-r1/results-r6/semantics-reference/locks/locks-smoke/report.json",
+            "report_sha256": "11620add84379621fce1d6a2fad1bb8aab0ce2cf905970565c67aaca80fb84ba",
+            "secondary_path": "/proc/8317/root/workspace/.afs-native-mixed-8420-1791316786217695524-locks.bin",
+            "summary": {
+              "failed": 0,
+              "passed": 8,
+              "status": "PASS",
+              "steps": 8
+            },
+            "tool": "/var/tmp/afs-managed-workspace-20261007-r1/tools/development/acceptance/probes/locks_smoke.py",
+            "tool_sha256": "2456928a3d40ac9061cd427ddaded53b127eed78ee6de2a8357370603cec41ef"
+          },
+          "duration_ms": 1050.016,
+          "name": "locks",
+          "out": "/var/tmp/afs-managed-workspace-20261007-r1/results-r6/semantics-reference/locks",
+          "started_at": "2026-10-06T19:59:46Z",
+          "status": "PASS"
+        },
+        {
+          "details": {
+            "bytes": 52,
+            "concurrent": {
+              "children": [
+                {
+                  "index": 0,
+                  "returncode": 0,
+                  "stderr": "",
+                  "stdout": "{\"role\": \"primary\", \"records\": 64, \"offsets_sample\": [31, 62, 93, 2219, 2283, 2347]}\n",
+                  "timed_out": false
+                },
+                {
+                  "index": 1,
+                  "returncode": 0,
+                  "stderr": "",
+                  "stdout": "{\"role\": \"secondary\", \"records\": 64, \"offsets_sample\": [1552, 1678, 1773, 4030, 4063, 4096]}\n",
+                  "timed_out": false
+                }
+              ],
+              "content_sha256": "2cb557d70176fe70acf985dfa2ba8a3ac87e49665185b9a7a14499c2c0d35451",
+              "primary": {
+                "dev": 64769,
+                "gid": 0,
+                "ino": 525836,
+                "mode": "0o600",
+                "mtime_ns": 1791316787275464644,
+                "path": "/proc/8317/root/workspace/.afs-native-mixed-8420-1791316786217695524-append-concurrent.log",
+                "size": 4096,
+                "uid": 0
+              },
+              "records": 128,
+              "secondary": {
+                "dev": 64769,
+                "gid": 0,
+                "ino": 525836,
+                "mode": "0o600",
+                "mtime_ns": 1791316787275464644,
+                "path": "/proc/8317/root/workspace/.afs-native-mixed-8420-1791316786217695524-append-concurrent.log",
+                "size": 4096,
+                "uid": 0
+              },
+              "unique_records": 128
+            },
+            "content_sha256": "0ccaf65ac2f38c828281823d470f246341692ead0009338b41f7c3267a589c0c",
+            "offsets": [
+              {
+                "expected_eof": 12,
+                "label": "primary-1",
+                "offset": 12
+              },
+              {
+                "expected_eof": 26,
+                "label": "secondary-1",
+                "offset": 26
+              },
+              {
+                "expected_eof": 38,
+                "label": "primary-2",
+                "offset": 38
+              },
+              {
+                "expected_eof": 52,
+                "label": "secondary-2",
+                "offset": 52
+              }
+            ],
+            "primary": {
+              "dev": 64769,
+              "gid": 0,
+              "ino": 525835,
+              "mode": "0o600",
+              "mtime_ns": 1791316787267463729,
+              "path": "/proc/8317/root/workspace/.afs-native-mixed-8420-1791316786217695524-append.log",
+              "size": 52,
+              "uid": 0
+            },
+            "secondary": {
+              "dev": 64769,
+              "gid": 0,
+              "ino": 525835,
+              "mode": "0o600",
+              "mtime_ns": 1791316787267463729,
+              "path": "/proc/8317/root/workspace/.afs-native-mixed-8420-1791316786217695524-append.log",
+              "size": 52,
+              "uid": 0
+            }
+          },
+          "duration_ms": 10.347,
+          "name": "append",
+          "out": "/var/tmp/afs-managed-workspace-20261007-r1/results-r6/semantics-reference/append",
+          "started_at": "2026-10-06T19:59:47Z",
+          "status": "PASS"
+        },
+        {
+          "details": {
+            "event_count": 15,
+            "events": {
+              "primary": [
+                {
+                  "cookie": 0,
+                  "mask": 256,
+                  "mask_names": [
+                    "CREATE"
+                  ],
+                  "name": ".afs-native-mixed-8420-1791316786217695524-mmap.bin",
+                  "watch": "primary"
+                },
+                {
+                  "cookie": 0,
+                  "mask": 2,
+                  "mask_names": [
+                    "MODIFY"
+                  ],
+                  "name": ".afs-native-mixed-8420-1791316786217695524-mmap.bin",
+                  "watch": "primary"
+                },
+                {
+                  "cookie": 0,
+                  "mask": 8,
+                  "mask_names": [
+                    "CLOSE_WRITE"
+                  ],
+                  "name": ".afs-native-mixed-8420-1791316786217695524-mmap.bin",
+                  "watch": "primary"
+                },
+                {
+                  "cookie": 0,
+                  "mask": 2,
+                  "mask_names": [
+                    "MODIFY"
+                  ],
+                  "name": ".afs-native-mixed-8420-1791316786217695524-mmap.bin",
+                  "watch": "primary"
+                },
+                {
+                  "cookie": 0,
+                  "mask": 8,
+                  "mask_names": [
+                    "CLOSE_WRITE"
+                  ],
+                  "name": ".afs-native-mixed-8420-1791316786217695524-mmap.bin",
+                  "watch": "primary"
+                },
+                {
+                  "cookie": 0,
+                  "mask": 256,
+                  "mask_names": [
+                    "CREATE"
+                  ],
+                  "name": ".afs-native-mixed-8420-1791316786217695524-watch-primary.tmp",
+                  "watch": "primary"
+                },
+                {
+                  "cookie": 0,
+                  "mask": 2,
+                  "mask_names": [
+                    "MODIFY"
+                  ],
+                  "name": ".afs-native-mixed-8420-1791316786217695524-watch-primary.tmp",
+                  "watch": "primary"
+                },
+                {
+                  "cookie": 0,
+                  "mask": 8,
+                  "mask_names": [
+                    "CLOSE_WRITE"
+                  ],
+                  "name": ".afs-native-mixed-8420-1791316786217695524-watch-primary.tmp",
+                  "watch": "primary"
+                },
+                {
+                  "cookie": 2210,
+                  "mask": 64,
+                  "mask_names": [
+                    "MOVED_FROM"
+                  ],
+                  "name": ".afs-native-mixed-8420-1791316786217695524-watch-primary.tmp",
+                  "watch": "primary"
+                },
+                {
+                  "cookie": 2210,
+                  "mask": 128,
+                  "mask_names": [
+                    "MOVED_TO"
+                  ],
+                  "name": ".afs-native-mixed-8420-1791316786217695524-watch-primary.done",
+                  "watch": "primary"
+                },
+                {
+                  "cookie": 0,
+                  "mask": 256,
+                  "mask_names": [
+                    "CREATE"
+                  ],
+                  "name": ".afs-native-mixed-8420-1791316786217695524-watch-secondary.tmp",
+                  "watch": "primary"
+                },
+                {
+                  "cookie": 0,
+                  "mask": 2,
+                  "mask_names": [
+                    "MODIFY"
+                  ],
+                  "name": ".afs-native-mixed-8420-1791316786217695524-watch-secondary.tmp",
+                  "watch": "primary"
+                },
+                {
+                  "cookie": 0,
+                  "mask": 8,
+                  "mask_names": [
+                    "CLOSE_WRITE"
+                  ],
+                  "name": ".afs-native-mixed-8420-1791316786217695524-watch-secondary.tmp",
+                  "watch": "primary"
+                },
+                {
+                  "cookie": 2211,
+                  "mask": 64,
+                  "mask_names": [
+                    "MOVED_FROM"
+                  ],
+                  "name": ".afs-native-mixed-8420-1791316786217695524-watch-secondary.tmp",
+                  "watch": "primary"
+                },
+                {
+                  "cookie": 2211,
+                  "mask": 128,
+                  "mask_names": [
+                    "MOVED_TO"
+                  ],
+                  "name": ".afs-native-mixed-8420-1791316786217695524-watch-secondary.done",
+                  "watch": "primary"
+                }
+              ],
+              "secondary": [
+                {
+                  "cookie": 0,
+                  "mask": 256,
+                  "mask_names": [
+                    "CREATE"
+                  ],
+                  "name": ".afs-native-mixed-8420-1791316786217695524-mmap.bin",
+                  "watch": "primary"
+                },
+                {
+                  "cookie": 0,
+                  "mask": 2,
+                  "mask_names": [
+                    "MODIFY"
+                  ],
+                  "name": ".afs-native-mixed-8420-1791316786217695524-mmap.bin",
+                  "watch": "primary"
+                },
+                {
+                  "cookie": 0,
+                  "mask": 8,
+                  "mask_names": [
+                    "CLOSE_WRITE"
+                  ],
+                  "name": ".afs-native-mixed-8420-1791316786217695524-mmap.bin",
+                  "watch": "primary"
+                },
+                {
+                  "cookie": 0,
+                  "mask": 2,
+                  "mask_names": [
+                    "MODIFY"
+                  ],
+                  "name": ".afs-native-mixed-8420-1791316786217695524-mmap.bin",
+                  "watch": "primary"
+                },
+                {
+                  "cookie": 0,
+                  "mask": 8,
+                  "mask_names": [
+                    "CLOSE_WRITE"
+                  ],
+                  "name": ".afs-native-mixed-8420-1791316786217695524-mmap.bin",
+                  "watch": "primary"
+                },
+                {
+                  "cookie": 0,
+                  "mask": 256,
+                  "mask_names": [
+                    "CREATE"
+                  ],
+                  "name": ".afs-native-mixed-8420-1791316786217695524-watch-primary.tmp",
+                  "watch": "primary"
+                },
+                {
+                  "cookie": 0,
+                  "mask": 2,
+                  "mask_names": [
+                    "MODIFY"
+                  ],
+                  "name": ".afs-native-mixed-8420-1791316786217695524-watch-primary.tmp",
+                  "watch": "primary"
+                },
+                {
+                  "cookie": 0,
+                  "mask": 8,
+                  "mask_names": [
+                    "CLOSE_WRITE"
+                  ],
+                  "name": ".afs-native-mixed-8420-1791316786217695524-watch-primary.tmp",
+                  "watch": "primary"
+                },
+                {
+                  "cookie": 2210,
+                  "mask": 64,
+                  "mask_names": [
+                    "MOVED_FROM"
+                  ],
+                  "name": ".afs-native-mixed-8420-1791316786217695524-watch-primary.tmp",
+                  "watch": "primary"
+                },
+                {
+                  "cookie": 2210,
+                  "mask": 128,
+                  "mask_names": [
+                    "MOVED_TO"
+                  ],
+                  "name": ".afs-native-mixed-8420-1791316786217695524-watch-primary.done",
+                  "watch": "primary"
+                },
+                {
+                  "cookie": 0,
+                  "mask": 256,
+                  "mask_names": [
+                    "CREATE"
+                  ],
+                  "name": ".afs-native-mixed-8420-1791316786217695524-watch-secondary.tmp",
+                  "watch": "primary"
+                },
+                {
+                  "cookie": 0,
+                  "mask": 2,
+                  "mask_names": [
+                    "MODIFY"
+                  ],
+                  "name": ".afs-native-mixed-8420-1791316786217695524-watch-secondary.tmp",
+                  "watch": "primary"
+                },
+                {
+                  "cookie": 0,
+                  "mask": 8,
+                  "mask_names": [
+                    "CLOSE_WRITE"
+                  ],
+                  "name": ".afs-native-mixed-8420-1791316786217695524-watch-secondary.tmp",
+                  "watch": "primary"
+                },
+                {
+                  "cookie": 2211,
+                  "mask": 64,
+                  "mask_names": [
+                    "MOVED_FROM"
+                  ],
+                  "name": ".afs-native-mixed-8420-1791316786217695524-watch-secondary.tmp",
+                  "watch": "primary"
+                },
+                {
+                  "cookie": 2211,
+                  "mask": 128,
+                  "mask_names": [
+                    "MOVED_TO"
+                  ],
+                  "name": ".afs-native-mixed-8420-1791316786217695524-watch-secondary.done",
+                  "watch": "primary"
+                }
+              ]
+            },
+            "primary": {
+              "dev": 64769,
+              "gid": 0,
+              "ino": 525841,
+              "mode": "0o600",
+              "mtime_ns": 1791316787278464987,
+              "path": "/proc/8317/root/workspace/.afs-native-mixed-8420-1791316786217695524-mmap.bin",
+              "size": 4096,
+              "uid": 0
+            },
+            "same_watch_dir": true,
+            "secondary": {
+              "dev": 64769,
+              "gid": 0,
+              "ino": 525841,
+              "mode": "0o600",
+              "mtime_ns": 1791316787278464987,
+              "path": "/proc/8317/root/workspace/.afs-native-mixed-8420-1791316786217695524-mmap.bin",
+              "size": 4096,
+              "uid": 0
+            }
+          },
+          "duration_ms": 2026.223,
+          "name": "mmap_inotify",
+          "out": "/var/tmp/afs-managed-workspace-20261007-r1/results-r6/semantics-reference/mmap_inotify",
+          "started_at": "2026-10-06T19:59:47Z",
+          "status": "PASS"
+        },
+        {
+          "details": {
+            "container_response": {
+              "production_ready": false,
+              "status": "Executed",
+              "stdout_bytes": 29
+            },
+            "control_artifacts": [
+              {
+                "command_json": {
+                  "bytes": 193,
+                  "path": "/opt/afs-managed-workspace-20261007-r6/control/command-0007.command.json",
+                  "sha256": "fb1c8acdc8c8771e630bec594ec5bd086f6d9b515107c4981114c88b923ce039",
+                  "text": "{\"argv\":[\"--root\",\"/opt/afs-managed-workspace-20261007-r6/control/runtime-state\",\"exec\",\"afs-native-first\",\"/afs-workspace-probe\",\"identity\"],\"program\":\"/usr/local/sbin/runc\",\"timeout_ms\":5000}"
+                },
+                "exit_json": {
+                  "bytes": 39,
+                  "path": "/opt/afs-managed-workspace-20261007-r6/control/command-0007.exit.json",
+                  "sha256": "c859105ff40e0bef4d5d0e8d5a01f1755a58adfe9c524aba9a750f4edd6ac713",
+                  "text": "{\"code\":0,\"reason\":null,\"success\":true}"
+                },
+                "stderr": {
+                  "bytes": 0,
+                  "path": "/opt/afs-managed-workspace-20261007-r6/control/command-0007.stderr",
+                  "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                  "text": ""
+                },
+                "stdout": {
+                  "bytes": 234,
+                  "path": "/opt/afs-managed-workspace-20261007-r6/control/command-0007.stdout",
+                  "sha256": "82b3dcd0f351b07778902ad3944b6db6fd05bfae791499e3a7584c43be049f4c",
+                  "text": "{\"flags\":[\"rw\",\"nosuid\",\"nodev\",\"relatime\"],\"mount_id\":425,\"namespace\":{\"dev\":4,\"ino\":4026532347},\"scope\":\"final-view identity; not production READY or revocation ACK\",\"source\":{\"dev\":64769,\"ino\":525763},\"unique_mount_id\":4294971068}\n"
+                },
+                "stem": "/opt/afs-managed-workspace-20261007-r6/control/command-0007"
+              },
+              {
+                "command_json": {
+                  "bytes": 630,
+                  "path": "/opt/afs-managed-workspace-20261007-r6/control/command-0008.command.json",
+                  "sha256": "6def126c9fff686fac282a542aa013baedfdda7ec49bc0876a74fea0b602e303",
+                  "text": "{\"argv\":[\"--root\",\"/opt/afs-managed-workspace-20261007-r6/control/runtime-state\",\"exec\",\"afs-native-first\",\"/bin/sh\",\"-ec\",\"set +e\\nuid=$(/bin/busybox id -u)\\n/bin/busybox echo uid=$uid\\ntest \\\"$uid\\\" = 501 || exit 7\\n/bin/busybox cat /workspace/.afs-native-mixed-8420-1791316786217695524-root-owned-0600.txt\\nread_rc=$?\\n/bin/busybox sh -c 'printf blocked >> /workspace/.afs-native-mixed-8420-1791316786217695524-root-owned-0600.txt'\\nwrite_rc=$?\\n/bin/busybox echo read_rc=$read_rc\\n/bin/busybox echo write_rc=$write_rc\\ntest \\\"$read_rc\\\" != 0 && test \\\"$write_rc\\\" != 0\\n\"],\"program\":\"/usr/local/sbin/runc\",\"timeout_ms\":120000}"
+                },
+                "exit_json": {
+                  "bytes": 39,
+                  "path": "/opt/afs-managed-workspace-20261007-r6/control/command-0008.exit.json",
+                  "sha256": "c859105ff40e0bef4d5d0e8d5a01f1755a58adfe9c524aba9a750f4edd6ac713",
+                  "text": "{\"code\":0,\"reason\":null,\"success\":true}"
+                },
+                "stderr": {
+                  "bytes": 221,
+                  "path": "/opt/afs-managed-workspace-20261007-r6/control/command-0008.stderr",
+                  "sha256": "dc22df210310f4b8ccc64c6dde7102dbb58a78c44066e4f1e12075f97acd0b8e",
+                  "text": "cat: can't open '/workspace/.afs-native-mixed-8420-1791316786217695524-root-owned-0600.txt': Permission denied\nsh: can't create /workspace/.afs-native-mixed-8420-1791316786217695524-root-owned-0600.txt: Permission denied\n"
+                },
+                "stdout": {
+                  "bytes": 29,
+                  "path": "/opt/afs-managed-workspace-20261007-r6/control/command-0008.stdout",
+                  "sha256": "0836267552437c7c27f6381f77ffa59efe0977d2ee721294ac2a11eab6a382fd",
+                  "text": "uid=501\nread_rc=1\nwrite_rc=1\n"
+                },
+                "stem": "/opt/afs-managed-workspace-20261007-r6/control/command-0008"
+              }
+            ],
+            "exclusive": {
+              "errno": 17,
+              "errno_name": "EEXIST",
+              "message": "[Errno 17] File exists: '/proc/8317/root/workspace/.afs-native-mixed-8420-1791316786217695524-exclusive.txt'"
+            },
+            "expected_sha256": "970c1502b114e2cbef4c078048e93f04408be0f2ae49eef62140f2266e8c9b3b",
+            "missing": {
+              "primary": {
+                "errno": 2,
+                "errno_name": "ENOENT",
+                "message": "[Errno 2] No such file or directory: '/proc/8317/root/workspace/.afs-native-mixed-8420-1791316786217695524-missing.txt'"
+              },
+              "secondary": {
+                "errno": 2,
+                "errno_name": "ENOENT",
+                "message": "[Errno 2] No such file or directory: '/proc/8317/root/workspace/.afs-native-mixed-8420-1791316786217695524-missing.txt'"
+              }
+            },
+            "parent": {
+              "dev": 64769,
+              "gid": 501,
+              "ino": 525763,
+              "mode": "0o700",
+              "mtime_ns": 1791316789385701569,
+              "path": "/proc/8317/root/workspace",
+              "size": 4096,
+              "uid": 501
+            },
+            "root_file": {
+              "dev": 64769,
+              "gid": 0,
+              "ino": 525848,
+              "mode": "0o600",
+              "mtime_ns": 1791316789304692721,
+              "path": "/proc/8317/root/workspace/.afs-native-mixed-8420-1791316786217695524-root-owned-0600.txt",
+              "size": 25,
+              "uid": 0
+            },
+            "root_file_sha256": "970c1502b114e2cbef4c078048e93f04408be0f2ae49eef62140f2266e8c9b3b"
+          },
+          "duration_ms": 80.891,
+          "name": "permissions_errno",
+          "out": "/var/tmp/afs-managed-workspace-20261007-r1/results-r6/semantics-reference/permissions_errno",
+          "started_at": "2026-10-06T19:59:49Z",
+          "status": "PASS"
+        }
+      ],
+      "summary": {
+        "failed": 0,
+        "passed": 4,
+        "total": 4
+      },
+      "tool": {
+        "path": "/var/tmp/afs-managed-workspace-20261007-r1/tools/development/acceptance/probes/native_mixed.py",
+        "sha256": "ad0bf63227e1a6211d6779a0a8435e74c371ca22a568677f600e07ff24faf25e"
+      }
+    }
+  },
+  "semantics": {
+    "status": "FAIL",
+    "value": {
+      "cleanup": {
+        "owned_paths": [
+          {
+            "path": "/opt/afs-managed-workspace-20261007-r6/mount/ownerfs/workspace/.afs-native-mixed-8500-1791316789428837614-append-concurrent.log",
+            "status": "absent"
+          },
+          {
+            "path": "/opt/afs-managed-workspace-20261007-r6/mount/ownerfs/workspace/.afs-native-mixed-8500-1791316789428837614-root-owned-0600.txt",
+            "status": "removed"
+          },
+          {
+            "path": "/opt/afs-managed-workspace-20261007-r6/mount/ownerfs/workspace/.afs-native-mixed-8500-1791316789428837614-watch-primary.done",
+            "status": "removed"
+          },
+          {
+            "path": "/opt/afs-managed-workspace-20261007-r6/mount/ownerfs/workspace/.afs-native-mixed-8500-1791316789428837614-watch-primary.tmp",
+            "status": "absent"
+          },
+          {
+            "path": "/opt/afs-managed-workspace-20261007-r6/mount/ownerfs/workspace/.afs-native-mixed-8500-1791316789428837614-append-start.flag",
+            "status": "absent"
+          },
+          {
+            "path": "/opt/afs-managed-workspace-20261007-r6/mount/ownerfs/workspace/.afs-native-mixed-8500-1791316789428837614-exclusive.txt",
+            "status": "removed"
+          },
+          {
+            "path": "/opt/afs-managed-workspace-20261007-r6/mount/ownerfs/workspace/.afs-native-mixed-8500-1791316789428837614-append.log",
+            "status": "removed"
+          },
+          {
+            "path": "/opt/afs-managed-workspace-20261007-r6/mount/ownerfs/workspace/.afs-native-mixed-8500-1791316789428837614-locks.bin",
+            "status": "removed"
+          },
+          {
+            "path": "/opt/afs-managed-workspace-20261007-r6/mount/ownerfs/workspace/.afs-native-mixed-8500-1791316789428837614-mmap.bin",
+            "status": "removed"
+          },
+          {
+            "path": "/proc/8317/root/workspace/.afs-native-mixed-8500-1791316789428837614-append-concurrent.log",
+            "status": "absent"
+          },
+          {
+            "path": "/proc/8317/root/workspace/.afs-native-mixed-8500-1791316789428837614-watch-secondary.done",
+            "status": "removed"
+          },
+          {
+            "path": "/proc/8317/root/workspace/.afs-native-mixed-8500-1791316789428837614-watch-secondary.tmp",
+            "status": "absent"
+          },
+          {
+            "path": "/proc/8317/root/workspace/.afs-native-mixed-8500-1791316789428837614-root-owned-0600.txt",
+            "status": "absent"
+          },
+          {
+            "path": "/proc/8317/root/workspace/.afs-native-mixed-8500-1791316789428837614-append-start.flag",
+            "status": "absent"
+          },
+          {
+            "path": "/proc/8317/root/workspace/.afs-native-mixed-8500-1791316789428837614-exclusive.txt",
+            "status": "absent"
+          },
+          {
+            "path": "/proc/8317/root/workspace/.afs-native-mixed-8500-1791316789428837614-append.log",
+            "status": "absent"
+          },
+          {
+            "path": "/proc/8317/root/workspace/.afs-native-mixed-8500-1791316789428837614-locks.bin",
+            "status": "absent"
+          },
+          {
+            "path": "/proc/8317/root/workspace/.afs-native-mixed-8500-1791316789428837614-mmap.bin",
+            "status": "absent"
+          }
+        ]
+      },
+      "created_at": "2026-10-06T19:59:49Z",
+      "failures": [
+        {
+          "duration_ms": 953.701,
+          "exception": "AssertionError",
+          "message": "{\"details\": {\"failed\": 3, \"passed\": 5, \"status\": \"FAIL\", \"steps\": 8}, \"message\": \"locks_smoke passes\"}",
+          "name": "locks",
+          "out": "/var/tmp/afs-managed-workspace-20261007-r1/results-r6/semantics/locks",
+          "started_at": "2026-10-06T19:59:49Z",
+          "status": "FAIL",
+          "traceback": "Traceback (most recent call last):\n  File \"/var/tmp/afs-managed-workspace-20261007-r1/tools/development/acceptance/probes/native_mixed.py\", line 249, in step\n    details = func(step_dir)\n              ^^^^^^^^^^^^^^\n  File \"/var/tmp/afs-managed-workspace-20261007-r1/tools/development/acceptance/probes/native_mixed.py\", line 285, in locks_probe\n    expect(command[\"returncode\"] == 0 and report.get(\"summary\", {}).get(\"status\") == \"PASS\", \"locks_smoke passes\", report.get(\"summary\"))\n  File \"/var/tmp/afs-managed-workspace-20261007-r1/tools/development/acceptance/probes/native_mixed.py\", line 93, in expect\n    raise AssertionError(json.dumps({\"message\": message, \"details\": details}, sort_keys=True))\nAssertionError: {\"details\": {\"failed\": 3, \"passed\": 5, \"status\": \"FAIL\", \"steps\": 8}, \"message\": \"locks_smoke passes\"}\n"
+        },
+        {
+          "duration_ms": 4.197,
+          "exception": "AssertionError",
+          "message": "{\"details\": {\"expected_eof\": 38, \"label\": \"primary-2\", \"offset\": 24}, \"message\": \"O_APPEND SEEK_CUR reaches EOF after write\"}",
+          "name": "append",
+          "out": "/var/tmp/afs-managed-workspace-20261007-r1/results-r6/semantics/append",
+          "started_at": "2026-10-06T19:59:50Z",
+          "status": "FAIL",
+          "traceback": "Traceback (most recent call last):\n  File \"/var/tmp/afs-managed-workspace-20261007-r1/tools/development/acceptance/probes/native_mixed.py\", line 249, in step\n    details = func(step_dir)\n              ^^^^^^^^^^^^^^\n  File \"/var/tmp/afs-managed-workspace-20261007-r1/tools/development/acceptance/probes/native_mixed.py\", line 324, in append_probe\n    expect(offset == len(expected), \"O_APPEND SEEK_CUR reaches EOF after write\", offsets[-1])\n  File \"/var/tmp/afs-managed-workspace-20261007-r1/tools/development/acceptance/probes/native_mixed.py\", line 93, in expect\n    raise AssertionError(json.dumps({\"message\": message, \"details\": details}, sort_keys=True))\nAssertionError: {\"details\": {\"expected_eof\": 38, \"label\": \"primary-2\", \"offset\": 24}, \"message\": \"O_APPEND SEEK_CUR reaches EOF after write\"}\n"
+        },
+        {
+          "duration_ms": 2012.618,
+          "exception": "AssertionError",
+          "message": "{\"details\": [{\"cookie\": 0, \"mask\": 256, \"mask_names\": [\"CREATE\"], \"name\": \".afs-native-mixed-8500-1791316789428837614-mmap.bin\", \"watch\": \"primary\"}, {\"cookie\": 0, \"mask\": 2, \"mask_names\": [\"MODIFY\"], \"name\": \".afs-native-mixed-8500-1791316789428837614-mmap.bin\", \"watch\": \"primary\"}, {\"cookie\": 0, \"mask\": 8, \"mask_names\": [\"CLOSE_WRITE\"], \"name\": \".afs-native-mixed-8500-1791316789428837614-mmap.bin\", \"watch\": \"primary\"}, {\"cookie\": 0, \"mask\": 2, \"mask_names\": [\"MODIFY\"], \"name\": \".afs-native-mixed-8500-1791316789428837614-mmap.bin\", \"watch\": \"primary\"}, {\"cookie\": 0, \"mask\": 8, \"mask_names\": [\"CLOSE_WRITE\"], \"name\": \".afs-native-mixed-8500-1791316789428837614-mmap.bin\", \"watch\": \"primary\"}, {\"cookie\": 0, \"mask\": 256, \"mask_names\": [\"CREATE\"], \"name\": \".afs-native-mixed-8500-1791316789428837614-watch-primary.tmp\", \"watch\": \"primary\"}, {\"cookie\": 0, \"mask\": 2, \"mask_names\": [\"MODIFY\"], \"name\": \".afs-native-mixed-8500-1791316789428837614-watch-primary.tmp\", \"watch\": \"primary\"}, {\"cookie\": 0, \"mask\": 8, \"mask_names\": [\"CLOSE_WRITE\"], \"name\": \".afs-native-mixed-8500-1791316789428837614-watch-primary.tmp\", \"watch\": \"primary\"}, {\"cookie\": 2213, \"mask\": 64, \"mask_names\": [\"MOVED_FROM\"], \"name\": \".afs-native-mixed-8500-1791316789428837614-watch-primary.tmp\", \"watch\": \"primary\"}, {\"cookie\": 2213, \"mask\": 128, \"mask_names\": [\"MOVED_TO\"], \"name\": \".afs-native-mixed-8500-1791316789428837614-watch-primary.done\", \"watch\": \"primary\"}], \"message\": \"primary watch observes CREATE for .afs-native-mixed-8500-1791316789428837614-watch-secondary.tmp\"}",
+          "name": "mmap_inotify",
+          "out": "/var/tmp/afs-managed-workspace-20261007-r1/results-r6/semantics/mmap_inotify",
+          "started_at": "2026-10-06T19:59:50Z",
+          "status": "FAIL",
+          "traceback": "Traceback (most recent call last):\n  File \"/var/tmp/afs-managed-workspace-20261007-r1/tools/development/acceptance/probes/native_mixed.py\", line 249, in step\n    details = func(step_dir)\n              ^^^^^^^^^^^^^^\n  File \"/var/tmp/afs-managed-workspace-20261007-r1/tools/development/acceptance/probes/native_mixed.py\", line 465, in mmap_inotify_probe\n    self.expect_watch_events(watch_name, watch_events, path.name, renamed.name)\n  File \"/var/tmp/afs-managed-workspace-20261007-r1/tools/development/acceptance/probes/native_mixed.py\", line 478, in expect_watch_events\n    expect(has(tmp_name, \"CREATE\"), f\"{watch_name} watch observes CREATE for {tmp_name}\", events)\n  File \"/var/tmp/afs-managed-workspace-20261007-r1/tools/development/acceptance/probes/native_mixed.py\", line 93, in expect\n    raise AssertionError(json.dumps({\"message\": message, \"details\": details}, sort_keys=True))\nAssertionError: {\"details\": [{\"cookie\": 0, \"mask\": 256, \"mask_names\": [\"CREATE\"], \"name\": \".afs-native-mixed-8500-1791316789428837614-mmap.bin\", \"watch\": \"primary\"}, {\"cookie\": 0, \"mask\": 2, \"mask_names\": [\"MODIFY\"], \"name\": \".afs-native-mixed-8500-1791316789428837614-mmap.bin\", \"watch\": \"primary\"}, {\"cookie\": 0, \"mask\": 8, \"mask_names\": [\"CLOSE_WRITE\"], \"name\": \".afs-native-mixed-8500-1791316789428837614-mmap.bin\", \"watch\": \"primary\"}, {\"cookie\": 0, \"mask\": 2, \"mask_names\": [\"MODIFY\"], \"name\": \".afs-native-mixed-8500-1791316789428837614-mmap.bin\", \"watch\": \"primary\"}, {\"cookie\": 0, \"mask\": 8, \"mask_names\": [\"CLOSE_WRITE\"], \"name\": \".afs-native-mixed-8500-1791316789428837614-mmap.bin\", \"watch\": \"primary\"}, {\"cookie\": 0, \"mask\": 256, \"mask_names\": [\"CREATE\"], \"name\": \".afs-native-mixed-8500-1791316789428837614-watch-primary.tmp\", \"watch\": \"primary\"}, {\"cookie\": 0, \"mask\": 2, \"mask_names\": [\"MODIFY\"], \"name\": \".afs-native-mixed-8500-1791316789428837614-watch-primary.tmp\", \"watch\": \"primary\"}, {\"cookie\": 0, \"mask\": 8, \"mask_names\": [\"CLOSE_WRITE\"], \"name\": \".afs-native-mixed-8500-1791316789428837614-watch-primary.tmp\", \"watch\": \"primary\"}, {\"cookie\": 2213, \"mask\": 64, \"mask_names\": [\"MOVED_FROM\"], \"name\": \".afs-native-mixed-8500-1791316789428837614-watch-primary.tmp\", \"watch\": \"primary\"}, {\"cookie\": 2213, \"mask\": 128, \"mask_names\": [\"MOVED_TO\"], \"name\": \".afs-native-mixed-8500-1791316789428837614-watch-primary.done\", \"watch\": \"primary\"}], \"message\": \"primary watch observes CREATE for .afs-native-mixed-8500-1791316789428837614-watch-secondary.tmp\"}\n"
+        }
+      ],
+      "path_identity": {
+        "primary": {
+          "dev": 45,
+          "gid": 501,
+          "ino": 2,
+          "mode": "0o700",
+          "mtime_ns": 1791316789385701569,
+          "path": "/opt/afs-managed-workspace-20261007-r6/mount/ownerfs/workspace",
+          "size": 4096,
+          "uid": 501
+        },
+        "secondary": {
+          "dev": 64769,
+          "gid": 501,
+          "ino": 525763,
+          "mode": "0o700",
+          "mtime_ns": 1791316789385701569,
+          "path": "/proc/8317/root/workspace",
+          "size": 4096,
+          "uid": 501
+        }
+      },
+      "paths": {
+        "primary": "/opt/afs-managed-workspace-20261007-r6/mount/ownerfs/workspace",
+        "secondary": "/proc/8317/root/workspace"
+      },
+      "platform": {
+        "gid": 0,
+        "machine": "aarch64",
+        "python": "3.12.3",
+        "release": "6.8.0-106-generic",
+        "system": "Linux",
+        "uid": 0
+      },
+      "run_id": "native-mixed-8500-1791316789428836906",
+      "schema": "afs.native_mixed.v1",
+      "scope": "short managed OwnerFs mixed FUSE/native probe; not full POSIX or production ON qualification",
+      "status": "FAIL",
+      "steps": [
+        {
+          "duration_ms": 953.701,
+          "exception": "AssertionError",
+          "message": "{\"details\": {\"failed\": 3, \"passed\": 5, \"status\": \"FAIL\", \"steps\": 8}, \"message\": \"locks_smoke passes\"}",
+          "name": "locks",
+          "out": "/var/tmp/afs-managed-workspace-20261007-r1/results-r6/semantics/locks",
+          "started_at": "2026-10-06T19:59:49Z",
+          "status": "FAIL",
+          "traceback": "Traceback (most recent call last):\n  File \"/var/tmp/afs-managed-workspace-20261007-r1/tools/development/acceptance/probes/native_mixed.py\", line 249, in step\n    details = func(step_dir)\n              ^^^^^^^^^^^^^^\n  File \"/var/tmp/afs-managed-workspace-20261007-r1/tools/development/acceptance/probes/native_mixed.py\", line 285, in locks_probe\n    expect(command[\"returncode\"] == 0 and report.get(\"summary\", {}).get(\"status\") == \"PASS\", \"locks_smoke passes\", report.get(\"summary\"))\n  File \"/var/tmp/afs-managed-workspace-20261007-r1/tools/development/acceptance/probes/native_mixed.py\", line 93, in expect\n    raise AssertionError(json.dumps({\"message\": message, \"details\": details}, sort_keys=True))\nAssertionError: {\"details\": {\"failed\": 3, \"passed\": 5, \"status\": \"FAIL\", \"steps\": 8}, \"message\": \"locks_smoke passes\"}\n"
+        },
+        {
+          "duration_ms": 4.197,
+          "exception": "AssertionError",
+          "message": "{\"details\": {\"expected_eof\": 38, \"label\": \"primary-2\", \"offset\": 24}, \"message\": \"O_APPEND SEEK_CUR reaches EOF after write\"}",
+          "name": "append",
+          "out": "/var/tmp/afs-managed-workspace-20261007-r1/results-r6/semantics/append",
+          "started_at": "2026-10-06T19:59:50Z",
+          "status": "FAIL",
+          "traceback": "Traceback (most recent call last):\n  File \"/var/tmp/afs-managed-workspace-20261007-r1/tools/development/acceptance/probes/native_mixed.py\", line 249, in step\n    details = func(step_dir)\n              ^^^^^^^^^^^^^^\n  File \"/var/tmp/afs-managed-workspace-20261007-r1/tools/development/acceptance/probes/native_mixed.py\", line 324, in append_probe\n    expect(offset == len(expected), \"O_APPEND SEEK_CUR reaches EOF after write\", offsets[-1])\n  File \"/var/tmp/afs-managed-workspace-20261007-r1/tools/development/acceptance/probes/native_mixed.py\", line 93, in expect\n    raise AssertionError(json.dumps({\"message\": message, \"details\": details}, sort_keys=True))\nAssertionError: {\"details\": {\"expected_eof\": 38, \"label\": \"primary-2\", \"offset\": 24}, \"message\": \"O_APPEND SEEK_CUR reaches EOF after write\"}\n"
+        },
+        {
+          "duration_ms": 2012.618,
+          "exception": "AssertionError",
+          "message": "{\"details\": [{\"cookie\": 0, \"mask\": 256, \"mask_names\": [\"CREATE\"], \"name\": \".afs-native-mixed-8500-1791316789428837614-mmap.bin\", \"watch\": \"primary\"}, {\"cookie\": 0, \"mask\": 2, \"mask_names\": [\"MODIFY\"], \"name\": \".afs-native-mixed-8500-1791316789428837614-mmap.bin\", \"watch\": \"primary\"}, {\"cookie\": 0, \"mask\": 8, \"mask_names\": [\"CLOSE_WRITE\"], \"name\": \".afs-native-mixed-8500-1791316789428837614-mmap.bin\", \"watch\": \"primary\"}, {\"cookie\": 0, \"mask\": 2, \"mask_names\": [\"MODIFY\"], \"name\": \".afs-native-mixed-8500-1791316789428837614-mmap.bin\", \"watch\": \"primary\"}, {\"cookie\": 0, \"mask\": 8, \"mask_names\": [\"CLOSE_WRITE\"], \"name\": \".afs-native-mixed-8500-1791316789428837614-mmap.bin\", \"watch\": \"primary\"}, {\"cookie\": 0, \"mask\": 256, \"mask_names\": [\"CREATE\"], \"name\": \".afs-native-mixed-8500-1791316789428837614-watch-primary.tmp\", \"watch\": \"primary\"}, {\"cookie\": 0, \"mask\": 2, \"mask_names\": [\"MODIFY\"], \"name\": \".afs-native-mixed-8500-1791316789428837614-watch-primary.tmp\", \"watch\": \"primary\"}, {\"cookie\": 0, \"mask\": 8, \"mask_names\": [\"CLOSE_WRITE\"], \"name\": \".afs-native-mixed-8500-1791316789428837614-watch-primary.tmp\", \"watch\": \"primary\"}, {\"cookie\": 2213, \"mask\": 64, \"mask_names\": [\"MOVED_FROM\"], \"name\": \".afs-native-mixed-8500-1791316789428837614-watch-primary.tmp\", \"watch\": \"primary\"}, {\"cookie\": 2213, \"mask\": 128, \"mask_names\": [\"MOVED_TO\"], \"name\": \".afs-native-mixed-8500-1791316789428837614-watch-primary.done\", \"watch\": \"primary\"}], \"message\": \"primary watch observes CREATE for .afs-native-mixed-8500-1791316789428837614-watch-secondary.tmp\"}",
+          "name": "mmap_inotify",
+          "out": "/var/tmp/afs-managed-workspace-20261007-r1/results-r6/semantics/mmap_inotify",
+          "started_at": "2026-10-06T19:59:50Z",
+          "status": "FAIL",
+          "traceback": "Traceback (most recent call last):\n  File \"/var/tmp/afs-managed-workspace-20261007-r1/tools/development/acceptance/probes/native_mixed.py\", line 249, in step\n    details = func(step_dir)\n              ^^^^^^^^^^^^^^\n  File \"/var/tmp/afs-managed-workspace-20261007-r1/tools/development/acceptance/probes/native_mixed.py\", line 465, in mmap_inotify_probe\n    self.expect_watch_events(watch_name, watch_events, path.name, renamed.name)\n  File \"/var/tmp/afs-managed-workspace-20261007-r1/tools/development/acceptance/probes/native_mixed.py\", line 478, in expect_watch_events\n    expect(has(tmp_name, \"CREATE\"), f\"{watch_name} watch observes CREATE for {tmp_name}\", events)\n  File \"/var/tmp/afs-managed-workspace-20261007-r1/tools/development/acceptance/probes/native_mixed.py\", line 93, in expect\n    raise AssertionError(json.dumps({\"message\": message, \"details\": details}, sort_keys=True))\nAssertionError: {\"details\": [{\"cookie\": 0, \"mask\": 256, \"mask_names\": [\"CREATE\"], \"name\": \".afs-native-mixed-8500-1791316789428837614-mmap.bin\", \"watch\": \"primary\"}, {\"cookie\": 0, \"mask\": 2, \"mask_names\": [\"MODIFY\"], \"name\": \".afs-native-mixed-8500-1791316789428837614-mmap.bin\", \"watch\": \"primary\"}, {\"cookie\": 0, \"mask\": 8, \"mask_names\": [\"CLOSE_WRITE\"], \"name\": \".afs-native-mixed-8500-1791316789428837614-mmap.bin\", \"watch\": \"primary\"}, {\"cookie\": 0, \"mask\": 2, \"mask_names\": [\"MODIFY\"], \"name\": \".afs-native-mixed-8500-1791316789428837614-mmap.bin\", \"watch\": \"primary\"}, {\"cookie\": 0, \"mask\": 8, \"mask_names\": [\"CLOSE_WRITE\"], \"name\": \".afs-native-mixed-8500-1791316789428837614-mmap.bin\", \"watch\": \"primary\"}, {\"cookie\": 0, \"mask\": 256, \"mask_names\": [\"CREATE\"], \"name\": \".afs-native-mixed-8500-1791316789428837614-watch-primary.tmp\", \"watch\": \"primary\"}, {\"cookie\": 0, \"mask\": 2, \"mask_names\": [\"MODIFY\"], \"name\": \".afs-native-mixed-8500-1791316789428837614-watch-primary.tmp\", \"watch\": \"primary\"}, {\"cookie\": 0, \"mask\": 8, \"mask_names\": [\"CLOSE_WRITE\"], \"name\": \".afs-native-mixed-8500-1791316789428837614-watch-primary.tmp\", \"watch\": \"primary\"}, {\"cookie\": 2213, \"mask\": 64, \"mask_names\": [\"MOVED_FROM\"], \"name\": \".afs-native-mixed-8500-1791316789428837614-watch-primary.tmp\", \"watch\": \"primary\"}, {\"cookie\": 2213, \"mask\": 128, \"mask_names\": [\"MOVED_TO\"], \"name\": \".afs-native-mixed-8500-1791316789428837614-watch-primary.done\", \"watch\": \"primary\"}], \"message\": \"primary watch observes CREATE for .afs-native-mixed-8500-1791316789428837614-watch-secondary.tmp\"}\n"
+        },
+        {
+          "details": {
+            "container_response": {
+              "production_ready": false,
+              "status": "Executed",
+              "stdout_bytes": 29
+            },
+            "control_artifacts": [
+              {
+                "command_json": {
+                  "bytes": 193,
+                  "path": "/opt/afs-managed-workspace-20261007-r6/control/command-0009.command.json",
+                  "sha256": "fb1c8acdc8c8771e630bec594ec5bd086f6d9b515107c4981114c88b923ce039",
+                  "text": "{\"argv\":[\"--root\",\"/opt/afs-managed-workspace-20261007-r6/control/runtime-state\",\"exec\",\"afs-native-first\",\"/afs-workspace-probe\",\"identity\"],\"program\":\"/usr/local/sbin/runc\",\"timeout_ms\":5000}"
+                },
+                "exit_json": {
+                  "bytes": 39,
+                  "path": "/opt/afs-managed-workspace-20261007-r6/control/command-0009.exit.json",
+                  "sha256": "c859105ff40e0bef4d5d0e8d5a01f1755a58adfe9c524aba9a750f4edd6ac713",
+                  "text": "{\"code\":0,\"reason\":null,\"success\":true}"
+                },
+                "stderr": {
+                  "bytes": 0,
+                  "path": "/opt/afs-managed-workspace-20261007-r6/control/command-0009.stderr",
+                  "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                  "text": ""
+                },
+                "stdout": {
+                  "bytes": 234,
+                  "path": "/opt/afs-managed-workspace-20261007-r6/control/command-0009.stdout",
+                  "sha256": "82b3dcd0f351b07778902ad3944b6db6fd05bfae791499e3a7584c43be049f4c",
+                  "text": "{\"flags\":[\"rw\",\"nosuid\",\"nodev\",\"relatime\"],\"mount_id\":425,\"namespace\":{\"dev\":4,\"ino\":4026532347},\"scope\":\"final-view identity; not production READY or revocation ACK\",\"source\":{\"dev\":64769,\"ino\":525763},\"unique_mount_id\":4294971068}\n"
+                },
+                "stem": "/opt/afs-managed-workspace-20261007-r6/control/command-0009"
+              },
+              {
+                "command_json": {
+                  "bytes": 630,
+                  "path": "/opt/afs-managed-workspace-20261007-r6/control/command-0010.command.json",
+                  "sha256": "156d457f326f0c2bff674f8e84a5359343dd0e79ce16ec3e16fe6b5b71c55c2d",
+                  "text": "{\"argv\":[\"--root\",\"/opt/afs-managed-workspace-20261007-r6/control/runtime-state\",\"exec\",\"afs-native-first\",\"/bin/sh\",\"-ec\",\"set +e\\nuid=$(/bin/busybox id -u)\\n/bin/busybox echo uid=$uid\\ntest \\\"$uid\\\" = 501 || exit 7\\n/bin/busybox cat /workspace/.afs-native-mixed-8500-1791316789428837614-root-owned-0600.txt\\nread_rc=$?\\n/bin/busybox sh -c 'printf blocked >> /workspace/.afs-native-mixed-8500-1791316789428837614-root-owned-0600.txt'\\nwrite_rc=$?\\n/bin/busybox echo read_rc=$read_rc\\n/bin/busybox echo write_rc=$write_rc\\ntest \\\"$read_rc\\\" != 0 && test \\\"$write_rc\\\" != 0\\n\"],\"program\":\"/usr/local/sbin/runc\",\"timeout_ms\":120000}"
+                },
+                "exit_json": {
+                  "bytes": 39,
+                  "path": "/opt/afs-managed-workspace-20261007-r6/control/command-0010.exit.json",
+                  "sha256": "c859105ff40e0bef4d5d0e8d5a01f1755a58adfe9c524aba9a750f4edd6ac713",
+                  "text": "{\"code\":0,\"reason\":null,\"success\":true}"
+                },
+                "stderr": {
+                  "bytes": 221,
+                  "path": "/opt/afs-managed-workspace-20261007-r6/control/command-0010.stderr",
+                  "sha256": "f7f034135e9423922ff3b9628669109ca54b8c82180fd81547922f401871e99a",
+                  "text": "cat: can't open '/workspace/.afs-native-mixed-8500-1791316789428837614-root-owned-0600.txt': Permission denied\nsh: can't create /workspace/.afs-native-mixed-8500-1791316789428837614-root-owned-0600.txt: Permission denied\n"
+                },
+                "stdout": {
+                  "bytes": 29,
+                  "path": "/opt/afs-managed-workspace-20261007-r6/control/command-0010.stdout",
+                  "sha256": "0836267552437c7c27f6381f77ffa59efe0977d2ee721294ac2a11eab6a382fd",
+                  "text": "uid=501\nread_rc=1\nwrite_rc=1\n"
+                },
+                "stem": "/opt/afs-managed-workspace-20261007-r6/control/command-0010"
+              }
+            ],
+            "exclusive": {
+              "errno": 17,
+              "errno_name": "EEXIST",
+              "message": "[Errno 17] File exists: '/proc/8317/root/workspace/.afs-native-mixed-8500-1791316789428837614-exclusive.txt'"
+            },
+            "expected_sha256": "970c1502b114e2cbef4c078048e93f04408be0f2ae49eef62140f2266e8c9b3b",
+            "missing": {
+              "primary": {
+                "errno": 2,
+                "errno_name": "ENOENT",
+                "message": "[Errno 2] No such file or directory: '/opt/afs-managed-workspace-20261007-r6/mount/ownerfs/workspace/.afs-native-mixed-8500-1791316789428837614-missing.txt'"
+              },
+              "secondary": {
+                "errno": 2,
+                "errno_name": "ENOENT",
+                "message": "[Errno 2] No such file or directory: '/proc/8317/root/workspace/.afs-native-mixed-8500-1791316789428837614-missing.txt'"
+              }
+            },
+            "parent": {
+              "dev": 45,
+              "gid": 501,
+              "ino": 2,
+              "mode": "0o700",
+              "mtime_ns": 1791316792509031314,
+              "path": "/opt/afs-managed-workspace-20261007-r6/mount/ownerfs/workspace",
+              "size": 4096,
+              "uid": 501
+            },
+            "root_file": {
+              "dev": 45,
+              "gid": 0,
+              "ino": 9,
+              "mode": "0o600",
+              "mtime_ns": 1791316792400020226,
+              "path": "/opt/afs-managed-workspace-20261007-r6/mount/ownerfs/workspace/.afs-native-mixed-8500-1791316789428837614-root-owned-0600.txt",
+              "size": 25,
+              "uid": 0
+            },
+            "root_file_sha256": "970c1502b114e2cbef4c078048e93f04408be0f2ae49eef62140f2266e8c9b3b"
+          },
+          "duration_ms": 111.364,
+          "name": "permissions_errno",
+          "out": "/var/tmp/afs-managed-workspace-20261007-r1/results-r6/semantics/permissions_errno",
+          "started_at": "2026-10-06T19:59:52Z",
+          "status": "PASS"
+        }
+      ],
+      "summary": {
+        "failed": 3,
+        "passed": 1,
+        "total": 4
+      },
+      "tool": {
+        "path": "/var/tmp/afs-managed-workspace-20261007-r1/tools/development/acceptance/probes/native_mixed.py",
+        "sha256": "ad0bf63227e1a6211d6779a0a8435e74c371ca22a568677f600e07ff24faf25e"
+      }
+    }
+  },
+  "finally-stop-response": {
+    "status": "PASS",
+    "value": {
+      "production_ready": false,
+      "status": "Stopped"
+    }
+  },
+  "finally-stopped": {
+    "status": "PASS",
+    "value": {
+      "production_ready": false,
+      "status": "Stopped"
+    }
+  },
+  "mount-removed": {
+    "status": "PASS",
+    "value": "absent"
+  },
+  "meta-gone": {
+    "status": "PASS",
+    "value": 7967
+  },
+  "node-gone": {
+    "status": "PASS",
+    "value": 8151
+  },
+  "controller-artifacts-removed": {
+    "status": "PASS",
+    "value": "absent"
+  }
+}

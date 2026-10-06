@@ -1,0 +1,11 @@
+{
+   "filesystems": [
+      {
+         "target": "/opt/afs-managed-workspace-20261007-r5/mount/ownerfs",
+         "source": "afs-ownerfs",
+         "fstype": "fuse",
+         "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other",
+         "id": 61
+      }
+   ]
+}

@@ -1,0 +1,21 @@
+{
+  "argv": [
+    "/usr/bin/python3",
+    "/var/tmp/afs-managed-workspace-20261007-r1/results-r5/semantics/locks/locks-smoke-wrapper.py",
+    "/var/tmp/afs-managed-workspace-20261007-r1/tools/development/acceptance/probes/locks_smoke.py",
+    "--path",
+    "/opt/afs-managed-workspace-20261007-r5/mount/ownerfs/workspace/.afs-native-mixed-7376-1791316623972262036-locks.bin",
+    "--second-path",
+    "/proc/7199/root/workspace/.afs-native-mixed-7376-1791316623972262036-locks.bin",
+    "--evidence",
+    "/var/tmp/afs-managed-workspace-20261007-r1/results-r5/semantics/locks/locks-smoke",
+    "--child-timeout",
+    "5"
+  ],
+  "duration_ms": 962.506,
+  "returncode": 1,
+  "stderr": "",
+  "stdout": "status=FAIL evidence=/var/tmp/afs-managed-workspace-20261007-r1/results-r5/semantics/locks/locks-smoke primary=/opt/afs-managed-workspace-20261007-r5/mount/ownerfs/workspace/.afs-native-mixed-7376-1791316623972262036-locks.bin secondary=/proc/7199/root/workspace/.afs-native-mixed-7376-1791316623972262036-locks.bin\n",
+  "timed_out": false,
+  "timeout_seconds": 45
+}

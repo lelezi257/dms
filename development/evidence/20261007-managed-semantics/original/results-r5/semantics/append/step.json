@@ -1,0 +1,10 @@
+{
+  "duration_ms": 1.498,
+  "exception": "AssertionError",
+  "message": "{\"details\": {\"expected_eof\": 38, \"label\": \"primary-2\", \"offset\": 24}, \"message\": \"O_APPEND SEEK_CUR reaches EOF after write\"}",
+  "name": "append",
+  "out": "/var/tmp/afs-managed-workspace-20261007-r1/results-r5/semantics/append",
+  "started_at": "2026-10-06T19:57:04Z",
+  "status": "FAIL",
+  "traceback": "Traceback (most recent call last):\n  File \"/var/tmp/afs-managed-workspace-20261007-r1/tools/development/acceptance/probes/native_mixed.py\", line 249, in step\n    details = func(step_dir)\n              ^^^^^^^^^^^^^^\n  File \"/var/tmp/afs-managed-workspace-20261007-r1/tools/development/acceptance/probes/native_mixed.py\", line 341, in append_probe\n    expect(offset == len(expected), \"O_APPEND SEEK_CUR reaches EOF after write\", offsets[-1])\n  File \"/var/tmp/afs-managed-workspace-20261007-r1/tools/development/acceptance/probes/native_mixed.py\", line 93, in expect\n    raise AssertionError(json.dumps({\"message\": message, \"details\": details}, sort_keys=True))\nAssertionError: {\"details\": {\"expected_eof\": 38, \"label\": \"primary-2\", \"offset\": 24}, \"message\": \"O_APPEND SEEK_CUR reaches EOF after write\"}\n"
+}

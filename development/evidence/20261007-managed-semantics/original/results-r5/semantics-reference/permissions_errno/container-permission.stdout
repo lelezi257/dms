@@ -1,0 +1,8 @@
+{
+  "request_id": "native-mixed-7298-1791316620708238524-perm",
+  "response": {
+    "production_ready": false,
+    "status": "Executed",
+    "stdout_bytes": 29
+  }
+}

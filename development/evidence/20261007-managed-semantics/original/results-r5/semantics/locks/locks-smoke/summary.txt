@@ -1,0 +1,1 @@
+status=FAIL steps=8 failed=3 primary=/opt/afs-managed-workspace-20261007-r5/mount/ownerfs/workspace/.afs-native-mixed-7376-1791316623972262036-locks.bin secondary=/proc/7199/root/workspace/.afs-native-mixed-7376-1791316623972262036-locks.bin kept=True

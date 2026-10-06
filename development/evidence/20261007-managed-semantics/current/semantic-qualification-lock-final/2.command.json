@@ -1,0 +1,9 @@
+{
+  "argv": [
+    "python3",
+    "development/acceptance/test_locks_guards.py",
+    "-v"
+  ],
+  "cwd": "/var/tmp/afs-managed-workspace-20261007-r1/tools",
+  "timeout": 20
+}

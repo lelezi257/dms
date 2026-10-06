@@ -1,0 +1,184 @@
+--- a/tool.py
++++ b/tool.py
+@@ -18,6 +18,7 @@
+ import os
+ import platform
+ import random
++import selectors
+ import shutil
+ import signal
+ import stat
+@@ -174,6 +175,14 @@
+     if mode == "unlock":
+         return fcntl.LOCK_UN
+     raise ValueError(mode)
++
++
++def _fcntl_conflict_errno_ok(value: int | None) -> bool:
++    return value in (errno.EACCES, errno.EAGAIN)
++
++
++def _flock_conflict_errno_ok(value: int | None) -> bool:
++    return value in (errno.EACCES, errno.EAGAIN)
+ 
+ 
+ def _emit(obj: dict[str, Any]) -> None:
+@@ -212,7 +221,7 @@
+                     _emit({"event": "RESULT", "ok": ok, "errno": err, "errno_name": _errno_name(err), "pid": os.getpid()})
+                     if ok:
+                         _fcntl_set(fd, fcntl.F_UNLCK, args.start, args.length, blocking=False)
+-                    return 0 if ok or err in (errno.EACCES, errno.EAGAIN, errno.ENOLCK, errno.ENOSYS, errno.EOPNOTSUPP) else 1
++                    return 0 if ok or _fcntl_conflict_errno_ok(err) else 1
+                 if op == "getlk":
+                     _emit({"event": "RESULT", "result": _fcntl_getlk(fd, lock_type, args.start, args.length), "pid": os.getpid()})
+                     return 0
+@@ -261,7 +270,7 @@
+                     _emit({"event": "RESULT", "ok": ok, "errno": err, "errno_name": _errno_name(err), "pid": os.getpid()})
+                     if ok:
+                         fcntl.flock(fd, fcntl.LOCK_UN)
+-                    return 0 if ok or err in (errno.EACCES, errno.EAGAIN, errno.ENOLCK, errno.ENOSYS, errno.EOPNOTSUPP) else 1
++                    return 0 if ok or _flock_conflict_errno_ok(err) else 1
+                 if op == "flock_dup_close_then_hold":
+                     fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                     dup_fd = os.dup(fd)
+@@ -290,11 +299,12 @@
+         self.events: list[dict[str, Any]] = []
+         self.identity: dict[str, Any] | None = None
+         self.stderr = ""
++        self._stdout_buffer = b""
+ 
+     def read_event(self, expected: str | None = None, timeout: float | None = None) -> dict[str, Any]:
+-        deadline = time.time() + (timeout if timeout is not None else self.timeout)
+-        while time.time() < deadline:
+-            line = self.proc.stdout.readline() if self.proc.stdout else ""
++        deadline = time.monotonic() + (timeout if timeout is not None else self.timeout)
++        while time.monotonic() < deadline:
++            line = self._readline(deadline)
+             if line:
+                 event = json.loads(line)
+                 self.events.append(event)
+@@ -307,6 +317,47 @@
+                 break
+             time.sleep(0.02)
+         raise TimeoutError(f"child {self.role} did not emit {expected or 'event'} within timeout")
++
++    def assert_no_event(self, forbidden: str, duration: float, *, require_alive: bool = True) -> dict[str, Any]:
++        deadline = time.monotonic() + duration
++        observed: list[dict[str, Any]] = []
++        while time.monotonic() < deadline:
++            line = self._readline(deadline)
++            if line:
++                event = json.loads(line)
++                self.events.append(event)
++                observed.append(event)
++                if event.get("event") == forbidden:
++                    raise AssertionError(json.dumps({"message": f"child {self.role} emitted {forbidden} too early", "event": event}, sort_keys=True))
++                if event.get("event") == "ERROR":
++                    raise RuntimeError(json.dumps({"role": self.role, "event": event}, sort_keys=True))
++                continue
++            if self.proc.poll() is not None:
++                if require_alive:
++                    raise AssertionError(json.dumps({"message": f"child {self.role} exited before {forbidden} check finished", "returncode": self.proc.returncode}, sort_keys=True))
++                break
++            time.sleep(0.02)
++        if require_alive:
++            _expect(self.proc.poll() is None, f"child {self.role} remains alive while {forbidden} is absent")
++        return {"forbidden": forbidden, "duration_seconds": duration, "observed": observed, "pid_alive": self.proc.poll() is None}
++
++    def _readline(self, deadline: float) -> str:
++        if self.proc.stdout is None:
++            return ""
++        while b"\n" not in self._stdout_buffer:
++            remaining = max(0.0, deadline - time.monotonic())
++            if remaining <= 0:
++                return ""
++            with selectors.DefaultSelector() as selector:
++                selector.register(self.proc.stdout.fileno(), selectors.EVENT_READ)
++                if not selector.select(remaining):
++                    return ""
++            chunk = os.read(self.proc.stdout.fileno(), 4096)
++            if not chunk:
++                return ""
++            self._stdout_buffer += chunk
++        line, self._stdout_buffer = self._stdout_buffer.split(b"\n", 1)
++        return line.decode("utf-8")
+ 
+     def release(self) -> int:
+         if self.proc.poll() is None:
+@@ -515,7 +566,7 @@
+         getlk = self.run_try("getlk", secondary, "exclusive", 0, 10)
+         rc = holder.release()
+         _expect(conflict["event"].get("ok") is False, "overlapping fcntl exclusive lock conflicts", conflict)
+-        _expect(conflict["event"].get("errno") in (errno.EACCES, errno.EAGAIN, errno.ENOLCK, errno.ENOSYS, errno.EOPNOTSUPP), "conflict errno is lock-related", conflict)
++        _expect(_fcntl_conflict_errno_ok(conflict["event"].get("errno")), "conflict errno proves a held-lock conflict", conflict)
+         _expect(nonoverlap["event"].get("ok") is True, "non-overlapping fcntl range succeeds", nonoverlap)
+         result = getlk["event"].get("result", {})
+         _expect(result.get("ok") is True and result.get("l_type") != fcntl.F_UNLCK, "F_GETLK reports conflicting lock", getlk)
+@@ -531,6 +582,7 @@
+         rc = holder.release()
+         _expect(shared["event"].get("ok") is True, "second shared fcntl lock succeeds", shared)
+         _expect(exclusive["event"].get("ok") is False, "exclusive fcntl lock conflicts with shared holder", exclusive)
++        _expect(_fcntl_conflict_errno_ok(exclusive["event"].get("errno")), "exclusive fcntl conflict errno proves a held-lock conflict", exclusive)
+         _expect(rc == 0, "shared holder exits cleanly", {"returncode": rc})
+         return {"holder_ready": ready, "holder_identity": holder.identity, "shared": shared, "exclusive": exclusive, "holder_returncode": rc}
+ 
+@@ -540,14 +592,13 @@
+         ready = holder.read_event("READY")
+         waiter = self.child("fcntl-block-waiter", "wait_fcntl", secondary, "exclusive", 80, 10)
+         waiting = waiter.read_event("WAITING")
+-        time.sleep(0.25)
+-        _expect(waiter.proc.poll() is None, "blocking fcntl waiter remains blocked before unlock")
++        before_unlock = waiter.assert_no_event("ACQUIRED", 0.25)
+         holder_rc = holder.release()
+         acquired = waiter.read_event("ACQUIRED", timeout=self.args.child_timeout)
+         waiter_rc = waiter.release()
+         _expect(holder_rc == 0, "blocking holder exits cleanly", {"returncode": holder_rc})
+         _expect(waiter_rc == 0, "blocking waiter exits cleanly", {"returncode": waiter_rc})
+-        return {"holder_ready": ready, "waiting": waiting, "acquired": acquired, "holder_identity": holder.identity, "waiter_identity": waiter.identity}
++        return {"holder_ready": ready, "waiting": waiting, "before_unlock": before_unlock, "acquired": acquired, "holder_identity": holder.identity, "waiter_identity": waiter.identity}
+ 
+     def test_fcntl_owner_exit_release(self) -> dict[str, Any]:
+         primary, secondary = self.paths()
+@@ -576,6 +627,7 @@
+         ex_conflict = self.run_try("try_flock", secondary, "exclusive")
+         ex_rc = ex_holder.release()
+         _expect(ex_conflict["event"].get("ok") is False, "flock exclusive conflicts with exclusive holder", ex_conflict)
++        _expect(_flock_conflict_errno_ok(ex_conflict["event"].get("errno")), "flock exclusive conflict errno proves a held-lock conflict", ex_conflict)
+         _expect(ex_rc == 0, "flock exclusive holder exits cleanly", {"returncode": ex_rc})
+ 
+         sh_holder = self.child("flock-shared-holder", "hold_flock", primary, "shared")
+@@ -585,6 +637,7 @@
+         sh_rc = sh_holder.release()
+         _expect(sh_ok["event"].get("ok") is True, "second shared flock succeeds", sh_ok)
+         _expect(sh_conflict["event"].get("ok") is False, "exclusive flock conflicts with shared holder", sh_conflict)
++        _expect(_flock_conflict_errno_ok(sh_conflict["event"].get("errno")), "flock shared/exclusive conflict errno proves a held-lock conflict", sh_conflict)
+         _expect(sh_rc == 0, "flock shared holder exits cleanly", {"returncode": sh_rc})
+ 
+         dup_holder = self.child("flock-dup-holder", "flock_dup_close_then_hold", primary, "exclusive")
+@@ -593,6 +646,7 @@
+         dup_rc = dup_holder.release()
+         after_release = self.run_try("try_flock", secondary, "exclusive")
+         _expect(dup_conflict["event"].get("ok") is False, "flock survives closing original fd while dup remains", dup_conflict)
++        _expect(_flock_conflict_errno_ok(dup_conflict["event"].get("errno")), "flock dup conflict errno proves a held-lock conflict", dup_conflict)
+         _expect(after_release["event"].get("ok") is True, "flock released after final duplicate closes", after_release)
+         _expect(dup_rc == 0, "flock dup holder exits cleanly", {"returncode": dup_rc})
+ 
+@@ -608,8 +662,7 @@
+         ready = holder.read_event("READY")
+         waiter = self.child("flock-block-waiter", "wait_flock", secondary, "exclusive")
+         waiting = waiter.read_event("WAITING")
+-        time.sleep(0.25)
+-        _expect(waiter.proc.poll() is None, "blocking flock waiter remains blocked before unlock")
++        before_unlock = waiter.assert_no_event("ACQUIRED", 0.25)
+         holder_rc = holder.release()
+         acquired = waiter.read_event("ACQUIRED", timeout=self.args.child_timeout)
+         waiter_rc = waiter.release()
+@@ -623,7 +676,7 @@
+         after_exit = self.run_try("try_flock", secondary, "exclusive")
+         _expect(after_exit["event"].get("ok") is True, "flock released after owner process exits", after_exit)
+         return {
+-            "blocking": {"ready": ready, "waiting": waiting, "acquired": acquired, "holder_identity": holder.identity, "waiter_identity": waiter.identity},
++            "blocking": {"ready": ready, "waiting": waiting, "before_unlock": before_unlock, "acquired": acquired, "holder_identity": holder.identity, "waiter_identity": waiter.identity},
+             "owner_exit": {"ready": exit_ready, "holder_identity": exit_holder.identity, "holder_returncode": exit_rc, "after_exit": after_exit},
+         }
+ 

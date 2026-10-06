@@ -1,0 +1,56 @@
+[
+  {
+    "command_json": {
+      "bytes": 193,
+      "path": "/opt/afs-managed-workspace-20261007-r6/control/command-0009.command.json",
+      "sha256": "fb1c8acdc8c8771e630bec594ec5bd086f6d9b515107c4981114c88b923ce039",
+      "text": "{\"argv\":[\"--root\",\"/opt/afs-managed-workspace-20261007-r6/control/runtime-state\",\"exec\",\"afs-native-first\",\"/afs-workspace-probe\",\"identity\"],\"program\":\"/usr/local/sbin/runc\",\"timeout_ms\":5000}"
+    },
+    "exit_json": {
+      "bytes": 39,
+      "path": "/opt/afs-managed-workspace-20261007-r6/control/command-0009.exit.json",
+      "sha256": "c859105ff40e0bef4d5d0e8d5a01f1755a58adfe9c524aba9a750f4edd6ac713",
+      "text": "{\"code\":0,\"reason\":null,\"success\":true}"
+    },
+    "stderr": {
+      "bytes": 0,
+      "path": "/opt/afs-managed-workspace-20261007-r6/control/command-0009.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "text": ""
+    },
+    "stdout": {
+      "bytes": 234,
+      "path": "/opt/afs-managed-workspace-20261007-r6/control/command-0009.stdout",
+      "sha256": "82b3dcd0f351b07778902ad3944b6db6fd05bfae791499e3a7584c43be049f4c",
+      "text": "{\"flags\":[\"rw\",\"nosuid\",\"nodev\",\"relatime\"],\"mount_id\":425,\"namespace\":{\"dev\":4,\"ino\":4026532347},\"scope\":\"final-view identity; not production READY or revocation ACK\",\"source\":{\"dev\":64769,\"ino\":525763},\"unique_mount_id\":4294971068}\n"
+    },
+    "stem": "/opt/afs-managed-workspace-20261007-r6/control/command-0009"
+  },
+  {
+    "command_json": {
+      "bytes": 630,
+      "path": "/opt/afs-managed-workspace-20261007-r6/control/command-0010.command.json",
+      "sha256": "156d457f326f0c2bff674f8e84a5359343dd0e79ce16ec3e16fe6b5b71c55c2d",
+      "text": "{\"argv\":[\"--root\",\"/opt/afs-managed-workspace-20261007-r6/control/runtime-state\",\"exec\",\"afs-native-first\",\"/bin/sh\",\"-ec\",\"set +e\\nuid=$(/bin/busybox id -u)\\n/bin/busybox echo uid=$uid\\ntest \\\"$uid\\\" = 501 || exit 7\\n/bin/busybox cat /workspace/.afs-native-mixed-8500-1791316789428837614-root-owned-0600.txt\\nread_rc=$?\\n/bin/busybox sh -c 'printf blocked >> /workspace/.afs-native-mixed-8500-1791316789428837614-root-owned-0600.txt'\\nwrite_rc=$?\\n/bin/busybox echo read_rc=$read_rc\\n/bin/busybox echo write_rc=$write_rc\\ntest \\\"$read_rc\\\" != 0 && test \\\"$write_rc\\\" != 0\\n\"],\"program\":\"/usr/local/sbin/runc\",\"timeout_ms\":120000}"
+    },
+    "exit_json": {
+      "bytes": 39,
+      "path": "/opt/afs-managed-workspace-20261007-r6/control/command-0010.exit.json",
+      "sha256": "c859105ff40e0bef4d5d0e8d5a01f1755a58adfe9c524aba9a750f4edd6ac713",
+      "text": "{\"code\":0,\"reason\":null,\"success\":true}"
+    },
+    "stderr": {
+      "bytes": 221,
+      "path": "/opt/afs-managed-workspace-20261007-r6/control/command-0010.stderr",
+      "sha256": "f7f034135e9423922ff3b9628669109ca54b8c82180fd81547922f401871e99a",
+      "text": "cat: can't open '/workspace/.afs-native-mixed-8500-1791316789428837614-root-owned-0600.txt': Permission denied\nsh: can't create /workspace/.afs-native-mixed-8500-1791316789428837614-root-owned-0600.txt: Permission denied\n"
+    },
+    "stdout": {
+      "bytes": 29,
+      "path": "/opt/afs-managed-workspace-20261007-r6/control/command-0010.stdout",
+      "sha256": "0836267552437c7c27f6381f77ffa59efe0977d2ee721294ac2a11eab6a382fd",
+      "text": "uid=501\nread_rc=1\nwrite_rc=1\n"
+    },
+    "stem": "/opt/afs-managed-workspace-20261007-r6/control/command-0010"
+  }
+]

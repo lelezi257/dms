@@ -1,0 +1,105 @@
+--- a/tool.py
++++ b/tool.py
+@@ -96,7 +96,7 @@
+ def find_command_artifacts(control_dir: Path, before: set[Path]) -> list[dict[str, Any]]:
+     rows = []
+     after = set(control_dir.glob("command-*.*"))
+-    stems = sorted({path.with_suffix("") for path in after - before})
++    stems = sorted({control_dir / path.name.split(".", 1)[0] for path in after - before})
+     for stem in stems:
+         row: dict[str, Any] = {"stem": str(stem)}
+         for suffix in ("command.json", "exit.json", "stdout", "stderr"):
+@@ -263,26 +263,12 @@
+ 
+     def locks_probe(self, step_dir: Path) -> dict[str, Any]:
+         script = (self.args.locks_probe or Path(__file__).with_name("locks_smoke.py")).resolve()
+-        wrapper = step_dir / "locks-smoke-wrapper.py"
+-        wrapper.write_text(
+-            "import importlib.util, os, pathlib, sys\n"
+-            "script = sys.argv[1]\n"
+-            "spec = importlib.util.spec_from_file_location('locks_smoke_wrapped', script)\n"
+-            "module = importlib.util.module_from_spec(spec)\n"
+-            "assert spec.loader is not None\n"
+-            "spec.loader.exec_module(module)\n"
+-            "def keep_magic_path(self, strict=False):\n"
+-            "    return pathlib.Path(os.path.abspath(os.fspath(self)))\n"
+-            "module.Path.resolve = keep_magic_path\n"
+-            "raise SystemExit(module.main(sys.argv[2:]))\n",
+-            encoding="utf-8",
+-        )
++        json_write(step_dir / "locks-tool.json", {"path": str(script), "sha256": sha256_file(script)})
+         primary_file = self.owned(self.primary, "locks.bin")
+         secondary_file = self.owned(self.secondary, "locks.bin")
+         self.remember(primary_file, secondary_file)
+         argv = [
+             sys.executable,
+-            str(wrapper),
+             str(script),
+             "--path",
+             str(primary_file),
+@@ -301,8 +287,6 @@
+         return {
+             "tool": str(script),
+             "tool_sha256": sha256_file(script),
+-            "wrapper": str(wrapper),
+-            "wrapper_sha256": sha256_file(wrapper),
+             "command": command,
+             "report_path": str(report_path),
+             "report_sha256": sha256_file(report_path),
+@@ -458,6 +442,9 @@
+                     expect(view[512 : 512 + len(fuse_payload)] == fuse_payload, "native MAP_SHARED read sees FUSE write")
+             finally:
+                 os.close(nfd)
++            json_write(step_dir / "mmap-proof.json", {"status": "PASS", "bytes": 4096,
++                "native_map_to_primary_read": native_payload.decode(),
++                "primary_write_to_native_map": fuse_payload.decode()})
+ 
+             self.create_write_rename(primary_watch_file, primary_watch_renamed, b"primary-watch\n")
+             self.create_write_rename(secondary_watch_file, secondary_watch_renamed, b"secondary-watch\n")
+@@ -472,8 +459,11 @@
+                 by_watch[event["watch"]].append(event)
+         if same_watch_dir:
+             by_watch["secondary"] = list(by_watch["primary"])
+-        self.expect_watch_events("primary", by_watch["primary"], primary_watch_file.name, primary_watch_renamed.name)
+-        self.expect_watch_events("secondary", by_watch["secondary"], secondary_watch_file.name, secondary_watch_renamed.name)
++        for watch_name, watch_events in by_watch.items():
++            # Each view must observe both origins, including the other path.
++            for path, renamed in ((primary_watch_file, primary_watch_renamed),
++                                  (secondary_watch_file, secondary_watch_renamed)):
++                self.expect_watch_events(watch_name, watch_events, path.name, renamed.name)
+         return {
+             "primary": stat_record(primary_file),
+             "secondary": stat_record(secondary_file),
+@@ -608,16 +598,18 @@
+                 "gid": os.getegid(),
+             },
+             "paths": {"primary": str(self.primary), "secondary": str(self.secondary)},
++            "selected_groups": self.args.groups,
+         }
+         try:
+             expect(platform.system() == "Linux", "native_mixed runs only on Linux")
+             expect(self.primary.is_dir(), "--primary is a directory", str(self.primary))
+             expect(self.secondary.is_dir(), "--secondary is a directory", str(self.secondary))
+             result["path_identity"] = {"primary": stat_record(self.primary), "secondary": stat_record(self.secondary)}
+-            self.step("locks", self.locks_probe)
+-            self.step("append", self.append_probe)
+-            self.step("mmap_inotify", self.mmap_inotify_probe)
+-            self.step("permissions_errno", self.permissions_errno_probe)
++            for name, probe in (("locks", self.locks_probe), ("append", self.append_probe),
++                                ("mmap_inotify", self.mmap_inotify_probe),
++                                ("permissions_errno", self.permissions_errno_probe)):
++                if name in self.args.groups:
++                    self.step(name, probe)
+         except Exception as exc:  # noqa: BLE001
+             failure = {
+                 "name": "setup_or_runner",
+@@ -656,6 +648,9 @@
+     parser.add_argument("--socket", type=Path, required=True, help="native workspace control socket")
+     parser.add_argument("--out", type=Path, required=True, help="new output directory")
+     parser.add_argument("--locks-probe", type=Path, help="optional fixed locks_smoke.py path")
++    parser.add_argument("--groups", nargs="+", choices=("locks", "append", "mmap_inotify", "permissions_errno"),
++                        default=["locks", "append", "mmap_inotify", "permissions_errno"],
++                        help="explicit affected groups; unselected groups are not tested")
+     return parser
+ 
+ 

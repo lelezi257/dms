@@ -1,0 +1,20 @@
+{
+  "argv": [
+    "python3",
+    "-m",
+    "unittest",
+    "discover",
+    "-s",
+    "/var/tmp/afs-managed-workspace-20261007-r1/tools/development/acceptance",
+    "-p",
+    "test_native_workspace.py",
+    "-v"
+  ],
+  "exit": 0,
+  "inputs": {
+    "/var/tmp/afs-managed-workspace-20261007-r1/tools/development/acceptance/native-workspace-linux.py": "ff6c148eac737c37767fca38d15f43b3445b7eed6789acc49ee6f6345c4b7b1c",
+    "/var/tmp/afs-managed-workspace-20261007-r1/tools/development/acceptance/test_native_workspace.py": "0145c418e4a5d7f94f110b0bd50008e3636a586d6030db34894508651765b25c",
+    "/var/tmp/afs-managed-workspace-20261007-r1/tools/development/acceptance/probes/native_mixed.py": "ad0bf63227e1a6211d6779a0a8435e74c371ca22a568677f600e07ff24faf25e",
+    "/var/tmp/afs-managed-workspace-20261007-r1/tools/development/acceptance/probes/locks_smoke.py": "2456928a3d40ac9061cd427ddaded53b127eed78ee6de2a8357370603cec41ef"
+  }
+}

@@ -1,0 +1,78 @@
+{
+  "rust_source": "6d51aeb45c1ed8669d80f612b3817e6d1bdabe04",
+  "compiler_map": "66dbbe3e0071fcec1efc9cf370c709a99f025d39acd4f37ba57582c874429304",
+  "unchanged_rust_inputs": 157,
+  "historical_G1": "8/8 retained",
+  "results": [
+    {
+      "id": "managed.basic",
+      "status": "PASS",
+      "candidate": "6d51aeb/r4",
+      "evidence": "../20261007-managed-workspace/current/results-r4/result.json",
+      "limit": "bounded lifecycle64MiB only; not complete ON"
+    },
+    {
+      "id": "mixed.mmap.bytes",
+      "status": "PASS",
+      "candidate": "6d51aeb/r6",
+      "evidence": "current/results-r6/semantics/mmap_inotify/mmap-proof.json",
+      "limit": "4KiB bidirectional bytes only"
+    },
+    {
+      "id": "mixed.permissions_errno",
+      "status": "PASS",
+      "candidate": "6d51aeb/r6",
+      "evidence": "current/results-r6/semantics/permissions_errno/step.json",
+      "limit": "UID501 root0600 denial and ENOENT/EEXIST"
+    },
+    {
+      "id": "mixed.locks",
+      "status": "FAIL",
+      "candidate": "6d51aeb/r7",
+      "evidence": "current/results-r7/semantics/locks/locks-smoke/report.json",
+      "limit": "8 raw steps,5FAIL; release raw labels insufficient for full coordination"
+    },
+    {
+      "id": "mixed.append.seek_cur",
+      "status": "FAIL",
+      "candidate": "6d51aeb/r6",
+      "evidence": "current/results-r6/semantics/append/step.json",
+      "limit": "expected38 actual24"
+    },
+    {
+      "id": "mixed.append.concurrent",
+      "status": "NOT_RUN",
+      "candidate": "6d51aeb/r6",
+      "evidence": "current/results-r6/semantics/append/step.json",
+      "limit": "stopped at preceding offset assertion"
+    },
+    {
+      "id": "mixed.watch",
+      "status": "FAIL",
+      "candidate": "6d51aeb/r6",
+      "evidence": "current/results-r6/semantics/mmap_inotify/step.json",
+      "limit": "FUSE watcher misses native-origin CREATE"
+    },
+    {
+      "id": "selected.cleanup",
+      "status": "PASS",
+      "candidate": "6d51aeb/r7",
+      "evidence": "current/postcheck-r7.json",
+      "limit": "normal stop/delete/unmount; not production graceful drain"
+    },
+    {
+      "id": "full.G2.12",
+      "status": "NOT_QUALIFIED",
+      "candidate": "6d51aeb",
+      "evidence": "README.md",
+      "limit": "semantic gaps plus production READY/drain/restart remain"
+    },
+    {
+      "id": "full.G2.13",
+      "status": "NOT_QUALIFIED",
+      "candidate": "6d51aeb",
+      "evidence": "README.md",
+      "limit": "no fresh paired performance claim"
+    }
+  ]
+}

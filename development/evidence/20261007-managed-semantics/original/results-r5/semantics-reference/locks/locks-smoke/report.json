@@ -1,0 +1,636 @@
+{
+  "created_at": "2026-10-06T19:57:01Z",
+  "cross_path_probe": false,
+  "failures": [],
+  "findmnt": {
+    "primary": {
+      "argv": [
+        "findmnt",
+        "-T",
+        "/proc/7199/root/workspace/.afs-native-mixed-7298-1791316620708239149-locks.bin",
+        "-o",
+        "TARGET,SOURCE,FSTYPE,OPTIONS",
+        "--json"
+      ],
+      "returncode": 0,
+      "stderr": "",
+      "stdout": "{\n   \"filesystems\": [\n      {\n         \"target\": \"/\",\n         \"source\": \"/dev/vda1\",\n         \"fstype\": \"ext4\",\n         \"options\": \"rw,relatime,discard,errors=remount-ro,commit=30\"\n      }\n   ]\n}\n"
+    },
+    "secondary": {
+      "argv": [
+        "findmnt",
+        "-T",
+        "/proc/7199/root/workspace/.afs-native-mixed-7298-1791316620708239149-locks.bin",
+        "-o",
+        "TARGET,SOURCE,FSTYPE,OPTIONS",
+        "--json"
+      ],
+      "returncode": 0,
+      "stderr": "",
+      "stdout": "{\n   \"filesystems\": [\n      {\n         \"target\": \"/\",\n         \"source\": \"/dev/vda1\",\n         \"fstype\": \"ext4\",\n         \"options\": \"rw,relatime,discard,errors=remount-ro,commit=30\"\n      }\n   ]\n}\n"
+    }
+  },
+  "fixture_kept": false,
+  "fixture_root": null,
+  "notes": [
+    "This is a short real Linux advisory-lock probe, not a complete POSIX lock suite.",
+    "Failures with ENOSYS/EOPNOTSUPP indicate missing filesystem/FUSE lock support for this probe.",
+    "When primary and secondary paths differ, this script proves only those two paths' observed lock behavior; the caller supplies the cross-mount fixture identity."
+  ],
+  "observed_processes": {},
+  "platform": {
+    "gid": 0,
+    "machine": "aarch64",
+    "python": "3.12.3",
+    "release": "6.8.0-106-generic",
+    "system": "Linux",
+    "uid": 0
+  },
+  "primary_path": "/proc/7199/root/workspace/.afs-native-mixed-7298-1791316620708239149-locks.bin",
+  "probe_process": {
+    "exe_dev": 64769,
+    "exe_inode": 2142,
+    "exe_path": "/usr/bin/python3.12",
+    "name": "locks_smoke",
+    "pid": 7299,
+    "pid_source": "self",
+    "sha256": "1a301bb1763139d48ae638d97b11edf56de6cd185e1b054eae6dc28c271c0c5f",
+    "start_ticks": 4723821
+  },
+  "run_id": "locks-smoke-20261006T195700Z-7299-133513",
+  "same_path": true,
+  "schema": "afs.locks_smoke.v1",
+  "secondary_path": "/proc/7199/root/workspace/.afs-native-mixed-7298-1791316620708239149-locks.bin",
+  "steps": [
+    {
+      "details": {
+        "primary": "/proc/7199/root/workspace/.afs-native-mixed-7298-1791316620708239149-locks.bin",
+        "primary_stat": {
+          "dev": 64769,
+          "ino": 525464,
+          "mode": "0o644",
+          "size": 4112,
+          "type_regular": true
+        },
+        "same_path": true,
+        "secondary": "/proc/7199/root/workspace/.afs-native-mixed-7298-1791316620708239149-locks.bin",
+        "secondary_stat": {
+          "dev": 64769,
+          "ino": 525464,
+          "mode": "0o644",
+          "size": 4112,
+          "type_regular": true
+        }
+      },
+      "duration_ms": 0.033,
+      "exit_status": 0,
+      "name": "fixture_identity",
+      "ok": true,
+      "started_at": "2026-10-06T19:57:00Z"
+    },
+    {
+      "details": {
+        "conflict": {
+          "event": {
+            "errno": 11,
+            "errno_name": "EAGAIN",
+            "event": "RESULT",
+            "ok": false,
+            "pid": 7301
+          },
+          "identity": {
+            "exe_dev": 64769,
+            "exe_inode": 2142,
+            "exe_path": "/usr/bin/python3.12",
+            "name": "try_fcntl-exclusive-0-10",
+            "pid": 7301,
+            "pid_source": "subprocess",
+            "sha256": "1a301bb1763139d48ae638d97b11edf56de6cd185e1b054eae6dc28c271c0c5f",
+            "start_ticks": 4723825
+          },
+          "returncode": 0,
+          "stderr": ""
+        },
+        "getlk": {
+          "event": {
+            "event": "RESULT",
+            "pid": 7303,
+            "result": {
+              "l_len": 10,
+              "l_pid": 7300,
+              "l_start": 0,
+              "l_type": 1,
+              "l_type_name": "F_WRLCK",
+              "l_whence": 0,
+              "ok": true
+            }
+          },
+          "identity": {
+            "exe_dev": 64769,
+            "exe_inode": 2142,
+            "exe_path": "/usr/bin/python3.12",
+            "name": "getlk-exclusive-0-10",
+            "pid": 7303,
+            "pid_source": "subprocess",
+            "sha256": "1a301bb1763139d48ae638d97b11edf56de6cd185e1b054eae6dc28c271c0c5f",
+            "start_ticks": 4723829
+          },
+          "returncode": 0,
+          "stderr": ""
+        },
+        "holder_identity": {
+          "exe_dev": 64769,
+          "exe_inode": 2142,
+          "exe_path": "/usr/bin/python3.12",
+          "name": "fcntl-holder",
+          "pid": 7300,
+          "pid_source": "subprocess",
+          "sha256": "1a301bb1763139d48ae638d97b11edf56de6cd185e1b054eae6dc28c271c0c5f",
+          "start_ticks": 4723823
+        },
+        "holder_ready": {
+          "event": "READY",
+          "pid": 7300
+        },
+        "holder_returncode": 0,
+        "nonoverlap": {
+          "event": {
+            "errno": null,
+            "errno_name": null,
+            "event": "RESULT",
+            "ok": true,
+            "pid": 7302
+          },
+          "identity": {
+            "exe_dev": 64769,
+            "exe_inode": 2142,
+            "exe_path": "/usr/bin/python3.12",
+            "name": "try_fcntl-exclusive-10-10",
+            "pid": 7302,
+            "pid_source": "subprocess",
+            "sha256": "1a301bb1763139d48ae638d97b11edf56de6cd185e1b054eae6dc28c271c0c5f",
+            "start_ticks": 4723827
+          },
+          "returncode": 0,
+          "stderr": ""
+        }
+      },
+      "duration_ms": 79.9,
+      "exit_status": 0,
+      "name": "fcntl_conflict_nonoverlap_getlk",
+      "ok": true,
+      "started_at": "2026-10-06T19:57:00Z"
+    },
+    {
+      "details": {
+        "exclusive": {
+          "event": {
+            "errno": 11,
+            "errno_name": "EAGAIN",
+            "event": "RESULT",
+            "ok": false,
+            "pid": 7306
+          },
+          "identity": {
+            "exe_dev": 64769,
+            "exe_inode": 2142,
+            "exe_path": "/usr/bin/python3.12",
+            "name": "try_fcntl-exclusive-40-10",
+            "pid": 7306,
+            "pid_source": "subprocess",
+            "sha256": "1a301bb1763139d48ae638d97b11edf56de6cd185e1b054eae6dc28c271c0c5f",
+            "start_ticks": 4723835
+          },
+          "returncode": 0,
+          "stderr": ""
+        },
+        "holder_identity": {
+          "exe_dev": 64769,
+          "exe_inode": 2142,
+          "exe_path": "/usr/bin/python3.12",
+          "name": "fcntl-shared-holder",
+          "pid": 7304,
+          "pid_source": "subprocess",
+          "sha256": "1a301bb1763139d48ae638d97b11edf56de6cd185e1b054eae6dc28c271c0c5f",
+          "start_ticks": 4723831
+        },
+        "holder_ready": {
+          "event": "READY",
+          "pid": 7304
+        },
+        "holder_returncode": 0,
+        "shared": {
+          "event": {
+            "errno": null,
+            "errno_name": null,
+            "event": "RESULT",
+            "ok": true,
+            "pid": 7305
+          },
+          "identity": {
+            "exe_dev": 64769,
+            "exe_inode": 2142,
+            "exe_path": "/usr/bin/python3.12",
+            "name": "try_fcntl-shared-40-10",
+            "pid": 7305,
+            "pid_source": "subprocess",
+            "sha256": "1a301bb1763139d48ae638d97b11edf56de6cd185e1b054eae6dc28c271c0c5f",
+            "start_ticks": 4723833
+          },
+          "returncode": 0,
+          "stderr": ""
+        }
+      },
+      "duration_ms": 56.496,
+      "exit_status": 0,
+      "name": "fcntl_shared_exclusive",
+      "ok": true,
+      "started_at": "2026-10-06T19:57:00Z"
+    },
+    {
+      "details": {
+        "acquired": {
+          "event": "ACQUIRED",
+          "pid": 7308
+        },
+        "holder_identity": {
+          "exe_dev": 64769,
+          "exe_inode": 2142,
+          "exe_path": "/usr/bin/python3.12",
+          "name": "fcntl-block-holder",
+          "pid": 7307,
+          "pid_source": "subprocess",
+          "sha256": "1a301bb1763139d48ae638d97b11edf56de6cd185e1b054eae6dc28c271c0c5f",
+          "start_ticks": 4723837
+        },
+        "holder_ready": {
+          "event": "READY",
+          "pid": 7307
+        },
+        "waiter_identity": {
+          "exe_dev": 64769,
+          "exe_inode": 2142,
+          "exe_path": "/usr/bin/python3.12",
+          "name": "fcntl-block-waiter",
+          "pid": 7308,
+          "pid_source": "subprocess",
+          "sha256": "1a301bb1763139d48ae638d97b11edf56de6cd185e1b054eae6dc28c271c0c5f",
+          "start_ticks": 4723838
+        },
+        "waiting": {
+          "event": "WAITING",
+          "pid": 7308
+        }
+      },
+      "duration_ms": 302.004,
+      "exit_status": 0,
+      "name": "fcntl_blocking_waiter_wakeup",
+      "ok": true,
+      "started_at": "2026-10-06T19:57:00Z"
+    },
+    {
+      "details": {
+        "holder_identity": {
+          "exe_dev": 64769,
+          "exe_inode": 2142,
+          "exe_path": "/usr/bin/python3.12",
+          "name": "fcntl-exit-holder",
+          "pid": 7309,
+          "pid_source": "subprocess",
+          "sha256": "1a301bb1763139d48ae638d97b11edf56de6cd185e1b054eae6dc28c271c0c5f",
+          "start_ticks": 4723867
+        },
+        "holder_ready": {
+          "event": "READY",
+          "pid": 7309
+        },
+        "holder_returncode": -15,
+        "post_exit_acquire": {
+          "event": {
+            "errno": null,
+            "errno_name": null,
+            "event": "RESULT",
+            "ok": true,
+            "pid": 7310
+          },
+          "identity": {
+            "exe_dev": 64769,
+            "exe_inode": 2142,
+            "exe_path": "/usr/bin/python3.12",
+            "name": "try_fcntl-exclusive-120-10",
+            "pid": 7310,
+            "pid_source": "subprocess",
+            "sha256": "1a301bb1763139d48ae638d97b11edf56de6cd185e1b054eae6dc28c271c0c5f",
+            "start_ticks": 4723870
+          },
+          "returncode": 0,
+          "stderr": ""
+        }
+      },
+      "duration_ms": 54.355,
+      "exit_status": 0,
+      "name": "fcntl_owner_exit_release",
+      "ok": true,
+      "started_at": "2026-10-06T19:57:01Z"
+    },
+    {
+      "details": {
+        "holder_identity": {
+          "exe_dev": 64769,
+          "exe_inode": 2142,
+          "exe_path": "/usr/bin/python3.12",
+          "name": "fcntl-close-other",
+          "pid": 7311,
+          "pid_source": "subprocess",
+          "sha256": "1a301bb1763139d48ae638d97b11edf56de6cd185e1b054eae6dc28c271c0c5f",
+          "start_ticks": 4723872
+        },
+        "holder_ready": {
+          "closed_other_fd": true,
+          "event": "READY",
+          "pid": 7311
+        },
+        "holder_returncode": 0,
+        "post_close_acquire": {
+          "event": {
+            "errno": null,
+            "errno_name": null,
+            "event": "RESULT",
+            "ok": true,
+            "pid": 7312
+          },
+          "identity": {
+            "exe_dev": 64769,
+            "exe_inode": 2142,
+            "exe_path": "/usr/bin/python3.12",
+            "name": "try_fcntl-exclusive-160-10",
+            "pid": 7312,
+            "pid_source": "subprocess",
+            "sha256": "1a301bb1763139d48ae638d97b11edf56de6cd185e1b054eae6dc28c271c0c5f",
+            "start_ticks": 4723874
+          },
+          "returncode": 0,
+          "stderr": ""
+        }
+      },
+      "duration_ms": 39.935,
+      "exit_status": 0,
+      "name": "fcntl_close_other_fd_releases_process_locks",
+      "ok": true,
+      "started_at": "2026-10-06T19:57:01Z"
+    },
+    {
+      "details": {
+        "dup_close": {
+          "after_release": {
+            "event": {
+              "errno": null,
+              "errno_name": null,
+              "event": "RESULT",
+              "ok": true,
+              "pid": 7320
+            },
+            "identity": {
+              "exe_dev": 64769,
+              "exe_inode": 2142,
+              "exe_path": "/usr/bin/python3.12",
+              "name": "try_flock-exclusive-0-10",
+              "pid": 7320,
+              "pid_source": "subprocess",
+              "sha256": "1a301bb1763139d48ae638d97b11edf56de6cd185e1b054eae6dc28c271c0c5f",
+              "start_ticks": 4723890
+            },
+            "returncode": 0,
+            "stderr": ""
+          },
+          "conflict_while_dup_open": {
+            "event": {
+              "errno": 11,
+              "errno_name": "EAGAIN",
+              "event": "RESULT",
+              "ok": false,
+              "pid": 7319
+            },
+            "identity": {
+              "exe_dev": 64769,
+              "exe_inode": 2142,
+              "exe_path": "/usr/bin/python3.12",
+              "name": "try_flock-exclusive-0-10",
+              "pid": 7319,
+              "pid_source": "subprocess",
+              "sha256": "1a301bb1763139d48ae638d97b11edf56de6cd185e1b054eae6dc28c271c0c5f",
+              "start_ticks": 4723887
+            },
+            "returncode": 0,
+            "stderr": ""
+          },
+          "holder_identity": {
+            "exe_dev": 64769,
+            "exe_inode": 2142,
+            "exe_path": "/usr/bin/python3.12",
+            "name": "flock-dup-holder",
+            "pid": 7318,
+            "pid_source": "subprocess",
+            "sha256": "1a301bb1763139d48ae638d97b11edf56de6cd185e1b054eae6dc28c271c0c5f",
+            "start_ticks": 4723886
+          },
+          "ready": {
+            "closed_original_fd": true,
+            "event": "READY",
+            "pid": 7318
+          },
+          "returncode": 0
+        },
+        "exclusive": {
+          "conflict": {
+            "event": {
+              "errno": 11,
+              "errno_name": "EAGAIN",
+              "event": "RESULT",
+              "ok": false,
+              "pid": 7314
+            },
+            "identity": {
+              "exe_dev": 64769,
+              "exe_inode": 2142,
+              "exe_path": "/usr/bin/python3.12",
+              "name": "try_flock-exclusive-0-10",
+              "pid": 7314,
+              "pid_source": "subprocess",
+              "sha256": "1a301bb1763139d48ae638d97b11edf56de6cd185e1b054eae6dc28c271c0c5f",
+              "start_ticks": 4723878
+            },
+            "returncode": 0,
+            "stderr": ""
+          },
+          "holder_identity": {
+            "exe_dev": 64769,
+            "exe_inode": 2142,
+            "exe_path": "/usr/bin/python3.12",
+            "name": "flock-exclusive-holder",
+            "pid": 7313,
+            "pid_source": "subprocess",
+            "sha256": "1a301bb1763139d48ae638d97b11edf56de6cd185e1b054eae6dc28c271c0c5f",
+            "start_ticks": 4723876
+          },
+          "ready": {
+            "event": "READY",
+            "pid": 7313
+          },
+          "returncode": 0
+        },
+        "shared": {
+          "exclusive_conflict": {
+            "event": {
+              "errno": 11,
+              "errno_name": "EAGAIN",
+              "event": "RESULT",
+              "ok": false,
+              "pid": 7317
+            },
+            "identity": {
+              "exe_dev": 64769,
+              "exe_inode": 2142,
+              "exe_path": "/usr/bin/python3.12",
+              "name": "try_flock-exclusive-0-10",
+              "pid": 7317,
+              "pid_source": "subprocess",
+              "sha256": "1a301bb1763139d48ae638d97b11edf56de6cd185e1b054eae6dc28c271c0c5f",
+              "start_ticks": 4723884
+            },
+            "returncode": 0,
+            "stderr": ""
+          },
+          "holder_identity": {
+            "exe_dev": 64769,
+            "exe_inode": 2142,
+            "exe_path": "/usr/bin/python3.12",
+            "name": "flock-shared-holder",
+            "pid": 7315,
+            "pid_source": "subprocess",
+            "sha256": "1a301bb1763139d48ae638d97b11edf56de6cd185e1b054eae6dc28c271c0c5f",
+            "start_ticks": 4723880
+          },
+          "ready": {
+            "event": "READY",
+            "pid": 7315
+          },
+          "returncode": 0,
+          "shared_ok": {
+            "event": {
+              "errno": null,
+              "errno_name": null,
+              "event": "RESULT",
+              "ok": true,
+              "pid": 7316
+            },
+            "identity": {
+              "exe_dev": 64769,
+              "exe_inode": 2142,
+              "exe_path": "/usr/bin/python3.12",
+              "name": "try_flock-shared-0-10",
+              "pid": 7316,
+              "pid_source": "subprocess",
+              "sha256": "1a301bb1763139d48ae638d97b11edf56de6cd185e1b054eae6dc28c271c0c5f",
+              "start_ticks": 4723882
+            },
+            "returncode": 0,
+            "stderr": ""
+          }
+        }
+      },
+      "duration_ms": 153.267,
+      "exit_status": 0,
+      "name": "flock_conflict_shared_and_dup",
+      "ok": true,
+      "started_at": "2026-10-06T19:57:01Z"
+    },
+    {
+      "details": {
+        "blocking": {
+          "acquired": {
+            "event": "ACQUIRED",
+            "pid": 7322
+          },
+          "holder_identity": {
+            "exe_dev": 64769,
+            "exe_inode": 2142,
+            "exe_path": "/usr/bin/python3.12",
+            "name": "flock-block-holder",
+            "pid": 7321,
+            "pid_source": "subprocess",
+            "sha256": "1a301bb1763139d48ae638d97b11edf56de6cd185e1b054eae6dc28c271c0c5f",
+            "start_ticks": 4723892
+          },
+          "ready": {
+            "event": "READY",
+            "pid": 7321
+          },
+          "waiter_identity": {
+            "exe_dev": 64769,
+            "exe_inode": 2142,
+            "exe_path": "/usr/bin/python3.12",
+            "name": "flock-block-waiter",
+            "pid": 7322,
+            "pid_source": "subprocess",
+            "sha256": "1a301bb1763139d48ae638d97b11edf56de6cd185e1b054eae6dc28c271c0c5f",
+            "start_ticks": 4723893
+          },
+          "waiting": {
+            "event": "WAITING",
+            "pid": 7322
+          }
+        },
+        "owner_exit": {
+          "after_exit": {
+            "event": {
+              "errno": null,
+              "errno_name": null,
+              "event": "RESULT",
+              "ok": true,
+              "pid": 7324
+            },
+            "identity": {
+              "exe_dev": 64769,
+              "exe_inode": 2142,
+              "exe_path": "/usr/bin/python3.12",
+              "name": "try_flock-exclusive-0-10",
+              "pid": 7324,
+              "pid_source": "subprocess",
+              "sha256": "1a301bb1763139d48ae638d97b11edf56de6cd185e1b054eae6dc28c271c0c5f",
+              "start_ticks": 4723926
+            },
+            "returncode": 0,
+            "stderr": ""
+          },
+          "holder_identity": {
+            "exe_dev": 64769,
+            "exe_inode": 2142,
+            "exe_path": "/usr/bin/python3.12",
+            "name": "flock-exit-holder",
+            "pid": 7323,
+            "pid_source": "subprocess",
+            "sha256": "1a301bb1763139d48ae638d97b11edf56de6cd185e1b054eae6dc28c271c0c5f",
+            "start_ticks": 4723923
+          },
+          "holder_returncode": -15,
+          "ready": {
+            "event": "READY",
+            "pid": 7323
+          }
+        }
+      },
+      "duration_ms": 363.871,
+      "exit_status": 0,
+      "name": "flock_blocking_waiter_owner_exit",
+      "ok": true,
+      "started_at": "2026-10-06T19:57:01Z"
+    }
+  ],
+  "summary": {
+    "failed": 0,
+    "passed": 8,
+    "status": "PASS",
+    "steps": 8
+  }
+}

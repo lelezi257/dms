@@ -1,0 +1,6 @@
+{
+  "bytes": 4096,
+  "native_map_to_primary_read": "NATIVE-MAP-SHARED",
+  "primary_write_to_native_map": "FUSE-WRITE-SEEN-BY-MAP",
+  "status": "PASS"
+}

@@ -1,0 +1,2 @@
+cat: can't open '/workspace/.afs-native-mixed-7376-1791316623972262036-root-owned-0600.txt': Permission denied
+sh: can't create /workspace/.afs-native-mixed-7376-1791316623972262036-root-owned-0600.txt: Permission denied

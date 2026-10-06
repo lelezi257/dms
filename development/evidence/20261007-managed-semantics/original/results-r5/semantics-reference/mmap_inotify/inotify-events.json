@@ -1,0 +1,137 @@
+[
+  {
+    "cookie": 0,
+    "mask": 256,
+    "mask_names": [
+      "CREATE"
+    ],
+    "name": ".afs-native-mixed-7298-1791316620708239149-mmap.bin",
+    "watch": "primary"
+  },
+  {
+    "cookie": 0,
+    "mask": 2,
+    "mask_names": [
+      "MODIFY"
+    ],
+    "name": ".afs-native-mixed-7298-1791316620708239149-mmap.bin",
+    "watch": "primary"
+  },
+  {
+    "cookie": 0,
+    "mask": 8,
+    "mask_names": [
+      "CLOSE_WRITE"
+    ],
+    "name": ".afs-native-mixed-7298-1791316620708239149-mmap.bin",
+    "watch": "primary"
+  },
+  {
+    "cookie": 0,
+    "mask": 2,
+    "mask_names": [
+      "MODIFY"
+    ],
+    "name": ".afs-native-mixed-7298-1791316620708239149-mmap.bin",
+    "watch": "primary"
+  },
+  {
+    "cookie": 0,
+    "mask": 8,
+    "mask_names": [
+      "CLOSE_WRITE"
+    ],
+    "name": ".afs-native-mixed-7298-1791316620708239149-mmap.bin",
+    "watch": "primary"
+  },
+  {
+    "cookie": 0,
+    "mask": 256,
+    "mask_names": [
+      "CREATE"
+    ],
+    "name": ".afs-native-mixed-7298-1791316620708239149-watch-primary.tmp",
+    "watch": "primary"
+  },
+  {
+    "cookie": 0,
+    "mask": 2,
+    "mask_names": [
+      "MODIFY"
+    ],
+    "name": ".afs-native-mixed-7298-1791316620708239149-watch-primary.tmp",
+    "watch": "primary"
+  },
+  {
+    "cookie": 0,
+    "mask": 8,
+    "mask_names": [
+      "CLOSE_WRITE"
+    ],
+    "name": ".afs-native-mixed-7298-1791316620708239149-watch-primary.tmp",
+    "watch": "primary"
+  },
+  {
+    "cookie": 2190,
+    "mask": 64,
+    "mask_names": [
+      "MOVED_FROM"
+    ],
+    "name": ".afs-native-mixed-7298-1791316620708239149-watch-primary.tmp",
+    "watch": "primary"
+  },
+  {
+    "cookie": 2190,
+    "mask": 128,
+    "mask_names": [
+      "MOVED_TO"
+    ],
+    "name": ".afs-native-mixed-7298-1791316620708239149-watch-primary.done",
+    "watch": "primary"
+  },
+  {
+    "cookie": 0,
+    "mask": 256,
+    "mask_names": [
+      "CREATE"
+    ],
+    "name": ".afs-native-mixed-7298-1791316620708239149-watch-secondary.tmp",
+    "watch": "primary"
+  },
+  {
+    "cookie": 0,
+    "mask": 2,
+    "mask_names": [
+      "MODIFY"
+    ],
+    "name": ".afs-native-mixed-7298-1791316620708239149-watch-secondary.tmp",
+    "watch": "primary"
+  },
+  {
+    "cookie": 0,
+    "mask": 8,
+    "mask_names": [
+      "CLOSE_WRITE"
+    ],
+    "name": ".afs-native-mixed-7298-1791316620708239149-watch-secondary.tmp",
+    "watch": "primary"
+  },
+  {
+    "cookie": 2191,
+    "mask": 64,
+    "mask_names": [
+      "MOVED_FROM"
+    ],
+    "name": ".afs-native-mixed-7298-1791316620708239149-watch-secondary.tmp",
+    "watch": "primary"
+  },
+  {
+    "cookie": 2191,
+    "mask": 128,
+    "mask_names": [
+      "MOVED_TO"
+    ],
+    "name": ".afs-native-mixed-7298-1791316620708239149-watch-secondary.done",
+    "watch": "primary"
+  }
+]

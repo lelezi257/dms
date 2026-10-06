@@ -1,0 +1,290 @@
+{
+  "created_at": "2026-10-06T20:13:38Z",
+  "cross_path_probe": true,
+  "failures": [
+    {
+      "duration_ms": 79.782,
+      "exception": "AssertionError",
+      "exit_status": 1,
+      "message": "{\"details\": {\"event\": {\"errno\": null, \"errno_name\": null, \"event\": \"RESULT\", \"ok\": true, \"pid\": 9803}, \"identity\": {\"exe_dev\": 64769, \"exe_inode\": 2142, \"exe_path\": \"/usr/bin/python3.12\", \"name\": \"try_fcntl-exclusive-0-10\", \"pid\": 9803, \"pid_source\": \"subprocess\", \"sha256\": \"1a301bb1763139d48ae638d97b11edf56de6cd185e1b054eae6dc28c271c0c5f\", \"start_ticks\": 4823542}, \"returncode\": 0, \"stderr\": \"\"}, \"message\": \"overlapping fcntl exclusive lock conflicts\"}",
+      "name": "fcntl_conflict_nonoverlap_getlk",
+      "ok": false,
+      "started_at": "2026-10-06T20:13:37Z",
+      "traceback": "Traceback (most recent call last):\n  File \"/var/tmp/afs-managed-workspace-20261007-r1/tools/development/acceptance/probes/locks_smoke.py\", line 541, in step\n    details = func()\n              ^^^^^^\n  File \"/var/tmp/afs-managed-workspace-20261007-r1/tools/development/acceptance/probes/locks_smoke.py\", line 568, in test_fcntl_conflict_nonoverlap_getlk\n    _expect(conflict[\"event\"].get(\"ok\") is False, \"overlapping fcntl exclusive lock conflicts\", conflict)\n  File \"/var/tmp/afs-managed-workspace-20261007-r1/tools/development/acceptance/probes/locks_smoke.py\", line 65, in _expect\n    raise AssertionError(json.dumps({\"message\": message, \"details\": details or {}}, sort_keys=True))\nAssertionError: {\"details\": {\"event\": {\"errno\": null, \"errno_name\": null, \"event\": \"RESULT\", \"ok\": true, \"pid\": 9803}, \"identity\": {\"exe_dev\": 64769, \"exe_inode\": 2142, \"exe_path\": \"/usr/bin/python3.12\", \"name\": \"try_fcntl-exclusive-0-10\", \"pid\": 9803, \"pid_source\": \"subprocess\", \"sha256\": \"1a301bb1763139d48ae638d97b11edf56de6cd185e1b054eae6dc28c271c0c5f\", \"start_ticks\": 4823542}, \"returncode\": 0, \"stderr\": \"\"}, \"message\": \"overlapping fcntl exclusive lock conflicts\"}\n"
+    },
+    {
+      "duration_ms": 60.786,
+      "exception": "AssertionError",
+      "exit_status": 1,
+      "message": "{\"details\": {\"event\": {\"errno\": null, \"errno_name\": null, \"event\": \"RESULT\", \"ok\": true, \"pid\": 9808}, \"identity\": {\"exe_dev\": 64769, \"exe_inode\": 2142, \"exe_path\": \"/usr/bin/python3.12\", \"name\": \"try_fcntl-exclusive-40-10\", \"pid\": 9808, \"pid_source\": \"subprocess\", \"sha256\": \"1a301bb1763139d48ae638d97b11edf56de6cd185e1b054eae6dc28c271c0c5f\", \"start_ticks\": 4823552}, \"returncode\": 0, \"stderr\": \"\"}, \"message\": \"exclusive fcntl lock conflicts with shared holder\"}",
+      "name": "fcntl_shared_exclusive",
+      "ok": false,
+      "started_at": "2026-10-06T20:13:37Z",
+      "traceback": "Traceback (most recent call last):\n  File \"/var/tmp/afs-managed-workspace-20261007-r1/tools/development/acceptance/probes/locks_smoke.py\", line 541, in step\n    details = func()\n              ^^^^^^\n  File \"/var/tmp/afs-managed-workspace-20261007-r1/tools/development/acceptance/probes/locks_smoke.py\", line 584, in test_fcntl_shared_exclusive\n    _expect(exclusive[\"event\"].get(\"ok\") is False, \"exclusive fcntl lock conflicts with shared holder\", exclusive)\n  File \"/var/tmp/afs-managed-workspace-20261007-r1/tools/development/acceptance/probes/locks_smoke.py\", line 65, in _expect\n    raise AssertionError(json.dumps({\"message\": message, \"details\": details or {}}, sort_keys=True))\nAssertionError: {\"details\": {\"event\": {\"errno\": null, \"errno_name\": null, \"event\": \"RESULT\", \"ok\": true, \"pid\": 9808}, \"identity\": {\"exe_dev\": 64769, \"exe_inode\": 2142, \"exe_path\": \"/usr/bin/python3.12\", \"name\": \"try_fcntl-exclusive-40-10\", \"pid\": 9808, \"pid_source\": \"subprocess\", \"sha256\": \"1a301bb1763139d48ae638d97b11edf56de6cd185e1b054eae6dc28c271c0c5f\", \"start_ticks\": 4823552}, \"returncode\": 0, \"stderr\": \"\"}, \"message\": \"exclusive fcntl lock conflicts with shared holder\"}\n"
+    },
+    {
+      "duration_ms": 32.823,
+      "exception": "AssertionError",
+      "exit_status": 1,
+      "message": "{\"event\": {\"event\": \"ACQUIRED\", \"pid\": 9810}, \"message\": \"child fcntl-block-waiter emitted ACQUIRED too early\"}",
+      "name": "fcntl_blocking_waiter_wakeup",
+      "ok": false,
+      "started_at": "2026-10-06T20:13:38Z",
+      "traceback": "Traceback (most recent call last):\n  File \"/var/tmp/afs-managed-workspace-20261007-r1/tools/development/acceptance/probes/locks_smoke.py\", line 541, in step\n    details = func()\n              ^^^^^^\n  File \"/var/tmp/afs-managed-workspace-20261007-r1/tools/development/acceptance/probes/locks_smoke.py\", line 595, in test_fcntl_blocking_waiter_wakeup\n    before_unlock = waiter.assert_no_event(\"ACQUIRED\", 0.25)\n                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/var/tmp/afs-managed-workspace-20261007-r1/tools/development/acceptance/probes/locks_smoke.py\", line 331, in assert_no_event\n    raise AssertionError(json.dumps({\"message\": f\"child {self.role} emitted {forbidden} too early\", \"event\": event}, sort_keys=True))\nAssertionError: {\"event\": {\"event\": \"ACQUIRED\", \"pid\": 9810}, \"message\": \"child fcntl-block-waiter emitted ACQUIRED too early\"}\n"
+    },
+    {
+      "duration_ms": 40.592,
+      "exception": "AssertionError",
+      "exit_status": 1,
+      "message": "{\"details\": {\"event\": {\"errno\": null, \"errno_name\": null, \"event\": \"RESULT\", \"ok\": true, \"pid\": 9816}, \"identity\": {\"exe_dev\": 64769, \"exe_inode\": 2142, \"exe_path\": \"/usr/bin/python3.12\", \"name\": \"try_flock-exclusive-0-10\", \"pid\": 9816, \"pid_source\": \"subprocess\", \"sha256\": \"1a301bb1763139d48ae638d97b11edf56de6cd185e1b054eae6dc28c271c0c5f\", \"start_ticks\": 4823567}, \"returncode\": 0, \"stderr\": \"\"}, \"message\": \"flock exclusive conflicts with exclusive holder\"}",
+      "name": "flock_conflict_shared_and_dup",
+      "ok": false,
+      "started_at": "2026-10-06T20:13:38Z",
+      "traceback": "Traceback (most recent call last):\n  File \"/var/tmp/afs-managed-workspace-20261007-r1/tools/development/acceptance/probes/locks_smoke.py\", line 541, in step\n    details = func()\n              ^^^^^^\n  File \"/var/tmp/afs-managed-workspace-20261007-r1/tools/development/acceptance/probes/locks_smoke.py\", line 629, in test_flock_conflict_shared_and_dup\n    _expect(ex_conflict[\"event\"].get(\"ok\") is False, \"flock exclusive conflicts with exclusive holder\", ex_conflict)\n  File \"/var/tmp/afs-managed-workspace-20261007-r1/tools/development/acceptance/probes/locks_smoke.py\", line 65, in _expect\n    raise AssertionError(json.dumps({\"message\": message, \"details\": details or {}}, sort_keys=True))\nAssertionError: {\"details\": {\"event\": {\"errno\": null, \"errno_name\": null, \"event\": \"RESULT\", \"ok\": true, \"pid\": 9816}, \"identity\": {\"exe_dev\": 64769, \"exe_inode\": 2142, \"exe_path\": \"/usr/bin/python3.12\", \"name\": \"try_flock-exclusive-0-10\", \"pid\": 9816, \"pid_source\": \"subprocess\", \"sha256\": \"1a301bb1763139d48ae638d97b11edf56de6cd185e1b054eae6dc28c271c0c5f\", \"start_ticks\": 4823567}, \"returncode\": 0, \"stderr\": \"\"}, \"message\": \"flock exclusive conflicts with exclusive holder\"}\n"
+    },
+    {
+      "duration_ms": 32.899,
+      "exception": "AssertionError",
+      "exit_status": 1,
+      "message": "{\"event\": {\"event\": \"ACQUIRED\", \"pid\": 9818}, \"message\": \"child flock-block-waiter emitted ACQUIRED too early\"}",
+      "name": "flock_blocking_waiter_owner_exit",
+      "ok": false,
+      "started_at": "2026-10-06T20:13:38Z",
+      "traceback": "Traceback (most recent call last):\n  File \"/var/tmp/afs-managed-workspace-20261007-r1/tools/development/acceptance/probes/locks_smoke.py\", line 541, in step\n    details = func()\n              ^^^^^^\n  File \"/var/tmp/afs-managed-workspace-20261007-r1/tools/development/acceptance/probes/locks_smoke.py\", line 665, in test_flock_blocking_waiter_owner_exit\n    before_unlock = waiter.assert_no_event(\"ACQUIRED\", 0.25)\n                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/var/tmp/afs-managed-workspace-20261007-r1/tools/development/acceptance/probes/locks_smoke.py\", line 331, in assert_no_event\n    raise AssertionError(json.dumps({\"message\": f\"child {self.role} emitted {forbidden} too early\", \"event\": event}, sort_keys=True))\nAssertionError: {\"event\": {\"event\": \"ACQUIRED\", \"pid\": 9818}, \"message\": \"child flock-block-waiter emitted ACQUIRED too early\"}\n"
+    }
+  ],
+  "findmnt": {
+    "primary": {
+      "argv": [
+        "findmnt",
+        "-T",
+        "/opt/afs-managed-workspace-20261007-r7/mount/ownerfs/workspace/.afs-native-mixed-9800-1791317617872618475-locks.bin",
+        "-o",
+        "TARGET,SOURCE,FSTYPE,OPTIONS",
+        "--json"
+      ],
+      "returncode": 0,
+      "stderr": "",
+      "stdout": "{\n   \"filesystems\": [\n      {\n         \"target\": \"/opt/afs-managed-workspace-20261007-r7/mount/ownerfs\",\n         \"source\": \"afs-ownerfs\",\n         \"fstype\": \"fuse\",\n         \"options\": \"rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other\"\n      }\n   ]\n}\n"
+    },
+    "secondary": {
+      "argv": [
+        "findmnt",
+        "-T",
+        "/proc/9670/root/workspace/.afs-native-mixed-9800-1791317617872618475-locks.bin",
+        "-o",
+        "TARGET,SOURCE,FSTYPE,OPTIONS",
+        "--json"
+      ],
+      "returncode": 0,
+      "stderr": "",
+      "stdout": "{\n   \"filesystems\": [\n      {\n         \"target\": \"/\",\n         \"source\": \"/dev/vda1\",\n         \"fstype\": \"ext4\",\n         \"options\": \"rw,relatime,discard,errors=remount-ro,commit=30\"\n      }\n   ]\n}\n"
+    }
+  },
+  "fixture_kept": true,
+  "fixture_root": null,
+  "notes": [
+    "This is a short real Linux advisory-lock probe, not a complete POSIX lock suite.",
+    "Failures with ENOSYS/EOPNOTSUPP indicate missing filesystem/FUSE lock support for this probe.",
+    "When primary and secondary paths differ, this script proves only those two paths' observed lock behavior; the caller supplies the cross-mount fixture identity."
+  ],
+  "observed_processes": {},
+  "platform": {
+    "gid": 0,
+    "machine": "aarch64",
+    "python": "3.12.3",
+    "release": "6.8.0-106-generic",
+    "system": "Linux",
+    "uid": 0
+  },
+  "primary_path": "/opt/afs-managed-workspace-20261007-r7/mount/ownerfs/workspace/.afs-native-mixed-9800-1791317617872618475-locks.bin",
+  "probe_process": {
+    "exe_dev": 64769,
+    "exe_inode": 2142,
+    "exe_path": "/usr/bin/python3.12",
+    "name": "locks_smoke",
+    "pid": 9801,
+    "pid_source": "self",
+    "sha256": "1a301bb1763139d48ae638d97b11edf56de6cd185e1b054eae6dc28c271c0c5f",
+    "start_ticks": 4823538
+  },
+  "run_id": "locks-smoke-20261006T201337Z-9801-646707",
+  "same_path": false,
+  "schema": "afs.locks_smoke.v1",
+  "secondary_path": "/proc/9670/root/workspace/.afs-native-mixed-9800-1791317617872618475-locks.bin",
+  "steps": [
+    {
+      "details": {
+        "primary": "/opt/afs-managed-workspace-20261007-r7/mount/ownerfs/workspace/.afs-native-mixed-9800-1791317617872618475-locks.bin",
+        "primary_stat": {
+          "dev": 45,
+          "ino": 5,
+          "mode": "0o644",
+          "size": 4112,
+          "type_regular": true
+        },
+        "same_path": false,
+        "secondary": "/proc/9670/root/workspace/.afs-native-mixed-9800-1791317617872618475-locks.bin",
+        "secondary_stat": {
+          "dev": 64769,
+          "ino": 526248,
+          "mode": "0o644",
+          "size": 4112,
+          "type_regular": true
+        }
+      },
+      "duration_ms": 0.599,
+      "exit_status": 0,
+      "name": "fixture_identity",
+      "ok": true,
+      "started_at": "2026-10-06T20:13:37Z"
+    },
+    {
+      "duration_ms": 79.782,
+      "exception": "AssertionError",
+      "exit_status": 1,
+      "message": "{\"details\": {\"event\": {\"errno\": null, \"errno_name\": null, \"event\": \"RESULT\", \"ok\": true, \"pid\": 9803}, \"identity\": {\"exe_dev\": 64769, \"exe_inode\": 2142, \"exe_path\": \"/usr/bin/python3.12\", \"name\": \"try_fcntl-exclusive-0-10\", \"pid\": 9803, \"pid_source\": \"subprocess\", \"sha256\": \"1a301bb1763139d48ae638d97b11edf56de6cd185e1b054eae6dc28c271c0c5f\", \"start_ticks\": 4823542}, \"returncode\": 0, \"stderr\": \"\"}, \"message\": \"overlapping fcntl exclusive lock conflicts\"}",
+      "name": "fcntl_conflict_nonoverlap_getlk",
+      "ok": false,
+      "started_at": "2026-10-06T20:13:37Z",
+      "traceback": "Traceback (most recent call last):\n  File \"/var/tmp/afs-managed-workspace-20261007-r1/tools/development/acceptance/probes/locks_smoke.py\", line 541, in step\n    details = func()\n              ^^^^^^\n  File \"/var/tmp/afs-managed-workspace-20261007-r1/tools/development/acceptance/probes/locks_smoke.py\", line 568, in test_fcntl_conflict_nonoverlap_getlk\n    _expect(conflict[\"event\"].get(\"ok\") is False, \"overlapping fcntl exclusive lock conflicts\", conflict)\n  File \"/var/tmp/afs-managed-workspace-20261007-r1/tools/development/acceptance/probes/locks_smoke.py\", line 65, in _expect\n    raise AssertionError(json.dumps({\"message\": message, \"details\": details or {}}, sort_keys=True))\nAssertionError: {\"details\": {\"event\": {\"errno\": null, \"errno_name\": null, \"event\": \"RESULT\", \"ok\": true, \"pid\": 9803}, \"identity\": {\"exe_dev\": 64769, \"exe_inode\": 2142, \"exe_path\": \"/usr/bin/python3.12\", \"name\": \"try_fcntl-exclusive-0-10\", \"pid\": 9803, \"pid_source\": \"subprocess\", \"sha256\": \"1a301bb1763139d48ae638d97b11edf56de6cd185e1b054eae6dc28c271c0c5f\", \"start_ticks\": 4823542}, \"returncode\": 0, \"stderr\": \"\"}, \"message\": \"overlapping fcntl exclusive lock conflicts\"}\n"
+    },
+    {
+      "duration_ms": 60.786,
+      "exception": "AssertionError",
+      "exit_status": 1,
+      "message": "{\"details\": {\"event\": {\"errno\": null, \"errno_name\": null, \"event\": \"RESULT\", \"ok\": true, \"pid\": 9808}, \"identity\": {\"exe_dev\": 64769, \"exe_inode\": 2142, \"exe_path\": \"/usr/bin/python3.12\", \"name\": \"try_fcntl-exclusive-40-10\", \"pid\": 9808, \"pid_source\": \"subprocess\", \"sha256\": \"1a301bb1763139d48ae638d97b11edf56de6cd185e1b054eae6dc28c271c0c5f\", \"start_ticks\": 4823552}, \"returncode\": 0, \"stderr\": \"\"}, \"message\": \"exclusive fcntl lock conflicts with shared holder\"}",
+      "name": "fcntl_shared_exclusive",
+      "ok": false,
+      "started_at": "2026-10-06T20:13:37Z",
+      "traceback": "Traceback (most recent call last):\n  File \"/var/tmp/afs-managed-workspace-20261007-r1/tools/development/acceptance/probes/locks_smoke.py\", line 541, in step\n    details = func()\n              ^^^^^^\n  File \"/var/tmp/afs-managed-workspace-20261007-r1/tools/development/acceptance/probes/locks_smoke.py\", line 584, in test_fcntl_shared_exclusive\n    _expect(exclusive[\"event\"].get(\"ok\") is False, \"exclusive fcntl lock conflicts with shared holder\", exclusive)\n  File \"/var/tmp/afs-managed-workspace-20261007-r1/tools/development/acceptance/probes/locks_smoke.py\", line 65, in _expect\n    raise AssertionError(json.dumps({\"message\": message, \"details\": details or {}}, sort_keys=True))\nAssertionError: {\"details\": {\"event\": {\"errno\": null, \"errno_name\": null, \"event\": \"RESULT\", \"ok\": true, \"pid\": 9808}, \"identity\": {\"exe_dev\": 64769, \"exe_inode\": 2142, \"exe_path\": \"/usr/bin/python3.12\", \"name\": \"try_fcntl-exclusive-40-10\", \"pid\": 9808, \"pid_source\": \"subprocess\", \"sha256\": \"1a301bb1763139d48ae638d97b11edf56de6cd185e1b054eae6dc28c271c0c5f\", \"start_ticks\": 4823552}, \"returncode\": 0, \"stderr\": \"\"}, \"message\": \"exclusive fcntl lock conflicts with shared holder\"}\n"
+    },
+    {
+      "duration_ms": 32.823,
+      "exception": "AssertionError",
+      "exit_status": 1,
+      "message": "{\"event\": {\"event\": \"ACQUIRED\", \"pid\": 9810}, \"message\": \"child fcntl-block-waiter emitted ACQUIRED too early\"}",
+      "name": "fcntl_blocking_waiter_wakeup",
+      "ok": false,
+      "started_at": "2026-10-06T20:13:38Z",
+      "traceback": "Traceback (most recent call last):\n  File \"/var/tmp/afs-managed-workspace-20261007-r1/tools/development/acceptance/probes/locks_smoke.py\", line 541, in step\n    details = func()\n              ^^^^^^\n  File \"/var/tmp/afs-managed-workspace-20261007-r1/tools/development/acceptance/probes/locks_smoke.py\", line 595, in test_fcntl_blocking_waiter_wakeup\n    before_unlock = waiter.assert_no_event(\"ACQUIRED\", 0.25)\n                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/var/tmp/afs-managed-workspace-20261007-r1/tools/development/acceptance/probes/locks_smoke.py\", line 331, in assert_no_event\n    raise AssertionError(json.dumps({\"message\": f\"child {self.role} emitted {forbidden} too early\", \"event\": event}, sort_keys=True))\nAssertionError: {\"event\": {\"event\": \"ACQUIRED\", \"pid\": 9810}, \"message\": \"child fcntl-block-waiter emitted ACQUIRED too early\"}\n"
+    },
+    {
+      "details": {
+        "holder_identity": {
+          "exe_dev": 64769,
+          "exe_inode": 2142,
+          "exe_path": "/usr/bin/python3.12",
+          "name": "fcntl-exit-holder",
+          "pid": 9811,
+          "pid_source": "subprocess",
+          "sha256": "1a301bb1763139d48ae638d97b11edf56de6cd185e1b054eae6dc28c271c0c5f",
+          "start_ticks": 4823557
+        },
+        "holder_ready": {
+          "event": "READY",
+          "pid": 9811
+        },
+        "holder_returncode": -15,
+        "post_exit_acquire": {
+          "event": {
+            "errno": null,
+            "errno_name": null,
+            "event": "RESULT",
+            "ok": true,
+            "pid": 9812
+          },
+          "identity": {
+            "exe_dev": 64769,
+            "exe_inode": 2142,
+            "exe_path": "/usr/bin/python3.12",
+            "name": "try_fcntl-exclusive-120-10",
+            "pid": 9812,
+            "pid_source": "subprocess",
+            "sha256": "1a301bb1763139d48ae638d97b11edf56de6cd185e1b054eae6dc28c271c0c5f",
+            "start_ticks": 4823559
+          },
+          "returncode": 0,
+          "stderr": ""
+        }
+      },
+      "duration_ms": 36.114,
+      "exit_status": 0,
+      "name": "fcntl_owner_exit_release",
+      "ok": true,
+      "started_at": "2026-10-06T20:13:38Z"
+    },
+    {
+      "details": {
+        "holder_identity": {
+          "exe_dev": 64769,
+          "exe_inode": 2142,
+          "exe_path": "/usr/bin/python3.12",
+          "name": "fcntl-close-other",
+          "pid": 9813,
+          "pid_source": "subprocess",
+          "sha256": "1a301bb1763139d48ae638d97b11edf56de6cd185e1b054eae6dc28c271c0c5f",
+          "start_ticks": 4823561
+        },
+        "holder_ready": {
+          "closed_other_fd": true,
+          "event": "READY",
+          "pid": 9813
+        },
+        "holder_returncode": 0,
+        "post_close_acquire": {
+          "event": {
+            "errno": null,
+            "errno_name": null,
+            "event": "RESULT",
+            "ok": true,
+            "pid": 9814
+          },
+          "identity": {
+            "exe_dev": 64769,
+            "exe_inode": 2142,
+            "exe_path": "/usr/bin/python3.12",
+            "name": "try_fcntl-exclusive-160-10",
+            "pid": 9814,
+            "pid_source": "subprocess",
+            "sha256": "1a301bb1763139d48ae638d97b11edf56de6cd185e1b054eae6dc28c271c0c5f",
+            "start_ticks": 4823563
+          },
+          "returncode": 0,
+          "stderr": ""
+        }
+      },
+      "duration_ms": 40.84,
+      "exit_status": 0,
+      "name": "fcntl_close_other_fd_releases_process_locks",
+      "ok": true,
+      "started_at": "2026-10-06T20:13:38Z"
+    },
+    {
+      "duration_ms": 40.592,
+      "exception": "AssertionError",
+      "exit_status": 1,
+      "message": "{\"details\": {\"event\": {\"errno\": null, \"errno_name\": null, \"event\": \"RESULT\", \"ok\": true, \"pid\": 9816}, \"identity\": {\"exe_dev\": 64769, \"exe_inode\": 2142, \"exe_path\": \"/usr/bin/python3.12\", \"name\": \"try_flock-exclusive-0-10\", \"pid\": 9816, \"pid_source\": \"subprocess\", \"sha256\": \"1a301bb1763139d48ae638d97b11edf56de6cd185e1b054eae6dc28c271c0c5f\", \"start_ticks\": 4823567}, \"returncode\": 0, \"stderr\": \"\"}, \"message\": \"flock exclusive conflicts with exclusive holder\"}",
+      "name": "flock_conflict_shared_and_dup",
+      "ok": false,
+      "started_at": "2026-10-06T20:13:38Z",
+      "traceback": "Traceback (most recent call last):\n  File \"/var/tmp/afs-managed-workspace-20261007-r1/tools/development/acceptance/probes/locks_smoke.py\", line 541, in step\n    details = func()\n              ^^^^^^\n  File \"/var/tmp/afs-managed-workspace-20261007-r1/tools/development/acceptance/probes/locks_smoke.py\", line 629, in test_flock_conflict_shared_and_dup\n    _expect(ex_conflict[\"event\"].get(\"ok\") is False, \"flock exclusive conflicts with exclusive holder\", ex_conflict)\n  File \"/var/tmp/afs-managed-workspace-20261007-r1/tools/development/acceptance/probes/locks_smoke.py\", line 65, in _expect\n    raise AssertionError(json.dumps({\"message\": message, \"details\": details or {}}, sort_keys=True))\nAssertionError: {\"details\": {\"event\": {\"errno\": null, \"errno_name\": null, \"event\": \"RESULT\", \"ok\": true, \"pid\": 9816}, \"identity\": {\"exe_dev\": 64769, \"exe_inode\": 2142, \"exe_path\": \"/usr/bin/python3.12\", \"name\": \"try_flock-exclusive-0-10\", \"pid\": 9816, \"pid_source\": \"subprocess\", \"sha256\": \"1a301bb1763139d48ae638d97b11edf56de6cd185e1b054eae6dc28c271c0c5f\", \"start_ticks\": 4823567}, \"returncode\": 0, \"stderr\": \"\"}, \"message\": \"flock exclusive conflicts with exclusive holder\"}\n"
+    },
+    {
+      "duration_ms": 32.899,
+      "exception": "AssertionError",
+      "exit_status": 1,
+      "message": "{\"event\": {\"event\": \"ACQUIRED\", \"pid\": 9818}, \"message\": \"child flock-block-waiter emitted ACQUIRED too early\"}",
+      "name": "flock_blocking_waiter_owner_exit",
+      "ok": false,
+      "started_at": "2026-10-06T20:13:38Z",
+      "traceback": "Traceback (most recent call last):\n  File \"/var/tmp/afs-managed-workspace-20261007-r1/tools/development/acceptance/probes/locks_smoke.py\", line 541, in step\n    details = func()\n              ^^^^^^\n  File \"/var/tmp/afs-managed-workspace-20261007-r1/tools/development/acceptance/probes/locks_smoke.py\", line 665, in test_flock_blocking_waiter_owner_exit\n    before_unlock = waiter.assert_no_event(\"ACQUIRED\", 0.25)\n                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/var/tmp/afs-managed-workspace-20261007-r1/tools/development/acceptance/probes/locks_smoke.py\", line 331, in assert_no_event\n    raise AssertionError(json.dumps({\"message\": f\"child {self.role} emitted {forbidden} too early\", \"event\": event}, sort_keys=True))\nAssertionError: {\"event\": {\"event\": \"ACQUIRED\", \"pid\": 9818}, \"message\": \"child flock-block-waiter emitted ACQUIRED too early\"}\n"
+    }
+  ],
+  "summary": {
+    "failed": 5,
+    "passed": 3,
+    "status": "FAIL",
+    "steps": 8
+  }
+}

@@ -1,0 +1,43 @@
+{
+  "time": "2026-10-06T20:15:08.005673+00:00",
+  "vm": "afs-g2-micro",
+  "status": "PASS",
+  "scope": "no selected product/runtime processes, exact host mount absent, runtime list empty",
+  "checks": [
+    {
+      "argv": [
+        "ps",
+        "-C",
+        "afs-node,afs-meta,runc",
+        "-o",
+        "pid,comm,args"
+      ],
+      "exit": 1,
+      "stdout": "    PID COMMAND         COMMAND\n",
+      "stderr": "bash: line 1: cd: /Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/source: No such file or directory\nbash: line 1: cd: /Users/lzc: No such file or directory\n"
+    },
+    {
+      "argv": [
+        "findmnt",
+        "--mountpoint",
+        "/opt/afs-managed-workspace-20261007-r7/mount/ownerfs"
+      ],
+      "exit": 1,
+      "stdout": "",
+      "stderr": "bash: line 1: cd: /Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/source: No such file or directory\nbash: line 1: cd: /Users/lzc: No such file or directory\n"
+    },
+    {
+      "argv": [
+        "/usr/local/sbin/runc",
+        "--root",
+        "/opt/afs-managed-workspace-20261007-r7/control/runtime-state",
+        "list",
+        "--format",
+        "json"
+      ],
+      "exit": 0,
+      "stdout": "null\n",
+      "stderr": "bash: line 1: cd: /Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/source: No such file or directory\nbash: line 1: cd: /Users/lzc: No such file or directory\n"
+    }
+  ]
+}

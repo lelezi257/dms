@@ -1,0 +1,10 @@
+{
+  "role": "b",
+  "root": "/mnt/lima-afsbdata/afs-delivery/owner-remote-6d-bhome-20261007-r1",
+  "config_sha256": {
+    "/mnt/lima-afsbdata/afs-delivery/owner-remote-6d-bhome-20261007-r1/etc/node.toml": "41e1fde2720013c5b78624065707ac34afdc1cb975d0adba9c201bbadcd19a02",
+    "/mnt/lima-afsbdata/afs-delivery/owner-remote-6d-bhome-20261007-r1/config/mfschunkserver.cfg": "01706742d45e20446ff68104269da445d6a88ffe19d7caf0453d97406f11cb36",
+    "/mnt/lima-afsbdata/afs-delivery/owner-remote-6d-bhome-20261007-r1/config/mfshdd.cfg": "b786be2d4a96f9ecf336837e6a0347e0dd0914117be5add63b4c162803bfc05a"
+  },
+  "original_sha256": "e4c9ba81ad2dc013e9d6d37c73290241d3915cd722d6ab2ecc7b507aae96e985"
+}

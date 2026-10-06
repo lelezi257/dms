@@ -1,0 +1,8 @@
+{
+  "role": "a",
+  "root": "/mnt/lima-afsadata/afs-delivery/owner-remote-6d-bhome-20261007-r1",
+  "config_sha256": {
+    "/mnt/lima-afsadata/afs-delivery/owner-remote-6d-bhome-20261007-r1/etc/node.toml": "485592b4e5cea61a648805c4bd9b0f0c5895bd69943484dc34be2999eb16627c"
+  },
+  "original_sha256": "abd027d2515fcd7ef7969620255de36610afc348e9807b04390f72a534f2f98f"
+}

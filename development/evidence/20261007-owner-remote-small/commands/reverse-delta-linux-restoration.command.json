@@ -1,0 +1,14 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "afs-accept-a",
+    "sudo",
+    "python3",
+    "-c",
+    "from pathlib import Path;import json,sys,hashlib,subprocess\nroot=Path(sys.argv[1]);stage=root/'tools/provenance-check';stage.mkdir();rows=[]\nfor n,sha in json.loads(sys.argv[2]).items():\n p=stage/'development/acceptance'/n;p.parent.mkdir(parents=True,exist_ok=True);p.write_bytes((root/'tools'/n).read_bytes());delta=Path('/var/tmp/owner-remote-6d-'+n+'.reverse.patch');r=subprocess.run(['patch','--batch','--forward','-p1','-i',str(delta)],cwd=stage,capture_output=True,text=True);assert r.returncode==0,(r.stdout,r.stderr);observed=hashlib.sha256(p.read_bytes()).hexdigest();assert observed==sha;rows.append({'path':n,'original_sha256':sha,'restored_sha256':observed,'delta_sha256':hashlib.sha256(delta.read_bytes()).hexdigest(),'patch_exit':r.returncode})\nprint(json.dumps({'status':'PASS_BYTE_RESTORATION_ONLY','rows':rows},indent=2))",
+    "/mnt/lima-afsadata/afs-delivery/owner-remote-6d-bhome-20261007-r1",
+    "{\"owner_remote_small.py\": \"d7ba0308bfdd485f6a1958a325561ab7304daaacd24b0ab590afa82bf53db9d4\", \"test_owner_remote_small.py\": \"04cc669c9726f2a20259b0ba5af32a2383331305a789d027776189639e4a333f\"}"
+  ],
+  "exit": 0
+}

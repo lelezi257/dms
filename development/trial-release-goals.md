@@ -1,3 +1,7 @@
+**当前切片（2026-10-07）：** 产品6d51aeb/map66dbbe3e/157输入未变，Owner远端B-Home与Moose单副本B的小读/删除完成数据采集；各1预热+5配对，64MiB完整内容及B独立读、600删除路径确认PASS。读中位数427.371/14854.399MiB/s，删除1039.769/1241.516次/s；缓存未观察、旧负载保留，不称持平/正式性能资格。A Moose客户端TERM真实wait1为清理FAIL，原判据不改；其余新服务stop0，独立postcheck无新进程/mount、旧incarnation未变。 [证据](evidence/20261007-owner-remote-small/README.md)。
+
+**下一项：** 不重跑本轮数据或微调残差；保留远端优化及Moose客户端正常关闭协议缺口为独立TODO，转DFS小规模一写多读摸底。Owner远端写强持久比较、DFS三同步/3FS基线、R2官方fuser API仍各自独立未闭合；bind默认OFF。G1历史8/8、G2 9限定完成/2普通性能FAIL/2bind进行中/14待验收不变。OFF试用包已可下载，复现/35checks安装恢复不变；不计完整G2.27。
+
 # AFS 三阶段目标与独立验收清单
 
 2026-10-06，按本轮用户讨论对齐。本文是目标、优先级、独立验收项和出口的唯一主表，替代旧G2.2a/b/c整套准备优先的执行顺序。旧实验/失败/检查点保留原身份；[完整验收目录](../docs/acceptance.md)按本表分阶段执行。
@@ -71,9 +75,9 @@
 | G2.11 | OwnerFs本地删除 | 固定小文件集合，删除正确，操作性能对照报告 | **完成（限定小项）**；e925c5b 100×4KiB/C1/5对，正确且对照报告已留，无新增比例门槛；[证据](evidence/20261006-e2e-current/r4/README.md) |
 | G2.12 | bind功能验收（独立开关） | 显式可配置、默认OFF；OFF原FUSE回归；ON受管挂载/启动/停止、必要语义/权限、引用排空及重启对账；不安全配置拒绝 | **进行中**；[交接](current-checkpoint.md#historical-evidence)、[基础资格](current-checkpoint.md#historical-evidence)；[管理员实验接线](native-workspace-slice.md)，默认OFF；[实际受管单容器生命周期/清理PASS](evidence/20261007-managed-workspace/README.md)；[短语义](evidence/20261007-managed-semantics/README.md)：mmap字节/权限PASS，锁/append偏移/watch传播FAIL；[append r8独立数据](evidence/20261007-append-diagnostic/README.md)顺序/128记录PASS，偏移仍FAIL，本轮诊断收口；完整ON及生产开关未资格化 |
 | G2.13 | bind性能验收（独立开关） | 同候选OFF/ON/ext4配对；核心数据读写和元数据接近ext4，内容/语义正确 | **进行中**；[当前6d51aeb小配对诊断](evidence/20261007-container-perf/README.md)：OFF/ON各1预热+5轮，ON写/读耗时1.023/1.031×ext4、六元数据1.048–1.158×ext4；内容/清理通过，缓存/FUSE计数限制及锁/append/watch缺口保留，完整出口未过 |
-| G2.14 | OwnerFs远端小规模读 | 同Home/缓存/接口MooseFS对照，内容正确并持平 | **待验收** |
+| G2.14 | OwnerFs远端小规模读 | 同Home/缓存/接口MooseFS对照，内容正确并持平 | **正式待验收；小数据已留**；6d B-Home/C1/64MiB/1预热5配对，内容PASS，427.371/14854.399MiB/s、配对比0.028803；缓存未观察/旧负载限制，不计持平；Moose客户端wait1清理FAIL保留。[证据](evidence/20261007-owner-remote-small/README.md) |
 | G2.15 | OwnerFs远端小规模写 | 同持久屏障/数据量，跨节点读回正确并持平 | **待验收** |
-| G2.16 | OwnerFs远端删除 | 跨挂载可见性正确，操作性能对照报告 | **待验收** |
+| G2.16 | OwnerFs远端删除 | 跨挂载可见性正确，操作性能对照报告 | **小数据/跨Home正确，完整出口待收口**；6d/100×4KiB/1预热5配对，1039.769/1241.516次/s、配对比0.842255，B600路径不存在；Moose客户端wait1清理FAIL独立保留，不改判据。[证据](evidence/20261007-owner-remote-small/README.md) |
 | G2.17 | OwnerFs本地大规模读 | 8GiB顺序核心case，内容正确并达本地目标 | **待验收** |
 | G2.18 | OwnerFs本地大规模写 | 8GiB同持久屏障，读回正确并达本地目标 | **待验收** |
 | G2.19 | OwnerFs远端大规模读 | 8GiB同条件MooseFS对照，正确并持平 | **待验收** |
@@ -88,7 +92,7 @@
 
 **决策：** native已知append、实际kernel锁、混合mmap/watch、最终namespace/Root/epoch及排空缺口属于G2.12启用前条件，不能延期后冒充通过。OFF版本和普通FUSE性能独立推进；开关不掩盖ON错误，当前不声称已有可用生产开关。
 
-**当前独立出口（2026-10-07）：** 容器配对性能已摸底留数；append r8已区分数据与偏移，偏移/锁/watch缺口保留、实验OFF。当前OFF包独立安装和核心恢复已PASS；同包复现PASS、试用清单已审阅，固定prerelease发布准备中（G2.27分支）；下一Owner远端小读/删新夹具，不称完整性能交付通过；不重复未变标准或微调性能。
+**当前独立出口（2026-10-07）：** 容器配对性能已摸底留数；append r8已区分数据与偏移，偏移/锁/watch缺口保留、实验OFF。当前OFF包独立安装和核心恢复已PASS；同包复现PASS、试用清单已审阅，固定prerelease已发布并核对（G2.27分支）；Owner远端小读/删已摸底留数、清理FAIL保留；下一DFS小规模一写多读，不称完整性能交付通过；不重复未变标准或微调性能。
 
 **前序顺序（范围保留，当前动作以上述出口为准）：** 当前已启动release切片已测完并正常停止，普通读写未达标数据保留、专项优化暂缓；R1仓库整改验证完成并发布，R2原版fuser公开API缺口独立阻塞。DFS本地R1受影响标准回归已完成；其它标准项按功能范围复用或补齐，不为了性能反复跑标准集。性能优先G2.12容器workspace挂载的必要功能/安全出口→G2.13性能。其它核心性能按独立摸底项保留数据，不无限优化；大规模/复杂可靠性/后端仍后置。
 

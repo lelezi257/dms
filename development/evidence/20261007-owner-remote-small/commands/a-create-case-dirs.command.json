@@ -1,0 +1,14 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "afs-accept-a",
+    "sudo",
+    "python3",
+    "-c",
+    "from pathlib import Path;import sys,json\nr=Path(sys.argv[1]);w=sys.argv[2];p=r/'mount/ownerfs'/w/'small-r1';assert p.parent.is_dir();p.mkdir();moose=r/'mount/moose'/'small-r1';moose.mkdir();print(json.dumps({'owner':str(p),'moose':str(moose),'status':'PASS'}))",
+    "/mnt/lima-afsadata/afs-delivery/owner-remote-6d-bhome-20261007-r1",
+    "g2-remote-6d-bhome-r1"
+  ],
+  "exit": 0
+}

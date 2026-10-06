@@ -1,0 +1,14 @@
+test_foreign_child_is_rejected_before_signal (test_owner_remote_fixture.FixtureGuards.test_foreign_child_is_rejected_before_signal) ... ok
+test_owner_only_config_preserves_trust_and_removes_dfs_mount (test_owner_remote_fixture.FixtureGuards.test_owner_only_config_preserves_trust_and_removes_dfs_mount) ... ok
+test_path_escape_and_dangling_symlink_are_rejected (test_owner_remote_fixture.FixtureGuards.test_path_escape_and_dangling_symlink_are_rejected) ... ok
+test_scheduling_state_is_not_identity_but_pid_reuse_is (test_owner_remote_fixture.FixtureGuards.test_scheduling_state_is_not_identity_but_pid_reuse_is) ... ok
+test_existing_output_directory_is_rejected (test_owner_remote_small.OwnerRemoteSmallGuardTests.test_existing_output_directory_is_rejected) ... ok
+test_failed_cleanup_prevents_data_recorded (test_owner_remote_small.OwnerRemoteSmallGuardTests.test_failed_cleanup_prevents_data_recorded) ... ok
+test_failed_syscall_prevents_data_recorded (test_owner_remote_small.OwnerRemoteSmallGuardTests.test_failed_syscall_prevents_data_recorded) ... ok
+test_missing_rounds_do_not_record_data (test_owner_remote_small.OwnerRemoteSmallGuardTests.test_missing_rounds_do_not_record_data) ... ok
+test_validate_io_result_rejects_wrong_content_and_short_read (test_owner_remote_small.OwnerRemoteSmallGuardTests.test_validate_io_result_rejects_wrong_content_and_short_read) ... ok
+
+----------------------------------------------------------------------
+Ran 9 tests in 0.002s
+
+OK

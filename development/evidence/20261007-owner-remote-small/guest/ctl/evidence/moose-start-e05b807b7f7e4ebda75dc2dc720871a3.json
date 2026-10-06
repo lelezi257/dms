@@ -1,0 +1,106 @@
+{
+  "schema": "afs.owner_remote_fixture.v1",
+  "action": "moose-start",
+  "role": "ctl",
+  "root": "/mnt/lima-afsctlstate/afs-delivery/owner-remote-6d-bhome-20261007-r1",
+  "time_unix_ns": 1791322742436047925,
+  "commands": [
+    {
+      "argv": [
+        "findmnt",
+        "-J",
+        "--mountpoint",
+        "/mnt/lima-afsctlstate"
+      ],
+      "returncode": 0,
+      "stdout": "{\n   \"filesystems\": [\n      {\n         \"target\": \"/mnt/lima-afsctlstate\",\n         \"source\": \"/dev/vdb1\",\n         \"fstype\": \"ext4\",\n         \"options\": \"rw,relatime\"\n      }\n   ]\n}\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "findmnt",
+        "-J",
+        "--mountpoint",
+        "/mnt/lima-afsctlstate/afs-delivery/owner-remote-6d-bhome-20261007-r1/mount/moose",
+        "-o",
+        "TARGET,SOURCE,FSTYPE,OPTIONS,ID"
+      ],
+      "returncode": 1,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "ss",
+        "-ltnp"
+      ],
+      "returncode": 0,
+      "stdout": "State  Recv-Q Send-Q  Local Address:Port  Peer Address:PortProcess                                                       \nLISTEN 0      511           0.0.0.0:17637      0.0.0.0:*    users:((\"redis-server\",pid=472165,fd=6))                     \nLISTEN 0      4096          0.0.0.0:58375      0.0.0.0:*    users:((\"rpc.mountd\",pid=1320469,fd=5))                      \nLISTEN 0      128           0.0.0.0:17501      0.0.0.0:*    users:((\"afs-meta\",pid=1136874,fd=10))                       \nLISTEN 0      128           0.0.0.0:17500      0.0.0.0:*    users:((\"afs-meta\",pid=1136874,fd=9))                        \nLISTEN 0      64            0.0.0.0:40275      0.0.0.0:*                                                                 \nLISTEN 0      128           0.0.0.0:19980      0.0.0.0:*    users:((\"afs-meta\",pid=1418880,fd=9))                        \nLISTEN 0      128    192.168.109.11:19981      0.0.0.0:*    users:((\"afs-meta\",pid=1418880,fd=10))                       \nLISTEN 0      4096    127.0.0.53%lo:53         0.0.0.0:*    users:((\"systemd-resolve\",pid=3556,fd=18))                   \nLISTEN 0      4096          0.0.0.0:32975      0.0.0.0:*    users:((\"rpc.statd\",pid=1320456,fd=9))                       \nLISTEN 0      4096       127.0.0.54:53         0.0.0.0:*    users:((\"systemd-resolve\",pid=3556,fd=20))                   \nLISTEN 0      64            0.0.0.0:2049       0.0.0.0:*                                                                 \nLISTEN 0      4096          0.0.0.0:22         0.0.0.0:*    users:((\"sshd\",pid=3573,fd=3),(\"systemd\",pid=1,fd=92))       \nLISTEN 0      4096          0.0.0.0:111        0.0.0.0:*    users:((\"rpcbind\",pid=1319949,fd=4),(\"systemd\",pid=1,fd=113))\nLISTEN 0      128           0.0.0.0:22801      0.0.0.0:*    users:((\"afs-meta\",pid=1681100,fd=10))                       \nLISTEN 0      128           0.0.0.0:22800      0.0.0.0:*    users:((\"afs-meta\",pid=1681100,fd=9))                        \nLISTEN 0      4096          0.0.0.0:35141      0.0.0.0:*    users:((\"rpc.mountd\",pid=1320469,fd=9))                      \nLISTEN 0      4096          0.0.0.0:47739      0.0.0.0:*    users:((\"rpc.mountd\",pid=1320469,fd=13))                     \nLISTEN 0      4096             [::]:36615         [::]:*    users:((\"rpc.statd\",pid=1320456,fd=11))                      \nLISTEN 0      4096             [::]:45227         [::]:*    users:((\"rpc.mountd\",pid=1320469,fd=7))                      \nLISTEN 0      4096             [::]:37091         [::]:*    users:((\"rpc.mountd\",pid=1320469,fd=15))                     \nLISTEN 0      64               [::]:38945         [::]:*                                                                 \nLISTEN 0      64               [::]:2049          [::]:*                                                                 \nLISTEN 0      4096             [::]:22            [::]:*    users:((\"sshd\",pid=3573,fd=4),(\"systemd\",pid=1,fd=93))       \nLISTEN 0      4096             [::]:111           [::]:*    users:((\"rpcbind\",pid=1319949,fd=6),(\"systemd\",pid=1,fd=116))\nLISTEN 0      4096             [::]:45787         [::]:*    users:((\"rpc.mountd\",pid=1320469,fd=11))                     \n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "ss",
+        "-ltnp"
+      ],
+      "returncode": 0,
+      "stdout": "State  Recv-Q Send-Q  Local Address:Port  Peer Address:PortProcess                                                       \nLISTEN 0      511           0.0.0.0:17637      0.0.0.0:*    users:((\"redis-server\",pid=472165,fd=6))                     \nLISTEN 0      4096          0.0.0.0:58375      0.0.0.0:*    users:((\"rpc.mountd\",pid=1320469,fd=5))                      \nLISTEN 0      128           0.0.0.0:17501      0.0.0.0:*    users:((\"afs-meta\",pid=1136874,fd=10))                       \nLISTEN 0      128           0.0.0.0:17500      0.0.0.0:*    users:((\"afs-meta\",pid=1136874,fd=9))                        \nLISTEN 0      64            0.0.0.0:40275      0.0.0.0:*                                                                 \nLISTEN 0      128           0.0.0.0:19980      0.0.0.0:*    users:((\"afs-meta\",pid=1418880,fd=9))                        \nLISTEN 0      128    192.168.109.11:19981      0.0.0.0:*    users:((\"afs-meta\",pid=1418880,fd=10))                       \nLISTEN 0      4096    127.0.0.53%lo:53         0.0.0.0:*    users:((\"systemd-resolve\",pid=3556,fd=18))                   \nLISTEN 0      4096          0.0.0.0:32975      0.0.0.0:*    users:((\"rpc.statd\",pid=1320456,fd=9))                       \nLISTEN 0      4096       127.0.0.54:53         0.0.0.0:*    users:((\"systemd-resolve\",pid=3556,fd=20))                   \nLISTEN 0      64            0.0.0.0:2049       0.0.0.0:*                                                                 \nLISTEN 0      4096          0.0.0.0:22         0.0.0.0:*    users:((\"sshd\",pid=3573,fd=3),(\"systemd\",pid=1,fd=92))       \nLISTEN 0      4096          0.0.0.0:111        0.0.0.0:*    users:((\"rpcbind\",pid=1319949,fd=4),(\"systemd\",pid=1,fd=113))\nLISTEN 0      128           0.0.0.0:22801      0.0.0.0:*    users:((\"afs-meta\",pid=1681100,fd=10))                       \nLISTEN 0      128           0.0.0.0:22800      0.0.0.0:*    users:((\"afs-meta\",pid=1681100,fd=9))                        \nLISTEN 0      4096          0.0.0.0:35141      0.0.0.0:*    users:((\"rpc.mountd\",pid=1320469,fd=9))                      \nLISTEN 0      4096          0.0.0.0:47739      0.0.0.0:*    users:((\"rpc.mountd\",pid=1320469,fd=13))                     \nLISTEN 0      4096             [::]:36615         [::]:*    users:((\"rpc.statd\",pid=1320456,fd=11))                      \nLISTEN 0      4096             [::]:45227         [::]:*    users:((\"rpc.mountd\",pid=1320469,fd=7))                      \nLISTEN 0      4096             [::]:37091         [::]:*    users:((\"rpc.mountd\",pid=1320469,fd=15))                     \nLISTEN 0      64               [::]:38945         [::]:*                                                                 \nLISTEN 0      64               [::]:2049          [::]:*                                                                 \nLISTEN 0      4096             [::]:22            [::]:*    users:((\"sshd\",pid=3573,fd=4),(\"systemd\",pid=1,fd=93))       \nLISTEN 0      4096             [::]:111           [::]:*    users:((\"rpcbind\",pid=1319949,fd=6),(\"systemd\",pid=1,fd=116))\nLISTEN 0      4096             [::]:45787         [::]:*    users:((\"rpc.mountd\",pid=1320469,fd=11))                     \n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "ss",
+        "-ltnp"
+      ],
+      "returncode": 0,
+      "stdout": "State  Recv-Q Send-Q  Local Address:Port  Peer Address:PortProcess                                                       \nLISTEN 0      511           0.0.0.0:17637      0.0.0.0:*    users:((\"redis-server\",pid=472165,fd=6))                     \nLISTEN 0      4096          0.0.0.0:58375      0.0.0.0:*    users:((\"rpc.mountd\",pid=1320469,fd=5))                      \nLISTEN 0      128           0.0.0.0:17501      0.0.0.0:*    users:((\"afs-meta\",pid=1136874,fd=10))                       \nLISTEN 0      128           0.0.0.0:17500      0.0.0.0:*    users:((\"afs-meta\",pid=1136874,fd=9))                        \nLISTEN 0      64            0.0.0.0:40275      0.0.0.0:*                                                                 \nLISTEN 0      128           0.0.0.0:19980      0.0.0.0:*    users:((\"afs-meta\",pid=1418880,fd=9))                        \nLISTEN 0      128    192.168.109.11:19981      0.0.0.0:*    users:((\"afs-meta\",pid=1418880,fd=10))                       \nLISTEN 0      4096    127.0.0.53%lo:53         0.0.0.0:*    users:((\"systemd-resolve\",pid=3556,fd=18))                   \nLISTEN 0      4096          0.0.0.0:32975      0.0.0.0:*    users:((\"rpc.statd\",pid=1320456,fd=9))                       \nLISTEN 0      4096       127.0.0.54:53         0.0.0.0:*    users:((\"systemd-resolve\",pid=3556,fd=20))                   \nLISTEN 0      64            0.0.0.0:2049       0.0.0.0:*                                                                 \nLISTEN 0      4096          0.0.0.0:22         0.0.0.0:*    users:((\"sshd\",pid=3573,fd=3),(\"systemd\",pid=1,fd=92))       \nLISTEN 0      4096          0.0.0.0:111        0.0.0.0:*    users:((\"rpcbind\",pid=1319949,fd=4),(\"systemd\",pid=1,fd=113))\nLISTEN 0      128           0.0.0.0:22801      0.0.0.0:*    users:((\"afs-meta\",pid=1681100,fd=10))                       \nLISTEN 0      128           0.0.0.0:22800      0.0.0.0:*    users:((\"afs-meta\",pid=1681100,fd=9))                        \nLISTEN 0      4096          0.0.0.0:35141      0.0.0.0:*    users:((\"rpc.mountd\",pid=1320469,fd=9))                      \nLISTEN 0      4096          0.0.0.0:47739      0.0.0.0:*    users:((\"rpc.mountd\",pid=1320469,fd=13))                     \nLISTEN 0      4096             [::]:36615         [::]:*    users:((\"rpc.statd\",pid=1320456,fd=11))                      \nLISTEN 0      4096             [::]:45227         [::]:*    users:((\"rpc.mountd\",pid=1320469,fd=7))                      \nLISTEN 0      4096             [::]:37091         [::]:*    users:((\"rpc.mountd\",pid=1320469,fd=15))                     \nLISTEN 0      64               [::]:38945         [::]:*                                                                 \nLISTEN 0      64               [::]:2049          [::]:*                                                                 \nLISTEN 0      4096             [::]:22            [::]:*    users:((\"sshd\",pid=3573,fd=4),(\"systemd\",pid=1,fd=93))       \nLISTEN 0      4096             [::]:111           [::]:*    users:((\"rpcbind\",pid=1319949,fd=6),(\"systemd\",pid=1,fd=116))\nLISTEN 0      4096             [::]:45787         [::]:*    users:((\"rpc.mountd\",pid=1320469,fd=11))                     \n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "ss",
+        "-ltnp"
+      ],
+      "returncode": 0,
+      "stdout": "State  Recv-Q Send-Q  Local Address:Port  Peer Address:PortProcess                                                       \nLISTEN 0      511           0.0.0.0:17637      0.0.0.0:*    users:((\"redis-server\",pid=472165,fd=6))                     \nLISTEN 0      4096          0.0.0.0:58375      0.0.0.0:*    users:((\"rpc.mountd\",pid=1320469,fd=5))                      \nLISTEN 0      128           0.0.0.0:17501      0.0.0.0:*    users:((\"afs-meta\",pid=1136874,fd=10))                       \nLISTEN 0      128           0.0.0.0:17500      0.0.0.0:*    users:((\"afs-meta\",pid=1136874,fd=9))                        \nLISTEN 0      64            0.0.0.0:40275      0.0.0.0:*                                                                 \nLISTEN 0      128           0.0.0.0:19980      0.0.0.0:*    users:((\"afs-meta\",pid=1418880,fd=9))                        \nLISTEN 0      128    192.168.109.11:19981      0.0.0.0:*    users:((\"afs-meta\",pid=1418880,fd=10))                       \nLISTEN 0      4096    127.0.0.53%lo:53         0.0.0.0:*    users:((\"systemd-resolve\",pid=3556,fd=18))                   \nLISTEN 0      4096          0.0.0.0:32975      0.0.0.0:*    users:((\"rpc.statd\",pid=1320456,fd=9))                       \nLISTEN 0      4096       127.0.0.54:53         0.0.0.0:*    users:((\"systemd-resolve\",pid=3556,fd=20))                   \nLISTEN 0      64            0.0.0.0:2049       0.0.0.0:*                                                                 \nLISTEN 0      4096          0.0.0.0:22         0.0.0.0:*    users:((\"sshd\",pid=3573,fd=3),(\"systemd\",pid=1,fd=92))       \nLISTEN 0      4096          0.0.0.0:111        0.0.0.0:*    users:((\"rpcbind\",pid=1319949,fd=4),(\"systemd\",pid=1,fd=113))\nLISTEN 0      128           0.0.0.0:22801      0.0.0.0:*    users:((\"afs-meta\",pid=1681100,fd=10))                       \nLISTEN 0      128           0.0.0.0:22800      0.0.0.0:*    users:((\"afs-meta\",pid=1681100,fd=9))                        \nLISTEN 0      4096          0.0.0.0:35141      0.0.0.0:*    users:((\"rpc.mountd\",pid=1320469,fd=9))                      \nLISTEN 0      4096          0.0.0.0:47739      0.0.0.0:*    users:((\"rpc.mountd\",pid=1320469,fd=13))                     \nLISTEN 0      4096             [::]:36615         [::]:*    users:((\"rpc.statd\",pid=1320456,fd=11))                      \nLISTEN 0      4096             [::]:45227         [::]:*    users:((\"rpc.mountd\",pid=1320469,fd=7))                      \nLISTEN 0      4096             [::]:37091         [::]:*    users:((\"rpc.mountd\",pid=1320469,fd=15))                     \nLISTEN 0      64               [::]:38945         [::]:*                                                                 \nLISTEN 0      64               [::]:2049          [::]:*                                                                 \nLISTEN 0      4096             [::]:22            [::]:*    users:((\"sshd\",pid=3573,fd=4),(\"systemd\",pid=1,fd=93))       \nLISTEN 0      4096             [::]:111           [::]:*    users:((\"rpcbind\",pid=1319949,fd=6),(\"systemd\",pid=1,fd=116))\nLISTEN 0      4096             [::]:45787         [::]:*    users:((\"rpc.mountd\",pid=1320469,fd=11))                     \n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "ss",
+        "-ltnp"
+      ],
+      "returncode": 0,
+      "stdout": "State  Recv-Q Send-Q  Local Address:Port  Peer Address:PortProcess                                                       \nLISTEN 0      511           0.0.0.0:17637      0.0.0.0:*    users:((\"redis-server\",pid=472165,fd=6))                     \nLISTEN 0      4096          0.0.0.0:58375      0.0.0.0:*    users:((\"rpc.mountd\",pid=1320469,fd=5))                      \nLISTEN 0      128           0.0.0.0:17501      0.0.0.0:*    users:((\"afs-meta\",pid=1136874,fd=10))                       \nLISTEN 0      128           0.0.0.0:17500      0.0.0.0:*    users:((\"afs-meta\",pid=1136874,fd=9))                        \nLISTEN 0      64            0.0.0.0:40275      0.0.0.0:*                                                                 \nLISTEN 0      128           0.0.0.0:19980      0.0.0.0:*    users:((\"afs-meta\",pid=1418880,fd=9))                        \nLISTEN 0      128    192.168.109.11:19981      0.0.0.0:*    users:((\"afs-meta\",pid=1418880,fd=10))                       \nLISTEN 0      4096    127.0.0.53%lo:53         0.0.0.0:*    users:((\"systemd-resolve\",pid=3556,fd=18))                   \nLISTEN 0      4096          0.0.0.0:32975      0.0.0.0:*    users:((\"rpc.statd\",pid=1320456,fd=9))                       \nLISTEN 0      4096       127.0.0.54:53         0.0.0.0:*    users:((\"systemd-resolve\",pid=3556,fd=20))                   \nLISTEN 0      64            0.0.0.0:2049       0.0.0.0:*                                                                 \nLISTEN 0      4096          0.0.0.0:22         0.0.0.0:*    users:((\"sshd\",pid=3573,fd=3),(\"systemd\",pid=1,fd=92))       \nLISTEN 0      4096          0.0.0.0:111        0.0.0.0:*    users:((\"rpcbind\",pid=1319949,fd=4),(\"systemd\",pid=1,fd=113))\nLISTEN 0      128           0.0.0.0:22801      0.0.0.0:*    users:((\"afs-meta\",pid=1681100,fd=10))                       \nLISTEN 0      128           0.0.0.0:22800      0.0.0.0:*    users:((\"afs-meta\",pid=1681100,fd=9))                        \nLISTEN 0      4096          0.0.0.0:35141      0.0.0.0:*    users:((\"rpc.mountd\",pid=1320469,fd=9))                      \nLISTEN 0      4096          0.0.0.0:47739      0.0.0.0:*    users:((\"rpc.mountd\",pid=1320469,fd=13))                     \nLISTEN 0      100    192.168.109.11:23040      0.0.0.0:*    users:((\"mfsmaster\",pid=1681092,fd=10))                      \nLISTEN 0      100    192.168.109.11:23041      0.0.0.0:*    users:((\"mfsmaster\",pid=1681092,fd=11))                      \nLISTEN 0      100    192.168.109.11:23042      0.0.0.0:*    users:((\"mfsmaster\",pid=1681092,fd=12))                      \nLISTEN 0      4096             [::]:36615         [::]:*    users:((\"rpc.statd\",pid=1320456,fd=11))                      \nLISTEN 0      4096             [::]:45227         [::]:*    users:((\"rpc.mountd\",pid=1320469,fd=7))                      \nLISTEN 0      4096             [::]:37091         [::]:*    users:((\"rpc.mountd\",pid=1320469,fd=15))                     \nLISTEN 0      64               [::]:38945         [::]:*                                                                 \nLISTEN 0      64               [::]:2049          [::]:*                                                                 \nLISTEN 0      4096             [::]:22            [::]:*    users:((\"sshd\",pid=3573,fd=4),(\"systemd\",pid=1,fd=93))       \nLISTEN 0      4096             [::]:111           [::]:*    users:((\"rpcbind\",pid=1319949,fd=6),(\"systemd\",pid=1,fd=116))\nLISTEN 0      4096             [::]:45787         [::]:*    users:((\"rpc.mountd\",pid=1320469,fd=11))                     \n",
+      "stderr": ""
+    }
+  ],
+  "status": "STARTED_IDENTITY_ONLY",
+  "lifecycle": "/mnt/lima-afsctlstate/afs-delivery/owner-remote-6d-bhome-20261007-r1/run/moose-master-0e8b1407e0224fbb82bfd45ba2198b4d",
+  "child": {
+    "role": "ctl",
+    "root": "/mnt/lima-afsctlstate/afs-delivery/owner-remote-6d-bhome-20261007-r1",
+    "argv": [
+      "/opt/afs-moose-round3-v85/sbin/mfsmaster",
+      "-f",
+      "-c",
+      "/mnt/lima-afsctlstate/afs-delivery/owner-remote-6d-bhome-20261007-r1/config/mfsmaster.cfg",
+      "start"
+    ],
+    "config_sha256": {
+      "/mnt/lima-afsctlstate/afs-delivery/owner-remote-6d-bhome-20261007-r1/etc/meta.toml": "a128728fd0d835fc20ff644b83a82e691ce32ece4280203b3af8a8a6db59e362",
+      "/mnt/lima-afsctlstate/afs-delivery/owner-remote-6d-bhome-20261007-r1/config/mfsmaster.cfg": "5e47ad395c0c0643bf0c56d35458ad137d9de785cd766b90805091998b686b3c",
+      "/mnt/lima-afsctlstate/afs-delivery/owner-remote-6d-bhome-20261007-r1/config/mfsexports.cfg": "07fd79509108b0d7aca641a6465f5107e3e61bebd6085639996009233bf856fd"
+    },
+    "script_sha256": "0027515b8f09e90be9ec56812d165306337925f7440e1a41c1a607aa80ea0e42",
+    "boot_id": "18c9c087-49d6-458f-817b-0f84c0effd7a",
+    "state": "R",
+    "start_ticks": 57145286,
+    "exe_path": "/opt/afs-moose-round3-v85/sbin/mfsmaster",
+    "exe_dev": 64769,
+    "exe_inode": 266802,
+    "pid": 1681092,
+    "supervisor_pid": 1681090,
+    "exe_sha256": "9febf4e7a9ae5285c4e792024f98d8a5531ae325f19268e103693981be509b70"
+  }
+}

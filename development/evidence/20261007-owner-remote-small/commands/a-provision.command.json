@@ -1,0 +1,15 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "afs-accept-a",
+    "sudo",
+    "python3",
+    "-c",
+    "import sys,json,tarfile,hashlib,shutil,platform,os;from pathlib import Path\nr=Path(sys.argv[1]);t=Path(sys.argv[2]);spec=json.loads(sys.argv[3]);assert platform.system()=='Linux' and platform.machine()=='aarch64' and os.geteuid()==0\nassert not r.exists() and not r.is_symlink();assert shutil.disk_usage(r.parent.parent).free>=spec['required'];assert hashlib.sha256(t.read_bytes()).hexdigest()==spec['tar_sha']\nr.mkdir(mode=0o755);[(r/x).mkdir(parents=True,exist_ok=True) for x in ['prefix/bin','tools','state','run','logs','mount/ownerfs','mount/moose','results','config']]\nwith tarfile.open(t) as archive:\n assert all(m.isfile() and m.name in spec['entries'] for m in archive.getmembers())\n for m in archive.getmembers():\n  data=archive.extractfile(m).read();assert hashlib.sha256(data).hexdigest()==spec['entries'][m.name];p=r/m.name;p.write_bytes(data);p.chmod(0o755)\nprint(json.dumps({'root':str(r),'tar_sha256':spec['tar_sha'],'files':spec['entries'],'status':'PASS'}))",
+    "/mnt/lima-afsadata/afs-delivery/owner-remote-6d-bhome-20261007-r1",
+    "/var/tmp/owner-remote-6d-a-deploy.tar",
+    "{\"tar_sha\": \"535588bbed72a74b2bbc06b032af09f4e90cfd37a2f822ac4ab586a1afba4fbc\", \"entries\": {\"prefix/bin/afs-node\": \"2cf1f538fe7af332a711f3c66a074ace140c00773826a182709a6445b8ae2645\", \"prefix/bin/afs-processctl\": \"1ea10552180c917da2c598bee9dd8fecee7be26ae9d70dcdcba2e4829150d896\", \"tools/io\": \"70ac97c7634d406a177a74c783d446b62a2014ba198586132882a1d9228e55e8\"}, \"required\": 1342177280}"
+  ],
+  "exit": 0
+}

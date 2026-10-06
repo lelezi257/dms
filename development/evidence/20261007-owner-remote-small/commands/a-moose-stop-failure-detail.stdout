@@ -1,0 +1,42 @@
+{
+  "exit": {
+    "role": "a",
+    "root": "/mnt/lima-afsadata/afs-delivery/owner-remote-6d-bhome-20261007-r1",
+    "pid": 847589,
+    "supervisor_pid": 847566,
+    "exit_code": 1,
+    "identity": {
+      "role": "a",
+      "root": "/mnt/lima-afsadata/afs-delivery/owner-remote-6d-bhome-20261007-r1",
+      "argv": [
+        "/opt/afs-moose-round3-v85/bin/mfsmount",
+        "-f",
+        "-H",
+        "192.168.109.11",
+        "-P",
+        "23042",
+        "-o",
+        "allow_other,mfsnice=0,mfscachemode=AUTO,mfstimeout=30",
+        "/mnt/lima-afsadata/afs-delivery/owner-remote-6d-bhome-20261007-r1/mount/moose"
+      ],
+      "config_sha256": {
+        "/mnt/lima-afsadata/afs-delivery/owner-remote-6d-bhome-20261007-r1/etc/node.toml": "485592b4e5cea61a648805c4bd9b0f0c5895bd69943484dc34be2999eb16627c"
+      },
+      "script_sha256": "0027515b8f09e90be9ec56812d165306337925f7440e1a41c1a607aa80ea0e42",
+      "boot_id": "36a572e0-859b-4a94-adc7-789210a83fc8",
+      "state": "R",
+      "start_ticks": 57179728,
+      "exe_path": "/opt/afs-moose-round3-v85/bin/mfsmount",
+      "exe_dev": 64769,
+      "exe_inode": 266956,
+      "pid": 847589,
+      "supervisor_pid": 847566,
+      "exe_sha256": "5752f91e2d174cc8a0a53df7b3713b3bed31fde5fe72a6f38cd86237ae3ebc37"
+    },
+    "identity_error": null,
+    "wait_completed": true,
+    "time_unix_ns": 1791323013313089936
+  },
+  "service_log": "mfsmaster accepted connection with parameters: read-write,restricted_ip,admin ; root mapped to root:root ; sclass groups allowed: ALL\n\u001b(B\u001b[m\nsetting glibc malloc arena max to 4\nsetting glibc malloc arena test to 4\nout of memory killer disabled\nmonotonic clock function: clock_gettime\nmonotonic clock speed: 662678 ops / 10 mili seconds\nIgnoring invalid max threads value 4294967295 > max (100000).\nmy st_dev: 48\n",
+  "supervisor_log": ""
+}

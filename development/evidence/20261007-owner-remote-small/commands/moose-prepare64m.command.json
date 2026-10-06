@@ -1,0 +1,20 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "afs-accept-a",
+    "sudo",
+    "/mnt/lima-afsadata/afs-delivery/owner-remote-6d-bhome-20261007-r1/tools/io",
+    "/mnt/lima-afsadata/afs-delivery/owner-remote-6d-bhome-20261007-r1/mount/moose/small-r1/payload64m.bin",
+    "seq-write",
+    "67108864",
+    "1048576",
+    "1",
+    "fdatasync",
+    "67108864",
+    "97",
+    "create",
+    "unobserved"
+  ],
+  "exit": 0
+}

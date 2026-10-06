@@ -1,0 +1,11 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "afs-accept-a",
+    "sudo",
+    "/opt/afs-moose-round3-v85/bin/mfscheckfile",
+    "/mnt/lima-afsadata/afs-delivery/owner-remote-6d-bhome-20261007-r1/mount/moose/small-r1/payload64m.bin"
+  ],
+  "exit": 0
+}

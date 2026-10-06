@@ -1,0 +1,45 @@
+{
+  "postcheck": {
+    "status": "PASS_NO_OWNED_LIVE_PROCESS_OR_MOUNT",
+    "owned_alive": [],
+    "mounts": {
+      "ownerfs": {
+        "exit": 1,
+        "stdout": ""
+      },
+      "moose": {
+        "exit": 1,
+        "stdout": ""
+      }
+    },
+    "old_cohort": [
+      {
+        "original": {
+          "pid": 1136874,
+          "exe": "/mnt/lima-afsctlstate/afs-delivery/p1b/bin/afs-meta",
+          "start_ticks": "1233842",
+          "cmdline": "/mnt/lima-afsctlstate/afs-delivery/p1b/bin/afs-meta --config /mnt/lima-afsctlstate/afs-delivery/p1b/meta.toml "
+        },
+        "same_incarnation": true
+      },
+      {
+        "original": {
+          "pid": 1418880,
+          "exe": "/mnt/lima-afsctlstate/afs-delivery/round1-mainline-v77-archive-async/prefix/bin/afs-meta",
+          "start_ticks": "10164420",
+          "cmdline": "/mnt/lima-afsctlstate/afs-delivery/round1-mainline-v77-archive-async/prefix/bin/afs-meta --config /mnt/lima-afsctlstate/afs-delivery/round1-mainline-v77-archive-async/etc/meta.toml "
+        },
+        "same_incarnation": true
+      }
+    ],
+    "real_exit_receipts": {
+      "run/moose-master-0e8b1407e0224fbb82bfd45ba2198b4d/exit.json": "{\n  \"role\": \"ctl\",\n  \"root\": \"/mnt/lima-afsctlstate/afs-delivery/owner-remote-6d-bhome-20261007-r1\",\n  \"pid\": 1681092,\n  \"supervisor_pid\": 1681090,\n  \"exit_code\": 0,\n  \"identity\": {\n    \"role\": \"ctl\",\n    \"root\": \"/mnt/lima-afsctlstate/afs-delivery/owner-remote-6d-bhome-20261007-r1\",\n    \"argv\": [\n      \"/opt/afs-moose-round3-v85/sbin/mfsmaster\",\n      \"-f\",\n      \"-c\",\n      \"/mnt/lima-afsctlstate/afs-delivery/owner-remote-6d-bhome-20261007-r1/config/mfsmaster.cfg\",\n      \"start\"\n    ],\n    \"config_sha256\": {\n      \"/mnt/lima-afsctlstate/afs-delivery/owner-remote-6d-bhome-20261007-r1/etc/meta.toml\": \"a128728fd0d835fc20ff644b83a82e691ce32ece4280203b3af8a8a6db59e362\",\n      \"/mnt/lima-afsctlstate/afs-delivery/owner-remote-6d-bhome-20261007-r1/config/mfsmaster.cfg\": \"5e47ad395c0c0643bf0c56d35458ad137d9de785cd766b90805091998b686b3c\",\n      \"/mnt/lima-afsctlstate/afs-delivery/owner-remote-6d-bhome-20261007-r1/config/mfsexports.cfg\": \"07fd79509108b0d7aca641a6465f5107e3e61bebd6085639996009233bf856fd\"\n    },\n    \"script_sha256\": \"0027515b8f09e90be9ec56812d165306337925f7440e1a41c1a607aa80ea0e42\",\n    \"boot_id\": \"18c9c087-49d6-458f-817b-0f84c0effd7a\",\n    \"state\": \"R\",\n    \"start_ticks\": 57145286,\n    \"exe_path\": \"/opt/afs-moose-round3-v85/sbin/mfsmaster\",\n    \"exe_dev\": 64769,\n    \"exe_inode\": 266802,\n    \"pid\": 1681092,\n    \"supervisor_pid\": 1681090,\n    \"exe_sha256\": \"9febf4e7a9ae5285c4e792024f98d8a5531ae325f19268e103693981be509b70\"\n  },\n  \"identity_error\": null,\n  \"wait_completed\": true,\n  \"time_unix_ns\": 1791323083154556554\n}\n",
+      "run/meta.lifecycle.CWJ018/exit": "pid=1681100\nexe=/mnt/lima-afsctlstate/afs-delivery/owner-remote-6d-bhome-20261007-r1/prefix/bin/afs-meta\nconfig=/mnt/lima-afsctlstate/afs-delivery/owner-remote-6d-bhome-20261007-r1/etc/meta.toml\nstart_ticks=57145290\nboot_id=18c9c087-49d6-458f-817b-0f84c0effd7a\nlifecycle=/mnt/lima-afsctlstate/afs-delivery/owner-remote-6d-bhome-20261007-r1/run/meta.lifecycle.CWJ018\nsupervisor_pid=1681079\nexit_code=0\n"
+    },
+    "allocated_bytes_du": "26423296\t/mnt/lima-afsctlstate/afs-delivery/owner-remote-6d-bhome-20261007-r1\n",
+    "free_bytes": 4455219200,
+    "note": "Moose mount wait exit1 is a retained cleanup FAIL despite process/mount gone"
+  },
+  "text_receipts_tar_sha256": "9f7333750a5f76168e796d34b6c36af7fac61ed7812a05328a094c38b37d312e",
+  "text_receipts_tar_bytes": 122880
+}

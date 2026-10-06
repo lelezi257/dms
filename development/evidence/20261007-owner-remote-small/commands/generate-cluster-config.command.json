@@ -1,0 +1,29 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "afs-accept-ctl",
+    "sudo",
+    "/mnt/lima-afsctlstate/afs-delivery/owner-remote-6d-bhome-20261007-r1/prefix/bin/afs-trial-config",
+    "cluster",
+    "--backend",
+    "local-file",
+    "--meta-host",
+    "192.168.109.11",
+    "--node",
+    "remote-a-r1=192.168.109.12",
+    "--node",
+    "remote-b-r1=192.168.109.13",
+    "--meta-grpc-port",
+    "22800",
+    "--meta-rest-port",
+    "22801",
+    "--node-grpc-port",
+    "22900",
+    "--node-rest-port",
+    "22901",
+    "--output",
+    "/mnt/lima-afsctlstate/afs-delivery/owner-remote-6d-bhome-20261007-r1/generated"
+  ],
+  "exit": 0
+}

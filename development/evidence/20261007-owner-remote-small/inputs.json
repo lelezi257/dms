@@ -1,0 +1,23 @@
+{
+  "product_source": "6d51aeb45c1ed8669d80f612b3817e6d1bdabe04",
+  "compiler_input_map": "66dbbe3e0071fcec1efc9cf370c709a99f025d39acd4f37ba57582c874429304",
+  "product_inputs": 157,
+  "package_sha256": "ee25d5892c4e884e67c86d4e5b9c6ab551af4c46649edab6a05da06659d1aff9",
+  "new_maintained_inputs": {
+    "development/acceptance/owner_remote_small.py": "d901442e19740143f84c106bd31d2ed6162fe0b278267cde5460a947584aaf98",
+    "development/acceptance/test_owner_remote_small.py": "f858dc6aded97dd5ea61131ca3eab01c87ee7e2959401ee313cc06f1364ea234",
+    "development/acceptance/probes/owner_remote_fixture.py": "0027515b8f09e90be9ec56812d165306337925f7440e1a41c1a607aa80ea0e42",
+    "development/acceptance/probes/test_owner_remote_fixture.py": "a7b26ef35e10d48b6e0acd2a9f216c603484e638597563ab853885001c75f90a"
+  },
+  "canonical_io_source": "development/acceptance/probes/ownerfs_native_closeout_io.c",
+  "io_elf_sha256": "70ac97c7634d406a177a74c783d446b62a2014ba198586132882a1d9228e55e8",
+  "linux_guard_accounting": {
+    "initial_tests": 9,
+    "affected_final_small_tests": 8,
+    "unique_final_methods": 12,
+    "fixture_unchanged_reused": 4,
+    "note": "12 unique methods, not17; old small/test identity restored by reversible deltas. No Mac runtime tests."
+  },
+  "contract": "../20261007-owner-remote-bhome-preflight/contract.json",
+  "payload_policy": "No full source snapshots, ELF, rootfs, private key or tar file included; current first-party tools maintained at canonical paths; original initial tools restored using verified reverse deltas."
+}

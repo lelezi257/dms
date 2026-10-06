@@ -1,0 +1,1 @@
+{"root": "/mnt/lima-afsbdata/afs-delivery/owner-remote-6d-bhome-20261007-r1", "tar_sha256": "660843338284a5175f94961efb3871a6dd6817df2878a53d5fdbd233123bf462", "files": {"prefix/bin/afs-node": "2cf1f538fe7af332a711f3c66a074ace140c00773826a182709a6445b8ae2645", "prefix/bin/afs-processctl": "1ea10552180c917da2c598bee9dd8fecee7be26ae9d70dcdcba2e4829150d896"}, "status": "PASS"}

@@ -1,0 +1,2 @@
+{"msg":"meta.ready","level":"INFO","ts":"2026-10-06T21:39:01.94006813Z","instance":"meta-ctl","service_name":"afs-meta","rest":"0.0.0.0:22801","grpc":"0.0.0.0:22800"}
+{"msg":"services.stopped","level":"INFO","ts":"2026-10-06T21:44:40.683645459Z","instance":"meta-ctl","service_name":"afs-meta"}

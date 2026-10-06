@@ -1,0 +1,14 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "afs-accept-a",
+    "sudo",
+    "install",
+    "-m",
+    "0755",
+    "/var/tmp/owner-remote-6d-test_owner_remote_fixture.py",
+    "/mnt/lima-afsadata/afs-delivery/owner-remote-6d-bhome-20261007-r1/tools/test_owner_remote_fixture.py"
+  ],
+  "exit": 0
+}

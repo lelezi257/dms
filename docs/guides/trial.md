@@ -144,3 +144,5 @@ config, state, logs and lifecycle evidence.
   performance ratios are not claimed by this trial smoke. G2 starts with
   standard fallback suites and small core performance cases, then grows to
   larger and longer scenarios.
+
+2026-10-07补充：同6d候选[Owner远端小规模读/删除摸底](../../development/evidence/20261007-owner-remote-small/README.md)已留原始数据，采样正确性通过但正式性能和Moose客户端正常关闭出口未闭合，不改变OFF包的35项安装/核心恢复回执。

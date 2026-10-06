@@ -1,0 +1,82 @@
+{
+  "status": "PASS_CONFIG_ADMISSION_ONLY",
+  "identities": {
+    "node": {
+      "path": "/mnt/lima-afsbdata/afs-delivery/owner-remote-6d-bhome-20261007-r1/prefix/bin/afs-node",
+      "sha256": "2cf1f538fe7af332a711f3c66a074ace140c00773826a182709a6445b8ae2645",
+      "bytes": 25880120
+    },
+    "sbin/mfschunkserver": {
+      "path": "/opt/afs-moose-round3-v85/sbin/mfschunkserver",
+      "resolved_path": "/opt/afs-moose-round3-v85/sbin/mfschunkserver",
+      "sha256": "422a36b7e31a6aa0bfbef08efe083d9d55003aca0a9a7bd0121b730c33f97303"
+    }
+  },
+  "print_config": {
+    "id": "remote-b-r1",
+    "grpc_listen": "0.0.0.0:22900",
+    "rest_listen": "0.0.0.0:22901",
+    "meta_endpoint": "https://192.168.109.11:22800",
+    "etcd_endpoint": null,
+    "redis_endpoint": null,
+    "meta_store": "etcd",
+    "allow_volatile_meta": false,
+    "peer_endpoint": null,
+    "advertise_endpoint": "https://192.168.109.13:22900",
+    "tls_ca_certificate": "/mnt/lima-afsbdata/afs-delivery/owner-remote-6d-bhome-20261007-r1/etc/tls/ca.pem",
+    "tls_identity_certificate": "/mnt/lima-afsbdata/afs-delivery/owner-remote-6d-bhome-20261007-r1/etc/tls/remote-b-r1.pem",
+    "tls_identity_private_key": "/mnt/lima-afsbdata/afs-delivery/owner-remote-6d-bhome-20261007-r1/etc/tls/remote-b-r1-key.pem",
+    "tls_server_name": "afs-meta",
+    "trusted_node_certs": {
+      "remote-a-r1": "/mnt/lima-afsbdata/afs-delivery/owner-remote-6d-bhome-20261007-r1/etc/tls/remote-a-r1.pem",
+      "remote-b-r1": "/mnt/lima-afsbdata/afs-delivery/owner-remote-6d-bhome-20261007-r1/etc/tls/remote-b-r1.pem"
+    },
+    "ownerfs": true,
+    "dfs": false,
+    "data_mode": "grpc",
+    "rdma_device": null,
+    "data_dir": "/mnt/lima-afsbdata/afs-delivery/owner-remote-6d-bhome-20261007-r1/state/node",
+    "uds_path": "/mnt/lima-afsbdata/afs-delivery/owner-remote-6d-bhome-20261007-r1/run/node.sock",
+    "ownerfs_mount": "/mnt/lima-afsbdata/afs-delivery/owner-remote-6d-bhome-20261007-r1/mount/ownerfs",
+    "experimental_native_workspace": false,
+    "native_workspace": null,
+    "dfs_mount": null,
+    "dfs_desired_copies": 2,
+    "dfs_sync_required_copies": 2,
+    "dfs_min_distinct_nodes": 2,
+    "dfs_min_distinct_failure_domains": 2,
+    "dfs_local_copy": "required",
+    "dfs_read_max_ops_per_batch": 128,
+    "dfs_read_max_inflight_bytes": 8388608,
+    "dfs_read_source_cache_ttl_ms": 500,
+    "timeout_ms": 5000,
+    "log_level": "info",
+    "trace_enabled": false,
+    "trace_endpoint": "http://127.0.0.1:4317",
+    "trace_sample_ratio": 0.01
+  },
+  "config_sha256": {
+    "/mnt/lima-afsbdata/afs-delivery/owner-remote-6d-bhome-20261007-r1/etc/node.toml": "41e1fde2720013c5b78624065707ac34afdc1cb975d0adba9c201bbadcd19a02",
+    "/mnt/lima-afsbdata/afs-delivery/owner-remote-6d-bhome-20261007-r1/config/mfschunkserver.cfg": "01706742d45e20446ff68104269da445d6a88ffe19d7caf0453d97406f11cb36",
+    "/mnt/lima-afsbdata/afs-delivery/owner-remote-6d-bhome-20261007-r1/config/mfshdd.cfg": "b786be2d4a96f9ecf336837e6a0347e0dd0914117be5add63b4c162803bfc05a"
+  },
+  "tls_sha256": {
+    "/mnt/lima-afsbdata/afs-delivery/owner-remote-6d-bhome-20261007-r1/etc/tls/ca.pem": "1211e0511614c8355eb5aad3c8f35ab2b3414b0300b80f3c96a2c64dadd742d4",
+    "/mnt/lima-afsbdata/afs-delivery/owner-remote-6d-bhome-20261007-r1/etc/tls/meta.pem": "2379c127c328d0c55390468e86eec202b3fad43cb2e5070ebd979fd0c7b2ff84",
+    "/mnt/lima-afsbdata/afs-delivery/owner-remote-6d-bhome-20261007-r1/etc/tls/remote-a-r1.pem": "eb316f0b4a0a151305e79807953452350c23fe15fc9cfd75bab4820d6e8fed38",
+    "/mnt/lima-afsbdata/afs-delivery/owner-remote-6d-bhome-20261007-r1/etc/tls/remote-b-r1.pem": "5fd31a1f4bc8387d2b72f677a73a97c01bec9646ce3eaec1cc47b6a101796a0c"
+  },
+  "capacity": {
+    "mount": {
+      "target": "/mnt/lima-afsbdata",
+      "source": "/dev/vdb1",
+      "fstype": "ext4",
+      "options": "rw,relatime"
+    },
+    "available_bytes": 18801577984,
+    "owned_allocated_bytes": 26054656,
+    "working_budget_bytes": 1073741824,
+    "remaining_free_floor_bytes": 4294967296
+  },
+  "remaining": "authenticated connectivity, live mount/Home/class/topology proofs belong to execution"
+}

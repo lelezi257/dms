@@ -1,0 +1,48 @@
+{
+  "status": "PASS",
+  "scope": "independent B FUSE Home namespace; not A/client namespace",
+  "mount": {
+    "target": "/mnt/lima-afsbdata/afs-delivery/owner-remote-6d-bhome-20261007-r1/mount/ownerfs",
+    "source": "afs-ownerfs",
+    "fstype": "fuse",
+    "id": 92
+  },
+  "checked_files": 600,
+  "rounds": [
+    {
+      "round": 0,
+      "absent_files": 100,
+      "cohort_dir_absent": true
+    },
+    {
+      "round": 1,
+      "absent_files": 100,
+      "cohort_dir_absent": true
+    },
+    {
+      "round": 2,
+      "absent_files": 100,
+      "cohort_dir_absent": true
+    },
+    {
+      "round": 3,
+      "absent_files": 100,
+      "cohort_dir_absent": true
+    },
+    {
+      "round": 4,
+      "absent_files": 100,
+      "cohort_dir_absent": true
+    },
+    {
+      "round": 5,
+      "absent_files": 100,
+      "cohort_dir_absent": true
+    }
+  ],
+  "retained_moose_read_chunk": {
+    "path": "/mnt/lima-afsbdata/afs-delivery/owner-remote-6d-bhome-20261007-r1/state/moose/chunks/00/chunk_0000000000000001_00000001.mfs",
+    "bytes": 67117056,
+    "sha256": "ee89d162c6010117ea6969ed98de1663ff14ab26a56771559ffae5da1caa74b7"
+  }
+}

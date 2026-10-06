@@ -1,0 +1,7 @@
+pid=238460
+exe=/mnt/lima-afsbdata/afs-delivery/owner-remote-6d-bhome-20261007-r1/prefix/bin/afs-node
+config=/mnt/lima-afsbdata/afs-delivery/owner-remote-6d-bhome-20261007-r1/etc/node.toml
+start_ticks=56246190
+boot_id=3adebcd0-cb31-4df0-b18a-e970786ab7fb
+lifecycle=/mnt/lima-afsbdata/afs-delivery/owner-remote-6d-bhome-20261007-r1/run/node.lifecycle.6WlsUs
+supervisor_pid=238444

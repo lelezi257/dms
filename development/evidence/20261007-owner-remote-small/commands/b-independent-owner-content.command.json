@@ -1,0 +1,13 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "afs-accept-b",
+    "sudo",
+    "python3",
+    "-c",
+    "import json,sys,hashlib;from pathlib import Path\np=Path(sys.argv[1]);n=0;h=hashlib.sha256();content=True\nwith p.open('rb') as f:\n while b:=f.read(1048576):n+=len(b);h.update(b);content=content and b==b'a'*len(b)\nexpected=hashlib.sha256(b'a'*67108864).hexdigest();assert n==67108864 and content and h.hexdigest()==expected;print(json.dumps({'path':str(p),'bytes':n,'sha256':h.hexdigest(),'expected_sha256':expected,'independent_B_FUSE_open':True,'status':'PASS'}))",
+    "/mnt/lima-afsbdata/afs-delivery/owner-remote-6d-bhome-20261007-r1/mount/ownerfs/g2-remote-6d-bhome-r1/small-r1/payload64m.bin"
+  ],
+  "exit": 0
+}

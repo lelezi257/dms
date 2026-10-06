@@ -1,0 +1,118 @@
+{
+  "measured": true,
+  "order": [
+    "moose",
+    "owner"
+  ],
+  "round": 1,
+  "samples": [
+    {
+      "argv": [
+        "/mnt/lima-afsadata/afs-delivery/owner-remote-6d-bhome-20261007-r1/tools/io",
+        "/mnt/lima-afsadata/afs-delivery/owner-remote-6d-bhome-20261007-r1/mount/moose/small-r1/payload64m.bin",
+        "seq-read",
+        "67108864",
+        "1048576",
+        "1",
+        "close",
+        "67108864",
+        "97",
+        "existing",
+        "unobserved"
+      ],
+      "artifact": "/mnt/lima-afsadata/afs-delivery/owner-remote-6d-bhome-20261007-r1/results/read-r1/read-samples/round-01-moose.json",
+      "elapsed_ns": 5049472,
+      "measured": true,
+      "rc": 0,
+      "result": {
+        "barrier": "close",
+        "barrier_ns": 125,
+        "block_bytes": 1048576,
+        "cache_prepare_attempts": 0,
+        "cache_requested": "unobserved",
+        "client_cpu_ns": 4142124,
+        "concurrency": 1,
+        "content_ok": true,
+        "file_bytes": 67108864,
+        "file_object": {
+          "device": 48,
+          "inode": 3
+        },
+        "io_bytes": 67108864,
+        "operation": "seq-read",
+        "operations": 64,
+        "p50_ns": 54958,
+        "p95_ns": 92789,
+        "p99_ns": 100081,
+        "pattern_byte": 97,
+        "residency_observed": false,
+        "resident_after_bytes": 0,
+        "resident_before_bytes": 0,
+        "seed": 257,
+        "wall_ns": 4308488
+      },
+      "round": 1,
+      "status": "PASS",
+      "stderr": "",
+      "stdout": "{\"operation\":\"seq-read\",\"file_bytes\":67108864,\"io_bytes\":67108864,\"block_bytes\":1048576,\"concurrency\":1,\"barrier\":\"close\",\"pattern_byte\":97,\"seed\":257,\"operations\":64,\"wall_ns\":4308488,\"client_cpu_ns\":4142124,\"barrier_ns\":125,\"p50_ns\":54958,\"p95_ns\":92789,\"p99_ns\":100081,\"residency_observed\":false,\"resident_before_bytes\":0,\"resident_after_bytes\":0,\"content_ok\":true,\"cache_requested\":\"unobserved\",\"cache_prepare_attempts\":0,\"file_object\":{\"device\":48,\"inode\":3}}\n",
+      "target": "moose",
+      "verify": {
+        "status": "PASS"
+      }
+    },
+    {
+      "argv": [
+        "/mnt/lima-afsadata/afs-delivery/owner-remote-6d-bhome-20261007-r1/tools/io",
+        "/mnt/lima-afsadata/afs-delivery/owner-remote-6d-bhome-20261007-r1/mount/ownerfs/g2-remote-6d-bhome-r1/small-r1/payload64m.bin",
+        "seq-read",
+        "67108864",
+        "1048576",
+        "1",
+        "close",
+        "67108864",
+        "97",
+        "existing",
+        "unobserved"
+      ],
+      "artifact": "/mnt/lima-afsadata/afs-delivery/owner-remote-6d-bhome-20261007-r1/results/read-r1/read-samples/round-01-owner.json",
+      "elapsed_ns": 152837244,
+      "measured": true,
+      "rc": 0,
+      "result": {
+        "barrier": "close",
+        "barrier_ns": 166,
+        "block_bytes": 1048576,
+        "cache_prepare_attempts": 0,
+        "cache_requested": "unobserved",
+        "client_cpu_ns": 2775005,
+        "concurrency": 1,
+        "content_ok": true,
+        "file_bytes": 67108864,
+        "file_object": {
+          "device": 49,
+          "inode": 4
+        },
+        "io_bytes": 67108864,
+        "operation": "seq-read",
+        "operations": 64,
+        "p50_ns": 2415197,
+        "p95_ns": 2838687,
+        "p99_ns": 2963893,
+        "pattern_byte": 97,
+        "residency_observed": false,
+        "resident_after_bytes": 0,
+        "resident_before_bytes": 0,
+        "seed": 257,
+        "wall_ns": 149586357
+      },
+      "round": 1,
+      "status": "PASS",
+      "stderr": "",
+      "stdout": "{\"operation\":\"seq-read\",\"file_bytes\":67108864,\"io_bytes\":67108864,\"block_bytes\":1048576,\"concurrency\":1,\"barrier\":\"close\",\"pattern_byte\":97,\"seed\":257,\"operations\":64,\"wall_ns\":149586357,\"client_cpu_ns\":2775005,\"barrier_ns\":166,\"p50_ns\":2415197,\"p95_ns\":2838687,\"p99_ns\":2963893,\"residency_observed\":false,\"resident_before_bytes\":0,\"resident_after_bytes\":0,\"content_ok\":true,\"cache_requested\":\"unobserved\",\"cache_prepare_attempts\":0,\"file_object\":{\"device\":49,\"inode\":4}}\n",
+      "target": "owner",
+      "verify": {
+        "status": "PASS"
+      }
+    }
+  ]
+}

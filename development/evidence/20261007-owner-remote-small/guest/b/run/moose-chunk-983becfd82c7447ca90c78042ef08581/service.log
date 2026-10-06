@@ -1,0 +1,35 @@
+open files limit has been set to: 16384
+nice limit set to infinity
+using linux ioprio (ionice) syscalls for I/O priority
+set gid to 0
+cleared auxiliary groups
+set uid to 0
+working directory: /mnt/lima-afsbdata/afs-delivery/owner-remote-6d-bhome-20261007-r1/state/moose/chunkstate
+lockfile created and locked
+setting glibc malloc arena max to 4
+setting glibc malloc arena test to 4
+monotonic clock function: clock_gettime
+monotonic clock speed: 652630 ops / 10 mili seconds
+initializing mfschunkserver modules ...
+hdd space manager: folder /mnt/lima-afsbdata/afs-delivery/owner-remote-6d-bhome-20261007-r1/state/moose/chunks/ will be scanned
+hdd space manager: setting open chunks limit to: 10922
+hdd space manager: path to scan: /mnt/lima-afsbdata/afs-delivery/owner-remote-6d-bhome-20261007-r1/state/moose/chunks/
+hdd space manager: start background hdd scanning (searching for available chunks)
+main server module: listen on 192.168.109.13:23043
+connecting ...
+no charts data file - initializing empty charts
+mfschunkserver daemon initialized properly
+connected to Master
+scanning folder /mnt/lima-afsbdata/afs-delivery/owner-remote-6d-bhome-20261007-r1/state/moose/chunks/: complete (0s)
+terminate signal received
+sending unregister command ...
+closing 192.168.109.13:23043
+closing connection with master
+exited from main loop
+exititng ...
+terminating aux threads
+closing chunks
+freeing data structures
+disk /mnt/lima-afsbdata/afs-delivery/owner-remote-6d-bhome-20261007-r1/state/moose/chunks/: '.chunkdb' has been written
+hddspacemgr: terminating done
+process exited successfully (status:0)

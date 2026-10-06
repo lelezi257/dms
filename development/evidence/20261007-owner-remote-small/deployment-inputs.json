@@ -1,0 +1,22 @@
+{
+  "afs-meta": {
+    "sha256": "2c7b7d088b759e3b9375080002182aa484a424b4fa216da1fb79a1004e96168e",
+    "bytes": 15821088,
+    "archive_path": "afs-0.1.0-g2-procfree-6d51aeb-linux-aarch64/bin/afs-meta"
+  },
+  "afs-node": {
+    "sha256": "2cf1f538fe7af332a711f3c66a074ace140c00773826a182709a6445b8ae2645",
+    "bytes": 25880120,
+    "archive_path": "afs-0.1.0-g2-procfree-6d51aeb-linux-aarch64/bin/afs-node"
+  },
+  "afs-processctl": {
+    "sha256": "1ea10552180c917da2c598bee9dd8fecee7be26ae9d70dcdcba2e4829150d896",
+    "bytes": 27095,
+    "archive_path": "afs-0.1.0-g2-procfree-6d51aeb-linux-aarch64/bin/afs-processctl"
+  },
+  "afs-trial-config": {
+    "sha256": "c47783f9525826d4a0e137499bb1a779f94b3474c7355dd53aec0e615b98889b",
+    "bytes": 10374,
+    "archive_path": "afs-0.1.0-g2-procfree-6d51aeb-linux-aarch64/bin/afs-trial-config"
+  }
+}

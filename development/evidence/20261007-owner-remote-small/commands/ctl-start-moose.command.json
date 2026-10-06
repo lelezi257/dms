@@ -1,0 +1,15 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "afs-accept-ctl",
+    "sudo",
+    "python3",
+    "/mnt/lima-afsctlstate/afs-delivery/owner-remote-6d-bhome-20261007-r1/tools/owner_remote_fixture.py",
+    "moose-start",
+    "ctl",
+    "--timeout",
+    "30"
+  ],
+  "exit": 0
+}

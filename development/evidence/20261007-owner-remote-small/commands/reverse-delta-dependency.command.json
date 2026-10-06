@@ -1,0 +1,12 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "afs-accept-a",
+    "sudo",
+    "python3",
+    "-c",
+    "import shutil;print(shutil.which('patch') or 'MISSING')"
+  ],
+  "exit": 0
+}

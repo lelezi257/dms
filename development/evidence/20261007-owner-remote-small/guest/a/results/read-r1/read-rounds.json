@@ -1,0 +1,710 @@
+[
+  {
+    "measured": false,
+    "order": [
+      "owner",
+      "moose"
+    ],
+    "round": 0,
+    "samples": [
+      {
+        "argv": [
+          "/mnt/lima-afsadata/afs-delivery/owner-remote-6d-bhome-20261007-r1/tools/io",
+          "/mnt/lima-afsadata/afs-delivery/owner-remote-6d-bhome-20261007-r1/mount/ownerfs/g2-remote-6d-bhome-r1/small-r1/payload64m.bin",
+          "seq-read",
+          "67108864",
+          "1048576",
+          "1",
+          "close",
+          "67108864",
+          "97",
+          "existing",
+          "unobserved"
+        ],
+        "artifact": "/mnt/lima-afsadata/afs-delivery/owner-remote-6d-bhome-20261007-r1/results/read-r1/read-samples/round-00-owner.json",
+        "elapsed_ns": 158295332,
+        "measured": false,
+        "rc": 0,
+        "result": {
+          "barrier": "close",
+          "barrier_ns": 291,
+          "block_bytes": 1048576,
+          "cache_prepare_attempts": 0,
+          "cache_requested": "unobserved",
+          "client_cpu_ns": 3043046,
+          "concurrency": 1,
+          "content_ok": true,
+          "file_bytes": 67108864,
+          "file_object": {
+            "device": 49,
+            "inode": 4
+          },
+          "io_bytes": 67108864,
+          "operation": "seq-read",
+          "operations": 64,
+          "p50_ns": 2408530,
+          "p95_ns": 3156430,
+          "p99_ns": 3920788,
+          "pattern_byte": 97,
+          "residency_observed": false,
+          "resident_after_bytes": 0,
+          "resident_before_bytes": 0,
+          "seed": 257,
+          "wall_ns": 155273524
+        },
+        "round": 0,
+        "status": "PASS",
+        "stderr": "",
+        "stdout": "{\"operation\":\"seq-read\",\"file_bytes\":67108864,\"io_bytes\":67108864,\"block_bytes\":1048576,\"concurrency\":1,\"barrier\":\"close\",\"pattern_byte\":97,\"seed\":257,\"operations\":64,\"wall_ns\":155273524,\"client_cpu_ns\":3043046,\"barrier_ns\":291,\"p50_ns\":2408530,\"p95_ns\":3156430,\"p99_ns\":3920788,\"residency_observed\":false,\"resident_before_bytes\":0,\"resident_after_bytes\":0,\"content_ok\":true,\"cache_requested\":\"unobserved\",\"cache_prepare_attempts\":0,\"file_object\":{\"device\":49,\"inode\":4}}\n",
+        "target": "owner",
+        "verify": {
+          "status": "PASS"
+        }
+      },
+      {
+        "argv": [
+          "/mnt/lima-afsadata/afs-delivery/owner-remote-6d-bhome-20261007-r1/tools/io",
+          "/mnt/lima-afsadata/afs-delivery/owner-remote-6d-bhome-20261007-r1/mount/moose/small-r1/payload64m.bin",
+          "seq-read",
+          "67108864",
+          "1048576",
+          "1",
+          "close",
+          "67108864",
+          "97",
+          "existing",
+          "unobserved"
+        ],
+        "artifact": "/mnt/lima-afsadata/afs-delivery/owner-remote-6d-bhome-20261007-r1/results/read-r1/read-samples/round-00-moose.json",
+        "elapsed_ns": 8974677,
+        "measured": false,
+        "rc": 0,
+        "result": {
+          "barrier": "close",
+          "barrier_ns": 292,
+          "block_bytes": 1048576,
+          "cache_prepare_attempts": 0,
+          "cache_requested": "unobserved",
+          "client_cpu_ns": 7842251,
+          "concurrency": 1,
+          "content_ok": true,
+          "file_bytes": 67108864,
+          "file_object": {
+            "device": 48,
+            "inode": 3
+          },
+          "io_bytes": 67108864,
+          "operation": "seq-read",
+          "operations": 64,
+          "p50_ns": 102623,
+          "p95_ns": 253036,
+          "p99_ns": 336618,
+          "pattern_byte": 97,
+          "residency_observed": false,
+          "resident_after_bytes": 0,
+          "resident_before_bytes": 0,
+          "seed": 257,
+          "wall_ns": 8017864
+        },
+        "round": 0,
+        "status": "PASS",
+        "stderr": "",
+        "stdout": "{\"operation\":\"seq-read\",\"file_bytes\":67108864,\"io_bytes\":67108864,\"block_bytes\":1048576,\"concurrency\":1,\"barrier\":\"close\",\"pattern_byte\":97,\"seed\":257,\"operations\":64,\"wall_ns\":8017864,\"client_cpu_ns\":7842251,\"barrier_ns\":292,\"p50_ns\":102623,\"p95_ns\":253036,\"p99_ns\":336618,\"residency_observed\":false,\"resident_before_bytes\":0,\"resident_after_bytes\":0,\"content_ok\":true,\"cache_requested\":\"unobserved\",\"cache_prepare_attempts\":0,\"file_object\":{\"device\":48,\"inode\":3}}\n",
+        "target": "moose",
+        "verify": {
+          "status": "PASS"
+        }
+      }
+    ]
+  },
+  {
+    "measured": true,
+    "order": [
+      "moose",
+      "owner"
+    ],
+    "round": 1,
+    "samples": [
+      {
+        "argv": [
+          "/mnt/lima-afsadata/afs-delivery/owner-remote-6d-bhome-20261007-r1/tools/io",
+          "/mnt/lima-afsadata/afs-delivery/owner-remote-6d-bhome-20261007-r1/mount/moose/small-r1/payload64m.bin",
+          "seq-read",
+          "67108864",
+          "1048576",
+          "1",
+          "close",
+          "67108864",
+          "97",
+          "existing",
+          "unobserved"
+        ],
+        "artifact": "/mnt/lima-afsadata/afs-delivery/owner-remote-6d-bhome-20261007-r1/results/read-r1/read-samples/round-01-moose.json",
+        "elapsed_ns": 5049472,
+        "measured": true,
+        "rc": 0,
+        "result": {
+          "barrier": "close",
+          "barrier_ns": 125,
+          "block_bytes": 1048576,
+          "cache_prepare_attempts": 0,
+          "cache_requested": "unobserved",
+          "client_cpu_ns": 4142124,
+          "concurrency": 1,
+          "content_ok": true,
+          "file_bytes": 67108864,
+          "file_object": {
+            "device": 48,
+            "inode": 3
+          },
+          "io_bytes": 67108864,
+          "operation": "seq-read",
+          "operations": 64,
+          "p50_ns": 54958,
+          "p95_ns": 92789,
+          "p99_ns": 100081,
+          "pattern_byte": 97,
+          "residency_observed": false,
+          "resident_after_bytes": 0,
+          "resident_before_bytes": 0,
+          "seed": 257,
+          "wall_ns": 4308488
+        },
+        "round": 1,
+        "status": "PASS",
+        "stderr": "",
+        "stdout": "{\"operation\":\"seq-read\",\"file_bytes\":67108864,\"io_bytes\":67108864,\"block_bytes\":1048576,\"concurrency\":1,\"barrier\":\"close\",\"pattern_byte\":97,\"seed\":257,\"operations\":64,\"wall_ns\":4308488,\"client_cpu_ns\":4142124,\"barrier_ns\":125,\"p50_ns\":54958,\"p95_ns\":92789,\"p99_ns\":100081,\"residency_observed\":false,\"resident_before_bytes\":0,\"resident_after_bytes\":0,\"content_ok\":true,\"cache_requested\":\"unobserved\",\"cache_prepare_attempts\":0,\"file_object\":{\"device\":48,\"inode\":3}}\n",
+        "target": "moose",
+        "verify": {
+          "status": "PASS"
+        }
+      },
+      {
+        "argv": [
+          "/mnt/lima-afsadata/afs-delivery/owner-remote-6d-bhome-20261007-r1/tools/io",
+          "/mnt/lima-afsadata/afs-delivery/owner-remote-6d-bhome-20261007-r1/mount/ownerfs/g2-remote-6d-bhome-r1/small-r1/payload64m.bin",
+          "seq-read",
+          "67108864",
+          "1048576",
+          "1",
+          "close",
+          "67108864",
+          "97",
+          "existing",
+          "unobserved"
+        ],
+        "artifact": "/mnt/lima-afsadata/afs-delivery/owner-remote-6d-bhome-20261007-r1/results/read-r1/read-samples/round-01-owner.json",
+        "elapsed_ns": 152837244,
+        "measured": true,
+        "rc": 0,
+        "result": {
+          "barrier": "close",
+          "barrier_ns": 166,
+          "block_bytes": 1048576,
+          "cache_prepare_attempts": 0,
+          "cache_requested": "unobserved",
+          "client_cpu_ns": 2775005,
+          "concurrency": 1,
+          "content_ok": true,
+          "file_bytes": 67108864,
+          "file_object": {
+            "device": 49,
+            "inode": 4
+          },
+          "io_bytes": 67108864,
+          "operation": "seq-read",
+          "operations": 64,
+          "p50_ns": 2415197,
+          "p95_ns": 2838687,
+          "p99_ns": 2963893,
+          "pattern_byte": 97,
+          "residency_observed": false,
+          "resident_after_bytes": 0,
+          "resident_before_bytes": 0,
+          "seed": 257,
+          "wall_ns": 149586357
+        },
+        "round": 1,
+        "status": "PASS",
+        "stderr": "",
+        "stdout": "{\"operation\":\"seq-read\",\"file_bytes\":67108864,\"io_bytes\":67108864,\"block_bytes\":1048576,\"concurrency\":1,\"barrier\":\"close\",\"pattern_byte\":97,\"seed\":257,\"operations\":64,\"wall_ns\":149586357,\"client_cpu_ns\":2775005,\"barrier_ns\":166,\"p50_ns\":2415197,\"p95_ns\":2838687,\"p99_ns\":2963893,\"residency_observed\":false,\"resident_before_bytes\":0,\"resident_after_bytes\":0,\"content_ok\":true,\"cache_requested\":\"unobserved\",\"cache_prepare_attempts\":0,\"file_object\":{\"device\":49,\"inode\":4}}\n",
+        "target": "owner",
+        "verify": {
+          "status": "PASS"
+        }
+      }
+    ]
+  },
+  {
+    "measured": true,
+    "order": [
+      "owner",
+      "moose"
+    ],
+    "round": 2,
+    "samples": [
+      {
+        "argv": [
+          "/mnt/lima-afsadata/afs-delivery/owner-remote-6d-bhome-20261007-r1/tools/io",
+          "/mnt/lima-afsadata/afs-delivery/owner-remote-6d-bhome-20261007-r1/mount/ownerfs/g2-remote-6d-bhome-r1/small-r1/payload64m.bin",
+          "seq-read",
+          "67108864",
+          "1048576",
+          "1",
+          "close",
+          "67108864",
+          "97",
+          "existing",
+          "unobserved"
+        ],
+        "artifact": "/mnt/lima-afsadata/afs-delivery/owner-remote-6d-bhome-20261007-r1/results/read-r1/read-samples/round-02-owner.json",
+        "elapsed_ns": 152584708,
+        "measured": true,
+        "rc": 0,
+        "result": {
+          "barrier": "close",
+          "barrier_ns": 209,
+          "block_bytes": 1048576,
+          "cache_prepare_attempts": 0,
+          "cache_requested": "unobserved",
+          "client_cpu_ns": 2737538,
+          "concurrency": 1,
+          "content_ok": true,
+          "file_bytes": 67108864,
+          "file_object": {
+            "device": 49,
+            "inode": 4
+          },
+          "io_bytes": 67108864,
+          "operation": "seq-read",
+          "operations": 64,
+          "p50_ns": 2368656,
+          "p95_ns": 2921518,
+          "p99_ns": 3108598,
+          "pattern_byte": 97,
+          "residency_observed": false,
+          "resident_after_bytes": 0,
+          "resident_before_bytes": 0,
+          "seed": 257,
+          "wall_ns": 149752938
+        },
+        "round": 2,
+        "status": "PASS",
+        "stderr": "",
+        "stdout": "{\"operation\":\"seq-read\",\"file_bytes\":67108864,\"io_bytes\":67108864,\"block_bytes\":1048576,\"concurrency\":1,\"barrier\":\"close\",\"pattern_byte\":97,\"seed\":257,\"operations\":64,\"wall_ns\":149752938,\"client_cpu_ns\":2737538,\"barrier_ns\":209,\"p50_ns\":2368656,\"p95_ns\":2921518,\"p99_ns\":3108598,\"residency_observed\":false,\"resident_before_bytes\":0,\"resident_after_bytes\":0,\"content_ok\":true,\"cache_requested\":\"unobserved\",\"cache_prepare_attempts\":0,\"file_object\":{\"device\":49,\"inode\":4}}\n",
+        "target": "owner",
+        "verify": {
+          "status": "PASS"
+        }
+      },
+      {
+        "argv": [
+          "/mnt/lima-afsadata/afs-delivery/owner-remote-6d-bhome-20261007-r1/tools/io",
+          "/mnt/lima-afsadata/afs-delivery/owner-remote-6d-bhome-20261007-r1/mount/moose/small-r1/payload64m.bin",
+          "seq-read",
+          "67108864",
+          "1048576",
+          "1",
+          "close",
+          "67108864",
+          "97",
+          "existing",
+          "unobserved"
+        ],
+        "artifact": "/mnt/lima-afsadata/afs-delivery/owner-remote-6d-bhome-20261007-r1/results/read-r1/read-samples/round-02-moose.json",
+        "elapsed_ns": 8658142,
+        "measured": true,
+        "rc": 0,
+        "result": {
+          "barrier": "close",
+          "barrier_ns": 83,
+          "block_bytes": 1048576,
+          "cache_prepare_attempts": 0,
+          "cache_requested": "unobserved",
+          "client_cpu_ns": 4570791,
+          "concurrency": 1,
+          "content_ok": true,
+          "file_bytes": 67108864,
+          "file_object": {
+            "device": 48,
+            "inode": 3
+          },
+          "io_bytes": 67108864,
+          "operation": "seq-read",
+          "operations": 64,
+          "p50_ns": 59457,
+          "p95_ns": 127455,
+          "p99_ns": 147288,
+          "pattern_byte": 97,
+          "residency_observed": false,
+          "resident_after_bytes": 0,
+          "resident_before_bytes": 0,
+          "seed": 257,
+          "wall_ns": 4750311
+        },
+        "round": 2,
+        "status": "PASS",
+        "stderr": "",
+        "stdout": "{\"operation\":\"seq-read\",\"file_bytes\":67108864,\"io_bytes\":67108864,\"block_bytes\":1048576,\"concurrency\":1,\"barrier\":\"close\",\"pattern_byte\":97,\"seed\":257,\"operations\":64,\"wall_ns\":4750311,\"client_cpu_ns\":4570791,\"barrier_ns\":83,\"p50_ns\":59457,\"p95_ns\":127455,\"p99_ns\":147288,\"residency_observed\":false,\"resident_before_bytes\":0,\"resident_after_bytes\":0,\"content_ok\":true,\"cache_requested\":\"unobserved\",\"cache_prepare_attempts\":0,\"file_object\":{\"device\":48,\"inode\":3}}\n",
+        "target": "moose",
+        "verify": {
+          "status": "PASS"
+        }
+      }
+    ]
+  },
+  {
+    "measured": true,
+    "order": [
+      "moose",
+      "owner"
+    ],
+    "round": 3,
+    "samples": [
+      {
+        "argv": [
+          "/mnt/lima-afsadata/afs-delivery/owner-remote-6d-bhome-20261007-r1/tools/io",
+          "/mnt/lima-afsadata/afs-delivery/owner-remote-6d-bhome-20261007-r1/mount/moose/small-r1/payload64m.bin",
+          "seq-read",
+          "67108864",
+          "1048576",
+          "1",
+          "close",
+          "67108864",
+          "97",
+          "existing",
+          "unobserved"
+        ],
+        "artifact": "/mnt/lima-afsadata/afs-delivery/owner-remote-6d-bhome-20261007-r1/results/read-r1/read-samples/round-03-moose.json",
+        "elapsed_ns": 5011806,
+        "measured": true,
+        "rc": 0,
+        "result": {
+          "barrier": "close",
+          "barrier_ns": 208,
+          "block_bytes": 1048576,
+          "cache_prepare_attempts": 0,
+          "cache_requested": "unobserved",
+          "client_cpu_ns": 4084373,
+          "concurrency": 1,
+          "content_ok": true,
+          "file_bytes": 67108864,
+          "file_object": {
+            "device": 48,
+            "inode": 3
+          },
+          "io_bytes": 67108864,
+          "operation": "seq-read",
+          "operations": 64,
+          "p50_ns": 56249,
+          "p95_ns": 90289,
+          "p99_ns": 119914,
+          "pattern_byte": 97,
+          "residency_observed": false,
+          "resident_after_bytes": 0,
+          "resident_before_bytes": 0,
+          "seed": 257,
+          "wall_ns": 4285030
+        },
+        "round": 3,
+        "status": "PASS",
+        "stderr": "",
+        "stdout": "{\"operation\":\"seq-read\",\"file_bytes\":67108864,\"io_bytes\":67108864,\"block_bytes\":1048576,\"concurrency\":1,\"barrier\":\"close\",\"pattern_byte\":97,\"seed\":257,\"operations\":64,\"wall_ns\":4285030,\"client_cpu_ns\":4084373,\"barrier_ns\":208,\"p50_ns\":56249,\"p95_ns\":90289,\"p99_ns\":119914,\"residency_observed\":false,\"resident_before_bytes\":0,\"resident_after_bytes\":0,\"content_ok\":true,\"cache_requested\":\"unobserved\",\"cache_prepare_attempts\":0,\"file_object\":{\"device\":48,\"inode\":3}}\n",
+        "target": "moose",
+        "verify": {
+          "status": "PASS"
+        }
+      },
+      {
+        "argv": [
+          "/mnt/lima-afsadata/afs-delivery/owner-remote-6d-bhome-20261007-r1/tools/io",
+          "/mnt/lima-afsadata/afs-delivery/owner-remote-6d-bhome-20261007-r1/mount/ownerfs/g2-remote-6d-bhome-r1/small-r1/payload64m.bin",
+          "seq-read",
+          "67108864",
+          "1048576",
+          "1",
+          "close",
+          "67108864",
+          "97",
+          "existing",
+          "unobserved"
+        ],
+        "artifact": "/mnt/lima-afsadata/afs-delivery/owner-remote-6d-bhome-20261007-r1/results/read-r1/read-samples/round-03-owner.json",
+        "elapsed_ns": 156062757,
+        "measured": true,
+        "rc": 0,
+        "result": {
+          "barrier": "close",
+          "barrier_ns": 375,
+          "block_bytes": 1048576,
+          "cache_prepare_attempts": 0,
+          "cache_requested": "unobserved",
+          "client_cpu_ns": 2650205,
+          "concurrency": 1,
+          "content_ok": true,
+          "file_bytes": 67108864,
+          "file_object": {
+            "device": 49,
+            "inode": 4
+          },
+          "io_bytes": 67108864,
+          "operation": "seq-read",
+          "operations": 64,
+          "p50_ns": 2470779,
+          "p95_ns": 2950101,
+          "p99_ns": 2994600,
+          "pattern_byte": 97,
+          "residency_observed": false,
+          "resident_after_bytes": 0,
+          "resident_before_bytes": 0,
+          "seed": 257,
+          "wall_ns": 152790162
+        },
+        "round": 3,
+        "status": "PASS",
+        "stderr": "",
+        "stdout": "{\"operation\":\"seq-read\",\"file_bytes\":67108864,\"io_bytes\":67108864,\"block_bytes\":1048576,\"concurrency\":1,\"barrier\":\"close\",\"pattern_byte\":97,\"seed\":257,\"operations\":64,\"wall_ns\":152790162,\"client_cpu_ns\":2650205,\"barrier_ns\":375,\"p50_ns\":2470779,\"p95_ns\":2950101,\"p99_ns\":2994600,\"residency_observed\":false,\"resident_before_bytes\":0,\"resident_after_bytes\":0,\"content_ok\":true,\"cache_requested\":\"unobserved\",\"cache_prepare_attempts\":0,\"file_object\":{\"device\":49,\"inode\":4}}\n",
+        "target": "owner",
+        "verify": {
+          "status": "PASS"
+        }
+      }
+    ]
+  },
+  {
+    "measured": true,
+    "order": [
+      "owner",
+      "moose"
+    ],
+    "round": 4,
+    "samples": [
+      {
+        "argv": [
+          "/mnt/lima-afsadata/afs-delivery/owner-remote-6d-bhome-20261007-r1/tools/io",
+          "/mnt/lima-afsadata/afs-delivery/owner-remote-6d-bhome-20261007-r1/mount/ownerfs/g2-remote-6d-bhome-r1/small-r1/payload64m.bin",
+          "seq-read",
+          "67108864",
+          "1048576",
+          "1",
+          "close",
+          "67108864",
+          "97",
+          "existing",
+          "unobserved"
+        ],
+        "artifact": "/mnt/lima-afsadata/afs-delivery/owner-remote-6d-bhome-20261007-r1/results/read-r1/read-samples/round-04-owner.json",
+        "elapsed_ns": 149386530,
+        "measured": true,
+        "rc": 0,
+        "result": {
+          "barrier": "close",
+          "barrier_ns": 250,
+          "block_bytes": 1048576,
+          "cache_prepare_attempts": 0,
+          "cache_requested": "unobserved",
+          "client_cpu_ns": 2719542,
+          "concurrency": 1,
+          "content_ok": true,
+          "file_bytes": 67108864,
+          "file_object": {
+            "device": 49,
+            "inode": 4
+          },
+          "io_bytes": 67108864,
+          "operation": "seq-read",
+          "operations": 64,
+          "p50_ns": 2385031,
+          "p95_ns": 2785397,
+          "p99_ns": 2975059,
+          "pattern_byte": 97,
+          "residency_observed": false,
+          "resident_after_bytes": 0,
+          "resident_before_bytes": 0,
+          "seed": 257,
+          "wall_ns": 146378722
+        },
+        "round": 4,
+        "status": "PASS",
+        "stderr": "",
+        "stdout": "{\"operation\":\"seq-read\",\"file_bytes\":67108864,\"io_bytes\":67108864,\"block_bytes\":1048576,\"concurrency\":1,\"barrier\":\"close\",\"pattern_byte\":97,\"seed\":257,\"operations\":64,\"wall_ns\":146378722,\"client_cpu_ns\":2719542,\"barrier_ns\":250,\"p50_ns\":2385031,\"p95_ns\":2785397,\"p99_ns\":2975059,\"residency_observed\":false,\"resident_before_bytes\":0,\"resident_after_bytes\":0,\"content_ok\":true,\"cache_requested\":\"unobserved\",\"cache_prepare_attempts\":0,\"file_object\":{\"device\":49,\"inode\":4}}\n",
+        "target": "owner",
+        "verify": {
+          "status": "PASS"
+        }
+      },
+      {
+        "argv": [
+          "/mnt/lima-afsadata/afs-delivery/owner-remote-6d-bhome-20261007-r1/tools/io",
+          "/mnt/lima-afsadata/afs-delivery/owner-remote-6d-bhome-20261007-r1/mount/moose/small-r1/payload64m.bin",
+          "seq-read",
+          "67108864",
+          "1048576",
+          "1",
+          "close",
+          "67108864",
+          "97",
+          "existing",
+          "unobserved"
+        ],
+        "artifact": "/mnt/lima-afsadata/afs-delivery/owner-remote-6d-bhome-20261007-r1/results/read-r1/read-samples/round-04-moose.json",
+        "elapsed_ns": 5650750,
+        "measured": true,
+        "rc": 0,
+        "result": {
+          "barrier": "close",
+          "barrier_ns": 166,
+          "block_bytes": 1048576,
+          "cache_prepare_attempts": 0,
+          "cache_requested": "unobserved",
+          "client_cpu_ns": 4588918,
+          "concurrency": 1,
+          "content_ok": true,
+          "file_bytes": 67108864,
+          "file_object": {
+            "device": 48,
+            "inode": 3
+          },
+          "io_bytes": 67108864,
+          "operation": "seq-read",
+          "operations": 64,
+          "p50_ns": 60332,
+          "p95_ns": 123831,
+          "p99_ns": 141580,
+          "pattern_byte": 97,
+          "residency_observed": false,
+          "resident_after_bytes": 0,
+          "resident_before_bytes": 0,
+          "seed": 257,
+          "wall_ns": 4731770
+        },
+        "round": 4,
+        "status": "PASS",
+        "stderr": "",
+        "stdout": "{\"operation\":\"seq-read\",\"file_bytes\":67108864,\"io_bytes\":67108864,\"block_bytes\":1048576,\"concurrency\":1,\"barrier\":\"close\",\"pattern_byte\":97,\"seed\":257,\"operations\":64,\"wall_ns\":4731770,\"client_cpu_ns\":4588918,\"barrier_ns\":166,\"p50_ns\":60332,\"p95_ns\":123831,\"p99_ns\":141580,\"residency_observed\":false,\"resident_before_bytes\":0,\"resident_after_bytes\":0,\"content_ok\":true,\"cache_requested\":\"unobserved\",\"cache_prepare_attempts\":0,\"file_object\":{\"device\":48,\"inode\":3}}\n",
+        "target": "moose",
+        "verify": {
+          "status": "PASS"
+        }
+      }
+    ]
+  },
+  {
+    "measured": true,
+    "order": [
+      "moose",
+      "owner"
+    ],
+    "round": 5,
+    "samples": [
+      {
+        "argv": [
+          "/mnt/lima-afsadata/afs-delivery/owner-remote-6d-bhome-20261007-r1/tools/io",
+          "/mnt/lima-afsadata/afs-delivery/owner-remote-6d-bhome-20261007-r1/mount/moose/small-r1/payload64m.bin",
+          "seq-read",
+          "67108864",
+          "1048576",
+          "1",
+          "close",
+          "67108864",
+          "97",
+          "existing",
+          "unobserved"
+        ],
+        "artifact": "/mnt/lima-afsadata/afs-delivery/owner-remote-6d-bhome-20261007-r1/results/read-r1/read-samples/round-05-moose.json",
+        "elapsed_ns": 4854101,
+        "measured": true,
+        "rc": 0,
+        "result": {
+          "barrier": "close",
+          "barrier_ns": 208,
+          "block_bytes": 1048576,
+          "cache_prepare_attempts": 0,
+          "cache_requested": "unobserved",
+          "client_cpu_ns": 4002500,
+          "concurrency": 1,
+          "content_ok": true,
+          "file_bytes": 67108864,
+          "file_object": {
+            "device": 48,
+            "inode": 3
+          },
+          "io_bytes": 67108864,
+          "operation": "seq-read",
+          "operations": 64,
+          "p50_ns": 55166,
+          "p95_ns": 88748,
+          "p99_ns": 98247,
+          "pattern_byte": 97,
+          "residency_observed": false,
+          "resident_after_bytes": 0,
+          "resident_before_bytes": 0,
+          "seed": 257,
+          "wall_ns": 4172700
+        },
+        "round": 5,
+        "status": "PASS",
+        "stderr": "",
+        "stdout": "{\"operation\":\"seq-read\",\"file_bytes\":67108864,\"io_bytes\":67108864,\"block_bytes\":1048576,\"concurrency\":1,\"barrier\":\"close\",\"pattern_byte\":97,\"seed\":257,\"operations\":64,\"wall_ns\":4172700,\"client_cpu_ns\":4002500,\"barrier_ns\":208,\"p50_ns\":55166,\"p95_ns\":88748,\"p99_ns\":98247,\"residency_observed\":false,\"resident_before_bytes\":0,\"resident_after_bytes\":0,\"content_ok\":true,\"cache_requested\":\"unobserved\",\"cache_prepare_attempts\":0,\"file_object\":{\"device\":48,\"inode\":3}}\n",
+        "target": "moose",
+        "verify": {
+          "status": "PASS"
+        }
+      },
+      {
+        "argv": [
+          "/mnt/lima-afsadata/afs-delivery/owner-remote-6d-bhome-20261007-r1/tools/io",
+          "/mnt/lima-afsadata/afs-delivery/owner-remote-6d-bhome-20261007-r1/mount/ownerfs/g2-remote-6d-bhome-r1/small-r1/payload64m.bin",
+          "seq-read",
+          "67108864",
+          "1048576",
+          "1",
+          "close",
+          "67108864",
+          "97",
+          "existing",
+          "unobserved"
+        ],
+        "artifact": "/mnt/lima-afsadata/afs-delivery/owner-remote-6d-bhome-20261007-r1/results/read-r1/read-samples/round-05-owner.json",
+        "elapsed_ns": 155383732,
+        "measured": true,
+        "rc": 0,
+        "result": {
+          "barrier": "close",
+          "barrier_ns": 167,
+          "block_bytes": 1048576,
+          "cache_prepare_attempts": 0,
+          "cache_requested": "unobserved",
+          "client_cpu_ns": 2809962,
+          "concurrency": 1,
+          "content_ok": true,
+          "file_bytes": 67108864,
+          "file_object": {
+            "device": 49,
+            "inode": 4
+          },
+          "io_bytes": 67108864,
+          "operation": "seq-read",
+          "operations": 64,
+          "p50_ns": 2488653,
+          "p95_ns": 2906811,
+          "p99_ns": 3176513,
+          "pattern_byte": 97,
+          "residency_observed": false,
+          "resident_after_bytes": 0,
+          "resident_before_bytes": 0,
+          "seed": 257,
+          "wall_ns": 152337258
+        },
+        "round": 5,
+        "status": "PASS",
+        "stderr": "",
+        "stdout": "{\"operation\":\"seq-read\",\"file_bytes\":67108864,\"io_bytes\":67108864,\"block_bytes\":1048576,\"concurrency\":1,\"barrier\":\"close\",\"pattern_byte\":97,\"seed\":257,\"operations\":64,\"wall_ns\":152337258,\"client_cpu_ns\":2809962,\"barrier_ns\":167,\"p50_ns\":2488653,\"p95_ns\":2906811,\"p99_ns\":3176513,\"residency_observed\":false,\"resident_before_bytes\":0,\"resident_after_bytes\":0,\"content_ok\":true,\"cache_requested\":\"unobserved\",\"cache_prepare_attempts\":0,\"file_object\":{\"device\":49,\"inode\":4}}\n",
+        "target": "owner",
+        "verify": {
+          "status": "PASS"
+        }
+      }
+    ]
+  }
+]

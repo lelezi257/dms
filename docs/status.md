@@ -1,26 +1,12 @@
-**当前下一项（2026-10-07）：** [Owner远端B-Home新夹具只读前置](development/evidence/20261007-owner-remote-bhome-preflight/README.md)PASS：ctl/A/B新目录/端口/ext4/预算/固定Moose工具；原mfscli脚本误用ldd的检查器失败保留、仅正确解释器门禁补验通过。尚未部署或测性能。下一固定6d ELF/payload、新Owner-only配置/TLS/print-config与实际Home=B/一副本身份，然后64MiB读和100×4KiB删除留数。OFF试用已可下载，G1/G2计数和原FAIL不变。
+**当前切片（2026-10-07）：** 产品6d51aeb/map66dbbe3e/157输入未变，Owner远端B-Home与Moose单副本B的小读/删除完成数据采集；各1预热+5配对，64MiB完整内容及B独立读、600删除路径确认PASS。读中位数427.371/14854.399MiB/s，删除1039.769/1241.516次/s；缓存未观察、旧负载保留，不称持平/正式性能资格。A Moose客户端TERM真实wait1为清理FAIL，原判据不改；其余新服务stop0，独立postcheck无新进程/mount、旧incarnation未变。 [版本、全部数据/失败/命令](../development/evidence/20261007-owner-remote-small/README.md)。
 
-**当前发布事实（2026-10-07）：** [默认OFF试用版本](https://github.com/lelezi257/dms/releases/tag/afs-trial-6d51aeb)已发布并远端核对：三资产SHA/大小一致，tag精确指向产品6d51aeb，prerelease，正式Latest仍v0.1.0。同包复现/限定试用交付小项完成；复用35checks安装恢复，不计完整G2.27/性能或ON。下一Owner远端64MiB读/100×4KiB删除新夹具准入与摸底，保留全部旧FAIL及R2阻塞；G1历史8/8、G2计数不变。
+**下一项：** 不重跑本轮数据或微调残差；保留远端优化及Moose客户端正常关闭协议缺口为独立TODO，转DFS小规模一写多读摸底。Owner远端写强持久比较、DFS三同步/3FS基线、R2官方fuser API仍各自独立未闭合；bind默认OFF。G1历史8/8、G2 9限定完成/2普通性能FAIL/2bind进行中/14待验收不变。OFF试用包已可下载，复现/35checks安装恢复不变；不计完整G2.27。
 
-**当前交付小项（2026-10-07）：** 同Rust6d51aeb/map66dbbe3e/157输入，已有OFF包在Linux umask077下重打与已测原包完整字节一致（ee25d589，14,728,435B），复现PASS；复用35项安装/恢复PASS。[复现命令与Git输入](../development/evidence/20261007-off-trial-handoff/README.md)、[版本化试用清单](guides/trial-6d.md)已审阅，固定prerelease发布准备中，不关闭G2.27全性能/ON出口。远端只读准入区分A旧helper保留4GiB不足与新case未冻结合同；B新夹具待准入，不降低64MiB或清理旧环境。[实际库存](../development/evidence/20261007-owner-remote-admission/README.md)。下一独立项为Owner远端小读/删新夹具和数据，普通优化暂缓；G1/G2计数不变。
-
-**当前新增（2026-10-07）：** 相同Rust6d51aeb/map66dbbe3e/157输入，append-only r8补齐独立结果：顺序52B双路径内容、并发128唯一完整记录PASS；第三SEEK_CUR24/38及62个并发偏移不匹配FAIL，原生对照全部PASS，正常清理/独立postcheck PASS。[原始命令、版本和证明](../development/evidence/20261007-append-diagnostic/README.md)。原r6/锁/watch失败与性能摸底保留，不升级ON/G2.12/13；默认OFF，G1历史8/8和G2计数不变。本项诊断收口，偏移一致性待修；下一独立项为当前OFF试用包安装/核心恢复回执，不继续无输入复测本缺口或标准/性能。
-
-## 前序检查点（原版本/范围；下一动作由上述当前入口覆盖）
-
-**当前容器性能诊断（2026-10-07）：** 相同Rust6d51aeb/map66dbbe3e/157输入，真实容器内OFF/ON与同卷ext4完成C1、64MiB同步写/读、1000×4KiB六项元数据，各1预热+5配对。内容/正常清理PASS；ON耗时中位数写1.023、读1.031、元数据1.048–1.158×ext4。仅诊断留数，缓存未观察/FUSE计数NOT_OBSERVED，锁/append/watch缺口未闭合，不升级G2.12/13或生产ON；G1/G2计数不变。[原始数据/身份/命令](../development/evidence/20261007-container-perf/README.md)。普通性能及未变标准不重复。下一独立小项append/SEEK_CUR功能缺口。
-
-**当前容器小项（2026-10-07）：** Rust main6d51aeb/map66dbbe3e不变，实际受管单容器基础生命周期、64MiB及正常清理已通过；本轮短混合语义新增4KiB mmap双向数据及权限/错误PASS，锁冲突、append/SEEK_CUR和跨路径watch传播FAIL，[逐项原始证据](../development/evidence/20261007-managed-semantics/README.md)。未执行的混合并发append不计通过；旧锁阻塞判据单列补强。完整G2.12/生产ON/G2.13仍未通过，默认OFF，G1历史8/8和G2计数不变。下一项容器workspace小规模性能仅作诊断留数，不用数字掩盖语义缺口；未变标准及普通性能不重复。下方旧记录保留原版本。
-
-**当前默认OFF安装回归（2026-10-07）：** main25a8061/map8ef8b788可复现包，在无编译器Linux VM通过Owner/DFS各64MiB基础校验、中心local-file Meta有序重启读回及正常退出/卸载；[证据](../development/evidence/20261007-installed-off/README.md)。是G2.08当前候选分支，不重开G1、不关闭G2.27，不代表pjdfstest/性能或容器ON。
-
-**最新源码切片（2026-10-07）：** map8ef8b788的默认OFF实验容器接线已通过限定Linux源码/实际挂载/FUSE检查；[结果与边界](../development/evidence/20261007-native-workspace/README.md)。用户授权安装官方runc后，[独立运行时准入已通过](../development/evidence/20261007-runc-runtime/README.md)；实际OwnerFs受管功能/性能未验收，G2.12/13未完成；前一候选map6161e25b的DFS标准PASS保留原版本。
-
-**最新候选（2026-10-07）：** map6161e25b，DFS本地R1容量/完整固定pjdfstest/固定LTP6及正常关闭通过；Owner历史证据仍按e925 ELF范围复用。[结果](../development/evidence/20261007-dfs-statfs/README.md)。G1保持8/8。
+**历史说明：** 下方旧检查点按原版本/范围保存；其旧下一动作由上方当前入口和验收主表覆盖。当前native偏移/经典锁/watch失败与普通性能失败原始记录均保留。
 
 # Implementation Status
 
-Updated 2026-10-06. [Three-stage acceptance checklist](../development/trial-release-goals.md) owns tasks and completion; [current code checkpoint](../development/current-checkpoint.md) binds this publication, validation and portable historical evidence.
+Updated 2026-10-07. [Three-stage acceptance checklist](../development/trial-release-goals.md) owns tasks and completion; [current code checkpoint](../development/current-checkpoint.md) binds this publication, validation and portable historical evidence.
 
 | Stage | Status | Scope |
 | --- | --- | --- |

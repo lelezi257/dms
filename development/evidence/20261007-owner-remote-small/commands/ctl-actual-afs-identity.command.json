@@ -1,0 +1,14 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "afs-accept-ctl",
+    "sudo",
+    "python3",
+    "-c",
+    "import json,sys,hashlib,os,subprocess;from pathlib import Path\nr=Path(sys.argv[1]);role=sys.argv[2];kind='meta' if role=='ctl' else 'node';pid=int((r/'run'/f'{kind}.pid').read_text());p=Path('/proc')/str(pid);ex=os.readlink(p/'exe');sha=hashlib.sha256((p/'exe').read_bytes()).hexdigest();expected='2c7b7d088b759e3b9375080002182aa484a424b4fa216da1fb79a1004e96168e' if kind=='meta' else '2cf1f538fe7af332a711f3c66a074ace140c00773826a182709a6445b8ae2645';assert ex==str(r/'prefix/bin'/('afs-'+kind)) and sha==expected\nv={'role':role,'pid':pid,'exe':ex,'elf_sha256':sha,'start_ticks':(p/'stat').read_text().rsplit(') ',1)[1].split()[19],'boot_id':Path('/proc/sys/kernel/random/boot_id').read_text().strip()}\nif role!='ctl':\n out=subprocess.check_output(['findmnt','-J','-M',str(r/'mount/ownerfs'),'-o','TARGET,SOURCE,FSTYPE,OPTIONS,ID'],text=True);mount=json.loads(out)['filesystems'][0];assert mount['target']==str(r/'mount/ownerfs') and mount['source']=='afs-ownerfs' and mount['fstype'].startswith('fuse');v['mount']=mount\nprint(json.dumps(v,indent=2))",
+    "/mnt/lima-afsctlstate/afs-delivery/owner-remote-6d-bhome-20261007-r1",
+    "ctl"
+  ],
+  "exit": 0
+}

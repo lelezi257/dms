@@ -1,0 +1,38 @@
+{
+  "schema": "afs.owner_remote_fixture.v1",
+  "action": "moose-stop",
+  "role": "a",
+  "root": "/mnt/lima-afsadata/afs-delivery/owner-remote-6d-bhome-20261007-r1",
+  "time_unix_ns": 1791323013351449631,
+  "commands": [
+    {
+      "argv": [
+        "findmnt",
+        "-J",
+        "--mountpoint",
+        "/mnt/lima-afsadata/afs-delivery/owner-remote-6d-bhome-20261007-r1/mount/moose",
+        "-o",
+        "TARGET,SOURCE,FSTYPE,OPTIONS,ID"
+      ],
+      "returncode": 0,
+      "stdout": "{\n   \"filesystems\": [\n      {\n         \"target\": \"/mnt/lima-afsadata/afs-delivery/owner-remote-6d-bhome-20261007-r1/mount/moose\",\n         \"source\": \"mfs#192.168.109.11:23042\",\n         \"fstype\": \"fuse\",\n         \"options\": \"rw,nosuid,nodev,relatime,user_id=0,group_id=0,allow_other\",\n         \"id\": 52\n      }\n   ]\n}\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "findmnt",
+        "-J",
+        "--mountpoint",
+        "/mnt/lima-afsadata/afs-delivery/owner-remote-6d-bhome-20261007-r1/mount/moose",
+        "-o",
+        "TARGET,SOURCE,FSTYPE,OPTIONS,ID"
+      ],
+      "returncode": 1,
+      "stdout": "",
+      "stderr": ""
+    }
+  ],
+  "status": "BLOCKED",
+  "error": "Moose nonzero real wait exit: 1",
+  "scope": "affected fixture action only; state retained, no environment repair"
+}

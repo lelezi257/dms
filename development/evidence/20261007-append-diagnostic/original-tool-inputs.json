@@ -1,0 +1,8 @@
+{
+  "development/acceptance/native-workspace-linux.py": "cf52c87376e04760e4474fe63cb267a0510086f2b58c4b922c355a2a0c4c7f9f",
+  "development/acceptance/installed-smoke-linux.py": "2e857135d05e5e7380d3dc5f4cec51a80a7045541c7f5f3fc708c6dffc9c1bea",
+  "development/acceptance/probes/native_mixed.py": "c8837db0afeff1e8acb3b1ee8563257767c67343d46873390431b250ec86d6d4",
+  "development/acceptance/probes/locks_smoke.py": "351576c63a820f4b41886e4081d2d7b592bb263f112e52fed5b7adcd3c0d88e7",
+  "development/acceptance/test_native_workspace.py": "843bc3420b19c9b4b2727841f9de0c646d1a3b2be7556cab576af16db3f5195c",
+  "scripts/ownerfs/native-workspace-control.py": "11b32a45f5e24801260acddfc47e3a4e7e16385c3f0a2af08e0dba9a9573217b"
+}

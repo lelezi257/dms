@@ -93,6 +93,87 @@ def expect(condition: bool, message: str, details: Any = None) -> None:
         raise AssertionError(json.dumps({"message": message, "details": details}, sort_keys=True))
 
 
+def expected_append_lines() -> set[str]:
+    return {f"primary:{i:02d}:native-mixed-append" for i in range(64)} | {
+        f"secondary:{i:02d}:native-mixed-append" for i in range(64)
+    }
+
+
+def concurrent_append_status(lines: list[str], mirror_lines: list[str] | None) -> dict[str, Any]:
+    expected = expected_append_lines()
+    counts = {line: lines.count(line) for line in set(lines)}
+    duplicates = sorted(line for line, count in counts.items() if count > 1)
+    missing = sorted(expected - set(lines))
+    extra = sorted(set(lines) - expected)
+    return {
+        "status": "PASS" if len(lines) == 128 and not duplicates and not missing and not extra and mirror_lines == lines else "FAIL",
+        "records": len(lines),
+        "unique_records": len(set(lines)),
+        "missing": missing,
+        "extra": extra,
+        "duplicates": duplicates,
+        "mirror_matches": mirror_lines == lines,
+        "sample": lines[:5] + lines[-5:],
+    }
+
+
+def correlate_concurrent_offsets(content: bytes, child_records: list[dict[str, Any]]) -> dict[str, Any]:
+    actual: dict[str, int] = {}
+    position = 0
+    for raw in content.splitlines(keepends=True):
+        line = raw.rstrip(b"\n").decode("utf-8", "replace")
+        position += len(raw)
+        actual[line] = position
+    mismatches = []
+    parsed_children = []
+    coverage = []
+    roles = []
+    for child in child_records:
+        if child.get("returncode") != 0 or child.get("timed_out"):
+            mismatches.append({"child": child.get("index"), "error": "child did not exit cleanly"})
+        try:
+            payload = json.loads(child.get("stdout", "") or "{}")
+        except json.JSONDecodeError:
+            payload = {}
+        rows = payload.get("offsets", [])
+        role = payload.get("role")
+        roles.append(role)
+        parsed_children.append({"index": child.get("index"), "role": payload.get("role"), "offsets": rows})
+        if role not in ("primary", "secondary") or len(rows) != 64:
+            mismatches.append({"child": child.get("index"), "role": role, "rows": len(rows), "error": "expected 64 offsets for one role"})
+        for row in rows:
+            line = row.get("line")
+            offset = row.get("offset")
+            coverage.append(line)
+            if not isinstance(offset, int) or offset <= 0:
+                mismatches.append({"line": line, "offset": offset, "error": "offset must be a positive integer"})
+                continue
+            if actual.get(line) != offset:
+                mismatches.append({"line": line, "offset": offset, "actual_end": actual.get(line)})
+    expected = expected_append_lines()
+    duplicates = sorted(line for line in set(coverage) if coverage.count(line) > 1)
+    missing = sorted(expected - set(coverage))
+    extra = sorted(set(coverage) - expected)
+    if sorted(roles) != ["primary", "secondary"] or len(coverage) != 128 or duplicates or missing or extra:
+        mismatches.append({
+            "error": "offset coverage mismatch",
+            "roles": roles,
+            "rows": len(coverage),
+            "duplicates": duplicates,
+            "missing": missing,
+            "extra": extra,
+        })
+    if set(actual) != expected:
+        mismatches.append({"error": "final content records mismatch", "missing": sorted(expected - set(actual)), "extra": sorted(set(actual) - expected)})
+    return {"status": "PASS" if not mismatches else "FAIL", "mismatches": mismatches, "children": parsed_children}
+
+
+def append_offset_status(offsets: list[dict[str, Any]]) -> dict[str, Any]:
+    failures = [row for row in offsets if row.get("offset") != row.get("expected_eof")]
+    status = "FAIL" if failures else ("PASS" if len(offsets) == 4 else "PARTIAL")
+    return {"status": status, "failures": failures, "offsets": offsets}
+
+
 def find_command_artifacts(control_dir: Path, before: set[Path]) -> list[dict[str, Any]]:
     rows = []
     after = set(control_dir.glob("command-*.*"))
@@ -313,87 +394,108 @@ class Probe:
             ("primary-2", b"primary-two\n", pfd),
             ("secondary-2", b"secondary-two\n", sfd),
         ]
-        offsets = []
+        proof: dict[str, Any] = {
+            "offsets": {"status": "NOT_RUN", "failures": [], "offsets": []},
+            "sequential_data": {"status": "NOT_RUN"},
+            "concurrent_data": {"status": "NOT_RUN"},
+        }
+        offsets: list[dict[str, Any]] = []
         expected = b""
         try:
-            for label, payload, fd in records:
-                written = os.write(fd, payload)
-                expect(written == len(payload), "complete append write", {"label": label, "written": written})
-                expected += payload
-                offset = os.lseek(fd, 0, os.SEEK_CUR)
-                offsets.append({"label": label, "offset": offset, "expected_eof": len(expected)})
-                expect(offset == len(expected), "O_APPEND SEEK_CUR reaches EOF after write", offsets[-1])
-            os.fsync(pfd)
-            os.fsync(sfd)
-        finally:
-            os.close(pfd)
-            os.close(sfd)
-        primary_content = primary_file.read_bytes()
-        secondary_content = secondary_file.read_bytes()
-        expect(primary_content == expected, "primary reopen reads exact append sequence", primary_content.decode("utf-8", "replace"))
-        expect(secondary_content == expected, "secondary reopen reads exact append sequence", secondary_content.decode("utf-8", "replace"))
-        fd_init = os.open(concurrent_primary, os.O_CREAT | os.O_EXCL | os.O_RDWR, 0o600)
-        os.close(fd_init)
-        child_code = (
-            "import json, os, sys, time\n"
-            "target, role, start = sys.argv[1:4]\n"
-            "fd = os.open(target, os.O_WRONLY | os.O_APPEND)\n"
-            "try:\n"
-            "    deadline = time.time() + 5.0\n"
-            "    while not os.path.exists(start):\n"
-            "        if time.time() >= deadline:\n"
-            "            raise TimeoutError('append start flag not observed')\n"
-            "        time.sleep(0.005)\n"
-            "    offsets = []\n"
-            "    for i in range(64):\n"
-            "        payload = f'{role}:{i:02d}:native-mixed-append\\n'.encode()\n"
-            "        n = os.write(fd, payload)\n"
-            "        if n != len(payload):\n"
-            "            raise RuntimeError(f'short write {n}/{len(payload)}')\n"
-            "        offsets.append(os.lseek(fd, 0, os.SEEK_CUR))\n"
-            "    os.fsync(fd)\n"
-            "    print(json.dumps({'role': role, 'records': 64, 'offsets_sample': offsets[:3] + offsets[-3:]}))\n"
-            "finally:\n"
-            "    os.close(fd)\n"
-        )
-        children = [
-            subprocess.Popen([sys.executable, "-c", child_code, str(concurrent_primary), "primary", str(start_primary)], text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE),
-            subprocess.Popen([sys.executable, "-c", child_code, str(concurrent_secondary), "secondary", str(start_secondary)], text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE),
-        ]
-        fd_start = os.open(start_primary, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
-        os.close(fd_start)
-        child_records = []
-        for index, child in enumerate(children):
             try:
-                stdout, stderr = child.communicate(timeout=5)
-            except subprocess.TimeoutExpired:
-                child.kill()
-                stdout, stderr = child.communicate(timeout=2)
-                child_records.append({"index": index, "returncode": child.returncode, "timed_out": True, "stdout": stdout, "stderr": stderr})
-                continue
-            child_records.append({"index": index, "returncode": child.returncode, "timed_out": False, "stdout": stdout, "stderr": stderr})
-        json_write(step_dir / "append-concurrent-children.json", child_records)
-        expect(all(row["returncode"] == 0 and not row["timed_out"] for row in child_records), "both concurrent append children exit cleanly", child_records)
-        lines = concurrent_primary.read_text(encoding="utf-8").splitlines()
-        expected_lines = {f"primary:{i:02d}:native-mixed-append" for i in range(64)} | {f"secondary:{i:02d}:native-mixed-append" for i in range(64)}
-        expect(len(lines) == 128, "concurrent append record count", {"count": len(lines), "lines": lines[:5] + lines[-5:]})
-        expect(set(lines) == expected_lines, "concurrent append records are complete and unique", {"missing": sorted(expected_lines - set(lines)), "extra": sorted(set(lines) - expected_lines)})
-        expect(concurrent_secondary.read_text(encoding="utf-8").splitlines() == lines, "secondary reopens exact concurrent append content")
-        return {
-            "primary": stat_record(primary_file),
-            "secondary": stat_record(secondary_file),
-            "offsets": offsets,
-            "content_sha256": hashlib.sha256(expected).hexdigest(),
-            "bytes": len(expected),
-            "concurrent": {
-                "primary": stat_record(concurrent_primary),
-                "secondary": stat_record(concurrent_secondary),
-                "records": len(lines),
-                "unique_records": len(set(lines)),
-                "content_sha256": sha256_file(concurrent_primary),
-                "children": child_records,
-            },
-        }
+                for label, payload, fd in records:
+                    written = os.write(fd, payload)
+                    expect(written == len(payload), "complete append write", {"label": label, "written": written})
+                    expected += payload
+                    row = {"label": label, "offset": os.lseek(fd, 0, os.SEEK_CUR), "expected_eof": len(expected)}
+                    offsets.append(row)
+                    proof["offsets"] = append_offset_status(offsets)
+                    json_write(step_dir / "append-offsets.json", proof["offsets"])
+                os.fsync(pfd)
+                os.fsync(sfd)
+            finally:
+                os.close(pfd)
+                os.close(sfd)
+            primary_content = primary_file.read_bytes()
+            secondary_content = secondary_file.read_bytes()
+            proof["sequential_data"] = {
+                "status": "PASS" if primary_content == expected and secondary_content == expected else "FAIL",
+                "expected_sha256": hashlib.sha256(expected).hexdigest(),
+                "expected_bytes": len(expected),
+                "primary_sha256": hashlib.sha256(primary_content).hexdigest(),
+                "secondary_sha256": hashlib.sha256(secondary_content).hexdigest(),
+                "primary_bytes": len(primary_content),
+                "secondary_bytes": len(secondary_content),
+                "primary": stat_record(primary_file),
+                "secondary": stat_record(secondary_file),
+            }
+            fd_init = os.open(concurrent_primary, os.O_CREAT | os.O_EXCL | os.O_RDWR, 0o600)
+            os.close(fd_init)
+            child_code = (
+                "import json, os, sys, time\n"
+                "target, role, start = sys.argv[1:4]\n"
+                "fd = os.open(target, os.O_WRONLY | os.O_APPEND)\n"
+                "try:\n"
+                "    deadline = time.monotonic() + 5.0\n"
+                "    while not os.path.exists(start):\n"
+                "        if time.monotonic() >= deadline:\n"
+                "            raise TimeoutError('append start flag not observed')\n"
+                "        time.sleep(0.005)\n"
+                "    offsets = []\n"
+                "    for i in range(64):\n"
+                "        line = f'{role}:{i:02d}:native-mixed-append'\n"
+                "        payload = (line + '\\n').encode()\n"
+                "        n = os.write(fd, payload)\n"
+                "        if n != len(payload):\n"
+                "            raise RuntimeError(f'short write {n}/{len(payload)}')\n"
+                "        offsets.append({'line': line, 'offset': os.lseek(fd, 0, os.SEEK_CUR)})\n"
+                "    os.fsync(fd)\n"
+                "    print(json.dumps({'role': role, 'records': 64, 'offsets': offsets}))\n"
+                "finally:\n"
+                "    os.close(fd)\n"
+            )
+            children = [
+                subprocess.Popen([sys.executable, "-c", child_code, str(concurrent_primary), "primary", str(start_primary)], text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE),
+                subprocess.Popen([sys.executable, "-c", child_code, str(concurrent_secondary), "secondary", str(start_secondary)], text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE),
+            ]
+            fd_start = os.open(start_primary, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+            os.close(fd_start)
+            child_records = []
+            for index, child in enumerate(children):
+                try:
+                    stdout, stderr = child.communicate(timeout=5)
+                except subprocess.TimeoutExpired:
+                    child.kill()
+                    stdout, stderr = child.communicate(timeout=2)
+                    child_records.append({"index": index, "returncode": child.returncode, "timed_out": True, "stdout": stdout, "stderr": stderr})
+                    continue
+                child_records.append({"index": index, "returncode": child.returncode, "timed_out": False, "stdout": stdout, "stderr": stderr})
+            json_write(step_dir / "append-concurrent-children.json", child_records)
+            if all(row["returncode"] == 0 and not row["timed_out"] for row in child_records):
+                content = concurrent_primary.read_bytes()
+                lines = content.decode("utf-8").splitlines()
+                mirror_lines = concurrent_secondary.read_text(encoding="utf-8").splitlines()
+                proof["concurrent_data"] = concurrent_append_status(lines, mirror_lines)
+                proof["concurrent_data"].update({
+                    "offset_correlation": correlate_concurrent_offsets(content, child_records),
+                    "primary": stat_record(concurrent_primary),
+                    "secondary": stat_record(concurrent_secondary),
+                    "content_sha256": sha256_file(concurrent_primary),
+                    "children": child_records,
+                })
+            else:
+                proof["concurrent_data"] = {"status": "FAIL", "children": child_records}
+            json_write(step_dir / "append-proof.json", proof)
+            sections = [proof["offsets"], proof["sequential_data"], proof["concurrent_data"]]
+            if proof["concurrent_data"].get("offset_correlation", {}).get("status") != "PASS":
+                sections.append({"status": "FAIL", "name": "concurrent_offset_correlation"})
+            if any(section["status"] != "PASS" for section in sections):
+                raise AssertionError(json.dumps(proof, sort_keys=True))
+            return proof
+        except Exception as exc:
+            proof["failure"] = {"exception": type(exc).__name__, "message": str(exc)}
+            json_write(step_dir / "append-proof.json", proof)
+            raise
 
     def mmap_inotify_probe(self, step_dir: Path) -> dict[str, Any]:
         primary_file = self.owned(self.primary, "mmap.bin")

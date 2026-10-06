@@ -1,0 +1,32 @@
+{
+  "failures": [
+    {
+      "expected_eof": 38,
+      "label": "primary-2",
+      "offset": 24
+    }
+  ],
+  "offsets": [
+    {
+      "expected_eof": 12,
+      "label": "primary-1",
+      "offset": 12
+    },
+    {
+      "expected_eof": 26,
+      "label": "secondary-1",
+      "offset": 26
+    },
+    {
+      "expected_eof": 38,
+      "label": "primary-2",
+      "offset": 24
+    },
+    {
+      "expected_eof": 52,
+      "label": "secondary-2",
+      "offset": 52
+    }
+  ],
+  "status": "FAIL"
+}

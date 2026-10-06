@@ -1,0 +1,376 @@
+[
+  {
+    "argv": [
+      "findmnt",
+      "-J",
+      "-T",
+      "/opt"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0017192949962918647,
+    "stdout": "000.stdout",
+    "stderr": "000.stderr"
+  },
+  {
+    "argv": [
+      "/usr/local/sbin/runc",
+      "--version"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0035758379963226616,
+    "stdout": "001.stdout",
+    "stderr": "001.stderr"
+  },
+  {
+    "argv": [
+      "tar",
+      "-xzf",
+      "/var/tmp/afs-managed-package-6d51aeb.tar.gz",
+      "-C",
+      "/opt/afs-managed-append-20261007-r8/package"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.23195325700362446,
+    "stdout": "002.stdout",
+    "stderr": "002.stderr"
+  },
+  {
+    "argv": [
+      "/opt/afs-managed-append-20261007-r8/package/afs-0.1.0-g2-procfree-6d51aeb-linux-aarch64/install.sh",
+      "--prefix",
+      "/opt/afs-managed-append-20261007-r8/prefix",
+      "--config-dir",
+      "/opt/afs-managed-append-20261007-r8/etc",
+      "--state-dir",
+      "/opt/afs-managed-append-20261007-r8/state",
+      "--run-dir",
+      "/opt/afs-managed-append-20261007-r8/run",
+      "--log-dir",
+      "/opt/afs-managed-append-20261007-r8/logs",
+      "--mount-root",
+      "/opt/afs-managed-append-20261007-r8/mount"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.4324709560023621,
+    "stdout": "003.stdout",
+    "stderr": "003.stderr"
+  },
+  {
+    "argv": [
+      "ldd",
+      "/opt/afs-managed-append-20261007-r8/prefix/bin/afs-meta"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0037605839970638044,
+    "stdout": "004.stdout",
+    "stderr": "004.stderr"
+  },
+  {
+    "argv": [
+      "ldd",
+      "/opt/afs-managed-append-20261007-r8/prefix/bin/afs-node"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.003600753996579442,
+    "stdout": "005.stdout",
+    "stderr": "005.stderr"
+  },
+  {
+    "argv": [
+      "/opt/afs-managed-append-20261007-r8/prefix/bin/afs-trial-config",
+      "single",
+      "--backend",
+      "local-file",
+      "--config-dir",
+      "/opt/afs-managed-append-20261007-r8/etc",
+      "--state-dir",
+      "/opt/afs-managed-append-20261007-r8/state",
+      "--run-dir",
+      "/opt/afs-managed-append-20261007-r8/run",
+      "--mount-root",
+      "/opt/afs-managed-append-20261007-r8/mount",
+      "--meta-grpc-port",
+      "24400",
+      "--meta-rest-port",
+      "24401",
+      "--node-grpc-port",
+      "24500",
+      "--node-rest-port",
+      "24501",
+      "--force"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.38781114800076466,
+    "stdout": "006.stdout",
+    "stderr": "006.stderr"
+  },
+  {
+    "argv": [
+      "/opt/afs-managed-append-20261007-r8/prefix/bin/afs-processctl",
+      "--prefix",
+      "/opt/afs-managed-append-20261007-r8/prefix",
+      "--config-dir",
+      "/opt/afs-managed-append-20261007-r8/etc",
+      "--run-dir",
+      "/opt/afs-managed-append-20261007-r8/run",
+      "--log-dir",
+      "/opt/afs-managed-append-20261007-r8/logs",
+      "start",
+      "all"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.32625071499933256,
+    "stdout": "007.stdout",
+    "stderr": "007.stderr"
+  },
+  {
+    "argv": [
+      "findmnt",
+      "-J",
+      "-o",
+      "TARGET,SOURCE,FSTYPE,OPTIONS,ID",
+      "--mountpoint",
+      "/opt/afs-managed-append-20261007-r8/mount/ownerfs"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0014542179997079074,
+    "stdout": "008.stdout",
+    "stderr": "008.stderr"
+  },
+  {
+    "argv": [
+      "python3",
+      "/var/tmp/afs-managed-append-20261007-r8/tools/scripts/ownerfs/native-workspace-control.py",
+      "--socket",
+      "/opt/afs-managed-append-20261007-r8/control/control.sock",
+      "--id",
+      "initial",
+      "status"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.07434015099715907,
+    "stdout": "009.stdout",
+    "stderr": "009.stderr"
+  },
+  {
+    "argv": [
+      "python3",
+      "/var/tmp/afs-managed-append-20261007-r8/tools/scripts/ownerfs/native-workspace-control.py",
+      "--socket",
+      "/opt/afs-managed-append-20261007-r8/control/control.sock",
+      "--id",
+      "unsafe-path",
+      "start",
+      "../escape"
+    ],
+    "exit": 1,
+    "timeout": false,
+    "elapsed_seconds": 0.06708243599859998,
+    "stdout": "010.stdout",
+    "stderr": "010.stderr"
+  },
+  {
+    "argv": [
+      "python3",
+      "/var/tmp/afs-managed-append-20261007-r8/tools/scripts/ownerfs/native-workspace-control.py",
+      "--socket",
+      "/opt/afs-managed-append-20261007-r8/control/control.sock",
+      "--id",
+      "absent-root",
+      "start",
+      "absent"
+    ],
+    "exit": 1,
+    "timeout": false,
+    "elapsed_seconds": 0.07384049399843207,
+    "stdout": "011.stdout",
+    "stderr": "011.stderr"
+  },
+  {
+    "argv": [
+      "python3",
+      "/var/tmp/afs-managed-append-20261007-r8/tools/scripts/ownerfs/native-workspace-control.py",
+      "--socket",
+      "/opt/afs-managed-append-20261007-r8/control/control.sock",
+      "--id",
+      "first",
+      "start",
+      "workspace"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.12442300299881026,
+    "stdout": "012.stdout",
+    "stderr": "012.stderr"
+  },
+  {
+    "argv": [
+      "python3",
+      "/var/tmp/afs-managed-append-20261007-r8/tools/scripts/ownerfs/native-workspace-control.py",
+      "--socket",
+      "/opt/afs-managed-append-20261007-r8/control/control.sock",
+      "--id",
+      "first",
+      "start",
+      "workspace"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.06862836000073003,
+    "stdout": "013.stdout",
+    "stderr": "013.stderr"
+  },
+  {
+    "argv": [
+      "python3",
+      "/var/tmp/afs-managed-append-20261007-r8/tools/scripts/ownerfs/native-workspace-control.py",
+      "--socket",
+      "/opt/afs-managed-append-20261007-r8/control/control.sock",
+      "--id",
+      "first",
+      "start",
+      "different"
+    ],
+    "exit": 1,
+    "timeout": false,
+    "elapsed_seconds": 0.03230036999593722,
+    "stdout": "014.stdout",
+    "stderr": "014.stderr"
+  },
+  {
+    "argv": [
+      "python3",
+      "/var/tmp/afs-managed-append-20261007-r8/tools/scripts/ownerfs/native-workspace-control.py",
+      "--socket",
+      "/opt/afs-managed-append-20261007-r8/control/control.sock",
+      "--id",
+      "busy",
+      "start",
+      "workspace"
+    ],
+    "exit": 1,
+    "timeout": false,
+    "elapsed_seconds": 0.07024294899747474,
+    "stdout": "015.stdout",
+    "stderr": "015.stderr"
+  },
+  {
+    "argv": [
+      "/usr/local/sbin/runc",
+      "--root",
+      "/opt/afs-managed-append-20261007-r8/control/runtime-state",
+      "state",
+      "afs-native-first"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.003571503999410197,
+    "stdout": "016.stdout",
+    "stderr": "016.stderr"
+  },
+  {
+    "argv": [
+      "python3",
+      "/var/tmp/afs-managed-append-20261007-r8/tools/development/acceptance/probes/native_mixed.py",
+      "--primary",
+      "/proc/14901/root/workspace",
+      "--secondary",
+      "/proc/14901/root/workspace",
+      "--controller",
+      "/var/tmp/afs-managed-append-20261007-r8/tools/scripts/ownerfs/native-workspace-control.py",
+      "--socket",
+      "/opt/afs-managed-append-20261007-r8/control/control.sock",
+      "--out",
+      "/var/tmp/afs-managed-append-20261007-r8/results-r8/semantics-reference",
+      "--groups",
+      "append"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.06951975599804427,
+    "stdout": "017.stdout",
+    "stderr": "017.stderr"
+  },
+  {
+    "argv": [
+      "python3",
+      "/var/tmp/afs-managed-append-20261007-r8/tools/development/acceptance/probes/native_mixed.py",
+      "--primary",
+      "/opt/afs-managed-append-20261007-r8/mount/ownerfs/workspace",
+      "--secondary",
+      "/proc/14901/root/workspace",
+      "--controller",
+      "/var/tmp/afs-managed-append-20261007-r8/tools/scripts/ownerfs/native-workspace-control.py",
+      "--socket",
+      "/opt/afs-managed-append-20261007-r8/control/control.sock",
+      "--out",
+      "/var/tmp/afs-managed-append-20261007-r8/results-r8/semantics",
+      "--groups",
+      "append"
+    ],
+    "exit": 1,
+    "timeout": false,
+    "elapsed_seconds": 0.06395012999564642,
+    "stdout": "018.stdout",
+    "stderr": "018.stderr"
+  },
+  {
+    "argv": [
+      "python3",
+      "/var/tmp/afs-managed-append-20261007-r8/tools/scripts/ownerfs/native-workspace-control.py",
+      "--socket",
+      "/opt/afs-managed-append-20261007-r8/control/control.sock",
+      "--id",
+      "finally-stop",
+      "stop"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.11983989600412315,
+    "stdout": "019.stdout",
+    "stderr": "019.stderr"
+  },
+  {
+    "argv": [
+      "/opt/afs-managed-append-20261007-r8/prefix/bin/afs-processctl",
+      "--prefix",
+      "/opt/afs-managed-append-20261007-r8/prefix",
+      "--config-dir",
+      "/opt/afs-managed-append-20261007-r8/etc",
+      "--run-dir",
+      "/opt/afs-managed-append-20261007-r8/run",
+      "--log-dir",
+      "/opt/afs-managed-append-20261007-r8/logs",
+      "stop",
+      "all"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.22539418999804184,
+    "stdout": "020.stdout",
+    "stderr": "020.stderr"
+  },
+  {
+    "argv": [
+      "findmnt",
+      "-rn",
+      "--mountpoint",
+      "/opt/afs-managed-append-20261007-r8/mount/ownerfs"
+    ],
+    "exit": 1,
+    "timeout": false,
+    "elapsed_seconds": 0.0013858859965694137,
+    "stdout": "021.stdout",
+    "stderr": "021.stderr"
+  }
+]

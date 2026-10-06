@@ -1,3 +1,7 @@
+**当前新增（2026-10-07）：** 相同Rust6d51aeb/map66dbbe3e/157输入，append-only r8补齐独立结果：顺序52B双路径内容、并发128唯一完整记录PASS；第三SEEK_CUR24/38及62个并发偏移不匹配FAIL，原生对照全部PASS，正常清理/独立postcheck PASS。[原始命令、版本和证明](evidence/20261007-append-diagnostic/README.md)。原r6/锁/watch失败与性能摸底保留，不升级ON/G2.12/13；默认OFF，G1历史8/8和G2计数不变。本项诊断收口，偏移一致性待修；下一独立项为当前OFF试用包安装/核心恢复回执，不继续无输入复测本缺口或标准/性能。
+
+## 前序检查点（原版本/范围；下一动作由上述当前入口覆盖）
+
 **当前容器小项（2026-10-07）：** Rust main6d51aeb/map66dbbe3e不变，实际受管单容器基础生命周期、64MiB及正常清理已通过；本轮短混合语义新增4KiB mmap双向数据及权限/错误PASS，锁冲突、append/SEEK_CUR和跨路径watch传播FAIL，[逐项原始证据](evidence/20261007-managed-semantics/README.md)。未执行的混合并发append不计通过；旧锁阻塞判据单列补强。完整G2.12/生产ON/G2.13仍未通过，默认OFF，G1历史8/8和G2计数不变。下一项容器workspace小规模性能仅作诊断留数，不用数字掩盖语义缺口；未变标准及普通性能不重复。下方旧记录保留原版本。
 
 **Latest functional output (2026-10-07):** local R1 DFS statfs and affected fixed standards now pass on map6161e25b release, with normal cleanup; [evidence](evidence/20261007-dfs-statfs/README.md). Do not repeat unchanged suites. [Managed container workspace source adapter](native-workspace-slice.md) now exists as a default-OFF partial experiment; [official runc installation/runtime-only admission passed](evidence/20261007-runc-runtime/README.md) after human authorization; actual managed OwnerFs lifecycle remains pending. Source gates do not qualify container lifecycle/performance. Ordinary performance tuning stays deferred.

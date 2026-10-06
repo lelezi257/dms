@@ -1,0 +1,73 @@
+{
+  "time": "2026-10-06T20:57:36.158355+00:00",
+  "vm": "afs-g2-micro",
+  "status": "PASS",
+  "checks": [
+    {
+      "argv": [
+        "limactl",
+        "shell",
+        "afs-g2-micro",
+        "sudo",
+        "ps",
+        "-C",
+        "afs-node,afs-meta,runc",
+        "-o",
+        "pid,comm,args"
+      ],
+      "exit": 1,
+      "stdout": "    PID COMMAND         COMMAND\n",
+      "stderr": "bash: line 1: cd: /Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/source: No such file or directory\nbash: line 1: cd: /Users/lzc: No such file or directory\n",
+      "pass": true
+    },
+    {
+      "argv": [
+        "limactl",
+        "shell",
+        "afs-g2-micro",
+        "sudo",
+        "findmnt",
+        "-rn",
+        "--mountpoint",
+        "/opt/afs-managed-append-20261007-r8/mount/ownerfs"
+      ],
+      "exit": 1,
+      "stdout": "",
+      "stderr": "bash: line 1: cd: /Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/source: No such file or directory\nbash: line 1: cd: /Users/lzc: No such file or directory\n",
+      "pass": true
+    },
+    {
+      "argv": [
+        "limactl",
+        "shell",
+        "afs-g2-micro",
+        "sudo",
+        "/usr/local/sbin/runc",
+        "--root",
+        "/opt/afs-managed-append-20261007-r8/control/runtime-state",
+        "list",
+        "--format",
+        "json"
+      ],
+      "exit": 0,
+      "stdout": "null\n",
+      "stderr": "bash: line 1: cd: /Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/source: No such file or directory\nbash: line 1: cd: /Users/lzc: No such file or directory\n",
+      "pass": true
+    },
+    {
+      "argv": [
+        "limactl",
+        "shell",
+        "afs-g2-micro",
+        "sudo",
+        "python3",
+        "-c",
+        "import json,os;print(json.dumps({p:os.path.exists(p) for p in ['/opt/afs-managed-append-20261007-r8/control/control.sock', '/opt/afs-managed-append-20261007-r8/control/controller.lock']}))"
+      ],
+      "exit": 0,
+      "stdout": "{\"/opt/afs-managed-append-20261007-r8/control/control.sock\": false, \"/opt/afs-managed-append-20261007-r8/control/controller.lock\": false}\n",
+      "stderr": "bash: line 1: cd: /Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/source: No such file or directory\nbash: line 1: cd: /Users/lzc: No such file or directory\n",
+      "pass": true
+    }
+  ]
+}

@@ -67,7 +67,7 @@
 | G2.09 | OwnerFs本地小规模读 | 与ext4同条件、内容/EOF正确并达本地目标 | **性能FAIL**；e925c5b 64MiB/C1/5对，功能PASS，dev0.5709/release0.3477×ext4<0.90，摸底数据保留、专项优化暂缓；[证据](evidence/20261006-e2e-current/r4/README.md)，不刷成绩 |
 | G2.10 | OwnerFs本地小规模写 | 相同持久屏障，计open/write/sync/close，读回正确并达标 | **性能FAIL**；e925c5b 64MiB/C1/5对，同fdatasync，功能PASS，dev0.6297/release0.5879×ext4<0.90，摸底数据保留、专项优化暂缓；[证据](evidence/20261006-e2e-current/r4/README.md) |
 | G2.11 | OwnerFs本地删除 | 固定小文件集合，删除正确，操作性能对照报告 | **完成（限定小项）**；e925c5b 100×4KiB/C1/5对，正确且对照报告已留，无新增比例门槛；[证据](evidence/20261006-e2e-current/r4/README.md) |
-| G2.12 | bind功能验收（独立开关） | 显式可配置、默认OFF；OFF原FUSE回归；ON受管挂载/启动/停止、必要语义/权限、引用排空及重启对账；不安全配置拒绝 | **进行中**；[交接](current-checkpoint.md#historical-evidence)、[基础资格](current-checkpoint.md#historical-evidence)；[管理员实验接线](native-workspace-slice.md)，默认OFF；[实际受管单容器生命周期/清理PASS](evidence/20261007-managed-workspace/README.md)；[短语义](evidence/20261007-managed-semantics/README.md)：mmap字节/权限PASS，锁/append偏移/watch传播FAIL；完整ON及生产开关未资格化 |
+| G2.12 | bind功能验收（独立开关） | 显式可配置、默认OFF；OFF原FUSE回归；ON受管挂载/启动/停止、必要语义/权限、引用排空及重启对账；不安全配置拒绝 | **进行中**；[交接](current-checkpoint.md#historical-evidence)、[基础资格](current-checkpoint.md#historical-evidence)；[管理员实验接线](native-workspace-slice.md)，默认OFF；[实际受管单容器生命周期/清理PASS](evidence/20261007-managed-workspace/README.md)；[短语义](evidence/20261007-managed-semantics/README.md)：mmap字节/权限PASS，锁/append偏移/watch传播FAIL；[append r8独立数据](evidence/20261007-append-diagnostic/README.md)顺序/128记录PASS，偏移仍FAIL，本轮诊断收口；完整ON及生产开关未资格化 |
 | G2.13 | bind性能验收（独立开关） | 同候选OFF/ON/ext4配对；核心数据读写和元数据接近ext4，内容/语义正确 | **进行中**；[当前6d51aeb小配对诊断](evidence/20261007-container-perf/README.md)：OFF/ON各1预热+5轮，ON写/读耗时1.023/1.031×ext4、六元数据1.048–1.158×ext4；内容/清理通过，缓存/FUSE计数限制及锁/append/watch缺口保留，完整出口未过 |
 | G2.14 | OwnerFs远端小规模读 | 同Home/缓存/接口MooseFS对照，内容正确并持平 | **待验收** |
 | G2.15 | OwnerFs远端小规模写 | 同持久屏障/数据量，跨节点读回正确并持平 | **待验收** |
@@ -86,7 +86,9 @@
 
 **决策：** native已知append、实际kernel锁、混合mmap/watch、最终namespace/Root/epoch及排空缺口属于G2.12启用前条件，不能延期后冒充通过。OFF版本和普通FUSE性能独立推进；开关不掩盖ON错误，当前不声称已有可用生产开关。
 
-**下一顺序：** 当前已启动release切片已测完并正常停止，普通读写未达标数据保留、专项优化暂缓；R1仓库整改验证完成并发布，R2原版fuser公开API缺口独立阻塞。DFS本地R1受影响标准回归已完成；其它标准项按功能范围复用或补齐，不为了性能反复跑标准集。性能优先G2.12容器workspace挂载的必要功能/安全出口→G2.13性能。其它核心性能按独立摸底项保留数据，不无限优化；大规模/复杂可靠性/后端仍后置。
+**当前独立出口（2026-10-07）：** 容器配对性能已摸底留数；append r8已区分数据与偏移，偏移/锁/watch缺口保留、实验OFF。下一项当前OFF包的独立安装和核心恢复回执（G2.27分支），不称完整性能交付通过；不重复未变标准或微调性能。
+
+**前序顺序（范围保留，当前动作以上述出口为准）：** 当前已启动release切片已测完并正常停止，普通读写未达标数据保留、专项优化暂缓；R1仓库整改验证完成并发布，R2原版fuser公开API缺口独立阻塞。DFS本地R1受影响标准回归已完成；其它标准项按功能范围复用或补齐，不为了性能反复跑标准集。性能优先G2.12容器workspace挂载的必要功能/安全出口→G2.13性能。其它核心性能按独立摸底项保留数据，不无限优化；大规模/复杂可靠性/后端仍后置。
 
 ## 阶段三 G3：复杂可靠性及最后的后端
 

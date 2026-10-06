@@ -1,0 +1,17 @@
+{"msg":"Mounting /opt/afs-managed-append-20261007-r8/mount/ownerfs","level":"INFO","ts":"2026-10-06T20:56:54.824110001Z","instance":"node-a","service_name":"afs-node"}
+{"msg":"node.ready","level":"INFO","ts":"2026-10-06T20:56:54.82519256Z","instance":"node-a","service_name":"afs-node","dfs":false,"ownerfs":true,"uds":"/opt/afs-managed-append-20261007-r8/run/node.sock","rest":"127.0.0.1:24501","grpc":"127.0.0.1:24500"}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-06T20:56:55.112690089Z","instance":"node-a","service_name":"afs-node","message":"OwnerFs root is not registered in Meta","kind":"NotFound","code":34078721}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-06T20:56:55.12130094Z","instance":"node-a","service_name":"afs-node","message":"No such file or directory (os error 2)","kind":"NotFound","code":67305473}
+{"msg":"fuse.create","level":"INFO","ts":"2026-10-06T20:56:55.121337814Z","instance":"node-a","service_name":"afs-node","name":"seed","parent":2}
+{"msg":"[Not Implemented] ioctl(ino: 0x3, fh: 1, flags: 0, cmd: 21505, in_data.len(): 0, out_size: 0)","level":"WARN","ts":"2026-10-06T20:56:55.121564476Z","instance":"node-a","service_name":"afs-node"}
+{"msg":"FUSE operation parse failed for request RequestId(46): Unknown FUSE opcode (52)","level":"WARN","ts":"2026-10-06T20:56:55.184140678Z","instance":"node-a","service_name":"afs-node"}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-06T20:56:55.513064082Z","instance":"node-a","service_name":"afs-node","message":"No such file or directory (os error 2)","kind":"NotFound","code":67305473}
+{"msg":"fuse.create","level":"INFO","ts":"2026-10-06T20:56:55.513074124Z","instance":"node-a","service_name":"afs-node","name":".afs-native-mixed-14953-1791320215512482054-append.log","parent":2}
+{"msg":"[Not Implemented] ioctl(ino: 0x4, fh: 5, flags: 0, cmd: 21505, in_data.len(): 0, out_size: 0)","level":"WARN","ts":"2026-10-06T20:56:55.514471468Z","instance":"node-a","service_name":"afs-node"}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-06T20:56:55.514828085Z","instance":"node-a","service_name":"afs-node","message":"No such file or directory (os error 2)","kind":"NotFound","code":67305473}
+{"msg":"fuse.create","level":"INFO","ts":"2026-10-06T20:56:55.51485146Z","instance":"node-a","service_name":"afs-node","name":".afs-native-mixed-14953-1791320215512482054-append-concurrent.log","parent":2}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-06T20:56:55.515333199Z","instance":"node-a","service_name":"afs-node","message":"No such file or directory (os error 2)","kind":"NotFound","code":67305473}
+{"msg":"fuse.create","level":"INFO","ts":"2026-10-06T20:56:55.515364115Z","instance":"node-a","service_name":"afs-node","name":".afs-native-mixed-14953-1791320215512482054-append-start.flag","parent":2}
+{"msg":"[Not Implemented] ioctl(ino: 0x5, fh: 9, flags: 0, cmd: 21505, in_data.len(): 0, out_size: 0)","level":"WARN","ts":"2026-10-06T20:56:55.526655199Z","instance":"node-a","service_name":"afs-node"}
+{"msg":"[Not Implemented] ioctl(ino: 0x5, fh: 10, flags: 0, cmd: 21505, in_data.len(): 0, out_size: 0)","level":"WARN","ts":"2026-10-06T20:56:55.527422599Z","instance":"node-a","service_name":"afs-node"}
+{"msg":"services.stopped","level":"INFO","ts":"2026-10-06T20:56:55.710798592Z","instance":"node-a","service_name":"afs-node"}

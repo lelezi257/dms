@@ -1,0 +1,11 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "afs-g2-micro",
+    "bash",
+    "-c",
+    "cd /var/tmp/afs-managed-append-20261007-r8/tools && python3 -m unittest development.acceptance.test_native_workspace -v"
+  ],
+  "exit": 1
+}

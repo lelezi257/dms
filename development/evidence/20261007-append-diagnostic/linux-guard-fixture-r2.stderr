@@ -1,0 +1,8 @@
+bash: line 1: cd: /Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/source: No such file or directory
+bash: line 1: cd: /Users/lzc: No such file or directory
+test_concurrent_offset_correlation_checks_actual_record_end (development.acceptance.test_native_workspace.EvidenceGuards.test_concurrent_offset_correlation_checks_actual_record_end) ... ok
+
+----------------------------------------------------------------------
+Ran 1 test in 0.005s
+
+OK

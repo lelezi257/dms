@@ -56,6 +56,8 @@ class Run(base.Run):
         self.check('ports', True, [24400, 24401, 24500, 24501])
         self.check('package', base.sha(self.args.package) == self.args.package_sha256, base.sha(self.args.package))
         self.check('runtime', base.sha('/usr/local/sbin/runc') == self.args.runtime_sha256, base.sha('/usr/local/sbin/runc'))
+        if self.args.semantics_only:
+            self.check('semantics-only-has-probe', self.args.semantics_probe is not None, str(self.args.semantics_probe))
         if self.args.semantics_probe:
             self.check('semantics-tool', self.args.semantics_probe.is_file(), str(self.args.semantics_probe))
         self.command(['/usr/local/sbin/runc', '--version'])
@@ -130,7 +132,9 @@ class Run(base.Run):
 
     def run(self):
         result = {'status': 'BLOCKED', 'scope': 'single experimental managed OwnerFs workspace; not full G2.12/13',
-                  'source_commit': self.args.source_commit, 'driver_sha256': base.sha(__file__)}
+                  'source_commit': self.args.source_commit, 'driver_sha256': base.sha(__file__),
+                  'basic_payload_selected': not self.args.semantics_only,
+                  'semantic_groups': self.args.semantics_groups if self.args.semantics_probe else []}
         process = None
         try:
             self.preflight()
@@ -170,19 +174,20 @@ class Run(base.Run):
                         if p.is_dir() and (p.stat().st_dev, p.stat().st_ino) == (source.st_dev, source.st_ino)]
             self.check('real-storage-source', len(physical) == 1, physical)
             self.save('final-identity.json', {'container': state, 'observed': observed, 'storage_path': physical})
-            shell = (f'/bin/busybox id; /bin/busybox grep -E "^(CapEff|NoNewPrivs):" /proc/self/status; '
-                f'test "$(/bin/busybox sha256sum /workspace/seed | /bin/busybox cut -d " " -f 1)" = {seed_sha}; '
-                '/bin/busybox dd if=/dev/zero of=/workspace/payload bs=65536 count=1024; '
-                'printf "end\\n" >> /workspace/payload; /bin/busybox sync -f /workspace/payload; '
-                '/bin/busybox mv /workspace/payload /workspace/renamed; /bin/busybox chmod 0600 /workspace/renamed; '
-                '/bin/busybox mkdir /workspace/empty; /bin/busybox rmdir /workspace/empty; '
-                '/bin/busybox sha256sum /workspace/renamed')
-            response = self.native('work', 'exec', '--', '/bin/sh', '-ec', shell)
-            self.check('executed', response.get('status') == 'Executed', response)
-            expected = hashlib.sha256(bytes(64 * 2**20) + b'end\n').hexdigest()
-            self.check('host-read-full-content', content_matches(workspace / 'renamed', 64 * 2**20 + 4, expected), expected)
-            st = (workspace / 'renamed').stat()
-            self.check('workload-owner-mode', (st.st_uid, st.st_gid, stat.S_IMODE(st.st_mode)) == (501, 501, 0o600), [st.st_uid, st.st_gid, oct(st.st_mode)])
+            if not self.args.semantics_only:
+                shell = (f'/bin/busybox id; /bin/busybox grep -E "^(CapEff|NoNewPrivs):" /proc/self/status; '
+                    f'test "$(/bin/busybox sha256sum /workspace/seed | /bin/busybox cut -d " " -f 1)" = {seed_sha}; '
+                    '/bin/busybox dd if=/dev/zero of=/workspace/payload bs=65536 count=1024; '
+                    'printf "end\\n" >> /workspace/payload; /bin/busybox sync -f /workspace/payload; '
+                    '/bin/busybox mv /workspace/payload /workspace/renamed; /bin/busybox chmod 0600 /workspace/renamed; '
+                    '/bin/busybox mkdir /workspace/empty; /bin/busybox rmdir /workspace/empty; '
+                    '/bin/busybox sha256sum /workspace/renamed')
+                response = self.native('work', 'exec', '--', '/bin/sh', '-ec', shell)
+                self.check('executed', response.get('status') == 'Executed', response)
+                expected = hashlib.sha256(bytes(64 * 2**20) + b'end\n').hexdigest()
+                self.check('host-read-full-content', content_matches(workspace / 'renamed', 64 * 2**20 + 4, expected), expected)
+                st = (workspace / 'renamed').stat()
+                self.check('workload-owner-mode', (st.st_uid, st.st_gid, stat.S_IMODE(st.st_mode)) == (501, 501, 0o600), [st.st_uid, st.st_gid, oct(st.st_mode)])
             if self.args.semantics_probe:
                 self.save('semantics-tool.json', {'path': str(self.args.semantics_probe),
                           'sha256': base.sha(self.args.semantics_probe)})
@@ -200,8 +205,9 @@ class Run(base.Run):
             self.check('container-pid-gone', not Path(f'/proc/{pid}').exists(), pid)
             self.check('runtime-empty', json.loads(self.command(['/usr/local/sbin/runc', '--root',
                        self.root / 'control/runtime-state', 'list', '--format', 'json'])) in (None, []), 'empty')
-            self.check('host-reopen-after-stop', content_matches(workspace / 'renamed', 64 * 2**20 + 4, expected), expected)
-            self.save('content.json', {'size': 64 * 2**20 + 4, 'sha256': expected, 'seed_sha256': seed_sha})
+            if not self.args.semantics_only:
+                self.check('host-reopen-after-stop', content_matches(workspace / 'renamed', 64 * 2**20 + 4, expected), expected)
+                self.save('content.json', {'size': 64 * 2**20 + 4, 'sha256': expected, 'seed_sha256': seed_sha})
             result['status'] = 'PASS'
         except Exception as error:
             result['error'] = repr(error)
@@ -240,6 +246,8 @@ def main():
         parser.add_argument('--' + name, type=Path, required=True)
     for name in ('source-commit', 'package-sha256', 'runtime-sha256', 'afs-meta-sha256', 'afs-node-sha256'):
         parser.add_argument('--' + name, required=True)
+    parser.add_argument('--semantics-only', action='store_true',
+                        help='run selected short semantics and necessary lifecycle identity only; omit unchanged 64MiB basic payload')
     parser.add_argument('--semantics-probe', type=Path, help='optional short mixed-path checks before normal stop')
     parser.add_argument('--semantics-groups', nargs='+',
                         choices=('locks', 'append', 'mmap_inotify', 'permissions_errno'),

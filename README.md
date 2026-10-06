@@ -44,3 +44,5 @@ Use the guides for local commands:
 - [Configuration](docs/guides/configuration.md)
 - [Operations](docs/guides/operations.md)
 - [Validation](docs/guides/validation.md)
+
+Current default-OFF Linux ARM64 trial: [fixed package checklist](docs/guides/trial-6d.md), [archive reproduction](development/evidence/20261007-off-trial-handoff/README.md) and [fresh installed recovery](development/evidence/20261007-installed-off-6d/README.md). Complete G2 performance/ON gates remain open.

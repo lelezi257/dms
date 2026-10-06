@@ -1,0 +1,11 @@
+{
+  "argv": [
+    "limactl",
+    "copy",
+    "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/off-trial-handoff-20261007-r1/source-inputs.tar",
+    "afs-g2-micro:/var/tmp/afs-off-repro-6d-20261007-r1-source.tar"
+  ],
+  "exit": 0,
+  "stdout": "",
+  "stderr": ""
+}

@@ -1,0 +1,42 @@
+{
+  "system": "Linux",
+  "arch": "aarch64",
+  "uid": 0,
+  "new_root": true,
+  "free_bytes": 9543385088,
+  "dependencies": {
+    "bash": "/usr/bin/bash",
+    "tar": "/usr/bin/tar",
+    "gzip": "/usr/bin/gzip",
+    "install": "/usr/bin/install",
+    "sha256sum": "/usr/bin/sha256sum",
+    "ldd": "/usr/bin/ldd",
+    "find": "/usr/bin/find",
+    "sort": "/usr/bin/sort",
+    "xargs": "/usr/bin/xargs",
+    "sed": "/usr/bin/sed",
+    "awk": "/usr/bin/awk",
+    "mktemp": "/usr/bin/mktemp",
+    "cmp": "/usr/bin/cmp",
+    "touch": "/usr/bin/touch",
+    "chmod": "/usr/bin/chmod",
+    "head": "/usr/bin/head",
+    "grep": "/usr/bin/grep",
+    "uname": "/usr/bin/uname"
+  },
+  "filesystem": {
+    "filesystems": [
+      {
+        "target": "/",
+        "source": "/dev/vda1",
+        "fstype": "ext4",
+        "options": "rw,relatime,discard,errors=remount-ro,commit=30"
+      }
+    ]
+  },
+  "package_sha256": "ee25d5892c4e884e67c86d4e5b9c6ab551af4c46649edab6a05da06659d1aff9",
+  "binary_sha256": {
+    "meta": "2c7b7d088b759e3b9375080002182aa484a424b4fa216da1fb79a1004e96168e",
+    "node": "2cf1f538fe7af332a711f3c66a074ace140c00773826a182709a6445b8ae2645"
+  }
+}

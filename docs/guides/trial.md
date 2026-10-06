@@ -1,5 +1,7 @@
 # Trial Package Guide
 
+For the fixed candidate archive and commands, use the [6d51aeb trial checklist](trial-6d.md).
+
 The current6d51aeb default-OFF package has a fresh compiler-free single-node
 local-file installation/basic64MiB/ordered Meta recovery regression for OwnerFs
 and DFS. [Current version, package hashes and bounded evidence](../../development/evidence/20261007-installed-off-6d/README.md).

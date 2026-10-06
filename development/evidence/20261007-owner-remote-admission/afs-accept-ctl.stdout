@@ -1,0 +1,229 @@
+{
+  "role": "ctl",
+  "hostname": "lima-afs-accept-ctl",
+  "uid": 0,
+  "platform": {
+    "system": "Linux",
+    "machine": "aarch64",
+    "release": "6.8.0-142-generic"
+  },
+  "prefix": "/opt/afs-moose-round3-v85",
+  "volume": "/mnt/lima-afsctlstate",
+  "run_root": "/mnt/lima-afsctlstate/afs-delivery/round3-moose-read-v85",
+  "scope": "read-only admission; no workload/full dataset reads/service or VM changes",
+  "commands": [
+    {
+      "argv": [
+        "ip",
+        "-j",
+        "-4",
+        "addr"
+      ],
+      "returncode": 0,
+      "stdout": "[{\"ifindex\":1,\"ifname\":\"lo\",\"flags\":[\"LOOPBACK\",\"UP\",\"LOWER_UP\"],\"mtu\":65536,\"qdisc\":\"noqueue\",\"operstate\":\"UNKNOWN\",\"group\":\"default\",\"txqlen\":1000,\"addr_info\":[{\"family\":\"inet\",\"local\":\"127.0.0.1\",\"prefixlen\":8,\"scope\":\"host\",\"label\":\"lo\",\"valid_life_time\":4294967295,\"preferred_life_time\":4294967295}]},{\"ifindex\":2,\"ifname\":\"eth0\",\"flags\":[\"BROADCAST\",\"MULTICAST\",\"UP\",\"LOWER_UP\"],\"mtu\":1500,\"qdisc\":\"fq_codel\",\"operstate\":\"UP\",\"group\":\"default\",\"txqlen\":1000,\"addr_info\":[{\"family\":\"inet\",\"local\":\"192.168.109.11\",\"prefixlen\":24,\"metric\":200,\"broadcast\":\"192.168.109.255\",\"scope\":\"global\",\"dynamic\":true,\"label\":\"eth0\",\"valid_life_time\":2989,\"preferred_life_time\":2989}]}]\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "findmnt",
+        "-J",
+        "-T",
+        "/mnt/lima-afsctlstate"
+      ],
+      "returncode": 0,
+      "stdout": "{\n   \"filesystems\": [\n      {\n         \"target\": \"/mnt/lima-afsctlstate\",\n         \"source\": \"/dev/vdb1\",\n         \"fstype\": \"ext4\",\n         \"options\": \"rw,relatime\"\n      }\n   ]\n}\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "findmnt",
+        "-J",
+        "--mountpoint",
+        "/mnt/lima-afsctlstate/afs-delivery/round3-moose-read-v85/mount"
+      ],
+      "returncode": 1,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "findmnt",
+        "-J",
+        "-t",
+        "fuse,fuse.afs-ownerfs,fuse.afs-dfs,fuse.mfs,ext4",
+        "-o",
+        "TARGET,SOURCE,FSTYPE,OPTIONS"
+      ],
+      "returncode": 0,
+      "stdout": "{\n   \"filesystems\": [\n      {\n         \"target\": \"/\",\n         \"source\": \"/dev/vda1\",\n         \"fstype\": \"ext4\",\n         \"options\": \"rw,relatime,discard,errors=remount-ro,commit=30\",\n         \"children\": [\n            {\n               \"target\": \"/boot\",\n               \"source\": \"/dev/vda16\",\n               \"fstype\": \"ext4\",\n               \"options\": \"rw,relatime\"\n            },{\n               \"target\": \"/tmp/afs-ltp-ext4-full/base/.afs-std02-ltp-20260930T101932Z-00dcb4f9/commands/0632-writev03/tmp/LTP_wriNCIqOx/mntpoint\",\n               \"source\": \"/dev/loop0\",\n               \"fstype\": \"ext4\",\n               \"options\": \"rw,relatime\"\n            },{\n               \"target\": \"/mnt/lima-afsctlstate\",\n               \"source\": \"/dev/vdb1\",\n               \"fstype\": \"ext4\",\n               \"options\": \"rw,relatime\",\n               \"children\": [\n                  {\n                     \"target\": \"/mnt/lima-afsctlstate/v102w/ltpfull/.l639898a1/0632/t/LTP_wriBX4FIF/mntpoint\",\n                     \"source\": \"/dev/loop2\",\n                     \"fstype\": \"ext4\",\n                     \"options\": \"rw,relatime\"\n                  }\n               ]\n            }\n         ]\n      }\n   ]\n}\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "ldd",
+        "/opt/afs-moose-round3-v85/sbin/mfsmaster"
+      ],
+      "returncode": 0,
+      "stdout": "\tlinux-vdso.so.1 (0x0000fd971461d000)\n\tlibz.so.1 => /lib/aarch64-linux-gnu/libz.so.1 (0x0000fd9713480000)\n\tlibc.so.6 => /lib/aarch64-linux-gnu/libc.so.6 (0x0000fd97132c0000)\n\t/lib/ld-linux-aarch64.so.1 (0x0000fd97145e0000)\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "ldd",
+        "/opt/afs-moose-round3-v85/sbin/mfschunkserver"
+      ],
+      "returncode": 0,
+      "stdout": "\tlinux-vdso.so.1 (0x0000fcd4a9bfd000)\n\tlibz.so.1 => /lib/aarch64-linux-gnu/libz.so.1 (0x0000fcd4a1a20000)\n\tlibc.so.6 => /lib/aarch64-linux-gnu/libc.so.6 (0x0000fcd4a1860000)\n\t/lib/ld-linux-aarch64.so.1 (0x0000fcd4a9bb0000)\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "ldd",
+        "/opt/afs-moose-round3-v85/bin/mfsmount"
+      ],
+      "returncode": 0,
+      "stdout": "\tlinux-vdso.so.1 (0x0000fbe9f209b000)\n\tlibfuse3.so.3 => /lib/aarch64-linux-gnu/libfuse3.so.3 (0x0000fbe9f0df0000)\n\tlibc.so.6 => /lib/aarch64-linux-gnu/libc.so.6 (0x0000fbe9f0c30000)\n\t/lib/ld-linux-aarch64.so.1 (0x0000fbe9f2050000)\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "ldd",
+        "/opt/afs-moose-round3-v85/sbin/mfschunktool"
+      ],
+      "returncode": 0,
+      "stdout": "\tlinux-vdso.so.1 (0x0000feb04e978000)\n\tlibc.so.6 => /lib/aarch64-linux-gnu/libc.so.6 (0x0000feb04e720000)\n\t/lib/ld-linux-aarch64.so.1 (0x0000feb04e930000)\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "ps",
+        "-eo",
+        "pid,comm,args"
+      ],
+      "returncode": 0,
+      "stdout": "    PID COMMAND         COMMAND\n 472165 redis-server    /var/tmp/afs-p2e-redis/pkg/redis-server 0.0.0.0:17637\n1136874 afs-meta        /mnt/lima-afsctlstate/afs-delivery/p1b/bin/afs-meta --config /mnt/lima-afsctlstate/afs-delivery/p1b/meta.toml\n1418880 afs-meta        /mnt/lima-afsctlstate/afs-delivery/round1-mainline-v77-archive-async/prefix/bin/afs-meta --config /mnt/lima-afsctlstate/afs-delivery/round1-mainline-v77-archive-async/etc/meta.toml\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "ss",
+        "-ltnp"
+      ],
+      "returncode": 0,
+      "stdout": "State  Recv-Q Send-Q  Local Address:Port  Peer Address:PortProcess                                                       \nLISTEN 0      511           0.0.0.0:17637      0.0.0.0:*    users:((\"redis-server\",pid=472165,fd=6))                     \nLISTEN 0      4096          0.0.0.0:58375      0.0.0.0:*    users:((\"rpc.mountd\",pid=1320469,fd=5))                      \nLISTEN 0      128           0.0.0.0:17501      0.0.0.0:*    users:((\"afs-meta\",pid=1136874,fd=10))                       \nLISTEN 0      128           0.0.0.0:17500      0.0.0.0:*    users:((\"afs-meta\",pid=1136874,fd=9))                        \nLISTEN 0      64            0.0.0.0:40275      0.0.0.0:*                                                                 \nLISTEN 0      128           0.0.0.0:19980      0.0.0.0:*    users:((\"afs-meta\",pid=1418880,fd=9))                        \nLISTEN 0      128    192.168.109.11:19981      0.0.0.0:*    users:((\"afs-meta\",pid=1418880,fd=10))                       \nLISTEN 0      4096    127.0.0.53%lo:53         0.0.0.0:*    users:((\"systemd-resolve\",pid=3556,fd=18))                   \nLISTEN 0      4096          0.0.0.0:32975      0.0.0.0:*    users:((\"rpc.statd\",pid=1320456,fd=9))                       \nLISTEN 0      4096       127.0.0.54:53         0.0.0.0:*    users:((\"systemd-resolve\",pid=3556,fd=20))                   \nLISTEN 0      64            0.0.0.0:2049       0.0.0.0:*                                                                 \nLISTEN 0      4096          0.0.0.0:22         0.0.0.0:*    users:((\"sshd\",pid=3573,fd=3),(\"systemd\",pid=1,fd=92))       \nLISTEN 0      4096          0.0.0.0:111        0.0.0.0:*    users:((\"rpcbind\",pid=1319949,fd=4),(\"systemd\",pid=1,fd=113))\nLISTEN 0      4096          0.0.0.0:35141      0.0.0.0:*    users:((\"rpc.mountd\",pid=1320469,fd=9))                      \nLISTEN 0      4096          0.0.0.0:47739      0.0.0.0:*    users:((\"rpc.mountd\",pid=1320469,fd=13))                     \nLISTEN 0      4096             [::]:36615         [::]:*    users:((\"rpc.statd\",pid=1320456,fd=11))                      \nLISTEN 0      4096             [::]:45227         [::]:*    users:((\"rpc.mountd\",pid=1320469,fd=7))                      \nLISTEN 0      4096             [::]:37091         [::]:*    users:((\"rpc.mountd\",pid=1320469,fd=15))                     \nLISTEN 0      64               [::]:38945         [::]:*                                                                 \nLISTEN 0      64               [::]:2049          [::]:*                                                                 \nLISTEN 0      4096             [::]:22            [::]:*    users:((\"sshd\",pid=3573,fd=4),(\"systemd\",pid=1,fd=93))       \nLISTEN 0      4096             [::]:111           [::]:*    users:((\"rpcbind\",pid=1319949,fd=6),(\"systemd\",pid=1,fd=116))\nLISTEN 0      4096             [::]:45787         [::]:*    users:((\"rpc.mountd\",pid=1320469,fd=11))                     \n",
+      "stderr": ""
+    }
+  ],
+  "issues": [],
+  "dependencies": {
+    "bash": "/usr/bin/bash",
+    "python3": "/usr/bin/python3",
+    "findmnt": "/usr/bin/findmnt",
+    "sha256sum": "/usr/bin/sha256sum",
+    "ss": "/usr/bin/ss",
+    "mountpoint": "/usr/bin/mountpoint",
+    "fusermount3": "/usr/bin/fusermount3",
+    "openssl": "/usr/bin/openssl",
+    "curl": "/usr/bin/curl",
+    "ldd": "/usr/bin/ldd",
+    "ip": "/usr/sbin/ip"
+  },
+  "old_moose_exact_mount_observed": false,
+  "capacity": {
+    "available_bytes": 4481642496,
+    "total_bytes": 8348200960,
+    "old_helper_reserve_bytes": 4294967296,
+    "new_64MiB_dataset_over_old_reserve_bytes": 4362485760,
+    "reserve_pass": true
+  },
+  "prefix_exists": true,
+  "core_elf": {
+    "sbin/mfsmaster": {
+      "path": "/opt/afs-moose-round3-v85/sbin/mfsmaster",
+      "resolved_path": "/opt/afs-moose-round3-v85/sbin/mfsmaster",
+      "bytes": 4119248,
+      "sha256": "9febf4e7a9ae5285c4e792024f98d8a5531ae325f19268e103693981be509b70",
+      "expected_sha256": "9febf4e7a9ae5285c4e792024f98d8a5531ae325f19268e103693981be509b70",
+      "matches": true
+    },
+    "sbin/mfschunkserver": {
+      "path": "/opt/afs-moose-round3-v85/sbin/mfschunkserver",
+      "resolved_path": "/opt/afs-moose-round3-v85/sbin/mfschunkserver",
+      "bytes": 2409944,
+      "sha256": "422a36b7e31a6aa0bfbef08efe083d9d55003aca0a9a7bd0121b730c33f97303",
+      "expected_sha256": "422a36b7e31a6aa0bfbef08efe083d9d55003aca0a9a7bd0121b730c33f97303",
+      "matches": true
+    },
+    "bin/mfsmount": {
+      "path": "/opt/afs-moose-round3-v85/bin/mfsmount",
+      "resolved_path": "/opt/afs-moose-round3-v85/bin/mfsmount",
+      "bytes": 3070208,
+      "sha256": "5752f91e2d174cc8a0a53df7b3713b3bed31fde5fe72a6f38cd86237ae3ebc37",
+      "expected_sha256": "5752f91e2d174cc8a0a53df7b3713b3bed31fde5fe72a6f38cd86237ae3ebc37",
+      "matches": true
+    },
+    "sbin/mfschunktool": {
+      "path": "/opt/afs-moose-round3-v85/sbin/mfschunktool",
+      "resolved_path": "/opt/afs-moose-round3-v85/sbin/mfschunktool",
+      "bytes": 156424,
+      "sha256": "802ef5ed82e80bba8ecbb9bb0a9320fa862601575008a2b9cae708a242528cbf",
+      "expected_sha256": "802ef5ed82e80bba8ecbb9bb0a9320fa862601575008a2b9cae708a242528cbf",
+      "matches": true
+    }
+  },
+  "relevant_processes": "    PID COMMAND         COMMAND\n 472165 redis-server    /var/tmp/afs-p2e-redis/pkg/redis-server 0.0.0.0:17637\n1136874 afs-meta        /mnt/lima-afsctlstate/afs-delivery/p1b/bin/afs-meta --config /mnt/lima-afsctlstate/afs-delivery/p1b/meta.toml\n1418880 afs-meta        /mnt/lima-afsctlstate/afs-delivery/round1-mainline-v77-archive-async/prefix/bin/afs-meta --config /mnt/lima-afsctlstate/afs-delivery/round1-mainline-v77-archive-async/etc/meta.toml\n",
+  "stat_only": [
+    {
+      "path": "/mnt/lima-afsctlstate/afs-delivery/round3-moose-read-v85",
+      "exists": true,
+      "is_symlink": false,
+      "bytes": 4096,
+      "dev": 64785,
+      "ino": 262866,
+      "uid": 0,
+      "mode": "0o755"
+    },
+    {
+      "path": "/mnt/lima-afsctlstate/afs-delivery/round3-moose-read-v85/config",
+      "exists": true,
+      "is_symlink": false,
+      "bytes": 4096,
+      "dev": 64785,
+      "ino": 262867,
+      "uid": 0,
+      "mode": "0o755"
+    },
+    {
+      "path": "/mnt/lima-afsctlstate/afs-delivery/round3-moose-read-v85/run",
+      "exists": true,
+      "is_symlink": false,
+      "bytes": 4096,
+      "dev": 64785,
+      "ino": 262872,
+      "uid": 0,
+      "mode": "0o755"
+    },
+    {
+      "path": "/mnt/lima-afsctlstate/afs-delivery/round3-moose-read-v85/mount",
+      "exists": true,
+      "is_symlink": false,
+      "bytes": 4096,
+      "dev": 64785,
+      "ino": 262871,
+      "uid": 0,
+      "mode": "0o755"
+    },
+    {
+      "path": "/mnt/lima-afsctlstate/afs-delivery/round3-moose-read-v85/mount/goal1-qualification",
+      "exists": false,
+      "is_symlink": false
+    },
+    {
+      "path": "/mnt/lima-afsctlstate/afs-delivery/round3-moose-read-v85/mount/goal1-qualification/goal1-32m.bin",
+      "exists": false,
+      "is_symlink": false
+    }
+  ],
+  "dataset_interpretation": "stat only; absence under currently unmounted path does not prove retained Moose dataset lost",
+  "status": "INVENTORY_PASS_REQUIRES_CURRENT_CANDIDATE_AND_NEW_FIXTURE"
+}

@@ -1,0 +1,530 @@
+{
+  "conclusion": "No false-PASS, identity mismatch, or critical handoff command error found in the bounded review. The off handoff accurately records fixed-source/package reproduction and preserves trial boundaries. The owner remote admission accurately records A capacity as blocked under a preserved helper reserve while leaving B as a not-yet-admitted candidate.",
+  "facts": {
+    "off_handoff_repack": {
+      "all_archive_inputs_equal": true,
+      "all_command_exits_zero": true,
+      "archive_input_match": {
+        "count": 11,
+        "matches": [
+          {
+            "archive_path": "DEPENDENCIES.md",
+            "equal": true,
+            "git_path": "scripts/deploy/DEPENDENCIES.md",
+            "sha256": "23252af9e85749e0ba1bc780165a4aecb0bb040a37885654a388173864f6a8ad"
+          },
+          {
+            "archive_path": "bin/afs-processctl",
+            "equal": true,
+            "git_path": "scripts/deploy/afs-processctl",
+            "sha256": "1ea10552180c917da2c598bee9dd8fecee7be26ae9d70dcdcba2e4829150d896"
+          },
+          {
+            "archive_path": "bin/afs-selfcheck",
+            "equal": true,
+            "git_path": "scripts/deploy/afs-selfcheck",
+            "sha256": "573d174c6cae3581e080532ae59e207d92e27b730f08190b1ee99d457bedfb4a"
+          },
+          {
+            "archive_path": "bin/afs-trial-config",
+            "equal": true,
+            "git_path": "scripts/deploy/afs-trial-config",
+            "sha256": "c47783f9525826d4a0e137499bb1a779f94b3474c7355dd53aec0e615b98889b"
+          },
+          {
+            "archive_path": "bin/dep02-smoke.sh",
+            "equal": true,
+            "git_path": "scripts/deploy/dep02-smoke.sh",
+            "sha256": "0a5d929c9a6da73235c3fe8e2e4623ea9813b5e6a59027d95a1cc9d2d886f0c2"
+          },
+          {
+            "archive_path": "docs/guides/trial.md",
+            "equal": true,
+            "git_path": "docs/guides/trial.md",
+            "sha256": "c520af2bfd90ea80912756f07915a6707346e61d1183f1019446f941850b6a67"
+          },
+          {
+            "archive_path": "install.sh",
+            "equal": true,
+            "git_path": "scripts/deploy/install.sh",
+            "sha256": "3b69d83e246980c50686abf58b8d92ed076954d2b97aa4283daef6694955be59"
+          },
+          {
+            "archive_path": "templates/meta.toml",
+            "equal": true,
+            "git_path": "scripts/deploy/templates/meta.toml",
+            "sha256": "ffffb928c8d483aaccd7907665cb7c19f49510b71ba83f06a7e23a4f60ee4d28"
+          },
+          {
+            "archive_path": "templates/node-dfs.toml",
+            "equal": true,
+            "git_path": "scripts/deploy/templates/node-dfs.toml",
+            "sha256": "476395c58108a65a6361fd658f5a35eb3dfdc0ae4f862fd489b285702bb9424c"
+          },
+          {
+            "archive_path": "templates/node-ownerfs.toml",
+            "equal": true,
+            "git_path": "scripts/deploy/templates/node-ownerfs.toml",
+            "sha256": "f9cab784ec4d08d4d2cd7308d1c7aea67bafe03b77772119057367ce3099fc41"
+          },
+          {
+            "archive_path": "templates/node.toml",
+            "equal": true,
+            "git_path": "scripts/deploy/templates/node.toml",
+            "sha256": "298c7b920df655c67deece2cdc4b03555576165f9c23a63a70b1eca82582c19c"
+          }
+        ],
+        "source_commit": "6d51aeb45c1ed8669d80f612b3817e6d1bdabe04"
+      },
+      "cmp_command_exit_zero": true,
+      "command_exit_codes": [
+        {
+          "argv": [
+            "limactl",
+            "shell",
+            "afs-g2-micro",
+            "sudo",
+            "python3",
+            "-c",
+            "import os,platform,shutil,json,hashlib,subprocess\nfrom pathlib import Path\nroot=Path(\"/var/tmp/afs-off-repro-6d-20261007-r1\")\ndeps={n:shutil.which(n) for n in (\"bash\",\"tar\",\"gzip\",\"install\",\"sha256sum\",\"ldd\",\"find\",\"sort\",\"xargs\",\"sed\",\"awk\",\"mktemp\",\"cmp\",\"touch\",\"chmod\",\"head\",\"grep\",\"uname\")}\nsha=lambda p:hashlib.sha256(Path(p).read_bytes()).hexdigest()\nfs=json.loads(subprocess.check_output([\"findmnt\",\"-J\",\"-T\",\"/var/tmp\"]))\nvalue={\"system\":platform.system(),\"arch\":platform.machine(),\"uid\":os.geteuid(),\"new_root\":not root.exists(),\"free_bytes\":shutil.disk_usage(\"/var/tmp\").free,\"dependencies\":deps,\"filesystem\":fs,\"package_sha256\":sha(\"/var/tmp/afs-managed-package-6d51aeb.tar.gz\"),\"binary_sha256\":{n:sha(\"/opt/afs-managed-append-20261007-r8/prefix/bin/afs-\"+n) for n in (\"meta\",\"node\")}}\nprint(json.dumps(value,indent=2));assert value[\"system\"]==\"Linux\" and value[\"arch\"]==\"aarch64\" and value[\"uid\"]==0 and value[\"new_root\"] and value[\"free_bytes\"]>=2**30 and all(deps.values()) and fs[\"filesystems\"][0][\"fstype\"]==\"ext4\"\nassert value[\"package_sha256\"]==\"ee25d5892c4e884e67c86d4e5b9c6ab551af4c46649edab6a05da06659d1aff9\"\nassert value[\"binary_sha256\"]=={\"meta\":\"2c7b7d088b759e3b9375080002182aa484a424b4fa216da1fb79a1004e96168e\",\"node\":\"2cf1f538fe7af332a711f3c66a074ace140c00773826a182709a6445b8ae2645\"}\n"
+          ],
+          "exit": 0,
+          "stderr": "000.stderr",
+          "stdout": "000.stdout"
+        },
+        {
+          "argv": [
+            "limactl",
+            "shell",
+            "afs-g2-micro",
+            "sudo",
+            "mkdir",
+            "-m",
+            "0755",
+            "/var/tmp/afs-off-repro-6d-20261007-r1"
+          ],
+          "exit": 0,
+          "stderr": "001.stderr",
+          "stdout": "001.stdout"
+        },
+        {
+          "argv": [
+            "limactl",
+            "shell",
+            "afs-g2-micro",
+            "sudo",
+            "tar",
+            "-xf",
+            "/var/tmp/afs-off-repro-6d-20261007-r1-source.tar",
+            "-C",
+            "/var/tmp/afs-off-repro-6d-20261007-r1"
+          ],
+          "exit": 0,
+          "stderr": "002.stderr",
+          "stdout": "002.stdout"
+        },
+        {
+          "argv": [
+            "limactl",
+            "shell",
+            "afs-g2-micro",
+            "sudo",
+            "python3",
+            "-c",
+            "import json,hashlib;from pathlib import Path;root=Path('/var/tmp/afs-off-repro-6d-20261007-r1');m={'scripts/deploy/build-package.sh': '6786e90eeba5db30a69bfb8b3671827889ba4d913c09fc30ac025e19d83d62cb', 'scripts/deploy/install.sh': '3b69d83e246980c50686abf58b8d92ed076954d2b97aa4283daef6694955be59', 'scripts/deploy/afs-processctl': '1ea10552180c917da2c598bee9dd8fecee7be26ae9d70dcdcba2e4829150d896', 'scripts/deploy/afs-trial-config': 'c47783f9525826d4a0e137499bb1a779f94b3474c7355dd53aec0e615b98889b', 'scripts/deploy/afs-selfcheck': '573d174c6cae3581e080532ae59e207d92e27b730f08190b1ee99d457bedfb4a', 'scripts/deploy/dep02-smoke.sh': '0a5d929c9a6da73235c3fe8e2e4623ea9813b5e6a59027d95a1cc9d2d886f0c2', 'scripts/deploy/DEPENDENCIES.md': '23252af9e85749e0ba1bc780165a4aecb0bb040a37885654a388173864f6a8ad', 'docs/guides/trial.md': 'c520af2bfd90ea80912756f07915a6707346e61d1183f1019446f941850b6a67', 'rust-toolchain.toml': '24ef3b9d3edbd850aa386cb0a98e10450b0030991a4537cb359f54d49dbbb33a', 'scripts/deploy/templates/meta.toml': 'ffffb928c8d483aaccd7907665cb7c19f49510b71ba83f06a7e23a4f60ee4d28', 'scripts/deploy/templates/node-dfs.toml': '476395c58108a65a6361fd658f5a35eb3dfdc0ae4f862fd489b285702bb9424c', 'scripts/deploy/templates/node-ownerfs.toml': 'f9cab784ec4d08d4d2cd7308d1c7aea67bafe03b77772119057367ce3099fc41', 'scripts/deploy/templates/node.toml': '298c7b920df655c67deece2cdc4b03555576165f9c23a63a70b1eca82582c19c'};actual={p:hashlib.sha256((root/p).read_bytes()).hexdigest() for p in m};print(json.dumps(actual,indent=2));assert actual==m"
+          ],
+          "exit": 0,
+          "stderr": "003.stderr",
+          "stdout": "003.stdout"
+        },
+        {
+          "argv": [
+            "limactl",
+            "shell",
+            "afs-g2-micro",
+            "sudo",
+            "bash",
+            "-c",
+            "umask 077; SOURCE_DATE_EPOCH=0 bash /var/tmp/afs-off-repro-6d-20261007-r1/scripts/deploy/build-package.sh --bin-dir /opt/afs-managed-append-20261007-r8/prefix/bin --output /var/tmp/afs-off-repro-6d-20261007-r1/output --version 0.1.0-g2-procfree-6d51aeb --source-commit 6d51aeb45c1ed8669d80f612b3817e6d1bdabe04 --features ownerfs,dfs,rdma"
+          ],
+          "exit": 0,
+          "stderr": "004.stderr",
+          "stdout": "004.stdout"
+        },
+        {
+          "argv": [
+            "limactl",
+            "shell",
+            "afs-g2-micro",
+            "sudo",
+            "cmp",
+            "--",
+            "/var/tmp/afs-managed-package-6d51aeb.tar.gz",
+            "/var/tmp/afs-off-repro-6d-20261007-r1/output/afs-0.1.0-g2-procfree-6d51aeb-linux-aarch64.tar.gz"
+          ],
+          "exit": 0,
+          "stderr": "005.stderr",
+          "stdout": "005.stdout"
+        },
+        {
+          "argv": [
+            "limactl",
+            "shell",
+            "afs-g2-micro",
+            "sudo",
+            "sha256sum",
+            "/var/tmp/afs-managed-package-6d51aeb.tar.gz",
+            "/var/tmp/afs-off-repro-6d-20261007-r1/output/afs-0.1.0-g2-procfree-6d51aeb-linux-aarch64.tar.gz"
+          ],
+          "exit": 0,
+          "stderr": "006.stderr",
+          "stdout": "006.stdout"
+        }
+      ],
+      "no_install_or_standard_retest_claim": true,
+      "no_rust_build_claim": true,
+      "preflight": {
+        "arch": "aarch64",
+        "binary_sha256": {
+          "meta": "2c7b7d088b759e3b9375080002182aa484a424b4fa216da1fb79a1004e96168e",
+          "node": "2cf1f538fe7af332a711f3c66a074ace140c00773826a182709a6445b8ae2645"
+        },
+        "dependencies": {
+          "awk": "/usr/bin/awk",
+          "bash": "/usr/bin/bash",
+          "chmod": "/usr/bin/chmod",
+          "cmp": "/usr/bin/cmp",
+          "find": "/usr/bin/find",
+          "grep": "/usr/bin/grep",
+          "gzip": "/usr/bin/gzip",
+          "head": "/usr/bin/head",
+          "install": "/usr/bin/install",
+          "ldd": "/usr/bin/ldd",
+          "mktemp": "/usr/bin/mktemp",
+          "sed": "/usr/bin/sed",
+          "sha256sum": "/usr/bin/sha256sum",
+          "sort": "/usr/bin/sort",
+          "tar": "/usr/bin/tar",
+          "touch": "/usr/bin/touch",
+          "uname": "/usr/bin/uname",
+          "xargs": "/usr/bin/xargs"
+        },
+        "filesystem": {
+          "filesystems": [
+            {
+              "fstype": "ext4",
+              "options": "rw,relatime,discard,errors=remount-ro,commit=30",
+              "source": "/dev/vda1",
+              "target": "/"
+            }
+          ]
+        },
+        "free_bytes": 9543385088,
+        "new_root": true,
+        "package_sha256": "ee25d5892c4e884e67c86d4e5b9c6ab551af4c46649edab6a05da06659d1aff9",
+        "system": "Linux",
+        "uid": 0
+      },
+      "result": {
+        "SOURCE_DATE_EPOCH": "0",
+        "commands": "commands.json",
+        "no_install_or_standard_retest": true,
+        "no_rust_build": true,
+        "original_package": "/var/tmp/afs-managed-package-6d51aeb.tar.gz",
+        "preflight": "preflight.json",
+        "reproduced_package": "/var/tmp/afs-off-repro-6d-20261007-r1/output/afs-0.1.0-g2-procfree-6d51aeb-linux-aarch64.tar.gz",
+        "scope": "existing package reproduced once using same prebuilt ELFs/fixed Git inputs; full archive byte equality",
+        "sha256_output": "ee25d5892c4e884e67c86d4e5b9c6ab551af4c46649edab6a05da06659d1aff9  /var/tmp/afs-managed-package-6d51aeb.tar.gz\nee25d5892c4e884e67c86d4e5b9c6ab551af4c46649edab6a05da06659d1aff9  /var/tmp/afs-off-repro-6d-20261007-r1/output/afs-0.1.0-g2-procfree-6d51aeb-linux-aarch64.tar.gz\n",
+        "source_commit": "6d51aeb45c1ed8669d80f612b3817e6d1bdabe04",
+        "source_inputs": "source-inputs.json",
+        "status": "PASS",
+        "umask": "0077"
+      },
+      "sha_output_has_identical_original_and_reproduced": true,
+      "source_inputs": {
+        "commit": "6d51aeb45c1ed8669d80f612b3817e6d1bdabe04",
+        "files": {
+          "docs/guides/trial.md": "c520af2bfd90ea80912756f07915a6707346e61d1183f1019446f941850b6a67",
+          "rust-toolchain.toml": "24ef3b9d3edbd850aa386cb0a98e10450b0030991a4537cb359f54d49dbbb33a",
+          "scripts/deploy/DEPENDENCIES.md": "23252af9e85749e0ba1bc780165a4aecb0bb040a37885654a388173864f6a8ad",
+          "scripts/deploy/afs-processctl": "1ea10552180c917da2c598bee9dd8fecee7be26ae9d70dcdcba2e4829150d896",
+          "scripts/deploy/afs-selfcheck": "573d174c6cae3581e080532ae59e207d92e27b730f08190b1ee99d457bedfb4a",
+          "scripts/deploy/afs-trial-config": "c47783f9525826d4a0e137499bb1a779f94b3474c7355dd53aec0e615b98889b",
+          "scripts/deploy/build-package.sh": "6786e90eeba5db30a69bfb8b3671827889ba4d913c09fc30ac025e19d83d62cb",
+          "scripts/deploy/dep02-smoke.sh": "0a5d929c9a6da73235c3fe8e2e4623ea9813b5e6a59027d95a1cc9d2d886f0c2",
+          "scripts/deploy/install.sh": "3b69d83e246980c50686abf58b8d92ed076954d2b97aa4283daef6694955be59",
+          "scripts/deploy/templates/meta.toml": "ffffb928c8d483aaccd7907665cb7c19f49510b71ba83f06a7e23a4f60ee4d28",
+          "scripts/deploy/templates/node-dfs.toml": "476395c58108a65a6361fd658f5a35eb3dfdc0ae4f862fd489b285702bb9424c",
+          "scripts/deploy/templates/node-ownerfs.toml": "f9cab784ec4d08d4d2cd7308d1c7aea67bafe03b77772119057367ce3099fc41",
+          "scripts/deploy/templates/node.toml": "298c7b920df655c67deece2cdc4b03555576165f9c23a63a70b1eca82582c19c"
+        },
+        "scope": "Exact Git6d maintained packaging inputs only; no Rust compiler invocation"
+      },
+      "source_refs": {
+        "evidence_readme_not_rust_rebuild": "source/development/evidence/20261007-off-trial-handoff/README.md:8",
+        "slice_fixed_inputs_no_rust_rebuild": "source/development/off-trial-handoff-slice.md:6",
+        "slice_no_performance_or_on_qualification": "source/development/off-trial-handoff-slice.md:3",
+        "slice_source_date_epoch_umask_and_cmp": "source/development/off-trial-handoff-slice.md:11",
+        "trial_guide_install_commands": "source/docs/guides/trial-6d.md:37",
+        "trial_guide_limits": "source/docs/guides/trial-6d.md:66",
+        "trial_guide_prerelease_not_latest": "source/docs/guides/trial-6d.md:10",
+        "trial_guide_remaining_gaps": "source/docs/guides/trial-6d.md:73"
+      }
+    },
+    "owner_remote_admission": {
+      "decision": {
+        "action": "stop affected lane and request capacity/fixture placement decision; no service/VM/volume changes performed",
+        "actual_a_available_gib": 4.025382995605469,
+        "affected_lane": "new Owner remote64MiB paired read/delete fixture with historical A Home/sole Moose chunk topology",
+        "alternative_placement": {
+          "candidate": "B new Home/sole Moose chunk; A client-only with small metadata/state",
+          "capacity": "B passes preserved4GiB reserve plus64MiB+100x4KiB lower bound; A passes old guard but has only27,254,784B above it",
+          "restriction": "Old helper hard-codes A chunk/writer/topology; role swap cannot run unchanged or inherit historical topology PASS. New candidate/state/log/client-cache budget, public class tools/config, topology/ownership/TCP checks remain unverified. Existing A/ctl cohorts remain intact.",
+          "type": "inference / requires new admission, no action taken"
+        },
+        "disk_full_claim": false,
+        "independent_space": "ctl and B data volumes meet this lower-bound guard; B has no listed AFS/Moose relevant process or FUSE mount. This does not admit a swapped topology or deployed6d candidate.",
+        "not_claimed": [
+          "no workload/performance result",
+          "current6d deployment identity not checked",
+          "candidate ports/TLS/bidirectional TCP not checked",
+          "fullMoose226manifest/tools/config identities not checked;4coreELFs and their ldd checked",
+          "v89 retained data cannot be proved absent while Moosemountunmounted",
+          "no wholeVM isolation claim;ctl/Aothercohorts retained"
+        ],
+        "reason": "A available4,322,222,080B leaves27,254,784B above4GiB; one64MiB+100x4KiB requires4,362,485,760B total before deployment/state/log; shortage40,263,680B",
+        "reserve_provenance": {
+          "afs_acceptance_skill_numeric_reserve": "not specified",
+          "chunkserver_hdd_leave_space_default": "4GiB",
+          "current_new64MiB_contract_numeric_reserve": "not established by this bounded inspection",
+          "helper_reserve_bytes": 4294967296,
+          "source": "experiments/afs-acceptance/probes/round3-moose-read.py:34,187,202-205",
+          "type": "historical helper policy, not verified current64MiB frozen contract"
+        },
+        "status": "BLOCKED_NEW64MiB_HOME_ON_A_PRESERVED_RESERVE"
+      },
+      "guests": [
+        {
+          "all_recorded_core_ldd_without_missing": true,
+          "capacity": {
+            "available_bytes": 4481642496,
+            "new_64MiB_dataset_over_old_reserve_bytes": 4362485760,
+            "old_helper_reserve_bytes": 4294967296,
+            "reserve_pass": true,
+            "total_bytes": 8348200960
+          },
+          "dataset_interpretation": "stat only; absence under currently unmounted path does not prove retained Moose dataset lost",
+          "fixed_core_elf_4_of_4_match": true,
+          "hostname": "lima-afs-accept-ctl",
+          "ipv4": [
+            "192.168.109.11"
+          ],
+          "issues": [],
+          "name": "afs-accept-ctl",
+          "old_moose_exact_mount_observed": false,
+          "old_moose_ports20940_to20943_unoccupied": true,
+          "relevant_processes": "    PID COMMAND         COMMAND\n 472165 redis-server    /var/tmp/afs-p2e-redis/pkg/redis-server 0.0.0.0:17637\n1136874 afs-meta        /mnt/lima-afsctlstate/afs-delivery/p1b/bin/afs-meta --config /mnt/lima-afsctlstate/afs-delivery/p1b/meta.toml\n1418880 afs-meta        /mnt/lima-afsctlstate/afs-delivery/round1-mainline-v77-archive-async/prefix/bin/afs-meta --config /mnt/lima-afsctlstate/afs-delivery/round1-mainline-v77-archive-async/etc/meta.toml\n",
+          "returncode": 0,
+          "role": "ctl",
+          "status": "INVENTORY_PASS_REQUIRES_CURRENT_CANDIDATE_AND_NEW_FIXTURE",
+          "unallocated_budget_above4GiB": 186675200
+        },
+        {
+          "all_recorded_core_ldd_without_missing": true,
+          "capacity": {
+            "available_bytes": 4322222080,
+            "new_64MiB_dataset_over_old_reserve_bytes": 4362485760,
+            "old_helper_reserve_bytes": 4294967296,
+            "reserve_pass": false,
+            "total_bytes": 33633878016
+          },
+          "dataset_interpretation": "stat only; absence under currently unmounted path does not prove retained Moose dataset lost",
+          "fixed_core_elf_4_of_4_match": true,
+          "hostname": "lima-afs-accept-a",
+          "ipv4": [
+            "192.168.109.12"
+          ],
+          "issues": [
+            {
+              "capacity": {
+                "available_bytes": 4322222080,
+                "new_64MiB_dataset_over_old_reserve_bytes": 4362485760,
+                "old_helper_reserve_bytes": 4294967296,
+                "reserve_pass": false,
+                "total_bytes": 33633878016
+              },
+              "kind": "capacity-under-preserved-reserve"
+            }
+          ],
+          "name": "afs-accept-a",
+          "old_moose_exact_mount_observed": false,
+          "old_moose_ports20940_to20943_unoccupied": true,
+          "relevant_processes": "    PID COMMAND         COMMAND\n 150904 fdbserver       /usr/sbin/fdbserver --cluster-file /etc/foundationdb/fdb.cluster --datadir /var/lib/foundationdb/data/4500 --listen-address public --logdir /var/log/foundationdb --public-address auto:4500\n 706366 afs-meta        /mnt/lima-afsadata/afs-delivery/p2-memory-lane-v45/bin/afs-meta --config /mnt/lima-afsadata/afs-delivery/p2-memory-lane-v45/meta.toml\n 707560 afs-meta        /mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/bin/afs-meta --config /mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/meta.toml\n 722421 afs-meta        /mnt/lima-afsadata/afs-delivery/p2-memory-lane-v51/prefix/bin/afs-meta --config /mnt/lima-afsadata/afs-delivery/p2-memory-lane-v51/etc/meta.toml\n 723627 afs-meta        /mnt/lima-afsadata/afs-delivery/repair-v55-a/prefix/bin/afs-meta --config /mnt/lima-afsadata/afs-delivery/repair-v55-a/etc/meta.toml\n 724361 afs-meta        /mnt/lima-afsadata/afs-delivery/repair-v60-a/prefix/bin/afs-meta --config /mnt/lima-afsadata/afs-delivery/repair-v60-a/etc/meta.toml\n 727122 afs-meta        /mnt/lima-afsadata/afs-delivery/corrupt-v62-a/prefix/bin/afs-meta --config /mnt/lima-afsadata/afs-delivery/corrupt-v62-a/etc/meta.toml\n 729413 afs-meta        /mnt/lima-afsadata/afs-delivery/rxe-repair-v62-a/prefix/bin/afs-meta --config /mnt/lima-afsadata/afs-delivery/rxe-repair-v62-a/etc/meta.toml\n",
+          "returncode": 0,
+          "role": "a",
+          "status": "BLOCKED_ADMISSION",
+          "unallocated_budget_above4GiB": 27254784
+        },
+        {
+          "all_recorded_core_ldd_without_missing": true,
+          "capacity": {
+            "available_bytes": 18827644928,
+            "new_64MiB_dataset_over_old_reserve_bytes": 4362485760,
+            "old_helper_reserve_bytes": 4294967296,
+            "reserve_pass": true,
+            "total_bytes": 33633878016
+          },
+          "dataset_interpretation": "stat only; absence under currently unmounted path does not prove retained Moose dataset lost",
+          "fixed_core_elf_4_of_4_match": true,
+          "hostname": "lima-afs-accept-b",
+          "ipv4": [
+            "192.168.109.13"
+          ],
+          "issues": [],
+          "name": "afs-accept-b",
+          "old_moose_exact_mount_observed": false,
+          "old_moose_ports20940_to20943_unoccupied": true,
+          "relevant_processes": "    PID COMMAND         COMMAND\n",
+          "returncode": 0,
+          "role": "b",
+          "status": "INVENTORY_PASS_REQUIRES_CURRENT_CANDIDATE_AND_NEW_FIXTURE",
+          "unallocated_budget_above4GiB": 14532677632
+        }
+      ],
+      "sha256sums": [
+        {
+          "exists": true,
+          "matches": true,
+          "path": "README.md",
+          "sha256": "0d03a755bd16890490e0acc2e24e20518f675730fafda6e724f7a079175bd3df"
+        },
+        {
+          "exists": true,
+          "matches": true,
+          "path": "afs-accept-a.command.json",
+          "sha256": "3a79682df1668efd245d81284ce62d1c2106557c3483a2f2c447fbbe7deef008"
+        },
+        {
+          "exists": true,
+          "matches": true,
+          "path": "afs-accept-a.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "exists": true,
+          "matches": true,
+          "path": "afs-accept-a.stdout",
+          "sha256": "f733e9140bb834d40d48b654d653b30b40885e18cb750fb4b23b8f85f0afcaf1"
+        },
+        {
+          "exists": true,
+          "matches": true,
+          "path": "afs-accept-b.command.json",
+          "sha256": "7fcb21927723145faa54bd3926846ebbb1ff32f6b8cc8b232bc4664c96423720"
+        },
+        {
+          "exists": true,
+          "matches": true,
+          "path": "afs-accept-b.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "exists": true,
+          "matches": true,
+          "path": "afs-accept-b.stdout",
+          "sha256": "b7084d65ef4fb9a32618d0639ecce842fde5559f725c3c9004869892e95b4d2c"
+        },
+        {
+          "exists": true,
+          "matches": true,
+          "path": "afs-accept-ctl.command.json",
+          "sha256": "a3ff74f1983c03f1acb660048bd2a66e136bfcbf8a0b8426fe6735b2a365530c"
+        },
+        {
+          "exists": true,
+          "matches": true,
+          "path": "afs-accept-ctl.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "exists": true,
+          "matches": true,
+          "path": "afs-accept-ctl.stdout",
+          "sha256": "abd90080c9627bf6edb3b871b73f749b3562f5b560bf37fb3f52a9db8d4cf1da"
+        },
+        {
+          "exists": true,
+          "matches": true,
+          "path": "guest-query-input.json",
+          "sha256": "518aa04ad092892182cb3909363e9db03374339a8cbfbe5bad8af129bf0a27f0"
+        },
+        {
+          "exists": true,
+          "matches": true,
+          "path": "lima-list.command.json",
+          "sha256": "5137e3a28c3f6caec7abd44a0eab3ed8596c510a23b5ef579e43ecbe2bccbd78"
+        },
+        {
+          "exists": true,
+          "matches": true,
+          "path": "lima-list.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "exists": true,
+          "matches": true,
+          "path": "lima-list.stdout",
+          "sha256": "10dcb21edd0a0253e2a83816c653742ed1707d9f731da1c209b29807c3c44106"
+        },
+        {
+          "exists": true,
+          "matches": true,
+          "path": "lima-summary.json",
+          "sha256": "76c96e26c9832c56790a8a15fd06fb612c7dcfc57e41d617eb2dd965adaa11c9"
+        },
+        {
+          "exists": true,
+          "matches": true,
+          "path": "summary.json",
+          "sha256": "116b76ced88d3086c2883c3bb4bec86827e29b99c7af939398e2cfc6cd40326a"
+        }
+      ],
+      "sha256sums_all_match_local_packet": true,
+      "source_refs": {
+        "a_capacity_block_not_disk_full": "source/development/evidence/20261007-owner-remote-admission/README.md:5",
+        "b_space_not_swapped_topology_admission": "source/development/evidence/20261007-owner-remote-admission/README.md:17",
+        "guest_inventory_table": "source/development/evidence/20261007-owner-remote-admission/README.md:8",
+        "reserve_provenance_and_not_new_contract": "source/development/evidence/20261007-owner-remote-admission/README.md:21",
+        "role_swap_inference_not_admitted": "source/development/evidence/20261007-owner-remote-admission/README.md:25",
+        "unmounted_dataset_absence_not_loss": "source/development/evidence/20261007-owner-remote-admission/README.md:15"
+      }
+    },
+    "trial_guide_handoff": {
+      "boundaries_preserved": [
+        "prerelease, not Latest",
+        "native/bind OFF",
+        "64MiB selfcheck not full POSIX/performance",
+        "complete G2.27 performance/cross-node/current-candidate matrix remains open",
+        "R2 fuser migration still blocked"
+      ],
+      "command_shape_matches_tested_driver": "The guide uses install.sh, afs-trial-config single local-file with 22400/22401/22500/22501 and --force on a named trial_root, start all, ownerfs/dfs 64MiB write, meta restart, ownerfs/dfs read, stop all; this matches the installed-smoke driver flow, with user-facing paths/output names.",
+      "meta_sha256": "2c7b7d088b759e3b9375080002182aa484a424b4fa216da1fb79a1004e96168e",
+      "node_sha256": "2cf1f538fe7af332a711f3c66a074ace140c00773826a182709a6445b8ae2645",
+      "package_bytes_from_inventory": 14728435,
+      "package_name": "afs-0.1.0-g2-procfree-6d51aeb-linux-aarch64.tar.gz",
+      "package_sha256": "ee25d5892c4e884e67c86d4e5b9c6ab551af4c46649edab6a05da06659d1aff9",
+      "source_commit": "6d51aeb45c1ed8669d80f612b3817e6d1bdabe04"
+    }
+  },
+  "issues": [],
+  "limitations": [
+    "The off handoff proves byte-identical archive reproduction from fixed Git6d packaging inputs and existing ELFs; it is not a Rust compiler/linker reproducibility proof.",
+    "The reviewed trial guide supports a prerelease default-OFF handoff and installed 64MiB recovery smoke, not Latest replacement, native ON qualification, full G2.27 performance, full POSIX, or R2 dependency migration.",
+    "The owner remote admission is read-only inventory. It blocks the historical A Home/sole Moose chunk 64MiB lane under the preserved 4GiB helper reserve; it does not prove disk-full, data loss, or failure of the global environment.",
+    "B has sufficient observed lower-bound space and no relevant listed process/FUSE cohort, but a B-home topology remains only an inference requiring a separate admission and cannot inherit historical A-topology PASS.",
+    "No Mac product tests, no VM modifications, no deployment, and no workload/performance run were performed by this review."
+  ],
+  "reviewed_at_utc": "2026-10-06T21:19:48.794831+00:00",
+  "scope": "Read-only review of source/development/evidence/20261007-off-trial-handoff, source/docs/guides/trial-6d.md, source/development/off-trial-handoff-slice.md, and source/development/evidence/20261007-owner-remote-admission. No product/runtime/Mac tests and no full architecture review.",
+  "verdict": "BOUNDED_APPROVE_OFF_TRIAL_HANDOFF_AND_OWNER_REMOTE_ADMISSION_INVENTORY"
+}

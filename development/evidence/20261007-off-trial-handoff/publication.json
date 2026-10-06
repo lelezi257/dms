@@ -1,0 +1,10 @@
+{
+  "status": "PREPARED_NOT_PUBLISHED",
+  "planned_tag": "afs-trial-6d51aeb",
+  "target_commit": "6d51aeb45c1ed8669d80f612b3817e6d1bdabe04",
+  "prerelease": true,
+  "replace_latest": false,
+  "package_sha256": "ee25d5892c4e884e67c86d4e5b9c6ab551af4c46649edab6a05da06659d1aff9",
+  "scope": "Reviewable fixed OFF trial, not complete G2.27/performance/ON",
+  "publication_metadata": "will be added only after actual remote verification"
+}

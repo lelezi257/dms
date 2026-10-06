@@ -1,0 +1,19 @@
+{
+  "case_id": "installed-off-dfs",
+  "data_file": "g1-stream.bin",
+  "elapsed_seconds": 0.982484,
+  "input_manifest": "/var/tmp/afs-off-delivery-20261007-r2-results/dfs-write.json",
+  "mount": "/var/tmp/afs-off-delivery-20261007-r2/mount/dfs",
+  "mount_info": {
+    "fstype": "fuse",
+    "source": "afs-dfs",
+    "target": "/var/tmp/afs-off-delivery-20261007-r2/mount/dfs"
+  },
+  "reference": false,
+  "schema": "afs.g1.trial.read-result.v1",
+  "sha256": "e03565250488acb476c6584b41dd367eafa88531320e61c934e836d8f22a0678",
+  "size": 67108864,
+  "status": "PASS",
+  "total_elapsed_seconds": 0.984831,
+  "workspace": "installed-off"
+}

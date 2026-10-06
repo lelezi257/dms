@@ -16,6 +16,10 @@
 
 **同源release补充：** [独立结果](evidence/20261006-e2e-current/release-r1/README.md)：122秒构建，Owner完整pjdfstest及64MiB基础/单机中心有序恢复PASS；小读/写仍性能FAIL0.3477/0.5879，保留原dev失败。release DFS/双VM/LTP/FSx尚未新跑。最新用户性能优先容器workspace挂载访问，普通性能专项暂缓；[R1整改](repository-remediation.md)恢复/夹具验证已过，R2上游API缺口单列阻塞，不修改历史结论。
 
+## 当前默认OFF安装回归
+
+main25a8061/map8ef8b788的release ELF已生成两份逐字节一致的包。无编译器Linux/ext4 VM独立安装后，Owner/DFS各64MiB基础校验、目录fsync、中心Meta有序重启/全内容读回、托管退出0/两个exact mount移除通过。[证据和包摘要](evidence/20261007-installed-off/README.md)、[维护驱动及复现](installed-off-slice.md)。第一轮有限身份结果保留，复核加强安装文件inode/路径与mount ID后仅回归受影响小项。没有重跑标准全集或性能，不重开G1，不关闭G2.27及容器G2.12/13；缺runc环境求助仍待答复。
+
 ## 当前组合验证
 
 [Linux验证入口](checkpoints/20261006-current/validate-linux.sh)及[输入绑定器](checkpoints/20261006-current/verify-inputs.py)随代码保存。只能在ARM64 Linux运行，Cargo输出与验证结果放源码树外；命令使用锁定依赖和offline模式，依赖需先按[构建说明](validation.md)准备。

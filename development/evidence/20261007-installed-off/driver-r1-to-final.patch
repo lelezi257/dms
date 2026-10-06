@@ -1,0 +1,64 @@
+--- /var/tmp/afs-installed-smoke-20261007.py	2026-10-07 01:36:01.000000000 +0800
++++ /var/tmp/afs-installed-smoke-20261007-r2.py	2026-10-07 01:38:58.000000000 +0800
+@@ -18,6 +18,16 @@
+     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+ 
+ 
++def verify_executable(running, installed):
++    running_stat, installed_stat = os.stat(running), os.stat(installed)
++    if ((running_stat.st_dev, running_stat.st_ino) !=
++            (installed_stat.st_dev, installed_stat.st_ino)
++            or Path(running).resolve() != Path(installed).resolve()):
++        raise ValueError('process is not running the installed executable')
++    return {'path': str(Path(running).resolve()), 'device': running_stat.st_dev,
++            'inode': running_stat.st_ino}
++
++
+ def verify_recovery(before, after, writes, reads):
+     if before['node'] != after['node'] or before['mounts'] != after['mounts']:
+         raise ValueError('Node or mount changed during Meta-only restart')
+@@ -158,10 +168,15 @@
+             expected = getattr(self.args, 'afs_' + name + '_sha256')
+             digest = sha(proc / 'exe')
+             self.check(name + '-running', digest == expected, digest)
+-            value[name] = {'pid': pid, 'starttick': ticks, 'sha256': digest}
++            installed = self.root / ('prefix/bin/afs-' + name)
++            executable = verify_executable(proc / 'exe', installed)
++            self.check(name + '-installed-process', True, executable)
++            value[name] = {'pid': pid, 'starttick': ticks, 'sha256': digest,
++                           'executable': executable}
+         value['mounts'] = {}
+         for name in ('ownerfs', 'dfs'):
+-            mounted = json.loads(self.command(['findmnt', '-J', '--mountpoint',
++            mounted = json.loads(self.command(['findmnt', '-J', '-o',
++                                              'TARGET,SOURCE,FSTYPE,OPTIONS,ID', '--mountpoint',
+                                               self.root / ('mount/' + name)]))
+             self.check(name + '-mount', mounted['filesystems'][0]['source'] == 'afs-' + name, mounted)
+             value['mounts'][name] = mounted
+@@ -180,7 +195,7 @@
+     def run(self):
+         result = {'status': 'BLOCKED', 'scope': 'current installed OFF small regression',
+                   'source_commit': self.args.source_commit, 'tool_sha256': sha(__file__)}
+-        before = None
++        before, after = None, None
+         try:
+             self.preflight()
+             self.install()
+@@ -218,11 +233,13 @@
+                         output = self.command(['findmnt', '-J', '--mountpoint',
+                                                self.root / ('mount/' + name)], allowed=(1,))
+                         self.check(name + '-removed', not output.strip(), output)
+-                    for name in ('meta', 'node'):
+-                        if before:
+-                            old = before[name]
++                    for label, recorded in (('before', before), ('after', after)):
++                        for name in ('meta', 'node'):
++                            if not recorded:
++                                continue
++                            old = recorded[name]
+                             path = Path(f"/proc/{old['pid']}/stat")
+-                            self.check(name + '-original-gone', not path.exists() or int(
++                            self.check(label + '-' + name + '-original-gone', not path.exists() or int(
+                                 path.read_text().rsplit(')', 1)[1].split()[19]) != old['starttick'], old)
+                     result['cleanup'] = 'PASS'
+                 except Exception as exc:

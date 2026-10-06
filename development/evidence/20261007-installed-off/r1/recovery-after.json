@@ -1,0 +1,34 @@
+{
+  "meta": {
+    "pid": 243111,
+    "starttick": 8999834,
+    "sha256": "08aee9fec2e7e12ce03912fa85e8bded28b2162de78c2c9c36703a9a1a6e58b8"
+  },
+  "node": {
+    "pid": 242667,
+    "starttick": 8999626,
+    "sha256": "d6e7cd11a610e7f0839d2a3d2337cd92678432e15fcffb6fd2fa6a00860058b8"
+  },
+  "mounts": {
+    "ownerfs": {
+      "filesystems": [
+        {
+          "target": "/var/tmp/afs-off-delivery-20261007-r1/mount/ownerfs",
+          "source": "afs-ownerfs",
+          "fstype": "fuse",
+          "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+        }
+      ]
+    },
+    "dfs": {
+      "filesystems": [
+        {
+          "target": "/var/tmp/afs-off-delivery-20261007-r1/mount/dfs",
+          "source": "afs-dfs",
+          "fstype": "fuse",
+          "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+        }
+      ]
+    }
+  }
+}

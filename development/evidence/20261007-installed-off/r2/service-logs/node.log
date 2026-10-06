@@ -1,0 +1,48 @@
+{"msg":"Mounting /var/tmp/afs-off-delivery-20261007-r2/mount/ownerfs","level":"INFO","ts":"2026-10-06T17:39:00.746155139Z","instance":"node-a","service_name":"afs-node"}
+{"msg":"Mounting /var/tmp/afs-off-delivery-20261007-r2/mount/dfs","level":"INFO","ts":"2026-10-06T17:39:00.748322261Z","instance":"node-a","service_name":"afs-node"}
+{"msg":"node.ready","level":"INFO","ts":"2026-10-06T17:39:00.749097121Z","instance":"node-a","service_name":"afs-node","dfs":true,"ownerfs":true,"uds":"/var/tmp/afs-off-delivery-20261007-r2/run/node.sock","rest":"127.0.0.1:22501","grpc":"127.0.0.1:22500"}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-06T17:39:00.865583724Z","instance":"node-a","service_name":"afs-node","message":"OwnerFs root is not registered in Meta","kind":"NotFound","code":34078721}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-06T17:39:00.872422834Z","instance":"node-a","service_name":"afs-node","message":"No such file or directory (os error 2)","kind":"NotFound","code":67305473}
+{"msg":"fuse.create","level":"INFO","ts":"2026-10-06T17:39:00.872479624Z","instance":"node-a","service_name":"afs-node","name":"ops-small.txt","parent":2}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-06T17:39:00.872557789Z","instance":"node-a","service_name":"afs-node","message":"OwnerFs currently supports only user.* xattrs","kind":"FailedPrecondition","code":67305489}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-06T17:39:00.873016738Z","instance":"node-a","service_name":"afs-node","message":"OwnerFs currently supports only user.* xattrs","kind":"FailedPrecondition","code":67305489}
+{"msg":"[Not Implemented] ioctl(ino: 0x3, fh: 3, flags: 0, cmd: 21505, in_data.len(): 0, out_size: 0)","level":"WARN","ts":"2026-10-06T17:39:00.873346023Z","instance":"node-a","service_name":"afs-node"}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-06T17:39:00.873514936Z","instance":"node-a","service_name":"afs-node","message":"OwnerFs currently supports only user.* xattrs","kind":"FailedPrecondition","code":67305489}
+{"msg":"[Not Implemented] ioctl(ino: 0x3, fh: 5, flags: 0, cmd: 21505, in_data.len(): 0, out_size: 0)","level":"WARN","ts":"2026-10-06T17:39:00.873892345Z","instance":"node-a","service_name":"afs-node"}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-06T17:39:00.874138798Z","instance":"node-a","service_name":"afs-node","message":"No such file or directory (os error 2)","kind":"NotFound","code":67305473}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-06T17:39:00.874247171Z","instance":"node-a","service_name":"afs-node","message":"No such file or directory (os error 2)","kind":"NotFound","code":67305473}
+{"msg":"[Not Implemented] ioctl(ino: 0x3, fh: 6, flags: 0, cmd: 21505, in_data.len(): 0, out_size: 0)","level":"WARN","ts":"2026-10-06T17:39:00.874338461Z","instance":"node-a","service_name":"afs-node"}
+{"msg":"[Not Implemented] ioctl(ino: 0x3, fh: 7, flags: 0, cmd: 21505, in_data.len(): 0, out_size: 0)","level":"WARN","ts":"2026-10-06T17:39:00.874496374Z","instance":"node-a","service_name":"afs-node"}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-06T17:39:00.874644746Z","instance":"node-a","service_name":"afs-node","message":"No such file or directory (os error 2)","kind":"NotFound","code":67305473}
+{"msg":"fuse.create","level":"INFO","ts":"2026-10-06T17:39:00.874684621Z","instance":"node-a","service_name":"afs-node","name":"ops-mmap.bin","parent":2}
+{"msg":"[Not Implemented] ioctl(ino: 0x4, fh: 8, flags: 0, cmd: 21505, in_data.len(): 0, out_size: 0)","level":"WARN","ts":"2026-10-06T17:39:00.87470837Z","instance":"node-a","service_name":"afs-node"}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-06T17:39:00.874756869Z","instance":"node-a","service_name":"afs-node","message":"OwnerFs currently supports only user.* xattrs","kind":"FailedPrecondition","code":67305489}
+{"msg":"[Not Implemented] ioctl(ino: 0x4, fh: 9, flags: 0, cmd: 21505, in_data.len(): 0, out_size: 0)","level":"WARN","ts":"2026-10-06T17:39:00.875392314Z","instance":"node-a","service_name":"afs-node"}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-06T17:39:00.875670017Z","instance":"node-a","service_name":"afs-node","message":"No such file or directory (os error 2)","kind":"NotFound","code":67305473}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-06T17:39:00.875726182Z","instance":"node-a","service_name":"afs-node","message":"No such file or directory (os error 2)","kind":"NotFound","code":67305473}
+{"msg":"fuse.create","level":"INFO","ts":"2026-10-06T17:39:00.875768723Z","instance":"node-a","service_name":"afs-node","name":"g1-stream.bin","parent":2}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-06T17:39:00.876793452Z","instance":"node-a","service_name":"afs-node","message":"OwnerFs currently supports only user.* xattrs","kind":"FailedPrecondition","code":67305489}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-06T17:39:00.987767211Z","instance":"node-a","service_name":"afs-node","message":"OwnerFs currently supports only user.* xattrs","kind":"FailedPrecondition","code":67305489}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-06T17:39:01.19467608Z","instance":"node-a","service_name":"afs-node","message":"DFS dentry not found","kind":"NotFound","code":34078721}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-06T17:39:01.20123657Z","instance":"node-a","service_name":"afs-node","message":"DFS dentry not found","kind":"NotFound","code":34078721}
+{"msg":"fuse.create","level":"INFO","ts":"2026-10-06T17:39:01.201260986Z","instance":"node-a","service_name":"afs-node","name":"ops-small.txt","parent":2}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-06T17:39:01.204468379Z","instance":"node-a","service_name":"afs-node","message":"DFS currently supports only user.* xattrs","kind":"FailedPrecondition","code":67305489}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-06T17:39:01.209426777Z","instance":"node-a","service_name":"afs-node","message":"DFS currently supports only user.* xattrs","kind":"FailedPrecondition","code":67305489}
+{"msg":"[Not Implemented] ioctl(ino: 0x3, fh: 3, flags: 0, cmd: 21505, in_data.len(): 0, out_size: 0)","level":"WARN","ts":"2026-10-06T17:39:01.213744938Z","instance":"node-a","service_name":"afs-node"}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-06T17:39:01.214803166Z","instance":"node-a","service_name":"afs-node","message":"DFS currently supports only user.* xattrs","kind":"FailedPrecondition","code":67305489}
+{"msg":"[Not Implemented] ioctl(ino: 0x3, fh: 5, flags: 0, cmd: 21505, in_data.len(): 0, out_size: 0)","level":"WARN","ts":"2026-10-06T17:39:01.219424363Z","instance":"node-a","service_name":"afs-node"}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-06T17:39:01.224594215Z","instance":"node-a","service_name":"afs-node","message":"DFS dentry not found","kind":"NotFound","code":34078721}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-06T17:39:01.228441135Z","instance":"node-a","service_name":"afs-node","message":"DFS dentry not found","kind":"NotFound","code":34078721}
+{"msg":"[Not Implemented] ioctl(ino: 0x3, fh: 6, flags: 0, cmd: 21505, in_data.len(): 0, out_size: 0)","level":"WARN","ts":"2026-10-06T17:39:01.229065748Z","instance":"node-a","service_name":"afs-node"}
+{"msg":"[Not Implemented] ioctl(ino: 0x3, fh: 7, flags: 0, cmd: 21505, in_data.len(): 0, out_size: 0)","level":"WARN","ts":"2026-10-06T17:39:01.229947563Z","instance":"node-a","service_name":"afs-node"}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-06T17:39:01.230775754Z","instance":"node-a","service_name":"afs-node","message":"DFS dentry not found","kind":"NotFound","code":34078721}
+{"msg":"fuse.create","level":"INFO","ts":"2026-10-06T17:39:01.230826503Z","instance":"node-a","service_name":"afs-node","name":"ops-mmap.bin","parent":2}
+{"msg":"[Not Implemented] ioctl(ino: 0x4, fh: 8, flags: 0, cmd: 21505, in_data.len(): 0, out_size: 0)","level":"WARN","ts":"2026-10-06T17:39:01.233914231Z","instance":"node-a","service_name":"afs-node"}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-06T17:39:01.234068853Z","instance":"node-a","service_name":"afs-node","message":"DFS currently supports only user.* xattrs","kind":"FailedPrecondition","code":67305489}
+{"msg":"[Not Implemented] ioctl(ino: 0x4, fh: 9, flags: 0, cmd: 21505, in_data.len(): 0, out_size: 0)","level":"WARN","ts":"2026-10-06T17:39:01.247559117Z","instance":"node-a","service_name":"afs-node"}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-06T17:39:01.25553137Z","instance":"node-a","service_name":"afs-node","message":"DFS dentry not found","kind":"NotFound","code":34078721}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-06T17:39:01.255909029Z","instance":"node-a","service_name":"afs-node","message":"DFS dentry not found","kind":"NotFound","code":34078721}
+{"msg":"fuse.create","level":"INFO","ts":"2026-10-06T17:39:01.255911404Z","instance":"node-a","service_name":"afs-node","name":"g1-stream.bin","parent":2}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-06T17:39:01.260486435Z","instance":"node-a","service_name":"afs-node","message":"DFS currently supports only user.* xattrs","kind":"FailedPrecondition","code":67305489}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-06T17:39:01.486270707Z","instance":"node-a","service_name":"afs-node","message":"DFS currently supports only user.* xattrs","kind":"FailedPrecondition","code":67305489}
+{"msg":"services.stopped","level":"INFO","ts":"2026-10-06T17:39:04.077731693Z","instance":"node-a","service_name":"afs-node"}

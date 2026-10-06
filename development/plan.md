@@ -2,6 +2,8 @@
 
 # Delivery task map
 
+**Current installed OFF branch (2026-10-07):** main25a8061 reusable release binaries now have fresh compiler-free installation, Owner/DFS64MiB integrity, orderly central local-file recovery and managed cleanup proof. [Evidence](evidence/20261007-installed-off/README.md). No standard/benchmark rerun, G1 reopening or G2.27/container exit claimed. Actual container lane still waits on the missing-runc environment question.
+
 The active task map is [the three-stage acceptance checklist](trial-release-goals.md). This file gives execution order and dependencies; it does not replace the checklist or the full contract in [docs/acceptance.md](../docs/acceptance.md).
 
 ## Current checkpoint

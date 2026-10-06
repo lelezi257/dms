@@ -1,0 +1,10 @@
+test_refuses_either_backend_corruption_short_read_or_failed_probe (test_installed_smoke.RecoveryEvidenceTests.test_refuses_either_backend_corruption_short_read_or_failed_probe) ... ok
+test_refuses_mount_change (test_installed_smoke.RecoveryEvidenceTests.test_refuses_mount_change) ... ok
+test_refuses_no_restart_wrong_binary_or_start_order (test_installed_smoke.RecoveryEvidenceTests.test_refuses_no_restart_wrong_binary_or_start_order) ... ok
+test_refuses_node_restart (test_installed_smoke.RecoveryEvidenceTests.test_refuses_node_restart) ... ok
+test_unchanged_node_mounts_new_meta_and_contents (test_installed_smoke.RecoveryEvidenceTests.test_unchanged_node_mounts_new_meta_and_contents) ... ok
+
+----------------------------------------------------------------------
+Ran 5 tests in 0.000s
+
+OK

@@ -1,5 +1,11 @@
 # Trial Package Guide
 
+The main25a8061 default-OFF package has a fresh compiler-free single-node
+local-file installation/basic64MiB/ordered Meta recovery regression for both
+OwnerFs and DFS. [Exact scope and evidence](../../development/evidence/20261007-installed-off/README.md).
+It excludes experimental container helper/control tools and does not qualify
+container ON, full POSIX or performance. Historical g1.5 acceptance remains intact.
+
 This guide is for the first colleague-trial package. It uses Linux binaries
 already present in the release archive. Trial machines do not need Cargo, Git or
 network access to build dependencies.

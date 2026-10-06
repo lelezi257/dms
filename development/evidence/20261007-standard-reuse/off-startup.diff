@@ -1,0 +1,199 @@
+diff --git a/src/config.rs b/src/config.rs
+index ddd05f8..3194279 100644
+--- a/src/config.rs
++++ b/src/config.rs
+@@ -33,6 +33,18 @@ pub enum MetaStoreBackend {
+     #[value(name = "memory")]
+     InMemory,
+ }
++/// Administrator-only experimental single-container workspace configuration.
++/// Eligibility is fixed when OwnerFs is constructed, never switched online.
++#[derive(Debug, Clone, Deserialize, Serialize)]
++#[serde(deny_unknown_fields)]
++pub struct NativeWorkspaceConfig {
++    pub control_dir: PathBuf,
++    pub runtime: PathBuf,
++    pub rootfs: PathBuf,
++    pub workload_uid: u32,
++    pub workload_gid: u32,
++}
++
+ #[derive(Debug, Clone, Parser, Default)]
+ #[command(version, about = "AFS process foundation")]
+ /// 命令行输入层。None 表示用户未传入，因此应继续考虑 TOML 与最终默认值。
+@@ -84,6 +96,9 @@ pub struct Cli {
+     pub uds_path: Option<PathBuf>,
+     #[arg(long)]
+     pub ownerfs_mount: Option<PathBuf>,
++    /// Experimental managed-container native path; default false, not production READY.
++    #[arg(long)]
++    pub experimental_native_workspace: Option<bool>,
+     #[arg(long)]
+     pub dfs_mount: Option<PathBuf>,
+     /// Filesystem-wide immutable DFS replica target count. Applied by Meta at initialization.
+@@ -144,6 +159,8 @@ struct FileConfig {
+     data_dir: Option<PathBuf>,
+     uds_path: Option<PathBuf>,
+     ownerfs_mount: Option<PathBuf>,
++    experimental_native_workspace: Option<bool>,
++    native_workspace: Option<NativeWorkspaceConfig>,
+     dfs_mount: Option<PathBuf>,
+     dfs_desired_copies: Option<u16>,
+     dfs_sync_required_copies: Option<u16>,
+@@ -184,6 +201,8 @@ pub struct Config {
+     pub data_dir: PathBuf,
+     pub uds_path: PathBuf,
+     pub ownerfs_mount: Option<PathBuf>,
++    pub experimental_native_workspace: bool,
++    pub native_workspace: Option<NativeWorkspaceConfig>,
+     pub dfs_mount: Option<PathBuf>,
+     pub dfs_desired_copies: u16,
+     pub dfs_sync_required_copies: u16,
+@@ -353,6 +372,11 @@ impl Config {
+             data_mode,
+             rdma_device: cli.rdma_device.or(file.rdma_device),
+             ownerfs_mount: cli.ownerfs_mount.or(file.ownerfs_mount),
++            experimental_native_workspace: cli
++                .experimental_native_workspace
++                .or(file.experimental_native_workspace)
++                .unwrap_or(false),
++            native_workspace: file.native_workspace,
+             dfs_mount: cli.dfs_mount.or(file.dfs_mount),
+             dfs_desired_copies,
+             dfs_sync_required_copies,
+@@ -414,6 +438,49 @@ impl Config {
+         if cfg.ownerfs_mount.is_some() && !cfg.ownerfs {
+             return Err(invalid("ownerfs_mount requires fs=ownerfs or fs=all"));
+         }
++        if cfg.experimental_native_workspace {
++            if role != Role::Node || !cfg.ownerfs || cfg.ownerfs_mount.is_none() {
++                return Err(invalid(
++                    "experimental_native_workspace requires Node OwnerFs with a mount",
++                ));
++            }
++            let native = cfg.native_workspace.as_ref().ok_or_else(|| invalid(
++                "experimental_native_workspace requires administrator native_workspace settings"
++            ))?;
++            for path in [&native.control_dir, &native.runtime, &native.rootfs] {
++                if !path.is_absolute()
++                    || path
++                        .components()
++                        .any(|c| matches!(c, std::path::Component::ParentDir))
++                {
++                    return Err(invalid(
++                        "native workspace paths must be absolute and contain no parent traversal",
++                    ));
++                }
++            }
++            for path in [&native.control_dir, &native.rootfs, &native.runtime] {
++                if path.starts_with(cfg.ownerfs_mount.as_ref().expect("native mount checked"))
++                    || path.starts_with(&cfg.data_dir)
++                {
++                    return Err(invalid(
++                        "native controller/runtime/rootfs must be outside OwnerFs mount and data directories",
++                    ));
++                }
++            }
++            if native.workload_uid == 0 || native.workload_gid == 0 {
++                return Err(invalid(
++                    "native workspace workload uid/gid must be non-root",
++                ));
++            }
++            if native.control_dir == native.rootfs
++                || native.control_dir.starts_with(&native.rootfs)
++                || native.rootfs.starts_with(&native.control_dir)
++            {
++                return Err(invalid(
++                    "native workspace control directory and rootfs must be disjoint",
++                ));
++            }
++        }
+         if cfg.dfs_mount.is_some() && !cfg.dfs {
+             return Err(invalid("dfs_mount requires fs=dfs or fs=all"));
+         }
+diff --git a/src/node.rs b/src/node.rs
+index f66311b..8df220e 100644
+--- a/src/node.rs
++++ b/src/node.rs
+@@ -16,6 +16,8 @@ pub mod chunk;
+ #[cfg(feature = "dfs")]
+ pub mod dfs_read;
+ pub mod fuse;
++#[cfg(feature = "ownerfs")]
++mod native_workspace;
+ #[cfg(feature = "dfs")]
+ pub mod replication;
+ pub mod rpc;
+@@ -1091,11 +1093,16 @@ async fn run_node(
+             })
+             .await??,
+         );
+-        Some(Arc::new(vfs::ownerfs::OwnerFs::new_local_with_remote(
+-            roots,
+-            disk,
+-            remote_factory,
+-        )))
++        let owner = if cfg.experimental_native_workspace {
++            vfs::ownerfs::OwnerFs::new_local_native_eligible_with_remote(
++                roots,
++                disk,
++                remote_factory,
++            )
++        } else {
++            vfs::ownerfs::OwnerFs::new_local_with_remote(roots, disk, remote_factory)
++        };
++        Some(Arc::new(owner))
+     } else {
+         None
+     };
+@@ -1652,8 +1659,9 @@ async fn run_node(
+     #[cfg(feature = "dfs")]
+     let dfs_for_drain = state.dfs.clone();
+     let stop = services.stop.subscribe();
++    let rest_state = state.clone();
+     services.spawn(async move {
+-        axum::serve(rest, api::rest::router(state))
++        axum::serve(rest, api::rest::router(rest_state))
+             .with_graceful_shutdown(cancelled(stop))
+             .await
+             .map_err(Into::into)
+@@ -1676,6 +1684,39 @@ async fn run_node(
+         }
+         Ok(())
+     });
++    #[cfg(feature = "ownerfs")]
++    if cfg.experimental_native_workspace {
++        let owner = state
++            .ownerfs
++            .clone()
++            .expect("native config requires OwnerFs");
++        let mount = cfg
++            .ownerfs_mount
++            .clone()
++            .expect("native config requires mount");
++        let native = cfg
++            .native_workspace
++            .clone()
++            .expect("native config requires settings");
++        let worker = tokio::task::spawn_blocking(move || {
++            native_workspace::NativeWorkspace::start(owner, mount, native)
++        })
++        .await??;
++        let stop = services.stop.subscribe();
++        services.spawn(async move {
++            let shutdown = cancelled(stop);
++            tokio::pin!(shutdown);
++            let mut tick = tokio::time::interval(Duration::from_millis(100));
++            loop {
++                tokio::select! {
++                    _ = &mut shutdown => break,
++                    _ = tick.tick() => if worker.is_finished() { break; },
++                }
++            }
++            tokio::task::spawn_blocking(move || worker.shutdown()).await??;
++            Ok(())
++        });
++    }
+     afs_logging::info!("node.ready";"grpc"=>cfg.grpc_listen.to_string(),"rest"=>cfg.rest_listen.to_string(),"uds"=>cfg.uds_path.display().to_string(),"ownerfs"=>cfg.ownerfs,"dfs"=>cfg.dfs);
+     let mut shutdown_error = services.run_with_shutdown(on_shutdown).await.err();
+     // Stop FUSE admission and observe its thread cleanup before the final dirty drain.

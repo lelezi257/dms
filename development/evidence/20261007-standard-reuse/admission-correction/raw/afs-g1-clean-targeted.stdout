@@ -1,0 +1,86 @@
+SECTION 6d-targeted
+PATH /var/tmp/afs-managed-package-6d51aeb.tar.gz
+MISSING
+PATH /var/tmp/afs-off-6d-20261007-r1/package/afs-0.1.0-g2-procfree-6d51aeb-linux-aarch64/manifest.json
+-rw-r--r-- 1 root root 761 Jan  1  1970 /var/tmp/afs-off-6d-20261007-r1/package/afs-0.1.0-g2-procfree-6d51aeb-linux-aarch64/manifest.json
+4bfdfef5d4c741497f2db65b555d39ee8d230bc38ddd8022d4525fbad8d56944  /var/tmp/afs-off-6d-20261007-r1/package/afs-0.1.0-g2-procfree-6d51aeb-linux-aarch64/manifest.json
+{
+  "schema": "afs.release-package.v1",
+  "name": "afs",
+  "version": "0.1.0-g2-procfree-6d51aeb",
+  "target": "linux-aarch64",
+  "source_commit": "6d51aeb45c1ed8669d80f612b3817e6d1bdabe04",
+  "source_date_epoch": 0,
+  "features": "ownerfs,dfs,rdma",
+  "rust_toolchain": "1.95.0",
+  "binaries": {
+    "afs-meta": {"sha256": "2c7b7d088b759e3b9375080002182aa484a424b4fa216da1fb79a1004e96168e"},
+    "afs-node": {"sha256": "2cf1f538fe7af332a711f3c66a074ace140c00773826a182709a6445b8ae2645"}
+  },
+  "contains": ["afs-meta", "afs-node", "afs-processctl", "afs-trial-config", "afs-selfcheck", "dep02-smoke.sh", "docs/guides/trial.md"],
+  "installer": "install.sh",
+  "notes": "Built from existing Linux release binaries; no Cargo or Git required on target guests."
+}
+PATH /var/tmp/afs-off-6d-20261007-r1/prefix/manifest.json
+-rw-r--r-- 1 root root 761 Oct  7 05:03 /var/tmp/afs-off-6d-20261007-r1/prefix/manifest.json
+4bfdfef5d4c741497f2db65b555d39ee8d230bc38ddd8022d4525fbad8d56944  /var/tmp/afs-off-6d-20261007-r1/prefix/manifest.json
+{
+  "schema": "afs.release-package.v1",
+  "name": "afs",
+  "version": "0.1.0-g2-procfree-6d51aeb",
+  "target": "linux-aarch64",
+  "source_commit": "6d51aeb45c1ed8669d80f612b3817e6d1bdabe04",
+  "source_date_epoch": 0,
+  "features": "ownerfs,dfs,rdma",
+  "rust_toolchain": "1.95.0",
+  "binaries": {
+    "afs-meta": {"sha256": "2c7b7d088b759e3b9375080002182aa484a424b4fa216da1fb79a1004e96168e"},
+    "afs-node": {"sha256": "2cf1f538fe7af332a711f3c66a074ace140c00773826a182709a6445b8ae2645"}
+  },
+  "contains": ["afs-meta", "afs-node", "afs-processctl", "afs-trial-config", "afs-selfcheck", "dep02-smoke.sh", "docs/guides/trial.md"],
+  "installer": "install.sh",
+  "notes": "Built from existing Linux release binaries; no Cargo or Git required on target guests."
+}
+PATH /var/tmp/afs-off-6d-20261007-r1/prefix/bin/afs-meta
+-rwxr-xr-x 1 root root 15821088 Oct  7 05:03 /var/tmp/afs-off-6d-20261007-r1/prefix/bin/afs-meta
+2c7b7d088b759e3b9375080002182aa484a424b4fa216da1fb79a1004e96168e  /var/tmp/afs-off-6d-20261007-r1/prefix/bin/afs-meta
+PATH /var/tmp/afs-off-6d-20261007-r1/prefix/bin/afs-node
+-rwxr-xr-x 1 root root 25880120 Oct  7 05:03 /var/tmp/afs-off-6d-20261007-r1/prefix/bin/afs-node
+2cf1f538fe7af332a711f3c66a074ace140c00773826a182709a6445b8ae2645  /var/tmp/afs-off-6d-20261007-r1/prefix/bin/afs-node
+SECTION dfs-statfs-runtime-targeted
+PATH /var/tmp/afs-dfs-statfs-runtime-20261007-r2/prefix/bin/afs-meta
+-rwxrwxr-x 1 lzc lzc 15768296 Oct  7 00:03 /var/tmp/afs-dfs-statfs-runtime-20261007-r2/prefix/bin/afs-meta
+9267052b8892a427b948059aa727ca432f8cdd4cd381d66be3cf84a50f94495a  /var/tmp/afs-dfs-statfs-runtime-20261007-r2/prefix/bin/afs-meta
+PATH /var/tmp/afs-dfs-statfs-runtime-20261007-r2/prefix/bin/afs-node
+-rwxrwxr-x 1 lzc lzc 25603568 Oct  7 00:03 /var/tmp/afs-dfs-statfs-runtime-20261007-r2/prefix/bin/afs-node
+01fb69b7b4d160e37a3f200b7b458bf5f6c1957890c6d791ceb7288f4dca288a  /var/tmp/afs-dfs-statfs-runtime-20261007-r2/prefix/bin/afs-node
+PATH /var/tmp/afs-dfs-statfs-runtime-20261007-r2/drivers/standard.py
+-rwxr-xr-x 1 root root 71932 Oct  3 13:43 /var/tmp/afs-dfs-statfs-runtime-20261007-r2/drivers/standard.py
+1d85ed64f409dda781137b9baea485b9bb1980f956970e1a33ea1ed0e6a44397  /var/tmp/afs-dfs-statfs-runtime-20261007-r2/drivers/standard.py
+PATH /var/tmp/afs-dfs-statfs-runtime-20261007-r2/results/std-01-pjdfstest-full/artifacts/std-01-pjdfstest/proof.json
+-rw-r--r-- 1 root root 69681 Oct  7 00:20 /var/tmp/afs-dfs-statfs-runtime-20261007-r2/results/std-01-pjdfstest-full/artifacts/std-01-pjdfstest/proof.json
+f96dee75dcfb8589a2c57f41a03b1befb6eaf00312fd5b875723da665e80c78b  /var/tmp/afs-dfs-statfs-runtime-20261007-r2/results/std-01-pjdfstest-full/artifacts/std-01-pjdfstest/proof.json
+PATH /var/tmp/afs-dfs-statfs-runtime-20261007-r2/results/std-02-ltp-smoke6/artifacts/std-02-ltp/proof.json
+-rw-r--r-- 1 root root 7758 Oct  7 00:21 /var/tmp/afs-dfs-statfs-runtime-20261007-r2/results/std-02-ltp-smoke6/artifacts/std-02-ltp/proof.json
+eadacdf246467c9f33d856ce546a16451d0994fa384dd8906368184dcf184e38  /var/tmp/afs-dfs-statfs-runtime-20261007-r2/results/std-02-ltp-smoke6/artifacts/std-02-ltp/proof.json
+SECTION ltp-smoke6-binaries
+PATH /var/tmp/afs-e2e-20261006-r1/suites/ltp/testcases/bin/open01
+MISSING_OR_NOT_EXECUTABLE
+PATH /var/tmp/afs-e2e-20261006-r1/suites/ltp/testcases/bin/read01
+MISSING_OR_NOT_EXECUTABLE
+PATH /var/tmp/afs-e2e-20261006-r1/suites/ltp/testcases/bin/write01
+MISSING_OR_NOT_EXECUTABLE
+PATH /var/tmp/afs-e2e-20261006-r1/suites/ltp/testcases/bin/stat01
+MISSING_OR_NOT_EXECUTABLE
+PATH /var/tmp/afs-e2e-20261006-r1/suites/ltp/testcases/bin/chmod01
+MISSING_OR_NOT_EXECUTABLE
+PATH /var/tmp/afs-e2e-20261006-r1/suites/ltp/testcases/bin/fcntl14
+MISSING_OR_NOT_EXECUTABLE
+SECTION pjdfstest-targeted
+d25636a227606f8960e5179741d8f4ad7030ef41
+?? configure~
+83f27ae21a4de5c2dabc447238c83f21c1a17558e61762ec52fe7ffbcf61f780  ./pjdfstest
+239
+SECTION ltp-targeted
+3a64d78f58bdceba93ed321e91215fb969a047ed
+5a389cb0e7d23a95da4d7ec96cc49bf3d7c842cf2b8f49a50b5668c95eb8d343  ./runltp

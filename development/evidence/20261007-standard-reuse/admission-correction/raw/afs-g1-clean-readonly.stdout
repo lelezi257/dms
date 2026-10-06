@@ -1,0 +1,193 @@
+SECTION identity
+lima-afs-g1-clean
+Linux lima-afs-g1-clean 6.8.0-106-generic #106-Ubuntu SMP PREEMPT_DYNAMIC Fri Mar  6 07:44:40 UTC 2026 aarch64 aarch64 aarch64 GNU/Linux
+uid=501(lzc) gid=1000(lzc) groups=1000(lzc)
+SECTION deps
+python3=/usr/bin/python3
+perl=/usr/bin/perl
+prove=/usr/bin/prove
+git=/usr/bin/git
+bash=/usr/bin/bash
+findmnt=/usr/bin/findmnt
+fusermount3=/usr/bin/fusermount3
+mountpoint=/usr/bin/mountpoint
+stat=/usr/bin/stat
+df=/usr/bin/df
+ps=/usr/bin/ps
+pgrep=/usr/bin/pgrep
+sha256sum=/usr/bin/sha256sum
+tar=/usr/bin/tar
+make=gcc=cc=Python 3.12.3
+3.44
+git version 2.43.0
+SECTION filesystems
+Filesystem     Type   1B-blocks       Used  Available Use% Mounted on
+/dev/vda1      ext4 15523123200 9729216512 5777129472  63% /
+/dev/vda1      ext4 15523123200 9729216512 5777129472  63% /
+/dev/vda1      ext4 15523123200 9729216512 5777129472  63% /
+/dev/vda1      ext4 15523123200 9729216512 5777129472  63% /
+path=/ type=ext2/ext3 blocks=3789825 bavail=1410432 bsize=4096 files=1966080 ffree=1863700
+path=/var/tmp type=ext2/ext3 blocks=3789825 bavail=1410432 bsize=4096 files=1966080 ffree=1863700
+path=/home type=ext2/ext3 blocks=3789825 bavail=1410432 bsize=4096 files=1966080 ffree=1863700
+path=/opt type=ext2/ext3 blocks=3789825 bavail=1410432 bsize=4096 files=1966080 ffree=1863700
+SECTION suites-search
+/var/tmp/afs-e2e-20261006-r1/suites/ltp
+/var/tmp/afs-e2e-20261006-r1/suites/ltp/runltp
+/var/tmp/afs-e2e-20261006-r1/suites/ltp/runtest
+/var/tmp/afs-e2e-20261006-r1/suites/ltp/testcases/network/nfsv4/acl/runtest
+/var/tmp/afs-e2e-20261006-r1/suites/pjdfstest/.git
+/var/tmp/afs-e2e-20261006-r1/suites/pjdfstest/tests
+SECTION suite-hashes
+pjdfstest_dir=/var/tmp/afs-e2e-20261006-r1/suites/pjdfstest
+d25636a227606f8960e5179741d8f4ad7030ef41
+?? configure~
+239
+83f27ae21a4de5c2dabc447238c83f21c1a17558e61762ec52fe7ffbcf61f780  /var/tmp/afs-e2e-20261006-r1/suites/pjdfstest/pjdfstest
+ltp_dir=/var/tmp/afs-e2e-20261006-r1/suites/ltp
+3a64d78f58bdceba93ed321e91215fb969a047ed
+/var/tmp/afs-e2e-20261006-r1/suites/ltp/runltp
+SECTION packages
+/home/lzc.guest/afs-0.1.0-g1.1-linux-aarch64/bin/afs-meta
+/home/lzc.guest/afs-0.1.0-g1.1-linux-aarch64/bin/afs-node
+/home/lzc.guest/afs-0.1.0-g1.1-linux-aarch64/manifest.json
+/home/lzc.guest/afs-0.1.0-g1.2-linux-aarch64/bin/afs-meta
+/home/lzc.guest/afs-0.1.0-g1.2-linux-aarch64/bin/afs-node
+/home/lzc.guest/afs-0.1.0-g1.2-linux-aarch64/manifest.json
+/home/lzc.guest/afs-0.1.0-g1.3-linux-aarch64/bin/afs-meta
+/home/lzc.guest/afs-0.1.0-g1.3-linux-aarch64/bin/afs-node
+/home/lzc.guest/afs-0.1.0-g1.3-linux-aarch64/manifest.json
+/home/lzc.guest/afs-0.1.0-g1.4-linux-aarch64/bin/afs-meta
+/home/lzc.guest/afs-0.1.0-g1.4-linux-aarch64/bin/afs-node
+/home/lzc.guest/afs-0.1.0-g1.4-linux-aarch64/manifest.json
+/home/lzc.guest/afs-0.1.0-g1.5-linux-aarch64/bin/afs-meta
+/home/lzc.guest/afs-0.1.0-g1.5-linux-aarch64/bin/afs-node
+/home/lzc.guest/afs-0.1.0-g1.5-linux-aarch64/manifest.json
+/var/tmp/afs-dfs-statfs-runtime-20261007-r1/prefix/bin/afs-meta
+/var/tmp/afs-dfs-statfs-runtime-20261007-r1/prefix/bin/afs-node
+/var/tmp/afs-dfs-statfs-runtime-20261007-r2/prefix/bin/afs-meta
+/var/tmp/afs-dfs-statfs-runtime-20261007-r2/prefix/bin/afs-node
+/var/tmp/afs-e2e-20261006-r1/incoming/afs-meta
+/var/tmp/afs-e2e-20261006-r1/incoming/afs-node
+/var/tmp/afs-e2e-20261006-r1/prefix/bin/afs-meta
+/var/tmp/afs-e2e-20261006-r1/prefix/bin/afs-node
+/var/tmp/afs-e2e-20261006-r1/prefix/manifest.json
+/var/tmp/afs-e2e-20261006-r1/results/dfs-after-meta/manifest.json
+/var/tmp/afs-e2e-20261006-r1/results/dfs-selfcheck/manifest.json
+/var/tmp/afs-e2e-20261006-r1/results/owner-after-meta/manifest.json
+/var/tmp/afs-e2e-20261006-r1/results/owner-selfcheck/manifest.json
+/var/tmp/afs-e2e-20261006-r1/unpacked/afs-e925c5b-e2e-r1-linux-aarch64/bin/afs-meta
+/var/tmp/afs-e2e-20261006-r1/unpacked/afs-e925c5b-e2e-r1-linux-aarch64/bin/afs-node
+/var/tmp/afs-e2e-20261006-r1/unpacked/afs-e925c5b-e2e-r1-linux-aarch64/manifest.json
+/var/tmp/afs-e2e-cross-20261006-r1/peer/node-b/results/dfs-a-write/manifest.json
+/var/tmp/afs-e2e-cross-20261006-r1/peer/node-b/results/dfs-reader-b-after-meta/manifest.json
+/var/tmp/afs-e2e-cross-20261006-r1/peer/node-b/results/dfs-reader-b/manifest.json
+/var/tmp/afs-e2e-cross-20261006-r1/peer/node-b/results/owner-a-write/manifest.json
+/var/tmp/afs-e2e-cross-20261006-r1/peer/node-b/results/owner-b-after-meta/manifest.json
+/var/tmp/afs-e2e-cross-20261006-r1/peer/node-b/results/owner-b-patch/manifest.json
+/var/tmp/afs-e2e-cross-20261006-r1/peer/node-b/results/owner-b-read/manifest.json
+/var/tmp/afs-e2e-cross-20261006-r1/results/dfs-a-write/manifest.json
+/var/tmp/afs-e2e-cross-20261006-r1/results/dfs-reader-a-after-meta/manifest.json
+/var/tmp/afs-e2e-cross-20261006-r1/results/dfs-reader-a/manifest.json
+/var/tmp/afs-e2e-cross-20261006-r1/results/owner-a-after-meta/manifest.json
+/var/tmp/afs-e2e-cross-20261006-r1/results/owner-a-read-patch/manifest.json
+/var/tmp/afs-e2e-cross-20261006-r1/results/owner-a-write/manifest.json
+/var/tmp/afs-e2e-cross-20261006-r1/results/owner-b-patch/manifest.json
+/var/tmp/afs-e2e-release-20261006-r1/incoming/bin/afs-meta
+/var/tmp/afs-e2e-release-20261006-r1/incoming/bin/afs-node
+/var/tmp/afs-e2e-release-20261006-r1/prefix/bin/afs-meta
+/var/tmp/afs-e2e-release-20261006-r1/prefix/bin/afs-node
+/var/tmp/afs-e2e-release-20261006-r1/results/owner-basic/manifest.json
+/var/tmp/afs-e2e-release-20261006-r1/results/owner-recovery-read/manifest.json
+/var/tmp/afs-e2e-release-20261006-r1/results/owner-recovery-write/manifest.json
+/var/tmp/afs-off-6d-20261007-r1/package/afs-0.1.0-g2-procfree-6d51aeb-linux-aarch64/bin/afs-meta
+/var/tmp/afs-off-6d-20261007-r1/package/afs-0.1.0-g2-procfree-6d51aeb-linux-aarch64/bin/afs-node
+/var/tmp/afs-off-6d-20261007-r1/package/afs-0.1.0-g2-procfree-6d51aeb-linux-aarch64/manifest.json
+/var/tmp/afs-off-6d-20261007-r1/prefix/bin/afs-meta
+/var/tmp/afs-off-6d-20261007-r1/prefix/bin/afs-node
+/var/tmp/afs-off-6d-20261007-r1/prefix/manifest.json
+/var/tmp/afs-off-delivery-20261007-r1/package/afs-0.1.0-g2-off-25a8061-linux-aarch64/bin/afs-meta
+/var/tmp/afs-off-delivery-20261007-r1/package/afs-0.1.0-g2-off-25a8061-linux-aarch64/bin/afs-node
+/var/tmp/afs-off-delivery-20261007-r1/package/afs-0.1.0-g2-off-25a8061-linux-aarch64/manifest.json
+/var/tmp/afs-off-delivery-20261007-r1/prefix/bin/afs-meta
+/var/tmp/afs-off-delivery-20261007-r1/prefix/bin/afs-node
+/var/tmp/afs-off-delivery-20261007-r1/prefix/manifest.json
+/var/tmp/afs-off-delivery-20261007-r2/package/afs-0.1.0-g2-off-25a8061-linux-aarch64/bin/afs-meta
+/var/tmp/afs-off-delivery-20261007-r2/package/afs-0.1.0-g2-off-25a8061-linux-aarch64/bin/afs-node
+/var/tmp/afs-off-delivery-20261007-r2/package/afs-0.1.0-g2-off-25a8061-linux-aarch64/manifest.json
+/var/tmp/afs-off-delivery-20261007-r2/prefix/bin/afs-meta
+/var/tmp/afs-off-delivery-20261007-r2/prefix/bin/afs-node
+/var/tmp/afs-off-delivery-20261007-r2/prefix/manifest.json
+-rwxr-xr-x 1 lzc lzc 40154144 Oct  6 00:00 /home/lzc.guest/afs-0.1.0-g1.1-linux-aarch64/bin/afs-meta
+6f70806ec0743475e2a11b21119cab2aaca4b66fbd155afd86c6ad1c4acb01ae  /home/lzc.guest/afs-0.1.0-g1.1-linux-aarch64/bin/afs-meta
+-rwxr-xr-x 1 lzc lzc 72301432 Oct  6 00:00 /home/lzc.guest/afs-0.1.0-g1.1-linux-aarch64/bin/afs-node
+58fa101737260ec3e3688a700736a788cb02d291e06d3fd59bd3dde3ce859e9b  /home/lzc.guest/afs-0.1.0-g1.1-linux-aarch64/bin/afs-node
+-rwxr-xr-x 1 lzc lzc 40154144 Oct  6 00:00 /home/lzc.guest/afs-0.1.0-g1.2-linux-aarch64/bin/afs-meta
+6f70806ec0743475e2a11b21119cab2aaca4b66fbd155afd86c6ad1c4acb01ae  /home/lzc.guest/afs-0.1.0-g1.2-linux-aarch64/bin/afs-meta
+-rwxr-xr-x 1 lzc lzc 72301432 Oct  6 00:00 /home/lzc.guest/afs-0.1.0-g1.2-linux-aarch64/bin/afs-node
+58fa101737260ec3e3688a700736a788cb02d291e06d3fd59bd3dde3ce859e9b  /home/lzc.guest/afs-0.1.0-g1.2-linux-aarch64/bin/afs-node
+-rwxr-xr-x 1 lzc lzc 24459360 Oct  6 00:00 /home/lzc.guest/afs-0.1.0-g1.3-linux-aarch64/bin/afs-meta
+c82075061f05b1bb4e06b7099b9238bf2697ce79d2031fcf3b0116422a33405b  /home/lzc.guest/afs-0.1.0-g1.3-linux-aarch64/bin/afs-meta
+-rwxr-xr-x 1 lzc lzc 42153888 Oct  6 00:00 /home/lzc.guest/afs-0.1.0-g1.3-linux-aarch64/bin/afs-node
+f502de5f5cbdaf4057a4ccafb6f626c63191567060b40c0c1e599812fea39d7c  /home/lzc.guest/afs-0.1.0-g1.3-linux-aarch64/bin/afs-node
+-rwxr-xr-x 1 lzc lzc 24459360 Oct  6 00:00 /home/lzc.guest/afs-0.1.0-g1.4-linux-aarch64/bin/afs-meta
+c82075061f05b1bb4e06b7099b9238bf2697ce79d2031fcf3b0116422a33405b  /home/lzc.guest/afs-0.1.0-g1.4-linux-aarch64/bin/afs-meta
+-rwxr-xr-x 1 lzc lzc 42153888 Oct  6 00:00 /home/lzc.guest/afs-0.1.0-g1.4-linux-aarch64/bin/afs-node
+f502de5f5cbdaf4057a4ccafb6f626c63191567060b40c0c1e599812fea39d7c  /home/lzc.guest/afs-0.1.0-g1.4-linux-aarch64/bin/afs-node
+-rwxr-xr-x 1 lzc lzc 24459360 Oct  6 00:00 /home/lzc.guest/afs-0.1.0-g1.5-linux-aarch64/bin/afs-meta
+93c5528cd410d6f56f1ef87fa51f8da73ad4885e147b75e8a30d5ff87308bdcf  /home/lzc.guest/afs-0.1.0-g1.5-linux-aarch64/bin/afs-meta
+-rwxr-xr-x 1 lzc lzc 42153888 Oct  6 00:00 /home/lzc.guest/afs-0.1.0-g1.5-linux-aarch64/bin/afs-node
+43813e8393af59509f1c27f9b16076dbb356f1bb6e481f9f8ca430837883696a  /home/lzc.guest/afs-0.1.0-g1.5-linux-aarch64/bin/afs-node
+-rwxrwxr-x 1 lzc lzc 15768296 Oct  7 00:03 /var/tmp/afs-dfs-statfs-runtime-20261007-r1/prefix/bin/afs-meta
+9267052b8892a427b948059aa727ca432f8cdd4cd381d66be3cf84a50f94495a  /var/tmp/afs-dfs-statfs-runtime-20261007-r1/prefix/bin/afs-meta
+-rwxrwxr-x 1 lzc lzc 25603568 Oct  7 00:03 /var/tmp/afs-dfs-statfs-runtime-20261007-r1/prefix/bin/afs-node
+01fb69b7b4d160e37a3f200b7b458bf5f6c1957890c6d791ceb7288f4dca288a  /var/tmp/afs-dfs-statfs-runtime-20261007-r1/prefix/bin/afs-node
+-rwxrwxr-x 1 lzc lzc 15768296 Oct  7 00:03 /var/tmp/afs-dfs-statfs-runtime-20261007-r2/prefix/bin/afs-meta
+9267052b8892a427b948059aa727ca432f8cdd4cd381d66be3cf84a50f94495a  /var/tmp/afs-dfs-statfs-runtime-20261007-r2/prefix/bin/afs-meta
+-rwxrwxr-x 1 lzc lzc 25603568 Oct  7 00:03 /var/tmp/afs-dfs-statfs-runtime-20261007-r2/prefix/bin/afs-node
+01fb69b7b4d160e37a3f200b7b458bf5f6c1957890c6d791ceb7288f4dca288a  /var/tmp/afs-dfs-statfs-runtime-20261007-r2/prefix/bin/afs-node
+-rwxrwxr-x 1 lzc lzc 280380168 Oct  6 21:25 /var/tmp/afs-e2e-20261006-r1/incoming/afs-meta
+38f0e76a5b4c4afc3efdde3ee7bfa96b0e7e01a0403d556343ec385a86b20d45  /var/tmp/afs-e2e-20261006-r1/incoming/afs-meta
+-rwxrwxr-x 1 lzc lzc 312760344 Oct  6 21:25 /var/tmp/afs-e2e-20261006-r1/incoming/afs-node
+04b68193d7cdd04dea8c861f07e47336be05281de11a91e9ea8f3890123d1900  /var/tmp/afs-e2e-20261006-r1/incoming/afs-node
+-rwxr-xr-x 1 root root 280380168 Oct  6 21:57 /var/tmp/afs-e2e-20261006-r1/prefix/bin/afs-meta
+38f0e76a5b4c4afc3efdde3ee7bfa96b0e7e01a0403d556343ec385a86b20d45  /var/tmp/afs-e2e-20261006-r1/prefix/bin/afs-meta
+-rwxr-xr-x 1 root root 312760344 Oct  6 21:57 /var/tmp/afs-e2e-20261006-r1/prefix/bin/afs-node
+04b68193d7cdd04dea8c861f07e47336be05281de11a91e9ea8f3890123d1900  /var/tmp/afs-e2e-20261006-r1/prefix/bin/afs-node
+-rwxr-xr-x 1 lzc lzc 280380168 Jan  1  1970 /var/tmp/afs-e2e-20261006-r1/unpacked/afs-e925c5b-e2e-r1-linux-aarch64/bin/afs-meta
+38f0e76a5b4c4afc3efdde3ee7bfa96b0e7e01a0403d556343ec385a86b20d45  /var/tmp/afs-e2e-20261006-r1/unpacked/afs-e925c5b-e2e-r1-linux-aarch64/bin/afs-meta
+-rwxr-xr-x 1 lzc lzc 312760344 Jan  1  1970 /var/tmp/afs-e2e-20261006-r1/unpacked/afs-e925c5b-e2e-r1-linux-aarch64/bin/afs-node
+04b68193d7cdd04dea8c861f07e47336be05281de11a91e9ea8f3890123d1900  /var/tmp/afs-e2e-20261006-r1/unpacked/afs-e925c5b-e2e-r1-linux-aarch64/bin/afs-node
+-rwxr-xr-x 1 lzc lzc 15704704 Oct  6 23:05 /var/tmp/afs-e2e-release-20261006-r1/incoming/bin/afs-meta
+9cfdf8f01def1a45383baea834598a0a6ff572f3a2a0b4aa9af6a1523963bea9  /var/tmp/afs-e2e-release-20261006-r1/incoming/bin/afs-meta
+-rwxr-xr-x 1 lzc lzc 25607920 Oct  6 23:05 /var/tmp/afs-e2e-release-20261006-r1/incoming/bin/afs-node
+926ada2800093b5b7682ed37a978549eaf2704a25b5ebfc7cc346244cbd689a7  /var/tmp/afs-e2e-release-20261006-r1/incoming/bin/afs-node
+-rwxr-xr-x 1 root root 15704704 Oct  6 23:07 /var/tmp/afs-e2e-release-20261006-r1/prefix/bin/afs-meta
+9cfdf8f01def1a45383baea834598a0a6ff572f3a2a0b4aa9af6a1523963bea9  /var/tmp/afs-e2e-release-20261006-r1/prefix/bin/afs-meta
+-rwxr-xr-x 1 root root 25607920 Oct  6 23:07 /var/tmp/afs-e2e-release-20261006-r1/prefix/bin/afs-node
+926ada2800093b5b7682ed37a978549eaf2704a25b5ebfc7cc346244cbd689a7  /var/tmp/afs-e2e-release-20261006-r1/prefix/bin/afs-node
+-rwxr-xr-x 1 root root 15821088 Jan  1  1970 /var/tmp/afs-off-6d-20261007-r1/package/afs-0.1.0-g2-procfree-6d51aeb-linux-aarch64/bin/afs-meta
+2c7b7d088b759e3b9375080002182aa484a424b4fa216da1fb79a1004e96168e  /var/tmp/afs-off-6d-20261007-r1/package/afs-0.1.0-g2-procfree-6d51aeb-linux-aarch64/bin/afs-meta
+-rwxr-xr-x 1 root root 25880120 Jan  1  1970 /var/tmp/afs-off-6d-20261007-r1/package/afs-0.1.0-g2-procfree-6d51aeb-linux-aarch64/bin/afs-node
+2cf1f538fe7af332a711f3c66a074ace140c00773826a182709a6445b8ae2645  /var/tmp/afs-off-6d-20261007-r1/package/afs-0.1.0-g2-procfree-6d51aeb-linux-aarch64/bin/afs-node
+-rwxr-xr-x 1 root root 15821088 Oct  7 05:03 /var/tmp/afs-off-6d-20261007-r1/prefix/bin/afs-meta
+2c7b7d088b759e3b9375080002182aa484a424b4fa216da1fb79a1004e96168e  /var/tmp/afs-off-6d-20261007-r1/prefix/bin/afs-meta
+-rwxr-xr-x 1 root root 25880120 Oct  7 05:03 /var/tmp/afs-off-6d-20261007-r1/prefix/bin/afs-node
+2cf1f538fe7af332a711f3c66a074ace140c00773826a182709a6445b8ae2645  /var/tmp/afs-off-6d-20261007-r1/prefix/bin/afs-node
+-rwxr-xr-x 1 root root 15795096 Oct  7 01:27 /var/tmp/afs-off-delivery-20261007-r1/package/afs-0.1.0-g2-off-25a8061-linux-aarch64/bin/afs-meta
+08aee9fec2e7e12ce03912fa85e8bded28b2162de78c2c9c36703a9a1a6e58b8  /var/tmp/afs-off-delivery-20261007-r1/package/afs-0.1.0-g2-off-25a8061-linux-aarch64/bin/afs-meta
+-rwxr-xr-x 1 root root 25966344 Oct  7 01:27 /var/tmp/afs-off-delivery-20261007-r1/package/afs-0.1.0-g2-off-25a8061-linux-aarch64/bin/afs-node
+d6e7cd11a610e7f0839d2a3d2337cd92678432e15fcffb6fd2fa6a00860058b8  /var/tmp/afs-off-delivery-20261007-r1/package/afs-0.1.0-g2-off-25a8061-linux-aarch64/bin/afs-node
+-rwxr-xr-x 1 root root 15795096 Oct  7 01:37 /var/tmp/afs-off-delivery-20261007-r1/prefix/bin/afs-meta
+08aee9fec2e7e12ce03912fa85e8bded28b2162de78c2c9c36703a9a1a6e58b8  /var/tmp/afs-off-delivery-20261007-r1/prefix/bin/afs-meta
+-rwxr-xr-x 1 root root 25966344 Oct  7 01:37 /var/tmp/afs-off-delivery-20261007-r1/prefix/bin/afs-node
+d6e7cd11a610e7f0839d2a3d2337cd92678432e15fcffb6fd2fa6a00860058b8  /var/tmp/afs-off-delivery-20261007-r1/prefix/bin/afs-node
+-rwxr-xr-x 1 root root 15795096 Oct  7 01:27 /var/tmp/afs-off-delivery-20261007-r2/package/afs-0.1.0-g2-off-25a8061-linux-aarch64/bin/afs-meta
+08aee9fec2e7e12ce03912fa85e8bded28b2162de78c2c9c36703a9a1a6e58b8  /var/tmp/afs-off-delivery-20261007-r2/package/afs-0.1.0-g2-off-25a8061-linux-aarch64/bin/afs-meta
+-rwxr-xr-x 1 root root 25966344 Oct  7 01:27 /var/tmp/afs-off-delivery-20261007-r2/package/afs-0.1.0-g2-off-25a8061-linux-aarch64/bin/afs-node
+d6e7cd11a610e7f0839d2a3d2337cd92678432e15fcffb6fd2fa6a00860058b8  /var/tmp/afs-off-delivery-20261007-r2/package/afs-0.1.0-g2-off-25a8061-linux-aarch64/bin/afs-node
+-rwxr-xr-x 1 root root 15795096 Oct  7 01:38 /var/tmp/afs-off-delivery-20261007-r2/prefix/bin/afs-meta
+08aee9fec2e7e12ce03912fa85e8bded28b2162de78c2c9c36703a9a1a6e58b8  /var/tmp/afs-off-delivery-20261007-r2/prefix/bin/afs-meta
+-rwxr-xr-x 1 root root 25966344 Oct  7 01:38 /var/tmp/afs-off-delivery-20261007-r2/prefix/bin/afs-node
+d6e7cd11a610e7f0839d2a3d2337cd92678432e15fcffb6fd2fa6a00860058b8  /var/tmp/afs-off-delivery-20261007-r2/prefix/bin/afs-node
+SECTION active-afs
+│ ├─/sys/fs/fuse/connections   fusectl     fusectl     rw,nosuid,nodev,noexec,relatime

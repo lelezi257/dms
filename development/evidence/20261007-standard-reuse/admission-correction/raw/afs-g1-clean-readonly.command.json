@@ -1,0 +1,13 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "afs-g1-clean",
+    "bash",
+    "-lc",
+    "\nset -u\nprintf 'SECTION identity\\n'\nhostname || true\nuname -a || true\nid || true\nprintf 'SECTION deps\\n'\nfor x in python3 perl prove git bash findmnt fusermount3 mountpoint stat df ps pgrep sha256sum tar make gcc cc; do printf '%s=' \"$x\"; command -v \"$x\" || true; done\npython3 --version 2>&1 || true\nperl -MTAP::Harness -e 'print $TAP::Harness::VERSION,\"\\n\"' 2>&1 || true\ngit --version 2>&1 || true\nprintf 'SECTION filesystems\\n'\nfindmnt -no TARGET,SOURCE,FSTYPE,OPTIONS / /var /var/tmp /home /opt 2>&1 || true\ndf -B1 -T / /var/tmp /home /opt 2>&1 || true\nstat -f -c 'path=%n type=%T blocks=%b bavail=%a bsize=%S files=%c ffree=%d' / /var/tmp /home /opt 2>&1 || true\nprintf 'SECTION suites-search\\n'\nfind /var/tmp /opt /home -maxdepth 8 \\( -path '*/pjdfstest/.git' -o -path '*/pjdfstest/tests' -o -path '*/ltp' -o -path '*/runtest' -o -name 'runltp' -o -name 'ltp-pan' \\) -print 2>/dev/null | sort | head -200\nprintf 'SECTION suite-hashes\\n'\nfor d in $(find /var/tmp /opt /home -maxdepth 8 -type d -name pjdfstest 2>/dev/null | sort); do\n  printf 'pjdfstest_dir=%s\\n' \"$d\"\n  git -C \"$d\" rev-parse HEAD 2>&1 || true\n  git -C \"$d\" status --short 2>&1 | head -40 || true\n  test -d \"$d/tests\" && find \"$d/tests\" -type f | wc -l || true\n  test -f \"$d/pjdfstest\" && sha256sum \"$d/pjdfstest\" || true\ndone\nfor d in $(find /var/tmp /opt /home -maxdepth 8 -type d \\( -name ltp -o -name ltp-full-* -o -name ltp-202* \\) 2>/dev/null | sort); do\n  printf 'ltp_dir=%s\\n' \"$d\"\n  git -C \"$d\" rev-parse HEAD 2>&1 || true\n  git -C \"$d\" status --short 2>&1 | head -40 || true\n  find \"$d\" -maxdepth 3 \\( -name runltp -o -name ltp-pan -o -path '*/testcases/bin/open01' -o -path '*/testcases/bin/read01' -o -path '*/testcases/bin/write01' -o -path '*/testcases/bin/stat01' -o -path '*/testcases/bin/chmod01' -o -path '*/testcases/bin/fcntl14' \\) -print 2>/dev/null | sort | head -80\ndone\nprintf 'SECTION packages\\n'\nfind /var/tmp /opt /home -maxdepth 8 \\( -name 'afs-managed-package-6d51aeb.tar.gz' -o -name manifest.json -o -name afs-meta -o -name afs-node \\) -print 2>/dev/null | sort | head -250\nfor f in /var/tmp/afs-managed-package-6d51aeb.tar.gz $(find /opt /var/tmp /home -maxdepth 8 -type f \\( -name afs-meta -o -name afs-node \\) 2>/dev/null | sort | head -40); do\n  test -e \"$f\" && ls -l \"$f\" && sha256sum \"$f\" || true\ndone\nprintf 'SECTION active-afs\\n'\npgrep -a afs-meta || true\npgrep -a afs-node || true\nfindmnt -R | grep -E 'afs|fuse' || true\n"
+  ],
+  "cwd": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store",
+  "returncode": 0,
+  "utc": "2026-10-06T22:46:36.545247+00:00"
+}

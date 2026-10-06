@@ -1,0 +1,8 @@
+test_silent_child_timeout_is_bounded_and_killed (test_native_lock_kernel.NativeLockKernelTests.test_silent_child_timeout_is_bounded_and_killed) ... ok
+test_child_result_followed_by_exit_one_is_rejected (test_native_lock_kernel.NativeLockKernelTests.test_child_result_followed_by_exit_one_is_rejected) ... ok
+test_getlk_guard_requires_exact_type_range_and_pid (test_native_lock_kernel.NativeLockKernelTests.test_getlk_guard_requires_exact_type_range_and_pid) ... ok
+
+----------------------------------------------------------------------
+Ran 3 tests in 0.223s
+
+OK

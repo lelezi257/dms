@@ -1,0 +1,133 @@
+{
+  "status": "ADMISSION_CORRECTED_READ_ONLY_COMPLETE",
+  "created_utc": "2026-10-06T22:49:13Z",
+  "scope": "Correct prior admission classification/location and verify afs-g1-clean identities without running tests or starting services.",
+  "location_correction": {
+    "moved_from": "source/development/evidence/afs-delivery/dfs-standard-6d-20261007-r1",
+    "moved_to": "evidence/afs-delivery/dfs-standard-6d-20261007-r1",
+    "reason": "afs-acceptance evidence belongs under project-level evidence/afs-delivery, not product source/development/evidence."
+  },
+  "classification_correction": {
+    "previous_misclassification": "Absence of old r2 fixture/mount/PIDs on afs-g2-micro was reported as BLOCKED for DFS standard rerun.",
+    "correct_classification": "Official DFS standard VM is afs-g1-clean. r2 normal closure stopped processes and removed mounts; old fixture/PID absence is historical cleanup, not an environment blocker.",
+    "do_not_infer": "This correction does not create a new current test PASS; it preserves the historical r2 PASS and records current read-only readiness facts."
+  },
+  "historical_results": {
+    "source": "source/development/evidence/20261007-dfs-statfs/README.md",
+    "source_sha256": "35d0626e8c63b5b6afb32e3fd1e6a623b754542d77f20d2e9d8243596a0702e0",
+    "vm": "afs-g1-clean",
+    "runtime": "runtime-r2",
+    "dfs_pjdfstest": {
+      "proof": "source/development/evidence/20261007-dfs-statfs/runtime-r2/std-01-pjdfstest-full/artifacts/std-01-pjdfstest/proof.json",
+      "proof_sha256": "f96dee75dcfb8589a2c57f41a03b1befb6eaf00312fd5b875723da665e80c78b",
+      "status": "PASS",
+      "suite": "sanwan/pjdfstest d25636a227606f8960e5179741d8f4ad7030ef41",
+      "selected_files": 236,
+      "tap_total": null,
+      "tap_todo": 28,
+      "tap_skip": 0,
+      "unexpected_fail": 0
+    },
+    "dfs_ltp_smoke6": {
+      "proof": "source/development/evidence/20261007-dfs-statfs/runtime-r2/std-02-ltp-smoke6/artifacts/std-02-ltp/proof.json",
+      "proof_sha256": "eadacdf246467c9f33d856ce546a16451d0994fa384dd8906368184dcf184e38",
+      "status": "PASS",
+      "suite": "LTP 20260529",
+      "selected": 6,
+      "counts": {
+        "FAIL": 0,
+        "NOT_RUN": 0,
+        "PASS": 6,
+        "TBROK": 0,
+        "TCONF": 0,
+        "TIMEOUT": 0,
+        "TWARN": 0
+      }
+    }
+  },
+  "current_read_only_afs_g1_clean": {
+    "vm_status": "Running per limactl list; hostname lima-afs-g1-clean; Linux aarch64 6.8.0-106-generic.",
+    "dependencies": "python3, perl, prove, git, bash, findmnt, fusermount3, mountpoint, stat, df, ps, pgrep, sha256sum, tar present. make/gcc/cc not found in PATH during read-only check; already-built suites/ELFs are present where required.",
+    "filesystem_and_capacity": "/ /var/tmp /home /opt on /dev/vda1 ext4; 5,777,129,472 bytes available during check.",
+    "suite_identity": {
+      "pjdfstest_root": "/var/tmp/afs-e2e-20261006-r1/suites/pjdfstest",
+      "pjdfstest_git_head": "d25636a227606f8960e5179741d8f4ad7030ef41",
+      "pjdfstest_binary_sha256": "83f27ae21a4de5c2dabc447238c83f21c1a17558e61762ec52fe7ffbcf61f780",
+      "pjdfstest_note": "git status has untracked configure~; historical proof already captured exact selected tests and binary identity.",
+      "ltp_root": "/var/tmp/afs-e2e-20261006-r1/suites/ltp",
+      "ltp_git_head": "3a64d78f58bdceba93ed321e91215fb969a047ed",
+      "ltp_install_root": "/var/tmp/afs-e2e-20261006-r1/suites/ltp-small-install",
+      "ltp_kirk_sha256": "f9d2c516de03b985729948ac69b49fdccf1b01d552dbe89c33c13e96b055a4cd",
+      "ltp_expanded_tsv_sha256": "93d60fb5b90e134a46129e5a773c7013b022adae5f8d68af422e37af03cc8ff4",
+      "ltp_smoke6_binary_sha256": {
+        "open01": "be765b2849d2e31e274eacc6e7b8e4f180a3934fe001743c79c68790532ccbd1",
+        "read01": "c52e9776a4e121a61f3f518977146e51a1425aeaa472260c3bec0c3cd8fcf390",
+        "write01": "9e11b6d314a64022f34b33d5ff1c7eb1c29b7fcbf130be8f04a89d73a72da770",
+        "stat01": "1e77e026b066c53af78b0ed7434a9aaae5dd6badc675286bb1247bea81445c7c",
+        "chmod01": "18515f2a1e984276ff92243d8cb9cb3f817aa10042734f098f3c49bc3f5ed3d3",
+        "fcntl14": "44ec3816a0ad3f7593b00bb05e2aff55160cfbe9b4e67464a8434aa994567959"
+      }
+    },
+    "package_and_binary_identity": {
+      "installed_6d_manifest": "/var/tmp/afs-off-6d-20261007-r1/prefix/manifest.json",
+      "source_commit": "6d51aeb45c1ed8669d80f612b3817e6d1bdabe04",
+      "version": "0.1.0-g2-procfree-6d51aeb",
+      "manifest_sha256": "4bfdfef5d4c741497f2db65b555d39ee8d230bc38ddd8022d4525fbad8d56944",
+      "afs_meta_sha256": "2c7b7d088b759e3b9375080002182aa484a424b4fa216da1fb79a1004e96168e",
+      "afs_node_sha256": "2cf1f538fe7af332a711f3c66a074ace140c00773826a182709a6445b8ae2645",
+      "tarball_status": "/var/tmp/afs-managed-package-6d51aeb.tar.gz is absent on afs-g1-clean; installed package/prefix remain available."
+    },
+    "historical_runtime_identity_still_present": {
+      "driver": "/var/tmp/afs-dfs-statfs-runtime-20261007-r2/drivers/standard.py",
+      "driver_sha256": "1d85ed64f409dda781137b9baea485b9bb1980f956970e1a33ea1ed0e6a44397",
+      "r2_prefix_afs_meta_sha256": "9267052b8892a427b948059aa727ca432f8cdd4cd381d66be3cf84a50f94495a",
+      "r2_prefix_afs_node_sha256": "01fb69b7b4d160e37a3f200b7b458bf5f6c1957890c6d791ceb7288f4dca288a",
+      "r2_result_proofs": "prior r2 pjdfstest and LTP proof files still present on VM; services/mounts are stopped/removed by normal closure."
+    },
+    "current_new_execution_conditions": {
+      "ready_without_environment_repair": [
+        "standard driver present",
+        "pjdfstest pinned suite present",
+        "LTP pinned source/install present",
+        "6d installed package/prefix present",
+        "basic deps present",
+        "ext4 capacity sufficient for small standard rerun"
+      ],
+      "requires_normal_test_setup_before_running": [
+        "start fresh afs-meta/afs-node from selected candidate",
+        "create fresh DFS mount",
+        "record fresh live pids and mount identity",
+        "choose fresh output directory"
+      ],
+      "not_a_blocker": [
+        "old r2 pid absence",
+        "old r2 mount absence",
+        "old fixture cleanup after closure"
+      ],
+      "caveat": "If the run specifically requires the tarball artifact on this VM, restore/copy it first; current read-only evidence confirms installed 6d prefix but not the tarball."
+    }
+  },
+  "raw_paths": [
+    "raw/afs-g1-clean-ltp-install.command.json",
+    "raw/afs-g1-clean-ltp-install.exit",
+    "raw/afs-g1-clean-ltp-install.stderr",
+    "raw/afs-g1-clean-ltp-install.stdout",
+    "raw/afs-g1-clean-readonly.command.json",
+    "raw/afs-g1-clean-readonly.exit",
+    "raw/afs-g1-clean-readonly.stderr",
+    "raw/afs-g1-clean-readonly.stdout",
+    "raw/afs-g1-clean-targeted.command.json",
+    "raw/afs-g1-clean-targeted.exit",
+    "raw/afs-g1-clean-targeted.stderr",
+    "raw/afs-g1-clean-targeted.stdout",
+    "raw/local-lima-list.command.json",
+    "raw/local-lima-list.exit",
+    "raw/local-lima-list.stderr",
+    "raw/local-lima-list.stdout",
+    "raw/official-readme-grep.command.json",
+    "raw/official-readme-grep.exit",
+    "raw/official-readme-grep.stderr",
+    "raw/official-readme-grep.stdout"
+  ],
+  "mutations": "Moved the prior admission directory from source/development to project-level evidence and wrote this correction evidence only. No VM mutation, install, build, service start, mount, or test execution was performed."
+}

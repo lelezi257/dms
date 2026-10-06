@@ -1,0 +1,11 @@
+can't find file to patch at input line 3
+Perhaps you used the wrong -p or --strip option?
+The text leading up to this was:
+--------------------------
+|--- development/acceptance/probes/test_native_lock_kernel.py	2026-10-07 06:49:33
+|+++ /tmp/native-lock-r1-compare.hWhSZm/test_native_lock_kernel.r1.py	2026-10-07 06:43:07
+--------------------------
+File to patch: 
+Skip this patch? [y] 
+Skipping patch.
+1 out of 1 hunk ignored

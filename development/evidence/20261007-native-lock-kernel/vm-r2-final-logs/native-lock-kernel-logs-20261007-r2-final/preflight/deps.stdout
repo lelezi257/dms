@@ -1,0 +1,1 @@
+{"ctypes_libc": true, "has_F_OFD_GETLK": true, "has_F_OFD_SETLK": true, "has_findmnt": true, "machine": "aarch64", "python": "3.12.3", "selectors": "EpollSelector"}

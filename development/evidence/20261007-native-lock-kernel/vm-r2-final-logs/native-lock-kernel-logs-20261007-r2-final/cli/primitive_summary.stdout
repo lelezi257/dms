@@ -1,0 +1,1 @@
+{"first_getlk": {"l_len": 100, "l_pid": -1, "l_start": 0, "l_type": 1, "l_type_name": "F_WRLCK", "l_whence": 0}, "second_getlk": {"l_len": 50, "l_pid": 109290, "l_start": 200, "l_type": 1, "l_type_name": "F_WRLCK", "l_whence": 0}, "second_ready_pid": 109290, "status": "PRIMITIVE_PASS", "summary": {"failed": 0, "passed": 6}, "transparent_classic_posix": false}

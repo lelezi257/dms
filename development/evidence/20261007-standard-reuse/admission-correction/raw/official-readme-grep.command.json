@@ -1,0 +1,10 @@
+{
+  "argv": [
+    "bash",
+    "-lc",
+    "grep -n \"afs-g1-clean\\|d25636\\|3a64\\|pjdfstest\\|LTP\\|236\\|8819\\|PASS\\|suite\" source/development/evidence/20261007-dfs-statfs/README.md"
+  ],
+  "cwd": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store",
+  "returncode": 0,
+  "utc": "2026-10-06T22:46:34.544639+00:00"
+}

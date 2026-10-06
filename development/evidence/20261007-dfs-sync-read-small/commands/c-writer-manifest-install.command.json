@@ -1,0 +1,15 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "afs-accept-c",
+    "sudo",
+    "python3",
+    "-c",
+    "import sys,hashlib,json\nfrom pathlib import Path\nr=Path(sys.argv[1]);s=r/'stage/writer-confirmed.json';d=r/'results/writer-confirmed.json';b=s.read_bytes();assert not s.is_symlink() and hashlib.sha256(b).hexdigest()==sys.argv[2] and not d.exists();d.write_bytes(b);d.chmod(0o644);print(json.dumps({'manifest_sha256':sys.argv[2],'installed':str(d)}))",
+    "/mnt/lima-afscdata/afs-delivery/dfs-sync-6d-20261007-r1",
+    "c84ab243dfef95179faae26e9627c2bc484ad7264571843de067db4dc4e96b06"
+  ],
+  "exit": 0,
+  "state": "TERMINAL"
+}

@@ -1,0 +1,32 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "afs-accept-b",
+    "sudo",
+    "timeout",
+    "--signal=TERM",
+    "180",
+    "python3",
+    "/mnt/lima-afsbdata/afs-delivery/dfs-sync-6d-20261007-r1/tools/dfs_manyread_small.py",
+    "reader",
+    "--sync-stdio",
+    "--reader-id",
+    "B",
+    "--session-token",
+    "dfs-sync-r1-8f9b25f2d4a84eee976e45c346d02557",
+    "--round-timeout",
+    "30",
+    "--dfs-root",
+    "/mnt/lima-afsbdata/afs-delivery/dfs-sync-6d-20261007-r1/mount/dfs",
+    "--io-tool",
+    "/mnt/lima-afsbdata/afs-delivery/dfs-sync-6d-20261007-r1/tools/io",
+    "--manifest",
+    "/mnt/lima-afsbdata/afs-delivery/dfs-sync-6d-20261007-r1/results/writer-confirmed.json",
+    "--output",
+    "/mnt/lima-afsbdata/afs-delivery/dfs-sync-6d-20261007-r1/results/reader-sync-r1"
+  ],
+  "state": "TERMINAL",
+  "timing_owner": "ctl Linux",
+  "exit": 0
+}

@@ -1,0 +1,10 @@
+{
+  "argv": [
+    "limactl",
+    "copy",
+    "afs-accept-b:/mnt/lima-afsbdata/afs-delivery/dfs-sync-6d-20261007-r1/stage/b-text.tar",
+    "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/dfs-sync-6d-20261007-r1/b-text.tar"
+  ],
+  "exit": 0,
+  "state": "TERMINAL"
+}

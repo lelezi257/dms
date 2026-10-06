@@ -1,0 +1,16 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "afs-accept-a",
+    "sudo",
+    "python3",
+    "/mnt/lima-afsadata/afs-delivery/dfs-sync-6d-20261007-r1/tools/dfs_small_fixture.py",
+    "prepare",
+    "a",
+    "--fixture",
+    "dfs-sync-6d-20261007-r1"
+  ],
+  "exit": 0,
+  "state": "TERMINAL"
+}

@@ -1,0 +1,14 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "afs-accept-c",
+    "sudo",
+    "python3",
+    "-c",
+    "import sys,os,json\nfrom pathlib import Path\nr=Path(sys.argv[1]);targets={str(r/'tools/dfs_manyread_small.py').encode(),str(r/'tools/io').encode()};alive=[]\nfor p in Path('/proc').iterdir():\n if not p.name.isdigit():continue\n try:\n  argv=(p/'cmdline').read_bytes().split(bytes([0]));exe=os.readlink(p/'exe')\n  if targets.intersection(argv) or exe.startswith(str(r)+'/'):alive.append({'pid':int(p.name),'exe':exe,'argv':[x.decode(errors='replace') for x in argv if x]})\n except (FileNotFoundError,ProcessLookupError):pass\nassert not alive,alive;print(json.dumps({'status':'PASS_NO_OWNED_AFS_OR_DFS_DRIVER_IO_PROCESS','root':str(r),'owned_alive':alive}))",
+    "/mnt/lima-afscdata/afs-delivery/dfs-sync-6d-20261007-r1"
+  ],
+  "exit": 0,
+  "state": "TERMINAL"
+}

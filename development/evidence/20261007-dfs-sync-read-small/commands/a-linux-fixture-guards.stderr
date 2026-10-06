@@ -1,0 +1,16 @@
+test_every_role_dfs_only_r2_and_guest_paths (test_dfs_small_fixture.ConfigTests.test_every_role_dfs_only_r2_and_guest_paths) ... ok
+test_named_fixtures_have_disjoint_roots_and_endpoints (test_dfs_small_fixture.ConfigTests.test_named_fixtures_have_disjoint_roots_and_endpoints) ... ok
+test_new_fixture_rejects_old_generated_endpoint_before_write (test_dfs_small_fixture.ConfigTests.test_new_fixture_rejects_old_generated_endpoint_before_write) ... ok
+test_path_guard_rejects_escape_traversal_and_symlink (test_dfs_small_fixture.ConfigTests.test_path_guard_rejects_escape_traversal_and_symlink) ... ok
+test_prepare_active_fixture_fails_before_writing (test_dfs_small_fixture.ConfigTests.test_prepare_active_fixture_fails_before_writing) ... ok
+test_prepare_preserves_original_and_refuses_second_prepare (test_dfs_small_fixture.ConfigTests.test_prepare_preserves_original_and_refuses_second_prepare) ... ok
+test_rejects_nonflat_or_already_prepared_config (test_dfs_small_fixture.ConfigTests.test_rejects_nonflat_or_already_prepared_config) ... ok
+test_rejects_trust_certificate_swap_despite_common_sans (test_dfs_small_fixture.ConfigTests.test_rejects_trust_certificate_swap_despite_common_sans) ... ok
+test_rejects_unknown_native_or_external_settings (test_dfs_small_fixture.ConfigTests.test_rejects_unknown_native_or_external_settings) ... ok
+test_rejects_wrong_role_backend_replication_or_trust (test_dfs_small_fixture.ConfigTests.test_rejects_wrong_role_backend_replication_or_trust) ... ok
+test_unknown_fixture_refused_without_path_construction (test_dfs_small_fixture.ConfigTests.test_unknown_fixture_refused_without_path_construction) ... ok
+
+----------------------------------------------------------------------
+Ran 11 tests in 0.009s
+
+OK

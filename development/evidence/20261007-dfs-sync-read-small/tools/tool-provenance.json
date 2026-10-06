@@ -1,0 +1,85 @@
+{
+  "current_stable_r4": {
+    "linux_dir": "/var/tmp/afs-dfs-sync-tools-20261007-r3",
+    "note": "r3 Linux temp dir was overwritten by final ACK0/r4 copy; its SHA matches current stable source files.",
+    "source_tree_files": {
+      "development/acceptance/dfs_manyread_small.py": {
+        "bytes": 37741,
+        "sha256": "9fb981664458b68aa7ab8721a5ddf685059e0fcfb436c79c41b623fa42bdb869"
+      },
+      "development/acceptance/test_dfs_manyread_small.py": {
+        "bytes": 17170,
+        "sha256": "0661be8e79c68e93a39068de566d0a237614ec372329da0a5dc2eb726a9efe4e"
+      }
+    }
+  },
+  "git_head": "7f1685aae7450b614a677cd924fa19dec13e69e3",
+  "historical_failures": {
+    "initial_linux_guard": {
+      "raw": "raw/linux-guards.stderr",
+      "reason": "guard expectation mismatch: missing-peer case failed because coordinator observed READY while still expecting HELLO; preserved as failed guard version, not a runtime/product failure"
+    },
+    "r3_warning": {
+      "raw": "raw/r3-linux-sync-guards.stderr",
+      "reason": "test fixture left subprocess pipes unclosed and emitted ResourceWarning; exit 0 preserved, superseded by r4 stable run"
+    }
+  },
+  "linux_frozen_dirs": {
+    "/var/tmp/afs-dfs-sync-tools-20261007-r1": {
+      "files": {
+        "dfs_manyread_small.py": {
+          "bytes": 34553,
+          "sha256": "efa9da0d6fb9ac6e347101d035617581fc84db5133b061fa7973e5d762a78b44"
+        },
+        "test_dfs_manyread_small.py": {
+          "bytes": 13352,
+          "sha256": "c03d6431fd82a3332f21d21a2ec40a5f8322702a867837030440f0ba024cf755"
+        }
+      },
+      "linux_dir": "/var/tmp/afs-dfs-sync-tools-20261007-r1"
+    },
+    "/var/tmp/afs-dfs-sync-tools-20261007-r2": {
+      "files": {
+        "dfs_manyread_small.py": {
+          "bytes": 34553,
+          "sha256": "efa9da0d6fb9ac6e347101d035617581fc84db5133b061fa7973e5d762a78b44"
+        },
+        "test_dfs_manyread_small.py": {
+          "bytes": 13353,
+          "sha256": "a1652316c9a1ef4b80c2a436278eb26154238e9e0de512b20622c0f667ac92b5"
+        }
+      },
+      "linux_dir": "/var/tmp/afs-dfs-sync-tools-20261007-r2"
+    },
+    "/var/tmp/afs-dfs-sync-tools-20261007-r3": {
+      "files": {
+        "dfs_manyread_small.py": {
+          "bytes": 37741,
+          "sha256": "9fb981664458b68aa7ab8721a5ddf685059e0fcfb436c79c41b623fa42bdb869"
+        },
+        "test_dfs_manyread_small.py": {
+          "bytes": 17170,
+          "sha256": "0661be8e79c68e93a39068de566d0a237614ec372329da0a5dc2eb726a9efe4e"
+        }
+      },
+      "linux_dir": "/var/tmp/afs-dfs-sync-tools-20261007-r3"
+    }
+  },
+  "policy": "No .py snapshots are copied into evidence. Versions are bound by Linux frozen-directory sha/bytes when still present; overwritten or unrecoverable intermediates are marked UNKNOWN and are not rebound to current SHA.",
+  "raw": {
+    "linux_dir_inventory": "raw/provenance-linux-var-tmp.stdout",
+    "linux_dir_inventory_exit": "raw/provenance-linux-var-tmp.exit"
+  },
+  "run_times": {
+    "linux-guards.exit": "2026-10-07T07:29:05+08:00",
+    "r2-linux-guards.exit": "2026-10-07T07:29:30+08:00",
+    "r3-linux-sync-guards.exit": "2026-10-07T07:34:47+08:00",
+    "r3b-linux-sync-guards.exit": "2026-10-07T07:35:13+08:00",
+    "r4-linux-sync-guards.exit": "2026-10-07T07:36:24+08:00"
+  },
+  "unrecoverable_intermediates": {
+    "r3_warning_run": "raw/r3-linux-sync-guards.* records exit 0 with ResourceWarning, but the exact Python files were overwritten by later copies; file SHA UNKNOWN, do not bind to current SHA.",
+    "r3b_init_run": "raw/r3b-linux-sync-guards.* records superseded INIT protocol exit 0, but the exact Python files were overwritten by final ACK0 copy; file SHA UNKNOWN, do not bind to current SHA."
+  },
+  "updated_at": "2026-10-07T07:39:51+08:00"
+}

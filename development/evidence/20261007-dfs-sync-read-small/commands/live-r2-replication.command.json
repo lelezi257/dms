@@ -1,0 +1,17 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "afs-accept-ctl",
+    "sudo",
+    "curl",
+    "--noproxy",
+    "*",
+    "-fsS",
+    "--max-time",
+    "10",
+    "http://192.168.109.11:23701/v1/dfs/chunks/blake3-938390e9f94997129f1cb2c9fd211c6bbc1f7b71f928e0e8fa00f657bbe7cb9c-4194304/replication"
+  ],
+  "exit": 0,
+  "state": "TERMINAL"
+}

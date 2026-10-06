@@ -1,0 +1,101 @@
+{
+  "done": [
+    {
+      "artifact": "/mnt/lima-afsbdata/afs-delivery/dfs-sync-6d-20261007-r1/results/reader-sync-r1/read-samples/round-02.json",
+      "event": "DONE",
+      "rc": 0,
+      "reader_id": "B",
+      "result": {
+        "barrier": "close",
+        "barrier_ns": 333,
+        "block_bytes": 1048576,
+        "cache_prepare_attempts": 0,
+        "cache_requested": "unobserved",
+        "client_cpu_ns": 16245934,
+        "concurrency": 1,
+        "content_ok": true,
+        "file_bytes": 67108864,
+        "file_object": {
+          "device": 48,
+          "inode": 3
+        },
+        "io_bytes": 67108864,
+        "operation": "seq-read",
+        "operations": 64,
+        "p50_ns": 19836262,
+        "p95_ns": 20536053,
+        "p99_ns": 21215304,
+        "pattern_byte": 97,
+        "residency_observed": false,
+        "resident_after_bytes": 0,
+        "resident_before_bytes": 0,
+        "seed": 257,
+        "wall_ns": 1273635484
+      },
+      "round": 2,
+      "round_token": "dfs-sync-r1-8f9b25f2d4a84eee976e45c346d02557:round:2",
+      "session_token": "dfs-sync-r1-8f9b25f2d4a84eee976e45c346d02557",
+      "status": "PASS"
+    },
+    {
+      "artifact": "/mnt/lima-afscdata/afs-delivery/dfs-sync-6d-20261007-r1/results/reader-sync-r1/read-samples/round-02.json",
+      "event": "DONE",
+      "rc": 0,
+      "reader_id": "C",
+      "result": {
+        "barrier": "close",
+        "barrier_ns": 3917,
+        "block_bytes": 1048576,
+        "cache_prepare_attempts": 0,
+        "cache_requested": "unobserved",
+        "client_cpu_ns": 32097657,
+        "concurrency": 1,
+        "content_ok": true,
+        "file_bytes": 67108864,
+        "file_object": {
+          "device": 48,
+          "inode": 3
+        },
+        "io_bytes": 67108864,
+        "operation": "seq-read",
+        "operations": 64,
+        "p50_ns": 41239468,
+        "p95_ns": 43736286,
+        "p99_ns": 46778214,
+        "pattern_byte": 97,
+        "residency_observed": false,
+        "resident_after_bytes": 0,
+        "resident_before_bytes": 0,
+        "seed": 257,
+        "wall_ns": 2639267758
+      },
+      "round": 2,
+      "round_token": "dfs-sync-r1-8f9b25f2d4a84eee976e45c346d02557:round:2",
+      "session_token": "dfs-sync-r1-8f9b25f2d4a84eee976e45c346d02557",
+      "status": "PASS"
+    }
+  ],
+  "elapsed_ns": 2650236984,
+  "end_after_both_done_ns": 578688406055703,
+  "ready": [
+    {
+      "event": "READY",
+      "output": "/mnt/lima-afscdata/afs-delivery/dfs-sync-6d-20261007-r1/results/reader-sync-r1",
+      "payload_sha256": "fae972222d455a2eaee1661ad9625502ec3bfc5ec38b87a6eec5afd5107331b5",
+      "reader_id": "C",
+      "round": 2,
+      "session_token": "dfs-sync-r1-8f9b25f2d4a84eee976e45c346d02557"
+    },
+    {
+      "event": "READY",
+      "output": "/mnt/lima-afsbdata/afs-delivery/dfs-sync-6d-20261007-r1/results/reader-sync-r1",
+      "payload_sha256": "fae972222d455a2eaee1661ad9625502ec3bfc5ec38b87a6eec5afd5107331b5",
+      "reader_id": "B",
+      "round": 2,
+      "session_token": "dfs-sync-r1-8f9b25f2d4a84eee976e45c346d02557"
+    }
+  ],
+  "round": 2,
+  "round_token": "dfs-sync-r1-8f9b25f2d4a84eee976e45c346d02557:round:2",
+  "start_before_emit_ns": 578685755818719
+}

@@ -1,0 +1,2 @@
+wrote two-node/R2 trial config bundle: /mnt/lima-afsctlstate/afs-delivery/dfs-sync-6d-20261007-r1/generated
+copy meta/etc to the Meta host's config dir and each <node>/etc to that node's config dir

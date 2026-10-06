@@ -1,0 +1,19 @@
+{
+  "status": "PASS_LIVE_PROCESS_IDENTITY",
+  "pid": 16232,
+  "exe": "/mnt/lima-afscdata/afs-delivery/dfs-sync-6d-20261007-r1/prefix/bin/afs-node",
+  "exe_dev": 64785,
+  "exe_ino": 131580,
+  "sha256": "2cf1f538fe7af332a711f3c66a074ace140c00773826a182709a6445b8ae2645",
+  "start_ticks": "47691181",
+  "cmdline": "/mnt/lima-afscdata/afs-delivery/dfs-sync-6d-20261007-r1/prefix/bin/afs-node --config /mnt/lima-afscdata/afs-delivery/dfs-sync-6d-20261007-r1/etc/node.toml ",
+  "boot_id": "0cf26d13-bc67-4f98-999e-7aeac4cc9b30",
+  "mount": {
+    "target": "/mnt/lima-afscdata/afs-delivery/dfs-sync-6d-20261007-r1/mount/dfs",
+    "source": "afs-dfs",
+    "fstype": "fuse",
+    "id": 361,
+    "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+  },
+  "ownerfs_absent": true
+}

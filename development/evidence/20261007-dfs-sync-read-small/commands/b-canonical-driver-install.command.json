@@ -1,0 +1,15 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "afs-accept-b",
+    "sudo",
+    "python3",
+    "-c",
+    "import sys,json,hashlib\nfrom pathlib import Path\nr=Path(sys.argv[1]);s=r/'stage/dfs_manyread_small.py';target=r/'tools/dfs_manyread_small.py';assert not target.exists() and not target.is_symlink() and s.is_file() and not s.is_symlink();b=s.read_bytes();assert hashlib.sha256(b).hexdigest()==sys.argv[2];target.write_bytes(b);target.chmod(0o755);print(json.dumps({'status':'PASS_CANONICAL_DRIVER_INSTALL_ONLY','sha256':sys.argv[2],'path':str(target)}))",
+    "/mnt/lima-afsbdata/afs-delivery/dfs-sync-6d-20261007-r1",
+    "9fb981664458b68aa7ab8721a5ddf685059e0fcfb436c79c41b623fa42bdb869"
+  ],
+  "exit": 0,
+  "state": "TERMINAL"
+}

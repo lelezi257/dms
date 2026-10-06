@@ -1,0 +1,61 @@
+{
+  "measured": true,
+  "round": 4,
+  "round_token": "dfs-sync-r1-8f9b25f2d4a84eee976e45c346d02557:round:4",
+  "samples": [
+    {
+      "argv": [
+        "/mnt/lima-afscdata/afs-delivery/dfs-sync-6d-20261007-r1/tools/io",
+        "/mnt/lima-afscdata/afs-delivery/dfs-sync-6d-20261007-r1/mount/dfs/dfs-manyread-small-1791329893584574432-851228/payload64m.bin",
+        "seq-read",
+        "67108864",
+        "1048576",
+        "1",
+        "close",
+        "67108864",
+        "97",
+        "existing",
+        "unobserved"
+      ],
+      "artifact": "/mnt/lima-afscdata/afs-delivery/dfs-sync-6d-20261007-r1/results/reader-sync-r1/read-samples/round-04.json",
+      "elapsed_ns": 3010072136,
+      "measured": true,
+      "rc": 0,
+      "result": {
+        "barrier": "close",
+        "barrier_ns": 541,
+        "block_bytes": 1048576,
+        "cache_prepare_attempts": 0,
+        "cache_requested": "unobserved",
+        "client_cpu_ns": 36897165,
+        "concurrency": 1,
+        "content_ok": true,
+        "file_bytes": 67108864,
+        "file_object": {
+          "device": 48,
+          "inode": 3
+        },
+        "io_bytes": 67108864,
+        "operation": "seq-read",
+        "operations": 64,
+        "p50_ns": 44968015,
+        "p95_ns": 58255083,
+        "p99_ns": 72057100,
+        "pattern_byte": 97,
+        "residency_observed": false,
+        "resident_after_bytes": 0,
+        "resident_before_bytes": 0,
+        "seed": 257,
+        "wall_ns": 2995062062
+      },
+      "round": 4,
+      "round_token": "dfs-sync-r1-8f9b25f2d4a84eee976e45c346d02557:round:4",
+      "status": "PASS",
+      "stderr": "",
+      "stdout": "{\"operation\":\"seq-read\",\"file_bytes\":67108864,\"io_bytes\":67108864,\"block_bytes\":1048576,\"concurrency\":1,\"barrier\":\"close\",\"pattern_byte\":97,\"seed\":257,\"operations\":64,\"wall_ns\":2995062062,\"client_cpu_ns\":36897165,\"barrier_ns\":541,\"p50_ns\":44968015,\"p95_ns\":58255083,\"p99_ns\":72057100,\"residency_observed\":false,\"resident_before_bytes\":0,\"resident_after_bytes\":0,\"content_ok\":true,\"cache_requested\":\"unobserved\",\"cache_prepare_attempts\":0,\"file_object\":{\"device\":48,\"inode\":3}}\n",
+      "verify": {
+        "status": "PASS"
+      }
+    }
+  ]
+}

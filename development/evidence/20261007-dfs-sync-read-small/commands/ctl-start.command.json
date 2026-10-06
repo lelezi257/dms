@@ -1,0 +1,23 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "afs-accept-ctl",
+    "sudo",
+    "/mnt/lima-afsctlstate/afs-delivery/dfs-sync-6d-20261007-r1/prefix/bin/afs-processctl",
+    "--prefix",
+    "/mnt/lima-afsctlstate/afs-delivery/dfs-sync-6d-20261007-r1/prefix",
+    "--config-dir",
+    "/mnt/lima-afsctlstate/afs-delivery/dfs-sync-6d-20261007-r1/etc",
+    "--run-dir",
+    "/mnt/lima-afsctlstate/afs-delivery/dfs-sync-6d-20261007-r1/run",
+    "--log-dir",
+    "/mnt/lima-afsctlstate/afs-delivery/dfs-sync-6d-20261007-r1/logs",
+    "--timeout",
+    "30",
+    "start",
+    "meta"
+  ],
+  "exit": 0,
+  "state": "TERMINAL"
+}

@@ -1,0 +1,24 @@
+id = "dfs-a-r1"
+fs = "dfs"
+experimental_native_workspace = false
+data_dir = "/mnt/lima-afsadata/afs-delivery/dfs-sync-6d-20261007-r1/state/node"
+grpc_listen = "0.0.0.0:23800"
+rest_listen = "0.0.0.0:23801"
+log_level = "info"
+trace_enabled = false
+tls_ca_certificate = "/mnt/lima-afsadata/afs-delivery/dfs-sync-6d-20261007-r1/etc/tls/ca.pem"
+tls_identity_certificate = "/mnt/lima-afsadata/afs-delivery/dfs-sync-6d-20261007-r1/etc/tls/dfs-a-r1.pem"
+tls_identity_private_key = "/mnt/lima-afsadata/afs-delivery/dfs-sync-6d-20261007-r1/etc/tls/dfs-a-r1-key.pem"
+tls_server_name = "afs-meta"
+trusted_node_certs = { dfs-a-r1 = "/mnt/lima-afsadata/afs-delivery/dfs-sync-6d-20261007-r1/etc/tls/dfs-a-r1.pem", dfs-b-r1 = "/mnt/lima-afsadata/afs-delivery/dfs-sync-6d-20261007-r1/etc/tls/dfs-b-r1.pem", dfs-c-r1 = "/mnt/lima-afsadata/afs-delivery/dfs-sync-6d-20261007-r1/etc/tls/dfs-c-r1.pem" }
+dfs_desired_copies = 2
+dfs_sync_required_copies = 2
+dfs_min_distinct_nodes = 2
+dfs_min_distinct_failure_domains = 2
+dfs_local_copy = "required"
+meta_endpoint = "https://192.168.109.11:23700"
+data_mode = "grpc"
+allow_volatile_meta = false
+advertise_endpoint = "https://192.168.109.12:23800"
+uds_path = "/mnt/lima-afsadata/afs-delivery/dfs-sync-6d-20261007-r1/run/node.sock"
+dfs_mount = "/mnt/lima-afsadata/afs-delivery/dfs-sync-6d-20261007-r1/mount/dfs"

@@ -1,0 +1,50 @@
+{
+  "status": "PASS_BOUNDED_CONTENT_TIMING_AND_NORMAL_CLOSURE",
+  "formal_G2_21": "PENDING_MATCHED_THREE_SYNC_DURABLE_3FS_COMPARISON",
+  "product_source": "6d51aeb45c1ed8669d80f612b3817e6d1bdabe04",
+  "compiler_input_map": "66dbbe3e0071fcec1efc9cf370c709a99f025d39acd4f37ba57582c874429304",
+  "compiler_inputs": 157,
+  "axes": "DFS-only/local-file Meta/gRPC/R2/native OFF; Linux ARM64 ctl/A/B/C guest ext4",
+  "measurement": "one 64MiB uniform logical writer, B/C each one warmup and five synchronized measured reads",
+  "quantitative": "sync-quantitative-r1.json",
+  "medians": {
+    "common_window_logical_mib_s": 45.149364099848285,
+    "B_pure_c_io_mib_s": 50.32604672987325,
+    "C_pure_c_io_mib_s": 22.716079604917514
+  },
+  "pooled": {
+    "common_window_ns": 14067567612,
+    "logical_bytes": 671088640,
+    "logical_mib_s_pooled": 45.4947164749408,
+    "per_reader": {
+      "B": {
+        "pure_c_io_wall_ns_sum": 6577474736,
+        "logical_bytes": 335544320,
+        "logical_mib_s_pooled": 48.65089002144971
+      },
+      "C": {
+        "pure_c_io_wall_ns_sum": 13999490919,
+        "logical_bytes": 335544320,
+        "logical_mib_s_pooled": 22.857974040020164
+      }
+    }
+  },
+  "actual_replica_nodes": [
+    "dfs-a-r1",
+    "dfs-b-r1"
+  ],
+  "physical_shape": "16 identical 4MiB extents reference one unique physical chunk, 4MiB durable on A and B; not unique64MiB corpus",
+  "cache": "UNOBSERVED",
+  "placement": "B holds a local durable copy; C has no durable copy at pre-read proof. Cache/RPC data path per measured IO unobserved; not two remote readers.",
+  "timer_scope": "ctl Linux monotonic_ns; per-round elapsed starts before START emit and ends after both DONE events, including host relay/Lima control delay plus reader result write/emit overhead. C child process launch and sample result artifact writing are included; ACK/final SHA/EOF excluded.",
+  "closure": "4 AFS real wait0, 3 stdio real rc0; exact mounts absent, no owned processes, old identities and mounts unchanged",
+  "original_measurement_closure_observation": "PENDING retained unchanged; final worker receipt and postchecks establish PASS",
+  "new_allocated_bytes": 199868416,
+  "limits": [
+    "No 3FS baseline or three-sync durable performance qualification",
+    "Common windows include relay/control/scheduling overhead; host contributes no performance timestamps",
+    "No cold-cache or per-read remote RPC claim",
+    "16 equal 4MiB extents deduplicate to one unique 4MiB physical chunk; logical 64MiB is not an independent physical corpus."
+  ],
+  "counts": "G1 historical8/8; G2 10 limited completed/2 performanceFAIL/2bind inprogress/13pending unchanged"
+}

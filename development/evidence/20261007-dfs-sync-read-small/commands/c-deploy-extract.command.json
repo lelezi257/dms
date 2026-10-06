@@ -1,0 +1,16 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "afs-accept-c",
+    "sudo",
+    "python3",
+    "-c",
+    "import sys,json,tarfile,hashlib,shutil,os,platform\nfrom pathlib import Path\nr=Path(sys.argv[1]);t=Path(sys.argv[2]);j=json.loads(sys.argv[3]);assert platform.system()=='Linux' and platform.machine()=='aarch64' and os.geteuid()==0\nassert r.is_dir() and not r.is_symlink() and t.parent==r/'stage';assert shutil.disk_usage(r.parent.parent).free>=j['required'];assert hashlib.sha256(t.read_bytes()).hexdigest()==j['sha']\nfor x in ['prefix/bin','tools','state','run','logs','mount/dfs','results','config','evidence']:(r/x).mkdir(parents=True,exist_ok=True)\nwith tarfile.open(t) as a:\n members=a.getmembers();assert len(members)==len(j['entries']) and all(x.isfile() and x.name in j['entries'] for x in members)\n for m in members:\n  data=a.extractfile(m).read();assert hashlib.sha256(data).hexdigest()==j['entries'][m.name];p=r/m.name;p.write_bytes(data);p.chmod(0o755)\nprint(json.dumps({'status':'PASS_DEPLOY_ONLY','root':str(r),'entries':j['entries'],'archive_sha256':j['sha']}))",
+    "/mnt/lima-afscdata/afs-delivery/dfs-sync-6d-20261007-r1",
+    "/mnt/lima-afscdata/afs-delivery/dfs-sync-6d-20261007-r1/stage/deployment.tar",
+    "{\"entries\": {\"prefix/bin/afs-node\": \"2cf1f538fe7af332a711f3c66a074ace140c00773826a182709a6445b8ae2645\", \"prefix/bin/afs-processctl\": \"1ea10552180c917da2c598bee9dd8fecee7be26ae9d70dcdcba2e4829150d896\", \"tools/io\": \"70ac97c7634d406a177a74c783d446b62a2014ba198586132882a1d9228e55e8\"}, \"sha\": \"535588bbed72a74b2bbc06b032af09f4e90cfd37a2f822ac4ab586a1afba4fbc\", \"required\": 1610612736}"
+  ],
+  "exit": 0,
+  "state": "TERMINAL"
+}

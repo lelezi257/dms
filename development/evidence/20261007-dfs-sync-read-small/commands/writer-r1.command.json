@@ -1,0 +1,22 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "afs-accept-a",
+    "sudo",
+    "timeout",
+    "--signal=TERM",
+    "180",
+    "python3",
+    "/mnt/lima-afsadata/afs-delivery/dfs-sync-6d-20261007-r1/tools/dfs_manyread_small.py",
+    "writer",
+    "--dfs-root",
+    "/mnt/lima-afsadata/afs-delivery/dfs-sync-6d-20261007-r1/mount/dfs",
+    "--io-tool",
+    "/mnt/lima-afsadata/afs-delivery/dfs-sync-6d-20261007-r1/tools/io",
+    "--output",
+    "/mnt/lima-afsadata/afs-delivery/dfs-sync-6d-20261007-r1/results/writer-r1"
+  ],
+  "exit": 0,
+  "state": "TERMINAL"
+}

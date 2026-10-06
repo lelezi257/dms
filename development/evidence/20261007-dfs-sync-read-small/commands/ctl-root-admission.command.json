@@ -1,0 +1,18 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "afs-accept-ctl",
+    "sudo",
+    "python3",
+    "-c",
+    "import sys,os,json,platform,shutil,socket,subprocess\nfrom pathlib import Path\nrole,root,volume,ip=sys.argv[1:5];required=int(sys.argv[5]);root=Path(root);v=Path(volume)\nassert platform.system()=='Linux' and platform.machine()=='aarch64' and os.geteuid()==0\nassert platform.node()=='lima-afs-accept-'+role\nassert not root.exists() and not root.is_symlink()\ndeps={x:shutil.which(x) for x in ['python3','openssl','findmnt','tar','sha256sum','timeout','ldd','curl','ss']};assert all(deps.values()),deps\nmount=json.loads(subprocess.check_output(['findmnt','-J','--mountpoint',str(v)]))['filesystems'];assert len(mount)==1 and mount[0]['fstype']=='ext4' and mount[0]['target']==str(v)\nfree=shutil.disk_usage(v).free;assert free>=required,(free,required)\naddr=json.loads(subprocess.check_output(['ip','-j','-4','addr','show']));actual=[a['local'] for row in addr for a in row.get('addr_info',[])];assert ip in actual,(actual,ip)\nports=[23700,23701] if role=='ctl' else [23800,23801]\nfor port in ports:\n with socket.socket() as s:s.bind(('0.0.0.0',port))\nprocesses=[]\nfor p in Path('/proc').iterdir():\n if not p.name.isdigit():continue\n try:\n  exe=os.readlink(p/'exe')\n  if Path(exe).name not in ['afs-meta','afs-node','mfsmaster','mfschunkserver','mfsmount']:continue\n  st=(p/'stat').read_text().rsplit(')',1)[1].split();e=(p/'exe').stat();cmd=(p/'cmdline').read_bytes().replace(b'\\0',b' ').decode()\n  processes.append({'pid':int(p.name),'exe':exe,'start_ticks':st[19],'exe_dev':e.st_dev,'exe_ino':e.st_ino,'cmdline':cmd})\n except (FileNotFoundError,ProcessLookupError):pass\nprint(json.dumps({'status':'PASS_ADMISSION_BEFORE_NEW_ROOT','role':role,'dependencies':deps,'volume_mount':mount[0],'free':free,'required':required,'selected_ports':ports,'actual_ipv4':actual,'root_absent':str(root),'old_processes':processes,'boot_id':Path('/proc/sys/kernel/random/boot_id').read_text().strip()},indent=2))",
+    "ctl",
+    "/mnt/lima-afsctlstate/afs-delivery/dfs-sync-6d-20261007-r1",
+    "/mnt/lima-afsctlstate",
+    "192.168.109.11",
+    "805306368"
+  ],
+  "exit": 0,
+  "state": "TERMINAL"
+}

@@ -1,0 +1,14 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "afs-accept-a",
+    "sudo",
+    "python3",
+    "-c",
+    "import sys,os;from pathlib import Path;r=Path(sys.argv[1]);assert not r.exists() and not r.is_symlink();r.mkdir(mode=0o755);s=r/'stage';s.mkdir(mode=0o700);os.chown(s,int(os.environ['SUDO_UID']),int(os.environ['SUDO_GID']));print(str(r))",
+    "/mnt/lima-afsadata/afs-delivery/dfs-sync-6d-20261007-r1"
+  ],
+  "exit": 0,
+  "state": "TERMINAL"
+}

@@ -1,0 +1,13 @@
+{
+  "role": "a",
+  "physical_chunks": [
+    {
+      "path": "/mnt/lima-afsadata/afs-delivery/dfs-sync-6d-20261007-r1/state/node/dfs/chunks/blake3-938390e9f94997129f1cb2c9fd211c6bbc1f7b71f928e0e8fa00f657bbe7cb9c-4194304",
+      "bytes": 4194304,
+      "sha256": "299285fc41a44cdb038b9fdaf494c76ca9d0c866672b2b266c1a0c17dda60a05",
+      "complete_content_pattern97": true
+    }
+  ],
+  "catalog_sha256": "602dfc9ce16d9197a8627db58e9ecbec7c533c4dd3ad3d4390bdf69e6eeab88f",
+  "dedup_scope": "uniform64MiB logical file consists of16 equal4MiB extents; physical chunk reused, not unique64MiB physical corpus"
+}

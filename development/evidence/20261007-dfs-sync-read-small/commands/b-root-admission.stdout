@@ -1,0 +1,34 @@
+{
+  "status": "PASS_ADMISSION_BEFORE_NEW_ROOT",
+  "role": "b",
+  "dependencies": {
+    "python3": "/usr/bin/python3",
+    "openssl": "/usr/bin/openssl",
+    "findmnt": "/usr/bin/findmnt",
+    "tar": "/usr/bin/tar",
+    "sha256sum": "/usr/bin/sha256sum",
+    "timeout": "/usr/bin/timeout",
+    "ldd": "/usr/bin/ldd",
+    "curl": "/usr/bin/curl",
+    "ss": "/usr/bin/ss"
+  },
+  "volume_mount": {
+    "target": "/mnt/lima-afsbdata",
+    "source": "/dev/vdb1",
+    "fstype": "ext4",
+    "options": "rw,relatime"
+  },
+  "free": 17719791616,
+  "required": 1610612736,
+  "selected_ports": [
+    23800,
+    23801
+  ],
+  "actual_ipv4": [
+    "127.0.0.1",
+    "192.168.109.13"
+  ],
+  "root_absent": "/mnt/lima-afsbdata/afs-delivery/dfs-sync-6d-20261007-r1",
+  "old_processes": [],
+  "boot_id": "3adebcd0-cb31-4df0-b18a-e970786ab7fb"
+}

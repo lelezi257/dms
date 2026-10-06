@@ -1,0 +1,89 @@
+{
+  "cli": {
+    "coordinator": "python3 development/acceptance/dfs_manyread_small.py coordinator --output ABS_FRESH --session-token TOKEN --round-timeout SECONDS --readers B C",
+    "reader_default": "python3 development/acceptance/dfs_manyread_small.py reader --dfs-root ABS --io-tool ABS --manifest ABS --output ABS_FRESH",
+    "reader_sync": "python3 development/acceptance/dfs_manyread_small.py reader --sync-stdio --reader-id B|C --session-token TOKEN --round-timeout SECONDS --dfs-root ABS --io-tool ABS --manifest ABS --output ABS_FRESH",
+    "writer": "python3 development/acceptance/dfs_manyread_small.py writer --dfs-root ABS --io-tool ABS --output ABS_FRESH"
+  },
+  "file_details": {
+    "development/acceptance/dfs_manyread_small.py": {
+      "bytes": 37741,
+      "sha256": "9fb981664458b68aa7ab8721a5ddf685059e0fcfb436c79c41b623fa42bdb869"
+    },
+    "development/acceptance/test_dfs_manyread_small.py": {
+      "bytes": 17170,
+      "sha256": "0661be8e79c68e93a39068de566d0a237614ec372329da0a5dc2eb726a9efe4e"
+    }
+  },
+  "files": {
+    "development/acceptance/dfs_manyread_small.py": "9fb981664458b68aa7ab8721a5ddf685059e0fcfb436c79c41b623fa42bdb869",
+    "development/acceptance/test_dfs_manyread_small.py": "0661be8e79c68e93a39068de566d0a237614ec372329da0a5dc2eb726a9efe4e"
+  },
+  "git_head": "7f1685aae7450b614a677cd924fa19dec13e69e3",
+  "limitations": [
+    "No real DFS service/mount/writer/reader runtime executed in this tool slice.",
+    "Coordinator subprocess guards use synthetic routed JSONL except run_io timeout/nonzero child checks.",
+    "Parent/entry agent owns host relay and real B/C reader deployment."
+  ],
+  "protocol": "afs.dfs_manyread.sync_stdio.v1",
+  "protocol_events": [
+    "HELLO(reader->coord)",
+    "ACK0(coord->reader)",
+    "READY(reader->coord)",
+    "START(coord->reader)",
+    "DONE(reader->coord)",
+    "ACKn(coord->reader)",
+    "FINAL(reader->coord)"
+  ],
+  "provenance": "tool-provenance.json",
+  "slice": "dfs-sync-tools-20261007-r1",
+  "status": "TOOLS_READY_FOR_PARENT_RUNTIME",
+  "updated_at": "2026-10-07T07:39:51+08:00",
+  "validation": {
+    "initial_failed_guard_preserved": {
+      "exit_path": "raw/linux-guards.exit",
+      "reason": "expected timeout, actual fail-closed ValueError while still expecting HELLO",
+      "stderr_path": "raw/linux-guards.stderr",
+      "vm": "afs-accept-a"
+    },
+    "r2_reused_limited": {
+      "exit_path": "raw/r2-linux-guards.exit",
+      "linux_dir": "/var/tmp/afs-dfs-sync-tools-20261007-r2",
+      "scope": "historical guard run for base/default helper behavior before final ACK0 sync protocol; not bound to current stable SHA and not used as proof for current sync behavior",
+      "stderr_path": "raw/r2-linux-guards.stderr",
+      "vm": "afs-accept-a"
+    },
+    "r3_preserved_warning_run": {
+      "exit_path": "raw/r3-linux-sync-guards.exit",
+      "scope": "superseded; exact source UNKNOWN after temp dir overwrite",
+      "stderr_path": "raw/r3-linux-sync-guards.stderr",
+      "unique_methods": 6,
+      "vm": "afs-accept-a"
+    },
+    "r3b_preserved_init_run": {
+      "exit_path": "raw/r3b-linux-sync-guards.exit",
+      "scope": "superseded INIT protocol; exact source UNKNOWN after temp dir overwrite",
+      "stderr_path": "raw/r3b-linux-sync-guards.stderr",
+      "unique_methods": 6,
+      "vm": "afs-accept-a"
+    },
+    "r4_stable_sync_guards": {
+      "exit_path": "raw/r4-linux-sync-guards.exit",
+      "file_sha256": {
+        "development/acceptance/dfs_manyread_small.py": {
+          "bytes": 37741,
+          "sha256": "9fb981664458b68aa7ab8721a5ddf685059e0fcfb436c79c41b623fa42bdb869"
+        },
+        "development/acceptance/test_dfs_manyread_small.py": {
+          "bytes": 17170,
+          "sha256": "0661be8e79c68e93a39068de566d0a237614ec372329da0a5dc2eb726a9efe4e"
+        }
+      },
+      "linux_dir": "/var/tmp/afs-dfs-sync-tools-20261007-r3",
+      "result": "exit 0; Ran 6 tests OK",
+      "stderr_path": "raw/r4-linux-sync-guards.stderr",
+      "unique_methods": 6,
+      "vm": "afs-accept-a"
+    }
+  }
+}

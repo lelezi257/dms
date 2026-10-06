@@ -1,0 +1,2234 @@
+{
+  "canonical_tools": [
+    {
+      "canonical_git_path": "development/acceptance/probes/dfs_small_fixture.py",
+      "sha256": "30559f5584d59b995e7566f7f83e1e6efca06e25af9602b8103f03fc79168e69",
+      "git_blob_oid": "068735c4c61a7d60e14a8777ae1f099aa983c6f4",
+      "git_base_commit": "7f1685aae7450b614a677cd924fa19dec13e69e3",
+      "final_canonical_git_commit": "PARENT_FINAL_SLICE_COMMIT_BIND_REQUIRED",
+      "bytes": 18076
+    },
+    {
+      "canonical_git_path": "development/acceptance/probes/test_dfs_small_fixture.py",
+      "sha256": "2a3ce584e3d91cecbfd7eec038b7eb8146eab4c7d7ffad6e68ff5ea75a100b53",
+      "git_blob_oid": "db222752476acb03d8ce517da3f19b3434650a0b",
+      "git_base_commit": "7f1685aae7450b614a677cd924fa19dec13e69e3",
+      "final_canonical_git_commit": "PARENT_FINAL_SLICE_COMMIT_BIND_REQUIRED",
+      "bytes": 6887
+    },
+    {
+      "canonical_git_path": "development/acceptance/dfs_manyread_small.py",
+      "sha256": "9fb981664458b68aa7ab8721a5ddf685059e0fcfb436c79c41b623fa42bdb869",
+      "git_blob_oid": "62f7423d31cefcf958c79f85052d8f0561b5808a",
+      "git_base_commit": "7f1685aae7450b614a677cd924fa19dec13e69e3",
+      "final_canonical_git_commit": "PARENT_FINAL_SLICE_COMMIT_BIND_REQUIRED",
+      "bytes": 37741
+    },
+    {
+      "canonical_git_path": "development/acceptance/test_dfs_manyread_small.py",
+      "sha256": "0661be8e79c68e93a39068de566d0a237614ec372329da0a5dc2eb726a9efe4e",
+      "git_blob_oid": "7b94418c81a8a2c136fee423e3e0ac28c587d151",
+      "git_base_commit": "7f1685aae7450b614a677cd924fa19dec13e69e3",
+      "final_canonical_git_commit": "PARENT_FINAL_SLICE_COMMIT_BIND_REQUIRED",
+      "bytes": 17170
+    }
+  ],
+  "local_only_excluded_transports": [
+    {
+      "local_path": "commands/ctl-install-fixture-tools.command.json",
+      "sha256": "9622f9afb41842bbfd40827a78a80acd5bc6d681e7ba653e0287a44b06df98d6",
+      "bytes": 50798,
+      "reason": "raw argv embeds canonical helper/test hex transport; preserve locally, publish canonical Git/SHA metadata instead"
+    },
+    {
+      "local_path": "commands/a-install-fixture-tools.command.json",
+      "sha256": "c783e574720e4c2342d2b84d08e7478b194dd5f72893f9973052b4887734a4d1",
+      "bytes": 50793,
+      "reason": "raw argv embeds canonical helper/test hex transport; preserve locally, publish canonical Git/SHA metadata instead"
+    },
+    {
+      "local_path": "commands/b-install-fixture-tools.command.json",
+      "sha256": "43414a1691c6bd15f5024249cf7af5bf25a5e76b84dfe37281f776afb7bb50d9",
+      "bytes": 50793,
+      "reason": "raw argv embeds canonical helper/test hex transport; preserve locally, publish canonical Git/SHA metadata instead"
+    },
+    {
+      "local_path": "commands/c-install-fixture-tools.command.json",
+      "sha256": "2c6d0db0e5209802ac8d94935387a41a18d3f5a8702066f3eb3595280026aaea",
+      "bytes": 50793,
+      "reason": "raw argv embeds canonical helper/test hex transport; preserve locally, publish canonical Git/SHA metadata instead"
+    },
+    {
+      "local_path": "a-config.tar",
+      "sha256": "17e42e38a2749f8032dba3ff41753161fc4d3144484318fd3b8782957c30d20b",
+      "bytes": 30720,
+      "reason": "TLS private keys: local transport only, NEVER publish"
+    },
+    {
+      "local_path": "a-deployment.tar",
+      "sha256": "535588bbed72a74b2bbc06b032af09f4e90cfd37a2f822ac4ab586a1afba4fbc",
+      "bytes": 25989120,
+      "reason": "duplicate fixed ELF or extracted text transport archive: retain local, packet uses identity/extracted text"
+    },
+    {
+      "local_path": "a-text.tar",
+      "sha256": "9df3e21ff4d48be22cf0d96349e07bb976a94c640b456e37919fd1eeee50f963",
+      "bytes": 61440,
+      "reason": "duplicate fixed ELF or extracted text transport archive: retain local, packet uses identity/extracted text"
+    },
+    {
+      "local_path": "b-config.tar",
+      "sha256": "fc7f9610d230c5be735386e098e3f07bc07ec508892df2e5f660b3aa679551fd",
+      "bytes": 30720,
+      "reason": "TLS private keys: local transport only, NEVER publish"
+    },
+    {
+      "local_path": "b-deployment.tar",
+      "sha256": "535588bbed72a74b2bbc06b032af09f4e90cfd37a2f822ac4ab586a1afba4fbc",
+      "bytes": 25989120,
+      "reason": "duplicate fixed ELF or extracted text transport archive: retain local, packet uses identity/extracted text"
+    },
+    {
+      "local_path": "b-text.tar",
+      "sha256": "1294ef06328702946109e574605725b26806cb7d15ba58f5f69151487ab32120",
+      "bytes": 133120,
+      "reason": "duplicate fixed ELF or extracted text transport archive: retain local, packet uses identity/extracted text"
+    },
+    {
+      "local_path": "c-config.tar",
+      "sha256": "60b67693c6fd22589a55218dea8b32c0914ebc0e52ccf04122300aaf63ccdf6a",
+      "bytes": 30720,
+      "reason": "TLS private keys: local transport only, NEVER publish"
+    },
+    {
+      "local_path": "c-deployment.tar",
+      "sha256": "535588bbed72a74b2bbc06b032af09f4e90cfd37a2f822ac4ab586a1afba4fbc",
+      "bytes": 25989120,
+      "reason": "duplicate fixed ELF or extracted text transport archive: retain local, packet uses identity/extracted text"
+    },
+    {
+      "local_path": "c-text.tar",
+      "sha256": "b70ba50563bc1c8301d629de710885759433dc837968af717fdfb67e4bf3ee31",
+      "bytes": 133120,
+      "reason": "duplicate fixed ELF or extracted text transport archive: retain local, packet uses identity/extracted text"
+    },
+    {
+      "local_path": "ctl-config.tar",
+      "sha256": "dd456cccb4c8df8fcdd4bee7dfd01dea21fb4dcf6d346ea24d449b044fb38a26",
+      "bytes": 30720,
+      "reason": "TLS private keys: local transport only, NEVER publish"
+    },
+    {
+      "local_path": "ctl-deployment.tar",
+      "sha256": "2eac3add371a65031c984af0b82c88f04da8db49a9ed907d3fecc251e1933375",
+      "bytes": 15861760,
+      "reason": "duplicate fixed ELF or extracted text transport archive: retain local, packet uses identity/extracted text"
+    },
+    {
+      "local_path": "ctl-text.tar",
+      "sha256": "5cba110cc084226cf8791f6fe4ac8d7cae8c6a6041de7dcda8f56051e158642b",
+      "bytes": 102400,
+      "reason": "duplicate fixed ELF or extracted text transport archive: retain local, packet uses identity/extracted text"
+    }
+  ],
+  "portable_text_candidates": [
+    {
+      "path": "sync-session-r1.json",
+      "sha256": "b5510eeaa72e60960489055c25ba90bd4f2765e7911017ac87182ec80bceb81c",
+      "bytes": 245
+    },
+    {
+      "path": "host-relay-events-r1.jsonl",
+      "sha256": "d6fbb05605b636c9b3508f1571ff8a45409453d855309727a8c87bd41f93bc72",
+      "bytes": 37488
+    },
+    {
+      "path": "four-role-allocated-final.json",
+      "sha256": "dbcd9c80bca158f5c0f8bd895a40e18eef4cbf11078aa6b4c11aba8997bd31ec",
+      "bytes": 141
+    },
+    {
+      "path": "sync-quantitative-r1.json",
+      "sha256": "23102c662ae44924c492cb591d378cba226aec372b772501393d5eff52973b32",
+      "bytes": 8473
+    },
+    {
+      "path": "config-bundles.json",
+      "sha256": "f6a81c1c3a0e585e5e1204b7c51ba3251cf030765a4dbd871f8158a3decfed5a",
+      "bytes": 3463
+    },
+    {
+      "path": "fixture-tool-inputs.json",
+      "sha256": "4361cb39bcd7ce146071c50781757a958885633214cad4ab13505107dfa05c0c",
+      "bytes": 260
+    },
+    {
+      "path": "worker-execution-receipt-r1.json",
+      "sha256": "42fba0cdad0528763e4c2d011e33ede8ed6211455852bd475ccd27e3fd93f86c",
+      "bytes": 10392
+    },
+    {
+      "path": "canonical-driver-input.json",
+      "sha256": "677daeaa773741499bf547eb9fc3562f54fcdd02ef7a8e864217034de954e138",
+      "bytes": 262
+    },
+    {
+      "path": "writer-confirmed.json",
+      "sha256": "c84ab243dfef95179faae26e9627c2bc484ad7264571843de067db4dc4e96b06",
+      "bytes": 4015
+    },
+    {
+      "path": "four-role-allocated-before-data.json",
+      "sha256": "845f1a51de90361e05cf19cc2a3891722319602ee9f247fcee6ad04beeb6c473",
+      "bytes": 141
+    },
+    {
+      "path": "commands/a-deploy-transfer.command.json",
+      "sha256": "3b9f29e6a14332abfa300cae333cd26fc083fddd89da4bf6e7307f408d804a0f",
+      "bytes": 318
+    },
+    {
+      "path": "commands/b-start.command.json",
+      "sha256": "339b4556c5a2f3c59a02f81b78100b9108ba6be363145b83a2a776ff7329dd7b",
+      "bytes": 598
+    },
+    {
+      "path": "commands/ctl-download-text.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/c-deploy-extract.stdout",
+      "sha256": "0ca14d7782e5f211105345a099e4df0bb1e12339b43ab95461dec0efe37dd126",
+      "bytes": 465
+    },
+    {
+      "path": "commands/ctl-config-install.command.json",
+      "sha256": "2aa3900d3adf47d83d56b3d71bc00f1aa7c7abadefca2082edadf32f579fd8d3",
+      "bytes": 2027
+    },
+    {
+      "path": "commands/b-download-text.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/ctl-deploy-transfer.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/a-postcheck-r2.stdout",
+      "sha256": "f602bc06f4b3f92d34524e1959ac090398057841561b193c909f3b0a6c4d71f2",
+      "bytes": 752
+    },
+    {
+      "path": "commands/ctl-live-identity.command.json",
+      "sha256": "8bf35b13e10bdbc55e8d5505205123f304a4d51e63ef16cfd2318f41a80780b0",
+      "bytes": 1549
+    },
+    {
+      "path": "commands/b-install-fixture-tools.stdout",
+      "sha256": "4361cb39bcd7ce146071c50781757a958885633214cad4ab13505107dfa05c0c",
+      "bytes": 260
+    },
+    {
+      "path": "commands/a-create-owned-root.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/ctl-canonical-driver-install.stdout",
+      "sha256": "de8aeb93fdaacd9db5297e80d6526011a346bf9dbcbee427bcfeeb2783bd0b79",
+      "bytes": 225
+    },
+    {
+      "path": "commands/ctl-sync-summary.stdout",
+      "sha256": "210136cd5decf57aa4d6d7e5538522a22b4513764bd8dde513a4c4d7876286d7",
+      "bytes": 19290
+    },
+    {
+      "path": "commands/a-live-health.command.json",
+      "sha256": "5995957d20ba74989917bec1ba3af1fb377d951c50f0572eba650b4e0a0dbedc",
+      "bytes": 275
+    },
+    {
+      "path": "commands/c-physical-r2-content.command.json",
+      "sha256": "ed878c164598d8530819ac6c5737a41957e3f675c9786620515d206dc0d1d6ab",
+      "bytes": 888
+    },
+    {
+      "path": "commands/four-vm-status.stdout",
+      "sha256": "b926aa2a7a15d3942fef477e6a38e546b5cb0b4ab0c9876b45ec28ae4d9f30fb",
+      "bytes": 39599
+    },
+    {
+      "path": "commands/ctl-old-mounts-capacity-final.command.json",
+      "sha256": "462df35b32833a733f26a503c2af04507bd8ab2f0c864c9f53073ce338d5614c",
+      "bytes": 6829
+    },
+    {
+      "path": "commands/ctl-deploy-extract.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/ctl-sync-stdio-r1.command.json",
+      "sha256": "1cbd5efef498a4fde0dc6eb2256a8542d6c6da46faa8827f6ff64d7ae29208d2",
+      "bytes": 571
+    },
+    {
+      "path": "commands/a-deploy-transfer.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/c-postcheck-r2.stdout",
+      "sha256": "0328241fbb60a32f5544d82aeabaa36465badeddb890cfa1c293d75a2ba9b568",
+      "bytes": 665
+    },
+    {
+      "path": "commands/c-canonical-driver-transfer.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/b-config-install.stdout",
+      "sha256": "04957daef4cbcf72bb2d4fa084d04a3db41c4f41c51b6f95247f729d31ce4897",
+      "bytes": 720
+    },
+    {
+      "path": "commands/live-r2-replication.command.json",
+      "sha256": "c7a308131073c38a5e627252a6991f2626d6b347fb5c038f407e9ed65fff47f4",
+      "bytes": 336
+    },
+    {
+      "path": "commands/c-canonical-driver-transfer.command.json",
+      "sha256": "7d6be47a89a3e0650af7f1d45b379df8747122e58a6c68f810378426d93b2215",
+      "bytes": 314
+    },
+    {
+      "path": "commands/c-prepare.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/a-allocated-before-data.command.json",
+      "sha256": "3f5dc14ad491caa26b65ba7d8e95d3a3d309a4fdda3e54307a75245819a181b6",
+      "bytes": 564
+    },
+    {
+      "path": "commands/ctl-root-admission.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/c-live-identity.command.json",
+      "sha256": "09a7e06699d8eec133bab9d2f6d637efc5bb63952bf740f5e0ac93af33febf74",
+      "bytes": 1542
+    },
+    {
+      "path": "commands/ctl-stop.command.json",
+      "sha256": "827becbb5d38f8af9eb229964d5358f983743185222a8913d9b30abfb3f2e2d3",
+      "bytes": 614
+    },
+    {
+      "path": "commands/a-prepare.stdout",
+      "sha256": "62afd5ef2c9e9cc93addc4faa651fbe732a0bcbb1e594d9872e4dd9208f08cc2",
+      "bytes": 24256
+    },
+    {
+      "path": "commands/c-live-health.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/b-sync-summary.command.json",
+      "sha256": "7e59047b7d04926b0805a504066709d13cc71bcfc88f3c52a21762d85641ca02",
+      "bytes": 631
+    },
+    {
+      "path": "commands/b-preflight.stdout",
+      "sha256": "ae2df057e9b996b8120a03f56a3ad580f16d7378b2f2300e8531a2c879be8359",
+      "bytes": 31719
+    },
+    {
+      "path": "commands/b-root-admission.command.json",
+      "sha256": "a9fff9e5ad54051bafacf78468667f563b5dc315d527784246426d9fefa16cd9",
+      "bytes": 2200
+    },
+    {
+      "path": "commands/a-export-text.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/c-root-admission.stdout",
+      "sha256": "ecf593e8069d637c8a42bb5fe775c066ff11bf0d67b4b25cfba9ea1563651fab",
+      "bytes": 825
+    },
+    {
+      "path": "commands/b-postcheck-r2.stdout",
+      "sha256": "44a2611543dd6c64f71dd589428510a3d762a79f3c2a2cbc53e9c54043d81df7",
+      "bytes": 667
+    },
+    {
+      "path": "commands/b-start.stdout",
+      "sha256": "70404b25a31db275b34e6b32c3dc5f1c1403df05872e6df1f5faab87cfe731c5",
+      "bytes": 35
+    },
+    {
+      "path": "commands/b-preflight.command.json",
+      "sha256": "21f1f5833263cc1d9231c2d0c38448107460a47f098ecce6c667e0d522bff360",
+      "bytes": 294
+    },
+    {
+      "path": "commands/c-allocated-before-data.stdout",
+      "sha256": "feba258cd0aaa6a595b68b8a7300271d87ad1b62870e2b4b74c269939cc7508a",
+      "bytes": 58
+    },
+    {
+      "path": "commands/c-sync-stdio-r1.command.json",
+      "sha256": "2a845dd5def5d767ac8550950828bc00e1aeedca771e1c9314ec4eeb20cb5943",
+      "bytes": 862
+    },
+    {
+      "path": "commands/b-writer-manifest-transfer.command.json",
+      "sha256": "fb7b633cf12c3abc542451639ed638f7883d1de280c16b9f5540c3ca06dbd6e6",
+      "bytes": 330
+    },
+    {
+      "path": "commands/a-create-owned-root.command.json",
+      "sha256": "1848b7c017d40e271900da2ca74861bc489b6411e1b64c8815bf7e834019e287",
+      "bytes": 448
+    },
+    {
+      "path": "commands/c-preflight.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/ctl-preflight.command.json",
+      "sha256": "a287f8b919ae0d2a045fc6cbde776054dbbc02766d21d911f546b8e8ede483d2",
+      "bytes": 301
+    },
+    {
+      "path": "commands/b-export-text.command.json",
+      "sha256": "c8e154f79c40958d5e99f7fe326f4d43fa2c639b8d5082933a1763c937cd2b97",
+      "bytes": 1040
+    },
+    {
+      "path": "commands/b-export-text.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/ctl-canonical-driver-install.command.json",
+      "sha256": "739dbf53b9b7a873545dc2ba2a7dd7a73e501e138aa2b73cc33fec4aa808ad37",
+      "bytes": 741
+    },
+    {
+      "path": "commands/c-writer-manifest-transfer.command.json",
+      "sha256": "04976807d1f256cde048754a43ddf456b84e75b1bf942ba82fc8d90e20c90286",
+      "bytes": 330
+    },
+    {
+      "path": "commands/b-physical-r2-content.stdout",
+      "sha256": "77959d0968b433e503fa44690f9ed82aa16f30ef65a4030218fe66a940aa5b81",
+      "bytes": 604
+    },
+    {
+      "path": "commands/ctl-export-text.stdout",
+      "sha256": "05e839b870c7b17889b8160829d7a757cc29738da0d4162a8a82deb0416cbb46",
+      "bytes": 196
+    },
+    {
+      "path": "commands/c-writer-manifest-transfer.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/c-download-text.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/a-live-state-layout.stdout",
+      "sha256": "e1da668136df6d4bebe1a9aed02f76b6934346930f183bd3fd2613616bc7a04c",
+      "bytes": 426
+    },
+    {
+      "path": "commands/a-live-identity.stdout",
+      "sha256": "4ce6207bb5adb8f4e07dc2b53287a3d3bc34877e7a2d5f266a776cc763020f63",
+      "bytes": 808
+    },
+    {
+      "path": "commands/writer-r1.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/a-preflight.command.json",
+      "sha256": "142161311a40d55135e3467c5b02b8de2f8929e5f2e00e11e755780367ee7e7e",
+      "bytes": 294
+    },
+    {
+      "path": "commands/a-deploy-extract.command.json",
+      "sha256": "75f800a90661ad82c5eb35bc1773ccafa4d6f1404f55a90be5d29101714d451f",
+      "bytes": 1687
+    },
+    {
+      "path": "commands/c-old-mounts-capacity-final.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/a-deploy-extract.stdout",
+      "sha256": "663433efc00ff55af4d88a2a3cf25f26f962e3c61e5a4e6381f5d486bed55f83",
+      "bytes": 465
+    },
+    {
+      "path": "commands/c-config-install.command.json",
+      "sha256": "04f0f3d1cc6a954c88772aba73c1c49353cd42621a2c8c6959d29d700e19afde",
+      "bytes": 2019
+    },
+    {
+      "path": "commands/c-old-mounts-capacity-final.command.json",
+      "sha256": "d77525db5570d6293955a960811845351e38dd21fd4acdb1e5ce5fd28ba0699f",
+      "bytes": 5858
+    },
+    {
+      "path": "commands/b-postcheck-r2.command.json",
+      "sha256": "0a30f7ea65646a72a9dd505470a3bc24a4c936b20aad2fb190fb971603cd9b0c",
+      "bytes": 3718
+    },
+    {
+      "path": "commands/b-prepare.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/c-start.stdout",
+      "sha256": "4068707520c44b39fa4c74651591a4aa65d508b77e1b8fc854fb6b5e14b4054e",
+      "bytes": 34
+    },
+    {
+      "path": "commands/c-deploy-transfer.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/a-install-fixture-tools.stdout",
+      "sha256": "4361cb39bcd7ce146071c50781757a958885633214cad4ab13505107dfa05c0c",
+      "bytes": 260
+    },
+    {
+      "path": "commands/a-root-admission.stdout",
+      "sha256": "40139b2399d8930f3c2cd504a4020997c76884120bab0f41c923dac1b28d3d52",
+      "bytes": 3309
+    },
+    {
+      "path": "commands/c-stop.stdout",
+      "sha256": "42b2a40b3a6b7835c759a0445f469701eb8cce539793c1d79791d11d3b6ed46c",
+      "bytes": 25
+    },
+    {
+      "path": "commands/c-physical-r2-content.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/b-prepare.command.json",
+      "sha256": "497eee54497d8fecbbd2da50ac104cc6c5dcb01848214f3a4eb3c91f578faa21",
+      "bytes": 292
+    },
+    {
+      "path": "commands/ctl-stop.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/b-deploy-transfer.command.json",
+      "sha256": "6e323af689e1848e6561e14152cc9e5823865885f5292e92081c5f82d593a081",
+      "bytes": 318
+    },
+    {
+      "path": "commands/ctl-canonical-driver-transfer.command.json",
+      "sha256": "93f72f15687c54af420e1a83936458a45221896bfcddacd05eb8c9c40e804b59",
+      "bytes": 319
+    },
+    {
+      "path": "commands/ctl-allocated-before-data.stdout",
+      "sha256": "914705857074eefd8f2f8c3fcac0e54a7891829d1699c9834d4f75b1bb9e6f50",
+      "bytes": 58
+    },
+    {
+      "path": "commands/b-deploy-transfer.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/ctl-create-owned-root.command.json",
+      "sha256": "bc4c9e2fe0c72258c86edab71e4988ed836013622cf2c657e7d3500c0b46e4e8",
+      "bytes": 453
+    },
+    {
+      "path": "commands/a-start.command.json",
+      "sha256": "faa33f8e5872887ff54c5c3864e484daa60b7b3c262d9bd2a649013dd767079c",
+      "bytes": 598
+    },
+    {
+      "path": "commands/c-canonical-driver-install.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/ctl-prepare.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/generate-cluster-config.command.json",
+      "sha256": "ac2e4e45469f4b8429e2696f6c285bbc3b85e64e38cec09c1901df080c1eb528",
+      "bytes": 1037
+    },
+    {
+      "path": "commands/c-physical-r2-content.stdout",
+      "sha256": "87db6adebad5963733b362bd837cf96e18b83e6b62eedeb7ea4609afe4603b67",
+      "bytes": 203
+    },
+    {
+      "path": "commands/ctl-stop.stdout",
+      "sha256": "e35412cae5ba4f057633dd518bb74681bac422c8b4cc1f181c2e798f1acb0410",
+      "bytes": 25
+    },
+    {
+      "path": "commands/a-install-fixture-tools.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/c-deploy-transfer.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/c-start.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/c-stop.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/a-root-admission.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/ctl-prepare.command.json",
+      "sha256": "c1a0a5afba2ea306dea299123292e9c47da167418f2f20e36d8ecb25b6f85707",
+      "bytes": 299
+    },
+    {
+      "path": "commands/c-root-admission.command.json",
+      "sha256": "4c6feb637fac99d9e1a7b2ee7b2543a8de3d04c0e22fff69b7d875253686d737",
+      "bytes": 2200
+    },
+    {
+      "path": "commands/c-canonical-driver-install.stdout",
+      "sha256": "96831f9a0cd8f394b810826c6db5a56a4f2ad847ffbdc08423ec7f01acaf4e2f",
+      "bytes": 222
+    },
+    {
+      "path": "commands/ctl-prepare.stdout",
+      "sha256": "73a6ef5242b4d53a76e1d8c09eee2151db1d53f0c99068fc2a38d183fe98e888",
+      "bytes": 24232
+    },
+    {
+      "path": "commands/c-config-transfer.command.json",
+      "sha256": "a776c3ffe0348af779007ff1e883868cb5d37eb8643bbe46e34553901a1dee3b",
+      "bytes": 318
+    },
+    {
+      "path": "commands/b-deploy-transfer.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/ctl-allocated-before-data.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/c-export-text.command.json",
+      "sha256": "cf5599d4511eabe34227e186c49433b9e01bef17d105384173b4e9383f0ad311",
+      "bytes": 1040
+    },
+    {
+      "path": "commands/a-download-text.command.json",
+      "sha256": "ff3e5093104211b641f34a03920e97c442b124bf5a76cfcacd93680b35f09270",
+      "bytes": 308
+    },
+    {
+      "path": "commands/b-physical-r2-content.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/c-download-text.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/a-live-state-layout.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/c-writer-manifest-transfer.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/ctl-export-text.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/ctl-export-text.command.json",
+      "sha256": "24612aa56330d051017f2d5cc2f67cb7584da543106fe41dd6bcfa6ef487b7e1",
+      "bytes": 1047
+    },
+    {
+      "path": "commands/b-export-text.stdout",
+      "sha256": "9b182ff84e0391e6933556dcbf532a3347996f4d890591df083c046c2a60acdb",
+      "bytes": 191
+    },
+    {
+      "path": "commands/ctl-config-download.command.json",
+      "sha256": "d9458ae3a9929a941064cf7d9b8fff4c1328c61e18326efaaffc3347fc3500c0",
+      "bytes": 321
+    },
+    {
+      "path": "commands/c-preflight.stdout",
+      "sha256": "9d8658842639593c4c82224a43881ad9cee380f5622fa7e15c8e1b9d0228f795",
+      "bytes": 31712
+    },
+    {
+      "path": "commands/b-prepare.stdout",
+      "sha256": "9377c778e00538d4276fd2d07c3b293d8414b7eecda413e5ba82b303aa97beb4",
+      "bytes": 17390
+    },
+    {
+      "path": "commands/writer-r1.stdout",
+      "sha256": "c84ab243dfef95179faae26e9627c2bc484ad7264571843de067db4dc4e96b06",
+      "bytes": 4015
+    },
+    {
+      "path": "commands/a-live-identity.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/a-deploy-extract.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/c-old-mounts-capacity-final.stdout",
+      "sha256": "7595b1afc21154d5749a994a1e3e2f3069f357039c072b96af49fc72c1967968",
+      "bytes": 221
+    },
+    {
+      "path": "commands/c-prepare.stdout",
+      "sha256": "4ad9668376eee6bd699e9836a71b2c965d89c57090ed2d2302563a11b59cd47a",
+      "bytes": 17383
+    },
+    {
+      "path": "commands/b-config-install.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/a-prepare.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/c-live-health.stdout",
+      "sha256": "55264bdf664b9d70aa4608a0292b3476a79a4b044cfcdacc3d29a7aa69d95573",
+      "bytes": 1420
+    },
+    {
+      "path": "commands/c-prepare.command.json",
+      "sha256": "8372451e8287efb7f93b8701a4786bb133d7ce91dc6c10615b6fa3118fa5892c",
+      "bytes": 292
+    },
+    {
+      "path": "commands/ctl-root-admission.stdout",
+      "sha256": "3be413928650d955fdb6e9acd1d1f511fabaa33d018d338b1180ece6e29339f8",
+      "bytes": 1570
+    },
+    {
+      "path": "commands/c-preflight.command.json",
+      "sha256": "279d1f1fab63c8bd5917c1755b5697d0ba7612d3f94b8ea58d695721e7209910",
+      "bytes": 294
+    },
+    {
+      "path": "commands/ctl-sync-stdio-r1.stdin",
+      "sha256": "6a900efa6e5fb26752cb3cd4dd0989cb75bd62e50c208051b058fdcf06344903",
+      "bytes": 12377
+    },
+    {
+      "path": "commands/c-canonical-driver-transfer.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/c-postcheck-r2.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/ctl-root-admission.command.json",
+      "sha256": "e40d9539ec48e6134a42291d40fe72bae041709e60b2a334056489b4cb2337ea",
+      "bytes": 2209
+    },
+    {
+      "path": "commands/ctl-live-state-layout.command.json",
+      "sha256": "432592e2d8651b81558e5d1b3470618c43e5fb907a82757815da6761285854c2",
+      "bytes": 699
+    },
+    {
+      "path": "commands/c-allocated-before-data.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/b-preflight.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/ctl-config-transfer.command.json",
+      "sha256": "ef1baf4d4de1a3069fee632b1d213d7786d2be23c9bb38ad7016d011b937f911",
+      "bytes": 325
+    },
+    {
+      "path": "commands/a-export-text.stdout",
+      "sha256": "1a90190f5d113c17d52b4a32b728bed7ee6b0c1f668498d687507451b0eedf3e",
+      "bytes": 191
+    },
+    {
+      "path": "commands/b-start.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/c-root-admission.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/b-postcheck-r2.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/b-download-text.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/ctl-deploy-transfer.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/c-config-download.command.json",
+      "sha256": "f2f6cbc10f9619f9a2702f40195da3ef0b8658ee5799b461c4222e9d02337783",
+      "bytes": 317
+    },
+    {
+      "path": "commands/ctl-start.command.json",
+      "sha256": "c6cfb08b0bca33d329fe39e62c2cb70d8e425c20a6d9e7f303b7ff7130c0d011",
+      "bytes": 615
+    },
+    {
+      "path": "commands/make-config-bundles.command.json",
+      "sha256": "f4cd96ee53f0ee208402f54b3beab543c246c6f0b535c3392b44ec04d86104e6",
+      "bytes": 1029
+    },
+    {
+      "path": "commands/a-live-state-layout.command.json",
+      "sha256": "b056e00c08cbe5442ae22b7ffcef197ca34482522f3115d63e78f7606b94fac5",
+      "bytes": 692
+    },
+    {
+      "path": "commands/a-create-owned-root.stdout",
+      "sha256": "00a3a550718c067004225ca17ba312f6e6b027798811c9d80d9020acf18d9804",
+      "bytes": 56
+    },
+    {
+      "path": "commands/b-live-identity.command.json",
+      "sha256": "0a8fcb1d7fbf78d819a88f207690ababc339e65923115fd87687a1883558b1ed",
+      "bytes": 1542
+    },
+    {
+      "path": "commands/b-install-fixture-tools.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/a-postcheck-r2.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/c-deploy-extract.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/ctl-download-text.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/b-config-install.command.json",
+      "sha256": "f33a97f301a23a4288221b5c2f19ddc446f237b48643fae3b140ddffbd8d2f6b",
+      "bytes": 2019
+    },
+    {
+      "path": "commands/a-deploy-transfer.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/b-sync-stdio-r1.command.json",
+      "sha256": "3f79c59bbd96cc63d041bd6ee64c34875f0caab4a062b60668a3fe97ad4c7376",
+      "bytes": 862
+    },
+    {
+      "path": "commands/four-vm-status.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/ctl-deploy-extract.stdout",
+      "sha256": "165b7bcab513bd0d42d3dd1c145eaa69feace45c4fc8b433e41695e0a501d0a2",
+      "bytes": 487
+    },
+    {
+      "path": "commands/ctl-canonical-driver-install.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/ctl-sync-summary.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/b-config-download.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/a-stop.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/c-config-install.stdout",
+      "sha256": "903962c9cc7d9f317e4e86b85e3efe239013cdb5398c5965b97e74a2bc36c929",
+      "bytes": 720
+    },
+    {
+      "path": "commands/a-canonical-driver-install.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/b-sync-stdio-r1.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/generate-cluster-config.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/writer-r1.command.json",
+      "sha256": "ad8aaba39512a2d6107407f8e19632982b5637ddc49db83f45d125824e3ace34",
+      "bytes": 559
+    },
+    {
+      "path": "commands/ctl-sync-stdio-r1.stdout",
+      "sha256": "28ca893e77bdf3cdaed872b9b18d2a308d86cf690347440b6f97040848694401",
+      "bytes": 4140
+    },
+    {
+      "path": "commands/a-config-transfer.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/c-live-identity.stdout",
+      "sha256": "a76a776f84bbac0390eaf42b0f9451d0691074f27c3af0c3569b731a7363c1b7",
+      "bytes": 807
+    },
+    {
+      "path": "commands/b-allocated-before-data.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/c-download-text.command.json",
+      "sha256": "94dd18dfb8380133512e500af105eeb3131ee489b4d79e20081796ceaa34a915",
+      "bytes": 308
+    },
+    {
+      "path": "commands/a-config-install.command.json",
+      "sha256": "fc570046b56a796e13267e5b07c71c9cd9d285b54ecb4ae4debcbbc7875daa4d",
+      "bytes": 2019
+    },
+    {
+      "path": "commands/b-stop.stdout",
+      "sha256": "42b2a40b3a6b7835c759a0445f469701eb8cce539793c1d79791d11d3b6ed46c",
+      "bytes": 25
+    },
+    {
+      "path": "commands/c-config-download.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/a-physical-r2-content.stdout",
+      "sha256": "58ace40531ad128016750fede33df8bf0d6225c8356ae70cb66d7013f7960259",
+      "bytes": 604
+    },
+    {
+      "path": "commands/a-old-mounts-capacity-final.stdout",
+      "sha256": "8b9716164d2b0abe90a6339f82fdd36d727946a132c5e5d448496ed0c513e0e6",
+      "bytes": 737
+    },
+    {
+      "path": "commands/a-download-text.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/c-deploy-extract.command.json",
+      "sha256": "13fbc624843ed098c41abb0b2436de1af0814cba9b15011a65dfc9b15132e017",
+      "bytes": 1687
+    },
+    {
+      "path": "commands/b-live-health.stdout",
+      "sha256": "3ea3d98f365228840ccc4162c450a00677cdf4adccaabf457a3609b1e8cb978c",
+      "bytes": 1419
+    },
+    {
+      "path": "commands/b-writer-manifest-transfer.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/ctl-config-install.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/ctl-live-health.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/c-live-state-layout.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/ctl-config-transfer.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/make-config-bundles.stdout",
+      "sha256": "f6a81c1c3a0e585e5e1204b7c51ba3251cf030765a4dbd871f8158a3decfed5a",
+      "bytes": 3463
+    },
+    {
+      "path": "commands/a-stop.command.json",
+      "sha256": "f6e796582df5b388184df3da2e859ad5fbcac2406546044c78e4f1824cc53688",
+      "bytes": 597
+    },
+    {
+      "path": "commands/live-r2-replication.stdout",
+      "sha256": "c482e2b810c1ff5c4a6845fba7d632747715aa975e5ae4db8e032db73ff4a67e",
+      "bytes": 1874
+    },
+    {
+      "path": "commands/b-root-admission.stdout",
+      "sha256": "0a45b890a678e86bddc33c092565aadb9c653c8fffa9c725106a5373dc6bf174",
+      "bytes": 825
+    },
+    {
+      "path": "commands/ctl-canonical-driver-transfer.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/a-export-text.command.json",
+      "sha256": "43476095a93b388dea93147ad1bbe0f03cab51b959afbd5871af1b08bed396dc",
+      "bytes": 1040
+    },
+    {
+      "path": "commands/a-config-transfer.command.json",
+      "sha256": "b846dccd2d25233c84d41b04178f606d92d0230c99a1ee941afa6083934bd563",
+      "bytes": 318
+    },
+    {
+      "path": "commands/c-allocated-before-data.command.json",
+      "sha256": "7b80b003299a9af1f40bb06595400718829903458b76fb5b0777eae58b13d5f1",
+      "bytes": 564
+    },
+    {
+      "path": "commands/b-writer-manifest-install.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/b-live-state-layout.stdout",
+      "sha256": "7ed433e5f020161ece496b9b3db45aedf9899c70f59c76aa2b5ebe109d13acfa",
+      "bytes": 426
+    },
+    {
+      "path": "commands/a-postcheck-r2.command.json",
+      "sha256": "1c4f04be4b40508fd28ea0e2f209bfdfe5f4a5077756bd665b43a0697fe0631b",
+      "bytes": 6002
+    },
+    {
+      "path": "commands/ctl-download-text.command.json",
+      "sha256": "660aeed9278cb7551526cbffc342b362b9069c1ad17777ae71dbb7bf1a1dfc9f",
+      "bytes": 317
+    },
+    {
+      "path": "commands/ctl-preflight.stdout",
+      "sha256": "e4a9b9d7ec5ae529394bdc33967e274068401c377a4d776880ea66d1f255ae8e",
+      "bytes": 38078
+    },
+    {
+      "path": "commands/ctl-live-state-layout.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/b-canonical-driver-install.stdout",
+      "sha256": "505e0579a44004c5f4e12307e8b898f4db02d27565801d9dac43e5176e2c6896",
+      "bytes": 222
+    },
+    {
+      "path": "commands/b-deploy-extract.stdout",
+      "sha256": "d99318104feb7a8f68828abe25fa0ff054f806f1e22f9247f1be91e219d9717a",
+      "bytes": 465
+    },
+    {
+      "path": "commands/b-old-mounts-capacity-final.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/b-config-download.command.json",
+      "sha256": "002d15fcfdd37b7ac602c95357a97a478f484a9f23619776c4dc269fd0783fa2",
+      "bytes": 317
+    },
+    {
+      "path": "commands/c-install-fixture-tools.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/c-sync-stdio-r1.stdin",
+      "sha256": "93f61be307777de61036e6b4e9e33b18ed67282180eb46515e6326c279411040",
+      "bytes": 2070
+    },
+    {
+      "path": "commands/c-sync-stdio-r1.stdout",
+      "sha256": "2c8f1778c15cd63b18b52948607681781f64fdc94e4740684de79a01f0867feb",
+      "bytes": 6190
+    },
+    {
+      "path": "commands/b-canonical-driver-transfer.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/a-start.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/ctl-live-identity.stdout",
+      "sha256": "cdb94aa981708f8d725408e9642408fbc22db65561063b69e8415cfb7df45564",
+      "bytes": 535
+    },
+    {
+      "path": "commands/ctl-deploy-extract.command.json",
+      "sha256": "a7f4b64a38e4546fcf5c582c4f73cab02041d61a9f2346ec26501ee6411e210d",
+      "bytes": 1713
+    },
+    {
+      "path": "commands/b-live-identity.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/b-config-transfer.command.json",
+      "sha256": "1eb357abf026e42edca43aaf602b346374abc3b3cb64a2aa3c6924304179cf68",
+      "bytes": 318
+    },
+    {
+      "path": "commands/ctl-postcheck-r2.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/a-config-install.stdout",
+      "sha256": "9f74fb48b6cd293cd2c28f087510c4eec0b30f086def4d3acb19015f0c755c7f",
+      "bytes": 720
+    },
+    {
+      "path": "commands/a-config-download.command.json",
+      "sha256": "6926946c81d4785d904d9b5a713ef1dc9a59b1e43cc6d02ab034cd7ac59dfe36",
+      "bytes": 317
+    },
+    {
+      "path": "commands/b-sync-stdio-r1.stdin",
+      "sha256": "e5107bb92f45e1d97a9dc7af9bc8b90472aed8ab5f5442074e4ce2e395289b52",
+      "bytes": 2070
+    },
+    {
+      "path": "commands/ctl-old-mounts-capacity-final.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/c-writer-manifest-install.stdout",
+      "sha256": "6638e2925e5a523f02b9b278603c048c4da921d4ba9b2f4b5a7f14935787eb1d",
+      "bytes": 190
+    },
+    {
+      "path": "commands/b-live-state-layout.command.json",
+      "sha256": "a907f122b3a8bbb044b11c36eb2cba49ddd4691f86fa52cd856d1d16931e8991",
+      "bytes": 692
+    },
+    {
+      "path": "commands/c-create-owned-root.stdout",
+      "sha256": "ff52de3c7c62d5425225bd023d649e27489bd2861eb8bf3d6809eb0d791e6e87",
+      "bytes": 56
+    },
+    {
+      "path": "commands/a-allocated-before-data.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/a-live-health.stdout",
+      "sha256": "ce2be54ded18157c8a61691e801a2a8738184286ff53e7db9c3988769511e6d9",
+      "bytes": 1419
+    },
+    {
+      "path": "commands/a-canonical-driver-transfer.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/b-config-transfer.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/ctl-start.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/a-linux-fixture-guards.stderr",
+      "sha256": "245655c09269fe592840253179b2e31a4bfd72fd79aa25367c54d789adc1d9a2",
+      "bytes": 1745
+    },
+    {
+      "path": "commands/c-create-owned-root.command.json",
+      "sha256": "102feda38fc45514fe7b9db1fe47cbaee11ea04e143806f338f9ae8b3fb589a6",
+      "bytes": 448
+    },
+    {
+      "path": "commands/b-create-owned-root.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/a-config-download.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/ctl-create-owned-root.stdout",
+      "sha256": "e400ae5cf1eb13c74ef38b22113a2c226e43d32c061accb232dbaa83eab452c0",
+      "bytes": 59
+    },
+    {
+      "path": "commands/b-sync-summary.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/ctl-install-fixture-tools.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/c-config-transfer.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/c-sync-summary.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/ctl-config-download.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/b-physical-r2-content.command.json",
+      "sha256": "81f8ce61ebc9547fa0f5fa7d6a6f468a6fab20d6691c6499ca24edea846b362a",
+      "bytes": 888
+    },
+    {
+      "path": "commands/b-live-health.command.json",
+      "sha256": "601f30c4848efbc47d20e2818f65341624a7c81ee138492fd1cebaf64b7ae1df",
+      "bytes": 275
+    },
+    {
+      "path": "commands/c-export-text.stdout",
+      "sha256": "647ea0a89a280b661ae328fcaf96045e5c5bcc23657bc301ed96e61ced1d33fe",
+      "bytes": 191
+    },
+    {
+      "path": "commands/a-preflight.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/b-create-owned-root.stdout",
+      "sha256": "e497b9cea4715eb10497872bddde9871bd2697d8ba8b9a2f7099af0bb8bfa354",
+      "bytes": 56
+    },
+    {
+      "path": "commands/a-old-mounts-capacity-final.command.json",
+      "sha256": "3682c59b37c4b7807bf26e74d0dda7fb38d9c9a1f4c916da224d8ef529a6e438",
+      "bytes": 6348
+    },
+    {
+      "path": "commands/b-sync-summary.stdout",
+      "sha256": "fbb99111d43c5e5305ba50131280e3dcd06fa89adcc31b65b1a65a10b0f03b40",
+      "bytes": 17683
+    },
+    {
+      "path": "commands/ctl-create-owned-root.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/a-config-download.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/a-live-health.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/a-allocated-before-data.stdout",
+      "sha256": "7d3afebdc9f9a4131a57225338aa9f97aaa3c454eafb90c77a29c13ba611b960",
+      "bytes": 58
+    },
+    {
+      "path": "commands/a-linux-fixture-guards.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/ctl-start.stdout",
+      "sha256": "3b4d94f5b886b4f79c7188382f5426350477ae3fa1c9df81ed15d60d72ad650a",
+      "bytes": 36
+    },
+    {
+      "path": "commands/a-canonical-driver-transfer.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/b-config-transfer.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/c-sync-summary.stdout",
+      "sha256": "708e08b8f8793d4f1675b6548edef2e58aafeb708f8d8203e8bf6b04dfc8354c",
+      "bytes": 17690
+    },
+    {
+      "path": "commands/ctl-config-download.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/ctl-live-health.command.json",
+      "sha256": "006f26dab596f1275dae905bd77375699e4db5a82aca88e318acab49eed2c99d",
+      "bytes": 275
+    },
+    {
+      "path": "commands/b-writer-manifest-install.command.json",
+      "sha256": "99a54f0ebb0904f4cf7907d88817822961bdcc5cf8b1634e16f683b5aa428672",
+      "bytes": 634
+    },
+    {
+      "path": "commands/ctl-sync-summary.command.json",
+      "sha256": "a00debf83a2a55ce1502ca8bd7fd8c343db1363af00dd2daae4437466fcd8275",
+      "bytes": 636
+    },
+    {
+      "path": "commands/c-export-text.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/a-preflight.stdout",
+      "sha256": "e462ebe322eb9855cd03bc80132a2e8637d55fe9b67aeb9025f4dc05d7d3bc69",
+      "bytes": 38585
+    },
+    {
+      "path": "commands/a-prepare.command.json",
+      "sha256": "c642cf062ad1b2eb9690e6f2c08d0ee1aa3f3986120cf81193dfc047323c1d5c",
+      "bytes": 292
+    },
+    {
+      "path": "commands/ctl-install-fixture-tools.stdout",
+      "sha256": "4361cb39bcd7ce146071c50781757a958885633214cad4ab13505107dfa05c0c",
+      "bytes": 260
+    },
+    {
+      "path": "commands/c-stop.command.json",
+      "sha256": "96d104618a723c0fbace77ca9e7f367074a63742d1746d31461bc59663c6332b",
+      "bytes": 597
+    },
+    {
+      "path": "commands/c-config-transfer.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/b-allocated-before-data.command.json",
+      "sha256": "473dba3f23336c04ee12697cd6de9b9505e9353fe4263f5c601f41b6d9c7de09",
+      "bytes": 564
+    },
+    {
+      "path": "commands/ctl-allocated-before-data.command.json",
+      "sha256": "cea8b1e8cc70a68ad7b677eabdef1c375b6813d5ef1514df238d8495a3d2988e",
+      "bytes": 569
+    },
+    {
+      "path": "commands/c-live-health.command.json",
+      "sha256": "178a91715df1cd022a0dbd9f39beeed4680cc01a4981ce5100c1254ec8bce1a1",
+      "bytes": 275
+    },
+    {
+      "path": "commands/b-live-identity.stdout",
+      "sha256": "78de16c9856c670fbdb429b50dc3a8497bb55a5c9ac151fad1c9bb93bbcb67aa",
+      "bytes": 808
+    },
+    {
+      "path": "commands/four-vm-status.command.json",
+      "sha256": "7b1247d181e30c421daccd2dc917eab4eff86698607744c4a465448cac1458c3",
+      "bytes": 96
+    },
+    {
+      "path": "commands/ctl-postcheck-r2.stdout",
+      "sha256": "3e613f2ba5c3d175fe2f86910fba29978a2aacb5e6d2ba1ba105ec7567a1db67",
+      "bytes": 707
+    },
+    {
+      "path": "commands/c-sync-stdio-r1.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/a-linux-fixture-guards.command.json",
+      "sha256": "e41c946a62beb7f18983dc406b5b35dad87164a00d72664682c156528dc10649",
+      "bytes": 284
+    },
+    {
+      "path": "commands/ctl-live-identity.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/c-postcheck-r2.command.json",
+      "sha256": "2074c057fc8bf2e6e3acad4afaf157a133dcfcd38204b456b866e74d5b291cf3",
+      "bytes": 3717
+    },
+    {
+      "path": "commands/b-canonical-driver-transfer.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/a-start.stdout",
+      "sha256": "bffad4d6a328223b0f0a7b5a95b6f7edc84dd16f713728912d1e97e5115059e0",
+      "bytes": 35
+    },
+    {
+      "path": "commands/c-writer-manifest-install.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/c-deploy-transfer.command.json",
+      "sha256": "0394bcdee1300f623dfa7316ffe2479e17bb924ace1309e2712473347fafc844",
+      "bytes": 318
+    },
+    {
+      "path": "commands/b-deploy-extract.command.json",
+      "sha256": "7588c5d1c5f983a44d466e559b27465a652cd3060bf430227435abae4857c365",
+      "bytes": 1687
+    },
+    {
+      "path": "commands/c-create-owned-root.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/a-physical-r2-content.command.json",
+      "sha256": "759176a29a64619d98b161252785eb056c5f7b6d50dd07187d830e617afb70b2",
+      "bytes": 888
+    },
+    {
+      "path": "commands/b-old-mounts-capacity-final.command.json",
+      "sha256": "48750226558ae3313fe5346053ce4b7ee9dbf584daf912748bdac769a97b6d8e",
+      "bytes": 5859
+    },
+    {
+      "path": "commands/a-config-install.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/a-live-identity.command.json",
+      "sha256": "2e9761249146971d15d2af7d071896632917ede32ed9effcda7bdf5a48bbb520",
+      "bytes": 1542
+    },
+    {
+      "path": "commands/ctl-old-mounts-capacity-final.stdout",
+      "sha256": "4d47ead572c90e2e79cd06512b3e12ffcb6c18bd4cc6455fc87eb060efa3b209",
+      "bytes": 219
+    },
+    {
+      "path": "commands/c-writer-manifest-install.command.json",
+      "sha256": "553bf2c3f786f33fa399267d13d93442effb59835f195d3b782f7bb44e3887b1",
+      "bytes": 634
+    },
+    {
+      "path": "commands/b-live-state-layout.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/c-sync-summary.command.json",
+      "sha256": "b73e689744541d411b06ff992c0878c3425d25a152dc42e775afed8747d31a7e",
+      "bytes": 631
+    },
+    {
+      "path": "commands/b-deploy-extract.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/ctl-live-state-layout.stdout",
+      "sha256": "02b437c9ccf0204633f23040d7df4f9b955c3aabe20d00a44f9f393bdce79e05",
+      "bytes": 356
+    },
+    {
+      "path": "commands/b-canonical-driver-install.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/b-canonical-driver-transfer.command.json",
+      "sha256": "bb95f97c53a8f16e7ebaed5bd1586ce50c5392c9416e9e3b63fe858e75f2938a",
+      "bytes": 314
+    },
+    {
+      "path": "commands/b-canonical-driver-install.command.json",
+      "sha256": "57cc0bb2df984d2a7c6d88702d28da4333adb580fa2956c032c983911baf5493",
+      "bytes": 736
+    },
+    {
+      "path": "commands/b-download-text.command.json",
+      "sha256": "65ea653f011813e58f0d14d1c5a8b6e03e6b37f1fe7030f21ee0deb286f38c93",
+      "bytes": 308
+    },
+    {
+      "path": "commands/ctl-preflight.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/ctl-canonical-driver-transfer.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/c-canonical-driver-install.command.json",
+      "sha256": "88510e9c42812d3210d0182c307b5a10441cd4905d9fbbf24d661a1981de6c77",
+      "bytes": 736
+    },
+    {
+      "path": "commands/b-writer-manifest-install.stdout",
+      "sha256": "a031df80211b68abcb99dd2367b90d9ba03954458c527f0961a30b0c43b2c146",
+      "bytes": 190
+    },
+    {
+      "path": "commands/c-live-state-layout.command.json",
+      "sha256": "4fc3da882ed13a50eb5b6b236797569854cb992b961347152937a90dd65b9783",
+      "bytes": 692
+    },
+    {
+      "path": "commands/c-start.command.json",
+      "sha256": "6f8a1d9d0a2aff6e9c146f1c7282af795e4a0a203db23f5ef20e62365f1fd9ec",
+      "bytes": 598
+    },
+    {
+      "path": "commands/c-install-fixture-tools.stdout",
+      "sha256": "4361cb39bcd7ce146071c50781757a958885633214cad4ab13505107dfa05c0c",
+      "bytes": 260
+    },
+    {
+      "path": "commands/a-root-admission.command.json",
+      "sha256": "cb65382f64ad6e2747a12839a917fe12165119111b7cc9d00a19520d265a013e",
+      "bytes": 2200
+    },
+    {
+      "path": "commands/b-old-mounts-capacity-final.stdout",
+      "sha256": "5b2573f8af056d56d93551da7015ce015f4056b92e3f6e82cf3eba71b09f24e0",
+      "bytes": 221
+    },
+    {
+      "path": "commands/a-canonical-driver-install.command.json",
+      "sha256": "04a42312bfb2dcff2c143da1fab56e5a823133852e815862a9972b167e8e8422",
+      "bytes": 736
+    },
+    {
+      "path": "commands/b-stop.command.json",
+      "sha256": "492c5a21ebf38ac54024e88c6f2bbb656f09d4debde94413d618927e0fb22c9b",
+      "bytes": 597
+    },
+    {
+      "path": "commands/a-config-transfer.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/ctl-sync-stdio-r1.stderr",
+      "sha256": "210136cd5decf57aa4d6d7e5538522a22b4513764bd8dde513a4c4d7876286d7",
+      "bytes": 19290
+    },
+    {
+      "path": "commands/b-allocated-before-data.stdout",
+      "sha256": "feba258cd0aaa6a595b68b8a7300271d87ad1b62870e2b4b74c269939cc7508a",
+      "bytes": 58
+    },
+    {
+      "path": "commands/c-live-identity.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/a-canonical-driver-install.stdout",
+      "sha256": "8cd73e8e6374a2b68cfb21f97094d829781a4151103fe2d1d02d1bda001552be",
+      "bytes": 222
+    },
+    {
+      "path": "commands/c-config-install.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/a-stop.stdout",
+      "sha256": "42b2a40b3a6b7835c759a0445f469701eb8cce539793c1d79791d11d3b6ed46c",
+      "bytes": 25
+    },
+    {
+      "path": "commands/b-config-download.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/generate-cluster-config.stdout",
+      "sha256": "4b67257e30533b34ca66b2ed632ccaa9bfe5839fa0e43bdfb68bb26ca3db225a",
+      "bytes": 198
+    },
+    {
+      "path": "commands/b-sync-stdio-r1.stdout",
+      "sha256": "9cf040fa9c6491d82378b07a7fd6d7adc9712cd8cc701f9af55a8c76b354b711",
+      "bytes": 6187
+    },
+    {
+      "path": "commands/a-canonical-driver-transfer.command.json",
+      "sha256": "a0e5ec033216f34f270e58a43058838c338fc1a898bf9939f1212b8ba5507211",
+      "bytes": 314
+    },
+    {
+      "path": "commands/ctl-config-install.stdout",
+      "sha256": "ec86f53cd5e632c2e99de8207fe96bd407a57764b93a80b1f39fb7d892003706",
+      "bytes": 719
+    },
+    {
+      "path": "commands/b-writer-manifest-transfer.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/live-r2-replication.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/b-root-admission.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/make-config-bundles.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/ctl-config-transfer.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/ctl-live-health.stdout",
+      "sha256": "a3e46f7054374f28ea0ba8f15ca940cdf324ea9a6e6c8688e0352fd9ea41eb4f",
+      "bytes": 266
+    },
+    {
+      "path": "commands/c-live-state-layout.stdout",
+      "sha256": "c7c4566556ea74b68d3fd136e1fe064ca1d5e3315933e75d5a0d64cd36484875",
+      "bytes": 142
+    },
+    {
+      "path": "commands/ctl-postcheck-r2.command.json",
+      "sha256": "634a714e0f3ab13306a9c4d5820b44ed32c5545fbcfa412bfd542706984d5187",
+      "bytes": 4143
+    },
+    {
+      "path": "commands/a-old-mounts-capacity-final.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/a-download-text.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/a-physical-r2-content.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/ctl-deploy-transfer.command.json",
+      "sha256": "45f85f0d556b1caa275d07de6d93d4b48273ef6e2bf45f10de758a5a62c9c54e",
+      "bytes": 325
+    },
+    {
+      "path": "commands/b-stop.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/c-config-download.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/b-live-health.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/b-create-owned-root.command.json",
+      "sha256": "5312d4ac7d66f0e5a9fad1f30aae7536d144f0448a7730621f8e8cdacde38bf0",
+      "bytes": 448
+    },
+    {
+      "path": "guest/a/etc/node.toml",
+      "sha256": "2973d1918f225bf4e5b82da68dc9d129e4f04500aec0b8c9d822c28187708283",
+      "bytes": 1335
+    },
+    {
+      "path": "guest/a/etc/node.original.toml",
+      "sha256": "5dbe37024105cba55ff66fd8f908f5850cc4d481d9a581e91dec334e1e53b2bf",
+      "bytes": 1416
+    },
+    {
+      "path": "guest/a/logs/node.log",
+      "sha256": "1e9417313c218fc73f4c4688bad6c94515c327d51a51b22479565a8661d4fa40",
+      "bytes": 2168
+    },
+    {
+      "path": "guest/a/run/node.sock.lock",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "guest/a/run/node.identity",
+      "sha256": "89c79233c9d3990b12c154dec05c11d82b521b81736e003feb66ec79290aff6a",
+      "bytes": 511
+    },
+    {
+      "path": "guest/a/run/node.pid",
+      "sha256": "9daa32426166a7388f38f5205d23821606ef3e16ab6e49761148e9bfe8f71303",
+      "bytes": 7
+    },
+    {
+      "path": "guest/a/run/node.launch",
+      "sha256": "bfbcc8ccbb5c23a28692138ece8fc11f0bd8eb8c091a3fa70f5e77cd62d2fba2",
+      "bytes": 82
+    },
+    {
+      "path": "guest/a/run/config-prepared.json",
+      "sha256": "8394292bb84cc5856bd334940b24c84ef68c1b739aaf5fda8088afbfacd245b8",
+      "bytes": 12044
+    },
+    {
+      "path": "guest/a/results/writer-r1/summary.json",
+      "sha256": "c84ab243dfef95179faae26e9627c2bc484ad7264571843de067db4dc4e96b06",
+      "bytes": 4015
+    },
+    {
+      "path": "guest/a/results/writer-r1/write-command.json",
+      "sha256": "c094d745d04064f18f177314bb670945ae0243faaa0b9611ba6712ae7f236dd7",
+      "bytes": 1674
+    },
+    {
+      "path": "guest/a/results/writer-r1/confirmed.json",
+      "sha256": "c84ab243dfef95179faae26e9627c2bc484ad7264571843de067db4dc4e96b06",
+      "bytes": 4015
+    },
+    {
+      "path": "guest/a/run/node.lifecycle.FYR7Jo/ready",
+      "sha256": "f841db2f4665ae79bc99b140db0394192e48178bd84e95ecbb1f701cef5bf5ed",
+      "bytes": 22
+    },
+    {
+      "path": "guest/a/run/node.lifecycle.FYR7Jo/go",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "guest/a/run/node.lifecycle.FYR7Jo/exit",
+      "sha256": "0260fdce5ad359c38be7f57a66da55b863491310bf51c04b4a8d45a0cfd68faf",
+      "bytes": 360
+    },
+    {
+      "path": "guest/a/run/node.lifecycle.FYR7Jo/child",
+      "sha256": "4237bab4a89782aa2febf6a5f097c524e23a1aa88d06fd3dc20e75c017551e15",
+      "bytes": 348
+    },
+    {
+      "path": "guest/ctl/etc/meta.original.toml",
+      "sha256": "da9f14edca267f2fda7395893385487ee55de2d5d52194642b519340c1f08ff8",
+      "bytes": 1028
+    },
+    {
+      "path": "guest/ctl/etc/meta.toml",
+      "sha256": "a8fd1641a3cf7e478a3def26ad4c870c6d947038e7bc86f18d5c4702ede4ea3f",
+      "bytes": 1065
+    },
+    {
+      "path": "guest/ctl/logs/meta.log",
+      "sha256": "ded99da498da94a2601d0028c445e8a47527323cf46c09c56e94c3dd96047724",
+      "bytes": 296
+    },
+    {
+      "path": "guest/ctl/run/meta.identity",
+      "sha256": "ef6bbdafc93b307872b4b2e8f91ba5c2e18f69a614fc488316be9c79e04e19da",
+      "bytes": 528
+    },
+    {
+      "path": "guest/ctl/run/meta.pid",
+      "sha256": "8b6591babc688a5f953352f11ef6016272cd783245947169ae991fc2315f49d0",
+      "bytes": 8
+    },
+    {
+      "path": "guest/ctl/run/meta.launch",
+      "sha256": "252df0a3318e85947caf1dfbb596551774d51a5f79fd646f129ccd633bda0cab",
+      "bytes": 85
+    },
+    {
+      "path": "guest/ctl/run/config-prepared.json",
+      "sha256": "6730ed92aaf66578feafc20b0f4b288ef9ecbf66c7e77bebafa173e74d94b523",
+      "bytes": 10603
+    },
+    {
+      "path": "guest/ctl/results/coordinator-r1/summary.json",
+      "sha256": "210136cd5decf57aa4d6d7e5538522a22b4513764bd8dde513a4c4d7876286d7",
+      "bytes": 19290
+    },
+    {
+      "path": "guest/ctl/results/coordinator-r1/coordinator-round-01.json",
+      "sha256": "98b6a885f2b956ebc7e8363482bf5b10837b6c323a557f271643afaff088fa8a",
+      "bytes": 3207
+    },
+    {
+      "path": "guest/ctl/results/coordinator-r1/coordinator-round-03.json",
+      "sha256": "f2d6b2883e68a1c3c777ce307dee4d4c3fafed1d3347d3da71f4187d7b3bcf94",
+      "bytes": 3208
+    },
+    {
+      "path": "guest/ctl/results/coordinator-r1/coordinator-events.json",
+      "sha256": "bafc2173be26c11078332bd1d34ceb25785dc0c002c345eae3d502b3104a0efa",
+      "bytes": 14856
+    },
+    {
+      "path": "guest/ctl/results/coordinator-r1/coordinator-round-02.json",
+      "sha256": "b1fe5fdac3a628c67b8d1aab8da8bd6e42254c6a6c5d42d0181dbe66e7402c8d",
+      "bytes": 3208
+    },
+    {
+      "path": "guest/ctl/results/coordinator-r1/coordinator-round-05.json",
+      "sha256": "b5f135f08ce17d7a6d6ef7659e1ef99633437b729b025e68e7e6c24beeb81b87",
+      "bytes": 3208
+    },
+    {
+      "path": "guest/ctl/results/coordinator-r1/coordinator-round-04.json",
+      "sha256": "32974edfe20a17e7770fc00413e1440a8cfce91dd10c24799fa51e93661c795c",
+      "bytes": 3207
+    },
+    {
+      "path": "guest/ctl/run/meta.lifecycle.KsRWuK/ready",
+      "sha256": "881be6c482ee1c705c751e466337806fc487939cf7e2da6cfbe6e8f7eed41009",
+      "bytes": 23
+    },
+    {
+      "path": "guest/ctl/run/meta.lifecycle.KsRWuK/go",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "guest/ctl/run/meta.lifecycle.KsRWuK/exit",
+      "sha256": "6a8526110a02fd881d2f951e01a46a8ff30948b3baa486d507b6e167c48e6803",
+      "bytes": 371
+    },
+    {
+      "path": "guest/ctl/run/meta.lifecycle.KsRWuK/child",
+      "sha256": "62269da85cbd780f339a8149c236c5b0110ec136b3a11fc693dec8af7eceeea6",
+      "bytes": 359
+    },
+    {
+      "path": "guest/c/etc/node.toml",
+      "sha256": "0ff0097dce86838a4f82237ff6304d6153f07bc3a08025e1dcbb8f4c4914c1d1",
+      "bytes": 1335
+    },
+    {
+      "path": "guest/c/etc/node.original.toml",
+      "sha256": "99c4b0779289ad0510c0f8e21dbb389c7b69498e5f6fe226f6823e59291c553b",
+      "bytes": 1416
+    },
+    {
+      "path": "guest/c/results/writer-confirmed.json",
+      "sha256": "c84ab243dfef95179faae26e9627c2bc484ad7264571843de067db4dc4e96b06",
+      "bytes": 4015
+    },
+    {
+      "path": "guest/c/logs/node.log",
+      "sha256": "69d84c20a53826741ec3eab53adde4ed7803e0e7ebc2fb7aab1ede42095c9d24",
+      "bytes": 1204
+    },
+    {
+      "path": "guest/c/run/node.sock.lock",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "guest/c/run/node.identity",
+      "sha256": "42eff20658e1dddebf16c70fbb5ffc4aa4814ff42993ee51a4f15d8938b41692",
+      "bytes": 509
+    },
+    {
+      "path": "guest/c/run/node.pid",
+      "sha256": "7ab9e68af76df2b64b3aa96391a5e72fa3bb335dfad23ece71979dbd327c95f6",
+      "bytes": 6
+    },
+    {
+      "path": "guest/c/run/node.launch",
+      "sha256": "ca378c74add5779e0660711ad69210da1535e3780ad129931d516ded4406dfa3",
+      "bytes": 82
+    },
+    {
+      "path": "guest/c/run/config-prepared.json",
+      "sha256": "f5b20647e6ab1f57ad520d45d0c838862d29d9eba185cc8edfb9384d2752cf0e",
+      "bytes": 7775
+    },
+    {
+      "path": "guest/c/results/reader-sync-r1/summary.json",
+      "sha256": "708e08b8f8793d4f1675b6548edef2e58aafeb708f8d8203e8bf6b04dfc8354c",
+      "bytes": 17690
+    },
+    {
+      "path": "guest/c/results/reader-sync-r1/read-round-03.json",
+      "sha256": "a81205f39eeb4861cf304b5f043c103d0f8a3672c3e3b7bdc042a158dfd293f7",
+      "bytes": 2241
+    },
+    {
+      "path": "guest/c/results/reader-sync-r1/read-round-02.json",
+      "sha256": "82e6ae5292ee76d7db96cca7daaa7c6cedc06ba1237c3a3226094162debb3e8e",
+      "bytes": 2241
+    },
+    {
+      "path": "guest/c/results/reader-sync-r1/read-rounds.json",
+      "sha256": "fd88be891facee4e6d2b5e747c06e727b3cc0e7bda207d9a96a73606f7b7c42c",
+      "bytes": 14029
+    },
+    {
+      "path": "guest/c/results/reader-sync-r1/read-round-05.json",
+      "sha256": "7b76d26d4cd8fa0be624747d39196e0f9c20ed597ef2e178d341d68eb07793b2",
+      "bytes": 2241
+    },
+    {
+      "path": "guest/c/results/reader-sync-r1/read-round-04.json",
+      "sha256": "21eee5da45f78c02b3949b1eac396dae05be738ecb9ce1ff197a4b0800a7e6de",
+      "bytes": 2239
+    },
+    {
+      "path": "guest/c/results/reader-sync-r1/read-round-01.json",
+      "sha256": "c0752c6c3cf23e7d5bbc145798285d9c8de351deb55988f8e744e272f23085db",
+      "bytes": 2239
+    },
+    {
+      "path": "guest/c/results/reader-sync-r1/manifest-precheck.json",
+      "sha256": "62bd9e7f2b5746b1c95e9a49513301f6420d9a1a5f4eb9b9ba12f1dad77aeb4f",
+      "bytes": 492
+    },
+    {
+      "path": "guest/c/results/reader-sync-r1/read-round-00.json",
+      "sha256": "1d0984c39db89a27c5326a4194a938d003436ebf03d14f70b0e2ace3e8ae2f94",
+      "bytes": 2091
+    },
+    {
+      "path": "guest/c/results/reader-sync-r1/read-samples/round-04.json",
+      "sha256": "1663f9f4d733c598784c14ee6813605f8e7587dded1106aac4826e99edf5c130",
+      "bytes": 1770
+    },
+    {
+      "path": "guest/c/results/reader-sync-r1/read-samples/round-05.json",
+      "sha256": "41099bbb6acda1e8b2c91e43849d6933a5fc5931844da40d48ea19edff9bffb2",
+      "bytes": 1772
+    },
+    {
+      "path": "guest/c/results/reader-sync-r1/read-samples/round-02.json",
+      "sha256": "626a8bdf9bb2a9214dc4cd4ded738ef954d2fa28d400873edaa023ad510959a7",
+      "bytes": 1772
+    },
+    {
+      "path": "guest/c/results/reader-sync-r1/read-samples/round-03.json",
+      "sha256": "86a81e3fe443b91b0c8b24a95a792cc59818f71798c9174e33f4e63e7466abea",
+      "bytes": 1772
+    },
+    {
+      "path": "guest/c/results/reader-sync-r1/read-samples/round-00.json",
+      "sha256": "034df16700d24cd6f90e91a2b706cfa3ac9677cadffd3022d887ac36ffeaad63",
+      "bytes": 1698
+    },
+    {
+      "path": "guest/c/results/reader-sync-r1/read-samples/round-01.json",
+      "sha256": "323582fe5c6435b5c3be428bf720af60ad4a0370cc63993b0bd37df084210904",
+      "bytes": 1770
+    },
+    {
+      "path": "guest/c/run/node.lifecycle.zyXMwV/ready",
+      "sha256": "9e8a97d0afd9585c30052c80ef87cf50d46f1572e776d041169dd16f5fa571a1",
+      "bytes": 21
+    },
+    {
+      "path": "guest/c/run/node.lifecycle.zyXMwV/go",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "guest/c/run/node.lifecycle.zyXMwV/exit",
+      "sha256": "651bfde5b4b0f33527fda4a7f4422641efa2dd2dba1b28d52fddffcc3d60e357",
+      "bytes": 358
+    },
+    {
+      "path": "guest/c/run/node.lifecycle.zyXMwV/child",
+      "sha256": "fa80da2ae6af59fc0991f273b73d04a3580500b41c41624d8ad9f10da5d736b2",
+      "bytes": 346
+    },
+    {
+      "path": "guest/b/etc/node.toml",
+      "sha256": "191f2e01c77a61e12e137d72ed66f3432385463219e2342eef3fa1b5496ac115",
+      "bytes": 1335
+    },
+    {
+      "path": "guest/b/etc/node.original.toml",
+      "sha256": "99afbf27593837cf4e1f9fcd9ee9bba63f35b8f29e6174fa7d0243462a4b17c3",
+      "bytes": 1416
+    },
+    {
+      "path": "guest/b/results/writer-confirmed.json",
+      "sha256": "c84ab243dfef95179faae26e9627c2bc484ad7264571843de067db4dc4e96b06",
+      "bytes": 4015
+    },
+    {
+      "path": "guest/b/logs/node.log",
+      "sha256": "8eda54bdf4814966bcd192fa2d50c8932f548c043f4c9a633a6a0251437d7f2f",
+      "bytes": 1204
+    },
+    {
+      "path": "guest/b/run/node.sock.lock",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "guest/b/run/node.identity",
+      "sha256": "434d252a96a2c83e4cb416fa17791afdaf50af003d75eed0bba4dcb39a69e865",
+      "bytes": 511
+    },
+    {
+      "path": "guest/b/run/node.pid",
+      "sha256": "3deebf462e030ad4e80678d61d22d415936eac3407ee8860d6179fdeee5a635f",
+      "bytes": 7
+    },
+    {
+      "path": "guest/b/run/node.launch",
+      "sha256": "e94476dd1e3be2f942c2f002d53409cb39bcd7a57f7840c426b44eceb182968a",
+      "bytes": 82
+    },
+    {
+      "path": "guest/b/run/config-prepared.json",
+      "sha256": "1b9938510a6705cd773de2f370e1cdbe3c3333f674c6f444d6bdac32824049d9",
+      "bytes": 7776
+    },
+    {
+      "path": "guest/b/results/reader-sync-r1/summary.json",
+      "sha256": "fbb99111d43c5e5305ba50131280e3dcd06fa89adcc31b65b1a65a10b0f03b40",
+      "bytes": 17683
+    },
+    {
+      "path": "guest/b/results/reader-sync-r1/read-round-03.json",
+      "sha256": "0f27ae18897d83be6241f9c5447c8836859b9c98e9ca1e624275b8de1592dd6a",
+      "bytes": 2239
+    },
+    {
+      "path": "guest/b/results/reader-sync-r1/read-round-02.json",
+      "sha256": "3128a9929881e8910d69c639c4d4c3c7555ad0586dc27ab5c29b9bf7969ea279",
+      "bytes": 2239
+    },
+    {
+      "path": "guest/b/results/reader-sync-r1/read-rounds.json",
+      "sha256": "f6d8ed3b846b060b08037c332fce16b47daeba3b940fb7b6e563709cfe929fc6",
+      "bytes": 14023
+    },
+    {
+      "path": "guest/b/results/reader-sync-r1/read-round-05.json",
+      "sha256": "b51416163b3b0b6efc53cc79378a7acef395ce026129f34b967406ef161024b3",
+      "bytes": 2239
+    },
+    {
+      "path": "guest/b/results/reader-sync-r1/read-round-04.json",
+      "sha256": "6faf6d59d1fccea7ebb2a77444f1e58fb801f82007d2fc727fd1634febc1293c",
+      "bytes": 2239
+    },
+    {
+      "path": "guest/b/results/reader-sync-r1/read-round-01.json",
+      "sha256": "d1359406ab11b0007eb5d8385362dab4e2bcdfa897396aba0a3d36ec7954189d",
+      "bytes": 2239
+    },
+    {
+      "path": "guest/b/results/reader-sync-r1/manifest-precheck.json",
+      "sha256": "84bdecf6a490ee8974125e1829e55a3eb9b24c60ae66c2f6e511767ee4ed410c",
+      "bytes": 492
+    },
+    {
+      "path": "guest/b/results/reader-sync-r1/read-round-00.json",
+      "sha256": "e5ebc50828ed42bd4fa96d695f955bd6600c1ba8299a491c0d216f0b432f7c02",
+      "bytes": 2091
+    },
+    {
+      "path": "guest/b/results/reader-sync-r1/read-samples/round-04.json",
+      "sha256": "0585ad71bafb2817dc6ea430afd64f9b667d9af480a7362be67ad461ed60168b",
+      "bytes": 1770
+    },
+    {
+      "path": "guest/b/results/reader-sync-r1/read-samples/round-05.json",
+      "sha256": "179327a3118366397a7489049f16cfc6bb0bf3c2b5e5e9fe54cb1553090dba62",
+      "bytes": 1770
+    },
+    {
+      "path": "guest/b/results/reader-sync-r1/read-samples/round-02.json",
+      "sha256": "8ad8471636f65573f8c062f2f7dc857d788fd1f746e3f2fee7b2ff8e509ee949",
+      "bytes": 1770
+    },
+    {
+      "path": "guest/b/results/reader-sync-r1/read-samples/round-03.json",
+      "sha256": "f4fe608d7bdd7e84f94a896f5e3f494dce56d747056f036ee394bd7eb64ad50b",
+      "bytes": 1770
+    },
+    {
+      "path": "guest/b/results/reader-sync-r1/read-samples/round-00.json",
+      "sha256": "0ced65810f39b6426ec3bb2e6cd9c89176fd183521f54b0aa89059d52ad76bdc",
+      "bytes": 1698
+    },
+    {
+      "path": "guest/b/results/reader-sync-r1/read-samples/round-01.json",
+      "sha256": "bede52fa2bd51fa638f3f57d2a4bcd84068a3045609ca26eeab05afedf9b894a",
+      "bytes": 1770
+    },
+    {
+      "path": "guest/b/run/node.lifecycle.Zw89e1/ready",
+      "sha256": "a5d7b6a5b156ba6119ed8b890becdadc51c8364278811426f11ad7cd586effc6",
+      "bytes": 22
+    },
+    {
+      "path": "guest/b/run/node.lifecycle.Zw89e1/go",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "guest/b/run/node.lifecycle.Zw89e1/exit",
+      "sha256": "490559da61f4dc4675a24ba4f0850af970cb2fa1f3b7598164d3c106c5f0695d",
+      "bytes": 360
+    },
+    {
+      "path": "guest/b/run/node.lifecycle.Zw89e1/child",
+      "sha256": "6d0d880160df4308ed87689d683b0c4e71351a198d37c16d8daf717a0aa5d077",
+      "bytes": 348
+    }
+  ],
+  "selection_note": "Parent builds/reviews portable packet; keep raw source-transfer argv/TLS tar local and immutable. Never copy whole canonical .py into evidence snapshots.",
+  "product_fixed_source": "6d51aeb45c1ed8669d80f612b3817e6d1bdabe04",
+  "product_fixed_map": "66dbbe3e0071fcec1efc9cf370c709a99f025d39acd4f37ba57582c874429304"
+}

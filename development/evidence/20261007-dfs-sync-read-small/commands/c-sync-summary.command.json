@@ -1,0 +1,16 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "afs-accept-c",
+    "sudo",
+    "python3",
+    "-c",
+    "import sys,json,hashlib\nfrom pathlib import Path\nr=Path(sys.argv[1]);relative=sys.argv[2];p=r/'results'/relative/'summary.json';tool=r/'tools/dfs_manyread_small.py';assert hashlib.sha256(tool.read_bytes()).hexdigest()==sys.argv[3];j=json.loads(p.read_text());assert j['status']=='DATA_RECORDED';print(json.dumps(j,indent=2))",
+    "/mnt/lima-afscdata/afs-delivery/dfs-sync-6d-20261007-r1",
+    "reader-sync-r1",
+    "9fb981664458b68aa7ab8721a5ddf685059e0fcfb436c79c41b623fa42bdb869"
+  ],
+  "exit": 0,
+  "state": "TERMINAL"
+}

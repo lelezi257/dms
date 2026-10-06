@@ -1,0 +1,117 @@
+{
+  "policy": "Original artifacts remain local unchanged. Publication omits archives, private keys, binaries and full source transfers; command results, identities and indexes retained. Canonical maintenance files live in this commit at the paths and hashes in inputs.json.",
+  "files": [
+    {
+      "root": "evidence/afs-delivery/dfs-sync-6d-20261007-r1",
+      "path": "a-config.tar",
+      "bytes": 30720,
+      "sha256": "17e42e38a2749f8032dba3ff41753161fc4d3144484318fd3b8782957c30d20b",
+      "reason": "local transport/source archive; canonical inputs and hashes retained"
+    },
+    {
+      "root": "evidence/afs-delivery/dfs-sync-6d-20261007-r1",
+      "path": "a-deployment.tar",
+      "bytes": 25989120,
+      "sha256": "535588bbed72a74b2bbc06b032af09f4e90cfd37a2f822ac4ab586a1afba4fbc",
+      "reason": "local transport/source archive; canonical inputs and hashes retained"
+    },
+    {
+      "root": "evidence/afs-delivery/dfs-sync-6d-20261007-r1",
+      "path": "a-text.tar",
+      "bytes": 61440,
+      "sha256": "9df3e21ff4d48be22cf0d96349e07bb976a94c640b456e37919fd1eeee50f963",
+      "reason": "local transport/source archive; canonical inputs and hashes retained"
+    },
+    {
+      "root": "evidence/afs-delivery/dfs-sync-6d-20261007-r1",
+      "path": "b-config.tar",
+      "bytes": 30720,
+      "sha256": "fc7f9610d230c5be735386e098e3f07bc07ec508892df2e5f660b3aa679551fd",
+      "reason": "local transport/source archive; canonical inputs and hashes retained"
+    },
+    {
+      "root": "evidence/afs-delivery/dfs-sync-6d-20261007-r1",
+      "path": "b-deployment.tar",
+      "bytes": 25989120,
+      "sha256": "535588bbed72a74b2bbc06b032af09f4e90cfd37a2f822ac4ab586a1afba4fbc",
+      "reason": "local transport/source archive; canonical inputs and hashes retained"
+    },
+    {
+      "root": "evidence/afs-delivery/dfs-sync-6d-20261007-r1",
+      "path": "b-text.tar",
+      "bytes": 133120,
+      "sha256": "1294ef06328702946109e574605725b26806cb7d15ba58f5f69151487ab32120",
+      "reason": "local transport/source archive; canonical inputs and hashes retained"
+    },
+    {
+      "root": "evidence/afs-delivery/dfs-sync-6d-20261007-r1",
+      "path": "c-config.tar",
+      "bytes": 30720,
+      "sha256": "60b67693c6fd22589a55218dea8b32c0914ebc0e52ccf04122300aaf63ccdf6a",
+      "reason": "local transport/source archive; canonical inputs and hashes retained"
+    },
+    {
+      "root": "evidence/afs-delivery/dfs-sync-6d-20261007-r1",
+      "path": "c-deployment.tar",
+      "bytes": 25989120,
+      "sha256": "535588bbed72a74b2bbc06b032af09f4e90cfd37a2f822ac4ab586a1afba4fbc",
+      "reason": "local transport/source archive; canonical inputs and hashes retained"
+    },
+    {
+      "root": "evidence/afs-delivery/dfs-sync-6d-20261007-r1",
+      "path": "c-text.tar",
+      "bytes": 133120,
+      "sha256": "b70ba50563bc1c8301d629de710885759433dc837968af717fdfb67e4bf3ee31",
+      "reason": "local transport/source archive; canonical inputs and hashes retained"
+    },
+    {
+      "root": "evidence/afs-delivery/dfs-sync-6d-20261007-r1",
+      "path": "commands/a-install-fixture-tools.command.json",
+      "bytes": 50793,
+      "sha256": "c783e574720e4c2342d2b84d08e7478b194dd5f72893f9973052b4887734a4d1",
+      "reason": "embedded source/transport hex argv retained locally; avoid repeated canonical snapshots"
+    },
+    {
+      "root": "evidence/afs-delivery/dfs-sync-6d-20261007-r1",
+      "path": "commands/b-install-fixture-tools.command.json",
+      "bytes": 50793,
+      "sha256": "43414a1691c6bd15f5024249cf7af5bf25a5e76b84dfe37281f776afb7bb50d9",
+      "reason": "embedded source/transport hex argv retained locally; avoid repeated canonical snapshots"
+    },
+    {
+      "root": "evidence/afs-delivery/dfs-sync-6d-20261007-r1",
+      "path": "commands/c-install-fixture-tools.command.json",
+      "bytes": 50793,
+      "sha256": "2c6d0db0e5209802ac8d94935387a41a18d3f5a8702066f3eb3595280026aaea",
+      "reason": "embedded source/transport hex argv retained locally; avoid repeated canonical snapshots"
+    },
+    {
+      "root": "evidence/afs-delivery/dfs-sync-6d-20261007-r1",
+      "path": "commands/ctl-install-fixture-tools.command.json",
+      "bytes": 50798,
+      "sha256": "9622f9afb41842bbfd40827a78a80acd5bc6d681e7ba653e0287a44b06df98d6",
+      "reason": "embedded source/transport hex argv retained locally; avoid repeated canonical snapshots"
+    },
+    {
+      "root": "evidence/afs-delivery/dfs-sync-6d-20261007-r1",
+      "path": "ctl-config.tar",
+      "bytes": 30720,
+      "sha256": "dd456cccb4c8df8fcdd4bee7dfd01dea21fb4dcf6d346ea24d449b044fb38a26",
+      "reason": "local transport/source archive; canonical inputs and hashes retained"
+    },
+    {
+      "root": "evidence/afs-delivery/dfs-sync-6d-20261007-r1",
+      "path": "ctl-deployment.tar",
+      "bytes": 15861760,
+      "sha256": "2eac3add371a65031c984af0b82c88f04da8db49a9ed907d3fecc251e1933375",
+      "reason": "local transport/source archive; canonical inputs and hashes retained"
+    },
+    {
+      "root": "evidence/afs-delivery/dfs-sync-6d-20261007-r1",
+      "path": "ctl-text.tar",
+      "bytes": 102400,
+      "sha256": "5cba110cc084226cf8791f6fe4ac8d7cae8c6a6041de7dcda8f56051e158642b",
+      "reason": "local transport/source archive; canonical inputs and hashes retained"
+    }
+  ]
+}

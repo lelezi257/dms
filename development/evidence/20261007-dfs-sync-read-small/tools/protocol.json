@@ -1,0 +1,23 @@
+{
+  "coordinator_sequence": [
+    "wait HELLO from B and C exactly",
+    "emit ACK round 0 to B and C",
+    "for rounds 1..5 wait READY pair, emit START pair, wait DONE pair, validate DONE rc/result, record end_after_both_done_ns, emit ACK pair",
+    "wait FINAL pair"
+  ],
+  "done_validation": "DONE must have status PASS, rc 0, and result passing validate_io_result(seq-read, close).",
+  "name": "afs.dfs_manyread.sync_stdio.v1",
+  "reader_sequence": [
+    "emit HELLO after process start",
+    "wait ACK round 0 before DFS precheck/warmup",
+    "READY after precheck and warmup for each measured round",
+    "wait START with exact reader/session/round/round_token",
+    "DONE after C seq-read result and sample artifact write",
+    "wait ACK round n before next READY or final fullSHA/EOF verification",
+    "FINAL after ACK5 and final verification"
+  ],
+  "stable_handshake": "HELLO -> ACK0 -> READY -> START -> DONE -> ACKn -> FINAL",
+  "terminal_events": "Readers terminate after FINAL; coordinator returns DATA_RECORDED after FINAL pair. Parent relay should close reader stdin after coordinator ACK5/reader FINAL exchange and preserve each process argv/stdout/stderr/rc.",
+  "timing": "ctl Linux monotonic_ns; per-round elapsed starts before START emit and ends after both DONE events, including host relay/Lima control delay plus reader result write/emit overhead; ACK/final SHA/EOF are outside measured round window.",
+  "updated_at": "2026-10-07T07:39:51+08:00"
+}

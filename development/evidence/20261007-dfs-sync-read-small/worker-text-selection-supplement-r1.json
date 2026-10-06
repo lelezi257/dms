@@ -1,0 +1,66 @@
+{
+  "adds_to": "worker-text-selection-index-r1.json",
+  "reason": "after export final independent no-owned driver/IO process read-only proof",
+  "portable_text_candidates": [
+    {
+      "path": "commands/ctl-owned-driver-helpers-gone.command.json",
+      "sha256": "80113b700de82d4379b0a4b198494257c953e977d1ee905278fcbedc6e804775",
+      "bytes": 876
+    },
+    {
+      "path": "commands/ctl-owned-driver-helpers-gone.stdout",
+      "sha256": "44a5ff31c92377fa6b9148fdb86018bcd4fb12ec3559b2f12cf0aa156558d5b5",
+      "bytes": 146
+    },
+    {
+      "path": "commands/ctl-owned-driver-helpers-gone.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/a-owned-driver-helpers-gone.command.json",
+      "sha256": "f6c422f1d3be8be8b2e8acf84f672f021f0a76be77ba354aecc5370ff0c74540",
+      "bytes": 871
+    },
+    {
+      "path": "commands/a-owned-driver-helpers-gone.stdout",
+      "sha256": "043622ca150a39b0d190e313afc0d84cd632050c653a0b024b4beb44885830f4",
+      "bytes": 143
+    },
+    {
+      "path": "commands/a-owned-driver-helpers-gone.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/b-owned-driver-helpers-gone.command.json",
+      "sha256": "f79a069551e605ba58e4bd193ebe7b29e35e0525c9340cfe8c703dc74ef5cee8",
+      "bytes": 871
+    },
+    {
+      "path": "commands/b-owned-driver-helpers-gone.stdout",
+      "sha256": "75d13447aa4d636f60e1981e5126be391ac4b596438aada71082f279f32f2b59",
+      "bytes": 143
+    },
+    {
+      "path": "commands/b-owned-driver-helpers-gone.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "commands/c-owned-driver-helpers-gone.command.json",
+      "sha256": "90fa4e4320f274ae61a191f97481e565bc362e773fc205ba07df969e0cac3c81",
+      "bytes": 871
+    },
+    {
+      "path": "commands/c-owned-driver-helpers-gone.stdout",
+      "sha256": "b421f452eb4ba78a6663cc8187159f044e465ede9d49d05a57384f9e9c536ac6",
+      "bytes": 143
+    },
+    {
+      "path": "commands/c-owned-driver-helpers-gone.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    }
+  ]
+}

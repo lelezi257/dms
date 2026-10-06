@@ -1,0 +1,10 @@
+{
+  "argv": [
+    "limactl",
+    "copy",
+    "afs-accept-c:/var/tmp/dfs-small-6d-c-text.tar",
+    "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/dfs-small-6d-20261007-r1/c-text.tar"
+  ],
+  "exit": 0,
+  "state": "TERMINAL"
+}

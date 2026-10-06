@@ -1,0 +1,10 @@
+{
+  "content_verify": {
+    "bytes": 67108864,
+    "expected_sha256": "fae972222d455a2eaee1661ad9625502ec3bfc5ec38b87a6eec5afd5107331b5",
+    "path": "/mnt/lima-afsbdata/afs-delivery/dfs-small-6d-20261007-r1/mount/dfs/dfs-manyread-small-1791324233953279435-848625/payload64m.bin",
+    "sha256": "fae972222d455a2eaee1661ad9625502ec3bfc5ec38b87a6eec5afd5107331b5",
+    "status": "PASS"
+  },
+  "manifest": "/mnt/lima-afsbdata/afs-delivery/dfs-small-6d-20261007-r1/results/writer-confirmed.json"
+}

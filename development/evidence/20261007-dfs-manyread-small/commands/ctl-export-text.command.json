@@ -1,0 +1,15 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "afs-accept-ctl",
+    "sudo",
+    "python3",
+    "-c",
+    "import sys,tarfile,os,json,hashlib\nfrom pathlib import Path\nr=Path(sys.argv[1]);role=sys.argv[2];tar=Path('/var/tmp/dfs-small-6d-'+role+'-text.tar');assert not tar.exists();files=[]\nfor rel in ['run','logs','results']:\n for f in (r/rel).rglob('*'):\n  if f.is_file() and not f.is_symlink():\n   b=f.read_bytes()\n   if b'\\0' not in b:files.append(f)\nfiles.extend(f for f in (r/'etc').glob('*.toml') if f.is_file())\nassert all(b'PRIVATE KEY-----' not in f.read_bytes() for f in files)\nwith tarfile.open(tar,'w') as a:\n for f in files:a.add(f,arcname=str(f.relative_to(r)),recursive=False)\ntar.chmod(0o600);os.chown(tar,int(os.environ['SUDO_UID']),int(os.environ['SUDO_GID']))\nprint(json.dumps({'tar':str(tar),'sha256':hashlib.sha256(tar.read_bytes()).hexdigest(),'files':len(files),'bytes':sum(f.stat().st_size for f in files)}))",
+    "/mnt/lima-afsctlstate/afs-delivery/dfs-small-6d-20261007-r1",
+    "ctl"
+  ],
+  "exit": 0,
+  "state": "TERMINAL"
+}

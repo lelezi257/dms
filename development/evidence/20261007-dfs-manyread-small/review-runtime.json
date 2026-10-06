@@ -1,0 +1,452 @@
+{
+  "cleanup": {
+    "original_ctl_postcheck_retained": {
+      "command_exit": 1,
+      "interpreted_reason": "checker used raw substring __supervise and matched its own sudo/python argv; r2 uses exact argv token matching",
+      "stdout_empty": true
+    },
+    "postcheck_r2": {
+      "a": {
+        "available_bytes": 4264542208,
+        "command_exit": 0,
+        "mounts_under_root": [],
+        "old_incarnations_unchanged_count": 7,
+        "owned_alive": [],
+        "real_wait": {
+          "boot_id": "36a572e0-859b-4a94-adc7-789210a83fc8",
+          "config": "/mnt/lima-afsadata/afs-delivery/dfs-small-6d-20261007-r1/etc/node.toml",
+          "exe": "/mnt/lima-afsadata/afs-delivery/dfs-small-6d-20261007-r1/prefix/bin/afs-node",
+          "exit_code": "0",
+          "lifecycle": "/mnt/lima-afsadata/afs-delivery/dfs-small-6d-20261007-r1/run/node.lifecycle.CTfQUK",
+          "pid": "848463",
+          "start_ticks": "57326853",
+          "supervisor_pid": "848447"
+        },
+        "status": "PASS_NORMAL_EXIT0_NO_OWNED_PROCESS_MOUNT_OLD_UNCHANGED"
+      },
+      "b": {
+        "available_bytes": 18626002944,
+        "command_exit": 0,
+        "mounts_under_root": [],
+        "old_incarnations_unchanged_count": 0,
+        "owned_alive": [],
+        "real_wait": {
+          "boot_id": "3adebcd0-cb31-4df0-b18a-e970786ab7fb",
+          "config": "/mnt/lima-afsbdata/afs-delivery/dfs-small-6d-20261007-r1/etc/node.toml",
+          "exe": "/mnt/lima-afsbdata/afs-delivery/dfs-small-6d-20261007-r1/prefix/bin/afs-node",
+          "exit_code": "0",
+          "lifecycle": "/mnt/lima-afsbdata/afs-delivery/dfs-small-6d-20261007-r1/run/node.lifecycle.m7mP2Q",
+          "pid": "239027",
+          "start_ticks": "56393311",
+          "supervisor_pid": "239011"
+        },
+        "status": "PASS_NORMAL_EXIT0_NO_OWNED_PROCESS_MOUNT_OLD_UNCHANGED"
+      },
+      "c": {
+        "available_bytes": 30793773056,
+        "command_exit": 0,
+        "mounts_under_root": [],
+        "old_incarnations_unchanged_count": 0,
+        "owned_alive": [],
+        "real_wait": {
+          "boot_id": "0cf26d13-bc67-4f98-999e-7aeac4cc9b30",
+          "config": "/mnt/lima-afscdata/afs-delivery/dfs-small-6d-20261007-r1/etc/node.toml",
+          "exe": "/mnt/lima-afscdata/afs-delivery/dfs-small-6d-20261007-r1/prefix/bin/afs-node",
+          "exit_code": "0",
+          "lifecycle": "/mnt/lima-afscdata/afs-delivery/dfs-small-6d-20261007-r1/run/node.lifecycle.PciqrC",
+          "pid": "15589",
+          "start_ticks": "47194892",
+          "supervisor_pid": "15573"
+        },
+        "status": "PASS_NORMAL_EXIT0_NO_OWNED_PROCESS_MOUNT_OLD_UNCHANGED"
+      },
+      "ctl": {
+        "available_bytes": 4434796544,
+        "command_exit": 0,
+        "mounts_under_root": [],
+        "old_incarnations_unchanged_count": 2,
+        "owned_alive": [],
+        "real_wait": {
+          "boot_id": "18c9c087-49d6-458f-817b-0f84c0effd7a",
+          "config": "/mnt/lima-afsctlstate/afs-delivery/dfs-small-6d-20261007-r1/etc/meta.toml",
+          "exe": "/mnt/lima-afsctlstate/afs-delivery/dfs-small-6d-20261007-r1/prefix/bin/afs-meta",
+          "exit_code": "0",
+          "lifecycle": "/mnt/lima-afsctlstate/afs-delivery/dfs-small-6d-20261007-r1/run/meta.lifecycle.3upAcK",
+          "pid": "1681746",
+          "start_ticks": "57292510",
+          "supervisor_pid": "1681730"
+        },
+        "status": "PASS_NORMAL_EXIT0_NO_OWNED_PROCESS_MOUNT_OLD_UNCHANGED"
+      }
+    },
+    "stops": {
+      "a": {
+        "command_exit": 0,
+        "stdout": "node stopped exit_code=0"
+      },
+      "b": {
+        "command_exit": 0,
+        "stdout": "node stopped exit_code=0"
+      },
+      "c": {
+        "command_exit": 0,
+        "stdout": "node stopped exit_code=0"
+      },
+      "ctl": {
+        "command_exit": 0,
+        "stdout": "meta stopped exit_code=0"
+      }
+    }
+  },
+  "controller_reader_window": {
+    "readers": [
+      {
+        "end_controller_monotonic_ns": 852169932152250,
+        "exit": 0,
+        "role": "b",
+        "start_controller_monotonic_ns": 852152059113500
+      },
+      {
+        "end_controller_monotonic_ns": 852161260470916,
+        "exit": 0,
+        "role": "c",
+        "start_controller_monotonic_ns": 852152059172500
+      }
+    ],
+    "scope": "parent-controller diagnostic wall; includes startup/precheck/warmup and all five measured reads, not cross-VM synchronized IO time",
+    "wall_ns": 17873282792
+  },
+  "controller_window_interpretation": "Diagnostic parent wall only; includes reader process startup, manifest/content precheck, one warmup and five measured reads for each reader. Nominal C reads are 2 readers * 6 rounds * 64MiB = 768MiB, but this is not a cross-VM synchronized throughput rate.",
+  "files_referenced": [
+    {
+      "path": "source/development/acceptance/dfs_manyread_small.py",
+      "sha256": "7038411730d3618290ea3418ba0f3458c9afda79f5498929ea9bd21bbe3c14df"
+    },
+    {
+      "path": "source/development/acceptance/test_dfs_manyread_small.py",
+      "sha256": "685599bc68239d08317491697dc2aca558d37c94e8b36bcb6e958b1ea0f8c939"
+    },
+    {
+      "path": "source/development/acceptance/probes/dfs_small_fixture.py",
+      "sha256": "5210fd8de21686d556001ad3888a526bd71df98d487a222bea4f6ab63280a91c"
+    },
+    {
+      "path": "source/development/acceptance/probes/test_dfs_small_fixture.py",
+      "sha256": "753b147de4046e45701bbc5e77fcc9f1a149f6a7ddcb9b94623b58a26b492584"
+    },
+    {
+      "path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/dfs-small-6d-20261007-r1"
+    }
+  ],
+  "generated_at_unix": 1791324549,
+  "issues": [],
+  "limitations": [
+    "Do not claim formal G2.21/full DFS qualification, 3FS comparison, three-sync failure durability, or production performance.",
+    "The 64MiB logical payload is uniform pattern 97 and deduplicates to a reused 4MiB physical chunk; physical evidence must be phrased as A/C each have the verified 4MiB chunk, B none.",
+    "Controller reader wall is diagnostic only and includes startup/precheck/warmup; do not convert it into a formal cross-VM synchronized throughput rate.",
+    "Original ctl-postcheck failure remains in evidence and should be documented as a checker false positive corrected by r2, not erased.",
+    "Cache state remains unobserved and runtime uses the bounded diagnostic shape only."
+  ],
+  "physical_r2_content": {
+    "a": {
+      "catalog_sha256": "6043960633122af1bab5644eca8a2b1dd631435ae16333c4f12278d311d30e52",
+      "chunk_count": 1,
+      "command_exit": 0,
+      "dedup_scope": "uniform64MiB logical file consists of16 equal4MiB extents; physical chunk reused, not unique64MiB physical corpus",
+      "physical_chunks": [
+        {
+          "bytes": 4194304,
+          "complete_content_pattern97": true,
+          "path": "/mnt/lima-afsadata/afs-delivery/dfs-small-6d-20261007-r1/state/node/dfs/chunks/blake3-938390e9f94997129f1cb2c9fd211c6bbc1f7b71f928e0e8fa00f657bbe7cb9c-4194304",
+          "sha256": "299285fc41a44cdb038b9fdaf494c76ca9d0c866672b2b266c1a0c17dda60a05"
+        }
+      ]
+    },
+    "b": {
+      "catalog_sha256": null,
+      "chunk_count": 0,
+      "command_exit": 0,
+      "dedup_scope": "uniform64MiB logical file consists of16 equal4MiB extents; physical chunk reused, not unique64MiB physical corpus",
+      "physical_chunks": []
+    },
+    "c": {
+      "catalog_sha256": "73602f51219210732098840d35b24748302990814c10b2edd0352e4244e66df2",
+      "chunk_count": 1,
+      "command_exit": 0,
+      "dedup_scope": "uniform64MiB logical file consists of16 equal4MiB extents; physical chunk reused, not unique64MiB physical corpus",
+      "physical_chunks": [
+        {
+          "bytes": 4194304,
+          "complete_content_pattern97": true,
+          "path": "/mnt/lima-afscdata/afs-delivery/dfs-small-6d-20261007-r1/state/node/dfs/chunks/blake3-938390e9f94997129f1cb2c9fd211c6bbc1f7b71f928e0e8fa00f657bbe7cb9c-4194304",
+          "sha256": "299285fc41a44cdb038b9fdaf494c76ca9d0c866672b2b266c1a0c17dda60a05"
+        }
+      ]
+    }
+  },
+  "publishable_claims": [
+    "bounded 64MiB DFS writer content PASS/DATA_RECORDED on exact afs-dfs FUSE mount",
+    "B and C readers each completed one warmup plus five measured 64MiB reads with content verification and DATA_RECORDED",
+    "live R2 replication endpoint showed Available=2, health Satisfied, DurableReplica Ready on dfs-a-r1 and dfs-c-r1",
+    "physical chunk proof shows one 4MiB pattern-97 chunk on A and C and no chunk on B; due uniform64MiB dedup this is not proof of 64MiB unique physical corpus",
+    "four owned services stopped with exit0 and r2 postcheck proves no new process/mount remains and old incarnations unchanged"
+  ],
+  "readers": {
+    "b": {
+      "bad_count": 0,
+      "bad_first": [],
+      "command_exit": 0,
+      "content_verify": {
+        "bytes": 67108864,
+        "expected_sha256": "fae972222d455a2eaee1661ad9625502ec3bfc5ec38b87a6eec5afd5107331b5",
+        "path": "/mnt/lima-afsbdata/afs-delivery/dfs-small-6d-20261007-r1/mount/dfs/dfs-manyread-small-1791324233953279435-848625/payload64m.bin",
+        "sha256": "fae972222d455a2eaee1661ad9625502ec3bfc5ec38b87a6eec5afd5107331b5",
+        "status": "PASS"
+      },
+      "manifest": {
+        "compiler_input_map": "66dbbe3e0071fcec1efc9cf370c709a99f025d39acd4f37ba57582c874429304",
+        "map66": "66dbbe3e",
+        "path": "/mnt/lima-afsbdata/afs-delivery/dfs-small-6d-20261007-r1/results/writer-confirmed.json",
+        "payload": {
+          "bytes": 67108864,
+          "name": "payload64m.bin",
+          "pattern_byte": 97,
+          "relative_dir": "dfs-manyread-small-1791324233953279435-848625",
+          "sha256": "fae972222d455a2eaee1661ad9625502ec3bfc5ec38b87a6eec5afd5107331b5"
+        },
+        "product_source_commit": "6d51aeb45c1ed8669d80f612b3817e6d1bdabe04",
+        "source6d": "6d51aeb"
+      },
+      "measured_rounds": 5,
+      "median_mib_s": 26.138379575132035,
+      "mount": {
+        "fstype": "fuse",
+        "id": 92,
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other",
+        "source": "afs-dfs",
+        "target": "/mnt/lima-afsbdata/afs-delivery/dfs-small-6d-20261007-r1/mount/dfs"
+      },
+      "rates_mib_s": [
+        24.38507812251098,
+        25.48458605906113,
+        26.138379575132035,
+        26.43632536655323,
+        26.64677426123106
+      ],
+      "rounds": 6,
+      "status": "DATA_RECORDED",
+      "warmup_rounds": 1
+    },
+    "c": {
+      "bad_count": 0,
+      "bad_first": [],
+      "command_exit": 0,
+      "content_verify": {
+        "bytes": 67108864,
+        "expected_sha256": "fae972222d455a2eaee1661ad9625502ec3bfc5ec38b87a6eec5afd5107331b5",
+        "path": "/mnt/lima-afscdata/afs-delivery/dfs-small-6d-20261007-r1/mount/dfs/dfs-manyread-small-1791324233953279435-848625/payload64m.bin",
+        "sha256": "fae972222d455a2eaee1661ad9625502ec3bfc5ec38b87a6eec5afd5107331b5",
+        "status": "PASS"
+      },
+      "manifest": {
+        "compiler_input_map": "66dbbe3e0071fcec1efc9cf370c709a99f025d39acd4f37ba57582c874429304",
+        "map66": "66dbbe3e",
+        "path": "/mnt/lima-afscdata/afs-delivery/dfs-small-6d-20261007-r1/results/writer-confirmed.json",
+        "payload": {
+          "bytes": 67108864,
+          "name": "payload64m.bin",
+          "pattern_byte": 97,
+          "relative_dir": "dfs-manyread-small-1791324233953279435-848625",
+          "sha256": "fae972222d455a2eaee1661ad9625502ec3bfc5ec38b87a6eec5afd5107331b5"
+        },
+        "product_source_commit": "6d51aeb45c1ed8669d80f612b3817e6d1bdabe04",
+        "source6d": "6d51aeb"
+      },
+      "measured_rounds": 5,
+      "median_mib_s": 50.22202616310489,
+      "mount": {
+        "fstype": "fuse",
+        "id": 361,
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other",
+        "source": "afs-dfs",
+        "target": "/mnt/lima-afscdata/afs-delivery/dfs-small-6d-20261007-r1/mount/dfs"
+      },
+      "rates_mib_s": [
+        49.42326558881943,
+        49.006013291283814,
+        50.47825603966714,
+        50.29647338755949,
+        50.22202616310489
+      ],
+      "rounds": 6,
+      "status": "DATA_RECORDED",
+      "warmup_rounds": 1
+    }
+  },
+  "recommendation": "Publish bounded content PASS / DATA_RECORDED / cleanup PASS for this diagnostic slice with the listed limitations; keep formal G2.21, three-sync/3FS gates open.",
+  "replication": {
+    "available_copies": 2,
+    "command_exit": 0,
+    "copies": [
+      {
+        "available": true,
+        "node_id": "dfs-a-r1",
+        "persisted_bytes": 4194304,
+        "role": "DurableReplica",
+        "state": "Ready"
+      },
+      {
+        "available": true,
+        "node_id": "dfs-c-r1",
+        "persisted_bytes": 4194304,
+        "role": "DurableReplica",
+        "state": "Ready"
+      }
+    ],
+    "desired_copies": 2,
+    "health": "Satisfied",
+    "tasks": []
+  },
+  "review": "afs-dfs-small-runtime-r1-posthoc",
+  "runtime_identity": {
+    "live_identity": {
+      "a": {
+        "command_exit": 0,
+        "exe": "/mnt/lima-afsadata/afs-delivery/dfs-small-6d-20261007-r1/prefix/bin/afs-node",
+        "exe_dev": 64785,
+        "exe_ino": 1591792,
+        "mount": {
+          "fstype": "fuse",
+          "id": 52,
+          "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other",
+          "source": "afs-dfs",
+          "target": "/mnt/lima-afsadata/afs-delivery/dfs-small-6d-20261007-r1/mount/dfs"
+        },
+        "ownerfs_absent": true,
+        "pid": 848463,
+        "sha256": "2cf1f538fe7af332a711f3c66a074ace140c00773826a182709a6445b8ae2645",
+        "start_ticks": "57326853",
+        "status": "PASS_LIVE_PROCESS_IDENTITY"
+      },
+      "b": {
+        "command_exit": 0,
+        "exe": "/mnt/lima-afsbdata/afs-delivery/dfs-small-6d-20261007-r1/prefix/bin/afs-node",
+        "exe_dev": 64785,
+        "exe_ino": 1315102,
+        "mount": {
+          "fstype": "fuse",
+          "id": 92,
+          "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other",
+          "source": "afs-dfs",
+          "target": "/mnt/lima-afsbdata/afs-delivery/dfs-small-6d-20261007-r1/mount/dfs"
+        },
+        "ownerfs_absent": true,
+        "pid": 239027,
+        "sha256": "2cf1f538fe7af332a711f3c66a074ace140c00773826a182709a6445b8ae2645",
+        "start_ticks": "56393311",
+        "status": "PASS_LIVE_PROCESS_IDENTITY"
+      },
+      "c": {
+        "command_exit": 0,
+        "exe": "/mnt/lima-afscdata/afs-delivery/dfs-small-6d-20261007-r1/prefix/bin/afs-node",
+        "exe_dev": 64785,
+        "exe_ino": 131511,
+        "mount": {
+          "fstype": "fuse",
+          "id": 361,
+          "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other",
+          "source": "afs-dfs",
+          "target": "/mnt/lima-afscdata/afs-delivery/dfs-small-6d-20261007-r1/mount/dfs"
+        },
+        "ownerfs_absent": true,
+        "pid": 15589,
+        "sha256": "2cf1f538fe7af332a711f3c66a074ace140c00773826a182709a6445b8ae2645",
+        "start_ticks": "47194892",
+        "status": "PASS_LIVE_PROCESS_IDENTITY"
+      },
+      "ctl": {
+        "command_exit": 0,
+        "exe": "/mnt/lima-afsctlstate/afs-delivery/dfs-small-6d-20261007-r1/prefix/bin/afs-meta",
+        "exe_dev": 64785,
+        "exe_ino": 278033,
+        "mount": null,
+        "ownerfs_absent": null,
+        "pid": 1681746,
+        "sha256": "2c7b7d088b759e3b9375080002182aa484a424b4fa216da1fb79a1004e96168e",
+        "start_ticks": "57292510",
+        "status": "PASS_LIVE_PROCESS_IDENTITY"
+      }
+    },
+    "start_commands": {
+      "a": {
+        "exit": 0,
+        "stdout": "started node pid=848463 ready=true"
+      },
+      "b": {
+        "exit": 0,
+        "stdout": "started node pid=239027 ready=true"
+      },
+      "c": {
+        "exit": 0,
+        "stdout": "started node pid=15589 ready=true"
+      },
+      "ctl": {
+        "exit": 0,
+        "stdout": "started meta pid=1681746 ready=true"
+      }
+    }
+  },
+  "scope": "read-only posthoc runtime evidence review for dfs-small-6d-20261007-r1; no rerun, no source edits, no macOS product tests",
+  "summary": "Runtime raw evidence supports bounded DFS 64MiB content DATA_RECORDED with B/C reader data and normal cleanup PASS. The original ctl-postcheck failure is retained as a checker false positive on substring __supervise; r2 exact argv-token postchecks pass without product restart or IO rerun. This remains diagnostic and does not close formal G2.21, 3FS parity, or three-sync/failure qualification.",
+  "tool_guard_context": {
+    "fixture_guard_exit": 0,
+    "manyread_guard_exit": 0,
+    "prior_tool_review": "/var/tmp/afs-dfs-tools-review.json"
+  },
+  "verdict": "BOUNDED_APPROVE_CONTENT_DATA_RECORDED_CLEANUP_PASS",
+  "writer": {
+    "command_exit": 0,
+    "compiler_input_map": "66dbbe3e0071fcec1efc9cf370c709a99f025d39acd4f37ba57582c874429304",
+    "content_verify": {
+      "bytes": 67108864,
+      "expected_sha256": "fae972222d455a2eaee1661ad9625502ec3bfc5ec38b87a6eec5afd5107331b5",
+      "path": "/mnt/lima-afsadata/afs-delivery/dfs-small-6d-20261007-r1/mount/dfs/dfs-manyread-small-1791324233953279435-848625/payload64m.bin",
+      "sha256": "fae972222d455a2eaee1661ad9625502ec3bfc5ec38b87a6eec5afd5107331b5",
+      "status": "PASS"
+    },
+    "dir_fsync": true,
+    "mount": {
+      "fstype": "fuse",
+      "id": 52,
+      "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other",
+      "source": "afs-dfs",
+      "target": "/mnt/lima-afsadata/afs-delivery/dfs-small-6d-20261007-r1/mount/dfs"
+    },
+    "parent_dir_fsync": true,
+    "payload": {
+      "bytes": 67108864,
+      "name": "payload64m.bin",
+      "pattern_byte": 97,
+      "relative_dir": "dfs-manyread-small-1791324233953279435-848625",
+      "sha256": "fae972222d455a2eaee1661ad9625502ec3bfc5ec38b87a6eec5afd5107331b5"
+    },
+    "source": "6d51aeb45c1ed8669d80f612b3817e6d1bdabe04",
+    "status": "DATA_RECORDED",
+    "write_rc": 0,
+    "write_result": {
+      "barrier": "fdatasync",
+      "block_bytes": 1048576,
+      "cache_requested": "unobserved",
+      "concurrency": 1,
+      "content_ok": true,
+      "file_bytes": 67108864,
+      "io_bytes": 67108864,
+      "operation": "seq-write",
+      "operations": 64,
+      "pattern_byte": 97,
+      "residency_observed": false,
+      "wall_ns": 265093308
+    },
+    "write_status": "PASS"
+  }
+}

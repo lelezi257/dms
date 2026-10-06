@@ -1,0 +1,16 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "afs-accept-a",
+    "sudo",
+    "python3",
+    "-c",
+    "import sys,hashlib;from pathlib import Path\nsrc=Path(sys.argv[1]);dst=Path(sys.argv[2]);assert not dst.exists();b=src.read_bytes();assert hashlib.sha256(b).hexdigest()==sys.argv[3];dst.write_bytes(b);dst.chmod(0o644);print(sys.argv[3])",
+    "/var/tmp/dfs-small-6d-dfs_manyread_small.py",
+    "/mnt/lima-afsadata/afs-delivery/dfs-small-6d-20261007-r1/tools/dfs_manyread_small.py",
+    "7038411730d3618290ea3418ba0f3458c9afda79f5498929ea9bd21bbe3c14df"
+  ],
+  "exit": 0,
+  "state": "TERMINAL"
+}

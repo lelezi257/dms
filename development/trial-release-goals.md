@@ -1,6 +1,6 @@
-**当前切片（2026-10-07）：** 产品6d51aeb/map66dbbe3e/157输入未变，Owner远端B-Home与Moose单副本B的小读/删除完成数据采集；各1预热+5配对，64MiB完整内容及B独立读、600删除路径确认PASS。读中位数427.371/14854.399MiB/s，删除1039.769/1241.516次/s；缓存未观察、旧负载保留，不称持平/正式性能资格。A Moose客户端TERM真实wait1为清理FAIL，原判据不改；其余新服务stop0，独立postcheck无新进程/mount、旧incarnation未变。 [证据](evidence/20261007-owner-remote-small/README.md)。
+**当前切片（2026-10-07）：** 固定6d51aeb/map66dbbe3e/157输入，DFS-only/local-file Meta/gRPC/R2/native OFF完成64MiB一写两读：A fdatasync及目录fsync、B/C完整SHA与各1预热5读PASS；读中位数B26.138/C50.222MiB/s，父控制器含启动/预检/预热的768MiB总量诊断42.969MiB/s。两份Ready副本在A/C；均匀内容去重成各4MiB物理chunk，不称唯一64MiB语料或三同步/3FS正式性能。四个服务真实wait0、无新进程/mount、旧incarnation不变。首次收尾检查器误识别自身的FAIL原文保留，精确argv-token修正后通过，无产品重启/重测。 [证据](evidence/20261007-dfs-manyread-small/README.md)。
 
-**下一项：** 不重跑本轮数据或微调残差；保留远端优化及Moose客户端正常关闭协议缺口为独立TODO，转DFS小规模一写多读摸底。Owner远端写强持久比较、DFS三同步/3FS基线、R2官方fuser API仍各自独立未闭合；bind默认OFF。G1历史8/8、G2 9限定完成/2普通性能FAIL/2bind进行中/14待验收不变。OFF试用包已可下载，复现/35checks安装恢复不变；不计完整G2.27。
+**下一项：** Owner远端小规模写按冻结屏障留核心数据；Moose强持久写基线/三同步3FS仍独立阻塞，普通性能优化、大规模/复杂可靠性及etcd/Redis后置。已有远端读/删除摸底与Moose客户端wait1 FAIL保留；bind默认OFF，锁/append偏移/watch缺口单列。G1历史8/8、G2 9限定完成/2普通性能FAIL/2bind进行中/14待验收不变；OFF试用可下载，不计完整G2.27。
 
 # AFS 三阶段目标与独立验收清单
 
@@ -82,7 +82,7 @@
 | G2.18 | OwnerFs本地大规模写 | 8GiB同持久屏障，读回正确并达本地目标 | **待验收** |
 | G2.19 | OwnerFs远端大规模读 | 8GiB同条件MooseFS对照，正确并持平 | **待验收** |
 | G2.20 | OwnerFs远端大规模写 | 8GiB同持久语义MooseFS对照，正确并持平 | **待验收** |
-| G2.21 | DFS小规模一写多读 | 一写确认、多读者相同数据，逐读者/总吞吐与3FS对照 | **功能分支PASS，性能待验收；DFS最高优先级**；e925c5b R2/64MiB、一写两VM读者及中心恢复；[原始证据](evidence/20261006-e2e-current/crossvm-r1/README.md)。非三同步durable/3FS比较 |
+| G2.21 | DFS小规模一写多读 | 一写确认、多读者相同数据，逐读者/总吞吐与3FS对照 | **当前6d R2小功能/数据PASS，正式性能待验收；DFS最高优先级**；64MiB一写/B+C独立全SHA、各1预热5读及4正常退出PASS；B26.138/C50.222MiB/s，含启动/预检/预热父窗口总量42.969MiB/s；均匀内容去重/缓存未观察，不计三同步/3FS。 [当前证据](evidence/20261007-dfs-manyread-small/README.md)；[历史e925功能/核心恢复](evidence/20261006-e2e-current/crossvm-r1/README.md)保留原版本 |
 | G2.22 | DFS单节点小规模读 | 同副本/接口/缓存与3FS对照，正确并持平 | **待验收** |
 | G2.23 | DFS单节点小规模写 | 三份同步durable，屏障/读回正确并持平 | **待验收** |
 | G2.24 | DFS多节点读写 | 固定文件/并发，读写分别验收，不用平均数掩盖失败 | **待验收** |
@@ -92,7 +92,7 @@
 
 **决策：** native已知append、实际kernel锁、混合mmap/watch、最终namespace/Root/epoch及排空缺口属于G2.12启用前条件，不能延期后冒充通过。OFF版本和普通FUSE性能独立推进；开关不掩盖ON错误，当前不声称已有可用生产开关。
 
-**当前独立出口（2026-10-07）：** 容器配对性能已摸底留数；append r8已区分数据与偏移，偏移/锁/watch缺口保留、实验OFF。当前OFF包独立安装和核心恢复已PASS；同包复现PASS、试用清单已审阅，固定prerelease已发布并核对（G2.27分支）；Owner远端小读/删已摸底留数、清理FAIL保留；下一DFS小规模一写多读，不称完整性能交付通过；不重复未变标准或微调性能。
+**当前独立出口（2026-10-07）：** 容器配对性能已摸底留数；append r8已区分数据与偏移，偏移/锁/watch缺口保留、实验OFF。当前OFF包独立安装和核心恢复已PASS；同包复现PASS、试用清单已审阅，固定prerelease已发布并核对（G2.27分支）；Owner远端小读/删已摸底留数、清理FAIL保留；DFS小一写两读已留当前R2数据/正常关闭PASS；下一Owner远端小写摸底，不称完整性能交付通过；不重复未变标准或微调性能。
 
 **前序顺序（范围保留，当前动作以上述出口为准）：** 当前已启动release切片已测完并正常停止，普通读写未达标数据保留、专项优化暂缓；R1仓库整改验证完成并发布，R2原版fuser公开API缺口独立阻塞。DFS本地R1受影响标准回归已完成；其它标准项按功能范围复用或补齐，不为了性能反复跑标准集。性能优先G2.12容器workspace挂载的必要功能/安全出口→G2.13性能。其它核心性能按独立摸底项保留数据，不无限优化；大规模/复杂可靠性/后端仍后置。
 

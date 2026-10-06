@@ -1,0 +1,416 @@
+{
+  "content_verify": {
+    "bytes": 67108864,
+    "expected_sha256": "fae972222d455a2eaee1661ad9625502ec3bfc5ec38b87a6eec5afd5107331b5",
+    "path": "/mnt/lima-afsbdata/afs-delivery/dfs-small-6d-20261007-r1/mount/dfs/dfs-manyread-small-1791324233953279435-848625/payload64m.bin",
+    "sha256": "fae972222d455a2eaee1661ad9625502ec3bfc5ec38b87a6eec5afd5107331b5",
+    "status": "PASS"
+  },
+  "fs": {
+    "dfs_root": {
+      "device": 48,
+      "gid": 0,
+      "inode": 1,
+      "mode": 493,
+      "path": "/mnt/lima-afsbdata/afs-delivery/dfs-small-6d-20261007-r1/mount/dfs",
+      "uid": 0
+    },
+    "payload": {
+      "device": 48,
+      "gid": 0,
+      "inode": 3,
+      "mode": 384,
+      "path": "/mnt/lima-afsbdata/afs-delivery/dfs-small-6d-20261007-r1/mount/dfs/dfs-manyread-small-1791324233953279435-848625/payload64m.bin",
+      "uid": 0
+    }
+  },
+  "io_tool": {
+    "path": "/mnt/lima-afsbdata/afs-delivery/dfs-small-6d-20261007-r1/tools/io",
+    "sha256": "70ac97c7634d406a177a74c783d446b62a2014ba198586132882a1d9228e55e8"
+  },
+  "manifest": {
+    "compiler_input_map": "66dbbe3e0071fcec1efc9cf370c709a99f025d39acd4f37ba57582c874429304",
+    "map66": "66dbbe3e",
+    "path": "/mnt/lima-afsbdata/afs-delivery/dfs-small-6d-20261007-r1/results/writer-confirmed.json",
+    "payload": {
+      "bytes": 67108864,
+      "name": "payload64m.bin",
+      "pattern_byte": 97,
+      "relative_dir": "dfs-manyread-small-1791324233953279435-848625",
+      "sha256": "fae972222d455a2eaee1661ad9625502ec3bfc5ec38b87a6eec5afd5107331b5"
+    },
+    "product_source_commit": "6d51aeb45c1ed8669d80f612b3817e6d1bdabe04",
+    "source6d": "6d51aeb"
+  },
+  "mount": {
+    "fstype": "fuse",
+    "id": 92,
+    "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other",
+    "source": "afs-dfs",
+    "target": "/mnt/lima-afsbdata/afs-delivery/dfs-small-6d-20261007-r1/mount/dfs"
+  },
+  "platform": {
+    "euid": 0,
+    "machine": "aarch64",
+    "system": "Linux"
+  },
+  "read_rounds": [
+    {
+      "measured": false,
+      "round": 0,
+      "samples": [
+        {
+          "argv": [
+            "/mnt/lima-afsbdata/afs-delivery/dfs-small-6d-20261007-r1/tools/io",
+            "/mnt/lima-afsbdata/afs-delivery/dfs-small-6d-20261007-r1/mount/dfs/dfs-manyread-small-1791324233953279435-848625/payload64m.bin",
+            "seq-read",
+            "67108864",
+            "1048576",
+            "1",
+            "close",
+            "67108864",
+            "97",
+            "existing",
+            "unobserved"
+          ],
+          "artifact": "/mnt/lima-afsbdata/afs-delivery/dfs-small-6d-20261007-r1/results/reader-r1/read-samples/round-00.json",
+          "elapsed_ns": 2667041924,
+          "measured": false,
+          "rc": 0,
+          "result": {
+            "barrier": "close",
+            "barrier_ns": 292,
+            "block_bytes": 1048576,
+            "cache_prepare_attempts": 0,
+            "cache_requested": "unobserved",
+            "client_cpu_ns": 22829804,
+            "concurrency": 1,
+            "content_ok": true,
+            "file_bytes": 67108864,
+            "file_object": {
+              "device": 48,
+              "inode": 3
+            },
+            "io_bytes": 67108864,
+            "operation": "seq-read",
+            "operations": 64,
+            "p50_ns": 41071627,
+            "p95_ns": 44953404,
+            "p99_ns": 49062470,
+            "pattern_byte": 97,
+            "residency_observed": false,
+            "resident_after_bytes": 0,
+            "resident_before_bytes": 0,
+            "seed": 257,
+            "wall_ns": 2658755749
+          },
+          "round": 0,
+          "status": "PASS",
+          "stderr": "",
+          "stdout": "{\"operation\":\"seq-read\",\"file_bytes\":67108864,\"io_bytes\":67108864,\"block_bytes\":1048576,\"concurrency\":1,\"barrier\":\"close\",\"pattern_byte\":97,\"seed\":257,\"operations\":64,\"wall_ns\":2658755749,\"client_cpu_ns\":22829804,\"barrier_ns\":292,\"p50_ns\":41071627,\"p95_ns\":44953404,\"p99_ns\":49062470,\"residency_observed\":false,\"resident_before_bytes\":0,\"resident_after_bytes\":0,\"content_ok\":true,\"cache_requested\":\"unobserved\",\"cache_prepare_attempts\":0,\"file_object\":{\"device\":48,\"inode\":3}}\n",
+          "verify": {
+            "status": "PASS"
+          }
+        }
+      ]
+    },
+    {
+      "measured": true,
+      "round": 1,
+      "samples": [
+        {
+          "argv": [
+            "/mnt/lima-afsbdata/afs-delivery/dfs-small-6d-20261007-r1/tools/io",
+            "/mnt/lima-afsbdata/afs-delivery/dfs-small-6d-20261007-r1/mount/dfs/dfs-manyread-small-1791324233953279435-848625/payload64m.bin",
+            "seq-read",
+            "67108864",
+            "1048576",
+            "1",
+            "close",
+            "67108864",
+            "97",
+            "existing",
+            "unobserved"
+          ],
+          "artifact": "/mnt/lima-afsbdata/afs-delivery/dfs-small-6d-20261007-r1/results/reader-r1/read-samples/round-01.json",
+          "elapsed_ns": 2630567558,
+          "measured": true,
+          "rc": 0,
+          "result": {
+            "barrier": "close",
+            "barrier_ns": 250,
+            "block_bytes": 1048576,
+            "cache_prepare_attempts": 0,
+            "cache_requested": "unobserved",
+            "client_cpu_ns": 17873336,
+            "concurrency": 1,
+            "content_ok": true,
+            "file_bytes": 67108864,
+            "file_object": {
+              "device": 48,
+              "inode": 3
+            },
+            "io_bytes": 67108864,
+            "operation": "seq-read",
+            "operations": 64,
+            "p50_ns": 40873795,
+            "p95_ns": 41668209,
+            "p99_ns": 44282240,
+            "pattern_byte": 97,
+            "residency_observed": false,
+            "resident_after_bytes": 0,
+            "resident_before_bytes": 0,
+            "seed": 257,
+            "wall_ns": 2624555873
+          },
+          "round": 1,
+          "status": "PASS",
+          "stderr": "",
+          "stdout": "{\"operation\":\"seq-read\",\"file_bytes\":67108864,\"io_bytes\":67108864,\"block_bytes\":1048576,\"concurrency\":1,\"barrier\":\"close\",\"pattern_byte\":97,\"seed\":257,\"operations\":64,\"wall_ns\":2624555873,\"client_cpu_ns\":17873336,\"barrier_ns\":250,\"p50_ns\":40873795,\"p95_ns\":41668209,\"p99_ns\":44282240,\"residency_observed\":false,\"resident_before_bytes\":0,\"resident_after_bytes\":0,\"content_ok\":true,\"cache_requested\":\"unobserved\",\"cache_prepare_attempts\":0,\"file_object\":{\"device\":48,\"inode\":3}}\n",
+          "verify": {
+            "status": "PASS"
+          }
+        }
+      ]
+    },
+    {
+      "measured": true,
+      "round": 2,
+      "samples": [
+        {
+          "argv": [
+            "/mnt/lima-afsbdata/afs-delivery/dfs-small-6d-20261007-r1/tools/io",
+            "/mnt/lima-afsbdata/afs-delivery/dfs-small-6d-20261007-r1/mount/dfs/dfs-manyread-small-1791324233953279435-848625/payload64m.bin",
+            "seq-read",
+            "67108864",
+            "1048576",
+            "1",
+            "close",
+            "67108864",
+            "97",
+            "existing",
+            "unobserved"
+          ],
+          "artifact": "/mnt/lima-afsbdata/afs-delivery/dfs-small-6d-20261007-r1/results/reader-r1/read-samples/round-02.json",
+          "elapsed_ns": 2517169370,
+          "measured": true,
+          "rc": 0,
+          "result": {
+            "barrier": "close",
+            "barrier_ns": 167,
+            "block_bytes": 1048576,
+            "cache_prepare_attempts": 0,
+            "cache_requested": "unobserved",
+            "client_cpu_ns": 24666493,
+            "concurrency": 1,
+            "content_ok": true,
+            "file_bytes": 67108864,
+            "file_object": {
+              "device": 48,
+              "inode": 3
+            },
+            "io_bytes": 67108864,
+            "operation": "seq-read",
+            "operations": 64,
+            "p50_ns": 38700762,
+            "p95_ns": 41544418,
+            "p99_ns": 43302077,
+            "pattern_byte": 97,
+            "residency_observed": false,
+            "resident_after_bytes": 0,
+            "resident_before_bytes": 0,
+            "seed": 257,
+            "wall_ns": 2511321936
+          },
+          "round": 2,
+          "status": "PASS",
+          "stderr": "",
+          "stdout": "{\"operation\":\"seq-read\",\"file_bytes\":67108864,\"io_bytes\":67108864,\"block_bytes\":1048576,\"concurrency\":1,\"barrier\":\"close\",\"pattern_byte\":97,\"seed\":257,\"operations\":64,\"wall_ns\":2511321936,\"client_cpu_ns\":24666493,\"barrier_ns\":167,\"p50_ns\":38700762,\"p95_ns\":41544418,\"p99_ns\":43302077,\"residency_observed\":false,\"resident_before_bytes\":0,\"resident_after_bytes\":0,\"content_ok\":true,\"cache_requested\":\"unobserved\",\"cache_prepare_attempts\":0,\"file_object\":{\"device\":48,\"inode\":3}}\n",
+          "verify": {
+            "status": "PASS"
+          }
+        }
+      ]
+    },
+    {
+      "measured": true,
+      "round": 3,
+      "samples": [
+        {
+          "argv": [
+            "/mnt/lima-afsbdata/afs-delivery/dfs-small-6d-20261007-r1/tools/io",
+            "/mnt/lima-afsbdata/afs-delivery/dfs-small-6d-20261007-r1/mount/dfs/dfs-manyread-small-1791324233953279435-848625/payload64m.bin",
+            "seq-read",
+            "67108864",
+            "1048576",
+            "1",
+            "close",
+            "67108864",
+            "97",
+            "existing",
+            "unobserved"
+          ],
+          "artifact": "/mnt/lima-afsbdata/afs-delivery/dfs-small-6d-20261007-r1/results/reader-r1/read-samples/round-03.json",
+          "elapsed_ns": 2454246939,
+          "measured": true,
+          "rc": 0,
+          "result": {
+            "barrier": "close",
+            "barrier_ns": 292,
+            "block_bytes": 1048576,
+            "cache_prepare_attempts": 0,
+            "cache_requested": "unobserved",
+            "client_cpu_ns": 14865707,
+            "concurrency": 1,
+            "content_ok": true,
+            "file_bytes": 67108864,
+            "file_object": {
+              "device": 48,
+              "inode": 3
+            },
+            "io_bytes": 67108864,
+            "operation": "seq-read",
+            "operations": 64,
+            "p50_ns": 37494434,
+            "p95_ns": 42374040,
+            "p99_ns": 49573594,
+            "pattern_byte": 97,
+            "residency_observed": false,
+            "resident_after_bytes": 0,
+            "resident_before_bytes": 0,
+            "seed": 257,
+            "wall_ns": 2448506795
+          },
+          "round": 3,
+          "status": "PASS",
+          "stderr": "",
+          "stdout": "{\"operation\":\"seq-read\",\"file_bytes\":67108864,\"io_bytes\":67108864,\"block_bytes\":1048576,\"concurrency\":1,\"barrier\":\"close\",\"pattern_byte\":97,\"seed\":257,\"operations\":64,\"wall_ns\":2448506795,\"client_cpu_ns\":14865707,\"barrier_ns\":292,\"p50_ns\":37494434,\"p95_ns\":42374040,\"p99_ns\":49573594,\"residency_observed\":false,\"resident_before_bytes\":0,\"resident_after_bytes\":0,\"content_ok\":true,\"cache_requested\":\"unobserved\",\"cache_prepare_attempts\":0,\"file_object\":{\"device\":48,\"inode\":3}}\n",
+          "verify": {
+            "status": "PASS"
+          }
+        }
+      ]
+    },
+    {
+      "measured": true,
+      "round": 4,
+      "samples": [
+        {
+          "argv": [
+            "/mnt/lima-afsbdata/afs-delivery/dfs-small-6d-20261007-r1/tools/io",
+            "/mnt/lima-afsbdata/afs-delivery/dfs-small-6d-20261007-r1/mount/dfs/dfs-manyread-small-1791324233953279435-848625/payload64m.bin",
+            "seq-read",
+            "67108864",
+            "1048576",
+            "1",
+            "close",
+            "67108864",
+            "97",
+            "existing",
+            "unobserved"
+          ],
+          "artifact": "/mnt/lima-afsbdata/afs-delivery/dfs-small-6d-20261007-r1/results/reader-r1/read-samples/round-04.json",
+          "elapsed_ns": 2426723738,
+          "measured": true,
+          "rc": 0,
+          "result": {
+            "barrier": "close",
+            "barrier_ns": 333,
+            "block_bytes": 1048576,
+            "cache_prepare_attempts": 0,
+            "cache_requested": "unobserved",
+            "client_cpu_ns": 14226586,
+            "concurrency": 1,
+            "content_ok": true,
+            "file_bytes": 67108864,
+            "file_object": {
+              "device": 48,
+              "inode": 3
+            },
+            "io_bytes": 67108864,
+            "operation": "seq-read",
+            "operations": 64,
+            "p50_ns": 37480351,
+            "p95_ns": 39509843,
+            "p99_ns": 42178083,
+            "pattern_byte": 97,
+            "residency_observed": false,
+            "resident_after_bytes": 0,
+            "resident_before_bytes": 0,
+            "seed": 257,
+            "wall_ns": 2420911345
+          },
+          "round": 4,
+          "status": "PASS",
+          "stderr": "",
+          "stdout": "{\"operation\":\"seq-read\",\"file_bytes\":67108864,\"io_bytes\":67108864,\"block_bytes\":1048576,\"concurrency\":1,\"barrier\":\"close\",\"pattern_byte\":97,\"seed\":257,\"operations\":64,\"wall_ns\":2420911345,\"client_cpu_ns\":14226586,\"barrier_ns\":333,\"p50_ns\":37480351,\"p95_ns\":39509843,\"p99_ns\":42178083,\"residency_observed\":false,\"resident_before_bytes\":0,\"resident_after_bytes\":0,\"content_ok\":true,\"cache_requested\":\"unobserved\",\"cache_prepare_attempts\":0,\"file_object\":{\"device\":48,\"inode\":3}}\n",
+          "verify": {
+            "status": "PASS"
+          }
+        }
+      ]
+    },
+    {
+      "measured": true,
+      "round": 5,
+      "samples": [
+        {
+          "argv": [
+            "/mnt/lima-afsbdata/afs-delivery/dfs-small-6d-20261007-r1/tools/io",
+            "/mnt/lima-afsbdata/afs-delivery/dfs-small-6d-20261007-r1/mount/dfs/dfs-manyread-small-1791324233953279435-848625/payload64m.bin",
+            "seq-read",
+            "67108864",
+            "1048576",
+            "1",
+            "close",
+            "67108864",
+            "97",
+            "existing",
+            "unobserved"
+          ],
+          "artifact": "/mnt/lima-afsbdata/afs-delivery/dfs-small-6d-20261007-r1/results/reader-r1/read-samples/round-05.json",
+          "elapsed_ns": 2407611839,
+          "measured": true,
+          "rc": 0,
+          "result": {
+            "barrier": "close",
+            "barrier_ns": 167,
+            "block_bytes": 1048576,
+            "cache_prepare_attempts": 0,
+            "cache_requested": "unobserved",
+            "client_cpu_ns": 14211659,
+            "concurrency": 1,
+            "content_ok": true,
+            "file_bytes": 67108864,
+            "file_object": {
+              "device": 48,
+              "inode": 3
+            },
+            "io_bytes": 67108864,
+            "operation": "seq-read",
+            "operations": 64,
+            "p50_ns": 37396018,
+            "p95_ns": 38090099,
+            "p99_ns": 40948630,
+            "pattern_byte": 97,
+            "residency_observed": false,
+            "resident_after_bytes": 0,
+            "resident_before_bytes": 0,
+            "seed": 257,
+            "wall_ns": 2401791653
+          },
+          "round": 5,
+          "status": "PASS",
+          "stderr": "",
+          "stdout": "{\"operation\":\"seq-read\",\"file_bytes\":67108864,\"io_bytes\":67108864,\"block_bytes\":1048576,\"concurrency\":1,\"barrier\":\"close\",\"pattern_byte\":97,\"seed\":257,\"operations\":64,\"wall_ns\":2401791653,\"client_cpu_ns\":14211659,\"barrier_ns\":167,\"p50_ns\":37396018,\"p95_ns\":38090099,\"p99_ns\":40948630,\"residency_observed\":false,\"resident_before_bytes\":0,\"resident_after_bytes\":0,\"content_ok\":true,\"cache_requested\":\"unobserved\",\"cache_prepare_attempts\":0,\"file_object\":{\"device\":48,\"inode\":3}}\n",
+          "verify": {
+            "status": "PASS"
+          }
+        }
+      ]
+    }
+  ],
+  "role": "reader",
+  "scope": "small DFS many-reader diagnostic; parent owns concurrency timing",
+  "status": "DATA_RECORDED"
+}

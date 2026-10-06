@@ -1,0 +1,234 @@
+{
+  "role": "b",
+  "root": "/mnt/lima-afsbdata/afs-delivery/dfs-small-6d-20261007-r1",
+  "config_sha256": "885993757201ff6e149350f151fade9cb7477c4f9c2d53b4b165ce967e1bc039",
+  "original_sha256": "58e249c7b60f65741e59a9b6fe22fb9c48f409aed7dd51b3c9b16f890aec6ef2",
+  "capacity": {
+    "volume": {
+      "target": "/mnt/lima-afsbdata",
+      "source": "/dev/vdb1",
+      "fstype": "ext4",
+      "options": "rw,relatime"
+    },
+    "available_bytes": 18626203648,
+    "allocated_bytes": 26099712,
+    "budget_bytes": 536870912,
+    "free_floor_bytes": 1073741824,
+    "scope": "single 64MiB file, R2 local storage/dirty view, binaries and bounded logs"
+  },
+  "inventory": {
+    "boot_id": "3adebcd0-cb31-4df0-b18a-e970786ab7fb",
+    "old_processes": [],
+    "mount_inventory": [
+      {
+        "target": "/",
+        "source": "/dev/vda1",
+        "fstype": "ext4",
+        "options": "rw,relatime,discard,errors=remount-ro,commit=30",
+        "id": 32,
+        "children": [
+          {
+            "target": "/sys",
+            "source": "sysfs",
+            "fstype": "sysfs",
+            "options": "rw,nosuid,nodev,noexec,relatime",
+            "id": 26,
+            "children": [
+              {
+                "target": "/sys/firmware/efi/efivars",
+                "source": "efivarfs",
+                "fstype": "efivarfs",
+                "options": "rw,nosuid,nodev,noexec,relatime",
+                "id": 31
+              },
+              {
+                "target": "/sys/kernel/security",
+                "source": "securityfs",
+                "fstype": "securityfs",
+                "options": "rw,nosuid,nodev,noexec,relatime",
+                "id": 33
+              },
+              {
+                "target": "/sys/fs/cgroup",
+                "source": "cgroup2",
+                "fstype": "cgroup2",
+                "options": "rw,nosuid,nodev,noexec,relatime,nsdelegate,memory_recursiveprot",
+                "id": 36
+              },
+              {
+                "target": "/sys/fs/pstore",
+                "source": "pstore",
+                "fstype": "pstore",
+                "options": "rw,nosuid,nodev,noexec,relatime",
+                "id": 37
+              },
+              {
+                "target": "/sys/fs/bpf",
+                "source": "bpf",
+                "fstype": "bpf",
+                "options": "rw,nosuid,nodev,noexec,relatime,mode=700",
+                "id": 38
+              },
+              {
+                "target": "/sys/kernel/debug",
+                "source": "debugfs",
+                "fstype": "debugfs",
+                "options": "rw,nosuid,nodev,noexec,relatime",
+                "id": 42,
+                "children": [
+                  {
+                    "target": "/sys/kernel/debug/tracing",
+                    "source": "tracefs",
+                    "fstype": "tracefs",
+                    "options": "rw,nosuid,nodev,noexec,relatime",
+                    "id": 129
+                  }
+                ]
+              },
+              {
+                "target": "/sys/kernel/tracing",
+                "source": "tracefs",
+                "fstype": "tracefs",
+                "options": "rw,nosuid,nodev,noexec,relatime",
+                "id": 43
+              },
+              {
+                "target": "/sys/fs/fuse/connections",
+                "source": "fusectl",
+                "fstype": "fusectl",
+                "options": "rw,nosuid,nodev,noexec,relatime",
+                "id": 44
+              },
+              {
+                "target": "/sys/kernel/config",
+                "source": "configfs",
+                "fstype": "configfs",
+                "options": "rw,nosuid,nodev,noexec,relatime",
+                "id": 45
+              }
+            ]
+          },
+          {
+            "target": "/proc",
+            "source": "proc",
+            "fstype": "proc",
+            "options": "rw,nosuid,nodev,noexec,relatime",
+            "id": 27,
+            "children": [
+              {
+                "target": "/proc/sys/fs/binfmt_misc",
+                "source": "systemd-1",
+                "fstype": "autofs",
+                "options": "rw,relatime,fd=32,pgrp=1,timeout=0,minproto=5,maxproto=5,direct,pipe_ino=5198",
+                "id": 39,
+                "children": [
+                  {
+                    "target": "/proc/sys/fs/binfmt_misc",
+                    "source": "binfmt_misc",
+                    "fstype": "binfmt_misc",
+                    "options": "rw,nosuid,nodev,noexec,relatime",
+                    "id": 51
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "target": "/dev",
+            "source": "udev",
+            "fstype": "devtmpfs",
+            "options": "rw,nosuid,relatime,size=2974872k,nr_inodes=743718,mode=755,inode64",
+            "id": 28,
+            "children": [
+              {
+                "target": "/dev/pts",
+                "source": "devpts",
+                "fstype": "devpts",
+                "options": "rw,nosuid,noexec,relatime,gid=5,mode=620,ptmxmode=000",
+                "id": 29
+              },
+              {
+                "target": "/dev/shm",
+                "source": "tmpfs",
+                "fstype": "tmpfs",
+                "options": "rw,nosuid,nodev,inode64",
+                "id": 34
+              },
+              {
+                "target": "/dev/hugepages",
+                "source": "hugetlbfs",
+                "fstype": "hugetlbfs",
+                "options": "rw,nosuid,nodev,relatime,pagesize=2M",
+                "id": 40
+              },
+              {
+                "target": "/dev/mqueue",
+                "source": "mqueue",
+                "fstype": "mqueue",
+                "options": "rw,nosuid,nodev,noexec,relatime",
+                "id": 41
+              }
+            ]
+          },
+          {
+            "target": "/run",
+            "source": "tmpfs",
+            "fstype": "tmpfs",
+            "options": "rw,nosuid,nodev,noexec,relatime,size=605372k,mode=755,inode64",
+            "id": 30,
+            "children": [
+              {
+                "target": "/run/lock",
+                "source": "tmpfs",
+                "fstype": "tmpfs",
+                "options": "rw,nosuid,nodev,noexec,relatime,size=5120k,inode64",
+                "id": 35
+              },
+              {
+                "target": "/run/user/501",
+                "source": "tmpfs",
+                "fstype": "tmpfs",
+                "options": "rw,nosuid,nodev,relatime,size=605368k,nr_inodes=151342,mode=700,uid=501,gid=1000,inode64",
+                "id": 58
+              }
+            ]
+          },
+          {
+            "target": "/boot",
+            "source": "/dev/vda16",
+            "fstype": "ext4",
+            "options": "rw,relatime",
+            "id": 47,
+            "children": [
+              {
+                "target": "/boot/efi",
+                "source": "/dev/vda15",
+                "fstype": "vfat",
+                "options": "rw,relatime,fmask=0077,dmask=0077,codepage=437,iocharset=iso8859-1,shortname=mixed,errors=remount-ro",
+                "id": 49
+              }
+            ]
+          },
+          {
+            "target": "/mnt/lima-cidata",
+            "source": "/dev/vdc",
+            "fstype": "iso9660",
+            "options": "ro,relatime,nojoliet,overriderockperm,check=s,map=n,blocksize=2048,uid=0,dmode=700,fmode=700,iocharset=utf8",
+            "id": 91
+          },
+          {
+            "target": "/mnt/lima-afsbdata",
+            "source": "/dev/vdb1",
+            "fstype": "ext4",
+            "options": "rw,relatime",
+            "id": 100
+          }
+        ]
+      }
+    ],
+    "selected_ports": [
+      23200,
+      23201
+    ]
+  }
+}

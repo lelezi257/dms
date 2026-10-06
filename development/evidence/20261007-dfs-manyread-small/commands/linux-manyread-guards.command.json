@@ -1,0 +1,15 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "afs-accept-a",
+    "sudo",
+    "bash",
+    "-c",
+    "cd \"$1/tools\" && python3 -m unittest -v test_dfs_manyread_small.py",
+    "_ ",
+    "/mnt/lima-afsadata/afs-delivery/dfs-small-6d-20261007-r1"
+  ],
+  "exit": 0,
+  "state": "TERMINAL"
+}

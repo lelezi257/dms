@@ -1,0 +1,15 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "afs-accept-b",
+    "sudo",
+    "python3",
+    "-c",
+    "import sys,json,hashlib;from pathlib import Path\nr=Path(sys.argv[1]);role=sys.argv[2];files=[]\nfor p in (r/'state/node/dfs/chunks').glob('*'):\n if p.is_file():\n  b=p.read_bytes();assert len(b)==4194304 and b==b'a'*4194304;files.append({'path':str(p),'bytes':len(b),'sha256':hashlib.sha256(b).hexdigest(),'complete_content_pattern97':True})\ncat=r/'state/node/dfs/catalog.wal';d={'role':role,'physical_chunks':files,'catalog_sha256':hashlib.sha256(cat.read_bytes()).hexdigest() if cat.exists() else None,'dedup_scope':'uniform64MiB logical file consists of16 equal4MiB extents; physical chunk reused, not unique64MiB physical corpus'}\nprint(json.dumps(d,indent=2))",
+    "/mnt/lima-afsbdata/afs-delivery/dfs-small-6d-20261007-r1",
+    "b"
+  ],
+  "exit": 0,
+  "state": "TERMINAL"
+}

@@ -1,0 +1,18 @@
+{
+  "source": "6d51aeb45c1ed8669d80f612b3817e6d1bdabe04",
+  "compiler_input_map": "66dbbe3e0071fcec1efc9cf370c709a99f025d39acd4f37ba57582c874429304",
+  "product_files": 157,
+  "package_sha256": "ee25d5892c4e884e67c86d4e5b9c6ab551af4c46649edab6a05da06659d1aff9",
+  "tools": {
+    "development/acceptance/probes/dfs_small_fixture.py": "5210fd8de21686d556001ad3888a526bd71df98d487a222bea4f6ab63280a91c",
+    "development/acceptance/probes/test_dfs_small_fixture.py": "753b147de4046e45701bbc5e77fcc9f1a149f6a7ddcb9b94623b58a26b492584",
+    "development/acceptance/dfs_manyread_small.py": "7038411730d3618290ea3418ba0f3458c9afda79f5498929ea9bd21bbe3c14df",
+    "development/acceptance/test_dfs_manyread_small.py": "685599bc68239d08317491697dc2aca558d37c94e8b36bcb6e958b1ea0f8c939"
+  },
+  "IO_sha256": "70ac97c7634d406a177a74c783d446b62a2014ba198586132882a1d9228e55e8",
+  "linux_guards": {
+    "fixture": 8,
+    "manyread": 7,
+    "total_unique": 15
+  }
+}

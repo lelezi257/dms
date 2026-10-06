@@ -1,0 +1,16 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "afs-accept-b",
+    "sudo",
+    "python3",
+    "-c",
+    "import sys,hashlib;from pathlib import Path\nsrc=Path(sys.argv[1]);dst=Path(sys.argv[2]);assert not dst.exists();b=src.read_bytes();assert hashlib.sha256(b).hexdigest()==sys.argv[3];dst.write_bytes(b);dst.chmod(0o644);print(sys.argv[3])",
+    "/var/tmp/dfs-small-6d-dfs_small_fixture.py",
+    "/mnt/lima-afsbdata/afs-delivery/dfs-small-6d-20261007-r1/tools/dfs_small_fixture.py",
+    "5210fd8de21686d556001ad3888a526bd71df98d487a222bea4f6ab63280a91c"
+  ],
+  "exit": 0,
+  "state": "TERMINAL"
+}

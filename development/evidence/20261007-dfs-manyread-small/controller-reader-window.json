@@ -1,0 +1,18 @@
+{
+  "readers": [
+    {
+      "role": "b",
+      "start_controller_monotonic_ns": 852152059113500,
+      "end_controller_monotonic_ns": 852169932152250,
+      "exit": 0
+    },
+    {
+      "role": "c",
+      "start_controller_monotonic_ns": 852152059172500,
+      "end_controller_monotonic_ns": 852161260470916,
+      "exit": 0
+    }
+  ],
+  "wall_ns": 17873282792,
+  "scope": "parent-controller diagnostic wall; includes startup/precheck/warmup and all five measured reads, not cross-VM synchronized IO time"
+}

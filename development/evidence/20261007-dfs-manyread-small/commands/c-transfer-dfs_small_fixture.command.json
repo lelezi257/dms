@@ -1,0 +1,10 @@
+{
+  "argv": [
+    "limactl",
+    "copy",
+    "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/source/development/acceptance/probes/dfs_small_fixture.py",
+    "afs-accept-c:/var/tmp/dfs-small-6d-dfs_small_fixture.py"
+  ],
+  "exit": 0,
+  "state": "TERMINAL"
+}

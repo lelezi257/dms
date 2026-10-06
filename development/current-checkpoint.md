@@ -1,6 +1,6 @@
-**当前切片（2026-10-07）：** 产品6d51aeb/map66dbbe3e/157输入未变，Owner远端B-Home与Moose单副本B的小读/删除完成数据采集；各1预热+5配对，64MiB完整内容及B独立读、600删除路径确认PASS。读中位数427.371/14854.399MiB/s，删除1039.769/1241.516次/s；缓存未观察、旧负载保留，不称持平/正式性能资格。A Moose客户端TERM真实wait1为清理FAIL，原判据不改；其余新服务stop0，独立postcheck无新进程/mount、旧incarnation未变。 [版本、全部数据/失败/命令](evidence/20261007-owner-remote-small/README.md)。
+**当前切片（2026-10-07）：** 固定6d51aeb/map66dbbe3e/157输入，DFS-only/local-file Meta/gRPC/R2/native OFF完成64MiB一写两读：A fdatasync及目录fsync、B/C完整SHA与各1预热5读PASS；读中位数B26.138/C50.222MiB/s，父控制器含启动/预检/预热的768MiB总量诊断42.969MiB/s。两份Ready副本在A/C；均匀内容去重成各4MiB物理chunk，不称唯一64MiB语料或三同步/3FS正式性能。四个服务真实wait0、无新进程/mount、旧incarnation不变。首次收尾检查器误识别自身的FAIL原文保留，精确argv-token修正后通过，无产品重启/重测。 [证据](evidence/20261007-dfs-manyread-small/README.md)。
 
-**下一项：** 不重跑本轮数据或微调残差；保留远端优化及Moose客户端正常关闭协议缺口为独立TODO，转DFS小规模一写多读摸底。Owner远端写强持久比较、DFS三同步/3FS基线、R2官方fuser API仍各自独立未闭合；bind默认OFF。G1历史8/8、G2 9限定完成/2普通性能FAIL/2bind进行中/14待验收不变。OFF试用包已可下载，复现/35checks安装恢复不变；不计完整G2.27。
+**下一项：** Owner远端小规模写按冻结屏障留核心数据；Moose强持久写基线/三同步3FS仍独立阻塞，普通性能优化、大规模/复杂可靠性及etcd/Redis后置。已有远端读/删除摸底与Moose客户端wait1 FAIL保留；bind默认OFF，锁/append偏移/watch缺口单列。G1历史8/8、G2 9限定完成/2普通性能FAIL/2bind进行中/14待验收不变；OFF试用可下载，不计完整G2.27。
 
 **历史说明：** 下方旧检查点按原版本/范围保存；其旧下一动作由上方当前入口和验收主表覆盖。当前native偏移/经典锁/watch失败与普通性能失败原始记录均保留。
 

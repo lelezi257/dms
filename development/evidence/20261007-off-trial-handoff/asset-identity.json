@@ -1,0 +1,47 @@
+{
+  "documentation_commit": "c7b119692f510eb810570d0246ef9c57dc39a8f6",
+  "canonical_guide_sha256": "fb33e6ee82334926796a4d9d5e945b8c8b4140720729ca82867cfcf009119c99",
+  "link_transformations": [
+    {
+      "from": "trial.md",
+      "to": "https://github.com/lelezi257/dms/blob/c7b119692f510eb810570d0246ef9c57dc39a8f6/docs/guides/trial.md"
+    },
+    {
+      "from": "../../development/evidence/20261007-installed-off-6d/README.md",
+      "to": "https://github.com/lelezi257/dms/blob/c7b119692f510eb810570d0246ef9c57dc39a8f6/development/evidence/20261007-installed-off-6d/README.md"
+    },
+    {
+      "from": "../../development/evidence/20261007-off-trial-handoff/README.md",
+      "to": "https://github.com/lelezi257/dms/blob/c7b119692f510eb810570d0246ef9c57dc39a8f6/development/evidence/20261007-off-trial-handoff/README.md"
+    },
+    {
+      "from": "../../development/trial-release-goals.md",
+      "to": "https://github.com/lelezi257/dms/blob/c7b119692f510eb810570d0246ef9c57dc39a8f6/development/trial-release-goals.md"
+    },
+    {
+      "from": "../../development/evidence/20261007-container-perf/README.md",
+      "to": "https://github.com/lelezi257/dms/blob/c7b119692f510eb810570d0246ef9c57dc39a8f6/development/evidence/20261007-container-perf/README.md"
+    },
+    {
+      "from": "../../development/evidence/20261007-append-diagnostic/README.md",
+      "to": "https://github.com/lelezi257/dms/blob/c7b119692f510eb810570d0246ef9c57dc39a8f6/development/evidence/20261007-append-diagnostic/README.md"
+    }
+  ],
+  "assets": [
+    {
+      "name": "afs-0.1.0-g2-procfree-6d51aeb-linux-aarch64.tar.gz",
+      "size": 14728435,
+      "sha256": "ee25d5892c4e884e67c86d4e5b9c6ab551af4c46649edab6a05da06659d1aff9"
+    },
+    {
+      "name": "SHA256SUMS",
+      "size": 117,
+      "sha256": "0598ff2f7048c17692f4323dae798a10041a5adc2423775e607149f7b5cb960e"
+    },
+    {
+      "name": "TRIAL.md",
+      "size": 5689,
+      "sha256": "c48c2b2e8e7d87a0a02e81dffd8471b36671957083926b6d49ef211d50f216c4"
+    }
+  ]
+}

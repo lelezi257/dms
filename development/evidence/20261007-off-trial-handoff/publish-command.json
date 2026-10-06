@@ -1,0 +1,14 @@
+{
+  "argv": [
+    "gh",
+    "release",
+    "edit",
+    "afs-trial-6d51aeb",
+    "--draft=false",
+    "--prerelease",
+    "--latest=false"
+  ],
+  "exit": 0,
+  "stdout": "https://github.com/lelezi257/dms/releases/tag/afs-trial-6d51aeb\n",
+  "stderr": ""
+}

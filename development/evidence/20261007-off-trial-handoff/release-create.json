@@ -1,0 +1,23 @@
+{
+  "argv": [
+    "gh",
+    "release",
+    "create",
+    "afs-trial-6d51aeb",
+    "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/managed-workspace-20261007-r1/afs-0.1.0-g2-procfree-6d51aeb-linux-aarch64.tar.gz",
+    "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/off-trial-handoff-20261007-r1/assets/SHA256SUMS",
+    "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/off-trial-handoff-20261007-r1/assets/TRIAL.md",
+    "--target",
+    "6d51aeb45c1ed8669d80f612b3817e6d1bdabe04",
+    "--title",
+    "AFS 6d51aeb default-OFF ARM64 trial",
+    "--prerelease",
+    "--latest=false",
+    "--draft",
+    "--notes-file",
+    "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/off-trial-handoff-20261007-r1/release-notes.md"
+  ],
+  "exit": 0,
+  "stdout": "https://github.com/lelezi257/dms/releases/tag/untagged-b711be5dfd36ec382b6e\n",
+  "stderr": ""
+}

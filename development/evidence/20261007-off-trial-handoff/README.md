@@ -35,3 +35,5 @@ FAIL/data remain, R2 official fuser API migration is still independently blocked
 Next independent performance item is Owner remote read/delete small data;
 [read-only environment admission](../20261007-owner-remote-admission/README.md)
 will distinguish legacy helper constraints from the new fixture contract.
+
+**Published and remotely verified:** [fixed default-OFF prerelease](https://github.com/lelezi257/dms/releases/tag/afs-trial-6d51aeb). Three asset sizes/digests match local package/checksum/checklist identities, tag resolves to fixed product source6d, public prerelease true, stableLatest remainsv0.1.0. [Publication](publication.json), [asset transformation/provenance](asset-identity.json), [tag](remote-tag.json). This closes the downloadable OFF handoff slice only.

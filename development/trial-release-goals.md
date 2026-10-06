@@ -84,7 +84,7 @@
 | G2.24 | DFS多节点读写 | 固定文件/并发，读写分别验收，不用平均数掩盖失败 | **待验收** |
 | G2.25 | DFS删除 | 固定文件集合，删除正确，操作性能对照报告 | **待验收** |
 | G2.26 | DFS大规模一写多读 | 512MiB/8GiB分别留结果；读者正确、总/单读者与3FS对照 | **待验收**；各规模独立验收 |
-| G2.27 | 核心性能版本交付 | 同候选已选核心case/必要组合回归、可复现包、独立安装/恢复及完整状态报告 | **待验收**；[6d OFF安装/恢复](evidence/20261007-installed-off-6d/README.md)和[同包复现/试用清单](evidence/20261007-off-trial-handoff/README.md)分项已过，固定prerelease准备中；完整选定性能/组合出口仍待验收，native保持OFF，不称G2全表完成 |
+| G2.27 | 核心性能版本交付 | 同候选已选核心case/必要组合回归、可复现包、独立安装/恢复及完整状态报告 | **待验收**；[6d OFF安装/恢复](evidence/20261007-installed-off-6d/README.md)和[同包复现/试用清单](evidence/20261007-off-trial-handoff/README.md)分项已过，固定prerelease已发布并核对；完整选定性能/组合出口仍待验收，native保持OFF，不称G2全表完成 |
 
 **决策：** native已知append、实际kernel锁、混合mmap/watch、最终namespace/Root/epoch及排空缺口属于G2.12启用前条件，不能延期后冒充通过。OFF版本和普通FUSE性能独立推进；开关不掩盖ON错误，当前不声称已有可用生产开关。
 

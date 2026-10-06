@@ -1,0 +1,85 @@
+{
+  "status": "PASS_B_INDEPENDENT_6_FULL_CONTENT_READS",
+  "root": "/mnt/lima-afsbdata/afs-delivery/owner-remote-write-6d-bhome-20261007-r1/mount/ownerfs/g2-remote-write-6d-bhome-r1/small-write-r1",
+  "mount": {
+    "target": "/mnt/lima-afsbdata/afs-delivery/owner-remote-write-6d-bhome-20261007-r1/mount/ownerfs",
+    "source": "afs-ownerfs",
+    "fstype": "fuse",
+    "id": 92,
+    "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+  },
+  "files": [
+    {
+      "file": "owner-write-r00-payload64m.bin",
+      "bytes": 67108864,
+      "sha256": "fae972222d455a2eaee1661ad9625502ec3bfc5ec38b87a6eec5afd5107331b5",
+      "stat": {
+        "inode": 4,
+        "device": 48,
+        "mode": 33152,
+        "size": 67108864
+      },
+      "fresh_open_after_A_closed": true
+    },
+    {
+      "file": "owner-write-r01-payload64m.bin",
+      "bytes": 67108864,
+      "sha256": "fae972222d455a2eaee1661ad9625502ec3bfc5ec38b87a6eec5afd5107331b5",
+      "stat": {
+        "inode": 5,
+        "device": 48,
+        "mode": 33152,
+        "size": 67108864
+      },
+      "fresh_open_after_A_closed": true
+    },
+    {
+      "file": "owner-write-r02-payload64m.bin",
+      "bytes": 67108864,
+      "sha256": "fae972222d455a2eaee1661ad9625502ec3bfc5ec38b87a6eec5afd5107331b5",
+      "stat": {
+        "inode": 6,
+        "device": 48,
+        "mode": 33152,
+        "size": 67108864
+      },
+      "fresh_open_after_A_closed": true
+    },
+    {
+      "file": "owner-write-r03-payload64m.bin",
+      "bytes": 67108864,
+      "sha256": "fae972222d455a2eaee1661ad9625502ec3bfc5ec38b87a6eec5afd5107331b5",
+      "stat": {
+        "inode": 7,
+        "device": 48,
+        "mode": 33152,
+        "size": 67108864
+      },
+      "fresh_open_after_A_closed": true
+    },
+    {
+      "file": "owner-write-r04-payload64m.bin",
+      "bytes": 67108864,
+      "sha256": "fae972222d455a2eaee1661ad9625502ec3bfc5ec38b87a6eec5afd5107331b5",
+      "stat": {
+        "inode": 8,
+        "device": 48,
+        "mode": 33152,
+        "size": 67108864
+      },
+      "fresh_open_after_A_closed": true
+    },
+    {
+      "file": "owner-write-r05-payload64m.bin",
+      "bytes": 67108864,
+      "sha256": "fae972222d455a2eaee1661ad9625502ec3bfc5ec38b87a6eec5afd5107331b5",
+      "stat": {
+        "inode": 9,
+        "device": 48,
+        "mode": 33152,
+        "size": 67108864
+      },
+      "fresh_open_after_A_closed": true
+    }
+  ]
+}

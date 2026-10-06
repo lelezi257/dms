@@ -1,0 +1,39 @@
+--- a/owner_remote_fixture.py
++++ b/owner_remote_fixture.py
+@@ -303,7 +303,13 @@
+         if self.role == "a":
+             safe(io_path, self.root / "tools")
+             identities["io"] = self.check_elf(io_path, ELF["io"])
+-            identities["fusermount3"] = self.inspect_unmount()
++            unmount = self.unmount_identity()
++            help_text = self.run([unmount["path"], "--help"])
++            help_text += self.commands[-1]["stderr"]
++            require("-u" in help_text and "unmount" in help_text.lower(), "fusermount3 normal unmount capability missing")
++            self.run([unmount["path"], "--version"])
++            require("not found" not in self.run(["ldd", unmount["path"]]), "fusermount3 dependency missing")
++            identities["fusermount3"] = unmount
+         selected = {"ctl": ["sbin/mfsmaster", "var/mfs/metadata.mfs.empty"],
+                     "b": ["sbin/mfschunkserver"], "a": [p for p in MOOSE_SHA if p.startswith("bin/")]}[self.role]
+         for relative in selected:
+@@ -338,21 +344,6 @@
+                   "capacity": self.capacity(admission=True), "remaining": "authenticated connectivity, live mount/Home/class/topology proofs belong to execution"}
+         write_json(self.root / "run/config-admitted.json", result)
+         return result
+-
+-    def inspect_unmount(self):
+-        identity = self.unmount_identity()
+-        # Use the short options advertised by the installed stock helper. Its
+-        # help begins with '<program>: [options] mountpoint', not 'Usage:'.
+-        # Preserve the raw help returncode, including the observed exit 1.
+-        text = self.run([identity["path"], "-h"], allowed=(0, 1))
+-        text += self.commands[-1]["stderr"]
+-        patterns = (r"^(?:/usr/bin/)?fusermount3:\s*\[options\]\s+mountpoint\s*$",
+-                    r"^Options:\s*$", r"^\s*-h\s+print help\s*$",
+-                    r"^\s*-V\s+print version\s*$", r"^\s*-u\s+unmount\s*$")
+-        require(all(re.search(pattern, text, re.M) for pattern in patterns), "fusermount3 normal unmount capability missing")
+-        self.run([identity["path"], "-V"])
+-        require("not found" not in self.run(["ldd", identity["path"]]), "fusermount3 dependency missing")
+-        return identity
+ 
+     def unmount_identity(self):
+         path = shutil.which("fusermount3")

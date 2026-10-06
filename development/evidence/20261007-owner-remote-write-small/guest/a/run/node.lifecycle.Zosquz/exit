@@ -1,0 +1,8 @@
+pid=849120
+exe=/mnt/lima-afsadata/afs-delivery/owner-remote-write-6d-bhome-20261007-r1/prefix/bin/afs-node
+config=/mnt/lima-afsadata/afs-delivery/owner-remote-write-6d-bhome-20261007-r1/etc/node.toml
+start_ticks=57451548
+boot_id=36a572e0-859b-4a94-adc7-789210a83fc8
+lifecycle=/mnt/lima-afsadata/afs-delivery/owner-remote-write-6d-bhome-20261007-r1/run/node.lifecycle.Zosquz
+supervisor_pid=849104
+exit_code=0

@@ -1,0 +1,80 @@
+{
+  "schema": "afs.owner_remote_fixture.v1",
+  "action": "moose-start",
+  "role": "b",
+  "root": "/mnt/lima-afsbdata/afs-delivery/owner-remote-write-6d-bhome-20261007-r1",
+  "time_unix_ns": 1791325462014499091,
+  "commands": [
+    {
+      "argv": [
+        "findmnt",
+        "-J",
+        "--mountpoint",
+        "/mnt/lima-afsbdata"
+      ],
+      "returncode": 0,
+      "stdout": "{\n   \"filesystems\": [\n      {\n         \"target\": \"/mnt/lima-afsbdata\",\n         \"source\": \"/dev/vdb1\",\n         \"fstype\": \"ext4\",\n         \"options\": \"rw,relatime\"\n      }\n   ]\n}\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "findmnt",
+        "-J",
+        "--mountpoint",
+        "/mnt/lima-afsbdata/afs-delivery/owner-remote-write-6d-bhome-20261007-r1/mount/moose",
+        "-o",
+        "TARGET,SOURCE,FSTYPE,OPTIONS,ID"
+      ],
+      "returncode": 1,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "ss",
+        "-ltnp"
+      ],
+      "returncode": 0,
+      "stdout": "State  Recv-Q Send-Q Local Address:Port  Peer Address:PortProcess                                                 \nLISTEN 0      4096         0.0.0.0:22         0.0.0.0:*    users:((\"sshd\",pid=1147,fd=3),(\"systemd\",pid=1,fd=173))\nLISTEN 0      4096   127.0.0.53%lo:53         0.0.0.0:*    users:((\"systemd-resolve\",pid=463,fd=17))              \nLISTEN 0      4096      127.0.0.54:53         0.0.0.0:*    users:((\"systemd-resolve\",pid=463,fd=19))              \nLISTEN 0      128          0.0.0.0:22901      0.0.0.0:*    users:((\"afs-node\",pid=239570,fd=14))                  \nLISTEN 0      128          0.0.0.0:22900      0.0.0.0:*    users:((\"afs-node\",pid=239570,fd=13))                  \nLISTEN 0      4096            [::]:22            [::]:*    users:((\"sshd\",pid=1147,fd=4),(\"systemd\",pid=1,fd=174))\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "ss",
+        "-ltnp"
+      ],
+      "returncode": 0,
+      "stdout": "State  Recv-Q Send-Q  Local Address:Port  Peer Address:PortProcess                                                 \nLISTEN 0      4096          0.0.0.0:22         0.0.0.0:*    users:((\"sshd\",pid=1147,fd=3),(\"systemd\",pid=1,fd=173))\nLISTEN 0      4096    127.0.0.53%lo:53         0.0.0.0:*    users:((\"systemd-resolve\",pid=463,fd=17))              \nLISTEN 0      4096       127.0.0.54:53         0.0.0.0:*    users:((\"systemd-resolve\",pid=463,fd=19))              \nLISTEN 0      100    192.168.109.13:23043      0.0.0.0:*    users:((\"mfschunkserver\",pid=239722,fd=12))            \nLISTEN 0      128           0.0.0.0:22901      0.0.0.0:*    users:((\"afs-node\",pid=239570,fd=14))                  \nLISTEN 0      128           0.0.0.0:22900      0.0.0.0:*    users:((\"afs-node\",pid=239570,fd=13))                  \nLISTEN 0      4096             [::]:22            [::]:*    users:((\"sshd\",pid=1147,fd=4),(\"systemd\",pid=1,fd=174))\n",
+      "stderr": ""
+    }
+  ],
+  "status": "STARTED_IDENTITY_ONLY",
+  "lifecycle": "/mnt/lima-afsbdata/afs-delivery/owner-remote-write-6d-bhome-20261007-r1/run/moose-chunk-a337805bad9e4a399861d27d298db00a",
+  "child": {
+    "role": "b",
+    "fixture": "owner-remote-write-6d-bhome-20261007-r1",
+    "root": "/mnt/lima-afsbdata/afs-delivery/owner-remote-write-6d-bhome-20261007-r1",
+    "argv": [
+      "/opt/afs-moose-round3-v85/sbin/mfschunkserver",
+      "-f",
+      "-c",
+      "/mnt/lima-afsbdata/afs-delivery/owner-remote-write-6d-bhome-20261007-r1/config/mfschunkserver.cfg",
+      "start"
+    ],
+    "config_sha256": {
+      "/mnt/lima-afsbdata/afs-delivery/owner-remote-write-6d-bhome-20261007-r1/etc/node.toml": "47398cd07df92916dad5d4a68d5feceaf09cae422993f058fd0ee70eb11d9b49",
+      "/mnt/lima-afsbdata/afs-delivery/owner-remote-write-6d-bhome-20261007-r1/config/mfschunkserver.cfg": "bebbe82ea42c1dbaeea5ecf46c302b9a810e6b876f86fa6a8220d3b556c7be4e",
+      "/mnt/lima-afsbdata/afs-delivery/owner-remote-write-6d-bhome-20261007-r1/config/mfshdd.cfg": "ab8f67cacf973a438a0646191dca1d23c49cc5453f68d0f82a2063741e3035ba"
+    },
+    "script_sha256": "0b45a48253eeb89bdc8cdc9464411356469ea30a7da2899e12a36513d7a8d683",
+    "boot_id": "3adebcd0-cb31-4df0-b18a-e970786ab7fb",
+    "state": "R",
+    "start_ticks": 56518060,
+    "exe_path": "/opt/afs-moose-round3-v85/sbin/mfschunkserver",
+    "exe_dev": 64769,
+    "exe_inode": 277273,
+    "pid": 239722,
+    "supervisor_pid": 239721,
+    "exe_sha256": "422a36b7e31a6aa0bfbef08efe083d9d55003aca0a9a7bd0121b730c33f97303"
+  }
+}

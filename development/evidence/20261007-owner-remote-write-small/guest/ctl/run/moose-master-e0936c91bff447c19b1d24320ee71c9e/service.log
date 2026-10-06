@@ -1,0 +1,53 @@
+open files limit has been set to: 16384
+set gid to 0
+cleared auxiliary groups
+set uid to 0
+working directory: /mnt/lima-afsctlstate/afs-delivery/owner-remote-write-6d-bhome-20261007-r1/state/moose/master
+lockfile created and locked
+monotonic clock function: clock_gettime
+monotonic clock speed: 641778 ops / 10 mili seconds
+initializing mfsmaster modules ...
+mfscsipmap configuration file (/home/lzc.guest/afs-build/baselines/moosefs-install/etc/mfs/mfsipmap.cfg) not found - no chunkserver ip mappings
+exports file has been loaded
+mfstopology configuration file (/home/lzc.guest/afs-build/baselines/moosefs-install/etc/mfs/mfstopology.cfg) not found - network topology not defined
+loading metadata ...
+metadata file has been loaded
+no charts data file - initializing empty charts
+master <-> metaloggers module: listen on 192.168.109.11:23040
+master <-> chunkservers module: listen on 192.168.109.11:23041
+main master server module: listen on 192.168.109.11:23042
+mfsmaster daemon initialized properly
+csdb: server not found (192.168.109.13:23043,0), add it to database
+chunkserver 192.168.109.13:23043 register begin, usedspace: 0 (0.00 GiB), totalspace: 0 (0.00 GiB)
+csdb: generate new server id for (192.168.109.13:23043): 1
+chunkserver 192.168.109.13:23043 register end
+created new sessionid:1 (client ip:192.168.109.12)
+chunkserver 192.168.109.13:23043 graceful disconnection
+chunkserver 192.168.109.13:23043 disconnected, usedspace: 18400784384 (17.14 GiB), totalspace: 31899222016 (29.71 GiB)
+server 192.168.109.13:23043 has been fully removed from data structures
+terminate signal received
+remove session: 1
+exited from main loop
+exititng ...
+main master server module: closing 192.168.109.11:23042
+master <-> chunkservers module: closing 192.168.109.11:23041
+master control module: closing 192.168.109.11:23040
+cleaning metadata ...
+cleaning fs data ...cleaning objects ... done
+cleaning names ... done
+cleaning deletion timestamps ... done
+cleaning quota definitions ... done
+done
+cleaning chunks data ...done
+cleaning xattr data ...done
+cleaning posix_acl data ...done
+cleaning flock locks data ...done
+cleaning posix locks data ...done
+cleaning chunkservers data ...done
+cleaning open files data ...done
+cleaning sessions data ...done
+cleaning storage classes data ...done
+cleaning patterns data ...done
+cleaning dictionary data ...done
+metadata have been cleaned
+process exited successfully (status:0)

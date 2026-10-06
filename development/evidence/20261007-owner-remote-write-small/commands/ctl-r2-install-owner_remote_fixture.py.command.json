@@ -1,0 +1,17 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "afs-accept-ctl",
+    "sudo",
+    "python3",
+    "-c",
+    "import sys,hashlib,json\nfrom pathlib import Path\np=Path(sys.argv[1]);t=Path(sys.argv[2]);old,expected=sys.argv[3:5];assert p.is_file() and not p.is_symlink() and hashlib.sha256(p.read_bytes()).hexdigest()==old;assert hashlib.sha256(t.read_bytes()).hexdigest()==expected;p.write_bytes(t.read_bytes());p.chmod(0o644);print(json.dumps({'status':'PASS_FIRST_PARTY_TOOL_REPLACEMENT_BEFORE_START','path':str(p),'old':old,'new':expected}))",
+    "/mnt/lima-afsctlstate/afs-delivery/owner-remote-write-6d-bhome-20261007-r1/tools/owner_remote_fixture.py",
+    "/var/tmp/owner-write-6d-ctl-owner_remote_fixture.py-r2",
+    "6dfaeca8acc1a5ac2b44aef06f6c824fb9df192d74c97a6ecd3be59b1700de06",
+    "0b45a48253eeb89bdc8cdc9464411356469ea30a7da2899e12a36513d7a8d683"
+  ],
+  "exit": 0,
+  "state": "TERMINAL"
+}

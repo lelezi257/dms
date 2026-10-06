@@ -1,0 +1,41 @@
+[
+  {
+    "role": "ctl",
+    "tar": "/var/tmp/owner-write-6d-ctl-config.tar",
+    "sha256": "ee509e5a46aad09c2475871942f433556d4065cdf315fc1d2905585e4b0540e0",
+    "files": {
+      "meta.toml": "f9ed4346e029b9bbfd1c4456464e6ce62495784b19ccd18c43151ed8be179b1b",
+      "tls/remote-a-r1.pem": "642770e242d72b9e1cbc289e7796e52b35fd8347362dc59245939a7a44ebbc3d",
+      "tls/ca.pem": "14e14ccc9b2cb55d7efb847cbe680099f9860fc9cafa15ccef8402bec08dbda1",
+      "tls/remote-b-r1.pem": "ef2ff92494b7cf28a90695f36d05d0d2203ff5bc094da7123f022779e1e2104e",
+      "tls/meta-key.pem": "155786dfc438f807900d3ef6265638fd66f05784b04b97cbab9728ecf8e378a0",
+      "tls/meta.pem": "7a98096f0868210fd6471ff9ef85cd39f962fdd672280d54d3cd3bf37bf0ec16"
+    }
+  },
+  {
+    "role": "a",
+    "tar": "/var/tmp/owner-write-6d-a-config.tar",
+    "sha256": "9c18a2e011ee91fca47d5974018eb86c84f8e9c8be9c8da4c550a99d73672a82",
+    "files": {
+      "node.toml": "49141d4ce378b9193245383ff7851230c0748bdc25b9a68f9bccf92fc19e2038",
+      "tls/remote-a-r1.pem": "642770e242d72b9e1cbc289e7796e52b35fd8347362dc59245939a7a44ebbc3d",
+      "tls/ca.pem": "14e14ccc9b2cb55d7efb847cbe680099f9860fc9cafa15ccef8402bec08dbda1",
+      "tls/remote-b-r1.pem": "ef2ff92494b7cf28a90695f36d05d0d2203ff5bc094da7123f022779e1e2104e",
+      "tls/meta.pem": "7a98096f0868210fd6471ff9ef85cd39f962fdd672280d54d3cd3bf37bf0ec16",
+      "tls/remote-a-r1-key.pem": "09ff65f9d43cb81ce48e18886ce237ba926abd065df732a8613238c6215269b5"
+    }
+  },
+  {
+    "role": "b",
+    "tar": "/var/tmp/owner-write-6d-b-config.tar",
+    "sha256": "c4ad83775d87ba1416f5f1ac77c73b9a6b43f930fdf6ec5f91c7b6b60ef36a17",
+    "files": {
+      "node.toml": "e22734d1966245fa7f7a1aa6dad1aa32e362eaea20a7d39fead5c6a907fab0c9",
+      "tls/remote-b-r1-key.pem": "4c99f52ceeda4493fce176bb20e60ed01f0ee5480f3199238f07488effd7904f",
+      "tls/remote-a-r1.pem": "642770e242d72b9e1cbc289e7796e52b35fd8347362dc59245939a7a44ebbc3d",
+      "tls/ca.pem": "14e14ccc9b2cb55d7efb847cbe680099f9860fc9cafa15ccef8402bec08dbda1",
+      "tls/remote-b-r1.pem": "ef2ff92494b7cf28a90695f36d05d0d2203ff5bc094da7123f022779e1e2104e",
+      "tls/meta.pem": "7a98096f0868210fd6471ff9ef85cd39f962fdd672280d54d3cd3bf37bf0ec16"
+    }
+  }
+]

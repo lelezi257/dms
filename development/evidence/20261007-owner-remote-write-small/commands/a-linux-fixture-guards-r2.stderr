@@ -1,0 +1,19 @@
+test_foreign_child_is_rejected_before_signal (test_owner_remote_fixture.FixtureGuards.test_foreign_child_is_rejected_before_signal) ... ok
+test_foreign_mount_refused_before_unmount_or_signal (test_owner_remote_fixture.FixtureGuards.test_foreign_mount_refused_before_unmount_or_signal) ... ok
+test_help_exit_one_with_normal_usage_is_retained_and_admitted (test_owner_remote_fixture.FixtureGuards.test_help_exit_one_with_normal_usage_is_retained_and_admitted) ... ok
+test_help_exit_one_without_usage_or_unmount_option_is_rejected (test_owner_remote_fixture.FixtureGuards.test_help_exit_one_without_usage_or_unmount_option_is_rejected) ... ok
+test_historical_fixture_cannot_be_prepared_or_readmitted (test_owner_remote_fixture.FixtureGuards.test_historical_fixture_cannot_be_prepared_or_readmitted) ... ok
+test_new_fixture_has_independent_root_and_propagates_to_supervisor (test_owner_remote_fixture.FixtureGuards.test_new_fixture_has_independent_root_and_propagates_to_supervisor) ... ok
+test_nonzero_version_is_not_covered_by_help_exit_exception (test_owner_remote_fixture.FixtureGuards.test_nonzero_version_is_not_covered_by_help_exit_exception) ... ok
+test_normal_unmount_requires_real_wait_zero_and_mount_gone (test_owner_remote_fixture.FixtureGuards.test_normal_unmount_requires_real_wait_zero_and_mount_gone) ... ok
+test_owner_only_config_preserves_trust_and_removes_dfs_mount (test_owner_remote_fixture.FixtureGuards.test_owner_only_config_preserves_trust_and_removes_dfs_mount) ... ok
+test_path_escape_and_dangling_symlink_are_rejected (test_owner_remote_fixture.FixtureGuards.test_path_escape_and_dangling_symlink_are_rejected) ... ok
+test_previous_nonzero_wait_receipt_remains_failure (test_owner_remote_fixture.FixtureGuards.test_previous_nonzero_wait_receipt_remains_failure) ... ok
+test_scheduling_state_is_not_identity_but_pid_reuse_is (test_owner_remote_fixture.FixtureGuards.test_scheduling_state_is_not_identity_but_pid_reuse_is) ... ok
+test_supervisor_rejects_foreign_fixture_before_spawn (test_owner_remote_fixture.FixtureGuards.test_supervisor_rejects_foreign_fixture_before_spawn) ... ok
+test_unmount_failure_retains_child_without_term_fallback (test_owner_remote_fixture.FixtureGuards.test_unmount_failure_retains_child_without_term_fallback) ... ok
+
+----------------------------------------------------------------------
+Ran 14 tests in 0.007s
+
+OK

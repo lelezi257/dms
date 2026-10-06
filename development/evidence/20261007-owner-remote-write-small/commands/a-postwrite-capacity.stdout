@@ -1,0 +1,9 @@
+{
+  "status": "PASS_CAPACITY_BOUND_AFTER_IO",
+  "root": "/mnt/lima-afsadata/afs-delivery/owner-remote-write-6d-bhome-20261007-r1",
+  "tree_bytes_without_mounts": 26357637,
+  "budget_bytes": 268435456,
+  "free_bytes": 4237946880,
+  "floor_bytes": 1073741824,
+  "moose_chunk_files": []
+}

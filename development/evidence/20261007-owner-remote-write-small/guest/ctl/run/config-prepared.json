@@ -1,0 +1,10 @@
+{
+  "role": "ctl",
+  "root": "/mnt/lima-afsctlstate/afs-delivery/owner-remote-write-6d-bhome-20261007-r1",
+  "config_sha256": {
+    "/mnt/lima-afsctlstate/afs-delivery/owner-remote-write-6d-bhome-20261007-r1/etc/meta.toml": "c78506f07bd73dde50e637e145a4dada316e543923d67797d529c0e7664efa40",
+    "/mnt/lima-afsctlstate/afs-delivery/owner-remote-write-6d-bhome-20261007-r1/config/mfsmaster.cfg": "e942e4668319b3d2531fe2913e79a724cb62f59cb3a65efd0bf81fa30b3db5b9",
+    "/mnt/lima-afsctlstate/afs-delivery/owner-remote-write-6d-bhome-20261007-r1/config/mfsexports.cfg": "07fd79509108b0d7aca641a6465f5107e3e61bebd6085639996009233bf856fd"
+  },
+  "original_sha256": "f9ed4346e029b9bbfd1c4456464e6ce62495784b19ccd18c43151ed8be179b1b"
+}

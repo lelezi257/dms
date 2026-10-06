@@ -1,0 +1,16 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "afs-accept-ctl",
+    "sudo",
+    "python3",
+    "-c",
+    "import sys,json,tarfile,hashlib\nfrom pathlib import Path\nr=Path(sys.argv[1]);a=Path(sys.argv[2]);j=json.loads(sys.argv[3]);assert hashlib.sha256(a.read_bytes()).hexdigest()==j['archive']\nwith tarfile.open(a) as t:\n members=t.getmembers();assert len(members)==len(j['files']) and all(x.isfile() and x.name in j['files'] for x in members)\n for x in members:\n  b=t.extractfile(x).read();assert hashlib.sha256(b).hexdigest()==j['files'][x.name];p=r/'tools'/x.name;assert not p.exists();p.write_bytes(b);p.chmod(0o644)\nprint(json.dumps({'status':'PASS_TOOL_INSTALL_ONLY','hashes':j['files']}))",
+    "/mnt/lima-afsctlstate/afs-delivery/owner-remote-write-6d-bhome-20261007-r1",
+    "/var/tmp/owner-write-6d-ctl-tools.tar",
+    "{\"archive\": \"3d2ac458d443de7cad73743eba848e8bfa53cd766acfff3d434d6d06d2107859\", \"files\": {\"owner_remote_fixture.py\": \"6dfaeca8acc1a5ac2b44aef06f6c824fb9df192d74c97a6ecd3be59b1700de06\"}}"
+  ],
+  "exit": 0,
+  "state": "TERMINAL"
+}

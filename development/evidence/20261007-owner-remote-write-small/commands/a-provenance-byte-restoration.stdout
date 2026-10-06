@@ -1,0 +1,33 @@
+{
+  "status": "PASS_INITIAL_TOOL_BYTE_RESTORATION_NOT_REEXECUTION",
+  "rows": [
+    {
+      "tool": "owner_remote_fixture.py",
+      "current_sha256": "0b45a48253eeb89bdc8cdc9464411356469ea30a7da2899e12a36513d7a8d683",
+      "restored_initial_sha256": "6dfaeca8acc1a5ac2b44aef06f6c824fb9df192d74c97a6ecd3be59b1700de06",
+      "delta_sha256": "a8943bf35a39e4fd8c22347ece79f69382ae09d124702e9ac6878bff917f16fa",
+      "patch_exit": 0
+    },
+    {
+      "tool": "test_owner_remote_fixture.py",
+      "current_sha256": "d79ebd3322cd09d3c6999ea4667524af4a4e5cd1cc24efe3835ac936fd1f1863",
+      "restored_initial_sha256": "6a6b04218b7957ab551bcf6126acf941267310fe068d71fade2717b07400dec4",
+      "delta_sha256": "5f908c31e23be577942b2df79bdc8cab51545df1fd764d77404ade912ced6def",
+      "patch_exit": 0
+    },
+    {
+      "tool": "owner_remote_write_small.py",
+      "current_sha256": "60d9ba3c1448521d94c8b81427888c42593def7c7a28cbd281cbd234fe01a496",
+      "restored_initial_sha256": "68b7d37b581ca3c858ff35de1b6b4b1c64a7f0ede6a5db2ca1f12c1fc7fc336d",
+      "delta_sha256": "e0d56a0f090d44e430684ff1c1c30c1d96b0901c1832ee576daf01a5f179465b",
+      "patch_exit": 0
+    },
+    {
+      "tool": "test_owner_remote_write_small.py",
+      "current_sha256": "b2010da897145453fbb19664411b23fae91522e6e5b8327f879f47e7265e581a",
+      "restored_initial_sha256": "473d79ea5dfdd25ed216663a6a766c8f6ae0515d5024c6c01869b78361ee7312",
+      "delta_sha256": "6c8383f0e06435b6e3512c014b4232046d913f3d3d76f9e0cf4d7765a073c230",
+      "patch_exit": 0
+    }
+  ]
+}

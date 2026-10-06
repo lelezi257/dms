@@ -1,0 +1,52 @@
+{
+  "fixture": "owner-remote-write-6d-bhome-20261007-r1",
+  "source": "6d51aeb45c1ed8669d80f612b3817e6d1bdabe04",
+  "compiler_input_map_sha256": "66dbbe3e0071fcec1efc9cf370c709a99f025d39acd4f37ba57582c874429304",
+  "roots": {
+    "ctl": "/mnt/lima-afsctlstate/afs-delivery/owner-remote-write-6d-bhome-20261007-r1",
+    "a": "/mnt/lima-afsadata/afs-delivery/owner-remote-write-6d-bhome-20261007-r1",
+    "b": "/mnt/lima-afsbdata/afs-delivery/owner-remote-write-6d-bhome-20261007-r1"
+  },
+  "ports": {
+    "ctl": [
+      22800,
+      22801,
+      23040,
+      23041,
+      23042
+    ],
+    "a": [
+      22900,
+      22901
+    ],
+    "b": [
+      22900,
+      22901,
+      23043
+    ]
+  },
+  "budget_bytes": {
+    "ctl": 268435456,
+    "a": 268435456,
+    "b": 1073741824
+  },
+  "floor_bytes": {
+    "ctl": 536870912,
+    "a": 1073741824,
+    "b": 4294967296
+  },
+  "data_bytes": 67108864,
+  "block_bytes": 1048576,
+  "concurrency": 1,
+  "pattern": 97,
+  "barrier": "fdatasync",
+  "warmup_pairs": 1,
+  "measured_pairs": 5,
+  "retained_payload_total_bytes": 805306368,
+  "timer": "C open/pwrite/fdatasync/close; parent dirsync, full SHA and B independent readback outside timer",
+  "cache": "UNOBSERVED",
+  "bind": "OFF",
+  "result_ceiling": "DATA_RECORDED; no Moose durable ACK/parity claim",
+  "historical_read_delete_cleanup": "FAIL preserved; not rerun",
+  "cleanup": "A admitted fusermount3 -u, actual supervisor wait0+mountgone; owned servers TERM and actual wait0; fixed AFS processctl; no force/lazy fallback"
+}

@@ -6,11 +6,22 @@ from pathlib import Path
 import tempfile
 import tomllib
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 spec = importlib.util.spec_from_file_location('remote_fixture', Path(__file__).with_name('owner_remote_fixture.py'))
 f = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(f)
+
+# Captured installed-helper stdout; deliberately no literal "Usage:" prefix.
+FUSERMOUNT_HELP = '''/usr/bin/fusermount3: [options] mountpoint
+Options:
+ -h print help
+ -V print version
+ -o opt[,opt...] mount options
+ -u unmount
+ -q quiet
+ -z lazy unmount
+'''
 
 
 class FixtureGuards(unittest.TestCase):
@@ -57,10 +68,155 @@ trusted_node_certs = { remote-a-r1 = "/etc/afs/tls/remote-a-r1.pem", remote-b-r1
             fixture = f.Fixture('a')
             fixture.root = root
             fixture.current_lifecycle = lambda: life
+            fixture.run = Mock()
             with patch.object(f.signal, 'pidfd_send_signal') as send:
                 with self.assertRaisesRegex(RuntimeError, 'child role/root differs'):
                     fixture.stop(1)
                 send.assert_not_called()
+                fixture.run.assert_not_called()
+
+    def test_new_fixture_has_independent_root_and_propagates_to_supervisor(self):
+        old, new = f.Fixture('a'), f.Fixture('a', f.WRITE_FIXTURE)
+        self.assertNotEqual(old.root, new.root)
+        self.assertFalse(new.root.is_relative_to(old.root))
+        argv = new.supervisor_argv(new.root / 'run/lifecycle')
+        self.assertEqual(argv[argv.index('--fixture') + 1], f.WRITE_FIXTURE)
+        self.assertEqual(argv[argv.index('--lifecycle') + 1], str(new.root / 'run/lifecycle'))
+        self.assertIn(str(new.root / 'mount/moose'), new.moose_argv())
+        with self.assertRaises(RuntimeError):
+            f.Fixture('a', '../old-case')
+
+    def test_historical_fixture_cannot_be_prepared_or_readmitted(self):
+        fixture = f.Fixture('a')
+        with self.assertRaisesRegex(RuntimeError, 'historical'):
+            fixture.prepare()
+        with self.assertRaisesRegex(RuntimeError, 'historical'):
+            fixture.preflight(fixture.root / 'tools/io')
+
+    def test_supervisor_rejects_foreign_fixture_before_spawn(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            fixture = f.Fixture('a', f.WRITE_FIXTURE)
+            fixture.root = Path(tmp)
+            life = fixture.root / 'run/lifecycle'
+            life.mkdir(parents=True)
+            (life / 'launch.json').write_text(json.dumps({'role': 'a', 'root': str(fixture.root),
+                'fixture': f.FIXTURE, 'boot_id': Path('/proc/sys/kernel/random/boot_id').read_text().strip()}))
+            with patch.object(f.subprocess, 'Popen') as spawn:
+                with self.assertRaisesRegex(RuntimeError, 'fixture/boot'):
+                    fixture.supervise(life)
+                spawn.assert_not_called()
+
+    def make_stop_fixture(self, root, role='a'):
+        fixture = f.Fixture(role, f.WRITE_FIXTURE)
+        fixture.root = root
+        life = root / 'run/lifecycle'
+        life.mkdir(parents=True)
+        mount = {'target': str(root / 'mount/moose'), 'source': 'mfs#192.168.109.11:23042',
+                 'fstype': 'fuse.mfs', 'options': 'rw', 'id': 777}
+        identity = {'pid': 12345, 'role': role, 'root': str(root), 'fixture': f.WRITE_FIXTURE,
+                    'script_sha256': f.digest(Path(f.__file__)), 'mount': mount, 'start_ticks': 101,
+                    'boot_id': Path('/proc/sys/kernel/random/boot_id').read_text().strip(), 'argv': ['fixed'], 'config_sha256': {},
+                    'exe_path': '/fixed', 'exe_dev': 1, 'exe_inode': 2, 'exe_sha256': 'fixed-sha'}
+        (life / 'child.json').write_text(json.dumps(identity))
+        fixture.current_lifecycle = lambda: life
+        fixture.validate_child = Mock()
+        fixture.admitted_unmount = Mock(return_value='/usr/bin/fusermount3')
+        fixture.moose_argv = Mock(return_value=['fixed'])
+        fixture.config_hashes = Mock(return_value={})
+        return fixture, life, identity
+
+    def test_foreign_mount_refused_before_unmount_or_signal(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            fixture, _, identity = self.make_stop_fixture(Path(tmp))
+            fixture.exact_mount = Mock(return_value={**identity['mount'], 'id': 778})
+            fixture.run = Mock()
+            with patch.object(f.os, 'pidfd_open', return_value=42), patch.object(f.os, 'close'), patch.object(f.signal, 'pidfd_send_signal') as send:
+                with self.assertRaisesRegex(RuntimeError, 'mount incarnation'):
+                    fixture.stop(0.01)
+                fixture.run.assert_not_called()
+                send.assert_not_called()
+
+    def test_unmount_failure_retains_child_without_term_fallback(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            fixture, life, identity = self.make_stop_fixture(Path(tmp))
+            fixture.exact_mount = Mock(return_value=identity['mount'])
+            fixture.run = Mock(side_effect=RuntimeError('unmount failed'))
+            with patch.object(f.os, 'pidfd_open', return_value=42), patch.object(f.os, 'close'), patch.object(f.signal, 'pidfd_send_signal') as send:
+                with self.assertRaisesRegex(RuntimeError, 'unmount failed'):
+                    fixture.stop(0.01)
+                fixture.run.assert_called_once_with(['/usr/bin/fusermount3', '-u', fixture.root / 'mount/moose'], timeout=0.01)
+                self.assertFalse((life / 'exit.json').exists())
+                self.assertTrue((life / 'child.json').exists())
+                send.assert_not_called()
+
+    def test_normal_unmount_requires_real_wait_zero_and_mount_gone(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            fixture, life, identity = self.make_stop_fixture(Path(tmp))
+            fixture.exact_mount = Mock(side_effect=[identity['mount'], None])
+            def unmount(argv, **kwargs):
+                (life / 'exit.json').write_text(json.dumps({'role': 'a', 'root': str(fixture.root),
+                    'fixture': f.WRITE_FIXTURE, 'pid': identity['pid'], 'identity': identity,
+                    'wait_completed': True, 'exit_code': 0}))
+            fixture.run = Mock(side_effect=unmount)
+            with patch.object(f.os, 'pidfd_open', return_value=42), patch.object(f.os, 'close'), patch.object(f.signal, 'pidfd_send_signal') as send:
+                self.assertEqual(fixture.stop(0.01)['status'], 'STOPPED')
+                send.assert_not_called()
+
+    def test_previous_nonzero_wait_receipt_remains_failure(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            fixture, life, identity = self.make_stop_fixture(Path(tmp))
+            fixture.exact_mount = Mock(return_value=None)
+            fixture.run = Mock()
+            (life / 'exit.json').write_text(json.dumps({'role': 'a', 'root': str(fixture.root),
+                'fixture': f.WRITE_FIXTURE, 'pid': identity['pid'], 'identity': identity,
+                'wait_completed': True, 'exit_code': 1}))
+            with self.assertRaisesRegex(RuntimeError, 'nonzero real wait exit: 1'):
+                fixture.stop(0.01)
+            fixture.run.assert_not_called()
+
+    def test_help_exit_one_with_normal_usage_is_retained_and_admitted(self):
+        fixture = f.Fixture('a', f.WRITE_FIXTURE)
+        fixture.unmount_identity = Mock(return_value={'path': '/usr/bin/fusermount3'})
+        def run(argv, allowed=(0,), **kwargs):
+            is_help = argv[-1] == '-h'
+            code = 1 if is_help else 0
+            self.assertIn(code, allowed)
+            stdout = FUSERMOUNT_HELP if is_help else ''
+            fixture.commands.append({'argv': argv, 'returncode': code, 'stdout': stdout, 'stderr': ''})
+            return stdout
+        fixture.run = Mock(side_effect=run)
+        self.assertEqual(fixture.inspect_unmount(), {'path': '/usr/bin/fusermount3'})
+        self.assertEqual(fixture.commands[0]['returncode'], 1)
+        self.assertEqual(fixture.commands[0]['stdout'], FUSERMOUNT_HELP)
+        fixture.run.assert_any_call(['/usr/bin/fusermount3', '-h'], allowed=(0, 1))
+        fixture.run.assert_any_call(['/usr/bin/fusermount3', '-V'])
+
+    def test_help_exit_one_without_usage_or_unmount_option_is_rejected(self):
+        for text in ('fusermount3: error', FUSERMOUNT_HELP.replace(' -u unmount\n', ''),
+                     FUSERMOUNT_HELP.replace(' -V print version\n', '')):
+            fixture = f.Fixture('a', f.WRITE_FIXTURE)
+            fixture.unmount_identity = Mock(return_value={'path': '/usr/bin/fusermount3'})
+            def run(argv, **kwargs):
+                fixture.commands.append({'argv': argv, 'returncode': 1, 'stdout': text, 'stderr': ''})
+                return text
+            fixture.run = Mock(side_effect=run)
+            with self.subTest(text=text), self.assertRaisesRegex(RuntimeError, 'capability missing'):
+                fixture.inspect_unmount()
+            self.assertEqual(fixture.run.call_count, 1)
+
+    def test_nonzero_version_is_not_covered_by_help_exit_exception(self):
+        fixture = f.Fixture('a', f.WRITE_FIXTURE)
+        fixture.unmount_identity = Mock(return_value={'path': '/usr/bin/fusermount3'})
+        def run(argv, allowed=(0,), **kwargs):
+            if argv[-1] == '-h':
+                fixture.commands.append({'argv': argv, 'returncode': 1, 'stdout': FUSERMOUNT_HELP, 'stderr': ''})
+                return FUSERMOUNT_HELP
+            self.assertEqual(argv[-1], '-V')
+            self.assertEqual(allowed, (0,))
+            raise RuntimeError('version exited 1')
+        fixture.run = Mock(side_effect=run)
+        with self.assertRaisesRegex(RuntimeError, 'version exited 1'):
+            fixture.inspect_unmount()
 
 
 if __name__ == '__main__':

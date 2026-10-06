@@ -1,0 +1,42 @@
+{
+  "status": "PASS_CAPACITY_BOUND_AFTER_IO",
+  "root": "/mnt/lima-afsbdata/afs-delivery/owner-remote-write-6d-bhome-20261007-r1",
+  "tree_bytes_without_mounts": 831343840,
+  "budget_bytes": 1073741824,
+  "free_bytes": 17793404928,
+  "floor_bytes": 4294967296,
+  "moose_chunk_files": [
+    {
+      "path": "state/moose/chunks/.metaid",
+      "bytes": 8
+    },
+    {
+      "path": "state/moose/chunks/.lock",
+      "bytes": 0
+    },
+    {
+      "path": "state/moose/chunks/00/chunk_0000000000000001_00000001.mfs",
+      "bytes": 67117056
+    },
+    {
+      "path": "state/moose/chunks/00/chunk_0000000000000002_00000001.mfs",
+      "bytes": 67117056
+    },
+    {
+      "path": "state/moose/chunks/00/chunk_0000000000000003_00000001.mfs",
+      "bytes": 67117056
+    },
+    {
+      "path": "state/moose/chunks/00/chunk_0000000000000005_00000001.mfs",
+      "bytes": 67117056
+    },
+    {
+      "path": "state/moose/chunks/00/chunk_0000000000000006_00000001.mfs",
+      "bytes": 67117056
+    },
+    {
+      "path": "state/moose/chunks/00/chunk_0000000000000004_00000001.mfs",
+      "bytes": 67117056
+    }
+  ]
+}

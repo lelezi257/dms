@@ -1,0 +1,11 @@
+mfsmaster accepted connection with parameters: read-write,restricted_ip,admin ; root mapped to root:root ; sclass groups allowed: ALL
+(B[m
+setting glibc malloc arena max to 4
+setting glibc malloc arena test to 4
+out of memory killer disabled
+monotonic clock function: clock_gettime
+monotonic clock speed: 630765 ops / 10 mili seconds
+Ignoring invalid max threads value 4294967295 > max (100000).
+my st_dev: 52
+read workers: 10+
+read workers: 0-

@@ -1,0 +1,19 @@
+{
+  "role": "b",
+  "fixture": "owner-remote-write-6d-bhome-20261007-r1",
+  "root": "/mnt/lima-afsbdata/afs-delivery/owner-remote-write-6d-bhome-20261007-r1",
+  "argv": [
+    "/opt/afs-moose-round3-v85/sbin/mfschunkserver",
+    "-f",
+    "-c",
+    "/mnt/lima-afsbdata/afs-delivery/owner-remote-write-6d-bhome-20261007-r1/config/mfschunkserver.cfg",
+    "start"
+  ],
+  "config_sha256": {
+    "/mnt/lima-afsbdata/afs-delivery/owner-remote-write-6d-bhome-20261007-r1/etc/node.toml": "47398cd07df92916dad5d4a68d5feceaf09cae422993f058fd0ee70eb11d9b49",
+    "/mnt/lima-afsbdata/afs-delivery/owner-remote-write-6d-bhome-20261007-r1/config/mfschunkserver.cfg": "bebbe82ea42c1dbaeea5ecf46c302b9a810e6b876f86fa6a8220d3b556c7be4e",
+    "/mnt/lima-afsbdata/afs-delivery/owner-remote-write-6d-bhome-20261007-r1/config/mfshdd.cfg": "ab8f67cacf973a438a0646191dca1d23c49cc5453f68d0f82a2063741e3035ba"
+  },
+  "script_sha256": "0b45a48253eeb89bdc8cdc9464411356469ea30a7da2899e12a36513d7a8d683",
+  "boot_id": "3adebcd0-cb31-4df0-b18a-e970786ab7fb"
+}

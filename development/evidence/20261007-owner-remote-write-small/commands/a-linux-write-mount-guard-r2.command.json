@@ -1,0 +1,15 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "afs-accept-a",
+    "sudo",
+    "bash",
+    "-c",
+    "cd \"$1/tools\" && python3 -m unittest -v test_owner_remote_write_small.OwnerRemoteWriteSmallGuardTests.test_foreign_mounts_are_rejected",
+    "bash",
+    "/mnt/lima-afsadata/afs-delivery/owner-remote-write-6d-bhome-20261007-r1"
+  ],
+  "exit": 0,
+  "state": "TERMINAL"
+}

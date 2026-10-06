@@ -1,0 +1,6 @@
+test_foreign_mounts_are_rejected (test_owner_remote_write_small.OwnerRemoteWriteSmallGuardTests.test_foreign_mounts_are_rejected) ... ok
+
+----------------------------------------------------------------------
+Ran 1 test in 0.000s
+
+OK

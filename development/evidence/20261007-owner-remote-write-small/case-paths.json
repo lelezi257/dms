@@ -1,0 +1,8 @@
+{
+  "workspace": "g2-remote-write-6d-bhome-r1",
+  "owner": "/mnt/lima-afsadata/afs-delivery/owner-remote-write-6d-bhome-20261007-r1/mount/ownerfs/g2-remote-write-6d-bhome-r1/small-write-r1",
+  "owner_b": "/mnt/lima-afsbdata/afs-delivery/owner-remote-write-6d-bhome-20261007-r1/mount/ownerfs/g2-remote-write-6d-bhome-r1/small-write-r1",
+  "moose": "/mnt/lima-afsadata/afs-delivery/owner-remote-write-6d-bhome-20261007-r1/mount/moose/small-write-r1",
+  "class": "owner-remote-write-1CP-20261007-r1",
+  "output": "/mnt/lima-afsadata/afs-delivery/owner-remote-write-6d-bhome-20261007-r1/results/write-r1"
+}

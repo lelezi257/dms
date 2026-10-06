@@ -1,0 +1,19 @@
+{
+  "status": "PASS_LIVE_PROCESS_IDENTITY_ONLY",
+  "pid": 239570,
+  "exe": "/mnt/lima-afsbdata/afs-delivery/owner-remote-write-6d-bhome-20261007-r1/prefix/bin/afs-node",
+  "exe_dev": 64785,
+  "exe_ino": 1315168,
+  "sha256": "2cf1f538fe7af332a711f3c66a074ace140c00773826a182709a6445b8ae2645",
+  "start_ticks": "56518006",
+  "cmdline": "/mnt/lima-afsbdata/afs-delivery/owner-remote-write-6d-bhome-20261007-r1/prefix/bin/afs-node --config /mnt/lima-afsbdata/afs-delivery/owner-remote-write-6d-bhome-20261007-r1/etc/node.toml ",
+  "boot_id": "3adebcd0-cb31-4df0-b18a-e970786ab7fb",
+  "mount": {
+    "target": "/mnt/lima-afsbdata/afs-delivery/owner-remote-write-6d-bhome-20261007-r1/mount/ownerfs",
+    "source": "afs-ownerfs",
+    "fstype": "fuse",
+    "id": 92,
+    "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+  },
+  "dfs_absent": true
+}

@@ -1,0 +1,18 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "afs-accept-a",
+    "sudo",
+    "python3",
+    "/mnt/lima-afsadata/afs-delivery/owner-remote-write-6d-bhome-20261007-r1/tools/owner_remote_fixture.py",
+    "moose-stop",
+    "a",
+    "--fixture",
+    "owner-remote-write-6d-bhome-20261007-r1",
+    "--timeout",
+    "30"
+  ],
+  "exit": 0,
+  "state": "TERMINAL"
+}

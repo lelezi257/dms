@@ -1,6 +1,8 @@
-**当前切片（2026-10-07）：** 固定6d51aeb/map66dbbe3e/157输入，DFS-only/local-file Meta/gRPC/R2/native OFF完成64MiB一写两读：A fdatasync及目录fsync、B/C完整SHA与各1预热5读PASS；读中位数B26.138/C50.222MiB/s，父控制器含启动/预检/预热的768MiB总量诊断42.969MiB/s。两份Ready副本在A/C；均匀内容去重成各4MiB物理chunk，不称唯一64MiB语料或三同步/3FS正式性能。四个服务真实wait0、无新进程/mount、旧incarnation不变。首次收尾检查器误识别自身的FAIL原文保留，精确argv-token修正后通过，无产品重启/重测。 [证据](evidence/20261007-dfs-manyread-small/README.md)。
+**当前切片（2026-10-07）：** 固定6d51aeb/map66dbbe3e/157输入，Owner-only/local-file Meta/gRPC/native OFF完成A远端/B-Home小写：64MiB/1MiB/C1、1预热5交替配对，12文件内容/目录fsync及B独立6全量fresh读PASS。写中位数Owner234.630/Moose430.767MiB/s，配对比中位0.528615，缓存未观察/样本波动，Moose强durable ACK未资格化，不计G2.15正式持平。3AFS/3Moose真实wait0、无owned进程/mount、旧incarnation不变；新A使用准入fusermount3正常-u。初始工具准入/类型误判及parent回执路径错误保留，仅窄复核，无产品重启/测量重复；旧读删wait1 FAIL不变。 [证据](evidence/20261007-owner-remote-write-small/README.md)。
 
-**下一项：** Owner远端小规模写按冻结屏障留核心数据；Moose强持久写基线/三同步3FS仍独立阻塞，普通性能优化、大规模/复杂可靠性及etcd/Redis后置。已有远端读/删除摸底与Moose客户端wait1 FAIL保留；bind默认OFF，锁/append偏移/watch缺口单列。G1历史8/8、G2 9限定完成/2普通性能FAIL/2bind进行中/14待验收不变；OFF试用可下载，不计完整G2.27。
+**下一项：** 回到最高优先级容器workspace必要语义，下一独立经典锁小项；append偏移公开API限制已界定，保留FAIL暂缓，不重复诊断，watch单列；bind默认OFF。Owner读/写/删及DFS一写两读核心摸底数据已留，普通性能调优、大规模/复杂可靠性及etcd/Redis后置；Moose强持久基线、三同步3FS和R2官方fuser仍独立阻塞。G1历史8/8、G2 9限定完成/2普通性能FAIL/2bind进行中/14待验收不变；OFF试用已可下载，不计完整G2.27。
+
+[append偏移边界与暂缓理由](native-append-offset-boundary.md)：当前公开回复不返回实际追加位置；保留失败，下一独立经典锁，不改第三方或反复重测。
 
 **历史说明：** 下方旧检查点按原版本/范围保存；其旧下一动作由上方当前入口和验收主表覆盖。当前native偏移/经典锁/watch失败与普通性能失败原始记录均保留。
 

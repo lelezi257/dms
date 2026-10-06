@@ -1,0 +1,16 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "afs-accept-b",
+    "sudo",
+    "python3",
+    "-c",
+    "import sys,json,hashlib,os,subprocess\nfrom pathlib import Path\nroot=Path(sys.argv[1]);names=json.loads(sys.argv[2]);expected=sys.argv[3];mount=json.loads(subprocess.check_output(['findmnt','-J','-T',str(root),'-o','TARGET,SOURCE,FSTYPE,ID,OPTIONS']))['filesystems'][0];assert mount['source']=='afs-ownerfs' and mount['fstype'].startswith('fuse');rows=[]\nfor name in names:\n assert Path(name).name==name;p=root/name;h=hashlib.sha256();n=0\n with p.open('rb') as f:\n  for b in iter(lambda:f.read(1048576),b''):n+=len(b);h.update(b)\n st=p.stat();assert n==67108864 and st.st_size==n and h.hexdigest()==expected;rows.append({'file':name,'bytes':n,'sha256':h.hexdigest(),'stat':{'inode':st.st_ino,'device':st.st_dev,'mode':st.st_mode,'size':st.st_size},'fresh_open_after_A_closed':True})\nprint(json.dumps({'status':'PASS_B_INDEPENDENT_6_FULL_CONTENT_READS','root':str(root),'mount':mount,'files':rows},indent=2))",
+    "/mnt/lima-afsbdata/afs-delivery/owner-remote-write-6d-bhome-20261007-r1/mount/ownerfs/g2-remote-write-6d-bhome-r1/small-write-r1",
+    "[\"owner-write-r00-payload64m.bin\", \"owner-write-r01-payload64m.bin\", \"owner-write-r02-payload64m.bin\", \"owner-write-r03-payload64m.bin\", \"owner-write-r04-payload64m.bin\", \"owner-write-r05-payload64m.bin\"]",
+    "fae972222d455a2eaee1661ad9625502ec3bfc5ec38b87a6eec5afd5107331b5"
+  ],
+  "exit": 0,
+  "state": "TERMINAL"
+}

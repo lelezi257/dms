@@ -1,0 +1,10 @@
+{
+  "argv": [
+    "limactl",
+    "copy",
+    "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/owner-remote-write-6d-bhome-20261007-r1/test_owner_remote_fixture.py.to-initial.patch",
+    "afs-accept-a:/var/tmp/owner-write-6d-test_owner_remote_fixture.py.to-initial.patch"
+  ],
+  "exit": 0,
+  "state": "TERMINAL"
+}

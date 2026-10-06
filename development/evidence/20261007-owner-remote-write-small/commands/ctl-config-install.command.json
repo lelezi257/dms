@@ -1,0 +1,16 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "afs-accept-ctl",
+    "sudo",
+    "python3",
+    "-c",
+    "import sys,json,tarfile,hashlib,os\nfrom pathlib import Path\nroot=Path(sys.argv[1]);tar=Path(sys.argv[2]);j=json.loads(sys.argv[3]);target=root/'etc';assert not target.exists() and not target.is_symlink();assert hashlib.sha256(tar.read_bytes()).hexdigest()==j['sha256']\ntarget.mkdir(mode=0o700)\nwith tarfile.open(tar) as a:\n members=a.getmembers();assert len(members)==len(j['files']) and all(x.isfile() and x.name in j['files'] and '..' not in Path(x.name).parts and not Path(x.name).is_absolute() for x in members)\n for member in members:\n  b=a.extractfile(member).read();assert hashlib.sha256(b).hexdigest()==j['files'][member.name];p=target/member.name;p.parent.mkdir(mode=0o700,parents=True,exist_ok=True);p.write_bytes(b);p.chmod(0o600 if '-key.pem' in p.name else 0o644)\nprint(json.dumps({'status':'PASS_INSTALL_CONFIG_ONLY','root':str(root),'files':j['files']}))",
+    "/mnt/lima-afsctlstate/afs-delivery/owner-remote-write-6d-bhome-20261007-r1",
+    "/var/tmp/owner-write-6d-ctl-config-install.tar",
+    "{\"role\": \"ctl\", \"tar\": \"/var/tmp/owner-write-6d-ctl-config.tar\", \"sha256\": \"ee509e5a46aad09c2475871942f433556d4065cdf315fc1d2905585e4b0540e0\", \"files\": {\"meta.toml\": \"f9ed4346e029b9bbfd1c4456464e6ce62495784b19ccd18c43151ed8be179b1b\", \"tls/remote-a-r1.pem\": \"642770e242d72b9e1cbc289e7796e52b35fd8347362dc59245939a7a44ebbc3d\", \"tls/ca.pem\": \"14e14ccc9b2cb55d7efb847cbe680099f9860fc9cafa15ccef8402bec08dbda1\", \"tls/remote-b-r1.pem\": \"ef2ff92494b7cf28a90695f36d05d0d2203ff5bc094da7123f022779e1e2104e\", \"tls/meta-key.pem\": \"155786dfc438f807900d3ef6265638fd66f05784b04b97cbab9728ecf8e378a0\", \"tls/meta.pem\": \"7a98096f0868210fd6471ff9ef85cd39f962fdd672280d54d3cd3bf37bf0ec16\"}}"
+  ],
+  "exit": 0,
+  "state": "TERMINAL"
+}

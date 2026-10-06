@@ -1,0 +1,13 @@
+--- a/owner_remote_write_small.py
++++ b/owner_remote_write_small.py
+@@ -101,8 +101,8 @@
+ def require_moose_mount(mount: dict[str, Any]) -> None:
+     source = str(mount.get("source", ""))
+     fstype = str(mount.get("fstype", ""))
+-    if fstype not in ("fuse", "fuse.mfs") or source != "mfs#192.168.109.11:23042":
+-        raise ValueError(f"moose root must be standard FUSE with exact one-copy MooseFS source mfs#192.168.109.11:23042: {mount}")
++    if fstype != "fuse.mfs" or source != "mfs#192.168.109.11:23042":
++        raise ValueError(f"moose root must be exact one-copy MooseFS source mfs#192.168.109.11:23042: {mount}")
+ 
+ 
+ def fsync_directory(path: Path) -> None:

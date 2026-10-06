@@ -1,0 +1,66 @@
+{
+  "schema": "afs.owner_remote_fixture.v1",
+  "action": "prepare-config",
+  "role": "b",
+  "root": "/mnt/lima-afsbdata/afs-delivery/owner-remote-write-6d-bhome-20261007-r1",
+  "time_unix_ns": 1791325143564637565,
+  "commands": [
+    {
+      "argv": [
+        "findmnt",
+        "-J",
+        "--mountpoint",
+        "/mnt/lima-afsbdata"
+      ],
+      "returncode": 0,
+      "stdout": "{\n   \"filesystems\": [\n      {\n         \"target\": \"/mnt/lima-afsbdata\",\n         \"source\": \"/dev/vdb1\",\n         \"fstype\": \"ext4\",\n         \"options\": \"rw,relatime\"\n      }\n   ]\n}\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "ss",
+        "-ltnp"
+      ],
+      "returncode": 0,
+      "stdout": "State  Recv-Q Send-Q Local Address:Port Peer Address:PortProcess                                                 \nLISTEN 0      4096         0.0.0.0:22        0.0.0.0:*    users:((\"sshd\",pid=1147,fd=3),(\"systemd\",pid=1,fd=173))\nLISTEN 0      4096   127.0.0.53%lo:53        0.0.0.0:*    users:((\"systemd-resolve\",pid=463,fd=17))              \nLISTEN 0      4096      127.0.0.54:53        0.0.0.0:*    users:((\"systemd-resolve\",pid=463,fd=19))              \nLISTEN 0      4096            [::]:22           [::]:*    users:((\"sshd\",pid=1147,fd=4),(\"systemd\",pid=1,fd=174))\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "findmnt",
+        "-J",
+        "--mountpoint",
+        "/mnt/lima-afsbdata/afs-delivery/owner-remote-write-6d-bhome-20261007-r1/mount/ownerfs",
+        "-o",
+        "TARGET,SOURCE,FSTYPE,OPTIONS,ID"
+      ],
+      "returncode": 1,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "findmnt",
+        "-J",
+        "--mountpoint",
+        "/mnt/lima-afsbdata/afs-delivery/owner-remote-write-6d-bhome-20261007-r1/mount/moose",
+        "-o",
+        "TARGET,SOURCE,FSTYPE,OPTIONS,ID"
+      ],
+      "returncode": 1,
+      "stdout": "",
+      "stderr": ""
+    }
+  ],
+  "prepared": {
+    "role": "b",
+    "root": "/mnt/lima-afsbdata/afs-delivery/owner-remote-write-6d-bhome-20261007-r1",
+    "config_sha256": {
+      "/mnt/lima-afsbdata/afs-delivery/owner-remote-write-6d-bhome-20261007-r1/etc/node.toml": "47398cd07df92916dad5d4a68d5feceaf09cae422993f058fd0ee70eb11d9b49",
+      "/mnt/lima-afsbdata/afs-delivery/owner-remote-write-6d-bhome-20261007-r1/config/mfschunkserver.cfg": "bebbe82ea42c1dbaeea5ecf46c302b9a810e6b876f86fa6a8220d3b556c7be4e",
+      "/mnt/lima-afsbdata/afs-delivery/owner-remote-write-6d-bhome-20261007-r1/config/mfshdd.cfg": "ab8f67cacf973a438a0646191dca1d23c49cc5453f68d0f82a2063741e3035ba"
+    },
+    "original_sha256": "e22734d1966245fa7f7a1aa6dad1aa32e362eaea20a7d39fead5c6a907fab0c9"
+  },
+  "note": "configuration only; preflight-config still required"
+}

@@ -25,6 +25,8 @@ from pathlib import Path
 
 
 FIXTURE = "owner-remote-6d-bhome-20261007-r1"
+WRITE_FIXTURE = "owner-remote-write-6d-bhome-20261007-r1"
+FIXTURES = (FIXTURE, WRITE_FIXTURE)
 VOLUMES = {"ctl": "/mnt/lima-afsctlstate", "a": "/mnt/lima-afsadata", "b": "/mnt/lima-afsbdata"}
 IPS = {"ctl": "192.168.109.11", "a": "192.168.109.12", "b": "192.168.109.13"}
 PORTS = {"ctl": [22800, 22801, 23040, 23041, 23042], "a": [22900, 22901], "b": [22900, 22901, 23043]}
@@ -97,10 +99,12 @@ def tool(relative):
 
 
 class Fixture:
-    def __init__(self, role):
+    def __init__(self, role, fixture=FIXTURE):
+        require(fixture in FIXTURES, "unknown fixed fixture")
+        self.fixture = fixture
         self.role = role
         self.volume = Path(VOLUMES[role])
-        self.root = self.volume / "afs-delivery" / FIXTURE
+        self.root = self.volume / "afs-delivery" / fixture
         self.name = "meta" if role == "ctl" else "node"
         self.binary = self.root / "prefix/bin" / ("afs-" + self.name)
         self.config = self.root / "etc" / (self.name + ".toml")
@@ -234,6 +238,7 @@ HDD_FSYNC_BEFORE_CLOSE = 1
         return text
 
     def prepare(self):
+        require(self.fixture == WRITE_FIXTURE, "historical read/delete prepare is closed; use new write fixture")
         marker = self.root / "run/config-prepared.json"
         require(not marker.exists(), "prepare is exclusive; use preflight-config for existing prepared fixture")
         self.capacity(admission=True)
@@ -284,6 +289,7 @@ HDD_FSYNC_BEFORE_CLOSE = 1
         return {"path": str(path), "sha256": expected, "bytes": path.stat().st_size}
 
     def preflight(self, io_path):
+        require(self.fixture == WRITE_FIXTURE, "historical read/delete admission is closed; use new write fixture")
         self.prepared()
         dependency_names = ("findmnt", "ss", "ip", "ldd", "openssl")
         require(all(shutil.which(n) for n in dependency_names), "missing preflight dependency")
@@ -297,6 +303,7 @@ HDD_FSYNC_BEFORE_CLOSE = 1
         if self.role == "a":
             safe(io_path, self.root / "tools")
             identities["io"] = self.check_elf(io_path, ELF["io"])
+            identities["fusermount3"] = self.inspect_unmount()
         selected = {"ctl": ["sbin/mfsmaster", "var/mfs/metadata.mfs.empty"],
                     "b": ["sbin/mfschunkserver"], "a": [p for p in MOOSE_SHA if p.startswith("bin/")]}[self.role]
         for relative in selected:
@@ -332,6 +339,37 @@ HDD_FSYNC_BEFORE_CLOSE = 1
         write_json(self.root / "run/config-admitted.json", result)
         return result
 
+    def inspect_unmount(self):
+        identity = self.unmount_identity()
+        # Use the short options advertised by the installed stock helper. Its
+        # help begins with '<program>: [options] mountpoint', not 'Usage:'.
+        # Preserve the raw help returncode, including the observed exit 1.
+        text = self.run([identity["path"], "-h"], allowed=(0, 1))
+        text += self.commands[-1]["stderr"]
+        patterns = (r"^(?:/usr/bin/)?fusermount3:\s*\[options\]\s+mountpoint\s*$",
+                    r"^Options:\s*$", r"^\s*-h\s+print help\s*$",
+                    r"^\s*-V\s+print version\s*$", r"^\s*-u\s+unmount\s*$")
+        require(all(re.search(pattern, text, re.M) for pattern in patterns), "fusermount3 normal unmount capability missing")
+        self.run([identity["path"], "-V"])
+        require("not found" not in self.run(["ldd", identity["path"]]), "fusermount3 dependency missing")
+        return identity
+
+    def unmount_identity(self):
+        path = shutil.which("fusermount3")
+        require(path is not None, "fusermount3 missing; stop without installation or repair")
+        resolved = Path(path).resolve(strict=True)
+        require(resolved == Path("/usr/bin/fusermount3"), "unexpected system fusermount3 path")
+        st = resolved.stat()
+        require(st.st_uid == 0 and not st.st_mode & 0o022 and os.access(resolved, os.X_OK), "untrusted fusermount3 ownership/permission")
+        return {"path": str(resolved), "sha256": digest(resolved), "device": st.st_dev, "inode": st.st_ino}
+
+    def admitted_unmount(self):
+        admitted = json.loads(safe(self.root / "run/config-admitted.json", self.root).read_text())
+        require(admitted["config_sha256"] == self.config_hashes(), "configuration admission changed")
+        expected = admitted.get("identities", {}).get("fusermount3")
+        require(expected is not None and self.unmount_identity() == expected, "fusermount3 identity differs from admission")
+        return expected["path"]
+
     def moose_argv(self):
         if self.role == "ctl":
             return [str(tool("sbin/mfsmaster")), "-f", "-c", str(self.root / "config/mfsmaster.cfg"), "start"]
@@ -348,6 +386,7 @@ HDD_FSYNC_BEFORE_CLOSE = 1
 
     def validate_child(self, identity):
         require(identity["role"] == self.role and identity["root"] == str(self.root), "child role/root differs")
+        require(identity.get("fixture") == self.fixture and identity["script_sha256"] == digest(Path(__file__)), "child fixture/source differs")
         require(identity["boot_id"] == Path("/proc/sys/kernel/random/boot_id").read_text().strip(), "child boot differs")
         require(identity["argv"] == self.moose_argv() and identity["config_sha256"] == self.config_hashes(), "child launch config differs")
         before = fingerprint(identity["pid"])
@@ -387,11 +426,11 @@ HDD_FSYNC_BEFORE_CLOSE = 1
                 listener.bind((IPS[self.role], port))
         lifecycle = self.root / "run" / ("moose-" + self.service + "-" + uuid.uuid4().hex)
         lifecycle.mkdir()
-        launch = {"role": self.role, "root": str(self.root), "argv": self.moose_argv(), "config_sha256": self.config_hashes(),
+        launch = {"role": self.role, "fixture": self.fixture, "root": str(self.root), "argv": self.moose_argv(), "config_sha256": self.config_hashes(),
                   "script_sha256": digest(Path(__file__)), "boot_id": Path("/proc/sys/kernel/random/boot_id").read_text().strip()}
         write_json(lifecycle / "launch.json", launch)
         with (lifecycle / "supervisor.log").open("xb") as log:
-            supervisor = subprocess.Popen([sys.executable, str(Path(__file__).resolve()), "__supervise", self.role, "--lifecycle", str(lifecycle)],
+            supervisor = subprocess.Popen(self.supervisor_argv(lifecycle),
                                           stdin=subprocess.DEVNULL, stdout=log, stderr=log, start_new_session=True, close_fds=True)
         write_json(pointer, {"lifecycle": str(lifecycle), "supervisor_pid": supervisor.pid})
         deadline = time.monotonic() + timeout
@@ -417,10 +456,15 @@ HDD_FSYNC_BEFORE_CLOSE = 1
             time.sleep(0.1)
         raise RuntimeError(f"Moose start readiness timeout; owned state retained: {lifecycle}")
 
+    def supervisor_argv(self, lifecycle):
+        return [sys.executable, str(Path(__file__).resolve()), "__supervise", self.role,
+                "--fixture", self.fixture, "--lifecycle", str(lifecycle)]
+
     def supervise(self, lifecycle):
         lifecycle = safe(lifecycle, self.root / "run")
         launch = json.loads((lifecycle / "launch.json").read_text())
         require(launch["role"] == self.role and launch["root"] == str(self.root), "supervisor role/root differs")
+        require(launch.get("fixture") == self.fixture and launch["boot_id"] == Path("/proc/sys/kernel/random/boot_id").read_text().strip(), "supervisor fixture/boot differs")
         require(launch["script_sha256"] == digest(Path(__file__)), "supervisor source changed after launch")
         require(launch["argv"] == self.moose_argv() and launch["config_sha256"] == self.config_hashes(), "supervisor launch modified")
         with (lifecycle / "service.log").open("xb") as log:
@@ -440,7 +484,7 @@ HDD_FSYNC_BEFORE_CLOSE = 1
             # No timeout/kill: this exact parent owns real wait status, including
             # startup failures and external TERM. Keep ownership on identity error.
             code = child.wait()
-            write_json(lifecycle / "exit.json", {"role": self.role, "root": str(self.root), "pid": child.pid,
+            write_json(lifecycle / "exit.json", {"role": self.role, "fixture": self.fixture, "root": str(self.root), "pid": child.pid,
                        "supervisor_pid": os.getpid(), "exit_code": code, "identity": identity,
                        "identity_error": identity_error, "wait_completed": True, "time_unix_ns": time.time_ns()})
 
@@ -453,7 +497,16 @@ HDD_FSYNC_BEFORE_CLOSE = 1
             try:
                 pidfd = os.pidfd_open(identity["pid"])
                 self.validate_child(identity)
-                signal.pidfd_send_signal(pidfd, signal.SIGTERM)
+                if self.role == "a":
+                    helper = self.admitted_unmount()
+                    # Startup may observe no mount, but stop never unmounts an
+                    # unrecorded or replaced mount. Check immediately before -u.
+                    self.validate_child(identity)
+                    mount = self.exact_mount(self.root / "mount/moose")
+                    require(identity.get("mount") is not None and mount == identity["mount"], "normal unmount requires original owned mount incarnation")
+                    self.run([helper, "-u", self.root / "mount/moose"], timeout=timeout)
+                else:
+                    signal.pidfd_send_signal(pidfd, signal.SIGTERM)
             except (ProcessLookupError, FileNotFoundError):
                 # The child can exit between the receipt check and pidfd/hash.
                 # Accept only its actual supervisor wait receipt below.
@@ -464,10 +517,16 @@ HDD_FSYNC_BEFORE_CLOSE = 1
         deadline = time.monotonic() + timeout
         while not exit_path.exists() and time.monotonic() < deadline:
             time.sleep(0.1)
-        require(exit_path.exists(), "TERM wait receipt timeout; preserve process/state, no KILL")
+        require(exit_path.exists(), "normal stop wait receipt timeout; preserve process/state, no KILL")
         receipt = json.loads(exit_path.read_text())
+        require(receipt["role"] == self.role and receipt["root"] == str(self.root) and receipt.get("fixture") == self.fixture, "exit receipt role/root/fixture differs")
         require(receipt["wait_completed"] is True and receipt["pid"] == identity["pid"] and receipt["identity"] is not None, "exit receipt lacks owned wait/identity")
-        require(receipt["identity"]["start_ticks"] == identity["start_ticks"], "exit receipt incarnation differs")
+        for key in ("role", "root", "fixture", "boot_id", "argv", "config_sha256", "script_sha256", "start_ticks", "exe_path", "exe_dev", "exe_inode", "exe_sha256"):
+            require(receipt["identity"].get(key) == identity.get(key), f"exit receipt identity differs: {key}")
+        require(identity.get("fixture") == self.fixture and identity["root"] == str(self.root)
+                and identity["role"] == self.role and identity["script_sha256"] == digest(Path(__file__)), "exit child fixture/source differs")
+        require(identity["boot_id"] == Path("/proc/sys/kernel/random/boot_id").read_text().strip()
+                and identity["argv"] == self.moose_argv() and identity["config_sha256"] == self.config_hashes(), "exit child boot/argv/config differs")
         if self.role == "a":
             require(self.exact_mount(self.root / "mount/moose") is None, "Moose mount remains after normal stop; no lazy unmount")
         require(receipt["exit_code"] == 0, f"Moose nonzero real wait exit: {receipt['exit_code']}")
@@ -502,11 +561,12 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("command", choices=("prepare-config", "preflight-config", "moose-start", "moose-stop", "postcheck", "__supervise"))
     parser.add_argument("role", choices=("ctl", "a", "b"))
+    parser.add_argument("--fixture", choices=FIXTURES, default=FIXTURE)
     parser.add_argument("--timeout", type=float, default=30)
     parser.add_argument("--io-path", type=Path)
     parser.add_argument("--lifecycle", type=Path)
     args = parser.parse_args()
-    fixture = Fixture(args.role)
+    fixture = Fixture(args.role, args.fixture)
     try:
         fixture.guest()
         require(0 < args.timeout <= 60, "bounded timeout must be0<seconds<=60")

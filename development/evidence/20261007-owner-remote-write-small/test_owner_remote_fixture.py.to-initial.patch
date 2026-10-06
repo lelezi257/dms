@@ -1,0 +1,71 @@
+--- a/test_owner_remote_fixture.py
++++ b/test_owner_remote_fixture.py
+@@ -11,17 +11,6 @@
+ spec = importlib.util.spec_from_file_location('remote_fixture', Path(__file__).with_name('owner_remote_fixture.py'))
+ f = importlib.util.module_from_spec(spec)
+ spec.loader.exec_module(f)
+-
+-# Captured installed-helper stdout; deliberately no literal "Usage:" prefix.
+-FUSERMOUNT_HELP = '''/usr/bin/fusermount3: [options] mountpoint
+-Options:
+- -h print help
+- -V print version
+- -o opt[,opt...] mount options
+- -u unmount
+- -q quiet
+- -z lazy unmount
+-'''
+ 
+ 
+ class FixtureGuards(unittest.TestCase):
+@@ -174,50 +163,6 @@
+                 fixture.stop(0.01)
+             fixture.run.assert_not_called()
+ 
+-    def test_help_exit_one_with_normal_usage_is_retained_and_admitted(self):
+-        fixture = f.Fixture('a', f.WRITE_FIXTURE)
+-        fixture.unmount_identity = Mock(return_value={'path': '/usr/bin/fusermount3'})
+-        def run(argv, allowed=(0,), **kwargs):
+-            is_help = argv[-1] == '-h'
+-            code = 1 if is_help else 0
+-            self.assertIn(code, allowed)
+-            stdout = FUSERMOUNT_HELP if is_help else ''
+-            fixture.commands.append({'argv': argv, 'returncode': code, 'stdout': stdout, 'stderr': ''})
+-            return stdout
+-        fixture.run = Mock(side_effect=run)
+-        self.assertEqual(fixture.inspect_unmount(), {'path': '/usr/bin/fusermount3'})
+-        self.assertEqual(fixture.commands[0]['returncode'], 1)
+-        self.assertEqual(fixture.commands[0]['stdout'], FUSERMOUNT_HELP)
+-        fixture.run.assert_any_call(['/usr/bin/fusermount3', '-h'], allowed=(0, 1))
+-        fixture.run.assert_any_call(['/usr/bin/fusermount3', '-V'])
+-
+-    def test_help_exit_one_without_usage_or_unmount_option_is_rejected(self):
+-        for text in ('fusermount3: error', FUSERMOUNT_HELP.replace(' -u unmount\n', ''),
+-                     FUSERMOUNT_HELP.replace(' -V print version\n', '')):
+-            fixture = f.Fixture('a', f.WRITE_FIXTURE)
+-            fixture.unmount_identity = Mock(return_value={'path': '/usr/bin/fusermount3'})
+-            def run(argv, **kwargs):
+-                fixture.commands.append({'argv': argv, 'returncode': 1, 'stdout': text, 'stderr': ''})
+-                return text
+-            fixture.run = Mock(side_effect=run)
+-            with self.subTest(text=text), self.assertRaisesRegex(RuntimeError, 'capability missing'):
+-                fixture.inspect_unmount()
+-            self.assertEqual(fixture.run.call_count, 1)
+-
+-    def test_nonzero_version_is_not_covered_by_help_exit_exception(self):
+-        fixture = f.Fixture('a', f.WRITE_FIXTURE)
+-        fixture.unmount_identity = Mock(return_value={'path': '/usr/bin/fusermount3'})
+-        def run(argv, allowed=(0,), **kwargs):
+-            if argv[-1] == '-h':
+-                fixture.commands.append({'argv': argv, 'returncode': 1, 'stdout': FUSERMOUNT_HELP, 'stderr': ''})
+-                return FUSERMOUNT_HELP
+-            self.assertEqual(argv[-1], '-V')
+-            self.assertEqual(allowed, (0,))
+-            raise RuntimeError('version exited 1')
+-        fixture.run = Mock(side_effect=run)
+-        with self.assertRaisesRegex(RuntimeError, 'version exited 1'):
+-            fixture.inspect_unmount()
+-
+ 
+ if __name__ == '__main__':
+     unittest.main()

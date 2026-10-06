@@ -1,0 +1,141 @@
+[
+  {
+    "argv": [
+      "/usr/local/sbin/runc",
+      "--root",
+      "/opt/afs-native-20261007-r1/admission-state",
+      "create",
+      "--bundle",
+      "/opt/afs-native-20261007-r1/admission-bundle",
+      "afs-runtime-admission-r1"
+    ],
+    "exit": 0,
+    "stdout": "runtime-00.stdout",
+    "stderr": "runtime-00.stderr",
+    "seconds": 0.03223337799863657
+  },
+  {
+    "argv": [
+      "/usr/local/sbin/runc",
+      "--root",
+      "/opt/afs-native-20261007-r1/admission-state",
+      "start",
+      "afs-runtime-admission-r1"
+    ],
+    "exit": 0,
+    "stdout": "runtime-01.stdout",
+    "stderr": "runtime-01.stderr",
+    "seconds": 0.003286487000877969
+  },
+  {
+    "argv": [
+      "/usr/local/sbin/runc",
+      "--root",
+      "/opt/afs-native-20261007-r1/admission-state",
+      "state",
+      "afs-runtime-admission-r1"
+    ],
+    "exit": 0,
+    "stdout": "runtime-02.stdout",
+    "stderr": "runtime-02.stderr",
+    "seconds": 0.0034804829992935993
+  },
+  {
+    "argv": [
+      "/usr/local/sbin/runc",
+      "--root",
+      "/opt/afs-native-20261007-r1/admission-state",
+      "exec",
+      "afs-runtime-admission-r1",
+      "/afs-workspace-probe",
+      "identity"
+    ],
+    "exit": 0,
+    "stdout": "runtime-03.stdout",
+    "stderr": "runtime-03.stderr",
+    "seconds": 0.007369418002781458
+  },
+  {
+    "argv": [
+      "/usr/local/sbin/runc",
+      "--root",
+      "/opt/afs-native-20261007-r1/admission-state",
+      "exec",
+      "afs-runtime-admission-r1",
+      "/bin/sh",
+      "-ec",
+      "/bin/busybox id; /bin/busybox grep -E \"^(CapEff|NoNewPrivs):\" /proc/self/status; printf \"container write verified\\n\" > /workspace/result; /bin/busybox sync -f /workspace/result; /bin/busybox cat /workspace/seed"
+    ],
+    "exit": 0,
+    "stdout": "runtime-04.stdout",
+    "stderr": "runtime-04.stderr",
+    "seconds": 0.015764944000693504
+  },
+  {
+    "argv": [
+      "/usr/local/sbin/runc",
+      "--root",
+      "/opt/afs-native-20261007-r1/admission-state",
+      "kill",
+      "afs-runtime-admission-r1",
+      "TERM"
+    ],
+    "exit": 0,
+    "stdout": "runtime-05.stdout",
+    "stderr": "runtime-05.stderr",
+    "seconds": 0.0034155680041294545
+  },
+  {
+    "argv": [
+      "/usr/local/sbin/runc",
+      "--root",
+      "/opt/afs-native-20261007-r1/admission-state",
+      "state",
+      "afs-runtime-admission-r1"
+    ],
+    "exit": 0,
+    "stdout": "runtime-06.stdout",
+    "stderr": "runtime-06.stderr",
+    "seconds": 0.0032507789946976118
+  },
+  {
+    "argv": [
+      "/usr/local/sbin/runc",
+      "--root",
+      "/opt/afs-native-20261007-r1/admission-state",
+      "state",
+      "afs-runtime-admission-r1"
+    ],
+    "exit": 0,
+    "stdout": "runtime-07.stdout",
+    "stderr": "runtime-07.stderr",
+    "seconds": 0.0038596859958488494
+  },
+  {
+    "argv": [
+      "/usr/local/sbin/runc",
+      "--root",
+      "/opt/afs-native-20261007-r1/admission-state",
+      "delete",
+      "afs-runtime-admission-r1"
+    ],
+    "exit": 0,
+    "stdout": "runtime-08.stdout",
+    "stderr": "runtime-08.stderr",
+    "seconds": 0.007820494000043254
+  },
+  {
+    "argv": [
+      "/usr/local/sbin/runc",
+      "--root",
+      "/opt/afs-native-20261007-r1/admission-state",
+      "list",
+      "--format",
+      "json"
+    ],
+    "exit": 0,
+    "stdout": "runtime-09.stdout",
+    "stderr": "runtime-09.stderr",
+    "seconds": 0.0013193939958000556
+  }
+]

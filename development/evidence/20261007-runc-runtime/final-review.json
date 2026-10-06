@@ -1,0 +1,20 @@
+{
+  "reviewer": "/root/e2e_standard_entry",
+  "verdict": "APPROVE bounded runtime installation/admission publication after current status correction",
+  "scope": "no AFS managed lifecycle or performance qualification",
+  "audited_packet_before_this_record": {
+    "sha_entries": 52,
+    "files_including_manifest": 53
+  },
+  "checks": [
+    "official release asset digest/installed hash/checksum/GPG fingerprint agree",
+    "runtime 10 commands exit0 with stop/delete/list evidence",
+    "postcondition process/mount absence",
+    "historical evidence unmodified; product source/ELF unchanged; G1/G2 counts unchanged"
+  ],
+  "finding": "docs/status.md first paragraph still claimed missing runc; root corrected before publication",
+  "limits": [
+    "shell wrote result, sync -f, read seed; not upgraded to full write-read fsync correctness",
+    "clean rootfs required before AFS trusted-tree startup; restart reconciliation still unqualified"
+  ]
+}

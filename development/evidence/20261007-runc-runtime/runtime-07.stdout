@@ -1,0 +1,10 @@
+{
+  "ociVersion": "1.3.0",
+  "id": "afs-runtime-admission-r1",
+  "pid": 0,
+  "status": "stopped",
+  "bundle": "/opt/afs-native-20261007-r1/admission-bundle",
+  "rootfs": "/opt/afs-native-20261007-r1/rootfs",
+  "created": "2026-10-06T19:07:50.616703181Z",
+  "owner": ""
+}

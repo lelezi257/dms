@@ -1,4 +1,4 @@
-**Latest functional output (2026-10-07):** local R1 DFS statfs and affected fixed standards now pass on map6161e25b release, with normal cleanup; [evidence](evidence/20261007-dfs-statfs/README.md). Do not repeat unchanged suites. [Managed container workspace source adapter](native-workspace-slice.md) now exists as a default-OFF partial experiment; runtime admission is blocked by absent runc. Source gates do not qualify container lifecycle/performance. Ordinary performance tuning stays deferred.
+**Latest functional output (2026-10-07):** local R1 DFS statfs and affected fixed standards now pass on map6161e25b release, with normal cleanup; [evidence](evidence/20261007-dfs-statfs/README.md). Do not repeat unchanged suites. [Managed container workspace source adapter](native-workspace-slice.md) now exists as a default-OFF partial experiment; [official runc installation/runtime-only admission passed](evidence/20261007-runc-runtime/README.md) after human authorization; actual managed OwnerFs lifecycle remains pending. Source gates do not qualify container lifecycle/performance. Ordinary performance tuning stays deferred.
 
 # Delivery task map
 

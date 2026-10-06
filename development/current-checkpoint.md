@@ -1,4 +1,6 @@
-**最新源码切片（2026-10-07）：** 默认OFF的受管单容器workspace实验接线，157编译输入map8ef8b788；Linux562库/4实际native挂载/8实际FUSE/接口、严格lint/build及helperTERM通过，复用未变的r3结果。[证据及失败记录](evidence/20261007-native-workspace/README.md)。实际runc运行准入BLOCKED，容器ON功能/性能仍未资格化，不继承旧标准PASS。
+**新增环境出口（2026-10-07）：** 用户授权后在隔离afs-g2-micro安装固定官方runc v1.5.2，SHA/资产digest/GPG及真实非root容器创建/执行/正常停止删除PASS。[证据](evidence/20261007-runc-runtime/README.md)。仅运行时准入；产品map8ef8b788/ELF未变，G2.12/13未闭合，G1和G2计数不变。下一项实际OwnerFs受管容器，使用干净受信rootfs，不重跑未变标准/普通性能。
+
+**最新源码切片（2026-10-07）：** 默认OFF的受管单容器workspace实验接线，157编译输入map8ef8b788；Linux562库/4实际native挂载/8实际FUSE/接口、严格lint/build及helperTERM通过，复用未变的r3结果。[证据及失败记录](evidence/20261007-native-workspace/README.md)。[官方runc安装/运行时准入已通过](evidence/20261007-runc-runtime/README.md)，容器OwnerFs ON功能/性能仍未资格化，不继承旧标准PASS。
 
 **最新源码增量（2026-10-07）：** 基于2b5d35c的四文件DFS statfs修复，154编译输入map6161e25b；Linux库553/实际FUSE8/feature/lint/build及新ELF DFS本地R1 pjdfstest236/8819、固定LTP6/6、正常关闭通过。[独立回执](evidence/20261007-dfs-statfs/README.md)。未继承新ELF Owner标准、多节点恢复或性能资格。
 
@@ -18,7 +20,7 @@
 
 ## 当前默认OFF安装回归
 
-main25a8061/map8ef8b788的release ELF已生成两份逐字节一致的包。无编译器Linux/ext4 VM独立安装后，Owner/DFS各64MiB基础校验、目录fsync、中心Meta有序重启/全内容读回、托管退出0/两个exact mount移除通过。[证据和包摘要](evidence/20261007-installed-off/README.md)、[维护驱动及复现](installed-off-slice.md)。第一轮有限身份结果保留，复核加强安装文件inode/路径与mount ID后仅回归受影响小项。没有重跑标准全集或性能，不重开G1，不关闭G2.27及容器G2.12/13；缺runc环境求助仍待答复。
+main25a8061/map8ef8b788的release ELF已生成两份逐字节一致的包。无编译器Linux/ext4 VM独立安装后，Owner/DFS各64MiB基础校验、目录fsync、中心Meta有序重启/全内容读回、托管退出0/两个exact mount移除通过。[证据和包摘要](evidence/20261007-installed-off/README.md)、[维护驱动及复现](installed-off-slice.md)。第一轮有限身份结果保留，复核加强安装文件inode/路径与mount ID后仅回归受影响小项。没有重跑标准全集或性能，不重开G1，不关闭G2.27及容器G2.12/13；用户已授权隔离VM安装官方runc，运行时准入已通过；实际OwnerFs容器功能仍待验收。
 
 ## 当前组合验证
 

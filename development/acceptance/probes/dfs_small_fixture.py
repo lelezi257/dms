@@ -20,6 +20,9 @@ import tomllib
 from pathlib import Path
 
 FIXTURE = "dfs-small-6d-20261007-r1"
+SYNC_FIXTURE = "dfs-sync-6d-20261007-r1"
+FIXTURE_PORTS = {FIXTURE: {"ctl": (23100, 23101), "node": (23200, 23201)},
+                 SYNC_FIXTURE: {"ctl": (23700, 23701), "node": (23800, 23801)}}
 VOLUMES = {"ctl": "/mnt/lima-afsctlstate", "a": "/mnt/lima-afsadata",
            "b": "/mnt/lima-afsbdata", "c": "/mnt/lima-afscdata"}
 IPS = {"ctl": "192.168.109.11", "a": "192.168.109.12",
@@ -61,10 +64,12 @@ def safe(path, boundary, exists=True):
 
 
 class Fixture:
-    def __init__(self, role):
+    def __init__(self, role, fixture=FIXTURE):
+        require(fixture in FIXTURE_PORTS, "unknown named fixture")
+        self.fixture = fixture
         self.role = role
         self.volume = Path(VOLUMES[role])
-        self.root = self.volume / "afs-delivery" / FIXTURE
+        self.root = self.volume / "afs-delivery" / self.fixture
         self.name = "meta" if role == "ctl" else "node"
         self.config = self.root / "etc" / (self.name + ".toml")
         self.binary = self.root / "prefix/bin" / ("afs-" + self.name)
@@ -85,14 +90,17 @@ class Fixture:
         require(result.returncode in allowed, f"command failed: {record}")
         return result.stdout
 
+    def ports(self):
+        return FIXTURE_PORTS[self.fixture]["ctl" if self.role == "ctl" else "node"]
+
     def expected(self):
         tls = self.root / "etc/tls"
         identity = "meta" if self.role == "ctl" else NODES[self.role]
         values = {"id": "meta-ctl" if self.role == "ctl" else identity,
                   "fs": "dfs", "experimental_native_workspace": False,
                   "data_dir": str(self.root / "state" / self.name),
-                  "grpc_listen": "0.0.0.0:" + ("23100" if self.role == "ctl" else "23200"),
-                  "rest_listen": "0.0.0.0:" + ("23101" if self.role == "ctl" else "23201"),
+                  "grpc_listen": "0.0.0.0:" + str(self.ports()[0]),
+                  "rest_listen": "0.0.0.0:" + str(self.ports()[1]),
                   "log_level": "info", "trace_enabled": False,
                   "tls_ca_certificate": str(tls / "ca.pem"),
                   "tls_identity_certificate": str(tls / (identity + ".pem")),
@@ -102,8 +110,8 @@ class Fixture:
         if self.role == "ctl":
             values["meta_store"] = "local-file"
         else:
-            values.update(meta_endpoint=f"https://{IPS['ctl']}:23100", data_mode="grpc",
-                          allow_volatile_meta=False, advertise_endpoint=f"https://{IPS[self.role]}:23200",
+            values.update(meta_endpoint=f"https://{IPS['ctl']}:{FIXTURE_PORTS[self.fixture]['ctl'][0]}", data_mode="grpc",
+                          allow_volatile_meta=False, advertise_endpoint=f"https://{IPS[self.role]}:{self.ports()[0]}",
                           uds_path=str(self.root / "run/node.sock"), dfs_mount=str(self.root / "mount/dfs"))
         return values
 
@@ -112,6 +120,8 @@ class Fixture:
         cfg = tomllib.loads(original)
         expected = self.expected()
         require(cfg.get("id") == expected["id"] and cfg.get("fs") == "all", "not fresh generated role config")
+        for key in ("grpc_listen", "rest_listen", *(() if self.role == "ctl" else ("meta_endpoint", "advertise_endpoint"))):
+            require(cfg.get(key) == expected[key], "generated fixture endpoint differs: " + key)
         require(all(cfg.get(k) == v for k, v in R2.items()), "generated R2 policy differs")
         require(set(cfg.get("trusted_node_certs", {})) == set(NODES.values()), "generated trust set differs")
         for node, path in cfg["trusted_node_certs"].items():
@@ -175,7 +185,7 @@ class Fixture:
                 yield from walk(row.get("children", []))
         for row in walk(mounts):
             require(not Path(row["target"]).is_relative_to(self.root), "new fixture mount already active")
-        ports = [23100, 23101] if self.role == "ctl" else [23200, 23201]
+        ports = list(self.ports())
         sockets = self.run(["ss", "-ltnp"])
         for port in ports:
             require(not re.search(rf":{port}\s", sockets), f"new port occupied: {port}")
@@ -218,7 +228,7 @@ class Fixture:
             stream.write(original)
         # Existing new config is the only overwritten file; original stays intact.
         self.config.write_text(text)
-        result = {"role": self.role, "root": str(self.root), "config_sha256": digest(self.config),
+        result = {"role": self.role, "fixture": self.fixture, "root": str(self.root), "config_sha256": digest(self.config),
                   "original_sha256": digest(backup), "capacity": capacity, "inventory": inventory}
         with marker.open("x") as stream:
             json.dump(result, stream, indent=2)
@@ -232,7 +242,7 @@ class Fixture:
         inventory = self.idle()
         cfg = self.validate_config()
         marker = json.loads(safe(self.root / "run/config-prepared.json", self.root).read_text())
-        require(marker["role"] == self.role and marker["root"] == str(self.root) and marker["config_sha256"] == digest(self.config), "prepared marker identity differs")
+        require(marker.get("fixture", FIXTURE) == self.fixture and marker["role"] == self.role and marker["root"] == str(self.root) and marker["config_sha256"] == digest(self.config), "prepared marker identity differs")
         require(marker["original_sha256"] == digest(safe(self.config.with_name(self.name + ".original.toml"), self.root)), "original config modified")
         addresses = json.loads(self.run(["ip", "-j", "-4", "addr"]))
         require(any(a.get("local") == IPS[self.role] for row in addresses for a in row.get("addr_info", [])), "role IP differs")
@@ -283,17 +293,18 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("action", choices=("prepare", "preflight"))
     parser.add_argument("role", choices=VOLUMES)
+    parser.add_argument("--fixture", choices=FIXTURE_PORTS, default=FIXTURE)
     args = parser.parse_args()
-    fixture = Fixture(args.role)
+    fixture = Fixture(args.role, args.fixture)
     try:
         fixture.guest()
         result = getattr(fixture, args.action)()
         print(json.dumps({"schema": "afs.dfs_small_fixture.v1", "action": args.action,
-                          "role": args.role, "root": str(fixture.root), "time_unix_ns": time.time_ns(),
+                          "role": args.role, "fixture": fixture.fixture, "root": str(fixture.root), "time_unix_ns": time.time_ns(),
                           **result, "commands": fixture.commands}, indent=2))
         return 0
     except (RuntimeError, OSError, ValueError, KeyError, subprocess.SubprocessError) as error:
-        print(json.dumps({"status": "BLOCKED", "action": args.action, "role": args.role,
+        print(json.dumps({"status": "BLOCKED", "action": args.action, "role": args.role, "fixture": fixture.fixture,
                           "error": str(error), "commands": fixture.commands}, indent=2))
         return 1
 

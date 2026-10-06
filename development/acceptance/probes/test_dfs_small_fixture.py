@@ -5,7 +5,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from dfs_small_fixture import Fixture, NODES, R2, safe
+from dfs_small_fixture import Fixture, FIXTURE, SYNC_FIXTURE, NODES, R2, safe
 
 
 def original(fixture):
@@ -24,6 +24,33 @@ def render(cfg):
 
 
 class ConfigTests(unittest.TestCase):
+    def test_named_fixtures_have_disjoint_roots_and_endpoints(self):
+        for role in ("ctl", "a", "b", "c"):
+            old, new = Fixture(role), Fixture(role, SYNC_FIXTURE)
+            self.assertEqual(old.fixture, FIXTURE)
+            self.assertNotEqual(old.root, new.root)
+            self.assertFalse(new.root.is_relative_to(old.root))
+            self.assertEqual(new.ports(), (23700, 23701) if role == "ctl" else (23800, 23801))
+            cfg = tomllib.loads(new.patch(render(original(new))))
+            self.assertEqual(cfg, new.expected())
+            self.assertNotIn("ownerfs_mount", cfg)
+            self.assertFalse(cfg["experimental_native_workspace"])
+            self.assertEqual(cfg["data_dir"], str(new.root / "state" / new.name))
+
+    def test_new_fixture_rejects_old_generated_endpoint_before_write(self):
+        for role in ("ctl", "a", "b", "c"):
+            new, old = Fixture(role, SYNC_FIXTURE), Fixture(role)
+            for key in ("grpc_listen", "rest_listen", *(() if role == "ctl" else ("meta_endpoint", "advertise_endpoint"))):
+                cfg = original(new)
+                cfg[key] = old.expected()[key]
+                with self.subTest(role=role, key=key), self.assertRaisesRegex(RuntimeError, "endpoint differs"):
+                    new.patch(render(cfg))
+
+    def test_unknown_fixture_refused_without_path_construction(self):
+        for name in ("dfs-sync-other", "../dfs-small-6d-20261007-r1", "/old-root"):
+            with self.assertRaisesRegex(RuntimeError, "unknown named fixture"):
+                Fixture("a", name)
+
     def test_every_role_dfs_only_r2_and_guest_paths(self):
         for role in ("ctl", "a", "b", "c"):
             fixture = Fixture(role)

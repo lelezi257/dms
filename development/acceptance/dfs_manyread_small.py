@@ -11,13 +11,15 @@ import argparse
 import hashlib
 import json
 import os
+import select
 from pathlib import Path
 import platform
 import shutil
 import stat
 import subprocess
+import sys
 import time
-from typing import Any
+from typing import Any, TextIO
 
 DATA_BYTES = 64 * 1024 * 1024
 BLOCK_BYTES = 1024 * 1024
@@ -150,21 +152,35 @@ def validate_io_result(record: dict[str, Any], operation: str, barrier: str) -> 
         raise ValueError("io result missing positive wall_ns")
 
 
-def run_io(io_tool: Path, payload: Path, operation: str, barrier: str, mode: str) -> dict[str, Any]:
+def run_io(io_tool: Path, payload: Path, operation: str, barrier: str, mode: str, timeout: float | None = None) -> dict[str, Any]:
     argv = [
         str(io_tool), str(payload), operation, str(DATA_BYTES), str(BLOCK_BYTES), str(CONCURRENCY),
         barrier, str(DATA_BYTES), str(PATTERN_BYTE), mode, "unobserved",
     ]
     began = time.monotonic_ns()
-    completed = subprocess.run(argv, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    record: dict[str, Any] = {
-        "argv": argv,
-        "rc": completed.returncode,
-        "stdout": completed.stdout,
-        "stderr": completed.stderr,
-        "elapsed_ns": time.monotonic_ns() - began,
-        "status": "FAIL",
-    }
+    try:
+        completed = subprocess.run(argv, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout)
+        record: dict[str, Any] = {
+            "argv": argv,
+            "rc": completed.returncode,
+            "stdout": completed.stdout,
+            "stderr": completed.stderr,
+            "elapsed_ns": time.monotonic_ns() - began,
+            "status": "FAIL",
+        }
+    except subprocess.TimeoutExpired as error:
+        record = {
+            "argv": argv,
+            "rc": None,
+            "stdout": decode_process_text(error.stdout),
+            "stderr": decode_process_text(error.stderr),
+            "elapsed_ns": time.monotonic_ns() - began,
+            "status": "FAIL",
+            "timed_out": True,
+            "verify": {"status": "FAIL", "error": f"io timeout after {timeout} seconds"},
+            "child_reaped": True,
+        }
+        return record
     try:
         payload_json = json.loads(completed.stdout)
         record["result"] = payload_json
@@ -183,6 +199,140 @@ def verify_payload(path: Path, expected_sha256: str) -> dict[str, Any]:
     digest = sha256_file(path)
     status = "PASS" if st.st_size == DATA_BYTES and digest == expected_sha256 else "FAIL"
     return {"status": status, "path": str(path), "bytes": st.st_size, "sha256": digest, "expected_sha256": expected_sha256}
+
+
+def verify_eof(path: Path) -> dict[str, Any]:
+    with path.open("rb") as handle:
+        handle.seek(DATA_BYTES)
+        tail = handle.read(1)
+    return {"status": "PASS" if tail == b"" else "FAIL", "offset": DATA_BYTES, "extra_bytes": len(tail)}
+
+
+def emit_json_line(stream: TextIO, event: dict[str, Any]) -> None:
+    stream.write(json.dumps(event, sort_keys=True) + "\n")
+    stream.flush()
+
+
+def decode_process_text(value: str | bytes | None) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, bytes):
+        return value.decode("utf-8", errors="replace")
+    return value
+
+
+class JsonLineReader:
+    def __init__(self, stream: TextIO):
+        self.fd = stream.fileno()
+        self.buffer = bytearray()
+
+    def read_line(self, timeout: float) -> str:
+        deadline = time.monotonic() + timeout
+        while True:
+            newline = self.buffer.find(b"\n")
+            if newline >= 0:
+                raw = bytes(self.buffer[:newline + 1])
+                del self.buffer[:newline + 1]
+                return raw.decode("utf-8", errors="replace")
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise TimeoutError("timeout waiting for complete JSON line")
+            ready, _, _ = select.select([self.fd], [], [], remaining)
+            if not ready:
+                raise TimeoutError("timeout waiting for complete JSON line")
+            chunk = os.read(self.fd, 4096)
+            if chunk == b"":
+                if self.buffer:
+                    raise EOFError("EOF after partial JSON line")
+                raise EOFError("EOF waiting for JSON line")
+            self.buffer.extend(chunk)
+
+
+def validate_sync_reader_id(reader_id: str) -> str:
+    if reader_id not in ("B", "C"):
+        raise ValueError("sync reader-id must be B or C")
+    return reader_id
+
+
+def parse_start_event(line: str, expected_round: int, reader_id: str | None = None, session_token: str | None = None) -> dict[str, Any]:
+    try:
+        event = json.loads(line)
+    except json.JSONDecodeError as error:
+        raise ValueError(f"malformed START json: {error}") from error
+    if not isinstance(event, dict) or event.get("event") != "START":
+        raise ValueError("expected START event")
+    if reader_id is not None and event.get("reader_id") != reader_id:
+        raise ValueError(f"unexpected START reader_id: {event.get('reader_id')!r}")
+    if session_token is not None and event.get("session_token") != session_token:
+        raise ValueError("unexpected START session_token")
+    if event.get("round") != expected_round:
+        raise ValueError(f"unexpected START round: {event.get('round')!r}")
+    token = event.get("round_token") or event.get("token")
+    if not isinstance(token, str) or not token:
+        raise ValueError("START round_token must be a nonempty string")
+    return {"round": expected_round, "round_token": token, "token": token}
+
+
+def read_start_event(input_reader: JsonLineReader, expected_round: int, timeout: float, reader_id: str | None = None, session_token: str | None = None) -> dict[str, Any]:
+    line = input_reader.read_line(timeout)
+    return parse_start_event(line, expected_round, reader_id=reader_id, session_token=session_token)
+
+
+def parse_ack_event(line: str, expected_round: int, reader_id: str | None = None, session_token: str | None = None, round_token: str | None = None) -> dict[str, Any]:
+    try:
+        event = json.loads(line)
+    except json.JSONDecodeError as error:
+        raise ValueError(f"malformed ACK json: {error}") from error
+    if not isinstance(event, dict) or event.get("event") != "ACK":
+        raise ValueError("expected ACK event")
+    if reader_id is not None and event.get("reader_id") != reader_id:
+        raise ValueError(f"unexpected ACK reader_id: {event.get('reader_id')!r}")
+    if session_token is not None and event.get("session_token") != session_token:
+        raise ValueError("unexpected ACK session_token")
+    if event.get("round") != expected_round:
+        raise ValueError(f"unexpected ACK round: {event.get('round')!r}")
+    if round_token is not None and event.get("round_token") != round_token:
+        raise ValueError("unexpected ACK round_token")
+    return event
+
+
+def read_ack_event(input_reader: JsonLineReader, expected_round: int, timeout: float, reader_id: str | None = None,
+                   session_token: str | None = None, round_token: str | None = None) -> dict[str, Any]:
+    line = input_reader.read_line(timeout)
+    return parse_ack_event(line, expected_round, reader_id=reader_id, session_token=session_token, round_token=round_token)
+
+
+def validate_ready_pair(events: list[dict[str, Any]], expected_round: int | None = None, session_token: str | None = None) -> dict[str, Any]:
+    if len(events) != 2:
+        raise ValueError(f"READY pair must contain exactly two events: {len(events)}")
+    readers: dict[str, dict[str, Any]] = {}
+    for event in events:
+        if not isinstance(event, dict) or event.get("event") != "READY":
+            continue
+        reader = event.get("reader_id")
+        if reader not in ("B", "C"):
+            raise ValueError(f"unexpected READY reader: {reader!r}")
+        if reader in readers:
+            raise ValueError(f"duplicate READY reader: {reader}")
+        if expected_round is not None and event.get("round") != expected_round:
+            raise ValueError(f"unexpected READY round: {event.get('round')!r}")
+        if session_token is not None and event.get("session_token") != session_token:
+            raise ValueError("unexpected READY session_token")
+        readers[reader] = event
+    if set(readers) != {"B", "C"}:
+        raise ValueError(f"READY pair must contain B and C exactly: {sorted(readers)}")
+    return {"status": "PASS", "readers": sorted(readers)}
+
+
+def sync_read_status(rounds: list[dict[str, Any]], final_content: dict[str, Any], final_eof: dict[str, Any]) -> str:
+    if read_status(rounds) != "DATA_RECORDED":
+        return "FAIL"
+    measured = [row.get("round") for row in rounds if row.get("measured") is True]
+    if measured != list(range(1, MEASUREMENT_ROUNDS + 1)):
+        return "FAIL"
+    if final_content.get("status") != "PASS" or final_eof.get("status") != "PASS":
+        return "FAIL"
+    return "DATA_RECORDED"
 
 
 def writer_directory_name() -> str:
@@ -312,6 +462,102 @@ def reader_rounds(io_tool: Path, payload: Path, output: Path) -> list[dict[str, 
     return rounds
 
 
+def sync_reader(args: argparse.Namespace) -> dict[str, Any]:
+    reader_id = validate_sync_reader_id(args.reader_id)
+    timeout = args.round_timeout
+    session_token = args.session_token
+    result: dict[str, Any] = {"role": "reader", "reader_id": reader_id, "status": "BLOCKED", "sync_stdio": True,
+                              "session_token": session_token,
+                              "scope": "small DFS synchronized many-reader diagnostic; parent owns common window"}
+    output: Path | None = None
+    output_created = False
+    rounds: list[dict[str, Any]] = []
+    emit_json_line(sys.stdout, {"event": "HELLO", "reader_id": reader_id, "session_token": session_token,
+                                "protocol": "afs.dfs_manyread.sync_stdio.v1", "rounds": MEASUREMENT_ROUNDS})
+    control_reader = JsonLineReader(sys.stdin)
+    try:
+        read_ack_event(control_reader, 0, timeout, reader_id=reader_id, session_token=session_token)
+        dfs_root = require_absolute_path(args.dfs_root, "dfs-root")
+        io_tool = require_absolute_path(args.io_tool, "io-tool")
+        manifest_path = require_absolute_path(args.manifest, "manifest")
+        output = require_absolute_path(args.output, "output")
+        validate_output_path(output)
+        output.mkdir(mode=0o700)
+        output_created = True
+        platform_identity = verify_linux_aarch64_root()
+        require_existing_directory(dfs_root, "dfs-root")
+        if manifest_path.is_symlink() or not manifest_path.is_file():
+            raise ValueError(f"manifest must be an existing non-symlink file: {manifest_path}")
+        manifest = read_json(manifest_path)
+        payload_shape = validate_manifest_shape(manifest)
+        mount = find_mount(dfs_root)
+        require_dfs_mount(mount, dfs_root)
+        io_identity = validate_io_tool(io_tool)
+        payload = dfs_root / payload_shape["relative_dir"] / PAYLOAD_NAME
+        pre_content = verify_payload(payload, payload_shape["sha256"])
+        write_json(output / "manifest-precheck.json", {"manifest": str(manifest_path), "content_verify": pre_content})
+        result.update({
+            "platform": platform_identity,
+            "manifest": {"path": str(manifest_path), "payload": payload_shape, "product_source_commit": manifest.get("product_source_commit"), "compiler_input_map": manifest.get("compiler_input_map"), "source6d": manifest.get("source6d"), "map66": manifest.get("map66")},
+            "io_tool": io_identity,
+            "fs": {"dfs_root": stat_identity(dfs_root), "payload": stat_identity(payload)},
+            "mount": mount,
+            "content_verify": pre_content,
+            "timer_scope": "READY is emitted per round after manifest/content precheck and warmup; START..DONE rounds 1..5 are parent common-window inputs; final content/EOF check is after the measured rounds.",
+        })
+        if pre_content.get("status") != "PASS":
+            raise ValueError("reader payload precheck failed")
+        warmup = run_io(io_tool, payload, "seq-read", "close", "existing", timeout=timeout)
+        warmup["round"] = 0
+        warmup["measured"] = False
+        warmup_path = output / "read-samples" / "round-00.json"
+        write_json(warmup_path, warmup)
+        warmup["artifact"] = str(warmup_path)
+        warmup_round = {"round": 0, "measured": False, "samples": [warmup]}
+        write_json(output / "read-round-00.json", warmup_round)
+        rounds.append(warmup_round)
+        if warmup.get("status") != "PASS" or warmup.get("verify", {}).get("status") != "PASS":
+            raise ValueError("reader warmup failed")
+        for index in range(1, MEASUREMENT_ROUNDS + 1):
+            emit_json_line(sys.stdout, {"event": "READY", "reader_id": reader_id, "session_token": session_token,
+                                        "round": index, "payload_sha256": payload_shape["sha256"], "output": str(output)})
+            start = read_start_event(control_reader, index, timeout, reader_id=reader_id, session_token=session_token)
+            sample = run_io(io_tool, payload, "seq-read", "close", "existing", timeout=timeout)
+            sample["round"] = index
+            sample["measured"] = True
+            sample["round_token"] = start["round_token"]
+            sample_path = output / "read-samples" / f"round-{index:02d}.json"
+            write_json(sample_path, sample)
+            sample["artifact"] = str(sample_path)
+            round_record = {"round": index, "measured": True, "round_token": start["round_token"], "samples": [sample]}
+            write_json(output / f"read-round-{index:02d}.json", round_record)
+            rounds.append(round_record)
+            done = {"event": "DONE", "reader_id": reader_id, "session_token": session_token, "round": index,
+                    "round_token": start["round_token"], "status": sample.get("status"), "rc": sample.get("rc"),
+                    "result": sample.get("result"), "artifact": str(sample_path)}
+            emit_json_line(sys.stdout, done)
+            if sample.get("status") != "PASS" or sample.get("verify", {}).get("status") != "PASS":
+                raise RuntimeError(f"reader round {index} failed")
+            read_ack_event(control_reader, index, timeout, reader_id=reader_id, session_token=session_token,
+                           round_token=start["round_token"])
+        final_content = verify_payload(payload, payload_shape["sha256"])
+        final_eof = verify_eof(payload)
+        result["read_rounds"] = rounds
+        result["final_content_verify"] = final_content
+        result["final_eof_verify"] = final_eof
+        write_json(output / "read-rounds.json", rounds)
+        result["status"] = sync_read_status(rounds, final_content, final_eof)
+    except Exception as error:
+        result["error"] = repr(error)
+    finally:
+        if output_created and output is not None and output.exists() and output.is_dir():
+            write_json(output / "summary.json", result)
+        emit_json_line(sys.stdout, {"event": "FINAL", "reader_id": reader_id, "session_token": session_token,
+                                    "status": result.get("status"), "error": result.get("error"),
+                                    "output": str(output) if output is not None else None})
+    return result
+
+
 def reader(args: argparse.Namespace) -> dict[str, Any]:
     result: dict[str, Any] = {"role": "reader", "status": "BLOCKED", "scope": "small DFS many-reader diagnostic; parent owns concurrency timing"}
     output: Path | None = None
@@ -358,6 +604,127 @@ def reader(args: argparse.Namespace) -> dict[str, Any]:
     return result
 
 
+def read_json_line(input_reader: JsonLineReader, timeout: float) -> dict[str, Any]:
+    line = input_reader.read_line(timeout)
+    try:
+        event = json.loads(line)
+    except json.JSONDecodeError as error:
+        raise ValueError(f"malformed routed json: {error}") from error
+    if not isinstance(event, dict):
+        raise ValueError("routed event must be an object")
+    return event
+
+
+def require_routed_event(event: dict[str, Any], expected_event: str, readers: set[str], session_token: str,
+                         seen: set[str] | None = None, expected_round: int | None = None,
+                         expected_token: str | None = None) -> dict[str, Any]:
+    if event.get("event") != expected_event:
+        raise ValueError(f"expected {expected_event}, got {event.get('event')!r}")
+    reader = event.get("reader_id")
+    if reader not in readers:
+        raise ValueError(f"unexpected reader_id: {reader!r}")
+    if seen is not None:
+        if reader in seen:
+            raise ValueError(f"duplicate {expected_event} from {reader}")
+        seen.add(reader)
+    if event.get("session_token") != session_token:
+        raise ValueError("unexpected session_token")
+    if expected_round is not None and event.get("round") != expected_round:
+        raise ValueError(f"unexpected round: {event.get('round')!r}")
+    if expected_token is not None and event.get("round_token") != expected_token:
+        raise ValueError("unexpected round_token")
+    return event
+
+
+def validate_done_event_io(done: dict[str, Any]) -> None:
+    if done.get("status") != "PASS":
+        raise RuntimeError(f"reader {done.get('reader_id')} round {done.get('round')} status {done.get('status')}")
+    if done.get("rc") != 0:
+        raise RuntimeError(f"reader {done.get('reader_id')} round {done.get('round')} rc {done.get('rc')}")
+    result = done.get("result")
+    if not isinstance(result, dict):
+        raise RuntimeError(f"reader {done.get('reader_id')} round {done.get('round')} missing C result")
+    try:
+        validate_io_result(result, "seq-read", "close")
+    except Exception as error:
+        raise RuntimeError(f"reader {done.get('reader_id')} round {done.get('round')} invalid C result: {error}") from error
+
+
+def coordinator(args: argparse.Namespace) -> dict[str, Any]:
+    output = require_absolute_path(args.output, "output")
+    validate_output_path(output)
+    output.mkdir(mode=0o700)
+    readers = set(args.readers)
+    result: dict[str, Any] = {"role": "coordinator", "status": "BLOCKED", "session_token": args.session_token,
+                              "readers": sorted(readers), "round_timeout": args.round_timeout,
+                              "timer_scope": "ctl Linux monotonic_ns; per-round elapsed starts before START emit and ends after both DONE events, including host relay/Lima control delay plus reader result write/emit overhead."}
+    raw_events: list[dict[str, Any]] = []
+    rounds: list[dict[str, Any]] = []
+    try:
+        platform_identity = verify_linux_aarch64_root()
+        result["platform"] = platform_identity
+        result["monotonic_clock"] = {k: getattr(time.get_clock_info("monotonic"), k) for k in ("implementation", "monotonic", "adjustable", "resolution")}
+        if readers != {"B", "C"}:
+            raise ValueError("coordinator readers must be B and C")
+        input_reader = JsonLineReader(sys.stdin)
+        hello_seen: set[str] = set()
+        while hello_seen != readers:
+            event = read_json_line(input_reader, args.round_timeout)
+            raw_events.append(event)
+            require_routed_event(event, "HELLO", readers, args.session_token, seen=hello_seen)
+        for reader in args.readers:
+            emit_json_line(sys.stdout, {"event": "ACK", "reader_id": reader, "session_token": args.session_token,
+                                        "round": 0, "next_round": 1, "rounds": MEASUREMENT_ROUNDS})
+        for round_index in range(1, MEASUREMENT_ROUNDS + 1):
+            ready_seen: set[str] = set()
+            ready_events: list[dict[str, Any]] = []
+            while ready_seen != readers:
+                event = read_json_line(input_reader, args.round_timeout)
+                raw_events.append(event)
+                ready_events.append(require_routed_event(event, "READY", readers, args.session_token, seen=ready_seen, expected_round=round_index))
+            round_token = f"{args.session_token}:round:{round_index}"
+            start_before_emit_ns = time.monotonic_ns()
+            for reader in args.readers:
+                emit_json_line(sys.stdout, {"event": "START", "reader_id": reader, "session_token": args.session_token,
+                                            "round": round_index, "round_token": round_token})
+            done_seen: set[str] = set()
+            done_events: list[dict[str, Any]] = []
+            while done_seen != readers:
+                event = read_json_line(input_reader, args.round_timeout)
+                raw_events.append(event)
+                done = require_routed_event(event, "DONE", readers, args.session_token, seen=done_seen,
+                                            expected_round=round_index, expected_token=round_token)
+                validate_done_event_io(done)
+                done_events.append(done)
+            end_after_both_done_ns = time.monotonic_ns()
+            row = {"round": round_index, "round_token": round_token, "ready": ready_events, "done": done_events,
+                   "start_before_emit_ns": start_before_emit_ns, "end_after_both_done_ns": end_after_both_done_ns,
+                   "elapsed_ns": end_after_both_done_ns - start_before_emit_ns}
+            write_json(output / f"coordinator-round-{round_index:02d}.json", row)
+            rounds.append(row)
+            for reader in args.readers:
+                emit_json_line(sys.stdout, {"event": "ACK", "reader_id": reader, "session_token": args.session_token,
+                                            "round": round_index, "round_token": round_token,
+                                            "next_round": round_index + 1 if round_index < MEASUREMENT_ROUNDS else None})
+        final_seen: set[str] = set()
+        final_events: list[dict[str, Any]] = []
+        while final_seen != readers:
+            event = read_json_line(input_reader, args.round_timeout)
+            raw_events.append(event)
+            final = require_routed_event(event, "FINAL", readers, args.session_token, seen=final_seen)
+            final_events.append(final)
+            if final.get("status") != "DATA_RECORDED":
+                raise RuntimeError(f"reader {final.get('reader_id')} final status {final.get('status')}")
+        result.update({"status": "DATA_RECORDED", "rounds": rounds, "final": final_events})
+    except Exception as error:
+        result["error"] = repr(error)
+        result["rounds"] = rounds
+    finally:
+        write_json(output / "coordinator-events.json", raw_events)
+        write_json(output / "summary.json", result)
+    return result
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="role", required=True)
@@ -366,14 +733,32 @@ def parse_args() -> argparse.Namespace:
         item.add_argument("--dfs-root", required=True)
         item.add_argument("--io-tool", required=True)
         item.add_argument("--output", required=True)
+    coordinator_parser = sub.add_parser("coordinator")
+    coordinator_parser.add_argument("--output", required=True)
+    coordinator_parser.add_argument("--session-token", required=True)
+    coordinator_parser.add_argument("--round-timeout", type=float, default=30.0)
+    coordinator_parser.add_argument("--readers", nargs=2, default=["B", "C"])
     sub.choices["reader"].add_argument("--manifest", required=True)
+    sub.choices["reader"].add_argument("--sync-stdio", action="store_true", help="emit HELLO/READY/DONE/FINAL JSON lines and wait for START JSON lines")
+    sub.choices["reader"].add_argument("--reader-id", choices=("B", "C"), default="B")
+    sub.choices["reader"].add_argument("--session-token", default="")
+    sub.choices["reader"].add_argument("--round-timeout", type=float, default=30.0)
     return parser.parse_args()
 
 
 def main() -> int:
     args = parse_args()
-    result = writer(args) if args.role == "writer" else reader(args)
-    print(json.dumps(result, indent=2, sort_keys=True))
+    if args.role == "writer":
+        result = writer(args)
+        print(json.dumps(result, indent=2, sort_keys=True))
+    elif args.role == "coordinator":
+        result = coordinator(args)
+        print(json.dumps(result, indent=2, sort_keys=True), file=sys.stderr)
+    elif args.sync_stdio:
+        result = sync_reader(args)
+    else:
+        result = reader(args)
+        print(json.dumps(result, indent=2, sort_keys=True))
     return 0 if result.get("status") == "DATA_RECORDED" else 1
 
 

@@ -1,0 +1,12 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "afs-accept-a",
+    "sudo",
+    "python3",
+    "-c",
+    "import pathlib,hashlib,os,subprocess,json,sys\np=pathlib.Path('/opt/afs-moose-round3-v85/bin/mfscli');data=p.read_bytes();r=subprocess.run([str(p),'--help'],text=True,capture_output=True,timeout=20)\nv={'kind':'official Python executable, not ELF','path':str(p),'sha256':hashlib.sha256(data).hexdigest(),'shebang':data.splitlines()[0].decode(),'executable':os.access(p,os.X_OK),'interpreter':'/usr/bin/python3','interpreter_exists':pathlib.Path('/usr/bin/python3').is_file(),'help_exit':r.returncode,'help_stdout':r.stdout,'help_stderr':r.stderr}\npassed=v['sha256']=='247194b8e45c6cbd7bf0ae95f9e5b709ee0f08e669739e4ffef46c7659ec09df' and v['shebang']=='#!/usr/bin/python3' and v['executable'] and v['interpreter_exists'] and r.returncode==0;v['status']='PASS' if passed else 'BLOCKED';print(json.dumps(v,indent=2));sys.exit(0 if passed else 2)\n"
+  ],
+  "exit": 0
+}

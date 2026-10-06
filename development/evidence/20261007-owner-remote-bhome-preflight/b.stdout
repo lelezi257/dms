@@ -1,0 +1,44 @@
+{
+  "system": "Linux",
+  "arch": "aarch64",
+  "uid": 0,
+  "kernel": "6.8.0-142-generic",
+  "root": "/mnt/lima-afsbdata/afs-delivery/owner-remote-6d-bhome-20261007-r1",
+  "root_absent": true,
+  "filesystem": {
+    "target": "/mnt/lima-afsbdata",
+    "source": "/dev/vdb1",
+    "fstype": "ext4",
+    "options": "rw,relatime"
+  },
+  "free_bytes": 18827644928,
+  "required_available_bytes": 5368709120,
+  "dependencies": {
+    "python3": "/usr/bin/python3",
+    "bash": "/usr/bin/bash",
+    "findmnt": "/usr/bin/findmnt",
+    "ss": "/usr/bin/ss",
+    "curl": "/usr/bin/curl",
+    "openssl": "/usr/bin/openssl",
+    "ldd": "/usr/bin/ldd",
+    "fusermount3": "/usr/bin/fusermount3",
+    "sync": "/usr/bin/sync",
+    "tar": "/usr/bin/tar",
+    "gzip": "/usr/bin/gzip"
+  },
+  "occupied_selected_ports": [],
+  "tools": [
+    {
+      "path": "/opt/afs-moose-round3-v85/sbin/mfschunkserver",
+      "exists": true,
+      "expected_sha256": "422a36b7e31a6aa0bfbef08efe083d9d55003aca0a9a7bd0121b730c33f97303",
+      "sha256": "422a36b7e31a6aa0bfbef08efe083d9d55003aca0a9a7bd0121b730c33f97303",
+      "ldd": {
+        "exit": 0,
+        "stdout": "\tlinux-vdso.so.1 (0x0000f87668abe000)\n\tlibz.so.1 => /lib/aarch64-linux-gnu/libz.so.1 (0x0000f876608e0000)\n\tlibc.so.6 => /lib/aarch64-linux-gnu/libc.so.6 (0x0000f87660720000)\n\t/lib/ld-linux-aarch64.so.1 (0x0000f87668a70000)\n",
+        "stderr": ""
+      }
+    }
+  ],
+  "status": "PASS"
+}

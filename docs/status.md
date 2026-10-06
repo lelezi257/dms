@@ -1,3 +1,5 @@
+**当前下一项（2026-10-07）：** [Owner远端B-Home新夹具只读前置](development/evidence/20261007-owner-remote-bhome-preflight/README.md)PASS：ctl/A/B新目录/端口/ext4/预算/固定Moose工具；原mfscli脚本误用ldd的检查器失败保留、仅正确解释器门禁补验通过。尚未部署或测性能。下一固定6d ELF/payload、新Owner-only配置/TLS/print-config与实际Home=B/一副本身份，然后64MiB读和100×4KiB删除留数。OFF试用已可下载，G1/G2计数和原FAIL不变。
+
 **当前发布事实（2026-10-07）：** [默认OFF试用版本](https://github.com/lelezi257/dms/releases/tag/afs-trial-6d51aeb)已发布并远端核对：三资产SHA/大小一致，tag精确指向产品6d51aeb，prerelease，正式Latest仍v0.1.0。同包复现/限定试用交付小项完成；复用35checks安装恢复，不计完整G2.27/性能或ON。下一Owner远端64MiB读/100×4KiB删除新夹具准入与摸底，保留全部旧FAIL及R2阻塞；G1历史8/8、G2计数不变。
 
 **当前交付小项（2026-10-07）：** 同Rust6d51aeb/map66dbbe3e/157输入，已有OFF包在Linux umask077下重打与已测原包完整字节一致（ee25d589，14,728,435B），复现PASS；复用35项安装/恢复PASS。[复现命令与Git输入](../development/evidence/20261007-off-trial-handoff/README.md)、[版本化试用清单](guides/trial-6d.md)已审阅，固定prerelease发布准备中，不关闭G2.27全性能/ON出口。远端只读准入区分A旧helper保留4GiB不足与新case未冻结合同；B新夹具待准入，不降低64MiB或清理旧环境。[实际库存](../development/evidence/20261007-owner-remote-admission/README.md)。下一独立项为Owner远端小读/删新夹具和数据，普通优化暂缓；G1/G2计数不变。

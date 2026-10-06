@@ -26,10 +26,22 @@ from pathlib import Path
 
 FIXTURE = "owner-remote-6d-bhome-20261007-r1"
 WRITE_FIXTURE = "owner-remote-write-6d-bhome-20261007-r1"
-FIXTURES = (FIXTURE, WRITE_FIXTURE)
+DELETE_FIXTURE = "owner-remote-delete-6d-bhome-20261007-r1"
+FIXTURES = (FIXTURE, WRITE_FIXTURE, DELETE_FIXTURE)
+MUTABLE_FIXTURES = (WRITE_FIXTURE, DELETE_FIXTURE)
 VOLUMES = {"ctl": "/mnt/lima-afsctlstate", "a": "/mnt/lima-afsadata", "b": "/mnt/lima-afsbdata"}
 IPS = {"ctl": "192.168.109.11", "a": "192.168.109.12", "b": "192.168.109.13"}
-PORTS = {"ctl": [22800, 22801, 23040, 23041, 23042], "a": [22900, 22901], "b": [22900, 22901, 23043]}
+PORT_PLAN = {
+    FIXTURE: {"ctl": {"meta_grpc": 22800, "meta_rest": 22801, "matoml": 23040, "matocs": 23041, "matocl": 23042},
+              "a": {"node_grpc": 22900, "node_rest": 22901},
+              "b": {"node_grpc": 22900, "node_rest": 22901, "chunk": 23043}},
+    WRITE_FIXTURE: {"ctl": {"meta_grpc": 22800, "meta_rest": 22801, "matoml": 23040, "matocs": 23041, "matocl": 23042},
+                    "a": {"node_grpc": 22900, "node_rest": 22901},
+                    "b": {"node_grpc": 22900, "node_rest": 22901, "chunk": 23043}},
+    DELETE_FIXTURE: {"ctl": {"meta_grpc": 23400, "meta_rest": 23401, "matoml": 23640, "matocs": 23641, "matocl": 23642},
+                     "a": {"node_grpc": 23500, "node_rest": 23501},
+                     "b": {"node_grpc": 23500, "node_rest": 23501, "chunk": 23643}},
+}
 BUDGET = {"ctl": 256 * 1024**2, "a": 256 * 1024**2, "b": 1024**3}
 FLOOR = {"ctl": 512 * 1024**2, "a": 1024**3, "b": 4 * 1024**3}
 MOOSE = Path("/opt/afs-moose-round3-v85")
@@ -111,6 +123,19 @@ class Fixture:
         self.service = {"ctl": "master", "a": "mount", "b": "chunk"}[role]
         self.commands = []
 
+    def ports(self):
+        return PORT_PLAN[self.fixture][self.role]
+
+    def port(self, name):
+        return self.ports()[name]
+
+    def start_bind_ports(self):
+        if self.role == "ctl":
+            return [self.port("matoml"), self.port("matocs"), self.port("matocl")]
+        if self.role == "b":
+            return [self.port("chunk")]
+        return []
+
     def guest(self):
         require(platform.system() == "Linux" and platform.machine() == "aarch64", "Linux ARM64 guest only")
         require(os.geteuid() == 0, "guest root required")
@@ -170,9 +195,10 @@ class Fixture:
 
     def empty_ports(self):
         raw = self.run(["ss", "-ltnp"])
-        for port in PORTS[self.role]:
+        ports = sorted(self.ports().values())
+        for port in ports:
             require(not re.search(rf":{port}\s", raw), f"selected new port occupied: {port}")
-        return PORTS[self.role]
+        return ports
 
     def moose_configs(self):
         root = self.root
@@ -181,21 +207,21 @@ class Fixture:
             return {"mfsmaster.cfg": common + f"""DATA_PATH = {root}/state/moose/master
 EXPORTS_FILENAME = {root}/config/mfsexports.cfg
 MATOML_LISTEN_HOST = {IPS['ctl']}
-MATOML_LISTEN_PORT = 23040
+MATOML_LISTEN_PORT = {self.port('matoml')}
 MATOCS_LISTEN_HOST = {IPS['ctl']}
-MATOCS_LISTEN_PORT = 23041
+MATOCS_LISTEN_PORT = {self.port('matocs')}
 MATOCL_LISTEN_HOST = {IPS['ctl']}
-MATOCL_LISTEN_PORT = 23042
+MATOCL_LISTEN_PORT = {self.port('matocl')}
 CHANGELOG_SAVE_MODE = 2
 """, "mfsexports.cfg": f"{IPS['a']} / rw,alldirs,admin,maproot=0:0\n"}
         if self.role == "b":
             return {"mfschunkserver.cfg": common + f"""DATA_PATH = {root}/state/moose/chunkstate
 HDD_CONF_FILENAME = {root}/config/mfshdd.cfg
 MASTER_HOST = {IPS['ctl']}
-MASTER_PORT = 23041
+MASTER_PORT = {PORT_PLAN[self.fixture]['ctl']['matocs']}
 BIND_HOST = {IPS['b']}
 CSSERV_LISTEN_HOST = {IPS['b']}
-CSSERV_LISTEN_PORT = 23043
+CSSERV_LISTEN_PORT = {self.port('chunk')}
 HDD_LEAVE_SPACE_DEFAULT = 4GiB
 HDD_FSYNC_BEFORE_CLOSE = 1
 """, "mfshdd.cfg": f"{root}/state/moose/chunks\n"}
@@ -214,11 +240,11 @@ HDD_FSYNC_BEFORE_CLOSE = 1
         certs = {k: str(self.root / "etc/tls" / Path(v).name) for k, v in parsed["trusted_node_certs"].items()}
         if self.role == "ctl":
             require(parsed["meta_store"] == "local-file", "local-file Meta required")
-            changed.update(grpc_listen="0.0.0.0:22800", rest_listen="0.0.0.0:22801")
+            changed.update(grpc_listen=f"0.0.0.0:{self.port('meta_grpc')}", rest_listen=f"0.0.0.0:{self.port('meta_rest')}")
         else:
             changed.update(uds_path=str(self.root / "run/node.sock"), ownerfs_mount=str(self.root / "mount/ownerfs"),
-                           meta_endpoint=f"https://{IPS['ctl']}:22800", data_mode="grpc", allow_volatile_meta=False,
-                           advertise_endpoint=f"https://{IPS[self.role]}:22900", grpc_listen="0.0.0.0:22900", rest_listen="0.0.0.0:22901")
+                           meta_endpoint=f"https://{IPS['ctl']}:{PORT_PLAN[self.fixture]['ctl']['meta_grpc']}", data_mode="grpc", allow_volatile_meta=False,
+                           advertise_endpoint=f"https://{IPS[self.role]}:{self.port('node_grpc')}", grpc_listen=f"0.0.0.0:{self.port('node_grpc')}", rest_listen=f"0.0.0.0:{self.port('node_rest')}")
         lines = []
         remaining = dict(changed)
         for line in original.splitlines():
@@ -238,7 +264,7 @@ HDD_FSYNC_BEFORE_CLOSE = 1
         return text
 
     def prepare(self):
-        require(self.fixture == WRITE_FIXTURE, "historical read/delete prepare is closed; use new write fixture")
+        require(self.fixture in MUTABLE_FIXTURES, "historical read fixture is closed; use a fresh mutable fixture")
         marker = self.root / "run/config-prepared.json"
         require(not marker.exists(), "prepare is exclusive; use preflight-config for existing prepared fixture")
         self.capacity(admission=True)
@@ -289,7 +315,7 @@ HDD_FSYNC_BEFORE_CLOSE = 1
         return {"path": str(path), "sha256": expected, "bytes": path.stat().st_size}
 
     def preflight(self, io_path):
-        require(self.fixture == WRITE_FIXTURE, "historical read/delete admission is closed; use new write fixture")
+        require(self.fixture in MUTABLE_FIXTURES, "historical read fixture admission is closed; use a fresh mutable fixture")
         self.prepared()
         dependency_names = ("findmnt", "ss", "ip", "ldd", "openssl")
         require(all(shutil.which(n) for n in dependency_names), "missing preflight dependency")
@@ -375,7 +401,7 @@ HDD_FSYNC_BEFORE_CLOSE = 1
             return [str(tool("sbin/mfsmaster")), "-f", "-c", str(self.root / "config/mfsmaster.cfg"), "start"]
         if self.role == "b":
             return [str(tool("sbin/mfschunkserver")), "-f", "-c", str(self.root / "config/mfschunkserver.cfg"), "start"]
-        return [str(tool("bin/mfsmount")), "-f", "-H", IPS["ctl"], "-P", "23042", "-o", "allow_other,mfsnice=0,mfscachemode=AUTO,mfstimeout=30", str(self.root / "mount/moose")]
+        return [str(tool("bin/mfsmount")), "-f", "-H", IPS["ctl"], "-P", str(PORT_PLAN[self.fixture]["ctl"]["matocl"]), "-o", "allow_other,mfsnice=0,mfscachemode=AUTO,mfstimeout=30", str(self.root / "mount/moose")]
 
     def current_lifecycle(self):
         pointer = self.root / "run" / ("moose-" + self.service + ".json")
@@ -399,7 +425,7 @@ HDD_FSYNC_BEFORE_CLOSE = 1
         if self.role == "a":
             mount = self.exact_mount(self.root / "mount/moose")
             if mount is not None:
-                require(mount["source"] == f"mfs#{IPS['ctl']}:23042" and mount["fstype"] in ("fuse", "fuse.mfs"), "Moose mount source differs")
+                require(mount["source"] == f"mfs#{IPS['ctl']}:{PORT_PLAN[self.fixture]['ctl']['matocl']}" and mount["fstype"] in ("fuse", "fuse.mfs"), "Moose mount source differs")
                 if identity.get("mount"):
                     require(mount == identity["mount"], "Moose mount incarnation differs")
             cmdline = (Path("/proc") / str(identity["pid"]) / "cmdline").read_bytes().split(b"\0")
@@ -421,7 +447,7 @@ HDD_FSYNC_BEFORE_CLOSE = 1
         if pointer.exists():
             previous = self.current_lifecycle()
             require((previous / "exit.json").exists(), "previous owned launch has no wait receipt; inspect before retry")
-        for port in {"ctl": [23040, 23041, 23042], "b": [23043], "a": []}[self.role]:
+        for port in self.start_bind_ports():
             with socket.socket() as listener:
                 listener.bind((IPS[self.role], port))
         lifecycle = self.root / "run" / ("moose-" + self.service + "-" + uuid.uuid4().hex)
@@ -449,7 +475,7 @@ HDD_FSYNC_BEFORE_CLOSE = 1
                         ready = True
                 else:
                     raw = self.run(["ss", "-ltnp"])
-                    needed = [23040, 23041, 23042] if self.role == "ctl" else [23043]
+                    needed = [self.port("matoml"), self.port("matocs"), self.port("matocl")] if self.role == "ctl" else [self.port("chunk")]
                     ready = all(any(re.search(rf":{p}\s", line) and f"pid={identity['pid']}," in line for line in raw.splitlines()) for p in needed)
                 if ready:
                     return {"status": "STARTED_IDENTITY_ONLY", "lifecycle": str(lifecycle), "child": identity}

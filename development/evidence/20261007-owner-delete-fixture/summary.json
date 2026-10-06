@@ -1,0 +1,57 @@
+{
+  "status": "READY_FOR_PARENT_REVIEW_R2",
+  "created_utc": "2026-10-06T23:08:53Z",
+  "scope": "Fix delete fixture start port planning and retain fresh delete fixture entry; no product service start or runtime execution.",
+  "modified_files": [
+    "development/acceptance/probes/owner_remote_fixture.py",
+    "development/acceptance/probes/test_owner_remote_fixture.py"
+  ],
+  "stable_sha256": {
+    "development/acceptance/probes/owner_remote_fixture.py": "cd0c1616a788460f8b6e30c3fb94127adecbd06cb937575b7a8da0685269ad8c",
+    "development/acceptance/probes/test_owner_remote_fixture.py": "27aeff3399114655fe1ccfcc17c4ee4de364c636b320464c0d8897ac51456749"
+  },
+  "defect_fixed": {
+    "symptom": "Fixture.start built a dict literal containing ctl/b/a expressions; Python eagerly evaluated self.port(\"chunk\") for ctl and self.port(\"matoml\") for a, causing KeyError before selecting the role branch.",
+    "fix": "Added Fixture.start_bind_ports() with role-specific if branches and made start() iterate only that selected role list."
+  },
+  "fixture_added": "owner-remote-delete-6d-bhome-20261007-r1",
+  "port_plan": {
+    "ctl": [
+      23400,
+      23401,
+      23640,
+      23641,
+      23642
+    ],
+    "a": [
+      23500,
+      23501
+    ],
+    "b": [
+      23500,
+      23501,
+      23643
+    ]
+  },
+  "original_3check_evidence_preserved": {
+    "exit_path": "raw/linux-new-guards.exit",
+    "stdout_path": "raw/linux-new-guards.stdout",
+    "stderr_path": "raw/linux-new-guards.stderr",
+    "result": "exit 0; Ran 3 tests OK"
+  },
+  "r2_linux_guard": {
+    "vm": "afs-accept-a",
+    "workdir": "/var/tmp/afs-owner-remote-delete-fixture-guards-20261007-r2",
+    "unique_test_count": 7,
+    "command": "python3 -m unittest -v test_owner_remote_fixture.FixtureGuards.test_owner_only_config_preserves_trust_and_removes_dfs_mount test_owner_remote_fixture.FixtureGuards.test_new_fixture_has_independent_root_and_propagates_to_supervisor test_owner_remote_fixture.FixtureGuards.test_delete_fixture_has_independent_root_ports_and_commands test_owner_remote_fixture.FixtureGuards.test_start_bind_ports_are_selected_without_cross_role_lookup test_owner_remote_fixture.FixtureGuards.test_delete_fixture_config_uses_delete_ports_without_touching_write_fixture test_owner_remote_fixture.FixtureGuards.test_historical_fixture_cannot_be_prepared_or_readmitted test_owner_remote_fixture.FixtureGuards.test_foreign_mount_refused_before_unmount_or_signal",
+    "exit_path": "raw/r2-linux-selected-guards.exit",
+    "stdout_path": "raw/r2-linux-selected-guards.stdout",
+    "stderr_path": "raw/r2-linux-selected-guards.stderr",
+    "result": "exit 0; Ran 7 tests OK"
+  },
+  "notes": [
+    "No Rust/product/vendor/documentation files changed.",
+    "No AFS or Moose service was started by this slice.",
+    "The Linux guard set includes the new start-bind guard plus old config, fixture propagation, and foreign mount identity guards affected by dynamic ports."
+  ]
+}

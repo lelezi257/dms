@@ -2192,6 +2192,144 @@ impl DfsService {
         Ok((inode, lease))
     }
 
+    async fn resolve_fresh_write_authority(
+        &self,
+        caller_id: String,
+        owner_session_id: String,
+        operation_id: OperationId,
+        inode_id: InodeId,
+        lease_seconds: u64,
+        context: &'static str,
+    ) -> Result<(InodeRecord, WriteLease)> {
+        require_id(&caller_id, "caller_id")?;
+        require_id(&owner_session_id, "owner_session_id")?;
+        require_id(&operation_id.0, "operation_id")?;
+        require_id(&inode_id.0, "inode_id")?;
+        let view = self.store.read_view().await?;
+        let recorded = view
+            .read(MetaRead::RequestOutcome(RequestKey::new(
+                caller_id.clone(),
+                operation_id.0.clone(),
+            )))
+            .await?
+            .request_outcome;
+        let inode = match view
+            .read(MetaRead::DfsInode(inode_id.clone()))
+            .await?
+            .entity
+        {
+            Some(MetaEntity::DfsInode(inode)) if inode.inode_id == inode_id => inode,
+            _ => {
+                return Err(Error::coded(
+                    afs_error::NODE_VFS_NOT_FOUND,
+                    "DFS inode was not found",
+                ));
+            }
+        };
+        if inode.kind != InodeKind::Regular {
+            return Err(invalid(format!(
+                "DFS {context} authority requires a regular file"
+            )));
+        }
+        // Recover a lost acquire reply before reading a newer live authority.
+        // Read-only resolutions have no recorded result and remain fresh reads.
+        if let Some(recorded) = recorded {
+            if recorded.operation != StoreOperation::DfsAcquireWriteLease {
+                return Err(invalid(
+                    "DFS operation_id was already used for another operation",
+                ));
+            }
+            return match recorded.result {
+                OperationResult::DfsWriteLease(lease)
+                    if lease.inode_id == inode_id
+                        && lease.owner_node_id == caller_id
+                        && lease.owner_session_id == owner_session_id
+                        && lease.lease_epoch != 0 =>
+                {
+                    Ok((inode, lease))
+                }
+                _ => Err(invalid(format!(
+                    "DFS {context} acquire replay does not match caller and inode"
+                ))),
+            };
+        }
+        if let Some(MetaEntity::DfsWriteLease(lease)) = view
+            .read(MetaRead::DfsWriteLease(inode_id.clone()))
+            .await?
+            .entity
+        {
+            if lease.inode_id != inode_id
+                || lease.lease_epoch == 0
+                || lease.owner_node_id.is_empty()
+                || lease.owner_session_id.is_empty()
+            {
+                return Err(invalid(format!(
+                    "DFS stored {context} authority is incomplete"
+                )));
+            }
+            if lease.expires_at_unix_ms > now_unix_ms() {
+                return Ok((inode, lease));
+            }
+        }
+        let lease = self
+            .acquire_write_lease(
+                caller_id.clone(),
+                owner_session_id.clone(),
+                operation_id,
+                inode_id,
+                lease_seconds,
+            )
+            .await?;
+        if lease.inode_id != inode.inode_id
+            || lease.owner_node_id != caller_id
+            || lease.owner_session_id != owner_session_id
+            || lease.lease_epoch == 0
+        {
+            return Err(invalid(format!(
+                "DFS {context} acquire result does not match caller and inode"
+            )));
+        }
+        Ok((inode, lease))
+    }
+
+    pub async fn resolve_lock_authority(
+        &self,
+        caller_id: String,
+        owner_session_id: String,
+        operation_id: OperationId,
+        inode_id: InodeId,
+        lease_seconds: u64,
+    ) -> Result<(InodeRecord, WriteLease)> {
+        self.resolve_fresh_write_authority(
+            caller_id,
+            owner_session_id,
+            operation_id,
+            inode_id,
+            lease_seconds,
+            "lock",
+        )
+        .await
+    }
+
+    pub async fn resolve_write_authority(
+        &self,
+        caller_id: String,
+        owner_session_id: String,
+        operation_id: OperationId,
+        inode_id: InodeId,
+        lease_seconds: u64,
+    ) -> Result<(InodeRecord, WriteLease)> {
+        self.resolve_fresh_write_authority(
+            caller_id,
+            owner_session_id,
+            operation_id,
+            inode_id,
+            lease_seconds,
+            "write",
+        )
+        .await
+    }
+
     pub async fn renew_write_lease(
         &self,
         caller_id: String,

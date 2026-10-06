@@ -5,7 +5,7 @@
 //! Chunk，也不逐写访问 Meta。远端/P2P 后续复用相同文件身份与句柄语义。
 
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{BTreeSet, HashMap, HashSet},
     ffi::{CString, OsStr, OsString},
     fs, io,
     os::{
@@ -20,6 +20,9 @@ use std::{
     time::{Duration, UNIX_EPOCH},
 };
 
+#[cfg(test)]
+use std::collections::BTreeMap;
+
 use afs_error::{Error, Result};
 use fuser::Notifier;
 
@@ -30,8 +33,8 @@ use super::{
     types::{
         AttributeChange, BackendInode, CreatedFile, DirectoryEntry, DirectoryHandle, Entry,
         FileAttributes, FileHandle, FileKind, FileLockConflict, FileLockKind, FileLockOwner,
-        FileLockType, OpenOptions, ReleaseKind, RenameFlags, RequestContext, SetAttrOptions,
-        SpecialFileKind, SyncMode, WriteOptions,
+        FileLockType, FilesystemCapacity, OpenOptions, ReleaseKind, RenameFlags, RequestContext,
+        SetAttrOptions, SpecialFileKind, SyncMode, WriteOptions,
     },
 };
 use crate::node::storage::{
@@ -41,8 +44,23 @@ use crate::node::storage::{
 
 pub mod catalog;
 pub mod files;
+mod native_home;
 pub mod remote;
 pub mod root;
+
+#[cfg(test)]
+mod identity_index_perf;
+#[cfg(test)]
+mod structural_index_invariants;
+#[cfg(test)]
+mod structural_index_perf;
+
+#[cfg(test)]
+mod native_home_tests;
+#[cfg(test)]
+mod subtree_index_invariants;
+#[cfg(test)]
+mod subtree_index_perf;
 
 const OWNERFS_ROOT_INODE: u64 = 1;
 
@@ -62,14 +80,22 @@ struct PrivateFuseCache {
     shared_roots: HashSet<RootId>,
     notifier: Option<Notifier>,
     next_fuse_ino: u64,
+    native_home_eligible: bool,
+    native_home_roots: HashMap<RootId, native_home::NativeRootRef>,
 }
 
 impl PrivateFuseCache {
     fn new() -> Self {
+        Self::with_native_home_eligibility(false)
+    }
+
+    fn with_native_home_eligibility(native_home_eligible: bool) -> Self {
         Self {
             shared_roots: HashSet::new(),
             notifier: None,
             next_fuse_ino: 4,
+            native_home_eligible,
+            native_home_roots: HashMap::new(),
         }
     }
 }
@@ -121,6 +147,22 @@ impl OwnerFs {
                 roots,
                 disk,
                 Some(remote_factory),
+                private_cache.clone(),
+            ))),
+            private_cache,
+        }
+    }
+
+    #[cfg(test)]
+    fn new_local_native_home_for_tests(roots: Arc<RootManager>, disk: Arc<LocalFs>) -> Self {
+        let private_cache = Arc::new(Mutex::new(PrivateFuseCache::with_native_home_eligibility(
+            true,
+        )));
+        Self {
+            local: Some(Arc::new(LocalOwnerFs::new(
+                roots,
+                disk,
+                None,
                 private_cache.clone(),
             ))),
             private_cache,
@@ -194,6 +236,9 @@ impl OwnerFs {
             .private_cache
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if cache.native_home_eligible {
+            return reply(Duration::ZERO, false);
+        }
         let private = self
             .local
             .as_ref()
@@ -854,6 +899,11 @@ impl Backend for OwnerFs {
     }
 
     fn lookup(&self, _: &RequestContext, parent: BackendInode, name: &OsStr) -> Result<Entry> {
+        if parent.value == OWNERFS_ROOT_INODE
+            && let Some(entry) = self.native_home_root_entry(name)?
+        {
+            return Ok(entry);
+        }
         self.require_local()?.lookup(parent, name)
     }
 
@@ -863,7 +913,16 @@ impl Backend for OwnerFs {
         inode: BackendInode,
         handle: Option<FileHandle>,
     ) -> Result<FileAttributes> {
+        if handle.is_none()
+            && let Some(attributes) = self.native_home_root_attributes(inode)?
+        {
+            return Ok(attributes);
+        }
         self.require_local()?.getattr(inode, handle)
+    }
+
+    fn statfs(&self, _: &RequestContext, inode: BackendInode) -> Result<FilesystemCapacity> {
+        self.require_local()?.statfs(inode)
     }
 
     fn setattr(
@@ -2017,6 +2076,58 @@ impl LocalOwnerFs {
             .ok_or_else(|| stale("unknown file handle"))
     }
 
+    fn native_home_enabled(&self) -> bool {
+        self.private_cache
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .native_home_eligible
+    }
+
+    fn native_home_file_handle_guard(
+        &self,
+        file: &Arc<Mutex<OpenFileHandleSlot>>,
+        right: RootRight,
+    ) -> Result<Option<root::RootUse>> {
+        if !self.native_home_enabled() {
+            return Ok(None);
+        }
+        let root_id = {
+            let file = file.lock().map_err(|_| poisoned())?;
+            file.ensure_open()?;
+            match &file.file {
+                OpenFileHandle::Local(local) => Some(local.handle.root_id.clone()),
+                OpenFileHandle::Remote(_) => None,
+            }
+        };
+        root_id
+            .map(|root_id| self.roots.enter_root(&root_id, right))
+            .transpose()
+    }
+
+    fn native_home_directory_handle_guard(
+        &self,
+        handle: DirectoryHandle,
+        right: RootRight,
+    ) -> Result<Option<root::RootUse>> {
+        if !self.native_home_enabled() {
+            return Ok(None);
+        }
+        let root_id = {
+            let state = self.state.lock().map_err(|_| poisoned())?;
+            let directory = state
+                .dir_handles
+                .get(&handle)
+                .ok_or_else(|| stale("unknown directory handle"))?;
+            match &directory.handle {
+                OpenLocalDirectory::Local(local) => Some(local.root_id.clone()),
+                OpenLocalDirectory::OwnerRoot | OpenLocalDirectory::Remote(_) => None,
+            }
+        };
+        root_id
+            .map(|root_id| self.roots.enter_root(&root_id, right))
+            .transpose()
+    }
+
     fn check_peer_file_handle(
         &self,
         handle: FileHandle,
@@ -2184,10 +2295,14 @@ impl LocalOwnerFs {
         parent: &StoragePath,
         expected: &files::FileIdentity,
     ) -> Result<FileAttributes> {
-        self.check_peer_parent(data_dir, parent, expected)?;
         let physical = data_dir.join_path(parent).map_err(Error::from)?;
         let dir = self.disk.open_dir(&physical).map_err(Error::from)?;
-        attributes_from_metadata(dir.metadata().map_err(Error::from)?)
+        let metadata = dir.metadata().map_err(Error::from)?;
+        if !parent.is_root() {
+            let actual = identity_from_metadata(&metadata)?;
+            check_expected_identity(Some(expected), &actual)?;
+        }
+        attributes_from_metadata(metadata)
     }
 
     fn peer_lookup(
@@ -2316,6 +2431,10 @@ impl LocalOwnerFs {
         );
         let local_handle = state.insert_file_handle(
             files::LocalOpenFile {
+                #[cfg(test)]
+                private_binding: Some(Box::new(root::PrivateRootBinding::from_grant(
+                    root_use.grant(),
+                ))),
                 root_id: access.id.clone(),
                 identity: identity.clone(),
                 file,
@@ -2867,6 +2986,10 @@ impl LocalOwnerFs {
         let handle = state.insert_dir_handle(
             inode,
             OpenLocalDirectory::Local(files::LocalOpenDirectory {
+                #[cfg(test)]
+                private_binding: Some(Box::new(root::PrivateRootBinding::from_grant(
+                    root_use.grant(),
+                ))),
                 root_id: access.id.clone(),
                 identity: entry.identity.clone(),
                 directory,
@@ -3032,6 +3155,10 @@ impl LocalOwnerFs {
         );
         let handle = state.insert_file_handle(
             files::LocalOpenFile {
+                #[cfg(test)]
+                private_binding: Some(Box::new(root::PrivateRootBinding::from_grant(
+                    root_use.grant(),
+                ))),
                 root_id: access.id.clone(),
                 identity: identity.clone(),
                 file,
@@ -3293,19 +3420,43 @@ impl LocalOwnerFs {
             .cloned()
             .collect();
         for slot in slots {
+            let local_root_id = {
+                let slot = slot.lock().map_err(|_| poisoned())?;
+                if slot.closed {
+                    continue;
+                }
+                match &slot.file {
+                    OpenFileHandle::Local(file)
+                        if file.handle.root_id == record.root_id
+                            && file.handle.identity == record.identity =>
+                    {
+                        Some(file.handle.root_id.clone())
+                    }
+                    OpenFileHandle::Remote(file)
+                        if file.handle.root_id == record.root_id
+                            && file.handle.identity == record.identity =>
+                    {
+                        return slot.attributes().map(Some);
+                    }
+                    _ => None,
+                }
+            };
+            let Some(root_id) = local_root_id else {
+                continue;
+            };
+            let _root_use = if self.native_home_enabled() {
+                Some(self.roots.enter_root(&root_id, RootRight::Lookup)?)
+            } else {
+                None
+            };
             let slot = slot.lock().map_err(|_| poisoned())?;
             if slot.closed {
                 continue;
             }
-            let matches = match &slot.file {
-                OpenFileHandle::Local(file) => {
-                    file.handle.root_id == record.root_id && file.handle.identity == record.identity
-                }
-                OpenFileHandle::Remote(file) => {
-                    file.handle.root_id == record.root_id && file.handle.identity == record.identity
-                }
-            };
-            if matches {
+            if let OpenFileHandle::Local(file) = &slot.file
+                && file.handle.root_id == record.root_id
+                && file.handle.identity == record.identity
+            {
                 return slot.attributes().map(Some);
             }
         }
@@ -3316,6 +3467,7 @@ impl LocalOwnerFs {
         self.check_inode_namespace(inode)?;
         if let Some(handle) = handle {
             let file = self.open_file_handle(handle)?;
+            let _root_use = self.native_home_file_handle_guard(&file, RootRight::Lookup)?;
             let file = file.lock().map_err(|_| poisoned())?;
             return file.attributes();
         }
@@ -3368,6 +3520,38 @@ impl LocalOwnerFs {
         attributes_from_metadata(metadata)
     }
 
+    fn statfs(&self, inode: BackendInode) -> Result<FilesystemCapacity> {
+        self.check_inode_namespace(inode)?;
+        if inode.value == OWNERFS_ROOT_INODE {
+            return Err(Error::coded(
+                afs_error::NODE_VFS_UNIMPLEMENTED,
+                "OwnerFs mount root statfs requires a single Home capacity authority",
+            ));
+        }
+        let record = self.record(inode.value)?.clone();
+        match self.roots.enter_root(&record.root_id, RootRight::Read) {
+            Ok(_root_use) => self.disk.statvfs().map_err(Error::from),
+            Err(error) if error.code() == afs_error::NODE_OWNER_GRANT_UNAVAILABLE => {
+                let remote_home = self
+                    .remote_roots
+                    .lock()
+                    .map_err(|_| poisoned())?
+                    .get(&record.root_id)
+                    .is_some_and(|remote| remote.grant.home_node_id != remote.grant.holder_node_id);
+                if remote_home {
+                    Err(Error::coded(
+                        afs_error::NODE_VFS_UNIMPLEMENTED,
+                        "remote OwnerFs statfs requires OwnerFiles capacity RPC",
+                    ))
+                } else {
+                    // Revoked local authority is not evidence of a remote Home.
+                    Err(error)
+                }
+            }
+            Err(error) => Err(error),
+        }
+    }
+
     fn setattr_with_options(
         &self,
         ctx: &RequestContext,
@@ -3378,6 +3562,7 @@ impl LocalOwnerFs {
     ) -> Result<FileAttributes> {
         if let Some(handle) = handle {
             let file = self.open_file_handle(handle)?;
+            let _root_use = self.native_home_file_handle_guard(&file, RootRight::Write)?;
             let mut file = file.lock().map_err(|_| poisoned())?;
             file.ensure_open()?;
             match &mut file.file {
@@ -3746,6 +3931,10 @@ impl LocalOwnerFs {
         );
         let handle = state.insert_file_handle(
             files::LocalOpenFile {
+                #[cfg(test)]
+                private_binding: Some(Box::new(root::PrivateRootBinding::from_grant(
+                    root_use.grant(),
+                ))),
                 root_id: root_use.root_id().clone(),
                 identity,
                 file,
@@ -3850,6 +4039,10 @@ impl LocalOwnerFs {
         let mut state = self.state.lock().map_err(|_| poisoned())?;
         Ok(state.insert_file_handle(
             files::LocalOpenFile {
+                #[cfg(test)]
+                private_binding: Some(Box::new(root::PrivateRootBinding::from_grant(
+                    root_use.grant(),
+                ))),
                 root_id: root_use.root_id().clone(),
                 identity,
                 file,
@@ -3863,6 +4056,7 @@ impl LocalOwnerFs {
 
     fn read(&self, handle: FileHandle, offset: u64, out: &mut [u8]) -> Result<usize> {
         let file = self.open_file_handle(handle)?;
+        let _root_use = self.native_home_file_handle_guard(&file, RootRight::Read)?;
         let file = file.lock().map_err(|_| poisoned())?;
         file.ensure_open()?;
         match &file.file {
@@ -3881,6 +4075,7 @@ impl LocalOwnerFs {
         options: WriteOptions,
     ) -> Result<usize> {
         let file = self.open_file_handle(handle)?;
+        let _root_use = self.native_home_file_handle_guard(&file, RootRight::Write)?;
         let mut file = file.lock().map_err(|_| poisoned())?;
         file.ensure_open()?;
         match &mut file.file {
@@ -3932,6 +4127,7 @@ impl LocalOwnerFs {
 
     fn flush(&self, handle: FileHandle) -> Result<()> {
         let file = self.open_file_handle(handle)?;
+        let _root_use = self.native_home_file_handle_guard(&file, RootRight::Write)?;
         let mut file = file.lock().map_err(|_| poisoned())?;
         file.ensure_open()?;
         match &mut file.file {
@@ -3962,6 +4158,7 @@ impl LocalOwnerFs {
 
     fn fsync(&self, handle: FileHandle, mode: SyncMode) -> Result<()> {
         let file = self.open_file_handle(handle)?;
+        let _root_use = self.native_home_file_handle_guard(&file, RootRight::Write)?;
         let mut file = file.lock().map_err(|_| poisoned())?;
         file.ensure_open()?;
         match &mut file.file {
@@ -4059,6 +4256,10 @@ impl LocalOwnerFs {
         Ok(state.insert_dir_handle(
             inode.value,
             OpenLocalDirectory::Local(files::LocalOpenDirectory {
+                #[cfg(test)]
+                private_binding: Some(Box::new(root::PrivateRootBinding::from_grant(
+                    root_use.grant(),
+                ))),
                 root_id: root_use.root_id().clone(),
                 identity: record.identity,
                 directory,
@@ -4073,6 +4274,7 @@ impl LocalOwnerFs {
         cookie: u64,
         max_entries: usize,
     ) -> Result<Vec<DirectoryEntry>> {
+        let _root_use = self.native_home_directory_handle_guard(handle, RootRight::Read)?;
         let rows = {
             let state = self.state.lock().map_err(|_| poisoned())?;
             let directory = state
@@ -4082,7 +4284,8 @@ impl LocalOwnerFs {
             match &directory.handle {
                 OpenLocalDirectory::OwnerRoot => drop(state),
                 OpenLocalDirectory::Local(open) => {
-                    let names = open.directory.read_dir().map_err(Error::from)?;
+                    let mut names = open.directory.read_dir().map_err(Error::from)?;
+                    names.sort();
                     let mut parent = state
                         .inodes
                         .get(&directory.inode)
@@ -4091,18 +4294,20 @@ impl LocalOwnerFs {
                     parent.identity = open.identity.clone();
                     let parent_relative = parent.relative.clone();
                     drop(state);
-                    let mut entries = Vec::new();
-                    for name in names {
+                    let start = directory_cookie_start(cookie)?;
+                    let mut selected = Vec::new();
+                    for (index, name) in names.into_iter().enumerate().skip(start).take(max_entries)
+                    {
                         let child = parent_relative.join_component(&name).map_err(Error::from)?;
-                        let entry = self.lookup_storage_entry(&parent, child)?;
-                        entries.push(DirectoryEntry {
+                        let entry = self.lookup_selected_readdir_entry(&parent, child)?;
+                        selected.push(DirectoryEntry {
                             name,
                             inode: entry.inode,
                             kind: entry.attributes.kind,
-                            next_cookie: 0,
+                            next_cookie: u64::try_from(index + 1).unwrap_or(u64::MAX),
                         });
                     }
-                    return slice_directory_entries(entries, cookie, max_entries);
+                    return Ok(selected);
                 }
                 OpenLocalDirectory::Remote(open) => {
                     let files = open.files.clone();
@@ -4177,6 +4382,7 @@ impl LocalOwnerFs {
     }
 
     fn fsyncdir(&self, handle: DirectoryHandle, mode: SyncMode) -> Result<()> {
+        let _root_use = self.native_home_directory_handle_guard(handle, RootRight::Write)?;
         let state = self.state.lock().map_err(|_| poisoned())?;
         let directory = state
             .dir_handles
@@ -4936,17 +5142,52 @@ impl LocalOwnerFs {
     }
 
     fn insert_remote_entry(&self, relative: StoragePath, entry: files::OwnerEntry) -> Result<u64> {
+        self.insert_remote_entry_with_mode(relative, entry, LookupIndexMode::Ordinary)
+    }
+
+    fn insert_remote_entry_with_mode(
+        &self,
+        relative: StoragePath,
+        entry: files::OwnerEntry,
+        mode: LookupIndexMode,
+    ) -> Result<u64> {
         let mut state = self.state.lock().map_err(|_| poisoned())?;
-        Ok(state.inode_for_path(
-            entry.root_id,
-            relative,
-            entry.identity,
-            entry.attributes.clone(),
-            entry.attributes.kind,
-        ))
+        Ok(match mode {
+            LookupIndexMode::Ordinary => state.inode_for_path(
+                entry.root_id,
+                relative,
+                entry.identity,
+                entry.attributes.clone(),
+                entry.attributes.kind,
+            ),
+            LookupIndexMode::SelectedReaddir => state.inode_for_selected_readdir_path(
+                entry.root_id,
+                relative,
+                entry.identity,
+                entry.attributes.clone(),
+                entry.attributes.kind,
+            ),
+        })
+    }
+
+    fn lookup_selected_readdir_entry(
+        &self,
+        parent: &NodeRecord,
+        relative: StoragePath,
+    ) -> Result<Entry> {
+        self.lookup_storage_entry_with_mode(parent, relative, LookupIndexMode::SelectedReaddir)
     }
 
     fn lookup_storage_entry(&self, parent: &NodeRecord, relative: StoragePath) -> Result<Entry> {
+        self.lookup_storage_entry_with_mode(parent, relative, LookupIndexMode::Ordinary)
+    }
+
+    fn lookup_storage_entry_with_mode(
+        &self,
+        parent: &NodeRecord,
+        relative: StoragePath,
+        mode: LookupIndexMode,
+    ) -> Result<Entry> {
         let root_id = &parent.root_id;
         let root_use = match self.roots.enter_root(root_id, RootRight::Lookup) {
             Ok(root_use) => root_use,
@@ -4958,7 +5199,7 @@ impl LocalOwnerFs {
                         Some(&parent.identity),
                     )
                 })?;
-                let inode = self.insert_remote_entry(relative, entry.clone())?;
+                let inode = self.insert_remote_entry_with_mode(relative, entry.clone(), mode)?;
                 return Ok(Entry {
                     inode: backend_inode(inode),
                     attributes: entry.attributes,
@@ -4982,13 +5223,22 @@ impl LocalOwnerFs {
         let identity = identity_from_metadata(&metadata)?;
         let attributes = attributes_from_metadata(metadata)?;
         let mut state = self.state.lock().map_err(|_| poisoned())?;
-        let inode = state.inode_for_path(
-            root_id.clone(),
-            relative,
-            identity,
-            attributes.clone(),
-            kind,
-        );
+        let inode = match mode {
+            LookupIndexMode::Ordinary => state.inode_for_path(
+                root_id.clone(),
+                relative,
+                identity,
+                attributes.clone(),
+                kind,
+            ),
+            LookupIndexMode::SelectedReaddir => state.inode_for_selected_readdir_path(
+                root_id.clone(),
+                relative,
+                identity,
+                attributes.clone(),
+                kind,
+            ),
+        };
         Ok(Entry {
             inode: backend_inode(inode),
             attributes,
@@ -5088,6 +5338,9 @@ struct OwnerState {
     next_dir_handle: u64,
     root_names: HashMap<OsString, u64>,
     paths: HashMap<(RootId, StoragePath), u64>,
+    subtrees: HashMap<RootId, BTreeSet<StoragePath>>,
+    aliases: HashMap<u64, HashSet<StoragePath>>,
+    identity_members: HashMap<(RootId, Vec<u8>), HashSet<u64>>,
     identities: HashMap<(RootId, Vec<u8>), u64>,
     inodes: HashMap<u64, NodeRecord>,
     file_handles: HashMap<FileHandle, Arc<Mutex<OpenFileHandleSlot>>>,
@@ -5103,6 +5356,9 @@ impl OwnerState {
             next_dir_handle: 1,
             root_names: HashMap::new(),
             paths: HashMap::new(),
+            subtrees: HashMap::new(),
+            aliases: HashMap::new(),
+            identity_members: HashMap::new(),
             identities: HashMap::new(),
             inodes: HashMap::new(),
             file_handles: HashMap::new(),
@@ -5135,10 +5391,7 @@ impl OwnerState {
                 .get(&inode)
                 .is_some_and(|record| record.root_id == root_id && record.identity == identity)
         {
-            self.paths
-                .insert((root_id.clone(), relative.clone()), inode);
-            self.identities
-                .insert((root_id.clone(), identity.0.clone()), inode);
+            self.attach_path(&root_id, relative.clone(), inode);
             self.inodes.insert(
                 inode,
                 NodeRecord {
@@ -5153,21 +5406,23 @@ impl OwnerState {
         }
         let inode = self.allocate_inode();
         self.root_names.insert(name, inode);
-        self.paths
-            .insert((root_id.clone(), relative.clone()), inode);
-        self.identities
-            .insert((root_id.clone(), identity.0.clone()), inode);
+        if self
+            .paths
+            .contains_key(&(root_id.clone(), relative.clone()))
+        {
+            self.detach_path(&root_id, &relative);
+        }
         self.inodes.insert(
             inode,
             NodeRecord {
-                root_id,
-                relative,
-                identity,
+                root_id: root_id.clone(),
+                relative: relative.clone(),
+                identity: identity.clone(),
                 attributes,
                 kind: FileKind::Directory,
             },
         );
-        self.rebuild_identity_index();
+        self.attach_path(&root_id, relative, inode);
         inode
     }
 
@@ -5190,8 +5445,13 @@ impl OwnerState {
                 record.attributes = attributes;
                 record.kind = kind;
             }
-            self.rebuild_identity_index();
+            // Attribute refresh does not change any path or identity key.
             return inode;
+        }
+        if self.paths.contains_key(&key) {
+            // Retire the replaced identity and rebind surviving hardlink aliases
+            // before deciding whether the observed object already has an inode.
+            self.detach_path(&root_id, &relative);
         }
         let identity_key = (root_id.clone(), identity.0.clone());
         if let Some(inode) = self.identities.get(&identity_key).copied()
@@ -5201,7 +5461,7 @@ impl OwnerState {
                 .is_some_and(|record| record.root_id == root_id && record.identity == identity)
         {
             let had_active_path = self.active_path_for_inode(&root_id, inode).is_some();
-            self.paths.insert(key, inode);
+            self.attach_path(&root_id, relative.clone(), inode);
             if let Some(record) = self.inodes.get_mut(&inode) {
                 record.attributes = attributes;
                 record.kind = kind;
@@ -5209,22 +5469,46 @@ impl OwnerState {
                     record.relative = relative;
                 }
             }
-            self.rebuild_identity_index();
             return inode;
         }
         let inode = self.allocate_inode();
-        self.paths.insert(key, inode);
         self.inodes.insert(
             inode,
             NodeRecord {
                 root_id: root_id.clone(),
-                relative,
+                relative: relative.clone(),
                 identity: identity.clone(),
                 attributes,
                 kind,
             },
         );
-        self.identities.insert((root_id, identity.0), inode);
+        self.attach_path(&root_id, relative, inode);
+        inode
+    }
+
+    fn inode_for_selected_readdir_path(
+        &mut self,
+        root_id: RootId,
+        relative: StoragePath,
+        identity: files::FileIdentity,
+        attributes: FileAttributes,
+        kind: FileKind,
+    ) -> u64 {
+        let selected_root_id = root_id.clone();
+        let selected_relative = relative.clone();
+        let selected_identity = identity.clone();
+        let inode = self.inode_for_path(root_id, relative, identity, attributes, kind);
+        let selected_path_is_attached = self
+            .paths
+            .get(&(selected_root_id.clone(), selected_relative.clone()))
+            .is_some_and(|mapped| *mapped == inode);
+        if selected_path_is_attached
+            && let Some(record) = self.inodes.get_mut(&inode)
+            && record.root_id == selected_root_id
+            && record.identity == selected_identity
+        {
+            record.relative = selected_relative;
+        }
         inode
     }
 
@@ -5233,31 +5517,206 @@ impl OwnerState {
         root_id: &RootId,
         relative: StoragePath,
     ) -> Option<(u64, Option<StoragePath>)> {
-        let inode = self.paths.remove(&(root_id.clone(), relative))?;
-        let replacement = self.active_path_for_inode(root_id, inode);
-        if let Some(replacement) = replacement.clone()
-            && let Some(record) = self.inodes.get_mut(&inode)
-        {
-            record.relative = replacement.clone();
-        }
-        self.rebuild_identity_index();
+        let (inode, replacement) = self.detach_path(root_id, &relative)?;
         Some((inode, replacement))
     }
 
     fn active_path_for_inode(&self, root_id: &RootId, inode: u64) -> Option<StoragePath> {
-        self.paths.iter().find_map(|((id, path), candidate)| {
-            (id == root_id && *candidate == inode).then(|| path.clone())
+        self.inodes.get(&inode).and_then(|record| {
+            if &record.root_id != root_id {
+                return None;
+            }
+            self.aliases
+                .get(&inode)
+                .and_then(|aliases| aliases.iter().next().cloned())
         })
     }
 
-    fn rebuild_identity_index(&mut self) {
+    fn attach_path(&mut self, root_id: &RootId, relative: StoragePath, inode: u64) {
+        if let Some(existing) = self
+            .paths
+            .get(&(root_id.clone(), relative.clone()))
+            .copied()
+        {
+            if existing == inode {
+                self.subtrees
+                    .entry(root_id.clone())
+                    .or_default()
+                    .insert(relative.clone());
+                self.aliases
+                    .entry(inode)
+                    .or_default()
+                    .insert(relative.clone());
+                self.add_identity_member_for_active_inode(inode);
+                return;
+            }
+            self.detach_path(root_id, &relative);
+        }
+        let had_active_path = self
+            .aliases
+            .get(&inode)
+            .is_some_and(|aliases| !aliases.is_empty());
+        self.paths
+            .insert((root_id.clone(), relative.clone()), inode);
+        self.subtrees
+            .entry(root_id.clone())
+            .or_default()
+            .insert(relative.clone());
+        self.aliases
+            .entry(inode)
+            .or_default()
+            .insert(relative.clone());
+        if let Some(record) = self.inodes.get_mut(&inode)
+            && !had_active_path
+        {
+            record.relative = relative;
+        }
+        self.add_identity_member_for_active_inode(inode);
+    }
+
+    fn detach_path(
+        &mut self,
+        root_id: &RootId,
+        relative: &StoragePath,
+    ) -> Option<(u64, Option<StoragePath>)> {
+        let inode = self.paths.remove(&(root_id.clone(), relative.clone()))?;
+        let remove_root_index = if let Some(paths) = self.subtrees.get_mut(root_id) {
+            paths.remove(relative);
+            paths.is_empty()
+        } else {
+            false
+        };
+        if remove_root_index {
+            self.subtrees.remove(root_id);
+        }
+        let mut replacement = None;
+        if let Some(aliases) = self.aliases.get_mut(&inode) {
+            aliases.remove(relative);
+            replacement = aliases.iter().next().cloned();
+            if aliases.is_empty() {
+                self.aliases.remove(&inode);
+            }
+        }
+        if let Some(replacement) = replacement.clone() {
+            if let Some(record) = self.inodes.get_mut(&inode) {
+                record.relative = replacement;
+            }
+        } else {
+            self.remove_identity_member_for_inode(inode);
+        }
+        Some((inode, replacement))
+    }
+
+    fn identity_key_for_inode(&self, inode: u64) -> Option<(RootId, Vec<u8>)> {
+        self.inodes
+            .get(&inode)
+            .map(|record| (record.root_id.clone(), record.identity.0.clone()))
+    }
+
+    fn add_identity_member_for_active_inode(&mut self, inode: u64) {
+        if self
+            .aliases
+            .get(&inode)
+            .is_none_or(|aliases| aliases.is_empty())
+        {
+            return;
+        }
+        let Some(key) = self.identity_key_for_inode(inode) else {
+            return;
+        };
+        self.identity_members
+            .entry(key.clone())
+            .or_default()
+            .insert(inode);
+        if self
+            .identity_members
+            .get(&key)
+            .is_some_and(|members| members.len() > 1)
+        {
+            self.rebuild_identity_index();
+            return;
+        }
+        self.refresh_identity_winner(&key);
+    }
+
+    fn remove_identity_member_for_inode(&mut self, inode: u64) {
+        let Some(key) = self.identity_key_for_inode(inode) else {
+            return;
+        };
+        self.remove_identity_member(&key, inode);
+    }
+
+    fn remove_identity_member(&mut self, key: &(RootId, Vec<u8>), inode: u64) {
+        let mut remove_key = false;
+        if let Some(members) = self.identity_members.get_mut(key) {
+            members.remove(&inode);
+            remove_key = members.is_empty();
+        }
+        if remove_key {
+            self.identity_members.remove(key);
+        }
+        if self
+            .identity_members
+            .get(key)
+            .is_some_and(|members| members.len() > 1)
+        {
+            self.rebuild_identity_index();
+            return;
+        }
+        self.refresh_identity_winner(key);
+    }
+
+    fn refresh_identity_winner(&mut self, key: &(RootId, Vec<u8>)) {
+        let Some(members) = self.identity_members.get(key) else {
+            self.identities.remove(key);
+            return;
+        };
+        if members.is_empty() {
+            self.identities.remove(key);
+            return;
+        }
+        if self
+            .identities
+            .get(key)
+            .is_some_and(|mapped| members.contains(mapped))
+        {
+            return;
+        }
+        if let Some(winner) = members.iter().next().copied() {
+            self.identities.insert(key.clone(), winner);
+        }
+    }
+
+    fn rebuild_active_indexes(&mut self) {
+        self.subtrees.clear();
+        self.aliases.clear();
+        for ((root_id, path), inode) in &self.paths {
+            self.subtrees
+                .entry(root_id.clone())
+                .or_default()
+                .insert(path.clone());
+            self.aliases.entry(*inode).or_default().insert(path.clone());
+        }
+        self.identity_members.clear();
         self.identities.clear();
+        for inode in self.aliases.keys() {
+            if let Some(record) = self.inodes.get(inode) {
+                self.identity_members
+                    .entry((record.root_id.clone(), record.identity.0.clone()))
+                    .or_default()
+                    .insert(*inode);
+            }
+        }
         for ((root_id, _path), inode) in &self.paths {
             if let Some(record) = self.inodes.get(inode) {
                 self.identities
                     .insert((root_id.clone(), record.identity.0.clone()), *inode);
             }
         }
+    }
+
+    fn rebuild_identity_index(&mut self) {
+        self.rebuild_active_indexes();
     }
 
     fn update_record(
@@ -5267,15 +5726,76 @@ impl OwnerState {
         attributes: FileAttributes,
         kind: FileKind,
     ) -> Result<()> {
-        let record = self
-            .inodes
-            .get_mut(&inode)
-            .ok_or_else(|| stale("unknown inode"))?;
-        record.identity = identity;
-        record.attributes = attributes;
-        record.kind = kind;
-        self.rebuild_identity_index();
+        let (root_id, old_identity) = {
+            let record = self
+                .inodes
+                .get(&inode)
+                .ok_or_else(|| stale("unknown inode"))?;
+            (record.root_id.clone(), record.identity.clone())
+        };
+        let identity_changed = old_identity != identity;
+        let has_active_alias = self
+            .aliases
+            .get(&inode)
+            .is_some_and(|aliases| !aliases.is_empty());
+        let new_identity_bytes = identity.0.clone();
+        {
+            let record = self
+                .inodes
+                .get_mut(&inode)
+                .ok_or_else(|| stale("unknown inode"))?;
+            record.identity = identity;
+            record.attributes = attributes;
+            record.kind = kind;
+        }
+        if identity_changed {
+            let old_key = (root_id.clone(), old_identity.0);
+            self.remove_identity_member(&old_key, inode);
+            if has_active_alias {
+                let new_key = (root_id, new_identity_bytes);
+                self.identity_members
+                    .entry(new_key.clone())
+                    .or_default()
+                    .insert(inode);
+                if self
+                    .identity_members
+                    .get(&new_key)
+                    .is_some_and(|members| members.len() > 1)
+                {
+                    self.rebuild_identity_index();
+                } else {
+                    self.refresh_identity_winner(&new_key);
+                }
+            }
+        }
         Ok(())
+    }
+
+    fn subtree_range_end(prefix: &StoragePath) -> Option<StoragePath> {
+        if prefix.is_root() {
+            return None;
+        }
+        let mut bytes = prefix.as_path().as_os_str().as_bytes().to_vec();
+        bytes.push(0xff);
+        StoragePath::new(PathBuf::from(OsString::from_vec(bytes))).ok()
+    }
+
+    fn subtree_paths(&self, root_id: &RootId, prefix: &StoragePath) -> Vec<StoragePath> {
+        let Some(paths) = self.subtrees.get(root_id) else {
+            return Vec::new();
+        };
+        match Self::subtree_range_end(prefix) {
+            Some(end) => paths
+                .range(prefix.clone()..end)
+                .filter(|path| path.as_path().strip_prefix(prefix.as_path()).is_ok())
+                .cloned()
+                .collect(),
+            None => paths
+                .range(prefix.clone()..)
+                .filter(|path| path.as_path().strip_prefix(prefix.as_path()).is_ok())
+                .cloned()
+                .collect(),
+        }
     }
 
     fn rename_path(&mut self, root_id: RootId, from: StoragePath, to: StoragePath) {
@@ -5290,54 +5810,36 @@ impl OwnerState {
         // still addresses those descendants by inode, so retaining their old
         // relative names would direct later operations at the wrong object.
         let moved: Vec<_> = self
-            .paths
-            .iter()
-            .filter_map(|((id, path), inode)| {
-                if id != &root_id {
-                    return None;
-                }
+            .subtree_paths(&root_id, &from)
+            .into_iter()
+            .filter_map(|path| {
+                let inode = *self.paths.get(&(root_id.clone(), path.clone()))?;
                 let suffix = path.as_path().strip_prefix(from.as_path()).ok()?;
                 let new_path = if suffix.as_os_str().is_empty() {
                     to.clone()
                 } else {
                     StoragePath::new(to.as_path().join(suffix)).ok()?
                 };
-                Some((path.clone(), new_path, *inode))
+                Some((path, new_path, inode))
             })
             .collect();
         for (old_path, _, _) in &moved {
-            self.paths.remove(&(root_id.clone(), old_path.clone()));
+            self.detach_path(&root_id, old_path);
         }
         // An overwritten destination's exact path may be one of several hardlink
         // aliases for the same inode. Drop only the overwritten path from path
         // lookup, then rebind that inode's canonical path to a surviving alias
         // so getattr by an already-known inode does not stat the replacement.
-        let overwritten_inodes: Vec<_> = self
-            .paths
-            .iter()
-            .filter_map(|((id, path), inode)| {
-                (id == &root_id && path.as_path().strip_prefix(to.as_path()).is_ok())
-                    .then_some(*inode)
-            })
-            .collect();
-        self.paths.retain(|(id, path), _| {
-            id != &root_id || path.as_path().strip_prefix(to.as_path()).is_err()
-        });
-        for inode in overwritten_inodes {
-            if let Some(replacement) = self.active_path_for_inode(&root_id, inode)
-                && let Some(record) = self.inodes.get_mut(&inode)
-            {
-                record.relative = replacement;
-            }
+        let overwritten_paths = self.subtree_paths(&root_id, &to);
+        for path in overwritten_paths {
+            self.detach_path(&root_id, &path);
         }
         for (_, new_path, inode) in moved {
-            self.paths
-                .insert((root_id.clone(), new_path.clone()), inode);
+            self.attach_path(&root_id, new_path.clone(), inode);
             if let Some(record) = self.inodes.get_mut(&inode) {
                 record.relative = new_path;
             }
         }
-        self.rebuild_identity_index();
     }
 
     fn insert_file_handle(
@@ -5558,6 +6060,12 @@ struct OpenRemoteDirectory {
 struct OpenDirectoryHandle {
     inode: u64,
     handle: OpenLocalDirectory,
+}
+
+#[derive(Clone, Copy)]
+enum LookupIndexMode {
+    Ordinary,
+    SelectedReaddir,
 }
 
 fn create_open_flags_for_backend(flags: i32) -> i32 {
@@ -6020,17 +6528,21 @@ fn backend_inode(value: u64) -> BackendInode {
     BackendInode { value }
 }
 
+fn directory_cookie_start(cookie: u64) -> Result<usize> {
+    usize::try_from(cookie).map_err(|_| {
+        Error::coded(
+            afs_error::NODE_VFS_INVALID,
+            "directory cookie does not fit usize",
+        )
+    })
+}
+
 fn slice_directory_entries(
     mut rows: Vec<DirectoryEntry>,
     cookie: u64,
     max_entries: usize,
 ) -> Result<Vec<DirectoryEntry>> {
-    let start = usize::try_from(cookie).map_err(|_| {
-        Error::coded(
-            afs_error::NODE_VFS_INVALID,
-            "directory cookie does not fit usize",
-        )
-    })?;
+    let start = directory_cookie_start(cookie)?;
     rows.sort_by(|left, right| left.name.cmp(&right.name));
     let mut selected = Vec::new();
     for (index, mut entry) in rows.into_iter().enumerate().skip(start).take(max_entries) {
@@ -6326,6 +6838,238 @@ fn same_owner_lock_target(a: &OwnerLockTarget, b: &OwnerLockTarget) -> bool {
     }
 }
 
+// PF1 observes only tables owned by this OwnerFs. It is deliberately unavailable
+// to production callers and cannot authorize native READY or physical drain.
+#[cfg(test)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum PrivatePf1Class {
+    ObservedPresent,
+    ObservedDrained,
+    UnknownBindingMissing,
+}
+
+#[cfg(test)]
+impl PrivatePf1Class {
+    fn count(&mut self) {
+        if *self != Self::UnknownBindingMissing {
+            *self = Self::ObservedPresent;
+        }
+    }
+    fn missing(&mut self) {
+        *self = Self::UnknownBindingMissing;
+    }
+}
+
+#[cfg(test)]
+#[derive(Debug, Eq, PartialEq)]
+struct PrivatePf1Receipt {
+    schema: &'static str,
+    status: &'static str,
+    binding: root::PrivateRootBinding,
+    command_id: String,
+    observed_local_sequence: (u64, u64),
+    owned_refs: BTreeMap<&'static str, PrivatePf1Class>,
+    unknown_unobservable: [&'static str; 8],
+    opened_fd_native_physical_namespace_drained: bool,
+    production_success_ack_allowed: bool,
+    native_ready_allowed: bool,
+}
+
+#[cfg(test)]
+impl OwnerFs {
+    fn private_pf1_observe(&self, fence: &root::PrivatePf1Fence) -> Result<PrivatePf1Receipt> {
+        self.private_pf1_observe_between(fence, || Ok(()))
+    }
+
+    fn private_pf1_observe_between(
+        &self,
+        fence: &root::PrivatePf1Fence,
+        between: impl FnOnce() -> Result<()>,
+    ) -> Result<PrivatePf1Receipt> {
+        let first = self.private_pf1_scan(fence)?;
+        // Test-only scheduling point, outside all Owner/root locks. The test
+        // inserts an actual admitted local OS handle into the real handle table.
+        between()?;
+        let second = self.private_pf1_scan(fence)?;
+        if first != second {
+            return Err(stale("PF1 observation changed during re-scan"));
+        }
+        Ok(second)
+    }
+
+    fn private_pf1_scan(&self, fence: &root::PrivatePf1Fence) -> Result<PrivatePf1Receipt> {
+        let local = self.require_local()?;
+        let binding = &fence.binding;
+        let before_root = local.roots.private_pf1_root_counts(fence)?;
+        let mut classes = BTreeMap::from([
+            ("ordinary_root_use", PrivatePf1Class::ObservedDrained),
+            ("local_file_handles", PrivatePf1Class::ObservedDrained),
+            ("local_dir_handles", PrivatePf1Class::ObservedDrained),
+            ("writable_append_handles", PrivatePf1Class::ObservedDrained),
+            ("remote_handles_held", PrivatePf1Class::ObservedDrained),
+            ("remote_root_cache", PrivatePf1Class::ObservedDrained),
+            ("peer_home_handles", PrivatePf1Class::ObservedDrained),
+            ("cached_peer_grants", PrivatePf1Class::ObservedDrained),
+            ("managed_locks", PrivatePf1Class::UnknownBindingMissing),
+            (
+                "native_test_authority",
+                PrivatePf1Class::UnknownBindingMissing,
+            ),
+        ]);
+        if before_root.0 != 0 {
+            classes.get_mut("ordinary_root_use").unwrap().count();
+        }
+        if before_root.1 != 0 {
+            return Err(stale("PF1 peer cache repopulated after refusal"));
+        }
+        // Never nest OwnerState -> file slot: operations may already hold a slot.
+        // Copy real refs and directory bindings, release state, then inspect slots.
+        let (sequence, handles) = {
+            let state = local.state.lock().map_err(|_| poisoned())?;
+            for directory in state.dir_handles.values() {
+                match &directory.handle {
+                    OpenLocalDirectory::Local(handle) if handle.root_id == binding.root_id => {
+                        if handle.private_binding.as_deref() == Some(binding) {
+                            classes.get_mut("local_dir_handles").unwrap().count();
+                            if handle.peer.is_some() {
+                                classes.get_mut("peer_home_handles").unwrap().count();
+                            }
+                        } else if handle.private_binding.is_none() {
+                            classes.get_mut("local_dir_handles").unwrap().missing();
+                            if handle.peer.is_some() {
+                                classes.get_mut("peer_home_handles").unwrap().missing();
+                            }
+                        }
+                    }
+                    OpenLocalDirectory::Remote(handle)
+                        if handle.handle.root_id == binding.root_id =>
+                    {
+                        if root::PrivateRootBinding::from_grant(&handle.grant) == *binding
+                            && handle.handle.owner_node_id == binding.home_node_id
+                            && handle.handle.owner_session_id == binding.home_session_id
+                        {
+                            classes.get_mut("remote_handles_held").unwrap().count();
+                        } else if root::PrivateRootBinding::from_grant(&handle.grant) == *binding {
+                            classes.get_mut("remote_handles_held").unwrap().missing();
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            (
+                (state.next_handle, state.next_dir_handle),
+                state.file_handles.values().cloned().collect::<Vec<_>>(),
+            )
+        };
+        for slot in handles {
+            let slot = slot.lock().map_err(|_| poisoned())?;
+            // A slot copied before RELEASE may already be closed. No physical fd
+            // claim follows: external/detached clones remain an explicit unknown.
+            if slot.closed {
+                continue;
+            }
+            match &slot.file {
+                OpenFileHandle::Local(file) if file.handle.root_id == binding.root_id => {
+                    if file.handle.private_binding.as_deref() == Some(binding) {
+                        classes.get_mut("local_file_handles").unwrap().count();
+                        if file.writable {
+                            classes.get_mut("writable_append_handles").unwrap().count();
+                        }
+                        if file.handle.peer.is_some() {
+                            classes.get_mut("peer_home_handles").unwrap().count();
+                        }
+                    } else if file.handle.private_binding.is_none() {
+                        classes.get_mut("local_file_handles").unwrap().missing();
+                        if file.writable {
+                            classes
+                                .get_mut("writable_append_handles")
+                                .unwrap()
+                                .missing();
+                        }
+                        if file.handle.peer.is_some() {
+                            classes.get_mut("peer_home_handles").unwrap().missing();
+                        }
+                    }
+                }
+                OpenFileHandle::Remote(file)
+                    if file.handle.root_id == binding.root_id
+                        && root::PrivateRootBinding::from_grant(&file.grant) == *binding =>
+                {
+                    if file.handle.owner_node_id == binding.home_node_id
+                        && file.handle.owner_session_id == binding.home_session_id
+                    {
+                        classes.get_mut("remote_handles_held").unwrap().count();
+                    } else {
+                        classes.get_mut("remote_handles_held").unwrap().missing();
+                    }
+                }
+                _ => {}
+            }
+        }
+        {
+            let locks = local.locks.lock().map_err(|_| poisoned())?;
+            // Local lock keys have epoch but no access generation/Home session.
+            // Scopes/cleanup ids are also insufficient to attribute a zero.
+            if locks
+                .tables
+                .keys()
+                .any(|key| key.root_id == binding.root_id && key.epoch == binding.root_epoch)
+                || !locks.active_scopes.is_empty()
+                || !locks.pending_remote_cleanup.is_empty()
+                || !locks.waiters.is_empty()
+                || !locks.remote_targets.is_empty()
+            {
+                classes.get_mut("managed_locks").unwrap().missing();
+            }
+        }
+        {
+            let remote_roots = local.remote_roots.lock().map_err(|_| poisoned())?;
+            for cached in remote_roots.values() {
+                if root::PrivateRootBinding::from_grant(&cached.grant) == *binding {
+                    classes.get_mut("remote_root_cache").unwrap().count();
+                }
+            }
+        }
+        classes.insert(
+            "native_test_authority",
+            self.private_pf1_native_authority(binding)?,
+        );
+        // Local lock admission drops RootUse before table operations complete.
+        // Even an empty table scan cannot exclude an already-admitted lock route;
+        // without exact generation/lifetime metadata managed_locks stays unknown.
+        // All potentially blocking OS metadata above ran without Owner/root locks.
+        if local.roots.private_pf1_root_counts(fence)? != before_root {
+            return Err(stale("PF1 RootUse count changed during observation"));
+        }
+        let state = local.state.lock().map_err(|_| poisoned())?;
+        if (state.next_handle, state.next_dir_handle) != sequence {
+            return Err(stale("PF1 handle insertion raced observation"));
+        }
+        drop(state);
+        Ok(PrivatePf1Receipt {
+            schema: "n2c-pf1-ownerfs-lifetime-observation-v1",
+            status: "PRIVATE_NON_AUTHORIZING",
+            binding: binding.clone(),
+            command_id: fence.command_id.clone(),
+            observed_local_sequence: sequence,
+            owned_refs: classes,
+            unknown_unobservable: [
+                "classic_posix_kernel_locks",
+                "mmap_writeback_watch",
+                "scm_rights",
+                "external_process_fd_table",
+                "runtime_process_pidfd_cgroup",
+                "source_mount_refs_outside_private_authority",
+                "final_namespace_clone",
+                "remote_peer_physical_release_without_receipt",
+            ],
+            opened_fd_native_physical_namespace_drained: false,
+            production_success_ack_allowed: false,
+            native_ready_allowed: false,
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -6356,6 +7100,7 @@ mod tests {
         next_epoch: Mutex<u64>,
         recover_calls: Mutex<u64>,
         active: Mutex<HashMap<RootId, root::RootLocation>>,
+        rights: Vec<RootRight>,
     }
 
     impl RootMeta for LocalMeta {
@@ -6391,7 +7136,7 @@ mod tests {
                 holder_node_id: self.node_id.clone(),
                 session_id: self.session_id.clone(),
                 access_generation: prepared.reservation().epoch,
-                rights: vec![RootRight::Lookup, RootRight::Read, RootRight::Write],
+                rights: self.rights.clone(),
                 fencing_token: format!("fence-{}", prepared.reservation().epoch),
             })
         }
@@ -6444,7 +7189,7 @@ mod tests {
                 holder_node_id: authenticated_peer_node_id.to_owned(),
                 session_id: presented.session_id.clone(),
                 access_generation: presented.access_generation,
-                rights: vec![RootRight::Lookup, RootRight::Read, RootRight::Write],
+                rights: self.rights.clone(),
                 fencing_token: presented.fencing_token.clone(),
             })
         }
@@ -6472,7 +7217,7 @@ mod tests {
                 holder_node_id: self.node_id.clone(),
                 session_id: new_session_id.to_owned(),
                 access_generation: record.epoch,
-                rights: vec![RootRight::Lookup, RootRight::Read, RootRight::Write],
+                rights: self.rights.clone(),
                 fencing_token: format!("recover-fence-{}", record.epoch),
             })
         }
@@ -7329,7 +8074,11 @@ mod tests {
         RequestContext { uid, gid, ..owner }
     }
 
-    fn fixture() -> (tempfile::TempDir, OwnerFs, RequestContext) {
+    fn all_local_rights() -> Vec<RootRight> {
+        vec![RootRight::Lookup, RootRight::Read, RootRight::Write]
+    }
+
+    fn fixture_with_rights(rights: Vec<RootRight>) -> (tempfile::TempDir, OwnerFs, RequestContext) {
         let temp = tempfile::tempdir().unwrap();
         let disk = Arc::new(LocalFs::open(temp.path()).unwrap());
         let meta = Arc::new(LocalMeta {
@@ -7338,6 +8087,7 @@ mod tests {
             next_epoch: Mutex::new(1),
             recover_calls: Mutex::new(0),
             active: Mutex::new(HashMap::new()),
+            rights,
         });
         let roots = Arc::new(RootManager::new(
             "node-a".into(),
@@ -7349,6 +8099,10 @@ mod tests {
         (temp, OwnerFs::new_local(roots, disk), ctx)
     }
 
+    fn fixture() -> (tempfile::TempDir, OwnerFs, RequestContext) {
+        fixture_with_rights(all_local_rights())
+    }
+
     fn fixture_without_catalog_io() -> (tempfile::TempDir, OwnerFs, RequestContext) {
         let temp = tempfile::tempdir().unwrap();
         let disk = Arc::new(LocalFs::open(temp.path()).unwrap());
@@ -7358,6 +8112,7 @@ mod tests {
             next_epoch: Mutex::new(1),
             recover_calls: Mutex::new(0),
             active: Mutex::new(HashMap::new()),
+            rights: all_local_rights(),
         });
         let roots = Arc::new(
             RootManager::open_with_catalog(
@@ -10169,6 +10924,280 @@ mod tests {
     }
 
     #[test]
+    fn local_home_statfs_reports_backing_capacity_and_root_fails_closed() {
+        let (_temp, fs, ctx) = fixture();
+        let root = BackendInode {
+            value: OWNERFS_ROOT_INODE,
+        };
+        let workspace = fs.mkdir(&ctx, root, OsStr::new("job-42"), 0o755).unwrap();
+
+        let root_error = fs.statfs(&ctx, root).unwrap_err();
+        assert_eq!(root_error.code(), afs_error::NODE_VFS_UNIMPLEMENTED);
+
+        let capacity = fs.statfs(&ctx, workspace.inode).unwrap();
+        let expected = fs.require_local().unwrap().disk.statvfs().unwrap();
+
+        assert!(capacity.blocks > 0);
+        assert_eq!(capacity.blocks, expected.blocks);
+        assert_eq!(capacity.files, expected.files);
+        assert_eq!(capacity.bsize, expected.bsize);
+        assert_eq!(capacity.frsize, expected.frsize);
+        assert_eq!(capacity.namelen, expected.namelen);
+    }
+
+    #[test]
+    fn remote_home_statfs_fails_closed_until_ownerfiles_rpc_exists() {
+        let (_temp, fs, ctx, _meta, _remote, _root_id) = remote_fixture();
+        let root = BackendInode {
+            value: OWNERFS_ROOT_INODE,
+        };
+        let workspace = fs.lookup(&ctx, root, OsStr::new("job-42")).unwrap();
+
+        let error = fs.statfs(&ctx, workspace.inode).unwrap_err();
+
+        assert_eq!(error.code(), afs_error::NODE_VFS_UNIMPLEMENTED);
+    }
+
+    #[test]
+    fn local_home_statfs_requires_root_read_right() {
+        let (_temp, fs, ctx) = fixture_with_rights(vec![RootRight::Lookup, RootRight::Write]);
+        let root = BackendInode {
+            value: OWNERFS_ROOT_INODE,
+        };
+        let workspace = fs
+            .mkdir(&ctx, root, OsStr::new("job-no-read"), 0o755)
+            .unwrap();
+
+        let error = fs.statfs(&ctx, workspace.inode).unwrap_err();
+
+        assert_eq!(error.code(), afs_error::NODE_OWNER_RIGHT_DENIED);
+    }
+
+    #[test]
+    fn local_home_statfs_rejects_revoked_or_invalid_root_authority() {
+        let (_temp, fs, ctx) = fixture();
+        let root = BackendInode {
+            value: OWNERFS_ROOT_INODE,
+        };
+        let revoked_name = OsStr::new("job-statfs-revoked");
+        let revoked = fs.mkdir(&ctx, root, revoked_name, 0o755).unwrap();
+        let revoked_id = root::root_id_from_name(revoked_name).unwrap();
+        let invalid_name = OsStr::new("job-statfs-invalid");
+        let invalid = fs.mkdir(&ctx, root, invalid_name, 0o755).unwrap();
+        let local = fs.require_local().unwrap();
+
+        assert!(fs.statfs(&ctx, revoked.inode).is_ok());
+        local.roots.revoke_root(&revoked_id);
+        assert_eq!(
+            fs.statfs(&ctx, revoked.inode).unwrap_err().code(),
+            afs_error::NODE_OWNER_GRANT_UNAVAILABLE
+        );
+
+        assert!(fs.statfs(&ctx, invalid.inode).is_ok());
+        local.roots.on_watch_disconnected();
+        assert_eq!(
+            fs.statfs(&ctx, invalid.inode).unwrap_err().code(),
+            afs_error::NODE_OWNER_GRANT_UNAVAILABLE
+        );
+    }
+
+    #[test]
+    fn local_home_statfs_authority_is_separate_from_posix_traversal_mode() {
+        let (_temp, fs, ctx) = fixture();
+        let root = BackendInode {
+            value: OWNERFS_ROOT_INODE,
+        };
+        let workspace = fs
+            .mkdir(&ctx, root, OsStr::new("job-no-traverse"), 0o000)
+            .unwrap();
+
+        let capacity = fs.statfs(&ctx, workspace.inode).unwrap();
+
+        assert!(capacity.blocks > 0);
+    }
+
+    #[derive(Debug)]
+    struct PythonStatvfs {
+        blocks: u64,
+        bfree: u64,
+        bavail: u64,
+        files: u64,
+        ffree: u64,
+        bsize: u64,
+        frsize: u64,
+        namelen: u64,
+    }
+
+    fn python_statvfs(path: &std::path::Path) -> io::Result<PythonStatvfs> {
+        let output = Command::new("python3")
+            .arg("-c")
+            .arg(
+                "import os,sys\n\
+                 s=os.statvfs(sys.argv[1])\n\
+                 print(s.f_blocks,s.f_bfree,s.f_bavail,s.f_files,s.f_ffree,s.f_bsize,s.f_frsize,s.f_namemax)",
+            )
+            .arg(path)
+            .output()?;
+        if !output.status.success() {
+            return Err(io::Error::other(
+                String::from_utf8_lossy(&output.stderr).into_owned(),
+            ));
+        }
+        let stdout = String::from_utf8(output.stdout)
+            .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))?;
+        let values = stdout
+            .split_whitespace()
+            .map(|field| {
+                field
+                    .parse::<u64>()
+                    .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))
+            })
+            .collect::<io::Result<Vec<_>>>()?;
+        let [blocks, bfree, bavail, files, ffree, bsize, frsize, namelen] = values.as_slice()
+        else {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "python statvfs returned unexpected field count",
+            ));
+        };
+        Ok(PythonStatvfs {
+            blocks: *blocks,
+            bfree: *bfree,
+            bavail: *bavail,
+            files: *files,
+            ffree: *ffree,
+            bsize: *bsize,
+            frsize: *frsize,
+            namelen: *namelen,
+        })
+    }
+
+    fn wait_until_mounted(path: &std::path::Path) -> io::Result<()> {
+        let start = std::time::Instant::now();
+        loop {
+            match fs::read_dir(path) {
+                Ok(_) => return Ok(()),
+                Err(error) if start.elapsed() < Duration::from_secs(5) => {
+                    if !matches!(
+                        error.raw_os_error(),
+                        Some(libc::ENOTCONN | libc::ENOENT | libc::EAGAIN)
+                    ) {
+                        return Err(error);
+                    }
+                    std::thread::sleep(Duration::from_millis(25));
+                }
+                Err(error) => return Err(error),
+            }
+        }
+    }
+
+    struct OwnedFuseMount {
+        session: Option<crate::node::fuse::MountedFuse>,
+        mount: std::path::PathBuf,
+    }
+
+    impl Drop for OwnedFuseMount {
+        fn drop(&mut self) {
+            if let Some(session) = self.session.take() {
+                let _ = session.join();
+            }
+            let _ = Command::new("fusermount3")
+                .arg("-u")
+                .arg(&self.mount)
+                .status();
+        }
+    }
+
+    #[test]
+    #[ignore = "requires Linux /dev/fuse, fusermount3 and python3"]
+    fn linux_fuse_owner_local_home_statfs_reports_backing_capacity() {
+        if !cfg!(target_os = "linux") {
+            return;
+        }
+        let temp = tempfile::tempdir().unwrap();
+        let mount = temp.path().join("mnt");
+        fs::create_dir(&mount).unwrap();
+        let disk = Arc::new(LocalFs::open(temp.path().join("home")).unwrap());
+        let meta = Arc::new(LocalMeta {
+            node_id: "node-a".into(),
+            session_id: "session-a".into(),
+            next_epoch: Mutex::new(1),
+            recover_calls: Mutex::new(0),
+            active: Mutex::new(HashMap::new()),
+            rights: all_local_rights(),
+        });
+        let roots = Arc::new(RootManager::new(
+            "node-a".into(),
+            "session-a".into(),
+            meta,
+            disk.clone(),
+        ));
+        let fs_backend = OwnerFs::new_local(roots, disk.clone());
+        let ctx = test_context_for_path(temp.path());
+        let root = BackendInode {
+            value: OWNERFS_ROOT_INODE,
+        };
+        fs_backend
+            .mkdir(&ctx, root, OsStr::new("job-fuse-statfs"), 0o755)
+            .unwrap();
+        let expected = disk.statvfs().unwrap();
+        let session = crate::node::fuse::mount_test_backend(Arc::new(fs_backend), &mount).unwrap();
+        let _guard = OwnedFuseMount {
+            session: Some(session),
+            mount: mount.clone(),
+        };
+        wait_until_mounted(&mount).unwrap();
+
+        let home_path = mount.join("job-fuse-statfs");
+        let mounted = python_statvfs(&home_path).unwrap();
+        assert_eq!(mounted.blocks, expected.blocks);
+        assert_eq!(mounted.files, expected.files);
+        assert_eq!(mounted.bsize, u64::from(expected.bsize));
+        assert_eq!(mounted.frsize, u64::from(expected.frsize));
+        assert_eq!(mounted.namelen, u64::from(expected.namelen));
+        assert!(mounted.bfree <= mounted.blocks);
+        assert!(mounted.bavail <= mounted.bfree);
+        assert!(mounted.ffree <= mounted.files);
+
+        Command::new("stat")
+            .arg("-f")
+            .arg("-c")
+            .arg("%S %s %b %f %a %c %d %l")
+            .arg(&home_path)
+            .status()
+            .unwrap()
+            .success()
+            .then_some(())
+            .expect("stat -f on scoped Home must succeed");
+        Command::new("df")
+            .arg("-P")
+            .arg(&home_path)
+            .status()
+            .unwrap()
+            .success()
+            .then_some(())
+            .expect("df -P on scoped Home must succeed");
+
+        assert!(python_statvfs(&mount).is_err());
+        assert!(
+            !Command::new("stat")
+                .arg("-f")
+                .arg(&mount)
+                .status()
+                .unwrap()
+                .success()
+        );
+        assert!(
+            !Command::new("df")
+                .arg("-P")
+                .arg(&mount)
+                .status()
+                .unwrap()
+                .success()
+        );
+    }
+
+    #[test]
     fn fatal_sync_error_classification_keeps_retryable_errors_unpoisoned() {
         let eio = Error::from(io::Error::from_raw_os_error(libc::EIO));
         assert_eq!(eio.code(), afs_error::IO_OTHER);
@@ -10281,6 +11310,8 @@ mod tests {
             let identity = identity_from_metadata(&file.metadata().unwrap()).unwrap();
             local.state.lock().unwrap().insert_file_handle(
                 files::LocalOpenFile {
+                    #[cfg(test)]
+                    private_binding: None,
                     root_id,
                     identity,
                     file,
@@ -10343,6 +11374,8 @@ mod tests {
             let identity = identity_from_metadata(&file.metadata().unwrap()).unwrap();
             local.state.lock().unwrap().insert_file_handle(
                 files::LocalOpenFile {
+                    #[cfg(test)]
+                    private_binding: None,
                     root_id: root_id.clone(),
                     identity,
                     file,
@@ -10366,6 +11399,8 @@ mod tests {
             let identity = identity_from_metadata(&file.metadata().unwrap()).unwrap();
             local.state.lock().unwrap().insert_file_handle(
                 files::LocalOpenFile {
+                    #[cfg(test)]
+                    private_binding: None,
                     root_id,
                     identity,
                     file,
@@ -10654,6 +11689,7 @@ mod tests {
             next_epoch: Mutex::new(1),
             recover_calls: Mutex::new(0),
             active: Mutex::new(HashMap::new()),
+            rights: all_local_rights(),
         });
         let ctx = test_context_for_path(temp.path());
         let root = BackendInode {
@@ -10768,5 +11804,452 @@ mod tests {
             destination.clone(),
         );
         assert!(!state.paths.contains_key(&(root_id, destination)));
+    }
+
+    fn pf1_fixture() -> (
+        tempfile::TempDir,
+        OwnerFs,
+        RequestContext,
+        Entry,
+        root::PrivateRootBinding,
+    ) {
+        let (temp, fs, ctx, _) = native_home_tests::fixture(true);
+        let directory = native_home_tests::mkdir_root(&fs, &ctx, "pf1-root");
+        let id = root::root_id_from_name(OsStr::new("pf1-root")).unwrap();
+        let grant = fs
+            .require_local()
+            .unwrap()
+            .roots
+            .enter_root(&id, RootRight::Lookup)
+            .unwrap();
+        let binding = root::PrivateRootBinding::from_grant(grant.grant());
+        drop(grant);
+        (temp, fs, ctx, directory, binding)
+    }
+
+    fn pf1_fence(fs: &OwnerFs, binding: &root::PrivateRootBinding) -> root::PrivatePf1Fence {
+        fs.require_local()
+            .unwrap()
+            .roots
+            .private_pf1_fence(binding, "pf1-command")
+            .unwrap()
+    }
+
+    fn pf1_assert(fs: &OwnerFs, fence: &root::PrivatePf1Fence) -> PrivatePf1Receipt {
+        let receipt = fs.private_pf1_observe(fence).unwrap();
+        assert_eq!(receipt.schema, "n2c-pf1-ownerfs-lifetime-observation-v1");
+        assert_eq!(receipt.status, "PRIVATE_NON_AUTHORIZING");
+        assert_eq!(receipt.binding, fence.binding);
+        assert_eq!(receipt.command_id, fence.command_id);
+        assert!(receipt.observed_local_sequence.0 >= 1);
+        assert!(receipt.observed_local_sequence.1 >= 1);
+        assert!(!receipt.opened_fd_native_physical_namespace_drained);
+        assert!(!receipt.production_success_ack_allowed);
+        assert!(!receipt.native_ready_allowed);
+        assert_eq!(
+            receipt.unknown_unobservable,
+            [
+                "classic_posix_kernel_locks",
+                "mmap_writeback_watch",
+                "scm_rights",
+                "external_process_fd_table",
+                "runtime_process_pidfd_cgroup",
+                "source_mount_refs_outside_private_authority",
+                "final_namespace_clone",
+                "remote_peer_physical_release_without_receipt"
+            ]
+        );
+        receipt
+    }
+
+    fn pf1_file(fs: &OwnerFs, ctx: &RequestContext, root: &Entry, flags: i32) -> CreatedFile {
+        fs.create(ctx, root.inode, OsStr::new("file"), 0o600, flags)
+            .unwrap()
+    }
+
+    #[test]
+    fn n2c_pf1_01_root_use_zero_retains_real_local_file() {
+        let (_temp, fs, ctx, root, binding) = pf1_fixture();
+        let created = pf1_file(&fs, &ctx, &root, libc::O_RDWR);
+        fs.release(&ctx, created.handle).unwrap();
+        let opened = fs.open(&ctx, created.entry.inode, libc::O_RDONLY).unwrap();
+        let fence = pf1_fence(&fs, &binding);
+        let receipt = pf1_assert(&fs, &fence);
+        assert_eq!(
+            receipt.owned_refs["ordinary_root_use"],
+            PrivatePf1Class::ObservedDrained
+        );
+        assert_eq!(
+            receipt.owned_refs["local_file_handles"],
+            PrivatePf1Class::ObservedPresent
+        );
+        assert!(fs.open(&ctx, created.entry.inode, libc::O_RDONLY).is_err());
+        fs.release(&ctx, opened).unwrap();
+    }
+
+    #[test]
+    fn n2c_pf1_02_release_clears_only_owned_file() {
+        let (_temp, fs, ctx, root, binding) = pf1_fixture();
+        let file = pf1_file(&fs, &ctx, &root, libc::O_RDWR);
+        let fence = pf1_fence(&fs, &binding);
+        assert_eq!(
+            pf1_assert(&fs, &fence).owned_refs["local_file_handles"],
+            PrivatePf1Class::ObservedPresent
+        );
+        {
+            let local = fs.require_local().unwrap();
+            let slot = local.open_file_handle(file.handle).unwrap();
+            let mut slot = slot.lock().unwrap();
+            let OpenFileHandle::Local(handle) = &mut slot.file else {
+                panic!("expected real local handle");
+            };
+            handle.handle.private_binding = None;
+        }
+        assert_eq!(
+            pf1_assert(&fs, &fence).owned_refs["local_file_handles"],
+            PrivatePf1Class::UnknownBindingMissing
+        );
+        fs.release(&ctx, file.handle).unwrap();
+        assert_eq!(
+            pf1_assert(&fs, &fence).owned_refs["local_file_handles"],
+            PrivatePf1Class::ObservedDrained
+        );
+    }
+
+    #[test]
+    fn n2c_pf1_03_opendir_releasedir_real_lifetime() {
+        let (_temp, fs, ctx, root, binding) = pf1_fixture();
+        let handle = fs.opendir(&ctx, root.inode).unwrap();
+        let fence = pf1_fence(&fs, &binding);
+        assert_eq!(
+            pf1_assert(&fs, &fence).owned_refs["local_dir_handles"],
+            PrivatePf1Class::ObservedPresent
+        );
+        fs.releasedir(&ctx, handle).unwrap();
+        assert_eq!(
+            pf1_assert(&fs, &fence).owned_refs["local_dir_handles"],
+            PrivatePf1Class::ObservedDrained
+        );
+    }
+
+    #[test]
+    fn n2c_pf1_04_append_writable_retains_real_handle() {
+        let (_temp, fs, ctx, root, binding) = pf1_fixture();
+        let file = pf1_file(&fs, &ctx, &root, libc::O_WRONLY | libc::O_APPEND);
+        let fence = pf1_fence(&fs, &binding);
+        assert_eq!(
+            pf1_assert(&fs, &fence).owned_refs["writable_append_handles"],
+            PrivatePf1Class::ObservedPresent
+        );
+        fs.release(&ctx, file.handle).unwrap();
+        assert_eq!(
+            pf1_assert(&fs, &fence).owned_refs["writable_append_handles"],
+            PrivatePf1Class::ObservedDrained
+        );
+    }
+
+    #[test]
+    fn n2c_pf1_05_real_remote_slot_grant_and_session_binding() {
+        let (_temp, fs, _ctx, _root, binding) = pf1_fixture();
+        let local = fs.require_local().unwrap();
+        let root_use = local
+            .roots
+            .enter_root(&binding.root_id, RootRight::Read)
+            .unwrap();
+        let grant = root_use.grant().clone();
+        let remote = Arc::new(RestartingRemoteFiles {
+            root_id: binding.root_id.clone(),
+            restarted: Arc::new(AtomicBool::new(false)),
+            lookup_calls: AtomicUsize::new(0),
+            open_calls: AtomicUsize::new(0),
+            last_open_killpriv: AtomicBool::new(false),
+        });
+        let (remote_file, _) = remote::RemoteFiles::open(
+            remote.as_ref(),
+            &grant,
+            OsStr::new("file"),
+            libc::O_RDONLY,
+            None,
+        )
+        .unwrap();
+        let handle = local.state.lock().unwrap().insert_remote_file_handle(
+            grant.clone(),
+            remote.clone(),
+            remote_file,
+            false,
+            false,
+        );
+        drop(root_use);
+        let fence = pf1_fence(&fs, &binding);
+        assert_eq!(
+            pf1_assert(&fs, &fence).owned_refs["remote_handles_held"],
+            PrivatePf1Class::ObservedPresent
+        );
+        local.release(handle).unwrap();
+        assert_eq!(
+            pf1_assert(&fs, &fence).owned_refs["remote_handles_held"],
+            PrivatePf1Class::ObservedDrained
+        );
+        let (mut stale_file, _) = remote::RemoteFiles::open(
+            remote.as_ref(),
+            &grant,
+            OsStr::new("file"),
+            libc::O_RDONLY,
+            None,
+        )
+        .unwrap();
+        stale_file.owner_session_id = "missing-session-binding".into();
+        let handle = local
+            .state
+            .lock()
+            .unwrap()
+            .insert_remote_file_handle(grant, remote, stale_file, false, false);
+        assert_eq!(
+            pf1_assert(&fs, &fence).owned_refs["remote_handles_held"],
+            PrivatePf1Class::UnknownBindingMissing
+        );
+        local.release(handle).unwrap();
+    }
+
+    fn pf1_peer(fs: &OwnerFs, binding: &root::PrivateRootBinding) -> PresentedRootAccess {
+        let root_use = fs
+            .require_local()
+            .unwrap()
+            .roots
+            .enter_root(&binding.root_id, RootRight::Read)
+            .unwrap();
+        let mut access = presented(root_use.grant());
+        access.holder_node_id = "node-b".into();
+        access.session_id = "peer-session".into();
+        access.fencing_token = "peer-token".into();
+        access
+    }
+
+    #[test]
+    fn n2c_pf1_06_peer_home_reap_fences_before_zero() {
+        let (_temp, fs, _ctx, _root, binding) = pf1_fixture();
+        let access = pf1_peer(&fs, &binding);
+        let local = fs.require_local().unwrap();
+        local
+            .peer_opendir("node-b", &access, OsStr::new(""), None)
+            .unwrap();
+        let fence = pf1_fence(&fs, &binding);
+        assert_eq!(
+            pf1_assert(&fs, &fence).owned_refs["peer_home_handles"],
+            PrivatePf1Class::ObservedPresent
+        );
+        local.reap_peer_session("node-b", "peer-session").unwrap();
+        assert!(
+            local
+                .state
+                .lock()
+                .unwrap()
+                .fenced_peer_sessions
+                .contains(&("node-b".into(), "peer-session".into()))
+        );
+        assert!(
+            local
+                .peer_opendir("node-b", &access, OsStr::new(""), None)
+                .is_err()
+        );
+        assert_eq!(
+            pf1_assert(&fs, &fence).owned_refs["peer_home_handles"],
+            PrivatePf1Class::ObservedDrained
+        );
+    }
+
+    #[test]
+    fn n2c_pf1_07_cached_peer_fence_is_non_authorizing() {
+        let (_temp, fs, _ctx, _root, binding) = pf1_fixture();
+        let access = pf1_peer(&fs, &binding);
+        let roots = &fs.require_local().unwrap().roots;
+        roots
+            .validate_peer_root_access(&access, "node-b", RootRight::Read)
+            .unwrap();
+        assert!(
+            roots
+                .cached_peer_sessions()
+                .unwrap()
+                .contains(&("node-b".into(), "peer-session".into()))
+        );
+        let fence = pf1_fence(&fs, &binding);
+        assert!(roots.cached_peer_sessions().unwrap().is_empty());
+        assert!(
+            roots
+                .validate_peer_root_access(&access, "node-b", RootRight::Read)
+                .is_err()
+        );
+        assert_eq!(
+            pf1_assert(&fs, &fence).owned_refs["cached_peer_grants"],
+            PrivatePf1Class::ObservedDrained
+        );
+    }
+
+    #[test]
+    fn n2c_pf1_08_real_managed_lock_missing_generation_is_unknown() {
+        let (_temp, fs, ctx, root, binding) = pf1_fixture();
+        let file = pf1_file(&fs, &ctx, &root, libc::O_RDWR);
+        fs.setlk(
+            &ctx,
+            file.entry.inode,
+            file.handle,
+            test_owner_lock("pf1-lock", 1, FileLockType::Write),
+            None,
+        )
+        .unwrap();
+        let fence = pf1_fence(&fs, &binding);
+        assert_eq!(
+            pf1_assert(&fs, &fence).owned_refs["managed_locks"],
+            PrivatePf1Class::UnknownBindingMissing
+        );
+        fs.release_lock_session("pf1-lock").unwrap();
+        fs.release(&ctx, file.handle).unwrap();
+        // Retained table keys still cannot prove access generation/Home session.
+        assert_eq!(
+            pf1_assert(&fs, &fence).owned_refs["managed_locks"],
+            PrivatePf1Class::UnknownBindingMissing
+        );
+    }
+
+    #[test]
+    fn n2c_pf1_09_stale_tuple_and_other_root_isolation() {
+        let (_temp, fs, ctx, root, binding) = pf1_fixture();
+        let file = pf1_file(&fs, &ctx, &root, libc::O_RDWR);
+        native_home_tests::mkdir_root(&fs, &ctx, "pf1-other");
+        let local = fs.require_local().unwrap();
+        let other_id = root::root_id_from_name(OsStr::new("pf1-other")).unwrap();
+        let other_use = local.roots.enter_root(&other_id, RootRight::Read).unwrap();
+        let other = root::PrivateRootBinding::from_grant(other_use.grant());
+        drop(other_use);
+        let mut stale_binding = binding.clone();
+        stale_binding.access_generation += 1;
+        assert!(
+            local
+                .roots
+                .private_pf1_fence(&stale_binding, "stale")
+                .is_err()
+        );
+        assert!(
+            local
+                .roots
+                .enter_root(&binding.root_id, RootRight::Read)
+                .is_ok()
+        );
+        let fence = pf1_fence(&fs, &other);
+        assert_eq!(
+            pf1_assert(&fs, &fence).owned_refs["local_file_handles"],
+            PrivatePf1Class::ObservedDrained
+        );
+        assert!(
+            local
+                .roots
+                .enter_root(&binding.root_id, RootRight::Read)
+                .is_ok()
+        );
+        fs.release(&ctx, file.handle).unwrap();
+    }
+
+    #[test]
+    fn n2c_pf1_10_native_authority_real_anchor_drop() {
+        let (_temp, fs, _ctx, _root, binding) = pf1_fixture();
+        let authority = fs
+            .native_home_export_for_current_namespace(OsStr::new("pf1-root"))
+            .unwrap();
+        authority.verify_current(&fs).unwrap();
+        let fence = pf1_fence(&fs, &binding);
+        assert_eq!(
+            pf1_assert(&fs, &fence).owned_refs["native_test_authority"],
+            PrivatePf1Class::ObservedPresent
+        );
+        drop(authority);
+        assert_eq!(
+            pf1_assert(&fs, &fence).owned_refs["native_test_authority"],
+            PrivatePf1Class::ObservedDrained
+        );
+    }
+
+    #[test]
+    fn n2c_pf1_11_unobserved_native_and_kernel_classes_block_success() {
+        let (_temp, fs, ctx, root, binding) = pf1_fixture();
+        let file = pf1_file(&fs, &ctx, &root, libc::O_RDWR);
+        fs.release(&ctx, file.handle).unwrap();
+        let fence = pf1_fence(&fs, &binding);
+        let receipt = pf1_assert(&fs, &fence);
+        for class in [
+            "ordinary_root_use",
+            "local_file_handles",
+            "local_dir_handles",
+            "writable_append_handles",
+            "remote_handles_held",
+            "remote_root_cache",
+            "peer_home_handles",
+            "cached_peer_grants",
+        ] {
+            assert_eq!(receipt.owned_refs[class], PrivatePf1Class::ObservedDrained);
+        }
+        assert_eq!(
+            receipt.owned_refs["managed_locks"],
+            PrivatePf1Class::UnknownBindingMissing
+        );
+        assert_eq!(
+            receipt.owned_refs["native_test_authority"],
+            PrivatePf1Class::UnknownBindingMissing
+        );
+    }
+
+    #[test]
+    fn n2c_pf1_12_real_admitted_handle_insertion_race_fails_closed() {
+        let (_temp, fs, ctx, root, binding) = pf1_fixture();
+        let file = pf1_file(&fs, &ctx, &root, libc::O_RDWR);
+        fs.release(&ctx, file.handle).unwrap();
+        let local = fs.require_local().unwrap();
+        let admitted = local
+            .roots
+            .enter_root(&binding.root_id, RootRight::Read)
+            .unwrap();
+        let path = admitted
+            .data_dir()
+            .join_path(&StoragePath::new("file").unwrap())
+            .unwrap();
+        let os_file = local
+            .disk
+            .open_file(&path, OpenSpec::new(libc::O_RDONLY, 0))
+            .unwrap();
+        let identity = identity_from_metadata(&os_file.metadata().unwrap()).unwrap();
+        let fence = pf1_fence(&fs, &binding);
+        assert!(
+            fs.private_pf1_observe_between(&fence, || {
+                local.state.lock().unwrap().insert_file_handle(
+                    files::LocalOpenFile {
+                        root_id: binding.root_id.clone(),
+                        private_binding: Some(Box::new(root::PrivateRootBinding::from_grant(
+                            admitted.grant(),
+                        ))),
+                        identity,
+                        file: os_file,
+                        peer: None,
+                    },
+                    false,
+                    WriteSyncMode::None,
+                    libc::O_RDONLY,
+                );
+                drop(admitted);
+                Ok(())
+            })
+            .is_err()
+        );
+        assert_eq!(
+            pf1_assert(&fs, &fence).owned_refs["local_file_handles"],
+            PrivatePf1Class::ObservedPresent
+        );
+        let handle = *local
+            .state
+            .lock()
+            .unwrap()
+            .file_handles
+            .keys()
+            .next()
+            .unwrap();
+        fs.release(&ctx, handle).unwrap();
     }
 }

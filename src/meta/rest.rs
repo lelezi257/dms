@@ -7,7 +7,7 @@
 //! 只能读取配置的 MetaStore，不能把当前 ping 的返回值当作节点注册/目录归属。
 use super::{
     Meta,
-    store::{MetaEntity, MetaRead, now_unix_ms, unavailable_meta_store},
+    store::{BackendPersistence, MetaEntity, MetaRead, now_unix_ms, unavailable_meta_store},
 };
 use axum::{
     Json, Router,
@@ -15,7 +15,10 @@ use axum::{
     routing::get,
 };
 use serde_json::{Value, json};
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
+
+const HEALTH_BACKEND_READINESS_TIMEOUT: Duration = Duration::from_secs(2);
+
 pub fn router(meta: Arc<Meta>) -> Router {
     Router::new()
         .route("/health", get(health))
@@ -33,10 +36,41 @@ async fn health(State(meta): State<Arc<Meta>>) -> Result<Json<Value>, crate::err
         .store
         .as_deref()
         .ok_or_else(|| crate::error::RestError(unavailable_meta_store()))?;
-    store.health().await?;
-    Ok(Json(
-        json!({"status":"ready","role":"meta","id":meta.id,"scope":"foundation"}),
-    ))
+    let readiness =
+        tokio::time::timeout(HEALTH_BACKEND_READINESS_TIMEOUT, store.backend_readiness())
+            .await
+            .map_err(|_| {
+                crate::error::RestError(afs_error::Error::coded(
+                    afs_error::IO_UNAVAILABLE,
+                    format!(
+                        "backend health probe timed out after {} ms",
+                        HEALTH_BACKEND_READINESS_TIMEOUT.as_millis()
+                    ),
+                ))
+            })??;
+    if !readiness.healthy {
+        return Err(crate::error::RestError(afs_error::Error::coded(
+            afs_error::IO_UNAVAILABLE,
+            readiness.detail,
+        )));
+    }
+    let durability = match readiness.persistence {
+        BackendPersistence::Unknown => "unknown",
+        BackendPersistence::Volatile => "volatile",
+        BackendPersistence::Persistent => "persistent",
+    };
+    Ok(Json(json!({
+        "status":"ready",
+        "role":"meta",
+        "id":meta.id,
+        "scope":"foundation",
+        "backend_persistence":readiness.persistence.as_str(),
+        "backend_health":"healthy",
+        "durability":durability,
+        "persistent_ready":readiness.persistent_ready,
+        "physical_power_loss_proven":false,
+        "detail":readiness.detail,
+    })))
 }
 async fn ping(State(meta): State<Arc<Meta>>) -> Result<Json<Value>, crate::error::RestError> {
     meta.ping("rest")

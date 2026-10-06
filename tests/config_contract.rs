@@ -97,3 +97,32 @@ fn meta_store_defaults_to_etcd_and_cli_overrides_toml() {
         Some("redis://127.0.0.1:6379/0")
     );
 }
+
+#[test]
+fn volatile_meta_policy_defaults_to_false_and_cli_overrides_toml() {
+    let default = Config::resolve(Role::Node, Cli::parse_from(["afs-node"])).unwrap();
+    assert!(!default.allow_volatile_meta);
+
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("node.toml");
+    std::fs::write(&path, "allow_volatile_meta = true\n").unwrap();
+    let file = Config::resolve(
+        Role::Node,
+        Cli::parse_from(["afs-node", "--config", path.to_str().unwrap()]),
+    )
+    .unwrap();
+    assert!(file.allow_volatile_meta);
+
+    let cli = Config::resolve(
+        Role::Node,
+        Cli::parse_from([
+            "afs-node",
+            "--config",
+            path.to_str().unwrap(),
+            "--allow-volatile-meta",
+            "false",
+        ]),
+    )
+    .unwrap();
+    assert!(!cli.allow_volatile_meta);
+}

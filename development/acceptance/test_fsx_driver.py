@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import importlib.util
 import json
 import os
 import platform
@@ -7,9 +8,18 @@ import sys
 import tempfile
 import textwrap
 import unittest
+from unittest import mock
 from pathlib import Path
 
 DRIVER = Path(__file__).resolve().parent / "drivers" / "fsx.py"
+
+
+def load_driver_module():
+    sys.path.insert(0, str(DRIVER.parent))
+    spec = importlib.util.spec_from_file_location("fsx_driver_under_test", DRIVER)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 def write_fake_secfs(root: Path, behavior: str = "pass") -> tuple[Path, Path]:
@@ -91,6 +101,32 @@ def write_fake_secfs(root: Path, behavior: str = "pass") -> tuple[Path, Path]:
     return suite, fsx
 
 
+class FsxIdentityTests(unittest.TestCase):
+    def test_git_identity_trust_is_scoped_to_selected_suite_root(self):
+        fsx_driver = load_driver_module()
+        with tempfile.TemporaryDirectory() as td:
+            suite = Path(td) / "secfs.test"
+            binary = suite / "tools/bin/fsx"
+            source = suite / "fstools/src/fsx/fsx.c"
+            source.parent.mkdir(parents=True)
+            binary.parent.mkdir(parents=True)
+            binary.write_text("#!/bin/sh\n", encoding="utf-8")
+            binary.chmod(0o755)
+            source.write_text("/* fsx */\n", encoding="utf-8")
+            root = suite.resolve()
+            responses = [
+                {"returncode": 0, "stdout": "edf5\n", "stderr": ""},
+                {"returncode": 0, "stdout": "", "stderr": ""},
+                {"returncode": 0, "stdout": "usage\n", "stderr": ""},
+            ]
+            with mock.patch.object(fsx_driver, "run_text", side_effect=responses) as run:
+                identity = fsx_driver.fsx_identity(suite, binary)
+            git = ["git", "-c", f"safe.directory={root}", "-C", str(root)]
+            self.assertEqual(run.call_args_list[0], mock.call(git + ["rev-parse", "HEAD"]))
+            self.assertEqual(run.call_args_list[1], mock.call(git + ["status", "--porcelain"]))
+            self.assertEqual(identity["git_head"], "edf5")
+
+
 class FsxDriverTests(unittest.TestCase):
     def setUp(self):
         if platform.system() != "Linux":
@@ -153,6 +189,9 @@ class FsxDriverTests(unittest.TestCase):
         self.assertEqual(proof["accounting"]["selected_seeds"], [1])
         self.assertEqual(proof["accounting"]["result_counts"]["PASS"], 1)
         self.assertIn("seeds", proof["coverage"]["axes"])
+        self.assertEqual(proof["coverage"]["axes"]["seeds"]["values"], ["1"])
+        self.assertEqual(proof["coverage"]["axes"]["seeds_smoke"]["values"], ["1"])
+        self.assertNotIn("seeds_full", proof["coverage"]["axes"])
         commands = run_dir / "artifacts" / "std-03-fsx" / "commands.json"
         self.assertTrue(commands.exists())
         raw = json.loads(commands.read_text())

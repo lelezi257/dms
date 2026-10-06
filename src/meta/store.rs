@@ -32,6 +32,56 @@ pub mod local_file;
 pub mod memory;
 pub mod redis;
 
+/// Observed persistence class for the configured Meta backend.
+///
+/// This is a readiness claim only. `Persistent` means the backend is designed
+/// and configured for restart persistence, not that physical power-loss
+/// behavior has been proven by the current health probe.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub enum BackendPersistence {
+    Unknown,
+    Volatile,
+    Persistent,
+}
+
+impl BackendPersistence {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Unknown => "unknown",
+            Self::Volatile => "volatile",
+            Self::Persistent => "persistent",
+        }
+    }
+
+    pub fn is_persistent(self) -> bool {
+        matches!(self, Self::Persistent)
+    }
+}
+
+/// Backend readiness after an actual backend health probe.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct BackendReadiness {
+    pub persistence: BackendPersistence,
+    pub healthy: bool,
+    pub persistent_ready: bool,
+    pub detail: String,
+}
+
+impl BackendReadiness {
+    pub fn observed(
+        persistence: BackendPersistence,
+        healthy: bool,
+        detail: impl Into<String>,
+    ) -> Self {
+        Self {
+            persistence,
+            healthy,
+            persistent_ready: healthy && persistence.is_persistent(),
+            detail: detail.into(),
+        }
+    }
+}
+
 /// Monotonic revision assigned by the selected MetaStore.
 ///
 /// Watch delivery, recovery scans, and read snapshots all use the same revision
@@ -173,6 +223,18 @@ pub enum RootRight {
     Admin,
 }
 
+/// Durable root command type.
+///
+/// Existing serialized command records did not carry a type; they are
+/// interpreted as revoke-access commands for compatibility with the original
+/// watch stream and ACK path.
+#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, Hash, PartialEq, Serialize)]
+pub enum RootCommandType {
+    #[default]
+    RevokeAccess,
+    InvalidateCache,
+}
+
 /// Durable acknowledgement of a command that changes the validity of old grants.
 ///
 /// The initial OwnerFs implementation should avoid a B-join revoke path, but
@@ -204,6 +266,8 @@ pub struct RootCommandRecord {
     pub root_id: String,
     pub root_epoch: u64,
     pub old_access_generation: u64,
+    #[serde(default)]
+    pub command_type: RootCommandType,
 }
 
 /// OwnerFs and DFS records use the same MetaStore mechanics but keep
@@ -347,6 +411,24 @@ pub enum TxnCondition {
         command_id: String,
         node_id: String,
         session_id: String,
+    },
+    RootCommandMatches {
+        command_id: String,
+        home_node_id: String,
+        home_session_id: String,
+        root_id: String,
+        root_epoch: u64,
+        old_access_generation: u64,
+        command_type: RootCommandType,
+    },
+    RootCommandAckedExact {
+        command_id: String,
+        node_id: String,
+        session_id: String,
+        root_id: String,
+        root_epoch: u64,
+        access_generation: u64,
+        command_type: RootCommandType,
     },
     RequestAbsent(RequestKey),
     DfsDirectoryEmpty {
@@ -694,6 +776,9 @@ pub trait MetaStore: Send + Sync {
     /// REST readiness uses it to fail closed when the backend is disconnected.
     fn health(&self) -> MetaFuture<'_, ()>;
 
+    /// Reports persistence capability only after probing the backend.
+    fn backend_readiness(&self) -> MetaFuture<'_, BackendReadiness>;
+
     /// Pins one acknowledged revision for all reads belonging to a source resolution.
     fn read_view(&self) -> MetaFuture<'_, MetaReadView>;
 
@@ -750,6 +835,11 @@ pub trait StoreBackend: Send + Sync {
     /// Store's in-memory snapshot.
     fn health(&self) -> MetaFuture<'_, ()> {
         Box::pin(async move { self.load().await.map(|_| ()) })
+    }
+
+    /// Static backend persistence classification. Unknown is fail-closed.
+    fn persistence(&self) -> BackendPersistence {
+        BackendPersistence::Unknown
     }
 
     fn load(&self) -> MetaFuture<'_, Option<(u64, Vec<u8>)>>;
@@ -915,6 +1005,38 @@ impl MetaStore for Store {
             self.ensure_available()?;
             self.backend.health().await?;
             self.ensure_available()
+        })
+    }
+
+    fn backend_readiness(&self) -> MetaFuture<'_, BackendReadiness> {
+        Box::pin(async move {
+            let persistence = self.backend.persistence();
+            if let Err(error) = self.ensure_available() {
+                return Ok(BackendReadiness::observed(
+                    persistence,
+                    false,
+                    format!("store unavailable before backend probe: {error}"),
+                ));
+            }
+            match self.backend.health().await {
+                Ok(()) => match self.ensure_available() {
+                    Ok(()) => Ok(BackendReadiness::observed(
+                        persistence,
+                        true,
+                        format!("{} backend health probe passed", persistence.as_str()),
+                    )),
+                    Err(error) => Ok(BackendReadiness::observed(
+                        persistence,
+                        false,
+                        format!("store unavailable after backend probe: {error}"),
+                    )),
+                },
+                Err(error) => Ok(BackendReadiness::observed(
+                    persistence,
+                    false,
+                    format!("backend health probe failed: {error}"),
+                )),
+            }
         })
     }
 
@@ -1115,6 +1237,16 @@ struct PersistedMemoryState {
 impl MetaStore for StoreState {
     fn health(&self) -> MetaFuture<'_, ()> {
         Box::pin(async { Ok(()) })
+    }
+
+    fn backend_readiness(&self) -> MetaFuture<'_, BackendReadiness> {
+        Box::pin(async {
+            Ok(BackendReadiness::observed(
+                BackendPersistence::Unknown,
+                true,
+                "in-memory state has no configured backend capability",
+            ))
+        })
     }
 
     fn read_view(&self) -> MetaFuture<'_, MetaReadView> {
@@ -1737,6 +1869,76 @@ fn condition_matches(state: &MemoryState, condition: &TxnCondition) -> bool {
                     MetaEntity::RootCommandAck(ack) if ack.success
                 )
             }),
+        TxnCondition::RootCommandMatches {
+            command_id,
+            home_node_id,
+            home_session_id,
+            root_id,
+            root_epoch,
+            old_access_generation,
+            command_type,
+        } => state
+            .entities
+            .get(&MetaKey::RootCommand {
+                command_id: command_id.clone(),
+            })
+            .is_some_and(|entity| {
+                matches!(
+                    &entity.entity,
+                    MetaEntity::RootCommand(command)
+                        if command.home_node_id == *home_node_id
+                            && command.home_session_id == *home_session_id
+                            && command.root_id == *root_id
+                            && command.root_epoch == *root_epoch
+                            && command.old_access_generation == *old_access_generation
+                            && command.command_type == *command_type
+                )
+            }),
+        TxnCondition::RootCommandAckedExact {
+            command_id,
+            node_id,
+            session_id,
+            root_id,
+            root_epoch,
+            access_generation,
+            command_type,
+        } => {
+            let acked = state
+                .entities
+                .get(&MetaKey::RootCommandAck {
+                    command_id: command_id.clone(),
+                    home_node_id: node_id.clone(),
+                    home_session_id: session_id.clone(),
+                })
+                .is_some_and(|entity| {
+                    matches!(
+                        &entity.entity,
+                        MetaEntity::RootCommandAck(ack)
+                            if ack.success
+                                && ack.root_id == *root_id
+                                && ack.root_epoch == *root_epoch
+                                && ack.access_generation == *access_generation
+                    )
+                });
+            let command_matches = state
+                .entities
+                .get(&MetaKey::RootCommand {
+                    command_id: command_id.clone(),
+                })
+                .is_some_and(|entity| {
+                    matches!(
+                        &entity.entity,
+                        MetaEntity::RootCommand(command)
+                            if command.home_node_id == *node_id
+                                && command.home_session_id == *session_id
+                                && command.root_id == *root_id
+                                && command.root_epoch == *root_epoch
+                                && command.old_access_generation == *access_generation
+                                && command.command_type == *command_type
+                    )
+                });
+            acked && command_matches
+        }
         TxnCondition::RequestAbsent(key) => !state.requests.contains_key(key),
         TxnCondition::DfsDirectoryEmpty {
             namespace_id,
@@ -2184,6 +2386,187 @@ mod tests {
                 result: OperationResult::RootGrant(grant()),
             }));
         assert!(txn.validate().is_err());
+    }
+
+    fn n2b1_command(
+        command_id: &str,
+        root_id: &str,
+        old_access_generation: u64,
+        command_type: RootCommandType,
+    ) -> RootCommandRecord {
+        RootCommandRecord {
+            command_id: command_id.into(),
+            home_node_id: "node-a".into(),
+            home_session_id: "session-a".into(),
+            root_id: root_id.into(),
+            root_epoch: 7,
+            old_access_generation,
+            command_type,
+        }
+    }
+
+    fn n2b1_ack(command_id: &str, root_id: &str, access_generation: u64) -> RootCommandAck {
+        RootCommandAck {
+            command_id: command_id.into(),
+            node_id: "node-a".into(),
+            session_id: "session-a".into(),
+            root_id: root_id.into(),
+            root_epoch: 7,
+            access_generation,
+            success: true,
+            message: "installed".into(),
+        }
+    }
+
+    #[test]
+    fn n2b1_old_root_command_records_default_to_revoke_access() {
+        let raw = r#"{
+            "command_id":"cmd-old",
+            "home_node_id":"node-a",
+            "home_session_id":"session-a",
+            "root_id":"workspace-a",
+            "root_epoch":7,
+            "old_access_generation":3
+        }"#;
+        let command: RootCommandRecord = serde_json::from_str(raw).unwrap();
+        assert_eq!(command.command_type, RootCommandType::RevokeAccess);
+    }
+
+    #[test]
+    fn n2b1_root_command_exact_conditions_match_stored_command_and_ack() {
+        let command = n2b1_command("cmd-exact", "workspace-a", 3, RootCommandType::RevokeAccess);
+        let ack = n2b1_ack("cmd-exact", "workspace-a", 3);
+        let mut state = MemoryState::default();
+        state.entities.insert(
+            MetaKey::RootCommand {
+                command_id: command.command_id.clone(),
+            },
+            VersionedEntity {
+                revision: StoreRevision(1),
+                entity: MetaEntity::RootCommand(command),
+            },
+        );
+        state.entities.insert(
+            MetaKey::RootCommandAck {
+                command_id: ack.command_id.clone(),
+                home_node_id: ack.node_id.clone(),
+                home_session_id: ack.session_id.clone(),
+            },
+            VersionedEntity {
+                revision: StoreRevision(2),
+                entity: MetaEntity::RootCommandAck(ack),
+            },
+        );
+
+        assert!(condition_matches(
+            &state,
+            &TxnCondition::RootCommandMatches {
+                command_id: "cmd-exact".into(),
+                home_node_id: "node-a".into(),
+                home_session_id: "session-a".into(),
+                root_id: "workspace-a".into(),
+                root_epoch: 7,
+                old_access_generation: 3,
+                command_type: RootCommandType::RevokeAccess,
+            }
+        ));
+        assert!(condition_matches(
+            &state,
+            &TxnCondition::RootCommandAckedExact {
+                command_id: "cmd-exact".into(),
+                node_id: "node-a".into(),
+                session_id: "session-a".into(),
+                root_id: "workspace-a".into(),
+                root_epoch: 7,
+                access_generation: 3,
+                command_type: RootCommandType::RevokeAccess,
+            }
+        ));
+        assert!(!condition_matches(
+            &state,
+            &TxnCondition::RootCommandMatches {
+                command_id: "cmd-exact".into(),
+                home_node_id: "node-a".into(),
+                home_session_id: "session-a".into(),
+                root_id: "workspace-a".into(),
+                root_epoch: 7,
+                old_access_generation: 4,
+                command_type: RootCommandType::RevokeAccess,
+            }
+        ));
+        assert!(!condition_matches(
+            &state,
+            &TxnCondition::RootCommandAckedExact {
+                command_id: "cmd-exact".into(),
+                node_id: "node-a".into(),
+                session_id: "session-a".into(),
+                root_id: "workspace-a".into(),
+                root_epoch: 7,
+                access_generation: 3,
+                command_type: RootCommandType::InvalidateCache,
+            }
+        ));
+    }
+
+    #[test]
+    fn n2b1_watch_batch_rejects_max_revision_event_without_advance_cursor() {
+        let batch = WatchBatch::Events {
+            start_revision: StoreRevision(u64::MAX - 2),
+            next_revision: StoreRevision(u64::MAX),
+            events: vec![WatchEvent {
+                revision: StoreRevision(u64::MAX),
+                event_index: 0,
+                key: MetaKey::Root {
+                    root_id: "workspace-max".into(),
+                },
+                change: WatchChange::Delete,
+            }],
+        };
+        assert!(batch.validate_order().is_err());
+    }
+
+    #[tokio::test]
+    async fn n2b1_watch_limit_preserves_revision_boundary_at_1024() {
+        let mut state = MemoryState {
+            revision: StoreRevision(1024),
+            ..MemoryState::default()
+        };
+        for revision in 1..=1023 {
+            state.events.push(WatchEvent {
+                revision: StoreRevision(revision),
+                event_index: 0,
+                key: MetaKey::Root {
+                    root_id: format!("workspace-{revision}"),
+                },
+                change: WatchChange::Delete,
+            });
+        }
+        state
+            .events
+            .extend([0, 1].into_iter().map(|event_index| WatchEvent {
+                revision: StoreRevision(1024),
+                event_index,
+                key: MetaKey::Root {
+                    root_id: format!("workspace-boundary-{event_index}"),
+                },
+                change: WatchChange::Delete,
+            }));
+        let store = StoreState {
+            state: Mutex::new(state),
+        };
+        let WatchBatch::Events {
+            start_revision,
+            next_revision,
+            events,
+        } = store.watch(StoreRevision::ZERO, 1024).await.unwrap()
+        else {
+            panic!("memory store should return events");
+        };
+        assert_eq!(start_revision, StoreRevision::ZERO);
+        assert_eq!(next_revision, StoreRevision(1025));
+        assert_eq!(events.len(), 1025);
+        assert_eq!(events[1023].revision, StoreRevision(1024));
+        assert_eq!(events[1024].revision, StoreRevision(1024));
     }
 
     #[test]

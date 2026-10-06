@@ -1,0 +1,75 @@
+# 2026-10-06 代码与目标检查点
+
+**决策：** 本次按用户授权，将当前累积产品代码和相关文档一起版本化、发布GitHub。该检查点的Git提交同时标识代码、目标、状态、操作说明和交接；从本仓根执行 `git rev-parse HEAD` 获取当前检出身份。任务进度唯一来源是[三阶段验收表](trial-release-goals.md)。
+
+## 当前范围
+
+**事实：** 已交付g1.5试用包的G1为8/8完成。当前代码包含此后Owner索引/目录维护、DFS同批次完整校验共享、local-file恢复、写权限/未知结果处理、健康/容量语义、安装自检及native私有基础。当前源码与历史g1.5包不是同一输入，不用旧包的通过结果替代本检查点验证。
+
+**待验证：** G2尚未完成当前候选完整pjdfstest、固定LTP基础子集、短FSx、安装后跨节点/local-file组合恢复与ext4/MooseFS/3FS核心性能对照；本次源码测试不关闭这些出口。G2共27项：3个限定成果已完成、2个bind项进行中、22项待验收。G3的13项后置。
+
+**决策：** OwnerFs优先；DFS首先一写多读。先小规模读/写/删除，再扩规模/并发/时间；按case自身依赖推进。Owner local吞吐≥90%ext4，remote与MooseFS持平，DFS在同FUSE/POSIX及三同步durable副本下与3FS持平；噪声容差测前固定。普通使用中的损坏、错误成功、权限绕过和核心恢复错误及时修复。
+
+## 当前组合验证
+
+[Linux验证入口](checkpoints/20261006-current/validate-linux.sh)及[输入绑定器](checkpoints/20261006-current/verify-inputs.py)随代码保存。只能在ARM64 Linux运行，Cargo输出与验证结果放源码树外；命令使用锁定依赖和offline模式，依赖需先按[构建说明](validation.md)准备。
+
+```sh
+export CARGO_TARGET_DIR=/path/on/linux-ext4/afs-target
+bash development/checkpoints/20261006-current/validate-linux.sh /path/on/linux-ext4/new-checkpoint-results
+```
+
+当前执行的精确输入、命令、输出和返回值在[本次结果目录](checkpoints/20261006-current/results/README.md)。文档不计入编译输入摘要；验收驱动、安装脚本及本验证工具单独纳入同一输入清单。结果目录不计入工具输入，避免自引用。没有新跑正式性能、标准集或安装后的多节点恢复，不将源码门禁称为全部产品验收。
+
+## historical-evidence
+
+**事实（保留原版本范围）：** 以下小型结构化结果从研究归档按原字节复制，摘要一致，随GitHub可读取。它们不是本次候选的新测量；完整大ELF、磁盘数据及原始归档仍在研究区，不随Git clone携带。
+
+| 结果 | 可携证明 | 可得结论与限制 |
+| --- | --- | --- |
+| g1.5试用/Owner B1核心恢复 | [271项审计](checkpoints/20261006-current/results/historical/g1.5-validation.json) | scope、源map、旧ELF、安装及实际恢复检查可查；不是当前输入，也不含完整raw归档 |
+| DFS批次优化 | [48次paired结果](checkpoints/20261006-current/results/historical/dfs-batch-paired.json) | 同批次内容与计数/配对结果；热页缓存CPU诊断，非3FS性能 |
+| 有限ext4工具 | [24次正向结果](checkpoints/20261006-current/results/historical/ext4-tool-positive.json) | 实际工具矩阵/内容/返回值；非AFS性能及完整evaluator |
+| parent FD收益实验结案 | [完整失败报告](checkpoints/20261006-current/results/historical/parent-fd-paired-failure.json) | 48窗口/20对，四项耗时比分别约0.986217/0.982199/0.995844/0.983345，未达原≤0.95；保留FAIL，不反复无输入重跑 |
+
+可携历史文件SHA256：
+
+```text
+24f354d7cbf18ac8c534c012f556f5b92ec0b1bd4d5691346b74b6770ca715ae  g1.5-validation.json
+9c265bb36d4150dc31ea6c251add419c8eca2a68765f50731cf6b5c68d4cefbb  dfs-batch-paired.json
+f29451f7513a54002c0f1529c691ac396209c034c50ff9760cc62d2b833367c6  ext4-tool-positive.json
+fd2dbca678dcba28ec07665ddf7d9bcf3e98636af6842a58ca435cfb4ce02c5b  parent-fd-paired-failure.json
+```
+
+**事实（历史归档结论，完整raw未包含于本仓）：** Owner B2/B3/B4固定评估器与限定恢复通过；v37 OwnerFs/DFS pjdfstest各236文件/8819 TAP checks、v48远端DFS同全集，无意外失败/skip，28上游TODO登记；ext4标准参考（pjdfstest/FSx/冻结657 LTP命令）通过。它们均保留旧源码身份，不继承当前候选PASS。D20只关闭Owner local容量语义切片；native N2a/N2b1/N2c PF1只关闭身份/权限、服务端及私有引用基础。
+
+研究归档名称供原工作区追溯：`evidence/afs-delivery/g2-owner-{index,structural,subtree}`、`g2-owner-local-d20-r1`、`g2-native-{n2a,n2b1,n2c-pf1}`、`g2-dfs-read-amplification`、`g2-ordinary-tool-qualification-r1`。这些是外部档案位置，不假设独立clone存在。
+
+## trial-artifact
+
+历史0.1.0-g1.5 Linux ARM64包由独立离线安装和中心local-file恢复验证；不是本次重新构建的性能release。本仓含[试用操作说明](../docs/guides/trial.md)与构建/打包脚本，旧包未随Git上传。原工作区产物在 `outputs/releases/afs-g1.5/`，跨电脑需单独传递并校验，不能只checkout旧base b259c44得到该dirty构建。
+
+| 身份 | SHA256 |
+| --- | --- |
+| g1.5包 | `c767255d4a071fd33fcd5a38fbf9f27d4e939c8892c6201828ef4429b6b88829` |
+| g1.5 afs-meta | `93c5528cd410d6f56f1ef87fa51f8da73ad4885e147b75e8a30d5ff87308bdcf` |
+| g1.5 afs-node | `43813e8393af59509f1c27f9b16076dbb356f1bb6e481f9f8ca430837883696a` |
+| g1.5源map（147输入） | `602a42843427e94c55435420f9460ee38846ca0582c4d209d86c50ececca83bf` |
+
+## native-handoff
+
+[Issue42](https://github.com/lelezi257/dms/issues/42)及[PR43](https://github.com/lelezi257/dms/pull/43)已纳入G2.12/13。既有交接读取head `80b0bca3d9d86a1357aa745bb65abfb567f5623f`，该交接对应草稿未合并分支，不把实验比值当主线生产资格；移植须检查与当前主线重叠的权限/写入/索引改动。
+
+**事实/待验证：** 主线生产native入口仍禁用；本次不提供可用的公开ON配置。将来要求显式开关、默认OFF，OFF FUSE独立回归，ON经过最终namespace/Root/epoch/Home核验、启动/停止、真正引用排空和重启对账。append/SEEK_CUR、经典kernel POSIX锁、watch/混合mmap、export detach后容器clone仍写等已知缺口必须在ON前闭合；不能用mutex/OFD/lazy detach代替证明。基础模块和测试存在不等于READY或物理排空ACK已完成。
+
+## capacity
+
+**决策：** 按case数据/副本/同时保留量与实测工件峰值准入，结果校验及正常关闭后复用自有空间。日志量先测，不能把完整矩阵100GiB准备条件施加到每个小case。A数据盘32→48GiB可作为独立环境任务，扩容前保存活动memory Meta/FDB状态并验证恢复，不能为此停止不相关服务。本次发布不扩盘、不运行大规模benchmark。
+
+## 下一步
+
+G0代码/文档发布完成后，按主表先G2.04/06/08的Owner标准与必要恢复，再G2.09–11小规模local读/写/删除。bind两个出口独立推进，不阻塞OFF版本；remote后进入DFS时先G2.21一写多读。etcd暂2GiB专题与Redis最后，完整G2继续进行。
+
+## Review boundary
+
+本次静态审查覆盖配置、Meta/protocol、local-file、Owner私有native/索引、DFS批次/权限、Node健康及发布文件完整性。需确保所有被引用的新源码/驱动/脚本都入Git，并附实际当前验证回执。审查另记录DfsMeta解析权限trait默认退回open_write的未来adapter风险：生产GrpcDfsMeta及当前测试adapter均显式覆盖，未发现当前生产旁路；后续新增adapter需显式实现，见[REVIEW-01](issues.md)。静态审查不替代已列待验收的安装/标准/性能项。

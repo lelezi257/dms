@@ -1,101 +1,54 @@
 # Delivery task map
 
-[Acceptance](../docs/acceptance.md) is the release contract. Execute four rounds of whole-system convergence in the order below. P0..P6 identify capability work and dependencies; their numeric order is not a sequence of module-completion stages. Dynamic checkpoints, raw results and significant-change records are execution artifacts, not product architecture documentation. Track unresolved work in the [unified issue ledger](issues.md), with its acceptance cases, evidence boundary, assigned round and next check.
+The active task map is [the three-stage acceptance checklist](trial-release-goals.md). This file gives execution order and dependencies; it does not replace the checklist or the full contract in [docs/acceptance.md](../docs/acceptance.md).
 
-## Current execution
+## Current checkpoint
 
-Current round: **ROUND3, performance/resources, then persistent backends**. [ROUND2 representative closure](evidence/20261001-round2-closure/README.md) joins Node/network/storage/corruption/unknown-reply/deadline evidence with a fresh overall regression. Both pre/post-restart ten-case consistency runs pass; actual copies, RXE payload, cold content and cleanup are checked. The final Linux source gate passes with 421 library tests and seven explicit environment ignores; the new DFS deadline also executes with actual RXE/GDB. Formal 69 NOT_RUN / ENV PREPARING remains unchanged.
+G1/g1.5 is complete in its scoped trial sense: installable OwnerFs/DFS, memory demo, basic local/remote behavior, DFS basic behavior, local-file Meta restart recovery and colleague-facing lifecycle/self-check evidence. That result remains historical and bounded. It is not a current-candidate full POSIX, G2 performance or formal 69-case PASS.
 
-The [first round3 resource diagnostic](evidence/20261001-round3-resource-diagnostic/README.md) passes 8 MiB Owner local/remote and DFS sync/close flows, four exact sequential reads and 2,048 range checks. Two physical replicas and completed repair are verified; normal stop removes mounts and user verbs resources. It measures substantial cached DFS process-read amplification and short-lived RSS growth, without demonstrating a leak or qualifying performance ratios. All143 compiler inputs match the reused round2 source gate.
+G2 is active. The completed G2 items are bounded internal outputs: OwnerFs indexing/structural optimizations, DFS read-batch amplification reduction, and a limited small performance-tool qualification. Bind/native has real progress but remains in progress; the feature must be separately accepted and default OFF. Most current-candidate standard and performance items remain unrun.
 
-The [patched3FS normal qualifier](evidence/20261001-round3-3fs-reference/README.md) now proves32MiB A/B reads,64×3 physical chunk slots before and after full FDB/Meta/mgmtd/Storage/client restart, and final owned-process cleanup. A post-restart admin timeout and transient SYNCING are retained failures; final recovery is proved, bounded recovery is not. Directory fsync return is not a barrier proof because this version omits the FUSE callback. Strong data-barrier/ACK qualification and fair isolation/configuration remain incomplete.
+G3 is deferred. Long soak, broad random/POSIX matrices, complex fault matrices, multi-Meta/HA, etcd 2 GiB topic and Redis are not the next blockers for small usable progress.
 
-Current whole-system priorities: separate comparator read-dataset qualification from blocked strong-write contracts, attribute measured DFS verification/copy/RPC costs and address proven limits, then validate etcd/Redis parity and persistence separately. Unqualified ratios cannot guide tuning or become PASS; they do not block independent resource/backend progress. MooseFS strong-durability write and patched3FS strong ACK comparison remain BLOCKED. Full paired measurements, POSIX,8GiB and soak remain round4.
+## Immediate sequence
 
-Deferred proof: installed cross-VM post-commit ACK loss, native CQ timeout, exceptional provider teardown and complete fault/backend/transport axes. They remain required release coverage, not observed defects being waived. Resource-lifetime diagnostics continue in round3. Forced host clamshell sleep coincided with old Node session expiry; original binaries have recovered and exact old files pass on A/B/C. Continuous normal-host recurrence is an immediate blocker. See [issues](issues.md) for consequences and assignments.
-
-The following slices retain their original source/runtime identities and define representative round2 coverage, not formal matrix completion.
-
-The [first integrated Node fault batch](evidence/20261001-round2-node-recovery/README.md) passes actual A/Home/source interruption, Owner error versus cold DFS surviving-copy read, B/C replacement, original-disk restart/Home/session recovery and actual C target outage/rejoin. Central memory Meta remains unchanged; C outage after replacement retains enough copies and does not create new debt.
-
-The [network/capacity batch](evidence/20261001-round2-network-capacity/README.md) adds actual B-to-A business TCP isolation, bounded Owner failure, unaffected local DFS/C route and same-process recovery. A separate bounded guest ext4 fixture proves physical ENOSPC: Owner append rejection, DFS buffered write versus failed fdatasync/fsync/close, original committed content after cold reload while full, then successful recovery/normal restart. This is single-Node/gRPC capacity proof and does not qualify RoCE link interruption or full fault matrices. Linux64 semantic/10 audit regressions pass; its unchanged143 inputs retain the original source gate identity.
-
-[Owner hard-error batch](evidence/20261001-owner-sync-eio/README.md) fixes fatal EIO being consumed before close and remote resize-only skipping Home flush. Its Linux69 Owner regressions,421 library/65 interfaces/4 errors/9 LocalAPI/5 real FUSE, strict Clippy/features/build pass. Actual local/remote dm EIO, cold acknowledged watermark, explicit new-handle rewrite, Home resize-close fdatasync and normal restart pass. Original production and overstrict fixture failures are retained. That runtime is gRPC and isolated memory Meta; older healthy/transport evidence retains its original identities. The final closure gate supersedes only matching source inputs, not the original physical-fault runtime identity.
-
-The [current installed corruption slice](evidence/20261001-round2-corruption/README.md) passes single/all-bad physical-copy faults, required-RXE read/repair counters, Meta health convergence and quarantine restart/unaffected reads. Exact unknown-result real-gRPC tests execute again in the final closure gate under their memory/loopback scope. The [round2 closure](evidence/20261001-round2-closure/README.md) adds DFS posted deadline and overall regression; complete installed fault matrices remain later qualification.
-
-## Whole-system rounds
-
-| Round | Scope and order | Exit evidence and remaining boundary |
+| Order | Checklist item | Exit |
 | --- | --- | --- |
-| ROUND1 Healthy whole mainline | Freeze one current candidate and package identity; install into fresh isolated Linux/ext4 paths; start memory Meta and Nodes with independent OwnerFs/DFS mounts. Create/query a workspace, run Home-local and remote OwnerFs file flows, DFS R1 local/remote-owner flows, RN replication/peer reads and normal repair completion. Exercise configured gRPC, required RDMA and Auto through actual Node startup and FUSE. Collect readiness, content/length/EOF, authority, receipts/catalog, transport/RPC counts and normal stop/restart results. | The identified candidate completes the normal flow across the system under declared package/runtime configurations. Fresh deployment proof and reused unchanged-input proof are explicitly distinguished; historical slices retain their original identities. Fault injection, persistent Meta recovery and full release matrices remain later work; a missing normal-path prerequisite is fixed in this round. |
-| ROUND2 Major faults | Starting from the working ROUND1 flow, inject the major data/commit, owner/session, replica/source, storage/network, RDMA deadline/cancellation/fallback and process-shutdown faults. Verify acknowledged watermarks, exact unknown requests, error propagation, fencing, repair debt and cleanup; include affected concurrency and resource-lifetime checks. | Major fault paths have bounded outcomes and affected integrations pass. Memory Meta remains the core development lane; its process restart cannot prove persistent recovery. Remaining full fault axes and long-run cases stay visible in the ledger. |
-| ROUND3 Performance/resources, then persistent backends | First qualify comparator/environment prerequisites for tuning and use frozen representative short workloads to measure RPC, CPU, copy, memory, admission and storage costs; repair demonstrated bottlenecks within the existing contracts. Then run separate etcd and Redis lanes for file semantics, persistence/parity, actual Meta/backend restart and faults, including the performance/resource impact of persistence. | Core performance/resource development and subsequent persistent-backend integration have identified evidence. Memory results cannot qualify a comparison requiring durable Meta. Fair full paired measurements, backend coverage and unresolved environment prerequisites remain required by acceptance. |
-| ROUND4 Formal full delivery | Freeze the complete qualified environment, suites, comparators and final candidate. Execute the required backend/transport/topology matrices, full applicable POSIX/LTP/FSx/random suites and accounting, clean/offline/idempotent installation and restart matrices, 8 GiB workloads, full paired performance runs and eight-hour soak; complete independent final review and reproducible release artifacts. | Every mandatory acceptance case passes its declared matrix, exclusions are reviewed and recorded, and no unresolved mandatory BLOCKED/INCONCLUSIVE remains. Short development results never substitute for this gate. |
+| 0 | G0.03 publish checkpoint | Code and related docs are coherent on GitHub, with verification notes and known gaps |
+| 1 | G2.04 OwnerFs pjdfstest current candidate | OwnerFs complete applicable accounting or documented blocker |
+| 2 | G2.06 Owner-relevant fixed LTP subset | Frozen list, ext4 reference boundary and OwnerFs result ledger |
+| 3 | G2.07 Owner-relevant short FSx | Fixed seed/profile, no content or length mismatch |
+| 4 | G2.08 affected Owner/basic + local-file recovery | Owner local/remote basics and Meta local-file restart on current candidate |
+| 5 | G2.09 Owner local small read | Correct data and >=90% ext4 ordinary throughput under frozen case |
+| 6 | G2.10 Owner local small write | Correct readback and >=90% ext4 ordinary throughput under matching barriers |
+| 7 | G2.11 Owner local delete | Correct namespace and measured comparative report |
+| 8 | G2.12/G2.13 bind function/performance | Explicit default-OFF switch, OFF regression, ON lifecycle and paired OFF/ON/ext4 numbers |
+| 9 | G2.14-G2.16 Owner remote small cases | MooseFS parity for read/write, delete report |
+| 10 | G2.05/G2.06/G2.07 DFS standard entry | DFS pjdfstest, DFS-relevant LTP and short FSx before DFS performance claims |
+| 11 | G2.08 DFS affected basic check | DFS basics and any needed local-file recovery combination on current candidate |
+| 12 | G2.21 DFS one-writer/many-readers | Highest-priority DFS performance item, with correctness and 3FS comparison |
+| 13 | G2.22-G2.26 remaining DFS and large cases | Single read/write, multi-node, delete, 512 MiB/8 GiB records |
+| 14 | G2.27 core performance delivery | Reproducible package, selected core cases, recovery check and state report |
 
-ROUND1 follows a user-visible flow: package/install → process readiness and mounts → workspace/Home query → local and remote files → DFS commit/replicas/peer reads → observability → normal stop/restart. Each step uses the same frozen candidate; capture both transport selection and actual file bytes. Do not wait for all faults in one module before exercising the next healthy system path. Defects discovered along the way enter the ledger with their round; fix a defect immediately when it prevents the current round's exit.
+This order is intentionally small-to-large. Completing a small item keeps its completed state; a later larger scale is a new item, not a reason to reopen the smaller result.
 
-Core development in ROUND1/2 and the first part of ROUND3 uses memory Meta. Existing etcd/Redis work remains available, and persistence is still a release requirement. Backend parity and recovery follow core functional/performance development in ROUND3. Full durability, performance, replica-count, timeout and environment thresholds in acceptance are unchanged. ENV-01 and fair comparator prerequisites must be satisfied before product performance tuning or formal performance claims; their outstanding preparation does not prevent independent healthy functionality work.
+## Working rules
 
-Use the [impact-based validation strategy](validation.md#feedback-stages): original failure and affected modules for small changes, affected whole-system integrations for related batches, and one complete Linux source gate at a coherent batch/round boundary. Reuse an unchanged qualified Rust gate for packaging/script-only work with fresh script and deployment evidence. Keep full POSIX, 8 GiB, full paired performance and long stability matrices in ROUND4. Architecture and module/RPC boundaries remain those in [implementation rules](implementation.md).
+- Start with memory or local-file Meta when the case only needs filesystem behavior. Move to etcd/Redis only for their backend-specific items.
+- Fix corruption, unsafe success, permission bypass, acknowledged-data loss and core recovery failure immediately.
+- Defer broad coverage when it does not block the current item: 8 GiB, 8-hour soak, long FSx, full differential random, extensive fault axes and backend parity.
+- Keep bind/native independent. OFF/FUSE must stay usable while ON is incomplete.
+- Do not let a comparator problem stop unrelated functional progress. A blocked MooseFS/3FS lane blocks only the comparisons that require it.
+- Record failed experiments once with enough evidence; do not repeat unchanged failed cases without a new cause or implementation change.
 
-## ROUND1 evidence reuse and remaining limits
+## Historical evidence boundary
 
-[ROUND1 closure](evidence/20261001-round1-corrected-package/README.md) completes the scoped normal mainline. Fresh corrected-archive R1 and async cohorts supply independent installs, zero-Peer R1 writes, normal repair completion and ten whole-system consistency flows. The previous synchronous RN2/three-mode cohort keeps its original archive identity and explicit controller replacement; its exact production/controller inputs match and its results are reused. All 143 compiler inputs match the completed source gate. This is not a claim that every axis ran in one fresh corrected-archive cohort.
+Historical results remain useful for regression selection and risk assessment:
 
-[Implementation status](../docs/status.md) owns capability status. All 69 formal cases remain NOT_RUN and ENV remains PREPARING. Use the following inventory to locate reusable evidence and its remaining limits; it no longer represents unfinished ROUND1 tasks.
+- v37/v48 pjdfstest full results prove those historical candidates only.
+- g1.5 proves the trial package and local-file recovery scope only.
+- Owner B1-B4 and DFS batch work prove bounded internal optimizations, not final performance ratios.
+- PR43/bind experiments prove direction and partial numbers, not a shipped ON feature.
+- etcd/Redis local evidence proves local slices only; final backend parity is still later.
 
-| Healthy-flow slice | Existing evidence and version boundary | Current closure and remaining limit |
-| --- | --- | --- |
-| Package, two mounts and lifecycle | Research evidence `evidence/afs-delivery/p1a/deploy-driver-cases-20260930T085754Z/README.md` covers prepared single-node/local-file install, repeat install, lifecycle, manifest and program-only uninstall subsets; cluster deployment was BLOCKED. [processctl](evidence/20261001-processctl/README.md) uses v49 Rust, and [configuration/A-B integration](evidence/20261001-toml-startup/README.md) uses v51. | Fresh corrected archive installed on all four guests for both R1 and async; installed hashes, independent mounts and normal R1 stop/restart verified. Pristine/no-compiler, network-disabled offline and full installation matrices remain ROUND4. |
-| Workspace and OwnerFs | [v73-r2 Owner observability](evidence/20261001-owner-metrics/README.md) proves cross-VM Home A/B remote RDMA write/sync/close, 4 MiB + 17 bytes, two B cold restarts and a 4 KiB patch, physical Home bytes, counters/completions and normal exits. | Current package Home query, local zero-Peer write, remote 4 MiB + 17 content/EOF and Home physical files verified. Prior three-mode payload proof retains its identity. Interruption is ROUND2; persistent Meta recovery is ROUND3. |
-| DFS R1 and consistency | [v51 A/B normal matrix](evidence/20261001-toml-startup/README.md) has ten OwnerFs/DFS consistency scenarios and seven lock steps per backend on memory/R1/gRPC/TLS. The full upstream DFS result recorded in status belongs to v48. | Current R1 zero-Peer writes and ten A/B file-consistency flows verified with separate central Meta identity. Full POSIX and release matrices remain ROUND4. |
-| DFS RN, repair and peer data | [v56 healthy repair](evidence/20261001-async-repair/README.md) and [v60 preparation/restart](evidence/20261001-repair-faults/README.md) prove N2/M1 completion and normal B restart. [v62-r3 RXE repair](evidence/20261001-rxe-repair/README.md) proves real cross-VM replica/read bytes in its scoped flow. | Prior current-production synchronous RN2 proof is reused; fresh corrected-archive N2/M1 transitions from one copy/Pending debt to two A/C copies/Completed tasks with exact physical data and cold B reads. Full R1/2/3/4 and desired3/sync1 release matrices remain unrun. |
-| Auto/required and current binary reuse | [v75-r3 DFS Auto](evidence/20261001-dfs-auto/README.md) proves real same-VM factories/handlers, Auto RDMA, unsupported gRPC fallback and required rejection; it explicitly has no cross-VM Auto Node deployment. [v76 diagnostic](evidence/20261001-posted-rdma-cancellation/README.md) changes test-only inputs and records unchanged v75 production binary hashes. | Production/controller and 143 compiler-input identities match. Fresh corrected archive proves cross-VM Auto startup and actual RDMA repair/read; prior required-RDMA/gRPC normal proof is reused. Diagnostic cancellation does not qualify all business-adapter faults. |
-
-## Capability inventory and dependencies
-
-| Task | Cases | Design/development work | Exit evidence |
-| --- | --- | --- | --- |
-| P0.1 Environment | ENV-01 | Freeze image/kernel, dedicated CIDR, resources, state/data volumes, RXE, TLS, isolated build runtime; preserve old VM data | lock, inventory, probes, exact identities |
-| P0.2 Suites | STD-01..05 | Prepare upstream suites, explicit applicability/accounting, ext4 reference, differential runner, result schema | case manifest, raw reference results, no missing tests |
-| P0.3 Baselines | ENV-01, PERF-01..08 | Actual ARM64 MooseFS/3FS/FDB build/mount/RXE; immutable fair config and datasets | successful mounts, exact hashes, comparison readiness |
-| P0.4 Runner/Skill | OPS-06 | Reusable stages/results, fault injection/verifier and evidence collection; no false PASS | self-check against known failure, invocation guide |
-| P1 Installable vertical slice | FUN-01/03/04/13, DEP | Package/process lifecycle plus R1 Owner/DFS smoke; Linux build/check/matrix | clean guest create/write/sync/close/reopen |
-| P2 Backend/semantics | FUN-02..12, STD, DIST-01/02/06/07, REL-01/02/05/06/07/09/10/11/12 | same-mount kernel cache, close barrier, inode queue/unknown replay, remote owner, permissions/namespace/locks/mmap; Redis durable snapshot backend parity | targeted regressions then full applicable short matrices |
-| P3 Replication/transport | DIST-03..05/08, REL, RDMA | synchronous RN and durable async tasks/repair; placement epochs, authorization, coherent source retry; integrated inline/gRPC/RDMA data paths | real multi-VM and fault evidence, R1 zero-peer proof |
-| P4 Storage/observability | REL-03/04/08/13/14, OPS-01..07 | streaming bounded memory, crash/reconcile/GC, ENOSPC/corruption, metrics/traces/readiness/Home status | recoverability and fault diagnosis, resource accounting |
-| P5 Performance | PERF-01..08, DIST-07 | profile locked short workloads, then optimize real RPC/copy/serialization costs within contracts | validated paired results meeting every threshold |
-| P6 Full delivery | ALL | Complete POSIX matrices, 8GiB/900s seeds/long-run, package/offline/idempotency/restart, independent architecture/code review | zero unresolved mandatory gates; installable artifacts; final change review |
-
-P1/P2/P3 remain vertical capability slices and can each contribute to several rounds. Add smaller dependent tasks when code inspection identifies missing behavior, preserving the target. Select the relevant P labels within the current round; no P row is a permission handoff or a reason to complete one module's entire fault matrix before the whole healthy flow. Do not count ENV-01 complete before reference mounts/probes/suites work.
-
-
-## Detailed task inventory and short exits
-
-Prerequisites below describe technical dependencies, not an alternative execution order. Memory Meta satisfies core authority/state-machine prerequisites for ROUND1/2; persistent-backend restart/durability qualification belongs to the latter part of ROUND3. A memory result must explicitly retain that limitation.
-
-In the research workspace, evidence uses `evidence/afs-delivery/<task>/<run-id>/` with commands, identity.json, result.json, raw logs and a minimal failed operation sequence. `experiments/afs-acceptance/cases.json` owns case applicability, drivers and smoke/full distinction; `acceptance.lock.json` owns exact environment. Keep placeholders NOT_RUN until executed. Runtime results use only contract-approved result statuses.
-
-| Task | Prerequisites | Focused design / implementation | Short exit before advancing |
-| --- | --- | --- | --- |
-| P0.2a | acceptance | case manifest schema, driver bindings, result identity and suite accounting | 69 distinct active IDs, reserved REL-15 excluded, injected missing-test/failure makes runner fail |
-| P0.2b | P0.1/P0.2a | pin upstream tests, inventory all discovered TAP/LTP cases and applicability | ext4 reference passes or each reference/environment discrepancy explained; no newly invented exclusions |
-| P0.3a | P0.1 | stock comparator durability audit/config and ARM dependency budget | reference ACK/barrier durability shown or specific lane remains BLOCKED |
-| P1a | Linux build runtime | reproducible build/features/package and dependency manifest | package can be installed without cargo/git on clean guest |
-| P1b | P1a/runtime volumes | minimum DEP-01/02 process and mount deployment | ROUND1 memory-backed Owner/DFS independent mounts and create/write/sync/close/reopen with content check; repeat on etcd/Redis in ROUND3; not full DEP approval |
-| P2a | R1 code tests | close-flush commit, dup/fork watermarks, exact pending replay and errors | FUN-03/05 and REL-04/11; close-only durable reopen, no empty extra versions, error reaches app |
-| P2b | P2a | same-mount dirty read view, file length/getattr and FUSE cache policy | FUN-02 with previously open readonly fd on real kernel cache, override/append/resize locally and remotely |
-| P2c | P2a/P2b | namespace atomicity/open-unlink, permissions/xattr/time, owner-lock scope, mmap writeback, directory persistence | FUN-07..11/REL-13 plus relevant pjdfstest/LTP subsets; design each missing interface before adding it |
-| P2d | P2a/P2b | remote DFS inode-owner write/resize/sync/flush authorization, queue and completion | DIST-02 and remote FUN-02/03/04; stale owner denied; no need to force all remote readonly handles through dirty view |
-| P2e Redis | store abstraction | choose existing opaque full-snapshot StoreBackend boundary, expected-version atomic CAS and exact unknown-outcome replay; probe dedicated AOF always/noeviction/no TTL; backend parity | same store contract tests on etcd/Redis; ACK-loss replay, AOF restart/rewrite interruption and backend failure prove visible state only after durable ACK |
-| P3a | P2 owner semantics/placement | R1 local zero-peer invariant then RN gRPC staging/finalize/receipts | R=1/2/3 short writes, distinct-node epochs/receipts, commit after required replicas, no partial publication |
-| P3b | P3a/read authorizer | fixed-version read grant, real peer-read authorization and range completeness/retry | DIST-04/05, corrupt/short source and concurrent new version do not leak scratch/mixed bytes |
-| P3c | P3a/atomic Meta task state; persistent store recovery in ROUND3 | persistent async repair tasks, source-loss/degraded status, replacement device/placement | DIST-08/REL-07, failed worker/Node restart preserves task with retained memory Meta in ROUND1/2; persistent Meta restart proof follows in ROUND3; no live sources reports unavailable/BlockedNoSource immediately, without declaring permanent loss |
-| P3d | P3a/P3b + cross-VM RXE | common descriptor/completion identity, MR/QP/CQ lifetimes, gRPC control with RDMA payload, Owner/Home and DFS parity | RDMA-01..05 short files/edges and failure injection; actual verbs bytes with file trace, required mode refuses fallback |
-| P4a | P2/P3 | bounded streaming dirty/staging, local finalize/recovery/orphan/GC, capacity and digest checks | small chunk-boundary and constrained-volume cases cover later 8GiB shape; no data-dependent whole-file RAM |
-| P4b | each vertical slice | health/metrics/trace/diagnostic/REST Home availability/backpressure | OPS-01..07, request can be traced to durable boundary, unavailable Home not healthy, bounded labels/resources |
-| P5 | ENV-01 valid baselines + functional slices | profile short fixed workloads, preserve contracts, optimize proven costs | no correctness regression; exact RPC/copy/resource evidence before full perf runs |
-| P6 | ROUND1..3 exits and qualified acceptance prerequisites | all mandatory matrices, full STD seeds, REL-14 8h, 8GiB workloads, all DEP-01..08, independent review | final manifest coverage/accounting, paired 5-run per workload targets, reproducible release and final architecture change summary |
-
-Design alternatives to evaluate only where code needs extension: reuse atomic full-snapshot backend rather than adding record-transaction dependencies; reuse inode owner queue rather than operation log/next dirty batch; implement transport-independent replica completion first rather than two divergent gRPC/RDMA business state machines. Required auth/cache/POSIX changes must use existing FUSE/Node/RPC boundaries; significant alternatives enter changes.md with evidence.
+Current execution reports must cite the exact current source/binary identities before using any result as current-candidate evidence.

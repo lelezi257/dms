@@ -110,8 +110,10 @@ def process_identity(pid: str | None) -> dict[str, Any] | None:
 
 
 def fsx_identity(suite_root: Path, fsx_binary: Path) -> dict[str, Any]:
-    head = run_text(["git", "-C", str(suite_root), "rev-parse", "HEAD"])
-    status = run_text(["git", "-C", str(suite_root), "status", "--porcelain"])
+    root = suite_root.resolve()
+    git = ["git", "-c", f"safe.directory={root}", "-C", str(root)]
+    head = run_text(git + ["rev-parse", "HEAD"])
+    status = run_text(git + ["status", "--porcelain"])
     help_output = run_text([str(fsx_binary), "-h"]) if fsx_binary.exists() else {"returncode": None, "stdout": "", "stderr": "missing fsx"}
     source = suite_root / "fstools" / "src" / "fsx" / "fsx.c"
     return {
@@ -801,13 +803,16 @@ def main(argv: list[str]) -> int:
         checks.append(build_check("driver-setup", "BLOCKED", reason, rel(artifacts / "setup-error.json", run_dir)))
 
     suite_sha_value = str(matrix.get("suite_sha", f"secfs.test {SECFS_REV}"))
-    seeds_value = str(matrix.get("seeds", len(FULL_SEEDS)))
+    seeds_value = str(len(accounting.get("selected_seeds", [])))
     reference_value = str(matrix.get("reference", "ext4"))
     coverage_axes = {
         "reference": {"values": [reference_value], "checks": {reference_value: "mount-identity"}},
         "suite_sha": {"values": [suite_sha_value], "checks": {suite_sha_value: "pinned-suite-identity"}},
         "seeds": {"values": [seeds_value], "checks": {seeds_value: "fixed-seed-duration-contract"}},
     }
+    # Profile-specific axes describe what ran, rather than copying a full-mode
+    # seed count into a reduced smoke proof. Keep the legacy axis for callers.
+    coverage_axes[f"seeds_{args.profile}"] = coverage_axes["seeds"]
     proof = {
         "case_id": args.case_id,
         "profile": args.profile,

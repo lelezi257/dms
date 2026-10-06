@@ -14,13 +14,23 @@ AFS has two backends:
 ## Read This First
 
 1. [Documentation Home](docs/README.md)
-2. [Positioning](docs/positioning.md)
-3. [Architecture](docs/architecture.md)
-4. [Data Model](docs/architecture/data-model.md)
-5. [Write Semantics](docs/architecture/write-semantics.md)
-6. [Implementation Status](docs/status.md)
+2. [Three-stage trial and acceptance goals](development/trial-release-goals.md)
+3. [Current source checkpoint](development/current-checkpoint.md)
+4. [Positioning](docs/positioning.md)
+5. [Architecture](docs/architecture.md)
+6. [Data Model](docs/architecture/data-model.md)
+7. [Write Semantics](docs/architecture/write-semantics.md)
+8. [Implementation Status](docs/status.md)
 
-[Delivery Acceptance](docs/acceptance.md) defines the release scope, fixed Linux VM environment, functional suites, performance targets, reliability, RDMA and installation gates.
+[Delivery Acceptance](docs/acceptance.md) defines the detailed case catalog. The current execution order is the three-stage table: first a usable OwnerFs/DFS trial with `memory` demo and `local-file` Meta restart recovery, then small-to-large core performance, then long/complex reliability and remaining persistence backends.
+
+Current priority is:
+
+- G1: historical `g1.5` colleague-trial scope is complete for its stated range.
+- G2: standard POSIX fallback suites plus OwnerFs-first performance work are active. OwnerFs local targets at least 90% of native ext4, remote OwnerFs targets MooseFS parity, and DFS targets 3FS parity with the one-writer/many-readers case first.
+- G3: long soak, broad fault matrices, etcd memory/resource work and Redis persistence are deferred.
+
+OwnerFs native bind mount is tracked as two separate G2 items: a function gate and a performance gate. It remains default-off; a public production enable switch is not qualified in this checkpoint.
 
 ## Development
 

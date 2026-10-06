@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import hashlib
+import importlib.util
 import json
 import os
 import platform
@@ -8,9 +9,18 @@ import sys
 import tempfile
 import textwrap
 import unittest
+from unittest import mock
 from pathlib import Path
 
 DRIVER = Path(__file__).resolve().parent / "drivers" / "ltp.py"
+
+
+def load_driver_module():
+    sys.path.insert(0, str(DRIVER.parent))
+    spec = importlib.util.spec_from_file_location("ltp_driver_under_test", DRIVER)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 def sha256_file(path: Path) -> str:
@@ -91,17 +101,42 @@ def write_fake_ltp(root: Path, outcomes: dict[str, object]) -> tuple[Path, Path,
     return suite, install, tsv
 
 
-def load_driver_module():
-    import importlib.util
-
-    spec = importlib.util.spec_from_file_location("afs_ltp_driver", DRIVER)
-    module = importlib.util.module_from_spec(spec)
-    assert spec.loader is not None
-    spec.loader.exec_module(module)
-    return module
-
-
 class LtpDriverPureTests(unittest.TestCase):
+    def timeout_identity(self) -> dict[str, object]:
+        return {
+            "suite": {"git_head": "suite-a", "expanded_tsv_sha256": "tsv-a"},
+            "platform": {"machine": "aarch64", "release": "6.8.0-142-generic"},
+        }
+
+    def write_timeout_policy(self, root: Path, body: dict[str, object]) -> Path:
+        policy = root / "timeout-policy.json"
+        policy.write_text(json.dumps(body), encoding="utf-8")
+        return policy
+
+    def test_git_identity_trust_is_scoped_to_selected_suite_root(self):
+        driver = load_driver_module()
+        with tempfile.TemporaryDirectory() as td:
+            suite = Path(td) / "ltp-src"
+            install = Path(td) / "ltp-install"
+            expanded = Path(td) / "ltp-filesystem-expanded.tsv"
+            suite.mkdir()
+            install.mkdir()
+            (install / "kirk").write_text("#!/bin/sh\n", encoding="utf-8")
+            (install / "kirk").chmod(0o755)
+            expanded.write_text("selector\ttest_id\tcommand\n", encoding="utf-8")
+            root = suite.resolve()
+            responses = [
+                {"returncode": 0, "stdout": "3a64\n", "stderr": ""},
+                {"returncode": 0, "stdout": "", "stderr": ""},
+                {"returncode": 0, "stdout": "kirk\n", "stderr": ""},
+            ]
+            with mock.patch.object(driver, "run_text", side_effect=responses) as run:
+                identity = driver.ltp_identity(suite, install, expanded)
+            git = ["git", "-c", f"safe.directory={root}", "-C", str(root)]
+            self.assertEqual(run.call_args_list[0], mock.call(git + ["rev-parse", "HEAD"]))
+            self.assertEqual(run.call_args_list[1], mock.call(git + ["status", "--porcelain"]))
+            self.assertEqual(identity["git_head"], "3a64")
+
     def test_extracts_result_lines_for_subtest_accounting(self):
         driver = load_driver_module()
         events = driver.extract_ltp_events(
@@ -304,13 +339,101 @@ class LtpDriverPureTests(unittest.TestCase):
         self.assertEqual(app["status"], "BLOCKED")
         self.assertEqual(app["missing_entry_count"], 1)
 
+    def test_timeout_policy_accepts_bound_positive_overrides_and_defaults(self):
+        driver = load_driver_module()
+        identity = self.timeout_identity()
+        selected = [{"test_id": "gf16"}, {"test_id": "plain01"}]
+        with tempfile.TemporaryDirectory(prefix="afs-ltp-timeout-policy-") as tmp:
+            policy_path = self.write_timeout_policy(
+                Path(tmp),
+                {
+                    "schema": 1,
+                    "binding": {
+                        "suite_revision": "suite-a",
+                        "expanded_tsv_sha256": "tsv-a",
+                        "machine": "aarch64",
+                        "kernel_release": "6.8.0-142-generic",
+                    },
+                    "timeouts": [{"test_id": "gf16", "exec_timeout_seconds": 180, "suite_timeout_seconds": 240}],
+                },
+            )
+            policy = driver.load_timeout_policy(policy_path, identity, selected, 120)
+            self.assertEqual(policy["sha256"], hashlib.sha256(policy_path.read_bytes()).hexdigest())
+            self.assertEqual(policy["size_bytes"], policy_path.stat().st_size)
+        self.assertEqual(driver.command_timeouts("gf16", 120, policy), {"exec_timeout_seconds": 180, "suite_timeout_seconds": 240, "source": "timeout-policy"})
+        self.assertEqual(driver.command_timeouts("plain01", 120, policy), {"exec_timeout_seconds": 120, "suite_timeout_seconds": 240, "source": "default"})
+
+    def test_timeout_policy_rejects_binding_mismatch_duplicate_and_unknown_ids(self):
+        driver = load_driver_module()
+        identity = self.timeout_identity()
+        selected = [{"test_id": "gf16"}]
+        with tempfile.TemporaryDirectory(prefix="afs-ltp-timeout-policy-") as tmp:
+            policy_path = self.write_timeout_policy(
+                Path(tmp),
+                {
+                    "schema": 1,
+                    "binding": {
+                        "suite_revision": "suite-a",
+                        "expanded_tsv_sha256": "tsv-a",
+                        "machine": "x86_64",
+                        "kernel_release": "6.8.0-142-generic",
+                    },
+                    "timeouts": [
+                        {"test_id": "gf16", "exec_timeout_seconds": 180, "suite_timeout_seconds": 240},
+                        {"test_id": "gf16", "exec_timeout_seconds": 181, "suite_timeout_seconds": 241},
+                        {"test_id": "missing01", "exec_timeout_seconds": 180, "suite_timeout_seconds": 240},
+                    ],
+                },
+            )
+            with self.assertRaisesRegex(RuntimeError, "machine mismatch.*duplicate timeout policy test_id 'gf16'.*unknown timeout policy test_id 'missing01'"):
+                driver.load_timeout_policy(policy_path, identity, selected, 120)
+
+    def test_timeout_policy_rejects_unbounded_or_non_integer_budgets(self):
+        driver = load_driver_module()
+        identity = self.timeout_identity()
+        selected = [{"test_id": "gf16"}, {"test_id": "gf17"}, {"test_id": "iogen01"}, {"test_id": "writev03"}]
+        with tempfile.TemporaryDirectory(prefix="afs-ltp-timeout-policy-") as tmp:
+            policy_path = self.write_timeout_policy(
+                Path(tmp),
+                {
+                    "schema": 1,
+                    "binding": {
+                        "suite_revision": "suite-a",
+                        "expanded_tsv_sha256": "tsv-a",
+                        "machine": "aarch64",
+                        "kernel_release": "6.8.0-142-generic",
+                    },
+                    "timeouts": [
+                        {"test_id": "gf16", "exec_timeout_seconds": 119, "suite_timeout_seconds": 240},
+                        {"test_id": "gf17", "exec_timeout_seconds": 180, "suite_timeout_seconds": 239},
+                        {"test_id": "iogen01", "exec_timeout_seconds": 180, "suite_timeout_seconds": 180},
+                        {"test_id": "writev03", "exec_timeout_seconds": True, "suite_timeout_seconds": 1320},
+                    ],
+                },
+            )
+            with self.assertRaisesRegex(RuntimeError, "below per-test baseline 120.*below baseline 240.*must be greater.*positive integer"):
+                driver.load_timeout_policy(policy_path, identity, selected, 120)
+
+    def test_timeout_policy_rejects_duplicate_json_object_keys(self):
+        driver = load_driver_module()
+        identity = self.timeout_identity()
+        selected = [{"test_id": "gf16"}]
+        with tempfile.TemporaryDirectory(prefix="afs-ltp-timeout-policy-") as tmp:
+            policy_path = Path(tmp) / "timeout-policy.json"
+            policy_path.write_text(
+                '{"schema":1,"binding":{"suite_revision":"suite-a","suite_revision":"suite-b","expanded_tsv_sha256":"tsv-a","machine":"aarch64","kernel_release":"6.8.0-142-generic"},"timeouts":[]}',
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(RuntimeError, "duplicate JSON object key 'suite_revision'"):
+                driver.load_timeout_policy(policy_path, identity, selected, 120)
+
 
 class LtpDriverTests(unittest.TestCase):
     def setUp(self):
         if platform.system() != "Linux":
             self.skipTest("LTP driver self-tests run in Linux so findmnt/proc semantics match acceptance")
 
-    def run_driver(self, outcomes: dict[str, object], *, profile="full", max_tests: int | None = None, timeout=2, manifest_entries: list[dict] | None = None, backend: str = "reference"):
+    def run_driver(self, outcomes: dict[str, object], *, profile="full", max_tests: int | None = None, timeout=2, manifest_entries: list[dict] | None = None, timeout_entries: list[dict] | None = None, backend: str = "reference"):
         root = Path(tempfile.mkdtemp(prefix="afs-ltp-driver-test-"))
         self.addCleanup(lambda: subprocess.run(["rm", "-rf", str(root)], check=False))
         suite, install, tsv = write_fake_ltp(root, outcomes)
@@ -320,6 +443,7 @@ class LtpDriverTests(unittest.TestCase):
         run_dir = root / "run"
         matrix = {"reference": "ext4", "suite": "LTP 20260529"}
         manifest_path = None
+        timeout_policy_path = None
         if manifest_entries is not None:
             suite_head = subprocess.run(["git", "-C", str(suite), "rev-parse", "HEAD"], check=True, text=True, stdout=subprocess.PIPE).stdout.strip()
             manifest = {
@@ -333,6 +457,20 @@ class LtpDriverTests(unittest.TestCase):
             }
             manifest_path = root / "applicability-manifest.json"
             manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+        if timeout_entries is not None:
+            suite_head = subprocess.run(["git", "-C", str(suite), "rev-parse", "HEAD"], check=True, text=True, stdout=subprocess.PIPE).stdout.strip()
+            timeout_policy = {
+                "schema": 1,
+                "binding": {
+                    "suite_revision": suite_head,
+                    "expanded_tsv_sha256": sha256_file(tsv),
+                    "machine": platform.machine(),
+                    "kernel_release": platform.release(),
+                },
+                "timeouts": timeout_entries,
+            }
+            timeout_policy_path = root / "timeout-policy.json"
+            timeout_policy_path.write_text(json.dumps(timeout_policy), encoding="utf-8")
         argv = [
             sys.executable,
             str(DRIVER),
@@ -365,6 +503,8 @@ class LtpDriverTests(unittest.TestCase):
             argv.extend(["--max-tests", str(max_tests)])
         if manifest_path is not None:
             argv.extend(["--applicability-manifest", str(manifest_path)])
+        if timeout_policy_path is not None:
+            argv.extend(["--timeout-policy", str(timeout_policy_path)])
         env = os.environ.copy()
         proc = subprocess.run(argv, shell=False, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env, check=False)
         lines = [line for line in proc.stdout.splitlines() if line.strip()]
@@ -482,6 +622,45 @@ class LtpDriverTests(unittest.TestCase):
         self.assertNotEqual(proc.returncode, 0)
         self.assertEqual(proof["status"], "BLOCKED")
         self.assertEqual(proof["applicability"]["missing_entry_count"], 1)
+
+    def test_timeout_policy_records_effective_command_budgets_without_reclassifying_results(self):
+        outcomes = {
+            "gf16": "PASS",
+            "gf17": "PASS",
+            "iogen01": "PASS",
+            "writev03": "PASS",
+            "plain01": "PASS",
+        }
+        timeout_entries = [
+            {"test_id": "gf16", "exec_timeout_seconds": 180, "suite_timeout_seconds": 240},
+            {"test_id": "gf17", "exec_timeout_seconds": 180, "suite_timeout_seconds": 240},
+            {"test_id": "iogen01", "exec_timeout_seconds": 180, "suite_timeout_seconds": 240},
+            {"test_id": "writev03", "exec_timeout_seconds": 1200, "suite_timeout_seconds": 1320},
+        ]
+        proc, proof, run_dir = self.run_driver(outcomes, profile="full", timeout=120, timeout_entries=timeout_entries)
+        self.assertEqual(proc.returncode, 0, proof)
+        self.assertEqual(proof["status"], "PASS")
+        self.assertEqual(proof["accounting"]["result_counts"]["PASS"], 5)
+        self.assertTrue(proof["timeout_policy"]["enabled"])
+        self.assertEqual(proof["timeout_policy"]["timeouts"]["writev03"], {"exec_timeout_seconds": 1200, "suite_timeout_seconds": 1320})
+        timeout_check = next(check for check in proof["checks"] if check["name"] == "timeout-policy")
+        self.assertEqual(timeout_check["status"], "PASS")
+        self.assertEqual(timeout_check["evidence"]["sha256"], proof["timeout_policy"]["sha256"])
+        normalized = run_dir / "artifacts" / "std-02-ltp" / "timeout-policy.normalized.json"
+        self.assertTrue(normalized.exists())
+        self.assertEqual(json.loads(normalized.read_text())["size_bytes"], proof["timeout_policy"]["size_bytes"])
+        commands = json.loads((run_dir / "artifacts" / "std-02-ltp" / "commands.json").read_text())
+        by_id = {command["test_id"]: command for command in commands}
+        self.assertEqual(by_id["gf16"]["timeout"], {"exec_timeout_seconds": 180, "suite_timeout_seconds": 240, "source": "timeout-policy", "process_timeout_seconds": 245})
+        self.assertEqual(by_id["writev03"]["timeout"], {"exec_timeout_seconds": 1200, "suite_timeout_seconds": 1320, "source": "timeout-policy", "process_timeout_seconds": 1325})
+        self.assertEqual(by_id["plain01"]["timeout"], {"exec_timeout_seconds": 120, "suite_timeout_seconds": 240, "source": "default", "process_timeout_seconds": 245})
+        gf16_command = json.loads((run_dir / "artifacts" / "std-02-ltp" / by_id["gf16"]["artifacts"]["command"]).read_text())
+        self.assertEqual(gf16_command["timeout"], by_id["gf16"]["timeout"])
+        self.assertEqual(gf16_command["argv"][gf16_command["argv"].index("--exec-timeout") + 1], "180")
+        self.assertEqual(gf16_command["argv"][gf16_command["argv"].index("--suite-timeout") + 1], "240")
+        writev03_command = json.loads((run_dir / "artifacts" / "std-02-ltp" / by_id["writev03"]["artifacts"]["command"]).read_text())
+        self.assertEqual(writev03_command["argv"][writev03_command["argv"].index("--exec-timeout") + 1], "1200")
+        self.assertEqual(writev03_command["argv"][writev03_command["argv"].index("--suite-timeout") + 1], "1320")
 
     def test_timeout_is_blocked_and_counted(self):
         proc, proof, _run_dir = self.run_driver({f"t{i:03d}": ("SLEEP" if i == 0 else "PASS") for i in range(657)}, profile="full", max_tests=1, timeout=1)

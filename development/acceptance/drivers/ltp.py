@@ -126,8 +126,10 @@ def process_identity(pid: str | None) -> dict[str, Any] | None:
 
 
 def ltp_identity(suite_root: Path, install_root: Path, expanded_tsv: Path) -> dict[str, Any]:
-    head = run_text(["git", "-C", str(suite_root), "rev-parse", "HEAD"])
-    status = run_text(["git", "-C", str(suite_root), "status", "--porcelain"])
+    root = suite_root.resolve()
+    git = ["git", "-c", f"safe.directory={root}", "-C", str(root)]
+    head = run_text(git + ["rev-parse", "HEAD"])
+    status = run_text(git + ["status", "--porcelain"])
     kirk = install_root / "kirk"
     kirk_version = run_text([str(kirk), "--version"]) if kirk.exists() else {"returncode": None, "stdout": "", "stderr": "missing kirk"}
     return {
@@ -314,6 +316,129 @@ def manifest_binding_value(manifest: dict[str, Any], *names: str) -> Any | None:
             return binding[name]
     return None
 
+
+
+
+def load_json_no_duplicate_keys(path: Path) -> Any:
+    def reject_duplicates(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+        result: dict[str, Any] = {}
+        for key, value in pairs:
+            if key in result:
+                raise RuntimeError(f"duplicate JSON object key {key!r} in {path}")
+            result[key] = value
+        return result
+
+    try:
+        return json.loads(path.read_text(encoding="utf-8"), object_pairs_hook=reject_duplicates)
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(f"invalid JSON in {path}: {exc}") from exc
+
+
+def timeout_policy_binding_value(policy: dict[str, Any], *names: str) -> Any | None:
+    binding = policy.get("binding") if isinstance(policy.get("binding"), dict) else {}
+    for name in names:
+        if name in binding:
+            return binding[name]
+        if name in policy:
+            return policy[name]
+    return None
+
+
+def load_timeout_policy(path: Path, identity: dict[str, Any], selected: list[dict[str, str]], per_test_timeout: int) -> dict[str, Any]:
+    raw = load_json_no_duplicate_keys(path)
+    if not isinstance(raw, dict):
+        raise RuntimeError("timeout policy must be a JSON object")
+    allowed_top = {"schema", "binding", "timeouts"}
+    extra_top = sorted(set(raw) - allowed_top)
+    if extra_top:
+        raise RuntimeError("invalid timeout policy: unknown top-level fields: " + ", ".join(extra_top))
+    if raw.get("schema") != 1:
+        raise RuntimeError("invalid timeout policy: schema must be 1")
+    binding = raw.get("binding")
+    if not isinstance(binding, dict):
+        raise RuntimeError("invalid timeout policy: binding must be an object")
+    allowed_binding = {"suite_revision", "expanded_tsv_sha256", "kernel_release", "machine"}
+    extra_binding = sorted(set(binding) - allowed_binding)
+    if extra_binding:
+        raise RuntimeError("invalid timeout policy: unknown binding fields: " + ", ".join(extra_binding))
+    suite = identity["suite"]
+    expected = {
+        "suite_revision": suite.get("git_head"),
+        "expanded_tsv_sha256": suite.get("expanded_tsv_sha256"),
+        "kernel_release": identity.get("platform", {}).get("release"),
+        "machine": identity.get("platform", {}).get("machine"),
+    }
+    errors: list[str] = []
+    for key, expected_value in expected.items():
+        observed = timeout_policy_binding_value(raw, key)
+        if observed != expected_value:
+            errors.append(f"{key} mismatch: policy={observed!r} observed={expected_value!r}")
+    timeouts = raw.get("timeouts")
+    if not isinstance(timeouts, list):
+        errors.append("timeouts must be a list")
+        timeouts = []
+    selected_ids = {record["test_id"] for record in selected}
+    seen: set[str] = set()
+    normalized: dict[str, dict[str, int]] = {}
+    allowed_entry = {"test_id", "exec_timeout_seconds", "suite_timeout_seconds"}
+    for index, entry in enumerate(timeouts):
+        if not isinstance(entry, dict):
+            errors.append(f"timeouts[{index}] must be an object")
+            continue
+        extra_entry = sorted(set(entry) - allowed_entry)
+        if extra_entry:
+            errors.append(f"timeouts[{index}] unknown fields: {', '.join(extra_entry)}")
+        missing = sorted(allowed_entry - set(entry))
+        if missing:
+            errors.append(f"timeouts[{index}] missing fields: {', '.join(missing)}")
+            continue
+        test_id = entry.get("test_id")
+        if not isinstance(test_id, str) or not test_id:
+            errors.append(f"timeouts[{index}].test_id must be a non-empty string")
+            continue
+        if test_id in seen:
+            errors.append(f"duplicate timeout policy test_id {test_id!r}")
+        seen.add(test_id)
+        if test_id not in selected_ids:
+            errors.append(f"unknown timeout policy test_id {test_id!r}")
+        exec_timeout = entry.get("exec_timeout_seconds")
+        suite_timeout = entry.get("suite_timeout_seconds")
+        if not isinstance(exec_timeout, int) or isinstance(exec_timeout, bool) or exec_timeout <= 0:
+            errors.append(f"timeouts[{index}].exec_timeout_seconds must be a positive integer")
+            continue
+        if not isinstance(suite_timeout, int) or isinstance(suite_timeout, bool) or suite_timeout <= 0:
+            errors.append(f"timeouts[{index}].suite_timeout_seconds must be a positive integer")
+            continue
+        if exec_timeout < per_test_timeout:
+            errors.append(f"timeouts[{index}] exec_timeout_seconds {exec_timeout} is below per-test baseline {per_test_timeout}")
+        if suite_timeout < 240:
+            errors.append(f"timeouts[{index}] suite_timeout_seconds {suite_timeout} is below baseline 240")
+        if suite_timeout <= exec_timeout:
+            errors.append(f"timeouts[{index}] suite_timeout_seconds {suite_timeout} must be greater than exec_timeout_seconds {exec_timeout}")
+        normalized[test_id] = {"exec_timeout_seconds": exec_timeout, "suite_timeout_seconds": suite_timeout}
+    if errors:
+        raise RuntimeError("invalid timeout policy: " + "; ".join(errors))
+    policy_bytes = path.read_bytes()
+    return {
+        "enabled": True,
+        "path": str(path),
+        "sha256": hashlib.sha256(policy_bytes).hexdigest(),
+        "size_bytes": len(policy_bytes),
+        "schema": 1,
+        "binding": expected,
+        "timeouts": normalized,
+        "default": {"exec_timeout_seconds": per_test_timeout, "suite_timeout_seconds": max(240, per_test_timeout + 10, per_test_timeout * 2)},
+    }
+
+
+def command_timeouts(test_id: str, per_test_timeout: int, timeout_policy: dict[str, Any] | None) -> dict[str, Any]:
+    default = {"exec_timeout_seconds": per_test_timeout, "suite_timeout_seconds": max(240, per_test_timeout + 10, per_test_timeout * 2), "source": "default"}
+    if not timeout_policy:
+        return default
+    override = timeout_policy.get("timeouts", {}).get(test_id)
+    if not override:
+        return default
+    return {"exec_timeout_seconds": override["exec_timeout_seconds"], "suite_timeout_seconds": override["suite_timeout_seconds"], "source": "timeout-policy"}
 
 def load_applicability_manifest(path: Path, identity: dict[str, Any]) -> dict[str, Any]:
     manifest = json.loads(path.read_text(encoding="utf-8"))
@@ -575,6 +700,7 @@ def run_ltp_commands(
     install_root: Path,
     artifacts: Path,
     per_test_timeout: int,
+    timeout_policy: dict[str, Any] | None = None,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     command_records: list[dict[str, Any]] = []
     counts = {value: 0 for value in sorted(RESULT_VALUES)}
@@ -598,6 +724,11 @@ def run_ltp_commands(
         report = out_dir / "kirk-report.json"
         payload = execution_payload(record)
         command = ltp_shell_command(payload, test_dir, tmp_dir, install_root)
+        timeout_fact = command_timeouts(record["test_id"], per_test_timeout, timeout_policy)
+        exec_timeout = timeout_fact["exec_timeout_seconds"]
+        suite_timeout = timeout_fact["suite_timeout_seconds"]
+        process_timeout = suite_timeout + 5 if timeout_fact["source"] == "timeout-policy" else max(per_test_timeout + 5, per_test_timeout * 2 + 5)
+        timeout_fact = {**timeout_fact, "process_timeout_seconds": process_timeout}
         argv = [
             str(install_root / "kirk"),
             "--no-colors",
@@ -608,13 +739,13 @@ def run_ltp_commands(
             "--run-command",
             command,
             "--exec-timeout",
-            str(per_test_timeout),
+            str(exec_timeout),
             "--suite-timeout",
-            str(max(per_test_timeout + 10, per_test_timeout * 2)),
+            str(suite_timeout),
             "--workers",
             "1",
         ]
-        command_result = run_bounded(argv, cwd=install_root, timeout=max(per_test_timeout + 5, per_test_timeout * 2 + 5), stdout_path=stdout, stderr_path=stderr)
+        command_result = run_bounded(argv, cwd=install_root, timeout=process_timeout, stdout_path=stdout, stderr_path=stderr)
         classification = classify_result(command_result, stdout, stderr, report)
         counts[classification["result"]] += 1
         total_duration += float(command_result["duration_seconds"])
@@ -627,6 +758,7 @@ def run_ltp_commands(
             "returncode": command_result["returncode"],
             "timed_out": command_result["timed_out"],
             "duration_seconds": command_result["duration_seconds"],
+            "timeout": timeout_fact,
             "ltp_token_counts": classification["ltp_token_counts"],
             "kirk_json_present": classification["kirk_json_present"],
             "kirk_json_top_keys": classification["kirk_json_top_keys"],
@@ -639,7 +771,7 @@ def run_ltp_commands(
                 "command": str((out_dir / "command.json").relative_to(artifacts)),
             },
         }
-        write_json(out_dir / "command.json", {"record": record, "execution_payload": payload, "argv": argv, "shell_command": command, "result": command_result, "classification": classification})
+        write_json(out_dir / "command.json", {"record": record, "execution_payload": payload, "argv": argv, "shell_command": command, "timeout": timeout_fact, "result": command_result, "classification": classification})
         command_records.append(command_record)
     return command_records, {"counts": counts, "duration_seconds": round(total_duration, 3)}
 
@@ -664,6 +796,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--allow-nonroot-fixture", action="store_true", help="Only for driver self-tests with a fake kirk; real STD-02 must run as root.")
     parser.add_argument("--allow-unpinned-suite-fixture", action="store_true", help="Only for driver self-tests with a fake LTP tree; real STD-02 must match the pinned revision.")
     parser.add_argument("--applicability-manifest", type=Path, default=Path(os.environ["AFS_ACCEPTANCE_LTP_APPLICABILITY_MANIFEST"]) if os.environ.get("AFS_ACCEPTANCE_LTP_APPLICABILITY_MANIFEST") else None, help="Pre-run event-level applicability manifest. Raw command results remain preserved; unmatched nonpass events fail closed.")
+    parser.add_argument("--timeout-policy", type=Path, default=Path(os.environ["AFS_ACCEPTANCE_LTP_TIMEOUT_POLICY"]) if os.environ.get("AFS_ACCEPTANCE_LTP_TIMEOUT_POLICY") else None, help="Optional pre-run schema-1 per-test timeout policy bound to the selected LTP suite identity. Defaults remain unchanged when omitted.")
     return parser.parse_args(argv)
 
 
@@ -712,6 +845,7 @@ def main(argv: list[str]) -> int:
     command_summary: dict[str, Any] = {"counts": {value: 0 for value in sorted(RESULT_VALUES)}}
     applicability_manifest: dict[str, Any] | None = None
     applicability: dict[str, Any] | None = None
+    timeout_policy: dict[str, Any] | None = None
     fixture: Path | None = None
     fixture_kept: bool | None = None
     identity: dict[str, Any] = {}
@@ -755,6 +889,9 @@ def main(argv: list[str]) -> int:
         }
         write_json(artifacts / "identity.json", identity)
         write_json(artifacts / "discovery.json", {"total_commands": len(commands), "selection": selection, "selected": selected})
+        if args.timeout_policy is not None:
+            timeout_policy = load_timeout_policy(args.timeout_policy, identity, selected, args.per_test_timeout)
+            write_json(artifacts / "timeout-policy.normalized.json", timeout_policy)
         if args.applicability_manifest is not None:
             applicability_manifest = load_applicability_manifest(args.applicability_manifest, identity)
             write_json(artifacts / "applicability-manifest.normalized.json", applicability_manifest)
@@ -780,7 +917,7 @@ def main(argv: list[str]) -> int:
             fixture = base_dir / short_fixture_name()
             fixture.mkdir(mode=0o755)
             os.chmod(fixture, 0o755)
-            command_records, command_summary = run_ltp_commands(selected, fixture, args.ltp_install, artifacts, args.per_test_timeout)
+            command_records, command_summary = run_ltp_commands(selected, fixture, args.ltp_install, artifacts, args.per_test_timeout, timeout_policy)
             write_json(artifacts / "commands.json", command_records)
             applicability = apply_applicability(command_records, applicability_manifest, identity)
             if applicability_manifest is not None:
@@ -804,6 +941,7 @@ def main(argv: list[str]) -> int:
             }
             write_json(artifacts / "accounting.json", accounting)
             checks.append(build_check("command-accounting", "PASS", accounting, rel(artifacts / "accounting.json", run_dir)))
+            checks.append(build_check("timeout-policy", "PASS", timeout_policy or {"enabled": False, "default": command_timeouts("__default__", args.per_test_timeout, None)}, rel(artifacts / "timeout-policy.normalized.json", run_dir) if timeout_policy else None))
             all_commands_executed = accounting["executed"] == accounting["selected"]
             checks.append(build_check("complete-selected-execution", "PASS" if all_commands_executed else "BLOCKED", {"selected": accounting["selected"], "executed": accounting["executed"]}, rel(artifacts / "commands.json", run_dir)))
             result_check_status = "PASS" if command_summary["counts"].get("PASS", 0) == accounting["executed"] and accounting["executed"] > 0 else "FAIL"
@@ -853,6 +991,7 @@ def main(argv: list[str]) -> int:
         "accounting": accounting,
         "command_summary": command_summary,
         "applicability": applicability or {"enabled": False, "status": "NOT_APPLIED"},
+        "timeout_policy": timeout_policy or {"enabled": False},
         "notes": [
             "STD-02 driver READY means the fixed LTP filesystem subset can run and report proof; it is not a release acceptance PASS by itself.",
             "No tests are filtered after execution. TCONF/TBROK/TIMEOUT are counted and block or fail according to the contract.",

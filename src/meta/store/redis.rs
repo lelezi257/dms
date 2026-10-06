@@ -5,7 +5,7 @@
 
 use afs_error::{Error, Result};
 
-use super::{MetaFuture, StoreBackend};
+use super::{BackendPersistence, MetaFuture, StoreBackend};
 
 const SNAPSHOT_KEY: &str = "afs:meta:snapshot";
 const VERSION_FIELD: &str = "version";
@@ -153,6 +153,10 @@ impl RedisBackend {
 }
 
 impl StoreBackend for RedisBackend {
+    fn persistence(&self) -> BackendPersistence {
+        BackendPersistence::Persistent
+    }
+
     fn load(&self) -> MetaFuture<'_, Option<(u64, Vec<u8>)>> {
         Box::pin(async move { RedisBackend::load(self).await })
     }

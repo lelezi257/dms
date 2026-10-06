@@ -1,0 +1,462 @@
+#!/usr/bin/env python3
+"""G1 trial selfcheck for mounted AFS OwnerFs/DFS paths.
+
+This is a bounded colleague-trial probe, not a full POSIX suite.  It verifies
+ordinary create/open/read/write/append/truncate/rename/unlink, permissions,
+basic locks, mmap, close/reopen visibility and a streaming content workload
+whose default size is 64 MiB.  A write phase emits a manifest that another
+mount can use for a read phase.
+
+Packaged copy derived from
+rust-distributed-memory-store/experiments/afs-acceptance/g1-trial/afs_g1_selfcheck.py
+on 2026-10-06. Keep this file self-contained for release packages; do not
+import from the outer experiments tree.
+"""
+
+from __future__ import annotations
+
+import argparse
+import errno
+import fcntl
+import hashlib
+import json
+import mmap
+import os
+import shutil
+import stat
+import subprocess
+import sys
+import time
+from dataclasses import dataclass
+from pathlib import Path
+from typing import BinaryIO
+
+
+MiB = 1024 * 1024
+STREAM_BLOCK = 1024 * 1024
+
+
+class CheckError(RuntimeError):
+    pass
+
+
+@dataclass(frozen=True)
+class Patch:
+    offset: int
+    length: int
+    seed: str
+
+
+def parse_size(text: str) -> int:
+    value = text.strip().lower()
+    units = [("gib", 1024**3), ("gb", 1000**3), ("mib", 1024**2), ("mb", 1000**2), ("kib", 1024), ("kb", 1000)]
+    for suffix, scale in units:
+        if value.endswith(suffix):
+            return int(value[: -len(suffix)]) * scale
+    return int(value)
+
+
+def deadline_check(start: float, deadline: float, action: str) -> None:
+    if time.monotonic() - start > deadline:
+        raise CheckError(f"deadline exceeded during {action}: {deadline:.1f}s")
+
+
+def run(cmd: list[str]) -> str:
+    completed = subprocess.run(cmd, check=False, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    if completed.returncode != 0:
+        raise CheckError(f"{' '.join(cmd)} failed: {completed.stderr.strip()}")
+    return completed.stdout.strip()
+
+
+def mount_info(path: Path) -> dict[str, str]:
+    info = {}
+    for field in ("TARGET", "FSTYPE", "SOURCE"):
+        value = run(["findmnt", "-rn", "--mountpoint", str(path), "-o", field])
+        info[field.lower()] = value
+    return info
+
+
+def validate_mount(path: Path, reference: bool) -> dict[str, str]:
+    if not path.is_absolute():
+        raise CheckError(f"--mount must be absolute: {path}")
+    if not path.is_dir():
+        raise CheckError(f"--mount is not a directory: {path}")
+    if shutil.which("findmnt") is None:
+        raise CheckError("findmnt is required")
+    info = mount_info(path)
+    real_target = Path(info["target"]).resolve()
+    if real_target != path.resolve():
+        raise CheckError(f"--mount is not an exact mount point: {path} != {info['target']}")
+    source = info["source"]
+    fstype = info["fstype"]
+    if reference:
+        if fstype == "fuse" and source in ("afs-ownerfs", "afs-dfs"):
+            raise CheckError("--reference is only for non-AFS control filesystems")
+        return info
+    if not (fstype == "fuse" or fstype.startswith("fuse.")):
+        raise CheckError(f"not a FUSE filesystem: fstype={fstype}")
+    if source not in ("afs-ownerfs", "afs-dfs"):
+        raise CheckError(f"not an AFS mount: source={source}")
+    return info
+
+
+def safe_component(value: str, name: str) -> str:
+    if not value or value in (".", "..") or "/" in value or "\x00" in value:
+        raise CheckError(f"invalid {name}: {value!r}")
+    allowed = set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-")
+    if any(ch not in allowed for ch in value):
+        raise CheckError(f"invalid {name}: {value!r}")
+    return value
+
+
+def workspace_dir(mount: Path, workspace: str) -> Path:
+    return mount / safe_component(workspace, "workspace")
+
+
+def ensure_workspace(root: Path) -> None:
+    root.mkdir(mode=0o755, exist_ok=True)
+    if not root.is_dir():
+        raise CheckError(f"workspace is not a directory: {root}")
+
+
+def pattern(seed: str, offset: int, length: int) -> bytes:
+    h = hashlib.shake_256()
+    h.update(seed.encode("utf-8"))
+    h.update(offset.to_bytes(16, "little", signed=False))
+    h.update(length.to_bytes(8, "little", signed=False))
+    return h.digest(length)
+
+
+def patch_bytes_for_range(patch: Patch, relative_offset: int, length: int) -> bytes:
+    """Return patch bytes using the same chunk boundaries as apply_patches()."""
+    if relative_offset < 0 or length < 0 or relative_offset + length > patch.length:
+        raise CheckError(
+            f"invalid patch byte range: offset={relative_offset}, length={length}, patch_length={patch.length}"
+        )
+    output = bytearray()
+    requested_end = relative_offset + length
+    chunk_start = 0
+    remaining = patch.length
+    while remaining:
+        chunk_len = min(STREAM_BLOCK, remaining)
+        chunk_end = chunk_start + chunk_len
+        start = max(relative_offset, chunk_start)
+        end = min(requested_end, chunk_end)
+        if start < end:
+            chunk = pattern(patch.seed, chunk_start, chunk_len)
+            output.extend(chunk[start - chunk_start : end - chunk_start])
+        chunk_start = chunk_end
+        remaining -= chunk_len
+    return bytes(output)
+
+
+def overlay_block(base_seed: str, patches: list[Patch], offset: int, length: int) -> bytes:
+    buf = bytearray(pattern(base_seed, offset, length))
+    block_end = offset + length
+    for patch in patches:
+        patch_end = patch.offset + patch.length
+        start = max(offset, patch.offset)
+        end = min(block_end, patch_end)
+        if start >= end:
+            continue
+        patch_bytes = patch_bytes_for_range(patch, start - patch.offset, end - start)
+        buf[start - offset : end - offset] = patch_bytes
+    return bytes(buf)
+
+
+def stream_digest(path: Path, base_seed: str, size: int, patches: list[Patch], deadline: float, started: float) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb", buffering=0) as fh:
+        offset = 0
+        while offset < size:
+            deadline_check(started, deadline, "stream-read")
+            want = min(STREAM_BLOCK, size - offset)
+            data = fh.read(want)
+            if len(data) != want:
+                raise CheckError(f"short read at {offset}: got {len(data)}, want {want}")
+            expected = overlay_block(base_seed, patches, offset, want)
+            if data != expected:
+                raise CheckError(f"content mismatch at offset {offset}")
+            digest.update(data)
+            offset += want
+        eof = fh.read(1)
+        if eof != b"":
+            raise CheckError("EOF check failed: extra data after expected length")
+    return digest.hexdigest()
+
+
+def write_stream(path: Path, seed: str, size: int, deadline: float, started: float) -> None:
+    with path.open("wb", buffering=0) as fh:
+        offset = 0
+        while offset < size:
+            deadline_check(started, deadline, "stream-write")
+            want = min(STREAM_BLOCK, size - offset)
+            fh.write(pattern(seed, offset, want))
+            offset += want
+        fh.flush()
+        os.fsync(fh.fileno())
+
+
+def apply_patches(path: Path, patches: list[Patch], deadline: float, started: float) -> None:
+    with path.open("r+b", buffering=0) as fh:
+        for patch in patches:
+            deadline_check(started, deadline, "patch-write")
+            fh.seek(patch.offset)
+            remaining = patch.length
+            done = 0
+            while remaining:
+                want = min(STREAM_BLOCK, remaining)
+                fh.write(pattern(patch.seed, done, want))
+                done += want
+                remaining -= want
+        fh.flush()
+        os.fsync(fh.fileno())
+
+
+def check_small_ops(root: Path) -> dict[str, str]:
+    result: dict[str, str] = {}
+    small = root / "ops-small.txt"
+    renamed = root / "ops-renamed.txt"
+    with os.fdopen(os.open(small, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o640), "wb", buffering=0) as fh:
+        fh.write(b"alpha")
+        fh.flush()
+        os.fsync(fh.fileno())
+    with small.open("ab", buffering=0) as fh:
+        fh.write(b"-append")
+        fh.flush()
+        os.fsync(fh.fileno())
+    if small.read_bytes() != b"alpha-append":
+        raise CheckError("append/read mismatch")
+    with small.open("r+b", buffering=0) as fh:
+        fh.truncate(5)
+        fh.flush()
+        os.fsync(fh.fileno())
+    if small.read_bytes() != b"alpha":
+        raise CheckError("truncate mismatch")
+    os.chmod(small, 0o600)
+    mode = stat.S_IMODE(small.stat().st_mode)
+    if mode != 0o600:
+        raise CheckError(f"chmod mismatch: {oct(mode)}")
+    os.rename(small, renamed)
+    if small.exists() or renamed.read_bytes() != b"alpha":
+        raise CheckError("rename mismatch")
+    with renamed.open("r+b") as fh:
+        fcntl.lockf(fh, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        fcntl.lockf(fh, fcntl.LOCK_UN)
+    mmap_file = root / "ops-mmap.bin"
+    with mmap_file.open("w+b") as fh:
+        fh.write(b"\x00" * 4096)
+        fh.flush()
+        os.fsync(fh.fileno())
+        mm = mmap.mmap(fh.fileno(), 4096)
+        mm[100:108] = b"mmap-g1!"
+        mm.flush()
+        mm.close()
+        os.fsync(fh.fileno())
+    with mmap_file.open("rb") as fh:
+        fh.seek(100)
+        if fh.read(8) != b"mmap-g1!":
+            raise CheckError("mmap flush mismatch")
+    renamed.unlink()
+    mmap_file.unlink()
+    result["small_ops"] = "PASS"
+    return result
+
+
+def manifest_path_from_output(output: Path) -> Path:
+    if output.suffix == ".json":
+        return output
+    return output / "manifest.json"
+
+
+def write_json(path: Path, payload: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    tmp.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    os.replace(tmp, path)
+
+
+def read_manifest(path: Path) -> dict:
+    with path.open("r", encoding="utf-8") as fh:
+        return json.load(fh)
+
+
+def default_patches(size: int, case_id: str) -> list[Patch]:
+    first = min(size // 3, max(4096, 5 * MiB))
+    second = min(size // 2, max(8192, 17 * MiB))
+    tail = max(0, size - min(size, 2 * MiB))
+    return [
+        Patch(offset=first, length=min(512 * 1024, size - first), seed=f"{case_id}:patch-a"),
+        Patch(offset=second, length=min(1024 * 1024, size - second), seed=f"{case_id}:patch-b"),
+        Patch(offset=tail, length=min(768 * 1024, size - tail), seed=f"{case_id}:patch-tail"),
+    ]
+
+
+def make_manifest(args: argparse.Namespace, mount_info_: dict[str, str], data_rel: str, base_seed: str, patches: list[Patch], digest: str, elapsed: float) -> dict:
+    return {
+        "schema": "afs.g1.trial.selfcheck.v1",
+        "case_id": args.case_id,
+        "created_unix": int(time.time()),
+        "mount": str(args.mount),
+        "workspace": args.workspace,
+        "mount_info": mount_info_,
+        "reference": args.reference,
+        "size": args.size,
+        "stream_block": STREAM_BLOCK,
+        "data_file": data_rel,
+        "base_seed": base_seed,
+        "patches": [patch.__dict__ for patch in patches],
+        "sha256": digest,
+        "elapsed_seconds": round(elapsed, 6),
+        "coverage": [
+            "streaming-write",
+            "fsync",
+            "close-reopen",
+            "streaming-read",
+            "EOF",
+            "create-openflags-read-write-append-truncate-rename-unlink",
+            "chmod-mode",
+            "basic-fcntl-lock",
+            "basic-mmap-msync",
+        ],
+        "not_full_posix": True,
+    }
+
+
+def phase_write(args: argparse.Namespace, info: dict[str, str], root: Path) -> dict:
+    started = time.monotonic()
+    ensure_workspace(root)
+    check_small_ops(root)
+    data_rel = "g1-stream.bin"
+    data_path = root / data_rel
+    if data_path.exists() and not args.force:
+        raise CheckError(f"data file exists; use --force to overwrite: {data_path}")
+    base_seed = f"{args.case_id}:base:{args.size}"
+    patches = default_patches(args.size, args.case_id)
+    write_stream(data_path, base_seed, args.size, args.deadline, started)
+    apply_patches(data_path, patches, args.deadline, started)
+    digest = stream_digest(data_path, base_seed, args.size, patches, args.deadline, started)
+    elapsed = time.monotonic() - started
+    manifest = make_manifest(args, info, data_rel, base_seed, patches, digest, elapsed)
+    return manifest
+
+
+def phase_read(args: argparse.Namespace, info: dict[str, str], root: Path) -> dict:
+    if args.input is None:
+        raise CheckError("--input manifest is required for read phase")
+    started = time.monotonic()
+    manifest = read_manifest(args.input)
+    data_path = root / manifest["data_file"]
+    patches = [Patch(**item) for item in manifest["patches"]]
+    digest = stream_digest(data_path, manifest["base_seed"], int(manifest["size"]), patches, args.deadline, started)
+    if digest != manifest["sha256"]:
+        raise CheckError(f"digest mismatch: got {digest}, want {manifest['sha256']}")
+    elapsed = time.monotonic() - started
+    return {
+        "schema": "afs.g1.trial.read-result.v1",
+        "case_id": manifest["case_id"],
+        "mount": str(args.mount),
+        "workspace": args.workspace,
+        "mount_info": info,
+        "reference": args.reference,
+        "input_manifest": str(args.input),
+        "data_file": manifest["data_file"],
+        "size": manifest["size"],
+        "sha256": digest,
+        "elapsed_seconds": round(elapsed, 6),
+        "status": "PASS",
+    }
+
+
+def phase_patch(args: argparse.Namespace, info: dict[str, str], root: Path) -> dict:
+    if args.input is None:
+        raise CheckError("--input manifest is required for patch phase")
+    started = time.monotonic()
+    manifest = read_manifest(args.input)
+    data_path = root / manifest["data_file"]
+    patches = [Patch(**item) for item in manifest["patches"]]
+    extra = Patch(offset=max(0, int(manifest["size"]) // 4), length=min(2 * MiB, int(manifest["size"])), seed=f"{manifest['case_id']}:patch-extra")
+    patches.append(extra)
+    apply_patches(data_path, [extra], args.deadline, started)
+    digest = stream_digest(data_path, manifest["base_seed"], int(manifest["size"]), patches, args.deadline, started)
+    manifest["patches"] = [patch.__dict__ for patch in patches]
+    manifest["sha256"] = digest
+    manifest["patched_by"] = str(args.mount)
+    manifest["patch_elapsed_seconds"] = round(time.monotonic() - started, 6)
+    manifest["mount_info_after_patch"] = info
+    return manifest
+
+
+def main(argv: list[str]) -> int:
+    parser = argparse.ArgumentParser(description="AFS G1 colleague-trial selfcheck")
+    parser.add_argument("--mount", type=Path, required=True, help="Exact mounted filesystem path")
+    parser.add_argument("--workspace", required=True, help="Workspace/directory name inside the mount")
+    parser.add_argument("--output", type=Path, required=True, help="Output JSON path or directory")
+    parser.add_argument("--input", type=Path, help="Input manifest for read/patch phases")
+    parser.add_argument("--size", type=parse_size, default=64 * MiB, help="Streaming file size, default 64MiB")
+    parser.add_argument("--phase", choices=("basic", "write", "read", "patch"), default="basic")
+    parser.add_argument("--case-id", default=f"g1-{int(time.time())}")
+    parser.add_argument("--deadline", type=float, default=240.0)
+    parser.add_argument("--outer-timeout", type=float, help="Hard wall-clock timeout in seconds, default --deadline + 30")
+    parser.add_argument("--reference", action="store_true", help="Allow non-AFS exact mount for tool reference runs")
+    parser.add_argument("--force", action="store_true", help="Overwrite existing selfcheck data file")
+    args = parser.parse_args(argv)
+
+    started = time.monotonic()
+    try:
+        if os.environ.get("AFS_SELFCHECK_TIMEOUT_WRAPPED") != "1":
+            hard_timeout = args.outer_timeout if args.outer_timeout is not None else args.deadline + 30.0
+            if hard_timeout <= 0:
+                raise CheckError("--outer-timeout must be positive")
+            timeout_bin = shutil.which("timeout")
+            if timeout_bin is None:
+                raise CheckError("GNU timeout is required for the selfcheck hard wall-clock limit")
+            env = os.environ.copy()
+            env["AFS_SELFCHECK_TIMEOUT_WRAPPED"] = "1"
+            os.execvpe(
+                timeout_bin,
+                [
+                    timeout_bin,
+                    "--kill-after=10s",
+                    f"{int(hard_timeout + 0.999)}s",
+                    sys.executable,
+                    str(Path(__file__).resolve()),
+                    *argv,
+                ],
+                env,
+            )
+        info = validate_mount(args.mount, args.reference)
+        root = workspace_dir(args.mount, args.workspace)
+        if args.phase in ("basic", "write"):
+            result = phase_write(args, info, root)
+            result["status"] = "PASS"
+        elif args.phase == "read":
+            result = phase_read(args, info, root)
+        else:
+            result = phase_patch(args, info, root)
+            result["status"] = "PASS"
+        result["total_elapsed_seconds"] = round(time.monotonic() - started, 6)
+        out = manifest_path_from_output(args.output)
+        write_json(out, result)
+        print(json.dumps({"status": "PASS", "output": str(out), "phase": args.phase, "size": result.get("size")}, sort_keys=True))
+        return 0
+    except Exception as exc:
+        payload = {
+            "schema": "afs.g1.trial.error.v1",
+            "status": "FAIL",
+            "phase": args.phase,
+            "error": str(exc),
+            "errno": getattr(exc, "errno", None),
+            "elapsed_seconds": round(time.monotonic() - started, 6),
+        }
+        out = manifest_path_from_output(args.output)
+        try:
+            write_json(out, payload)
+        except Exception:
+            pass
+        print(json.dumps(payload, sort_keys=True), file=sys.stderr)
+        return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main(sys.argv[1:]))

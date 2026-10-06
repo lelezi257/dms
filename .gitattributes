@@ -2,3 +2,5 @@
 development/evidence/** -whitespace
 # TSV fixtures deliberately include an empty final exclusion_reason field.
 development/acceptance/suites/prepare_ctl_reference.sh whitespace=-blank-at-eol
+# Preserve machine-generated checkpoint receipts byte-for-byte.
+development/checkpoints/*/results/** whitespace=-blank-at-eol,-blank-at-eof

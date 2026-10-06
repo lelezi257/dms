@@ -1,0 +1,315 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+  cat <<'USAGE'
+Usage:
+  afs-trial-config single [options]
+  afs-trial-config cluster [options]
+
+Single-node mode writes an installed host's config directory in place.
+Cluster mode writes per-host config directories under --output:
+  <output>/meta/etc
+  <output>/<node-id>/etc
+
+Common options:
+  --backend memory|local-file   Meta backend. Default: local-file
+  --config-dir DIR              Config directory for single mode. Default: /etc/afs
+  --state-dir DIR               Persistent state root. Default: /var/lib/afs
+  --run-dir DIR                 Runtime directory. Default: /run/afs
+  --mount-root DIR              Mount root. Default: /mnt/afs
+  --meta-host HOST              Meta host/IP for cluster mode. Default: 127.0.0.1
+  --meta-grpc-port PORT         Meta gRPC port. Default: 7400
+  --meta-rest-port PORT         Meta REST port. Default: 7401
+  --node-grpc-port PORT         Node gRPC port. Default: 7500
+  --node-rest-port PORT         Node REST port. Default: 7501
+  --node ID=HOST                Cluster node; repeat for R2. Example: node-a=192.168.109.12
+  --output DIR                  Cluster output directory. Required for cluster mode
+  --force                       Overwrite generated config files
+
+Examples:
+  sudo afs-trial-config single --backend memory
+  afs-trial-config cluster --backend local-file --meta-host 192.168.109.11 \
+    --node node-a=192.168.109.12 --node node-b=192.168.109.13 --output /tmp/afs-trial-r2
+USAGE
+}
+
+MODE=${1:-}
+case "$MODE" in
+  single|cluster) shift ;;
+  -h|--help|"") usage; exit 0 ;;
+  *) echo "mode must be single or cluster: $MODE" >&2; usage >&2; exit 2 ;;
+esac
+
+BACKEND=local-file
+CONFIG_DIR=/etc/afs
+STATE_DIR=/var/lib/afs
+RUN_DIR=/run/afs
+MOUNT_ROOT=/mnt/afs
+META_HOST=127.0.0.1
+META_GRPC_PORT=7400
+META_REST_PORT=7401
+NODE_GRPC_PORT=7500
+NODE_REST_PORT=7501
+OUTPUT=
+FORCE=0
+NODES=()
+
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --backend) BACKEND=${2:-}; shift 2 ;;
+    --config-dir) CONFIG_DIR=${2:-}; shift 2 ;;
+    --state-dir) STATE_DIR=${2:-}; shift 2 ;;
+    --run-dir) RUN_DIR=${2:-}; shift 2 ;;
+    --mount-root) MOUNT_ROOT=${2:-}; shift 2 ;;
+    --meta-host) META_HOST=${2:-}; shift 2 ;;
+    --meta-grpc-port) META_GRPC_PORT=${2:-}; shift 2 ;;
+    --meta-rest-port) META_REST_PORT=${2:-}; shift 2 ;;
+    --node-grpc-port) NODE_GRPC_PORT=${2:-}; shift 2 ;;
+    --node-rest-port) NODE_REST_PORT=${2:-}; shift 2 ;;
+    --node) NODES+=("${2:-}"); shift 2 ;;
+    --output) OUTPUT=${2:-}; shift 2 ;;
+    --force) FORCE=1; shift ;;
+    -h|--help) usage; exit 0 ;;
+    *) echo "unknown argument: $1" >&2; usage >&2; exit 2 ;;
+  esac
+done
+
+case "$BACKEND" in
+  memory|local-file) ;;
+  *) echo "--backend must be memory or local-file" >&2; exit 2 ;;
+esac
+
+valid_id() {
+  case "$1" in
+    ""|*[!A-Za-z0-9_-]*)
+      return 1
+      ;;
+  esac
+}
+
+valid_port() {
+  case "$1" in
+    ""|*[!0-9]*)
+      return 1
+      ;;
+  esac
+  [ "$1" -ge 1 ] && [ "$1" -le 65535 ]
+}
+
+require_absolute_dir() {
+  local name=$1 value=$2
+  case "$value" in
+    /*) ;;
+    *) echo "$name must be an absolute path: $value" >&2; exit 2 ;;
+  esac
+  [ "$value" != / ] || { echo "$name must not be /" >&2; exit 2; }
+}
+
+for port in "$META_GRPC_PORT" "$META_REST_PORT" "$NODE_GRPC_PORT" "$NODE_REST_PORT"; do
+  valid_port "$port" || { echo "invalid port: $port" >&2; exit 2; }
+done
+require_absolute_dir --state-dir "$STATE_DIR"
+require_absolute_dir --run-dir "$RUN_DIR"
+require_absolute_dir --mount-root "$MOUNT_ROOT"
+
+write_file() {
+  local path=$1
+  if [ -e "$path" ] && [ "$FORCE" -ne 1 ]; then
+    echo "refusing to overwrite existing file: $path" >&2
+    exit 1
+  fi
+  mkdir -p "$(dirname "$path")"
+  cat >"$path"
+  chmod 0644 "$path"
+}
+
+trusted_node_certs_toml() {
+  local prefix=$1 first=1 node_entry node_id
+  printf '{ '
+  for node_entry in "${NODES[@]}"; do
+    node_id=${node_entry%%=*}
+    if [ "$first" -eq 0 ]; then printf ', '; fi
+    first=0
+    printf '%s = "%s/tls/%s.pem"' "$node_id" "$prefix" "$node_id"
+  done
+  printf ' }'
+}
+
+common_sans() {
+  local node_entry node_id node_host
+  printf 'DNS:afs-meta,DNS:meta,IP:%s' "$META_HOST"
+  for node_entry in "${NODES[@]}"; do
+    node_id=${node_entry%%=*}
+    node_host=${node_entry#*=}
+    printf ',DNS:%s,IP:%s' "$node_id" "$node_host"
+  done
+}
+
+openssl_required() {
+  command -v openssl >/dev/null 2>&1 || {
+    echo "openssl is required to generate trial TLS certificates" >&2
+    exit 1
+  }
+}
+
+generate_cert() {
+  local tls_dir=$1 name=$2 cn=$3 sans=$4
+  openssl genrsa -out "$tls_dir/$name-key.pem" 2048 >/dev/null 2>&1
+  openssl req -new -key "$tls_dir/$name-key.pem" -subj "/CN=$cn" -out "$tls_dir/$name.csr" >/dev/null 2>&1
+  {
+    printf 'subjectAltName = %s\n' "$sans"
+    printf 'extendedKeyUsage = serverAuth,clientAuth\n'
+  } >"$tls_dir/$name.ext"
+  openssl x509 -req -in "$tls_dir/$name.csr" -CA "$tls_dir/ca.pem" -CAkey "$tls_dir/ca-key.pem" \
+    -CAcreateserial -out "$tls_dir/$name.pem" -days 3650 -sha256 -extfile "$tls_dir/$name.ext" >/dev/null 2>&1
+  rm -f "$tls_dir/$name.csr" "$tls_dir/$name.ext"
+  chmod 0600 "$tls_dir/$name-key.pem"
+  chmod 0644 "$tls_dir/$name.pem"
+}
+
+generate_tls_set() {
+  local tls_dir=$1 sans node_entry node_id
+  shift
+  openssl_required
+  if [ -e "$tls_dir/ca.pem" ] && [ "$FORCE" -ne 1 ]; then
+    echo "refusing to overwrite existing TLS directory: $tls_dir" >&2
+    exit 1
+  fi
+  rm -rf "$tls_dir"
+  mkdir -p "$tls_dir"
+  umask 077
+  openssl genrsa -out "$tls_dir/ca-key.pem" 2048 >/dev/null 2>&1
+  openssl req -x509 -new -nodes -key "$tls_dir/ca-key.pem" -sha256 -days 3650 \
+    -subj "/CN=afs-trial-ca" -out "$tls_dir/ca.pem" >/dev/null 2>&1
+  chmod 0600 "$tls_dir/ca-key.pem"
+  chmod 0644 "$tls_dir/ca.pem"
+  sans=$(common_sans)
+  generate_cert "$tls_dir" meta afs-meta "$sans,DNS:127.0.0.1,IP:127.0.0.1"
+  for node_entry in "${NODES[@]}"; do
+    node_id=${node_entry%%=*}
+    valid_id "$node_id" || { echo "invalid node id: $node_id" >&2; exit 2; }
+    generate_cert "$tls_dir" "$node_id" "$node_id" "$sans,DNS:127.0.0.1,IP:127.0.0.1"
+  done
+}
+
+copy_tls_files() {
+  local src=$1 dst=$2 identity=$3 node_entry node_id
+  mkdir -p "$dst"
+  install -m 0644 "$src/ca.pem" "$dst/ca.pem"
+  install -m 0644 "$src/meta.pem" "$dst/meta.pem"
+  for node_entry in "${NODES[@]}"; do
+    node_id=${node_entry%%=*}
+    install -m 0644 "$src/$node_id.pem" "$dst/$node_id.pem"
+  done
+  install -m 0600 "$src/$identity-key.pem" "$dst/$identity-key.pem"
+}
+
+write_meta_config() {
+  local cfg_dir=$1 tls_prefix=$2 listen_host=$3 desired=$4 sync_required=$5 distinct=$6
+  local trusted
+  trusted=$(trusted_node_certs_toml "$tls_prefix")
+  write_file "$cfg_dir/meta.toml" <<EOF
+id = "meta-ctl"
+fs = "all"
+meta_store = "$BACKEND"
+data_dir = "$STATE_DIR/meta"
+grpc_listen = "$listen_host:$META_GRPC_PORT"
+rest_listen = "$listen_host:$META_REST_PORT"
+log_level = "info"
+trace_enabled = false
+dfs_desired_copies = $desired
+dfs_sync_required_copies = $sync_required
+dfs_min_distinct_nodes = $distinct
+dfs_min_distinct_failure_domains = $distinct
+dfs_local_copy = "required"
+
+tls_ca_certificate = "$tls_prefix/tls/ca.pem"
+tls_identity_certificate = "$tls_prefix/tls/meta.pem"
+tls_identity_private_key = "$tls_prefix/tls/meta-key.pem"
+tls_server_name = "afs-meta"
+trusted_node_certs = $trusted
+EOF
+}
+
+write_node_config() {
+  local cfg_dir=$1 tls_prefix=$2 node_id=$3 node_host=$4 listen_host=$5 desired=$6 sync_required=$7 distinct=$8
+  local trusted allow_volatile_meta
+  allow_volatile_meta=false
+  if [ "$BACKEND" = memory ]; then
+    allow_volatile_meta=true
+  fi
+  trusted=$(trusted_node_certs_toml "$tls_prefix")
+  write_file "$cfg_dir/node.toml" <<EOF
+id = "$node_id"
+fs = "all"
+meta_endpoint = "https://$META_HOST:$META_GRPC_PORT"
+grpc_listen = "$listen_host:$NODE_GRPC_PORT"
+rest_listen = "$listen_host:$NODE_REST_PORT"
+advertise_endpoint = "https://$node_host:$NODE_GRPC_PORT"
+data_dir = "$STATE_DIR/node"
+uds_path = "$RUN_DIR/node.sock"
+dfs_mount = "$MOUNT_ROOT/dfs"
+ownerfs_mount = "$MOUNT_ROOT/ownerfs"
+data_mode = "grpc"
+allow_volatile_meta = $allow_volatile_meta
+dfs_desired_copies = $desired
+dfs_sync_required_copies = $sync_required
+dfs_min_distinct_nodes = $distinct
+dfs_min_distinct_failure_domains = $distinct
+dfs_local_copy = "required"
+log_level = "info"
+trace_enabled = false
+
+tls_ca_certificate = "$tls_prefix/tls/ca.pem"
+tls_identity_certificate = "$tls_prefix/tls/$node_id.pem"
+tls_identity_private_key = "$tls_prefix/tls/$node_id-key.pem"
+tls_server_name = "afs-meta"
+trusted_node_certs = $trusted
+EOF
+}
+
+if [ "$MODE" = single ]; then
+  require_absolute_dir --config-dir "$CONFIG_DIR"
+  [ "${#NODES[@]}" -eq 0 ] || { echo "--node is only valid in cluster mode" >&2; exit 2; }
+  NODES=(node-a=127.0.0.1)
+  mkdir -p "$CONFIG_DIR" "$STATE_DIR" "$RUN_DIR" "$MOUNT_ROOT"
+  generate_tls_set "$CONFIG_DIR/tls"
+  write_meta_config "$CONFIG_DIR" "$CONFIG_DIR" 127.0.0.1 1 1 1
+  write_node_config "$CONFIG_DIR" "$CONFIG_DIR" node-a 127.0.0.1 127.0.0.1 1 1 1
+  echo "wrote single-node $BACKEND trial config: $CONFIG_DIR"
+  if [ "$BACKEND" = memory ]; then
+    echo "memory backend loses namespace state when afs-meta exits"
+  fi
+  exit 0
+fi
+
+[ -n "$OUTPUT" ] || { echo "--output is required in cluster mode" >&2; exit 2; }
+[ "${#NODES[@]}" -ge 2 ] || { echo "cluster mode requires at least two --node ID=HOST entries" >&2; exit 2; }
+
+case "$OUTPUT" in
+  /*) ;;
+  *) OUTPUT=$(pwd)/$OUTPUT ;;
+esac
+mkdir -p "$OUTPUT"
+tls_work="$OUTPUT/.tls"
+generate_tls_set "$tls_work"
+meta_etc="$OUTPUT/meta/etc"
+copy_tls_files "$tls_work" "$meta_etc/tls" meta
+write_meta_config "$meta_etc" "$CONFIG_DIR" 0.0.0.0 2 2 2
+
+for cluster_node in "${NODES[@]}"; do
+  cluster_id=${cluster_node%%=*}
+  cluster_host=${cluster_node#*=}
+  valid_id "$cluster_id" || { echo "invalid node id: $cluster_id" >&2; exit 2; }
+  [ -n "$cluster_host" ] && [ "$cluster_host" != "$cluster_node" ] || { echo "--node must be ID=HOST: $cluster_node" >&2; exit 2; }
+  node_etc="$OUTPUT/$cluster_id/etc"
+  copy_tls_files "$tls_work" "$node_etc/tls" "$cluster_id"
+  write_node_config "$node_etc" "$CONFIG_DIR" "$cluster_id" "$cluster_host" 0.0.0.0 2 2 2
+done
+rm -rf "$tls_work"
+echo "wrote two-node/R2 trial config bundle: $OUTPUT"
+echo "copy meta/etc to the Meta host's config dir and each <node>/etc to that node's config dir"
+if [ "$BACKEND" = memory ]; then
+  echo "memory backend loses namespace state when afs-meta exits"
+fi

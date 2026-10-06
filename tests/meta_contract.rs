@@ -8,29 +8,30 @@ use afs::{
         dfs::DfsService,
         rpc,
         store::{
-            MetaEntity, MetaRead, MetaStore, RequestKey, RootRight as StoreRootRight, Store,
+            MetaEntity, MetaRead, MetaStore, OperationResult, RequestKey,
+            RootRight as StoreRootRight, Store, StoreBackend, StoreOperation,
             local_file::LocalFileBackend, memory::MemoryBackend,
         },
     },
     runtime::Observability,
 };
 use afs_protocol::meta::{
-    AbortRootRequest, AcquireRootRequest, ActivateRootReply, ActivateRootRequest,
-    CommitFileVersionRequest, DfsCallerContext, DfsChunkReceipt, DfsCommitMetadataDelta,
-    DfsCommitMetadataMode, DfsCreateRequest, DfsExtent, DfsFileVersion, DfsGetXattrRequest,
-    DfsInodeAttributeUpdate, DfsInodeAttributes, DfsLayoutRoot, DfsLinkRequest,
+    AbortRootRequest, AckRevocationRequest, AcquireRootRequest, ActivateRootReply,
+    ActivateRootRequest, CommitFileVersionRequest, DfsCallerContext, DfsChunkReceipt,
+    DfsCommitMetadataDelta, DfsCommitMetadataMode, DfsCreateRequest, DfsExtent, DfsFileVersion,
+    DfsGetXattrRequest, DfsInodeAttributeUpdate, DfsInodeAttributes, DfsLayoutRoot, DfsLinkRequest,
     DfsListXattrRequest, DfsLookupRequest, DfsMkdirRequest, DfsReadDirRequest, DfsReadLinkRequest,
     DfsRemoveXattrRequest, DfsRenameMode, DfsRenameRequest, DfsReplicaAck, DfsRmdirRequest,
     DfsSetInodeAttributesRequest, DfsSetXattrRequest, DfsStorageDevice, DfsSymlinkRequest,
     DfsUnlinkRequest, DfsWriteLease, DfsXattrSetMode, ListOwnerRootsRequest, LookupNodeRequest,
     LookupRootReply, LookupRootRequest, NodeDescriptor, NodeEndpoint, OpenDfsWriteRequest,
-    PresentedRootAccess, RecoverRootRequest, RegisterNodeRequest, ReserveRootReply,
-    ReserveRootRequest, RootAccess, RootCommand, RootCommandType, RootLocation, RootReservation,
-    RootRight, ValidateRootAccessRequest, WatchRootCommandsRequest,
+    PollRootCommandBatchRequest, PresentedRootAccess, RecoverRootRequest, RegisterNodeRequest,
+    ReserveRootReply, ReserveRootRequest, RootAccess, RootCommand, RootCommandType, RootLocation,
+    RootReservation, RootRight, ValidateRootAccessRequest, WatchRootCommandsRequest,
     dfs_meta_server::DfsMeta as DfsMetaService, meta_server::Meta as MetaService,
     owner_roots_server::OwnerRoots as OwnerRootsService,
 };
-use std::sync::Arc;
+use std::sync::{Arc, Mutex, Weak};
 use tonic::{Code, Request};
 
 async fn renewal_fixture(lease_seconds: u64) -> (DfsService, afs::dfs::WriteLease) {
@@ -59,6 +60,610 @@ async fn renewal_fixture(lease_seconds: u64) -> (DfsService, afs::dfs::WriteLeas
         .await
         .unwrap();
     (dfs, lease)
+}
+
+async fn lock_resolver_fixture(
+    lease_seconds: u64,
+) -> (
+    Arc<Store>,
+    DfsService,
+    afs::dfs::WriteLease,
+    Arc<LostCommitResultBackend>,
+) {
+    use afs::dfs::{InodeAttributes, InodeId, NamespaceId};
+    let backend = Arc::new(LostCommitResultBackend::new(Arc::new(
+        MemoryBackend::default(),
+    )));
+    let store = Arc::new(Store::open(backend.clone()).await.unwrap());
+    let dfs = DfsService::new(store.clone());
+    let (_, lease) = dfs
+        .create(afs::meta::dfs::CreateFileRequest {
+            caller_id: "node-a".into(),
+            owner_session_id: "session-a".into(),
+            operation_id: OperationId::new("create-lock-resolver"),
+            namespace_id: NamespaceId::new("default"),
+            parent_inode_id: InodeId::new("1"),
+            name: b"resolver.bin".to_vec(),
+            attributes: InodeAttributes {
+                mode: 0o640,
+                uid: 1000,
+                gid: 1000,
+                nlink: 1,
+                atime_unix_ms: 1,
+                mtime_unix_ms: 1,
+                ctime_unix_ms: 1,
+            },
+            lease_seconds,
+        })
+        .await
+        .unwrap();
+    (store, dfs, lease, backend)
+}
+
+#[tokio::test]
+async fn dfs_lock_resolver_live_local_authority_does_not_commit_or_extend_expiry() {
+    let (store, dfs, original, backend) = lock_resolver_fixture(30).await;
+    let before = store
+        .read(MetaRead::DfsWriteLease(original.inode_id.clone()))
+        .await
+        .unwrap();
+    let commits = backend.observed_commit().0;
+    for index in 0..64 {
+        let id = format!("resolve-live-{index}");
+        let (inode, lease) = dfs
+            .resolve_lock_authority(
+                "node-a".into(),
+                "session-a".into(),
+                OperationId::new(id.clone()),
+                original.inode_id.clone(),
+                90,
+            )
+            .await
+            .unwrap();
+        assert_eq!(inode.inode_id, original.inode_id);
+        assert_eq!(lease, original, "lock queries must not extend a live lease");
+        assert!(
+            store
+                .read(MetaRead::RequestOutcome(RequestKey::new("node-a", id)))
+                .await
+                .unwrap()
+                .request_outcome
+                .is_none(),
+            "live lock resolution must not persist an outcome"
+        );
+    }
+    assert_eq!(backend.observed_commit().0, commits);
+    assert_eq!(
+        store
+            .read(MetaRead::DfsWriteLease(original.inode_id))
+            .await
+            .unwrap()
+            .revision,
+        before.revision
+    );
+}
+
+#[tokio::test]
+async fn dfs_write_authority_live_local_does_not_commit_or_extend_expiry() {
+    let (store, dfs, original, backend) = lock_resolver_fixture(30).await;
+    let before = store
+        .read(MetaRead::DfsWriteLease(original.inode_id.clone()))
+        .await
+        .unwrap();
+    let commits = backend.observed_commit().0;
+    for index in 0..16 {
+        let id = format!("resolve-write-live-{index}");
+        let (inode, lease) = dfs
+            .resolve_write_authority(
+                "node-a".into(),
+                "session-a".into(),
+                OperationId::new(id.clone()),
+                original.inode_id.clone(),
+                90,
+            )
+            .await
+            .unwrap();
+        assert_eq!(inode.inode_id, original.inode_id);
+        assert_eq!(
+            lease, original,
+            "write-authority reads must not extend a live lease"
+        );
+        assert!(
+            store
+                .read(MetaRead::RequestOutcome(RequestKey::new("node-a", id)))
+                .await
+                .unwrap()
+                .request_outcome
+                .is_none(),
+            "live write-authority resolution must not persist an outcome"
+        );
+    }
+    assert_eq!(backend.observed_commit().0, commits);
+    assert_eq!(
+        store
+            .read(MetaRead::DfsWriteLease(original.inode_id))
+            .await
+            .unwrap()
+            .revision,
+        before.revision
+    );
+}
+
+#[tokio::test]
+async fn dfs_write_authority_rpc_validates_fields_and_uses_new_endpoint() {
+    use afs_protocol::meta::ResolveDfsWriteAuthorityRequest;
+    let (store, _, original, _) = lock_resolver_fixture(30).await;
+    let request = ResolveDfsWriteAuthorityRequest {
+        caller_id: "node-b".into(),
+        owner_session_id: "session-b".into(),
+        operation_id: "resolve-write-rpc".into(),
+        inode_id: original.inode_id.0.clone(),
+        lease_seconds: 30,
+    };
+    let plain = rpc::DfsMetaRpc(Arc::new(Meta::with_store(
+        "test".into(),
+        Observability::new().unwrap(),
+        store.clone(),
+    )));
+    let reply = plain
+        .resolve_write_authority(Request::new(request.clone()))
+        .await
+        .unwrap()
+        .into_inner();
+    assert_eq!(reply.write_lease.unwrap().owner_node_id, "node-a");
+    for field in 0..4 {
+        let mut missing = request.clone();
+        match field {
+            0 => missing.caller_id.clear(),
+            1 => missing.owner_session_id.clear(),
+            2 => missing.operation_id.clear(),
+            _ => missing.inode_id.clear(),
+        }
+        assert_eq!(
+            plain
+                .resolve_write_authority(Request::new(missing))
+                .await
+                .unwrap_err()
+                .code(),
+            Code::InvalidArgument
+        );
+    }
+    let secured = rpc::DfsMetaRpc(Arc::new(Meta::with_store_and_peer_identity(
+        "test".into(),
+        Observability::new().unwrap(),
+        store,
+        Default::default(),
+        true,
+    )));
+    assert_eq!(
+        secured
+            .resolve_write_authority(Request::new(request))
+            .await
+            .unwrap_err()
+            .code(),
+        Code::PermissionDenied
+    );
+}
+
+#[tokio::test]
+async fn dfs_write_authority_expired_lease_acquires_and_replays_exact_result() {
+    let (store, dfs, original, backend) = lock_resolver_fixture(1).await;
+    tokio::time::sleep(std::time::Duration::from_millis(1100)).await;
+    let operation = OperationId::new("resolve-write-acquire");
+    let (_, acquired) = dfs
+        .resolve_write_authority(
+            "node-b".into(),
+            "session-b".into(),
+            operation.clone(),
+            original.inode_id.clone(),
+            30,
+        )
+        .await
+        .unwrap();
+    assert_eq!(acquired.owner_node_id, "node-b");
+    assert_eq!(acquired.owner_session_id, "session-b");
+    assert!(acquired.lease_epoch > original.lease_epoch);
+
+    let (_, extended) = dfs
+        .open_write(
+            "node-b".into(),
+            "session-b".into(),
+            OperationId::new("extend-after-write-resolve"),
+            original.inode_id.clone(),
+            90,
+        )
+        .await
+        .unwrap();
+    assert!(extended.expires_at_unix_ms > acquired.expires_at_unix_ms);
+
+    let commits = backend.observed_commit().0;
+    let (_, replay) = dfs
+        .resolve_write_authority(
+            "node-b".into(),
+            "session-b".into(),
+            operation,
+            original.inode_id.clone(),
+            30,
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        replay, acquired,
+        "an acquired write authority must replay its exact original result"
+    );
+    assert_eq!(backend.observed_commit().0, commits);
+    let outcome = store
+        .read(MetaRead::RequestOutcome(RequestKey::new(
+            "node-b",
+            "resolve-write-acquire",
+        )))
+        .await
+        .unwrap()
+        .request_outcome
+        .unwrap();
+    assert_eq!(outcome.operation, StoreOperation::DfsAcquireWriteLease);
+    assert!(
+        dfs.resolve_write_authority(
+            "node-b".into(),
+            "different-session".into(),
+            OperationId::new("resolve-write-acquire"),
+            original.inode_id,
+            30,
+        )
+        .await
+        .is_err()
+    );
+}
+
+#[tokio::test]
+async fn dfs_write_authority_lost_acquire_result_replays_after_store_reopen() {
+    let (_store, dfs, original, backend) = lock_resolver_fixture(1).await;
+    tokio::time::sleep(std::time::Duration::from_millis(1100)).await;
+    let operation = OperationId::new("resolve-write-lost-acquire");
+    backend.arm_once();
+
+    let error = dfs
+        .resolve_write_authority(
+            "node-b".into(),
+            "session-b".into(),
+            operation.clone(),
+            original.inode_id.clone(),
+            30,
+        )
+        .await
+        .unwrap_err();
+    assert_eq!(error.code(), afs_error::IO_UNAVAILABLE);
+    let (commits_after_lost_result, native_version, native_digest) = backend.observed_commit();
+
+    let reopened_backend: Arc<dyn StoreBackend> = backend.clone();
+    let reopened_store = Arc::new(Store::open(reopened_backend).await.unwrap());
+    let reopened = DfsService::new(reopened_store.clone());
+    let (_, replay) = reopened
+        .resolve_write_authority(
+            "node-b".into(),
+            "session-b".into(),
+            operation,
+            original.inode_id.clone(),
+            30,
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(replay.owner_node_id, "node-b");
+    assert_eq!(replay.owner_session_id, "session-b");
+    assert_eq!(replay.inode_id, original.inode_id);
+    assert!(replay.lease_epoch > original.lease_epoch);
+    assert_eq!(
+        backend.observed_commit(),
+        (commits_after_lost_result, native_version, native_digest),
+        "exact lost acquire replay must not add another durable commit"
+    );
+    let outcome = reopened_store
+        .read(MetaRead::RequestOutcome(RequestKey::new(
+            "node-b",
+            "resolve-write-lost-acquire",
+        )))
+        .await
+        .unwrap()
+        .request_outcome
+        .unwrap();
+    assert_eq!(outcome.operation, StoreOperation::DfsAcquireWriteLease);
+    match outcome.result {
+        OperationResult::DfsWriteLease(lease) => assert_eq!(lease, replay),
+        other => panic!("unexpected replayed write authority outcome: {other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn dfs_lock_resolver_acquire_reply_loss_replays_before_live_resolution() {
+    let (store, dfs, original, backend) = lock_resolver_fixture(1).await;
+    tokio::time::sleep(std::time::Duration::from_millis(1100)).await;
+    let operation = OperationId::new("resolve-acquire");
+    let (_, acquired) = dfs
+        .resolve_lock_authority(
+            "node-b".into(),
+            "session-b".into(),
+            operation.clone(),
+            original.inode_id.clone(),
+            30,
+        )
+        .await
+        .unwrap();
+    assert_eq!(acquired.owner_node_id, "node-b");
+    assert!(acquired.lease_epoch > original.lease_epoch);
+    let (_, extended) = dfs
+        .open_write(
+            "node-b".into(),
+            "session-b".into(),
+            OperationId::new("extend-after-resolve"),
+            original.inode_id.clone(),
+            90,
+        )
+        .await
+        .unwrap();
+    assert!(extended.expires_at_unix_ms > acquired.expires_at_unix_ms);
+    let commits = backend.observed_commit().0;
+    let (_, replay) = dfs
+        .resolve_lock_authority(
+            "node-b".into(),
+            "session-b".into(),
+            operation,
+            original.inode_id.clone(),
+            30,
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        replay, acquired,
+        "an acquired authority must replay its exact original result"
+    );
+    assert_eq!(backend.observed_commit().0, commits);
+    let outcome = store
+        .read(MetaRead::RequestOutcome(RequestKey::new(
+            "node-b",
+            "resolve-acquire",
+        )))
+        .await
+        .unwrap()
+        .request_outcome
+        .unwrap();
+    assert_eq!(outcome.operation, StoreOperation::DfsAcquireWriteLease);
+    assert!(
+        dfs.resolve_lock_authority(
+            "node-b".into(),
+            "different-session".into(),
+            OperationId::new("resolve-acquire"),
+            original.inode_id,
+            30
+        )
+        .await
+        .is_err()
+    );
+}
+
+#[tokio::test]
+async fn dfs_lock_resolver_routes_live_foreign_owner_without_mutation() {
+    let (store, dfs, original, backend) = lock_resolver_fixture(30).await;
+    let commits = backend.observed_commit().0;
+    let (_, resolved) = dfs
+        .resolve_lock_authority(
+            "node-b".into(),
+            "session-b".into(),
+            OperationId::new("resolve-foreign"),
+            original.inode_id.clone(),
+            90,
+        )
+        .await
+        .unwrap();
+    assert_eq!(resolved, original);
+    assert_eq!(backend.observed_commit().0, commits);
+    assert!(
+        store
+            .read(MetaRead::RequestOutcome(RequestKey::new(
+                "node-b",
+                "resolve-foreign"
+            )))
+            .await
+            .unwrap()
+            .request_outcome
+            .is_none()
+    );
+}
+
+#[tokio::test]
+async fn dfs_lock_resolver_missing_lease_acquires_and_rejects_operation_reuse() {
+    use afs::meta::store::{MetaKey, MetaTxn, RequestOutcome, TxnCondition, TxnMutation};
+    let (store, dfs, original, backend) = lock_resolver_fixture(30).await;
+    let key = RequestKey::new("fixture", "remove-lease");
+    let mut txn = MetaTxn::new(key.clone(), StoreOperation::DfsAcquireWriteLease);
+    txn.conditions
+        .push(TxnCondition::RequestAbsent(key.clone()));
+    txn.mutations.extend([
+        TxnMutation::Delete(MetaKey::DfsWriteLease(original.inode_id.clone())),
+        TxnMutation::RecordRequestOutcome(RequestOutcome {
+            request: key,
+            operation: StoreOperation::DfsAcquireWriteLease,
+            result: OperationResult::Empty,
+        }),
+    ]);
+    store.compare_and_commit(txn).await.unwrap();
+    let commits = backend.observed_commit().0;
+    let (_, acquired) = dfs
+        .resolve_lock_authority(
+            "node-b".into(),
+            "session-b".into(),
+            OperationId::new("resolve-missing"),
+            original.inode_id.clone(),
+            30,
+        )
+        .await
+        .unwrap();
+    assert_eq!(acquired.owner_node_id, "node-b");
+    assert_eq!(acquired.owner_session_id, "session-b");
+    assert_eq!(acquired.lease_epoch, 1);
+    assert_eq!(backend.observed_commit().0, commits + 1);
+    assert!(
+        dfs.resolve_lock_authority(
+            "node-a".into(),
+            "session-a".into(),
+            OperationId::new("create-lock-resolver"),
+            original.inode_id,
+            30
+        )
+        .await
+        .is_err()
+    );
+    assert_eq!(backend.observed_commit().0, commits + 1);
+}
+
+#[tokio::test]
+async fn dfs_lock_resolver_poisoned_store_cannot_return_cached_authority() {
+    let (_, dfs, original, backend) = lock_resolver_fixture(30).await;
+    backend.arm_once();
+    assert!(
+        dfs.open_write(
+            "node-a".into(),
+            "session-a".into(),
+            OperationId::new("poison-lock-store"),
+            original.inode_id.clone(),
+            60
+        )
+        .await
+        .is_err()
+    );
+    let commits = backend.observed_commit().0;
+    let error = dfs
+        .resolve_lock_authority(
+            "node-a".into(),
+            "session-a".into(),
+            OperationId::new("resolve-poison"),
+            original.inode_id,
+            30,
+        )
+        .await
+        .unwrap_err();
+    assert_eq!(error.code(), afs_error::IO_UNAVAILABLE);
+    assert_eq!(backend.observed_commit().0, commits);
+}
+
+#[tokio::test]
+async fn dfs_lock_resolver_inode_and_lease_share_one_acknowledged_view() {
+    use afs::meta::store::{MetaTxn, RequestOutcome, TxnCondition, TxnMutation};
+    let (store, dfs, original, _) = lock_resolver_fixture(30).await;
+    let mut inode = dfs.get_inode(original.inode_id.clone()).await.unwrap();
+    let mut lease = original.clone();
+    let writer_store = store.clone();
+    let writer = tokio::spawn(async move {
+        for index in 1..=32 {
+            inode.attributes.uid = 1000 + index;
+            inode.revision += 1;
+            lease.lease_epoch = 1 + u64::from(index);
+            let request = RequestKey::new("fixture", format!("advance-pair-{index}"));
+            let mut txn = MetaTxn::new(request.clone(), StoreOperation::DfsSyncInodeMetadata);
+            txn.conditions
+                .push(TxnCondition::RequestAbsent(request.clone()));
+            txn.mutations.extend([
+                TxnMutation::Put(MetaEntity::DfsInode(inode.clone())),
+                TxnMutation::Put(MetaEntity::DfsWriteLease(lease.clone())),
+                TxnMutation::RecordRequestOutcome(RequestOutcome {
+                    request,
+                    operation: StoreOperation::DfsSyncInodeMetadata,
+                    result: OperationResult::DfsInode(inode.clone()),
+                }),
+            ]);
+            writer_store.compare_and_commit(txn).await.unwrap();
+            tokio::task::yield_now().await;
+        }
+    });
+    for index in 0..256 {
+        let (inode, lease) = dfs
+            .resolve_lock_authority(
+                "node-a".into(),
+                "session-a".into(),
+                OperationId::new(format!("resolve-pair-{index}")),
+                original.inode_id.clone(),
+                30,
+            )
+            .await
+            .unwrap();
+        assert_eq!(
+            u64::from(inode.attributes.uid),
+            lease.lease_epoch + 999,
+            "inode metadata and authority must not mix acknowledged revisions"
+        );
+        tokio::task::yield_now().await;
+    }
+    writer.await.unwrap();
+    let (_, lease) = dfs
+        .resolve_lock_authority(
+            "node-a".into(),
+            "session-a".into(),
+            OperationId::new("resolve-final-pair"),
+            original.inode_id,
+            30,
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        lease.lease_epoch, 33,
+        "the next resolution must observe the new epoch"
+    );
+}
+
+#[tokio::test]
+async fn dfs_lock_resolver_rpc_validates_fields_and_requires_enforced_peer_identity() {
+    use afs_protocol::meta::ResolveDfsLockAuthorityRequest;
+    let (store, _, original, _) = lock_resolver_fixture(30).await;
+    let request = ResolveDfsLockAuthorityRequest {
+        caller_id: "node-b".into(),
+        owner_session_id: "session-b".into(),
+        operation_id: "resolve-rpc".into(),
+        inode_id: original.inode_id.0.clone(),
+        lease_seconds: 30,
+    };
+    let plain = rpc::DfsMetaRpc(Arc::new(Meta::with_store(
+        "test".into(),
+        Observability::new().unwrap(),
+        store.clone(),
+    )));
+    let reply = plain
+        .resolve_lock_authority(Request::new(request.clone()))
+        .await
+        .unwrap()
+        .into_inner();
+    assert_eq!(reply.write_lease.unwrap().owner_node_id, "node-a");
+    for field in 0..4 {
+        let mut missing = request.clone();
+        match field {
+            0 => missing.caller_id.clear(),
+            1 => missing.owner_session_id.clear(),
+            2 => missing.operation_id.clear(),
+            _ => missing.inode_id.clear(),
+        }
+        assert_eq!(
+            plain
+                .resolve_lock_authority(Request::new(missing))
+                .await
+                .unwrap_err()
+                .code(),
+            Code::InvalidArgument
+        );
+    }
+    let secured = rpc::DfsMetaRpc(Arc::new(Meta::with_store_and_peer_identity(
+        "test".into(),
+        Observability::new().unwrap(),
+        store,
+        Default::default(),
+        true,
+    )));
+    assert_eq!(
+        secured
+            .resolve_lock_authority(Request::new(request))
+            .await
+            .unwrap_err()
+            .code(),
+        Code::PermissionDenied
+    );
 }
 
 #[tokio::test]
@@ -940,6 +1545,564 @@ fn dfs_commit_keeps_file_layout_and_durable_chunk_receipt_explicit() {
     assert_eq!(commit.chunk_receipts[0].durable_acks[0].persisted_bytes, 5);
 }
 
+async fn n2b1_memory_owner_fixture() -> (Arc<Store>, rpc::MetaRpc, rpc::OwnerRootsRpc) {
+    let store = Arc::new(
+        Store::open(Arc::new(MemoryBackend::default()))
+            .await
+            .unwrap(),
+    );
+    let meta = Arc::new(Meta::with_store(
+        "meta-test".into(),
+        Observability::new().unwrap(),
+        store.clone(),
+    ));
+    (store, rpc::MetaRpc(meta.clone()), rpc::OwnerRootsRpc(meta))
+}
+
+async fn n2b1_register_node(meta_rpc: &rpc::MetaRpc) {
+    meta_rpc
+        .register_node(Request::new(RegisterNodeRequest {
+            request_id: "register-node-a".into(),
+            node: Some(NodeDescriptor {
+                node_id: "node-a".into(),
+                endpoint: Some(NodeEndpoint {
+                    grpc_addr: "http://node-a:7400".into(),
+                    data_addr: "http://node-a:7500".into(),
+                    rest_addr: "http://node-a:7600".into(),
+                }),
+                labels: Default::default(),
+                capabilities: vec!["ownerfs".into()],
+                session_id: "session-a".into(),
+                storage_devices: Vec::new(),
+            }),
+            lease_seconds: 30,
+        }))
+        .await
+        .unwrap();
+}
+
+async fn n2b1_seed_root_command(
+    store: &Store,
+    request_id: impl Into<String>,
+    command_id: impl Into<String>,
+    home_node_id: impl Into<String>,
+    home_session_id: impl Into<String>,
+    root_id: impl Into<String>,
+    old_access_generation: u64,
+) {
+    use afs::meta::store::{
+        MetaTxn, RequestOutcome, RootCommandRecord, RootCommandType as StoreRootCommandType,
+        TxnCondition, TxnMutation,
+    };
+
+    let command = RootCommandRecord {
+        command_id: command_id.into(),
+        home_node_id: home_node_id.into(),
+        home_session_id: home_session_id.into(),
+        root_id: root_id.into(),
+        root_epoch: 7,
+        old_access_generation,
+        command_type: StoreRootCommandType::RevokeAccess,
+    };
+    let key = RequestKey::new("n2b1-seed", request_id);
+    let mut txn = MetaTxn::new(key.clone(), StoreOperation::BeginRootRevocation);
+    txn.conditions
+        .push(TxnCondition::RequestAbsent(key.clone()));
+    txn.mutations.extend([
+        TxnMutation::Put(MetaEntity::RootCommand(command.clone())),
+        TxnMutation::RecordRequestOutcome(RequestOutcome {
+            request: key,
+            operation: StoreOperation::BeginRootRevocation,
+            result: OperationResult::RootCommand(command),
+        }),
+    ]);
+    store.compare_and_commit(txn).await.unwrap();
+}
+
+fn n2b1_events(
+    reply: afs_protocol::meta::RootCommandBatchReply,
+) -> afs_protocol::meta::RootCommandBatchEvents {
+    match reply.result.unwrap() {
+        afs_protocol::meta::root_command_batch_reply::Result::Events(events) => events,
+        _ => panic!("expected events reply"),
+    }
+}
+
+async fn n2b1_wait_for_backend_release(backend: Weak<LocalFileBackend>) {
+    let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(2);
+    while backend.upgrade().is_some() {
+        assert!(
+            tokio::time::Instant::now() < deadline,
+            "local file backend should be released before reopening the same directory"
+        );
+        tokio::task::yield_now().await;
+        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+    }
+}
+
+#[tokio::test]
+async fn n2b1_poll_root_command_batch_without_store_returns_typed_unsupported() {
+    let owner_rpc = rpc::OwnerRootsRpc(Arc::new(Meta::new(
+        "meta-no-store".into(),
+        Observability::new().unwrap(),
+    )));
+    let reply = owner_rpc
+        .poll_root_command_batch(Request::new(PollRootCommandBatchRequest {
+            node_id: "node-a".into(),
+            session_id: "session-a".into(),
+            after_revision: 0,
+        }))
+        .await
+        .unwrap()
+        .into_inner();
+    let Some(afs_protocol::meta::root_command_batch_reply::Result::Unsupported(unsupported)) =
+        reply.result
+    else {
+        panic!("expected unsupported reply");
+    };
+    assert!(unsupported.message.contains("unavailable"));
+}
+
+#[tokio::test]
+async fn n2b1_poll_root_command_batch_rejects_missing_current_session() {
+    let (_, _, owner_rpc) = n2b1_memory_owner_fixture().await;
+    let error = owner_rpc
+        .poll_root_command_batch(Request::new(PollRootCommandBatchRequest {
+            node_id: "node-a".into(),
+            session_id: "session-a".into(),
+            after_revision: 0,
+        }))
+        .await
+        .unwrap_err();
+    assert_ne!(error.code(), Code::Ok);
+}
+
+#[tokio::test]
+async fn n2b1_poll_root_command_batch_rejects_non_current_session() {
+    let (_, meta_rpc, owner_rpc) = n2b1_memory_owner_fixture().await;
+    n2b1_register_node(&meta_rpc).await;
+    let error = owner_rpc
+        .poll_root_command_batch(Request::new(PollRootCommandBatchRequest {
+            node_id: "node-a".into(),
+            session_id: "session-old".into(),
+            after_revision: 0,
+        }))
+        .await
+        .unwrap_err();
+    assert_ne!(error.code(), Code::Ok);
+}
+
+#[tokio::test]
+async fn n2b1_poll_root_command_batch_reports_empty_command_history_after_current_session() {
+    let (_, meta_rpc, owner_rpc) = n2b1_memory_owner_fixture().await;
+    n2b1_register_node(&meta_rpc).await;
+    let events = owner_rpc
+        .poll_root_command_batch(Request::new(PollRootCommandBatchRequest {
+            node_id: "node-a".into(),
+            session_id: "session-a".into(),
+            after_revision: 0,
+        }))
+        .await
+        .unwrap()
+        .into_inner();
+    let events = n2b1_events(events);
+    assert_eq!(events.start_revision, 0);
+    assert_eq!(events.next_revision, 2);
+    assert!(events.commands.is_empty());
+}
+
+#[tokio::test]
+async fn n2b1_poll_root_command_batch_advances_past_filtered_events_without_skipping_adjacent_target()
+ {
+    let (store, meta_rpc, owner_rpc) = n2b1_memory_owner_fixture().await;
+    n2b1_register_node(&meta_rpc).await;
+    for index in 0..1022 {
+        n2b1_seed_root_command(
+            &store,
+            format!("unrelated-{index}"),
+            format!("cmd-unrelated-{index}"),
+            "other-node",
+            "other-session",
+            format!("workspace-unrelated-{index}"),
+            1,
+        )
+        .await;
+    }
+    n2b1_seed_root_command(
+        &store,
+        "target",
+        "cmd-target",
+        "node-a",
+        "session-a",
+        "workspace-a",
+        3,
+    )
+    .await;
+
+    let first = owner_rpc
+        .poll_root_command_batch(Request::new(PollRootCommandBatchRequest {
+            node_id: "node-a".into(),
+            session_id: "session-a".into(),
+            after_revision: 0,
+        }))
+        .await
+        .unwrap()
+        .into_inner();
+    let first = n2b1_events(first);
+    assert_eq!(first.start_revision, 0);
+    assert_eq!(first.next_revision, 1024);
+    assert!(first.commands.is_empty());
+
+    let resume_after = first.next_revision.checked_sub(1).unwrap();
+    let second = owner_rpc
+        .poll_root_command_batch(Request::new(PollRootCommandBatchRequest {
+            node_id: "node-a".into(),
+            session_id: "session-a".into(),
+            after_revision: resume_after,
+        }))
+        .await
+        .unwrap()
+        .into_inner();
+    let second = n2b1_events(second);
+    assert_eq!(second.start_revision, 1023);
+    assert_eq!(second.next_revision, 1025);
+    assert_eq!(second.commands.len(), 1);
+    assert_eq!(second.commands[0].command_id, "cmd-target");
+
+    let skipped = owner_rpc
+        .poll_root_command_batch(Request::new(PollRootCommandBatchRequest {
+            node_id: "node-a".into(),
+            session_id: "session-a".into(),
+            after_revision: first.next_revision,
+        }))
+        .await
+        .unwrap()
+        .into_inner();
+    let skipped = n2b1_events(skipped);
+    assert!(skipped.commands.is_empty());
+}
+
+#[tokio::test]
+async fn n2b1_poll_root_command_batch_rejects_saturated_invalid_cursor() {
+    let (_, meta_rpc, owner_rpc) = n2b1_memory_owner_fixture().await;
+    n2b1_register_node(&meta_rpc).await;
+    let error = owner_rpc
+        .poll_root_command_batch(Request::new(PollRootCommandBatchRequest {
+            node_id: "node-a".into(),
+            session_id: "session-a".into(),
+            after_revision: u64::MAX,
+        }))
+        .await
+        .unwrap_err();
+    assert_ne!(error.code(), Code::Ok);
+}
+
+#[tokio::test]
+async fn n2b1_ack_revocation_requires_exact_stored_command_before_writing_ack() {
+    let (store, meta_rpc, owner_rpc) = n2b1_memory_owner_fixture().await;
+    n2b1_register_node(&meta_rpc).await;
+
+    let missing = owner_rpc
+        .ack_revocation(Request::new(AckRevocationRequest {
+            request_id: "ack-missing".into(),
+            command_id: "cmd-missing".into(),
+            node_id: "node-a".into(),
+            session_id: "session-a".into(),
+            root_id: "workspace-a".into(),
+            root_epoch: 7,
+            access_generation: 3,
+            success: true,
+            message: "installed".into(),
+        }))
+        .await
+        .unwrap_err();
+    assert_ne!(missing.code(), Code::Ok);
+
+    n2b1_seed_root_command(
+        &store,
+        "seed-exact",
+        "cmd-exact",
+        "node-a",
+        "session-a",
+        "workspace-a",
+        3,
+    )
+    .await;
+
+    let wrong_root = owner_rpc
+        .ack_revocation(Request::new(AckRevocationRequest {
+            request_id: "ack-wrong-root".into(),
+            command_id: "cmd-exact".into(),
+            node_id: "node-a".into(),
+            session_id: "session-a".into(),
+            root_id: "workspace-b".into(),
+            root_epoch: 7,
+            access_generation: 3,
+            success: true,
+            message: "wrong root".into(),
+        }))
+        .await
+        .unwrap_err();
+    assert_ne!(wrong_root.code(), Code::Ok);
+
+    owner_rpc
+        .ack_revocation(Request::new(AckRevocationRequest {
+            request_id: "ack-exact".into(),
+            command_id: "cmd-exact".into(),
+            node_id: "node-a".into(),
+            session_id: "session-a".into(),
+            root_id: "workspace-a".into(),
+            root_epoch: 7,
+            access_generation: 3,
+            success: true,
+            message: "installed".into(),
+        }))
+        .await
+        .unwrap();
+
+    owner_rpc
+        .ack_revocation(Request::new(AckRevocationRequest {
+            request_id: "ack-exact".into(),
+            command_id: "cmd-exact".into(),
+            node_id: "node-a".into(),
+            session_id: "session-a".into(),
+            root_id: "workspace-a".into(),
+            root_epoch: 7,
+            access_generation: 3,
+            success: true,
+            message: "installed".into(),
+        }))
+        .await
+        .unwrap();
+
+    let replay_conflict = owner_rpc
+        .ack_revocation(Request::new(AckRevocationRequest {
+            request_id: "ack-exact".into(),
+            command_id: "cmd-exact".into(),
+            node_id: "node-a".into(),
+            session_id: "session-a".into(),
+            root_id: "workspace-a".into(),
+            root_epoch: 7,
+            access_generation: 3,
+            success: true,
+            message: "changed payload".into(),
+        }))
+        .await
+        .unwrap_err();
+    assert_ne!(replay_conflict.code(), Code::Ok);
+
+    let duplicate = owner_rpc
+        .ack_revocation(Request::new(AckRevocationRequest {
+            request_id: "ack-duplicate".into(),
+            command_id: "cmd-exact".into(),
+            node_id: "node-a".into(),
+            session_id: "session-a".into(),
+            root_id: "workspace-a".into(),
+            root_epoch: 7,
+            access_generation: 3,
+            success: true,
+            message: "duplicate".into(),
+        }))
+        .await
+        .unwrap_err();
+    assert_ne!(duplicate.code(), Code::Ok);
+}
+
+#[tokio::test]
+async fn n2b1_local_file_reopens_legacy_root_command_and_preserves_exact_ack_replay() {
+    let source_dir = tempfile::tempdir().unwrap();
+    let source_backend = Arc::new(LocalFileBackend::open(source_dir.path()).unwrap());
+    let source_store = Arc::new(Store::open(source_backend.clone()).await.unwrap());
+    n2b1_seed_root_command(
+        &source_store,
+        "seed-legacy",
+        "cmd-legacy",
+        "node-a",
+        "session-a",
+        "workspace-legacy",
+        3,
+    )
+    .await;
+    let (_, current_bytes) = LocalFileBackend::load(&source_backend).unwrap().unwrap();
+    let source_backend_released = Arc::downgrade(&source_backend);
+    drop(source_store);
+    drop(source_backend);
+    n2b1_wait_for_backend_release(source_backend_released).await;
+
+    let mut legacy_json = String::from_utf8(current_bytes).unwrap();
+    if legacy_json.contains(",\"command_type\":\"RevokeAccess\"") {
+        legacy_json = legacy_json.replace(",\"command_type\":\"RevokeAccess\"", "");
+    } else if legacy_json.contains("\"command_type\":\"RevokeAccess\",") {
+        legacy_json = legacy_json.replace("\"command_type\":\"RevokeAccess\",", "");
+    } else {
+        panic!("serialized root command should contain command_type before legacy rewrite");
+    }
+
+    let dir = tempfile::tempdir().unwrap();
+    let legacy_backend = LocalFileBackend::open(dir.path()).unwrap();
+    LocalFileBackend::commit(&legacy_backend, 0, legacy_json.as_bytes()).unwrap();
+    drop(legacy_backend);
+
+    {
+        let backend = Arc::new(LocalFileBackend::open(dir.path()).unwrap());
+        let store = Arc::new(Store::open(backend.clone()).await.unwrap());
+        let meta = Arc::new(Meta::with_store(
+            "meta-reopened".into(),
+            Observability::new().unwrap(),
+            store.clone(),
+        ));
+        let meta_rpc = rpc::MetaRpc(meta.clone());
+        let owner_rpc = rpc::OwnerRootsRpc(meta);
+        n2b1_register_node(&meta_rpc).await;
+        n2b1_seed_root_command(
+            &store,
+            "seed-current",
+            "cmd-current",
+            "node-a",
+            "session-a",
+            "workspace-current",
+            5,
+        )
+        .await;
+
+        let events = owner_rpc
+            .poll_root_command_batch(Request::new(PollRootCommandBatchRequest {
+                node_id: "node-a".into(),
+                session_id: "session-a".into(),
+                after_revision: 0,
+            }))
+            .await
+            .unwrap()
+            .into_inner();
+        let events = n2b1_events(events);
+        let legacy = events
+            .commands
+            .iter()
+            .find(|command| command.command_id == "cmd-legacy")
+            .expect("legacy command after reopen");
+        assert_eq!(legacy.command_type, RootCommandType::RevokeAccess as i32);
+        let current = events
+            .commands
+            .iter()
+            .find(|command| command.command_id == "cmd-current")
+            .expect("current command after reopen");
+        assert_eq!(current.command_type, RootCommandType::RevokeAccess as i32);
+
+        owner_rpc
+            .ack_revocation(Request::new(AckRevocationRequest {
+                request_id: "ack-legacy".into(),
+                command_id: "cmd-legacy".into(),
+                node_id: "node-a".into(),
+                session_id: "session-a".into(),
+                root_id: "workspace-legacy".into(),
+                root_epoch: 7,
+                access_generation: 3,
+                success: true,
+                message: "legacy installed".into(),
+            }))
+            .await
+            .unwrap();
+        owner_rpc
+            .ack_revocation(Request::new(AckRevocationRequest {
+                request_id: "ack-current".into(),
+                command_id: "cmd-current".into(),
+                node_id: "node-a".into(),
+                session_id: "session-a".into(),
+                root_id: "workspace-current".into(),
+                root_epoch: 7,
+                access_generation: 5,
+                success: true,
+                message: "current installed".into(),
+            }))
+            .await
+            .unwrap();
+        let backend_released = Arc::downgrade(&backend);
+        drop(owner_rpc);
+        drop(meta_rpc);
+        drop(store);
+        drop(backend);
+        n2b1_wait_for_backend_release(backend_released).await;
+    }
+
+    {
+        let backend = Arc::new(LocalFileBackend::open(dir.path()).unwrap());
+        let store = Arc::new(Store::open(backend.clone()).await.unwrap());
+        let meta = Arc::new(Meta::with_store(
+            "meta-reopened-again".into(),
+            Observability::new().unwrap(),
+            store.clone(),
+        ));
+        let owner_rpc = rpc::OwnerRootsRpc(meta);
+
+        let events = owner_rpc
+            .poll_root_command_batch(Request::new(PollRootCommandBatchRequest {
+                node_id: "node-a".into(),
+                session_id: "session-a".into(),
+                after_revision: 0,
+            }))
+            .await
+            .unwrap()
+            .into_inner();
+        let events = n2b1_events(events);
+        let current = events
+            .commands
+            .iter()
+            .find(|command| command.command_id == "cmd-current")
+            .expect("current command after second reopen");
+        assert_eq!(current.command_type, RootCommandType::RevokeAccess as i32);
+
+        owner_rpc
+            .ack_revocation(Request::new(AckRevocationRequest {
+                request_id: "ack-current".into(),
+                command_id: "cmd-current".into(),
+                node_id: "node-a".into(),
+                session_id: "session-a".into(),
+                root_id: "workspace-current".into(),
+                root_epoch: 7,
+                access_generation: 5,
+                success: true,
+                message: "current installed".into(),
+            }))
+            .await
+            .unwrap();
+        owner_rpc
+            .ack_revocation(Request::new(AckRevocationRequest {
+                request_id: "ack-legacy".into(),
+                command_id: "cmd-legacy".into(),
+                node_id: "node-a".into(),
+                session_id: "session-a".into(),
+                root_id: "workspace-legacy".into(),
+                root_epoch: 7,
+                access_generation: 3,
+                success: true,
+                message: "legacy installed".into(),
+            }))
+            .await
+            .unwrap();
+
+        let conflict = owner_rpc
+            .ack_revocation(Request::new(AckRevocationRequest {
+                request_id: "ack-current".into(),
+                command_id: "cmd-current".into(),
+                node_id: "node-a".into(),
+                session_id: "session-a".into(),
+                root_id: "workspace-current".into(),
+                root_epoch: 7,
+                access_generation: 5,
+                success: true,
+                message: "changed after reopen".into(),
+            }))
+            .await
+            .unwrap_err();
+        assert_ne!(conflict.code(), Code::Ok);
+        let backend_released = Arc::downgrade(&backend);
+        drop(owner_rpc);
+        drop(store);
+        drop(backend);
+        n2b1_wait_for_backend_release(backend_released).await;
+    }
+}
+
 fn status_errno(status: tonic::Status) -> i32 {
     let error = afs_transport::grpc::error_status::status_to_error(status);
     afs::error::errno(&error)
@@ -1089,6 +2252,394 @@ async fn register_dfs_compute_node(
     }))
     .await
     .unwrap();
+}
+
+#[derive(Default)]
+struct LostCommitResultState {
+    armed: bool,
+    commits: u64,
+    last_version: Option<u64>,
+    last_digest: Option<[u8; 32]>,
+}
+
+struct LostCommitResultBackend {
+    inner: Arc<dyn StoreBackend>,
+    state: Mutex<LostCommitResultState>,
+}
+
+impl LostCommitResultBackend {
+    fn new(inner: Arc<dyn StoreBackend>) -> Self {
+        Self {
+            inner,
+            state: Mutex::new(LostCommitResultState::default()),
+        }
+    }
+
+    fn arm_once(&self) {
+        self.state.lock().unwrap().armed = true;
+    }
+
+    fn observed_commit(&self) -> (u64, u64, [u8; 32]) {
+        let state = self.state.lock().unwrap();
+        (
+            state.commits,
+            state
+                .last_version
+                .expect("backend wrapper observed no successful native commit"),
+            state
+                .last_digest
+                .expect("backend wrapper observed no committed snapshot digest"),
+        )
+    }
+
+    async fn require_empty_snapshot(&self) {
+        assert!(
+            self.inner.load().await.unwrap().is_none(),
+            "lost-result opt-in backend must start with no existing snapshot"
+        );
+    }
+}
+
+impl StoreBackend for LostCommitResultBackend {
+    fn load(&self) -> afs::meta::store::MetaFuture<'_, Option<(u64, Vec<u8>)>> {
+        self.inner.load()
+    }
+
+    fn commit(
+        &self,
+        expected_version: u64,
+        bytes: Vec<u8>,
+    ) -> afs::meta::store::MetaFuture<'_, u64> {
+        Box::pin(async move {
+            let digest = *blake3::hash(&bytes).as_bytes();
+            let version = self.inner.commit(expected_version, bytes).await?;
+            let mut state = self.state.lock().unwrap();
+            state.commits += 1;
+            state.last_version = Some(version);
+            state.last_digest = Some(digest);
+            if state.armed {
+                state.armed = false;
+                Err(afs_error::Error::coded(
+                    afs_error::IO_UNAVAILABLE,
+                    "injected lost backend result after durable Meta commit",
+                ))
+            } else {
+                Ok(version)
+            }
+        })
+    }
+}
+
+async fn lost_result_commit_request(
+    meta: &rpc::MetaRpc,
+    dfs: &rpc::DfsMetaRpc,
+) -> CommitFileVersionRequest {
+    register_dfs_storage_node_with_catalog(
+        meta,
+        "node-a",
+        "session-a",
+        "register-lost-result-storage",
+        "rack-a",
+        7,
+    )
+    .await;
+    let dfs_service = DfsService::with_replication_config(
+        meta.0.store.as_ref().unwrap().clone(),
+        ReplicationConfig::local_single_copy(),
+    );
+    dfs_service.initialize_replication_config().await.unwrap();
+    let placement = dfs_service
+        .placement_snapshot("node-a".into())
+        .await
+        .unwrap();
+    let group = placement.replica_groups[0].clone();
+    let target = group.targets[0].clone();
+    let created = dfs
+        .create(Request::new(DfsCreateRequest {
+            caller_id: "node-a".into(),
+            operation_id: "create-lost-result".into(),
+            namespace_id: "default".into(),
+            parent_inode_id: "1".into(),
+            name: b"lost-result.bin".to_vec(),
+            attributes: Some(test_attrs(0o644, 1)),
+            owner_session_id: "session-a".into(),
+            lease_seconds: 30,
+        }))
+        .await
+        .unwrap()
+        .into_inner();
+    let inode = created.inode.unwrap();
+    let lease = created.write_lease.unwrap();
+    CommitFileVersionRequest {
+        caller_id: "node-a".into(),
+        operation_id: "commit-lost-result".into(),
+        inode_id: inode.inode_id.clone(),
+        expected_inode_revision: inode.revision,
+        expected_head_version_id: String::new(),
+        version: Some(DfsFileVersion {
+            version_id: "version-lost-result".into(),
+            inode_id: inode.inode_id.clone(),
+            parent_version_id: String::new(),
+            length: 4096,
+            layout_root_id: "layout-lost-result".into(),
+            created_at_unix_ms: 10,
+        }),
+        layout: Some(DfsLayoutRoot {
+            layout_root_id: "layout-lost-result".into(),
+            file_length: 4096,
+            inline_extents: vec![DfsExtent {
+                file_offset: 0,
+                length: 4096,
+                chunk_id: "chunk-lost-result".into(),
+                chunk_offset: 0,
+            }],
+        }),
+        chunk_receipts: vec![DfsChunkReceipt {
+            operation_id: "commit-lost-result".into(),
+            chunk_id: "chunk-lost-result".into(),
+            chunk_length: 4096,
+            content_digest: vec![11; 32],
+            content_digest_algorithm: afs_protocol::meta::DfsDigestAlgorithm::Blake3.into(),
+            placement_revision: placement.revision,
+            placement_epoch: group.placement_epoch,
+            replica_group_id: group.id.0.clone(),
+            durable_acks: vec![DfsReplicaAck {
+                operation_id: "commit-lost-result".into(),
+                chunk_id: "chunk-lost-result".into(),
+                placement_revision: placement.revision,
+                placement_epoch: group.placement_epoch,
+                node_id: target.node_id,
+                node_epoch: target.node_epoch,
+                device_id: target.device.device_id,
+                device_epoch: target.device.device_epoch,
+                catalog_revision: 7,
+                persisted_bytes: 4096,
+                verified_digest: vec![11; 32],
+                verified_digest_algorithm: afs_protocol::meta::DfsDigestAlgorithm::Blake3.into(),
+            }],
+        }],
+        write_lease: Some(lease),
+        metadata_delta: Some(DfsCommitMetadataDelta {
+            kill_suidgid: false,
+            mode: DfsCommitMetadataMode::DataOnly.into(),
+            mtime_unix_ms: 0,
+            ctime_unix_ms: 0,
+        }),
+    }
+}
+
+async fn assert_lost_result_commit_contract(backend: Arc<LostCommitResultBackend>) {
+    backend.require_empty_snapshot().await;
+    let store = Arc::new(Store::open(backend.clone()).await.unwrap());
+    let meta = rpc::MetaRpc(Arc::new(Meta::with_store(
+        "meta-lost-result".into(),
+        Observability::new().unwrap(),
+        store.clone(),
+    )));
+    let dfs = rpc::DfsMetaRpc(meta.0.clone());
+    let commit = lost_result_commit_request(&meta, &dfs).await;
+
+    backend.arm_once();
+    let lost = dfs
+        .commit_file_version(Request::new(commit.clone()))
+        .await
+        .unwrap_err();
+    assert_eq!(lost.code(), Code::Unavailable);
+    assert!(store.health().await.is_err());
+    assert!(
+        store
+            .read(MetaRead::DfsInode(afs::dfs::InodeId::new(
+                commit.inode_id.clone()
+            )))
+            .await
+            .is_err(),
+        "poisoned Store must fail closed for reads after an unknown durable result"
+    );
+    assert_eq!(
+        dfs.commit_file_version(Request::new(commit.clone()))
+            .await
+            .unwrap_err()
+            .code(),
+        Code::Unavailable
+    );
+
+    let (commits_after_lost_result, native_version, native_digest) = backend.observed_commit();
+    let (loaded_version, loaded_bytes) = backend.inner.load().await.unwrap().unwrap();
+    assert_eq!(loaded_version, native_version);
+    assert_eq!(*blake3::hash(&loaded_bytes).as_bytes(), native_digest);
+
+    let reopened_store = Arc::new(Store::open(backend.clone()).await.unwrap());
+    let reopened = rpc::DfsMetaRpc(Arc::new(Meta::with_store(
+        "meta-lost-result-restarted".into(),
+        Observability::new().unwrap(),
+        reopened_store.clone(),
+    )));
+    let recovered_inode = reopened_store
+        .read(MetaRead::DfsInode(afs::dfs::InodeId::new(
+            commit.inode_id.clone(),
+        )))
+        .await
+        .unwrap();
+    let recovered_version = reopened_store
+        .read(MetaRead::DfsFileVersion(afs::dfs::FileVersionId::new(
+            "version-lost-result",
+        )))
+        .await
+        .unwrap();
+    let Some(MetaEntity::DfsFileVersion(version)) = recovered_version.entity else {
+        panic!("native snapshot must recover the committed FileVersion before replay");
+    };
+    assert_eq!(version.inode_id.0, commit.inode_id);
+    assert_eq!(version.length, 4096);
+    assert_eq!(version.layout_root.0, "layout-lost-result");
+    let recovered_layout = reopened_store
+        .read(MetaRead::DfsLayoutRoot(afs::dfs::LayoutRootId::new(
+            "layout-lost-result",
+        )))
+        .await
+        .unwrap();
+    let Some(MetaEntity::DfsLayoutRoot(layout)) = recovered_layout.entity else {
+        panic!("native snapshot must recover the committed LayoutRoot before replay");
+    };
+    assert_eq!(layout.file_length, 4096);
+    assert_eq!(layout.inline_extents.len(), 1);
+    assert_eq!(layout.inline_extents[0].chunk_id.0, "chunk-lost-result");
+    assert_eq!(layout.inline_extents[0].length, 4096);
+    let replay = reopened
+        .commit_file_version(Request::new(commit.clone()))
+        .await
+        .unwrap()
+        .into_inner()
+        .inode
+        .unwrap();
+    assert_eq!(replay.head_version_id, "version-lost-result");
+    let (commits_after_replay, replay_version, replay_digest) = backend.observed_commit();
+    assert_eq!(
+        commits_after_replay, commits_after_lost_result,
+        "exact OperationId replay must use the persisted request outcome"
+    );
+    assert_eq!(replay_version, native_version);
+    assert_eq!(replay_digest, native_digest);
+    assert_eq!(
+        reopened_store
+            .read(MetaRead::DfsInode(afs::dfs::InodeId::new(
+                commit.inode_id.clone(),
+            )))
+            .await
+            .unwrap(),
+        recovered_inode,
+        "exact replay must not change the recovered inode or Store revision"
+    );
+    let outcome = reopened_store
+        .read(MetaRead::RequestOutcome(RequestKey::new(
+            "node-a",
+            "commit-lost-result",
+        )))
+        .await
+        .unwrap()
+        .request_outcome
+        .unwrap();
+    assert_eq!(outcome.operation, StoreOperation::DfsCommitFileVersion);
+    let OperationResult::DfsNamespace { result, .. } = outcome.result else {
+        panic!("commit outcome must be bound to the original namespace request");
+    };
+    let OperationResult::DfsInode(record) = *result else {
+        panic!("commit outcome must replay the committed inode");
+    };
+    assert_eq!(record.inode_id.0, replay.inode_id);
+    assert_eq!(record.revision, replay.revision);
+    assert_eq!(
+        record
+            .head_version
+            .as_ref()
+            .map(|version| version.0.as_str()),
+        Some(replay.head_version_id.as_str())
+    );
+
+    let mut changed = commit.clone();
+    changed.version.as_mut().unwrap().length = 4097;
+    changed.layout.as_mut().unwrap().file_length = 4097;
+    assert_eq!(
+        reopened
+            .commit_file_version(Request::new(changed))
+            .await
+            .unwrap_err()
+            .code(),
+        Code::InvalidArgument
+    );
+    let (_, after_bad_bytes) = backend.inner.load().await.unwrap().unwrap();
+    assert_eq!(*blake3::hash(&after_bad_bytes).as_bytes(), native_digest);
+
+    let mut next = commit;
+    next.operation_id = "commit-lost-result-next".into();
+    next.expected_inode_revision = replay.revision;
+    next.expected_head_version_id = replay.head_version_id.clone();
+    next.version.as_mut().unwrap().version_id = "version-lost-result-next".into();
+    next.version.as_mut().unwrap().parent_version_id = replay.head_version_id.clone();
+    next.version.as_mut().unwrap().layout_root_id = "layout-lost-result-next".into();
+    next.layout.as_mut().unwrap().layout_root_id = "layout-lost-result-next".into();
+    next.chunk_receipts.clear();
+    let next_inode = reopened
+        .commit_file_version(Request::new(next))
+        .await
+        .unwrap()
+        .into_inner()
+        .inode
+        .unwrap();
+    assert_eq!(next_inode.head_version_id, "version-lost-result-next");
+    assert_eq!(backend.observed_commit().0, commits_after_lost_result + 1);
+    println!(
+        "LOST_RESULT_RECEIPT {}",
+        serde_json::json!({
+            "operation_id": "commit-lost-result",
+            "version_id": "version-lost-result",
+            "layout_root_id": "layout-lost-result",
+            "receipt_count": 1,
+            "native_version_after_lost_result": native_version,
+            "native_snapshot_bytes": loaded_bytes.len(),
+            "native_snapshot_blake3": blake3::Hash::from_bytes(native_digest).to_hex().to_string(),
+            "successful_native_commits_before_replay": commits_after_lost_result,
+            "successful_native_commits_after_replay": commits_after_replay,
+            "successful_native_commits_after_next_operation": backend.observed_commit().0,
+            "old_store_failed_closed": true,
+            "same_identity_changed_payload_rejected": true,
+            "scope": "StoreBackend result suppression after real commit; no wire loss or physical chunk proof"
+        })
+    );
+}
+
+#[tokio::test]
+async fn dfs_commit_recovers_lost_store_result_with_exact_operation_replay() {
+    let backend = Arc::new(LostCommitResultBackend::new(Arc::new(
+        MemoryBackend::default(),
+    )));
+    assert_lost_result_commit_contract(backend).await;
+}
+
+#[tokio::test]
+#[ignore = "requires a fresh dedicated etcd endpoint in AFS_TEST_ETCD_LOST_RESULT_ENDPOINT"]
+async fn dfs_commit_recovers_lost_store_result_with_etcd_snapshot_backend() {
+    let endpoint = std::env::var("AFS_TEST_ETCD_LOST_RESULT_ENDPOINT")
+        .expect("AFS_TEST_ETCD_LOST_RESULT_ENDPOINT is required");
+    let inner = Arc::new(
+        afs::meta::store::etcd::EtcdBackend::connect(endpoint)
+            .await
+            .unwrap(),
+    );
+    assert_lost_result_commit_contract(Arc::new(LostCommitResultBackend::new(inner))).await;
+}
+
+#[tokio::test]
+#[ignore = "requires a fresh dedicated Redis endpoint in AFS_TEST_REDIS_LOST_RESULT_ENDPOINT"]
+async fn dfs_commit_recovers_lost_store_result_with_redis_snapshot_backend() {
+    let endpoint = std::env::var("AFS_TEST_REDIS_LOST_RESULT_ENDPOINT")
+        .expect("AFS_TEST_REDIS_LOST_RESULT_ENDPOINT is required");
+    let inner = Arc::new(
+        afs::meta::store::redis::RedisBackend::connect(endpoint)
+            .await
+            .unwrap(),
+    );
+    assert_lost_result_commit_contract(Arc::new(LostCommitResultBackend::new(inner))).await;
 }
 
 #[tokio::test]

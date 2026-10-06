@@ -97,6 +97,16 @@ pub trait Backend: Send + Sync {
         Err(unsupported("getattr"))
     }
 
+    /// Filesystem-wide capacity for a scoped backend inode. The default
+    /// fails closed so backends never inherit fuser's zero-success statfs.
+    fn statfs(
+        &self,
+        _ctx: &types::RequestContext,
+        _inode: types::BackendInode,
+    ) -> Result<types::FilesystemCapacity> {
+        Err(unsupported("statfs"))
+    }
+
     /// chmod/chown/truncate/时间更新共用一个可选字段结构；已打开 FD 的
     /// 属性更新优先按 handle 执行，不能依靠可能已变化的路径。
     fn setattr(

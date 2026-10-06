@@ -20,6 +20,9 @@ use std::{
 
 use afs_error::{Error, Result};
 
+mod pending_trace;
+use pending_trace::PendingTrace;
+
 use super::{
     Backend,
     locks::{LockError, LockRequest, LockTable, LockWaiterId, LockWaiterOutcome},
@@ -85,6 +88,12 @@ pub trait DfsMeta: Send + Sync {
     fn get_inode(&self, inode_id: &InodeId) -> Result<InodeRecord>;
     fn get_file_version(&self, version_id: &FileVersionId) -> Result<(FileVersion, LayoutRoot)>;
     fn open_write(&self, inode_id: &InodeId) -> Result<(InodeRecord, WriteLease)>;
+    fn resolve_lock_authority(&self, inode_id: &InodeId) -> Result<(InodeRecord, WriteLease)> {
+        self.open_write(inode_id)
+    }
+    fn resolve_write_authority(&self, inode_id: &InodeId) -> Result<(InodeRecord, WriteLease)> {
+        self.open_write(inode_id)
+    }
     fn renew_write_lease(&self, lease: WriteLease) -> Result<WriteLease>;
     fn renew_write_lease_with_timeout(
         &self,
@@ -184,6 +193,7 @@ pub struct DistributedFs {
     namespace_id: NamespaceId,
     node_id: String,
     session_id: String,
+    pending_trace: Option<PendingTrace>,
     meta: Arc<dyn DfsMeta>,
     chunk_store: Arc<dyn ChunkStore>,
     read_engine: Arc<DfsReadEngine>,
@@ -905,6 +915,9 @@ enum InFlightCommit {
 struct PendingFileCommit {
     frozen: FrozenCommit,
     batch: CommitBatch,
+    // Diagnostic only, shared by clones of this exact prepared request. Never
+    // serialized into the domain request or consulted by filesystem policy.
+    trace_send_attempt: Option<Arc<AtomicU64>>,
 }
 
 struct CommitPlan {
@@ -992,10 +1005,17 @@ impl DistributedFs {
         chunk_store: Arc<dyn ChunkStore>,
         read_engine: Arc<DfsReadEngine>,
     ) -> Self {
+        let node_id = node_id.into();
+        let session_id = session_id.into();
+        #[cfg(not(test))]
+        let pending_trace = PendingTrace::from_env(&namespace_id.0, &node_id, &session_id);
+        #[cfg(test)]
+        let pending_trace = None;
         Self {
             namespace_id,
-            node_id: node_id.into(),
-            session_id: session_id.into(),
+            node_id,
+            session_id,
+            pending_trace,
             meta,
             chunk_store,
             read_engine,
@@ -1852,6 +1872,7 @@ impl DistributedFs {
                 }
             };
 
+            let pending_reuse = matches!(&action, CommitAction::Send(_));
             let pending = match action {
                 CommitAction::Send(pending) => pending,
                 CommitAction::Prepare(frozen) => match self.prepare_commit(&frozen, reason) {
@@ -1859,6 +1880,10 @@ impl DistributedFs {
                         let pending = InFlightCommit::File(Box::new(PendingFileCommit {
                             frozen: *frozen,
                             batch,
+                            trace_send_attempt: self
+                                .pending_trace
+                                .as_ref()
+                                .map(|_| Arc::new(AtomicU64::new(0))),
                         }));
                         let mut state = cell
                             .lock()
@@ -1900,7 +1925,12 @@ impl DistributedFs {
                 cell.notify_all();
                 return Ok(None);
             }
-            let committed = self.finish_commit(cell.clone(), pending, timeout)?;
+            let branch = if pending_reuse {
+                "pending_reuse"
+            } else {
+                "new_prepare"
+            };
+            let committed = self.finish_commit(cell.clone(), pending, timeout, branch)?;
             if matches!(reason, CommitReason::FullSync) && self.needs_full_metadata_sync(&cell)? {
                 continue;
             }
@@ -1913,6 +1943,7 @@ impl DistributedFs {
         cell: SharedInodeWriteState,
         pending: InFlightCommit,
         timeout: Option<Duration>,
+        branch: &str,
     ) -> Result<Option<u64>> {
         let committed_kill_suidgid = matches!(&pending, InFlightCommit::File(pending) if pending.frozen.kill_suidgid_dirty)
             || matches!(&pending, InFlightCommit::Metadata(sync) if sync.metadata_delta.kill_suidgid);
@@ -1923,6 +1954,11 @@ impl DistributedFs {
                     pending.batch.commit.metadata_delta.mode == CommitMetadataMode::Full;
                 let version = pending.batch.commit.file_version.clone();
                 let layout = pending.batch.commit.layout_root.clone();
+                if let Some(trace) = &self.pending_trace
+                    && let Ok(state) = cell.lock()
+                {
+                    trace.observe("dfs_pending_commit_send", branch, &state, pending, None);
+                }
                 let updated = self.validate_inode(if let Some(timeout) = timeout {
                     self.meta
                         .commit_file_version_with_timeout(pending.batch.commit.clone(), timeout)?
@@ -1983,6 +2019,17 @@ impl DistributedFs {
                 if committed_kill_suidgid {
                     state.kill_suidgid_dirty = false;
                 }
+                if let Some(trace) = &self.pending_trace
+                    && let InFlightCommit::File(sent) = &pending
+                {
+                    trace.observe(
+                        "dfs_pending_commit_success_cleared",
+                        branch,
+                        &state,
+                        sent,
+                        None,
+                    );
+                }
                 Ok(Some(through_seq))
             }
             Ok(AppliedCommit::Metadata { updated }) => {
@@ -1996,12 +2043,33 @@ impl DistributedFs {
                 if is_definite_commit_rejection(&error) {
                     state.in_flight = None;
                     state.terminal_error = Some(error.clone());
+                    if let Some(trace) = &self.pending_trace
+                        && let InFlightCommit::File(sent) = &pending
+                    {
+                        trace.observe(
+                            "dfs_pending_commit_definite_rejection_cleared",
+                            branch,
+                            &state,
+                            sent,
+                            Some(&error),
+                        );
+                    }
                     if let InFlightCommit::File(pending) = pending {
                         state
                             .dirty_extents
                             .restore_before(pending.frozen.dirty_extents);
                         state.dirty = !state.dirty_extents.is_empty();
                     }
+                } else if let Some(trace) = &self.pending_trace
+                    && let InFlightCommit::File(sent) = &pending
+                {
+                    trace.observe(
+                        "dfs_pending_commit_unknown_retained",
+                        branch,
+                        &state,
+                        sent,
+                        Some(&error),
+                    );
                 }
                 Err(error)
             }
@@ -2077,7 +2145,9 @@ impl DistributedFs {
             operation_id.clone(),
             LayoutRootId::new(format!("{}-layout-{generation}", self.session_id)),
         )?;
-        let receipts = self.chunk_store.put_batch(plan.staged_chunks)?;
+        let receipts = self
+            .chunk_store
+            .put_batch(unique_staged_chunks(plan.staged_chunks)?)?;
         let now = now_unix_ms();
         let version = FileVersion {
             id: FileVersionId::new(format!("{}-version-{generation}", self.session_id)),
@@ -2478,10 +2548,19 @@ impl DistributedFs {
     }
 
     fn lock_authority_for(&self, inode_id: &InodeId) -> Result<DfsLockTarget> {
-        let (inode, lease) = self.meta.open_write(inode_id)?;
+        let (inode, lease) = self.meta.resolve_lock_authority(inode_id)?;
         let inode = self.validate_inode(inode)?;
         if inode.inode_id != *inode_id {
             return Err(stale("DFS lock authority returned another inode"));
+        }
+        if lease.inode_id != *inode_id
+            || lease.lease_epoch == 0
+            || lease.owner_node_id.is_empty()
+            || lease.owner_session_id.is_empty()
+        {
+            return Err(stale(
+                "DFS lock authority returned an invalid lease identity",
+            ));
         }
         if lease.owner_node_id == self.node_id && lease.owner_session_id == self.session_id {
             self.ensure_local_write_owner(&lease)?;
@@ -3931,6 +4010,27 @@ impl CommitPlanner {
             staged_chunks,
         })
     }
+}
+
+fn unique_staged_chunks(staged_chunks: Vec<StagedChunk>) -> Result<Vec<StagedChunk>> {
+    let mut unique = Vec::with_capacity(staged_chunks.len());
+    let mut chunks = HashMap::with_capacity(staged_chunks.len());
+    for staged in staged_chunks {
+        match chunks.get(&staged.chunk.id) {
+            Some(existing) => {
+                if existing != &staged.chunk {
+                    return Err(invalid(
+                        "content-addressed staged chunk id has inconsistent chunk metadata",
+                    ));
+                }
+            }
+            None => {
+                chunks.insert(staged.chunk.id.clone(), staged.chunk.clone());
+                unique.push(staged);
+            }
+        }
+    }
+    Ok(unique)
 }
 
 fn normalized_overlay(map: &DirtyExtentMap, file_length: u64) -> Result<Vec<OverlaySegment>> {
@@ -5865,7 +5965,7 @@ impl Backend for DistributedFs {
         }
         let writable = flags & libc::O_ACCMODE != libc::O_RDONLY;
         let (opened_inode, write_session) = if writable {
-            let (inode, write_lease) = self.meta.open_write(&inode_id)?;
+            let (inode, write_lease) = self.meta.resolve_write_authority(&inode_id)?;
             let inode = self.validate_inode(inode)?;
             let session = if write_lease.owner_node_id == self.node_id
                 && write_lease.owner_session_id == self.session_id
@@ -6520,7 +6620,7 @@ impl crate::node::rpc::control::DfsOwnerLifecycleHandler for DistributedFs {
                 fingerprint,
             } => (route, open_seq, fingerprint),
         };
-        let (inode, lease) = match self.meta.open_write(&inode_id) {
+        let (inode, lease) = match self.meta.resolve_write_authority(&inode_id) {
             Ok(opened) => opened,
             Err(error) => {
                 self.finish_failed_owner_open_admission(&route, open_seq)?;
@@ -6544,6 +6644,10 @@ impl crate::node::rpc::control::DfsOwnerLifecycleHandler for DistributedFs {
         let apply = (|| {
             self.install_write_state(inode.clone(), lease.clone())?;
             let session = self.open_write_session(&inode, request.open_flags)?;
+            if session.lease_epoch != request.lease_epoch {
+                self.release_writer(&session)?;
+                return Err(stale("DFS owner lease changed during open admission"));
+            }
             if request.kill_suidgid {
                 let state = self
                     .write_state(&inode.inode_id)?
@@ -7971,6 +8075,53 @@ mod tests {
         }
     }
 
+    #[cfg(feature = "dfs")]
+    struct CountingStoreBackend {
+        inner: Arc<dyn crate::meta::store::StoreBackend>,
+        commits: AtomicU64,
+    }
+
+    #[cfg(feature = "dfs")]
+    impl CountingStoreBackend {
+        fn new(inner: Arc<dyn crate::meta::store::StoreBackend>) -> Self {
+            Self {
+                inner,
+                commits: AtomicU64::new(0),
+            }
+        }
+
+        fn commit_count(&self) -> u64 {
+            self.commits.load(Ordering::SeqCst)
+        }
+    }
+
+    #[cfg(feature = "dfs")]
+    impl crate::meta::store::StoreBackend for CountingStoreBackend {
+        fn health(&self) -> crate::meta::store::MetaFuture<'_, ()> {
+            self.inner.health()
+        }
+
+        fn persistence(&self) -> crate::meta::store::BackendPersistence {
+            self.inner.persistence()
+        }
+
+        fn load(&self) -> crate::meta::store::MetaFuture<'_, Option<(u64, Vec<u8>)>> {
+            self.inner.load()
+        }
+
+        fn commit(
+            &self,
+            expected_version: u64,
+            bytes: Vec<u8>,
+        ) -> crate::meta::store::MetaFuture<'_, u64> {
+            Box::pin(async move {
+                let version = self.inner.commit(expected_version, bytes).await?;
+                self.commits.fetch_add(1, Ordering::SeqCst);
+                Ok(version)
+            })
+        }
+    }
+
     struct RecordingMeta {
         inode: Mutex<InodeRecord>,
         lease: Mutex<WriteLease>,
@@ -7987,6 +8138,7 @@ mod tests {
         next_renew_error: Mutex<Option<Error>>,
         next_open_write_error: Mutex<Option<Error>>,
         next_open_write_bad_namespace: Mutex<bool>,
+        open_write_results: Mutex<std::collections::VecDeque<Result<(InodeRecord, WriteLease)>>>,
         renew_results: Mutex<std::collections::VecDeque<Result<WriteLease>>>,
         renew_timeouts: Mutex<Vec<Duration>>,
         metadata_timeouts: Mutex<Vec<Duration>>,
@@ -7995,6 +8147,9 @@ mod tests {
         next_current_session_error: Mutex<Option<Error>>,
         current_session_calls: AtomicUsize,
         renew_calls: AtomicUsize,
+        open_write_calls: AtomicUsize,
+        resolve_lock_calls: AtomicUsize,
+        resolve_write_calls: AtomicUsize,
     }
 
     impl RecordingMeta {
@@ -8038,6 +8193,7 @@ mod tests {
                 next_renew_error: Mutex::new(None),
                 next_open_write_error: Mutex::new(None),
                 next_open_write_bad_namespace: Mutex::new(false),
+                open_write_results: Mutex::new(std::collections::VecDeque::new()),
                 renew_results: Mutex::new(std::collections::VecDeque::new()),
                 renew_timeouts: Mutex::new(Vec::new()),
                 metadata_timeouts: Mutex::new(Vec::new()),
@@ -8046,6 +8202,9 @@ mod tests {
                 next_current_session_error: Mutex::new(None),
                 current_session_calls: AtomicUsize::new(0),
                 renew_calls: AtomicUsize::new(0),
+                open_write_calls: AtomicUsize::new(0),
+                resolve_lock_calls: AtomicUsize::new(0),
+                resolve_write_calls: AtomicUsize::new(0),
             }
         }
 
@@ -8106,10 +8265,26 @@ mod tests {
             self.renew_results.lock().unwrap().push_back(result);
         }
 
+        fn queue_open_write_result(&self, result: Result<(InodeRecord, WriteLease)>) {
+            self.open_write_results.lock().unwrap().push_back(result);
+        }
+
         fn lease_with_expiry(&self, expires_at_unix_ms: u64) -> WriteLease {
             let mut lease = self.lease.lock().unwrap().clone();
             lease.expires_at_unix_ms = expires_at_unix_ms;
             lease
+        }
+
+        fn observed_write_authority(&self) -> Result<(InodeRecord, WriteLease)> {
+            if let Some(error) = self.next_open_write_error.lock().unwrap().take() {
+                return Err(error);
+            }
+            let mut inode = self.inode.lock().unwrap().clone();
+            if *self.next_open_write_bad_namespace.lock().unwrap() {
+                *self.next_open_write_bad_namespace.lock().unwrap() = false;
+                inode.namespace_id = NamespaceId::new("wrong");
+            }
+            Ok((inode, self.lease.lock().unwrap().clone()))
         }
 
         fn renew_call_count(&self) -> usize {
@@ -8223,15 +8398,21 @@ mod tests {
         }
 
         fn open_write(&self, _: &InodeId) -> Result<(InodeRecord, WriteLease)> {
-            if let Some(error) = self.next_open_write_error.lock().unwrap().take() {
-                return Err(error);
+            self.open_write_calls.fetch_add(1, Ordering::SeqCst);
+            if let Some(result) = self.open_write_results.lock().unwrap().pop_front() {
+                return result;
             }
-            let mut inode = self.inode.lock().unwrap().clone();
-            if *self.next_open_write_bad_namespace.lock().unwrap() {
-                *self.next_open_write_bad_namespace.lock().unwrap() = false;
-                inode.namespace_id = NamespaceId::new("wrong");
-            }
-            Ok((inode, self.lease.lock().unwrap().clone()))
+            self.observed_write_authority()
+        }
+
+        fn resolve_lock_authority(&self, _: &InodeId) -> Result<(InodeRecord, WriteLease)> {
+            self.resolve_lock_calls.fetch_add(1, Ordering::SeqCst);
+            self.observed_write_authority()
+        }
+
+        fn resolve_write_authority(&self, _: &InodeId) -> Result<(InodeRecord, WriteLease)> {
+            self.resolve_write_calls.fetch_add(1, Ordering::SeqCst);
+            self.observed_write_authority()
         }
 
         fn renew_write_lease(&self, lease: WriteLease) -> Result<WriteLease> {
@@ -8788,6 +8969,14 @@ mod tests {
             DfsMeta::open_write(self.inner.as_ref(), inode_id)
         }
 
+        fn resolve_lock_authority(&self, inode_id: &InodeId) -> Result<(InodeRecord, WriteLease)> {
+            DfsMeta::resolve_lock_authority(self.inner.as_ref(), inode_id)
+        }
+
+        fn resolve_write_authority(&self, inode_id: &InodeId) -> Result<(InodeRecord, WriteLease)> {
+            DfsMeta::resolve_write_authority(self.inner.as_ref(), inode_id)
+        }
+
         fn renew_write_lease(&self, lease: WriteLease) -> Result<WriteLease> {
             DfsMeta::renew_write_lease(self.inner.as_ref(), lease)
         }
@@ -9033,6 +9222,7 @@ mod tests {
         tokio::task::JoinHandle<()>,
         Arc<dyn crate::meta::store::MetaStore>,
         Arc<LocalChunkStore>,
+        Arc<CountingStoreBackend>,
     ) {
         use crate::meta::{
             Meta,
@@ -9045,11 +9235,11 @@ mod tests {
         let temp = tempfile::tempdir().unwrap();
         let local_a =
             Arc::new(LocalChunkStore::open(temp.path().join("node-a"), "node-a").unwrap());
-        let store: Arc<dyn crate::meta::store::MetaStore> = Arc::new(
-            Store::open(Arc::new(MemoryBackend::default()))
-                .await
-                .unwrap(),
-        );
+        let backend = Arc::new(CountingStoreBackend::new(
+            Arc::new(MemoryBackend::default()),
+        ));
+        let store: Arc<dyn crate::meta::store::MetaStore> =
+            Arc::new(Store::open(backend.clone()).await.unwrap());
         store
             .register_node_session(
                 RequestKey::new("node-a", "register-node-a"),
@@ -9099,7 +9289,7 @@ mod tests {
                 .await
                 .unwrap();
         });
-        (temp, meta_endpoint, gate, server, store, local_a)
+        (temp, meta_endpoint, gate, server, store, local_a, backend)
     }
 
     #[cfg(feature = "dfs")]
@@ -9169,12 +9359,272 @@ mod tests {
 
     #[cfg(feature = "dfs")]
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn real_grpc_lock_resolver_preserves_locks_without_meta_commits() {
+        use crate::meta::store::{MetaEntity, MetaRead};
+        let (_temp, endpoint, _gate, server, store, local, _backend) =
+            real_grpc_meta_fixture().await;
+        let (_meta, _chunks, fs) = grpc_dfs_test_fs(
+            "node-a",
+            "session-a",
+            &endpoint,
+            local,
+            Duration::from_secs(2),
+        )
+        .await;
+        let fs = Arc::new(fs);
+        let creating = fs.clone();
+        let created = run_blocking(move || {
+            creating.create(
+                &context(),
+                creating.root_inode(),
+                OsStr::new("grpc-lock-resolver.bin"),
+                0o640,
+                libc::O_RDWR,
+            )
+        })
+        .await
+        .unwrap();
+        let inode_id = fs.inode_id(created.entry.inode).unwrap();
+        let before = store
+            .read(MetaRead::DfsWriteLease(inode_id.clone()))
+            .await
+            .unwrap();
+        let locking = fs.clone();
+        run_blocking(move || {
+            locking.setlk(
+                &context(),
+                created.entry.inode,
+                created.handle,
+                LockRequest::write(
+                    FileLockKind::Posix,
+                    lock_owner("mount-a", 71),
+                    71,
+                    lock_range(0, 99),
+                ),
+                None,
+            )?;
+            for _ in 0..32 {
+                let conflict = locking.getlk(
+                    &context(),
+                    created.entry.inode,
+                    created.handle,
+                    LockRequest::write(
+                        FileLockKind::Posix,
+                        lock_owner("mount-b", 72),
+                        72,
+                        lock_range(0, 99),
+                    ),
+                )?;
+                assert!(conflict.is_some());
+            }
+            locking.release_locks(
+                &context(),
+                created.entry.inode,
+                created.handle,
+                lock_owner("mount-a", 71),
+                ReleaseKind::PosixOwner,
+            )?;
+            assert!(
+                locking
+                    .getlk(
+                        &context(),
+                        created.entry.inode,
+                        created.handle,
+                        LockRequest::write(
+                            FileLockKind::Posix,
+                            lock_owner("mount-b", 72),
+                            72,
+                            lock_range(0, 99)
+                        )
+                    )?
+                    .is_none()
+            );
+            Ok::<(), Error>(())
+        })
+        .await
+        .unwrap();
+        let after = store.read(MetaRead::DfsWriteLease(inode_id)).await.unwrap();
+        assert_eq!(
+            after.revision, before.revision,
+            "actual Node/Meta RPC lock path must not commit"
+        );
+        assert_eq!(after.entity, before.entity);
+        assert!(matches!(after.entity, Some(MetaEntity::DfsWriteLease(_))));
+        server.abort();
+    }
+
+    #[cfg(feature = "dfs")]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn real_grpc_writable_reopen_resolves_write_authority_without_meta_mutation() {
+        use crate::meta::store::{MetaEntity, MetaRead, RequestKey};
+        let (_temp, endpoint, _gate, server, store, local, backend) =
+            real_grpc_meta_fixture().await;
+        let (_meta, _chunks, fs_raw) = grpc_dfs_test_fs(
+            "node-a",
+            "session-a",
+            &endpoint,
+            local,
+            Duration::from_secs(2),
+        )
+        .await;
+        let fs = Arc::new(fs_raw);
+        let created = {
+            let fs = fs.clone();
+            run_blocking(move || {
+                fs.create(
+                    &context(),
+                    fs.root_inode(),
+                    OsStr::new("grpc-write-authority-reopen.bin"),
+                    0o640,
+                    libc::O_RDWR,
+                )
+            })
+            .await
+            .unwrap()
+        };
+        let inode = created.entry.inode;
+        let inode_id = fs.inode_id(inode).unwrap();
+        {
+            let fs = fs.clone();
+            run_blocking(move || fs.release(&context(), created.handle))
+                .await
+                .unwrap();
+        }
+        let before = store
+            .read(MetaRead::DfsWriteLease(inode_id.clone()))
+            .await
+            .unwrap();
+        let before_commits = backend.commit_count();
+        for _ in 0..4 {
+            let opening = fs.clone();
+            let handle = run_blocking(move || opening.open(&context(), inode, libc::O_RDWR))
+                .await
+                .unwrap();
+            let releasing = fs.clone();
+            run_blocking(move || releasing.release(&context(), handle))
+                .await
+                .unwrap();
+        }
+        let after = store.read(MetaRead::DfsWriteLease(inode_id)).await.unwrap();
+        assert_eq!(after.revision, before.revision);
+        assert_eq!(after.entity, before.entity);
+        assert!(matches!(after.entity, Some(MetaEntity::DfsWriteLease(_))));
+        assert_eq!(
+            backend.commit_count(),
+            before_commits,
+            "production GrpcDfsMeta writable reopen must be a fresh read, not CAS/outcome mutation"
+        );
+        for request_id in [
+            "session-a-dfs-2",
+            "session-a-dfs-3",
+            "session-a-dfs-4",
+            "session-a-dfs-5",
+        ] {
+            assert!(
+                store
+                    .read(MetaRead::RequestOutcome(RequestKey::new(
+                        "node-a", request_id
+                    )))
+                    .await
+                    .unwrap()
+                    .request_outcome
+                    .is_none(),
+                "live write authority request {request_id} must not persist an outcome"
+            );
+        }
+        server.abort();
+    }
+
+    #[cfg(feature = "dfs")]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn real_grpc_write_authority_foreign_owner_does_not_take_over_or_mutate() {
+        use crate::meta::store::{MetaEntity, MetaRead, RequestKey};
+        let (_temp, endpoint, _gate, server, store, local, backend) =
+            real_grpc_meta_fixture().await;
+        let (_meta_a, _chunks_a, fs_a_raw) = grpc_dfs_test_fs(
+            "node-a",
+            "session-a",
+            &endpoint,
+            local,
+            Duration::from_secs(2),
+        )
+        .await;
+        let fs_a = Arc::new(fs_a_raw);
+        let created = {
+            let fs = fs_a.clone();
+            run_blocking(move || {
+                fs.create(
+                    &context(),
+                    fs.root_inode(),
+                    OsStr::new("grpc-write-authority-foreign.bin"),
+                    0o640,
+                    libc::O_RDWR,
+                )
+            })
+            .await
+            .unwrap()
+        };
+        let inode_id = fs_a.inode_id(created.entry.inode).unwrap();
+        let before = store
+            .read(MetaRead::DfsWriteLease(inode_id.clone()))
+            .await
+            .unwrap();
+        let before_commits = backend.commit_count();
+        let (inode, lease) = {
+            let endpoint = endpoint.clone();
+            let inode_id = inode_id.clone();
+            run_blocking(move || {
+                let foreign = crate::node::rpc::meta::GrpcDfsMeta::new(
+                    &endpoint,
+                    "node-b".into(),
+                    "session-b".into(),
+                    NamespaceId::new("default"),
+                    Duration::from_secs(2),
+                    afs_transport::TlsConfig::Disabled,
+                )
+                .unwrap();
+                DfsMeta::resolve_write_authority(&foreign, &inode_id)
+            })
+            .await
+            .unwrap()
+        };
+
+        assert_eq!(inode.inode_id, inode_id);
+        assert_eq!(lease.owner_node_id, "node-a");
+        assert_eq!(lease.owner_session_id, "session-a");
+        assert_eq!(
+            backend.commit_count(),
+            before_commits,
+            "foreign live write authority resolution must not acquire or mutate Meta"
+        );
+        let after = store.read(MetaRead::DfsWriteLease(inode_id)).await.unwrap();
+        assert_eq!(after.revision, before.revision);
+        assert_eq!(after.entity, before.entity);
+        assert!(matches!(after.entity, Some(MetaEntity::DfsWriteLease(_))));
+        assert!(
+            store
+                .read(MetaRead::RequestOutcome(RequestKey::new(
+                    "node-b",
+                    "session-b-dfs-1",
+                )))
+                .await
+                .unwrap()
+                .request_outcome
+                .is_none(),
+            "foreign live write authority read must not persist an outcome"
+        );
+        server.abort();
+    }
+
+    #[cfg(feature = "dfs")]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn real_grpc_unknown_file_commit_ack_blocks_inode_and_replays_exact_request() {
         use crate::meta::store::{
             MetaEntity, MetaRead, OperationResult, RequestKey, StoreOperation,
         };
 
-        let (_temp, meta_endpoint, gate, server, store, local_a) = real_grpc_meta_fixture().await;
+        let (_temp, meta_endpoint, gate, server, store, local_a, _backend) =
+            real_grpc_meta_fixture().await;
         let (meta_a, chunks_a, fs_a_raw) = grpc_dfs_test_fs(
             "node-a",
             "session-a",
@@ -9183,7 +9633,7 @@ mod tests {
             Duration::from_secs(2),
         )
         .await;
-        let fs_a = Arc::new(fs_a_raw);
+        let mut fs_a = Arc::new(fs_a_raw);
 
         let created_a = {
             let fs = fs_a.clone();
@@ -9202,6 +9652,14 @@ mod tests {
         let inode_backend_a = created_a.entry.inode;
         let handle_a = created_a.handle;
         let inode_a = fs_a.inode_id(inode_backend_a).unwrap();
+        let trace_output = _temp.path().join("real-meta-pending-trace.jsonl");
+        Arc::get_mut(&mut fs_a).unwrap().pending_trace = Some(PendingTrace::test_gate(
+            &trace_output,
+            "default",
+            "node-a",
+            "session-a",
+            &inode_a.0,
+        ));
         {
             let fs = fs_a.clone();
             run_blocking(move || fs.write(&context(), handle_a, 0, b"alpha"))
@@ -9231,18 +9689,28 @@ mod tests {
                 .await
                 .unwrap_err()
         };
-        // The endpoint and outer client deadlines race, just as in the
-        // adapter deadline regression. Both leave the commit unconfirmed.
-        assert!(
-            first_error.code() == afs_error::CLIENT_DEADLINE_EXCEEDED
-                || (first_error.code() == afs_error::CLIENT_REMOTE_STATUS
-                    && first_error.kind() == afs_error::ErrorKind::Cancelled
-                    && first_error.message() == "Timeout expired"),
+        assert_eq!(
+            first_error.code(),
+            afs_error::CLIENT_DEADLINE_EXCEEDED,
             "unexpected first commit error: {first_error:?}"
         );
         gate.wait_first_committed(Duration::from_secs(1)).await;
 
         let (pending, blocked_before_replay) = pending_file_commit_snapshot(&fs_a, &inode_a);
+        let trace_rows: Vec<serde_json::Value> = std::fs::read_to_string(&trace_output)
+            .unwrap()
+            .lines()
+            .map(|line| serde_json::from_str(line).unwrap())
+            .collect();
+        assert_eq!(trace_rows[1]["event"], "dfs_pending_commit_first_send");
+        assert_eq!(
+            trace_rows[2]["event"],
+            "dfs_pending_commit_unknown_retained"
+        );
+        assert_eq!(
+            trace_rows[1]["request_digest"],
+            trace_rows[2]["request_digest"]
+        );
         assert_eq!(chunks_a.put_batch_count(), 1);
         assert_eq!(pending.frozen.through_seq, 1);
         assert_eq!(pending.frozen.logical_length, 5);
@@ -9299,13 +9767,41 @@ mod tests {
             OperationResult::DfsNamespace {
                 request_digest,
                 result,
-            } if request_digest != [0; 32]
+            } if trace_rows[2]["request_digest"]
+                == request_digest
+                    .iter()
+                    .map(|byte| format!("{byte:02x}"))
+                    .collect::<String>()
                 && matches!(
                     result.as_ref(),
                     OperationResult::DfsInode(inode)
                         if inode.head_version == Some(pending.batch.commit.file_version.id.clone())
                 ) => {}
             other => panic!("unexpected commit outcome: {other:?}"),
+        }
+        // Optional immutable test export. This fixture deliberately has no
+        // installed-process identity and cannot qualify installed acceptance.
+        let trace_fixture =
+            std::env::var_os("AFS_DFS_PENDING_TRACE_FIXTURE_DIR").map(std::path::PathBuf::from);
+        if let Some(directory) = &trace_fixture {
+            use crate::meta::store::StoreBackend;
+            std::fs::create_dir(directory).unwrap();
+            std::fs::copy(&trace_output, directory.join("trace-unknown.jsonl")).unwrap();
+            std::fs::write(
+                directory.join("commit-request.json"),
+                serde_json::to_vec(&pending.batch.commit).unwrap(),
+            )
+            .unwrap();
+            std::fs::write(
+                directory.join("meta-outcome.json"),
+                serde_json::to_vec(&outcome).unwrap(),
+            )
+            .unwrap();
+            let (revision, bytes) = _backend.load().await.unwrap().unwrap();
+            std::fs::write(directory.join("meta-store-state.raw.json"), bytes).unwrap();
+            std::fs::write(directory.join("scope.json"), serde_json::to_vec(&serde_json::json!({"status":"HARNESS_ONLY",
+                "test_fixture":true,"backend":"memory","backend_revision":revision,"installed_fault":"NOT_RUN",
+                "reason":"actual Rust emit and Meta outcome; header lacks installed process identity"})).unwrap()).unwrap();
         }
 
         let replay = {
@@ -9429,6 +9925,9 @@ mod tests {
             .unwrap()
             .unwrap()
             .unwrap();
+        if let Some(directory) = &trace_fixture {
+            std::fs::copy(&trace_output, directory.join("trace-after-replay.jsonl")).unwrap();
+        }
         assert_eq!(
             tokio::time::timeout(Duration::from_secs(2), blocked_write)
                 .await
@@ -9747,6 +10246,72 @@ mod tests {
             16
         );
         assert_eq!(&out, b"abcdefghijklmnop");
+    }
+
+    #[test]
+    fn dirty_budget_repeated_identical_chunks_share_receipt_but_keep_layout_references() {
+        let (_temp, meta, fs) = test_fs_with_dirty_budget(DEFAULT_DIRTY_DATA_BUDGET_BYTES);
+        let created = fs
+            .create(
+                &context(),
+                fs.root_inode(),
+                OsStr::new("budget-repeated-chunks.bin"),
+                0o640,
+                libc::O_RDWR,
+            )
+            .unwrap();
+        let payload = vec![b'w'; 8192];
+        let mut offset = 0u64;
+
+        for size in (1..=8192).rev() {
+            assert_eq!(
+                fs.write(&context(), created.handle, offset, &payload[..size])
+                    .unwrap(),
+                size
+            );
+            offset += size as u64;
+            if meta.commit_count() > 0 {
+                break;
+            }
+        }
+
+        let commits = meta.commits.lock().unwrap();
+        assert_eq!(commits.len(), 1);
+        let commit = &commits[0];
+        assert_eq!(commit.file_version.length, DEFAULT_DIRTY_DATA_BUDGET_BYTES);
+        assert_eq!(
+            commit.layout_root.file_length,
+            DEFAULT_DIRTY_DATA_BUDGET_BYTES
+        );
+        assert_eq!(
+            commit.layout_root.inline_extents.len(),
+            (DEFAULT_DIRTY_DATA_BUDGET_BYTES / COMMIT_CHUNK_BYTES) as usize
+        );
+        assert_eq!(
+            commit.chunk_receipts.len(),
+            1,
+            "identical content-addressed chunks need one proof receipt per chunk id"
+        );
+        let repeated_chunk = commit.layout_root.inline_extents[0].chunk_id.clone();
+        assert_eq!(commit.chunk_receipts[0].chunk.id, repeated_chunk);
+        for (index, extent) in commit.layout_root.inline_extents.iter().enumerate() {
+            assert_eq!(extent.file_offset, index as u64 * COMMIT_CHUNK_BYTES);
+            assert_eq!(extent.length, COMMIT_CHUNK_BYTES);
+            assert_eq!(extent.chunk_offset, 0);
+            assert_eq!(extent.chunk_id, repeated_chunk);
+        }
+        drop(commits);
+
+        let mut checked = 0u64;
+        let mut out = vec![0; 64 * 1024];
+        while checked < DEFAULT_DIRTY_DATA_BUDGET_BYTES {
+            let read = fs
+                .read(&context(), created.handle, checked, &mut out)
+                .unwrap();
+            assert_eq!(read, out.len());
+            assert!(out[..read].iter().all(|byte| *byte == b'w'));
+            checked += read as u64;
+        }
     }
 
     #[test]
@@ -11977,6 +12542,105 @@ mod tests {
     }
 
     #[test]
+    fn owner_open_resolves_fresh_authority_without_legacy_open_write() {
+        let (_temp, meta, fs) = test_fs();
+        let opens_before = meta.open_write_calls.load(Ordering::SeqCst);
+        let resolve_before = meta.resolve_write_calls.load(Ordering::SeqCst);
+
+        let reply = <DistributedFs as crate::node::rpc::control::DfsOwnerLifecycleHandler>::open(
+            &fs,
+            "node-b",
+            dfs_owner_open_request(1, libc::O_RDWR),
+        )
+        .unwrap();
+        assert!(reply.handle.is_some());
+
+        assert_eq!(
+            meta.open_write_calls.load(Ordering::SeqCst),
+            opens_before,
+            "remote owner admission must not invoke legacy OpenWrite"
+        );
+        assert_eq!(
+            meta.resolve_write_calls.load(Ordering::SeqCst),
+            resolve_before + 1,
+            "remote owner admission must resolve fresh write authority"
+        );
+    }
+
+    #[test]
+    fn owner_open_rejects_stale_request_epoch_after_fresh_write_authority_reacquire() {
+        let (_temp, meta, fs) = test_fs();
+        {
+            let mut lease = meta.lease.lock().unwrap();
+            lease.lease_epoch = lease.lease_epoch.saturating_add(1);
+            lease.expires_at_unix_ms = now_unix_ms().saturating_add(30_000);
+        }
+
+        let error = <DistributedFs as crate::node::rpc::control::DfsOwnerLifecycleHandler>::open(
+            &fs,
+            "node-b",
+            dfs_owner_open_request(1, libc::O_RDWR),
+        )
+        .expect_err("stale remote owner open request must not succeed after Meta reacquires a newer lease epoch");
+
+        assert_eq!(error.code(), afs_error::NODE_DFS_STALE_HANDLE);
+        let routes = fs.owner_open_routes.lock().unwrap();
+        let state = routes.values().next().unwrap();
+        assert_eq!(state.highwater, 1);
+        assert!(state.inflight.is_empty());
+        assert!(state.cancelled.is_empty());
+        assert!(state.active.is_empty());
+        assert!(fs.handles.lock().unwrap().is_empty());
+    }
+
+    #[test]
+    fn owner_open_rejects_epoch_changed_by_legacy_reacquire_after_resolver_reply() {
+        let (_temp, meta, fs) = test_fs();
+        let inode_id = meta.inode.lock().unwrap().inode_id.clone();
+        let near_expiry = now_unix_ms().saturating_add(1_000);
+        let inode = meta.inode.lock().unwrap().clone();
+        let mut epoch_two = {
+            let mut lease = meta.lease.lock().unwrap();
+            lease.lease_epoch = 1;
+            lease.expires_at_unix_ms = near_expiry;
+            lease.clone()
+        };
+        epoch_two.lease_epoch = 2;
+        epoch_two.expires_at_unix_ms = now_unix_ms().saturating_add(30_000);
+        meta.queue_open_write_result(Ok((inode, epoch_two)));
+
+        let error = <DistributedFs as crate::node::rpc::control::DfsOwnerLifecycleHandler>::open(
+            &fs,
+            "node-b",
+            dfs_owner_open_request(1, libc::O_RDWR),
+        )
+        .expect_err("owner open must not succeed after legacy OpenWrite changes the lease epoch behind the resolver reply");
+
+        assert_eq!(error.code(), afs_error::NODE_DFS_STALE_HANDLE);
+        assert_eq!(meta.resolve_write_calls.load(Ordering::SeqCst), 1);
+        assert_eq!(meta.open_write_calls.load(Ordering::SeqCst), 1);
+        let routes = fs.owner_open_routes.lock().unwrap();
+        let state = routes.values().next().unwrap();
+        assert_eq!(state.highwater, 1);
+        assert!(state.inflight.is_empty());
+        assert!(state.cancelled.is_empty());
+        assert!(state.active.is_empty());
+        drop(routes);
+        assert!(fs.handles.lock().unwrap().is_empty());
+        let state = fs.write_state(&inode_id).unwrap().unwrap();
+        assert_eq!(state.lock().unwrap().open_writers, 0);
+
+        let replay = <DistributedFs as crate::node::rpc::control::DfsOwnerLifecycleHandler>::open(
+            &fs,
+            "node-b",
+            dfs_owner_open_request(1, libc::O_RDWR),
+        )
+        .expect_err("failed owner admission sequence must be retired");
+        assert_eq!(replay.code(), afs_error::NODE_DFS_STALE_HANDLE);
+        assert!(fs.handles.lock().unwrap().is_empty());
+    }
+
+    #[test]
     fn owner_open_validate_inode_failure_clears_inflight_admission() {
         let (_temp, meta, fs) = test_fs();
         meta.return_bad_namespace_on_next_open_write();
@@ -13506,7 +14170,7 @@ mod tests {
 
     #[test]
     fn background_writeback_expired_before_send_retains_exact_pending_for_replay() {
-        let (_temp, meta, fs) = test_fs();
+        let (temp, meta, mut fs) = test_fs();
         let created = fs
             .create(
                 &context(),
@@ -13520,6 +14184,14 @@ mod tests {
             .unwrap();
         let inode_id = meta.inode.lock().unwrap().inode_id.clone();
         let cell = fs.write_state(&inode_id).unwrap().unwrap();
+        let output = temp.path().join("prepared-trace.jsonl");
+        fs.pending_trace = Some(PendingTrace::test_gate(
+            &output,
+            "default",
+            "node-a",
+            "session-a",
+            &inode_id.0,
+        ));
 
         *fs.writeback_after_prepare_pause.lock().unwrap() = Some(Duration::from_secs(2));
         assert_eq!(
@@ -13528,6 +14200,8 @@ mod tests {
             0
         );
         assert!(meta.commits.lock().unwrap().is_empty());
+        assert!(meta.failed_commits.lock().unwrap().is_empty());
+        assert_eq!(std::fs::read_to_string(&output).unwrap().lines().count(), 1);
         let pending_commit = {
             let state = cell.lock().unwrap();
             assert!(!state.commit_busy);
@@ -13546,6 +14220,22 @@ mod tests {
             }
         };
 
+        meta.fail_next_commit();
+        assert!(
+            fs.fsync(&context(), created.handle, SyncMode::DataOnly)
+                .is_err()
+        );
+        let rows: Vec<serde_json::Value> = std::fs::read_to_string(&output)
+            .unwrap()
+            .lines()
+            .map(|line| serde_json::from_str(line).unwrap())
+            .collect();
+        assert_eq!(rows[1]["event"], "dfs_pending_commit_first_send");
+        assert_eq!(rows[1]["branch"], "pending_reuse");
+        assert_eq!(rows[1]["send_attempt"], 1);
+        assert_eq!(rows[2]["event"], "dfs_pending_commit_unknown_retained");
+        assert_eq!(rows[2]["send_attempt"], 1);
+        assert_eq!(meta.failed_commits.lock().unwrap()[0], pending_commit);
         assert_eq!(
             fs.writeback_pending_with_budget(Duration::from_secs(1), 64)
                 .unwrap(),
@@ -13557,6 +14247,21 @@ mod tests {
             commits[0], pending_commit,
             "exact request, lease, CAS and receipts must replay"
         );
+        let rows: Vec<serde_json::Value> = std::fs::read_to_string(&output)
+            .unwrap()
+            .lines()
+            .map(|line| serde_json::from_str(line).unwrap())
+            .collect();
+        assert_eq!(rows[3]["event"], "dfs_pending_commit_retry_send");
+        assert_eq!(rows[3]["branch"], "pending_reuse");
+        assert_eq!(rows[3]["send_attempt"], 2);
+        assert_eq!(rows[4]["event"], "dfs_pending_commit_success_cleared");
+        assert_eq!(rows[4]["send_attempt"], 2);
+        for row in &rows[2..] {
+            assert_eq!(row["request_digest"], rows[1]["request_digest"]);
+            assert_eq!(row["operation_id"], rows[1]["operation_id"]);
+        }
+        assert!(cell.lock().unwrap().in_flight.is_none());
     }
 
     #[test]
@@ -13790,6 +14495,287 @@ mod tests {
             )
             .unwrap();
         assert_eq!(attrs.size, 6);
+    }
+
+    #[test]
+    fn pending_trace_unknown_retention_retry_and_actual_clear() {
+        let (temp, meta, mut fs) = test_fs();
+        let created = fs
+            .create(
+                &context(),
+                fs.root_inode(),
+                OsStr::new("pending-trace.bin"),
+                0o640,
+                libc::O_RDWR,
+            )
+            .unwrap();
+        let inode = fs.inode_id(created.entry.inode).unwrap();
+        let output = temp.path().join("trace.jsonl");
+        fs.pending_trace = Some(PendingTrace::test_gate(
+            &output,
+            "default",
+            "node-a",
+            "session-a",
+            &inode.0,
+        ));
+        fs.write(
+            &context(),
+            created.handle,
+            0,
+            b"private-payload-never-traced",
+        )
+        .unwrap();
+        meta.fail_next_commit();
+        let error = fs
+            .fsync(&context(), created.handle, SyncMode::DataOnly)
+            .unwrap_err();
+        assert_eq!(error.code(), afs_error::NODE_VFS_UNAVAILABLE);
+        let cell = fs.write_state(&inode).unwrap().unwrap();
+        let pending = match cell.lock().unwrap().in_flight.as_ref().unwrap() {
+            InFlightCommit::File(pending) => pending.batch.commit.clone(),
+            _ => panic!("expected retained file request"),
+        };
+        let rows: Vec<serde_json::Value> = std::fs::read_to_string(&output)
+            .unwrap()
+            .lines()
+            .map(|line| serde_json::from_str(line).unwrap())
+            .collect();
+        assert_eq!(rows[1]["event"], "dfs_pending_commit_first_send");
+        assert_eq!(rows[2]["event"], "dfs_pending_commit_unknown_retained");
+        assert_eq!(rows[1]["send_attempt"], 1);
+        assert_eq!(rows[2]["send_attempt"], 1);
+        assert_eq!(
+            rows[2]["operation_id"],
+            serde_json::json!(pending.operation_id)
+        );
+        assert_eq!(rows[1]["request_digest"], rows[2]["request_digest"]);
+        fs.fsync(&context(), created.handle, SyncMode::DataOnly)
+            .unwrap();
+        let text = std::fs::read_to_string(&output).unwrap();
+        assert!(!text.contains("private-payload-never-traced"));
+        let rows: Vec<serde_json::Value> = text
+            .lines()
+            .map(|line| serde_json::from_str(line).unwrap())
+            .collect();
+        assert_eq!(rows[3]["event"], "dfs_pending_commit_retry_send");
+        assert_eq!(rows[3]["branch"], "pending_reuse");
+        assert_eq!(rows[3]["send_attempt"], 2);
+        assert_eq!(rows[4]["event"], "dfs_pending_commit_success_cleared");
+        assert_eq!(rows[4]["send_attempt"], 2);
+        assert_eq!(rows[4]["in_flight"], "None");
+        assert_eq!(rows[4]["committed_write_seq"], 1);
+        assert!(cell.lock().unwrap().in_flight.is_none());
+        assert_eq!(
+            meta.failed_commits.lock().unwrap()[0],
+            meta.commits.lock().unwrap()[0]
+        );
+    }
+
+    #[test]
+    fn pending_trace_late_arm_does_not_fabricate_first_send() {
+        let (temp, meta, mut fs) = test_fs();
+        let created = fs
+            .create(
+                &context(),
+                fs.root_inode(),
+                OsStr::new("late-arm.bin"),
+                0o640,
+                libc::O_RDWR,
+            )
+            .unwrap();
+        let inode = fs.inode_id(created.entry.inode).unwrap();
+        let output = temp.path().join("late-arm.jsonl");
+        let trace = PendingTrace::test_gate(&output, "default", "node-a", "session-a", &inode.0);
+        trace.test_unarm();
+        fs.pending_trace = Some(trace);
+        fs.write(&context(), created.handle, 0, b"data").unwrap();
+        meta.fail_next_commit();
+        fs.fsync(&context(), created.handle, SyncMode::DataOnly)
+            .unwrap_err();
+        assert_eq!(std::fs::read_to_string(&output).unwrap().lines().count(), 1);
+        let cell = fs.write_state(&inode).unwrap().unwrap();
+        let pending = match cell.lock().unwrap().in_flight.as_ref().unwrap() {
+            InFlightCommit::File(pending) => pending.as_ref().clone(),
+            _ => unreachable!(),
+        };
+        assert_eq!(
+            pending
+                .trace_send_attempt
+                .as_ref()
+                .unwrap()
+                .load(Ordering::Relaxed),
+            1
+        );
+        fs.pending_trace.as_ref().unwrap().test_arm_target(&inode.0);
+        fs.fsync(&context(), created.handle, SyncMode::DataOnly)
+            .unwrap();
+        let rows: Vec<serde_json::Value> = std::fs::read_to_string(&output)
+            .unwrap()
+            .lines()
+            .map(|line| serde_json::from_str(line).unwrap())
+            .collect();
+        assert_eq!(rows.len(), 3);
+        assert_eq!(rows[1]["event"], "dfs_pending_commit_retry_send");
+        assert_eq!(rows[1]["branch"], "pending_reuse");
+        assert_eq!(rows[1]["send_attempt"], 2);
+        assert_eq!(rows[2]["event"], "dfs_pending_commit_success_cleared");
+        assert_eq!(rows[2]["send_attempt"], 2);
+        assert_eq!(
+            meta.failed_commits.lock().unwrap()[0],
+            meta.commits.lock().unwrap()[0]
+        );
+        assert!(cell.lock().unwrap().in_flight.is_none());
+    }
+
+    #[test]
+    fn pending_trace_send_counter_overflow_disables_only_diagnostics() {
+        let (temp, meta, mut fs) = test_fs();
+        let created = fs
+            .create(
+                &context(),
+                fs.root_inode(),
+                OsStr::new("counter-overflow.bin"),
+                0o640,
+                libc::O_RDWR,
+            )
+            .unwrap();
+        let inode = fs.inode_id(created.entry.inode).unwrap();
+        let output = temp.path().join("counter-overflow.jsonl");
+        fs.pending_trace = Some(PendingTrace::test_gate(
+            &output,
+            "default",
+            "node-a",
+            "session-a",
+            &inode.0,
+        ));
+        fs.write(&context(), created.handle, 0, b"data").unwrap();
+        meta.fail_next_commit();
+        fs.fsync(&context(), created.handle, SyncMode::DataOnly)
+            .unwrap_err();
+        let before = std::fs::read(&output).unwrap();
+        let cell = fs.write_state(&inode).unwrap().unwrap();
+        match cell.lock().unwrap().in_flight.as_ref().unwrap() {
+            InFlightCommit::File(pending) => pending
+                .trace_send_attempt
+                .as_ref()
+                .unwrap()
+                .store(u64::MAX, Ordering::Relaxed),
+            _ => unreachable!(),
+        }
+        fs.fsync(&context(), created.handle, SyncMode::DataOnly)
+            .unwrap();
+        assert!(cell.lock().unwrap().in_flight.is_none());
+        assert_eq!(std::fs::read(&output).unwrap(), before);
+        assert_eq!(
+            meta.failed_commits.lock().unwrap()[0],
+            meta.commits.lock().unwrap()[0]
+        );
+        let mut bytes = [0; 4];
+        fs.read(&context(), created.handle, 0, &mut bytes).unwrap();
+        assert_eq!(&bytes, b"data");
+    }
+
+    #[test]
+    fn pending_trace_definite_rejection_and_diagnostic_failure_preserve_fs_results() {
+        for bounded in [false, true] {
+            let (temp, meta, mut fs) = test_fs();
+            let created = fs
+                .create(
+                    &context(),
+                    fs.root_inode(),
+                    OsStr::new("trace-rejection.bin"),
+                    0o640,
+                    libc::O_RDWR,
+                )
+                .unwrap();
+            let inode = fs.inode_id(created.entry.inode).unwrap();
+            let output = temp.path().join("trace.jsonl");
+            let trace =
+                PendingTrace::test_gate(&output, "default", "node-a", "session-a", &inode.0);
+            if bounded {
+                trace.test_exhaust_records();
+            }
+            fs.pending_trace = Some(trace);
+            fs.write(&context(), created.handle, 0, b"data").unwrap();
+            meta.fail_next_commit_with(Error::coded(
+                afs_error::META_DFS_CONFLICT,
+                "definite conflict",
+            ));
+            assert_eq!(
+                fs.fsync(&context(), created.handle, SyncMode::DataOnly)
+                    .unwrap_err()
+                    .code(),
+                afs_error::META_DFS_CONFLICT
+            );
+            let cell = fs.write_state(&inode).unwrap().unwrap();
+            let state = cell.lock().unwrap();
+            assert!(state.in_flight.is_none());
+            assert!(state.terminal_error.is_some());
+            assert!(!state.dirty_extents.is_empty());
+            drop(state);
+            let text = std::fs::read_to_string(&output).unwrap();
+            assert!(!text.contains("unknown_retained"));
+            if !bounded {
+                assert!(text.contains("definite_rejection_cleared"));
+            }
+            let mut bytes = [0; 4];
+            fs.read(&context(), created.handle, 0, &mut bytes).unwrap();
+            assert_eq!(&bytes, b"data");
+        }
+    }
+
+    #[test]
+    fn pending_trace_rejects_stale_send_clone_without_changing_pending_or_rpc_result() {
+        let (temp, meta, mut fs) = test_fs();
+        let created = fs
+            .create(
+                &context(),
+                fs.root_inode(),
+                OsStr::new("trace-mismatch.bin"),
+                0o640,
+                libc::O_RDWR,
+            )
+            .unwrap();
+        let inode = fs.inode_id(created.entry.inode).unwrap();
+        let output = temp.path().join("trace.jsonl");
+        fs.pending_trace = Some(PendingTrace::test_gate(
+            &output,
+            "default",
+            "node-a",
+            "session-a",
+            &inode.0,
+        ));
+        fs.write(&context(), created.handle, 0, b"data").unwrap();
+        meta.fail_next_commit();
+        fs.fsync(&context(), created.handle, SyncMode::DataOnly)
+            .unwrap_err();
+        let before = std::fs::read(&output).unwrap();
+        let cell = fs.write_state(&inode).unwrap().unwrap();
+        {
+            let state = cell.lock().unwrap();
+            let mut stale = match state.in_flight.as_ref().unwrap() {
+                InFlightCommit::File(p) => p.as_ref().clone(),
+                _ => unreachable!(),
+            };
+            stale.batch.commit.operation_id = OperationId::new("wrong-stale-operation");
+            fs.pending_trace.as_ref().unwrap().observe(
+                "dfs_pending_commit_unknown_retained",
+                "pending_reuse",
+                &state,
+                &stale,
+                Some(&unavailable("unknown")),
+            );
+        }
+        assert_eq!(std::fs::read(&output).unwrap(), before);
+        fs.fsync(&context(), created.handle, SyncMode::DataOnly)
+            .unwrap();
+        assert_eq!(meta.commit_count(), 1);
+        assert!(cell.lock().unwrap().in_flight.is_none());
+        assert_eq!(
+            std::fs::read(&output).unwrap(),
+            before,
+            "unusable trace remains disabled"
+        );
     }
 
     #[test]
@@ -15775,6 +16761,193 @@ mod tests {
             )
             .unwrap_err();
         assert_eq!(error.code(), afs_error::NODE_VFS_INVALID);
+    }
+
+    #[test]
+    fn dfs_writable_reopen_uses_fresh_authority_without_legacy_open_write() {
+        let (_temp, meta, fs) = test_fs();
+        let created = fs
+            .create(
+                &context(),
+                fs.root_inode(),
+                OsStr::new("write-authority-reopen.bin"),
+                0o640,
+                libc::O_RDWR,
+            )
+            .unwrap();
+        fs.release(&context(), created.handle).unwrap();
+
+        let opens_before = meta.open_write_calls.load(Ordering::SeqCst);
+        let reopened = fs
+            .open(&context(), created.entry.inode, libc::O_RDWR)
+            .unwrap();
+        fs.release(&context(), reopened).unwrap();
+
+        assert_eq!(
+            meta.open_write_calls.load(Ordering::SeqCst),
+            opens_before,
+            "new writable opens must resolve fresh write authority without invoking legacy OpenWrite"
+        );
+        assert_eq!(meta.resolve_write_calls.load(Ordering::SeqCst), 1);
+    }
+
+    #[test]
+    fn dfs_writable_open_near_expiry_clean_state_reacquires_and_renews() {
+        let (_temp, meta, fs) = test_fs();
+        let created = fs
+            .create(
+                &context(),
+                fs.root_inode(),
+                OsStr::new("near-expiry-clean-reacquire.bin"),
+                0o640,
+                libc::O_RDWR,
+            )
+            .unwrap();
+        fs.release(&context(), created.handle).unwrap();
+        let inode_id = meta.inode.lock().unwrap().inode_id.clone();
+        let near_expiry = now_unix_ms().saturating_add(1_000);
+        {
+            let mut lease = meta.lease.lock().unwrap();
+            lease.expires_at_unix_ms = near_expiry;
+        }
+        {
+            let state = fs.write_state(&inode_id).unwrap().unwrap();
+            {
+                let mut locked = state.lock().unwrap();
+                locked.write_lease.expires_at_unix_ms = near_expiry;
+                locked.last_writer_background_requested = false;
+                assert!(DistributedFs::write_state_can_adopt_fresh_lease(&locked));
+            }
+            assert!(DistributedFs::write_state_should_reacquire_clean_lease(&state).unwrap());
+        }
+        let renewed_expiry = now_unix_ms().saturating_add(30_000);
+        meta.queue_renew_result(Ok(meta.lease_with_expiry(renewed_expiry)));
+        let opens_before = meta.open_write_calls.load(Ordering::SeqCst);
+        let resolves_before = meta.resolve_write_calls.load(Ordering::SeqCst);
+        let renews_before = meta.renew_call_count();
+
+        let reopened = fs
+            .open(&context(), created.entry.inode, libc::O_RDWR)
+            .unwrap();
+
+        assert_eq!(
+            meta.resolve_write_calls.load(Ordering::SeqCst),
+            resolves_before + 1
+        );
+        assert_eq!(
+            meta.open_write_calls.load(Ordering::SeqCst),
+            opens_before + 1,
+            "clean near-expiry writable open must preserve existing ensure_inode_write_state reacquire"
+        );
+        assert_eq!(meta.renew_call_count(), renews_before + 1);
+        let state = fs.write_state(&inode_id).unwrap().unwrap();
+        assert!(state.lock().unwrap().write_lease.expires_at_unix_ms >= renewed_expiry);
+        fs.release(&context(), reopened).unwrap();
+    }
+
+    #[test]
+    fn dfs_writable_open_near_expiry_protected_state_renews_without_reacquire() {
+        let (_temp, meta, fs) = test_fs();
+        let created = fs
+            .create(
+                &context(),
+                fs.root_inode(),
+                OsStr::new("near-expiry-protected-renew.bin"),
+                0o640,
+                libc::O_RDWR,
+            )
+            .unwrap();
+        let inode_id = meta.inode.lock().unwrap().inode_id.clone();
+        let near_expiry = now_unix_ms().saturating_add(1_000);
+        {
+            let mut lease = meta.lease.lock().unwrap();
+            lease.expires_at_unix_ms = near_expiry;
+        }
+        {
+            let state = fs.write_state(&inode_id).unwrap().unwrap();
+            state.lock().unwrap().write_lease.expires_at_unix_ms = near_expiry;
+        }
+        let renewed_expiry = now_unix_ms().saturating_add(30_000);
+        meta.queue_renew_result(Ok(meta.lease_with_expiry(renewed_expiry)));
+        let opens_before = meta.open_write_calls.load(Ordering::SeqCst);
+        let resolves_before = meta.resolve_write_calls.load(Ordering::SeqCst);
+        let renews_before = meta.renew_call_count();
+
+        let reopened = fs
+            .open(&context(), created.entry.inode, libc::O_RDWR)
+            .unwrap();
+
+        assert_eq!(
+            meta.resolve_write_calls.load(Ordering::SeqCst),
+            resolves_before + 1
+        );
+        assert_eq!(
+            meta.open_write_calls.load(Ordering::SeqCst),
+            opens_before,
+            "protected near-expiry writable state must renew current state instead of reacquiring"
+        );
+        assert_eq!(meta.renew_call_count(), renews_before + 1);
+        let state = fs.write_state(&inode_id).unwrap().unwrap();
+        let state = state.lock().unwrap();
+        assert_eq!(state.write_lease.lease_epoch, 1);
+        assert!(state.write_lease.expires_at_unix_ms >= renewed_expiry);
+        drop(state);
+        fs.release(&context(), reopened).unwrap();
+        fs.release(&context(), created.handle).unwrap();
+    }
+
+    #[test]
+    fn dfs_readonly_lock_handle_resolves_fresh_authority_without_writable_open() {
+        let (_temp, meta, fs) = test_fs();
+        let created = fs
+            .create(
+                &context(),
+                fs.root_inode(),
+                OsStr::new("readonly-lock.bin"),
+                0o640,
+                libc::O_RDWR,
+            )
+            .unwrap();
+        let readonly = fs
+            .open(&context(), created.entry.inode, libc::O_RDONLY)
+            .unwrap();
+        let opens_before = meta.open_write_calls.load(Ordering::SeqCst);
+        fs.setlk(
+            &context(),
+            created.entry.inode,
+            readonly,
+            LockRequest::read(
+                FileLockKind::Posix,
+                lock_owner("mount-a", 201),
+                201,
+                lock_range(0, 99),
+            ),
+            None,
+        )
+        .unwrap();
+        for _ in 0..64 {
+            assert!(
+                fs.getlk(
+                    &context(),
+                    created.entry.inode,
+                    created.handle,
+                    LockRequest::write(
+                        FileLockKind::Posix,
+                        lock_owner("mount-b", 202),
+                        202,
+                        lock_range(0, 99)
+                    )
+                )
+                .unwrap()
+                .is_some()
+            );
+        }
+        assert_eq!(meta.open_write_calls.load(Ordering::SeqCst), opens_before);
+        assert_eq!(
+            meta.resolve_lock_calls.load(Ordering::SeqCst),
+            65,
+            "every lock operation must still resolve current Meta authority"
+        );
     }
 
     #[test]

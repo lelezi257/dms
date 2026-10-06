@@ -45,6 +45,17 @@ message RegisterNodeReply {
   string node_id = 1;
   uint64 lease_epoch = 2;
   uint64 expires_at_unix_ms = 3;
+  MetaBackendPersistence meta_backend_persistence = 4;
+  bool meta_backend_healthy = 5;
+  bool meta_persistence_ready = 6;
+  string meta_persistence_detail = 7;
+}
+
+enum MetaBackendPersistence {
+  META_BACKEND_PERSISTENCE_UNSPECIFIED = 0;
+  META_BACKEND_PERSISTENCE_UNKNOWN = 1;
+  META_BACKEND_PERSISTENCE_VOLATILE = 2;
+  META_BACKEND_PERSISTENCE_PERSISTENT = 3;
 }
 
 message LookupNodeRequest {
@@ -79,6 +90,7 @@ service OwnerRoots {
   rpc AcquireRoot(AcquireRootRequest) returns (AcquireRootReply);
   rpc ValidateRootAccess(ValidateRootAccessRequest) returns (ValidateRootAccessReply);
   rpc WatchRootCommands(WatchRootCommandsRequest) returns (stream RootCommand);
+  rpc PollRootCommandBatch(PollRootCommandBatchRequest) returns (RootCommandBatchReply);
   rpc AckRevocation(AckRevocationRequest) returns (AckRevocationReply);
   rpc RecoverRoot(RecoverRootRequest) returns (RecoverRootReply);
 }
@@ -257,11 +269,53 @@ message WatchRootCommandsRequest {
   uint64 after_revision = 3;
 }
 
+message PollRootCommandBatchRequest {
+  string node_id = 1;
+  string session_id = 2;
+  uint64 after_revision = 3;
+}
+
 message RootCommand {
   string command_id = 1;
   RootCommandType command_type = 2;
   RootAccess access = 3;
   uint64 revision = 4;
+}
+
+message RootCommandBatchEvents {
+  uint64 start_revision = 1;
+  uint64 next_revision = 2;
+  repeated RootCommand commands = 3;
+}
+
+enum RootCommandRecoveryReason {
+  ROOT_COMMAND_RECOVERY_REASON_UNSPECIFIED = 0;
+  ROOT_COMMAND_RECOVERY_REASON_WATCH_COMPACTED = 1;
+  ROOT_COMMAND_RECOVERY_REASON_NODE_SESSION_RESTARTED = 2;
+  ROOT_COMMAND_RECOVERY_REASON_BACKEND_LEADER_CHANGED = 3;
+}
+
+message RootCommandRecoveryCursor {
+  uint64 resume_after = 1;
+  RootCommandRecoveryReason reason = 2;
+}
+
+message RootCommandBatchCompacted {
+  uint64 requested_after = 1;
+  uint64 compacted_to = 2;
+  RootCommandRecoveryCursor recovery_cursor = 3;
+}
+
+message RootCommandBatchUnsupported {
+  string message = 1;
+}
+
+message RootCommandBatchReply {
+  oneof result {
+    RootCommandBatchEvents events = 1;
+    RootCommandBatchCompacted compacted = 2;
+    RootCommandBatchUnsupported unsupported = 3;
+  }
 }
 
 message AckRevocationRequest {
@@ -321,6 +375,8 @@ service DfsMeta {
   rpc SetXattr(DfsSetXattrRequest) returns (DfsSetXattrReply);
   rpc RemoveXattr(DfsRemoveXattrRequest) returns (DfsRemoveXattrReply);
   rpc OpenWrite(OpenDfsWriteRequest) returns (OpenDfsWriteReply);
+  rpc ResolveLockAuthority(ResolveDfsLockAuthorityRequest) returns (ResolveDfsLockAuthorityReply);
+  rpc ResolveWriteAuthority(ResolveDfsWriteAuthorityRequest) returns (ResolveDfsWriteAuthorityReply);
   rpc RenewWriteLease(RenewDfsWriteLeaseRequest) returns (DfsWriteLeaseReply);
   rpc GetInode(GetDfsInodeRequest) returns (GetDfsInodeReply);
   rpc GetFileVersion(GetFileVersionRequest) returns (GetFileVersionReply);
@@ -869,6 +925,38 @@ message RenewDfsWriteLeaseRequest {
   string operation_id = 3;
   DfsWriteLease current_lease = 4;
   uint64 lease_seconds = 5;
+}
+
+// A fresh lock authority read; only missing/expired authority acquires a lease.
+// operation_id identifies that conditional acquire, not the read-only result.
+message ResolveDfsLockAuthorityRequest {
+  string caller_id = 1;
+  string owner_session_id = 2;
+  string operation_id = 3;
+  string inode_id = 4;
+  uint64 lease_seconds = 5;
+}
+
+message ResolveDfsLockAuthorityReply {
+  DfsInodeRecord inode = 1;
+  DfsWriteLease write_lease = 2;
+}
+
+// A fresh writable-open authority read; only missing/expired authority acquires
+// a lease. lease_seconds is the missing/expired acquisition TTL, not a promise
+// that every live resolution extends the owner lifetime. operation_id identifies
+// that conditional acquire, not the read-only result.
+message ResolveDfsWriteAuthorityRequest {
+  string caller_id = 1;
+  string owner_session_id = 2;
+  string operation_id = 3;
+  string inode_id = 4;
+  uint64 lease_seconds = 5;
+}
+
+message ResolveDfsWriteAuthorityReply {
+  DfsInodeRecord inode = 1;
+  DfsWriteLease write_lease = 2;
 }
 
 message DfsWriteLeaseReply {

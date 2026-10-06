@@ -105,9 +105,12 @@
         "scope": "Full upstream pjdfstest root harness with all applicable TAP subtests, including UID/GID drop probes, plus explicit non-root application permission checks. Every applicable failure is a gate failure and exclusions are predeclared."
       },
       "driver": {
-        "state": "TODO",
-        "command": null,
-        "note": "pjdfstest execution, accounting and remote identity guards are implemented; release environment/backend registration is still pending."
+        "state": "READY",
+        "command": [
+          "python3",
+          "drivers/suite_binding.py"
+        ],
+        "note": "Fixed suite adapter requires an exact per-run binding and observed target identity. Missing inputs return BLOCKED; READY is not formal acceptance. Remote host orchestration remains separately unbound."
       },
       "evidence": [
         "TAP output",
@@ -148,9 +151,12 @@
         "scope": "Frozen LTP filesystem sets with each kernel/environment exclusion explained before execution; AFS feature gaps are not environment exclusions."
       },
       "driver": {
-        "state": "TODO",
-        "command": null,
-        "note": "LTP/kirk driver and applicability table are not implemented."
+        "state": "READY",
+        "command": [
+          "python3",
+          "drivers/suite_binding.py"
+        ],
+        "note": "Fixed suite adapter requires an exact per-run binding, observed target identity and pinned suite/applicability inputs. Missing inputs return BLOCKED; READY is not formal acceptance."
       },
       "evidence": [
         "kirk JSON",
@@ -180,7 +186,8 @@
           "ext4"
         ],
         "suite_sha": "secfs.test edf5eb4a108bfb41073f765aef0cdd32bb3ee1ed",
-        "seeds": 3
+        "seeds_full": 3,
+        "seeds_smoke": 1
       },
       "stage": "ext4baseline",
       "smoke": {
@@ -192,9 +199,12 @@
         "scope": "At least 900 seconds per seed for 3 fixed seeds; any data or length mismatch fails and preserves a minimized operation trace."
       },
       "driver": {
-        "state": "TODO",
-        "command": null,
-        "note": "FSx driver, duration control and shrink capture are not implemented."
+        "state": "READY",
+        "command": [
+          "python3",
+          "drivers/suite_binding.py"
+        ],
+        "note": "Fixed suite adapter requires an exact per-run binding, observed target identity and pinned FSx inputs. Full mode retains three seeds at >=900 seconds each. Missing inputs return BLOCKED."
       },
       "evidence": [
         "FSx logs",
@@ -223,8 +233,10 @@
         "reference": [
           "ext4"
         ],
-        "seeds": 10,
-        "operations_per_seed": 10000
+        "seeds_full": 10,
+        "seeds_smoke": 1,
+        "operations_per_seed_full": 10000,
+        "operations_per_seed_smoke": 100
       },
       "stage": "ext4baseline",
       "smoke": {
@@ -236,9 +248,12 @@
         "scope": "10 fixed seeds with 10,000 operations per seed; preserve Hypothesis database or equivalent shrink corpus."
       },
       "driver": {
-        "state": "TODO",
-        "command": null,
-        "note": "Differential random driver is not implemented."
+        "state": "READY",
+        "command": [
+          "python3",
+          "drivers/suite_binding.py"
+        ],
+        "note": "Fixed suite adapter requires an exact per-run binding, observed target identity and independent ext4 reference. Full mode retains ten seeds x 10000 operations; missing inputs return BLOCKED."
       },
       "evidence": [
         "operation corpus",
@@ -281,9 +296,12 @@
         "scope": "Full suite accounting across all frozen standard suites; excluded counts are fixed before execution and cannot increase after failures."
       },
       "driver": {
-        "state": "TODO",
-        "command": null,
-        "note": "Suite accounting collector is not implemented."
+        "state": "READY",
+        "command": [
+          "python3",
+          "drivers/accounting.py"
+        ],
+        "note": "Strict read-only suite-accounting driver requires AFS_ACCEPTANCE_ACCOUNTING_MANIFEST with hash-bound STD-01..STD-04 target/reference raw artifacts and pre-run difference policy bindings. READY is not formal PASS; missing or non-PASS evidence returns BLOCKED."
       },
       "evidence": [
         "suite inventory",
@@ -882,9 +900,12 @@
         "scope": "Path, inode, fd, identity, permission, error and data isolation across independent mounts."
       },
       "driver": {
-        "state": "TODO",
-        "command": null,
-        "note": "Mount isolation driver is not implemented."
+        "state": "READY",
+        "command": [
+          "python3",
+          "drivers/mount_isolation.py"
+        ],
+        "note": "Live FUN-13 driver requires an exact mount-isolation binding file through AFS_ACCEPTANCE_MOUNT_ISOLATION_BINDINGS; formal status remains NOT_RUN until executed through the runner in a qualified environment."
       },
       "evidence": [
         "mount table",
@@ -2603,9 +2624,12 @@
         "scope": "Component readiness matrix with degraded and unavailable states."
       },
       "driver": {
-        "state": "TODO",
-        "command": null,
-        "note": "Health check driver is not implemented."
+        "state": "READY",
+        "command": [
+          "python3",
+          "drivers/health.py"
+        ],
+        "note": "Health readiness driver validates live /health snapshots from AFS_ACCEPTANCE_HEALTH_BINDINGS."
       },
       "evidence": [
         "readiness output",

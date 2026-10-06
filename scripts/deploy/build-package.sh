@@ -73,6 +73,14 @@ safe_name() {
   esac
 }
 
+safe_manifest_label() {
+  case "$1" in
+    ""|*[!A-Za-z0-9._,+-]*)
+      return 1
+      ;;
+  esac
+}
+
 safe_name "$PACKAGE_NAME" || { echo "invalid package name: $PACKAGE_NAME" >&2; exit 2; }
 
 if [ ! -x "$BIN_DIR/afs-meta" ] || [ ! -x "$BIN_DIR/afs-node" ]; then
@@ -90,6 +98,25 @@ safe_name "$VERSION" || { echo "invalid version: $VERSION" >&2; exit 2; }
 ARCH=${AFS_PACKAGE_ARCH:-$(uname -m)}
 TARGET=${AFS_PACKAGE_TARGET:-linux-$ARCH}
 safe_name "$TARGET" || { echo "invalid target: $TARGET" >&2; exit 2; }
+
+record_ldd() {
+  if command -v ldd >/dev/null 2>&1; then
+    ldd "$1" 2>&1 | sed -E 's/[[:space:]]*\(0x[0-9A-Fa-f]+\)//g'
+  else
+    echo "ldd unavailable"
+  fi
+}
+
+valid_epoch() {
+  case "$1" in
+    ""|*[!0-9]*)
+      return 1
+      ;;
+    *)
+      return 0
+      ;;
+  esac
+}
 
 mkdir -p "$OUTPUT_DIR"
 OUTPUT_DIR=$(CDPATH= cd -- "$OUTPUT_DIR" && pwd)
@@ -110,9 +137,13 @@ install -m 0755 "$BIN_DIR/afs-meta" "$PACKAGE_DIR/bin/afs-meta"
 install -m 0755 "$BIN_DIR/afs-node" "$PACKAGE_DIR/bin/afs-node"
 install -m 0755 "$SCRIPT_DIR/install.sh" "$PACKAGE_DIR/install.sh"
 install -m 0755 "$SCRIPT_DIR/afs-processctl" "$PACKAGE_DIR/bin/afs-processctl"
+install -m 0755 "$SCRIPT_DIR/afs-trial-config" "$PACKAGE_DIR/bin/afs-trial-config"
+install -m 0755 "$SCRIPT_DIR/afs-selfcheck" "$PACKAGE_DIR/bin/afs-selfcheck"
 install -m 0755 "$SCRIPT_DIR/dep02-smoke.sh" "$PACKAGE_DIR/bin/dep02-smoke.sh"
 install -m 0644 "$SCRIPT_DIR/DEPENDENCIES.md" "$PACKAGE_DIR/DEPENDENCIES.md"
-find "$SCRIPT_DIR/templates" -type f ! -name '._*' -print | while IFS= read -r template; do
+mkdir -p "$PACKAGE_DIR/docs/guides"
+install -m 0644 "$SOURCE_ROOT/docs/guides/trial.md" "$PACKAGE_DIR/docs/guides/trial.md"
+find "$SCRIPT_DIR/templates" -type f ! -name '._*' -print | sort | while IFS= read -r template; do
   rel=${template#"$SCRIPT_DIR/templates/"}
   mkdir -p "$PACKAGE_DIR/templates/$(dirname "$rel")"
   install -m 0644 "$template" "$PACKAGE_DIR/templates/$rel"
@@ -125,19 +156,29 @@ if [ -z "$SOURCE_COMMIT" ] || ! printf '%s' "$SOURCE_COMMIT" | grep -Eq '^[0-9a-
   echo "source commit is required; pass --source-commit when packaging outside a git checkout" >&2
   exit 1
 fi
+SOURCE_EPOCH=${SOURCE_DATE_EPOCH:-}
+if [ -z "$SOURCE_EPOCH" ] && command -v git >/dev/null 2>&1 && git -C "$SOURCE_ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  SOURCE_EPOCH=$(git -C "$SOURCE_ROOT" show -s --format=%ct "$SOURCE_COMMIT" 2>/dev/null || true)
+fi
+if [ -z "$SOURCE_EPOCH" ]; then
+  SOURCE_EPOCH=0
+fi
+valid_epoch "$SOURCE_EPOCH" || { echo "invalid SOURCE_DATE_EPOCH: $SOURCE_EPOCH" >&2; exit 2; }
 
 TOOLCHAIN=unknown
 if [ -f "$SOURCE_ROOT/rust-toolchain.toml" ]; then
   TOOLCHAIN=$(sed -n 's/^[[:space:]]*channel[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' "$SOURCE_ROOT/rust-toolchain.toml" | head -n 1)
 fi
+safe_manifest_label "$FEATURES" || { echo "invalid features list: $FEATURES" >&2; exit 2; }
+safe_manifest_label "$TOOLCHAIN" || { echo "invalid rust toolchain: $TOOLCHAIN" >&2; exit 2; }
 
 meta_sha=$(sha256sum "$BIN_DIR/afs-meta" | awk '{print $1}')
 node_sha=$(sha256sum "$BIN_DIR/afs-node" | awk '{print $1}')
 {
   echo "# ldd afs-meta"
-  if command -v ldd >/dev/null 2>&1; then ldd "$BIN_DIR/afs-meta" || true; else echo "ldd unavailable"; fi
+  record_ldd "$BIN_DIR/afs-meta" || true
   echo "# ldd afs-node"
-  if command -v ldd >/dev/null 2>&1; then ldd "$BIN_DIR/afs-node" || true; else echo "ldd unavailable"; fi
+  record_ldd "$BIN_DIR/afs-node" || true
 } >"$PACKAGE_DIR/ldd.txt"
 
 cat >"$PACKAGE_DIR/manifest.json" <<EOF
@@ -147,19 +188,23 @@ cat >"$PACKAGE_DIR/manifest.json" <<EOF
   "version": "$VERSION",
   "target": "$TARGET",
   "source_commit": "$SOURCE_COMMIT",
+  "source_date_epoch": $SOURCE_EPOCH,
   "features": "$FEATURES",
   "rust_toolchain": "$TOOLCHAIN",
   "binaries": {
     "afs-meta": {"sha256": "$meta_sha"},
     "afs-node": {"sha256": "$node_sha"}
   },
-  "contains": ["afs-meta", "afs-node", "afs-processctl", "dep02-smoke.sh"],
+  "contains": ["afs-meta", "afs-node", "afs-processctl", "afs-trial-config", "afs-selfcheck", "dep02-smoke.sh", "docs/guides/trial.md"],
   "installer": "install.sh",
   "notes": "Built from existing Linux release binaries; no Cargo or Git required on target guests."
 }
 EOF
 
 (cd "$PACKAGE_DIR" && find . -type f ! -name SHA256SUMS -print | sort | xargs sha256sum > SHA256SUMS)
+chmod 0644 "$PACKAGE_DIR/ldd.txt" "$PACKAGE_DIR/manifest.json" "$PACKAGE_DIR/SHA256SUMS"
+find "$PACKAGE_DIR" -type d -exec chmod 0755 {} +
+find "$PACKAGE_DIR" -exec touch -h -d "@$SOURCE_EPOCH" {} +
 if command -v xattr >/dev/null 2>&1; then
   xattr -cr "$PACKAGE_DIR" 2>/dev/null || true
 fi
@@ -172,7 +217,16 @@ for opt in --no-xattrs --no-acls --disable-copyfile --no-fflags; do
     TAR_CREATE_ARGS+=("$opt")
   fi
 done
-(cd "$STAGING" && COPYFILE_DISABLE=1 tar "${TAR_CREATE_ARGS[@]}" -czf "$TARBALL" "$(basename "$PACKAGE_DIR")")
-sha256sum "$TARBALL" >"$TARBALL.sha256"
+if tar --sort=name -cf /dev/null --files-from /dev/null >/dev/null 2>&1; then
+  TAR_CREATE_ARGS+=(--sort=name)
+fi
+if tar --owner=0 --group=0 --numeric-owner -cf /dev/null --files-from /dev/null >/dev/null 2>&1; then
+  TAR_CREATE_ARGS+=(--owner=0 --group=0 --numeric-owner)
+fi
+if tar --mtime="@$SOURCE_EPOCH" -cf /dev/null --files-from /dev/null >/dev/null 2>&1; then
+  TAR_CREATE_ARGS+=(--mtime="@$SOURCE_EPOCH")
+fi
+(cd "$STAGING" && COPYFILE_DISABLE=1 tar "${TAR_CREATE_ARGS[@]}" -cf - "$(basename "$PACKAGE_DIR")" | gzip -n >"$TARBALL")
+(cd "$OUTPUT_DIR" && sha256sum "$(basename "$TARBALL")" >"$(basename "$TARBALL").sha256")
 
 echo "$TARBALL"

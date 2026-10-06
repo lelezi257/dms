@@ -1,15 +1,17 @@
 # RFC 0001：OwnerFs workspace 同路径原生 bind mount
 
-- 状态：待决策的方案；未实现产品功能，未改变已接受的架构或发布验收要求。
+- 状态：G2 候选方案。机制穿刺支持继续实施，但当前 checkpoint 未发布生产功能、未提供已资格化的公开开关，默认路径仍是 OwnerFs FUSE。
 - 日期：2026-09-30。
 - 穿刺基线：`6ee3f177a43ee85cc6b79666502330095d445fdb`。
-- 关联：[OwnerFs 架构](../architecture/ownerfs.md)、[实现状态](../status.md)、[发布验收](../acceptance.md)。
+- 关联：[OwnerFs 架构](../architecture/ownerfs.md)、[实现状态](../status.md)、[发布验收](../acceptance.md)、[三阶段目标](../../development/trial-release-goals.md)、[当前源码 checkpoint](../../development/current-checkpoint.md)。
 
 ## Problem
 
 用户在 `/ownerfs` 下创建 workspace，例如 `mkdir /ownerfs/agent1`。`agent1` 就是 workspace，不再在其下面增加一个 workspace 层级。希望创建仍由 FUSE 接住，而之后本地文件访问使用 Home 上的普通 ext4 文件；远端仍通过自己的 FUSE 挂载，经 P2P 请求 Home。用户继续使用 `/ownerfs/agent1`，不需要改目录名、改工作目录或复制数据。
 
 本方案决策所需的挂载时序、过渡读写、真实 OwnerFs/P2P、并发、缓存、常用文件操作和生命周期穿刺已完成。结果支持**同路径原生访问这一机制**，也证明**当前 OwnerFs 不能仅增加 bind mount 就获得完整的本地/远端语义等价**。缓存、锁、元数据和生命周期存在可复现的缺口；失败结果也是穿刺结论，不能计为功能通过。
+
+在当前目标表中，本方案拆成两个独立验收项：功能验收和性能验收。功能项必须证明默认 OFF、显式配置、OFF 回归保持 FUSE 主路径、ON 的受管挂载生命周期、fallback、安全拒绝、缓存/锁/mmap/权限边界和重启对账。性能项必须在同一候选上比较 OFF、ON 和 ext4。功能未通过时不能宣称可启用；性能未通过时不能用机制穿刺推导接近 ext4。
 
 推荐采用“创建后异步挂载、过渡请求访问同一 backing directory、从创建起使用共享缓存策略、由管理入口卸载”的方案。首版适合 Home 固定、Agent 生命周期可管理的工作区。若要求任意程序始终使用普通 `rmdir/rename` 管理 workspace 根目录，或者依靠每次 RootGrant 检查立即撤销原生句柄，则本方案无法满足，应保留 FUSE。
 

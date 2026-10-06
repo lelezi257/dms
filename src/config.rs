@@ -56,6 +56,9 @@ pub struct Cli {
     /// Meta 后端：etcd（默认）、local-file 或 memory。
     #[arg(long, value_enum)]
     pub meta_store: Option<MetaStoreBackend>,
+    /// Allow a node to become functionally ready with a healthy volatile Meta.
+    #[arg(long)]
+    pub allow_volatile_meta: Option<bool>,
     #[arg(long)]
     pub peer_endpoint: Option<String>,
     /// 对外发布的本 Node gRPC URI；监听 0.0.0.0 时必须显式指定。
@@ -126,6 +129,7 @@ struct FileConfig {
     etcd_endpoint: Option<String>,
     redis_endpoint: Option<String>,
     meta_store: Option<MetaStoreBackend>,
+    allow_volatile_meta: Option<bool>,
     peer_endpoint: Option<String>,
     advertise_endpoint: Option<String>,
     tls_ca_certificate: Option<PathBuf>,
@@ -165,6 +169,7 @@ pub struct Config {
     pub etcd_endpoint: Option<String>,
     pub redis_endpoint: Option<String>,
     pub meta_store: MetaStoreBackend,
+    pub allow_volatile_meta: bool,
     pub peer_endpoint: Option<String>,
     pub advertise_endpoint: Option<String>,
     pub tls_ca_certificate: Option<PathBuf>,
@@ -319,6 +324,10 @@ impl Config {
                 .meta_store
                 .or(file.meta_store)
                 .unwrap_or(MetaStoreBackend::Etcd),
+            allow_volatile_meta: cli
+                .allow_volatile_meta
+                .or(file.allow_volatile_meta)
+                .unwrap_or(false),
             peer_endpoint: cli.peer_endpoint.or(file.peer_endpoint),
             advertise_endpoint: cli.advertise_endpoint.or(file.advertise_endpoint),
             tls_ca_certificate: cli.tls_ca_certificate.or(file.tls_ca_certificate),

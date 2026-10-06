@@ -8,8 +8,10 @@ Release packages provide these deployment entry points:
 | --- | --- |
 | `scripts/deploy/build-package.sh` | package existing Linux release binaries and deploy tools; it does not compile |
 | `install.sh` | install binaries, process controller, dependency notes and default configs while preserving existing state |
+| `/opt/afs/bin/afs-trial-config` | generate single-node memory/local-file configs or a Meta + two data node R2 config bundle |
 | `/opt/afs/bin/afs-processctl` | start, stop, restart, status and uninstall managed AFS services |
 | `/opt/afs/bin/dep02-smoke.sh` | verify exact AFS FUSE mount plus minimal file create/write/fsync/close/reopen behavior; DFS writes at mount root, OwnerFs writes inside a newly created workspace |
+| `/opt/afs/bin/afs-selfcheck` | run the stronger package selfcheck against an exact AFS FUSE mount; default workload is 64 MiB plus small file, chmod, fcntl-lock and mmap checks, wrapped in GNU `timeout` |
 
 Managed processes are `meta` and `node`. OwnerFs and DFS are modules of the same `afs-node` process, configured with separate FUSE mounts. The `dfs` and `ownerfs` controller names are aliases for that Node; they select the requested mount readiness checks. `all` controls Meta and Node.
 
@@ -21,7 +23,7 @@ A killed Node can leave disconnected FUSE mounts behind. Before creating mount d
 
 A small supervisor owns the product child's `wait` status and atomically records it in that launch directory. `stop` succeeds only for a matching exit record with code `0` (or a service that was never started). Codes such as `1`, `124` or `137` are returned as failures. Missing or mismatched records produce a nonzero unknown result. PID disappearance and a successful signal alone do not prove successful shutdown.
 
-Completed PID, identity and exit records remain available for repeated `stop` and `status`. JSON status preserves its service, state, pid, config and log fields and adds `exit_code`; stopped failures have state `failed`, unavailable results have state `exit-unknown`. An explicit new start establishes a new launch and retires the previous completed records. Unknown launch directories remain for diagnosis. `restart` and `uninstall` stop on a failed or unknown termination result. Successful uninstall removes program files and preserves config, data, logs and termination evidence.
+Completed PID, identity and exit records remain available for repeated `stop` and `status`. JSON status preserves its service, state, pid, config and log fields and adds `exit_code`; stopped failures have state `failed`, unavailable results have state `exit-unknown`. An explicit new start establishes a new launch and retires the previous completed records. Unknown launch directories remain for diagnosis. `restart` and `uninstall` stop on a failed or unknown termination result. Successful uninstall removes program files and preserves config, data, logs and termination evidence. Program-file removal includes `afs-meta`, `afs-node`, `afs-processctl`, `afs-trial-config`, `afs-selfcheck`, `dep02-smoke.sh`, the package manifest, dependency notes and installed guide copy.
 
 Default paths:
 
@@ -34,7 +36,13 @@ Default paths:
 | `/var/log/afs` | process logs |
 | `/mnt/afs` | default mount root used in generated configs; override with `install.sh --mount-root DIR` for isolated installs |
 
-Backend and TLS options stay in TOML and are passed directly to `afs-meta` or `afs-node`. The templates keep `local-file`, `etcd` and Redis backend fields visible; a backend lane is usable only when the installed binary and the selected backend pass the corresponding acceptance cases.
+Backend and TLS options stay in TOML and are passed directly to `afs-meta` or `afs-node`. The templates keep `memory`, `local-file`, `etcd` and Redis backend fields visible; a backend lane is usable only when the installed binary and the selected backend pass the corresponding acceptance cases. `memory` is a disposable demo backend and loses namespace state on Meta restart; Node readiness requires explicit `allow_volatile_meta = true` for this lane. `local-file` is the persistent first trial lane and keeps volatile Meta disabled.
+
+The current trial order is `memory` demo, then `local-file` persistent restart
+recovery, then etcd as a later resource/reliability topic, then Redis as the
+last backend lane. This order is operational as well as validation guidance:
+do not block the usable package or OwnerFs/DFS core performance work on etcd or
+Redis unless the selected task explicitly depends on that backend.
 
 Listen addresses and mount paths are read from single-line configuration values during controller preflight and readiness. Literal strings with single quotes and basic strings with double quotes can have trailing comments; spaces, `#` and `=` inside a quoted value are preserved. A parse error or out-of-range listen port fails before creating a managed launch. The [implementation status](../status.md) records remaining configuration syntax limits.
 
@@ -91,6 +99,13 @@ does not establish that cancellation interrupts posted DMA.
 ## Mounts
 
 Run OwnerFs and DFS as separate mounts. Each mount has its own FUSE session, inode table, handle table and cache policy.
+
+OwnerFs native bind mount, if present in a development candidate, is a separate
+default-off optimization lane. Operations must continue to document and support
+the normal FUSE path as the default. A candidate may claim native-bind function
+only after the managed lifecycle, fallback, cache, lock, mmap, permission and
+restart-reconciliation checks pass; it may claim native-bind performance only
+after OFF/ON/ext4 comparisons pass for the chosen workload.
 
 ## Node Stop
 

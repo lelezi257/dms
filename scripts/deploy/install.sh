@@ -90,9 +90,13 @@ done
 install -m 0755 "$PACKAGE_DIR/bin/afs-meta" "$PREFIX/bin/afs-meta"
 install -m 0755 "$PACKAGE_DIR/bin/afs-node" "$PREFIX/bin/afs-node"
 install -m 0755 "$PACKAGE_DIR/bin/afs-processctl" "$PREFIX/bin/afs-processctl"
+install -m 0755 "$PACKAGE_DIR/bin/afs-trial-config" "$PREFIX/bin/afs-trial-config"
+install -m 0755 "$PACKAGE_DIR/bin/afs-selfcheck" "$PREFIX/bin/afs-selfcheck"
 install -m 0755 "$PACKAGE_DIR/bin/dep02-smoke.sh" "$PREFIX/bin/dep02-smoke.sh"
 install -m 0644 "$PACKAGE_DIR/manifest.json" "$PREFIX/manifest.json"
 install -m 0644 "$PACKAGE_DIR/DEPENDENCIES.md" "$PREFIX/DEPENDENCIES.md"
+mkdir -p "$PREFIX/docs/guides"
+install -m 0644 "$PACKAGE_DIR/docs/guides/trial.md" "$PREFIX/docs/guides/trial.md"
 
 write_config_once() {
   src=$1

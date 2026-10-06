@@ -13,6 +13,7 @@ import platform
 import re
 import shlex
 import sys
+import tarfile
 import uuid
 from ipaddress import IPv6Address, ip_address
 from pathlib import Path
@@ -49,12 +50,12 @@ DEFERRED = {
     "network-tls-fault-recovery": "complete four-way TCP/UDP, TLS negative and controlled fault recovery semantics are not validated",
     "durable-backend-restart": "etcd/Redis durable backend restart semantics are not validated",
     "cross-vm-verbs": "independent cross-VM verbs transfer is not validated here",
-    "ext4-reference-accounting": "ext4 reference applicability and complete suite accounting are not validated",
+    "ext4-reference-accounting": "pinned ext4 reference suite selection, dependencies and runnable evidence are not validated",
     "actual-moosefs-mount-io": "stock MooseFS mount read/write evidence is not validated",
     "actual-3fs-mount-io": "stock 3FS mount read/write evidence is not validated",
     "complete-frozen-inputs": "complete source/binary/tool/suite/runner frozen-input contract is not validated",
-    "run-contracts": "formal run contracts remain TODO and cannot be inferred from preparation receipts",
-    "clock-accuracy": "clock synchronization is observed but accuracy bound has no evaluator yet",
+    "run-contracts": "frozen case selections, parameters, exclusions, seeds and result schemas are not validated",
+    "clock-accuracy": "actual time-synchronization sources/state and sampling uncertainty are not validated",
     "cgroup-mount-cache-thin-allocation": "cgroup quotas, mount cache mode and host thin-allocation/cache semantics are not evaluated",
 }
 
@@ -715,7 +716,7 @@ def verbs_command_covers_endpoint(row: dict[str, Any], endpoint: dict[str, Any])
     if started is None or ended is None or not valid_finite_time(first) or not valid_finite_time(last):
         return False
     # Record matching allows 50 ms of host/guest clock skew. This does not
-    # qualify the separate acceptance clock-accuracy requirement.
+    # qualify the separate acceptance time-synchronization requirement.
     tolerance = 0.05
     return started <= ended and first <= last and started.timestamp() <= first + tolerance and ended.timestamp() >= last - tolerance
 
@@ -1160,6 +1161,474 @@ def _evaluate_verbs(bundle: dict[str, Any], artifact_root: Path, refs: dict[str,
     return check("cross-vm-verbs", status, detail, evidence)
 
 
+def readiness_ref(bundle: dict[str, Any], target: str) -> dict[str, Any] | None:
+    readiness = bundle.get("readiness_evidence")
+    if not isinstance(readiness, dict):
+        return None
+    value = readiness.get(target)
+    return value if isinstance(value, dict) else None
+
+
+def load_readiness_json(artifact_root: Path, refs: dict[str, str], rel: Any, problems: list[dict[str, str]], label: str) -> dict[str, Any] | None:
+    if not isinstance(rel, str):
+        problems.append({"status": "BLOCKED", "detail": f"{label}: missing relative path"})
+        return None
+    status, value = read_json_ref(artifact_root, refs, rel)
+    if status == "OK" and isinstance(value, dict):
+        return value
+    problems.append({"status": "BLOCKED" if status == "MISSING" else "FAIL", "detail": f"{rel}: {status}"})
+    return None
+
+
+def artifact_entry_sha(entry: Any) -> str | None:
+    if isinstance(entry, str):
+        return entry if is_sha256_hex(entry) else None
+    if isinstance(entry, dict) and is_sha256_hex(entry.get("sha256")):
+        return entry["sha256"]
+    return None
+
+
+def artifact_manifest_has(manifest: dict[str, Any], required: list[str], problems: list[dict[str, str]], label: str) -> None:
+    files = manifest.get("files")
+    if not isinstance(files, dict):
+        problems.append({"status": "FAIL", "detail": f"{label}: artifact manifest lacks files object"})
+        return
+    for rel in required:
+        if artifact_entry_sha(files.get(rel)) is None:
+            problems.append({"status": "FAIL", "detail": f"{label}: missing hash for {rel}"})
+
+
+def validate_manifest_files(base: Path, manifest: dict[str, Any], problems: list[dict[str, str]], label: str) -> None:
+    files = manifest.get("files")
+    if not isinstance(files, dict):
+        problems.append({"status": "FAIL", "detail": f"{label}: artifact manifest lacks files object"})
+        return
+    base_resolved = base.resolve()
+    for rel, entry in files.items():
+        if not isinstance(rel, str) or not rel or "\x00" in rel or Path(rel).is_absolute() or ".." in Path(rel).parts:
+            problems.append({"status": "FAIL", "detail": f"{label}: invalid artifact path {rel!r}"})
+            continue
+        path = base / rel
+        try:
+            current = path
+            symlink = False
+            while True:
+                if current.is_symlink():
+                    symlink = True
+                    break
+                if current == base or current.parent == current:
+                    break
+                current = current.parent
+            if symlink:
+                problems.append({"status": "FAIL", "detail": f"{label}: symlink rejected for {rel}"})
+                continue
+            resolved = path.resolve()
+            if not resolved.is_relative_to(base_resolved):
+                problems.append({"status": "FAIL", "detail": f"{label}: artifact escapes packet root {rel}"})
+                continue
+            if not path.is_file():
+                problems.append({"status": "BLOCKED", "detail": f"{label}: missing artifact {rel}"})
+                continue
+            expected_sha = artifact_entry_sha(entry)
+            expected_bytes = entry.get("bytes") if isinstance(entry, dict) else None
+            if expected_sha is None:
+                problems.append({"status": "FAIL", "detail": f"{label}: malformed sha256 for {rel}"})
+                continue
+            actual_bytes = path.stat().st_size
+            if type(expected_bytes) is int and actual_bytes != expected_bytes:
+                problems.append({"status": "FAIL", "detail": f"{label}: byte count mismatch for {rel}"})
+            actual_sha = sha256_file(path)
+            if actual_sha != expected_sha:
+                problems.append({"status": "FAIL", "detail": f"{label}: sha256 mismatch for {rel}"})
+        except OSError as exc:
+            problems.append({"status": "BLOCKED", "detail": f"{label}: cannot read {rel}: {exc}"})
+
+
+def load_packet_json(packet_root: Path, rel: str, problems: list[dict[str, str]], label: str) -> dict[str, Any] | None:
+    path = packet_root / rel
+    if not path.is_file():
+        problems.append({"status": "BLOCKED", "detail": f"{label}: missing raw JSON {rel}"})
+        return None
+    return load_readiness_json(packet_root, {rel: sha256_file(path)}, rel, problems, label)
+
+
+def validate_audit_ref_hash(artifact_root: Path, refs: dict[str, str], audit_rel: str, manifest: dict[str, Any], manifest_key: str | None, problems: list[dict[str, str]]) -> None:
+    if manifest_key is None:
+        return
+    files = manifest.get("files")
+    expected = artifact_entry_sha(files.get(manifest_key) if isinstance(files, dict) else None)
+    if expected is None:
+        problems.append({"status": "FAIL", "detail": f"artifact manifest missing audit hash for {manifest_key}"})
+        return
+    if sha256_file(checked_path(artifact_root, audit_rel)) != expected:
+        problems.append({"status": "FAIL", "detail": "audit.json hash differs from artifact manifest"})
+
+
+def safe_tar_entries(path: Path, problems: list[dict[str, str]], label: str) -> dict[str, bytes]:
+    entries: dict[str, bytes] = {}
+    try:
+        with tarfile.open(path, "r:gz") as archive:
+            total = 0
+            for member in archive.getmembers():
+                pure = Path(member.name)
+                if pure.is_absolute() or ".." in pure.parts or not member.name:
+                    problems.append({"status": "FAIL", "detail": f"{label}: unsafe tar path {member.name!r}"})
+                    continue
+                if member.isdir():
+                    continue
+                if not member.isfile() or member.issym() or member.islnk() or member.isdev():
+                    problems.append({"status": "FAIL", "detail": f"{label}: non-regular tar member {member.name}"})
+                    continue
+                if member.name in entries:
+                    problems.append({"status": "FAIL", "detail": f"{label}: duplicate tar member {member.name}"})
+                    continue
+                total += member.size
+                if total > 256 * 1024 * 1024:
+                    problems.append({"status": "FAIL", "detail": f"{label}: tar exceeds bounded audit size"})
+                    break
+                handle = archive.extractfile(member)
+                if handle is None:
+                    problems.append({"status": "FAIL", "detail": f"{label}: unreadable tar member {member.name}"})
+                    continue
+                entries[member.name] = handle.read()
+    except (OSError, tarfile.TarError) as exc:
+        problems.append({"status": "BLOCKED", "detail": f"{label}: cannot open tar: {exc}"})
+    return entries
+
+
+def tar_json(entries: dict[str, bytes], member: str, problems: list[dict[str, str]], label: str) -> dict[str, Any] | None:
+    raw = entries.get(member)
+    if raw is None:
+        problems.append({"status": "FAIL", "detail": f"{label}: missing tar JSON {member}"})
+        return None
+    try:
+        value = json.loads(raw)
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        problems.append({"status": "FAIL", "detail": f"{label}: malformed tar JSON {member}: {exc}"})
+        return None
+    if not isinstance(value, dict):
+        problems.append({"status": "FAIL", "detail": f"{label}: tar JSON {member} must be object"})
+        return None
+    return value
+
+
+def readiness_boundary_ok(record: dict[str, Any]) -> bool:
+    return record.get("status") == "PASS" and record.get("formal_acceptance") == "NOT_RUN" and record.get("environment") == "PREPARING"
+
+
+def tar_action_rows(entries: dict[str, bytes], problems: list[dict[str, str]], label: str) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for member, raw in entries.items():
+        if not member.endswith(".json"):
+            continue
+        try:
+            value = json.loads(raw)
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            continue
+        if isinstance(value, dict) and isinstance(value.get("action"), str):
+            rows.append({"member": member, "value": value})
+    if not rows:
+        problems.append({"status": "FAIL", "detail": f"{label}: no action JSON receipts in raw archive"})
+    return rows
+
+
+def validate_backend_raw(packet_root: Path, audit: dict[str, Any], problems: list[dict[str, str]]) -> None:
+    product_sha = {
+        "node": "a3fe6573fc5f5a41c30b823855cfe2fdd1428950f878f1e29756e7bfc0d7e9d9",
+        "meta": "895f39fd660b7f7d9735eaaa4f3a082c3692a409d954c4aa8b5b0cc515a700ad",
+    }
+    lanes = audit.get("lanes")
+    if not isinstance(lanes, dict):
+        return
+    for backend in ("etcd", "redis"):
+        for role in ("ctl", "a", "b"):
+            rel = f"{backend}/{role}/runtime-raw.tar.gz"
+            entries = safe_tar_entries(packet_root / rel, problems, f"backend {backend}/{role}")
+            if not entries:
+                continue
+            config = "etc/meta.toml" if role == "ctl" else "etc/node.toml"
+            if config not in entries:
+                problems.append({"status": "FAIL", "detail": f"backend {backend}/{role}: missing {config}"})
+            rows = tar_action_rows(entries, problems, f"backend {backend}/{role}")
+            actions = [row["value"].get("action") for row in rows if readiness_boundary_ok(row["value"])]
+            if actions.count("start") != 2 or actions.count("stop") != 2 or actions.count("cleanup") != 1:
+                problems.append({"status": "FAIL", "detail": f"backend {backend}/{role}: normal start/stop/cleanup receipts incomplete"})
+            expected_role = "meta" if role == "ctl" else "node"
+            for row in rows:
+                value = row["value"]
+                if not readiness_boundary_ok(value):
+                    problems.append({"status": "FAIL", "detail": f"backend {backend}/{role}: receipt boundary mismatch {row['member']}"})
+                    continue
+                action = value.get("action")
+                result = value.get("result")
+                identity = result.get("identity") if isinstance(result, dict) else None
+                if action in {"start", "restart"}:
+                    if not isinstance(identity, dict):
+                        problems.append({"status": "FAIL", "detail": f"backend {backend}/{role}: product identity missing for {action}"})
+                    elif identity.get("sha256") != product_sha[expected_role]:
+                        problems.append({"status": "FAIL", "detail": f"backend {backend}/{role}: product binary sha mismatch"})
+                if action == "stop":
+                    controller = result.get("controller") if isinstance(result, dict) else None
+                    if not isinstance(controller, dict) or controller.get("exit") != 0 or "stopped" not in str(controller.get("stdout", "")):
+                        problems.append({"status": "FAIL", "detail": f"backend {backend}/{role}: normal stop receipt malformed"})
+                read = result.get("read") if isinstance(result, dict) else None
+                if isinstance(read, dict) and (read.get("bytes") != 4194321 or not is_sha256_hex(read.get("sha256"))):
+                    problems.append({"status": "FAIL", "detail": f"backend {backend}/{role}: content read receipt malformed"})
+                if role != "ctl":
+                    physical = result.get("physical") if isinstance(result, dict) else None
+                    if physical is not None and (not isinstance(physical, list) or sorted(item.get("chunk", {}).get("bytes") for item in physical if isinstance(item, dict)) != [17, 4194304]):
+                        problems.append({"status": "FAIL", "detail": f"backend {backend}/{role}: physical chunk receipts malformed"})
+            if role == "ctl":
+                retained = tar_json(entries, "evidence/retained-snapshot-restart.json", problems, f"backend {backend}/ctl")
+                lane_retained = lanes.get(backend, {}).get("retained_snapshot") if isinstance(lanes.get(backend), dict) else None
+                if retained != lane_retained:
+                    problems.append({"status": "FAIL", "detail": f"backend {backend}: retained snapshot raw/audit mismatch"})
+
+
+def validate_moose_raw(packet_root: Path, audit: dict[str, Any], problems: list[dict[str, str]]) -> None:
+    archives = {role: safe_tar_entries(packet_root / role / "runtime-raw.tar.gz", problems, f"MooseFS {role}") for role in ("ctl", "a", "b")}
+    for item in audit.get("content_receipts", []):
+        if not isinstance(item, dict):
+            problems.append({"status": "FAIL", "detail": "MooseFS content receipt entry malformed"})
+            continue
+        role, receipt = item.get("role"), item.get("receipt")
+        if role not in archives or not isinstance(receipt, str):
+            problems.append({"status": "FAIL", "detail": "MooseFS content receipt role/path malformed"})
+            continue
+        record = tar_json(archives[role], receipt, problems, f"MooseFS {role}")
+        if record is None:
+            continue
+        if record.get("formal_acceptance") != "NOT_RUN" or record.get("environment") != "PREPARING" or record.get("blocker") != "B001":
+            problems.append({"status": "FAIL", "detail": f"MooseFS {receipt}: boundary mismatch"})
+        size = record.get("length", record.get("bytes", record.get("size")))
+        if item.get("phase") in {"pre", "post", "write"} and (size != 32 * 1024**2 or record.get("sha256") != "626f47ade3da8112941c844a3a1d8a02b94c5e134a9c3391a3375aa22cd1dbc7"):
+            problems.append({"status": "FAIL", "detail": f"MooseFS {receipt}: content identity mismatch"})
+        if item.get("phase") in {"pre", "post"} and (not isinstance(record.get("ranges"), list) or len(record["ranges"]) != 64):
+            problems.append({"status": "FAIL", "detail": f"MooseFS {receipt}: range receipts missing"})
+    for role, stop in audit.get("final_normal_stop_receipts", {}).items():
+        if role in archives and isinstance(stop, dict) and isinstance(stop.get("receipt"), str):
+            record = tar_json(archives[role], stop["receipt"], problems, f"MooseFS {role}")
+            if record is not None and (record.get("formal_acceptance") != "NOT_RUN" or record.get("environment") != "PREPARING"):
+                problems.append({"status": "FAIL", "detail": f"MooseFS final stop {role}: boundary mismatch"})
+    for label, value in audit.get("process_incarnations", {}).items():
+        role = label.split("/", 1)[0]
+        if role not in archives or not isinstance(value, dict):
+            continue
+        for key in ("initial_receipt", "restart_receipt"):
+            receipt = value.get(key)
+            if isinstance(receipt, str):
+                record = tar_json(archives[role], receipt, problems, f"MooseFS {label}")
+                identity = record.get("identity") if isinstance(record, dict) else None
+                top_level_identity = isinstance(record, dict) and all(key in record for key in ("pid", "start_ticks", "boot_id"))
+                if record is not None and not isinstance(identity, dict) and not top_level_identity:
+                    problems.append({"status": "FAIL", "detail": f"MooseFS {label}: missing raw process identity"})
+
+
+def payload_3fs() -> bytes:
+    return b"".join(hashlib.sha256(f"round3-3fs-v84-{i}".encode()).digest() * 32768 for i in range(32))
+
+
+def validate_3fs_raw(packet_root: Path, audit: dict[str, Any], problems: list[dict[str, str]]) -> None:
+    data = payload_3fs()
+    digest = hashlib.sha256(data).hexdigest()
+    write = load_packet_json(packet_root, "a/v84-write-r2.json", problems, "3FS write")
+    if write is not None:
+        if write.get("status") != "PASS" or write.get("bytes") != len(data) or write.get("observed_sha256") != digest:
+            problems.append({"status": "FAIL", "detail": "3FS write content receipt mismatch"})
+        writes = write.get("writes_1mib")
+        if not isinstance(writes, list) or len(writes) != 32:
+            problems.append({"status": "FAIL", "detail": "3FS write lacks 32 exact 1MiB writes"})
+    for rel in ("a/v84-read.json", "b/v84-read.json", "b/v84-read-after-restart.json"):
+        record = load_packet_json(packet_root, rel, problems, f"3FS {rel}")
+        if record is None:
+            continue
+        if record.get("status") != "PASS" or record.get("bytes") != len(data) or record.get("sha256") != digest:
+            problems.append({"status": "FAIL", "detail": f"3FS {rel}: content identity mismatch"})
+        if not isinstance(record.get("fixed_ranges_exact"), list) or len(record["fixed_ranges_exact"]) != 64:
+            problems.append({"status": "FAIL", "detail": f"3FS {rel}: fixed range receipts missing"})
+    for plan_rel, expected_slots in (("preparation/physical-plan-before.json", audit.get("physical_slots_before")), ("preparation/physical-plan-after-r3.json", audit.get("physical_slots_after"))):
+        plan = load_packet_json(packet_root, plan_rel, problems, f"3FS {plan_rel}")
+        if plan is None:
+            continue
+        roles = plan.get("roles")
+        if not isinstance(roles, dict) or sum(len(v) for v in roles.values() if isinstance(v, list)) != expected_slots:
+            problems.append({"status": "FAIL", "detail": f"3FS {plan_rel}: physical slot count mismatch"})
+    for role in ("ctl", "a", "b", "c"):
+        entries = safe_tar_entries(packet_root / role / "runtime-raw.tar.gz", problems, f"3FS {role}")
+        if entries and not any(name.startswith("evidence/") or "/evidence/" in name for name in entries):
+            problems.append({"status": "FAIL", "detail": f"3FS {role}: raw archive lacks evidence receipts"})
+
+
+def readiness_status_from(problems: list[dict[str, str]]) -> str:
+    if any(problem["status"] == "FAIL" for problem in problems):
+        return "FAIL"
+    if problems:
+        return "BLOCKED"
+    return "PASS"
+
+
+def evaluate_durable_backend_restart(bundle: dict[str, Any], artifact_root: Path, refs: dict[str, str]) -> dict[str, Any]:
+    target = "durable-backend-restart"
+    spec = readiness_ref(bundle, target)
+    if spec is None:
+        return check(target, "BLOCKED", "readiness_evidence.durable-backend-restart is missing")
+    problems: list[dict[str, str]] = []
+    audit_rel = spec.get("audit")
+    audit = load_readiness_json(artifact_root, refs, audit_rel, problems, "backend audit")
+    manifest = load_readiness_json(artifact_root, refs, spec.get("artifact_hashes"), problems, "backend artifact hashes")
+    if audit is not None and manifest is not None and isinstance(audit_rel, str):
+        packet_root = checked_path(artifact_root, audit_rel).parent
+        validate_manifest_files(packet_root, manifest, problems, "backend artifacts")
+        validate_audit_ref_hash(artifact_root, refs, audit_rel, manifest, "audit.json", problems)
+        artifact_manifest_has(manifest, [
+            "README.md",
+            "audit.py",
+            "etcd/ctl/runtime-raw.tar.gz",
+            "etcd/a/runtime-raw.tar.gz",
+            "etcd/b/runtime-raw.tar.gz",
+            "redis/ctl/runtime-raw.tar.gz",
+            "redis/a/runtime-raw.tar.gz",
+            "redis/b/runtime-raw.tar.gz",
+            "preparation/etcd-native.json",
+            "preparation/redis-native.json",
+            "preparation/original-serialization-failure.json",
+        ], problems, "backend artifacts")
+        checks = audit.get("checks")
+        validation = audit.get("validation")
+        lanes = audit.get("lanes")
+        preserved = audit.get("preserved_failures")
+        if audit.get("status") != "PASS" or audit.get("scope") != "RETAINED_SCOPED_NORMAL_BACKEND_INTEGRATION" or audit.get("formal_acceptance") != "NOT_RUN" or audit.get("environment") != "PREPARING":
+            problems.append({"status": "FAIL", "detail": "backend audit status/scope boundary mismatch"})
+        if not isinstance(checks, list) or len(checks) < 500 or any(not isinstance(item, dict) or item.get("status") != "PASS" for item in checks):
+            problems.append({"status": "FAIL", "detail": "backend audit checks are incomplete or failing"})
+        if not isinstance(validation, dict) or validation.get("r2", {}).get("tests") != 17:
+            problems.append({"status": "FAIL", "detail": "backend Linux helper validation identity is missing"})
+        if not isinstance(lanes, dict) or set(lanes) != {"etcd", "redis"}:
+            problems.append({"status": "FAIL", "detail": "backend lanes must include exactly etcd and Redis"})
+        else:
+            for backend in ("etcd", "redis"):
+                lane = lanes[backend]
+                retained = lane.get("retained_snapshot") if isinstance(lane, dict) else None
+                guests = lane.get("guests") if isinstance(lane, dict) else None
+                if not isinstance(retained, dict) or retained.get("status") != "PASS" or retained.get("before") != retained.get("after"):
+                    problems.append({"status": "FAIL", "detail": f"{backend}: retained native snapshot mismatch"})
+                if not isinstance(guests, dict) or set(guests) != {"ctl", "a", "b"}:
+                    problems.append({"status": "FAIL", "detail": f"{backend}: guest lane set mismatch"})
+                    continue
+                for role in ("ctl", "a", "b"):
+                    guest = guests[role]
+                    if not isinstance(guest, dict) or type(guest.get("final_available_bytes")) is not int or guest["final_available_bytes"] < 4 * GIB:
+                        problems.append({"status": "FAIL", "detail": f"{backend}/{role}: final ext4 reserve missing"})
+        if not isinstance(preserved, list) or len(preserved) != 1 or preserved[0].get("classification") != "ORIGINAL_COLLECTOR_FAILURE":
+            problems.append({"status": "FAIL", "detail": "expected original collector failure is not retained exactly once"})
+        validate_backend_raw(packet_root, audit, problems)
+    status = readiness_status_from(problems)
+    detail = "hash-bound etcd/Redis normal backend restart evidence validated" if status == "PASS" else "durable backend restart evidence is incomplete or inconsistent"
+    return check(target, status, detail, {"problems": problems[:20]})
+
+
+def evaluate_actual_moosefs_mount_io(bundle: dict[str, Any], artifact_root: Path, refs: dict[str, str]) -> dict[str, Any]:
+    target = "actual-moosefs-mount-io"
+    spec = readiness_ref(bundle, target)
+    if spec is None:
+        return check(target, "BLOCKED", "readiness_evidence.actual-moosefs-mount-io is missing")
+    problems: list[dict[str, str]] = []
+    audit_rel = spec.get("audit")
+    audit = load_readiness_json(artifact_root, refs, audit_rel, problems, "MooseFS audit")
+    manifest = load_readiness_json(artifact_root, refs, spec.get("artifact_hashes"), problems, "MooseFS artifact hashes")
+    if audit is not None and manifest is not None and isinstance(audit_rel, str):
+        packet_root = checked_path(artifact_root, audit_rel).parent
+        validate_manifest_files(packet_root, manifest, problems, "MooseFS artifacts")
+        validate_audit_ref_hash(artifact_root, refs, audit_rel, manifest, "audit.json", problems)
+        artifact_manifest_has(manifest, [
+            "README.md",
+            "audit.py",
+            "ctl/runtime-raw.tar.gz",
+            "a/runtime-raw.tar.gz",
+            "b/runtime-raw.tar.gz",
+            "probes/round3-moose-policy.py",
+            "probes/r3/round3-moose-read.py",
+            "probes/r3/test_round3_moose_read.py",
+        ], problems, "MooseFS artifacts")
+        receipts = audit.get("content_receipts")
+        stops = audit.get("final_normal_stop_receipts")
+        incarnations = audit.get("process_incarnations")
+        policy = audit.get("goal1_policy")
+        if audit.get("result") != "PASS_ARCHIVED_ONE_COPY_POLICY_READ_AND_NORMAL_RESTART_CHECKS" or audit.get("formal_acceptance") != "NOT_RUN" or audit.get("environment") != "PREPARING":
+            problems.append({"status": "FAIL", "detail": "MooseFS audit result/boundary mismatch"})
+        if audit.get("strong_durable_write") != "BLOCKED" or audit.get("blocker") != "B001" or audit.get("fair_performance_comparison") != "NOT_RUN":
+            problems.append({"status": "FAIL", "detail": "MooseFS durability/performance boundary changed"})
+        if audit.get("length") != 32 * 1024**2 or audit.get("sha256") != "626f47ade3da8112941c844a3a1d8a02b94c5e134a9c3391a3375aa22cd1dbc7" or audit.get("ranges_per_command") != 64:
+            problems.append({"status": "FAIL", "detail": "MooseFS content identity mismatch"})
+        if not isinstance(policy, dict) or policy.get("status") != "QUALIFIED_FOR_NEW_V89_FIXTURE" or policy.get("fields", {}).get("create_labels") != "*" or policy.get("fields", {}).get("keep_labels") != "*":
+            problems.append({"status": "FAIL", "detail": "MooseFS one-copy class proof missing"})
+        if not isinstance(receipts, list) or {(r.get("role"), r.get("phase")) for r in receipts if isinstance(r, dict)} != {("a", "write"), ("a", "pre"), ("a", "post"), ("b", "pre"), ("b", "post")}:
+            problems.append({"status": "FAIL", "detail": "MooseFS A/B write/read receipt set mismatch"})
+        if not isinstance(stops, dict) or set(stops) != {"ctl", "a", "b"}:
+            problems.append({"status": "FAIL", "detail": "MooseFS final normal stop receipts missing"})
+        if not isinstance(incarnations, dict) or set(incarnations) != {"ctl/master", "a/chunk", "a/fuse", "b/fuse"}:
+            problems.append({"status": "FAIL", "detail": "MooseFS process incarnation set mismatch"})
+        else:
+            for label, value in incarnations.items():
+                before, after = value.get("before"), value.get("after")
+                if not isinstance(before, list) or not isinstance(after, list) or len(before) != 5 or len(after) != 5 or before == after or before[2:] != after[2:]:
+                    problems.append({"status": "FAIL", "detail": f"MooseFS {label}: restart identity mismatch"})
+        validate_moose_raw(packet_root, audit, problems)
+    status = readiness_status_from(problems)
+    detail = "hash-bound stock MooseFS mount write/read/restart evidence validated" if status == "PASS" else "MooseFS mount IO evidence is incomplete or inconsistent"
+    return check(target, status, detail, {"problems": problems[:20]})
+
+
+def evaluate_actual_3fs_mount_io(bundle: dict[str, Any], artifact_root: Path, refs: dict[str, str]) -> dict[str, Any]:
+    target = "actual-3fs-mount-io"
+    spec = readiness_ref(bundle, target)
+    if spec is None:
+        return check(target, "BLOCKED", "readiness_evidence.actual-3fs-mount-io is missing")
+    problems: list[dict[str, str]] = []
+    audit = load_readiness_json(artifact_root, refs, spec.get("audit"), problems, "3FS audit")
+    manifest = load_readiness_json(artifact_root, refs, spec.get("artifact_hashes"), problems, "3FS artifact hashes")
+    if audit is not None and manifest is not None:
+        audit_rel = spec.get("audit")
+        if isinstance(audit_rel, str):
+            packet_root = checked_path(artifact_root, audit_rel).parent
+            validate_manifest_files(packet_root, manifest, problems, "3FS artifacts")
+        else:
+            packet_root = artifact_root
+        artifact_manifest_has(manifest, [
+            "README.md",
+            "a/runtime-raw.tar.gz",
+            "b/runtime-raw.tar.gz",
+            "c/runtime-raw.tar.gz",
+            "ctl/runtime-raw.tar.gz",
+            "a/v84-write-r2.json",
+            "a/v84-read.json",
+            "b/v84-read.json",
+            "b/v84-read-after-restart.json",
+            "preparation/physical-plan-before.json",
+            "preparation/physical-plan-after-r3.json",
+            "probes/audit.py",
+            "probes/round3-3fs.py",
+            "probes/round3-3fs-physical.py",
+        ], problems, "3FS artifacts")
+        if audit.get("status") != "PASS" or audit.get("scope") != "patched-reference normal IO/physical copies/retained-state restart only":
+            problems.append({"status": "FAIL", "detail": "3FS audit status/scope mismatch"})
+        if audit.get("formal_acceptance") != "NOT_RUN" or audit.get("environment") != "PREPARING" or audit.get("strong_durable_comparison") != "BLOCKED":
+            problems.append({"status": "FAIL", "detail": "3FS boundary changed"})
+        if audit.get("physical_slots_before") != 192 or audit.get("physical_slots_after") != 192 or audit.get("range_checks") != 192:
+            problems.append({"status": "FAIL", "detail": "3FS physical/range proof counts mismatch"})
+        if audit.get("compiler_inputs_reused") != 143 or type(audit.get("checks")) is not int or audit["checks"] < 900:
+            problems.append({"status": "FAIL", "detail": "3FS audit count/compiler identity mismatch"})
+        resources = audit.get("process_resources")
+        if not isinstance(resources, dict) or set(resources) != {"ctl", "a", "b", "c"}:
+            problems.append({"status": "FAIL", "detail": "3FS process resource roles missing"})
+        elif not all(isinstance(resources.get(role), dict) and resources[role] for role in ("ctl", "a", "b", "c")):
+            problems.append({"status": "FAIL", "detail": "3FS process resource snapshots incomplete"})
+        validate_3fs_raw(packet_root, audit, problems)
+    status = readiness_status_from(problems)
+    detail = "hash-bound patched 3FS mount write/read/restart evidence validated" if status == "PASS" else "3FS mount IO evidence is incomplete or inconsistent"
+    return check(target, status, detail, {"problems": problems[:20]})
+
+
 def memtotal_bytes(inventory: dict[str, Any]) -> int | None:
     meminfo = inventory.get("meminfo")
     if not isinstance(meminfo, str):
@@ -1328,10 +1797,28 @@ def _evaluate_environment(lock: dict, bundle: dict, artifact_root: Path) -> dict
             if network_check["status"] != "PASS":
                 limitations.append(detail)
             continue
+        if name == "durable-backend-restart":
+            backend_check = evaluate_durable_backend_restart(bundle, artifact_root, refs)
+            checks.append(backend_check)
+            if backend_check["status"] != "PASS":
+                limitations.append(detail)
+            continue
         if name == "cross-vm-verbs":
             verbs_check = evaluate_verbs(bundle, artifact_root, refs)
             checks.append(verbs_check)
             if verbs_check["status"] != "PASS":
+                limitations.append(detail)
+            continue
+        if name == "actual-moosefs-mount-io":
+            moose_check = evaluate_actual_moosefs_mount_io(bundle, artifact_root, refs)
+            checks.append(moose_check)
+            if moose_check["status"] != "PASS":
+                limitations.append(detail)
+            continue
+        if name == "actual-3fs-mount-io":
+            threefs_check = evaluate_actual_3fs_mount_io(bundle, artifact_root, refs)
+            checks.append(threefs_check)
+            if threefs_check["status"] != "PASS":
                 limitations.append(detail)
             continue
         checks.append(check(name, "BLOCKED", detail))

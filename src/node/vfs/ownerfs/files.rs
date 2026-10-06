@@ -39,6 +39,8 @@ pub enum OpenFile {
 #[derive(Debug)]
 pub struct LocalOpenFile {
     pub root_id: RootId,
+    #[cfg(test)]
+    pub(super) private_binding: Option<Box<super::root::PrivateRootBinding>>,
     pub identity: FileIdentity,
     pub file: LocalFile,
     /// None for a Home-local open. A peer open is bound to the authenticated
@@ -74,6 +76,8 @@ pub enum OpenDirectory {
 #[derive(Debug)]
 pub struct LocalOpenDirectory {
     pub root_id: RootId,
+    #[cfg(test)]
+    pub(super) private_binding: Option<Box<super::root::PrivateRootBinding>>,
     pub identity: FileIdentity,
     pub directory: LocalDirectory,
     pub peer: Option<PeerOpenScope>,

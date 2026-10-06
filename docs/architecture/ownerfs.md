@@ -40,3 +40,7 @@ An accepted ordinary write is not a durability acknowledgement. A successful siz
 After repairing the storage fault, open a new handle, explicitly rewrite any unconfirmed content and sync it. OwnerFs uses mutable local files: a failed sync does not promise rollback of accepted bytes. A successful earlier barrier defines the acknowledged watermark; overwritten bytes without a successful later barrier have no atomic rollback guarantee.
 
 There is no automatic OwnerFs-to-DFS snapshot conversion in the base design.
+
+## Optional Native Home Direction
+
+The [native bind RFC](../rfcs/0001-ownerfs-native-bind-mount.md) targets a managed bind mount for colocated Home work. Functionality and performance have independent G2.12/G2.13 exits; a future explicit switch must default OFF. Current mainline contains private foundations, while production admission and a usable public ON setting remain unqualified. Ordinary FUSE delivery proceeds independently. ON requires final namespace/Root/epoch/Home checks, necessary file semantics, lifecycle/recovery and complete reference drain; a detached export alone does not revoke writable container clones. See [handoff](../handoff.md) for the current gaps.

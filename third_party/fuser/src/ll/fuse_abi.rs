@@ -215,6 +215,10 @@ pub mod consts {
     pub const FUSE_INIT_EXT: u64 = 1 << 30; // extended fuse_init_in request
     #[cfg(feature = "abi-7-36")]
     pub const FUSE_INIT_RESERVED: u64 = 1 << 31; // reserved, do not use
+    #[cfg(feature = "abi-7-36")]
+    pub const FUSE_HAS_INODE_DAX: u64 = 1 << 33; // use per inode DAX
+    #[cfg(feature = "abi-7-36")]
+    pub const FUSE_DIRECT_IO_ALLOW_MMAP: u64 = 1 << 36; // allow shared mmap in direct_io mode
     #[cfg(feature = "abi-7-40")]
     pub const FUSE_PASSTHROUGH: u64 = 1 << 37; // filesystem wants to use passthrough files
 

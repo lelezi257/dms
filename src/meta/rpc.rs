@@ -25,10 +25,14 @@ use afs_protocol::meta::{
     GetDfsInodeReply, GetDfsInodeRequest, GetDfsPlacementSnapshotReply,
     GetDfsPlacementSnapshotRequest, GetFileVersionReply, GetFileVersionRequest,
     ListOwnerRootsReply, ListOwnerRootsRequest, LookupNodeReply, LookupNodeRequest,
-    LookupRootReply, LookupRootRequest, NodeDescriptor, NodeEndpoint, OpenDfsWriteReply,
-    OpenDfsWriteRequest, PingReply, PingRequest, PresentedRootAccess, RecoverRootReply,
-    RecoverRootRequest, RegisterNodeReply, RegisterNodeRequest, RenewDfsWriteLeaseRequest,
-    ReserveRootReply, ReserveRootRequest, RootCommand, RootCommandType, RootLocation,
+    LookupRootReply, LookupRootRequest, MetaBackendPersistence, NodeDescriptor, NodeEndpoint,
+    OpenDfsWriteReply, OpenDfsWriteRequest, PingReply, PingRequest, PollRootCommandBatchRequest,
+    PresentedRootAccess, RecoverRootReply, RecoverRootRequest, RegisterNodeReply,
+    RegisterNodeRequest, RenewDfsWriteLeaseRequest, ReserveRootReply, ReserveRootRequest,
+    ResolveDfsLockAuthorityReply, ResolveDfsLockAuthorityRequest, ResolveDfsWriteAuthorityReply,
+    ResolveDfsWriteAuthorityRequest, RootCommand, RootCommandBatchCompacted,
+    RootCommandBatchEvents, RootCommandBatchReply, RootCommandBatchUnsupported,
+    RootCommandRecoveryCursor, RootCommandRecoveryReason, RootCommandType, RootLocation,
     RootReservation, RootRight as PbRootRight, SyncDfsInodeMetadataReply,
     SyncDfsInodeMetadataRequest, ValidateDfsReplicaWriteReply, ValidateDfsReplicaWriteRequest,
     ValidateRootAccessReply, ValidateRootAccessRequest, WatchRootCommandsRequest,
@@ -41,8 +45,9 @@ use tonic::{Request, Response, Status};
 
 use super::dfs::CreateFileRequest;
 use super::store::{
-    NodeSessionLease, RequestKey, RootAccessGrant, RootCommandRecord, RootReservationRecord,
-    RootRight, StoreRevision,
+    BackendPersistence, BackendReadiness, NodeSessionLease, RecoveryReason, RequestKey,
+    RootAccessGrant, RootCommandRecord, RootCommandType as StoreRootCommandType,
+    RootReservationRecord, RootRight, StoreRevision,
 };
 
 pub struct MetaRpc(pub Arc<super::Meta>);
@@ -216,6 +221,30 @@ fn wire_node(session: super::store::NodeSession) -> NodeDescriptor {
     }
 }
 
+fn wire_backend_persistence(persistence: BackendPersistence) -> i32 {
+    match persistence {
+        BackendPersistence::Unknown => MetaBackendPersistence::Unknown,
+        BackendPersistence::Volatile => MetaBackendPersistence::Volatile,
+        BackendPersistence::Persistent => MetaBackendPersistence::Persistent,
+    }
+    .into()
+}
+
+fn register_node_reply(
+    session: super::store::NodeSession,
+    readiness: BackendReadiness,
+) -> RegisterNodeReply {
+    RegisterNodeReply {
+        node_id: session.node_id,
+        lease_epoch: session.lease_epoch,
+        expires_at_unix_ms: session.expires_at_unix_ms,
+        meta_backend_persistence: wire_backend_persistence(readiness.persistence),
+        meta_backend_healthy: readiness.healthy,
+        meta_persistence_ready: readiness.persistent_ready,
+        meta_persistence_detail: readiness.detail,
+    }
+}
+
 fn wire_reservation(reservation: RootReservationRecord) -> RootReservation {
     RootReservation {
         root_id: reservation.root_id,
@@ -228,6 +257,10 @@ fn wire_reservation(reservation: RootReservationRecord) -> RootReservation {
 }
 
 fn command_from_record(record: RootCommandRecord, revision: StoreRevision) -> RootCommand {
+    let command_type = match record.command_type {
+        StoreRootCommandType::RevokeAccess => RootCommandType::RevokeAccess,
+        StoreRootCommandType::InvalidateCache => RootCommandType::InvalidateCache,
+    };
     let access = RootAccessGrant {
         root_id: record.root_id,
         root_epoch: record.root_epoch,
@@ -242,9 +275,58 @@ fn command_from_record(record: RootCommandRecord, revision: StoreRevision) -> Ro
     };
     RootCommand {
         command_id: record.command_id,
-        command_type: RootCommandType::RevokeAccess.into(),
+        command_type: command_type.into(),
         access: Some(wire_access(access)),
         revision: revision.0,
+    }
+}
+
+fn recovery_reason_to_wire(reason: RecoveryReason) -> RootCommandRecoveryReason {
+    match reason {
+        RecoveryReason::WatchCompacted => RootCommandRecoveryReason::WatchCompacted,
+        RecoveryReason::NodeSessionRestarted => RootCommandRecoveryReason::NodeSessionRestarted,
+        RecoveryReason::BackendLeaderChanged => RootCommandRecoveryReason::BackendLeaderChanged,
+    }
+}
+
+fn root_command_batch_reply_from_domain(
+    batch: super::owner_roots::RootCommandBatch,
+) -> RootCommandBatchReply {
+    let result = match batch {
+        super::owner_roots::RootCommandBatch::Events {
+            start_revision,
+            next_revision,
+            commands,
+        } => afs_protocol::meta::root_command_batch_reply::Result::Events(RootCommandBatchEvents {
+            start_revision: start_revision.0,
+            next_revision: next_revision.0,
+            commands: commands
+                .into_iter()
+                .map(|command| command_from_record(command.command, command.revision))
+                .collect(),
+        }),
+        super::owner_roots::RootCommandBatch::Compacted {
+            requested_after,
+            compacted_to,
+            recovery,
+        } => afs_protocol::meta::root_command_batch_reply::Result::Compacted(
+            RootCommandBatchCompacted {
+                requested_after: requested_after.0,
+                compacted_to: compacted_to.0,
+                recovery_cursor: Some(RootCommandRecoveryCursor {
+                    resume_after: recovery.resume_after.0,
+                    reason: recovery_reason_to_wire(recovery.reason).into(),
+                }),
+            },
+        ),
+        super::owner_roots::RootCommandBatch::Unsupported { message } => {
+            afs_protocol::meta::root_command_batch_reply::Result::Unsupported(
+                RootCommandBatchUnsupported { message },
+            )
+        }
+    };
+    RootCommandBatchReply {
+        result: Some(result),
     }
 }
 
@@ -316,11 +398,19 @@ impl MetaService for MetaRpc {
             )
             .await
             .map_err(afs_transport::grpc::error_status::error_to_status)?;
-        Ok(Response::new(RegisterNodeReply {
-            node_id: session.node_id,
-            lease_epoch: session.lease_epoch,
-            expires_at_unix_ms: session.expires_at_unix_ms,
-        }))
+        let readiness = self
+            .0
+            .store
+            .as_deref()
+            .ok_or_else(|| {
+                afs_transport::grpc::error_status::error_to_status(
+                    super::store::unavailable_meta_store(),
+                )
+            })?
+            .backend_readiness()
+            .await
+            .map_err(afs_transport::grpc::error_status::error_to_status)?;
+        Ok(Response::new(register_node_reply(session, readiness)))
     }
 
     async fn lookup_node(
@@ -621,6 +711,35 @@ impl OwnerRootsService for OwnerRootsRpc {
             .map(|command| Ok(command_from_record(command.command, command.revision)))
             .collect::<Vec<_>>();
         Ok(Response::new(Box::pin(tokio_stream::iter(commands))))
+    }
+
+    async fn poll_root_command_batch(
+        &self,
+        request: Request<PollRootCommandBatchRequest>,
+    ) -> Result<Response<RootCommandBatchReply>, Status> {
+        let authenticated = authenticated_node_id(&self.0, &request)?;
+        let request = request.into_inner();
+        require_text(&request.node_id, "node_id")?;
+        require_text(&request.session_id, "session_id")?;
+        if let Some(authenticated) = authenticated
+            && authenticated != request.node_id
+        {
+            return Err(permission_denied(format!(
+                "authenticated node {authenticated} does not match node_id {}",
+                request.node_id
+            )));
+        }
+        let batch = self
+            .0
+            .owner_roots
+            .poll_root_command_batch(super::owner_roots::WatchRootCommandsInput {
+                node_id: request.node_id,
+                session_id: request.session_id,
+                after_revision: request.after_revision,
+            })
+            .await
+            .map_err(afs_transport::grpc::error_status::error_to_status)?;
+        Ok(Response::new(root_command_batch_reply_from_domain(batch)))
     }
 
     async fn ack_revocation(
@@ -1195,6 +1314,58 @@ impl DfsMetaService for DfsMetaRpc {
             .await
             .map_err(afs_transport::grpc::error_status::error_to_status)?;
         Ok(Response::new(OpenDfsWriteReply {
+            inode: Some(wire_dfs_inode(inode)),
+            write_lease: Some(wire_dfs_write_lease(lease)),
+        }))
+    }
+
+    async fn resolve_lock_authority(
+        &self,
+        request: Request<ResolveDfsLockAuthorityRequest>,
+    ) -> Result<Response<ResolveDfsLockAuthorityReply>, Status> {
+        let authenticated = authenticated_node_id(&self.0, &request)?;
+        let request = request.into_inner();
+        validate_caller(authenticated.as_deref(), &request.caller_id)?;
+        require_text(&request.owner_session_id, "owner_session_id")?;
+        require_text(&request.operation_id, "operation_id")?;
+        require_text(&request.inode_id, "inode_id")?;
+        let (inode, lease) = dfs_service(&self.0)?
+            .resolve_lock_authority(
+                request.caller_id,
+                request.owner_session_id,
+                crate::dfs::OperationId::new(request.operation_id),
+                crate::dfs::InodeId::new(request.inode_id),
+                request.lease_seconds,
+            )
+            .await
+            .map_err(afs_transport::grpc::error_status::error_to_status)?;
+        Ok(Response::new(ResolveDfsLockAuthorityReply {
+            inode: Some(wire_dfs_inode(inode)),
+            write_lease: Some(wire_dfs_write_lease(lease)),
+        }))
+    }
+
+    async fn resolve_write_authority(
+        &self,
+        request: Request<ResolveDfsWriteAuthorityRequest>,
+    ) -> Result<Response<ResolveDfsWriteAuthorityReply>, Status> {
+        let authenticated = authenticated_node_id(&self.0, &request)?;
+        let request = request.into_inner();
+        validate_caller(authenticated.as_deref(), &request.caller_id)?;
+        require_text(&request.owner_session_id, "owner_session_id")?;
+        require_text(&request.operation_id, "operation_id")?;
+        require_text(&request.inode_id, "inode_id")?;
+        let (inode, lease) = dfs_service(&self.0)?
+            .resolve_write_authority(
+                request.caller_id,
+                request.owner_session_id,
+                crate::dfs::OperationId::new(request.operation_id),
+                crate::dfs::InodeId::new(request.inode_id),
+                request.lease_seconds,
+            )
+            .await
+            .map_err(afs_transport::grpc::error_status::error_to_status)?;
+        Ok(Response::new(ResolveDfsWriteAuthorityReply {
             inode: Some(wire_dfs_inode(inode)),
             write_lease: Some(wire_dfs_write_lease(lease)),
         }))
@@ -2296,6 +2467,59 @@ mod tests {
             &presented,
         )
         .expect("Home A should validate B's grant when P2P observed peer is B");
+    }
+
+    #[test]
+    fn authority_caller_must_match_authenticated_node() {
+        validate_caller(Some("node-a"), "node-a").unwrap();
+        assert_eq!(
+            validate_caller(Some("node-a"), "node-b")
+                .unwrap_err()
+                .code(),
+            Code::PermissionDenied
+        );
+    }
+
+    #[test]
+    fn n2b1_root_command_batch_compaction_maps_typed_recovery_cursor() {
+        let reply = root_command_batch_reply_from_domain(
+            super::super::owner_roots::RootCommandBatch::Compacted {
+                requested_after: StoreRevision(10),
+                compacted_to: StoreRevision(20),
+                recovery: crate::meta::store::RecoveryCursor {
+                    resume_after: StoreRevision(19),
+                    reason: RecoveryReason::WatchCompacted,
+                },
+            },
+        );
+        let Some(afs_protocol::meta::root_command_batch_reply::Result::Compacted(compacted)) =
+            reply.result
+        else {
+            panic!("expected compacted batch reply");
+        };
+        assert_eq!(compacted.requested_after, 10);
+        assert_eq!(compacted.compacted_to, 20);
+        let cursor = compacted.recovery_cursor.expect("recovery cursor");
+        assert_eq!(cursor.resume_after, 19);
+        assert_eq!(
+            cursor.reason,
+            RootCommandRecoveryReason::WatchCompacted as i32
+        );
+    }
+
+    #[test]
+    fn n2b1_root_command_batch_unsupported_maps_typed_reply() {
+        let reply = root_command_batch_reply_from_domain(
+            super::super::owner_roots::RootCommandBatch::Unsupported {
+                message: "batch polling unavailable".into(),
+            },
+        );
+        let Some(afs_protocol::meta::root_command_batch_reply::Result::Unsupported(unsupported)) =
+            reply.result
+        else {
+            panic!("expected unsupported batch reply");
+        };
+        assert_eq!(unsupported.message, "batch polling unavailable");
     }
 
     #[test]

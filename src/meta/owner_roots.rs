@@ -9,10 +9,10 @@ use std::sync::Arc;
 use afs_error::{Error, Result};
 
 use super::store::{
-    MetaEntity, MetaFuture, MetaKey, MetaRead, MetaStore, MetaTxn, OperationResult, RequestKey,
-    RootAccessGrant, RootCommandAck, RootCommandRecord, RootRecord, RootReservationRecord,
-    RootRight, StoreOperation, StoreRevision, TxnCondition, TxnMutation, TxnOutcome, WatchBatch,
-    WatchChange, unavailable_meta_store,
+    MetaEntity, MetaFuture, MetaKey, MetaRead, MetaStore, MetaTxn, OperationResult, RecoveryCursor,
+    RequestKey, RootAccessGrant, RootCommandAck, RootCommandRecord, RootCommandType, RootRecord,
+    RootReservationRecord, RootRight, StoreOperation, StoreRevision, TxnCondition, TxnMutation,
+    TxnOutcome, WatchBatch, WatchChange, unavailable_meta_store,
 };
 
 pub trait OwnerRootAuthority: Send + Sync {
@@ -30,6 +30,10 @@ pub trait OwnerRootAuthority: Send + Sync {
         &self,
         input: WatchRootCommandsInput,
     ) -> MetaFuture<'_, Vec<WatchedRootCommand>>;
+    fn poll_root_command_batch(
+        &self,
+        input: WatchRootCommandsInput,
+    ) -> MetaFuture<'_, RootCommandBatch>;
     fn ack_revocation(&self, input: AckRevocationInput) -> MetaFuture<'_, u64>;
     fn recover_root(&self, input: RecoverRootInput) -> MetaFuture<'_, RootAccessGrant>;
 }
@@ -76,6 +80,17 @@ impl OwnerRootAuthority for MissingOwnerRootAuthority {
         _input: WatchRootCommandsInput,
     ) -> MetaFuture<'_, Vec<WatchedRootCommand>> {
         Box::pin(async { Err(unavailable_meta_store()) })
+    }
+
+    fn poll_root_command_batch(
+        &self,
+        _input: WatchRootCommandsInput,
+    ) -> MetaFuture<'_, RootCommandBatch> {
+        Box::pin(async {
+            Ok(RootCommandBatch::Unsupported {
+                message: "owner root command batch polling is unavailable".into(),
+            })
+        })
     }
 
     fn ack_revocation(&self, _input: AckRevocationInput) -> MetaFuture<'_, u64> {
@@ -495,6 +510,64 @@ impl OwnerRootAuthority for StoreOwnerRootAuthority {
         })
     }
 
+    fn poll_root_command_batch(
+        &self,
+        input: WatchRootCommandsInput,
+    ) -> MetaFuture<'_, RootCommandBatch> {
+        Box::pin(async move {
+            require_current_live_session(self.store.as_ref(), &input.node_id, &input.session_id)
+                .await?;
+            let batch = self
+                .store
+                .watch(StoreRevision(input.after_revision), 1024)
+                .await?;
+            match batch {
+                WatchBatch::Events {
+                    start_revision,
+                    next_revision,
+                    events,
+                } => {
+                    let max_event_revision = events.iter().map(|event| event.revision).max();
+                    if next_revision <= start_revision
+                        || next_revision <= StoreRevision(input.after_revision)
+                        || max_event_revision.is_some_and(|revision| next_revision <= revision)
+                    {
+                        return Err(invalid("root command batch cursor did not advance"));
+                    }
+                    let commands = events
+                        .into_iter()
+                        .filter_map(|event| match event.change {
+                            WatchChange::Put(MetaEntity::RootCommand(command))
+                                if command.home_node_id == input.node_id
+                                    && command.home_session_id == input.session_id =>
+                            {
+                                Some(WatchedRootCommand {
+                                    command,
+                                    revision: event.revision,
+                                })
+                            }
+                            _ => None,
+                        })
+                        .collect();
+                    Ok(RootCommandBatch::Events {
+                        start_revision,
+                        next_revision,
+                        commands,
+                    })
+                }
+                WatchBatch::Compacted {
+                    requested_after,
+                    compacted_to,
+                    recovery,
+                } => Ok(RootCommandBatch::Compacted {
+                    requested_after,
+                    compacted_to,
+                    recovery,
+                }),
+            }
+        })
+    }
+
     fn ack_revocation(&self, input: AckRevocationInput) -> MetaFuture<'_, u64> {
         Box::pin(async move {
             let ack = RootCommandAck {
@@ -518,6 +591,15 @@ impl OwnerRootAuthority for StoreOwnerRootAuthority {
                     node_id: ack.node_id.clone(),
                     session_id: ack.session_id.clone(),
                 },
+                TxnCondition::RootCommandMatches {
+                    command_id: ack.command_id.clone(),
+                    home_node_id: ack.node_id.clone(),
+                    home_session_id: ack.session_id.clone(),
+                    root_id: ack.root_id.clone(),
+                    root_epoch: ack.root_epoch,
+                    old_access_generation: ack.access_generation,
+                    command_type: RootCommandType::RevokeAccess,
+                },
                 TxnCondition::Missing(MetaKey::RootCommandAck {
                     command_id: ack.command_id.clone(),
                     home_node_id: ack.node_id.clone(),
@@ -529,10 +611,18 @@ impl OwnerRootAuthority for StoreOwnerRootAuthority {
                 TxnMutation::RecordRequestOutcome(super::store::RequestOutcome {
                     request: txn.request.clone(),
                     operation: txn.operation,
-                    result: OperationResult::RootCommandAck(ack),
+                    result: OperationResult::RootCommandAck(ack.clone()),
                 }),
             ]);
-            let _ = commit_or_replay(self.store.as_ref(), txn).await?;
+            match commit_or_replay(self.store.as_ref(), txn).await? {
+                OperationResult::RootCommandAck(recorded) if recorded == ack => {}
+                OperationResult::RootCommandAck(_) => {
+                    return Err(invalid(
+                        "request_id was already used for a different root command ACK payload",
+                    ));
+                }
+                _ => return Err(invalid("unexpected root command ACK outcome")),
+            }
             Ok(now_unix_ms())
         })
     }
@@ -693,6 +783,22 @@ pub struct WatchedRootCommand {
     pub revision: StoreRevision,
 }
 
+pub enum RootCommandBatch {
+    Events {
+        start_revision: StoreRevision,
+        next_revision: StoreRevision,
+        commands: Vec<WatchedRootCommand>,
+    },
+    Compacted {
+        requested_after: StoreRevision,
+        compacted_to: StoreRevision,
+        recovery: RecoveryCursor,
+    },
+    Unsupported {
+        message: String,
+    },
+}
+
 pub struct AckRevocationInput {
     pub request_id: String,
     pub command_id: String,
@@ -731,6 +837,26 @@ async fn commit_or_replay(store: &dyn MetaStore, txn: MetaTxn) -> Result<Operati
         TxnOutcome::ConditionFailed { .. } => Err(invalid(
             "Meta transaction conditions failed; caller must refresh authority state",
         )),
+    }
+}
+
+async fn require_current_live_session(
+    store: &dyn MetaStore,
+    node_id: &str,
+    session_id: &str,
+) -> Result<()> {
+    let snapshot = store
+        .read(MetaRead::CurrentNodeSession {
+            node_id: node_id.to_owned(),
+        })
+        .await?;
+    match snapshot.entity {
+        Some(MetaEntity::NodeSession(session))
+            if session.session_id == session_id && session.is_live_at_unix_ms(now_unix_ms()) =>
+        {
+            Ok(())
+        }
+        _ => Err(invalid("node session is not current")),
     }
 }
 

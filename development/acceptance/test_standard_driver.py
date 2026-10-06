@@ -3,9 +3,12 @@ import importlib.util
 import io
 import json
 import os
+import shlex
+import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 drivers = Path(__file__).parent / "drivers"
@@ -120,6 +123,49 @@ class StandardTapFileProgressTest(unittest.TestCase):
 
 
 class StandardRemoteIdentityHelpersTest(unittest.TestCase):
+    def test_suite_git_trust_is_scoped_to_the_selected_repository(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td).resolve()
+            with mock.patch.object(standard, 'run_text', return_value={'returncode': 0, 'stdout': '', 'stderr': ''}) as run:
+                standard.suite_identity(root)
+            expected = ['git', '-c', f'safe.directory={root}', '-C', str(root)]
+            self.assertEqual(run.call_args_list, [mock.call(expected + ['rev-parse', 'HEAD']), mock.call(expected + ['status', '--porcelain'])])
+
+    def test_suite_git_failure_remains_explicit_in_identity(self):
+        with tempfile.TemporaryDirectory() as td:
+            failed = {'returncode': 128, 'stdout': '', 'stderr': 'fatal: invalid repository'}
+            with mock.patch.object(standard, 'run_text', return_value=failed):
+                identity = standard.suite_identity(Path(td))
+            self.assertEqual(identity['git_head'], '')
+            self.assertEqual(identity['git_head_command'], failed)
+
+    def test_structured_ssh_quotes_all_remote_arguments(self):
+        prefix = ['ssh', '-o', 'BatchMode=yes', '-F', '/tmp/ssh config', '--', 'node-b', '/usr/bin/python3', '/opt/standard.py']
+        args = ['worker-identity', '--path', "/tmp/a; touch /tmp/unwanted", '--base-path', "$(touch /tmp/also-unwanted)", 'a\nb', "single'quote", '']
+        proc = mock.Mock(returncode=0)
+        proc.communicate.return_value = ('{"event":"identity"}\n', '')
+        with mock.patch.object(standard.subprocess, 'Popen', return_value=proc) as launch:
+            record = standard.run_worker_json(prefix, args, timeout=2)
+        actual = launch.call_args.args[0]
+        self.assertEqual(actual[:-1], prefix[:7])
+        self.assertEqual(shlex.split(actual[-1]), prefix[7:] + args)
+        self.assertEqual(record['argv'], actual)
+
+    def test_unstructured_ssh_is_rejected_before_launch(self):
+        with mock.patch.object(standard.subprocess, 'Popen') as launch:
+            with self.assertRaises(ValueError):
+                standard.run_worker_json(['ssh', 'node-b', '/usr/bin/python3', '/opt/standard.py'], ['worker-identity'], timeout=2)
+        launch.assert_not_called()
+
+    def test_local_worker_keeps_argument_vector(self):
+        prefix = [sys.executable, '/opt/standard.py']
+        args = ['worker-identity', '--path', '/tmp/a; touch /tmp/unwanted']
+        proc = mock.Mock(returncode=0)
+        proc.communicate.return_value = ('{"event":"identity"}\n', '')
+        with mock.patch.object(standard.subprocess, 'Popen', return_value=proc) as launch:
+            standard.run_worker_json(prefix, args, timeout=2)
+        self.assertEqual(launch.call_args.args[0], prefix + args)
+
     def test_parse_start_ticks_handles_comm_with_spaces(self):
         stat_text = "123 (python worker) S " + " ".join(str(i) for i in range(1, 25))
         self.assertEqual(standard.parse_start_ticks(stat_text), 19)
@@ -229,23 +275,24 @@ def worker_record(event):
     return {"argv": ["worker"], "returncode": 0, "stdout": json.dumps(event) + "\n", "stderr": "", "json_events": [event], "json_parse_errors": [], "timed_out": False}
 
 
-def complete_worker_proof(status="PASS", manifest_override=None):
+def complete_worker_proof(status="PASS", manifest_override=None, case_id="STD-01", artifact_root="artifacts/std-01-pjdfstest"):
+    stdout_name = "pjdfstest.stdout.tap" if artifact_root == "artifacts/std-01-pjdfstest" else "stdout.log"
     manifest = manifest_override if manifest_override is not None else [
-        {"path": "artifacts/std-01-pjdfstest/identity.json", "bytes": 100, "sha256": "b" * 64},
-        {"path": "artifacts/std-01-pjdfstest/command.json", "bytes": 100, "sha256": "c" * 64},
-        {"path": "artifacts/std-01-pjdfstest/tap-accounting.json", "bytes": 100, "sha256": "d" * 64},
-        {"path": "artifacts/std-01-pjdfstest/pjdfstest.stdout.tap", "bytes": 10, "sha256": "e" * 64},
+        {"path": f"{artifact_root}/identity.json", "bytes": 100, "sha256": "b" * 64},
+        {"path": f"{artifact_root}/command.json", "bytes": 100, "sha256": "c" * 64},
+        {"path": f"{artifact_root}/tap-accounting.json", "bytes": 100, "sha256": "d" * 64},
+        {"path": f"{artifact_root}/{stdout_name}", "bytes": 10, "sha256": "e" * 64},
     ]
     return {
-        "case_id": "STD-01",
+        "case_id": case_id,
         "profile": "smoke",
         "status": status,
         "reason": "",
-        "checks": [{"name": "worker-check", "status": "PASS", "evidence": {}, "artifact": "artifacts/std-01-pjdfstest/pjdfstest.stdout.tap"}],
-        "artifacts": {"root": "artifacts/std-01-pjdfstest", "manifest": manifest},
+        "checks": [{"name": "worker-check", "status": "PASS", "evidence": {}, "artifact": f"{artifact_root}/{stdout_name}"}],
+        "artifacts": {"root": artifact_root, "manifest": manifest},
         "accounting": {"tap_ok": 1},
         "command": {"returncode": 0},
-        "identity": {"artifact": "artifacts/std-01-pjdfstest/identity.json"},
+        "identity": {"artifact": f"{artifact_root}/identity.json"},
         "coverage": {"profile": "smoke", "axes": {}},
     }
 
@@ -355,6 +402,69 @@ class StandardHostRemoteGuardTest(unittest.TestCase):
             self.assertEqual(proof["checks"][2]["artifact"], "artifacts/std-01-pjdfstest/remote-worker-records.json")
             self.assertEqual(proof["checks"][2]["evidence"]["remote_artifact"], "artifacts/std-01-pjdfstest/pjdfstest.stdout.tap")
             self.assertTrue(proof["checks"][2]["evidence"]["remote_artifact_manifest_matched"])
+
+    def test_host_accepts_generic_worker_driver_event(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            run_dir = Path(tmp)
+            meta = {"event": "IDENTITY", "platform": {"system": "Linux"}, "mount": mount_event(), "base_mount": mount_event(), "processes": {"meta": strict_event("meta", "b" * 64, "boot-a", "machine-a")}}
+            node = {"event": "IDENTITY", "platform": {"system": "Linux"}, "mount": mount_event(), "base_mount": mount_event(), "worker_run_dir": "/mnt/guest-ext4/std03", "worker_run_dir_mount": mount_event("/dev/vdb", "ext4", "/mnt/guest-ext4"), "processes": {"node": strict_event("node", "a" * 64, "boot-b", "machine-b")}}
+            worker_proof = complete_worker_proof(case_id="STD-03", artifact_root="artifacts/std-03-fsx")
+            seen_suite_args = []
+
+            def fake_worker(prefix, args, timeout):
+                if args[0] == "worker-driver":
+                    seen_suite_args.extend(args)
+                    return worker_record({"event": "DRIVER", "proof": worker_proof})
+                return worker_record(meta if prefix == ["worker-a"] else node)
+
+            rc, proof = self.run_host_with_fake_worker(
+                fake_worker,
+                run_dir,
+                [
+                    "--case-id", "STD-03",
+                    "--worker-run-dir-b", "/mnt/guest-ext4/std03",
+                    "--worker-suite-event", "DRIVER",
+                    "--worker-suite-args-json", json.dumps(["worker-driver", "--driver", "/opt/afs-acceptance/drivers/fsx.py", "--", "--case-id", "STD-03"]),
+                ],
+            )
+            self.assertEqual(rc, 0)
+            self.assertEqual(proof["case_id"], "STD-03")
+            self.assertEqual(proof["status"], "PASS")
+            self.assertEqual(proof["artifacts"]["root"], "artifacts/std-03-remote")
+            self.assertEqual(proof["artifacts"]["remote_worker"]["manifest_file_count"], 4)
+            self.assertEqual(seen_suite_args[:3], ["worker-driver", "--driver", "/opt/afs-acceptance/drivers/fsx.py"])
+            self.assertTrue((run_dir / "artifacts/std-03-remote/proof.json").exists())
+
+    def test_generic_worker_artifact_validation_accepts_embedded_proof_without_manifest(self):
+        worker_proof = complete_worker_proof(
+            case_id="STD-04",
+            artifact_root="artifacts/std-04-random",
+            manifest_override=[],
+        )
+        worker_proof.pop("command")
+        validation = standard.validate_worker_artifacts(worker_proof)
+        self.assertTrue(validation["valid"])
+        self.assertEqual(validation["manifest_file_count"], 0)
+        self.assertTrue(validation["embedded"]["accounting"])
+        self.assertTrue(validation["embedded"]["identity"])
+
+    def test_worker_driver_marks_child_as_remote_host_qualified(self):
+        proof = complete_worker_proof(case_id="STD-03")
+        captured = {}
+
+        def fake_run(argv, **kwargs):
+            captured["argv"] = argv
+            captured["env"] = kwargs["env"]
+            return subprocess.CompletedProcess(argv, 0, stdout=json.dumps(proof) + "\n", stderr="")
+
+        with mock.patch.object(standard.subprocess, "run", side_effect=fake_run):
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                rc = standard.worker_driver_main(["--driver", "/opt/afs-acceptance/drivers/fsx.py", "--", "--case-id", "STD-03"])
+        self.assertEqual(rc, 0)
+        self.assertEqual(captured["env"]["AFS_ACCEPTANCE_REMOTE_HOST_QUALIFIED"], "1")
+        self.assertEqual(captured["argv"][-2:], ["--case-id", "STD-03"])
+        self.assertEqual(json.loads(out.getvalue())["event"], "DRIVER")
 
     def test_host_mirrors_legacy_acceptance_environment_defaults(self):
         with tempfile.TemporaryDirectory() as tmp:

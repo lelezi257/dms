@@ -27,8 +27,8 @@ Read these files before changing this repository:
 
 ## Delivery implementation
 
-- [docs/acceptance.md](docs/acceptance.md) is the first-stage release gate; do not lower it.
+- [Three-stage acceptance checklist](development/trial-release-goals.md) owns current scope, priority and independent exits; [docs/acceptance.md](docs/acceptance.md) preserves the expanded case catalogue. Do not weaken a selected case's correctness or durability requirements.
 - Before implementation read [implementation rules](development/implementation.md) and [validation strategy](development/validation.md). These hold detailed rules; do not duplicate them here.
 - Read [delivery handoff](docs/handoff.md) when continuing implementation on this or another machine.
-- Read [delivery task map](development/plan.md) for dependencies. In the research workspace use `../execution/README.md` for the current checkpoint and change log; standalone clones keep execution artifacts under ignored `.local/delivery/`. Architecture/interface changes require a final-review record.
+- Read [delivery task map](development/plan.md) for dependencies and [current checkpoint](development/current-checkpoint.md) for portable source/validation identities. Research-workspace artifacts remain outside the product repository; standalone clones keep new local execution artifacts under ignored `.local/delivery/`. Architecture/interface changes require a final-review record.
 - Use the locked Linux environment; macOS is only for editing and VM orchestration. Keep current module and RPC boundaries.

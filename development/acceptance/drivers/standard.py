@@ -15,6 +15,7 @@ import json
 import os
 import platform
 import re
+import shlex
 import shutil
 import signal
 import subprocess
@@ -323,8 +324,13 @@ def process_identity(pid: str | None) -> dict[str, Any] | None:
 
 
 def suite_identity(suite_root: Path) -> dict[str, Any]:
-    head = run_text(["git", "-C", str(suite_root), "rev-parse", "HEAD"])
-    status = run_text(["git", "-C", str(suite_root), "status", "--porcelain"])
+    # The root POSIX harness reads the explicitly selected, pinned suite that
+    # was prepared by another user. Trust only this path for these read-only
+    # commands; do not change global Git configuration or accept any revision.
+    root = suite_root.resolve()
+    git = ["git", "-c", f"safe.directory={root}", "-C", str(root)]
+    head = run_text(git + ["rev-parse", "HEAD"])
+    status = run_text(git + ["status", "--porcelain"])
     exe = suite_root / "pjdfstest"
     return {
         "suite_root": str(suite_root),
@@ -732,8 +738,66 @@ def worker_pjdfstest_main(argv: list[str]) -> int:
     return 0 if proof.get("status") == "PASS" else 1
 
 
+def read_child_proof(stdout: str) -> dict[str, Any] | None:
+    text = stdout.strip()
+    if not text:
+        return None
+    candidates = [text]
+    candidates.extend(line.strip() for line in reversed(text.splitlines()) if line.strip())
+    seen: set[str] = set()
+    for candidate in candidates:
+        if candidate in seen:
+            continue
+        seen.add(candidate)
+        try:
+            parsed = json.loads(candidate)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(parsed, dict):
+            return parsed
+    return None
+
+
+def worker_driver_main(argv: list[str]) -> int:
+    parser = argparse.ArgumentParser(description="run a fixed acceptance driver under host-qualified identity")
+    parser.add_argument("--driver", type=Path, required=True)
+    parser.add_argument("driver_args", nargs=argparse.REMAINDER)
+    args = parser.parse_args(argv)
+    driver_args = list(args.driver_args)
+    if driver_args and driver_args[0] == "--":
+        driver_args = driver_args[1:]
+    env = dict(os.environ)
+    env["AFS_ACCEPTANCE_REMOTE_HOST_QUALIFIED"] = "1"
+    proc = subprocess.run([sys.executable, str(args.driver), *driver_args], shell=False, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False, env=env)
+    if proc.stderr:
+        sys.stderr.write(proc.stderr)
+    proof = read_child_proof(proc.stdout)
+    if proof is None:
+        proof = {
+            "case_id": "UNKNOWN",
+            "profile": "unknown",
+            "matrix": {},
+            "status": "BLOCKED",
+            "reason": "worker driver did not emit structured JSON proof",
+            "checks": [{"name": "worker-driver", "status": "BLOCKED", "evidence": {"driver": str(args.driver), "returncode": proc.returncode}}],
+        }
+    emit({"event": "DRIVER", "driver": str(args.driver), "returncode": proc.returncode, "proof": proof})
+    return proc.returncode if proof.get("status") == "PASS" else 1
+
+
 def run_worker_json(prefix: list[str], args: list[str], timeout: int) -> dict[str, Any]:
     argv = prefix + args
+    if prefix and Path(prefix[0]).name == 'ssh':
+        # SSH concatenates remote argv before invoking the login shell. Quote
+        # both the fixed worker program and every later fixture/identity arg.
+        # The adapter supplies an explicit separator and host; reject opaque
+        # prefixes rather than guessing where SSH options end.
+        if '--' not in prefix:
+            raise ValueError('SSH worker requires an explicit -- host separator')
+        remote_start = prefix.index('--') + 2
+        if remote_start >= len(prefix):
+            raise ValueError('SSH worker requires a host and remote program')
+        argv = prefix[:remote_start] + [shlex.join(prefix[remote_start:] + args)]
     started = time.time()
     timed_out = False
     proc = subprocess.Popen(argv, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=True)
@@ -829,12 +893,17 @@ def validate_worker_artifacts(worker_proof: dict[str, Any] | None) -> dict[str, 
         return {"valid": False, "reason": "missing worker proof"}
     artifacts = worker_proof.get("artifacts") or {}
     manifest = artifacts.get("manifest") or []
-    required_paths = {
-        "artifacts/std-01-pjdfstest/identity.json",
-        "artifacts/std-01-pjdfstest/command.json",
-        "artifacts/std-01-pjdfstest/tap-accounting.json",
-        "artifacts/std-01-pjdfstest/pjdfstest.stdout.tap",
-    }
+    root = artifacts.get("root")
+    if root == "artifacts/std-01-pjdfstest":
+        required_paths = {
+            "artifacts/std-01-pjdfstest/identity.json",
+            "artifacts/std-01-pjdfstest/command.json",
+            "artifacts/std-01-pjdfstest/tap-accounting.json",
+            "artifacts/std-01-pjdfstest/pjdfstest.stdout.tap",
+        }
+    else:
+        identity_artifact = ((worker_proof.get("identity") or {}).get("artifact") if isinstance(worker_proof.get("identity"), dict) else None)
+        required_paths = {identity_artifact} if manifest and isinstance(identity_artifact, str) and identity_artifact else set()
     paths = {entry.get("path") for entry in manifest if isinstance(entry, dict)}
     missing_paths = sorted(required_paths - paths)
     invalid_entries = [entry for entry in manifest if not isinstance(entry, dict) or not worker_manifest_entry_valid(entry)]
@@ -849,14 +918,23 @@ def validate_worker_artifacts(worker_proof: dict[str, Any] | None) -> dict[str, 
         remote_artifact = check.get("artifact")
         if remote_artifact:
             check_artifacts.append({"check": check.get("name"), "artifact": remote_artifact, "manifest_entry": manifest_by_path.get(remote_artifact)})
-    unmatched_check_artifacts = [item for item in check_artifacts if item.get("manifest_entry") is None]
-    valid = (
-        bool(manifest)
-        and not missing_paths
-        and not invalid_entries
-        and all(embedded.values())
-        and not unmatched_check_artifacts
-    )
+    unmatched_check_artifacts = [item for item in check_artifacts if manifest and item.get("manifest_entry") is None]
+    if root == "artifacts/std-01-pjdfstest":
+        valid = (
+            bool(manifest)
+            and not missing_paths
+            and not invalid_entries
+            and all(embedded.values())
+            and not unmatched_check_artifacts
+        )
+    else:
+        valid = (
+            embedded["accounting"]
+            and embedded["identity"]
+            and not missing_paths
+            and not invalid_entries
+            and not unmatched_check_artifacts
+        )
     return {
         "valid": valid,
         "manifest_file_count": len(manifest),
@@ -892,7 +970,11 @@ def host_proof_template(args: argparse.Namespace, artifacts: Path, run_dir: Path
     if not isinstance(matrix, dict):
         matrix = {}
     matrix.setdefault("reference", "ext4")
-    matrix.setdefault("suite_sha", f"sanwan/pjdfstest {PJDFS_REV}")
+    if args.case_id == "STD-01":
+        matrix.setdefault("suite_sha", f"sanwan/pjdfstest {PJDFS_REV}")
+    coverage_axes = {"reference": {"values": [str(matrix["reference"])]}}
+    if args.case_id == "STD-01":
+        coverage_axes["suite_sha"] = {"values": [str(matrix["suite_sha"])]}
     proof: dict[str, Any] = {}
     proof.update({
         "case_id": args.case_id,
@@ -901,7 +983,7 @@ def host_proof_template(args: argparse.Namespace, artifacts: Path, run_dir: Path
         "status": status,
         "reason": reason,
         "checks": checks,
-        "coverage": (worker_proof or {}).get("coverage", {"profile": args.profile, "axes": {"reference": {"values": [str(matrix["reference"])]}, "suite_sha": {"values": [str(matrix["suite_sha"])]}}}),
+        "coverage": (worker_proof or {}).get("coverage", {"profile": args.profile, "axes": coverage_axes}),
         "artifacts": {"root": rel(artifacts, run_dir), "manifest": artifact_file_manifest(artifacts, run_dir, exclude={artifacts / "proof.json"}), "remote_worker": worker_artifact_manifest(worker_proof)},
         "worker_run_dir_b": str(args.worker_run_dir_b),
         "fixture": (worker_proof or {}).get("fixture", {"path": None, "base_dir": str(args.base_dir_b or args.mount_b), "kept": None}),
@@ -914,7 +996,7 @@ def host_proof_template(args: argparse.Namespace, artifacts: Path, run_dir: Path
 
 
 def host_main(argv: list[str]) -> int:
-    parser = argparse.ArgumentParser(description="run STD-01 on B with strict remote A Meta identity")
+    parser = argparse.ArgumentParser(description="run a standard suite on B with strict remote A Meta identity")
     parser.add_argument("--worker-a-json", required=True, type=parse_json_argv)
     parser.add_argument("--worker-b-json", required=True, type=parse_json_argv)
     parser.add_argument("--worker-a-expected-process", action="append", type=parse_expected_process, required=True)
@@ -930,6 +1012,8 @@ def host_main(argv: list[str]) -> int:
     parser.add_argument("--matrix-json", default=os.environ.get("AFS_ACCEPTANCE_MATRIX", "{}"))
     parser.add_argument("--run-dir", type=Path, default=Path(os.environ.get("AFS_ACCEPTANCE_RUN_DIR", "results/std-01-driver-host")), help="Host-local evidence directory for host proof and worker records.")
     parser.add_argument("--worker-run-dir-b", type=Path, required=True, help="B guest ext4 absolute directory for pjdfstest worker artifacts.")
+    parser.add_argument("--worker-suite-event", default="PJDFSTEST")
+    parser.add_argument("--worker-suite-args-json", type=parse_json_argv)
     parser.add_argument("--timeout", type=int)
     parser.add_argument("--command-timeout", type=int, default=3600)
     parser.add_argument("--require-cross-worker", action="store_true", default=True, help=argparse.SUPPRESS)
@@ -937,7 +1021,7 @@ def host_main(argv: list[str]) -> int:
     args = parser.parse_args(argv)
     args.require_cross_worker = not args.allow_same_worker
     run_dir = args.run_dir.resolve()
-    artifacts = run_dir / "artifacts" / "std-01-pjdfstest"
+    artifacts = run_dir / "artifacts" / ("std-01-pjdfstest" if args.case_id == "STD-01" else f"{args.case_id.lower()}-remote")
     artifacts.mkdir(parents=True, exist_ok=True)
     records: dict[str, Any] = {}
     checks: list[dict[str, Any]] = []
@@ -989,13 +1073,14 @@ def host_main(argv: list[str]) -> int:
             qualification = pre_qualification
             return finish("BLOCKED", "remote target identity preflight failed")
 
-        records["suite"] = run_worker_json(args.worker_b_json, ["worker-pjdfstest", "--case-id", args.case_id, "--profile", args.profile, "--matrix-json", args.matrix_json, "--run-dir", str(args.worker_run_dir_b), "--mount", str(args.mount_b), "--backend", args.backend, "--suite-root", str(args.suite_root_b), *( ["--base-dir", str(args.base_dir_b)] if args.base_dir_b else [] ), *( ["--timeout", str(args.timeout)] if args.timeout else [] )], args.command_timeout)
+        suite_args = args.worker_suite_args_json or ["worker-pjdfstest", "--case-id", args.case_id, "--profile", args.profile, "--matrix-json", args.matrix_json, "--run-dir", str(args.worker_run_dir_b), "--mount", str(args.mount_b), "--backend", args.backend, "--suite-root", str(args.suite_root_b), *( ["--base-dir", str(args.base_dir_b)] if args.base_dir_b else [] ), *( ["--timeout", str(args.timeout)] if args.timeout else [] )]
+        records["suite"] = run_worker_json(args.worker_b_json, suite_args, args.command_timeout)
         records["node_post"] = run_worker_json(args.worker_b_json, node_identity_args, args.command_timeout)
         records["meta_post"] = run_worker_json(args.worker_a_json, meta_identity_args, args.command_timeout)
         meta_post = latest_event(records["meta_post"], "IDENTITY")["processes"].get("meta")
         node_post_event = latest_event(records["node_post"], "IDENTITY")
         node_post = node_post_event["processes"].get("node")
-        suite_event = latest_event(records["suite"], "PJDFSTEST")
+        suite_event = latest_event(records["suite"], args.worker_suite_event)
         worker_proof = suite_event["proof"]
         post_system = (node_post_event.get("platform") or {}).get("system", worker_system)
         qualification = remote_target_checks(post_system, args.backend, node_post_event["mount"], node_post_event["base_mount"], node_pre, node_post, meta_pre, meta_post, expected_node_sha, expected_meta_sha, args.expected_meta_endpoint, args.require_cross_worker)
@@ -1223,6 +1308,8 @@ def main(argv: list[str]) -> int:
         return worker_identity_main(argv[1:])
     if argv and argv[0] == "worker-pjdfstest":
         return worker_pjdfstest_main(argv[1:])
+    if argv and argv[0] == "worker-driver":
+        return worker_driver_main(argv[1:])
     return legacy_main(argv)
 
 

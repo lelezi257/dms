@@ -743,8 +743,9 @@ status_one() {
 }
 
 remove_program_files() {
-  rm -f     "$PREFIX/bin/afs-meta"     "$PREFIX/bin/afs-node"     "$PREFIX/bin/dep02-smoke.sh"     "$PREFIX/manifest.json"     "$PREFIX/DEPENDENCIES.md"
-  rm -f "$PREFIX/bin/afs-processctl"
+  rm -f     "$PREFIX/bin/afs-meta"     "$PREFIX/bin/afs-node"     "$PREFIX/bin/afs-selfcheck"     "$PREFIX/bin/dep02-smoke.sh"     "$PREFIX/manifest.json"     "$PREFIX/DEPENDENCIES.md"
+  rm -f "$PREFIX/bin/afs-processctl" "$PREFIX/bin/afs-trial-config"
+  rm -f "$PREFIX/docs/guides/trial.md"
 }
 
 targets_start() {

@@ -1,5 +1,6 @@
 import importlib.util
 import json
+import os
 import unittest
 from pathlib import Path
 
@@ -44,6 +45,18 @@ class TargetIdentityTest(unittest.TestCase):
 
     def test_wrong_process(self):
         self.assertFalse(self.checks(node=process("python3"), meta=process("afs-meta"))["product-process-identity"])
+
+    def test_remote_host_qualified_product_accepts_node_only(self):
+        old = os.environ.get("AFS_ACCEPTANCE_REMOTE_HOST_QUALIFIED")
+        try:
+            os.environ["AFS_ACCEPTANCE_REMOTE_HOST_QUALIFIED"] = "1"
+            self.assertTrue(self.checks(node=process("afs-node"))["product-process-identity"])
+            self.assertFalse(self.checks(node=process("python3"))["product-process-identity"])
+        finally:
+            if old is None:
+                os.environ.pop("AFS_ACCEPTANCE_REMOTE_HOST_QUALIFIED", None)
+            else:
+                os.environ["AFS_ACCEPTANCE_REMOTE_HOST_QUALIFIED"] = old
 
     def test_nested_mount(self):
         self.assertFalse(self.checks(base=mount(target="/mount/nested"))["same-fixture-filesystem"])

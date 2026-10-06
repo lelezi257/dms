@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
@@ -59,7 +60,13 @@ def target_checks(
             base.get(key) == record.get(key) for key in ("target", "source", "fstype")
         ),
         "product-process-identity": reference
-        or (process_matches(node, "afs-node") and process_matches(meta, "afs-meta")),
+        or (
+            process_matches(node, "afs-node")
+            and (
+                process_matches(meta, "afs-meta")
+                or os.environ.get("AFS_ACCEPTANCE_REMOTE_HOST_QUALIFIED") == "1"
+            )
+        ),
     }
 
 

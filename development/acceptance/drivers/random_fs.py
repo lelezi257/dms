@@ -788,6 +788,8 @@ def main(argv: list[str]) -> int:
         "seeds": {"values": [str(len(accounting["selected_seeds"]))], "checks": {str(len(accounting["selected_seeds"])): "fixed-seed-operation-contract"}},
         "operations_per_seed": {"values": [str(accounting["operations_per_seed"])], "checks": {str(accounting["operations_per_seed"]): "fixed-seed-operation-contract"}},
     }
+    coverage_axes[f"seeds_{args.profile}"] = coverage_axes["seeds"]
+    coverage_axes[f"operations_per_seed_{args.profile}"] = coverage_axes["operations_per_seed"]
     proof = {
         "case_id": args.case_id,
         "profile": args.profile,

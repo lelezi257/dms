@@ -1,37 +1,39 @@
 # Delivery implementation rules
 
-The release contract is [acceptance.md](../docs/acceptance.md). Architecture documents describe the accepted design; fill missing implementation design without weakening acceptance. A conflict that changes a public contract requires an explicit decision, not a silent implementation shortcut.
+The current execution source of truth is [the three-stage acceptance checklist](trial-release-goals.md). The full release contract remains [docs/acceptance.md](../docs/acceptance.md), but the order is now iterative: ship the simple runnable version, qualify small standard and performance cases, then expand to complex reliability and backend matrices.
+
+Architecture documents describe the accepted target design. Implementation progress and evidence belong in status, handoff and development records. Do not weaken public semantics, durability claims, permissions, close-to-open behavior or error propagation to make a case pass.
+
+## Current priorities
+
+1. Preserve the completed G1/g1.5 colleague trial: installable OwnerFs/DFS, memory demo and central local-file Meta restart recovery. New candidate regression is G2 work; it does not reopen the historical G1 exit.
+2. Stabilize the current source snapshot and documentation so code, goals, known limits and evidence boundaries agree on GitHub.
+3. Run Owner-first standard fallback and necessary recovery checks on the current candidate: OwnerFs pjdfstest, Owner-relevant fixed LTP subset, short FSx, and the affected Owner/basic local-file recovery combination. Run DFS standard entry before DFS performance claims.
+4. Improve OwnerFs first: local small read/write/delete, then remote small read/write/delete against MooseFS parity. Local ordinary throughput targets at least 90% of native ext4.
+5. Enter DFS performance with one-writer/many-readers first, then single read/write, multi-node read/write, delete and larger sizes. DFS comparisons use matched POSIX/FUSE and three synchronous durable copies against 3FS.
+6. Keep bind/native as two independent G2 tasks: functional qualification and performance qualification. The switch must be explicit and default OFF. Public ON production use is not qualified until lifecycle, permissions, namespace/root ownership, mmap/watch/lock/append/seek and drain requirements pass.
+7. Keep etcd and Redis near the end. etcd memory/resource work may use the user-authorized 2 GiB topic lane. Redis is last/TODO unless an earlier correctness defect makes it urgent.
 
 ## Architecture boundaries
 
-Keep existing core directories, modules and public interfaces where possible. OwnerFs and DFS are submodules of afs-node with independent mounts and state. Share the FUSE module and transport resources. File I/O enters Node, while management REST may enter Meta. File bytes never transit Meta.
+OwnerFs and DFS remain separate mounts with separate backend state machines. OwnerFs is the small workspace path with a Home node and remote forwarding. DFS is the general distributed filesystem path with immutable chunks, file versions, placement and repair. They may share FUSE and transport infrastructure, but they must not share inode/handle/cache authority in ways that blur semantics.
 
-Keep rpc/control.rs, data.rs, meta.rs and peer.rs responsibilities. Meta owns authority, Peer control coordinates nodes, Peer data transports bytes, peer.rs owns shared connection resources. gRPC and RDMA carry the same identity, authorization, completion and error contracts. R=1 and R=N branch below ChunkStore, not in file layout.
+Meta owns namespace, inode records, versions, layout roots, placement, leases and idempotent commit results. File bytes do not pass through Meta. R=1 and R=N split below `ChunkStore`, not in layout or public file semantics. gRPC and RDMA carry the same identity, authorization, completion and error contracts.
 
-Only first-stage scope is required: do not pre-build Meta HA, DFS SDK, VerifiedCache/Seed or Spill. Preserve useful existing implementations. Add fields or focused interfaces as needed; avoid unrelated refactoring and speculative abstractions.
+Do not pre-build Meta HA, DFS SDK, VerifiedCache/Seed, external spill or broad migration machinery for the current phase. Add narrow interfaces only when current cases need them.
 
-## Whole-system convergence
+## Slice discipline
 
-Follow the four rounds in [plan.md](plan.md): healthy whole-system use, major faults and recovery, performance/resources followed by persistent backends, then formal delivery acceptance. Each round visits deployment, management, OwnerFs, DFS, replication, transport and observability. Existing task IDs are work labels and dependencies; they do not require completing every edge of one module before entering another.
+Before each slice, name the exact checklist item, current candidate identity, data size, backend/meta/transport axes, pass line, stop point and verification commands. A slice can be small; it must still say what it proves and what it does not prove.
 
-Use [issues.md](issues.md) as the single active issue list. Record the affected scenario, consequence/severity, whether it blocks the current round, temporary handling, planned round and acceptance cases. At round end review whole-system evidence and reorder remaining issues. Do not select the next task merely because it was discovered most recently.
+Immediately fix silent corruption, unsafe success, permission bypass, acknowledged-data loss, broken commit ordering and normal-use resource exhaustion. Defer large matrix breadth, long soak, broad random cases, etcd/Redis parity and native ON polish when the issue does not block the current smaller item.
 
-Immediately repair mainline blockers, erroneous success, silent corruption, permission failures, broken commit ordering and resource exhaustion under normal use. Defer only issues whose consequences permit normal correct use and current integration; calling an issue an edge case does not justify deferral. A workaround must preserve the accepted contract and have explicit limits.
+Use [validation.md](validation.md) to size verification. Reuse historical evidence only with its source/runtime identity and scope. Historical pjdfstest, g1.5 and optimization evidence are useful context, not current-candidate PASS.
 
-Use small fixtures early to expose major functional and performance problems. Keep costly file sizes, full matrices and long runs in their scheduled acceptance rounds. Memory Meta is the primary functional lane; its restart does not promise namespace persistence. Validate durable Meta restart with etcd/Redis in round 3.
+## Publication and handoff
 
-## Slice design
+The previous publication hold is superseded for the current user request: this documentation/code snapshot is authorized to be committed and pushed after review and verification. Future publication still requires the same kind of explicit user instruction.
 
-Before each implementation slice, identify acceptance cases, current code, missing behavior, design and a short failing test or reproducer. Define user-visible behavior before selecting abstractions. Include RPC count/roles, durability boundary, identity, error propagation and bounded resource ownership where relevant.
+Refresh [docs/handoff.md](../docs/handoff.md) only when the user asks for a handoff or a publication checkpoint. This current systematic GitHub snapshot qualifies.
 
-Choose validation scope using [validation.md](validation.md): small edits use the original failure, related module regressions and necessary compilation; related batches add affected core integrations; stage completion or batch integration adds the full Linux source gate. Expand earlier for public interfaces, data formats and cross-module contracts. Reuse valid frozen evidence with exact identities; deployment-script-only work does not repeat unchanged Rust gates. Keep local regression, stage gate and formal acceptance results distinct.
-
-Record significant directory/module/interface/data-format changes in the execution change log: problem, alternative, decision, affected callers, compatibility and evidence. Consolidate these changes for the final human review. Update final-design architecture pages when design changes; execution progress belongs outside product architecture pages.
-
-## Autonomy and stopping conditions
-
-Complete routine design details, fixes and optimizations without intermediate approval. Record reviewable decisions for the final delivery. Do not change acceptance thresholds, required coverage, consistency or architecture direction without explicit authorization. Report genuine external blockers with evidence and continue independent authorized work.
-
-The delivery is complete only when required acceptance gates pass, an installable release package is reproducible, and final changes/evidence are reviewed. A skeleton, successful compilation or a few demonstrations are not delivery completion.
-
-See [validation.md](validation.md) for staged validation.
+Every commit follows the workspace Lore protocol. Commit messages must record the intent, verification, known gaps and scope risk. Do not claim G2 completion, full POSIX qualification, native ON readiness, formal 69-case release, 8 GiB qualification or etcd/Redis parity unless those exact gates have fresh evidence.

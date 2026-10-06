@@ -23,7 +23,7 @@ use afs_error::{Error, Result};
 use fuser::{
     BackgroundSession, FileAttr, FileType, Filesystem, KernelConfig, LockOptions, MountOption,
     ReplyAttr, ReplyCreate, ReplyData, ReplyDirectory, ReplyEmpty, ReplyEntry, ReplyLock,
-    ReplyOpen, ReplyWrite, ReplyXattr, Request, TimeOrNow, consts,
+    ReplyOpen, ReplyStatfs, ReplyWrite, ReplyXattr, Request, TimeOrNow, consts,
 };
 
 #[cfg(feature = "ownerfs")]
@@ -33,9 +33,9 @@ use crate::node::vfs::{
     locks::{LockRequest, LockWaiterId},
     types::{
         AttributeChange, BackendInode, DirectoryEntry, Entry, FileAttributes, FileHandle, FileKind,
-        FileLockConflict, FileLockKind, FileLockOwner, FileLockRange, FileLockType, OpenOptions,
-        ReleaseKind, RenameFlags, RequestContext, SetAttrOptions, SpecialFileKind, SyncMode,
-        WriteOptions,
+        FileLockConflict, FileLockKind, FileLockOwner, FileLockRange, FileLockType,
+        FilesystemCapacity, OpenOptions, ReleaseKind, RenameFlags, RequestContext, SetAttrOptions,
+        SpecialFileKind, SyncMode, WriteOptions,
     },
 };
 
@@ -562,6 +562,11 @@ impl Filesystem for AfsFuse {
         // Linux otherwise serializes LOOKUPs in one directory even when our
         // FUSE receive thread dispatches them to independent workers.
         let _ = config.add_capabilities(fuser::consts::FUSE_PARALLEL_DIROPS);
+        // OwnerFs remote opens use FOPEN_DIRECT_IO so ordinary read/write calls
+        // bypass the kernel page cache and preserve close-to-open freshness.
+        // Linux 6.8 advertises this connection capability to permit shared mmap
+        // on direct_io handles without changing that read/write cache policy.
+        let _ = config.add_capabilities(fuser::consts::FUSE_DIRECT_IO_ALLOW_MMAP);
         if self.backend.supports_killpriv_v2() {
             let _ = config.add_capabilities(fuser::consts::FUSE_HANDLE_KILLPRIV_V2);
         }
@@ -685,6 +690,31 @@ impl Filesystem for AfsFuse {
             self.dispatch.submit_keyed(fh, run);
         } else {
             run();
+        }
+    }
+
+    fn statfs(&mut self, req: &Request<'_>, ino: u64, reply: ReplyStatfs) {
+        let Ok(inode) = self.backend_inode(ino) else {
+            reply.error(libc::ESTALE);
+            return;
+        };
+        #[cfg(feature = "ownerfs")]
+        let inline_local_statfs = self
+            .ownerfs
+            .as_ref()
+            .is_some_and(|ownerfs| ownerfs.is_local_inode(inode));
+        #[cfg(not(feature = "ownerfs"))]
+        let inline_local_statfs = false;
+        let backend = self.backend.clone();
+        let context = Self::metadata_context(req, 0);
+        let run = move || match backend.statfs(&context, inode) {
+            Ok(capacity) => reply_statfs(reply, capacity),
+            Err(error) => reply.error(errno(error)),
+        };
+        if inline_local_statfs {
+            run();
+        } else {
+            self.dispatch.submit(run);
         }
     }
 
@@ -1777,6 +1807,19 @@ fn reply_xattr(reply: ReplyXattr, requested: u32, result: Result<Vec<u8>>) {
         },
         Err(error) => reply.error(errno(error)),
     }
+}
+
+fn reply_statfs(reply: ReplyStatfs, capacity: FilesystemCapacity) {
+    reply.statfs(
+        capacity.blocks,
+        capacity.bfree,
+        capacity.bavail,
+        capacity.files,
+        capacity.ffree,
+        capacity.bsize,
+        capacity.namelen,
+        capacity.frsize,
+    );
 }
 
 fn sync_mode(datasync: bool) -> SyncMode {

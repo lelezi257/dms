@@ -32,7 +32,18 @@ AFS separates user-visible file semantics from the movement of file bytes. Appli
 
 Detailed mechanisms are in the [architecture pages](README.md#mechanisms).
 
-The [delivery acceptance scope](acceptance.md) requires FUSE, OwnerFs/DFS, etcd/Redis and RDMA. SDK, verified cache and spill describe the broader design and are outside this release.
+## Delivery Scope
+
+The architecture describes the accepted target design. Current implementation
+and trial status live in [Implementation Status](status.md), and execution order
+lives in the [three-stage goal table](../development/trial-release-goals.md).
+
+For the current usable-version path, the durable Meta requirement is limited to
+`local-file` restart recovery. `memory` is a disposable demo backend. etcd and
+Redis remain valid architecture backends, but their full acceptance is deferred:
+etcd is a later resource/reliability topic, and Redis is last. RDMA, verified
+cache, spill, SDK and HA describe the broader design and are not prerequisites
+for the first colleague-trial package.
 
 
 ## Detailed Contract Map

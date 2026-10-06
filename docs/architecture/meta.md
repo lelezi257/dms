@@ -23,7 +23,9 @@ The accepted base design allows Meta to keep whole committed snapshots and batch
 
 Meta service processes can be stateless with respect to local memory only when the persistent backend and fencing model hold the authoritative state. The filesystem is still stateful: namespace, file versions, copy records and idempotent results live in Meta's durable authority.
 
-The [first-stage delivery](../acceptance.md) deploys one Meta process per filesystem. It requires durable restart and exact request replay, but does not implement Meta instance election or fencing between competing instances. High availability requires a separate leader and persistence protocol, listed in the acceptance TODO. Inode owner lease and Node/Device epoch checks remain part of the first-stage file protocol.
+The [G1 trial](../../development/trial-release-goals.md) deploys one Meta process per filesystem and requires central local-file restart recovery; memory is a disposable demonstration. etcd and Redis implementation qualification is deferred to G3. Meta instance election and fencing between competing instances require a separate HA protocol. Inode owner lease and Node/Device epoch checks remain part of the ordinary file protocol.
+
+The current local-file implementation uses checksummed recoverable state and an append log with bounded work/checkpointing. Snapshot/CAS validation and synchronization remain authority boundaries; startup recovery verifies retained state before serving it. Optimizing replay cost does not turn an unacknowledged backend write into success. Current capability and validation identities are recorded in [status](../status.md), not inferred from this target design.
 
 ### DFS Lease Identity And Renewal
 

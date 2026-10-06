@@ -322,6 +322,29 @@ impl KernelConfig {
     }
 }
 
+#[cfg(all(test, feature = "abi-7-36"))]
+mod kernel_config_tests {
+    use super::{KernelConfig, consts};
+
+    #[test]
+    fn direct_io_mmap_capability_is_requested_only_when_kernel_advertises_it() {
+        let mut supported = KernelConfig::new(consts::FUSE_DIRECT_IO_ALLOW_MMAP, 0);
+        assert!(
+            supported
+                .add_capabilities(consts::FUSE_DIRECT_IO_ALLOW_MMAP)
+                .is_ok()
+        );
+        assert_ne!(supported.requested & consts::FUSE_DIRECT_IO_ALLOW_MMAP, 0);
+
+        let mut unsupported = KernelConfig::new(0, 0);
+        assert_eq!(
+            unsupported.add_capabilities(consts::FUSE_DIRECT_IO_ALLOW_MMAP),
+            Err(consts::FUSE_DIRECT_IO_ALLOW_MMAP)
+        );
+        assert_eq!(unsupported.requested & consts::FUSE_DIRECT_IO_ALLOW_MMAP, 0);
+    }
+}
+
 /// Filesystem trait.
 ///
 /// This trait must be implemented to provide a userspace filesystem via FUSE.

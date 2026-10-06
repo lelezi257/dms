@@ -20,7 +20,10 @@ use afs_protocol::meta::{
     LookupNodeRequest, LookupRootRequest, RecoverRootRequest, ReserveConflictPolicy,
     ReserveRootRequest, ValidateRootAccessRequest, owner_roots_client::OwnerRootsClient,
 };
-use afs_protocol::meta::{PingRequest, RegisterNodeRequest, meta_client::MetaClient};
+use afs_protocol::meta::{
+    MetaBackendPersistence, PingRequest, RegisterNodeReply, RegisterNodeRequest,
+    meta_client::MetaClient,
+};
 use afs_transport::grpc::{GrpcConfig, SecurityManager, TlsConfig};
 use std::sync::atomic::{AtomicU64, Ordering};
 #[cfg(feature = "dfs")]
@@ -53,6 +56,50 @@ pub async fn ping(endpoint: &str, node_id: &str, timeout: Duration) -> afs_error
         .await
         .map_err(afs_transport::grpc::error_status::status_to_error)?;
     Ok(reply.into_inner().message)
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum MetaPersistenceCapability {
+    Unknown,
+    Volatile,
+    Persistent,
+}
+
+impl From<MetaBackendPersistence> for MetaPersistenceCapability {
+    fn from(value: MetaBackendPersistence) -> Self {
+        match value {
+            MetaBackendPersistence::Persistent => Self::Persistent,
+            MetaBackendPersistence::Volatile => Self::Volatile,
+            MetaBackendPersistence::Unknown | MetaBackendPersistence::Unspecified => Self::Unknown,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct NodeRegistrationReadiness {
+    pub lease_epoch: u64,
+    pub expires_at_unix_ms: u64,
+    pub meta_backend_persistence: MetaPersistenceCapability,
+    pub meta_backend_healthy: bool,
+    pub meta_persistence_ready: bool,
+    pub meta_persistence_detail: String,
+}
+
+pub fn registration_readiness_from_reply(reply: RegisterNodeReply) -> NodeRegistrationReadiness {
+    let persistence = MetaBackendPersistence::try_from(reply.meta_backend_persistence)
+        .unwrap_or(MetaBackendPersistence::Unspecified)
+        .into();
+    let meta_persistence_ready = persistence == MetaPersistenceCapability::Persistent
+        && reply.meta_backend_healthy
+        && reply.meta_persistence_ready;
+    NodeRegistrationReadiness {
+        lease_epoch: reply.lease_epoch,
+        expires_at_unix_ms: reply.expires_at_unix_ms,
+        meta_backend_persistence: persistence,
+        meta_backend_healthy: reply.meta_backend_healthy,
+        meta_persistence_ready,
+        meta_persistence_detail: reply.meta_persistence_detail,
+    }
 }
 
 /// 同步 VFS/FUSE 回调的 Meta adapter。调用方必须在 FUSE 线程或
@@ -455,6 +502,19 @@ pub async fn register_node(
     timeout: Duration,
     tls: TlsConfig,
 ) -> Result<u64> {
+    register_node_with_readiness(endpoint, node, timeout, tls)
+        .await
+        .map(|registration| registration.lease_epoch)
+}
+
+/// Registers the Node and returns Meta persistence readiness as observed by the
+/// server. Missing fields from an older Meta decode as unknown/false.
+pub async fn register_node_with_readiness(
+    endpoint: &str,
+    node: afs_protocol::meta::NodeDescriptor,
+    timeout: Duration,
+    tls: TlsConfig,
+) -> Result<NodeRegistrationReadiness> {
     static REGISTER_SEQUENCE: AtomicU64 = AtomicU64::new(1);
     let config = GrpcConfig {
         connect_timeout: timeout,
@@ -492,7 +552,7 @@ pub async fn register_node(
             "Meta returned a zero Node registration epoch",
         ));
     }
-    Ok(reply.lease_epoch)
+    Ok(registration_readiness_from_reply(reply))
 }
 
 /// Synchronous adapter used by the DFS Backend on FUSE worker threads.
@@ -573,8 +633,30 @@ impl GrpcDfsMeta {
                         "DFS Meta request timed out",
                     )
                 })?
-                .map_err(afs_transport::grpc::error_status::status_to_error)
+                .map_err(Self::dfs_meta_status_to_error)
         })
+    }
+
+    #[cfg(feature = "dfs")]
+    fn dfs_meta_status_to_error(status: tonic::Status) -> Error {
+        if Self::status_source_is_timeout_expired(&status) {
+            return Error::coded(
+                afs_error::CLIENT_DEADLINE_EXCEEDED,
+                "DFS Meta request timed out",
+            );
+        }
+        afs_transport::grpc::error_status::status_to_error(status)
+    }
+
+    fn status_source_is_timeout_expired(status: &tonic::Status) -> bool {
+        let mut source = std::error::Error::source(status);
+        while let Some(error) = source {
+            if error.is::<tonic::TimeoutExpired>() {
+                return true;
+            }
+            source = error.source();
+        }
+        false
     }
 
     fn client(&self) -> afs_protocol::meta::dfs_meta_client::DfsMetaClient<Channel> {
@@ -1096,6 +1178,54 @@ impl crate::node::vfs::dfs::DfsMeta for GrpcDfsMeta {
         Ok((
             domain_dfs_inode(required(reply.inode, "OpenWrite.inode")?)?,
             domain_dfs_write_lease(required(reply.write_lease, "OpenWrite.write_lease")?),
+        ))
+    }
+
+    fn resolve_lock_authority(
+        &self,
+        inode_id: &crate::dfs::InodeId,
+    ) -> afs_error::Result<(crate::dfs::InodeRecord, crate::dfs::WriteLease)> {
+        let reply = self
+            .run(self.client().resolve_lock_authority(
+                afs_protocol::meta::ResolveDfsLockAuthorityRequest {
+                    caller_id: self.node_id.clone(),
+                    owner_session_id: self.session_id.clone(),
+                    operation_id: self.request_id(),
+                    inode_id: inode_id.0.clone(),
+                    lease_seconds: crate::node::vfs::dfs::DFS_WRITE_LEASE_SECONDS,
+                },
+            ))?
+            .into_inner();
+        Ok((
+            domain_dfs_inode(required(reply.inode, "ResolveLockAuthority.inode")?)?,
+            domain_dfs_write_lease(required(
+                reply.write_lease,
+                "ResolveLockAuthority.write_lease",
+            )?),
+        ))
+    }
+
+    fn resolve_write_authority(
+        &self,
+        inode_id: &crate::dfs::InodeId,
+    ) -> afs_error::Result<(crate::dfs::InodeRecord, crate::dfs::WriteLease)> {
+        let reply = self
+            .run(self.client().resolve_write_authority(
+                afs_protocol::meta::ResolveDfsWriteAuthorityRequest {
+                    caller_id: self.node_id.clone(),
+                    owner_session_id: self.session_id.clone(),
+                    operation_id: self.request_id(),
+                    inode_id: inode_id.0.clone(),
+                    lease_seconds: crate::node::vfs::dfs::DFS_WRITE_LEASE_SECONDS,
+                },
+            ))?
+            .into_inner();
+        Ok((
+            domain_dfs_inode(required(reply.inode, "ResolveWriteAuthority.inode")?)?,
+            domain_dfs_write_lease(required(
+                reply.write_lease,
+                "ResolveWriteAuthority.write_lease",
+            )?),
         ))
     }
 
@@ -2158,6 +2288,331 @@ fn domain_dfs_read_grant(value: afs_protocol::meta::DfsReadGrant) -> crate::dfs:
     }
 }
 
+#[cfg(all(test, feature = "ownerfs"))]
+#[derive(Debug, Eq, PartialEq)]
+struct PrivateNodeRootCommand {
+    command_id: String,
+    command_type: i32,
+    revision: u64,
+    root_id: String,
+    root_epoch: u64,
+    home_node_id: String,
+    home_session_id: String,
+    holder_node_id: String,
+    session_id: String,
+    access_generation: u64,
+    fencing_token: String,
+}
+
+#[cfg(all(test, feature = "ownerfs"))]
+#[derive(Debug, Eq, PartialEq)]
+enum PrivateNodeRootCommandBatch {
+    Events {
+        start_revision: u64,
+        next_revision: u64,
+        durable_resume_after: u64,
+        commands: Vec<PrivateNodeRootCommand>,
+    },
+    Compacted {
+        requested_after: u64,
+        compacted_to: u64,
+        recovery_resume_after: u64,
+        recovery_reason: i32,
+    },
+    Unsupported {
+        message: String,
+    },
+}
+
+#[cfg(all(test, feature = "ownerfs"))]
+fn private_node_root_command_batch_from_wire(
+    value: afs_protocol::meta::RootCommandBatchReply,
+) -> Result<PrivateNodeRootCommandBatch> {
+    match value.result {
+        Some(afs_protocol::meta::root_command_batch_reply::Result::Events(events)) => {
+            if events.next_revision == 0 || events.next_revision <= events.start_revision {
+                return Err(Error::coded(
+                    CLIENT_PROTOCOL_VIOLATION,
+                    "RootCommandBatchEvents has invalid next revision",
+                ));
+            }
+            let commands = events
+                .commands
+                .into_iter()
+                .map(|command| {
+                    if command.revision <= events.start_revision
+                        || command.revision >= events.next_revision
+                    {
+                        return Err(Error::coded(
+                            CLIENT_PROTOCOL_VIOLATION,
+                            "RootCommand revision is outside the batch range",
+                        ));
+                    }
+                    let access = command.access.ok_or_else(|| {
+                        Error::coded(
+                            CLIENT_PROTOCOL_VIOLATION,
+                            "RootCommand is missing root access",
+                        )
+                    })?;
+                    Ok(PrivateNodeRootCommand {
+                        command_id: command.command_id,
+                        command_type: command.command_type,
+                        revision: command.revision,
+                        root_id: access.root_id,
+                        root_epoch: access.root_epoch,
+                        home_node_id: access.home_node_id,
+                        home_session_id: access.home_session_id,
+                        holder_node_id: access.holder_node_id,
+                        session_id: access.session_id,
+                        access_generation: access.access_generation,
+                        fencing_token: access.fencing_token,
+                    })
+                })
+                .collect::<Result<Vec<_>>>()?;
+            Ok(PrivateNodeRootCommandBatch::Events {
+                start_revision: events.start_revision,
+                next_revision: events.next_revision,
+                durable_resume_after: events.next_revision - 1,
+                commands,
+            })
+        }
+        Some(afs_protocol::meta::root_command_batch_reply::Result::Compacted(compacted)) => {
+            let cursor = compacted.recovery_cursor.ok_or_else(|| {
+                Error::coded(
+                    CLIENT_PROTOCOL_VIOLATION,
+                    "RootCommandBatchCompacted is missing recovery cursor",
+                )
+            })?;
+            // This private consumer accepts forward compacted-history diagnostics
+            // only. Other recovery shapes stay unsupported, never authoritative.
+            if afs_protocol::meta::RootCommandRecoveryReason::try_from(cursor.reason)
+                .ok()
+                .is_none_or(|reason| {
+                    reason == afs_protocol::meta::RootCommandRecoveryReason::Unspecified
+                })
+                || compacted.compacted_to <= compacted.requested_after
+                || cursor.resume_after <= compacted.requested_after
+            {
+                return Err(Error::coded(
+                    CLIENT_PROTOCOL_VIOLATION,
+                    "RootCommandBatchCompacted has invalid diagnostic cursor",
+                ));
+            }
+            Ok(PrivateNodeRootCommandBatch::Compacted {
+                requested_after: compacted.requested_after,
+                compacted_to: compacted.compacted_to,
+                recovery_resume_after: cursor.resume_after,
+                recovery_reason: cursor.reason,
+            })
+        }
+        Some(afs_protocol::meta::root_command_batch_reply::Result::Unsupported(unsupported)) => {
+            Ok(PrivateNodeRootCommandBatch::Unsupported {
+                message: unsupported.message,
+            })
+        }
+        None => Err(Error::coded(
+            CLIENT_PROTOCOL_VIOLATION,
+            "RootCommandBatchReply is empty",
+        )),
+    }
+}
+
+#[cfg(all(test, feature = "ownerfs"))]
+mod n2b2_private_root_command_batch_tests {
+    use super::*;
+
+    fn access() -> afs_protocol::meta::RootAccess {
+        afs_protocol::meta::RootAccess {
+            root_id: "root-a".into(),
+            root_epoch: 3,
+            home_node_id: "home-a".into(),
+            holder_node_id: "holder-a".into(),
+            session_id: "holder-session-a".into(),
+            access_generation: 5,
+            rights: vec![afs_protocol::meta::RootRight::Lookup as i32],
+            fencing_token: "fence-a".into(),
+            home_session_id: "home-session-a".into(),
+        }
+    }
+
+    #[test]
+    fn private_batch_adapter_uses_next_minus_one_cursor_and_exact_access_fields() {
+        let reply = afs_protocol::meta::RootCommandBatchReply {
+            result: Some(
+                afs_protocol::meta::root_command_batch_reply::Result::Events(
+                    afs_protocol::meta::RootCommandBatchEvents {
+                        start_revision: 11,
+                        next_revision: 14,
+                        commands: vec![afs_protocol::meta::RootCommand {
+                            command_id: "cmd-a".into(),
+                            command_type: afs_protocol::meta::RootCommandType::RevokeAccess as i32,
+                            access: Some(access()),
+                            revision: 12,
+                        }],
+                    },
+                ),
+            ),
+        };
+
+        let batch = private_node_root_command_batch_from_wire(reply).unwrap();
+
+        assert_eq!(
+            batch,
+            PrivateNodeRootCommandBatch::Events {
+                start_revision: 11,
+                next_revision: 14,
+                durable_resume_after: 13,
+                commands: vec![PrivateNodeRootCommand {
+                    command_id: "cmd-a".into(),
+                    command_type: afs_protocol::meta::RootCommandType::RevokeAccess as i32,
+                    revision: 12,
+                    root_id: "root-a".into(),
+                    root_epoch: 3,
+                    home_node_id: "home-a".into(),
+                    home_session_id: "home-session-a".into(),
+                    holder_node_id: "holder-a".into(),
+                    session_id: "holder-session-a".into(),
+                    access_generation: 5,
+                    fencing_token: "fence-a".into(),
+                }],
+            }
+        );
+    }
+
+    #[test]
+    fn private_batch_adapter_compaction_is_non_authorizing() {
+        let reply = afs_protocol::meta::RootCommandBatchReply {
+            result: Some(
+                afs_protocol::meta::root_command_batch_reply::Result::Compacted(
+                    afs_protocol::meta::RootCommandBatchCompacted {
+                        requested_after: 8,
+                        compacted_to: 20,
+                        recovery_cursor: Some(afs_protocol::meta::RootCommandRecoveryCursor {
+                            resume_after: 20,
+                            reason: afs_protocol::meta::RootCommandRecoveryReason::WatchCompacted
+                                as i32,
+                        }),
+                    },
+                ),
+            ),
+        };
+
+        let batch = private_node_root_command_batch_from_wire(reply).unwrap();
+
+        assert_eq!(
+            batch,
+            PrivateNodeRootCommandBatch::Compacted {
+                requested_after: 8,
+                compacted_to: 20,
+                recovery_resume_after: 20,
+                recovery_reason: afs_protocol::meta::RootCommandRecoveryReason::WatchCompacted
+                    as i32,
+            }
+        );
+    }
+
+    #[test]
+    fn private_batch_adapter_rejects_malformed_compaction_diagnostics() {
+        use afs_protocol::meta::RootCommandRecoveryReason;
+        for (requested_after, compacted_to, resume_after, reason) in [
+            (8, 20, 19, RootCommandRecoveryReason::Unspecified as i32),
+            (8, 20, 19, 99),
+            (8, 8, 19, RootCommandRecoveryReason::WatchCompacted as i32),
+            (8, 20, 8, RootCommandRecoveryReason::WatchCompacted as i32),
+            (8, 20, 0, RootCommandRecoveryReason::WatchCompacted as i32),
+        ] {
+            let reply = afs_protocol::meta::RootCommandBatchReply {
+                result: Some(
+                    afs_protocol::meta::root_command_batch_reply::Result::Compacted(
+                        afs_protocol::meta::RootCommandBatchCompacted {
+                            requested_after,
+                            compacted_to,
+                            recovery_cursor: Some(afs_protocol::meta::RootCommandRecoveryCursor {
+                                resume_after,
+                                reason,
+                            }),
+                        },
+                    ),
+                ),
+            };
+            assert_eq!(
+                private_node_root_command_batch_from_wire(reply)
+                    .unwrap_err()
+                    .code(),
+                CLIENT_PROTOCOL_VIOLATION
+            );
+        }
+    }
+
+    #[test]
+    fn private_batch_adapter_unsupported_is_non_authorizing() {
+        let reply = afs_protocol::meta::RootCommandBatchReply {
+            result: Some(
+                afs_protocol::meta::root_command_batch_reply::Result::Unsupported(
+                    afs_protocol::meta::RootCommandBatchUnsupported {
+                        message: "batch polling is disabled".into(),
+                    },
+                ),
+            ),
+        };
+
+        let batch = private_node_root_command_batch_from_wire(reply).unwrap();
+
+        assert_eq!(
+            batch,
+            PrivateNodeRootCommandBatch::Unsupported {
+                message: "batch polling is disabled".into(),
+            }
+        );
+    }
+
+    #[test]
+    fn private_batch_adapter_rejects_empty_and_invalid_event_batches() {
+        let error =
+            private_node_root_command_batch_from_wire(afs_protocol::meta::RootCommandBatchReply {
+                result: None,
+            })
+            .expect_err("empty reply must not authorize anything");
+        assert_eq!(error.code(), CLIENT_PROTOCOL_VIOLATION);
+
+        let error =
+            private_node_root_command_batch_from_wire(afs_protocol::meta::RootCommandBatchReply {
+                result: Some(
+                    afs_protocol::meta::root_command_batch_reply::Result::Events(
+                        afs_protocol::meta::RootCommandBatchEvents {
+                            start_revision: 14,
+                            next_revision: 14,
+                            commands: Vec::new(),
+                        },
+                    ),
+                ),
+            })
+            .expect_err("non-advancing events cannot produce a durable cursor");
+        assert_eq!(error.code(), CLIENT_PROTOCOL_VIOLATION);
+
+        let error =
+            private_node_root_command_batch_from_wire(afs_protocol::meta::RootCommandBatchReply {
+                result: Some(
+                    afs_protocol::meta::root_command_batch_reply::Result::Events(
+                        afs_protocol::meta::RootCommandBatchEvents {
+                            start_revision: 14,
+                            next_revision: 16,
+                            commands: vec![afs_protocol::meta::RootCommand {
+                                command_id: "already-observed".into(),
+                                command_type: afs_protocol::meta::RootCommandType::RevokeAccess
+                                    as i32,
+                                access: Some(access()),
+                                revision: 14,
+                            }],
+                        },
+                    ),
+                ),
+            })
+            .expect_err("start_revision is the exclusive previously observed revision");
+        assert_eq!(error.code(), CLIENT_PROTOCOL_VIOLATION);
+    }
+}
+
 #[cfg(all(test, feature = "dfs"))]
 mod tests {
     use super::*;
@@ -2346,29 +2801,66 @@ mod tests {
         assert_eq!(error.code(), afs_error::CLIENT_PROTOCOL_VIOLATION);
     }
 
+    #[test]
+    fn dfs_meta_typed_tonic_timeout_is_client_deadline() {
+        let mut status = tonic::Status::cancelled("Timeout expired");
+        status.set_source(std::sync::Arc::new(tonic::TimeoutExpired(())));
+
+        let error = GrpcDfsMeta::dfs_meta_status_to_error(status);
+
+        assert_eq!(error.code(), afs_error::CLIENT_DEADLINE_EXCEEDED);
+        assert_eq!(error.kind(), afs_error::ErrorKind::DeadlineExceeded);
+    }
+
+    #[test]
+    fn dfs_meta_plain_cancelled_remains_remote_cancelled() {
+        let error =
+            GrpcDfsMeta::dfs_meta_status_to_error(tonic::Status::cancelled("remote cancelled"));
+
+        assert_eq!(error.code(), afs_error::CLIENT_REMOTE_STATUS);
+        assert_eq!(error.kind(), afs_error::ErrorKind::Cancelled);
+        assert_eq!(error.message(), "remote cancelled");
+    }
+
+    #[test]
+    fn dfs_meta_rich_business_error_identity_is_unchanged() {
+        let original = Error::coded(afs_error::CLIENT_ARGUMENT_INVALID, "invalid argument");
+        let status = afs_transport::grpc::error_status::error_to_status(original.clone());
+
+        let error = GrpcDfsMeta::dfs_meta_status_to_error(status);
+
+        assert_eq!(error, original);
+    }
+
     async fn assert_deadline_elapsed(
         label: &'static str,
-        allow_transport_timeout: bool,
         operation: impl FnOnce() -> afs_error::Result<()> + Send + 'static,
     ) {
         let started = Instant::now();
         let result = tokio::task::spawn_blocking(operation).await.unwrap();
         let elapsed = started.elapsed();
         let error = result.expect_err(label);
-        // The endpoint timer may win the race against the equal outer timer.
-        // Preserve tonic's untyped Cancelled status as an unknown outcome.
-        assert!(
-            error.code() == afs_error::CLIENT_DEADLINE_EXCEEDED
-                || (allow_transport_timeout
-                    && error.code() == afs_error::CLIENT_REMOTE_STATUS
-                    && error.kind() == afs_error::ErrorKind::Cancelled
-                    && error.message() == "Timeout expired"),
+        assert_eq!(
+            error.code(),
+            afs_error::CLIENT_DEADLINE_EXCEEDED,
             "{label}: unexpected error {error:?}"
         );
         assert!(
             elapsed < Duration::from_millis(300),
             "{label} should honor the focused timeout, elapsed={elapsed:?}"
         );
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn grpc_lock_resolver_honors_configured_deadline() {
+        let (endpoint, listener) = hanging_endpoint().await;
+        let meta = test_meta(&endpoint, Duration::from_millis(40));
+        assert_deadline_elapsed("lock resolver configured deadline", move || {
+            DfsMeta::resolve_lock_authority(&meta, &crate::dfs::InodeId::new("inode:test"))
+                .map(|_| ())
+        })
+        .await;
+        listener.abort();
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -2379,14 +2871,14 @@ mod tests {
 
         let meta = std::sync::Arc::new(test_meta(&endpoint, configured_long));
         let lease_meta = meta.clone();
-        assert_deadline_elapsed("renew lease timeout", false, move || {
+        assert_deadline_elapsed("renew lease timeout", move || {
             DfsMeta::renew_write_lease_with_timeout(lease_meta.as_ref(), test_lease(), focused)
                 .map(|_| ())
         })
         .await;
 
         let sync_meta = meta.clone();
-        assert_deadline_elapsed("metadata sync timeout", false, move || {
+        assert_deadline_elapsed("metadata sync timeout", move || {
             DfsMeta::sync_inode_metadata_with_timeout(
                 sync_meta.as_ref(),
                 test_metadata_sync(),
@@ -2397,14 +2889,14 @@ mod tests {
         .await;
 
         let commit_meta = meta.clone();
-        assert_deadline_elapsed("file commit timeout", false, move || {
+        assert_deadline_elapsed("file commit timeout", move || {
             DfsMeta::commit_file_version_with_timeout(commit_meta.as_ref(), test_commit(), focused)
                 .map(|_| ())
         })
         .await;
 
         let configured_short = std::sync::Arc::new(test_meta(&endpoint, focused));
-        assert_deadline_elapsed("configured timeout remains a cap", true, move || {
+        assert_deadline_elapsed("configured timeout remains a cap", move || {
             DfsMeta::renew_write_lease_with_timeout(
                 configured_short.as_ref(),
                 test_lease(),

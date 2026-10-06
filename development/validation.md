@@ -1,56 +1,66 @@
-# Staged delivery validation
+# Validation strategy
 
-[Acceptance](../docs/acceptance.md) owns targets and topology. The execution manifest expands its cases; neither scripts nor skills may weaken this contract.
+Validation follows [the three-stage acceptance checklist](trial-release-goals.md). The purpose is to make progress in independently reviewable units: first runnable, then standard and small performance cases, then broad reliability and backend matrices.
 
-## Environment
+All Rust builds, filesystem tests, privileged FUSE runs and product runtime checks must run on the ARM64 Linux VM environment. macOS is allowed for editing, Git operations, documentation review and VM orchestration only.
 
-macOS is for editing, reading and host-side VM orchestration only. Compile, lint, unit/integration tests, probes, filesystem services, faults and benchmarks run in Linux. Acceptance uses the specified dedicated four ARM64 Ubuntu VM topology, ext4 volumes and verified RXE network. Builds use a separate Linux build VM and never compete with a measured lane.
+## Evidence levels
 
-Record exact source and binary identity, environment lock, mount/backend/replica/transport configuration and evidence. Sharing source with a VM is allowed; storing tested data on a macOS share is not. Preserve old experiment data; do not stop unrelated workloads. Before performance runs account for competing VMs/processes and validate resource isolation.
-
-## Feedback stages
-
-The four [delivery rounds](plan.md#whole-system-rounds) determine coverage and priority; the feedback stages below determine validation cost within each round. They are not sequential module-completion gates. Each round checks the whole system and maintains [the issue list](issues.md). At round end run the overall regression for that round's integrated candidate, assess coverage and unresolved consequences, and select the next priorities. Preserve valid old evidence under its original source and runtime identity.
-
-1. Environment: pin images/dependencies, verify volumes/network/TLS/backends/RXE, ext4 reference suites, actual MooseFS/3FS mounts and baselines. Missing prerequisites are BLOCKED, not PASS.
-2. Small change: replay the original failure, run regressions for the affected modules and perform necessary compile checks. Advance to the next development task when this scope passes. Use small fixtures for chunk boundaries, streaming, memory limits and errors; do not repeat the full source gate for each edit.
-3. Related feature or repair batch: run the affected core integrations after the batch forms a working end-to-end flow. Select file write/read/sync/close/reopen, consistency, commit idempotency, replica recovery and RPC authorization according to the changed contracts and callers.
-4. Stage completion, batch integration or release preparation: run the full Linux source gate together, including formatting, strict workspace/all-target/all-feature Clippy, library and interface contracts, privileged FUSE checks, supported feature configurations and binary build. Public interface, data-format or cross-module contract changes expand checks earlier; do not defer a necessary consumer or compatibility check until batch end.
-5. Performance and release: keep 8 GiB files, full POSIX/FSx/random-operation matrices, paired performance repetitions and long stability/fault runs in their planned acceptance stages. Use frozen representative short workloads for diagnostics first. Do not start product performance tuning before valid comparison baselines. Short checks never replace the required full acceptance matrices.
-
-### Select checks by impact
-
-Before editing, record the original failure, changed contracts/callers, selected checks and the remaining batch gate. A small internal change normally needs the failing case, related module regressions and compilation of affected targets. Widen the selection when shared interfaces, serialization, persistence, authorization, durability or transport completion can affect other modules.
-
-Deployment-script-only changes require script syntax/regressions and real deployment or restart checks. Reuse the existing qualified Rust source/binary evidence when those inputs are unchanged; do not rerun all Rust tests for a shell-only fix. A package or dependency change that alters product binaries is a broader change and must validate those binaries.
-
-Core integration selection follows the risk: a write-state change needs visibility and barrier checks; a Meta commit change needs precise idempotent replay; a replica change needs durable completion and failure recovery; an RPC contract change needs both endpoints, authorization and every affected transport. Run these checks at the batch boundary, or earlier when needed to resolve a cross-module risk.
-
-### Reuse frozen evidence
-
-Valid evidence for the same frozen source can be reused. Bind it to exact input hashes, binary identity, toolchain/dependencies, test selection and relevant runtime configuration. When code changes, rerun the affected checks and identify which unaffected results remain applicable. Changed test code, dependencies or environment can also invalidate evidence. Preserve previous results under their original identities; never relabel an old result as a test of new inputs.
-
-At batch end, complete the full source gate for the final candidate. A shell-only batch can reuse the unchanged Rust gate together with fresh script and runtime evidence. Record what ran, what was reused, why reuse is valid and what remains unrun. Failure or incompatible inputs require fresh validation of the affected scope.
-
-### Result levels
-
-| Level | What it establishes | What it does not establish |
+| Level | Use | Minimum evidence |
 | --- | --- | --- |
-| Local regression PASS | The identified failing case, selected module regressions and necessary compilation pass | Other modules, the full source gate or release acceptance |
-| Mainline flow PASS | The explicitly identified installation/deployment and healthy end-to-end flows work on the candidate and configuration tested | A complete source gate, fault recovery, untested axes or formal delivery |
-| Stage gate PASS | The frozen candidate satisfies its complete source gate and the selected affected core integrations | Unrun formal cases, other backend/transport axes, performance or long stability gates |
-| Formal acceptance PASS | A required case passed its declared matrix in the qualified environment with complete identity and semantic evidence | Other cases or overall delivery while any mandatory gate remains unresolved |
+| Static/document check | Documentation, manifests and non-runtime scripts | Link check or grep-based consistency check, plus `git diff --check` |
+| Unit/contract check | Narrow Rust or Python behavior change | Targeted test for the changed behavior, formatting/lint when applicable |
+| Source gate | Shared Rust behavior, protocol, FUSE, Meta, Node or deployment changes | Linux format, strict Clippy/build and affected library/contract/integration tests |
+| Runtime smoke | Candidate usability or affected distributed behavior | Identified binaries/configs, real mount/process identities, raw commands, content checks and cleanup |
+| Standard suite | POSIX fallback and regression safety | pjdfstest, fixed LTP subset and short FSx with full accounting and predeclared exclusions |
+| Performance case | G2 performance item | Baseline and candidate on the same frozen case, correctness proof, resource identity, raw timing, noise policy fixed before measurement |
+| Formal release gate | G3/final release | Full suite matrix, 8 GiB cases, long soak, comparator qualification, durable backend/fault/RDMA/deployment evidence |
 
-Overall delivery requires all mandatory acceptance gates. Keep local/stage results separate from formal case status; neither can turn a formal `NOT_RUN` into `PASS`.
+Short smoke success never replaces a full case. A full old run does not qualify a changed candidate. Each result must bind source, binary/package, command, environment, mount identity, raw output and pass/fail criteria.
 
-Report current round, healthy coverage, stage-gate identity, formal status and deferred issues separately. A round can advance after its defined whole-system scope and regression pass with nonblocking issues assigned to later rounds; it cannot defer a known incorrect success, corruption, authorization failure, commit-order violation or normal-use resource leak. Full-source validation remains due at batch/round boundaries. Do not rerun the same unaffected gate for every small correction.
+## Stage-specific gates
 
-Core filesystem development uses a memory-backed Meta first, so POSIX, layout, visibility, replication and transport defects can be reproduced without persistent-backend variables. Keep existing etcd/Redis integration work and validate it in separate lanes. Memory-backed runs do not prove Meta restart durability or qualify a performance comparison that requires durable metadata. Backend parity and persistent recovery are completed after the core functional and performance development gates.
+### G1 retained trial
 
-## Trustworthy results
+G1/g1.5 remains complete in its historical scope: OwnerFs/DFS installable trial, memory demo and central local-file Meta restart recovery. Do not use new candidate failures to erase that result. Do not upgrade it into full POSIX, formal 69-case or performance qualification.
 
-Check content, EOF, attributes, errno, successful durability watermarks and recovery. Verify faults occurred and RDMA file bytes actually used verbs. A TCP fallback is not an RDMA PASS. Track every discovered suite test, including skips/TODO/unfinished items; no post-failure exclusions.
+### G2 current work
 
-Capture minimal failure sequences and add regression cases when fixing defects. Use PASS/FAIL/BLOCKED/INCONCLUSIVE; NOT_RUN is a preparation status and cannot become release PASS. Publish raw valid paired benchmark runs, not fastest samples. No implicit tolerance or relaxed replica/durability configuration.
+G2 starts with Owner-first standard fallback and small cases, then enters DFS standard checks before DFS performance:
 
-An acceptance skill references the same environment lock, case manifest and runner. It must reject missing evidence, stale binaries and altered contracts.
+- OwnerFs pjdfstest on the current candidate.
+- Owner-relevant fixed LTP filesystem/permission/lock subset.
+- Owner-relevant short fixed-seed FSx.
+- Affected Owner basic operation and local-file recovery combination.
+- Owner local small read, write and delete against ext4, then remote read/write/delete against MooseFS parity.
+- Bind functional and bind performance tasks as explicit-switch, default-OFF items.
+- DFS pjdfstest, DFS-relevant LTP/FSx and DFS affected basic checks before DFS performance claims.
+- DFS one-writer/many-readers before broader DFS performance.
+
+Performance cases start small, defaulting to 64 MiB unless the item says otherwise. 512 MiB and 8 GiB are separate records. Large data, long-running and complex mixed cases do not block smaller completed items.
+
+### G3 deferred gates
+
+G3 contains broad LTP/POSIX, long FSx/differential random, 8-hour soak, failure matrices, RDMA abnormal lifecycle, multi-Meta/HA, wider deployment, etcd resource topic and Redis. Keep any local evidence, but do not claim these gates until the full case exits pass.
+
+## Comparator rules
+
+OwnerFs local uses native ext4 as the main comparator and targets at least 90% ordinary throughput. OwnerFs remote targets MooseFS parity. DFS targets 3FS parity under matched POSIX/FUSE and three synchronous durable copies. Delete cases require correctness and a measured comparative report; they have no new hard ratio unless a later checklist item adds one.
+
+Baseline and candidate must use the same data shape, cache policy, durability barrier, replica count, mount type and resource budget. Noise tolerance is fixed before the run. Do not rerun an unchanged failed case until a new input or hypothesis exists.
+
+## Capacity and logs
+
+Capacity admission is per case. Small standard and 64 MiB performance cases should run before 8 GiB or long soak. A case that needs more disk must state the live data, baseline/candidate order, cleanup plan, log budget and host free-space requirement. Expanding a VM disk is allowed after protecting current services and state, but it is not a prerequisite for the first small cases.
+
+## Reporting
+
+Every report must separate:
+
+- PASS/FAIL/BLOCKED/INCONCLUSIVE.
+- Current candidate evidence from historical evidence.
+- Product evidence from tooling or environment preparation.
+- Memory Meta evidence from local-file, etcd and Redis persistence.
+- OFF/FUSE evidence from bind/native ON evidence.
+
+If a result is blocked by environment, record the blocker and continue with independent items that do not depend on that environment.

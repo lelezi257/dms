@@ -18,7 +18,7 @@ use crate::{
         ChunkId, ChunkSources, CopyLocation, CopyRole, DfsChunkSourcesReply,
         DfsChunkSourcesRequest, FileVersionId, LayoutRootId, SourceCandidate,
     },
-    node::chunk::{LocalChunkStore, PinnedChunkReader},
+    node::chunk::{LocalChunkStore, PinnedChunkReader, VerifiedRangeCopy},
 };
 
 /// Hard protocol budgets shared by the scheduler, peer adapter and service.
@@ -277,28 +277,73 @@ impl DfsReadEngine {
     }
 
     fn read_batch_into(&self, batch: &ReadBatch, out: &mut [u8]) -> Result<()> {
-        let mut remote_ops = Vec::new();
-        for op in &batch.ops {
+        let mut groups: Vec<(ChunkId, Vec<usize>)> = Vec::new();
+        let mut positions: HashMap<ChunkId, usize> = HashMap::new();
+        for (index, op) in batch.ops.iter().enumerate() {
             if op.length == 0 {
                 continue;
             }
-            if let Err(error) = self.read_local(op, out) {
-                if matches!(
-                    error.kind(),
-                    afs_error::ErrorKind::DataLoss | afs_error::ErrorKind::NotFound
-                ) {
-                    self.local.try_quarantine(&op.chunk_id);
-                }
-                // A cached pin can outlive a corrupt file's replacement.
-                // Drop it on failure so the next attempt opens the current
-                // physical copy instead of retrying the retired descriptor.
-                self.readers
-                    .lock()
-                    .map_err(|_| unavailable("DFS local reader cache is poisoned"))?
-                    .remove(&op.chunk_id);
-                remote_ops.push(op.clone());
+            if let Some(group_index) = positions.get(&op.chunk_id).copied() {
+                groups[group_index].1.push(index);
+            } else {
+                positions.insert(op.chunk_id.clone(), groups.len());
+                groups.push((op.chunk_id.clone(), vec![index]));
             }
         }
+        let mut remote = vec![false; batch.ops.len()];
+        for (chunk_id, indices) in groups {
+            let reader = match self.local_reader(&chunk_id) {
+                Ok(reader) => reader,
+                Err(error) => {
+                    self.handle_local_read_failure(&chunk_id, &error)?;
+                    for index in indices {
+                        remote[index] = true;
+                    }
+                    continue;
+                }
+            };
+            let mut ranges = Vec::with_capacity(indices.len());
+            for &index in &indices {
+                let op = &batch.ops[index];
+                let length = usize::try_from(op.length)
+                    .map_err(|_| invalid("DFS read length is too large"))?;
+                ranges.push(VerifiedRangeCopy {
+                    chunk_offset: op.chunk_offset,
+                    length,
+                    output_offset: op.output_offset,
+                });
+            }
+            match reader.read_ranges_at_uncommitted(&ranges, out) {
+                Ok(counts) => {
+                    let mut short = false;
+                    for (&index, count) in indices.iter().zip(counts) {
+                        let expected = usize::try_from(batch.ops[index].length)
+                            .map_err(|_| invalid("DFS read length is too large"))?;
+                        if count != expected {
+                            remote[index] = true;
+                            short = true;
+                        }
+                    }
+                    if short {
+                        let error = corrupt("local Chunk ended before the requested range");
+                        self.handle_local_read_failure(&chunk_id, &error)?;
+                    }
+                }
+                Err(error) => {
+                    self.handle_local_read_failure(&chunk_id, &error)?;
+                    for index in indices {
+                        remote[index] = true;
+                    }
+                }
+            }
+        }
+        let remote_ops = batch
+            .ops
+            .iter()
+            .enumerate()
+            .filter(|(index, _op)| remote[*index])
+            .map(|(_, op)| op.clone())
+            .collect::<Vec<_>>();
         if remote_ops.is_empty() {
             return Ok(());
         }
@@ -312,18 +357,20 @@ impl DfsReadEngine {
         Ok(())
     }
 
-    fn read_local(&self, op: &ChunkReadOp, out: &mut [u8]) -> Result<()> {
-        let reader = self.local_reader(&op.chunk_id)?;
-        let length =
-            usize::try_from(op.length).map_err(|_| invalid("DFS read length is too large"))?;
-        let end = op
-            .output_offset
-            .checked_add(length)
-            .ok_or_else(|| invalid("DFS read output range overflow"))?;
-        let read = reader.read_at(op.chunk_offset, &mut out[op.output_offset..end])?;
-        if read != length {
-            return Err(corrupt("local Chunk ended before the requested range"));
+    fn handle_local_read_failure(&self, chunk_id: &ChunkId, error: &Error) -> Result<()> {
+        if matches!(
+            error.kind(),
+            afs_error::ErrorKind::DataLoss | afs_error::ErrorKind::NotFound
+        ) {
+            self.local.try_quarantine(chunk_id);
         }
+        // A cached pin can outlive a corrupt file's replacement. Drop it on
+        // failure so the next attempt opens the current physical copy instead
+        // of retrying the retired descriptor.
+        self.readers
+            .lock()
+            .map_err(|_| unavailable("DFS local reader cache is poisoned"))?
+            .remove(chunk_id);
         Ok(())
     }
 
@@ -684,15 +731,20 @@ mod tests {
         }
     }
 
+    fn put_local_chunk(local: &LocalChunkStore, operation: &str, bytes: &[u8]) -> ChunkId {
+        let mut builder = ChunkBuilder::default();
+        builder.replace(bytes.to_vec());
+        let staged = builder.stage(OperationId::new(operation));
+        let chunk_id = staged.chunk.id.clone();
+        local.put(staged).unwrap();
+        chunk_id
+    }
+
     #[test]
     fn local_read_uses_verified_reader_without_source_lookup() {
         let temp = tempfile::tempdir().unwrap();
         let local = Arc::new(LocalChunkStore::open(temp.path(), "node-a").unwrap());
-        let mut builder = ChunkBuilder::default();
-        builder.replace(b"abcdef".to_vec());
-        let staged = builder.stage(OperationId::new("op"));
-        let chunk_id = staged.chunk.id.clone();
-        local.put(staged).unwrap();
+        let chunk_id = put_local_chunk(local.as_ref(), "op", b"abcdef");
         let sources = Arc::new(StaticSources::default());
         let engine = DfsReadEngine::new(
             crate::dfs::NamespaceId::new("default"),
@@ -720,6 +772,201 @@ mod tests {
             .unwrap();
         assert_eq!(&out, b"cde");
         assert_eq!(*sources.calls.lock().unwrap(), 0);
+    }
+
+    #[test]
+    fn same_chunk_group_preserves_overlapping_output_order() {
+        let temp = tempfile::tempdir().unwrap();
+        let local = Arc::new(LocalChunkStore::open(temp.path(), "node-a").unwrap());
+        let chunk_id = put_local_chunk(local.as_ref(), "overlap", b"abcdef");
+        let engine = DfsReadEngine::new(
+            crate::dfs::NamespaceId::new("default"),
+            "node-a".into(),
+            local,
+            Arc::new(StaticSources::default()),
+            Arc::new(UnimplementedChunkTransfer),
+            DfsReadConfig::default(),
+        );
+        let batch = ReadBatch {
+            file_version_id: Some(FileVersionId::new("version")),
+            layout_root_id: LayoutRootId::new("layout"),
+            ops: vec![
+                ChunkReadOp {
+                    chunk_id: chunk_id.clone(),
+                    chunk_offset: 0,
+                    length: 3,
+                    output_offset: 0,
+                },
+                ChunkReadOp {
+                    chunk_id,
+                    chunk_offset: 3,
+                    length: 3,
+                    output_offset: 0,
+                },
+            ],
+        };
+        let mut out = [b'!'; 3];
+        engine.read_batch(&batch, &mut out).unwrap();
+        assert_eq!(&out, b"def");
+    }
+
+    #[test]
+    fn same_chunk_damage_outside_selected_ranges_falls_back_atomically() {
+        let temp = tempfile::tempdir().unwrap();
+        let local = Arc::new(LocalChunkStore::open(temp.path(), "node-a").unwrap());
+        let mut bytes = vec![b'a'; 128 * 1024 + 1];
+        bytes[4096] = b'b';
+        let chunk_id = put_local_chunk(local.as_ref(), "outside-damage", &bytes);
+        let engine = DfsReadEngine::new(
+            crate::dfs::NamespaceId::new("default"),
+            "node-a".into(),
+            local.clone(),
+            Arc::new(StaticSources::default()),
+            Arc::new(UnimplementedChunkTransfer),
+            DfsReadConfig::default(),
+        );
+        let batch = ReadBatch {
+            file_version_id: Some(FileVersionId::new("version")),
+            layout_root_id: LayoutRootId::new("layout"),
+            ops: vec![
+                ChunkReadOp {
+                    chunk_id: chunk_id.clone(),
+                    chunk_offset: 0,
+                    length: 1,
+                    output_offset: 0,
+                },
+                ChunkReadOp {
+                    chunk_id: chunk_id.clone(),
+                    chunk_offset: 4096,
+                    length: 1,
+                    output_offset: 1,
+                },
+            ],
+        };
+        let mut out = [b'!'; 2];
+        engine.read_batch(&batch, &mut out).unwrap();
+        assert_eq!(&out, b"ab");
+        let path = temp.path().join("chunks").join(&chunk_id.0);
+        bytes[128 * 1024] ^= 1;
+        std::fs::write(&path, bytes).unwrap();
+        out = [b'!'; 2];
+        assert!(engine.read_batch(&batch, &mut out).is_err());
+        assert_eq!(&out, b"!!");
+        assert_eq!(local.quarantined_chunks().unwrap().len(), 1);
+        assert!(engine.readers.lock().unwrap().is_empty());
+    }
+
+    #[test]
+    fn same_chunk_short_read_falls_back_only_for_short_ranges_in_original_order() {
+        let temp = tempfile::tempdir().unwrap();
+        let local = Arc::new(LocalChunkStore::open(temp.path(), "node-a").unwrap());
+        let chunk_id = put_local_chunk(local.as_ref(), "short", b"abcdef");
+        let sources = Arc::new(StaticSources::new(DfsChunkSourcesReply {
+            revision: 1,
+            chunks: vec![ChunkSources {
+                chunk_id: chunk_id.clone(),
+                sources: vec![source("remote-short", &chunk_id, "node-b")],
+            }],
+        }));
+        let transfer = Arc::new(RecordingTransfer::default());
+        let engine = DfsReadEngine::new(
+            crate::dfs::NamespaceId::new("default"),
+            "node-a".into(),
+            local.clone(),
+            sources,
+            transfer.clone(),
+            DfsReadConfig::default(),
+        );
+        let batch = ReadBatch {
+            file_version_id: Some(FileVersionId::new("version")),
+            layout_root_id: LayoutRootId::new("layout"),
+            ops: vec![
+                ChunkReadOp {
+                    chunk_id: chunk_id.clone(),
+                    chunk_offset: 0,
+                    length: 1,
+                    output_offset: 0,
+                },
+                ChunkReadOp {
+                    chunk_id: chunk_id.clone(),
+                    chunk_offset: u64::MAX,
+                    length: 1,
+                    output_offset: 1,
+                },
+                ChunkReadOp {
+                    chunk_id: chunk_id.clone(),
+                    chunk_offset: 1,
+                    length: 1,
+                    output_offset: 2,
+                },
+                ChunkReadOp {
+                    chunk_id: chunk_id.clone(),
+                    chunk_offset: 5,
+                    length: 2,
+                    output_offset: 3,
+                },
+                ChunkReadOp {
+                    chunk_id,
+                    chunk_offset: 0,
+                    length: 0,
+                    output_offset: 0,
+                },
+            ],
+        };
+        let mut out = [b'!'; 5];
+        engine.read_batch(&batch, &mut out).unwrap();
+        assert_eq!(&out, b"arbrr");
+        assert!(local.quarantined_chunks().unwrap().is_empty());
+        assert!(engine.readers.lock().unwrap().is_empty());
+        let calls = transfer.batches.lock().unwrap();
+        assert_eq!(calls.len(), 1);
+        assert_eq!(calls[0].operations.len(), 2);
+        assert_eq!(calls[0].operations[0].op.chunk_offset, u64::MAX);
+        assert_eq!(calls[0].operations[1].op.chunk_offset, 5);
+        assert_eq!(calls[0].operations[1].op.length, 2);
+    }
+
+    #[test]
+    fn same_chunk_cached_pin_survives_path_replacement_for_grouped_reads() {
+        let temp = tempfile::tempdir().unwrap();
+        let local = Arc::new(LocalChunkStore::open(temp.path(), "node-a").unwrap());
+        let chunk_id = put_local_chunk(local.as_ref(), "pin", b"abcdef");
+        let engine = DfsReadEngine::new(
+            crate::dfs::NamespaceId::new("default"),
+            "node-a".into(),
+            local.clone(),
+            Arc::new(StaticSources::default()),
+            Arc::new(UnimplementedChunkTransfer),
+            DfsReadConfig::default(),
+        );
+        let batch = ReadBatch {
+            file_version_id: Some(FileVersionId::new("version")),
+            layout_root_id: LayoutRootId::new("layout"),
+            ops: vec![
+                ChunkReadOp {
+                    chunk_id: chunk_id.clone(),
+                    chunk_offset: 0,
+                    length: 3,
+                    output_offset: 0,
+                },
+                ChunkReadOp {
+                    chunk_id: chunk_id.clone(),
+                    chunk_offset: 3,
+                    length: 3,
+                    output_offset: 3,
+                },
+            ],
+        };
+        let mut out = [0; 6];
+        engine.read_batch(&batch, &mut out).unwrap();
+        assert_eq!(&out, b"abcdef");
+        let replacement = temp.path().join("replacement");
+        std::fs::write(&replacement, b"abcXef").unwrap();
+        std::fs::rename(replacement, temp.path().join("chunks").join(&chunk_id.0)).unwrap();
+        out.fill(b'!');
+        engine.read_batch(&batch, &mut out).unwrap();
+        assert_eq!(&out, b"abcdef");
+        assert!(local.open_verified(&chunk_id).is_err());
     }
 
     #[test]

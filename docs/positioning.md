@@ -30,4 +30,12 @@ AFS does not require a separate Blob API. Images and snapshots are stable file v
 - Verified cache does not count as a durable replica unless it is promoted and committed as one.
 - External object storage is optional spill and cold capacity, not the mandatory source of truth.
 
-The [delivery acceptance scope](acceptance.md) includes OwnerFs, DFS, etcd/Redis persistence, FUSE and RDMA. DFS SDK, verified data cache and spill belong to the broader architecture and are outside this release.
+The [delivery acceptance scope](acceptance.md) keeps the complete case catalog. It is broader than the first colleague-trial package and includes later backend, RDMA and reliability lanes.
+
+## Current Trial Order
+
+The current delivery order is recorded in the [three-stage goal table](../development/trial-release-goals.md). The usable trial path is intentionally simple: `memory` for disposable demos, `local-file` Meta for restart recovery, OwnerFs and DFS through FUSE, and package selfchecks that a colleague can run directly. etcd is a later resource/reliability topic, allowed to use a larger memory budget while investigated, and Redis is last.
+
+G2 raises confidence and performance in small independent steps. Standard suites (`pjdfstest`, a fixed LTP subset and short fixed-seed FSx) are the fallback baseline; custom cross-node and restart cases supplement them. OwnerFs has priority over DFS. Within DFS, one-writer/many-readers is the first performance scenario.
+
+The delivery acceptance page keeps the broader case catalog, including etcd/Redis persistence, FUSE and RDMA. DFS SDK, verified data cache and spill remain part of the broader architecture and are outside the current trial checkpoint unless a specific G2/G3 item names them.

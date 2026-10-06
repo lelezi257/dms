@@ -19,8 +19,8 @@ use afs::node::{
         types::{
             BackendInode, CreatedFile, DirectoryEntry, DirectoryHandle, Entry, FileAttributes,
             FileHandle, FileKind, FileLockKind, FileLockOwner, FileLockRange, FileLockType,
-            OpenOptions, ReleaseKind, RenameFlags, RequestContext, SetAttrOptions, SyncMode,
-            WriteOptions,
+            FilesystemCapacity, OpenOptions, ReleaseKind, RenameFlags, RequestContext,
+            SetAttrOptions, SyncMode, WriteOptions,
         },
     },
 };
@@ -174,6 +174,22 @@ fn vfs_advisory_lock_methods_fail_closed_until_backend_supports_them() {
 }
 
 #[test]
+fn vfs_statfs_fails_closed_until_backend_supports_it() {
+    struct StatfsUnsupportedBackend;
+
+    impl Backend for StatfsUnsupportedBackend {
+        fn root_inode(&self) -> BackendInode {
+            backend_inode(1)
+        }
+    }
+
+    let error = StatfsUnsupportedBackend
+        .statfs(&request_context(), backend_inode(1))
+        .unwrap_err();
+    assert_eq!(error.code(), afs_error::NODE_VFS_UNIMPLEMENTED);
+}
+
+#[test]
 #[ignore = "requires Linux /dev/fuse and fusermount3"]
 fn fuse_mount_binds_backend_at_mount_root() {
     let temp = tempfile::tempdir().unwrap();
@@ -192,6 +208,68 @@ fn fuse_mount_binds_backend_at_mount_root() {
         .arg("-u")
         .arg(&mount)
         .status();
+}
+
+#[test]
+#[ignore = "requires Linux /dev/fuse, fusermount3 and GNU stat"]
+fn fuse_statfs_returns_backend_capacity_fields_to_kernel_stat() {
+    let temp = tempfile::tempdir().unwrap();
+    let mount = temp.path().join("mnt");
+    std::fs::create_dir(&mount).unwrap();
+
+    let expected = FilesystemCapacity {
+        blocks: 1_234_567,
+        bfree: 234_567,
+        bavail: 123_456,
+        files: 345_678,
+        ffree: 45_678,
+        bsize: 4096,
+        namelen: 233,
+        frsize: 1024,
+    };
+    let _mounted = MountedTestBackend::mount(
+        Arc::new(MockBackend::with_statfs_capacity(expected.clone())),
+        mount.clone(),
+    );
+
+    let observed = stat_f(&mount).unwrap();
+    assert_eq!(
+        observed,
+        StatFsFields {
+            blocks: expected.blocks,
+            bfree: expected.bfree,
+            bavail: expected.bavail,
+            files: expected.files,
+            ffree: expected.ffree,
+            bsize: expected.bsize as u64,
+            frsize: expected.frsize as u64,
+            namelen: expected.namelen as u64,
+        }
+    );
+}
+
+#[test]
+#[ignore = "requires Linux /dev/fuse, fusermount3 and GNU stat"]
+fn fuse_statfs_unsupported_backend_fails_instead_of_zero_success() {
+    let temp = tempfile::tempdir().unwrap();
+    let mount = temp.path().join("mnt");
+    std::fs::create_dir(&mount).unwrap();
+
+    let _mounted = MountedTestBackend::mount(Arc::new(MockBackend::default()), mount.clone());
+
+    let output = std::process::Command::new("stat")
+        .arg("-f")
+        .arg("-c")
+        .arg("%b %f %a %c %d %s %S %l")
+        .arg(&mount)
+        .output()
+        .unwrap();
+    assert!(
+        !output.status.success(),
+        "unsupported statfs must fail closed, not inherit fuser zero-success: stdout={} stderr={}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
 }
 
 #[test]
@@ -292,6 +370,75 @@ fn fuse_mount_dispatches_real_backend_and_preserves_open_handle_identity() {
     assert_eq!(missing.raw_os_error(), Some(libc::ENOENT));
 
     drop(old_fd);
+    session.join().unwrap();
+    let _ = std::process::Command::new("fusermount3")
+        .arg("-u")
+        .arg(&mount)
+        .status();
+}
+
+#[test]
+#[ignore = "requires Linux /dev/fuse, fusermount3 and python3 mmap"]
+fn fuse_direct_io_open_allows_basic_shared_mmap() {
+    let temp = tempfile::tempdir().unwrap();
+    let mount = temp.path().join("mnt");
+    std::fs::create_dir(&mount).unwrap();
+
+    let backend = Arc::new(MockBackend::default());
+    let session = fuse::mount_test_backend(backend, &mount).unwrap();
+    wait_until_mounted(&mount).unwrap();
+
+    let path = mount.join("mmap.bin");
+    let file = std::fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create_new(true)
+        .open(&path)
+        .unwrap();
+    file.set_len(4096).unwrap();
+    drop(file);
+
+    let script = r#"
+import mmap
+import os
+import sys
+
+path = sys.argv[1]
+payload = b'AFS-MMAP'
+with open(path, 'r+b') as handle:
+    read_map = mmap.mmap(handle.fileno(), 4096, access=mmap.ACCESS_READ)
+    try:
+        assert len(read_map) == 4096
+        assert read_map[:4] == b'\x00\x00\x00\x00'
+    finally:
+        read_map.close()
+
+    write_map = mmap.mmap(handle.fileno(), 4096, access=mmap.ACCESS_WRITE)
+    try:
+        write_map[100:108] = payload
+        write_map.flush()
+        os.fsync(handle.fileno())
+    finally:
+        write_map.close()
+
+with open(path, 'rb') as handle:
+    handle.seek(100)
+    assert handle.read(len(payload)) == payload
+"#;
+    let output = std::process::Command::new("python3")
+        .arg("-c")
+        .arg(script)
+        .arg(&path)
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "python mmap failed: status={:?} stdout={} stderr={}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
     session.join().unwrap();
     let _ = std::process::Command::new("fusermount3")
         .arg("-u")
@@ -402,9 +549,90 @@ fn wait_until_mounted(mount: &std::path::Path) -> io::Result<()> {
     }
 }
 
+#[derive(Debug, Eq, PartialEq)]
+struct StatFsFields {
+    blocks: u64,
+    bfree: u64,
+    bavail: u64,
+    files: u64,
+    ffree: u64,
+    bsize: u64,
+    frsize: u64,
+    namelen: u64,
+}
+
+fn stat_f(path: &std::path::Path) -> io::Result<StatFsFields> {
+    let output = std::process::Command::new("stat")
+        .arg("-f")
+        .arg("-c")
+        .arg("%b %f %a %c %d %s %S %l")
+        .arg(path)
+        .output()?;
+    if !output.status.success() {
+        return Err(io::Error::other(format!(
+            "stat -f failed: status={:?} stdout={} stderr={}",
+            output.status.code(),
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        )));
+    }
+    let stdout = String::from_utf8(output.stdout)
+        .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))?;
+    let values = stdout
+        .split_whitespace()
+        .map(str::parse::<u64>)
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))?;
+    if values.len() != 8 {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!("stat -f returned {} fields: {stdout:?}", values.len()),
+        ));
+    }
+    Ok(StatFsFields {
+        blocks: values[0],
+        bfree: values[1],
+        bavail: values[2],
+        files: values[3],
+        ffree: values[4],
+        bsize: values[5],
+        frsize: values[6],
+        namelen: values[7],
+    })
+}
+
+struct MountedTestBackend {
+    mount: std::path::PathBuf,
+    session: Option<fuse::MountedFuse>,
+}
+
+impl MountedTestBackend {
+    fn mount(backend: Arc<dyn Backend>, mount: std::path::PathBuf) -> Self {
+        let session = fuse::mount_test_backend(backend, &mount).unwrap();
+        wait_until_mounted(&mount).unwrap();
+        Self {
+            mount,
+            session: Some(session),
+        }
+    }
+}
+
+impl Drop for MountedTestBackend {
+    fn drop(&mut self) {
+        if let Some(session) = self.session.take() {
+            let _ = session.join();
+        }
+        let _ = std::process::Command::new("fusermount3")
+            .arg("-u")
+            .arg(&self.mount)
+            .status();
+    }
+}
+
 #[derive(Debug, Default)]
 struct MockBackend {
     state: Mutex<MockState>,
+    statfs_capacity: Mutex<Option<FilesystemCapacity>>,
     write_blocker: Mutex<Option<WriteBlocker>>,
     events: Mutex<Vec<&'static str>>,
     getattr_calls: AtomicU64,
@@ -486,6 +714,12 @@ impl Backend for MockBackend {
         let node = state.nodes.get(&inode).ok_or_else(not_found)?;
         let call = self.getattr_calls.fetch_add(1, Ordering::SeqCst) + 1;
         Ok(attributes(node.kind, node.data.len() as u64 + call))
+    }
+
+    fn statfs(&self, _: &RequestContext, _: BackendInode) -> afs_error::Result<FilesystemCapacity> {
+        self.statfs_capacity.lock().unwrap().clone().ok_or_else(|| {
+            afs_error::Error::coded(afs_error::NODE_VFS_UNIMPLEMENTED, "mock statfs unsupported")
+        })
     }
 
     fn create(
@@ -748,6 +982,13 @@ impl Backend for MockBackend {
 }
 
 impl MockBackend {
+    fn with_statfs_capacity(capacity: FilesystemCapacity) -> Self {
+        Self {
+            statfs_capacity: Mutex::new(Some(capacity)),
+            ..Self::default()
+        }
+    }
+
     fn block_next_write(&self, entered: mpsc::Sender<()>, release: mpsc::Receiver<()>) {
         *self.write_blocker.lock().unwrap() = Some(WriteBlocker { entered, release });
     }

@@ -6,7 +6,7 @@
 use afs_error::{Error, Result};
 use etcd_client::{Client, Compare, CompareOp, Txn, TxnOp};
 
-use super::{MetaFuture, StoreBackend};
+use super::{BackendPersistence, MetaFuture, StoreBackend};
 
 const SNAPSHOT_KEY: &[u8] = b"/afs/meta/snapshot";
 // The delivery deployment currently accepts snapshots up to 64 MiB. Leave
@@ -133,6 +133,10 @@ fn u64_to_i64(value: u64, message: &'static str) -> Result<i64> {
 }
 
 impl StoreBackend for EtcdBackend {
+    fn persistence(&self) -> BackendPersistence {
+        BackendPersistence::Persistent
+    }
+
     fn load(&self) -> MetaFuture<'_, Option<(u64, Vec<u8>)>> {
         Box::pin(async move { EtcdBackend::load(self).await })
     }

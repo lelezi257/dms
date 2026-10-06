@@ -4,7 +4,7 @@ use std::sync::Mutex;
 
 use afs_error::Error;
 
-use super::{MetaFuture, StoreBackend};
+use super::{BackendPersistence, MetaFuture, StoreBackend};
 
 fn unavailable(message: impl Into<String>) -> Error {
     Error::coded(afs_error::IO_UNAVAILABLE, message)
@@ -18,6 +18,10 @@ pub struct MemoryBackend {
 }
 
 impl StoreBackend for MemoryBackend {
+    fn persistence(&self) -> BackendPersistence {
+        BackendPersistence::Volatile
+    }
+
     fn load(&self) -> MetaFuture<'_, Option<(u64, Vec<u8>)>> {
         Box::pin(async move {
             Ok(self

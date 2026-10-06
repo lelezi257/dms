@@ -1,7 +1,7 @@
 use std::{
     sync::{
         Arc,
-        atomic::{AtomicBool, Ordering},
+        atomic::{AtomicBool, AtomicUsize, Ordering},
     },
     time::Duration,
 };
@@ -48,6 +48,29 @@ impl StoreBackend for SwitchableBackend {
             } else {
                 self.inner.load().await
             }
+        })
+    }
+
+    fn commit(&self, expected_version: u64, bytes: Vec<u8>) -> MetaFuture<'_, u64> {
+        self.inner.commit(expected_version, bytes)
+    }
+}
+
+#[derive(Default)]
+struct HangingBackend {
+    inner: MemoryBackend,
+    loads: AtomicUsize,
+    notified: tokio::sync::Notify,
+}
+
+impl StoreBackend for HangingBackend {
+    fn load(&self) -> MetaFuture<'_, Option<(u64, Vec<u8>)>> {
+        Box::pin(async move {
+            if self.loads.fetch_add(1, Ordering::AcqRel) == 0 {
+                return self.inner.load().await;
+            }
+            self.notified.notified().await;
+            self.inner.load().await
         })
     }
 
@@ -213,6 +236,34 @@ async fn health_uses_backend_probe_not_cached_read_view() {
         get_json(meta, "/v1/dfs/chunks/unknown/replication").await;
     assert_eq!(replication_status, StatusCode::SERVICE_UNAVAILABLE);
     assert_eq!(replication_body["error"]["kind"], "Unavailable");
+}
+
+#[tokio::test]
+async fn health_backend_probe_is_bounded_when_backend_stalls() {
+    let store = Arc::new(
+        Store::open(Arc::new(HangingBackend::default()))
+            .await
+            .unwrap(),
+    );
+    let meta = Arc::new(Meta::with_store(
+        "meta-rest-test".into(),
+        Observability::new().unwrap(),
+        store,
+    ));
+
+    let (health_status, health_body) =
+        tokio::time::timeout(Duration::from_secs(3), get_json(meta, "/health"))
+            .await
+            .expect("health probe must complete within the REST readiness deadline");
+
+    assert_eq!(health_status, StatusCode::SERVICE_UNAVAILABLE);
+    assert_eq!(health_body["error"]["kind"], "Unavailable");
+    assert!(
+        health_body["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("backend health probe timed out")
+    );
 }
 
 #[tokio::test]

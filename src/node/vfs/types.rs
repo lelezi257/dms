@@ -143,6 +143,22 @@ pub struct FileAttributes {
     pub ctime: SystemTime,
 }
 
+/// Filesystem-wide capacity snapshot returned to FUSE `statfs`.
+///
+/// Values are copied from a concrete capacity authority such as Linux
+/// `statvfs`. They are observations, not reservations or quotas.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FilesystemCapacity {
+    pub blocks: u64,
+    pub bfree: u64,
+    pub bavail: u64,
+    pub files: u64,
+    pub ffree: u64,
+    pub bsize: u32,
+    pub namelen: u32,
+    pub frsize: u32,
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Entry {
     pub inode: BackendInode,

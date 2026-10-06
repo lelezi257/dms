@@ -1,262 +1,34 @@
 # Implementation Status
 
-Last updated: 2026-10-01.
+Updated 2026-10-06. [Three-stage acceptance checklist](../development/trial-release-goals.md) owns tasks and completion; [current code checkpoint](../development/current-checkpoint.md) binds this publication, validation and portable historical evidence.
 
-This page is the only implementation-status page. Architecture pages describe the accepted target design.
-
-The [delivery acceptance contract](acceptance.md) requires JuiceFS default same-mount visibility and close-to-open semantics. A dedicated Linux environment, suite manifest, runner and acceptance Skill are prepared for development; reference suites and comparator prerequisites are still incomplete. Short regressions are not proof that release gates pass.
-
-## Delivery execution status
-
-Current round: **3, performance/resources, then persistent backends**, under the [four-round plan](../development/plan.md#whole-system-rounds). [Round2 representative closure](../development/evidence/20261001-round2-closure/README.md) combines Node interruption, TCP isolation, real ENOSPC/EIO, copy corruption/repair, exact unknown replies and actual Owner/DFS posted-RDMA deadlines. The final batch passes 421 library tests / seven explicit environment ignores, 65 contracts, four shared errors, nine LocalAPI, five privileged FUSE, strict Clippy, feature checks and builds. Two installed pre/post-restart ten-case consistency runs pass with exact cold content, two physical replicas, actual required-RXE bytes and cleanup. The latest code delta is cfg(test) and checker-only; runtime evidence retains its original stripped v80 binary identity.
-
-[Round1](../development/evidence/20261001-round1-corrected-package/README.md) supplies fresh corrected-archive R1/async installations, zero-Peer local writes, workspace/Home REST, local/remote OwnerFs and DFS, actual repair and normal lifecycle. Earlier RN2/transport evidence retains its original identities. The [Owner EIO fixes](../development/evidence/20261001-owner-sync-eio/README.md) retain hard errors through close and flush remote resize-only handles; physical-fault failures and corrected regressions are preserved.
-
-**Deferred qualification:** installed cross-VM post-commit ACK loss, native CQ timeout, exceptional provider teardown and complete backend/transport/device matrices. Resource lifetime is revisited in round3; remaining full fault axes are required in round4. No observed unsafe-success, corruption, authorization, order or normal-resource defect is waived. Forced host clamshell sleep coincided with old Node session expiry; original binaries restore A/B/C and old content, while central memory Meta remains unchanged. Continuous normal-host liveness and soak remain unqualified.
-
-The [first round3 short resource diagnostic](../development/evidence/20261001-round3-resource-diagnostic/README.md) passes 8 MiB Owner local/remote and DFS sync/close, four sequential exact reads and2,048 ranges, actual two-copy repair/required RXE and normal cleanup. Cached DFS process-read amplification is measured; sustained resource limits and fair ratios remain unqualified. Current priorities are actual fair comparator mounts/durability/resource isolation and attribution of measured costs, followed by etcd/Redis parity and persistent recovery. No ratio or performance tuning is qualified before fair baselines. Complete POSIX, installation matrix, 8 GiB and soak remain later gates. **Formal69 NOT_RUN / ENV PREPARING**; the [issue ledger](../development/issues.md) records severity, scope and next evidence. AGENTS and handoff are unchanged.
-
-The [patched3FS reference slice](../development/evidence/20261001-round3-3fs-reference/README.md) proves normal32MiB write/A-B reads,64×3 exact physical slots and retained-state full process restart, with normal final cleanup. Original post-restart timeout/transient SYNCING remain unqualified recovery-time observations. The strong barrier/ACK comparison remains BLOCKED; successful directory fsync is not proof of an implemented FUSE directory barrier. Independent resource attribution, prepared comparator reads and backend work continue without promoting formal status.
-
-## Current Capability Matrix
-
-| Area | Status | Evidence and limit |
+| Stage | Status | Scope |
 | --- | --- | --- |
-| Process foundation | Implemented foundation | `afs-meta`, `afs-node`, config, logging, metrics, REST, gRPC, FUSE wiring and shared errors exist. |
-| FUSE module | Implemented foundation | Shared FUSE module supports separate OwnerFs and DFS sessions. |
-| MetaStore | Experimental | memory, local-file, etcd and Redis share one store interface. Redis uses atomic full-snapshot CAS and checks AOF always/noeviction/no TTL; real Redis CAS, configuration rejection and AOF restart short regressions pass; actual Meta-process recovery/fault parity remains unverified. `MetaReadView` pins one acknowledged revision without requiring native multi-record backend transactions. Meta HA is deferred. |
-| OwnerFs | Experimental | Home-local files, P2P access to Home, root grants, handle checks and cleanup exist. Dirty local close flush performs data sync; remote flush reaches the Home boundary. Identified Linux TLS/etcd-backed local and remote-Home mounts pass 11 POSIX and 4 multi-user short checks. Ordinary test fixtures live inside a workspace; deleting the workspace authority root is not implemented as ordinary rmdir. Full fault/POSIX coverage remains incomplete. |
-| DFS R=1 write path | Experimental | DFS mount, shared inode dirty state, serialized mutation/commit, exact uncertain-request replay, truncate and sparse-file paths exist for local owner scenarios. Definite commit rejection blocks later mutations until owner recovery. Identified A/B memory-backed mounts pass short remote-owner writes, handleless resize, same-mount dirty reads and owner-handover scenarios. Complete fault and backend coverage remains unqualified. |
-| FileVersion and layout model | Experimental | `FileVersion`, `LayoutRoot`, `Extent`, `ChunkObject`, CAS commit and base-chunk inheritance exist. Extent tree and compaction policy are not complete. |
-| Replication | Experimental chain | Configurable targets/synchronous minimum, placement, receiver grants, bounded staging and durable chain acknowledgements exist. Localhost missing-tail/exact-retry and actual A/B memory-backed gRPC/RXE repair short flows pass under their recorded identities; full multi-VM fault/resource matrices remain incomplete. |
-| Local chunk engine | Experimental foundation | BLAKE3 identity, per-chunk files, local catalog, finalize and startup recovery exist. Pack backend, relocation, GC and full crash matrix are not complete. |
-| File reads and default consistency | Local experimental | Ordinary readonly handles share the local inode dirty view; each read pairs one base version/layout. Writable close flush commits recovery state, retains uncertain requests and reports errors. DFS cached write-through passes a real Linux warm readonly/MAP_SHARED-read/overwrite/append/shrink-grow slice. Remote owner forwarding of data and attributes passes the identified eight-case A/B short probe, including write-only providers and retained-state handover. Full concurrency and permission matrices remain incomplete. `DfsReadEngine`, bounded peer batches and connection pool exist; authenticated batched Meta read-grant validation and bounded receiver caches pass Linux source and localhost streaming regressions; the identified A/B handover and peer-read short probe passes. Full security and fault matrices remain incomplete. |
-| Native SDK | Foundation | `DfsLocalData` protocol and typed DFS client identity framework exist. The default Node service returns `UNIMPLEMENTED`; diagnostic `LocalData` remains separate and does not become OwnerFs. |
-| RDMA | Experimental product adapters | An identified Linux RXE product-adapter probe verifies two4MiB durable replica transfers and75000B peer reads with zero gRPC file payload, exact content/retry and denied forged authority. Actual cross-VM RXE FUSE R2 synchronous writes and R1 peer reads each verify4194321 bytes with zero gRPC file payload; the B replica survives restart. Complete fallback, fault and security matrices remain unverified. |
-| External spill | Not implemented | Design exists for `ExternalCommitted`; no product spill path is complete. |
+| G1 colleague trial | **DONE, 8/8** | Historical g1.5: Linux build/offline install, memory demonstration, OwnerFs local/remote, DFS basic cross-node I/O, central local-file Meta restart, selfcheck and ordered lifecycle |
+| G2 core performance version | **ACTIVE** | 27 independent tasks: 3 bounded outputs complete, 2 bind tasks in progress, 22 awaiting acceptance. Current standard-suite/installed recovery regression, fair ext4/MooseFS/3FS core comparisons and new performance package remain open |
+| G3 complex reliability/backends | **Deferred, 13 tasks** | Long-running/complex faults, expanded matrices/HA; etcd topic at 2GiB, Redis last |
 
-## Current Validation Checkpoint
+## Current code capabilities
 
-The [Owner transport observability batch](../development/evidence/20261001-owner-metrics/README.md)
-passes the r2 Linux source gate: 407 library tests, 65 contracts, four shared
-errors, nine local API and five actual privileged FUSE tests, formatting, strict
-workspace Clippy, five feature configurations and binary builds. Required-RDMA
-failure timing, actual successful byte lengths, malformed replies, cache hits
-and Auto fallback have focused regressions. Fresh Linux binaries pass an RXE
-OwnerPeerClient fixture and an A/B production FUSE flow with 4 MiB + 17 bytes,
-two B cold restarts and a 4 KiB patch. Both endpoints' bounded logical payload
-counters and client read/write timing match the observed process incarnations;
-A's actual DMA completion logs independently match the transferred bytes.
-Seven probe and ten evidence checks pass. Original failures are retained.
-The new processes exit normally. Native lifetime implementation is unchanged;
-this healthy integration does not qualify cancellation, provider faults,
-backend parity, performance or formal acceptance. ENV remains PREPARING and
-all 69 formal cases remain NOT_RUN.
+| Area | Present behavior | Acceptance boundary |
+| --- | --- | --- |
+| Runtime | afs-meta/afs-node, TLS gRPC, REST health, separate OwnerFs/DFS FUSE mounts | Current Linux source/tool gate is recorded with exact input hashes; runtime install/recovery on this later candidate remains G2.08/27 |
+| Meta | memory, local-file, etcd, Redis implementations; persistent capability is distinct from volatile state | G1 central local-file recovery is qualified on g1.5. Other backends have scoped historical tests; broad parity/faults remain G3 |
+| OwnerFs | Home files, remote routing, write-authority/lease checks, error propagation, ordered namespace/index maintenance | B1–B4 internal correctness/evaluator outputs complete in limited scope; current full standard tests and ≥90%ext4/MooseFS parity are unqualified |
+| DFS | immutable chunks, version commits, replica policies, coherent read plans, streaming integrity and shared verification within one read batch | Batch CPU/read-amplification diagnostic complete; one-writer/many-reader core comparison and three-sync-durable 3FS parity remain unqualified |
+| Capacity/health | Observed backend capability and readiness, Owner local filesystem capacity/error handling | D20 local slice only; remote/DFS capacity authority and wider faults remain open |
+| Native Home | Private identity/permission anchors, server commands/watch foundation, private owned references and tests | Production admission remains disabled. Public feature switch/managed ON lifecycle/READY/complete drain are not qualified |
+| Packaging | Process control, offline package generation, trial configuration and selfcheck | g1.5 compiler-free installation qualified; this checkpoint is source publication, not a newly installed performance release |
+| Transport | gRPC and optional RDMA code plus scoped fault proofs | Actual RXE short results do not qualify the whole RDMA exception/resource matrix or physical NIC performance |
 
-The [OwnerFs RDMA batch](../development/evidence/20261001-owner-rdma/README.md)
-passes the complete r5 Linux source gate: 403 library tests, 65 interface
-contracts, four shared-error tests, nine local API tests and five privileged
-FUSE tests. Two existing library environment ignores remain. Formatting,
-strict workspace Clippy, five feature configurations and binary builds pass
-with 143 exact input hashes. Production Owner peer clients use the configured
-transport; Owner control and file handlers authorize separate bounded RDMA
-windows. Two actual RXE fixtures write, sync, cold reopen and compare 4 MiB +
-17 bytes through raw RPC and production OwnerPeerClient. Observed resources
-are released after the fixture process exits. Posted-DMA cancellation and the
-full fault/performance matrices remain unqualified.
+## Validation boundaries
 
-The [cross-VM production OwnerFs flow](../development/evidence/20261001-owner-rdma-runtime/README.md)
-uses these same frozen inputs and Linux-built binaries with memory Meta, mTLS
-and required RXE. B writes and syncs 4 MiB + 17 bytes to Home A; two normal B
-Node restarts precede full cold reads, including a 4 KiB overwrite. Content,
-length, EOF and A's physical file match. Actual server completion logs record
-4,198,417 RDMA READ bytes and 8,388,642 RDMA WRITE bytes. Seven probe regressions
-and seven evidence rejection checks pass; the unchanged source gate is reused.
-Both new Nodes and Meta exit normally, leaving no mounts or observed owned
-verbs resources. These idle/post-exit observations do not qualify peak bounds,
-cancellation, exceptional provider teardown, Home faults or Meta recovery.
-That frozen candidate bypasses client read/write timing and lacks Owner payload
-counters; the separately identified observability batch above closes this gap.
-The formal lock remains PREPARING and all 69 cases NOT_RUN.
+Historical full pjdfstest results belong to v37/v48; g1.5/current full POSIX qualification is not claimed. ext4 reference results are not AFS passes. The original full 69-case manifest remains NOT_RUN with environment PREPARING; it is the expanded final catalogue, not the G1 progress denominator.
 
-The [verbs environment consumer](../development/evidence/20261001-verbs-predicate/README.md)
-passes 17 dedicated Linux regressions and 60 related environment/network/runner
-checks. Its actual retained bundle passes the verbs predicate; the overall
-preparation report remains BLOCKED with 37 PASS and 9 BLOCKED prerequisites.
-The real runner refuses full dispatch with those nine unresolved requirements.
-Original failures are retained. Transport captures and the unchanged Rust
-source gate are reused under their original identities. Formal cases remain
-NOT_RUN; the lock remains PREPARING.
+See [checkpoint results](../development/checkpoints/20261006-current/results/README.md) for fresh combined-source checks. The historical 271-check g1.5 audit, DFS batch paired results, ext4 finite-tool positive results and complete parent-FD failed experiment are available in the repository. Other archived scopes are explicitly identified as external archives in the checkpoint page.
 
-The [independent cross-VM verbs preparation](../development/evidence/20261001-verbs-preparation/README.md)
-records twelve directed four-guest RXE exchanges and a 65,535-byte boundary
-exchange using a pinned stock rdma-core tool. Full READ/WRITE contents,
-control SEND descriptors, completions and protected service/resource checks
-pass 127 Linux audit predicates. Fourteen probe regressions pass. Original
-parser/audit failures are retained. These records underpin the verbs predicate;
-these observations do not qualify product lifecycle, fallback, security,
-performance or formal acceptance. Unchanged Rust evidence is reused.
+## Next and priority
 
-The [network preparation evaluator](../development/evidence/20261001-network-predicate/README.md)
-passes 34 related Linux regressions and 26 affected runner checks. It validates
-hash-bound recorded TCP/UDP/mTLS and directed-fault observations; the actual
-combined report remains BLOCKED with 36 passed predicates and ten outstanding
-prerequisites. A real evaluator/runner consumer fixture blocks full dispatch.
-This is acceptance-tool validation, not product or formal acceptance. Rust
-inputs, the original source gate, PREPARING lock and all 69 NOT_RUN cases remain
-unchanged. The handoff is not refreshed.
+Owner standard/affected local-file recovery and small local read/write/delete first; remote core cases next. When entering DFS, one-writer/many-reader is highest priority. Each case freezes its own prerequisites, fairness and budget; a missing complex baseline or large-disk condition does not block an independent safe small case. Owner local target is ≥90%ext4 throughput; remote target is MooseFS parity; DFS matches 3FS under the same POSIX interface and three synchronous durable copies. Delete requires correctness and a quantitative report, without a new hard ratio.
 
-The [exact FileVersion reply-loss batch](../development/evidence/20261001-file-commit/README.md) passes the v64 Linux stage gate: 190 related regressions, 399 library tests, 58 contracts, four shared errors, nine local API tests and five privileged FUSE tests; two existing library environment ignores remain. Format, strict workspace Clippy, feature checks and binaries pass, with 143 exact input hashes. Meta binds the full commit request to its operation identity and rejects changed-body replay. Real memory Meta commits before the reply is withheld; Node keeps its exact request, blocks later mutations only for that inode, allows another inode in the same engine to progress, and closes/reopens with correct bytes and EOF after confirmation. Legacy direct outcomes remain readable but cannot authorize an unprovable replay. This is plain loopback/R1 development evidence, not persistent-backend crash recovery, TLS/RDMA faults or formal acceptance.
-
-The [earlier repair reply-loss proof](../development/evidence/20261001-repair-unknown-ack/README.md) retains its v63 identity: exact claim/report retries preserve outcomes/revisions and transfer 64 KiB only once. Existing deployed runtimes and earlier RXE results retain their original identities; this source gate does not qualify them as v64 deployments.
-
-[Inventory observations](../development/evidence/20261001-repair-unknown-ack/environment/README.md) add clock/kernel/block/cgroup/FUSE resource fields and pass nine Linux script regressions. Available A/B/ctl snapshots are observed facts; C is stopped and A data space is below the required reserve. ENV stays PREPARING and all 69 formal cases stay NOT_RUN. The impact-based rules distinguish local, stage and formal gates; the final source gate runs at batch closure. Handoff is unchanged.
-
-
-Candidate v60 passes the complete Linux source gate:375 library tests (two existing environmental ignores),58 contracts,four shared errors,nine local API tests,five privileged actual FUSE tests,formatting,strict Clippy,feature checks and binaries; all143 compile inputs match. [Replica-fault evidence](../development/evidence/20261001-repair-faults/README.md) binds source,binary/controller identity and retains the original source and runtime failures. RN changed-chunk batches refresh placement once before receipts; R1 stays local. Retired workers are fenced by observed session revision,and missing/completed repair debt persists without replacement capacity.
-
-Identified isolated A/B memory/TLS/gRPC N2/M1 mounts pass target-outage recovery and a fresh source-outage flow: exclusive1MiB file fsyncs to two copies,exact A Node is SIGKILLed,B's first read matches while A is absent,and same-binary/config A restart restores two copies. The final controller passes19 Linux regression groups and actual recovery of both disconnected A mounts. Its shell-only change reuses the frozen v60 Rust gate with fresh script/runtime evidence. Root's final audit checks both staged controllers,live processes/config/mounts/bytes/REST and143 inputs. This is a stage development gate,not formal release acceptance.
-
-The original source restore and later diagnostic two-copy timeout remain failed. B independently exited on expired NodeSession; its subsequent separate recovery passes,but the expiry cause is unresolved. Older v51/v55 Nodes were already exited before the fresh r2 snapshot; only that observed state is proven unchanged. Full lifecycle,corruption,claim/report uncertainty,RXE repair and backend matrices remain unqualified. Handoff is unchanged;69 formal cases remain NOT_RUN and ENV PREPARING. Earlier candidate results retain their own identities.
-
-Candidate v56 passes the coherent ARM64 Linux gate:371 library tests (two existing environmental ignores),58 interface contracts,four shared errors,nine local API tests,five privileged actual FUSE tests,formatting,strict workspace Clippy,feature checks and binary build. All143 compile inputs match. [Async-repair evidence](../development/evidence/20261001-async-repair/README.md) retains initial source failures, cached error-catalog failure and the first runtime harness404 without converting them to PASS.
-
-New isolated A/B ext4 runtimes use Linux debug-stripped v56 binaries,memory Meta,TLS/gRPC,N=2/M=1 and separate OwnerFs/DFS mounts. A1MiB file fsyncs with one durable copy and a Pending task; B joins and the worker completes with two distinct available copies. B's physical Chunk and FUSE read match; B stop returns0 and a same-binary/config new process reads the same bytes. Independent root checks live REST after restart,process/config/mount identity and143 source inputs; old v51 processes/configs and handoff remain unchanged. This does not establish B-only reads after source loss,durable Meta restart,actual RDMA repair or release acceptance. Earlier candidates below retain their own identities and coverage; their full suites do not qualify v56.
-
-The current controller parses literal/basic single-line listen and mount values, preserves quoted content and rejects malformed listen values before launch. [Startup and A/B evidence](../development/evidence/20261001-toml-startup/README.md) retains the original false-readiness failure, a failing Linux regression and18 passing regression groups, including54 existing native lifecycle command records. Single/double quotes with comments and malformed/out-of-range preflight checks pass. Shellcheck was unavailable; Unicode escapes and multiline deployment scalars are not supported by this reader.
-
-New A/B runtimes use the v51 Rust binaries below and controller945cba0c. Memory/R1/gRPC/TLS OwnerFs/DFS pass10 consistency scenarios and7 cross-node lock steps per backend with the unchanged35/55-second bounds. Root matches248 captured product PID/executable/hash/start-tick records,143 Rust compile inputs, current config/controller/worker hashes, exact FUSE mounts and live readiness. Earlier v48 processes retain their original identities. This is a short development matrix; the full upstream run below remains qualified only for v48, and all69 formal release cases remain NOT_RUN with environment PREPARING. Host preparation and verifier-selection errors remain explicit unqualified attempts.
-
-Candidate v51 passes the coherent Linux gate:352 library tests (two explicit environmental ignores),57 interface contracts,four shared errors,nine local API tests,five privileged actual FUSE tests,formatting,strict Clippy,feature checks and binary build. All143 compile inputs match. [Signal-deadline evidence](../development/evidence/20261001-shutdown-signal/README.md) preserves the failing blocked-executor regression, targeted signal tests and read-only review limits. The production signal observer registers before the business executor and arms the native deadline independently of its scheduling.
-
-An isolated A runtime uses identified v51 binaries, memory Meta,R1,gRPC/TLS and separate OwnerFs/DFS mounts. Normal dirty shutdown returns0 and restart first-read matches. With the same Meta paused before a four-byte accepted dirty write, direct Node SIGTERM reaches a matching exit receipt in5.034s: explicit drain failure1, not forced124. The controller returns1 and status/receipt agree; after the same Meta resumes, a fresh Node first-read returns the preceding fsync watermark. Final stops return0 and leave no mounts/listeners. Root independently verifies guest report, executable/config hashes,four receipts and recovered bytes. A host collection path error is recorded as INCONCLUSIVE; the actual report is recollected and matched to the direct guest copy. The native blocked-executor regression separately verifies forced124. Earlier20.124s is not explained by this run, and the differing procedures do not establish a performance improvement. Full DEP/REL and cooperative shutdown qualification remain open. Preserved v48 integration below retains its own identity; the new A/B matrix above uses v51.
-
-Candidate v49 passes the coherent Linux gate:350 library tests (two explicit environmental ignores),57 interface contracts,four shared errors,nine local API tests,five privileged actual FUSE tests,formatting,strict Clippy,feature checks and binary build. All143 compile inputs match. [Writeback evidence](../development/evidence/20261001-writeback/README.md) retains three failing old-behavior injections and the initial narrow timeout-fixture assertion.
-
-Background DFS writeback examines at most64 inodes per pass, advances a fair cursor by actual progress, and shares one250ms admission/Meta RPC budget. Busy inodes are skipped. Prepared-unsent exact requests remain pending; issued timeout remains unknown; foreground sync keeps its ordinary budget. Table snapshot/sort and started physical IO are not strictly wall-clock bounded. Placement/R=N and whole-maintenance budget propagation remain open. v49 has only the isolated A controller lifecycle proof below; preserved A/B integration remains v48.
-
-Identified A/B v48 memory-backed R1/gRPC mounts pass ten consistency scenarios and seven distributed-lock steps per backend with unchanged35/55-second bounds. All248 captured process records match. The full B DFS pjdfstest run, guarded by strict A Meta/B Node identity, passes236 files/8819 TAP checks with zero unexpected failures/skips and28 upstream TODO in1253.484s under the original1800s bound. Seven retrieved worker/host artifact entries match bytes/SHA. This qualifies the specific v48 development matrix, not v49 or unrun backends/transports/release cases. The first preflight-only attempt remains BLOCKED.
-
-The earlier isolated v48 held-fd healthy shutdown/restart and paused-Meta failure proof remain in [shutdown evidence](../development/evidence/20261001-node-shutdown/README.md). The15-second native guard reports forced exit124; it does not prove every worker stops cooperatively. The original native controller false-clean fixture is retained as FAIL. [Controller evidence](../development/evidence/20261001-processctl/README.md) qualifies exact wait-status propagation:16 Linux regression groups/54 recorded CLI commands, native0/1/124 and SIGKILL137, unknown receipts, readiness, startup recovery and alias concurrency. An isolated actual A runtime with v49 binaries passes normal dirty shutdown/restart and a post-pause dirty-write forced-exit proof. Controller status and four receipt sets match actual exits; exact Meta identity resumes and first read returns the fsync watermark. Stop in the paused-Meta case takes20.124s and returns124; this does not establish a15-second signal-to-exit bound or cooperative completion. Formal DEP qualification remains open.
-
-Earlier v45 passes337 library tests with the same contract/error/local-API/FUSE counts. [Owner restart evidence](../development/evidence/20261001-owner-recovery/README.md) preserves two failing original-behavior regressions, the original v44 runtime failure and the repaired source/runtime proof.
-
-Actual A/B v45 memory-backed mounts pass a64MiB R1 owner Node SIGKILL slice: Meta stays live; the same Node binary/config/disk restarts without manual socket removal; the first fresh B read matches length and SHA256. B close during owner unavailability returns explicit EIO. One observed queued old-session cleanup retires after replacement and before its original expiry. Source/receiver grant validation derives the new serving epoch without modifying the durable receipt. This does not prove Meta restart durability, disk loss or the complete lifecycle fault matrix.
-
-After restart, v45 A/B passes all ten consistency scenarios and seven cross-node lock steps per backend, retaining the original35-second wait and55-second interrupt bounds. All248 captured product identity records match. Earlier [v43 open admission/provider lifetime](../development/evidence/20261001-owner-open/README.md) and [v44 session retirement](../development/evidence/20261001-owner-retirement/README.md) results retain their own identities. The provider idle wait is bounded and timeout retains exact guarded cleanup debt; the total dirty-writeback/shutdown budget and current full-suite/backend matrices remain unqualified.
-
-[Earlier v41 release-retry evidence](../development/evidence/20261001-release-retry/README.md) verifies one attempt per identity per maintenance pass, the64-entry cap and fair rotation. The [v40 full remote run](../development/evidence/20261001-remote-full-timeout/README.md) reaches the original1800-second bound:170 observed completed files,66 unobserved,7961 checks and zero unexpected assertions. It remains BLOCKED. Original accounting is preserved and corrected separately;51 Linux driver/identity selftests pass. Earlier v40/v37 results below retain their own binary identities.
-
-Identified A/B v37 memory-backed OwnerFs/DFS mounts pass ten cross-mount consistency scenarios. These include same-mount visibility, close-to-open, remote owner writes, local and remote-Home overwrite rename with a surviving hardlink, owner handover, retained local state and an existing write-only remote handle surviving handleless resize. Assertions do not poll until stale data disappears. [Earlier v36 evidence](../development/evidence/20261001-authority/README.md) separately records seven-step OwnerFs/DFS cross-mount lock checks with 35-second waits, a two-step exact-target 18-second Meta pause and 500 DFS/ext4 random operations under a 180-second functional bound. These earlier runs retain their own binary identities. The v37 OwnerFs seven-step lock rerun passes. The concurrent v37 DFS rerun has six PASS and one FAIL: the remote interrupted blocking wait does not complete within 55 seconds. The original failure is preserved. Identified v40 A/B mounts pass ten consistency scenarios and seven lock steps per backend. The DFS lock rerun overlaps a synthetic namespace load for its entire duration; the load completes 3842 operations with stable identity. The same 35-second wait and 55-second interruption bound are retained. This focused repair does not replace a complete upstream-suite-plus-lock rerun or sustained lifecycle fault qualification.
-
-The complete v37 OwnerFs pjdfstest run executes all 236 files and accounts for 8819 TAP checks, with zero unexpected failures/skips and 28 upstream TODO. Before/after process, configuration and mount identity checks pass. The preserved v36 full run has ten unexpected `rename/23.t` failures: the surviving hardlink returned `ESTALE`. Two targeted regressions fail with the original rename logic and pass after canonical path rebind. The complete v37 DFS run also passes all 236 files / 8819 checks with zero unexpected failures/skips, 28 original TODO, and all pre/post identity checks. [The earlier DFS v26 full result](../development/evidence/20260930-resume/README.md) binds its own binary and does not qualify the current candidate or unrun backend variants. Full-suite success here covers that v37 development matrix, not v45 or the entire POSIX release contract. The current candidate full-suite matrix remains unrun.
-
-The remote STD-01 driver passes 48 Linux selftests and an actual B DFS smoke run with strict A Meta/B Node identity: four files / 241 checks, zero unexpected failures/skips. Pre/post process, configuration, TLS, endpoint, mount and guest-ext4 evidence checks pass. All seven retrieved raw artifact manifest entries match exact bytes. The smoke profile accounts for 232 discovered files that it did not run. [Driver evidence](../development/evidence/20261001-remote-standard/README.md) does not qualify the full remote or backend matrix.
-
-The formal 69-case release manifest remains NOT_RUN and the environment lock PREPARING. No mandatory release or performance gate is declared complete by these short checks.
-
-## Corruption recovery development evidence
-
-The [corruption recovery batch](../development/evidence/20261001-corruption/README.md)
-passes its complete ARM64 Linux source gate: 395 library tests with two existing
-environmental ignores, 58 interface contracts, four shared-error tests, nine
-local API tests and five privileged FUSE tests. Formatting, strict workspace
-Clippy, supported feature builds and binaries are bound to 143 exact inputs.
-Local regressions cover verified pinned readers, durable quarantine, immutable
-replacement, exact corruption-report retry and own-device Meta authority.
-
-A fresh isolated A/B ext4, memory-backed Meta, mTLS/gRPC N=2/M=1 integration
-passes two short flows: one corrupted local copy returns healthy peer bytes on
-the first cold FUSE read and is automatically replaced with a new inode and
-Durable receipt; corruption of both copies returns EIO and records
-BlockedNoSource without claiming permanent loss. A separate live audit checks
-both mounts, physical bytes, processes, configuration and Meta health.
-These are stage evidence; formal REL-09/backend/RXE/resource matrices remain
-unrun. Each range currently scans the full Chunk for integrity; performance
-qualification and an efficient integrity format remain open. Nodes using the
-new corruption-report RPC require an upgraded Meta before deployment.
-
-## Actual RXE repair development evidence
-
-The [short RXE repair flow](../development/evidence/20261001-rxe-repair/README.md)
-uses the same qualified v62-r3 Rust inputs and binaries with explicit RDMA on
-isolated A/B Linux/ext4 mounts. A-only 1 MiB sync creates repair debt; B joins,
-receives 1 MiB through actual verbs and holds checksum-identical data. Cold
-fallback from one corrupted copy transfers 64 KiB through RDMA read; automatic
-physical replacement receives 64 KiB through RDMA replication. Recorded gRPC
-file-payload counters remain zero. Corruption of both copies returns EIO and
-BlockedNoSource on fresh mounts. Live identity/content/REST and per-incarnation
-counter audits pass. This scoped stage reuses the unchanged Rust source gate;
-full RDMA lifecycle/fault/backend/resource and formal acceptance remain open.
-
-## RDMA Server Admission
-
-The [admission batch](../development/evidence/20261001-rdma-admission/README.md)
-fixes a reproducible limit bypass:64 retained endpoint Arcs after session close
-allowed a65th negotiation. Reservations now precede native allocation and live
-with the endpoint's last Arc owner. Concurrent admission, allocation failure
-recovery and the original real RXE regression pass. The final Linux gate passes
-410 library,65 contract,4 shared-error,9 localAPI and5 rootFUSE tests, formatting,
-strict workspace Clippy, five feature configurations and binary build.
-
-Fresh same-VM real RXE DFS replica/read and production Owner4MiB+17 integrations
-pass on the final inputs. Five lifecycle tests pass, but the cancellation
-fixture posts no data DMA. This is a scoped stage gate; actual posted-DMA
-cancellation, exceptional native reclamation, peak resources and full fault
-matrices remain open. Automatic DFS selection is covered by the batch below.
-No formal case is promoted and no handoff refresh is performed.
-
-## DFS Automatic Transport
-
-The [automatic selection batch](../development/evidence/20261001-dfs-auto/README.md)
-prepares configured RDMA in Node `auto` mode and selects it through the existing
-DFS replica/read factories. Only canonical authenticated unsupported negotiation
-before the first data command permits gRPC fallback. Required mode refuses it;
-a business error cannot authorize replay, and a read batch cannot restart after
-an RDMA window.
-
-The final Linux source gate passes414 library tests,65 contracts,4 shared-error,
-9 localAPI and5 rootFUSE tests, formatting, strict workspace Clippy, five feature
-checks and binary build. Six library environment ignores remain explicit.
-Selected real RXE Auto/required native paths, Auto unsupported gRPC fallback,
-required unsupported read/write rejection, malformed reply regression and Owner
-4MiB+17 client flow pass.54 audit checks bind143 compiler inputs and real bytes.
-
-This is a scoped stage gate, not formal acceptance. No new cross-VM Auto Node
-runtime is deployed. Postdispatch unsupported, later-window failure, exhausted
-deadline, posted-DMA cancellation, exceptional reclamation, resource peaks and
-full fault matrices remain open.69 formal cases remain NOT_RUN; ENV PREPARING.
-
-## Known Open Items
-
-- Complete the wider owner-open ACK-loss, remote cleanup/resource and network-fault matrix, cooperative whole-writeback-pass budgets and complete shutdown/controller deployment matrices. The native process deadline reports forced failure; it does not prove every worker cooperatively stops.
-- Complete the distributed-lock resource and long-run lifecycle matrix. Short actual A/B contention, cancellation, delayed waits and close/session checks have evidence; capacity and exact retired identity still require sustained product validation.
-- Run full applicable POSIX matrices for the current candidate and required backend variants without adding exclusions; complete remote-owner consistency, permissions, namespace, mmap, xattr, ACL and directory durability coverage.
-- Complete cross-node DFS file-operation and lock authority, stale owner rejection and uncertain-result fault verification; preserve exact pending identity and inode serialization.
-- Finish R=N multi-VM faults, repair-worker resource/lifecycle qualification, placement and source-loss behavior, full RDMA/fallback/security/lifetime tests and resource accounting.
-- Core development uses memory Meta. Complete etcd/Redis persistence, parity and recovery separately after core functionality/performance development. Existing etcd integration uses an approved enlarged request limit; full-snapshot retention and serialization cost remain open.
-- Complete local chunk crash/reconcile/GC, pack/relocation, compaction and large-file bounded-memory/capacity/corruption cases.
-- Validate actual Home backend availability, full OPS diagnostics/readiness/backpressure and DEP clean/offline/idempotent installation, shutdown and restart matrices. Failed remote release can leave an owner-side handle requiring retry/session cleanup; local provider removal/restoration has regressions, while full remote cleanup fault coverage remains open.
-- Qualify fair MooseFS/3FS baselines before performance tuning and paired performance claims. Stock MooseFS strong-durability matching and the ARM64 patched 3FS reference remain open prerequisites.
-- Run final 8 GiB, full FSx/random-operation seeds and eight-hour soak; source or short-mount regression success is insufficient.
-- Read-grant protocol changes require coordinated upgrade: request-level grant field 5 is reserved, each operation uses grant field 7, and `DfsReadGrant.caller_epoch` remains field 5. Existing persisted copy records require explicit migration to `CopyLocation`; no automatic old-format migration is provided.
-- DFS SDK, product cache/spill and Meta election/HA remain outside the first-stage gates, as recorded in the [post-acceptance TODO](acceptance.md#10-第一阶段验收后-todo).
-
-## Diagnostic Posted-DMA Cancellation
-
-A [real Linux RXE diagnostic](../development/evidence/20261001-posted-rdma-cancellation/README.md)
-pauses a successfully posted4096-byte data WQE before CQ consumption. Cancellation
-poisons the client; independent close removes the old lookup while both endpoints
-retain their exact QP/MR/CQ/PD/context IDs. After worker resume, the admitted write
-completes with exact content and no replay; those IDs are absent before process
-exit. This proves posted/unconsumed work, not physically pending DMA or rollback.
-
-Twelve distinct related tests and20 checker checks pass. One final source gate
-passes414 library/6 explicit ignores,65 contracts,4 shared-error,9 localAPI,
-5 rootFUSE, strict workspace Clippy, formatting, five features and binaries.
-Production inputs/binaries match the prior candidate; only the test and external
-runner are added.44 identity checks bind143 inputs and raw resource evidence.
-
-This is a scoped stage gate. OwnerFs/DFS posted cancellation, actual data
-completion timeout, exceptional provider teardown, resource peaks and full
-fault matrices remain unqualified.69 formal cases remain NOT_RUN; ENV PREPARING.
+Bind functionality and performance are separate G2.12/G2.13 exits, with an explicit future switch default OFF. OFF delivery proceeds independently; known ON safety gaps must be resolved before enabling ON. Complex reliability/etcd/Redis work remains later, while ordinary-use corruption, unsafe success, permissions and core recovery defects are repaired immediately.

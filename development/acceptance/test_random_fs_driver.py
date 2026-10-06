@@ -75,6 +75,9 @@ class RandomFsDriverTests(unittest.TestCase):
         self.assertEqual(proc.returncode, 0, proof)
         self.assertEqual(proof["status"], "PASS")
         self.assertEqual(proof["accounting"]["executed"], 1)
+        self.assertEqual(proof["coverage"]["axes"]["seeds_smoke"]["values"], ["1"])
+        self.assertEqual(proof["coverage"]["axes"]["operations_per_seed_smoke"]["values"], ["25"])
+        self.assertNotIn("seeds_full", proof["coverage"]["axes"])
         seed_results = run_dir / proof["artifacts"]["root"] / "seed-results.json"
         self.assertTrue(seed_results.exists())
         raw = json.loads(seed_results.read_text())

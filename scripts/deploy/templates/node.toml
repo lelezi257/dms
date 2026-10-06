@@ -9,6 +9,7 @@ uds_path = "/run/afs/node.sock"
 dfs_mount = "/mnt/afs/dfs"
 ownerfs_mount = "/mnt/afs/ownerfs"
 data_mode = "grpc"
+allow_volatile_meta = false
 dfs_desired_copies = 1
 dfs_sync_required_copies = 1
 dfs_min_distinct_nodes = 1

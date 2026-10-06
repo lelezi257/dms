@@ -12,7 +12,7 @@ use std::{
     ffi::{OsStr, OsString},
     os::unix::ffi::OsStrExt,
     sync::{
-        Arc, Mutex, RwLock,
+        Arc, Condvar, Mutex, RwLock,
         atomic::{AtomicBool, Ordering},
     },
 };
@@ -219,11 +219,14 @@ pub struct LocalRoot {
     pub name: OsString,
     pub data_dir: StoragePath,
     state: Mutex<RootRuntime>,
+    drained: Condvar,
 }
 
 /// 授权状态和在途计数在同一把短锁下改变；磁盘 I/O 不持有它。
 struct RootRuntime {
     phase: GrantPhase,
+    #[cfg(test)]
+    pf1_refusal: Option<PrivateRootBinding>,
     in_flight: usize,
     /// Home 已经向 Meta 校验过的远端 grant。缓存键带 grant 代与 token，
     /// 使真正撤权、删除重建或 Home 重启后的旧 grant 无法误命中新授权。
@@ -253,6 +256,124 @@ impl PeerGrantKey {
             access_generation: access.access_generation,
             fencing_token: access.fencing_token.clone(),
         }
+    }
+}
+
+/// Private observation identity captured from the grant admitted for an actual open.
+#[cfg(test)]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(super) struct PrivateRootBinding {
+    pub root_id: RootId,
+    pub root_epoch: u64,
+    pub access_generation: u64,
+    pub home_node_id: String,
+    pub home_session_id: String,
+}
+
+#[cfg(test)]
+impl PrivateRootBinding {
+    pub(super) fn from_grant(grant: &RootGrant) -> Self {
+        Self {
+            root_id: grant.id.clone(),
+            root_epoch: grant.epoch,
+            access_generation: grant.access_generation,
+            home_node_id: grant.home_node_id.clone(),
+            home_session_id: grant.home_session_id.clone(),
+        }
+    }
+}
+
+#[cfg(test)]
+pub(super) struct PrivatePf1Fence {
+    root: Arc<LocalRoot>,
+    pub binding: PrivateRootBinding,
+    pub command_id: String,
+}
+
+#[cfg(test)]
+impl RootManager {
+    pub(super) fn private_pf1_fence(
+        &self,
+        binding: &PrivateRootBinding,
+        command_id: &str,
+    ) -> Result<PrivatePf1Fence> {
+        if command_id.is_empty() {
+            return Err(invalid_grant("empty PF1 command identity"));
+        }
+        let root = self
+            .roots
+            .read()
+            .map_err(|_| invalid_grant("root cache poisoned"))?
+            .get(&binding.root_id)
+            .cloned()
+            .ok_or_else(|| invalid_grant("PF1 root missing"))?;
+        {
+            let mut state = root
+                .state
+                .lock()
+                .map_err(|_| invalid_grant("PF1 root poisoned"))?;
+            let GrantPhase::Active(grant) = &state.phase else {
+                return Err(invalid_grant("PF1 root inactive"));
+            };
+            if PrivateRootBinding::from_grant(grant) != *binding
+                || !self.control_valid.load(Ordering::Acquire)
+            {
+                return Err(invalid_grant("PF1 generation changed"));
+            }
+            if state
+                .pf1_refusal
+                .as_ref()
+                .is_some_and(|prior| prior != binding)
+            {
+                return Err(invalid_grant("PF1 refusal differs"));
+            }
+            // Refuse before interpreting zero. Exact peer grants cannot be repopulated.
+            state.pf1_refusal = Some(binding.clone());
+            let peers: Vec<_> = state
+                .validated_peer_grants
+                .keys()
+                .map(|key| (key.holder_node_id.clone(), key.session_id.clone()))
+                .collect();
+            state.fenced_peer_sessions.extend(peers);
+            state.validated_peer_grants.clear();
+        }
+        Ok(PrivatePf1Fence {
+            root,
+            binding: binding.clone(),
+            command_id: command_id.into(),
+        })
+    }
+
+    pub(super) fn private_pf1_root_counts(
+        &self,
+        fence: &PrivatePf1Fence,
+    ) -> Result<(usize, usize)> {
+        // Root-only lock order: map read -> root runtime. Never called under an Owner lock.
+        let roots = self
+            .roots
+            .read()
+            .map_err(|_| invalid_grant("root cache poisoned"))?;
+        if roots
+            .get(&fence.binding.root_id)
+            .is_none_or(|current| !Arc::ptr_eq(current, &fence.root))
+        {
+            return Err(invalid_grant("PF1 root instance replaced"));
+        }
+        let state = fence
+            .root
+            .state
+            .lock()
+            .map_err(|_| invalid_grant("PF1 root poisoned"))?;
+        let GrantPhase::Active(grant) = &state.phase else {
+            return Err(invalid_grant("PF1 root inactive"));
+        };
+        if PrivateRootBinding::from_grant(grant) != fence.binding
+            || state.pf1_refusal.as_ref() != Some(&fence.binding)
+            || !self.control_valid.load(Ordering::Acquire)
+        {
+            return Err(invalid_grant("PF1 root or refusal changed"));
+        }
+        Ok((state.in_flight, state.validated_peer_grants.len()))
     }
 }
 
@@ -286,6 +407,7 @@ impl Drop for RootUse {
             .lock()
             .unwrap_or_else(|error| error.into_inner());
         state.in_flight -= 1;
+        self.root.drained.notify_all();
     }
 }
 
@@ -486,10 +608,13 @@ impl RootManager {
             data_dir: prepared.data_dir.clone(),
             state: Mutex::new(RootRuntime {
                 phase: GrantPhase::Active(grant),
+                #[cfg(test)]
+                pf1_refusal: None,
                 in_flight: 0,
                 validated_peer_grants: HashMap::new(),
                 fenced_peer_sessions: HashSet::new(),
             }),
+            drained: Condvar::new(),
         });
         let mut roots = self
             .roots
@@ -535,6 +660,10 @@ impl RootManager {
                 "root grant is not active",
             ));
         };
+        #[cfg(test)]
+        if state.pf1_refusal.is_some() {
+            return Err(unavailable_grant("private PF1 admission is fenced"));
+        }
         if !self.control_valid.load(Ordering::Acquire) {
             return Err(unavailable_grant("Meta control session is invalid"));
         }
@@ -731,6 +860,10 @@ impl RootManager {
         state: &RootRuntime,
         access: &PresentedRootAccess,
     ) -> Result<()> {
+        #[cfg(test)]
+        if state.pf1_refusal.is_some() {
+            return Err(unavailable_grant("private PF1 peer admission is fenced"));
+        }
         let GrantPhase::Active(home_grant) = &state.phase else {
             return Err(unavailable_grant("home root grant is not active"));
         };
@@ -951,10 +1084,13 @@ impl RootManager {
                 data_dir: record.data_dir.clone(),
                 state: Mutex::new(RootRuntime {
                     phase: GrantPhase::Active(grant),
+                    #[cfg(test)]
+                    pf1_refusal: None,
                     in_flight: 0,
                     validated_peer_grants: HashMap::new(),
                     fenced_peer_sessions: HashSet::new(),
                 }),
+                drained: Condvar::new(),
             });
             self.roots
                 .write()
@@ -996,6 +1132,189 @@ pub struct LocalRootSnapshot {
 impl RootReservation {
     pub fn id(&self) -> &RootId {
         &self.id
+    }
+}
+
+#[cfg(test)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum PrivateRootCommandType {
+    RevokeAccess,
+}
+
+#[cfg(test)]
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct PrivateRootCommand {
+    command_id: String,
+    home_node_id: String,
+    home_session_id: String,
+    root_id: RootId,
+    root_epoch: u64,
+    access_generation: u64,
+    command_type: PrivateRootCommandType,
+}
+
+#[cfg(test)]
+impl PrivateRootCommand {
+    fn exact_bytes(&self) -> Vec<u8> {
+        let mut bytes = b"AFS-private-root-command-v1\0".to_vec();
+        for value in [
+            &self.command_id,
+            &self.home_node_id,
+            &self.home_session_id,
+            &self.root_id.0,
+        ] {
+            bytes.extend_from_slice(&(value.len() as u64).to_le_bytes());
+            bytes.extend_from_slice(value.as_bytes());
+        }
+        bytes.extend_from_slice(&self.root_epoch.to_le_bytes());
+        bytes.extend_from_slice(&self.access_generation.to_le_bytes());
+        bytes.push(match self.command_type {
+            PrivateRootCommandType::RevokeAccess => 1,
+        });
+        bytes
+    }
+}
+
+#[cfg(test)]
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct PrivateFoundationReceipt {
+    command_id: String,
+    root_id: RootId,
+    root_epoch: u64,
+    access_generation: u64,
+    ordinary_root_use_drained: bool,
+    opened_fd_native_physical_namespace_drained: bool,
+}
+
+#[cfg(test)]
+struct PrivateRootCommandJournal {
+    dir: std::path::PathBuf,
+}
+
+#[cfg(test)]
+impl PrivateRootCommandJournal {
+    fn open(dir: impl Into<std::path::PathBuf>) -> Result<Self> {
+        let dir = dir.into();
+        std::fs::create_dir_all(&dir).map_err(Error::from)?;
+        Ok(Self { dir })
+    }
+
+    fn record_exact(&self, command: &PrivateRootCommand) -> Result<()> {
+        let path = self.command_path(&command.command_id);
+        let bytes = command.exact_bytes();
+        if path.exists() {
+            let existing = std::fs::read(&path).map_err(Error::from)?;
+            if existing == bytes {
+                return std::fs::File::open(&self.dir)
+                    .map_err(Error::from)?
+                    .sync_all()
+                    .map_err(Error::from);
+            }
+            return Err(invalid_grant("journal command id maps to different bytes"));
+        }
+        let tmp = path.with_extension("tmp");
+        {
+            let mut file = std::fs::OpenOptions::new()
+                .create_new(true)
+                .write(true)
+                .open(&tmp)
+                .map_err(Error::from)?;
+            std::io::Write::write_all(&mut file, &bytes).map_err(Error::from)?;
+            file.sync_all().map_err(Error::from)?;
+        }
+        // Never replace a command published by a concurrent journal instance.
+        std::fs::hard_link(&tmp, &path).map_err(Error::from)?;
+        std::fs::remove_file(&tmp).map_err(Error::from)?;
+        std::fs::File::open(&self.dir)
+            .map_err(Error::from)?
+            .sync_all()
+            .map_err(Error::from)
+    }
+
+    fn command_path(&self, command_id: &str) -> std::path::PathBuf {
+        self.dir.join(hex(command_id.as_bytes()))
+    }
+}
+
+#[cfg(test)]
+impl RootManager {
+    fn apply_private_foundation_command(
+        &self,
+        command: &PrivateRootCommand,
+        journal: &PrivateRootCommandJournal,
+        timeout: std::time::Duration,
+    ) -> Result<PrivateFoundationReceipt> {
+        journal.record_exact(command)?;
+        if command.command_type != PrivateRootCommandType::RevokeAccess
+            || command.home_node_id != self.local_node_id
+            || command.home_session_id != self.session_id
+            || command.root_epoch == 0
+            || command.access_generation == 0
+        {
+            return Err(invalid_grant(
+                "private root command does not match this Home",
+            ));
+        }
+        let root = self
+            .roots
+            .read()
+            .map_err(|_| invalid_grant("root cache lock poisoned"))?
+            .get(&command.root_id)
+            .cloned()
+            .ok_or_else(|| unavailable_grant("private root command target is not cached"))?;
+        let deadline = std::time::Instant::now() + timeout;
+        let mut state = root
+            .state
+            .lock()
+            .map_err(|_| invalid_grant("root grant lock poisoned"))?;
+        let GrantPhase::Active(grant) = &state.phase else {
+            return Err(unavailable_grant(
+                "private root command target is not active",
+            ));
+        };
+        if grant.id != command.root_id
+            || grant.epoch != command.root_epoch
+            || grant.home_node_id != command.home_node_id
+            || grant.home_session_id != command.home_session_id
+            || grant.holder_node_id != self.local_node_id
+            || grant.session_id != self.session_id
+            || grant.access_generation != command.access_generation
+        {
+            return Err(invalid_grant(
+                "private root command does not match active grant",
+            ));
+        }
+        let fenced: Vec<_> = state
+            .validated_peer_grants
+            .keys()
+            .map(|key| (key.holder_node_id.clone(), key.session_id.clone()))
+            .collect();
+        state.phase = GrantPhase::Invalid;
+        state.validated_peer_grants.clear();
+        state.fenced_peer_sessions.extend(fenced);
+        while state.in_flight != 0 {
+            let now = std::time::Instant::now();
+            if now >= deadline {
+                return Err(unavailable_grant("ordinary RootUse drain timed out"));
+            }
+            let remaining = deadline.saturating_duration_since(now);
+            let (next_state, wait) = root
+                .drained
+                .wait_timeout(state, remaining)
+                .unwrap_or_else(|error| error.into_inner());
+            state = next_state;
+            if wait.timed_out() && state.in_flight != 0 {
+                return Err(unavailable_grant("ordinary RootUse drain timed out"));
+            }
+        }
+        Ok(PrivateFoundationReceipt {
+            command_id: command.command_id.clone(),
+            root_id: command.root_id.clone(),
+            root_epoch: command.root_epoch,
+            access_generation: command.access_generation,
+            ordinary_root_use_drained: true,
+            opened_fd_native_physical_namespace_drained: false,
+        })
     }
 }
 
@@ -1361,6 +1680,224 @@ mod tests {
                 .code(),
             afs_error::NODE_OWNER_GRANT_UNAVAILABLE
         );
+    }
+
+    fn private_command(id: &RootId, command_id: &str) -> PrivateRootCommand {
+        PrivateRootCommand {
+            command_id: command_id.to_owned(),
+            home_node_id: "node-a".into(),
+            home_session_id: "session-a".into(),
+            root_id: id.clone(),
+            root_epoch: 1,
+            access_generation: 7,
+            command_type: PrivateRootCommandType::RevokeAccess,
+        }
+    }
+
+    #[test]
+    fn private_foundation_journal_records_exact_command_bytes() {
+        let temp = tempfile::tempdir().unwrap();
+        let journal = PrivateRootCommandJournal::open(temp.path()).unwrap();
+        let id = RootId("job-42".into());
+        let command = private_command(&id, "cmd-a");
+        journal.record_exact(&command).unwrap();
+        journal.record_exact(&command).unwrap();
+        drop(journal);
+        let journal = PrivateRootCommandJournal::open(temp.path()).unwrap();
+        journal.record_exact(&command).unwrap();
+        let mut changed = command.clone();
+        changed.home_session_id = "session-other".into();
+        assert_eq!(
+            journal.record_exact(&changed).unwrap_err().code(),
+            afs_error::NODE_OWNER_INVALID_GRANT
+        );
+    }
+
+    #[test]
+    fn private_foundation_journal_rejects_same_id_field_boundary_injection() {
+        let temp = tempfile::tempdir().unwrap();
+        let journal = PrivateRootCommandJournal::open(temp.path()).unwrap();
+        let mut first = private_command(&RootId("job-42".into()), "cmd-a");
+        first.home_node_id = "node-a\nhome_session_id=session-extra".into();
+        first.home_session_id = "session-a".into();
+        let mut second = first.clone();
+        second.home_node_id = "node-a".into();
+        second.home_session_id = "session-extra\nhome_session_id=session-a".into();
+        assert_ne!(first.exact_bytes(), second.exact_bytes());
+        journal.record_exact(&first).unwrap();
+        drop(journal);
+        let reopened = PrivateRootCommandJournal::open(temp.path()).unwrap();
+        assert_eq!(
+            reopened.record_exact(&second).unwrap_err().code(),
+            afs_error::NODE_OWNER_INVALID_GRANT
+        );
+        reopened.record_exact(&first).unwrap();
+    }
+
+    #[test]
+    fn private_foundation_wrong_tuple_does_not_refuse_current_generation() {
+        let journal_temp = tempfile::tempdir().unwrap();
+        let journal = PrivateRootCommandJournal::open(journal_temp.path()).unwrap();
+        let (_temp, manager, prepared) = fixture("session-a", "session-a");
+        manager
+            .activate_prepared(OsString::from("job-42"), &prepared)
+            .unwrap();
+        let mut command = private_command(&prepared.reservation.id, "cmd-wrong-generation");
+        command.access_generation += 1;
+        assert_eq!(
+            manager
+                .apply_private_foundation_command(
+                    &command,
+                    &journal,
+                    std::time::Duration::from_millis(10),
+                )
+                .unwrap_err()
+                .code(),
+            afs_error::NODE_OWNER_INVALID_GRANT
+        );
+        let _still_active = manager
+            .enter_root(&prepared.reservation.id, RootRight::Lookup)
+            .unwrap();
+    }
+
+    #[test]
+    fn private_foundation_refuses_new_admission_and_waits_for_ordinary_rootuse_drop() {
+        let journal_temp = tempfile::tempdir().unwrap();
+        let journal = PrivateRootCommandJournal::open(journal_temp.path()).unwrap();
+        let (_temp, manager, prepared) = fixture("session-a", "session-a");
+        manager
+            .activate_prepared(OsString::from("job-42"), &prepared)
+            .unwrap();
+        let manager = Arc::new(manager);
+        let use_guard = manager
+            .enter_root(&prepared.reservation.id, RootRight::Lookup)
+            .unwrap();
+        let command = private_command(&prepared.reservation.id, "cmd-drain");
+        let worker = {
+            let manager = manager.clone();
+            std::thread::spawn(move || {
+                manager.apply_private_foundation_command(
+                    &command,
+                    &journal,
+                    std::time::Duration::from_secs(5),
+                )
+            })
+        };
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+        loop {
+            match manager.enter_root(&prepared.reservation.id, RootRight::Lookup) {
+                Ok(guard) => drop(guard),
+                Err(error) => {
+                    assert_eq!(error.code(), afs_error::NODE_OWNER_GRANT_UNAVAILABLE);
+                    break;
+                }
+            }
+            assert!(
+                std::time::Instant::now() < deadline,
+                "refusal was not installed"
+            );
+            std::thread::yield_now();
+        }
+        assert!(!worker.is_finished());
+        assert_eq!(
+            manager
+                .enter_root(&prepared.reservation.id, RootRight::Lookup)
+                .err()
+                .unwrap()
+                .code(),
+            afs_error::NODE_OWNER_GRANT_UNAVAILABLE
+        );
+        drop(use_guard);
+        let receipt = worker.join().unwrap().unwrap();
+        assert!(receipt.ordinary_root_use_drained);
+        assert!(!receipt.opened_fd_native_physical_namespace_drained);
+        assert_eq!(receipt.command_id, "cmd-drain");
+    }
+
+    #[test]
+    fn private_foundation_fences_cached_peer_grants_without_native_authority() {
+        let temp = tempfile::tempdir().unwrap();
+        let disk = Arc::new(LocalFs::open(temp.path()).unwrap());
+        let data_dir = StoragePath::new("job-42-e1").unwrap();
+        disk.mkdir(&data_dir, 0o700).unwrap();
+        disk.sync_root().unwrap();
+        let id = RootId("job-42".into());
+        let prepared = PreparedRoot {
+            reservation: RootReservation {
+                id: id.clone(),
+                epoch: 1,
+                home_node_id: "node-a".into(),
+                session_id: "session-a".into(),
+                create_intent_id: "intent-a".into(),
+                prepare_token: "prepare-a".into(),
+            },
+            data_dir,
+            local_prepare_id: "local-a".into(),
+            parent_fsync_generation: 1,
+        };
+        let local_grant = RootGrant {
+            id: id.clone(),
+            epoch: 1,
+            home_node_id: "node-a".into(),
+            home_session_id: "session-a".into(),
+            holder_node_id: "node-a".into(),
+            session_id: "session-a".into(),
+            access_generation: 7,
+            rights: vec![RootRight::Lookup],
+            fencing_token: "fence-a".into(),
+        };
+        let peer_grant = RootGrant {
+            id: id.clone(),
+            epoch: 1,
+            home_node_id: "node-a".into(),
+            home_session_id: "session-a".into(),
+            holder_node_id: "node-b".into(),
+            session_id: "session-b".into(),
+            access_generation: 7,
+            rights: vec![RootRight::Read],
+            fencing_token: "fence-b".into(),
+        };
+        let manager = RootManager::new(
+            "node-a".into(),
+            "session-a".into(),
+            fixed_meta(local_grant, Some(peer_grant)),
+            disk,
+        );
+        manager
+            .activate_prepared(OsString::from("job-42"), &prepared)
+            .unwrap();
+        let presented = PresentedRootAccess {
+            id: id.clone(),
+            epoch: 1,
+            home_node_id: "node-a".into(),
+            home_session_id: "session-a".into(),
+            holder_node_id: "node-b".into(),
+            session_id: "session-b".into(),
+            access_generation: 7,
+            fencing_token: "fence-b".into(),
+        };
+        manager
+            .validate_peer_root_access(&presented, "node-b", RootRight::Read)
+            .unwrap();
+        assert!(
+            manager
+                .cached_peer_sessions()
+                .unwrap()
+                .contains(&("node-b".to_owned(), "session-b".to_owned()))
+        );
+
+        let journal_temp = tempfile::tempdir().unwrap();
+        let journal = PrivateRootCommandJournal::open(journal_temp.path()).unwrap();
+        let receipt = manager
+            .apply_private_foundation_command(
+                &private_command(&id, "cmd-peer-fence"),
+                &journal,
+                std::time::Duration::from_millis(10),
+            )
+            .unwrap();
+        assert!(manager.cached_peer_sessions().unwrap().is_empty());
+        assert!(receipt.ordinary_root_use_drained);
+        assert!(!receipt.opened_fd_native_physical_namespace_drained);
     }
 
     #[derive(Default)]

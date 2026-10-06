@@ -148,6 +148,13 @@ pub struct PinnedChunkReader {
     chunk: ChunkObject,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct VerifiedRangeCopy {
+    pub chunk_offset: u64,
+    pub length: usize,
+    pub output_offset: usize,
+}
+
 impl PinnedChunkReader {
     pub fn read_at(&self, offset: u64, out: &mut [u8]) -> Result<usize> {
         if offset >= self.chunk.length || out.is_empty() {
@@ -161,6 +168,18 @@ impl PinnedChunkReader {
         let bytes = verified_range(&self.file, &self.chunk, offset, allowed)?;
         out[..allowed].copy_from_slice(&bytes);
         Ok(allowed)
+    }
+
+    /// Verify the pinned file once and scatter requested ranges into an
+    /// uncommitted staging buffer. The staging buffer may be dirtied before an
+    /// error is returned; callers must publish it only after the outer read
+    /// batch succeeds.
+    pub(crate) fn read_ranges_at_uncommitted(
+        &self,
+        ranges: &[VerifiedRangeCopy],
+        out: &mut [u8],
+    ) -> Result<Vec<usize>> {
+        verified_ranges_into(&self.file, &self.chunk, ranges, out, false)
     }
 }
 
@@ -731,14 +750,59 @@ fn verify_file(path: &Path, chunk: &ChunkObject) -> Result<()> {
 /// temporary range is bounded by the caller's output; scan memory is 64KiB.
 /// Nothing is published to the caller until all content checks pass.
 fn verified_range(file: &File, chunk: &ChunkObject, offset: u64, length: usize) -> Result<Vec<u8>> {
-    let end = offset
+    offset
         .checked_add(length as u64)
         .filter(|end| *end <= chunk.length)
         .ok_or_else(|| invalid("verified Chunk range exceeds its length"))?;
+    let mut bytes = vec![0; length];
+    verified_ranges_into(
+        file,
+        chunk,
+        &[VerifiedRangeCopy {
+            chunk_offset: offset,
+            length,
+            output_offset: 0,
+        }],
+        &mut bytes,
+        true,
+    )?;
+    Ok(bytes)
+}
+
+fn verified_ranges_into(
+    file: &File,
+    chunk: &ChunkObject,
+    ranges: &[VerifiedRangeCopy],
+    out: &mut [u8],
+    force_scan: bool,
+) -> Result<Vec<usize>> {
+    let mut counts = Vec::with_capacity(ranges.len());
+    let mut active = Vec::new();
+    for range in ranges.iter().copied() {
+        let allowed = if range.chunk_offset >= chunk.length || range.length == 0 {
+            0
+        } else {
+            usize::try_from((chunk.length - range.chunk_offset).min(range.length as u64))
+                .map_err(|_| invalid("Chunk read length is too large"))?
+        };
+        let end = range
+            .output_offset
+            .checked_add(allowed)
+            .ok_or_else(|| invalid("verified Chunk output range overflow"))?;
+        if end > out.len() {
+            return Err(invalid("verified Chunk output range exceeds buffer"));
+        }
+        counts.push(allowed);
+        if allowed != 0 {
+            active.push((range, allowed));
+        }
+    }
+    if active.is_empty() && !force_scan {
+        return Ok(counts);
+    }
     if file.metadata().map_err(Error::from)?.len() != chunk.length {
         return Err(corrupt(&chunk.id, "length mismatch"));
     }
-    let mut bytes = vec![0; length];
     let mut scratch = [0; 64 * 1024];
     let mut hasher = blake3::Hasher::new();
     let mut position = 0;
@@ -750,14 +814,19 @@ fn verified_range(file: &File, chunk: &ChunkObject, offset: u64, length: usize) 
         }
         hasher.update(&scratch[..count]);
         let next = position + count as u64;
-        let overlap_start = position.max(offset);
-        let overlap_end = next.min(end);
-        if overlap_start < overlap_end {
-            bytes[(overlap_start - offset) as usize..(overlap_end - offset) as usize]
-                .copy_from_slice(
+        for (range, allowed) in &active {
+            let range_end = range.chunk_offset + *allowed as u64;
+            let overlap_start = position.max(range.chunk_offset);
+            let overlap_end = next.min(range_end);
+            if overlap_start < overlap_end {
+                let output_start =
+                    range.output_offset + (overlap_start - range.chunk_offset) as usize;
+                let output_end = range.output_offset + (overlap_end - range.chunk_offset) as usize;
+                out[output_start..output_end].copy_from_slice(
                     &scratch
                         [(overlap_start - position) as usize..(overlap_end - position) as usize],
                 );
+            }
         }
         position = next;
     }
@@ -771,7 +840,7 @@ fn verified_range(file: &File, chunk: &ChunkObject, offset: u64, length: usize) 
     if actual != chunk.content_digest {
         return Err(corrupt(&chunk.id, "digest mismatch"));
     }
-    Ok(bytes)
+    Ok(counts)
 }
 
 fn digest(bytes: &[u8]) -> ContentDigest {
@@ -918,6 +987,21 @@ mod replica_replay_tests {
             afs_error::NODE_TRANSFER_CORRUPT_DATA
         );
         assert_eq!(out, [9; 19]);
+    }
+
+    #[test]
+    fn verify_file_zero_range_still_hashes_the_whole_chunk() {
+        let temp = tempfile::tempdir().unwrap();
+        let store = LocalChunkStore::open(temp.path(), "node-a").unwrap();
+        let staged = StagedChunk::new(OperationId::new("verify-zero"), b"abcdef".to_vec());
+        store.put(staged.clone()).unwrap();
+        let path = temp.path().join("chunks").join(&staged.chunk.id.0);
+        verify_file(&path, &staged.chunk).unwrap();
+        fs::write(&path, b"abcXef").unwrap();
+        assert_eq!(
+            verify_file(&path, &staged.chunk).unwrap_err().code(),
+            afs_error::NODE_TRANSFER_CORRUPT_DATA
+        );
     }
 
     #[test]

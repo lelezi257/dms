@@ -1,5 +1,7 @@
 # AFS 交付验收规范
 
+**2026-10-06用户最新分级决策：** [三阶段独立验收主表](../development/trial-release-goals.md)决定当前交付范围、顺序与性能目标。G1内测试用出口已完成；新候选标准回归和核心性能独立列G2；复杂/长时/全矩阵与etcd/Redis列G3。下文完整用例目录不是每个小case或G1的统一前置。Owner local基线改为ext4，remote旧≤0.8耗时要求改为MooseFS持平；正确性/权限/持久语义不豁免。
+
 本规范定义 OwnerFs 和 DistributedFs（DFS）的交付目标、固定实验环境和验收用例。开发、回归和发布使用同一份合同；实现完成度见 [实现状态](status.md)。接口或类型存在、测试被跳过、环境无法启动，都不等于验收通过。
 
 ## 1. 交付目标
@@ -12,7 +14,7 @@ AFS 是近计算文件系统。应用通过普通 Linux 文件接口访问本机
 | --- | --- |
 | OwnerFs | 1～4 节点 workspace，Home 本地普通文件，远端经 P2P 访问 Home；保留本地亲和性 |
 | DFS | 通用多读多写文件语义；immutable Chunk、可变文件布局、版本提交、稀疏文件、可配置副本和故障修复 |
-| Meta | etcd、Redis 可替换的持久后端；Redis 不是缓存。后端切换不改变文件、提交和错误语义 |
+| Meta | G1以memory演示及中心local-file重启恢复交付；etcd、Redis可替换持久后端列G3最后，Redis不是缓存。后端切换不改变文件、提交和错误语义 |
 | 数据路径 | 小数据 inline、大数据通过受控数据面；gRPC 和真实 RDMA 文件读写路径均交付 |
 | 部署 | Linux 安装包，一条命令安装及启动进程；支持状态检查、停止、重启、卸载；不要求 systemd 或 Kubernetes |
 | 本期排除 | DFS SDK、VerifiedCache/Seed 缓存扩散、外部 Spill、OwnerFs 转 DFS Snapshot、容器或 MicroVM 专用适配器 |
@@ -21,7 +23,7 @@ DFS 必须能从多个持久副本读取并在源失败时换源；这不依赖�
 
 第一阶段部署单个 `afs-meta` 进程，交付持久恢复和进程重启；重启前确认旧进程已停止。部署工具负责本次部署的 PID/端口检查和重复启动防护，不承担跨主机 Meta 选主或防双活协议。第一阶段不支持两个独立 Meta 实例同时操作同一 filesystem 后端。
 
-etcd 可使用三成员持久后端；etcd 自身的成员选主不等于 AFS Meta 服务已实现选主。Redis 单实例持久恢复必须交付。Meta 选主、切主、跨实例 fencing 和 Redis 自动主从故障转移列入 [验收后 TODO](#10-第一阶段验收后-todo)，不作为第一阶段门禁。故障时可以拒绝服务，不能以成功响应隐藏状态丢失。
+etcd可使用三成员持久后端；其选主不等于AFS Meta服务选主。etcd及Redis单实例持久恢复按G3.12/13独立验收，不作为G1/G2交付门禁。Meta选主、切主、跨实例fencing和Redis自动主从故障转移见[后续TODO](#10-后续能力-todo)。故障时可以拒绝服务，不能以成功响应隐藏状态丢失。
 
 ### 1.2 可验收目标
 
@@ -29,14 +31,14 @@ etcd 可使用三成员持久后端；etcd 自身的成员选主不等于 AFS Me
 | --- | --- |
 | 功能 | 所有适用的必测用例通过，数据、长度、属性、返回值及 errno 与合同一致 |
 | POSIX | pjdfstest 全集、固定的 LTP 文件系统子集、FSx 和差分随机测试通过；排除项在执行前审定，不接受运行失败后删除测试 |
-| OwnerFs 性能 | 本地读、写的任务耗时分别 ≤ 同条件 MooseFS 的 0.5；远端分别 ≤ 0.8 |
+| OwnerFs 性能 | 本地读、写吞吐分别≥同条件native ext4的90%；远端读、写与MooseFS持平，中心目标比1.0；噪声容差每case测前固定 |
 | DFS 性能 | 同条件、同接口、同副本及持久化要求的读、写任务耗时分别 ≤ 3FS；不以不同任务的平均成绩抵消不达标项 |
 | RDMA | 文件读写实际经过 RDMA，并通过故障、资源回收、gRPC 回退和禁用回退测试；记录性能，无硬性速度目标 |
 | 可靠性 | 成功完成持久化屏障的数据不因保证范围内的故障丢失；不返回混合版本、坏数据或错误成功；未知提交可恢复 |
 | 运维 | 每个故障能通过状态、日志和指标定位到组件、请求及文件；进程重启后可验证恢复状态 |
 | 安装 | 全新 VM 无源码、无 Rust 编译器时一条命令部署，完成实际 mount 读写；第二次执行不会删除数据或启动重复进程 |
 
-性能比例沿用任务完成耗时口径，吞吐量、p50/p95/p99、CPU 和资源使用同时记录。具体计时边界见第 5 节。这里的比例不是“吞吐只有对端的 50%”。
+同数据量同时记录吞吐与任务耗时，明确比例方向；p50/p95/p99、CPU和资源使用同时记录。具体计时边界见第5节。删除先验正确性并报告对照操作数/秒及延迟，不新增硬比例。bind功能及性能分别为G2.12/13，要求显式开关且默认OFF；当前生产开关/ON流程尚未资格化。
 
 ## 2. 文件语义与判定方式
 
@@ -76,7 +78,7 @@ FUSE 支持的普通文件 POSIX 行为是必测。Linux 专有扩展（例如�
 
 总运行配额 8 vCPU、22 GiB RAM。宿主为 ARM64、10 核、32 GiB RAM。系统使用 Ubuntu 24.04 LTS；环境准备时锁定同一基础镜像 SHA256、具体发行修订和 Linux 6.8 内核包。四台保持一致。单 VM case 只使用 A；测试四节点副本时为 ctl 附加独立 16 GiB 数据卷，结束后卸载清理，ctl 不参加性能数据节点排名。
 
-系统盘、Meta 状态盘、数据盘使用 guest ext4、virtio 块设备；实际数据不能放 macOS 共享目录、virtiofs、tmpfs 或宿主目录。虚拟盘允许薄置备，但必须记录实际占用；准备前宿主可用空间 ≥ 100 GiB，测试期间宿主保留 ≥ 40 GiB，每台数据卷保留 ≥ 4 GiB（专门 ENOSPC 用例除外）。基线与候选顺序运行、清理各自数据后复用磁盘。
+系统盘、Meta状态盘、数据盘使用guest ext4、virtio块设备；实际数据不能放macOS共享目录、virtiofs、tmpfs或宿主目录。薄置备必须记录实际占用。完整大规模矩阵准备要求宿主可用≥100GiB、运行保留≥40GiB、每台数据卷保留≥4GiB（专用ENOSPC除外）。独立小case按实际数据/副本/工件峰值及保留空间准入；不以完整矩阵容量阻塞可安全运行的小项。基线/候选顺序运行，校验关闭后复用自有空间；需要扩盘先保存活动服务状态，不按日志规模猜测容量。
 
 Guest 能使用 root、`/dev/fuse`、网络故障注入和 `rdma_rxe`。开启 swap 会污染性能判定，性能运行使用关闭 swap 的固定配置；构建在单独的 build VM 中完成，性能测量时不运行构建。`/dev/kvm` 不作为本次文件系统验收前提。
 
@@ -111,13 +113,13 @@ Redis 的 `always` 在回复前同步 AOF；`everysec` 可能丢失最近的写�
 - mount 参数、Meta 及副本策略、durability lane、测试集合/排除项、随机种子、数据集摘要、超时和结果 schema。
 - 每个上游测试 ID 与 AFS case 的映射；包括发现的 TODO、TCONF、SKIP，避免通过 TAP 标题掩盖未覆盖项。
 
-`ENV-01` gate：四 VM 身份与配额正确；ext4/TLS/P2P/后端重启/跨 VM verbs 探针通过；上游 ext4 参考测试可运行；MooseFS 和 3FS 实际 mount 读写成功。任一项不满足则标记 BLOCKED，先修复环境，不开始产品性能调优。
+`ENV-01`是完整最终矩阵gate：四VM身份与配额、ext4/TLS/P2P/后端重启/跨VM verbs、上游ext4参考、MooseFS及3FS实际mount读写均通过。独立case只要求其实际依赖先通过；MooseFS/3FS或RDMA未资格化仅阻塞对应比较/数据面，不阻塞独立ext4工具、普通FUSE回归及小规模诊断。未满足的依赖记BLOCKED，诊断不升级正式PASS。
 
 已有 `dms-dev` 等 VM 不是自动合格的验收环境。准备环境不会默认停掉无关服务；开始性能 lane 前必须确保无其他运行 VM 或进程争用实验资源，记录宿主负载。四个 VM 的磁盘仍共享一块宿主 SSD，不能把它们当成独立物理故障域。
 
 ## 4. 功能用例
 
-下表是固定 case ID。所有“读写验证”均比较内容摘要、范围数据、EOF/length 和 errno；每个 case 保存应用调用顺序和后端证据。除明确限定 DFS/OwnerFs 的 case，其余对两后端 × 两 Meta 后端执行。
+下表保留完整目录的固定case ID。所有读写验证比较内容、EOF/length和errno，并保存调用顺序与后端证据。完整矩阵覆盖两文件后端×etcd/Redis；G1/G2按主表选择memory或local-file及必要拓扑，不要求预先跑完该矩阵。标准集完整适用pjdfstest、固定LTP基础子集、短FSx分别是G2出口；下列更广LTP、900秒×3 seeds及差分10×10000属于G3扩展。
 
 ### 4.1 标准测试集
 
@@ -170,7 +172,7 @@ Redis 的 `always` 在回复前同步 AOF；`everysec` 可能丢失最近的写�
 
 MooseFS、3FS 和 AFS 顺序使用同一 VM/卷/网络/数据集/客户端资源。固定版本和全部配置；禁止候选用 RAM、对端用磁盘，或候选单副本、对端多副本。对端的 Meta/存储基础设施消耗计入资源清单，不隐藏 3FS 的 FoundationDB。
 
-OwnerFs 主 lane 与 MooseFS goal=1 比较，固定 Home/数据位置以确保 B 的远端 case 不变成本地命中。DFS 主 lane 使用 3 个同步 durable copies，与 3FS 有效三副本 chain 对比。若某种副本或持久化合同不能匹配，该项 BLOCKED，不能使用折算系数充当通过。
+OwnerFs 本地与同条件native ext4比较；远端主lane与MooseFS goal=1比较，固定Home/数据位置以确保B的远端case不变成本地命中。DFS 主 lane 使用 3 个同步 durable copies，与 3FS 有效三副本 chain 对比。若某种副本或持久化合同不能匹配，该项 BLOCKED，不能使用折算系数充当通过。
 
 读写都经 FUSE/POSIX；不拿 3FS USRBIO 数字与本期不含 SDK 的 AFS 混比。3FS 和 AFS RDMA 使用同一 RXE 网络；另外的 gRPC 结果单独报告。RXE 数据只能说明这个 VM lane，不能外推为物理 RDMA 集群的“持平 3FS”。
 
@@ -178,12 +180,14 @@ OwnerFs 主 lane 与 MooseFS goal=1 比较，固定 Home/数据位置以确保 B
 
 ### 5.2 工作负载
 
+下表是大规模/扩展矩阵规格。G2先独立验收64MiB核心单节点读、写、删除及多节点读、写；512MiB/8GiB各自登记，不等待整张表。DFS先一写确认后多读者，记录逐读者正确性、吞吐及总吞吐。先C1再扩并发；没有驻留证明只称buffered/repeat。每case开跑前固定版本、种子、屏障、规模、计时、样本数、噪声容差、容量与停止预算，不按结果变更。
+
 | ID | 固定工作负载 | 门槛 |
 | --- | --- | --- |
-| `PERF-01 owner-local-read` | A/Home 冷读、预热后重复读；连续 8 GiB、随机 4 KiB/64 KiB；另测 512 MiB 页缓存可驻留的热读 lane；并发 1/8 | 每个适用任务 T_AFS/T_MooseFS ≤ 0.5 |
-| `PERF-02 owner-local-write` | A/Home 连续 8 GiB，1 MiB 写；4 KiB/64 KiB 固定 512 MiB 随机覆盖；并发 1/8，三种屏障 lane | ≤ 0.5 |
-| `PERF-03 owner-remote-read` | B 读 Home A，同 PERF-01；明确冷首次/重复读取，不启用 DFS 缓存 | ≤ 0.8 |
-| `PERF-04 owner-remote-write` | B 写 Home A，同 PERF-02 | ≤ 0.8 |
+| `PERF-01 owner-local-read` | A/Home 冷读、预热后重复读；连续 8 GiB、随机 4 KiB/64 KiB；另测 512 MiB 页缓存可驻留的热读 lane；并发 1/8 | 吞吐≥0.90×native ext4；同接口/屏障，case测前固定噪声容差 |
+| `PERF-02 owner-local-write` | A/Home 连续 8 GiB，1 MiB 写；4 KiB/64 KiB 固定 512 MiB 随机覆盖；并发 1/8，三种屏障 lane | 吞吐≥0.90×native ext4，同持久屏障 |
+| `PERF-03 owner-remote-read` | B 读 Home A，同 PERF-01；明确冷首次/重复读取，不启用 DFS 缓存 | 与MooseFS持平（中心目标比1.0，噪声容差测前固定） |
+| `PERF-04 owner-remote-write` | B 写 Home A，同 PERF-02 | 与MooseFS持平，同持久屏障 |
 | `PERF-05 dfs-read` | R=3；连续 8 GiB、固定 512 MiB 随机读，4 KiB/64 KiB/1 MiB，并发 1/8；冷、重复读及 512 MiB 页缓存热读分开 | 每项 T_AFS/T_3FS ≤ 1.0 |
 | `PERF-06 dfs-write` | R=3；连续 8 GiB、固定 512 MiB 覆盖，4 KiB/64 KiB/1 MiB，并发 1/8；三种屏障 lane | ≤ 1.0 |
 | `PERF-07 metadata` | 10,000 个 4 KiB 文件 create/stat/readdir/rename/unlink，并发 1/8，OwnerFs/DFS 分开 | 固定报告，不冒充已约定的读写比例指标 |
@@ -216,7 +220,7 @@ OwnerFs 主 lane 与 MooseFS goal=1 比较，固定 Home/数据位置以确保 B
 | `REL-13 namespace-durable` | 文件 fsync 与 fsync(dir) 分开注入崩溃；测试带目录屏障的 create/rename/unlink 恢复，普通文件屏障不能冒充目录持久化 |
 | `REL-14 soak` | 8 客户端混合操作持续 8 小时，每 15 分钟可重现故障/恢复；全量摘要正确，无持续 fd/任务/内存增长，没有未解释的 stuck pending |
 
-`REL-15 duplicate-active-meta` 保留为后续高可用设计的预留 ID，不纳入第一阶段用例 manifest 或发布 gate。`REL-06` 中的 inode owner lease 和 Node/Device epoch 校验仍为第一阶段必测，防止旧 Node 修改当前文件；它不要求实现 Meta 选主。
+`REL-15 duplicate-active-meta`保留为后续HA预留ID，不纳入当前69项manifest。`REL-06`防止旧Node修改当前文件，不要求Meta选主；G1中心local-file核心恢复已有证明，复杂故障组合列G3，不把普通使用中的错误成功/损坏/权限绕过延期。
 
 故障 case 的 harness 单操作 deadline 为 30 秒；恢复网络或重启服务后，60 秒内进入可服务或明确失败状态；小数据集副本修复 120 秒内完成。可靠性切点默认使用 64 MiB 文件，不以 8 GiB 性能任务套用这项修复预算；性能任务 watchdog 为 1,800 秒。它们是此 VM 验收的超时预算，不是所有容量的生产 SLA。超时必须保存状态/日志，不能无限等待使 case 假通过。
 
@@ -263,15 +267,15 @@ guest 硬复位和虚拟卷移除只模拟相应故障。SSD 控制器掉电、�
 
 ## 8. 验收执行与证据
 
-准备顺序：**环境 → ext4 参考与测试集冻结 → MooseFS/3FS 基线 → AFS 功能 → 故障/RDMA/部署 → 性能 → 完整回归**。没有合格基线不开始靠猜测调优；基线冻结后变更配置、版本或合同，要整项重测。
+完整扩展矩阵的准备包括环境、参考测试集、对照基线、功能及故障/RDMA/部署/性能和组合回归。当前执行按主表走独立分支：Owner标准/必要恢复→小规模local→remote；进入DFS先标准/核心恢复及一写多读。每项只等待自身依赖；合格对照缺失时可作标注清楚的诊断，不宣称性能达标。基线冻结后改变该case的配置、版本或合同，重测受影响的case。
 
-每个结果包含 case ID、参数矩阵、锁文件摘要、开始/结束时间、应用返回值和成功水位、数据校验、命令、日志/指标/trace、注入故障及恢复记录。性能额外保存每轮原值与比较公式。没有执行的 case 是 BLOCKED，不是 PASS。
+每个结果包含case ID、参数矩阵、锁文件摘要、开始/结束时间、应用返回值和成功水位、数据校验、命令、日志/指标/trace、故障及恢复记录。性能额外保存每轮原值与比较公式。未执行记NOT_RUN，实际依赖阻塞记BLOCKED；均不是PASS。
 
-第一阶段发布 gate 为本阶段所有必测功能、可靠性、部署、运维、RDMA 和性能门槛通过；审定的环境/范围排除项单列，未解决 BLOCKED 或 INCONCLUSIVE 不得被总结成“全通过”。第 10 节 TODO 不作为第一阶段失败或 BLOCKED 项，也不能记成已通过。验收 Skill 后续以本规范和锁文件为输入，按 case 执行、定位、修复和复验，不能自行降低门槛、改副本数、换介质或吞掉错误。
+各阶段发布gate以[独立验收主表](../development/trial-release-goals.md)为准。G1为已交付试用范围；G2候选须完成选定核心case、受影响标准/恢复回归和独立安装；完整69项/8小时/RDMA异常等留作G3逐项验收，不作为所有小项前置。审定排除、BLOCKED及INCONCLUSIVE单列，不总结成全通过。native未资格化保持OFF并可独立交付普通版本，G2.12/13仍待完成。不得降低已选case的正确性、持久语义、副本或吞掉错误。
 
 ## 9. 环境准备需要完成的冻结项
 
-本规范已定义拓扑、资源、数据量、case 名称和判据。开始开发前需要实际形成下列制品，不能把文档定义当成它们已经存在：
+本规范定义完整目录的拓扑、资源、数据量、case和判据。进入相应完整验收项前须形成下列实际制品；独立小项只冻结实际依赖，不能把文档定义当成已有环境：
 
 1. 同版 ARM64 Linux 镜像、专用 VM 网络与 RXE 工作证据；etcd/Redis/工具版本及安装包摘要。
 2. 测试脚本、完整用例 manifest、逐项 LTP/扩展 POSIX 适用性表、ext4 参考结果。
@@ -280,9 +284,9 @@ guest 硬复位和虚拟卷移除只模拟相应故障。SSD 控制器掉电、�
 
 依赖版本与排除项在准备阶段记录精确值后冻结。若 3FS 在本机资源/RXE 下不能完成公平基线，该性能 gate 保持 BLOCKED，单独评审环境调整，不改成“接近公开硬件数字”或用其他文件系统替代。
 
-## 10. 第一阶段验收后 TODO
+## 10. 后续能力 TODO
 
-下列能力属于后续目标，第一阶段验收完成后分别设计范围、接口和验收标准。列入 TODO 不自动批准具体实现方案，也不要求第一阶段预先搭建框架。候选项经评审确定范围后才能成为后续承诺。
+下列能力属于后续目标，分别设计范围、接口和验收标准；当前优先级见G3主表。列入TODO不自动批准实现方案，也不要求G1/G2预先搭建框架。
 
 ### 10.1 已明确的后续能力
 

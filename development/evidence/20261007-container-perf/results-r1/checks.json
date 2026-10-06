@@ -1,0 +1,1005 @@
+{
+  "Linux-root": {
+    "status": "PASS",
+    "value": [
+      "Linux",
+      "aarch64",
+      0
+    ]
+  },
+  "new-opt-root": {
+    "status": "PASS",
+    "value": "/opt/afs-container-perf-20261007-r1"
+  },
+  "dependencies": {
+    "status": "PASS",
+    "value": {
+      "bash": "/usr/bin/bash",
+      "python3": "/usr/bin/python3",
+      "tar": "/usr/bin/tar",
+      "ldd": "/usr/bin/ldd",
+      "openssl": "/usr/bin/openssl",
+      "findmnt": "/usr/bin/findmnt",
+      "fusermount3": "/usr/bin/fusermount3",
+      "curl": "/usr/bin/curl",
+      "flock": "/usr/bin/flock",
+      "ss": "/usr/bin/ss",
+      "awk": "/usr/bin/awk",
+      "sed": "/usr/bin/sed",
+      "mountpoint": "/usr/bin/mountpoint",
+      "nsenter": "/usr/bin/nsenter",
+      "setsid": "/usr/bin/setsid"
+    }
+  },
+  "fuse": {
+    "status": "PASS",
+    "value": "/dev/fuse"
+  },
+  "opt-ext4": {
+    "status": "PASS",
+    "value": {
+      "filesystems": [
+        {
+          "target": "/",
+          "source": "/dev/vda1",
+          "fstype": "ext4",
+          "options": "rw,relatime,discard,errors=remount-ro,commit=30"
+        }
+      ]
+    }
+  },
+  "capacity": {
+    "status": "PASS",
+    "value": 11455442944
+  },
+  "ports": {
+    "status": "PASS",
+    "value": [
+      24400,
+      24401,
+      24500,
+      24501
+    ]
+  },
+  "package": {
+    "status": "PASS",
+    "value": "ee25d5892c4e884e67c86d4e5b9c6ab551af4c46649edab6a05da06659d1aff9"
+  },
+  "runtime": {
+    "status": "PASS",
+    "value": "d10ecae898361832a059be2089bab92d158aec54661b18ed7346ed79628b46b0"
+  },
+  "io-bin": {
+    "status": "PASS",
+    "value": "/opt/afs-container-perf-template-20261007-r1/io"
+  },
+  "benchmark-bin": {
+    "status": "PASS",
+    "value": "/opt/afs-container-perf-template-20261007-r1/benchmark"
+  },
+  "template-afs-workspace-probe": {
+    "status": "PASS",
+    "value": {
+      "sha256": "c9c9fd1a3568c872fb975add7595df43f46016c674647ef48ac2103db979ddb7",
+      "bytes": 560000,
+      "uid": 0,
+      "mode": "0o755"
+    }
+  },
+  "template-bin/busybox": {
+    "status": "PASS",
+    "value": {
+      "sha256": "52151e7f322f926b64049cdaa1410dc3ea6485525e0624b05813791c219ae933",
+      "bytes": 1914704,
+      "uid": 0,
+      "mode": "0o755"
+    }
+  },
+  "template-bin/sh": {
+    "status": "PASS",
+    "value": {
+      "sha256": "52151e7f322f926b64049cdaa1410dc3ea6485525e0624b05813791c219ae933",
+      "bytes": 1914704,
+      "uid": 0,
+      "mode": "0o755"
+    }
+  },
+  "template-lib/ld-linux-aarch64.so.1": {
+    "status": "PASS",
+    "value": {
+      "sha256": "393384096ffa869e1be20d2f91fdf08dfadb9f3e531dfe724085d8501d3f85d9",
+      "bytes": 203968,
+      "uid": 0,
+      "mode": "0o755"
+    }
+  },
+  "template-lib/aarch64-linux-gnu/libgcc_s.so.1": {
+    "status": "PASS",
+    "value": {
+      "sha256": "f2d3ad2bf0b61f6bc944cc37d7b6ab7f88d2582b41ff989ca164803f56cc5f20",
+      "bytes": 133696,
+      "uid": 0,
+      "mode": "0o755"
+    }
+  },
+  "template-lib/aarch64-linux-gnu/libc.so.6": {
+    "status": "PASS",
+    "value": {
+      "sha256": "fe5966a43e068ad7cb389c3affa069f4ee6f296e07d7ccc0398a23cfde4f0b7e",
+      "bytes": 1722920,
+      "uid": 0,
+      "mode": "0o755"
+    }
+  },
+  "template-io": {
+    "status": "PASS",
+    "value": {
+      "sha256": "70ac97c7634d406a177a74c783d446b62a2014ba198586132882a1d9228e55e8",
+      "bytes": 72400,
+      "uid": 0,
+      "mode": "0o755"
+    }
+  },
+  "template-benchmark": {
+    "status": "PASS",
+    "value": {
+      "sha256": "64f9d05b21e47f54d1cb025d9784182d3749bdd944c531acff10443ae6d5a551",
+      "bytes": 72304,
+      "uid": 0,
+      "mode": "0o755"
+    }
+  },
+  "io-trusted-sha": {
+    "status": "PASS",
+    "value": {
+      "sha256": "70ac97c7634d406a177a74c783d446b62a2014ba198586132882a1d9228e55e8",
+      "bytes": 72400,
+      "uid": 0,
+      "mode": "0o755"
+    }
+  },
+  "io-libraries": {
+    "status": "PASS",
+    "value": "\tlinux-vdso.so.1 (0x0000e9fc12f2f000)\n\tlibc.so.6 => /lib/aarch64-linux-gnu/libc.so.6 (0x0000e9fc12cf0000)\n\t/lib/ld-linux-aarch64.so.1 (0x0000e9fc12ee0000)\n"
+  },
+  "benchmark-trusted-sha": {
+    "status": "PASS",
+    "value": {
+      "sha256": "64f9d05b21e47f54d1cb025d9784182d3749bdd944c531acff10443ae6d5a551",
+      "bytes": 72304,
+      "uid": 0,
+      "mode": "0o755"
+    }
+  },
+  "benchmark-libraries": {
+    "status": "PASS",
+    "value": "\tlinux-vdso.so.1 (0x0000ec7e0032d000)\n\tlibc.so.6 => /lib/aarch64-linux-gnu/libc.so.6 (0x0000ec7e000f0000)\n\t/lib/ld-linux-aarch64.so.1 (0x0000ec7e002e0000)\n"
+  },
+  "off-one-package": {
+    "status": "PASS",
+    "value": [
+      "/opt/afs-container-perf-20261007-r1/off/package/afs-0.1.0-g2-procfree-6d51aeb-linux-aarch64"
+    ]
+  },
+  "off-source-commit": {
+    "status": "PASS",
+    "value": {
+      "schema": "afs.release-package.v1",
+      "name": "afs",
+      "version": "0.1.0-g2-procfree-6d51aeb",
+      "target": "linux-aarch64",
+      "source_commit": "6d51aeb45c1ed8669d80f612b3817e6d1bdabe04",
+      "source_date_epoch": 0,
+      "features": "ownerfs,dfs,rdma",
+      "rust_toolchain": "1.95.0",
+      "binaries": {
+        "afs-meta": {
+          "sha256": "2c7b7d088b759e3b9375080002182aa484a424b4fa216da1fb79a1004e96168e"
+        },
+        "afs-node": {
+          "sha256": "2cf1f538fe7af332a711f3c66a074ace140c00773826a182709a6445b8ae2645"
+        }
+      },
+      "contains": [
+        "afs-meta",
+        "afs-node",
+        "afs-processctl",
+        "afs-trial-config",
+        "afs-selfcheck",
+        "dep02-smoke.sh",
+        "docs/guides/trial.md"
+      ],
+      "installer": "install.sh",
+      "notes": "Built from existing Linux release binaries; no Cargo or Git required on target guests."
+    }
+  },
+  "off-meta-ELF": {
+    "status": "PASS",
+    "value": "2c7b7d088b759e3b9375080002182aa484a424b4fa216da1fb79a1004e96168e"
+  },
+  "off-meta-libraries": {
+    "status": "PASS",
+    "value": "\tlinux-vdso.so.1 (0x0000f7468fdc8000)\n\tlibibverbs.so.1 => /lib/aarch64-linux-gnu/libibverbs.so.1 (0x0000f7468f290000)\n\tlibgcc_s.so.1 => /lib/aarch64-linux-gnu/libgcc_s.so.1 (0x0000f7468f250000)\n\tlibm.so.6 => /lib/aarch64-linux-gnu/libm.so.6 (0x0000f7468f1a0000)\n\tlibc.so.6 => /lib/aarch64-linux-gnu/libc.so.6 (0x0000f7468efe0000)\n\t/lib/ld-linux-aarch64.so.1 (0x0000f7468fd80000)\n\tlibnl-route-3.so.200 => /lib/aarch64-linux-gnu/libnl-route-3.so.200 (0x0000f7468ef30000)\n\tlibnl-3.so.200 => /lib/aarch64-linux-gnu/libnl-3.so.200 (0x0000f7468eee0000)\n"
+  },
+  "off-node-ELF": {
+    "status": "PASS",
+    "value": "2cf1f538fe7af332a711f3c66a074ace140c00773826a182709a6445b8ae2645"
+  },
+  "off-node-libraries": {
+    "status": "PASS",
+    "value": "\tlinux-vdso.so.1 (0x0000f6aef01d6000)\n\tlibibverbs.so.1 => /lib/aarch64-linux-gnu/libibverbs.so.1 (0x0000f6aeeeff0000)\n\tlibgcc_s.so.1 => /lib/aarch64-linux-gnu/libgcc_s.so.1 (0x0000f6aeeefb0000)\n\tlibm.so.6 => /lib/aarch64-linux-gnu/libm.so.6 (0x0000f6aeeef00000)\n\tlibc.so.6 => /lib/aarch64-linux-gnu/libc.so.6 (0x0000f6aeeed40000)\n\t/lib/ld-linux-aarch64.so.1 (0x0000f6aef0190000)\n\tlibnl-route-3.so.200 => /lib/aarch64-linux-gnu/libnl-route-3.so.200 (0x0000f6aeeec90000)\n\tlibnl-3.so.200 => /lib/aarch64-linux-gnu/libnl-3.so.200 (0x0000f6aeeec40000)\n"
+  },
+  "input-afs-workspace-probe": {
+    "status": "PASS",
+    "value": {
+      "sha256": "c9c9fd1a3568c872fb975add7595df43f46016c674647ef48ac2103db979ddb7",
+      "bytes": 560000,
+      "uid": 0,
+      "mode": "0o755"
+    }
+  },
+  "input-bin/busybox": {
+    "status": "PASS",
+    "value": {
+      "sha256": "52151e7f322f926b64049cdaa1410dc3ea6485525e0624b05813791c219ae933",
+      "bytes": 1914704,
+      "uid": 0,
+      "mode": "0o755"
+    }
+  },
+  "input-bin/sh": {
+    "status": "PASS",
+    "value": {
+      "sha256": "52151e7f322f926b64049cdaa1410dc3ea6485525e0624b05813791c219ae933",
+      "bytes": 1914704,
+      "uid": 0,
+      "mode": "0o755"
+    }
+  },
+  "input-lib/ld-linux-aarch64.so.1": {
+    "status": "PASS",
+    "value": {
+      "sha256": "393384096ffa869e1be20d2f91fdf08dfadb9f3e531dfe724085d8501d3f85d9",
+      "bytes": 203968,
+      "uid": 0,
+      "mode": "0o755"
+    }
+  },
+  "input-lib/aarch64-linux-gnu/libgcc_s.so.1": {
+    "status": "PASS",
+    "value": {
+      "sha256": "f2d3ad2bf0b61f6bc944cc37d7b6ab7f88d2582b41ff989ca164803f56cc5f20",
+      "bytes": 133696,
+      "uid": 0,
+      "mode": "0o755"
+    }
+  },
+  "input-lib/aarch64-linux-gnu/libc.so.6": {
+    "status": "PASS",
+    "value": {
+      "sha256": "fe5966a43e068ad7cb389c3affa069f4ee6f296e07d7ccc0398a23cfde4f0b7e",
+      "bytes": 1722920,
+      "uid": 0,
+      "mode": "0o755"
+    }
+  },
+  "input-io": {
+    "status": "PASS",
+    "value": {
+      "sha256": "70ac97c7634d406a177a74c783d446b62a2014ba198586132882a1d9228e55e8",
+      "bytes": 72400,
+      "uid": 0,
+      "mode": "0o755"
+    }
+  },
+  "input-benchmark": {
+    "status": "PASS",
+    "value": {
+      "sha256": "64f9d05b21e47f54d1cb025d9784182d3749bdd944c531acff10443ae6d5a551",
+      "bytes": 72304,
+      "uid": 0,
+      "mode": "0o755"
+    }
+  },
+  "off-native-explicit-false": {
+    "status": "PASS",
+    "value": {
+      "experimental_native_workspace": false,
+      "id": "node-a",
+      "fs": "ownerfs",
+      "meta_endpoint": "https://127.0.0.1:24400",
+      "grpc_listen": "127.0.0.1:24500",
+      "rest_listen": "127.0.0.1:24501",
+      "advertise_endpoint": "https://127.0.0.1:24500",
+      "data_dir": "/opt/afs-container-perf-20261007-r1/off/state/node",
+      "uds_path": "/opt/afs-container-perf-20261007-r1/off/run/node.sock",
+      "ownerfs_mount": "/opt/afs-container-perf-20261007-r1/off/mount/ownerfs",
+      "data_mode": "grpc",
+      "allow_volatile_meta": false,
+      "dfs_desired_copies": 1,
+      "dfs_sync_required_copies": 1,
+      "dfs_min_distinct_nodes": 1,
+      "dfs_min_distinct_failure_domains": 1,
+      "dfs_local_copy": "required",
+      "log_level": "info",
+      "trace_enabled": false,
+      "tls_ca_certificate": "/opt/afs-container-perf-20261007-r1/off/etc/tls/ca.pem",
+      "tls_identity_certificate": "/opt/afs-container-perf-20261007-r1/off/etc/tls/node-a.pem",
+      "tls_identity_private_key": "/opt/afs-container-perf-20261007-r1/off/etc/tls/node-a-key.pem",
+      "tls_server_name": "afs-meta",
+      "trusted_node_certs": {
+        "node-a": "/opt/afs-container-perf-20261007-r1/off/etc/tls/node-a.pem"
+      }
+    }
+  },
+  "off-native-table-absent": {
+    "status": "PASS",
+    "value": {
+      "experimental_native_workspace": false,
+      "id": "node-a",
+      "fs": "ownerfs",
+      "meta_endpoint": "https://127.0.0.1:24400",
+      "grpc_listen": "127.0.0.1:24500",
+      "rest_listen": "127.0.0.1:24501",
+      "advertise_endpoint": "https://127.0.0.1:24500",
+      "data_dir": "/opt/afs-container-perf-20261007-r1/off/state/node",
+      "uds_path": "/opt/afs-container-perf-20261007-r1/off/run/node.sock",
+      "ownerfs_mount": "/opt/afs-container-perf-20261007-r1/off/mount/ownerfs",
+      "data_mode": "grpc",
+      "allow_volatile_meta": false,
+      "dfs_desired_copies": 1,
+      "dfs_sync_required_copies": 1,
+      "dfs_min_distinct_nodes": 1,
+      "dfs_min_distinct_failure_domains": 1,
+      "dfs_local_copy": "required",
+      "log_level": "info",
+      "trace_enabled": false,
+      "tls_ca_certificate": "/opt/afs-container-perf-20261007-r1/off/etc/tls/ca.pem",
+      "tls_identity_certificate": "/opt/afs-container-perf-20261007-r1/off/etc/tls/node-a.pem",
+      "tls_identity_private_key": "/opt/afs-container-perf-20261007-r1/off/etc/tls/node-a-key.pem",
+      "tls_server_name": "afs-meta",
+      "trusted_node_certs": {
+        "node-a": "/opt/afs-container-perf-20261007-r1/off/etc/tls/node-a.pem"
+      }
+    }
+  },
+  "off-meta-live-ELF": {
+    "status": "PASS",
+    "value": "2c7b7d088b759e3b9375080002182aa484a424b4fa216da1fb79a1004e96168e"
+  },
+  "off-meta-installed-process": {
+    "status": "PASS",
+    "value": {
+      "path": "/opt/afs-container-perf-20261007-r1/off/prefix/bin/afs-meta",
+      "device": 64769,
+      "inode": 526436
+    }
+  },
+  "off-node-live-ELF": {
+    "status": "PASS",
+    "value": "2cf1f538fe7af332a711f3c66a074ace140c00773826a182709a6445b8ae2645"
+  },
+  "off-node-installed-process": {
+    "status": "PASS",
+    "value": {
+      "path": "/opt/afs-container-perf-20261007-r1/off/prefix/bin/afs-node",
+      "device": 64769,
+      "inode": 526437
+    }
+  },
+  "off-ownerfs-mount": {
+    "status": "PASS",
+    "value": {
+      "target": "/opt/afs-container-perf-20261007-r1/off/mount/ownerfs",
+      "source": "afs-ownerfs",
+      "fstype": "fuse",
+      "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other",
+      "id": 61
+    }
+  },
+  "off-reference-source-match": {
+    "status": "PASS",
+    "value": {
+      "source": [
+        64769,
+        526519
+      ],
+      "final": [
+        64769,
+        526519
+      ]
+    }
+  },
+  "off-reference-one-workspace-mount": {
+    "status": "PASS",
+    "value": [
+      "250 247 253:1 /opt/afs-container-perf-20261007-r1/off-reference-workspace /workspace rw,nosuid,nodev,relatime - ext4 /dev/vda1 rw,discard,errors=remount-ro,commit=30"
+    ]
+  },
+  "off-reference-mount-ext4": {
+    "status": "PASS",
+    "value": "250 247 253:1 /opt/afs-container-perf-20261007-r1/off-reference-workspace /workspace rw,nosuid,nodev,relatime - ext4 /dev/vda1 rw,discard,errors=remount-ro,commit=30"
+  },
+  "off-experiment-source-match": {
+    "status": "PASS",
+    "value": {
+      "source": [
+        45,
+        2
+      ],
+      "final": [
+        45,
+        2
+      ]
+    }
+  },
+  "off-experiment-one-workspace-mount": {
+    "status": "PASS",
+    "value": [
+      "255 252 0:45 /workspace /workspace rw,nosuid,nodev,noatime master:173 - fuse afs-ownerfs rw,user_id=0,group_id=0,default_permissions,allow_other"
+    ]
+  },
+  "off-experiment-mount-fuse": {
+    "status": "PASS",
+    "value": "255 252 0:45 /workspace /workspace rw,nosuid,nodev,noatime master:173 - fuse afs-ownerfs rw,user_id=0,group_id=0,default_permissions,allow_other"
+  },
+  "off-experiment-stopped": {
+    "status": "PASS",
+    "value": {
+      "ociVersion": "1.3.0",
+      "id": "off-experiment",
+      "pid": 0,
+      "status": "stopped",
+      "bundle": "/opt/afs-container-perf-20261007-r1/bundle-off-experiment",
+      "rootfs": "/opt/afs-container-perf-20261007-r1/rootfs-off-experiment",
+      "created": "2026-10-06T20:34:53.899472992Z",
+      "owner": ""
+    }
+  },
+  "off-reference-stopped": {
+    "status": "PASS",
+    "value": {
+      "ociVersion": "1.3.0",
+      "id": "off-reference",
+      "pid": 0,
+      "status": "stopped",
+      "bundle": "/opt/afs-container-perf-20261007-r1/bundle-off-reference",
+      "rootfs": "/opt/afs-container-perf-20261007-r1/rootfs-off-reference",
+      "created": "2026-10-06T20:34:53.851526273Z",
+      "owner": ""
+    }
+  },
+  "off-mount-removed": {
+    "status": "PASS",
+    "value": "absent"
+  },
+  "off-meta-gone": {
+    "status": "PASS",
+    "value": {
+      "pid": 10503,
+      "starttick": 4951107,
+      "sha256": "2c7b7d088b759e3b9375080002182aa484a424b4fa216da1fb79a1004e96168e",
+      "executable": {
+        "path": "/opt/afs-container-perf-20261007-r1/off/prefix/bin/afs-meta",
+        "device": 64769,
+        "inode": 526436
+      }
+    }
+  },
+  "off-node-gone": {
+    "status": "PASS",
+    "value": {
+      "pid": 10687,
+      "starttick": 4951121,
+      "sha256": "2cf1f538fe7af332a711f3c66a074ace140c00773826a182709a6445b8ae2645",
+      "executable": {
+        "path": "/opt/afs-container-perf-20261007-r1/off/prefix/bin/afs-node",
+        "device": 64769,
+        "inode": 526437
+      }
+    }
+  },
+  "off-control-clean": {
+    "status": "PASS",
+    "value": "absent"
+  },
+  "off-ordinary-runtime-empty": {
+    "status": "PASS",
+    "value": "empty"
+  },
+  "on-one-package": {
+    "status": "PASS",
+    "value": [
+      "/opt/afs-container-perf-20261007-r1/on/package/afs-0.1.0-g2-procfree-6d51aeb-linux-aarch64"
+    ]
+  },
+  "on-source-commit": {
+    "status": "PASS",
+    "value": {
+      "schema": "afs.release-package.v1",
+      "name": "afs",
+      "version": "0.1.0-g2-procfree-6d51aeb",
+      "target": "linux-aarch64",
+      "source_commit": "6d51aeb45c1ed8669d80f612b3817e6d1bdabe04",
+      "source_date_epoch": 0,
+      "features": "ownerfs,dfs,rdma",
+      "rust_toolchain": "1.95.0",
+      "binaries": {
+        "afs-meta": {
+          "sha256": "2c7b7d088b759e3b9375080002182aa484a424b4fa216da1fb79a1004e96168e"
+        },
+        "afs-node": {
+          "sha256": "2cf1f538fe7af332a711f3c66a074ace140c00773826a182709a6445b8ae2645"
+        }
+      },
+      "contains": [
+        "afs-meta",
+        "afs-node",
+        "afs-processctl",
+        "afs-trial-config",
+        "afs-selfcheck",
+        "dep02-smoke.sh",
+        "docs/guides/trial.md"
+      ],
+      "installer": "install.sh",
+      "notes": "Built from existing Linux release binaries; no Cargo or Git required on target guests."
+    }
+  },
+  "on-meta-ELF": {
+    "status": "PASS",
+    "value": "2c7b7d088b759e3b9375080002182aa484a424b4fa216da1fb79a1004e96168e"
+  },
+  "on-meta-libraries": {
+    "status": "PASS",
+    "value": "\tlinux-vdso.so.1 (0x0000e95c6cc2d000)\n\tlibibverbs.so.1 => /lib/aarch64-linux-gnu/libibverbs.so.1 (0x0000e95c6c100000)\n\tlibgcc_s.so.1 => /lib/aarch64-linux-gnu/libgcc_s.so.1 (0x0000e95c6c0c0000)\n\tlibm.so.6 => /lib/aarch64-linux-gnu/libm.so.6 (0x0000e95c6c010000)\n\tlibc.so.6 => /lib/aarch64-linux-gnu/libc.so.6 (0x0000e95c6be50000)\n\t/lib/ld-linux-aarch64.so.1 (0x0000e95c6cbf0000)\n\tlibnl-route-3.so.200 => /lib/aarch64-linux-gnu/libnl-route-3.so.200 (0x0000e95c6bda0000)\n\tlibnl-3.so.200 => /lib/aarch64-linux-gnu/libnl-3.so.200 (0x0000e95c6bd50000)\n"
+  },
+  "on-node-ELF": {
+    "status": "PASS",
+    "value": "2cf1f538fe7af332a711f3c66a074ace140c00773826a182709a6445b8ae2645"
+  },
+  "on-node-libraries": {
+    "status": "PASS",
+    "value": "\tlinux-vdso.so.1 (0x0000f89c0160d000)\n\tlibibverbs.so.1 => /lib/aarch64-linux-gnu/libibverbs.so.1 (0x0000f89c00430000)\n\tlibgcc_s.so.1 => /lib/aarch64-linux-gnu/libgcc_s.so.1 (0x0000f89c003f0000)\n\tlibm.so.6 => /lib/aarch64-linux-gnu/libm.so.6 (0x0000f89c00340000)\n\tlibc.so.6 => /lib/aarch64-linux-gnu/libc.so.6 (0x0000f89c00180000)\n\t/lib/ld-linux-aarch64.so.1 (0x0000f89c015d0000)\n\tlibnl-route-3.so.200 => /lib/aarch64-linux-gnu/libnl-route-3.so.200 (0x0000f89c000d0000)\n\tlibnl-3.so.200 => /lib/aarch64-linux-gnu/libnl-3.so.200 (0x0000f89c00080000)\n"
+  },
+  "on-meta-live-ELF": {
+    "status": "PASS",
+    "value": "2c7b7d088b759e3b9375080002182aa484a424b4fa216da1fb79a1004e96168e"
+  },
+  "on-meta-installed-process": {
+    "status": "PASS",
+    "value": {
+      "path": "/opt/afs-container-perf-20261007-r1/on/prefix/bin/afs-meta",
+      "device": 64769,
+      "inode": 786505
+    }
+  },
+  "on-node-live-ELF": {
+    "status": "PASS",
+    "value": "2cf1f538fe7af332a711f3c66a074ace140c00773826a182709a6445b8ae2645"
+  },
+  "on-node-installed-process": {
+    "status": "PASS",
+    "value": {
+      "path": "/opt/afs-container-perf-20261007-r1/on/prefix/bin/afs-node",
+      "device": 64769,
+      "inode": 786506
+    }
+  },
+  "on-ownerfs-mount": {
+    "status": "PASS",
+    "value": {
+      "target": "/opt/afs-container-perf-20261007-r1/on/mount/ownerfs",
+      "source": "afs-ownerfs",
+      "fstype": "fuse",
+      "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other",
+      "id": 61
+    }
+  },
+  "on-reference-source-match": {
+    "status": "PASS",
+    "value": {
+      "source": [
+        64769,
+        786578
+      ],
+      "final": [
+        64769,
+        786578
+      ]
+    }
+  },
+  "on-reference-one-workspace-mount": {
+    "status": "PASS",
+    "value": [
+      "404 401 253:1 /opt/afs-container-perf-20261007-r1/on-reference-workspace /workspace rw,nosuid,nodev,relatime - ext4 /dev/vda1 rw,discard,errors=remount-ro,commit=30"
+    ]
+  },
+  "on-reference-mount-ext4": {
+    "status": "PASS",
+    "value": "404 401 253:1 /opt/afs-container-perf-20261007-r1/on-reference-workspace /workspace rw,nosuid,nodev,relatime - ext4 /dev/vda1 rw,discard,errors=remount-ro,commit=30"
+  },
+  "perf-start-response": {
+    "status": "PASS",
+    "value": {
+      "access_generation": 1,
+      "container": "afs-native-perf-start",
+      "epoch": 1,
+      "home_node": "node-a",
+      "home_session": "507c35e9-5b6b-4d7c-ba38-c9e32f98fd86",
+      "production_ready": false,
+      "root": "root-776f726b7370616365",
+      "scope": "single managed experimental container; not READY or revocation ACK",
+      "state": "FinalVerified"
+    }
+  },
+  "on-native-final": {
+    "status": "PASS",
+    "value": {
+      "access_generation": 1,
+      "container": "afs-native-perf-start",
+      "epoch": 1,
+      "home_node": "node-a",
+      "home_session": "507c35e9-5b6b-4d7c-ba38-c9e32f98fd86",
+      "production_ready": false,
+      "root": "root-776f726b7370616365",
+      "scope": "single managed experimental container; not READY or revocation ACK",
+      "state": "FinalVerified"
+    }
+  },
+  "on-native-workspace-ext4": {
+    "status": "PASS",
+    "value": [
+      "430 427 253:1 /opt/afs-container-perf-20261007-r1/on/state/node/ownerfs/root-776f726b7370616365-e1 /workspace rw,nosuid,nodev,relatime - ext4 /dev/vda1 rw,discard,errors=remount-ro,commit=30"
+    ]
+  },
+  "on-experiment-r00-write-response": {
+    "status": "PASS",
+    "value": {
+      "production_ready": false,
+      "status": "Executed",
+      "stdout_bytes": 484
+    }
+  },
+  "on-experiment-r00-write-executed": {
+    "status": "PASS",
+    "value": {
+      "production_ready": false,
+      "status": "Executed",
+      "stdout_bytes": 484
+    }
+  },
+  "on-experiment-r00-read-response": {
+    "status": "PASS",
+    "value": {
+      "production_ready": false,
+      "status": "Executed",
+      "stdout_bytes": 473
+    }
+  },
+  "on-experiment-r00-read-executed": {
+    "status": "PASS",
+    "value": {
+      "production_ready": false,
+      "status": "Executed",
+      "stdout_bytes": 473
+    }
+  },
+  "on-experiment-r00-metadata-response": {
+    "status": "PASS",
+    "value": {
+      "production_ready": false,
+      "status": "Executed",
+      "stdout_bytes": 822
+    }
+  },
+  "on-experiment-r00-metadata-executed": {
+    "status": "PASS",
+    "value": {
+      "production_ready": false,
+      "status": "Executed",
+      "stdout_bytes": 822
+    }
+  },
+  "on-experiment-r01-write-response": {
+    "status": "PASS",
+    "value": {
+      "production_ready": false,
+      "status": "Executed",
+      "stdout_bytes": 484
+    }
+  },
+  "on-experiment-r01-write-executed": {
+    "status": "PASS",
+    "value": {
+      "production_ready": false,
+      "status": "Executed",
+      "stdout_bytes": 484
+    }
+  },
+  "on-experiment-r01-read-response": {
+    "status": "PASS",
+    "value": {
+      "production_ready": false,
+      "status": "Executed",
+      "stdout_bytes": 473
+    }
+  },
+  "on-experiment-r01-read-executed": {
+    "status": "PASS",
+    "value": {
+      "production_ready": false,
+      "status": "Executed",
+      "stdout_bytes": 473
+    }
+  },
+  "on-experiment-r01-metadata-response": {
+    "status": "PASS",
+    "value": {
+      "production_ready": false,
+      "status": "Executed",
+      "stdout_bytes": 820
+    }
+  },
+  "on-experiment-r01-metadata-executed": {
+    "status": "PASS",
+    "value": {
+      "production_ready": false,
+      "status": "Executed",
+      "stdout_bytes": 820
+    }
+  },
+  "on-experiment-r02-write-response": {
+    "status": "PASS",
+    "value": {
+      "production_ready": false,
+      "status": "Executed",
+      "stdout_bytes": 484
+    }
+  },
+  "on-experiment-r02-write-executed": {
+    "status": "PASS",
+    "value": {
+      "production_ready": false,
+      "status": "Executed",
+      "stdout_bytes": 484
+    }
+  },
+  "on-experiment-r02-read-response": {
+    "status": "PASS",
+    "value": {
+      "production_ready": false,
+      "status": "Executed",
+      "stdout_bytes": 473
+    }
+  },
+  "on-experiment-r02-read-executed": {
+    "status": "PASS",
+    "value": {
+      "production_ready": false,
+      "status": "Executed",
+      "stdout_bytes": 473
+    }
+  },
+  "on-experiment-r02-metadata-response": {
+    "status": "PASS",
+    "value": {
+      "production_ready": false,
+      "status": "Executed",
+      "stdout_bytes": 821
+    }
+  },
+  "on-experiment-r02-metadata-executed": {
+    "status": "PASS",
+    "value": {
+      "production_ready": false,
+      "status": "Executed",
+      "stdout_bytes": 821
+    }
+  },
+  "on-experiment-r03-write-response": {
+    "status": "PASS",
+    "value": {
+      "production_ready": false,
+      "status": "Executed",
+      "stdout_bytes": 484
+    }
+  },
+  "on-experiment-r03-write-executed": {
+    "status": "PASS",
+    "value": {
+      "production_ready": false,
+      "status": "Executed",
+      "stdout_bytes": 484
+    }
+  },
+  "on-experiment-r03-read-response": {
+    "status": "PASS",
+    "value": {
+      "production_ready": false,
+      "status": "Executed",
+      "stdout_bytes": 473
+    }
+  },
+  "on-experiment-r03-read-executed": {
+    "status": "PASS",
+    "value": {
+      "production_ready": false,
+      "status": "Executed",
+      "stdout_bytes": 473
+    }
+  },
+  "on-experiment-r03-metadata-response": {
+    "status": "PASS",
+    "value": {
+      "production_ready": false,
+      "status": "Executed",
+      "stdout_bytes": 820
+    }
+  },
+  "on-experiment-r03-metadata-executed": {
+    "status": "PASS",
+    "value": {
+      "production_ready": false,
+      "status": "Executed",
+      "stdout_bytes": 820
+    }
+  },
+  "on-experiment-r04-write-response": {
+    "status": "PASS",
+    "value": {
+      "production_ready": false,
+      "status": "Executed",
+      "stdout_bytes": 484
+    }
+  },
+  "on-experiment-r04-write-executed": {
+    "status": "PASS",
+    "value": {
+      "production_ready": false,
+      "status": "Executed",
+      "stdout_bytes": 484
+    }
+  },
+  "on-experiment-r04-read-response": {
+    "status": "PASS",
+    "value": {
+      "production_ready": false,
+      "status": "Executed",
+      "stdout_bytes": 474
+    }
+  },
+  "on-experiment-r04-read-executed": {
+    "status": "PASS",
+    "value": {
+      "production_ready": false,
+      "status": "Executed",
+      "stdout_bytes": 474
+    }
+  },
+  "on-experiment-r04-metadata-response": {
+    "status": "PASS",
+    "value": {
+      "production_ready": false,
+      "status": "Executed",
+      "stdout_bytes": 822
+    }
+  },
+  "on-experiment-r04-metadata-executed": {
+    "status": "PASS",
+    "value": {
+      "production_ready": false,
+      "status": "Executed",
+      "stdout_bytes": 822
+    }
+  },
+  "on-experiment-r05-write-response": {
+    "status": "PASS",
+    "value": {
+      "production_ready": false,
+      "status": "Executed",
+      "stdout_bytes": 484
+    }
+  },
+  "on-experiment-r05-write-executed": {
+    "status": "PASS",
+    "value": {
+      "production_ready": false,
+      "status": "Executed",
+      "stdout_bytes": 484
+    }
+  },
+  "on-experiment-r05-read-response": {
+    "status": "PASS",
+    "value": {
+      "production_ready": false,
+      "status": "Executed",
+      "stdout_bytes": 474
+    }
+  },
+  "on-experiment-r05-read-executed": {
+    "status": "PASS",
+    "value": {
+      "production_ready": false,
+      "status": "Executed",
+      "stdout_bytes": 474
+    }
+  },
+  "on-experiment-r05-metadata-response": {
+    "status": "PASS",
+    "value": {
+      "production_ready": false,
+      "status": "Executed",
+      "stdout_bytes": 821
+    }
+  },
+  "on-experiment-r05-metadata-executed": {
+    "status": "PASS",
+    "value": {
+      "production_ready": false,
+      "status": "Executed",
+      "stdout_bytes": 821
+    }
+  },
+  "on-finally-stop-native-response": {
+    "status": "PASS",
+    "value": {
+      "production_ready": false,
+      "status": "Stopped"
+    }
+  },
+  "on-reference-stopped": {
+    "status": "PASS",
+    "value": {
+      "ociVersion": "1.3.0",
+      "id": "on-reference",
+      "pid": 0,
+      "status": "stopped",
+      "bundle": "/opt/afs-container-perf-20261007-r1/bundle-on-reference",
+      "rootfs": "/opt/afs-container-perf-20261007-r1/rootfs-on-reference",
+      "created": "2026-10-06T20:35:01.829185917Z",
+      "owner": ""
+    }
+  },
+  "on-mount-removed": {
+    "status": "PASS",
+    "value": "absent"
+  },
+  "on-meta-gone": {
+    "status": "PASS",
+    "value": {
+      "pid": 12255,
+      "starttick": 4951903,
+      "sha256": "2c7b7d088b759e3b9375080002182aa484a424b4fa216da1fb79a1004e96168e",
+      "executable": {
+        "path": "/opt/afs-container-perf-20261007-r1/on/prefix/bin/afs-meta",
+        "device": 64769,
+        "inode": 786505
+      }
+    }
+  },
+  "on-node-gone": {
+    "status": "PASS",
+    "value": {
+      "pid": 12443,
+      "starttick": 4951921,
+      "sha256": "2cf1f538fe7af332a711f3c66a074ace140c00773826a182709a6445b8ae2645",
+      "executable": {
+        "path": "/opt/afs-container-perf-20261007-r1/on/prefix/bin/afs-node",
+        "device": 64769,
+        "inode": 786506
+      }
+    }
+  },
+  "on-control-clean": {
+    "status": "PASS",
+    "value": "absent"
+  },
+  "on-ordinary-runtime-empty": {
+    "status": "PASS",
+    "value": "empty"
+  },
+  "on-native-runtime-empty": {
+    "status": "PASS",
+    "value": "empty"
+  }
+}

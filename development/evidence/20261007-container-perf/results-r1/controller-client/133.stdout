@@ -1,0 +1,7 @@
+{
+  "request_id": "on-finally-stop-native",
+  "response": {
+    "production_ready": false,
+    "status": "Stopped"
+  }
+}

@@ -1,0 +1,368 @@
+{
+  "measured": true,
+  "order": [
+    "reference",
+    "experiment"
+  ],
+  "resources_after": {
+    "host": {
+      "diskstats": "   7       0 loop0 11 0 28 0 0 0 0 0 0 0 0 0 0 0 0 0 0\n   7       1 loop1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\n   7       2 loop2 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\n   7       3 loop3 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\n   7       4 loop4 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\n   7       5 loop5 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\n   7       6 loop6 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\n   7       7 loop7 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\n 253       0 vda 13122 2550 835590 726 40044 53356 8062724 33479 0 7488 36238 506 0 10720560 151 15367 1881\n 253       1 vda1 12522 1981 797560 706 40004 53326 8062360 33472 0 142450 34330 506 0 10720560 151 0 0\n 253      15 vda15 216 554 18326 9 2 0 2 0 0 7 9 0 0 0 0 0 0\n 259       0 vda16 190 15 13304 6 26 22 258 3 0 7 9 0 0 0 0 0 0\n 253      16 vdb 359 0 43352 10 0 0 0 0 0 10 10 0 0 0 0 0 0\n",
+      "loadavg": "0.16 0.03 0.01 2/182 11745\n",
+      "meminfo": "MemTotal:        8113632 kB\nMemFree:         3790524 kB\nMemAvailable:    7593396 kB\nBuffers:           69416 kB\nCached:          3812208 kB\nSwapCached:            0 kB\nActive:           313004 kB\nInactive:        3677816 kB\nActive(anon):     117652 kB\nInactive(anon):        0 kB\nActive(file):     195352 kB\nInactive(file):  3677816 kB\nUnevictable:       26228 kB\nMlocked:           26228 kB\nSwapTotal:             0 kB\nSwapFree:              0 kB\nZswap:                 0 kB\nZswapped:              0 kB\nDirty:            107836 kB\nWriteback:             0 kB\nAnonPages:        135428 kB\nMapped:            89232 kB\nShmem:              1008 kB\nKReclaimable:     132728 kB\nSlab:             203388 kB\nSReclaimable:     132728 kB\nSUnreclaim:        70660 kB\nKernelStack:        2960 kB\nShadowCallStack:     760 kB\nPageTables:         3132 kB\nSecPageTables:         0 kB\nNFS_Unstable:          0 kB\nBounce:                0 kB\nWritebackTmp:          0 kB\nCommitLimit:     4056816 kB\nCommitted_AS:     537404 kB\nVmallocTotal:   133141626880 kB\nVmallocUsed:       12000 kB\nVmallocChunk:          0 kB\nPercpu:             2288 kB\nHardwareCorrupted:     0 kB\nAnonHugePages:         0 kB\nShmemHugePages:        0 kB\nShmemPmdMapped:        0 kB\nFileHugePages:         0 kB\nFilePmdMapped:         0 kB\nCmaTotal:          32768 kB\nCmaFree:           29696 kB\nHugePages_Total:       0\nHugePages_Free:        0\nHugePages_Rsvd:        0\nHugePages_Surp:        0\nHugepagesize:       2048 kB\nHugetlb:               0 kB\n",
+      "opt_usage": {
+        "free": 10540486656,
+        "total": 15523123200,
+        "used": 4965859328
+      }
+    },
+    "node_metrics": {
+      "fuse_request_counts": "NOT_OBSERVED",
+      "parsed": {
+        "afs_dfs_payload_bytes_total{direction=\"recv\",operation=\"replica\",transport=\"grpc\"}": 0.0,
+        "afs_dfs_payload_bytes_total{direction=\"recv\",operation=\"replica\",transport=\"rdma\"}": 0.0,
+        "afs_dfs_payload_bytes_total{direction=\"send\",operation=\"read\",transport=\"grpc\"}": 0.0,
+        "afs_dfs_payload_bytes_total{direction=\"send\",operation=\"read\",transport=\"rdma\"}": 0.0,
+        "afs_ownerfiles_payload_bytes_total{direction=\"read\",plane=\"grpc\",side=\"client\"}": 0.0,
+        "afs_ownerfiles_payload_bytes_total{direction=\"read\",plane=\"grpc\",side=\"server\"}": 0.0,
+        "afs_ownerfiles_payload_bytes_total{direction=\"read\",plane=\"rdma\",side=\"client\"}": 0.0,
+        "afs_ownerfiles_payload_bytes_total{direction=\"read\",plane=\"rdma\",side=\"server\"}": 0.0,
+        "afs_ownerfiles_payload_bytes_total{direction=\"write\",plane=\"grpc\",side=\"client\"}": 0.0,
+        "afs_ownerfiles_payload_bytes_total{direction=\"write\",plane=\"grpc\",side=\"server\"}": 0.0,
+        "afs_ownerfiles_payload_bytes_total{direction=\"write\",plane=\"rdma\",side=\"client\"}": 0.0,
+        "afs_ownerfiles_payload_bytes_total{direction=\"write\",plane=\"rdma\",side=\"server\"}": 0.0,
+        "afs_trace_dropped_spans_total{reason=\"queue_full\"}": 0.0,
+        "afs_trace_export_duration_seconds_bucket{le=\"+Inf\"}": 0.0,
+        "afs_trace_export_duration_seconds_bucket{le=\"0.0001\"}": 0.0,
+        "afs_trace_export_duration_seconds_bucket{le=\"0.00025\"}": 0.0,
+        "afs_trace_export_duration_seconds_bucket{le=\"0.0005\"}": 0.0,
+        "afs_trace_export_duration_seconds_bucket{le=\"0.001\"}": 0.0,
+        "afs_trace_export_duration_seconds_bucket{le=\"0.0025\"}": 0.0,
+        "afs_trace_export_duration_seconds_bucket{le=\"0.005\"}": 0.0,
+        "afs_trace_export_duration_seconds_bucket{le=\"0.01\"}": 0.0,
+        "afs_trace_export_duration_seconds_bucket{le=\"0.025\"}": 0.0,
+        "afs_trace_export_duration_seconds_bucket{le=\"0.05\"}": 0.0,
+        "afs_trace_export_duration_seconds_bucket{le=\"0.1\"}": 0.0,
+        "afs_trace_export_duration_seconds_bucket{le=\"0.25\"}": 0.0,
+        "afs_trace_export_duration_seconds_bucket{le=\"0.5\"}": 0.0,
+        "afs_trace_export_duration_seconds_bucket{le=\"1\"}": 0.0,
+        "afs_trace_export_duration_seconds_bucket{le=\"2.5\"}": 0.0,
+        "afs_trace_export_duration_seconds_bucket{le=\"5\"}": 0.0,
+        "afs_trace_export_duration_seconds_count": 0.0,
+        "afs_trace_export_duration_seconds_sum": 0.0,
+        "afs_trace_export_queue_depth": 0.0,
+        "afs_trace_exported_spans_total": 0.0,
+        "afs_trace_last_success_timestamp_seconds": 0.0
+      },
+      "raw": "# HELP afs_dfs_payload_bytes_total Actual DFS file payload bytes transferred; descriptors are excluded.\n# TYPE afs_dfs_payload_bytes_total counter\nafs_dfs_payload_bytes_total{direction=\"recv\",operation=\"replica\",transport=\"grpc\"} 0\nafs_dfs_payload_bytes_total{direction=\"recv\",operation=\"replica\",transport=\"rdma\"} 0\nafs_dfs_payload_bytes_total{direction=\"send\",operation=\"read\",transport=\"grpc\"} 0\nafs_dfs_payload_bytes_total{direction=\"send\",operation=\"read\",transport=\"rdma\"} 0\n# HELP afs_ownerfiles_payload_bytes_total Successful logical OwnerFiles payload bytes by side, direction and data plane.\n# TYPE afs_ownerfiles_payload_bytes_total counter\nafs_ownerfiles_payload_bytes_total{direction=\"read\",plane=\"grpc\",side=\"client\"} 0\nafs_ownerfiles_payload_bytes_total{direction=\"read\",plane=\"grpc\",side=\"server\"} 0\nafs_ownerfiles_payload_bytes_total{direction=\"read\",plane=\"rdma\",side=\"client\"} 0\nafs_ownerfiles_payload_bytes_total{direction=\"read\",plane=\"rdma\",side=\"server\"} 0\nafs_ownerfiles_payload_bytes_total{direction=\"write\",plane=\"grpc\",side=\"client\"} 0\nafs_ownerfiles_payload_bytes_total{direction=\"write\",plane=\"grpc\",side=\"server\"} 0\nafs_ownerfiles_payload_bytes_total{direction=\"write\",plane=\"rdma\",side=\"client\"} 0\nafs_ownerfiles_payload_bytes_total{direction=\"write\",plane=\"rdma\",side=\"server\"} 0\n# HELP afs_trace_dropped_spans_total Spans dropped before OTLP export.\n# TYPE afs_trace_dropped_spans_total counter\nafs_trace_dropped_spans_total{reason=\"queue_full\"} 0\n# HELP afs_trace_export_duration_seconds OTLP batch export latency in seconds.\n# TYPE afs_trace_export_duration_seconds histogram\nafs_trace_export_duration_seconds_bucket{le=\"0.0001\"} 0\nafs_trace_export_duration_seconds_bucket{le=\"0.00025\"} 0\nafs_trace_export_duration_seconds_bucket{le=\"0.0005\"} 0\nafs_trace_export_duration_seconds_bucket{le=\"0.001\"} 0\nafs_trace_export_duration_seconds_bucket{le=\"0.0025\"} 0\nafs_trace_export_duration_seconds_bucket{le=\"0.005\"} 0\nafs_trace_export_duration_seconds_bucket{le=\"0.01\"} 0\nafs_trace_export_duration_seconds_bucket{le=\"0.025\"} 0\nafs_trace_export_duration_seconds_bucket{le=\"0.05\"} 0\nafs_trace_export_duration_seconds_bucket{le=\"0.1\"} 0\nafs_trace_export_duration_seconds_bucket{le=\"0.25\"} 0\nafs_trace_export_duration_seconds_bucket{le=\"0.5\"} 0\nafs_trace_export_duration_seconds_bucket{le=\"1\"} 0\nafs_trace_export_duration_seconds_bucket{le=\"2.5\"} 0\nafs_trace_export_duration_seconds_bucket{le=\"5\"} 0\nafs_trace_export_duration_seconds_bucket{le=\"+Inf\"} 0\nafs_trace_export_duration_seconds_sum 0\nafs_trace_export_duration_seconds_count 0\n# HELP afs_trace_export_queue_depth Sampled spans waiting in the process export queue.\n# TYPE afs_trace_export_queue_depth gauge\nafs_trace_export_queue_depth 0\n# HELP afs_trace_exported_spans_total Spans successfully exported through OTLP.\n# TYPE afs_trace_exported_spans_total counter\nafs_trace_exported_spans_total 0\n# HELP afs_trace_last_success_timestamp_seconds Unix timestamp of the most recent successful OTLP export.\n# TYPE afs_trace_last_success_timestamp_seconds gauge\nafs_trace_last_success_timestamp_seconds 0\n# EOF\n"
+    }
+  },
+  "resources_before": {
+    "host": {
+      "diskstats": "   7       0 loop0 11 0 28 0 0 0 0 0 0 0 0 0 0 0 0 0 0\n   7       1 loop1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\n   7       2 loop2 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\n   7       3 loop3 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\n   7       4 loop4 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\n   7       5 loop5 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\n   7       6 loop6 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\n   7       7 loop7 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\n 253       0 vda 13122 2550 835590 726 36897 46752 7723164 32774 0 7231 35395 499 0 10719912 151 13357 1743\n 253       1 vda1 12522 1981 797560 706 36857 46722 7722800 32767 0 142192 33625 499 0 10719912 151 0 0\n 253      15 vda15 216 554 18326 9 2 0 2 0 0 7 9 0 0 0 0 0 0\n 259       0 vda16 190 15 13304 6 26 22 258 3 0 7 9 0 0 0 0 0 0\n 253      16 vdb 359 0 43352 10 0 0 0 0 0 10 10 0 0 0 0 0 0\n",
+      "loadavg": "0.16 0.03 0.01 1/182 11611\n",
+      "meminfo": "MemTotal:        8113632 kB\nMemFree:         3917512 kB\nMemAvailable:    7579380 kB\nBuffers:           64700 kB\nCached:          3680312 kB\nSwapCached:            0 kB\nActive:           312876 kB\nInactive:        3541204 kB\nActive(anon):     117524 kB\nInactive(anon):        0 kB\nActive(file):     195352 kB\nInactive(file):  3541204 kB\nUnevictable:       26228 kB\nMlocked:           26228 kB\nSwapTotal:             0 kB\nSwapFree:              0 kB\nZswap:                 0 kB\nZswapped:              0 kB\nDirty:            106624 kB\nWriteback:             0 kB\nAnonPages:        135288 kB\nMapped:            89292 kB\nShmem:              1008 kB\nKReclaimable:     128336 kB\nSlab:             198504 kB\nSReclaimable:     128336 kB\nSUnreclaim:        70168 kB\nKernelStack:        3000 kB\nShadowCallStack:     788 kB\nPageTables:         2996 kB\nSecPageTables:         0 kB\nNFS_Unstable:          0 kB\nBounce:                0 kB\nWritebackTmp:          0 kB\nCommitLimit:     4056816 kB\nCommitted_AS:     537404 kB\nVmallocTotal:   133141626880 kB\nVmallocUsed:       12000 kB\nVmallocChunk:          0 kB\nPercpu:             2288 kB\nHardwareCorrupted:     0 kB\nAnonHugePages:         0 kB\nShmemHugePages:        0 kB\nShmemPmdMapped:        0 kB\nFileHugePages:         0 kB\nFilePmdMapped:         0 kB\nCmaTotal:          32768 kB\nCmaFree:           29696 kB\nHugePages_Total:       0\nHugePages_Free:        0\nHugePages_Rsvd:        0\nHugePages_Surp:        0\nHugepagesize:       2048 kB\nHugetlb:               0 kB\n",
+      "opt_usage": {
+        "free": 10675638272,
+        "total": 15523123200,
+        "used": 4830707712
+      }
+    },
+    "node_metrics": {
+      "fuse_request_counts": "NOT_OBSERVED",
+      "parsed": {
+        "afs_dfs_payload_bytes_total{direction=\"recv\",operation=\"replica\",transport=\"grpc\"}": 0.0,
+        "afs_dfs_payload_bytes_total{direction=\"recv\",operation=\"replica\",transport=\"rdma\"}": 0.0,
+        "afs_dfs_payload_bytes_total{direction=\"send\",operation=\"read\",transport=\"grpc\"}": 0.0,
+        "afs_dfs_payload_bytes_total{direction=\"send\",operation=\"read\",transport=\"rdma\"}": 0.0,
+        "afs_ownerfiles_payload_bytes_total{direction=\"read\",plane=\"grpc\",side=\"client\"}": 0.0,
+        "afs_ownerfiles_payload_bytes_total{direction=\"read\",plane=\"grpc\",side=\"server\"}": 0.0,
+        "afs_ownerfiles_payload_bytes_total{direction=\"read\",plane=\"rdma\",side=\"client\"}": 0.0,
+        "afs_ownerfiles_payload_bytes_total{direction=\"read\",plane=\"rdma\",side=\"server\"}": 0.0,
+        "afs_ownerfiles_payload_bytes_total{direction=\"write\",plane=\"grpc\",side=\"client\"}": 0.0,
+        "afs_ownerfiles_payload_bytes_total{direction=\"write\",plane=\"grpc\",side=\"server\"}": 0.0,
+        "afs_ownerfiles_payload_bytes_total{direction=\"write\",plane=\"rdma\",side=\"client\"}": 0.0,
+        "afs_ownerfiles_payload_bytes_total{direction=\"write\",plane=\"rdma\",side=\"server\"}": 0.0,
+        "afs_trace_dropped_spans_total{reason=\"queue_full\"}": 0.0,
+        "afs_trace_export_duration_seconds_bucket{le=\"+Inf\"}": 0.0,
+        "afs_trace_export_duration_seconds_bucket{le=\"0.0001\"}": 0.0,
+        "afs_trace_export_duration_seconds_bucket{le=\"0.00025\"}": 0.0,
+        "afs_trace_export_duration_seconds_bucket{le=\"0.0005\"}": 0.0,
+        "afs_trace_export_duration_seconds_bucket{le=\"0.001\"}": 0.0,
+        "afs_trace_export_duration_seconds_bucket{le=\"0.0025\"}": 0.0,
+        "afs_trace_export_duration_seconds_bucket{le=\"0.005\"}": 0.0,
+        "afs_trace_export_duration_seconds_bucket{le=\"0.01\"}": 0.0,
+        "afs_trace_export_duration_seconds_bucket{le=\"0.025\"}": 0.0,
+        "afs_trace_export_duration_seconds_bucket{le=\"0.05\"}": 0.0,
+        "afs_trace_export_duration_seconds_bucket{le=\"0.1\"}": 0.0,
+        "afs_trace_export_duration_seconds_bucket{le=\"0.25\"}": 0.0,
+        "afs_trace_export_duration_seconds_bucket{le=\"0.5\"}": 0.0,
+        "afs_trace_export_duration_seconds_bucket{le=\"1\"}": 0.0,
+        "afs_trace_export_duration_seconds_bucket{le=\"2.5\"}": 0.0,
+        "afs_trace_export_duration_seconds_bucket{le=\"5\"}": 0.0,
+        "afs_trace_export_duration_seconds_count": 0.0,
+        "afs_trace_export_duration_seconds_sum": 0.0,
+        "afs_trace_export_queue_depth": 0.0,
+        "afs_trace_exported_spans_total": 0.0,
+        "afs_trace_last_success_timestamp_seconds": 0.0
+      },
+      "raw": "# HELP afs_dfs_payload_bytes_total Actual DFS file payload bytes transferred; descriptors are excluded.\n# TYPE afs_dfs_payload_bytes_total counter\nafs_dfs_payload_bytes_total{direction=\"recv\",operation=\"replica\",transport=\"grpc\"} 0\nafs_dfs_payload_bytes_total{direction=\"recv\",operation=\"replica\",transport=\"rdma\"} 0\nafs_dfs_payload_bytes_total{direction=\"send\",operation=\"read\",transport=\"grpc\"} 0\nafs_dfs_payload_bytes_total{direction=\"send\",operation=\"read\",transport=\"rdma\"} 0\n# HELP afs_ownerfiles_payload_bytes_total Successful logical OwnerFiles payload bytes by side, direction and data plane.\n# TYPE afs_ownerfiles_payload_bytes_total counter\nafs_ownerfiles_payload_bytes_total{direction=\"read\",plane=\"grpc\",side=\"client\"} 0\nafs_ownerfiles_payload_bytes_total{direction=\"read\",plane=\"grpc\",side=\"server\"} 0\nafs_ownerfiles_payload_bytes_total{direction=\"read\",plane=\"rdma\",side=\"client\"} 0\nafs_ownerfiles_payload_bytes_total{direction=\"read\",plane=\"rdma\",side=\"server\"} 0\nafs_ownerfiles_payload_bytes_total{direction=\"write\",plane=\"grpc\",side=\"client\"} 0\nafs_ownerfiles_payload_bytes_total{direction=\"write\",plane=\"grpc\",side=\"server\"} 0\nafs_ownerfiles_payload_bytes_total{direction=\"write\",plane=\"rdma\",side=\"client\"} 0\nafs_ownerfiles_payload_bytes_total{direction=\"write\",plane=\"rdma\",side=\"server\"} 0\n# HELP afs_trace_dropped_spans_total Spans dropped before OTLP export.\n# TYPE afs_trace_dropped_spans_total counter\nafs_trace_dropped_spans_total{reason=\"queue_full\"} 0\n# HELP afs_trace_export_duration_seconds OTLP batch export latency in seconds.\n# TYPE afs_trace_export_duration_seconds histogram\nafs_trace_export_duration_seconds_bucket{le=\"0.0001\"} 0\nafs_trace_export_duration_seconds_bucket{le=\"0.00025\"} 0\nafs_trace_export_duration_seconds_bucket{le=\"0.0005\"} 0\nafs_trace_export_duration_seconds_bucket{le=\"0.001\"} 0\nafs_trace_export_duration_seconds_bucket{le=\"0.0025\"} 0\nafs_trace_export_duration_seconds_bucket{le=\"0.005\"} 0\nafs_trace_export_duration_seconds_bucket{le=\"0.01\"} 0\nafs_trace_export_duration_seconds_bucket{le=\"0.025\"} 0\nafs_trace_export_duration_seconds_bucket{le=\"0.05\"} 0\nafs_trace_export_duration_seconds_bucket{le=\"0.1\"} 0\nafs_trace_export_duration_seconds_bucket{le=\"0.25\"} 0\nafs_trace_export_duration_seconds_bucket{le=\"0.5\"} 0\nafs_trace_export_duration_seconds_bucket{le=\"1\"} 0\nafs_trace_export_duration_seconds_bucket{le=\"2.5\"} 0\nafs_trace_export_duration_seconds_bucket{le=\"5\"} 0\nafs_trace_export_duration_seconds_bucket{le=\"+Inf\"} 0\nafs_trace_export_duration_seconds_sum 0\nafs_trace_export_duration_seconds_count 0\n# HELP afs_trace_export_queue_depth Sampled spans waiting in the process export queue.\n# TYPE afs_trace_export_queue_depth gauge\nafs_trace_export_queue_depth 0\n# HELP afs_trace_exported_spans_total Spans successfully exported through OTLP.\n# TYPE afs_trace_exported_spans_total counter\nafs_trace_exported_spans_total 0\n# HELP afs_trace_last_success_timestamp_seconds Unix timestamp of the most recent successful OTLP export.\n# TYPE afs_trace_last_success_timestamp_seconds gauge\nafs_trace_last_success_timestamp_seconds 0\n# EOF\n"
+    }
+  },
+  "round": 5,
+  "samples": [
+    {
+      "measured": true,
+      "metadata": {
+        "raw_stdout": "{\"files\":1000,\"file_bytes\":4096,\"concurrency\":1,\"path_form\":\"absolute\",\"barrier\":\"close visibility; durability unqualified\",\"phases\":[{\"name\":\"create_write_close\",\"wall_ns\":7330112,\"client_cpu_ns\":7323917,\"operations\":1000,\"p50_ns\":5792,\"p95_ns\":10750,\"p99_ns\":18042},{\"name\":\"stat\",\"wall_ns\":459965,\"client_cpu_ns\":455960,\"operations\":1000,\"p50_ns\":333,\"p95_ns\":458,\"p99_ns\":500},{\"name\":\"read_close\",\"wall_ns\":1099559,\"client_cpu_ns\":1096916,\"operations\":1000,\"p50_ns\":958,\"p95_ns\":1125,\"p99_ns\":1334},{\"name\":\"readdir\",\"wall_ns\":111960,\"client_cpu_ns\":111709,\"operations\":1},{\"name\":\"rename\",\"wall_ns\":5170163,\"client_cpu_ns\":5162832,\"operations\":1000,\"p50_ns\":4833,\"p95_ns\":6708,\"p99_ns\":9708},{\"name\":\"unlink\",\"wall_ns\":2533831,\"client_cpu_ns\":2530917,\"operations\":1000,\"p50_ns\":2250,\"p95_ns\":3000,\"p99_ns\":3708}]}\n",
+        "result": {
+          "barrier": "close visibility; durability unqualified",
+          "concurrency": 1,
+          "file_bytes": 4096,
+          "files": 1000,
+          "path_form": "absolute",
+          "phases": [
+            {
+              "client_cpu_ns": 7323917,
+              "name": "create_write_close",
+              "operations": 1000,
+              "p50_ns": 5792,
+              "p95_ns": 10750,
+              "p99_ns": 18042,
+              "wall_ns": 7330112
+            },
+            {
+              "client_cpu_ns": 455960,
+              "name": "stat",
+              "operations": 1000,
+              "p50_ns": 333,
+              "p95_ns": 458,
+              "p99_ns": 500,
+              "wall_ns": 459965
+            },
+            {
+              "client_cpu_ns": 1096916,
+              "name": "read_close",
+              "operations": 1000,
+              "p50_ns": 958,
+              "p95_ns": 1125,
+              "p99_ns": 1334,
+              "wall_ns": 1099559
+            },
+            {
+              "client_cpu_ns": 111709,
+              "name": "readdir",
+              "operations": 1,
+              "wall_ns": 111960
+            },
+            {
+              "client_cpu_ns": 5162832,
+              "name": "rename",
+              "operations": 1000,
+              "p50_ns": 4833,
+              "p95_ns": 6708,
+              "p99_ns": 9708,
+              "wall_ns": 5170163
+            },
+            {
+              "client_cpu_ns": 2530917,
+              "name": "unlink",
+              "operations": 1000,
+              "p50_ns": 2250,
+              "p95_ns": 3000,
+              "p99_ns": 3708,
+              "wall_ns": 2533831
+            }
+          ]
+        }
+      },
+      "read": {
+        "raw_stdout": "{\"operation\":\"seq-read\",\"file_bytes\":67108864,\"io_bytes\":67108864,\"block_bytes\":1048576,\"concurrency\":1,\"barrier\":\"close\",\"pattern_byte\":90,\"seed\":257,\"operations\":64,\"wall_ns\":3288217,\"client_cpu_ns\":3283958,\"barrier_ns\":250,\"p50_ns\":42042,\"p95_ns\":49834,\"p99_ns\":53501,\"residency_observed\":false,\"resident_before_bytes\":0,\"resident_after_bytes\":0,\"content_ok\":true,\"cache_requested\":\"unobserved\",\"cache_prepare_attempts\":0,\"file_object\":{\"device\":64769,\"inode\":526739}}\n",
+        "result": {
+          "barrier": "close",
+          "barrier_ns": 250,
+          "block_bytes": 1048576,
+          "cache_prepare_attempts": 0,
+          "cache_requested": "unobserved",
+          "client_cpu_ns": 3283958,
+          "concurrency": 1,
+          "content_ok": true,
+          "file_bytes": 67108864,
+          "file_object": {
+            "device": 64769,
+            "inode": 526739
+          },
+          "io_bytes": 67108864,
+          "operation": "seq-read",
+          "operations": 64,
+          "p50_ns": 42042,
+          "p95_ns": 49834,
+          "p99_ns": 53501,
+          "pattern_byte": 90,
+          "residency_observed": false,
+          "resident_after_bytes": 0,
+          "resident_before_bytes": 0,
+          "seed": 257,
+          "wall_ns": 3288217
+        }
+      },
+      "target": "reference",
+      "write": {
+        "raw_stdout": "{\"operation\":\"seq-write\",\"file_bytes\":67108864,\"io_bytes\":67108864,\"block_bytes\":1048576,\"concurrency\":1,\"barrier\":\"fsync\",\"pattern_byte\":90,\"seed\":257,\"operations\":64,\"wall_ns\":44246641,\"client_cpu_ns\":22739303,\"barrier_ns\":24569004,\"p50_ns\":235295,\"p95_ns\":759178,\"p99_ns\":880222,\"residency_observed\":false,\"resident_before_bytes\":0,\"resident_after_bytes\":0,\"content_ok\":true,\"cache_requested\":\"unobserved\",\"cache_prepare_attempts\":0,\"file_object\":{\"device\":64769,\"inode\":526739}}\n",
+        "result": {
+          "barrier": "fsync",
+          "barrier_ns": 24569004,
+          "block_bytes": 1048576,
+          "cache_prepare_attempts": 0,
+          "cache_requested": "unobserved",
+          "client_cpu_ns": 22739303,
+          "concurrency": 1,
+          "content_ok": true,
+          "file_bytes": 67108864,
+          "file_object": {
+            "device": 64769,
+            "inode": 526739
+          },
+          "io_bytes": 67108864,
+          "operation": "seq-write",
+          "operations": 64,
+          "p50_ns": 235295,
+          "p95_ns": 759178,
+          "p99_ns": 880222,
+          "pattern_byte": 90,
+          "residency_observed": false,
+          "resident_after_bytes": 0,
+          "resident_before_bytes": 0,
+          "seed": 257,
+          "wall_ns": 44246641
+        }
+      }
+    },
+    {
+      "measured": true,
+      "metadata": {
+        "raw_stdout": "{\"files\":1000,\"file_bytes\":4096,\"concurrency\":1,\"path_form\":\"absolute\",\"barrier\":\"close visibility; durability unqualified\",\"phases\":[{\"name\":\"create_write_close\",\"wall_ns\":461693526,\"client_cpu_ns\":27567611,\"operations\":1000,\"p50_ns\":383047,\"p95_ns\":559800,\"p99_ns\":1397521},{\"name\":\"stat\",\"wall_ns\":16279501,\"client_cpu_ns\":4406288,\"operations\":1000,\"p50_ns\":15834,\"p95_ns\":18792,\"p99_ns\":25125},{\"name\":\"read_close\",\"wall_ns\":68098673,\"client_cpu_ns\":15484483,\"operations\":1000,\"p50_ns\":66751,\"p95_ns\":83002,\"p99_ns\":90002},{\"name\":\"readdir\",\"wall_ns\":7421698,\"client_cpu_ns\":93543,\"operations\":1},{\"name\":\"rename\",\"wall_ns\":105177744,\"client_cpu_ns\":13020184,\"operations\":1000,\"p50_ns\":103335,\"p95_ns\":119877,\"p99_ns\":133336},{\"name\":\"unlink\",\"wall_ns\":59406206,\"client_cpu_ns\":8875720,\"operations\":1000,\"p50_ns\":56417,\"p95_ns\":71251,\"p99_ns\":79043}]}\n",
+        "result": {
+          "barrier": "close visibility; durability unqualified",
+          "concurrency": 1,
+          "file_bytes": 4096,
+          "files": 1000,
+          "path_form": "absolute",
+          "phases": [
+            {
+              "client_cpu_ns": 27567611,
+              "name": "create_write_close",
+              "operations": 1000,
+              "p50_ns": 383047,
+              "p95_ns": 559800,
+              "p99_ns": 1397521,
+              "wall_ns": 461693526
+            },
+            {
+              "client_cpu_ns": 4406288,
+              "name": "stat",
+              "operations": 1000,
+              "p50_ns": 15834,
+              "p95_ns": 18792,
+              "p99_ns": 25125,
+              "wall_ns": 16279501
+            },
+            {
+              "client_cpu_ns": 15484483,
+              "name": "read_close",
+              "operations": 1000,
+              "p50_ns": 66751,
+              "p95_ns": 83002,
+              "p99_ns": 90002,
+              "wall_ns": 68098673
+            },
+            {
+              "client_cpu_ns": 93543,
+              "name": "readdir",
+              "operations": 1,
+              "wall_ns": 7421698
+            },
+            {
+              "client_cpu_ns": 13020184,
+              "name": "rename",
+              "operations": 1000,
+              "p50_ns": 103335,
+              "p95_ns": 119877,
+              "p99_ns": 133336,
+              "wall_ns": 105177744
+            },
+            {
+              "client_cpu_ns": 8875720,
+              "name": "unlink",
+              "operations": 1000,
+              "p50_ns": 56417,
+              "p95_ns": 71251,
+              "p99_ns": 79043,
+              "wall_ns": 59406206
+            }
+          ]
+        }
+      },
+      "read": {
+        "raw_stdout": "{\"operation\":\"seq-read\",\"file_bytes\":67108864,\"io_bytes\":67108864,\"block_bytes\":1048576,\"concurrency\":1,\"barrier\":\"close\",\"pattern_byte\":90,\"seed\":257,\"operations\":64,\"wall_ns\":19912806,\"client_cpu_ns\":18759124,\"barrier_ns\":125,\"p50_ns\":232420,\"p95_ns\":362464,\"p99_ns\":3338176,\"residency_observed\":false,\"resident_before_bytes\":0,\"resident_after_bytes\":0,\"content_ok\":true,\"cache_requested\":\"unobserved\",\"cache_prepare_attempts\":0,\"file_object\":{\"device\":45,\"inode\":5013}}\n",
+        "result": {
+          "barrier": "close",
+          "barrier_ns": 125,
+          "block_bytes": 1048576,
+          "cache_prepare_attempts": 0,
+          "cache_requested": "unobserved",
+          "client_cpu_ns": 18759124,
+          "concurrency": 1,
+          "content_ok": true,
+          "file_bytes": 67108864,
+          "file_object": {
+            "device": 45,
+            "inode": 5013
+          },
+          "io_bytes": 67108864,
+          "operation": "seq-read",
+          "operations": 64,
+          "p50_ns": 232420,
+          "p95_ns": 362464,
+          "p99_ns": 3338176,
+          "pattern_byte": 90,
+          "residency_observed": false,
+          "resident_after_bytes": 0,
+          "resident_before_bytes": 0,
+          "seed": 257,
+          "wall_ns": 19912806
+        }
+      },
+      "target": "experiment",
+      "write": {
+        "raw_stdout": "{\"operation\":\"seq-write\",\"file_bytes\":67108864,\"io_bytes\":67108864,\"block_bytes\":1048576,\"concurrency\":1,\"barrier\":\"fsync\",\"pattern_byte\":90,\"seed\":257,\"operations\":64,\"wall_ns\":57092504,\"client_cpu_ns\":15741246,\"barrier_ns\":19972516,\"p50_ns\":543800,\"p95_ns\":884305,\"p99_ns\":1116226,\"residency_observed\":false,\"resident_before_bytes\":0,\"resident_after_bytes\":0,\"content_ok\":true,\"cache_requested\":\"unobserved\",\"cache_prepare_attempts\":0,\"file_object\":{\"device\":45,\"inode\":5013}}\n",
+        "result": {
+          "barrier": "fsync",
+          "barrier_ns": 19972516,
+          "block_bytes": 1048576,
+          "cache_prepare_attempts": 0,
+          "cache_requested": "unobserved",
+          "client_cpu_ns": 15741246,
+          "concurrency": 1,
+          "content_ok": true,
+          "file_bytes": 67108864,
+          "file_object": {
+            "device": 45,
+            "inode": 5013
+          },
+          "io_bytes": 67108864,
+          "operation": "seq-write",
+          "operations": 64,
+          "p50_ns": 543800,
+          "p95_ns": 884305,
+          "p99_ns": 1116226,
+          "pattern_byte": 90,
+          "residency_observed": false,
+          "resident_after_bytes": 0,
+          "resident_before_bytes": 0,
+          "seed": 257,
+          "wall_ns": 57092504
+        }
+      }
+    }
+  ]
+}

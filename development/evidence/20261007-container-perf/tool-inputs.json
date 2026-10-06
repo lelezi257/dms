@@ -1,0 +1,7 @@
+{
+  "development/acceptance/container-workspace-perf-linux.py": "5e53d25a936aad1894374905107320b80db9b66e28e1a286aada8a87f5a0e180",
+  "development/acceptance/test_container_perf.py": "ef2f7d6219761ec27068a25d64791ae44a46ce4ca42c5b8b25e73622024ea5df",
+  "development/acceptance/installed-smoke-linux.py": "2e857135d05e5e7380d3dc5f4cec51a80a7045541c7f5f3fc708c6dffc9c1bea",
+  "development/acceptance/native-workspace-linux.py": "c11984813961fbc0945b2a7b773385d1e4598f9495a972685a863122354c5772",
+  "scripts/ownerfs/native-workspace-control.py": "11b32a45f5e24801260acddfc47e3a4e7e16385c3f0a2af08e0dba9a9573217b"
+}

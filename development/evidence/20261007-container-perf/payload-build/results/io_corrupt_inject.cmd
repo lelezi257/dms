@@ -1,0 +1,1 @@
+python3 -c from pathlib import Path; p=Path("/var/tmp/afs-container-perf-payload-20261007-r1/work/io-valid.bin"); b=bytearray(p.read_bytes()); b[123] ^= 255; p.write_bytes(b); print("corrupted byte 123")

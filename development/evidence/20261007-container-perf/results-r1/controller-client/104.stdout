@@ -1,0 +1,8 @@
+{
+  "request_id": "on-experiment-r02-metadata",
+  "response": {
+    "production_ready": false,
+    "status": "Executed",
+    "stdout_bytes": 821
+  }
+}

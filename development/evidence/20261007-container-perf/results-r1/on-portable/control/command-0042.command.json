@@ -1,0 +1,1 @@
+{"argv":["--root","/opt/afs-container-perf-20261007-r1/on/control/runtime-state","kill","--all","afs-native-perf-start","KILL"],"program":"/usr/local/sbin/runc","timeout_ms":1000}

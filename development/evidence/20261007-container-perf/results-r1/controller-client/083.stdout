@@ -1,0 +1,14 @@
+{
+  "request_id": "perf-start",
+  "response": {
+    "access_generation": 1,
+    "container": "afs-native-perf-start",
+    "epoch": 1,
+    "home_node": "node-a",
+    "home_session": "507c35e9-5b6b-4d7c-ba38-c9e32f98fd86",
+    "production_ready": false,
+    "root": "root-776f726b7370616365",
+    "scope": "single managed experimental container; not READY or revocation ACK",
+    "state": "FinalVerified"
+  }
+}

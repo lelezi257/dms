@@ -68,7 +68,7 @@
 | G2.10 | OwnerFs本地小规模写 | 相同持久屏障，计open/write/sync/close，读回正确并达标 | **性能FAIL**；e925c5b 64MiB/C1/5对，同fdatasync，功能PASS，dev0.6297/release0.5879×ext4<0.90，摸底数据保留、专项优化暂缓；[证据](evidence/20261006-e2e-current/r4/README.md) |
 | G2.11 | OwnerFs本地删除 | 固定小文件集合，删除正确，操作性能对照报告 | **完成（限定小项）**；e925c5b 100×4KiB/C1/5对，正确且对照报告已留，无新增比例门槛；[证据](evidence/20261006-e2e-current/r4/README.md) |
 | G2.12 | bind功能验收（独立开关） | 显式可配置、默认OFF；OFF原FUSE回归；ON受管挂载/启动/停止、必要语义/权限、引用排空及重启对账；不安全配置拒绝 | **进行中**；[交接](current-checkpoint.md#historical-evidence)、[基础资格](current-checkpoint.md#historical-evidence)；[管理员实验接线](native-workspace-slice.md)，默认OFF；[实际受管单容器生命周期/清理PASS](evidence/20261007-managed-workspace/README.md)；[短语义](evidence/20261007-managed-semantics/README.md)：mmap字节/权限PASS，锁/append偏移/watch传播FAIL；完整ON及生产开关未资格化 |
-| G2.13 | bind性能验收（独立开关） | 同候选OFF/ON/ext4配对；核心数据读写和元数据接近ext4，内容/语义正确 | **进行中**；已有部分容器负载接近ext4，完整出口未过 |
+| G2.13 | bind性能验收（独立开关） | 同候选OFF/ON/ext4配对；核心数据读写和元数据接近ext4，内容/语义正确 | **进行中**；[当前6d51aeb小配对诊断](evidence/20261007-container-perf/README.md)：OFF/ON各1预热+5轮，ON写/读耗时1.023/1.031×ext4、六元数据1.048–1.158×ext4；内容/清理通过，缓存/FUSE计数限制及锁/append/watch缺口保留，完整出口未过 |
 | G2.14 | OwnerFs远端小规模读 | 同Home/缓存/接口MooseFS对照，内容正确并持平 | **待验收** |
 | G2.15 | OwnerFs远端小规模写 | 同持久屏障/数据量，跨节点读回正确并持平 | **待验收** |
 | G2.16 | OwnerFs远端删除 | 跨挂载可见性正确，操作性能对照报告 | **待验收** |

@@ -1,0 +1,5 @@
+{"msg":"Mounting /opt/afs-container-perf-20261007-r1/on/mount/ownerfs","level":"INFO","ts":"2026-10-06T20:35:01.724664199Z","instance":"node-a","service_name":"afs-node"}
+{"msg":"node.ready","level":"INFO","ts":"2026-10-06T20:35:01.727028985Z","instance":"node-a","service_name":"afs-node","dfs":false,"ownerfs":true,"uds":"/opt/afs-container-perf-20261007-r1/on/run/node.sock","rest":"127.0.0.1:24501","grpc":"127.0.0.1:24500"}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-06T20:35:01.798234237Z","instance":"node-a","service_name":"afs-node","message":"OwnerFs root is not registered in Meta","kind":"NotFound","code":34078721}
+{"msg":"FUSE operation parse failed for request RequestId(22): Unknown FUSE opcode (52)","level":"WARN","ts":"2026-10-06T20:35:01.878558586Z","instance":"node-a","service_name":"afs-node"}
+{"msg":"services.stopped","level":"INFO","ts":"2026-10-06T20:35:05.138807379Z","instance":"node-a","service_name":"afs-node"}

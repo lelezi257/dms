@@ -1,0 +1,8 @@
+pid=10503
+exe=/opt/afs-container-perf-20261007-r1/off/prefix/bin/afs-meta
+config=/opt/afs-container-perf-20261007-r1/off/etc/meta.toml
+start_ticks=4951107
+boot_id=57e1dc25-0d6c-4738-ba94-015bc45428dd
+lifecycle=/opt/afs-container-perf-20261007-r1/off/run/meta.lifecycle.zWlhYH
+supervisor_pid=10487
+cmdline=/opt/afs-container-perf-20261007-r1/off/prefix/bin/afs-meta --config /opt/afs-container-perf-20261007-r1/off/etc/meta.toml

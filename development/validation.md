@@ -64,3 +64,7 @@ Every report must separate:
 - OFF/FUSE evidence from bind/native ON evidence.
 
 If a result is blocked by environment, record the blocker and continue with independent items that do not depend on that environment.
+
+## Container workspace small diagnostic
+
+The [fixed diagnostic slice](container-workspace-perf-slice.md) restores the two first-party C payloads by fixed Git identity, builds only on Linux, and times actual OCI-process work through OFF/FUSE or controlled ON exec. One warmup/five alternating paired rounds retain content, exact argv, namespace/source, live ELF and cleanup evidence. [Current data](evidence/20261007-container-perf/README.md) is diagnostic only; unobserved cache and unavailable exact FUSE counts remain limits, and failed mixed semantics block G2.13 qualification. Do not repeat this case merely to polish noisy small measurements.

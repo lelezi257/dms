@@ -1,0 +1,15 @@
+[
+  {
+    "deleted": true,
+    "id": "off-experiment",
+    "stopped": true
+  },
+  {
+    "deleted": true,
+    "id": "off-reference",
+    "stopped": true
+  },
+  {
+    "product_stop": "PASS"
+  }
+]

@@ -1,0 +1,7 @@
+{
+  "source_commit": "6d51aeb45c1ed8669d80f612b3817e6d1bdabe04",
+  "compiler_inputs": 157,
+  "map_sha256": "66dbbe3e0071fcec1efc9cf370c709a99f025d39acd4f37ba57582c874429304",
+  "manifest": "../20261007-managed-workspace/compiler-inputs.json",
+  "limit": "C payloads are first-party acceptance tools; Rust compiler inputs unchanged"
+}
